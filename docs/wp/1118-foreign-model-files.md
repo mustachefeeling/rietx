@@ -1,9 +1,9 @@
 # WP-1118 — foreign model files: read a refinement in, write one back
 
-Milestone: unscheduled · Status: 🔄 2026-09-10 — the TOPAS `.inp` reader
-landed (PR #98), the FullProf `.pcr` reader (PR #111) and the GSAS-I `.PRM`
-instrument-parameter reader (PR #248); the model-format registry, the GSAS
-`.EXP` half and every writer remain
+Milestone: unscheduled · Status: 🔄 2026-09-13 — the TOPAS `.inp` reader
+landed (PR #98), the FullProf `.pcr` reader (PR #111), the GSAS-I `.PRM`
+instrument-parameter reader (PR #248) and the model-format registry over them;
+the GSAS `.EXP` half, the `.gpx` reader and every writer remain
 Depends on: — (WP-1110 found it; WP-1102 owns the one seam that overlaps)
 
 ## Goal
@@ -209,17 +209,14 @@ format token is spelled in `_about.py`, never inline (root CLAUDE.md § Conventi
 
 ## Tasks
 
-- [ ] Decide the answer's shape (model + vary set, or a `Project`) and stand up
-      the model-format registry beside `PATTERN_FORMATS`, with the diagnostics
-      channel and the "report or refuse, never drop" rule written down first.
-      *Half landed with the TOPAS reader* — the diagnostics channel, the rule
-      (`io/CLAUDE.md` § Project readers) and a per-format shape (`TopasModel`
-      + `to_structure`). What remains is the registry itself, whether the
-      answer is a `Project`, whether the readers are top-level `rx.` exports,
-      and — new since PR #248 — **which registry the third reader kind belongs
-      to**, `read_gsas_prm` returning an `Instrument` from neither
-      `PATTERN_FORMATS` nor `io/projects/` (§ Seams). #107, #103 and
-      [1314](1314-mfile-reader.md) all wait on it.
+- [x] Decide the answer's shape and stand up the model-format registry beside
+      `PATTERN_FORMATS`. — 2026-09-13. The unit is a **refinement**, not a
+      foreign file: `PROJECT_FORMATS` + `read_project_model` dispatch on
+      content, the answer is `ProjectModel` (the format's own model, tagged —
+      never a union with blanks), `read_gsas_prm` and `read_recipe` stay
+      outside it with their reasons written down, and the readers are top-level
+      `rx.` exports with a `capabilities().project_formats` arm. #107, #103 and
+      [1314](1314-mfile-reader.md) are unblocked.
 - [x] TOPAS `.inp` reader — the format with the evidence behind it.
 - [ ] GSAS `.EXP` + `.PRM` reader, and make `tests/test_acceptance_fap.py` take
       its protocol from the reader instead of from transcribed constants.
