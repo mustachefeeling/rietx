@@ -16,8 +16,34 @@ tensor $G^*$ {cite}`itc-b`:
 *Source:* `rietx.crystallography.lattice`
 
 where $\mathbf{h} = (h, k, l)$ is the row vector of Miller indices and $G$ is
-the direct metric tensor built from $(a, b, c, \alpha, \beta, \gamma)$.
-Written out, with $(A, B, C, D, E, F) = (G^*_{11}, G^*_{22}, G^*_{33},
+the direct metric tensor: the matrix of dot products of the cell edge vectors,
+so it is what turns the six cell parameters into every length and angle the
+lattice has.
+
+```{math}
+:label: pos-metric
+
+G \;=\;
+\begin{pmatrix}
+\mathbf{a}\cdot\mathbf{a} & \mathbf{a}\cdot\mathbf{b} & \mathbf{a}\cdot\mathbf{c} \\
+\mathbf{b}\cdot\mathbf{a} & \mathbf{b}\cdot\mathbf{b} & \mathbf{b}\cdot\mathbf{c} \\
+\mathbf{c}\cdot\mathbf{a} & \mathbf{c}\cdot\mathbf{b} & \mathbf{c}\cdot\mathbf{c}
+\end{pmatrix}
+\;=\;
+\begin{pmatrix}
+a^2 & ab\cos\gamma & ac\cos\beta \\
+ab\cos\gamma & b^2 & bc\cos\alpha \\
+ac\cos\beta & bc\cos\alpha & c^2
+\end{pmatrix}
+\quad [\text{Å}^2].
+```
+
+*Source:* `rietx.crystallography.lattice.direct_metric_tensor`
+
+It is symmetric by construction, and $G^*$, its inverse, is in Å⁻². A cubic
+cell makes $G = a^2 I$, and an orthogonal one makes it diagonal; every
+off-diagonal element is an angle that is not 90°. Written out, with
+$(A, B, C, D, E, F) = (G^*_{11}, G^*_{22}, G^*_{33},
 2G^*_{23}, 2G^*_{13}, 2G^*_{12})$, {eq}`pos-dspacing` is the familiar
 quadratic form
 
@@ -163,8 +189,8 @@ down.
 The **zero-point error** is a constant, and is the only one common to every
 geometry. **Sample displacement** in
 Bragg-Brentano geometry, for a flat specimen whose surface sits a distance
-$s$ off the goniometer axis with goniometer radius $R$
-{cite}`wilson1963,klug1974`:
+$s$ off the goniometer axis with goniometer radius $R$ — both in mm, and only
+their ratio enters {cite}`wilson1963,klug1974`:
 
 ```{math}
 :label: pos-displacement
@@ -212,7 +238,7 @@ whose diffracting volume sits off the centre of the $2\theta$ circle
 
 Here $a$ is the displacement along the incident beam, positive downstream,
 and $b$ the displacement perpendicular to it in the diffraction plane,
-positive toward increasing $2\theta$. The paper prints the same expression as
+positive toward increasing $2\theta$ — both in mm, like $R$. The paper prints the same expression as
 $(x \sin 2\theta - y \cos 2\theta)/R$ and draws no axes; the signs above are
 fixed by derivation, and other codes attach the letter $x$ to the other term,
 so the *shapes* are what carries the meaning. Both are exactly zero when the

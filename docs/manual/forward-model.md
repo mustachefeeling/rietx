@@ -8,7 +8,8 @@ triple sum over phases $p$, source emission lines $l$ and reflections $k$:
 :label: fm-ycalc
 
 y_{\mathrm{calc}}(2\theta_i) \;=\; y_{\mathrm{bkg}}(2\theta_i)
-\;+\; \sum_p \sum_l \sum_k I_{pk}\, w_l\, \Omega_{lk}(2\theta_i).
+\;+\; \sum_p \sum_l \sum_k I_{pk}\, w_l\, \Omega_{lk}(2\theta_i)
+\qquad [\text{counts}]
 ```
 
 *Source:* `rietx.model.forward`
@@ -17,9 +18,15 @@ Each emission line (Kα₁/Kα₂, …) diffracts at its own Bragg angle, so the
 doublet splitting grows with $\tan\theta$ — it is never a fixed $2\theta$
 offset (see {eq}`pos-doublet`). The line weight $w_l$ is the intensity of
 line $l$ relative to line 0, which is structurally locked at 1 because it is
-degenerate with the phase scales. $\Omega_{lk}$ is a unit-area profile
-(chapter {ref}`ch-profiles`), so the reflection intensity $I_{pk}$ enters
-purely as an area.
+degenerate with the phase scales.
+
+The three factors carry the units the rest of the manual assumes.
+$\Omega_{lk}$ is a **unit-area** profile (chapter {ref}`ch-profiles`), so it is
+a density on the angle axis, in deg⁻¹; $w_l$ is a ratio; and the reflection
+intensity $I_{pk}$ is therefore an **area**, in counts·deg 2θ, rather than a
+peak height. That is the one unit conversion a reader of another code is
+likeliest to need: a reflection intensity here is what the line integrates to,
+not what it reaches.
 
 ## Three intensity models
 
@@ -35,9 +42,13 @@ I_{pk} \;=\; S_p \cdot m_{pk} \cdot |F_{pk}|^2 \cdot \mathrm{Lp}(2\theta_{lk}),
 *Source:* `rietx.model.forward`
 
 with phase scale $S_p$, multiplicity $m_{pk}$ (chapter {ref}`ch-intensities`),
-structure factor $|F|^2$ and the Lorentz-polarisation factor Lp (chapter
-{ref}`ch-corrections`). $|F|^2$ depends only on $\sin\theta/\lambda = 1/2d$
-and is therefore shared across emission lines; Lp is evaluated per line.
+structure factor $|F|^2$ in e² and the Lorentz-polarisation factor Lp (chapter
+{ref}`ch-corrections`). Everything but $S_p$ is fixed by the model, so the
+scale is what carries counts·deg 2θ and it is dimensionless in no useful sense:
+it is meaningful only against the other phases' scales, which is why the
+quantitative fractions of {eq}`corr-qpa` are ratios. $|F|^2$ depends only on
+$\sin\theta/\lambda = 1/2d$ and is therefore shared across emission lines; Lp
+is evaluated per line.
 
 **Le Bail mode** {cite}`lebail1988` treats the $I_{pk}$ as empirical
 per-$hkl$ values, updated *between* least-squares cycles by

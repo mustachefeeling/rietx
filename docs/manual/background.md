@@ -36,7 +36,8 @@ declared feature, summed on top of whichever model is in use:
 :label: bg-peak
 
 y_{\mathrm{peak}}(2\theta) \;=\; h \,
-\exp\!\left[-4\ln 2 \left(\frac{2\theta - 2\theta_0}{\Gamma}\right)^{\!2}\right].
+\exp\!\left[-4\ln 2 \left(\frac{2\theta - 2\theta_0}{\Gamma}\right)^{\!2}\right]
+\qquad [\text{counts}],
 ```
 
 *Source:* `rietx.background.models.hump_curve`

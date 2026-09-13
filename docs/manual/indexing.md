@@ -16,7 +16,8 @@ With $(h,k,l)$ assigned to a line, the measured quantity is
 :label: idx-qform
 
 Q \;\equiv\; \frac{1}{d^2} \;=\; A h^2 + B k^2 + C l^2 + D k l + E h l
-+ F h k,
++ F h k
+\qquad [\text{Å}^{-2}],
 ```
 
 *Source:* `rietx.crystallography.lattice.inv_d_squared`

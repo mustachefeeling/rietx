@@ -156,7 +156,8 @@ homogeneous **quartic** in $(h, k, l)$:
 ```{math}
 :label: ms-sigma
 
-\sigma^2(M) \;=\; 10^{-12} \sum_{H+K+L=4} S_{HKL}\; h^H k^K l^L,
+\sigma^2(M) \;=\; 10^{-12} \sum_{H+K+L=4} S_{HKL}\; h^H k^K l^L
+\quad [\text{Å}^{-4}],
 ```
 
 *Source:* `rietx.crystallography.stephens`

@@ -153,6 +153,26 @@ def test_no_unsubstituted_substitution_survives_the_build(built_manual):
     )
 
 
+def test_the_tch_coefficients_in_print_are_the_ones_the_code_runs():
+    """(3.6) and (3.7) print seven literals, and they have to be the code's.
+
+    This is the case the manual's usual anti-divergence rule cannot cover. A
+    constant is normally injected as a MyST substitution, which is not expanded
+    inside a `{math}` directive (WP-1408), so a coefficient that belongs
+    *inside* an equation has to be typed — and then nothing holds the two
+    copies together. Reading them back out of the chapter is what does.
+    """
+    from rietx.model.profiles.pseudovoigt import _TCH_ETA, _TCH_GAMMA
+
+    text = (MANUAL_DIR / "profiles.md").read_text(encoding="utf-8")
+    for label, expected in (("prof-tch-gamma", _TCH_GAMMA), ("prof-tch-eta", _TCH_ETA)):
+        block = re.search(rf":label: {label}\n(.*?)^```", text, re.S | re.M)
+        assert block, f"{label}: equation not found in profiles.md"
+        printed = [float(n) for n in re.findall(r"\d+\.\d{4,}", block.group(1))]
+        assert printed == [abs(c) for c in expected], (
+            f"{label} prints {printed}, the code runs {list(expected)}")
+
+
 def test_every_bib_entry_is_cited():
     """references.bib carries no dead weight: an uncited entry is either a
     chapter that lost its citation or an entry that should be pruned."""

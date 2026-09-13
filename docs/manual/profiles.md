@@ -1,11 +1,24 @@
 (ch-profiles)=
 # Peak profiles
 
+(sec-width-split)=
 ## The instrument ⊕ sample width split
+
+Two symbols run through this chapter and the next, and only one of them is an
+operator. **⊗ is convolution**: a measured line is the specimen's line
+convolved with the instrument's, which is why the shape to approximate is a
+Voigt, a Gaussian ⊗ Lorentzian. **⊕ is shorthand**, not arithmetic. It names
+the rule convolution imposes on the *widths*, and that rule is not addition:
 
 The Gaussian and Lorentzian component widths each carry an instrument part
 and a sample part, combined by the physics of convolution: **Gaussian
 variances add, Lorentzian FWHMs add.**
+
+So "instrument ⊕ sample" means a specimen contribution combined with an
+instrument contribution by that rule, never two numbers of degrees added
+together. The two widths below are **full widths at half maximum** in deg 2θ;
+the Gaussian one is written as a law for its square because it is the variance
+that adds, which is where its deg² come from.
 
 ```{math}
 :label: prof-caglioti-g
@@ -159,9 +172,18 @@ unbounded build for any fit that stays off the floor.
 
 ## Thompson-Cox-Hastings pseudo-Voigt
 
+**TCH** is Thompson, Cox and Hastings, whose 1987 paper {cite}`thompson1987`
+supplies the two polynomials below; the trailing **Z** of the class name
+`ProfileTCHZ` is a label other Rietveld codes attach to this profile family,
+and different codes attach it to different extra width terms. What rietx's
+class holds is exactly the five coefficients $U, V, W, X, Y$ of
+{eq}`prof-caglioti-g` and {eq}`prof-caglioti-l` and nothing else, so read the
+θ-law and not the label — the rule this chapter's first warning already states
+for X and Y.
+
 The default profile approximates the Voigt (Gaussian ⊗ Lorentzian) as a
-linear blend with a single FWHM $\Gamma$ and mixing $\eta$
-{cite}`thompson1987`:
+linear blend with a single FWHM $\Gamma$ [deg 2θ] and a mixing fraction
+$\eta$:
 
 ```{math}
 :label: prof-pv
@@ -188,6 +210,34 @@ linear blend with a single FWHM $\Gamma$ and mixing $\eta$
 ```
 
 *Source:* `rietx.model.profiles.pseudovoigt`
+
+### Where those coefficients come from, and what they cost
+
+They are a **fit, not a derivation**, and that is the whole of their origin. A
+Voigt has no closed-form width and no exact pseudo-Voigt equivalent, so
+Thompson, Cox and Hastings fitted two polynomials: {eq}`prof-tch-gamma` for the
+FWHM of the Voigt that $\Gamma_G$ and $\Gamma_L$ build, and
+{eq}`prof-tch-eta` for the mixing that makes a pseudo-Voigt of that width match
+its shape. No single digit carries physics, and none is a rietx constant to
+retune — they are the paper's, transcribed.
+
+What is worth knowing is how good the pair is, and that does not have to be
+quoted from the paper: rietx ships the exact convolution as
+{eq}`prof-voigt`, so the approximation can be measured against it. Across the
+whole range $0 \le q \le 1$, with the true FWHM found by bisecting the Faddeeva
+Voigt (`tests/test_voigt.py`):
+
+* {eq}`prof-tch-gamma` reproduces the true Voigt FWHM to within **0.43 %**,
+  worst near $\Gamma_L \approx \Gamma_G/2$, and is exact in both pure limits;
+* the pseudo-Voigt built from the pair departs from the exact Voigt by at most
+  **1.3 % of the peak height**, worst at $q \approx 0.56$.
+
+Where that 1.3 % sits matters more than its size. At the peak **centre** the
+departure stays under 0.25 % across the whole range; the worst of it is on the
+**flanks**, at $x \approx \pm0.28\,\Gamma$, which is where a peak's position
+and width derivatives live. So the choice between `"tchz_pv"` and `"voigt"` is
+not a choice about peak heights, and a pattern whose lines are neither nearly
+Gaussian nor nearly Lorentzian is where the exact shape has something to offer.
 
 Both component shapes are unit-area normalised, so $\int \mathrm{pV}\,dx =
 1$ and the reflection intensity of {eq}`fm-rietveld` enters purely through
@@ -275,8 +325,10 @@ V(x; \sigma, \gamma) \;=\; \frac{\operatorname{Re}[w(z)]}{\sigma\sqrt{2\pi}},
 *Source:* `rietx.model.profiles.voigt`
 
 where $\sigma$ is the Gaussian standard deviation and $\gamma$ the
-Lorentzian *half*-width at half maximum, recovered from the same component
-FWHMs of {eq}`prof-caglioti-g`-{eq}`prof-caglioti-l`:
+Lorentzian *half*-width at half maximum, both in deg 2θ and both recovered from
+the same component FWHMs of {eq}`prof-caglioti-g`-{eq}`prof-caglioti-l` — this
+is the one place in the manual where a width is not an FWHM, and the conversion
+is the equation:
 
 ```{math}
 :label: prof-voigt-widths

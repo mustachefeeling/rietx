@@ -91,6 +91,14 @@ annotation on every letter: root CLAUDE.md already fixes the defaults (degrees
 throughout, U/V/W in deg²(2θ), Biso in Å², λ in Å, k = sinθ/λ), and Part 2 has
 never written them down for the reader.
 
+### C2. The metric tensor is named and never written
+
+`peak-positions.md` opens on $1/d^2 = \mathbf{h}\cdot G^*\cdot\mathbf{h}^\top$
+and says only that $G$ is "the direct metric tensor built from
+$(a, b, c, \alpha, \beta, \gamma)$" — the one object the whole chapter rests on,
+never written down. **Missed when this file was first written and added the same
+day**, from the reader's own list.
+
 ### D. ⊕ and ⊗ are used as if they were defined
 
 `profiles.md:4` heads a section "The instrument ⊕ sample width split" and
@@ -214,17 +222,20 @@ entirely; B's guard is a measurement script, not a test, for the same reason
   `docs/manual/check_equations.py` lands with them: playwright, not a
   dependency, `make_screenshots.py`'s conventions, printing ink/cell/clearance
   per labelled equation so the table above is reproducible.
-- [ ] **C — units.** A short "Symbols and units" section in `manual.md`'s Part 2
+- [x] **C2 — the metric tensor written out** as a 3×3 matrix in
+  `peak-positions.md`, dot-product form beside closed form, in Å², with its
+  source line.
+- [x] **C — units.** A short "Symbols and units" section in `manual.md`'s Part 2
   preamble stating the defaults (deg 2θ; widths as FWHM in deg 2θ; Å; Å⁻¹;
   counts; counts·deg; cm⁻¹), then a sweep of the twelve chapters annotating every
   symbol whose unit the defaults do not settle — Γ, y, I, w, Ω first.
-- [ ] **D — ⊕ and ⊗ defined where they are first used** (`profiles.md` § the
+- [x] **D — ⊕ and ⊗ defined where they are first used** (`profiles.md` § the
   split), Part 1's three uses pointed at `{ref}`ch-profiles``.
-- [ ] **E1 — where the TCH coefficients come from**: a paragraph saying they are
+- [x] **E1 — where the TCH coefficients come from**: a paragraph saying they are
   a fit and not a derivation, with the approximation error **measured on this
   tree** against `profiles.voigt` across Γ_L/Γ ∈ [0, 1], reported in the WP and
   quoted on the page.
-- [ ] **E2 — TCHZ expanded** where the shape is named, to whatever a citable
+- [x] **E2 — TCHZ expanded** where the shape is named, to whatever a citable
   source supports (see § E); the convention note that rietx writes that
   coefficient $P$.
 - [ ] **F — `*Source:*` becomes a link.** `REPO_URL` in `_about.py`; a `{source}`
