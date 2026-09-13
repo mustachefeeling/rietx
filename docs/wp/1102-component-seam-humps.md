@@ -245,6 +245,17 @@ until it is taken, none of the three remaining items has a settled shape.
 - [x] **The seam decision, taken 2026-09-13** (grounds in Context § The seam
       decision). Build the union; `background_peaks` becomes `extra_components`
       with a read-side migration; no second member in this WP.
+- [x] **The union, and the member contract.** `ExtraComponent` discriminated on
+      `kind`; `HumpComponent` its one member. Six clauses in the union's
+      docstring, clause 6 written to admit an **expression** member and to fence
+      only the callable — the correction to this WP's own three grounds, none of
+      which survives contact with TOPAS's architecture. What the union has not
+      proved is stated beside it rather than left implied.
+- [x] **The rename and its read-side migration.** `schemas/migrate.py`, one
+      textual authority applied at three named read points (`READ_POINTS`, a
+      claim with a test). Seven tests; the load-bearing one is the stored plan
+      glob, the half that fails in silence. `SCHEMA_VERSION` 0.17 → 0.18, the
+      break recorded in the v1.4 record for the release notes.
 - [x] ✅ v1.2 Schema: `BackgroundPeak` + `BACKGROUND_PEAK_FWHM_MIN` +
       reachability validator (the `MARCH_R_MIN` pattern); JSON round-trip;
       release-notes line (`../releases/1.2.0.md`). `eta` and a stored `area`
@@ -268,15 +279,21 @@ until it is taken, none of the three remaining items has a settled shape.
 - [x] ✅ v1.2 The width fence, as `BACKGROUND_PEAK_TOO_NARROW` +
       `BACKGROUND_PEAK_MIN_WIDTH_MULT` measured against the instrument alone —
       **but see the open item below on its constant.**
-- [ ] **`capabilities()` has no arm for the seam.** `features` carries no
-      `background_peaks`/component key, so a client cannot ask whether this
-      build has it. Derived predicate, export name as data in `_SURFACE_FLAGS`,
-      per WP-1037.
-- [ ] **`BACKGROUND_PEAK_MIN_WIDTH_MULT` rests on one case** (20.8×, inside a
-      3-5 band, no paper) — the width-ladder measurement this WP specified was
-      never run, and a tuned threshold is what this repo's own rule forbids.
-      Either measure the ladder, cite practice, or say in the constant's
-      docstring that it is a single-case calibration and why that is enough.
+- [x] **`capabilities()` gained two things, not one.** A schema-shaped
+      `features["extra_components"]` saying the seam exists, and
+      `Capabilities.extra_component_kinds` read off the union saying which
+      members this build has — the `radiations` split one vocabulary over, so
+      1103's peak joins the arm by existing. Not a `_SURFACE_FLAGS` entry: the
+      seam is a *field*, not an export, so the flag is schema-shaped.
+- [x] **`HUMP_MIN_WIDTH_MULT` says so now.** Read in full, its docstring was
+      better than the finding claimed: the number is reasoned from a measured
+      case (NIST BT-1, 5.81° FWHM at 14.4° against 0.25-0.30° instrumental,
+      ~20×) plus a physical argument against 1.5, so it is *measured*, not
+      *tuned*, and the repo's rule is met. What it did not say is that the
+      sample is one specimen. It now states that, what would move it (a width
+      ladder over several specimens, not run; a published ratio, which does not
+      appear to exist), and how to read a firing near the edge — the diagnostic
+      already carries the measured multiple as `value`.
 - [x] ✅ v1.2 Surfaces: `io/exporters._background_description` says
       "+ N explicit Gaussian background peaks";
       `save_instrument_profile` strips them
