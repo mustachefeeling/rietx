@@ -105,6 +105,14 @@ def identify_format(path: str | Path) -> PatternFormat:
     claims is one this build cannot read, and saying **which formats it can**
     is the whole difference between a message and a traceback.  Built from the
     registry rather than written out, so a format added tomorrow appears in it.
+
+    **The list is the readers, not the registry** — ``refuses`` entries are
+    filtered out, as ``cli.py`` already does for the same purpose.  They are
+    formats recognised *in order to be declined*, so listing one under
+    "Supported" contradicts the sentence it follows, and WP-1407 made that
+    visible rather than new: with a peak-list entry it read oddly, and with an
+    "Unrecognised binary .raw" entry it told a user their unrecognised binary
+    ``.raw`` was unreadable and then offered it as a supported format.
     """
     p = Path(path)
     for fmt in PATTERN_FORMATS:
@@ -112,7 +120,7 @@ def identify_format(path: str | Path) -> PatternFormat:
             return fmt
     why = " (it looks binary)" if looks_binary(head(p)) else ""
     known = ", ".join(f"{f.title} [{', '.join(f.extensions) or 'any'}]"
-                      for f in PATTERN_FORMATS)
+                      for f in PATTERN_FORMATS if f.refuses is None)
     raise ValueError(
         f"{p.name} is not a powder pattern this build can read{why}. "
         f"Supported: {known}")

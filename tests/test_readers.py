@@ -110,8 +110,11 @@ def test_the_scan_option_is_named_only_by_a_format_that_has_one(tmp_path):
     """Telling someone to select a scan in a file that cannot hold several is a
     wrong instruction, not a vague one — so ``ascending`` takes the format."""
     tt, y = [10.0, 11.0, 10.5], [1.0, 2.0, 3.0]
+    # named, not indexed: ``PATTERN_FORMATS[-1]`` meant ``xy`` until WP-1407 put
+    # a refusal below it, and this case wants a single-scan *reader*
+    single_scan = next(f for f in PATTERN_FORMATS if f.name == "xy")
     with pytest.raises(ValueError) as plain:
-        ascending(tt, y, path=tmp_path / "a.xy", fmt=PATTERN_FORMATS[-1])
+        ascending(tt, y, path=tmp_path / "a.xy", fmt=single_scan)
     assert "scan=" not in str(plain.value)
 
     multi = PatternFormat(
@@ -549,8 +552,11 @@ def test_a_binary_file_is_refused_by_name_rather_than_by_traceback(tmp_path):
         rx.read_pattern(p)
     message = str(refusal.value)
     assert "d8.dat" in message and "looks binary" in message
+    # every **reader**'s title, and no refusal's: a format recognised in order
+    # to be declined is not something this build can read, so listing one under
+    # "Supported" would contradict the sentence it follows
     for fmt in PATTERN_FORMATS:
-        assert fmt.title in message
+        assert (fmt.title in message) is (fmt.refuses is None), fmt.name
 
 
 def test_an_unclaimed_binary_raw_names_six_vendors_and_picks_none(tmp_path):
@@ -621,6 +627,34 @@ def test_a_real_profile_misnamed_pks_still_opens(tmp_path):
 
     assert rx.io.readers.identify_format(p).name == "xy"
     assert len(rx.read_pattern(p).two_theta) == 40
+
+
+def test_the_pks_escape_survives_a_comment_header_and_a_short_scan(tmp_path):
+    """The escape's gate predicts whether ``xy`` would open the file, so it has
+    to skip the lines ``xy`` skips: a ``#`` header is the commonest shape a
+    two-column export has, and counting those lines against it closed the escape
+    for exactly the files it exists to let out.  The bounded read's cut line is
+    dropped for the same reason it is dropped at all — only when the read *was*
+    bounded, or an eight-row profile is refused for being seven rows long."""
+    commented = tmp_path / "header.pks"
+    commented.write_text("# sample: alumina\n! 2theta intensity\n" +
+                         "".join(f"{10.0 + 0.02 * i:.2f} {500 + i % 7}\n"
+                                 for i in range(40)), encoding="utf-8")
+    short = tmp_path / "short.udi"
+    short.write_text("".join(f"{10.0 + 0.02 * i:.2f} {500 + i % 7}\n"
+                             for i in range(8)), encoding="utf-8")
+
+    assert rx.io.readers.identify_format(commented).name == "xy"
+    assert len(rx.read_pattern(commented).two_theta) == 40
+    assert rx.io.readers.identify_format(short).name == "xy"
+
+    # and a peak list is still one: its rows carry an hkl and its header is not
+    # a comment marker either reader knows
+    peaks = tmp_path / "real.pks"
+    peaks.write_text("; peak list\n  10.00   1234   1 1 0\n"
+                     "  20.00    567   2 0 0\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="declined on its name"):
+        rx.read_pattern(peaks)
 
 
 def test_a_byte_order_mark_means_text_even_though_utf16_is_full_of_nuls(tmp_path):
@@ -1281,6 +1315,27 @@ def test_a_v5_reads_only_when_the_length_gate_holds(tmp_path):
         rx.read_pattern(tmp_path / "mislabelled.sd")
 
 
+def test_a_damaged_angle_triple_is_refused_by_name_not_by_overflow(tmp_path):
+    """The three doubles at offset 214 are bytes like any other, and a damaged
+    header can hold a denormal step or an infinity.  ``round()`` answers those
+    with an ``OverflowError`` that names neither the file nor the field — and
+    ``OverflowError`` is outside every caller's allowlist, so it reaches the GUI
+    import route as a 500 rather than as a refusal."""
+    import struct
+
+    for step, start, end in ((5e-324, 5.0, 50.0),       # span overflows
+                             (0.02, 5.0, float("inf")),  # so does the range
+                             (float("nan"), 5.0, 50.0)):
+        buf = bytearray(b"\x00" * 300)
+        buf[0:4] = b"V3RD"
+        buf[214:238] = struct.pack("<3d", step, start, end)
+        p = tmp_path / f"damaged_{step:g}_{end:g}.rd"
+        p.write_bytes(bytes(buf))
+
+        with pytest.raises(ValueError, match="which is not a scan"):
+            rx.read_pattern(p)
+
+
 def test_philips_rd_and_bruker_raw_are_disjoint_in_both_directions(tmp_path):
     """``.raw`` is written by six unrelated vendors and ``.rd`` by two, so
     neither reader may trust a suffix.  Both match on magic bytes, so a Philips
@@ -1410,6 +1465,21 @@ def test_a_udf_whose_two_length_statements_disagree_is_refused(tmp_path):
 
     with pytest.raises(ValueError, match=r"short\.udf.*points.*data block holds 4"):
         rx.read_pattern(p)
+
+
+def test_a_udf_step_that_is_not_a_number_is_refused_by_name(tmp_path):
+    """``DataAngleRange`` and ``ScanStepSize`` are free text, so ``nan`` and
+    ``inf`` parse as floats and a denormal step overflows the point count.
+    ``round()`` refuses all three without naming the file — an ``OverflowError``
+    on the infinities, a bare ``ValueError`` on the NaN — so the scan gate asks
+    for a finite span rather than only for a positive one."""
+    for step in ("5e-324", "nan", "inf"):
+        p = tmp_path / f"bad_{step}.udf"
+        p.write_text(f"DataAngleRange, 5.0, 50.0,/\nScanStepSize, {step},/\n"
+                     "RawScan\n1,2,3,/\n", encoding="utf-8")
+
+        with pytest.raises(ValueError, match="do not describe a scan"):
+            rx.read_pattern(p)
 
 
 def test_the_terminating_comma_is_optional(tmp_path):

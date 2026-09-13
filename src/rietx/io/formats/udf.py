@@ -56,6 +56,7 @@ assumed, so the claim is visible where a UI shows it.
 
 from __future__ import annotations
 
+import math
 import re
 from pathlib import Path
 
@@ -159,12 +160,18 @@ def read_udf(path: str | Path, *,
                          "an end")
     lo, hi = angles
     step = _floats(keys["ScanStepSize"], key="ScanStepSize", path=p)[0]
-    if step == 0.0 or (hi - lo) / step <= 0.0:
+    # a **non-finite** span is as much "not a scan" as a zero step, and has to
+    # be caught in the same breath: ``round()`` raises OverflowError on an
+    # infinity and a bare ValueError on a NaN, and neither names the file, which
+    # is the one thing a reader's refusal must do (io/CLAUDE.md § Refusals).
+    # ``nan`` compares False against everything, so finiteness is asked first
+    span = float("nan") if step == 0.0 else (hi - lo) / step
+    if not math.isfinite(span) or span <= 0.0:
         raise ValueError(f"{p.name}: DataAngleRange {lo:g}→{hi:g}° and "
                          f"ScanStepSize {step:g}° do not describe a scan")
 
     y = _values(lines[start:], path=p)
-    expected = round((hi - lo) / step) + 1
+    expected = round(span) + 1
     if len(y) != expected:
         raise ValueError(
             f"{p.name}: the header says {lo:g}→{hi:g}° in steps of {step:g}°, "

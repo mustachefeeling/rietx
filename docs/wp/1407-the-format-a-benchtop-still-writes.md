@@ -1,4 +1,4 @@
-# WP-1407 — The format a benchtop still writes: PANalytical `.udf`/`.rd`, and four named refusals
+# WP-1407 — The format a benchtop still writes: PANalytical `.udf`/`.rd`, and three named refusals
 
 Milestone: unscheduled · Status: ✅ 2026-09-13 — both readers, three refusals; `.rd` reproduces a committed `.prn` oracle bit for bit
 Depends on: — (1047 is the seam this extends, and is closed)
@@ -6,10 +6,16 @@ Depends on: — (1047 is the seam this extends, and is closed)
 ## Goal
 
 `read_pattern` opens PANalytical `.udf` (which a benchtop sold today still
-writes) and the Philips PC-APD binary `.rd` (V3 and V5), and **declines four
-more things by name rather than by traceback**: `.sd`, a binary `.raw` that
-matched no reader, and the two peak-list formats `.pks` and `.udi`. Everything
-rides the `io/formats/` seam WP-1047 built, so each format is one module.
+writes) and the Philips PC-APD binary `.rd` (V3 and V5), and **declines three
+more things by name rather than by traceback**: a binary `.raw` that matched no
+reader, and the two peak-list formats `.pks` and `.udi`. Everything rides the
+`io/formats/` seam WP-1047 built, so each format is one module.
+
+**Three, not the four this goal originally claimed.** `.sd` was scoped as a
+fourth refusal and turned out to be this same format's V5 extension, so it is
+*read*, not declined — see the supersession note below. Corrected here rather
+than left standing, because a goal stating what the WP disproved is the first
+thing a successor reads.
 
 ## Context
 

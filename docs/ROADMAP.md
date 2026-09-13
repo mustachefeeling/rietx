@@ -553,7 +553,7 @@ does not exist (`.raw` is six unrelated vendors, none of them PANalytical).
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
-| [1407](wp/1407-the-format-a-benchtop-still-writes.md) | The format a benchtop still writes: PANalytical `.udf`/`.rd`, and four named refusals | ✅ 2026-09-13 | — |
+| [1407](wp/1407-the-format-a-benchtop-still-writes.md) | The format a benchtop still writes: PANalytical `.udf`/`.rd`, and three named refusals | ✅ 2026-09-13 | — |
 
 #### Render what the fit already knows
 

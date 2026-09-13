@@ -56,6 +56,7 @@ names the version and both are claimed by magic like any other member.
 
 from __future__ import annotations
 
+import math
 import struct
 from pathlib import Path
 
@@ -128,12 +129,18 @@ def read_philips_rd(path: str | Path, *,
 
     step, start, end = _unpack("<3d", buf, _SCAN_AT, path=p,
                                what="the scan range record")
-    if not step > 0.0 or not end > start:
+    # the span is asked for finiteness, not only for sign: a damaged header can
+    # hold an infinity or a denormal step, and ``round()`` answers those with an
+    # OverflowError that names neither the file nor the field (io/CLAUDE.md
+    # § Refusals).  ``nan`` compares False against everything, so a NaN in any
+    # of the three fails ``step > 0.0`` / ``end > start`` and lands here too
+    span = (end - start) / step if step > 0.0 else float("nan")
+    if not math.isfinite(span) or not end > start:
         raise ValueError(
             f"{p.name}: the header gives a step of {step:g}° over "
             f"{start:g}→{end:g}°, which is not a scan. Either the file is not a "
             "Philips scan or its header is damaged")
-    n = round((end - start) / step) + 1
+    n = round(span) + 1
 
     # the length gate, and for V5 it is the *whole* of the evidence: n comes
     # from the header, so this tests the header offsets and the data start at
