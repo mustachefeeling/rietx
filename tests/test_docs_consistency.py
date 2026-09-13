@@ -183,7 +183,16 @@ SIZE_CAPS: dict[str, int | None] = {
     # protocol rule 4's test. The WP's own measurements stayed in
     # tests/data/README.md, and the blocks were cut by a third before the cap
     # was touched — per this test's own instruction not to delete facts to fit.
-    "src/rietx/io/CLAUDE.md": 350,
+    #
+    # 2026-09-13, 350 -> 368 for WP-1118's model-format registry. Three rules,
+    # and each governs the next project reader rather than describing this one:
+    # what the registry's unit is (so a reader carrying no model is placed
+    # before it is written, which is the question read_gsas_prm raised and
+    # nothing answered); that the answer is the format's own model rather than a
+    # union with blanks; and that where a format reports its repairs is declared
+    # and pinned against the signature, a wrong value being silent rather than
+    # loud. The section's existing two rules were not cut to fit.
+    "src/rietx/io/CLAUDE.md": 368,
 }
 CURRENT_FOCUS_CAP: int | None = 60  # lines within ROADMAP's Current focus (WP-1031 landed at 33; the 1060 rewrite at 44)
 # Words, because a line cap alone was met by nine 1000-character paragraphs

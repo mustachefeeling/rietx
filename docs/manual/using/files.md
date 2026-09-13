@@ -9,10 +9,12 @@ graph LR
   C["structure<br/><i>.cif</i>"] --> SC["Structure.from_cif"]
   I["instrument profile<br/><i>.json</i>"] --> LP["load_instrument_profile"]
   G["GSAS-I instrument file<br/><i>.prm</i>"] --> GP["read_gsas_prm"]
+  M["another program's refinement<br/><i>.inp .pcr</i>"] --> PM["read_project_model"]
   RP --> REF(["refinement"])
   SC --> REF
   LP --> REF
   GP --> REF
+  PM --> REF
   subgraph rex ["my_sample.rex/"]
     PJ["project.json<br/><i>settings</i>"]
     PC["the pattern file<br/><i>copied byte for byte</i>"]
@@ -199,10 +201,8 @@ constant-wavelength Caglioti/TCH law cannot express, while a
 constant-wavelength neutron file (`HTYPE PNCR`) states a law it *could* hold
 and is refused only for want of a real fixture to pin its coefficient layout
 down. A GSAS `.EXP`/`.LST` refinement output has no reader and is transcribed
-by hand. A TOPAS `.inp` and a FullProf `.pcr` do have readers —
-`rietx.io.projects.read_topas_inp` and `read_fullprof_pcr` — though neither
-has a top-level `rx.` entry point yet, and `rx.read_recipe` will not open
-either.
+by hand. A TOPAS `.inp` and a FullProf `.pcr` are whole refinements rather than
+instrument files, and have their own readers — the next section.
 
 Two things this reader **chooses** rather than reads, both on the
 `diagnostics=` channel the sections above use. A `.prm` states no geometry at
@@ -231,6 +231,183 @@ instrument = rx.read_gsas_prm("beamline.prm", diagnostics=notes)
 
 Pass no list and the read is silent and identical, which is what makes the
 channel opt-in rather than a behaviour change.
+
+## Refinement files another program wrote
+
+A TOPAS `.inp`, a FullProf `.pcr` and their kind are not patterns and not
+structures. They state someone's whole refinement: the phases, the instrument,
+and — the part nobody can reconstruct from a CIF plus a pattern — **which
+parameters were free**. Transcribing one by hand is the failure mode this
+reader exists to remove, because a mistyped coordinate stays symmetry-valid and
+fails silently, so what comes out is a plausible wrong answer rather than an
+error.
+
+:::{admonition} Provisional
+:class: warning
+The foreign-refinement readers are under active development, so the names in
+this section are documented but **not frozen**. `read_project_model`,
+`identify_project_format`, `read_topas_inp`, `read_fullprof_pcr` and the
+per-format models they answer with (`rietx.io.projects`) may change in a 1.x
+release: the registry landed with two formats and three more queued, each of
+which is evidence about its shape, and the write direction is not written at
+all. A format's own model mirrors that format, so its fields move when the
+reader's coverage does.
+{ref}`provisional-by-declaration` has the promise in full.
+:::
+
+### Opening one
+
+`read_project_model` takes a file and works out which program wrote it:
+
+<!-- api-doc: no-exec — needs a real .inp or .pcr on disk -->
+```python
+model = rx.read_project_model("refined.inp")
+model.format.name          # 'topas_inp'
+model.stated.r_wp          # the run's own figure, as the file states it
+structure = model.to_structure()
+```
+
+Dispatch is on **content**, never on the extension: `.inp` is written by
+several unrelated programs, and claiming one by name is how a reader returns a
+plausible wrong model for a finite-element deck. A file nothing here reads is
+refused by a message naming what this build does open, and pointing at the
+three neighbouring readers — `rx.read_pattern` for a pattern, `rx.read_gsas_prm`
+for a GSAS-I instrument file, `rx.read_recipe` for a PowderLine recipe — since
+those are what such a file usually turns out to be.
+
+Call `rx.read_topas_inp` or `rx.read_fullprof_pcr` directly when you already
+know what you have; `rx.identify_project_format` answers which format claims a
+file without parsing it, reading only enough of the head to decide.
+
+### What comes back
+
+The answer is a `ProjectModel`. It names the format and hands on that format's
+own model untouched, and is deliberately **not** one shape with blanks where a
+file was silent: a blank reads as an answer, and a caller cannot tell "this file
+carried none" from "the reader found none".
+
+| Field | What it holds |
+|---|---|
+| `ProjectModel.format` | the `ProjectFormat` that claimed the file |
+| `ProjectModel.path` | the file that was read |
+| `ProjectModel.stated` | what the file stated, in that format's own model |
+| `ProjectModel.diagnostics` | what the *read* repaired or assumed, kept whether or not you asked |
+| `ProjectModel.to_structure` | build a `Structure` from it, with the file's refine flags |
+
+`ProjectModel.to_structure` passes its keywords through to the format's own
+conversion, so `dataset=` reaches a multi-dataset `.inp` and `nuclear_only=`
+reaches a `.pcr` with a magnetic phase. They are not flattened into one
+vocabulary: two formats' options that happened to share a name would not share
+a meaning.
+
+### What each format states
+
+A model is *what the file said*, seeded with nothing — a value the file omitted
+arrives as `None`, never as a default. The two differ because the formats do.
+
+`read_topas_inp` returns a `TopasModel`:
+
+| Field | What it holds |
+|---|---|
+| `TopasModel.path` | the file it was read from |
+| `TopasModel.phases` | the phases the file states, with their sites and refine flags |
+| `TopasModel.r_wp`, `TopasModel.gof` | the run's own figures, where the grammar settles which is the file's |
+| `TopasModel.r_wp_all`, `TopasModel.gof_all` | every such value in file order, since a multi-dataset file states one per dataset |
+| `TopasModel.n_datasets` | how many `xdd`-family blocks the file opens |
+| `TopasModel.data_files` | the pattern files it points at |
+| `TopasModel.emission_lines`, `TopasModel.emission_macro`, `TopasModel.anode`, `TopasModel.wavelength` | the emission profile, as stated or as a macro named it |
+| `TopasModel.geometry`, `TopasModel.goniometer_radius_mm` | the diffractometer, where the file says |
+| `TopasModel.background_terms` | how many background coefficients were refined |
+| `TopasModel.skipped_blocks` | phase blocks that stated no name or space group, recorded whether or not a diagnostics list was passed |
+| `TopasModel.coverage` | what the reader met and did not carry — below |
+
+`read_fullprof_pcr` returns a `FullProfModel`:
+
+| Field | What it holds |
+|---|---|
+| `FullProfModel.path`, `FullProfModel.title`, `FullProfModel.pcr_name` | the file, and the names it gives itself |
+| `FullProfModel.phases` | every phase, nuclear and magnetic |
+| `FullProfModel.nuclear_phases`, `FullProfModel.magnetic_phases` | the same, split — a magnetic phase reads but cannot build |
+| `FullProfModel.chi2` | the converged figure, from the comments FullProf rewrites each cycle |
+| `FullProfModel.control` | the Job/Npr/Nph control line, field by field |
+| `FullProfModel.job` | which diffraction experiment the file declares |
+| `FullProfModel.lambda1`, `FullProfModel.lambda2`, `FullProfModel.lambda_slot` | the wavelengths, and which slot stated them |
+| `FullProfModel.zero_shift` | the zero correction, with its refine codeword decoded |
+| `FullProfModel.background` | the background the file declares |
+| `FullProfModel.excluded_regions`, `FullProfModel.fitted_range` | what the run fitted and what it left out |
+| `FullProfModel.data_file`, `FullProfModel.pattern` | the pattern it points at |
+| `FullProfModel.cycles`, `FullProfModel.refined_parameter_count`, `FullProfModel.parameter_numbers` | how the run was driven, and which codeword numbered which parameter |
+| `FullProfModel.output` | the output options the file sets |
+
+### Which formats this build reads
+
+`rx.capabilities()` publishes the registry, so a client asks rather than
+guesses:
+
+```python
+import rietx as rx
+
+caps = rx.capabilities()
+[(f.name, f.extensions, f.reports_at) for f in caps.project_formats]
+```
+
+| Field | What it holds |
+|---|---|
+| `Capabilities.project_formats` | one `ProjectFormatCapability` per format, in dispatch order |
+| `ProjectFormatCapability.name`, `ProjectFormatCapability.title` | the registry key, and what a person calls it |
+| `ProjectFormatCapability.extensions` | the conventional suffixes, which are informational and never the dispatch |
+| `ProjectFormatCapability.sniff` | how the format is recognised, in words |
+| `ProjectFormatCapability.carries` | what the file holds beyond a structure — read this before reading a model you have no common shape for |
+| `ProjectFormatCapability.reports_at` | `"read"` or `"build"`: which call takes your `diagnostics=` list |
+| `ProjectFormatCapability.refuses` | set when the build recognises a format *in order to decline* it, carrying why |
+
+`reports_at` is a real difference and not bookkeeping. A `.inp`'s repairs — a
+rewritten species spelling, a translated origin suffix — happen while parsing,
+so its channel is `read_project_model(..., diagnostics=notes)`. A `.pcr`'s all
+happen while codewords become a `Structure`, so its channel is
+`ProjectModel.to_structure(diagnostics=notes)`. Passing a list to both collects
+either without your having to know which.
+
+You never lose the read's half by passing your list to the wrong call, though:
+whatever the read reported is on `ProjectModel.diagnostics` as well, filled
+list or no list. That matters more than it sounds. An empty list reads as "this
+file needed no repairs", and a caller who had passed it to the other call would
+believe it.
+
+The same facts are in the registry itself, which is what the arm is built from:
+`ProjectFormat.name`, `ProjectFormat.title`, `ProjectFormat.extensions`,
+`ProjectFormat.sniff`, `ProjectFormat.carries`, `ProjectFormat.reports_at` and
+`ProjectFormat.refuses` carry the declarations, while `ProjectFormat.matches`,
+`ProjectFormat.read` and `ProjectFormat.to_structure` are the callables the
+dispatch uses.
+
+### What a reader will not guess
+
+These formats hold constructs this package has no model for, and dropping one
+changes the model rather than its presentation. So every construct the TOPAS
+reader knows about is a `Feature` carrying a declared `Stance`, a keyword with
+no stance fails a test rather than vanishing, and what a particular file turned
+out to contain comes back as a `Coverage` of `Hit` rows:
+
+```python
+from rietx.io.projects import coverage
+```
+
+| Name | What it is |
+|---|---|
+| `Stance.READ` | carried into the model |
+| `Stance.IGNORED` | deliberately not carried, and harmless |
+| `Stance.REPORTED` | met, not carried, and named in the diagnostics |
+| `Stance.REFUSED` | met, and the file is refused rather than returned half-built |
+| `Feature.name`, `Feature.what`, `Feature.why` | one construct, what it is and the argument for its stance |
+| `Feature.stance`, `Feature.keywords` | the stance, and the format keywords it governs |
+| `Hit.feature`, `Hit.keywords`, `Hit.phases` | one construct actually met in a file, and where |
+| `Coverage.reported`, `Coverage.refused`, `Coverage.partial` | the hits of each kind |
+| `Coverage.summary`, `Coverage.summary_of` | those hits in a sentence |
+
+A refused construct raises, naming the file and the line. A reported one
+arrives on the diagnostics channel: the read is silent and identical without a
+list, which is what makes the channel opt-in rather than a behaviour change.
 
 ## The `.rex` project directory
 

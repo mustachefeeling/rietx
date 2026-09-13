@@ -36,6 +36,14 @@ from .io.instrument_profile import (
     read_gsas_prm,
     save_instrument_profile,
 )
+from .io.projects import (
+    ProjectFormat,
+    ProjectModel,
+    identify_project_format,
+    read_fullprof_pcr,
+    read_project_model,
+    read_topas_inp,
+)
 from .io.readers import read_pattern, read_pdcif
 from .io.recipe import Recipe, RecipeError, read_recipe, write_recipe_tables
 from .multi import MultiHistogramRefinement, refine_multi
@@ -123,6 +131,8 @@ __all__ = [
     "PlanSpec",
     "PreferredOrientation",
     "Project",
+    "ProjectFormat",
+    "ProjectModel",
     "ProjectDoc",
     "Recipe",
     "RecipeError",
@@ -158,10 +168,14 @@ __all__ = [
     "load_instrument_profile",
     "fit_peaks",
     "pick_peaks",
+    "identify_project_format",
     "read_gsas_prm",
     "read_pattern",
     "read_pdcif",
+    "read_fullprof_pcr",
+    "read_project_model",
     "read_recipe",
+    "read_topas_inp",
     "reflection_table",
     "refine",
     "refine_sequential",

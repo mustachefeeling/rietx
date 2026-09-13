@@ -382,6 +382,7 @@ def test_the_documented_feature_keys_are_present(caps):
         "sequential_series", "project_container", "background_estimation",
         "pattern_diagnostics", "peak_picking", "peak_fitting", "indexing",
         "cancellation", "report_trajectory", "powderline_recipe",
+        "project_readers",
         "compiled_kernels", "compiled_kernels_active",
     }
     assert set(caps.features) == expected

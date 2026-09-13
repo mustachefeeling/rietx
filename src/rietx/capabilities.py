@@ -64,6 +64,7 @@ from .indexing.engines import (
     SYSTEM_ORDER,
     engine_descriptions,
 )
+from .io.projects import PROJECT_FORMATS
 from .io.readers import PATTERN_FORMATS, READER_OPTIONS
 from .optimize.least_squares import SOLVERS
 from .refine import _VERSION
@@ -199,6 +200,38 @@ class ReaderCapability(Base):
     refuses: str | None = None
 
 
+class ProjectFormatCapability(Base):
+    """A foreign *refinement* format this build reads, and what it carries.
+
+    Separate from :class:`ReaderCapability` because the question is different.
+    ``reader_formats`` answers "what pattern can I open"; this answers "someone
+    handed me another program's refinement — can I read it, and what will I
+    get".  Two registries, two arms, and the membership meta-test applies to
+    each: a member of ``PROJECT_FORMATS`` missing from here fails.
+
+    ``carries`` is the honest alternative to a union answer whose optional
+    fields a client has to guess about.  The reader returns the format's own
+    model rather than a common shape with blanks, so this says in words what
+    each format's model holds beyond a structure, and a client reads it before
+    reading the model rather than reading ``None`` and guessing.
+    """
+
+    name: str
+    title: str
+    extensions: list[str]
+    sniff: str
+    #: what the file carries beyond a structure, in words
+    carries: list[str]
+    #: ``"read"`` or ``"build"`` — where this format's repairs are reported, so
+    #: a caller knows which call to hand its diagnostics list to.  A real
+    #: per-format difference: a ``.inp``'s species and origin repairs happen
+    #: while parsing, a ``.pcr``'s while converting codewords
+    reports_at: str
+    #: set when this entry is a format the build **recognises in order to
+    #: decline**, carrying why — ``ReaderCapability.refuses``' reasoning
+    refuses: str | None = None
+
+
 class ReaderOptionCapability(Base):
     """One reader keyword in the build's vocabulary, and what it does.
 
@@ -264,6 +297,11 @@ class Capabilities(Base):
     extra_component_kinds: list[str] = Field(default_factory=list)
     anodes: list[AnodeCapability] = Field(default_factory=list)
     reader_formats: list[ReaderCapability] = Field(default_factory=list)
+    #: the foreign *refinement* formats ``read_project_model`` opens (WP-1118).
+    #: A second arm rather than an entry in ``reader_formats`` because the
+    #: answer's shape differs: a project reader returns a whole solved model,
+    #: not a ``PatternData``, and nothing re-opens one through a ``DataRef``
+    project_formats: list[ProjectFormatCapability] = Field(default_factory=list)
     #: every keyword ``read_pattern`` accepts, across all formats — the
     #: allowlist itself, so a client renders a control per option rather than
     #: keeping a second copy of the vocabulary
@@ -329,6 +367,12 @@ def capabilities() -> Capabilities:
                              sigma=f.sigma, options=list(f.options),
                              refuses=f.refuses)
             for f in PATTERN_FORMATS],
+        project_formats=[
+            ProjectFormatCapability(name=f.name, title=f.title,
+                                    extensions=list(f.extensions), sniff=f.sniff,
+                                    carries=list(f.carries),
+                                    reports_at=f.reports_at, refuses=f.refuses)
+            for f in PROJECT_FORMATS],
         reader_options=[
             ReaderOptionCapability(name=o.name, kind=o.kind, help=o.help)
             for _, o in sorted(READER_OPTIONS.items())],
@@ -449,6 +493,10 @@ _SURFACE_FLAGS: dict[str, str] = {
     # open", and a recipe is a whole refinement rather than a pattern, so it
     # is a *feature* of the build and not a pattern format.
     "powderline_recipe": "read_recipe",
+    # foreign refinement files (WP-1118).  The flag reports the *front door*,
+    # not a format: which formats there are is ``project_formats``, and a build
+    # that grows one should not need this flag edited.
+    "project_readers": "read_project_model",
 }
 
 

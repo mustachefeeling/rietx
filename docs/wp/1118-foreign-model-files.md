@@ -1,9 +1,9 @@
 # WP-1118 — foreign model files: read a refinement in, write one back
 
-Milestone: unscheduled · Status: 🔄 2026-09-10 — the TOPAS `.inp` reader
-landed (PR #98), the FullProf `.pcr` reader (PR #111) and the GSAS-I `.PRM`
-instrument-parameter reader (PR #248); the model-format registry, the GSAS
-`.EXP` half and every writer remain
+Milestone: unscheduled · Status: 🔄 2026-09-13 — the TOPAS `.inp` reader
+landed (PR #98), the FullProf `.pcr` reader (PR #111), the GSAS-I `.PRM`
+instrument-parameter reader (PR #248) and the model-format registry over them;
+the GSAS `.EXP` half, the `.gpx` reader and every writer remain
 Depends on: — (WP-1110 found it; WP-1102 owns the one seam that overlaps)
 
 ## Goal
@@ -48,7 +48,7 @@ writers task below gains its strongest test for free: **round-trip** — export
 carry it, the cheapest adversarial test the readers can get, no external
 fixture needed — so it belongs in this WP's acceptance, not only its tasks.
 GSAS-II joins the write targets (`.instprm` + CIF-shaped structure — text,
-documented, and the `Z`-term round-trip question is already in Inherited
+documented, and the `Z`-term round-trip question sits on the writers task
 below). Every convention the validation campaign measured (FCJ vs A_T2,
 K = 1 vs 0.5 polarization, U vs B vs β, FWHM vs σ, centidegrees) becomes a
 written decision with a citation on the writer. Deliberately **not** here:
@@ -80,6 +80,33 @@ translation table exists in the #98 draft (`normalize_space_group`: `Z`→`:2`,
 `S`→`:1`, `R`→`:R`, `H`→`:H`); the **diagnostic is the load-bearing half**
 and is general — it fires for any multi-origin symbol left unpinned, from
 any reader, in the reader diagnostics channel where such reports belong.
+
+**Two things the `.inp` reader met on a real workshop archive** (WP-1130, and
+neither is a bug). Of the four `.inp`s in the Durham ZrMo₂O₈ archive **three
+refuse** at their first `#if` — the multi-pattern reel files, which are exactly the
+case WP-1110's agent round named as the hardest part of the work. The refusal is
+correct (which branch was refined is unknown, and reading on would report a model
+mixing both), but 1130 got its model by stripping the `#if`/`#endif` blocks in a
+scratchpad, which is a workaround no user should have to invent: a `#prm`-only
+integer evaluator would resolve `#if (#out pattern_count > 1)` and the `Run_Number`
+guards, which is most of what these files use `#if` for. And
+`TOPAS_FEATURES_NOT_IMPORTED` named the thing that mattered while nothing downstream
+could act on it — the dropped `spherical_harmonics_hkl` block sat on a phase owning
+**24 % of the fit's χ²**, and supplying rietx's own equivalent (Stephens
+`Phase.microstrain`) took Rwp 0.1092 → 0.0878. So that gap is a *conversion*, not a
+capability: rietx has the physics. If `to_structure` ever grows an hkl-strain arm, the
+`.inp`'s coefficients are **fixed** (`!ahkl_c00` … `!ahkl_c44p`, taken from another
+range), so importing them imports a held model — and freeing such a block can make
+other phases `PHASE_UNCONSTRAINED`, so it is not a change to make silently.
+
+**A magnetic phase stays refused in both readers until the model exists.**
+`coverage.py`'s `magnetic structure` feature is `Stance.REFUSED`, and a FullProf phase
+with Jbt = ±1 takes the same stance and the same sentence ("the nuclear half would
+look complete") through the registry rather than a raise, so
+[1328](1328-magnetic-interchange.md) lifts both by changing one table. Do not map a
+Fourier-component magnetic phase onto a nuclear structure in the meantime. Still true
+2026-09-13: there is no moment on `main` — WP-1343 scoped the magnetic *broadening*
+term and [1327](1327-magnetic-structure.md) still owns the model itself.
 
 ### The licence fences, which are stricter here than anywhere else in `io/`
 
@@ -129,207 +156,40 @@ written:
   WP-1110 item 14: **mark, never clamp** — name what did not cross at write time
   rather than emitting a file that looks complete.
 
-`capabilities()` publishes the pattern formats `read_pattern` opens; model
-formats need their own arm, and the meta-test that fails on a registry member
-missing from its arm applies unchanged. A new format token is spelled in
-`_about.py`, never inline (root CLAUDE.md § Conventions).
+- **There are now three reader *kinds*, and the third arrived without a home.**
+  `rx.read_gsas_prm` (PR #248) returns an `Instrument` and sits in
+  `io/instrument_profile.py` beside the native JSON profile reader: it is neither a
+  `PATTERN_FORMATS` entry nor an `io/projects/` project reader. `io/CLAUDE.md`'s "one
+  module per format" is scoped by its own first line to the *pattern* readers, so
+  nothing governs it — while the drift that rule exists to prevent is now real, since
+  that module carries two formats' fences. Raised with the maintainer at the merge, no
+  decision taken; it is this task's to settle, and the registry now has **four**
+  instances to answer its shape from (`read_topas_inp`, `read_fullprof_pcr`,
+  `read_gsas_prm` and `read_recipe`) rather than one.
+- **A general macro pass is not blocked on an expression language, because rietx is
+  not growing one** ([1119](1119-named-variables.md) § Decisions 4, which shipped
+  `Refinement.add_variable` and deliberately no expression string). The object a reader
+  would target now exists; the arithmetic the two readers carry privately
+  (`topas.symbol_table`/`_resolve`/`_arith`, the `.pcr` codeword decoder) stays theirs.
+  So if `STR(...)` needs a macro pass it is a `.inp` grammar concern living entirely in
+  `io/projects/topas.py` and answering to the Technical Reference — decide it there,
+  not here.
+- **A bare space-group symbol now has one authority, and each format sits on a side of
+  it** ([1324](1324-symmetry-silences.md)).
+  `crystallography.symmetry.setting_alternatives(symbol)` returns `(taken, others)` for
+  the 40 symbols the tables hold in more than one setting, and the fit-time report
+  `SPACE_GROUP_SETTING_ASSUMED` fires only where a reader handed a bare symbol on. A
+  reader that resolves the setting itself keeps its callers silent — which is what
+  `normalize_space_group`'s trailing-`Z` → `:2` mapping buys the `.inp` route. FullProf
+  writes the symbol without a suffix in the common case, so the `.pcr` route either
+  establishes the setting from evidence the file carries (as `read_small_structure`
+  picks R from the cell) or hands the bare symbol on; both are defensible and the choice
+  should be deliberate.
 
-### Inherited
-
-- **2026-09-13, from [WP-1102](1102-component-seam-humps.md) (closed ✅) — the
-  field a foreign background peak lands in was renamed, and there is now a seam
-  to land other things in.** `Instrument.background_peaks` is
-  `Instrument.extra_components`, a list of the union `ExtraComponent`
-  discriminated on `kind`, whose one member is `HumpComponent` (v1.2's
-  `BackgroundPeak`); `BACKGROUND_PEAK_*` constants are `HUMP_*`. Three
-  consequences for a reader in this WP. (1) A TOPAS `xo_Is` peaks phase or a
-  GSAS-II background peak maps onto a `HumpComponent` under the new name —
-  `io/recipe.py`'s `_read_extra_components` is the worked precedent, reading
-  PowderLine's `background.single_peaks`. (2) A foreign construct with *no*
-  counterpart today — a Debye/diffuse term, which both GSAS-II and FullProf
-  carry — is now a seam member rather than a schema argument: it can be reported
-  as uncarried in diagnostics with a named place to go later, instead of as a
-  dead end. (3) A foreign *diagnostic* about such a term keeps its own
-  vocabulary: `RECIPE_BACKGROUND_PEAK_DEGENERATE` was deliberately **not**
-  renamed, because the `RECIPE_` prefix marks it as a statement about what the
-  foreign document declared rather than about what this package calls the
-  member. Follow that rule for any reader code you add.
-- **2026-09-04, from [WP-1130](1130-background-reference.md) § Gap A/B, which
-  drove the `.inp` reader on a real workshop file.** Two things it found,
-  neither a bug.
-  1. **`#if` blocks the files people actually ship.** Of the four `.inp`s in
-     the Durham ZrMo₂O₈ workshop archive, **three refuse** at their first `#if`
-     — `d8_01612_vt_reel_02.inp`, `_reel_01.inp` and `_vt_02.inp` — and only
-     `d8_01612_fit_01.inp` reads. The refusal is *correct* (which branch was
-     refined is unknown and reading on would report a model mixing both) and
-     the message is good. What it means is that the multi-pattern reel files —
-     the ones a series is actually run from, and the case WP-1110's agent round
-     named as the hardest part of the work — are outside the reader's reach.
-     1130 got its model by stripping the `#if`/`#endif` blocks in a scratchpad,
-     which is a workaround no user should have to invent. Worth deciding: a
-     `#prm`-only integer evaluator would resolve `#if (#out pattern_count > 1)`
-     and the `Run_Number` guards, which is most of what these files use `#if`
-     for.
-  2. **`TOPAS_FEATURES_NOT_IMPORTED` named the thing that mattered, and nothing
-     downstream could act on it.** The file's `spherical_harmonics_hkl` strain
-     block on one phase was reported and dropped; 1130 then measured that this
-     one phase owned **24 % of the fit's χ²**, and that supplying rietx's own
-     equivalent (Stephens `Phase.microstrain`) took Rwp 0.1092 → 0.0878. So the
-     diagnostic is doing its job and the gap is a *conversion*, not a
-     capability: rietx has the physics. If `to_structure` ever grows a
-     hkl-strain arm, note that the `.inp`'s coefficients are **fixed**
-     (`!ahkl_c00` … `!ahkl_c44p`, taken from another range), so importing them
-     imports a held model — and 1130 also measured that freeing such a block
-     can make other phases `PHASE_UNCONSTRAINED`, so this is not a change to
-     make silently.
-- **2026-09-04, from [1119](1119-named-variables.md): the equation boundary you
-  parked there is decided, and it is drawn short of a parser.** 1119 shipped
-  `Refinement.add_variable` — a caller's own `Parameter` at `vars.<name>` that
-  other parameters follow by affine tie, with `tie` now taking several sources
-  — and **deliberately no expression string**, for four reasons its Decisions
-  § 4 records in full (chiefly that it would be the second parser for one
-  language, against the nonlinear DSL `Parameter.expr` is reserved for). So:
-  the object a reader would target now exists, and the arithmetic your two
-  readers carry privately (`topas.symbol_table`/`_resolve`/`_arith`, the
-  `.pcr` codeword decoder) is still theirs — 1119 explicitly did not redeclare
-  it. **The consequence for the registry-shape task and for #107**: a general
-  macro pass is *not* blocked on rietx growing an expression language, because
-  rietx is not growing one; if `STR(...)` needs a macro pass, it is a `.inp`
-  grammar concern that lives entirely in `io/projects/topas.py` and answers to
-  the Technical Reference, not to anything here. Decide it there.
-
-- **2026-09-03, from the issue triage (issue #234): the `.gpx` non-goal's
-  stated reason does not hold, and the real obstacle is worse than the one
-  written down.** A `.gpx` is **not** one pickled object and not a container
-  format: it is a headerless sequence of `pickle.dump(item, f, protocol=2)`
-  calls, one per top-level GSAS-II tree item (`Controls`, `Phases`, each
-  `PWDR <name>`), each a list of `[label, data]` pairs, read back by looping
-  `pickle.load(f, encoding="latin-1")` until `EOFError`. Established from
-  GSAS-II's own `GSASIImiscGUI.py` (`ProjFileSave`/`ProjFileOpen`) read as
-  specification only, and corroborated on **146 real `.gpx` files** from a
-  private archive: every one unpickles to completion with stdlib `pickle` plus
-  `numpy` and nothing else — no GSAS-II import, no `ModuleNotFoundError`, and
-  exactly **three** non-builtin types across the whole corpus (`numpy.float64`,
-  `numpy.int64`, `numpy.ndarray`). **So a reader needs no GSAS-II dependency.**
-
-  The obstacle that does hold: `pickle.load` will import and call **any**
-  callable named in the stream, so a `.gpx` reader is an arbitrary-code-
-  execution surface over a user-supplied file, and every reader rietx has today
-  — pattern formats, `.inp`, `.pcr`, `.cif` — is text. The archive corpus
-  cannot settle it: 146 benign files prove nothing about a malicious one, and
-  "the files I have are fine" is the corpus-faith argument this WP already
-  rejected for cell ties. **This is a security-posture decision for the
-  maintainer, not a technical one**, which is why the reporter wrote no reader.
-  Their four options: (1) a **restricted unpickler** — subclass
-  `pickle.Unpickler` and override `find_class` to an allow-list, refusing every
-  other global *by name*, the same "report or refuse, never drop" discipline
-  `io/projects/coverage.py` applies to format keywords; `find_class` is
-  pickle's only import hook, so this closes the hole rather than narrowing it,
-  and it is the established pattern (PyTorch's `weights_only=True`,
-  `numpy.load(allow_pickle=False)`), with a measured allow-list of builtins
-  plus `numpy.ndarray`, `numpy.dtype`, `numpy.core.multiarray._reconstruct`.
-  (2) A **`pickletools.genops` opcode walk** — strictly stronger and strictly
-  more code to own for the same result; (1)'s trust boundary is already
-  provable. (3) **Read GSAS-II's text instead** — `.EXP`/`.PRM`, already spec'd
-  and licence-clear here, with the corpus's 79 `.lst` files; the cost is real,
-  a `.lst` being a refinement *listing* rather than a round-trippable model, so
-  a lesser deliverable and not a substitute. (4) **Require an export** via
-  GSASIIscriptable to CIF — zero new attack surface, work moved to the user.
-  The reporter's inclination is (1) if `.gpx` is wanted at all, (3) as this
-  WP's honest next task if it is not, and they offer to implement either.
-  **Decided 2026-09-03 by the maintainer: (1), the restricted unpickler.**
-  The task is below; the reporter's offer to implement it stands.
-
-  Two corrections that cost nothing to carry: **"pysas" is not GSAS-II's python
-  interface** (that name is an unrelated XMM-Newton toolkit; the documented one
-  is **GSASIIscriptable**), and if `.gpx` proceeds the corroborating corpus
-  should widen first — all 146 files are plain CW-powder Rietveld projects, so
-  image data, single-crystal (HKLF), sequential-fit results and magnetic phases
-  are untested, and GSAS-II's docs place `G2VarObj` instances in some
-  `Constraints` records where this corpus has only plain strings.
-
-- **2026-09-02, from the magnetic scattering track
-  ([1328](1328-magnetic-interchange.md)): the `.pcr` reader refuses a
-  magnetic phase with the TOPAS reader's sentence, and 1328 lifts both.**
-  `coverage.py`'s `magnetic structure` feature stays `Stance.REFUSED` until
-  1327's model exists; a FullProf phase with Jbt = ±1 landing here now takes
-  the same stance and the same sentence ("the nuclear half would look
-  complete"), through the registry rather than a raise, so that 1328 changes
-  one table. Do not map a Fourier-component magnetic phase onto a nuclear
-  structure in the meantime.
-
-- **2026-09-02, from [1324](1324-symmetry-silences.md): a space-group symbol
-  without a setting suffix now has one authority, and a reader landing here must
-  decide which side of it the format sits on.**
-  `crystallography.symmetry.setting_alternatives(symbol)` returns
-  `(taken, others)` for a bare symbol the tables hold in more than one setting —
-  40 of them, read off gemmi rather than listed — and `("", ())` for a symbol
-  carrying its own. The fit-time report `SPACE_GROUP_SETTING_ASSUMED`
-  (`refine._symmetry_silence_diagnostics`) fires on the first case only, so a
-  reader that resolves the setting itself keeps its callers silent: this is
-  exactly what `normalize_space_group`'s trailing-`Z` → `:2` mapping already
-  buys the `.inp` route, and what `cif.py` gets from preferring gemmi's own
-  reading of the file. **The `.pcr` reader and the exporter registry inherit the
-  question**: FullProf writes the symbol without a suffix in the common case, so
-  either the `.pcr` route establishes the setting from evidence the file carries
-  (the way `read_small_structure` picks R from the cell) or it hands a bare
-  symbol on and the caller gets the warning — both are defensible, but the
-  choice is now visible and should be made deliberately rather than inherited.
-  An **exporter** has the mirror obligation: write `get_spacegroup(sym).xhm()`,
-  not the phase's stored string, or a round-trip through a foreign format
-  launders a resolved setting back into an ambiguous one.
-
-- **2026-08-30, from [1308](1308-skill-documents-its-doors.md): the skill now
-  has a routing row for *you were handed another program's input file*, and a
-  reader added here must claim it.** The row is in `SKILL.md`'s routing table
-  and points at `references/api.md` § In plus the manual's `recipe` page; § In's
-  own paragraph opens the case by name and currently names only `read_recipe`.
-  A second such reader (TOPAS `.inp`, `.EXP`/`.PRM`, `.pcr`) therefore has two
-  obligations beyond the code, and `tests/test_skill.py` enforces only the
-  first: every new public verb must appear in `docs/skill/make_api_index.py`'s
-  `SECTIONS` or in `SKILL_EXCLUDED_VERBS` with a reason (the gate goes red until
-  it does), and — no test for this — that routing row's wording says "a
-  PowderLine recipe", the only such reader that exists, and will need widening.
-  § In's paragraph states the same fence the other way, that a `.inp`, an
-  `.EXP`/`.PRM` and a `.pcr` have no reader and are still transcribed by hand;
-  a reader landed here must delete that sentence as well as add its row, or the
-  skill will keep telling an agent to transcribe a file it can now open.
-  Measured caution: SKILL.md sits at **31 973 B of its 32 000 B cap**, 27 B of
-  headroom, so widening the row costs bytes that must be bought elsewhere.
-  WP-1308's entry records the three tightenings it used and that no cap was
-  raised.
-
-- **2026-08-23, from [1131](1131-sample-broadening-is-a-specimen-property.md):
-  rietx has no constant Lorentzian instrument term, so a GSAS-II profile cannot
-  round-trip.** GSAS-II's CW Lorentzian is `γ = X/cosθ + Y·tanθ + **Z**`;
-  `ProfileTCHZ` declares exactly `u, v, w, x, y` and no sixth term
-  (`schemas/instrument.py:507-543`, and `params/vector.py:489` and `:953` both
-  hard-code that five-name tuple). An `.instprm` with a nonzero `Z` therefore has
-  nowhere to land, and the honest reader behaviour — carry it or refuse it by
-  name — is this WP's call, not a physics question: Von Dreele's own teaching
-  slide says `X, Y, Z = 0` is normal and that 11-BM has them zero, so `Z` earns
-  a schema field for round-tripping and not for modelling. 1131 fenced it here
-  explicitly rather than folding it in. Note also, for the same reader, that
-  rietx's `profile.x` is the 1/cosθ (size) coefficient and matches GSAS-II's `X`
-  by law, while TOPAS's `pkx`/`pky` map to rietx's `y`/`x` and **not** by letter
-  (measured in WP-1130).
-
-- **2026-09-02, from [1330](1330-skill-references-by-shape.md): the skill's
-  body cap is 33 000 B and the body sits at 32 964 B — 36 B of headroom, not
-  the 27 B against 32 000 the 1308 note above quotes.** The rule that now
-  governs the routing-row widening that note asks for: a routing row, or any
-  body sentence, is paid for by a cut in the body named in the commit, and
-  the cap moves only in a commit that says so (`tests/test_skill.py`'s
-  docstring, root CLAUDE.md § skill). Two things changed shape for the rows
-  this WP still owes. Every reference file now opens with a pinned
-  three-paragraph header (H1, "Load it when …", the provenance line), so
-  `references/api.md` § In and `references/diagnostics.md` keep theirs
-  when edited. And the skill's routing table is keyed by *situation*: the
-  row for a foreign input file must name the situation ("you were handed
-  another program's input file") and list the formats in § In, never a
-  reader's name in the *When* column. `docs/wp/TEMPLATE.md` now carries a
-  standing **Skill** task line; this WP's "skill rows for the new diagnostic
-  codes" task is that line already.
+`capabilities()` publishes the pattern formats `read_pattern` opens; the model formats
+need their own arm — and so, on the evidence above, may the third kind — with the
+meta-test that fails on a registry member missing from its arm applying unchanged. A new
+format token is spelled in `_about.py`, never inline (root CLAUDE.md § Conventions).
 
 ## Non-goals
 
@@ -337,8 +197,8 @@ missing from its arm applies unchanged. A new format token is spelled in
   evaluator, no `fit_obj`. A construct with no model here is reported, not
   emulated.
 - **GSAS-II `.gpx` is no longer fenced out — it is a task, behind a
-  restricted unpickler** (decided 2026-09-03 on issue #234; the Inherited
-  entry has the measurements). Until that day this bullet fenced it for a
+  restricted unpickler** (decided 2026-09-03 on issue #234; the task line below
+  carries the measurements). Until that day this bullet fenced it for a
   reason measured false. What stays out: any `.gpx` content the corroborating
   corpus does not cover — image, single-crystal, sequential-fit and magnetic
   projects — until the corpus widens, and a `.gpx` *writer*, which is the
@@ -349,14 +209,14 @@ missing from its arm applies unchanged. A new format token is spelled in
 
 ## Tasks
 
-- [ ] Decide the answer's shape (model + vary set, or a `Project`) and stand up
-      the model-format registry beside `PATTERN_FORMATS`, with the diagnostics
-      channel and the "report or refuse, never drop" rule written down first.
-      *Half landed with the TOPAS reader* — the diagnostics channel, the rule
-      (`io/CLAUDE.md` § Project readers) and a per-format shape (`TopasModel`
-      + `to_structure`). What remains is the registry itself, whether the
-      answer is a `Project`, and whether the readers are top-level `rx.`
-      exports; #107, #103 and [1314](1314-mfile-reader.md) all wait on it.
+- [x] Decide the answer's shape and stand up the model-format registry beside
+      `PATTERN_FORMATS`. — 2026-09-13. The unit is a **refinement**, not a
+      foreign file: `PROJECT_FORMATS` + `read_project_model` dispatch on
+      content, the answer is `ProjectModel` (the format's own model, tagged —
+      never a union with blanks), `read_gsas_prm` and `read_recipe` stay
+      outside it with their reasons written down, and the readers are top-level
+      `rx.` exports with a `capabilities().project_formats` arm. #107, #103 and
+      [1314](1314-mfile-reader.md) are unblocked.
 - [x] TOPAS `.inp` reader — the format with the evidence behind it.
 - [ ] GSAS `.EXP` + `.PRM` reader, and make `tests/test_acceptance_fap.py` take
       its protocol from the reader instead of from transcribed constants.
@@ -373,19 +233,52 @@ missing from its arm applies unchanged. A new format token is spelled in
       `pickle.load(f, encoding="latin-1")` to `EOFError`; the tree is a list of
       `[label, data]` pairs per top-level item. Widen the corpus before
       shipping (image, HKLF, sequential, magnetic; `G2VarObj` in
-      `Constraints`). GSAS-II's own source is read as specification only.
+      `Constraints`). GSAS-II's own source is read as specification only, and
+      its documented python interface is **GSASIIscriptable** — "pysas" is an
+      unrelated XMM-Newton toolkit, not GSAS-II's.
 - [ ] Origin-choice honesty: `SPACE_GROUP_ORIGIN_ASSUMED` when a multi-origin
       symbol resolves unpinned, and the TOPAS suffixes accepted on input
       (issue #101; lift `normalize_space_group` from the #98 draft).
 - [ ] The writers, each naming what did not cross — GSAS-II included — with
       export → re-import round-trip as each format's acceptance (issue #148).
+      Two obligations already banked. An exporter writes
+      `get_spacegroup(sym).xhm()`, never the phase's stored string, or a
+      round-trip through a foreign format launders a resolved setting back into
+      an ambiguous one ([1324](1324-symmetry-silences.md)). And **a GSAS-II
+      profile cannot round-trip today**: GSAS-II's CW Lorentzian is
+      `γ = X/cosθ + Y·tanθ + Z` while `ProfileTCHZ` declares exactly `u, v, w,
+      x, y` (verified 2026-09-13; `params/vector.py` hard-codes that five-name
+      tuple twice), so an `.instprm` with a nonzero `Z` has nowhere to land.
+      Carry it or refuse it by name is this WP's call, not a physics question —
+      Von Dreele's own teaching slide says `X, Y, Z = 0` is normal and 11-BM has
+      them zero, so `Z` earns a schema field for round-tripping and not for
+      modelling ([1131](1131-sample-broadening-is-a-specimen-property.md) fenced
+      it here). For the same reader: rietx's `profile.x` is the 1/cosθ (size)
+      coefficient and matches GSAS-II's `X` by law, while TOPAS's `pkx`/`pky`
+      map to rietx's `y`/`x` and **not** by letter (measured in WP-1130).
 - [ ] `capabilities()` arm, skill rows for the new diagnostic codes
       (`docs/skill/rietx/` — `AGENT_PROTOCOL.md` is a redirect stub since
       WP-1304), a Part 1 manual section, and an `ATTRIBUTION.md` row per
       format. The TOPAS half of the diagnostic rows and its `ATTRIBUTION.md`
-      row landed; still owed, and now **false rather than merely missing**,
-      are `SKILL.md`'s routing row and `references/api.md` § In, which both
-      still say a `.inp` has no reader (Inherited, from WP-1308).
+      row landed. **Superseded in part, 2026-09-13**: `references/api.md` § In
+      was repaired somewhere between 2026-09-03 and 2026-09-13 and now names
+      both `rietx.io.projects.read_topas_inp` and `read_fullprof_pcr`, says
+      they have no top-level `rx.` entry point yet, and carries `rx.read_gsas_prm`
+      — so it is no longer false. What is still owed is `SKILL.md`'s routing row
+      (line 41), which names only "a PowderLine recipe" and so is *narrow*
+      rather than false, and which must name the **situation** and list the
+      formats in § In, never a reader's name in the *When* column
+      ([1330](1330-skill-references-by-shape.md)). The byte-headroom cautions
+      inherited from WP-1308 (27 B), PR #98 (32 B) and 1330 (36 B) are all
+      stale: measured 2026-09-13, `SKILL.md` is 31 403 B of its 33 000 cap —
+      **1 597 B free** — and `references/api.md` 30 924 B of 36 000. A body
+      sentence is still paid for by a cut named in the commit; there is simply
+      room to pay.
+- [ ] A `#prm`-only integer evaluator for `.inp` `#if` guards, so the
+      multi-pattern reel files read instead of refusing (§ Context; WP-1130
+      measured three of four workshop files out of reach). Scope it to integer
+      `#prm` comparisons — it is not the macro language, and § Non-goals still
+      holds.
 - [ ] Fixtures with provenance rows in `tests/data/README.md`; tests, and the
       obs/calc/diff PNGs for any refinement one of them drives.
 
@@ -423,6 +316,177 @@ work this WP does.
   § "Learned in v0.2".
 
 ## Handover log
+
+### 2026-09-13 — the registry, and the question it had to answer first
+
+Someone handed another program's refinement file can now open it with one call.
+`rx.read_project_model("whatever.inp")` works out from the file's contents which
+program wrote it, reads it, and hands back what the file said plus a
+`.to_structure()` carrying the file's own refine flags. Before today the two
+readers that could do this existed but were reachable only by importing them by
+name, and `rx.capabilities()` did not mention them, so nothing could ask what
+this build opens. The part that needed deciding was not the plumbing: it was what
+the registry is *for*. Four readers in this package open a foreign file, they do
+not answer the same question, and forcing them into one shape would have meant a
+model with a blank where a file simply had nothing to say — which reads as an
+answer. The decision taken is that the registry's unit is a **refinement**, and
+two of the four stay outside it with the reason written down rather than left to
+be inferred.
+
+*Done* — six commits, `wp1118-model-format-registry`.
+
+- **The mailbox pruned first** (`3a7f57a7`). Eight `### Inherited` entries folded
+  into Context, Seams and Tasks and the section deleted. Three had gone stale in
+  the ten days since the file was last edited, and the worst of them was stale in
+  the reassuring direction: WP-1308, PR #98 and WP-1330 all warn that `SKILL.md`
+  has 27, 32 or 36 bytes of headroom and that a routing row must be bought with a
+  cut. Measured today it has **1 597 B** free, because WP-1103 and #284 cut the
+  body after those notes were written. `references/api.md` § In had likewise
+  stopped being false — it already named both readers. The third was an omission
+  rather than a rot: `rx.read_gsas_prm` (PR #248) had landed as a *third reader
+  kind* and the registry task did not carry it.
+- **The registry** (`5ba04e58`): `io/projects/registry.py` with `ProjectFormat`,
+  `ProjectModel`, an ordered `PROJECT_FORMATS`, `identify_project_format` and
+  `read_project_model`; top-level exports for all of it plus `rx.read_topas_inp`
+  and `rx.read_fullprof_pcr`; a `capabilities().project_formats` arm with the
+  membership meta-test `reader_formats` is held to; `io/CLAUDE.md` § Project
+  readers +3 rules (cap 350 → 368, argued); a Part 1 chapter; and the skill's
+  routing row and § In.
+- **The read's reports made durable** (`5e85b7d5`), found reviewing the commit
+  before it — below.
+- Two prose corrections and an encoding fix.
+
+*The three decisions, and what each rules out.*
+
+1. **The unit is a refinement, not a foreign file.** `read_gsas_prm` carries a
+   machine and no model at all — no phases, no sites, no fitted numbers — so it
+   stays beside `load_instrument_profile`, which is the argument its own merge
+   made and the organising question the 09-10 entry recorded as raised and
+   unanswered. `read_recipe` is a refinement but resolves to something ready to
+   fit and is a build-wide feature. A pattern is the other registry's. Admitting
+   any of them would empty every field this registry declares about a model, on
+   one member. **What this rules out**: a future reader is placed by asking "does
+   this file state a refinement" before it is written, not after it has a home.
+2. **The answer is the format's own model, tagged.** `ProjectModel` names the
+   format and hands on `TopasModel`/`FullProfModel` untouched. A shared shape
+   would need an optional field wherever a format is silent, and a caller could
+   not tell "this file carried none" from "the reader found none" — WP-1076 one
+   registry over. What each format carries beyond a structure is declared in
+   words (`ProjectFormat.carries`) so a client asks instead of reading `None` and
+   guessing, and the conversion keywords pass through rather than being flattened
+   into one vocabulary, since two formats' options sharing a name would not share
+   a meaning.
+3. **Dispatch is on content, never the suffix.** `.inp` is written by unrelated
+   programs — WP-1407's rule one rank up, that a file extension does not name a
+   format here. FullProf goes first because `COMM` is a line the format
+   *requires*; TOPAS's evidence is a line-start keyword in a 64 kB head, the
+   weaker test, and the order is that difference. The `.inp` sniff runs the head
+   through the reader's **own** `strip_comments`, so a commented-out `xdd` is not
+   a statement and the sniff is not a second grammar to keep in step.
+
+*Measured* — worktree `.venv`, `[dev]` only (no jax, no torch, so the
+cross-backend rows self-skip), python 3.12.12, darwin/arm64, `pgrep` clean both
+times:
+
+- Fast selection `-n auto --dist loadgroup -m "not slow"`: **4632 passed, 132
+  skipped**, ~2:05-2:08 (three runs, 124.7 s / 127.6 s / 128.3 s; the first is
+  the final tree). The delta is **+24 passed, +0 skipped** —
+  `tests/test_projects_registry.py` collects 24 and every one passes; no other
+  file's collection moved, `test_capabilities.py`'s edit being one assertion
+  inside an existing test.
+- `tests/test_acceptance_fap.py`, the WP's named acceptance: 2 passed.
+- `ruff check src tests examples` clean; `sphinx -W` clean.
+- **The full suite did not run**, and deliberately: `tests/CLAUDE.md`'s rung 3
+  fires only when a change can move a measured number, and nothing here touches
+  the forward model, the solver or the statistics. The FAP acceptance was run
+  anyway because this WP names it.
+- **Import cost, since `import rietx` now pulls in two ~2 500-line parsers**:
+  `rietx.io.projects` is **13.1 ms cumulative** of a 535–663 ms total (three
+  runs), about 2 %. `scipy.signal`, reached through `rietx.background`, is 274 ms
+  of the same total. Not worth a lazy-import mechanism the package does not have
+  for any other export; recorded so the next reader added knows what it costs.
+
+*In flight*: nothing. The branch is one session's work and complete.
+
+*Gotchas*:
+
+- **The asymmetry in `reports_at` was very nearly a trap, and the review caught
+  it two screens from a test arguing against it.** A `.inp` reports its repairs
+  while parsing and a `.pcr` while codewords become a `Structure`, so the first
+  design routed the caller's list on that flag — and silently dropped it when a
+  caller passed one to `to_structure` on a `.inp`. They got an empty list back,
+  which reads as "this file needed no repairs". The fix is `Recipe`'s: the read
+  reports into a list of the front door's own, lands on
+  `ProjectModel.diagnostics` whether or not anyone asked, and a caller's list is
+  **extended** from it rather than handed to the reader, so it stays the caller's
+  own object. The general shape to watch for: a per-format flag that routes a
+  caller's channel is a place where being wrong is silent.
+- **Two declared names have no writer among the members, and the review was
+  right to say so out loud.** `ProjectFormat.refuses` is `None` on both, because
+  neither is a recognise-in-order-to-decline format — so the `if f.refuses is
+  None` filter it exists for was unreachable. `ProjectModel.diagnostics` is
+  always `()` for `fullprof_pcr`, whose read has no channel at all, so a
+  format-agnostic caller writing `if model.diagnostics:` is silent on every
+  `.pcr` however much it repaired. Neither is WP-1076's defaulted `False` — both
+  are the honest empty state — but both were claims resting on a docstring. Now:
+  the docstring says which formats an empty tuple means anything about, and the
+  filter is exercised against a stub member that sets `refuses`, rather than
+  asserted from the table and believed.
+- **`.inp` and `.pcr` fixtures cannot be vendored, so the `.pcr` ones are
+  `test_projects_fullprof`'s builders imported.** A second fixture writer for one
+  format is a second description of its layout, and the two would drift on
+  exactly the 19-field control line that format refuses a file over — which it
+  did, on the first run, against a hand-written 18-field one.
+- **The WP file read at session start was three days stale.** `/wp-start` reads
+  the WP file in step 2 and enters the worktree in step 3, so the read comes from
+  the main checkout — which was six merges behind `origin/main`, and missing the
+  09-10 entry recording PR #248. Reconciled by re-reading from the worktree. The
+  cheap habit: after `EnterWorktree`, re-read the WP file.
+- **The review pass found six things, four of which it fixed, and the two it
+  left were both worth acting on.** The one that mattered: `_TOPAS_LINE`
+  *restated* the grammar's opener tuple instead of reading it, so an opener
+  added to `topas._BLOCK_OPENERS` would keep parsing through `read_topas_inp`
+  while `read_project_model` answered "not a refinement file this build can
+  read" — drift in one direction and in silence. The alternation is now built
+  from that tuple (verified byte-identical to the literal it replaced), with
+  `STR` the one member taken out and spelled `STR(`. Also fixed: the binary
+  hint on the refusal, matching `identify_format`; the `diagnostics` docstring;
+  and a manual sentence claiming the sniff decides "without reading" a file it
+  reads 64 kB of. Of the two left to me, the partial-diagnostics one turned out
+  to be a docstring claiming a parity it did not keep — `read_pattern` hands its
+  list straight down, so a read that repairs and then refuses keeps what it
+  repaired, and this door copied only on success. Fixed with a `finally`, and
+  **no reader in this build can reach the case today** (every TOPAS diagnostic is
+  appended after its last raise, and FullProf reports at build), so it is tested
+  through a stub member at the door where the promise lives.
+- **Two documentation gates fired on this work and both were right.**
+  `test_manual_api.py` put 90 public names in no bucket, which is what made
+  `rietx.io.projects` a declared-provisional module (the WP-1078 mechanism —
+  honest here, since the registry landed with two formats and three queued) and
+  bought the Part 1 chapter. `test_skill.py` demanded the four new verbs in
+  `make_api_index.py`'s `SECTIONS`. Neither would have fired had the readers
+  stayed off the top level, which is the argument for putting them there.
+
+*Next*, in order:
+
+1. **The GSAS `.EXP` reader** — issue #103, whose filer volunteered for it once
+   the registry shape landed, and it has. They bring two spec findings for its
+   docstring (GSAS-II's `Rvals['GOF']` is reduced χ² rather than its root;
+   instrument parameters are `[default, current, refine_flag]` triples, current
+   at index 1). It is the task with a fixture already in the repo — `FAP.EXP` is
+   GSAS's converged fluorapatite fit — so it is also what lets
+   `test_acceptance_fap.py` take its protocol from a reader instead of from
+   transcribed constants, which is this WP's stated acceptance.
+2. **The `STR(...)` decision** — issue #107, whose filer offered either fix once
+   told which. 1119 settled that it needs no expression language, so it is a
+   `.inp` grammar question living entirely in `io/projects/topas.py`.
+3. **The `#if` evaluator**, newly a task line: three of four workshop `.inp`s
+   refuse at their first `#if`, and those are the multi-pattern reel files
+   WP-1110's agent round named as the hardest part of the work.
+
+The writers (#148) and the `.gpx` reader (#234, its reporter's offer standing)
+are both larger and neither is blocked, so they wait on someone choosing them
+rather than on anything here.
 
 ### 2026-09-10 — the `.PRM` half of the GSAS task landed from outside (PR #248)
 

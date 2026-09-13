@@ -64,6 +64,21 @@ nuclear-only structure that looks complete is the failure every one of these
 refusals exists to prevent, so a magnetic construct the reader cannot carry
 is still named in the result.
 
+### Inherited
+
+- **2026-09-13, from [1118](1118-foreign-model-files.md): the readers are now
+  behind a registry, so lifting the magnetic refusals touches one more
+  declared place.** `PROJECT_FORMATS` (`io/projects/registry.py`) carries a
+  `carries` field per format — what the file holds beyond a structure, in
+  words, published through `capabilities().project_formats` and read by a
+  client deciding what to ask for. The FullProf row does not mention magnetic
+  phases today, correctly, because `to_structure` refuses them. When 1327's
+  model lands and that refusal lifts, that row is part of the change and
+  `tests/test_projects_registry.py` asserts the arm member for member.
+  Nothing else moved: `coverage.py`'s `magnetic structure` stance is still
+  `Stance.REFUSED` and there is still no moment on `main` (verified
+  2026-09-13), so this WP's premise holds unchanged.
+
 ## Non-goals
 
 - The model itself, its physics, its DOFs: 1327.
