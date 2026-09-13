@@ -1076,6 +1076,186 @@ def test_the_schema_is_a_parser_boundary_like_any_other(tmp_path):
     assert "pydantic" not in message and "validation error" not in message
 
 
+# ---------------------------------------------------------------------- udf
+#: The 19 keys every one of the 56 real ``.udf`` files carries, in their order,
+#: with the values an ASU PANalytical Aeris wrote on 3 June 2025.  No real file
+#: can be vendored — all three repositories holding them declare no licence — so
+#: the header is reproduced as *facts read off them* (`tests/data/README.md`
+#: § Philips has the table) and the tests below synthesize from it.
+AERIS_HEADER = [
+    ("SampleIdent", "2025_06_03_CeO2_3_60_8min"),
+    ("Title1", "CeO2 Standard"),
+    ("Title2", ""),
+    ("DiffrType", "?"),
+    ("DiffrNumber", "1"),
+    ("Anode", "Cu"),
+    ("LabdaAlpha1", " 1.540598"),
+    ("LabdaAlpha2", " 1.544426"),
+    ("RatioAlpha21", " 0.50000"),
+    ("DivergenceSlit", "Fixed, 1/2"),
+    ("ReceivingSlit", "UNDEFINED"),
+    ("MonochromatorUsed", "NO"),
+    ("GeneratorVoltage", "  40"),
+    ("TubeCurrent", "  15"),
+    ("FileDateTime", "03-jun-2025 15:55"),
+    ("ScanType", "CONTINUOUS"),
+    ("ScanStepTime", " 18.87"),
+]
+
+#: PyXRD's own inline UDF test data, verbatim under **BSD-2** — the one
+#: vendorable fixture this format has.  Unlike its ``.rd`` sibling it is valid
+#: as committed: UDF is plain ASCII, so the raw-string prefix does it no harm.
+#: It carries **5** of the 19 keys, and ends its block ``0/`` where every real
+#: file ends ``425,/``, which is the evidence that the comma is optional.
+PYXRD_UDF_FIXTURE = """SampleIdent,Sample5 ,/
+Title1,Dat2rit program ,/
+Title2,Sample5 ,/
+DataAngleRange,   5.0000, 5.6400,/
+ScanStepSize,     0.020,/
+RawScan
+    8000,    7000,    6000,    5000,    4000,    3000,    2000,    1000
+    800,     700,     600,     500,     400,     300,     200,     100
+    80,      70,      60,      50,      40,      30,      20,      10
+    8,       7,       6,       5,       4,       3,       2,       1
+    0/"""
+
+
+def write_udf(path, values, *, lo=3.00043, step=0.01086644,
+              hi=None, header=AERIS_HEADER, marker="RawScan", comma=True):
+    """A ``.udf`` in the real files' shape: 19 keys, a marker, eight per line.
+
+    ``hi`` defaults to the end angle the range and step imply, so a caller that
+    wants the two to *disagree* has to say so — which is the gate under test.
+    """
+    hi = lo + step * (len(values) - 1) if hi is None else hi
+    lines = [f"{k},{v},/" for k, v in header]
+    lines += [f"DataAngleRange, {lo:9.5f}, {hi:9.5f},/",
+              f"ScanStepSize, {step:.11f},/", marker]
+    rows = [values[i:i + 8] for i in range(0, len(values), 8)]
+    body = [",".join(f"{v:8.0f}" for v in row) for row in rows]
+    path.write_text("\n".join(lines) + "\n" + ",\n".join(body)
+                    + ("," if comma else "") + "/\n", encoding="utf-8")
+    return path
+
+
+def test_a_udf_reconstructs_its_axis_and_reports_what_the_header_knows(tmp_path):
+    """The abscissa is not stored: it is ``DataAngleRange`` plus ``ScanStepSize``."""
+    counts = [3819, 3775, 3890, 3829, 3764, 3811, 3894, 3752, 3827, 3784]
+    p = write_udf(tmp_path / "aeris.udf", counts)
+
+    data = rx.read_pattern(p)
+
+    assert rx.io.readers.identify_format(p).name == "udf"
+    assert len(data.two_theta) == 10
+    assert data.two_theta[0] == pytest.approx(3.00043)
+    assert data.two_theta[1] - data.two_theta[0] == pytest.approx(0.01086644)
+    assert data.intensity == [float(c) for c in counts]
+    assert data.metadata["anode"] == "Cu"
+    assert data.metadata["wavelength"] == "1.540598"
+    assert data.metadata["wavelength_alpha2"] == "1.544426"
+    # whole numbers are counts, whose σ is the package's Poisson fallback
+    assert data.sigma is None
+
+
+def test_a_udf_value_may_contain_commas_so_a_line_splits_on_the_first_only(tmp_path):
+    """``DivergenceSlit,Fixed, 1/2,/`` is two fields and ``Title1`` runs to ten
+    in the real corpus.  Splitting on every comma is the obvious parse and would
+    make the title ``CeO2`` and the slit ``Fixed``."""
+    header = [(k, v) for k, v in AERIS_HEADER if k != "Title1"]
+    header.insert(1, ("Title1", "CBN - Sorbic Acid, Slurry, Heptane, 5/9/25, JL"))
+    p = write_udf(tmp_path / "commas.udf", [10, 20, 30, 40], header=header)
+
+    data = rx.read_pattern(p)
+
+    assert data.metadata["title"] == "CBN - Sorbic Acid, Slurry, Heptane, 5/9/25, JL"
+
+
+def test_an_empty_udf_value_is_a_present_key_not_an_absent_one(tmp_path):
+    """``Title2,,/`` occurs in nearly every real file."""
+    p = write_udf(tmp_path / "empty.udf", [10, 20, 30, 40])
+
+    data = rx.read_pattern(p)
+
+    # Title2 is empty in AERIS_HEADER and no metadata key claims it; what the
+    # test pins is that the *parse* survived it and the next keys still landed
+    assert data.metadata["sample"] == "2025_06_03_CeO2_3_60_8min"
+    assert "title" in data.metadata
+
+
+def test_a_udf_whose_two_length_statements_disagree_is_refused(tmp_path):
+    """The file says how long it is twice — a range plus a step, and a count of
+    values — and the two agree in all 56 real files.  A disagreement puts the 2θ
+    of *every* point in doubt, so it is a contradiction and not a repair."""
+    p = write_udf(tmp_path / "short.udf", [10, 20, 30, 40], hi=3.1)
+
+    with pytest.raises(ValueError, match=r"short\.udf.*points.*data block holds 4"):
+        rx.read_pattern(p)
+
+
+def test_the_terminating_comma_is_optional(tmp_path):
+    """Every real file ends ``425,/``; PyXRD's vendorable fixture ends ``0/``."""
+    a = write_udf(tmp_path / "with.udf", [10, 20, 30, 40], comma=True)
+    b = write_udf(tmp_path / "without.udf", [10, 20, 30, 40], comma=False)
+
+    assert rx.read_pattern(a).intensity == rx.read_pattern(b).intensity
+
+
+def test_the_vendorable_pyxrd_fixture_parses_on_five_keys(tmp_path):
+    """It carries 5 of the 19 keys, so the reader must require only the two that
+    make an abscissa — a vocabulary check would reject the one file that ships."""
+    p = tmp_path / "pyxrd.udf"
+    p.write_text(PYXRD_UDF_FIXTURE, encoding="utf-8")
+
+    data = rx.read_pattern(p)
+
+    assert rx.io.readers.identify_format(p).name == "udf"
+    assert len(data.two_theta) == 33
+    assert data.two_theta[0] == pytest.approx(5.0)
+    assert data.two_theta[-1] == pytest.approx(5.64)
+    assert data.intensity[0] == 8000.0 and data.intensity[-1] == 0.0
+    assert "anode" not in data.metadata
+
+
+def test_a_udf_derives_no_counting_time_from_scan_step_time(tmp_path):
+    """``ScanStepTime`` is not seconds per step on a PIXcel-class detector: the
+    Aeris writes 18.87 for a scan its own name calls eight minutes over 5246
+    points.  Recording it as ``count_time_s`` would make every derived σ wrong."""
+    p = write_udf(tmp_path / "time.udf", [10, 20, 30, 40])
+
+    assert "count_time_s" not in rx.read_pattern(p).metadata
+
+
+def test_a_udf_with_scaled_intensities_withholds_sigma_and_says_so(tmp_path):
+    """The format declares no intensity unit, so arithmetic is all there is."""
+    p = tmp_path / "rate.udf"
+    header = "\n".join(f"{k},{v},/" for k, v in AERIS_HEADER)
+    p.write_text(header + "\nDataAngleRange,   3.00000,   3.06000,/\n"
+                 "ScanStepSize, 0.02000,/\nRawScan\n"
+                 "  3.5,  4.25,  5.75,  6.5,/\n", encoding="utf-8")
+
+    notes: list = []
+    data = rx.read_pattern(p, diagnostics=notes)
+
+    assert data.sigma is None
+    assert [n.code for n in notes] == ["PATTERN_INTENSITY_SCALED"]
+
+
+def test_a_udf_seeds_the_instrument_hint_without_the_three_candidate_guess(tmp_path):
+    """The header states the anode *and* both wavelengths exactly, so the hint
+    resolves by agreement rather than by matching λ against Kα1/Kα2/weighted
+    mean.  This is why ``RatioAlpha21`` earns no ``METADATA_KEYS`` entry: the
+    CuKa preset already carries the 0.5 every real file states, so a declared
+    key would have no consumer (WP-1076)."""
+    from rietx.gui.imports import suggest_instrument
+
+    p = write_udf(tmp_path / "hint.udf", [10, 20, 30, 40])
+
+    hint = suggest_instrument(rx.read_pattern(p).metadata)
+
+    assert hint["radiation"] == "CuKa"
+    assert "anode and wavelength agreeing" in hint["why"]
+
+
 # ---------------------------------------------------------------------- uxd
 def write_uxd(path, ranges, *, anode="Cu", wl1=1.540600, radius=250.0):
     """A ``.uxd`` of one or more ranges.  No real ``.uxd`` could be vendored —

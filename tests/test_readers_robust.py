@@ -68,12 +68,25 @@ REAL_FIXTURES = [
 #: (``14476.``, six characters).  The APS 11-BM patterns that do reach the edge
 #: are not redistributable (``tests/data/README.md`` § GSAS ESD), so the layout
 #: is packed here instead.
-SYNTHETIC_FIXTURES = ["uxd", "rasx", "brml", "raw4", "raw3", "gsas_esd"]
+#: ``udf`` is a sixth reason: a vendorable fixture *does* exist (PyXRD's inline
+#: one, BSD-2) but it is 33 points and five keys, so cutting it reaches almost
+#: none of the header; all 56 real files are unlicensed, so the full 19-key
+#: header is synthesized here from the table in ``tests/data/README.md``.
+SYNTHETIC_FIXTURES = ["uxd", "rasx", "brml", "raw4", "raw3", "gsas_esd", "udf"]
 
 
 def _synthesize(kind: str, path: Path) -> Path:
-    from tests.test_readers import write_brml, write_gsas_esd, write_rasx, write_uxd
+    from tests.test_readers import (
+        write_brml,
+        write_gsas_esd,
+        write_rasx,
+        write_udf,
+        write_uxd,
+    )
     from tests.writers_xrd import write_raw3, write_raw4
+
+    if kind == "udf":
+        return write_udf(path, [500 + i % 7 for i in range(400)])
 
     if kind == "gsas_esd":
         # every fifth channel fills its 8-character field, so a cut lands

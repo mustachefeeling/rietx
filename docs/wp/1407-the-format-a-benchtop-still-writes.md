@@ -315,7 +315,7 @@ holds a registered binary reader nothing exercises.
       this project's, on the template of the three Bruker `.raw` rows
       (`:250-252`). Add the MAUD per-file contradiction as the worked example
       of step 1. Then close the sources.
-- [ ] 3. `.udf` reader: `src/rietx/io/formats/udf.py` exporting a
+- [x] 3. `.udf` reader: `src/rietx/io/formats/udf.py` exporting a
       `PatternFormat`. Text, so its writer stays inline in
       `tests/test_readers.py`. Registry position after the binary and container
       formats and before `xy`; say why in `formats/__init__.py:57-63`.
@@ -325,6 +325,14 @@ holds a registered binary reader nothing exercises.
       not**, and `base.metadata()` refuses an undeclared key, so the acceptance
       line below buys a new `METADATA_KEYS` entry (`base.py:164`) — declare it
       with the two consumers that match on it, or drop the ratio from the bar.
+      **Dropped from the bar, and the reason is WP-1076.** The hint already
+      takes the direct route without it: the header states the anode *and* both
+      wavelengths exactly, so `suggest_instrument` resolves `CuKa` by
+      name-and-wavelength agreement with no candidate matching. The ratio would
+      then need a `METADATA_KEYS` entry, a new preset field and a consumer — and
+      the `CuKa` preset already carries weight 0.5 for Kα2, which is what all 56
+      real files state, so no obtainable file would exercise a value different
+      from the default. A declared name with no writer fails no test.
 - [ ] 4. `.rd` reader: `src/rietx/io/formats/philips_rd.py`. **Restated by task
       1**: `.sd` is V5 of this same format, so the reader **claims** both by
       magic (`V3RD`/`V5RD`) rather than refusing `.sd` by name. Intensities are
@@ -369,8 +377,9 @@ holds a registered binary reader nothing exercises.
 .venv/bin/python -m ruff check src tests examples
 ```
 
-- A `.udf` file opens and reports the anode, **both** wavelengths and the
-  Kα2/Kα1 ratio its header carries.
+- A `.udf` file opens and reports the anode and **both** wavelengths its header
+  carries, and the instrument hint resolves `CuKa` from them by agreement. The
+  Kα2/Kα1 ratio is **not** on the bar; task 3 records why.
 - **The lead paid off, so the bar is bit-identity**: `qarr/corundum.rd` opens
   and reproduces the committed `qarr/corundum.prn` **exactly on all 7251
   channels**, and `qarr/cpd-1e.rd` reproduces its own `.prn` to within the ±1
