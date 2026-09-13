@@ -358,21 +358,32 @@ holds a registered binary reader nothing exercises.
       parses as a two-column profile**, which keeps `.dif`'s escape — via
       `PatternFormat.refuses` +
       `ReaderCapability.refuses`, by extension, saying so in `sniff`.
-- [ ] 7. Tests: a `# ---- <format>` section per reader in
+- [x] 7. Tests: a `# ---- <format>` section per reader in
       `tests/test_readers.py`, the truncation arms, and the
       `tests/test_capabilities.py:222` scan-capable set if either format is
       multi-scan. **No obs/calc/diff PNGs**: this WP fits nothing, it only
-      reads files.
-- [ ] 8. Docs and close: `io/CLAUDE.md` § Per format rows and any new rule,
+      reads files. Neither format is multi-scan, so the scan-capable set is
+      unchanged and that assertion needed no edit.
+- [x] 8. Docs and close: `io/CLAUDE.md` § Per format rows and any new rule,
       diagnostics rows in `docs/skill/rietx/references/diagnostics.md` for any
-      new code, ROADMAP row, milestone record.
-- [ ] 9. Skill: **one routing-table row is not owed** here, because a new
+      new code, ROADMAP row, milestone record. **No diagnostics row is owed**:
+      this WP added no new code, reusing `PATTERN_INTENSITY_SCALED` only. Four
+      per-format rows and three new rules landed in `io/CLAUDE.md`, which took
+      its cap from 300 to 350 — the blocks were cut by a third first, and the
+      cap comment says why each rule could not be demoted to this file.
+- [x] 9. Skill: **one routing-table row is not owed** here, because a new
       readable format changes nothing about how an agent *drives* a fit. What
       is owed is a diagnostics row per new code (task 8) and, if the
       binary-`.raw` refusal ships, a line in the skill's file-opening guidance
       saying that a `.raw` may belong to any of six vendors so the refusal
       message is the thing to read. Confirm against root CLAUDE.md § skill at
-      close and record the decision either way.
+      close and record the decision either way. **Decided**: no routing row and
+      no diagnostics row. The `.raw` line went into `references/api.md` § In and
+      **not** the body, because the body takes only what holds for *every* fit
+      and this holds only for a fit that starts from a `.raw`. It is authored in
+      the generator (`docs/skill/make_api_index.py`), since `api.md` is
+      rendered and a hand edit fails `test_skill.py`; both committed copies were
+      re-synced with `rietx skill --install . --copy`.
 
 ## Acceptance
 
