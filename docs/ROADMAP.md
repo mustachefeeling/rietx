@@ -83,15 +83,14 @@ placement, link resolution, and the size caps on this file and CLAUDE.md.
 
 ## Current focus
 
-**v1.4 — free-standing peaks** ([§ v1.4](#v14--free-standing-peaks-in-flight),
-[record](milestones/v1.4.md)), opened 2026-09-12, all three WPs closed
-2026-09-13. **No open WP**: what is left is deleting the `AGENT_PROTOCOL.md`
-pointer — nobody's, and now more owed, since 1103's rows went to the skill on
-the strength of it. Unscheduled
-[1407](wp/1407-the-format-a-benchtop-still-writes.md) also landed 2026-09-13
-(`.udf`, `.rd`/`.sd`, three refusals), leaving **one cheap unowned ask**: Stoe
-`.raw` files paired with the WinXPOW ASCII export of the same scans would make
-Stoe writable, and nothing depends on it.
+**No milestone is open.** [v1.4](#v14--free-standing-peaks) shipped
+2026-09-13 ([record](milestones/v1.4.md), [notes](releases/1.4.0.md)) with all
+seventeen acceptance rows met, one day after it opened; `pyproject.version` is
+`1.4.0`, the last shipped, until the next one opens. The ship pass paid v1.4's
+one debt (the `AGENT_PROTOCOL.md` pointer, at four sites) and retired a parked
+known-red. **One cheap unowned ask** survives from 1407: Stoe `.raw` files
+paired with the WinXPOW ASCII export of the same scans would make Stoe
+writable, and nothing depends on it.
 
 **In flight:** [1118](wp/1118-foreign-model-files.md) foreign model files — the
 `.inp`, `.pcr` and `.PRM` readers merged, and the registry over them landed
@@ -129,7 +128,7 @@ second opinion covers (golden only, no `jacfwd` row — 1119 § Gotchas).
 | v1.1 | Refinement speed: seconds not minutes — and the 1.0.x work folded in (1.0.2 was never published) | ✅ **shipped 2026-08-23** ([record](milestones/v1.1.md)) | trigger-shaped cold fit **5.69-5.72 s** against the milestone's opening **50.11-50.43 s** (8.8×) and the 10-pattern warm series **49.24-49.30 s** against **266.78-269.61** (5.4×), best-of-3 idle, darwin/arm64 `[dev]`; seven of nine warm patterns at 0.88-2.33 s (median 2.02) with two at 10.53/20.26 — the ~1 s band **met on the maintainer's judgement and recorded mis-specified**, judged on the per-pattern table as WP-1124 required; stretch (cold < 1 s) **measured unreachable** and recorded as such; every landed WP with its equivalence bar, never an Rwp comparison |
 | v1.2 | The GUI for a crystallographer: house style, one help mechanism, onboarding, the panels a first-time user meets | ✅ **shipped 2026-08-28** ([record](milestones/v1.2.md)) | all six rows met on the release tree: one token layer and nine control registers with no size at a call site; one help mechanism over a 119-entry corpus crossed against the live vocabularies both ways, its 47 remaining authored titles a per-file budget that fails both ways; a project created from a blank state four ways in a real browser (a shipped example, browse, a typed cell, no structure at all); zero axis movement on hover, tab change and a whole exclude drag, 4 → 1 reacts per drag; refine flags, typed coordinates and a saved instrument profile in the Model panel; and the manual guarded by two partitions (77 routes, nine panels), 18 generated screenshots and a generated glossary — suite counts in the record's ship appendix |
 | v1.3 | Agents and programs: the termination view, the hold, the skill, the interchange format | ✅ **shipped 2026-08-30** ([record](milestones/v1.3.md), [notes](releases/1.3.0.md)) | six rows written at ship rather than at the open, and recorded as the weaker evidence that is: one integration surface, the python API, `rietx.agent` deleted on **zero** traced calls across four rounds; a result answering "done or not, and why" in one call, its diagnostics 35.2 → 3.5 kB from dedup and cap alone; an unsupported phase **held** rather than bounded (13 sub-onset ramp patterns: a cell 14.9 Å from truth free, 0.163 Å bounded by hand, **not reported** here); the protocol a 31 968 B skill read whole with a derived gate that found **four** undocumented entry points on its first run; the PowderLine recipe at **11-93 ppm** from TOPAS on all five free cell parameters; and the block measured — round 1.1, eight cells, $38.39, **seven of eight** stopping on a criterion this package states against **zero** in the 86-run baseline — suite counts in the record's ship appendix |
-| v1.4 | Free-standing peaks: fit_peaks + the extra-components seam | 🔄 **opened 2026-09-12** ([record](milestones/v1.4.md)) | seven rows written at the open, five of them 1101's: exactly the components a caller names; a named position that fits nothing answered rather than dropped; an unnamed neighbour flagged; one window-sizing arithmetic serving detection, the GUI editor and `fit_peaks`; Williamson-Hall executed in the manual rather than shipped as a helper. 1102 sharpened its own rows at its open and 1103 sharpened seven more at its, so every row in the record was written by a session that had read the WP behind it |
+| v1.4 | Free-standing peaks: fit_peaks + the extra-components seam | ✅ **shipped 2026-09-13** ([record](milestones/v1.4.md), [notes](releases/1.4.0.md)) | seventeen rows, **every one written before the work rather than at the ship** — 1101's five at the open, 1102's and 1103's sharpened by the sessions that had read them — and all seventeen met on the release tree (record § Appendix). The measured half: `fit_peaks` answers a named position that fits nothing and flags the unnamed neighbour beside one; the union's second member costs no new field and its landing is read from data, not from a class name; and the operando case is reported against its own alternative rather than flattered — declaring two injected holder lines recovers the SRM 660c cell to −1.0 ppm where ignoring them costs +7.6 ppm and inflates the cell esd 7.5×, while **excluding** the regions recovers it too, to +0.6 ppm, for 4.8 % of the channels |
 | v2+ | FPA (with the peaks buffer), neutron TOF, texture, modulated structures, PDF, MCP server — [§ v2+](#v2--fenced) | ⬜ fenced | — |
 
 ## Work packages
@@ -422,14 +421,15 @@ in [1307](wp/1307-recapture-round-1-1.md) and the
 | [1307](wp/1307-recapture-round-1-1.md) | Re-capture: surface round protocol 1.1 | ✅ 2026-08-29 | 1301–1305 (last) |
 | [1308](wp/1308-skill-documents-its-doors.md) | The skill documents its own doors | ✅ 2026-08-30 | 1304, 1306, 1307 |
 
-### v1.4 — free-standing peaks (in flight)
+### v1.4 — free-standing peaks
 
 Peaks without a structure: fitted standalone (1101), and the
 `Instrument.extra_components` union seam — the serializable answer to TOPAS's
 fit_obj — with broad humps (1102) and sharp peaks (1103) as its first members.
 Opened for v1.1, shifted three times (2026-08-20, -25, -28), numbers kept.
-Also owed to v1.4: deleting the `AGENT_PROTOCOL.md` pointer
-([1304](wp/1304-protocol-as-skill.md) kept it for one release).
+The ship pass also deleted the `AGENT_PROTOCOL.md` pointer
+([1304](wp/1304-protocol-as-skill.md) kept it for one release), at four sites
+rather than the three the record scoped.
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
