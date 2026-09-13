@@ -1053,6 +1053,20 @@ class RefinementResult(Base):
     # reason, a joint multi-histogram fit (one count per histogram, reported
     # through each histogram) or a result recorded before the feature existed.
     n_extra_components: int | None = None
+    #: How many of those are **background-landing** — humps, in v1.4's
+    #: vocabulary (WP-1103).  Equal to :attr:`n_extra_components` until the seam
+    #: gained a second member, and a separate number now because the two answer
+    #: different questions: that one is "what did I declare", this one is "how
+    #: much *background* flexibility was granted", which is what a reader
+    #: comparing two Rwp values needs and what
+    #: :attr:`Identifiability.background_absorption` screens.  A declared sharp
+    #: peak is in the first and not the second.
+    #:
+    #: Written from ``len(CompiledModel.component_paths)``, the frozen compile
+    #: state, on the same terms as the count above — declared, not measured, so
+    #: a ``replay`` carries it.  ``None`` means nothing counted, never "none
+    #: declared", which is ``0``.
+    n_background_components: int | None = None
 
     @model_validator(mode="before")
     @classmethod

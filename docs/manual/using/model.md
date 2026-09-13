@@ -303,6 +303,7 @@ therefore not in the log, while the one after it is. [](history.md) is that log.
 :::
 
 
+(declared-extra-peaks)=
 ## Declared extra peaks
 
 Sometimes the pattern has a sharp peak no phase in your model can put there: a

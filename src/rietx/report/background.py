@@ -121,7 +121,12 @@ def assess_background(result: RefinementResult,
         absorption=absorption,
         worst_absorption=float(worst),
         worst_absorption_path=worst_path,
-        # carried verbatim, including its None: the result is the one authority
-        # for the declared count and this section never recounts it
-        n_peaks=result.n_extra_components,
+        # Carried verbatim, including its None: the result is the one
+        # authority for every declared count and this section never recounts
+        # one.  Which count changed with the seam's second member (WP-1103) —
+        # this section's question is how much *background* flexibility was
+        # granted, so it reads the background-landing subset.  A declared sharp
+        # peak is not background flexibility, and counting it here would
+        # overstate the very thing the absorption table beside it measures.
+        n_peaks=result.n_background_components,
     )

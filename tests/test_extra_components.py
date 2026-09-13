@@ -1977,3 +1977,64 @@ def test_the_peak_absorption_statistic_separates_the_three_cases():
     assert parasitic > 20 * max(healthy, 1e-6)
     # and the borrowed background threshold would have missed it
     assert parasitic < BACKGROUND_ABSORPTION_GUARD
+
+
+def test_the_two_declared_counts_split_when_the_members_do():
+    """`n_extra_components` is the list; `n_background_components` is the humps.
+
+    They were one number while a hump was the only member, and the field that
+    consumes the second — `BackgroundEvidence.n_peaks`, which a reader uses to
+    judge how flexible the background was allowed to be — went on reading the
+    first.  Nothing caught it: every existing test declares humps only, where
+    the two agree.  A declared sharp peak is freedom the caller granted, but it
+    is not *background* freedom, and counting it as such overstates exactly
+    what the absorption table beside it measures.
+    """
+    from rietx.report import build_report
+
+    structure = make_lab6()
+    structure.phases[0].scale.value = 3e-4
+    ins = _instrument(peaks=[
+        HumpComponent(position=Parameter(value=35.0, unit="deg")),
+        make_peak(center=40.0, area=300.0),
+        make_peak(center=45.0, area=300.0),
+    ])
+    tt = np.arange(15.0, 60.0, 0.05)
+    data = PatternData(two_theta=tt.tolist(),
+                       intensity=np.full_like(tt, 200.0).tolist())
+
+    ref = rx.Refinement(structure, ins)
+    result = ref.fit(data, plan=rx.RefinementPlan(stages=[
+        rx.Stage(name="bkg", turn_on=["instrument.background.*"], max_iter=2)]))
+
+    assert result.n_extra_components == 3          # the list
+    assert result.n_background_components == 1     # the humps
+    assert build_report(result).background.n_peaks == 1
+
+    # and a replayed node carries both, being declarations rather than
+    # measurements — the reason the first one lives on the result at all
+    replayed = rx.replay(ref.history, result.node_id, data)
+    assert replayed.n_extra_components == 3
+    assert replayed.n_background_components == 1
+
+
+def test_the_counts_agree_when_only_humps_are_declared():
+    """The pre-1103 case, pinned so the split cannot drift into it.
+
+    Every v1.2-era caller declares humps alone, and for them the two numbers
+    are the same number — which is why nothing noticed when one of them
+    silently became the other.
+    """
+    structure = make_lab6()
+    structure.phases[0].scale.value = 3e-4
+    ins = _instrument(peaks=(_peak(vary=False), _peak(position=70.0,
+                                                      vary=False)))
+    tt = np.arange(15.0, 60.0, 0.05)
+    data = PatternData(two_theta=tt.tolist(),
+                       intensity=np.full_like(tt, 200.0).tolist())
+    ref = rx.Refinement(structure, ins)
+    result = ref.fit(data, plan=rx.RefinementPlan(stages=[
+        rx.Stage(name="bkg", turn_on=["instrument.background.*"], max_iter=2)]))
+
+    assert result.n_extra_components == 2
+    assert result.n_background_components == result.n_extra_components

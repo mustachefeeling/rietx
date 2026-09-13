@@ -3241,7 +3241,14 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
         # Declared, not measured, so it is written here rather than behind the
         # guard above: every caller of this function has a compiled model, which
         # is the whole authority for the count, so ``replay`` reports it too.
-        n_extra_components=len(model.component_paths),
+        # Every declared component, both members — the field is named for
+        # the list and a client reads it as that list's length.  It was
+        # ``len(component_paths)`` while a hump was the only member and the
+        # two coincided; since WP-1103 that tuple is the background-landing
+        # half alone, so the sum is what keeps the name true.
+        n_extra_components=(len(model.component_paths)
+                            + len(model.peak_components)),
+        n_background_components=len(model.component_paths),
     )
 
 
