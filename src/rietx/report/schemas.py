@@ -535,8 +535,12 @@ class BackgroundEvidence(Base):
     worst_absorption_path: str | None = None
     #: explicit :class:`~rietx.schemas.instrument.HumpComponent` terms this fit
     #: declared — a **projection** of
-    #: :attr:`~rietx.schemas.results.RefinementResult.n_extra_components`, never
-    #: a second count, so the section and the result cannot disagree.  Stated
+    #: :attr:`~rietx.schemas.results.RefinementResult.n_background_components`,
+    #: never a second count, so the section and the result cannot disagree.
+    #: That field and not ``n_extra_components``, which counts *every* declared
+    #: component: since WP-1103 the seam also admits a
+    #: :class:`~rietx.schemas.instrument.PeakComponent`, which is a declared
+    #: sharp reflection and grants no background flexibility at all.  Stated
     #: here because it is the other half of "how flexible was the background":
     #: the absorption table says what it could imitate, this says with how many
     #: free peaks (3N parameters, positions unconstrained).  Its ``None`` is the
