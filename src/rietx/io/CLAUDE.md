@@ -322,10 +322,10 @@ ordered in `PROJECT_FORMATS` (`registry.py`) and reached through
 `read_project_model`, which dispatches on content like `read_pattern` and for the
 same reason. Five rules the pattern readers do not need:
 
-- **The registry's unit is a *refinement*, and three foreign-file readers sit
-  outside it on purpose** (WP-1118). `read_gsas_prm` carries a machine and no
-  model, so it stays beside `load_instrument_profile`; `read_recipe` resolves to
-  something ready to fit and is a build-wide feature; a pattern is the other
+- **The registry's unit is a *refinement*, and the other foreign-file readers
+  sit outside it on purpose** (WP-1118). `read_gsas_prm` carries a machine and
+  no model, so it stays beside `load_instrument_profile`; `read_recipe` resolves
+  to something ready to fit and is a build-wide feature; a pattern is the other
   registry's. A new reader answers this before it is written, because admitting
   one that carries no model would empty every field this registry declares.
 - **The answer is the format's own model, tagged — never a union with blanks.**
