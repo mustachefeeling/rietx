@@ -156,7 +156,12 @@ SIZE_CAPS: dict[str, int | None] = {
     "CLAUDE.md": 755,
     # 672 -> 676 (WP-1102): the Current focus rewrite at 1102's close names the
     # milestone's one break and what makes 1103 the seam's proving case.
-    "docs/ROADMAP.md": 676,
+    # 676 -> 678 (WP-1407): a new Unscheduled group, "The formats a lab still
+    # has".  Its two-line blurb is the one part that cannot be demoted to the WP
+    # file: every group in this section carries one, so a group without it does
+    # not match the document.  Raised for the blurb only; the WP's own findings
+    # stayed in the WP file.
+    "docs/ROADMAP.md": 678,
     "gui/CLAUDE.md": 1028,
     "tests/CLAUDE.md": 275,
     "src/rietx/indexing/CLAUDE.md": 300,

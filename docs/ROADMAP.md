@@ -546,6 +546,15 @@ optional-dependency format.
 | [1315](wp/1315-zip-collection-reader.md) | A zip of patterns is N scans | ⬜ | — |
 | [1316](wp/1316-hdf5-multiscan-reader.md) | A NeXus/HDF5 multi-scan reader, behind an extra | ⬜ | — |
 
+#### The formats a lab still has
+
+1047's declared follow-up, reopened by an ask for a PANalytical `.raw` that
+does not exist (`.raw` is six unrelated vendors, none of them PANalytical).
+
+| WP | Title | Status | Depends on |
+|---|---|---|---|
+| [1407](wp/1407-the-format-a-benchtop-still-writes.md) | The format a benchtop still writes: PANalytical `.udf`/`.rd`, and four named refusals | ⬜ | — |
+
 #### Render what the fit already knows
 
 Views over quantities already computed, no new physics: a series navigated by
