@@ -209,12 +209,14 @@ use is the design case.
 - [x] Manual (`using/model.md` + operando recipe + `profiles.md` equation
       with `*Source:*`) + api-surface documentation + the preset-non-freeing
       pin extended to this member.
-- [ ] Acceptance measurement + tests: inject two overlapping holder pV
+- [x] Acceptance measurement + tests: inject two overlapping holder pV
       doublet lines into a standard fixture — the refined cell with declared
       components lands within tolerance of the clean-pattern cell; quote
       (not gate) the excluded-regions alternative's cell and lost-channel
       count; measure the component-block absorption separation; obs/calc/diff
-      PNGs to `tests/output/`.
+      PNGs to `tests/output/`. *`tests/test_acceptance_extra_peaks.py`; the
+      measured table is in that module's docstring, and it does not say what
+      this WP assumed — see the handover.*
 
 ## Acceptance
 
