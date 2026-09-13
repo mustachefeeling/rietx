@@ -298,8 +298,9 @@ had two axes and neither was tested against a second case. One of them now is.
 only — no jax, no torch; both counts on the final tree `78f613a6`, nothing else
 mid-suite):
 
-* Fast selection: **4571 passed, 132 skipped**, 4:04.
-* Full selection: **4739 passed, 141 skipped**, 30:52.
+* Fast selection: **4575 passed, 132 skipped**, 4:04-7:32 (the range is
+  machine load — CI and a review agent shared the cores for part of it).
+* Full selection: **4743 passed, 141 skipped**, 30:52-36:11.
 * GUI: `npm test` **591 passed** across 22 files; `npm run check` 0 errors.
 * Tests added, counted per file against `origin/main` rather than against a
   re-measured main (which is CI's job): `test_extra_components.py` 50 → 89
@@ -410,10 +411,9 @@ show is not one to write. Whoever picks it up needs a fixture where Layer 0's
 components with non-zero area, which is the same principle already applied to
 `EXTRA_PEAK_NO_INTENSITY`.
 
-Four tests, one per defect. Fast suite after the fixes: **4575 passed, 132
-skipped**; the full selection was **not** re-run after them, so the 4739/141
-figure above is the tree before the review commit — CI's fast matrix is the
-gate on what actually merges.
+Four tests, one per defect, and both selections were re-run on the tree that
+includes them — the figures above are that tree's. CI is green on the same
+head (17m25s), and the GUI workflow with it.
 
 **Next.** 1103 closes; nothing in it is left owed. For whoever picks up v1.4:
 
