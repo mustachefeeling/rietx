@@ -83,7 +83,6 @@ MAX_RUNS = 500
 #: newer writer's member is read rather than refused, and a value not named
 #: here falls through :func:`liveness_of` to the lock and the pid.
 RUN_STATES = frozenset({"running", "done", "failed", "cancelled"})
-RunState = Literal["running", "done", "failed", "cancelled"]
 TERMINAL_STATES = frozenset({"done", "failed", "cancelled"})
 
 #: What :func:`liveness_of` answers. ``abandoned`` is a third answer and not a
@@ -143,7 +142,7 @@ class RunStatus(_ReaderBase):
     ``None`` is the absence of a claim, and :func:`liveness_of` turns it into
     ``unknown`` rather than into ``running``.
 
-    It is typed ``str`` and not :data:`RunState` for the reason ``extra`` is
+    It is typed ``str`` and not a ``Literal`` for the reason ``extra`` is
     allowed above, and the reason matters more here than on any other field: a
     closed ``Literal`` makes a newer writer's member — a ``"paused"``, say —
     fail validation for the *whole file*, so the row would silently lose the

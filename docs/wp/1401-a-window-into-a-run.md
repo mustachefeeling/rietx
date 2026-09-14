@@ -323,6 +323,12 @@ skipping forward would emit a torn line instead.
   suite. Anything about a run that *changes* while being watched — the plot
   reloading, a run appearing mid-scan, a status flipping to terminal — has no
   test here and has to be checked by looking.
+- **A vocabulary and its `Literal` are two declarations, and widening the field
+  orphans one.** Typing `RunStatus.state` as `str` left `runs.RunState` reachable
+  by nothing but the docstring saying why it was unused, while `rietx.gui`
+  already exports a different `RunState` meaning `idle`/`running`/`cancelling`.
+  It is deleted; `RUN_STATES` is the vocabulary. Worth a look whenever a review
+  widens a type.
 - A non-finite Rwp reaches the page as the **string** `"NaN"`, because
   `ser_json_inf_nan="strings"` is on `Base` and a diverged fit writes one. Any
   new number the page formats needs the `isFinite` guard `num()` carries, or
