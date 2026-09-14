@@ -198,7 +198,7 @@ def _one(tmp_path) -> runs.Run:
 def test_a_held_lock_reads_running(tmp_path):
     directory = _write_run(tmp_path / "r", events=_event_line("fit_start"),
                            status={"state": "running", "pid": 1}, lock=True)
-    handle = open(directory / runs.LOCK_FILE, "r+")
+    handle = open(directory / runs.LOCK_FILE, "r+b")   # the lock, not the text
     try:
         fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
         assert runs.liveness_of(_one(tmp_path)).state == "running"
@@ -272,7 +272,7 @@ def test_the_heartbeat_is_reported_and_never_decides(tmp_path):
     directory = _write_run(tmp_path / "r", events=_event_line("fit_start"),
                            status={"state": "running", "pid": 1,
                                    "heartbeat": 0.0}, lock=True)
-    handle = open(directory / runs.LOCK_FILE, "r+")
+    handle = open(directory / runs.LOCK_FILE, "r+b")   # the lock, not the text
     try:
         fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
         live = runs.liveness_of(_one(tmp_path), now=1_000_000.0)

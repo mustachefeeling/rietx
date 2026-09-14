@@ -387,7 +387,9 @@ def _probe_lock(path: Path) -> Literal["held", "free", "unavailable"]:
     except ImportError:      # pragma: no cover - Windows
         return "unavailable"
     try:
-        fh = open(path, "r+")
+        # binary: the file's bytes are never read, only its lock, so there is
+        # no text here to have an encoding
+        fh = open(path, "r+b")
     except OSError:
         return "unavailable"
     try:
