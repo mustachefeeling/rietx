@@ -366,12 +366,13 @@ into the worktree venv for the script (it adds no tests):
   before, 0 after; 86 now carry a DOI against 23 before — 50 accepted by
   Crossref only on title, year, volume *and* first page together, 13 confirmed
   one at a time, 1 (`scherrer1918`) declared as having none.
-- **Suite**: fast selection **4639 passed / 132 skipped** in 2:09–2:11, +7
-  tests over the merge base (5 in `test_manual.py`, 2 in `test_voigt.py`), all
-  passes, no new skip. An eighth guard landed at handover (the old `*Source:*`
-  spelling), so the final tree is +8. The full selection did **not** run: this
-  WP changes `docs/`, `tests/` and one private constant, so it can move no
-  measured number (`tests/CLAUDE.md` § Running, rung 3).
+- **Suite**: fast selection **4640 passed / 132 skipped** in 2:06–2:11 on the
+  final tree, **+8** over the merge base (6 in `test_manual.py`, 2 in
+  `test_voigt.py`), all passes and no new skip — the intermediate run at +7 read
+  4639/132 before the `*Source:*` guard landed, which is the check. The full
+  selection did **not** run: this WP changes `docs/`, `tests/` and one private
+  constant, so it can move no measured number (`tests/CLAUDE.md` § Running,
+  rung 3), and `pgrep` showed no other suite in flight either way.
 
 *Gotchas*, each one that cost time:
 
@@ -420,6 +421,19 @@ CLAUDE.md § skill). **No milestone-record entry**: rule 6 stages a break or a
 user-facing addition, and this is documentation with no API, schema or
 behaviour change; staging it under shipped v1.4 would misattribute it to
 notes already written.
+
+*Review*: `/code-review high --fix` accepted ten findings, all applied.
+**Two were real holes** rather than polish. The `{source}` role took the file
+from the module and the line from the object, which for a re-exported name are
+different files — a link to a real file at a line belonging to another one,
+with the name importing and the build clean; latent today (all 110 emitted
+links are byte-identical before and after) and certain to bite the first
+re-exported name anyone cites. And the bibliography brace guard exempted the
+first *unbraced* word, so a title opening with a braced proper noun had its
+real first word filtered out and the exemption landed on the second: nine
+entries are in that shape, and `{Rietveld} Refinement guidelines` passed the
+test written to catch exactly that. Both were verified by hand after the fix.
+Nothing was declined.
 
 *Next*, in order: (1) the maintainer's call on the **missing v1.4.0 tag and
 PyPI release** — `docs/RELEASING.md` is the authority and the workflow builds
