@@ -31,8 +31,8 @@ built rather than when the fit starts.
 | `Parameter.expr` | None | `None` | reserved, not implemented, and must stay `None` |
 
 `value` must lie within the bounds and `min` must not exceed `max`, both checked
-on construction. Infinite bounds survive a JSON round-trip as `"Infinity"`,
-which is why an unbounded parameter is a legal thing to save.
+on construction. Infinite bounds survive a JSON round-trip as `"Infinity"`, so
+an unbounded parameter is a legal thing to save.
 
 ```python
 from rietx import Parameter
@@ -92,13 +92,13 @@ data = PatternData(two_theta=[10.0, 10.02, 10.04], intensity=[120.0, 480.0, 0.0]
 assert list(data.sig().round(4)) == [10.9545, 21.9089, 1.0]
 ```
 
-**σ is a lookup, never a re-derivation.** `sig()` returns the file's `sigma`
+σ is a lookup and never a re-derivation. `sig()` returns the file's `sigma`
 where the file had one and √max(y, 1) where it did not, and every weighted
 quantity in the package divides by the result: the objective
 {eq}`est-obj`, every renderer's difference curve, both GUI windows. The Poisson
 fallback is correct for raw counts and wrong by √t for anything already divided
-by a counting time, which is why a reader that cannot establish the intensity
-scale withholds σ rather than inventing it. Reported esds of zero are floored,
+by a counting time, so a reader that cannot establish the intensity scale
+withholds σ rather than inventing it. Reported esds of zero are floored,
 since a zero esd is an infinite weight on one channel.
 
 `PatternData.in_range_mask` is the boolean mask that `excluded_regions` implies,
@@ -141,15 +141,15 @@ and the rest describe what this specimen did to the peaks.
 | `Phase.restraints` | list | `[]` | soft observational restraints, {eq}`par-restraint` |
 
 The four broadening terms are the sample half of the instrument ⊕ sample split.
-Gaussian *variances* add under convolution and Lorentzian *widths* add, which is
-why the two pairs carry different units: deg² for the Gaussian pair and deg for
-the Lorentzian one. Each term stacks on the instrument term with the same
+Gaussian variances add under convolution and Lorentzian widths add, so the two
+pairs carry different units: deg² for the Gaussian pair and deg for the
+Lorentzian one. Each term stacks on the instrument term with the same
 θ-dependence, so one pattern cannot separate the two halves, and no shipped plan
 frees both. `mccusker_default` frees the instrument widths and none of these
 four; `lab_sample_refine` frees these four and none of the instrument's.
 
-`particle_radius_um` cannot be obtained from the pattern at all, which is why it
-is a plain float rather than a `Parameter`. Profile broadening measures the
+`particle_radius_um` cannot be obtained from the pattern at all, so it is a
+plain float rather than a `Parameter`. Profile broadening measures the
 coherent domain, which is smaller than and unrelated to the particle whose
 absorption path Brindley's correction integrates over, and conflating the two is
 a standing error. Supply it from a micrograph or a particle-size measurement, or
@@ -163,9 +163,9 @@ leave it `None`.
 | `Cell.alpha`, `Cell.beta`, `Cell.gamma` | `Parameter` | required | angles in degrees |
 
 Store all six and let the space group decide which are independent.
-`ParameterTable` ties them from the space-group **setting**, which is not the
-same as the crystal system: an R lattice on rhombohedral axes needs a = b = c
-with the angles free, and monoclinic has three unique-axis choices. A
+`ParameterTable` ties them from the space-group setting, which differs from the
+crystal system: an R lattice on rhombohedral axes needs a = b = c with the
+angles free, and monoclinic has three unique-axis choices. A
 symmetry-fixed angle that disagrees with its symmetry is refused rather than
 snapped, because the table has no channel in which to report a correction. The
 reader has one, so a small deviation is repaired at read and recorded; see
@@ -224,8 +224,8 @@ file must not do that silently.
 `_atom_site_aniso_U_ij` loop carries. `AnisoU.u11`, `AnisoU.u22` and
 `AnisoU.u33` are required and `AnisoU.u12`, `AnisoU.u13`, `AnisoU.u23` default
 to zero. `AnisoU.isotropic` builds the tensor equivalent to a given U_iso for a
-cell, which is *not* U_iso on the diagonal unless the reciprocal axes are
-orthogonal; `AnisoU.from_values` takes the six numbers in order and
+cell, which is not U_iso on the diagonal unless the reciprocal axes are
+orthogonal. `AnisoU.from_values` takes the six numbers in order and
 `AnisoU.values` returns them. Components refine through the site-symmetry
 patterns rather than one at a time, so `min` and `max` on a component are inert
 and a tensor outside the allowed subspace raises.
@@ -301,15 +301,15 @@ Ask `capabilities()` for the anode names rather than trusting a list in prose.
 | `Source.lines` | list[`EmissionLine`] | required | one entry per emission line, at least one |
 | `Source.polarization` | `Parameter` | 0.5 | the fraction K of {eq}`corr-lp`; 0.5 is an unpolarised beam |
 | `Source.dispersion` | `Dispersion` or None | on | anomalous scattering, {eq}`int-friedel` |
-| `Source.harmonics` | list[`Harmonic`] | empty | declared λ/n monochromator orders — **refused on this radiation**, see [below](harmonic-contamination) |
+| `Source.harmonics` | list[`Harmonic`] | empty | declared λ/n monochromator orders, refused on this radiation; see [below](harmonic-contamination) |
 | `Source.kind` | `"xray_cw"` | `"xray_cw"` | constant-wavelength X-rays |
 
-`Source.primary_wavelength` is the first line's wavelength **as a float**,
-which is the one every d-spacing is quoted against.
-`Source.wavelength_parameters` is the list of live wavelength `Parameter`
-objects, one per line, and is what code that needs to *write* a wavelength
-uses — `NeutronSource.lines` builds a fresh object per access, so a write
-through `lines[i].wavelength` lands on a throwaway there.
+`Source.primary_wavelength` is the first line's wavelength as a float, and it is
+the one every d-spacing is quoted against. `Source.wavelength_parameters` is the
+list of live wavelength `Parameter` objects, one per line, and is what code that
+needs to write a wavelength uses. `NeutronSource.lines` builds a fresh object
+per access, so a write through `lines[i].wavelength` lands on a throwaway
+there.
 
 `EmissionLine.wavelength` is a `Parameter` in Å, defaulting to `vary=False`,
 and `EmissionLine.weight` is a refinable intensity relative to line 0. Line 0's
@@ -325,11 +325,11 @@ document written before this became a `Parameter` validates unchanged.
 #### A refinable wavelength
 
 `EmissionLine.wavelength` and `NeutronSource.wavelength` default to
-`vary=False`, and for a **single** histogram that default is a fence rather
-than a convention. Bragg's law is {eq}`pos-bragg`, so the pattern measures
-λ/(2 sin θ) and fixes only the *product* of λ with a reciprocal cell — a free λ
-beside a free cell is an exactly flat direction, and freeing one is refused
-naming the degeneracy:
+`vary=False`, and for a single histogram that default is a fence rather than a
+convention. Bragg's law is {eq}`pos-bragg`, so the pattern measures λ/(2 sin θ)
+and fixes only the product of λ with a reciprocal cell. A free λ beside a free
+cell is an exactly flat direction, and freeing one is refused naming the
+degeneracy:
 
 ```python
 from rietx import Instrument
@@ -345,10 +345,9 @@ except ValueError as exc:
 ```
 
 Across several histograms of one specimen the degeneracy breaks, because they
-share one cell. The rule is stated in full — and enforced — in
-{ref}`a-refinable-wavelength-jointly`; the short version is **hold one
-wavelength, free at most N − 1**, and hold the one belonging to the histogram
-that determines the cell.
+share one cell. {ref}`a-refinable-wavelength-jointly` states the rule in full and
+enforces it. The short version is to hold one wavelength and free at most N − 1,
+holding the one that belongs to the histogram that determines the cell.
 
 This is `EmissionLine.weight`'s convention one rank up. In both cases one
 member of a set is pinned to fix a scale the data cannot set and the rest are
@@ -358,21 +357,21 @@ lives in the *cell*, which is shared across instruments, so no single
 instrument can count the set and the check sits where the joint problem is
 assembled.
 
-Only **line 0**'s wavelength is ever refinable. Within one source the lines'
-wavelength *ratio* is atomic physics — the tabulated Kα1/Kα2 pair traces to one
-NIST column for exactly this reason, and is known to about 20 ppm — so a
-secondary line's wavelength is structurally locked, the way line 0's *weight*
-is. The two locks are the same argument pointed in opposite directions: a weight
-is relative to something inside the source, a wavelength is relative to
+Only line 0's wavelength is ever refinable. Within one source the lines'
+wavelength ratio is atomic physics: the tabulated Kα1/Kα2 pair traces to one
+NIST column for exactly this reason, and is known to about 20 ppm. So a
+secondary line's wavelength is structurally locked, the way line 0's weight is.
+The two locks are the same argument pointed in opposite directions. A weight is
+relative to something inside the source, and a wavelength is relative to
 something outside it.
 
-A consequence worth stating: a monochromator's second-order λ/2 harmonic cannot
-be modelled *alongside* a refining wavelength. Adding a second `EmissionLine` at
-λ/2 with its own weight models the harmonic at a fixed λ, but its wavelength
-would not follow line 0's as that refines. Nothing here does that.
+One consequence follows. A monochromator's second-order λ/2 harmonic cannot be
+modelled alongside a refining wavelength. Adding a second `EmissionLine` at λ/2
+with its own weight models the harmonic at a fixed λ, and its wavelength would
+not follow line 0's as that refines. Nothing here does that.
 
 `Dispersion` is on by default. `Dispersion.table` names the tabulation and
-`Dispersion.overrides` takes measured f′, f″ pairs per element, which is what
+`Dispersion.overrides` takes measured f′, f″ pairs per element. Those are what
 you need near an absorption edge, where the table is wrong in principle rather
 than merely coarse. Setting `dispersion=None` declines the correction and
 reproduces the pre-v1.0 numbers exactly, and the fit says so with a diagnostic.
@@ -389,47 +388,47 @@ fields are inert is worse than two classes.
 
 | Field | Type | Default | Meaning |
 |---|---|---|---|
-| `NeutronSource.wavelength` | `Parameter` | required | Å, `vary=False` — see {ref}`a-refinable-wavelength` |
+| `NeutronSource.wavelength` | `Parameter` | required | Å, `vary=False`; see {ref}`a-refinable-wavelength` |
 | `NeutronSource.harmonics` | list[`Harmonic`] | empty | declared λ/n monochromator orders, see [below](harmonic-contamination) |
 | `NeutronSource.kind` | `"neutron_cw"` | `"neutron_cw"` | constant wavelength, the discriminator you write |
 
 Three read-only properties let code written for an X-ray source keep working.
 `NeutronSource.lines` is the fundamental followed by one line per declared
-harmonic; with none declared it is the single line, weight structurally 1 —
+harmonic. With none declared it is the single line, weight structurally 1, since
 with one line there is nothing for a relative weight to be relative to.
 `NeutronSource.primary_wavelength` is that wavelength as a float, and
 `NeutronSource.wavelength_parameters` is the live `Parameter` behind it, in a
 one-element list so a caller need not know which arm of the union it holds.
 That property is the one authority for writing a refined wavelength back:
-`lines` is a *property* here and a stored field on `Source`, so writing through
+`lines` is a property here and a stored field on `Source`, so writing through
 `lines[0].wavelength` would land on a fresh object and the refined value would
 vanish at the next recompile.
 `NeutronSource.polarization` is 1.0 and refuses to be anything else, and
 `NeutronSource.dispersion` is always `None`.
 
-Both of those last two are physics, not simplifications:
+Both of those last two are physics rather than simplifications:
 
-- **K = 1** is why no new correction code exists. Neutrons are not polarised by
-  a monochromator the way the Thomson cross-section polarises X-rays, so the
-  Lorentz-polarisation factor {eq}`corr-lp` collapses to the bare Lorentz
-  factor 1/(sin²θ·cosθ) — which is geometry, and radiation-independent. K is
-  *force-fixed*, so `set_vary` cannot free it; a free K would not be a dead
-  column, it would let the fit buy Rwp from a term the physics already knows.
-- **No anomalous dispersion.** f′/f″ is an X-ray core-level effect. The neutron
+- K = 1 is why no new correction code exists. Neutrons are not polarised by a
+  monochromator the way the Thomson cross-section polarises X-rays, so the
+  Lorentz-polarisation factor {eq}`corr-lp` collapses to the bare Lorentz factor
+  1/(sin²θ·cosθ), which is geometry and radiation-independent. K is force-fixed,
+  so `set_vary` cannot free it. A free K would let the fit buy Rwp from a term
+  the physics already knows.
+- No anomalous dispersion. f′/f″ is an X-ray core-level effect. The neutron
   analogue is a complex, wavelength-dependent b near a nuclear resonance, which
   belongs to a handful of nuclides rather than to the source, so there is no
   field to set and `DISPERSION_NEGLECTED` stays quiet.
 
 What actually changes in the calculation is the scattering amplitude, and only
 that. An X-ray form factor f(Q) falls off with angle because the electron cloud
-has spatial extent; a nucleus is a point scatterer on this scale, so **b is
-independent of Q** — one number per species, not a five-Gaussian expansion, and
-it may be **negative**. Part 2 has the amplitude and its source.
+has spatial extent. A nucleus is a point scatterer on this scale, so b is
+independent of Q: one number per species instead of a five-Gaussian expansion,
+and it may be negative. Part 2 has the amplitude and its source.
 
 `Instrument.constant_wavelength_neutron` is the constructor. It builds a
-capillary geometry, because that is what a CW neutron diffractometer is — a can
-of powder in a beam with detectors on a circle — so the cylindrical absorption
-correction and the capillary offsets apply unchanged.
+capillary geometry, because a CW neutron diffractometer is a can of powder in a
+beam with detectors on a circle, so the cylindrical absorption correction and
+the capillary offsets apply unchanged.
 
 ```python
 from rietx import Instrument
@@ -445,16 +444,16 @@ from an observed peak width, and it matters more here than on a lab X-ray: a
 neutron instrument's lines are typically 0.2–0.5° where the `ProfileTCHZ`
 default is a synchrotron line of about 0.03°, and the per-stage evaluation
 windows are sized from the seed, so a 0.3° line started from the default is not
-found at all. The width *function* needs no neutron-specific code — the
-Caglioti law U·tan²θ + V·tanθ + W is the neutron resolution function, and the
-X-ray path is the borrower.
+found at all. The width function needs no neutron-specific code. The Caglioti
+law U·tan²θ + V·tanθ + W is the neutron resolution function, and the X-ray path
+is the borrower.
 
 Two corrections are refused rather than ignored. `surface_roughness` is an
 X-ray effect: both models depress the low-angle intensity of a beam that
 penetrates microns, while a thermal neutron beam penetrates centimetres, so the
 correction has no regime here rather than a small coefficient. And a species
 this build has no tabulated scattering length for raises at compile naming the
-species, rather than contributing zero — a substituted zero would delete a site
+species, rather than contributing zero. A substituted zero would delete a site
 from the structure factor without changing the shape of anything.
 
 (harmonic-contamination)=
@@ -464,9 +463,9 @@ A crystal monochromator set to pass λ also reflects the higher orders of the
 same planes, so the beam carries a small λ/n component for every order that is
 not extinct {eq}`pos-harmonic-mono`. That component diffracts from the
 specimen too, and at a given 2θ it is diffracting from planes of spacing
-λ/(2n sin θ) — so **the harmonic's peak from a given hkl sits at lower 2θ than
-the fundamental's** {eq}`pos-harmonic-d`. Unmodelled, it is extra intensity
-in places the model puts none.
+λ/(2n sin θ). So the harmonic's peak from a given hkl sits at lower 2θ than the
+fundamental's {eq}`pos-harmonic-d`. Unmodelled, it is extra intensity in places
+the model puts none.
 
 Declare it with `Harmonic`, on the source or through the constructor:
 
@@ -490,50 +489,50 @@ assert thirds.source.harmonics == [Harmonic(order=2), Harmonic(order=3)]
 |---|---|---|---|
 | `Harmonic.order` | int ≥ 2 | 2 | n in λ/n |
 | `Harmonic.weight` | `Parameter` | 0.01, fixed | intensity relative to line 0, like any emission line |
-| `Harmonic.wavelength_factor` | float | derived | 1/n — what the fundamental wavelength is multiplied by |
+| `Harmonic.wavelength_factor` | float | derived | 1/n, what the fundamental wavelength is multiplied by |
 
 `Source.harmonics_supported` and `NeutronSource.harmonics_supported` are
-class-level booleans saying whether that radiation accepts a declaration at all
-— `False` and `True` respectively. They are the one authority for the answer:
-the refusal below reads them, and so does
+class-level booleans saying whether that radiation accepts a declaration at all,
+`False` and `True` respectively. They are the one authority for the answer. The
+refusal below reads them, and so does
 `RadiationCapability.harmonic_contamination`, which is how the JSON surface
 reports it ([](agents.md)). Ask that rather than assuming, and never infer
 support from the presence of the `harmonics` field, which both classes have.
 
-**It is an emission line, not a phase.** The usual workaround is an extra phase
-with a doubled lattice parameter, which gets the positions right and the
+A harmonic is an emission line and not a phase. The usual workaround is an extra
+phase with a doubled lattice parameter, which gets the positions right and the
 intensities wrong: cell 2a has d′ = 2d, so λ diffracts from it where λ/2
-diffracts from the real d, but its structure factors are those of a fictitious
-cell. A line at λ/n diffracts the **same** hkl list with the **same** |F|²,
-because |F|² is a function of the reflection through sin θ/λ = 1/2d and not of
-the wavelength that reaches it. So positions and intensities come out together,
-and it costs one refinable number instead of a phase.
+diffracts from the real d, while its structure factors are those of a fictitious
+cell. A line at λ/n diffracts the same hkl list with the same |F|², because |F|²
+is a function of the reflection through sin θ/λ = 1/2d and not of the wavelength
+that reaches it. So positions and intensities come out together, and it costs
+one refinable number instead of a phase.
 
 Empty is off, and off is exact: a source with no harmonic declared has the
 spectrum it always had, and reproduces every previously measured number bit for
 bit.
 
-**Refusals.** `order` must be at least 2 — n = 1 *is* the fundamental, and
-declaring it would be a second copy of line 0, degenerate with the phase
-scales. A repeated order is refused, because two lines at one wavelength with
-two weights on one physical component is a flat direction rather than a richer
-model. And harmonics are refused on an **X-ray** source: one f′ + i·f″ is
-frozen per phase and shared across every emission line, which is exact only
+Three declarations are refused. `order` must be at least 2, since n = 1 is the
+fundamental and declaring it would be a second copy of line 0, degenerate with
+the phase scales. A repeated order is refused, because two lines at one
+wavelength with two weights on one physical component is a flat direction rather
+than a richer model. And harmonics are refused on an X-ray source: one f′ + i·f″
+is frozen per phase and shared across every emission line, which is exact only
 while f is real, and λ against λ/2 is a 100 % wavelength change with absorption
 edges between them in general. `capabilities().radiations` reports which
 radiations accept them, read off the same attribute the refusal reads. On an
-X-ray source the route that does work is to declare the λ/n component as a
-plain `EmissionLine` with `dispersion=None`, where f = f₀ genuinely does serve
-both lines — the refusal's message says so.
+X-ray source the route that does work is to declare the λ/n component as a plain
+`EmissionLine` with `dispersion=None`, where f = f₀ genuinely does serve both
+lines. The refusal's message says so.
 
-Whether a harmonic exists at all is arithmetic on the monochromator, not
+Whether a harmonic exists at all is arithmetic on the monochromator, and not
 something to discover from a fit. Cu(311) doubles to the allowed (622), so the
 second order passes; a diamond-structure crystal cut on all-odd indices
 cancels its own second order exactly. Part 2 has both.
 
 :::{admonition} Time-of-flight is not this
 :class: note
-Everything here is *constant* wavelength. A time-of-flight instrument spans a
+Everything here is constant wavelength. A time-of-flight instrument spans a
 range of wavelengths across several detector banks, which changes the profile
 function, the intensity corrections and the number of histograms at once, and
 the thermal scattering-length table cannot give b(λ) for a resonant absorber.
@@ -578,15 +577,15 @@ A flat plate, `kind="bragg_brentano"` or `kind="flat_plate_transmission"`:
 Two things here catch people out.
 
 The absorption coefficients are plain floats rather than parameters, and their
-off states disagree. A capillary is off at µR = 0, and a flat plate in reflection
-is off at µt = ∞, which is what leaving `mu_t` unset means: a specimen thicker
-than the penetration depth needs no correction, since it is exactly degenerate
-with the scale. So `mu_t` absent is not `mu_t = 0`, and `mu_t = 0` under
-`bragg_brentano` is a specimen of no thickness and raises. Under transmission
+off states disagree. A capillary is off at µR = 0, and a flat plate in
+reflection is off at µt = ∞. Leaving `mu_t` unset is what states that infinity:
+a specimen thicker than the penetration depth needs no correction, since it is
+exactly degenerate with the scale. So `mu_t` absent is not `mu_t = 0`, and
+`mu_t = 0` under `bragg_brentano` is a specimen of no thickness and raises. Under transmission
 zero is legal and means a non-absorbing plate. [](concepts.md) explains why neither
 coefficient is refinable.
 
-**The capillary offsets need a radius.** Both default to zero and fixed, because
+The capillary offsets need a radius. Both default to zero and fixed, because
 at a synchrotron with a crystal analyser the displacement error is eliminated
 and freeing them is a deliberate act. Setting or freeing either without
 `goniometer_radius_mm` is refused rather than defaulted, since {eq}`pos-capillary`
@@ -620,8 +619,8 @@ parameters, in degrees 2θ throughout.
 Match the physics, not the letters. GSAS and FullProf swap the X and Y
 assignments, so a value copied from another code has to be matched by its
 θ-dependence: size broadening goes as 1/cos θ and strain as tan θ. Getting this
-backwards is not a labelling slip, it is a different width function, and this
-manual has made the mistake itself.
+backwards gives a different width function rather than a mislabelled one, and
+this manual has made the mistake itself.
 
 `w`, `x` and `y` are softplus-positive; `u` and `v` carry negative lower bounds,
 so the Gaussian polynomial can bend downward. The quantity that has to stay
@@ -629,8 +628,8 @@ positive is the total Γ_G² across the measured range rather than each term, so
 read a negative `u` or `v` as a statement about the fitted resolution curve and
 check the width it produces at both ends of the range.
 
-`shape` is a compile-time choice, not a refinable one, and both shapes consume
-the same five widths, so switching never changes the parameter table.
+`shape` is a compile-time choice rather than a refinable one, and both shapes
+consume the same five widths, so switching never changes the parameter table.
 
 ### The background
 
@@ -677,7 +676,7 @@ one JSON union, so the field is what makes a saved instrument come back as the
 model it was.
 
 A background flexible enough to imitate the peaks is a correctness problem
-rather than a cosmetic one: it biases displacement parameters up and scales
+rather than a cosmetic one. It biases displacement parameters up and scales
 down, and Rwp improves while it happens. That is measured once per fit and
 reported; [](results.md) has the table.
 
@@ -685,9 +684,9 @@ reported; [](results.md) has the table.
 ### Explicit humps
 
 `Instrument.extra_components` is a list of `HumpComponent`, each one broad
-Gaussian **added on top of** whichever of the three models is in use. It is not
-a fourth model: it composes with all of them, the design matrix is untouched,
-and the empty default is exactly off.
+Gaussian added on top of whichever of the three models is in use. It is not a
+fourth model: it composes with all of them, the design matrix is untouched, and
+the empty default is exactly off.
 
 The field's type is `list[ExtraComponent]`, a union discriminated on `kind`,
 and `HumpComponent` (`kind="hump"`) is its one member today. Ask a build which
@@ -698,41 +697,40 @@ import rietx as rx
 
 caps = rx.capabilities()
 caps.features["extra_components"]     # the seam exists at all
-caps.extra_component_kinds            # ['hump'] — what may go in it
+caps.extra_component_kinds            # ['hump'], what may go in it
 ```
 
 `Capabilities.extra_component_kinds` is read off the union itself, so a member
 this build has cannot be missing from it.
 
-A component is a **declaration, never code**: it is stored state, so it
-survives a save, a history checkout and a replay like any other field. That
-also fixes what could be added later. A member holding an expression — text
-over this package's own dot-paths — would fit the seam, because text
-serializes and both traced backends differentiate an expression tree. A member
-holding a Python function would not, for the same three reasons inverted: it
-does not serialize, it does not trace, and it has no JSON form. No expression
-member exists yet.
+A component is a declaration and never code. It is stored state, so it survives
+a save, a history checkout and a replay like any other field. That also fixes
+what could be added later. A member holding an expression, which is text over
+this package's own dot-paths, would fit the seam, because text serializes and
+both traced backends differentiate an expression tree. A member holding a Python
+function would not, for the same three reasons inverted: it does not serialize,
+it does not trace, and it has no JSON form. No expression member exists yet.
 
 :::{note}
 Renamed in this release. Up to v1.2 the field was called *background_peaks* and
 the class *BackgroundPeak*; neither name exists now. A project, history tree or
 `.rxt` written then still opens, and its saved plan still frees the hump it
-froze — the stored dot-paths are migrated on read, not only the values, because
-a value under a vanished name fails loudly while a glob under one simply stops
-matching. Code that *assigns* the old attribute raises.
+froze. The stored dot-paths are migrated on read as well as the values, because
+a value under a vanished name fails loudly while a glob under one quietly stops
+matching. Code that assigns the old attribute raises.
 :::
 
 | Field | Is | Bound |
 |---|---|---|
-| `HumpComponent.position` | the hump's apparent 2θ | unbounded by default — it is not a Bragg position, and the range that would bound it is a property of the pattern, not of the instrument |
-| `HumpComponent.height` | its peak value in counts | softplus, `min=0`, and zero *is* the off state, so the bound is safe |
-| `HumpComponent.fwhm` | its width in 2θ | softplus, floored at `HUMP_FWHM_MIN` — the Gaussian divides by Γ, so a zero width is a pole rather than an identity |
+| `HumpComponent.position` | the hump's apparent 2θ | unbounded by default, since it is not a Bragg position and the range that would bound it is a property of the pattern rather than of the instrument |
+| `HumpComponent.height` | its peak value in counts | softplus, `min=0`, and zero is the off state, so the bound is safe |
+| `HumpComponent.fwhm` | its width in 2θ | softplus, floored at `HUMP_FWHM_MIN`: the Gaussian divides by Γ, so a zero width is a pole rather than an identity |
 | `HumpComponent.label` | a free-text tag | not a parameter and not part of any dot-path |
 | `HumpComponent.kind` | the union discriminator, `"hump"` | fixed; it names which member of `ExtraComponent` this is, and the union dispatches on it rather than on shape |
 
 All three parameters default to `vary=False`, so a declared peak is inert until
 a stage frees it, and a height of zero means a declared-but-never-freed peak is
-bit-identical to no peak at all. Nothing in the package ever *adds* a peak:
+bit-identical to no peak at all. Nothing in the package ever adds a peak:
 `auto_background` sizes the polynomial or the spline and knows nothing about
 peaks, and the `mccusker_structural` plan's `extra_components` stage frees
 whatever you declared and nothing more. `save_instrument_profile` strips them,
@@ -756,132 +754,128 @@ the feature, and the fitted peak lies along it.
 
 #### Three parameters against three polynomial terms
 
-The argument is not that a peak lowers Rwp — a free position, height and width
-will lower any Rwp, which is exactly the kind of evidence this package does not
-accept. The argument has to be two things at once: that the peak buys **far more
-than the same number of polynomial terms buys**, and that something outside the
-fit says what the feature *is*.
+A free position, height and width will lower any Rwp, which is exactly the kind
+of evidence this package does not accept. So the argument has to be two things
+at once: that the peak buys far more than the same number of polynomial terms
+buys, and that something outside the fit says what the feature is.
 
 The pattern is `tests/data/11BM_Si640c.xy`, the same APS 11-BM scan of NIST SRM
-640c silicon that `tests/test_acceptance_si640c.py` refines — run 4918,
-λ seeded at the header's 0.412359 Å, 47 999 channels over 1.997–49.996° 2θ with
-the file's own propagated esds. The specimen sits in a **Kapton capillary**, and
-Kapton scatters: there is a broad envelope maximum near 5° 2θ that no Bragg peak
-of silicon accounts for. The protocol is that acceptance test's full-range fit —
-cell held at the NIST certificate, FCJ axial divergence tied, `lor_size` and
-`lor_strain` on the phase, dispersion off, λ and Biso freed last — with the
-background swapped from its P-spline to a low-order Chebyshev, and, in the peak
-arms, one `HumpComponent` freed after the first stage and polished jointly with
-the polynomial at the end.
+640c silicon that `tests/test_acceptance_si640c.py` refines: run 4918, λ seeded
+at the header's 0.412359 Å, 47 999 channels over 1.997–49.996° 2θ with the
+file's own propagated esds. The specimen sits in a Kapton capillary, and Kapton
+scatters, so there is a broad envelope maximum near 5° 2θ that no Bragg peak of
+silicon accounts for. The protocol is that acceptance test's full-range fit,
+with the cell held at the NIST certificate, FCJ axial divergence tied,
+`lor_size` and `lor_strain` on the phase, dispersion off, and λ and Biso freed
+last. The background is swapped from its P-spline to a low-order Chebyshev, and
+in the peak arms one `HumpComponent` is freed after the first stage and polished
+jointly with the polynomial at the end.
 
 | background | free background terms | Rwp | GoF | Biso(Si) / Å² | `HIGH_CORRELATION` |
 |---|---|---|---|---|---|
 | Chebyshev, 3 terms | 3 | 0.119977 | 1.9695 | 0.414(75) | 0 |
-| Chebyshev-3 **+ one hump** | 3 + 3 | 0.082503 | 1.3544 | 0.421(12) | 0 |
+| Chebyshev-3 plus one hump | 3 + 3 | 0.082503 | 1.3544 | 0.421(12) | 0 |
 | Chebyshev, 6 terms | 6 | 0.088597 | 1.4545 | 0.422(29) | 0 |
 | Chebyshev-6 + one hump | 6 + 3 | 0.077152 | 1.2666 | 0.4235(85) | 0 |
 
-**Three parameters beat three parameters.** The first two rows differ by three
-numbers, and so do the first and third — three peak parameters against three
-extra polynomial coefficients, the same cost to the same fit. The peak takes Rwp
-from 0.119977 to 0.082503, a fall of 0.037 or 31 % relative; three more
-Chebyshev terms take it to 0.088597, 26 %. That is the whole comparison, and it
-is a fair one only because the parameter counts match.
+Three peak parameters beat three polynomial ones. The first two rows differ by
+three numbers, and so do the first and third: three peak parameters against
+three extra polynomial coefficients, the same cost to the same fit. The peak
+takes Rwp from 0.119977 to 0.082503, a fall of 0.037 or 31 % relative; three
+more Chebyshev terms take it to 0.088597, 26 %. That is the whole comparison,
+and it is a fair one only because the parameter counts match.
 
-**The peak does not compete with the Bragg intensity, it releases it.** Biso(Si)
-barely moves — 0.414 → 0.421 Å², well inside one esd — but its **esd falls by a
-factor of six**, 0.075 → 0.012 Å². So do the esds of everything the background
-was trading against: λ 5.9×, the scale 6.0×, the zero shift 5.9×. A background
-the model cannot describe does not bias this fit so much as blur it, and the
-three numbers that describe the hump give back the precision.
+The peak releases the Bragg intensity instead of competing with it. Biso(Si)
+barely moves, 0.414 to 0.421 Å², well inside one esd. Its esd falls by a factor
+of six, 0.075 to 0.012 Å². So do the esds of everything the background was
+trading against: λ 5.9×, the scale 6.0×, the zero shift 5.9×. A background the
+model cannot describe blurs this fit more than it biases it, and the three
+numbers that describe the hump give back the precision.
 
-**What the fitted peak is.** Position 4.18(11)°, height 115.3(38) counts,
-FWHM 5.57(27)°. The instrumental Gaussian FWHM at that angle, from this fit's
-own refined *u*, *v*, *w*, is 0.00346° — the peak is **1 608×** the resolution,
-which is what a diffuse feature looks like and is 400× clear of the
-`HUMP_TOO_NARROW` guard in the next section. Neither peak arm returns
-a single `HIGH_CORRELATION` finding.
+The fitted peak comes back at position 4.18(11)°, height 115.3(38) counts, FWHM
+5.57(27)°. The instrumental Gaussian FWHM at that angle, from this fit's own
+refined u, v, w, is 0.00346°, so the peak is 1 608× the resolution. That is what
+a diffuse feature looks like, and it is 400× clear of the `HUMP_TOO_NARROW`
+guard in the next section. Neither peak arm returns a single `HIGH_CORRELATION`
+finding.
 
 #### The hump is the container, on three independent legs
 
 Rwp cannot tell a container halo from a missed reflection. Three things outside
 this fit can.
 
-**The blank.** 11-BM's published standards listing carries run 4736 from the
-same February 2010 beamtime, header `Chemical formula = empty Kapton capillary
-(Kapton)` — the container with no sample in it. Fitted **independently of this
-package** (numpy Chebyshev, scipy least-squares, the file's own σ) over the same
-1.997–49.996° range, a 3-term Chebyshev plus one Gaussian reaches χ²ᵣ = 1.125
-on 48 000 channels at position 4.2417(111)°, FWHM 6.153(23)°. Chebyshev-3 alone
-reaches only 5.33, and it takes **fourteen** polynomial terms — eleven more than
-the Gaussian's three — for a peak-free polynomial to match those six parameters.
-Two codes, two scans, one feature, agreeing on position to 0.06° and on width to
-0.6°.
+The blank. 11-BM's published standards listing carries run 4736 from the same
+February 2010 beamtime, header `Chemical formula = empty Kapton capillary
+(Kapton)`, which is the container with no sample in it. Fitted independently of
+this package (numpy Chebyshev, scipy least-squares, the file's own σ) over the
+same 1.997–49.996° range, a 3-term Chebyshev plus one Gaussian reaches
+χ²ᵣ = 1.125 on 48 000 channels at position 4.2417(111)°, FWHM 6.153(23)°.
+Chebyshev-3 alone reaches only 5.33, and it takes fourteen polynomial terms,
+eleven more than the Gaussian's three, for a peak-free polynomial to match those
+six parameters. Two codes, two scans, one feature, agreeing on position to 0.06°
+and on width to 0.6°.
 
-**The air-scatter control.** The same listing carries a "No sample — Air Scatter
+The air-scatter control. The same listing carries a "No sample, Air Scatter
 Only" scan. Binned over 2–50° it decays strictly monotonically, bin after bin,
-with nothing localised anywhere — so the hump is not in the beam or the air
+with nothing localised anywhere, so the hump is in neither the beam nor the air
 path. It is the container. (That scan was taken at a different wavelength, so
 the claim has to be "no feature anywhere" rather than "no feature at 5°": at
-0.458735 Å the same d-spacing would sit at 5.56°, and the stronger form is
-free of that.)
+0.458735 Å the same d-spacing would sit at 5.56°, and the stronger form is free
+of that.)
 
-**Physics.** The envelope maximum of the blank sits at 4.98° 2θ, which at that
+The physics. The envelope maximum of the blank sits at 4.98° 2θ, which at that
 scan's 0.412225 Å is d = 4.74 Å, Q = 1.33 Å⁻¹: the polyimide amorphous halo.
 
-Together those make the peak a *description of a known scatterer* rather than a
-three-parameter Rwp reduction, which is the only thing that makes this feature
-quotable.
+Together those make the peak a description of a known scatterer rather than a
+three-parameter Rwp reduction, and that is what makes this feature quotable.
 
 #### Where the fitted centre is not the halo position
 
-Read the table honestly and one number does not fit: the halo is at 4.98–5.05°
+Read the table honestly and one number does not fit. The halo is at 4.98–5.05°
 by envelope, and the refined peak comes back at 4.18(11)°. The two are answering
 different questions.
 
 A symmetric Gaussian spanning 2–50° has to absorb whatever the 3-term polynomial
 cannot, and what the polynomial cannot do at this end of the range is the
-residual direct-beam rise below 3°. So the fitted centre is pulled low: it is
-the best single Gaussian for *the halo plus that rise*, not a measurement of the
-halo. Give the polynomial three more terms and the rise becomes the polynomial's
-job — the Chebyshev-6 arm's peak relaxes to 5.245(41)°, onto the envelope, and
-narrows from 5.57(27)° to 1.94(11)°.
+residual direct-beam rise below 3°. So the fitted centre is pulled low. It is
+the best single Gaussian for the halo plus that rise, and not a measurement of
+the halo. Give the polynomial three more terms and the rise becomes the
+polynomial's job: the Chebyshev-6 arm's peak relaxes to 5.245(41)°, onto the
+envelope, and narrows from 5.57(27)° to 1.94(11)°.
 
-So: quote the **envelope** (and the blank) for where the halo is, and the **fit**
-for the model that describes it. Do not read the refined position as a physical
+Quote the envelope, and the blank, for where the halo is. Quote the fit for the
+model that describes it. Do not read the refined position as a physical
 d-spacing.
 
-The same arithmetic is where one standing rule comes from.
-Between the Chebyshev-3 and Chebyshev-6 arms the peak moves 1.07° and changes
-width by a factor of nearly three while Rwp moves by 0.005 — the peak and the
-polynomial are describing overlapping freedom, and the more flexible the
-polynomial, the less the peak's own parameters mean. **Declare a peak instead of
-extra polynomial terms, not on top of them**, and if a peak's parameters are
-what you intend to quote, keep the background as low-order as the fit tolerates.
+The same arithmetic is where one standing rule comes from. Between the
+Chebyshev-3 and Chebyshev-6 arms the peak moves 1.07° and changes width by a
+factor of nearly three while Rwp moves by 0.005. The peak and the polynomial are
+describing overlapping freedom, and the more flexible the polynomial, the less
+the peak's own parameters mean. Declare a peak instead of extra polynomial
+terms, and if a peak's parameters are what you intend to quote, keep the
+background as low-order as the fit tolerates.
 
 #### What a hump is not
 
 A free position, height and width is a peak with no cell and no structure factor
-behind it, and enough of those will improve any Rwp — which is exactly the kind
-of evidence this package does not accept. What makes the term a *background*
-term is that its width comes from disorder rather than from the goniometer, and
-disorder is many times the resolution: the case above is 5.57° wide where this
+behind it, and enough of those will improve any Rwp, which is exactly the kind
+of evidence this package does not accept. What makes the term a background term
+is that its width comes from disorder rather than from the goniometer, and
+disorder is many times the resolution. The case above is 5.57° wide where this
 synchrotron's Gaussian FWHM at the same angle is 0.00346°, a factor of 1 608. A
-laboratory or neutron instrument will show a smaller ratio — the same Kapton
-halo against 0.3° lines is a factor of 20 — and the guard is set for that
-weaker case.
+laboratory or neutron instrument will show a smaller ratio, the same Kapton halo
+against 0.3° lines being a factor of 20, and the guard is set for that weaker
+case.
 
-So a peak that refines to less than
-`HUMP_MIN_WIDTH_MULT` ({{ HUMP_MIN_WIDTH_MULT }}) times
-the instrumental FWHM at its own
-position comes back with a `HUMP_TOO_NARROW` diagnostic, and the
-reading is "these humps are not quotable" — the same reading
-`STEPHENS_STRAIN_NOT_POSITIVE` has, and for the same reason: the condition
-depends on refinable parameters and on the peak's own position, so it cannot be
-a bound the solver is handed. Use a hump for diffuse or amorphous
-scattering, or a cryostat, can or holder contribution. If there is a real
-unindexed line at that angle, the honest answers are a second phase or the
-unmatched-peak report in the `FitReport`'s Layer 0.
+So a peak that refines to less than `HUMP_MIN_WIDTH_MULT`
+({{ HUMP_MIN_WIDTH_MULT }}) times the instrumental FWHM at its own position
+comes back with a `HUMP_TOO_NARROW` diagnostic. The reading is "these humps are
+not quotable", the same reading `STEPHENS_STRAIN_NOT_POSITIVE` has and for the
+same reason: the condition depends on refinable parameters and on the peak's own
+position, so it cannot be a bound the solver is handed. Use a hump for diffuse
+or amorphous scattering, or a cryostat, can or holder contribution. If there is
+a real unindexed line at that angle, the honest answers are a second phase or
+the unmatched-peak report in the `FitReport`'s Layer 0.
 
 ```python
 from rietx import Instrument
@@ -900,12 +894,12 @@ instrument.extra_components = [HumpComponent(
 assert len(instrument.extra_components) == 1
 ```
 
-The paths are `instrument.extra_components.*` — a `position`, a `height` and an
+The paths are `instrument.extra_components.*`, one `position`, `height` and
 `fwhm` per declared peak, indexed by its place in the list, so relabelling a
-peak never moves its refined values. Note the underscore:
-`instrument.background.*`, which every preset's first stage frees, does **not**
+peak never moves its refined values. Note the underscore.
+`instrument.background.*`, which every preset's first stage frees, does not
 reach them, because fnmatch's `*` crosses dots and a nested spelling would have
-been freed at stage 1 — with a free position over a pattern whose peaks had not
+been freed at stage 1, with a free position over a pattern whose peaks had not
 been placed yet.
 
 ## Calibrating an instrument once and reusing it
@@ -914,18 +908,18 @@ The instrument ⊕ sample split works only when the instrument half comes from
 somewhere other than the sample you are measuring. The workflow is
 three steps, and the middle one is a file.
 
-1. **Calibrate** on a line-profile standard with its certified cell held fixed.
+1. Calibrate on a line-profile standard with its certified cell held fixed.
    That is what decorrelates the zero shift from the specimen displacement from
    the cell. The `lab_calibrate` plan frees the scale and background, then the
    zero shift and displacement, then the five width terms, then the
    emission-line weights and the axial ratios, then the displacement
    parameters. It never frees `phases.*.cell.*`, which is the whole point of
    using a standard.
-2. **Freeze** with `save_instrument_profile`, which writes the calibrated state
+2. Freeze with `save_instrument_profile`, which writes the calibrated state
    as JSON and strips what belongs to the measurement rather than the
    goniometer: the background, the specimen displacement and transparency, the
    surface roughness, and the specimen absorption.
-3. **Refine the sample** from `load_instrument_profile`, which returns an
+3. Refine the sample from `load_instrument_profile`, which returns an
    `Instrument` with every stored parameter fixed. The `lab_sample_refine` plan
    frees the scale and background, the specimen displacement, the cell, the four
    sample broadening terms with the anisotropic strain block, the displacement
