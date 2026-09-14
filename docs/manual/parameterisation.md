@@ -76,7 +76,7 @@ satisfy $R\,\delta = \delta$, so the coordinate basis spans
 \bigcap_R \ker(R - I)
 ```
 
-{source}`rietx.crystallography.wyckoff`
+{source}`rietx.crystallography.wyckoff.coordinate_basis`
 
 ({cite}`itc-a` sect. 8.3.2). The $U^{ij}$ tensor transforms as $U \to R\,U
 R^\top$ under a rotation acting on fractional coordinates, so the allowed
@@ -91,7 +91,7 @@ U \;=\; \sum_k \theta_k\, B_k,
 \qquad R\, B_k\, R^\top \in \operatorname{span}\{B_j\} \ \forall R.
 ```
 
-{source}`rietx.crystallography.wyckoff`
+{source}`rietx.crystallography.wyckoff.adp_basis`
 
 Both bases come back as smallest-integer row vectors in a deterministic
 RREF-derived form. An $x,x,z$ site gives $[[1,1,0],[0,0,1]]$, and a hexagonal
@@ -167,8 +167,8 @@ with $G$ the unit-vector metric, ones on the diagonal and the cell's cosines
 off it. A hexagonal $(1, 1, 0)$ moment therefore has magnitude 1 $\mu_B$, and
 not $\sqrt{2}$. A moment in this crystal-axis form also converts to the
 orthonormal Cartesian frame `rietx.crystallography.adp.cartesian_basis` already
-builds for the ADP tensor above. Normalise each direct-lattice basis vector to
-unit length before applying it:
+builds for the ADP tensor of {eq}`par-adp`. Normalise each direct-lattice basis
+vector to unit length before applying it:
 
 ```{math}
 :label: par-moment-cartesian
@@ -179,9 +179,9 @@ unit length before applying it:
 
 {source}`rietx.crystallography.magnetic.operators.moment_to_cartesian`
 
-the same Cholesky-derived Cartesian frame the ADP construction above uses, so
-the crystal-axis and fractional actions of $R$ agree and the constraint
-algebra above never has to see a cell.
+the same Cholesky-derived Cartesian frame the ADP construction uses, so the
+crystal-axis and fractional actions of $R$ agree. The constraint algebra never
+has to see a cell.
 
 ## Soft restraints
 
@@ -195,7 +195,7 @@ r_{\mathrm{restr}} \;=\; \sqrt{w}\,
 \frac{\mathrm{computed}(\theta) - \mathrm{target}}{\sigma},
 ```
 
-{source}`rietx.model.restraints`
+{source}`rietx.model.restraints.restraint_residual`
 
 appended after the data rows, so restraints land in the covariance $J^\top J$
 and are excluded from $R_{wp}$, Durbin-Watson and the Bérar-Lelann inflation. A

@@ -1,11 +1,12 @@
 (ch-method)=
 # Reading a paper against its own numbers
 
-Every equation in this manual was transcribed from a source that could be wrong
-in print, and in the four cases below was. Each records the same method:
-validate an implementation against the defining quantity (an integral, an
-identity, a limit) and never against a transcription of the result, and when a
-paper disagrees with itself, find the reading its own numbers pin down.
+Three equations in this manual were transcribed from a source that is wrong in
+print. Each was caught the same way. Validate an implementation against the
+defining quantity, an integral or an identity or a limit, never against a
+transcription of the result. Where a paper disagrees with itself, implement the
+reading its own numbers pin down. The last two sections are a different case,
+where the package's own measurements settled what to ship.
 
 ## Rouse b₂: validate against the integral
 
@@ -90,7 +91,7 @@ survives the projection. It does move $R_{wp}$, and on a genuinely thick
 specimen declaring a thickness moves it the wrong way. That movement is the
 evidence the specimen was thick.
 
-Of the eight corrections shipped in one release, none is well judged by
+Of the eight changes shipped in one release, none is well judged by
 $\Delta R_{wp}$. Two provably cannot move it, one moves it the wrong way when it
 is right, three move it while changing nothing quotable, and the two largest
 accuracy wins are invisible in it: dispersion taking round-robin QPA from RMS

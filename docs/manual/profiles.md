@@ -4,11 +4,12 @@
 (sec-width-split)=
 ## The instrument ⊕ sample width split
 
-Two symbols run through this chapter and the next, and one of them is an
-operator.
-
 ⊗ is convolution. A measured line is the specimen's line convolved with the
 instrument's, so the shape to approximate is a Voigt, a Gaussian ⊗ Lorentzian.
+That convolution is never evaluated as an integral. The default profile
+approximates it by the linear blend of {eq}`prof-pv`. The opt-in exact shape is
+the closed form of {eq}`prof-voigt`. The one convolution this chapter does
+integrate is the axial divergence of {eq}`prof-fcj-integral`.
 
 ⊕ is shorthand for the rule convolution imposes on the widths. The Gaussian and
 Lorentzian component widths each carry an instrument part and a sample part.
@@ -28,7 +29,7 @@ that is where its deg² come from.
 \qquad [\deg^2 2\theta]
 ```
 
-{source}`rietx.model.profiles.caglioti`
+{source}`rietx.model.profiles.caglioti.gaussian_fwhm`
 
 $U, V, W$ are the instrument resolution function {cite}`caglioti1958`. The
 sample adds a Gaussian microstrain term $U_s\tan^2\theta$ and a Gaussian size
@@ -41,7 +42,7 @@ term $P/\cos^2\theta$ {cite}`larson2004,thompson1987`.
 \qquad [\deg 2\theta]
 ```
 
-{source}`rietx.model.profiles.caglioti`
+{source}`rietx.model.profiles.caglioti.lorentzian_fwhm`
 
 ```{warning}
 Conventions here are documented by physics and not by letters. The
@@ -160,7 +161,7 @@ surprising-but-possible band is the `SIZE_UNUSUALLY_SMALL` diagnostic, which
 fires below {{ SIZE_FLAG_SIZE_NM }} nm and bounds nothing.
 ```
 
-The bound behaves as the strain cap above does. It is armed only on a term that
+The bound behaves as the {ref}`strain cap <sec-strain-cap>` does. It is armed only on a term that
 has already reached it, a finite stored `max` outranks it, and it reports
 `BOUND_HIT` when the next stage pulls a crossing back. Any fit that stays off
 the floor is bit-identical to an unbounded build.
@@ -208,7 +209,7 @@ $\eta$:
 \qquad q = \Gamma_L / \Gamma.
 ```
 
-{source}`rietx.model.profiles.pseudovoigt`
+{source}`rietx.model.profiles.pseudovoigt.tch_gamma_eta`
 
 ### Origin and accuracy of the coefficients
 
@@ -257,7 +258,7 @@ G(x) = \frac{2}{\Gamma}\sqrt{\frac{\ln 2}{\pi}}
 L(x) = \frac{2/(\pi\Gamma)}{1 + 4x^2/\Gamma^2}.
 ```
 
-{source}`rietx.model.profiles.pseudovoigt`
+{source}`rietx.model.profiles.pseudovoigt.pseudo_voigt`
 
 ## Declared extra peaks
 
@@ -328,7 +329,7 @@ V(x; \sigma, \gamma) \;=\; \frac{\operatorname{Re}[w(z)]}{\sigma\sqrt{2\pi}},
 \qquad z = \frac{x + i\gamma}{\sigma\sqrt{2}},
 ```
 
-{source}`rietx.model.profiles.voigt`
+{source}`rietx.model.profiles.voigt.voigt`
 
 where $\sigma$ is the Gaussian standard deviation and $\gamma$ the Lorentzian
 half-width at half maximum, both in deg 2θ. Both are recovered from the
@@ -342,7 +343,7 @@ conversion is the equation:
 \sigma = \frac{\Gamma_G}{2\sqrt{2\ln 2}}, \qquad \gamma = \frac{\Gamma_L}{2}.
 ```
 
-{source}`rietx.model.profiles.voigt`
+{source}`rietx.model.profiles.voigt.fwhm_to_voigt_params`
 
 Both limits are exact and recovered branchlessly: $\gamma \to 0$ makes $z$
 real and $\operatorname{Re}[w] = e^{-z^2}$ (the unit Gaussian); $\sigma \to
@@ -362,7 +363,7 @@ Z = \frac{L + iz}{L - iz}, \qquad L = \sqrt[4]{1/2}\cdot\sqrt{N},
 w(z) = \frac{2\, p(Z)}{(L - iz)^2} + \frac{1/\sqrt{\pi}}{L - iz},
 ```
 
-{source}`rietx.model.profiles.faddeeva`
+{source}`rietx.model.profiles.faddeeva.faddeeva_w`
 
 with $p$ an $N$-term polynomial whose real coefficients come from a single FFT
 at import time. $N = 32$ reaches ≈1e-13. The algorithm is branchless over the
@@ -389,7 +390,7 @@ angle by {cite}`finger1994`
 \qquad \xi = u/L,
 ```
 
-{source}`rietx.model.profiles.fcj`
+{source}`rietx.model.profiles.fcj.fcj_offsets_weights`
 
 where $u$ is the signed axial offset of the ray. For $2\theta < 90°$ intensity
 smears from $2\theta$ down to $2\varphi_{\min}$, the classic low-angle tail of

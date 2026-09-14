@@ -1,11 +1,8 @@
 (ch-engines)=
 # Search engines
 
-{ref}`ch-indexing` establishes what a peak list can say about a lattice: the
-quadratic form, the symmetry-allowed subspaces, the figures that score a
-candidate, and the ambiguities that no amount of position data resolves. This
-chapter is about the search: how a cell is found in the first place, what each
-method assumes, and which of them can say anything at all when it finds nothing.
+{ref}`ch-indexing` establishes what a peak list can say about a lattice. The
+search is how a cell is found in the first place.
 
 Two engines are implemented. They share the Q form, the tolerance model and the
 scoring panel, and nothing else: one exhausts a metric domain, and the other

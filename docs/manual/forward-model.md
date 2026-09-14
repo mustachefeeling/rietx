@@ -20,7 +20,7 @@ fixed $2\theta$ offset. The line weight $w_l$ is the intensity of line $l$
 relative to line 0. Line 0 itself is locked at 1, because its weight is
 degenerate with the phase scales.
 
-The three factors carry the units the rest of the manual assumes.
+The three factors carry the units of {ref}`sec-units`.
 $\Omega_{lk}$ is a unit-area profile (chapter {ref}`ch-profiles`), so it is a
 density on the angle axis, in deg⁻¹. $w_l$ is a ratio. The reflection intensity
 $I_{pk}$ is therefore an area, in counts·deg 2θ: what the line integrates to,

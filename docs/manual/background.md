@@ -17,7 +17,7 @@ disciplined by second-difference penalty rows appended to the residual
 r_{\mathrm{pen}} \;=\; \sqrt{\lambda}\, (D_2\, c),
 ```
 
-{source}`rietx.background.models`
+{source}`rietx.background.models.second_difference_matrix`
 
 with $D_2$ the $(n-2) \times n$ second-difference matrix. The rows land in
 $J^\top J$, so the covariance is regularised, and they are excluded from
@@ -84,7 +84,7 @@ pipeline. The Whittaker smoother {cite}`eilers2003` solves the banded
 (W + \lambda D_2^\top D_2)\, z \;=\; W y,
 ```
 
-{source}`rietx.background.estimators`
+{source}`rietx.background.estimators.whittaker_solve`
 
 and arPLS {cite}`baek2015` iterates it with asymmetric reweighting so
 peaks are progressively excluded from the baseline. SNIP {cite}`ryan1988`

@@ -29,7 +29,7 @@ f_0(k) \;=\; \sum_{i=1}^{5} a_i\, e^{-b_i k^2} + c,
 \qquad \text{valid for } k \le 6\ \text{Å}^{-1}.
 ```
 
-{source}`rietx.crystallography.scattering`
+{source}`rietx.crystallography.scattering.f0`
 
 $f'/f''$ come from the Cromer-Liberman tabulation
 {cite}`cromer1970,cromer1981`, the crystallographic reference calculation and
@@ -64,7 +64,7 @@ b \;=\; b_{\mathrm{coh}}\ [\text{fm}],
 \qquad \frac{\partial b}{\partial k} = 0.
 ```
 
-{source}`rietx.crystallography.neutron`
+{source}`rietx.crystallography.neutron.b_coh`
 
 The derivative is the content of the equation. An X-ray form factor falls off
 with $k$ because the electron cloud has spatial extent comparable to $1/k$; a
@@ -113,7 +113,7 @@ F(hkl) \;=\; \sum_j \mathrm{occ}_j\, f_j(k)
 e^{2\pi i\, \mathbf{h}\cdot(R_m \mathbf{x}_j + \mathbf{t}_m)},
 ```
 
-{source}`rietx.crystallography.structure_factor`
+{source}`rietx.crystallography.structure_factor.structure_factors_squared`
 
 where the inner sum runs over a per-atom subset of symmetry operations, chosen
 once per stage so that special-position images are not double counted. The

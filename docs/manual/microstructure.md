@@ -7,8 +7,9 @@ Sample broadening rides on the instrument profile through the width laws of
 {eq}`prof-caglioti-g` and {eq}`prof-caglioti-l`. Crystallite-size broadening
 varies as $1/\cos\theta$ (Scherrer; Lorentzian $X_s$, Gaussian variance
 $P/\cos^2\theta$), and microstrain broadening as $\tan\theta$ (Lorentzian $Y_s$,
-Gaussian variance $U_s \tan^2\theta$). The instrument ⊕ sample split is a
-workflow as much as an equation. Calibrate $U, V, W, X, Y$ on a line-width
+Gaussian variance $U_s \tan^2\theta$). The
+{ref}`instrument ⊕ sample split <sec-width-split>` is a workflow as much as an
+equation. Calibrate $U, V, W, X, Y$ on a line-width
 standard with its certified cell held fixed, freeze them, and refine only the
 sample terms on the specimen.
 
@@ -28,7 +29,7 @@ breadth as an apparent size,
 L \;=\; \frac{K\lambda}{\beta\,\cos\theta} \qquad [\text{Å}],
 ```
 
-{source}`rietx.model.profiles.caglioti`
+{source}`rietx.model.profiles.caglioti.apparent_size`
 
 with $\beta$ the FWHM in radians of $2\theta$. $K$ depends on the crystallite
 shape and on which measure of breadth is used: 0.89 for the FWHM of a sphere
@@ -50,7 +51,7 @@ $dQ/d(2\theta) = 2\pi\cos\theta/\lambda$, and the $\cos\theta$ of
 \qquad [\text{Å}^{-1}],
 ```
 
-{source}`rietx.model.profiles.caglioti`
+{source}`rietx.model.profiles.caglioti.delta_q_fwhm`
 
 independent of both $\lambda$ and $\theta$, so Scherrer broadening is constant
 in Q. The size law of {eq}`prof-caglioti-l` is itself $1/\cos\theta$, so the
@@ -65,7 +66,7 @@ L \;=\; \frac{180}{\pi}\cdot\frac{K\lambda}{X_s}
 X_s \;=\; \frac{180}{\pi}\cdot\frac{K\lambda}{L},
 ```
 
-{source}`rietx.model.profiles.caglioti`
+{source}`rietx.model.profiles.caglioti.apparent_size_from_size_coefficient`
 
 reading $\sqrt{P}$ in place of $X_s$ for the Gaussian variance coefficient of
 {eq}`prof-caglioti-g`. The right-hand form is the seeding direction. It gives a
@@ -115,7 +116,7 @@ coefficient $Y_s$ in deg $2\theta$,
 Y_s \;=\; \frac{360}{\pi}\cdot\frac{\Delta d}{d},
 ```
 
-{source}`rietx.model.profiles.caglioti`
+{source}`rietx.model.profiles.caglioti.microstrain_from_strain_coefficient`
 
 reading $\sqrt{U_s}$ in place of $Y_s$ for the Gaussian variance coefficient of
 {eq}`prof-caglioti-g`, exactly as {eq}`ms-size-coefficient` reads $\sqrt{P}$.
@@ -162,7 +163,7 @@ homogeneous quartic in $(h, k, l)$:
 \quad [\text{Å}^{-4}],
 ```
 
-{source}`rietx.crystallography.stephens`
+{source}`rietx.crystallography.stephens.sigma2_m`
 
 fifteen monomials, hence at most fifteen coefficients. Since $2\theta =
 2\arcsin(\lambda\sqrt{M}/2)$ gives $d(2\theta)/dM = \tan\theta / M$, the
@@ -176,7 +177,7 @@ uses is
 \cdot \sqrt{\textstyle\sum_{HKL} S_{HKL}\, h^H k^K l^L} \quad [\deg],
 ```
 
-{source}`rietx.crystallography.stephens`
+{source}`rietx.crystallography.stephens.strain_width_deg`
 
 added to the Lorentzian FWHM as $\Lambda(hkl)\cdot\tan\theta$. It is the first
 width in the model to depend on $hkl$.

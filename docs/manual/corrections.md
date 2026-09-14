@@ -2,8 +2,7 @@
 # Intensity corrections
 
 Each correction in this chapter multiplies the reflection intensity of
-{eq}`fm-rietveld`. Shipping all of them produced one result worth recording
-once, at the head of the chapter. None of them is well judged by
+{eq}`fm-rietveld`. None of the corrections in this chapter is well judged by
 $\Delta R_{wp}$. One provably cannot move it (capillary absorption, an exact
 reparameterisation). One moves it the wrong way when it is right (a declared
 flat-plate thickness on a thick specimen). The largest accuracy wins are
@@ -45,7 +44,7 @@ and the McMaster total cross sections {cite}`mcmaster1969`:
 \frac{\sigma_{\mathrm{tot}}\ [\mathrm{barn}]}{V\ [\text{Å}^3]}
 ```
 
-{source}`rietx.crystallography.attenuation`
+{source}`rietx.crystallography.attenuation.linear_attenuation`
 
 (1 barn = 10⁻²⁴ cm² and 1 Å³ = 10⁻²⁴ cm³, so the exponents cancel).
 Attenuation means beam removal, so the total cross section is the one used,
@@ -235,7 +234,7 @@ x \;=\; \mathrm{ext} \cdot |F|^2 \cdot \left(\frac{\lambda}{V}\right)^2
 \qquad X_{\mathrm{pol}} = 0.079411\cdot\frac{1 + \cos^2 2\theta}{2},
 ```
 
-{source}`rietx.model.extinction`
+{source}`rietx.model.extinction.sabine_extinction`
 
 with $E_L$ a six-term series in $x$ for $0 < x \le 1$ and a two-term asymptote
 above, $E_L = 1$ at $x \le 0$, and $|F|^2$ entering without multiplicity or Lp.
@@ -266,7 +265,7 @@ P_{hkl} \;=\; \frac{1}{M} \sum_{m \in \mathrm{orbit}}
 \left[ r^2 \cos^2\alpha_m + \frac{\sin^2\alpha_m}{r} \right]^{-3/2},
 ```
 
-{source}`rietx.model.preferred_orientation`
+{source}`rietx.model.preferred_orientation.march_dollase_factors`
 
 where $\alpha_m$ is the angle between the preferred-orientation axis and
 the scattering vector of equivalent $m$. Both are reciprocal-lattice
@@ -281,7 +280,7 @@ directions (integer $hkl$), so the angle uses the reciprocal metric:
             (\mathbf{a} \cdot G^* \cdot \mathbf{a})}}.
 ```
 
-{source}`rietx.model.preferred_orientation`
+{source}`rietx.model.preferred_orientation.cos2_alpha`
 
 At $r = 1$ every bracket is 1, so $P \equiv 1$ exactly. Off is the identity,
 for every reflection and every cell. Friedel mates give identical brackets, so
@@ -310,7 +309,7 @@ Weight fractions follow the Hill-Howard scale-factor relation
 W_p \;=\; \frac{S_p\, (Z M V)_p}{\sum_q S_q\, (Z M V)_q},
 ```
 
-{source}`rietx.optimize.qpa`
+{source}`rietx.optimize.qpa.weight_fractions`
 
 with $Z$ formula units per cell, $M$ the formula mass and $V$ the cell volume,
 all derived from the refined model. Occupancies enter the mass, so the

@@ -13,7 +13,7 @@ tensor $G^*$ {cite}`itc-b`:
 \qquad G^* = G^{-1},
 ```
 
-{source}`rietx.crystallography.lattice`
+{source}`rietx.crystallography.lattice.inv_d_squared`
 
 where $\mathbf{h} = (h, k, l)$ is the row vector of Miller indices. $G$ is the
 direct metric tensor, the matrix of dot products of the cell edge vectors. It
@@ -64,7 +64,7 @@ off-diagonal elements of $G^*$. Peak positions then follow Bragg's law,
 2\theta \;=\; 2 \arcsin\!\left(\frac{\lambda}{2d}\right).
 ```
 
-{source}`rietx.crystallography.lattice`
+{source}`rietx.crystallography.lattice.two_theta_deg`
 
 Every emission line diffracts at its own Bragg angle. Differentiating
 {eq}`pos-bragg` at fixed $d$ gives the doublet-splitting law
