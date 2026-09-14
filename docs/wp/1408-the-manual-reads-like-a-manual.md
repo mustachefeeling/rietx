@@ -3,7 +3,8 @@
 Milestone: unscheduled · Status: ✅ 2026-09-14 — all eleven reported defects
 fixed, each with the guard that closes its class; six new guards, one
 measurement script, the TCH attribution corrected from the paper itself, and
-Part 2 rewritten out of the rulebook's register
+Part 2 rewritten out of the rulebook's register and its
+self-references checked against the tree
 Depends on: — (0604 built Part 2; 1067 built Part 1)
 
 ## Goal
@@ -277,6 +278,12 @@ entirely; B's guard is a measurement script, not a test, for the same reason
   renamed to the noun a reader looks up, sixteen bold lead-ins promoted to h3.
   Guard: `test_part_two_keeps_the_manual_register`, failed on purpose on both
   marks.
+- [x] **Self-reference.** Part 2 audited for the claims `-W` cannot check.
+  `method.md` counted four cases in a chapter of five sections, `profiles.md`
+  announced two symbols running through "this chapter and the next" where
+  neither reaches it, and two chapter openings listed contents instead of
+  stating a claim. Prose that points now links, and 27 `{source}` lines name
+  the function computing their equation instead of the module.
 - [x] Skill: **none.** Nothing here changes what an agent driving rietx should
   do; the skill cites the manual by section and no section is renamed or moved.
   Confirmed at close: the skill links the manual only as
@@ -332,6 +339,77 @@ entirely; B's guard is a measurement script, not a test, for the same reason
   measurement was taken.
 
 ## Handover log
+
+### 2026-09-14 (5th session) — the manual's claims about itself went unchecked
+
+A reader asked which function ⊕ and ⊗ correspond to. The honest answer is that ⊕
+has two and ⊗ has none, and following that produced the class this session
+closed. Sphinx `-W` verifies every `{ref}`, `{eq}`, `{cite}` and `{source}`
+target, so the only statements a manual makes that nothing checks are the ones it
+makes about itself in prose. Two of those in Part 2 were false, and both had been
+false since the sentence was written. Part 2 no longer points at itself without a
+link, and a source pointer now names the smallest importable thing that computes
+its equation rather than the file holding it.
+
+*Done*
+
+- `profiles.md` § the width split: the announcement sentence cut, and the ⊗
+  paragraph now says the convolution is never evaluated as an integral, names the
+  blend and the closed form that stand in for it, and names the one convolution
+  the chapter does integrate ({eq}`prof-fcj-integral`, by quadrature).
+- `method.md`'s opening rewritten. It counted "four cases" in a chapter of five
+  sections, of which three are print errors, and claimed all five record one
+  method. Its § µR/µt said "eight corrections" for eight work packages, two of
+  which (anode wavelengths, sequential chaining) are not corrections.
+- `corrections.md` no longer rates its own opening as worth recording, no longer
+  points at the paragraph the reader is in, and states the population of "one
+  provably cannot move it".
+- `engines.md`'s opening reduced from two contents lists, one of them the
+  previous chapter's, to two sentences.
+- Prose that points at a section now links it: `sec-strain-cap`, `sec-units` and
+  `sec-width-split` had no incoming reference in any form.
+- 27 `{source}` lines sharpened from a module to the function computing the
+  equation.
+
+*Measured*
+
+- Part 2 is 19,942 words, Part 1 82,424. Of 41 explicit anchors, 12 have no
+  incoming link in any form, and 2 of those had prose pointing at them. Of 105
+  `{source}` lines, 51 named a module; 24 still do, each where the module is the
+  subject.
+- Part 2 after the pass: em dashes 0, maxims 0, generic tics 0, negation 3.6 per
+  1000 against a budget of 3, unchanged and sitting in convention warnings.
+- Routing, since the question was asked explicitly. Grep-first in one context
+  cost about 15k tokens against 27k to read Part 2 whole, and about 45k of setup
+  per subagent in this repo (root `CLAUDE.md` ~12k, tools ~28k, skills ~4k). A
+  corpus this size does not pay for fan-out, and the judgement was calibrated by
+  three findings that lived in the session rather than in a prompt.
+
+*Gotchas*
+
+- A wrong but importable `{source}` target passes every test in the tree, so each
+  of the 28 proposed pairings was printed beside its own equation before landing.
+  Three were wrong: `ms-strain-coefficient` had the inverse conversion,
+  `ms-strain-law` is Bragg differentiated and no single function owns it, and
+  `pos-dspacing` defines 1/d² so it takes `inv_d_squared`.
+- `corrections.md`'s "one provably cannot move it" against `ch-method`'s "two" is
+  not a contradiction. The chapter has eight sections, the release had eight work
+  packages, and they are different eights. The fix is the populations, not the
+  numbers.
+- A bare `{ref}` renders the target's full title, which reads badly inside
+  parentheses ("(The true Voigt, via the Faddeeva function)"). Use an equation
+  number, or give the role explicit link text.
+
+*Next*
+
+- Part 1 (`docs/manual/using/`, 82,424 words) has never been measured for
+  register nor swept for this class. Five of its anchors have no incoming link:
+  `a-neutron-source` and `background-peaks` (`data.md`), `strategy-harmonics`
+  (`refining.md`), `progress-lines` (`results.md`), `scanning-a-parameter`
+  (`series.md`).
+- The dead anchor is the one shape here a test could own. It needs the ten inert
+  Part 2 anchors linked or deleted first, or the guard fails on arrival.
+- `/code-review high --fix` has not run on this branch.
 
 ### 2026-09-14 (4th session) — the manual was written in the rulebook's voice
 
