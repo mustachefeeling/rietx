@@ -474,7 +474,9 @@ def test_no_planning_doc_links_something_gitignored():
     This asks the question one rank up and without a list.  Whatever a planning
     doc links, in whatever directory, has to be a file a clone gets — so a new
     evidence directory fails here rather than reaching a reader with its
-    pictures missing.
+    pictures missing.  Two answers make that true: no ignore rule drops it, and
+    the index carries it.  WP-1412's sheets failed both, and an un-ignore
+    committed without its files fails only the second.
     """
     import subprocess
 
@@ -487,11 +489,20 @@ def test_no_planning_doc_links_something_gitignored():
             if rel and (doc.parent / rel).is_file():
                 targets.append(doc.parent / rel)
     assert targets, "no linked files found — the link regex or the corpus moved"
+    paths = [str(p) for p in sorted(set(targets))]
     result = subprocess.run(
         # --no-index: check-ignore answers for a *tracked* file out of the index
         # without reading the rules, and the point here is the rules.
-        ["git", "check-ignore", "-v", "--no-index", *[str(p) for p in sorted(set(targets))]],
+        ["git", "check-ignore", "-v", "--no-index", *paths],
         cwd=ROOT, capture_output=True, text=True, check=False,
+    )
+    # 0 is "something matched", 1 is "nothing did"; anything else is git
+    # declining to answer — no repository, a path outside it, an argument list
+    # too long — and it writes to stderr, leaving an empty stdout that reads
+    # here as a pass (tests/CLAUDE.md § Guards that go quiet instead of red).
+    assert result.returncode in (0, 1), (
+        f"git check-ignore exited {result.returncode} and asked nothing: "
+        f"{result.stderr.strip()}"
     )
     ignored = [
         line for line in result.stdout.splitlines()
@@ -500,6 +511,17 @@ def test_no_planning_doc_links_something_gitignored():
     ]
     assert not ignored, (
         "a planning doc links a file .gitignore drops:\n" + "\n".join(ignored)
+    )
+    # The un-ignore is half the story.  WP-1412's sheets were ignored *and*
+    # never added, and a rule committed without the files it frees leaves this
+    # guard green while a clone gets nothing — so ask the index too.  Absent
+    # this, only CI sees it, through the missing file the link test resolves.
+    tracked = subprocess.run(
+        ["git", "ls-files", "--error-unmatch", "--", *paths],
+        cwd=ROOT, capture_output=True, text=True, check=False,
+    )
+    assert tracked.returncode == 0, (
+        "a planning doc links a file git does not track:\n" + tracked.stderr.strip()
     )
 
 

@@ -158,8 +158,10 @@ committed files.
   viewport would report 13 or 14 failures that are not failures: at that width
   14 of 16 equations overflow their own cell, and `clear` is computed from the
   unclipped `mjx-math` box. Under furo the cell clips at x=316 and the number
-  starts at x=332, so the overflow cannot reach it. The guard would need
-  `clear` skipped wherever `over > 0`.
+  starts at x=332, so the overflow cannot reach it. Skipping `clear` is not
+  enough: the test's condition is `clear < MIN_CLEARANCE_PX or over > 0`, so
+  `over > 0` fails those 14 rows on its own. A 390 px viewport needs a rule
+  saying what overflow means at that width, not a clearance exemption.
 - pydata appends its own `components/` directory to `templates_path` at setup,
   so an override of one of its templates goes at the *root* of your own
   templates directory. Placed under `components/` it is silently never found,
@@ -174,6 +176,14 @@ committed files.
   an un-ignore and a general guard, `git check-ignore` over every target a
   planning doc links, `_planning_docs()` widened to reach a WP's own evidence
   README. The guard was checked red as well as green.
+
+**The review pass** (`/code-review high --fix`) found three and all three were
+taken. Two were in the guard this session had just written: it never read
+`git check-ignore`'s exit code, so a 128 with an empty stdout would have read as
+a pass, and it asked the ignore rules without asking the index, which is half of
+the failure it exists for. The third was in this entry, where the
+`check_equations.py` gotcha prescribed a fix that does nothing. Nothing was
+declined. Landed in 3963567d.
 
 **Next.** Nothing. The WP closes with the recommendation to stay, and no
 migration WP is opened. Reopen the question if the manual's two toctrees are
