@@ -18,14 +18,14 @@ for.
 
 Up to version 1.2 there was a second one, an `agent` module holding a single
 JSON call that took a request dict and returned an `{"ok": …}` envelope, plus
-its exported JSON Schemas. All of it was retired
-in 1.3 because it was measured and not used. Across four traced rounds — 235
-instrumented interpreter starts, and 5 430 tool calls in one contributor's
-bundle — every agent that had the choice drove the package directly:
-`read_pattern`, `Structure`, `Refinement.fit`, `refine_sequential`,
-`build_report`. It also could not serve the case it was built for: its request
-carried patterns inline, so one lab pattern is 11 k tokens and a 68-pattern
-series is about 754 k of them in a single call.
+its exported JSON Schemas. All of it was retired in 1.3 because it was measured
+and not used. Four traced rounds covered 235 instrumented interpreter starts and
+5 430 tool calls in one contributor's bundle, and every agent that had the
+choice drove the package directly: `read_pattern`, `Structure`,
+`Refinement.fit`, `refine_sequential`, `build_report`. It also could not serve
+the case it was built for. Its request carried patterns inline, so one lab
+pattern is 11 k tokens and a 68-pattern series is about 754 k of them in a
+single call.
 
 What replaces it is what those agents already did:
 
@@ -39,22 +39,21 @@ result = ref.fit(data, plan="mccusker_default")
 print(ref.summary())
 ```
 
-Three differences from the envelope are worth stating plainly, because they are
-the whole of the upgrade:
+Three differences from the envelope are the whole of the upgrade:
 
-- **A failure raises.** Where the envelope answered `{"ok": false, "error":
-  {"code": …}}`, the call raises — `ValueError` for a model or a plan the
-  package refuses, `NoPhasesError` for a structure with nothing to refine,
-  `RuntimeError` from the engine. Catch what you would have branched on.
-- **The answer is an object.** `RefinementResult` is what the `result` arm
-  carried, `SeriesResult` what `series` carried, `IndexingResult` what
-  `indexing` carried, and `SuggestionResult` what `suggestion` carried. None
-  changed when the envelope went; `SuggestionResult` has since gained a
-  required `CandidateGroup.delta_bic`, which is the one thing in this list a
-  stored 1.2 answer does not validate against.
-- **The report is a separate call.** `Refinement.report` builds the
-  `FitReport` for the fit just run, and `Refinement.stage_reports_` holds the
-  report at every stage boundary when `Refinement.fit` was asked for them with
+- A failure raises. Where the envelope answered `{"ok": false, "error":
+  {"code": …}}`, the call raises: `ValueError` for a model or a plan the package
+  refuses, `NoPhasesError` for a structure with nothing to refine, `RuntimeError`
+  from the engine. Catch what you would have branched on.
+- The answer is an object. `RefinementResult` is what the `result` arm carried,
+  `SeriesResult` what `series` carried, `IndexingResult` what `indexing`
+  carried, and `SuggestionResult` what `suggestion` carried. None changed when
+  the envelope went. `SuggestionResult` has since gained a required
+  `CandidateGroup.delta_bic`, the one thing in this list a stored 1.2 answer
+  does not validate against.
+- The report is a separate call. `Refinement.report` builds the `FitReport` for
+  the fit just run, and `Refinement.stage_reports_` holds the report at every
+  stage boundary when `Refinement.fit` was asked for them with
   `stage_reports=True`. A converged report is routinely the least informative
   one in a run, so ask for the rungs on a run you will actually read.
 
@@ -76,29 +75,29 @@ lets a parameter bound of ±inf survive a round-trip ([](compatibility.md)).
 
 :::{admonition} For agents
 :class: agent
-`Refinement.summary` answers "is this done, and why" in one string, which is
-the question a result view is for. Read the diagnostics before the statistics,
-and prefer the trajectory over the final report — a plan absorbs an error it
-cannot free into whatever it can, converges, and suggests nothing, while its
-own first stage named the cause.
+`Refinement.summary` answers "is this done, and why" in one string, which is the
+question a result view is for. Read the diagnostics before the statistics, and
+prefer the trajectory over the final report. A plan absorbs an error it cannot
+free into whatever it can, converges, and suggests nothing, while its own first
+stage named the cause.
 :::
 
 ## Wrapping rietx in a tool call
 
 Nothing here is a tool definition, and the package no longer ships one. If you
 are exposing refinement to a tool-calling model, wrap the Python API yourself
-and give your tool **path** arguments — a pattern file, a CIF, a project
-directory — rather than inline payloads. A dedicated tool earns its place when
-it gates, renders, audits or parallelises something; a refinement driven by an
-agent that already has a shell needs none of those, and the pattern arrays are
-what make the inline form expensive.
+and give your tool path arguments rather than inline payloads: a pattern file, a
+CIF, a project directory. A dedicated tool earns its place when it gates,
+renders, audits or parallelises something. A refinement driven by an agent that
+already has a shell needs none of those, and the pattern arrays make the inline
+form expensive.
 
 :::{admonition} For agents
 :class: agent
 The operating protocol resolves two ways, and both work for someone who only
 ran `pip install`: the hosted copy at `DOCS_URL/skill/rietx/SKILL.md`, and an
 offline copy inside the wheel for a sandbox with no network. Do not construct
-either path — `capabilities().skill_path` and `rietx skill --path` answer with
+either path. `capabilities().skill_path` and `rietx skill --path` answer with
 whichever this build has, and in a checkout of the repository that is
 `docs/skill/rietx/` itself.
 :::
@@ -117,56 +116,54 @@ caps = capabilities()
 sorted(caps.features)
 ```
 
-- **`Capabilities.backends`**, `Capabilities.solvers`, `Capabilities.modes`,
-  `Capabilities.anodes`, the dispatch vocabularies. A `BackendCapability`
+- `Capabilities.backends`, `Capabilities.solvers`, `Capabilities.modes` and
+  `Capabilities.anodes` are the dispatch vocabularies. A `BackendCapability`
   carries `BackendCapability.name`, whether its optional dependency imports
-  *here*, whether it is experimental, what to install, and
-  `BackendCapability.dtype`, the precision it computes at. An
-  `AnodeCapability` carries `AnodeCapability.name`, its own
-  `AnodeCapability.wavelengths`, `AnodeCapability.kbeta` for the contamination
-  check, and `AnodeCapability.kalpha1_only`, which is true for the `CuKa1`-style
-  entries where an incident-side monochromator has left one line rather than
-  two.
-- **`Capabilities.radiations`**, the source kinds `Instrument.source`
-  discriminates on. Read this *before* `Capabilities.anodes`, which is a
-  sub-vocabulary of the X-ray entry and says nothing about the others — a
-  program reading the anodes alone would conclude this build does X-rays only.
-  Each `RadiationCapability` carries `RadiationCapability.kind`, the
-  discriminator to write, `RadiationCapability.title` and
-  `RadiationCapability.scatterer`, the one-line statement of what does the
-  scattering and therefore whether the amplitude falls off with Q. The other
-  four say how the *shape* of the source differs, which is what decides
-  whether a field exists to set at all:
+  here, whether it is experimental, what to install, and
+  `BackendCapability.dtype`, the precision it computes at. An `AnodeCapability`
+  carries `AnodeCapability.name`, its own `AnodeCapability.wavelengths`,
+  `AnodeCapability.kbeta` for the contamination check, and
+  `AnodeCapability.kalpha1_only`, true for the `CuKa1`-style entries where an
+  incident-side monochromator has left one line rather than two.
+- `Capabilities.radiations` is the source kinds `Instrument.source`
+  discriminates on. Read it before `Capabilities.anodes`, which is a
+  sub-vocabulary of the X-ray entry and says nothing about the others: a program
+  reading the anodes alone would conclude this build does X-rays only. Each
+  `RadiationCapability` carries `RadiationCapability.kind`, the discriminator to
+  write, `RadiationCapability.title` and `RadiationCapability.scatterer`, the
+  one-line statement of what does the scattering and therefore whether the
+  amplitude falls off with Q. The other four say how the shape of the source
+  differs, which decides whether a field exists to set at all:
   `RadiationCapability.anomalous_dispersion`,
-  `RadiationCapability.max_emission_lines` (`None` for unbounded, 1 for a
-  source whose spectrum is one wavelength and can be nothing else),
+  `RadiationCapability.max_emission_lines` (`None` for unbounded, 1 for a source
+  whose spectrum is one wavelength and can be nothing else),
   `RadiationCapability.polarization_refinable`, and
-  `RadiationCapability.harmonic_contamination` — whether that radiation accepts
-  declared λ/n monochromator harmonics ([](data.md)). All four are derived from
-  the classes rather than declared, so each flips by itself when its feature
-  lands; the last reads the same `harmonics_supported` attribute the schema's
-  own refusal reads, so it cannot claim a support the validator denies.
-- **`Capabilities.plans`**, each `PlanCapability` with `PlanCapability.title`,
+  `RadiationCapability.harmonic_contamination`, which is whether that radiation
+  accepts declared λ/n monochromator harmonics ([](data.md)). All four are
+  derived from the classes rather than declared, so each flips by itself when
+  its feature lands. The last reads the same `harmonics_supported` attribute the
+  schema's own refusal reads, so it cannot claim a support the validator denies.
+- `Capabilities.plans` gives each `PlanCapability` with `PlanCapability.title`,
   `PlanCapability.description`, `PlanCapability.modes` and
   `PlanCapability.when_to_use`, so a program can offer the choice in its own UI
   without hard-coding a list. `PLAN_INFO` is the same table in the library.
-- **`Capabilities.reader_formats`**, every pattern format `read_pattern` opens.
+- `Capabilities.reader_formats` is every pattern format `read_pattern` opens.
   Each `ReaderCapability` carries `ReaderCapability.name` and
   `ReaderCapability.title` for a file dialogue, `ReaderCapability.extensions`,
   `ReaderCapability.sniff` (how the file is recognised), `ReaderCapability.sigma`
   (where the uncertainties come from, which differs per vendor),
-  `ReaderCapability.options` (the keywords *this* format honours) and
+  `ReaderCapability.options` (the keywords that format honours) and
   `ReaderCapability.refuses` (what it declines, and why). A format with a
-  `ReaderCapability.refuses` string is one the build recognises **in order to
-  decline**: "we know what this is and it is the wrong kind of file" is a
+  `ReaderCapability.refuses` string is one the build recognises in order to
+  decline: "we know what this is and it is the wrong kind of file" is a
   different answer from "we cannot open this".
-- **`Capabilities.reader_options`**, the reader keyword vocabulary itself,
+- `Capabilities.reader_options` is the reader keyword vocabulary itself,
   build-wide rather than per format, because `scan` means the same thing in
   every format that takes it. Each `ReaderOptionCapability` gives
   `ReaderOptionCapability.name`, `ReaderOptionCapability.kind` (`"str"` or
   `"int"`, so a form knows which control to draw) and
   `ReaderOptionCapability.help`.
-- **`Capabilities.indexing_engines`** and `Capabilities.search_presets`, with
+- `Capabilities.indexing_engines` and `Capabilities.search_presets` carry
   `SearchPresetCapability.typical_seconds` and
   `SearchPresetCapability.total_budget_seconds`. An indexing search is budgeted,
   and a caller that has to promise a response time reads it here. Beside them
@@ -175,14 +172,14 @@ sorted(caps.features)
   increasing cost; `Capabilities.centrings`, the Bravais letters each system
   admits, as a map; and `Capabilities.shift_templates`, the systematic-shift
   models the screen can fit.
-- **`Capabilities.features`**, feature flags, each *derived* from the thing it
+- `Capabilities.features` is the feature flags, each derived from the thing it
   reports (a schema field's presence, a top-level export's existence) rather
   than written as a literal `true`. A flag flips by itself when its feature
   lands.
 
-**Quote this call rather than transcribing its contents.** The reader-format
-list went from five to ten in two days once, and a table in prose would have
-been wrong by the following week.
+Quote this call rather than transcribing its contents. The reader-format list
+went from five to ten in two days once, and a table in prose would have been
+wrong by the following week.
 
 ## Versioned contracts
 
@@ -204,9 +201,9 @@ threshold compared across two `report_thresholds_version` values compares two
 different questions.
 
 `Capabilities.skill_path` is not a version. It is the directory holding the
-agent skill this build carries — the operating protocol, in the open Agent
-Skills format — or `None` where the build carries none. Point a harness at it,
-or read it yourself:
+agent skill this build carries, the operating protocol in the open Agent Skills
+format, and `None` where the build carries none. Point a harness at it, or read
+it yourself:
 
 <!-- api-doc: no-exec — it prints an absolute path that differs per install -->
 ```python

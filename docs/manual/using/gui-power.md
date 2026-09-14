@@ -1,21 +1,20 @@
 # The GUI as a text document and a wire
 
 Three surfaces underneath the panels: the `.rxt` text document, the keyboard,
-and the HTTP routes. Each of them exists for the same reason — the GUI is a
-front end for the Python API, and none of what it does should be reachable only
-by pointing at it.
+and the HTTP routes. Each exists for the same reason. The GUI is a front end for
+the Python API, and none of what it does should be reachable only by pointing at
+it.
 
-:::{admonition} What here is a promise, and what is not
+:::{admonition} What here is a promise
 :class: warning
-The GUI's **HTTP routes are declared provisional**: see
+The GUI's HTTP routes are declared provisional; see
 {ref}`provisional-by-declaration`. They are the surface this chapter describes
-for the release it ships with, and a route may be added, renamed or split in
-any release. Build programs on the Python API in [](agents.md), not on these
-routes.
+for the release it ships with, and a route may be added, renamed or split in any
+release. Build programs on the Python API in [](agents.md) instead.
 
-The **`.rxt` grammar is normative** for the format version it states, and the
-format carries its own version number, so a change to it is something a reader
-can see rather than infer.
+The `.rxt` grammar is normative for the format version it states. The format
+carries its own version number, so a change to it is something a reader can see
+rather than infer.
 :::
 
 ## The `.rxt` document
@@ -63,13 +62,13 @@ instrument
 
 ### Grammar
 
-**The header line is `rxt {{ RXT_FORMAT_VERSION }}`** and states the format
+The header line is `rxt {{ RXT_FORMAT_VERSION }}` and states the format
 version. It is quoted here from the parser itself, so a bump to the format
 cannot leave this page behind.
 
-**Indentation is the dispatch.** A line at column zero opens a block or sets a
+Indentation is the dispatch. A line at column zero opens a block or sets a
 document-level key; an indented line is a parameter row inside the block above
-it. This is not cosmetic — an indented `plan` line is a *parameter* named `plan`,
+it. It is not cosmetic: an indented `plan` line is a parameter named `plan`, and
 not the plan block.
 
 Document-level keywords:
@@ -95,50 +94,48 @@ They render in this order:
 
 | Modifier | Means | Editable |
 |---|---|---|
-| `@` before the value | **this parameter is free**; a bare value holds it | yes |
+| `@` before the value | this parameter is free; a bare value holds it | yes |
 | the value itself | the parameter's value | yes |
-| `min` / `max` | the bound the solver is given | no — bounds come from the schema, not from this document |
-| `softplus` / `logit` | the transform the parameter refines through | no — a transform is part of how the parameter is stored |
+| `min` / `max` | the bound the solver is given | no; bounds come from the schema rather than from this document |
+| `softplus` / `logit` | the transform the parameter refines through | no; a transform is part of how the parameter is stored |
 | `locked` | structurally fixed, by symmetry or by a representation that owns the value | no |
-| `mode-fixed` | held because the intensity mode holds it — Le Bail and Pawley force-fix every atom parameter, the phase scale and the emission lines | no |
-| `esd` | the standard uncertainty the last fit produced | no — an esd is a result of a fit, not an input to one |
-| `= …` | this parameter is **tied**: its value follows the expression | no |
+| `mode-fixed` | held because the intensity mode holds it; Le Bail and Pawley force-fix every atom parameter, the phase scale and the emission lines | no |
+| `esd` | the standard uncertainty the last fit produced | no; an esd is a result of a fit and not an input to one |
+| `= …` | this parameter is tied, and its value follows the expression | no |
 
-**A tie renders last on its line**, because the expression contains spaces and
-runs to the end of the line.
+A tie renders last on its line, because the expression contains spaces and runs
+to the end of the line.
 
-**Column widths are per block**, not fixed across the document, which is what
-keeps a narrow value from being padded into its neighbour.
+Column widths are per block and not fixed across the document, which keeps a
+narrow value from being padded into its neighbour.
 
-Everything after `#` is a comment. **Comments do not survive a re-render**: a
+Everything after `#` is a comment. Comments do not survive a re-render: a
 document regenerated from the project has one authority, and storing your
 comments in the project would make two.
 
-### What is safe to edit, and why
+### What is safe to edit
 
-**Values render at {{ RXT_VALUE_DIGITS }} significant digits and are therefore
-lossy** — and that is safe, because a typed number is compared against the
-**rendered** value rather than the stored one. Apply an untouched document and it
-emits no verbs at all. Only a row whose text you actually changed becomes a call.
+Values render at {{ RXT_VALUE_DIGITS }} significant digits and are therefore
+lossy. That is safe, because a typed number is compared against the rendered
+value rather than the stored one. Apply an untouched document and it emits no
+verbs at all. Only a row whose text you actually changed becomes a call.
 
 Three consequences:
 
-- **A read-only field is an error only when it differs.** Everything can be
-  shown without a "look, don't touch" syntax, because leaving it alone is not an
-  edit.
-- **Every refusal is the verb's own words**, with a line number attached — the
-  same sentence the form would have given you, not a second copy of the rule.
-- **A glob line is bulk sugar.** Writing `profile.* @` frees everything the glob
+- A read-only field is an error only when it differs. Everything can be shown
+  without a "look, don't touch" syntax, because leaving it alone is not an edit.
+- Every refusal is the verb's own words, with a line number attached. It is the
+  same sentence the form would have given you.
+- A glob line is bulk sugar. Writing `profile.* @` frees everything the glob
   matches; the next render expands it into one line per parameter.
 
 Applying goes through the same verbs a form calls and records the same history
 nodes. There is no merge and no force-apply: if the project moved under your
-buffer, re-read and re-apply. Your stale buffer carries the *old* value of every
+buffer, re-read and re-apply. Your stale buffer carries the old value of every
 row you did not touch, so applying it anyway would silently revert them.
 
-`⌥`-drag is a rectangular selection, which is the whole reason the format aligns
-its columns — one field down a hundred rows is a column you can select. `⌘⏎`
-applies.
+`⌥`-drag is a rectangular selection, and the format aligns its columns for it:
+one field down a hundred rows is a column you can select. `⌘⏎` applies.
 
 ## The keyboard
 
@@ -164,9 +161,10 @@ into the filter box does not start a fit.
 order deliberately: cancelling a run because a popover happened to be open is
 not undone by pressing it again.
 
-## The palette is the index, and it is executable
+## The command palette
 
-`⌘K` lists every command with **the Python call it makes**:
+`⌘K` is the index of what the app can do, and it is executable. It lists every
+command with the Python call it makes:
 
 ```text
 Run the fit                        r     ref.fit(data, plan=…)
@@ -176,25 +174,25 @@ Show the fit report                ?     ref.report()
 Edit the project as text           t     print(rietx.gui.textdoc.render(project))
 ```
 
-A command that cannot run right now is shown greyed and sorted last, never
-hidden — so the palette is a complete list of what the app can do, not a list of
-what it can do at this moment.
+A command that cannot run right now is shown greyed and sorted last, and never
+hidden. So the palette lists everything the app can do, rather than what it can
+do at this moment.
 
-The same echo prints in the console when you click a control. That is the
-on-ramp this chapter exists for: **anything you did by pointing, you can look up
-as the call that did it.** A session of clicking leaves a console you can read
-top to bottom as the script you could have written, and the objects it names are
-the ones [](refining.md) and [](history.md) describe.
+The same echo prints in the console when you click a control. Anything you did
+by pointing, you can look up as the call that did it. A session of clicking
+leaves a console you can read top to bottom as the script you could have
+written, and the objects it names are the ones [](refining.md) and
+[](history.md) describe.
 
-The transition is meant to be gradual. Open the project the GUI made from
-Python — it is an ordinary `.rex` directory ([](files.md)) — and the history the
-GUI wrote is the history `Refinement.history` gives you.
+The transition is meant to be gradual. The project the GUI made is an ordinary
+`.rex` directory ([](files.md)), so open it from Python and the history the GUI
+wrote is the history `Refinement.history` gives you.
 
 ## The routes
 
 The server is stdlib `http.server` bound to `127.0.0.1`. Every response is JSON
-except the static files and the pattern uploads. **Mutating routes return 409
-while a run is in flight**, and that refusal outranks body validation: the
+except the static files and the pattern uploads. Mutating routes return 409
+while a run is in flight, and that refusal outranks body validation. The
 package's frozen-per-stage rule is enforced structurally rather than by
 discipline.
 
@@ -206,11 +204,11 @@ tokens Python writes by default.
 
 | Route | Is |
 |---|---|
-| `GET /api/capabilities` | what this build can do — backends, solvers, plans, formats, contract versions |
+| `GET /api/capabilities` | what this build can do: backends, solvers, plans, formats, contract versions |
 | `GET /api/version` | the package version |
 | `GET /api/help` | the help corpus the popovers and [](glossary.md) are written from |
 | `GET /api/spacegroup` | what one symbol constrains; the wizard's typed-cell step needs it before a project exists |
-| `GET /api/settings` · `POST /api/settings` | the person's settings — the theme, stored beside the recent list rather than in the project — and not behind the 409 |
+| `GET /api/settings` · `POST /api/settings` | the person's settings, which is the theme, stored beside the recent list rather than in the project; not behind the 409 |
 | `GET /api/recent` | the recently-opened list |
 | `GET /api/fs` | the filesystem browser's listing, confined to the home directory and the working directory |
 | `GET /api/examples` | the example projects shipped in the wheel |
@@ -225,7 +223,7 @@ tokens Python writes by default.
 | `POST /api/project/save` | write the settings file |
 | `GET /api/params` · `PATCH /api/params` | every parameter row; value and vary edits |
 | `GET /api/plan` · `PUT /api/plan` · `GET /api/plans` | the plan; replace it; the presets |
-| `GET /api/plan/resolve` | the ladder — per stage, what it frees and what stays held |
+| `GET /api/plan/resolve` | the ladder: per stage, what it frees and what stays held |
 | `GET /api/structure` · `PATCH /api/structure` | the model, its sites and its symmetry; a whole validated replacement |
 | `POST /api/structure/aniso` | switch one atom between isotropic and anisotropic displacement |
 | `POST /api/structure/position` | a typed coordinate, projected onto the site's own directions |
@@ -275,13 +273,12 @@ tokens Python writes by default.
 | `POST /api/export/cif` · `POST /api/export/html` · `POST /api/export/qpa` | the refined structure; the interactive figure; the phase fractions |
 | `POST /api/export/reflections` · `POST /api/export/result_json` | the reflection list; the whole result |
 | `POST /api/export/instrument_profile` | the instrument, answered from the project because it needs no result |
-| `POST /api/upload/pattern` · `POST /api/upload/cif` · `POST /api/upload/instrument` | the only routes whose body is **not** JSON: a file goes up as its own bytes, with its name and reader options in the query string |
+| `POST /api/upload/pattern` · `POST /api/upload/cif` · `POST /api/upload/instrument` | the three routes whose body is raw bytes rather than JSON: a file goes up as itself, with its name and reader options in the query string |
 | `GET /api/upload/pattern/scans` | what each scan in a multi-scan file is, fetched when the picker is opened |
 
 Uploads are two-phase. A file is staged and read before anything is created, and
-only an opaque token crosses back — never a path — so the wizard can show you
-what a file contains and what the reader made of it before you commit to a
-project.
+only an opaque token crosses back, never a path. So the wizard can show you what
+a file contains and what the reader made of it before you commit to a project.
 
 [](exports.md) documents what each export contains; the routes above only choose
 where it is written.
