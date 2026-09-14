@@ -178,7 +178,7 @@ supplies the two polynomials below; the trailing **Z** of the class name
 and different codes attach it to different extra width terms. What rietx's
 class holds is exactly the five coefficients $U, V, W, X, Y$ of
 {eq}`prof-caglioti-g` and {eq}`prof-caglioti-l` and nothing else, so read the
-θ-law and not the label — the rule this chapter's first warning already states
+$\theta$-law and not the label — the rule this chapter's first warning already states
 for X and Y.
 
 The default profile approximates the Voigt (Gaussian ⊗ Lorentzian) as a
@@ -227,13 +227,13 @@ quoted from the paper: rietx ships the exact convolution as
 whole range $0 \le q \le 1$, with the true FWHM found by bisecting the Faddeeva
 Voigt (`tests/test_voigt.py`):
 
-* {eq}`prof-tch-gamma` reproduces the true Voigt FWHM to within **0.43 %**,
+* {eq}`prof-tch-gamma` reproduces the true Voigt FWHM to within **0.43 %**,
   worst near $\Gamma_L \approx \Gamma_G/2$, and is exact in both pure limits;
 * the pseudo-Voigt built from the pair departs from the exact Voigt by at most
-  **1.3 % of the peak height**, worst at $q \approx 0.56$.
+  **1.3 % of the peak height**, worst at $q \approx 0.56$.
 
-Where that 1.3 % sits matters more than its size. At the peak **centre** the
-departure stays under 0.25 % across the whole range; the worst of it is on the
+Where that 1.3 % sits matters more than its size. At the peak **centre** the
+departure stays under 0.25 % across the whole range; the worst of it is on the
 **flanks**, at $x \approx \pm0.28\,\Gamma$, which is where a peak's position
 and width derivatives live. So the choice between `"tchz_pv"` and `"voigt"` is
 not a choice about peak heights, and a pattern whose lines are neither nearly

@@ -34,6 +34,12 @@
 %    case because Physical Review A prints it that way while the IUCr journals
 %    print "X-ray".  That unevenness belongs to the literature; do not "fix"
 %    it.  Rule 1 is about capitals the STYLE destroys, never about spelling.
+%
+% The `software` entry type is not standard BibTeX (it is biblatex's), and
+% sphinxcontrib-bibtex — the only thing that reads this file — renders it.  It
+% was changed to `misc` for portability and changed straight back:
+% tests/test_no_stale_name.py finds this package's own citation record BY THAT
+% TYPE, and went red.  The type is load-bearing; leave it.
 
 % ---------------------------------------------------------------- foundations
 
@@ -1067,7 +1073,7 @@
   doi     = {10.1080/01621459.1963.10480682},
 }
 
-@misc{rietx2026,
+@software{rietx2026,
   author  = {Wu, Yue and Gaultois, Michael W.},
   title   = {{rietx: Python-API-first analysis and Rietveld refinement of powder diffraction data}},
   year    = {2026},

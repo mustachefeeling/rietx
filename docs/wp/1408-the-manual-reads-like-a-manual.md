@@ -1,6 +1,8 @@
 # WP-1408 — The theory manual reads like a manual
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: ✅ 2026-09-14 — all eleven reported defects
+fixed, each with the guard that closes its class; four new guards, one
+measurement script
 Depends on: — (0604 built Part 2; 1067 built Part 1)
 
 ## Goal
@@ -240,28 +242,41 @@ entirely; B's guard is a measurement script, not a test, for the same reason
   coefficient $P$.
 - [x] **F — `*Source:*` becomes a link.** `REPO_URL` in `_about.py`; a `{source}`
   role registered in `conf.py` resolving the dotted name through `inspect` to a
-  blob URL with a line anchor, pinned to `v{release}` for a released version and
-  `main` for a `.dev`; all 104 lines converted; `test_manual.py`'s `SOURCE_LINE`
-  regex and its two consumers follow.
+  blob URL with a line anchor; all 105 lines converted; `test_manual.py`'s
+  `SOURCE_LINE` regex and its two consumers follow. **Landed against `main`, not
+  a tag**: `pyproject.version` is the last *shipped* milestone whether or not it
+  was tagged, and it reads 1.4.0 today while `git ls-remote --tags` stops at
+  v1.3.0, so a tag-pinned link would 404 on every equation. `main` is also the
+  tree the published manual is built from.
 - [x] **G — the bibliography agrees with itself.** Brace every capital in every
   title (the ten rendered faults first, then the sweep); settle `@software`;
   add the `doi` field wherever Crossref confirms one against title, year, volume
   and first page (never a bare title match), and record the count that could not
-  be confirmed. Guard: `test_manual.py` fails on an unbraced interior capital in
-  a title and on an entry whose field set is not its type's declared set.
-- [x] **H — `Rwp` in maths.** $R_{wp}$ in prose, `rwp` for the field, plain text
-  only inside a mermaid label; both parts. Guard: a source-side check for a bare
-  `Rwp` outside code spans, fences and mermaid blocks.
-- [ ] **I — the hyphen check recorded** in the handover entry with its counts;
+  be confirmed. **`@software` stays**: changed to `@misc` for portability and
+  changed straight back, because `tests/test_no_stale_name.py` finds this
+  package's own citation record by that entry type and went red. Guards: `test_manual.py` fails on an unbraced interior capital in
+  a title, on an article with no `doi` outside a named exception, and on a `doi`
+  that is not lower case. **Not** a field-set check per type: the field sets were
+  already uniform, and the defect was the style lowercasing a capital.
+- [x] **H — `Rwp` in maths, in Part 2.** $R_{wp}$ and $\Delta R_{wp}$ in the
+  eleven Part 2 lines; `rwp` in code font is the field everywhere. **Part 1 keeps
+  the plain word, deliberately**: it is the label on the GUI header and in a
+  console line, and its neighbours in the same tables are plain too (χ², GoF,
+  Σw δ², N − P), so converting 126 lines would trade one inconsistency for
+  another. `manual.md` states the split. Guard: a source-side check over Part 2,
+  its page list derived from the tree, exempting code spans and fences.
+- [x] **I — the hyphen check recorded** in the handover entry with its counts;
   `polarisation` spelling made uniform in prose.
-- [ ] Tests: the three new guards above, plus the existing manual suite green.
+- [x] Tests: the four new guards above, plus the existing manual suite green.
   No obs/calc/diff PNGs — this WP runs no refinement (the plotting rule is about
   fits, and E1's measurement is a profile-function comparison, whose plot belongs
   in the handover entry).
-- [ ] Skill: **none.** Nothing here changes what an agent driving rietx should
+- [x] Skill: **none.** Nothing here changes what an agent driving rietx should
   do; the skill cites the manual by section and no section is renamed or moved.
-  (Confirm at close that no `docs/skill/rietx/` reference names an anchor this
-  WP moved.)
+  Confirmed at close: the skill links the manual only as
+  `https://rietx.org/manual.html`, and `help.py`'s 30 deep links name no anchor
+  in a heading this WP touched (the one changed heading, `method.md`'s, is
+  referenced by nothing).
 
 ## Acceptance
 
