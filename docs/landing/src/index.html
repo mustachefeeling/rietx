@@ -264,7 +264,7 @@ footer .note{flex-basis:100%;margin-top:8px;font-size:.82rem;color:var(--faint)}
 <section class="block" id="agent"><div class="wrap">
   <div class="sec-head">
     <h2>Out-of-the-box agentic refinement</h2>
-    <p>We gave a coding agent (Sonnet 5 in Claude Code) a low signal, multi-phase dataset and some reference structures, then asked it to perform a sequential refinement with quantative phase analysis. No further setup required. Get started <a href="https://rietx.org/using/agents.html">here</a>.</p>
+    <p>We gave a coding agent (Sonnet 5 in Claude Code) a low-signal, multi-phase dataset and some reference structures, then asked it to perform a sequential refinement with quantitative phase analysis. No further setup required. Get started <a href="https://rietx.org/using/agents.html">here</a>.</p>
   </div>
   <div class="rig">
     <div class="rig-head">
@@ -289,13 +289,13 @@ footer .note{flex-basis:100%;margin-top:8px;font-size:.82rem;color:var(--faint)}
       </div>
     </div>
   </div>
-  <p class="caption"> The dataset is 275 <em>in situ</em> XRD patterns from a supported Cu/CuO redox experiment collected on a lab diffractometer with ~30 s acquisitions. The measurements were made at up to 300&nbsp;&deg;C under changing chemical environments using a bespoke gas cell. Contributed by Michael W. Gaultois. Work performed with Jamie Capel, Martin C. Chan, Stuart Scott, Felix Donat, and Prof. Dame Clare Grey at the Department of Chemistry, University of Cambridge. Visualisation constructed by Claude.</p>
+  <p class="caption">The dataset is 275 <em>in situ</em> XRD patterns from a supported Cu/CuO redox experiment collected on a lab diffractometer with ~30 s acquisitions. The measurements were made at up to 300&nbsp;&deg;C under changing chemical environments using a bespoke gas cell. Contributed by Michael W. Gaultois. Work performed with Jamie Capel, Martin C. Chan, Stuart Scott, Felix Donat, and Prof. Dame Clare Grey at the Department of Chemistry, University of Cambridge. Visualisation constructed by Claude.</p>
 </div></section>
 
 <section class="block" id="example"><div class="wrap">
   <div class="sec-head">
-    <h2>Simple and flexible python API</h2>
-    <p>A straightforward python interface for scripting or Jupyter notebooks. Get started <a href="https://rietx.org/using/quickstart.html">here</a>.</p>
+    <h2>Simple and flexible Python API</h2>
+    <p>A straightforward Python interface for scripting or Jupyter notebooks. Get started <a href="https://rietx.org/using/quickstart.html">here</a>.</p>
   </div>
   <div class="two">
     <div class="codebox"><div class="bar"><span>fap_lab.py</span></div>
@@ -355,7 +355,6 @@ Rwp=0.0893 GoF=1.60; 63 regions, top 15 shown (47% of χ²);
   <figure class="shot">
     <img class="only-light" src="%%IMG:gui-light%%" alt="The rietx GUI with the fluorapatite fit on the left and the history panel on the right, reading 24 nodes in 3 lanes" width="2880" height="1800">
     <img class="only-dark" src="%%IMG:gui-dark%%" alt="" width="2880" height="1800">
-    
   </figure>
 </div></section>
 
@@ -364,14 +363,14 @@ Rwp=0.0893 GoF=1.60; 63 regions, top 15 shown (47% of χ²);
   <ul class="feat">
     <li><strong>Rietveld, Le Bail and Pawley</strong><span>Multi-phase, X-ray and constant-wavelength neutron. <a href="https://rietx.org/using/concepts.html">Concepts</a></span></li>
     <li><strong>Reads common file formats</strong><span>.xy/.xye, GSAS, pdCIF, .chi, Rigaku .ras/.rasx, Bruker .uxd/.brml/.raw, PANalytical .xrdml/.udf, Philips .rd/.sd. <a href="https://rietx.org/using/files.html">Files</a></span></li>
-    <li><strong>Speaks other languages</strong><span>Opens TOPAS, FullProf and PowderLine formats. (GSAS, Rietica, XND, etc. in progress) <a href="https://rietx.org/using/files.html#refinement-files-another-program-wrote">Formats</a> · <a href="https://rietx.org/using/recipe.html">Powderline</a></span></li>
+    <li><strong>Speaks other languages</strong><span>Opens TOPAS, FullProf and PowderLine formats. (GSAS, Rietica, XND, etc. in progress) <a href="https://rietx.org/using/files.html#refinement-files-another-program-wrote">Formats</a> · <a href="https://rietx.org/using/recipe.html">PowderLine</a></span></li>
     <li><strong>Phase quantification</strong><span>Weight fractions with esds propagated through the full covariance, and a flag when a phase is not determined by the data. <a href="https://rietx.org/using/qpa.html">QPA</a></span></li>
     <li><strong>Series</strong><span>Designed from the ground up for robust sequential refinement. <a href="https://rietx.org/using/series.html">Series</a></span></li>
-    <li><strong>Reporting beyond Rwp</strong><span>Common refinement heuristics reported in words alongside number. This helps both humans and agents interpret refinement results. <a href="https://rietx.org/using/report.html">FitReport</a></span></li>
+    <li><strong>Reporting beyond Rwp</strong><span>Common refinement heuristics reported in words alongside numbers. This helps both humans and agents interpret refinement results. <a href="https://rietx.org/using/report.html">FitReport</a></span></li>
     <li><strong>History tree</strong><span>Every refinement stage is a restorable checkpoint. You can fork, compare, merge. <a href="https://rietx.org/using/history.html">History</a></span></li>
     <li><strong>Indexing</strong><span>Robust automatic peak picking and three available indexing engines. <a href="https://rietx.org/using/indexing.html">Indexing</a></span></li>
     <li><strong>Corrections</strong><span>Axial divergence, displacement and transparency, absorption, preferred orientation, anisotropic displacement and strain, anomalous dispersion. <a href="https://rietx.org/using/model.html">Model</a></span></li>
-    <li><strong>Solvers and backends</strong><span>Very fast compiled kernel; trust-region and Levenberg–Marquardt on an analytic Jacobian; optional <code>JAX</code> and <code>pytorch</code> backends for full differentiable refinements. <a href="https://rietx.org/estimation.html">Estimation</a></span></li>
+    <li><strong>Solvers and backends</strong><span>Very fast compiled kernel; trust-region and Levenberg–Marquardt on an analytic Jacobian; optional JAX and PyTorch backends for fully differentiable refinements. <a href="https://rietx.org/estimation.html">Estimation</a></span></li>
     <li><strong>For agents</strong><span>Ships with an agent skill summarising refinement heuristics and <code>rietx</code> features. Works with most coding agents. <code>rietx skill --install</code>. <a href="https://rietx.org/using/agents.html">Agents</a></span></li>
   </ul>
 </div></section>

@@ -180,19 +180,31 @@ def test_the_committed_payload_is_below_what_can_be_refined():
     )
 
 
-def test_the_animation_caption_is_the_credit_and_nothing_else(site_html):
-    """The rig's caption carries the contributor's credit, and no other sentence.
+def test_the_animation_caption_says_what_the_data_is_and_who_it_is_owed_to(site_html):
+    """The rig's caption: what the measurement was, then the credit for it.
 
-    It once described the run and named the support phases; both went when the phases
-    did.  Pinned because the credit is the one thing on this page that is owed to
-    somebody, and a later edit that grows the caption back should have to say so here.
+    It once described the run and named the support phases; both went when the
+    phases did, leaving the credit alone.  WP-1411 put the description back, from
+    the section head above the rig, which now opens on what the agent was asked to
+    do rather than on the specimen.
+
+    Pinned, and the pin is worth more than an exact string usually is, because the
+    credit is the one thing on this page that is owed to somebody and the
+    description is the one thing that fences what the payload is.  Neither may
+    drift silently: an edit that changes either should have to say so here, which
+    is what the 2026-09-14 rewrite did.
     """
     captions = re.findall(r'<p class="caption">(.*?)</p>', site_html, re.S)
     text = re.sub(r"<[^>]+>", "", captions[0]).strip()
     assert text == (
+        "The dataset is 275 in situ XRD patterns from a supported Cu/CuO redox "
+        "experiment collected on a lab diffractometer with ~30 s acquisitions. "
+        "The measurements were made at up to 300&nbsp;&deg;C under changing "
+        "chemical environments using a bespoke gas cell. "
         "Contributed by Michael W. Gaultois. Work performed with Jamie Capel, "
-        "Martin C. Chan, Stuart Scott, Felix Donat, and Prof. Clare Grey at the "
-        "Department of Chemistry, University of Cambridge."
+        "Martin C. Chan, Stuart Scott, Felix Donat, and Prof. Dame Clare Grey at "
+        "the Department of Chemistry, University of Cambridge. "
+        "Visualisation constructed by Claude."
     )
 
 
