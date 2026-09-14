@@ -173,13 +173,17 @@ unbounded build for any fit that stays off the floor.
 ## Thompson-Cox-Hastings pseudo-Voigt
 
 **TCH** is Thompson, Cox and Hastings, whose 1987 paper {cite}`thompson1987`
-supplies the two polynomials below; the trailing **Z** of the class name
-`ProfileTCHZ` is a label other Rietveld codes attach to this profile family,
-and different codes attach it to different extra width terms. What rietx's
-class holds is exactly the five coefficients $U, V, W, X, Y$ of
-{eq}`prof-caglioti-g` and {eq}`prof-caglioti-l` and nothing else, so read the
-$\theta$-law and not the label — the rule this chapter's first warning already states
-for X and Y.
+supplies the two polynomials below. The trailing **Z** of the class name
+`ProfileTCHZ` is not theirs: that paper's own width model is one parameter per
+component, $\Gamma_G = V\tan\theta$ and $\Gamma_L = X/\cos\theta$, with no $U$,
+$W$ or $Y$ and nothing called $Z$. Every further letter — and the label — came
+from the codes that adopted the profile afterwards, and they do not agree on
+which term wears which. What rietx's class holds is exactly the five
+coefficients $U, V, W, X, Y$ of {eq}`prof-caglioti-g` and
+{eq}`prof-caglioti-l`, so read the $\theta$-law and not the label — the rule
+this chapter's first warning already states for X and Y. Reassuringly, TCH's
+own two letters survive it: their $V$ is this chapter's Gaussian $\tan\theta$
+term and their $X$ this chapter's Lorentzian $1/\cos\theta$ one.
 
 The default profile approximates the Voigt (Gaussian ⊗ Lorentzian) as a
 linear blend with a single FWHM $\Gamma$ [deg 2θ] and a mixing fraction
@@ -213,17 +217,23 @@ $\eta$:
 
 ### Where those coefficients come from, and what they cost
 
-They are a **fit, not a derivation**, and that is the whole of their origin. A
-Voigt has no closed-form width and no exact pseudo-Voigt equivalent, so
-Thompson, Cox and Hastings fitted two polynomials: {eq}`prof-tch-gamma` for the
-FWHM of the Voigt that $\Gamma_G$ and $\Gamma_L$ build, and
-{eq}`prof-tch-eta` for the mixing that makes a pseudo-Voigt of that width match
-its shape. No single digit carries physics, and none is a rietx constant to
-retune — they are the paper's, transcribed.
+They are **fitted, not derived** — a Voigt has no closed-form width and no exact
+pseudo-Voigt equivalent — and the two equations do not have the same author.
 
-What is worth knowing is how good the pair is, and that does not have to be
-quoted from the paper: rietx ships the exact convolution as
-{eq}`prof-voigt`, so the approximation can be measured against it. Across the
+{eq}`prof-tch-gamma` is TCH's, and the paper gives its origin in one clause:
+"another simple series expansion derived from a set of computer-generated
+convolutions" {cite}`thompson1987`. {eq}`prof-tch-eta` is **older**. The
+pseudo-Voigt as a way of reading a line's Gaussian and Lorentzian content is
+Wertheim, Butler, West and Buchanan's {cite}`wertheim1974`, and the mixing
+expansion is Hastings, Thomlinson and Cox's {cite}`hastings1984`; what TCH did
+was *renormalise* its coefficients for the unit-area form of {eq}`prof-pv`, and
+they say so rather than presenting new digits. So the digits are two papers',
+transcribed; none carries physics on its own, and none is a rietx constant to
+retune.
+
+**Neither paper quotes an accuracy for its expansion.** So how good the pair is
+has to be measured, and rietx can measure it: it ships the exact convolution as
+{eq}`prof-voigt`. Across the
 whole range $0 \le q \le 1$, with the true FWHM found by bisecting the Faddeeva
 Voigt (`tests/test_voigt.py`):
 
