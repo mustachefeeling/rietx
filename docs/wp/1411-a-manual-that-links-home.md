@@ -35,9 +35,12 @@ Two constraints on the brand's construction:
 - **An `<img>`-embedded SVG cannot see the page's theme.** `_static/favicon.svg`
   carries its own `prefers-color-scheme` block, which answers the *system*
   theme and not furo's pinned toggle. This is the failure the committed figure
-  pairs exist to avoid. So the mark is a CSS `mask-image` over that same file
-  with the colour from a variable, the shape `custom.css` already uses for the
-  agent admonition's icon.
+  pairs exist to avoid. The mark is therefore inline SVG taking its `fill` from
+  a variable. Wearing that same file as a CSS `mask-image` was written first,
+  since `custom.css` already draws the agent admonition's icon that way and it
+  keeps the geometry in one file; it is dropped on a `file://` build and was
+  replaced (see the handover log). The inlined paths are pinned equal to the
+  favicon's by a test.
 - **The wordmark stays HTML text.** A webfont loaded by the page does not reach
   inside an `<img>`-embedded SVG. The landing page builds its own brand the same
   way, as an inline mark beside the word in `.brand`.
@@ -128,15 +131,16 @@ real and measurable in a way the case for pydata is not.
   PyTorch, because a code span promises a token and `backend=` takes `"jax"`
   and `"torch"`.
 - `docs/manual/_templates/sidebar/brand.html`, a fork of furo's own, plus
-  `templates_path` and an `html_context` carrying `_about.DOCS_URL` in
-  `conf.py`, and the brand's rules in `_static/custom.css`.
+  `templates_path` and an `html_context` carrying `_about.DOCS_URL` and
+  `_about.DIST_NAME` in `conf.py`, and the brand's rules in
+  `_static/custom.css`.
 - Two guards in `tests/test_manual.py`, and a third rewritten in
   `tests/test_landing.py`.
 - `docs/wp/1412-the-theme-nobody-chose.md` and both ROADMAP rows.
 
 **Measured.**
 
-- Fast suite **4730 passed, 132 skipped in 2:16**, `[dev]`, darwin/arm64, this
+- Fast suite **4730 passed, 132 skipped in 2:09-2:16**, `[dev]`, darwin/arm64, this
   worktree's own venv, nothing else mid-suite (`pgrep` checked). The full
   selection did not run and should not: docs and tests only, nothing that can
   move a measured number (`tests/CLAUDE.md` § Running, rung 3).
@@ -168,11 +172,32 @@ real and measurable in a way the case for pydata is not.
   to say `row` out loud.** Leaving it unset while setting `flex-wrap: wrap` put
   `flex-basis: 100%` on the release against the *height*, which wrapped it into
   a second column and printed the version to the right of the mark.
+- **A `var()` inside a custom property is substituted where it is *declared*.**
+  `--color-agent-accent: var(--color-rietx-ink)` on `:root` froze at the light
+  hex and inherited that frozen value down, while the two dark blocks redefine
+  `--color-rietx-ink` on `body`, which a `:root` alias never sees. Every agent
+  admonition in the manual took a light purple border on a dark page, against a
+  chip that did switch — the failure `custom.css`'s own header says the file
+  exists to avoid, introduced by this branch and caught by the review pass. The
+  alias is declared on `body` now. The lesson generalises past this file: an
+  alias must be declared on the same element the thing it aliases is.
 - The `worktree_only` gate refuses a `-C` at the main checkout from inside a
   worktree, so the uncommitted edit came across as a plain file copy, after
   checking the file was unchanged between the two trees' base commits. **The
   main checkout's copy is still dirty**, and restoring it is the maintainer's
   once this merges.
+
+**The review pass** (`/code-review high --fix`) found the `:root` alias above
+and two smaller things, all three applied: the wordmark and the test's expected
+text now come from `_about.DIST_NAME` rather than spelling the brand, and the
+favicon guard asserts the build succeeded so a failed build is reported by the
+test named for it. Three declined, each for a reason: the site's two brand
+colours are a decision the maintainer took this session (purple manual, orange
+landing, both left as they are); the now-dead `.shot figcaption` rule documents
+what a restored caption would want; and the absolute brand href is the point of
+the WP. It also cleared several things independently — every link the rewritten
+copy adds resolves in the built manual, `read_recipe` exists so the PowderLine
+claim is true, and the `SVG_SHAPES` comparison is not vacuous.
 
 **Left standing, deliberately.** Four content claims on the landing page, none
 of them typos and all the maintainer's to keep or change: "GSAS, Rietica, XND,
