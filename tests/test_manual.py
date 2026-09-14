@@ -297,6 +297,57 @@ def test_every_article_carries_its_doi_in_the_one_case_the_file_uses():
     assert not stale, f"NO_DOI names entries that are gone: {stale}"
 
 
+#: A citation label alpha built from one author, longer than the three letters
+#: it normally takes.  `srd128`'s author is the braced corporate name `{NIST}`,
+#: which pybtex keeps whole because the braces make it non-alphabetic.  A list
+#: rather than a bound, so a second one has to say what it is.
+LONG_SINGLE_AUTHOR_LABELS = {"srd128": "{NIST}, a braced corporate author"}
+
+LABEL_TAIL = re.compile(r"^(.*?)(\d{2})([a-z]?)$")
+
+
+def test_every_citation_label_abbreviates_its_authors():
+    """references.bib § rule 5, read off the labels themselves.
+
+    `alpha` builds a label by abbreviating each surname, and pybtex abbreviates
+    a name part only where `str.isalpha()` holds for it. A LaTeX accent macro
+    carries a backslash and braces, so the part is passed through whole and the
+    label spells the surname out: nine entries rendered as [LouerLouer72],
+    [Humlivcek82], [KvrivyG76] and their like among ninety-six that abbreviate
+    (WP-1408). Write the accent in Unicode and the abbreviation works.
+
+    The invariant is what the reader sees, so it is asserted on the rendered
+    label: two or more authors give initials, which are upper case, and one
+    author gives three letters.
+    """
+    pytest.importorskip("pybtex")
+    from pybtex.database.input import bibtex
+    from pybtex.plugin import find_plugin
+
+    data = bibtex.Parser().parse_file(str(MANUAL_DIR / "references.bib"))
+    style = find_plugin("pybtex.style.formatting", "alpha")()
+    offenders = []
+    for formatted in style.format_entries(data.entries.values()):
+        entry = data.entries[formatted.key]
+        people = entry.persons.get("author") or entry.persons.get("editor") or []
+        match = LABEL_TAIL.match(formatted.label)
+        if match is None:
+            continue  # no year: the label is the entry key, not an abbreviation
+        stem = match.group(1).replace("+", "")
+        if len(people) > 1:
+            if not stem.isupper():
+                offenders.append(f"{formatted.key}: [{formatted.label}] is not initials")
+        elif len(stem) > 3 and formatted.key not in LONG_SINGLE_AUTHOR_LABELS:
+            offenders.append(f"{formatted.key}: [{formatted.label}] spells the surname out")
+    assert not offenders, (
+        "citation labels that do not abbreviate — an accented surname written "
+        "as a LaTeX macro defeats pybtex's abbreviator, so write it in Unicode "
+        "(references.bib § rule 5):\n" + "\n".join(offenders)
+    )
+    stale = sorted(set(LONG_SINGLE_AUTHOR_LABELS) - set(data.entries))
+    assert not stale, f"LONG_SINGLE_AUTHOR_LABELS names entries that are gone: {stale}"
+
+
 #: Part 2 — the theory chapters, which are the manual's top-level `.md` files
 #: other than the root document.  Derived rather than listed, so a chapter
 #: added to Part 2 inherits the guards below (the `using/` subdirectory is

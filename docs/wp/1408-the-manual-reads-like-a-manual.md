@@ -1,7 +1,7 @@
 # WP-1408 — The theory manual reads like a manual
 
-Milestone: unscheduled · Status: ✅ 2026-09-14 — all eleven reported defects
-fixed, each with the guard that closes its class; six new guards, one
+Milestone: unscheduled · Status: ✅ 2026-09-14 — all twelve reported defects
+fixed, each with the guard that closes its class; seven new guards, one
 measurement script, the TCH attribution corrected from the paper itself, and
 Part 2 rewritten out of the rulebook's register and its
 self-references checked against the tree
@@ -172,6 +172,28 @@ and 84 do not.
 `@software` is not a BibTeX type pybtex knows; it renders (as `@misc` would) but
 nothing guarantees that.
 
+### G2. The citation labels do not abbreviate
+
+Reported after § G shipped, and the same fault one layer down: § G fixed what
+the bibliography *entries* say, and left what the citations *are called*.
+
+Nine of 105 labels spell a surname out where the other ninety-six abbreviate it:
+[LouerLouer72], [BLouer91], [BLouer04], [BerarL91], [HolzerFD+97],
+[Humlivcek82], [KvrivyG76], [SVDJorgensen88], [TBurgiB+96].
+
+The mechanism is `pybtex.textutils.abbreviate`, which shortens a name part only
+where `str.isalpha()` holds for it. `Lou{\"e}r` carries a backslash and two
+braces, so it is passed through whole; `pybtex.style.labels.alpha` then strips
+the accent and the punctuation and keeps what is left. Ten `author` lines in the
+file write an accent as a LaTeX macro, and every broken label comes from one of
+them.
+
+The variation the reader sees *around* those nine is alpha.bst's own and is not
+a defect: one author gives three letters ([Rie69]), two to four give one initial
+each ([TCH87]), five or more give three initials and a `+` ([ACG+95]). A
+two-token surname abbreviates both tokens, which is where [LVD04] and [MVDC+99]
+come from.
+
 ### H. Rwp is set in prose where the chapter next to it sets it in maths
 
 `estimation.md` defines $R_{wp}$ in (8.2) and then writes "ΔRwp" as plain text
@@ -297,6 +319,12 @@ entirely; B's guard is a measurement script, not a test, for the same reason
   cone). All three were updated, and
   `test_every_anchor_resolves_in_the_built_manual` is what found them.
 
+- [x] **G2 — the accents written in Unicode.** Ten `author` lines, nine labels
+  fixed, `references.bib` § rule 5 added. Guard:
+  `test_every_citation_label_abbreviates_its_authors` asserts the rendered
+  label, since the label is what the reader sees: two or more authors give
+  initials, one author gives three letters.
+
 ## Acceptance
 
 1. The manual builds `-W`-clean and the manual suite is green:
@@ -321,6 +349,10 @@ entirely; B's guard is a measurement script, not a test, for the same reason
 5. Every one of the 104 *Source:* lines resolves to a URL at build time, and a
    deliberately misspelled symbol fails the build (verified once, then reverted).
 
+6. No citation label spells a surname out: all 105 labels abbreviate, checked in
+   the built HTML after a clean rebuild, and the guard is red on the old
+   spelling (verified once, then reverted).
+
 ## References
 
 - Thompson, P., Cox, D. E. & Hastings, J. B. (1987) *J. Appl. Cryst.* **20**,
@@ -339,6 +371,57 @@ entirely; B's guard is a measurement script, not a test, for the same reason
   measurement was taken.
 
 ## Handover log
+
+### 2026-09-14 (6th session) — the labels, not the entries
+
+§ G fixed what each bibliography entry says and never looked at what the
+citations are called. A reader read the labels next and found nine of 105
+spelling a surname out: [LouerLouer72], [Humlivcek82], [KvrivyG76],
+[BLouer91], [BLouer04], [BerarL91], [HolzerFD+97], [SVDJorgensen88],
+[TBurgiB+96].
+
+**The mechanism.** `pybtex.style.labels.alpha` builds a label by calling
+`pybtex.textutils.abbreviate` on each surname, and that function shortens a
+name part only where `str.isalpha()` holds for it. `Lou{\"e}r` carries a
+backslash and two braces, so `isalpha()` is false and the part comes back
+whole. The label style then strips the accents and the non-alphanumerics, which
+leaves `Louer`. Ten `author` lines in `references.bib` wrote an accent as a
+LaTeX macro, and every one of the nine labels traces to one of them.
+
+**The fix is the input, not the style.** Writing `Louër` in Unicode makes the
+part alphabetic, so it abbreviates to `L`. Measured across the change: all 105
+rendered entry *texts* are byte-identical, because pybtex already decoded the
+macro for the entry body. Only the nine labels move, to [LL72], [Hum82],
+[KG76], [BL91a], [BL04], [BL91b], [HFD+97], [SVDJ88], [TBB+96]. Two of them
+collide once the abbreviation works (Boultif & Louër 1991 and Bérar & Lelann
+1991 both reduce to BL91), and pybtex disambiguates them itself with the `a`/`b`
+suffix the file already carries on [Coe18a]/[Coe18b]. The bibliography anchors
+are `id98`-style and are not built from the label, so nothing links to the old
+spelling.
+
+**What was left alone, deliberately.** The shape of a label varies with the
+author count, and that is alpha.bst's design rather than a fault: [Rie69] for
+one author, [TCH87] for two to four, [ACG+95] for five or more. [LVD04] and
+[MVDC+99] look odd for a third reason, which is that `Von Dreele` is a
+two-token surname and both tokens abbreviate. [NIST05] is a braced corporate
+author, which pybtex keeps whole for the same `isalpha()` reason and which is
+the one place that behaviour is wanted. Making every label one shape means
+changing the style, not the file: `bibtex_reference_style = "author_year"` was
+built and read, and it renders inline citations as [Boultif and Louër, 1991]
+while the bibliography list keeps the alpha label, so the two disagree. That is
+a bigger decision than this defect and it stays open.
+
+**The guard** is `test_every_citation_label_abbreviates_its_authors`, and it
+asserts the rendered label rather than the input field, because the label is
+what the reader sees. Two or more authors give initials, which are upper case;
+one author gives at most three letters. `LONG_SINGLE_AUTHOR_LABELS` names
+`srd128` and why. Verified red on the old spelling and green on the new. Rule 5
+in `references.bib`'s header carries the mechanism.
+
+**Numbers.** Fast selection **4642 passed / 132 skipped** in 2:08, `.venv` on
+macOS with `[dev]`, against the 5th session's 4641 / 132: +1 passed for the one
+new test, exactly. The manual builds `-W`-clean from a cleared `_build`.
+`ruff check src tests examples` clean.
 
 ### 2026-09-14 (5th session) — the manual's claims about itself went unchecked
 

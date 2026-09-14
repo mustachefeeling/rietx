@@ -7,7 +7,7 @@
 % verified (house rule: never fabricate a title) and were added 2026-07-29
 % once the papers themselves were supplied.
 %
-% Four rules make the rendered list consistent (WP-1408; the first two are
+% Five rules make the rendered list consistent (WP-1408; rules 1, 2 and 5 are
 % asserted by tests/test_manual.py, which is what keeps them true):
 %
 % 1. BRACE EVERY INTERIOR CAPITAL.  `bibtex_default_style = "alpha"` sentence-
@@ -34,6 +34,19 @@
 %    case because Physical Review A prints it that way while the IUCr journals
 %    print "X-ray".  That unevenness belongs to the literature; do not "fix"
 %    it.  Rule 1 is about capitals the STYLE destroys, never about spelling.
+%
+% 5. AN ACCENTED SURNAME IS WRITTEN IN UNICODE, never as a LaTeX macro.  The
+%    alpha style builds a citation label by abbreviating each surname, and
+%    pybtex abbreviates a name part only when `str.isalpha()` holds for it
+%    (`pybtex.textutils.abbreviate`).  `Lou{\"e}r` carries a backslash and two
+%    braces, so it fails that test and is passed through whole; the label style
+%    then strips the accent and the punctuation and keeps what is left.  That is
+%    how nine labels came to spell a surname out — [LouerLouer72], [Humlivcek82],
+%    [KvrivyG76], [BLouer91] — among ninety-six that abbreviate.  `Louër` is
+%    alphabetic, abbreviates to `L`, and renders in the entry text exactly as
+%    the macro did (measured: all 105 entry texts byte-identical across the
+%    change).  Two labels collide once the abbreviation works, and pybtex
+%    disambiguates them itself: [BL91a] boultif1991, [BL91b] berar1991.
 %
 % The `software` entry type is not standard BibTeX (it is biblatex's), and
 % sphinxcontrib-bibtex — the only thing that reads this file — renders it.  It
@@ -84,7 +97,7 @@
 }
 
 @article{mccusker1999,
-  author  = {McCusker, L. B. and Von Dreele, R. B. and Cox, D. E. and Lou{\"e}r, D. and Scardi, P.},
+  author  = {McCusker, L. B. and Von Dreele, R. B. and Cox, D. E. and Louër, D. and Scardi, P.},
   title   = {{Rietveld} refinement guidelines},
   journal = {Journal of Applied Crystallography},
   volume  = {32},
@@ -184,7 +197,7 @@
 }
 
 @article{holzer1997,
-  author  = {H{\"o}lzer, G. and Fritsch, M. and Deutsch, M. and H{\"a}rtwig, J. and F{\"o}rster, E.},
+  author  = {Hölzer, G. and Fritsch, M. and Deutsch, M. and Härtwig, J. and Förster, E.},
   title   = {{Kα₁,₂} and {Kβ₁,₃} x-ray emission lines of the {3d} transition metals},
   journal = {Physical Review A},
   volume  = {56},
@@ -302,7 +315,7 @@
 }
 
 @article{humlicek1982,
-  author  = {Huml{\'i}{\v c}ek, J.},
+  author  = {Humlíček, J.},
   title   = {Optimized computation of the {Voigt} and complex probability functions},
   journal = {Journal of Quantitative Spectroscopy and Radiative Transfer},
   volume  = {27},
@@ -374,7 +387,7 @@
 }
 
 @article{trueblood1996,
-  author  = {Trueblood, K. N. and B{\"u}rgi, H.-B. and Burzlaff, H. and Dunitz, J. D. and Gramaccioli, C. M. and Schulz, H. H. and Shmueli, U. and Abrahams, S. C.},
+  author  = {Trueblood, K. N. and Bürgi, H.-B. and Burzlaff, H. and Dunitz, J. D. and Gramaccioli, C. M. and Schulz, H. H. and Shmueli, U. and Abrahams, S. C.},
   title   = {Atomic displacement parameter nomenclature},
   journal = {Acta Crystallographica Section A},
   volume  = {52},
@@ -506,7 +519,7 @@
 }
 
 @article{sabine1988b,
-  author  = {Sabine, T. M. and Von Dreele, R. B. and J{\o}rgensen, J.-E.},
+  author  = {Sabine, T. M. and Von Dreele, R. B. and Jørgensen, J.-E.},
   title   = {Extinction in time-of-flight neutron powder diffractometry},
   journal = {Acta Crystallographica Section A},
   volume  = {44},
@@ -681,7 +694,7 @@
 % ------------------------------------------------------------------ estimation
 
 @article{berar1991,
-  author  = {B{\'e}rar, J.-F. and Lelann, P.},
+  author  = {Bérar, J.-F. and Lelann, P.},
   title   = {E.s.d.'s and estimated probable error obtained in {Rietveld} refinements with local correlations},
   journal = {Journal of Applied Crystallography},
   volume  = {24},
@@ -949,7 +962,7 @@
 }
 
 @article{krivygruber1976,
-  author = {K{\v{r}}iv{\'y}, I. and Gruber, B.},
+  author = {Křivý, I. and Gruber, B.},
   title = {A unified algorithm for determining the reduced ({N}iggli) cell},
   journal = {Acta Crystallographica Section A},
   volume = {32},
@@ -989,7 +1002,7 @@
 }
 
 @article{louer1972,
-  author  = {Lou{\"e}r, D. and Lou{\"e}r, M.},
+  author  = {Louër, D. and Louër, M.},
   title   = {M{\'e}thode d'essais et erreurs pour l'indexation automatique
              des diagrammes de poudre},
   journal = {Journal of Applied Crystallography},
@@ -1000,7 +1013,7 @@
 }
 
 @article{boultif1991,
-  author  = {Boultif, A. and Lou{\"e}r, D.},
+  author  = {Boultif, A. and Louër, D.},
   title   = {Indexing of powder diffraction patterns for low-symmetry lattices
              by the successive dichotomy method},
   journal = {Journal of Applied Crystallography},
@@ -1011,7 +1024,7 @@
 }
 
 @article{boultif2004,
-  author  = {Boultif, A. and Lou{\"e}r, D.},
+  author  = {Boultif, A. and Louër, D.},
   title   = {Powder pattern indexing with the dichotomy method},
   journal = {Journal of Applied Crystallography},
   volume  = {37},
