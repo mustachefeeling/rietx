@@ -103,13 +103,12 @@ with no argument lists every run under a directory and opens one. Its baseline r
 1-3 % of a fit and the per-stage picture up to 49 %, so
 [1402](wp/1402-the-picture-costs-megabytes.md) now gates
 [1403](wp/1403-a-run-nobody-asked-to-record.md).
-[1411](wp/1411-a-manual-that-links-home.md) brands the manual and links it
-home; furo was never compared, so [1412](wp/1412-the-theme-nobody-chose.md).
 
 **Queued, unscheduled** ([§ Unscheduled](#unscheduled)): the 2026-09-01 issue
 triage's 1309–1322 plus 1323 and 1325; the magnetic scattering track
 (1326–1329 and 1343); the rest of the live-watcher track (1402–1406); the older
-one, 1133. The **2026-09-03 triage** adds 1332–1341 — three more on what fires and
+one, 1133. [1412](wp/1412-the-theme-nobody-chose.md) is new: 1411 found furo
+picked in a dependencies bullet and never compared. The **2026-09-03 triage** adds 1332–1341 — three more on what fires and
 what stays silent, three costs a
 multi-hundred-pattern campaign paid that a single fit never sees, three views
 over what a fit already knows, and the skill's own gates — and folded three
@@ -592,7 +591,7 @@ that travels with it (1340); and the report a joint fit has never had (1341).
 | [1408](wp/1408-the-manual-reads-like-a-manual.md) | The theory manual reads like a manual | ✅ 2026-09-14 | — |
 | [1409](wp/1409-part-one-reads-like-a-manual.md) | Part 1 reads like a manual | ✅ 2026-09-14 | 1408 |
 | [1410](wp/1410-worktree-gate-scope.md) | The worktree gate guards this checkout, not every repository | ✅ 2026-09-14 | — |
-| [1411](wp/1411-a-manual-that-links-home.md) | A manual that links home: the landing copy, and the brand on furo's sidebar | 🔄 2026-09-14 | — |
+| [1411](wp/1411-a-manual-that-links-home.md) | A manual that links home: the landing copy, and the brand on furo's sidebar | ✅ 2026-09-14 | — |
 | [1412](wp/1412-the-theme-nobody-chose.md) | The theme nobody chose | ⬜ | 1411 |
 
 #### Candidates — named on a use case, not yet on a measurement
