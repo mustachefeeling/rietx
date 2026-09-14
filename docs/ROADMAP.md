@@ -97,10 +97,10 @@ known-red. **One cheap unowned ask** survives from 1407: Stoe `.raw` files
 paired with the WinXPOW ASCII export of the same scans would make Stoe
 writable, and nothing depends on it.
 
-**In flight:** [1409](wp/1409-part-one-reads-like-a-manual.md) takes Part 1 of the
-manual out of the rulebook's register (73,699 words, 363 em dashes, budget 0).
-[1118](wp/1118-foreign-model-files.md) landed its model-file registry 2026-09-13;
-next are the two offers it unblocks, `.EXP` (#103) and `STR(...)` (#107).
+**In flight:** [1118](wp/1118-foreign-model-files.md) landed its model-file
+registry 2026-09-13; next are the two offers it unblocks, `.EXP` (#103) and
+`STR(...)` (#107). The **manual now reads as a manual in both parts** (1408,
+1409): em dashes and bold marks at 0 over 93,000 words, one guard over both.
 
 **Queued, unscheduled** ([§ Unscheduled](#unscheduled)): the 2026-09-01 issue
 triage's 1309–1322 plus 1323 and 1325; the magnetic scattering track
@@ -586,7 +586,7 @@ that travels with it (1340); and the report a joint fit has never had (1341).
 | [1331](wp/1331-landing-page-in-repo.md) | The landing page enters the repository, and the data comes redacted | ✅ 2026-09-03 | — (1003 soft) |
 | [1338](wp/1338-the-skills-own-gates.md) | The skill's own gates: the references, the private corpus, the cap race | ⬜ | — |
 | [1408](wp/1408-the-manual-reads-like-a-manual.md) | The theory manual reads like a manual | ✅ 2026-09-14 | — |
-| [1409](wp/1409-part-one-reads-like-a-manual.md) | Part 1 reads like a manual | 🔄 2026-09-14 | 1408 |
+| [1409](wp/1409-part-one-reads-like-a-manual.md) | Part 1 reads like a manual | ✅ 2026-09-14 | 1408 |
 
 #### Candidates — named on a use case, not yet on a measurement
 

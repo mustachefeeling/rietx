@@ -1,7 +1,8 @@
 # WP-1409 — Part 1 reads like a manual
 
-Milestone: unscheduled · Status: 🔄 2026-09-14 — opened from 1408's measurement
-of the part it did not touch
+Milestone: unscheduled · Status: ✅ 2026-09-14 — all 24 chapters swept, 363 em
+dashes and 400 bold marks to 0, the register guard extended to both parts, and
+three reader-visible defects fixed with the guard that closes each class
 Depends on: 1408 (Part 2; the guard this extends)
 
 ## Goal
@@ -95,25 +96,27 @@ Part 1 leaves Part 2 green without an edit.
 Each file or pair of files is one commit. Order is worst-first by density, so
 the register is set on the pages carrying most of it before the long ones.
 
-- [ ] `recipe.md`, `skill.md`
-- [ ] `gui-quickstart.md`
-- [ ] `gui-guide.md`
-- [ ] `gui-power.md`, `agents.md`
-- [ ] `results.md`
-- [ ] `files.md`
-- [ ] `data.md`
-- [ ] `series.md`
-- [ ] `quickstart.md`, `install.md`
-- [ ] `refining.md`
-- [ ] `history.md`, `concepts.md`
-- [ ] `model.md`, `constraints.md`
-- [ ] `indexing.md`
-- [ ] `report.md`
-- [ ] `cli.md`, `qpa.md`, `exports.md`, `compatibility.md`, `glossary.md`
-- [ ] The guard: `_prose_lines` gains the two zones, the register test covers
+- [x] `recipe.md`, `skill.md`
+- [x] `gui-quickstart.md`
+- [x] `gui-guide.md`
+- [x] `gui-power.md`, `agents.md`
+- [x] `results.md`
+- [x] `files.md`
+- [x] `data.md`
+- [x] `series.md`
+- [x] `quickstart.md`, `install.md`
+- [x] `refining.md`
+- [x] `history.md`, `concepts.md`
+- [x] `model.md`, `constraints.md`
+- [x] `indexing.md`
+- [x] `report.md`
+- [x] `cli.md`, `qpa.md`, `exports.md`, `compatibility.md`, `glossary.md`
+- [x] The guard: `_prose_lines` gains the two zones, the register test covers
       both parts and names the fix
-- [ ] Skill: the routing row or body rule an agent driving rietx needs from
-      this WP, or "none" and why (root CLAUDE.md § skill)
+- [x] Skill: none. This WP's product is an editorial register and three
+      guards over the manual's own source, and an agent driving rietx reads
+      the skill rather than the manual. Nothing it learned changes what to
+      free, what to check or how to read an abstention.
 
 ## Acceptance
 
@@ -132,6 +135,34 @@ guard fails on either mark in either part.
 `yue-prose` (the eight constructions, the budgets, `measure.md`'s grep pass)
 and `yue-docs-style` (register by document type, the Always/Never list).
 WP-1408 is the same pass on Part 2.
+
+## Measured at the close
+
+Same recipe as the opening table, on the same definition of prose. The three
+uncounted zones are the ones the widened guard now covers.
+
+| mark | budget | before | after |
+|---|---|---|---|
+| em dash | 0 | 363 (4.9 per 1000) | 0 in prose |
+| bold or italic maxim | 0 | 400 (5.4) | 0 |
+| negation | 3 | 517 (7.0) | 429 (5.9) |
+| trailing `which` | judge | 205 (2.8) | 151 (2.1) |
+| colon-definition | judge | 185 (2.5) | 151 (2.1) |
+| reframing tail | judge | 60 (0.8) | 0 |
+| generic tics | 0 | 0 | 0 |
+
+The 66 em dashes the grep still finds are all in `api-doc` HTML comments, in
+captured `console`/`text` blocks, or inside the one code span that quotes the
+readout strip's own `—` placeholder. None of the three renders as prose, and
+each is exempt in the guard for its own reason.
+
+Negation at 5.9 against a budget of 3 is the residue and it is deliberate.
+`yue-prose` keeps the negative half where a reader really would arrive with the
+wrong belief, which over this corpus is most of them: `indexing.md` at 8.0 is
+every statement about what a number is evidence for, `files.md` at 7.0 is a page
+of design decisions each of which a neighbouring tool takes the other way, and
+`results.md` at 6.3 is a chapter about statistics that flatter the model.
+Twenty stacked pairs were varied or cut; the rest stand.
 
 ## Handover log
 
