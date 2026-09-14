@@ -277,11 +277,25 @@ by each `eval`'s `values` array. The resident `fit.html` was 6.36 / 5.27 /
 4.99 MB; the run rewrote it once per stage, so the cumulative write is that
 times the stage count. WP-1402 re-measures rather than carrying these.
 
-Fast selection 4722 passed, 132 skipped, 2:13, same venv and platform, machine
-checked idle first. This session added 58 tests (37 in `test_runs.py`, 20 in
-`test_watch_app.py`, 1 in `test_gui_server.py`), all passes, no new skip. The
-full suite was not run and is not owed: nothing here touches the forward model,
-the solver or any physics, so no measured number can move.
+Fast selection 4728 passed, 132 skipped, 2:45, same venv and platform, machine
+checked idle first and measured alone. This session added 64 tests (40 in
+`test_runs.py`, 23 in `test_watch_app.py`, 1 in `test_gui_server.py`), all
+passes, no new skip. `origin/main` had not moved since the branch was cut, so
+the branch tip is the merged tree and this count is that tree's. The full suite
+was not run and is not owed: nothing here touches the forward model, the solver
+or any physics, so no measured number can move.
+
+*Review.* `/code-review high --fix` raised twelve findings, eleven applied and
+one declined. Two were defects rather than cleanups. The detail view built its
+plot iframe once and never reloaded it, so a **live** run's plot froze at
+whatever stage it was opened on — the page this replaced polled
+`Last-Modified`, that was dropped in the rewrite, and no test caught it because
+every fixture here is a finished run. And the lock probe took an exclusive
+lock, so two readers saw *each other* rather than the writer, which two browser
+tabs are enough to reach. Both are fixed and the plot reload was re-checked by
+looking. The declined one is in WP-1403's `### Inherited`: a single event line
+longer than `tail_events`' 4 MiB bound stalls the tail permanently, and
+skipping forward would emit a torn line instead.
 
 *Gotchas.*
 
@@ -304,6 +318,15 @@ the solver or any physics, so no measured number can move.
   test only pins `discover`.
 - A ratio on a short fit is a small number wearing a large one. `nac`'s 1.47x is
   0.16 s, because the snapshot is a per-stage cost and `nac` is 0.35 s long.
+- **Every fixture in both new suites is a finished run, and that is a blind
+  spot rather than a convenience.** It is why the frozen plot survived a green
+  suite. Anything about a run that *changes* while being watched — the plot
+  reloading, a run appearing mid-scan, a status flipping to terminal — has no
+  test here and has to be checked by looking.
+- A non-finite Rwp reaches the page as the **string** `"NaN"`, because
+  `ser_json_inf_nan="strings"` is on `Base` and a diverged fit writes one. Any
+  new number the page formats needs the `isFinite` guard `num()` carries, or
+  `toFixed` throws and the whole table stops rendering.
 - Which part of the 1-3 % is the decode and which is the syscall pair is not
   separable without a configuration this WP did not run. WP-1404 owns that split
   and should not be told the answer is known.
