@@ -9,13 +9,17 @@
 # numbered equations and point at their source symbols.  Part 1's own guard is
 # name resolution rather than constant injection (tests/test_manual_api.py).
 
+import dataclasses as _dataclasses
 import importlib as _importlib
 import inspect as _inspect
 import re as _re
 from importlib.metadata import version as _dist_version
 from pathlib import Path as _Path
 
+import sphinxcontrib.bibtex.plugin as _bibtex_plugin
 from docutils import nodes as _nodes
+from sphinxcontrib.bibtex.style.referencing import BracketStyle
+from sphinxcontrib.bibtex.style.referencing.author_year import AuthorYearReferenceStyle
 
 from rietx._about import DIST_NAME, REPO_URL
 from rietx.crystallography.dispersion import NEAR_EDGE_EV
@@ -86,7 +90,51 @@ mermaid_init_config = {
 }
 
 bibtex_bibfiles = ["references.bib"]
+# `alpha` still formats and sorts the list, by author then year, which is the
+# order an author-year reference list wants.  What changes is the citation:
+# `author_year` renders it as [Boultif and Louër, 1991] instead of [BL91a].
+# The manual cites 105 distinct works across 150 citations, so a reader meets
+# almost every label once and builds no memory of it, and 143 of those
+# citations carry no author name in the prose beside them.  The bibliography
+# also sits on a different page from all but one citation, so decoding a label
+# costs a navigation.  61 % of the entries are crystallography journals, whose
+# own house style is name-date.  WP-1408 § G3 has the numbers, the numeric
+# styles it rules out and what each renders.
 bibtex_default_style = "alpha"
+bibtex_reference_style = "author_year_semicolon"
+
+
+def _bracket_style() -> BracketStyle:
+    """A semicolon between works in one citation, and square brackets kept.
+
+    Registering a subclassed reference style from `conf.py` is what
+    sphinxcontrib-bibtex § Custom Formatting documents for this. Fourteen of
+    the 150 citations name more than one work, and `BracketStyle.sep` defaults
+    to a comma, which is also what separates an author from its year: three
+    works came out as one flat list of six comma-separated fragments.
+
+    The brackets stay square, which is the library default. Name-date
+    convention is round, and round was measured on this tree first: ten
+    citations sit inside a parenthetical the prose already opened, so round
+    brackets print `((Prince, 2004) eq. 6.3.3.1)` and nine more like it. A
+    square bracket nests inside a parenthesis without collision, which is why
+    house styles that cite by name-date inside parentheses use one.
+    """
+    return BracketStyle(sep="; ", sep2="; ", last_sep="; ")
+
+
+@_dataclasses.dataclass
+class _AuthorYearSemicolon(AuthorYearReferenceStyle):
+    bracket_textual: BracketStyle = _dataclasses.field(default_factory=_bracket_style)
+    bracket_parenthetical: BracketStyle = _dataclasses.field(default_factory=_bracket_style)
+    bracket_author: BracketStyle = _dataclasses.field(default_factory=_bracket_style)
+    bracket_label: BracketStyle = _dataclasses.field(default_factory=_bracket_style)
+    bracket_year: BracketStyle = _dataclasses.field(default_factory=_bracket_style)
+
+
+_bibtex_plugin.register_plugin(
+    "sphinxcontrib.bibtex.style.referencing", "author_year_semicolon", _AuthorYearSemicolon
+)
 
 myst_enable_extensions = ["dollarmath", "amsmath", "substitution", "colon_fence",
                           "deflist"]

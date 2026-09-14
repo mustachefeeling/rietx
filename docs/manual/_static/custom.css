@@ -110,3 +110,18 @@ div.math:has(> span.eqno) > mjx-container {
   margin: 0 auto;
   max-width: 100%;
 }
+
+/* The bibliography under `bibtex_reference_style = "author_year"`.  docutils
+ * gives every citation node a label, and sphinxcontrib-bibtex documents that
+ * it cannot remove one, so the list would print [BL91a] beside a citation
+ * reading [Boultif and Louër, 1991].  Hide it and the entry starts at the
+ * author, which is the shape an author-year reference list has.  The selector
+ * is exact: all 105 `span.label` elements in the built site sit inside a
+ * `doc-biblioentry`, and no link targets one, so no anchor breaks. */
+div.citation[role="doc-biblioentry"] > span.label {
+  display: none;
+}
+
+div.citation[role="doc-biblioentry"] {
+  padding-left: 0;
+}

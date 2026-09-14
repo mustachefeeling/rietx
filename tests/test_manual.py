@@ -348,6 +348,87 @@ def test_every_citation_label_abbreviates_its_authors():
     assert not stale, f"LONG_SINGLE_AUTHOR_LABELS names entries that are gone: {stale}"
 
 
+#: One rendered citation, tags stripped: `[Bergmann et al., 2004]`.
+CITATION_SPAN = re.compile(r'<span class="bibtex-citation".*?</span>', re.S)
+#: `et al.` ends in a period, so the character before the comma is not always
+#: a letter.
+YEAR_IN_CITATION = re.compile(r"[A-Za-z\u00c0-\u024f.]\s*,\s*(?:19|20)\d{2}[a-z]?")
+
+#: The rule in `_static/custom.css` that hides the bibliography's own label.
+#: Matched on the selector rather than the whole block, so reformatting the
+#: stylesheet does not fail the test.
+BIBLIO_LABEL_RULE = 'div.citation[role="doc-biblioentry"] > span.label'
+
+
+def test_every_citation_reads_as_author_and_year(built_manual):
+    """`conf.py` § bibtex: a citation names its author and year on the page.
+
+    Three settings produce this and any one of them can be lost quietly, so
+    the guard reads the built page rather than the config. `alpha` labels —
+    [BLBSZ04] for a work cited once among 105 — carry no meaning the reader can
+    use, and the bibliography sits on a different page from all but one
+    citation, so decoding one costs a navigation (WP-1408 § G3).
+
+    The separator is checked too. `BracketStyle.sep` defaults to a comma, which
+    is also what separates an author from its year, so the fourteen citations
+    naming more than one work rendered as a flat comma list of six fragments.
+    A citation carrying N years must carry N-1 semicolons.
+    """
+    out, result = built_manual
+    assert result.returncode == 0, "manual did not build — see test_manual_builds_warning_free"
+    not_author_year, bad_separator = [], []
+    multi = 0
+    for page in sorted(out.rglob("*.html")):
+        for match in CITATION_SPAN.finditer(page.read_text(encoding="utf-8")):
+            text = re.sub(r"<[^>]+>", "", match.group(0)).strip()
+            years = YEAR_IN_CITATION.findall(text)
+            if not years:
+                not_author_year.append(f"{page.name}: {text}")
+                continue
+            if len(years) > 1:
+                multi += 1
+                if text.count("; ") != len(years) - 1:
+                    bad_separator.append(f"{page.name}: {text}")
+    assert not not_author_year, (
+        "citations that do not name an author and a year — check "
+        "`bibtex_reference_style` in conf.py:\n" + "\n".join(not_author_year[:10])
+    )
+    assert multi, "no citation names more than one work — the separator is untested"
+    assert not bad_separator, (
+        "works in one citation are not separated by a semicolon — check the "
+        "registered BracketStyle in conf.py:\n" + "\n".join(bad_separator[:10])
+    )
+
+
+def test_the_bibliography_label_is_hidden_and_the_rule_reaches_all_of_them(built_manual):
+    """The other half of § G3, which no build warning can see.
+
+    docutils gives every citation node a label and sphinxcontrib-bibtex
+    documents that it cannot remove one, so the list would print [BL91a] beside
+    a citation reading [Boultif and Louër, 1991]. `custom.css` hides it. The
+    selector is only safe while every label on the site belongs to the
+    bibliography, so that is asserted rather than assumed: a label appearing
+    anywhere else would be hidden too, silently.
+    """
+    out, result = built_manual
+    assert result.returncode == 0, "manual did not build — see test_manual_builds_warning_free"
+    css = (out / "_static" / "custom.css").read_text(encoding="utf-8")
+    assert BIBLIO_LABEL_RULE in css, (
+        f"the rule hiding the bibliography's own label is gone from custom.css: {BIBLIO_LABEL_RULE}"
+    )
+    labels = biblio_labels = 0
+    for page in sorted(out.rglob("*.html")):
+        text = page.read_text(encoding="utf-8")
+        labels += text.count('<span class="label">')
+        for entry in re.findall(r'<div class="citation"[^>]*role="doc-biblioentry".*?</div>', text, re.S):
+            biblio_labels += entry.count('<span class="label">')
+    assert labels, "no citation labels in the built site — the bibliography moved or vanished"
+    assert labels == biblio_labels, (
+        f"{labels - biblio_labels} label(s) outside the bibliography would be hidden by "
+        f"`{BIBLIO_LABEL_RULE}` — narrow the selector"
+    )
+
+
 #: Part 2 — the theory chapters, which are the manual's top-level `.md` files
 #: other than the root document.  Derived rather than listed, so a chapter
 #: added to Part 2 inherits the guards below (the `using/` subdirectory is

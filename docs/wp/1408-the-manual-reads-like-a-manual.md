@@ -1,8 +1,8 @@
 # WP-1408 — The theory manual reads like a manual
 
 Milestone: unscheduled · Status: ✅ 2026-09-14 — all twelve reported defects
-fixed, each with the guard that closes its class; seven new guards, one
-measurement script, the TCH attribution corrected from the paper itself, and
+fixed, each with the guard that closes its class, and the citation style
+settled on author-year; nine new guards, one measurement script, the TCH attribution corrected from the paper itself, and
 Part 2 rewritten out of the rulebook's register and its
 self-references checked against the tree
 Depends on: — (0604 built Part 2; 1067 built Part 1)
@@ -194,6 +194,46 @@ each ([TCH87]), five or more give three initials and a `+` ([ACG+95]). A
 two-token surname abbreviates both tokens, which is where [LVD04] and [MVDC+99]
 come from.
 
+### G3. Which citation style the manual should use
+
+Asked after § G2 landed, and settled by measuring this tree rather than by
+taste. Four numbers decide it.
+
+| measured | value |
+|---|---|
+| citation roles in the manual | 150 |
+| distinct works cited | 105 |
+| citations where the prose already names the author | 7 |
+| bibliography entries in crystallography journals | 54 of 89 journal entries (61 %), 38 in *J. Appl. Cryst.* |
+
+Works and citations are nearly one to one, so a reader meets almost every label
+once and builds no memory of it. 143 of the 150 carry no author name in the
+prose beside them, so the label is doing all the identifying. The bibliography
+sits on `manual.html`, a different page from all but one citation, so decoding
+a label costs a navigation.
+
+**The literature this manual sits in cites by name-date.** Of the 15
+IUCr-journal papers in the local corpus, 14 cite by name-date and none cite
+numerically.
+
+**Numeric styles were ruled out on churn**, measured here: `plain` renumbers
+105 of 105 entries when one reference is added early in the alphabet, and
+`unsrt` renumbers 104 of 104 when one citation is added to an early page
+(Visser 1969 moved from [105] to [2]).
+
+**Round brackets were tried and dropped.** Name-date convention is round, and
+round was built on this tree first: ten citations sit inside a parenthetical
+the prose already opened, so it printed `((Prince, 2004) eq. 6.3.3.1)` and nine
+more like it. A square bracket nests inside a parenthesis without collision.
+
+The separator was the one real defect in the default. `BracketStyle.sep` is a
+comma, which is also what separates an author from its year, so the fourteen
+citations naming more than one work came out as a flat list of six
+comma-separated fragments.
+
+Author-year labels measured 16 characters median, 32 at the longest
+(`Grosse-Kunstleve and Adams, 2002`).
+
 ### H. Rwp is set in prose where the chapter next to it sets it in maths
 
 `estimation.md` defines $R_{wp}$ in (8.2) and then writes "ΔRwp" as plain text
@@ -325,6 +365,13 @@ entirely; B's guard is a measurement script, not a test, for the same reason
   label, since the label is what the reader sees: two or more authors give
   initials, one author gives three letters.
 
+- [x] **G3 — the manual cites by author and year.** `bibtex_reference_style`
+  registers a subclassed `AuthorYearReferenceStyle` in `conf.py`, the documented
+  route, changing only `BracketStyle.sep` to a semicolon. `custom.css` hides the
+  bibliography's own label, which docutils requires and sphinxcontrib-bibtex
+  cannot remove. Guards: `test_every_citation_reads_as_author_and_year` and
+  `test_the_bibliography_label_is_hidden_and_the_rule_reaches_all_of_them`.
+
 ## Acceptance
 
 1. The manual builds `-W`-clean and the manual suite is green:
@@ -353,6 +400,11 @@ entirely; B's guard is a measurement script, not a test, for the same reason
    the built HTML after a clean rebuild, and the guard is red on the old
    spelling (verified once, then reverted).
 
+7. Every citation on every built page names an author and a year, works inside
+   one citation are separated by a semicolon, and no citation produces a doubled
+   bracket. Each of the three settings behind that was reverted once and the
+   guard went red with its own message.
+
 ## References
 
 - Thompson, P., Cox, D. E. & Hastings, J. B. (1987) *J. Appl. Cryst.* **20**,
@@ -371,6 +423,61 @@ entirely; B's guard is a measurement script, not a test, for the same reason
   measurement was taken.
 
 ## Handover log
+
+### 2026-09-14 (7th session) — the manual cites by author and year
+
+The label fix closed § G2 and raised the question behind it: what should the
+citations be called at all. Answered by measuring, in § G3 above. The manual
+cites 105 distinct works across 150 citations, 143 of which carry no author
+name in the prose beside them, and the bibliography sits on a different page
+from all but one of them. Name-date is also what the surrounding literature
+does: 61 % of the entries are crystallography journals, and 14 of the 15
+IUCr-journal papers in the local corpus cite by name-date.
+
+**What landed.** `bibtex_reference_style` now names a subclassed
+`AuthorYearReferenceStyle` registered in `conf.py`, which is the route
+sphinxcontrib-bibtex § Custom Formatting documents. `bibtex_default_style`
+stays `alpha`, which still formats and sorts the list by author and year.
+
+**The separator was the real defect in the library default.**
+`BracketStyle.sep` is a comma, and a comma is also what separates an author
+from its year, so the fourteen citations naming more than one work rendered as
+one flat list of six comma-separated fragments. It is now a semicolon:
+`[Boultif and Louër, 1991; Boultif and Louër, 2004; Louër and Louër, 1972]`.
+
+**Round brackets were built, measured and dropped.** Name-date convention is
+round, and the sphinxcontrib-bibtex example that shows this mechanism uses
+round. Ten citations sit inside a parenthetical the prose already opened, so
+round printed `((Prince, 2004) eq. 6.3.3.1)`, `(… (Klug and Alexander, 1974))`
+and eight more. Fixing those means editing ten passages of prose, which buys a
+bracket shape. Square brackets nest without collision and are the library
+default, so they stayed.
+
+**The bibliography's own label is hidden in `custom.css`.** docutils gives
+every citation node a label and sphinxcontrib-bibtex documents that it cannot
+remove one, so the list would print [BL91a] beside a citation reading [Boultif
+and Louër, 1991]. All 105 `span.label` elements in the built site sit inside a
+`doc-biblioentry`, so the selector reaches the bibliography and nothing else,
+and that is asserted rather than assumed. Nothing links to a label, so no
+anchor breaks. Checked by looking, at 1100 px in both themes.
+
+**Guards.** `test_every_citation_reads_as_author_and_year` reads the built page
+for an author and a year, and for N-1 semicolons in a citation carrying N
+years. `test_the_bibliography_label_is_hidden_and_the_rule_reaches_all_of_them`
+checks the CSS rule is present and that every label on the site is one the rule
+covers. Each of the three settings was reverted once and the matching guard
+went red with its own message.
+
+**Left alone, and worth its own pass.** Fourteen sites put an *equation*
+reference inside a parenthesis the prose already opened, printing `((1.4))`,
+`((3.15))`, `((9.10))`. That predates this change and is the same shape as the
+bracket collision above. It is prose editing across five chapters, so it is not
+folded in here.
+
+**Numbers.** Fast selection **4644 passed / 132 skipped** in 2:12, `.venv` on
+macOS with `[dev]`, against this session's earlier 4642 / 132: +2 passed for the
+two new tests, exactly. The manual builds `-W`-clean from a cleared `_build`.
+`ruff check src tests examples` clean.
 
 ### 2026-09-14 (6th session) — the labels, not the entries
 
