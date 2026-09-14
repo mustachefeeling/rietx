@@ -72,8 +72,8 @@ with $m$ the reflection multiplicity, so $|F| = \sqrt{I/m}$ and $R_F$ is the
 index a single-crystal $R$ is comparable with. Powder data measure neither sum
 directly. $I_o$ is the observed profile partitioned in proportion to $I_c$, the
 same partition {ref}`ch-intensities` performs for Le Bail extraction, evaluated
-once on the converged structural model. Two consequences follow from that
-definition rather than from any implementation.
+once on the converged structural model. Two consequences follow from the
+definition itself.
 
 Both indices are biased towards the model being tested, because a wrong model
 receives the intensity it predicted. The paper introduces them for monitoring a
@@ -166,7 +166,7 @@ just the diagonal elements, should be included in the calculation"
 not. Measured across the 88 interatomic distances of an 11-BM NAC structural
 refinement, the diagonal-only number runs from 0.86 to 1.41 times the full one,
 so it is as often too small as too large. Both are reported, so the difference
-is visible rather than asserted. It exists only where the coordinates refine,
+is visible. It exists only where the coordinates refine,
 since a quantity depending on one free parameter has no off-diagonal term to
 drop.
 
@@ -257,9 +257,9 @@ Region Reflective solve at `ftol` $10^{-9}$ satisfies the criterion a fortiori
 (measured $\sim 3\times 10^{-4}$ on the synthetic LaB₆ round trip), so the
 information is on the other branch: a stage stopped on its iteration budget
 reports how far it was still moving in esd units, and the same stage starved to
-one iteration measures $\approx 14$. The value is absent rather than zero
-wherever it cannot be measured, with no accepted step, no esds, an
-evaluate-only replay, or the joint multi-pattern residual.
+one iteration measures $\approx 14$. The value is withheld wherever it cannot
+be measured: with no accepted step, no esds, an evaluate-only replay, or the
+joint multi-pattern residual.
 
 ## The fp64 floor
 
@@ -338,11 +338,11 @@ Under the null hypothesis a gain is distributed as
 $\chi^2_1 \cdot \chi^2_{\mathrm{red}}$, so a candidate is quotable only above
 a noise floor of {{ SUGGEST_MIN_GAIN }} · max(χ²_red, 1). That is the 3σ point
 of $\chi^2_1$, with the same floor-at-one convention as the covariance scale.
-Two gates keep the ranking honest, the Layer-1 discipline one call over. A
-candidate whose column the free block absorbs is reported non-separable rather
-than scored, and the same projection caps the $1/(1-R^2)$ inflation of
-near-collinear gains. Candidates whose projected columns are pairwise
-indistinguishable come back as one unresolved group carrying a joint gain, which
-is a tie rather than a winner. As with indexing there is no `.best`, and
+Two gates keep the ranking honest, the Layer-1 discipline one call over. The
+free block absorbs some candidates' columns, and those are reported
+non-separable and carry no score; the same projection caps the $1/(1-R^2)$
+inflation of near-collinear gains. Candidates whose projected columns are
+pairwise indistinguishable come back as one unresolved group carrying a joint
+gain, which is a tie. As with indexing there is no `.best`, and
 `best_or_none()` answers `None` whenever the evidence does not choose one
 parameter.
