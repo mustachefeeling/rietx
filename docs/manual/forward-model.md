@@ -15,7 +15,7 @@ y_{\mathrm{calc}}(2\theta_i) \;=\; y_{\mathrm{bkg}}(2\theta_i)
 {source}`rietx.model.forward`
 
 Each emission line (Kα₁/Kα₂, …) diffracts at its own Bragg angle, so the
-doublet splitting grows with $\tan\theta$ (see {eq}`pos-doublet`). It is not a
+doublet splitting grows with $\tan\theta$, as in {eq}`pos-doublet`. It is not a
 fixed $2\theta$ offset. The line weight $w_l$ is the intensity of line $l$
 relative to line 0. Line 0 itself is locked at 1, because its weight is
 degenerate with the phase scales.

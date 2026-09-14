@@ -315,7 +315,7 @@ through `lines[i].wavelength` lands on a throwaway there.
 and `EmissionLine.weight` is a refinable intensity relative to line 0. Line 0's
 weight is structurally locked at 1, since it is degenerate with the phase
 scales. Each line diffracts at its own Bragg angle, so a doublet's splitting
-grows with tan θ ({eq}`pos-doublet`) and is never a fixed 2θ offset.
+grows with tan θ {eq}`pos-doublet` and is never a fixed 2θ offset.
 
 A bare number is still accepted where a wavelength `Parameter` is wanted, so
 `EmissionLine(wavelength=1.5406)` builds a fixed one and every instrument
@@ -462,10 +462,10 @@ from the structure factor without changing the shape of anything.
 
 A crystal monochromator set to pass λ also reflects the higher orders of the
 same planes, so the beam carries a small λ/n component for every order that is
-not extinct ({eq}`pos-harmonic-mono`). That component diffracts from the
+not extinct {eq}`pos-harmonic-mono`. That component diffracts from the
 specimen too, and at a given 2θ it is diffracting from planes of spacing
 λ/(2n sin θ) — so **the harmonic's peak from a given hkl sits at lower 2θ than
-the fundamental's** ({eq}`pos-harmonic-d`). Unmodelled, it is extra intensity
+the fundamental's** {eq}`pos-harmonic-d`. Unmodelled, it is extra intensity
 in places the model puts none.
 
 Declare it with `Harmonic`, on the source or through the constructor:

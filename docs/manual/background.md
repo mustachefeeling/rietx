@@ -9,7 +9,7 @@ polynomial, or co-refined under a smoothness penalty. Three models refine:
 Chebyshev polynomials, a fixed estimated baseline plus Chebyshev, and a P-spline
 {cite}`eilers1996`. The P-spline is a B-spline basis whose coefficients $c$ are
 disciplined by second-difference penalty rows appended to the residual
-({eq}`fm-rows`):
+{eq}`fm-rows`:
 
 ```{math}
 :label: bg-penalty

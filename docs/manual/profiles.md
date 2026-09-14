@@ -142,8 +142,8 @@ with $L_{\min}$ the smallest crystallite the bound admits,
 {eq}`prof-strain-cap`.
 
 The first term is a floor on the crystallite ($L \ge L_{\min}$), read as a
-ceiling on the coefficient with no reference angle ({eq}`ms-size-coefficient`,
-{ref}`sec-width-as-size`), per wavelength: ≈ 4°/cos θ at Cu Kα for 2 nm. The
+ceiling on the coefficient with no reference angle, {eq}`ms-size-coefficient`
+in {ref}`sec-width-as-size`, per wavelength: ≈ 4°/cos θ at Cu Kα for 2 nm. The
 second is the strain rule's range backstop, with $1/\cos\theta$ in place of
 $\tan\theta$, evaluated where $1/\cos\theta$ is largest. On any real scan the
 floor is far the tighter (Cu 10–80°: ≈ 4 deg against ≈ 54 deg), so the floor

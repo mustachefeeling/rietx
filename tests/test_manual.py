@@ -400,6 +400,54 @@ def test_every_citation_reads_as_author_and_year(built_manual):
     )
 
 
+#: A rendered `{eq}` reference: a link into an equation, whose own text is the
+#: number in round brackets.
+EQUATION_REF = re.compile(r'<a[^>]*href="[^"]*#equation-[^"]*"[^>]*>\((\d+\.\d+)\)</a>')
+
+
+def test_no_reference_is_doubly_bracketed(built_manual):
+    """A reference brings its own brackets, so the prose must not add a second
+    pair.
+
+    `{eq}` renders `(1.4)` and a citation renders `[Rietveld, 1969]`, and
+    writing either inside a bracket of the same kind prints `((1.4))` or
+    `[[Rietveld, 1969]]`. Twenty-one sites across nine chapters wrapped an
+    equation reference in parentheses of their own, reaching the shipped HTML
+    as `((1.4))`, `((10.7))` and `((10.8), (10.9))` (WP-1408 § G4). Neither
+    `-W` nor a prose read catches it, because the source reads `({eq}`x`)`,
+    which looks like ordinary punctuation.
+
+    Brackets of the *other* kind are left alone. `(via Scherrer, (6.3) in …)`
+    is ordinary English and reads correctly.
+    """
+    out, result = built_manual
+    assert result.returncode == 0, "manual did not build — see test_manual_builds_warning_free"
+    doubled, seen = [], 0
+    for page in sorted(out.rglob("*.html")):
+        if page.name in ("search.html", "genindex.html"):
+            continue
+        html_text = page.read_text(encoding="utf-8")
+        for pattern, left, right in (
+            (EQUATION_REF, "(", ")"),
+            (CITATION_SPAN, "[", "]"),
+        ):
+            for match in pattern.finditer(html_text):
+                rendered = re.sub(r"<[^>]+>", "", match.group(0)).strip()
+                if not (rendered.startswith(left) and rendered.endswith(right)):
+                    continue        # a citation style without brackets of its own
+                seen += 1
+                before = re.sub(r"<[^>]+>", "", html_text[max(0, match.start() - 60):match.start()])
+                after = re.sub(r"<[^>]+>", "", html_text[match.end():match.end() + 60])
+                if before.rstrip().endswith(left) or after.lstrip().startswith(right):
+                    doubled.append(f"{page.name}: …{before.strip()[-45:]}{rendered}{after[:14]}…")
+    assert seen, "no bracketed references found in the built manual — the patterns moved"
+    assert not doubled, (
+        "a reference sits inside a bracket of its own kind, so the page prints a "
+        "doubled bracket — drop the prose brackets, the reference carries its "
+        "own:\n" + "\n".join(doubled[:12])
+    )
+
+
 def test_the_bibliography_label_is_hidden_and_the_rule_reaches_all_of_them(built_manual):
     """The other half of § G3, which no build warning can see.
 

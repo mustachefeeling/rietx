@@ -148,7 +148,7 @@ the fit rather than constraining it.
 ### Checking for monochromator harmonic contamination
 
 No shipped preset frees an emission-line weight, so a declared λ/n harmonic
-([](data.md), {eq}`pos-harmonic-d`) needs a stage of your own. Where to put it
+{eq}`pos-harmonic-d` needs a stage of your own ([](data.md)). Where to put it
 is a strategy question rather than a detail:
 
 ```python

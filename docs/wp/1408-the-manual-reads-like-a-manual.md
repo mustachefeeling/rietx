@@ -1,8 +1,9 @@
 # WP-1408 — The theory manual reads like a manual
 
 Milestone: unscheduled · Status: ✅ 2026-09-14 — all twelve reported defects
-fixed, each with the guard that closes its class, and the citation style
-settled on author-year; nine new guards, one measurement script, the TCH attribution corrected from the paper itself, and
+fixed, each with the guard that closes its class, the citation style settled on
+author-year and every doubled bracket gone; ten new guards, one measurement
+script, the TCH attribution corrected from the paper itself, and
 Part 2 rewritten out of the rulebook's register and its
 self-references checked against the tree
 Depends on: — (0604 built Part 2; 1067 built Part 1)
@@ -234,6 +235,31 @@ comma-separated fragments.
 Author-year labels measured 16 characters median, 32 at the longest
 (`Grosse-Kunstleve and Adams, 2002`).
 
+### G4. An equation reference wrapped in brackets of its own
+
+Found while checking § G3's bracket choice, and older than both. A `{eq}` role
+renders the number in round brackets already, so `({eq}`fm-rows`)` in the source
+prints `((1.4))` on the page.
+
+Twenty-one sites across nine chapters, 24 doubled brackets in the shipped HTML,
+of 146 equation references. Three of the sites wrap two references at once and
+print `((10.8), (10.9))`.
+
+| file | sites |
+|---|---|
+| `using/indexing.md` | 9 |
+| `using/data.md` | 3 |
+| `using/concepts.md` | 2 |
+| `background.md`, `forward-model.md`, `method.md`, `microstructure.md`, `profiles.md`, `using/model.md`, `using/refining.md` | 1 each |
+
+Nothing catches it. `-W` sees valid roles, and the source reads `({eq}`x`)`,
+which looks like ordinary punctuation to anyone reading the markdown. Only the
+built page shows it.
+
+Brackets of the *other* kind are not this defect: `(via Scherrer, {eq}`x` in
+{ref}`y`)` prints `(via Scherrer, (6.3) in …)` and reads correctly, so
+`profiles.md:124` is left as it stands.
+
 ### H. Rwp is set in prose where the chapter next to it sets it in maths
 
 `estimation.md` defines $R_{wp}$ in (8.2) and then writes "ΔRwp" as plain text
@@ -372,6 +398,13 @@ entirely; B's guard is a measurement script, not a test, for the same reason
   cannot remove. Guards: `test_every_citation_reads_as_author_and_year` and
   `test_the_bibliography_label_is_hidden_and_the_rule_reaches_all_of_them`.
 
+- [x] **G4 — the doubled brackets removed.** Twenty-one prose sites, nine
+  files, each losing the prose brackets rather than the reference. Two
+  paragraphs reworded where the reference ended a parenthetical
+  (`microstructure.md`, `using/refining.md`). Guard:
+  `test_no_reference_is_doubly_bracketed`, over both equation references and
+  citations, since both carry their own brackets.
+
 ## Acceptance
 
 1. The manual builds `-W`-clean and the manual suite is green:
@@ -405,6 +438,10 @@ entirely; B's guard is a measurement script, not a test, for the same reason
    bracket. Each of the three settings behind that was reverted once and the
    guard went red with its own message.
 
+8. No reference on any built page sits inside a bracket of its own kind: 0 of
+   146 equation references and 0 of 150 citations, down from 24 doubled
+   brackets. One site was restored to its old form and the guard named it.
+
 ## References
 
 - Thompson, P., Cox, D. E. & Hastings, J. B. (1987) *J. Appl. Cryst.* **20**,
@@ -423,6 +460,47 @@ entirely; B's guard is a measurement script, not a test, for the same reason
   measurement was taken.
 
 ## Handover log
+
+### 2026-09-14 (8th session) — the brackets the prose added
+
+§ G3 ruled out round citation brackets because ten citations sit inside a
+parenthesis the prose already opened. Counting those turned up an older defect
+of the same shape, this time with equation references. A `{eq}` role renders
+`(1.4)`, brackets included, and twenty-one sites wrapped one in brackets of
+their own. The shipped HTML carried 24 doubled brackets: `((1.4))`,
+`((10.7))`, `((10.8), (10.9))`.
+
+**Why nothing caught it.** `-W` sees two valid roles. A reader of the markdown
+sees `({eq}`fm-rows`)`, which looks like ordinary punctuation, and the doubling
+only exists after the role expands. § G4 has the count per file.
+
+**The edit is the same everywhere: the prose loses its brackets, the reference
+keeps its own.** `The FCJ quadrature ({eq}`prof-fcj-weight`) is built` becomes
+`The FCJ quadrature {eq}`prof-fcj-weight` is built`, printing "The FCJ
+quadrature (3.15) is built". Two sites needed more than that, because the
+reference ended a parenthetical and dropping the brackets would have changed
+the sentence. `microstructure.md` became two sentences with the list on a
+colon. `using/refining.md` moved the reference ahead of the chapter link.
+Three sites wrapped two references, and those read `{eq}`idx-m20` and
+{eq}`idx-fn`` now, printing "(10.8) and (10.9)".
+
+**What was deliberately left.** A reference inside a bracket of the *other*
+kind is ordinary English. `profiles.md:124` prints "(via Scherrer, (6.3) in
+Reading a width as a size)" and stays. The guard is written to that line: it
+compares each reference against its own bracket character, never against any
+bracket.
+
+**The guard** is `test_no_reference_is_doubly_bracketed`, over equation
+references and citations together, since both carry their own brackets and both
+can be wrapped. One site was restored to `({eq}`prof-fcj-weight`)`; the guard
+named `method.html: The FCJ quadrature ((3.15)) is built aro…` and the site was
+put back.
+
+**Numbers.** 146 equation references before and after, so no reference was lost
+in the rewording; doubled brackets 24 → 0. Fast selection **4645 passed / 132
+skipped** in 2:18, `.venv` on macOS with `[dev]`, against this session's 4644 /
+132: +1 passed for the one new test, exactly. The manual builds `-W`-clean from
+a cleared `_build`. `ruff check src tests examples` clean.
 
 ### 2026-09-14 (7th session) — the manual cites by author and year
 

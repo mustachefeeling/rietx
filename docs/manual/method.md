@@ -63,7 +63,7 @@ schedule is being fed the quantity its published constants were tuned for.
 
 ## The FCJ corner at $s = h$
 
-The FCJ quadrature ({eq}`prof-fcj-weight`) is built around $|s - h|$ and
+The FCJ quadrature {eq}`prof-fcj-weight` is built around $|s - h|$ and
 $\min(s, h)$, both non-differentiable at $s = h$, and the default instrument
 starts both apertures equal {cite}`finger1994`. Measured on the SRM 660c
 protocol, the analytic $S/L$ and $H/L$ Jacobian columns agree with a

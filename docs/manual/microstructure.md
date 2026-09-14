@@ -123,9 +123,9 @@ reading $\sqrt{U_s}$ in place of $Y_s$ for the Gaussian variance coefficient of
 
 No wavelength appears in {eq}`ms-strain-coefficient`, and no shape constant
 either. The contrast with {eq}`ms-size-coefficient` is the whole of the
-asymmetry. Of the six sample-broadening quantities in {eq}`prof-caglioti-g` and
-{eq}`prof-caglioti-l` (two sizes, two strains, and the Stephens block of
-{eq}`ms-lambda`), the two named "size" are the ones that depend on $\lambda$.
+asymmetry. Six sample-broadening quantities appear in {eq}`prof-caglioti-g` and
+{eq}`prof-caglioti-l`: two sizes, two strains, and the Stephens block of
+{eq}`ms-lambda`. The two named "size" are the ones that depend on $\lambda$.
 One specimen measured at two wavelengths therefore shows the same number of
 degrees of strain broadening, and size coefficients in the ratio
 $\lambda_2 / \lambda_1$, with their Gaussian variances in the ratio squared. A

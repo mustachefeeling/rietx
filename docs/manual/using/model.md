@@ -171,7 +171,7 @@ The two populations also read differently. A cell tie is an identity row,
 `1·phases.0.cell.a`. A coordinate tie carries the starting position in its
 constant: on the LaB6 table above, `phases.0.atoms.1.x` describes itself as
 `0.19964 + 1·phases.0.atoms.1.dof.0`, because a coordinate degree of freedom is
-a *displacement* from the stored coordinate ({eq}`par-coord`). ADP and Stephens
+a *displacement* from the stored coordinate {eq}`par-coord`. ADP and Stephens
 degrees of freedom are absolute instead, which is what enforces their site
 symmetry exactly.
 

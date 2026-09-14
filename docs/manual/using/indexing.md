@@ -134,7 +134,7 @@ and `eta` are shared, and pretending otherwise is what lets a doublet fit
 absorb an unresolved neighbour.
 
 Q rather than d or 2θ is the working coordinate throughout, because Q is linear
-in the reciprocal metric ({eq}`idx-qform`), which is what makes a cell fit a
+in the reciprocal metric {eq}`idx-qform`, which is what makes a cell fit a
 linear problem. The list validates that every `ObservedPeak.q` agrees with its
 own 2θ, so a peak built by hand with a stale Q raises here rather than
 mis-indexing a pattern later.
@@ -408,7 +408,7 @@ before spending any budget. The answer is a `DataQualityReport`.
 | `DataQualityReport.source` | inherited from the list: `fitted` or `positions` |
 | `DataQualityReport.two_theta_min`, `DataQualityReport.two_theta_max` | the range the lines span |
 | `DataQualityReport.sigma_two_theta_median`, `DataQualityReport.sigma_two_theta_worst` | position precision, ° |
-| `DataQualityReport.relative_sigma_q_median` | median σ(Q)/Q, a resolving power ({eq}`idx-sigma-q`) |
+| `DataQualityReport.relative_sigma_q_median` | median σ(Q)/Q, a resolving power {eq}`idx-sigma-q` |
 | `DataQualityReport.sigma_over_spacing` | median σ(Q) over the mean spacing between neighbouring Q |
 | `DataQualityReport.lines_per_dof` | usable lines ÷ metric degrees of freedom, per system |
 | `DataQualityReport.systems_supported` | the systems this list can support a search in |
@@ -419,7 +419,7 @@ before spending any budget. The answer is a `DataQualityReport`.
 | `DataQualityReport.diagnostics` | what the assessment noticed |
 
 **"Enough lines" is a per-system question, not a number.** The metric has one
-free parameter in cubic and six in triclinic ({eq}`idx-subspace`), so the same
+free parameter in cubic and six in triclinic {eq}`idx-subspace`, so the same
 list is enormously over-determined for one system and barely determined for
 another. `DataQualityReport.lines_per_dof` carries the ratio and
 `DataQualityReport.systems_supported` carries the verdict. On the corundum list
@@ -430,13 +430,13 @@ Whether a list can be searched and whether it can be scored are different
 questions, and conflating them once refused a pattern this package indexes
 perfectly. Below twenty usable lines the
 classical figures are undefined, since de Wolff's M₂₀ and Smith & Snyder's F₂₀
-are *defined* on twenty lines ({eq}`idx-m20`, {eq}`idx-fn`), so the search still
+are *defined* on twenty lines {eq}`idx-m20` and {eq}`idx-fn`, so the search still
 runs over the supported systems, ranks on the reduced panel, and names each
 missing figure with its reason in `DataQualityReport.fom_undefined`. What that
 costs is the grade: a short list can never reach `high`.
 
 `DataQualityReport.volume_envelope` is Smith's (1977) bound on the cell volume
-from the d-spacing of the N-th line ({eq}`idx-volume`), and it is per system
+from the d-spacing of the N-th line {eq}`idx-volume`, and it is per system
 because the bound differs by up to 96× across them: a cubic F lattice shows far
 fewer distinct lines than a primitive triclinic one of the same volume. It is
 the default `max_volume` for a search.
@@ -486,7 +486,7 @@ squares rather than on R², because every template scores R² ≈ 0.99 against a
 clean trend.
 
 With no reference positions the shift is still recoverable, from harmonic
-reflection pairs ({eq}`idx-pair`, {eq}`idx-pair-shift`), pairs of lines whose
+reflection pairs {eq}`idx-pair` and {eq}`idx-pair-shift`, pairs of lines whose
 sines are in an integer ratio, which for any lattice is one equation in the
 shift and none in the cell. `index_pattern` runs that screen by default
 (`shift_from_pairs=True`); `assess_peak_list` does not, so a report you build
@@ -726,7 +726,7 @@ lives in that candidate's own `CellCandidate.diagnostics` and
 | `CellCandidate.system`, `CellCandidate.centring` | crystal system, and Bravais centring letter |
 | `CellCandidate.lattice_group` | the **absence-free** group of the lattice: holohedry plus centring |
 | `CellCandidate.volume`, `CellCandidate.volume_esd` | cell volume, Å³ |
-| `CellCandidate.af` | the six quadratic-form parameters actually fitted ({eq}`idx-af`) |
+| `CellCandidate.af` | the six quadratic-form parameters actually fitted {eq}`idx-af` |
 | `CellCandidate.n_indexed`, `CellCandidate.n_lines` | lines this cell explains, of lines offered |
 | `CellCandidate.chi2_red` | reduced χ² of the metric fit |
 | `CellCandidate.shift_template`, `CellCandidate.shift_coefficient`, `CellCandidate.shift_esd` | the shift column re-fitted with the cell, if one was |
@@ -771,7 +771,7 @@ and that its mean discrepancy is trimmed to match what the search was allowed
 to leave unindexed.
 
 On a full-length list the panel runs to seven members: de Wolff's M₂₀ and Smith
-& Snyder's F_N ({eq}`idx-m20`, {eq}`idx-fn`), three coverage fractions, and
+& Snyder's F_N {eq}`idx-m20` and {eq}`idx-fn`, three coverage fractions, and
 Oishi-Tomiyasu's two reversed figures. Coverage is scored in **both**
 directions, and that is what the reversed members are for: share-of-observed
 alone puts a supercell above the truth, since a supercell indexes every
@@ -795,7 +795,7 @@ them is information about the cell rather than a bug in either.
 | `BravaisOpinion.reduced_cell` | the Niggli-reduced cell the symbols refer to |
 
 A powder pattern carries only the *length* of a reciprocal vector, so distinct
-lattices can produce the same line positions ({eq}`idx-hnf`). Those are
+lattices can produce the same line positions {eq}`idx-hnf`. Those are
 reported, never resolved, as `AmbiguityPartner` entries.
 
 | Field | Holds |
