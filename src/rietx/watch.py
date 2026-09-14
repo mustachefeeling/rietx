@@ -67,10 +67,13 @@ _PAGE = """<!DOCTYPE html>
   #empty { padding:28px 12px; color:#777; }
   #detail { display:flex; flex-direction:column; height:100%; }
   #plot { flex:1 1 68%; border:0; background:#fff; min-height:180px; }
-  #noplot { flex:1 1 68%; display:flex; align-items:center;
-            justify-content:center; color:#555; }
+  /* a GUI project's run has no fit.html and never will, so the note is a
+     line and the log gets the room rather than the other way round */
+  #noplot { flex:0 0 auto; padding:7px 12px; color:#666;
+            border-bottom:1px solid #2c2c2c; }
   #console { flex:0 0 30%; overflow-y:auto; background:#181818; font-size:11px;
              padding:6px 10px; white-space:pre; }
+  #console.full { flex:1 1 auto; }
   .k { color:#e8b339; }
   .ev { color:#888; }
   code { background:#1c1c1c; padding:1px 5px; border-radius:3px; color:#9ad; }
@@ -147,8 +150,9 @@ async function drawList() {
 function detailShell(run) {
   const plot = run.has_snapshot
     ? `<iframe id="plot" src="api/run/${run.run_id}/snapshot"></iframe>`
-    : `<div id="noplot">no fit.html in this run yet</div>`;
-  body.innerHTML = `<div id="detail">${plot}<div id="console"></div></div>`;
+    : `<div id="noplot">no fit.html here — this run wrote only its log</div>`;
+  const cls = run.has_snapshot ? '' : ' class="full"';
+  body.innerHTML = `<div id="detail">${plot}<div id="console"${cls}></div></div>`;
 }
 
 async function drawDetail(id, first) {
