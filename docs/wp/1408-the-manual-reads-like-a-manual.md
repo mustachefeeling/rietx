@@ -321,6 +321,115 @@ entirely; B's guard is a measurement script, not a test, for the same reason
 
 ## Handover log
 
+### 2026-09-14 (2nd session) — the manual's own defects, each closed with its guard
+
+Part 2 now reads as a reference somebody can transfer numbers out of. Every
+symbol arrives with the unit rietx stores it in, no equation is typeset on top
+of its own number, the metric tensor the positions chapter rests on is written
+out, ⊕ and ⊗ mean something stated rather than assumed, the TCH coefficients
+say plainly that they are a fit and how good a one, every *Source:* line is a
+click into the code it was transcribed from, and the bibliography stopped
+rendering this package's own citation as "Rietx: python-api-first analysis and
+rietveld refinement". The part that outlives the eleven fixes is that four of
+them were **invisible to `-W` by construction** — a defined substitution that
+is simply never reached, a CSS collision, a style that lowercases a capital, a
+plain word four lines under the equation that defines it — so each landed with
+a guard, and each guard was failed on purpose before it was trusted. The cost
+was one working day and no package behaviour: nothing outside `docs/` changed
+but a private `REPO_URL` constant.
+
+*Done*, one commit each: the two substitutions moved out of (3.3)/(3.4) into
+the prose beside them; a two-cell grid in `custom.css` that makes an equation
+and its number structurally unable to collide, plus four reflows;
+`docs/manual/check_equations.py`, which measures it; a "Symbols and units"
+table in `manual.md` and a per-chapter sweep; ⊕/⊗ defined at first use; the
+metric tensor as a 3×3 matrix, dot products beside closed form; a `{source}`
+role resolving 105 dotted names to GitHub links at build time; 63 DOIs and a
+brace sweep over `references.bib`; eleven Part 2 `Rwp` set as $R_{wp}$.
+
+*Measured*, darwin/arm64, `[dev]` plus a `playwright` this session installed
+into the worktree venv for the script (it adds no tests):
+
+- **Equation width**, chromium at 1440 px and 1100 px, furo's content column
+  736 px at both. Before: (3.3) ran 179 px into "(3.3)" and 136 px outside the
+  column, (3.4) 105 px and 63 px, (4.6) 18 px, (3.6) — reported only as
+  "dangerously close" — already 6 px in. After: 102 numbered equations, minimum
+  clearance **44 px**, nothing overflowing its cell.
+- **The TCH approximation**, against this package's own Faddeeva Voigt with the
+  true FWHM found by bisection: the quintic reproduces the Voigt FWHM to
+  **0.43 %** worst case (Olivero & Longbothum's two-term formula, run as a
+  control, lands at 0.023 % — its own published bound, which is how the
+  bisection was checked); the pseudo-Voigt departs from the exact shape by at
+  most **1.27 %** of the peak height at q ≈ 0.56, **on the flanks** at
+  x ≈ ±0.28 Γ, while the centre stays under **0.25 %** across the range.
+- **The bibliography**: 103 entries, 10 rendering a lowercased proper noun
+  before, 0 after; 86 now carry a DOI against 23 before — 50 accepted by
+  Crossref only on title, year, volume *and* first page together, 13 confirmed
+  one at a time, 1 (`scherrer1918`) declared as having none.
+- **Suite**: fast selection **4639 passed / 132 skipped** in 2:09–2:11, +7
+  tests over the merge base (5 in `test_manual.py`, 2 in `test_voigt.py`), all
+  passes, no new skip. An eighth guard landed at handover (the old `*Source:*`
+  spelling), so the final tree is +8. The full selection did **not** run: this
+  WP changes `docs/`, `tests/` and one private constant, so it can move no
+  measured number (`tests/CLAUDE.md` § Running, rung 3).
+
+*Gotchas*, each one that cost time:
+
+- **A MyST substitution is not expanded inside a `{math}` directive.** It is
+  *defined*, so `-W` has nothing to say, and MathJax typesets the name as a
+  product of italic letters. Put the symbol in the equation and its value in
+  the prose beside it; `test_no_unsubstituted_substitution_survives_the_build`
+  is now the loud version.
+- **Furo pins the equation number with `position: absolute`**, over the content
+  column. That is why it can sit on top of the equation, and why the number has
+  to be made `static` before a grid can give it a column of its own. A float or
+  a padding reserve cannot work: an equation's width is not known until MathJax
+  has typeset it in the browser.
+- **`pyproject.version` is the last *shipped* milestone, tagged or not.** It
+  reads 1.4.0 while `git ls-remote --tags origin` stops at v1.3.0 and PyPI's
+  latest is 1.3.0 — so **v1.4.0 was written, merged and released in the record
+  but never tagged or published**. Found while deciding what a source link
+  should point at; the links go to `main`, which is also the tree the published
+  manual is built from. This is the maintainer's to act on, not this WP's.
+- **`@software` in `references.bib` is load-bearing.** It was changed to
+  `@misc` for portability and changed straight back:
+  `tests/test_no_stale_name.py` finds this package's own citation record *by
+  that entry type*. The file now says so above the entry.
+- The bibliography's remaining unevenness is **the literature's**:
+  `holzer1997` reads "x-ray" because Physical Review A prints it that way. The
+  brace rule is about capitals the *style* destroys, never about spelling, and
+  the file states the difference so nobody "fixes" it.
+
+*Decided rather than changed*: **Lorentz-polarisation keeps its hyphen.** The
+compound joins two coordinate factors, and the local corpus has 13 hyphenated
+spellings against 2 unhyphenated; ITC C §6.2 and McCusker 1999, both cited
+here already, hyphenate. The British ending was already uniform — all eight
+`polarization` spellings in the manual are code names. And **Part 1 keeps
+`Rwp` as plain text**: it is the word on the GUI header and in a console line,
+and its neighbours in the same tables are plain too (χ², GoF, Σw δ²), so
+converting 126 lines would have traded one inconsistency for another.
+`manual.md` states the split between the parts.
+
+*Not done, and why*: **no CLAUDE.md line.** The three things a stranger adding
+a Part 2 equation must know are all mechanised instead — the substitution trap,
+the width check and the `{source}` spelling each have a test or a script — and
+a guard beats a rule at the same cost in nobody's attention. **No skill row**
+either: the TCH accuracy numbers bear on one opt-in shape and hold for no other
+fit, so neither the body nor a task-shape reference is their home (root
+CLAUDE.md § skill). **No milestone-record entry**: rule 6 stages a break or a
+user-facing addition, and this is documentation with no API, schema or
+behaviour change; staging it under shipped v1.4 would misattribute it to
+notes already written.
+
+*Next*, in order: (1) the maintainer's call on the **missing v1.4.0 tag and
+PyPI release** — `docs/RELEASING.md` is the authority and the workflow builds
+from the tag, so nothing here can fix it; (2) if TCH 1987 can be supplied, the
+"where those coefficients come from" section can name what the trailing **Z**
+of `ProfileTCHZ` denotes, which no source to hand pins down — the page
+currently says only what is verifiable, that TCH is the three authors and that
+different codes attach Z to different extra width terms; (3) nothing else —
+the WP is closed.
+
 - **2026-09-14** — created. Eleven reader-reported defects in Part 2, each
   measured on this tree before the file was written: the two substitutions that
   reach MathJax as italic letters, the four equations that run under their own

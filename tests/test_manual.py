@@ -343,6 +343,26 @@ def test_every_source_symbol_imports():
         assert obj is not None, f"{dotted}: not importable"
 
 
+def test_no_chapter_still_writes_a_source_line_by_hand():
+    """The old `*Source:* \\`name\\`` spelling is gone and stays gone.
+
+    It is the one thing about the `{source}` role (WP-1408) that no other
+    guard sees: a page that writes the line by hand renders it as plain text
+    beside a hundred linked ones, the name resolves against nothing, and the
+    coverage test above is satisfied by the page's *other* lines. Loud here
+    rather than silent on the page.
+    """
+    offenders = []
+    for page in CHAPTERS:
+        for number, line in enumerate(page.read_text(encoding="utf-8").splitlines(), 1):
+            if line.lstrip().startswith("*Source:*"):
+                offenders.append(f"{page.name}:{number}: {line.strip()[:60]}")
+    assert not offenders, (
+        "write the source line as the `{source}` role, which resolves the name "
+        "to a repository link at build time:\n" + "\n".join(offenders)
+    )
+
+
 def test_source_lines_cover_every_labelled_equation():
     """Every {math} directive with a :label: sits in a section that carries
     at least one `{source}` line — an equation with no named source is a
