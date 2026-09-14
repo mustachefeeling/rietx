@@ -107,7 +107,7 @@ measured by writing them.
 | `body[data-theme="dark"]` in `custom.css`, two blocks | **Real, and silent.** A reader who picks dark from the toggle gets `--color-rietx-ink` at the light hex `#6d4aff` on a dark page under all three. The system-preference path still works, so the fault hides from anyone who never touches the toggle. This is WP-1411's own bug returning in a second spelling. Cost: one selector added per block, 4 lines. |
 | `only-light` / `only-dark` on the committed figure pairs | **False for pydata and sphinx-book**, which ship the same two classes and also hide a trailing `figcaption`. **True for shibuya**, which ships neither: both halves of all 14 pairs render, the dark one ghosted under the light one (`1412-theme-survey/figures-light-1440.png`, fourth column). Cost: 0, or about 6 lines for shibuya. |
 | `span.eqno` pinned `position: absolute` | **Real and harmless.** Only furo pins it, so the un-pinning rule is inert elsewhere rather than wrong. The grid itself is theme-blind and carried over untouched: all 16 numbered equations on `profiles.html` cleared their numbers in every build at 1440 px. Cost: 0, plus a comment that would then explain a fix for a problem the theme does not have. |
-| a 736 px content column | **Real and cheap.** furo 736, pydata 720 on a chapter page, sphinx-book 790, shibuya 800. The widest typeset equation is 614 px, so it fits all four. Cost: re-run `check_equations.py`, which measures rather than asserting a width. |
+| a 736 px content column | **Real and cheap.** furo 736, pydata 720 on a chapter page, sphinx-book 790, shibuya 800. The widest typeset equation is 614 px under the first three and 638 px under shibuya, against equation cells of 651 px to 739 px, so it fits everywhere. Cost: re-run `check_equations.py`, which measures rather than asserting a width. |
 | the brand fork (the sixth, added by 1411) | **A saving, and a partial one.** pydata's `logo` and `logo_link` replace the template. They do not replace the release line under the wordmark, and the mark has to become two committed files: an `<img>`-embedded SVG reads no CSS variable, so `image_light` / `image_dark` is the only way it follows the toggle. Saving: 20 lines of template and 5 CSS rules. Cost: 2 SVG files that do not exist. |
 | **the sidebar**, absent from the table | pydata renders the toctree *below* the active top-level entry. `startdepth=1` is hardcoded in `components/sidebar-nav-bs.html` and no `html_theme_options` key reaches it, so a flat tree yields an empty sidebar. Cost: a 14-line template fork, or restructuring the manual's two toctrees into nested sections. |
 | **`custom.css`'s furo vocabulary**, absent from the table | Five furo CSS variables, none defined by any of the three. The worst is `--icon-abstract`: undefined, the mask on the agent admonition's `::before` is dropped and the pseudo-element renders as a solid purple block across the whole title bar (`1412-theme-survey/pydata-configured-front.png`, left panel). Cost: about 45 lines of CSS, written and measured. |
@@ -166,6 +166,14 @@ committed files.
   and the build stays green.
 - The survey's probe scripts were not kept, by decision. The README in
   `1412-theme-survey/` records the method, the versions and the machine.
+- **All eighteen sheets were committed and none of them landed.**
+  `.gitignore`'s blanket `*.png` took them, `git add <dir>` reported nothing,
+  and the commit carried the README alone. That is the fifth occurrence in this
+  repo and the first outside `docs/manual/`, which is why the guard written
+  after the third saw nothing: it names two directories. Fixed in 330dc401 with
+  an un-ignore and a general guard, `git check-ignore` over every target a
+  planning doc links, `_planning_docs()` widened to reach a WP's own evidence
+  README. The guard was checked red as well as green.
 
 **Next.** Nothing. The WP closes with the recommendation to stay, and no
 migration WP is opened. Reopen the question if the manual's two toctrees are
