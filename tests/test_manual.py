@@ -308,6 +308,60 @@ def _part_two() -> list[Path]:
     return pages
 
 
+#: The prose of a page: lines outside fenced blocks, with code spans stripped.
+#: A token inside ``…`` is a field name or captured output and a fenced block is
+#: TeX or a console transcript, so neither is this file's to police.
+def _prose_lines(page: Path) -> list[tuple[int, str]]:
+    lines: list[tuple[int, str]] = []
+    fence = None
+    for number, line in enumerate(page.read_text(encoding="utf-8").splitlines(), 1):
+        stripped = line.lstrip()
+        if fence is None and stripped.startswith(("```", ":::")):
+            fence = stripped[:3]
+            continue
+        if fence is not None:
+            if stripped.startswith(fence):
+                fence = None
+            continue
+        lines.append((number, re.sub(r"`[^`]*`", "", line)))
+    return lines
+
+
+#: Two marks of the maintainer register, both invisible to `-W` because both are
+#: valid Markdown.  Each carries the fix, since a failure is an editing job.
+REGISTER_MARKS = (
+    ("\u2014", "an em dash: give the aside its own sentence, or use parentheses"),
+    ("**", "bold: the heading carries the claim, and backticks cover identifiers"),
+)
+
+
+def test_part_two_keeps_the_manual_register():
+    """Part 2 is prose someone reads to get work done, and reads as it.
+
+    A rulebook may compress, and `CLAUDE.md` measures ~15 em dashes per 1000
+    words with the register working.  A manual's budget is 0, and the failure
+    this guard exists for is leakage: the rulebook sits in the same tree, gets
+    read first, and its voice arrives in the manual by default. That is how all
+    twelve chapters came to measure 6-15 per 1000 and to carry 87 bold or italic
+    maxims (WP-1408, `yue-prose`).
+
+    The two marks below are the mechanical half of that register, so they are
+    the half a test can hold; the rest is `yue-prose`'s grep pass, run on the
+    chapter you edited.  A page that genuinely needs bold (a UI label, a table
+    header) changes this test and says why.
+    """
+    offenders = []
+    for page in [*_part_two(), MANUAL_DIR / "manual.md"]:
+        for number, line in _prose_lines(page):
+            for mark, fix in REGISTER_MARKS:
+                if mark in line:
+                    offenders.append(f"{page.name}:{number}: {fix}\n    {line.strip()[:70]}")
+    assert not offenders, (
+        "Part 2 carries the maintainer register into the manual:\n"
+        + "\n".join(offenders)
+    )
+
+
 def test_part_two_sets_a_statistic_as_mathematics():
     """`Rwp` in plain text, four lines under an equation that defines
     $R_{wp}$, was the reader-visible half of this (WP-1408).
@@ -320,17 +374,8 @@ def test_part_two_sets_a_statistic_as_mathematics():
     """
     offenders = []
     for page in _part_two():
-        fence = None
-        for number, line in enumerate(page.read_text(encoding="utf-8").splitlines(), 1):
-            stripped = line.lstrip()
-            if fence is None and stripped.startswith(("```", ":::")):
-                fence = stripped[:3]
-                continue
-            if fence is not None:
-                if stripped.startswith(fence):
-                    fence = None
-                continue
-            if "Rwp" in re.sub(r"`[^`]*`", "", line):
+        for number, line in _prose_lines(page):
+            if "Rwp" in line:
                 offenders.append(f"{page.name}:{number}: {line.strip()[:70]}")
     assert not offenders, (
         "Part 2 writes the statistic as mathematics — $R_{wp}$, "

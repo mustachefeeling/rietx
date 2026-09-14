@@ -185,13 +185,14 @@ aberrations, and the capillary has its own pair further down.
 
 ### Zero-point error
 
-A constant shift, and the only one common to every geometry.
+The zero-point error is a constant shift, and the only aberration common to
+every geometry.
 
 ### Sample displacement
 
-Bragg-Brentano geometry, for a flat specimen whose surface sits a distance $s$
-off the goniometer axis with goniometer radius $R$. Both are in mm, and only
-their ratio enters {cite}`wilson1963,klug1974`:
+In Bragg-Brentano geometry a flat specimen whose surface sits a distance $s$ off
+the goniometer axis shifts every line. Only the ratio of $s$ to the goniometer
+radius $R$ enters, and both are in mm {cite}`wilson1963,klug1974`:
 
 ```{math}
 :label: pos-displacement
@@ -230,8 +231,8 @@ load it frozen for sample work.
 
 ### Capillary displacement
 
-The Debye-Scherrer counterpart, for a capillary whose diffracting volume sits
-off the centre of the $2\theta$ circle {cite}`mccusker1999`:
+The Debye-Scherrer counterpart applies to a capillary whose diffracting volume
+sits off the centre of the $2\theta$ circle {cite}`mccusker1999`:
 
 ```{math}
 :label: pos-capillary
