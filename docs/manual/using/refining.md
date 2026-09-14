@@ -5,10 +5,9 @@ run itself: which call to make, what the intensities are allowed to do, how the
 stages are chosen and settled, and how to watch a run or stop one that is going
 nowhere.
 
-[](concepts.md) explains *why* a refinement is staged and what order the
-presets encode. Nothing here repeats that argument. What follows is the
-machinery around it: the settings a caller chooses, and the record a run leaves
-behind.
+[](concepts.md) explains why a refinement is staged and what order the presets
+encode. Nothing here repeats that argument. What follows is the machinery around
+it: the settings a caller chooses, and the record a run leaves behind.
 
 ## Two entry points, and where the settings live
 
@@ -74,8 +73,8 @@ print(ref.result_.statistics.rwp)
 | `"lebail"` | extracted from the data, iteratively | you want the best profile fit a cell and symmetry can give, with no structure |
 | `"pawley"` | refined, one per reflection | as Le Bail, but with the intensities as real parameters carrying esds |
 
-The mode is not a detail of the plan; it changes which rows of the parameter
-table can move at all. Le Bail and Pawley force-fix every atom parameter, every
+The mode is more than a detail of the plan. It changes which rows of the
+parameter table can move at all. Le Bail and Pawley force-fix every atom parameter, every
 phase scale and every emission-line intensity, because in those modes the data
 does not constrain them. [](model.md) shows that as the `mode_fixed` hold
 reason, and explains why it is kept distinct from a lock.
@@ -94,7 +93,7 @@ assert result.mode == "lebail"
 ## Choosing a plan at run time
 
 [](concepts.md) introduces the seven presets and the order they encode. What
-that section does not give a *program* is a way to offer the choice without
+that section does not give a program is a way to offer the choice without
 hard-coding a list that will rot the next time a preset lands.
 
 `PLAN_PRESETS` maps each preset name to the function that builds it, and
@@ -120,8 +119,8 @@ print(info.title, info.description, info.modes, info.when_to_use)
 | `PlanInfo.when_to_use` | the condition that should select it |
 
 `PlanInfo.modes` is a tuple rather than a single mode because a plan can be
-meaningful in more than one: `profile_only` is both the Le Bail plan and the
-way to fit a profile in Rietveld mode without touching the structure.
+meaningful in more than one. `profile_only` is both the Le Bail plan and the way
+to fit a profile in Rietveld mode without touching the structure.
 
 The two registries are held in bijection by a meta-test, so a preset added
 without a `PlanInfo` fails the suite rather than shipping as a preset nobody
@@ -141,15 +140,15 @@ assert plan.correlation_guard == 0.98
 strict = rx.RefinementPlan(stages=plan.stages, correlation_guard=0.9)
 ```
 
-Lowering it reports more pairs. It does not change the fit: the guard measures
-the fit rather than constraining it.
+Lowering it reports more pairs. It does not change the fit, because the guard
+measures the fit rather than constraining it.
 
 (strategy-harmonics)=
 ### Checking for monochromator harmonic contamination
 
 No shipped preset frees an emission-line weight, so a declared λ/n harmonic
-{eq}`pos-harmonic-d` needs a stage of your own ([](data.md)). Where to put it
-is a strategy question rather than a detail:
+{eq}`pos-harmonic-d` needs a stage of your own ([](data.md)). Where to put it is
+a strategy question:
 
 ```python
 import rietx as rx
@@ -162,41 +161,41 @@ plan = rx.RefinementPlan(stages=[
 assert plan.stages[-1].name == "harmonic"
 ```
 
-**Check for it whenever a monochromator's order is not filtered.** The
-signature is extra intensity at 2θ *below* the fundamental's peaks — the
-harmonic diffracts the same hkl from a smaller d — together with a **GoF worse
-than a clean histogram of the same specimen**, while Rwp may well look better.
-That asymmetry is the whole diagnosis: Rwp is dominated by the strong peaks, and
-the harmonic's are weak peaks sitting where the model has nothing, so GoF
-measures the misfit against σ and Rwp mostly does not. A fit whose Rwp is
-respectable and whose GoF is far from 1 is the case to suspect.
+Check for it whenever a monochromator's order is not filtered. The signature is
+extra intensity at 2θ below the fundamental's peaks, because the harmonic
+diffracts the same hkl from a smaller d, together with a GoF worse than a clean
+histogram of the same specimen while Rwp may well look better. That asymmetry is
+the whole diagnosis. Rwp is dominated by the strong peaks, and the harmonic's
+are weak peaks sitting where the model has nothing, so GoF measures the misfit
+against σ and Rwp mostly does not. A fit whose Rwp is respectable and whose GoF
+is far from 1 is the case to suspect.
 
-**Free the weight last.** It is a small fraction, it correlates with the
-background, and both the scale and the displacement parameters can imitate part
-of it. Freed early it takes intensity that belongs to the profile, and the
-record does not show that it did. Freed after the profile and the scale have
-settled, it has only the intensity nothing else claimed.
+Free the weight last. It is a small fraction, it correlates with the background,
+and both the scale and the displacement parameters can imitate part of it. Freed
+early it takes intensity that belongs to the profile, and the record does not
+show that it did. Freed after the profile and the scale have settled, it has
+only the intensity nothing else claimed.
 
-**Read the fitted fraction as a property of the beam, or not at all.** The
+Read the fitted fraction as a property of the beam, or not at all. The
 `HARMONIC_FRACTION` diagnostic reports it as a per cent of the fundamental with
 its esd, because that is the number worth judging. A value far from a few per
-cent is evidence that the model is absorbing something else through the line —
-an unindexed impurity, a magnetic contribution, a background too stiff to
-follow — rather than a measurement of the monochromator, and past 15 % the
-diagnostic says so at `warning` level. A fraction that refines to nothing is a
-result too: `HARMONIC_ABSENT` means the beam carries no measurable order-n
-component, which is what a monochromator whose nth order is extinct must give,
-and the declaration can then be dropped for one parameter fewer. A weight that
-was never freed reports `HARMONIC_HELD` and must not be quoted at all.
+cent is evidence that the model is absorbing something else through the line, an
+unindexed impurity or a magnetic contribution or a background too stiff to
+follow, rather than a measurement of the monochromator. Past 15 % the diagnostic
+says so at `warning` level. A fraction that refines to nothing is a result too:
+`HARMONIC_ABSENT` means the beam carries no measurable order-n component, as a
+monochromator whose nth order is extinct must give, and the declaration can then
+be dropped for one parameter fewer. A weight that was never
+freed reports `HARMONIC_HELD` and must not be quoted at all.
 
-Two related checks are **model-free and run before any fit**, and neither
-substitutes for this one: `diagnose(data)` looks for a weak peak at the Kβ or
+Two related checks are model-free and run before any fit, and neither
+substitutes for this one. `diagnose(data)` looks for a weak peak at the Kβ or
 W Lα position of a strong one and returns `ContaminationFlag`s, needing no
 structure, answering "does something here look like a known contaminant?". This
 one needs a converged model and answers "how much intensity did the model
-attribute to the harmonic once everything else had its chance?" — which is the
-only way to see a contamination whose peaks overlap the fundamental's too
-closely for a peak search to separate.
+attribute to the harmonic once everything else had its chance?". It is the only
+way to see a contamination whose peaks overlap the fundamental's too closely for
+a peak search to separate.
 
 ## How hard each stage is converged
 
@@ -218,8 +217,8 @@ Three sources decide a stage's tolerance, in this order. A stage that declares
 its own `Stage.ftol` is solved at it. The last stage takes `None`, meaning the
 solver default, because it is the one that produces the answer. Every other
 stage takes `intermediate_ftol`. A one-stage plan is therefore all endpoint and
-nothing is loosened, which is what a warm series pattern collapsed to a single
-stage and the indexing validation fit both want.
+nothing is loosened, which a warm series pattern collapsed to a single stage and
+the indexing validation fit both want.
 
 `StageResult.ftol` reports what each stage was actually solved at, so a result
 says which schedule produced it without the plan beside it.
@@ -228,9 +227,9 @@ says which schedule produced it without the plan beside it.
 
 Stages are cumulative: each one frees its globs on top of everything already
 free, so a parameter an early stage stopped short on keeps refining in every
-later stage, and the last stage, at `1e-9`, polishes all of them together.
-That is why stopping intermediate stages early moves the answer so little, and
-it holds for any plan this runner runs, not only for the presets.
+later stage, and the last stage, at `1e-9`, polishes all of them together. That
+is why stopping intermediate stages early moves the answer so little, and it
+holds for any plan this runner runs rather than only for the presets.
 
 Measured on the benchmark cases of `examples/bench_refinement.py` (`[dev]`
 venv, darwin/arm64, 2026-08-22, best of three runs on an idle machine), against
@@ -249,7 +248,8 @@ The degeneracy is the trigger case's instrument `x` against every phase's
 `lor_size`, which moves 1.4 esd. Those parameters are exactly degenerate
 (Lorentzian FWHMs add, and both terms are size-like in θ), and the measurement
 shows it: `x` gained 0.0013165 while all four `lor_size` values lost
-0.0012897–0.0013300 each. What moved is the split, not the width they sum to.
+0.0012897–0.0013300 each. What moved is the split, and the width they sum to
+stayed put.
 
 A chained series is the case to measure rather than assume. Ten warm-started
 patterns took 1603 evaluations against 1792 fully converged (57.2–57.6 s against
@@ -272,8 +272,8 @@ plan.intermediate_ftol = None
 assert plan.stage_ftols() == [None] * len(plan.stages)
 ```
 
-Every stage then stops where the solver's own default says, which is what every
-fit before 1.1 did, to the bit. Reach for it when a number is going into a
+Every stage then stops where the solver's own default says, as every fit before
+1.1 did, to the bit. Reach for it when a number is going into a
 paper and you want the plan's own converged answer rather than one within a few
 hundredths of an esd of it, when you are reproducing a number from an earlier
 release, and in a test that pins a value: a suite whose numbers move when a
@@ -315,16 +315,16 @@ the next one is unusually sensitive to, or a single-stage fit that has to
 converge as hard as an endpoint.
 
 `Stage.seed` and `Stage.strain_seed` both exist to lift a parameter off an
-exact zero that the solver cannot move away from, and they are not
-interchangeable, because the two pathologies are opposite.
+exact zero that the solver cannot move away from. They are not interchangeable,
+because the two pathologies are opposite.
 
-- `Stage.seed` lifts any **softplus-bounded** parameter the stage frees to the
-  given value. The softplus map's slope at zero is itself near zero, so a
-  coefficient starting at exactly zero has no gradient and never moves. The
-  extinction and surface-roughness stages use it.
+- `Stage.seed` lifts any softplus-bounded parameter the stage frees to the given
+  value. The softplus map's slope at zero is itself near zero, so a coefficient
+  starting at exactly zero has no gradient and never moves. The extinction and
+  surface-roughness stages use it.
 - `Stage.strain_seed` puts a freed but all-zero Stephens block on a small
   microstrain, in ppm of ΔM/M. Those coefficients are identity-transformed, so
-  `Stage.seed` cannot reach them, and their problem at zero is the *exploding*
+  `Stage.seed` cannot reach them, and their problem at zero is the exploding
   gradient of a square root rather than a dead one.
 
 Both default to `0.0`, meaning no seed.
@@ -335,16 +335,16 @@ stage performs, and it applies in Le Bail mode only.
 `Stage.window_slack_deg` (and its mirror `StageSpec.window_slack_deg`) is the
 absolute capture slack, in °2θ, added to every evaluation-window half-width
 the stage compiles. The default (`None`) uses the package constant, sized for a
-fit whose starting positions are roughly right. A fit that must *measure* a
+fit whose starting positions are roughly right. A fit that must measure a
 hypothesis it is forbidden to walk toward declares the wider capture range its
-verdict needs instead of borrowing tail margin: the indexing Le Bail validation
+verdict needs instead of borrowing tail margin. The indexing Le Bail validation
 holds its candidate cell fixed, and a wrong candidate displaces peaks by whole
 degrees. Leave it unset in ordinary plans.
 
 ## Persisting a plan
 
-`RefinementPlan` and `Stage` are plain dataclasses, which is what makes them
-pleasant to edit and useless to store. `PlanSpec` and `StageSpec` are their
+`RefinementPlan` and `Stage` are plain dataclasses, pleasant to edit and useless
+to store. `PlanSpec` and `StageSpec` are their
 serializable mirrors, and the conversions are explicit in both directions:
 
 ```python
@@ -385,12 +385,12 @@ to use. A `StageSpec` mirrors `Stage` field for field (`StageSpec.name`,
 `StageSpec.restraint_weight_scale` and `StageSpec.window_slack_deg`), and
 `PlanSpec.correlation_guard` mirrors the plan's.
 
-What is stored is the **expanded** plan: every stage in full, because that is
-what will run. There is deliberately no field recording which preset it came
-from, since such a field could disagree with the stages beside it.
+What is stored is the expanded plan: every stage in full, because that is what
+will run. There is deliberately no field recording which preset it came from,
+since such a field could disagree with the stages beside it.
 
-`PlanSpec.preset_name` is therefore a method rather than a field, and it
-answers the question by comparison: the registered preset this plan *equals*,
+`PlanSpec.preset_name` is therefore a method rather than a field, and it answers
+the question by comparison. It returns the registered preset this plan equals,
 or `None` if it was edited:
 
 ```python
@@ -478,9 +478,9 @@ for stage in result.stages:
 matches no path is not an error, so an empty list means the stage was a no-op
 and the run continued past it in silence.
 
-`StageResult.held` is the field to read when a *parameter* did nothing. A phase
+`StageResult.held` is the field to read when a parameter did nothing. A phase
 reaches the pattern only through `scale × |F|² × profile`, so a phase whose
-scale sits at its floor has no measurable structural parameter at all: freeing
+scale sits at its floor has no measurable structural parameter at all. Freeing
 its cell asks the solver to search a direction that does not change the
 calculated pattern. Where that is the case at stage start, the stage holds
 those parameters and refines the rest; the phase's own `scale` is never held,
@@ -491,8 +491,8 @@ stages that held it, and the parameters are absent from
 
 A hold is decided per stage, at the values that stage starts from, so a phase
 that appears later refines normally from the stage where it appears. If it
-appears *while* a stage solves, that stage lifts the hold and solves a second
-time — once, never a third — and lists those paths in `StageResult.released`
+appears while a stage solves, that stage lifts the hold and solves a second
+time, once and never a third, and lists those paths in `StageResult.released`
 instead. Both solves are counted in `n_iterations`; `cost_initial` is still the
 cost the stage started at.
 
@@ -509,7 +509,7 @@ which has no linear-inequality vocabulary at all. It counts only under
 ## Guards
 
 A guard is a measurement taken after a stage converges. It never changes the
-fit; it reports something about the fit that the fit statistics cannot show.
+fit. It reports something about the fit that the fit statistics cannot show.
 
 Every hit is a `GuardFinding`, which carries the finding as data rather than as
 a sentence:
@@ -549,14 +549,14 @@ once:
 coefficient, the block R², the minimum eigenvalue, the worst σ²(M). It is
 `None` for `GuardFinding.at_bound`, which has no number to report.
 
-`code` is an open vocabulary of strings and deliberately not a closed type: it
+`code` is an open vocabulary of strings and deliberately not a closed type. It
 is the same vocabulary as `Diagnostic.code`, so the mapping from a guard to the
 diagnostic a caller reads is data rather than a hand-written branch per kind.
 [](results.md) reads diagnostics.
 
-Read a guard as evidence about what the data could support, not as a verdict on
-the model. A `nonpositive_strain` finding means those coefficients are not
-quotable; it is not a measurement of anisotropy.
+Read a guard as evidence about what the data could support, and not as a verdict
+on the model. A `nonpositive_strain` finding means those coefficients are not
+quotable, and it is no measurement of anisotropy.
 
 ## Watching a run
 
@@ -605,14 +605,14 @@ assert token.is_set()
 token.reset()
 ```
 
-Cancellation is cooperative. The token is read between residual evaluations,
-never as an interrupt, which is what keeps the frozen-per-stage state of a
-compiled model intact.
+Cancellation is cooperative. The token is read between residual evaluations and
+never as an interrupt, so the frozen-per-stage state of a compiled model stays
+intact.
 
-The stage in flight is **abandoned**: no history node, no commit, and the
-models restored to the values they held before that stage began. That is not
-tidiness: a seeding stage writes to the models before it solves, so leaving them
-alone would leave a half-seeded model behind.
+The stage in flight is abandoned: no history node, no commit, and the models
+restored to the values they held before that stage began. That restore is more
+than tidiness. A seeding stage writes to the models before it solves, so leaving
+them alone would leave a half-seeded model behind.
 
 `RefinementCancelled` is then raised, carrying what did complete:
 
@@ -630,7 +630,7 @@ except rx.RefinementCancelled as cancelled:
 is empty when the first stage was cancelled. `RefinementCancelled.node_id` is
 `None` with history disabled, or when nothing completed.
 
-A cancelled run is therefore not a lost run: the working state is a real,
+A cancelled run is therefore not a lost run. The working state is a real,
 restorable node ([](history.md)), and the stages before it are reported in
 full.
 
@@ -658,8 +658,8 @@ print(p.package_version, p.backend, p.solver, p.dtype)
 
 Read `Provenance.backend`, `Provenance.dtype` and `Provenance.solver` back
 rather than assuming them. A result is only as reproducible as its record of how
-it was computed, and that record is the only place the answer survives once the
-calling code has moved on.
+it was computed, and that record is where the answer survives once the calling
+code has moved on.
 
 The four version fields are the same contracts `capabilities()` reports.
 [](compatibility.md) says what a change to one means.

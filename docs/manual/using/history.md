@@ -53,7 +53,7 @@ returns the first of them, which is the line a linear history follows, and
 where the node carries no statistics. A model edit and a merge are both such
 nodes: neither ran a least squares.
 
-**A node stores state, not curves.** The calculated pattern and the agreement
+A node stores state and not curves. The calculated pattern and the agreement
 indices are a function of the state and the pattern, so they are recomputed on
 demand instead of stored. On the 11-BM acceptance case a state-only node is
 about 10 kB against about 1.24 MB for one carrying the fitted curves, and that
@@ -74,10 +74,10 @@ ratio is what makes wide branching affordable.
 | `edit_model` | `Refinement.edit` |
 | `merge` | `Refinement.merge` |
 
-The table is the whole vocabulary, and the second column is why: every member
-is committed by a verb you can call. A Le Bail intensity refresh is not among
-them, because it is not a node: a Le Bail stage refreshes the intensities
-inside itself, and the refreshed values are part of that `stage` node's state.
+The table is the whole vocabulary, and the second column is why: every member is
+committed by a verb you can call. A Le Bail intensity refresh is not among them,
+because it is not a node. A Le Bail stage refreshes the intensities inside
+itself, and the refreshed values are part of that `stage` node's state.
 
 The other fields are the arguments of the operation, and which of them are set
 depends on the kind. `NodeAction.name` is the stage's name, or the label given
@@ -85,7 +85,7 @@ to an edit or a merge. `NodeAction.turn_on` and `NodeAction.turn_off` are the
 globs a stage freed or a `set_vary` changed. `NodeAction.values` is what
 `set_values` was called with. `NodeAction.ties` and `NodeAction.untied` are what
 a tie edit declared and removed, and `NodeAction.variables` and
-`NodeAction.removed_variables` are the same pair for a variable edit — the
+`NodeAction.removed_variables` are the same pair for a variable edit: the
 declaration by name, and the names deleted.
 
 A stage records its solver settings as well: `NodeAction.max_iter`,
@@ -97,7 +97,7 @@ somewhere else. A setting missing here would be a stage that replays as a
 different stage from the one recorded.
 
 `NodeAction.ftol` records the tolerance the stage was solved at, which is not
-always the one it declared: a stage taking the plan's schedule
+always the one it declared. A stage taking the plan's schedule
 (`RefinementPlan.intermediate_ftol`, see [](refining.md)) declares nothing and
 still stops at `1e-6`, so a node holding `None` would replay the one thing the
 original run did not do.
@@ -134,14 +134,14 @@ default, which keeps a plain stage's line short.
 | `RefinementState.reflections` | extracted or refined intensities, per phase |
 
 The last four are carried because the models do not hold them. A vary flag
-survives in the models, but the free *set* after globbing does not; a symmetry
-tie is rederived from the space group on every table build, while a tie you
-declared is not derivable from anything. A node without them would restore a
-model with the constraints silently gone, and the parameter count with them.
+survives in the models, and the free set after globbing does not. A symmetry tie
+is rederived from the space group on every table build, while a tie you declared
+is not derivable from anything. A node without them would restore a model with
+the constraints silently gone, and the parameter count with them.
 
 `RefinementState.variables` is that argument one step further along. A tie is
-not a property of the models; a {ref}`named variable <named-variables>` is not
-*in* them at all — there is no field for it to be written to — so the node is
+not a property of the models, and a {ref}`named variable <named-variables>` is
+not in them at all, since there is no field for it to be written to. The node is
 its only record, and a checkout that dropped it would restore ties naming a
 parameter that no longer exists.
 
@@ -158,7 +158,7 @@ intensities are not computed from the structure.
 | `ReflectionState.varied` | whether these were free parameters |
 
 Le Bail intensities are seeded flat and refined by a fixed-point loop, so they
-are path-dependent: they cannot be recovered from the structure, the instrument
+are path-dependent. They cannot be recovered from the structure, the instrument
 and the pattern. Storing them is what makes a Le Bail checkpoint restorable at
 all. In the walkthrough of [](quickstart.md) the Le Bail node carries 129
 extracted intensities and the Rietveld nodes carry none, because in Rietveld
@@ -178,9 +178,9 @@ mode the structure computes them.
 | `NodeMetrics.cost_final` | the cost it reached |
 | `NodeMetrics.stderr` | esds by dot-path, in physical units |
 
-These are **as-optimised** numbers: the agreement the least squares reached on
-the model it was minimising, whose reflection list, windows and quadrature node
-counts were frozen at the values the stage *started* from. Recomputing the same
+These are as-optimised numbers: the agreement the least squares reached on the
+model it was minimising, whose reflection list, windows and quadrature node
+counts were frozen at the values the stage started from. Recomputing the same
 state with a fresh compile can differ slightly, and `replay` below is how you
 see by how much.
 
@@ -295,15 +295,15 @@ fact, and `RefinementTree.refs` is the whole ref table, `head` included.
 `RefinementTree.set_head` moves the head ref without touching the working state,
 which is the low-level half of a checkout.
 
-Annotations are an overlay rather than an edit: each one is recorded as its own
+Annotations are an overlay rather than an edit. Each one is recorded as its own
 `Annotation`, with `Annotation.node_id`, `Annotation.label`, `Annotation.refs`,
 `Annotation.scores` and `Annotation.notes`, and applied on top of the node when
-the log is read back. That is what keeps the log append-only while still letting
-a node acquire a name.
+the log is read back. That keeps the log append-only while still letting a node
+acquire a name.
 
 :::{admonition} For agents
 :class: agent
-`HistoryNode.scores` and `HistoryNode.notes` are the bookkeeping channel: they
+`HistoryNode.scores` and `HistoryNode.notes` are the bookkeeping channel. They
 are yours to write, nothing in the package reads them, and they survive a save
 and a reload. A search over strategies can score each leaf as it commits and
 sort the leaves afterwards, without holding a table of node ids anywhere else.
@@ -333,10 +333,10 @@ alt.fit(data, plan="profile_only")
 Each `Refinement` carries its own position, so `ref` stays where it was. The
 tree's `head` ref is shared, and it follows whichever object committed or
 checked out last. Read `RefinementTree.head` as "where a reopened session
-resumes", not as "where this object is".
+resumes" rather than as "where this object is".
 
-`Refinement.from_node` opens a *new* refinement positioned at a node, which is
-what a container does when it reloads a session:
+`Refinement.from_node` opens a new refinement positioned at a node, as a
+container does when it reloads a session:
 
 <!-- api-doc: no-exec — it needs a tree loaded from a log -->
 ```python
@@ -344,9 +344,9 @@ tree = rx.RefinementTree.load("nac.jsonl")
 ref = rx.Refinement.from_node(tree, "head")
 ```
 
-`Refinement.cherry_pick` takes another node's *action* and runs it here. It
-replays the recorded stage, not the recorded values, which is what makes a
-strategy reusable on a different branch or a different specimen:
+`Refinement.cherry_pick` takes another node's action and runs it here. It
+replays the recorded stage rather than the recorded values, so a strategy is
+reusable on a different branch or a different specimen:
 
 <!-- api-doc: no-exec — it needs a tree with a stage node in it -->
 ```python
@@ -368,8 +368,8 @@ ref.checkout("n0012")                 # the state to merge into
 ref.merge("n0013", prefer="ours", label="keep this model on conflicts")
 ```
 
-**Only values merge.** The model composition comes from the preferred side
-whole: which phases exist, which background, which free set, which mode. In the
+Only values merge. The model composition comes from the preferred side whole:
+which phases exist, which background, which free set, which mode. In the
 walkthrough's tree the CaF₂ impurity arrives in a model edit, so merging the Le
 Bail branch into the final state with `prefer="theirs"` returns a one-phase
 model. Nothing raises. Read `Refinement.structure` back after any merge that
@@ -392,7 +392,8 @@ The model is compiled fresh at the node's own values, so the statistics it
 returns can differ from `NodeMetrics.statistics`, which the optimiser measured
 on a model frozen at the values its stage started from. On the walkthrough's
 final node the two Rwp values differ by 1.6e-7. A difference of that size is the
-freeze being re-taken; a large one is the staleness signal described above.
+freeze being re-taken, and a large one is the staleness signal described
+above.
 
 `replay` refuses a pattern that is not the one the tree was recorded against,
 comparing fingerprints and naming both. That refusal is the reason the header
@@ -419,7 +420,7 @@ the file's bytes, so it answers the question a replay needs answered: are these
 the numbers the nodes were fitted against. [](files.md) covers the second digest
 a project keeps beside it, and what disagreement between the two means.
 
-`TreeHeader.plan` records the plan the tree was *created* with, which is not
+`TreeHeader.plan` records the plan the tree was created with, which is not
 necessarily the plan any given node ran. In the walkthrough it reads
 `profile_only`, because the first call was a Le Bail fit and that is the plan
 Le Bail mode selects. What each node ran is on that node's own `NodeAction`.
