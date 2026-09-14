@@ -107,8 +107,7 @@ with no argument lists every run under a directory and opens one. Its baseline r
 **Queued, unscheduled** ([§ Unscheduled](#unscheduled)): the 2026-09-01 issue
 triage's 1309–1322 plus 1323 and 1325; the magnetic scattering track
 (1326–1329 and 1343); the rest of the live-watcher track (1402–1406); the older
-one, 1133. [1412](wp/1412-the-theme-nobody-chose.md) is new: 1411 found furo
-picked in a dependencies bullet and never compared. The **2026-09-03 triage** adds 1332–1341 — three more on what fires and
+one, 1133. The **2026-09-03 triage** adds 1332–1341 — three more on what fires and
 what stays silent, three costs a
 multi-hundred-pattern campaign paid that a single fit never sees, three views
 over what a fit already knows, and the skill's own gates — and folded three
