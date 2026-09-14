@@ -230,7 +230,7 @@ async function pumpEvents(id) {
   // there, so a fit emitting an event per residual evaluation would pay for
   // its whole history on every poll
   pane.insertAdjacentHTML('beforeend', html);
-  while (pane.childElementCount > MAX_LINES) pane.removeChild(pane.firstChild);
+  while (pane.childElementCount > MAX_LINES) pane.firstElementChild.remove();
   if (atBottom) pane.scrollTop = pane.scrollHeight;
 }
 

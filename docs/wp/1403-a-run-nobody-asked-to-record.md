@@ -249,6 +249,18 @@ was gated on:
 - **The reader tolerates a newer writer's fields.** `RunMeta`/`RunStatus` allow
   extra keys rather than forbidding them, for the reason `EventRecord.data` is
   an open dict. A new field is therefore additive and needs no reader change.
+  `RunStatus.state` is typed `str` rather than a closed `Literal` for the same
+  reason, with `runs.RUN_STATES` naming the vocabulary, so a state this WP
+  invents is read rather than costing the whole file its validation.
+- **One known limit in `tail_events`, deliberately left, and this WP is where
+  it could start mattering.** A single line longer than `max_bytes` (4 MiB)
+  stalls the tail: `cut == -1` holds the offset, and every later call re-reads
+  the same 4 MiB and returns nothing. WP-1401's review found it and declined to
+  fix it, because skipping forward would emit a torn line and no event in the
+  tree comes near the bound. The reason to re-check here is that WP-1401's own
+  text calls the torn-line handling "load-bearing rather than defensive from
+  WP-1403 on, when writes become buffered" — so if this WP makes events larger
+  or batches them, measure the largest line before relying on the bound.
 
 ## Non-goals
 
