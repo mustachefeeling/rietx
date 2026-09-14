@@ -131,7 +131,7 @@ code, because `events=` already exists. Two facts verified in the tree
   consulted, so no cleverness in a sink can avoid it. Then `emit` does
   `json.dumps` + write + `flush`: a syscall pair per residual evaluation, on the
   fit thread.
-- `refine.py:1758-1771` computes a real `stage_end.rwp` from one `background`
+- `refine.py:1766-1785` computes a real `stage_end.rwp` from one `background`
   pass plus one `bragg_component` pass, **only when events were asked for**. That
   is one forward evaluation per *stage*, against a stage's hundreds.
 
