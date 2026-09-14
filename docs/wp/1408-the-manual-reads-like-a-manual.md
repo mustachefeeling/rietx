@@ -1,8 +1,8 @@
 # WP-1408 — The theory manual reads like a manual
 
 Milestone: unscheduled · Status: ✅ 2026-09-14 — all eleven reported defects
-fixed, each with the guard that closes its class; four new guards, one
-measurement script
+fixed, each with the guard that closes its class; five new guards, one
+measurement script, and the TCH attribution corrected from the paper itself
 Depends on: — (0604 built Part 2; 1067 built Part 1)
 
 ## Goal
@@ -320,6 +320,50 @@ entirely; B's guard is a measurement script, not a test, for the same reason
   measurement was taken.
 
 ## Handover log
+
+### 2026-09-14 (3rd session) — the paper arrived, and the chapter was wrong
+
+Thompson, Cox & Hastings (1987) was the one thing the previous entry said it
+could not get, and the maintainer supplied it within the hour. It settles both
+open questions and **refutes half of what the chapter had just been given to
+say**: (3.6) and (3.7) do not have the same author. The paper credits the
+pseudo-Voigt as a way of reading a line's Gaussian and Lorentzian content to
+Wertheim, Butler, West & Buchanan (1974), and the mixing expansion to Hastings,
+Thomlinson & Cox (1984), stating plainly that "the coefficients used in this
+expression differ from those used earlier in II because of the normalization
+factors in (1)" — so TCH *renormalised* someone else's coefficients for the
+unit-area form. The chapter had them fitting both polynomials. That is the kind
+of error the whole manual's discipline exists to prevent, and only the source
+could catch it.
+
+*Done*: the attribution corrected, with `wertheim1974` and `hastings1984` added
+to the bibliography, each verified on title, journal, volume, first page and
+year before the DOI went in. (3.6)'s origin is now **quoted** rather than
+inferred — "another simple series expansion derived from a set of
+computer-generated convolutions" — which is the same "fitted, not derived"
+claim the section already made, sourced. And the trailing **Z** of
+`ProfileTCHZ` is settled by elimination: TCH's own width model is one parameter
+per component, Γ_G = V tanθ and Γ_L = X/cosθ, with no U, W or Y and nothing
+called Z, so every further letter came from the codes that adopted the profile
+afterwards. Their two letters survive by θ-law — their V is this chapter's
+Gaussian tanθ term, their X its Lorentzian 1/cosθ one — which is the chapter's
+own "read the law, not the letter" rule paying off in the place it was written
+for.
+
+*Measured*: nothing new. The paper **quotes no accuracy** for either expansion,
+which is the second reason the 0.43 % and 1.27 % on that page are measured
+against this package's own Faddeeva Voigt rather than cited — that was a guess
+in the previous entry and is now a fact. Bibliography 103 → 105 entries, both
+new ones carrying a DOI; 102 equations still clear, minimum 44 px; suite
+unchanged (no test added or removed).
+
+*Gotchas*: none new. The two guards written this morning both held through the
+edit without attention — the brace rule caught nothing because the new titles
+were written to it, and the DOI rule refused nothing because both DOIs were
+verified before insertion, which is the order that rule assumes.
+
+*Next*: nothing on this WP. The PR is updated; merging is the maintainer's, and
+the v1.4.0 tag finding in the previous entry is still the one thing outside it.
 
 ### 2026-09-14 (2nd session) — the manual's own defects, each closed with its guard
 
