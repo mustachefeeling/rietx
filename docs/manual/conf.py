@@ -75,11 +75,14 @@ extensions = [
 ]
 
 # Diagrams render in the browser (`raw` output needs no mermaid-cli at build
-# time).  The extension detects the active theme from `body[data-theme]`, which
-# is what furo writes, and re-renders on a MutationObserver when the toggle
-# moves — so these two names are the whole light/dark story.  mermaid.js itself
-# comes from a CDN when the page is *viewed*; set `mermaid_use_local` if a
-# built copy of the manual has to render diagrams offline.
+# time).  The extension detects the active theme itself and re-renders on a
+# MutationObserver when the toggle moves, so these two names are the whole
+# light/dark story.  It reads a `dark`/`light` class or `data-theme` on *either*
+# `html` or `body` and falls back to `prefers-color-scheme`, which is wider than
+# furo's own `body[data-theme]`: WP-1412 drove all four of its spellings and the
+# diagrams followed every one.  mermaid.js itself comes from a CDN when the page
+# is *viewed*; set `mermaid_use_local` if a built copy of the manual has to
+# render diagrams offline.
 mermaid_light_theme = "default"
 mermaid_dark_theme = "dark"
 # Without the title margin, a subgraph label is drawn on the cluster border and
