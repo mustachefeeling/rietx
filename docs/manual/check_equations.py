@@ -62,8 +62,10 @@ VIEWPORTS = ({"width": 1440, "height": 1000}, {"width": 1100, "height": 1000})
 #: machine does not.
 MIN_CLEARANCE_PX = 8
 
-#: Rows this wide or narrower are not printed unless they fail.  The interesting
-#: end of the list is the wide one.
+#: Only a row with *less* clearance than this is printed; a passing row with
+#: more is silent.  The interesting end of the list is the tight one — a wide
+#: equation is a narrow gap — and printing every equation on every page buries
+#: it.
 REPORT_BELOW_CLEARANCE_PX = 60
 
 #: Read off each `div.math` that carries a number.  Written as one expression
@@ -123,34 +125,41 @@ def measure(out: Path) -> int:
     failures: list[str] = []
     with sync_playwright() as play:
         browser = play.chromium.launch(executable_path=executable or None)
-        for viewport in VIEWPORTS:
-            context = browser.new_context(viewport=viewport)
-            page = context.new_page()
-            print(f"—— viewport {viewport['width']} px " + "—" * 28)
-            print(f"{'equation':<34} {'no.':>8} {'ink':>6} {'cell':>6} {'clear':>6} {'over':>5}")
-            total = 0
-            for target in targets:
-                page.goto(target.as_uri())
-                # MathJax typesets after load; there is no event for "done", so
-                # wait for the first container and then for the layout to settle.
-                page.wait_for_selector("mjx-container", timeout=60_000)
-                page.wait_for_timeout(1_500)
-                for row in page.evaluate(_PROBE):
-                    total += 1
-                    bad = row["clear"] < MIN_CLEARANCE_PX or row["over"] > 0
-                    if not bad and row["clear"] > REPORT_BELOW_CLEARANCE_PX:
-                        continue
-                    mark = "FAIL" if bad else "    "
-                    name = f"{target.name}:{row['id'].removeprefix('equation-')}"
-                    print(f"{mark} {name:<29} {row['number']:>8} {row['ink']:>6} "
-                          f"{row['cell']:>6} {row['clear']:>6} {row['over']:>5}")
-                    if bad:
-                        failures.append(f"{viewport['width']} px  {name} {row['number']}: "
-                                        f"ink {row['ink']} px in a {row['cell']} px cell, "
-                                        f"clearance {row['clear']} px, overflow {row['over']} px")
-            print(f"     {total} numbered equations measured\n")
-            context.close()
-        browser.close()
+        try:
+            for viewport in VIEWPORTS:
+                context = browser.new_context(viewport=viewport)
+                try:
+                    page = context.new_page()
+                    print(f"—— viewport {viewport['width']} px " + "—" * 28)
+                    print(f"{'equation':<34} {'no.':>8} {'ink':>6} "
+                          f"{'cell':>6} {'clear':>6} {'over':>5}")
+                    total = 0
+                    for target in targets:
+                        page.goto(target.as_uri())
+                        # MathJax typesets after load; there is no event for
+                        # "done", so wait for the first container and then for
+                        # the layout to settle.
+                        page.wait_for_selector("mjx-container", timeout=60_000)
+                        page.wait_for_timeout(1_500)
+                        for row in page.evaluate(_PROBE):
+                            total += 1
+                            bad = row["clear"] < MIN_CLEARANCE_PX or row["over"] > 0
+                            if not bad and row["clear"] > REPORT_BELOW_CLEARANCE_PX:
+                                continue
+                            mark = "FAIL" if bad else "    "
+                            name = f"{target.name}:{row['id'].removeprefix('equation-')}"
+                            print(f"{mark} {name:<29} {row['number']:>8} {row['ink']:>6} "
+                                  f"{row['cell']:>6} {row['clear']:>6} {row['over']:>5}")
+                            if bad:
+                                failures.append(
+                                    f"{viewport['width']} px  {name} {row['number']}: "
+                                    f"ink {row['ink']} px in a {row['cell']} px cell, "
+                                    f"clearance {row['clear']} px, overflow {row['over']} px")
+                    print(f"     {total} numbered equations measured\n")
+                finally:
+                    context.close()
+        finally:
+            browser.close()
 
     if failures:
         print("equations that do not fit their column:")
@@ -163,6 +172,15 @@ def measure(out: Path) -> int:
 
 
 def main() -> int:
+    # Before the build, not inside `measure`: a full `-E` sphinx run is a
+    # minute, and paying it to arrive at an ImportError is the one failure this
+    # script can see coming.
+    try:
+        import playwright.sync_api  # noqa: F401
+    except ImportError:
+        print("playwright is not installed — see this module's docstring.", file=sys.stderr)
+        return 2
+
     work = Path(tempfile.mkdtemp(prefix="rietx-equations-"))
     try:
         build(work / "html")

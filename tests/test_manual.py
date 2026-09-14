@@ -58,8 +58,11 @@ CITE_ROLE = re.compile(r"\{cite\}`([^`]+)`")
 #: The role resolves the name to a repository link at build time, so `-W`
 #: already fails on one that does not import; these tests keep naming the
 #: symbol in the failure and keep the coverage rule that every labelled
-#: equation sits beside one.
-SOURCE_LINE = re.compile(r"^\{source\}`([A-Za-z_][\w.]*)`$", re.MULTILINE)
+#: equation sits beside one.  Leading and trailing whitespace is allowed: a
+#: role indented inside a directive, or a line with a stray trailing space, is
+#: a source line the reader sees, and anchoring hard would make it invisible to
+#: both guards below rather than making it illegal.
+SOURCE_LINE = re.compile(r"^[ \t]*\{source\}`([A-Za-z_][\w.]*)`[ \t]*$", re.MULTILINE)
 BIB_KEY = re.compile(r"^@\w+\{([^,\s]+)\s*,", re.MULTILINE)
 
 
@@ -173,8 +176,12 @@ def test_the_tch_coefficients_in_print_are_the_ones_the_code_runs():
     for label, expected in (("prof-tch-gamma", _TCH_GAMMA), ("prof-tch-eta", _TCH_ETA)):
         block = re.search(rf":label: {label}\n(.*?)^```", text, re.S | re.M)
         assert block, f"{label}: equation not found in profiles.md"
-        printed = [float(n) for n in re.findall(r"\d+\.\d{4,}", block.group(1))]
-        assert printed == [abs(c) for c in expected], (
+        # The sign is read too: `_TCH_ETA`'s middle coefficient is negative and
+        # the chapter prints it as a subtraction, so comparing magnitudes would
+        # let a sign flip in either copy through unseen.
+        printed = [float(sign.replace("+", "") + digits)
+                   for sign, digits in re.findall(r"([-+])?\s*(\d+\.\d{4,})", block.group(1))]
+        assert printed == list(expected), (
             f"{label} prints {printed}, the code runs {list(expected)}")
 
 
@@ -194,6 +201,11 @@ def test_every_citation_has_a_bib_entry():
     assert not missing, f"citations with no bibliography entry: {sorted(missing)}"
 
 
+#: One entry: `@kind{key,` down to a `}` alone at the start of a line.  The
+#: closing brace is anchored with `$` rather than a literal newline, so the
+#: last entry is still parsed on a file with no trailing newline — a regex
+#: that needs the newline drops it silently, which is a bibliography entry
+#: quietly exempt from both guards below.
 BIB_ENTRY = re.compile(r"^@(\w+)\{([^,\s]+)\s*,\n(.*?)\n\}\s*$", re.MULTILINE | re.DOTALL)
 BIB_FIELD = re.compile(r"^\s*(\w+)\s*=\s*\{(.*?)\}\s*,?\s*$", re.MULTILINE | re.DOTALL)
 
@@ -205,20 +217,25 @@ NO_DOI = {"scherrer1918": "Göttinger Nachrichten 1918 predates the DOI register
 def _bib_entries() -> list[tuple[str, str, dict[str, str]]]:
     text = (MANUAL_DIR / "references.bib").read_text(encoding="utf-8")
     out = []
-    for kind, key, body in re.findall(r"@(\w+)\{([^,\s]+),\n(.*?)\n\}\n", text, re.S):
+    for kind, key, body in BIB_ENTRY.findall(text):
         out.append((kind, key, dict(BIB_FIELD.findall(body))))
     assert out, "no bibliography entries parsed — regex or file moved?"
     return out
 
 
-def _unbraced_words(title: str) -> list[str]:
-    """Words of a title that the `alpha` style is free to lowercase.
+def _title_words(title: str) -> list[tuple[str, bool]]:
+    """Every word of a title, each with whether `{...}` protects it.
 
     Depth is tracked so a word inside `{...}` is exempt, and the depth a word
     *started* at is what counts — reading it at the closing brace would call
     every protected word unprotected.
+
+    A protected word stays **in** the list rather than being filtered out here,
+    because the caller exempts the title's *first* word: dropping them would
+    shift that exemption onto the second word of every title opening with a
+    braced proper noun, and nine entries do (`{Rietveld} refinement …`).
     """
-    words: list[str] = []
+    words: list[tuple[str, bool]] = []
     depth, word, word_depth = 0, "", 0
     for char in title:
         if char.isalnum() or char in "-'’":
@@ -227,12 +244,11 @@ def _unbraced_words(title: str) -> list[str]:
             word += char
             continue
         if word:
-            if word_depth == 0:
-                words.append(word)
+            words.append((word, word_depth > 0))
             word = ""
         depth += (char == "{") - (char == "}")
-    if word and word_depth == 0:
-        words.append(word)
+    if word:
+        words.append((word, word_depth > 0))
     return words
 
 
@@ -251,8 +267,8 @@ def test_no_bibliography_title_has_an_unbraced_interior_capital():
         title = fields.get("title")
         if not title:
             continue
-        for word in _unbraced_words(title)[1:]:
-            if any(c.isupper() for c in word):
+        for word, protected in _title_words(title)[1:]:
+            if not protected and any(c.isupper() for c in word):
                 offenders.append(f"{key}: {word!r} in {title[:60]!r}")
     assert not offenders, (
         "a capital the bibliography style will lowercase — brace the word, or "
@@ -265,8 +281,9 @@ def test_every_article_carries_its_doi_in_the_one_case_the_file_uses():
     """references.bib § rules 2 and 3: an article has a DOI, and it is lower
     case — the form every machine source returns, so the field matches the
     only thing that can check it."""
+    entries = _bib_entries()
     missing, miscased = [], []
-    for kind, key, fields in _bib_entries():
+    for kind, key, fields in entries:
         doi = fields.get("doi")
         if kind == "article" and not doi and key not in NO_DOI:
             missing.append(key)
@@ -276,7 +293,7 @@ def test_every_article_carries_its_doi_in_the_one_case_the_file_uses():
         "article entries with no doi field — look it up on Crossref and verify "
         f"title, year, volume and first page, or declare it in NO_DOI: {missing}")
     assert not miscased, f"doi fields that are not lower case: {miscased}"
-    stale = sorted(set(NO_DOI) - {key for _k, key, _f in _bib_entries()})
+    stale = sorted(set(NO_DOI) - {key for _k, key, _f in entries})
     assert not stale, f"NO_DOI names entries that are gone: {stale}"
 
 

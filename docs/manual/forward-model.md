@@ -44,7 +44,8 @@ I_{pk} \;=\; S_p \cdot m_{pk} \cdot |F_{pk}|^2 \cdot \mathrm{Lp}(2\theta_{lk}),
 with phase scale $S_p$, multiplicity $m_{pk}$ (chapter {ref}`ch-intensities`),
 structure factor $|F|^2$ in e² and the Lorentz-polarisation factor Lp (chapter
 {ref}`ch-corrections`). Everything but $S_p$ is fixed by the model, so the
-scale is what carries counts·deg 2θ and it is dimensionless in no useful sense:
+scale is what turns e² into the counts·deg 2θ of $I_{pk}$, and it is
+dimensionless in no useful sense:
 it is meaningful only against the other phases' scales, which is why the
 quantitative fractions of {eq}`corr-qpa` are ratios. $|F|^2$ depends only on
 $\sin\theta/\lambda = 1/2d$ and is therefore shared across emission lines; Lp

@@ -418,9 +418,17 @@ def _assignment_line(path: _Path, name: str) -> int:
     file would be worse than useless: it would look like a working link.
     """
     pattern = _re.compile(rf"^{_re.escape(name)}\s*[:=]")
-    for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-        if pattern.match(line):
-            return number
+    matches = [number
+               for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1)
+               if pattern.match(line)]
+    if len(matches) == 1:
+        return matches[0]
+    if matches:
+        # Two column-0 bindings of one name: a real rebind, or a line inside a
+        # module docstring that reads like one.  Guessing picks a link that
+        # looks right and is not, so refuse and name the lines.
+        raise LookupError(f"{name}: {len(matches)} module-level bindings in "
+                          f"{path.name}, lines {matches}")
     raise LookupError(f"{name}: no module-level assignment in {path.name}")
 
 
@@ -442,12 +450,30 @@ def _resolve_source(dotted: str) -> tuple[str, int]:
             raise LookupError(f"{dotted}: {obj!r} has no attribute {attr!r}")
         obj = getattr(obj, attr)
 
-    path = _Path(_inspect.getsourcefile(module)).resolve()
+    # The file has to be the one the *line* was read out of.  `getsourcelines`
+    # reports where the object was **defined**, which for a re-exported name
+    # (`schemas.history` re-exports `StageSpec`, and the package does that on
+    # purpose) is not the module the dotted name went through — taking the path
+    # from the module and the line from the object then links a real file at a
+    # line belonging to another one, and every guard here still passes because
+    # the name imports.  A constant has no code behind it, so it falls back to
+    # the module's own file, which is where `_assignment_line` reads.
     try:
         line = _inspect.getsourcelines(obj)[1] or 1
+        path = _Path(_inspect.getsourcefile(obj) or _inspect.getsourcefile(module)).resolve()
     except (TypeError, OSError):
+        path = _Path(_inspect.getsourcefile(module)).resolve()
         line = _assignment_line(path, parts[-1]) if parts[split:] else 1
-    return path.relative_to(_REPO_ROOT).as_posix(), line
+    try:
+        return path.relative_to(_REPO_ROOT).as_posix(), line
+    except ValueError:
+        # The imported package is not this checkout's — a non-editable install,
+        # or a venv belonging to another worktree.  Say so: `relative_to`'s own
+        # message reaches the reader as an unexplained `-W` build failure.
+        raise LookupError(
+            f"{dotted}: resolved to {path}, which is outside {_REPO_ROOT} — "
+            "build the manual against an editable install of this checkout"
+        ) from None
 
 
 def _source_role(name, rawtext, text, lineno, inliner, options=None, content=None):
