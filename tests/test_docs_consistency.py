@@ -151,6 +151,9 @@ _INHERITED_PRUNE_EPOCH = "2026-07-31"
 #                                                          two-line blurb every group in that section
 #                                                          carries; landed 678, +4 headroom so the next
 #                                                          few index rows do not each need a cap commit
+#   2026-09-14  docs/ROADMAP.md               682 -> 688  for WP-1409: one index row, the +4 headroom of
+#                                                          2026-09-13 having been spent by 1408's row and
+#                                                          the v1.4 ship; landed 683
 SIZE_CAPS: dict[str, int | None] = {
     # 739 -> 755 (WP-1102): two standing rules for the component seam — that an
     # additive non-Bragg term is a union *member* and not a new field, and that
@@ -169,7 +172,10 @@ SIZE_CAPS: dict[str, int | None] = {
     # docstring ("measured size plus headroom"), because an index row is the one
     # line a new WP cannot demote and a zero-headroom cap makes the next row a
     # cap commit of its own.
-    "docs/ROADMAP.md": 682,
+    # 682 -> 688 (WP-1409): that headroom is spent, on 1408's row and the v1.4
+    # ship pass.  One index row again, and the Current focus paragraph it
+    # replaces is shorter than the one it names.  Landed at 683.
+    "docs/ROADMAP.md": 688,
     "gui/CLAUDE.md": 1028,
     "tests/CLAUDE.md": 275,
     "src/rietx/indexing/CLAUDE.md": 300,
