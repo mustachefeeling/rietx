@@ -126,10 +126,10 @@ and `GeometryAngle.symmetry_3` code the two arms.
 
 ### The esd on a distance
 
-`GeometryDistance.stderr` is propagated through the whole parameter
-covariance, which is what the guidelines require of any derived quantity: "the
-whole correlation matrix, not just the diagonal elements, should be included in
-the calculation" {cite}`mccusker1999`. Part 2 gives the propagation as equation
+`GeometryDistance.stderr` is propagated through the whole parameter covariance,
+as the guidelines require of any derived quantity: "the whole correlation
+matrix, not just the diagonal elements, should be included in the calculation"
+{cite}`mccusker1999`. Part 2 gives the propagation as equation
 {eq}`est-derived`. `GeometryDistance.stderr_diagonal` is the same propagation
 with the refined parameters' correlations zeroed, the number a reader combining
 the printed parameter esds in quadrature would get. It is carried so the
@@ -495,8 +495,8 @@ falloff.
 
 :::{warning}
 This is descriptive, and it triggers nothing. If the file's σ is right then
-weighted least squares already gives those channels the weight they deserve,
-which is what σ is for, so a region is no argument for trimming the range. What
+weighted least squares already gives those channels the weight they deserve, σ
+being for exactly that, so a region is no argument for trimming the range. What
 it tells you is that the pattern's statistical weight is not uniform across it.
 That is a fact about how many detectors saw each angle and not about the
 specimen. Where it disagrees with a hand-chosen fit range, that is information

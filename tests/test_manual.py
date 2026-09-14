@@ -129,6 +129,42 @@ def test_no_unrendered_math_survives_the_build(built_manual):
 
 
 @pytest.mark.xdist_group("manual-build")
+def test_no_unrendered_markup_survives_the_build(built_manual):
+    """No backtick reaches the rendered prose.  The `$` guard above, one
+    delimiter over, and the same blind spot: the page builds clean and prints
+    the markup.
+
+    Every backtick in a MyST source opens a code span or a role, and both
+    render as an element `MARKUP_WITHOUT_PROSE` strips, so a backtick left in
+    the prose is a construct that did not close.  Both instances this was
+    written for were live in the shipped HTML (WP-1409).
+
+    `using/indexing.md`'s "Further reading" had lost the ``{doc}`` prefix and
+    the opening backtick off a role, so the page printed ``the [agent skill
+    <skill>`,`` as text, with `<skill>` swallowed as an HTML tag.  And the
+    agent skill's `references/abstention.md` wrote ``scale × |F|² × profile``
+    as a code span **inside a Markdown table cell**, where the first `|` ends
+    the cell: the span never closed and the backticks rendered literally.  In a
+    table the pipes are escaped and the span dropped, which is what the manual's
+    own tables already do (`\\|F\\|²`).
+    """
+    out, result = built_manual
+    assert result.returncode == 0, "manual did not build — see test_manual_builds_warning_free"
+    copied_in = _copied_in()
+    stray: list[str] = []
+    for page in sorted(out.rglob("*.html")):
+        if page.relative_to(out).as_posix() in copied_in:
+            continue        # the landing page — see _copied_in()
+        text = MARKUP_WITHOUT_PROSE.sub("", page.read_text(encoding="utf-8"))
+        for match in re.finditer(r".{0,60}`.{0,60}", text, re.S):
+            stray.append(f"{page.name}: …{match.group(0).strip()}…")
+    assert not stray, (
+        "a code span or role did not close, and its backtick is in the built "
+        "prose:\n" + "\n".join(stray[:10])
+    )
+
+
+@pytest.mark.xdist_group("manual-build")
 def test_no_unsubstituted_substitution_survives_the_build(built_manual):
     """No `{{ NAME }}` reaches the rendered page.  The guard above, one
     delimiter over, and the same blind spot: `-W` sees nothing.
@@ -488,20 +524,47 @@ def _part_two() -> list[Path]:
     return pages
 
 
+#: Every chapter a person wrote, both parts.  ``_generated/`` is excluded
+#: because neither file in it is the manual's prose to hold: the glossary body
+#: is written from ``rietx.help`` by ``conf.py`` (and guarded by
+#: ``tests/test_help.py``), and the skill body is the agent skill rendered
+#: whole, which is a rulebook an agent cites and may compress
+#: (``tests/test_skill.py``).
+def _authored_chapters() -> list[Path]:
+    pages = [p for p in CHAPTERS
+             if "_generated" not in p.relative_to(MANUAL_DIR).parts]
+    assert len(pages) > 20, "the manual's chapters are not where this expects"
+    return pages
+
+
+#: A directive option (``:class:``, ``:alt:``, ``:language:``) and an ``:::``
+#: admonition marker, distinguished from a MyST definition-list body (``: the
+#: text``), which is prose and is kept.
+_DIRECTIVE_OPTION = re.compile(r"^:(?::+|[a-z][a-z0-9-]*:)")
+
 #: The prose of a page: lines outside fenced blocks, with code spans stripped.
 #: A token inside ``…`` is a field name or captured output and a fenced block is
 #: TeX or a console transcript, so neither is this file's to police.
+#:
+#: An admonition's **body** is prose and was not covered until WP-1409: the
+#: helper skipped a whole ``:::`` block, so Part 1's admonitions carried 17 em
+#: dashes and 12 bold marks that the register guard below could not see.  Only
+#: the markers and the option lines are dropped now.  An HTML comment goes too:
+#: ``<!-- api-doc: no-exec — … -->`` is a directive to `test_manual_api.py` and
+#: renders nowhere, and Part 1 carries 66 em dashes inside them.
 def _prose_lines(page: Path) -> list[tuple[int, str]]:
     lines: list[tuple[int, str]] = []
     fence = None
     for number, line in enumerate(page.read_text(encoding="utf-8").splitlines(), 1):
         stripped = line.lstrip()
-        if fence is None and stripped.startswith(("```", ":::")):
-            fence = stripped[:3]
+        if fence is None and stripped.startswith("```"):
+            fence = "```"
             continue
         if fence is not None:
             if stripped.startswith(fence):
                 fence = None
+            continue
+        if stripped.startswith("<!--") or _DIRECTIVE_OPTION.match(stripped):
             continue
         lines.append((number, re.sub(r"`[^`]*`", "", line)))
     return lines
@@ -515,30 +578,37 @@ REGISTER_MARKS = (
 )
 
 
-def test_part_two_keeps_the_manual_register():
-    """Part 2 is prose someone reads to get work done, and reads as it.
+def test_the_manual_keeps_its_register():
+    """The manual is prose someone reads to get work done, and reads as it.
 
     A rulebook may compress, and `CLAUDE.md` measures ~15 em dashes per 1000
     words with the register working.  A manual's budget is 0, and the failure
     this guard exists for is leakage: the rulebook sits in the same tree, gets
     read first, and its voice arrives in the manual by default. That is how all
-    twelve chapters came to measure 6-15 per 1000 and to carry 87 bold or italic
-    maxims (WP-1408, `yue-prose`).
+    twelve Part 2 chapters came to measure 6-15 per 1000 and to carry 87 bold or
+    italic maxims (WP-1408), and Part 1 to carry 363 em dashes and 400 bold
+    marks over 73 699 words (WP-1409, `yue-prose`).
+
+    Both parts, since WP-1409.  Part 2 was already at zero when Part 1 was
+    swept, so widening the page list and `_prose_lines`' zones cost Part 2 no
+    edit — which is the evidence that the zones were a hole rather than an
+    exemption.
 
     The two marks below are the mechanical half of that register, so they are
     the half a test can hold; the rest is `yue-prose`'s grep pass, run on the
     chapter you edited.  A page that genuinely needs bold (a UI label, a table
-    header) changes this test and says why.
+    header) changes this test and says why: Part 1 writes its GUI labels in
+    backticks instead, which is what the majority of them already did.
     """
     offenders = []
-    for page in [*_part_two(), MANUAL_DIR / "manual.md"]:
+    for page in _authored_chapters():
         for number, line in _prose_lines(page):
             for mark, fix in REGISTER_MARKS:
                 if mark in line:
-                    offenders.append(f"{page.name}:{number}: {fix}\n    {line.strip()[:70]}")
+                    rel = page.relative_to(MANUAL_DIR).as_posix()
+                    offenders.append(f"{rel}:{number}: {fix}\n    {line.strip()[:70]}")
     assert not offenders, (
-        "Part 2 carries the maintainer register into the manual:\n"
-        + "\n".join(offenders)
+        "the manual carries the maintainer register:\n" + "\n".join(offenders)
     )
 
 

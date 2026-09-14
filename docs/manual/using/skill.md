@@ -38,8 +38,8 @@ harnesses scan. Each harness that reads somewhere else is pointed at it with a
 relative symlink, so the link survives the project being moved or cloned
 elsewhere. `--agent NAME` (repeatable) chooses which, and `--list-agents` prints
 the harness table with the source and date each row's directories were read
-from. `--user` installs for the user rather than for a project; `--copy` copies
-instead of linking, which is what Windows gets in any case.
+from. `--user` installs for the user rather than for a project. `--copy` copies
+instead of linking, and Windows gets that in any case.
 
 The command prints, and never writes, the two lines that name the skill in a
 project's `AGENTS.md` or `CLAUDE.md`. Those files are the project's own

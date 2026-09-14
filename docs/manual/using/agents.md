@@ -69,8 +69,8 @@ from rietx import RefinementResult
 ```
 
 `model_dump(mode="json")` is the form to store and to send: non-finite floats
-serialise as the strings `"Infinity"`, `"-Infinity"` and `"NaN"`, which is what
-lets a parameter bound of ±inf survive a round-trip ([](compatibility.md)).
+serialise as the strings `"Infinity"`, `"-Infinity"` and `"NaN"`, so a parameter
+bound of ±inf survives a round-trip ([](compatibility.md)).
 `model_validate` reads one back.
 
 :::{admonition} For agents

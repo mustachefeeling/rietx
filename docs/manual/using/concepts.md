@@ -199,7 +199,7 @@ the second time with the three phosphate oxygens' `biso` tied together:
 
 The return is precision. The constrained esd is smaller than the best of the
 three free ones. Rwp is not the evidence and cannot be. It moved by 0.05 % of
-itself, which is what "the constraint costs no fit quality" looks like.
+itself, the shape "the constraint costs no fit quality" takes.
 
 The check to run first is in the free column. Each of the three intervals
 contains the tied value, so the free refinement does not contradict the claim

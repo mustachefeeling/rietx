@@ -359,6 +359,80 @@ def test_every_figure_reference_exists():
             assert (page.parent / target).exists(), f"{page.name}: missing image: {target}"
 
 
+def test_every_closed_vocabulary_member_is_named_where_its_table_is():
+    """A closed `Literal` Part 1 tabulates is tabulated whole.
+
+    The failure this exists for is not a missing row, which a reader notices.
+    It is the **count in the sentence above the table**, which nobody
+    recomputes: `using/indexing.md` read "Five of the twelve take a line out of
+    `PeakList.usable`" while `PeakFlag` held fourteen members and
+    `PEAK_UNUSABLE_FLAGS` six, so both numbers were wrong and had been since the
+    vocabulary last grew (WP-1409).  `-W` cannot see it, `test_help.py` covers
+    the help corpus rather than the manual's prose, and a reader has no way to
+    know the sentence was ever true.
+
+    So the members are the authority and the page is checked against them, both
+    ways: the members are read off the live `Literal`, and a member the page
+    never names in code font fails here.  The three below are the ones Part 1
+    tabulates row by row.
+    `EXEMPT` carries the members a page deliberately describes elsewhere, with
+    the reason, which is the only way this test is satisfied without a row.
+    """
+    import typing
+
+    from rietx.schemas.indexing import Confidence, IndexCaveat, PeakFlag
+
+    # vocabulary -> (page, members deliberately covered somewhere else)
+    VOCABULARIES = {
+        "PeakFlag": (PeakFlag, "indexing.md",
+                     {"unnamed_neighbour":
+                      "belongs to fit_peaks; described under § The neighbour "
+                      "you did not name, and the flag table says so"}),
+        "IndexCaveat": (IndexCaveat, "indexing.md", {}),
+        "Confidence": (Confidence, "indexing.md", {}),
+    }
+    for name, (literal, page_name, exempt) in VOCABULARIES.items():
+        members = set(typing.get_args(literal))
+        assert members, f"{name} is not a Literal of strings"
+        page = USING_DIR / page_name
+        text = page.read_text(encoding="utf-8")
+        spelled = set(CODE_SPAN.findall(text))
+        missing = sorted(members - spelled - set(exempt))
+        assert not missing, (
+            f"{page_name} never names {name} member(s) {missing}. A closed "
+            f"vocabulary the page tabulates is tabulated whole, and the count "
+            f"in the sentence above the table is the thing that rots."
+        )
+        for member, reason in exempt.items():
+            assert member in members, (
+                f"{name} no longer has {member!r}, so its exemption in this "
+                f"test is stale: {reason}"
+            )
+
+
+def test_the_peak_flag_table_marks_exactly_the_unusable_flags():
+    """`using/indexing.md`'s flag table has a "Usable?" column, and it is the
+    same partition `PEAK_UNUSABLE_FLAGS` is.
+
+    The table is the reader's copy of a frozenset in `schemas/indexing.py`, and
+    a flag that changes side there is a row that now says the opposite of what
+    the package does.  Read off the rendered row rather than off a count, so
+    the guard survives the prose above it being rewritten (WP-1409).
+    """
+    from rietx.schemas.indexing import PEAK_UNUSABLE_FLAGS
+
+    text = (USING_DIR / "indexing.md").read_text(encoding="utf-8")
+    rows = re.findall(r"^\| `([a-z_0-9]+)` \|[^|]*\| (yes|no) \|\s*$", text, re.M)
+    assert rows, "the peak-flag table is gone from indexing.md"
+    said_unusable = {flag for flag, usable in rows if usable == "no"}
+    tabulated = {flag for flag, _ in rows}
+    assert said_unusable == PEAK_UNUSABLE_FLAGS & tabulated, (
+        f"indexing.md's Usable? column says {sorted(said_unusable)} are "
+        f"unusable; PEAK_UNUSABLE_FLAGS says "
+        f"{sorted(PEAK_UNUSABLE_FLAGS & tabulated)}"
+    )
+
+
 def test_parameter_dot_paths_resolve():
     """Every dot-path or glob Part 1 spells matches a real ParameterTable, and
     carries no brackets: stage plans match with fnmatch, where `[..]` is a
