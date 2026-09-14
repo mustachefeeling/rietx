@@ -197,6 +197,92 @@ def test_no_unsubstituted_substitution_survives_the_build(built_manual):
     )
 
 
+#: One `<a class="sidebar-brand" href="…">` on a built page.
+SIDEBAR_BRAND = re.compile(r'<a class="sidebar-brand"[^>]*\shref="([^"]*)"')
+#: Every drawn shape in an SVG: the `d` of a path, and a rect's four corners.
+SVG_SHAPES = re.compile(r'<(?:path\s+d|rect\s+x)="[^"]*"[^>]*>')
+
+
+@pytest.mark.xdist_group("manual-build")
+def test_the_brand_mark_is_the_favicon(built_manual):
+    """The inlined mark and `_static/favicon.svg` draw the same thing.
+
+    The mark in `_templates/sidebar/brand.html` is inline SVG, which is a copy
+    of the favicon's geometry, and a copy is exactly what this repository does
+    not leave unpinned.  It is inline for a measured reason: worn as a CSS
+    `mask-image` the same file renders over http and **silently disappears**
+    from a local `file://` build, because chromium treats a `file://` mask
+    source as cross-origin.  A reviewer opening `_build/html/` would have seen
+    no mark at all.
+
+    So the duplicate stays and the file stays its authority.  Compared on the
+    drawn shapes rather than on the bytes, because the two documents legitimately
+    differ everywhere else: the favicon carries a `<style>` with the two literal
+    hexes, which is the one place they have to be literal, and the template
+    takes its fill from `--color-rietx-ink`.
+    """
+    out, _ = built_manual
+    template = (MANUAL_DIR / "_templates" / "sidebar" / "brand.html").read_text(encoding="utf-8")
+    favicon = (MANUAL_DIR / "_static" / "favicon.svg").read_text(encoding="utf-8")
+    inlined = SVG_SHAPES.findall(template)
+    assert inlined, "no drawn shape in the brand template — has the mark moved?"
+    assert inlined == SVG_SHAPES.findall(favicon), (
+        "the brand's inline mark and _static/favicon.svg have drifted.  The "
+        "favicon is the authority: copy its shapes into "
+        "docs/manual/_templates/sidebar/brand.html.\n"
+        f"  template: {inlined}\n  favicon:  {SVG_SHAPES.findall(favicon)}"
+    )
+    # and the copy is what the page actually carries
+    page = (out / "manual.html").read_text(encoding="utf-8")
+    for shape in inlined:
+        assert shape in page, f"the built page does not draw {shape}"
+
+
+@pytest.mark.xdist_group("manual-build")
+def test_the_brand_links_to_the_landing_page(built_manual):
+    """Every page's top-left brand goes to the site root, not to the manual.
+
+    Furo writes `href="{{ pathto(master_doc) }}"` in its own
+    `sidebar/brand.html` and offers no theme option that reaches it, so
+    `docs/manual/_templates/sidebar/brand.html` is a fork of that file
+    (WP-1411).  A fork is exactly the thing that rots quietly: furo reshapes
+    its template in some later release, sphinx renders the new one, the build
+    is green, and the manual silently becomes a dead end again — which is what
+    it was before this, with no page under `docs/manual/` linking to the site
+    root at all.
+
+    So the assertion is on the *built* page rather than on the template, and it
+    runs over all of them rather than over one: the brand is in the sidebar, so
+    a page that lost it lost it alone.  The mark and the wordmark come with it
+    because the same upgrade would drop those too, and a link with no brand on
+    it is not what this WP shipped.
+    """
+    from rietx._about import DOCS_URL
+
+    out, result = built_manual
+    assert result.returncode == 0, "manual did not build — see test_manual_builds_warning_free"
+    copied_in = _copied_in()
+    pages = [p for p in sorted(out.rglob("*.html"))
+             if p.relative_to(out).as_posix() not in copied_in]
+    assert pages, "the build wrote no pages of its own"
+
+    wrong: list[str] = []
+    for page in pages:
+        text = page.read_text(encoding="utf-8")
+        hrefs = SIDEBAR_BRAND.findall(text)
+        if hrefs != [DOCS_URL]:
+            wrong.append(f"{page.name}: brand href {hrefs} (want [{DOCS_URL!r}])")
+        elif 'class="rietx-mark"' not in text:
+            wrong.append(f"{page.name}: the brand carries no mark")
+        elif '<span class="sidebar-brand-text">rietx</span>' not in text:
+            wrong.append(f"{page.name}: the brand carries no wordmark")
+    assert not wrong, (
+        f"{len(wrong)} of {len(pages)} built pages have the wrong brand — has furo's "
+        f"sidebar/brand.html moved under the fork in docs/manual/_templates/?\n"
+        + "\n".join(wrong[:10])
+    )
+
+
 def test_the_tch_coefficients_in_print_are_the_ones_the_code_runs():
     """(3.6) and (3.7) print seven literals, and they have to be the code's.
 
