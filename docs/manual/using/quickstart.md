@@ -71,8 +71,8 @@ result = rx.refine(data, structure, instrument)
 print(result)
 ```
 
-`print(result)` — or equivalently `str(result)` — is the termination view a bare
-result can answer without the model that produced it: per-stage status, every
+`print(result)`, which is `str(result)`, is the termination view a bare result
+can answer without the model that produced it: per-stage status, every
 diagnostic, provenance, agreement indices last.
 
 ```text
@@ -93,7 +93,7 @@ not mean the fit failed.
 
 `Statistics.rwp` is a fraction rather than a percentage: 0.0933 is the Rwp of
 9.3 % you would quote in a paper, and every R-factor in the package is stored
-this way. A `Refinement` session prints more — {ref}`printing-a-result` — and
+this way. A `Refinement` session prints more ({ref}`printing-a-result`), and
 [](results.md) says what each statistic measures.
 
 One more line draws the fit:
@@ -122,7 +122,7 @@ figure's title is its caption.
 
 `wavelength=` puts λ on the 2θ axis, which is meaningless without it. The other
 arguments window the pattern, change the axes and move the residual into a panel
-of its own; {ref}`plotting-the-fit` takes them one at a time.
+of its own. {ref}`plotting-the-fit` takes them one at a time.
 
 ## `refine` or a `Refinement` session
 
@@ -145,8 +145,8 @@ the first stopped rather than from the CIF. Three things come with that:
 - `Refinement.fitted_structure` and `Refinement.fitted_instrument` return the
   models as the last fit left them.
 - `Refinement.history` records every stage as a restorable node, and it is on by
-  default here. `Refinement.edit` puts a change to the *model* on the same
-  record, so adding a phase is a recorded move rather than a fresh start.
+  default here. `Refinement.edit` puts a change to the model on the same record,
+  so adding a phase is a recorded move rather than a fresh start.
   [](history.md) is what a node holds and how to go back to one.
 - `Refinement.report` builds the `FitReport` with the compiled model attached,
   which `build_report` on a bare result cannot do.
@@ -162,8 +162,8 @@ intensities.
 A Le Bail fit (`mode="lebail"`) refines the cell, the zero shift and the profile
 with the intensities extracted per reflection instead of computed from the
 structure. It therefore converges from a much worse start, and it tells you
-whether the cell and the profile are right *independently of whether the
-structure is*. Only then does a Rietveld fit (`mode="rietveld"`, the default)
+whether the cell and the profile are right independently of whether the
+structure is. Only then does a Rietveld fit (`mode="rietveld"`, the default)
 face a fair question. This is the IUCr guidelines' own advice for a partial or
 uncertain model {cite}`mccusker1999`.
 
@@ -219,8 +219,8 @@ when the cell came from an indexing run rather than from you.
 ### Not even a cell
 
 If you do not know the cell either, start from the pattern alone. The wizard's
-third answer to step 2 is **None yet**, and `Project.create` takes no
-`structure=` at all:
+third answer to step 2 is `None yet`, and `Project.create` takes no `structure=`
+at all:
 
 <!-- api-doc: no-exec — it creates a directory from the reader's own files -->
 ```python
@@ -232,7 +232,7 @@ That project has zero phases. Peak picking and indexing work over it, which is
 how you find the cell: pick the peaks, index them, adopt a candidate, and the
 project becomes the Le Bail one above ([](indexing.md) walks that loop). Until
 it has a phase, refining it raises `NoPhasesError` and the GUI's Run button is
-disabled — with no phase there is nothing but the background to fit, and a plan
+disabled. With no phase there is nothing but the background to fit, and a plan
 run over one would converge on the background and report success. [](files.md)
 has the detail.
 
@@ -295,11 +295,11 @@ in the file itself.
 
 Six things in it are moves that any later refinement repeats:
 
-- **One `Refinement` is the session.** `Refinement.fit` can be called again, and
-  the models carry over.
-- **Every stage commits a node.** `Refinement.history` holds both refinements
-  *and* the model edit between them, and `RefinementTree.tag` names a node to
-  come back to:
+- One `Refinement` is the session. `Refinement.fit` can be called again, and the
+  models carry over.
+- Every stage commits a node. `Refinement.history` holds both refinements and the
+  model edit between them, and `RefinementTree.tag` names a node to come back
+  to:
 
   ```text
   t5544a638  13 nodes  data=11BM_NAC.fxye
@@ -319,17 +319,17 @@ Six things in it are moves that any later refinement repeats:
   ```
 
   [](history.md) is the whole record.
-- **A plan is editable.** `plan.stages.append(rx.Stage("biso", [...]))` adds a
+- A plan is editable. `plan.stages.append(rx.Stage("biso", [...]))` adds a
   displacement stage after the preset's, and `Stage` takes fnmatch globs over
   the parameter dot-paths (`phases.*.atoms.*.biso`). [](model.md) is the path
   grammar and how to see which paths a glob actually reaches.
-- **`RefinementResult.parameter`** looks one parameter up by path, with its esd:
+- `RefinementResult.parameter` looks one parameter up by path, with its esd:
   `result.parameter("phases.0.cell.a").stderr`.
-- **`RefinementResult.diagnostics`** is the channel for "your answer is wrong
+- `RefinementResult.diagnostics` is the channel for "your answer is wrong
   although Rwp is fine". Read it every time. [](results.md) says what a
   diagnostic carries, beside the statistics it outranks.
-- **`build_report`** turns the result into a `FitReport`: where the misfit is,
-  what would fix it, and whether the package is confident enough to say so.
+- `build_report` turns the result into a `FitReport`: where the misfit is, what
+  would fix it, and whether the package is confident enough to say so.
 
 ## The `RefinementResult` object
 
@@ -348,7 +348,7 @@ structure R-factors, the bonding geometry, and the two counts that say whether
 the pattern supported the model.
 
 Rwp is a fit statistic and not the answer. This package can show you a fit whose
-Rwp improved while its displacement parameters and phase fractions moved *away*
+Rwp improved while its displacement parameters and phase fractions moved away
 from the truth. What it hands you instead is [the report](report.md).
 
 ## Your own data
