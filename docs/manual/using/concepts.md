@@ -322,7 +322,7 @@ restraint pulls; `BondRestraint.weight`, `AngleRestraint.weight` and
 `ValueRestraint.weight` multiply the row on top of it and default to 1.
 
 Each restraint contributes one residual row, √weight·(computed − target)/σ,
-appended after the data rows ({eq}`par-restraint`). The rows land in the
+appended after the data rows {eq}`par-restraint`. The rows land in the
 covariance, so they tighten the esds of the parameters they touch, and they are
 excluded from Rwp, the Durbin-Watson statistic and the Bérar-Lelann inflation,
 because they are not measurements of this pattern. `RefinementResult.restraints`
@@ -406,7 +406,7 @@ to run, watch or stop a fit.
 
 Each restraint carries its own `weight`. A stage can scale all of them at once,
 which is how the guidelines {cite}`mccusker1999` ask restraints to be used: the
-refinement minimises S = S_y + c_w·S_G ({eq}`par-restraint-weight`), and c_w "is
+refinement minimises S = S_y + c_w·S_G {eq}`par-restraint-weight`, and c_w "is
 set high at the beginning of a refinement when the structure is incomplete or
 only approximately correct" and is reduced "as the structural model improves".
 `Stage.restraint_weight_scale` is that c_w, one number per stage.

@@ -1,11 +1,25 @@
 (ch-profiles)=
 # Peak profiles
 
+(sec-width-split)=
 ## The instrument ⊕ sample width split
 
-The Gaussian and Lorentzian component widths each carry an instrument part
-and a sample part, combined by the physics of convolution: **Gaussian
-variances add, Lorentzian FWHMs add.**
+⊗ is convolution. A measured line is the specimen's line convolved with the
+instrument's, so the shape to approximate is a Voigt, a Gaussian ⊗ Lorentzian.
+That convolution is never evaluated as an integral. The default profile
+approximates it by the linear blend of {eq}`prof-pv`. The opt-in exact shape is
+the closed form of {eq}`prof-voigt`. The one convolution this chapter does
+integrate is the axial divergence of {eq}`prof-fcj-integral`.
+
+⊕ is shorthand for the rule convolution imposes on the widths. The Gaussian and
+Lorentzian component widths each carry an instrument part and a sample part.
+Gaussian variances add, and Lorentzian FWHMs add. So "instrument ⊕ sample"
+means a specimen contribution combined with an instrument contribution by that
+rule, and never two numbers of degrees added together.
+
+The two widths below are full widths at half maximum, in deg 2θ. The Gaussian
+one is written as a law for its square, because the variance is what adds, and
+that is where its deg² come from.
 
 ```{math}
 :label: prof-caglioti-g
@@ -15,11 +29,11 @@ variances add, Lorentzian FWHMs add.**
 \qquad [\deg^2 2\theta]
 ```
 
-*Source:* `rietx.model.profiles.caglioti`
+{source}`rietx.model.profiles.caglioti.gaussian_fwhm`
 
-$U, V, W$ are the instrument resolution function {cite}`caglioti1958`; the
-sample adds a Gaussian microstrain term $U_s\tan^2\theta$ and a Gaussian
-size term $P/\cos^2\theta$ {cite}`larson2004,thompson1987`.
+$U, V, W$ are the instrument resolution function {cite}`caglioti1958`. The
+sample adds a Gaussian microstrain term $U_s\tan^2\theta$ and a Gaussian size
+term $P/\cos^2\theta$ {cite}`larson2004,thompson1987`.
 
 ```{math}
 :label: prof-caglioti-l
@@ -28,135 +42,148 @@ size term $P/\cos^2\theta$ {cite}`larson2004,thompson1987`.
 \qquad [\deg 2\theta]
 ```
 
-*Source:* `rietx.model.profiles.caglioti`
+{source}`rietx.model.profiles.caglioti.lorentzian_fwhm`
 
 ```{warning}
-Conventions here are documented by *physics*, not letters: the
-$1/\cos\theta$ (and $1/\cos^2\theta$ variance) terms carry Scherrer
-crystallite-**size** broadening, the $\tan\theta$ (and $\tan^2\theta$) terms
-micro**strain**. The letter assignments differ between codes — GSAS uses
-X = size, Y = strain; FullProf swaps them. Transfer values by matching the
-$\theta$-law, never the letter.
+Conventions here are documented by physics and not by letters. The
+$1/\cos\theta$ terms (and the $1/\cos^2\theta$ variance term) carry Scherrer
+crystallite-size broadening, and the $\tan\theta$ terms (and $\tan^2\theta$)
+carry microstrain. The letter assignments differ between codes. GSAS uses
+X = size and Y = strain, and FullProf swaps them. Transfer a value by matching
+the $\theta$-law, never the letter.
 ```
 
-Reading either $1/\cos\theta$ coefficient back as a crystallite size — and why
-$U$ and $W$ have no size to read — is {ref}`sec-width-as-size`. Anisotropic
-(hkl-dependent) sample broadening is deferred to {ref}`ch-microstructure`.
+{ref}`sec-width-as-size` reads either $1/\cos\theta$ coefficient back as a
+crystallite size, and says why $U$ and $W$ have no size to read. Anisotropic
+(hkl-dependent) sample broadening is in {ref}`ch-microstructure`.
 
 (sec-strain-cap)=
-## How wide a strain term is allowed to get
+## The strain width bound
 
-Nothing in $Y_s\tan\theta$ stops at a physical strain, and an unbounded $Y_s$
-is not a slightly wide peak: past some width the phase's lines are flat across
-the whole scan, it is degenerate with the background, it starves whatever it
-overlaps, and the covariance loses conditioning. Measured on a 248-pattern
-in-situ reduction series, $Y_s$ reached $1.1\times10^{5}$ where the reference
-protocol for the same data used 0.3.
+Nothing in $Y_s\tan\theta$ stops at a physical strain. Past some width the
+phase's lines are flat across the whole scan. They are then degenerate with the
+background, they starve whatever they overlap, and the covariance loses
+conditioning. Measured on a 248-pattern in-situ reduction series, $Y_s$ reached
+$1.1\times10^{5}$ where the reference protocol for the same data used 0.3.
 
-So $Y_s$ — and $U_s$, which is the same width squared, being a variance —
-carries a default upper bound derived from **the pattern itself** rather than
-from any material:
+$Y_s$ therefore carries a default upper bound derived from the pattern itself
+rather than from any material, and so does $U_s$, the same width squared:
 
 ```{math}
 :label: prof-strain-cap
 
-Y_s \;\le\; \frac{f\,(2\theta_{\max} - 2\theta_{\min})}{\tan\theta_{\max}},
+Y_s \;\le\; Y_{\max}, \qquad U_s \;\le\; Y_{\max}^2,
 \qquad
-U_s \;\le\; \left(\frac{f\,(2\theta_{\max} - 2\theta_{\min})}
-{\tan\theta_{\max}}\right)^{\!2},
-\qquad f = {{ STRAIN_CAP_RANGE_FRACTION }}
+Y_{\max} \;=\; \frac{f\,(2\theta_{\max} - 2\theta_{\min})}{\tan\theta_{\max}}
+\quad [\deg 2\theta]
 ```
 
-*Source:* `rietx.params.vector.strain_cap`
+{source}`rietx.params.vector.strain_cap`
 
-with $2\theta_{\min}, 2\theta_{\max}$ the ends of the **fitted** range —
-excluded regions removed, since an excluded interval was not measured. Read
-{eq}`prof-strain-cap` as the statement that *a line wider than the interval it
-was measured over is not a line*: at $f = 1$ the strain term alone contributes
-one whole range's worth of FWHM at the pattern's highest $\theta$. It is
-dimensional and self-scaling — a 15–80° lab scan and a 0.5–50° low-angle scan
-get different bounds out of one rule, and no calibrated constant enters.
+with $2\theta_{\min}, 2\theta_{\max}$ the ends of the fitted range (excluded
+regions removed, since an excluded interval was not measured). $f$ is the
+fraction of that range one term is allowed to spend, and rietx sets it to
+{{ STRAIN_CAP_RANGE_FRACTION }}. $U_s$ takes the square because it is a
+variance. At $f = 1$ the strain term alone would contribute one whole range's
+worth of FWHM at the pattern's highest $\theta$, so the bound says that a line
+wider than the interval it was measured over is not a line. The rule is
+dimensional and self-scaling. A 15–80° lab scan and a 0.5–50° low-angle scan get
+different bounds out of it, and no calibrated constant enters.
 
 ```{warning}
-This bounds **numerics, not strain**. It sits two orders of magnitude above
-anything a specimen produces (≈ 83 deg on a 10–80° scan), so it is not the
+This bounds the numerics and not the strain. It sits two orders of magnitude
+above anything a specimen produces (≈ 83 deg on a 10–80° scan), so it makes no
 judgement about whether a width is believable. That judgement is the
 `STRAIN_UNUSUALLY_LARGE` diagnostic, which fires above
-{{ STRAIN_FLAG_WIDTH }} deg — the top of a corpus of 606 solved refinements —
-and bounds *nothing*. Nanocrystalline and heavily defective specimens
-legitimately refine into that tail, and a flag there is a number to check
-rather than a fit to discard.
+{{ STRAIN_FLAG_WIDTH }} deg, the top of a corpus of 606 solved refinements, and
+bounds nothing. Nanocrystalline and heavily defective specimens refine into that
+tail legitimately. Treat a flag there as a number to check.
 ```
 
-Two properties follow from *where* the bound is applied, which is at the
-optimiser interface for one stage and never on the stored parameter:
+The bound is applied at the optimiser interface for one stage, and never on the
+stored parameter. Two properties follow.
 
-* it is **armed only on a term that has already reached it**, because a finite
-  bound changes the trust-region step in a coordinate even where it is never
-  approached — so a fit whose strain stays inside {eq}`prof-strain-cap` gets no
-  bound at all and is bit-identical to an unbounded build;
-* a **finite stored `max` is the caller's claim and outranks it**, the same rule
-  the per-stage cell window follows, so declaring any ceiling — including a
-  deliberately enormous one — switches the default off.
+* It is armed only on a term that has already reached it. A finite bound changes
+  the trust-region step in a coordinate even where nothing approaches it, so a
+  fit whose strain stays inside {eq}`prof-strain-cap` gets no bound at all and
+  is bit-identical to an unbounded build.
+* A finite stored `max` is the caller's claim and outranks it, by the rule the
+  per-stage cell window follows. Declaring any ceiling switches the default off,
+  a deliberately enormous one included.
 
-Enforcement is therefore per stage, not per iteration: a stage that starts
-below the bound may cross it, and the next stage pulls it back and reports
-`BOUND_HIT` on the path (`RefinedParameter.at_bound` carries the same finding
-on the row).
+Enforcement is per stage rather than per iteration. A stage that starts below
+the bound may cross it, and the next stage pulls it back and reports `BOUND_HIT`
+on the path (`RefinedParameter.at_bound` carries the same finding on the row).
 
 (sec-size-cap)=
-## How small a crystallite a size term is allowed to imply
+## The size coefficient bound
 
 The size terms $X_s/\cos\theta$ and $P/\cos^2\theta$ have the same runaway
-geometry as the strain terms, and the same fix — but the intent is different,
-and so is the number. A large $X_s$ is a *small* crystallite (via Scherrer,
-eq. {eq}`ms-size-coefficient` in {ref}`sec-width-as-size`), and real specimens
-are genuinely nanocrystalline, so the bound here is set only to catch a runaway,
-never to legislate a size:
+geometry as the strain terms and take the same fix. The intent differs, and so
+does the number. A large $X_s$ is a small crystallite (via Scherrer,
+{eq}`ms-size-coefficient` in {ref}`sec-width-as-size`), and real specimens are
+genuinely nanocrystalline, so this bound is set to catch a runaway and not to
+legislate a size:
 
 ```{math}
 :label: prof-size-cap
 
 X_s \;\le\; \min\!\left(
-\frac{(180/\pi)\,K\lambda}{L_{\min}},\;
+\frac{(180/\pi)\,K\lambda}{L_{\min}},\;\;
 f\,(2\theta_{\max}-2\theta_{\min})\cos\theta_{\max}
-\right),
-\qquad
-L_{\min} = {{ SIZE_CAP_MIN_SIZE_NM }}\ \text{nm}
+\right)
+\quad [\deg 2\theta]
 ```
 
-*Source:* `rietx.params.vector.size_cap`
+{source}`rietx.params.vector.size_cap`
 
-The first term is a **floor on the crystallite** ($L \ge L_{\min}$), read as a
-ceiling on the coefficient with no reference angle (caglioti eq. 4,
-{ref}`sec-width-as-size`), per wavelength — ≈ 4°/cos θ at Cu Kα for 2 nm. The
-second is the strain rule's range backstop with $1/\cos\theta$ in place of
+with $L_{\min}$ the smallest crystallite the bound admits,
+{{ SIZE_CAP_MIN_SIZE_NM }} nm, and $f$ the range fraction of
+{eq}`prof-strain-cap`.
+
+The first term is a floor on the crystallite ($L \ge L_{\min}$), read as a
+ceiling on the coefficient with no reference angle, {eq}`ms-size-coefficient`
+in {ref}`sec-width-as-size`, per wavelength: ≈ 4°/cos θ at Cu Kα for 2 nm. The
+second is the strain rule's range backstop, with $1/\cos\theta$ in place of
 $\tan\theta$, evaluated where $1/\cos\theta$ is largest. On any real scan the
 floor is far the tighter (Cu 10–80°: ≈ 4 deg against ≈ 54 deg), so the floor
-governs and the backstop only catches the $1/\cos\theta$ pathology near
+governs, and the backstop catches only the $1/\cos\theta$ pathology near
 2θ = 180°. $P$ is a variance and takes the square of whichever width binds.
 
 ```{warning}
-$L_{\min}$ is **not** a claim about how small a crystallite may be. It is a
-runaway fence two unit cells below the archive: the smallest well-determined
-size in a corpus of 606 solved refinements is ≈ 33 nm, and every refined size
-below ~2 nm there is an exploratory or placeholder fit. A genuinely nano
-specimen refines freely above it, and if one is truly smaller than 2 nm you
-declare the bound you mean — a finite `Parameter.max` outranks the default. The
+$L_{\min}$ makes no claim about how small a crystallite may be. It is a runaway
+fence two unit cells below the archive. The smallest well-determined size in a
+corpus of 606 solved refinements is ≈ 33 nm, and every refined size below ~2 nm
+there is an exploratory or placeholder fit. A genuinely nano specimen refines
+freely above the fence. For one truly smaller than 2 nm, declare the bound you
+mean: a finite `Parameter.max` outranks the default. The
 surprising-but-possible band is the `SIZE_UNUSUALLY_SMALL` diagnostic, which
-fires below {{ SIZE_FLAG_SIZE_NM }} nm and bounds *nothing*.
+fires below {{ SIZE_FLAG_SIZE_NM }} nm and bounds nothing.
 ```
 
-The bound is armed only on a term that has already reached it, is outranked by
-a finite stored `max`, and reports `BOUND_HIT` when the next stage pulls a
-crossing back — all exactly as the strain cap above, and bit-identical to an
-unbounded build for any fit that stays off the floor.
+The bound behaves as the {ref}`strain cap <sec-strain-cap>` does. It is armed only on a term that
+has already reached it, a finite stored `max` outranks it, and it reports
+`BOUND_HIT` when the next stage pulls a crossing back. Any fit that stays off
+the floor is bit-identical to an unbounded build.
 
 ## Thompson-Cox-Hastings pseudo-Voigt
 
+TCH is Thompson, Cox and Hastings, whose 1987 paper {cite}`thompson1987`
+supplies the two polynomials below. The trailing Z of the class name
+`ProfileTCHZ` is not theirs. That paper's own width model is one parameter per
+component, $\Gamma_G = V\tan\theta$ and $\Gamma_L = X/\cos\theta$, with no $U$,
+$W$ or $Y$ and nothing called $Z$. Every further letter came from the codes that
+adopted the profile afterwards, the label included, and those codes disagree on
+which term wears which. rietx's class holds the five coefficients
+$U, V, W, X, Y$ of {eq}`prof-caglioti-g` and {eq}`prof-caglioti-l`, so read the
+$\theta$-law and not the label, as the chapter's first warning already says for
+X and Y. TCH's own two letters do survive it. Their $V$ is this chapter's
+Gaussian $\tan\theta$ term, and their $X$ this chapter's Lorentzian
+$1/\cos\theta$ one.
+
 The default profile approximates the Voigt (Gaussian ⊗ Lorentzian) as a
-linear blend with a single FWHM $\Gamma$ and mixing $\eta$
-{cite}`thompson1987`:
+linear blend with a single FWHM $\Gamma$ [deg 2θ] and a mixing fraction
+$\eta$:
 
 ```{math}
 :label: prof-pv
@@ -167,9 +194,12 @@ linear blend with a single FWHM $\Gamma$ and mixing $\eta$
 ```{math}
 :label: prof-tch-gamma
 
-\Gamma^5 = \Gamma_G^5 + 2.69269\, \Gamma_G^4 \Gamma_L
-+ 2.42843\, \Gamma_G^3 \Gamma_L^2 + 4.47163\, \Gamma_G^2 \Gamma_L^3
-+ 0.07842\, \Gamma_G \Gamma_L^4 + \Gamma_L^5,
+\begin{aligned}
+\Gamma^5 = \Gamma_G^5
+&+ 2.69269\, \Gamma_G^4 \Gamma_L + 2.42843\, \Gamma_G^3 \Gamma_L^2 \\
+&+ 4.47163\, \Gamma_G^2 \Gamma_L^3 + 0.07842\, \Gamma_G \Gamma_L^4
++ \Gamma_L^5,
+\end{aligned}
 ```
 
 ```{math}
@@ -179,7 +209,41 @@ linear blend with a single FWHM $\Gamma$ and mixing $\eta$
 \qquad q = \Gamma_L / \Gamma.
 ```
 
-*Source:* `rietx.model.profiles.pseudovoigt`
+{source}`rietx.model.profiles.pseudovoigt.tch_gamma_eta`
+
+### Origin and accuracy of the coefficients
+
+The coefficients are fitted rather than derived, because a Voigt has no
+closed-form width and no exact pseudo-Voigt equivalent. The two equations do not
+have the same author.
+
+{eq}`prof-tch-gamma` is TCH's, and the paper gives its origin in one clause:
+"another simple series expansion derived from a set of computer-generated
+convolutions" {cite}`thompson1987`. {eq}`prof-tch-eta` is older. The
+pseudo-Voigt as a way of reading a line's Gaussian and Lorentzian content is
+Wertheim, Butler, West and Buchanan's {cite}`wertheim1974`, and the mixing
+expansion is Hastings, Thomlinson and Cox's {cite}`hastings1984`. TCH
+renormalised that expansion's coefficients for the unit-area form of
+{eq}`prof-pv`, and say so in the paper. The digits are transcribed from two
+papers. None of them carries physics on its own, and none is a rietx constant
+to retune.
+
+Neither paper quotes an accuracy for its expansion, so the accuracy of the pair
+is measured here against the exact convolution rietx ships as {eq}`prof-voigt`.
+Across the whole range $0 \le q \le 1$, with the true FWHM found by bisecting
+the Faddeeva Voigt (`tests/test_voigt.py`):
+
+* {eq}`prof-tch-gamma` reproduces the true Voigt FWHM to within 0.43 %, worst
+  near $\Gamma_L \approx \Gamma_G/2$, and is exact in both pure limits;
+* the pseudo-Voigt built from the pair departs from the exact Voigt by at most
+  1.3 % of the peak height, worst at $q \approx 0.56$.
+
+Where that 1.3 % sits matters more than its size. At the peak centre the
+departure stays under 0.25 % across the whole range. The worst of it is on the
+flanks, at $x \approx \pm0.28\,\Gamma$, where a peak's position and width
+derivatives live. The choice between `"tchz_pv"` and `"voigt"` is therefore not
+a choice about peak heights. The exact shape has something to offer on a pattern
+whose lines are neither nearly Gaussian nor nearly Lorentzian.
 
 Both component shapes are unit-area normalised, so $\int \mathrm{pV}\,dx =
 1$ and the reflection intensity of {eq}`fm-rietveld` enters purely through
@@ -194,15 +258,15 @@ G(x) = \frac{2}{\Gamma}\sqrt{\frac{\ln 2}{\pi}}
 L(x) = \frac{2/(\pi\Gamma)}{1 + 4x^2/\Gamma^2}.
 ```
 
-*Source:* `rietx.model.profiles.pseudovoigt`
+{source}`rietx.model.profiles.pseudovoigt.pseudo_voigt`
 
-## A declared peak the phases cannot account for
+## Declared extra peaks
 
 A sample holder, a mount or an unidentified impurity may diffract the same
-source as the specimen and put a sharp line where no phase in the model has
-one. Such a line is declared rather than derived — it has no cell behind it —
-and it is evaluated as a single unit-area pseudo-Voigt of {eq}`prof-pv`, one
-image per emission line:
+source as the specimen and put a sharp line where no phase in the model has one.
+Such a line has no cell behind it, so it is declared rather than derived. It is
+evaluated as a single unit-area pseudo-Voigt of {eq}`prof-pv`, one image per
+emission line:
 
 ```{math}
 :label: prof-extra-peak
@@ -221,35 +285,36 @@ with $2\theta_l$ the Bragg image of the declared apparent centre $2\theta_0$,
 \sin\theta_l = \frac{\lambda_l}{\lambda_0}\,\sin\theta_0 .
 ```
 
-*Source:* `rietx.model.forward.CompiledModel.extra_peak_curve`
+{source}`rietx.model.forward.CompiledModel.extra_peak_curve`
 
-The intensity enters as an **area** $A$, in counts·deg, because that is what a
-reflection intensity is and what the unit-area normalisation of
-{eq}`prof-components` makes the prefactor mean. The line gain $g_l$ carries the
-line's weight *and* the two lines' Lorentz-polarisation ratio: each image
-diffracts at its own Bragg angle and so carries its own Lp, and holding the
-bare weight instead is a measured bias on the fitted primary position rather
-than a simplification. Line 0 is the primary, $w_0 \equiv 1$ and $g_0 = 1$, so
-$A$ is the primary line's area.
+The intensity enters as an area $A$, in counts·deg. That is what a reflection
+intensity is, and what the unit-area normalisation of {eq}`prof-components`
+makes the prefactor mean. The line gain $g_l$ carries the line's weight and the
+two lines' Lorentz-polarisation ratio. Each image diffracts at its own Bragg
+angle and so carries its own Lp, and holding the bare weight instead biases the
+fitted primary position by a measured amount. Line 0 is the primary, with
+$w_0 \equiv 1$ and $g_0 = 1$, so $A$ is the primary line's area.
 
-Three things this profile deliberately does **not** carry. No position
-correction of the specimen's is applied to $2\theta_0$ — zero shift,
-displacement and transparency all describe where the *specimen* sits, and a
-holder at its own distance has aberrations of its own, which are absorbed into
-the free centre. No axial asymmetry: the Finger-Cox-Jephcoat convolution
-{eq}`prof-fcj-integral` describes the specimen's axial geometry, not the intruder's, so
-the symmetric pseudo-Voigt is the honest simple model. And no structure factor,
-no multiplicity and no Lorentz factor beyond the line ratio, because there is
-no cell to compute them from — which is why {eq}`prof-extra-peak` is a
-description of a feature and not a prediction of one.
+The profile deliberately carries three things less than a reflection does.
 
-The evaluation window is frozen per stage, as every window in
-{ref}`ch-method` is, and is sized from the declared **bounds** rather than from
-the current values: the half-width is $k(\eta_{\max})\,\Gamma_{\max} +
-\Delta$ with $k$ the area-tolerance multiplier of {ref}`ch-forward` and
-$\Delta$ the same absolute movement slack a reflection window carries. A
-centre free anywhere inside its bounds is therefore inside its frozen window by
-construction.
+* No position correction of the specimen's reaches $2\theta_0$. Zero shift,
+  displacement and transparency all describe where the specimen sits, and a
+  holder at its own distance has aberrations of its own. The free centre absorbs
+  them.
+* No axial asymmetry. The Finger-Cox-Jephcoat convolution
+  {eq}`prof-fcj-integral` describes the specimen's axial geometry, so a
+  symmetric pseudo-Voigt is the honest model for an intruder.
+* No structure factor, multiplicity or Lorentz factor beyond the line ratio,
+  because there is no cell to compute them from.
+
+{eq}`prof-extra-peak` therefore describes a feature and does not predict one.
+
+The evaluation window is frozen per stage, as every window in {ref}`ch-method`
+is, and it is sized from the declared bounds rather than from the current
+values. Its half-width is $k(\eta_{\max})\,\Gamma_{\max} + \Delta$, with $k$
+the area-tolerance multiplier of {ref}`ch-forward` and $\Delta$ the same
+absolute movement slack a reflection window carries. A centre free anywhere
+inside its bounds is therefore inside its frozen window by construction.
 
 
 ## The true Voigt, via the Faddeeva function
@@ -264,11 +329,13 @@ V(x; \sigma, \gamma) \;=\; \frac{\operatorname{Re}[w(z)]}{\sigma\sqrt{2\pi}},
 \qquad z = \frac{x + i\gamma}{\sigma\sqrt{2}},
 ```
 
-*Source:* `rietx.model.profiles.voigt`
+{source}`rietx.model.profiles.voigt.voigt`
 
-where $\sigma$ is the Gaussian standard deviation and $\gamma$ the
-Lorentzian *half*-width at half maximum, recovered from the same component
-FWHMs of {eq}`prof-caglioti-g`-{eq}`prof-caglioti-l`:
+where $\sigma$ is the Gaussian standard deviation and $\gamma$ the Lorentzian
+half-width at half maximum, both in deg 2θ. Both are recovered from the
+component FWHMs of {eq}`prof-caglioti-g`-{eq}`prof-caglioti-l`. This is the one
+place in the manual where a width is something other than an FWHM, and the
+conversion is the equation:
 
 ```{math}
 :label: prof-voigt-widths
@@ -276,7 +343,7 @@ FWHMs of {eq}`prof-caglioti-g`-{eq}`prof-caglioti-l`:
 \sigma = \frac{\Gamma_G}{2\sqrt{2\ln 2}}, \qquad \gamma = \frac{\Gamma_L}{2}.
 ```
 
-*Source:* `rietx.model.profiles.voigt`
+{source}`rietx.model.profiles.voigt.fwhm_to_voigt_params`
 
 Both limits are exact and recovered branchlessly: $\gamma \to 0$ makes $z$
 real and $\operatorname{Re}[w] = e^{-z^2}$ (the unit Gaussian); $\sigma \to
@@ -296,16 +363,16 @@ Z = \frac{L + iz}{L - iz}, \qquad L = \sqrt[4]{1/2}\cdot\sqrt{N},
 w(z) = \frac{2\, p(Z)}{(L - iz)^2} + \frac{1/\sqrt{\pi}}{L - iz},
 ```
 
-*Source:* `rietx.model.profiles.faddeeva`
+{source}`rietx.model.profiles.faddeeva.faddeeva_w`
 
-with $p$ an $N$-term polynomial whose real coefficients come from a single
-FFT at import time; $N = 32$ reaches ≈1e-13. The algorithm was chosen for
-being **branchless** over the whole upper half-plane — no region partition
-(Humlíček's w4 {cite}`humlicek1982`) and no series switching
-{cite}`zaghloul2011` — which keeps the residual smooth for
-finite-difference and autodiff Jacobians. The Voigt argument always has
-$\operatorname{Im} z = \gamma_L/(\sigma\sqrt{2}) \ge 0$, so the reflection
-formula for the lower half-plane is never needed. Derivatives reuse the same
+with $p$ an $N$-term polynomial whose real coefficients come from a single FFT
+at import time. $N = 32$ reaches ≈1e-13. The algorithm is branchless over the
+whole upper half-plane, with no region partition (Humlíček's w4
+{cite}`humlicek1982`) and no series switching {cite}`zaghloul2011`. A
+branchless form keeps the residual smooth for finite-difference and autodiff
+Jacobians, and that is what this one was chosen for. The Voigt argument always
+has $\operatorname{Im} z = \gamma_L/(\sigma\sqrt{2}) \ge 0$, so the reflection
+formula for the lower half-plane never arises. Derivatives reuse the same
 $w$ call through the identity $w'(z) = -2z\,w(z) + 2i/\sqrt{\pi}$
 {cite}`abramowitz1964`.
 
@@ -323,13 +390,13 @@ angle by {cite}`finger1994`
 \qquad \xi = u/L,
 ```
 
-*Source:* `rietx.model.profiles.fcj`
+{source}`rietx.model.profiles.fcj.fcj_offsets_weights`
 
-where $u$ is the signed axial offset of the ray. For $2\theta < 90°$
-intensity smears from $2\theta$ *down* to $2\varphi_{\min}$ — the classic
-low-angle tail of laboratory data; above 90° the smear is toward high angle.
-The weight of a given offset is the axial overlap of sample and slit, a
-trapezoid in $\xi$ (with $s = S/L$, $h = H/L$):
+where $u$ is the signed axial offset of the ray. For $2\theta < 90°$ intensity
+smears from $2\theta$ down to $2\varphi_{\min}$, the classic low-angle tail of
+laboratory data. Above 90° the smear is toward high angle. The weight of a given
+offset is the axial overlap of sample and slit, a trapezoid in $\xi$ (with
+$s = S/L$, $h = H/L$):
 
 ```{math}
 :label: prof-fcj-weight
@@ -338,11 +405,11 @@ W(\xi) \;=\; \operatorname{clip}\bigl(s + h - \xi,\; 0,\; 2\min(s, h)\bigr),
 \qquad \xi \ge 0.
 ```
 
-*Source:* `rietx.model.profiles.fcj`
+{source}`rietx.model.profiles.fcj`
 
-Expressed as a density in $2\varphi$, the aberration diverges like
-$1/\sqrt{2\theta - 2\varphi}$ at the Bragg position — the reason naive
-sampling fails. Substituting $\xi$ as the integration variable removes the
+As a density in $2\varphi$, the aberration diverges like
+$1/\sqrt{2\theta - 2\varphi}$ at the Bragg position. Naive sampling fails on
+that divergence. Substituting $\xi$ as the integration variable removes the
 singularity exactly:
 
 ```{math}
@@ -355,21 +422,20 @@ y(2\theta_i) \;=\;
 \xi_{\max} = \min\bigl(s + h,\; |\tan 2\theta|\bigr),
 ```
 
-*Source:* `rietx.model.profiles.fcj`
+{source}`rietx.model.profiles.fcj`
 
-with a smooth integrand, evaluated by fixed-node Gauss-Legendre quadrature
-in $\tau = \xi/\xi_{\max}$. The $|\tan 2\theta|$ cap removes the unphysical
-$\cos 2\varphi > 1$ branch at very low angle, and the weights are
-renormalised to $\sum\omega = 1$ so the composite peak keeps exactly unit
-area — reflection intensities remain areas. Node *counts* are frozen per
-stage ({{ NODES_PER_FWHM }} nodes per FWHM of smear where the map moves
-fastest, clamped to [8, 64]); node positions follow $s$, $h$ and $2\theta$
-smoothly. When the asymmetric extent is below {{ SKIP_EXTENT_FWHM_RATIO }}
-of the peak FWHM the aberration is invisible and the peak is treated as
-symmetric.
+The integrand is smooth, and fixed-node Gauss-Legendre quadrature in
+$\tau = \xi/\xi_{\max}$ evaluates it. The $|\tan 2\theta|$ cap removes the
+unphysical $\cos 2\varphi > 1$ branch at very low angle. The weights are
+renormalised to $\sum\omega = 1$, so the composite peak keeps unit area and
+reflection intensities stay areas. Node counts are frozen per stage
+({{ NODES_PER_FWHM }} nodes per FWHM of smear where the map moves fastest,
+clamped to [8, 64]), and node positions follow $s$, $h$ and $2\theta$ smoothly.
+When the asymmetric extent falls below {{ SKIP_EXTENT_FWHM_RATIO }} of the peak
+FWHM the aberration is invisible, and the peak is treated as symmetric.
 
 The quadrature is split at the kink of the trapezoid {eq}`prof-fcj-weight`,
-which keeps the response $C^1$ everywhere *except* the inherent FCJ corner
-at $s = h$ — a genuine non-differentiability with measured consequences for
-refinement when both apertures are equal, worked through in
-{ref}`ch-method`.
+which keeps the response $C^1$ everywhere but the inherent FCJ corner at
+$s = h$. That corner is a genuine non-differentiability, and it has measured
+consequences for refinement when both apertures are equal. {ref}`ch-method`
+works them through.

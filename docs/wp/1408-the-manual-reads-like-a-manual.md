@@ -1,0 +1,924 @@
+# WP-1408 — The theory manual reads like a manual
+
+Milestone: unscheduled · Status: ✅ 2026-09-14 — all twelve reported defects
+fixed, each with the guard that closes its class, the citation style settled on
+author-year and every doubled bracket gone; ten new guards, one measurement
+script, the TCH attribution corrected from the paper itself, and
+Part 2 rewritten out of the rulebook's register and its
+self-references checked against the tree
+Depends on: — (0604 built Part 2; 1067 built Part 1)
+
+## Goal
+
+Part 2 reads as a reference a stranger can transfer numbers out of: every symbol
+carries the unit rietx stores it in, every displayed equation fits its column
+beside its own number, every *Source:* line is a link into the code it was
+transcribed from, and the bibliography renders one way instead of ten. The
+defects behind each of those are a class, not an instance, so each fix lands
+with the guard that keeps the class closed.
+
+## Context
+
+Eleven reader-reported defects, 2026-09-14, all in Part 2 (`docs/manual/*.md`,
+twelve chapters, 101 labelled equations, 104 *Source:* lines). Four are
+rendering faults that the `-W` build cannot see and that
+`test_no_unrendered_math_survives_the_build` was written for the shape of but
+does not catch. The rest are editorial, and each generalises past the instance
+the reader happened to open.
+
+**Everything below was measured on this tree before the WP was written**, by
+building the manual and by driving the built HTML in a real browser
+(playwright-core in the scratchpad against the cached chromium, the
+`make_screenshots.py` recipe; `gui/CLAUDE.md` § Driving a real browser).
+
+### A. A MyST substitution is not substituted inside a `{math}` directive
+
+Two sites, both live in the shipped HTML:
+
+| file | equation | source text | what MathJax prints |
+|---|---|---|---|
+| `profiles.md:67` | (3.3) `prof-strain-cap` | `f = {{ STRAIN_CAP_RANGE_FRACTION }}` | `f = STRAINCAPRANGEFRACTION`, as a product of italic letters |
+| `profiles.md:125` | (3.4) `prof-size-cap` | `L_{\min} = {{ SIZE_CAP_MIN_SIZE_NM }}\ \text{nm}` | `L_min = SIZECAPMINSIZENM nm` |
+
+`myst_enable_extensions` carries `substitution`, and the substitution is
+*defined* in `conf.py`, so `-W` has nothing to warn about: the braces reach the
+LaTeX and MathJax typesets the name. This is the exact failure mode
+`test_no_unrendered_math_survives_the_build`'s docstring describes for `$` —
+"the page builds cleanly and prints the TeX" — one delimiter over.
+
+The fix has to keep 0604's anti-divergence rule (a fenced constant is never
+typed into a chapter): the symbol stays in the equation and its **value** moves
+to the prose beside it, where substitution works.
+
+### B. The equation number sits on top of the equation
+
+`basic.css` gives `span.eqno { float: right; }` and nothing reserves the space,
+so a wide equation runs under its own number. Measured in chromium at viewport
+1440 px and 1100 px — the furo content column is **736 px** at both, so the
+numbers below are viewport-independent; "ink" is the `mjx-math` box, not the
+centred block:
+
+| equation | ink | clearance to the number | overflows the 736 px column by |
+|---|---|---|---|
+| (3.3) `prof-strain-cap` | 870 px | **−179 px** | 136 px |
+| (3.4) `prof-size-cap` | 796 px | **−105 px** | 63 px |
+| (4.6) `int-AB` | 686 px | **−18 px** | — |
+| (3.6) `prof-tch-gamma` | 662 px | **−6 px** | — |
+| (8.2) `est-indices` | 629 px | +11 px | — |
+| (3.16) `prof-fcj-integral` | 614 px | +11 px | — |
+| (8.3) `est-structure-r` | 589 px | +31 px | — |
+| (11.3) `eng-det` | 577 px | +32 px | — |
+
+Everything else on the twelve chapters clears by more than 40 px. The reader
+reported 3.3, 3.4, 4.6 as mangled and 3.6 as "dangerously close"; 3.6 is in fact
+already 6 px into the number, and the two cap equations spill out of the column
+as well as under the number.
+
+Two fixes, and both are wanted. The **layout** one makes collision structurally
+impossible whatever an equation's width: `div.math` becomes a two-cell grid —
+the typeset math in a cell of its own with `overflow-x: auto`, the number in a
+second cell — so the worst case is a scrollbar rather than an overlap, at every
+width and for every equation anyone adds later. The **editorial** one reflows
+the four equations that do not fit the resulting cell (736 px less a ~45 px
+number and a gutter ≈ 675 px), so nothing scrolls in practice.
+
+### C. A variable arrives without the unit rietx stores it in
+
+Thirteen unit annotations exist across the twelve chapters, and they are not
+where a reader needs them. Γ is introduced in `profiles.md` § Thompson-Cox-
+Hastings as "a single FWHM Γ" with no unit, though the component widths two
+sections above carry `[\deg 2\theta]`; `forward-model.md` introduces
+$y_\mathrm{calc}$, $I_{pk}$, $w_l$ and $\Omega_{lk}$ with none of the four
+saying counts, counts·deg, dimensionless, deg⁻¹.
+
+The generalisation is a stated convention plus per-symbol exceptions, not an
+annotation on every letter: root CLAUDE.md already fixes the defaults (degrees
+throughout, U/V/W in deg²(2θ), Biso in Å², λ in Å, k = sinθ/λ), and Part 2 has
+never written them down for the reader.
+
+### C2. The metric tensor is named and never written
+
+`peak-positions.md` opens on $1/d^2 = \mathbf{h}\cdot G^*\cdot\mathbf{h}^\top$
+and says only that $G$ is "the direct metric tensor built from
+$(a, b, c, \alpha, \beta, \gamma)$" — the one object the whole chapter rests on,
+never written down. **Missed when this file was first written and added the same
+day**, from the reader's own list.
+
+### D. ⊕ and ⊗ are used as if they were defined
+
+`profiles.md:4` heads a section "The instrument ⊕ sample width split" and
+`profiles.md:157` writes "the Voigt (Gaussian ⊗ Lorentzian)". Neither symbol is
+defined anywhere in the manual. ⊗ is convolution; ⊕ is not an operator at all
+but the shorthand for the combination rule the section then states (Gaussian
+variances add, Lorentzian FWHMs add). Three more uses in Part 1
+(`using/data.md` ×2, `using/indexing.md`) inherit the same silence.
+
+### E. The TCH coefficients look arbitrary, and TCHZ is never expanded
+
+(3.6) and (3.7) carry 2.69269, 2.42843, 4.47163, 0.07842 and 1.36603, −0.47719,
+0.11116 with no statement of where they come from. They are a **numerical fit**,
+not a derivation: TCH 1987 fitted the Voigt FWHM and the pseudo-Voigt mixing as
+polynomials in Γ_L/Γ. A reader cannot tell that from the page, and the
+distinction matters — it is why the pseudo-Voigt is an approximation with a
+quotable error rather than an identity.
+
+rietx can *measure* that error rather than quote it: `model/profiles/voigt.py`
+is the exact convolution via Faddeeva, so the pseudo-Voigt of (3.5) can be
+compared with the Voigt of (3.11) across the whole Γ_L/Γ range on this tree.
+Measuring it is better evidence than a transcribed accuracy claim, and it is the
+rule the repo already applies to everything else.
+
+`TCHZ` appears as `Instrument.profile.shape`'s owning class (`ProfileTCHZ`) and
+in `profiles.md:257` with no expansion. What is certain and citable: it is the
+Thompson-Cox-Hastings pseudo-Voigt carrying a fourth Gaussian term in 1/cos²θ
+beyond Caglioti's three — the term this manual writes $P$ in (3.1). What the
+letter Z itself denotes needs a source before it goes on the page: GSAS-II's own
+`Z` is a constant *Lorentzian* term, which is not this. **Verify against a
+citable source (FullProf manual, GSAS-II documentation, or Denney et al. 2022,
+which is in the local corpus) or write only what is certain; ask the maintainer
+for TCH 1987 if the attribution cannot be pinned** (memory: ask for papers).
+
+### F. A *Source:* line names a symbol and does not go there
+
+104 lines of the form ``*Source:* `rietx.model.profiles.voigt` ``. The name
+resolves — `test_every_source_symbol_imports` proves it — but the reader has to
+go and find the file. Every one of them can be a link, resolved at build time by
+`inspect`, so a rename is a build failure rather than a dead link.
+
+`pyproject.toml` has the repository URL in `[project.urls]` and `_about.py` has
+`DOCS_URL` beside where a `REPO_URL` belongs (root CLAUDE.md § Conventions: the
+brand tokens are imported, never spelled). `_about` is private, so a new
+constant there does not touch the API-surface partition.
+
+### G. The bibliography renders ten ways
+
+103 entries; 87 `@article`, 9 `@book`, 3 `@techreport`, 2 `@incollection`, 1
+`@misc`, 1 `@software`. The field sets are nearly uniform already, so what the
+reader sees as inconsistency is mostly **one mechanical fault**: pybtex's `alpha`
+style sentence-cases a title, so any capitalised word that is not braced is
+lowercased. Ten entries render with a lowercased proper noun today:
+
+- eight read "x-ray" (brindley1945, hubbell1995, holzer1997, lebail1988,
+  mcmaster1969, pitschke1993, suortti1972, thompson1987);
+- srd128 renders "X-ray transition energies database, standard reference
+  database 128";
+- **rietx2026 renders "Rietx: python-api-first analysis and rietveld refinement
+  of powder diffraction data"** — the package's own citation entry, with the
+  brand capitalised and "Rietveld" not.
+
+The rest of the unevenness is real but smaller: 23 of 87 articles carry a `doi`
+and 64 do not, so some entries end in a link and most do not; 3 carry a `number`
+and 84 do not.
+
+`@software` is not a BibTeX type pybtex knows; it renders (as `@misc` would) but
+nothing guarantees that.
+
+### G2. The citation labels do not abbreviate
+
+Reported after § G shipped, and the same fault one layer down: § G fixed what
+the bibliography *entries* say, and left what the citations *are called*.
+
+Nine of 105 labels spell a surname out where the other ninety-six abbreviate it:
+[LouerLouer72], [BLouer91], [BLouer04], [BerarL91], [HolzerFD+97],
+[Humlivcek82], [KvrivyG76], [SVDJorgensen88], [TBurgiB+96].
+
+The mechanism is `pybtex.textutils.abbreviate`, which shortens a name part only
+where `str.isalpha()` holds for it. `Lou{\"e}r` carries a backslash and two
+braces, so it is passed through whole; `pybtex.style.labels.alpha` then strips
+the accent and the punctuation and keeps what is left. Ten `author` lines in the
+file write an accent as a LaTeX macro, and every broken label comes from one of
+them.
+
+The variation the reader sees *around* those nine is alpha.bst's own and is not
+a defect: one author gives three letters ([Rie69]), two to four give one initial
+each ([TCH87]), five or more give three initials and a `+` ([ACG+95]). A
+two-token surname abbreviates both tokens, which is where [LVD04] and [MVDC+99]
+come from.
+
+### G3. Which citation style the manual should use
+
+Asked after § G2 landed, and settled by measuring this tree rather than by
+taste. Four numbers decide it.
+
+| measured | value |
+|---|---|
+| citation roles in the manual | 150 |
+| distinct works cited | 105 |
+| citations where the prose already names the author | 7 |
+| bibliography entries in crystallography journals | 54 of 89 journal entries (61 %), 38 in *J. Appl. Cryst.* |
+
+Works and citations are nearly one to one, so a reader meets almost every label
+once and builds no memory of it. 143 of the 150 carry no author name in the
+prose beside them, so the label is doing all the identifying. The bibliography
+sits on `manual.html`, a different page from all but one citation, so decoding
+a label costs a navigation.
+
+**The literature this manual sits in cites by name-date.** Of the 15
+IUCr-journal papers in the local corpus, 14 cite by name-date and none cite
+numerically.
+
+**Numeric styles were ruled out on churn**, measured here: `plain` renumbers
+105 of 105 entries when one reference is added early in the alphabet, and
+`unsrt` renumbers 104 of 104 when one citation is added to an early page
+(Visser 1969 moved from [105] to [2]).
+
+**Round brackets were tried and dropped.** Name-date convention is round, and
+round was built on this tree first: ten citations sit inside a parenthetical
+the prose already opened, so it printed `((Prince, 2004) eq. 6.3.3.1)` and nine
+more like it. A square bracket nests inside a parenthesis without collision.
+
+The separator was the one real defect in the default. `BracketStyle.sep` is a
+comma, which is also what separates an author from its year, so the fourteen
+citations naming more than one work came out as a flat list of six
+comma-separated fragments.
+
+Author-year labels measured 16 characters median, 32 at the longest
+(`Grosse-Kunstleve and Adams, 2002`).
+
+### G4. An equation reference wrapped in brackets of its own
+
+Found while checking § G3's bracket choice, and older than both. A `{eq}` role
+renders the number in round brackets already, so `({eq}`fm-rows`)` in the source
+prints `((1.4))` on the page.
+
+Twenty-one sites across nine chapters, 24 doubled brackets in the shipped HTML,
+of 146 equation references. Three of the sites wrap two references at once and
+print `((10.8), (10.9))`.
+
+| file | sites |
+|---|---|
+| `using/indexing.md` | 9 |
+| `using/data.md` | 3 |
+| `using/concepts.md` | 2 |
+| `background.md`, `forward-model.md`, `method.md`, `microstructure.md`, `profiles.md`, `using/model.md`, `using/refining.md` | 1 each |
+
+Nothing catches it. `-W` sees valid roles, and the source reads `({eq}`x`)`,
+which looks like ordinary punctuation to anyone reading the markdown. Only the
+built page shows it.
+
+Brackets of the *other* kind are not this defect: `(via Scherrer, {eq}`x` in
+{ref}`y`)` prints `(via Scherrer, (6.3) in …)` and reads correctly, so
+`profiles.md:124` is left as it stands.
+
+### H. Rwp is set in prose where the chapter next to it sets it in maths
+
+`estimation.md` defines $R_{wp}$ in (8.2) and then writes "ΔRwp" as plain text
+eleven lines later. Eleven plain-text uses across five Part 2 chapters, 109
+across Part 1. The rule that settles it in both parts: **the statistic is
+$R_{wp}$; the field is `rwp` in code font**, and a mermaid node label — which
+cannot typeset maths — stays plain.
+
+### I. Lorentz-polarisation: keep the hyphen
+
+Answered rather than changed. The compound joins two coordinate factors (a
+Lorentz factor times a polarisation factor), and the literature hyphenates it:
+in the local corpus, 13 hyphenated spellings against 2 unhyphenated (plus 5
+`Lorentzpolarization`, PDF line-break artefacts). ITC C §6.2 and McCusker 1999,
+both already cited here, hyphenate. **No change; record the check so the question
+is not reopened.** The one thing to fix is consistency of the *ending*: the
+manual is British-spelled, so `polarisation` throughout, with
+`lorentz_polarization` left alone as a code name.
+
+### G/B/A share one guard gap
+
+`test_manual.py` guards names, constants, citations and stray `$`. It does not
+guard what a page *looks* like. Two new guards are cheap and cover A, G and H
+entirely; B's guard is a measurement script, not a test, for the same reason
+`make_screenshots.py` is one — playwright is deliberately not a dependency.
+
+## Non-goals
+
+- No new physics and no new equation content. A wrong explanation is out of
+  scope unless it is one of the eleven; report it, do not rewrite the chapter.
+- Not a restructure of Part 2, and no chapter merges or splits.
+- Part 1 is touched only where a defect is the same defect (H's `Rwp`, D's ⊕),
+  never for its own polish.
+- No `linkcheck` builder and no external-link CI. The source links are checked
+  by resolving the symbol at build time, which is where a rename breaks.
+- Not the manual's own prose register (that is `yue-docs-style`'s, and settled).
+
+## Tasks
+
+- [x] **A — a substitution never reaches MathJax.** Move `STRAIN_CAP_RANGE_FRACTION`
+  and `SIZE_CAP_MIN_SIZE_NM` out of (3.3)/(3.4) into the prose beside them; keep
+  the symbols $f$ and $L_\mathrm{min}$ in the equations. Guard:
+  `test_manual.py` gains a built-HTML scan for a surviving `{{`/`}}` in rendered
+  prose, sharing `MARKUP_WITHOUT_PROSE` and the landing-page exclusion with the
+  `$` guard.
+- [x] **B1 — the layout makes the collision impossible.** `_static/custom.css`
+  lays `div.math` out as a two-cell grid, math cell `overflow-x: auto`, number
+  cell its own column; checked in both themes and at 1440/1100/400 px.
+- [x] **B2 — the four wide equations are reflowed** (`prof-strain-cap`,
+  `prof-size-cap`, `int-AB`, `prof-tch-gamma`) so their ink fits the cell with
+  clearance, using `aligned`/`split` rather than shrinking the content.
+  `docs/manual/check_equations.py` lands with them: playwright, not a
+  dependency, `make_screenshots.py`'s conventions, printing ink/cell/clearance
+  per labelled equation so the table above is reproducible.
+- [x] **C2 — the metric tensor written out** as a 3×3 matrix in
+  `peak-positions.md`, dot-product form beside closed form, in Å², with its
+  source line.
+- [x] **C — units.** A short "Symbols and units" section in `manual.md`'s Part 2
+  preamble stating the defaults (deg 2θ; widths as FWHM in deg 2θ; Å; Å⁻¹;
+  counts; counts·deg; cm⁻¹), then a sweep of the twelve chapters annotating every
+  symbol whose unit the defaults do not settle — Γ, y, I, w, Ω first.
+- [x] **D — ⊕ and ⊗ defined where they are first used** (`profiles.md` § the
+  split), Part 1's three uses pointed at `{ref}`ch-profiles``.
+- [x] **E1 — where the TCH coefficients come from**: a paragraph saying they are
+  a fit and not a derivation, with the approximation error **measured on this
+  tree** against `profiles.voigt` across Γ_L/Γ ∈ [0, 1], reported in the WP and
+  quoted on the page.
+- [x] **E2 — TCHZ expanded** where the shape is named, to whatever a citable
+  source supports (see § E); the convention note that rietx writes that
+  coefficient $P$.
+- [x] **F — `*Source:*` becomes a link.** `REPO_URL` in `_about.py`; a `{source}`
+  role registered in `conf.py` resolving the dotted name through `inspect` to a
+  blob URL with a line anchor; all 105 lines converted; `test_manual.py`'s
+  `SOURCE_LINE` regex and its two consumers follow. **Landed against `main`, not
+  a tag**: `pyproject.version` is the last *shipped* milestone whether or not it
+  was tagged, and it reads 1.4.0 today while `git ls-remote --tags` stops at
+  v1.3.0, so a tag-pinned link would 404 on every equation. `main` is also the
+  tree the published manual is built from.
+- [x] **G — the bibliography agrees with itself.** Brace every capital in every
+  title (the ten rendered faults first, then the sweep); settle `@software`;
+  add the `doi` field wherever Crossref confirms one against title, year, volume
+  and first page (never a bare title match), and record the count that could not
+  be confirmed. **`@software` stays**: changed to `@misc` for portability and
+  changed straight back, because `tests/test_no_stale_name.py` finds this
+  package's own citation record by that entry type and went red. Guards: `test_manual.py` fails on an unbraced interior capital in
+  a title, on an article with no `doi` outside a named exception, and on a `doi`
+  that is not lower case. **Not** a field-set check per type: the field sets were
+  already uniform, and the defect was the style lowercasing a capital.
+- [x] **H — `Rwp` in maths, in Part 2.** $R_{wp}$ and $\Delta R_{wp}$ in the
+  eleven Part 2 lines; `rwp` in code font is the field everywhere. **Part 1 keeps
+  the plain word, deliberately**: it is the label on the GUI header and in a
+  console line, and its neighbours in the same tables are plain too (χ², GoF,
+  Σw δ², N − P), so converting 126 lines would trade one inconsistency for
+  another. `manual.md` states the split. Guard: a source-side check over Part 2,
+  its page list derived from the tree, exempting code spans and fences.
+- [x] **I — the hyphen check recorded** in the handover entry with its counts;
+  `polarisation` spelling made uniform in prose.
+- [x] Tests: the four new guards above, plus the existing manual suite green.
+  No obs/calc/diff PNGs — this WP runs no refinement (the plotting rule is about
+  fits, and E1's measurement is a profile-function comparison, whose plot belongs
+  in the handover entry).
+- [x] **Register.** Part 2 rewritten to `yue-docs-style`'s theory shape and
+  `yue-prose`'s budgets: em dashes 229 to 0, maxims 87 to 0, eighteen headings
+  renamed to the noun a reader looks up, sixteen bold lead-ins promoted to h3.
+  Guard: `test_part_two_keeps_the_manual_register`, failed on purpose on both
+  marks.
+- [x] **Self-reference.** Part 2 audited for the claims `-W` cannot check.
+  `method.md` counted four cases in a chapter of five sections, `profiles.md`
+  announced two symbols running through "this chapter and the next" where
+  neither reaches it, and two chapter openings listed contents instead of
+  stating a claim. Prose that points now links, and 27 `{source}` lines name
+  the function computing their equation instead of the module.
+- [x] Skill: **none.** Nothing here changes what an agent driving rietx should
+  do; the skill cites the manual by section and no section is renamed or moved.
+  Confirmed at close: the skill links the manual only as
+  `https://rietx.org/manual.html`, and `help.py`'s 30 deep links name no anchor
+  in a heading this WP touched (the one changed heading, `method.md`'s, is
+  referenced by nothing).
+  **Superseded in part, 2026-09-14 (4th session)**: the register pass renamed
+  eighteen headings, three of which `help.py` did link
+  (`background.html#additive-models-never-subtraction`,
+  `#localised-flexibility-explicit-humps`, and microstructure's positivity
+  cone). All three were updated, and
+  `test_every_anchor_resolves_in_the_built_manual` is what found them.
+
+- [x] **G2 — the accents written in Unicode.** Ten `author` lines, nine labels
+  fixed, `references.bib` § rule 5 added. Guard:
+  `test_every_citation_label_abbreviates_its_authors` asserts the rendered
+  label, since the label is what the reader sees: two or more authors give
+  initials, one author gives three letters.
+
+- [x] **G3 — the manual cites by author and year.** `bibtex_reference_style`
+  registers a subclassed `AuthorYearReferenceStyle` in `conf.py`, the documented
+  route, changing only `BracketStyle.sep` to a semicolon. `custom.css` hides the
+  bibliography's own label, which docutils requires and sphinxcontrib-bibtex
+  cannot remove. Guards: `test_every_citation_reads_as_author_and_year` and
+  `test_the_bibliography_label_is_hidden_and_the_rule_reaches_all_of_them`.
+
+- [x] **G4 — the doubled brackets removed.** Twenty-one prose sites, nine
+  files, each losing the prose brackets rather than the reference. Two
+  paragraphs reworded where the reference ended a parenthetical
+  (`microstructure.md`, `using/refining.md`). Guard:
+  `test_no_reference_is_doubly_bracketed`, over both equation references and
+  citations, since both carry their own brackets.
+
+## Acceptance
+
+1. The manual builds `-W`-clean and the manual suite is green:
+
+```sh
+.venv/bin/python -m sphinx -W -q -b html docs/manual docs/manual/_build/html
+.venv/bin/python -m pytest tests/test_manual.py tests/test_manual_api.py tests/test_gui_manual.py tests/test_help.py -p no:randomly
+.venv/bin/python -m ruff check src tests examples
+```
+
+2. `check_equations.py` reports **no** labelled equation whose typeset ink
+   exceeds its cell, on all twelve Part 2 chapters, at 1440 px and 1100 px; the
+   minimum clearance is recorded in the handover entry against today's −179 px.
+
+3. No `{{` survives into rendered prose, and no bare `Rwp` survives outside code
+   spans, fences and mermaid labels, both asserted by tests rather than by
+   reading.
+
+4. The rendered bibliography carries no lowercased proper noun: the ten entries
+   in § G read correctly, `rietx2026` included, checked in the built HTML.
+
+5. Every one of the 104 *Source:* lines resolves to a URL at build time, and a
+   deliberately misspelled symbol fails the build (verified once, then reverted).
+
+6. No citation label spells a surname out: all 105 labels abbreviate, checked in
+   the built HTML after a clean rebuild, and the guard is red on the old
+   spelling (verified once, then reverted).
+
+7. Every citation on every built page names an author and a year, works inside
+   one citation are separated by a semicolon, and no citation produces a doubled
+   bracket. Each of the three settings behind that was reverted once and the
+   guard went red with its own message.
+
+8. No reference on any built page sits inside a bracket of its own kind: 0 of
+   146 equation references and 0 of 150 citations, down from 24 doubled
+   brackets. One site was restored to its old form and the guard named it.
+
+## References
+
+- Thompson, P., Cox, D. E. & Hastings, J. B. (1987) *J. Appl. Cryst.* **20**,
+  79–83 — eqs 4 and 5 are (3.6) and (3.7). Not in the local corpus as of
+  2026-09-14; § E says what to do about that.
+- Denney, J. J. et al. (2022) — physically based pseudo-Voigt terms from the FPA;
+  in the local corpus, a candidate source for the TCHZ naming convention.
+- Caglioti, G., Paoletti, A. & Ricci, F. P. (1958) — the three-term Gaussian law
+  the fourth term extends.
+- International Tables C §6.2 and McCusker et al. (1999) — both cited already,
+  both hyphenate Lorentz-polarisation (§ I).
+- Crossref REST API (`api.crossref.org`), reachable from this machine, verified
+  2026-09-14 — the DOI source for § G.
+- `docs/manual/make_screenshots.py` — the precedent § B2's script follows:
+  playwright is not a dependency, the script is the one authority for how a
+  measurement was taken.
+
+## Handover log
+
+### 2026-09-14 (8th session) — the brackets the prose added
+
+§ G3 ruled out round citation brackets because ten citations sit inside a
+parenthesis the prose already opened. Counting those turned up an older defect
+of the same shape, this time with equation references. A `{eq}` role renders
+`(1.4)`, brackets included, and twenty-one sites wrapped one in brackets of
+their own. The shipped HTML carried 24 doubled brackets: `((1.4))`,
+`((10.7))`, `((10.8), (10.9))`.
+
+**Why nothing caught it.** `-W` sees two valid roles. A reader of the markdown
+sees `({eq}`fm-rows`)`, which looks like ordinary punctuation, and the doubling
+only exists after the role expands. § G4 has the count per file.
+
+**The edit is the same everywhere: the prose loses its brackets, the reference
+keeps its own.** `The FCJ quadrature ({eq}`prof-fcj-weight`) is built` becomes
+`The FCJ quadrature {eq}`prof-fcj-weight` is built`, printing "The FCJ
+quadrature (3.15) is built". Two sites needed more than that, because the
+reference ended a parenthetical and dropping the brackets would have changed
+the sentence. `microstructure.md` became two sentences with the list on a
+colon. `using/refining.md` moved the reference ahead of the chapter link.
+Three sites wrapped two references, and those read `{eq}`idx-m20` and
+{eq}`idx-fn`` now, printing "(10.8) and (10.9)".
+
+**What was deliberately left.** A reference inside a bracket of the *other*
+kind is ordinary English. `profiles.md:124` prints "(via Scherrer, (6.3) in
+Reading a width as a size)" and stays. The guard is written to that line: it
+compares each reference against its own bracket character, never against any
+bracket.
+
+**The guard** is `test_no_reference_is_doubly_bracketed`, over equation
+references and citations together, since both carry their own brackets and both
+can be wrapped. One site was restored to `({eq}`prof-fcj-weight`)`; the guard
+named `method.html: The FCJ quadrature ((3.15)) is built aro…` and the site was
+put back.
+
+**Numbers.** 146 equation references before and after, so no reference was lost
+in the rewording; doubled brackets 24 → 0. Fast selection **4645 passed / 132
+skipped** in 2:18, `.venv` on macOS with `[dev]`, against this session's 4644 /
+132: +1 passed for the one new test, exactly. The manual builds `-W`-clean from
+a cleared `_build`. `ruff check src tests examples` clean.
+
+### 2026-09-14 (7th session) — the manual cites by author and year
+
+The label fix closed § G2 and raised the question behind it: what should the
+citations be called at all. Answered by measuring, in § G3 above. The manual
+cites 105 distinct works across 150 citations, 143 of which carry no author
+name in the prose beside them, and the bibliography sits on a different page
+from all but one of them. Name-date is also what the surrounding literature
+does: 61 % of the entries are crystallography journals, and 14 of the 15
+IUCr-journal papers in the local corpus cite by name-date.
+
+**What landed.** `bibtex_reference_style` now names a subclassed
+`AuthorYearReferenceStyle` registered in `conf.py`, which is the route
+sphinxcontrib-bibtex § Custom Formatting documents. `bibtex_default_style`
+stays `alpha`, which still formats and sorts the list by author and year.
+
+**The separator was the real defect in the library default.**
+`BracketStyle.sep` is a comma, and a comma is also what separates an author
+from its year, so the fourteen citations naming more than one work rendered as
+one flat list of six comma-separated fragments. It is now a semicolon:
+`[Boultif and Louër, 1991; Boultif and Louër, 2004; Louër and Louër, 1972]`.
+
+**Round brackets were built, measured and dropped.** Name-date convention is
+round, and the sphinxcontrib-bibtex example that shows this mechanism uses
+round. Ten citations sit inside a parenthetical the prose already opened, so
+round printed `((Prince, 2004) eq. 6.3.3.1)`, `(… (Klug and Alexander, 1974))`
+and eight more. Fixing those means editing ten passages of prose, which buys a
+bracket shape. Square brackets nest without collision and are the library
+default, so they stayed.
+
+**The bibliography's own label is hidden in `custom.css`.** docutils gives
+every citation node a label and sphinxcontrib-bibtex documents that it cannot
+remove one, so the list would print [BL91a] beside a citation reading [Boultif
+and Louër, 1991]. All 105 `span.label` elements in the built site sit inside a
+`doc-biblioentry`, so the selector reaches the bibliography and nothing else,
+and that is asserted rather than assumed. Nothing links to a label, so no
+anchor breaks. Checked by looking, at 1100 px in both themes.
+
+**Guards.** `test_every_citation_reads_as_author_and_year` reads the built page
+for an author and a year, and for N-1 semicolons in a citation carrying N
+years. `test_the_bibliography_label_is_hidden_and_the_rule_reaches_all_of_them`
+checks the CSS rule is present and that every label on the site is one the rule
+covers. Each of the three settings was reverted once and the matching guard
+went red with its own message.
+
+**Left alone, and worth its own pass.** Fourteen sites put an *equation*
+reference inside a parenthesis the prose already opened, printing `((1.4))`,
+`((3.15))`, `((9.10))`. That predates this change and is the same shape as the
+bracket collision above. It is prose editing across five chapters, so it is not
+folded in here.
+
+**Numbers.** Fast selection **4644 passed / 132 skipped** in 2:12, `.venv` on
+macOS with `[dev]`, against this session's earlier 4642 / 132: +2 passed for the
+two new tests, exactly. The manual builds `-W`-clean from a cleared `_build`.
+`ruff check src tests examples` clean.
+
+### 2026-09-14 (6th session) — the labels, not the entries
+
+§ G fixed what each bibliography entry says and never looked at what the
+citations are called. A reader read the labels next and found nine of 105
+spelling a surname out: [LouerLouer72], [Humlivcek82], [KvrivyG76],
+[BLouer91], [BLouer04], [BerarL91], [HolzerFD+97], [SVDJorgensen88],
+[TBurgiB+96].
+
+**The mechanism.** `pybtex.style.labels.alpha` builds a label by calling
+`pybtex.textutils.abbreviate` on each surname, and that function shortens a
+name part only where `str.isalpha()` holds for it. `Lou{\"e}r` carries a
+backslash and two braces, so `isalpha()` is false and the part comes back
+whole. The label style then strips the accents and the non-alphanumerics, which
+leaves `Louer`. Ten `author` lines in `references.bib` wrote an accent as a
+LaTeX macro, and every one of the nine labels traces to one of them.
+
+**The fix is the input, not the style.** Writing `Louër` in Unicode makes the
+part alphabetic, so it abbreviates to `L`. Measured across the change: all 105
+rendered entry *texts* are byte-identical, because pybtex already decoded the
+macro for the entry body. Only the nine labels move, to [LL72], [Hum82],
+[KG76], [BL91a], [BL04], [BL91b], [HFD+97], [SVDJ88], [TBB+96]. Two of them
+collide once the abbreviation works (Boultif & Louër 1991 and Bérar & Lelann
+1991 both reduce to BL91), and pybtex disambiguates them itself with the `a`/`b`
+suffix the file already carries on [Coe18a]/[Coe18b]. The bibliography anchors
+are `id98`-style and are not built from the label, so nothing links to the old
+spelling.
+
+**What was left alone, deliberately.** The shape of a label varies with the
+author count, and that is alpha.bst's design rather than a fault: [Rie69] for
+one author, [TCH87] for two to four, [ACG+95] for five or more. [LVD04] and
+[MVDC+99] look odd for a third reason, which is that `Von Dreele` is a
+two-token surname and both tokens abbreviate. [NIST05] is a braced corporate
+author, which pybtex keeps whole for the same `isalpha()` reason and which is
+the one place that behaviour is wanted. Making every label one shape means
+changing the style, not the file: `bibtex_reference_style = "author_year"` was
+built and read, and it renders inline citations as [Boultif and Louër, 1991]
+while the bibliography list keeps the alpha label, so the two disagree. That is
+a bigger decision than this defect and it stays open.
+
+**The guard** is `test_every_citation_label_abbreviates_its_authors`, and it
+asserts the rendered label rather than the input field, because the label is
+what the reader sees. Two or more authors give initials, which are upper case;
+one author gives at most three letters. `LONG_SINGLE_AUTHOR_LABELS` names
+`srd128` and why. Verified red on the old spelling and green on the new. Rule 5
+in `references.bib`'s header carries the mechanism.
+
+**Numbers.** Fast selection **4642 passed / 132 skipped** in 2:08, `.venv` on
+macOS with `[dev]`, against the 5th session's 4641 / 132: +1 passed for the one
+new test, exactly. The manual builds `-W`-clean from a cleared `_build`.
+`ruff check src tests examples` clean.
+
+### 2026-09-14 (5th session) — the manual's claims about itself went unchecked
+
+A reader asked which function ⊕ and ⊗ correspond to. The honest answer is that ⊕
+has two and ⊗ has none, and following that produced the class this session
+closed. Sphinx `-W` verifies every `{ref}`, `{eq}`, `{cite}` and `{source}`
+target, so the only statements a manual makes that nothing checks are the ones it
+makes about itself in prose. Two of those in Part 2 were false, and both had been
+false since the sentence was written. Part 2 no longer points at itself without a
+link, and a source pointer now names the smallest importable thing that computes
+its equation rather than the file holding it.
+
+*Done*
+
+- `profiles.md` § the width split: the announcement sentence cut, and the ⊗
+  paragraph now says the convolution is never evaluated as an integral, names the
+  blend and the closed form that stand in for it, and names the one convolution
+  the chapter does integrate ({eq}`prof-fcj-integral`, by quadrature).
+- `method.md`'s opening rewritten. It counted "four cases" in a chapter of five
+  sections, of which three are print errors, and claimed all five record one
+  method. Its § µR/µt said "eight corrections" for eight work packages, two of
+  which (anode wavelengths, sequential chaining) are not corrections.
+- `corrections.md` no longer rates its own opening as worth recording, no longer
+  points at the paragraph the reader is in, and states the population of "one
+  provably cannot move it".
+- `engines.md`'s opening reduced from two contents lists, one of them the
+  previous chapter's, to two sentences.
+- Prose that points at a section now links it: `sec-strain-cap`, `sec-units` and
+  `sec-width-split` had no incoming reference in any form.
+- 27 `{source}` lines sharpened from a module to the function computing the
+  equation.
+
+*Measured*
+
+- Part 2 is 19,942 words, Part 1 82,424. Of 41 explicit anchors, 12 have no
+  incoming link in any form, and 2 of those had prose pointing at them. Of 105
+  `{source}` lines, 51 named a module; 24 still do, each where the module is the
+  subject.
+- Part 2 after the pass: em dashes 0, maxims 0, generic tics 0, negation 3.6 per
+  1000 against a budget of 3, unchanged and sitting in convention warnings.
+- Routing, since the question was asked explicitly. Grep-first in one context
+  cost about 15k tokens against 27k to read Part 2 whole, and about 45k of setup
+  per subagent in this repo (root `CLAUDE.md` ~12k, tools ~28k, skills ~4k). A
+  corpus this size does not pay for fan-out, and the judgement was calibrated by
+  three findings that lived in the session rather than in a prompt.
+
+*Gotchas*
+
+- A wrong but importable `{source}` target passes every test in the tree, so each
+  of the 28 proposed pairings was printed beside its own equation before landing.
+  Three were wrong: `ms-strain-coefficient` had the inverse conversion,
+  `ms-strain-law` is Bragg differentiated and no single function owns it, and
+  `pos-dspacing` defines 1/d² so it takes `inv_d_squared`.
+- `corrections.md`'s "one provably cannot move it" against `ch-method`'s "two" is
+  not a contradiction. The chapter has eight sections, the release had eight work
+  packages, and they are different eights. The fix is the populations, not the
+  numbers.
+- A bare `{ref}` renders the target's full title, which reads badly inside
+  parentheses ("(The true Voigt, via the Faddeeva function)"). Use an equation
+  number, or give the role explicit link text.
+
+*Next*
+
+- Part 1 (`docs/manual/using/`, 82,424 words) has never been measured for
+  register nor swept for this class. Five of its anchors have no incoming link:
+  `a-neutron-source` and `background-peaks` (`data.md`), `strategy-harmonics`
+  (`refining.md`), `progress-lines` (`results.md`), `scanning-a-parameter`
+  (`series.md`).
+- The dead anchor is the one shape here a test could own. It needs the ten inert
+  Part 2 anchors linked or deleted first, or the guard fails on arrival.
+- `/code-review high --fix` has not run on this branch.
+
+### 2026-09-14 (4th session) — the manual was written in the rulebook's voice
+
+Part 2 read like a `CLAUDE.md`: an aside welded on with an em dash, a bold maxim
+in front of a heading that already carried the claim, a contrast drawn twice in
+consecutive sentences. That register is right for a rulebook a maintainer cites
+and wrong for a reference a stranger reads to transfer a number out of, and it
+arrives by default, because the rulebook sits in the same tree and gets read
+first. Nobody chose it. Measured before anything was touched, the twelve
+chapters carried 229 em dashes against a budget of 0, 87 bold or italic maxims
+against 0, and negation up to 10.8 per 1000 words against 3. A reader now gets
+one clause per sentence, and a heading that is the noun they were looking up.
+
+*Done*: all twelve chapters and the root document rewritten, one or two per
+commit. Eighteen headings became that noun ("Additive models, never
+subtraction" to "Additive background models"; "Ambiguity, which is reported and
+not resolved" to "Lattice ambiguity"), and sixteen bold lead-ins became the h3
+sections they were already acting as: the three intensity models, the four
+aberration shifts, the three dichotomy prunes, the two Coelho equations. Three
+paragraphs that were lists became lists (the four cases where a derived esd is
+withheld, the three properties behind the fp64 floor, the three things a
+declared peak does not carry). Two sentences were cut rather than rewritten,
+both of the kind the style guide names: the Stephens warning's remark about what
+a manual without those conventions would be worth, and the shift section's
+invitation to conclude the shift is unknowable before the cell, then correcting
+the reader.
+
+Two guards followed. `test_part_two_keeps_the_manual_register` fails on an em
+dash or on bold in Part 2's prose, the root document included, exempting code
+spans and fenced blocks, and names the fix; it was failed on purpose on both
+marks and checked silent on both exemptions. The `Rwp` guard now shares its
+`_prose_lines` helper, so what counts as prose has one definition.
+
+*Measured*: em dashes 229 to **0** and maxims 87 to **0** across Part 2;
+negation 1.4-5.7 per 1000 by chapter, the residue being convention warnings,
+which is the one place `yue-prose` says keep the negative half (every one of
+them is a number a reader would otherwise transfer straight out of GSAS-II,
+FullProf or Stephens 1999 and get a width law that is wrong and still refines).
+Nothing physical moved: no equation label, `{source}` line, citation,
+cross-reference, substitution, `{math}` block or `{warning}` block differs from
+the session's starting commit, checked count by count per chapter. 102 numbered
+equations still clear their numbers in chromium at 1440 and 1100 px, minimum
+44 px, unchanged. Fast selection **4641 passed / 132 skipped** in 2:19 on
+darwin/arm64, `[dev]` plus the worktree's playwright, **+1** over the previous
+run and that one the new guard. Build `-W` clean, ruff clean.
+
+*Gotchas*: the previous entry's closing claim, that `help.py`'s deep links name
+no anchor in a heading this WP touched, was true when written and is not now.
+Renaming three headings moved three anchors, and
+`test_every_anchor_resolves_in_the_built_manual` caught all three on the first
+full run. That is the class already mechanised by WP-1202/1203 doing its job, and
+the lesson for a heading rename anywhere in the manual: `help.py` is the file to
+grep, and the full fast selection is where you find out. Four non-breaking
+spaces before `%` (the only four in Part 2, against sixteen plain ones) were
+normalised, which is why an exact-match rewrite refused its first pass.
+`caglioti eq. 4` was a pointer into a module docstring's own equation numbering
+and is now {eq}`ms-size-coefficient`, the manual equation that states the same
+thing.
+
+*Next*: nothing on the prose. The session ended at a clean pushed tree with the
+ritual's last three steps unrun, at the maintainer's request to compact:
+`/code-review high --fix`, the `session_start.py` verify pass, and PR #312's
+body. Part 1 (`docs/manual/using/`) was **not** measured or touched, and is
+where the same leakage would be found next. The v1.4.0 tag finding below still
+stands.
+
+### 2026-09-14 (3rd session) — the paper arrived, and the chapter was wrong
+
+Thompson, Cox & Hastings (1987) was the one thing the previous entry said it
+could not get, and the maintainer supplied it within the hour. It settles both
+open questions and **refutes half of what the chapter had just been given to
+say**: (3.6) and (3.7) do not have the same author. The paper credits the
+pseudo-Voigt as a way of reading a line's Gaussian and Lorentzian content to
+Wertheim, Butler, West & Buchanan (1974), and the mixing expansion to Hastings,
+Thomlinson & Cox (1984), stating plainly that "the coefficients used in this
+expression differ from those used earlier in II because of the normalization
+factors in (1)" — so TCH *renormalised* someone else's coefficients for the
+unit-area form. The chapter had them fitting both polynomials. That is the kind
+of error the whole manual's discipline exists to prevent, and only the source
+could catch it.
+
+*Done*: the attribution corrected, with `wertheim1974` and `hastings1984` added
+to the bibliography, each verified on title, journal, volume, first page and
+year before the DOI went in. (3.6)'s origin is now **quoted** rather than
+inferred — "another simple series expansion derived from a set of
+computer-generated convolutions" — which is the same "fitted, not derived"
+claim the section already made, sourced. And the trailing **Z** of
+`ProfileTCHZ` is settled by elimination: TCH's own width model is one parameter
+per component, Γ_G = V tanθ and Γ_L = X/cosθ, with no U, W or Y and nothing
+called Z, so every further letter came from the codes that adopted the profile
+afterwards. Their two letters survive by θ-law — their V is this chapter's
+Gaussian tanθ term, their X its Lorentzian 1/cosθ one — which is the chapter's
+own "read the law, not the letter" rule paying off in the place it was written
+for.
+
+*Measured*: nothing new. The paper **quotes no accuracy** for either expansion,
+which is the second reason the 0.43 % and 1.27 % on that page are measured
+against this package's own Faddeeva Voigt rather than cited — that was a guess
+in the previous entry and is now a fact. Bibliography 103 → 105 entries, both
+new ones carrying a DOI; 102 equations still clear, minimum 44 px; suite
+unchanged (no test added or removed).
+
+*Gotchas*: none new. The two guards written this morning both held through the
+edit without attention — the brace rule caught nothing because the new titles
+were written to it, and the DOI rule refused nothing because both DOIs were
+verified before insertion, which is the order that rule assumes.
+
+*Next*: nothing on this WP. The PR is updated; merging is the maintainer's, and
+the v1.4.0 tag finding in the previous entry is still the one thing outside it.
+
+### 2026-09-14 (2nd session) — the manual's own defects, each closed with its guard
+
+Part 2 now reads as a reference somebody can transfer numbers out of. Every
+symbol arrives with the unit rietx stores it in, no equation is typeset on top
+of its own number, the metric tensor the positions chapter rests on is written
+out, ⊕ and ⊗ mean something stated rather than assumed, the TCH coefficients
+say plainly that they are a fit and how good a one, every *Source:* line is a
+click into the code it was transcribed from, and the bibliography stopped
+rendering this package's own citation as "Rietx: python-api-first analysis and
+rietveld refinement". The part that outlives the eleven fixes is that four of
+them were **invisible to `-W` by construction** — a defined substitution that
+is simply never reached, a CSS collision, a style that lowercases a capital, a
+plain word four lines under the equation that defines it — so each landed with
+a guard, and each guard was failed on purpose before it was trusted. The cost
+was one working day and no package behaviour: nothing outside `docs/` changed
+but a private `REPO_URL` constant.
+
+*Done*, one commit each: the two substitutions moved out of (3.3)/(3.4) into
+the prose beside them; a two-cell grid in `custom.css` that makes an equation
+and its number structurally unable to collide, plus four reflows;
+`docs/manual/check_equations.py`, which measures it; a "Symbols and units"
+table in `manual.md` and a per-chapter sweep; ⊕/⊗ defined at first use; the
+metric tensor as a 3×3 matrix, dot products beside closed form; a `{source}`
+role resolving 105 dotted names to GitHub links at build time; 63 DOIs and a
+brace sweep over `references.bib`; eleven Part 2 `Rwp` set as $R_{wp}$.
+
+*Measured*, darwin/arm64, `[dev]` plus a `playwright` this session installed
+into the worktree venv for the script (it adds no tests):
+
+- **Equation width**, chromium at 1440 px and 1100 px, furo's content column
+  736 px at both. Before: (3.3) ran 179 px into "(3.3)" and 136 px outside the
+  column, (3.4) 105 px and 63 px, (4.6) 18 px, (3.6) — reported only as
+  "dangerously close" — already 6 px in. After: 102 numbered equations, minimum
+  clearance **44 px**, nothing overflowing its cell.
+- **The TCH approximation**, against this package's own Faddeeva Voigt with the
+  true FWHM found by bisection: the quintic reproduces the Voigt FWHM to
+  **0.43 %** worst case (Olivero & Longbothum's two-term formula, run as a
+  control, lands at 0.023 % — its own published bound, which is how the
+  bisection was checked); the pseudo-Voigt departs from the exact shape by at
+  most **1.27 %** of the peak height at q ≈ 0.56, **on the flanks** at
+  x ≈ ±0.28 Γ, while the centre stays under **0.25 %** across the range.
+- **The bibliography**: 103 entries, 10 rendering a lowercased proper noun
+  before, 0 after; 86 now carry a DOI against 23 before — 50 accepted by
+  Crossref only on title, year, volume *and* first page together, 13 confirmed
+  one at a time, 1 (`scherrer1918`) declared as having none.
+- **Suite**: fast selection **4640 passed / 132 skipped** in 2:06–2:11 on the
+  final tree, **+8** over the merge base (6 in `test_manual.py`, 2 in
+  `test_voigt.py`), all passes and no new skip — the intermediate run at +7 read
+  4639/132 before the `*Source:*` guard landed, which is the check. The full
+  selection did **not** run: this WP changes `docs/`, `tests/` and one private
+  constant, so it can move no measured number (`tests/CLAUDE.md` § Running,
+  rung 3), and `pgrep` showed no other suite in flight either way.
+
+*Gotchas*, each one that cost time:
+
+- **A MyST substitution is not expanded inside a `{math}` directive.** It is
+  *defined*, so `-W` has nothing to say, and MathJax typesets the name as a
+  product of italic letters. Put the symbol in the equation and its value in
+  the prose beside it; `test_no_unsubstituted_substitution_survives_the_build`
+  is now the loud version.
+- **Furo pins the equation number with `position: absolute`**, over the content
+  column. That is why it can sit on top of the equation, and why the number has
+  to be made `static` before a grid can give it a column of its own. A float or
+  a padding reserve cannot work: an equation's width is not known until MathJax
+  has typeset it in the browser.
+- **`pyproject.version` is the last *shipped* milestone, tagged or not.** It
+  reads 1.4.0 while `git ls-remote --tags origin` stops at v1.3.0 and PyPI's
+  latest is 1.3.0 — so **v1.4.0 was written, merged and released in the record
+  but never tagged or published**. Found while deciding what a source link
+  should point at; the links go to `main`, which is also the tree the published
+  manual is built from. This is the maintainer's to act on, not this WP's.
+- **`@software` in `references.bib` is load-bearing.** It was changed to
+  `@misc` for portability and changed straight back:
+  `tests/test_no_stale_name.py` finds this package's own citation record *by
+  that entry type*. The file now says so above the entry.
+- The bibliography's remaining unevenness is **the literature's**:
+  `holzer1997` reads "x-ray" because Physical Review A prints it that way. The
+  brace rule is about capitals the *style* destroys, never about spelling, and
+  the file states the difference so nobody "fixes" it.
+
+*Decided rather than changed*: **Lorentz-polarisation keeps its hyphen.** The
+compound joins two coordinate factors, and the local corpus has 13 hyphenated
+spellings against 2 unhyphenated; ITC C §6.2 and McCusker 1999, both cited
+here already, hyphenate. The British ending was already uniform — all eight
+`polarization` spellings in the manual are code names. And **Part 1 keeps
+`Rwp` as plain text**: it is the word on the GUI header and in a console line,
+and its neighbours in the same tables are plain too (χ², GoF, Σw δ²), so
+converting 126 lines would have traded one inconsistency for another.
+`manual.md` states the split between the parts.
+
+*Not done, and why*: **no CLAUDE.md line.** The three things a stranger adding
+a Part 2 equation must know are all mechanised instead — the substitution trap,
+the width check and the `{source}` spelling each have a test or a script — and
+a guard beats a rule at the same cost in nobody's attention. **No skill row**
+either: the TCH accuracy numbers bear on one opt-in shape and hold for no other
+fit, so neither the body nor a task-shape reference is their home (root
+CLAUDE.md § skill). **No milestone-record entry**: rule 6 stages a break or a
+user-facing addition, and this is documentation with no API, schema or
+behaviour change; staging it under shipped v1.4 would misattribute it to
+notes already written.
+
+*Review*: `/code-review high --fix` accepted ten findings, all applied.
+**Two were real holes** rather than polish. The `{source}` role took the file
+from the module and the line from the object, which for a re-exported name are
+different files — a link to a real file at a line belonging to another one,
+with the name importing and the build clean; latent today (all 110 emitted
+links are byte-identical before and after) and certain to bite the first
+re-exported name anyone cites. And the bibliography brace guard exempted the
+first *unbraced* word, so a title opening with a braced proper noun had its
+real first word filtered out and the exemption landed on the second: nine
+entries are in that shape, and `{Rietveld} Refinement guidelines` passed the
+test written to catch exactly that. Both were verified by hand after the fix.
+Nothing was declined.
+
+*Next*, in order: (1) the maintainer's call on the **missing v1.4.0 tag and
+PyPI release** — `docs/RELEASING.md` is the authority and the workflow builds
+from the tag, so nothing here can fix it; (2) if TCH 1987 can be supplied, the
+"where those coefficients come from" section can name what the trailing **Z**
+of `ProfileTCHZ` denotes, which no source to hand pins down — the page
+currently says only what is verifiable, that TCH is the three authors and that
+different codes attach Z to different extra width terms; (3) nothing else —
+the WP is closed.
+
+- **2026-09-14** — created. Eleven reader-reported defects in Part 2, each
+  measured on this tree before the file was written: the two substitutions that
+  reach MathJax as italic letters, the four equations that run under their own
+  number (worst −179 px into it, and 136 px outside a 736 px column), the ten
+  bibliography entries whose proper nouns are lowercased by the style, and the
+  eleven plain-text `Rwp` in a part that sets it in maths four lines away. Each
+  task carries the guard that closes its class, because four of the eleven are
+  invisible to `-W` by construction. One question is answered rather than
+  scheduled: the Lorentz-polarisation hyphen stays, 13 hyphenated spellings
+  against 2 in the local corpus. Next: work the tasks in order; § E2's
+  attribution is the one item that may need the maintainer.

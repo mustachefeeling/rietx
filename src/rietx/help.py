@@ -473,7 +473,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit=None, default="0.0",
         typical="0 unless the pattern diagnostics report a low-angle rise",
-        anchor="background.html#additive-models-never-subtraction",
+        anchor="background.html#additive-background-models",
     ),
     "instrument.extra_components.*.position": HelpEntry(
         title="Background-peak position",
@@ -490,7 +490,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="deg 2θ", default="0.0",
         typical="wherever the diffuse feature sits, e.g. 14.4 on NIST BT-1",
-        anchor="background.html#localised-flexibility-explicit-humps",
+        anchor="background.html#explicit-humps",
     ),
     "instrument.extra_components.*.height": HelpEntry(
         title="Background-peak height",
@@ -502,7 +502,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit="counts", default="0.0",
         typical="of the order of the hump's rise above the smooth background",
-        anchor="background.html#localised-flexibility-explicit-humps",
+        anchor="background.html#explicit-humps",
     ),
     # One entry for two members, and it has to be: the dot-path carries the
     # list index, never the `kind`, so no glob can tell a hump's width from a
@@ -528,7 +528,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         typical="a hump: several times the instrumental FWHM at that angle, ~6 "
                 "on the BT-1 case it was measured on. A peak: the instrumental "
                 "FWHM itself, since it is a reflection",
-        anchor="background.html#localised-flexibility-explicit-humps",
+        anchor="background.html#explicit-humps",
     ),
     "instrument.extra_components.*.center": HelpEntry(
         title="Extra-peak centre",
@@ -794,7 +794,7 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit=None, default=None,
         typical="the isotropic seed is ε²·[M²] for a strain ε of 1e-4 to 1e-3",
-        anchor="microstructure.html#the-positivity-cone-the-seed-and-how-to-read-the-guard",
+        anchor="microstructure.html#the-positivity-cone-the-seed-and-the-guard",
     ),
 }
 
@@ -1203,7 +1203,7 @@ STAGE_FIELD_HELP: dict[str, HelpEntry] = {
         ),
         unit="ppm", default="0.0",
         typical="100-1000 ppm where a stage frees an anisotropic strain block",
-        anchor="microstructure.html#the-positivity-cone-the-seed-and-how-to-read-the-guard",
+        anchor="microstructure.html#the-positivity-cone-the-seed-and-the-guard",
     ),
     "restraint_weight_scale": HelpEntry(
         title="Restraint weight",

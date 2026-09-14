@@ -9,11 +9,19 @@
 # numbered equations and point at their source symbols.  Part 1's own guard is
 # name resolution rather than constant injection (tests/test_manual_api.py).
 
+import dataclasses as _dataclasses
+import importlib as _importlib
+import inspect as _inspect
 import re as _re
 from importlib.metadata import version as _dist_version
 from pathlib import Path as _Path
 
-from rietx._about import DIST_NAME
+import sphinxcontrib.bibtex.plugin as _bibtex_plugin
+from docutils import nodes as _nodes
+from sphinxcontrib.bibtex.style.referencing import BracketStyle
+from sphinxcontrib.bibtex.style.referencing.author_year import AuthorYearReferenceStyle
+
+from rietx._about import DIST_NAME, REPO_URL
 from rietx.crystallography.dispersion import NEAR_EDGE_EV
 from rietx.crystallography.symmetry import SYMMETRY_ANGLE_TOL_DEG
 from rietx.examples import list_examples
@@ -82,7 +90,51 @@ mermaid_init_config = {
 }
 
 bibtex_bibfiles = ["references.bib"]
+# `alpha` still formats and sorts the list, by author then year, which is the
+# order an author-year reference list wants.  What changes is the citation:
+# `author_year` renders it as [Boultif and Louër, 1991] instead of [BL91a].
+# The manual cites 105 distinct works across 150 citations, so a reader meets
+# almost every label once and builds no memory of it, and 143 of those
+# citations carry no author name in the prose beside them.  The bibliography
+# also sits on a different page from all but one citation, so decoding a label
+# costs a navigation.  61 % of the entries are crystallography journals, whose
+# own house style is name-date.  WP-1408 § G3 has the numbers, the numeric
+# styles it rules out and what each renders.
 bibtex_default_style = "alpha"
+bibtex_reference_style = "author_year_semicolon"
+
+
+def _bracket_style() -> BracketStyle:
+    """A semicolon between works in one citation, and square brackets kept.
+
+    Registering a subclassed reference style from `conf.py` is what
+    sphinxcontrib-bibtex § Custom Formatting documents for this. Fourteen of
+    the 150 citations name more than one work, and `BracketStyle.sep` defaults
+    to a comma, which is also what separates an author from its year: three
+    works came out as one flat list of six comma-separated fragments.
+
+    The brackets stay square, which is the library default. Name-date
+    convention is round, and round was measured on this tree first: ten
+    citations sit inside a parenthetical the prose already opened, so round
+    brackets print `((Prince, 2004) eq. 6.3.3.1)` and nine more like it. A
+    square bracket nests inside a parenthesis without collision, which is why
+    house styles that cite by name-date inside parentheses use one.
+    """
+    return BracketStyle(sep="; ", sep2="; ", last_sep="; ")
+
+
+@_dataclasses.dataclass
+class _AuthorYearSemicolon(AuthorYearReferenceStyle):
+    bracket_textual: BracketStyle = _dataclasses.field(default_factory=_bracket_style)
+    bracket_parenthetical: BracketStyle = _dataclasses.field(default_factory=_bracket_style)
+    bracket_author: BracketStyle = _dataclasses.field(default_factory=_bracket_style)
+    bracket_label: BracketStyle = _dataclasses.field(default_factory=_bracket_style)
+    bracket_year: BracketStyle = _dataclasses.field(default_factory=_bracket_style)
+
+
+_bibtex_plugin.register_plugin(
+    "sphinxcontrib.bibtex.style.referencing", "author_year_semicolon", _AuthorYearSemicolon
+)
 
 myst_enable_extensions = ["dollarmath", "amsmath", "substitution", "colon_fence",
                           "deflist"]
@@ -376,3 +428,115 @@ def _write_skill() -> None:
 
 
 _write_skill()
+
+
+# ----------------------------------------------------------------------
+# The `{source}` role (WP-1408)
+#
+# Every displayed equation in Part 2 carries a *Source:* line naming the
+# symbol its docstring was transcribed from.  The name resolving is the
+# manual's oldest guard (WP-0604), and the role turns the same resolution into
+# a link: `inspect` gives the file and the line, so a reader goes from the
+# equation to the code that runs it in one click, and a renamed symbol breaks
+# the **build** rather than leaving a dead link on the page.
+#
+# The link goes to `main`, not to a tag of `release`.  A tag would pin the
+# line number to a tree it is certainly true of, which is the better property
+# — and it was measured not to hold: `pyproject.version` is the last *shipped*
+# milestone whether or not that milestone was tagged, and on 2026-09-14 the
+# version read 1.4.0 while `git ls-remote --tags` stopped at v1.3.0, so every
+# link would have been a 404.  `main` is also the tree the published manual is
+# built from, so the page and its links agree; the cost is a line number that
+# can drift by a few lines between a build and a later reading.
+# ----------------------------------------------------------------------
+
+#: The repository root, which is what a blob URL's path is relative to.
+_REPO_ROOT = _Path(__file__).resolve().parents[2]
+
+#: What to link at — see the note above for why this is a branch and not a tag.
+_SOURCE_REF = "main"
+
+
+def _assignment_line(path: _Path, name: str) -> int:
+    """Where a module-level constant is bound.
+
+    `inspect.getsourcelines` works on anything with code behind it and raises
+    on a float, so a `*Source:*` line naming a threshold — and several do —
+    needs the assignment found by reading.  Falling back to the top of the
+    file would be worse than useless: it would look like a working link.
+    """
+    pattern = _re.compile(rf"^{_re.escape(name)}\s*[:=]")
+    matches = [number
+               for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1)
+               if pattern.match(line)]
+    if len(matches) == 1:
+        return matches[0]
+    if matches:
+        # Two column-0 bindings of one name: a real rebind, or a line inside a
+        # module docstring that reads like one.  Guessing picks a link that
+        # looks right and is not, so refuse and name the lines.
+        raise LookupError(f"{name}: {len(matches)} module-level bindings in "
+                          f"{path.name}, lines {matches}")
+    raise LookupError(f"{name}: no module-level assignment in {path.name}")
+
+
+def _resolve_source(dotted: str) -> tuple[str, int]:
+    """(path relative to the repository root, 1-based line) for a dotted name."""
+    parts = dotted.split(".")
+    for split in range(len(parts), 0, -1):
+        try:
+            module = _importlib.import_module(".".join(parts[:split]))
+        except ImportError:
+            continue
+        break
+    else:
+        raise LookupError(f"{dotted}: no importable module prefix")
+
+    obj = module
+    for attr in parts[split:]:
+        if not hasattr(obj, attr):
+            raise LookupError(f"{dotted}: {obj!r} has no attribute {attr!r}")
+        obj = getattr(obj, attr)
+
+    # The file has to be the one the *line* was read out of.  `getsourcelines`
+    # reports where the object was **defined**, which for a re-exported name
+    # (`schemas.history` re-exports `StageSpec`, and the package does that on
+    # purpose) is not the module the dotted name went through — taking the path
+    # from the module and the line from the object then links a real file at a
+    # line belonging to another one, and every guard here still passes because
+    # the name imports.  A constant has no code behind it, so it falls back to
+    # the module's own file, which is where `_assignment_line` reads.
+    try:
+        line = _inspect.getsourcelines(obj)[1] or 1
+        path = _Path(_inspect.getsourcefile(obj) or _inspect.getsourcefile(module)).resolve()
+    except (TypeError, OSError):
+        path = _Path(_inspect.getsourcefile(module)).resolve()
+        line = _assignment_line(path, parts[-1]) if parts[split:] else 1
+    try:
+        return path.relative_to(_REPO_ROOT).as_posix(), line
+    except ValueError:
+        # The imported package is not this checkout's — a non-editable install,
+        # or a venv belonging to another worktree.  Say so: `relative_to`'s own
+        # message reaches the reader as an unexplained `-W` build failure.
+        raise LookupError(
+            f"{dotted}: resolved to {path}, which is outside {_REPO_ROOT} — "
+            "build the manual against an editable install of this checkout"
+        ) from None
+
+
+def _source_role(name, rawtext, text, lineno, inliner, options=None, content=None):
+    dotted = text.strip().strip("`")
+    try:
+        path, line = _resolve_source(dotted)
+    except Exception as exc:                      # noqa: BLE001 — reported, not raised
+        message = inliner.reporter.error(f"{{source}}: {exc}", line=lineno)
+        return [inliner.problematic(rawtext, rawtext, message)], [message]
+    url = f"{REPO_URL}/blob/{_SOURCE_REF}/{path}#L{line}"
+    link = _nodes.reference("", "", _nodes.literal(text=dotted), refuri=url,
+                            classes=["source-link"])
+    return [_nodes.emphasis(text="Source: "), link], []
+
+
+def setup(app):
+    app.add_role("source", _source_role)
+    return {"version": release, "parallel_read_safe": True, "parallel_write_safe": True}

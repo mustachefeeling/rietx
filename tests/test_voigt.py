@@ -328,3 +328,87 @@ def test_basis_is_not_the_plain_profile_and_that_is_the_point():
     v_a = voigt_basis(x, 0.05, 0.03)
     v_b = voigt(x, 0.05, 0.03)
     assert np.allclose(v_a, v_b, rtol=0, atol=1e-13 * np.abs(v_a).max())
+
+
+# -- what the pseudo-Voigt approximation costs (WP-1408) -------------------
+
+#: The bounds `docs/manual/profiles.md` quotes for the TCH approximation, as
+#: percentages. They are in the manual because a reader deciding between
+#: `"tchz_pv"` and `"voigt"` needs them; they are asserted here because a
+#: number in print with nothing measuring it is the class of defect that
+#: chapter's own guards exist for.
+MANUAL_FWHM_ERROR_PCT = 0.43
+MANUAL_SHAPE_ERROR_PCT = 1.3
+MANUAL_CENTRE_ERROR_PCT = 0.25
+
+
+def _voigt_fwhm(gamma_g: float, gamma_l: float) -> float:
+    """The exact Voigt's FWHM, by bisection on the Faddeeva form.
+
+    The reference has to be independent of the thing under test, so it is the
+    *shape* that is bisected rather than any published width formula. Checked
+    against Olivero & Longbothum (1977) — the two agree to 0.023 %, which is
+    that approximation's own published bound.
+    """
+    from scipy.optimize import brentq
+
+    sigma, gamma = fwhm_to_voigt_params(np.float64(gamma_g), np.float64(gamma_l))
+    peak = float(voigt(np.array([0.0]), sigma, gamma)[0])
+    half = brentq(
+        lambda x: float(voigt(np.array([x]), sigma, gamma)[0]) - peak / 2.0,
+        1e-14, 50.0 * max(gamma_g, gamma_l) + 1.0, xtol=1e-16, rtol=8.9e-16,
+    )
+    return 2.0 * half
+
+
+def test_tch_reproduces_the_voigt_fwhm_to_the_bound_the_manual_quotes():
+    """(3.6) is a *fit* to the Voigt FWHM, and the manual says how good a one.
+
+    Measured across the whole mixing range rather than at a convenient point:
+    the worst case sits near Γ_L ≈ Γ_G/2, where neither limit helps.
+    """
+    from rietx.model.profiles.pseudovoigt import tch_gamma_eta
+
+    worst = 0.0
+    for ratio in [0.0, 0.05, 0.1, 0.25, 0.5, 1.0, 2.0, 4.0, 10.0, 100.0]:
+        true = _voigt_fwhm(1.0, max(ratio, 1e-12))
+        tch = float(tch_gamma_eta(np.float64(1.0), np.float64(ratio))[0])
+        worst = max(worst, abs(tch - true) / true)
+    assert worst * 100.0 <= MANUAL_FWHM_ERROR_PCT, (
+        f"TCH FWHM error {worst:.3%} exceeds the {MANUAL_FWHM_ERROR_PCT} % "
+        "docs/manual/profiles.md quotes")
+    # ...and the bound is not slack by an order of magnitude, or the manual is
+    # telling the reader something looser than the truth.
+    assert worst * 100.0 > MANUAL_FWHM_ERROR_PCT / 2.0
+
+
+def test_pseudo_voigt_shape_error_is_on_the_flanks_at_the_quoted_size():
+    """The pseudo-Voigt's departure from the exact Voigt, where it lives.
+
+    Two claims in `docs/manual/profiles.md`, and the second is the one that
+    matters: the error is not a peak-height error. The centre departure stays
+    under 0.25 % across the range, while the worst, five times that, sits at
+    x ≈ ±0.28 Γ — the steepest part of the flank, which is where a position or
+    width derivative is taken.
+    """
+    from rietx.model.profiles.pseudovoigt import pseudo_voigt, tch_gamma_eta
+
+    worst, worst_at = 0.0, 0.0
+    for ratio in np.linspace(0.05, 6.0, 60):
+        sigma, gam = fwhm_to_voigt_params(np.float64(1.0), np.float64(ratio))
+        gamma, eta = tch_gamma_eta(np.float64(1.0), np.float64(ratio))
+        gamma, eta = float(gamma), float(eta)
+        x = np.linspace(-10.0 * gamma, 10.0 * gamma, 40_001)
+        exact = voigt(x, sigma, gam)
+        approx = pseudo_voigt(x, np.float64(gamma), np.float64(eta))
+        err = np.abs(approx - exact) / float(exact.max())
+        if err.max() > worst:
+            worst, worst_at = float(err.max()), abs(float(x[int(err.argmax())]) / gamma)
+        centre = float(err[len(x) // 2])
+        assert centre < MANUAL_CENTRE_ERROR_PCT / 100.0, (
+            f"centre error {centre:.3%} at Γ_L/Γ_G = {ratio} exceeds the "
+            f"{MANUAL_CENTRE_ERROR_PCT} % docs/manual/profiles.md quotes")
+    assert worst * 100.0 <= MANUAL_SHAPE_ERROR_PCT, (
+        f"pseudo-Voigt shape error {worst:.3%} exceeds the "
+        f"{MANUAL_SHAPE_ERROR_PCT} % docs/manual/profiles.md quotes")
+    assert 0.2 < worst_at < 0.4, f"worst departure at x/Γ = {worst_at:.3f}, not the flank"
