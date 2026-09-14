@@ -647,3 +647,52 @@ def test_the_verb_exclusions_are_live_and_reasoned():
 
     for name, reason in SKILL_EXCLUDED_VERBS.items():
         assert len(reason) > 40, f"{name}'s exclusion is a shrug, not a reason"
+#: Families that fire while **reading another program's file** rather than on
+#: a fit: the project readers (`rietx.io.projects`) and the PowderLine recipe
+#: reader.  None of them ever reaches ``result.diagnostics``, which is what
+#: makes a table of them a different lookup from the engine's — §7g exists for
+#: exactly that split, and WP-1103 appended two engine rows
+#: (``EXTRA_PEAK_ON_REFLECTION``, ``EXTRA_PEAK_NO_INTENSITY``) to the recipe
+#: table where nothing caught it: the preamble above a table is prose, so a row
+#: filed under the wrong one is told to a reader in the wrong voice and travels
+#: with the wrong block the next time one moves.
+FOREIGN_FILE_PREFIXES = ("RECIPE_", "TOPAS_", "FULLPROF_", "GSAS_PRM_")
+
+_CODE_ROW = re.compile(r"^\| `([A-Z][A-Z0-9_]+)`")
+
+
+def _code_tables(text: str) -> list[list[str]]:
+    """Each run of consecutive code rows, as the codes it lists."""
+    tables: list[list[str]] = []
+    run: list[str] = []
+    for line in text.splitlines():
+        m = _CODE_ROW.match(line)
+        if m:
+            run.append(m.group(1))
+        elif run and not line.startswith("|"):
+            tables.append(run)
+            run = []
+    if run:
+        tables.append(run)
+    return tables
+
+
+@pytest.mark.parametrize("path", REFERENCES, ids=lambda p: p.name)
+def test_no_table_mixes_a_foreign_file_family_with_an_engine_row(path: Path):
+    """A table is introduced by a paragraph saying where its codes come from.
+
+    That paragraph is the only thing telling a reader whether a row arrives on
+    ``result.diagnostics`` or on a reader's own channel, so a table holding
+    both answers describes at least one of its rows wrongly — and a block moved
+    wholesale (§7's `RECIPE_*` family is queued to join §7g) carries the
+    stowaway into a file an agent whose *fit* fired it will never open.
+    """
+    for codes in _code_tables(path.read_text(encoding="utf-8")):
+        foreign = [c for c in codes if c.startswith(FOREIGN_FILE_PREFIXES)]
+        if not foreign:
+            continue
+        engine = [c for c in codes if not c.startswith(FOREIGN_FILE_PREFIXES)]
+        assert not engine, (
+            f"{path.name}: a table of {foreign[0]}'s family also lists "
+            f"{engine} — those fire on result.diagnostics, so they belong in "
+            "the engine table under its own preamble, not this one")
