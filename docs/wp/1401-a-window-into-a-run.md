@@ -184,7 +184,7 @@ Measure it now, on the cases the next WPs will reuse.
       `using/cli.md` keeps working unchanged. Polling stops when the page is
       hidden. The page says **"scanned \<root\>"**: an empty list must not read as
       "no runs exist".
-- [ ] The baseline measurement: `telemetry off` against today's plain
+- [x] The baseline measurement: `telemetry off` against today's plain
       `events=<path>` and against `events=LiveSession(dir)`, on `nac`, `cpd-2`
       and `trigger`, three runs each, one sitting. Numbers into the handover as a
       **range**, with venv and platform named. State plainly whether WP-1403's
@@ -194,7 +194,7 @@ Measure it now, on the cases the next WPs will reuse.
       foreign host, a status with no state, a torn last line, invalid JSON mid
       file, an empty directory, the depth cap, a symlink loop, the open-count
       assertion. Plus a real `<project>/live/` written by a GUI run.
-- [ ] Skill: **none**, and the reason. Nothing here changes what an agent driving
+- [x] Skill: **none**, and the reason. Nothing here changes what an agent driving
       rietx should do; WP-1406 carries the whole skill change for this track,
       once there is something an agent's behaviour depends on.
 
