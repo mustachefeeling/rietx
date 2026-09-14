@@ -166,6 +166,77 @@ Twenty stacked pairs were varied or cut; the rest stand.
 
 ## Handover log
 
+### 2026-09-14 (2nd session) — Part 1 now reads the way Part 2 does
+
+Someone opening the manual gets the same voice on every page. Before this, the
+twenty-four chapters of Part 1 were written in the maintainer's compressed
+register — an aside welded on with an em dash, a bold claim in front of a
+sentence that already made it — and Part 2, swept one WP earlier, was not. That
+difference was nobody's choice. The rulebook sits in the same tree and gets read
+first, so its voice arrives in the manual by default.
+
+Three reader-visible defects turned up on the way and are fixed. `indexing.md`'s
+"Further reading" had lost the `{doc}` prefix off a role and had been shipping
+`the [agent skill <skill>`,` as literal text. The same chapter said "Five of the
+twelve" peak flags are unusable against a vocabulary of fourteen with six
+unusable. And the agent skill's own `abstention.md` put a code span inside a
+Markdown table cell, where the first pipe ends the cell, so the span never closed
+and its backticks rendered. None of the three is a build warning, and each now
+has the guard that closes its class.
+
+*Done*, one or two chapters per commit, worst-first by density:
+
+- All 24 chapters rewritten. Eighteen headings that carried a claim became the
+  noun a reader looks up, with the claim in the first sentence. Roughly 120 bold
+  lead-ins became the sentences they already were, and every GUI label went to
+  backticks, which is what the majority of them already used.
+- Two counts that were wrong are right, and one is now guarded: the peak-flag
+  vocabulary, and `series.md`'s "The four fences" above a table of five. The
+  second is fixed by moving the count out of the heading into the prose that
+  sits against the table, so the two cannot drift apart.
+- One typo: `results.md`'s coverage warning read "And v also rises", where `v`
+  is a leftover for the σ²/max(y, 1) ratio the paragraph is about.
+- Three guards, each failed on purpose before landing (six deliberate
+  failures in all). `test_the_manual_keeps_its_register` covers both parts, and
+  `_prose_lines` now sees an admonition's body, which it skipped whole.
+  `test_no_unrendered_markup_survives_the_build` scans the built HTML for a
+  backtick in the prose, which is what a code span or role leaves when it does
+  not close; it caught the skill's table cell on its first run.
+  `test_every_closed_vocabulary_member_is_named_where_its_table_is` and
+  `test_the_peak_flag_table_marks_exactly_the_unusable_flags` hold
+  `indexing.md`'s tables against the live `Literal`s.
+
+*Measured*: the table above. Em dashes 363 to 0, bold 400 to 0, reframing tails
+60 to 0, negation 7.0 to 5.9 per 1000 against a budget of 3. Fast selection
+**4660 passed / 132 skipped** in 2:10 on darwin/arm64, `[dev]` plus the
+worktree's playwright, **+3** over 4657 and those three the new tests; the
+register test was renamed rather than added. Build `-W` clean, ruff clean.
+
+*Gotchas*
+
+- The register guard's page list had to exclude `_generated/`. Both files there
+  are rendered into the manual and neither is its prose to hold: the glossary
+  body is written from `rietx.help` by `conf.py`, and the skill body is an
+  agent's rulebook, which the corpus explicitly allows to compress.
+- Removing bold from a table row can move a test key. `test_the_hump_table_
+  agrees_with_the_refinement_that_produced_it` keys the Si640c evidence rows on
+  their literal labels, so `| Chebyshev-3 **+ one hump** |` was a key. The Rwp
+  numbers it guards did not move; the key did.
+- `tests/test_manual_api.py` alone is not enough while doing this. It passed on
+  every chapter and the hump-table key failure only surfaced in
+  `tests/test_manual.py`. Run the fast selection between chapters, not at the
+  end.
+- Scope a `git checkout` to the file you patched. Failing a guard on purpose and
+  reverting with `git checkout docs/manual/` took four sibling files' uncommitted
+  edits with it, and the measurement is what noticed.
+
+*Next*: nothing on Part 1's prose. Two things the next session could take, in
+order of cheapness. The dead-anchor guard 1408 named is now cheaper, since the
+five Part 1 anchors it listed are still unlinked and the ten inert Part 2 ones
+are unchanged. And negation sits at 5.9 against a budget of 3; the residue is
+argued for per chapter in the table above, and a reader who disagrees with that
+argument has the per-chapter numbers to point at.
+
 - **2026-09-14** — created, straight off 1408's closing measurement. Part 1 is
   73,699 prose words carrying 363 em dashes against a budget of 0, 400 bold or
   italic maxims against 0, and negation at 7.0 per 1000 against 3 — the same
