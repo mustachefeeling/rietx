@@ -4,19 +4,19 @@ A Rietveld refinement is one non-linear least-squares problem. The package
 computes a pattern from the model, compares it with the measurement point by
 point, and moves the free parameters to reduce the weighted sum of squares.
 
-Almost everything that goes wrong is a *correlation*: two parameters change the
+Almost everything that goes wrong is a correlation. Two parameters change the
 calculated pattern in nearly the same way, so the data cannot tell them apart,
 and the solver splits the difference between them however the starting point
 happened to lean. This chapter is about which parameters those are and what the
 package does about it: how they are grouped, why the groups fight, and the three
-things you can do about it: order the refinement, tie two parameters together,
-or restrain a quantity you know. [](results.md) is the numbers that come back.
+things you can do. You can order the refinement, tie two parameters together, or
+restrain a quantity you know. [](results.md) is the numbers that come back.
 
 ## The parameter groups
 
 Every refinable quantity has a dot-path, and the paths group by what the
 parameter does to the pattern. [](data.md) is the objects the paths address,
-field by field, and [](model.md) is the path grammar and the table itself; this
+field by field, and [](model.md) is the path grammar and the table itself. This
 section is what each group does and why the groups fight.
 
 | Group | Paths | Changes | Angular signature |
@@ -34,17 +34,17 @@ section is what each group does and why the groups fight.
 | intensity corrections | `phases.*.preferred_orientation.r`, `phases.*.extinction`, `instrument.geometry.surface_roughness.*` | intensity, as a smooth or hkl-selective rescaling | various, all smooth in Q |
 
 Coordinates and occupancies refine differently from the rest, and it matters
-when you read a plan. A coordinate is not free in x, y and z; it is free along
-the directions its site symmetry allows, and `ParameterTable` wires one
+when you read a plan. A coordinate is free along the directions its site
+symmetry allows rather than in x, y and z. `ParameterTable` wires one
 `phases.*.atoms.*.dof.*` entry per allowed direction and ties x, y and z to
 them. A fully fixed special position contributes no entries at all, so the glob
 is always safe to use, and setting `vary=True` on such a coordinate raises.
 
 Anisotropic displacement parameters work the same way, through
 `phases.*.atoms.*.adp.*`, and so do the fifteen Stephens strain coefficients
-through `phases.*.microstrain.dof.*`. In each case the *symmetry-allowed
-subspace* is derived from the space-group operators, and a value outside it
-raises rather than being quietly symmetrised.
+through `phases.*.microstrain.dof.*`. In each case the symmetry-allowed subspace
+is derived from the space-group operators, and a value outside it raises rather
+than being quietly symmetrised.
 
 ## Why the groups correlate
 
@@ -63,8 +63,8 @@ a short range they do not, and that is where the trouble is.
 ```
 
 Each curve is normalised to 1 at the middle of its range, because separability
-is a question about *shape* and not about scale: two effects that differ only by
-a constant factor are one parameter, whatever their sizes. On the left, over
+is a question about shape and not about scale. Two effects that differ only by a
+constant factor are one parameter, whatever their sizes. On the left, over
 110° of data, the four are plainly different functions. On the right, over 20°,
 every one of them is a straight line to within 0.8 %, so the four shapes have
 little more than a constant and a slope between them. A refinement over that
@@ -74,16 +74,16 @@ range reports four numbers and measures rather fewer.
 |---|---|---|
 | zero shift · sample displacement · cell | constant · cos θ · tan θ | over a narrow 2θ range these three are collinear. A cell refined against a free zero shift on 20° of data is not measured. |
 | zero shift · the two capillary offsets (Debye-Scherrer only) | constant · sin 2θ · cos 2θ | the same problem in the transmission geometry's own shapes. Over 5-160° the three are separable; over 5-25° they are not, by a factor of about 4600 in the conditioning. |
-| crystallite size · microstrain | 1/cos θ · tan θ | the Williamson-Hall separation. Over a short range they are one parameter, not two. |
+| crystallite size · microstrain | 1/cos θ · tan θ | the Williamson-Hall separation. Over a short range they are one parameter rather than two. |
 | scale · displacement · background · absorption · surface roughness · extinction | all smooth in Q | the big one. Every member lifts or depresses intensity smoothly with angle, so any of them can absorb any other. |
 | preferred orientation · occupancy | both rescale specific hkl | an occupancy refined against uncorrected texture is a texture measurement. |
-| overlapped intensities (Le Bail, Pawley) | identical | the *sum* is determined by the data; the split is not. |
+| overlapped intensities (Le Bail, Pawley) | identical | the data determine the sum and not the split. |
 
-Two of those groups are worse than correlated. Capillary absorption is *exactly*
-a reparameterisation of the scale and the displacement parameters (the fit is
-identical with and without it), so `Geometry.mu_r` is computed from the specimen
+Two of those groups are worse than correlated. Capillary absorption is exactly a
+reparameterisation of the scale and the displacement parameters, the fit being
+identical with and without it, so `Geometry.mu_r` is computed from the specimen
 and never refined. Flat-plate absorption is 60 to 99 % absorbable, so
-`Geometry.mu_t` is also computed rather than refined; the part that is not
+`Geometry.mu_t` is also computed rather than refined. The part that is not
 absorbable does move Rwp, and a wrong thickness lands partly in the fit and
 partly in the displacement parameters.
 
@@ -119,11 +119,11 @@ Two rules follow, and they are the reason plans exist:
 (constraining-parameters)=
 ## Constraining parameters to each other
 
-A **constraint** makes two parameters one: the dependent leaves the free vector
-and follows its source exactly, so the parameter count drops by one and the
-observation-to-parameter ratio rises. That is different from a restraint, which
-adds an observation (a bond length, say) with a weight and leaves the parameter
-count alone.
+A constraint makes two parameters one. The dependent leaves the free vector and
+follows its source exactly, so the parameter count drops by one and the
+observation-to-parameter ratio rises. A restraint is the other thing: it adds an
+observation, a bond length say, with a weight, and leaves the parameter count
+alone.
 
 Use one where the data cannot separate two quantities and chemistry says they
 need not be separated. Two of the cases the guidelines {cite}`mccusker1999`
@@ -162,26 +162,25 @@ that flag false, and they cannot be released: symmetry outranks a user tie
 everywhere the two meet. [](model.md) reads a held row field by field.
 
 The verbs refuse rather than approximate. A locked parameter, an already-tied
-one, a source that is itself tied *and is a model parameter* (which would make
-a chain), a target the current intensity mode force-fixes, and an implied value
+one, a source that is itself tied and is a model parameter (which would make a
+chain), a target the current intensity mode force-fixes, and an implied value
 outside the target's own bounds are all refused with the reason and the
 parameter holding it. The exception in that list is the subject of the next
 section: a named variable may follow other named variables.
 
-**A tie carries the dependent's bounds back onto its source, and you do not
-have to do that arithmetic.** The dependent leaves the free vector, so the
-optimiser never sees its `min`/`max` directly; what it is given instead is the
-range on the *source* that keeps the dependent inside them. The mixed-site
-example above is the clearest case. `occ` is declared `[0, 1.5]`, and
-`occ₁ = 1 − occ₀` means `occ₀` must stay in `[0, 1]` for `occ₁` to be non-negative
-— so `[0, 1]` is the box that stage runs against, without anyone writing it.
-Every dependent a source drives contributes, and the tightest wins, along with
-whatever the source declares itself. A fit that stops at such a limit reports
-it like any other bound (`BOUND_HIT`, naming the source), and the parameter to
-widen is then the *dependent*, not the one the diagnostic names. Ties with
-several sources are the one case this cannot close exactly;
-{ref}`named-variables` has that detail, since they are where several sources
-arise.
+A tie carries the dependent's bounds back onto its source, and you do not have
+to do that arithmetic. The dependent leaves the free vector, so the optimiser
+never sees its `min`/`max` directly. What it is given instead is the range on the
+source that keeps the dependent inside them. The mixed-site example above is the
+clearest case. `occ` is declared `[0, 1.5]`, and `occ₁ = 1 − occ₀` means `occ₀`
+must stay in `[0, 1]` for `occ₁` to be non-negative, so `[0, 1]` is the box that
+stage runs against, without anyone writing it. Every dependent a source drives
+contributes, and the tightest wins, along with whatever the source declares
+itself. A fit that stops at such a limit reports it like any other bound
+(`BOUND_HIT`, naming the source), and the parameter to widen is then the
+dependent rather than the one the diagnostic names. Ties with several sources
+are the one case this cannot close exactly, and {ref}`named-variables` has that
+detail, since they are where several sources arise.
 
 :::{admonition} Worked example: tying three displacement parameters
 :class: tip
@@ -198,9 +197,9 @@ the second time with the three phosphate oxygens' `biso` tied together:
 | B(O6) / Å² | 0.5279(1911) | 0.4138(899) |
 | B(O7) / Å² | 0.4149(1282) | 0.4138(899) |
 
-The return is precision: the constrained esd is smaller than the best of the
-three free ones. Rwp is not the evidence and cannot be: it moved by 0.05 % of
-itself, which is what "the constraint costs no fit quality" looks like.
+The return is precision. The constrained esd is smaller than the best of the
+three free ones. Rwp is not the evidence and cannot be. It moved by 0.05 % of
+itself, the shape "the constraint costs no fit quality" takes.
 
 The check to run first is in the free column. Each of the three intervals
 contains the tied value, so the free refinement does not contradict the claim
@@ -214,9 +213,9 @@ tying them replaces a measurement with an assumption.
 
 Every constraint above names a model parameter as its master: one of the three
 oxygens carries the freedom and the other two follow it. That reads oddly when
-the quantity is not any one of them — three oxygens do not have *atom 4's*
-displacement parameter, they have one displacement parameter that all three
-share. A **named variable** is that quantity, declared in its own right.
+the quantity is not any one of them. Three oxygens do not have atom 4's
+displacement parameter; they have one displacement parameter that all three
+share. A named variable is that quantity, declared in its own right.
 
 <!-- api-doc: no-exec — it needs the reader's own structure and instrument -->
 ```python
@@ -238,31 +237,31 @@ one, and refuses while anything still follows it, naming the dependents.
 variable is a `Parameter` and those are the fields the fit reads. Declared with
 the same bounds and transform as the model parameter it replaces, it produces
 the identical column and the identical answer. Declared with different ones it
-is a different problem — a quantity whose physical parameter uses the softplus
+is a different problem. A quantity whose physical parameter uses the softplus
 reparameterisation, given the default `identity`, is no longer kept off its own
 floor.
 
-**A dependent's own bounds reach the solver too, and you do not have to do the
-arithmetic.** A tie says `dependent = coefficient · source + offset`, so a
+A dependent's own bounds reach the solver too, and you do not have to do the
+arithmetic. A tie says `dependent = coefficient · source + offset`, so a
 dependent bounded at 25 and followed at coefficient 2 puts its source's ceiling
-at 12.5 — and that is what the stage is given, intersected over every dependent
-the source drives and with whatever the source declares itself. The tighter of
-the two wins, so declaring `max=12.5` by hand changes nothing and declaring
-`max=25` costs nothing. A source stopped at a limit it never wrote is reported
-like any other: `BOUND_HIT`, naming the source.
+at 12.5. That is what the stage is given, intersected over every dependent the
+source drives and with whatever the source declares itself. The tighter of the
+two wins, so declaring `max=12.5` by hand changes nothing and declaring `max=25`
+costs nothing. A source stopped at a limit it never wrote is reported like any
+other: `BOUND_HIT`, naming the source.
 
-This is a property of ties generally, not of variables — `tie(..., scale=2.0)`
-between two model parameters behaves the same way. It is exact for a tie with
-one source, which is every tie rietx derives and most that anyone writes. With
-several sources the constraint is a slanted boundary rather than a range and the
-optimiser can only be given a range, so what it gets is the smallest range
-containing every allowed point: it never rules out an answer you asked for, and
-it can leave a corner where two sources conspire. If a fit lands in that corner
-the write-back refuses, naming the parameter, its bounds and the tie that drove
-it.
+This is a property of ties generally rather than of variables, and
+`tie(..., scale=2.0)` between two model parameters behaves the same way. It is
+exact for a tie with one source, which is every tie rietx derives and most that
+anyone writes. With several sources the constraint is a slanted boundary rather
+than a range, and the optimiser can only be given a range, so what it gets is
+the smallest range containing every allowed point. It never rules out an answer
+you asked for, and it can leave a corner where two sources conspire. If a fit
+lands in that corner the write-back refuses, naming the parameter, its bounds
+and the tie that drove it.
 
-A variable may follow other variables, which is what makes composing them
-worthwhile:
+A variable may follow other variables, and that is what makes composing them
+worth the trouble:
 
 <!-- api-doc: no-exec — it needs the reader's own structure and instrument -->
 ```python
@@ -272,24 +271,24 @@ ref.add_variable("B_total", 0.5)      # declared before it can be tied
 ref.tie("vars.B_total", {"vars.B_base": 1.0, "vars.B_extra": 1.0})
 ```
 
-That second argument is the other half: `Refinement.tie` takes several sources
+That second argument is the other half. `Refinement.tie` takes several sources
 as a `{path: coefficient}` mapping or a list of pairs, not only one, and `scale`
-multiplies every term. A model parameter still may **not** follow a tied model
-parameter — there the refusal's advice is right, since naming what it follows
+multiplies every term. A model parameter still may not follow a tied model
+parameter, and there the refusal's advice is right, since naming what it follows
 says the same thing without inheriting a constant nobody wrote.
 
-What a variable is not is an expression language. The relation is affine —
-`Σ coefficient · source + constant` — because that is what the constraint block
-computes exactly, and there is no string form: `"2*A + 0.5"` parses nowhere, and
-the method calls above are the whole surface.
+A variable is no expression language. The relation is affine,
+`Σ coefficient · source + constant`, because that is what the constraint block
+computes exactly. There is no string form: `"2*A + 0.5"` parses nowhere, and the
+method calls above are the whole surface.
 
 (restraining-a-distance)=
 ## Restraining a distance or an angle
 
 A restraint is the other half of the bargain. Where a constraint removes a
-parameter, a restraint adds an *observation*: a distance, an angle or a
-parameter value you know from chemistry, with an uncertainty attached, competing
-with the data on the same least-squares footing. Powder data lose information to
+parameter, a restraint adds an observation: a distance, an angle or a parameter
+value you know from chemistry, with an uncertainty attached, competing with the
+data on the same least-squares footing. Powder data lose information to
 overlap, and this is the standard way of putting some back
 {cite}`mccusker1999,waser1963`.
 
@@ -318,7 +317,7 @@ The atom fields are positional indices into `Phase.atoms`, the same convention
 the dot-paths use. All three kinds carry the same two numbers beside the
 target. `BondRestraint.sigma`, `AngleRestraint.sigma` and `ValueRestraint.sigma`
 are the uncertainty you are claiming, and that is what decides how hard the
-restraint pulls; `BondRestraint.weight`, `AngleRestraint.weight` and
+restraint pulls. `BondRestraint.weight`, `AngleRestraint.weight` and
 `ValueRestraint.weight` multiply the row on top of it and default to 1.
 
 Each restraint contributes one residual row, √weight·(computed − target)/σ,
@@ -342,7 +341,7 @@ expected to move far enough to change which image is nearest.
 
 Because the groups correlate, freeing everything at once from a poor starting
 point walks into a local minimum that a staged release avoids. A fit here is
-therefore a *plan*: a list of stages, each freeing one group and running to
+therefore a plan: a list of stages, each freeing one group and running to
 convergence before the next group joins. Parameters stay free once freed, so
 each stage refines everything released so far.
 
@@ -361,7 +360,7 @@ RefinementPlan.pawley_default()        # Pawley
 ```
 
 The two standard presets are one chain. `mccusker_default` stops after the
-widths; `mccusker_structural` continues into the structure:
+widths, and `mccusker_structural` continues into the structure:
 
 ```{mermaid}
 flowchart LR
@@ -395,8 +394,8 @@ plan.stages.append(rx.Stage("biso", ["phases.*.atoms.*.biso"]))
 result = ref.fit(data, plan=plan)
 ```
 
-`Stage` takes fnmatch globs over the dot-paths, which is why paths carry no
-brackets: fnmatch reads `[..]` as a character class rather than an index.
+`Stage` takes fnmatch globs over the dot-paths, so paths carry no brackets:
+fnmatch reads `[..]` as a character class rather than an index.
 
 [](refining.md) is the rest of the machinery: the plan registry a program reads
 instead of hard-coding this list, the other settings a `Stage` carries, and how
@@ -426,7 +425,7 @@ The default is 1.0, which leaves the restraints exactly as they were declared.
 `0.0` silences them for a stage without removing their rows, so the row count
 the fit statistics exclude does not change part-way through a plan.
 
-What this buys is a *path*. On a synthetic case whose data under-determines two
+What this buys is a path. On a synthetic case whose data under-determines two
 oxygen sites, starting from a Zr–O distance of 3.73 Å for a 1.87 Å bond, the
 plan above lands the bond at 1.87 Å with the coordinates 1e-3 rms from truth.
 The same three stages left at c_w = 1 throughout converge with that distance at
@@ -444,44 +443,45 @@ The same three stages left at c_w = 1 throughout converge with that distance at
 
 Both fits converged, on the same data, from the same start. The difference
 curves are the evidence a reader would normally reach for, and they are nearly
-the same curve. Read the restraint deviations instead: the failed fit is a
-slightly worse fit, not an announcement that a bond is 4.8 Å.
+the same curve. Read the restraint deviations instead. The failed fit is a
+slightly worse fit, and no announcement that a bond is 4.8 Å.
 
-A stiff c_w makes a restraint more authoritative, not more correct. Where the
-chemistry assumed is wrong (the guidelines' example is a tetrahedral site that
-is really octahedral), "the refinement will not progress satisfactorily", and a
-higher weight makes that worse.
+A stiff c_w makes a restraint more authoritative rather than more correct. Where
+the chemistry assumed is wrong (the guidelines' example is a tetrahedral site
+that is really octahedral), "the refinement will not progress satisfactorily",
+and a higher weight makes that worse.
 
 `RestraintReport.weight_scale` records the c_w a result was measured under, so a
 report always says which weight was insisting on its deviations. The deviations
-themselves are reported unscaled; [](results.md) reads the rest of that object.
+themselves are reported unscaled, and [](results.md) reads the rest of that
+object.
 
 ### The order the presets encode
 
 The backbone is the order McCusker et al. {cite}`mccusker1999` set out in the
 IUCr Rietveld refinement guidelines:
 
-1. **Background and scale first.** The guidelines want good starting values for
-   the background before the structure is touched, and the calculated pattern
-   scaled to the observed one before anything is read off a difference plot.
-2. **Peak positions before everything else.** The cell and the 2θ correction
-   (the zero shift, plus sample displacement where the geometry has one) refine
+1. Background and scale first. The guidelines want good starting values for the
+   background before the structure is touched, and the calculated pattern scaled
+   to the observed one before anything is read off a difference plot.
+2. Peak positions before everything else. The cell and the 2θ correction (the
+   zero shift, plus sample displacement where the geometry has one) refine
    before the widths and before the structure. The guidelines put it flatly:
    unless the observed and calculated peak positions match, a Rietveld
    refinement cannot and will not work.
-3. **Then the widths, then the asymmetry.** `mccusker_default` stops after the
+3. Then the widths, then the asymmetry. `mccusker_default` stops after the
    widths. `lab_bragg_brentano` and `lab_calibrate` continue in the guidelines'
    order with a `lines_axial` stage after them, carrying the FCJ
    axial-divergence ratios and the Kα2 weight.
-4. **Then the structure: coordinates, then displacement parameters.** The
+4. Then the structure, coordinates before displacement parameters. The
    guidelines note that the scale, the occupancies and the displacement
    parameters are correlated with each other and are the parameters most
    sensitive to a background error, so they follow the positions rather than
    accompany them.
-5. **Everything free together at the end.** Stages are cumulative for a reason
-   the guidelines state explicitly: the esds are only correct when all
-   parameters, profile and structural, are refined simultaneously. The last
-   stage of every preset does that.
+5. Everything free together at the end. Stages are cumulative for a reason the
+   guidelines state explicitly: the esds are only correct when all parameters,
+   profile and structural, are refined simultaneously. The last stage of every
+   preset does that.
 
 One departure: the guidelines suggest refining the heavier atoms' positions
 before the lighter ones, and `mccusker_structural` frees every coordinate in one
@@ -491,16 +491,16 @@ stage yourself; a plan is an ordinary object.
 
 Three further ordering rules are this package's own rather than the guidelines':
 
-- **Widths last among the profile terms, and `w` before `u`, `v`, `x`, `y`.**
-  `w` is the constant term of the Gaussian width. Free the tan θ and 1/cos θ
-  terms first and they absorb a constant offset, then fight it when `w` joins.
-- **Intensity-scaling corrections go last, after the structure has settled.**
+- Widths last among the profile terms, and `w` before `u`, `v`, `x`, `y`. `w` is
+  the constant term of the Gaussian width. Free the tan θ and 1/cos θ terms
+  first and they absorb a constant offset, then fight it when `w` joins.
+- Intensity-scaling corrections go last, after the structure has settled.
   Preferred orientation, extinction and surface roughness all rescale
   intensities as a function of Q, and so do the scale, the occupancies and the
   displacement parameters. Free a correction early and it eats intensity that
   belongs to the structure.
-- **Anisotropic strain is freed *inside* the sample-broadening stage, not after
-  it.** A Stephens block locks `phases.*.lor_strain`, because the isotropic
+- Anisotropic strain is freed inside the sample-broadening stage rather than
+  after it. A Stephens block locks `phases.*.lor_strain`, because the isotropic
   direction of the block is identically that column. Deferring the block would
   leave the isotropic width unrefined until fifteen correlated coefficients turn
   on at once.

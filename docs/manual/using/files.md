@@ -51,16 +51,16 @@ and `ReaderCapability.refuses` says what the reader declines and why.
 Four properties of the readers reach a caller, and each of them can change a
 number you quote.
 
-**A multi-range file holds scans, and the reader selects one.** Pass `scan=` to
+A multi-range file holds scans, and the reader selects one. Pass `scan=` to
 choose. The ranges are never concatenated, because two ranges are usually two
 weighting regimes, and joining them silently mixes them.
 
-A pdCIF holds blocks rather than scans, and takes `block=` instead. A file with
+A pdCIF holds blocks instead of scans, and takes `block=`. A file with
 a `_meas` block and a `_calc` block is a different pattern depending on which
 you ask for. `read_pdcif` reads one directly.
 
-**A reader may repair a file, but only where it can say that it did.** Pass a
-list as `diagnostics=` and the repairs come back in it:
+A reader may repair a file only where it can say that it did. Pass a list as
+`diagnostics=` and the repairs come back in it:
 
 <!-- api-doc: no-exec — it reads a pattern file the reader supplies -->
 ```python
@@ -72,14 +72,14 @@ for note in notes:
     print(note.code, note.message)
 ```
 
-**The intensities and σ need not be the file's numbers.** Vendors disagree about
+The intensities and σ need not be the file's numbers. Vendors disagree about
 whether an attenuator factor is already applied (four formats, three answers),
 so the reader applies it or not by measured convention, and σ goes through the
 same transformation either way. Where the scale cannot be established the reader
-**withholds** σ and says so with `PATTERN_INTENSITY_SCALED`, because the Poisson
+withholds σ and says so with `PATTERN_INTENSITY_SCALED`, because the Poisson
 fallback is wrong by √t on a rate.
 
-**The scanned axis is never assumed.** Most vendor files are not powder scans at
+The scanned axis is never assumed. Most vendor files are not powder scans at
 all, so a file whose axis is something other than 2θ is refused by name, and an
 axis the reader cannot identify says so.
 
@@ -113,19 +113,19 @@ experimenter quoting a refined number. Past that threshold the symbol and the
 angle contradict each other, one of the two is wrong, and choosing between them
 is yours: the value is left byte for byte and the read raises.
 
-A third note is a report rather than a repair. A site sitting within 1e-4 of a
-special position without being on it — what a file quoting five decimals
-produces — has its orbit expanded *at* that position, so its multiplicity is the
-special one, and `SITE_SNAPPED_TO_SPECIAL_POSITION` names the site, the shift
-and the multiplicity. The stored coordinates are unchanged and the fit is
-unaffected. What the multiplicity decides is how many atoms the site puts in the
-cell, and so ZMV and every weight fraction; compare it against the file's own
-`_atom_site_symmetry_multiplicity`.
+A third note is a report rather than a repair. A site can sit within 1e-4 of a
+special position without being on it, as a file quoting five decimals often
+leaves one. Such a site has its orbit expanded at that position, so its
+multiplicity is the special one, and `SITE_SNAPPED_TO_SPECIAL_POSITION` names
+the site, the shift and the multiplicity. The stored coordinates are unchanged
+and the fit is unaffected. What the multiplicity decides is how many atoms the
+site puts in the cell, and so ZMV and every weight fraction; compare it against
+the file's own `_atom_site_symmetry_multiplicity`.
 
-Building a phase by hand rather than from a file has one more way to go quiet.
+Building a phase by hand, with no file behind it, has one more way to go quiet.
 A bare Hermann-Mauguin symbol resolves to the first setting the tables hold, and
-40 symbols hold more than one — the `:1`/`:2` origin choices and the
-rhombohedral `:H`/`:R` axes. Site multiplicities differ between settings, so
+40 symbols hold more than one: the `:1`/`:2` origin choices and the rhombohedral
+`:H`/`:R` axes. Site multiplicities differ between settings, so
 spinel's origin-2 coordinates under a bare `F d -3 m` build Mg₂AlO₄ where
 MgAl₂O₄ was meant, with Rwp unmoved. `SPACE_GROUP_SETTING_ASSUMED` quotes the
 cell contents each setting implies, which is the part you can recognise:
@@ -136,7 +136,7 @@ import rietx as rx
 P = rx.Parameter
 spinel = rx.Phase(
     name="spinel",
-    space_group="F d -3 m:2",          # the setting, not just the symbol
+    space_group="F d -3 m:2",          # the setting, and not the bare symbol
     cell=rx.Cell.cubic(8.0806),
     atoms=[
         rx.Atom(label="Mg", species="Mg", x=P(value=0.125),
@@ -167,7 +167,7 @@ instrument = rx.load_instrument_profile("cu_ka_10mm.json")
 result = rx.refine(data, structure, instrument, plan="lab_sample_refine")
 ```
 
-Calibrate on a standard with its **certified cell held fixed**. That is what
+Calibrate on a standard with its certified cell held fixed. That is what
 decorrelates the zero shift from the sample displacement from the cell, and it
 is why `lab_sample_refine` is the only plan whose size and strain numbers mean
 what they say.
@@ -181,63 +181,62 @@ describes the instrument as it stands.
 ### Reading a GSAS-I `.prm` instrument file
 
 `read_gsas_prm` reads a GSAS-I instrument-parameter file (Larson & Von Dreele,
-*GSAS*, LAUR 86-748) — the text file an APS 11-BM mail-in ships beside its
-pattern — straight into an `Instrument`, with the same `vary=False` contract
-as `load_instrument_profile`:
+*GSAS*, LAUR 86-748) straight into an `Instrument`, with the same `vary=False`
+contract as `load_instrument_profile`. It is the text file an APS 11-BM mail-in
+ships beside its pattern:
 
 <!-- api-doc: no-exec — needs a real .prm file on disk -->
 ```python
 instrument = rx.read_gsas_prm("beamline.prm")
 ```
 
-It reads the dominant case the format ships — one bank, `HTYPE PXCR`
-(constant-wavelength X-ray), GSAS profile function 3 — converting `GU`/`GV`/
-`GW` from centidegrees² and `LX`/`LY` from centidegrees into the degrees²/
-degrees `ProfileTCHZ` uses. A neutron time-of-flight file (`HTYPE PNTR`) and
-every other GSAS profile function are refused by name rather than
-approximated, and the refusal says which reason applies to which: a
-time-of-flight file puts something onto the axis that `ProfileTCHZ`'s
-constant-wavelength Caglioti/TCH law cannot express, while a
-constant-wavelength neutron file (`HTYPE PNCR`) states a law it *could* hold
-and is refused only for want of a real fixture to pin its coefficient layout
-down. A GSAS `.EXP`/`.LST` refinement output has no reader and is transcribed
-by hand. A TOPAS `.inp` and a FullProf `.pcr` are whole refinements rather than
-instrument files, and have their own readers — the next section.
+It reads the dominant case the format ships: one bank, `HTYPE PXCR`
+(constant-wavelength X-ray), GSAS profile function 3. It converts `GU`/`GV`/`GW`
+from centidegrees² and `LX`/`LY` from centidegrees into the degrees² and degrees
+`ProfileTCHZ` uses. A neutron time-of-flight file (`HTYPE PNTR`) and every other
+GSAS profile function are refused by name rather than approximated, and the
+refusal says which reason applies to which. A time-of-flight file puts something
+onto the axis that `ProfileTCHZ`'s constant-wavelength Caglioti/TCH law cannot
+express. A constant-wavelength neutron file (`HTYPE PNCR`) states a law it could
+hold and is refused only for want of a real fixture to pin its coefficient
+layout down. A GSAS `.EXP`/`.LST` refinement output has no reader and is
+transcribed by hand. A TOPAS `.inp` and a FullProf `.pcr` are whole refinements
+rather than instrument files, and have their own readers in the next section.
 
-Two things this reader **chooses** rather than reads, both on the
-`diagnostics=` channel the sections above use. A `.prm` states no geometry at
-all, and `HTYPE PXCR` spans Bragg-Brentano and Debye-Scherrer, so the
-`Instrument` comes back `debye_scherrer` — the 11-BM capillary the corpus this
-reader was built against is — and a flat-plate calibration must have its
-geometry set by the caller. Doing that takes one care, because the geometry is
-not only assumed: `S/L` and `H/L` (`PRCF` positions 7-8) *are* read from the
-file, and they land on `geometry.axial_sl`/`geometry.axial_hl` rather than on
-the profile. A replacement `Geometry` built from scratch starts at 0 for both,
-which is an instrument with no axial divergence at all, so copy those two
-across. That matters beyond bookkeeping: `Geometry.kind`
-selects the position correction and its suggested action, and the two
-geometries' absorption corrections have different *off* states. The file's
-fields that the `Instrument` cannot carry are dropped at their identity value
-and reported the same way, one per record that carried them:
+Two things this reader chooses rather than reads, both on the `diagnostics=`
+channel the sections above use. A `.prm` states no geometry at all, and
+`HTYPE PXCR` spans Bragg-Brentano and Debye-Scherrer, so the `Instrument` comes
+back `debye_scherrer`, which is the 11-BM capillary the corpus this reader was
+built against. A flat-plate calibration must have its geometry set by the
+caller, and doing that takes one care, because the geometry is not the only
+thing assumed. `S/L` and `H/L` (`PRCF` positions 7-8) are read from the file,
+and they land on `geometry.axial_sl`/`geometry.axial_hl` rather than on the
+profile. A replacement `Geometry` built from scratch starts at 0 for both, which
+is an instrument with no axial divergence at all, so copy those two across. That
+matters beyond bookkeeping: `Geometry.kind` selects the position correction and
+its suggested action, and the two geometries' absorption corrections have
+different off states. The file's fields that the `Instrument` cannot carry are
+dropped at their identity value and reported the same way, one per record that
+carried them:
 
 <!-- api-doc: no-exec — needs a real .prm file on disk -->
 ```python
 notes = []
 instrument = rx.read_gsas_prm("beamline.prm", diagnostics=notes)
 [(d.code, d.message) for d in notes]
-# GSAS_PRM_GEOMETRY_ASSUMED — the geometry was not read from the file
-# GSAS_PRM_FIELD_DROPPED    — ICONS field 5, the Kα2/Kα1 ratio, PRCF's GP …
+# GSAS_PRM_GEOMETRY_ASSUMED: the geometry was not read from the file
+# GSAS_PRM_FIELD_DROPPED:    ICONS field 5, the Kα2/Kα1 ratio, PRCF's GP …
 ```
 
-Pass no list and the read is silent and identical, which is what makes the
-channel opt-in rather than a behaviour change.
+Pass no list and the read is silent and identical, so the channel is opt-in
+rather than a behaviour change.
 
 ## Refinement files another program wrote
 
-A TOPAS `.inp`, a FullProf `.pcr` and their kind are not patterns and not
+A TOPAS `.inp`, a FullProf `.pcr` and their kind are neither patterns nor
 structures. They state someone's whole refinement: the phases, the instrument,
-and — the part nobody can reconstruct from a CIF plus a pattern — **which
-parameters were free**. Transcribing one by hand is the failure mode this
+and which parameters were free. That last part is the one nobody can reconstruct
+from a CIF plus a pattern. Transcribing one by hand is the failure mode this
 reader exists to remove, because a mistyped coordinate stays symmetry-valid and
 fails silently, so what comes out is a plausible wrong answer rather than an
 error.
@@ -245,7 +244,7 @@ error.
 :::{admonition} Provisional
 :class: warning
 The foreign-refinement readers are under active development, so the names in
-this section are documented but **not frozen**. `read_project_model`,
+this section are documented and not frozen. `read_project_model`,
 `identify_project_format`, `read_topas_inp`, `read_fullprof_pcr` and the
 per-format models they answer with (`rietx.io.projects`) may change in a 1.x
 release: the registry landed with two formats and three more queued, each of
@@ -267,13 +266,13 @@ model.stated.r_wp          # the run's own figure, as the file states it
 structure = model.to_structure()
 ```
 
-Dispatch is on **content**, never on the extension: `.inp` is written by
-several unrelated programs, and claiming one by name is how a reader returns a
-plausible wrong model for a finite-element deck. A file nothing here reads is
-refused by a message naming what this build does open, and pointing at the
-three neighbouring readers — `rx.read_pattern` for a pattern, `rx.read_gsas_prm`
-for a GSAS-I instrument file, `rx.read_recipe` for a PowderLine recipe — since
-those are what such a file usually turns out to be.
+Dispatch is on content, never on the extension. `.inp` is written by several
+unrelated programs, and claiming one by name is how a reader returns a plausible
+wrong model for a finite-element deck. A file nothing here reads is refused by a
+message naming what this build does open, and pointing at the three neighbouring
+readers: `rx.read_pattern` for a pattern, `rx.read_gsas_prm` for a GSAS-I
+instrument file, `rx.read_recipe` for a PowderLine recipe. Those are what such a
+file usually turns out to be.
 
 Call `rx.read_topas_inp` or `rx.read_fullprof_pcr` directly when you already
 know what you have; `rx.identify_project_format` answers which format claims a
@@ -282,16 +281,16 @@ file without parsing it, reading only enough of the head to decide.
 ### What comes back
 
 The answer is a `ProjectModel`. It names the format and hands on that format's
-own model untouched, and is deliberately **not** one shape with blanks where a
-file was silent: a blank reads as an answer, and a caller cannot tell "this file
-carried none" from "the reader found none".
+own model untouched. It is deliberately not one shape with blanks where a file
+was silent, because a blank reads as an answer and a caller cannot tell "this
+file carried none" from "the reader found none".
 
 | Field | What it holds |
 |---|---|
 | `ProjectModel.format` | the `ProjectFormat` that claimed the file |
 | `ProjectModel.path` | the file that was read |
 | `ProjectModel.stated` | what the file stated, in that format's own model |
-| `ProjectModel.diagnostics` | what the *read* repaired or assumed, kept whether or not you asked |
+| `ProjectModel.diagnostics` | what the read repaired or assumed, kept whether or not you asked |
 | `ProjectModel.to_structure` | build a `Structure` from it, with the file's refine flags |
 
 `ProjectModel.to_structure` passes its keywords through to the format's own
@@ -302,8 +301,9 @@ a meaning.
 
 ### What each format states
 
-A model is *what the file said*, seeded with nothing — a value the file omitted
-arrives as `None`, never as a default. The two differ because the formats do.
+A model is what the file said, seeded with nothing. A value the file omitted
+arrives as `None` and never as a default. The two differ because the formats
+do.
 
 `read_topas_inp` returns a `TopasModel`:
 
@@ -319,7 +319,7 @@ arrives as `None`, never as a default. The two differ because the formats do.
 | `TopasModel.geometry`, `TopasModel.goniometer_radius_mm` | the diffractometer, where the file says |
 | `TopasModel.background_terms` | how many background coefficients were refined |
 | `TopasModel.skipped_blocks` | phase blocks that stated no name or space group, recorded whether or not a diagnostics list was passed |
-| `TopasModel.coverage` | what the reader met and did not carry — below |
+| `TopasModel.coverage` | what the reader met and did not carry; see below |
 
 `read_fullprof_pcr` returns a `FullProfModel`:
 
@@ -327,7 +327,7 @@ arrives as `None`, never as a default. The two differ because the formats do.
 |---|---|
 | `FullProfModel.path`, `FullProfModel.title`, `FullProfModel.pcr_name` | the file, and the names it gives itself |
 | `FullProfModel.phases` | every phase, nuclear and magnetic |
-| `FullProfModel.nuclear_phases`, `FullProfModel.magnetic_phases` | the same, split — a magnetic phase reads but cannot build |
+| `FullProfModel.nuclear_phases`, `FullProfModel.magnetic_phases` | the same, split; a magnetic phase reads but cannot build |
 | `FullProfModel.chi2` | the converged figure, from the comments FullProf rewrites each cycle |
 | `FullProfModel.control` | the Job/Npr/Nph control line, field by field |
 | `FullProfModel.job` | which diffraction experiment the file declares |
@@ -357,36 +357,35 @@ caps = rx.capabilities()
 | `ProjectFormatCapability.name`, `ProjectFormatCapability.title` | the registry key, and what a person calls it |
 | `ProjectFormatCapability.extensions` | the conventional suffixes, which are informational and never the dispatch |
 | `ProjectFormatCapability.sniff` | how the format is recognised, in words |
-| `ProjectFormatCapability.carries` | what the file holds beyond a structure — read this before reading a model you have no common shape for |
+| `ProjectFormatCapability.carries` | what the file holds beyond a structure; read this before reading a model you have no common shape for |
 | `ProjectFormatCapability.reports_at` | `"read"` or `"build"`: which call takes your `diagnostics=` list |
-| `ProjectFormatCapability.refuses` | set when the build recognises a format *in order to decline* it, carrying why |
+| `ProjectFormatCapability.refuses` | set when the build recognises a format in order to decline it, carrying why |
 
-`reports_at` is a real difference and not bookkeeping. A `.inp`'s repairs — a
-rewritten species spelling, a translated origin suffix — happen while parsing,
-so its channel is `read_project_model(..., diagnostics=notes)`. A `.pcr`'s all
-happen while codewords become a `Structure`, so its channel is
+`reports_at` is a real difference and not bookkeeping. A `.inp`'s repairs, such
+as a rewritten species spelling or a translated origin suffix, happen while
+parsing, so its channel is `read_project_model(..., diagnostics=notes)`. A
+`.pcr`'s all happen while codewords become a `Structure`, so its channel is
 `ProjectModel.to_structure(diagnostics=notes)`. Passing a list to both collects
 either without your having to know which.
 
-You never lose the read's half by passing your list to the wrong call, though:
-whatever the read reported is on `ProjectModel.diagnostics` as well, filled
-list or no list. That matters more than it sounds. An empty list reads as "this
-file needed no repairs", and a caller who had passed it to the other call would
+Passing your list to the wrong call still does not lose the read's half.
+Whatever the read reported is on `ProjectModel.diagnostics` as well, filled list
+or no list. That matters more than it sounds. An empty list reads as "this file
+needed no repairs", and a caller who had passed it to the other call would
 believe it.
 
-The same facts are in the registry itself, which is what the arm is built from:
-`ProjectFormat.name`, `ProjectFormat.title`, `ProjectFormat.extensions`,
-`ProjectFormat.sniff`, `ProjectFormat.carries`, `ProjectFormat.reports_at` and
-`ProjectFormat.refuses` carry the declarations, while `ProjectFormat.matches`,
-`ProjectFormat.read` and `ProjectFormat.to_structure` are the callables the
-dispatch uses.
+The same facts are in the registry the arm is built from. `ProjectFormat.name`,
+`ProjectFormat.title`, `ProjectFormat.extensions`, `ProjectFormat.sniff`,
+`ProjectFormat.carries`, `ProjectFormat.reports_at` and `ProjectFormat.refuses`
+carry the declarations, while `ProjectFormat.matches`, `ProjectFormat.read` and
+`ProjectFormat.to_structure` are the callables the dispatch uses.
 
 ### What a reader will not guess
 
 These formats hold constructs this package has no model for, and dropping one
 changes the model rather than its presentation. So every construct the TOPAS
 reader knows about is a `Feature` carrying a declared `Stance`, a keyword with
-no stance fails a test rather than vanishing, and what a particular file turned
+no stance fails a test instead of vanishing, and what a particular file turned
 out to contain comes back as a `Coverage` of `Hit` rows:
 
 ```python
@@ -406,13 +405,13 @@ from rietx.io.projects import coverage
 | `Coverage.summary`, `Coverage.summary_of` | those hits in a sentence |
 
 A refused construct raises, naming the file and the line. A reported one
-arrives on the diagnostics channel: the read is silent and identical without a
-list, which is what makes the channel opt-in rather than a behaviour change.
+arrives on the diagnostics channel, and without a list the read is silent and
+identical, on the same opt-in terms as every other reader here.
 
 ## The `.rex` project directory
 
-A project is the one durable thing a session can point at. It is a
-**directory**, not an archive:
+A project is the one durable thing a session can point at. It is a directory
+rather than an archive:
 
 ```text
 my_sample.rex/
@@ -447,7 +446,7 @@ different cause and a different fix.
 
 ### A project with no structure
 
-`structure=` may be left out. What you get is a **pattern-only** project: zero
+`structure=` may be left out. What you get is a pattern-only project: zero
 phases, for a pattern whose phase you do not know yet.
 
 <!-- api-doc: no-exec — it creates a directory from the reader's own files -->
@@ -465,7 +464,7 @@ to the wizard's structure step.
 
 What it cannot do is refine. A phase reaches the pattern only through
 `scale × |F|² × profile`, so with no phase there is nothing but the background
-to fit — and a plan run over one *converges on the background* and reports
+to fit, and a plan run over one converges on the background and reports
 success. `fit`, `run_stage`, `refine_multi` and `refine_sequential` therefore
 raise `NoPhasesError` before they start. `NoPhasesError.code` is the string
 `NO_PHASES` on every surface: the agent envelope's fourth error code, and the
@@ -506,15 +505,15 @@ copy: `rietx gui PROJECT.rex --scratch` copies the directory to a temporary
 one and opens that, printing where it went ([](cli.md)). The copy is
 byte-for-byte, so it opens exactly as the original does.
 
-Each fact has one authority. `project.json` holds the *settings*: the selected
+Each fact has one authority. `project.json` holds the settings: the selected
 plan and mode, the 2θ limits, the excluded regions, and the GUI's own `ui` keys.
-`history.jsonl` holds the model state, and its head *is* the working state. No
+`history.jsonl` holds the model state, and its head is the working state. No
 parameter value is written in both places.
 
-Saving persists settings; it is not what makes the work durable. Every verb that
-changes the model commits a history node the moment it runs, so the work is on
-disk whether or not anyone calls `Project.save`. What `save` persists is the half of a session that
-nothing else owns.
+Saving persists settings, and is not what makes the work durable. Every verb
+that changes the model commits a history node the moment it runs, so the work is
+on disk whether or not anyone calls `Project.save`. What `save` persists is the
+half of a session that nothing else owns.
 
 `ProjectDoc` is that half, field by field.
 
@@ -532,10 +531,10 @@ nothing else owns.
 | `ProjectDoc.created_utc`, `ProjectDoc.updated_utc` | when it was created, and last saved |
 | `ProjectDoc.ui` | keys a front end persists, untyped |
 
-The three settings after the plan are what `fit` and `run_stage` will be
-*called* with. A history node records a mode and limits too, and that is a
-different fact: the node says what a past run used, the document says what the
-next one will use. Before the first run there is no node to ask.
+The three settings after the plan are what `fit` and `run_stage` will be called
+with. A history node records a mode and limits too, and that is a different
+fact: the node says what a past run used, the document says what the next one
+will use. Before the first run there is no node to ask.
 
 `ProjectDoc.patterns` is a list because stacking several patterns into one joint
 residual is a later milestone's work. A project holds one today, and
@@ -549,7 +548,7 @@ The pattern is copied verbatim rather than re-serialised, because the bytes are
 the contract: the reader takes σ from the file's own column and never overrides
 it. `Project.data_ref` returns the `DataRef` that makes those bytes trustworthy
 on re-open. It carries `DataRef.sha256` of the file, `DataRef.fingerprint` of
-the *parsed* arrays, and `DataRef.reader` with `DataRef.options`. The reader
+the parsed arrays, and `DataRef.reader` with `DataRef.options`. The reader
 call itself is part of the reference, because a pdCIF is a different pattern
 depending on the block. Agreeing bytes with a disagreeing fingerprint mean the
 reader changed, not that the project is corrupt.
@@ -558,7 +557,7 @@ Four more fields say what the pattern is: `DataRef.filename` names it inside the
 directory, `DataRef.n_points` and `DataRef.two_theta_range` describe it, and
 `DataRef.has_sigma` records whether σ was measured or fell back to Poisson. That
 last one is a correctness property of every fit in the project and is invisible
-once the data are read, which is why it is written down.
+once the data are read, so it is written down.
 
 `Project.set_excluded_regions` records regions to leave out of the fit. They
 live in the document rather than in a history node because they are protocol
@@ -592,12 +591,12 @@ it.
 | `HistoryRecord.record` | `"header"`, `"node"` or `"annotation"` | the tag. Branch on this and read the matching field |
 | `HistoryRecord.header` | a `TreeHeader`, on the first line only | the tree's identity and the fingerprint pinning it to one pattern |
 | `HistoryRecord.node` | a `HistoryNode` | one state, appended when a stage or an edit commits |
-| `HistoryRecord.annotation` | an `Annotation` | a tag or a note attached to a node afterwards, which is why it is a separate line rather than a field on the node |
+| `HistoryRecord.annotation` | an `Annotation` | a tag or a note attached to a node afterwards, so it is a separate line rather than a field on the node |
 
 The other three fields are null on any given line. A tag applied to a node that
 was written an hour ago appends an annotation line; it never rewrites the node.
 
-A node stores **state, not curves**. A node is about 10 kB; embedding the
+A node stores state and not curves. A node is about 10 kB; embedding the
 calculated pattern would make it 1.24 MB. Le Bail extracted intensities are the
 exception, because they live outside the parameter vector and are
 path-dependent, so they are serialized per node.
@@ -629,7 +628,7 @@ Three writers turn a result into a file someone else can read:
 | Call | Writes |
 |---|---|
 | `write_refinement_cif` | the refined structure and fit as a CIF |
-| `write_reflection_table` | one row per **(emission line, reflection)**: hkl, d, 2θ, \|F\|², intensity |
+| `write_reflection_table` | one row per (emission line, reflection): hkl, d, 2θ, \|F\|², intensity |
 | `write_qpa_table` | the quantitative phase analysis |
 
 [](exports.md) has the rows those last two are made of, and the same three

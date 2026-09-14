@@ -33,10 +33,11 @@ Isotropic displacement parameter
 
 A path outside the parameter vocabulary returns `None` rather than a guess.
 
-`help_key_for` returns the family glob itself rather than the entry, which is
-what `Refinement.parameters()` puts on every row as `ParameterRow.help_key`. A
-row carries the key and not the entry because an entry describes a family, so
-inlining one repeats the same paragraph once per atom.
+`help_key_for` returns the family glob itself rather than the entry, and
+`Refinement.parameters()` puts that glob on every row as
+`ParameterRow.help_key`. A row carries the key and not the entry because an
+entry describes a family, so inlining one repeats the same paragraph once per
+atom.
 
 ```python
 import rietx as rx
@@ -50,8 +51,8 @@ phases.*.atoms.*.biso
 None
 ```
 
-`help_registry` returns the whole corpus as JSON-able data, which is what the
-GUI's `GET /api/help` serves. Its keys are `parameters`, `peak_flags`,
+`help_registry` returns the whole corpus as JSON-able data, and the GUI's
+`GET /api/help` serves it. Its keys are `parameters`, `peak_flags`,
 `peak_diagnostics`, `peak_origins`, `stage_fields`, `reader_options`,
 `instrument_fields`, `search_fields` and `plans`. Each object in `parameters`
 lists every glob that reaches it, so a `help_key` looks up there.
@@ -98,18 +99,18 @@ Each entry is a `HelpEntry` with seven fields.
 `HelpEntry.label`
 : The short form a chip carries where the name would not read: `at bound` for
   `position_at_bound`. Only the `peak_flags` and `peak_origins` arms carry one,
-  and every entry there must; `None` elsewhere, where no chip is drawn.
+  and every entry there must. It is `None` elsewhere, where no chip is drawn.
 
 ## Limitations
 
-`typical` and `label` are the two authored fields: no computation in the package
-reads either (the GUI reads `label` to letter a chip). The ranges come from
-McCusker et al. (1999) {cite}`mccusker1999` and from this repository's own
+`typical` and `label` are the two authored fields, and no computation in the
+package reads either (the GUI reads `label` to letter a chip). The ranges come
+from McCusker et al. (1999) {cite}`mccusker1999` and from this repository's own
 reference datasets, and a specimen outside one is not thereby wrong.
 
-The corpus describes parameters, not strategy. Which parameter to free next is
-{doc}`refining`; what a diagnostic code means for a whole refinement is
-{doc}`the agent skill <skill>`.
+The corpus describes parameters rather than strategy. Which parameter to free
+next is {doc}`refining`, and what a diagnostic code means for a whole refinement
+is {doc}`the agent skill <skill>`.
 
 ```{include} ../_generated/glossary-body.md
 ```

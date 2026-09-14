@@ -113,7 +113,7 @@ uv pip install -e ".[dev]"         # from a source checkout
 | `viz` | matplotlib, plotly | Plots. `RefinementResult.plot` and the report figures need matplotlib; `viz.html.write_html` writes the interactive plotly page. |
 | `gui` | plotly | The refinement GUI, `rietx gui`. Plotly only: the built frontend is committed inside the package, so this extra never needs node. |
 | `jax` | jax | The `backend="jax"` Jacobian (`jacfwd`, chunked). |
-| `torch` | torch | **Experimental.** `backend="torch"` (CPU fp64) and `backend="torch-mps"` (Apple GPU, necessarily fp32). About 500 MB, and *slower* than numpy on this hardware. It buys an independent opinion in the Jacobian-agreement matrix, and the forward model as a differentiable layer. It does not buy speed. |
+| `torch` | torch | Experimental. `backend="torch"` (CPU fp64) and `backend="torch-mps"` (Apple GPU, necessarily fp32). About 500 MB, and slower than numpy on this hardware. It buys an independent opinion in the Jacobian-agreement matrix, and the forward model as a differentiable layer. It does not buy speed. |
 | `docs` | sphinx, myst-parser, sphinxcontrib-bibtex, sphinx-design, furo | Builds this manual. |
 | `dev` | the `docs` and `viz` extras, pytest, pytest-xdist, hypothesis, ruff | The test suite. |
 
@@ -234,16 +234,16 @@ prints its own counts, and those counts depend on the extras installed: `jax` an
 
 ## Troubleshooting
 
-**`zsh: no matches found: rietx[viz]`.** `zsh` expanded the brackets as a glob.
+`zsh: no matches found: rietx[viz]`. `zsh` expanded the brackets as a glob.
 Quote the argument: `pip install "rietx[viz]"`.
 
-**`rietx.__version__` reads `0.0.0+dev`.** No distribution of that name is
+`rietx.__version__` reads `0.0.0+dev`. No distribution of that name is
 installed, and what you imported is a source checkout sitting on `sys.path`
 ahead of its own install. Install it (`uv pip install -e .`) before refining
 anything: that string is stamped into the provenance of every result, every
 history tree and every project file the session writes.
 
-**`pip` cannot find a version of `numba` for your `numpy`.** `numba` carries an
+`pip` cannot find a version of `numba` for your `numpy`. `numba` carries an
 upper bound on `numpy` (`numpy<2.6` as of `numba` 0.63), so a very new numpy has
 to wait for a `numba` that admits it. Either pin numpy below the ceiling in this
 environment, or install without `numba` as above and run the numpy path.

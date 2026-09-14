@@ -11,6 +11,27 @@ dotted name in a reference file is walked like one in the body, a private
 adding a sentence each to the same skill file do not fail on the merge with no
 warning beforehand.
 
+### Inherited
+
+From **WP-1409** (2026-09-14), which swept the manual's register and found a
+skill defect on the way.
+
+`docs/skill/rietx/references/abstention.md` wrote `scale × |F|² × profile` as a
+code span **inside a Markdown table cell**. The first `|` ends the cell, so the
+span never closed and the backticks rendered literally wherever the file is
+rendered as Markdown. It is fixed (the pipes are escaped and the span dropped,
+which is what the manual's own tables do), but the gate that caught it is the
+*manual's*: `tests/test_manual.py::test_no_unrendered_markup_survives_the_build`
+scans the built HTML, and the skill body reaches that build only because
+`using/skill.md` includes it whole.
+
+So the class is covered for the skill body by accident of where it is rendered,
+and not by `tests/test_skill.py`. That is this WP's own shape one file over: a
+gate named after the thing it does cover. Whether the skill wants its own check
+(a code span opened inside a table cell, in every reference file) is a question
+for whoever works these gates; the manual's version is a build-time HTML scan
+and cannot be lifted directly.
+
 ## Context
 
 Three issues, all about `tests/test_skill.py` and the process around it
