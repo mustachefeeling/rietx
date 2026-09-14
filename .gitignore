@@ -23,6 +23,13 @@ htmlcov/
 # `git check-ignore` about them, so a fourth directory fails a test instead of
 # reaching a fresh clone with its pictures missing.
 !docs/manual/using/screenshots/*.png
+# A WP that decides something from rendered pages commits the pictures beside
+# its own file, and `*.png` above swallowed all eighteen of WP-1412's — the
+# fifth time, and the first outside `docs/manual/`, which is why the guard added
+# after the third did not see it. `tests/test_docs_consistency.py` now asks
+# `git check-ignore` about every target a planning doc links, so the next
+# directory fails a test wherever it is.
+!docs/wp/**/*.png
 # The GUI's built frontend is COMMITTED (WP-1010) so installing the wheel never
 # needs node — and `*.html` above would have quietly dropped its entry point,
 # leaving a dist whose freshness test passes on this machine while a fresh clone

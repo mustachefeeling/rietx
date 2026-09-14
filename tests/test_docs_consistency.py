@@ -440,7 +440,9 @@ def _planning_docs() -> list[Path]:
         if (ROOT / extra).is_file():
             docs.append(ROOT / extra)
     docs += sorted((ROOT / "docs").glob("*.md"))
-    docs += sorted((ROOT / "docs" / "wp").glob("*.md"))
+    # rglob, so a WP that files evidence in a directory of its own brings that
+    # directory's README under the same two checks (WP-1412).
+    docs += sorted((ROOT / "docs" / "wp").rglob("*.md"))
     docs += sorted((ROOT / "docs" / "milestones").glob("*.md"))
     return docs  # docs/manual/ is excluded: MyST links are sphinx's to check (-W)
 
@@ -457,6 +459,48 @@ def test_every_relative_link_resolves():
             if not (doc.parent / rel).exists():
                 broken.append(f"{doc.relative_to(ROOT)} -> {target}")
     assert not broken, "broken relative links:\n" + "\n".join(broken)
+
+
+def test_no_planning_doc_links_something_gitignored():
+    """A file a planning doc links must survive a fresh clone.
+
+    `.gitignore` carries a blanket `*.png`, un-ignored directory by directory,
+    and it has swallowed a committed image five times.  The guard written after
+    the third (`tests/test_gui_manual.py`) names two directories under
+    `docs/manual/`, so WP-1412's eighteen sheets under `docs/wp/` went past it:
+    the local build was right, the commit took the README alone, and nothing
+    was red.
+
+    This asks the question one rank up and without a list.  Whatever a planning
+    doc links, in whatever directory, has to be a file a clone gets — so a new
+    evidence directory fails here rather than reaching a reader with its
+    pictures missing.
+    """
+    import subprocess
+
+    targets: list[Path] = []
+    for doc in _planning_docs():
+        for target in _LINK_RE.findall(doc.read_text(encoding="utf-8")):
+            if target.startswith(("http://", "https://", "mailto:", "#")):
+                continue
+            rel = target.split("#", 1)[0]
+            if rel and (doc.parent / rel).is_file():
+                targets.append(doc.parent / rel)
+    assert targets, "no linked files found — the link regex or the corpus moved"
+    result = subprocess.run(
+        # --no-index: check-ignore answers for a *tracked* file out of the index
+        # without reading the rules, and the point here is the rules.
+        ["git", "check-ignore", "-v", "--no-index", *[str(p) for p in sorted(set(targets))]],
+        cwd=ROOT, capture_output=True, text=True, check=False,
+    )
+    ignored = [
+        line for line in result.stdout.splitlines()
+        # A `!` pattern is check-ignore reporting the un-ignore that saved it.
+        if line and not line.split("\t")[0].rpartition(":")[2].startswith("!")
+    ]
+    assert not ignored, (
+        "a planning doc links a file .gitignore drops:\n" + "\n".join(ignored)
+    )
 
 
 def test_every_shipped_milestone_row_names_its_record():

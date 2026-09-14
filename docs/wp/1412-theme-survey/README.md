@@ -37,6 +37,18 @@ their own size. All are quantised to 256 colours.
 | `figures` | `using/concepts.html` | whether one of the committed light/dark pair shows, or both |
 | `mermaid` | `using/files.html` | whether the diagram follows the page |
 
+The three that carry the argument:
+
+![The front page under four themes. furo, sphinx-book and shibuya show all 34
+chapters in a sidebar; pydata shows five in a navbar and hides the rest behind
+"More".](front-light-1440.png)
+
+![A chapter with a committed figure pair. The shibuya column renders both
+halves, the dark one ghosted under the light one.](figures-light-1440.png)
+
+![pydata in three states: as shipped, with the migration's config and CSS, and
+with the sidebar template forked.](pydata-configured-chapter.png)
+
 ## The two pydata sheets
 
 `pydata-configured-front.png` and `pydata-configured-chapter.png` show three
