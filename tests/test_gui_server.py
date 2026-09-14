@@ -2382,6 +2382,33 @@ def test_a_real_run_streams_its_events_to_disk_and_to_followers(fitted):
     assert [e["seq"] for e in later] == [s for s in seqs if s > half]
 
 
+def test_the_watcher_finds_a_gui_project_run_and_tails_it(fitted):
+    """WP-1401: the reader is built against a live format, not an invented one.
+
+    A GUI project's log is a different writer from ``LiveSession`` — it appends
+    rather than truncating, and it writes no ``status.json`` and no
+    ``fit.html``. That combination is what a run row has to survive.
+    """
+    from rietx import runs
+
+    _, _, project = fitted
+    root = project.path.parent
+
+    (found,) = runs.discover(root)
+    assert found.path == project.live_dir
+    assert found.label == project.path.name       # "sample.rex", never "live"
+    assert found.legacy is True                   # nothing writes meta.json yet
+    assert found.status is None                   # nor status.json, this way
+    assert found.has_snapshot is False            # nor fit.html
+    assert runs.liveness_of(found).state == "unknown"
+
+    tail = runs.tail_events(found.path / runs.EVENTS_FILE)
+    kinds = [e["kind"] for e in tail.events]
+    assert kinds[0] == "fit_start" and kinds[-1] == "fit_end"
+    assert "eval" in kinds and tail.bad_lines == 0
+    assert tail.offset == (found.path / runs.EVENTS_FILE).stat().st_size
+
+
 def test_result_carries_no_curves_and_the_window_serves_them(fitted):
     _, client, project = fitted
     status, payload = client.get("/api/result")

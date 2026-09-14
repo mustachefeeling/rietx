@@ -13,7 +13,7 @@ usage: rietx <command> [...]
 commands:
   gui [PROJECT.rex] [--scratch] [--port N] [--no-open]
                                     the refinement GUI (localhost)
-  watch <dir> [--port N] [--open]   live viewer for a LiveSession directory
+  watch [dir] [--port N] [--open]   list and watch the runs under a directory
   html <result.json> <out.html>     render a saved RefinementResult to HTML
   index <pattern> --wavelength A [...]
                                     determine the unit cell of an unknown

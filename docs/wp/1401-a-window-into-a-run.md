@@ -177,7 +177,7 @@ Measure it now, on the cases the next WPs will reuse.
       rather than defensive from WP-1403 on, when writes become buffered.
 - [x] `python -m rietx.runs [DIR]` printing the discovered table — how a human
       checks the walk without a browser.
-- [ ] `watch.py`: no-argument mode scanning the cwd, the run list page, and the
+- [x] `watch.py`: no-argument mode scanning the cwd, the run list page, and the
       JSON routes it needs (`/api/runs`, `/api/run/<id>`,
       `/api/run/<id>/events?offset=`). A directory argument that **is** a run is
       served as one and opens straight onto it, so `rietx watch ./live-dir` from
@@ -189,7 +189,7 @@ Measure it now, on the cases the next WPs will reuse.
       and `trigger`, three runs each, one sitting. Numbers into the handover as a
       **range**, with venv and platform named. State plainly whether WP-1403's
       premise survives.
-- [ ] Tests: `tests/test_runs.py` (no fit at all — fixture directories) and
+- [x] Tests: `tests/test_runs.py` (no fit at all — fixture directories) and
       `tests/test_watch_app.py`. Cases: a held lock against a released one, a
       foreign host, a status with no state, a torn last line, invalid JSON mid
       file, an empty directory, the depth cap, a symlink loop, the open-count

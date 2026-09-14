@@ -54,7 +54,7 @@ def main(argv: list[str] | None = None) -> int:
               "commands:\n"
               "  gui [PROJECT.rex] [--scratch] [--port N] [--no-open]\n"
               "                                    the refinement GUI (localhost)\n"
-              "  watch <dir> [--port N] [--open]   live viewer for a LiveSession directory\n"
+              "  watch [dir] [--port N] [--open]   list and watch the runs under a directory\n"
               "  html <result.json> <out.html>     render a saved RefinementResult to HTML\n"
               "  index <pattern> --wavelength A [...]\n"
               "                                    determine the unit cell of an unknown\n"
