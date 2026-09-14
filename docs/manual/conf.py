@@ -238,10 +238,11 @@ html_css_files = ["custom.css"]
 # "home" to the page the reader was already on, and nothing under `docs/manual/`
 # linked to the site root at all.  The fork's own comment carries the rest.
 templates_path = ["_templates"]
-# `_about.DOCS_URL`, never the URL: it is spelled in this tree only there (root
-# CLAUDE.md § Conventions).  A Jinja template cannot import, so it arrives
-# through the context.
-html_context = {"rietx_home": DOCS_URL}
+# `_about.DOCS_URL` and `_about.DIST_NAME`, never the URL and never the word:
+# both are spelled in this tree only there (root CLAUDE.md § Conventions), and
+# a hardcoded one is invisible to every test in the suite.  A Jinja template
+# cannot import, so they arrive through the context.
+html_context = {"rietx_home": DOCS_URL, "rietx_name": DIST_NAME}
 # Without this the pages emit no icon link at all, and a browser then falls
 # back to the *origin* root — https://yue-here.github.io/favicon.ico, which
 # belongs to the user Pages site this project's pages sit under, not to this

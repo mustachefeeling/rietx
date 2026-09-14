@@ -30,8 +30,19 @@
  * browser loads as an icon reads no CSS variable of ours. */
 :root {
   --color-rietx-ink: #6d4aff;
-  --color-agent-accent: var(--color-rietx-ink);
   --color-agent-accent-background: rgba(109, 74, 255, 0.1);
+}
+
+/* The alias is declared on `body`, and that is load-bearing rather than tidy.
+ * A `var()` inside a custom property is substituted where the property is
+ * *declared*, not where it is used, so an alias declared on `:root` freezes at
+ * the light hex and inherits that frozen value downward.  The two dark blocks
+ * below redefine `--color-rietx-ink` on `body`, which is where furo stamps
+ * `data-theme`, and a `:root` alias never sees them: measured in chromium on
+ * the built manual, the agent admonition's border stayed #6d4aff on a dark
+ * page while its title chip switched to the dark purple. */
+body {
+  --color-agent-accent: var(--color-rietx-ink);
 }
 
 @media (prefers-color-scheme: dark) {

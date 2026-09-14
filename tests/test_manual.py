@@ -221,7 +221,8 @@ def test_the_brand_mark_is_the_favicon(built_manual):
     hexes, which is the one place they have to be literal, and the template
     takes its fill from `--color-rietx-ink`.
     """
-    out, _ = built_manual
+    out, result = built_manual
+    assert result.returncode == 0, "manual did not build — see test_manual_builds_warning_free"
     template = (MANUAL_DIR / "_templates" / "sidebar" / "brand.html").read_text(encoding="utf-8")
     favicon = (MANUAL_DIR / "_static" / "favicon.svg").read_text(encoding="utf-8")
     inlined = SVG_SHAPES.findall(template)
@@ -257,7 +258,7 @@ def test_the_brand_links_to_the_landing_page(built_manual):
     because the same upgrade would drop those too, and a link with no brand on
     it is not what this WP shipped.
     """
-    from rietx._about import DOCS_URL
+    from rietx._about import DIST_NAME, DOCS_URL
 
     out, result = built_manual
     assert result.returncode == 0, "manual did not build — see test_manual_builds_warning_free"
@@ -274,7 +275,7 @@ def test_the_brand_links_to_the_landing_page(built_manual):
             wrong.append(f"{page.name}: brand href {hrefs} (want [{DOCS_URL!r}])")
         elif 'class="rietx-mark"' not in text:
             wrong.append(f"{page.name}: the brand carries no mark")
-        elif '<span class="sidebar-brand-text">rietx</span>' not in text:
+        elif f'<span class="sidebar-brand-text">{DIST_NAME}</span>' not in text:
             wrong.append(f"{page.name}: the brand carries no wordmark")
     assert not wrong, (
         f"{len(wrong)} of {len(pages)} built pages have the wrong brand — has furo's "
