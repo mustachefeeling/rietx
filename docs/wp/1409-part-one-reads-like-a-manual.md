@@ -228,7 +228,30 @@ register test was renamed rather than added. Build `-W` clean, ruff clean.
   end.
 - Scope a `git checkout` to the file you patched. Failing a guard on purpose and
   reverting with `git checkout docs/manual/` took four sibling files' uncommitted
-  edits with it, and the measurement is what noticed.
+  edits with it, and the measurement is what noticed. It happened twice: the
+  second time the reverted file held the review's own uncommitted re-wrapping.
+  Commit before the experiment, or name the single path.
+
+*Review*: `/code-review high --fix` accepted nine findings, all applied,
+nothing declined. Four were **meaning changes this pass introduced** while
+removing em dashes, which is the risk of an editorial sweep and the reason the
+review belongs before the PR: `files.md`'s "but only where it can say that it
+did" became "and only where", dropping the restrictive force of the
+reader-repair invariant; the same page promoted an aside into a universal claim;
+`gui-power.md` narrowed an open settings dict to "which is the theme"; and
+`gui-guide.md` turned an italic paraphrase of a GUI message into a
+double-quoted verbatim one the app does not emit (`Plot.svelte:1409` carries an
+em dash where the quotation had a comma, checked against the Svelte source
+rather than taken on the review's word). Three more were **holes in this
+session's own guards**, each in the shape the guard was written to catch: the
+vocabulary guard did not read the counts its docstring names, the flag-table
+row pattern dropped any row carrying an escaped pipe (the convention this same
+branch introduced), and `_prose_lines` swallowed an admonition's *title* line
+and saw only the first line of a multi-line HTML comment. The remaining two are
+presentation: one table label written two ways, and edited-in-place lines
+running to 136 characters. Counts after: **4661 passed / 132 skipped**, +4 on
+the 4657 baseline, which is this WP's three guards plus the review's count
+guard.
 
 *Next*: nothing on Part 1's prose. Two things the next session could take, in
 order of cheapness. The dead-anchor guard 1408 named is now cheaper, since the
