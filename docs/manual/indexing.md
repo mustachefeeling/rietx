@@ -141,8 +141,8 @@ explain a shift by changing the answer indexing is about to produce.
 ### Measuring the shift before the cell
 
 Fitting those templates needs reference positions, and before indexing there is
-no cell to deviate from. The shift is measurable anyway, which is what lets a
-search widen its window by a measurement instead of an assumption.
+no cell to deviate from. The shift is measurable anyway, so a search can widen
+its window by a measurement instead of an assumption.
 
 Two reflections form a reflection pair when their planes are harmonics of one
 another, $(h'k'l') = m\,(hkl)$ with $m$ integer, so that
