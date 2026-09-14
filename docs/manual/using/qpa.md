@@ -54,8 +54,8 @@ reduce to integers under refined occupancies. The weight fraction never depends
 on that split, so a surprising `z` is a cosmetic problem and not a wrong
 answer.
 
-`PhaseQuantity.weight_fraction_stderr` is propagated from the **correlated**
-scale block of the covariance, not from σ(S) treated as independent, so it
+`PhaseQuantity.weight_fraction_stderr` is propagated from the correlated scale
+block of the covariance rather than from σ(S) treated as independent, so it
 carries the same conditioning as every other esd the package reports.
 
 ### A worked mixture
@@ -71,26 +71,26 @@ weighed at 55.12, 15.25 and 29.62 wt %) reaches Rwp 0.126 and gives:
 
 The errors are well inside the published participant spread for this sample,
 and they are much larger than the esds. That is the normal state of affairs and
-the first thing to understand about a QPA esd: it measures how well the scales
-are determined **by this model against this pattern**, not how close the answer
+the first thing to understand about a QPA esd. It measures how well the scales
+are determined by this model against this pattern, and not how close the answer
 is to the truth.
 
 ## What the fractions are fractions of
 
 `QuantitativePhaseAnalysis.crystalline_only` is `True`, and it is not a caveat
-to skim. The fractions are of the **modelled crystalline content**. They are
+to skim. The fractions are of the modelled crystalline content. They are
 renormalised across the phases in the model, so they sum to 1 exactly whatever
 is missing: in the mixture above, to 1.0 to nine decimal places.
 
 Two things therefore do not show up as a shortfall:
 
-- an **amorphous** fraction: glass, a poorly crystalline binder, an X-ray
-  amorphous gel. The crystalline phases absorb it in proportion.
-- a **missing crystalline phase**: one you did not put in the model. Its
-  intensity is redistributed among the phases you did.
+- an amorphous fraction: glass, a poorly crystalline binder, an X-ray amorphous
+  gel. The crystalline phases absorb it in proportion.
+- a missing crystalline phase, one you did not put in the model. Its intensity
+  is redistributed among the phases you did.
 
 Neither is detectable from the fractions themselves, because both leave a set
-that sums to 1. What does show them is the fit: an amorphous fraction is a broad
+that sums to 1. What does show them is the fit. An amorphous fraction is a broad
 hump the background has to absorb, and a missing phase is a set of peaks with no
 tick under them. [](report.md)'s Layer 0 is where both are named.
 `PatternDiagnostics.amorphous_hump_score` is the pattern-level version of the
@@ -104,8 +104,8 @@ known phase and solving for the rest, is not implemented.
 :::{admonition} For agents
 :class: agent
 Never report a weight fraction without the scope. "57.3 % corundum" is wrong if
-the specimen is 20 % glass; "57.3 % of the crystalline content" is right either
-way. `crystalline_only` is `True` on every result this package produces today,
+the specimen is 20 % glass, while "57.3 % of the crystalline content" is right
+either way. `crystalline_only` is `True` on every result this package produces today,
 so the qualification is unconditional.
 :::
 
@@ -118,9 +118,9 @@ is the Brindley microabsorption effect {cite}`brindley1945`, eq.
 {eq}`corr-brindley`.
 
 The correction needs a particle radius per phase, and there is no way to get one
-from the pattern. Set `Phase.particle_radius_um` on **every** phase from a
-micrograph or a particle-size measurement ([](data.md) says why profile
-broadening is not a substitute); leave it `None` on any of them and the
+from the pattern. Set `Phase.particle_radius_um` on every phase from a
+micrograph or a particle-size measurement, and [](data.md) says why profile
+broadening is not a substitute. Leave it `None` on any of them and the
 correction does not run.
 
 When it does run, `QuantitativePhaseAnalysis.microabsorption` records what it
@@ -135,7 +135,7 @@ assumed.
 The corrected fraction is reported alongside rather than substituted.
 `PhaseQuantity.weight_fraction` stays the uncorrected Hill-Howard number and
 `PhaseQuantity.weight_fraction_corrected` sits beside it. The esd belongs to the
-uncorrected one: the corrected fraction inherits the systematic uncertainty of
+uncorrected one. The corrected fraction inherits the systematic uncertainty of
 the radii you supplied, which dominates and is not statistical, so quoting the
 statistical esd against it would be a claim the package cannot support.
 
@@ -159,16 +159,16 @@ gives:
 | zircon | 379.8 | 0.057 | 0.969 | 20.74 | −9.16 | 20.53 | −9.37 |
 
 Read that table as three separate statements. The uncorrected errors have the
-microabsorption **shape**, the two absorbing phases suppressed and the weakly
+microabsorption shape, the two absorbing phases suppressed and the weakly
 absorbing one inflated, which is the diagnosis. The correction moves the two
-extremes toward the weighed values and leaves zircon slightly worse, which is
-what a correction being applied outside its regime looks like. And
+extremes toward the weighed values and leaves zircon slightly worse, the shape a
+correction takes when it is applied outside its regime. And
 `BRINDLEY_OUTSIDE_REGIME` fires on magnetite (µR = 0.567) and zircon
 (µR = 0.057), so the corrected numbers arrive already labelled as not quotable.
 
 The lesson is the one the package applies to every correction: the failure is
 characterised rather than tuned away. A corrected fraction that is still 11 wt %
-from the truth is not a QPA result. It is evidence that this specimen needs a
+from the truth is no QPA result. It is evidence that this specimen needs a
 different preparation.
 
 ## Writing it out

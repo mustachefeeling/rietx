@@ -647,7 +647,7 @@ def test_the_hump_table_agrees_with_the_refinement_that_produced_it():
     # --- the Markdown table in using/data.md, keyed by row label ---
     rows = {
         "cheb3": "| Chebyshev, 3 terms |",
-        "cheb3_peak": "| Chebyshev-3 **+ one hump** |",
+        "cheb3_peak": "| Chebyshev-3 plus one hump |",
         "cheb6": "| Chebyshev, 6 terms |",
         "cheb6_peak": "| Chebyshev-6 + one hump |",
     }
