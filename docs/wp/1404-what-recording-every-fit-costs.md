@@ -105,6 +105,31 @@ recorded, not worked around. In order of preference:
    own measurement. That is a legitimate ending, and naming it here is what stops
    it being avoided.
 
+### Inherited
+
+From **WP-1401** (2026-09-14), which owed this WP its baseline half:
+
+- **Three of the five configurations are measured.** `off`, `events=<path>` and
+  `events=LiveSession(dir)`, on `nac`, `cpd-2` and `trigger`, three repeats over
+  two sittings. `[dev]` venv (numba 0.67.0, no jax, no torch), macOS arm64
+  (Darwin 25.5.0), python 3.12.12, rietx 1.4.0, machine checked idle. Results:
+  `events=` 1.01-1.03x throughout; `LiveSession` 1.47-1.49x on `nac`, 1.10x on
+  `cpd-2`, 1.04-1.05x on `trigger`. The whole `events=` path costs 0.1-0.3 ms a
+  residual evaluation, and a log ran about 1 kB an event, dominated by each
+  `eval`'s `values` array.
+- **The decode/syscall split is explicitly not measured, and must not be assumed
+  from the above.** WP-1401 verified that `_free_values` really is a second full
+  `table.decode` inside the `events is not None` guard and ahead of the sink, so
+  no sink-side thrift avoids it. What it could not say is how much of the 1-3 %
+  that decode is against the `json.dumps` plus write plus flush. Separating them
+  needs a configuration WP-1401 did not run, and it is this WP's.
+- **The harness change is still owed.** WP-1401 measured with a one-off script
+  rather than extending `examples/bench_refinement.py`, on the grounds that the
+  configuration axis is this WP's acceptance and building it there would have
+  been scaffolding. The script reused `bench.CASES`, `bench._Counts` and
+  `bench._counting`, deep-copying structure and instrument per repeat the way
+  `_run_once` does; that is the shape to lift.
+
 ## Non-goals
 
 - **No optimisation of the fit itself.** The two v1.1 speed fronts nobody owns

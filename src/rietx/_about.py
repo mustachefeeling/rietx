@@ -45,6 +45,11 @@ DIST_NAME = "rietx"
 #: enforced there; the GUI wizard is what actually offers it.
 PROJECT_SUFFIX = ".rex"
 
+#: The event-stream directory inside a project (``project.py``, which
+#: re-exports this as ``LIVE_DIR``, and ``runs.py``, which finds a project's
+#: run without importing the refinement engine to ask).
+LIVE_DIR_NAME = "live"
+
 #: First word of the project text document's header line, ``<magic> N``, and
 #: its file extension (``gui/textdoc.py``, and the CodeMirror language on the
 #: frontend side, which cannot import this and carries its own copy).

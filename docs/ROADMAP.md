@@ -90,22 +90,24 @@ placement, link resolution, and the size caps on this file and CLAUDE.md.
 
 **No milestone is open.** [v1.4](#v14--free-standing-peaks) shipped
 2026-09-13 ([record](milestones/v1.4.md), [notes](releases/1.4.0.md)) with all
-seventeen acceptance rows met, one day after it opened; `pyproject.version` is
-`1.4.0`, the last shipped, until the next one opens. The ship pass paid v1.4's
-one debt (the `AGENT_PROTOCOL.md` pointer, at four sites) and retired a parked
-known-red. **One cheap unowned ask** survives from 1407: Stoe `.raw` files
-paired with the WinXPOW ASCII export of the same scans would make Stoe
-writable, and nothing depends on it.
+seventeen acceptance rows met; `pyproject.version` is `1.4.0`, the last
+shipped, until the next one opens. **One cheap unowned ask** survives from
+1407: Stoe `.raw` files paired with the WinXPOW ASCII export of the same scans
+would make Stoe writable, and nothing depends on it.
 
 **In flight:** [1118](wp/1118-foreign-model-files.md) landed its model-file
 registry 2026-09-13; next are the two offers it unblocks, `.EXP` (#103) and
-`STR(...)` (#107). The **manual now reads as a manual in both parts** (1408,
-1409): em dashes and bold marks at 0 over 93,000 words, one guard over both.
+`STR(...)` (#107). The **live-watcher track has its first rung**:
+[1401](wp/1401-a-window-into-a-run.md) shipped 2026-09-14, so `rietx watch`
+with no argument lists every run under a directory and opens one. Its baseline re-ordered the rest: the event stream costs
+1-3 % of a fit and the per-stage picture up to 49 %, so
+[1402](wp/1402-the-picture-costs-megabytes.md) now gates
+[1403](wp/1403-a-run-nobody-asked-to-record.md).
 
 **Queued, unscheduled** ([§ Unscheduled](#unscheduled)): the 2026-09-01 issue
 triage's 1309–1322 plus 1323 and 1325; the magnetic scattering track
-(1326–1329 and 1343); the live-watcher track (1401–1406); the older one,
-1133. The **2026-09-03 triage** adds 1332–1341 — three more on what fires and
+(1326–1329 and 1343); the rest of the live-watcher track (1402–1406); the older
+one, 1133. The **2026-09-03 triage** adds 1332–1341 — three more on what fires and
 what stays silent, three costs a
 multi-hundred-pattern campaign paid that a single fit never sees, three views
 over what a fit already knows, and the skill's own gates — and folded three
@@ -630,7 +632,7 @@ behind v1.4's peaks and ahead of the magnetic track.
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
-| [1401](wp/1401-a-window-into-a-run.md) | A window into a run: find the runs that already exist | ⬜ | — |
+| [1401](wp/1401-a-window-into-a-run.md) | A window into a run: find the runs that already exist | ✅ 2026-09-14 | — |
 | [1402](wp/1402-the-picture-costs-megabytes.md) | The live picture costs megabytes a stage, and the fit pays it | ⬜ | 1401 |
 | [1403](wp/1403-a-run-nobody-asked-to-record.md) | A run nobody asked to record | ⬜ | 1401, 1402 |
 | [1404](wp/1404-what-recording-every-fit-costs.md) | What recording every fit costs | ⬜ | 1403 (1401 baseline) |
