@@ -1,8 +1,9 @@
 # WP-1408 — The theory manual reads like a manual
 
 Milestone: unscheduled · Status: ✅ 2026-09-14 — all eleven reported defects
-fixed, each with the guard that closes its class; five new guards, one
-measurement script, and the TCH attribution corrected from the paper itself
+fixed, each with the guard that closes its class; six new guards, one
+measurement script, the TCH attribution corrected from the paper itself, and
+Part 2 rewritten out of the rulebook's register
 Depends on: — (0604 built Part 2; 1067 built Part 1)
 
 ## Goal
@@ -271,12 +272,23 @@ entirely; B's guard is a measurement script, not a test, for the same reason
   No obs/calc/diff PNGs — this WP runs no refinement (the plotting rule is about
   fits, and E1's measurement is a profile-function comparison, whose plot belongs
   in the handover entry).
+- [x] **Register.** Part 2 rewritten to `yue-docs-style`'s theory shape and
+  `yue-prose`'s budgets: em dashes 229 to 0, maxims 87 to 0, eighteen headings
+  renamed to the noun a reader looks up, sixteen bold lead-ins promoted to h3.
+  Guard: `test_part_two_keeps_the_manual_register`, failed on purpose on both
+  marks.
 - [x] Skill: **none.** Nothing here changes what an agent driving rietx should
   do; the skill cites the manual by section and no section is renamed or moved.
   Confirmed at close: the skill links the manual only as
   `https://rietx.org/manual.html`, and `help.py`'s 30 deep links name no anchor
   in a heading this WP touched (the one changed heading, `method.md`'s, is
   referenced by nothing).
+  **Superseded in part, 2026-09-14 (4th session)**: the register pass renamed
+  eighteen headings, three of which `help.py` did link
+  (`background.html#additive-models-never-subtraction`,
+  `#localised-flexibility-explicit-humps`, and microstructure's positivity
+  cone). All three were updated, and
+  `test_every_anchor_resolves_in_the_built_manual` is what found them.
 
 ## Acceptance
 
@@ -320,6 +332,71 @@ entirely; B's guard is a measurement script, not a test, for the same reason
   measurement was taken.
 
 ## Handover log
+
+### 2026-09-14 (4th session) — the manual was written in the rulebook's voice
+
+Part 2 read like a `CLAUDE.md`: an aside welded on with an em dash, a bold maxim
+in front of a heading that already carried the claim, a contrast drawn twice in
+consecutive sentences. That register is right for a rulebook a maintainer cites
+and wrong for a reference a stranger reads to transfer a number out of, and it
+arrives by default, because the rulebook sits in the same tree and gets read
+first. Nobody chose it. Measured before anything was touched, the twelve
+chapters carried 229 em dashes against a budget of 0, 87 bold or italic maxims
+against 0, and negation up to 10.8 per 1000 words against 3. A reader now gets
+one clause per sentence, and a heading that is the noun they were looking up.
+
+*Done*: all twelve chapters and the root document rewritten, one or two per
+commit. Eighteen headings became that noun ("Additive models, never
+subtraction" to "Additive background models"; "Ambiguity, which is reported and
+not resolved" to "Lattice ambiguity"), and sixteen bold lead-ins became the h3
+sections they were already acting as: the three intensity models, the four
+aberration shifts, the three dichotomy prunes, the two Coelho equations. Three
+paragraphs that were lists became lists (the four cases where a derived esd is
+withheld, the three properties behind the fp64 floor, the three things a
+declared peak does not carry). Two sentences were cut rather than rewritten,
+both of the kind the style guide names: the Stephens warning's remark about what
+a manual without those conventions would be worth, and the shift section's
+invitation to conclude the shift is unknowable before the cell, then correcting
+the reader.
+
+Two guards followed. `test_part_two_keeps_the_manual_register` fails on an em
+dash or on bold in Part 2's prose, the root document included, exempting code
+spans and fenced blocks, and names the fix; it was failed on purpose on both
+marks and checked silent on both exemptions. The `Rwp` guard now shares its
+`_prose_lines` helper, so what counts as prose has one definition.
+
+*Measured*: em dashes 229 to **0** and maxims 87 to **0** across Part 2;
+negation 1.4-5.7 per 1000 by chapter, the residue being convention warnings,
+which is the one place `yue-prose` says keep the negative half (every one of
+them is a number a reader would otherwise transfer straight out of GSAS-II,
+FullProf or Stephens 1999 and get a width law that is wrong and still refines).
+Nothing physical moved: no equation label, `{source}` line, citation,
+cross-reference, substitution, `{math}` block or `{warning}` block differs from
+the session's starting commit, checked count by count per chapter. 102 numbered
+equations still clear their numbers in chromium at 1440 and 1100 px, minimum
+44 px, unchanged. Fast selection **4641 passed / 132 skipped** in 2:19 on
+darwin/arm64, `[dev]` plus the worktree's playwright, **+1** over the previous
+run and that one the new guard. Build `-W` clean, ruff clean.
+
+*Gotchas*: the previous entry's closing claim, that `help.py`'s deep links name
+no anchor in a heading this WP touched, was true when written and is not now.
+Renaming three headings moved three anchors, and
+`test_every_anchor_resolves_in_the_built_manual` caught all three on the first
+full run. That is the class already mechanised by WP-1202/1203 doing its job, and
+the lesson for a heading rename anywhere in the manual: `help.py` is the file to
+grep, and the full fast selection is where you find out. Four non-breaking
+spaces before `%` (the only four in Part 2, against sixteen plain ones) were
+normalised, which is why an exact-match rewrite refused its first pass.
+`caglioti eq. 4` was a pointer into a module docstring's own equation numbering
+and is now {eq}`ms-size-coefficient`, the manual equation that states the same
+thing.
+
+*Next*: nothing on the prose. The session ended at a clean pushed tree with the
+ritual's last three steps unrun, at the maintainer's request to compact:
+`/code-review high --fix`, the `session_start.py` verify pass, and PR #312's
+body. Part 1 (`docs/manual/using/`) was **not** measured or touched, and is
+where the same leakage would be found next. The v1.4.0 tag finding below still
+stands.
 
 ### 2026-09-14 (3rd session) — the paper arrived, and the chapter was wrong
 
