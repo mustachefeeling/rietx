@@ -592,7 +592,7 @@ that travels with it (1340); and the report a joint fit has never had (1341).
 | [1409](wp/1409-part-one-reads-like-a-manual.md) | Part 1 reads like a manual | ✅ 2026-09-14 | 1408 |
 | [1410](wp/1410-worktree-gate-scope.md) | The worktree gate guards this checkout, not every repository | ✅ 2026-09-14 | — |
 | [1411](wp/1411-a-manual-that-links-home.md) | A manual that links home: the landing copy, and the brand on furo's sidebar | ✅ 2026-09-14 | — |
-| [1412](wp/1412-the-theme-nobody-chose.md) | The theme nobody chose | ⬜ | 1411 |
+| [1412](wp/1412-the-theme-nobody-chose.md) | The theme nobody chose | ✅ 2026-09-14 | 1411 |
 
 #### Candidates — named on a use case, not yet on a measurement
 
