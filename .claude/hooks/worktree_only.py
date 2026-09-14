@@ -20,15 +20,17 @@ scoping, any repository's main checkout matched, which refused every ``Write``
 to ``~/.claude`` auto memory once that directory was symlinked into a repo.
 
 Stdlib-only and **fails open**: any internal error lets the call through,
-because a bricked session costs more than a missed refusal.  It says so on
-stderr, because a gate disabled by a typo is indistinguishable from a working
-one otherwise.
+because a bricked session costs more than a missed refusal.  It says so where
+the session can read it, because a gate disabled by a typo is indistinguishable
+from a working one otherwise.  That channel is exit **1**, not 0: a
+``PreToolUse`` hook's stderr reaches the user only on a non-zero, non-2 exit,
+which Claude Code renders as a hook error and runs the tool anyway.  On exit 0
+stderr goes to the debug log, where nobody is looking.
 """
 
 from __future__ import annotations
 
 import json
-import os
 import re
 import subprocess
 import sys
@@ -74,9 +76,18 @@ def main_checkout_of(cwd: Path) -> Optional[Path]:
 
 
 def session_main_checkout(payload: dict) -> Optional[Path]:
-    """The main checkout of the repository this session was launched in, or None."""
-    cwd = os.environ.get("CLAUDE_PROJECT_DIR") or payload.get("cwd") or str(Path.cwd())
-    return main_checkout_of(_existing_dir(Path(cwd)))
+    """The main checkout of the repository this session runs in, or None.
+
+    Read from the payload's ``cwd`` and nowhere else: it is the same signal the
+    Bash branch already tests, and it travels with the call.  ``CLAUDE_PROJECT_DIR``
+    looks like a better answer and is not — it describes the *process*, so under a
+    test harness, or any caller whose cwd is elsewhere, it scopes the gate to a
+    repository the payload never mentioned and quietly allows an edit that should
+    have been refused.  No ``cwd`` means no claim about the session, and the gate
+    falls back to guarding every main checkout, which fails closed.
+    """
+    cwd = payload.get("cwd")
+    return main_checkout_of(_existing_dir(Path(cwd))) if cwd else None
 
 
 def is_in_main_checkout(path: Path, session_main: Optional[Path] = None) -> bool:
@@ -133,4 +144,7 @@ if __name__ == "__main__":
         # one: the first draft of the scoping fix referenced an unimported ``os``
         # and every case passed as allowed, the main checkout included (WP-1410).
         print(f"worktree_only: gate disabled by {type(exc).__name__}: {exc}", file=sys.stderr)
-        sys.exit(0)
+        # 1, not 0: only a non-zero, non-2 exit puts this line in front of the
+        # session.  It is still fail-open — Claude Code calls it a non-blocking
+        # hook error and runs the tool.  2 is the code that would block.
+        sys.exit(1)

@@ -15,6 +15,7 @@ from __future__ import annotations
 import importlib.util
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -282,6 +283,89 @@ def test_gate_reason_names_the_fix(repo_with_worktree: tuple[Path, Path]) -> Non
     main, _ = repo_with_worktree
     reason = gate.refusal(_edit(main / "README"))
     assert "EnterWorktree" in reason and "claude -w" in reason
+
+
+def test_gate_guards_this_checkout_and_not_another_repository(
+    repo_with_worktree: tuple[Path, Path], tmp_path: Path
+) -> None:
+    """WP-1410: the gate exists because sessions share ONE checkout's tree.
+
+    Before scoping it refused any repository's main checkout, which caught auto
+    memory the moment ``~/.claude/projects/<slug>/memory`` was symlinked into a
+    configuration repo, and caught every unrelated clone besides. The session's
+    own checkout must stay refused; the rest are not this gate's business.
+    """
+    main, _ = repo_with_worktree
+    other = tmp_path / "other"
+    other.mkdir()
+    _git(other, "init", "-q", "-b", "main")
+    (other / "README").write_text("x\n", encoding="utf-8")
+    _git(other, "add", "-A")
+    _git(other, "commit", "-q", "-m", "init")
+
+    # auto memory, as it is once linked into a repo shared between machines
+    memory = tmp_path / "dotclaude" / "projects" / "-main"
+    memory.mkdir(parents=True)
+    (memory / "memory").symlink_to(other / "notes")
+    (other / "notes").mkdir()
+
+    def edit_from_session(path: Path) -> dict:
+        return {"tool_name": "Edit", "tool_input": {"file_path": str(path)},
+                "cwd": str(main)}
+
+    assert gate.refusal(edit_from_session(main / "README")) is not None
+    assert gate.refusal(edit_from_session(memory / "memory" / "note.md")) is None
+    assert gate.refusal(edit_from_session(other / "README")) is None
+
+
+def test_gate_without_a_cwd_guards_every_checkout(
+    repo_with_worktree: tuple[Path, Path], tmp_path: Path
+) -> None:
+    """No ``cwd`` is no claim about the session, so the gate fails closed.
+
+    Scoping reads the payload's ``cwd`` and nothing else. ``CLAUDE_PROJECT_DIR``
+    describes the process rather than the call, so under a test harness it named
+    a repository the payload never mentioned and allowed an edit that should
+    have been refused.
+
+    *Every* checkout, which is what fails closed means: the second repository
+    below is the assertion the name makes, and without it a fallback flipped to
+    "allow when the scope is unknown" would leave this test green.
+    """
+    main, wt = repo_with_worktree
+    other = tmp_path / "another"
+    other.mkdir()
+    _git(other, "init", "-q", "-b", "main")
+    (other / "README").write_text("x\n", encoding="utf-8")
+    _git(other, "add", "-A")
+    _git(other, "commit", "-q", "-m", "init")
+
+    assert gate.refusal(_edit(main / "README")) is not None
+    assert gate.refusal(_edit(other / "README")) is not None
+    assert gate.refusal(_edit(wt / "README")) is None
+
+
+def test_gate_fail_open_announces_itself() -> None:
+    """A gate disabled by an internal error must not look like a working one.
+
+    The first draft of WP-1410's scoping referenced an unimported ``os``; every
+    case passed as allowed, the main checkout included, and nothing said so. The
+    fail-open stays, because a bricked session costs more than a missed refusal.
+    Reached here as a subprocess fed a payload that raises, which is how Claude
+    Code reaches it.
+
+    The exit code is the whole message. A ``PreToolUse`` hook's stderr reaches
+    the session only on a non-zero, non-2 exit, which Claude Code renders as a
+    hook error and runs the tool anyway; on exit 0 the line goes to the debug
+    log and announces nothing. 2 would block, which is not fail-open.
+    """
+    proc = subprocess.run(
+        [sys.executable, str(ROOT / ".claude" / "hooks" / "worktree_only.py")],
+        input="not json", text=True, capture_output=True,
+    )
+    assert proc.returncode != 2, "must still fail open"
+    assert proc.returncode != 0, "exit 0 sends stderr to the debug log, not the session"
+    assert "gate disabled by" in proc.stderr
 
 
 def test_venv_pointer_resolution(repo: Path, tmp_path: Path) -> None:
