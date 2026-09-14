@@ -1,6 +1,8 @@
 # WP-1401 — a window into a run: find the runs that already exist
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: ✅ 2026-09-14 — `rietx watch` lists every run
+under a directory, reading only what today's code already writes; the baseline
+says the event stream costs 1-3 % and the per-stage picture up to 49 %
 Depends on: — (first rung of the live-watcher track; 1402, 1403 and 1405 all
 build on the reader this lands)
 
@@ -227,6 +229,88 @@ test: a wall-clock budget in a test is a runaway guard, never a timer.
   answer. Why `RunStatus.state` has no default.
 
 ## Handover log
+
+### 2026-09-14 — the window exists, and the stream turns out to be cheap
+
+A person can now see the refinements an agent is running. `rietx watch` with no
+argument scans the working directory and lists every run beneath it, live ones
+and finished ones together, and opening one shows its plot and its event log.
+Nothing about how a fit is launched had to change. The reader only reads
+directories today's code already writes, so it was built against a format a
+writer really produces. The measurement this rung owed the rest of the track
+came back split, and the split is the useful part: the event stream costs 1-3 %
+of a fit's wall clock, so recording every fit is affordable on anything, while
+the per-stage picture costs up to 49 %. WP-1403 is therefore not gated, and
+WP-1402 became the thing that has to land first.
+
+*Done.* All nine tasks, six commits. `runs.py` is the reader and writes no file
+at all. `discover` walks bounded in depth and in count, never following a
+symlink, descending a `.rex` only as far as its `live/` and a run directory not
+at all. `liveness_of` answers by the first rule that fires: a terminal state is
+the writer's own last word, a foreign host is a claim we cannot check, a held
+flock is the channel the kernel maintains however the writer dies, and a free
+lock under a running status is `abandoned`. That last one is a third answer
+rather than a rounding of the other two. `tail_events` reads from a byte offset,
+holds a torn last line back unparsed, resets on truncation or a new inode, and
+counts a bad line instead of raising. `watch.py` grew a no-argument mode, a run
+list page and four JSON routes, and its old single-directory behaviour is
+unchanged. The watcher still has no verbs: a `.rex` row carries
+`rietx gui <name>` as text a person copies, so the read-only boundary stays a
+process boundary.
+
+*Measured.* The baseline, three configurations against three cases, three
+repeats each, two sittings. `[dev]` venv (numba 0.67.0, no jax, no torch),
+macOS arm64 (Darwin 25.5.0), python 3.12.12, rietx 1.4.0, run alone on an idle
+machine. Wall clock as a range over both sittings.
+
+| case | off | `events=<path>` | | `events=LiveSession(dir)` | |
+|---|---|---|---|---|---|
+| `nac` | 0.34-0.35 s | 0.35-0.36 s | 1.01-1.03x | 0.51-0.63 s | 1.47-1.49x |
+| `cpd-2` | 2.30-2.39 s | 2.33-2.35 s | 1.01-1.02x | 2.53-2.56 s | 1.10x |
+| `trigger` | 5.77-5.84 s | 5.83-5.85 s | 1.01x | 6.02-6.15 s | 1.04-1.05x |
+
+Every configuration returned a bit-identical Rwp on every case, so none of this
+is buying speed by changing the answer. The whole `events=` path costs 0.1-0.3 ms
+a residual evaluation. Logs ran 0.03 MB over 59 events (`nac`), 0.30 MB over 358
+(`cpd-2`) and 0.26 MB over 258 (`trigger`), so roughly 1 kB an event, dominated
+by each `eval`'s `values` array. The resident `fit.html` was 6.36 / 5.27 /
+4.99 MB; the run rewrote it once per stage, so the cumulative write is that
+times the stage count. WP-1402 re-measures rather than carrying these.
+
+Fast selection 4722 passed, 132 skipped, 2:13, same venv and platform, machine
+checked idle first. This session added 58 tests (37 in `test_runs.py`, 20 in
+`test_watch_app.py`, 1 in `test_gui_server.py`), all passes, no new skip. The
+full suite was not run and is not owed: nothing here touches the forward model,
+the solver or any physics, so no measured number can move.
+
+*Gotchas.*
+
+- The WP's own citations drift. `refine.py:1758-1771` was already 1766-1785 on
+  arrival and is fixed in place; the 2026-09-13 entry's `write_snapshot` line is
+  now 1991-1993 and was left alone, a dated entry being a record. Both
+  behavioural findings did hold: `_free_values` really is a second full
+  `table.decode` inside the `events is not None` guard and ahead of `emit`, and
+  `stage_end.rwp` really is one background plus one bragg pass a stage.
+- `schemas.common.Base` is `extra="forbid"`, which would refuse a `status.json`
+  the moment any writer adds a field. The reader schemas here allow extra
+  instead, for the reason `EventRecord.data` is an open dict. Anything else
+  reading a run directory should inherit that choice.
+- `test_portability`'s encoding guard fires on `open(path, "r+")` against the
+  lock file. Binary mode is the fix rather than an encoding, because the file's
+  bytes are never read.
+- `discover` opens exactly two files a run and `liveness_of` opens at most one
+  more. They are deliberately separate calls, so a caller that only wants the
+  list pays two. A future route that needs both pays three, and the open-count
+  test only pins `discover`.
+- A ratio on a short fit is a small number wearing a large one. `nac`'s 1.47x is
+  0.16 s, because the snapshot is a per-stage cost and `nac` is 0.35 s long.
+- Which part of the 1-3 % is the decode and which is the syscall pair is not
+  separable without a configuration this WP did not run. WP-1404 owns that split
+  and should not be told the answer is known.
+
+*Next.* WP-1402, then WP-1403. That order is what the measurement bought: 1403
+is affordable the moment the picture stops being written on the fit's thread,
+and expensive until then. WP-1405 is independent of both and can go whenever.
 
 - **2026-09-13** — created, and with it the whole live-watcher track
   (1401–1406). What this round settles is that a human will be able to see, and

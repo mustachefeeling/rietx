@@ -40,7 +40,7 @@ from typing import Literal
 
 from pydantic import ConfigDict
 
-from ._about import PROJECT_SUFFIX
+from ._about import LIVE_DIR_NAME, PROJECT_SUFFIX
 from .schemas.common import Base
 
 #: The log every run has, and the only file this module needs to find one.
@@ -78,7 +78,11 @@ MAX_DEPTH = 8
 MAX_RUNS = 500
 
 #: States a writer declares for itself. ``running`` is the only non-terminal
-#: one; :data:`TERMINAL_STATES` is the rest.
+#: one; :data:`TERMINAL_STATES` is the rest. An **open** vocabulary, the way a
+#: ``GuardFinding.code`` is: :attr:`RunStatus.state` is typed ``str`` so a
+#: newer writer's member is read rather than refused, and a value not named
+#: here falls through :func:`liveness_of` to the lock and the pid.
+RUN_STATES = frozenset({"running", "done", "failed", "cancelled"})
 RunState = Literal["running", "done", "failed", "cancelled"]
 TERMINAL_STATES = frozenset({"done", "failed", "cancelled"})
 
@@ -138,6 +142,13 @@ class RunStatus(_ReaderBase):
     would read as an answer about a process that may have died months ago.
     ``None`` is the absence of a claim, and :func:`liveness_of` turns it into
     ``unknown`` rather than into ``running``.
+
+    It is typed ``str`` and not :data:`RunState` for the reason ``extra`` is
+    allowed above, and the reason matters more here than on any other field: a
+    closed ``Literal`` makes a newer writer's member — a ``"paused"``, say —
+    fail validation for the *whole file*, so the row would silently lose the
+    stage and the Rwp it has no trouble reading. :data:`RUN_STATES` names the
+    vocabulary; anything outside it reads as no claim.
     """
 
     # written per stage by viz.live.LiveSession.write_snapshot, today
@@ -148,7 +159,7 @@ class RunStatus(_ReaderBase):
     n_free: int | None = None
 
     # written by WP-1403's recorder; absent from every file in the tree today
-    state: RunState | None = None
+    state: str | None = None
     pid: int | None = None
     host: str | None = None
     #: Unix time of the writer's last touch. **Reported, never decisive** —
@@ -357,7 +368,7 @@ def discover(root: str | Path, *, max_depth: int = MAX_DEPTH,
 
             if child.name.endswith(PROJECT_SUFFIX):
                 # descend a project exactly one level, to its live/
-                live = child / "live"
+                live = child / LIVE_DIR_NAME
                 if _is_run_dir(live):
                     run = read_run(live, root=root)
                     if run is not None:
@@ -379,6 +390,16 @@ def _probe_lock(path: Path) -> Literal["held", "free", "unavailable"]:
     ``unavailable`` is a real third answer, and conflating it with ``free`` is
     the bug worth avoiding: no lock file means no writer ever made the claim,
     while a free lock file means a writer made it and is gone.
+
+    The probe takes a **shared** lock, and the writer's is exclusive. Two
+    readers must not see each other: an exclusive probe is itself a held lock
+    for as long as it runs, so two ``rietx watch`` tabs — or two threads of one
+    server answering ``/api/runs`` — would each report the other's probe as a
+    live writer. A shared probe conflicts with the writer and with nobody else.
+
+    Opened read-only for the same reason it is opened at all: ``flock`` needs
+    an open descriptor and not a writable one, and asking for write access
+    loses the answer on a lock file this user cannot write.
     """
     if not path.is_file():
         return "unavailable"
@@ -389,14 +410,15 @@ def _probe_lock(path: Path) -> Literal["held", "free", "unavailable"]:
     try:
         # binary: the file's bytes are never read, only its lock, so there is
         # no text here to have an encoding
-        fh = open(path, "r+b")
+        fh = open(path, "rb")
     except OSError:
         return "unavailable"
     try:
         try:
-            fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            fcntl.flock(fh.fileno(), fcntl.LOCK_SH | fcntl.LOCK_NB)
         except OSError:
-            # somebody holds it; the kernel releases it however they die
+            # somebody holds it exclusively; the kernel releases it however
+            # they die
             return "held"
         fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
         return "free"
@@ -532,7 +554,8 @@ def tail_events(path: str | Path, offset: int = 0, *, inode: int | None = None,
             fh.seek(start)
             chunk = fh.read(max_bytes)
     except OSError:
-        return EventTail([], offset, stat.st_ino, reset=reset)
+        return EventTail([], offset, stat.st_ino, reset=reset,
+                         size=stat.st_size)
 
     cut = chunk.rfind(b"\n")
     if cut == -1:

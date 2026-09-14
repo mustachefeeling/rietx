@@ -121,6 +121,30 @@ default — a flag to *enable* it — is that the button can put a traceback int
 agent's session, and making that a deliberate act is cheap. Decide it in this WP
 with the dialog in front of you, and record which way and why.
 
+### Inherited
+
+From **WP-1401** (2026-09-14), which landed the reader and the app this WP adds
+a verb to:
+
+- **The watcher has no verbs at all, by construction.** `watch.py` serves GET
+  only, and the page has no POST path of any kind. Cancel is therefore the first
+  verb rather than one more, and the design note in WP-1401 rests on that: a
+  user cannot click what is not there. Adding a second verb reopens an argument
+  that was settled on the strength of there being exactly one.
+- **A run id is never decoded into a path.** `runs.run_id_for` digests the
+  resolved path, and `watch.py` looks an id up in what `discover` returned. A
+  cancel route inherits that property for free, and must keep it: a request can
+  then only ever name a directory the walk chose to offer.
+- **Liveness is already a reader-side answer**, so a cancel verb has somewhere
+  to report into. `runs.liveness_of` returns `running` only on a held flock or a
+  live pid, and `abandoned` where the status claims `running` and the lock is
+  free. A cancelled run should reach `cancelled` through `RunStatus.state`,
+  which is already a terminal state the reader honours above every other rung.
+- **Still true from 2026-09-13, and re-verified:** `refine._abandon_on_cancel`
+  short-circuits on `cancel is None` and says so in its docstring, so attaching
+  a token universally ends a guarantee the code currently makes. It now sits at
+  `refine.py:1537`, with call sites at 1968 and 2079.
+
 ## Non-goals
 
 - **No second intervention verb.** No pause, no parameter edit, no re-run. The

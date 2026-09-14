@@ -13,6 +13,7 @@ import fcntl
 import io
 import json
 import socket
+import threading
 from pathlib import Path
 
 import pytest
@@ -288,6 +289,71 @@ def test_a_legacy_run_reads_unknown_and_says_so(tmp_path):
     live = runs.liveness_of(_one(tmp_path))
     assert live.state == "unknown"
     assert "legacy" in live.evidence
+
+
+def test_two_readers_do_not_see_each_other(tmp_path):
+    """The probe is shared, so one reader is never the other's live writer.
+
+    An exclusive probe is itself a held lock while it runs: two ``rietx watch``
+    tabs, or two threads of one server answering ``/api/runs``, would each
+    report the other as a process still writing the fit.
+    """
+    directory = _write_run(tmp_path / "r", events=_event_line("fit_start"),
+                           status={"state": "running", "pid": 1}, lock=True)
+    path = directory / runs.LOCK_FILE
+    seen = []
+    ready, go = threading.Event(), threading.Event()
+
+    def other_reader():
+        handle = open(path, "rb")
+        try:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_SH | fcntl.LOCK_NB)
+            ready.set()
+            go.wait(5)
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        finally:
+            handle.close()
+
+    thread = threading.Thread(target=other_reader)
+    thread.start()
+    try:
+        assert ready.wait(5)
+        seen.append(runs._probe_lock(path))
+    finally:
+        go.set()
+        thread.join(5)
+    assert seen == ["free"]                     # not "held": that is a reader
+
+
+def test_a_lock_file_this_user_cannot_write_is_still_probed(tmp_path):
+    """flock needs an open descriptor, not a writable one. Asking for write
+    access loses the answer on a run owned by somebody else."""
+    directory = _write_run(tmp_path / "r", events=_event_line("fit_start"),
+                           status={"state": "running", "pid": 1}, lock=True)
+    path = directory / runs.LOCK_FILE
+    path.chmod(0o444)
+    handle = open(path, "rb")
+    try:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        assert runs.liveness_of(_one(tmp_path)).state == "running"
+    finally:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        handle.close()
+        path.chmod(0o644)
+
+
+def test_a_state_from_a_newer_writer_costs_the_state_and_not_the_row(tmp_path):
+    """``state`` is an open vocabulary. A closed ``Literal`` would fail the
+    whole file, so the row would lose the stage and the Rwp it can read."""
+    _write_run(tmp_path / "r", events=_event_line("fit_start"),
+               status={"stage": "cell", "rwp": 0.1, "state": "paused",
+                       "pid": 999_999})
+    run = _one(tmp_path)
+    assert run.status is not None and run.status.stage == "cell"
+    assert run.status.state == "paused"
+    # not in RUN_STATES, so it makes no claim; the pid is what answers
+    assert "paused" not in runs.RUN_STATES
+    assert runs.liveness_of(run).state == "abandoned"
 
 
 # ----------------------------------------------------------------------

@@ -7,6 +7,7 @@ What they send it *about* is :mod:`rietx.runs`, tested next door.
 from __future__ import annotations
 
 import json
+import os
 import urllib.error
 import urllib.request
 from contextlib import contextmanager
@@ -104,6 +105,15 @@ def test_a_project_run_carries_the_gui_command(tmp_path):
         (row,) = _json(base + "/api/runs")["runs"]
     assert row["label"] == "sample.rex"
     assert row["gui_command"] == "rietx gui sample.rex"
+
+
+def test_a_nested_project_command_names_the_path_not_the_name(tmp_path):
+    """A command a human copies has to work from where they are standing."""
+    _make_run(tmp_path / "campaign" / "sample.rex" / "live",
+              events=_event_line("fit_start"))
+    with _served(tmp_path) as base:
+        (row,) = _json(base + "/api/runs")["runs"]
+    assert row["gui_command"] == "rietx gui campaign/sample.rex"
 
 
 def test_a_plain_run_offers_no_gui_command(tmp_path):
@@ -233,6 +243,30 @@ def test_the_snapshot_is_served_for_the_iframe(tmp_path):
         assert row["has_snapshot"] is True
         body = _get(f"{base}/api/run/{row['run_id']}/snapshot")
     assert b"plotly goes here" in body
+
+
+def test_the_row_dates_the_snapshot_so_the_plot_can_be_reloaded(tmp_path):
+    """A running fit rewrites fit.html per stage. Without a date on the row the
+    page has nothing to notice, and the iframe shows the picture it opened
+    with for the rest of the run."""
+    directory = _make_run(tmp_path / "r", events=_event_line("fit_start"),
+                          snapshot=True)
+    with _served(tmp_path) as base:
+        (row,) = _json(base + "/api/runs")["runs"]
+        was = row["snapshot_mtime"]
+        assert was is not None
+        snapshot = directory / runs.SNAPSHOT_FILE
+        snapshot.write_text("<html>stage two</html>", encoding="utf-8")
+        os.utime(snapshot, (was + 60, was + 60))
+        detail = _json(f"{base}/api/run/{row['run_id']}")
+    assert detail["snapshot_mtime"] == was + 60
+
+
+def test_a_run_with_no_snapshot_dates_nothing(tmp_path):
+    _make_run(tmp_path / "r", events=_event_line("fit_start"))
+    with _served(tmp_path) as base:
+        (row,) = _json(base + "/api/runs")["runs"]
+    assert row["snapshot_mtime"] is None
 
 
 def test_a_run_with_no_snapshot_says_so_rather_than_erroring_out(tmp_path):

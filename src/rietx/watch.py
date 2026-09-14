@@ -30,13 +30,16 @@ from __future__ import annotations
 import functools
 import http.server
 import json
+import os
 import threading
+import time
 import urllib.parse
 from pathlib import Path
 
 from . import runs as runs_mod
+from ._about import DIST_NAME, LIVE_DIR_NAME, PROJECT_SUFFIX
 
-_PAGE = """<!DOCTYPE html>
+_PAGE_TEMPLATE = """<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>rietx watch</title>
 <style>
   :root { color-scheme: dark; }
@@ -91,6 +94,11 @@ const rootEl = document.getElementById('root');
 let SINGLE = null;          // set when the served directory is itself a run
 let timer = null;
 let tail = {offset: 0, inode: null, id: null};
+// what the detail shell was built for: the run, whether it had a plot, and
+// which fit.html the iframe is showing
+let shell = {id: null, plot: false, mtime: null};
+// the console is a tail and not an archive; the log on disk is the archive
+const MAX_LINES = 2000;
 
 function esc(s) {
   return String(s).replace(/[&<>"]/g, c =>
@@ -104,7 +112,11 @@ function ago(t) {
   if (s < 86400) return Math.round(s/3600) + 'h ago';
   return Math.round(s/86400) + 'd ago';
 }
-function num(v, d) { return (v === null || v === undefined) ? '—' : v.toFixed(d); }
+// a non-finite Rwp round-trips as the string "NaN" (ser_json_inf_nan), and
+// "NaN".toFixed would throw and cost the whole table its render
+function num(v, d) {
+  return (typeof v === 'number' && isFinite(v)) ? v.toFixed(d) : '—';
+}
 
 // ---------------------------------------------------------------- list
 async function drawList() {
@@ -116,7 +128,7 @@ async function drawList() {
   if (!payload.runs.length) {
     body.innerHTML = '<div id="empty">No runs under this directory. ' +
       'A run is a directory holding an <code>events.jsonl</code> — pass one ' +
-      'to <code>LiveSession</code>, or open a <code>.rex</code> project in ' +
+      'to <code>LiveSession</code>, or open a <code>@SUFFIX@</code> project in ' +
       'the GUI.</div>';
     return;
   }
@@ -149,26 +161,44 @@ async function drawList() {
 // -------------------------------------------------------------- detail
 function detailShell(run) {
   const plot = run.has_snapshot
-    ? `<iframe id="plot" src="api/run/${run.run_id}/snapshot"></iframe>`
+    ? `<iframe id="plot" src="${snapshotSrc(run)}"></iframe>`
     : `<div id="noplot">no fit.html here — this run wrote only its log</div>`;
   const cls = run.has_snapshot ? '' : ' class="full"';
   body.innerHTML = `<div id="detail">${plot}<div id="console"${cls}></div></div>`;
+  shell = {id: run.run_id, plot: !!run.has_snapshot,
+           mtime: run.snapshot_mtime};
+  tail = {offset: 0, inode: null, id: run.run_id};
+}
+
+// the mtime is in the URL rather than a cache-buster of its own: the same
+// plot keeps the same src, so the iframe reloads exactly when fit.html was
+// rewritten and not once a second
+function snapshotSrc(run) {
+  return `api/run/${run.run_id}/snapshot?t=` + (run.snapshot_mtime || 0);
 }
 
 async function drawDetail(id, first) {
   const r = await fetch('api/run/' + id, {cache: 'no-store'});
   if (!r.ok) { location.hash = ''; return; }
   const run = await r.json();
+  if (currentId() !== id) return;      // the hash moved while we were waiting
   const st = run.status || {};
   rootEl.textContent = run.path;
   crumb.innerHTML = (SINGLE ? '' : '<a href="#">all runs</a> · ') +
     `<span class="state ${run.liveness.state}" title="${esc(run.liveness.evidence)}"
      >${run.liveness.state}</span> ` + esc(run.label) +
     (st.stage ? ` · stage ${esc(st.stage)}` : '') +
-    (st.rwp != null ? ` · Rwp ${st.rwp.toFixed(4)}` : '') +
-    (st.gof != null ? ` · GoF ${st.gof.toFixed(2)}` : '') +
+    (st.rwp != null ? ` · Rwp ${num(st.rwp, 4)}` : '') +
+    (st.gof != null ? ` · GoF ${num(st.gof, 2)}` : '') +
     (st.n_free != null ? ` · ${st.n_free} free` : '');
-  if (first) { detailShell(run); tail = {offset: 0, inode: null, id}; }
+  // a running fit rewrites fit.html per stage, and a run that had none when
+  // it was opened grows one at its first
+  if (first || shell.id !== id || shell.plot !== !!run.has_snapshot) {
+    detailShell(run);
+  } else if (run.has_snapshot && run.snapshot_mtime !== shell.mtime) {
+    const frame = document.getElementById('plot');
+    if (frame) { frame.src = snapshotSrc(run); shell.mtime = run.snapshot_mtime; }
+  }
   await pumpEvents(id);
 }
 
@@ -178,6 +208,8 @@ async function pumpEvents(id) {
   const r = await fetch(`api/run/${id}/events?` + q, {cache: 'no-store'});
   if (!r.ok) return;
   const payload = await r.json();
+  // an in-flight tail of the run we just left must not renumber this one
+  if (tail.id !== id || currentId() !== id) return;
   const pane = document.getElementById('console');
   if (!pane) return;
   if (payload.reset) pane.textContent = '';   // a different log; do not renumber
@@ -191,10 +223,14 @@ async function pumpEvents(id) {
       `${k}=${typeof v === 'number' ? +v.toPrecision(6)
               : Array.isArray(v) ? `[${v.length}]` : JSON.stringify(v)}`
     ).join(' ');
-    return `<span class="ev">${t}</span> <span class="k">${esc(
-      String(e.kind).padEnd(11))}</span> ${esc(data)}`;
-  }).join('\\n');
-  pane.innerHTML += (pane.innerHTML ? '\\n' : '') + html;
+    return `<div class="line"><span class="ev">${t}</span> <span class="k">${esc(
+      String(e.kind).padEnd(11))}</span> ${esc(data)}</div>`;
+  }).join('');
+  // append, never re-serialize: `innerHTML +=` reparses every line already
+  // there, so a fit emitting an event per residual evaluation would pay for
+  // its whole history on every poll
+  pane.insertAdjacentHTML('beforeend', html);
+  while (pane.childElementCount > MAX_LINES) pane.removeChild(pane.firstChild);
   if (atBottom) pane.scrollTop = pane.scrollHeight;
 }
 
@@ -227,6 +263,42 @@ document.addEventListener('visibilitychange', () => {
 </script></body></html>
 """
 
+#: The page, with the format token filled in from its one authority. A literal
+#: ``.rex`` here would be invisible to every test in the suite (``_about.py``).
+_PAGE = _PAGE_TEMPLATE.replace("@SUFFIX@", PROJECT_SUFFIX)
+
+
+#: How long a walk's result stands before the next request pays for another.
+#: Shorter than the page's poll, so an open tab still sees a new run within a
+#: poll or two, and short enough that a human refreshing by hand never waits.
+INDEX_TTL_SECONDS = 1.0
+
+
+class _RunIndex:
+    """One walk shared by the requests that arrive together.
+
+    The detail page asks for the run and then for its events, so an uncached
+    :func:`~rietx.runs.discover` would walk the whole tree twice per poll, per
+    open tab — and the walk is the expensive half of every route here. One
+    shared result behind a lock is also what stops a burst of parallel requests
+    on :class:`~http.server.ThreadingHTTPServer` from starting a walk each.
+    """
+
+    def __init__(self, root: Path, ttl: float = INDEX_TTL_SECONDS):
+        self.root = root
+        self.ttl = ttl
+        self._lock = threading.Lock()
+        self._runs: list | None = None
+        self._at = 0.0
+
+    def runs(self) -> list:
+        with self._lock:
+            now = time.monotonic()
+            if self._runs is None or now - self._at >= self.ttl:
+                self._runs = runs_mod.discover(self.root)
+                self._at = now
+            return self._runs
+
 
 class _Handler(http.server.SimpleHTTPRequestHandler):
     """Routes, and a static fallback rooted at the scanned directory.
@@ -235,9 +307,10 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
     already links at ``fit.html`` or ``events.jsonl`` by their bare names.
     """
 
-    def __init__(self, *args, scan_root: Path, **kwargs):
+    def __init__(self, *args, scan_root: Path, index: _RunIndex, **kwargs):
         # set before super().__init__, which handles the request inline
         self.scan_root = scan_root
+        self.index = index
         super().__init__(*args, **kwargs)
 
     def _send(self, body: bytes, content_type: str, status: int = 200) -> None:
@@ -253,7 +326,7 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
                    "application/json; charset=utf-8", status)
 
     def _runs(self) -> list:
-        return runs_mod.discover(self.scan_root)
+        return self.index.runs()
 
     def _find(self, run_id: str):
         """An id is looked up in what the walk offered, never decoded into a
@@ -264,18 +337,32 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
                 return run
         return None
 
-    @staticmethod
-    def _row(run) -> dict:
+    def _row(self, run) -> dict:
         live = runs_mod.liveness_of(run)
         row = run.as_dict()
         row["liveness"] = {"state": live.state, "evidence": live.evidence,
                            "heartbeat_age": live.heartbeat_age}
+        # the plot is rewritten per stage, so the page needs to know when to
+        # reload the iframe rather than sit on the picture it opened with
+        try:
+            row["snapshot_mtime"] = (run.path / runs_mod.SNAPSHOT_FILE
+                                     ).stat().st_mtime
+        except OSError:
+            row["snapshot_mtime"] = None
         # a command a human can copy, not a verb this app performs: launching
         # the GUI is a process boundary and stays one (WP-1401 § the decision)
         project = run.path.parent
-        row["gui_command"] = (f"rietx gui {project.name}"
-                              if run.path.name == "live"
-                              and project.name.endswith(".rex") else None)
+        row["gui_command"] = None
+        if (run.path.name == LIVE_DIR_NAME
+                and project.name.endswith(PROJECT_SUFFIX)):
+            # the path as typed from where the scan started, not the bare name:
+            # a project one directory down is not `rietx gui sample.rex` from
+            # here
+            try:
+                where = os.path.relpath(project, self.scan_root)
+            except ValueError:                      # pragma: no cover - Windows
+                where = str(project)
+            row["gui_command"] = f"{DIST_NAME} gui {where}"
         return row
 
     def do_GET(self):  # noqa: N802 - http.server API
@@ -354,11 +441,12 @@ def serve(directory: str | Path | None = None, *, port: int = 8899,
     # `directory` is the static-file root SimpleHTTPRequestHandler wants;
     # `scan_root` is what the routes walk. Per instance, so two servers in one
     # process (the tests run several) cannot take each other's root.
+    index = _RunIndex(directory)
     handler = functools.partial(_Handler, directory=str(directory),
-                                scan_root=directory)
+                                scan_root=directory, index=index)
     server = http.server.ThreadingHTTPServer(("127.0.0.1", port), handler)
     url = f"http://127.0.0.1:{server.server_address[1]}/"
-    found = runs_mod.discover(directory)
+    found = index.runs()
     print(f"rietx watch: {len(found)} run(s) under {directory}")
     print(f"             {url}  (Ctrl-C to stop)")
     if open_browser:

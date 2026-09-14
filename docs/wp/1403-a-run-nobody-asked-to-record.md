@@ -220,6 +220,36 @@ makes the situation ordinary rather than rare, which from the user's side is the
 same thing. Name it; do not claim the watcher created it and do not claim it is
 safe.
 
+### Inherited
+
+From **WP-1401** (2026-09-14), which landed the reader and the baseline this WP
+was gated on:
+
+- **The premise survives, with one condition.** The event stream costs 1-3 % of
+  a fit's wall clock, measured on `nac`, `cpd-2` and `trigger` at three repeats
+  over two sittings. Recording every fit is affordable. The per-stage picture
+  costs up to 49 % on a short fit, so recording must not imply writing
+  `fit.html` until WP-1402 has landed. Every configuration returned a
+  bit-identical Rwp, so telemetry does not change the answer.
+- **The file contract this WP writes already exists, unwritten.** `runs.py`
+  declares `META_FILE` (`meta.json`), `LOCK_FILE` (`run.lock`), `RunMeta` and
+  `RunStatus`, and names WP-1403 as the writer of every field none of today's
+  code produces. Write to those names rather than inventing others, or the
+  reader stops seeing the runs.
+- **Three things the reader needs the writer to do.** Hold `run.lock` flock'd
+  for the process's life, since a free lock under a `running` status is what
+  makes `abandoned` a distinct answer. Write `host`, or the foreign-host rung
+  cannot fire. Write `state`, because `RunStatus.state` has no substantive
+  default and `liveness_of` answers `unknown` rather than `running` when it is
+  absent (WP-1076).
+- **A run directory with neither sidecar stays visible forever**, resolving as
+  *legacy* with its `created` synthesized from the log's mtime. Every run
+  directory in the tree today is one, so this WP adds a writer without
+  orphaning anything.
+- **The reader tolerates a newer writer's fields.** `RunMeta`/`RunStatus` allow
+  extra keys rather than forbidding them, for the reason `EventRecord.data` is
+  an open dict. A new field is therefore additive and needs no reader change.
+
 ## Non-goals
 
 - **No cancel.** No token is attached for the watcher's sake here, so

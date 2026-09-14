@@ -60,7 +60,7 @@ PROJECT_SUFFIX = _about.PROJECT_SUFFIX
 
 PROJECT_JSON = "project.json"
 HISTORY_FILE = "history.jsonl"
-LIVE_DIR = "live"
+LIVE_DIR = _about.LIVE_DIR_NAME
 EXPORTS_DIR = "exports"
 
 

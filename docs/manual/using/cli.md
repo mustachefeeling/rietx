@@ -115,14 +115,25 @@ ambiguity partner", and not "something was printed".
 ## `rietx watch`: a running refinement, live
 
 ```console
-$ rietx watch ./live-dir --port 8899 --open
+$ rietx watch --port 8899 --open
 ```
 
-Serves the directory a `LiveSession` writes, with a self-refreshing plot and the
-event console beside it. The directory is the one passed to the session, or a
-project's own `live/` ([](files.md)). It reads the log rather than driving the
-fit, so it can be started and stopped while a refinement runs.
-[](refining.md) covers the event stream itself.
+With no directory it scans the working directory and lists every run beneath it,
+running and finished together, each with the stage and Rwp its writer last
+recorded. Opening one shows its plot and its event console. The plot reloads as
+the fit rewrites it, and the console tails the log from where it left off.
+
+A run is any directory holding an `events.jsonl`: the one passed to a
+`LiveSession`, or a project's own `live/` ([](files.md)). Pass such a directory
+and the page opens straight onto that run instead of listing.
+
+```console
+$ rietx watch ./live-dir
+```
+
+The watcher reads. It never opens a project, never constructs a refinement and
+has no button that changes one, so it can be started and stopped while a
+refinement runs. [](refining.md) covers the event stream itself.
 
 ## `rietx html`: a saved result as a page
 

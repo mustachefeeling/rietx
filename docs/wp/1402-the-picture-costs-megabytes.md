@@ -123,6 +123,33 @@ helpers, route dispatch and handler factories stay deliberately duplicated
 (`gui/CLAUDE.md` records that as a choice). This is one shared function, not the
 start of a framework.
 
+### Inherited
+
+From **WP-1401** (2026-09-14), which landed the reader and the baseline:
+
+- **This WP got more urgent, and 1403 got less.** The baseline measured
+  `events=<path>` at 1.01-1.03x a fit's wall clock and `events=LiveSession(dir)`
+  at 1.04-1.49x, so the stream is affordable by default and the per-stage
+  picture is the whole expense. 1403's automatic recording is no longer gated on
+  a cost question. It is gated on this WP, because recording every fit is cheap
+  the moment the snapshot stops being written on the fit's thread.
+- **The numbers to beat**, `[dev]` venv, macOS arm64, three repeats over two
+  sittings, run alone: `nac` 0.34-0.35 s off against 0.51-0.63 s under
+  `LiveSession`; `cpd-2` 2.30-2.39 against 2.53-2.56; `trigger` 5.77-5.84
+  against 6.02-6.15. The spread across cases is fit *length*, since the cost is
+  per stage. A ratio on a short fit is a small number wearing a large one, so
+  quote the seconds beside it.
+- **Resident `fit.html` was 6.36 MB (`nac`), 5.27 (`cpd-2`), 4.99 (`trigger`)**
+  under plotly 7.0.0. That is the file left behind, and the run rewrote it once
+  per stage, so the cumulative write is that times the stage count. Re-measure
+  rather than carrying these.
+- **A reader already treats the picture as optional.** `runs.SNAPSHOT_FILE`
+  names `fit.html`, `Run.has_snapshot` reports whether one exists, and
+  `watch.py` serves it at `/api/run/<id>/snapshot` and degrades to a one-line
+  note when it does not. A `snapshot.json` replacing it is a change at those
+  three names, and the watcher's detail view already renders correctly for a run
+  that has no picture at all.
+
 ## Non-goals
 
 - **No automatic recording.** WP-1403. This WP changes what a `LiveSession`

@@ -107,6 +107,34 @@ drift.
   rendered view to name. Note it in that WP's `### Inherited` rather than
   claiming it here.
 
+### Inherited
+
+From **WP-1401** (2026-09-14):
+
+- **`using/cli.md` § `rietx watch` was rewritten already, and it is the floor
+  rather than the chapter.** WP-1401 declared no manual changes and then made
+  two, both for the same reason: the old text stated things the command had
+  stopped doing. The usage block (mirrored in `src/rietx/cli.py`) now reads
+  `watch [dir]`, and the section describes the run list, the per-run open, and
+  the reading-only promise. What is still missing there is everything a reader
+  needs rather than everything that was false: the liveness column and what
+  `abandoned` and `unknown` mean, the four JSON routes, and how a run comes to
+  exist at all. That last one is this WP's subject.
+- **The routes are provisional by declaration, like the GUI's.** `watch.py`
+  serves `/api/runs`, `/api/run/<id>`, `/api/run/<id>/events?offset=` and
+  `/api/run/<id>/snapshot`. Nothing pins them yet, so a chapter naming them
+  should say what `using/gui-quickstart.md` says about the GUI's.
+- **The skill still has no row from this track, and one of WP-1401's reasons
+  for that has since weakened.** It declared "none" on the grounds that the
+  reader only reads what a writer already wrote, which is true of the reader.
+  It is not the whole picture. `rietx watch` is useless for an agent's run
+  unless the agent passed `events=`, and WP-1322 measured three subagents all
+  switching telemetry off. WP-1401 then measured the cost at 1-3 % of a fit,
+  which refutes the only good reason to switch it off. So there is a live skill
+  rule in the gap — pass `events=`, it is nearly free — and it stays unwritten
+  only because WP-1403 is expected to make it moot by recording anyway. If 1403
+  slips, this row is worth writing before it.
+
 ## Non-goals
 
 - **No code.** If a docs session finds a behaviour that cannot be written down
