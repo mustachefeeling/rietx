@@ -152,30 +152,30 @@ Measure it now, on the cases the next WPs will reuse.
 
 ## Tasks
 
-- [ ] `runs.py`: the run-directory model and the run-id scheme. `RunMeta` /
+- [x] `runs.py`: the run-directory model and the run-id scheme. `RunMeta` /
       `RunStatus` as pydantic `Base` models **for reading only** (the
       `EventRecord` split: no pydantic on any write path). `RunStatus.state` has
       **no default** — a defaulted `"running"` is exactly WP-1076's field whose
       empty state reads as an answer — and a status missing it resolves to
       `unknown`. Every field's writer named in the docstring, since this WP
       writes none of them.
-- [ ] `runs.discover(root)`: depth- and count-bounded walk; prunes `.git`,
+- [x] `runs.discover(root)`: depth- and count-bounded walk; prunes `.git`,
       `node_modules`, `.venv`, `__pycache__`, `_build`, `dist`; never follows
       symlinks; descends a `*.rex` only as far as its `live/`; reads **exactly
       two files per run**, asserted by counting opens, because a web page polls
       this. A directory with `events.jsonl` and no `meta.json` is a **legacy**
       run, synthesized from the file's mtime — which is every directory in the
       tree today.
-- [ ] `runs.liveness_of`: the ordered rule above — terminal state wins, then
+- [x] `runs.liveness_of`: the ordered rule above — terminal state wins, then
       foreign host, then the flock probe, then `os.kill(pid, 0)`, with the
       heartbeat age reported and never deciding. A Windows shim for the lock
       probe, and a documented fall-through when neither mechanism is available.
-- [ ] `runs.tail_events`: byte-offset cursor, not the whole-file refetch the
+- [x] `runs.tail_events`: byte-offset cursor, not the whole-file refetch the
       page does today. Carries a trailing fragment **unparsed**; resets on inode
       change or truncation and says so, so a client clears its pane rather than
       renumbering silently; counts a bad line instead of raising. Load-bearing
       rather than defensive from WP-1403 on, when writes become buffered.
-- [ ] `python -m rietx.runs [DIR]` printing the discovered table — how a human
+- [x] `python -m rietx.runs [DIR]` printing the discovered table — how a human
       checks the walk without a browser.
 - [ ] `watch.py`: no-argument mode scanning the cwd, the run list page, and the
       JSON routes it needs (`/api/runs`, `/api/run/<id>`,
