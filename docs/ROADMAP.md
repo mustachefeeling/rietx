@@ -89,9 +89,9 @@ placement, link resolution, and the size caps on this file and CLAUDE.md.
 ## Current focus
 
 **No milestone is open.** [v1.4](#v14--free-standing-peaks) shipped
-2026-09-13 ([record](milestones/v1.4.md), [notes](releases/1.4.0.md)) with all
-seventeen acceptance rows met; `pyproject.version` is `1.4.0`, the last
-shipped, until the next one opens. **One cheap unowned ask** survives from
+2026-09-13 ([record](milestones/v1.4.md), [notes](releases/1.4.0.md));
+`pyproject.version` is `1.4.0`, the last
+shipped. **One cheap unowned ask** survives from
 1407: Stoe `.raw` files paired with the WinXPOW ASCII export of the same scans
 would make Stoe writable, and nothing depends on it.
 
@@ -103,6 +103,8 @@ with no argument lists every run under a directory and opens one. Its baseline r
 1-3 % of a fit and the per-stage picture up to 49 %, so
 [1402](wp/1402-the-picture-costs-megabytes.md) now gates
 [1403](wp/1403-a-run-nobody-asked-to-record.md).
+[1411](wp/1411-a-manual-that-links-home.md) brands the manual and links it
+home; furo was never compared, so [1412](wp/1412-the-theme-nobody-chose.md).
 
 **Queued, unscheduled** ([§ Unscheduled](#unscheduled)): the 2026-09-01 issue
 triage's 1309–1322 plus 1323 and 1325; the magnetic scattering track
@@ -590,6 +592,8 @@ that travels with it (1340); and the report a joint fit has never had (1341).
 | [1408](wp/1408-the-manual-reads-like-a-manual.md) | The theory manual reads like a manual | ✅ 2026-09-14 | — |
 | [1409](wp/1409-part-one-reads-like-a-manual.md) | Part 1 reads like a manual | ✅ 2026-09-14 | 1408 |
 | [1410](wp/1410-worktree-gate-scope.md) | The worktree gate guards this checkout, not every repository | ✅ 2026-09-14 | — |
+| [1411](wp/1411-a-manual-that-links-home.md) | A manual that links home: the landing copy, and the brand on furo's sidebar | 🔄 2026-09-14 | — |
+| [1412](wp/1412-the-theme-nobody-chose.md) | The theme nobody chose | ⬜ | 1411 |
 
 #### Candidates — named on a use case, not yet on a measurement
 
