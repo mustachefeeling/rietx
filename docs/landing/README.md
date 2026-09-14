@@ -55,9 +55,11 @@ measured channel**. At the acquisition's own 0.0501° step the file would be a
 copy of a contributor's unpublished in-situ series; at 0.1002° it sits at 2.38
 steps across a peak, against the 5-to-10 rietx itself asks for, so it is a figure
 of that series and not the series. `tests/test_landing.py` asserts that rather
-than trusting it. The page itself does not say so: its caption carries the
-credit and nothing else, so `decimation` and `steps_per_fwhm` in the payload,
-and this section, are where the redaction is on the record.
+than trusting it. The page itself does not say so. Its caption describes the
+measurement and credits it (WP-1411 moved the description there from the section
+head, which now opens on what the agent was asked to do), and says nothing about
+the step, so `decimation` and `steps_per_fwhm` in the payload, and this section,
+are where the redaction is on the record.
 
 **Decimated, not averaged, and the difference matters.** A mean of *k* channels
 divides the counting noise by √*k*: the observed cloud tightens onto the
@@ -75,7 +77,7 @@ of the repository entirely.
 
 **People are now the one exception, and it is a credit rather than a leak.** The
 fence started with a people arm, on the reasoning that a name in a run log is a
-name the bundle did not offer to publish. The caption then became the credit the
+name the bundle did not offer to publish. The caption then carried the credit the
 contributors asked for, which names all of them — and a person the page thanks
 cannot also be a token that fails the build, so the arm is empty. What keeps a
 machine path out is `/Users/`, `/Volumes/` and `LEAK_RE`, none of which ever

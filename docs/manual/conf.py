@@ -21,7 +21,7 @@ from docutils import nodes as _nodes
 from sphinxcontrib.bibtex.style.referencing import BracketStyle
 from sphinxcontrib.bibtex.style.referencing.author_year import AuthorYearReferenceStyle
 
-from rietx._about import DIST_NAME, REPO_URL
+from rietx._about import DIST_NAME, DOCS_URL, REPO_URL
 from rietx.crystallography.dispersion import NEAR_EDGE_EV
 from rietx.crystallography.symmetry import SYMMETRY_ANGLE_TOL_DEG
 from rietx.examples import list_examples
@@ -229,6 +229,20 @@ html_theme = "furo"
 html_title = f"rietx {release} — manual"
 html_static_path = ["_static"]
 html_css_files = ["custom.css"]
+
+# The brand at the sidebar's top left (WP-1411).  `_templates/sidebar/brand.html`
+# is furo's own template with one thing changed: the link goes to the landing
+# page instead of to the manual's front page, which is where furo hardcodes it
+# and where `theme.conf` gives no option to move it from.  Since WP-1331 the
+# manual is `/manual.html` and the landing page is `/`, so furo's default sent
+# "home" to the page the reader was already on, and nothing under `docs/manual/`
+# linked to the site root at all.  The fork's own comment carries the rest.
+templates_path = ["_templates"]
+# `_about.DOCS_URL` and `_about.DIST_NAME`, never the URL and never the word:
+# both are spelled in this tree only there (root CLAUDE.md § Conventions), and
+# a hardcoded one is invisible to every test in the suite.  A Jinja template
+# cannot import, so they arrive through the context.
+html_context = {"rietx_home": DOCS_URL, "rietx_name": DIST_NAME}
 # Without this the pages emit no icon link at all, and a browser then falls
 # back to the *origin* root — https://yue-here.github.io/favicon.ico, which
 # belongs to the user Pages site this project's pages sit under, not to this

@@ -154,6 +154,10 @@ _INHERITED_PRUNE_EPOCH = "2026-07-31"
 #   2026-09-14  docs/ROADMAP.md               682 -> 688  for WP-1409: one index row, the +4 headroom of
 #                                                          2026-09-13 having been spent by 1408's row and
 #                                                          the v1.4 ship; landed 683
+#   2026-09-14  docs/ROADMAP.md               688 -> 694  for WP-1411 and the survey it filed, 1412:
+#                                                          two index rows, and the Current focus sentence
+#                                                          naming them paid for by two cuts in the same
+#                                                          section; landed 690, +4 headroom again
 SIZE_CAPS: dict[str, int | None] = {
     # 739 -> 755 (WP-1102): two standing rules for the component seam — that an
     # additive non-Bragg term is a union *member* and not a new field, and that
@@ -175,7 +179,13 @@ SIZE_CAPS: dict[str, int | None] = {
     # 682 -> 688 (WP-1409): that headroom is spent, on 1408's row and the v1.4
     # ship pass.  One index row again, and the Current focus paragraph it
     # replaces is shorter than the one it names.  Landed at 683.
-    "docs/ROADMAP.md": 688,
+    # 688 -> 694 (WP-1411): two index rows, because the WP filed a second one
+    # (1412, the theme survey) on finding furo was never compared.  A row is the
+    # one line a WP cannot demote.  The two lines of Current focus that name
+    # them were paid for inside that section, under a word cap the additions had
+    # already broken: the v1.4 row's own "seventeen acceptance rows" and a
+    # clause restating that no milestone is open.  Landed at 690.
+    "docs/ROADMAP.md": 694,
     "gui/CLAUDE.md": 1028,
     "tests/CLAUDE.md": 275,
     "src/rietx/indexing/CLAUDE.md": 300,
