@@ -141,8 +141,9 @@ estimating them afresh.
 ## What comes back
 
 `SeriesResult` is the serializable answer. It stores summaries rather than
-curves: nine patterns' worth of `y_obs`/`y_calc`/`y_background`/`sigma` is about 2 MB of JSON
-that is already on disk as the input files, while the refined values, their
+curves: nine patterns' worth of `y_obs`/`y_calc`/`y_background`/`sigma` is
+about 2 MB of JSON that is already on disk as the input files, while the
+refined values, their
 esds, the agreement indices and the diagnostics are what a series is for and are
 a few kB. The curves stay reachable on `SequentialRefinement.results_`.
 
@@ -262,8 +263,9 @@ number of points that have a value, and not the number of patterns.
 converted to a percentage, and `SeriesResult.agreement_trajectory` for a phase's
 structure agreement index. That takes `metric="r_bragg"` (the default) or
 `"r_f"`, the two McCusker indices, with `SeriesResult.agreement_phases` listing
-the phases that carry one. A phase can appear there without appearing in the QPA, because a
-weight fraction needs Z and a molar mass and a structure R does not.
+the phases that carry one. A phase can appear there without appearing in the
+QPA, because a weight fraction needs Z and a molar mass and a structure R does
+not.
 
 ```{admonition} An empty esd column is a fact rather than a gap
 :class: note

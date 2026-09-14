@@ -102,8 +102,8 @@ set them:
   band on the plot checkable.
 
 Because settings persist immediately and curves only move on a run, the two can
-disagree, and the panel says so: "the curves shown were fitted over a different
-set of channels, re-run".
+disagree, and the panel says so:
+`the curves shown were fitted over a different set of channels — re-run`.
 
 ### The armed gestures
 

@@ -542,6 +542,11 @@ def _authored_chapters() -> list[Path]:
 #: text``), which is prose and is kept.
 _DIRECTIVE_OPTION = re.compile(r"^:(?::+|[a-z][a-z0-9-]*:)")
 
+#: ``:::{admonition} A title`` — the marker is markup and the title after it is
+#: prose a reader sees, so the two halves of the line part company here.  Without
+#: this the option pattern above swallows the title with the marker.
+_DIRECTIVE_MARKER = re.compile(r"^:{3,}\{[a-z][a-z0-9-]*\}\s*(.*)$")
+
 #: The prose of a page: lines outside fenced blocks, with code spans stripped.
 #: A token inside ``…`` is a field name or captured output and a fenced block is
 #: TeX or a console transcript, so neither is this file's to police.
@@ -549,14 +554,21 @@ _DIRECTIVE_OPTION = re.compile(r"^:(?::+|[a-z][a-z0-9-]*:)")
 #: An admonition's **body** is prose and was not covered until WP-1409: the
 #: helper skipped a whole ``:::`` block, so Part 1's admonitions carried 17 em
 #: dashes and 12 bold marks that the register guard below could not see.  Only
-#: the markers and the option lines are dropped now.  An HTML comment goes too:
-#: ``<!-- api-doc: no-exec — … -->`` is a directive to `test_manual_api.py` and
-#: renders nowhere, and Part 1 carries 66 em dashes inside them.
+#: the markers and the option lines are dropped now, and a marker's own title
+#: is kept, since it renders as the admonition's heading.  An HTML comment goes
+#: too: ``<!-- api-doc: no-exec — … -->`` is a directive to `test_manual_api.py`
+#: and renders nowhere, and Part 1 carries 66 em dashes inside them.  A comment
+#: is tracked to its ``-->`` rather than by its first line alone, or a comment
+#: written over two lines puts its second line back into the prose.
 def _prose_lines(page: Path) -> list[tuple[int, str]]:
     lines: list[tuple[int, str]] = []
     fence = None
+    comment = False
     for number, line in enumerate(page.read_text(encoding="utf-8").splitlines(), 1):
         stripped = line.lstrip()
+        if comment:
+            comment = "-->" not in stripped
+            continue
         if fence is None and stripped.startswith("```"):
             fence = "```"
             continue
@@ -564,9 +576,17 @@ def _prose_lines(page: Path) -> list[tuple[int, str]]:
             if stripped.startswith(fence):
                 fence = None
             continue
-        if stripped.startswith("<!--") or _DIRECTIVE_OPTION.match(stripped):
+        if stripped.startswith("<!--"):
+            comment = "-->" not in stripped
             continue
-        lines.append((number, re.sub(r"`[^`]*`", "", line)))
+        marker = _DIRECTIVE_MARKER.match(stripped)
+        if marker:
+            stripped = marker.group(1)
+            if not stripped:
+                continue
+        elif _DIRECTIVE_OPTION.match(stripped):
+            continue
+        lines.append((number, re.sub(r"`[^`]*`", "", stripped)))
     return lines
 
 
@@ -717,7 +737,7 @@ def test_the_hump_table_agrees_with_the_refinement_that_produced_it():
     # --- the Markdown table in using/data.md, keyed by row label ---
     rows = {
         "cheb3": "| Chebyshev, 3 terms |",
-        "cheb3_peak": "| Chebyshev-3 plus one hump |",
+        "cheb3_peak": "| Chebyshev-3 + one hump |",
         "cheb6": "| Chebyshev, 6 terms |",
         "cheb6_peak": "| Chebyshev-6 + one hump |",
     }

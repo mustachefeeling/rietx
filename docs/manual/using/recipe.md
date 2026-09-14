@@ -29,8 +29,9 @@ rx.write_recipe_tables(ref, "output/",
                            recipe.phase_names)))
 ```
 
-Pass the path wherever one exists. The format is file-less by design, so a recipe carries its whole pattern inline and a
-4096-channel one is 0.4 MB of JSON. That is upstream's contract, and it is a
+Pass the path wherever one exists. The format is file-less by design, so a
+recipe carries its whole pattern inline and a 4096-channel one is 0.4 MB of
+JSON. That is upstream's contract, and it is a
 payload that should cross a filesystem rather than a prompt or a message body.
 
 `Recipe` carries seven fields. `Recipe.structure`, `Recipe.instrument` and

@@ -581,9 +581,9 @@ off states disagree. A capillary is off at µR = 0, and a flat plate in
 reflection is off at µt = ∞. Leaving `mu_t` unset is what states that infinity:
 a specimen thicker than the penetration depth needs no correction, since it is
 exactly degenerate with the scale. So `mu_t` absent is not `mu_t = 0`, and
-`mu_t = 0` under `bragg_brentano` is a specimen of no thickness and raises. Under transmission
-zero is legal and means a non-absorbing plate. [](concepts.md) explains why neither
-coefficient is refinable.
+`mu_t = 0` under `bragg_brentano` is a specimen of no thickness and raises.
+Under transmission zero is legal and means a non-absorbing plate.
+[](concepts.md) explains why neither coefficient is refinable.
 
 The capillary offsets need a radius. Both default to zero and fixed, because
 at a synchrotron with a crystal analyser the displacement error is eliminated
@@ -774,7 +774,7 @@ jointly with the polynomial at the end.
 | background | free background terms | Rwp | GoF | Biso(Si) / Å² | `HIGH_CORRELATION` |
 |---|---|---|---|---|---|
 | Chebyshev, 3 terms | 3 | 0.119977 | 1.9695 | 0.414(75) | 0 |
-| Chebyshev-3 plus one hump | 3 + 3 | 0.082503 | 1.3544 | 0.421(12) | 0 |
+| Chebyshev-3 + one hump | 3 + 3 | 0.082503 | 1.3544 | 0.421(12) | 0 |
 | Chebyshev, 6 terms | 6 | 0.088597 | 1.4545 | 0.422(29) | 0 |
 | Chebyshev-6 + one hump | 6 + 3 | 0.077152 | 1.2666 | 0.4235(85) | 0 |
 

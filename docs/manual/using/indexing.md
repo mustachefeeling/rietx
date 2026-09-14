@@ -94,8 +94,8 @@ list carrying `PEAK_LIST_TOO_SHORT`, never as an exception.
 
 `PeakList.usable` is the list every screen and every engine actually runs on,
 being the lines left after ghosts, failed fits, caller exclusions and
-inseparable components are dropped. The dropped lines stay in `PeakList.peaks` so a report
-can say why a line went, which a filtered-at-source list cannot.
+inseparable components are dropped. The dropped lines stay in `PeakList.peaks`
+so a report can say why a line went, which a filtered-at-source list cannot.
 
 Five accessors return the usable lines as arrays, which is the form the engines
 and the figures of merit want: `PeakList.two_theta`, `PeakList.two_theta_esd`,
@@ -135,8 +135,8 @@ absorb an unresolved neighbour.
 
 Q rather than d or 2θ is the working coordinate throughout, because Q is linear
 in the reciprocal metric {eq}`idx-qform`, and that linearity is what makes a
-cell fit a linear problem. The list validates that every `ObservedPeak.q` agrees with its
-own 2θ, so a peak built by hand with a stale Q raises here rather than
+cell fit a linear problem. The list validates that every `ObservedPeak.q` agrees
+with its own 2θ, so a peak built by hand with a stale Q raises here rather than
 mis-indexing a pattern later.
 
 ### The flags
@@ -248,8 +248,9 @@ window are exactly the ones you named.
 Detection still runs. The background envelope, the seed widths and the window
 each group is fitted over all come from it, and a position inside a detected
 window reuses that window rather than re-sizing one around a subset of its
-components. Positions that share a window are fitted together, in one simultaneous solve,
-because overlapping components fitted separately each bias the other. A position where detection found nothing gets a fresh window sized
+components. Positions that share a window are fitted together, in one
+simultaneous solve, because overlapping components fitted separately each bias
+the other. A position where detection found nothing gets a fresh window sized
 exactly as detection sizes its own, and a position off the end of the pattern,
 in a gap, or named twice is refused by name:
 
@@ -595,8 +596,9 @@ There are two budgets and they are per different things.
 `SearchSpecSpec.total_budget_seconds` is the whole run. Units run system-major,
 every engine finishing one system before any engine starts the next, so a
 binding deadline sacrifices trailing systems for every engine equally, and a
-completed system holds every engine's answer, which the agreement gate needs. `rietx.indexing.engines.estimate_ceiling` is the
-arithmetic for choosing a value before starting.
+completed system holds every engine's answer, which the agreement gate needs.
+`rietx.indexing.engines.estimate_ceiling` is the arithmetic for choosing a value
+before starting.
 
 After a run, three states are distinguishable, and the distinction is the
 answer's honesty:

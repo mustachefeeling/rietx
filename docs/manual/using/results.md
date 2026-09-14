@@ -318,8 +318,9 @@ the reported figure is a little generous.
 Nothing here refuses anything. The number is evidence, read beside the fit
 rather than as a gate on it, and a ratio below three is a reason to hold
 parameters rather than a reason the fit is wrong. The sharper question is which
-parameter is unsupported, and that is the next section. A ratio below five raises the `DATA_SUPPORT_LOW` diagnostic, as a
-warning below three and as information between three and five.
+parameter is unsupported, and that is the next section. A ratio below five
+raises the `DATA_SUPPORT_LOW` diagnostic, as a warning below three and as
+information between three and five.
 
 ## Which parameters the data could not separate
 

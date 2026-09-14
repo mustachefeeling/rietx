@@ -59,8 +59,8 @@ A pdCIF holds blocks instead of scans, and takes `block=`. A file with
 a `_meas` block and a `_calc` block is a different pattern depending on which
 you ask for. `read_pdcif` reads one directly.
 
-A reader may repair a file, and only where it can say that it did. Pass a list
-as `diagnostics=` and the repairs come back in it:
+A reader may repair a file only where it can say that it did. Pass a list as
+`diagnostics=` and the repairs come back in it:
 
 <!-- api-doc: no-exec — it reads a pattern file the reader supplies -->
 ```python
@@ -113,13 +113,14 @@ experimenter quoting a refined number. Past that threshold the symbol and the
 angle contradict each other, one of the two is wrong, and choosing between them
 is yours: the value is left byte for byte and the read raises.
 
-A third note is a report rather than a repair. A file quoting five decimals puts
-a site within 1e-4 of a special position without being on it. Such a site has
-its orbit expanded at that position, so its multiplicity is the special one, and `SITE_SNAPPED_TO_SPECIAL_POSITION` names the site, the shift
-and the multiplicity. The stored coordinates are unchanged and the fit is
-unaffected. What the multiplicity decides is how many atoms the site puts in the
-cell, and so ZMV and every weight fraction; compare it against the file's own
-`_atom_site_symmetry_multiplicity`.
+A third note is a report rather than a repair. A site can sit within 1e-4 of a
+special position without being on it, as a file quoting five decimals often
+leaves one. Such a site has its orbit expanded at that position, so its
+multiplicity is the special one, and `SITE_SNAPPED_TO_SPECIAL_POSITION` names
+the site, the shift and the multiplicity. The stored coordinates are unchanged
+and the fit is unaffected. What the multiplicity decides is how many atoms the
+site puts in the cell, and so ZMV and every weight fraction; compare it against
+the file's own `_atom_site_symmetry_multiplicity`.
 
 Building a phase by hand, with no file behind it, has one more way to go quiet.
 A bare Hermann-Mauguin symbol resolves to the first setting the tables hold, and

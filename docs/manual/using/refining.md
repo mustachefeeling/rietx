@@ -74,8 +74,9 @@ print(ref.result_.statistics.rwp)
 | `"pawley"` | refined, one per reflection | as Le Bail, but with the intensities as real parameters carrying esds |
 
 The mode is more than a detail of the plan. It changes which rows of the
-parameter table can move at all. Le Bail and Pawley force-fix every atom parameter, every
-phase scale and every emission-line intensity, because in those modes the data
+parameter table can move at all. Le Bail and Pawley force-fix every atom
+parameter, every phase scale and every emission-line intensity, because in
+those modes the data
 does not constrain them. [](model.md) shows that as the `mode_fixed` hold
 reason, and explains why it is kept distinct from a lock.
 

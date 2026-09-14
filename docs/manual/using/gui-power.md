@@ -208,7 +208,7 @@ tokens Python writes by default.
 | `GET /api/version` | the package version |
 | `GET /api/help` | the help corpus the popovers and [](glossary.md) are written from |
 | `GET /api/spacegroup` | what one symbol constrains; the wizard's typed-cell step needs it before a project exists |
-| `GET /api/settings` · `POST /api/settings` | the person's settings, which is the theme, stored beside the recent list rather than in the project; not behind the 409 |
+| `GET /api/settings` · `POST /api/settings` | the person's own settings, the theme among them, stored beside the recent list rather than in the project; not behind the 409 |
 | `GET /api/recent` | the recently-opened list |
 | `GET /api/fs` | the filesystem browser's listing, confined to the home directory and the working directory |
 | `GET /api/examples` | the example projects shipped in the wheel |
