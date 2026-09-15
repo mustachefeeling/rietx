@@ -475,18 +475,19 @@ the file leaves the ratio blank this reads `None`, and choosing a ratio is then
 yours to do explicitly.
 
 `read_gsas2_gpx` returns a `Gsas2Model`. A GSAS-II project is the same shape of
-tree as a `.EXP` — phases, histograms, and one entry per phase-and-histogram
-pair — with two things the older format has no room for: the **constraints** the
-refinement carried, and the **list of variables** it actually refined.
+tree as a `.EXP`: phases, histograms, and one entry per phase-and-histogram
+pair. It carries two things the older format has no room for. One is the set of
+constraints the refinement ran under. The other is the list of variables it
+actually refined.
 
 | Field | What it holds |
 |---|---|
 | `Gsas2Model.path`, `Gsas2Model.saved_as`, `Gsas2Model.version` | the file you opened, where GSAS-II last saved it, and the revision that wrote it |
 | `Gsas2Model.phases`, `Gsas2Model.histograms` | every phase, and every powder histogram |
-| `Gsas2Model.hap` | the phase-and-histogram entries, keyed `(phase name, histogram name)` — GSAS-II's own keys, which are names rather than numbers |
+| `Gsas2Model.hap` | the phase-and-histogram entries, keyed `(phase name, histogram name)`. Those are GSAS-II's own keys, which are names rather than numbers |
 | `Gsas2Model.vary_list`, `Gsas2Model.esds` | the variables the last refinement refined, in GSAS-II's `p:h:name` spelling, and their standard uncertainties in the same order. This is the protocol, stated by the file itself |
 | `Gsas2Model.constraints` | the equivalences, holds and constraint equations, with their variables resolved into names |
-| `Gsas2Model.rwp`, `Gsas2Model.gof`, `Gsas2Model.chi2` | the run's own agreement indices. `gof` is the **square root** of reduced χ², and `chi2` is GSAS-II's `chisq`, which is Σw(Io−Ic)² and not reduced at all |
+| `Gsas2Model.rwp`, `Gsas2Model.gof`, `Gsas2Model.chi2` | the run's own agreement indices. `gof` is the square root of reduced χ². `chi2` is GSAS-II's `chisq`, which is Σw(Io−Ic)² and not reduced at all |
 | `Gsas2Model.n_observations`, `Gsas2Model.n_variables`, `Gsas2Model.converged` | how many channels, how many parameters, and whether GSAS-II called it converged. `n_variables` is `None` where the file's `Rvals` does not state it, which happens |
 | `Gsas2Model.unsupported` | one line per thing the read could not carry, kept whether or not you asked |
 | `Gsas2Model.histogram`, `Gsas2Model.phase` | pick one by name or by number; both refuse to choose when the file carries several and you named none |
@@ -495,20 +496,20 @@ A phase is a `Gsas2Phase`:
 
 | Field | What it holds |
 |---|---|
-| `Gsas2Phase.name`, `Gsas2Phase.number` | the name GSAS-II gives it, and its `pId` — the `p` of a `p:h:name` variable |
+| `Gsas2Phase.name`, `Gsas2Phase.number` | the name GSAS-II gives it, and its `pId`, which is the `p` of a `p:h:name` variable |
 | `Gsas2Phase.space_group` | the symbol, as written |
 | `Gsas2Phase.cell`, `Gsas2Phase.volume` | the six lattice parameters and the cell volume |
 | `Gsas2Phase.refine_cell` | GSAS-II refines a cell under one flag, so there is one here rather than six |
 | `Gsas2Phase.atoms` | the sites |
 | `Gsas2Phase.kind`, `Gsas2Phase.magnetic` | GSAS-II's phase type, and whether it is a magnetic one |
-| `Gsas2Phase.magnetic_partner` | set where a *nuclear* phase is half of a magnetic model. The sites import correctly; the magnetic scattering in the file's own Rwp does not, so a fit of this structure is not comparable with the file's figures |
+| `Gsas2Phase.magnetic_partner` | set where a *nuclear* phase is half of a magnetic model. The sites import correctly. The magnetic scattering in the file's own Rwp does not, so a fit of this structure is not comparable with the file's figures |
 | `Gsas2Phase.pawley` | whether the phase was fitted by Pawley extraction, in which case its refined quantities are intensities rather than sites |
 
 Each of its sites is a `Gsas2Atom`:
 
 | Field | What it holds |
 |---|---|
-| `Gsas2Atom.label`, `Gsas2Atom.species` | the name you chose and the scattering species, in the file's own spelling — GSAS-II writes an ionic charge sign first, as `Mn+3` |
+| `Gsas2Atom.label`, `Gsas2Atom.species` | the name you chose and the scattering species, in the file's own spelling. GSAS-II writes an ionic charge sign first, as `Mn+3` |
 | `Gsas2Atom.x`, `Gsas2Atom.y`, `Gsas2Atom.z`, `Gsas2Atom.occupancy` | the site |
 | `Gsas2Atom.site_symmetry`, `Gsas2Atom.multiplicity` | what GSAS-II worked out about the position |
 | `Gsas2Atom.adp`, `Gsas2Atom.anisotropic` | `I` or `A`, and that flag read for you |
@@ -527,7 +528,7 @@ A histogram is a `Gsas2Histogram`:
 | `Gsas2Histogram.limits`, `Gsas2Histogram.measured_limits` | the range the refinement used, and the range the file was loaded with. Two numbers rather than one, because that pair is what makes a narrowed range visible |
 | `Gsas2Histogram.excluded_regions` | ranges masked out of the fit |
 | `Gsas2Histogram.background` | the background function and its coefficients |
-| `Gsas2Histogram.sample` | the refinable sample parameters with their flags, keyed by GSAS-II's own names — `Scale`, `DisplaceX`, `Shift`, `Absorption` and their kind |
+| `Gsas2Histogram.sample` | the refinable sample parameters with their flags, keyed by GSAS-II's own names (`Scale`, `DisplaceX`, `Shift`, `Absorption` and their kind) |
 | `Gsas2Histogram.geometry`, `Gsas2Histogram.gonio_radius`, `Gsas2Histogram.temperature` | `Debye-Scherrer` or `Bragg-Brentano`, the radius in mm, and the temperature |
 | `Gsas2Histogram.n_points` | how many channels the file carries |
 
@@ -538,7 +539,7 @@ An instrument coefficient is a `Gsas2Term`:
 | `Gsas2Term.name` | GSAS-II's own name, such as `U` or `SH/L` |
 | `Gsas2Term.value`, `Gsas2Term.initial` | the refined number and the one it started from, which the format keeps side by side |
 | `Gsas2Term.refined` | whether the run was free to move it |
-| `Gsas2Term.degrees` | the same quantity in degrees for the six centidegree coefficients, and `None` for everything else. `Zero` is `None` because it is already degrees — GSAS-I writes that field in centidegrees and GSAS-II does not |
+| `Gsas2Term.degrees` | the same quantity in degrees for the six centidegree coefficients, and `None` for everything else. `Zero` is `None` because it is already degrees. GSAS-I writes that field in centidegrees and GSAS-II does not |
 
 The background is a `Gsas2Background`:
 
@@ -574,7 +575,7 @@ A constraint is a `Gsas2Constraint`:
 | Field | What it holds |
 |---|---|
 | `Gsas2Constraint.kind` | the format's own letter: `e` equivalent variables, `c` a constraint equation, `h` a variable held, `f` a new variable |
-| `Gsas2Constraint.group` | which variables it constrains — `Phase`, `Hist`, `HAP` or `Global` |
+| `Gsas2Constraint.group` | which variables it constrains: `Phase`, `Hist`, `HAP` or `Global` |
 | `Gsas2Constraint.terms` | `(multiplier, name)` pairs, the names resolved out of the random-number ids the file stores |
 | `Gsas2Constraint.value`, `Gsas2Constraint.vary` | the right-hand side of a constraint equation, and whether a new variable is refined |
 | `Gsas2Constraint.is_equivalence` | the one shape `Refinement.tie_equal` reproduces in one call |
@@ -587,9 +588,9 @@ Three things about a `.gpx` decide how you read one.
 #### It is a pickle, so the reader refuses names rather than running them
 
 A `.gpx` is a sequence of python pickles, and loading a pickle runs whatever it
-names. So this reader resolves an allow-list and **refuses every other name**,
+names. So this reader resolves an allow-list and refuses every other name,
 naming it, without reading the file at all. That covers GSAS-II's own two
-classes too: they are admitted as inert stand-ins that can hold data and do
+classes too. They are admitted as inert stand-ins that can hold data and do
 nothing, which is why a project with constraints reads at all. If you are handed
 a `.gpx` from somewhere you do not trust, this is the property to know about:
 the refusal message names the global, and a file that opens has named nothing
