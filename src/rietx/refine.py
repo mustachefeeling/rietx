@@ -2195,7 +2195,13 @@ class Refinement:
                         # for, and it takes its own ftol or the solver default
                         ftol=stage.ftol)
             finally:
-                if stream is not None and stream is not events:
+                if (stream is not None and stream is not events
+                        and stream is not recorder):
+                    # ...and never the recorder, whose lifetime is the whole
+                    # verb.  Closing it here wrote the run's terminal state
+                    # before the result existed, so a stage that raised on the
+                    # way out — or was cancelled, which reaches here with no
+                    # ``fit_end`` to say so — recorded itself ``done``.
                     stream.close()  # we created it from a path/callable
             diagnostics = _guard_diagnostics(guard)
             if mode == "pawley":
@@ -2246,6 +2252,12 @@ class Refinement:
             if recorder is not None:
                 recorder.write_summary(self.result_)
             return self.result_
+        except RefinementCancelled:
+            # before the generic handler: an abandoned stage is not a failure,
+            # and this verb emits no ``fit_end`` for the recorder to read it off
+            if recorder is not None:
+                recorder.close("cancelled")
+            raise
         except BaseException:
             if recorder is not None:
                 recorder.close("failed")

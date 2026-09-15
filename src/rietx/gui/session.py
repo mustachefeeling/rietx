@@ -27,9 +27,10 @@ boundary makes that structurally impossible rather than a thing to remember, and
 **The run is watched through events, not by polling state.**  One worker thread,
 one :class:`~rietx.optimize.cancel.CancelToken`, and a seq-numbered ring
 buffer of the engine's own event dicts with a ``Condition`` for followers.  The
-buffer is a *transport* of the same stream that lands in
-``<project>/live/events.jsonl``, so ``rietx watch`` and the GUI are two views
-of one log rather than two logs.
+buffer is a *transport* of the same stream that lands under
+``<project>/live/`` — since WP-1403 in a run directory of its own, written by
+the recorder ``Project.fit`` defaults there — so ``rietx watch`` and the GUI
+are two views of one log rather than two logs.
 
 The one place this session adds a frame the engine does not emit is the **run
 state**: a fit that raises emits no ``fit_end``, so a follower watching only
@@ -1674,15 +1675,23 @@ class GuiSession:
         with self._cond:
             self._require_idle()
             token = CancelToken()
-            # Callback only, since WP-1403.  This used to carry
-            # ``path=live_dir/"events.jsonl"`` as well, and a recorder chained
-            # onto it would then write the whole eval stream **twice** —
-            # precisely the weight that WP exists to control.  The file was
-            # only ever here for ``rietx watch``, which the recorder now serves
-            # better: ``Project.fit`` defaults ``telemetry`` to this project's
-            # ``live/``, so the log still lands there, in a run directory of its
-            # own rather than in one log a second writer could interleave.
-            stream = EventStream(callback=self._push)
+            # Callback only for the kinds that record themselves, since
+            # WP-1403.  This used to carry ``path=live_dir/"events.jsonl"`` for
+            # every kind, and a recorder chained onto it would then write the
+            # whole eval stream **twice** — precisely the weight that WP exists
+            # to control.  ``Project.fit``/``run_stage`` default ``telemetry``
+            # to this project's ``live/`` and the series names it, so for those
+            # three the log still lands there, in a run directory of its own
+            # rather than in one log a second writer could interleave.
+            #
+            # ``index`` and ``extinction`` have no recorder — nothing in
+            # ``indexing/`` attaches one — so for them the path *is* the log,
+            # and dropping it would have left a GUI indexing run with no
+            # on-disk trace at all for ``rietx watch`` to read.
+            records_itself = kind in ("fit", "stage", "series")
+            stream = EventStream(
+                path=None if records_itself else p.live_dir / "events.jsonl",
+                callback=self._push)
             self._state = "running"
             self._cancel = token
             self._events.clear()

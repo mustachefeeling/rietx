@@ -426,7 +426,7 @@ def _collect_runs(holder: Path, root: Path, out: list[Run],
     one log. Asking only the second question would orphan every run written
     before this WP.
     """
-    if _is_run_dir(holder):
+    if _is_run_dir(holder) and len(out) < max_runs:
         run = read_run(holder, root=root)
         if run is not None:
             out.append(run)
@@ -886,6 +886,12 @@ class RunRecorder(EventStream):
         self._lock_fh = None
         self._last_flush = 0.0
         self._closed = False
+        #: The stream :func:`attach` chained this onto, the callback it
+        #: replaced, and the chain it installed — all three so that
+        #: :meth:`close` can put the caller's object back the way it found it.
+        self._host = None
+        self._prior_callback = None
+        self._chain = None
         # Everything but ``state`` starts absent rather than defaulted: a zero
         # Rwp reads as an answer about a fit nothing has measured (WP-1076).
         self._status: dict = {"state": "running", "pid": os.getpid(),
@@ -943,10 +949,26 @@ class RunRecorder(EventStream):
             return
         self._lock_fh = fh
 
+    def _default_label(self) -> str:
+        """What a run is called when nobody named it.
+
+        The working directory's name, except under a project, where it is the
+        project's: ``<name>.rex/live/<run id>`` is one project among several a
+        caller may drive from one directory, and the working directory names
+        all of them and so names none of them. This is ``_label_for``'s rule
+        for a legacy directory, applied by the writer that now supplies the
+        label ``_label_for`` used to have to infer.
+        """
+        parent = self.dir.parent
+        if (parent.name == LIVE_DIR_NAME
+                and parent.parent.name.endswith(PROJECT_SUFFIX)):
+            return parent.parent.name
+        return Path.cwd().name
+
     def _write_meta(self, label: str | None, command: str | None) -> None:
         payload = {
             "record": RECORD_TAG,
-            "label": label or Path.cwd().name,
+            "label": label or self._default_label(),
             "created": time.time(),
             "version": _package_version(),
             "cwd": str(Path.cwd()),
@@ -998,8 +1020,20 @@ class RunRecorder(EventStream):
             for key in ("rwp", "gof"):
                 if data.get(key) is not None:
                     self._status[key] = float(data[key])
-            self._status["state"] = (
-                "cancelled" if data.get("status") == "cancelled" else "done")
+            # **A series member's fit_end ends a pattern, not the run.** One
+            # job is one run directory, so a 60-pattern series emits 60
+            # ``fit_end``s into one recorder, and reading "done" off the first
+            # of them told every reader the run had finished after pattern 1 —
+            # ``liveness_of``'s first rule is that a terminal state wins, so
+            # ``rietx watch`` showed a live ramp as done, and ``close`` cannot
+            # correct it afterwards (it applies a state only when nothing has
+            # claimed one). The ``series_*`` stamp is on the event already, so
+            # this is still read off the data and never counted. A cancel is
+            # the exception: it ends the *chain*, not just this pattern.
+            if data.get("status") == "cancelled":
+                self._status["state"] = "cancelled"
+            elif "series_index" not in data:
+                self._status["state"] = "done"
 
     def _write(self, event: dict) -> None:
         self._fh.write(json.dumps(event) + "\n")
@@ -1035,7 +1069,7 @@ class RunRecorder(EventStream):
         writes ours. The dict arrives built, so there is no second ``t`` and
         the two logs agree about when everything happened.
         """
-        if self.error is not None:
+        if self.error is not None or self._closed:
             return
         try:
             self._write(event)
@@ -1114,6 +1148,30 @@ class RunRecorder(EventStream):
                 except Exception:
                     pass
                 self._lock_fh = None
+            self._detach()
+
+    def _detach(self) -> None:
+        """Put the stream :func:`attach` chained this onto back as it was.
+
+        A recorder outlives its run only as a reference on somebody else's
+        object, and leaving it there costs twice: the stamp makes the *next*
+        fit on that stream decline to record at all, and the chained callback
+        feeds that fit's events to a closed recorder, which latches an error
+        into the finished run's ``status.json`` and warns about telemetry that
+        never failed. Both were reachable from one ordinary shape — a caller
+        reusing one ``EventStream`` for two fits.
+        """
+        host, chain, prior = self._host, self._chain, self._prior_callback
+        self._host = self._chain = self._prior_callback = None
+        if host is None:
+            return
+        if getattr(host, _STAMP, None) is self:
+            try:
+                delattr(host, _STAMP)
+            except AttributeError:      # pragma: no cover - a class attribute
+                pass
+        if getattr(host, "callback", None) is chain:
+            host.callback = prior
 
 
 def _dir_size(path: Path) -> int:
@@ -1263,8 +1321,8 @@ _PRUNED = False
 _STAMP = "_rietx_run_recorder"
 
 
-def _already_recorded(stream) -> bool:
-    """Is a recorder already attached anywhere in ``stream``'s chain?
+def recorder_of(stream) -> "RunRecorder | None":
+    """The recorder attached anywhere in ``stream``'s chain, or ``None``.
 
     **The stamp has to be looked for through wrappers, not only on the object
     handed in.** ``sequential`` builds a *fresh* ``_SeriesStream`` per pattern
@@ -1273,14 +1331,24 @@ def _already_recorded(stream) -> bool:
     job. The walk follows ``_inner``, which is the wrapping convention in this
     package, and carries a seen-set because a cycle here would hang a fit —
     which is the one thing telemetry must never do.
+
+    It answers the recorder rather than a yes, because the second caller wants
+    the object: a wrapper that forwards ``write_snapshot`` has to reach the
+    recorder chained onto its inner stream, or a series whose caller passed an
+    ``events=`` path records a run with no picture in it.
     """
     seen: set[int] = set()
     while stream is not None and id(stream) not in seen:
-        if getattr(stream, _STAMP, None) is not None:
-            return True
+        found = getattr(stream, _STAMP, None)
+        if found is not None:
+            return found
         seen.add(id(stream))
         stream = getattr(stream, "_inner", None)
-    return False
+    return None
+
+
+def _already_recorded(stream) -> bool:
+    return recorder_of(stream) is not None
 
 
 def attach(stream, events, *, telemetry=None, project_hint=None,
@@ -1357,6 +1425,11 @@ def attach(stream, events, *, telemetry=None, project_hint=None,
 
     stream.callback = _combined
     setattr(stream, _STAMP, recorder)
+    # remembered so ``close`` can undo exactly this, and only while it is
+    # still what is there — see :meth:`RunRecorder._detach`
+    recorder._host = stream
+    recorder._prior_callback = prior
+    recorder._chain = _combined
     return recorder
 
 

@@ -896,7 +896,11 @@ def predict_then_verify(refinement, data, action: SuggestedAction, *,
     trial = refinement.branch() if refinement.history is not None else refinement
     stage = Stage(f"verify:{action.kind}", list(action.parameter_paths))
     try:
-        after = trial.run_stage(data, stage).statistics.chi2
+        # ``telemetry=False``: this is a trial the *package* runs, one per
+        # candidate action, and a recorder here writes a run directory for each
+        # — the same "sixty directories for one job" a series declines
+        # (WP-1403).  The run the caller asked about is the fit they started.
+        after = trial.run_stage(data, stage, telemetry=False).statistics.chi2
     except Exception as exc:  # a failed trial is a rejection, not a crash
         return VerificationOutcome(
             kind=action.kind, predicted_delta_chi2=action.expected_delta_chi2,
@@ -1015,7 +1019,8 @@ def compare_rivals(refinement, data, finding: "ExchangeFinding | tuple[str, str]
         trial.set_vary([other], False)
         trial.set_values({other: NULL_IDENTITY[other]})
         trial.set_vary([freed], True)
-        result = trial.run_stage(data, Stage(f"rival:{freed}", [freed]))
+        result = trial.run_stage(data, Stage(f"rival:{freed}", [freed]),
+                                 telemetry=False)   # a trial, not a run
         row = next((p for p in result.parameters if p.path == freed), None)
         fits.append(RivalFit(
             freed_path=freed, held_path=other, held_at=NULL_IDENTITY[other],

@@ -522,9 +522,13 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   is outside its own latch** (a root and a directory are `attach`'s, and an unguarded
   `PermissionError` there took a whole fit down); and the status is a **projection**, its
   stage read off `stage_start.index` and never counted, since a released phase emits a second
-  `stage_start` (WP-1301) and a counter then says "stage 6 of 5". The suite declines recording
-  (`conftest`, `RIETX_TELEMETRY=0`), and `test_telemetry.py` owns the meta-test that a plain
-  `fit()` under it writes nothing.
+  `stage_start` (WP-1301) and a counter then says "stage 6 of 5". (4) **An internal trial
+  passes `telemetry=False`**: a fit whose result the *package* discards is not a run — a
+  suggestion's verify stage, a rival fit, an extinction screen, a Le Bail validation — while
+  one whose result a *caller* reads is, so `viz/compare.py` records and `report/layer2.py`
+  does not. Un-gated, one report build wrote four run directories. The suite declines
+  recording (`conftest`, `RIETX_TELEMETRY=0`), and `test_telemetry.py` owns the meta-test
+  that a plain `fit()` under it writes nothing.
 - **Retention deletes by age and size, never by count** (WP-1403). "Keep the newest N" would
   delete run 1 of a 200-candidate batch while the batch was still running. So: a byte ceiling,
   a week's floor, oldest terminal run first, and over the ceiling with nothing old enough

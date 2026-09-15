@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import warnings
 from pathlib import Path
 
@@ -408,6 +409,136 @@ def test_the_chain_walk_survives_a_cycle():
     a, b = EventStream(), EventStream()
     a._inner, b._inner = b, a
     assert runs._already_recorded(a) is False
+
+
+# ----------------------------------------------------------------------
+# what the review pass found, one guard each
+# ----------------------------------------------------------------------
+def test_a_series_stays_running_until_the_whole_chain_is_done(
+        tmp_path, monkeypatch, pattern, recording):
+    """One job is one run, so one `fit_end` is not the end of it.
+
+    A series emits a `fit_end` per pattern into the one recorder it attached,
+    and reading a terminal state off the first of them told every reader the
+    run had finished after pattern 1. `liveness_of`'s first rule is that a
+    terminal state wins, so a live ramp showed as done, and `close` could not
+    correct it afterwards — it applies a state only when nothing has claimed
+    one.
+    """
+    monkeypatch.chdir(tmp_path)
+    seen = []
+
+    def watch(event):
+        if event["kind"] == "fit_end":
+            found = runs.discover(tmp_path)
+            seen.append(found[0].status.state if found and found[0].status
+                        else None)
+
+    structure, ins = perturbed_models()
+    rx.SequentialRefinement(structure, ins, history=False).fit(
+        [pattern, pattern, pattern], x=[300.0, 400.0, 500.0], x_label="T",
+        events=watch)
+
+    assert len(seen) == 3
+    assert seen[:2] == ["running", "running"], seen
+    (run,) = runs.discover(tmp_path)
+    assert run.status.state == "done"
+
+
+def test_a_trial_the_package_runs_is_not_a_run(tmp_path, monkeypatch, pattern,
+                                               recording):
+    """A report build runs one trial stage per candidate action, and a
+    recorder on each wrote a run directory for every one of them.
+
+    The line that decides it: a trial whose **result is discarded** records
+    nothing, and a fit whose result a caller **reads** records. So the five
+    internal sites pass ``telemetry=False`` while ``viz/compare.py`` — whose
+    answer is the thing a user reads — does not.
+    """
+    monkeypatch.chdir(tmp_path)
+    structure, ins = perturbed_models()
+    ref = rx.Refinement(structure, ins, history=False)
+    ref.fit(pattern)
+    assert len(runs.discover(tmp_path)) == 1
+    ref.report()
+    found = runs.discover(tmp_path)
+    assert len(found) == 1, [str(r.path) for r in found]
+
+
+def test_a_run_stage_that_raises_records_failed(tmp_path, monkeypatch, pattern,
+                                                recording):
+    """`run_stage`'s inner `finally` closed the recorder before the result
+    existed, so a stage that raised on the way out recorded itself done."""
+    monkeypatch.chdir(tmp_path)
+    refine_mod = sys.modules["rietx.refine"]
+
+    class Boom(RuntimeError):
+        pass
+
+    def exploding(*a, **kw):
+        raise Boom("after the solve")
+
+    structure, ins = perturbed_models()
+    ref = rx.Refinement(structure, ins, history=False)
+    real = refine_mod._build_result
+    refine_mod._build_result = exploding
+    try:
+        with pytest.raises(Boom):
+            ref.run_stage(pattern, rx.Stage(name="bg",
+                                            turn_on=["instrument.background.*"]))
+    finally:
+        refine_mod._build_result = real
+
+    (run,) = runs.discover(tmp_path)
+    assert run.status.state == "failed"
+
+
+def test_two_fits_on_one_stream_get_two_clean_runs(tmp_path, monkeypatch,
+                                                   pattern, recording):
+    """`attach` mutated the caller's stream and nothing undid it.
+
+    The second fit then recorded nothing, and its events reached the *closed*
+    first recorder, which latched an error into a finished run's status and
+    warned about telemetry that never failed.
+    """
+    monkeypatch.chdir(tmp_path)
+    seen = []
+    stream = EventStream(callback=seen.append)
+    for _ in range(2):
+        structure, ins = perturbed_models()
+        rx.Refinement(structure, ins, history=False).fit(pattern, events=stream)
+
+    found = runs.discover(tmp_path)
+    assert len(found) == 2, [str(r.path) for r in found]
+    assert [r.status.state for r in found] == ["done", "done"]
+    assert [r.status.error for r in found] == [None, None]
+    assert len([e for e in seen if e["kind"] == "fit_end"]) == 2
+    assert runs.recorder_of(stream) is None      # put back as it was found
+
+
+def test_a_series_with_a_callers_events_still_gets_a_picture(
+        tmp_path, monkeypatch, pattern, recording):
+    """`_SeriesStream` looked for `write_snapshot` on its inner stream only.
+
+    A caller who passes `events=` leaves the recorder *chained* onto that
+    stream rather than being it, so a plain `EventStream` inner answered no and
+    the run recorded no picture. Every GUI series was in that case.
+    """
+    monkeypatch.chdir(tmp_path)
+    structure, ins = perturbed_models()
+    rx.SequentialRefinement(structure, ins, history=False).fit(
+        [pattern, pattern], x=[300.0, 400.0], x_label="T",
+        events=str(tmp_path / "mine.jsonl"))
+    (run,) = runs.discover(tmp_path)
+    assert run.has_snapshot is True
+
+
+def test_discover_never_returns_more_than_its_cap(tmp_path):
+    """`_collect_runs` appended the holder without the count check."""
+    root = tmp_path / STATE_DIR_NAME / RUNS_DIR_NAME
+    for i in range(4):
+        _stub_run(root, f"2026010{i + 1}-120000-{i}", created=NOW)
+    assert len(runs.discover(tmp_path, max_runs=2)) == 2
 
 
 # ----------------------------------------------------------------------

@@ -184,8 +184,11 @@ SIZE_CAPS: dict[str, int | None] = {
     # the only code in the package that can destroy a user's data.  Neither is
     # demotable narrative: both are protocol rule 4's test, governing work
     # outside the WP that measured them.  Raised rather than shaved, per the
-    # failure message's own instruction.  Landed at 791; the +2 is headroom.
-    "CLAUDE.md": 793,
+    # failure message's own instruction.  Landed at 795 after the review pass
+    # added the fourth clause of the first rule — that an internal trial the
+    # package discards passes ``telemetry=False`` — which is the rule one
+    # report build writing four run directories cost; the headroom is +2.
+    "CLAUDE.md": 797,
     # 672 -> 676 (WP-1102): the Current focus rewrite at 1102's close names the
     # milestone's one break and what makes 1103 the seam's proving case.
     # 676 -> 682 (WP-1407): a new Unscheduled group, "The formats a lab still

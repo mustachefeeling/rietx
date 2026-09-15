@@ -429,7 +429,10 @@ def validate_by_lebail(candidate: CellCandidate, data: PatternData,
     ref = Refinement(structure, ins, history=False)
     try:
         result = ref.fit(data, mode="lebail", plan=plan,
-                         two_theta_limits=two_theta_limits, cancel=cancel)
+                         two_theta_limits=two_theta_limits, cancel=cancel,
+                         # one validation fit per candidate: a run directory
+                         # each would bury the search that asked for them
+                         telemetry=False)
     except RefinementCancelled:
         raise                       # before the generic handler — see docstring
     except Exception as exc:                        # noqa: BLE001

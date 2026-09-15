@@ -269,8 +269,16 @@ class _SeriesStream(EventStream):
         # advertised one anyway would hand it a call it cannot answer.  One
         # snapshot file per series, rewritten as the chain walks, which is what
         # makes ``rietx watch`` show the pattern being fitted right now.
-        if hasattr(inner, "write_snapshot"):
-            self.write_snapshot = inner.write_snapshot
+        #
+        # The recorder counts as a second place to look, because a caller who
+        # passed ``events=`` of their own leaves it *chained* onto that stream
+        # rather than being it — and a plain ``EventStream`` inner then answered
+        # ``hasattr`` with a no, so a GUI series, and every series with an
+        # ``events=`` path, recorded a run with no picture in it.
+        target = (inner if hasattr(inner, "write_snapshot")
+                  else runs.recorder_of(inner))
+        if target is not None:
+            self.write_snapshot = target.write_snapshot
 
     def emit(self, kind: str, **data: Any) -> None:
         # the stamp first, so a future event field named ``series_*`` would
