@@ -53,6 +53,19 @@ flipping).
 
 ### Inherited
 
+- **2026-09-15, from [1118](1118-foreign-model-files.md): the registry has a
+  third member, and it moved a seam a Jana reader will meet.**
+  `ProjectFormat.reports_at` is no longer two-valued — the GSAS `.EXP` reader
+  repairs both while parsing and while building, so it declares `"both"`, and
+  either single value would have dropped one channel in silence. Decide which
+  end a `.m50`/`.m40` reader repairs at **before** writing it, and note that the
+  meta-test now partitions both ways, so a channel that exists and is not
+  declared fails rather than going quiet. Two smaller things worth copying: a
+  fixed-format record is read by **column** and never by splitting on
+  whitespace (a blank optional field re-assigns every token after it), and a
+  sniff measures the head's **bytes**, because `head()` decodes UTF-8 with
+  `errors="ignore"` and drops any byte that is not valid UTF-8.
+
 - **2026-09-13, from [1118](1118-foreign-model-files.md): the registry this WP
   was gated on exists, and a Jana reader now has four things to fill in rather
   than a shape to invent.** `io/projects/registry.py` holds `PROJECT_FORMATS`,
