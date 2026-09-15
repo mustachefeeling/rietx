@@ -1,9 +1,10 @@
 # WP-1118 — foreign model files: read a refinement in, write one back
 
-Milestone: unscheduled · Status: 🔄 2026-09-13 — the TOPAS `.inp` reader
-landed (PR #98), the FullProf `.pcr` reader (PR #111), the GSAS-I `.PRM`
-instrument-parameter reader (PR #248) and the model-format registry over them;
-the GSAS `.EXP` half, the `.gpx` reader and every writer remain
+Milestone: unscheduled · Status: 🔄 2026-09-15 — claimed by @yue-here for the
+GSAS `.EXP` reader (#103). Landed so far: the TOPAS `.inp` reader (PR #98), the
+FullProf `.pcr` reader (PR #111), the GSAS-I `.PRM` instrument-parameter reader
+(PR #248) and the model-format registry over them; the `.gpx` reader and every
+writer remain
 Depends on: — (WP-1110 found it; WP-1102 owns the one seam that overlaps)
 
 ## Goal
