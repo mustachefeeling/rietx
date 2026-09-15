@@ -127,8 +127,10 @@ the console tails the log from where it left off.
 ### Where the runs come from
 
 Every fit writes one. `Refinement.fit` and its neighbours record a run directory
-under `.rietx/runs/` in the working directory whether or not you asked, so
-`rietx watch` in the directory you are working in usually has something to show.
+whether or not you asked, so `rietx watch` in the directory you are working in
+usually has something to show. A fit that came from a project records into that
+project's `live/`; every other fit records under `.rietx/runs/` in the working
+directory.
 [](refining.md) is what a run holds and how to switch recording off.
 
 A run is any directory holding an `events.jsonl`, which also covers a project's

@@ -580,8 +580,9 @@ result = ref.fit(data, telemetry=False)
 ```
 
 The environment setting outranks the keyword, and no value of `telemetry=`
-argues back. A machine with `RIETX_TELEMETRY=0` exported records nothing,
-whatever the code running on it asks for.
+argues back. On a machine with `RIETX_TELEMETRY=0` exported, no call can ask
+its way back on. The one override is `rietx.runs.set_enabled(True)`, which is
+python code the process ran deliberately rather than an argument to a fit.
 
 Recording never breaks a fit. A run directory that cannot be created or written
 costs you the telemetry and leaves the refinement alone. The recorder stops,
@@ -625,10 +626,12 @@ are ever copied into a run.
 ### Retention
 
 The runs root is pruned by age and size, once per process, on the first fit.
-Nothing younger than a week is deleted, however many runs there are. Above a
-1 GiB ceiling the oldest finished runs go first, and a root that is over the
-ceiling with nothing old enough warns and keeps everything. Using your disk is
-the smaller harm.
+Only the root the package chose is pruned: a root you named with `telemetry=`
+is yours, and a project's `live/` is the project's, so neither is ever deleted
+from. Nothing younger than a week is deleted, however many runs there are.
+Above a 1 GiB ceiling the oldest finished runs go first, and a root that is
+over the ceiling with nothing old enough warns and keeps everything. Using your
+disk is the smaller harm.
 
 Deleting by age and size rather than by count is deliberate. "Keep the newest
 50" would delete run 1 of a 200-candidate batch while the batch was still

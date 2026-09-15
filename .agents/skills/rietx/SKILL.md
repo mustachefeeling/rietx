@@ -371,6 +371,7 @@ Several places will decline to answer. When they do, that *is* the answer.
     number in the result did not come from the data. Their esds do not make them
     measurements, and a good Rwp does not cover them: a parameter that does not
     move y_calc does not move Rwp either.
+
 Every signal, its meaning and its correct response:
 [`references/abstention.md`](references/abstention.md).
 

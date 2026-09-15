@@ -4,7 +4,9 @@ Load it when a person may be looking over your shoulder at a fit that takes a
 while, when you want to hand one a live view rather than a promise to report
 back, or when you need to read a finished run off disk. §9b is a chain of fits
 and §9c a batch of them; this file is about the record every single fit leaves
-behind, which those two inherit one directory per pattern.
+behind. A batch inherits one directory per fit. A series does not: one
+`refine_sequential` call is one job and records one directory for the whole
+chain, however many patterns it walks.
 
 *A reference file of the `rietx` skill. The body it belongs to is
 [`SKILL.md`](../SKILL.md); section numbers are the ones the body cites. Every
@@ -57,11 +59,11 @@ itself.)*
 
 **9d.4 Read a finished run back with the reader, and never by opening the
 project.** `runs.discover(root)` lists what is under a directory,
-`runs.read_run(path)` reads one, `runs.tail_events(path, offset)` returns events
-from a byte offset with the next offset, and `runs.liveness_of(run)` says
-whether it is still being written. `summary.txt` in the run is the termination
-view as `print(result)` gives it, which is the cheapest way to see how a fit
-ended without recomputing anything.
+`runs.read_run(path)` reads one, `runs.tail_events(path / "events.jsonl",
+offset)` returns events from a byte offset with the next offset, and
+`runs.liveness_of(run)` says whether it is still being written. `summary.txt`
+in the run is the termination view as `print(result)` gives it, which is the
+cheapest way to see how a fit ended without recomputing anything.
 
 The reader constructs nothing on purpose. `Project.open` appends an annotation
 to a project's history before you have done anything, so opening a project to
