@@ -306,3 +306,64 @@ def test_the_drawn_curves_are_worth_looking_at(last_stage):
     # the peak top survives even the hard decimation, which is the property
     # the picture is there to make visible
     assert max(thin["y_obs"]) == pytest.approx(y_obs.max(), rel=1e-5)
+
+# ----------------------------------------------------------------------
+# who gets handed the picture
+# ----------------------------------------------------------------------
+def test_the_sink_set_is_declared_and_deduped():
+    """``_snapshot_sinks`` names its candidates instead of finding them.
+
+    Identity, not equality: ``as_event_stream`` returns an ``EventStream``
+    unchanged, so the stream and the caller's object are routinely one object,
+    and a set built by equality would write one file twice.
+    """
+    from rietx.refine import _snapshot_sinks
+
+    one, two = _Capture(), _Capture()
+    assert _snapshot_sinks(one, one) == [one]
+    assert _snapshot_sinks(one, two) == [one, two]
+    assert _snapshot_sinks(None, EventStream()) == []
+
+
+def test_run_stage_refreshes_the_picture(tmp_path, synthetic_pattern):
+    """The defect: only ``_run_plan`` had a call site.
+
+    A caller driving one stage at a time — ``report/apply.py``'s recipes, the
+    GUI's stage verb — got the event stream and no plot at all.
+    """
+    from rietx.strategy.staged import Stage
+    from rietx.viz.live import LiveSession
+
+    structure, ins = perturbed_models()
+    live = tmp_path / "live"
+    ref = rx.Refinement(structure, ins, history=False)
+    ref.run_stage(synthetic_pattern,
+                  Stage(name="scale", turn_on=["phases.*.scale"]),
+                  events=LiveSession(live))
+
+    written = json.loads((live / "snapshot.json").read_text(encoding="utf-8"))
+    assert written["stage"] == "scale"
+    assert written["n_drawn"] > 0
+
+
+def test_a_decorated_stream_still_gets_the_picture(tmp_path,
+                                                   synthetic_pattern):
+    """A regression guard, not a defect this WP fixed.
+
+    ``progress=`` decorates the stream, and it survived the old call site
+    because ``_attach_progress`` mutates in place and hands the same object
+    back. WP-1403's recorder will be a *different* object, and that is the
+    case the old ``hasattr(stream, ...)`` would have failed silently —
+    covered by the declaration test above, since nothing here can build it
+    yet.
+    """
+    from rietx.viz.live import LiveSession
+
+    structure, ins = perturbed_models()
+    live = tmp_path / "live"
+    lines = tmp_path / "progress.txt"
+    rx.Refinement(structure, ins, history=False).fit(
+        synthetic_pattern, events=LiveSession(live), progress=str(lines))
+
+    assert (live / "snapshot.json").is_file()
+    assert lines.read_text(encoding="utf-8").strip(), "progress wrote nothing"

@@ -182,7 +182,7 @@ a stage where a reloaded iframe cannot.
       writing into a flat directory (what `using/cli.md` documents). **Plotly
       leaves this module entirely**, pinned by a test that puts `None` into
       `sys.modules["plotly"]` and records a run.
-- [ ] `refine.py`: the explicit sink list, `_run_plan` switched to it, and the
+- [x] `refine.py`: the explicit sink list, `_run_plan` switched to it, and the
       missing `run_stage` call site added before `_record`. A test per defect,
       because neither is covered today.
 - [x] `watch.py` draws the snapshot in the page: plotly once from the shared
