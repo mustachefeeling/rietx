@@ -1,6 +1,8 @@
 # WP-1413 — the snapshot is what recording costs
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: ✅ 2026-09-15 — decimation 8.8-11.9× faster at
+a bit-identical index set; `cpd-2` and `trigger` under 1.05×, `nac` at 1.23× and
+unreachable without thinning the snapshot, which is the maintainer's call
 Depends on: 1404 (the measurement that names this); 1402 (the code, and its one
 binding constraint)
 
@@ -68,25 +70,116 @@ to provide. If this WP ends up there, it says so in the milestone record and in
   withdrawn. See Context.
 - **No optimisation of the fit itself**, which is WP-1121's and WP-1124's ground.
 
+## Findings
+
+**2026-09-15 — WP-1402's split still holds.** One snapshot build on each bench
+case's last stage, best of five, `[dev]` venv, macOS arm64, Python 3.12.12.
+
+| | `nac` | `cpd-2` | `trigger` |
+|---|---|---|---|
+| points / snapshots / drawn | 22 003 / 6 / 7 385 | 7 251 / 9 / 5 907 | 4 165 / 8 / 4 117 |
+| `build_snapshot` | 9.32 ms | 9.00 ms | 13.71 ms |
+| `decimation_index` | 6.84 | 6.70 | 6.52 |
+| `model.evaluate` | 0.30 | 0.39 | 5.63 |
+| `stage_ticks` | 0.07 | 0.20 | 0.42 |
+| `table.decode` / `model.background` | 0.01 / 0.01 | 0.02 / 0.00 | 0.03 / 0.01 |
+| `json.dumps(payload)` | 4.46 ms (329 kB) | 3.08 ms (241 kB) | 2.31 ms (183 kB) |
+
+WP-1402 measured `decimation_index` at 6.6-7.1 ms and `json.dumps` at 2.4-4.5;
+both reproduce, the two figures outside those ranges being under 2 % out. The
+decimation costs the same on 4 165 points as on 22 003, which is the shape of a
+cost that is 2000 buckets of python rather than anything the data does.
+
+`trigger`'s build is the outlier and it is not the snapshot's doing: its
+`model.evaluate` is 5.63 ms against 0.30 on `nac`, because 1 188 line-reflection
+pairs on 4 165 points is the dispatch-heavy case.
+
+**2026-09-15 — the decimation, before and after.** Best of seven, one process,
+same arrays. The three bench pattern sizes, three curves, budget 4000:
+
+| points | loop | scan | |
+|---|---|---|---|
+| 4 165 | 6.66 ms | 0.558 ms | 11.9× |
+| 7 251 | 6.78 ms | 0.648 ms | 10.5× |
+| 22 003 | 6.93 ms | 0.785 ms | 8.8× |
+
+The cost now moves with the pattern rather than sitting flat, which is the
+signature of the python loop having been the whole of it.
+
+**2026-09-15 — the matrix, before and after on one machine.** Two runs of
+`--cases nac,cpd-2,trigger --configs off,record --repeats 7`, ten minutes apart,
+each internally interleaved. Quoted as median / min of seven, beside the control
+spread that sets the harness's own gate.
+
+| case | before | after | control spread, after |
+|---|---|---|---|
+| `nac` (0.354 s, 6 stages) | 1.300× / 1.286× | **1.233× / 1.200×** | 6.4 % |
+| `cpd-2` (2.43 s, 9 stages) | 1.062× / 1.076× | **1.049× / 1.032×** | 7.3 % |
+| `trigger` (5.90 s, 8 stages) | 1.028× / 1.038× | **1.031× / 1.031×** | 2.3 % |
+
+`cpd-2` crosses the 1.05 line and `trigger` was already under it. `nac` does not
+and cannot; § The gate on `nac` says why. `trigger`'s pair is one measurement
+twice: the change is worth 49 ms on a 5.9 s fit, which is 0.8 points of ratio
+against a 2.3 % spread, so it is correctly invisible.
+
+A third run was discarded rather than quoted. Its control spreads were 46.1,
+17.2 and 32.1 % because the desktop was busy, and the load average reached 10.4.
+An arm measured under that is measuring the box.
+
+### The gate on `nac`
+
+**The 1.05× gate is unreachable on `nac` by arithmetic, and no further
+optimisation of the snapshot reaches it.** The fit is 0.354 s over 6 stages, so
+the whole 5 % budget is 17.7 ms, or 2.95 ms a stage. What a stage now costs,
+best of seven, end to end through `write_snapshot`:
+
+| | `nac` | `cpd-2` | `trigger` |
+|---|---|---|---|
+| `write_snapshot` | 8.30 ms | 6.54 ms | 10.56 ms |
+| — `json.dumps` | 4.56 | 3.12 | 2.35 |
+| — `decimation_index` | 0.80 | 0.66 | 0.56 |
+| — `model.evaluate` | 0.30 | 0.40 | 5.66 |
+| — round + to-list, 4 curves | 0.56 | 0.45 | 0.32 |
+| — `compute_statistics` | 0.18 | 0.08 | 0.06 |
+| — `stage_ticks` | 0.07 | 0.20 | 0.40 |
+| — write + rename | 0.15 | 0.15 | 0.14 |
+| whole-fit share | 6 × 8.30 = 50 ms | 9 × 6.54 = 59 ms | 8 × 10.56 = 84 ms |
+
+`nac`'s snapshot alone is 50 ms against a 17.7 ms budget, so the gate would fail
+on this case with the decimation, the rounding, the statistics and the ticks all
+free. `json.dumps` is now the largest item and it is 4.56 ms of a 2.95 ms
+budget on its own.
+
+Serialising 329 kB is not a cost a faster serialiser removes either, because the
+payload size is the thing: `nac` draws 7 385 points from a 4 000 budget, the
+three curves disagreeing about where their extremes are. Cutting that is cutting
+what the snapshot contains, which this WP's non-goals reserve.
+
+So the remaining lever is the one § The option that is not free already named:
+write the snapshot less often than every stage. That is a product decision about
+what a watcher sees, not an optimisation, and it is left to the maintainer.
+
 ## Tasks
 
-- [ ] Profile one snapshot build on each bench case, and confirm WP-1402's split
+- [x] Profile one snapshot build on each bench case, and confirm WP-1402's split
       still holds on the current tree before optimising anything.
-- [ ] Make `decimation_index` cheap. It buckets 2000 spans in python over an
+- [x] Make `decimation_index` cheap. It buckets 2000 spans in python over an
       already-sorted axis, which is a `searchsorted` shape.
-- [ ] Pin the bit-identity: the new index set equals the old one element for
+- [x] Pin the bit-identity: the new index set equals the old one element for
       element on every bench case and on the acceptance patterns, as an ordinary
       test.
-- [ ] Re-run WP-1404's matrix, interleaved, and report whether `record` now comes
+- [x] Re-run WP-1404's matrix, interleaved, and report whether `record` now comes
       in under 1.05× on all three cases. The harness already has the
       configurations; `--configs off,record --repeats 7` is the selection.
-- [ ] If the gate still fails on `nac`, say so and price the remaining term
+      *Two of three: `cpd-2` and `trigger` pass, `nac` does not.*
+- [x] If the gate still fails on `nac`, say so and price the remaining term
       rather than iterating: a 0.357 s fit has 6 stages, so the whole budget is
-      about 18 ms a stage.
-- [ ] Update `docs/manual/using/refining.md` and the skill's
+      about 18 ms a stage. *§ The gate on `nac`.*
+- [x] Update `docs/manual/using/refining.md` and the skill's
       `references/watching.md` § 9d.7 **only if the measured range moves**. Both
       quote 1.03-1.28× today and WP-1404 confirmed that figure, so a change here
-      is a change there.
+      is a change there. *It moved to 1.03-1.23×; both updated and the two
+      committed skill copies re-synced.*
 
 ## Acceptance
 
@@ -107,6 +200,73 @@ the bit-identity test. A faster build that moved one index is a regression.
   way: blocked repeats measure the machine, not the change.
 
 ## Handover log
+
+- **2026-09-15 (2nd session)** — Recording a fit costs less, and what it still
+  costs is now settled rather than suspected. The per-stage picture was mostly
+  one python loop, which bucketed the pattern two thousand times to decide which
+  points a viewer draws; that loop is gone, replaced by a segmented scan that
+  returns the same points and runs 8.8 to 11.9 times faster. Two of the three
+  benchmark fits now record for under 5 % of their own wall clock, where before
+  only one did. The third cannot, and not because anything is slow: a 0.354 s
+  fit has a 5 % budget of 17.7 ms, and its six snapshots cost 50 ms, still over
+  it with the decimation, the rounding, the statistics and the ticks all free.
+  The only lever left is writing the picture less often than every stage, which
+  changes what a watcher sees, so it is a decision about the feature rather than
+  an optimisation.
+
+  **Done.** All six tasks. `viz.compare.decimation_index` finds each bucket's
+  min and max with `reduceat` over the distinct edges instead of 2000 python
+  slices. The manual and the skill move from 1.03-1.28× to 1.03-1.23×, both
+  committed skill copies re-synced. Root CLAUDE.md gains one clause, that a
+  per-stage charge is judged on the shortest fit.
+
+  **Measured** — `[dev]` venv (numba 0.67.0, no jax, no torch), macOS arm64,
+  Python 3.12.12, rietx 1.4.0, numpy 2.5.3. The decimation alone, best of seven
+  in one process: 6.66→0.558 ms at 4 165 points, 6.78→0.648 at 7 251,
+  6.93→0.785 at 22 003. The matrix twice on one machine ten minutes apart,
+  seven interleaved repeats, median/min: `nac` 1.300/1.286 → 1.233/1.200,
+  `cpd-2` 1.062/1.076 → 1.049/1.032, `trigger` 1.028/1.038 → 1.031/1.031. Rwp
+  bit-identical across every arm and both runs. § Findings holds the per-part
+  breakdown and the third, discarded run.
+
+  **Counts**, same venv and platform. Fast selection: 4854 passed, 132 skipped
+  in 212 s. Full selection on the final tree: 5023 passed, 141 skipped in
+  28:49. The branch is level with `origin/main`, so this tree is the merged
+  tree. The 27 new tests are all passes and add no skip, so passed moved by
+  exactly 27 in both selections and skipped moved in neither.
+
+  **Gotchas.** Ties are the whole difficulty: `argmin` keeps the *first* index
+  attaining an extreme, which a segmented scan reproduces only on purpose, and
+  a real background ties constantly. NaN takes the old loop, because `argmin`
+  returns the first NaN while a running minimum propagates it. The oracle lives
+  in the test rather than in the library, so the loop is still readable beside
+  what replaced it. `trigger`'s ratio did not move and should not have: 49 ms
+  on a 5.9 s fit is 0.8 points against a 2.3 % control spread.
+
+  **The review pass** found two errors, both in this session's prose and
+  neither in the code, and both were applied rather than declined. The root
+  CLAUDE.md clause claimed `nac` spends its whole budget on one snapshot, where
+  one snapshot is 8.30 ms of 17.7 ms; and three condensed copies welded two
+  clauses, since 50 ms is what six snapshots cost with nothing free while the
+  counterfactual figure is 27 ms. The code came back clean under an independent
+  4 000-trial fuzz over sizes, budgets, curve counts and NaN. It also declined
+  to raise two unreachable states, an object-dtype curve and a curve longer than
+  `tt`, neither of which any of the eight call sites can produce.
+
+  The index-set contract was deliberately **not** promoted to the root
+  CLAUDE.md. It is already in the function's docstring, in the test that
+  enforces it by name, and in WP-1402, and the file sits at its 811-line cap.
+
+  **Next**, in order. (1) The maintainer decides whether the snapshot is written
+  every stage or less often; nothing else moves `nac` and the cost of deciding
+  is one sentence in `using/refining.md` about what a watcher sees. (2) If the
+  answer is "every stage", `nac`'s 1.23× is the shipping figure and WP-1404's
+  1.05× gate should be restated as a rule about fit length rather than a target,
+  since no sub-second fit can meet it. (3) `json.dumps` at 4.56 ms a stage is
+  the largest item left, and it is payload size rather than serialiser speed:
+  `nac` draws 7 385 points from a budget of 4 000 because its three curves
+  disagree about where their extremes are. Cutting that is cutting what the
+  snapshot contains, which this WP's non-goals reserve.
 
 - **2026-09-15** — created by WP-1404's session, on the maintainer's decision to
   keep recording on by default and cut the cost instead. WP-1404 named three

@@ -18,6 +18,7 @@ from dataclasses import asdict
 import numpy as np
 import pytest
 
+import rietx as rx
 from rietx import compare_app
 from rietx.schemas.instrument import HUMP_FWHM_MIN
 from rietx.viz import compare as cmp
@@ -310,6 +311,124 @@ def test_decimation_keeps_peak_tops_and_the_endpoints():
 def test_decimation_is_the_identity_below_the_budget():
     tt = np.linspace(0.0, 1.0, 50)
     assert np.array_equal(cmp.decimation_index(tt, [tt], 4000), np.arange(50))
+
+
+def _decimation_by_loop(tt, curves, max_points):
+    """The implementation before WP-1413, kept as the oracle, not as history.
+
+    Three consumers read the index set — the comparison UI, the GUI's window
+    route, and the snapshot — so "faster and nearly the same" is a regression
+    and not a trade-off (WP-1413).  This is the bucket loop verbatim, before
+    that WP vectorised it.
+    """
+    n = len(tt)
+    if n <= max_points:
+        return np.arange(n)
+    n_buckets = max(max_points // 2, 1)
+    edges = np.linspace(0, n, n_buckets + 1, dtype=int)
+    keep = {0, n - 1}
+    for y in curves:
+        for a, b in zip(edges[:-1], edges[1:]):
+            if b > a:
+                keep.add(a + int(np.argmin(y[a:b])))
+                keep.add(a + int(np.argmax(y[a:b])))
+    return np.array(sorted(keep))
+
+
+def _decimation_cases():
+    """(name, tt, curves, max_points) over what a real payload can contain.
+
+    The awkward ones are the point: ``argmin`` keeps the *first* index
+    attaining a tie, which a segmented scan has to reproduce deliberately, and
+    flat counts, staircases and signed zeros are all ties at scale.  NaN is
+    here because ``argmin`` returns its first occurrence while a running
+    ``minimum`` propagates it, so the two disagree unless the NaN path is
+    written for.
+    """
+    rng = np.random.default_rng(1413)
+    cases = []
+    for n in (10, 3999, 4000, 4001, 4165, 7251, 22003):
+        tt = np.linspace(5.0, 120.0, n)
+        cases.append((f"noise n={n}", tt, [rng.normal(size=n)], 4000))
+
+    n = 22003
+    tt = np.linspace(5.0, 120.0, n)
+    flat = np.ones(n)
+    counts = rng.integers(0, 5, size=n).astype(float)
+    stair = np.repeat(np.arange(n // 50 + 1), 50)[:n] * 1.0
+    zeros = np.where(rng.random(n) < 0.5, -0.0, 0.0)
+    y_obs = rng.gamma(2.0, 30.0, size=n)
+    y_calc = y_obs + rng.normal(scale=1.0, size=n)
+    delta = rng.normal(size=n)
+    nan = y_obs.copy()
+    nan[[3, 500, 9000, n - 2]] = np.nan
+    inf = y_obs.copy()
+    inf[[7, 800]] = np.inf
+    inf[[9, 900]] = -np.inf
+
+    cases += [
+        ("every value identical", tt, [flat], 4000),
+        ("integer-valued counts", tt, [counts], 4000),
+        ("integer dtype", tt, [rng.integers(0, 5, size=n)], 4000),
+        ("a staircase", tt, [stair], 4000),
+        ("signed zeros", tt, [zeros], 4000),
+        ("monotone", tt, [np.arange(n) * 1.0], 4000),
+        # the snapshot's own three curves, and the budgets around the edges
+        ("the snapshot's three curves", tt, [y_obs, y_calc, delta], 4000),
+        ("budget of 1", tt, [y_obs, y_calc, delta], 1),
+        ("budget of 3", tt, [y_obs, y_calc, delta], 3),
+        ("budget of 100", tt, [y_obs, y_calc, delta], 100),
+        ("no curves at all", tt, [], 4000),
+        ("a python list", tt, [list(y_obs)], 4000),
+        ("NaN alone", tt, [nan], 4000),
+        ("NaN beside clean curves", tt, [y_obs, nan, delta], 4000),
+        ("every value NaN", tt, [np.full(n, np.nan)], 4000),
+        ("infinities", tt, [inf], 4000),
+    ]
+    return cases
+
+
+@pytest.mark.parametrize("name,tt,curves,max_points", _decimation_cases(),
+                         ids=lambda v: v if isinstance(v, str) else "")
+def test_decimation_is_the_loop_it_replaced(name, tt, curves, max_points):
+    """Element for element, not merely the same length or the same picture.
+
+    WP-1413 replaced 2000 buckets of python with a segmented scan for 8.8-11.9×
+    on the three bench patterns.  A plot that disagreed with the comparison UI
+    about which points it drew would be a picture of a different fit, so the
+    acceptance is equality against the old implementation.
+    """
+    fast = cmp.decimation_index(tt, curves, max_points)
+    slow = _decimation_by_loop(tt, curves, max_points)
+    assert np.array_equal(fast, slow), name
+    assert fast.dtype == slow.dtype
+
+
+@pytest.mark.parametrize("filename", ["11BM_NAC.fxye", "11BM_Si640c.xy",
+                                      "mg090.fxye", "qarr/cpd-2.prn"])
+def test_decimation_is_the_loop_it_replaced_on_real_patterns(filename):
+    """The same equality on measured 2θ grids rather than on ``linspace``.
+
+    Synthetic noise ties almost never; a real counting experiment ties
+    constantly, and a file whose intensities are integers ties in every flat
+    stretch of background.  Those are exactly the buckets where a segmented
+    scan and ``argmin`` can pick different indices.
+    """
+    path = DATA_DIR / filename
+    if not path.exists():
+        pytest.skip(f"{filename} not present")
+    data = rx.read_pattern(path)
+    tt = np.asarray(data.two_theta, dtype=np.float64)
+    y = np.asarray(data.intensity, dtype=np.float64)
+    # a stand-in for the snapshot's three curves: the pattern, something
+    # smooth through it, and the weighted difference the fit minimises
+    smooth = np.convolve(y, np.ones(21) / 21.0, mode="same")
+    delta = (y - smooth) / np.sqrt(np.maximum(y, 1.0))
+
+    for curves in ([y], [y, smooth, delta]):
+        fast = cmp.decimation_index(tt, curves, 4000)
+        slow = _decimation_by_loop(tt, curves, 4000)
+        assert np.array_equal(fast, slow), filename
 
 
 # ----------------------------------------------------------------------
