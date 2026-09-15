@@ -152,6 +152,31 @@ empty state reads as an answer.
   an invalidated pin-and-scan study, and it is the failure mode of
   calibrate-on-a-certified-standard.
 
+- **2026-09-15, from the issue triage (issue #273): the bound test is a
+  function of the stage's `ftol`, and it is not scipy's test at scipy's
+  tolerance.** Measured read-only on `origin/main` `2ba7a9a3` by moving a
+  declared bound to the wrong side of a converged optimum on the FAP and
+  Si SRM 640c fixtures and freeing that parameter for one stage, 24 cases.
+  TRF keeps its iterates interior, so how close a boundary solution lands
+  depends on when it stopped. At the shipped tolerances (1e-9, and 1e-6 for
+  intermediate stages) it lands within 1e-13 of the bound and `BOUND_HIT`
+  fires. At `ftol ≥ 1e-4` it stops 1e-7–1e-6 away, up to 16 380×
+  `BOUND_HIT_RTOL`, with `status="converged"`, ordinary esds, and nothing
+  fires: nine of the 24 cases. Two smaller facts. `bound_findings`'
+  docstring says the test is scipy's own; scipy fills `active_mask` with
+  `find_active_constraints(x, lb, ub, rtol=xtol)` and rietx passes
+  `XTOL = 1e-12` (`optimize/least_squares.py`), so `BOUND_HIT_RTOL = 1e-10`
+  is scipy's rule at 100× its tolerance, and two rows fire with
+  `active_mask = 0`. And a softplus lower bound is −∞ internally, so
+  `BOUND_HIT` never fires from below on a scale or a width (1311's
+  Inherited records that as intended). Two fixes the issue admits: read
+  `active_mask` off the `OptimizeResult` the solve already returns, one
+  source of truth; or scale the test to the stage's `ftol`. Either lands on
+  this WP's seam: fix (1) above re-evaluates the guards on the converged
+  vector and inherits whatever tolerance the test uses, so the tolerance
+  and the vector are one change. #231 is a stale flag; #273 is a missing
+  one.
+
 ## Non-goals
 
 - **Not #166's esd notation** — the maintainer ruled it not worth a figure

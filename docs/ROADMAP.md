@@ -105,13 +105,11 @@ the event stream the WP was written about. Recording stays on by default;
 the track's only open item. The manual's and the skill's 1.03-1.28x both stand
 unchanged, so nothing a user reads is owed a correction.
 
-**Queued, unscheduled** ([§ Unscheduled](#unscheduled)): the 2026-09-01 issue
-triage's 1309–1322 plus 1323 and 1325; the magnetic scattering track
-(1326–1329 and 1343); the older 1133, which now has a rendered view to name.
-The **2026-09-03 triage** adds 1332–1341 — what fires and what stays silent,
-the costs a multi-hundred-pattern campaign pays, views over what a fit already
-knows, and the skill's own gates — and folded three issues into 1118, 1310 and
-1322 rather than opening a WP.
+**Queued, unscheduled** ([§ Unscheduled](#unscheduled)): the 2026-09-01
+triage's 1309–1322 plus 1323 and 1325; the 2026-09-03 triage's 1332–1341; the
+magnetic track (1326–1329, 1343, and 1418 behind them); the older 1133. The
+**2026-09-15 triage** adds 1413–1420, eight WPs for ten issues, and folds the
+other eleven into 1310, 1311, 1312, 1326–1328, 1333, 1338 and 1343.
 
 **Parked, blocking nothing:** the 1.0.0-notes promises (`.rex` zip transport,
 `excluded_regions` honoured by `replay` — 1003 § B); the indexing narrowing and
@@ -450,7 +448,7 @@ Opened by evidence — an issue, an agent round, a measurement — and owned by 
 milestone yet. Grouped by what the evidence says; each WP file carries it in
 full, with the issues it closes. Most of the 13xx rows come from the
 2026-09-01 issue triage (PRs #205, #213) and the day after; 1118, 1119, 1130
-and 1133 are older.
+and 1133 are older; 1413–1420 are the 2026-09-15 triage's.
 
 #### Coming from another code
 
@@ -507,7 +505,11 @@ orbit that was not a multiplicity (1324) is closed; 1320 restates what it
 measured. The 2026-09-03 triage adds three: a 2θ axis read 100× wrong from a
 commented header (1332), a fit that says `converged` while its own diagnostics
 say otherwise (1336), and two paths failing in a raw traceback where the
-package promised an authored refusal (1337).
+package promised an authored refusal (1337). The 2026-09-15 triage adds
+four: a reported Rwp the returned model does not give back (1413), a
+`turn_on` path that reached nothing (1414), a σ column smaller than √y
+feeding two diagnostics that assumed Poisson (1415), and ΔBIC on a raw
+channel count (1417).
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
@@ -522,6 +524,10 @@ package promised an authored refusal (1337).
 | [1337](wp/1337-an-authored-refusal-not-a-traceback.md) | An authored refusal, not a raw traceback | ⬜ | — (1311, 1321 soft) |
 | [1342](wp/1342-a-freeze-that-reads-names.md) | A structural freeze that reads names, and the tie it cannot see | ⬜ | — (1301, 1119 soft) |
 | [1344](wp/1344-a-joint-fit-owes-each-histogram-its-diagnostics.md) | A joint fit owes each histogram the diagnostics its own radiation earns | ⬜ | — (1341 soft) |
+| [1413](wp/1413-the-result-reproduces-its-own-number.md) | The result reproduces its own number | ⬜ | — (1310 soft) |
+| [1414](wp/1414-a-turn-on-that-reached-nothing.md) | A `turn_on` that reached nothing says so | ⬜ | — (1341 soft) |
+| [1415](wp/1415-a-sigma-column-smaller-than-root-y.md) | A σ column smaller than √y | ⬜ | — |
+| [1417](wp/1417-delta-bic-at-powder-channel-counts.md) | ΔBIC at powder channel counts | ⬜ | — (1339 soft) |
 
 #### A long run is not one fit
 
@@ -532,13 +538,16 @@ including a *converged* fit's esd computation (1333); 3.9 % of stages burning
 reduction (1334); and a report path costing 26× the fit it reports on (1335).
 Two are pure cost; 1333 also hides a silent wrong answer, a verification pass
 that died reading as one that passed. Together they decide whether a batch is
-affordable.
+affordable. The 2026-09-15 triage adds 1420: a phase 1301 held cannot get
+back in when its frozen structure is collinear with a supported phase, and
+the chain says nothing (issue #267).
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
 | [1333](wp/1333-a-series-survives-one-pattern.md) | A series survives one pattern, and says which one it lost | ⬜ | — (1317 soft) |
 | [1334](wp/1334-the-stage-that-ran-out-of-budget.md) | The stage that ran out of budget | ⬜ | — |
 | [1335](wp/1335-the-report-costs-more-than-the-fit.md) | The report costs more than the fit | ⬜ | — |
+| [1420](wp/1420-a-held-phase-re-enters-or-says-it-cannot.md) | A held phase re-enters, or the chain says it cannot | ⬜ | — (1333, 1342, 1419 soft) |
 
 #### One file, many patterns
 
@@ -555,10 +564,13 @@ optional-dependency format.
 
 1047's declared follow-up, reopened by an ask for a PANalytical `.raw` that
 does not exist (`.raw` is six unrelated vendors, none of them PANalytical).
+1416 makes the positional `.xy` reader check the shape of what it accepted
+(issue #266).
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
 | [1407](wp/1407-the-format-a-benchtop-still-writes.md) | The format a benchtop still writes: PANalytical `.udf`/`.rd`, and three named refusals | ✅ 2026-09-13 | — |
+| [1416](wp/1416-read-xy-reads-the-files-shape.md) | `read_xy` reads the file's shape | ⬜ | — |
 
 #### Render what the fit already knows
 
@@ -598,6 +610,7 @@ that travels with it (1340); and the report a joint fit has never had (1341).
 | WP | Title | Status | Depends on |
 |---|---|---|---|
 | [1325](wp/1325-parametric-series.md) | Parametric series: a parameter as a function of the series axis | ⬜ | — (1119 soft) |
+| [1419](wp/1419-a-child-structure-refined-on-its-mode-amplitudes.md) | A child structure refined on its mode amplitudes | ⬜ | 1418 (1327 soft) |
 
 #### The magnetic scattering track — out of the v2 fence 2026-09-02
 
@@ -610,7 +623,10 @@ needs no moment (a satellite is a position); 1327 takes the two decisions the
 proposal left open and holds an unsupported moment at zero (1301's rule), on
 GSAS-II tutorial data the package already vendors from. 1343 is 1327's price:
 no magnetic size term, so a broad magnetic peak is fitted by a low moment
-(#277).
+(#277). The operator layer landed from outside 2026-09-10 (PR #290,
+`crystallography.magnetic`, spglib's 1651 groups). 1418 is the
+determination track issue #256 proposes behind 1327; the decision it
+carries is whether 1327's non-goal becomes a sequencing statement.
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
@@ -619,6 +635,7 @@ no magnetic size term, so a broad magnetic peak is fitted by a low moment
 | [1328](wp/1328-magnetic-interchange.md) | Magnetic interchange: magCIF in and out, and the readers stop refusing | ⬜ | 1327 (1118 soft) |
 | [1329](wp/1329-moment-in-a-series.md) | The moment in a series: the onset, the hold, the trajectory | ⬜ | 1327 (1326 soft) |
 | [1343](wp/1343-the-moment-pays-for-the-width.md) | The magnetic peaks are broader, and the moment pays for it | ⬜ | 1327 (1326 soft) |
+| [1418](wp/1418-the-magnetic-structure-is-determined.md) | The magnetic structure is determined, not only stated | ⬜ | 1327 (1326 soft) |
 
 #### A window into a run — the live-watcher track
 
@@ -659,7 +676,8 @@ scope creep. Each item names what fenced it.
   difference Fourier / maximum-entropy maps (McCusker §6; the partition input
   exists in `lebail_update`, the consumer is structure completion; #197);
   internal-standard and amorphous QPA; **modulated structures** (superspace —
-  1314 reads Jana's files without them); **stacking faults** (DIFFaX-style
+  1314 reads Jana's files without them; issue #258 holds the shared design
+  for the nuclear and magnetic cases); **stacking faults** (DIFFaX-style
   recursion). Both were named 2026-09-01 as gaps a neutron-capable Rietveld
   code is asked for; no issue yet. **Magnetic structures left this fence
   2026-09-02** for § Unscheduled's track (1326–1329); the incommensurate

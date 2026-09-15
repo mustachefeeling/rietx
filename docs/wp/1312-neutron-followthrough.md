@@ -83,6 +83,53 @@ exercising this combination.
   `max_shift_over_esd`), which is
   [1341](1341-a-joint-fit-has-no-report.md), not this WP.
 
+- **2026-09-15, from the issue triage (issues #271, #268, #276): three
+  neutron rows for the follow-through.**
+
+  **#271 — `read_recipe` refuses `PNC` with a clause that is true only of
+  TOF.** `io/recipe.py` (WP-1306) reads a PowderLine recipe whose instrument
+  block is GSAS-II's, and refuses any `Type` other than `PXC`, saying `'PNC' neutron and every time-of-flight type put a different
+  quantity on the x axis than PatternData holds`. False for `PNC`: a
+  constant-wavelength neutron histogram's axis is 2θ in degrees, and the
+  package has refined that radiation since WP-1134. `PNC` differs from `PXC`
+  only in the source arm (`NeutronSource`, polarisation pinned at 1, no
+  emission lines), and `Lam` from `Iparm1` is the neutron λ. Ask: a `PNC`
+  recipe builds a `constant_wavelength_neutron` instrument and refines; the
+  TOF types keep their refusal with a message naming only them. This is
+  task 3's "admissible" contradicted at the recipe door, so it is this WP's
+  row. The recipe reader is a build-wide feature and not a `PROJECT_FORMATS`
+  row (`io/projects/registry.py`'s docstring), so nothing in 1118's registry
+  moves with it.
+
+  **#268 — `docs/manual/intensities.md` contradicts itself on b.** Line 73:
+  "b is real for every nuclide this table covers". Line 94, same section:
+  for the resonant absorbers "b is complex". Sears gives ¹⁵⁷Gd as
+  b = −1.14 − 71.9i fm and `b_Sears.dat` stores the real part only, which is
+  the fact the first sentence reaches for. One clause fixes it: every value
+  the table *stores* is real; for the resonant absorbers b is complex and
+  the table carries its real part, which `NEUTRON_RESONANT_ABSORBER` names
+  since PR #282. Task 2's manual half. The reporter's audit of 30 stated
+  values across the tree against Sears 1992 (via gemmi's `neutron92`) found
+  only the Nd/Ru transposition of #254; this prose claim was the only other
+  thing.
+
+  **#276 — `constant_wavelength_neutron(fwhm_deg > 1.0)` raises on its own
+  bound, and the 2026-09-11 ruling above already answers it.** Before PR
+  #280 the seed `x = fwhm` tripped `profile.x`'s `max = 1.0`; after it,
+  `w = fwhm²` trips `w`'s at the same threshold. The ruling stands: the
+  bound stays, the constructor refuses by name with the per-`Parameter`
+  escape. What #276 adds is the measured case the refusal must be shown to
+  cover. The public APDW Co₃O₄ set (ILL D1B, λ = 2.52 Å) has a strongest
+  line of 1.10° FWHM, Caglioti 2.26° at 124° 2θ, and its FullProf `.pcr`
+  carries U = 1.576, V = −0.501, W = 0.475, outside `ProfileTCHZ.u`'s
+  default `max = 1.0` too. With every width bound widened by hand (u ∈
+  [−0.5, 8], v ∈ [−4, 4], w/x/y ≤ 8) it converges to U = 1.654 ± 0.051 at
+  Rwp 0.0074. So the refusal's escape has to build *that* instrument (five
+  bounds, not one), the neutron chapter states it, and a bare
+  `ProfileTCHZ(u=1.576)` refusing is the ruling's cost, said out loud. Use
+  the D1B numbers as the refusal test's fixture (its licence per
+  `tests/data/README.md`); 1415 uses the same file.
+
 ## Non-goals
 
 - **Not the neutron µR estimator** —
