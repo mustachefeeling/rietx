@@ -93,7 +93,62 @@ cancel file in `runs.py`, no poll in `RunRecorder`, and `fit` creates no token o
 its own. The sentence describes WP-1405's feature, and WP-1405 has not started.
 Writing it now would put a confident falsehood in the one document every agent
 reads whole, which is the failure the skill's measurement tags exist to prevent.
-It moves to WP-1405, whose `### The material the chapters are written from
+It moves to WP-1405, whose `### Inherited` carries it with the cut still owed.
+
+What this WP writes into the body is therefore **one line rather than one
+sentence**: the routing row below. Per WP-1330 a row is **paid for by a named
+cut** just as a body addition is, and the cap moves only in a commit that says
+so — so name the cut in the commit message, not in a comment.
+
+Everything else is a reference behind one routing row, keyed by the situation
+rather than the feature: *a human is watching this session, or you need to hand
+one a window onto a long run*. It covers how to point a human at the watcher,
+what a run directory holds, and how to read a run back afterwards. Every row
+carries its `(Measured: …)` or `(Hypothesis: …)` tag, and the file opens with the
+header `tests/test_skill.py` pins. A routing row is likewise paid for by a cut.
+
+Then `rietx skill --install . --copy` re-syncs the two committed copies, or they
+drift.
+
+*Done 2026-09-15.* `references/watching.md` is §9d, eight rows, routed on "a
+human may be watching this fit". The cut that paid for the row was §6 item 23,
+duplicated whole in `references/abstention.md` rows 22-23. Body 466 → 462 lines,
+31570 → 31489 B; neither cap moved.
+
+### What deliberately does not happen
+
+- **No `capabilities()` surface flag.** "Can this build record runs?" always
+  answers yes — there is no optional dependency behind it — so a flag would be a
+  literal `True` in disguise, which `_features()` forbids by construction, and
+  `_SURFACE_FLAGS` exists because a derived flag rots silently
+  (`features["indexing"]` was `False` for its whole life). Write the refusal
+  down; adding one is the reflex.
+- **No seventh versioned contract.** The run layout is a second process's
+  contract, which argues for an arm; nothing negotiates over it and WP-1006's
+  own precedent is that a contract nothing has exercised is an untested guess,
+  which argues against. Defer until the layout has survived a release, and say so
+  here rather than leaving it unasked.
+
+*Both recorded 2026-09-15*, in `runs.py`'s module docstring where a later
+session meets them, and the second one in `using/compatibility.md` where a
+reader does.
+
+### Two WPs to close out
+
+- **WP-1322's Task 2** — the `history` defaults asymmetry decision — is
+  discharged by WP-1403, which removed its premise. Record that in 1322, dated,
+  and leave its Task 1 (the terminal-shaped post-hoc aggregator over an event
+  log) untouched: it is a different surface for a different moment, and it is a
+  contributor's offered PR.
+- **WP-1133** (a diagnostic names the rendered view that shows it) now has a
+  rendered view to name. Note it in that WP's `### Inherited` rather than
+  claiming it here.
+
+*Both done 2026-09-15*, and WP-1405 got a third mailbox entry it was not
+scheduled for: the body sentence, the cut it owes, and the two manual items that
+describe features it has yet to build.
+
+### The material the chapters are written from
 
 Folded out of `### Inherited` on 2026-09-15, from WP-1401, WP-1402 and
 WP-1403. Each fact below was checked against the tree on the way in; the
