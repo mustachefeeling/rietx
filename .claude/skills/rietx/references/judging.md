@@ -175,6 +175,17 @@ for the pattern, so every line is indexed and phase identification is safe
 **at any absolute Rwp** — the structural model does not have to fit well for
 the phase list to be right.
 
+`unmatched_calc` asks the same question from the other side and only answers it
+in Rietveld mode. Le Bail and Pawley extraction takes each intensity from
+`max(y_obs − y_bkg, 0)`, so a reflection with nothing under it is assigned
+nothing and leaves no negative residual to detect. What the detector returns
+there is a noise excursion that happens to sit near a tick. Measured on a
+synthetic LaB₆ pattern (WP-1024): 17 of the certified cell's own 28 reflections
+and 94 of a doubled cell's 153, 61 % either way, so it does not separate them at
+all. The count that does is `LeBailValidation.predicted_but_absent`, which
+integrates net intensity above the fitted background over each predicted
+position.
+
 ## §4b — the QPA background measurement in full
 
 Fractions ride on scales, so the rows that decide a QPA are the ones that bias
