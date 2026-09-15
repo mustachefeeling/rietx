@@ -165,7 +165,15 @@ SIZE_CAPS: dict[str, int | None] = {
     # that could be demoted to a WP file: both govern work outside the WP that
     # measured them, which is protocol rule 4's test. Raised rather than shaved,
     # per the failure message's own instruction not to delete facts to fit.
-    "CLAUDE.md": 755,
+    # 755 -> 766 (WP-1402): two standing rules for the live view — that it is
+    # numbers a viewer draws rather than a page the fit builds, and that a page
+    # quoted inside python is syntax-checked with `node --check`. Both govern
+    # work outside the WP that measured them: the first any future writer of a
+    # live view, the second `compare_app.py` as much as `watch.py`, where a
+    # stray escape cost a whole page load with every python test green. Raised
+    # rather than shaved, per the failure message's own instruction. Landed at
+    # 765; the +1 is headroom, per this file's docstring.
+    "CLAUDE.md": 766,
     # 672 -> 676 (WP-1102): the Current focus rewrite at 1102's close names the
     # milestone's one break and what makes 1103 the seam's proving case.
     # 676 -> 682 (WP-1407): a new Unscheduled group, "The formats a lab still

@@ -1,15 +1,21 @@
 # WP-1402 — the live picture costs megabytes a stage, and the fit pays it
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: ✅ 2026-09-15 — the live picture is numbers; 180-329 kB a stage against 4.51-6.03 MB, and the fit's share 1.03-1.28x against 1.04-1.49x
 Depends on: 1401 (the reader that displays what this writes)
 
 ## Goal
 
-A stage's live picture becomes about 100 kB of numbers instead of a
+A stage's live picture becomes a small JSON payload instead of a
 multi-megabyte self-contained web page, the viewer loads plotly once and redraws
 in place, and recording a live view stops needing plotly at all. That is what
 makes WP-1403's automatic recording affordable, and it is worth doing even if
 1403 never ships.
+
+**Measured 2026-09-15, and the "about 100 kB" above was a guess that came in
+low**: 180-329 kB across `nac`, `cpd-2` and `trigger`, against 4.51-6.03 MB for
+the page, so 14-33x rather than the ~40x the guess implied. The rest of the
+result is in the handover, including the part that did not land: a fit under
+`LiveSession` still costs 1.03-1.28x, not 1.00x.
 
 ## Context
 
@@ -193,14 +199,14 @@ a stage where a reloaded iframe cannot.
       `test_live_session_and_watch_server` to assert `snapshot.json`, and
       add the second test — a pre-existing `fit.html` is still served — without
       which the back-compat claim is prose.
-- [ ] Report the measured size of one stage's snapshot on each of `nac`,
+- [x] Report the measured size of one stage's snapshot on each of `nac`,
       `cpd-2` and `trigger`, as a range. "How big does this get" is the first
       question a reader asks and it must not be answered with an invented
       number.
-- [ ] Tests + obs/calc/diff PNGs to `tests/output/`, looked at: the snapshot's
+- [x] Tests + obs/calc/diff PNGs to `tests/output/`, looked at: the snapshot's
       curves must be the fit's curves, and a decimated plot that has dropped a
       peak top is visible long before it is assertable.
-- [ ] Skill: **none**. WP-1406 carries the track's skill change.
+- [x] Skill: **none**. WP-1406 carries the track's skill change.
 
 ## Acceptance
 
@@ -227,6 +233,91 @@ Snapshot sizes reported in the handover as a range with venv and platform named.
   therefore what this WP is and is not consolidating.
 
 ## Handover log
+
+### 2026-09-15 — the picture stops being a web page
+
+Watching a refinement no longer costs the fit a multi-megabyte web page every
+stage. `rietx watch` draws the plot itself and redraws it where it stands, so
+for the first time you can zoom into a region and watch that region improve
+rather than having the view thrown away at each stage. Recording a run needs no
+plotting library at all, which is the thing WP-1403's automatic recording was
+waiting for. The saving is real and smaller than this WP guessed: the file is
+14-33x smaller, not the ~40x "about 100 kB" implied, and the fit still pays
+1.03-1.28x rather than the 1.00x the framing invited — because half of what
+remains is a python bucket loop this WP deliberately left alone.
+
+*Done.* All nine tasks, seven commits. `viz/plotlyjs.py` is one `plotly_js()`
+with the fallback passed in by each caller, the two prior copies having already
+disagreed about it. `viz/snapshot.py` builds a stage's payload and every field
+names its writer; `CompiledModel.sigma_measured` is the one new field, carrying
+the σ-measured fact beside the σ it describes because that fact did not survive
+`compile_model` and `weighted` needs it. `LiveSession` is a shim over it and
+imports no plotting library, pinned by a test that puts `None` into
+`sys.modules["plotly"]` and records a run. `refine.py` builds the sink list
+once and explicitly, and `run_stage` gained the call site it never had — before
+`_record`, so a watcher is never shown a state the history log has not claimed.
+`watch.py` loads plotly once and calls `Plotly.react` under one `uirevision` per
+run, with every mark quoted from `viz/html.py` and every colour from
+`viz/plots.PALETTES`.
+
+*Measured.* `[dev]` venv (numba 0.67.0, no jax, no torch), macOS arm64
+(Darwin 25.5.0), python 3.12.12, rietx 1.4.0, on `examples/bench_refinement.py`'s
+own cases, machine checked idle and measured alone. Three repeats on `nac` and
+`cpd-2`, two on `trigger`.
+
+| case | snapshot | was `fit.html` | off | `events=<path>` | `LiveSession` |
+|---|---|---|---|---|---|
+| `nac` | 328-329 kB | 6.03 MB | 0.35 s | 1.01-1.03x | **1.28x** (1401: 1.47-1.49x) |
+| `cpd-2` | 233-241 kB | 4.74 MB | 2.33-2.37 s | 1.01-1.02x | **1.06x** (1.10x) |
+| `trigger` | 180-183 kB | 4.51 MB | 5.76-5.77 s | 1.01x | **1.03x** (1.04-1.05x) |
+
+Rwp was bit-identical across all three configurations on every case, so none of
+this buys anything by changing the answer. Drawn points 4093-7385 of
+4165-22003: `max_points` is a *bucket* budget, 2000 buckets each keeping min and
+max of three curves, so the drawn count exceeds it whenever the curves disagree
+about where their extremes sit. Rounding to six significant figures is 40-45 %
+of the payload (556-557 kB unrounded on `nac`).
+
+Where a stage's build goes, best of five per part: `decimation_index` 6.6-7.1 ms,
+`json.dumps` 2.4-4.5, `model.evaluate` 0.3-5.7, everything else under 1.
+`_json_list` was 5-9 ms of an 18 ms build until it stopped walking every point in
+python; the build is now 9.3-14.2 ms. **The decimation is the whole of what is
+left**, and it is the same 6.6-7.1 ms on all three cases because it is 2000
+buckets of python regardless of pattern length.
+
+Fast selection **4751 passed, 132 skipped, 2:14**, same venv and platform, run
+alone. This branch adds 21 test functions and retires 2 (both renamed into the
+21), so +20 collected, no new skip. `origin/main` had not moved since the branch
+was cut. The full suite was not run and is not owed: nothing here touches the
+forward model, the solver or any physics, so no measured number can move.
+
+*Gotchas.*
+
+- **A `ParameterTable` is not a stage's.** One table is reused and re-freed down
+  the plan, so holding a stage's `(model, table, outcome)` for a later
+  `build_snapshot` decodes θ against a table of the wrong width and raises. A
+  real sink writes inside the call and never meets this; a test or a harness
+  that defers must copy the table (0.2 ms).
+- **`progress=` was not the second defect it looked like.** `_attach_progress`
+  mutates the stream in place and returns the same object, so the old
+  `hasattr(stream, ...)` still found it. The waiting defect is WP-1403's
+  recorder, which is a *different* object, and nothing today can build that
+  case — so it is pinned by the sink-set declaration test rather than by a fit.
+- **The watcher's page is javascript quoted inside python, and python cannot see
+  a syntax error in it.** A stray escape cost the whole page mid-session: the
+  script threw on load, the run list sat at "scanning" forever, and all 25 tests
+  in `test_watch_app.py` still passed, because every one of them asserts a
+  substring of a page nobody executed. `node --check` over the extracted script
+  now covers both that page and `compare_app.py`'s.
+
+*Next.* Three, in order. **WP-1403** is now unblocked and is the point of the
+track: recording every fit costs 1.03-1.28x and 180-329 kB a stage, which is
+affordable, and it needs no plotly. **WP-1404** should start from the
+decimation number above rather than re-deriving it — 6.6-7.1 ms a stage is
+50-75 % of a snapshot, and vectorising `decimation_index` has to return a
+bit-identical index set because the GUI and the comparison UI read it too.
+**WP-1406** carries the whole break notice; `using/cli.md` has had one sentence
+corrected in place ("reloads" stopped being true) and nothing else.
 
 - **2026-09-13** — created. Split from WP-1401 so that the `fit.html` break, the
   largest public change in this track, lands in a commit of its own rather than

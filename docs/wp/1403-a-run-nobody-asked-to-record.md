@@ -222,6 +222,34 @@ safe.
 
 ### Inherited
 
+From **WP-1402** (2026-09-15), which is why this one is no longer blocked:
+
+- **A stage's picture costs 180-329 kB and 9.3-14.2 ms**, so recording every
+  fit is affordable and needs no plotly: `viz/snapshot.py` imports none, and
+  `LiveSession` is now a shim over it. `[dev]` venv, macOS arm64, on
+  `examples/bench_refinement.py`'s `nac` / `cpd-2` / `trigger`.
+- **The whole cost of `events=LiveSession(dir)` is now 1.03-1.28x a bare fit**
+  (was 1.04-1.49x at 1401's baseline), against 1.01-1.03x for `events=<path>`.
+  What a recorder adds on top of the stream is therefore the snapshot, and that
+  is the number above.
+- **The sink list is already declared for you.** `refine._snapshot_sinks(stream,
+  events)` is built once in `fit` and in `run_stage` and handed down, deduped by
+  identity. A recorder that is a *different* object from the caller's stream —
+  which is what chaining onto `EventStream.callback` makes it — is a third
+  candidate passed to that call, not a fourth `hasattr` test at a call site. The
+  old code would have found nothing at all in that case, and
+  `test_the_sink_set_is_declared_and_deduped` is the pin.
+- **`run_stage` writes a snapshot too, before `_record`.** It did not before, so
+  anything this WP builds on top of one-stage-at-a-time driving now has a
+  picture where it previously had only events.
+- **`status.json` is written from the snapshot payload**, not recomputed, so the
+  `state`/`pid`/`host`/`heartbeat` fields this WP adds join a dict that already
+  agrees with the plot. `runs.RunStatus` documents which five fields exist today.
+- **Copy the table if you hold a stage.** One `ParameterTable` is reused and
+  re-freed down a plan, so a deferred `build_snapshot` on an early stage decodes
+  against the wrong width and raises. A sink writing inside the call never meets
+  this.
+
 From **WP-1401** (2026-09-14), which landed the reader and the baseline this WP
 was gated on:
 
