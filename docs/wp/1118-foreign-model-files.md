@@ -4,9 +4,9 @@ Milestone: unscheduled · Status: 🔄 2026-09-15 — the TOPAS `.inp` reader
 (PR #98), the FullProf `.pcr` reader (PR #111), the GSAS-I `.PRM`
 instrument-parameter reader (PR #248), the model-format registry over them and
 the GSAS `.EXP` reader (#103), whose acceptance rewire showed the FAP suite
-refines 20 parameters where GSAS refined 28; `read_gsas_prm`'s fixed-format
-records are being read by column, claimed by @yue-here; the `.gpx` reader and
-every writer remain
+refines 20 parameters where GSAS refined 28; `read_gsas_prm` now reads its
+fixed-format records by column and a Kα doublet with them (PR #332); the
+`.gpx` reader and every writer remain
 Depends on: — (WP-1110 found it; WP-1102 owns the one seam that overlaps)
 
 ## Goal
@@ -363,7 +363,110 @@ work this WP does.
 
 ## Handover log
 
-### 2026-09-15 — the GSAS `.EXP` reader, and the protocol it turned out nobody had
+### 2026-09-15 (2nd session) — `read_gsas_prm` by column, and the refusal whose reason had expired (reconstructed post hoc)
+
+A lab `.prm` written for a copper tube states two wavelengths. rietx refused
+every such file, and the reason it printed was that no file said how to weight
+the second line against the first. The file did say. The reader could not find
+the number because it read the record by splitting on spaces, and under that
+reading the intensity ratio lands where the polarization is. Located by column
+it is exactly the second emission line's weight, so a doublet now opens and
+comes back with both lines.
+
+Behind that sits the part worth carrying. A `.prm`'s `INS` records and a
+`.EXP`'s `HST` records are the same GSAS records under different four-character
+keys, and this package was parsing three of them two ways. The corpus hid it.
+Every 11-BM file here leaves `IREF` and `IDAMP` blank, so six tokens happened to
+land on the right meanings and the reader looked correct, while the one file
+that writes `IDAMP` was refused for having seven. The grammar now has one home
+and both readers call it.
+
+*Reconstructed post hoc*, from `git log --stat` over the branch's four commits,
+their bodies, and the state of the checklist. The session left no entry of its
+own. Where the diff does not say why something was done, this entry says so
+instead of supplying a reason.
+
+*Done* — four commits on `wp1118-gsas-prm-columns`, merged as PR #332
+(`3e759b54`).
+
+- **The grammar** (`c4b20256`). `io/projects/gsas.py` grew
+  `GsasIcons`/`read_icons`, `GsasPrcfHeader`/`read_prcf_header` and
+  `split_records`, all public and all called by `instrument_profile.py`'s
+  `.prm` reader a package away. The coefficient names come from
+  `CW_PROFILE_COEFFICIENTS`, the table the `.EXP` reader was already using.
+- **The docs** (`e2d2d6d2`). The reader's own docstring described six `ICONS`
+  fields read by position and a doublet refused for want of a convention, and
+  both had gone false. `docs/manual/using/files.md` gains the doublet and loses
+  a sentence saying a GSAS `.EXP` has no reader, which the 1st session had
+  already made untrue. The skill's `GSAS_PRM_FIELD_DROPPED` row names the
+  fields the column layout identifies, and `references/api.md` now tells an
+  agent not to add a Kα2 line after reading one. The addition is staged in the
+  v1.4 record. Post-ship work goes there while no milestone is open.
+- **The review pass** (`2a96b536`), over three blank fields the column read made
+  reachable. A six-token split refused a record missing any field, so no field's
+  absence had had an answer of its own. A blank `POLA` was the one that
+  mattered. `Instrument.debye_scherrer` defaults to 0.99 and the corpus states
+  0.99, so falling back on the default would have put this package's number into
+  an instrument a caller reads as the file's. It is refused by name. A blank
+  `PRCF1` profile type reached the unrecognised-type refusal and printed `None`,
+  and it now says the header states no type. Two diagnostic rows asserted `= 0`
+  for fields they had not read, which is the defaulted-field lie one message
+  over.
+- **The claim** (`46611638`) carried the FAP-freedom decision the 1st session had
+  left to the maintainer. The suite keeps its 20 free parameters and keeps
+  asserting the difference against GSAS's 28.
+
+*Measured* — the same worktree and `.venv` as the 1st session, `[dev]` only
+(no jax, no torch), python 3.12.12, darwin/arm64.
+
+- The four real calibration files here read **bit-identically**: `11bm_gsas.prm`,
+  `11bm_lab6_gsas.prm`, `11BM_LaB6_cBN_mg2044.prm` and `mg090.prm`, measured
+  against `origin/main`'s module over the whole `model_dump`.
+- `INST_XRY.PRM` is refused for its `GP` of 0.1, a stock GSAS placeholder, where
+  before it was refused for a token count.
+- `tests/test_gsas_prm.py` went 29 → 38 test functions, 12 added and 3 removed.
+  The three that went asserted the split reading: the token-count refusal, the
+  doublet refusal and the reserved-field refusal.
+- `src/rietx/io/CLAUDE.md`'s cap went 368 → 383, and the file landed at 381.
+- **No selection count, in either direction.** The session recorded none, and
+  this repair could not supply one: another session held the machine
+  mid-`--dist loadgroup` while the repair ran, and a count taken beside another
+  run is not a count (`tests/CLAUDE.md` § Running). CI was green on the merge.
+  That gate is ruff plus the fast suite across the supported pythons.
+
+*Gotchas*
+
+- **The `PRCF` continuation records stay a token read**, deliberately. GSAS
+  prints coefficient labels inside the 15-column fields on some files, so
+  `11BM_LaB6_cBN_mg2044.prm` is 61 characters where `4E15.6` is 60, and its
+  second field reads `     GV -0.1260` by column. Sharpening the rest of the
+  reader does not licence sharpening this.
+- `tests/data/README.md` had `INST_XRY.PRM`'s `POLA` as 0.5. It is 0.7, and the
+  0.5 beside it is `KRATIO`. That pair is the whole reason the file is worth
+  keeping, since `FAP.EXP` states only `POLA` and the two are conventionally
+  equal.
+- The two rules this session put in `io/CLAUDE.md` are aimed at the next project
+  reader. Staying outside the registry is about dispatch and never about
+  parsing, so one vendor's several file kinds read a record through one
+  function. And a refusal's reason can expire, so a parser getting sharper is a
+  reason to audit its refusals too.
+
+*Next*, in order, with what decides between them.
+
+1. **The GSAS-II `.gpx` reader behind the restricted unpickler.** It is the last
+   reader, and the writers task cannot be scoped until every reader's model
+   exists. Its own first step is widening the corpus. That is measurement, and
+   it can start before any unpickler is written.
+2. **Origin-choice honesty** (#101), the cheap one. `normalize_space_group` is
+   already drafted in the #98 branch and the task closes an issue.
+3. The writers (#148), then the `#prm` integer evaluator for `.inp` `#if`
+   guards.
+
+`SKILL.md`'s routing row on line 41 is still owed from the 1st session. It names
+only a PowderLine recipe, so it is narrow. Measured 2026-09-13, there were
+1 597 B free under the 33 000 B cap.
+
+### 2026-09-15 (1st session) — the GSAS `.EXP` reader, and the protocol it turned out nobody had
 
 Someone handed GSAS's own converged refinement can now open it with one call and
 get back the model *and the refine flags* — which parameters that refinement was
