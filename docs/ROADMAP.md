@@ -96,15 +96,14 @@ the same scans would make Stoe writable.
 
 **In flight:** [1118](wp/1118-foreign-model-files.md) landed the GSAS `.EXP`
 reader 2026-09-15 (#103), which showed the FAP acceptance frees 20 parameters
-where GSAS freed 28. `STR(...)` (#107) still stands. The **live-watcher track is closed on the code and owes one
-decision**: [1413](wp/1413-the-snapshot-is-what-recording-costs.md) shipped
-2026-09-15, cutting the decimation 8.8-11.9x at a bit-identical index set and
-taking recording to 1.03-1.23x, which the manual and the skill now quote.
-`cpd-2` and `trigger` clear WP-1404's 1.05x gate and `nac` cannot: a 0.354 s fit
-has a 17.7 ms budget and its six snapshots cost 50 ms, still over it with
-everything but the serialising free. **The one open question is for the
-maintainer** — write the snapshot every stage, or less often and let a watcher
-redraw less often.
+where GSAS freed 28. `STR(...)` (#107) still stands. The **live-watcher track
+is closed on the code and owes one decision**: 1413 took recording to
+1.03-1.23x (`nac` still over WP-1404's 1.05x gate, its six snapshots costing
+50 ms of a 17.7 ms budget), and
+[1423](wp/1423-a-page-that-holds-still.md) reworked the page 2026-09-16 after
+the live demo, so it holds still and shows the list and the run together.
+**The one open question is for the maintainer** — write the snapshot every
+stage, or less often and let a watcher redraw less often.
 
 **Queued, unscheduled** ([§ Unscheduled](#unscheduled)): the 2026-09-01
 triage's 1309–1322 plus 1323 and 1325; the 2026-09-03 triage's 1332–1341; the
@@ -660,7 +659,7 @@ first over directories today's code already writes, so a window arrives first.
 | [1405](wp/1405-the-human-stops-the-run.md) | The human stops the run | ✅ 2026-09-15 | 1403 (1401 soft) |
 | [1406](wp/1406-say-that-the-fit-writes-to-disk.md) | Say that the fit writes to disk | ✅ 2026-09-15 | 1403, 1405 (1402 soft) |
 | [1413](wp/1413-the-snapshot-is-what-recording-costs.md) | The snapshot is what recording costs | ✅ 2026-09-15 | 1404, 1402 |
-| [1423](wp/1423-a-page-that-holds-still.md) | A page that holds still | 🔄 2026-09-15 | 1405, 1402 |
+| [1423](wp/1423-a-page-that-holds-still.md) | A page that holds still | ✅ 2026-09-16 | 1405, 1402 |
 
 ### v2+ — fenced
 

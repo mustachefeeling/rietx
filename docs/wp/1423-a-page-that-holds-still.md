@@ -1,6 +1,6 @@
 # WP-1423 — a page that holds still
 
-Milestone: unscheduled · Status: 🔄 2026-09-15 — claimed by @yue-here
+Milestone: unscheduled · Status: ✅ 2026-09-16 — the page is two panels and holds still: one state for every geometry over a live series job, the Δ/σ axis on rungs, and the status file says which pattern a series is on
 Depends on: 1405 (the page this reworks), 1402 (the snapshot it draws)
 
 ## Goal
@@ -116,10 +116,6 @@ otherwise, and the probe script's numbers are the acceptance. playwright is
 not a dependency (`docs/manual/make_screenshots.py` says why) and CI will
 skip the test; the handover names that skip.
 
-### Inherited
-
-—
-
 ## Non-goals
 
 - The GUI's own live panel (`gui/`), which draws from an in-process ring.
@@ -155,6 +151,72 @@ list is not rebuilt.
 - WP-1401, 1402, 1405: the page's three prior sessions.
 
 ## Handover log
+
+### 2026-09-16 — the page holds still
+
+A person can now leave `rietx watch` open beside an agent's job and read it.
+The run list and the selected run sit side by side, either can be collapsed,
+and with no run chosen the page follows the newest one. Nothing on the page
+moves between polls any more: the table keeps its columns and its scroll, the
+status line keeps its slots, and the plot keeps its axes while the fit moves
+through its stages. The one axis that still changes is the residual's, and it
+steps between fixed rungs rather than rescaling on every stage. A series run
+now says which pattern it is on.
+
+*Done.* Five commits. The recorder projects the series stamp into
+`status.json` (four optional fields, writer named in the field comments). The
+page template is rewritten around two rules, patch-never-rewrite and
+no-dimension-from-the-stage: rows keyed by run id, a grid strip of declared
+slots, one stop button, `table-layout: fixed`, a one-line bar, explicit x and
+intensity ranges from the snapshot's data arrays, the Δ/σ range on
+`LADDER`, tick rows on `yaxis3`, `Plotly.purge` before a plot div is dropped,
+`Plots.resize` on a panel toggle, panel state in `localStorage`. The page
+reads the selected run off the list payload, so a poll is one `api/runs`
+fetch plus the snapshot when its mtime moved plus the events tail, where it
+was three fetches before. `tests/test_watch_browser.py` drives the page in
+chromium (four tests), the manual's `rietx watch` section and the v1.4 record
+describe the change.
+
+*Measured.* Before and after over the same job (the eight CPD mixtures
+chained both ways, a run every 18 s), chromium 1223 at 1400×900, macOS arm64,
+worktree `[dev]` venv plus playwright. Before, 25 s: 21 table rebuilds, 4
+column-width sets, the bar at 29 and 51 px, 28 crumb rewrites, x range 8
+distinct, intensity 7, Δ/σ 8. After, 30 s in follow mode: bar, strip, every
+slot, columns, plot box, plot inner size and legend each **one** state; x
+range one; intensity range one per pattern (8, the series); Δ/σ three rungs;
+the run list mutated once (a new run) and the picture once (the follow moved).
+The job's cycle time rose from 17.6-18.0 s to 62.6 s while the probe sampled
+the page four times a second beside it, which is chromium and the walk on the
+same cores and says nothing about the page.
+
+Fast selection on this branch: **4942 passed, 132 skipped, 3:05**, macOS
+arm64, `[dev]` plus playwright, with the demo job still running beside it.
+The last green CI on main reads 4933 passed, 145 skipped (Linux, `[dev]`), and
+the two are not comparable (the darwin-pinned goldens alone move 13 between
+them), so the delta is stated from the files: +5 tests, one in
+`test_telemetry.py` and four in `test_watch_browser.py`. The four **skip**
+anywhere without the python `playwright` package and a cached chromium, CI
+included, and pass here. The full suite was not run and is not owed: nothing
+here touches a forward model, a solver or a physics number.
+
+*Review.* `/code-review high --fix` was not available to this session as a
+skill (see the PR body for what a reader should look at); the diff was
+re-read once by hand before the PR was marked ready, which found the
+`s-where` slot going stale on a run without a picture and moved its write
+into the shell builder.
+
+*Gotchas.* Node 26's ESM resolver ignores `NODE_PATH`, so a `.mjs` driver has
+to sit beside the `node_modules` it imports from. The demo job launched
+before the recorder change kept writing status files without the series
+fields, which read as the strip's slot being broken until the job was
+restarted. `echo ======` in zsh is an `=cmd` expansion and fails.
+
+*Next.* Nothing owed here. Two things a successor might want, neither
+started: the console tail shows every stamped `series_*` key on every `eval`
+line, which is most of each line's width on a series (WP-1016 found the same
+in the GUI's console and stripped them there); and the list's "started"
+column is relative time, which is what a person scanning forty identical
+labels is least helped by.
 
 - **2026-09-15** — created, from the maintainer's report on the live demo,
   with the measurements above taken the same evening.
