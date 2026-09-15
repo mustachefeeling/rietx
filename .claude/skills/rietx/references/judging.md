@@ -58,8 +58,17 @@ its cell parameters wandered over a heating and cooling series, while the
 Rietveld cell from an admittedly imperfect model stayed consistent. Any single
 Le Bail fit there looked acceptable, and only the trend exposed it. The cause is
 reflection density rather than low symmetry alone, and the same disagreement has
-been reported on an I4/mmm structure. Compare a Le Bail cell against even a
-rough structural model before quoting it.
+been reported on an I4/mmm structure. Peterson's own scope is "particularly for
+high reflection density data", and the abstract says so.
+
+**Measured at the other end of that variable**, one range and one instrument
+treatment, three modes: 11-BM LaB₆, 2-40°, 55 reflections, mean FWHM 0.0097°,
+**0.014 reflections per FWHM**. Rietveld a = 4.1568414(52) Å, Le Bail
+4.1568425(51), Pawley 4.1568431(51) — a spread of 0.4 ppm, a third of one esd,
+with the esds equal to 2 %. The Le Bail fit also won on Rwp there (0.0861
+against 0.0879) and its cell was still right, so the better Rwp is not itself
+the signal. Count reflections per FWHM: crowded, check the cell against a
+structural model; resolved, do not spend the fit.
 
 **Multi-phase Le Bail** was broken until v1.0 and is now supported: the shares
 sum to 1 across all phases at every channel (measured Σ calculated / Σ observed

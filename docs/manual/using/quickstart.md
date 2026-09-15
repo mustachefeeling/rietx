@@ -195,10 +195,14 @@ that, as `LeBailValidation.predicted_but_absent` ([](indexing.md)). Texture can
 empty a reflection the same way, so either one shows up in the Rietveld fit that
 follows, where the intensity is computed from the structure.
 
-The cell is on the same footing. Where reflections are dense, extracted
-intensities can index one pattern more than one way, so a Le Bail cell that fits
-better than a structural model does can still be the wrong cell
-{cite}`peterson2005`. Compare it against even a rough model before quoting it.
+The cell is on the same footing, and how far depends on how crowded the pattern
+is. Where reflections are dense, extracted intensities can index one pattern
+more than one way, so a Le Bail cell that fits better than a structural model
+does can still be the wrong cell {cite}`peterson2005`. Where they are resolved
+the freedom buys nothing, and the check is cheap to skip: on the 11-BM LaB₆
+pattern, at 0.014 reflections per FWHM, Le Bail, Pawley and Rietveld agree on
+*a* to 0.4 ppm with the same esd to 2 %. Reflections per FWHM is the number to
+look at, and crowding rather than low symmetry is what drives it.
 
 ### With no structure at all
 
