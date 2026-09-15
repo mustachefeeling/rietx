@@ -124,17 +124,70 @@ recorded. Opening one shows its plot and its event console. The plot redraws in
 place as the fit writes each stage, keeping whatever you have zoomed into, and
 the console tails the log from where it left off.
 
-A run is any directory holding an `events.jsonl`: the one passed to a
-`LiveSession`, or a project's own `live/` ([](files.md)). Pass such a directory
-and the page opens straight onto that run instead of listing.
+### Where the runs come from
+
+Every fit writes one. `Refinement.fit` and its neighbours record a run directory
+whether or not you asked, so `rietx watch` in the directory you are working in
+usually has something to show. A fit that came from a project records into that
+project's `live/`; every other fit records under `.rietx/runs/` in the working
+directory.
+[](refining.md) is what a run holds and how to switch recording off.
+
+A run is any directory holding an `events.jsonl`, which also covers a project's
+own `live/` ([](files.md)) and any directory you passed to a `LiveSession`
+yourself. Pass one and the page opens straight onto that run instead of listing.
 
 ```console
-$ rietx watch ./live-dir
+$ rietx watch ./my_sample.rex/live
 ```
 
-The watcher reads. It never opens a project, never constructs a refinement and
-has no button that changes one, so it can be started and stopped while a
-refinement runs. [](refining.md) covers the event stream itself.
+### What the liveness column means
+
+A finished run says so. A run still being written is the interesting case, and
+the watcher answers it from a lock the writing process holds for its life, which
+the kernel releases however that process dies, `kill -9` included.
+
+| Word | Means |
+|---|---|
+| `running` | a process holds the run's lock |
+| `done`, `failed`, `cancelled` | the writer recorded its own last word |
+| `abandoned` | the status says `running` and the lock is free |
+| `unknown` | the question could not be answered here |
+
+`abandoned` is a third answer and not a rounding of the other two. It is what a
+killed process leaves behind, and it is the state you are looking for when a run
+has stopped moving.
+
+`unknown` arises three ways: the run was written on another host, so its pid
+names one of our processes and not the writer's; the lock is free and no state
+was recorded, which is every run written before the recorder existed; or there
+is no lock file to probe. A heartbeat age is reported beside all of this and
+never decides it. A live process is evidence, and a clock is not.
+
+### The JSON underneath
+
+The page is a client of six routes, and anything the page shows you can read
+directly:
+
+| Route | Returns |
+|---|---|
+| `/api/runs` | every run under the scanned root, with its liveness |
+| `/api/run/<id>` | one run's row |
+| `/api/run/<id>/events?offset=` | events from a byte offset, with the next offset |
+| `/api/run/<id>/snapshot` | the stage's curves, ticks and statistics as JSON |
+| `/api/run/<id>/legacy` | a `fit.html` written before 1.4, served as it stands |
+| `/plotly.js` | plotly out of the installed package, so the page works offline |
+
+These are provisional by declaration, like the GUI's ([](compatibility.md)). A
+route may be added, renamed or split in any release.
+
+The watcher reads and constructs nothing. It never opens a project, never builds
+a refinement and serves no verb that changes one, so you can start and stop it
+while a refinement runs. No flag selects this. It is how the server is built.
+
+The contrast worth knowing is `Project.open`, which writes an annotation into a
+project before you have clicked anything. Looking at a project without changing
+it is `rietx gui --scratch`. Looking at a run needs nothing.
 
 ## `rietx html`: a saved result as a page
 

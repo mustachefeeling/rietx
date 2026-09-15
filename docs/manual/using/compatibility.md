@@ -115,6 +115,18 @@ to move are declared rather than left to be inferred:
   (`Capabilities.indexing_thresholds_version`, and the engine and search-preset
   capability types), so a consumer that parses an answer sees a bump when the
   answer's shape or meaning moves.
+- The run directory and the watcher's routes. Every fit writes a run directory
+  ([](refining.md)) and `rietx watch` serves it over six HTTP routes
+  ([](cli.md)). Neither carries a version string, and the omission is a decision
+  rather than an oversight. A run directory is a contract between two processes,
+  which is the argument for versioning it. Against it: nothing negotiates over
+  the layout yet, and a contract nothing has exercised is an untested guess, so
+  a version string on it would promise more than has been checked. It gets one
+  when the layout has survived a release. Until then a file may be added,
+  renamed or dropped from a run, and a route may be added, renamed or split, in
+  any release. What is stable in the meantime is the reader's side: a directory
+  holding an `events.jsonl` is a run, a run that predates a field is read rather
+  than refused, and an unknown key in one of the JSON sidecars is ignored.
 - The foreign-refinement readers are provisional as a subsystem.
   `read_project_model`, `identify_project_format`, `read_topas_inp`,
   `read_fullprof_pcr` and the per-format models they answer with

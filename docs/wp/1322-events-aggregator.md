@@ -50,13 +50,19 @@ function in `rietx.history` so a CI job can call either. If the offered PR
 arrives, this WP becomes its review against that spec plus the two
 rietx-side tasks below.
 
-**Task 2 — the defaults decision.** Flip `SequentialRefinement.history` to
-match `Refinement`'s, or keep it and make the skill carry the asymmetry out
-loud. Decided against the 3/3 evidence and the documented disk-cost reason,
-not assumed here; if flipped, it is a behaviour change on a shipped surface
-— recorded per the few-users policy (breaks are cheap, but every one is
-recorded), with the disk cost stated (history nodes are ~10 kB; a long
-series is many files either way).
+**Task 2 — the defaults decision. DISCHARGED 2026-09-15 (WP-1406), by
+removal of its premise, and neither flipped nor deferred.** The task was to
+decide which knob to flip so that an agent would have a log. WP-1403 shipped
+2026-09-15 and every fit now writes a run directory whether or not `history` or
+`events=` was passed, so no defaults asymmetry decides coverage any more. The
+asymmetry itself survives, `Refinement.history` defaulting `True` and
+`SequentialRefinement.history` `False`, and it is now a question about history
+nodes alone rather than about whether a run leaves a record.
+
+Nothing was flipped, so there is no behaviour change and nothing to release-note.
+Its original text, for anyone reopening it: flip `SequentialRefinement.history`
+to match `Refinement`'s, or keep it and make the skill carry the asymmetry out
+loud, decided against the 3/3 evidence and the documented disk-cost reason.
 
 **Task 3 — the skill line.** `references/series.md` (all committed copies)
 gains the sentence the campaign says would have saved the reconstruction:
@@ -175,9 +181,9 @@ From **WP-1403** (2026-09-15), which removed this WP's Task 2 premise:
 - [ ] The aggregator: a plain function in `rietx.history` + the
       `rietx events <log.jsonl> [--json]` subcommand over it; fixture logs
       from the package's own emitters, never hand-written JSONL.
-- [ ] The defaults decision on `SequentialRefinement.history`, measured
-      against the 3/3 evidence and the disk-cost reason; recorded either
-      way, release-noted if flipped.
+- [x] ~~The defaults decision on `SequentialRefinement.history`~~ —
+      **discharged 2026-09-15 by WP-1406**, premise removed by WP-1403. Nothing
+      flipped, nothing to release-note. See Task 2 above.
 - [ ] The skill `series.md` instrumentation line (all committed copies
       re-synced via `rietx skill --install . --copy`).
 - [ ] CLI docs/manual coverage per the standing partition gates

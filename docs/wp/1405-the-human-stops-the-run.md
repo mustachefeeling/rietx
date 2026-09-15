@@ -123,6 +123,35 @@ with the dialog in front of you, and record which way and why.
 
 ### Inherited
 
+From **WP-1406** (2026-09-15), which documented the track and found this WP's
+feature missing from it:
+
+- **WP-1406's skill body sentence is yours, and so is the cut that pays for
+  it.** 1406 was chartered to add exactly one sentence to the skill body:
+
+  > A human may be watching, and may stop you. A `RefinementCancelled` you did
+  > not request is not a bug in your call: the completed stages are kept, and
+  > `.completed_stages` and `.node_id` say where the work stands.
+
+  It was **not written**, because it is not true yet. A fit raises
+  `RefinementCancelled` only when its own caller passed `cancel=`; there is no
+  cancel file in `runs.py`, no poll in `RunRecorder`, and `fit` creates no token
+  of its own. The package's only `CancelToken()` is `gui/session.py`'s, for the
+  GUI's own fits. Write it when this WP lands, and pay for it with a named cut
+  per WP-1330 — 1406 paid for its routing row by cutting §6 item 23, which was
+  duplicated whole in `references/abstention.md`, so that trick is spent.
+- **Two manual items are yours for the same reason.** 1406's charter asked
+  `using/cli.md` to describe "the cancel button and what it does to the other
+  process, the read-only serving flag". Neither exists, so neither was written.
+  The chapter now states reading-only as a property of how the watcher is built;
+  when the flag lands it needs a row, and the cancel button needs a subsection
+  saying plainly what it does to a process the reader cannot see.
+- **`references/watching.md` is the file the cancel story belongs in**, not a
+  new one. It is §9d, routed on "a human may be watching this fit". Row 9d.5
+  already covers `abandoned`, and a cancel row sits naturally beside it. Every
+  row closes with a `(Measured: …)` or `(Hypothesis: …)` tag, and the gate
+  refuses a `Measured` tag that names neither a WP nor a declared corpus.
+
 From **WP-1403** (2026-09-15), which built the run directory this WP stops:
 
 - **The cancel path already records itself correctly.** `fit` emits `fit_end`

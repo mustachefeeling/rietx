@@ -70,6 +70,25 @@ variables, and no pooling across rounds.
 
 ### Inherited
 
+From **WP-1406** (2026-09-15), which documented the track this WP was waiting on:
+
+- **There is a rendered view to name now, and it is live rather than a file.**
+  `rietx watch` serves every run a fit records, drawing the obs/calc/difference
+  plot from `snapshot.json` and redrawing it in place per stage. So a finding
+  that wants to say "look at this" has a second answer beside a written page: a
+  URL into a run that is still being written. Its chapter is
+  `docs/manual/using/cli.md` § `rietx watch`, and what a run holds is
+  `using/refining.md` § Watching a run.
+- **The view is per stage, which changes the round-trip question this WP
+  measures.** The old `fit.html` was one page at the end of a run. A watcher
+  view exists while the fit is still going, so "an image pays for itself on a
+  question an agent cannot name in advance" can now be asked about a *mid-run*
+  image, which is a different and probably stronger case. Worth deciding
+  deliberately rather than inheriting the end-of-run framing.
+- **No naming mechanism was added.** `Diagnostic` still has no field pointing at
+  a view, and WP-1406 deliberately added none. This WP is still the one that
+  decides whether a finding names its view and how.
+
 From **WP-1130** § Gap C, 2026-09-04. **This WP's dependency changed shape
 rather than being discharged.** 1130's line above — "the background panel with
 a reference in the frame is the first view worth pointing at" — assumed the
