@@ -22,14 +22,26 @@ stage**. Three costs, and only the first is obvious:
    afresh each time. Measured 2026-09-13, `[dev]` venv (plotly 7.0.0), macOS
    arm64: `plotly.min.js` alone is 4.29 MB, an empty self-contained page
    4.30 MB, and a NAC-sized page (22 003 points, obs/calc/bkg/σ) **6.3 MB**.
-   Re-measure on the real cases in this WP's own task rather than carrying that
-   figure forward — plotly's bundle size moves with its version. A five-stage
-   fit writes it five times.
-2. **The browser rebuilds the plot from scratch.** `watch.py`'s page reloads the
-   iframe when `fit.html`'s `Last-Modified` moves, so the reader's zoom is lost
-   every stage — precisely when they were looking at something.
+   WP-1401 re-measured the resident file on 2026-09-14 at 6.36 MB (`nac`), 5.27
+   (`cpd-2`) and 4.99 (`trigger`). A five-stage fit writes it five times, so the
+   cumulative write is the resident size times the stage count. Re-measure on
+   the real cases in this WP's own task rather than carrying either figure
+   forward — plotly's bundle size moves with its version.
+2. **The browser rebuilds the plot from scratch.** `watch.py`'s detail view
+   iframes `api/run/<id>/snapshot` and reloads it whenever the row's
+   `snapshot_mtime` moves, so the reader's zoom is lost every stage — precisely
+   when they were looking at something.
 3. **Recording needs plotly installed.** A base install cannot record a live view
    at all, because building the figure is how the view is stored.
+
+**What that costs in wall clock**, from WP-1401's baseline: `nac` 0.34-0.35 s
+with no telemetry against 0.51-0.63 s under `LiveSession`; `cpd-2` 2.30-2.39
+against 2.53-2.56; `trigger` 5.77-5.84 against 6.02-6.15 (`[dev]` venv, macOS
+arm64, three repeats over two sittings, run alone). An `events=<path>` stream on
+its own costs 1.01-1.03×, so the per-stage picture is the whole expense. The
+spread across the three cases is fit *length*, the cost being per stage, and a
+ratio on a short fit is a small number wearing a large one — quote the seconds
+beside it. These are the numbers to beat.
 
 The alternative is to store the numbers and let the viewer draw them. The fit
 pays a decimation and a small JSON write; the page loads plotly once from the
@@ -47,11 +59,15 @@ that breaks are cheap **and every one is recorded**:
 - `rietx html <result.json> <out.html>` and `viz.html.write_html` are untouched,
   so the self-contained, emailable page remains a **capability**. What stops is
   producing it unasked.
-- `tests/test_events_viz_history.py`'s `test_live_session_and_watch_server`
-  (line 469) is the one test asserting `fit.html`: it checks the file exists
-  (478) and then fetches it over HTTP from the served directory (491). Both
-  change here. The `fit.html` at line 129 is `write_html`'s own output and is
-  **not** affected.
+- **Three tests assert `fit.html`, not one** — WP-1401 added two after this WP
+  was written. `test_events_viz_history.py`'s `test_live_session_and_watch_server`
+  checks the file exists (478) and fetches it over HTTP from the served
+  directory (491); `test_runs.py:488` asserts `has_snapshot is True` because
+  `LiveSession` wrote one; `test_watch_app.py:319` asserts the static fallback
+  still serves `/fit.html` by its bare name, and `:249` that the detail view
+  reloads the iframe per stage. All four assertions change here. The `fit.html`
+  at `test_events_viz_history.py:129` is `write_html`'s own output and is **not**
+  affected.
 - `docs/manual/using/cli.md:121` (the § `rietx watch` heading is at 115) says
   watch "serves the directory a `LiveSession` writes, with a self-refreshing
   plot". The sentence stays true; the manual's fuller account is WP-1406's.
@@ -88,7 +104,7 @@ rather than assumed free.
 
 ### The call site, and two defects in it
 
-`refine.py:1985-1987`:
+`refine.py:1991-1993`:
 
 ```python
 if stream is not None and hasattr(stream, "write_snapshot"):
@@ -118,37 +134,29 @@ written once and consumed everywhere". One small module, three call sites,
 separately committable — and this is the moment, because the third copy is about
 to be written.
 
+The two copies are not identical, and the difference is the whole of the
+function's shape: `gui/server.py` answers a missing plotly with a window flag
+plus a `console.error`, `compare_app.py` by replacing `document.body`. So the
+shared one takes its own fallback script from the caller and never invents a
+third convention.
+
 Note what is *not* being consolidated: the three servers' `_send`/`_json`
 helpers, route dispatch and handler factories stay deliberately duplicated
 (`gui/CLAUDE.md` records that as a choice). This is one shared function, not the
 start of a framework.
 
-### Inherited
+### The reader side, which WP-1401 already built
 
-From **WP-1401** (2026-09-14), which landed the reader and the baseline:
+`runs.SNAPSHOT_FILE` names `fit.html`, `Run.has_snapshot` reports whether one
+exists, and `watch.py` serves it at `/api/run/<id>/snapshot`, degrading to a
+one-line note when there is none. So the detail view already renders correctly
+for a run with no picture at all, and a `snapshot.json` replacing the page is a
+change at those three names plus the page's `detailShell`. Both modules sit at
+`src/rietx/`, not under `viz/`.
 
-- **This WP got more urgent, and 1403 got less.** The baseline measured
-  `events=<path>` at 1.01-1.03x a fit's wall clock and `events=LiveSession(dir)`
-  at 1.04-1.49x, so the stream is affordable by default and the per-stage
-  picture is the whole expense. 1403's automatic recording is no longer gated on
-  a cost question. It is gated on this WP, because recording every fit is cheap
-  the moment the snapshot stops being written on the fit's thread.
-- **The numbers to beat**, `[dev]` venv, macOS arm64, three repeats over two
-  sittings, run alone: `nac` 0.34-0.35 s off against 0.51-0.63 s under
-  `LiveSession`; `cpd-2` 2.30-2.39 against 2.53-2.56; `trigger` 5.77-5.84
-  against 6.02-6.15. The spread across cases is fit *length*, since the cost is
-  per stage. A ratio on a short fit is a small number wearing a large one, so
-  quote the seconds beside it.
-- **Resident `fit.html` was 6.36 MB (`nac`), 5.27 (`cpd-2`), 4.99 (`trigger`)**
-  under plotly 7.0.0. That is the file left behind, and the run rewrote it once
-  per stage, so the cumulative write is that times the stage count. Re-measure
-  rather than carrying these.
-- **A reader already treats the picture as optional.** `runs.SNAPSHOT_FILE`
-  names `fit.html`, `Run.has_snapshot` reports whether one exists, and
-  `watch.py` serves it at `/api/run/<id>/snapshot` and degrades to a one-line
-  note when it does not. A `snapshot.json` replacing it is a change at those
-  three names, and the watcher's detail view already renders correctly for a run
-  that has no picture at all.
+Drawing in place is what pays for the change twice: the numbers are what the fit
+stops serialising, **and** `Plotly.react` on a div keeps the reader's zoom across
+a stage where a reloaded iframe cannot.
 
 ## Non-goals
 
@@ -177,6 +185,10 @@ From **WP-1401** (2026-09-14), which landed the reader and the baseline:
 - [ ] `refine.py`: the explicit sink list, `_run_plan` switched to it, and the
       missing `run_stage` call site added before `_record`. A test per defect,
       because neither is covered today.
+- [ ] `watch.py` draws the snapshot in the page: plotly once from the shared
+      route, `Plotly.react` on a div per poll, and the reader's zoom surviving a
+      stage. The iframe and its mtime cache-buster go. A run whose only picture
+      is a legacy `fit.html` still gets the iframe.
 - [ ] `fit.html` stops being written. Rewrite
       `test_live_session_and_watch_server` to assert `snapshot.json`, and
       add the second test — a pre-existing `fit.html` is still served — without
