@@ -33,13 +33,31 @@ to special-case.
 from __future__ import annotations
 
 import json
-import re
 from datetime import UTC, datetime
 from pathlib import Path
 
 from .._about import PROFILE_FORMAT_KEY
 from ..schemas.common import Diagnostic
-from ..schemas.instrument import BackgroundChebyshev, Instrument
+from ..schemas.instrument import (
+    BackgroundChebyshev,
+    EmissionLine,
+    Instrument,
+    Parameter,
+)
+
+# The GSAS record grammar, not the .EXP reader's: an instrument-parameter file
+# and an experiment file write the same ICONS and PRCF records, so both readers
+# in this package take them from one place (WP-1118).  `projects/gsas.py` is
+# where the "read by column" doctrine is written down, which is why the grammar
+# lives beside it; the registry it stays out of is about dispatch, not parsing.
+from .projects.gsas import (
+    CW_PROFILE_COEFFICIENTS,
+    KEY_BYTES,
+    GsasIcons,
+    read_icons,
+    read_prcf_header,
+    split_records,
+)
 
 #: Tag a profile file is recognised by.  A format contract, so the token lives
 #: in :mod:`.._about` free of the brand (WP-1062).
@@ -193,33 +211,73 @@ _HTYPE_REFUSALS: dict[str, str] = {
 #: needs before it can be read at all, not a guess by position.  None was
 #: found for 1, 2 or 4 (the only examples are the stock file's placeholder
 #: GU=2, GV=-2, GW=5 dummy values), so all three are refused by name.
-_PRCF_TYPE_READ = "3"
-_PRCF_TYPE_REFUSALS: dict[str, str] = {
-    "1": "GSAS profile function 1 (simple Gaussian, no Lorentzian term)",
-    "2": "GSAS profile function 2",
-    "4": "GSAS profile function 4",
+_PRCF_TYPE_3 = 3
+_PRCF_TYPE_REFUSALS: dict[int, str] = {
+    1: "GSAS profile function 1 (simple Gaussian, no Lorentzian term)",
+    2: "GSAS profile function 2",
+    4: "GSAS profile function 4",
 }
 
-#: Inline coefficient labels some real files print beside the numbers on the
-#: ``PRCF11``/``PRCF12`` continuation lines (2 of 1500 real files; e.g.
-#: ``PRCF11   GU  1.163000     GV -0.126000 ...``).  The count in
-#: ``INS nPRCF1 <type> <ncoef> <cutoff>`` counts **numeric** coefficients
-#: only, so a label token is skipped rather than counted — it is prose, not a
-#: 20th coefficient.  Confirmed against ``.LST`` refinement logs for this
-#: instrument, which print the same eight names in the same order:
-#: ``GU GV GW GP LX LY S/L H/L`` (§ the module docstring's arithmetic below).
-_PRCF_LABELS = frozenset({"GU", "GV", "GW", "GP", "LX", "LY", "S/L", "H/L",
-                          "TRNS", "SHFT", "SFEC"})
+#: The type-3 coefficients this reader maps, **named from the one table that
+#: holds them** (``CW_PROFILE_COEFFICIENTS``, ``io/projects/gsas.py``) rather
+#: than restated here: ``GU GV GW`` and ``LX LY`` onto ``ProfileTCHZ``, ``S/L``
+#: and ``H/L`` onto ``Geometry``, ``GP`` refused unless it is zero.  Two
+#: readers unpacking one coefficient order from two lists is how they come to
+#: disagree, so this one is a slice of the other's.
+_PRCF_MAPPED = CW_PROFILE_COEFFICIENTS[_PRCF_TYPE_3][:8]
 
-_ICONS_RE = re.compile(r"^INS\s*(\d+)\s*ICONS\s+(.+?)\s*$", re.MULTILINE)
-_BANK_RE = re.compile(r"^INS\s*BANK\s+(\d+)", re.MULTILINE)
-_HTYPE_RE = re.compile(r"^INS\s*HTYPE\s+(\S+)", re.MULTILINE)
-_PRCF_HEADER_RE = re.compile(
-    r"^INS\s*(\d+)PRCF1\s+(\d+)\s+(\d+)\s+([\d.Ee+-]+)", re.MULTILINE)
-_PRCF_CONT_RE = re.compile(r"^INS\s*(\d+)PRCF1(\d+)\s+(.+?)\s*$", re.MULTILINE)
-#: ``IRAD``/``ITYP`` are ignored by design, but the diagnostic saying so
-#: must only fire for a file that actually carried one — see the guard below.
-_IRAD_ITYP_RE = re.compile(r"^INS\s*\d+I?\s*(IRAD|ITYP)\b", re.MULTILINE)
+def _prcf_labels(function: int) -> frozenset[str]:
+    """Label tokens this profile function may print beside its coefficients.
+
+    Some real files print the coefficient's name beside its number on the
+    ``PRCF11``/``PRCF12`` continuation records (2 of 1500; e.g.
+    ``PRCF11   GU  1.163000     GV -0.126000 ...``).  The count in the header
+    counts **numeric** coefficients only, so a label is skipped rather than
+    counted — it is prose, not a coefficient.  Confirmed against ``.LST``
+    refinement logs for this instrument, which print the same eight names in
+    the same order.
+
+    The names are **this function's own**, from the one table that holds them,
+    so a token that names a coefficient of some other profile function is not
+    skipped here: it is refused, which is what a file the reader has
+    misunderstood should do.
+    """
+    return frozenset(name.upper()
+                     for name in CW_PROFILE_COEFFICIENTS.get(function, ()))
+
+
+#: A ``.prm`` record's 12-byte key, by column: ``INS``, a three-column bank
+#: number, then the record's own name from column 6.  The bank columns are
+#: blank on the file-wide records (``BANK``, ``HTYPE``) and carry the bank
+#: number on the rest.
+_INS = "INS"
+_BANK_COLUMNS = slice(3, 6)
+_NAME_COLUMNS = slice(6, KEY_BYTES)
+
+
+def _ins_records(text: str) -> list[tuple[str, str]]:
+    """Every bank-1 (or bank-less) ``INS`` record, as ``(name, payload)``.
+
+    A ``.prm`` is the same card index a ``.EXP`` is, so the payload starts at
+    column 12 and every field in it is read at the offset
+    ``projects/gsas.py`` states.  Records of another bank are dropped here;
+    the reader refuses a multi-bank file outright a few lines on, and this
+    keeps a bank-2 ``ICONS`` from being counted as a second bank-1 one in the
+    meantime.
+    """
+    records = []
+    for key, payload in split_records(text):
+        if key[:len(_INS)].upper() != _INS:
+            continue
+        if key[_BANK_COLUMNS].strip() not in ("", "1"):
+            continue
+        records.append((key[_NAME_COLUMNS].strip().upper(), payload))
+    return records
+
+
+def _payloads(records: list[tuple[str, str]], name: str) -> list[str]:
+    """Every payload under this record name, in file order."""
+    return [payload for got, payload in records if got == name]
 
 
 def read_gsas_prm(path: str | Path, *,
@@ -325,19 +383,30 @@ def read_gsas_prm(path: str | Path, *,
     the geometry itself.
     """
     p = Path(path)
-    text = p.read_text(encoding="utf-8", errors="ignore")
+    # latin-1, never utf-8 with errors ignored.  A ``.prm``'s ``I HEAD`` record
+    # holds whatever the experimenter typed, and a decode that *drops* an
+    # undecodable byte shortens that record — which no longer matters for a
+    # record read as prose, but does the moment every other record is read at a
+    # column (the same trap the .EXP sniff was moved onto bytes for).
+    raw = p.read_bytes()
+    records = _ins_records(raw.decode("latin-1"))
 
-    htype_m = _HTYPE_RE.search(text)
-    bank_m = _BANK_RE.search(text)
-    if htype_m is None or bank_m is None:
+    htypes = _payloads(records, "HTYPE")
+    banks = _payloads(records, "BANK")
+    # HTYPE is the only field on its record, so stripping the whole payload
+    # cannot re-assign anything — and it reports what the file states rather
+    # than the four columns the layout allows, which is what a refusal by name
+    # owes a reader whose file says something longer.
+    htype = htypes[0].strip().upper() if htypes else ""
+    bank_field = banks[0].strip() if banks else ""
+    if not htype or not bank_field.isdigit():
         raise ValueError(
             f"{p.name}: not a GSAS-I instrument-parameter file — no "
             f"BANK/HTYPE record found (Larson & Von Dreele, LAUR 86-748)")
 
-    htype = htype_m.group(1).upper()
     _check_htype(htype, p)
 
-    nbank = int(bank_m.group(1))
+    nbank = int(bank_field)
     if nbank != 1:
         raise ValueError(
             f"{p.name}: declares BANK {nbank} — only a single-bank "
@@ -347,9 +416,9 @@ def read_gsas_prm(path: str | Path, *,
             f"one bank of several would silently pick a bank rather than "
             f"letting the caller choose")
 
-    wavelength, polarization, ka2_ratio = _read_icons(text, p)
-    prof_type, coeffs = _read_prcf(text, p)
-    if prof_type != _PRCF_TYPE_READ:
+    icons = _read_icons(records, p)
+    prof_type, coeffs = _read_prcf(records, p)
+    if prof_type != _PRCF_TYPE_3:
         what = _PRCF_TYPE_REFUSALS.get(prof_type)
         if what is None:
             raise ValueError(
@@ -371,18 +440,22 @@ def read_gsas_prm(path: str | Path, *,
             f"carrying placeholder zero-broadening values.  Reading it by "
             f"position off type 3 would be a guess, not a parser")
 
-    if len(coeffs) < 8:
+    if len(coeffs) < len(_PRCF_MAPPED):
         raise ValueError(
             f"{p.name}: this bank's PRCF1 header declares a type-3 profile "
-            f"with {len(coeffs)} coefficient(s), but positions 1-8 "
-            f"(GU GV GW GP LX LY S/L H/L) are what this reader maps onto "
-            f"ProfileTCHZ and Geometry — a type-3 record shorter than that is "
-            f"refused rather than read as a subset, because nothing in the "
-            f"file says which of the eight is the missing one.  The count in "
-            f"the header is what this reader trusts (see _read_prcf), so this "
-            f"is a header declaring fewer than the mapping needs, not a "
-            f"truncated file")
-    gu, gv, gw, gp, lx, ly, sl, hl, *rest = coeffs
+            f"with {len(coeffs)} coefficient(s), but positions "
+            f"1-{len(_PRCF_MAPPED)} ({' '.join(_PRCF_MAPPED)}) are what this "
+            f"reader maps onto ProfileTCHZ and Geometry — a type-3 record "
+            f"shorter than that is refused rather than read as a subset, "
+            f"because nothing in the file says which of the eight is the "
+            f"missing one.  The count in the header is what this reader "
+            f"trusts (see _read_prcf), so this is a header declaring fewer "
+            f"than the mapping needs, not a truncated file")
+    named = dict(zip(_PRCF_MAPPED, coeffs, strict=False))
+    gu, gv, gw = named["GU"], named["GV"], named["GW"]
+    gp, lx, ly = named["GP"], named["LX"], named["LY"]
+    sl, hl = named["S/L"], named["H/L"]
+    rest = coeffs[len(_PRCF_MAPPED):]
     if gp != 0.0:
         raise ValueError(
             f"{p.name}: PRCF coefficient 4 (GSAS 'GP') is {gp!r}, not 0 — "
@@ -413,18 +486,25 @@ def read_gsas_prm(path: str | Path, *,
         # for a record that is absent is the same shape as a defaulted field
         # answering a question nobody asked (WP-1076): it is `info`, and the
         # corpus makes it true often enough that it would not be noticed.
+        ratio_note = (
+            f"KRATIO = {icons.ka2_ratio!r}, carried as the second emission "
+            f"line's weight"
+            if icons.lam2 else
+            f"KRATIO = {icons.ka2_ratio!r}, read and not applied (it weights "
+            f"a second line, and LAM2 states none here)")
         dropped = [
-            ("ICONS", f"field 5 (unidentified) = 0, and field 6's Kα2/Kα1 "
-                      f"ratio = {ka2_ratio!r}, read and not applied (it is "
-                      f"inert while field 2 is 0, as it is here)"),
+            ("ICONS", f"IPOLA (the polarization type) = 0, the refine flags "
+                      f"and IDAMP = {icons.damping!r} (refinement controls, "
+                      f"which a frozen calibration has no use for), and "
+                      f"{ratio_note}"),
         ]
-        past_8 = (f", and {len(rest)} coefficient(s) past position 8 = 0"
-                  if rest else "")
+        past_8 = (f", and {len(rest)} coefficient(s) past position "
+                  f"{len(_PRCF_MAPPED)} = 0" if rest else "")
         dropped.append(
             ("PRCF", f"GP (position 4) = 0{past_8} — this reader maps "
                      f"positions 1-3 and 5-6 onto ProfileTCHZ and 7-8 "
                      f"(S/L, H/L) onto Geometry"))
-        if _IRAD_ITYP_RE.search(text):
+        if any(name.endswith(("IRAD", "ITYP")) for name, _ in records):
             dropped.append(
                 ("IRAD/ITYP", "ignored by design: the wavelength is read from "
                               "ICONS rather than looked up from IRAD's table, "
@@ -437,7 +517,19 @@ def read_gsas_prm(path: str | Path, *,
                 where=[record]))
 
     instrument = Instrument.debye_scherrer(
-        wavelength=wavelength, polarization=polarization)
+        wavelength=icons.lam1,
+        **({} if icons.polarization is None
+           else {"polarization": icons.polarization}))
+    if icons.lam2:
+        # A second line's weight is relative to the first, which the parameter
+        # table pins at 1 (EmissionLine) — so KRATIO, the Kα2/Kα1 intensity
+        # ratio, is exactly the number this slot wants.  Reading it is what
+        # locating the field by column bought: the old reader could not tell
+        # KRATIO from the polarization two fields earlier, both conventionally
+        # 0.5, and refused every doublet rather than guess (WP-1118).
+        instrument.source.lines.append(EmissionLine(
+            wavelength=icons.lam2,
+            weight=Parameter(value=icons.ka2_ratio, min=0.0, max=2.0)))
     if diagnostics is not None:
         diagnostics.append(Diagnostic(
             level="warning", code="GSAS_PRM_GEOMETRY_ASSUMED",
@@ -488,81 +580,102 @@ def _check_htype(htype: str, p: Path) -> None:
         f"file's HTYPE means is not established at all")
 
 
-def _read_icons(text: str, p: Path) -> tuple[float, float, float]:
-    """Read bank 1's ``ICONS`` record: (wavelength, polarization, ratio).
+def _read_icons(records: list[tuple[str, str]], p: Path) -> GsasIcons:
+    """Read bank 1's ``ICONS`` record, **by column**, and refuse what it states
+    that this reader cannot carry.
 
-    The third return value is field 6's Kα2/Kα1 intensity ratio, which this
-    reader does **not** apply (it is inert while field 2 is zero, as it is in
-    the whole corpus).  It comes back so the caller can be told the file
-    carried it — see ``GSAS_PRM_FIELD_DROPPED``.
+    The fields are ``LAM1 LAM2 ZERO [IREF] [IDAMP] POLA IPOLA KRATIO``, read
+    through :func:`~rietx.io.projects.gsas.read_icons` — the same call the
+    ``.EXP`` reader makes, because it is the same GSAS record.  **Reading it
+    by column is the correction this function exists for** (WP-1118): it used
+    to split on whitespace and require exactly six tokens, which is right only
+    for a file that leaves ``IREF`` and ``IDAMP`` blank.  Every 11-BM file in
+    ``tests/data`` does, so the six lined up and the reader looked correct;
+    ``INST_XRY.PRM`` writes ``IDAMP`` and was refused for having seven.  The
+    failure was safe rather than silent, but only by luck of the corpus, and
+    the two GSAS readers here disagreed about one record.
 
-    Six fields (``ALAM1 ALAM2 ZERO POL <reserved> <ratio>``, in that order —
-    the module docstring says which are read, refused-if-nonzero or
-    deliberately unused).  Anything other than exactly one match with exactly
-    six fields is refused: the one real file that fails this (a stock GSAS
-    example with a 7-field ICONS and 3 stacked PRCF profile-type blocks under
-    one bank number, none of them real calibration data) is not a shape this
-    reader can read any part of safely.
+    What the *values* must be is unchanged, with one exception.  A non-zero
+    ``ZERO`` is still refused (its unit is disputed between two GSAS-adjacent
+    conventions a factor of 100 apart), and so is a polarization type this
+    reader does not carry.  A **doublet is now read** rather than refused:
+    the reason for refusing it was that no file here stated the intensity
+    weight, and that reason was an artefact of not knowing which field
+    ``KRATIO`` was.
     """
-    matches = list(_ICONS_RE.finditer(text))
-    bank1 = [m for m in matches if m.group(1) == "1"]
-    if len(bank1) != 1:
+    payloads = _payloads(records, "ICONS")
+    if len(payloads) != 1:
         raise ValueError(
             f"{p.name}: expected exactly one ICONS record for bank 1, found "
-            f"{len(bank1)} — a bank declaring its constants more than once "
+            f"{len(payloads)} — a bank declaring its constants more than once "
             f"(or not at all) is ambiguous, not a single instrument")
-    fields = bank1[0].group(2).split()
-    if len(fields) != 6:
+    icons = read_icons(payloads[0])
+
+    if not icons.lam1:
         raise ValueError(
-            f"{p.name}: bank 1's ICONS record has {len(fields)} fields "
-            f"({fields!r}), not the 6 (ALAM1 ALAM2 ZERO POL reserved ratio) "
-            f"every real calibration file in the corpus this reader was "
-            f"built against carries — reading a subset of them would be a "
-            f"guess about which is missing")
-    try:
-        alam1, alam2, zero, pol, reserved, ratio = (float(f) for f in fields)
-    except ValueError as exc:
+            f"{p.name}: bank 1's ICONS record states no primary wavelength "
+            f"(LAM1, columns 12-22) — the field is blank or is not a number, "
+            f"and an instrument file without a wavelength describes no "
+            f"instrument")
+    if icons.zero:
         raise ValueError(
-            f"{p.name}: bank 1's ICONS record holds a token that is not a "
-            f"number ({fields!r}) — the six fields are ALAM1 ALAM2 ZERO POL "
-            f"reserved ratio and every one of them is numeric in the corpus "
-            f"this reader was built against, so this is a malformed record "
-            f"rather than a convention it has not met") from exc
-    if alam2 != 0.0:
-        raise ValueError(
-            f"{p.name}: ICONS field 2 (a second wavelength line, GSAS "
-            f"'ALAM2') is {alam2!r}, not 0 — no real file in this corpus "
-            f"has a second line to derive its intensity-weight convention "
-            f"from, so adding one here would be a guess about a doublet "
-            f"this reader has never seen")
-    if zero != 0.0:
-        raise ValueError(
-            f"{p.name}: ICONS field 3 (GSAS 'ZERO') is {zero!r}, not 0 — "
+            f"{p.name}: ICONS field ZERO is {icons.zero!r}, not 0 — "
             f"its unit is disputed between two GSAS-adjacent conventions a "
             f"factor of 100 apart (io/recipe.py's Zero handling) and no "
             f"real file in this corpus has a non-zero value to settle it "
             f"against, so a non-zero one here is refused rather than mapped "
             f"onto instrument.zero_shift on either guess")
-    if reserved != 0.0:
+    if icons.polarization_type:
         raise ValueError(
-            f"{p.name}: ICONS field 5 is {reserved!r}, not 0 — this field "
-            f"is unidentified (every real file in the corpus this reader "
-            f"was built against carries 0 here), so a non-zero value is "
-            f"refused rather than silently dropped")
-    return alam1, pol, ratio
+            f"{p.name}: ICONS field IPOLA (the polarization type) is "
+            f"{icons.polarization_type!r}, not 0 — every real file in the "
+            f"corpus this reader was built against carries 0, which is the "
+            f"convention Instrument.debye_scherrer's POLA follows, so what "
+            f"another code means is not established here.  Reading POLA "
+            f"under a type this reader cannot name would apply the right "
+            f"number under the wrong convention")
+    if icons.lam2 and not icons.ka2_ratio:
+        raise ValueError(
+            f"{p.name}: ICONS states a second wavelength line (LAM2 = "
+            f"{icons.lam2!r}) and no KRATIO to weight it by — the field is "
+            f"blank or zero.  A line's weight is relative to the first "
+            f"(EmissionLine), so a doublet needs the ratio the file did not "
+            f"state, and supplying the conventional 0.5 would be this "
+            f"reader's number rather than the file's")
+    if icons.lam2 and not 0.0 < icons.ka2_ratio <= 2.0:
+        raise ValueError(
+            f"{p.name}: ICONS field KRATIO is {icons.ka2_ratio!r}, which is "
+            f"not a Kα2/Kα1 intensity ratio (EmissionLine.weight holds "
+            f"0 < w <= 2; a sealed tube is ≈0.5) — refused rather than "
+            f"clamped, since a value this far from the convention says the "
+            f"field means something else in this file")
+    return icons
 
 
-def _read_prcf(text: str, p: Path) -> tuple[str, list[float]]:
+def _read_prcf(records: list[tuple[str, str]],
+               p: Path) -> tuple[int | None, list[float]]:
     """Read bank 1's single ``PRCF1`` block: (profile type, coefficients).
 
-    The block is a **counted** layout: ``INS 1PRCF1 <type> <ncoef> <cutoff>``
-    states how many numeric coefficients follow across the ``PRCF11``…
-    ``PRCF1n`` continuation lines, and that count — not the number of
-    continuation lines present — is what is consumed.  A label token (``GU``,
-    ``S/L``, …) printed beside a number on some real files is skipped rather
-    than counted as a coefficient.
+    The **header** is a fixed-format record like every other, read by column
+    through :func:`~rietx.io.projects.gsas.read_prcf_header`.  The block is a
+    **counted** layout: the header states how many numeric coefficients follow
+    across the ``PRCF11``…``PRCF1n`` continuation records, and that count — not
+    the number of records present — is what is consumed.
+
+    **The continuation records are the one place a whitespace split is right**,
+    and this is the exception rather than an oversight.  GSAS's own
+    instrument-file editor prints coefficient labels *inside* the 15-column
+    fields on some files, which pushes every later field off its column:
+    ``11BM_LaB6_cBN_mg2044.prm`` in ``tests/data`` is 61 characters where
+    ``4E15.6`` is 60, and reading its second field by column returns
+    ``'     GV -0.1260'``.  A token read survives that; a column read does not,
+    and the ``.EXP`` reader can use a column read on its own continuations
+    only because no ``.EXP`` carries labels.  What the token read must not do
+    is *skip* a field it cannot parse, which compacts the list and renames
+    every coefficient after it — so an unreadable token is refused by name,
+    which is the half of the hazard the ``.EXP`` review found the other end of.
     """
-    headers = [m for m in _PRCF_HEADER_RE.finditer(text) if m.group(1) == "1"]
+    headers = _payloads(records, "PRCF1")
     if len(headers) != 1:
         raise ValueError(
             f"{p.name}: expected exactly one PRCF1 header for bank 1, found "
@@ -570,25 +683,27 @@ def _read_prcf(text: str, p: Path) -> tuple[str, list[float]]:
             f"than once (the one real example is a stock GSAS file stacking "
             f"types 2, 3 and 4 with placeholder values under one bank) is "
             f"ambiguous about which applies, not a richer instrument")
-    header = headers[0]
-    prof_type, ncoef = header.group(2), int(header.group(3))
+    header = read_prcf_header(headers[0])
+    prof_type, ncoef = header.function, header.n_coefficients
+    labels = _prcf_labels(prof_type)
 
     coeffs: list[float] = []
-    for m in _PRCF_CONT_RE.finditer(text, header.end()):
-        if m.group(1) != "1":
-            break
-        for tok in m.group(3).split():
-            if tok.upper() in _PRCF_LABELS:
+    for name, payload in records:
+        if not (name.startswith("PRCF1") and name[5:].isdigit()):
+            continue
+        for tok in payload.split():
+            if tok.upper() in labels:
                 continue
             try:
                 coeffs.append(float(tok))
             except ValueError:
                 raise ValueError(
                     f"{p.name}: PRCF11..PRCF1n holds an unrecognised token "
-                    f"{tok!r} that is neither a number nor a known label "
-                    f"({sorted(_PRCF_LABELS)}) — refusing rather than "
-                    f"silently skipping it, since a genuine coefficient "
-                    f"dropped this way would shift every one after it") from None
+                    f"{tok!r} that is neither a number nor a label of profile "
+                    f"function {prof_type} ({sorted(labels)}) — refusing "
+                    f"rather than silently skipping it, since a genuine "
+                    f"coefficient dropped this way would shift every one "
+                    f"after it") from None
             if len(coeffs) >= ncoef:
                 break
         if len(coeffs) >= ncoef:

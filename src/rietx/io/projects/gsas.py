@@ -286,13 +286,71 @@ class GsasPhase:
 
 
 @dataclass(frozen=True)
+class GsasIcons:
+    """One ``ICONS`` record, read by column: the source and its constants.
+
+    ``ICONS`` is not a ``.EXP`` record — it is a **GSAS** record, written the
+    same way into an experiment file's ``HST`` block and into an
+    instrument-parameter file's ``INS`` block, so both readers in this package
+    get it from here rather than each parsing it (WP-1118).  The layout is
+    ``3F10.0`` ``LAM1 LAM2 ZERO``, ``2X``, ``3A1`` refine flags, ``4X``,
+    ``I1`` damping, ``F10.0`` ``POLA``, ``I5`` ``IPOLA``, ``F10.0`` ``KRATIO``.
+
+    Reading it by column is the whole point.  A file that leaves ``IREF`` and
+    ``IDAMP`` blank splits into six tokens that happen to land on the right
+    meanings; one that writes ``IDAMP`` splits into seven that do not, and
+    ``tests/data`` holds one of each (``11bm_gsas.prm`` and ``INST_XRY.PRM``).
+    Polarization and a Kα2/Kα1 ratio are both conventionally 0.5 and sit two
+    fields apart, so a reader that takes the wrong one agrees with the right
+    one on some files and disagrees on others.
+
+    Every field is ``None`` where the record leaves it blank, because a field
+    GSAS did not write is not a field holding zero (WP-1076).
+    """
+
+    lam1: float | None
+    lam2: float | None
+    zero: float | None
+    refine_zero: bool
+    damping: int | None
+    polarization: float | None
+    polarization_type: int | None
+    ka2_ratio: float | None
+
+    @property
+    def wavelengths(self) -> tuple[float, ...]:
+        """The lines this record states, primary first, dropping blanks and zeros.
+
+        ``LAM2 = 0`` *is* "no second line", which is why a zero drops out here
+        rather than arriving as a wavelength of zero.
+        """
+        return tuple(w for w in (self.lam1, self.lam2) if w)
+
+
+def read_icons(payload: str) -> GsasIcons:
+    """Read one ``ICONS`` payload — the record past its 12-byte key."""
+    return GsasIcons(
+        lam1=_num(payload, 0, 10),
+        lam2=_num(payload, 10, 10),
+        zero=_num(payload, 20, 10),
+        # the three refine flags sit at 32-35; the zero-point's is the third
+        refine_zero=_flag(payload, 34),
+        damping=_int(payload, 39, 1),
+        polarization=_num(payload, 40, 10),
+        polarization_type=_int(payload, 50, 5),
+        ka2_ratio=_num(payload, 55, 10),
+    )
+
+
+@dataclass(frozen=True)
 class GsasHistogram:
     """One ``HST`` block: the machine, the pattern it points at, and the fit.
 
     Wavelengths, polarization and the Kα2/Kα1 ratio come off ``ICONS`` by
-    column.  ``ka2_ratio`` is ``None`` where the field is blank, which is a
-    file that states no ratio — not one that states zero, and not the 0.5 that
-    sits one field earlier in ``FAP.EXP`` as the *polarization*.
+    column, through :func:`read_icons`.  ``ka2_ratio`` is ``None`` where the
+    field is blank, which is a file that states no ratio — not one that states
+    zero, and not the 0.5 that sits one field earlier in ``FAP.EXP`` as the
+    *polarization*.
     """
 
     number: int
@@ -441,11 +499,30 @@ class GsasModel:
 def _records(path: Path) -> list[tuple[str, str]]:
     """Every ``(key, payload)`` in the file, in file order.
 
-    Records are fixed 80-character cards.  Real files terminate them with CR LF
-    and some do not terminate them at all, so both are read: the text is split
-    on line breaks where there are any, and sliced into 80-character cards where
-    there are none.  Decoding is ``latin-1`` because the payload is a byte field
-    — a stray high byte in a title must not fail the read of a numeric record.
+    Decoding is ``latin-1`` because the payload is a byte field — a stray high
+    byte in a title must not fail the read of a numeric record.  The splitting
+    itself is :func:`split_records`, shared with the ``.prm`` reader.
+    """
+    raw = path.read_bytes()
+    if not raw:
+        raise GsasExpError(f"{path.name}: the file is empty")
+    return split_records(raw.decode("latin-1"))
+
+
+def split_records(text: str) -> list[tuple[str, str]]:
+    """Split GSAS card-index text into ``(12-byte key, payload)`` pairs.
+
+    The card index is the format, not the file kind: an experiment file and an
+    instrument-parameter file are both a list of 80-column records, each a
+    12-character key by which GSAS fetched it and a fixed-format payload from
+    column 12.  Both readers in this package split here, so a payload offset
+    means the same thing in either (WP-1118).
+
+    Real files terminate their records with CR LF and some do not terminate
+    them at all, so both are read: the text is split on line breaks where there
+    are any, and sliced into 80-character cards where there are none.  Blank
+    records are dropped; short ones are not padded, since :func:`_num` reads a
+    missing field as the blank it is.
 
     **The split is on CR and LF by name**, not ``str.splitlines()``, which also
     breaks on ``\\x0b`` and on ``\\x85`` — a byte cp1252 spells ``…``.  One of
@@ -455,10 +532,6 @@ def _records(path: Path) -> list[tuple[str, str]]:
     LF alone), so reading the text more loosely here would let the sniff accept
     a file this function then mis-splits.
     """
-    raw = path.read_bytes()
-    if not raw:
-        raise GsasExpError(f"{path.name}: the file is empty")
-    text = raw.decode("latin-1")
     if "\n" in text or "\r" in text:
         flat = text.replace("\r\n", "\n").replace("\r", "\n")
         lines = [ln for ln in flat.split("\n") if ln.strip()]
@@ -499,20 +572,49 @@ def _text(payload: str, start: int = 0, width: int | None = None) -> str:
     return chunk.strip()
 
 
+@dataclass(frozen=True)
+class GsasPrcfHeader:
+    """A ``PRCF`` header record: which profile function, and how many terms.
+
+    Format ``2I5, F10.5, 4X, I1, 20A1`` — the function type, how many
+    coefficients follow on the continuation records, the peak cutoff, a damping
+    code, then one ``Y``/``N`` per coefficient.  The flags are the protocol:
+    they are what says which widths the refinement was free to move.  An
+    instrument-parameter file writes the same header with nothing in the flag
+    columns, because a calibration has refined nothing yet.
+
+    The count is what a correct reader consumes, never the number of
+    continuation records present: a file that skips a record must not silently
+    shorten the list it produces.
+    """
+
+    function: int | None
+    n_coefficients: int
+    cutoff: float | None
+    damping: int
+    flags: str
+
+
+def read_prcf_header(payload: str) -> GsasPrcfHeader:
+    """Read one ``PRCF`` header payload — the record past its 12-byte key."""
+    return GsasPrcfHeader(
+        function=_int(payload, 0, 5),
+        n_coefficients=_int(payload, 5, 5) or 0,
+        cutoff=_num(payload, 10, 10),
+        damping=_int(payload, 24, 1) or 0,
+        flags=payload[25:],
+    )
+
+
 def _profile(payload: str, coefficients: list[float], *, path: str,
              where: str) -> GsasProfile:
-    """Build a :class:`GsasProfile` from a ``PRCF`` header and its coefficients.
-
-    Header format ``2I5, F10.5, 4X, I1, 20A1``: the function type, how many
-    coefficients, the peak cutoff, a damping code, then one ``Y``/``N`` per
-    coefficient.  The flags are the protocol — they are what says which widths
-    the refinement was free to move.
-    """
-    function = _int(payload, 0, 5)
-    n_cof = _int(payload, 5, 10 - 5) or 0
-    cutoff = _num(payload, 10, 10)
-    damping = _int(payload, 24, 1) or 0
-    flags = payload[25:]
+    """Build a :class:`GsasProfile` from a ``PRCF`` header and its coefficients."""
+    header = read_prcf_header(payload)
+    function = header.function
+    n_cof = header.n_coefficients
+    cutoff = header.cutoff
+    damping = header.damping
+    flags = header.flags
 
     if function is None:
         raise GsasExpError(
@@ -714,12 +816,7 @@ def _names_profile(kind: str) -> bool:
 def _read_histogram(number: int, block: dict[str, str], kind: str,
                     path: str) -> GsasHistogram:
     """One ``HST`` block: the machine, the pattern and the fit's own numbers."""
-    icons = block.get("ICONS", "")
-    # 3F10.0 LAM1 LAM2 ZERO, 2X, 3A1 refine flags, 4X, I1 damping,
-    # F10.0 POLA, I5 IPOLA, F10.0 KRATIO.  Read by column: see the module
-    # docstring for why a whitespace split silently re-assigns these.
-    lam1, lam2 = _num(icons, 0, 10), _num(icons, 10, 10)
-    wavelengths = tuple(w for w in (lam1, lam2) if w)
+    icons = read_icons(block.get("ICONS", ""))
 
     excluded = []
     for key in sorted(k for k in block if k.startswith("EXC")):
@@ -764,12 +861,12 @@ def _read_histogram(number: int, block: dict[str, str], kind: str,
         data_file=_text(block.get("HFIL", "")) or None,
         instrument_file=_text(block.get("IFIL", "")) or None,
         bank=_int(block.get("BANK", ""), 0, 5),
-        wavelengths=wavelengths,
-        zero=_num(icons, 20, 10) or 0.0,
-        refine_zero=icons[34:35].strip().upper() == "Y",
-        polarization=_num(icons, 40, 10),
-        polarization_type=_int(icons, 50, 5),
-        ka2_ratio=_num(icons, 55, 10),
+        wavelengths=icons.wavelengths,
+        zero=icons.zero or 0.0,
+        refine_zero=icons.refine_zero,
+        polarization=icons.polarization,
+        polarization_type=icons.polarization_type,
+        ka2_ratio=icons.ka2_ratio,
         anode=anode,
         excluded_regions=tuple(excluded),
         two_theta_range=(

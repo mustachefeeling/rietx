@@ -17,11 +17,41 @@ from pathlib import Path
 import pytest
 
 import rietx as rx
-from rietx.io.instrument_profile import read_gsas_prm
+from rietx.io.instrument_profile import _PRCF_MAPPED, read_gsas_prm
+from rietx.io.projects.gsas import (
+    CW_PROFILE_COEFFICIENTS,
+    read_icons,
+    split_records,
+)
 
 
-def _prm(*, htype="PXCR", bank=1, icons="0.5000000    0.0000    0.0000"
-                                        "               0.990    0     0.500",
+def _icons(*, lam1=0.5, lam2=None, zero=None, refine="", damping=None,
+           pola=0.990, ipola=0, kratio=0.500) -> str:
+    """An ``ICONS`` payload laid out at the columns GSAS writes it at.
+
+    ``3F10.0`` LAM1 LAM2 ZERO, ``2X``, ``3A1`` refine flags, ``4X``, ``I1``
+    damping, ``F10.0`` POLA, ``I5`` IPOLA, ``F10.0`` KRATIO.  The widths are
+    spelled out here and never imported from the reader: a fixture sharing its
+    offsets with the parser can only confirm that the parser agrees with itself
+    (``io/CLAUDE.md`` § adding a format, rule 4).
+
+    ``None`` writes a field **blank**, which is the distinction the record
+    turns on.  A field GSAS did not write is not a field holding zero, and it
+    is precisely the blank ``IREF``/``IDAMP`` of an 11-BM file that let a
+    whitespace split look correct for as long as it did.
+    """
+    def f(value, width):
+        return " " * width if value is None else f"{value:{width}g}"
+
+    return (f(lam1, 10) + f(lam2, 10) + f(zero, 10)
+            + "  " + f"{refine:<3}" + "    "
+            + (" " if damping is None else f"{damping:1d}")
+            + f(pola, 10)
+            + ("     " if ipola is None else f"{ipola:5d}")
+            + f(kratio, 10))
+
+
+def _prm(*, htype="PXCR", bank=1, icons=None,
          prcf_type=3, ncoef=19, cutoff="0.00100",
          coeffs=(1.0, -0.5, 0.2, 0.0, 0.15, 0.0, 0.0011, 0.0022,
                  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
@@ -44,7 +74,9 @@ def _prm(*, htype="PXCR", bank=1, icons="0.5000000    0.0000    0.0000"
     lines = [
         "INS   BANK  " + str(bank),
         "INS   HTYPE   " + htype,
-        f"INS  1 ICONS {icons}",
+        # no space after the key: the payload starts at column 12 and the
+        # leading blanks of LAM1's F10.0 field are part of the field
+        "INS  1 ICONS" + (_icons() if icons is None else icons),
         "INS  1 IRAD     0",
         "INS  1I HEAD  synthetic test fixture",
         "INS  1I ITYP    0    0.0000  180.0000         1",
@@ -251,38 +283,95 @@ def test_duplicate_prcf1_header_for_one_bank_is_refused(tmp_path):
         read_gsas_prm(p)
 
 
-def test_icons_with_an_unexpected_field_count_is_refused(tmp_path):
-    """The one real corpus file with a 7-field ICONS record (a stock GSAS
-    example carrying a real Kα1/Kα2 doublet) is refused rather than guessing
-    which of the 6 established fields is missing or which is the extra one."""
-    p = tmp_path / "sevenfield.prm"
-    p.write_text(_prm(icons="1.5405  1.5443  0.0  0  0.7  0  0.5"), encoding="utf-8")
-    with pytest.raises(ValueError, match="7 fields"):
+def test_a_written_idamp_does_not_move_the_fields_after_it(tmp_path):
+    """The bug this reader's record layer was rewritten for (WP-1118).
+
+    ``ICONS`` is fixed-format and its ``IREF``/``IDAMP`` fields are optional.
+    Every 11-BM file in ``tests/data`` leaves them blank, so the record splits
+    into six tokens that happen to land on the right meanings; ``INST_XRY.PRM``
+    writes ``IDAMP`` and splits into seven that do not, and the old reader
+    refused it for the count.  Read by column the two records give the *same*
+    instrument, which is the property a token count cannot have.
+    """
+    plain = tmp_path / "blank_idamp.prm"
+    written = tmp_path / "written_idamp.prm"
+    plain.write_text(_prm(icons=_icons(pola=0.7, kratio=0.5)), encoding="utf-8")
+    written.write_text(_prm(icons=_icons(pola=0.7, kratio=0.5, damping=0)),
+                       encoding="utf-8")
+
+    assert read_gsas_prm(plain) == read_gsas_prm(written)
+    assert read_gsas_prm(written).source.polarization.value == pytest.approx(0.7)
+
+
+def test_a_doublet_is_read_with_kratio_as_the_second_lines_weight(tmp_path):
+    """A second wavelength used to be refused for want of a convention, and
+    that want was an artefact of not knowing which field ``KRATIO`` was.
+
+    Located by column it is unambiguous: ``EmissionLine.weight`` is the
+    intensity of a line relative to the first, which is exactly the Kα2/Kα1
+    ratio GSAS writes there.  The polarization two fields earlier is also
+    conventionally 0.5, so this fixture states 0.7 and 0.5 to tell them apart —
+    the same separation ``INST_XRY.PRM`` gives against ``FAP.EXP``.
+    """
+    p = tmp_path / "doublet.prm"
+    p.write_text(_prm(icons=_icons(lam1=1.5405, lam2=1.5443, damping=0,
+                                   pola=0.7, kratio=0.5)),
+                 encoding="utf-8")
+    inst = read_gsas_prm(p)
+
+    lines = inst.source.lines
+    assert [ln.wavelength.value for ln in lines] == pytest.approx([1.5405, 1.5443])
+    assert lines[0].weight.value == 1.0, "line 0's weight is pinned by convention"
+    assert lines[1].weight.value == pytest.approx(0.5)
+    assert inst.source.polarization.value == pytest.approx(0.7)
+    assert all(not ln.weight.vary for ln in lines), (
+        "a .prm is a calibration, so every parameter comes back frozen")
+
+
+def test_a_doublet_without_a_ratio_to_weight_it_by_is_refused(tmp_path):
+    """``FAP.EXP`` states a doublet and leaves ``KRATIO`` blank, so a file of
+    that shape states a line whose intensity it never gives.  Supplying the
+    conventional 0.5 would be this reader's number rather than the file's.
+    """
+    p = tmp_path / "unweighted.prm"
+    p.write_text(_prm(icons=_icons(lam1=1.5405, lam2=1.5443, kratio=None)),
+                 encoding="utf-8")
+    with pytest.raises(ValueError, match="KRATIO"):
         read_gsas_prm(p)
 
 
-def test_nonzero_second_wavelength_is_refused(tmp_path):
-    p = tmp_path / "doublet.prm"
-    p.write_text(_prm(icons="0.5  1.5443  0.0  0.990  0  0.5"), encoding="utf-8")
-    with pytest.raises(ValueError, match="second wavelength"):
+def test_a_ratio_outside_the_weight_range_is_refused(tmp_path):
+    p = tmp_path / "wild_ratio.prm"
+    p.write_text(_prm(icons=_icons(lam1=1.5405, lam2=1.5443, kratio=17.0)),
+                 encoding="utf-8")
+    with pytest.raises(ValueError, match="KRATIO"):
         read_gsas_prm(p)
 
 
 def test_nonzero_zero_point_is_refused(tmp_path):
-    """ICONS field 3 (GSAS ``ZERO``) has a disputed unit convention
-    (``io/recipe.py``'s ``_read_zero_shift``) and no real file in the corpus
-    has a non-zero value to settle it against — refused rather than mapped on
-    either guess."""
+    """ICONS ``ZERO`` has a disputed unit convention (``io/recipe.py``'s
+    ``_read_zero_shift``) and no real file in the corpus has a non-zero value
+    to settle it against — refused rather than mapped on either guess."""
     p = tmp_path / "nonzero_zero.prm"
-    p.write_text(_prm(icons="0.5  0.0  0.0123  0.990  0  0.5"), encoding="utf-8")
+    p.write_text(_prm(icons=_icons(zero=0.0123)), encoding="utf-8")
     with pytest.raises(ValueError, match="ZERO"):
         read_gsas_prm(p)
 
 
-def test_nonzero_reserved_icons_field_is_refused(tmp_path):
-    p = tmp_path / "reserved.prm"
-    p.write_text(_prm(icons="0.5  0.0  0.0  0.990  7  0.5"), encoding="utf-8")
-    with pytest.raises(ValueError, match="field 5"):
+def test_nonzero_polarization_type_is_refused(tmp_path):
+    """``IPOLA`` selects which polarization convention ``POLA`` is stated in.
+    Reading POLA under a type this reader cannot name would apply the right
+    number the wrong way, so a non-zero one is refused rather than ignored."""
+    p = tmp_path / "ipola.prm"
+    p.write_text(_prm(icons=_icons(ipola=7)), encoding="utf-8")
+    with pytest.raises(ValueError, match="IPOLA"):
+        read_gsas_prm(p)
+
+
+def test_a_blank_primary_wavelength_is_refused(tmp_path):
+    p = tmp_path / "no_lam1.prm"
+    p.write_text(_prm(icons=_icons(lam1=None)), encoding="utf-8")
+    with pytest.raises(ValueError, match="no primary wavelength"):
         read_gsas_prm(p)
 
 
@@ -314,17 +403,81 @@ def test_nonzero_reserved_prcf_term_is_refused(tmp_path):
 def test_read_gsas_prm_is_exported_at_top_level():
     assert rx.read_gsas_prm is read_gsas_prm
 
+
+def test_a_label_belonging_to_another_profile_function_is_refused(tmp_path):
+    """A label token is skipped because it is prose beside its own number.
+
+    ``asym`` is function 1's fourth coefficient and no name of function 3, so
+    a type-3 record printing it is a file this reader has misunderstood —
+    skipping it would silently shorten the list and rename every coefficient
+    after it, which is the whole hazard the counted layout exists to stop.
+    """
+    p = tmp_path / "wrong_label.prm"
+    p.write_text(_prm(labels={1: "asym"}), encoding="utf-8")
+    with pytest.raises(ValueError, match="unrecognised token"):
+        read_gsas_prm(p)
+
+
+def test_the_mapped_coefficients_are_the_one_tables_own_names():
+    """The eight this reader maps are named from ``CW_PROFILE_COEFFICIENTS``.
+
+    The names are asserted literally here and the reader derives them, which is
+    the way round that makes a rename visible: two readers unpacking one
+    coefficient order from two lists is how they come to disagree, and a
+    structural check (``the slice equals the slice``) would pass however the
+    table changed.
+    """
+    assert _PRCF_MAPPED == ("GU", "GV", "GW", "GP", "LX", "LY", "S/L", "H/L")
+    assert CW_PROFILE_COEFFICIENTS[3][:len(_PRCF_MAPPED)] == _PRCF_MAPPED
+
 # -- the diagnostics channel, and the committed files nothing was reading ----
 
 DATA = Path(__file__).parent / "data"
+
+
+def test_the_two_gsas_readers_read_one_icons_record_the_same_way():
+    """``ICONS`` is a GSAS record, not a ``.prm`` one or a ``.EXP`` one.
+
+    ``INST_XRY.PRM`` and ``FAP.EXP`` state the same Cu doublet and differ in
+    exactly the field that used to be unreadable.  The ``.EXP`` leaves
+    ``KRATIO`` blank, so its 0.5 is the *polarization*; the ``.prm`` states
+    ``POLA`` 0.7 **and** ``KRATIO`` 0.5 in the same two slots.  Both
+    quantities are conventionally 0.5, which is how a reader taking the wrong
+    field agrees with the right one on one of these files and disagrees on the
+    other — so both go through the one record reader (WP-1118).
+    """
+    payload = next(
+        pay for key, pay in
+        split_records((DATA / "INST_XRY.PRM").read_bytes().decode("latin-1"))
+        if key[6:].strip().upper() == "ICONS")
+    prm = read_icons(payload)
+    exp = rx.read_gsas_exp(DATA / "FAP.EXP").histograms[0]
+
+    assert exp.wavelengths == pytest.approx(prm.wavelengths)
+    assert exp.polarization == pytest.approx(0.5)
+    assert exp.ka2_ratio is None, "FAP.EXP leaves KRATIO blank"
+    assert prm.polarization == pytest.approx(0.7)
+    assert prm.ka2_ratio == pytest.approx(0.5)
+
+
+def test_the_file_that_writes_idamp_gets_past_its_record():
+    """``INST_XRY.PRM`` is refused for what is wrong with it, not for a count.
+
+    It was refused for a seven-token ``ICONS``; read by column that record is
+    fine, and the refusal is now its ``GP`` of 0.1 — one of the stock GSAS
+    placeholder profile values (``GU`` 2, ``GV`` −2, ``GW`` 5) this file
+    carries, which is a real reason not to return it as a calibration.
+    """
+    with pytest.raises(ValueError, match="'GP'"):
+        read_gsas_prm(DATA / "INST_XRY.PRM")
 
 
 def test_the_channel_reports_what_the_instrument_does_not_carry():
     """``io/CLAUDE.md``: a value at the model's identity is dropped **with a
     diagnostic**, a non-zero one raises.  The reader had only the refusal half,
     so a caller could not learn that the file said something the ``Instrument``
-    does not carry — including field 6's Kα2/Kα1 ratio, which is read and never
-    applied.
+    does not carry — including ``KRATIO``, which weights a second emission line
+    and so has nothing to do on a file stating one wavelength.
     """
     diagnostics: list = []
     ins = read_gsas_prm(DATA / "mg090.prm", diagnostics=diagnostics)
@@ -336,7 +489,10 @@ def test_the_channel_reports_what_the_instrument_does_not_carry():
         "a field at the model's identity is reported, not warned about — the "
         "file agreed with the model")
     icons = next(d for d in dropped if d.where == ["ICONS"])
-    assert "Kα2/Kα1" in icons.message and "not applied" in icons.message
+    assert "KRATIO" in icons.message and "not applied" in icons.message
+    assert "IPOLA" in icons.message and "IDAMP" in icons.message, (
+        "the row names every ICONS field the Instrument does not carry, and "
+        "reading the record by column is what made IDAMP one of them")
 
     # …and the same read with no list passed returns the same instrument in
     # silence, which is what makes the channel opt-in rather than a behaviour
