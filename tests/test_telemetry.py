@@ -100,7 +100,7 @@ def test_the_root_hides_itself_from_git(tmp_path, monkeypatch, pattern,
     monkeypatch.chdir(tmp_path)
     _fit(pattern)
     root = tmp_path / STATE_DIR_NAME / RUNS_DIR_NAME
-    assert (root / runs.GITIGNORE_FILE).read_text().strip() == "*"
+    assert (root / runs.GITIGNORE_FILE).read_text(encoding="utf-8").strip() == "*"
 
 
 def test_summary_is_the_termination_view_and_not_a_report(
@@ -109,7 +109,7 @@ def test_summary_is_the_termination_view_and_not_a_report(
     monkeypatch.chdir(tmp_path)
     result = _fit(pattern)
     (run,) = runs.discover(tmp_path)
-    assert (run.path / runs.SUMMARY_FILE).read_text() == str(result)
+    assert (run.path / runs.SUMMARY_FILE).read_text(encoding="utf-8") == str(result)
 
 
 def test_the_status_rwp_is_the_last_stage_end_in_the_log(
@@ -163,7 +163,7 @@ def test_run_stage_records_a_run_with_a_picture(tmp_path, monkeypatch, pattern,
                                     turn_on=["instrument.background.*"]))
     (run,) = runs.discover(tmp_path)
     assert run.has_snapshot is True
-    payload = json.loads((run.path / runs.SNAPSHOT_FILE).read_text())
+    payload = json.loads((run.path / runs.SNAPSHOT_FILE).read_text(encoding="utf-8"))
     assert payload["stage"] == "background"
     assert payload["y_calc"] and payload["two_theta"]
 
@@ -337,7 +337,7 @@ def test_a_recorder_that_breaks_mid_run_latches_and_says_why(
 
     assert result.status == "converged"
     assert recorder.error is not None
-    status = json.loads((recorder.dir / runs.STATUS_FILE).read_text())
+    status = json.loads((recorder.dir / runs.STATUS_FILE).read_text(encoding="utf-8"))
     assert status["error"] == recorder.error
     assert status["state"] == "running"      # it never got to say otherwise
 

@@ -19,7 +19,7 @@ graph LR
     PJ["project.json<br/><i>settings</i>"]
     PC["the pattern file<br/><i>copied byte for byte</i>"]
     H["history.jsonl<br/><i>model state</i>"]
-    LV["live/<br/><i>event streams</i>"]
+    LV["live/<br/><i>one directory per run</i>"]
     EX["exports/<br/><i>CIF, tables</i>"]
   end
   REF --> PJ
@@ -418,7 +418,7 @@ my_sample.rex/
     project.json        settings and the data reference
     11BM_NAC.fxye       the pattern file, byte for byte as measured
     history.jsonl       the refinement DAG, append-only
-    live/               event streams for `rietx watch`
+    live/               one directory per run, for `rietx watch`
     exports/            CIFs, reflection tables, QPA tables
 ```
 
