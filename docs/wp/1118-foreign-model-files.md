@@ -1,12 +1,13 @@
 # WP-1118 — foreign model files: read a refinement in, write one back
 
-Milestone: unscheduled · Status: 🔄 2026-09-15 — the TOPAS `.inp` reader
+Milestone: unscheduled · Status: 🔄 2026-09-16 — the TOPAS `.inp` reader
 (PR #98), the FullProf `.pcr` reader (PR #111), the GSAS-I `.PRM`
 instrument-parameter reader (PR #248), the model-format registry over them and
 the GSAS `.EXP` reader (#103), whose acceptance rewire showed the FAP suite
 refines 20 parameters where GSAS refined 28; `read_gsas_prm` now reads its
-fixed-format records by column and a Kα doublet with them (PR #332); the
-`.gpx` reader and every writer remain
+fixed-format records by column and a Kα doublet with them (PR #332), and
+refuses an out-of-range value naming the file; the `.gpx` reader and every
+writer remain
 Depends on: — (WP-1110 found it; WP-1102 owns the one seam that overlaps)
 
 ## Goal
@@ -369,6 +370,107 @@ work this WP does.
 
 ## Handover log
 
+### 2026-09-16 — the handover the column read never wrote, and the refusal the repair found
+
+A session that finishes its work and never writes it down leaves the next person
+reading commit messages. This is that record. The entry below reconstructs what
+the column read did; this one covers the repair that wrote it.
+
+The repair was meant to be bookkeeping. It turned up two things instead. One is
+a claim in this file that had never been true. The other is a defect in the
+merged reader, and it is the one worth knowing. Handed a `.prm` whose numbers
+fall outside what this package's schema holds, `read_gsas_prm` did not refuse
+it. Pydantic did, naming a `Parameter` and never the file, which is the one
+shape `io/CLAUDE.md` forbids a reader. It refuses by name now.
+
+*Done* — on `wp1118-prm-columns-handover`, cut fresh from `origin/main`. The
+column session's branch was already merged, so a commit on it would have been
+stranded where the merge could not carry it.
+
+- The reconstructed entry below, the Status line, and WP-1314's `### Inherited`.
+- `0efac867`, the refusal, with its parametrised test.
+- The stale claim in the skill task, repaired in place and dated.
+
+*Measured* — this worktree's `.venv`, `[dev]` only (no jax, no torch), python
+3.12.12, darwin/arm64, alone on the machine (checked with `ps aux | grep`, not
+`pgrep`).
+
+- The four `.prm` fixtures re-read on the merged tree. They come back
+  single-line at λ 0.41391, 0.41313, 0.41368 and 0.41330 Å, each weight 1.0,
+  and `INST_XRY.PRM` refuses naming `GP`. That corroborates the shape of the
+  answer. It does not re-verify the bit-identity claimed in the entry below,
+  which needs the pre-branch module and stays that session's measurement.
+- **The column session recorded no selection count. This one measured**, on
+  the repair branch, alone on the machine: fast selection
+  `-n auto --dist loadgroup -m "not slow"` → **4951 passed, 132 skipped**, 3:23.
+  Five of those are this repair's own parametrised refusal test, so `origin/main`
+  stands at 4946, derived per file rather than by re-measuring it
+  (`tests/CLAUDE.md` rung 4).
+- **That figure does not yield the column session's delta.** The 1st session
+  measured 4925 passed on *its branch*, `7747a14e`, and the tree that became
+  `origin/main` is that branch merged into a `main` which had moved under it.
+  Two parents' additions do not sum (`tests/CLAUDE.md` § Quoting numbers), so
+  the attributable figure here is the per-file one: `tests/test_gsas_prm.py`
+  went 29 → 38 test functions.
+- `tests/test_gsas_prm.py` 40 → 45 cases with the refusal test, all passing.
+  `test_manual_api.py`, `test_docs_consistency.py` and `test_skill.py`: 101
+  passed. `ruff check src tests examples` clean.
+- No full selection. On a successful read the refusal converts nothing and
+  reorders nothing, so no measured number can move.
+
+*The review pass* — `/code-review high --fix`, run by this repair. It found
+something in the merged code rather than in the repair. That is the case step 9
+of the handover exists for.
+
+Read what it is before relying on it. The diff under review was this branch's,
+which is documentation, so the reader was opened as **context** and never as
+reviewed scope. One defect surfaced that way. PR #332's code has had exactly one
+systematic review and it is the column session's own (`2a96b536`); nothing here
+re-reviewed it, and a second defect of the same kind would not have been found.
+
+`read_gsas_prm` converts the file's numbers onto the schema by assignment, and
+`Base` validates on assignment while `Parameter` carries a bounds validator. A
+`.prm` stating a negative `GW` therefore raised pydantic's `ValidationError`
+naming `Parameter`, with no file in it, which is the shape `io/CLAUDE.md`
+§ Refusals forbids a reader. The conversion now sits in `_build_instrument`, and
+a schema error at that boundary comes back as a `ValueError` naming the file and
+quoting every value it converted. The same exposure ran through `LAM1`, `LAM2`,
+`POLA`, `KRATIO`, `GU` and the two axial terms, so the test is parametrised over
+five of them (`0efac867`).
+
+Two smaller things came with it. The build moved above the diagnostics block.
+The emission site's own comment already promised that, and the test now asserts
+the caller's list is empty when a file is refused. And the manual
+documented the two diagnostics in the wrong order. `GSAS_PRM_FIELD_DROPPED`
+precedes `GSAS_PRM_GEOMETRY_ASSUMED`, checked on `11bm_gsas.prm`, and that error
+predates the reorder.
+
+One finding was declined as written. The patch's docstring and its test comment
+both said a GSAS fit of a broad laboratory pattern lands `GW` negative
+"routinely". Nothing in this session measured that. The docstring now states the
+measurement that was made and says plainly that the frequency was not.
+
+*Next*, in order, with what decides between them.
+
+1. **The GSAS-II `.gpx` reader behind the restricted unpickler.** It is the last
+   reader, and the writers task cannot be scoped until every reader's model
+   exists. Its own first step is widening the corpus. That is measurement, and
+   it can start before any unpickler is written.
+2. **Origin-choice honesty** (#101), the cheap one. `normalize_space_group` is
+   already drafted in the #98 branch and the task closes an issue.
+3. The writers (#148), then the `#prm` integer evaluator for `.inp` `#if`
+   guards.
+
+One thing the WP file called owed is not owed. This repair checked `SKILL.md`
+before repeating the claim, and line 41 already names the situation and routes
+to `references/api.md` § In. It landed 2026-08-30 under WP-1308, before the
+note calling it missing was written, and the "PowderLine recipe" the note
+quotes is a manual page in the row's third column. The task text now says so,
+with the byte headroom re-measured: `SKILL.md` has 1 049 B free of 33 000 and
+`references/api.md` 3 204 B of 36 000, both tighter than the 09-13 figures they
+replace.
+
+
 ### 2026-09-15 (2nd session) — `read_gsas_prm` by column, and the refusal whose reason had expired (reconstructed post hoc)
 
 A lab `.prm` written for a copper tube states two wavelengths. rietx refused
@@ -423,68 +525,19 @@ instead of supplying a reason.
   left to the maintainer. The suite keeps its 20 free parameters and keeps
   asserting the difference against GSAS's 28.
 
-*Measured* — the same worktree and `.venv` as the 1st session, `[dev]` only
-(no jax, no torch), python 3.12.12, darwin/arm64.
+*Measured* — the session's own numbers, in the same worktree and `.venv` as
+the 1st session, `[dev]` only (no jax, no torch), python 3.12.12, darwin/arm64.
 
 - The four real calibration files here read **bit-identically**: `11bm_gsas.prm`,
   `11bm_lab6_gsas.prm`, `11BM_LaB6_cBN_mg2044.prm` and `mg090.prm`, measured
   against `origin/main`'s module over the whole `model_dump`.
 - `INST_XRY.PRM` is refused for its `GP` of 0.1, a stock GSAS placeholder, where
   before it was refused for a token count.
-- Re-read on the merged tree by this repair, 2026-09-15. The four come back
-  single-line at λ 0.41391, 0.41313, 0.41368 and 0.41330 Å, each weight 1.0,
-  and `INST_XRY.PRM` refuses naming `GP`. That corroborates the shape of the
-  answer. It does not re-verify the bit-identity above, which needs the
-  pre-branch module and stays the session's own measurement.
 - `tests/test_gsas_prm.py` went 29 → 38 test functions, 12 added and 3 removed.
   The three that went asserted the split reading: the token-count refusal, the
   doublet refusal and the reserved-field refusal. The file collects 40 cases and
-  all 40 pass on the merged tree, re-measured 2026-09-15 by this repair.
+  all 40 pass on the merged tree, re-measured 2026-09-16 by the repair above.
 - `src/rietx/io/CLAUDE.md`'s cap went 368 → 383, and the file landed at 381.
-- **The session recorded no selection count. This repair measured one**, on the
-  repair branch, alone on the machine, 2026-09-16: fast selection
-  `-n auto --dist loadgroup -m "not slow"` → **4951 passed, 132 skipped**, 3:23.
-  Five of those are this repair's own parametrised refusal test, so `origin/main`
-  stands at 4946, derived per file rather than by re-measuring it
-  (`tests/CLAUDE.md` rung 4).
-- **That figure does not yield the column session's delta.** The 1st session
-  measured 4925 passed on *its branch*, `7747a14e`, and the tree that became
-  `origin/main` is that branch merged into a `main` which had moved under it.
-  Two parents' additions do not sum (`tests/CLAUDE.md` § Quoting numbers), so
-  the attributable figure here is the per-file one: `tests/test_gsas_prm.py`
-  went 29 → 38 test functions.
-
-*The review pass* — `/code-review high --fix`, run by this repair. It found
-something in the merged code rather than in the repair. That is the case step 9
-of the handover exists for.
-
-Read what it is before relying on it. The diff under review was this branch's,
-which is documentation, so the reader was opened as **context** and never as
-reviewed scope. One defect surfaced that way. PR #332's code has had exactly one
-systematic review and it is the column session's own (`2a96b536`); nothing here
-re-reviewed it, and a second defect of the same kind would not have been found.
-
-`read_gsas_prm` converts the file's numbers onto the schema by assignment, and
-`Base` validates on assignment while `Parameter` carries a bounds validator. A
-`.prm` stating a negative `GW` therefore raised pydantic's `ValidationError`
-naming `Parameter`, with no file in it, which is the shape `io/CLAUDE.md`
-§ Refusals forbids a reader. The conversion now sits in `_build_instrument`, and
-a schema error at that boundary comes back as a `ValueError` naming the file and
-quoting every value it converted. The same exposure ran through `LAM1`, `LAM2`,
-`POLA`, `KRATIO`, `GU` and the two axial terms, so the test is parametrised over
-five of them (`0efac867`).
-
-Two smaller things came with it. The build moved above the diagnostics block.
-The emission site's own comment already promised that, and the test now asserts
-the caller's list is empty when a file is refused. And the manual
-documented the two diagnostics in the wrong order. `GSAS_PRM_FIELD_DROPPED`
-precedes `GSAS_PRM_GEOMETRY_ASSUMED`, checked on `11bm_gsas.prm`, and that error
-predates the reorder.
-
-One finding was declined as written. The patch's docstring and its test comment
-both said a GSAS fit of a broad laboratory pattern lands `GW` negative
-"routinely". Nothing in this session measured that. The docstring now states the
-measurement that was made and says plainly that the frequency was not.
 
 *Gotchas*
 
@@ -502,26 +555,6 @@ measurement that was made and says plainly that the frequency was not.
   parsing, so one vendor's several file kinds read a record through one
   function. And a refusal's reason can expire, so a parser getting sharper is a
   reason to audit its refusals too.
-
-*Next*, in order, with what decides between them.
-
-1. **The GSAS-II `.gpx` reader behind the restricted unpickler.** It is the last
-   reader, and the writers task cannot be scoped until every reader's model
-   exists. Its own first step is widening the corpus. That is measurement, and
-   it can start before any unpickler is written.
-2. **Origin-choice honesty** (#101), the cheap one. `normalize_space_group` is
-   already drafted in the #98 branch and the task closes an issue.
-3. The writers (#148), then the `#prm` integer evaluator for `.inp` `#if`
-   guards.
-
-One thing the WP file called owed is not owed. This repair checked `SKILL.md`
-before repeating the claim, and line 41 already names the situation and routes
-to `references/api.md` § In. It landed 2026-08-30 under WP-1308, before the
-note calling it missing was written, and the "PowderLine recipe" the note
-quotes is a manual page in the row's third column. The task text now says so,
-with the byte headroom re-measured: `SKILL.md` has 1 049 B free of 33 000 and
-`references/api.md` 3 204 B of 36 000, both tighter than the 09-13 figures they
-replace.
 
 ### 2026-09-15 (1st session) — the GSAS `.EXP` reader, and the protocol it turned out nobody had
 
