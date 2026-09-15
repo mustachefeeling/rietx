@@ -219,11 +219,15 @@ format token is spelled in `_about.py`, never inline (root CLAUDE.md § Conventi
       `rx.` exports with a `capabilities().project_formats` arm. #107, #103 and
       [1314](1314-mfile-reader.md) are unblocked.
 - [x] TOPAS `.inp` reader — the format with the evidence behind it.
-- [ ] GSAS `.EXP` + `.PRM` reader, and make `tests/test_acceptance_fap.py` take
+- [x] GSAS `.EXP` + `.PRM` reader, and make `tests/test_acceptance_fap.py` take
       its protocol from the reader instead of from transcribed constants.
       — the `.PRM` half landed (`rx.read_gsas_prm`, PR #248, merged 2026-09-10,
-      `ff69ec34`); `.EXP`, and the acceptance suite taking its protocol from
-      either, remain.
+      `ff69ec34`); the `.EXP` half and the acceptance rewire landed 2026-09-15
+      (`rx.read_gsas_exp`, `PROJECT_FORMATS` member `gsas_exp`). `Closes #103`.
+      Two follow-ups this task **did not** do, each with its numbers in the
+      handover entry: the plan still frees no coordinate DOFs where GSAS freed
+      twelve (measured, nearly free to close), and `read_gsas_prm` reads the
+      same `ICONS` record by whitespace split rather than by column.
 - [x] FullProf `.pcr` reader. — PR #111, merged 2026-09-03 (`b717cc98`)
 - [ ] GSAS-II `.gpx` reader behind a **restricted unpickler** (decided
       2026-09-03, issue #234): subclass `pickle.Unpickler`, override
