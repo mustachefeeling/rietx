@@ -90,10 +90,25 @@ class Holder(NamedTuple):
     branch: Optional[str]  # None when the tree is on a detached HEAD
     source: str  # "claim", "branch" or "tree" — where the WP number came from
     sessions: tuple  # session_start.Session, live and in this tree
+    claim: Optional[Claim] = None  # set only when source == "claim"
 
     @property
     def held(self) -> bool:
         return bool(self.sessions)
+
+    @property
+    def provenance(self) -> str:
+        """Where the WP number came from, and for a claim, who said so and when.
+
+        ``by`` and ``declared`` are written into every claim and this is what
+        reads them.  A field nothing reads is a declared name with no writer's
+        twin, and it rots the same way: the pair distinguishes the create hook's
+        automatic claim from a session's correction, which ``source`` alone
+        cannot, and that is exactly the case worth seeing in the table.
+        """
+        if self.claim is None:
+            return f"from the {self.source}"
+        return f"from the claim, by {self.claim.by} {self.claim.declared}"
 
 
 def wp_from_name(name: str) -> Optional[str]:
@@ -265,17 +280,22 @@ def occupancy(
     for tree, branch in trees.items():
         if main is not None and tree == main.resolve():
             continue
-        claim = claims.get(tree)
-        if claim is not None:
-            wp, source = claim.wp, "claim"
+        declared = claims.get(tree)
+        if declared is not None:
+            wp, source = declared.wp, "claim"
         elif branch and wp_from_name(branch):
             wp, source = wp_from_name(branch), "branch"
         elif wp_from_name(tree.name):
+            # Reached by a WP tree on a detached HEAD, and by one whose branch
+            # was renamed to something that names no WP.
             wp, source = wp_from_name(tree.name), "tree"
         else:
             continue
         holders.append(
-            Holder(wp, tree, branch, source, _sessions_in(tree, trees, sessions, exclude))
+            Holder(
+                wp, tree, branch, source,
+                _sessions_in(tree, trees, sessions, exclude), declared,
+            )
         )
     return sorted(holders, key=lambda h: (h.wp, str(h.worktree)))
 
@@ -327,7 +347,7 @@ def describe(holder: Holder, main: Optional[Path]) -> str:
     branch = f", branch {holder.branch}" if holder.branch else ""
     return (
         f"WP-{holder.wp} held by {who} in {where(holder, main)}{branch} "
-        f"(from the {holder.source})"
+        f"({holder.provenance})"
     )
 
 
@@ -382,7 +402,7 @@ def _status(root: Path, here: Path) -> int:
         who = ", ".join(f"pid {s.pid} up {s.age}" for s in h.sessions)
         state = f"held by {who}" if h.held else "dormant"
         branch = h.branch or "detached"
-        print(f"{mark} WP-{h.wp}  {state}  in {where(h, main)} ({branch}, from the {h.source})")
+        print(f"{mark} WP-{h.wp}  {state}  in {where(h, main)} ({branch}, {h.provenance})")
     for wp in clashes(holders):
         print(f"⚠ WP-{wp} is live in more than one tree — that is the clash")
     return 0

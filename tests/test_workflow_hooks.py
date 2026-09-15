@@ -846,3 +846,47 @@ def test_the_session_start_line_names_the_other_session(
     assert "WP-9102 held by pid 22 up 03:14" in line
     assert "wp9102-inner" in line and hook.CLAIM_HINT in line
     assert hook.claim_lines(inner) == []  # its own tree is not news to it
+
+
+def test_a_wp_tree_with_no_wp_branch_falls_back_to_its_own_name(
+    two_trees: tuple[Path, Path, Path]
+) -> None:
+    """The third ``source`` value, which nothing else reaches.
+
+    A detached HEAD has no branch to read, and a branch renamed to something
+    that names no WP is the same case.  Declared as a vocabulary member, so it
+    needs a producer and a test naming it (WP-1076's class).
+    """
+    main, outer, _inner = two_trees
+    _git(outer, "checkout", "-q", "--detach")
+    trees = claim.worktree_branches(main)
+    assert trees[outer.resolve()] is None
+    held = {h.worktree: h for h in claim.occupancy(trees, [], set(), {}, main)}[outer.resolve()]
+    assert (held.wp, held.source, held.branch) == ("9101", "tree", None)
+    assert held.provenance == "from the tree"
+
+
+def test_a_claim_says_who_declared_it_and_when(
+    two_trees: tuple[Path, Path, Path]
+) -> None:
+    """``by`` and ``declared`` are written into every claim; this reads them.
+
+    The create hook's automatic claim and a session's correction are the two
+    cases, and ``source`` alone says "claim" for both.
+    """
+    main, outer, inner = two_trees
+    claim.write_claim(main, outer, "9199", by="worktree")
+    claim.write_claim(main, inner, "9198", by="session")
+    stored = claim.read_claims(main)
+    assert {c.by for c in stored.values()} == {"worktree", "session"}
+
+    trees = claim.worktree_branches(main)
+    by_path = {h.worktree: h for h in claim.occupancy(trees, [], set(), stored, main)}
+    # The stored date, not today's: this asserts that provenance renders the
+    # fields the claim carries, never that the clock agrees with itself.
+    when = stored[outer.resolve()].declared
+    assert by_path[outer.resolve()].provenance == f"from the claim, by worktree {when}"
+    assert by_path[inner.resolve()].provenance == f"from the claim, by session {when}"
+    assert claim.describe(by_path[outer.resolve()], main).endswith(
+        f"(from the claim, by worktree {when})"
+    )
