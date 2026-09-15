@@ -191,7 +191,7 @@ Two items changed shape and one moved out; the reasons are in Context above.
       message. Then `rietx skill --install . --copy`.
 - [ ] ~~The skill body sentence~~ — moved to WP-1405, which is the WP that makes
       it true. Its `### Inherited` carries the sentence and the owed cut.
-- [ ] WP-1322's Task 2 recorded as discharged, dated; WP-1133's and WP-1405's
+- [x] WP-1322's Task 2 recorded as discharged, dated; WP-1133's and WP-1405's
       `### Inherited` noted.
 - [x] Record the two deliberate refusals — no surface flag, no seventh contract
       — where a later session will find them, which is here and in the module
