@@ -186,7 +186,7 @@ Two items changed shape and one moved out; the reasons are in Context above.
       quoted from WP-1404.
 - [x] `using/compatibility.md`: the run layout as an unversioned contract; and
       WP-1403's addition staged in `milestones/v1.4.md`, which has none.
-- [ ] The `references/` file and its routing row, with the pinned header and the
+- [x] The `references/` file and its routing row, with the pinned header and the
       measurement tags; the row **paid for by a named cut**, named in the commit
       message. Then `rietx skill --install . --copy`.
 - [ ] ~~The skill body sentence~~ — moved to WP-1405, which is the WP that makes
@@ -196,7 +196,7 @@ Two items changed shape and one moved out; the reasons are in Context above.
 - [x] Record the two deliberate refusals — no surface flag, no seventh contract
       — where a later session will find them, which is here and in the module
       docstring, not in a commit message alone.
-- [ ] Skill: this WP **is** the skill task for the track.
+- [x] Skill: this WP **is** the skill task for the track.
 
 ## Acceptance
 

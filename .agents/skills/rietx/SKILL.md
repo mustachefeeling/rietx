@@ -49,6 +49,7 @@ restated here; a page named `x` below is `https://rietx.org/using/x.html`.
 | §9b — an in-situ ramp, a sweep or a tray: chaining N patterns, and checking the chain both ways | [`references/series.md`](references/series.md) | `series` |
 | §9c, deciding: ranking, differencing, auditing, identifiability | [`references/batch.md`](references/batch.md) | `history`, `series` |
 | §9c, operating: budget, cost, timing, the log, inventory, fault tolerance | [`references/batch-operating.md`](references/batch-operating.md) | `history`, `series` |
+| §9d — a human may be watching this fit, or you want to hand one a window onto a long run; also reading a finished run off disk | [`references/watching.md`](references/watching.md) | `cli`, `refining`, `files` |
 | writing the answer out: CIF, QPA table, reflection table, plots | [`references/api.md`](references/api.md) § Out | `exports` |
 
 ---
@@ -370,11 +371,6 @@ Several places will decline to answer. When they do, that *is* the answer.
     number in the result did not come from the data. Their esds do not make them
     measurements, and a good Rwp does not cover them: a parameter that does not
     move y_calc does not move Rwp either.
-23. **Two of these codes are a number to check, not a refusal**:
-    `STRAIN_UNUSUALLY_LARGE` and `SIZE_UNUSUALLY_SMALL`. The fit is finished and
-    may be right — confirm the broad lines are really that phase's, and not an
-    unmodelled peak shape, an amorphous component or a second phase.
-
 Every signal, its meaning and its correct response:
 [`references/abstention.md`](references/abstention.md).
 
