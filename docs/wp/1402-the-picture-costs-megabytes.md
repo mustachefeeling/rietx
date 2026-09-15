@@ -170,7 +170,7 @@ a stage where a reloaded iframe cannot.
 
 ## Tasks
 
-- [ ] `viz/plotlyjs.py`: one `plotly_js()`, with `gui/server.py` and
+- [x] `viz/plotlyjs.py`: one `plotly_js()`, with `gui/server.py` and
       `compare_app.py` switched to it and their local copies deleted. Lands
       alone, so a regression here is bisectable away from the rest.
 - [ ] The snapshot writer: decimated `two_theta` / `y_obs` / `y_calc` / `y_bkg`

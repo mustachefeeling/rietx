@@ -29,6 +29,8 @@ from pathlib import Path
 
 from ._about import DIST_NAME
 from .viz import compare as cmp
+from .viz.plotlyjs import CONTENT_TYPE as PLOTLY_CONTENT_TYPE
+from .viz.plotlyjs import plotly_js
 
 DEFAULT_PORT = 8730
 
@@ -100,14 +102,12 @@ class _State:
                     "log": list(self.log[-40:])}
 
 
-def _plotly_js() -> str:
-    try:
-        from plotly.offline import get_plotlyjs
-    except ImportError:  # pragma: no cover - exercised by the missing-dep path
-        return ("document.body.innerHTML = '<p style=\"font:14px sans-serif;"
-                "padding:2rem\">This page needs plotly: "
-                f"<code>pip install \\'{DIST_NAME}[viz]\\'</code></p>';")
-    return get_plotlyjs()
+#: This page has one panel and no shell worth keeping, so a missing plotly
+#: replaces the body outright. The GUI answers the same absence with a window
+#: flag its dist checks — which is why the fallback belongs to the caller.
+_NO_PLOTLY_JS = ("document.body.innerHTML = '<p style=\"font:14px sans-serif;"
+                 "padding:2rem\">This page needs plotly: "
+                 f"<code>pip install \\'{DIST_NAME}[viz]\\'</code></p>';")
 
 
 def _handler(state: _State):
@@ -136,8 +136,8 @@ def _handler(state: _State):
             if path in ("/", "/index.html"):
                 self._send(page.encode("utf-8"), "text/html; charset=utf-8")
             elif path == "/plotly.js":
-                self._send(_plotly_js().encode("utf-8"),
-                           "application/javascript; charset=utf-8")
+                self._send(plotly_js(_NO_PLOTLY_JS).encode("utf-8"),
+                           PLOTLY_CONTENT_TYPE)
             elif path == "/api/catalog":
                 self._json(cmp.catalog(state.data_dir))
             elif path.startswith("/api/state"):
