@@ -108,7 +108,7 @@ unchanged, so nothing a user reads is owed a correction.
 **Queued, unscheduled** ([§ Unscheduled](#unscheduled)): the 2026-09-01
 triage's 1309–1322 plus 1323 and 1325; the 2026-09-03 triage's 1332–1341; the
 magnetic track (1326–1329, 1343, and 1418 behind them); the older 1133. The
-**2026-09-15 triage** adds 1413–1420, eight WPs for ten issues, and folds the
+**2026-09-15 triage** adds 1414–1421, eight WPs for ten issues, and folds the
 other eleven into 1310, 1311, 1312, 1326–1328, 1333, 1338 and 1343.
 
 **Parked, blocking nothing:** the 1.0.0-notes promises (`.rex` zip transport,
@@ -506,7 +506,7 @@ measured. The 2026-09-03 triage adds three: a 2θ axis read 100× wrong from a
 commented header (1332), a fit that says `converged` while its own diagnostics
 say otherwise (1336), and two paths failing in a raw traceback where the
 package promised an authored refusal (1337). The 2026-09-15 triage adds
-four: a reported Rwp the returned model does not give back (1413), a
+four: a reported Rwp the returned model does not give back (1421), a
 `turn_on` path that reached nothing (1414), a σ column smaller than √y
 feeding two diagnostics that assumed Poisson (1415), and ΔBIC on a raw
 channel count (1417).
@@ -524,10 +524,10 @@ channel count (1417).
 | [1337](wp/1337-an-authored-refusal-not-a-traceback.md) | An authored refusal, not a raw traceback | ⬜ | — (1311, 1321 soft) |
 | [1342](wp/1342-a-freeze-that-reads-names.md) | A structural freeze that reads names, and the tie it cannot see | ⬜ | — (1301, 1119 soft) |
 | [1344](wp/1344-a-joint-fit-owes-each-histogram-its-diagnostics.md) | A joint fit owes each histogram the diagnostics its own radiation earns | ⬜ | — (1341 soft) |
-| [1413](wp/1413-the-result-reproduces-its-own-number.md) | The result reproduces its own number | ⬜ | — (1310 soft) |
 | [1414](wp/1414-a-turn-on-that-reached-nothing.md) | A `turn_on` that reached nothing says so | ⬜ | — (1341 soft) |
 | [1415](wp/1415-a-sigma-column-smaller-than-root-y.md) | A σ column smaller than √y | ⬜ | — |
 | [1417](wp/1417-delta-bic-at-powder-channel-counts.md) | ΔBIC at powder channel counts | ⬜ | — (1339 soft) |
+| [1421](wp/1421-the-result-reproduces-its-own-number.md) | The result reproduces its own number | ⬜ | — (1310 soft) |
 
 #### A long run is not one fit
 
