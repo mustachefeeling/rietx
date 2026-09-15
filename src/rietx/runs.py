@@ -207,10 +207,12 @@ class Run:
     meta: RunMeta | None = None
     status: RunStatus | None = None
     has_snapshot: bool = False
-    #: A pre-WP-1402 ``fit.html`` and no ``snapshot.json``. Separate from
+    #: A pre-WP-1402 ``fit.html`` is on disk. Reported beside
     #: :attr:`has_snapshot` rather than folded into it: a client draws the two
     #: differently, and one flag for both would hand a legacy run's page to a
-    #: plotting call that wants numbers.
+    #: plotting call that wants numbers. The two are independent facts, so a
+    #: directory holding both sets both — which of them to draw is the
+    #: client's call, and ``rietx watch`` prefers the numbers.
     has_legacy_snapshot: bool = False
 
     def as_dict(self) -> dict:

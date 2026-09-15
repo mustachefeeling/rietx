@@ -270,19 +270,29 @@ function snapshotTraces(snap) {
   return traces;
 }
 
+// True when this write is dealt with — drawn, or deliberately given up on
+// (no plotly, the reader moved on). False is "not drawn yet", and the caller
+// leaves the write uncommitted so the next poll tries again: a dropped fetch
+// on the last stage of a fit would otherwise leave the previous stage's
+// picture up for good, there being no later write to notice.
 async function drawSnapshot(id) {
   const plotly = await ensurePlotly();
   const div = document.getElementById('plot');
-  if (!div || currentId() !== id) return;
+  if (!div || currentId() !== id) return true;
   if (!plotly) {
     div.outerHTML = '<div id="noplot">this page draws with plotly: ' +
       "<code>pip install '@DIST@[viz]'</code></div>";
-    return;
+    return true;
   }
-  const r = await fetch(`api/run/${id}/snapshot`, {cache: 'no-store'});
-  if (!r.ok) return;
-  const snap = await r.json();
-  if (currentId() !== id || !document.getElementById('plot')) return;
+  let snap;
+  try {
+    const r = await fetch(`api/run/${id}/snapshot`, {cache: 'no-store'});
+    if (!r.ok) return false;
+    snap = await r.json();
+  } catch (err) {
+    return false;                      // the console tail is not the plot's
+  }
+  if (currentId() !== id || !document.getElementById('plot')) return true;
   // react, never newPlot: it keeps the reader's zoom across a stage, which is
   // the whole reason the picture stopped being a page that reloads
   plotly.react(div, snapshotTraces(snap), {
@@ -312,6 +322,7 @@ async function drawSnapshot(id) {
   drawn = `${snap.n_drawn} of ${snap.n_points} pts drawn`;
   const note = document.getElementById('drawn');
   if (note) note.textContent = drawn;
+  return true;
 }
 
 async function drawDetail(id, first) {
@@ -320,6 +331,10 @@ async function drawDetail(id, first) {
   const run = await r.json();
   if (currentId() !== id) return;      // the hash moved while we were waiting
   const st = run.status || {};
+  // the count belongs to the run it was measured on, so it is dropped before
+  // the crumb is written and not after — the crumb carries it
+  const kind = pictureKind(run);
+  if (shell.id !== id) drawn = '';
   rootEl.textContent = run.path;
   crumb.innerHTML = (SINGLE ? '' : '<a href="#">all runs</a> · ') +
     `<span class="state ${run.liveness.state}" title="${esc(run.liveness.evidence)}"
@@ -331,16 +346,14 @@ async function drawDetail(id, first) {
     ` <span id="drawn" class="muted">${esc(drawn)}</span>`;
   // a running fit rewrites its snapshot per stage, and a run that had none
   // when it was opened grows one at its first
-  const kind = pictureKind(run);
-  if (first || shell.id !== id || shell.kind !== kind) {
-    if (shell.id !== id) drawn = '';
-    detailShell(run, kind);
-  }
+  if (first || shell.id !== id || shell.kind !== kind) detailShell(run, kind);
+  // the write is recorded once it is on the page, never before: a draw that
+  // did not happen must stay outstanding for the next poll
   if (kind !== 'none' && run.snapshot_mtime !== shell.mtime) {
-    shell.mtime = run.snapshot_mtime;
     if (kind === 'json') {
-      await drawSnapshot(id);
+      if (await drawSnapshot(id)) shell.mtime = run.snapshot_mtime;
     } else {
+      shell.mtime = run.snapshot_mtime;
       const frame = document.getElementById('plot');
       if (frame) frame.src = legacySrc(run);
     }

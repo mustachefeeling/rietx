@@ -245,6 +245,13 @@ From **WP-1402** (2026-09-15), which is why this one is no longer blocked:
 - **`status.json` is written from the snapshot payload**, not recomputed, so the
   `state`/`pid`/`host`/`heartbeat` fields this WP adds join a dict that already
   agrees with the plot. `runs.RunStatus` documents which five fields exist today.
+- **Decide what a failing sink does, because it is your decision and not
+  1402's.** `for sink in sinks: sink.write_snapshot(...)` runs unguarded, so a
+  full disk or a removed live directory discards a converged result. That is
+  right while a caller has *asked* for a live view — the project's rule is loud
+  failure — and wrong the moment a recorder runs on a fit nobody asked to
+  record. 1402's review raised it and left it here rather than picking an answer
+  the recording WP has to live with.
 - **Copy the table if you hold a stage.** One `ParameterTable` is reused and
   re-freed down a plan, so a deferred `build_snapshot` on an early stage decodes
   against the wrong width and raises. A sink writing inside the call never meets

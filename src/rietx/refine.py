@@ -2131,8 +2131,10 @@ class Refinement:
             n_constraint_truncations=outcome.n_constraint_truncations,
             ftol=stage.ftol, held=hold.held, released=hold.released)
 
-        # before the commit, never after: a watcher polling this directory must
-        # not be shown a state the history log has not yet claimed.  A caller
+        # before the node is recorded, which is where `_run_plan` writes it
+        # too; the two call sites must not disagree about when a stage's
+        # picture appears.  The orders are independent anyway: a watcher reads
+        # this directory, and the node goes to the project's history.  A caller
         # driving one stage at a time — report/apply.py's recipes, the GUI's
         # stage verb — used to get events and no picture at all, because this
         # call site did not exist.

@@ -114,8 +114,10 @@ def stage_ticks(model, values: dict, *,
                 max_per_phase: int = MAX_TICKS_PER_PHASE) -> dict[str, dict]:
     """Reflection positions per phase, every emission line's, capped out loud.
 
-    The loop is ``viz/live.py``'s, moved rather than rewritten: a second way of
-    placing a tick would be a second answer to where a peak is.
+    Where a tick goes is ``viz/live.py``'s answer, moved rather than
+    rewritten: a second way of placing one would be a second answer to where a
+    peak is. Only the filtering and sorting changed, from a python generator
+    over every position to numpy.
     """
     ticks: dict[str, dict] = {}
     for ip, cp in enumerate(model.phases):
@@ -125,16 +127,21 @@ def stage_ticks(model, values: dict, *,
                 + values["instrument.zero_shift"]
                 for lam in model.line_wavelengths]
         pos = np.concatenate(rows) if rows else np.zeros(0)
-        keep = sorted(float(p) for p in pos if np.isfinite(p))
-        n_total = len(keep)
+        # filtered and sorted in numpy, not in a generator: the cap below
+        # exists because a large cell over a wide range reaches a hundred
+        # thousand positions, and walking those in python is the cost this
+        # module was written to stop paying
+        pos = np.sort(pos[np.isfinite(pos)])
+        n_total = int(pos.size)
         if n_total > max_per_phase:
             # evenly through the sorted list, so the cap thins the pattern
             # rather than truncating it at some 2θ the reader never chose
             idx = np.unique(np.linspace(0, n_total - 1, max_per_phase)
                             .round().astype(np.int64))
-            keep = [keep[int(i)] for i in idx]
+            pos = pos[idx]
         ticks[f"phase {ip}"] = {
-            "two_theta": [round(p, TWO_THETA_DECIMALS) for p in keep],
+            # at most ``max_per_phase`` of them reach python
+            "two_theta": [round(float(p), TWO_THETA_DECIMALS) for p in pos],
             "n_total": n_total,
         }
     return ticks
