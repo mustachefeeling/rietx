@@ -10,10 +10,10 @@ session, never a gate* (WP-1061).
 What it prints: one line of repo state (worktree root, branch, ahead/behind
 ``origin/main`` — the local ``main`` when there is no remote — uncommitted-change
 count, venv resolution), then one line per flag — another live Claude session
-whose shell sits in this same tree, a missed ``/wp-handover`` (two severities,
-see below), a venv whose editable ``rietx`` pointer resolves to a different
-tree, any WP whose Status glyph is in flight.  Healthy output is one or two
-lines.
+whose shell sits in this same tree, **a WP another live session is already
+working** (``wp_claim``), a missed ``/wp-handover`` (two severities, see below),
+a venv whose editable ``rietx`` pointer resolves to a different tree, any WP
+whose Status glyph is in flight.  Healthy output is one or two lines.
 
 **One session per tree** is the rule the first flag enforces, and it is the one
 this repo's collisions all reduce to: sessions launched in the same checkout
@@ -25,6 +25,13 @@ sessions whose cwd resolves to this worktree, excluding the one running it, and
 ``/wp-start`` step 3 says what to do about it: ``EnterWorktree`` before
 editing, never work a second tree from here by ``git -C``.  The gate that makes
 the rule hold without being read is ``worktree_only.py``.
+
+**One WP per session** is the same rule one rank out, and the flag after it
+reports it: two sessions in two proper trees still duplicate each other's work
+and collide at handover if both picked WP-1422.  The tree a session sits in is
+what says which WP it is on (``wp_claim``), and the gate that makes *that* rule
+hold without being read is ``worktree_create.py``, which refuses a WP another
+live session already holds.
 
 The tree scanned is the one Claude Code passes on the hook's stdin (``cwd``),
 falling back to the process's own: with ``claude --worktree`` the hook's
@@ -62,9 +69,13 @@ import sys
 from pathlib import Path
 from typing import NamedTuple, Optional
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import wp_claim  # noqa: E402  (sibling hook, not a package)
+
 VENV_FIX = 'uv venv --python 3.12 && uv pip install --python .venv/bin/python -e ".[dev]"'
 REPAIR_HINT = "repair first (/wp-handover, repair mode)"
 SHARED_HINT = "one session per tree: EnterWorktree before editing (/wp-start step 3)"
+CLAIM_HINT = "pick another WP, or /wp-start step 2 to see the whole table"
 
 _WP_COMMIT_RE = re.compile(r"^WP-(\d{4}):")
 _STATUS_RE = re.compile(r"Status:\s*(⬜|🔄|✅|🛑)")
@@ -384,6 +395,33 @@ def in_flight_wps(root: Path) -> list[str]:
     return flying
 
 
+def claim_lines(root: Path) -> list[str]:
+    """What other live sessions are working, so this one does not pick it too.
+
+    Reported, never refused: the block belongs at ``EnterWorktree``, where the
+    trigger is sharpest and the cost of proceeding is a whole duplicated
+    session (``worktree_create.py``).  Here it is a prompt, like every other
+    line this scan prints (WP-1061).
+
+    Quiet in the ordinary case.  Only a WP a live session in *another* tree is
+    working prints, so a machine running one session prints nothing, and the
+    four finished-but-kept trees this repo had on 2026-09-15 print nothing
+    either (``wp_claim.bears_on_a_clash``).
+    """
+    trees = wp_claim.worktree_branches(root)
+    main = wp_claim.main_checkout(trees)
+    sessions, excl = live_sessions(), _ancestors()
+    holders = wp_claim.occupancy(trees, sessions, excl, wp_claim.read_claims(root), main)
+    glyphs = {h.wp: wp_file_state(root, h.wp)[1] for h in holders}
+    rows = wp_claim.bears_on_a_clash(wp_claim.held_elsewhere(holders, root), glyphs)
+    lines = [f"⚠ {wp_claim.describe(h, main)} — {CLAIM_HINT}" for h in rows]
+    lines += [
+        f"⚠ WP-{wp} is live in more than one tree — the clash this scan exists to catch"
+        for wp in wp_claim.clashes(holders)
+    ]
+    return lines
+
+
 def render(root: Path) -> str:
     lines = [repo_line(root)]
     vflag = venv_flag(root)
@@ -395,6 +433,7 @@ def render(root: Path) -> str:
         lines.append(
             f"⚠ another claude session is in this tree (pid {s.pid}, up {s.age}) — {SHARED_HINT}"
         )
+    lines.extend(claim_lines(root))
     for f in handover_findings(root):
         if f.basis == "order":
             entry = "WP file not touched since"
