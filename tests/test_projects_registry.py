@@ -189,6 +189,29 @@ def test_a_gsas_instrument_file_is_not_claimed_as_a_refinement(tmp_path):
         identify_project_format(_write(tmp_path, "inst.prm", prm))
 
 
+
+def test_a_latin1_title_does_not_cost_the_file_its_sniff(tmp_path):
+    """A ``.EXP`` is a byte format and its title is whatever was typed.
+
+    ``head`` decodes as UTF-8 with ``errors="ignore"``, so one accented
+    character in a ``DESCR`` record is *dropped* and that card measures 79
+    characters in the decoded text while still being 80 bytes on disk.  The
+    width test therefore runs on the bytes.  Reading the text instead rejected
+    the whole file over one byte, which is the shape of refusal nobody can
+    debug from the message.
+    """
+    title = "      DESCR   caf\xe9 standard".encode("latin-1")
+    path = tmp_path / "accented.EXP"
+    path.write_bytes(b"\r\n".join([
+        b"     VERSION    6".ljust(80),
+        title.ljust(80),
+        b" EXPR  NHST     1".ljust(80),
+    ]) + b"\r\n")
+    assert len(title.ljust(80)) == 80
+    assert len(title.ljust(80).decode("utf-8", errors="ignore")) == 79
+    assert identify_project_format(path).name == "gsas_exp"
+
+
 def test_a_keyword_inside_a_comment_is_not_a_statement(tmp_path):
     """The sniff goes through the reader's own ``strip_comments``.
 

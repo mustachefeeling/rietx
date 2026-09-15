@@ -235,7 +235,11 @@ _TOPAS_LINE = re.compile(
 #: ``EXPR``/``CRS``/``HST`` are the experiment, phase and histogram blocks that
 #: any file holding a refinement carries.  A key alone would be weak evidence —
 #: ``HST`` is an ordinary word — which is why the record *width* is tested too.
-_EXP_KEYS = ("     VERSION", "      DESCR ", " EXPR ", "CRS", "HST ", "HAP")
+#:
+#: **Bytes, not text.**  These are matched against the head's raw bytes because
+#: the width test below has to be, and a sniff that measured one and matched the
+#: other would be two descriptions of the same card.
+_EXP_KEYS = (b"     VERSION", b"      DESCR ", b" EXPR ", b"CRS", b"HST ", b"HAP")
 
 
 def _matches_gsas_exp(path: Path) -> bool:
@@ -249,22 +253,31 @@ def _matches_gsas_exp(path: Path) -> bool:
     any fixed-column table, and one satisfying only the keys could be prose
     about GSAS.
 
+    **Measured on the head's bytes rather than its text**, which is the one
+    subtle thing here.  ``head`` decodes as UTF-8 with ``errors="ignore"``, so a
+    byte that is not valid UTF-8 is *dropped* — and a ``.EXP`` is a Latin-1 byte
+    format whose ``DESCR`` title is whatever the experimenter typed.  One
+    accented character in a title would shorten that record to 79 characters
+    after decoding and make this sniff reject the whole file.  The bytes cannot
+    lose a character, and the keys are ASCII, so nothing is given up by reading
+    them there.
+
     Line endings are not part of the test.  Real files terminate each card with
     CR LF and some write the cards end to end with none at all, so the width is
     measured on whichever of the two the file turns out to be.
     """
-    text = head(path, HEAD_BYTES).text
-    if "\n" in text or "\r" in text:
-        lines = [ln for ln in text.splitlines() if ln.strip()]
+    raw = head(path, HEAD_BYTES).raw
+    if b"\n" in raw or b"\r" in raw:
+        lines = [ln for ln in raw.splitlines() if ln.strip()]
         # the last line of a bounded head read is usually truncated
         lines = lines[:-1] or lines
         if not lines or any(len(ln) != RECORD_BYTES for ln in lines):
             return False
     else:
-        if len(text) < RECORD_BYTES:
+        if len(raw) < RECORD_BYTES:
             return False
-        lines = [text[i:i + RECORD_BYTES]
-                 for i in range(0, len(text) - RECORD_BYTES + 1, RECORD_BYTES)]
+        lines = [raw[i:i + RECORD_BYTES]
+                 for i in range(0, len(raw) - RECORD_BYTES + 1, RECORD_BYTES)]
     return any(ln.startswith(_EXP_KEYS) for ln in lines)
 
 
