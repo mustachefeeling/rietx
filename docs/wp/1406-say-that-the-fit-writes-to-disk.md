@@ -189,7 +189,7 @@ Two items changed shape and one moved out; the reasons are in Context above.
 - [x] The `references/` file and its routing row, with the pinned header and the
       measurement tags; the row **paid for by a named cut**, named in the commit
       message. Then `rietx skill --install . --copy`.
-- [ ] ~~The skill body sentence~~ — moved to WP-1405, which is the WP that makes
+- [x] ~~The skill body sentence~~ — moved to WP-1405, which is the WP that makes
       it true. Its `### Inherited` carries the sentence and the owed cut.
 - [x] WP-1322's Task 2 recorded as discharged, dated; WP-1133's and WP-1405's
       `### Inherited` noted.
