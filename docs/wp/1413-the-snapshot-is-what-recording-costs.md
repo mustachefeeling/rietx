@@ -229,9 +229,11 @@ the bit-identity test. A faster build that moved one index is a regression.
   bit-identical across every arm and both runs. § Findings holds the per-part
   breakdown and the third, discarded run.
 
-  **Counts.** Fast selection on this branch: 4854 passed, 132 skipped in 212 s.
-  The 27 new tests are all passes and add no skip, so passed moved by exactly
-  27 and skipped did not move.
+  **Counts**, same venv and platform. Fast selection: 4854 passed, 132 skipped
+  in 212 s. Full selection on the final tree: 5023 passed, 141 skipped in
+  28:49. The branch is level with `origin/main`, so this tree is the merged
+  tree. The 27 new tests are all passes and add no skip, so passed moved by
+  exactly 27 in both selections and skipped moved in neither.
 
   **Gotchas.** Ties are the whole difficulty: `argmin` keeps the *first* index
   attaining an extreme, which a segmented scan reproduces only on purpose, and
