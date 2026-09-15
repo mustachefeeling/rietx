@@ -742,6 +742,11 @@ class SequentialRefinement:
         recorder = runs.attach(stream, events, telemetry=telemetry)
         if recorder is not None and stream is None:
             stream = recorder
+        # The chain's own token, not only each pattern's (WP-1405): ``_run``
+        # reads ``bool(cancel)`` to decide the walk ended, so a stop that
+        # reached one pattern's ``fit`` and not this variable would abandon that
+        # pattern and start the next one.
+        cancel = runs.attach_cancel(recorder, cancel)
         try:
             return self._run(
                 patterns, names, xs, order, mode, base_plan, ladder,

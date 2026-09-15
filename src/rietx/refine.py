@@ -1931,6 +1931,13 @@ class Refinement:
                                project_hint=self._project_hint())
         if recorder is not None and stream is None:
             stream = recorder
+        # A recorded run can be stopped from outside the process (WP-1405), and
+        # this is the whole of it: the token handed down is the caller's, read
+        # through one that also watches the run directory for a request.
+        # ``recorder_of`` rather than ``recorder``, because a series attached
+        # its own further up and this call declined — and a series that could
+        # not be stopped would be the case the button exists for.
+        cancel = runs.attach_cancel(runs.recorder_of(stream), cancel)
         # built here, where both the caller's object and the stream we
         # made from it are in scope, and handed down rather than
         # rediscovered per stage. The recorder is a third candidate and not a
@@ -2175,6 +2182,7 @@ class Refinement:
                                project_hint=self._project_hint())
         if recorder is not None and stream is None:
             stream = recorder
+        cancel = runs.attach_cancel(runs.recorder_of(stream), cancel)   # WP-1405
         sinks = _snapshot_sinks(stream, events, recorder)
 
         try:

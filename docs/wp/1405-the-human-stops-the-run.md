@@ -199,6 +199,38 @@ a verb to:
   a token universally ends a guarantee the code currently makes. It now sits at
   `refine.py:1537`, with call sites at 1968 and 2079.
 
+## Decisions taken
+
+### Eager attachment, measured (2026-09-15)
+
+The WP left this to WP-1404's configuration 3, which nobody has run. Measured
+here instead, on this worktree's `[dev]` venv, macOS/arm64, because the question
+is narrower than 1404's: what does *attaching a token* cost, not what does
+recording cost.
+
+Two components, and neither is the fit:
+
+| what | cost |
+| --- | --- |
+| `_abandon_on_cancel`'s two `model_copy(deep=True)`, per stage | 132 µs at 2 atoms, 226 µs at 8, 350 µs at 16, 1.12 ms at 64, 4.44 ms at 256, 19.3 ms at 1024 |
+| the solver's extra residual wrapper, per evaluation | 37 ns |
+
+End to end on the three-stage synthetic LaB6 fit (47 evaluations, 2 atoms),
+interleaved arms, n=9 each: **1.0036× median, 1.0019× on the minima**, and the
+answer is bit-identical (`rwp equal: True`). The worst case the copy table
+bounds — 1024 atoms over ten stages — is 0.19 s, against a fit whose residual
+evaluations alone run to minutes.
+
+So: **attach eagerly**, and `_abandon_on_cancel`'s docstring promise is
+withdrawn rather than defended. Lazy attachment was the alternative the WP
+named and it is worse than it looks: a token cannot be attached mid-stage —
+`cancel` is bound when the stage starts — so "lazy" would mean the *first*
+request after a run starts is honoured only at the next stage boundary, which
+is the latency this WP exists to avoid. It buys a fraction of a percent.
+
+This is a bound for the *token*, not for recording. WP-1404's own question is
+untouched.
+
 ## Non-goals
 
 - **No second intervention verb.** No pause, no parameter edit, no re-run. The
@@ -212,12 +244,12 @@ a verb to:
 
 ## Tasks
 
-- [ ] The recorder's cancel poll, on the flush clock, with the stale-file
+- [x] The recorder's cancel poll, on the flush clock, with the stale-file
       deletion at start.
-- [ ] Token composition: set the caller's if there is one, else create one, and
+- [x] Token composition: set the caller's if there is one, else create one, and
       only when the recorder is active. Decide lazy-versus-eager attachment
       against WP-1404's configuration 3 and record the choice.
-- [ ] The terminal status naming the run cancelled and who asked.
+- [x] The terminal status naming the run cancelled and who asked.
 - [ ] The POST route, the run-id resolution against the served root, the
       traversal refusal, and the read-only serving flag.
 - [ ] The confirm dialog, with the three sentences above. Looked at, not only
