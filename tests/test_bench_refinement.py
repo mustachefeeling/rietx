@@ -15,6 +15,12 @@ registry's builders are reachable, the simulated trigger case still carries the
 peak count that is its reason to exist, and the counting scaffold puts back the
 name it patched.
 
+WP-1404 added a second axis, configurations, and it is held to the same three
+properties one section down — distinct keys, a control that records nothing,
+and every patch put back on both exits.  The counted half of WP-1404's
+acceptance is not here but in `test_telemetry.py`, where the recorder is: this
+module knows about the harness, not about what the harness measures.
+
 **Why only the cheap cases are built.**  Building a case is not free — `nac`
 runs a Le Bail fit to make its warm start, and `trigger-series` simulates ten
 4 165-point patterns — so this module builds the two that cost about a second
@@ -176,3 +182,114 @@ def test_the_counting_scaffold_restores_the_name_it_patched(bench):
         with bench._counting(bench._Counts()):
             raise RuntimeError("case blew up")
     assert mod.least_squares is original
+
+
+# ----------------------------------------------------------------------
+# the configuration axis (WP-1404)
+# ----------------------------------------------------------------------
+#
+# The second axis exists because WP-1403 made recording the default, so an
+# unconfigured bench run measures a *recorded* fit and would silently
+# re-baseline every number this harness has printed.  Nothing here times
+# anything either: what is asserted is that the configurations are distinct,
+# that the control is the control, and that the scaffold puts back everything
+# it patched — the same three properties `_counting` is held to one section up.
+
+
+def test_configuration_keys_are_distinct_and_the_control_is_first(bench):
+    """`_compare` ratios everything against `CONFIGS[0]`, so that row has to be
+    the one that records nothing."""
+    keys = [c.key for c in bench.CONFIGS]
+    assert len(keys) == len(set(keys)), f"duplicate configuration key in {keys}"
+    assert all(c.blurb for c in bench.CONFIGS)
+    control = bench.CONFIGS[0]
+    assert control.key == "off"
+    assert not control.records and not control.stream and not control.drop_eval
+
+
+def test_an_unknown_configuration_is_refused_by_name(bench):
+    """A typo must not silently select the default and print a table whose rows
+    say something the reader did not ask for."""
+    with pytest.raises(SystemExit):
+        bench.main(["--cases", "nac", "--configs", "record,not-a-config"])
+
+
+def test_exactly_one_configuration_drops_events_and_it_is_a_scaffold(bench):
+    """`no-eval` is not a knob the package has.
+
+    It drops the `eval` line *and* stubs the decode that builds it, so it
+    measures the ceiling of WP-1403's mitigations rather than any shipped
+    behaviour.  A second configuration acquiring `drop_eval` would be a second
+    scaffold whose row nobody had labelled, so the count is pinned at one.
+    """
+    scaffolds = [c for c in bench.CONFIGS if c.drop_eval]
+    assert [c.key for c in scaffolds] == ["no-eval"]
+    assert all(c.records for c in scaffolds), "a dropped eval needs a recorder"
+    # the two `events=` rows carry no recorder: they are what a *caller* pays,
+    # and a recorder underneath would price both at once
+    assert [c.key for c in bench.CONFIGS if c.stream] == ["events-path", "live"]
+    assert not any(c.records for c in bench.CONFIGS if c.stream)
+
+
+def test_the_configuration_scaffold_restores_everything_it_patched(bench):
+    """Both exits, for `_counting`'s reason, doubled.
+
+    A leaked `RunRecorder` subclass or a leaked `_free_values` stub would apply
+    to the *next* configuration in the same process, and the table would then
+    compare two things that are not what their keys say — the one failure this
+    harness cannot afford, because its output looks identical either way.
+    """
+    from rietx import runs
+    from rietx.optimize import least_squares as ls_mod
+
+    recorder, free_values = runs.RunRecorder, ls_mod._free_values
+    scaffold = next(c for c in bench.CONFIGS if c.drop_eval)
+
+    with bench._configured(scaffold, bench._Account()) as kwargs:
+        assert runs.RunRecorder is not recorder
+        assert ls_mod._free_values is not free_values
+        assert kwargs["telemetry"] not in (None, False)
+    assert runs.RunRecorder is recorder
+    assert ls_mod._free_values is free_values
+
+    with pytest.raises(RuntimeError):
+        with bench._configured(scaffold, bench._Account()):
+            raise RuntimeError("the case blew up mid-configuration")
+    assert runs.RunRecorder is recorder
+    assert ls_mod._free_values is free_values
+
+
+def test_the_scratch_directory_is_measured_and_then_removed(bench, tmp_path):
+    """The account is read before the temp directory goes, and the directory
+    goes: a harness that left one behind per repeat would be a slow leak in a
+    35-minute run."""
+    account = bench._Account()
+    control = bench.CONFIGS[0]
+    with bench._configured(control, account) as kwargs:
+        scratch = Path(kwargs["events"]) if kwargs.get("events") else None
+        assert kwargs["telemetry"] is False
+        assert scratch is None
+    assert account.dir_bytes == 0 and account.lines == 0
+
+    live = next(c for c in bench.CONFIGS if c.stream == "live")
+    with bench._configured(live, bench._Account()) as kwargs:
+        here = Path(kwargs["events"].dir)
+        assert here.is_dir()
+    assert not here.exists(), "the scratch directory outlived the run"
+
+
+def test_the_counting_handle_counts_writes_and_flushes(bench, tmp_path):
+    """The handle is what the recorder's log goes through, so it is where the
+    bytes and the flush cadence are read rather than re-derived."""
+    account = bench._Account()
+    target = tmp_path / "events.jsonl"
+    with target.open("w", encoding="utf-8") as fh:
+        handle = bench._CountingHandle(fh, account)
+        handle.write('{"kind": "eval"}\n')
+        handle.write('{"kind": "stage_end"}\n')
+        handle.flush()
+        assert handle.encoding == "utf-8"      # delegation, not reimplementation
+
+    assert account.lines == 2
+    assert account.bytes == target.stat().st_size
+    assert account.flushes == 1

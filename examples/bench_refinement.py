@@ -17,15 +17,27 @@ Read these four rules before quoting any number this script prints.
    state moves these further than most changes do: a concurrent ``pytest -n
    auto`` inflated a 1.24 s fit to 4.78 s — 3.9× — during WP-1109.  **Run this
    on an idle machine, alone.**
-2. **Never compare across machines**, and never against a figure whose venv and
+2. **A comparison between arms is interleaved, never blocked**, and reports the
+   minimum of N beside the median.  Blocked, each arm owns a contiguous slice of
+   wall clock and any drift lands on one of them entire: WP-1404's matrix timed
+   a telemetry path as *faster* than no telemetry at all, under control spreads
+   of 11.4 and 13.2 %, and interleaving took those to 1.1-5.9 % and the
+   impossibility away.  Two estimators of one quantity that disagree are still
+   measuring the box.  ``main`` interleaves; a one-off script has to be told.
+3. **Never compare across machines**, and never against a figure whose venv and
    platform are not stamped beside it.  This script stamps its own header with
    both, plus the package version and the numpy build, so a pasted table
    carries its own provenance.
-3. **Rwp is an identity check, not the metric.**  It is printed so that two
+4. **Rwp is an identity check, not the metric.**  It is printed so that two
    runs of the same case can be seen to be the *same fit*, and the repeats are
    compared for it; a speed change that moves Rwp is not a speed change.  The
    metric is wall clock, and the diagnostics are the evaluation counts.
-4. **The counts come from scipy, the wall clock from this process.**  ``nfev``
+5. **Every number carries its configuration.**  Since WP-1403 a fit records
+   itself by default, so "the wall clock of ``cpd-2``" is no longer a complete
+   statement — ``--configs`` says which fit was timed, every row prints its
+   key, and a number quoted without one is ambiguous rather than merely
+   imprecise.
+6. **The counts come from scipy, the wall clock from this process.**  ``nfev``
    and ``njev`` are read off the ``OptimizeResult`` that
    ``rietx.optimize.least_squares`` gets back, by wrapping the module-level
    ``least_squares`` name for the duration of a run (see ``_counting``).  This
@@ -87,6 +99,45 @@ Runtime: the whole harness at the default three repeats is ~35 minutes, nearly
 all of it the last three cases.  ``--cases`` selects; ``--list`` shows the
 keys.
 
+Configurations
+--------------
+WP-1404 added a second axis, and it exists because WP-1403 made **recording the
+default**: every ``fit()`` in the wild now writes a run directory unless it is
+declined, so an unconfigured bench run measures a *recorded* fit and would
+silently re-baseline every number this harness has ever printed.  ``--configs``
+is therefore explicit and defaults to ``off``, which is what the rows above
+were measured under.
+
+``off``          ``telemetry=False`` — no recorder, no events.  **The control**,
+                 and the row every ratio is against.
+``no-eval``      the recorder with its ``eval`` stream suppressed.  **A harness
+                 scaffold, not a knob the package has**: it drops the line *and*
+                 stubs out the decode that builds it, so what it prices is the
+                 ceiling of WP-1403's mitigations 2 and 3 — the most a sink-side
+                 thrift could ever buy.  Never quote it as a thing rietx does.
+``record``       the shipping default: recorder attached at ``telemetry=<dir>``,
+                 ``eval`` lines buffered, cancel token attached.  WP-1404's
+                 original configurations 2 and 3 are this one row, WP-1405
+                 having made the token unconditional; it priced the token itself
+                 at 1.0036× by interleaving arms of one fit, which is a finer
+                 instrument than this matrix.
+``events-path``  ``events=<path>``, no recorder — WP-1401 measured this at
+                 1.01-1.03×, so it is the bridge that says whether two sittings
+                 are comparable at all.
+``live``         ``events=LiveSession(dir)``, no recorder — what a user pays
+                 today when they *do* ask for a live view.
+
+Selecting more than one prints a comparison block per case: ratio of medians
+against the control, the control's own repeat spread, and per configuration the
+log lines, bytes, flush count and run-directory size.  ``nfev`` and ``Rwp`` are
+checked against the control on every row, because the claim being tested is
+that telemetry changed no number — a configuration that moved either is not a
+slower fit but a different one, and its ratio means nothing.
+
+A series case takes the axis only through ``telemetry=``: its ``events=`` is
+already spent on the collector that reads per-pattern wall clock off the
+ladder, so ``events-path`` and ``live`` are refused there by name.
+
 Columns
 -------
 ``pairs`` is the (emission line, reflection) pair count summed over phases —
@@ -110,8 +161,12 @@ import cProfile
 import io
 import platform
 import pstats
+import shutil
+import statistics
 import sys
+import tempfile
 import time
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from importlib.metadata import version
 from pathlib import Path
@@ -123,7 +178,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tests"))
 
 import rietx as rx  # noqa: E402
-from rietx import _about  # noqa: E402
+from rietx import _about, runs  # noqa: E402
 from rietx.model.forward import compile_model  # noqa: E402
 from rietx.sequential import FIRST_RUNG_FACTOR  # noqa: E402
 
@@ -167,6 +222,223 @@ class _counting:
 
     def __exit__(self, *exc) -> None:
         self._mod.least_squares = self._orig
+
+
+# -- the configuration axis (WP-1404) --------------------------------------
+
+@dataclass
+class _Account:
+    """What one run wrote, counted at the handle rather than guessed.
+
+    ``lines``/``bytes``/``flushes`` are read off the handle the event log goes
+    through, so they are the log's own traffic and not the directory's total;
+    ``dir_bytes`` and ``snapshot_bytes`` are the directory afterwards, which is
+    what a person asking "how big does this get" means.  All zero is a
+    configuration that wrote nothing, which is the control's honest answer and
+    not a missing measurement.
+    """
+
+    lines: int = 0
+    evals: int = 0
+    dropped: int = 0
+    flushes: int = 0
+    bytes: int = 0
+    dir_bytes: int = 0
+    snapshot_bytes: int = 0
+
+
+class _CountingHandle:
+    """A text handle that counts what goes through it.
+
+    The recorder writes its event log through one handle and flushes it on a
+    cadence, so wrapping the handle is how both numbers are read without
+    re-implementing either.  Delegation is by ``__getattr__`` deliberately:
+    this stands in for a real file inside the package's own code, and a method
+    it forgot to forward would be a harness bug wearing a package bug's
+    clothes.
+    """
+
+    def __init__(self, fh, account: _Account):
+        self._fh = fh
+        self._account = account
+
+    def write(self, text: str) -> int:
+        self._account.bytes += len(text)
+        self._account.lines += 1
+        return self._fh.write(text)
+
+    def flush(self) -> None:
+        self._account.flushes += 1
+        self._fh.flush()
+
+    def __getattr__(self, name):
+        return getattr(self._fh, name)
+
+
+def _counted_recorder(account: _Account, *, drop_eval: bool):
+    """A ``RunRecorder`` subclass that counts, and optionally drops ``eval``.
+
+    Patched over ``runs.RunRecorder`` for one run, the way ``_counting``
+    patches the solver entry point: ``runs.attach`` reaches the name through
+    the module, so the package builds the counting one without knowing it.
+
+    ``drop_eval`` is the ``no-eval`` configuration and it is **a scaffold, not
+    a knob the package has**.  It is paired with a stub over ``_free_values``,
+    because the decode that builds an ``eval`` payload runs *before* any sink
+    is consulted: dropping the line alone would price the serialisation and
+    charge the row for the decode anyway.  What the two together price is the
+    ceiling of WP-1403's mitigations 2 and 3 — the most a sink-side thrift
+    could ever buy — and not any behaviour that ships.
+    """
+    base = runs.RunRecorder
+
+    class _Counted(base):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            if getattr(self, "_fh", None) is not None:
+                self._fh = _CountingHandle(self._fh, account)
+
+        def _write(self, event: dict) -> None:
+            if event.get("kind") == "eval":
+                if drop_eval:
+                    account.dropped += 1
+                    return
+                account.evals += 1
+            super()._write(event)
+
+    return _Counted
+
+
+@dataclass(frozen=True)
+class Config:
+    """One row of WP-1404's matrix: what the fit is asked to record.
+
+    ``key`` is stamped on every row this produces, because a wall-clock number
+    without its configuration is now ambiguous in a way it was not before
+    WP-1403 made recording the default.
+    """
+
+    key: str
+    blurb: str
+    #: attach the package's own recorder, at ``telemetry=<scratch dir>``
+    records: bool = False
+    #: the harness scaffold described in :func:`_counted_recorder`
+    drop_eval: bool = False
+    #: what goes to ``events=``: nothing, ``"path"``, or ``"live"``
+    stream: str = ""
+
+
+CONFIGS: tuple[Config, ...] = (
+    Config("off", "recording declined — the control", records=False),
+    Config("no-eval", "recorder on, eval stream suppressed — a scaffold",
+           records=True, drop_eval=True),
+    Config("record", "the shipping default: recorder + cancel token",
+           records=True),
+    Config("events-path", "events=<path>, no recorder — WP-1401's bridge row",
+           stream="path"),
+    Config("live", "events=LiveSession(dir) — what a user pays when they ask",
+           stream="live"),
+)
+
+
+def _tree_bytes(root: Path) -> int:
+    return sum(f.stat().st_size for f in root.rglob("*") if f.is_file())
+
+
+def _named_bytes(root: Path, name: str) -> int:
+    return sum(f.stat().st_size for f in root.rglob(name) if f.is_file())
+
+
+def _log_traffic(root: Path) -> tuple[int, int]:
+    """(lines, bytes) of every ``events.jsonl`` under ``root``.
+
+    The counting handle only sees the *recorder's* writes, so a configuration
+    that wrote through a plain ``EventStream`` — ``events-path``, ``live`` —
+    is measured off the file it left behind instead.
+    """
+    lines = size = 0
+    for f in root.rglob(runs.EVENTS_FILE):
+        if not f.is_file():
+            continue
+        size += f.stat().st_size
+        with f.open("r", encoding="utf-8") as fh:
+            lines += sum(1 for _ in fh)
+    return lines, size
+
+
+def _refuse_stream_on_series(setup: Setup, configs: list[Config]) -> None:
+    """Refuse a configuration that wants ``events=`` on a series case.
+
+    Asked twice on purpose: ``main`` asks it once per case *before* spending a
+    repeat, and ``_run_series`` asks it again for anyone calling that function
+    directly.  Asked only in the second place, the refusal arrives after the
+    control arm of a 10-pattern series has already run and takes every case
+    after this one down with it.
+    """
+    if setup.patterns is None:
+        return
+    blocked = [c.key for c in configs if c.stream]
+    if blocked:
+        raise SystemExit(
+            f"configuration(s) {', '.join(repr(k) for k in blocked)} need "
+            f"events=, which a series case spends on its own per-pattern "
+            f"collector — measure them on a single-fit case")
+
+
+@contextmanager
+def _configured(config: Config, account: _Account):
+    """Put the package into one configuration and hand back ``fit``'s kwargs.
+
+    Everything this touches is put back on the way out, including on an
+    exception, for ``_counting``'s reason: a leaked patch would silently apply
+    to the next configuration and the table would compare two things that are
+    not what their keys say.
+
+    The scratch directory is a fresh temp dir per repeat and is measured before
+    it is removed.  Never the working directory: ``run_root`` prunes and
+    ``.gitignore``s the root *it* chose, and a harness that quietly filled
+    somebody's repository with a run per repeat would be a second thing to
+    explain.
+    """
+    scratch = Path(tempfile.mkdtemp(prefix="rietx-bench-"))
+    from rietx.optimize import least_squares as ls_mod
+
+    orig_recorder = runs.RunRecorder
+    orig_free_values = ls_mod._free_values
+    kwargs: dict = {}
+    try:
+        if config.records:
+            runs.RunRecorder = _counted_recorder(account,
+                                                 drop_eval=config.drop_eval)
+            kwargs["telemetry"] = scratch
+        else:
+            kwargs["telemetry"] = False
+        if config.drop_eval:
+            ls_mod._free_values = lambda table, theta: []
+        if config.stream == "path":
+            kwargs["events"] = scratch / runs.EVENTS_FILE
+        elif config.stream == "live":
+            from rietx.viz.live import LiveSession
+            kwargs["events"] = LiveSession(scratch / "live")
+        yield kwargs
+    finally:
+        runs.RunRecorder = orig_recorder
+        ls_mod._free_values = orig_free_values
+        # ``fit`` closes the stream only ``if stream is not events``, so an
+        # ``EventStream`` the caller built is the caller's to close — and here
+        # the caller is this harness.  Left open, every ``live`` repeat leaks a
+        # descriptor onto a file ``rmtree`` has just removed.
+        stream = kwargs.get("events")
+        if hasattr(stream, "close"):
+            stream.close()
+        try:
+            account.dir_bytes = _tree_bytes(scratch)
+            account.snapshot_bytes = _named_bytes(scratch, runs.SNAPSHOT_FILE)
+            if not config.records:
+                account.lines, account.bytes = _log_traffic(scratch)
+        except OSError:
+            pass
+        shutil.rmtree(scratch, ignore_errors=True)
 
 
 # -- cases -----------------------------------------------------------------
@@ -634,6 +906,11 @@ class Run:
     #: series cases only: one :class:`PerPattern` per pattern, index 0 being
     #: the cold fit and the rest warm starts
     per_pattern: list[PerPattern] = field(default_factory=list)
+    #: which :class:`Config` produced this run, stamped rather than inferred
+    config: str = "off"
+    #: what it wrote (WP-1404); all zero for a configuration that recorded
+    #: nothing
+    account: _Account = field(default_factory=_Account)
 
 
 def _shape(setup: Setup) -> tuple[int, int, float]:
@@ -653,28 +930,35 @@ def _shape(setup: Setup) -> tuple[int, int, float]:
     return len(model.tt), pairs, width
 
 
-def _run_once(setup: Setup) -> Run:
+def _run_once(setup: Setup, config: Config = CONFIGS[0]) -> Run:
     if setup.patterns is not None:
-        return _run_series(setup)
+        return _run_series(setup, config)
     counts = _Counts()
+    account = _Account()
     ref = rx.Refinement(setup.structure.model_copy(deep=True),
                         setup.instrument.model_copy(deep=True),
                         history=False)
-    with _counting(counts):
+    with _configured(config, account) as kwargs, _counting(counts):
         t0 = time.perf_counter()
         result = ref.fit(setup.data, plan=setup.plan, mode=setup.mode,
-                         two_theta_limits=setup.limits)
+                         two_theta_limits=setup.limits, **kwargs)
         wall = time.perf_counter() - t0
     freed: set[str] = set()
     for stage in result.stages:
         freed |= set(stage.freed)
     return Run(wall, result.statistics.rwp, counts.nfev, counts.njev,
                len(freed), [(s.name, s.n_iterations) for s in result.stages],
-               result.status)
+               result.status, config=config.key, account=account)
 
 
-def _run_series(setup: Setup) -> Run:
+def _run_series(setup: Setup, config: Config = CONFIGS[0]) -> Run:
     """One pass of a series case through ``refine_sequential``.
+
+    **The configuration axis reaches this only through ``telemetry=``.**  A
+    series case already spends ``events=`` on the collector that reads its
+    per-pattern wall clock off the ladder, so a configuration wanting that
+    channel is refused by name rather than silently given a second stream that
+    would change what the row measures.
 
     Per-pattern wall clock is taken from the **event ladder** rather than by
     timing calls, because ``refine_sequential`` is one call: every event
@@ -696,6 +980,9 @@ def _run_series(setup: Setup) -> Run:
     """
     from rietx.sequential import refine_sequential
 
+    _refuse_stream_on_series(setup, [config])
+
+    account = _Account()
     marks: dict[int, list[tuple[str, float]]] = {}
 
     def collect(event):
@@ -714,14 +1001,14 @@ def _run_series(setup: Setup) -> Run:
         return spans
 
     counts = _Counts()
-    with _counting(counts):
+    with _configured(config, account) as kwargs, _counting(counts):
         t0 = time.perf_counter()
         series = refine_sequential(setup.patterns,
                                    setup.structure.model_copy(deep=True),
                                    setup.instrument.model_copy(deep=True),
                                    plan=setup.plan, refit=setup.refit,
                                    first_rung_factor=setup.first_rung_factor,
-                                   events=collect)
+                                   events=collect, **kwargs)
         wall = time.perf_counter() - t0
 
     per: list[PerPattern] = []
@@ -738,49 +1025,67 @@ def _run_series(setup: Setup) -> Run:
     # appears there iff the entry varied *or was tied*.  The count is the
     # ``trigger`` row's, one line up, because the plan is the same one.
     return Run(wall, last.statistics.rwp if last else float("nan"),
-               counts.nfev, counts.njev, -1, [], status, per)
+               counts.nfev, counts.njev, -1, [], status, per,
+               config=config.key, account=account)
 
 
-def _profile(setup: Setup) -> str:
+def _profile(setup: Setup, config: Config = CONFIGS[0]) -> str:
     prof = cProfile.Profile()
     prof.enable()
-    _run_once(setup)
+    _run_once(setup, config)
     prof.disable()
     buf = io.StringIO()
     pstats.Stats(prof, stream=buf).sort_stats("tottime").print_stats(10)
     return buf.getvalue()
 
 
-def _header(repeats: int) -> str:
+def _header(repeats: int, configs: list[Config]) -> str:
     return (f"{_about.DIST_NAME} {version(_about.DIST_NAME)} · "
             f"numpy {np.__version__} · python {platform.python_version()} · "
             f"{platform.system().lower()}/{platform.machine()} · "
             f"venv {Path(sys.prefix)}\n"
             f"best-of-{repeats}, wall clock as a RANGE — run idle, alone; "
-            f"never compare across machines")
+            f"never compare across machines\n"
+            f"configurations are INTERLEAVED within each repeat, so machine "
+            f"drift spreads over all of them instead of landing on one\n"
+            f"configurations: {', '.join(c.key for c in configs)} — every row "
+            f"carries its own, and a number quoted without one is ambiguous")
 
 
-HEAD = (f"  {'case':14s} {'pts':>6s} {'pairs':>6s} {'win':>5s} {'free':>5s} "
-        f"{'wall (s)':>15s} {'nfev':>6s} {'njev':>6s} {'Rwp':>8s}  status")
+HEAD = (f"  {'case':14s} {'config':11s} {'pts':>6s} {'pairs':>6s} {'win':>5s} "
+        f"{'free':>5s} {'wall (s)':>15s} {'nfev':>6s} {'njev':>6s} "
+        f"{'Rwp':>8s}  status")
 
 
-def _report(case: Case, setup: Setup, runs: list[Run]) -> None:
-    pts, pairs, width = _shape(setup)
+def _bytes(n: int) -> str:
+    """Bytes at three significant figures, because these span six orders."""
+    if n < 1024:
+        return f"{n} B"
+    if n < 1024 ** 2:
+        return f"{n / 1024:.1f} kB"
+    return f"{n / 1024 ** 2:.2f} MB"
+
+
+def _report(case: Case, setup: Setup, runs: list[Run], config: Config,
+            shape: tuple[int, int, float], *, detail: bool = True) -> None:
+    pts, pairs, width = shape
     walls = [r.wall for r in runs]
     rwps = {round(r.rwp, 6) for r in runs}
     last = runs[-1]
     njev = f"{last.njev}" if last.njev else "-"
     free = f"{last.free}" if last.free >= 0 else "-"
     rng = f"{min(walls):.2f}-{max(walls):.2f}"
-    print(f"  {case.key:14s} {pts:6d} {pairs:6d} {width:5.0f} {free:>5s} "
-          f"{rng:>15s} {last.nfev:6d} {njev:>6s} {last.rwp:8.5f}  {last.status}")
-    print(f"    {setup.title}")
-    if setup.notes:
-        print(f"    ({setup.notes})")
+    print(f"  {case.key:14s} {config.key:11s} {pts:6d} {pairs:6d} {width:5.0f} "
+          f"{free:>5s} {rng:>15s} {last.nfev:6d} {njev:>6s} {last.rwp:8.5f}"
+          f"  {last.status}")
+    if detail:
+        print(f"    {setup.title}")
+        if setup.notes:
+            print(f"    ({setup.notes})")
     if len(rwps) > 1:
         print(f"    !! Rwp differs between repeats {sorted(rwps)} — these are "
               f"not the same fit, so the wall-clock range is not one either")
-    if last.stages:
+    if detail and last.stages:
         print("    per-stage nfev: " +
               "  ".join(f"{n}={i}" for n, i in last.stages))
     if last.per_pattern:
@@ -794,21 +1099,98 @@ def _report(case: Case, setup: Setup, runs: list[Run]) -> None:
             print(f"    {wasted:.2f} s of that ({100 * wasted / last.wall:.0f} %"
                   f" of the series) is rungs the ladder discarded — rungs= below")
         for p in last.per_pattern:
-            detail = ""
+            rungs = ""
             if len(p.rung_walls) > 1:
-                detail = f"  rungs={'+'.join(f'{s:.2f}' for s in p.rung_walls)}"
+                rungs = f"  rungs={'+'.join(f'{s:.2f}' for s in p.rung_walls)}"
                 if p.rwp_warm is not None:
-                    detail += f"  warm Rwp {p.rwp_warm:.5f}"
+                    rungs += f"  warm Rwp {p.rwp_warm:.5f}"
             if p.status and p.status != "converged":
-                detail += f"  [{p.status}]"
+                rungs += f"  [{p.status}]"
             print(f"      pattern {p.index:2d}  {p.wall:7.2f} s  "
-                  f"{p.iterations:5d} iter  Rwp {p.rwp:.5f}  kept {p.rung}{detail}")
+                  f"{p.iterations:5d} iter  Rwp {p.rwp:.5f}  kept {p.rung}{rungs}")
+
+
+def _compare(by_config: dict[str, list[Run]]) -> None:
+    """Ratios against the control, with the control's own spread printed first.
+
+    WP-1404's gate on the default-on recorder is 1.05×, **unless the control's
+    own repeat spread exceeds 5 %, in which case the gate becomes that
+    spread**: a gate tighter than the measurement's resolution is a coin toss
+    wearing a check's clothes.  So the spread is printed before any ratio, and
+    every ratio is printed beside the number it has to beat.
+
+    The ratio is of medians, which is what WP-1404 asks for; the range stays
+    what each row prints.  A median is comparable and a range is honest, and
+    neither substitutes for the other.
+
+    ``nfev`` and ``Rwp`` are compared against the control on every row, because
+    the whole claim being tested is that telemetry changed no number — a
+    configuration that moved either is not a slower fit, it is a different one,
+    and its ratio means nothing.
+    """
+    if len(by_config) < 2:
+        return
+    control = by_config.get(CONFIGS[0].key)
+    if not control:
+        # silence here reads as "nothing to compare", which is the one thing
+        # it is not: several configurations ran and none of them is a baseline
+        print(f"    no comparison: {CONFIGS[0].key!r} was not selected, and "
+              f"every ratio in this block is against it")
+        return
+    walls = [r.wall for r in control]
+    base = statistics.median(walls)
+    floor = min(walls)
+    spread = (max(walls) - min(walls)) / base if base else 0.0
+    gate = max(0.05, spread)
+    tail = "" if gate == 0.05 else "  (the spread, not the 5 %)"
+    print(f"    vs {CONFIGS[0].key}: {len(control)} interleaved repeats · "
+          f"control spread {100 * spread:.1f} % · gate {1 + gate:.3f}×{tail}")
+    print(f"      {'':12s} {'median':>7s} {'min':>7s}  "
+          f"— the min of N is the least contaminated estimate of the same "
+          f"quantity, so a pair that disagree are still measuring the machine")
+    if len(control) < 3:
+        print(f"      !! {len(control)} repeat(s): the spread above is not a "
+              f"spread and the gate it implies is not one either")
+    ref_nfev = {r.nfev for r in control}
+    ref_rwp = {round(r.rwp, 9) for r in control}
+    records = {c.key: c.records for c in CONFIGS}
+    for key, rs in by_config.items():
+        assert all(r.config == key for r in rs), (
+            f"a run filed under {key!r} carries a different configuration stamp")
+        med = statistics.median([r.wall for r in rs])
+        ratio = med / base if base else float("nan")
+        floor_ratio = min(r.wall for r in rs) / floor if floor else float("nan")
+        acc = rs[-1].account
+        flags = []
+        if {r.nfev for r in rs} != ref_nfev:
+            flags.append("nfev DIFFERS from the control")
+        if {round(r.rwp, 9) for r in rs} != ref_rwp:
+            flags.append("Rwp DIFFERS from the control")
+        if key != CONFIGS[0].key and ratio > 1 + gate:
+            flags.append("OVER THE GATE")
+        note = "  << " + "; ".join(flags) if flags else ""
+        # a flush count is read at the recorder's own handle, so a
+        # configuration that wrote through a plain ``EventStream`` has none —
+        # "-" rather than 0, which would read as a measurement
+        flush = f"{acc.flushes:5d}" if records.get(key) else f"{'-':>5s}"
+        evals = f"{acc.evals:5d} eval" if records.get(key) else f"{'-':>5s} eval"
+        print(f"      {key:12s} {ratio:6.3f}× {floor_ratio:6.3f}×  "
+              f"median {med:8.3f} s  log {acc.lines:6d} ln "
+              f"{_bytes(acc.bytes):>9s}  {evals}  flush {flush}  "
+              f"dir {_bytes(acc.dir_bytes):>9s}  "
+              f"snap {_bytes(acc.snapshot_bytes):>9s}{note}")
+        if acc.dropped:
+            print(f"        ({acc.dropped} eval events dropped by the "
+                  f"scaffold — not a shipped behaviour)")
 
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="v1.1 refinement benchmark harness")
     ap.add_argument("--cases", default="", help="comma-separated case keys "
                     f"(default all: {','.join(c.key for c in CASES)})")
+    ap.add_argument("--configs", default=CONFIGS[0].key,
+                    help="comma-separated telemetry configurations (default "
+                    f"{CONFIGS[0].key}; all: {','.join(c.key for c in CONFIGS)})")
     ap.add_argument("--repeats", type=int, default=3,
                     help="timed repeats per case (default 3)")
     ap.add_argument("--profile", action="store_true",
@@ -819,6 +1201,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.list:
         for case in CASES:
             print(f"  {case.key:{max(len(c.key) for c in CASES)}s} {case.blurb}")
+        print()
+        for config in CONFIGS:
+            print(f"  --configs {config.key:12s} {config.blurb}")
         return 0
 
     wanted = [c.strip() for c in args.cases.split(",") if c.strip()]
@@ -827,7 +1212,30 @@ def main(argv: list[str] | None = None) -> int:
         ap.error(f"unknown case(s): {', '.join(sorted(unknown))}")
     selected = [c for c in CASES if not wanted or c.key in wanted]
 
-    print(_header(args.repeats))
+    asked = [c.strip() for c in args.configs.split(",") if c.strip()]
+    unknown = set(asked) - {c.key for c in CONFIGS}
+    if unknown:
+        ap.error(f"unknown configuration(s): {', '.join(sorted(unknown))}")
+    if not asked:
+        # unlike ``--cases``, empty does not mean all: it means a harness that
+        # builds every case and times none of them, in silence
+        ap.error("--configs selects nothing; name at least one of "
+                 f"{', '.join(c.key for c in CONFIGS)}")
+    # declaration order, not the order asked in: the control runs first so its
+    # own spread is on screen before any ratio is
+    configs = [c for c in CONFIGS if c.key in asked]
+    # **The environment outranks ``telemetry=``** (``runs.enabled``), so under
+    # ``RIETX_TELEMETRY=0`` a recording configuration attaches no recorder and
+    # times the control while still printing a ratio against it.  Refused here
+    # rather than discovered in the table: the only trace it leaves is an
+    # all-zero accounting row, which is also what an honest control prints.
+    if any(c.records for c in configs) and not runs.enabled():
+        ap.error(f"recording is switched off for this process, so "
+                 f"{', '.join(c.key for c in configs if c.records)} would "
+                 f"time the control and call it a recorded fit — unset "
+                 f"{_about.TELEMETRY_ENV} (or set it to 1) and re-run")
+
+    print(_header(args.repeats, configs))
     print()
     print(HEAD)
 
@@ -837,10 +1245,28 @@ def main(argv: list[str] | None = None) -> int:
         except (FileNotFoundError, OSError) as exc:        # dataset absent
             print(f"  {case.key:10s} skipped ({exc})")
             continue
-        runs = [_run_once(setup) for _ in range(args.repeats)]
-        _report(case, setup, runs)
+        _refuse_stream_on_series(setup, configs)
+        shape = _shape(setup)
+        # **Interleaved, never blocked.**  Running every repeat of one
+        # configuration before starting the next makes each configuration a
+        # contiguous slice of wall-clock time, so any drift in the machine --
+        # thermal, another process, page cache -- lands on one configuration
+        # entire and arrives as a difference between configurations.  Measured
+        # 2026-09-15, blocked: `events=<path>` came in at 0.816x a bare fit on
+        # `nac`, and on `cpd-2` the recorder came in cheaper than the caller's
+        # stream it contains.  Both are impossible; both went away on
+        # interleaving.  WP-1405 reached the same shape from the other end and
+        # its numbers are the finer ones for that reason.
+        by_config: dict[str, list[Run]] = {c.key: [] for c in configs}
+        for _ in range(args.repeats):
+            for config in configs:
+                by_config[config.key].append(_run_once(setup, config))
+        for n, config in enumerate(configs):
+            _report(case, setup, by_config[config.key], config, shape,
+                    detail=n == 0)
+        _compare(by_config)
         if args.profile:
-            print(_profile(setup))
+            print(_profile(setup, configs[0]))
 
     return 0
 

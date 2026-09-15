@@ -96,14 +96,14 @@ the same scans would make Stoe writable.
 
 **In flight:** [1118](wp/1118-foreign-model-files.md) landed its model-file
 registry 2026-09-13; next are the two offers it unblocks, `.EXP` (#103) and
-`STR(...)` (#107). The **live-watcher track has no behavioural gap left**:
-[1405](wp/1405-the-human-stops-the-run.md) shipped 2026-09-15, so a human
-watching a run can stop it, and the sentence and two manual rows 1406 could not
-write are written. One item remains and it blocks no release.
-[1404](wp/1404-what-recording-every-fit-costs.md) prices the default-on
-recorder, which nobody has measured directly; the manual quotes the
-`LiveSession` path as the nearest proxy, so a number outside 1.03-1.28x means
-two figures to correct.
+`STR(...)` (#107). The **live-watcher track is priced and has no behavioural gap
+left**: [1404](wp/1404-what-recording-every-fit-costs.md) shipped 2026-09-15 and
+found the default-on recorder costs 1.03-1.28x, failing its own 1.05x gate on
+two cases of three, with **84-96 % of that the per-stage snapshot** rather than
+the event stream the WP was written about. Recording stays on by default;
+[1413](wp/1413-the-snapshot-is-what-recording-costs.md) cuts the snapshot and is
+the track's only open item. The manual's and the skill's 1.03-1.28x both stand
+unchanged, so nothing a user reads is owed a correction.
 
 **Queued, unscheduled** ([§ Unscheduled](#unscheduled)): the 2026-09-01 issue
 triage's 1309–1322 plus 1323 and 1325; the magnetic scattering track
@@ -622,7 +622,8 @@ no magnetic size term, so a broad magnetic peak is fitted by a low moment
 
 #### A window into a run — the live-watcher track
 
-Six rungs, opened 2026-09-13. An agent driving rietx leaves a human no view of
+Seven rungs, six opened 2026-09-13 and 1413 added 2026-09-15 by 1404's
+measurement. An agent driving rietx leaves a human no view of
 the work, and 1322 measured what documenting the knob achieves: three subagents
 each read the skill in full and each wrote `history=False`. So 1403 records every
 fit, and 1404 is licensed to send it back if the cost says it cannot. The surface
@@ -637,9 +638,10 @@ behind v1.4's peaks and ahead of the magnetic track.
 | [1401](wp/1401-a-window-into-a-run.md) | A window into a run: find the runs that already exist | ✅ 2026-09-14 | — |
 | [1402](wp/1402-the-picture-costs-megabytes.md) | The live picture costs megabytes a stage, and the fit pays it | ✅ 2026-09-15 | 1401 |
 | [1403](wp/1403-a-run-nobody-asked-to-record.md) | A run nobody asked to record | ✅ 2026-09-15 | 1401, 1402 |
-| [1404](wp/1404-what-recording-every-fit-costs.md) | What recording every fit costs | ⬜ | 1403 (1401 baseline) |
+| [1404](wp/1404-what-recording-every-fit-costs.md) | What recording every fit costs | ✅ 2026-09-15 | 1403 (1401 baseline) |
 | [1405](wp/1405-the-human-stops-the-run.md) | The human stops the run | ✅ 2026-09-15 | 1403 (1401 soft) |
 | [1406](wp/1406-say-that-the-fit-writes-to-disk.md) | Say that the fit writes to disk | ✅ 2026-09-15 | 1403, 1405 (1402 soft) |
+| [1413](wp/1413-the-snapshot-is-what-recording-costs.md) | The snapshot is what recording costs | ⬜ | 1404, 1402 |
 
 ### v2+ — fenced
 
