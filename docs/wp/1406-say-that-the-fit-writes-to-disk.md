@@ -325,6 +325,39 @@ TeX passes every check a build can make.
   12.9-15.3, which is the rulebook register the prose skill sanctions for that
   file class.
 
+  **The review pass earned its place, and it is the part to read.**
+  `/code-review high --fix` found seven things and the agent then stalled and
+  died before reporting any of them, so they were read off the working tree and
+  each checked against the code rather than accepted on trust. All seven were
+  right. **Two were statements of fact this session had written and verified
+  badly.** `refining.md` said a machine with `RIETX_TELEMETRY=0` exported
+  "records nothing, whatever the code running on it asks for"; `enabled()`
+  consults the process override first, so `runs.set_enabled(True)` switches
+  recording back on under the environment variable, which running it confirms.
+  And `watching.md` said a series inherits one run directory per pattern, where
+  `sequential.py` attaches a single recorder at the series level for the whole
+  job — its own comment says a per-fit recorder would make sixty directories for
+  one job. Two more were incomplete rather than false: `cli.md` gave
+  `.rietx/runs/` without the project case beside it, and the retention paragraph
+  did not say that only the root the package chose is ever pruned, so a
+  `telemetry=` root and a project's `live/` read as at risk. One was a stale API
+  spelling, `tail_events` taking the events file rather than the run directory,
+  which this session's own verification script had called correctly while the
+  prose did not. The last two were this session's own damage: the item-23 cut
+  left no blank line behind it, and the focus block moved into the v1.4 record
+  carried two ROADMAP anchors that resolve nowhere there. **The relative-link
+  test does not check anchors**, which is why that stayed green.
+
+  **One more correction landed after the entry was first written.** Both the
+  manual and §9d.7 had attributed the 1.03-1.28x spread to how many points the
+  pattern has. That ordering is WP-1401's, from before the snapshot was
+  decimated, when the whole pattern went into a plotly page and the overhead
+  really did scale with points. Since WP-1402 the build costs 6.6-7.1 ms on all
+  three cases alike, so the absolute overhead is near constant and the ratio may
+  order the other way, a fixed cost against a faster fit. Nobody has measured the
+  per-case breakdown for the post-1402 path, which is WP-1404's. Both places now
+  give the range and the three pattern lengths and assert no cause.
+
   **Three findings the charter had wrong, all corrected in place above.** The
   cancel button and the read-only serving flag do not exist, so they are WP-1405's
   manual pass. The `fit.html` break was already recorded by WP-1402 in the v1.4
