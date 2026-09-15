@@ -319,27 +319,49 @@ def read_gsas_prm(path: str | Path, *,
     ``W`` = 6.58e-6 deg² against this conversion's 6.30e-6 — a 4% agreement
     between two different LaB6 fits taken years apart.
 
-    ``ICONS``'s six fields are read or refused individually, never guessed:
-    the wavelength (field 1) and the polarization (field 4, GSAS's ``POL`` —
-    0.990 in every real 11-BM file, matching this package's own
-    :meth:`Instrument.debye_scherrer` default) are read.  A second wavelength
-    line (field 2), a non-zero zero-point (field 3 — its unit is disputed
-    between two GSAS-adjacent conventions 100x apart, see ``io/recipe.py``'s
-    ``_read_zero_shift``, and no real file in this corpus has a non-zero
-    value to settle it against) and an unidentified reserved field (field 5)
-    are each refused **only if non-zero**: every real file in the corpus this
-    reader was built against has all three at their identity value (0), so
-    refusing only a non-zero occurrence reads every real file while never
-    silently discarding a value that would have changed the answer.  Field 6
-    (a Kα2/Kα1 intensity-ratio default) is inert whenever field 2 is zero, as
-    it is in the whole corpus, and is read but not applied.  ``IRAD`` and
-    ``ITYP`` (radiation-table code and angular range) are deliberately
-    ignored: the wavelength is read directly from ``ICONS`` rather than
-    looked up from ``IRAD``'s table, and an angular range belongs to the
-    pattern, not the instrument.
+    **Every record is read by column**, through the grammar
+    ``io/projects/gsas.py`` holds: a ``.prm``'s ``INS`` records and a
+    ``.EXP``'s ``HST`` records are the same GSAS records under different
+    four-character keys, so both readers here call
+    :func:`~rietx.io.projects.gsas.read_icons` and
+    :func:`~rietx.io.projects.gsas.read_prcf_header` rather than each parsing
+    one (WP-1118).  ``ICONS``'s fields are ``LAM1 LAM2 ZERO [IREF] [IDAMP]
+    POLA IPOLA KRATIO``, and the optional ones are why a whitespace split
+    cannot do this: a file leaving ``IREF`` and ``IDAMP`` blank splits into
+    six tokens that happen to land on the right meanings, and one writing
+    ``IDAMP`` splits into seven that do not.
+
+    Its fields are then read or refused individually, never guessed.
+    ``LAM1`` and ``POLA`` (0.990 in every real 11-BM file, matching this
+    package's own :meth:`Instrument.debye_scherrer` default) are read.  A
+    **doublet is read too**: ``LAM2`` becomes a second
+    :class:`~rietx.schemas.instrument.EmissionLine` weighted by ``KRATIO``,
+    which is the Kα2/Kα1 intensity ratio and so is exactly what
+    ``EmissionLine.weight`` holds — a line's intensity relative to the first,
+    which the parameter table pins at 1.  A ``LAM2`` with no ``KRATIO`` to
+    weight it by is refused, because supplying the conventional 0.5 would be
+    this reader's number rather than the file's, and the polarization two
+    fields earlier is conventionally 0.5 as well.
+
+    A non-zero ``ZERO`` (its unit is disputed between two GSAS-adjacent
+    conventions 100x apart, see ``io/recipe.py``'s ``_read_zero_shift``, and
+    no real file in this corpus has a non-zero value to settle it against) and
+    a non-zero ``IPOLA`` (the polarization *type*, which says which convention
+    ``POLA`` is stated in) are each refused: every real file in the corpus has
+    both at 0, so refusing only a non-zero occurrence reads every real file
+    while never silently discarding a value that would have changed the
+    answer.  The refine flags and ``IDAMP`` are refinement controls, which a
+    frozen calibration has no use for, and are dropped with a diagnostic.
+    ``IRAD`` and ``ITYP`` (radiation-table code and angular range) are
+    deliberately ignored: the wavelength is read directly from ``ICONS``
+    rather than looked up from ``IRAD``'s table, and an angular range belongs
+    to the pattern, not the instrument.
 
     Similarly for ``PRCF``: only the eight coefficients this package has room
-    for are read, and they land on **two** objects — ``GU GV GW`` →
+    for are read, **named from the one table that names them**
+    (``CW_PROFILE_COEFFICIENTS``, keyed by profile function because type 2's
+    fourth coefficient is ``LX`` and type 3's is ``GP``), and they land on
+    **two** objects — ``GU GV GW`` →
     ``profile.u/v/w`` and ``LX LY`` → ``profile.x/y``, but ``S/L H/L`` →
     ``geometry.axial_sl``/``geometry.axial_hl``.  That split is why
     ``GSAS_PRM_GEOMETRY_ASSUMED`` says to carry those two over: replacing the
@@ -359,10 +381,11 @@ def read_gsas_prm(path: str | Path, *,
     * ``GSAS_PRM_FIELD_DROPPED`` — once per record that carried a field this
       reader does not map: ``ICONS``, ``PRCF`` (``GP`` and every coefficient
       past position 8, all at 0), and ``IRAD``/``ITYP``, which are ignored by
-      design.  The ``ICONS`` row names the unidentified field 5 and field 6's
-      Kα2/Kα1 ratio, which is read and **not applied**; a zero second
-      wavelength (field 2) and a zero zero-point (field 3) are dropped at
-      their identity without being named, because "ALAM2 = 0" *is* "no second
+      design.  The ``ICONS`` row names ``IPOLA``, the refine flags and
+      ``IDAMP``, and says what became of ``KRATIO`` — carried as the second
+      line's weight where the file states a doublet, read and **not applied**
+      where it does not.  A zero ``LAM2`` and a zero ``ZERO`` are dropped at
+      their identity without being named, because "LAM2 = 0" *is* "no second
       line" and naming it would add nothing.  Each
       row describes a record **this file carried**: the ``IRAD``/``ITYP`` row
       is absent for a file holding neither, and the "past position 8" clause

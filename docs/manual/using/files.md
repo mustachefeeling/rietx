@@ -199,15 +199,21 @@ instrument = rx.read_gsas_prm("beamline.prm")
 It reads the dominant case the format ships: one bank, `HTYPE PXCR`
 (constant-wavelength X-ray), GSAS profile function 3. It converts `GU`/`GV`/`GW`
 from centidegrees² and `LX`/`LY` from centidegrees into the degrees² and degrees
-`ProfileTCHZ` uses. A neutron time-of-flight file (`HTYPE PNTR`) and every other
+`ProfileTCHZ` uses. A file stating a Kα1/Kα2 doublet comes back with two
+emission lines, the second weighted by the `KRATIO` field, which is the Kα2/Kα1
+intensity ratio and so is what `EmissionLine.weight` means. A doublet with no
+`KRATIO` is refused: the conventional 0.5 would be the reader's number rather
+than the file's, and the polarization two fields earlier is conventionally 0.5
+as well. A neutron time-of-flight file (`HTYPE PNTR`) and every other
 GSAS profile function are refused by name rather than approximated, and the
 refusal says which reason applies to which. A time-of-flight file puts something
 onto the axis that `ProfileTCHZ`'s constant-wavelength Caglioti/TCH law cannot
 express. A constant-wavelength neutron file (`HTYPE PNCR`) states a law it could
 hold and is refused only for want of a real fixture to pin its coefficient
-layout down. A GSAS `.EXP`/`.LST` refinement output has no reader and is
-transcribed by hand. A TOPAS `.inp` and a FullProf `.pcr` are whole refinements
-rather than instrument files, and have their own readers in the next section.
+layout down. A GSAS `.LST` refinement output has no reader and is transcribed
+by hand. A GSAS `.EXP`, a TOPAS `.inp` and a FullProf `.pcr` are whole
+refinements rather than instrument files, and have their own readers in the
+next section.
 
 Two things this reader chooses rather than reads, both on the `diagnostics=`
 channel the sections above use. A `.prm` states no geometry at all, and
@@ -231,7 +237,7 @@ notes = []
 instrument = rx.read_gsas_prm("beamline.prm", diagnostics=notes)
 [(d.code, d.message) for d in notes]
 # GSAS_PRM_GEOMETRY_ASSUMED: the geometry was not read from the file
-# GSAS_PRM_FIELD_DROPPED:    ICONS field 5, the Kα2/Kα1 ratio, PRCF's GP …
+# GSAS_PRM_FIELD_DROPPED:    ICONS's IPOLA and refine controls, PRCF's GP …
 ```
 
 Pass no list and the read is silent and identical, so the channel is opt-in

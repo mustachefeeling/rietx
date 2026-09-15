@@ -237,7 +237,7 @@ format token is spelled in `_about.py`, never inline (root CLAUDE.md § Conventi
       than one closing it: the two recorded acceptance numbers stay where they
       are, and the parameter-count gap stays asserted rather than removed. The
       second is the task line below.
-- [ ] `read_gsas_prm` reads its fixed-format records **by column**, closing the
+- [x] `read_gsas_prm` reads its fixed-format records **by column**, closing the
       class the `.EXP` reader's first decision opened. A `.prm`'s `INS` records
       are the `.EXP`'s `HST`/`INS` records under a different four-character
       key, and this reader splits three of them on whitespace: `ICONS`,
@@ -250,6 +250,15 @@ format token is spelled in `_about.py`, never inline (root CLAUDE.md § Conventi
       Whether the doublet `INST_XRY.PRM` also carries can then be read is the
       second half: the `KRATIO` the old reader could not locate is field 8, and
       that file states it.
+      — landed 2026-09-15. `projects/gsas.py` grew `read_icons`,
+      `read_prcf_header` and `split_records`, all public and all called by the
+      `.prm` reader; the coefficient names come from `CW_PROFILE_COEFFICIENTS`
+      rather than a second literal list. The four real calibration files read
+      **bit-identically** (measured against `origin/main`'s module over the
+      whole `model_dump`), `INST_XRY.PRM` is refused for its `GP` of 0.1
+      rather than for a token count, and a doublet is now read: the refusal's
+      stated reason had expired. `io/CLAUDE.md` takes the two rules, the cap
+      368 → 383.
 
 - [x] FullProf `.pcr` reader. — PR #111, merged 2026-09-03 (`b717cc98`)
 - [ ] GSAS-II `.gpx` reader behind a **restricted unpickler** (decided

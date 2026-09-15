@@ -279,7 +279,21 @@ SIZE_CAPS: dict[str, int | None] = {
     # union with blanks; and that where a format reports its repairs is declared
     # and pinned against the signature, a wrong value being silent rather than
     # loud. The section's existing two rules were not cut to fit.
-    "src/rietx/io/CLAUDE.md": 368,
+    #
+    # 2026-09-15, 368 -> 383 for WP-1118's column rewrite of `read_gsas_prm`.
+    # Two rules, each governing the next project reader rather than this one.
+    # That staying outside the registry is about *dispatch* and never about
+    # parsing is the clause a session adding a second file kind of a format
+    # already read — a GSAS-II `.gpx` beside an `.instprm`, Jana's `.m50`/`.m40`
+    # trio (WP-1314) — would otherwise have to rediscover, and the way it is
+    # rediscovered is a second parser for one record, which is what this WP
+    # spent a session undoing. That a refusal's reason can expire is the check
+    # nobody runs: a parser's *reads* are tested and its refusals are prose, so
+    # "no file establishes this" sat in the doublet refusal after the file
+    # establishing it had been committed. Both are protocol rule 4's test.
+    # Raised rather than shaved, per the failure message's own instruction.
+    # Landed at 381; the headroom is +2.
+    "src/rietx/io/CLAUDE.md": 383,
 }
 CURRENT_FOCUS_CAP: int | None = 60  # lines within ROADMAP's Current focus (WP-1031 landed at 33; the 1060 rewrite at 44)
 # Words, because a line cap alone was met by nine 1000-character paragraphs

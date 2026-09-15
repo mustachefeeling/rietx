@@ -22,7 +22,12 @@ consequences this reader is built on:
   ``LAM1 LAM2 ZERO [IREF] [IDAMP] POLA IPOLA KRATIO``, and a file that leaves
   ``IREF``/``IDAMP`` blank splits into six tokens that happen to line up, while
   one that writes ``IDAMP`` splits into seven that do not.  ``INST_XRY.PRM``
-  and ``11bm_gsas.prm`` in ``tests/data`` are one of each.
+  and ``11bm_gsas.prm`` in ``tests/data`` are one of each.  **The record is
+  GSAS's, not this file kind's**, so :func:`read_icons`,
+  :func:`read_prcf_header` and :func:`split_records` are public and
+  ``io/instrument_profile.py``'s ``.prm`` reader calls them: two readers
+  parsing one record is how they come to disagree about it, which they did
+  until WP-1118.
 * **A record after the ``ZZZZZZZZZZZZ`` terminator is still a record.**  GSAS
   appends a history line past the end marker, so the terminator bounds nothing
   and is read as a record like any other.
