@@ -241,8 +241,7 @@ measured evidence behind each rule is
     damage rather than a measurement of it. `report.identifiability` carries the
     trio to pass on with any esd — raw χ²_red, the inflation, Durbin-Watson —
     plus the δR line. Scaling variances by GoF² alone is "highly questionable"
-    (Schwarzenbach, 1989): the same data under different protocols spread by
-    ×17–25 of the quoted esds on cell dimensions.
+    (Schwarzenbach, 1989).
 14. **Ask whether the converged answer is the only one, and settle it by a
     swap.** `report.identifiability.exchanges` and `.soft_modes` outrank the
     statistics, and **the verdict that licenses is `ambiguous`, not
@@ -275,10 +274,9 @@ measured evidence behind each rule is
     is systematic. Layer 0's regions are peak clusters, so that second failure
     lands in no `report.regions` entry and step 10 cannot see it.
 16. **Only then Rwp and GoF, and never alone** — as a pair with
-    `background.rwp_background_subtracted`. Measured, a sharp LaB₆ fit and one
-    under 0.6° of broadening both report Rwp **0.0137**, and 0.0490 against
-    0.0766 subtracted: the raw number is flattered by whatever the background
-    carries, the subtracted one separates the two fits.
+    `background.rwp_background_subtracted`. The raw number is flattered by
+    whatever the background carries. The subtracted one is what separates two
+    fits of the same data.
 17. **Read the structure R factors last, and never in isolation.**
     `result.phase_agreement` carries `r_bragg` (R_B) and `r_f` (R_F) per phase. A
     powder pattern does not measure individual reflection intensities, so I(obs)
@@ -446,6 +444,12 @@ protocol is not a measurement.
 **There is one integration surface and it is the Python API.** A caller runs a
 verb, reads the typed answer, and dumps it with `model_dump(mode="json")` when a
 file is wanted. A failure **raises**: there is no envelope and no error code.
+
+**A `RefinementCancelled` you did not request is not a bug in your call.** Every
+fit records itself, and a human watching one can stop it from `rietx watch`. The
+stages that finished are kept. `.completed_stages` and `.node_id` say where the
+work stands, and that node id is a checkout target. Report where you got to. Do
+not re-run the fit as though it had failed.
 
 **Do not quote a signature from memory.** `rx.capabilities()` says what this
 build supports, `rx.help_for(path)` says what a parameter is, and

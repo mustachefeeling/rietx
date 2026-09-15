@@ -292,7 +292,7 @@ pay for it again.
       refuses; traversal is refused. Plus a `slow`-marked two-process test — a
       subprocess runs a long fit, the parent writes the file, and the child's
       exit and terminal status are asserted.
-- [ ] Skill: **none here**, but this WP is what makes WP-1406's body sentence
+- [x] Skill: **none here**, but this WP is what makes WP-1406's body sentence
       true. Note it in 1406's `### Inherited` when this lands.
 
 ## Acceptance

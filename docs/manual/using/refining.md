@@ -720,6 +720,24 @@ A cancelled run is therefore not a lost run. The working state is a real,
 restorable node ([](history.md)), and the stages before it are reported in
 full.
 
+### A stop you did not arrange
+
+A fit that passed no `cancel=` can still be stopped. Every fit writes a run
+directory, and `rietx watch` puts a stop button on any run being written on this
+machine ([](cli.md)). Pressing it raises the same `RefinementCancelled` in the
+process running the fit, carrying the same three fields. Code that already
+catches the exception needs no change. Code that does not catch it prints a
+traceback and exits.
+
+The run's `status.json` records `cancelled_by` when a request caused the stop,
+and records nothing there when the caller's own token did. The exception carries
+no such field. Downstream of the token there is no difference between the two,
+and the fit is in no position to claim one.
+
+`telemetry=False` removes the run directory, and the button with it. So does
+`RIETX_TELEMETRY=0`. Both also remove the window a person was watching through,
+which is the trade being made.
+
 ## What the result records about the run
 
 `RefinementResult.provenance` is a `Provenance`, and it holds everything needed

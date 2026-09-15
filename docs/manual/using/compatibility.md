@@ -116,7 +116,7 @@ to move are declared rather than left to be inferred:
   capability types), so a consumer that parses an answer sees a bump when the
   answer's shape or meaning moves.
 - The run directory and the watcher's routes. Every fit writes a run directory
-  ([](refining.md)) and `rietx watch` serves it over six HTTP routes
+  ([](refining.md)) and `rietx watch` serves it over seven HTTP routes
   ([](cli.md)). Neither carries a version string, and the omission is a decision
   rather than an oversight. A run directory is a contract between two processes,
   which is the argument for versioning it. Against it: nothing negotiates over

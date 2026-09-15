@@ -34,7 +34,8 @@ rather than a picture they have to re-find their place in after every stage.
 
 Give them the command and the port, and say which run is yours if the directory
 holds several. The run's label is the working directory's name by default, so
-in a shared tree say the run id instead.
+in a shared tree say the run id instead. The window has a stop button in it, and
+9d.9 is what that does to you.
 
 *(Measured: WP-1402 checked the zoom in chromium — the axis range is identical
 before and after a forced redraw. The watcher's own effect on your fit is
@@ -131,3 +132,35 @@ want to see.
 *(Measured: WP-1403 — a read-only directory latches the recorder off with a
 warning and the fit completes; a caller's callback exception still propagates,
 asserted in both directions in `tests/test_telemetry.py`.)*
+
+**9d.9 The human watching can stop you, and it arrives as an exception.** The
+window you handed them has a stop button. Pressing it raises
+`RefinementCancelled` in your process at the next residual evaluation, whether
+or not you passed a `cancel=` of your own. Catch it. A `RefinementCancelled` you
+did not ask for is not a bug in your call. Re-running the fit is the wrong
+response to one.
+
+What survives is stated on the exception. `.completed_stages` are the stages
+that finished, `.node_id` is the history node the working state stands at, and
+that id is a checkout target. The stage in flight is abandoned: no node, no
+committed parameters, and the structure and instrument go back to where that
+stage found them. A cancelled run has no `summary.txt`, because there is no
+result to write one from.
+
+You cannot tell a human's stop from your own `token.cancel()` by looking at the
+exception, and you are not meant to. The *record* can: `status.json` carries
+`cancelled_by` when a request caused it, and nothing when your own code did.
+
+In a series a stop ends the whole chain. The call returns what completed, with
+`SEQUENTIAL_CANCELLED` among the diagnostics.
+
+Report where you got to and hand back the node id. If a fit genuinely must be
+uninterruptible, the honest answer is `telemetry=False`, which removes the run
+directory and the window with it. `rietx watch --read-only` is a flag the human
+sets on their own watcher.
+
+*(Measured: WP-1405 — a second process writes the request and the fit exits
+0.117-0.126 s later, at stage 1 of 150, with empty stderr, while the control
+that is never asked runs all 150. A 4-pattern series stopped at 0 completed
+entries with `SEQUENTIAL_CANCELLED`, against 4 of 4 unasked. `[dev]` venv,
+macOS arm64.)*
