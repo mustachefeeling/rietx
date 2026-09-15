@@ -1,7 +1,7 @@
 # WP-1422 — the WP two sessions picked
 
 Milestone: unscheduled · Status: ✅ 2026-09-15 — claim store, the session-start
-report, the `EnterWorktree` refusal and `/wp-start` step 2; 23 tests, and the
+report, the `EnterWorktree` refusal and `/wp-start` step 2; 26 tests, and the
 first clash it would have caught is one that has not happened yet
 Depends on: —
 
@@ -119,9 +119,11 @@ that never merge.
       cooperation from it, and why a fourth path to the same state is not added.
 - [x] `.claude/commands/wp-start.md`: the check inside step 2, the dormant
       reading, the `claim` override, and the refusal at step 3.
-- [x] Tests in `tests/test_workflow_hooks.py`: 30 → 53, all passing.
+- [x] Tests in `tests/test_workflow_hooks.py`: 30 → 56, all passing.
 - [x] The handover audit's two: `provenance` reads the claim's `by`/`declared`,
       and the `"tree"` source value gets the case that reaches it.
+- [x] The review pass's six, the first of them the ranking inversion that let an
+      automatic claim outrank the branch it was derived from.
 - [x] Root CLAUDE.md § Protocol: the one-WP-per-session clause beside the
       one-tree-per-session one, and the cap ledger entry that pays for it.
 - [x] ROADMAP: the index row under § The repo's own process.
@@ -181,13 +183,17 @@ no cross-reference to a numbered step moved.
 **Measured** (macOS Darwin 25.5.0, this worktree's own `[dev]` venv, no jax and
 no torch, Python 3.12.12):
 
-- Fast selection `-n auto --dist loadgroup -m "not slow"`: **4877 passed, 132
-  skipped**, two runs at 2:11 and 2:22 and nothing else on the machine. The one
-  file touched went 30 → 53 collected, +23, and all 23 pass; skips unchanged, so
-  no new skip. Main's own total was not re-run for the baseline, so the delta is
-  closed by that collection count rather than by two full readings. The full
-  selection did not run: this WP touches no code the package imports, which is
-  the ladder's own condition for rung 3 (`tests/CLAUDE.md` § Running).
+- Fast selection `-n auto --dist loadgroup -m "not slow"`: **4880 passed, 132
+  skipped**, three runs across the session at 2:11-2:22 and nothing else on the
+  machine. The one file touched went 30 → 56 collected, +26, and all 26 pass;
+  skips unchanged, so no new skip. Main's own total was not re-run for the
+  baseline, so the delta is closed by that collection count rather than by two
+  full readings. The full selection did not run: this WP touches no code the
+  package imports, which is the ladder's own condition for rung 3
+  (`tests/CLAUDE.md` § Running).
+- The session-start scan itself costs 0.246-0.252 s on this desktop, down from
+  0.424 s before the review removed its duplicate process sweep. It runs before
+  every session, so the figure is the one that matters for the flag's welcome.
 - `git rev-parse --git-common-dir` resolves to the same `.git` from the main
   checkout, a worktree, and a worktree nested inside a worktree. That is the
   guarantee the store rests on.
@@ -202,6 +208,29 @@ nothing, which is the twin of a declared name with no writer; and the third
 and it earns the place rather than merely using it — the create hook's automatic
 claim and a session's correction both render as "claim" under `source` alone.
 
+**The review pass found the design inverted against itself, and it is worth
+recording as the lesson of this WP.** `/code-review high --fix` returned six
+findings; all six were accepted and none declined. The first was a real defect:
+the create hook writes a claim whose WP is the tree's own name read back, and
+`occupancy` ranked *every* claim above the branch — so the automatic claim
+pinned the weakest source as the strongest, which is the exact inversion of the
+branch-before-tree rule stated three paragraphs up in the same module's
+docstring. On this module's own motivating case the table then said 1404, and a
+third session asking for 1413 was neither warned nor refused. Only a session's
+claim outranks the branch now, and `by` turns out to be load-bearing rather than
+bookkeeping. The general shape: **a derived rule and a written override are two
+mechanisms, and the second one silently outranked the first the moment something
+automatic started writing it.**
+
+The other five: a second `lsof` sweep per `claude` process that `render` had
+already paid for (0.111 s of a 0.424 s scan, now 0.246 s); a glyph map built
+over rows that were all `held`, where `held` always survives the filter, so it
+could never drop anything; `main_checkout` taking the shallowest path, which is
+not the main checkout for a worktree made outside `.claude/worktrees`; a shared
+`.tmp` name under a comment claiming two writers were safe; and `describe`
+rendering a dormant tree as "held by no session", one line asserting both of the
+model's two states at once.
+
 **Gotchas for anyone touching this.**
 
 - The trigger for the refusal is a **live process**, never a branch. Stale
@@ -215,6 +244,16 @@ claim and a session's correction both render as "claim" under `source` alone.
 - A test fixture asserting that the store is invisible to `git status` needs the
   real repo's `.claude/worktrees/` ignore rule, or it passes for the wrong
   reason — it catches its own untracked worktree directories instead.
+- **`Claim.by` decides the ranking**, so a future writer of claims must say
+  which kind it is. Automatic claims lose to the branch; a session's beats it.
+- `docs/ROADMAP.md` is now at **710 lines against a cap of 710**. The ledger's
+  last entry recorded +1 headroom on 2026-09-15; three lines went in after it
+  and this WP's index row took the last one, so the next index row needs a cap
+  bump in its own commit.
+- The rule was deliberately **not** added to ROADMAP § Session protocol step 1.
+  That step already delegates to `/wp-start`, which carries the check, and a
+  fourth copy beside CLAUDE.md, the command and the hook is what this repo's own
+  "never restate" rule forbids.
 
 **Next**, in order, and only if wanted. Nothing here is owed.
 
