@@ -289,13 +289,17 @@ stream was the expense. Two of them are now measured dead. The third, shipping
 off by default, is live but is a decision the maintainer owns rather than one a
 measurement makes.
 
-There is a fourth path the WP could not have named, and the numbers point
-straight at it: **reduce the snapshot**. It is 16.0 to 18.4 ms of the 16.7 to
-21.9, and WP-1402 already priced its two halves: `decimation_index` at 6.6-7.1
-ms a stage, the rest of the build at 2.7-7.1. That work belongs to a new WP. Its constraint is written down in WP-1402 and is
-load-bearing: three consumers read the decimated index set, and a faster
-decimation must return the same one bit for bit, or the comparison UI and the
-plot disagree about which points they drew.
+**The maintainer's decision, 2026-09-15: keep recording on by default, and cut
+the snapshot cost instead.** That is a fourth path, and the WP could not have
+named it because it was written believing the eval stream was the expense. It is
+now [WP-1413](1413-the-snapshot-is-what-recording-costs.md).
+
+The snapshot is 16.0 to 18.4 ms of the 16.7 to 21.9, and WP-1402 already priced
+its two halves: `decimation_index` at 6.6-7.1 ms a stage, the rest of the build
+at 2.7-7.1. One constraint governs that work and it is load-bearing. Three
+consumers read the decimated index set, so a faster decimation must return the
+same one bit for bit, or the comparison UI and the plot disagree about which
+points they drew.
 
 Writing the snapshot less often than every stage is the other half of that
 option, and it is not free either. A stage boundary is what a watcher redraws

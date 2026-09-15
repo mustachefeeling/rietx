@@ -622,7 +622,8 @@ no magnetic size term, so a broad magnetic peak is fitted by a low moment
 
 #### A window into a run — the live-watcher track
 
-Six rungs, opened 2026-09-13. An agent driving rietx leaves a human no view of
+Seven rungs, six opened 2026-09-13 and 1413 added 2026-09-15 by 1404's
+measurement. An agent driving rietx leaves a human no view of
 the work, and 1322 measured what documenting the knob achieves: three subagents
 each read the skill in full and each wrote `history=False`. So 1403 records every
 fit, and 1404 is licensed to send it back if the cost says it cannot. The surface
@@ -640,6 +641,7 @@ behind v1.4's peaks and ahead of the magnetic track.
 | [1404](wp/1404-what-recording-every-fit-costs.md) | What recording every fit costs | ⬜ | 1403 (1401 baseline) |
 | [1405](wp/1405-the-human-stops-the-run.md) | The human stops the run | ✅ 2026-09-15 | 1403 (1401 soft) |
 | [1406](wp/1406-say-that-the-fit-writes-to-disk.md) | Say that the fit writes to disk | ✅ 2026-09-15 | 1403, 1405 (1402 soft) |
+| [1413](wp/1413-the-snapshot-is-what-recording-costs.md) | The snapshot is what recording costs | ⬜ | 1404, 1402 |
 
 ### v2+ — fenced
 
