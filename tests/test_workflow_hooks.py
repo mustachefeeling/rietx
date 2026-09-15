@@ -617,3 +617,232 @@ def test_nudge_fails_silent_on_a_signal_it_cannot_measure(
     _, wt = wp_branch_at_rest
     assert owed.nudge(_stop(wt)) is None
     assert owed.nudge(_stop(wt, tmp_path / "missing.jsonl")) is None
+
+
+# --------------------------------------------------------------------------- #
+# The WP claim (.claude/hooks/wp_claim.py, WP-1422): one WP per session, so two
+# sessions never spend a day on the same work.
+# --------------------------------------------------------------------------- #
+
+_claim_spec = importlib.util.spec_from_file_location(
+    "wp_claim_hook", ROOT / ".claude" / "hooks" / "wp_claim.py"
+)
+claim = importlib.util.module_from_spec(_claim_spec)
+_claim_spec.loader.exec_module(claim)
+
+_create_spec = importlib.util.spec_from_file_location(
+    "worktree_create_hook", ROOT / ".claude" / "hooks" / "worktree_create.py"
+)
+create = importlib.util.module_from_spec(_create_spec)
+_create_spec.loader.exec_module(create)
+
+
+@pytest.mark.parametrize(
+    "name,wp",
+    [
+        ("wp1422-the-wp-two-sessions-picked", "1422"),
+        ("1331-landing-page", "1331"),  # the repo writes both spellings
+        ("wp-1422-x", "1422"),
+        ("1422", "1422"),
+        ("pr-bench", None),  # the bench claims nothing and must not
+        ("termplot", None),
+        ("wpem-benchmark", None),  # four digits required, not "any digits"
+        ("main", None),
+    ],
+)
+def test_a_name_declares_a_wp_or_declares_nothing(name: str, wp: str | None) -> None:
+    assert claim.wp_from_name(name) == wp
+
+
+@pytest.fixture
+def two_trees(repo: Path) -> tuple[Path, Path, Path]:
+    """A checkout with two WP worktrees, one of them nested inside the other.
+
+    Nested because this repo really does that — ``.claude/worktrees/wp1402-x/
+    .claude/worktrees/wp1403-y`` on 2026-09-15 — and containment alone would
+    then assign the inner tree's session to the outer one as well.
+    """
+    (repo / "README").write_text("x\n", encoding="utf-8")
+    # The real repo's rule, so the porcelain assertion below is about the claim
+    # store and not about the fixture's own worktree directories.
+    (repo / ".gitignore").write_text(".claude/worktrees/\n", encoding="utf-8")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "init")
+    outer = repo / ".claude" / "worktrees" / "wp9101-outer"
+    _git(repo, "worktree", "add", "-q", "-b", "wp9101-outer", str(outer))
+    inner = outer / ".claude" / "worktrees" / "wp9102-inner"
+    _git(repo, "worktree", "add", "-q", "-b", "wp9102-inner", str(inner))
+    return repo, outer, inner
+
+
+def _sess(pid: int, cwd: Path, age: str = "01:00"):
+    return hook.Session(pid, age, str(cwd))
+
+
+def _porcelain(tree: Path) -> str:
+    return subprocess.run(
+        ["git", "status", "--porcelain"], cwd=tree, capture_output=True, text=True
+    ).stdout.strip()
+
+
+def test_the_main_checkout_claims_nothing(two_trees: tuple[Path, Path, Path]) -> None:
+    """It is read-only for a session (worktree_only.py), so it holds no WP."""
+    main, _outer, _inner = two_trees
+    trees = claim.worktree_branches(main)
+    assert claim.main_checkout(trees) == main.resolve()
+    assert [h.wp for h in claim.occupancy(trees, [], set(), {}, main)] == ["9101", "9102"]
+
+
+def test_a_session_holds_the_deepest_tree_that_contains_it(
+    two_trees: tuple[Path, Path, Path]
+) -> None:
+    main, outer, inner = two_trees
+    trees = claim.worktree_branches(main)
+    sessions = [_sess(11, outer), _sess(22, inner / "src"), _sess(33, main)]
+    by_wp = {h.wp: h for h in claim.occupancy(trees, sessions, set(), {}, main)}
+    assert [s.pid for s in by_wp["9101"].sessions] == [11]
+    assert [s.pid for s in by_wp["9102"].sessions] == [22]
+
+
+def test_the_scanning_session_is_not_reported_as_a_holder(
+    two_trees: tuple[Path, Path, Path]
+) -> None:
+    """Excluded by pid, so a session is never blocked by its own presence."""
+    main, outer, _inner = two_trees
+    trees = claim.worktree_branches(main)
+    holders = claim.occupancy(trees, [_sess(11, outer)], {11}, {}, main)
+    assert [h.held for h in holders] == [False, False]
+
+
+def test_a_claim_overrides_the_branch_the_tree_is_on(
+    two_trees: tuple[Path, Path, Path]
+) -> None:
+    """The measured case: a tree resumed for a different WP than it is named
+    for (2026-09-15, tree ``wp1404-*``, branch ``wp1413-*``, working 1413)."""
+    main, outer, _inner = two_trees
+    assert claim.write_claim(main, outer, "9199", by="session") is not None
+    trees = claim.worktree_branches(main)
+    held = {
+        h.worktree: h
+        for h in claim.occupancy(trees, [], set(), claim.read_claims(main), main)
+    }[outer.resolve()]
+    assert (held.wp, held.source, held.branch) == ("9199", "claim", "wp9101-outer")
+
+    assert claim.release_claim(main, outer) is True
+    assert claim.release_claim(main, outer) is False  # idempotent
+    back = {
+        h.worktree: h
+        for h in claim.occupancy(trees, [], set(), claim.read_claims(main), main)
+    }[outer.resolve()]
+    assert (back.wp, back.source) == ("9101", "branch")
+
+
+def test_the_store_is_shared_by_every_worktree_and_tracked_by_none(
+    two_trees: tuple[Path, Path, Path]
+) -> None:
+    """Git guarantees the common dir is one directory for the whole repository,
+    which is why a claim crosses branches that never merge."""
+    main, outer, inner = two_trees
+    dirs = {claim.claims_dir(t) for t in (main, outer, inner)}
+    assert len(dirs) == 1 and None not in dirs
+    claim.write_claim(main, outer, "9199")
+    for tree in (main, outer, inner):
+        assert claim.read_claims(tree, prune=False)[outer.resolve()].wp == "9199"
+        assert _porcelain(tree) == ""
+
+
+def test_a_claim_dies_with_its_worktree(two_trees: tuple[Path, Path, Path]) -> None:
+    """Pruned on read, so the ledger can never describe a tree that is gone and
+    there is no expiry policy to tune.  A stale claim would be a false alarm,
+    and a false alarm costs more than no alarm (session_start.py's docstring)."""
+    main, outer, _inner = two_trees
+    claim.write_claim(main, outer, "9199")
+    _git(main, "worktree", "remove", "--force", str(outer))
+    assert claim.read_claims(main) == {}
+    assert list(claim.claims_dir(main).glob("*.json")) == []
+
+
+def test_an_unreadable_claim_is_dropped_rather_than_raised(
+    two_trees: tuple[Path, Path, Path]
+) -> None:
+    main, outer, _inner = two_trees
+    claim.write_claim(main, outer, "9199")
+    junk = claim.claims_dir(main) / "junk.json"
+    junk.write_text("{not json", encoding="utf-8")
+    assert set(claim.read_claims(main)) == {outer.resolve()}
+    assert not junk.exists()
+
+
+def test_two_live_trees_on_one_wp_are_the_clash(
+    two_trees: tuple[Path, Path, Path]
+) -> None:
+    main, outer, inner = two_trees
+    claim.write_claim(main, inner, "9101")  # inner now says it is on outer's WP
+    trees = claim.worktree_branches(main)
+    holders = claim.occupancy(
+        trees, [_sess(11, outer), _sess(22, inner)], set(), claim.read_claims(main), main
+    )
+    assert claim.clashes(holders) == ["9101"]
+    assert claim.clashes([h for h in holders if h.worktree == outer.resolve()]) == []
+
+
+def test_a_closed_wp_whose_tree_was_kept_is_not_reported(
+    two_trees: tuple[Path, Path, Path]
+) -> None:
+    """Four of this repo's six trees on 2026-09-15 were finished work whose
+    directory had not been removed.  Printing them puts the live row fifth."""
+    main, _outer, inner = two_trees
+    trees = claim.worktree_branches(main)
+    holders = claim.occupancy(trees, [_sess(11, inner)], set(), {}, main)
+    rows = claim.bears_on_a_clash(holders, {"9101": "✅", "9102": "✅"})
+    assert [(h.wp, h.held) for h in rows] == [("9102", True)]  # held survives closing
+    assert [h.wp for h in claim.bears_on_a_clash(holders, {"9101": "🔄"})] == ["9101", "9102"]
+
+
+def test_held_elsewhere_excludes_this_tree(two_trees: tuple[Path, Path, Path]) -> None:
+    main, outer, inner = two_trees
+    trees = claim.worktree_branches(main)
+    holders = claim.occupancy(trees, [_sess(11, outer), _sess(22, inner)], set(), {}, main)
+    assert [h.wp for h in claim.held_elsewhere(holders, outer)] == ["9102"]
+    assert [h.wp for h in claim.held_elsewhere(holders, None)] == ["9101", "9102"]
+
+
+def test_the_refusal_names_the_holder_and_the_way_past_it(
+    two_trees: tuple[Path, Path, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A refusal with no override is a trap: a session parked idle in a tree it
+    has finished with would block the next one for ever."""
+    main, outer, _inner = two_trees
+    monkeypatch.setattr(create.session_start, "live_sessions", lambda: [_sess(11, outer)])
+    monkeypatch.setattr(create.session_start, "_ancestors", lambda: set())
+
+    message = create.clash_refusal(main, "9101")
+    assert "pid 11" in message and "wp9101-outer" in message
+    assert f"release --worktree {outer.resolve()}" in message
+
+    assert create.clash_refusal(main, "9102") == ""  # a dormant tree never refuses
+    assert create.clash_refusal(main, "9999") == ""  # nothing at all
+
+
+def test_the_session_start_line_is_silent_without_a_second_tree(repo: Path) -> None:
+    """A machine running one session prints nothing here, so the flag stays
+    worth reading on the day it fires."""
+    write_wp(repo, "9001", "✅ 2026-08-02 — done", ["2026-08-02"])
+    commit_wp(repo, "9001", "2026-08-01")
+    make_venv(repo, repo / "src")
+    assert hook.claim_lines(repo) == []
+    assert len(hook.render(repo).splitlines()) == 1
+
+
+def test_the_session_start_line_names_the_other_session(
+    two_trees: tuple[Path, Path, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    main, outer, inner = two_trees
+    write_wp(main, "9102", "🔄 2026-09-15 — in flight", ["2026-09-15"])
+    monkeypatch.setattr(hook, "live_sessions", lambda: [_sess(22, inner, "03:14")])
+    monkeypatch.setattr(hook, "_ancestors", lambda: set())
+
+    (line,) = hook.claim_lines(outer)
+    assert "WP-9102 held by pid 22 up 03:14" in line
+    assert "wp9102-inner" in line and hook.CLAIM_HINT in line
+    assert hook.claim_lines(inner) == []  # its own tree is not news to it
