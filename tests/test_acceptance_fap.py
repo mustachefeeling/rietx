@@ -7,22 +7,37 @@ consistency check** against GSAS's own converged refinement of the same data,
 with tolerances that respect legitimate inter-code convention differences
 (docs/DESIGN.md, "Testing & validation policy").
 
-The protocol is read off GSAS's converged ``FAP.EXP``, so both codes refine
-the same parameter set:
+**The protocol is read from ``FAP.EXP``, not transcribed from it** (WP-1118).
+Every number below — the cell, the seven sites, the space group, the
+wavelengths, the polarization, the held Caglioti terms, the excluded region and
+GSAS's own Rwp and esds — comes from ``rx.read_gsas_exp``.  Before that they
+were constants somebody had read off the file by hand, which is the failure
+mode the reader exists to remove: a mistyped coordinate stays symmetry-valid,
+so what comes out is a plausible wrong answer rather than an error.
 
-* zero point held at 0 (``ICONS`` third field is 0.0 and carries no refine
-  flag); the specimen **displacement** refines instead (GSAS's ``shft``
-  profile coefficient, converged 4.90166);
-* instrument Caglioti ``GU, GV, GW`` held at the ``INST_XRY.PRM`` starting
-  values (2, −2, 5 centideg² = 2e-4, −2e-4, 5e-4 deg²) — GSAS's refine flags
-  for them are ``N``;
-* the **sample** Lorentzian terms ``LX``, ``LY`` refine (GSAS flags ``Y``,
-  converged 3.35183 and 2.48803 centideg = 0.0335 and 0.0249 deg) — i.e.
-  exactly the instrument ⊕ sample profile split this milestone added;
-* Kα2/Kα1 held at 0.5 (``ICONS`` ratio field, unrefined);
-* 2θ > 130° excluded (GSAS's ``EXC 2`` record) — which reproduces its point
-  count of 5750 exactly, so the agreement indices below are computed over the
-  same channels.
+What the file says, and what this test does with it:
+
+* the specimen **displacement** refines and the zero point is held at 0
+  (``ICONS``' zero field carries no refine flag);
+* the instrument Caglioti ``GU, GV, GW`` are held at the values the file
+  states, whose flags are ``N``;
+* the **sample** Lorentzian ``LX``, ``LY`` refine (flags ``Y``) — the
+  instrument ⊕ sample profile split this milestone added;
+* 2θ > 130° is excluded (``EXC 2``), which reproduces GSAS's point count of
+  5750 exactly, so the agreement indices are computed over the same channels.
+
+**Two things the file states that this test does not do**, named here because
+reading the protocol is what made them visible:
+
+* GSAS refined the **coordinates** of all seven sites (twelve site-symmetry
+  DOFs; its ``X`` flag means "as permitted by symmetry").  This plan does not
+  free them, so it refines 20 parameters against GSAS's 28.  That is a real
+  difference in protocol and ``test_the_file_states_a_wider_free_set_than_this_plan``
+  is where it is recorded rather than implied.
+* GSAS fitted its background function 5, a reciprocal-Q expansion for air
+  scatter, which has no rietx counterpart; a 6-term Chebyshev is used instead.
+  So an Rwp comparison here is between two different background models, which
+  is one more reason the band below is a consistency band and not a tolerance.
 
 **Measured result** (2026-07-22, recorded in docs/milestones/v0.2.md):
 Rwp = 9.73 % against GSAS's 10.05 % and Rp = 7.76 % against its 7.66 %, on an
@@ -44,27 +59,51 @@ import numpy as np
 import pytest
 
 import rietx as rx
+from rietx.io.projects.gsas import to_structure
 from rietx.schemas.instrument import BackgroundChebyshev, EmissionLine, Source
 
 DATA = Path(__file__).parent / "data"
 pytestmark = [pytest.mark.slow, pytest.mark.xdist_group("fap")]
 
-# GSAS's converged values for this dataset (FAP.EXP: CRS1 ABC / ABCSIG, RPOWD)
-A_GSAS, A_GSAS_ESD = 9.371724, 0.000036
-C_GSAS, C_GSAS_ESD = 6.885867, 0.000037
-RWP_GSAS, RP_GSAS = 0.1005, 0.0766
+#: GSAS's converged refinement of this dataset, read once.  Every reference
+#: value and the whole refine protocol below come off this object, so there is
+#: one authority for them and it is the file.
+EXP = rx.read_gsas_exp(DATA / "FAP.EXP")
+_PHASE = EXP.phases[0]
+_HIST = EXP.histogram()
+_TERMS = EXP.profile().by_name()
 
-_EIGHT_PI2 = 8.0 * np.pi**2
-#: label, species, x, y, z, Uiso — the CRS1 AT records of FAP.EXP
-_ATOMS = [
-    ("Ca1", "Ca", 0.333333, 0.666667, 0.001913, 0.006079),
-    ("Ca2", "Ca", 0.241976, 0.992603, 0.250000, 0.004561),
-    ("P3", "P", 0.397416, 0.367704, 0.250000, 0.003978),
-    ("F4", "F", 0.000000, 0.000000, 0.250000, 0.013850),
-    ("O5", "O", 0.325053, 0.484763, 0.250000, 0.004916),
-    ("O6", "O", 0.591494, 0.469954, 0.250000, 0.006609),
-    ("O7", "O", 0.339510, 0.258126, 0.070641, 0.006713),
-]
+A_GSAS, A_GSAS_ESD = _PHASE.cell.a, _PHASE.cell.esd_a
+C_GSAS, C_GSAS_ESD = _PHASE.cell.c, _PHASE.cell.esd_c
+RWP_GSAS, RP_GSAS = EXP.rwp, EXP.rp
+
+
+def _held(structure: rx.Structure) -> rx.Structure:
+    """``structure`` with every parameter held, for the staged plan to free.
+
+    ``to_structure`` hands back the file's own refine flags, and a stage's
+    ``turn_on`` globs **add** to the free set rather than replacing it — so
+    passing those flags in would free every site from the first stage and make
+    the staging mean nothing.  The flags are not discarded: they are what
+    :func:`gsas_free_paths` reads, and the plan is checked against them.
+    """
+    for phase in structure.phases:
+        for name in ("a", "b", "c", "alpha", "beta", "gamma"):
+            getattr(phase.cell, name).vary = False
+        for atom in phase.atoms:
+            for name in ("x", "y", "z", "occ", "biso"):
+                getattr(atom, name).vary = False
+    return structure
+
+
+def gsas_free_paths() -> set[str]:
+    """The structural parameters GSAS left free, as rietx dot-paths.
+
+    Read off the refine flags ``to_structure`` carries across, before
+    :func:`_held` clears them.
+    """
+    ref = rx.Refinement(to_structure(EXP), rx.Instrument.bragg_brentano())
+    return {row.path for row in ref.parameters() if row.refinable and row.vary}
 
 
 def build_fap_inputs():
@@ -80,51 +119,57 @@ def build_fap_inputs():
     if not path.exists():
         pytest.skip("GSAS-II LabData tutorial dataset not present")
     raw = rx.read_pattern(path)
-    # GSAS's own excluded region (FAP.EXP "EXC 2  130.000 1000.000"); the file
-    # runs to 130.04° and that last channel is a detector artefact
     data = rx.PatternData(
         two_theta=raw.two_theta, intensity=raw.intensity, sigma=raw.sigma,
-        excluded_regions=[(129.99, 1000.0)], metadata=raw.metadata)
+        # GSAS's own excluded region, as the file states it.  Its 130.000 lower
+        # bound removes the same three channels the hand-written 129.99 did,
+        # because rietx's exclusion is closed at both ends and the file's last
+        # channels are 130.00, 130.02 and 130.04.
+        excluded_regions=list(_HIST.excluded_regions),
+        metadata=raw.metadata)
 
-    cell = rx.Cell(
-        a=rx.Parameter(value=9.3717, min=1.0), b=rx.Parameter(value=9.3717, min=1.0),
-        c=rx.Parameter(value=6.8859, min=1.0),
-        alpha=rx.Parameter(value=90.0), beta=rx.Parameter(value=90.0),
-        gamma=rx.Parameter(value=120.0))
-    structure = rx.Structure(phases=[rx.Phase(
-        name="fluorapatite", space_group="P 63/m", cell=cell,
-        atoms=[rx.Atom(label=lab, species=sp,
-                       x=rx.Parameter(value=x), y=rx.Parameter(value=y),
-                       z=rx.Parameter(value=z),
-                       biso=rx.Parameter(value=u * _EIGHT_PI2, min=0.0, max=25.0))
-               for lab, sp, x, y, z, u in _ATOMS],
-        scale=rx.Parameter(value=1e-3, min=0.0, transform="softplus"),
-        # GSAS LX, LY starting values (centideg → deg)
-        lor_size=rx.Parameter(value=0.0335, min=0.0, transform="softplus"),
-        lor_strain=rx.Parameter(value=0.0249, min=0.0, transform="softplus"))])
+    # the cell, the sites and the space group, from the file's own records
+    structure = _held(to_structure(EXP))
+    phase = structure.phases[0]
+    phase.name = "fluorapatite"
+    for name in ("a", "b", "c"):
+        getattr(phase.cell, name).min = 1.0
+    phase.scale = rx.Parameter(value=1e-3, min=0.0, transform="softplus")
+    # GSAS's converged LX and LY, in degrees, as this refinement's start
+    phase.lor_size = rx.Parameter(value=_TERMS["LX"].degrees, min=0.0,
+                                  transform="softplus")
+    phase.lor_strain = rx.Parameter(value=_TERMS["LY"].degrees, min=0.0,
+                                    transform="softplus")
 
     instrument = rx.Instrument.bragg_brentano()
-    # the tutorial's own wavelengths, not our NIST/Hölzer preset: a 60 ppm
-    # wavelength difference would map straight onto the cell being compared
+    lam1, lam2 = _HIST.wavelengths
     instrument.source = Source(
-        lines=[EmissionLine(wavelength=1.5405),
-               EmissionLine(wavelength=1.5443,
+        # the tutorial's own wavelengths, not our NIST/Hölzer preset: a 60 ppm
+        # wavelength difference would map straight onto the cell being compared
+        lines=[EmissionLine(wavelength=lam1),
+               # the file's KRATIO field is **blank**, so this 0.5 is this
+               # test's own convention and not GSAS's.  The 0.5 the file does
+               # state sits one field earlier and is the polarization below;
+               # both quantities are conventionally 0.5, which is how reading
+               # the wrong one stays invisible on this file (WP-1118).
+               EmissionLine(wavelength=lam2,
                             weight=rx.Parameter(value=0.5, min=0.0, max=1.0))],
-        polarization=rx.Parameter(value=0.5, min=0.0, max=1.0),
+        polarization=rx.Parameter(value=_HIST.polarization, min=0.0, max=1.0),
         # Dispersion DECLINED (WP-1001 made it the package default): this is
         # the cross-code row, and GSAS's converged FAP.EXP did not apply f′/f″
         # either.  Adopting another code's protocol means adopting what it did
         # NOT model as much as what it did — the v0.2 lesson.
         dispersion=None)
-    instrument.profile.u.value = 2e-4     # GSAS GU, held
-    instrument.profile.v.value = -2e-4    # GSAS GV, held
-    instrument.profile.w.value = 5e-4     # GSAS GW, held
+    # GSAS GU, GV, GW — held, as their N flags say
+    instrument.profile.u.value = _TERMS["GU"].degrees
+    instrument.profile.v.value = _TERMS["GV"].degrees
+    instrument.profile.w.value = _TERMS["GW"].degrees
     # S/L and H/L are near-degenerate (see Geometry docstring); refine one
     instrument.geometry.axial_sl.value = 0.02
     instrument.geometry.axial_hl.value = 0.02
+    # GSAS fitted its background function 5, which has no counterpart here
     instrument.background = BackgroundChebyshev.with_terms(6)
     return data, structure, instrument
-
 
 @pytest.fixture(scope="module")
 def fap_inputs():
@@ -313,3 +358,35 @@ def test_tying_the_similar_atoms_bisos_buys_precision(fap_inputs, fap_fit):
     plot_result(tied, path=str(out / "fap_tied_bisos.png"))
     plot_result(tied, path=str(out / "fap_tied_bisos_lowangle.png"),
                 two_theta_range=(15.0, 35.0))
+
+
+def test_the_file_states_a_wider_free_set_than_this_plan(fap_inputs, fap_fit):
+    """GSAS refined the coordinates; this plan does not, and that is recorded.
+
+    Reading the protocol instead of transcribing it is what made this visible.
+    The hand-written module docstring claimed "both codes refine the same
+    parameter set", and they do not: GSAS's ``X`` flag is set on all seven
+    sites, which is twelve site-symmetry DOFs, and no stage here frees them.
+
+    The row asserts the difference rather than the agreement, so that closing
+    it later is a deliberate change carrying its own measurement instead of a
+    silent one.  ``GsasModel.n_variables`` is the file's own count and the
+    reader reproduces it exactly from the flags
+    (``tests/test_projects_gsas.py``), so the arithmetic below is checkable
+    from both ends.
+    """
+    _, result = fap_fit
+    free_here = {p.path for p in result.parameters if p.vary}
+    free_in_gsas = gsas_free_paths()
+
+    coordinates = {p for p in free_in_gsas if ".dof." in p}
+    assert len(coordinates) == 12, "the file frees twelve coordinate DOFs"
+    assert not (coordinates & free_here), "this plan frees none of them"
+
+    # everything else the file frees, this plan frees too
+    assert (free_in_gsas - coordinates) <= free_here
+
+    # and the counts reconcile against the file's own stated total
+    assert EXP.n_variables == 28
+    assert len(free_in_gsas) == 21          # 2 cell + 12 DOF + 7 Biso
+    assert result.statistics.n_free_parameters == 20
