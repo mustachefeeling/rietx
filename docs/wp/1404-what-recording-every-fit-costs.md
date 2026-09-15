@@ -1,6 +1,6 @@
 # WP-1404 — what recording every fit costs
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: ✅ 2026-09-15 — the default-on recorder costs 1.03-1.28×, fails the 1.05× gate on two cases of three, and 84-96 % of it is the per-stage snapshot rather than the event stream the WP was written about; recording stays on and WP-1413 cuts the snapshot
 Depends on: 1403 (the layer being measured); 1401 (its baseline)
 
 ## Goal
@@ -363,6 +363,76 @@ before starting, on a desktop whose ambient load sits near 3.5. Interleaving is
 the defence that works. A quiet-machine gate is a wish.
 
 ## Handover log
+
+- **2026-09-15** — We now know what it costs a user to have every fit record
+  itself, and the answer is 1.03 to 1.28× the fit, which fails the gate this WP
+  set for itself on two of its three cases. The more useful half is that the
+  cost is not where anyone thought. This WP was written believing the
+  per-evaluation parameter dump was the expense, and that term turns out to be 4
+  to 16 % of the bill; the per-stage picture is the rest. So the two cheap fixes
+  WP-1403 had lined up are dead, each worth at most a hundredth of a fit, and
+  the thing worth attacking is a snapshot builder nobody suspected. The
+  maintainer's call was to keep recording on by default and go after the
+  snapshot, which is WP-1413. Nothing a user reads needed correcting: the manual
+  and the skill already quote 1.03-1.28× from the live-view path, and the
+  recorder measures the same, because the two do the same work per stage.
+
+  **Measured** — `[dev]` venv (numba 0.67.0, no jax, no torch), macOS arm64
+  (Darwin 25.5.0), python 3.12.12, numpy 2.5.3, rietx 1.4.0, seven interleaved
+  repeats a configuration. Full table and decomposition in § Findings above.
+  `record` 1.279× on `nac`, 1.075× on `cpd-2`, 1.030× on `trigger`, against
+  gates of 1.059× (the control's own spread), 1.050× and 1.050×. In absolute
+  terms 16.7 to 21.9 ms a stage, of which the snapshot is 16.0 to 18.4. The
+  event stream alone is 1.005 to 1.012×, or 0.073 to 0.121 ms an evaluation. A
+  run directory is 358 to 534 kB. `nfev` and Rwp identical across all five
+  configurations on every case.
+
+  **Suite** — fast selection **4827 passed, 132 skipped, 3:14-3:20**, `[dev]`,
+  macOS arm64, against WP-1405's 4818/132 on the same venv: **+9 passed, skips
+  unchanged**, which is exactly the nine tests added (three in
+  `test_telemetry.py`, six in `test_bench_refinement.py`). The full selection
+  did **not** run and deliberately: this WP changed no file under `src/`, so it
+  cannot move a measured number, and the ladder in `tests/CLAUDE.md` § Running
+  reserves that rung for changes that can.
+
+  **Done** — the configuration axis in `examples/bench_refinement.py`
+  (`--configs`, five keys, defaulting to `off` because WP-1403 made recording
+  the default and an unconfigured run would silently re-baseline every historic
+  row); the comparison block with its ratio of medians, minimum of N, byte and
+  flush accounting; three counted assertions in `test_telemetry.py`; six
+  structural rows in `test_bench_refinement.py`; the verdict and decision in
+  § Findings; the v1.4 record's narrative entry; WP-1413 opened.
+
+  **Gotchas** — three, all paid for.
+
+  1. **Blocked repeats measure the machine.** The first matrix ran every repeat
+     of one configuration before the next and produced orderings that cannot
+     happen: a telemetry path faster than no telemetry, a recorder cheaper than
+     the event stream inside it. Control spreads were 11.4 and 13.2 %.
+     Interleaving inside each repeat took them to 1.1-5.9 % and the
+     impossibilities went away. The rule is now rule 2 of the harness docstring.
+     It did **not** go into `tests/CLAUDE.md`, which sits at exactly its
+     275-line cap, and buying room by cutting someone else's facts is not the
+     trade that cap intends.
+  2. **A quiet-machine gate is a wish.** A wrapper that waited for a load
+     average below 2.0 never fired on a desktop whose ambient load is ~3.5, and
+     cost this session about twenty minutes of doing nothing. Interleaving is
+     the defence that works; the sitting's load is recorded instead.
+  3. **My own prune deleted three sections of this file.** The script cut from
+     `t.index("### Inherited")`, which matched that phrase inside the text it had
+     just inserted, so the cut ran from the wrong anchor and took "The matrix",
+     "The gate" and "What a failure means" with it. Restored from `28429810` in
+     `f1252fcd`. Anchor a deletion on something the replacement cannot contain.
+
+  **Next**, in order. WP-1413 is the work this WP created and it starts from
+  § Findings rather than from scratch: confirm WP-1402's split still holds, then
+  make `decimation_index` cheap under the bit-identity constraint, then re-run
+  `--configs off,record --repeats 7` and say whether `record` comes in under
+  1.05× on all three. Two prohibitions travel with it and are already written
+  into its Context: do not reopen the `_free_values` decode, and do not count
+  `_json_list`'s `tolist()` fast path twice. If 1413 moves the measured range,
+  `using/refining.md` and the skill's `references/watching.md` § 9d.7 both need
+  the new figure; today neither does.
 
 - **2026-09-13** — created. Separated from WP-1403 deliberately: a measurement
   folded into the WP it measures is a rubber stamp, because the session that
