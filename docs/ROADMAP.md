@@ -97,17 +97,18 @@ would make Stoe writable, and nothing depends on it.
 
 **In flight:** [1118](wp/1118-foreign-model-files.md) landed its model-file
 registry 2026-09-13; next are the two offers it unblocks, `.EXP` (#103) and
-`STR(...)` (#107). The **live-watcher track has its second rung**:
-[1402](wp/1402-the-picture-costs-megabytes.md) shipped 2026-09-15, so a live
-view is numbers a viewer draws — 180-329 kB a stage against 4.51-6.03 MB, the
-reader's zoom kept, and no plotly needed to record one. That unblocks
-[1403](wp/1403-a-run-nobody-asked-to-record.md), the track's point, and hands
-[1404](wp/1404-what-recording-every-fit-costs.md) its number: what is left of a
-fit's 1.03-1.28x is the decimation's python bucket loop.
+`STR(...)` (#107). The **live-watcher track landed its point**:
+[1403](wp/1403-a-run-nobody-asked-to-record.md) shipped 2026-09-15, so every fit
+records itself into a run directory at 204 kB, `RIETX_TELEMETRY=0` to decline.
+**Not user-shippable until [1406](wp/1406-say-that-the-fit-writes-to-disk.md)
+writes the prose**: nothing yet tells a user that a fit writes to their disk,
+which makes 1406 the track's blocking item.
+[1404](wp/1404-what-recording-every-fit-costs.md) has its subject and its
+number, the decimation's python bucket loop.
 
 **Queued, unscheduled** ([§ Unscheduled](#unscheduled)): the 2026-09-01 issue
 triage's 1309–1322 plus 1323 and 1325; the magnetic scattering track
-(1326–1329 and 1343); the rest of the live-watcher track (1402–1406); the older
+(1326–1329 and 1343); the rest of the live-watcher track (1404–1406); the older
 one, 1133. The **2026-09-03 triage** adds 1332–1341 — three more on what fires and
 what stays silent, three costs a
 multi-hundred-pattern campaign paid that a single fit never sees, three views
@@ -637,7 +638,7 @@ behind v1.4's peaks and ahead of the magnetic track.
 |---|---|---|---|
 | [1401](wp/1401-a-window-into-a-run.md) | A window into a run: find the runs that already exist | ✅ 2026-09-14 | — |
 | [1402](wp/1402-the-picture-costs-megabytes.md) | The live picture costs megabytes a stage, and the fit pays it | ✅ 2026-09-15 | 1401 |
-| [1403](wp/1403-a-run-nobody-asked-to-record.md) | A run nobody asked to record | ⬜ | 1401, 1402 |
+| [1403](wp/1403-a-run-nobody-asked-to-record.md) | A run nobody asked to record | ✅ 2026-09-15 | 1401, 1402 |
 | [1404](wp/1404-what-recording-every-fit-costs.md) | What recording every fit costs | ⬜ | 1403 (1401 baseline) |
 | [1405](wp/1405-the-human-stops-the-run.md) | The human stops the run | ⬜ | 1403 (1401 soft) |
 | [1406](wp/1406-say-that-the-fit-writes-to-disk.md) | Say that the fit writes to disk | ⬜ | 1403, 1405 (1402 soft) |

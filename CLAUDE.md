@@ -506,6 +506,36 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   plotly once and redraws in place, which is what keeps the reader's zoom across a stage.
   The page it replaced was serialised on the fit's own thread at 4.51-6.03 MB a stage.
   `rietx html` still writes one on demand — what stopped is producing it unasked.
+- **Every fit records itself, and telemetry never breaks a fit** (WP-1403). `runs.py` holds
+  both halves of one contract: the reader `rietx watch` is built on, and `RunRecorder`, which
+  writes the `meta.json`/`run.lock`/`status.json` it looks for. `runs.attach` hangs the
+  recorder *beside* a caller's stream, never inside it, so `fit`'s `stream is not events`
+  close rule is untouched, and **once per job, through the `_inner` chain** — a series hands
+  each pattern a fresh `_SeriesStream`, so a stamp read off the object handed in makes sixty
+  directories for one job. **The failure boundary is who asked**: a callback reached through
+  `events=` is the caller's and runs outside every try block, while the recorder was attached
+  unasked, so its every method latches one-shot on `BaseException`, records why in
+  `status.json` and warns once a process (`KeyboardInterrupt` re-raises — that is the person
+  at the keyboard). `events.py`'s "a monitoring hook that crashes the refinement is a bug you
+  want to see" is the same rule from the other side; both halves are written down, or someone
+  reconciles them the wrong way. Two corollaries: **whatever a recorder needs before it exists
+  is outside its own latch** (a root and a directory are `attach`'s, and an unguarded
+  `PermissionError` there took a whole fit down); and the status is a **projection**, its
+  stage read off `stage_start.index` and never counted, since a released phase emits a second
+  `stage_start` (WP-1301) and a counter then says "stage 6 of 5". (4) **An internal trial
+  passes `telemetry=False`**: a fit whose result the *package* discards is not a run — a
+  suggestion's verify stage, a rival fit, an extinction screen, a Le Bail validation — while
+  one whose result a *caller* reads is, so `viz/compare.py` records and `report/layer2.py`
+  does not. Un-gated, one report build wrote four run directories. The suite declines
+  recording (`conftest`, `RIETX_TELEMETRY=0`), and `test_telemetry.py` owns the meta-test
+  that a plain `fit()` under it writes nothing.
+- **Retention deletes by age and size, never by count** (WP-1403). "Keep the newest N" would
+  delete run 1 of a 200-candidate batch while the batch was still running. So: a byte ceiling,
+  a week's floor, oldest terminal run first, and over the ceiling with nothing old enough
+  **warns and keeps**, because using someone's disk beats deleting their evidence. Three
+  guards before any `rmtree`, two re-asked at the call rather than trusted from the scan: a
+  run-id name, a direct child of the root the recorder itself chose, and a `meta.json`
+  carrying `RECORD_TAG` — which a legacy directory has not got, and so is never pruned.
 - **A page that is javascript quoted inside python is syntax-checked with `node --check`**
   (`tests/test_watch_app.py`, over `watch.py` and `compare_app.py`). A broken page is
   invisible to a python test, which asserts substrings of a script nobody executed: one

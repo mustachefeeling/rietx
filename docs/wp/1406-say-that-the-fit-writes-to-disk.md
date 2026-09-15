@@ -109,6 +109,41 @@ drift.
 
 ### Inherited
 
+From **WP-1403** (2026-09-15), whose feature is not shippable without this WP:
+
+- **This is now the blocking item, not a follow-up.** Every fit writes to a
+  user's disk and no sentence anywhere in the manual or the skill says so. 1403
+  shipped its code with that stated as a deliberate non-goal; the gap is real
+  and it is this WP's.
+- **What a run directory contains**, so the page can say it plainly: the event
+  log, `meta.json` (label, created, package version, the working directory, the
+  command line), `status.json` (state, pid, host, heartbeat, stage, Rwp, gof),
+  `snapshot.json` (the stage's curves), `summary.txt` (the termination view),
+  and `run.lock`. 204 kB in total on a five-stage synthetic fit.
+- **Three consequences a user will meet, and all three want a sentence.** A run
+  directory holds every free parameter's value at every recorded evaluation, so
+  on a shared filesystem that is a disclosure nobody opted into; no pattern
+  bytes are ever copied. A fit run inside somebody else's package leaves
+  `.rietx/` in *their* working directory, and this will be reported as a bug at
+  least once. And a `.gitignore` of `*` is written into the runs root, so it
+  does not turn up in `git status`.
+- **The switches, in the order a page should give them:**
+  `RIETX_TELEMETRY=0` for the whole process and everything under it,
+  `telemetry=False` for one call, `telemetry=<path>` to put runs somewhere else,
+  and `runs.set_enabled` inside a process. The environment outranks the keyword
+  and there is deliberately no value that argues back.
+- **Two locations, one spelling.** `$HOME/.rietx` is the GUI's per-user state
+  and `RIETX_STATE_DIR` moves that one alone; the working directory's `.rietx/`
+  is the runs root and no variable moves it. The page has to keep these apart or
+  it teaches the wrong knob.
+- **A project's `live/` holds one directory per run now**, so a GUI project and
+  an agent fitting the same project no longer interleave one log. `files.md` was
+  corrected in four words; the chapter is this WP's.
+- **Retention deletes by age and size** (a 1 GiB ceiling, a week's floor, oldest
+  terminal run first) and warns rather than deleting when nothing is old enough.
+  A user who wants their evidence kept should be told that nothing inside the
+  floor is ever removed.
+
 From **WP-1402** (2026-09-15), whose break this WP carries:
 
 - **`LiveSession` no longer writes `fit.html`.** It writes `snapshot.json`, and

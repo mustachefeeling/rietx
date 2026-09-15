@@ -642,8 +642,11 @@ def _fit_class(candidate: CellCandidate, data: PatternData, instrument: Instrume
 
     ref = Refinement(structure_from_candidate(candidate, space_group=symbol),
                      instrument, history=False)
+    # ``telemetry=False``: the screen fits one Le Bail per candidate class, and
+    # a recorder on each would write a dozen run directories for one screen
+    # (WP-1403).  The job a reader wants listed is the indexing run.
     result = ref.fit(data, mode="lebail", plan=_screen_plan(),
-                     two_theta_limits=two_theta_limits)
+                     two_theta_limits=two_theta_limits, telemetry=False)
     return ref, result
 
 
@@ -724,7 +727,8 @@ def determine_extinction_symbol(data: PatternData, candidate: CellCandidate,
         profile = pre.fit(data, mode="lebail",
                           plan=validation_plan(candidate, ins,
                                                two_theta_max=tt_max),
-                          two_theta_limits=two_theta_limits)
+                          two_theta_limits=two_theta_limits,
+                          telemetry=False)      # the screen's own, not a run
         screen.profile_rwp = float(profile.statistics.rwp)
         frozen = pre.fitted_instrument
         ref_fit, ref_result = _fit_class(candidate, data, frozen, symbol,

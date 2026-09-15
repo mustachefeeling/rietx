@@ -357,9 +357,19 @@ class Project:
         return self.refinement.parameters(**kw)
 
     def fit(self, **kw):
-        """:meth:`Refinement.fit` on this project's data and settings."""
+        """:meth:`Refinement.fit` on this project's data and settings.
+
+        ``telemetry`` joins the setdefaults because **this is the only object
+        that knows the project's path**, and it stays that way: a ``Refinement``
+        holds no back-reference to a ``Project``, and giving it one so that a
+        run could find a directory would be a coupling bought for a default.
+        A bare ``ref.fit()`` on the refinement this hands out derives the same
+        answer instead (``Refinement._project_hint``), and never depends on
+        this line having run.
+        """
         kw.setdefault("mode", self.doc.mode)
         kw.setdefault("two_theta_limits", self.doc.two_theta_limits)
+        kw.setdefault("telemetry", self.live_dir)
         if self.doc.plan is not None:
             kw.setdefault("plan", self.doc.plan.to_plan())
         return self.refinement.fit(self.data, **kw)
@@ -374,6 +384,7 @@ class Project:
         """
         kw.setdefault("mode", self.doc.mode)
         kw.setdefault("two_theta_limits", self.doc.two_theta_limits)
+        kw.setdefault("telemetry", self.live_dir)
         return self.refinement.run_stage(self.data, stage, **kw)
 
     def __repr__(self) -> str:  # pragma: no cover - convenience

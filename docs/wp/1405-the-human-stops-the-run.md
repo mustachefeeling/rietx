@@ -123,6 +123,31 @@ with the dialog in front of you, and record which way and why.
 
 ### Inherited
 
+From **WP-1403** (2026-09-15), which built the run directory this WP stops:
+
+- **The cancel path already records itself correctly.** `fit` emits `fit_end`
+  with `status="cancelled"` before re-raising, the recorder projects that to a
+  `cancelled` state, and `RunRecorder.close` applies a caller's state *only*
+  when nothing has claimed one — so the `close("failed")` in `fit`'s exception
+  path cannot overwrite it. Keep that ordering if you touch either.
+- **The lock is held for the process's life and released by the kernel**,
+  however the writer dies. That is what makes `abandoned` a distinct answer from
+  `done`, verified end to end: a child holding it reads `running`, and after
+  `kill -9` the same directory reads `abandoned` off a free lock under a
+  `running` status.
+- **`_abandon_on_cancel`'s short circuit still holds** (`refine.py:1560`): no
+  token is attached for the watcher's sake, so an ordinary fit still pays
+  nothing. Attaching one ends that guarantee at two `model_copy(deep=True)` a
+  stage, scaling with atom count. **That cost belongs to this WP and is not in
+  1403's numbers.**
+- **A cancelled run gets no `summary.txt`**, because there is no result to write
+  one from, and that absence is not an error. If this WP gives a cancelled run
+  something to say, it is a new file or a status field, never a half-written
+  summary.
+- A cross-process stop has to find the run first. `runs.discover` plus
+  `liveness_of` is that half, and `status.json` now carries `pid` and `host` —
+  `host` is written, so the foreign-host rung fires rather than guessing.
+
 From **WP-1401** (2026-09-14), which landed the reader and the app this WP adds
 a verb to:
 

@@ -4,7 +4,15 @@ Four things live here, in the order they have to happen:
 
 1. **Headless matplotlib.**  Every test refinement writes obs/calc/diff PNGs
    (CLAUDE.md's Tests convention), so ``MPLBACKEND=Agg`` is set before anything
-   can import pyplot and pick an interactive backend.
+   can import pyplot and pick an interactive backend.  ``RIETX_TELEMETRY=0``
+   goes beside it and for a stricter reason: since WP-1403 a plain ``fit()``
+   records itself into ``.rietx/runs`` under the working directory, so a suite
+   that did not decline would grow a run directory per fit — thousands of them,
+   in whatever directory pytest was launched from.  ``setdefault``, so a
+   session deliberately measuring the recorder can still switch it back on
+   from outside.  ``test_telemetry.py`` re-enables it per test through
+   ``runs.set_enabled``, which is the seam that exists for it, and a meta-test
+   there asserts that a plain fit under this environment creates nothing.
 2. **A jax persistent compile cache.**  The backend files are jit-compile
    bound, not arithmetic bound; jax keys its on-disk cache by a content hash of
    the computation, so it is safe to share across processes (and across xdist
@@ -40,6 +48,7 @@ from pathlib import Path
 import pytest
 
 os.environ.setdefault("MPLBACKEND", "Agg")
+os.environ.setdefault("RIETX_TELEMETRY", "0")
 os.environ.setdefault("JAX_COMPILATION_CACHE_DIR",
                       str(Path(__file__).parent / ".jax_cache"))
 # The compiled kernels split their rows across threads (WP-1115).  Under

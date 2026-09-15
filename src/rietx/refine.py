@@ -18,6 +18,7 @@ if TYPE_CHECKING:
     from .io.exporters import ReflectionRow
     from .schemas.suggest import SuggestionResult
 
+from . import runs
 from ._about import DIST_NAME
 from .backend.api import backend_dtype_note
 from .background.diagnostics import STEPS_PER_FWHM_MIN, sampling_steps_per_fwhm
@@ -464,6 +465,37 @@ class Refinement:
                 parents=[], action=NodeAction(kind="root"), state=self.snapshot())
             self._head_id = root.id
         return self.history
+
+    def _project_hint(self) -> Path | None:
+        """``<project>.rex/live`` when this refinement was built from a project.
+
+        A ``Refinement`` holds no back-reference to a ``Project``, and giving it
+        one so that telemetry could find a directory would be a coupling bought
+        for a default. This derives the answer instead: a history tree whose
+        file sits beside a ``project.json`` is a project's tree.
+
+        **Both attributes are optional**, so this is two ``is not None`` tests
+        before one ``exists()`` a run, and it answers ``None`` rather than
+        raising. :attr:`history` is ``None`` until :meth:`_ensure_history` has
+        run, and ``RefinementTree.path`` is ``None`` for an in-memory tree,
+        which is what ``history=False`` and every synthetic fixture produce.
+
+        ``Project.fit`` sets the same directory as a ``telemetry=`` default and
+        never depends on this, which is the point: the project stays the only
+        place that *knows* its own path, and this is the fallback for a bare
+        ``ref.fit()`` on the refinement a project handed out. The import is
+        deferred because ``project.py`` imports this module; it is also free in
+        the only case that reaches it, since a tree beside a ``project.json``
+        means ``project.py`` is already imported in this process.
+        """
+        tree = self.history
+        if tree is None or tree.path is None:
+            return None
+        parent = Path(tree.path).parent
+        from .project import LIVE_DIR, PROJECT_JSON
+        if not (parent / PROJECT_JSON).exists():
+            return None
+        return parent / LIVE_DIR
 
     def _invalidate_fit(self) -> None:
         """Drop everything that described the previous values.
@@ -1812,7 +1844,7 @@ class Refinement:
     def fit(self, data: PatternData, *, mode: Mode = "rietveld",
             plan: RefinementPlan | str = "mccusker_default",
             two_theta_limits: tuple[float, float] | None = None,
-            events=None, cancel=None,
+            events=None, cancel=None, telemetry=None,
             stage_reports: bool = False, progress=None) -> RefinementResult:
         """Run a staged refinement.
 
@@ -1828,6 +1860,18 @@ class Refinement:
         (:func:`~rietx.history.events.progress_writer`), never a second
         telemetry channel — combine both freely, ``progress`` adds a
         subscriber rather than replacing ``events``'s.
+
+        ``telemetry`` — where this run records **itself**.  A fit writes its
+        events, its status, a per-stage picture and its termination view into a
+        run directory whether or not ``events=`` was passed, because the knob
+        nobody had to switch on is the one an agent cannot switch off by
+        accident (WP-1322 measured three of three doing exactly that).  A path
+        names the *root* to put the run directory in; ``False`` declines;
+        ``None`` derives one — a project's ``live/`` if this refinement came
+        from one, else ``.rietx/runs`` under the working directory.
+        :data:`~rietx._about.TELEMETRY_ENV` outranks all of it, and there is
+        deliberately no value here that argues back.  Recording never breaks a
+        fit: a failure latches, says so in the run's status, and warns once.
 
         ``cancel`` — an :class:`~rietx.optimize.cancel.CancelToken` another
         thread can set.  The stage in flight is abandoned (no node, no commit,
@@ -1880,85 +1924,114 @@ class Refinement:
         self._excluded_regions = list(data.excluded_regions)
         tree = self._ensure_history(data, plan)
         stream = _attach_progress(as_event_stream(events), progress)
+        # Attached beside the caller's stream, never inside it: the recorder
+        # has its own lifetime (the try/finally below) and the existing
+        # ``stream is not events`` close rule is left exactly as it was.
+        recorder = runs.attach(stream, events, telemetry=telemetry,
+                               project_hint=self._project_hint())
+        if recorder is not None and stream is None:
+            stream = recorder
         # built here, where both the caller's object and the stream we
         # made from it are in scope, and handed down rather than
-        # rediscovered per stage
-        sinks = _snapshot_sinks(stream, events)
-        if stream is not None:
-            stream.emit("fit_start", mode=mode,
-                        stages=[s.name for s in plan.stages],
-                        n_points=len(data.two_theta))
-
-        # Stages are cumulative *within the plan*, and the plan drives the whole
-        # turn-on sequence: `restore=False` holds everything first, so a fit
-        # replaces the vary flags a caller set by hand rather than continuing
-        # them (`run_stage`, which continues from the working state, restores
-        # them instead).  The comment here said the opposite until WP-1208
-        # measured it — `set_vary("phases.*.atoms.*.biso")` then
-        # `fit(plan="profile_only")` refines no biso — and the GUI's plan panel
-        # now names the difference, since nothing a user could read said it.
-        table = self._prepare_table(restore=False)
-
-        # the λ this Refinement was constructed with (or last edited to), so a
-        # second λ-freeing call reports the cumulative move from the truly
-        # declared value rather than from the first call's answer (WP-1134).
-        # Copied, never aliased: ``_build_result`` is only a reader today, but a
-        # snapshot handed out by reference is a mutation waiting to happen.
-        declared_wavelengths = list(self._declared_wavelengths)
-
-        diagnostics: list[Diagnostic] = (
-            _symmetry_silence_diagnostics(self.structure, mode)
-            + _dispersion_diagnostics(self.structure, self.instrument)
-            + _resonant_absorber_diagnostics(self.structure,
-                                             self.instrument)
-            + _species_fallback_diagnostics(self.structure, self.instrument))
-        stage_results: list[StageResult] = []
-        self.stage_reports_ = []
-        outcome = None
-        model = None
-
+        # rediscovered per stage. The recorder is a third candidate and not a
+        # fourth hasattr test at a call site: chained onto a caller's stream it
+        # is a *different* object, which the two-candidate call would have
+        # found nothing at all in (WP-1402).
+        sinks = _snapshot_sinks(stream, events, recorder)
         try:
-            model, outcome, guard, stage_results, diagnostics = self._run_plan(
-                plan, data, mode, table, two_theta_limits, tree, stream, cancel,
-                stage_results, diagnostics, sinks=sinks,
-                stage_reports=stage_reports)
-        except RefinementCancelled as exc:
             if stream is not None:
-                stream.emit("fit_end", status="cancelled", stage=exc.stage,
-                            completed=[s.name for s in exc.completed_stages],
-                            node_id=exc.node_id)
-                if stream is not events:
+                stream.emit("fit_start", mode=mode,
+                            stages=[s.name for s in plan.stages],
+                            n_points=len(data.two_theta))
+
+            # Stages are cumulative *within the plan*, and the plan drives the whole
+            # turn-on sequence: `restore=False` holds everything first, so a fit
+            # replaces the vary flags a caller set by hand rather than continuing
+            # them (`run_stage`, which continues from the working state, restores
+            # them instead).  The comment here said the opposite until WP-1208
+            # measured it — `set_vary("phases.*.atoms.*.biso")` then
+            # `fit(plan="profile_only")` refines no biso — and the GUI's plan panel
+            # now names the difference, since nothing a user could read said it.
+            table = self._prepare_table(restore=False)
+
+            # the λ this Refinement was constructed with (or last edited to), so a
+            # second λ-freeing call reports the cumulative move from the truly
+            # declared value rather than from the first call's answer (WP-1134).
+            # Copied, never aliased: ``_build_result`` is only a reader today, but a
+            # snapshot handed out by reference is a mutation waiting to happen.
+            declared_wavelengths = list(self._declared_wavelengths)
+
+            diagnostics: list[Diagnostic] = (
+                _symmetry_silence_diagnostics(self.structure, mode)
+                + _dispersion_diagnostics(self.structure, self.instrument)
+                + _resonant_absorber_diagnostics(self.structure,
+                                                 self.instrument)
+                + _species_fallback_diagnostics(self.structure, self.instrument))
+            stage_results: list[StageResult] = []
+            self.stage_reports_ = []
+            outcome = None
+            model = None
+
+            try:
+                model, outcome, guard, stage_results, diagnostics = self._run_plan(
+                    plan, data, mode, table, two_theta_limits, tree, stream, cancel,
+                    stage_results, diagnostics, sinks=sinks,
+                    stage_reports=stage_reports)
+            except RefinementCancelled as exc:
+                if stream is not None:
+                    stream.emit("fit_end", status="cancelled", stage=exc.stage,
+                                completed=[s.name for s in exc.completed_stages],
+                                node_id=exc.node_id)
+                    if stream is not events:
+                        stream.close()
+                raise
+
+            assert model is not None and outcome is not None
+            self._model = model
+            self._write_back(table)
+            self._record_free_paths(table)
+
+            if mode == "pawley":
+                diagnostics.extend(_pawley_unresolved_diagnostics(model, self.structure))
+            diagnostics.extend(_constraint_diagnostics(plan.stages[-1].name, outcome))
+
+            self.result_ = _build_result(
+                model, table, outcome.theta, mode=mode, status=outcome.status,
+                stage_results=stage_results, diagnostics=diagnostics,
+                structure=self.structure, stderr_internal=outcome.stderr_internal,
+                correlation=outcome.correlation, backend=self._backend,
+                solver=self._solver,
+                mu_r_source=self._mu_r_source, mu_r_skipped=self._mu_r_skipped,
+                guard=guard, max_shift_over_esd=outcome.max_shift_over_esd,
+                declared_wavelengths=declared_wavelengths)
+            _apply_esds(table, self.result_, self.structure, self.instrument)
+            self._stamp(self.result_, tree)
+            if stream is not None:
+                stream.emit("fit_end", status=self.result_.status,
+                            rwp=self.result_.statistics.rwp,
+                            gof=self.result_.statistics.gof,
+                            node_id=self.result_.node_id)
+                if stream is not events:  # we created it from a path/callable
                     stream.close()
+            if recorder is not None:
+                # Not a projection of the stream, and so a second explicit call
+                # site: ``fit_end`` hands a sink a data dict, while the
+                # termination view needs the ``RefinementResult`` object. It
+                # writes ``str(result)`` and never ``ref.summary()``, which
+                # builds a whole FitReport (WP-1335).
+                recorder.write_summary(self.result_)
+            return self.result_
+        except BaseException:
+            # A telemetry directory must not turn a raised fit into a run that
+            # merely looks abandoned. ``close`` applies a state only when
+            # nothing has claimed one, so the ``cancelled`` a ``fit_end``
+            # already recorded survives this.
+            if recorder is not None:
+                recorder.close("failed")
             raise
-
-        assert model is not None and outcome is not None
-        self._model = model
-        self._write_back(table)
-        self._record_free_paths(table)
-
-        if mode == "pawley":
-            diagnostics.extend(_pawley_unresolved_diagnostics(model, self.structure))
-        diagnostics.extend(_constraint_diagnostics(plan.stages[-1].name, outcome))
-
-        self.result_ = _build_result(
-            model, table, outcome.theta, mode=mode, status=outcome.status,
-            stage_results=stage_results, diagnostics=diagnostics,
-            structure=self.structure, stderr_internal=outcome.stderr_internal,
-            correlation=outcome.correlation, backend=self._backend,
-            solver=self._solver,
-            mu_r_source=self._mu_r_source, mu_r_skipped=self._mu_r_skipped,
-            guard=guard, max_shift_over_esd=outcome.max_shift_over_esd,
-            declared_wavelengths=declared_wavelengths)
-        _apply_esds(table, self.result_, self.structure, self.instrument)
-        self._stamp(self.result_, tree)
-        if stream is not None:
-            stream.emit("fit_end", status=self.result_.status,
-                        rwp=self.result_.statistics.rwp,
-                        gof=self.result_.statistics.gof,
-                        node_id=self.result_.node_id)
-            if stream is not events:  # we created it from a path/callable
-                stream.close()
-        return self.result_
+        finally:
+            if recorder is not None:
+                recorder.close()
 
     def _run_plan(self, plan, data, mode, table, two_theta_limits, tree, stream,
                   cancel, stage_results, diagnostics, *, sinks,
@@ -2072,17 +2145,21 @@ class Refinement:
                   mode: Mode | None = None,
                   two_theta_limits: tuple[float, float] | None = None,
                   correlation_guard: float = 0.98,
-                  events=None, cancel=None) -> RefinementResult:
+                  events=None, cancel=None, telemetry=None) -> RefinementResult:
         """Run a single stage from the current state, recording a child node.
 
         This is the incremental verb: after ``checkout``, it continues down a
         new branch.  (``fit`` is the other verb — it resets the free set and
         runs a whole plan from wherever the working state currently is.)
 
-        ``events`` and ``cancel`` mean exactly what they mean on :meth:`fit`,
-        and are here for the same reason the GUI exists: interactive
-        single-stage work was the one path with no telemetry at all, so a client
-        driving stages one at a time was blind to a run it had started.
+        ``events``, ``cancel`` and ``telemetry`` mean exactly what they mean on
+        :meth:`fit`, and are here for the same reason the GUI exists:
+        interactive single-stage work was the one path with no telemetry at all,
+        so a client driving stages one at a time was blind to a run it had
+        started.  One stage is one run here — a caller driving five stages in a
+        row records five, each with its own directory and its own picture, which
+        is the honest shape when nothing in the package knows they were meant as
+        one job.
         """
         _refuse_without_phases(self.structure, "run_stage")
         mode = mode or self._mode
@@ -2094,74 +2171,100 @@ class Refinement:
         self.stage_reports_ = []
         tree = self._ensure_history(data)
         stream = as_event_stream(events)
-        sinks = _snapshot_sinks(stream, events)
+        recorder = runs.attach(stream, events, telemetry=telemetry,
+                               project_hint=self._project_hint())
+        if recorder is not None and stream is None:
+            stream = recorder
+        sinks = _snapshot_sinks(stream, events, recorder)
 
-        table = self._prepare_table(restore=True)
-        # the constructed (or last-edited) λ, not the value the previous stage
-        # left behind: a second λ-freeing stage reports cumulatively, matching
-        # the joint path, rather than a delta from its own predecessor (WP-1134).
-        # Copied, never aliased (see fit's call site) — the snapshot stays the
-        # construction fact whatever a reader does with the list it is handed.
-        declared_wavelengths = list(self._declared_wavelengths)
         try:
-            with self._abandon_on_cancel(cancel, stage.name, [], stream):
-                model, outcome, guard, freed, hold = self._run_stage(
-                    stage, data, mode, table, self._model, ttl, correlation_guard,
-                    events=stream, cancel=cancel,
-                    # no plan here, so no notion of an intermediate stage: one
-                    # stage run on its own is the state the caller is asking
-                    # for, and it takes its own ftol or the solver default
-                    ftol=stage.ftol)
+            table = self._prepare_table(restore=True)
+            # the constructed (or last-edited) λ, not the value the previous stage
+            # left behind: a second λ-freeing stage reports cumulatively, matching
+            # the joint path, rather than a delta from its own predecessor (WP-1134).
+            # Copied, never aliased (see fit's call site) — the snapshot stays the
+            # construction fact whatever a reader does with the list it is handed.
+            declared_wavelengths = list(self._declared_wavelengths)
+            try:
+                with self._abandon_on_cancel(cancel, stage.name, [], stream):
+                    model, outcome, guard, freed, hold = self._run_stage(
+                        stage, data, mode, table, self._model, ttl, correlation_guard,
+                        events=stream, cancel=cancel,
+                        # no plan here, so no notion of an intermediate stage: one
+                        # stage run on its own is the state the caller is asking
+                        # for, and it takes its own ftol or the solver default
+                        ftol=stage.ftol)
+            finally:
+                if (stream is not None and stream is not events
+                        and stream is not recorder):
+                    # ...and never the recorder, whose lifetime is the whole
+                    # verb.  Closing it here wrote the run's terminal state
+                    # before the result existed, so a stage that raised on the
+                    # way out — or was cancelled, which reaches here with no
+                    # ``fit_end`` to say so — recorded itself ``done``.
+                    stream.close()  # we created it from a path/callable
+            diagnostics = _guard_diagnostics(guard)
+            if mode == "pawley":
+                diagnostics.extend(_pawley_unresolved_diagnostics(model, self.structure))
+            diagnostics.extend(_constraint_diagnostics(stage.name, outcome))
+
+            self._model = model
+            self._write_back(table)
+            self._record_free_paths(table)
+
+            stage_result = StageResult(
+                name=stage.name, status=outcome.status, n_iterations=outcome.n_iterations,
+                cost_initial=outcome.cost_initial, cost_final=outcome.cost_final,
+                freed=freed,
+                n_constraint_truncations=outcome.n_constraint_truncations,
+                ftol=stage.ftol, held=hold.held, released=hold.released)
+
+            # before the node is recorded, which is where `_run_plan` writes it
+            # too; the two call sites must not disagree about when a stage's
+            # picture appears.  The orders are independent anyway: a watcher reads
+            # this directory, and the node goes to the project's history.  A caller
+            # driving one stage at a time — report/apply.py's recipes, the GUI's
+            # stage verb — used to get events and no picture at all, because this
+            # call site did not exist.
+            for sink in sinks:
+                sink.write_snapshot(model, table, outcome, stage.name)
+
+            if tree is not None:
+                self._record(tree, NodeAction(
+                    kind="stage", name=stage.name, turn_on=list(stage.turn_on),
+                    max_iter=stage.max_iter, lebail_cycles=stage.lebail_cycles,
+                    seed=stage.seed, strain_seed=stage.strain_seed,
+                    restraint_weight_scale=stage.restraint_weight_scale,
+                    ftol=stage.ftol, window_slack_deg=stage.window_slack_deg,
+                ), model, table, outcome, diagnostics)
+
+            self.result_ = _build_result(
+                model, table, outcome.theta, mode=mode, status=outcome.status,
+                stage_results=[stage_result], diagnostics=diagnostics,
+                structure=self.structure, stderr_internal=outcome.stderr_internal,
+                correlation=outcome.correlation, backend=self._backend,
+                solver=self._solver,
+                mu_r_source=self._mu_r_source, mu_r_skipped=self._mu_r_skipped,
+                guard=guard, max_shift_over_esd=outcome.max_shift_over_esd,
+                declared_wavelengths=declared_wavelengths)
+            _apply_esds(table, self.result_, self.structure, self.instrument)
+            self._stamp(self.result_, tree)
+            if recorder is not None:
+                recorder.write_summary(self.result_)
+            return self.result_
+        except RefinementCancelled:
+            # before the generic handler: an abandoned stage is not a failure,
+            # and this verb emits no ``fit_end`` for the recorder to read it off
+            if recorder is not None:
+                recorder.close("cancelled")
+            raise
+        except BaseException:
+            if recorder is not None:
+                recorder.close("failed")
+            raise
         finally:
-            if stream is not None and stream is not events:
-                stream.close()  # we created it from a path/callable
-        diagnostics = _guard_diagnostics(guard)
-        if mode == "pawley":
-            diagnostics.extend(_pawley_unresolved_diagnostics(model, self.structure))
-        diagnostics.extend(_constraint_diagnostics(stage.name, outcome))
-
-        self._model = model
-        self._write_back(table)
-        self._record_free_paths(table)
-
-        stage_result = StageResult(
-            name=stage.name, status=outcome.status, n_iterations=outcome.n_iterations,
-            cost_initial=outcome.cost_initial, cost_final=outcome.cost_final,
-            freed=freed,
-            n_constraint_truncations=outcome.n_constraint_truncations,
-            ftol=stage.ftol, held=hold.held, released=hold.released)
-
-        # before the node is recorded, which is where `_run_plan` writes it
-        # too; the two call sites must not disagree about when a stage's
-        # picture appears.  The orders are independent anyway: a watcher reads
-        # this directory, and the node goes to the project's history.  A caller
-        # driving one stage at a time — report/apply.py's recipes, the GUI's
-        # stage verb — used to get events and no picture at all, because this
-        # call site did not exist.
-        for sink in sinks:
-            sink.write_snapshot(model, table, outcome, stage.name)
-
-        if tree is not None:
-            self._record(tree, NodeAction(
-                kind="stage", name=stage.name, turn_on=list(stage.turn_on),
-                max_iter=stage.max_iter, lebail_cycles=stage.lebail_cycles,
-                seed=stage.seed, strain_seed=stage.strain_seed,
-                restraint_weight_scale=stage.restraint_weight_scale,
-                ftol=stage.ftol, window_slack_deg=stage.window_slack_deg,
-            ), model, table, outcome, diagnostics)
-
-        self.result_ = _build_result(
-            model, table, outcome.theta, mode=mode, status=outcome.status,
-            stage_results=[stage_result], diagnostics=diagnostics,
-            structure=self.structure, stderr_internal=outcome.stderr_internal,
-            correlation=outcome.correlation, backend=self._backend,
-            solver=self._solver,
-            mu_r_source=self._mu_r_source, mu_r_skipped=self._mu_r_skipped,
-            guard=guard, max_shift_over_esd=outcome.max_shift_over_esd,
-            declared_wavelengths=declared_wavelengths)
-        _apply_esds(table, self.result_, self.structure, self.instrument)
-        self._stamp(self.result_, tree)
-        return self.result_
+            if recorder is not None:
+                recorder.close()
 
     def _stamp(self, result: RefinementResult, tree: RefinementTree | None) -> None:
         if tree is not None:
@@ -4986,18 +5089,24 @@ def refine(data: PatternData, structure: Structure, instrument: Instrument,
            two_theta_limits: tuple[float, float] | None = None,
            backend: str = "numpy", solver: str = "trf",
            history: bool | str | Path | RefinementTree = False,
-           events=None, cancel=None) -> RefinementResult:
+           events=None, cancel=None, telemetry=None) -> RefinementResult:
     """One-shot functional API: ``refine(data, structure, instrument)``.
 
     History defaults to *off* here: this call discards the ``Refinement``, so
     an in-memory tree would be unreachable.  Pass a path to keep one.
 
-    ``events``/``cancel`` are :meth:`Refinement.fit`'s, forwarded — a run this
-    call started is otherwise unwatchable and unstoppable, and a caller who
-    reached for the one-shot form is the one least able to build the object
-    graph that would fix that.
+    ``events``/``cancel``/``telemetry`` are :meth:`Refinement.fit`'s, forwarded
+    — a run this call started is otherwise unwatchable and unstoppable, and a
+    caller who reached for the one-shot form is the one least able to build the
+    object graph that would fix that.
+
+    Telemetry matters more here than anywhere, for the same reason history
+    defaults off: this call discards the ``Refinement``, so **the run directory
+    is the only thing that survives it**.  ``history=False`` leaves no tree to
+    derive a project from, so the run lands under the working directory unless
+    ``telemetry=`` names somewhere else.
     """
     ref = Refinement(structure, instrument, backend=backend, solver=solver,
                      history=history)
     return ref.fit(data, mode=mode, plan=plan, two_theta_limits=two_theta_limits,
-                   events=events, cancel=cancel)
+                   events=events, cancel=cancel, telemetry=telemetry)
