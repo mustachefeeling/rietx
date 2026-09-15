@@ -167,10 +167,10 @@ structure is. Only then does a Rietveld fit (`mode="rietveld"`, the default)
 face a fair question. This is the IUCr guidelines' own advice for a partial or
 uncertain model {cite}`mccusker1999`.
 
-It pays a second time. A Le Bail report flags observed peaks the model does not
-account for, so an impurity phase shows up as unmatched peaks at positions you
-can identify, before it can distort a structural refinement by being absorbed
-into a background or a width.
+There is a second reason to run one. A Le Bail report flags observed peaks the
+model does not account for, so an impurity phase shows up as unmatched peaks at
+positions you can identify, before it can distort a structural refinement by
+being absorbed into a background or a width.
 
 ```{image} figures/impurity-peak-light.png
 :class: only-light
@@ -185,6 +185,15 @@ into a background or a width.
 The Le Bail fit knows nothing about CaF₂, so the line at 7.52° is observed
 intensity the model cannot place, and the report says so. Adding the phase
 accounts for it.
+
+Only one of those directions carries evidence. A Le Bail intensity is extracted
+from the counts in the reflection's own window, so a reflection the pattern does
+not show is assigned almost nothing, and nothing in the report reads the
+absence. Reading it takes a count of predicted positions carrying no intensity
+above the fitted background. The indexing chapter's validation reports exactly
+that, as `LeBailValidation.predicted_but_absent` ([](indexing.md)). Texture can
+empty a reflection the same way, so either one shows up in the Rietveld fit that
+follows, where the intensity is computed from the structure.
 
 ### With no structure at all
 

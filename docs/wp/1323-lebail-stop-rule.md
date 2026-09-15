@@ -62,6 +62,22 @@ alternation to diverge. The package's Pawley mode already has the second
 shape (a θ block with equal-split restraints on overlapped groups); this WP
 does not change it.
 
+### Inherited
+
+- **2026-09-15, from the issue #313 manual fix (no WP).** A second way the
+  alternation wanders, on a *wrong cell* rather than a flat profile subspace.
+  LaB₆ (`tests/data/11BM_LaB6_660a.fxye`, 2-20°, `plan="profile_only"`,
+  Chebyshev-6 background seeded at the 5th percentile and co-refined) fitted
+  Le Bail against a deliberately doubled cell got worse at every pass: Rwp
+  0.2801, 0.3589, 0.3901, 0.4045. The true cell sat at 0.0894 and did not move
+  across four passes. So "keep the best pass" is load-bearing here in a way the
+  #210 fixture does not show, and a pass cap alone would not have helped, since
+  pass 1 was already the best. The 50 reflections the doubled cell adds came
+  back at a median 0.131 against 39.8 for the 12 real ones, and the alternation
+  still grew them pass over pass. What a window like that holds is background-
+  sensitive (`indexing/workflow.py`'s `absent_reflections` records how far that
+  goes), so reproduce the growth before designing around it.
+
 ## Non-goals
 
 - Pawley mode, and the partition formula itself.

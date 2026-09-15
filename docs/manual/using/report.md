@@ -120,6 +120,17 @@ the NAC Rietveld fit: 138 entries, of which 85 are `unmatched_calc` and 53
 across 4.87 to 5.30°, and the rest are one or two entries each at 12.03°, 12.20°
 and 12.44°. Cluster the positions before counting anything.
 
+`unmatched_calc` is a Rietveld reading. It is a strong negative residual under a
+tick, and Le Bail or Pawley extraction assigns a reflection with nothing under
+it almost nothing, so most of the residual the detector looks for is gone. What
+survives does not separate a right cell from a wrong one. Measured on a
+synthetic LaB₆ pattern, it fired on 17 of the certified cell's own 28
+reflections and on 94 of a doubled cell's 153, which is 61 % either way. The
+count that does separate them is `LeBailValidation.predicted_but_absent`
+([](indexing.md)). The blind direction is the one de Wolff's M₂₀ has, and
+Oishi-Tomiyasu's reversed figure of merit exists to close it
+{cite}`oishitomiyasu2013`.
+
 ## Layer 1: attributing the misfit
 
 Layer 1 answers a different question. What kind of error is this?
