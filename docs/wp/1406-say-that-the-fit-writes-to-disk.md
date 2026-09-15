@@ -180,11 +180,11 @@ Two items changed shape and one moved out; the reasons are in Context above.
       of them still say `meta.json` and `run.lock` are unwritten and `RunStatus`
       names fields "absent from every file in the tree", while `RunRecorder`
       writes all of them. Comments, not code, so the no-code non-goal holds.
-- [ ] `using/cli.md` (both the section and the `--help` block) and
+- [x] `using/cli.md` (both the section and the `--help` block) and
       `using/files.md`.
-- [ ] `using/refining.md`, with the writes-to-disk sentence early and the sizes
+- [x] `using/refining.md`, with the writes-to-disk sentence early and the sizes
       quoted from WP-1404.
-- [ ] `using/compatibility.md`: the run layout as an unversioned contract; and
+- [x] `using/compatibility.md`: the run layout as an unversioned contract; and
       WP-1403's addition staged in `milestones/v1.4.md`, which has none.
 - [ ] The `references/` file and its routing row, with the pinned header and the
       measurement tags; the row **paid for by a named cut**, named in the commit

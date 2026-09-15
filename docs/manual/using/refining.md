@@ -561,8 +561,86 @@ quotable, and it is no measurement of anisotropy.
 
 ## Watching a run
 
-`events` streams per-iteration telemetry out of a running fit. It accepts a
-path, in which case each event is appended to that file as JSONL:
+Every fit records itself. `Refinement.fit`, `Refinement.run_stage`, `refine`
+and `refine_sequential` each write a run directory under the working directory
+without being asked, and `rietx watch` reads it back ([](cli.md)).
+
+Recording is on by default, so start with how to switch it off:
+
+| Switch | Reaches |
+|---|---|
+| `RIETX_TELEMETRY=0` | the process and everything it starts |
+| `telemetry=False` | the one call you pass it to |
+| `telemetry="/some/root"` | still records, into a root you name |
+| `rietx.runs.set_enabled(False)` | this process, from python, until you set it back |
+
+<!-- api-doc: no-exec — it refines the reader's own pattern -->
+```python
+result = ref.fit(data, telemetry=False)
+```
+
+The environment setting outranks the keyword, and no value of `telemetry=`
+argues back. A machine with `RIETX_TELEMETRY=0` exported records nothing,
+whatever the code running on it asks for.
+
+Recording never breaks a fit. A run directory that cannot be created or written
+costs you the telemetry and leaves the refinement alone. The recorder stops,
+warns once per process, and where it can still write, puts the reason in the
+run's own `status.json`.
+
+### What a run directory holds
+
+One directory per fit, named for the date, the time and the process id. A
+refinement that came from a project records into that project's `live/`
+instead ([](files.md)).
+
+```text
+.rietx/runs/20260915-092640-80245/
+    events.jsonl    30.8 kB   one line per event, 87 of them
+    snapshot.json    171 kB   the stage's decimated curves, ticks and statistics
+    summary.txt      1425 B   the termination view, as `print(result)` gives it
+    meta.json         203 B   label, start time, version, working directory, command
+    status.json       235 B   state, pid, host, heartbeat, stage, Rwp, gof
+    run.lock            0 B   held by the writing process for its life
+```
+
+That is 204 kB for a five-stage synthetic LaB6 fit, on a `[dev]` install on
+macOS arm64. `snapshot.json` is most of it, and each stage overwrites it, so it
+does not grow with the run. The event log does grow. It ran about 1 kB an event
+on the three benchmark patterns, and a long series is where that adds up.
+
+The cost in time is the per-stage picture. Writing the event log alone measures
+1.01 to 1.03 times a bare fit's wall clock. Adding the picture takes it to 1.03
+to 1.28 times, the spread being how many points the pattern has, from 22 003
+down to 4165 on the three cases. Every configuration returned the same Rwp to
+the last digit, so recording does not change the answer.
+
+:::{warning}
+A run directory holds every free parameter's value at every recorded
+evaluation. On a shared filesystem that is a disclosure nobody opted into, so
+set `RIETX_TELEMETRY=0` where the trajectory is confidential. No pattern bytes
+are ever copied into a run.
+:::
+
+### Retention
+
+The runs root is pruned by age and size, once per process, on the first fit.
+Nothing younger than a week is deleted, however many runs there are. Above a
+1 GiB ceiling the oldest finished runs go first, and a root that is over the
+ceiling with nothing old enough warns and keeps everything. Using your disk is
+the smaller harm.
+
+Deleting by age and size rather than by count is deliberate. "Keep the newest
+50" would delete run 1 of a 200-candidate batch while the batch was still
+running, and a batch is one of the cases recording exists for.
+
+The scan costs 0.2 ms at 10 runs, 2.2 ms at 100 and 27.6 ms at 1000.
+
+### Streaming the events yourself
+
+`events` streams per-iteration telemetry to somewhere you choose, alongside the
+run the fit records for itself. It accepts a path, in which case each event is
+appended to that file as JSONL:
 
 <!-- api-doc: no-exec — it refines the reader's own pattern -->
 ```python
@@ -582,7 +660,11 @@ result = ref.fit(data, events=show)
 Each event carries its kind, a Unix timestamp, and an open `data` dictionary.
 The kinds are a closed set: `fit_start` and `fit_end` for the run,
 `stage_start` and `stage_end` for each stage, and `eval` for each residual
-evaluation. `rietx watch` renders a log as a live console.
+evaluation. A run's state is not one of them. It travels beside the stream in
+`status.json`, because a fit killed outright emits no `fit_end`.
+
+Your callback runs outside the recorder's protection. A hook that raises takes
+the fit with it, which is the behaviour you want from a hook you asked for.
 
 Two rules matter to anyone consuming the stream. Read `data` with `.get` rather
 than by unpacking a fixed shape, because fields are added to a kind without a

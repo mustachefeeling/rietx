@@ -27,7 +27,13 @@ graph LR
   REF --> H
   REF --> LV
   REF --> EX
+  REF -.-> RUNS[".rietx/runs/<br/><i>one directory per fit,<br/>with no project</i>"]
 ```
+
+Every fit writes the dotted arrow whether you asked for it or not. A refinement
+that came from a project records into that project's `live/` instead, and
+`.rietx/` is what a fit outside a project leaves in the working directory. Both
+are below.
 
 ## Pattern files
 
@@ -419,8 +425,14 @@ my_sample.rex/
     11BM_NAC.fxye       the pattern file, byte for byte as measured
     history.jsonl       the refinement DAG, append-only
     live/               one directory per run, for `rietx watch`
+        20260915-092640-80245/
+        20260915-101302-80245/
     exports/            CIFs, reflection tables, QPA tables
 ```
+
+`live/` holds one directory per run. Two writers on one project, a GUI session
+and an agent fitting the same directory, would otherwise interleave their events
+into a single file.
 
 A directory because the history log's crash safety is append-only writes by one
 writer. Zipping would force a rewrite on every save and lose exactly the
@@ -572,6 +584,50 @@ as well leaves 21 803.
 `Project.exports_dir` and `Project.live_dir` are where the last two directories
 live, and `Project.parameters`, `Project.fit` and `Project.run_stage` are the
 session verbs, with the same meaning they have on `Refinement`.
+
+## Run directories
+
+A fit that did not come from a project records under `.rietx/runs/` in the
+working directory, one directory per fit, named for the date, the time and the
+process id:
+
+```text
+.rietx/runs/
+    .gitignore                      contains `*`, so runs stay out of `git status`
+    20260915-092640-80245/
+        events.jsonl                one line per event
+        snapshot.json               the stage's curves, ticks and statistics
+        summary.txt                 the termination view
+        meta.json                   label, start time, version, cwd, command
+        status.json                 state, pid, host, heartbeat, stage, Rwp, gof
+        run.lock                    held by the writing process for its life
+```
+
+Two directories are spelled `.rietx` and they have nothing to do with each
+other. `$HOME/.rietx` is the GUI's per-user state, the recent list and the theme,
+and `--state-dir` or `RIETX_STATE_DIR` moves it. The one above is the runs root,
+it is relative to wherever the process is running, and no environment variable
+moves it. To put runs elsewhere, name a root per call with `telemetry=`
+([](refining.md)).
+
+A fit you run inside somebody else's package leaves `.rietx/` in their working
+directory. That is the working directory doing its job rather than a bug, and
+`RIETX_TELEMETRY=0` is how a process declines.
+
+### What a run directory contains
+
+Every free parameter's value at every recorded evaluation, in `events.jsonl`,
+alongside the stage boundaries and the statistics at each one. `snapshot.json`
+holds the observed, calculated and difference curves for the stage, decimated
+for drawing.
+
+No pattern bytes are ever copied into a run. The curves in a snapshot are
+decimated to a drawing budget of 4000 points, the same budget the GUI and the
+comparison UI use, so a long pattern reaches a run as a picture of itself. A
+short one arrives nearly whole: a 4200-point pattern kept 4143.
+
+The parameter trajectory is the part to weigh before writing runs to a shared
+filesystem, and `RIETX_TELEMETRY=0` is how you decline ([](refining.md)).
 
 ## The history log
 

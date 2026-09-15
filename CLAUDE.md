@@ -96,10 +96,9 @@ seeding stage writes before solving). `RefinementCancelled` carries `.completed_
 `.node_id`, the last completed node the working state stands at. Event `data` is an **open
 dict**: a new field in a kind is no `EVENT_SCHEMA_VERSION` bump, a new kind is
 (`history/events.py`). The **run state is not an event** — `EventKind` is closed, so a run's
-status travels **beside** the stream, in `status.json` and a held `run.lock`, never as a kind.
-WP-1401 carried that rule across a process boundary, where it needs a channel the OS maintains
-because a dead writer writes nothing; so `watch` reads a run's metadata, status and snapshot as
-well as tailing its log, and `runs.liveness_of` is the one place those are weighed.
+status travels **beside** the stream, in `status.json` and a held `run.lock`. WP-1401 carried
+that one rank out, across a process boundary needing a channel the OS maintains (a dead writer
+writes nothing), so `watch` reads meta, status and snapshot too; `runs.liveness_of` weighs them.
 
 **Series** = N refinements chained by warm start (in-situ ramp, parametric sweep, tray of
 related specimens). `sequential.py` (`SequentialRefinement`/`refine_sequential`) →
