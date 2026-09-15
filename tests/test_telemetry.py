@@ -36,6 +36,7 @@ import rietx as rx
 from rietx import runs
 from rietx._about import RUNS_DIR_NAME, STATE_DIR_NAME, TELEMETRY_ENV
 from rietx.history.events import EventStream, read_events
+from rietx.model.forward import CompiledModel
 from rietx.optimize.cancel import CancelToken, RefinementCancelled
 from tests.test_refine_synthetic import perturbed_models, synthesize
 
@@ -778,6 +779,158 @@ def test_recording_does_not_move_the_answer(tmp_path, monkeypatch, pattern,
     assert recorded.statistics.rwp == plain.statistics.rwp
     assert [p.value for p in recorded.parameters] == [p.value
                                                       for p in plain.parameters]
+
+
+# ----------------------------------------------------------------------
+# what recording costs, counted (WP-1404)
+# ----------------------------------------------------------------------
+#
+# WP-1404 prices the default-on recorder, and its wall-clock numbers live in
+# prose: a budget in a test is a runaway guard, never a timer.  What belongs
+# here is the half that is machine-independent — the counts.  A ratio is only
+# a ratio of one fit if the fit did the same work in both arms, so these are
+# what licenses every number that WP's handover quotes.
+_FORWARDS = ("evaluate", "bragg_component", "background")
+
+
+@pytest.fixture
+def forwards(monkeypatch):
+    """Count calls into the compiled forward, by name.
+
+    The three names are not interchangeable, and that is the point.
+    ``evaluate`` is a whole y_calc, ``bragg_component`` the peak sum inside it,
+    ``background`` the background pass — so a telemetry path that adds one
+    ``evaluate`` a stage is doing something different from one that adds two
+    ``background``s, and only a per-name count can say which.  WP-1404 was
+    drafted expecting "one extra forward evaluation" a stage; the truth is
+    three different numbers, and the one it guessed is the smallest.
+    """
+    counts: dict[str, int] = dict.fromkeys(_FORWARDS, 0)
+    for name in _FORWARDS:
+        original = getattr(CompiledModel, name)
+
+        def wrapper(self, *a, _name=name, _orig=original, **kw):
+            counts[_name] += 1
+            return _orig(self, *a, **kw)
+
+        monkeypatch.setattr(CompiledModel, name, wrapper)
+    return counts
+
+
+def test_recording_adds_no_residual_evaluation(tmp_path, monkeypatch, pattern,
+                                               recording):
+    """The solve is untouched: the same stages, the same nfev in each.
+
+    ``test_recording_does_not_move_the_answer`` makes the *value* half of this
+    claim, and this is the cost half.  It is the half that would go wrong
+    silently: a fit reaching the same answer through a different number of
+    evaluations would make every ratio WP-1404 measures a ratio between two
+    different fits, and the answer would still look right.
+    """
+    monkeypatch.chdir(tmp_path)
+    plain = _fit(pattern, plan="profile_only", telemetry=False)
+    recorded = _fit(pattern, plan="profile_only")
+
+    assert [s.n_iterations for s in recorded.stages] == [
+        s.n_iterations for s in plain.stages]
+    assert sum(s.n_iterations for s in recorded.stages) > 0
+    assert [s.name for s in recorded.stages] == [s.name for s in plain.stages]
+
+
+def test_what_a_recorded_stage_costs_in_forward_evaluations(
+        tmp_path, monkeypatch, pattern, forwards, recording):
+    """Per stage and per name, with the caller's own stream in between.
+
+    The middle arm is what makes this a decomposition rather than a total: a
+    caller who passes ``events=`` has always paid the real ``stage_end.rwp``,
+    so that half of the bill is not new and is not the recorder's.  What the
+    recorder adds beyond it is its per-stage picture, which is the same forward
+    work a ``LiveSession`` has always done — measured identical, 2026-09-15.
+    The news in WP-1403 is therefore not that a picture costs a forward, but
+    that it is now taken unasked.
+    """
+    monkeypatch.chdir(tmp_path)
+
+    def take(**kw):
+        for name in _FORWARDS:
+            forwards[name] = 0
+        result = _fit(pattern, plan="profile_only", **kw)
+        return dict(forwards), len(result.stages)
+
+    plain, n = take(telemetry=False)
+    caller, n_caller = take(telemetry=False, events=tmp_path / "caller.jsonl")
+    recorded, n_recorded = take()
+    assert n == n_caller == n_recorded > 1
+
+    # a caller's own stream buys the real ``stage_end.rwp``: one background
+    # pass and one Bragg sum a stage, and no second y_calc — the block at
+    # ``refine.py``'s ``if events is not None`` reuses the background it
+    # computed rather than calling ``evaluate``
+    assert caller["evaluate"] - plain["evaluate"] == 0
+    assert caller["bragg_component"] - plain["bragg_component"] == n
+    assert caller["background"] - plain["background"] == n
+
+    # the recorder adds its snapshot on top: one whole ``evaluate`` a stage,
+    # which is a second Bragg sum and a second background, plus the background
+    # curve the snapshot carries in its own right
+    assert recorded["evaluate"] - plain["evaluate"] == n
+    assert recorded["bragg_component"] - plain["bragg_component"] == 2 * n
+    assert recorded["background"] - plain["background"] == 3 * n
+
+
+def test_the_flush_count_is_bounded_by_the_events_and_the_cadence(
+        tmp_path, monkeypatch, pattern, recording):
+    """``eval`` lines are buffered, so flushes are the other events plus a rate.
+
+    Structural, not a budget.  Every non-``eval`` event flushes as it is
+    written, and the buffered ones can flush at most once per
+    ``FLUSH_INTERVAL_SECONDS`` of the run's own duration, so a slower machine
+    allows *more* flushes and this can only fail by the cadence breaking.  That
+    is what separates it from a timer: there is no box on which a correct
+    implementation fails it.
+
+    The handle is wrapped rather than the method, because the flush happens
+    inside ``_write`` and is not visible from outside it.
+    ``examples/bench_refinement.py`` wraps the same handle for a different
+    purpose — it wants the number, this wants the bound — and neither is the
+    other's authority.
+    """
+    monkeypatch.chdir(tmp_path)
+    flushes = {"n": 0}
+
+    class _Handle:
+        def __init__(self, fh):
+            self._fh = fh
+
+        def flush(self):
+            flushes["n"] += 1
+            self._fh.flush()
+
+        def __getattr__(self, name):
+            return getattr(self._fh, name)
+
+    class _Counted(runs.RunRecorder):
+        def __init__(self, *a, **kw):
+            super().__init__(*a, **kw)
+            if getattr(self, "_fh", None) is not None:
+                self._fh = _Handle(self._fh)
+
+    monkeypatch.setattr(runs, "RunRecorder", _Counted)
+    started = time.perf_counter()
+    _fit(pattern, plan="profile_only")
+    duration = time.perf_counter() - started
+
+    (found,) = runs.discover(tmp_path)
+    events = read_events(found.path / runs.EVENTS_FILE)
+    non_eval = [e for e in events if e.kind != "eval"]
+    assert any(e.kind == "eval" for e in events), "nothing was buffered"
+
+    # every non-``eval`` event flushes, and ``close`` flushes once more
+    assert flushes["n"] >= len(non_eval)
+    cadence = duration / runs.FLUSH_INTERVAL_SECONDS
+    assert flushes["n"] <= len(non_eval) + cadence + 2, (
+        f"{flushes['n']} flushes for {len(non_eval)} non-eval events over "
+        f"{duration:.2f} s — the eval lines are not being buffered")
 
 
 # ----------------------------------------------------------------------

@@ -33,13 +33,21 @@ Verified in the tree 2026-09-13 and **re-verified 2026-09-15**, when the
 
 ## Tasks
 
-- [ ] Add the five configurations to `examples/bench_refinement.py` as named
+- [x] Add the five configurations to `examples/bench_refinement.py` as named
       keys, and a row per key to `tests/test_bench_refinement.py`.
 - [ ] Run the matrix, alone, on one machine in one sitting. Nothing else running:
       these are wall-clock numbers and machine state moves them further than most
       changes do.
-- [ ] The counted assertions (evaluation count identical, extra forwards exactly
-      `n_stages`, flush count bounded) as ordinary tests.
+- [x] The counted assertions (evaluation count identical, extra forwards, flush
+      count bounded) as ordinary tests, in `tests/test_telemetry.py`.
+      **"Extra forwards exactly `n_stages`" was a guess and it was the smallest
+      of three numbers.** Measured 2026-09-15 on the five-stage synthetic:
+      `evaluate` +1 a stage, `bragg_component` +2, `background` +3. The middle
+      arm says why — a caller's own `events=` already pays the real
+      `stage_end.rwp` (+1 Bragg, +1 background, no second y_calc), and what the
+      recorder adds on top is its snapshot, which is the same forward work a
+      `LiveSession` has always done. So the recorder's per-stage forward cost
+      is not new work; what is new is that it happens unasked.
 - [ ] The measured numbers into this WP's handover and into the milestone
       record's appendix, as ranges, with venv and platform named.
 - [ ] The verdict, written out: which gate applied (the 5 % or the control's own
