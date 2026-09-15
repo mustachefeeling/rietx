@@ -198,7 +198,7 @@ def test_to_structure_carries_the_flags_and_converts_uiso(fap):
     assert ca1.biso.value == pytest.approx(0.006079 * 8.0 * 3.141592653589793**2)
     assert ca1.biso.vary is True
     assert ca1.occ.vary is False
-    assert any(n.code == "GSAS_SPECIES_NORMALISED" for n in notes)
+    assert any(n.code == "GSAS_EXP_SPECIES_NORMALISED" for n in notes)
 
 
 def test_a_zero_freedom_site_does_not_get_a_vary_it_cannot_honour(fap):
@@ -213,7 +213,7 @@ def test_a_zero_freedom_site_does_not_get_a_vary_it_cannot_honour(fap):
     f4 = next(a for a in structure.phases[0].atoms if a.label == "F4")
     assert f4.x.vary is False
     assert f4.biso.vary is True         # the U flag is unaffected
-    assert any(n.code == "GSAS_COORDINATES_SYMMETRY_FIXED" for n in notes)
+    assert any(n.code == "GSAS_EXP_COORDINATES_SYMMETRY_FIXED" for n in notes)
     # and the structure is one the package will actually build a table for
     rx.Refinement(structure, rx.Instrument.bragg_brentano())
 

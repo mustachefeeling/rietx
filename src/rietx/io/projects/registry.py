@@ -55,7 +55,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 from ..formats.base import HEAD_BYTES, head, looks_binary
-from . import fullprof, topas
+from . import fullprof, gsas, topas
+from .gsas import RECORD_BYTES
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from ...schemas import Diagnostic, Structure
@@ -101,9 +102,15 @@ class ProjectFormat:
     #: normalises species and translates an origin suffix while parsing, so its
     #: channel is at read; the ``.pcr`` reader's four repairs all happen while
     #: converting codewords into a ``Structure``, so its channel is at build.
-    #: Pinned against the real signatures by meta-test, so a reader that grows
-    #: or loses the keyword cannot leave this claiming otherwise
-    reports_at: Literal["read", "build"]
+    #: ``"both"`` is the ``.EXP`` case, which arrived with the third member and
+    #: is what showed the two-valued field to be a shape rather than a fact: it
+    #: reports the histograms it could not carry while parsing *and* the species
+    #: it normalises while building, so either single value would have dropped
+    #: one channel **in silence** — the caller gets an empty list, which reads
+    #: as "this file needed no repairs".  Pinned against the real signatures by
+    #: a meta-test that partitions **both ways**, so a reader that grows or
+    #: loses the keyword fails here rather than going quiet
+    reports_at: Literal["read", "build", "both"]
     matches: Callable[[Path], bool]
     #: the format's own reader — returns what the file states
     read: Callable[..., Any]
@@ -173,7 +180,7 @@ class ProjectModel:
         "this file needed no repairs", and a caller who passed the list to the
         other call would believe it (WP-1076).
         """
-        if diagnostics is not None and self.format.reports_at == "build":
+        if diagnostics is not None and self.format.reports_at in ("build", "both"):
             options["diagnostics"] = diagnostics
         return self.format.to_structure(self.stated, **options)
 
@@ -222,6 +229,45 @@ _TOPAS_LINE = re.compile(
     r"|^[ \t]*STR[ \t]*\(", re.M)
 
 
+#: The record keys a ``.EXP`` is claimed on, anchored at column 0 of an
+#: 80-character card.  Taken from the format's own vocabulary rather than
+#: invented: ``VERSION`` is written by ``OPNEXP`` when the file is created, and
+#: ``EXPR``/``CRS``/``HST`` are the experiment, phase and histogram blocks that
+#: any file holding a refinement carries.  A key alone would be weak evidence —
+#: ``HST`` is an ordinary word — which is why the record *width* is tested too.
+_EXP_KEYS = ("     VERSION", "      DESCR ", " EXPR ", "CRS", "HST ", "HAP")
+
+
+def _matches_gsas_exp(path: Path) -> bool:
+    """A ``.EXP`` is a card index: 80-character records with 12-character keys.
+
+    Two tests together, because neither alone is safe.  The record **width** is
+    a structural invariant of the format — GSAS read these files by direct
+    access, so every card is exactly 80 characters — and a key from the
+    format's own vocabulary sits at column 0.  A file that satisfies both is
+    not plausibly anything else; a file that satisfies only the width could be
+    any fixed-column table, and one satisfying only the keys could be prose
+    about GSAS.
+
+    Line endings are not part of the test.  Real files terminate each card with
+    CR LF and some write the cards end to end with none at all, so the width is
+    measured on whichever of the two the file turns out to be.
+    """
+    text = head(path, HEAD_BYTES).text
+    if "\n" in text or "\r" in text:
+        lines = [ln for ln in text.splitlines() if ln.strip()]
+        # the last line of a bounded head read is usually truncated
+        lines = lines[:-1] or lines
+        if not lines or any(len(ln) != RECORD_BYTES for ln in lines):
+            return False
+    else:
+        if len(text) < RECORD_BYTES:
+            return False
+        lines = [text[i:i + RECORD_BYTES]
+                 for i in range(0, len(text) - RECORD_BYTES + 1, RECORD_BYTES)]
+    return any(ln.startswith(_EXP_KEYS) for ln in lines)
+
+
 def _matches_topas_inp(path: Path) -> bool:
     """A ``.inp`` is claimed on a line-start TOPAS keyword, never on its suffix.
 
@@ -242,10 +288,13 @@ def _matches_topas_inp(path: Path) -> bool:
 
 
 #: The registry, **ordered**, and the order is behaviour: the first format whose
-#: ``matches`` returns True claims the file.  FullProf is first because its
-#: evidence is a line the format *requires* and TOPAS's is a keyword anywhere in
-#: the head, which is the weaker test — ``PATTERN_FORMATS``' "strongest evidence
-#: first", applied to two members rather than sixteen.
+#: ``matches`` returns True claims the file.  ``PATTERN_FORMATS``' "strongest
+#: evidence first", applied to three members rather than sixteen.  FullProf and
+#: GSAS both test something the format *requires* — a ``COMM`` title line, and
+#: an 80-character card carrying a key from a closed vocabulary — and they
+#: cannot collide, so their relative order is immaterial and is left as it was.
+#: TOPAS is last because its evidence is a keyword anywhere in a 64 kB head,
+#: which is the one weak test here and the one a file could satisfy by accident.
 PROJECT_FORMATS: tuple[ProjectFormat, ...] = (
         ProjectFormat(
             name="fullprof_pcr",
@@ -259,6 +308,23 @@ PROJECT_FORMATS: tuple[ProjectFormat, ...] = (
             matches=_matches_fullprof_pcr,
             read=fullprof.read_fullprof_pcr,
             to_structure=fullprof.to_structure,
+        ),
+        ProjectFormat(
+            name="gsas_exp",
+            title="GSAS .EXP",
+            extensions=(".exp", ".EXP"),
+            sniff="80-character records whose first 12 characters are a GSAS "
+                  "record key — the width is a structural invariant of the "
+                  "format and the key comes from its own closed vocabulary",
+            carries=("phases", "sites", "refine flags", "the emission lines "
+                     "and their polarization", "the excluded regions", "the "
+                     "profile and background coefficients with their flags",
+                     "the run's own Rwp, Rp and reduced chi-squared", "the "
+                     "data and instrument files it points at"),
+            reports_at="both",
+            matches=_matches_gsas_exp,
+            read=gsas.read_gsas_exp,
+            to_structure=gsas.to_structure,
         ),
         ProjectFormat(
             name="topas_inp",
@@ -333,7 +399,7 @@ def read_project_model(path: str | Path, *,
     """
     p = Path(path)
     fmt = identify_project_format(p)
-    if fmt.reports_at != "read":
+    if fmt.reports_at not in ("read", "both"):
         return ProjectModel(format=fmt, path=p, stated=fmt.read(p))
     # Read into a list of this function's own and copy the caller's in at the
     # end, rather than handing the reader the caller's list directly: the

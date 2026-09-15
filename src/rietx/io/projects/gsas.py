@@ -871,7 +871,7 @@ def _report(model: GsasModel, diagnostics: list[Diagnostic]) -> None:
     named = model.path or "<model>"
     for text in model.unsupported:
         diagnostics.append(Diagnostic(
-            level="warning", code="GSAS_HISTOGRAM_NOT_READ",
+            level="warning", code="GSAS_EXP_HISTOGRAM_NOT_READ",
             message=f"{named}: {text}"))
     for hist in model.histograms:
         bkg = hist.background
@@ -879,7 +879,7 @@ def _report(model: GsasModel, diagnostics: list[Diagnostic]) -> None:
             continue
         what = BACKGROUND_FUNCTIONS.get(bkg.function)
         diagnostics.append(Diagnostic(
-            level="info", code="GSAS_BACKGROUND_NOT_CARRIED",
+            level="info", code="GSAS_EXP_BACKGROUND_NOT_CARRIED",
             message=(
                 f"{named}: histogram {hist.number} fitted GSAS background "
                 f"function {bkg.function}"
@@ -893,7 +893,7 @@ def _report(model: GsasModel, diagnostics: list[Diagnostic]) -> None:
     for phase in model.phases:
         if phase.magnetic:
             diagnostics.append(Diagnostic(
-                level="warning", code="GSAS_PHASE_MAGNETIC",
+                level="warning", code="GSAS_EXP_PHASE_MAGNETIC",
                 message=(
                     f"{named}: phase {phase.number} ({phase.name!r}) is a "
                     f"magnetic phase (GSAS phase type {phase.kind}) and rietx "
@@ -918,7 +918,7 @@ def to_structure(model: GsasModel, *, phase: int | None = None,
 
     ``Uiso`` becomes ``Biso`` through :data:`EIGHT_PI_SQUARED`.  Species are
     title-cased to IUCr spelling (``CA`` → ``Ca``), reported as
-    ``GSAS_SPECIES_NORMALISED`` where ``diagnostics=`` is passed — the channel
+    ``GSAS_EXP_SPECIES_NORMALISED`` where ``diagnostics=`` is passed — the channel
     and code shape ``structure_from_cif`` uses.
 
     ``phase`` picks one of a multi-phase file; with several phases and none
@@ -1049,14 +1049,14 @@ def to_structure(model: GsasModel, *, phase: int | None = None,
         named = model.path or "<model>"
         for raw, (canonical, wheres) in rewrites.items():
             diagnostics.append(Diagnostic(
-                level="info", code="GSAS_SPECIES_NORMALISED",
+                level="info", code="GSAS_EXP_SPECIES_NORMALISED",
                 message=(f"species {raw!r} in {named} read as {canonical!r} — "
                          f"GSAS writes the scattering token in upper case; "
                          f"normalised to IUCr spelling"),
                 where=wheres))
         if frozen:
             diagnostics.append(Diagnostic(
-                level="info", code="GSAS_COORDINATES_SYMMETRY_FIXED",
+                level="info", code="GSAS_EXP_COORDINATES_SYMMETRY_FIXED",
                 message=(
                     f"{named}: {len(frozen)} site(s) carry GSAS's X refine "
                     f"flag but sit on fully fixed special positions "
@@ -1067,7 +1067,7 @@ def to_structure(model: GsasModel, *, phase: int | None = None,
                        for i, a in enumerate(chosen.atoms)
                        if a.label in frozen]))
         diagnostics.append(Diagnostic(
-            level="info", code="GSAS_SCALE_NOT_COMPARABLE",
+            level="info", code="GSAS_EXP_SCALE_NOT_COMPARABLE",
             message=(
                 f"{named}: phase {chosen.number}'s scale is seeded at 1e-3 and "
                 f"not taken from the file.  GSAS's histogram scale "

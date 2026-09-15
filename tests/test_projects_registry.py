@@ -113,9 +113,32 @@ def _write(tmp_path: Path, name: str, text: str) -> Path:
 # Dispatch
 
 
+#: A GSAS .EXP is 80-character cards; the width is half the evidence, so the
+#: fixture is built through a helper rather than written as free text.
+def _cards(*rows: str) -> str:
+    return "".join(f"{row:<80}" for row in rows)
+
+
+EXP_MINIMAL = _cards(
+    "     VERSION    6     Sat Jan 01 16:30:48 2011",
+    "      DESCR   a refinement",
+    " EXPR  NHST     1",
+)
+
+#: The same keys at the same columns, but the cards are not 80 characters. A
+#: reader that tested the vocabulary alone would claim this.
+EXP_WRONG_WIDTH = (
+    "     VERSION    6\n"
+    "      DESCR   a refinement\n"
+)
+
+
 @pytest.mark.parametrize("name,text,expected", [
     ("refined.pcr", PCR_HEADER_ONLY, "fullprof_pcr"),
     ("run.inp", INP_MINIMAL, "topas_inp"),
+    ("refined.EXP", EXP_MINIMAL, "gsas_exp"),
+    # the suffix is not the evidence here either
+    ("whatever", EXP_MINIMAL, "gsas_exp"),
     # a Pawley or indexing-only .inp states no phase and is still a .inp
     ("pawley.inp", INP_NO_PHASE, "topas_inp"),
     # and one this build refuses to *read* is still recognised, so the caller
@@ -138,6 +161,32 @@ def test_the_suffix_is_not_the_evidence(tmp_path):
         identify_project_format(_write(tmp_path, "mesh.inp", ABAQUS_INP))
     assert identify_project_format(
         _write(tmp_path, "no_suffix_at_all", PCR_HEADER_ONLY)).name == "fullprof_pcr"
+
+
+def test_the_record_width_is_half_the_exp_evidence(tmp_path):
+    """A GSAS key at column 0 is not enough on its own.
+
+    ``HST`` and ``DESCR`` are ordinary words, so a file quoting them at the
+    start of a line — a note about the format, or another program's fixed-column
+    table — would be claimed on the vocabulary alone.  The 80-character record
+    is a structural invariant of the format (GSAS read these by direct access),
+    so the two tests together are what make the claim safe.
+    """
+    with pytest.raises(ValueError, match="not a refinement file"):
+        identify_project_format(_write(tmp_path, "narrow.EXP", EXP_WRONG_WIDTH))
+
+
+def test_a_gsas_instrument_file_is_not_claimed_as_a_refinement(tmp_path):
+    """``.PRM`` is 80-column GSAS too, and belongs to a different reader.
+
+    It carries a machine and no model, which is why it sits outside this
+    registry (``read_gsas_prm``); its keys are ``INS``, absent from the
+    vocabulary here, so the sniff declines it and the refusal names where it
+    should go instead.
+    """
+    prm = _cards("INS   BANK      1", "INS   HTYPE   PXCR")
+    with pytest.raises(ValueError, match="read_gsas_prm"):
+        identify_project_format(_write(tmp_path, "inst.prm", prm))
 
 
 def test_a_keyword_inside_a_comment_is_not_a_statement(tmp_path):
@@ -380,21 +429,34 @@ def test_the_registry_and_the_package_export_the_same_readers():
 
 @pytest.mark.parametrize("fmt", PROJECT_FORMATS, ids=lambda f: f.name)
 def test_reports_at_matches_the_real_signature(fmt: ProjectFormat):
-    """The declared channel is where the keyword actually is.
+    """The declared channels are **exactly** the calls that take the keyword.
 
-    ``reports_at`` is read by :meth:`ProjectModel.to_structure` to decide which
-    call gets the caller's diagnostics list, so a wrong value does not raise —
-    it silently returns an empty list, which is the shape of bug that reads as
-    "this file needed no repairs".  Pinned against ``inspect.signature`` so a
-    reader that grows or loses the keyword fails here.
+    ``reports_at`` is read by :meth:`ProjectModel.to_structure` and by
+    :func:`read_project_model` to decide which call gets the caller's
+    diagnostics list, so a wrong value does not raise — it silently returns an
+    empty list, which is the shape of bug that reads as "this file needed no
+    repairs".
+
+    Partitioned **both ways** rather than only forwards.  Asserting that the
+    declared call takes the keyword leaves the other direction open, which is
+    the half that bites: a reader that grows a second channel while its
+    declaration still names one keeps working, drops the new channel's reports
+    in silence, and passes.  That is how ``gsas_exp`` arrived — it repairs at
+    both ends — and a forwards-only assertion would have let it declare
+    ``"read"`` and lose every build-time report.
     """
     takes = {
         "read": "diagnostics" in inspect.signature(fmt.read).parameters,
         "build": "diagnostics" in inspect.signature(fmt.to_structure).parameters,
     }
-    assert takes[fmt.reports_at], (
-        f"{fmt.name} declares reports_at={fmt.reports_at!r} but that call takes "
-        f"no diagnostics keyword")
+    declared = {"read", "build"} if fmt.reports_at == "both" else {fmt.reports_at}
+    actual = {name for name, has in takes.items() if has}
+    assert declared == actual, (
+        f"{fmt.name} declares reports_at={fmt.reports_at!r}, so its channels "
+        f"are {sorted(declared)}, but the calls that actually take a "
+        f"diagnostics keyword are {sorted(actual)}.  A channel that exists and "
+        f"is not declared is dropped in silence; one declared and absent would "
+        f"raise on the first caller who passed a list")
 
 
 @pytest.mark.parametrize("fmt", PROJECT_FORMATS, ids=lambda f: f.name)
