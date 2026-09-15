@@ -612,9 +612,11 @@ on the three benchmark patterns, and a long series is where that adds up.
 
 The cost in time is the per-stage picture. Writing the event log alone measures
 1.01 to 1.03 times a bare fit's wall clock. Adding the picture takes it to 1.03
-to 1.28 times, measured over three patterns of 22 003, 7251 and 4165 points.
-Every configuration returned the same Rwp to the last digit, so recording does
-not change the answer.
+to 1.23 times, measured over three patterns of 22 003, 7251 and 4165 points.
+The charge is per stage and nearly constant, so the shortest fit pays the
+largest multiple: 1.23 times on a fit of a third of a second, 1.03 times on one
+of six seconds. Every configuration returned the same Rwp to the last digit, so
+recording does not change the answer.
 
 :::{warning}
 A run directory holds every free parameter's value at every recorded

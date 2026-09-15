@@ -92,6 +92,71 @@ cost that is 2000 buckets of python rather than anything the data does.
 `model.evaluate` is 5.63 ms against 0.30 on `nac`, because 1 188 line-reflection
 pairs on 4 165 points is the dispatch-heavy case.
 
+**2026-09-15 — the decimation, before and after.** Best of seven, one process,
+same arrays. The three bench pattern sizes, three curves, budget 4000:
+
+| points | loop | scan | |
+|---|---|---|---|
+| 4 165 | 6.66 ms | 0.558 ms | 11.9× |
+| 7 251 | 6.78 ms | 0.648 ms | 10.5× |
+| 22 003 | 6.93 ms | 0.785 ms | 8.8× |
+
+The cost now moves with the pattern rather than sitting flat, which is the
+signature of the python loop having been the whole of it.
+
+**2026-09-15 — the matrix, before and after on one machine.** Two runs of
+`--cases nac,cpd-2,trigger --configs off,record --repeats 7`, ten minutes apart,
+each internally interleaved. Quoted as median / min of seven, beside the control
+spread that sets the harness's own gate.
+
+| case | before | after | control spread, after |
+|---|---|---|---|
+| `nac` (0.354 s, 6 stages) | 1.300× / 1.286× | **1.233× / 1.200×** | 6.4 % |
+| `cpd-2` (2.43 s, 9 stages) | 1.062× / 1.076× | **1.049× / 1.032×** | 7.3 % |
+| `trigger` (5.90 s, 8 stages) | 1.028× / 1.038× | **1.031× / 1.031×** | 2.3 % |
+
+`cpd-2` crosses the 1.05 line and `trigger` was already under it. `nac` does not
+and cannot; § The gate on `nac` says why. `trigger`'s pair is one measurement
+twice: the change is worth 49 ms on a 5.9 s fit, which is 0.8 points of ratio
+against a 2.3 % spread, so it is correctly invisible.
+
+A third run was discarded rather than quoted. Its control spreads were 46.1,
+17.2 and 32.1 % because the desktop was busy, and the load average reached 10.4.
+An arm measured under that is measuring the box.
+
+### The gate on `nac`
+
+**The 1.05× gate is unreachable on `nac` by arithmetic, and no further
+optimisation of the snapshot reaches it.** The fit is 0.354 s over 6 stages, so
+the whole 5 % budget is 17.7 ms, or 2.95 ms a stage. What a stage now costs,
+best of seven, end to end through `write_snapshot`:
+
+| | `nac` | `cpd-2` | `trigger` |
+|---|---|---|---|
+| `write_snapshot` | 8.30 ms | 6.54 ms | 10.56 ms |
+| — `json.dumps` | 4.56 | 3.12 | 2.35 |
+| — `decimation_index` | 0.80 | 0.66 | 0.56 |
+| — `model.evaluate` | 0.30 | 0.40 | 5.66 |
+| — round + to-list, 4 curves | 0.56 | 0.45 | 0.32 |
+| — `compute_statistics` | 0.18 | 0.08 | 0.06 |
+| — `stage_ticks` | 0.07 | 0.20 | 0.40 |
+| — write + rename | 0.15 | 0.15 | 0.14 |
+| whole-fit share | 6 × 8.30 = 50 ms | 9 × 6.54 = 59 ms | 8 × 10.56 = 84 ms |
+
+`nac`'s snapshot alone is 50 ms against a 17.7 ms budget, so the gate would fail
+on this case with the decimation, the rounding, the statistics and the ticks all
+free. `json.dumps` is now the largest item and it is 4.56 ms of a 2.95 ms
+budget on its own.
+
+Serialising 329 kB is not a cost a faster serialiser removes either, because the
+payload size is the thing: `nac` draws 7 385 points from a 4 000 budget, the
+three curves disagreeing about where their extremes are. Cutting that is cutting
+what the snapshot contains, which this WP's non-goals reserve.
+
+So the remaining lever is the one § The option that is not free already named:
+write the snapshot less often than every stage. That is a product decision about
+what a watcher sees, not an optimisation, and it is left to the maintainer.
+
 ## Tasks
 
 - [x] Profile one snapshot build on each bench case, and confirm WP-1402's split
@@ -101,16 +166,18 @@ pairs on 4 165 points is the dispatch-heavy case.
 - [x] Pin the bit-identity: the new index set equals the old one element for
       element on every bench case and on the acceptance patterns, as an ordinary
       test.
-- [ ] Re-run WP-1404's matrix, interleaved, and report whether `record` now comes
+- [x] Re-run WP-1404's matrix, interleaved, and report whether `record` now comes
       in under 1.05× on all three cases. The harness already has the
       configurations; `--configs off,record --repeats 7` is the selection.
-- [ ] If the gate still fails on `nac`, say so and price the remaining term
+      *Two of three: `cpd-2` and `trigger` pass, `nac` does not.*
+- [x] If the gate still fails on `nac`, say so and price the remaining term
       rather than iterating: a 0.357 s fit has 6 stages, so the whole budget is
-      about 18 ms a stage.
-- [ ] Update `docs/manual/using/refining.md` and the skill's
+      about 18 ms a stage. *§ The gate on `nac`.*
+- [x] Update `docs/manual/using/refining.md` and the skill's
       `references/watching.md` § 9d.7 **only if the measured range moves**. Both
       quote 1.03-1.28× today and WP-1404 confirmed that figure, so a change here
-      is a change there.
+      is a change there. *It moved to 1.03-1.23×; both updated and the two
+      committed skill copies re-synced.*
 
 ## Acceptance
 

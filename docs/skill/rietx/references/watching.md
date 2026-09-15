@@ -107,16 +107,19 @@ default now.)*
 
 **9d.7 Recording costs a few per cent and changes no answer.** The event log
 alone runs 1.01 to 1.03 times a bare fit's wall clock. Adding the per-stage
-picture takes it to 1.03 to 1.28 times over three patterns of 22 003, 7251 and
-4165 points. Disk is bounded by retention, which deletes by age and size rather
-than by count: nothing younger than a week goes, and above a 1 GiB ceiling the
-oldest finished runs go first. A root over the ceiling with nothing old enough
-warns and keeps everything, so a long batch never eats its own early runs.
+picture takes it to 1.03 to 1.23 times over three patterns of 22 003, 7251 and
+4165 points. The charge is per stage and nearly constant, so a short fit pays
+the largest multiple and a long one barely notices. Disk is bounded by
+retention, which deletes by age and size rather than by count: nothing younger
+than a week goes, and above a 1 GiB ceiling the oldest finished runs go first. A
+root over the ceiling with nothing old enough warns and keeps everything, so a
+long batch never eats its own early runs.
 
-*(Measured: WP-1401 and WP-1402 on `nac` (22 003 points), `cpd-2` (7251) and
-`trigger` (4165), three repeats over two sittings, `[dev]` venv, macOS arm64.
-Every configuration returned a bit-identical Rwp. The retention scan runs once
-per process and cost 0.2 ms at 10 runs, 2.2 ms at 100 and 27.6 ms at 1000.)*
+*(Measured: WP-1401, WP-1402, WP-1404 and WP-1413 on `nac` (22 003 points),
+`cpd-2` (7251) and `trigger` (4165), seven interleaved repeats, `[dev]` venv,
+macOS arm64. Every configuration returned a bit-identical Rwp. The retention
+scan runs once per process and cost 0.2 ms at 10 runs, 2.2 ms at 100 and 27.6 ms
+at 1000.)*
 
 **9d.8 A failure to record is not a failure to fit.** If the recorder cannot
 write, it stops, warns once for the process, and puts the reason in the run's
