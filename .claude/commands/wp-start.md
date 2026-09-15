@@ -30,6 +30,24 @@ Run the session-start ritual. The SessionStart hook's report
    (2026-09-01) cost the next two sessions their handover. Read that one WP
    file only (plus the DESIGN.md sections it links); do not read other WP
    files.
+
+   **Then check nobody else has it**, before committing to the choice:
+   `python3 .claude/hooks/wp_claim.py status`. One row per worktree that is on
+   a WP — `held` means a live `claude` session is sitting in that tree now,
+   `dormant` means the tree and branch exist with nobody in them, `→` marks
+   this session's own tree. Closed WPs whose trees were merely kept are
+   filtered out, so a quiet table means what it says, and the reading needs no
+   venv.
+
+   **A held WP is taken**: two sessions on one WP duplicate hours of work and
+   discover it at handover, so pick another or ask the user. A **dormant** one
+   is the opposite and is often what you want — unfinished work with a branch
+   to continue, resumed by giving `EnterWorktree` that tree's name.
+
+   The WP a tree is on comes from its branch, so a tree you resume for a
+   *different* WP is telling the next session the wrong thing. Say so once:
+   `python3 .claude/hooks/wp_claim.py claim NNNN`. Nothing else needs it, and
+   skipping it degrades to the branch name rather than to nothing.
 3. **Worktree, then branch.** If the hook's first line names the main
    checkout, call `EnterWorktree` with the WP's name (`wp1208-<slug>`) before
    anything else. The `WorktreeCreate` hook cuts that branch from `origin/main`
@@ -39,6 +57,14 @@ Run the session-start ritual. The SessionStart hook's report
    there — so there is nothing to decide. Already in a worktree: continue its
    branch; it is yours. At session end Claude Code asks whether to keep or
    remove the tree; remove once the PR is open, the branch stays either way.
+
+   The create hook **refuses** a tree whose name is a WP a live session in
+   another tree is already working, and names that session and the release
+   verb. It is the one refusal in this workflow rather than a report, because
+   it is the last moment before a duplicated session is paid for. A refusal
+   on a WP whose holder is plainly finished is cleared with the verb the
+   message prints; check it really is finished first, because the trigger is a
+   live process, not a leftover branch.
 
    **Never `git stash` here.** The stash is per *repository*, shared by every
    worktree, and another session's `stash pop` takes yours (measured
