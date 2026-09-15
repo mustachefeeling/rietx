@@ -1079,3 +1079,65 @@ def test_a_wp_file_with_no_issue_citation_matches_nothing(
     ]))
     assert claim.wp_issue_citations(repo) == {"9501": set()}
     assert claim.overlaps(claim.open_prs(repo), claim.wp_issue_citations(repo)) == []
+
+
+def test_a_claim_pr_is_recognised_before_it_says_anything(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The branch names the WP, so a draft PR claims it from its first push.
+
+    `/wp-start` step 4b opens the claim before the title is written and
+    sometimes before a WP file is touched, so the branch has to be a source in
+    its own right — it is the one thing a claim PR always has.
+    """
+    monkeypatch.setattr(claim, "_gh", lambda root, *a, **k: json.dumps([
+        _pr(400, "", body="", branch="wp9601-the-thing"),
+    ]))
+    (pr,) = claim.open_prs(repo)
+    assert pr.wp == "9601"
+    (o,) = claim.overlaps([pr], {})
+    assert (o.wp, o.via) == ("9601", "names it")
+
+
+def test_the_stronger_sources_still_outrank_the_branch(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Title, then the WP file edited, then the branch.  A branch outlives the
+    work it was cut for — a tree resumed for another WP keeps its old name — so
+    it is the weakest of the three and must stay last."""
+    monkeypatch.setattr(claim, "_gh", lambda root, *a, **k: json.dumps([
+        _pr(401, "WP-9602: titled", branch="wp9601-stale"),
+        _pr(402, "untitled", branch="wp9601-stale", files=["docs/wp/9603-x.md"]),
+    ]))
+    titled, filed = claim.open_prs(repo)
+    assert titled.wp == "9602"  # title beats the branch
+    assert filed.wp == "9603"  # the WP file beats the branch
+
+
+def test_a_branch_naming_no_wp_claims_nothing(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Every contributor PR measured on 2026-09-15 had such a branch
+    (`pr/cell-degenerate-guard`), and they must still reach a WP by issue
+    alone rather than by a branch that says nothing."""
+    monkeypatch.setattr(claim, "_gh", lambda root, *a, **k: json.dumps([
+        _pr(403, "lattice: a degenerate cell (#283)", branch="pr/cell-degenerate-guard"),
+    ]))
+    (pr,) = claim.open_prs(repo)
+    assert pr.wp is None and pr.issues == (283,)
+    assert [o.via for o in claim.overlaps([pr], {"9604": {283}})] == ["issue #283"]
+
+
+def test_a_draft_claim_reads_as_a_draft(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A claim PR is a draft until the work is handed over, so the table has to
+    say so: a draft holds the WP exactly as a ready PR does, and the reader
+    needs to tell "claimed, in flight" from "finished, in review"."""
+    raw = _pr(404, "WP-9605: claimed", branch="wp9605-x")
+    raw["isDraft"] = True
+    monkeypatch.setattr(claim, "_gh", lambda root, *a, **k: json.dumps([raw]))
+    (pr,) = claim.open_prs(repo)
+    assert pr.draft is True
+    line = claim.describe_pull_request(pr, [("9605", "names it")])
+    assert "(draft)" in line

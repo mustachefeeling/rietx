@@ -471,6 +471,12 @@ def open_prs(root: Path) -> Optional[list[PullRequest]]:
                 if m:
                     wp = m.group(1)
                     break
+        # The branch last, and it is not redundant: a claim PR is opened before
+        # its first commit exists on some flows, and `/wp-start` names every
+        # branch after its WP, so `wp1414-slug` says which WP this is when the
+        # title has not been written and no WP file has been touched yet.
+        if wp is None:
+            wp = wp_from_name(item.get("headRefName", ""))
         prs.append(
             PullRequest(
                 number=int(item["number"]),

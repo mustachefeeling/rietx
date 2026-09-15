@@ -1,8 +1,9 @@
 # WP-1422 — the WP two sessions picked
 
-Milestone: unscheduled · Status: ✅ 2026-09-15 — claim store, the session-start
-report, the `EnterWorktree` refusal and `/wp-start` step 2; 26 tests, and the
-first clash it would have caught is one that has not happened yet
+Milestone: unscheduled · Status: ✅ 2026-09-15 — both directions: a local claim
+with an `EnterWorktree` refusal, the contributor half through open PRs and the
+issues WPs cite, and a draft claim PR that announces. 36 tests; it found a live
+overlap (WP-1311 against PR #289) on its first run
 Depends on: —
 
 ## Goal
@@ -129,6 +130,35 @@ stdlib-only, offline-safe and 0.25 s. When `gh` cannot answer the command says
 so rather than printing an empty list, because "no PRs" and "could not look"
 must not read alike.
 
+### Announcing, not only looking
+
+Reading the other side is half of it. A session also has to *say* what it is on,
+or every clone is polite and blind at once. The local claim cannot do that: it
+is a file on one machine's disk.
+
+So `/wp-start` step 4b opens a **draft pull request** as its first act in the new
+tree, carrying one commit that sets the WP's `Status:` to `🔄 <date> — claimed
+by @<who>` and mirrors the glyph in its ROADMAP row. Four properties earn it:
+
+- **It is the real PR, opened early**, not a second one. `/wp-handover` step 11
+  already edits an existing open PR rather than duplicating it, and now marks it
+  ready. Claiming therefore costs nothing at the end, and the work is reviewable
+  from the first commit.
+- **A commit touching only its own WP file is already *ritual*** (`_is_ritual`),
+  so the claim owes no handover entry and trips no coverage rule.
+- **Both edits are mechanically pinned** — the glyph must match between the WP
+  file and the ROADMAP row, and the row's cell must be a glyph and a date and
+  nothing else (`tests/test_docs_consistency.py`).
+- **Everyone does it, not only contributors.** A maintainer working locally is
+  exactly as invisible to a contributor as the reverse, and a one-sided claim
+  leaves half the clash open.
+
+`CONTRIBUTING.md` § Maintainer-only machinery reserved WP files for the
+maintainer; it now sanctions this one edit, beside the handover-log entry it
+already welcomed. And `open_prs` gained the **branch** as a third WP source
+after the title and the WP file touched, because a claim PR is opened before
+either of those says anything and `wp1414-slug` is the one thing it always has.
+
 ## Non-goals
 
 - ~~**No cross-machine claim.**~~ **Withdrawn the same day, and it was the
@@ -166,6 +196,9 @@ must not read alike.
 - [x] **The contributor half**: `open_prs`, `wp_issue_citations`, `overlaps` and
       the per-PR grouping, reported by `wp_claim.py status [NNNN]` and wired
       into `/wp-start` step 2. Reports only, needs `gh`, never in the hook.
+- [x] **Announcing**: `/wp-start` step 4b opens the draft claim PR, handover
+      step 11 marks it ready, `CONTRIBUTING.md` sanctions the WP-file edit, and
+      `open_prs` reads the branch as a third WP source.
 - [x] Root CLAUDE.md § Protocol: the one-WP-per-session clause beside the
       one-tree-per-session one, and the cap ledger entry that pays for it.
 - [x] ROADMAP: the index row under § The repo's own process.
@@ -237,9 +270,9 @@ no cross-reference to a numbered step moved.
 **Measured** (macOS Darwin 25.5.0, this worktree's own `[dev]` venv, no jax and
 no torch, Python 3.12.12):
 
-- Fast selection `-n auto --dist loadgroup -m "not slow"`: **4886 passed, 132
-  skipped**, four runs across the session at 2:11-2:22 and nothing else on the
-  machine. The one file touched went 30 → 62 collected, +32, and all 32 pass;
+- Fast selection `-n auto --dist loadgroup -m "not slow"`: **4890 passed, 132
+  skipped**, five runs across the session at 2:11-2:22 and nothing else on the
+  machine. The one file touched went 30 → 66 collected, +36, and all 36 pass;
   skips unchanged, so no new skip. Main's own total was not re-run for the
   baseline, so the delta is closed by that collection count rather than by two
   full readings. The full selection did not run: this WP touches no code the
@@ -335,9 +368,10 @@ model's two states at once.
    the transcript's modification time would separate a session that is working
    from one that is merely open. That is `runs.liveness_of`'s pattern one rank
    out, and it is deliberately not built yet.
-4. The contributor half reads open PRs only. A contributor who has started but
-   not pushed is invisible to it, and no mechanism short of them saying so can
-   change that — a draft PR opened early is the convention that would, and it is
-   the contributor's to adopt, not the repo's to enforce.
+4. The claim PR is a convention, not a gate: nothing refuses work that skipped
+   it, and nothing can, since the repo cannot see a clone that never pushed.
+   What it buys is that *following* it makes you visible. If contributors do not
+   take it up, the honest next move is asking them rather than adding
+   enforcement that only binds the people already cooperating.
 
 - **2026-09-15** — created.

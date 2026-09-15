@@ -91,6 +91,30 @@ Run the session-start ritual. The SessionStart hook's report
    (`uv venv --python 3.12 && uv pip install --python .venv/bin/python -e ".[dev]"`) and say which extras
    were installed — every test count quoted later depends on that statement
    (`tests/CLAUDE.md`).
+4b. **Claim the WP where other people can see it** — a draft pull request, as
+   the first act in the new tree. The local claim of step 2 is on *this*
+   machine's disk and reaches nobody else; anyone working from another clone,
+   the maintainer included, learns what you are on only through GitHub.
+
+   Three commands, and they are the whole claim:
+
+   - Set the WP file's `Status:` line to `🔄 <today> — claimed by @<you>`, and
+     mirror the glyph and date in its ROADMAP index row. The cell carries the
+     glyph and the date and nothing else (`tests/test_docs_consistency.py`).
+   - Commit it alone, `WP-NNNN: claimed`. A commit touching only its own WP file
+     is *ritual*, so it owes no handover entry and trips no hook.
+   - `git push origin HEAD` and `gh pr create --draft --title "WP-NNNN: <the
+     WP's title>"`, body one line saying what you are starting.
+
+   **It is a draft of the real PR, never a second one.** `/wp-handover` step 11
+   edits this same PR and marks it ready, so claiming early costs nothing at the
+   end and the work is reviewable from the first commit. Skip it only for a
+   session that will not commit — say so in a line if you do.
+
+   **Everyone does this, not only contributors.** A maintainer working locally
+   is exactly as invisible to a contributor as the reverse, and a one-sided
+   claim leaves half the clash open.
+
 5. **Prune the WP's `### Inherited`** on arrival: fold still-true entries
    into Context or Tasks, delete stale ones, and say why in the handover
    entry.

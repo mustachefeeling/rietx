@@ -153,9 +153,12 @@ steps below run unchanged.
     follow-up request. Skip it — saying so in one line — when the branch is
     `main`, when `git log origin/main..HEAD` is empty, or when the branch is
     already merged (repair mode usually lands here).
-    - Check first with `gh pr view --json url,state`: an existing open PR for
-      this branch is **edited** (`gh pr edit --title --body`), never
-      duplicated.
+    - Check first with `gh pr view --json url,state,isDraft`: an existing open
+      PR for this branch is **edited** (`gh pr edit --title --body`), never
+      duplicated. `/wp-start` step 4b opens one as a **draft** to claim the WP,
+      so the usual case here is editing that draft and marking it ready
+      (`gh pr ready`) — a claim PR left in draft reads as work still in flight
+      and goes on holding the WP.
     - Title mirrors the lead commit: `WP-NNNN: <what landed>`.
     - Body is the handover entry **rewritten for a reviewer**, not pasted:
       what landed and why, what it measured (with the venv **and** platform,
