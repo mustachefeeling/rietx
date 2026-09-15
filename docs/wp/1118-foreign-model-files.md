@@ -6,8 +6,8 @@ instrument-parameter reader (PR #248), the model-format registry over them and
 the GSAS `.EXP` reader (#103), whose acceptance rewire showed the FAP suite
 refines 20 parameters where GSAS refined 28; `read_gsas_prm` now reads its
 fixed-format records by column and a Kα doublet with them (PR #332), and
-refuses an out-of-range value naming the file; the `.gpx` reader and every
-writer remain
+refuses an out-of-range value naming the file; the GSAS-II `.gpx` reader is in
+hand (claimed 2026-09-16 by @yue-here), and every writer remains
 Depends on: — (WP-1110 found it; WP-1102 owns the one seam that overlaps)
 
 ## Goal
