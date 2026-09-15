@@ -370,6 +370,32 @@ def test_a_series_records_one_run_and_not_one_per_pattern(
     assert [e.data["series_index"] for e in starts] == [0, 1, 2]
 
 
+def test_the_status_says_which_pattern_a_series_is_on(
+        tmp_path, monkeypatch, pattern, recording):
+    """Read off the stamp on ``stage_start``, never counted (WP-1423).
+
+    A run page for a sixty-pattern ramp otherwise says "stage biso" and
+    nothing else, with the pattern's name in the console tail only.
+    """
+    monkeypatch.chdir(tmp_path)
+    structure, ins = perturbed_models()
+    series = rx.SequentialRefinement(structure, ins, history=False)
+    series.fit([pattern, pattern, pattern], x=[300.0, 400.0, 500.0], x_label="T")
+
+    (run,) = runs.discover(tmp_path)
+    status = run.status
+    assert (status.series_index, status.series_n) == (2, 3)
+    assert status.series_pass == "forward"
+    starts = [e for e in read_events(run.path / runs.EVENTS_FILE)
+              if e.kind == "stage_start"]
+    assert status.series_label == starts[-1].data["series_label"]
+    # and a single fit claims nothing about a chain it is not in
+    rx.Refinement(*perturbed_models()).fit(pattern)
+    single = [r for r in runs.discover(tmp_path) if r.run_id != run.run_id]
+    assert len(single) == 1
+    assert single[0].status.series_index is None
+
+
 class _Wrapper(EventStream):
     """A stream wrapping another, the shape ``_SeriesStream`` has."""
 
