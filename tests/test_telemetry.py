@@ -613,7 +613,7 @@ def _fit_and_ask(tmp_path, pattern, *, cancel=None, at=4, body=None,
     except RefinementCancelled as exc:
         raised = exc
     (run,) = runs.discover(tmp_path)
-    status = json.loads((run.path / runs.STATUS_FILE).read_text())
+    status = json.loads((run.path / runs.STATUS_FILE).read_text(encoding="utf-8"))
     return raised, status, run, seen
 
 
