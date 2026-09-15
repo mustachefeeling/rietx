@@ -314,9 +314,12 @@ TeX passes every check a build can make.
   3.12.12, rietx 1.4.0. Fast selection 4793 passed, 132 skipped, 2:33, against
   WP-1403's 4788/132: **+5 passed, skips unchanged**, and the 5 are exactly the
   parametrised cases `watching.md` adds to `test_skill.py`, counted by collection
-  rather than by subtraction. Full selection on **current main merged into this
-  branch**: see the figure at the end of this entry. A live fit was run to verify
-  the chapters rather than to describe them: 204 kB over six files, reproducing
+  rather than by subtraction. Full selection **4961 passed, 141 skipped, 31:56**,
+  run alone, against WP-1403's 4956/141: the same +5, skips unchanged, so the
+  delta is the same five cases in both selections. `origin/main` was re-fetched
+  immediately before the run and had not moved, so the **merged tree is the
+  branch tree** and these are the merged tree's counts. A live fit was run to
+  verify the chapters rather than to describe them: 204 kB over six files, reproducing
   WP-1403's number exactly, and every reader call in the skill reference was run
   against 1.4.0 first (`discover`, `read_run`, `tail_events` at offset 30782 over
   87 events with 0 bad lines, `liveness_of` answering `done`). Prose measured on
