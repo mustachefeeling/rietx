@@ -426,17 +426,56 @@ and under `telemetry=False` left **nothing at all**, asserted as an empty
 that runs once per process cost 0.2 ms at 10 runs, 2.2 ms at 100 and 27.6 ms at
 1000 (197 MB).
 
-Counts. Fast selection **4782 passed, 132 skipped, 2:19**. The delta is
-measured rather than inferred: collection over that selection is 4912 with
-`tests/test_telemetry.py` and 4884 without it, so the branch adds **exactly 28**
+Counts. Fast selection **4788 passed, 132 skipped, 2:11**. The delta is
+measured rather than inferred: collection over that selection is 4918 with
+`tests/test_telemetry.py` and 4884 without it, so the branch adds **exactly 34**
 and changes no existing test's identity. No new skip, 132 both ways. The
-passed+skipped of 4914 against 4912 collected is the two module-level
+passed+skipped of 4920 against 4918 collected is the two module-level
 `importorskip` modules that fire on a `[dev]` venv (jax, torch), which is the
-gap `tests/CLAUDE.md` documents. The **full suite ran green at 4949 passed, 141
-skipped, 22:32**, on `21171de3`, one commit back. The commit after it splits one
-test function into two and touches no source at all, so by the ladder's own rule
-it cannot move a measured number and the full suite was not repeated for it.
-These are the bare branch's figures; the merged-tree ones are below.
+gap `tests/CLAUDE.md` documents.
+
+*Review pass.* `/code-review high --fix` found **ten**, and every one was
+accepted. Each was reproduced here before being believed: the agent's report is
+evidence, not a verdict. Two were serious, and both came from thinking about
+series and the GUI while forgetting everything else in the package that fits.
+
+A **series marked its run done at the first pattern**. One job is one directory,
+so sixty patterns emit sixty `fit_end` events into one recorder, and
+`liveness_of`'s first rule is that a terminal state wins — a live ramp read as
+finished after pattern one, and `close` could not correct it afterwards. And
+**internal trial fits each recorded a run**: one report build wrote four
+directories, because `predict_then_verify`, `compare_rivals`, the extinction
+screen and Le Bail validation all fit internally. Five call sites decline now,
+and the rule went into CLAUDE.md because it governs the next internal fit — a
+trial whose result the *package* discards is not a run, while a fit whose result
+a *caller* reads is, which is why `viz/compare.py` still records.
+
+Four more: `run_stage` closed the recorder in its inner `finally` before the
+result existed, so a stage that raised recorded itself `done`; `attach` mutated
+the caller's stream and never undid it, so a second fit on one stream recorded
+nothing and latched a false error into the first run's status; `_SeriesStream`
+looked for `write_snapshot` only on its inner stream, so every series with a
+caller's `events=` got no picture; and `discover` was hardened against a cap
+overflow. Three minor ones: the run label under a project, an unread argument,
+and a stale docstring.
+
+**One finding was declined in part.** The GUI's event-log path is restored for
+`index` and `extinction` alone, the two kinds nothing attaches a recorder to,
+because dropping it left a GUI indexing run with no on-disk trace at all. That
+puts a file back that this WP removed, deliberately and narrowly, and `live/`
+therefore holds both shapes: a legacy `events.jsonl` for those two, and
+`live/<run id>/` for the three that record.
+
+**The review changed code and added no tests**, so six guards landed after it,
+and `tests/CLAUDE.md`'s rule about making a guard fail on purpose earned its
+keep twice. The trial-fit guard went through `ref.report()`, which does not
+itself run a trial, so reverting the fix left it green. The cap guard was blind
+because **the finding behind it is not reachable**: with the check reverted,
+sweeping `max_runs` 1-11 over loose runs, a project whose `live/` is itself a
+run, and a state dir of the same shape overflows at no cap, since `discover`'s
+entry loop breaks immediately after every call. That check stays as a local
+invariant of `_collect_runs` and is asserted there. All six go red when their
+fix is reverted.
 
 *Gotchas.*
 
