@@ -425,6 +425,42 @@ def test_nonzero_reserved_prcf_term_is_refused(tmp_path):
         read_gsas_prm(p)
 
 
+@pytest.mark.parametrize("what, kwargs", [
+    # a .prm states GW signed and ProfileTCHZ.w is non-negative
+    ("negative GW", {"coeffs": (1.0, -0.5, -0.4, 0.0, 0.15, 0.0, 0.0011,
+                                0.0022) + (0.0,) * 11}),
+    # a GU wide enough to leave ProfileTCHZ.u's [-0.05, 1.0]
+    ("a GU past its range", {"coeffs": (2e4, -0.5, 0.2, 0.0, 0.15, 0.0, 0.0011,
+                                        0.0022) + (0.0,) * 11}),
+    # POLA on some other convention's 0-100 scale, where Source.polarization
+    # holds a fraction
+    ("a POLA past 1", {"icons": _icons(pola=99.0)}),
+    ("a negative LAM1", {"icons": _icons(lam1=-0.5)}),
+    ("a negative LAM2", {"icons": _icons(lam2=-1.5443, kratio=0.5)}),
+])
+def test_a_value_outside_the_schemas_range_is_refused_naming_the_file(
+        tmp_path, what, kwargs):
+    """``io/CLAUDE.md`` § Refusals: a reader raises naming the file, never its
+    parser's exception.
+
+    ``Base`` validates on assignment, so every one of these used to escape as
+    pydantic's report on a ``Parameter`` — no file name in it, and, worse, the
+    ``diagnostics`` list already carrying rows about a file the caller never
+    received, which is exactly what the emission site's comment promises
+    cannot happen.
+    """
+    p = tmp_path / "out_of_range.prm"
+    p.write_text(_prm(**kwargs), encoding="utf-8")
+    notes: list = []
+    with pytest.raises(ValueError, match=r"out_of_range\.prm") as caught:
+        read_gsas_prm(p, diagnostics=notes)
+    assert type(caught.value) is ValueError, (
+        f"{what}: a schema error is converted at the reader's boundary, not "
+        f"handed on")
+    assert notes == [], (
+        f"{what}: a file about to be refused leaves no half-list behind")
+
+
 def test_read_gsas_prm_is_exported_at_top_level():
     assert rx.read_gsas_prm is read_gsas_prm
 

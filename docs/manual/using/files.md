@@ -236,8 +236,8 @@ carried them:
 notes = []
 instrument = rx.read_gsas_prm("beamline.prm", diagnostics=notes)
 [(d.code, d.message) for d in notes]
-# GSAS_PRM_GEOMETRY_ASSUMED: the geometry was not read from the file
 # GSAS_PRM_FIELD_DROPPED:    ICONS's IPOLA and refine controls, PRCF's GP …
+# GSAS_PRM_GEOMETRY_ASSUMED: the geometry was not read from the file
 ```
 
 Pass no list and the read is silent and identical, so the channel is opt-in
