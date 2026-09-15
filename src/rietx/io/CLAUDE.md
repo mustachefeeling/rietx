@@ -320,7 +320,7 @@ A **project reader** reads someone else's refinement *input* — the solved mode
 and the protocol that produced it — not a pattern. One module per format,
 ordered in `PROJECT_FORMATS` (`registry.py`) and reached through
 `read_project_model`, which dispatches on content like `read_pattern` and for the
-same reason. Five rules the pattern readers do not need:
+same reason. Six rules the pattern readers do not need:
 
 - **The registry's unit is a *refinement*, and the other foreign-file readers
   sit outside it on purpose** (WP-1118). `read_gsas_prm` carries a machine and
@@ -328,6 +328,19 @@ same reason. Five rules the pattern readers do not need:
   to something ready to fit and is a build-wide feature; a pattern is the other
   registry's. A new reader answers this before it is written, because admitting
   one that carries no model would empty every field this registry declares.
+  **Staying outside it is about dispatch, never about parsing.** A record
+  belongs to the vendor, so one vendor's several file kinds read it through one
+  function: `projects/gsas.py` holds GSAS's grammar — `read_icons`,
+  `read_prcf_header`, `split_records`, `CW_PROFILE_COEFFICIENTS` — public, and
+  called by `instrument_profile.py`'s `.prm` reader a package away. Un-shared,
+  the two read `ICONS` two ways for a milestone and the corpus hid it: a
+  whitespace split is right only while `IREF`/`IDAMP` stay blank (WP-1118).
+- **A refusal's reason can expire, so audit the refusals when a parser gets
+  sharper** — not only what it reads. "No file establishes this" is the
+  perishable kind. The `.prm` reader refused every Kα doublet for want of a
+  stated intensity weight, and the want was an artefact of not knowing which
+  field `KRATIO` was; read by column it is `EmissionLine.weight` exactly
+  (WP-1118).
 - **The answer is the format's own model, tagged — never a union with blanks.**
   `read_project_model` returns a `ProjectModel` naming the format and handing on
   `TopasModel`/`FullProfModel` untouched, because a shared shape would need an

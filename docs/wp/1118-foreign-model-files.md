@@ -4,8 +4,9 @@ Milestone: unscheduled · Status: 🔄 2026-09-15 — the TOPAS `.inp` reader
 (PR #98), the FullProf `.pcr` reader (PR #111), the GSAS-I `.PRM`
 instrument-parameter reader (PR #248), the model-format registry over them and
 the GSAS `.EXP` reader (#103), whose acceptance rewire showed the FAP suite
-refines 20 parameters where GSAS refined 28; the `.gpx` reader and every writer
-remain
+refines 20 parameters where GSAS refined 28; `read_gsas_prm`'s fixed-format
+records are being read by column, claimed by @yue-here; the `.gpx` reader and
+every writer remain
 Depends on: — (WP-1110 found it; WP-1102 owns the one seam that overlaps)
 
 ## Goal
@@ -229,6 +230,36 @@ format token is spelled in `_about.py`, never inline (root CLAUDE.md § Conventi
       handover entry: the plan still frees no coordinate DOFs where GSAS freed
       twelve (measured, nearly free to close), and `read_gsas_prm` reads the
       same `ICONS` record by whitespace split rather than by column.
+      **The first is decided, 2026-09-15: the suite keeps its 20 and keeps the
+      assertion.** Freeing the twelve coordinate DOFs was measured cheap
+      (Rwp 0.096966 → 0.096677, 0.1 ppm on the cell, no wall clock), and the
+      maintainer's call is that a suite stating the difference is worth more
+      than one closing it: the two recorded acceptance numbers stay where they
+      are, and the parameter-count gap stays asserted rather than removed. The
+      second is the task line below.
+- [x] `read_gsas_prm` reads its fixed-format records **by column**, closing the
+      class the `.EXP` reader's first decision opened. A `.prm`'s `INS` records
+      are the `.EXP`'s `HST`/`INS` records under a different four-character
+      key, and this reader splits three of them on whitespace: `ICONS`,
+      the `PRCF1` header and its continuation lines. `ICONS` is where it bites
+      and the corpus hides it — `11bm_gsas.prm` leaves `IREF`/`IDAMP` blank, so
+      its six tokens happen to land on the right meanings, while
+      `INST_XRY.PRM` writes `IDAMP` and is **refused** for having seven.
+      One record read two ways by two readers in one package is the thing this
+      codebase most dislikes, so the record grammar gets one authority.
+      Whether the doublet `INST_XRY.PRM` also carries can then be read is the
+      second half: the `KRATIO` the old reader could not locate is field 8, and
+      that file states it.
+      — landed 2026-09-15. `projects/gsas.py` grew `read_icons`,
+      `read_prcf_header` and `split_records`, all public and all called by the
+      `.prm` reader; the coefficient names come from `CW_PROFILE_COEFFICIENTS`
+      rather than a second literal list. The four real calibration files read
+      **bit-identically** (measured against `origin/main`'s module over the
+      whole `model_dump`), `INST_XRY.PRM` is refused for its `GP` of 0.1
+      rather than for a token count, and a doublet is now read: the refusal's
+      stated reason had expired. `io/CLAUDE.md` takes the two rules, the cap
+      368 → 383.
+
 - [x] FullProf `.pcr` reader. — PR #111, merged 2026-09-03 (`b717cc98`)
 - [ ] GSAS-II `.gpx` reader behind a **restricted unpickler** (decided
       2026-09-03, issue #234): subclass `pickle.Unpickler`, override
