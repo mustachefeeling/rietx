@@ -397,7 +397,9 @@ def in_flight_wps(root: Path) -> list[str]:
     return flying
 
 
-def claim_lines(root: Path) -> list[str]:
+def claim_lines(
+    root: Path, sessions: Optional[list[Session]] = None, exclude: Optional[set[int]] = None
+) -> list[str]:
     """What other live sessions are working, so this one does not pick it too.
 
     Reported, never refused: the block belongs at ``EnterWorktree``, where the
@@ -405,17 +407,23 @@ def claim_lines(root: Path) -> list[str]:
     session (``worktree_create.py``).  Here it is a prompt, like every other
     line this scan prints (WP-1061).
 
+    Takes the process scan rather than repeating it.  ``live_sessions`` is an
+    ``lsof`` per ``claude`` process — 0.111 s of a 0.424 s scan on this desktop,
+    2026-09-15 — and ``render`` has already paid for it.
+
     Quiet in the ordinary case.  Only a WP a live session in *another* tree is
     working prints, so a machine running one session prints nothing, and the
-    four finished-but-kept trees this repo had on 2026-09-15 print nothing
-    either (``wp_claim.bears_on_a_clash``).
+    finished-but-kept trees this repo is full of print nothing either: four of
+    six on 2026-09-15 had no session in them, which is what
+    ``wp_claim.held_elsewhere`` drops.  No glyph is read here — every row that
+    survives it is *held*, and held outranks closed.
     """
+    sessions = live_sessions() if sessions is None else sessions
+    exclude = _ancestors() if exclude is None else exclude
     trees = wp_claim.worktree_branches(root)
     main = wp_claim.main_checkout(trees)
-    sessions, excl = live_sessions(), _ancestors()
-    holders = wp_claim.occupancy(trees, sessions, excl, wp_claim.read_claims(root), main)
-    glyphs = {h.wp: wp_file_state(root, h.wp)[1] for h in holders}
-    rows = wp_claim.bears_on_a_clash(wp_claim.held_elsewhere(holders, root), glyphs)
+    holders = wp_claim.occupancy(trees, sessions, exclude, wp_claim.read_claims(root), main)
+    rows = wp_claim.held_elsewhere(holders, root)
     lines = [f"⚠ {wp_claim.describe(h, main)} — {CLAIM_HINT}" for h in rows]
     lines += [
         f"⚠ WP-{wp} is live in more than one tree — the clash this scan exists to catch"
@@ -431,11 +439,12 @@ def render(root: Path) -> str:
         lines[0] += " · venv ok"
     else:
         lines.append(f"⚠ {vflag}")
-    for s in sessions_sharing(root, live_sessions(), worktree_roots(root), _ancestors()):
+    sessions, excl = live_sessions(), _ancestors()  # one process scan, two flags
+    for s in sessions_sharing(root, sessions, worktree_roots(root), excl):
         lines.append(
             f"⚠ another claude session is in this tree (pid {s.pid}, up {s.age}) — {SHARED_HINT}"
         )
-    lines.extend(claim_lines(root))
+    lines.extend(claim_lines(root, sessions, excl))
     for f in handover_findings(root):
         if f.basis == "order":
             entry = "WP file not touched since"

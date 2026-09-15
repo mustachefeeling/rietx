@@ -31,6 +31,14 @@ So the declaration only ever *sharpens* the derivation.  Skipping it degrades
 to the branch name rather than to nothing, which is why no step of ``/wp-start``
 is load-bearing for this to work.
 
+**A claim carries who made it, and only a session's outranks the branch.**  The
+claim ``worktree_create.py`` writes is the tree's own name read back, so ranking
+it with a session's would re-elevate the weakest source above the strongest and
+pin the measured tree above to 1404 for ever — the exact case this exists to get
+right.  The hook's claim still beats the tree *name*, which is what it is for: a
+detached HEAD, or a branch later renamed to something naming no WP.  ``by`` is
+therefore not bookkeeping, and a writer that omits it changes the ranking.
+
 **Where the files live.**  ``<git-common-dir>/wp-claims/``.  Git guarantees the
 common dir is shared by every worktree of a repository (measured: the main
 checkout, a worktree, and a worktree nested inside a worktree all resolve
@@ -197,9 +205,13 @@ def write_claim(root: Path, worktree: Path, wp: str, by: str = "session") -> Opt
         "declared": date.today().isoformat(),
         "by": by,
     }
-    tmp = path.with_suffix(".tmp")
+    # Per-writer temp name, so "two sessions may write at once" holds for the
+    # one case it names: a shared ``.tmp`` would let two writers interleave into
+    # one file and ``os.replace`` that.  Not globbed by ``read_claims``, which
+    # takes ``*.json`` only, so a crash between the two lines leaves no claim.
+    tmp = path.with_name(f"{path.name}.{os.getpid()}.tmp")
     tmp.write_text(json.dumps(payload, indent=1) + "\n", encoding="utf-8")
-    os.replace(tmp, path)  # atomic: two sessions may write at once
+    os.replace(tmp, path)
     return path
 
 
@@ -216,7 +228,8 @@ def worktree_branches(root: Path) -> dict[Path, Optional[str]]:
     """Every worktree of this repository, with the branch it has checked out.
 
     One ``git worktree list --porcelain`` call rather than a ``rev-parse`` per
-    tree: this runs before every session.
+    tree: this runs before every session.  Git's order is kept, main worktree
+    first, because ``main_checkout`` reads it.
     """
     out = _git(root, "worktree", "list", "--porcelain") or ""
     trees: dict[Path, Optional[str]] = {}
@@ -264,12 +277,19 @@ def occupancy(
     Pure: the git call, the process scan and the claim read all happen in the
     caller, so this is driven straight from fixtures.
 
-    The WP comes from the first source that names one — the tree's declared
-    claim, then its branch, then its own directory name.  Branch before tree
-    name because a branch is what the session is committing to, and the tree it
-    sits in may be one it resumed: measured 2026-09-15, a session in
-    ``wp1404-what-recording-every-fit-costs`` on branch ``wp1413-snapshot-cost``
-    was working 1413.
+    The WP comes from the first source that names one: a **session's** claim,
+    then the branch, then the create hook's claim, then the tree's own directory
+    name.  Branch before tree name because a branch is what the session is
+    committing to, and the tree it sits in may be one it resumed: measured
+    2026-09-15, a session in ``wp1404-what-recording-every-fit-costs`` on branch
+    ``wp1413-snapshot-cost`` was working 1413.
+
+    **Only a session's claim outranks the branch.**  The claim
+    ``worktree_create.py`` writes is the tree's own name read back, so ranking
+    it with the session's would re-elevate the weakest source above the
+    strongest and pin that measured tree to 1404 for ever — the exact case the
+    ledger exists to get right.  It still beats the tree name, which is what it
+    is for: a detached HEAD, or a branch renamed to something naming no WP.
 
     The main checkout is excluded whatever it is called.  It is read-only for a
     session (``worktree_only.py``), so it claims nothing, and on this repo it
@@ -281,14 +301,15 @@ def occupancy(
         if main is not None and tree == main.resolve():
             continue
         declared = claims.get(tree)
-        if declared is not None:
+        branch_wp = wp_from_name(branch) if branch else None
+        if declared is not None and (declared.by == "session" or branch_wp is None):
             wp, source = declared.wp, "claim"
-        elif branch and wp_from_name(branch):
-            wp, source = wp_from_name(branch), "branch"
+        elif branch_wp:
+            wp, source, declared = branch_wp, "branch", None
         elif wp_from_name(tree.name):
-            # Reached by a WP tree on a detached HEAD, and by one whose branch
-            # was renamed to something that names no WP.
-            wp, source = wp_from_name(tree.name), "tree"
+            # Reached by a WP tree on a detached HEAD whose claim is gone, and
+            # by one whose branch was renamed to something that names no WP.
+            wp, source, declared = wp_from_name(tree.name), "tree", None
         else:
             continue
         holders.append(
@@ -342,11 +363,17 @@ def where(holder: Holder, main: Optional[Path]) -> str:
 
 
 def describe(holder: Holder, main: Optional[Path]) -> str:
-    """One line naming who holds a WP, where, and for how long."""
-    who = ", ".join(f"pid {s.pid} up {s.age}" for s in holder.sessions) or "no session"
+    """One line naming who holds a WP, where, and for how long.
+
+    A dormant tree reads "dormant", never "held by no session": the two states
+    are the whole vocabulary and a line that says both at once is a lie an
+    absent writer cannot be caught in (WP-1076's class).
+    """
+    who = ", ".join(f"pid {s.pid} up {s.age}" for s in holder.sessions)
+    state = f"held by {who}" if who else "dormant"
     branch = f", branch {holder.branch}" if holder.branch else ""
     return (
-        f"WP-{holder.wp} held by {who} in {where(holder, main)}{branch} "
+        f"WP-{holder.wp} {state} in {where(holder, main)}{branch} "
         f"({holder.provenance})"
     )
 
@@ -370,8 +397,15 @@ def sibling(name: str):
 
 
 def main_checkout(trees: dict[Path, Optional[str]]) -> Optional[Path]:
-    """The shallowest registered tree.  Worktrees live *under* it here."""
-    return min(trees, key=lambda p: len(p.parts)) if trees else None
+    """The main worktree, which ``git worktree list`` always prints first.
+
+    Git's own ordering rather than the shallowest path: a worktree made outside
+    ``.claude/worktrees`` can sit *above* the checkout it belongs to
+    (``/tmp/wp1500-x`` against ``/Users/yue/Code/rietx``), and the shallowest
+    rule would then call that tree the main checkout — excluding the one tree
+    the scan was asked about.  ``worktree_branches`` keeps git's order.
+    """
+    return next(iter(trees), None)
 
 
 def glyphs_for(root: Path, holders: list[Holder]) -> dict[str, Optional[str]]:

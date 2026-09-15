@@ -875,6 +875,7 @@ def test_a_claim_says_who_declared_it_and_when(
     cases, and ``source`` alone says "claim" for both.
     """
     main, outer, inner = two_trees
+    _git(outer, "checkout", "-q", "--detach")  # no branch to outrank the hook's claim
     claim.write_claim(main, outer, "9199", by="worktree")
     claim.write_claim(main, inner, "9198", by="session")
     stored = claim.read_claims(main)
@@ -890,3 +891,61 @@ def test_a_claim_says_who_declared_it_and_when(
     assert claim.describe(by_path[outer.resolve()], main).endswith(
         f"(from the claim, by worktree {when})"
     )
+
+
+def test_the_create_hooks_claim_never_outranks_the_branch(
+    two_trees: tuple[Path, Path, Path]
+) -> None:
+    """The claim written from a tree's *name* is the weakest source, not the
+    strongest, so it cannot pin a resumed tree to the WP it was named for.
+
+    This is the measured case (2026-09-15: tree ``wp1404-*``, branch
+    ``wp1413-*``, working 1413) run forward through the hook that makes trees.
+    Ranked with a session's claim, the automatic one re-elevated the tree name
+    above the branch and answered 9101 for ever.
+    """
+    main, outer, _inner = two_trees
+    _git(outer, "checkout", "-q", "-b", "wp9199-resumed")
+    claim.write_claim(main, outer, "9101", by="worktree")  # what the create hook wrote
+    trees = claim.worktree_branches(main)
+    held = {
+        h.worktree: h
+        for h in claim.occupancy(trees, [], set(), claim.read_claims(main), main)
+    }[outer.resolve()]
+    assert (held.wp, held.source, held.provenance) == ("9199", "branch", "from the branch")
+
+    # A session saying so is the correction, and it still outranks the branch.
+    claim.write_claim(main, outer, "9101", by="session")
+    corrected = {
+        h.worktree: h
+        for h in claim.occupancy(trees, [], set(), claim.read_claims(main), main)
+    }[outer.resolve()]
+    assert (corrected.wp, corrected.source) == ("9101", "claim")
+
+
+def test_the_main_checkout_is_gits_first_tree_not_the_shallowest_path(
+    two_trees: tuple[Path, Path, Path], tmp_path: Path
+) -> None:
+    """A worktree outside ``.claude/worktrees`` can sit above the checkout.
+
+    Under the shallowest-path rule that tree was called the main checkout and
+    dropped from the scan, so the one tree a session had gone out of its way to
+    make was the one nobody could see.
+    """
+    main, _outer, _inner = two_trees
+    outside = tmp_path / "wp9103-outside"  # one path component; main has many
+    _git(main, "worktree", "add", "-q", "-b", "wp9103-outside", str(outside))
+    trees = claim.worktree_branches(main)
+    assert claim.main_checkout(trees) == main.resolve()
+    assert "9103" in {h.wp for h in claim.occupancy(trees, [], set(), {}, main)}
+
+
+def test_a_dormant_row_says_dormant_rather_than_held_by_no_session(
+    two_trees: tuple[Path, Path, Path]
+) -> None:
+    """Two states are the whole vocabulary, and one line may not claim both."""
+    main, outer, _inner = two_trees
+    trees = claim.worktree_branches(main)
+    (holder,) = [h for h in claim.occupancy(trees, [], set(), {}, main) if h.wp == "9101"]
+    line = claim.describe(holder, main)
+    assert line.startswith("WP-9101 dormant in") and "no session" not in line
