@@ -325,20 +325,21 @@ safe.
       `live/` collected — and both go through one `_collect_runs`, which asks
       *at* and *inside*, so a pre-1403 `live/` that **is** a run stays visible
       beside the `live/<run id>/` a recorder writes.
-- [ ] `runs.attach`: the three composition cases, the attach-once stamp, and the
+- [x] `runs.attach`: the three composition cases, the attach-once stamp, and the
       new `try/finally` beside — never inside — the existing `stream is not
       events` rule.
-- [ ] The `telemetry=` keyword on `fit`, `run_stage`, `refine` and
+- [x] The `telemetry=` keyword on `fit`, `run_stage`, `refine` and
       `refine_sequential`; `Project.fit` / `Project.run_stage` setdefaults; the
       derived project fallback.
-- [ ] The GUI passes a callback-only stream so the eval log is written once.
+- [x] The GUI passes a callback-only stream so the eval log is written once.
       Record the `PROJECT_FORMAT_VERSION` decision in the handover either way.
-- [ ] The `summary.txt` call site in `fit`, after the result is built.
+- [x] The `summary.txt` call site in `fit`, after the result is built.
       `str(result)`, never `ref.summary()`.
 - [ ] Retention by age and byte ceiling, warn-and-keep when nothing is old
       enough, the three `rmtree` guards, legacy directories exempt. Its own
       commit: this is the only code in the track that can destroy data.
-- [ ] `tests/conftest.py`: the env `setdefault` beside the `MPLBACKEND` line,
+- [x] `tests/conftest.py`: the env `setdefault` beside the `MPLBACKEND` line (the
+      meta-test lands with `test_telemetry.py`),
       **and** a meta-test that a plain `fit()` under the suite's environment
       creates no directory anywhere. Without the second half the suite grows
       hundreds of run directories the first time someone changes the default.

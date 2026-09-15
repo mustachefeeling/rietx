@@ -1093,10 +1093,30 @@ class RunRecorder(EventStream):
 
 
 #: Marks a stream as already carrying a recorder. One job is one run directory,
-#: and a 60-pattern series runs 60 fits through one ``_SeriesStream``: attaching
-#: per fit would make 60 directories for one job, so the series runner attaches
-#: at its own level and every fit below it finds this stamp and declines.
+#: and a 60-pattern series runs 60 fits for one job, so the series runner
+#: attaches at its own level and every fit below it finds this stamp and
+#: declines.
 _STAMP = "_rietx_run_recorder"
+
+
+def _already_recorded(stream) -> bool:
+    """Is a recorder already attached anywhere in ``stream``'s chain?
+
+    **The stamp has to be looked for through wrappers, not only on the object
+    handed in.** ``sequential`` builds a *fresh* ``_SeriesStream`` per pattern
+    around the one stream the series owns, so a check on identity alone would
+    see an unstamped object sixty times and make sixty run directories for one
+    job. The walk follows ``_inner``, which is the wrapping convention in this
+    package, and carries a seen-set because a cycle here would hang a fit —
+    which is the one thing telemetry must never do.
+    """
+    seen: set[int] = set()
+    while stream is not None and id(stream) not in seen:
+        if getattr(stream, _STAMP, None) is not None:
+            return True
+        seen.add(id(stream))
+        stream = getattr(stream, "_inner", None)
+    return False
 
 
 def attach(stream, events, *, telemetry=None, project_hint=None,
@@ -1138,7 +1158,7 @@ def attach(stream, events, *, telemetry=None, project_hint=None,
     """
     if not enabled() or telemetry is False:
         return None
-    if stream is not None and getattr(stream, _STAMP, None) is not None:
+    if _already_recorded(stream):
         return None
     root = (Path(telemetry) if telemetry is not None
             else Path(project_hint) if project_hint is not None

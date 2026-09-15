@@ -1640,7 +1640,12 @@ class GuiSession:
                     data, x=setup.x, x_label=setup.axis_label,
                     labels=setup.labels, mode=p.doc.mode, plan=plan,
                     refit=setup.refit, direction=setup.direction,
-                    two_theta_limits=limits, events=stream, cancel=token)
+                    two_theta_limits=limits, events=stream, cancel=token,
+                    # named, because a SequentialRefinement has no project to
+                    # derive one from: its trees are in memory and belong to
+                    # patterns this project does not own, so the fallback would
+                    # put a GUI series' run under the working directory
+                    telemetry=p.live_dir)
                 with self._cond:
                     self._series_run = {"runner": runner, "result": result,
                                         "backward": runner.backward_,
@@ -1669,8 +1674,15 @@ class GuiSession:
         with self._cond:
             self._require_idle()
             token = CancelToken()
-            stream = EventStream(path=p.live_dir / "events.jsonl",
-                                 callback=self._push)
+            # Callback only, since WP-1403.  This used to carry
+            # ``path=live_dir/"events.jsonl"`` as well, and a recorder chained
+            # onto it would then write the whole eval stream **twice** —
+            # precisely the weight that WP exists to control.  The file was
+            # only ever here for ``rietx watch``, which the recorder now serves
+            # better: ``Project.fit`` defaults ``telemetry`` to this project's
+            # ``live/``, so the log still lands there, in a run directory of its
+            # own rather than in one log a second writer could interleave.
+            stream = EventStream(callback=self._push)
             self._state = "running"
             self._cancel = token
             self._events.clear()

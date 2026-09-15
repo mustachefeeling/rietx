@@ -106,6 +106,7 @@ from typing import Any
 
 import numpy as np
 
+from . import runs
 from .backend.api import backend_dtype_note
 from .history.events import EventStream, _attach_progress, as_event_stream
 from .history.tree import RefinementTree
@@ -262,6 +263,14 @@ class _SeriesStream(EventStream):
         super().__init__()          # no path, no callback: the inner one has both
         self._inner = inner
         self._stamp = stamp
+        # Forwarded by *assignment* rather than by a method, so that
+        # ``refine._snapshot_sinks``'s ``hasattr`` test keeps telling the truth:
+        # a plain ``EventStream`` inner takes no snapshot, and a wrapper that
+        # advertised one anyway would hand it a call it cannot answer.  One
+        # snapshot file per series, rewritten as the chain walks, which is what
+        # makes ``rietx watch`` show the pattern being fitted right now.
+        if hasattr(inner, "write_snapshot"):
+            self.write_snapshot = inner.write_snapshot
 
     def emit(self, kind: str, **data: Any) -> None:
         # the stamp first, so a future event field named ``series_*`` would
@@ -583,7 +592,7 @@ class SequentialRefinement:
             prepare: Callable[[int, PatternData, Structure, Instrument],
                               None] | None = None,
             on_result: Callable[[int, RefinementResult], None] | None = None,
-            events=None, cancel=None, progress=None,
+            events=None, cancel=None, progress=None, telemetry=None,
             ) -> SeriesResult:
         """Run the series.
 
@@ -717,6 +726,39 @@ class SequentialRefinement:
         if direction == "backward":
             order.reverse()
         stream = _attach_progress(as_event_stream(events), progress)
+        # **At this level, once.**  A 60-pattern series runs 60 fits, and each
+        # gets a fresh ``_SeriesStream`` wrapper — so a recorder attached per
+        # fit would make 60 run directories for one job.  ``runs.attach`` looks
+        # for its stamp through the ``_inner`` chain, which is what makes every
+        # fit below this one decline.
+        recorder = runs.attach(stream, events, telemetry=telemetry)
+        if recorder is not None and stream is None:
+            stream = recorder
+        try:
+            return self._run(
+                patterns, names, xs, order, mode, base_plan, ladder,
+                two_theta_limits, reseed, reseed_factor, prepare, on_result,
+                stream, cancel, direction, x_label, first_rung_factor,
+                verify_discontinuities, recorder)
+        except BaseException:
+            if recorder is not None:
+                recorder.close("failed")
+            raise
+        finally:
+            if recorder is not None:
+                recorder.close()
+
+    def _run(self, patterns, names, xs, order, mode, base_plan, ladder,
+             two_theta_limits, reseed, reseed_factor, prepare, on_result,
+             stream, cancel, direction, x_label, first_rung_factor,
+             verify_discontinuities, recorder):
+        """The chain, split out of :meth:`fit` so the recorder has one exit.
+
+        Exactly :meth:`fit`'s body from the first ``_chain`` call onwards, moved
+        rather than changed: the recorder's lifetime is a ``try/finally`` beside
+        the run, and wrapping the body in place would have re-indented all of it
+        for nothing.
+        """
         entries, results, trees, models = self._chain(
             order, patterns, names, xs, mode, base_plan, ladder,
             two_theta_limits, reseed, reseed_factor, prepare, on_result,
@@ -776,6 +818,11 @@ class SequentialRefinement:
         self._structures = [s for s, _ in models]
         self._instruments = [i for _, i in models]
         self.result_ = series
+        if recorder is not None:
+            # a series has no single ``RefinementResult``; its termination view
+            # is the ``SeriesResult``, and ``str`` of it is the same projection
+            # rule ``fit`` follows — never ``summary()``, which builds reports
+            recorder.write_summary(series)
         return series
 
     # ------------------------------------------------------------------

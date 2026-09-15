@@ -179,11 +179,22 @@ def blank(state_dir):
 
 @pytest.fixture(scope="module")
 def fitted(tmp_path_factory, pattern_file, state_dir):
-    """One real refinement driven end-to-end over HTTP, shared by the readers."""
+    """One real refinement driven end-to-end over HTTP, shared by the readers.
+
+    Recording is switched **on** for this fixture. The suite declines it
+    globally (``conftest``), and a GUI session with it off is not the thing the
+    two reader tests below are about: since WP-1403 the project's event log is
+    written by the recorder ``Project.fit`` defaults into ``live/``, and with
+    recording off a GUI run writes no log at all. Restored afterwards, so no
+    other module inherits it.
+    """
+    from rietx import runs
+
     project = _project(tmp_path_factory.mktemp("gui-fit") / "sample.rex", pattern_file)
     session = GuiSession(project, state_dir=state_dir)
     httpd = _start(session)
     client = Client(httpd.server_address[1])
+    was = runs.set_enabled(True)
 
     status, run = client.post("/api/run", {"kind": "fit"})
     assert status == 200, run
@@ -197,6 +208,7 @@ def fitted(tmp_path_factory, pattern_file, state_dir):
     try:
         yield session, client, project
     finally:
+        runs.set_enabled(was)
         session.close()
         httpd.shutdown()
         httpd.server_close()
@@ -2360,10 +2372,24 @@ def test_emptying_the_structure_leaves_a_pattern_only_project(blank, tmp_path,
 # running
 # ----------------------------------------------------------------------
 def test_a_real_run_streams_its_events_to_disk_and_to_followers(fitted):
-    """The GUI and ``rietx watch`` are two views of one stream."""
+    """The GUI and ``rietx watch`` are two views of one stream.
+
+    Since WP-1403 the disk half is the *recorder's*, not a second file handle on
+    ``GuiSession``'s own stream. The session passes a callback-only
+    ``EventStream`` and ``Project.fit`` defaults ``telemetry`` to ``live/``, so
+    the log is written **once** — chaining a recorder onto a stream that also
+    held a path is exactly the double write this WP exists to avoid.
+    """
+    from rietx import runs
+
     session, client, project = fitted
-    log = project.live_dir / "events.jsonl"
+    assert not (project.live_dir / "events.jsonl").is_file(), (
+        "the GUI's own stream must hold no path of its own any more")
+    (run,) = runs.discover(project.live_dir)
+    log = run.path / runs.EVENTS_FILE
     assert log.is_file()
+    logs = sorted(project.live_dir.rglob("events.jsonl"))
+    assert logs == [log], f"the eval stream was written more than once: {logs}"
     kinds = [record.kind for record in read_events(log)]
     assert kinds[0] == "fit_start" and kinds[-1] == "fit_end"
     assert "stage_start" in kinds and "eval" in kinds
@@ -2383,11 +2409,16 @@ def test_a_real_run_streams_its_events_to_disk_and_to_followers(fitted):
 
 
 def test_the_watcher_finds_a_gui_project_run_and_tails_it(fitted):
-    """WP-1401: the reader is built against a live format, not an invented one.
+    """WP-1401's reader, now reading WP-1403's writer.
 
-    A GUI project's log is a different writer from ``LiveSession`` — it appends
-    rather than truncating, and it writes no ``status.json`` and no
-    ``fit.html``. That combination is what a run row has to survive.
+    Until 1403 a GUI project's log was its own writer — appending rather than
+    truncating, with no ``meta.json`` and no ``status.json`` — and the run row
+    had to survive that. It is the recorder's now, so the same walk finds a run
+    that says what it is: one level deeper, under ``live/<run id>/``, carrying
+    every sidecar and a terminal state. The *shape* the older test pinned is
+    still reachable and still resolves as legacy; ``test_runs.py`` is where it
+    is asserted, because that is where a directory can be built without running
+    a fit to get one.
     """
     from rietx import runs
 
@@ -2395,12 +2426,18 @@ def test_the_watcher_finds_a_gui_project_run_and_tails_it(fitted):
     root = project.path.parent
 
     (found,) = runs.discover(root)
-    assert found.path == project.live_dir
-    assert found.label == project.path.name       # "sample.rex", never "live"
-    assert found.legacy is True                   # nothing writes meta.json yet
-    assert found.status is None                   # nor status.json, this way
-    assert found.has_snapshot is False            # nor fit.html
-    assert runs.liveness_of(found).state == "unknown"
+    assert found.path.parent == project.live_dir  # live/<run id>/, one deeper
+    assert found.legacy is False                  # meta.json, written by the run
+    assert found.meta is not None
+    assert found.meta.record == runs.RECORD_TAG
+    assert found.status is not None
+    assert found.status.state == "done"
+    assert found.status.rwp == pytest.approx(
+        project.refinement.result_.statistics.rwp)
+    assert found.has_snapshot is True             # snapshot.json, per stage
+    assert found.has_legacy_snapshot is False     # and never a fit.html
+    assert (found.path / runs.SUMMARY_FILE).is_file()
+    assert runs.liveness_of(found).state == "done"
 
     tail = runs.tail_events(found.path / runs.EVENTS_FILE)
     kinds = [e["kind"] for e in tail.events]
@@ -3032,11 +3069,14 @@ def series(tmp_path_factory, series_files, state_dir):
     The project's own pattern is the ramp's first, so the series' protocol and
     the project's are demonstrably the same one.
     """
+    from rietx import runs
+
     project = _project(tmp_path_factory.mktemp("gui-series-proj") / "ramp.rex",
                        series_files[0])
     session = GuiSession(project, state_dir=state_dir)
     httpd = _start(session)
     client = Client(httpd.server_address[1])
+    was = runs.set_enabled(True)
 
     tokens = []
     for path in series_files:
@@ -3059,6 +3099,7 @@ def series(tmp_path_factory, series_files, state_dir):
     try:
         yield session, client, tokens
     finally:
+        runs.set_enabled(was)
         session.close()
         httpd.shutdown()
         httpd.server_close()
@@ -3282,8 +3323,14 @@ def test_the_series_events_say_which_pattern_they_came_from(series):
                                             "stage_end", "fit_end"}
     # …so the schema version did not move for any of it
     assert {e["v"] for e in events} == {EVENT_SCHEMA_VERSION}
-    # and the same stream landed in the log `rietx watch` tails
-    logged = read_events(session.project.live_dir / "events.jsonl")
+    # and the same stream landed in the log `rietx watch` tails -- in **one**
+    # run directory for all six fits, which is what the attach-once stamp is
+    # for: a recorder attached per pattern would have made six of them, and a
+    # 60-pattern ramp sixty
+    from rietx import runs
+
+    (run,) = runs.discover(session.project.live_dir)
+    logged = read_events(run.path / runs.EVENTS_FILE)
     assert sum(1 for e in logged if e.kind == "fit_start"
                and "series_index" in e.data) == 6
 
