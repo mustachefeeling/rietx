@@ -107,6 +107,24 @@ recorded, not worked around. In order of preference:
 
 ### Inherited
 
+From **WP-1402** (2026-09-15), which measured the thing this WP was to weigh:
+
+- **`decimation_index` costs 6.6-7.1 ms a stage** and is 50-75 % of a snapshot's
+  build. The same number on all three cases (`nac` 22003 pts, `cpd-2` 7251,
+  `trigger` 4165), because it is 2000 buckets of python whatever the pattern
+  length. Start from this rather than re-deriving it: `[dev]` venv, macOS arm64,
+  best of five per part.
+- The rest of a build, same conditions: `json.dumps` 2.4-4.5 ms,
+  `model.evaluate` 0.3-5.7, everything else under 1 ms. Total 9.3-14.2 ms.
+- **A faster decimation must return a bit-identical index set.** Three consumers
+  read it — the comparison UI, the GUI's window route, and now the snapshot and
+  `viz/html.py` — and a plot that disagreed with the comparison UI about which
+  points it drew would be a picture of a different fit.
+- **One easy win is already taken**, so do not count it twice: `_json_list` used
+  to branch per element for non-finite values and cost 5-9 ms of an 18 ms build.
+  It now takes `tolist()` when every point is finite, which every stage of every
+  bench case produces.
+
 From **WP-1401** (2026-09-14), which owed this WP its baseline half:
 
 - **Three of the five configurations are measured.** `off`, `events=<path>` and

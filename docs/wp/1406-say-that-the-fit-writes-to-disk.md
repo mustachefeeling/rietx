@@ -109,6 +109,27 @@ drift.
 
 ### Inherited
 
+From **WP-1402** (2026-09-15), whose break this WP carries:
+
+- **`LiveSession` no longer writes `fit.html`.** It writes `snapshot.json`, and
+  the break is staged in `docs/milestones/v1.4.md` § Breaks as it landed. What
+  does *not* break: a `fit.html` already on disk still opens, `rietx watch`
+  serves it at `/api/run/<id>/legacy` and by its bare name, and `rietx html` /
+  `viz.html.write_html` are untouched — the emailable page is still a
+  capability, what stopped is producing it unasked.
+- **New names a chapter has to cover**: `runs.SNAPSHOT_FILE` is now
+  `snapshot.json`, `runs.LEGACY_SNAPSHOT_FILE` is `fit.html`,
+  `Run.has_legacy_snapshot` sits beside `has_snapshot`, and `watch.py` serves
+  `/plotly.js`, `/api/run/<id>/snapshot` (JSON now, not a page) and
+  `/api/run/<id>/legacy`.
+- **One sentence in `using/cli.md` was corrected in place** rather than left
+  false: the plot "redraws in place … keeping whatever you have zoomed into",
+  where it used to say it reloads. Nothing else in the manual was touched, so
+  the fuller account is still entirely this WP's.
+- **What a reader can now do that they could not**: zoom into a region and watch
+  that region improve across stages. Measured in chromium — the axis range is
+  identical before and after a forced redraw.
+
 From **WP-1401** (2026-09-14):
 
 - **`using/cli.md` § `rietx watch` was rewritten already, and it is the floor

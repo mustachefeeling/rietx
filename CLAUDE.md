@@ -500,6 +500,16 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   `schemas/migrate.py`, `READ_POINTS`). A stored **value** under a vanished name fails loudly; a
   stored **glob** loads clean and frees nothing — that asymmetry is why the repair is textual and
   anchored on the bare name (`.rxt` strips the block prefix, so `instrument.` is not in the row).
+- **A live view is numbers a viewer draws, never a page the fit builds** (WP-1402).
+  `viz/snapshot.py` writes `snapshot.json` per stage and imports no plotting library, so a
+  base install can record one; `viz/live.py` is a shim over it and `rietx watch` loads
+  plotly once and redraws in place, which is what keeps the reader's zoom across a stage.
+  The page it replaced was serialised on the fit's own thread at 4.51-6.03 MB a stage.
+  `rietx html` still writes one on demand — what stopped is producing it unasked.
+- **A page that is javascript quoted inside python is syntax-checked with `node --check`**
+  (`tests/test_watch_app.py`, over `watch.py` and `compare_app.py`). A broken page is
+  invisible to a python test, which asserts substrings of a script nobody executed: one
+  stray escape cost the whole run list while every test stayed green (WP-1402).
 - **Two things are written once and consumed everywhere; never restate either.** (1) The residual
   **row layout** `[data | background-penalty | Pawley-restraint | soft-restraint]` lives in
   `model/rows.py` (`BLOCK_ORDER`, `layout()`, `assemble()`) — the numpy residual, the numpy

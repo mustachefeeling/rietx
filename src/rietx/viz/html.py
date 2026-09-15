@@ -24,19 +24,20 @@ from ..schemas.results import RefinementResult
 
 def _minmax_decimate(tt: np.ndarray, ys: list[np.ndarray], max_points: int
                      ) -> tuple[np.ndarray, list[np.ndarray]]:
-    """Keep per-bucket min AND max of every curve (preserves peak envelopes)."""
-    n = len(tt)
-    if n <= max_points:
+    """Keep per-bucket min AND max of every curve (preserves peak envelopes).
+
+    The buckets are :func:`~rietx.viz.compare.decimation_index`'s, not a
+    second set: which points survive is one question, and this module used to
+    answer it a second time, differing from that one only in not forcing the
+    end points. Four consumers now, and a plot that disagreed with the
+    comparison UI about which points it drew would be a picture of a
+    different fit.
+    """
+    from .compare import decimation_index
+
+    if len(tt) <= max_points:
         return tt, ys
-    n_buckets = max(max_points // 2, 1)
-    edges = np.linspace(0, n, n_buckets + 1, dtype=int)
-    keep: set[int] = set()
-    for y in ys:
-        for a, b in zip(edges[:-1], edges[1:]):
-            if b > a:
-                keep.add(a + int(np.argmin(y[a:b])))
-                keep.add(a + int(np.argmax(y[a:b])))
-    idx = np.array(sorted(keep))
+    idx = decimation_index(tt, ys, max_points)
     return tt[idx], [y[idx] for y in ys]
 
 

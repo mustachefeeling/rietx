@@ -12,7 +12,8 @@ __all__ = ["LiveSession", "plot_candidates", "plot_for_vlm", "plot_indexing",
 
 
 def __getattr__(name: str):
-    # write_html/LiveSession import plotly lazily — keep base import light
+    # write_html imports plotly lazily and LiveSession imports none at all
+    # (WP-1402) — keep the base import light either way
     if name == "write_html":
         from .html import write_html
 

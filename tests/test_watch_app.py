@@ -6,8 +6,12 @@ What they send it *about* is :mod:`rietx.runs`, tested next door.
 
 from __future__ import annotations
 
+import importlib
 import json
 import os
+import shutil
+import subprocess
+import tempfile
 import urllib.error
 import urllib.request
 from contextlib import contextmanager
@@ -15,7 +19,7 @@ from pathlib import Path
 
 import pytest
 
-from rietx import runs
+from rietx import runs, watch
 from rietx.watch import main, serve
 
 
@@ -42,15 +46,32 @@ def _event_line(kind: str, t: float = 1.0, **data) -> str:
                        "data": data}) + "\n"
 
 
+#: The shape ``viz/snapshot.py`` writes, small enough to read. The route
+#: serves bytes and parses nothing, so the fields only have to be the ones a
+#: page asks for.
+SNAPSHOT = {"schema": 1, "stage": "cell", "weighted": True, "n_points": 9,
+            "n_drawn": 4, "two_theta": [10.0, 11.0, 12.0, 13.0],
+            "y_obs": [1.0, 9.0, 2.0, 1.0], "y_calc": [1.0, 8.5, 2.0, 1.0],
+            "y_bkg": [1.0, 1.0, 1.0, 1.0],
+            "delta": [0.0, 0.5, 0.0, 0.0],
+            "ticks": {"phase 0": {"two_theta": [11.0], "n_total": 1}},
+            "statistics": {"rwp": 0.1, "gof": 1.1, "chi2": 1.2, "rp": 0.08,
+                           "n_free": 3}}
+
+
 def _make_run(directory: Path, *, events: str = "", status: dict | None = None,
-              snapshot: bool = False) -> Path:
+              snapshot: bool = False, legacy: bool = False) -> Path:
     directory.mkdir(parents=True, exist_ok=True)
     (directory / runs.EVENTS_FILE).write_text(events, encoding="utf-8")
     if status is not None:
         (directory / runs.STATUS_FILE).write_text(json.dumps(status),
                                                   encoding="utf-8")
     if snapshot:
-        (directory / runs.SNAPSHOT_FILE).write_text(
+        (directory / runs.SNAPSHOT_FILE).write_text(json.dumps(SNAPSHOT),
+                                                    encoding="utf-8")
+    if legacy:
+        # what a run recorded before WP-1402 left behind
+        (directory / runs.LEGACY_SNAPSHOT_FILE).write_text(
             "<html>plotly goes here</html>", encoding="utf-8")
     return directory
 
@@ -236,19 +257,44 @@ def test_a_bad_line_is_counted_over_the_wire(tmp_path):
 # ----------------------------------------------------------------------
 # /api/run/<id>/snapshot
 # ----------------------------------------------------------------------
-def test_the_snapshot_is_served_for_the_iframe(tmp_path):
+def test_the_snapshot_is_served_as_the_numbers(tmp_path):
+    """JSON, not a page: the viewer draws it (WP-1402)."""
     _make_run(tmp_path / "r", events=_event_line("fit_start"), snapshot=True)
     with _served(tmp_path) as base:
         (row,) = _json(base + "/api/runs")["runs"]
         assert row["has_snapshot"] is True
-        body = _get(f"{base}/api/run/{row['run_id']}/snapshot")
+        assert row["has_legacy_snapshot"] is False
+        body = _json(f"{base}/api/run/{row['run_id']}/snapshot")
+    assert body["two_theta"] == SNAPSHOT["two_theta"]
+    assert body["ticks"]["phase 0"]["n_total"] == 1
+
+
+def test_a_legacy_page_is_still_served(tmp_path):
+    """A ``fit.html`` already on disk still opens. Without this the
+    back-compat claim in WP-1402 is untested prose."""
+    _make_run(tmp_path / "r", events=_event_line("fit_start"), legacy=True)
+    with _served(tmp_path) as base:
+        (row,) = _json(base + "/api/runs")["runs"]
+        assert row["has_snapshot"] is False
+        assert row["has_legacy_snapshot"] is True
+        assert row["snapshot_mtime"] is not None      # dated off the page
+        body = _get(f"{base}/api/run/{row['run_id']}/legacy")
     assert b"plotly goes here" in body
 
 
-def test_the_row_dates_the_snapshot_so_the_plot_can_be_reloaded(tmp_path):
-    """A running fit rewrites fit.html per stage. Without a date on the row the
-    page has nothing to notice, and the iframe shows the picture it opened
-    with for the rest of the run."""
+def test_the_page_loads_plotly_from_the_installed_package(tmp_path):
+    """Air-gapped, and out of one shared route (``viz/plotlyjs.py``)."""
+    with _served(tmp_path) as base:
+        page = _get(base + "/").decode()
+        body = _get(base + "/plotly.js")
+    assert "plotly.js" in page and "react" in page
+    assert len(body) > 100_000 or b"plotly is not installed" in body
+
+
+def test_the_row_dates_the_snapshot_so_the_plot_can_be_redrawn(tmp_path):
+    """A running fit rewrites its snapshot per stage. Without a date on the row
+    the page has nothing to notice, and it shows the picture it opened with for
+    the rest of the run."""
     directory = _make_run(tmp_path / "r", events=_event_line("fit_start"),
                           snapshot=True)
     with _served(tmp_path) as base:
@@ -256,7 +302,8 @@ def test_the_row_dates_the_snapshot_so_the_plot_can_be_reloaded(tmp_path):
         was = row["snapshot_mtime"]
         assert was is not None
         snapshot = directory / runs.SNAPSHOT_FILE
-        snapshot.write_text("<html>stage two</html>", encoding="utf-8")
+        snapshot.write_text(json.dumps({**SNAPSHOT, "stage": "profile"}),
+                            encoding="utf-8")
         os.utime(snapshot, (was + 60, was + 60))
         detail = _json(f"{base}/api/run/{row['run_id']}")
     assert detail["snapshot_mtime"] == was + 60
@@ -313,9 +360,58 @@ def test_serve_refuses_a_path_that_is_not_a_directory(tmp_path):
 
 def test_the_bare_static_names_still_resolve(tmp_path):
     """Anything already linking at fit.html or events.jsonl keeps working."""
-    _make_run(tmp_path, events=_event_line("fit_start"), snapshot=True,
+    _make_run(tmp_path, events=_event_line("fit_start"), legacy=True,
               status={"stage": "cell", "rwp": 0.1})
     with _served(tmp_path) as base:
         assert b"plotly goes here" in _get(base + "/fit.html")
         assert b'"fit_start"' in _get(base + "/events.jsonl")
         assert json.loads(_get(base + "/status.json"))["stage"] == "cell"
+
+# ----------------------------------------------------------------------
+# the page's own script
+# ----------------------------------------------------------------------
+def _page_script(page: str) -> str:
+    start = page.index("<script>") + len("<script>")
+    return page[start:page.index("</script>", start)]
+
+
+@pytest.mark.parametrize("module", ["rietx.watch", "rietx.compare_app"])
+def test_the_embedded_page_parses_as_javascript(module):
+    """Two pages are javascript quoted inside python, and python cannot see a
+    syntax error in one.
+
+    A stray escape in ``watch.py`` cost the whole page while WP-1402 was being
+    written: the script threw on load, the run list sat at "scanning" forever,
+    and every test in this file still passed, because they all assert
+    substrings of a page nobody executed. ``node --check`` is the smallest
+    thing that catches it, and node is already a dev requirement
+    (``npm --prefix gui test``).
+
+    Both pages, because the defect is the *shape* and ``compare_app`` has the
+    same shape.
+    """
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("node is not installed; the gui suite needs it too")
+
+    page = importlib.import_module(module)._PAGE
+    with tempfile.NamedTemporaryFile("w", suffix=".js", encoding="utf-8",
+                                     delete=False) as fh:
+        fh.write(_page_script(page))
+        path = fh.name
+    try:
+        done = subprocess.run([node, "--check", path],
+                              capture_output=True, text=True, check=False)
+    finally:
+        os.unlink(path)
+    assert done.returncode == 0, done.stderr
+
+
+def test_no_page_token_is_left_unsubstituted():
+    """Each token is filled at import from its one authority.
+
+    One left behind is a literal in the page, which reads as working right up
+    until somebody looks at it.
+    """
+    for token in ("@SUFFIX@", "@DIST@", "@HUE@"):
+        assert token not in watch._PAGE

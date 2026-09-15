@@ -628,6 +628,20 @@ class CompiledModel:
     # P-spline smoothness penalty: extra residual rows √λ·D₂·c, already scaled
     # (columns aligned with bkg_paths); None for penalty-free backgrounds
     bkg_penalty: np.ndarray | None
+    #: Whether :attr:`sigma` came from the file's own esd column, or from the
+    #: Poisson fallback ``√max(y,1)``.  The fact travels with the σ it
+    #: describes, because by the time anything downstream holds a
+    #: ``CompiledModel`` the two are the same array of floats and the branch
+    #: cannot be taken again: ``sig()`` already took it.  ``data.sigma is not
+    #: None`` is the test at this rank, the ``PatternData``-level peer of
+    #: ``DataRef.has_sigma`` (``background/diagnostics.py``).
+    #:
+    #: It changes no number here.  What it changes is what a renderer may
+    #: *call* Δ/σ, which is what the fit minimised either way (WP-1029).
+    #: ``None`` is no claim made rather than a claim of no σ — a defaulted
+    #: ``False`` would answer a question nothing asked (WP-1076) — and
+    #: :func:`compile_model` always states it.
+    sigma_measured: bool | None
     # Explicit additive background peaks (schemas.instrument.HumpComponent):
     # one (position, height, fwhm) path triple per declared peak, in list order.
     #
@@ -3005,6 +3019,7 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
 
     return CompiledModel(
         tt=tt, y_obs=y_obs, sigma=sigma, tt_min=tt_min, tt_max=tt_max,
+        sigma_measured=pattern.sigma is not None,
         wavelength=instrument.source.primary_wavelength,
         line_wavelengths=lams,
         harmonic_orders=harmonic_orders,

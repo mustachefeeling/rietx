@@ -316,6 +316,29 @@ def _refuse_without_phases(structure: Structure, verb: str) -> None:
         "as it stands without refining, call ref.predict(pattern).")
 
 
+def _snapshot_sinks(*candidates) -> list:
+    """The objects a completed stage hands its picture to.
+
+    Duck typing stays — it is what lets ``viz/live.py`` be a live view with no
+    import from here into ``viz/``. What changes is that the *candidates* are
+    named. The stage loop used to test whichever object ``events=`` resolved
+    to, which cost two things: ``run_stage`` never refreshed a picture at all,
+    and a caller who wrapped their stream would silently stop getting one.
+
+    Deduped by identity, because ``as_event_stream`` returns an ``EventStream``
+    unchanged and the two candidates are then one object writing one file
+    twice.
+    """
+    sinks: list = []
+    for candidate in candidates:
+        if candidate is None or not hasattr(candidate, "write_snapshot"):
+            continue
+        if any(candidate is seen for seen in sinks):
+            continue
+        sinks.append(candidate)
+    return sinks
+
+
 class Refinement:
     """Refine ``structure`` + ``instrument`` against a powder pattern.
 
@@ -1857,6 +1880,10 @@ class Refinement:
         self._excluded_regions = list(data.excluded_regions)
         tree = self._ensure_history(data, plan)
         stream = _attach_progress(as_event_stream(events), progress)
+        # built here, where both the caller's object and the stream we
+        # made from it are in scope, and handed down rather than
+        # rediscovered per stage
+        sinks = _snapshot_sinks(stream, events)
         if stream is not None:
             stream.emit("fit_start", mode=mode,
                         stages=[s.name for s in plan.stages],
@@ -1893,7 +1920,7 @@ class Refinement:
         try:
             model, outcome, guard, stage_results, diagnostics = self._run_plan(
                 plan, data, mode, table, two_theta_limits, tree, stream, cancel,
-                stage_results, diagnostics,
+                stage_results, diagnostics, sinks=sinks,
                 stage_reports=stage_reports)
         except RefinementCancelled as exc:
             if stream is not None:
@@ -1934,7 +1961,7 @@ class Refinement:
         return self.result_
 
     def _run_plan(self, plan, data, mode, table, two_theta_limits, tree, stream,
-                  cancel, stage_results, diagnostics, *,
+                  cancel, stage_results, diagnostics, *, sinks,
                   stage_reports: bool = False):
         """The stage loop of :meth:`fit`, split out so cancellation has one exit.
 
@@ -1988,9 +2015,9 @@ class Refinement:
                 self.stage_reports_.append(self._stage_report(
                     stage.name, plan, data, mode, table, model, outcome, guard,
                     stage_diagnostics))
-            if stream is not None and hasattr(stream, "write_snapshot"):
-                # live monitoring (viz.live.LiveSession): rewrite the HTML view
-                stream.write_snapshot(model, table, outcome, stage.name)
+            for sink in sinks:
+                # live monitoring (viz.live.LiveSession): rewrite the snapshot
+                sink.write_snapshot(model, table, outcome, stage.name)
             if tree is not None:
                 self._write_back(table)
                 self._record_free_paths(table)
@@ -2067,6 +2094,7 @@ class Refinement:
         self.stage_reports_ = []
         tree = self._ensure_history(data)
         stream = as_event_stream(events)
+        sinks = _snapshot_sinks(stream, events)
 
         table = self._prepare_table(restore=True)
         # the constructed (or last-edited) λ, not the value the previous stage
@@ -2102,6 +2130,17 @@ class Refinement:
             freed=freed,
             n_constraint_truncations=outcome.n_constraint_truncations,
             ftol=stage.ftol, held=hold.held, released=hold.released)
+
+        # before the node is recorded, which is where `_run_plan` writes it
+        # too; the two call sites must not disagree about when a stage's
+        # picture appears.  The orders are independent anyway: a watcher reads
+        # this directory, and the node goes to the project's history.  A caller
+        # driving one stage at a time — report/apply.py's recipes, the GUI's
+        # stage verb — used to get events and no picture at all, because this
+        # call site did not exist.
+        for sink in sinks:
+            sink.write_snapshot(model, table, outcome, stage.name)
+
         if tree is not None:
             self._record(tree, NodeAction(
                 kind="stage", name=stage.name, turn_on=list(stage.turn_on),

@@ -120,8 +120,9 @@ $ rietx watch --port 8899 --open
 
 With no directory it scans the working directory and lists every run beneath it,
 running and finished together, each with the stage and Rwp its writer last
-recorded. Opening one shows its plot and its event console. The plot reloads as
-the fit rewrites it, and the console tails the log from where it left off.
+recorded. Opening one shows its plot and its event console. The plot redraws in
+place as the fit writes each stage, keeping whatever you have zoomed into, and
+the console tails the log from where it left off.
 
 A run is any directory holding an `events.jsonl`: the one passed to a
 `LiveSession`, or a project's own `live/` ([](files.md)). Pass such a directory

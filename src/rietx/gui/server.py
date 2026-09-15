@@ -38,6 +38,8 @@ from urllib.parse import parse_qs, urlparse
 
 from .._about import DIST_NAME, SERVER_TOKEN, STATE_DIR_ENV, STATE_DIR_NAME
 from ..project import Project
+from ..viz.plotlyjs import CONTENT_TYPE as PLOTLY_CONTENT_TYPE
+from ..viz.plotlyjs import plotly_js
 from .imports import MAX_UPLOAD_BYTES, UPLOAD_KINDS
 from .session import EXPORT_DEFAULTS, RESERVED_ROUTES, GuiError, GuiSession
 
@@ -347,15 +349,13 @@ def _upload_options(query: dict) -> dict:
 # ----------------------------------------------------------------------
 # the handler
 # ----------------------------------------------------------------------
-def _plotly_js() -> str:
-    """plotly.js out of the installed package — ``compare_app``'s trick."""
-    try:
-        from plotly.offline import get_plotlyjs
-    except ImportError:  # pragma: no cover - exercised by the missing-dep path
-        return (f"window.__{SERVER_TOKEN.upper()}_NO_PLOTLY__ = true;\n"
-                f"console.error('{SERVER_TOKEN} gui: plotly is not installed — "
-                f"pip install \\'{DIST_NAME}[gui]\\'');")
-    return get_plotlyjs()
+#: What the dist sees instead of plotly when plotly is not installed. The
+#: window flag is what the page checks; the console line is for whoever opens
+#: the devtools. The shape is this page's, which is why :func:`plotly_js` takes
+#: it rather than owning it.
+_NO_PLOTLY_JS = (f"window.__{SERVER_TOKEN.upper()}_NO_PLOTLY__ = true;\n"
+                 f"console.error('{SERVER_TOKEN} gui: plotly is not installed — "
+                 f"pip install \\'{DIST_NAME}[gui]\\'');")
 
 
 def _handler(session: GuiSession, holder: dict):
@@ -506,8 +506,8 @@ def _handler(session: GuiSession, holder: dict):
         # -- static --------------------------------------------------
         def _static(self, path: str) -> None:
             if path == "/plotly.js":
-                self._send(_plotly_js().encode("utf-8"),
-                           "application/javascript; charset=utf-8")
+                self._send(plotly_js(_NO_PLOTLY_JS).encode("utf-8"),
+                           PLOTLY_CONTENT_TYPE)
                 return
             index = STATIC_DIR / "index.html"
             if path in ("/", "/index.html"):
