@@ -1,5 +1,5 @@
-"""Finding and reading refinement runs on disk — the reader half of
-``rietx watch`` (WP-1401).
+"""Refinement runs on disk: the reader ``rietx watch`` is built on (WP-1401),
+and the recorder that writes one for a fit nobody asked to record (WP-1403).
 
 A *run* is a directory holding an event log. :class:`~rietx.viz.live.LiveSession`
 writes one, and so does every GUI project under its ``live/``. This module
@@ -13,11 +13,19 @@ annotation and is why there is no read-only way to open a project; no
 captured. This is a rule and not a preference: a viewer that constructs a
 project mutates what it is looking at.
 
-**This module writes nothing at all.** ``meta.json`` and ``run.lock`` are
-WP-1403's to write, and no file in the tree carries either today. Every one is
-optional here, and a directory with neither resolves to a *legacy* run,
-synthesized from its log's mtime. That is what every run directory in the tree
-is right now, and it is what keeps them all visible forever.
+**The two halves share one file contract, which is why they share a module.**
+:class:`RunRecorder` writes the names the reader above looks for — ``meta.json``,
+``run.lock``, ``status.json`` — and a writer that invented its own would be
+invisible to the reader without a single test going red. Splitting them across
+two modules would put the halves of one agreement in two files. What does *not*
+cross the seam is weight: the recorder imports ``viz.snapshot`` inside the
+method that needs it, so a viewer importing this module still pays for nothing
+it will not draw.
+
+Every reader field stays optional, because a directory with no sidecars
+resolves to a *legacy* run synthesized from its log's mtime. That is what every
+run directory written before WP-1403 is, and it is what keeps them all visible
+forever.
 
 The state of a run is not an event. ``history/events.py`` states that for one
 process: a fit that raises emits no ``fit_end``, and ``EventKind`` is closed, so
@@ -31,16 +39,26 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import socket
 import sys
 import time
+import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
 from pydantic import ConfigDict
 
-from ._about import LIVE_DIR_NAME, PROJECT_SUFFIX
+from ._about import (
+    DIST_NAME,
+    LIVE_DIR_NAME,
+    PROJECT_SUFFIX,
+    RUNS_DIR_NAME,
+    STATE_DIR_NAME,
+    TELEMETRY_ENV,
+)
+from .history.events import EVENT_SCHEMA_VERSION, EventStream
 from .schemas.common import Base
 
 #: The log every run has, and the only file this module needs to find one.
@@ -94,6 +112,37 @@ MAX_RUNS = 500
 RUN_STATES = frozenset({"running", "done", "failed", "cancelled"})
 TERMINAL_STATES = frozenset({"done", "failed", "cancelled"})
 
+#: WP-1302's termination view, written once by :class:`RunRecorder` after the
+#: result exists. ``str(result)`` and never ``ref.summary()``, which builds a
+#: whole ``FitReport`` — the expensive half of that call. A run with no result
+#: (cancelled, or raised) has none, and that absence is not an error.
+SUMMARY_FILE = "summary.txt"
+
+#: Written into the runs root on creation, containing ``*``, so a fit inside
+#: somebody's repository does not turn up in their ``git status``. The root is
+#: telemetry the package chose to write; making the user deal with it in their
+#: own index would be the package spending their attention.
+GITIGNORE_FILE = ".gitignore"
+
+#: ``meta.json``'s own tag, the way every history and event line carries one.
+#: Its second job is a safety interlock: :func:`prune` refuses to delete a
+#: directory whose ``meta.json`` does not carry it.
+RECORD_TAG = "run"
+
+#: How long :class:`RunRecorder` may leave ``eval`` lines in the handle's
+#: buffer. Every other kind flushes immediately, so a stage boundary is on disk
+#: the moment it happens and only the fine-grained trajectory is at risk. The
+#: durability this trades away is real — a hard kill loses the last fraction of
+#: a second — and is exactly why WP-1401's liveness rests on the lock rather
+#: than on the log's tail.
+FLUSH_INTERVAL_SECONDS = 0.2
+
+#: What :func:`new_run_dir` names a directory, and the first of the three
+#: guards :func:`prune` applies before any recursive delete. Anchored at both
+#: ends: a pattern that merely *matched* somewhere would accept any name
+#: containing a date.
+RUN_ID_RE = re.compile(r"^\d{8}-\d{6}-\d+(?:-\d+)?$")
+
 #: What :func:`liveness_of` answers. ``abandoned`` is a third answer and not a
 #: rounding of the other two: the writer said it was running and no longer
 #: holds its lock. ``unknown`` is a claim we cannot check, which is not the
@@ -125,6 +174,11 @@ class RunMeta(_ReaderBase):
     synthesizes what it can from the log's mtime.
     """
 
+    #: ``"run"`` — :data:`RECORD_TAG`. Declared rather than left to
+    #: ``extra="allow"`` because :func:`prune` reads it as one of its three
+    #: interlocks, and an undeclared key that a delete depends on is the kind
+    #: of claim WP-1076 is about.
+    record: str | None = None
     #: Human label for the run row. WP-1403's writer.
     label: str | None = None
     #: Unix time the run started. WP-1403's writer. Falls back to the event
@@ -170,6 +224,18 @@ class RunStatus(_ReaderBase):
     state: str | None = None
     pid: int | None = None
     host: str | None = None
+    #: Which stage of how many, **read off** ``stage_start.index`` and never
+    #: counted. A counter says "stage 6 of 5" the first time a stage releases a
+    #: held phase, because that emits a second ``stage_start`` with the same
+    #: index (WP-1301); and ``n_stages`` is revisable mid-run under indexing
+    #: (WP-1037), so it is the writer's current claim rather than a constant.
+    index: int | None = None
+    n_stages: int | None = None
+    #: Why the recorder stopped recording, if it did. The failure latch is not
+    #: silent (WP-1076): a run that gave up says so here, and a reader seeing a
+    #: ``running`` state with an ``error`` is looking at a fit that carried on
+    #: perfectly well without its telemetry.
+    error: str | None = None
     #: Unix time of the writer's last touch. **Reported, never decisive** —
     #: see :func:`liveness_of`.
     heartbeat: float | None = None
@@ -327,6 +393,47 @@ def _is_run_dir(entry_path: Path) -> bool:
             or (entry_path / META_FILE).is_file())
 
 
+def _collect_runs(holder: Path, root: Path, out: list[Run],
+                  max_runs: int) -> None:
+    """Add every run *at* ``holder`` and every run one level inside it.
+
+    Two directories in this package hold runs rather than being one: a
+    project's ``live/`` and the ``.rietx/runs`` root. Both are reached by name
+    from a parent the walk recognises, so neither needs the general descent,
+    and both want the same two questions asked.
+
+    *At* and *inside*, because the two shapes coexist on disk and must both
+    stay visible. Before WP-1403 a project's ``live/`` **was** the run —
+    ``LiveSession`` wrote its log straight into it — and those directories are
+    still there. A recorder writes ``live/<run id>/`` instead, so that a human
+    with the GUI open and an agent fitting the same project do not interleave
+    one log. Asking only the second question would orphan every run written
+    before this WP.
+    """
+    if _is_run_dir(holder):
+        run = read_run(holder, root=root)
+        if run is not None:
+            out.append(run)
+    try:
+        entries = sorted(os.scandir(holder), key=lambda e: e.name)
+    except OSError:
+        return
+    for entry in entries:
+        if len(out) >= max_runs:
+            return
+        try:
+            if not entry.is_dir(follow_symlinks=False):
+                continue
+        except OSError:
+            continue
+        child = Path(entry.path)
+        if not _is_run_dir(child):
+            continue
+        run = read_run(child, root=root)
+        if run is not None:
+            out.append(run)
+
+
 def discover(root: str | Path, *, max_depth: int = MAX_DEPTH,
              max_runs: int = MAX_RUNS) -> list[Run]:
     """Every run under ``root``, newest first.
@@ -338,6 +445,16 @@ def discover(root: str | Path, *, max_depth: int = MAX_DEPTH,
 
     A run directory is not descended either. One run is one directory, and
     anything below it belongs to that run.
+
+    **A dotted directory is skipped, with one name excepted.** The blanket skip
+    is what keeps the walk out of ``.git`` and every cache beside it, and it
+    would otherwise hide the whole of :func:`run_root` — ``.rietx/runs``, where
+    a fit records itself when nobody named a directory. So
+    :data:`~rietx._about.STATE_DIR_NAME` is recognised by name and its
+    ``runs/`` collected, exactly as ``*.rex`` is recognised and its ``live/``
+    collected. Without this the acceptance of WP-1403 cannot hold: a fit in an
+    empty directory would write a run that ``rietx watch``, whose default root
+    is the working directory, could not list.
     """
     root = Path(root)
     out: list[Run] = []
@@ -371,9 +488,18 @@ def discover(root: str | Path, *, max_depth: int = MAX_DEPTH,
                     continue
             except OSError:
                 continue
+            child = Path(entry.path)
+
+            if entry.name == STATE_DIR_NAME:
+                # before the dot-skip below, which would otherwise hide every
+                # run a fit recorded unasked
+                _collect_runs(child / RUNS_DIR_NAME, root, out, max_runs)
+                if len(out) >= max_runs:
+                    break
+                continue
+
             if entry.name in PRUNE_DIRS or entry.name.startswith("."):
                 continue
-            child = Path(entry.path)
 
             if _is_run_dir(child):
                 run = read_run(child, root=root)
@@ -385,13 +511,9 @@ def discover(root: str | Path, *, max_depth: int = MAX_DEPTH,
 
             if child.name.endswith(PROJECT_SUFFIX):
                 # descend a project exactly one level, to its live/
-                live = child / LIVE_DIR_NAME
-                if _is_run_dir(live):
-                    run = read_run(live, root=root)
-                    if run is not None:
-                        out.append(run)
-                        if len(out) >= max_runs:
-                            break
+                _collect_runs(child / LIVE_DIR_NAME, root, out, max_runs)
+                if len(out) >= max_runs:
+                    break
                 continue
 
             if depth < max_depth:
@@ -591,6 +713,451 @@ def tail_events(path: str | Path, offset: int = 0, *, inode: int | None = None,
             bad += 1
     return EventTail(events, start + cut + 1, stat.st_ino, reset=reset,
                      bad_lines=bad, size=stat.st_size)
+
+
+# ---------------------------------------------------------------------------
+# The writer (WP-1403) — a fit records itself, having not been asked to
+# ---------------------------------------------------------------------------
+
+#: ``None`` means "ask the environment", which is what every fit does. Set only
+#: by :func:`set_enabled`, and deliberately not a cache of the env read: one
+#: ``os.environ`` lookup per *fit* is free, and a cached one would make the
+#: switch depend on whether some earlier import had already asked.
+_ENABLED: bool | None = None
+
+#: One warning a process, not one a run. A batch of two hundred candidates on a
+#: read-only directory would otherwise emit two hundred identical warnings, and
+#: the second one tells the reader nothing the first did not.
+_WARNED = False
+
+
+def _off_by_env() -> bool:
+    return os.environ.get(TELEMETRY_ENV, "").strip().lower() in {
+        "0", "off", "no", "false"}
+
+
+def enabled() -> bool:
+    """Will the next fit record itself?
+
+    Read once per *run*, never per event. The environment outranks every
+    keyword, which is the whole point of :data:`~rietx._about.TELEMETRY_ENV`:
+    someone who switched recording off wants it off everywhere, so there is no
+    ``telemetry=True`` that argues back.
+    """
+    if _ENABLED is not None:
+        return _ENABLED
+    return not _off_by_env()
+
+
+def set_enabled(flag: bool | None) -> bool | None:
+    """Force recording on or off for this process; ``None`` re-reads the
+    environment. Returns the previous setting, so a caller can restore it.
+
+    Mirrors ``model.compiled.set_enabled``, and exists for the same two
+    reasons: a suite needs to exercise both sides, and a caller who has hit a
+    difference wants to say which side they are on.
+    """
+    global _ENABLED
+    was, _ENABLED = _ENABLED, flag
+    return was
+
+
+def run_root(base: str | Path | None = None) -> Path:
+    """``<base or the working directory>/.rietx/runs``, created.
+
+    Creates the root and drops a ``.gitignore`` of ``*`` into it, so a fit
+    inside somebody's repository does not turn up in their ``git status``. Both
+    only for the root *this package chose*: a caller who passed ``telemetry=``
+    named their own directory, and writing an ignore file into it would be the
+    package apologising for a choice it did not make.
+    """
+    root = (Path.cwd() if base is None else Path(base)) / STATE_DIR_NAME / RUNS_DIR_NAME
+    root.mkdir(parents=True, exist_ok=True)
+    marker = root / GITIGNORE_FILE
+    if not marker.exists():
+        marker.write_text("*\n", encoding="utf-8")
+    return root
+
+
+def new_run_dir(root: str | Path) -> Path:
+    """Create and return a fresh run directory under ``root``.
+
+    The name is ``<date>-<time>-<pid>``, matching :data:`RUN_ID_RE`, with a
+    counter appended on the collision two fits in one second in one process
+    would otherwise cause. ``exist_ok=False`` is what makes the loop correct:
+    the directory is claimed by creating it, so two processes racing for the
+    same second cannot both think they won it.
+    """
+    root = Path(root)
+    root.mkdir(parents=True, exist_ok=True)
+    stamp = f"{time.strftime('%Y%m%d-%H%M%S')}-{os.getpid()}"
+    for n in range(1, 1000):
+        candidate = root / (stamp if n == 1 else f"{stamp}-{n}")
+        try:
+            candidate.mkdir(exist_ok=False)
+            return candidate
+        except FileExistsError:
+            continue
+    raise OSError(f"no free run directory under {root} for {stamp}")
+
+
+def _package_version() -> str | None:
+    try:
+        from importlib.metadata import version
+        return version(DIST_NAME)
+    except Exception:
+        return None
+
+
+def _warn_once(message: str) -> None:
+    global _WARNED
+    if _WARNED:
+        return
+    _WARNED = True
+    warnings.warn(message, RuntimeWarning, stacklevel=3)
+
+
+class RunRecorder(EventStream):
+    """Records a run into a directory, and never breaks the fit doing it.
+
+    **Who asked is the whole design.** ``history/events.py`` says a callback's
+    exception propagates — "a monitoring hook that crashes the refinement is a
+    bug you want to see, not swallow" — and this class says a telemetry failure
+    must never break a fit. Both are right, and the boundary between them is
+    who asked for the code that failed:
+
+    * a callback reached through ``events=`` is the **caller's** code, so its
+      exception is theirs to see. It is invoked outside this class's try
+      blocks, in :meth:`emit` and in the chain :func:`attach` builds, so this
+      recorder can neither swallow it nor hold it back;
+    * this recorder is code the package attached **unasked**. A fit that dies
+      over a directory nobody requested is the package breaking a working call
+      for its own convenience.
+
+    So every method here runs inside one ``except BaseException`` that sets a
+    one-shot latch, after which :meth:`emit` is a single attribute test. The
+    latch is **not silent** (WP-1076): it records its reason in ``status.json``
+    and warns once per process. ``KeyboardInterrupt`` and ``SystemExit`` are
+    re-raised rather than latched, because neither is a telemetry failure — one
+    is the person at the keyboard asking the fit to stop, and eating it would
+    make Ctrl-C occasionally not work.
+
+    **Buffering, and what it costs.** ``eval`` lines sit in the handle's own
+    buffer and reach the disk on a :data:`FLUSH_INTERVAL_SECONDS` cadence;
+    every other kind flushes as it is written. So a stage boundary is durable
+    the moment it happens and a hard kill loses at most the last fraction of a
+    second of the trajectory. ``EventStream.emit`` is untouched by this: a
+    caller who passed a path asked for a durable log and keeps today's
+    behaviour byte for byte.
+    """
+
+    def __init__(self, directory: str | Path, *, label: str | None = None,
+                 command: str | None = None,
+                 flush_interval: float = FLUSH_INTERVAL_SECONDS):
+        super().__init__(path=None, callback=None)
+        self.dir = Path(directory)
+        self.flush_interval = float(flush_interval)
+        #: The latch. ``None`` while recording; a sentence once it has stopped.
+        self.error: str | None = None
+        self._lock_fh = None
+        self._last_flush = 0.0
+        self._closed = False
+        # Everything but ``state`` starts absent rather than defaulted: a zero
+        # Rwp reads as an answer about a fit nothing has measured (WP-1076).
+        self._status: dict = {"state": "running", "pid": os.getpid(),
+                              "host": socket.gethostname()}
+        try:
+            self.dir.mkdir(parents=True, exist_ok=True)
+            self.path = self.dir / EVENTS_FILE
+            self._fh = open(self.path, "a", encoding="utf-8")
+            self._take_lock()
+            self._write_meta(label, command)
+            self._write_status()
+        except BaseException as exc:
+            self._latch(exc, "opening the run directory")
+
+    # -- the latch ---------------------------------------------------------
+
+    def _latch(self, exc: BaseException, what: str) -> None:
+        """Stop recording, say why, and let the fit carry on."""
+        if isinstance(exc, (KeyboardInterrupt, SystemExit)):
+            raise exc
+        if self.error is not None:
+            return
+        self.error = f"{what}: {type(exc).__name__}: {exc}"
+        try:
+            self._fh = None
+            self._status["error"] = self.error
+            self._write_status()
+        except Exception:
+            pass       # the status file is where we would have said it
+        _warn_once(
+            f"telemetry stopped recording this run ({self.dir}): {self.error}. "
+            f"The fit is unaffected. Set {TELEMETRY_ENV}=0 to switch recording "
+            f"off, or pass telemetry=False to this call.")
+
+    # -- writing -----------------------------------------------------------
+
+    def _take_lock(self) -> None:
+        """Hold ``run.lock`` exclusively for this process's life.
+
+        The kernel releases it however the writer dies, ``kill -9`` included,
+        which is what makes ``abandoned`` a distinct answer from ``done``
+        (:func:`liveness_of`) without any heartbeat contract. Failing to take
+        it is not an error: a caller who pointed two fits at one directory gets
+        the pid fallback instead, which is weaker and still true.
+        """
+        try:
+            import fcntl
+        except ImportError:      # pragma: no cover - Windows
+            return
+        fh = open(self.dir / LOCK_FILE, "w", encoding="utf-8")
+        try:
+            fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            fh.close()
+            return
+        self._lock_fh = fh
+
+    def _write_meta(self, label: str | None, command: str | None) -> None:
+        payload = {
+            "record": RECORD_TAG,
+            "label": label or Path.cwd().name,
+            "created": time.time(),
+            "version": _package_version(),
+            "cwd": str(Path.cwd()),
+            "command": command if command is not None else " ".join(sys.argv),
+        }
+        (self.dir / META_FILE).write_text(json.dumps(payload, indent=1),
+                                          encoding="utf-8")
+
+    def _write_status(self, now: float | None = None) -> None:
+        """Rewrite ``status.json`` atomically.
+
+        Written to a sibling and renamed, because a reader polls this file
+        while it is being replaced and a torn read would lose the run's
+        progress for that poll. The reader survives a broken sidecar anyway;
+        this costs one syscall and means it never has to.
+        """
+        self._status["heartbeat"] = time.time() if now is None else now
+        payload = {k: v for k, v in self._status.items() if v is not None}
+        tmp = self.dir / (STATUS_FILE + ".tmp")
+        tmp.write_text(json.dumps(payload, indent=1), encoding="utf-8")
+        tmp.replace(self.dir / STATUS_FILE)
+
+    def _observe(self, event: dict) -> None:
+        """Project one event onto the status, copying and never computing.
+
+        Every number here is read off the event that carried it, the way
+        ``progress_writer`` "formats, it never computes". Two traps this
+        deliberately avoids: the stage number comes off ``index`` and is never
+        counted, since a stage that releases a held phase emits a *second*
+        ``stage_start`` with the same index (WP-1301) and a counter would say
+        "stage 6 of 5"; and ``n_stages`` is a revisable claim rather than a
+        constant (WP-1037).
+        """
+        kind = event.get("kind")
+        data = event.get("data") or {}
+        if kind == "stage_start":
+            if data.get("stage") is not None:
+                self._status["stage"] = data["stage"]
+            if data.get("index") is not None:
+                self._status["index"] = int(data["index"])
+            if data.get("n_stages") is not None:
+                self._status["n_stages"] = int(data["n_stages"])
+        elif kind == "stage_end":
+            if data.get("stage") is not None:
+                self._status["stage"] = data["stage"]
+            if data.get("rwp") is not None:
+                self._status["rwp"] = float(data["rwp"])
+        elif kind in ("fit_end", "index_end"):
+            for key in ("rwp", "gof"):
+                if data.get(key) is not None:
+                    self._status[key] = float(data[key])
+            self._status["state"] = (
+                "cancelled" if data.get("status") == "cancelled" else "done")
+
+    def _write(self, event: dict) -> None:
+        self._fh.write(json.dumps(event) + "\n")
+        self._observe(event)
+        now = event.get("t") or time.time()
+        if event.get("kind") != "eval" or now - self._last_flush >= self.flush_interval:
+            self._fh.flush()
+            self._write_status(now)
+            self._last_flush = now
+
+    # -- the EventStream surface ------------------------------------------
+
+    def emit(self, kind: str, **data) -> None:
+        """Record one event, then run the caller's callback outside the guard."""
+        event = {"record": "event", "v": EVENT_SCHEMA_VERSION,
+                 "t": time.time(), "kind": kind, "data": data}
+        if self.error is None:
+            try:
+                self._write(event)
+            except BaseException as exc:
+                self._latch(exc, "writing an event")
+        # Outside, and deliberately: a callback reached through ``events=`` is
+        # the caller's code and its exception is theirs to see.
+        if self.callback is not None:
+            self.callback(event)
+        self.n_written += 1
+
+    def record(self, event: dict) -> None:
+        """Take an event somebody else's stream already emitted.
+
+        This is the chained form :func:`attach` uses when the caller passed an
+        ``events=`` of their own: their stream writes their file, and this
+        writes ours. The dict arrives built, so there is no second ``t`` and
+        the two logs agree about when everything happened.
+        """
+        if self.error is not None:
+            return
+        try:
+            self._write(event)
+        except BaseException as exc:
+            self._latch(exc, "writing an event")
+
+    def write_snapshot(self, model, table, outcome, stage_name: str) -> None:
+        """The per-stage picture, as ``viz.snapshot`` writes it for a live view.
+
+        Imported here rather than at module scope so a viewer importing this
+        module pays nothing for numbers it is not going to draw.
+
+        This is also where WP-1402's open question is answered. ``refine.py``
+        runs ``for sink in sinks: sink.write_snapshot(...)`` unguarded, which is
+        right for a sink the *caller* passed — a live view they asked for should
+        fail loudly — and wrong for this one. The two need no separate code
+        path, because the latch covers this method like every other: the
+        recorder absorbs its own full disk, and that loop does not move.
+        """
+        if self.error is not None:
+            return
+        try:
+            from .viz.snapshot import write_snapshot as _write_snapshot
+            payload = _write_snapshot(self.dir, model, table, outcome, stage_name)
+            # from the payload, never recomputed: one stage has one Rwp, and a
+            # second computation of it is a second answer waiting to disagree
+            stats = payload["statistics"]
+            self._status.update(stage=payload["stage"], rwp=stats["rwp"],
+                                gof=stats["gof"], chi2=stats["chi2"],
+                                n_free=stats["n_free"])
+            self._write_status()
+        except BaseException as exc:
+            self._latch(exc, "writing a stage snapshot")
+
+    def write_summary(self, result) -> None:
+        """WP-1302's termination view, once, after the result exists.
+
+        ``str(result)`` and never ``ref.summary()``: that call builds a whole
+        ``FitReport``, which is the expensive half of it and WP-1335's subject.
+        A cancelled or failed run has no result and so gets no summary, and
+        that absence is not an error.
+        """
+        if self.error is not None or result is None:
+            return
+        try:
+            (self.dir / SUMMARY_FILE).write_text(str(result), encoding="utf-8")
+        except BaseException as exc:
+            self._latch(exc, "writing the termination view")
+
+    def close(self, state: str | None = None) -> None:
+        """Flush, record a terminal state, and release the lock. Idempotent.
+
+        ``state`` is applied only if nothing has claimed one yet, so a caller's
+        ``close("failed")`` in an exception path cannot overwrite the
+        ``cancelled`` a ``fit_end`` already recorded. Idempotence is what lets
+        the exception path and the ``finally`` both call this.
+        """
+        if self._closed:
+            return
+        self._closed = True
+        try:
+            if self._status.get("state") == "running":
+                self._status["state"] = state or "done"
+            if self._fh is not None:
+                self._fh.flush()
+                self._fh.close()
+                self._fh = None
+            if self.error is None:
+                self._write_status()
+        except BaseException as exc:
+            self._latch(exc, "closing the run")
+        finally:
+            if self._lock_fh is not None:
+                try:
+                    self._lock_fh.close()      # the kernel drops the flock
+                except Exception:
+                    pass
+                self._lock_fh = None
+
+
+#: Marks a stream as already carrying a recorder. One job is one run directory,
+#: and a 60-pattern series runs 60 fits through one ``_SeriesStream``: attaching
+#: per fit would make 60 directories for one job, so the series runner attaches
+#: at its own level and every fit below it finds this stamp and declines.
+_STAMP = "_rietx_run_recorder"
+
+
+def attach(stream, events, *, telemetry=None, project_hint=None,
+           label: str | None = None) -> "RunRecorder | None":
+    """Give a run a recorder, or answer ``None`` and leave the fit alone.
+
+    ``None`` when recording is switched off, when the caller passed
+    ``telemetry=False``, or when ``stream`` already carries one.
+
+    The three composition cases, and the identity that must survive all of
+    them — ``fit`` closes its stream only ``if stream is not events``, which is
+    why ``sequential._SeriesStream`` is a *subclass* and not a wrapper:
+
+    ==============================  ====================================
+    the caller passed               what happens here
+    ==============================  ====================================
+    nothing                         the recorder *is* the stream
+    a path or a callable            chained onto the normalised stream's
+                                    ``.callback``, exactly as
+                                    ``_attach_progress`` chains
+                                    ``progress_writer``
+    an ``EventStream``              the same, with the caller's object
+                                    handed back untouched by identity
+    ==============================  ====================================
+
+    Where the directory comes from, first hit winning: an explicit
+    ``telemetry=``; a ``project_hint`` (what ``Project.fit`` sets, and the
+    derived fallback for a bare ``fit()`` on a project-built ``Refinement``);
+    else :func:`run_root` under the working directory. Each is a *root*, and
+    the run is a fresh ``<run id>`` directory inside it — which is what keeps an
+    agent fitting a project and a human with the GUI open on it from
+    interleaving one log.
+
+    The recorder goes **first** in the callback chain. It cannot raise, having
+    a latch, so a caller's hook still runs immediately after; and a caller's
+    hook that *does* raise then leaves a complete log behind rather than
+    costing the run the telemetry it was recording. That ordering is this
+    function's choice and not a contract.
+    """
+    if not enabled() or telemetry is False:
+        return None
+    if stream is not None and getattr(stream, _STAMP, None) is not None:
+        return None
+    root = (Path(telemetry) if telemetry is not None
+            else Path(project_hint) if project_hint is not None
+            else run_root())
+    recorder = RunRecorder(new_run_dir(root), label=label)
+    if stream is None:
+        setattr(recorder, _STAMP, recorder)
+        return recorder
+
+    prior = stream.callback
+
+    def _combined(event: dict, _prior=prior, _rec=recorder) -> None:
+        _rec.record(event)
+        if _prior is not None:
+            _prior(event)
+
+    stream.callback = _combined
+    setattr(stream, _STAMP, recorder)
+    return recorder
 
 
 def _format_table(runs: list[Run], root: Path) -> str:

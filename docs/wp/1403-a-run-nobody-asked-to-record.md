@@ -307,16 +307,24 @@ safe.
 
 ## Tasks
 
-- [ ] `_about.py`: the runs path parts and the off-switch env var, with the
+- [x] `_about.py`: the runs path parts and the off-switch env var, with the
       two-meanings-of-`.rietx` note in the docstring. `runs.set_enabled` beside
       it, mirroring `compiled.set_enabled`.
-- [ ] `RunRecorder(EventStream)`: the directory, `meta.json`, the lock, the
+- [x] `RunRecorder(EventStream)`: the directory, `meta.json`, the lock, the
       buffered handle with its flush cadence, the status projection (reading
       `index`, never counting), and `write_snapshot` from WP-1402. Every field's
       writer named at review.
-- [ ] The failure latch: one `except BaseException` a method, one-shot, the
+- [x] The failure latch: one `except BaseException` a method, one-shot, the
       reason recorded in the status file, one warning a process. Both halves of
       the who-asked boundary in the module docstring.
+- [x] `discover` sees the runs root. **Not in the original list, and the
+      acceptance cannot hold without it**: the walk skips every dotted
+      directory, so `.rietx/runs` was invisible to `rietx watch`, whose default
+      root is the working directory. `STATE_DIR_NAME` is now recognised by name
+      and its `runs/` collected, exactly as `*.rex` is recognised and its
+      `live/` collected — and both go through one `_collect_runs`, which asks
+      *at* and *inside*, so a pre-1403 `live/` that **is** a run stays visible
+      beside the `live/<run id>/` a recorder writes.
 - [ ] `runs.attach`: the three composition cases, the attach-once stamp, and the
       new `try/finally` beside — never inside — the existing `stream is not
       events` rule.
