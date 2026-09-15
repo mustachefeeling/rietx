@@ -230,7 +230,14 @@ SIZE_CAPS: dict[str, int | None] = {
     # already broken: the v1.4 row's own "seventeen acceptance rows" and a
     # clause restating that no milestone is open.  Landed at 690.
     # 694 -> 707 (the 2026-09-15 triage): eight rows for 1413-1420, landed 706.
-    "docs/ROADMAP.md": 707,
+    # 707 -> 710: a merge race, not new content.  The triage branch and
+    # WP-1404's branch were both measured against 694 and merged within
+    # seventeen seconds of each other, so each cap was right and their sum was
+    # not: 706 plus 1404's rewritten Current focus paragraph is 708.  Nothing
+    # here is demotable — eight index rows, and the focus paragraph that names
+    # the one open item of the watcher track.  The same race gave both branches
+    # the number 1413; the triage's is renumbered 1421.  The headroom is +2.
+    "docs/ROADMAP.md": 710,
     "gui/CLAUDE.md": 1028,
     "tests/CLAUDE.md": 275,
     "src/rietx/indexing/CLAUDE.md": 300,

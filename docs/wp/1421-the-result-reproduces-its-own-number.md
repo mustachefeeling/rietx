@@ -1,4 +1,4 @@
-# WP-1413 — the result reproduces its own number
+# WP-1421 — the result reproduces its own number
 
 Milestone: unscheduled · Status: ⬜
 Depends on: — (1310 soft: it owns which vector reaches the final diagnostics)
