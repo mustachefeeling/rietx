@@ -447,20 +447,35 @@ def test_a_series_stays_running_until_the_whole_chain_is_done(
 
 def test_a_trial_the_package_runs_is_not_a_run(tmp_path, monkeypatch, pattern,
                                                recording):
-    """A report build runs one trial stage per candidate action, and a
-    recorder on each wrote a run directory for every one of them.
+    """A verify trial runs a stage whose result is thrown away, and a recorder
+    on it wrote a run directory per candidate action.
 
     The line that decides it: a trial whose **result is discarded** records
     nothing, and a fit whose result a caller **reads** records. So the five
     internal sites pass ``telemetry=False`` while ``viz/compare.py`` — whose
     answer is the thing a user reads — does not.
+
+    It drives ``predict_then_verify`` directly rather than through
+    ``ref.report()``, which was the first shape of this test and was **blind**:
+    the report does not itself run a trial, so reverting the fix left the test
+    green. Found by breaking the fix on purpose (``tests/CLAUDE.md`` § Guards
+    that go quiet).
     """
+    from rietx.report import predict_then_verify
+    from rietx.report.schemas import SuggestedAction
+
     monkeypatch.chdir(tmp_path)
     structure, ins = perturbed_models()
     ref = rx.Refinement(structure, ins, history=False)
     ref.fit(pattern)
     assert len(runs.discover(tmp_path)) == 1
-    ref.report()
+
+    action = SuggestedAction(
+        kind="refine_zero_shift", confidence=0.9,
+        rationale="a trial, for the telemetry guard",
+        parameter_paths=["instrument.zero_shift"])
+    predict_then_verify(ref, pattern, action)
+
     found = runs.discover(tmp_path)
     assert len(found) == 1, [str(r.path) for r in found]
 
@@ -533,12 +548,30 @@ def test_a_series_with_a_callers_events_still_gets_a_picture(
     assert run.has_snapshot is True
 
 
-def test_discover_never_returns_more_than_its_cap(tmp_path):
-    """`_collect_runs` appended the holder without the count check."""
-    root = tmp_path / STATE_DIR_NAME / RUNS_DIR_NAME
-    for i in range(4):
-        _stub_run(root, f"2026010{i + 1}-120000-{i}", created=NOW)
-    assert len(runs.discover(tmp_path, max_runs=2)) == 2
+def test_collect_runs_honours_the_cap_it_is_handed(tmp_path):
+    """`_collect_runs` appended its holder without checking the count.
+
+    Asserted on the helper and **not** through `discover`, because `discover`
+    cannot reach it: its entry loop breaks on the cap immediately after every
+    call, so the helper is never entered with the list already full. Measured
+    by reverting the check and sweeping `max_runs` 1-11 over a tree of loose
+    runs, a project whose `live/` is itself a run, and a state dir the same
+    shape — no overflow at any cap. So this is a local invariant of the helper
+    rather than a defect that was reachable, and a test routed through
+    `discover` would be one that cannot fail (`tests/CLAUDE.md` § Guards that
+    go quiet).
+    """
+    holder = tmp_path / "holder"
+    _stub_run(tmp_path, "holder", created=NOW)
+    _stub_run(holder, "20260101-120000-1", created=NOW)
+
+    full: list = ["already", "at", "the", "cap"]
+    runs._collect_runs(holder, tmp_path, full, max_runs=len(full))
+    assert len(full) == 4, "the holder was appended past the cap"
+
+    room: list = []
+    runs._collect_runs(holder, tmp_path, room, max_runs=10)
+    assert len(room) == 2      # the holder and its one child
 
 
 # ----------------------------------------------------------------------
