@@ -268,6 +268,90 @@ telemetry, and the run reads cancelled afterwards.
 
 ## Handover log
 
+- **2026-09-15** — shipped. A person watching a refinement through `rietx watch`
+  can now stop it, from the browser, in whatever process is running the fit.
+  That is the last behavioural gap in the live-watcher track: the window showed
+  you a runaway and gave you nothing to do about it except find the terminal it
+  was started from. It cost the guarantee that an ordinary fit pays nothing for
+  cancellation machinery, which was measured at 1.0036x before it was spent, and
+  it makes true the one sentence WP-1406 was chartered to write into the skill
+  and could not.
+
+  **Done.** The cross-process seam is a request file the recorder polls and the
+  watcher writes. It is a *request* and not a flag, so the next intervention verb
+  is more words in one file, and a word this version does not know is declined
+  into `RunStatus.declined` rather than treated as a cancel — an old install
+  meeting a newer watcher's `pause` must not stop the fit. `POST
+  /api/run/<id>/cancel` is the watcher's first and only verb; `--read-only`
+  serves without it. The confirm dialog is two clicks with no keyboard shortcut
+  and says what the click does to the other process. The token composition runs
+  through `runs.attach_cancel` at three call sites — `fit`, `run_stage` and
+  `sequential.fit` — and the skill, both manual chapters and the root rulebook
+  now say a fit can be stopped by someone else.
+
+  **Measured** (`[dev]` venv, macOS arm64, this worktree):
+
+  - *The token's cost, which is configuration 3 of WP-1404's matrix and is now
+    answered.* 1.0036x median, 1.0019x on the minima, on the three-stage
+    synthetic LaB6 fit (47 evaluations, 2 atoms, interleaved arms, n=9), Rwp
+    bit-identical. Components bounded separately rather than inferred from that
+    one fit: the two `model_copy(deep=True)` run 132 us at 2 atoms, 350 us at
+    16, 4.44 ms at 256, 19.3 ms at 1024, **per stage**; the solver's extra
+    residual wrapper is 37 ns **per evaluation**. Worst case bounded by that
+    table, 1024 atoms over ten stages, is 0.19 s.
+  - *The stop, across a process boundary.* The child exits 0.117-0.126 s after
+    the request is written, at stage 1 of 150, stderr empty. The control that is
+    never asked runs all 150 and prints FINISHED. A 4-pattern series stopped at
+    0 completed entries with `SEQUENTIAL_CANCELLED`, against 4 of 4 unasked.
+  - *Counts.* +23 tests, of which one is `slow`. Fast selection **4815 passed,
+    132 skipped, 3:49** against WP-1406's 4793/132: **+22 passed, skips
+    unchanged**, and PR #324 in between added no test. Full selection **4984
+    passed, 141 skipped, 25:16** against 4961/141, so **+23 passed**. Both on
+    current main merged into this branch, which is the tree that lands.
+
+  **Decisions, both of which the WP left open on purpose.** Eager attachment,
+  on the numbers above; lazy was worse than it looks, because a token cannot be
+  attached mid-stage and "lazy" would have meant honouring the first request
+  only at the next stage boundary. And stopping ships **enabled** with
+  `--read-only` to decline, decided with the dialog on screen: the server binds
+  127.0.0.1, so the only person who can click already has Ctrl-C into the same
+  process; a flag set in advance is not set when a runaway starts; and two
+  clicks with no keyboard shortcut is already the deliberate act the argument
+  asks for. Both are written up in § Decisions taken with their reasoning.
+
+  **Gotchas.**
+
+  - *The probe hangs on the unthinned evaluation boundary, and that is load
+    bearing rather than incidental.* The recorder only gets control at an event,
+    so a probe riding the stream would fire once a **stage** the moment
+    WP-1403's thinning or WP-1404's configuration 1 lands.
+    `test_the_probe_needs_no_event_at_all` is the guard and it asserts the
+    property, not the implementation.
+  - *`indexing.Deadline` duck-types a token and has no `cancel()` at all.* The
+    watched token therefore sets the caller's where it can and its own event
+    where it cannot. Delegating blindly would have raised inside the recorder's
+    latch, where it reads as telemetry failing rather than as a missing method.
+  - *A series attaches one recorder for the whole job*, so the token is composed
+    at the chain as well as inside each pattern's `fit`. Composed only inside
+    `fit`, a stop would abandon one pattern and start the next, because `_run`
+    reads `bool(cancel)` to decide the walk ended.
+  - *An id selector outranks the browser's own `[hidden] {display:none}`.* The
+    closed dialog was an invisible full-page sheet swallowing every click,
+    including the one that opens it. No python test and no `node --check` can
+    see that; it took a real browser and a real click, and the guard that would
+    have caught it is now in `test_watch_app.py`.
+  - *The full suite earned its 25 minutes.* It caught a `read_text()` without
+    `encoding=` in this WP's own test helper — cp1252 on Windows. All four
+    suites the WP's acceptance names were green with it in place.
+
+  **Next.** [WP-1404](1404-what-recording-every-fit-costs.md) is what remains in
+  the track, and its `### Inherited` now carries this session's answer to its
+  configuration 3 plus the two things in its framing that moved. Read that block
+  before building its five-configuration matrix: configurations 2 and 3 are no
+  longer separable by switching a keyword, since a recorded fit always carries a
+  token now, so measuring configuration 2 alone needs `telemetry=False` plus an
+  explicitly attached one. Nothing here blocks a release.
+
 - **2026-09-13** — created. The seam is a file because the two processes already
   share a directory and nothing else. The sharpest fact in the whole track lives
   here: a human's click can raise in an agent's process, so the dialog says so
