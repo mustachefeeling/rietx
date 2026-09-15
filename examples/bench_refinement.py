@@ -1017,6 +1017,8 @@ def _header(repeats: int, configs: list[Config]) -> str:
             f"venv {Path(sys.prefix)}\n"
             f"best-of-{repeats}, wall clock as a RANGE — run idle, alone; "
             f"never compare across machines\n"
+            f"configurations are INTERLEAVED within each repeat, so machine "
+            f"drift spreads over all of them instead of landing on one\n"
             f"configurations: {', '.join(c.key for c in configs)} — every row "
             f"carries its own, and a number quoted without one is ambiguous")
 
@@ -1102,12 +1104,15 @@ def _compare(by_config: dict[str, list[Run]]) -> None:
         return
     walls = [r.wall for r in control]
     base = statistics.median(walls)
+    floor = min(walls)
     spread = (max(walls) - min(walls)) / base if base else 0.0
     gate = max(0.05, spread)
     tail = "" if gate == 0.05 else "  (the spread, not the 5 %)"
-    print(f"    vs {CONFIGS[0].key}: ratio of medians over {len(control)} "
-          f"repeats · control spread {100 * spread:.1f} % · "
-          f"gate {1 + gate:.3f}×{tail}")
+    print(f"    vs {CONFIGS[0].key}: {len(control)} interleaved repeats · "
+          f"control spread {100 * spread:.1f} % · gate {1 + gate:.3f}×{tail}")
+    print(f"      {'':12s} {'median':>7s} {'min':>7s}  "
+          f"— the min of N is the least contaminated estimate of the same "
+          f"quantity, so a pair that disagree are still measuring the machine")
     if len(control) < 3:
         print(f"      !! {len(control)} repeat(s): the spread above is not a "
               f"spread and the gate it implies is not one either")
@@ -1117,6 +1122,7 @@ def _compare(by_config: dict[str, list[Run]]) -> None:
     for key, rs in by_config.items():
         med = statistics.median([r.wall for r in rs])
         ratio = med / base if base else float("nan")
+        floor_ratio = min(r.wall for r in rs) / floor if floor else float("nan")
         acc = rs[-1].account
         flags = []
         if {r.nfev for r in rs} != ref_nfev:
@@ -1130,9 +1136,10 @@ def _compare(by_config: dict[str, list[Run]]) -> None:
         # configuration that wrote through a plain ``EventStream`` has none —
         # "-" rather than 0, which would read as a measurement
         flush = f"{acc.flushes:5d}" if records.get(key) else f"{'-':>5s}"
-        print(f"      {key:12s} {ratio:6.3f}×  median {med:8.3f} s  "
-              f"log {acc.lines:6d} ln {_bytes(acc.bytes):>9s}  "
-              f"flush {flush}  dir {_bytes(acc.dir_bytes):>9s}  "
+        print(f"      {key:12s} {ratio:6.3f}× {floor_ratio:6.3f}×  "
+              f"median {med:8.3f} s  log {acc.lines:6d} ln "
+              f"{_bytes(acc.bytes):>9s}  flush {flush}  "
+              f"dir {_bytes(acc.dir_bytes):>9s}  "
               f"snap {_bytes(acc.snapshot_bytes):>9s}{note}")
         if acc.dropped:
             print(f"        ({acc.dropped} eval events dropped by the "
@@ -1186,10 +1193,21 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  {case.key:10s} skipped ({exc})")
             continue
         shape = _shape(setup)
-        by_config: dict[str, list[Run]] = {}
+        # **Interleaved, never blocked.**  Running every repeat of one
+        # configuration before starting the next makes each configuration a
+        # contiguous slice of wall-clock time, so any drift in the machine --
+        # thermal, another process, page cache -- lands on one configuration
+        # entire and arrives as a difference between configurations.  Measured
+        # 2026-09-15, blocked: `events=<path>` came in at 0.816x a bare fit on
+        # `nac`, and on `cpd-2` the recorder came in cheaper than the caller's
+        # stream it contains.  Both are impossible; both went away on
+        # interleaving.  WP-1405 reached the same shape from the other end and
+        # its numbers are the finer ones for that reason.
+        by_config: dict[str, list[Run]] = {c.key: [] for c in configs}
+        for _ in range(args.repeats):
+            for config in configs:
+                by_config[config.key].append(_run_once(setup, config))
         for n, config in enumerate(configs):
-            by_config[config.key] = [_run_once(setup, config)
-                                     for _ in range(args.repeats)]
             _report(case, setup, by_config[config.key], config, shape,
                     detail=n == 0)
         _compare(by_config)
