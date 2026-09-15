@@ -1,7 +1,8 @@
 # WP-1422 — the WP two sessions picked
 
-Milestone: unscheduled · Status: 🔄 2026-09-15 — claim store, session-start
-report and the `EnterWorktree` refusal land; the CLAUDE.md clause is open
+Milestone: unscheduled · Status: ✅ 2026-09-15 — claim store, the session-start
+report, the `EnterWorktree` refusal and `/wp-start` step 2; 23 tests, and the
+first clash it would have caught is one that has not happened yet
 Depends on: —
 
 ## Goal
@@ -118,11 +119,13 @@ that never merge.
       cooperation from it, and why a fourth path to the same state is not added.
 - [x] `.claude/commands/wp-start.md`: the check inside step 2, the dormant
       reading, the `claim` override, and the refusal at step 3.
-- [x] Tests in `tests/test_workflow_hooks.py`.
-- [ ] Root CLAUDE.md § Protocol: the one-WP-per-session clause beside the
-      one-tree-per-session one.
-- [ ] ROADMAP: the index row under § The repo's own process.
-- [ ] Skill: none. The claim is repo process and reaches no agent driving
+- [x] Tests in `tests/test_workflow_hooks.py`: 30 → 53, all passing.
+- [x] The handover audit's two: `provenance` reads the claim's `by`/`declared`,
+      and the `"tree"` source value gets the case that reaches it.
+- [x] Root CLAUDE.md § Protocol: the one-WP-per-session clause beside the
+      one-tree-per-session one, and the cap ledger entry that pays for it.
+- [x] ROADMAP: the index row under § The repo's own process.
+- [x] Skill: none. The claim is repo process and reaches no agent driving
       rietx (root CLAUDE.md § skill routes a rule by who needs it).
 
 ## Acceptance
@@ -143,5 +146,86 @@ python3 .claude/hooks/session_start.py        # flags a WP held in another tree
   repository share a directory.
 
 ## Handover log
+
+### 2026-09-15 — the WP a session is on is now something the repo can answer
+
+A session can now find out, before it starts, whether another session is
+already working the WP it was about to pick, and `EnterWorktree` refuses one
+that is taken. The cost of getting this wrong was a whole duplicated session,
+discovered at handover when both sides have a branch and a PR.
+
+The finding worth keeping is how little had to be built. Everything the answer
+needs was already observable — the worktrees from git, the live ones from the
+`claude` processes and their working directories, the WP from the tree's own
+name — so the answer is *derived*, and the small store added on top only
+corrects the one case derivation gets wrong. That means nothing has to be
+remembered: a session that skips every new step still gets the right answer
+from its branch name. A claim also dies with its worktree, pruned whenever the
+ledger is read, so there is no expiry policy and no way for it to start
+describing trees that are gone.
+
+It should be said plainly that **no clash has happened here yet**. The history
+was searched for one: three branches carry `wp1110-` and two carry `wp1067-`,
+and every commit range is strictly sequential (1110 ran 2026-08-20 23:58, then
+08-21 01:47, then 08-21 14:43). This is opened on the mechanism, not on an
+incident, and the WP says so rather than dressing the mechanism up as evidence.
+
+**Done.** `wp_claim.py` holds the store and the pure functions over it
+(`occupancy`, `held_elsewhere`, `clashes`, `bears_on_a_clash`) plus a
+`status`/`claim`/`release` CLI. `session_start.py` grew `claim_lines`, one flag
+beside the one-session-per-tree one. `worktree_create.py` refuses before making
+the tree and writes the claim after. `worktree_remove.py` got a docstring clause
+and no code. `/wp-start` gained the check inside step 2 — not as a new step, so
+no cross-reference to a numbered step moved.
+
+**Measured** (macOS Darwin 25.5.0, this worktree's own `[dev]` venv, no jax and
+no torch, Python 3.12.12):
+
+- Fast selection `-n auto --dist loadgroup -m "not slow"`: **4877 passed, 132
+  skipped**, two runs at 2:11 and 2:22 and nothing else on the machine. The one
+  file touched went 30 → 53 collected, +23, and all 23 pass; skips unchanged, so
+  no new skip. Main's own total was not re-run for the baseline, so the delta is
+  closed by that collection count rather than by two full readings. The full
+  selection did not run: this WP touches no code the package imports, which is
+  the ladder's own condition for rung 3 (`tests/CLAUDE.md` § Running).
+- `git rev-parse --git-common-dir` resolves to the same `.git` from the main
+  checkout, a worktree, and a worktree nested inside a worktree. That is the
+  guarantee the store rests on.
+- The live table on this machine went from six rows to two once closed WPs whose
+  trees were merely kept were filtered out. Four of the six were finished work
+  whose directory had not been removed.
+
+The handover's own name audit found two things and both are fixed in the branch:
+`Claim.by` and `Claim.declared` were written into every claim and read by
+nothing, which is the twin of a declared name with no writer; and the third
+`source` value had a producer and no test. `Holder.provenance` reads the pair,
+and it earns the place rather than merely using it — the create hook's automatic
+claim and a session's correction both render as "claim" under `source` alone.
+
+**Gotchas for anyone touching this.**
+
+- The trigger for the refusal is a **live process**, never a branch. Stale
+  `wp1067-*` branches have sat on the remote for a month; keying on them would
+  have made the flag fire constantly, which `session_start.py`'s own docstring
+  already names as the expensive failure.
+- `wp_claim.py` keys its files by **worktree**, not by WP. Two trees on one WP
+  is the clash itself, and a WP-keyed store would overwrite it into silence.
+- The hooks are loose scripts on a directory that is not a package. The sibling
+  import **appends** to `sys.path`, so nothing here can shadow a stdlib module.
+- A test fixture asserting that the store is invisible to `git status` needs the
+  real repo's `.claude/worktrees/` ignore rule, or it passes for the wrong
+  reason — it catches its own untracked worktree directories instead.
+
+**Next**, in order, and only if wanted. Nothing here is owed.
+
+1. Run with it for a few weeks. The refusal has never fired in anger, and the
+   one question it cannot answer from inside this session is whether it fires
+   when it should not — an idle session parked in a finished tree is the only
+   false positive its trigger admits, and `release` is the whole answer if it
+   turns out to be common.
+2. If it is common, the next rung is liveness finer than "a process exists":
+   the transcript's modification time would separate a session that is working
+   from one that is merely open. That is `runs.liveness_of`'s pattern one rank
+   out, and it is deliberately not built yet.
 
 - **2026-09-15** — created.

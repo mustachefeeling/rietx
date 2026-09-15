@@ -605,7 +605,7 @@ that travels with it (1340); and the report a joint fit has never had (1341).
 | [1410](wp/1410-worktree-gate-scope.md) | The worktree gate guards this checkout, not every repository | ✅ 2026-09-14 | — |
 | [1411](wp/1411-a-manual-that-links-home.md) | A manual that links home: the landing copy, and the brand on furo's sidebar | ✅ 2026-09-14 | — |
 | [1412](wp/1412-the-theme-nobody-chose.md) | The theme nobody chose | ✅ 2026-09-14 | 1411 |
-| [1422](wp/1422-the-wp-two-sessions-picked.md) | The WP two sessions picked | 🔄 2026-09-15 | 1061, 1410 |
+| [1422](wp/1422-the-wp-two-sessions-picked.md) | The WP two sessions picked | ✅ 2026-09-15 | 1061, 1410 |
 
 #### Candidates — named on a use case, not yet on a measurement
 
