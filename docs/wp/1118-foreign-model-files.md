@@ -447,6 +447,32 @@ instead of supplying a reason.
   run is not a count (`tests/CLAUDE.md` § Running). CI was green on the merge.
   That gate is ruff plus the fast suite across the supported pythons.
 
+*The review pass* — `/code-review high --fix`, run by this repair. It found
+something in the merged code rather than in the repair, which is the case step 9
+of the handover exists for.
+
+`read_gsas_prm` converts the file's numbers onto the schema by assignment, and
+`Base` validates on assignment while `Parameter` carries a bounds validator. A
+`.prm` stating a negative `GW` therefore raised pydantic's `ValidationError`
+naming `Parameter`, with no file in it, which is the shape `io/CLAUDE.md`
+§ Refusals forbids a reader. The conversion now sits in `_build_instrument`, and
+a schema error at that boundary comes back as a `ValueError` naming the file and
+quoting every value it converted. The same exposure ran through `LAM1`, `LAM2`,
+`POLA`, `KRATIO`, `GU` and the two axial terms, so the test is parametrised over
+five of them (`0efac867`).
+
+Two smaller things came with it. The build moved above the diagnostics block,
+which is what the emission site's own comment already promised, and the test
+asserts the caller's list is empty when a file is refused. And the manual
+documented the two diagnostics in the wrong order. `GSAS_PRM_FIELD_DROPPED`
+precedes `GSAS_PRM_GEOMETRY_ASSUMED`, checked on `11bm_gsas.prm`, and that error
+predates the reorder.
+
+One finding was declined as written. The patch's docstring and its test comment
+both said a GSAS fit of a broad laboratory pattern lands `GW` negative
+"routinely". Nothing in this session measured that. The docstring now states the
+measurement that was made and says plainly that the frequency was not.
+
 *Gotchas*
 
 - **The `PRCF` continuation records stay a token read**, deliberately. GSAS
