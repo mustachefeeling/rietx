@@ -375,6 +375,31 @@ def test_a_blank_primary_wavelength_is_refused(tmp_path):
         read_gsas_prm(p)
 
 
+def test_a_blank_polarization_is_refused_rather_than_defaulted(tmp_path):
+    """Reading by column makes a blank field reachable where a six-token split
+    refused the whole record, so each one needs its own answer.
+
+    ``Instrument.debye_scherrer`` has a ``polarization`` default of 0.99 and it
+    is exactly what the corpus states, which is what would make falling back on
+    it invisible: the caller would read this package's number as the file's.
+    """
+    p = tmp_path / "no_pola.prm"
+    p.write_text(_prm(icons=_icons(pola=None)), encoding="utf-8")
+    with pytest.raises(ValueError, match="no polarization"):
+        read_gsas_prm(p)
+
+
+def test_a_blank_profile_function_type_is_refused(tmp_path):
+    """Same reachability, one record along.  A ``PRCF1`` header with no type
+    names none of its coefficients, and the types disagree about position 4.
+    """
+    p = tmp_path / "no_type.prm"
+    text = _prm().replace("INS  1PRCF1     3", "INS  1PRCF1      ")
+    p.write_text(text, encoding="utf-8")
+    with pytest.raises(ValueError, match="no profile function type"):
+        read_gsas_prm(p)
+
+
 def test_nonzero_gp_coefficient_is_refused(tmp_path):
     """PRCF position 4 (GSAS ``GP``) is always 0 in every real file this
     reader was built against and has no mapping onto ``ProfileTCHZ`` — a

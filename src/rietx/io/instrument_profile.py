@@ -509,17 +509,20 @@ def read_gsas_prm(path: str | Path, *,
         # for a record that is absent is the same shape as a defaulted field
         # answering a question nobody asked (WP-1076): it is `info`, and the
         # corpus makes it true often enough that it would not be noticed.
+        blank = "blank"
+        ratio = blank if icons.ka2_ratio is None else icons.ka2_ratio
         ratio_note = (
-            f"KRATIO = {icons.ka2_ratio!r}, carried as the second emission "
-            f"line's weight"
+            f"KRATIO = {ratio}, carried as the second emission line's weight"
             if icons.lam2 else
-            f"KRATIO = {icons.ka2_ratio!r}, read and not applied (it weights "
-            f"a second line, and LAM2 states none here)")
+            f"KRATIO = {ratio}, read and not applied (it weights a second "
+            f"line, and LAM2 states none here)")
         dropped = [
-            ("ICONS", f"IPOLA (the polarization type) = 0, the refine flags "
-                      f"and IDAMP = {icons.damping!r} (refinement controls, "
-                      f"which a frozen calibration has no use for), and "
-                      f"{ratio_note}"),
+            ("ICONS", f"IPOLA (the polarization type) = "
+                      f"{blank if icons.polarization_type is None else 0}, "
+                      f"the refine flags and IDAMP = "
+                      f"{blank if icons.damping is None else icons.damping} "
+                      f"(refinement controls, which a frozen calibration has "
+                      f"no use for), and {ratio_note}"),
         ]
         past_8 = (f", and {len(rest)} coefficient(s) past position "
                   f"{len(_PRCF_MAPPED)} = 0" if rest else "")
@@ -540,9 +543,7 @@ def read_gsas_prm(path: str | Path, *,
                 where=[record]))
 
     instrument = Instrument.debye_scherrer(
-        wavelength=icons.lam1,
-        **({} if icons.polarization is None
-           else {"polarization": icons.polarization}))
+        wavelength=icons.lam1, polarization=icons.polarization)
     if icons.lam2:
         # A second line's weight is relative to the first, which the parameter
         # table pins at 1 (EmissionLine) — so KRATIO, the Kα2/Kα1 intensity
@@ -640,6 +641,13 @@ def _read_icons(records: list[tuple[str, str]], p: Path) -> GsasIcons:
             f"(LAM1, columns 12-22) — the field is blank or is not a number, "
             f"and an instrument file without a wavelength describes no "
             f"instrument")
+    if icons.polarization is None:
+        raise ValueError(
+            f"{p.name}: bank 1's ICONS record states no polarization (POLA, "
+            f"columns 52-62) — the field is blank or is not a number.  Every "
+            f"real file in the corpus states it, and falling back on "
+            f"Instrument.debye_scherrer's 0.99 would put this package's "
+            f"number into an instrument the caller will read as the file's")
     if icons.zero:
         raise ValueError(
             f"{p.name}: ICONS field ZERO is {icons.zero!r}, not 0 — "
@@ -708,6 +716,12 @@ def _read_prcf(records: list[tuple[str, str]],
             f"ambiguous about which applies, not a richer instrument")
     header = read_prcf_header(headers[0])
     prof_type, ncoef = header.function, header.n_coefficients
+    if prof_type is None:
+        raise ValueError(
+            f"{p.name}: this bank's PRCF1 header states no profile function "
+            f"type (columns 12-17 are blank) — the coefficients below it "
+            f"cannot be named without one, because each GSAS function has its "
+            f"own order and type 2's fourth is LX where type 3's is GP")
     labels = _prcf_labels(prof_type)
 
     coeffs: list[float] = []
