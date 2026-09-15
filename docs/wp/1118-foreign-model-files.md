@@ -416,6 +416,26 @@ mid-suite either time (checked with `ps aux | grep`, not `pgrep`):
   The Caglioti terms did not move at all: `1e-2**2 == 1e-4` exactly in IEEE754,
   so the centidegree conversion returns the same doubles the constants were.
 
+*The review pass found ten things and the first of them was the bug this
+reader exists to prevent.* `_continuation` appended only the values `_num` could
+parse, so one unreadable coefficient field **compacted the list and renamed
+every later coefficient**. Fortran writes a three-digit exponent with no `E`
+(`0.200000-100`), which Python will not parse. Reproduced against the pre-fix
+code, a six-coefficient function-2 block came back `GU=2.0, GV=5.0,
+GW=3.35183, LX=2.48803, LY=0.0` — five plausible numbers, each under the wrong
+name, nothing raised. Naming coefficients per function type cannot help once the
+*values* have shifted under the names, so the careful part of this reader was
+guarding one end of a hazard that came in at the other. Two siblings of the same
+shape are now refusals too: a header declaring more coefficients than its records
+carry, and a blank numeric field reaching a `float`-annotated model field as
+`None`. The rest were smaller — `EXPR HTYP<n>` record numbers ignored (a file
+with more than twelve histograms overwrote histogram 1 with record 2's type), the
+HAP and histogram gates disagreeing about single-crystal data because `SXC`'s
+third letter is `C`, `str.splitlines()` breaking on `\x85` where the
+byte-measuring sniff does not, gemmi's space-group error escaping unwrapped, and
+two stale docstrings plus `io/CLAUDE.md`'s `reports_at` bullet. Nothing was
+declined; nine tests came with them.
+
 *In flight*: nothing. The branch is one session's work and complete.
 
 *Gotchas*:
