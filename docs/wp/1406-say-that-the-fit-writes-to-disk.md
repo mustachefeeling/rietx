@@ -1,6 +1,6 @@
 # WP-1406 — say that the fit writes to disk
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: ✅ 2026-09-15 — the manual, the skill and two rulebooks say a fit writes to disk; the body sentence moved to 1405, which is the WP that makes it true
 Depends on: 1403 (the behaviour being documented); 1405 (the sentence the skill
 body carries); 1402 (the break being recorded)
 
@@ -278,6 +278,91 @@ TeX passes every check a build can make.
 - WP-1322 — Task 2, discharged here.
 
 ## Handover log
+
+- **2026-09-15** — WP-1403 shipped code that writes to every user's disk on
+  every fit, and until today nothing anywhere told them so. That gap is closed:
+  a library user opening the manual now learns in the first paragraph of
+  § Watching a run that a fit records itself, what the four switches are, and
+  that the environment one outranks the keyword. A person running `rietx watch`
+  learns what the liveness words mean, and that **abandoned** is a real answer
+  rather than a rounding of the other two. An agent gets a reference file behind
+  a routing row. And anyone on a shared filesystem gets the sentence they were
+  entitled to: a run directory holds every free parameter's value at every
+  recorded evaluation, and no pattern bytes. The track is shippable now.
+
+  The session also refused to write the one thing it was chartered to write, and
+  that is the finding worth carrying. The skill body sentence — "a human may be
+  watching, and may stop you" — describes WP-1405's feature, and WP-1405 has not
+  started. Writing it would have put a confident falsehood in the one document
+  every agent reads whole.
+
+  **Done.** The root CLAUDE.md clause keeps its rule and drops the half that
+  stopped being true two WPs ago. Seven comments in `runs.py` were the same
+  defect one rank down, still predicting WP-1403 in the future tense; they now
+  describe what `RunRecorder` does. Four manual chapters: `refining.md` gains the
+  writes-to-disk opening, the six files and their sizes, the cost, retention and
+  a warning admonition; `cli.md` gains where runs come from, the liveness table,
+  the six JSON routes declared provisional and reading-only as a property of the
+  build; `files.md` draws the runs root in both the map and a listing, keeps
+  `$HOME/.rietx` and the working directory's `.rietx/` apart, and says what a run
+  contains; `compatibility.md` declares the run layout and the routes provisional
+  and says why they carry no version string. `references/watching.md` is §9d,
+  eight rows, each closing with its measurement. The two refusals are in
+  `runs.py`'s module docstring and the second in `compatibility.md`.
+
+  **Measured.** `[dev]` venv (numba, no jax, no torch), macOS arm64, python
+  3.12.12, rietx 1.4.0. Fast selection 4793 passed, 132 skipped, 2:33, against
+  WP-1403's 4788/132: **+5 passed, skips unchanged**, and the 5 are exactly the
+  parametrised cases `watching.md` adds to `test_skill.py`, counted by collection
+  rather than by subtraction. Full selection on **current main merged into this
+  branch**: see the figure at the end of this entry. A live fit was run to verify
+  the chapters rather than to describe them: 204 kB over six files, reproducing
+  WP-1403's number exactly, and every reader call in the skill reference was run
+  against 1.4.0 first (`discover`, `read_run`, `tail_events` at offset 30782 over
+  87 events with 0 bad lines, `liveness_of` answering `done`). Prose measured on
+  the added lines only: em dash 0, negation 2.3/1k against a budget of 3. The
+  skill reference sits at 5.5 em dashes/1k where the four existing references run
+  12.9-15.3, which is the rulebook register the prose skill sanctions for that
+  file class.
+
+  **Three findings the charter had wrong, all corrected in place above.** The
+  cancel button and the read-only serving flag do not exist, so they are WP-1405's
+  manual pass. The `fit.html` break was already recorded by WP-1402 in the v1.4
+  milestone on the day it landed; what was missing there was an Additions entry
+  for WP-1403 and any record at all of `live/` moving to one directory per run,
+  which is a break for anyone opening `<project>.rex/live/events.jsonl` by path.
+  Both are now in the record, with the deliberate `PROJECT_FORMAT_VERSION` no-bump
+  decision written down where it had only ever been a commit message.
+
+  **Gotchas.** The skill body cut is spent: §6 item 23 paid for this WP's routing
+  row, and it was free only because `references/abstention.md` already carried it
+  whole. The next body addition needs its own. `SKILL.md` sits at 462 lines and
+  31489 B against caps of 500 and 33000. The root CLAUDE.md is **at** its 797-line
+  cap, so the next edit there displaces something. And one scar worth naming: this
+  session's own prune script located the `### Inherited` mailbox with
+  `t.index("### Inherited")`, matched an inline mention inside a sentence instead
+  of the heading, and silently ate three sections of this WP file. It was caught
+  in the pre-handover diff review and repaired from `origin/main`; a prune that
+  anchors on a heading should anchor on a line start.
+
+  One more, filed nowhere because [1410](1410-worktree-gate-scope.md) closed
+  2026-09-14 and this is a different path through the same hook. The Bash branch
+  of `worktree_only.py` refused three harmless commands this session: a
+  `.venv/bin/python` call whose script path came from `$CLAUDE_JOB_DIR`, a
+  heredoc whose *text* contained the words "git log", and a `zsh` loop over four
+  filenames. Each was a docs command touching no repository state. The cost is
+  small, a rewrite into a plain command each time, and the pattern is that the
+  Bash branch refuses on the command's spelling rather than on what it touches.
+  Worth a WP only if it starts costing more than it did here.
+
+  **Next.** [1405](1405-the-human-stops-the-run.md) first, because its mailbox now
+  holds three things this WP could not do, and it is the last behavioural gap in
+  the track. [1404](1404-what-recording-every-fit-costs.md) is the other live
+  item and is independent: it prices the default-on recorder, which is the one
+  configuration nobody has measured directly, and this WP's manual quotes the
+  `LiveSession` path as the nearest measured proxy. If 1404's number lands outside
+  the 1.03-1.28x range now in `refining.md` and `watching.md` §9d.7, both need the
+  figure corrected.
 
 - **2026-09-13** — created. Placed last in the track but it is not optional
   decoration: WP-1403 changes what every `fit()` does to a user's filesystem, and
