@@ -270,8 +270,13 @@ class GsasPhase:
     space_group: str
     cell: GsasCell
     atoms: tuple[GsasAtom, ...]
-    #: GSAS's phase type: 1 nuclear, 2 and 3 magnetic, 4 macromolecular
-    kind: int = 1
+    #: GSAS's phase type: 1 nuclear, 2 and 3 magnetic, 4 macromolecular.
+    #: ``None`` where the file states no ``EXPR NPHAS`` record, which is the
+    #: honest empty state rather than a default of 1 (WP-1076).  Defaulting to
+    #: nuclear reads as an *answer* about a file that said nothing, and it is
+    #: the one answer that silences the magnetic refusal — whose whole argument
+    #: is that the nuclear half would look complete
+    kind: int | None = None
     #: the ``CHMF`` unit-cell contents, per species
     formula: tuple[tuple[str, float], ...] = ()
 
@@ -749,7 +754,7 @@ def read_gsas_exp(path: str | Path, *,
                     htypes[i + 1] = token
 
     phases = tuple(
-        _read_phase(n, phase_blocks[n], p.name, kinds.get(n, 1))
+        _read_phase(n, phase_blocks[n], p.name, kinds.get(n))
         for n in sorted(phase_blocks))
 
     reported: list[str] = []
@@ -757,12 +762,24 @@ def read_gsas_exp(path: str | Path, *,
     for n in sorted(hist_blocks):
         kind = htypes.get(n, "")
         block = hist_blocks[n]
-        if kind[:1] == "S":
+        if not kind:
+            # The same rule as the phase type above: an absent HTYP is the file
+            # saying nothing, and reading the coefficients under a
+            # constant-wavelength function's names would be assuming the one
+            # answer that makes them look right.  The numbers stay readable on
+            # the record; what is declined is naming them.
+            reported.append(
+                f"histogram {n} states no HTYP record, so its radiation type "
+                f"and whether it is constant-wavelength are unknown; its "
+                f"profile coefficients are left unnamed rather than read under "
+                f"a function order nothing establishes")
+            block = {k: v for k, v in block.items() if not k.startswith("PRCF")}
+        elif kind[:1] == "S":
             reported.append(
                 f"histogram {n} is single-crystal data ({kind!r}), which this "
                 f"reader does not carry")
             block = {k: v for k, v in block.items() if not k.startswith("PRCF")}
-        elif kind and kind[2:3] != "C":
+        elif kind[2:3] != "C":
             reported.append(
                 f"histogram {n} is {kind!r} rather than constant-wavelength, "
                 f"and the time-of-flight profile functions have a different "
@@ -972,6 +989,14 @@ def to_structure(model: GsasModel, *, phase: int | None = None,
                 f"carries {have}")
         chosen = matches[0]
 
+    if chosen.kind is None:
+        raise GsasExpError(
+            f"{model.path or '<model>'}: phase {chosen.number} "
+            f"({chosen.name!r}) has no phase type — the file states no "
+            f"'EXPR NPHAS' record, so nothing says whether it is nuclear, "
+            f"magnetic or macromolecular.  Reading it as nuclear is the one "
+            f"assumption that would silence the magnetic refusal below, so it "
+            f"is refused instead.  The cell and sites are on `model.phases`")
     if chosen.magnetic:
         raise GsasExpError(
             f"{model.path or '<model>'}: phase {chosen.number} "

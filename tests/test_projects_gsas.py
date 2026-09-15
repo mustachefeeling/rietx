@@ -367,3 +367,42 @@ def test_a_missing_atom_b_record_is_refused_rather_than_defaulted(tmp_path):
     path = _exp(tmp_path, "half.EXP", *_MINIMAL[:-1])
     with pytest.raises(GsasExpError, match="no matching 'B' record"):
         read_gsas_exp(path)
+
+
+def test_a_phase_with_no_stated_type_is_refused_rather_than_assumed_nuclear(tmp_path):
+    """``EXPR NPHAS`` is what says nuclear, magnetic or macromolecular.
+
+    Defaulting an absent one to nuclear is WP-1076's defaulted lie, and it is
+    the single answer that silences the magnetic refusal — whose whole argument
+    is that the nuclear half would look complete.  So the type is ``None`` and
+    the build refuses, while the cell and sites stay readable on the model.
+    """
+    cards = [c for c in _MINIMAL if not c.startswith(" EXPR NPHAS")]
+    assert len(cards) == len(_MINIMAL) - 1
+    model = read_gsas_exp(_exp(tmp_path, "no_nphas.EXP", *cards))
+    assert model.phases[0].kind is None
+    assert model.phases[0].cell.a == pytest.approx(4.0)   # still readable
+    with pytest.raises(GsasExpError, match="no phase type"):
+        to_structure(model)
+
+
+def test_a_histogram_with_no_stated_type_keeps_its_coefficients_unnamed(tmp_path):
+    """``HTYP`` is what says the profile function's coefficient order applies.
+
+    Without it the numbers are still on the record and the histogram is still
+    carried; what is declined is naming them under a constant-wavelength
+    order nothing establishes.
+    """
+    path = _exp(tmp_path, "no_htyp.EXP", *_MINIMAL,
+                _card("HST  1 ICONS", "  1.540500  1.544300       0.0         0       0.5    0"),
+                _card("HST  1PRCF1 ", "    2    6      0.01"),
+                _card("HST  1PRCF11", "   0.200000E+01  -0.200000E+01   0.500000E+01   0.100000E+01"))
+    model = read_gsas_exp(path)
+    (hist,) = model.histograms
+    assert hist.kind == ""
+    assert hist.wavelengths == pytest.approx((1.5405, 1.5443))  # still read
+    assert hist.default_profiles == ()                          # but not named
+    assert any("states no HTYP" in line for line in model.unsupported)
+    notes: list = []
+    read_gsas_exp(path, diagnostics=notes)
+    assert any(n.code == "GSAS_EXP_HISTOGRAM_NOT_READ" for n in notes)
