@@ -122,8 +122,8 @@ and 12.44°. Cluster the positions before counting anything.
 
 `unmatched_calc` is a Rietveld reading. It is a strong negative residual under a
 tick, and Le Bail or Pawley extraction assigns a reflection with nothing under
-it almost nothing, so no negative residual is left to find. What the detector
-returns in those modes is noise that happens to sit near a tick. Measured on a
+it almost nothing, so most of the residual the detector looks for is gone. What
+survives does not separate a right cell from a wrong one. Measured on a
 synthetic LaB₆ pattern, it fired on 17 of the certified cell's own 28
 reflections and on 94 of a doubled cell's 153, which is 61 % either way. The
 count that does separate them is `LeBailValidation.predicted_but_absent`

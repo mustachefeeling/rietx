@@ -224,8 +224,8 @@ measured evidence behind each rule is
 11. **Read the unmatched peaks.** `report.unmatched` with `kind="unmatched_obs"`
     is an impurity or a missing phase; `"unmatched_calc"` is a phase you modelled
     that is not there, or an absence error. Read `unmatched_calc` in Rietveld
-    mode only. Le Bail and Pawley extraction leaves no negative residual under an
-    absent reflection, so there it fires on noise near a tick.
+    mode only. Le Bail and Pawley extraction takes away most of the residual it
+    looks for, so there it fires on noise near a tick.
 12. **Ask whether the refined values are physically possible** — negative Biso,
     occupancies above 1, a cell that moved 0.5 %, an ADP tensor that is not an
     ellipsoid — **and ask it of the structure too.** `result.geometry` is a

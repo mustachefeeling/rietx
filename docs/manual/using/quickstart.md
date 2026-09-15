@@ -186,14 +186,14 @@ The Le Bail fit knows nothing about CaF₂, so the line at 7.52° is observed
 intensity the model cannot place, and the report says so. Adding the phase
 accounts for it.
 
-The flag runs one way only. A Le Bail intensity is extracted from the counts in
-the reflection's own window, so a reflection the pattern does not show is
-assigned almost nothing and leaves no misfit behind. Reading that absence takes
-a count of predicted positions carrying no intensity above the fitted
-background, which is what `LeBailValidation.predicted_but_absent` reports for an
-indexing candidate ([](indexing.md)). Texture can empty a reflection the same
-way, so the Rietveld fit is where the two come apart, with the intensity
-computed from the structure.
+Only one of those directions carries evidence. A Le Bail intensity is extracted
+from the counts in the reflection's own window, so a reflection the pattern does
+not show is assigned almost nothing, and nothing in the report reads the
+absence. Reading it takes a count of predicted positions carrying no intensity
+above the fitted background. The indexing chapter's validation reports exactly
+that, as `LeBailValidation.predicted_but_absent` ([](indexing.md)). Texture can
+empty a reflection the same way, so either one shows up in the Rietveld fit that
+follows, where the intensity is computed from the structure.
 
 ### With no structure at all
 
