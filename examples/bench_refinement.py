@@ -1127,6 +1127,8 @@ def _compare(by_config: dict[str, list[Run]]) -> None:
     ref_rwp = {round(r.rwp, 9) for r in control}
     records = {c.key: c.records for c in CONFIGS}
     for key, rs in by_config.items():
+        assert all(r.config == key for r in rs), (
+            f"a run filed under {key!r} carries a different configuration stamp")
         med = statistics.median([r.wall for r in rs])
         ratio = med / base if base else float("nan")
         floor_ratio = min(r.wall for r in rs) / floor if floor else float("nan")
@@ -1143,9 +1145,10 @@ def _compare(by_config: dict[str, list[Run]]) -> None:
         # configuration that wrote through a plain ``EventStream`` has none —
         # "-" rather than 0, which would read as a measurement
         flush = f"{acc.flushes:5d}" if records.get(key) else f"{'-':>5s}"
+        evals = f"{acc.evals:5d} eval" if records.get(key) else f"{'-':>5s} eval"
         print(f"      {key:12s} {ratio:6.3f}× {floor_ratio:6.3f}×  "
               f"median {med:8.3f} s  log {acc.lines:6d} ln "
-              f"{_bytes(acc.bytes):>9s}  flush {flush}  "
+              f"{_bytes(acc.bytes):>9s}  {evals}  flush {flush}  "
               f"dir {_bytes(acc.dir_bytes):>9s}  "
               f"snap {_bytes(acc.snapshot_bytes):>9s}{note}")
         if acc.dropped:
