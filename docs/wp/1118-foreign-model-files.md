@@ -441,15 +441,28 @@ instead of supplying a reason.
   doublet refusal and the reserved-field refusal. The file collects 40 cases and
   all 40 pass on the merged tree, re-measured 2026-09-15 by this repair.
 - `src/rietx/io/CLAUDE.md`'s cap went 368 → 383, and the file landed at 381.
-- **No selection count, in either direction.** The session recorded none, and
-  this repair could not supply one: another session held the machine
-  mid-`--dist loadgroup` while the repair ran, and a count taken beside another
-  run is not a count (`tests/CLAUDE.md` § Running). CI was green on the merge.
-  That gate is ruff plus the fast suite across the supported pythons.
+- **The session recorded no selection count. This repair measured one**, on the
+  repair branch, alone on the machine, 2026-09-16: fast selection
+  `-n auto --dist loadgroup -m "not slow"` → **4951 passed, 132 skipped**, 3:23.
+  Five of those are this repair's own parametrised refusal test, so `origin/main`
+  stands at 4946, derived per file rather than by re-measuring it
+  (`tests/CLAUDE.md` rung 4).
+- **That figure does not yield the column session's delta.** The 1st session
+  measured 4925 passed on *its branch*, `7747a14e`, and the tree that became
+  `origin/main` is that branch merged into a `main` which had moved under it.
+  Two parents' additions do not sum (`tests/CLAUDE.md` § Quoting numbers), so
+  the attributable figure here is the per-file one: `tests/test_gsas_prm.py`
+  went 29 → 38 test functions.
 
 *The review pass* — `/code-review high --fix`, run by this repair. It found
 something in the merged code rather than in the repair. That is the case step 9
 of the handover exists for.
+
+Read what it is before relying on it. The diff under review was this branch's,
+which is documentation, so the reader was opened as **context** and never as
+reviewed scope. One defect surfaced that way. PR #332's code has had exactly one
+systematic review and it is the column session's own (`2a96b536`); nothing here
+re-reviewed it, and a second defect of the same kind would not have been found.
 
 `read_gsas_prm` converts the file's numbers onto the schema by assignment, and
 `Base` validates on assignment while `Parameter` carries a bounds validator. A
