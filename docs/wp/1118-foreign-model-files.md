@@ -411,9 +411,10 @@ instead of supplying a reason.
 - **The review pass** (`2a96b536`), over three blank fields the column read made
   reachable. A six-token split refused a record missing any field, so no field's
   absence had had an answer of its own. A blank `POLA` was the one that
-  mattered. `Instrument.debye_scherrer` defaults to 0.99 and the corpus states
-  0.99, so falling back on the default would have put this package's number into
-  an instrument a caller reads as the file's. It is refused by name. A blank
+  mattered. The `Instrument.debye_scherrer` constructor defaults its
+  polarization to 0.99 and every real file in the corpus states 0.99, so falling
+  back on the default would have put this package's number into an instrument a
+  caller reads as the file's. It is refused by name. A blank
   `PRCF1` profile type reached the unrecognised-type refusal and printed `None`,
   and it now says the header states no type. Two diagnostic rows asserted `= 0`
   for fields they had not read, which is the defaulted-field lie one message
@@ -430,6 +431,11 @@ instead of supplying a reason.
   against `origin/main`'s module over the whole `model_dump`.
 - `INST_XRY.PRM` is refused for its `GP` of 0.1, a stock GSAS placeholder, where
   before it was refused for a token count.
+- Re-read on the merged tree by this repair, 2026-09-15. The four come back
+  single-line at λ 0.41391, 0.41313, 0.41368 and 0.41330 Å, each weight 1.0,
+  and `INST_XRY.PRM` refuses naming `GP`. That corroborates the shape of the
+  answer. It does not re-verify the bit-identity above, which needs the
+  pre-branch module and stays the session's own measurement.
 - `tests/test_gsas_prm.py` went 29 → 38 test functions, 12 added and 3 removed.
   The three that went asserted the split reading: the token-count refusal, the
   doublet refusal and the reserved-field refusal. The file collects 40 cases and
