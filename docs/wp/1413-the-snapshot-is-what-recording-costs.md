@@ -241,6 +241,16 @@ the bit-identity test. A faster build that moved one index is a regression.
   what replaced it. `trigger`'s ratio did not move and should not have: 49 ms
   on a 5.9 s fit is 0.8 points against a 2.3 % control spread.
 
+  **The review pass** found two errors, both in this session's prose and
+  neither in the code, and both were applied rather than declined. The root
+  CLAUDE.md clause claimed `nac` spends its whole budget on one snapshot, where
+  one snapshot is 8.30 ms of 17.7 ms; and three condensed copies welded two
+  clauses, since 50 ms is what six snapshots cost with nothing free while the
+  counterfactual figure is 27 ms. The code came back clean under an independent
+  4 000-trial fuzz over sizes, budgets, curve counts and NaN. It also declined
+  to raise two unreachable states, an object-dtype curve and a curve longer than
+  `tt`, neither of which any of the eight call sites can produce.
+
   The index-set contract was deliberately **not** promoted to the root
   CLAUDE.md. It is already in the function's docstring, in the test that
   enforces it by name, and in WP-1402, and the file sits at its 811-line cap.
