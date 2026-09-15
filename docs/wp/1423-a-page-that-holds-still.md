@@ -132,11 +132,8 @@ skip the test; the handover names that skip.
 ## Tasks
 
 - [x] The status carries a series pattern's position, read off the stamp
-- [ ] The page is two panels with a collapse each, following the newest run when none is chosen
-- [ ] The list is patched in place under fixed columns
-- [ ] The status strip is fixed slots, and the stop button is one element
-- [ ] The plot's axes come from the data, the Δ/σ range from a ladder, the ticks from their own axis
-- [ ] A browser test that measures what holds still, skipped where it cannot run
+- [x] The page: two panels with a collapse each, following the newest run when none is chosen; the list patched in place under fixed columns; the status strip fixed slots and the stop button one element; the plot's axes from the data, the Δ/σ range from a ladder, the ticks on their own axis (one template, one commit)
+- [x] A browser test that measures what holds still, skipped where it cannot run
 - [ ] Manual: the `rietx watch` section says what the page is now; the v1.4 record stages the change
 - [ ] Skill: none. The page is a human's; an agent driving rietx never reads it.
 

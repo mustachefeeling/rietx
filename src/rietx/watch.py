@@ -56,21 +56,45 @@ _PAGE_TEMPLATE = """<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>rietx watch</title>
 <style>
   :root { color-scheme: dark; }
+  /* Two rules keep this page still (WP-1423). Nothing here is rewritten
+     wholesale: rows, slots and the plot are patched, so the scroll, hover
+     and zoom the reader holds survive a poll. And no dimension is derived
+     from the stage being drawn: columns and slots are declared widths, the
+     bar and the strip are one clipped line each, and the plot's axes come
+     from the data. */
   body { margin:0; font-family: ui-monospace, Menlo, monospace; font-size:12px;
          background:#111; color:#cdc; display:flex; flex-direction:column;
-         height:100vh; }
+         height:100vh; overflow:hidden; }
   a { color:#9ad; text-decoration:none; }
   a:hover { text-decoration:underline; }
-  #bar { background:#1c1c1c; border-bottom:1px solid #2c2c2c; padding:7px 12px;
-         display:flex; gap:14px; align-items:center; flex:0 0 auto; }
-  #root { color:#777; }
-  #body { flex:1 1 auto; overflow:auto; }
-  table { border-collapse:collapse; width:100%; }
-  th { text-align:left; color:#777; font-weight:normal; padding:6px 12px;
+  #bar { background:#1c1c1c; border-bottom:1px solid #2c2c2c; padding:0 12px;
+         display:flex; gap:12px; align-items:center; flex:0 0 auto;
+         height:29px; white-space:nowrap; }
+  #root { color:#777; flex:1 1 auto; min-width:0; overflow:hidden;
+          text-overflow:ellipsis; }
+  button { font: inherit; color:#cdc; background:#242424; cursor:pointer;
+           border:1px solid #3a3a3a; border-radius:4px; padding:2px 9px; }
+  button:hover { background:#2c2c2c; }
+  .toggle[aria-pressed="true"] { background:#2a3140; border-color:#3d4a66; }
+  #main { flex:1 1 auto; display:flex; min-height:0; }
+  /* the list is one panel and the run the other; a closed one gives the
+     other its width, and the choice is the reader's (localStorage) */
+  #runs { flex:0 0 72ch; overflow:auto; scrollbar-gutter:stable;
+          border-right:1px solid #2c2c2c; }
+  #run { flex:1 1 auto; min-width:0; display:flex; flex-direction:column; }
+  body[data-runs="closed"] #runs, body[data-run="closed"] #run,
+  body[data-single] #runs, body[data-single] #toggle-runs { display:none; }
+  table { border-collapse:collapse; width:100%; table-layout:fixed; }
+  col.c-state { width:12ch; } col.c-stage { width:15ch; }
+  col.c-rwp { width:8ch; } col.c-gof { width:6ch; } col.c-started { width:8ch; }
+  th { text-align:left; color:#777; font-weight:normal; padding:6px 7px;
        border-bottom:1px solid #2c2c2c; position:sticky; top:0;
        background:#151515; }
-  td { padding:6px 12px; border-bottom:1px solid #1e1e1e; }
-  tr.run:hover { background:#181818; cursor:pointer; }
+  td { padding:6px 7px; border-bottom:1px solid #1e1e1e; white-space:nowrap;
+       overflow:hidden; text-overflow:ellipsis; }
+  tr.run { cursor:pointer; }
+  tr.run:hover { background:#181818; }
+  tr.run.selected { background:#1b2130; }
   .state { padding:1px 7px; border-radius:9px; font-size:11px; }
   .running   { background:#14361d; color:#6ede8a; }
   .done      { background:#1b2d3d; color:#79b8e8; }
@@ -81,27 +105,32 @@ _PAGE_TEMPLATE = """<!DOCTYPE html>
   .num { text-align:right; font-variant-numeric: tabular-nums; }
   .muted { color:#666; }
   #empty { padding:28px 12px; color:#777; }
-  #detail { display:flex; flex-direction:column; height:100%; }
-  #plot { flex:1 1 68%; border:0; min-height:180px; }
+  /* the strip is a grid of declared slots: a stage name, an Rwp or a
+     pattern label changes its text and never its neighbour's place */
+  #strip { flex:0 0 auto; height:29px; padding:0 12px; gap:0 12px;
+           border-bottom:1px solid #2c2c2c; display:grid; align-items:center;
+           white-space:nowrap; font-variant-numeric: tabular-nums;
+           grid-template-columns: 11ch minmax(0,16ch) minmax(0,30ch)
+             minmax(0,26ch) 11ch 9ch 8ch minmax(0,1fr) auto auto; }
+  #strip > * { min-width:0; overflow:hidden; text-overflow:ellipsis; }
+  #strip .state { justify-self:start; }
+  #picture { flex:1 1 68%; min-height:180px; position:relative; }
+  #plot { position:absolute; inset:0; border:0; width:100%; height:100%; }
   /* a pre-WP-1402 run left a self-contained page behind; it still opens, in
      the frame it was always shown in */
   iframe#plot { background:#fff; }
   /* a GUI project's run has no picture and never will, so the note is a
      line and the log gets the room rather than the other way round */
-  #noplot { flex:0 0 auto; padding:7px 12px; color:#666;
-            border-bottom:1px solid #2c2c2c; }
-  #console { flex:0 0 30%; overflow-y:auto; background:#181818; font-size:11px;
+  #noplot { padding:7px 12px; color:#666; }
+  #run.full #picture { flex:0 0 auto; min-height:0; }
+  #console { flex:0 0 30%; overflow:auto; background:#181818; font-size:11px;
              padding:6px 10px; white-space:pre; }
-  #console.full { flex:1 1 auto; }
+  #run.full #console { flex:1 1 auto; }
   .k { color:#e8b339; }
   .ev { color:#888; }
   code { background:#1c1c1c; padding:1px 5px; border-radius:3px; color:#9ad; }
-  button { font: inherit; color:#cdc; background:#242424; cursor:pointer;
-           border:1px solid #3a3a3a; border-radius:4px; padding:3px 9px; }
-  button:hover { background:#2c2c2c; }
   #stop { border-color:#5a2c2c; color:#e88; }
   #stop:hover { background:#3d1b1b; }
-  /* the overlay sits outside #body, which the 1.2 s poll rewrites whole */
   #confirm { position:fixed; inset:0; background:rgba(0,0,0,0.62);
              display:flex; align-items:center; justify-content:center;
              z-index:10; }
@@ -118,10 +147,43 @@ _PAGE_TEMPLATE = """<!DOCTYPE html>
 </style></head><body>
 <div id="bar">
   <strong>rietx watch</strong>
-  <span id="crumb"></span>
+  <button id="toggle-runs" class="toggle" aria-pressed="true"
+          title="show or hide the run list">runs</button>
+  <button id="toggle-run" class="toggle" aria-pressed="true"
+          title="show or hide the selected run">run</button>
   <span id="root"></span>
 </div>
-<div id="body"><div id="empty">scanning …</div></div>
+<div id="main">
+  <aside id="runs">
+    <table><colgroup>
+      <col class="c-state"><col><col class="c-stage"><col class="c-rwp">
+      <col class="c-gof"><col class="c-started">
+    </colgroup><thead><tr>
+      <th>state</th><th>run</th><th>stage</th><th class="num">Rwp</th>
+      <th class="num">GoF</th><th>started</th>
+    </tr></thead><tbody id="rows"></tbody></table>
+    <div id="empty" hidden>No runs under this directory. A run is a directory
+      holding an <code>events.jsonl</code> — pass one to
+      <code>LiveSession</code>, or open a <code>@SUFFIX@</code> project in the
+      GUI.</div>
+  </aside>
+  <section id="run">
+    <div id="strip">
+      <span id="s-state" class="state unknown">scanning</span>
+      <span id="s-label"></span>
+      <span id="s-series" class="muted"></span>
+      <span id="s-stage"></span>
+      <span id="s-rwp" class="num"></span>
+      <span id="s-gof" class="num"></span>
+      <span id="s-free" class="num"></span>
+      <span id="s-where" class="muted"></span>
+      <span id="s-notice" class="muted"></span>
+      <button id="stop" hidden>stop</button>
+    </div>
+    <div id="picture"></div>
+    <div id="console"></div>
+  </section>
+</div>
 <div id="confirm" hidden><div id="box">
   <h3 id="box-what"></h3>
   <p>This raises <code>RefinementCancelled</code> in the process running the
@@ -137,12 +199,10 @@ _PAGE_TEMPLATE = """<!DOCTYPE html>
   </div>
 </div></div>
 <script>
-const body = document.getElementById('body');
-const crumb = document.getElementById('crumb');
-const rootEl = document.getElementById('root');
+const $ = id => document.getElementById(id);
 let SINGLE = null;          // set when the served directory is itself a run
 let CAN_CANCEL = false;     // false under --read-only: no button is drawn
-// what the crumb says after a stop was asked for, or after one was refused.
+// what the strip says after a stop was asked for, or after one was refused.
 // A fit does not stop the instant the button is clicked — a cadence plus the
 // residual evaluation in flight, which on a large pattern is the larger term —
 // and a page that showed nothing in between would read as one that had missed
@@ -150,17 +210,24 @@ let CAN_CANCEL = false;     // false under --read-only: no button is drawn
 let notice = null;
 let timer = null;
 let tail = {offset: 0, inode: null, id: null};
-// what the detail shell was built for: the run, which kind of picture it has
+// what the run panel was built for: the run, which kind of picture it has
 // ('json', a legacy 'html' page, or 'none'), and which write we have drawn
 let shell = {id: null, kind: null, mtime: null};
-// plotly is fetched once per page, on the first detail view that needs it —
-// never for the run list, which would be 4 MB to draw a table
+// the last list the server sent, by id: the run panel reads its run from
+// here rather than fetching it again
+let rows = new Map();
+let newest = null;
+// plotly is fetched once per page, on the first run that needs it — never
+// for the run list alone, which would be 4 MB to draw a table
 let plotlyPromise = null;
-// how much of the pattern the last draw showed, kept across polls
-let drawn = '';
 const HUE = @HUE@;
 // the console is a tail and not an archive; the log on disk is the archive
 const MAX_LINES = 2000;
+// the Δ/σ panel's range is one of these, ±L: the one dimension on the page
+// that is the fit's rather than the data's, so it may step, and only by a
+// rung, only at a stage boundary
+const LADDER = [3, 5, 10, 20, 50, 100, 200, 500, 1000];
+const PANELS_KEY = 'rietx-watch-panels';
 
 function esc(s) {
   return String(s).replace(/[&<>"]/g, c =>
@@ -179,66 +246,92 @@ function ago(t) {
 function num(v, d) {
   return (typeof v === 'number' && isFinite(v)) ? v.toFixed(d) : '—';
 }
-
-// ---------------------------------------------------------------- list
-async function drawList() {
-  const r = await fetch('api/runs', {cache: 'no-store'});
-  if (!r.ok) return;
-  const payload = await r.json();
-  rootEl.textContent = 'scanned ' + payload.root;
-  crumb.textContent = '';
-  if (!payload.runs.length) {
-    body.innerHTML = '<div id="empty">No runs under this directory. ' +
-      'A run is a directory holding an <code>events.jsonl</code> — pass one ' +
-      'to <code>LiveSession</code>, or open a <code>@SUFFIX@</code> project in ' +
-      'the GUI.</div>';
-    return;
-  }
-  const rows = payload.runs.map(run => {
-    const st = run.status || {};
-    const gui = run.gui_command
-      ? `<code>${esc(run.gui_command)}</code>` : '<span class="muted">—</span>';
-    return `<tr class="run" data-id="${run.run_id}">
-      <td><span class="state ${run.liveness.state}" title="${esc(run.liveness.evidence)}"
-          >${run.liveness.state}</span></td>
-      <td><a href="#/run/${run.run_id}">${esc(run.label)}</a>
-          ${run.legacy ? '<span class="muted"> · legacy</span>' : ''}</td>
-      <td>${esc(st.stage || '—')}</td>
-      <td class="num">${num(st.rwp, 4)}</td>
-      <td class="num">${num(st.gof, 2)}</td>
-      <td class="muted">${ago(run.created)}</td>
-      <td>${gui}</td></tr>`;
-  }).join('');
-  body.innerHTML = `<table><thead><tr>
-    <th>state</th><th>run</th><th>stage</th><th class="num">Rwp</th>
-    <th class="num">GoF</th><th>started</th><th>open in the GUI</th>
-    </tr></thead><tbody>${rows}</tbody></table>`;
-  for (const tr of body.querySelectorAll('tr.run')) {
-    tr.onclick = ev => {
-      if (ev.target.tagName !== 'CODE') location.hash = '#/run/' + tr.dataset.id;
-    };
+// text is written only when it changed: assigning the same string still
+// replaces the node, and a replaced node is a layout
+function setText(el, s) {
+  if (el.textContent !== s) el.textContent = s;
+}
+function setAttr(el, name, value) {
+  if (value === null || value === undefined) {
+    if (el.hasAttribute(name)) el.removeAttribute(name);
+  } else if (el.getAttribute(name) !== String(value)) {
+    el.setAttribute(name, value);
   }
 }
+function setPill(el, live) {
+  setText(el, live.state);
+  setAttr(el, 'class', 'state ' + live.state);
+  setAttr(el, 'title', live.evidence);
+}
 
-// -------------------------------------------------------------- detail
+// ---------------------------------------------------------------- list
+function makeRow(run) {
+  const tr = document.createElement('tr');
+  tr.className = 'run';
+  tr.dataset.id = run.run_id;
+  tr.innerHTML = '<td><span class="state"></span></td><td></td><td></td>' +
+    '<td class="num"></td><td class="num"></td><td class="muted"></td>';
+  tr.onclick = () => { location.hash = '#/run/' + run.run_id; };
+  return tr;
+}
+
+function fillRow(tr, run) {
+  const st = run.status || {};
+  const td = tr.children;
+  setPill(td[0].firstElementChild, run.liveness);
+  setText(td[1], run.label + (run.legacy ? ' · legacy' : ''));
+  setAttr(td[1], 'title', run.path);
+  setText(td[2], st.stage || '—');
+  setText(td[3], num(st.rwp, 4));
+  setText(td[4], num(st.gof, 2));
+  setText(td[5], ago(run.created));
+  tr.classList.toggle('selected', run.run_id === currentId());
+}
+
+// Patched, never rebuilt: a row is keyed by its run id and moved into the
+// server's order, so a list longer than the window keeps its scroll and a
+// row the pointer is on keeps its hover. Rebuilding the table on every poll
+// threw both away twenty-one times in a 25 s probe (WP-1423).
+function patchList(runs) {
+  const tbody = $('rows');
+  const want = new Set(runs.map(r => r.run_id));
+  for (const tr of [...tbody.children]) {
+    if (!want.has(tr.dataset.id)) tr.remove();
+  }
+  runs.forEach((run, i) => {
+    let tr = tbody.querySelector(`tr[data-id="${run.run_id}"]`);
+    if (!tr) tr = makeRow(run);
+    const at = tbody.children[i] || null;
+    if (at !== tr) tbody.insertBefore(tr, at);
+    fillRow(tr, run);
+  });
+  $('empty').hidden = runs.length > 0;
+}
+
+// -------------------------------------------------------------- run
 function pictureKind(run) {
   if (run.has_snapshot) return 'json';
   if (run.has_legacy_snapshot) return 'html';
   return 'none';
 }
 
-function detailShell(run, kind) {
-  const plot = kind === 'json'
+function buildShell(run, kind) {
+  const picture = $('picture');
+  const old = $('plot');
+  // a scattergl plot holds a WebGL context; dropping the div leaks it
+  if (old && old.tagName === 'DIV' && window.Plotly) window.Plotly.purge(old);
+  picture.innerHTML = kind === 'json'
     ? '<div id="plot"></div>'
     : kind === 'html'
       ? `<iframe id="plot" src="${legacySrc(run)}"></iframe>`
       : '<div id="noplot">no picture here — this run wrote only its log</div>';
-  const cls = kind === 'none' ? ' class="full"' : '';
-  body.innerHTML = `<div id="detail">${plot}<div id="console"${cls}></div></div>`;
+  $('run').classList.toggle('full', kind === 'none');
   // mtime null, never the run's: the shell is empty until something draws
   // into it, and carrying the run's write time here would say it had
   shell = {id: run.run_id, kind: kind, mtime: null};
   tail = {offset: 0, inode: null, id: run.run_id};
+  $('console').textContent = '';
+  setText($('s-where'), whereOf(run));
 }
 
 // the mtime is in the URL rather than a cache-buster of its own: the same
@@ -271,6 +364,34 @@ function deltaTitle(weighted) {
   return 'Δ/σ';
 }
 
+function finiteOf(values) {
+  return values.filter(v => v !== null && isFinite(v));
+}
+function extent(values) {
+  let lo = Infinity, hi = -Infinity;
+  for (const v of values) { if (v < lo) lo = v; if (v > hi) hi = v; }
+  return isFinite(lo) ? [lo, hi] : [0, 1];
+}
+
+// Every range is a function of the snapshot and nothing else, and two of the
+// three are functions of the *data* part of it: the decimation keeps the
+// first and last point and every bucket's extremes, so the 2θ span and the
+// observed range read off the decimated arrays are the pattern's own, and
+// they do not move while the fit does. The Δ/σ range is the fit's; it takes
+// the ladder above, off the 99.9th percentile so one spiked point does not
+// set the scale for a run while a misfitted peak of ten points still does.
+function rangesOf(snap) {
+  const tt = snap.two_theta;
+  const x0 = tt[0], x1 = tt[tt.length - 1], xs = (x1 - x0) || 1;
+  const [lo, hi] = extent(finiteOf(snap.y_obs));
+  const ys = (hi - lo) || 1;
+  const d = finiteOf(snap.delta).map(Math.abs).sort((a, b) => a - b);
+  const q = d.length ? d[Math.min(d.length - 1, Math.floor(0.999 * d.length))] : 0;
+  const L = LADDER.find(v => v >= q) || Math.ceil(q);
+  return {x: [x0 - 0.01 * xs, x1 + 0.01 * xs],
+          y: [lo - 0.03 * ys, hi + 0.05 * ys], y2: [-L, L]};
+}
+
 // Every mark below is `viz/html.py`'s, mode for mode and width for width.
 // This page and the emailable one are two pictures of one fit, and a reader
 // who flips between them must not have to relearn which curve is which.
@@ -290,19 +411,12 @@ function snapshotTraces(snap) {
   traces.push({x: tt, y: snap.delta, name: 'Δ/σ', mode: 'lines',
                type: 'scattergl', yaxis: 'y2',
                line: {width: 1, color: HUE.diff}});
-
-  // the rows live in the lower panel, under the Δ/σ trace, spaced in its
-  // units: the residual is read against the peaks that caused it, so nothing
-  // comes between them
-  const finite = snap.delta.filter(v => v !== null && isFinite(v));
-  const lo = Math.min(-3, ...finite);
-  const hi = Math.max(3, ...finite);
-  const span = (hi - lo) || 1;
-  const base = lo - 0.14 * span, step = 0.09 * span;
+  // the rows live on an axis of their own under the Δ/σ panel, one unit a
+  // row: they are read against the residual above them and must not move
+  // when it does
   const names = Object.keys(snap.ticks || {});
   names.forEach((name, i) => {
     const row = snap.ticks[name];
-    const y = base - i * step;
     // one row has nothing to be told apart from, so colour stays for when
     // there are several
     const colour = names.length === 1 ? HUE.tick
@@ -312,8 +426,8 @@ function snapshotTraces(snap) {
       ? `hkl: ${name} (${row.two_theta.length} of ${row.n_total})`
       : `hkl: ${name}`;
     traces.push({
-      x: row.two_theta, y: row.two_theta.map(() => y), name: label,
-      mode: 'markers', type: 'scattergl', yaxis: 'y2', hoverinfo: 'x',
+      x: row.two_theta, y: row.two_theta.map(() => -i), name: label,
+      mode: 'markers', type: 'scattergl', yaxis: 'y3', hoverinfo: 'x',
       marker: {symbol: 'line-ns-open', size: 7, color: colour},
     });
   });
@@ -327,7 +441,7 @@ function snapshotTraces(snap) {
 // picture up for good, there being no later write to notice.
 async function drawSnapshot(id) {
   const plotly = await ensurePlotly();
-  const div = document.getElementById('plot');
+  const div = $('plot');
   if (!div || currentId() !== id) return true;
   if (!plotly) {
     div.outerHTML = '<div id="noplot">this page draws with plotly: ' +
@@ -342,7 +456,9 @@ async function drawSnapshot(id) {
   } catch (err) {
     return false;                      // the console tail is not the plot's
   }
-  if (currentId() !== id || !document.getElementById('plot')) return true;
+  if (currentId() !== id || !$('plot')) return true;
+  const range = rangesOf(snap);
+  const nrows = Math.max(1, Object.keys(snap.ticks || {}).length);
   // react, never newPlot: it keeps the reader's zoom across a stage, which is
   // the whole reason the picture stopped being a page that reloads
   plotly.react(div, snapshotTraces(snap), {
@@ -355,32 +471,80 @@ async function drawSnapshot(id) {
               opacity: 0.15, layer: 'below'}],
     paper_bgcolor: HUE.ground, plot_bgcolor: HUE.ground,
     font: {color: HUE.fg, family: 'ui-monospace, Menlo, monospace', size: 11},
-    xaxis: {anchor: 'y2', title: {text: '2θ (°)'}, gridcolor: HUE.zero,
-            zeroline: false},
-    yaxis: {domain: [0.34, 1], title: {text: 'intensity'},
-            gridcolor: HUE.zero, zeroline: false},
-    yaxis2: {domain: [0, 0.28], anchor: 'x',
+    xaxis: {anchor: 'y3', title: {text: '2θ (°)'}, gridcolor: HUE.zero,
+            zeroline: false, range: range.x, autorange: false},
+    yaxis: {domain: [0.41, 1], title: {text: 'intensity'},
+            gridcolor: HUE.zero, zeroline: false, range: range.y,
+            autorange: false},
+    yaxis2: {domain: [0.10, 0.36], anchor: 'x',
              title: {text: deltaTitle(snap.weighted)},
-             gridcolor: HUE.zero, zerolinecolor: HUE.zero},
+             gridcolor: HUE.zero, zerolinecolor: HUE.zero,
+             range: range.y2, autorange: false},
+    yaxis3: {domain: [0, 0.07], anchor: 'x', visible: false,
+             range: [0.5 - nrows, 0.5], autorange: false, fixedrange: true},
     legend: {orientation: 'h', y: 1.02, yanchor: 'bottom', x: 0},
     // one revision per run: a redraw of the same run keeps the zoom, and
     // opening a different run starts fresh
     uirevision: id,
   }, {displaylogo: false, responsive: true});
-  // kept on the page, not only in the span: `drawDetail` rewrites the crumb
-  // on every poll and would throw the note away between redraws
-  drawn = `${snap.n_drawn} of ${snap.n_points} pts drawn`;
-  const note = document.getElementById('drawn');
-  if (note) note.textContent = drawn;
+  setText($('s-where'), `${snap.n_drawn} of ${snap.n_points} pts drawn · ` +
+                        whereOf(rows.get(id)));
   return true;
 }
 
-async function drawDetail(id, first) {
-  const r = await fetch('api/run/' + id, {cache: 'no-store'});
-  if (!r.ok) { location.hash = ''; return; }
-  const run = await r.json();
-  if (currentId() !== id) return;      // the hash moved while we were waiting
+function whereOf(run) {
+  if (!run) return '';
+  return run.gui_command ? `${run.gui_command} · ${run.path}` : run.path;
+}
+
+function fillStrip(run) {
   const st = run.status || {};
+  setPill($('s-state'), run.liveness);
+  setText($('s-label'), run.label);
+  setAttr($('s-label'), 'title', run.path);
+  setText($('s-series'), st.series_index != null
+    ? `pattern ${st.series_index + 1}/${st.series_n || '?'} ` +
+      `${st.series_label || ''} ${st.series_pass || ''}`.trim()
+    : '');
+  setText($('s-stage'), st.stage
+    ? (st.index != null ? `stage ${st.index}/${st.n_stages || '?'} ` : 'stage ')
+      + st.stage
+    : '');
+  setText($('s-rwp'), st.rwp != null ? 'Rwp ' + num(st.rwp, 4) : '');
+  setText($('s-gof'), st.gof != null ? 'GoF ' + num(st.gof, 2) : '');
+  setText($('s-free'), st.n_free != null ? st.n_free + ' free' : '');
+  setText($('s-notice'), notice ? notice.text : '');
+  // Drawn only for a run being written *here*: a terminal one has nothing
+  // to stop, and 'unknown' covers both another host and a writer that keeps
+  // no lock, where a request would sit in the directory doing nothing. The
+  // route refuses the same set, so this is the courtesy and not the check.
+  $('stop').hidden = !(CAN_CANCEL && !notice
+                       && run.liveness.state === 'running');
+}
+
+function clearStrip() {
+  setPill($('s-state'), {state: 'unknown', evidence: 'no run'});
+  for (const id of ['s-label', 's-series', 's-stage', 's-rwp', 's-gof',
+                    's-free', 's-where', 's-notice']) setText($(id), '');
+  setText($('s-label'), 'no run');
+  $('stop').hidden = true;
+  if (shell.id !== null) {
+    if ($('plot') && $('plot').tagName === 'DIV' && window.Plotly) {
+      window.Plotly.purge($('plot'));
+    }
+    $('picture').innerHTML = '';
+    $('console').textContent = '';
+    shell = {id: null, kind: null, mtime: null};
+  }
+}
+
+async function drawRun(id) {
+  const run = rows.get(id);
+  if (!run) {                          // gone from the walk, or never in it
+    if (location.hash) location.hash = '';
+    clearStrip();
+    return;
+  }
   // a notice belongs to one run and one moment: the stop one stands until the
   // fit stops, a refusal clears on its own clock, and neither follows the
   // reader to another run
@@ -388,24 +552,11 @@ async function drawDetail(id, first) {
                  || (notice.stop && run.liveness.state !== 'running'))) {
     notice = null;
   }
-  // the count belongs to the run it was measured on, so it is dropped before
-  // the crumb is written and not after — the crumb carries it
   const kind = pictureKind(run);
-  if (shell.id !== id) drawn = '';
-  rootEl.textContent = run.path;
-  crumb.innerHTML = (SINGLE ? '' : '<a href="#">all runs</a> · ') +
-    `<span class="state ${run.liveness.state}" title="${esc(run.liveness.evidence)}"
-     >${run.liveness.state}</span> ` + esc(run.label) +
-    (st.stage ? ` · stage ${esc(st.stage)}` : '') +
-    (st.rwp != null ? ` · Rwp ${num(st.rwp, 4)}` : '') +
-    (st.gof != null ? ` · GoF ${num(st.gof, 2)}` : '') +
-    (st.n_free != null ? ` · ${st.n_free} free` : '') +
-    ` <span id="drawn" class="muted">${esc(drawn)}</span>` +
-    stopControl(run);
-  wireStop(run);
   // a running fit rewrites its snapshot per stage, and a run that had none
   // when it was opened grows one at its first
-  if (first || shell.id !== id || shell.kind !== kind) detailShell(run, kind);
+  if (shell.id !== id || shell.kind !== kind) buildShell(run, kind);
+  fillStrip(run);
   // the write is recorded once it is on the page, never before: a draw that
   // did not happen must stay outstanding for the next poll
   if (kind !== 'none' && run.snapshot_mtime !== shell.mtime) {
@@ -413,7 +564,7 @@ async function drawDetail(id, first) {
       if (await drawSnapshot(id)) shell.mtime = run.snapshot_mtime;
     } else {
       shell.mtime = run.snapshot_mtime;
-      const frame = document.getElementById('plot');
+      const frame = $('plot');
       if (frame) frame.src = legacySrc(run);
     }
   }
@@ -421,33 +572,18 @@ async function drawDetail(id, first) {
 }
 
 // ----------------------------------------------------------------- stop
-// Drawn only for a run being written *here*: a terminal one has nothing to
-// stop, and 'unknown' covers both another host and a writer that keeps no
-// lock, where a request would sit in the directory doing nothing. The route
-// refuses the same set, so this is the courtesy and not the check.
-function stopControl(run) {
-  if (notice) return ' <span class="muted">· ' + esc(notice.text) + '</span>';
-  if (!CAN_CANCEL || run.liveness.state !== 'running') return '';
-  return ' <button id="stop">stop</button>';
-}
-
-function wireStop(run) {
-  const btn = document.getElementById('stop');
-  if (btn) btn.onclick = () => openConfirm(run);
-}
-
 // Two clicks, and no keyboard shortcut of any kind: nothing takes focus when
 // this opens, and neither Enter nor Escape reaches either button. Confirming
 // raises an exception in a process the reader cannot see, and a stray
 // keystroke must not be able to do that.
 function openConfirm(run) {
   const st = run.status || {};
-  const box = document.getElementById('confirm');
-  document.getElementById('box-what').textContent =
+  const box = $('confirm');
+  $('box-what').textContent =
     'Stop ' + run.label + (st.stage ? ', in stage ' + st.stage : '')
     + ', in the process that is running it?';
-  document.getElementById('box-no').onclick = () => { box.hidden = true; };
-  document.getElementById('box-yes').onclick = () => {
+  $('box-no').onclick = () => { box.hidden = true; };
+  $('box-yes').onclick = () => {
     box.hidden = true;
     stopRun(run.run_id);
   };
@@ -468,7 +604,7 @@ async function stopRun(id) {
        expires: Infinity}
     : {id: id, text: (payload && payload.error) || 'the stop was refused',
        stop: false, expires: Date.now() + 8000};
-  refresh(false);
+  refresh();
 }
 
 async function pumpEvents(id) {
@@ -479,12 +615,13 @@ async function pumpEvents(id) {
   const payload = await r.json();
   // an in-flight tail of the run we just left must not renumber this one
   if (tail.id !== id || currentId() !== id) return;
-  const pane = document.getElementById('console');
-  if (!pane) return;
+  const pane = $('console');
   if (payload.reset) pane.textContent = '';   // a different log; do not renumber
   tail.offset = payload.offset;
   tail.inode = payload.inode;
   if (!payload.events.length) return;
+  // the tail follows the log only while the reader is at its end; a reader
+  // who scrolled up to read is left where they are
   const atBottom = pane.scrollTop + pane.clientHeight >= pane.scrollHeight - 30;
   const html = payload.events.map(e => {
     const t = new Date(e.t * 1000).toLocaleTimeString();
@@ -503,31 +640,86 @@ async function pumpEvents(id) {
   if (atBottom) pane.scrollTop = pane.scrollHeight;
 }
 
+// ------------------------------------------------------------- panels
+function panels() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(PANELS_KEY) || '{}');
+    return {runs: saved.runs !== false, run: saved.run !== false};
+  } catch (err) {
+    return {runs: true, run: true};
+  }
+}
+function applyPanels(p) {
+  document.body.dataset.runs = p.runs ? 'open' : 'closed';
+  document.body.dataset.run = p.run ? 'open' : 'closed';
+  $('toggle-runs').setAttribute('aria-pressed', String(p.runs));
+  $('toggle-run').setAttribute('aria-pressed', String(p.run));
+  try { localStorage.setItem(PANELS_KEY, JSON.stringify(p)); } catch (err) {}
+  // the plot's width just changed under it, and `responsive` only follows
+  // the window
+  const plot = $('plot');
+  if (p.run && plot && plot.tagName === 'DIV' && window.Plotly) {
+    window.Plotly.Plots.resize(plot);
+  }
+}
+function togglePanel(which) {
+  const p = panels();
+  p[which] = !p[which];
+  // closing the last open panel opens the other: a page with neither is a
+  // bar over nothing
+  if (!p.runs && !p.run) p[which === 'runs' ? 'run' : 'runs'] = true;
+  applyPanels(p);
+}
+
 // ------------------------------------------------------------- routing
+// A run named in the URL is pinned. With none the page follows the newest,
+// so opening `rietx watch` beside an agent's job shows what is happening
+// now, and the row the reader clicks is the one that stays.
 function currentId() {
   const m = location.hash.match(/^#\\/run\\/([0-9a-f]+)$/);
-  return m ? m[1] : (SINGLE || null);
+  return m ? m[1] : (SINGLE || newest);
 }
-async function refresh(first) {
-  const id = currentId();
-  if (id) await drawDetail(id, first);
-  else await drawList();
+let refreshing = false;
+async function refresh() {
+  if (refreshing) return;              // a slow poll is not two polls
+  refreshing = true;
+  try {
+    const r = await fetch('api/runs', {cache: 'no-store'});
+    if (!r.ok) return;
+    const payload = await r.json();
+    setText($('root'), 'scanned ' + payload.root);
+    rows = new Map(payload.runs.map(run => [run.run_id, run]));
+    newest = payload.runs.length ? payload.runs[0].run_id : null;
+    patchList(payload.runs);
+    const id = currentId();
+    if (id) await drawRun(id); else clearStrip();
+  } finally {
+    refreshing = false;
+  }
 }
 function schedule() {
   if (timer) clearInterval(timer);
   // polling stops when nobody is looking: a hidden tab costs the fit nothing
-  timer = setInterval(() => { if (!document.hidden) refresh(false); }, 1200);
+  timer = setInterval(() => { if (!document.hidden) refresh(); }, 1200);
 }
-window.addEventListener('hashchange', () => refresh(true));
+window.addEventListener('hashchange', () => refresh());
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) refresh(false);
+  if (!document.hidden) refresh();
 });
+$('toggle-runs').onclick = () => togglePanel('runs');
+$('toggle-run').onclick = () => togglePanel('run');
+$('stop').onclick = () => {
+  const run = rows.get(currentId());
+  if (run) openConfirm(run);
+};
 
 (async () => {
   const meta = await (await fetch('api/runs', {cache: 'no-store'})).json();
   SINGLE = meta.single_run_id;
   CAN_CANCEL = meta.can_cancel === true;
-  await refresh(true);
+  if (SINGLE) document.body.dataset.single = '';
+  applyPanels(panels());
+  await refresh();
   schedule();
 })();
 </script></body></html>
