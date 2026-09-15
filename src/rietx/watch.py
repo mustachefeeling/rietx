@@ -38,6 +38,9 @@ from pathlib import Path
 
 from . import runs as runs_mod
 from ._about import DIST_NAME, LIVE_DIR_NAME, PROJECT_SUFFIX
+from .viz.plotlyjs import CONTENT_TYPE as PLOTLY_CONTENT_TYPE
+from .viz.plotlyjs import plotly_js
+from .viz.plots import PALETTES
 
 _PAGE_TEMPLATE = """<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>rietx watch</title>
@@ -69,8 +72,11 @@ _PAGE_TEMPLATE = """<!DOCTYPE html>
   .muted { color:#666; }
   #empty { padding:28px 12px; color:#777; }
   #detail { display:flex; flex-direction:column; height:100%; }
-  #plot { flex:1 1 68%; border:0; background:#fff; min-height:180px; }
-  /* a GUI project's run has no fit.html and never will, so the note is a
+  #plot { flex:1 1 68%; border:0; min-height:180px; }
+  /* a pre-WP-1402 run left a self-contained page behind; it still opens, in
+     the frame it was always shown in */
+  iframe#plot { background:#fff; }
+  /* a GUI project's run has no picture and never will, so the note is a
      line and the log gets the room rather than the other way round */
   #noplot { flex:0 0 auto; padding:7px 12px; color:#666;
             border-bottom:1px solid #2c2c2c; }
@@ -94,9 +100,15 @@ const rootEl = document.getElementById('root');
 let SINGLE = null;          // set when the served directory is itself a run
 let timer = null;
 let tail = {offset: 0, inode: null, id: null};
-// what the detail shell was built for: the run, whether it had a plot, and
-// which fit.html the iframe is showing
-let shell = {id: null, plot: false, mtime: null};
+// what the detail shell was built for: the run, which kind of picture it has
+// ('json', a legacy 'html' page, or 'none'), and which write we have drawn
+let shell = {id: null, kind: null, mtime: null};
+// plotly is fetched once per page, on the first detail view that needs it —
+// never for the run list, which would be 4 MB to draw a table
+let plotlyPromise = null;
+// how much of the pattern the last draw showed, kept across polls
+let drawn = '';
+const HUE = @HUE@;
 // the console is a tail and not an archive; the log on disk is the archive
 const MAX_LINES = 2000;
 
@@ -159,22 +171,147 @@ async function drawList() {
 }
 
 // -------------------------------------------------------------- detail
-function detailShell(run) {
-  const plot = run.has_snapshot
-    ? `<iframe id="plot" src="${snapshotSrc(run)}"></iframe>`
-    : `<div id="noplot">no fit.html here — this run wrote only its log</div>`;
-  const cls = run.has_snapshot ? '' : ' class="full"';
+function pictureKind(run) {
+  if (run.has_snapshot) return 'json';
+  if (run.has_legacy_snapshot) return 'html';
+  return 'none';
+}
+
+function detailShell(run, kind) {
+  const plot = kind === 'json'
+    ? '<div id="plot"></div>'
+    : kind === 'html'
+      ? `<iframe id="plot" src="${legacySrc(run)}"></iframe>`
+      : '<div id="noplot">no picture here — this run wrote only its log</div>';
+  const cls = kind === 'none' ? ' class="full"' : '';
   body.innerHTML = `<div id="detail">${plot}<div id="console"${cls}></div></div>`;
-  shell = {id: run.run_id, plot: !!run.has_snapshot,
-           mtime: run.snapshot_mtime};
+  // mtime null, never the run's: the shell is empty until something draws
+  // into it, and carrying the run's write time here would say it had
+  shell = {id: run.run_id, kind: kind, mtime: null};
   tail = {offset: 0, inode: null, id: run.run_id};
 }
 
 // the mtime is in the URL rather than a cache-buster of its own: the same
-// plot keeps the same src, so the iframe reloads exactly when fit.html was
+// page keeps the same src, so the frame reloads exactly when the file was
 // rewritten and not once a second
-function snapshotSrc(run) {
-  return `api/run/${run.run_id}/snapshot?t=` + (run.snapshot_mtime || 0);
+function legacySrc(run) {
+  return `api/run/${run.run_id}/legacy?t=` + (run.snapshot_mtime || 0);
+}
+
+// One fetch per page, shared by every run the reader opens. The script tag is
+// built here rather than sitting in the head because the run list needs no
+// plotting library and 4 MB to draw a table is 4 MB wasted.
+function ensurePlotly() {
+  if (plotlyPromise) return plotlyPromise;
+  plotlyPromise = new Promise(resolve => {
+    const tag = document.createElement('script');
+    tag.src = 'plotly.js';
+    tag.onload = () => resolve(window.Plotly || null);
+    tag.onerror = () => resolve(null);   // no plotly installed: say so, once
+    document.head.appendChild(tag);
+  });
+  return plotlyPromise;
+}
+
+// Δ/σ either way — it is what the fit minimised — and the flag changes only
+// what the axis is called (WP-1029)
+function deltaTitle(weighted) {
+  if (weighted === true) return 'Δ/σ  (σ from file)';
+  if (weighted === false) return 'Δ/σ  (σ = √max(y,1))';
+  return 'Δ/σ';
+}
+
+// Every mark below is `viz/html.py`'s, mode for mode and width for width.
+// This page and the emailable one are two pictures of one fit, and a reader
+// who flips between them must not have to relearn which curve is which.
+function snapshotTraces(snap) {
+  const tt = snap.two_theta;
+  const traces = [
+    {x: tt, y: snap.y_obs, name: 'observed', mode: 'markers',
+     type: 'scattergl', marker: {size: 3, color: HUE.obs}},
+    {x: tt, y: snap.y_calc, name: 'calculated', mode: 'lines',
+     type: 'scattergl', line: {width: 1.2, color: HUE.calc}},
+  ];
+  if (snap.y_bkg.some(v => v)) {
+    traces.push({x: tt, y: snap.y_bkg, name: 'background', mode: 'lines',
+                 type: 'scattergl',
+                 line: {width: 1, dash: 'dash', color: HUE.bkg}});
+  }
+  traces.push({x: tt, y: snap.delta, name: 'Δ/σ', mode: 'lines',
+               type: 'scattergl', yaxis: 'y2',
+               line: {width: 1, color: HUE.diff}});
+
+  // the rows live in the lower panel, under the Δ/σ trace, spaced in its
+  // units: the residual is read against the peaks that caused it, so nothing
+  // comes between them
+  const finite = snap.delta.filter(v => v !== null && isFinite(v));
+  const lo = Math.min(-3, ...finite);
+  const hi = Math.max(3, ...finite);
+  const span = (hi - lo) || 1;
+  const base = lo - 0.14 * span, step = 0.09 * span;
+  const names = Object.keys(snap.ticks || {});
+  names.forEach((name, i) => {
+    const row = snap.ticks[name];
+    const y = base - i * step;
+    // one row has nothing to be told apart from, so colour stays for when
+    // there are several
+    const colour = names.length === 1 ? HUE.tick
+                                      : HUE.phase[i % HUE.phase.length];
+    // the cap is in the legend, because a silent cap reads as coverage
+    const label = row.n_total > row.two_theta.length
+      ? `hkl: ${name} (${row.two_theta.length} of ${row.n_total})`
+      : `hkl: ${name}`;
+    traces.push({
+      x: row.two_theta, y: row.two_theta.map(() => y), name: label,
+      mode: 'markers', type: 'scattergl', yaxis: 'y2', hoverinfo: 'x',
+      marker: {symbol: 'line-ns-open', size: 7, color: colour},
+    });
+  });
+  return traces;
+}
+
+async function drawSnapshot(id) {
+  const plotly = await ensurePlotly();
+  const div = document.getElementById('plot');
+  if (!div || currentId() !== id) return;
+  if (!plotly) {
+    div.outerHTML = '<div id="noplot">this page draws with plotly: ' +
+      "<code>pip install '@DIST@[viz]'</code></div>";
+    return;
+  }
+  const r = await fetch(`api/run/${id}/snapshot`, {cache: 'no-store'});
+  if (!r.ok) return;
+  const snap = await r.json();
+  if (currentId() !== id || !document.getElementById('plot')) return;
+  // react, never newPlot: it keeps the reader's zoom across a stage, which is
+  // the whole reason the picture stopped being a page that reloads
+  plotly.react(div, snapshotTraces(snap), {
+    margin: {l: 58, r: 14, t: 8, b: 56},   // room for the 2θ title
+    // expectation 1 under a correct model, so the residual reads on an
+    // absolute statistical scale (Toby 2024) — the same band `viz/html.py`
+    // draws
+    shapes: [{type: 'rect', xref: 'paper', yref: 'y2', x0: 0, x1: 1,
+              y0: -3, y1: 3, line: {width: 0}, fillcolor: HUE.band,
+              opacity: 0.15, layer: 'below'}],
+    paper_bgcolor: HUE.ground, plot_bgcolor: HUE.ground,
+    font: {color: HUE.fg, family: 'ui-monospace, Menlo, monospace', size: 11},
+    xaxis: {anchor: 'y2', title: {text: '2θ (°)'}, gridcolor: HUE.zero,
+            zeroline: false},
+    yaxis: {domain: [0.34, 1], title: {text: 'intensity'},
+            gridcolor: HUE.zero, zeroline: false},
+    yaxis2: {domain: [0, 0.28], anchor: 'x',
+             title: {text: deltaTitle(snap.weighted)},
+             gridcolor: HUE.zero, zerolinecolor: HUE.zero},
+    legend: {orientation: 'h', y: 1.02, yanchor: 'bottom', x: 0},
+    // one revision per run: a redraw of the same run keeps the zoom, and
+    // opening a different run starts fresh
+    uirevision: id,
+  }, {displaylogo: false, responsive: true});
+  // kept on the page, not only in the span: `drawDetail` rewrites the crumb
+  // on every poll and would throw the note away between redraws
+  drawn = `${snap.n_drawn} of ${snap.n_points} pts drawn`;
+  const note = document.getElementById('drawn');
+  if (note) note.textContent = drawn;
 }
 
 async function drawDetail(id, first) {
@@ -190,14 +327,23 @@ async function drawDetail(id, first) {
     (st.stage ? ` · stage ${esc(st.stage)}` : '') +
     (st.rwp != null ? ` · Rwp ${num(st.rwp, 4)}` : '') +
     (st.gof != null ? ` · GoF ${num(st.gof, 2)}` : '') +
-    (st.n_free != null ? ` · ${st.n_free} free` : '');
-  // a running fit rewrites fit.html per stage, and a run that had none when
-  // it was opened grows one at its first
-  if (first || shell.id !== id || shell.plot !== !!run.has_snapshot) {
-    detailShell(run);
-  } else if (run.has_snapshot && run.snapshot_mtime !== shell.mtime) {
-    const frame = document.getElementById('plot');
-    if (frame) { frame.src = snapshotSrc(run); shell.mtime = run.snapshot_mtime; }
+    (st.n_free != null ? ` · ${st.n_free} free` : '') +
+    ` <span id="drawn" class="muted">${esc(drawn)}</span>`;
+  // a running fit rewrites its snapshot per stage, and a run that had none
+  // when it was opened grows one at its first
+  const kind = pictureKind(run);
+  if (first || shell.id !== id || shell.kind !== kind) {
+    if (shell.id !== id) drawn = '';
+    detailShell(run, kind);
+  }
+  if (kind !== 'none' && run.snapshot_mtime !== shell.mtime) {
+    shell.mtime = run.snapshot_mtime;
+    if (kind === 'json') {
+      await drawSnapshot(id);
+    } else {
+      const frame = document.getElementById('plot');
+      if (frame) frame.src = legacySrc(run);
+    }
   }
   await pumpEvents(id);
 }
@@ -263,9 +409,22 @@ document.addEventListener('visibilitychange', () => {
 </script></body></html>
 """
 
-#: The page, with the format token filled in from its one authority. A literal
-#: ``.rex`` here would be invisible to every test in the suite (``_about.py``).
-_PAGE = _PAGE_TEMPLATE.replace("@SUFFIX@", PROJECT_SUFFIX)
+#: What a missing plotly says, in the pane the plot would have filled. Each
+#: page that serves plotly owns its own fallback (``viz/plotlyjs.py``), and
+#: this one has a shell worth keeping: the run list and the event log work
+#: without a plotting library, so only the plot pane reports the absence.
+_NO_PLOTLY_JS = (f"console.error('{DIST_NAME} watch: plotly is not installed "
+                 f"\u2014 pip install \\'{DIST_NAME}[viz]\\'');")
+
+#: The page, with its tokens filled in from their one authorities. A literal
+#: ``.rex`` here would be invisible to every test in the suite (``_about.py``),
+#: and literal colours would make this the second answer to which curve is
+#: which — a reader flipping between the watcher, the GUI and a saved figure
+#: must not have to relearn it (``viz/plots.PALETTES``).
+_PAGE = (_PAGE_TEMPLATE
+         .replace("@SUFFIX@", PROJECT_SUFFIX)
+         .replace("@DIST@", DIST_NAME)
+         .replace("@HUE@", json.dumps(PALETTES["dark"])))
 
 
 #: How long a walk's result stands before the next request pays for another.
@@ -304,7 +463,8 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
     """Routes, and a static fallback rooted at the scanned directory.
 
     The fallback is what keeps ``rietx watch live/`` working for anything that
-    already links at ``fit.html`` or ``events.jsonl`` by their bare names.
+    already links at ``fit.html`` or ``events.jsonl`` by their bare names — a
+    run recorded before WP-1402 included.
     """
 
     def __init__(self, *args, scan_root: Path, index: _RunIndex, **kwargs):
@@ -342,11 +502,13 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
         row = run.as_dict()
         row["liveness"] = {"state": live.state, "evidence": live.evidence,
                            "heartbeat_age": live.heartbeat_age}
-        # the plot is rewritten per stage, so the page needs to know when to
-        # reload the iframe rather than sit on the picture it opened with
+        # the picture is rewritten per stage, so the page needs to know when to
+        # redraw rather than sit on the one it opened with.  The mtime is of
+        # whichever file this run actually has: a legacy run's is its page's.
+        name = (runs_mod.SNAPSHOT_FILE if run.has_snapshot
+                else runs_mod.LEGACY_SNAPSHOT_FILE)
         try:
-            row["snapshot_mtime"] = (run.path / runs_mod.SNAPSHOT_FILE
-                                     ).stat().st_mtime
+            row["snapshot_mtime"] = (run.path / name).stat().st_mtime
         except OSError:
             row["snapshot_mtime"] = None
         # a command a human can copy, not a verb this app performs: launching
@@ -372,6 +534,13 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
 
         if path in ("/", "/index.html"):
             self._send(_PAGE.encode("utf-8"), "text/html; charset=utf-8")
+            return
+
+        if path == "/plotly.js":
+            # out of the installed package, so the page works air-gapped and
+            # nothing vendors a copy (viz/plotlyjs.py)
+            self._send(plotly_js(_NO_PLOTLY_JS).encode("utf-8"),
+                       PLOTLY_CONTENT_TYPE)
             return
 
         if path == "/api/runs":
@@ -407,15 +576,21 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
                             "inode": tail.inode, "reset": tail.reset,
                             "bad_lines": tail.bad_lines, "size": tail.size})
                 return
-            if rest == "snapshot":
-                snapshot = run.path / runs_mod.SNAPSHOT_FILE
+            if rest in ("snapshot", "legacy"):
+                # served as bytes, never parsed here: the reader constructs
+                # nothing, and a half-written file is the writer's to make
+                # atomic (it does)
+                name = (runs_mod.SNAPSHOT_FILE if rest == "snapshot"
+                        else runs_mod.LEGACY_SNAPSHOT_FILE)
+                kind = ("application/json; charset=utf-8" if rest == "snapshot"
+                        else "text/html; charset=utf-8")
                 try:
-                    body = snapshot.read_bytes()
+                    body = (run.path / name).read_bytes()
                 except OSError:
                     self._send(b"no snapshot yet", "text/plain; charset=utf-8",
                                status=404)
                     return
-                self._send(body, "text/html; charset=utf-8")
+                self._send(body, kind)
                 return
             self._json({"error": "no such route"}, status=404)
             return

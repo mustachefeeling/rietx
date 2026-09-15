@@ -467,6 +467,12 @@ def test_minmax_decimation_keeps_peaks():
 # live session + watch server
 # ----------------------------------------------------------------------
 def test_live_session_and_watch_server(tmp_path, synthetic_pattern):
+    """A run writes its numbers, and the watcher serves them (WP-1402).
+
+    ``fit.html`` is no longer produced: the picture cost the fit several
+    megabytes a stage on its own thread, and the viewer draws the snapshot
+    instead. ``rietx html`` still writes the self-contained page on demand.
+    """
     from rietx.viz.live import LiveSession
     from rietx.watch import serve
 
@@ -475,11 +481,19 @@ def test_live_session_and_watch_server(tmp_path, synthetic_pattern):
     ref = rx.Refinement(structure, ins, history=False)
     ref.fit(synthetic_pattern, events=LiveSession(live))
 
-    assert (live / "fit.html").exists()
+    assert not (live / "fit.html").exists()
     assert (live / "events.jsonl").exists()
+    snapshot = json.loads((live / "snapshot.json").read_text(encoding="utf-8"))
+    assert snapshot["stage"] == "profile"        # last stage of the plan
+    assert len(snapshot["two_theta"]) == snapshot["n_drawn"]
+    assert snapshot["ticks"]["phase 0"]["n_total"] > 0
+
     status = json.loads((live / "status.json").read_text(encoding="utf-8"))
-    assert status["stage"] == "profile"          # last stage of the plan
+    assert status["stage"] == "profile"
     assert status["rwp"] < 0.2
+    # status.json is written from the snapshot payload, so the two cannot
+    # disagree about what the stage achieved
+    assert status["rwp"] == snapshot["statistics"]["rwp"]
 
     server = serve(live, port=0, block=False)    # port 0 → ephemeral
     try:
@@ -487,15 +501,39 @@ def test_live_session_and_watch_server(tmp_path, synthetic_pattern):
         index = urllib.request.urlopen(
             f"http://127.0.0.1:{port}/", timeout=5).read().decode()
         assert "rietx watch" in index and "events.jsonl" in index
-        page = urllib.request.urlopen(
-            f"http://127.0.0.1:{port}/fit.html", timeout=5).read()
-        assert b"plotly" in page.lower()
+        served = json.loads(urllib.request.urlopen(
+            f"http://127.0.0.1:{port}/snapshot.json", timeout=5).read())
+        assert served["two_theta"] == snapshot["two_theta"]
         tail = urllib.request.urlopen(
             f"http://127.0.0.1:{port}/events.jsonl", timeout=5).read()
         assert b'"fit_end"' in tail
     finally:
         server.shutdown()
         server.server_close()
+
+
+def test_a_live_session_records_without_plotly(tmp_path, synthetic_pattern,
+                                               monkeypatch):
+    """A base install must be able to record a live view.
+
+    Until WP-1402 building the figure was how the view was stored, so this
+    raised ``ImportError`` on an install with no plotting library.
+    """
+    import sys
+
+    from rietx.viz.live import LiveSession
+
+    monkeypatch.setitem(sys.modules, "plotly", None)
+    monkeypatch.setitem(sys.modules, "plotly.graph_objects", None)
+    monkeypatch.setitem(sys.modules, "plotly.offline", None)
+
+    structure, ins = perturbed_models()
+    live = tmp_path / "live"
+    rx.Refinement(structure, ins, history=False).fit(
+        synthetic_pattern, events=LiveSession(live))
+
+    assert json.loads((live / "snapshot.json").read_text(encoding="utf-8"))
+    assert not (live / "fit.html").exists()
 
 
 def test_cli_help_and_html(tmp_path, synthetic_pattern):

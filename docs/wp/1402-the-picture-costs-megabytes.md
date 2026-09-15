@@ -173,23 +173,23 @@ a stage where a reloaded iframe cannot.
 - [x] `viz/plotlyjs.py`: one `plotly_js()`, with `gui/server.py` and
       `compare_app.py` switched to it and their local copies deleted. Lands
       alone, so a regression here is bisectable away from the rest.
-- [ ] The snapshot writer: decimated `two_theta` / `y_obs` / `y_calc` / `y_bkg`
+- [x] The snapshot writer: decimated `two_theta` / `y_obs` / `y_calc` / `y_bkg`
       / `delta`, ticks per phase with the untruncated count beside them, the
       stage's statistics, `weighted`, and the schema version. Atomic
       `tmp.replace`, as `write_snapshot` already does — never a torn read.
       Every field's writer named at review.
-- [ ] `viz/live.py` keeps `LiveSession` as a thin shim over the shared writer,
+- [x] `viz/live.py` keeps `LiveSession` as a thin shim over the shared writer,
       writing into a flat directory (what `using/cli.md` documents). **Plotly
       leaves this module entirely**, pinned by a test that puts `None` into
       `sys.modules["plotly"]` and records a run.
 - [ ] `refine.py`: the explicit sink list, `_run_plan` switched to it, and the
       missing `run_stage` call site added before `_record`. A test per defect,
       because neither is covered today.
-- [ ] `watch.py` draws the snapshot in the page: plotly once from the shared
+- [x] `watch.py` draws the snapshot in the page: plotly once from the shared
       route, `Plotly.react` on a div per poll, and the reader's zoom surviving a
       stage. The iframe and its mtime cache-buster go. A run whose only picture
       is a legacy `fit.html` still gets the iframe.
-- [ ] `fit.html` stops being written. Rewrite
+- [x] `fit.html` stops being written. Rewrite
       `test_live_session_and_watch_server` to assert `snapshot.json`, and
       add the second test — a pre-existing `fit.html` is still served — without
       which the back-compat claim is prose.

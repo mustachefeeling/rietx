@@ -10,6 +10,7 @@ code.
 
 import json
 import sys
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -18,6 +19,8 @@ import rietx as rx
 from rietx.history.events import EventStream
 from rietx.viz import snapshot as snap
 from tests.test_refine_synthetic import perturbed_models, synthesize
+
+OUT = Path(__file__).parent / "output"
 
 
 @pytest.fixture(scope="module")
@@ -248,3 +251,58 @@ def test_building_a_snapshot_needs_no_plotly(tmp_path, last_stage, monkeypatch):
     monkeypatch.setitem(sys.modules, "plotly.graph_objects", None)
     snap.write_snapshot(tmp_path, model, table, outcome, name)
     assert (tmp_path / snap.SNAPSHOT_FILE).is_file()
+
+# ----------------------------------------------------------------------
+# what the picture looks like
+# ----------------------------------------------------------------------
+def test_the_drawn_curves_are_worth_looking_at(last_stage):
+    """Draw what the viewer draws, over what the fit computed.
+
+    An assertion says the kept points equal the model's *at those indices*,
+    which is true of any index set including a bad one. What it cannot say is
+    whether the picture still looks like the fit — a decimation that clipped
+    peak tops passes every test above and is obvious here in a second. Rwp
+    hides locally-bad fits, and a decimated plot hides nothing but itself.
+    """
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    model, table, outcome, name = last_stage
+    payload = snap.build_snapshot(model, table, outcome, name)
+    # a hard decimation too, so the comparison has something to show
+    thin = snap.build_snapshot(model, table, outcome, name, max_points=300)
+
+    values = table.decode(outcome.theta)
+    tt = np.asarray(model.tt, dtype=np.float64)
+    y_obs = np.asarray(model.y_obs, dtype=np.float64)
+    y_calc = np.asarray(model.evaluate(values), dtype=np.float64)
+
+    OUT.mkdir(parents=True, exist_ok=True)
+    fig, axes = plt.subplots(3, 1, figsize=(11, 8), sharex=True,
+                             height_ratios=[3, 3, 2])
+    for ax, drawn, label in ((axes[0], payload, f"drawn: {payload['n_drawn']}"),
+                             (axes[1], thin, f"drawn: {thin['n_drawn']}")):
+        ax.plot(tt, y_obs, lw=0.6, color="0.75",
+                label=f"obs, all {len(tt)} points")
+        ax.plot(drawn["two_theta"], drawn["y_obs"], lw=0.8, color="#1f77b4",
+                label=label)
+        ax.plot(tt, y_calc, lw=0.8, color="#ff7f0e", label="calc")
+        ax.legend(fontsize=8, frameon=False)
+        ax.set_ylabel("intensity")
+    axes[2].plot(payload["two_theta"], payload["delta"], lw=0.6,
+                 color="0.45")
+    axes[2].axhline(0, lw=0.5, color="0.7")
+    axes[2].set_ylabel("Δ/σ")
+    axes[2].set_xlabel("2θ (°)")
+    axes[0].set_title(f"WP-1402 snapshot — stage {name!r}, "
+                      f"Rwp {payload['statistics']['rwp']:.4f}")
+    fig.tight_layout()
+    fig.savefig(OUT / "wp1402_snapshot_curves.png", dpi=110)
+    plt.close(fig)
+
+    assert (OUT / "wp1402_snapshot_curves.png").is_file()
+    # the peak top survives even the hard decimation, which is the property
+    # the picture is there to make visible
+    assert max(thin["y_obs"]) == pytest.approx(y_obs.max(), rel=1e-5)

@@ -48,8 +48,9 @@ from .schemas.common import Base
 #: by :class:`~rietx.viz.live.LiveSession` on construction.
 EVENTS_FILE = "events.jsonl"
 
-#: Per-stage progress. Written by ``LiveSession.write_snapshot`` today, which
-#: records ``stage``/``rwp``/``gof``/``chi2``/``n_free`` and **no** ``state``.
+#: Per-stage progress. Written by ``LiveSession.write_snapshot`` today, from
+#: the snapshot payload's own statistics, which records
+#: ``stage``/``rwp``/``gof``/``chi2``/``n_free`` and **no** ``state``.
 STATUS_FILE = "status.json"
 
 #: The run's own description of itself. **Nothing writes this yet** — WP-1403
@@ -61,9 +62,17 @@ META_FILE = "meta.json"
 #: liveness channel and a pid is only the fallback.
 LOCK_FILE = "run.lock"
 
-#: The plotly page ``LiveSession.write_snapshot`` rewrites per stage. Not read
-#: here; the run row reports whether it exists so a client can offer the iframe.
-SNAPSHOT_FILE = "fit.html"
+#: The stage's curves, ticks and statistics, rewritten per stage by
+#: ``LiveSession.write_snapshot``. Not read here; the run row reports whether
+#: it exists so a client can decide whether to draw.
+SNAPSHOT_FILE = "snapshot.json"
+
+#: What a run recorded before WP-1402 left behind: a self-contained plotly
+#: page, several megabytes of it. Nothing writes one any more and one already
+#: on disk still opens, so a run that has only this is still a run with a
+#: picture — reported separately, because the two are drawn differently and
+#: conflating them would show an empty plot for a legacy run.
+LEGACY_SNAPSHOT_FILE = "fit.html"
 
 #: Directory names the walk never descends. Cheap to extend; each is a tree
 #: that cannot hold a run and can hold a great many files.
@@ -198,6 +207,11 @@ class Run:
     meta: RunMeta | None = None
     status: RunStatus | None = None
     has_snapshot: bool = False
+    #: A pre-WP-1402 ``fit.html`` and no ``snapshot.json``. Separate from
+    #: :attr:`has_snapshot` rather than folded into it: a client draws the two
+    #: differently, and one flag for both would hand a legacy run's page to a
+    #: plotting call that wants numbers.
+    has_legacy_snapshot: bool = False
 
     def as_dict(self) -> dict:
         """JSON-ready row, for :mod:`rietx.watch`'s routes."""
@@ -209,6 +223,7 @@ class Run:
             "legacy": self.legacy,
             "size_bytes": self.size_bytes,
             "has_snapshot": self.has_snapshot,
+            "has_legacy_snapshot": self.has_legacy_snapshot,
             "meta": self.meta.model_dump(mode="json") if self.meta else None,
             "status": (self.status.model_dump(mode="json")
                        if self.status else None),
@@ -301,6 +316,7 @@ def read_run(run_dir: Path, *, root: Path | None = None) -> Run | None:
         meta=meta,
         status=status,
         has_snapshot=(run_dir / SNAPSHOT_FILE).is_file(),
+        has_legacy_snapshot=(run_dir / LEGACY_SNAPSHOT_FILE).is_file(),
     )
 
 

@@ -485,7 +485,8 @@ def test_reads_a_directory_a_real_live_session_wrote(tmp_path):
     assert found.path == live
     assert found.label == "sample.rex"       # not "live"
     assert found.legacy is True              # nothing writes meta.json yet
-    assert found.has_snapshot is True        # LiveSession wrote fit.html
+    assert found.has_snapshot is True        # LiveSession wrote snapshot.json
+    assert found.has_legacy_snapshot is False   # and no fit.html, since 1402
     assert found.status is not None
     assert found.status.stage == "profile"   # the plan's last stage
     assert found.status.state is None        # and it declares no state
