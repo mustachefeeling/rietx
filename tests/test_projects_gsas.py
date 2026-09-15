@@ -266,7 +266,7 @@ _MINIMAL = (
 
 def test_a_file_with_no_experiment_records_is_refused_by_name(tmp_path):
     path = tmp_path / "notes.txt"
-    path.write_text("this is not a GSAS experiment file\n")
+    path.write_text("this is not a GSAS experiment file\n", encoding="utf-8")
     with pytest.raises(GsasExpError, match="holds no GSAS experiment records"):
         read_gsas_exp(path)
 
