@@ -538,10 +538,22 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   guards before any `rmtree`, two re-asked at the call rather than trusted from the scan: a
   run-id name, a direct child of the root the recorder itself chose, and a `meta.json`
   carrying `RECORD_TAG` — which a legacy directory has not got, and so is never pruned.
+- **The reader has one verb and it is stop** (WP-1405). `runs.CANCEL_FILE` is the whole
+  cross-process seam, a **request rather than a flag**: an unknown word in it is declined
+  into `RunStatus.declined`, because an old recorder meeting a newer watcher's `pause` must
+  not stop the fit. The probe hangs on the **unthinned evaluation boundary**, through the
+  token the solver already reads, since the recorder gets control only at an event and
+  WP-1404's thinning would leave it firing once a *stage*. A recorded fit therefore always
+  carries a token, ending `_abandon_on_cancel`'s "an ordinary fit pays nothing" (1.002-1.004×,
+  measured before it was spent; that docstring holds the numbers). **Who asked is a fact
+  about the record** (`RunStatus.cancelled_by`) and never about the exception — downstream, a
+  human's stop and the caller's own `token.cancel()` are one cooperative read.
 - **A page that is javascript quoted inside python is syntax-checked with `node --check`**
   (`tests/test_watch_app.py`, over `watch.py` and `compare_app.py`). A broken page is
   invisible to a python test, which asserts substrings of a script nobody executed: one
-  stray escape cost the whole run list while every test stayed green (WP-1402).
+  stray escape cost the whole run list while every test stayed green (WP-1402). **It cannot
+  see layout either**: an id selector outranks `[hidden] {display:none}`, so a closed dialog
+  was an invisible sheet swallowing every click (WP-1405).
 - **Two things are written once and consumed everywhere; never restate either.** (1) The residual
   **row layout** `[data | background-penalty | Pawley-restraint | soft-restraint]` lives in
   `model/rows.py` (`BLOCK_ORDER`, `layout()`, `assemble()`) — the numpy residual, the numpy

@@ -188,7 +188,22 @@ SIZE_CAPS: dict[str, int | None] = {
     # added the fourth clause of the first rule — that an internal trial the
     # package discards passes ``telemetry=False`` — which is the rule one
     # report build writing four run directories cost; the headroom is +2.
-    "CLAUDE.md": 797,
+    # 797 -> 811 (WP-1405): one standing rule for the cross-process stop, and
+    # two lines on the `node --check` clause.  It governs work outside its own
+    # WP three ways, which is protocol rule 4's test.  WP-1404 is *queued* and
+    # its stage-boundary configuration would silently make the cancel probe fire
+    # once a stage unless the evaluation-boundary rule is written where that
+    # session will read it.  `_abandon_on_cancel`'s docstring promised an
+    # ordinary fit paid nothing and no longer can, so the withdrawal belongs
+    # where someone reading `fit`'s control flow meets it.  And "who asked is a
+    # fact about the record, never about the exception" is the refusal a later
+    # session would otherwise undo by adding a field to `RefinementCancelled`,
+    # which looks obviously useful until you see that the fit cannot tell.  The
+    # layout half is the second thing `node --check` cannot see, beside the
+    # first: it belongs on that clause, not in a clause of its own.  Raised
+    # rather than shaved, per the failure message's own instruction.  Landed at
+    # 809; the headroom is +2.
+    "CLAUDE.md": 811,
     # 672 -> 676 (WP-1102): the Current focus rewrite at 1102's close names the
     # milestone's one break and what makes 1103 the seam's proving case.
     # 676 -> 682 (WP-1407): a new Unscheduled group, "The formats a lab still
