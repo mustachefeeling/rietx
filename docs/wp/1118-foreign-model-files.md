@@ -448,7 +448,7 @@ instead of supplying a reason.
   That gate is ruff plus the fast suite across the supported pythons.
 
 *The review pass* — `/code-review high --fix`, run by this repair. It found
-something in the merged code rather than in the repair, which is the case step 9
+something in the merged code rather than in the repair. That is the case step 9
 of the handover exists for.
 
 `read_gsas_prm` converts the file's numbers onto the schema by assignment, and
@@ -461,9 +461,9 @@ quoting every value it converted. The same exposure ran through `LAM1`, `LAM2`,
 `POLA`, `KRATIO`, `GU` and the two axial terms, so the test is parametrised over
 five of them (`0efac867`).
 
-Two smaller things came with it. The build moved above the diagnostics block,
-which is what the emission site's own comment already promised, and the test
-asserts the caller's list is empty when a file is refused. And the manual
+Two smaller things came with it. The build moved above the diagnostics block.
+The emission site's own comment already promised that, and the test now asserts
+the caller's list is empty when a file is refused. And the manual
 documented the two diagnostics in the wrong order. `GSAS_PRM_FIELD_DROPPED`
 precedes `GSAS_PRM_GEOMETRY_ASSUMED`, checked on `11bm_gsas.prm`, and that error
 predates the reorder.
