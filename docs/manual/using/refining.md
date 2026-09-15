@@ -611,9 +611,9 @@ on the three benchmark patterns, and a long series is where that adds up.
 
 The cost in time is the per-stage picture. Writing the event log alone measures
 1.01 to 1.03 times a bare fit's wall clock. Adding the picture takes it to 1.03
-to 1.28 times, the spread being how many points the pattern has, from 22 003
-down to 4165 on the three cases. Every configuration returned the same Rwp to
-the last digit, so recording does not change the answer.
+to 1.28 times, measured over three patterns of 22 003, 7251 and 4165 points.
+Every configuration returned the same Rwp to the last digit, so recording does
+not change the answer.
 
 :::{warning}
 A run directory holds every free parameter's value at every recorded

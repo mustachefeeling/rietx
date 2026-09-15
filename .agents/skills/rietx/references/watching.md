@@ -104,8 +104,8 @@ default now.)*
 
 **9d.7 Recording costs a few per cent and changes no answer.** The event log
 alone runs 1.01 to 1.03 times a bare fit's wall clock. Adding the per-stage
-picture takes it to 1.03 to 1.28 times, the spread tracking how many points the
-pattern has. Disk is bounded by retention, which deletes by age and size rather
+picture takes it to 1.03 to 1.28 times over three patterns of 22 003, 7251 and
+4165 points. Disk is bounded by retention, which deletes by age and size rather
 than by count: nothing younger than a week goes, and above a 1 GiB ceiling the
 oldest finished runs go first. A root over the ceiling with nothing old enough
 warns and keeps everything, so a long batch never eats its own early runs.
