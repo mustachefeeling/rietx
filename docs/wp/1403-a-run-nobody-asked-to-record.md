@@ -434,6 +434,13 @@ passed+skipped of 4920 against 4918 collected is the two module-level
 `importorskip` modules that fire on a `[dev]` venv (jax, torch), which is the
 gap `tests/CLAUDE.md` documents.
 
+The **full suite ran green on the final tree at 4956 passed, 141 skipped,
+23:21**, same venv and platform, alone. `origin/main` had not moved since the
+branch was cut, so the merged tree *is* the branch tree and these are the merged
+tree's counts. The delta checks out against the mid-session run: 4949 at
+`21171de3`, when `test_telemetry.py` held 27 tests against its 34 now, and
+4949 + 7 = 4956 with the skip count unchanged.
+
 *Review pass.* `/code-review high --fix` found **ten**, and every one was
 accepted. Each was reproduced here before being believed: the agent's report is
 evidence, not a verdict. Two were serious, and both came from thinking about
