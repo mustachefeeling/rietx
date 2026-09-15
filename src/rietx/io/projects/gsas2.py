@@ -1341,56 +1341,61 @@ def to_structure(model: Gsas2Model, *, phase: str | int | None = None,
             f"{chosen.space_group!r}, which is not one this build resolves "
             f"({exc}).  The cell and sites are on `model.phases`") from exc
 
-    a, b, c, alpha, beta, gamma = chosen.cell
-    varies = chosen.refine_cell
-    rx_cell = rx.Cell(
-        a=rx.Parameter(value=a, min=1.0, vary=varies),
-        b=rx.Parameter(value=b, min=1.0, vary=varies),
-        c=rx.Parameter(value=c, min=1.0, vary=varies),
-        alpha=rx.Parameter(value=alpha, vary=varies),
-        beta=rx.Parameter(value=beta, vary=varies),
-        gamma=rx.Parameter(value=gamma, vary=varies))
-
     rewrites: dict[str, tuple[str, list[str]]] = {}
     frozen: list[str] = []
-    atoms = []
+    sites: list[dict] = []
     for i, atom in enumerate(chosen.atoms):
         species = normalize_species(atom.species)
         if species != atom.species:
             rewrites.setdefault(atom.species, (species, []))[1].append(
                 f"phases.0.atoms.{i}.species")
-        xyz = np.array([atom.x, atom.y, atom.z])
         # GSAS-II's X flag means "refine as permitted by symmetry", and rietx
         # models exactly that: coordinates enter θ as site-symmetry DOFs and a
         # site with none of them refuses a vary request outright.  So the flag
         # is carried through the same basis GSAS-II was speaking about rather
         # than onto x/y/z directly — the ``.EXP`` reader's rule, and it fires on
         # the same kind of site.
-        movable = len(coordinate_basis(stabilizer_rotations(sg, xyz))) > 0
+        movable = len(coordinate_basis(stabilizer_rotations(
+            sg, np.array([atom.x, atom.y, atom.z])))) > 0
         if atom.refine_xyz and not movable:
             frozen.append(atom.label)
-        atoms.append(rx.Atom(
-            label=atom.label, species=species,
-            x=rx.Parameter(value=atom.x, vary=atom.refine_xyz and movable),
-            y=rx.Parameter(value=atom.y, vary=atom.refine_xyz and movable),
-            z=rx.Parameter(value=atom.z, vary=atom.refine_xyz and movable),
-            occ=rx.Parameter(value=atom.occupancy, min=0.0, max=1.5,
-                             vary=atom.refine_occupancy),
-            biso=rx.Parameter(value=(atom.uiso or 0.0) * EIGHT_PI_SQUARED,
-                              min=0.0, max=25.0, vary=atom.refine_u)))
+        sites.append(dict(
+            label=atom.label, species=species, xyz=(atom.x, atom.y, atom.z),
+            vary_xyz=atom.refine_xyz and movable,
+            occupancy=atom.occupancy, vary_occupancy=atom.refine_occupancy,
+            biso=(atom.uiso or 0.0) * EIGHT_PI_SQUARED, vary_biso=atom.refine_u))
 
+    # Every schema object the conversion builds is built **here**, inside one
+    # try, rather than as it goes.  The two shapes the corpus contains are
+    # refused by name above; this is the class rather than a third instance,
+    # because a schema refusal that reached a caller would name a ``Parameter``
+    # and never the file — the one thing ``io/CLAUDE.md`` forbids a reader, and
+    # a thing WP-1118 has already paid for once in ``read_gsas_prm``.
     try:
+        a, b, c, alpha, beta, gamma = chosen.cell
+        varies = chosen.refine_cell
         structure = rx.Structure(phases=[rx.Phase(
             name=chosen.name or "phase",
             space_group=chosen.space_group,
-            cell=rx_cell, atoms=atoms,
+            cell=rx.Cell(
+                a=rx.Parameter(value=a, min=1.0, vary=varies),
+                b=rx.Parameter(value=b, min=1.0, vary=varies),
+                c=rx.Parameter(value=c, min=1.0, vary=varies),
+                alpha=rx.Parameter(value=alpha, vary=varies),
+                beta=rx.Parameter(value=beta, vary=varies),
+                gamma=rx.Parameter(value=gamma, vary=varies)),
+            atoms=[rx.Atom(
+                label=site["label"], species=site["species"],
+                x=rx.Parameter(value=site["xyz"][0], vary=site["vary_xyz"]),
+                y=rx.Parameter(value=site["xyz"][1], vary=site["vary_xyz"]),
+                z=rx.Parameter(value=site["xyz"][2], vary=site["vary_xyz"]),
+                occ=rx.Parameter(value=site["occupancy"], min=0.0, max=1.5,
+                                 vary=site["vary_occupancy"]),
+                biso=rx.Parameter(value=site["biso"], min=0.0, max=25.0,
+                                  vary=site["vary_biso"]))
+                for site in sites],
             scale=rx.Parameter(value=1e-3, min=0.0, transform="softplus"))])
     except ValueError as exc:
-        # The two shapes measured on the corpus are refused by name above.  This
-        # is the class rather than a third instance: a schema refusal that
-        # reached a caller would name a `Parameter` and never the file, which is
-        # the one thing `io/CLAUDE.md` forbids a reader (WP-1118 already paid
-        # for it once, in `read_gsas_prm`).
         raise Gsas2GpxError(
             f"{named}: phase {chosen.name!r} states values this build's "
             f"schema refuses ({exc}).  The file's own numbers are on "
