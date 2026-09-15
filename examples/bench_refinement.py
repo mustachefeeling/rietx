@@ -357,13 +357,32 @@ def _log_traffic(root: Path) -> tuple[int, int]:
     is measured off the file it left behind instead.
     """
     lines = size = 0
-    for f in root.rglob("events.jsonl"):
+    for f in root.rglob(runs.EVENTS_FILE):
         if not f.is_file():
             continue
         size += f.stat().st_size
         with f.open("r", encoding="utf-8") as fh:
             lines += sum(1 for _ in fh)
     return lines, size
+
+
+def _refuse_stream_on_series(setup: Setup, configs: list[Config]) -> None:
+    """Refuse a configuration that wants ``events=`` on a series case.
+
+    Asked twice on purpose: ``main`` asks it once per case *before* spending a
+    repeat, and ``_run_series`` asks it again for anyone calling that function
+    directly.  Asked only in the second place, the refusal arrives after the
+    control arm of a 10-pattern series has already run and takes every case
+    after this one down with it.
+    """
+    if setup.patterns is None:
+        return
+    blocked = [c.key for c in configs if c.stream]
+    if blocked:
+        raise SystemExit(
+            f"configuration(s) {', '.join(repr(k) for k in blocked)} need "
+            f"events=, which a series case spends on its own per-pattern "
+            f"collector — measure them on a single-fit case")
 
 
 @contextmanager
@@ -397,7 +416,7 @@ def _configured(config: Config, account: _Account):
         if config.drop_eval:
             ls_mod._free_values = lambda table, theta: []
         if config.stream == "path":
-            kwargs["events"] = scratch / "events.jsonl"
+            kwargs["events"] = scratch / runs.EVENTS_FILE
         elif config.stream == "live":
             from rietx.viz.live import LiveSession
             kwargs["events"] = LiveSession(scratch / "live")
@@ -405,6 +424,13 @@ def _configured(config: Config, account: _Account):
     finally:
         runs.RunRecorder = orig_recorder
         ls_mod._free_values = orig_free_values
+        # ``fit`` closes the stream only ``if stream is not events``, so an
+        # ``EventStream`` the caller built is the caller's to close — and here
+        # the caller is this harness.  Left open, every ``live`` repeat leaks a
+        # descriptor onto a file ``rmtree`` has just removed.
+        stream = kwargs.get("events")
+        if hasattr(stream, "close"):
+            stream.close()
         try:
             account.dir_bytes = _tree_bytes(scratch)
             account.snapshot_bytes = _named_bytes(scratch, runs.SNAPSHOT_FILE)
@@ -905,10 +931,10 @@ def _shape(setup: Setup) -> tuple[int, int, float]:
 
 
 def _run_once(setup: Setup, config: Config = CONFIGS[0]) -> Run:
-    counts = _Counts()
-    account = _Account()
     if setup.patterns is not None:
         return _run_series(setup, config)
+    counts = _Counts()
+    account = _Account()
     ref = rx.Refinement(setup.structure.model_copy(deep=True),
                         setup.instrument.model_copy(deep=True),
                         history=False)
@@ -954,11 +980,7 @@ def _run_series(setup: Setup, config: Config = CONFIGS[0]) -> Run:
     """
     from rietx.sequential import refine_sequential
 
-    if config.stream:
-        raise SystemExit(
-            f"configuration {config.key!r} needs events=, which a series case "
-            f"spends on its own per-pattern collector — measure it on a "
-            f"single-fit case")
+    _refuse_stream_on_series(setup, [config])
 
     account = _Account()
     marks: dict[int, list[tuple[str, float]]] = {}
@@ -1077,15 +1099,15 @@ def _report(case: Case, setup: Setup, runs: list[Run], config: Config,
             print(f"    {wasted:.2f} s of that ({100 * wasted / last.wall:.0f} %"
                   f" of the series) is rungs the ladder discarded — rungs= below")
         for p in last.per_pattern:
-            detail = ""
+            rungs = ""
             if len(p.rung_walls) > 1:
-                detail = f"  rungs={'+'.join(f'{s:.2f}' for s in p.rung_walls)}"
+                rungs = f"  rungs={'+'.join(f'{s:.2f}' for s in p.rung_walls)}"
                 if p.rwp_warm is not None:
-                    detail += f"  warm Rwp {p.rwp_warm:.5f}"
+                    rungs += f"  warm Rwp {p.rwp_warm:.5f}"
             if p.status and p.status != "converged":
-                detail += f"  [{p.status}]"
+                rungs += f"  [{p.status}]"
             print(f"      pattern {p.index:2d}  {p.wall:7.2f} s  "
-                  f"{p.iterations:5d} iter  Rwp {p.rwp:.5f}  kept {p.rung}{detail}")
+                  f"{p.iterations:5d} iter  Rwp {p.rwp:.5f}  kept {p.rung}{rungs}")
 
 
 def _compare(by_config: dict[str, list[Run]]) -> None:
@@ -1106,8 +1128,14 @@ def _compare(by_config: dict[str, list[Run]]) -> None:
     configuration that moved either is not a slower fit, it is a different one,
     and its ratio means nothing.
     """
+    if len(by_config) < 2:
+        return
     control = by_config.get(CONFIGS[0].key)
-    if not control or len(by_config) < 2:
+    if not control:
+        # silence here reads as "nothing to compare", which is the one thing
+        # it is not: several configurations ran and none of them is a baseline
+        print(f"    no comparison: {CONFIGS[0].key!r} was not selected, and "
+              f"every ratio in this block is against it")
         return
     walls = [r.wall for r in control]
     base = statistics.median(walls)
@@ -1188,9 +1216,24 @@ def main(argv: list[str] | None = None) -> int:
     unknown = set(asked) - {c.key for c in CONFIGS}
     if unknown:
         ap.error(f"unknown configuration(s): {', '.join(sorted(unknown))}")
+    if not asked:
+        # unlike ``--cases``, empty does not mean all: it means a harness that
+        # builds every case and times none of them, in silence
+        ap.error("--configs selects nothing; name at least one of "
+                 f"{', '.join(c.key for c in CONFIGS)}")
     # declaration order, not the order asked in: the control runs first so its
     # own spread is on screen before any ratio is
     configs = [c for c in CONFIGS if c.key in asked]
+    # **The environment outranks ``telemetry=``** (``runs.enabled``), so under
+    # ``RIETX_TELEMETRY=0`` a recording configuration attaches no recorder and
+    # times the control while still printing a ratio against it.  Refused here
+    # rather than discovered in the table: the only trace it leaves is an
+    # all-zero accounting row, which is also what an honest control prints.
+    if any(c.records for c in configs) and not runs.enabled():
+        ap.error(f"recording is switched off for this process, so "
+                 f"{', '.join(c.key for c in configs if c.records)} would "
+                 f"time the control and call it a recorded fit — unset "
+                 f"{_about.TELEMETRY_ENV} (or set it to 1) and re-run")
 
     print(_header(args.repeats, configs))
     print()
@@ -1202,6 +1245,7 @@ def main(argv: list[str] | None = None) -> int:
         except (FileNotFoundError, OSError) as exc:        # dataset absent
             print(f"  {case.key:10s} skipped ({exc})")
             continue
+        _refuse_stream_on_series(setup, configs)
         shape = _shape(setup)
         # **Interleaved, never blocked.**  Running every repeat of one
         # configuration before starting the next makes each configuration a
