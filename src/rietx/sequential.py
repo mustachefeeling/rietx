@@ -746,7 +746,12 @@ class SequentialRefinement:
         # reads ``bool(cancel)`` to decide the walk ended, so a stop that
         # reached one pattern's ``fit`` and not this variable would abandon that
         # pattern and start the next one.
-        cancel = runs.attach_cancel(recorder, cancel)
+        # ``recorder_of`` and not ``recorder``, for ``fit``'s reason: ``attach``
+        # answers ``None`` when the caller's stream already carries one, and
+        # the chain would then never compose a token at all — with ``cancel``
+        # unpassed that leaves ``bool(cancel)`` false for the whole walk, which
+        # is exactly the failure this line exists to prevent.
+        cancel = runs.attach_cancel(runs.recorder_of(stream), cancel)
         try:
             return self._run(
                 patterns, names, xs, order, mode, base_plan, ladder,

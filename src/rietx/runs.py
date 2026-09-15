@@ -1242,9 +1242,14 @@ class RunRecorder(EventStream):
                 self._write_status()
                 return
             who = body.get("who") if isinstance(body, dict) else None
+            # The stop first, the record of it second. The request has already
+            # been consumed, so a ``_write_status`` that raises here would latch
+            # the recorder over a request nobody can write again — and a full
+            # disk is one of the reasons somebody reaches for this button. The
+            # latch below still records the reason it could not say who asked.
+            self._token.stop()
             self._status["cancelled_by"] = str(who) if who else "unknown"
             self._write_status()
-            self._token.stop()
         except BaseException as exc:
             self._latch(exc, "reading a cancel request")
 
@@ -1300,12 +1305,22 @@ class RunRecorder(EventStream):
             self._fh.flush()
             self._write_status(now)
             self._last_flush = now
-        if event.get("kind") != "eval":
+        if (event.get("kind") != "eval"
+                and self._status.get("state") not in TERMINAL_STATES):
             # A stage boundary is the one place no residual is being evaluated,
             # so the token's own probe cannot fire — and recompiling a large
             # model, or building a stage report, is where a fit sits longest
             # looking like it has ignored the button. There are a handful of
             # these events in a fit, against thousands of ``eval``.
+            #
+            # Never once the run has claimed a terminal state, which
+            # ``_observe`` does above on this same event: a request landing in
+            # the last cadence of a fit that finished would otherwise set the
+            # *caller's* token — the one a GUI session holds and reuses, so
+            # their next fit would raise ``RefinementCancelled`` at its first
+            # evaluation — and write ``cancelled_by`` beside a ``done``. A
+            # series member's ``fit_end`` leaves the state ``running`` on
+            # purpose (see ``_observe``), so the chain still stops here.
             self.poll_cancel()
 
     # -- the EventStream surface ------------------------------------------

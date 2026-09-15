@@ -556,6 +556,14 @@ _PAGE = (_PAGE_TEMPLATE
 #: poll or two, and short enough that a human refreshing by hand never waits.
 INDEX_TTL_SECONDS = 1.0
 
+#: The hosts a request carrying the one verb may claim to come from — the same
+#: set ``gui/server.py`` keeps, and kept separately for the same reason the two
+#: servers are separate modules. Binding ``127.0.0.1`` is not on its own enough:
+#: any page the reader happens to have open can send a cross-origin ``POST``
+#: with no preflight, and a hostile domain whose DNS answers ``127.0.0.1``
+#: becomes same-origin, at which point the run ids are readable too.
+_ALLOWED_HOSTS = frozenset({"127.0.0.1", "localhost", "[::1]", "::1"})
+
 
 class _RunIndex:
     """One walk shared by the requests that arrive together.
@@ -610,6 +618,26 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
     def _json(self, payload, status: int = 200) -> None:
         self._send(json.dumps(payload).encode("utf-8"),
                    "application/json; charset=utf-8", status)
+
+    def _origin_ok(self) -> bool:
+        """Whether a write may be honoured — ``gui/server.py``'s check, here.
+
+        Only the verb asks. Reading is served to whoever reaches the port, as
+        it was before WP-1405, and the reason this exists is that the verb
+        raises in another process: without it, any page the reader has open
+        could ``POST`` ``/api/run/<id>/cancel`` and stop an overnight
+        refinement. A same-origin fetch sends no ``Origin``, so an absent
+        header is not a failure; ``Host`` is checked as well because ``Host``
+        alone is what DNS rebinding defeats.
+        """
+        for header in ("Origin", "Referer"):
+            value = self.headers.get(header)
+            if not value:
+                continue
+            if (urllib.parse.urlparse(value).hostname or "") not in _ALLOWED_HOSTS:
+                return False
+        host = (self.headers.get("Host") or "").rsplit(":", 1)[0]
+        return host in _ALLOWED_HOSTS
 
     def _runs(self) -> list:
         return self.index.runs()
@@ -737,6 +765,12 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
         ``SimpleHTTPRequestHandler`` has no ``do_POST`` at all, so defining one
         means every other POST is answered here rather than by a 501 from the
         base class.
+
+        POST is not enough on its own, which is what :meth:`_origin_ok` is for:
+        a cross-origin POST with no body needs no preflight, so a page the
+        reader has open in another tab can send this one. Binding
+        ``127.0.0.1`` does not help there, and DNS rebinding hands that page
+        the run ids as well.
         """
         # drained before anything is written back, or a keep-alive connection
         # reads the unread body as the next request line
@@ -745,7 +779,20 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
         except ValueError:
             length = 0
         if length > 0:
-            self.rfile.read(min(length, 1 << 16))
+            capped = min(length, 1 << 16)
+            self.rfile.read(capped)
+            if capped < length:
+                # the cap stops a declared gigabyte becoming this process's
+                # memory, and then the connection has to go: the rest of that
+                # body is still in the socket, and reusing the connection would
+                # parse it as the next request — the desync this drain exists
+                # to prevent
+                self.close_connection = True
+
+        if not self._origin_ok():
+            self._json({"error": "this request did not come from the page "
+                                 f"{DIST_NAME} watch serves"}, status=403)
+            return
 
         parts = [p for p in urllib.parse.urlparse(self.path).path.split("/")
                  if p]

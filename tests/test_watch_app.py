@@ -44,9 +44,10 @@ def _json(url: str):
     return json.loads(_get(url).decode("utf-8"))
 
 
-def _post(url: str):
+def _post(url: str, headers: dict | None = None):
     """POST, and give back ``(status, payload)`` for a refusal as well as a 200."""
-    request = urllib.request.Request(url, method="POST", data=b"")
+    request = urllib.request.Request(url, method="POST", data=b"",
+                                     headers=headers or {})
     try:
         with urllib.request.urlopen(request, timeout=5) as response:
             return response.status, json.loads(response.read().decode("utf-8"))
@@ -474,6 +475,28 @@ def test_a_get_does_not_cancel(tmp_path):
     assert not (run_dir / runs.CANCEL_FILE).exists()
 
 
+@pytest.mark.parametrize("headers", [
+    {"Origin": "https://evil.example"},
+    {"Referer": "https://evil.example/page"},
+])
+def test_another_page_in_the_browser_cannot_stop_a_fit(tmp_path, headers):
+    """POST is not enough on its own, and 127.0.0.1 is not either.
+
+    A cross-origin POST with no body needs no preflight, so any page the reader
+    has open can send this one, and a domain whose DNS answers ``127.0.0.1``
+    reads the run ids too. ``gui/server.py`` has checked ``Origin``/``Referer``
+    since it grew verbs; this is the same check on the one verb here.
+    """
+    run_dir = _live_run(tmp_path / "r")
+    with _served(tmp_path) as base:
+        (row,) = _json(base + "/api/runs")["runs"]
+        status, payload = _post(f"{base}/api/run/{row['run_id']}/cancel",
+                                headers)
+
+    assert status == 403, payload
+    assert not (run_dir / runs.CANCEL_FILE).exists()
+
+
 def test_read_only_refuses_and_says_so_in_the_run_list(tmp_path):
     """``--read-only``: the route refuses *and* the page draws no button.
 
@@ -583,3 +606,17 @@ def test_no_page_token_is_left_unsubstituted():
     """
     for token in ("@SUFFIX@", "@DIST@", "@HUE@"):
         assert token not in watch._PAGE
+
+
+def test_the_two_local_servers_allow_the_same_hosts():
+    """One security rule, written twice, so pin the copies together.
+
+    ``watch.py`` cannot import ``gui/server.py``: that module reaches
+    ``gui/session.py`` and the whole refinement graph behind it, and a viewer
+    importing the watcher pays for nothing it will not draw. So the host set is
+    duplicated on purpose. What must not happen is one of them being tightened
+    and the other left, which is the ordinary way a repeated rule rots.
+    """
+    from rietx.gui import server as gui_server
+
+    assert watch._ALLOWED_HOSTS == gui_server._ALLOWED_HOSTS

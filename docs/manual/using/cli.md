@@ -204,6 +204,13 @@ rietx watch: 3 run(s) under /Users/yue/work/demo
 
 The page draws no button, and the route refuses with 403.
 
+The stop route also checks `Origin` and `Referer`, the way the GUI's writing
+routes do. A cross-origin POST needs no preflight, so without that check any
+page open in another tab could stop a refinement, and a domain whose DNS
+answers `127.0.0.1` could read the run ids first. A same-origin fetch sends no
+`Origin` and a command-line client sends none either, so `curl -X POST` against
+`127.0.0.1` works unchanged.
+
 ### The JSON underneath
 
 The page is a client of seven routes, and anything the page shows you can read
