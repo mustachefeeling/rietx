@@ -509,7 +509,7 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   The page it replaced was serialised on the fit's own thread at 4.51-6.03 MB a stage.
   `rietx html` still writes one on demand — what stopped is producing it unasked.
 - **A per-stage charge is judged on the shortest fit, never the typical one** (WP-1413): it is
-  near-constant, so `nac` at 0.354 s spends its entire 5 % budget on one of its six snapshots.
+  near-constant, so `nac` at 0.354 s spends 50 ms on six snapshots against a 17.7 ms budget.
 - **Every fit records itself, and telemetry never breaks a fit** (WP-1403). `runs.py` holds
   both halves of one contract: the reader `rietx watch` is built on, and `RunRecorder`, which
   writes the `meta.json`/`run.lock`/`status.json` it looks for. `runs.attach` hangs the

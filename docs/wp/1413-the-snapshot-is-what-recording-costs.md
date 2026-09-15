@@ -208,11 +208,11 @@ the bit-identity test. A faster build that moved one index is a regression.
   returns the same points and runs 8.8 to 11.9 times faster. Two of the three
   benchmark fits now record for under 5 % of their own wall clock, where before
   only one did. The third cannot, and not because anything is slow: a 0.354 s
-  fit has a 5 % budget of 17.7 ms, and its six snapshots cost 50 ms with the
-  decimation, the rounding, the statistics and the ticks all free. The only
-  lever left is writing the picture less often than every stage, which changes
-  what a watcher sees, so it is a decision about the feature rather than an
-  optimisation.
+  fit has a 5 % budget of 17.7 ms, and its six snapshots cost 50 ms, still over
+  it with the decimation, the rounding, the statistics and the ticks all free.
+  The only lever left is writing the picture less often than every stage, which
+  changes what a watcher sees, so it is a decision about the feature rather than
+  an optimisation.
 
   **Done.** All six tasks. `viz.compare.decimation_index` finds each bucket's
   min and max with `reduceat` over the distinct edges instead of 2000 python

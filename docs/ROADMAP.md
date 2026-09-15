@@ -101,9 +101,10 @@ decision**: [1413](wp/1413-the-snapshot-is-what-recording-costs.md) shipped
 2026-09-15, cutting the decimation 8.8-11.9x at a bit-identical index set and
 taking recording to 1.03-1.23x, which the manual and the skill now quote.
 `cpd-2` and `trigger` clear WP-1404's 1.05x gate and `nac` cannot: a 0.354 s fit
-has a 17.7 ms budget and its six snapshots cost 50 ms with everything but the
-serialising free. **The one open question is for the maintainer** — write the
-snapshot every stage, or less often and let a watcher redraw less often.
+has a 17.7 ms budget and its six snapshots cost 50 ms, still over it with
+everything but the serialising free. **The one open question is for the
+maintainer** — write the snapshot every stage, or less often and let a watcher
+redraw less often.
 
 **Queued, unscheduled** ([§ Unscheduled](#unscheduled)): the 2026-09-01
 triage's 1309–1322 plus 1323 and 1325; the 2026-09-03 triage's 1332–1341; the
