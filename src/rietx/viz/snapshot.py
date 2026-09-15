@@ -98,8 +98,15 @@ def _json_list(values: np.ndarray) -> list:
     ``JSON.parse`` refuses — so one non-finite point would cost a viewer the
     whole curve. ``null`` is what plotly draws as a gap, which is the right
     picture of a point that has no value.
+
+    The per-element branch runs only when there is something to branch on.
+    ``tolist`` is one C call and the comprehension is 6000 python iterations a
+    curve, which measured 5-9 ms of an 18 ms snapshot before this check was
+    here — and a finite curve is what every stage of every fit produces.
     """
     values = np.asarray(values, dtype=np.float64)
+    if np.isfinite(values).all():
+        return values.tolist()
     return [None if not np.isfinite(v) else float(v) for v in values]
 
 

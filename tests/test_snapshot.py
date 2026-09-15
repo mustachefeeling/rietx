@@ -8,6 +8,7 @@ so. The payload's own size is measured in the WP's handover, not asserted here
 code.
 """
 
+import copy
 import json
 import sys
 from pathlib import Path
@@ -34,6 +35,11 @@ class _Capture(EventStream):
     Subclasses ``EventStream`` for the reason ``LiveSession`` does: that is
     what ``events=`` accepts, and ``write_snapshot`` is found on it by the same
     duck typing the real sink is found by.
+
+    The table is **copied**, because it is not the stage's: one table is reused
+    and re-freed down the plan, so a deferred ``decode`` of an early stage's θ
+    finds a table of the wrong width. A real sink writes inside the call and
+    never meets this; a test that holds a stage for later does. 0.2 ms a stage.
     """
 
     def __init__(self):
@@ -41,7 +47,7 @@ class _Capture(EventStream):
         self.calls = []
 
     def write_snapshot(self, model, table, outcome, stage_name):
-        self.calls.append((model, table, outcome, stage_name))
+        self.calls.append((model, copy.deepcopy(table), outcome, stage_name))
 
 
 @pytest.fixture(scope="module")
