@@ -121,9 +121,19 @@ $ rietx watch --port 8899 --open
 
 With no directory it scans the working directory and lists every run beneath it,
 running and finished together, each with the stage and Rwp its writer last
-recorded. Opening one shows its plot and its event console. The plot redraws in
-place as the fit writes each stage, keeping whatever you have zoomed into, and
-the console tails the log from where it left off.
+recorded. The list is one panel and the selected run is the other. The run
+panel carries a status line, the plot and the event console. With no run in
+the URL the page follows the newest run, so opening it beside an agent's job
+shows what is happening now. Clicking a run pins it. The `runs` and `run`
+buttons in the bar collapse either panel, and the browser remembers the choice.
+
+The page holds still while the fit moves. The plot redraws in place as the fit
+writes each stage. Its 2θ and intensity axes are set by the pattern, so they
+change only when the data does, and a zoom survives a stage. The Δ/σ axis is
+symmetric and steps between fixed rungs (±3, ±5, ±10, ±20 and so on) as the
+residual tightens. The console tails the log from where it left off and follows
+it only while you are at the end. For a series the status line names the
+pattern being fitted, its pass and its stage.
 
 ### Where the runs come from
 
