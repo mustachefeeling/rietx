@@ -366,25 +366,41 @@ def test_a_series_records_one_run_and_not_one_per_pattern(
     assert [e.data["series_index"] for e in starts] == [0, 1, 2]
 
 
-def test_attach_declines_when_one_is_already_in_the_chain():
-    """The stamp, on its own, without a fit to produce one."""
+class _Wrapper(EventStream):
+    """A stream wrapping another, the shape ``_SeriesStream`` has."""
 
-    class Wrapper(EventStream):
-        def __init__(self, inner):
-            super().__init__()
-            self._inner = inner
+    def __init__(self, inner):
+        super().__init__()
+        self._inner = inner
 
+
+def test_the_stamp_is_found_through_any_depth_of_wrapper():
+    """The walk, on its own, without a fit to produce a stamp."""
     outer = EventStream()
-    first = runs.attach(outer, outer, telemetry="unused")
-    assert first is None or True     # attach may be disabled; force the path
-    assert runs._already_recorded(outer) == (first is not None)
+    assert runs._already_recorded(outer) is False
+    assert runs._already_recorded(_Wrapper(outer)) is False
 
     setattr(outer, runs._STAMP, object())
     assert runs._already_recorded(outer) is True
-    assert runs._already_recorded(Wrapper(outer)) is True
-    assert runs._already_recorded(Wrapper(Wrapper(outer))) is True
+    assert runs._already_recorded(_Wrapper(outer)) is True
+    assert runs._already_recorded(_Wrapper(_Wrapper(outer))) is True
+
     assert runs._already_recorded(EventStream()) is False
     assert runs._already_recorded(None) is False
+
+
+def test_attach_stamps_the_stream_and_then_declines_it(tmp_path, recording):
+    """Two calls, one directory. The second finds the first's stamp."""
+    stream = EventStream()
+    first = runs.attach(stream, stream, telemetry=str(tmp_path / "runs"))
+    assert first is not None
+    assert runs._already_recorded(stream) is True
+
+    assert runs.attach(stream, stream, telemetry=str(tmp_path / "runs")) is None
+    assert runs.attach(_Wrapper(stream), stream,
+                       telemetry=str(tmp_path / "runs")) is None
+    first.close()
+    assert len(list((tmp_path / "runs").iterdir())) == 1
 
 
 def test_the_chain_walk_survives_a_cycle():
