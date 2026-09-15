@@ -51,6 +51,25 @@ background has ever been fitted. The partition is then handed
 reflections. Measured on a synthetic pattern whose background is 5× its
 strongest peak: cycle one claims **571×** the true Bragg intensity.
 
+**The cell is the weaker half.** Peterson (2005, *Powder Diffr.* **20**, 14)
+fitted triclinic tricalcium silicate at NSLS X7A. The Le Bail fit won on both
+indices reported (χ² 16.46 against 22.81, R_p 2.34 against 3.52 at ambient) and
+its cell parameters wandered over a heating and cooling series, while the
+Rietveld cell from an admittedly imperfect model stayed consistent. Any single
+Le Bail fit there looked acceptable, and only the trend exposed it. The cause is
+reflection density rather than low symmetry alone, and the same disagreement has
+been reported on an I4/mmm structure. Peterson's own scope is "particularly for
+high reflection density data", and the abstract says so.
+
+**Measured at the other end of that variable**, one range and one instrument
+treatment, three modes: 11-BM LaB₆, 2-40°, 55 reflections, mean FWHM 0.0097°,
+**0.014 reflections per FWHM**. Rietveld a = 4.1568414(52) Å, Le Bail
+4.1568425(51), Pawley 4.1568431(51) — a spread of 0.4 ppm, a third of one esd,
+with the esds equal to 2 %. The Le Bail fit also won on Rwp there (0.0861
+against 0.0879) and its cell was still right, so the better Rwp is not itself
+the signal. Count reflections per FWHM: crowded, check the cell against a
+structural model; resolved, do not spend the fit.
+
 **Multi-phase Le Bail** was broken until v1.0 and is now supported: the shares
 sum to 1 across all phases at every channel (measured Σ calculated / Σ observed
 excess **1.79 → 1.0000** on LaB₆ + CaF₂, single-phase path bit-identical). One
@@ -186,6 +205,16 @@ all. The count that does is `LeBailValidation.predicted_but_absent`, which
 integrates net intensity above the fitted background over each predicted
 position. The blind direction is the one de Wolff's M₂₀ has, and it is why
 Oishi-Tomiyasu (2013, *J. Appl. Cryst.* **46**, 1277) reversed the figure.
+
+The clip at zero is rietx's, and it changes what a bad background looks like.
+Unrectified, the method returns **negative** intensities wherever the background
+is overestimated, which David & Sivia (2002, *Structure Determination from
+Powder Diffraction Data*, ch. 8) found and Le Bail's retrospection passes on.
+rietx partitions `max(y_obs − y_bkg, 0)`, so a background
+set too high hides in intensities pinned at nothing. A background driven too
+*low* is the documented pathology on the other side: `absent_reflections` found
+0 of 163 absences on a wrong candidate whose co-refined background had gone
+negative.
 
 ## §4b — the QPA background measurement in full
 
