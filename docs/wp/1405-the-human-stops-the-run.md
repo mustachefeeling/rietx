@@ -303,11 +303,17 @@ telemetry, and the run reads cancelled afterwards.
     the request is written, at stage 1 of 150, stderr empty. The control that is
     never asked runs all 150 and prints FINISHED. A 4-pattern series stopped at
     0 completed entries with `SEQUENTIAL_CANCELLED`, against 4 of 4 unasked.
-  - *Counts.* +23 tests, of which one is `slow`. Fast selection **4815 passed,
-    132 skipped, 3:49** against WP-1406's 4793/132: **+22 passed, skips
-    unchanged**, and PR #324 in between added no test. Full selection **4984
-    passed, 141 skipped, 25:16** against 4961/141, so **+23 passed**. Both on
-    current main merged into this branch, which is the tree that lands.
+  - *Counts.* +26 tests, of which one is `slow` and three came from the review
+    pass. Fast selection **4818 passed, 132 skipped, 2:14-3:49** against
+    WP-1406's 4793/132: **+25 passed, skips unchanged**, and PR #324 in between
+    added no test. Full selection **4987 passed, 141 skipped, 28:30** against
+    4961/141, so **+26 passed**. Both on current main merged into this branch,
+    which is the tree that lands and which nothing else tests.
+
+    That full run is `-n 4`, not `-n auto`. Two attempts at `-n auto` and `-n 6`
+    were killed by the host for memory with other applications open, one of them
+    at 37 %, and neither is a test failure. The wall clock is not comparable with
+    this milestone's other full runs for that reason; the counts are.
 
   **Decisions, both of which the WP left open on purpose.** Eager attachment,
   on the numbers above; lazy was worse than it looks, because a token cannot be
@@ -343,6 +349,24 @@ telemetry, and the run reads cancelled afterwards.
   - *The full suite earned its 25 minutes.* It caught a `read_text()` without
     `encoding=` in this WP's own test helper — cp1252 on Windows. All four
     suites the WP's acceptance names were green with it in place.
+
+  **The review pass changed five things and nothing was declined.** Two were
+  serious. `poll_cancel` recorded the stop before performing it, so a status
+  write that raised would have latched the recorder with the request already
+  consumed and the runaway unstoppable — and a full disk is one of the likelier
+  reasons somebody reaches for this button. And the POST route had no
+  `Origin`/`Referer` check, so any page the reader had open in another tab could
+  have stopped an overnight refinement; `gui/server.py` has carried exactly that
+  check since it grew verbs, which is the prior art this session should have
+  looked for and did not. Three smaller: the non-eval poll fired on a `fit_end`
+  that had already recorded a terminal state, so a request in the last cadence
+  of a *successful* fit would set the caller's own reusable token; the body
+  drain capped its read without closing the connection, which is the desync its
+  own comment claims to prevent; and `sequential.fit` passed `recorder` where
+  `fit` passes `recorder_of(stream)` — the exact bug the comment on that line
+  exists to prevent, written directly under the comment. Reading the fixes added
+  a sixth change of my own: the host set is now duplicated in two servers on
+  purpose, so a meta-test pins the copies equal.
 
   **Next.** [WP-1404](1404-what-recording-every-fit-costs.md) is what remains in
   the track, and its `### Inherited` now carries this session's answer to its
