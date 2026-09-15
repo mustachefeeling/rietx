@@ -65,6 +65,20 @@ PROFILE_FORMAT_KEY = "instrument_profile"
 STATE_DIR_NAME = ".rietx"
 STATE_DIR_ENV = "RIETX_STATE_DIR"
 
+#: Runs recorded by a fit nobody asked to record (WP-1403), under
+#: ``<working directory>/<STATE_DIR_NAME>/<RUNS_DIR_NAME>/<run id>``.
+#:
+#: **Two directories are spelled** :data:`STATE_DIR_NAME` **and they are not
+#: the same directory.** ``$HOME/.rietx`` is the GUI's per-user state, and
+#: :data:`STATE_DIR_ENV` moves that one and only that one. The *working
+#: directory's* ``.rietx/`` is this: telemetry belonging to the tree a fit ran
+#: in, the way ``.git`` is one name whose meaning is its location. No env var
+#: moves it, because a caller who wants it somewhere else passes
+#: ``telemetry=<path>`` and a caller who wants none of it sets
+#: :data:`TELEMETRY_ENV`. No test can catch the two being confused — they are
+#: the same literal — so the note is the whole defence.
+RUNS_DIR_NAME = "runs"
+
 #: Where the GUI offers to put a *new* project, under ``$HOME``.  Not hidden and
 #: not inside :data:`STATE_DIR_NAME`: these are the person's documents, not the
 #: app's state, and a wizard suggesting a dot-directory would be suggesting
@@ -84,6 +98,19 @@ COMPILED_ENV = "RIETX_COMPILED"
 #: ``min(8, cpu_count)``.  Set it to ``1`` where the parallelism is already one
 #: rank up — a suite under ``xdist``, a series fanned out over processes.
 COMPILED_THREADS_ENV = "RIETX_COMPILED_THREADS"
+
+#: Switches automatic run recording off (``0``/``off``/``no``/``false``), so a
+#: fit writes nothing anywhere unless its caller passed ``events=``. A runtime
+#: knob beside :data:`COMPILED_ENV` and for the same reason: recording needs no
+#: optional dependency, so packaging cannot express the choice.
+#:
+#: It **outranks** the ``telemetry=`` keyword, and there is deliberately no
+#: value that switches recording back *on* against it. Someone who set this
+#: wants their disk left alone everywhere, and a library call that could
+#: override them would make the switch a suggestion. ``runs.set_enabled``
+#: mirrors ``model.compiled.set_enabled`` for a caller who needs to change it
+#: inside a process, and is what the suite uses.
+TELEMETRY_ENV = "RIETX_TELEMETRY"
 
 #: Import path of the bundled data package (scattering factors, attenuation
 #: and dispersion tables), read through ``importlib.resources``.
