@@ -30,17 +30,27 @@ This discharges **WP-1322's Task 2** (the `history` defaults asymmetry decision)
 by removing its premise; say so in that WP when this lands, and leave its Task 1,
 the terminal-shaped post-hoc aggregator, alone.
 
-### The gate
+### The gate, discharged
 
-**This WP does not ship on-by-default unless WP-1401's baseline says it can.**
-The costs, verified in the tree 2026-09-13:
+**WP-1401 and WP-1402 answered it: recording every fit is affordable.** The
+event stream costs 1-3 % of a fit's wall clock (1401, on `nac` / `cpd-2` /
+`trigger`, three repeats over two sittings). A per-stage picture costs
+180-329 kB and 9.3-14.2 ms (1402, same three fits, `[dev]` venv, macOS arm64).
+The whole of `events=LiveSession(dir)` is now 1.03-1.28x a bare fit, against
+1.01-1.03x for `events=<path>`, so what a *recorder* adds over a bare stream is
+the snapshot and nothing else. Every configuration returned a bit-identical
+Rwp: telemetry does not change the answer.
+
+The costs below were verified in the tree 2026-09-13 and the symbols
+re-verified 2026-09-15, after 1402 landed. Every one survives; the `refine.py`
+line numbers moved, and are corrected here.
 
 | item | scope | what it is |
 |---|---|---|
 | `_free_values` (`least_squares.py:1153`, `:866`) | **per residual evaluation** | a second full `table.decode` (`:822`), then a list build over `free_paths`. It runs **before** the sink is consulted, so no sink-side thrift avoids it. |
 | `json.dumps` + write + `flush` (`events.py:146-147`) | per evaluation | a syscall pair per residual evaluation, on the fit thread |
-| `stage_end.rwp` (`refine.py:1758-1771`) | per **stage** | one `background` pass plus one `bragg_component` pass. Negligible against a stage's hundreds of evaluations, and it is what makes a live Rwp a real number rather than a raw cost. Keep it exempt from any thinning below — it stays conditioned on a stream existing, so a fit with telemetry off still pays nothing. |
-| `_abandon_on_cancel` (`refine.py:1543-1546`) | per stage, **new** | it short-circuits on `cancel is None` and says so: "the copies are taken only when a token is present, so an ordinary fit pays nothing." Attaching a token so WP-1405's cross-process cancel works ends that guarantee — two `model_copy(deep=True)` a stage, scaling with atom count. |
+| `stage_end.rwp` (`refine.py:1803`) | per **stage** | one `background` pass plus one `bragg_component` pass. Negligible against a stage's hundreds of evaluations, and it is what makes a live Rwp a real number rather than a raw cost. Keep it exempt from any thinning below — it stays conditioned on a stream existing, so a fit with telemetry off still pays nothing. |
+| `_abandon_on_cancel` (`refine.py:1560`) | per stage, **new** | it short-circuits on `cancel is None` and says so: "the copies are taken only when a token is present, so an ordinary fit pays nothing." Attaching a token so WP-1405's cross-process cancel works ends that guarantee — two `model_copy(deep=True)` a stage, scaling with atom count. |
 
 Three mitigations, in the order they cost something to give up:
 
@@ -49,7 +59,13 @@ Three mitigations, in the order they cost something to give up:
    for a durable log and keeps today's behaviour byte for byte. The durability
    consequence is real and belongs in the docstring — a hard kill loses the last
    fraction of a second — which is exactly why WP-1401's liveness rests on the
-   lock and not on the log, and why its tail reader carries a fragment unparsed.
+   lock and not on the log, and why its tail reader carries a fragment
+   unparsed. One condition from 1401: `tail_events` stalls on a single line
+   longer than its 4 MiB `max_bytes`
+   (`cut == -1` holds the offset and every later call re-reads the same block),
+   a limit 1401 found and deliberately left because skipping forward emits a
+   torn line. Buffering batches *writes*, not lines, so the bound is untouched
+   — but measure the largest line before relying on that.
 2. **Let the sink answer whether it wants the values.** If the measurement says
    the decode dominates the writes, the fix is one rank down: `least_squares.py`'s
    `if events is not None` becomes a question the sink can answer, one `getattr`
@@ -62,9 +78,52 @@ Three mitigations, in the order they cost something to give up:
    Ship 1 first; adopt this only if WP-1404 demands it, and record the decision
    either way.
 
+### What 1401 and 1402 already built
+
+Both dependencies have landed, so most of the seams this WP needs are in the
+tree waiting for a writer.
+
+**The file contract exists, unwritten.** `runs.py` declares `META_FILE`
+(`meta.json`), `LOCK_FILE` (`run.lock`), `RunMeta` and `RunStatus`, and names
+this WP as the writer of every field none of today's code produces. Write to
+those names or the reader stops seeing the runs. Three of them are load-bearing
+for the reader rather than decorative: hold `run.lock` flock'd for the
+process's life, since a free lock under a `running` status is what makes
+`abandoned` a distinct answer; write `host`, or the foreign-host rung cannot
+fire; write `state`, because `RunStatus.state` has no substantive default and
+`liveness_of` answers `unknown` rather than `running` when it is absent
+(WP-1076).
+
+**The reader tolerates a newer writer.** `RunMeta` and `RunStatus` allow extra
+keys rather than forbidding them, for the reason `EventRecord.data` is an open
+dict, so a field this WP adds is additive and needs no reader change.
+`RunStatus.state` is typed `str` with `runs.RUN_STATES` naming the vocabulary,
+so a state invented here is read rather than costing the whole file its
+validation. A run directory with neither sidecar resolves as *legacy*, its
+`created` synthesized from the log's mtime, and every run directory in the tree
+today is one — this WP adds a writer without orphaning anything.
+
+**The sink list is declared.** `refine._snapshot_sinks(stream, events)`
+(`refine.py:319`) is built once in `fit` and once in `run_stage` and handed
+down, deduped by identity. A recorder that is a *different* object from the
+caller's stream — which is what chaining onto `EventStream.callback` makes it —
+is a third candidate passed to that call, not a fourth `hasattr` test at a call
+site; the old code would have found nothing at all in that case, and
+`test_the_sink_set_is_declared_and_deduped` is the pin. `run_stage` writes a
+snapshot too, before `_record`, which it did not before 1402 — so
+one-stage-at-a-time driving already has a picture where it had only events.
+And `status.json` is written from the snapshot payload rather than recomputed,
+so the `state` / `pid` / `host` / `heartbeat` fields this WP adds join a dict
+that already agrees with the plot.
+
+**Copy the table if you hold a stage.** One `ParameterTable` is reused and
+re-freed down a plan, so a deferred `build_snapshot` on an early stage decodes
+against the wrong width and raises. A sink that writes inside the call never
+meets this.
+
 ### Composition: three cases, and an identity that must survive
 
-`refine.py:1853` — `stream = _attach_progress(as_event_stream(events), progress)`
+`refine.py:1882` — `stream = _attach_progress(as_event_stream(events), progress)`
 — and `fit` closes it only `if stream is not events`. That identity test is why
 `sequential._SeriesStream` is a *subclass*. Nothing here may disturb it.
 
@@ -80,7 +139,7 @@ never inside it.
 ### Where the directory comes from
 
 `Refinement` has **no back-reference to a `Project`** (verified: no `self.project`
-in `refine.py`), and `Project.fit` (`project.py:354`) is a pure `setdefault`
+in `refine.py`), and `Project.fit` (`project.py:359`) is a pure `setdefault`
 forwarder. So, first hit wins:
 
 1. an explicit `telemetry=<path>`;
@@ -92,7 +151,7 @@ forwarder. So, first hit wins:
    `Refinement`: `self.history.path.parent` holding a `project.json`. One
    `exists()` a run, nothing stored on the `Refinement`, and (2) never depends
    on it. **Both attributes are `Optional`** — `self.history` is `None` until
-   `_ensure_history` runs (`refine.py:378`) and `RefinementTree.path` is `None`
+   `_ensure_history` runs (`refine.py:452`) and `RefinementTree.path` is `None`
    for an in-memory tree (`history/tree.py:46`), which is what `history=False`
    and every synthetic fixture produce — so this step is two `is not None`
    tests before the `exists()`, and it falls through to (4) rather than
@@ -118,8 +177,8 @@ this WP exists to control. The fix: the GUI passes a callback-only stream and th
 recorder owns the file. It only ever needed `_push`; the file existed for
 `rietx watch`, which the recorder now serves better. That changes the contents of
 `<project>/live/`, which `docs/manual/using/files.md` documents twice — the
-mermaid tree at line 16 (its `live/` node at 20) and the annotated listing at
-line 241 (its `live/` row at 245).
+mermaid tree at line 18 (its `live/` node at 22) and the annotated listing at
+line 417 (its `live/` row at 421).
 `project.json`'s schema does not move and `live/`'s *contents* were never part of
 the format's promise, so the reading here is **no `PROJECT_FORMAT_VERSION`
 bump** — but make that call deliberately when it lands, and record it.
@@ -142,6 +201,14 @@ single attribute test. The latch is **not silent** — WP-1076's rule — it rec
 its reason in the status file and warns once per process. Write both halves of
 this into the module docstring, or it reads as an inconsistency and someone
 "fixes" it.
+
+The same boundary answers the question WP-1402's review left open here.
+`for sink in sinks: sink.write_snapshot(...)` runs unguarded in `refine.py`, so
+a full disk discards a converged result. That is right for a sink the *caller*
+passed and wrong for the recorder, and the two need no separate code path: the
+latch covers every recorder method, `write_snapshot` included, so the recorder
+absorbs its own failure and the loop stays exactly as 1402 wrote it. A caller's
+live view keeps failing loudly.
 
 ### Retention: by age and size, never by count
 
@@ -219,83 +286,6 @@ breaks that. The run-id subdirectories keep the event logs from colliding and
 makes the situation ordinary rather than rare, which from the user's side is the
 same thing. Name it; do not claim the watcher created it and do not claim it is
 safe.
-
-### Inherited
-
-From **WP-1402** (2026-09-15), which is why this one is no longer blocked:
-
-- **A stage's picture costs 180-329 kB and 9.3-14.2 ms**, so recording every
-  fit is affordable and needs no plotly: `viz/snapshot.py` imports none, and
-  `LiveSession` is now a shim over it. `[dev]` venv, macOS arm64, on
-  `examples/bench_refinement.py`'s `nac` / `cpd-2` / `trigger`.
-- **The whole cost of `events=LiveSession(dir)` is now 1.03-1.28x a bare fit**
-  (was 1.04-1.49x at 1401's baseline), against 1.01-1.03x for `events=<path>`.
-  What a recorder adds on top of the stream is therefore the snapshot, and that
-  is the number above.
-- **The sink list is already declared for you.** `refine._snapshot_sinks(stream,
-  events)` is built once in `fit` and in `run_stage` and handed down, deduped by
-  identity. A recorder that is a *different* object from the caller's stream —
-  which is what chaining onto `EventStream.callback` makes it — is a third
-  candidate passed to that call, not a fourth `hasattr` test at a call site. The
-  old code would have found nothing at all in that case, and
-  `test_the_sink_set_is_declared_and_deduped` is the pin.
-- **`run_stage` writes a snapshot too, before `_record`.** It did not before, so
-  anything this WP builds on top of one-stage-at-a-time driving now has a
-  picture where it previously had only events.
-- **`status.json` is written from the snapshot payload**, not recomputed, so the
-  `state`/`pid`/`host`/`heartbeat` fields this WP adds join a dict that already
-  agrees with the plot. `runs.RunStatus` documents which five fields exist today.
-- **Decide what a failing sink does, because it is your decision and not
-  1402's.** `for sink in sinks: sink.write_snapshot(...)` runs unguarded, so a
-  full disk or a removed live directory discards a converged result. That is
-  right while a caller has *asked* for a live view — the project's rule is loud
-  failure — and wrong the moment a recorder runs on a fit nobody asked to
-  record. 1402's review raised it and left it here rather than picking an answer
-  the recording WP has to live with.
-- **Copy the table if you hold a stage.** One `ParameterTable` is reused and
-  re-freed down a plan, so a deferred `build_snapshot` on an early stage decodes
-  against the wrong width and raises. A sink writing inside the call never meets
-  this.
-
-From **WP-1401** (2026-09-14), which landed the reader and the baseline this WP
-was gated on:
-
-- **The premise survives, with one condition.** The event stream costs 1-3 % of
-  a fit's wall clock, measured on `nac`, `cpd-2` and `trigger` at three repeats
-  over two sittings. Recording every fit is affordable. The per-stage picture
-  costs up to 49 % on a short fit, so recording must not imply writing
-  `fit.html` until WP-1402 has landed. Every configuration returned a
-  bit-identical Rwp, so telemetry does not change the answer.
-- **The file contract this WP writes already exists, unwritten.** `runs.py`
-  declares `META_FILE` (`meta.json`), `LOCK_FILE` (`run.lock`), `RunMeta` and
-  `RunStatus`, and names WP-1403 as the writer of every field none of today's
-  code produces. Write to those names rather than inventing others, or the
-  reader stops seeing the runs.
-- **Three things the reader needs the writer to do.** Hold `run.lock` flock'd
-  for the process's life, since a free lock under a `running` status is what
-  makes `abandoned` a distinct answer. Write `host`, or the foreign-host rung
-  cannot fire. Write `state`, because `RunStatus.state` has no substantive
-  default and `liveness_of` answers `unknown` rather than `running` when it is
-  absent (WP-1076).
-- **A run directory with neither sidecar stays visible forever**, resolving as
-  *legacy* with its `created` synthesized from the log's mtime. Every run
-  directory in the tree today is one, so this WP adds a writer without
-  orphaning anything.
-- **The reader tolerates a newer writer's fields.** `RunMeta`/`RunStatus` allow
-  extra keys rather than forbidding them, for the reason `EventRecord.data` is
-  an open dict. A new field is therefore additive and needs no reader change.
-  `RunStatus.state` is typed `str` rather than a closed `Literal` for the same
-  reason, with `runs.RUN_STATES` naming the vocabulary, so a state this WP
-  invents is read rather than costing the whole file its validation.
-- **One known limit in `tail_events`, deliberately left, and this WP is where
-  it could start mattering.** A single line longer than `max_bytes` (4 MiB)
-  stalls the tail: `cut == -1` holds the offset, and every later call re-reads
-  the same 4 MiB and returns nothing. WP-1401's review found it and declined to
-  fix it, because skipping forward would emit a torn line and no event in the
-  tree comes near the bound. The reason to re-check here is that WP-1401's own
-  text calls the torn-line handling "load-bearing rather than defensive from
-  WP-1403 on, when writes become buffered" — so if this WP makes events larger
-  or batches them, measure the largest line before relying on the bound.
 
 ## Non-goals
 
