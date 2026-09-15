@@ -153,6 +153,15 @@ Adding to the handover log of a WP whose work you did is welcome. That log
 is the record of what you measured and where you stopped, and it belongs in
 the same change as the code.
 
+**Claiming one is welcome too, and is the one other edit to those files that
+is yours to make.** Before starting scheduled work, open a draft pull request
+that sets that WP's `Status:` line to `🔄 <date> — claimed by @you` and
+mirrors the glyph and date in its ROADMAP index row, and nothing else. It
+stops two people spending a week on the same work: nobody can see a claim that
+lives only on your own machine, so a draft PR is the announcement. Mark it
+ready when the work is. If you find a WP already at 🔄, or a draft PR open on
+it, ask in the issue before starting rather than racing.
+
 ## Proposing something that is not scheduled
 
 Open a [design proposal][proposal] and write the design there. A proposal

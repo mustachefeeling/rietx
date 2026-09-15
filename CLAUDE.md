@@ -775,6 +775,26 @@ share its HEAD, index, stash and tree, so the first act of any session that will
 the `WorktreeCreate` hook — and `.claude/hooks/worktree_only.py` refuses an edit or a HEAD-moving
 git verb in the main checkout. `/pr-review` enters its persistent bench the same way.
 
+**And one WP per session** — the same rule one rank out, since two sessions in two proper trees
+still duplicate a day and find out at handover (WP-1422). **A claim is held by a worktree, and a
+worktree is live when a session sits in it**: every part is observable, so `.claude/hooks/wp_claim.py`
+*derives* it from `git worktree list` and the live processes, and its store on the git common dir
+only sharpens that where a tree is resumed for another WP. A claim dies with its worktree, pruned on
+read — a stale one is the false alarm that teaches the reader to skip the line. `/wp-start` step 2
+reads `wp_claim.py status` (**`dormant` is work to resume, `held` is taken**); `worktree_create.py`
+is the workflow's **one refusal rather than a report**, because its trigger is a live process rather
+than a leftover branch and git already refuses the narrower half of the same accident.
+
+**A contributor is on another machine, so the second half of that answer is GitHub's.** No local
+claim can see them, and the branch cannot either — measured 2026-09-15, all three open contributor
+PRs were on **forks**, absent from `git ls-remote origin`, naming no WP in branch, title or body.
+**They key on issues and so must this**: `wp_claim.py status` maps open PRs to WPs through the issue
+numbers the WP files already cite (PR → issue → WP), which needs no new convention from anyone;
+assignees are not a signal (0 of 78 open issues carried one). Two rules. **An issue link is evidence
+of overlap, never proof of a clash** — one issue is cited by five WPs here — so this tier reports and
+`EnterWorktree` never refuses on it. And it needs the network, so it lives in `/wp-start` and **never
+in the SessionStart hook**, which stays stdlib-only, offline-safe and 0.25 s.
+
 Shipped: **v0.1 … v1.3**, one record each in `docs/milestones/`; ROADMAP's table carries the
 acceptance one-liners, restated in neither place. Since WP-1117 the compatibility promise
 (`docs/manual/using/compatibility.md`) is a **preview**: anything may change in any release,

@@ -7,6 +7,12 @@ tree goes; the **branch stays**, because a branch is the only record of work
 not yet pushed and deleting it is the user's call (``git branch -d`` when the
 PR has merged).  Never blocks: Claude Code ignores this hook's exit code, so
 a failure is printed and left for ``git worktree prune``.
+
+The tree's **WP claim** needs no cooperation from here and gets none:
+``wp_claim.read_claims`` drops any claim whose worktree is gone, so this hook
+failing, ``git worktree remove`` run by hand, and a directory deleted by hand
+all end the same way.  A release verb called here would be a fourth path to the
+same state, and the only one that could be skipped.
 """
 
 from __future__ import annotations

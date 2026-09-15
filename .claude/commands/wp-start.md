@@ -30,6 +30,41 @@ Run the session-start ritual. The SessionStart hook's report
    (2026-09-01) cost the next two sessions their handover. Read that one WP
    file only (plus the DESIGN.md sections it links); do not read other WP
    files.
+
+   **Then check nobody else has it**, before committing to the choice:
+   `python3 .claude/hooks/wp_claim.py status NNNN` for the WP in hand, or bare
+   `status` for the whole picture. It answers in two parts, because a clash
+   comes from two directions.
+
+   **This machine's worktrees.** One row each: `held` means a live `claude`
+   session is sitting in that tree now, `dormant` means the tree and branch
+   exist with nobody in them, `→` marks this session's own. Closed WPs whose
+   trees were merely kept are filtered out, so a quiet table means what it
+   says, and this half needs no network and no venv.
+
+   **A held WP is taken**: two sessions on one WP duplicate hours of work and
+   discover it at handover, so pick another or ask the user. A **dormant** one
+   is the opposite and is often what you want — unfinished work with a branch
+   to continue, resumed by giving `EnterWorktree` that tree's name.
+
+   **Open pull requests, contributors' forks included.** The second part, and
+   the only one that can see a person on another machine. Contributors here
+   work from *issues* rather than WPs — measured 2026-09-15, all three open
+   contributor PRs were on forks, named no WP in branch, title or body, and
+   cited issues — so the chain is PR → issue → WP, through the issue numbers
+   the WP files already cite. Issue *assignees* are not a signal: 0 of 78 open
+   issues carried one.
+
+   **An issue link is evidence of overlap, not proof of a clash.** One issue
+   can be cited by several WPs, so read the PR before dropping a WP over it.
+   A PR that names a WP outright is the strong form. If `gh` cannot answer the
+   command says so rather than printing an empty list, and a session that
+   cannot look should ask the user before starting.
+
+   The WP a tree is on comes from its branch, so a tree you resume for a
+   *different* WP is telling the next session the wrong thing. Say so once:
+   `python3 .claude/hooks/wp_claim.py claim NNNN`. Nothing else needs it, and
+   skipping it degrades to the branch name rather than to nothing.
 3. **Worktree, then branch.** If the hook's first line names the main
    checkout, call `EnterWorktree` with the WP's name (`wp1208-<slug>`) before
    anything else. The `WorktreeCreate` hook cuts that branch from `origin/main`
@@ -40,6 +75,14 @@ Run the session-start ritual. The SessionStart hook's report
    branch; it is yours. At session end Claude Code asks whether to keep or
    remove the tree; remove once the PR is open, the branch stays either way.
 
+   The create hook **refuses** a tree whose name is a WP a live session in
+   another tree is already working, and names that session and the release
+   verb. It is the one refusal in this workflow rather than a report, because
+   it is the last moment before a duplicated session is paid for. A refusal
+   on a WP whose holder is plainly finished is cleared with the verb the
+   message prints; check it really is finished first, because the trigger is a
+   live process, not a leftover branch.
+
    **Never `git stash` here.** The stash is per *repository*, shared by every
    worktree, and another session's `stash pop` takes yours (measured
    2026-08-26). Commit to your branch instead.
@@ -48,6 +91,30 @@ Run the session-start ritual. The SessionStart hook's report
    (`uv venv --python 3.12 && uv pip install --python .venv/bin/python -e ".[dev]"`) and say which extras
    were installed — every test count quoted later depends on that statement
    (`tests/CLAUDE.md`).
+4b. **Claim the WP where other people can see it** — a draft pull request, as
+   the first act in the new tree. The local claim of step 2 is on *this*
+   machine's disk and reaches nobody else; anyone working from another clone,
+   the maintainer included, learns what you are on only through GitHub.
+
+   Three commands, and they are the whole claim:
+
+   - Set the WP file's `Status:` line to `🔄 <today> — claimed by @<you>`, and
+     mirror the glyph and date in its ROADMAP index row. The cell carries the
+     glyph and the date and nothing else (`tests/test_docs_consistency.py`).
+   - Commit it alone, `WP-NNNN: claimed`. A commit touching only its own WP file
+     is *ritual*, so it owes no handover entry and trips no hook.
+   - `git push origin HEAD` and `gh pr create --draft --title "WP-NNNN: <the
+     WP's title>"`, body one line saying what you are starting.
+
+   **It is a draft of the real PR, never a second one.** `/wp-handover` step 11
+   edits this same PR and marks it ready, so claiming early costs nothing at the
+   end and the work is reviewable from the first commit. Skip it only for a
+   session that will not commit — say so in a line if you do.
+
+   **Everyone does this, not only contributors.** A maintainer working locally
+   is exactly as invisible to a contributor as the reverse, and a one-sided
+   claim leaves half the clash open.
+
 5. **Prune the WP's `### Inherited`** on arrival: fold still-true entries
    into Context or Tasks, delete stale ones, and say why in the handover
    entry.

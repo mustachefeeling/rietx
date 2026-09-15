@@ -13,6 +13,7 @@ output parsing.
 from __future__ import annotations
 
 import importlib.util
+import json
 import os
 import subprocess
 import sys
@@ -617,3 +618,526 @@ def test_nudge_fails_silent_on_a_signal_it_cannot_measure(
     _, wt = wp_branch_at_rest
     assert owed.nudge(_stop(wt)) is None
     assert owed.nudge(_stop(wt, tmp_path / "missing.jsonl")) is None
+
+
+# --------------------------------------------------------------------------- #
+# The WP claim (.claude/hooks/wp_claim.py, WP-1422): one WP per session, so two
+# sessions never spend a day on the same work.
+# --------------------------------------------------------------------------- #
+
+_claim_spec = importlib.util.spec_from_file_location(
+    "wp_claim_hook", ROOT / ".claude" / "hooks" / "wp_claim.py"
+)
+claim = importlib.util.module_from_spec(_claim_spec)
+_claim_spec.loader.exec_module(claim)
+
+_create_spec = importlib.util.spec_from_file_location(
+    "worktree_create_hook", ROOT / ".claude" / "hooks" / "worktree_create.py"
+)
+create = importlib.util.module_from_spec(_create_spec)
+_create_spec.loader.exec_module(create)
+
+
+@pytest.mark.parametrize(
+    "name,wp",
+    [
+        ("wp1422-the-wp-two-sessions-picked", "1422"),
+        ("1331-landing-page", "1331"),  # the repo writes both spellings
+        ("wp-1422-x", "1422"),
+        ("1422", "1422"),
+        ("pr-bench", None),  # the bench claims nothing and must not
+        ("termplot", None),
+        ("wpem-benchmark", None),  # four digits required, not "any digits"
+        ("main", None),
+    ],
+)
+def test_a_name_declares_a_wp_or_declares_nothing(name: str, wp: str | None) -> None:
+    assert claim.wp_from_name(name) == wp
+
+
+@pytest.fixture
+def two_trees(repo: Path) -> tuple[Path, Path, Path]:
+    """A checkout with two WP worktrees, one of them nested inside the other.
+
+    Nested because this repo really does that — ``.claude/worktrees/wp1402-x/
+    .claude/worktrees/wp1403-y`` on 2026-09-15 — and containment alone would
+    then assign the inner tree's session to the outer one as well.
+    """
+    (repo / "README").write_text("x\n", encoding="utf-8")
+    # The real repo's rule, so the porcelain assertion below is about the claim
+    # store and not about the fixture's own worktree directories.
+    (repo / ".gitignore").write_text(".claude/worktrees/\n", encoding="utf-8")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "init")
+    outer = repo / ".claude" / "worktrees" / "wp9101-outer"
+    _git(repo, "worktree", "add", "-q", "-b", "wp9101-outer", str(outer))
+    inner = outer / ".claude" / "worktrees" / "wp9102-inner"
+    _git(repo, "worktree", "add", "-q", "-b", "wp9102-inner", str(inner))
+    return repo, outer, inner
+
+
+def _sess(pid: int, cwd: Path, age: str = "01:00"):
+    return hook.Session(pid, age, str(cwd))
+
+
+def _porcelain(tree: Path) -> str:
+    return subprocess.run(
+        ["git", "status", "--porcelain"], cwd=tree, capture_output=True, text=True
+    ).stdout.strip()
+
+
+def test_the_main_checkout_claims_nothing(two_trees: tuple[Path, Path, Path]) -> None:
+    """It is read-only for a session (worktree_only.py), so it holds no WP."""
+    main, _outer, _inner = two_trees
+    trees = claim.worktree_branches(main)
+    assert claim.main_checkout(trees) == main.resolve()
+    assert [h.wp for h in claim.occupancy(trees, [], set(), {}, main)] == ["9101", "9102"]
+
+
+def test_a_session_holds_the_deepest_tree_that_contains_it(
+    two_trees: tuple[Path, Path, Path]
+) -> None:
+    main, outer, inner = two_trees
+    trees = claim.worktree_branches(main)
+    sessions = [_sess(11, outer), _sess(22, inner / "src"), _sess(33, main)]
+    by_wp = {h.wp: h for h in claim.occupancy(trees, sessions, set(), {}, main)}
+    assert [s.pid for s in by_wp["9101"].sessions] == [11]
+    assert [s.pid for s in by_wp["9102"].sessions] == [22]
+
+
+def test_the_scanning_session_is_not_reported_as_a_holder(
+    two_trees: tuple[Path, Path, Path]
+) -> None:
+    """Excluded by pid, so a session is never blocked by its own presence."""
+    main, outer, _inner = two_trees
+    trees = claim.worktree_branches(main)
+    holders = claim.occupancy(trees, [_sess(11, outer)], {11}, {}, main)
+    assert [h.held for h in holders] == [False, False]
+
+
+def test_a_claim_overrides_the_branch_the_tree_is_on(
+    two_trees: tuple[Path, Path, Path]
+) -> None:
+    """The measured case: a tree resumed for a different WP than it is named
+    for (2026-09-15, tree ``wp1404-*``, branch ``wp1413-*``, working 1413)."""
+    main, outer, _inner = two_trees
+    assert claim.write_claim(main, outer, "9199", by="session") is not None
+    trees = claim.worktree_branches(main)
+    held = {
+        h.worktree: h
+        for h in claim.occupancy(trees, [], set(), claim.read_claims(main), main)
+    }[outer.resolve()]
+    assert (held.wp, held.source, held.branch) == ("9199", "claim", "wp9101-outer")
+
+    assert claim.release_claim(main, outer) is True
+    assert claim.release_claim(main, outer) is False  # idempotent
+    back = {
+        h.worktree: h
+        for h in claim.occupancy(trees, [], set(), claim.read_claims(main), main)
+    }[outer.resolve()]
+    assert (back.wp, back.source) == ("9101", "branch")
+
+
+def test_the_store_is_shared_by_every_worktree_and_tracked_by_none(
+    two_trees: tuple[Path, Path, Path]
+) -> None:
+    """Git guarantees the common dir is one directory for the whole repository,
+    which is why a claim crosses branches that never merge."""
+    main, outer, inner = two_trees
+    dirs = {claim.claims_dir(t) for t in (main, outer, inner)}
+    assert len(dirs) == 1 and None not in dirs
+    claim.write_claim(main, outer, "9199")
+    for tree in (main, outer, inner):
+        assert claim.read_claims(tree, prune=False)[outer.resolve()].wp == "9199"
+        assert _porcelain(tree) == ""
+
+
+def test_a_claim_dies_with_its_worktree(two_trees: tuple[Path, Path, Path]) -> None:
+    """Pruned on read, so the ledger can never describe a tree that is gone and
+    there is no expiry policy to tune.  A stale claim would be a false alarm,
+    and a false alarm costs more than no alarm (session_start.py's docstring)."""
+    main, outer, _inner = two_trees
+    claim.write_claim(main, outer, "9199")
+    _git(main, "worktree", "remove", "--force", str(outer))
+    assert claim.read_claims(main) == {}
+    assert list(claim.claims_dir(main).glob("*.json")) == []
+
+
+def test_an_unreadable_claim_is_dropped_rather_than_raised(
+    two_trees: tuple[Path, Path, Path]
+) -> None:
+    main, outer, _inner = two_trees
+    claim.write_claim(main, outer, "9199")
+    junk = claim.claims_dir(main) / "junk.json"
+    junk.write_text("{not json", encoding="utf-8")
+    assert set(claim.read_claims(main)) == {outer.resolve()}
+    assert not junk.exists()
+
+
+def test_two_live_trees_on_one_wp_are_the_clash(
+    two_trees: tuple[Path, Path, Path]
+) -> None:
+    main, outer, inner = two_trees
+    claim.write_claim(main, inner, "9101")  # inner now says it is on outer's WP
+    trees = claim.worktree_branches(main)
+    holders = claim.occupancy(
+        trees, [_sess(11, outer), _sess(22, inner)], set(), claim.read_claims(main), main
+    )
+    assert claim.clashes(holders) == ["9101"]
+    assert claim.clashes([h for h in holders if h.worktree == outer.resolve()]) == []
+
+
+def test_a_closed_wp_whose_tree_was_kept_is_not_reported(
+    two_trees: tuple[Path, Path, Path]
+) -> None:
+    """Four of this repo's six trees on 2026-09-15 were finished work whose
+    directory had not been removed.  Printing them puts the live row fifth."""
+    main, _outer, inner = two_trees
+    trees = claim.worktree_branches(main)
+    holders = claim.occupancy(trees, [_sess(11, inner)], set(), {}, main)
+    rows = claim.bears_on_a_clash(holders, {"9101": "✅", "9102": "✅"})
+    assert [(h.wp, h.held) for h in rows] == [("9102", True)]  # held survives closing
+    assert [h.wp for h in claim.bears_on_a_clash(holders, {"9101": "🔄"})] == ["9101", "9102"]
+
+
+def test_held_elsewhere_excludes_this_tree(two_trees: tuple[Path, Path, Path]) -> None:
+    main, outer, inner = two_trees
+    trees = claim.worktree_branches(main)
+    holders = claim.occupancy(trees, [_sess(11, outer), _sess(22, inner)], set(), {}, main)
+    assert [h.wp for h in claim.held_elsewhere(holders, outer)] == ["9102"]
+    assert [h.wp for h in claim.held_elsewhere(holders, None)] == ["9101", "9102"]
+
+
+def test_the_refusal_names_the_holder_and_the_way_past_it(
+    two_trees: tuple[Path, Path, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A refusal with no override is a trap: a session parked idle in a tree it
+    has finished with would block the next one for ever."""
+    main, outer, _inner = two_trees
+    monkeypatch.setattr(create.session_start, "live_sessions", lambda: [_sess(11, outer)])
+    monkeypatch.setattr(create.session_start, "_ancestors", lambda: set())
+
+    message = create.clash_refusal(main, "9101")
+    assert "pid 11" in message and "wp9101-outer" in message
+    assert f"release --worktree {outer.resolve()}" in message
+
+    assert create.clash_refusal(main, "9102") == ""  # a dormant tree never refuses
+    assert create.clash_refusal(main, "9999") == ""  # nothing at all
+
+
+def test_the_session_start_line_is_silent_without_a_second_tree(repo: Path) -> None:
+    """A machine running one session prints nothing here, so the flag stays
+    worth reading on the day it fires."""
+    write_wp(repo, "9001", "✅ 2026-08-02 — done", ["2026-08-02"])
+    commit_wp(repo, "9001", "2026-08-01")
+    make_venv(repo, repo / "src")
+    assert hook.claim_lines(repo) == []
+    assert len(hook.render(repo).splitlines()) == 1
+
+
+def test_the_session_start_line_names_the_other_session(
+    two_trees: tuple[Path, Path, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    main, outer, inner = two_trees
+    write_wp(main, "9102", "🔄 2026-09-15 — in flight", ["2026-09-15"])
+    monkeypatch.setattr(hook, "live_sessions", lambda: [_sess(22, inner, "03:14")])
+    monkeypatch.setattr(hook, "_ancestors", lambda: set())
+
+    (line,) = hook.claim_lines(outer)
+    assert "WP-9102 held by pid 22 up 03:14" in line
+    assert "wp9102-inner" in line and hook.CLAIM_HINT in line
+    assert hook.claim_lines(inner) == []  # its own tree is not news to it
+
+
+def test_a_wp_tree_with_no_wp_branch_falls_back_to_its_own_name(
+    two_trees: tuple[Path, Path, Path]
+) -> None:
+    """The third ``source`` value, which nothing else reaches.
+
+    A detached HEAD has no branch to read, and a branch renamed to something
+    that names no WP is the same case.  Declared as a vocabulary member, so it
+    needs a producer and a test naming it (WP-1076's class).
+    """
+    main, outer, _inner = two_trees
+    _git(outer, "checkout", "-q", "--detach")
+    trees = claim.worktree_branches(main)
+    assert trees[outer.resolve()] is None
+    held = {h.worktree: h for h in claim.occupancy(trees, [], set(), {}, main)}[outer.resolve()]
+    assert (held.wp, held.source, held.branch) == ("9101", "tree", None)
+    assert held.provenance == "from the tree"
+
+
+def test_a_claim_says_who_declared_it_and_when(
+    two_trees: tuple[Path, Path, Path]
+) -> None:
+    """``by`` and ``declared`` are written into every claim; this reads them.
+
+    The create hook's automatic claim and a session's correction are the two
+    cases, and ``source`` alone says "claim" for both.
+    """
+    main, outer, inner = two_trees
+    _git(outer, "checkout", "-q", "--detach")  # no branch to outrank the hook's claim
+    claim.write_claim(main, outer, "9199", by="worktree")
+    claim.write_claim(main, inner, "9198", by="session")
+    stored = claim.read_claims(main)
+    assert {c.by for c in stored.values()} == {"worktree", "session"}
+
+    trees = claim.worktree_branches(main)
+    by_path = {h.worktree: h for h in claim.occupancy(trees, [], set(), stored, main)}
+    # The stored date, not today's: this asserts that provenance renders the
+    # fields the claim carries, never that the clock agrees with itself.
+    when = stored[outer.resolve()].declared
+    assert by_path[outer.resolve()].provenance == f"from the claim, by worktree {when}"
+    assert by_path[inner.resolve()].provenance == f"from the claim, by session {when}"
+    assert claim.describe(by_path[outer.resolve()], main).endswith(
+        f"(from the claim, by worktree {when})"
+    )
+
+
+def test_the_create_hooks_claim_never_outranks_the_branch(
+    two_trees: tuple[Path, Path, Path]
+) -> None:
+    """The claim written from a tree's *name* is the weakest source, not the
+    strongest, so it cannot pin a resumed tree to the WP it was named for.
+
+    This is the measured case (2026-09-15: tree ``wp1404-*``, branch
+    ``wp1413-*``, working 1413) run forward through the hook that makes trees.
+    Ranked with a session's claim, the automatic one re-elevated the tree name
+    above the branch and answered 9101 for ever.
+    """
+    main, outer, _inner = two_trees
+    _git(outer, "checkout", "-q", "-b", "wp9199-resumed")
+    claim.write_claim(main, outer, "9101", by="worktree")  # what the create hook wrote
+    trees = claim.worktree_branches(main)
+    held = {
+        h.worktree: h
+        for h in claim.occupancy(trees, [], set(), claim.read_claims(main), main)
+    }[outer.resolve()]
+    assert (held.wp, held.source, held.provenance) == ("9199", "branch", "from the branch")
+
+    # A session saying so is the correction, and it still outranks the branch.
+    claim.write_claim(main, outer, "9101", by="session")
+    corrected = {
+        h.worktree: h
+        for h in claim.occupancy(trees, [], set(), claim.read_claims(main), main)
+    }[outer.resolve()]
+    assert (corrected.wp, corrected.source) == ("9101", "claim")
+
+
+def test_the_main_checkout_is_gits_first_tree_not_the_shallowest_path(
+    two_trees: tuple[Path, Path, Path], tmp_path: Path
+) -> None:
+    """A worktree outside ``.claude/worktrees`` can sit above the checkout.
+
+    Under the shallowest-path rule that tree was called the main checkout and
+    dropped from the scan, so the one tree a session had gone out of its way to
+    make was the one nobody could see.
+    """
+    main, _outer, _inner = two_trees
+    outside = tmp_path / "wp9103-outside"  # one path component; main has many
+    _git(main, "worktree", "add", "-q", "-b", "wp9103-outside", str(outside))
+    trees = claim.worktree_branches(main)
+    assert claim.main_checkout(trees) == main.resolve()
+    assert "9103" in {h.wp for h in claim.occupancy(trees, [], set(), {}, main)}
+
+
+def test_a_dormant_row_says_dormant_rather_than_held_by_no_session(
+    two_trees: tuple[Path, Path, Path]
+) -> None:
+    """Two states are the whole vocabulary, and one line may not claim both."""
+    main, outer, _inner = two_trees
+    trees = claim.worktree_branches(main)
+    (holder,) = [h for h in claim.occupancy(trees, [], set(), {}, main) if h.wp == "9101"]
+    line = claim.describe(holder, main)
+    assert line.startswith("WP-9101 dormant in") and "no session" not in line
+
+
+# --------------------------------------------------------------------------- #
+# The contributor half (WP-1422): a clash with someone on another machine, which
+# no local process scan can see.
+# --------------------------------------------------------------------------- #
+
+
+def _pr(number, title, body="", author="someone", branch="pr/x", files=()):
+    return {
+        "number": number, "title": title, "body": body,
+        "author": {"login": author}, "headRefName": branch,
+        "updatedAt": "2026-09-10T12:00:00Z", "isDraft": False,
+        "files": [{"path": p} for p in files],
+    }
+
+
+def test_a_pr_that_names_no_wp_is_still_reached_through_its_issue(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The measured shape of every contributor PR on this repo, 2026-09-15.
+
+    `pr/cell-degenerate-guard`, `pr/skill-recipe-rows-7g` and `cw-neutron-seed`
+    were all on forks, so absent from `git ls-remote origin`, and not one named
+    a WP in its branch, title or body.  They cite issues, and WP files cite the
+    issues they close, so PR -> issue -> WP is the only chain that reaches them.
+    """
+    (repo / "docs" / "wp").mkdir(parents=True, exist_ok=True)
+    (repo / "docs" / "wp" / "9301-bounds.md").write_text(
+        "# WP-9301\n\nCloses #283.\n", encoding="utf-8"
+    )
+    monkeypatch.setattr(
+        claim, "_gh",
+        lambda root, *a, **k: json.dumps([
+            _pr(289, "lattice: name a degenerate cell (#283)", branch="pr/cell-guard")
+        ]),
+    )
+    (pr,) = claim.open_prs(repo)
+    assert (pr.wp, pr.issues, pr.author) == (None, (283,), "someone")
+
+    (o,) = claim.overlaps([pr], claim.wp_issue_citations(repo))
+    assert (o.wp, o.via) == ("9301", "issue #283")
+
+
+def test_a_pr_that_names_a_wp_outright_does_not_go_through_an_issue(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Title, body or an edited WP file: the direct claim, which beats the
+    issue chain and must not also produce issue rows."""
+    (repo / "docs" / "wp").mkdir(parents=True, exist_ok=True)
+    (repo / "docs" / "wp" / "9301-bounds.md").write_text("Closes #283.\n", encoding="utf-8")
+    citations = claim.wp_issue_citations(repo)
+
+    monkeypatch.setattr(claim, "_gh", lambda root, *a, **k: json.dumps([
+        _pr(330, "WP-9302: something", body="see #283"),
+    ]))
+    (pr,) = claim.open_prs(repo)
+    assert pr.wp == "9302"
+    (o,) = claim.overlaps([pr], citations)
+    assert (o.wp, o.via) == ("9302", "names it")
+
+    monkeypatch.setattr(claim, "_gh", lambda root, *a, **k: json.dumps([
+        _pr(331, "no wp here", files=["docs/wp/9303-thing.md", "src/x.py"]),
+    ]))
+    (pr,) = claim.open_prs(repo)
+    assert pr.wp == "9303"  # the WP file it edits
+
+
+def test_this_session_s_own_pr_is_not_reported_back_to_it(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (repo / "docs" / "wp").mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(claim, "_gh", lambda root, *a, **k: json.dumps([
+        _pr(330, "WP-9302: mine"), _pr(331, "WP-9304: someone else's"),
+    ]))
+    prs = claim.open_prs(repo)
+    assert [o.wp for o in claim.overlaps(prs, {})] == ["9302", "9304"]
+    assert [o.wp for o in claim.overlaps(prs, {}, mine="9302")] == ["9304"]
+
+
+def test_gh_declining_is_not_an_empty_table(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """"No PRs" and "could not look" must not read alike: only the second
+    should stop a session trusting what it sees."""
+    monkeypatch.setattr(claim, "_gh", lambda root, *a, **k: None)
+    assert claim.open_prs(repo) is None
+    monkeypatch.setattr(claim, "_gh", lambda root, *a, **k: "not json{")
+    assert claim.open_prs(repo) is None
+    monkeypatch.setattr(claim, "_gh", lambda root, *a, **k: "[]")
+    assert claim.open_prs(repo) == []
+
+
+def test_one_broad_issue_does_not_fill_the_table_with_one_pr(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Measured: issue #287 is cited by five WP files, so printing per WP gave
+    PR #291 five of the first live table's eight rows.  Grouping by PR shows the
+    fan-out as a list, which is also what it is — weaker evidence than a PR that
+    names one WP — with no threshold invented to say so."""
+    wpdir = repo / "docs" / "wp"
+    wpdir.mkdir(parents=True, exist_ok=True)
+    for n in ("9401", "9402", "9403", "9404", "9405"):
+        (wpdir / f"{n}-x.md").write_text("Closes #287.\n", encoding="utf-8")
+    monkeypatch.setattr(claim, "_gh", lambda root, *a, **k: json.dumps([
+        _pr(291, "skill: rows join 7g (#287)"),
+    ]))
+    found = claim.overlaps(claim.open_prs(repo), claim.wp_issue_citations(repo))
+    assert len(found) == 5
+    grouped = claim.by_pull_request(found)
+    assert len(grouped) == 1
+    pr, touched = grouped[0]
+    assert pr.number == 291 and len(touched) == 5
+    line = claim.describe_pull_request(pr, touched)
+    assert "WP-9401, WP-9402, WP-9403, WP-9404, WP-9405" in line
+    assert line.count("#291") == 1
+
+
+def test_a_wp_file_with_no_issue_citation_matches_nothing(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    wpdir = repo / "docs" / "wp"
+    wpdir.mkdir(parents=True, exist_ok=True)
+    (wpdir / "9501-quiet.md").write_text("# WP-9501\n\nNo issue here.\n", encoding="utf-8")
+    monkeypatch.setattr(claim, "_gh", lambda root, *a, **k: json.dumps([
+        _pr(289, "something (#283)"),
+    ]))
+    assert claim.wp_issue_citations(repo) == {"9501": set()}
+    assert claim.overlaps(claim.open_prs(repo), claim.wp_issue_citations(repo)) == []
+
+
+def test_a_claim_pr_is_recognised_before_it_says_anything(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The branch names the WP, so a draft PR claims it from its first push.
+
+    `/wp-start` step 4b opens the claim before the title is written and
+    sometimes before a WP file is touched, so the branch has to be a source in
+    its own right — it is the one thing a claim PR always has.
+    """
+    monkeypatch.setattr(claim, "_gh", lambda root, *a, **k: json.dumps([
+        _pr(400, "", body="", branch="wp9601-the-thing"),
+    ]))
+    (pr,) = claim.open_prs(repo)
+    assert pr.wp == "9601"
+    (o,) = claim.overlaps([pr], {})
+    assert (o.wp, o.via) == ("9601", "names it")
+
+
+def test_the_stronger_sources_still_outrank_the_branch(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Title, then the WP file edited, then the branch.  A branch outlives the
+    work it was cut for — a tree resumed for another WP keeps its old name — so
+    it is the weakest of the three and must stay last."""
+    monkeypatch.setattr(claim, "_gh", lambda root, *a, **k: json.dumps([
+        _pr(401, "WP-9602: titled", branch="wp9601-stale"),
+        _pr(402, "untitled", branch="wp9601-stale", files=["docs/wp/9603-x.md"]),
+    ]))
+    titled, filed = claim.open_prs(repo)
+    assert titled.wp == "9602"  # title beats the branch
+    assert filed.wp == "9603"  # the WP file beats the branch
+
+
+def test_a_branch_naming_no_wp_claims_nothing(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Every contributor PR measured on 2026-09-15 had such a branch
+    (`pr/cell-degenerate-guard`), and they must still reach a WP by issue
+    alone rather than by a branch that says nothing."""
+    monkeypatch.setattr(claim, "_gh", lambda root, *a, **k: json.dumps([
+        _pr(403, "lattice: a degenerate cell (#283)", branch="pr/cell-degenerate-guard"),
+    ]))
+    (pr,) = claim.open_prs(repo)
+    assert pr.wp is None and pr.issues == (283,)
+    assert [o.via for o in claim.overlaps([pr], {"9604": {283}})] == ["issue #283"]
+
+
+def test_a_draft_claim_reads_as_a_draft(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A claim PR is a draft until the work is handed over, so the table has to
+    say so: a draft holds the WP exactly as a ready PR does, and the reader
+    needs to tell "claimed, in flight" from "finished, in review"."""
+    raw = _pr(404, "WP-9605: claimed", branch="wp9605-x")
+    raw["isDraft"] = True
+    monkeypatch.setattr(claim, "_gh", lambda root, *a, **k: json.dumps([raw]))
+    (pr,) = claim.open_prs(repo)
+    assert pr.draft is True
+    line = claim.describe_pull_request(pr, [("9605", "names it")])
+    assert "(draft)" in line

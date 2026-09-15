@@ -209,7 +209,26 @@ SIZE_CAPS: dict[str, int | None] = {
     # first: it belongs on that clause, not in a clause of its own.  Raised
     # rather than shaved, per the failure message's own instruction.  Landed at
     # 809; the headroom is +2.
-    "CLAUDE.md": 811,
+    # 811 -> 823 (WP-1422): one standing rule for the WP claim, the peer of the
+    # one-session-per-tree clause it sits beside and bumped for the same reason
+    # (2026-08-27, 882 -> 890).  It governs every session rather than the WP
+    # that measured it, which is protocol rule 4's test, and three of its
+    # clauses are ones a later session would otherwise undo: that the answer is
+    # *derived* and the store only sharpens it, so nobody adds a ritual claim
+    # step; that a claim dies with its worktree, so nobody writes an expiry
+    # policy; and that this is the workflow's one refusal, so nobody softens it
+    # to a report on the general principle that the rest of the scan reports.
+    # Landed at 821; the headroom is +2.
+    # 823 -> 833 (WP-1422, same session): the contributor half, which is a
+    # different mechanism rather than more of the same one and cannot fold into
+    # the clause above.  A local claim and an `origin` branch are both blind to
+    # a fork, so the rule that a contributor is reached through the issues a WP
+    # cites belongs where a session meets it — and with it the two clauses that
+    # stop it being misused: an issue link is evidence and never proof, so
+    # nothing refuses on it, and it needs the network, so it stays out of the
+    # SessionStart hook that has to survive being offline.  Landed at 831; the
+    # headroom is +2.
+    "CLAUDE.md": 833,
     # 672 -> 676 (WP-1102): the Current focus rewrite at 1102's close names the
     # milestone's one break and what makes 1103 the seam's proving case.
     # 676 -> 682 (WP-1407): a new Unscheduled group, "The formats a lab still
