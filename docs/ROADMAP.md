@@ -649,8 +649,7 @@ knob achieves: three subagents each read the skill in full and each wrote
 if the cost says it cannot. The surface grows `watch` rather than adding a mode
 to `gui`, whose live ring is in-process and cannot see a foreign run: read-only
 is stronger when the app has no verbs than when a mode hides them. 1401 lands
-first over directories today's code already writes, so a window arrives before
-the risky half. Slated for v1.5, behind v1.4's peaks and ahead of the magnetic track.
+first over directories today's code already writes, so a window arrives first.
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
