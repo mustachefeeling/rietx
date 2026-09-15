@@ -406,3 +406,136 @@ def test_a_histogram_with_no_stated_type_keeps_its_coefficients_unnamed(tmp_path
     notes: list = []
     read_gsas_exp(path, diagnostics=notes)
     assert any(n.code == "GSAS_EXP_HISTOGRAM_NOT_READ" for n in notes)
+
+
+def test_an_unreadable_coefficient_is_refused_rather_than_skipped(tmp_path):
+    """Position is the name, so a dropped field renames every later one.
+
+    Fortran writes a three-digit exponent without its ``E``, and ``float``
+    cannot read that.  Skipping the field compacts the list: ``GV`` then takes
+    ``GW``'s number, ``GW`` takes ``LX``'s, and the profile comes back one term
+    short with plausible values under the wrong labels — the shape of wrongness
+    this reader exists to prevent, and one nothing downstream can detect.
+    """
+    path = _exp(tmp_path, "shift.EXP", *_MINIMAL,
+                _card(" EXPR  HTYP1", "  PXC"),
+                _card("HST  1 ICONS", "  1.540500  1.544300       0.0         0       0.5    0"),
+                _card("HAP1 1PRCF  ", "    2    6   0.01000    0NNNYYN"),
+                _card("HAP1 1PRCF 1",
+                      "   0.200000E+01   0.200000-100   0.500000E+01   0.335183E+01"),
+                _card("HAP1 1PRCF 2", "   0.248803E+01   0.000000E+00"))
+    with pytest.raises(GsasExpError, match="is not a number"):
+        read_gsas_exp(path)
+
+
+def test_a_coefficient_after_a_gap_is_refused(tmp_path):
+    """GSAS writes four to a record and leaves only the last record short.
+
+    A value following a blank therefore cannot be laid out: either the blank is
+    a coefficient or the value is in the wrong slot, and both readings rename
+    everything after the gap.
+    """
+    path = _exp(tmp_path, "gap.EXP", *_MINIMAL,
+                _card(" EXPR  HTYP1", "  PXC"),
+                _card("HST  1 ICONS", "  1.540500  1.544300       0.0         0       0.5    0"),
+                _card("HAP1 1PRCF  ", "    2    6   0.01000    0NNNYYN"),
+                _card("HAP1 1PRCF 1",
+                      "   0.200000E+01                  0.500000E+01   0.335183E+01"),
+                _card("HAP1 1PRCF 2", "   0.248803E+01   0.000000E+00"))
+    with pytest.raises(GsasExpError, match="after a blank field"):
+        read_gsas_exp(path)
+
+
+def test_a_header_promising_more_coefficients_than_it_carries_is_refused(tmp_path):
+    """``n_coefficients`` and ``terms`` may not disagree.
+
+    Truncating to what is present hands back a profile whose header says
+    eighteen and whose ``by_name()`` has four, so a lookup of a name the file
+    itself promised raises a bare ``KeyError`` in the caller's code rather than
+    here, where the file can be named.
+    """
+    path = _exp(tmp_path, "short.EXP", *_MINIMAL,
+                _card(" EXPR  HTYP1", "  PXC"),
+                _card("HST  1 ICONS", "  1.540500  1.544300       0.0         0       0.5    0"),
+                _card("HAP1 1PRCF  ", "    2   18   0.01000    0NNNYYNNYNNNNNNNNNN"),
+                _card("HAP1 1PRCF 1",
+                      "   0.200000E+01  -0.200000E+01   0.500000E+01   0.335183E+01"))
+    with pytest.raises(GsasExpError, match="declares 18 profile coefficients"):
+        read_gsas_exp(path)
+
+
+def test_the_htyp_record_number_says_which_twelve_histograms_it_types(tmp_path):
+    """``EXPR  HTYP2`` types histograms 13-24, not 1-12 over again.
+
+    Reading every record onto 1-12 is silently wrong twice: histogram 13 gets
+    no type at all, so its coefficients go unnamed, and histogram 1 is
+    relabelled with histogram 13's radiation.
+    """
+    twelve = "  " + "".join(f"{'PXC':<3}  " for _ in range(12))
+    path = _exp(tmp_path, "many.EXP", *_MINIMAL,
+                _card(" EXPR  HTYP1", twelve),
+                _card(" EXPR  HTYP2", "  PNT"),
+                _card("HST  1 ICONS", "  1.540500  1.544300       0.0         0       0.5    0"),
+                _card("HST 13 ICONS", "  1.540500  1.544300       0.0         0       0.5    0"))
+    model = read_gsas_exp(path)
+    assert {h.number: h.kind for h in model.histograms} == {1: "PXC", 13: "PNT"}
+
+
+def test_a_single_crystal_histogram_does_not_get_powder_coefficient_names(tmp_path):
+    """The gate is one predicate, and ``SXC``'s third letter is a ``C``.
+
+    A histogram-level test that declined the set and a pair-level test that
+    read it would name the refined coefficients — the ones that matter — under
+    a powder function's order while reporting the histogram as not carried.
+    """
+    path = _exp(tmp_path, "sxc.EXP", *_MINIMAL,
+                _card(" EXPR  HTYP1", "  SXC"),
+                _card("HST  1 ICONS", "  1.540500  1.544300       0.0         0       0.5    0"),
+                _card("HAP1 1PRCF  ", "    2    4   0.01000    0YYYY"),
+                _card("HAP1 1PRCF 1",
+                      "   0.200000E+01  -0.200000E+01   0.500000E+01   0.335183E+01"))
+    model = read_gsas_exp(path)
+    assert model.hap[(1, 1)].profile is None
+    assert any("single-crystal" in line for line in model.unsupported)
+
+
+def test_a_blank_cell_edge_is_refused_naming_the_field(tmp_path):
+    """A blank optional field is an answer; a blank cell edge is not.
+
+    Letting the ``None`` through means the failure lands in pydantic at
+    ``to_structure``, naming neither the file nor the column it came from.
+    """
+    cards = [_card("CRS1  ABC   ", "  4.000000            4.000000    Y    0")
+             if c.startswith("CRS1  ABC") else c for c in _MINIMAL]
+    with pytest.raises(GsasExpError, match="states no b"):
+        read_gsas_exp(_exp(tmp_path, "blank.EXP", *cards))
+
+
+def test_an_unresolvable_space_group_is_refused_naming_the_phase(tmp_path):
+    """gemmi's own message names neither the file nor which phase carried it."""
+    cards = [c for c in _MINIMAL if not c.startswith("CRS1  SG SYM")]
+    model = read_gsas_exp(_exp(tmp_path, "nosg.EXP", *cards))
+    assert model.phases[0].cell.a == pytest.approx(4.0)   # still readable
+    with pytest.raises(GsasExpError, match="space-group symbol"):
+        to_structure(model)
+
+
+def test_a_file_with_no_histograms_says_so_rather_than_asking_for_one(tmp_path):
+    """"pass histogram=N" is no advice about a file that carries none."""
+    model = read_gsas_exp(_exp(tmp_path, "nohist.EXP", *_MINIMAL))
+    with pytest.raises(GsasExpError, match="states no histograms at all"):
+        model.histogram()
+
+
+def test_a_high_byte_in_a_title_does_not_split_its_card(tmp_path):
+    """``str.splitlines`` breaks on ``\\x85``, which cp1252 spells ``…``.
+
+    The sniff measures bytes, where that is not a line break, so a title
+    carrying one would pass the sniff and then be split into two records with
+    keys the file never wrote.
+    """
+    cards = [_card("      DESCR ", "  caf\x85 standard")
+             if c.startswith("      DESCR") else c for c in _MINIMAL]
+    model = read_gsas_exp(_exp(tmp_path, "nel.EXP", *cards))
+    assert model.title == "caf\x85 standard"
+    assert model.phases[0].cell.a == pytest.approx(4.0)

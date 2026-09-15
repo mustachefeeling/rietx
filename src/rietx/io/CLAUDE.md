@@ -339,10 +339,11 @@ same reason. Five rules the pattern readers do not need:
   share a name would not share a meaning.
 - **Where a format reports its repairs is a declared fact, checked against the
   signature.** `ProjectFormat.reports_at` is `"read"` for a `.inp` (species and
-  origin are repaired while parsing) and `"build"` for a `.pcr` (its four
-  repairs happen as codewords become a `Structure`). A wrong value does not
-  raise — it hands the caller an empty list, which reads as "this file needed no
-  repairs" — so a meta-test pins it against `inspect.signature`.
+  origin, at parse), `"build"` for a `.pcr` (codewords becoming a `Structure`),
+  `"both"` for a `.EXP` (histograms at read, species at build). A wrong value
+  does not raise — it hands the caller an empty list, which reads as "this file
+  needed no repairs" — so a meta-test pins it against `inspect.signature`,
+  **partitioned both ways**: an undeclared channel is dropped in silence.
 - **Derive the obligations from the specification; use files to corroborate.**
   Sweeping an archive and fixing what broke finds the bugs one lab's dialect
   contains, in rounds, and never the bugs that raise nothing — three of

@@ -142,7 +142,8 @@ class ProjectModel:
 
     format: ProjectFormat
     path: Path
-    #: the format's own model — ``TopasModel``, ``FullProfModel``.  Named for
+    #: the format's own model — ``TopasModel``, ``FullProfModel``,
+    #: ``GsasModel``.  Named for
     #: what it is: what the file *stated*, before any conversion
     stated: Any
     #: what the **read** reported, kept whether or not a caller asked for it.
@@ -172,8 +173,9 @@ class ProjectModel:
         agreement.
 
         ``diagnostics`` collects what *this* call repairs, which is a format's
-        whole channel where :attr:`ProjectFormat.reports_at` is ``"build"`` and
-        none of it where that is ``"read"``.  The read's half is never lost
+        whole channel where :attr:`ProjectFormat.reports_at` is ``"build"``,
+        none of it where that is ``"read"``, and half of it where that is
+        ``"both"``.  The read's half is never lost
         either way: it is on :attr:`diagnostics` above, filled whether or not a
         caller passed a list to :func:`read_project_model`.  That is what keeps
         the asymmetry from becoming a trap — handing back an empty list reads as

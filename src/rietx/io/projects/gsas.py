@@ -400,6 +400,14 @@ class GsasModel:
                 f"carries {have}")
         if len(self.histograms) == 1:
             return self.histograms[0]
+        if not self.histograms:
+            # "pass histogram=N" is no advice about a file that carries none,
+            # and this is the shape a .EXP written before any data was loaded
+            # really has
+            raise GsasExpError(
+                f"{self.path or '<model>'}: states no histograms at all — "
+                f"there is no wavelength, no range and no profile to read.  "
+                f"The phases are on `model.phases`")
         have = ", ".join(f"{h.number} ({h.kind})" for h in self.histograms)
         raise GsasExpError(
             f"{self.path or '<model>'}: {len(self.histograms)} histograms "
@@ -438,13 +446,22 @@ def _records(path: Path) -> list[tuple[str, str]]:
     on line breaks where there are any, and sliced into 80-character cards where
     there are none.  Decoding is ``latin-1`` because the payload is a byte field
     — a stray high byte in a title must not fail the read of a numeric record.
+
+    **The split is on CR and LF by name**, not ``str.splitlines()``, which also
+    breaks on ``\\x0b`` and on ``\\x85`` — a byte cp1252 spells ``…``.  One of
+    those in a ``DESCR`` title splits that card in two, and the halves are then
+    read as records with keys the file never wrote.  ``registry._matches_gsas_exp``
+    measures the *bytes* for this reason (``bytes.splitlines`` breaks on CR and
+    LF alone), so reading the text more loosely here would let the sniff accept
+    a file this function then mis-splits.
     """
     raw = path.read_bytes()
     if not raw:
         raise GsasExpError(f"{path.name}: the file is empty")
     text = raw.decode("latin-1")
     if "\n" in text or "\r" in text:
-        lines = [ln for ln in text.splitlines() if ln.strip()]
+        flat = text.replace("\r\n", "\n").replace("\r", "\n")
+        lines = [ln for ln in flat.split("\n") if ln.strip()]
     else:
         lines = [text[i:i + RECORD_BYTES]
                  for i in range(0, len(text), RECORD_BYTES)]
@@ -513,8 +530,16 @@ def _profile(payload: str, coefficients: list[float], *, path: str,
             f"would mis-assign every width in the file.  The numbers are on "
             f"the record and readable; what is refused is naming them")
 
+    if len(coefficients) < n_cof:
+        raise GsasExpError(
+            f"{path}: {where} declares {n_cof} profile coefficients and its "
+            f"continuation records carry {len(coefficients)}.  Reading the "
+            f"short list would hand back a profile whose `n_coefficients` and "
+            f"`terms` disagree, so a lookup of a name the header promised "
+            f"raises far from the file instead of here")
+
     terms = []
-    for i in range(min(n_cof, len(coefficients))):
+    for i in range(n_cof):
         name = names[i] if i < len(names) else f"#{i + 1}"
         power = CW_CENTIDEG_POWER.get(name)
         value = coefficients[i]
@@ -527,7 +552,8 @@ def _profile(payload: str, coefficients: list[float], *, path: str,
                        damping=damping, terms=tuple(terms))
 
 
-def _continuation(block: dict[str, str], stem: str) -> list[float]:
+def _continuation(block: dict[str, str], stem: str, *, path: str = "<model>",
+                  where: str = "") -> list[float]:
     """Every ``4E15.6`` value on the continuation records of ``stem``.
 
     GSAS splits a coefficient list four to a record and numbers the records
@@ -539,21 +565,65 @@ def _continuation(block: dict[str, str], stem: str) -> list[float]:
     admitting it prepends the header's own fields to the coefficient list —
     which is silent, because the result is the right length and the wrong
     values shifted by one.
+
+    **Position is the name here**, so a field that cannot be read is refused
+    rather than skipped.  Dropping one compacts the list, and every coefficient
+    after it then answers to the name of the one before — the profile comes
+    back the wrong length with plausible numbers under the wrong labels, which
+    is the failure this module exists to prevent.  Two shapes are refused: a
+    field that is not a number, and a value that follows a blank, since only
+    the tail of the last record is legitimately blank.
     """
     values: list[float] = []
+    blank_seen = False
     for suffix in sorted(k for k in block
                          if k.startswith(stem) and k != stem
                          and k[len(stem):].strip().isdigit()):
         payload = block[suffix]
         for i in range(0, 60, 15):
-            value = _num(payload, i, 15)
-            if value is not None:
-                values.append(value)
+            chunk = payload[i:i + 15].strip()
+            if not chunk:
+                blank_seen = True
+                continue
+            if blank_seen:
+                raise GsasExpError(
+                    f"{path}: {where or stem} record {suffix!r} states a value "
+                    f"at column {i + KEY_BYTES} after a blank field — GSAS "
+                    f"writes these four to a record and leaves only the last "
+                    f"record short, so the list cannot be laid out and every "
+                    f"coefficient after the gap would take another's name")
+            try:
+                values.append(float(chunk))
+            except ValueError:
+                raise GsasExpError(
+                    f"{path}: {where or stem} record {suffix!r} holds "
+                    f"{chunk!r} at column {i + KEY_BYTES}, which is not a "
+                    f"number.  Skipping it would shift every later coefficient "
+                    f"onto the name of the one before it") from None
     return values
 
 
+def _required(value: float | None, *, path: str, where: str,
+              what: str) -> float:
+    """``value``, or a refusal naming the record the blank field sits on.
+
+    :func:`_num` answers ``None`` for a field that is blank or unreadable, and
+    that is right for an optional one — an absent ``KRATIO`` is a file stating
+    no ratio.  A cell edge or a coordinate is not optional: it is declared
+    ``float`` on the model, and letting the ``None`` through means the failure
+    surfaces two modules away as a schema error naming neither the file nor the
+    field (``io/CLAUDE.md``: a reader raises naming the file, never its
+    parser's exception).
+    """
+    if value is None:
+        raise GsasExpError(
+            f"{path}: {where} states no {what} — the field is blank or is not "
+            f"a number, and this one is not optional")
+    return value
+
+
 def _read_phase(number: int, block: dict[str, str], path: str,
-                kind: int) -> GsasPhase:
+                kind: int | None) -> GsasPhase:
     """One ``CRS`` block: cell, symmetry and sites, with their refine flags."""
     abc = block.get("ABC")
     angles = block.get("ANGLES")
@@ -564,10 +634,17 @@ def _read_phase(number: int, block: dict[str, str], path: str,
     sig_abc = block.get("ABCSIG", "")
     sig_ang = block.get("ANGSIG", "")
     volume = block.get("CELVOL", "")
+    where = f"phase {number}'s cell"
     cell = GsasCell(
-        a=_num(abc, 0, 10), b=_num(abc, 10, 10), c=_num(abc, 20, 10),
-        alpha=_num(angles, 0, 10), beta=_num(angles, 10, 10),
-        gamma=_num(angles, 20, 10),
+        a=_required(_num(abc, 0, 10), path=path, where=where, what="a"),
+        b=_required(_num(abc, 10, 10), path=path, where=where, what="b"),
+        c=_required(_num(abc, 20, 10), path=path, where=where, what="c"),
+        alpha=_required(_num(angles, 0, 10), path=path, where=where,
+                        what="alpha"),
+        beta=_required(_num(angles, 10, 10), path=path, where=where,
+                       what="beta"),
+        gamma=_required(_num(angles, 20, 10), path=path, where=where,
+                        what="gamma"),
         refined=_flag(abc, 34), damping=_int(abc, 39, 1) or 0,
         esd_a=_num(sig_abc, 0, 10), esd_b=_num(sig_abc, 10, 10),
         esd_c=_num(sig_abc, 20, 10),
@@ -594,11 +671,15 @@ def _read_phase(number: int, block: dict[str, str], path: str,
         codes = tail[62:66]
         isotropic = codes[0:1].strip().upper() != "A"
         uij = tuple(_num(tail, 10 * i, 10) or 0.0 for i in range(6))
+        site = f"phase {number} atom record {key!r}"
         atoms.append(GsasAtom(
             label=_text(head, 50, 8) or species,
             species=species,
-            x=_num(head, 10, 10), y=_num(head, 20, 10), z=_num(head, 30, 10),
-            occupancy=_num(head, 40, 10),
+            x=_required(_num(head, 10, 10), path=path, where=site, what="x"),
+            y=_required(_num(head, 20, 10), path=path, where=site, what="y"),
+            z=_required(_num(head, 30, 10), path=path, where=site, what="z"),
+            occupancy=_required(_num(head, 40, 10), path=path, where=site,
+                                what="occupancy"),
             multiplicity=_int(head, 58, 4) or 0,
             uiso=uij[0] if isotropic else None,
             uij=None if isotropic else uij,
@@ -615,6 +696,19 @@ def _read_phase(number: int, block: dict[str, str], path: str,
         number=number, name=_text(block.get("PNAM", "")),
         space_group=_text(block.get("SG SYM", "")),
         cell=cell, atoms=tuple(atoms), kind=kind, formula=formula)
+
+
+def _names_profile(kind: str) -> bool:
+    """Whether this build may name a histogram's profile coefficients.
+
+    One predicate, read by the histogram loop and by the HAP loop, because a
+    ``HAP`` block holds the coefficients that were *refined* and the histogram
+    block only the instrument file's defaults — so a gate that differed between
+    them would decline the defaults and name the refined set anyway.  ``"SXC"``
+    is the case: single-crystal data, whose third letter is the ``C`` a
+    constant-wavelength test looks for.
+    """
+    return bool(kind) and kind[:1] != "S" and kind[2:3] == "C"
 
 
 def _read_histogram(number: int, block: dict[str, str], kind: str,
@@ -641,7 +735,9 @@ def _read_histogram(number: int, block: dict[str, str], kind: str,
 
     background = None
     if (head := block.get("BAKGD")) is not None:
-        coefficients = _continuation(block, "BAKGD")
+        coefficients = _continuation(
+            block, "BAKGD", path=path,
+            where=f"histogram {number} background")
         background = GsasBackground(
             function=_int(head, 0, 5) or 0,
             n_coefficients=_int(head, 5, 5) or 0,
@@ -652,7 +748,9 @@ def _read_histogram(number: int, block: dict[str, str], kind: str,
     for key in sorted(k for k in block
                       if k.startswith("PRCF") and len(k.rstrip()) == 5):
         setno = key.rstrip()[-1]
-        values = _continuation(block, f"PRCF{setno}")
+        values = _continuation(
+            block, f"PRCF{setno}", path=path,
+            where=f"histogram {number} profile set {setno}")
         profiles.append(_profile(block[key], values, path=path,
                                  where=f"histogram {number} profile set {setno}"))
 
@@ -745,13 +843,21 @@ def read_gsas_exp(path: str | Path, *,
             if (k := _int(nphas, 5 * i, 5)):
                 kinds[i + 1] = k
 
+    # ``EXPR  HTYPn`` carries twelve histogram types a record, and **n is which
+    # twelve**: record 2 states histograms 13-24.  Reading the record number is
+    # what keeps a file with more than twelve histograms honest — mapping every
+    # record onto 1-12 gives histogram 13 no type at all while overwriting
+    # histogram 1's with it, and a type is what decides whether the profile
+    # coefficients are named at all.
     htypes: dict[int, str] = {}
     for key, payload in overall.items():
         if key.startswith("EXPR  HTYP"):
+            group = key[len("EXPR  HTYP"):].strip()
+            base = (int(group) - 1) * 12 if group.isdigit() else 0
             for i in range(12):
                 token = payload[2 + 5 * i:2 + 5 * i + 4].strip()
                 if token:
-                    htypes[i + 1] = token
+                    htypes[base + i + 1] = token
 
     phases = tuple(
         _read_phase(n, phase_blocks[n], p.name, kinds.get(n))
@@ -762,29 +868,29 @@ def read_gsas_exp(path: str | Path, *,
     for n in sorted(hist_blocks):
         kind = htypes.get(n, "")
         block = hist_blocks[n]
-        if not kind:
-            # The same rule as the phase type above: an absent HTYP is the file
-            # saying nothing, and reading the coefficients under a
-            # constant-wavelength function's names would be assuming the one
-            # answer that makes them look right.  The numbers stay readable on
-            # the record; what is declined is naming them.
-            reported.append(
-                f"histogram {n} states no HTYP record, so its radiation type "
-                f"and whether it is constant-wavelength are unknown; its "
-                f"profile coefficients are left unnamed rather than read under "
-                f"a function order nothing establishes")
-            block = {k: v for k, v in block.items() if not k.startswith("PRCF")}
-        elif kind[:1] == "S":
-            reported.append(
-                f"histogram {n} is single-crystal data ({kind!r}), which this "
-                f"reader does not carry")
-            block = {k: v for k, v in block.items() if not k.startswith("PRCF")}
-        elif kind[2:3] != "C":
-            reported.append(
-                f"histogram {n} is {kind!r} rather than constant-wavelength, "
-                f"and the time-of-flight profile functions have a different "
-                f"coefficient order from the CW ones this build names, so its "
-                f"profile coefficients are left unnamed")
+        if not _names_profile(kind):
+            if not kind:
+                # The same rule as the phase type above: an absent HTYP is the
+                # file saying nothing, and reading the coefficients under a
+                # constant-wavelength function's names would be assuming the
+                # one answer that makes them look right.  The numbers stay
+                # readable on the record; what is declined is naming them.
+                reported.append(
+                    f"histogram {n} states no HTYP record, so its radiation "
+                    f"type and whether it is constant-wavelength are unknown; "
+                    f"its profile coefficients are left unnamed rather than "
+                    f"read under a function order nothing establishes")
+            elif kind[:1] == "S":
+                reported.append(
+                    f"histogram {n} is single-crystal data ({kind!r}), which "
+                    f"this reader does not carry")
+            else:
+                reported.append(
+                    f"histogram {n} is {kind!r} rather than "
+                    f"constant-wavelength, and the time-of-flight profile "
+                    f"functions have a different coefficient order from the "
+                    f"CW ones this build names, so its profile coefficients "
+                    f"are left unnamed")
             block = {k: v for k, v in block.items() if not k.startswith("PRCF")}
         histograms.append(_read_histogram(n, block, kind, p.name))
 
@@ -792,9 +898,11 @@ def read_gsas_exp(path: str | Path, *,
     for (ph, hs), block in sorted(hap_blocks.items()):
         profile = None
         head = block.get("PRCF")
-        if head is not None and htypes.get(hs, "")[2:3] == "C":
-            profile = _profile(head, _continuation(block, "PRCF"), path=p.name,
-                               where=f"phase {ph} in histogram {hs}")
+        if head is not None and _names_profile(htypes.get(hs, "")):
+            where = f"phase {ph} in histogram {hs}"
+            profile = _profile(
+                head, _continuation(block, "PRCF", path=p.name, where=where),
+                path=p.name, where=where)
         prefo = []
         for key in sorted(k for k in block if k.startswith("PREFO")):
             row = block[key]
@@ -1039,7 +1147,17 @@ def to_structure(model: GsasModel, *, phase: int | None = None,
     # GSAS was speaking about rather than onto x/y/z directly — otherwise
     # fluorapatite's F4, on a zero-freedom special position with its X flag
     # set, makes the whole import raise on a file GSAS refined happily.
-    sg = gemmi.SpaceGroup(chosen.space_group)
+    # gemmi's own refusal names neither the file nor the phase, and a partially
+    # entered experiment carries no `SG SYM` record at all, so the symbol is
+    # crossed here rather than left to raise from two modules away.
+    try:
+        sg = gemmi.SpaceGroup(chosen.space_group)
+    except (ValueError, RuntimeError) as exc:
+        raise GsasExpError(
+            f"{model.path or '<model>'}: phase {chosen.number} "
+            f"({chosen.name!r}) states the space-group symbol "
+            f"{chosen.space_group!r}, which is not one this build resolves "
+            f"({exc}).  The cell and sites are on `model.phases`") from exc
     frozen: list[str] = []
 
     rewrites: dict[str, tuple[str, list[str]]] = {}
