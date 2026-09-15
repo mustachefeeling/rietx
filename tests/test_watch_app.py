@@ -333,14 +333,18 @@ def test_the_directory_argument_is_optional(monkeypatch, tmp_path):
     """No argument scans the working directory."""
     seen = {}
 
-    def fake_serve(directory, *, port, open_browser):
-        seen.update(directory=directory, port=port)
+    def fake_serve(directory, *, port, open_browser, allow_cancel):
+        seen.update(directory=directory, port=port, allow_cancel=allow_cancel)
 
     monkeypatch.setattr("rietx.watch.serve", fake_serve)
     main([])
     assert seen["directory"] is None and seen["port"] == 8899
+    # stopping ships on, and `--read-only` is how a reader declines it (WP-1405)
+    assert seen["allow_cancel"] is True
     main(["somewhere", "--port", "1234"])
     assert seen["directory"] == "somewhere" and seen["port"] == 1234
+    main(["--read-only"])
+    assert seen["allow_cancel"] is False
 
 
 def test_serve_defaults_to_the_working_directory(tmp_path, monkeypatch):

@@ -10,10 +10,20 @@ itself. Finding runs, deciding whether one is still being written and tailing
 its log are :mod:`rietx.runs`, which has no HTTP in it and which
 ``gui/session.py`` can import when it attaches to a foreign run.
 
-**The watcher has no verbs.** It reads; it never writes, never opens a project
-and never constructs a refinement. Read-only is a stronger promise when an app
-has no verbs than when a mode hides them — a user cannot click what is not
-there. Cancel arrives in WP-1405 and will be the only one.
+**The watcher has one verb, and it is stop** (WP-1405). Everything else reads:
+it opens no project, constructs no refinement, and offers the GUI as a command
+to copy rather than a thing it launches. Stopping is the exception because it
+is the one thing a reader cannot do from the other side, and it stays honest by
+being the *only* one — ``POST /api/run/<id>/cancel`` writes
+:data:`~rietx.runs.CANCEL_FILE` into a directory the walk already offered, and
+the fit's own token is what acts on it. ``--read-only`` serves without it, for
+a reader who is not the person who should be stopping things.
+
+**A click here raises in another process.** That is the sharpest fact in this
+module: a fit that did not ask to be cancellable is cancellable, and a script
+that does not catch ``RefinementCancelled`` prints a traceback. It is why the
+button takes two clicks, why the dialog says so in as many words, and why it
+has no keyboard shortcut.
 
 Run the refinement in one process::
 
@@ -86,6 +96,25 @@ _PAGE_TEMPLATE = """<!DOCTYPE html>
   .k { color:#e8b339; }
   .ev { color:#888; }
   code { background:#1c1c1c; padding:1px 5px; border-radius:3px; color:#9ad; }
+  button { font: inherit; color:#cdc; background:#242424; cursor:pointer;
+           border:1px solid #3a3a3a; border-radius:4px; padding:3px 9px; }
+  button:hover { background:#2c2c2c; }
+  #stop { border-color:#5a2c2c; color:#e88; }
+  #stop:hover { background:#3d1b1b; }
+  /* the overlay sits outside #body, which the 1.2 s poll rewrites whole */
+  #confirm { position:fixed; inset:0; background:rgba(0,0,0,0.62);
+             display:flex; align-items:center; justify-content:center;
+             z-index:10; }
+  /* an id selector outranks the browser's own `[hidden] {display:none}`, so
+     without this the closed dialog is an invisible sheet over the whole page
+     swallowing every click — including the one that opens it */
+  #confirm[hidden] { display:none; }
+  #box { background:#1a1a1a; border:1px solid #3a3a3a; border-radius:6px;
+         max-width:33em; padding:16px 18px; line-height:1.5; }
+  #box h3 { margin:0 0 9px; font-size:13px; font-weight:normal; color:#e88; }
+  #box p { margin:0 0 9px; color:#bbb; }
+  #box .row { display:flex; gap:9px; justify-content:flex-end;
+              margin-top:14px; }
 </style></head><body>
 <div id="bar">
   <strong>rietx watch</strong>
@@ -93,11 +122,32 @@ _PAGE_TEMPLATE = """<!DOCTYPE html>
   <span id="root"></span>
 </div>
 <div id="body"><div id="empty">scanning …</div></div>
+<div id="confirm" hidden><div id="box">
+  <h3 id="box-what"></h3>
+  <p>This raises <code>RefinementCancelled</code> in the process running the
+     fit, at its next residual evaluation. A script that does not catch it
+     prints a traceback and exits.</p>
+  <p>The stages that already finished are kept, and the working state stands
+     at the last of them.</p>
+  <p>The stage in flight is abandoned: no history node, no committed
+     parameters, and the model goes back to where that stage found it.</p>
+  <div class="row">
+    <button id="box-no">Keep running</button>
+    <button id="box-yes">Stop the fit</button>
+  </div>
+</div></div>
 <script>
 const body = document.getElementById('body');
 const crumb = document.getElementById('crumb');
 const rootEl = document.getElementById('root');
 let SINGLE = null;          // set when the served directory is itself a run
+let CAN_CANCEL = false;     // false under --read-only: no button is drawn
+// what the crumb says after a stop was asked for, or after one was refused.
+// A fit does not stop the instant the button is clicked — a cadence plus the
+// residual evaluation in flight, which on a large pattern is the larger term —
+// and a page that showed nothing in between would read as one that had missed
+// the click
+let notice = null;
 let timer = null;
 let tail = {offset: 0, inode: null, id: null};
 // what the detail shell was built for: the run, which kind of picture it has
@@ -331,6 +381,13 @@ async function drawDetail(id, first) {
   const run = await r.json();
   if (currentId() !== id) return;      // the hash moved while we were waiting
   const st = run.status || {};
+  // a notice belongs to one run and one moment: the stop one stands until the
+  // fit stops, a refusal clears on its own clock, and neither follows the
+  // reader to another run
+  if (notice && (notice.id !== id || Date.now() > notice.expires
+                 || (notice.stop && run.liveness.state !== 'running'))) {
+    notice = null;
+  }
   // the count belongs to the run it was measured on, so it is dropped before
   // the crumb is written and not after — the crumb carries it
   const kind = pictureKind(run);
@@ -343,7 +400,9 @@ async function drawDetail(id, first) {
     (st.rwp != null ? ` · Rwp ${num(st.rwp, 4)}` : '') +
     (st.gof != null ? ` · GoF ${num(st.gof, 2)}` : '') +
     (st.n_free != null ? ` · ${st.n_free} free` : '') +
-    ` <span id="drawn" class="muted">${esc(drawn)}</span>`;
+    ` <span id="drawn" class="muted">${esc(drawn)}</span>` +
+    stopControl(run);
+  wireStop(run);
   // a running fit rewrites its snapshot per stage, and a run that had none
   // when it was opened grows one at its first
   if (first || shell.id !== id || shell.kind !== kind) detailShell(run, kind);
@@ -359,6 +418,56 @@ async function drawDetail(id, first) {
     }
   }
   await pumpEvents(id);
+}
+
+// ----------------------------------------------------------------- stop
+// Drawn only for a run being written *here*: a terminal one has nothing to
+// stop, and 'unknown' covers both another host and a writer that keeps no
+// lock, where a request would sit in the directory doing nothing. The route
+// refuses the same set, so this is the courtesy and not the check.
+function stopControl(run) {
+  if (notice) return ' <span class="muted">· ' + esc(notice.text) + '</span>';
+  if (!CAN_CANCEL || run.liveness.state !== 'running') return '';
+  return ' <button id="stop">stop</button>';
+}
+
+function wireStop(run) {
+  const btn = document.getElementById('stop');
+  if (btn) btn.onclick = () => openConfirm(run);
+}
+
+// Two clicks, and no keyboard shortcut of any kind — no autofocus, no Enter,
+// no Escape. The button raises an exception in a process the reader cannot
+// see, and a stray keystroke must not be able to do that.
+function openConfirm(run) {
+  const st = run.status || {};
+  const box = document.getElementById('confirm');
+  document.getElementById('box-what').textContent =
+    'Stop ' + run.label + (st.stage ? ', in stage ' + st.stage : '')
+    + ', in the process that is running it?';
+  document.getElementById('box-no').onclick = () => { box.hidden = true; };
+  document.getElementById('box-yes').onclick = () => {
+    box.hidden = true;
+    stopRun(run.run_id);
+  };
+  box.hidden = false;
+}
+
+async function stopRun(id) {
+  let payload = null, ok = false;
+  try {
+    const r = await fetch(`api/run/${id}/cancel`, {method: 'POST'});
+    ok = r.ok;
+    payload = await r.json();
+  } catch (err) {
+    payload = {error: String(err)};
+  }
+  notice = ok
+    ? {id: id, text: 'stopping at the next evaluation …', stop: true,
+       expires: Infinity}
+    : {id: id, text: (payload && payload.error) || 'the stop was refused',
+       stop: false, expires: Date.now() + 8000};
+  refresh(false);
 }
 
 async function pumpEvents(id) {
@@ -416,6 +525,7 @@ document.addEventListener('visibilitychange', () => {
 (async () => {
   const meta = await (await fetch('api/runs', {cache: 'no-store'})).json();
   SINGLE = meta.single_run_id;
+  CAN_CANCEL = meta.can_cancel === true;
   await refresh(true);
   schedule();
 })();
@@ -480,10 +590,12 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
     run recorded before WP-1402 included.
     """
 
-    def __init__(self, *args, scan_root: Path, index: _RunIndex, **kwargs):
+    def __init__(self, *args, scan_root: Path, index: _RunIndex,
+                 allow_cancel: bool = True, **kwargs):
         # set before super().__init__, which handles the request inline
         self.scan_root = scan_root
         self.index = index
+        self.allow_cancel = allow_cancel
         super().__init__(*args, **kwargs)
 
     def _send(self, body: bytes, content_type: str, status: int = 200) -> None:
@@ -563,6 +675,10 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
                       else None)
             self._json({"root": str(self.scan_root),
                         "single_run_id": single,
+                        # the page draws no button under --read-only; the route
+                        # refuses anyway, and a button that only ever 403s
+                        # would be a worse answer than no button
+                        "can_cancel": self.allow_cancel,
                         "runs": [self._row(r) for r in found]})
             return
 
@@ -610,16 +726,105 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
 
         super().do_GET()
 
+    def do_POST(self):  # noqa: N802 - http.server API
+        """The one verb (WP-1405): ``/api/run/<id>/cancel``.
+
+        POST and never GET. A GET that cancels is one prefetching browser, one
+        link preview or one crawler away from stopping somebody's overnight
+        refinement, and the static fallback below serves GET to a whole tree.
+
+        ``SimpleHTTPRequestHandler`` has no ``do_POST`` at all, so defining one
+        means every other POST is answered here rather than by a 501 from the
+        base class.
+        """
+        # drained before anything is written back, or a keep-alive connection
+        # reads the unread body as the next request line
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            length = 0
+        if length > 0:
+            self.rfile.read(min(length, 1 << 16))
+
+        parts = [p for p in urllib.parse.urlparse(self.path).path.split("/")
+                 if p]
+        if len(parts) == 4 and parts[:2] == ["api", "run"] and parts[3] == "cancel":
+            self._cancel(parts[2])
+            return
+        self._json({"error": "no such route"}, status=404)
+
+    def _cancel(self, run_id: str) -> None:
+        """Ask one run to stop, or say why not.
+
+        The id is looked up in what the walk offered (:meth:`_find`), so this
+        route inherits WP-1401's property rather than restating it: a run id is
+        never decoded into a path, and a request can only ever name a directory
+        this server chose to serve. ``SimpleHTTPRequestHandler`` handles
+        traversal for static files and a hand-written JSON route does not get
+        that for free, which is why the lookup is the mechanism and not a
+        check bolted beside one.
+
+        Only a run that is **running here** is stoppable. ``unknown`` covers
+        both another host and a writer that keeps no lock, and a request into
+        either would lie in the directory until somebody deleted it.
+        """
+        if not self.allow_cancel:
+            self._json({"error": "this watcher is serving read-only"},
+                       status=403)
+            return
+        run = self._find(run_id)
+        if run is None:
+            self._json({"error": "no such run"}, status=404)
+            return
+        live = runs_mod.liveness_of(run)
+        if live.state != "running":
+            self._json({"error": f"this run reads {live.state} — "
+                                 f"{live.evidence}", "state": live.state},
+                       status=409)
+            return
+        # A latched recorder is still holding its lock and still reads running,
+        # and it is the thing that would have read the request. Refusing says
+        # so; writing the file would leave a button that did nothing.
+        if run.status is not None and run.status.error:
+            self._json({"error": "this run stopped recording, so nothing is "
+                                 "reading requests: " + run.status.error,
+                        "state": live.state}, status=409)
+            return
+        try:
+            runs_mod.request_cancel(run.path, who=f"{DIST_NAME} watch")
+        except OSError as exc:
+            self._json({"error": f"could not write the request: {exc}"},
+                       status=500)
+            return
+        self._json({"requested": True, "run_id": run_id, "state": live.state})
+
     def log_message(self, *args):  # quiet: polling floods the terminal
         pass
 
 
 def serve(directory: str | Path | None = None, *, port: int = 8899,
-          open_browser: bool = False, block: bool = True):
+          open_browser: bool = False, block: bool = True,
+          allow_cancel: bool = True):
     """Serve the runs under ``directory`` (default: the working directory).
 
     Returns the server when ``block=False``. A directory that is itself a run
     is served as one and the page opens straight onto it.
+
+    ``allow_cancel=False`` serves without the stop verb, and the page draws no
+    button (``--read-only``).
+
+    **Stopping is on by default, and that was the decision** (WP-1405). The
+    argument for the other way is real: a click here raises in a process the
+    reader cannot see, and making that a deliberate act by requiring a flag is
+    cheap. Three things settled it the other way. The server binds
+    ``127.0.0.1``, so the only person who can click is the person at the
+    machine the fit is running on — who can already reach it with Ctrl-C, which
+    raises in that process too. A flag you have to have set *in advance* is not
+    there when a runaway starts, and killing the watcher to restart it with the
+    flag is the moment you needed it. And the dialog already makes it a
+    deliberate act, twice over. ``--read-only`` covers the case the argument is
+    really about: a reader who is not the person who should be stopping things,
+    which is a situation you know about beforehand.
     """
     directory = Path.cwd() if directory is None else Path(directory)
     if not directory.is_dir():
@@ -631,12 +836,15 @@ def serve(directory: str | Path | None = None, *, port: int = 8899,
     # process (the tests run several) cannot take each other's root.
     index = _RunIndex(directory)
     handler = functools.partial(_Handler, directory=str(directory),
-                                scan_root=directory, index=index)
+                                scan_root=directory, index=index,
+                                allow_cancel=allow_cancel)
     server = http.server.ThreadingHTTPServer(("127.0.0.1", port), handler)
     url = f"http://127.0.0.1:{server.server_address[1]}/"
     found = index.runs()
     print(f"rietx watch: {len(found)} run(s) under {directory}")
     print(f"             {url}  (Ctrl-C to stop)")
+    if not allow_cancel:
+        print("             read-only: no stop button")
     if open_browser:
         import webbrowser
 
@@ -666,8 +874,13 @@ def main(argv: list[str] | None = None) -> None:
                              "opens straight onto it")
     parser.add_argument("--port", type=int, default=8899)
     parser.add_argument("--open", action="store_true", help="open a browser")
+    parser.add_argument("--read-only", action="store_true",
+                        help="serve without the stop button: the page offers "
+                             "no way to cancel a running fit, and the route "
+                             "refuses")
     args = parser.parse_args(argv)
-    serve(args.directory, port=args.port, open_browser=args.open)
+    serve(args.directory, port=args.port, open_browser=args.open,
+          allow_cancel=not args.read_only)
 
 
 if __name__ == "__main__":  # python -m rietx.watch [dir]

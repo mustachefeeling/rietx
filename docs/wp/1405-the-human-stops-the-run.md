@@ -231,6 +231,37 @@ is the latency this WP exists to avoid. It buys a fraction of a percent.
 This is a bound for the *token*, not for recording. WP-1404's own question is
 untouched.
 
+### Stopping ships enabled, `--read-only` declines it (2026-09-15)
+
+Decided with the dialog on screen, which is what the WP asked for. The case for
+the reverse default is real and is stated in `watch.py`'s own docstring: a click
+raises in a process the reader cannot see.
+
+Three things settled it the other way.
+
+1. The server binds `127.0.0.1`. The only person who can click is the person at
+   the machine the fit is running on, and they can already reach that process
+   with Ctrl-C, which raises in it too. The button is a second route to a power
+   the reader has, not a new one.
+2. A flag you must set *in advance* is not set when a runaway starts. Killing
+   the watcher to restart it with the flag is the one moment you wanted it.
+3. The dialog is already the deliberate act the argument asks for, twice over:
+   two clicks, and no keyboard shortcut of any kind — verified in a real
+   browser that Enter on the open dialog does nothing.
+
+`--read-only` covers what the argument is really about, a reader who is not the
+person who should be stopping things, and that is a situation known in advance.
+
+### What looking at it caught
+
+`#confirm { display:flex }` outranks the browser's own `[hidden] {display:none}`
+— an id selector against an attribute selector — so the closed dialog was an
+invisible full-page sheet swallowing every click, including the one that opens
+it. Nothing in python could see it and `node --check` parses it happily. It took
+a real browser and a real click. `#confirm[hidden] { display:none; }` is the fix,
+and the comment beside it is there so the next person adding an overlay does not
+pay for it again.
+
 ## Non-goals
 
 - **No second intervention verb.** No pause, no parameter edit, no re-run. The
@@ -250,9 +281,9 @@ untouched.
       only when the recorder is active. Decide lazy-versus-eager attachment
       against WP-1404's configuration 3 and record the choice.
 - [x] The terminal status naming the run cancelled and who asked.
-- [ ] The POST route, the run-id resolution against the served root, the
+- [x] The POST route, the run-id resolution against the served root, the
       traversal refusal, and the read-only serving flag.
-- [ ] The confirm dialog, with the three sentences above. Looked at, not only
+- [x] The confirm dialog, with the three sentences above. Looked at, not only
       asserted.
 - [ ] Tests: the cancel file sets a caller's own token rather than a second one;
       a recorded fit with no caller token still cancels; a fit with eval events
