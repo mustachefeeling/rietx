@@ -424,6 +424,18 @@ the defence that works. A quiet-machine gate is a wish.
      "The gate" and "What a failure means" with it. Restored from `28429810` in
      `f1252fcd`. Anchor a deletion on something the replacement cannot contain.
 
+  **Review** — `/code-review high --fix` found seven, all in the harness, all
+  applied, none declined. The one worth knowing: `runs.enabled()` lets the
+  environment outrank `telemetry=`, so under `RIETX_TELEMETRY=0` a recording
+  configuration attaches no recorder, times the control and prints a ratio, and
+  the only trace is an all-zero accounting row — which is what an honest control
+  prints too. `main` refuses that before any timed work now. This session's
+  matrix is unaffected and the accounting rows are the proof: 59 to 358 log
+  lines with non-zero snapshot bytes and flush counts on every `record` row.
+  Also fixed: a stream configuration on a series case raised too late to save
+  the run, an empty `--configs` built every case and timed none, and the
+  harness never closed the `LiveSession` it built.
+
   **Next**, in order. WP-1413 is the work this WP created and it starts from
   § Findings rather than from scratch: confirm WP-1402's split still holds, then
   make `decimation_index` cheap under the bit-identity constraint, then re-run
