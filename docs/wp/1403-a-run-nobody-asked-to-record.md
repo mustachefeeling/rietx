@@ -338,19 +338,18 @@ safe.
 - [x] Retention by age and byte ceiling, warn-and-keep when nothing is old
       enough, the three `rmtree` guards, legacy directories exempt. Its own
       commit: this is the only code in the track that can destroy data.
-- [x] `tests/conftest.py`: the env `setdefault` beside the `MPLBACKEND` line (the
-      meta-test lands with `test_telemetry.py`),
+- [x] `tests/conftest.py`: the env `setdefault` beside the `MPLBACKEND` line,
       **and** a meta-test that a plain `fit()` under the suite's environment
       creates no directory anywhere. Without the second half the suite grows
       hundreds of run directories the first time someone changes the default.
-- [ ] Tests: `tests/test_telemetry.py` — a bare fit writes the four files;
+- [x] Tests: `tests/test_telemetry.py` — a bare fit writes the four files;
       `telemetry=False` and the env switch write nothing; a caller's `events=`
       path still gets a **complete** log while the recorder gets its own; **a
       caller's callback exception still propagates**, asserted in both
       directions; a read-only directory latches off with a warning and the fit
       still returns; `run_stage` writes a snapshot; the status's Rwp equals the
       last `stage_end.rwp` in the log. Plus the series and GUI attach-once pair.
-- [ ] Skill: **none here**; WP-1406 carries the track's whole skill change, and
+- [x] Skill: **none here**; WP-1406 carries the track's whole skill change, and
       this WP is not shippable without it.
 
 ## Acceptance

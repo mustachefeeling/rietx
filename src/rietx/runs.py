@@ -1324,10 +1324,26 @@ def attach(stream, events, *, telemetry=None, project_hint=None,
         return None
     if _already_recorded(stream):
         return None
-    root = (Path(telemetry) if telemetry is not None
-            else Path(project_hint) if project_hint is not None
-            else run_root())
-    recorder = RunRecorder(new_run_dir(root), label=label)
+    # **Inside the guard, all of it.** Choosing the root and making the
+    # directory happen before a ``RunRecorder`` exists, so its latch cannot
+    # cover them — and a read-only working directory raises here, which would
+    # break a fit over telemetry nobody asked for. Measured: without this,
+    # ``telemetry=`` pointing anywhere unwritable took the fit down with it.
+    try:
+        root = (Path(telemetry) if telemetry is not None
+                else Path(project_hint) if project_hint is not None
+                else run_root())
+        directory = new_run_dir(root)
+    except (KeyboardInterrupt, SystemExit):
+        raise
+    except BaseException as exc:
+        _warn_once(
+            f"telemetry could not open a run directory "
+            f"({type(exc).__name__}: {exc}). The fit is unaffected. Set "
+            f"{TELEMETRY_ENV}=0 to switch recording off, or pass "
+            f"telemetry=False to this call.")
+        return None
+    recorder = RunRecorder(directory, label=label)
     if stream is None:
         setattr(recorder, _STAMP, recorder)
         return recorder
