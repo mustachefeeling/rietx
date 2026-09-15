@@ -1,9 +1,11 @@
 # WP-1118 — foreign model files: read a refinement in, write one back
 
-Milestone: unscheduled · Status: 🔄 2026-09-13 — the TOPAS `.inp` reader
-landed (PR #98), the FullProf `.pcr` reader (PR #111), the GSAS-I `.PRM`
-instrument-parameter reader (PR #248) and the model-format registry over them;
-the GSAS `.EXP` half, the `.gpx` reader and every writer remain
+Milestone: unscheduled · Status: 🔄 2026-09-15 — the TOPAS `.inp` reader
+(PR #98), the FullProf `.pcr` reader (PR #111), the GSAS-I `.PRM`
+instrument-parameter reader (PR #248), the model-format registry over them and
+the GSAS `.EXP` reader (#103), whose acceptance rewire showed the FAP suite
+refines 20 parameters where GSAS refined 28; the `.gpx` reader and every writer
+remain
 Depends on: — (WP-1110 found it; WP-1102 owns the one seam that overlaps)
 
 ## Goal
@@ -218,11 +220,15 @@ format token is spelled in `_about.py`, never inline (root CLAUDE.md § Conventi
       `rx.` exports with a `capabilities().project_formats` arm. #107, #103 and
       [1314](1314-mfile-reader.md) are unblocked.
 - [x] TOPAS `.inp` reader — the format with the evidence behind it.
-- [ ] GSAS `.EXP` + `.PRM` reader, and make `tests/test_acceptance_fap.py` take
+- [x] GSAS `.EXP` + `.PRM` reader, and make `tests/test_acceptance_fap.py` take
       its protocol from the reader instead of from transcribed constants.
       — the `.PRM` half landed (`rx.read_gsas_prm`, PR #248, merged 2026-09-10,
-      `ff69ec34`); `.EXP`, and the acceptance suite taking its protocol from
-      either, remain.
+      `ff69ec34`); the `.EXP` half and the acceptance rewire landed 2026-09-15
+      (`rx.read_gsas_exp`, `PROJECT_FORMATS` member `gsas_exp`). `Closes #103`.
+      Two follow-ups this task **did not** do, each with its numbers in the
+      handover entry: the plan still frees no coordinate DOFs where GSAS freed
+      twelve (measured, nearly free to close), and `read_gsas_prm` reads the
+      same `ICONS` record by whitespace split rather than by column.
 - [x] FullProf `.pcr` reader. — PR #111, merged 2026-09-03 (`b717cc98`)
 - [ ] GSAS-II `.gpx` reader behind a **restricted unpickler** (decided
       2026-09-03, issue #234): subclass `pickle.Unpickler`, override
@@ -260,7 +266,11 @@ format token is spelled in `_about.py`, never inline (root CLAUDE.md § Conventi
       (`docs/skill/rietx/` — `AGENT_PROTOCOL.md` is a redirect stub since
       WP-1304), a Part 1 manual section, and an `ATTRIBUTION.md` row per
       format. The TOPAS half of the diagnostic rows and its `ATTRIBUTION.md`
-      row landed. **Superseded in part, 2026-09-13**: `references/api.md` § In
+      row landed, and the GSAS `.EXP` half on 2026-09-15 (arm, six
+      `GSAS_EXP_*` rows in `references/diagnostics-projects.md` §7g, a Part 1
+      section over the whole `GsasModel` tree, and an `ATTRIBUTION.md` row).
+      **Still open for the `.gpx` reader and the writers.**
+      **Superseded in part, 2026-09-13**: `references/api.md` § In
       was repaired somewhere between 2026-09-03 and 2026-09-13 and now names
       both `rietx.io.projects.read_topas_inp` and `read_fullprof_pcr`, says
       they have no top-level `rx.` entry point yet, and carries `rx.read_gsas_prm`
@@ -280,7 +290,12 @@ format token is spelled in `_about.py`, never inline (root CLAUDE.md § Conventi
       `#prm` comparisons — it is not the macro language, and § Non-goals still
       holds.
 - [ ] Fixtures with provenance rows in `tests/data/README.md`; tests, and the
-      obs/calc/diff PNGs for any refinement one of them drives.
+      obs/calc/diff PNGs for any refinement one of them drives. — the GSAS
+      `.EXP` half landed 2026-09-15: `FAP.EXP`'s row says it is now the
+      reader's corroborating fixture, and the file also **ships in the wheel**
+      (`src/rietx/data/examples/`, `LICENCES` in `test_example_projects.py`)
+      because the `fap` example reads its protocol from it. Open for the
+      formats with no fixture yet.
 
 ## Acceptance
 
@@ -316,6 +331,189 @@ work this WP does.
   § "Learned in v0.2".
 
 ## Handover log
+
+### 2026-09-15 — the GSAS `.EXP` reader, and the protocol it turned out nobody had
+
+Someone handed GSAS's own converged refinement can now open it with one call and
+get back the model *and the refine flags* — which parameters that refinement was
+free to move. That last part is the whole point, because a CIF carries the
+converged coordinates and a raw file carries the pattern, and neither says what
+was refined. This repo had been paying the cost itself: the fluorapatite
+acceptance suite's cell, seven sites, wavelengths, held Caglioti terms and
+excluded region were constants somebody read out of `FAP.EXP` by hand, and
+`viz/compare.py` held a second copy of the same numbers. Both now read the file.
+
+Reading the protocol instead of transcribing it immediately found something the
+transcription had hidden: **GSAS refined the coordinates and this package's plan
+does not**, so the suite whose docstring said "both codes refine the same
+parameter set" was refining 20 parameters against GSAS's 28. That is now
+asserted as a difference rather than implied as an agreement, and closing it is
+measured and cheap — the decision is the maintainer's because it moves two
+recorded acceptance numbers.
+
+*Done* — seven commits, `wp1118-gsas-exp-reader`.
+
+- **The reader** (`48c2d105`): `io/projects/gsas.py`, `rx.read_gsas_exp` and its
+  `to_structure`. `GsasModel` carries phases, histograms and one entry per
+  phase-and-histogram pair, which is where GSAS keeps the profile coefficients.
+- **The registry member** (`1b528789`): `gsas_exp` in `PROJECT_FORMATS`, top-level
+  exports, the `capabilities()` arm, a Part 1 section over the whole `GsasModel`
+  tree, six `GSAS_EXP_*` skill rows, and an `ATTRIBUTION.md` row.
+- **The acceptance rewire** (`e419cf4c`), the WP's own stated bar, plus
+  `viz/compare.py`'s `fap` standard, which was the second transcription.
+- **`FAP.EXP` ships** (`3138217d`) and **the sniff measures bytes** (`d5821955`);
+  both are below.
+
+*The three decisions, and what each rules out.*
+
+1. **Every field is read by column, never by splitting on whitespace.** A
+   fixed-format record whose optional numeric fields are blank collapses under
+   `str.split()` into a shorter list whose entries then mean something else.
+   `ICONS` is where it bites: the layout is `LAM1 LAM2 ZERO [IREF] [IDAMP] POLA
+   IPOLA KRATIO`, so a file leaving `IREF`/`IDAMP` blank splits into six tokens
+   that line up and one writing `IDAMP` splits into seven that do not. **What
+   this rules out**: reading any further GSAS record positionally off a split.
+2. **Profile coefficients are named per function type.** CW type 2's fourth is
+   `LX` and type 3's fourth is `GP`, so one index-to-name map would mis-assign
+   every width in the file. A type this build cannot name is **refused by name**
+   rather than read positionally — the Bruker `.raw` v3 bar applied to a
+   coefficient order. Type 4 is the refused one: the manual describes it only as
+   "between 14 and 27 coefficients … `S400`, etc.", which enumerates nothing.
+3. **The registry's `reports_at` gained a `"both"`.** It was a two-valued
+   `Literal` because the two formats it shipped with each repair at one end. A
+   `.EXP` repairs at both, so either single value would have dropped one channel
+   **in silence** — the caller gets an empty list, which reads as "this file
+   needed no repairs". **What this rules out**: a fourth format declaring one
+   end and quietly having two, because the meta-test now partitions both ways.
+
+*Measured* — this worktree's `.venv`, `[dev]` only (no jax, no torch, so the
+cross-backend rows self-skip), python 3.12.12, darwin/arm64, nothing else
+mid-suite either time (checked with `ps aux | grep`, not `pgrep`):
+
+- Fast selection `-n auto --dist loadgroup -m "not slow"`: **4925 passed, 132
+  skipped**, 2:23. The delta is **+35 passed, +0 skipped**, derived per file
+  rather than by re-measuring `main` (`tests/CLAUDE.md` rung 4 says not to):
+  24 from `test_projects_gsas.py`, 6 from `test_projects_registry.py` (2 dispatch
+  rows, 2 new tests, and +1 each on the two meta-tests parametrised over
+  `PROJECT_FORMATS`, which went from two members to three), 5 from
+  `validation_matrix.py` (one new Claim × five parametrised families).
+  `test_example_projects.py` gained a `LICENCES` entry and no test case, and
+  the new acceptance row is `slow`-marked so it is outside this selection.
+- Full selection, **once, on the final tree**: **5096 passed, 141 skipped**,
+  23:28. Run because the change moves the inputs of a real-data acceptance row.
+- `tests/test_acceptance_fap.py`, the WP's named acceptance: 3 passed.
+- `ruff check src tests examples` clean.
+- **The acceptance bar, stated as an identity rather than a tolerance.** The
+  recovered protocol reproduces the file's own variable count: 21 structural
+  (2 cell + 12 coordinate DOFs + 7 Biso) + 1 scale + 3 background + 3 profile =
+  **28**, and `REFN GDNFT` says 28 in a record the reader never consults. The
+  flags are spread over eleven records, so no single-field misreading survives
+  that row.
+- **The measured answer is unmoved.** Over the seven quantities the suite
+  reports, the largest relative change is **5.3e-10** (`lor_size`), with Rwp at
+  3.4e-14 and the cell at 2.6e-13 — solver termination noise from starting at
+  the file's 9.371724 and 0.0335183 rather than the rounded 9.3717 and 0.0335.
+  The Caglioti terms did not move at all: `1e-2**2 == 1e-4` exactly in IEEE754,
+  so the centidegree conversion returns the same doubles the constants were.
+
+*The review pass found ten things and the first of them was the bug this
+reader exists to prevent.* `_continuation` appended only the values `_num` could
+parse, so one unreadable coefficient field **compacted the list and renamed
+every later coefficient**. Fortran writes a three-digit exponent with no `E`
+(`0.200000-100`), which Python will not parse. Reproduced against the pre-fix
+code, a six-coefficient function-2 block came back `GU=2.0, GV=5.0,
+GW=3.35183, LX=2.48803, LY=0.0` — five plausible numbers, each under the wrong
+name, nothing raised. Naming coefficients per function type cannot help once the
+*values* have shifted under the names, so the careful part of this reader was
+guarding one end of a hazard that came in at the other. Two siblings of the same
+shape are now refusals too: a header declaring more coefficients than its records
+carry, and a blank numeric field reaching a `float`-annotated model field as
+`None`. The rest were smaller — `EXPR HTYP<n>` record numbers ignored (a file
+with more than twelve histograms overwrote histogram 1 with record 2's type), the
+HAP and histogram gates disagreeing about single-crystal data because `SXC`'s
+third letter is `C`, `str.splitlines()` breaking on `\x85` where the
+byte-measuring sniff does not, gemmi's space-group error escaping unwrapped, and
+two stale docstrings plus `io/CLAUDE.md`'s `reports_at` bullet. Nothing was
+declined; nine tests came with them.
+
+*In flight*: nothing. The branch is one session's work and complete.
+
+*Gotchas*:
+
+- **The manual contradicts itself twice, and both would have shipped a plausible
+  wrong number rather than an error.** The CW function 2 paragraph lists its
+  eighteen coefficients twice, as physics symbols and as GSAS names, and the two
+  are **transposed at positions 8 and 9**; GSAS's own EXPEDT listing prints
+  `#8(shft)` and this file's converged sample displacement sits at index 8, and
+  function 3's two tuples agree, which is what shows it to be a slip. And
+  `CELVOL` is `2F15.3` in every file here against a printed `2F10.3`, which at
+  the printed width reads 523.755 as **52.0**. Both are in the module docstring
+  and asserted by test. `RPOWD` also carries undocumented fields past its
+  declared `2F10.4`; those are **not** read, and the observation count comes
+  from `REFN STATS`, which the manual does declare.
+- **Polarization and a Kα2/Kα1 ratio are both conventionally 0.5, and they sit
+  in adjacent fields on one record.** `FAP.EXP` states POLA and leaves KRATIO
+  blank; the old test comment attributed that 0.5 to the ratio. What fixed the
+  order is `INST_XRY.PRM` beside it, which states POLA 0.7 *and* KRATIO 0.5 in
+  the same slots. A reader that took the wrong field would agree with the right
+  one on this file and disagree on the next.
+- **Adding a file to a `Standard` can remove an example project.** WP-1204's
+  sentence is "adding a file adds an example", and `Standard.available` reads it
+  backwards too: making the `fap` standard read `FAP.EXP` put that file in
+  `Standard.files`, which is not in the wheel, so `fap` silently stopped being an
+  example and **five tests went red in three suites that have nothing to do with
+  this reader** — both GUI example-server rows, two example rows, a peak-picking
+  panel, and the manual's indexing chapter, whose python block calls
+  `build_example("fap", …)`. Shipping the file is the same licence answer
+  `FAP.XRA` already has.
+- **The head decode drops bytes, so the sniff measures bytes.** `head()` decodes
+  UTF-8 with `errors="ignore"`, and a `.EXP` is a Latin-1 byte format whose
+  `DESCR` title is whatever the experimenter typed. One accented character
+  shortens that record to 79 characters in the decoded text while it is still 80
+  bytes on disk, and the width half of the sniff then rejects the whole file.
+  Found by reading the shared decoder, not by a failing file; the guard was
+  checked the way `tests/CLAUDE.md` asks, with the byte version passing and the
+  text version it replaced failing on the same fixture.
+- **GSAS's `X` flag means "refine as permitted by symmetry".** Carried onto
+  `x`/`y`/`z` directly it makes `ParameterTable` refuse the whole import of a
+  file GSAS refined happily, because fluorapatite's F4 sits on a zero-freedom
+  special position with its flag set. It goes through the site-symmetry basis
+  GSAS was speaking about instead.
+- **An anisotropic site reads but refuses to build.** The six `UIJ` values are on
+  the model; which off-diagonal convention they follow is settled by no file
+  here, and a wrong factor of two is a silently wrong Debye-Waller factor at high
+  Q. Same refusal `fullprof.to_structure` makes about a `β` block, and it lifts
+  the same way — with a corroborating file.
+- **The `.pcr` species normaliser is imported from `fullprof`, which is the third
+  caller of it.** It is not a format fact and its own docstring says it exists to
+  give every project reader one spelling, so the import is deliberate rather than
+  a shortcut; a shared home for it is the obvious tidy-up and was left alone to
+  keep this diff on the new reader.
+
+*Next*, in order:
+
+1. **Decide whether this suite adopts GSAS's coordinate freedom** — the one
+   question this work raised and did not answer. Measured 2026-09-15: adding a
+   coordinate stage takes Rwp 0.096966 → 0.096677, moves the cell by 0.1 ppm,
+   costs no wall clock and still converges. So it is nearly free and changes no
+   conclusion, but it moves two recorded acceptance numbers (the headline Rwp,
+   and the "20 → 18 free parameters" table in
+   `test_tying_the_similar_atoms_bisos_buys_precision`), which is why it is a
+   deliberate change rather than something to slip in.
+2. **`read_gsas_prm` reads the same `ICONS` record by whitespace split.** It is
+   correct on its corpus only because those files leave `IREF` and `IDAMP` blank,
+   so the six tokens happen to line up; it **refuses `INST_XRY.PRM`**, a file in
+   this repo, for having seven. The failure is safe rather than silent, which is
+   good design, but the two readers now read one record two ways and that is the
+   thing this codebase most dislikes. Reading it by column would fix the class.
+   It would not by itself make that file readable — the reader also refuses a
+   doublet, and a `.EXP` is what could now establish the intensity-weight
+   convention it says no file gives it.
+3. **The `STR(...)` decision** — issue #107, still offered by its filer, and 1119
+   settled that it needs no expression language.
+
+The `.gpx` reader (#234), the writers (#148) and the `#if` evaluator are all
+larger and none is blocked, so they wait on someone choosing them.
 
 ### 2026-09-13 — the registry, and the question it had to answer first
 

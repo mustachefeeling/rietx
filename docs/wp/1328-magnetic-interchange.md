@@ -66,6 +66,16 @@ is still named in the result.
 
 ### Inherited
 
+- **2026-09-15, from [1118](1118-foreign-model-files.md): there is now a third
+  magnetic refusal to lift, in the same shape as the other two.** The GSAS
+  `.EXP` reader reads a magnetic phase (GSAS phase types 2 and 3, from the
+  `EXPR NPHAS` record) onto `GsasPhase.magnetic` and refuses it in
+  `to_structure` with the same sentence the `.inp` and `.pcr` readers use — the
+  nuclear half would look complete. Its diagnostic row is
+  `GSAS_EXP_PHASE_MAGNETIC` in `references/diagnostics-projects.md` §7g. So this
+  WP's "one table" now has three entries rather than two, and none of them needs
+  new machinery.
+
 - **2026-09-13, from [1118](1118-foreign-model-files.md): the readers are now
   behind a registry, so lifting the magnetic refusals touches one more
   declared place.** `PROJECT_FORMATS` (`io/projects/registry.py`) carries a

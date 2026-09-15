@@ -284,19 +284,6 @@ def _build_srm660c(data_dir: Path) -> StandardInputs:
 
 _EIGHT_PI2 = 8.0 * np.pi**2
 
-#: label, species, x, y, z, Uiso — the ``CRS1 AT`` records of GSAS's converged
-#: ``FAP.EXP``, which is where this whole protocol is read from.
-_FAP_ATOMS = (
-    ("Ca1", "Ca", 0.333333, 0.666667, 0.001913, 0.006079),
-    ("Ca2", "Ca", 0.241976, 0.992603, 0.250000, 0.004561),
-    ("P3", "P", 0.397416, 0.367704, 0.250000, 0.003978),
-    ("F4", "F", 0.000000, 0.000000, 0.250000, 0.013850),
-    ("O5", "O", 0.325053, 0.484763, 0.250000, 0.004916),
-    ("O6", "O", 0.591494, 0.469954, 0.250000, 0.006609),
-    ("O7", "O", 0.339510, 0.258126, 0.070641, 0.006713),
-)
-
-
 def _build_fap(data_dir: Path) -> StandardInputs:
     """GSAS-II's "LabData" fluorapatite — the **cross-code** row.
 
@@ -308,8 +295,12 @@ def _build_fap(data_dir: Path) -> StandardInputs:
     not a structural one.  ±300 ppm is the honest band.
 
     Mirrors ``tests/test_acceptance_fap`` field for field (the anti-drift test
-    in ``tests/test_compare_ui`` asserts it).  Three parts of the protocol are
-    GSAS's rather than ours and matter more than they look:
+    in ``tests/test_compare_ui`` asserts it).  Since WP-1118 both read the
+    protocol from ``FAP.EXP`` through :func:`~rietx.io.projects.gsas.read_gsas_exp`
+    rather than restating it, so there is **one** authority for these numbers
+    and it is the file; this builder used to be the second transcription of
+    them.  Three parts of the protocol are GSAS's rather than ours and matter
+    more than they look:
 
     * the tutorial's own 1.5405/1.5443 Å doublet, not the NIST/Hölzer preset —
       a 60 ppm wavelength difference lands straight on the cell being compared;
@@ -320,39 +311,51 @@ def _build_fap(data_dir: Path) -> StandardInputs:
       f′/f″ either.  Adopting another code's protocol means adopting what it
       did not model as much as what it did.
     """
+    from ..io.projects.gsas import read_gsas_exp, to_structure
     from ..io.readers import read_pattern
     from ..schemas.pattern import PatternData
-    from ..schemas.structure import Atom, Cell
+
+    exp = read_gsas_exp(data_dir / "FAP.EXP")
+    hist = exp.histogram()
+    terms = exp.profile().by_name()
 
     raw = read_pattern(data_dir / "FAP.XRA")
-    # GSAS's own excluded region (FAP.EXP "EXC 2  130.000 1000.000"); the file
-    # runs to 130.04° and that last channel is a detector artefact.  Excluding
+    # GSAS's own excluded region, as its ``EXC 2`` record states it.  Excluding
     # it reproduces GSAS's 5750 channels exactly, which is what makes the two
     # codes' agreement indices comparable at all.
     data = PatternData(two_theta=raw.two_theta, intensity=raw.intensity,
-                       sigma=raw.sigma, excluded_regions=[(129.99, 1000.0)],
+                       sigma=raw.sigma,
+                       excluded_regions=list(hist.excluded_regions),
                        metadata=raw.metadata)
-    cell = Cell(a=_p(9.3717, min=1.0), b=_p(9.3717, min=1.0), c=_p(6.8859, min=1.0),
-                alpha=_p(90.0), beta=_p(90.0), gamma=_p(120.0))
-    structure = Structure(phases=[Phase(
-        name="fluorapatite", space_group="P 63/m", cell=cell,
-        atoms=[Atom(label=lab, species=sp, x=_p(x), y=_p(y), z=_p(z),
-                    biso=_p(u * _EIGHT_PI2, min=0.0, max=25.0))
-               for lab, sp, x, y, z, u in _FAP_ATOMS],
-        scale=_p(1e-3, min=0.0, transform="softplus"),
-        # GSAS LX, LY starting values (centideg → deg)
-        lor_size=_p(0.0335, min=0.0, transform="softplus"),
-        lor_strain=_p(0.0249, min=0.0, transform="softplus"))])
+    structure = to_structure(exp)
+    phase = structure.phases[0]
+    phase.name = "fluorapatite"
+    # the file's refine flags are not this standard's: the staged plan below
+    # frees parameters in order, and a stage's globs *add* to the free set
+    for name in ("a", "b", "c", "alpha", "beta", "gamma"):
+        edge = getattr(phase.cell, name)
+        edge.vary = False
+        if name in ("a", "b", "c"):
+            edge.min = 1.0
+    for atom in phase.atoms:
+        for name in ("x", "y", "z", "occ", "biso"):
+            getattr(atom, name).vary = False
+    phase.scale = _p(1e-3, min=0.0, transform="softplus")
+    phase.lor_size = _p(terms["LX"].degrees, min=0.0, transform="softplus")
+    phase.lor_strain = _p(terms["LY"].degrees, min=0.0, transform="softplus")
 
+    lam1, lam2 = hist.wavelengths
     ins = Instrument.bragg_brentano()
     ins.source = Source(
-        lines=[EmissionLine(wavelength=1.5405),
-               EmissionLine(wavelength=1.5443, weight=_p(0.5, min=0.0, max=1.0))],
-        polarization=_p(0.5, min=0.0, max=1.0),
+        lines=[EmissionLine(wavelength=lam1),
+               # the file's KRATIO field is blank, so this 0.5 is ours; the 0.5
+               # it does state is the polarization below (WP-1118)
+               EmissionLine(wavelength=lam2, weight=_p(0.5, min=0.0, max=1.0))],
+        polarization=_p(hist.polarization, min=0.0, max=1.0),
         dispersion=None)
-    ins.profile.u.value = 2e-4     # GSAS GU, held
-    ins.profile.v.value = -2e-4    # GSAS GV, held
-    ins.profile.w.value = 5e-4     # GSAS GW, held
+    ins.profile.u.value = terms["GU"].degrees     # held, as its N flag says
+    ins.profile.v.value = terms["GV"].degrees
+    ins.profile.w.value = terms["GW"].degrees
     # S/L and H/L are near-degenerate (see Geometry docstring); refine one
     ins.geometry.axial_sl.value = 0.02
     ins.geometry.axial_hl.value = 0.02
@@ -508,7 +511,7 @@ STANDARDS: tuple[Standard, ...] = (
                      "channels. The cells sit +116 and +113 ppm apart — the "
                      "same relative offset on both axes, which is a d-scale "
                      "convention difference, not a structural one."),
-        files=("FAP.XRA",), pattern="FAP.XRA", build=_build_fap,
+        files=("FAP.XRA", "FAP.EXP"), pattern="FAP.XRA", build=_build_fap,
         geometry="bragg_brentano"),
     Standard(
         key="nac", title="APS 11-BM — NAC + CaF₂ (synchrotron capillary)",

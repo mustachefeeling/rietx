@@ -45,6 +45,10 @@ LICENCES = {
     "11BM_NAC.fxye": "Argonne/APS tutorial data (U.S. Government work)",
     "cod_1000236.cif": "COD (public domain dedication)",
     "FAP.XRA": "Argonne/APS tutorial data (U.S. Government work)",
+    # The same tutorial and the same fence as FAP.XRA beside it.  It ships
+    # because the fap standard *reads its protocol from it* (WP-1118) rather
+    # than restating the numbers, so the file is an input and not a reference.
+    "FAP.EXP": "Argonne/APS tutorial data (U.S. Government work)",
 }
 
 

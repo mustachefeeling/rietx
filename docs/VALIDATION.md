@@ -422,6 +422,16 @@ The one cross-code comparison. GSAS-II's converged fluorapatite tutorial, with i
 
 **Measured:** 20 -> 18 free parameters, 287.5 -> 319.4 observations per parameter; B(O) 0.2763(1810) / 0.5279(1911) / 0.4149(1282) free against 0.4138(899) tied; every free interval contains the tied value, and the four untied Biso sites move by < 0.5 sigma
 
+#### `test_the_file_states_a_wider_free_set_than_this_plan`
+
+`cross_code` `identity` · dataset `fap`
+
+**Claims:** the free set this plan refines against the free set GSAS's own file states, with the difference named rather than implied
+
+**Referenced to:** FAP.EXP's own refine flags, read by rx.read_gsas_exp and converted to rietx dot-paths through to_structure.  The file states 28 variables in its REFN GDNFT record, and the flags reconstruct that exactly: 2 cell + 12 coordinate DOFs + 7 Biso structural, plus 1 histogram scale, 3 background terms and 3 profile terms.  This is an identity check against a number the file states somewhere else, not a tolerance
+
+**Measured:** this plan frees 20 parameters and GSAS freed 28; the whole difference is the 12 coordinate DOFs, which no stage here turns on.  Everything else the file frees, this plan frees too.  Freeing them measured 2026-09-15: Rwp 0.096966 -> 0.096677, cell +114.5/+111.9 -> +114.4/+111.7 ppm, no wall-clock change, still converged — so closing the gap is nearly free and is a deliberate change with its own numbers rather than a silent one
+
 ### `tests/test_acceptance_nac.py`
 
 The synchrotron vertical slice, and the FitReport's impurity claim: CaF2 is found from unmatched peaks rather than declared.

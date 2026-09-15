@@ -94,9 +94,9 @@ placement, link resolution, and the size caps on this file and CLAUDE.md.
 survives from 1407: Stoe `.raw` files paired with the WinXPOW ASCII export of
 the same scans would make Stoe writable.
 
-**In flight:** [1118](wp/1118-foreign-model-files.md) landed its model-file
-registry 2026-09-13; next are the two offers it unblocks, `.EXP` (#103) and
-`STR(...)` (#107). The **live-watcher track is closed on the code and owes one
+**In flight:** [1118](wp/1118-foreign-model-files.md) landed the GSAS `.EXP`
+reader 2026-09-15 (#103), which showed the FAP acceptance frees 20 parameters
+where GSAS freed 28. `STR(...)` (#107) still stands. The **live-watcher track is closed on the code and owes one
 decision**: [1413](wp/1413-the-snapshot-is-what-recording-costs.md) shipped
 2026-09-15, cutting the decimation 8.8-11.9x at a bit-identical index set and
 taking recording to 1.03-1.23x, which the manual and the skill now quote.
@@ -462,7 +462,7 @@ seam written out in [1325](wp/1325-parametric-series.md)'s `### Inherited`.
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
-| [1118](wp/1118-foreign-model-files.md) | Foreign model files: read a refinement in, write one back | 🔄 2026-09-13 | — |
+| [1118](wp/1118-foreign-model-files.md) | Foreign model files: read a refinement in, write one back | 🔄 2026-09-15 | — |
 | [1119](wp/1119-named-variables.md) | Named variables and equations: a `prm` of one's own | ✅ 2026-09-04 | — |
 | [1314](wp/1314-mfile-reader.md) | A Jana2020 project reader: .m50/.m40/.m41 | ⬜ | 1118 |
 | [1319](wp/1319-structure-interchange.md) | Structure interchange: checkCIF conformance and a bare XYZ importer | ⬜ | — |

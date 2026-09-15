@@ -41,6 +41,7 @@ from .io.projects import (
     ProjectModel,
     identify_project_format,
     read_fullprof_pcr,
+    read_gsas_exp,
     read_project_model,
     read_topas_inp,
 )
@@ -173,6 +174,7 @@ __all__ = [
     "read_pattern",
     "read_pdcif",
     "read_fullprof_pcr",
+    "read_gsas_exp",
     "read_project_model",
     "read_recipe",
     "read_topas_inp",

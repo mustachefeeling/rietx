@@ -9,7 +9,7 @@ graph LR
   C["structure<br/><i>.cif</i>"] --> SC["Structure.from_cif"]
   I["instrument profile<br/><i>.json</i>"] --> LP["load_instrument_profile"]
   G["GSAS-I instrument file<br/><i>.prm</i>"] --> GP["read_gsas_prm"]
-  M["another program's refinement<br/><i>.inp .pcr</i>"] --> PM["read_project_model"]
+  M["another program's refinement<br/><i>.inp .pcr .EXP</i>"] --> PM["read_project_model"]
   RP --> REF(["refinement"])
   SC --> REF
   LP --> REF
@@ -251,11 +251,11 @@ error.
 :class: warning
 The foreign-refinement readers are under active development, so the names in
 this section are documented and not frozen. `read_project_model`,
-`identify_project_format`, `read_topas_inp`, `read_fullprof_pcr` and the
-per-format models they answer with (`rietx.io.projects`) may change in a 1.x
-release: the registry landed with two formats and three more queued, each of
-which is evidence about its shape, and the write direction is not written at
-all. A format's own model mirrors that format, so its fields move when the
+`identify_project_format`, `read_topas_inp`, `read_fullprof_pcr`,
+`read_gsas_exp` and the per-format models they answer with
+(`rietx.io.projects`) may change in a 1.x release: the registry has three
+formats and two more queued, each of which is evidence about its shape, and the
+write direction is not written at all. A format's own model mirrors that format, so its fields move when the
 reader's coverage does.
 {ref}`provisional-by-declaration` has the promise in full.
 :::
@@ -280,8 +280,8 @@ readers: `rx.read_pattern` for a pattern, `rx.read_gsas_prm` for a GSAS-I
 instrument file, `rx.read_recipe` for a PowderLine recipe. Those are what such a
 file usually turns out to be.
 
-Call `rx.read_topas_inp` or `rx.read_fullprof_pcr` directly when you already
-know what you have; `rx.identify_project_format` answers which format claims a
+Call `rx.read_topas_inp`, `rx.read_fullprof_pcr` or `rx.read_gsas_exp`
+directly when you already know what you have; `rx.identify_project_format` answers which format claims a
 file without parsing it, reading only enough of the head to decide.
 
 ### What comes back
@@ -345,6 +345,129 @@ do.
 | `FullProfModel.cycles`, `FullProfModel.refined_parameter_count`, `FullProfModel.parameter_numbers` | how the run was driven, and which codeword numbered which parameter |
 | `FullProfModel.output` | the output options the file sets |
 
+`read_gsas_exp` returns a `GsasModel`. A GSAS experiment file holds the whole
+experiment rather than one phase, so the model is a tree: phases, histograms,
+and one entry per phase-and-histogram pair, which is where GSAS keeps the
+profile coefficients.
+
+| Field | What it holds |
+|---|---|
+| `GsasModel.path`, `GsasModel.title`, `GsasModel.version` | the file, its `DESCR` title and the GSAS version that wrote it |
+| `GsasModel.phases` | every phase the file states |
+| `GsasModel.histograms` | every histogram, with its machine and the pattern it points at |
+| `GsasModel.hap` | the phase-and-histogram entries, keyed `(phase number, histogram number)` |
+| `GsasModel.rwp`, `GsasModel.rp` | the run's own agreement indices |
+| `GsasModel.reduced_chi2` | GSAS's `GDNFT` figure, which is reduced χ² rather than its root |
+| `GsasModel.n_variables`, `GsasModel.n_observations` | how many parameters the run refined, and over how many channels |
+| `GsasModel.unsupported` | one line per thing the read could not carry, kept whether or not you asked |
+| `GsasModel.histogram`, `GsasModel.profile` | pick one histogram, or one pair's refined profile; both refuse to choose when the file carries several and you named none |
+
+A phase is `GsasPhase`:
+
+| Field | What it holds |
+|---|---|
+| `GsasPhase.number`, `GsasPhase.name` | its `CRS` ordinal and the name the file gives it |
+| `GsasPhase.space_group` | the symbol, as written |
+| `GsasPhase.cell` | the lattice, its esds and its one refine flag |
+| `GsasPhase.atoms` | the sites |
+| `GsasPhase.kind`, `GsasPhase.magnetic` | GSAS's phase type, and whether it is one of the two magnetic ones |
+| `GsasPhase.formula` | the `CHMF` unit-cell contents, per species |
+
+Its lattice is a `GsasCell`:
+
+| Field | What it holds |
+|---|---|
+| `GsasCell.a`, `GsasCell.b`, `GsasCell.c`, `GsasCell.alpha`, `GsasCell.beta`, `GsasCell.gamma` | the lattice |
+| `GsasCell.esd_a`, `GsasCell.esd_b`, `GsasCell.esd_c`, `GsasCell.esd_alpha`, `GsasCell.esd_beta`, `GsasCell.esd_gamma` | their esds, where the run produced them |
+| `GsasCell.volume`, `GsasCell.volume_esd` | the cell volume |
+| `GsasCell.refined`, `GsasCell.damping` | GSAS refines the cell as metric tensor elements under one flag, so there is one here rather than six |
+
+Each of its sites is a `GsasAtom`:
+
+| Field | What it holds |
+|---|---|
+| `GsasAtom.label`, `GsasAtom.species` | the name you chose and the scattering species, in the file's own upper case |
+| `GsasAtom.x`, `GsasAtom.y`, `GsasAtom.z`, `GsasAtom.occupancy`, `GsasAtom.multiplicity` | the site |
+| `GsasAtom.uiso` | the isotropic displacement in Å², or `None` for an anisotropic site |
+| `GsasAtom.uij`, `GsasAtom.anisotropic` | the six anisotropic values, or `None` |
+| `GsasAtom.refine_xyz`, `GsasAtom.refine_u`, `GsasAtom.refine_occupancy` | the `X`, `U` and `F` letters from the file's own refine codes |
+| `GsasAtom.damping` | the per-group damping codes |
+
+A histogram is `GsasHistogram`:
+
+| Field | What it holds |
+|---|---|
+| `GsasHistogram.number`, `GsasHistogram.kind` | its ordinal and GSAS's `HTYP`, such as `PXC` for powder X-ray at constant wavelength |
+| `GsasHistogram.is_powder`, `GsasHistogram.is_constant_wavelength` | that type, read for you |
+| `GsasHistogram.data_file`, `GsasHistogram.instrument_file` | the pattern and `.prm` it points at, as the file spells them |
+| `GsasHistogram.bank`, `GsasHistogram.anode` | the detector bank, and the anode `IRAD` names |
+| `GsasHistogram.wavelengths` | the emission lines, Kα1 first |
+| `GsasHistogram.zero`, `GsasHistogram.refine_zero` | the zero correction and its flag |
+| `GsasHistogram.polarization`, `GsasHistogram.polarization_type` | the polarization fraction and its type code |
+| `GsasHistogram.ka2_ratio` | the Kα2/Kα1 ratio, or `None` where the field is blank |
+| `GsasHistogram.excluded_regions` | what the run left out, GSAS's spacer pair dropped |
+| `GsasHistogram.two_theta_range` | the range the data covers |
+| `GsasHistogram.n_channels_used`, `GsasHistogram.n_channels_total` | how many points were fitted, of how many recorded |
+| `GsasHistogram.scale`, `GsasHistogram.refine_scale` | the histogram scale and its flag |
+| `GsasHistogram.background` | the background function and its coefficients |
+| `GsasHistogram.default_profiles` | the profile sets the instrument file supplied, which is where the histogram *started* |
+| `GsasHistogram.rwp`, `GsasHistogram.rp` | this histogram's own indices |
+
+A phase-and-histogram pair is a `GsasHap`:
+
+| Field | What it holds |
+|---|---|
+| `GsasHap.phase`, `GsasHap.histogram` | which pair this is |
+| `GsasHap.phase_fraction`, `GsasHap.refine_phase_fraction` | the phase fraction and its flag |
+| `GsasHap.profile` | the refined profile for this pair |
+| `GsasHap.preferred_orientation` | the March-Dollase rows, each with its axis and flag |
+| `GsasHap.extinction`, `GsasHap.refine_extinction` | the powder extinction coefficient |
+
+Its profile is a `GsasProfile` of `GsasProfileTerm` rows:
+
+| Field | What it holds |
+|---|---|
+| `GsasProfile.function`, `GsasProfile.n_coefficients`, `GsasProfile.cutoff`, `GsasProfile.damping` | which GSAS profile function, over how many coefficients |
+| `GsasProfile.terms` | the coefficients, named |
+| `GsasProfile.by_name` | the same, keyed by GSAS's name for each |
+| `GsasProfile.refined_names` | the ones the run was free to move, which is the protocol |
+| `GsasProfileTerm.name`, `GsasProfileTerm.index` | GSAS's name for the coefficient and its 1-based position |
+| `GsasProfileTerm.value`, `GsasProfileTerm.refined` | the file's own number, and its flag |
+| `GsasProfileTerm.degrees` | the same quantity in degrees, or `None` where the unit is compound |
+
+The background is a `GsasBackground`:
+
+| Field | What it holds |
+|---|---|
+| `GsasBackground.function`, `GsasBackground.n_coefficients` | which of GSAS's background functions, over how many terms |
+| `GsasBackground.coefficients` | the terms themselves |
+| `GsasBackground.refined`, `GsasBackground.damping` | whether the run refined them |
+
+Three things about a `.EXP` decide how you read one.
+
+#### Coefficient names depend on the profile function
+
+GSAS's constant-wavelength
+function 2 has `LX` fourth and function 3 has `GP` fourth, so the names come from
+the function the file declares. A function this build cannot name is refused
+rather than read positionally, because a mis-assigned width is a plausible wrong
+answer rather than an error.
+
+#### The coefficients are in centidegrees
+
+`GsasProfileTerm.degrees` is the
+conversion, and it is `None` for the `L11`…`L23` anisotropic terms, whose unit
+also involves `d²`. `None` there means no conversion was made, not that the
+value is zero.
+
+#### A blank field is not a zero
+
+`GsasHistogram.ka2_ratio` is the case that
+catches people: both a polarization fraction and a Kα2/Kα1 ratio are
+conventionally 0.5, and they sit in adjacent fields on the same record. Where
+the file leaves the ratio blank this reads `None`, and choosing a ratio is then
+yours to do explicitly.
+
 ### Which formats this build reads
 
 `rx.capabilities()` publishes the registry, so a client asks rather than
@@ -364,15 +487,17 @@ caps = rx.capabilities()
 | `ProjectFormatCapability.extensions` | the conventional suffixes, which are informational and never the dispatch |
 | `ProjectFormatCapability.sniff` | how the format is recognised, in words |
 | `ProjectFormatCapability.carries` | what the file holds beyond a structure; read this before reading a model you have no common shape for |
-| `ProjectFormatCapability.reports_at` | `"read"` or `"build"`: which call takes your `diagnostics=` list |
+| `ProjectFormatCapability.reports_at` | `"read"`, `"build"` or `"both"`: which call takes your `diagnostics=` list |
 | `ProjectFormatCapability.refuses` | set when the build recognises a format in order to decline it, carrying why |
 
 `reports_at` is a real difference and not bookkeeping. A `.inp`'s repairs, such
 as a rewritten species spelling or a translated origin suffix, happen while
 parsing, so its channel is `read_project_model(..., diagnostics=notes)`. A
 `.pcr`'s all happen while codewords become a `Structure`, so its channel is
-`ProjectModel.to_structure(diagnostics=notes)`. Passing a list to both collects
-either without your having to know which.
+`ProjectModel.to_structure(diagnostics=notes)`. A `.EXP` repairs at both ends
+and declares `"both"`. It reports the histograms it could not carry while
+parsing, and the species it normalises while building. Passing a list to both
+calls collects any of the three without your having to know which.
 
 Passing your list to the wrong call still does not lose the read's half.
 Whatever the read reported is on `ProjectModel.diagnostics` as well, filled list

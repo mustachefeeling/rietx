@@ -661,6 +661,29 @@ CLAIMS: tuple[Claim, ...] = (
                  "the tied value, and the four untied Biso sites move by "
                  "< 0.5 sigma",
     ),
+    Claim(
+        "test_acceptance_fap",
+        "test_the_file_states_a_wider_free_set_than_this_plan",
+        "fap", ("cross_code", "identity"),
+        "the free set this plan refines against the free set GSAS's own file "
+        "states, with the difference named rather than implied",
+        reference="FAP.EXP's own refine flags, read by rx.read_gsas_exp and "
+                  "converted to rietx dot-paths through to_structure.  The "
+                  "file states 28 variables in its REFN GDNFT record, and the "
+                  "flags reconstruct that exactly: 2 cell + 12 coordinate DOFs "
+                  "+ 7 Biso structural, plus 1 histogram scale, 3 background "
+                  "terms and 3 profile terms.  This is an identity check "
+                  "against a number the file states somewhere else, not a "
+                  "tolerance",
+        measured="this plan frees 20 parameters and GSAS freed 28; the whole "
+                 "difference is the 12 coordinate DOFs, which no stage here "
+                 "turns on.  Everything else the file frees, this plan frees "
+                 "too.  Freeing them measured 2026-09-15: Rwp 0.096966 -> "
+                 "0.096677, cell +114.5/+111.9 -> +114.4/+111.7 ppm, no "
+                 "wall-clock change, still converged — so closing the gap is "
+                 "nearly free and is a deliberate change with its own numbers "
+                 "rather than a silent one",
+    ),
     # ---- NAC: the synchrotron vertical slice ----------------------------
     Claim(
         "test_acceptance_nac", "test_nac_lebail_then_rietveld", "nac",

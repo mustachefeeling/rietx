@@ -71,19 +71,29 @@ SECTIONS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
         "(the dominant one-bank, constant-wavelength case; a neutron "
         "time-of-flight file and every other GSAS profile function are "
         "refused by name). **Handed another program's whole refinement** — a "
-        "TOPAS `.inp`, a FullProf `.pcr` — call `rx.read_project_model`, which "
+        "TOPAS `.inp`, a FullProf `.pcr`, a GSAS `.EXP` — call "
+        "`rx.read_project_model`, which "
         "dispatches on content and returns what the file stated plus a "
         "`.to_structure()` carrying the file's **own refine flags**, the half "
         "nobody can rebuild from a CIF plus a pattern (Measured: WP-1118 — six "
         "agents handed a hand-transcribed series all named the transcription as "
         "the hardest part of the work). Read `.format.reports_at` to know which "
         "call takes your `diagnostics=` list: a `.inp` reports at read, a `.pcr` "
-        "at `to_structure`. A GSAS `.EXP`/`.LST` refinement output still has no "
-        "reader and is transcribed by hand.",
+        "at `to_structure`, a `.EXP` at both. A GSAS `.EXP` carries the whole "
+        "experiment rather than one phase, so read the wavelengths, excluded "
+        "regions and refined profile terms off `model.stated` — a `Structure` "
+        "cannot hold them (Measured: WP-1118 — the recovered flags reproduce "
+        "GSAS's own stated variable count on `FAP.EXP`). **A blank field there "
+        "is not a zero**: `ka2_ratio` is `None` where the file states no "
+        "Ka2/Ka1 ratio, and the 0.5 such a file *does* state is the "
+        "polarization one field earlier — both are conventionally 0.5, so "
+        "taking the wrong one agrees with the right one until it does not "
+        "(Measured: WP-1118). A GSAS `.LST` "
+        "refinement output still has no reader and is transcribed by hand.",
         ("rx.read_pattern", "rx.read_pdcif", "rx.read_recipe",
          "rx.read_gsas_prm", "rx.read_project_model",
          "rx.identify_project_format", "rx.read_topas_inp",
-         "rx.read_fullprof_pcr", "rx.Structure.from_cif",
+         "rx.read_fullprof_pcr", "rx.read_gsas_exp", "rx.Structure.from_cif",
          "rx.Instrument.bragg_brentano", "rx.Instrument.debye_scherrer",
          "rx.estimate_mu_r", "rx.auto_background", "rx.diagnose",
          "rx.load_instrument_profile", "rx.save_instrument_profile",

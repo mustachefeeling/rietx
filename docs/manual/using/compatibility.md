@@ -129,11 +129,12 @@ to move are declared rather than left to be inferred:
   than refused, and an unknown key in one of the JSON sidecars is ignored.
 - The foreign-refinement readers are provisional as a subsystem.
   `read_project_model`, `identify_project_format`, `read_topas_inp`,
-  `read_fullprof_pcr` and the per-format models they answer with
-  (`rietx.io.projects`) are documented in [](files.md) and are expected to
-  move: the registry over them landed with two formats and three more queued,
-  each of which is evidence about the shape it should have, and the write
-  direction is not written at all. A format's own model mirrors that format, so
+  `read_fullprof_pcr`, `read_gsas_exp` and the per-format models they answer
+  with (`rietx.io.projects`) are documented in [](files.md) and are expected to
+  move: the registry over them has three formats and two more queued, each of
+  which is evidence about the shape it should have, and the write direction is
+  not written at all. The third format is already why `ProjectFormat.reports_at`
+  has a `"both"` value it did not have when it shipped. A format's own model mirrors that format, so
   its fields move when the reader's coverage does. What a reader refuses is the
   stable part: a construct this package cannot represent raises naming the file,
   in this release and in the next.
