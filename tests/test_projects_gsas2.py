@@ -32,12 +32,12 @@ import pytest
 
 import rietx as rx
 from rietx.io.projects.gsas2 import (
+    _STATIC_GLOBALS,
     ALLOWED_GLOBALS,
     CW_CENTIDEGREE_POWER,
     TREE_ITEM_STANCE,
     Gsas2GpxError,
     _numpy_globals,
-    _STATIC_GLOBALS,
     item_kind,
     read_gsas2_gpx,
     to_structure,
