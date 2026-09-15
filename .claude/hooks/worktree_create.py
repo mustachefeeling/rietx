@@ -49,7 +49,9 @@ import subprocess
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+_HOOKS = str(Path(__file__).resolve().parent)  # appended, never inserted: a
+if _HOOKS not in sys.path:  # loose script here must not shadow a stdlib module
+    sys.path.append(_HOOKS)
 import session_start  # noqa: E402  (sibling hooks, not a package)
 import wp_claim  # noqa: E402
 

@@ -69,7 +69,9 @@ import sys
 from pathlib import Path
 from typing import NamedTuple, Optional
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+_HOOKS = str(Path(__file__).resolve().parent)  # appended, never inserted: a
+if _HOOKS not in sys.path:  # loose script here must not shadow a stdlib module
+    sys.path.append(_HOOKS)
 import wp_claim  # noqa: E402  (sibling hook, not a package)
 
 VENV_FIX = 'uv venv --python 3.12 && uv pip install --python .venv/bin/python -e ".[dev]"'

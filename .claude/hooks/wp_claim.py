@@ -57,6 +57,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib
 import json
 import os
 import re
@@ -66,6 +67,7 @@ from datetime import date
 from pathlib import Path
 from typing import Iterable, NamedTuple, Optional
 
+_HERE = str(Path(__file__).resolve().parent)
 CLAIM_DIR = "wp-claims"
 # ``wp1422-slug``, ``1331-landing-page``: the repo writes both, and the four
 # digits are the WP either way.  A name with no four-digit head claims nothing,
@@ -335,10 +337,15 @@ def describe(holder: Holder, main: Optional[Path]) -> str:
 
 
 def sibling(name: str):
-    """A sibling hook module, imported by path so this works however it is run."""
-    sys.path.insert(0, str(Path(__file__).resolve().parent))
-    import importlib
+    """A sibling hook module, imported by path so this works however it is run.
 
+    Appended rather than inserted, and only once: these are loose scripts on a
+    directory that is not a package, so putting it *first* would let a file here
+    shadow a stdlib module, and inserting per call would grow ``sys.path``
+    without bound.
+    """
+    if _HERE not in sys.path:
+        sys.path.append(_HERE)
     return importlib.import_module(name)
 
 
