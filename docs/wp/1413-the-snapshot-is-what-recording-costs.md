@@ -68,9 +68,33 @@ to provide. If this WP ends up there, it says so in the milestone record and in
   withdrawn. See Context.
 - **No optimisation of the fit itself**, which is WP-1121's and WP-1124's ground.
 
+## Findings
+
+**2026-09-15 — WP-1402's split still holds.** One snapshot build on each bench
+case's last stage, best of five, `[dev]` venv, macOS arm64, Python 3.12.12.
+
+| | `nac` | `cpd-2` | `trigger` |
+|---|---|---|---|
+| points / snapshots / drawn | 22 003 / 6 / 7 385 | 7 251 / 9 / 5 907 | 4 165 / 8 / 4 117 |
+| `build_snapshot` | 9.32 ms | 9.00 ms | 13.71 ms |
+| `decimation_index` | 6.84 | 6.70 | 6.52 |
+| `model.evaluate` | 0.30 | 0.39 | 5.63 |
+| `stage_ticks` | 0.07 | 0.20 | 0.42 |
+| `table.decode` / `model.background` | 0.01 / 0.01 | 0.02 / 0.00 | 0.03 / 0.01 |
+| `json.dumps(payload)` | 4.46 ms (329 kB) | 3.08 ms (241 kB) | 2.31 ms (183 kB) |
+
+WP-1402 measured `decimation_index` at 6.6-7.1 ms and `json.dumps` at 2.4-4.5;
+both reproduce, the two figures outside those ranges being under 2 % out. The
+decimation costs the same on 4 165 points as on 22 003, which is the shape of a
+cost that is 2000 buckets of python rather than anything the data does.
+
+`trigger`'s build is the outlier and it is not the snapshot's doing: its
+`model.evaluate` is 5.63 ms against 0.30 on `nac`, because 1 188 line-reflection
+pairs on 4 165 points is the dispatch-heavy case.
+
 ## Tasks
 
-- [ ] Profile one snapshot build on each bench case, and confirm WP-1402's split
+- [x] Profile one snapshot build on each bench case, and confirm WP-1402's split
       still holds on the current tree before optimising anything.
 - [ ] Make `decimation_index` cheap. It buckets 2000 spans in python over an
       already-sorted axis, which is a `searchsorted` shape.
