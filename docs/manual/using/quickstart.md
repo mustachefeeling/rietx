@@ -162,10 +162,10 @@ intensities.
 A Le Bail fit (`mode="lebail"`) refines the cell, the zero shift and the profile
 with the intensities extracted per reflection instead of computed from the
 structure. It therefore converges from a much worse start, and it tells you
-whether the cell and the profile are right independently of whether the
-structure is. Only then does a Rietveld fit (`mode="rietveld"`, the default)
-face a fair question. This is the IUCr guidelines' own advice for a partial or
-uncertain model {cite}`mccusker1999`.
+whether the profile is right independently of whether the structure is. Only
+then does a Rietveld fit (`mode="rietveld"`, the default) face a fair question.
+This is the IUCr guidelines' own advice for a partial or uncertain model
+{cite}`mccusker1999`.
 
 There is a second reason to run one. A Le Bail report flags observed peaks the
 model does not account for, so an impurity phase shows up as unmatched peaks at
@@ -194,6 +194,15 @@ above the fitted background. The indexing chapter's validation reports exactly
 that, as `LeBailValidation.predicted_but_absent` ([](indexing.md)). Texture can
 empty a reflection the same way, so either one shows up in the Rietveld fit that
 follows, where the intensity is computed from the structure.
+
+The cell is on the same footing, and how far depends on how crowded the pattern
+is. Where reflections are dense, extracted intensities can index one pattern
+more than one way, so a Le Bail cell that fits better than a structural model
+does can still be the wrong cell {cite}`peterson2005`. Where they are resolved
+the freedom buys nothing, and the check is cheap to skip: on the 11-BM LaB₆
+pattern, at 0.014 reflections per FWHM, Le Bail, Pawley and Rietveld agree on
+*a* to 0.4 ppm with the same esd to 2 %. Reflections per FWHM is the number to
+look at, and crowding rather than low symmetry is what drives it.
 
 ### With no structure at all
 
