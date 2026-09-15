@@ -250,6 +250,7 @@ There is no stage-list check on main to extend (grepped 2026-09-08: no
 `STAGE_FREES_*` code exists), so this WP either adds the first one or the
 rule goes in the skill's magnetic reference as a written ordering row. Take
 the cheaper of the two at the time; the skill row is required either way.
+
 ### Inherited
 
 - **2026-09-15, from the issue triage (issue #287): this WP's four codes go

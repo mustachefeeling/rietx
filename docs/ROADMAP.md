@@ -108,8 +108,8 @@ two figures to correct.
 **Queued, unscheduled** ([§ Unscheduled](#unscheduled)): the 2026-09-01
 triage's 1309–1322 plus 1323 and 1325; the 2026-09-03 triage's 1332–1341; the
 magnetic track (1326–1329, 1343, and 1418 behind them); the older 1133. The
-**2026-09-15 triage** adds 1413–1419, seven WPs for twenty issues, and folds
-the other thirteen into 1310, 1311, 1312, 1326–1328, 1333, 1338 and 1343.
+**2026-09-15 triage** adds 1413–1420, eight WPs for ten issues, and folds the
+other eleven into 1310, 1311, 1312, 1326–1328, 1333, 1338 and 1343.
 
 **Parked, blocking nothing:** the 1.0.0-notes promises (`.rex` zip transport,
 `excluded_regions` honoured by `replay` — 1003 § B); the indexing narrowing and
@@ -448,7 +448,7 @@ Opened by evidence — an issue, an agent round, a measurement — and owned by 
 milestone yet. Grouped by what the evidence says; each WP file carries it in
 full, with the issues it closes. Most of the 13xx rows come from the
 2026-09-01 issue triage (PRs #205, #213) and the day after; 1118, 1119, 1130
-and 1133 are older; 1413–1419 are the 2026-09-15 triage's.
+and 1133 are older; 1413–1420 are the 2026-09-15 triage's.
 
 #### Coming from another code
 
@@ -538,13 +538,16 @@ including a *converged* fit's esd computation (1333); 3.9 % of stages burning
 reduction (1334); and a report path costing 26× the fit it reports on (1335).
 Two are pure cost; 1333 also hides a silent wrong answer, a verification pass
 that died reading as one that passed. Together they decide whether a batch is
-affordable.
+affordable. The 2026-09-15 triage adds 1420: a phase 1301 held cannot get
+back in when its frozen structure is collinear with a supported phase, and
+the chain says nothing (issue #267).
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
 | [1333](wp/1333-a-series-survives-one-pattern.md) | A series survives one pattern, and says which one it lost | ⬜ | — (1317 soft) |
 | [1334](wp/1334-the-stage-that-ran-out-of-budget.md) | The stage that ran out of budget | ⬜ | — |
 | [1335](wp/1335-the-report-costs-more-than-the-fit.md) | The report costs more than the fit | ⬜ | — |
+| [1420](wp/1420-a-held-phase-re-enters-or-says-it-cannot.md) | A held phase re-enters, or the chain says it cannot | ⬜ | — (1333, 1342, 1419 soft) |
 
 #### One file, many patterns
 
