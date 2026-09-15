@@ -83,7 +83,12 @@ SECTIONS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
         "experiment rather than one phase, so read the wavelengths, excluded "
         "regions and refined profile terms off `model.stated` — a `Structure` "
         "cannot hold them (Measured: WP-1118 — the recovered flags reproduce "
-        "GSAS's own stated variable count on `FAP.EXP`). A GSAS `.LST` "
+        "GSAS's own stated variable count on `FAP.EXP`). **A blank field there "
+        "is not a zero**: `ka2_ratio` is `None` where the file states no "
+        "Ka2/Ka1 ratio, and the 0.5 such a file *does* state is the "
+        "polarization one field earlier — both are conventionally 0.5, so "
+        "taking the wrong one agrees with the right one until it does not "
+        "(Measured: WP-1118). A GSAS `.LST` "
         "refinement output still has no reader and is transcribed by hand.",
         ("rx.read_pattern", "rx.read_pdcif", "rx.read_recipe",
          "rx.read_gsas_prm", "rx.read_project_model",
