@@ -426,7 +426,8 @@ instead of supplying a reason.
   before it was refused for a token count.
 - `tests/test_gsas_prm.py` went 29 → 38 test functions, 12 added and 3 removed.
   The three that went asserted the split reading: the token-count refusal, the
-  doublet refusal and the reserved-field refusal.
+  doublet refusal and the reserved-field refusal. The file collects 40 cases and
+  all 40 pass on the merged tree, re-measured 2026-09-15 by this repair.
 - `src/rietx/io/CLAUDE.md`'s cap went 368 → 383, and the file landed at 381.
 - **No selection count, in either direction.** The session recorded none, and
   this repair could not supply one: another session held the machine
