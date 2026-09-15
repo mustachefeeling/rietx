@@ -310,6 +310,25 @@ forward model, the solver or any physics, so no measured number can move.
   substring of a page nobody executed. `node --check` over the extracted script
   now covers both that page and `compare_app.py`'s.
 
+*Review.* `/code-review high --fix` raised eight findings, five applied and
+three declined. One was a real defect this session introduced and one a test
+could not have caught: `drawDetail` committed `shell.mtime` before awaiting the
+draw, so any early return in `drawSnapshot` marked a write drawn that never was
+— and on a fit's last stage there is no later write to notice, so the watcher
+would hold the previous stage's picture for good. `drawSnapshot` now answers
+whether the write was dealt with. The pass also found `stage_ticks` filtering up
+to a hundred thousand positions through a python generator, in the same commit
+that vectorised `_json_list`; two new comments that argued for the opposite of
+their own code; and the crumb showing the previous run's point count for a poll.
+Declined: the subnormal NaN in `_round_significant` (unreachable for an
+intensity or a residual), the `"snapshot.json"` literal in two modules (the
+practice `events.jsonl` and `status.json` already follow, and both halves are
+pinned end to end), and guarding the sink loop — a sink that raises *should*
+kill a fit whose caller asked for a live view, and the case that changes is
+WP-1403's, so it went into 1403's `### Inherited` rather than into this branch.
+The page was re-driven in chromium after the change, and the zoom still
+survives.
+
 *Next.* Three, in order. **WP-1403** is now unblocked and is the point of the
 track: recording every fit costs 1.03-1.28x and 180-329 kB a stage, which is
 affordable, and it needs no plotly. **WP-1404** should start from the
