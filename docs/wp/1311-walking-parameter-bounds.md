@@ -86,6 +86,31 @@ caller bounded keeps the caller's bound. New codes get skill rows and
   its softplus floor is visible only as a flat direction, never as a bound
   hit.
 
+- **2026-09-15, from the issue triage (issue #283, PR #289): `Cell`'s six
+  parameters declare no bounds at all, and the guard half is in flight.**
+  `schemas/structure.py::Cell` holds six bare `Parameter`s (min −inf, max
+  +inf, identity), while `Atom.occ`, `Atom.biso` and `ProfileTCHZ.u`/`v`
+  declare physical bounds. Not #204's mechanism: there is nothing to
+  discard. On a featureless pattern the `profile_only` preset's cell stage
+  probes α = β = γ = 180° 3 430 times, and `d_spacings` answers each with
+  NaN and a bare `RuntimeWarning`; 445 probes on a 2 %-off start that never
+  moved (`converged`, Rwp 1.01, possibly 1336's shape). The returned cell is
+  correct in every case. PR #289 (open) ships the *guard* half:
+  `DegenerateCellError` by name from `d_spacings`, a `_DegenerateCellGuard`
+  in `least_squares` penalising the trial instead of crashing,
+  `StageResult.n_degenerate_cell_probes` and a `CELL_DEGENERATE_PROBE` info
+  diagnostic. The *bounds* half is this WP's: lengths with a real floor
+  above zero and angles in (0, 180), in the idiom `Atom.occ` uses. Two rules
+  from root CLAUDE.md apply. A length's identity is not zero, so this is an
+  identity transform with a floor and never `softplus, min=0` (the
+  `MARCH_R_MIN` lesson). A bound on an angle the setting fixes is harmless,
+  because that entry is locked. `params.vector.cell_window` narrows a held
+  phase's walk and is suppressed by a caller's own bound, so a declared
+  bound changes nothing there. Cells already persisted unbounded are 1321's.
+  Decision for the maintainer: whether the bound and #289's penalty both
+  land. The bound stops the probes; the guard reports whatever a tie or a
+  window still reaches.
+
 ## Non-goals
 
 - **Not width caps** — #144's, already landed with its size extension.

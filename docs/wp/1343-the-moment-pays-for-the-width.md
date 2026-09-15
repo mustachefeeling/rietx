@@ -250,6 +250,15 @@ There is no stage-list check on main to extend (grepped 2026-09-08: no
 `STAGE_FREES_*` code exists), so this WP either adds the first one or the
 rule goes in the skill's magnetic reference as a written ordering row. Take
 the cheaper of the two at the time; the skill row is required either way.
+### Inherited
+
+- **2026-09-15, from the issue triage (issue #287): this WP's four codes go
+  to `references/magnetic.md`, never to `diagnostics.md`.** The ruling of
+  2026-09-09 gives the magnetic family (1326–1329 and this WP) one gated
+  reference file numbered `2b`, carrying codes, strategy and traps, with a
+  one-line pointer from § 7. `diagnostics.md` has 20 B free on this tree
+  and the family never enters it. 1327's Inherited holds the file's shape.
+  If this WP lands before 1327 it opens the file with the pinned header.
 
 ## Non-goals
 

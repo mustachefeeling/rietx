@@ -175,6 +175,66 @@ rule above applies to the form factors.
   else in the chain has to know. No field, no schema bump and no cost here:
   the ask is only that the sum happens as late as it can.
 
+- **2026-09-15, from the issue triage (issues #256, #257, #278, #287, and
+  PR #290): the operator layer landed, and five things it changes here.**
+
+  **M-5 is on `main`** (PR #290, 2026-09-10, from the contributor;
+  `crystallography/magnetic/operators.py`, 140 tests). It gives
+  `MagneticOperator` (integer rotation, exact-`Fraction` translation, ε),
+  `MagneticGroup` (coset representatives plus (anti)centrings, the two
+  magCIF loops as the stored form) with `from_xyz`/`xyz()` round trips,
+  `magnetic_group(spec, hall_number=…)` and `database_settings` over
+  spglib's 1651 groups, `MagneticGroup.transformed` via
+  `transform_BNS_Pp_abc` (lattice completion when |det P| ≠ 1),
+  `identify()` from a bare operator list (1648 of 1651; three are a spglib
+  defect), and `allowed_moment_basis`/`in_span` with the
+  `moment_to_cartesian`/`moment_from_cartesian`/`moment_magnitude`
+  conversions in magCIF crystal-axis components. Twenty published moments
+  assert span, never dimension. So task 1's stored form has its parser and
+  printer, and task 2's subspace exists and is wired to nothing. § "The
+  shape we chose" rejected alternative (1) on "gemmi carries no magnetic
+  groups". Still true of gemmi, and it no longer decides anything: a
+  UNI/BNS/OG **number** resolves through spglib and a symbol **string** is
+  refused by name. Rewrite that paragraph from the code before quoting it.
+  #257 A4 is thereby done. A6(i), the moment basis, has its conversions,
+  and the MAGNDATA round trip is the test still to write.
+
+  **#257's other amendments.** A5: the ⟨j₀⟩/⟨j₂⟩ table needs a cross-check
+  source; the `periodictable` package carries Brown's coefficients under a
+  public-domain notice (licence to verify before use) and can be the
+  independent transcription check the Rouse table never had; a table with
+  ⟨j₀⟩ for 4f ions and no ⟨j₂⟩ silently enforces g = 2 on a rare earth.
+  A6(ii)/(iii): pin the e^{−2πi k·a_g} phase and p = 2.695 fm (with
+  `b_Sears.dat` in fm) by round trip, one unit test each. A7: `Magnetic-III`
+  (Ba₆Co₆-type cobaltite, D1B) and `Magnetic-IV` (Pr₀.₅Sr₀.₅MnO₃, 3T2) are
+  the first public k ≠ 0 commensurate candidates, k to confirm from the
+  tutorial pages first. A8: the first non-goal ("determining a magnetic
+  structure … ISODISTORT's job") is asked to read as sequencing; the
+  decision sits in [1418](1418-the-magnetic-structure-is-determined.md),
+  which the triage opened as a candidate.
+
+  **#278 — the magnetic reflections as their own tick row.** Every plot
+  draws one tick row per phase, so a phase with a moment would draw
+  satellites and parent-forbidden lines on the nuclear row.
+  `HistogramResult.ticks` is `dict[str, list[float]]`
+  (`schemas/results.py`), so the ask is a second key,
+  `"<phase> (magnetic)"`, with its own palette slot, offset and legend
+  entry, mixed reflections marked, and the same split in the plotly builder
+  and the live view. Owned by this WP's report task. `MomentEvidence`,
+  which the issue says knows which reflections are magnetic, does not exist
+  on `main`.
+
+  **#287's ruling (2026-09-09) supersedes the 2026-09-02 entry above on one
+  point.** The engine's magnetic diagnostic codes do **not** go in
+  `references/diagnostics.md`'s tables. That file is at 35 980 B of 36 000
+  on this tree, and the ruling puts the whole family (1326–1329 and 1343)
+  in one gated `references/magnetic.md`, numbered `2b` under the turn-on
+  order, carrying the codes *and* the strategy and the traps, reachable
+  from § 7 by a one-line pointer. Whatever in `tests/test_docs_consistency.py`
+  or `tests/test_skill.py` looks for a code's row in `diagnostics.md` alone
+  has to learn the second file (1338's gates). `DISTORTION_MODE_UNSUPPORTED`
+  (1419) stays a § 7 row.
+
 ## Non-goals
 
 - Determining a magnetic structure: representation analysis, k-SUBGROUPSMAG,

@@ -108,6 +108,30 @@ The vocabulary for "this pattern's value is not a measurement" already exists:
 crossed out rather than dropping it, precisely so a gap does not read as data
 never collected. That is the shape the failed pattern should take.
 
+### Inherited
+
+- **2026-09-15, from the issue triage (issue #269): a path the comparison
+  could not reach reads exactly like one that agreed.** Since PR #264
+  (2026-09-10) `SEQUENTIAL_PATH_DEPENDENT` is judged per pattern and only
+  where both chains measured an esd for that pattern (`sequential.py`, the
+  `comparable` mask). Right, and the narrowing has no output. A path with
+  no comparable pattern is not judged, and what a caller sees is what an
+  agreed path shows: nothing. The motivating case is a cubic phase held for
+  part of a series, which emits tie rows for `cell.b`/`cell.c` in every
+  pattern while `cell.a` is absent where it was held, so a path held
+  throughout one direction falls out silently. The skill's `abstention.md`
+  row now says silence is not clearance, which an agent cannot act on
+  without re-deriving the trajectories. This is #224's shape (a check that
+  died reads as passed) with a different cause. The reporter's options: (1)
+  a list on `SeriesResult` of the paths the comparison could not reach,
+  with the reason; (2) an info diagnostic; (3) per-path counts of
+  comparable patterns. **Triage recommendation:** (1) with (3)'s count
+  folded in as a field, so a path is either listed with a reason or judged
+  on a stated number of patterns. It is a schema addition and a
+  `SCHEMA_VERSION` bump, the maintainer's to direct; the reporter offers the
+  PR once directed. Rule: absent rather than zero, and the absence visible
+  (1072, 1076).
+
 ## Non-goals
 
 - Making the reflection enumerator's guard laxer. The guard is right and its

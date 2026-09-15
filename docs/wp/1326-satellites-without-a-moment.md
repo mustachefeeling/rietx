@@ -90,6 +90,25 @@ its magnetic supercell instead, which is the shape WP-1327 adopts for the
 moment model; the k-vector form here is the hypothesis tool and the two must
 not both be declared on one phase.
 
+### Inherited
+
+- **2026-09-15, from the issue triage (issue #257 A1–A3, and PR #290):
+  three amendments to this WP, and a layer that landed under it.**
+  PR #290 (2026-09-10) added `crystallography.magnetic.operators`: operators
+  with ε, groups from spglib's database, `identify()`,
+  `allowed_moment_basis`. Nothing there generates satellites, so this WP's
+  generator is still unwritten, but the operations a star of k needs can
+  come from the spglib calls PR #290 already wraps. A1: make the candidate
+  set a **pluggable generator** returning labelled k's rather than the
+  literal {0, ½}³ plus the two trigonal/hexagonal points, so 1418's M-8
+  (every special point and line of the zone, then a general-k grid) drops
+  in without touching the arm. A2: label k where it has a CDML label (Aroyo
+  et al. 2014), since MAGNDATA, ISODISTORT and k-SUBGROUPSMAG speak those
+  labels and a user cross-checks against them. A3: the ±k multiplicity test
+  in § Tasks covers a C-centred cell only; add P, I, F and R against
+  |Laue orbit of H| × |star of k| minus coincidences, because the
+  coincidence rule is where the enumeration and a formula disagree.
+
 ## Non-goals
 
 - Any moment, form factor, or magnetic symmetry: WP-1327.

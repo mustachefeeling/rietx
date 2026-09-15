@@ -158,6 +158,12 @@ _INHERITED_PRUNE_EPOCH = "2026-07-31"
 #                                                          two index rows, and the Current focus sentence
 #                                                          naming them paid for by two cuts in the same
 #                                                          section; landed 690, +4 headroom again
+#   2026-09-15  docs/ROADMAP.md               694 -> 707  for the 2026-09-15 issue triage (1413-1419):
+#                                                          seven index rows across four existing sections,
+#                                                          one sentence per section naming them, the
+#                                                          magnetic track's landed layer, and #258 on the
+#                                                          fence; the Current focus paragraph was cut to
+#                                                          pay for its own sentence; landed 703, +4 headroom
 SIZE_CAPS: dict[str, int | None] = {
     # 739 -> 755 (WP-1102): two standing rules for the component seam — that an
     # additive non-Bragg term is a union *member* and not a new field, and that
@@ -223,7 +229,8 @@ SIZE_CAPS: dict[str, int | None] = {
     # them were paid for inside that section, under a word cap the additions had
     # already broken: the v1.4 row's own "seventeen acceptance rows" and a
     # clause restating that no milestone is open.  Landed at 690.
-    "docs/ROADMAP.md": 694,
+    # 694 -> 707 (the 2026-09-15 triage): seven rows for 1413-1419, landed 703.
+    "docs/ROADMAP.md": 707,
     "gui/CLAUDE.md": 1028,
     "tests/CLAUDE.md": 275,
     "src/rietx/indexing/CLAUDE.md": 300,

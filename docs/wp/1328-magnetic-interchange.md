@@ -79,6 +79,18 @@ is still named in the result.
   `Stance.REFUSED` and there is still no moment on `main` (verified
   2026-09-13), so this WP's premise holds unchanged.
 
+- **2026-09-15, from the issue triage (issue #257, PR #290): two of this
+  WP's premises moved.** `MagneticGroup.transformed` (PR #290,
+  `crystallography/magnetic/operators.py`) already carries a group between
+  settings via magCIF's `transform_BNS_Pp_abc`, lattice completion
+  included, so the reader *applies* that transform, and the refusal by name
+  is reserved for a string it cannot parse. And the writer can emit
+  `_space_group_magn.name_BNS` from `identify()` on the refined operator
+  list instead of echoing input metadata, which is #257's ask for this WP.
+  MAGNDATA entries carrying the transform are the round-trip fixtures; ten
+  of PR #290's twenty published structures are evaluated in a setting the
+  BNS standard reaches only through it.
+
 ## Non-goals
 
 - The model itself, its physics, its DOFs: 1327.

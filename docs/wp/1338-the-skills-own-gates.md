@@ -32,6 +32,29 @@ gate named after the thing it does cover. Whether the skill wants its own check
 for whoever works these gates; the manual's version is a build-time HTML scan
 and cannot be lifted directly.
 
+- **2026-09-15, from the issue triage (issues #284, #287): the cap race
+  fired twice, one ruling each, and the numbers this WP's gates now guard.**
+  #284 (`SKILL.md` at 7 B of headroom) was ruled 2026-09-08 and landed as
+  PR #292 (2026-09-10). The ruling: a body table cell is a lookup and never
+  an argument. §4b's middle column went from 417–815 B a cell to 116–232 B
+  with the reasoning moved to `references/judging.md`, and `batch.md` split
+  by situation into `batch.md` (deciding, 18 rows) and `batch-operating.md`
+  (operating, 14 rows) behind two routing rows keyed by situation. Measured
+  on this tree: `SKILL.md` 31 951 B of 33 000, `batch.md` 23 255,
+  `batch-operating.md` 17 174, `judging.md` 22 873. The ruling is a rule a
+  gate can hold (a per-cell byte bar on the §4b table), and whether it
+  should is this WP's to decide. **#284 can close.** #287 (`diagnostics.md`
+  at 34 B of headroom) was ruled 2026-09-09: the magnetic codes get one
+  gated `references/magnetic.md` under § 2b (1327's Inherited has the
+  shape); `RECIPE_*` moves to `diagnostics-projects.md` § 7g with that
+  section's membership rule restated as *whose file you are reading*
+  (PR #291, open); `REFERENCE_MAX_BYTES` stays at 36 000;
+  `DISTORTION_MODE_UNSUPPORTED` is a § 7 row. Measured on this tree
+  `diagnostics.md` is at 35 980 B, 20 B free, so PR #291 is what makes the
+  next diagnostic row possible, and #247's merge-result race now points at
+  it. Whatever gate looks for a code's row in `diagnostics.md` alone must
+  learn `magnetic.md`.
+
 ## Context
 
 Three issues, all about `tests/test_skill.py` and the process around it
