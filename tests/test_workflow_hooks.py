@@ -13,6 +13,7 @@ output parsing.
 from __future__ import annotations
 
 import importlib.util
+import json
 import os
 import subprocess
 import sys
@@ -949,3 +950,132 @@ def test_a_dormant_row_says_dormant_rather_than_held_by_no_session(
     (holder,) = [h for h in claim.occupancy(trees, [], set(), {}, main) if h.wp == "9101"]
     line = claim.describe(holder, main)
     assert line.startswith("WP-9101 dormant in") and "no session" not in line
+
+
+# --------------------------------------------------------------------------- #
+# The contributor half (WP-1422): a clash with someone on another machine, which
+# no local process scan can see.
+# --------------------------------------------------------------------------- #
+
+
+def _pr(number, title, body="", author="someone", branch="pr/x", files=()):
+    return {
+        "number": number, "title": title, "body": body,
+        "author": {"login": author}, "headRefName": branch,
+        "updatedAt": "2026-09-10T12:00:00Z", "isDraft": False,
+        "files": [{"path": p} for p in files],
+    }
+
+
+def test_a_pr_that_names_no_wp_is_still_reached_through_its_issue(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The measured shape of every contributor PR on this repo, 2026-09-15.
+
+    `pr/cell-degenerate-guard`, `pr/skill-recipe-rows-7g` and `cw-neutron-seed`
+    were all on forks, so absent from `git ls-remote origin`, and not one named
+    a WP in its branch, title or body.  They cite issues, and WP files cite the
+    issues they close, so PR -> issue -> WP is the only chain that reaches them.
+    """
+    (repo / "docs" / "wp").mkdir(parents=True, exist_ok=True)
+    (repo / "docs" / "wp" / "9301-bounds.md").write_text(
+        "# WP-9301\n\nCloses #283.\n", encoding="utf-8"
+    )
+    monkeypatch.setattr(
+        claim, "_gh",
+        lambda root, *a, **k: json.dumps([
+            _pr(289, "lattice: name a degenerate cell (#283)", branch="pr/cell-guard")
+        ]),
+    )
+    (pr,) = claim.open_prs(repo)
+    assert (pr.wp, pr.issues, pr.author) == (None, (283,), "someone")
+
+    (o,) = claim.overlaps([pr], claim.wp_issue_citations(repo))
+    assert (o.wp, o.via) == ("9301", "issue #283")
+
+
+def test_a_pr_that_names_a_wp_outright_does_not_go_through_an_issue(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Title, body or an edited WP file: the direct claim, which beats the
+    issue chain and must not also produce issue rows."""
+    (repo / "docs" / "wp").mkdir(parents=True, exist_ok=True)
+    (repo / "docs" / "wp" / "9301-bounds.md").write_text("Closes #283.\n", encoding="utf-8")
+    citations = claim.wp_issue_citations(repo)
+
+    monkeypatch.setattr(claim, "_gh", lambda root, *a, **k: json.dumps([
+        _pr(330, "WP-9302: something", body="see #283"),
+    ]))
+    (pr,) = claim.open_prs(repo)
+    assert pr.wp == "9302"
+    (o,) = claim.overlaps([pr], citations)
+    assert (o.wp, o.via) == ("9302", "names it")
+
+    monkeypatch.setattr(claim, "_gh", lambda root, *a, **k: json.dumps([
+        _pr(331, "no wp here", files=["docs/wp/9303-thing.md", "src/x.py"]),
+    ]))
+    (pr,) = claim.open_prs(repo)
+    assert pr.wp == "9303"  # the WP file it edits
+
+
+def test_this_session_s_own_pr_is_not_reported_back_to_it(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (repo / "docs" / "wp").mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(claim, "_gh", lambda root, *a, **k: json.dumps([
+        _pr(330, "WP-9302: mine"), _pr(331, "WP-9304: someone else's"),
+    ]))
+    prs = claim.open_prs(repo)
+    assert [o.wp for o in claim.overlaps(prs, {})] == ["9302", "9304"]
+    assert [o.wp for o in claim.overlaps(prs, {}, mine="9302")] == ["9304"]
+
+
+def test_gh_declining_is_not_an_empty_table(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """"No PRs" and "could not look" must not read alike: only the second
+    should stop a session trusting what it sees."""
+    monkeypatch.setattr(claim, "_gh", lambda root, *a, **k: None)
+    assert claim.open_prs(repo) is None
+    monkeypatch.setattr(claim, "_gh", lambda root, *a, **k: "not json{")
+    assert claim.open_prs(repo) is None
+    monkeypatch.setattr(claim, "_gh", lambda root, *a, **k: "[]")
+    assert claim.open_prs(repo) == []
+
+
+def test_one_broad_issue_does_not_fill_the_table_with_one_pr(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Measured: issue #287 is cited by five WP files, so printing per WP gave
+    PR #291 five of the first live table's eight rows.  Grouping by PR shows the
+    fan-out as a list, which is also what it is — weaker evidence than a PR that
+    names one WP — with no threshold invented to say so."""
+    wpdir = repo / "docs" / "wp"
+    wpdir.mkdir(parents=True, exist_ok=True)
+    for n in ("9401", "9402", "9403", "9404", "9405"):
+        (wpdir / f"{n}-x.md").write_text("Closes #287.\n", encoding="utf-8")
+    monkeypatch.setattr(claim, "_gh", lambda root, *a, **k: json.dumps([
+        _pr(291, "skill: rows join 7g (#287)"),
+    ]))
+    found = claim.overlaps(claim.open_prs(repo), claim.wp_issue_citations(repo))
+    assert len(found) == 5
+    grouped = claim.by_pull_request(found)
+    assert len(grouped) == 1
+    pr, touched = grouped[0]
+    assert pr.number == 291 and len(touched) == 5
+    line = claim.describe_pull_request(pr, touched)
+    assert "WP-9401, WP-9402, WP-9403, WP-9404, WP-9405" in line
+    assert line.count("#291") == 1
+
+
+def test_a_wp_file_with_no_issue_citation_matches_nothing(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    wpdir = repo / "docs" / "wp"
+    wpdir.mkdir(parents=True, exist_ok=True)
+    (wpdir / "9501-quiet.md").write_text("# WP-9501\n\nNo issue here.\n", encoding="utf-8")
+    monkeypatch.setattr(claim, "_gh", lambda root, *a, **k: json.dumps([
+        _pr(289, "something (#283)"),
+    ]))
+    assert claim.wp_issue_citations(repo) == {"9501": set()}
+    assert claim.overlaps(claim.open_prs(repo), claim.wp_issue_citations(repo)) == []

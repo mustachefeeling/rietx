@@ -379,6 +379,193 @@ def describe(holder: Holder, main: Optional[Path]) -> str:
 
 
 # --------------------------------------------------------------------------
+# The other half: a contributor, on another machine, whose work this repo can
+# only see through GitHub.
+#
+# The local half above answers "which of *my* trees is on this WP", and that is
+# all it can answer: a claim keyed on a live local process means nothing on
+# someone else's laptop.  Measured 2026-09-15, the three open contributor PRs on
+# this repo were `pr/skill-recipe-rows-7g`, `pr/cell-degenerate-guard` and
+# `cw-neutron-seed` — every one on a **fork**, so absent from
+# ``git ls-remote origin``, and not one naming a WP in its branch, title or body.
+# Both halves of the local model are therefore blind to them by construction.
+#
+# What contributors do key on is **issues**: those PRs cite #287 and #283, and
+# every WP file cites the issues it closes (the triage's own audit greps
+# ``#N\b`` across ``docs/wp/``).  So the chain that reaches a contributor is
+# PR → issue → WP, and it needs no new convention from anyone.  Issue
+# *assignment* was measured and rejected: 0 of 78 open issues carried an
+# assignee, so building on it would mean asking contributors to adopt a habit
+# they do not have.
+#
+# **Reported, never refused, and never in the SessionStart hook.**  This tier
+# needs the network and a ``gh`` login, while that hook must stay stdlib-only,
+# offline-safe and fast (0.246 s).  "Is this WP taken?" is asked once, when
+# picking, so it lives in ``/wp-start`` step 2.  And a WP citing an issue a PR
+# addresses is *evidence of overlap*, not proof of a clash — #287 is cited by
+# five WPs — so every line here says what it saw and lets the reader judge.
+
+
+class PullRequest(NamedTuple):
+    number: int
+    title: str
+    author: str
+    branch: str
+    updated: str  # YYYY-MM-DD
+    draft: bool
+    wp: Optional[str]  # a WP this PR names outright, if it names one
+    issues: tuple  # int issue numbers cited in the title or body
+
+
+_ISSUE_RE = re.compile(r"#(\d{1,5})\b")
+_WP_TEXT_RE = re.compile(r"\bWP-(\d{4})\b")
+
+
+def _gh(root: Path, *args: str, timeout: int = 20) -> Optional[str]:
+    """``gh`` from the repo root, so it resolves this repository from the remote.
+
+    ``None`` on every way it can decline — not installed, not logged in,
+    offline, rate-limited, slow.  The caller turns that into a sentence rather
+    than an empty table, because "no PRs" and "could not look" must not read
+    alike.
+    """
+    try:
+        proc = subprocess.run(
+            ["gh", *args], cwd=root, capture_output=True, text=True, timeout=timeout
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return proc.stdout if proc.returncode == 0 else None
+
+
+def open_prs(root: Path) -> Optional[list[PullRequest]]:
+    """Every open pull request, forks included.  ``None`` when gh cannot answer.
+
+    ``None`` rather than ``[]``, because "no PRs" and "could not look" are
+    different answers and only the second should stop a session trusting the
+    table.  Not installed, not logged in, offline and rate-limited all land
+    here.
+    """
+    proc = _gh(
+        root, "pr", "list", "--state", "open", "--limit", "100", "--json",
+        "number,title,body,author,headRefName,updatedAt,isDraft,files",
+    )
+    if proc is None:
+        return None
+    try:
+        raw = json.loads(proc)
+    except ValueError:
+        return None
+    prs = []
+    for item in raw:
+        text = f"{item.get('title', '')}\n{item.get('body') or ''}"
+        files = [f.get("path", "") for f in item.get("files") or []]
+        # A WP the PR names outright: its title, its body, or a WP file it
+        # edits.  This is the direct claim; the issue chain below is the
+        # indirect one a contributor's PR actually travels.
+        named = _WP_TEXT_RE.search(text)
+        wp = named.group(1) if named else None
+        if wp is None:
+            for path in files:
+                m = re.match(r"docs/wp/(\d{4})-", path)
+                if m:
+                    wp = m.group(1)
+                    break
+        prs.append(
+            PullRequest(
+                number=int(item["number"]),
+                title=item.get("title", ""),
+                author=(item.get("author") or {}).get("login", "?"),
+                branch=item.get("headRefName", ""),
+                updated=(item.get("updatedAt") or "")[:10],
+                draft=bool(item.get("isDraft")),
+                wp=wp,
+                issues=tuple(sorted({int(n) for n in _ISSUE_RE.findall(text)})),
+            )
+        )
+    return prs
+
+
+def wp_issue_citations(root: Path) -> dict[str, set]:
+    """Each WP's cited issue numbers, read from ``docs/wp/NNNN-*.md``.
+
+    The same ``#N`` grep the triage protocol already uses to audit its own
+    citations, so a WP is reachable from an issue without anyone writing a
+    second index that could drift.
+    """
+    out: dict[str, set] = {}
+    for path in sorted((root / "docs" / "wp").glob("[0-9][0-9][0-9][0-9]-*.md")):
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        out[path.name[:4]] = {int(n) for n in _ISSUE_RE.findall(text)}
+    return out
+
+
+class Overlap(NamedTuple):
+    """An open PR that touches a WP, and how it was connected to it."""
+
+    wp: str
+    pr: PullRequest
+    via: str  # "names it" or "issue #N"
+
+
+def overlaps(
+    prs: list[PullRequest], citations: dict[str, set], mine: Optional[str] = None
+) -> list[Overlap]:
+    """Which WPs the open pull requests touch, directly or through an issue.
+
+    *mine* drops this session's own PR, which is otherwise the loudest row in
+    the table and the least informative.
+    """
+    found: list[Overlap] = []
+    for pr in prs:
+        if pr.wp is not None:
+            if pr.wp != mine:
+                found.append(Overlap(pr.wp, pr, "names it"))
+            continue
+        for wp, cited in sorted(citations.items()):
+            if wp == mine:
+                continue
+            shared = sorted(cited & set(pr.issues))
+            if shared:
+                found.append(
+                    Overlap(wp, pr, "issue " + ", ".join(f"#{n}" for n in shared))
+                )
+    return sorted(found, key=lambda o: (o.wp, o.pr.number))
+
+
+def by_pull_request(found: list[Overlap]) -> list[tuple]:
+    """Regroup overlaps under their PR: ``(pr, [(wp, via), ...])``.
+
+    Printed per WP, one broad issue repeats its PR once a WP: issue #287 is
+    cited by five WP files, so PR #291 filled five of the eight rows in the
+    first live run of this table.  Per PR the fan-out shows as a list, which is
+    also what it is — a weaker signal than a PR that names one WP — and no
+    threshold has to be invented to say so.
+    """
+    order: list = []
+    seen: dict = {}
+    for o in found:
+        if o.pr.number not in seen:
+            seen[o.pr.number] = (o.pr, [])
+            order.append(o.pr.number)
+        seen[o.pr.number][1].append((o.wp, o.via))
+    return [seen[n] for n in order]
+
+
+def describe_pull_request(pr: PullRequest, touched: list) -> str:
+    draft = " (draft)" if pr.draft else ""
+    wps = ", ".join(f"WP-{wp}" for wp, _ in touched)
+    vias = sorted({via for _, via in touched})
+    return (
+        f"PR #{pr.number}{draft} by {pr.author}, updated {pr.updated} — "
+        f"{wps} ({'; '.join(vias)})\n    {pr.title[:88]}"
+    )
+
+
+# --------------------------------------------------------------------------
 # CLI — ``/wp-start`` step 2 reads ``status``; the other two verbs are the
 # override the refusal in ``worktree_create.py`` names.
 
@@ -419,7 +606,7 @@ def glyphs_for(root: Path, holders: list[Holder]) -> dict[str, Optional[str]]:
     return {h.wp: state.wp_file_state(root, h.wp)[1] for h in holders}
 
 
-def _status(root: Path, here: Path) -> int:
+def _status(root: Path, here: Path, wp: Optional[str] = None) -> int:
     trees = worktree_branches(root)
     main = main_checkout(trees)
     # No exclusion: ``status`` is asked *for* the full picture, and this
@@ -427,10 +614,10 @@ def _status(root: Path, here: Path) -> int:
     holders = occupancy(trees, sibling("session_start").live_sessions(), set(),
                         read_claims(root), main)
     rows = bears_on_a_clash(holders, glyphs_for(root, holders))
-    if not rows:
-        print("no worktree is working an open WP")
-        return 0
     here = here.resolve()
+    print("This machine's worktrees:")
+    if not rows:
+        print("  none is working an open WP")
     for h in rows:
         mark = "→" if h.worktree == here else " "
         who = ", ".join(f"pid {s.pid} up {s.age}" for s in h.sessions)
@@ -439,13 +626,38 @@ def _status(root: Path, here: Path) -> int:
         print(f"{mark} WP-{h.wp}  {state}  in {where(h, main)} ({branch}, {h.provenance})")
     for wp in clashes(holders):
         print(f"⚠ WP-{wp} is live in more than one tree — that is the clash")
+
+    # The other machines, which this repo can only see through GitHub.
+    mine = next((h.wp for h in holders if h.worktree == here), None)
+    print("\nOpen pull requests, including contributors' forks:")
+    prs = open_prs(root)
+    if prs is None:
+        print("  gh could not answer (offline, not installed, or not logged in)")
+        print("  — the table above is this machine only, so ask before starting")
+        return 0
+    found = overlaps(prs, wp_issue_citations(root), mine)
+    if wp is not None:
+        found = [o for o in found if o.wp == wp]
+    scope = f" touching WP-{wp}" if wp else " touching a WP"
+    if not found:
+        print(f"  {len(prs)} open, none{scope} other than this session's")
+        return 0
+    for pr, touched in by_pull_request(found):
+        print(f"⚠ {describe_pull_request(pr, touched)}")
+    print(
+        "  An issue link is evidence of overlap, not proof of a clash: one issue\n"
+        "  can be cited by several WPs. Read the PR before picking one of these."
+    )
     return 0
 
 
 def main(argv: Optional[list[str]] = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("verb", choices=("status", "claim", "release"))
-    ap.add_argument("wp", nargs="?", help="four-digit WP number, for `claim`")
+    ap.add_argument(
+        "wp", nargs="?",
+        help="four-digit WP number: required by `claim`, narrows `status` to one WP",
+    )
     ap.add_argument(
         "--worktree", type=Path, default=None, help="the tree to act on (default: this one)"
     )
@@ -458,7 +670,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     here = (args.worktree or Path(root)).resolve()
 
     if args.verb == "status":
-        return _status(Path(root), here)
+        return _status(Path(root), here, args.wp)
     if args.verb == "claim":
         if not (args.wp and args.wp.isdigit() and len(args.wp) == 4):
             print("wp_claim: claim needs a four-digit WP number", file=sys.stderr)

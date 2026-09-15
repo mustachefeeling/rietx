@@ -32,17 +32,34 @@ Run the session-start ritual. The SessionStart hook's report
    files.
 
    **Then check nobody else has it**, before committing to the choice:
-   `python3 .claude/hooks/wp_claim.py status`. One row per worktree that is on
-   a WP — `held` means a live `claude` session is sitting in that tree now,
-   `dormant` means the tree and branch exist with nobody in them, `→` marks
-   this session's own tree. Closed WPs whose trees were merely kept are
-   filtered out, so a quiet table means what it says, and the reading needs no
-   venv.
+   `python3 .claude/hooks/wp_claim.py status NNNN` for the WP in hand, or bare
+   `status` for the whole picture. It answers in two parts, because a clash
+   comes from two directions.
+
+   **This machine's worktrees.** One row each: `held` means a live `claude`
+   session is sitting in that tree now, `dormant` means the tree and branch
+   exist with nobody in them, `→` marks this session's own. Closed WPs whose
+   trees were merely kept are filtered out, so a quiet table means what it
+   says, and this half needs no network and no venv.
 
    **A held WP is taken**: two sessions on one WP duplicate hours of work and
    discover it at handover, so pick another or ask the user. A **dormant** one
    is the opposite and is often what you want — unfinished work with a branch
    to continue, resumed by giving `EnterWorktree` that tree's name.
+
+   **Open pull requests, contributors' forks included.** The second part, and
+   the only one that can see a person on another machine. Contributors here
+   work from *issues* rather than WPs — measured 2026-09-15, all three open
+   contributor PRs were on forks, named no WP in branch, title or body, and
+   cited issues — so the chain is PR → issue → WP, through the issue numbers
+   the WP files already cite. Issue *assignees* are not a signal: 0 of 78 open
+   issues carried one.
+
+   **An issue link is evidence of overlap, not proof of a clash.** One issue
+   can be cited by several WPs, so read the PR before dropping a WP over it.
+   A PR that names a WP outright is the strong form. If `gh` cannot answer the
+   command says so rather than printing an empty list, and a session that
+   cannot look should ask the user before starting.
 
    The WP a tree is on comes from its branch, so a tree you resume for a
    *different* WP is telling the next session the wrong thing. Say so once:

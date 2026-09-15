@@ -785,6 +785,16 @@ reads `wp_claim.py status` (**`dormant` is work to resume, `held` is taken**); `
 is the workflow's **one refusal rather than a report**, because its trigger is a live process rather
 than a leftover branch and git already refuses the narrower half of the same accident.
 
+**A contributor is on another machine, so the second half of that answer is GitHub's.** No local
+claim can see them, and the branch cannot either — measured 2026-09-15, all three open contributor
+PRs were on **forks**, absent from `git ls-remote origin`, naming no WP in branch, title or body.
+**They key on issues and so must this**: `wp_claim.py status` maps open PRs to WPs through the issue
+numbers the WP files already cite (PR → issue → WP), which needs no new convention from anyone;
+assignees are not a signal (0 of 78 open issues carried one). Two rules. **An issue link is evidence
+of overlap, never proof of a clash** — one issue is cited by five WPs here — so this tier reports and
+`EnterWorktree` never refuses on it. And it needs the network, so it lives in `/wp-start` and **never
+in the SessionStart hook**, which stays stdlib-only, offline-safe and 0.25 s.
+
 Shipped: **v0.1 … v1.3**, one record each in `docs/milestones/`; ROADMAP's table carries the
 acceptance one-liners, restated in neither place. Since WP-1117 the compatibility promise
 (`docs/manual/using/compatibility.md`) is a **preview**: anything may change in any release,

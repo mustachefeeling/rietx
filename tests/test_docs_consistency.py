@@ -219,7 +219,16 @@ SIZE_CAPS: dict[str, int | None] = {
     # policy; and that this is the workflow's one refusal, so nobody softens it
     # to a report on the general principle that the rest of the scan reports.
     # Landed at 821; the headroom is +2.
-    "CLAUDE.md": 823,
+    # 823 -> 833 (WP-1422, same session): the contributor half, which is a
+    # different mechanism rather than more of the same one and cannot fold into
+    # the clause above.  A local claim and an `origin` branch are both blind to
+    # a fork, so the rule that a contributor is reached through the issues a WP
+    # cites belongs where a session meets it — and with it the two clauses that
+    # stop it being misused: an issue link is evidence and never proof, so
+    # nothing refuses on it, and it needs the network, so it stays out of the
+    # SessionStart hook that has to survive being offline.  Landed at 831; the
+    # headroom is +2.
+    "CLAUDE.md": 833,
     # 672 -> 676 (WP-1102): the Current focus rewrite at 1102's close names the
     # milestone's one break and what makes 1103 the seam's proving case.
     # 676 -> 682 (WP-1407): a new Unscheduled group, "The formats a lab still

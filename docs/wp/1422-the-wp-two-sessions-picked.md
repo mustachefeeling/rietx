@@ -8,9 +8,9 @@ Depends on: —
 ## Goal
 
 `/wp-start` can answer "is anyone already working this WP?" before it commits
-to one, and `EnterWorktree` refuses a WP a live session in another tree is
-already working. Two sessions can no longer spend a day on the same WP and
-find out at handover.
+to one — **anyone**, meaning another session on this machine *and* a contributor
+on theirs — and `EnterWorktree` refuses a WP a live local session already holds.
+Nobody spends a day on work someone else is doing and finds out at handover.
 
 ## Context
 
@@ -95,11 +95,50 @@ nothing tracks it, `git status` never sees it, and a fresh clone starts empty.
 A tracked file could not do the job: a claim has to be visible across branches
 that never merge.
 
+### The contributor half
+
+A local claim answers "which of *my* trees is on this WP" and can answer nothing
+else. The maintainer clashing with a contributor is the case this WP exists for,
+and it needs a signal both machines can see.
+
+Measured on this repo, 2026-09-15:
+
+| | |
+|---|---|
+| open contributor PRs | 3, all by one contributor |
+| on a fork | 3 of 3 — so absent from `git ls-remote origin` |
+| naming a WP in branch, title or body | 0 of 3 |
+| citing an issue | 3 of 3 (#287, #283, #124) |
+| open issues carrying an assignee | **0 of 78** |
+
+So contributors key on **issues**, and every WP file already cites the issues it
+closes — the triage protocol audits exactly that with a `#N\b` grep. The chain
+is therefore **PR → issue → WP**, and it asks no new habit of anyone. Issue
+assignment was considered and rejected on the 0-of-78 row: building on it would
+mean asking a contributor to adopt a convention they do not use.
+
+**It found a live near-miss on its first run.** WP-1311 is ⬜ unstarted and
+contributor PR #289 is open on issue #283, which WP-1311 cites. Picking 1311
+that day would have been the clash.
+
+Two rules keep it honest. **An issue link is evidence of overlap, never proof of
+a clash** — issue #287 is cited by five WP files — so this tier reports and
+`EnterWorktree` never refuses on it. And it needs the network and a `gh` login,
+so it lives in `/wp-start` and **never in the SessionStart hook**, which stays
+stdlib-only, offline-safe and 0.25 s. When `gh` cannot answer the command says
+so rather than printing an empty list, because "no PRs" and "could not look"
+must not read alike.
+
 ## Non-goals
 
-- **No cross-machine claim.** Every session here runs on one desktop, and a
-  claim keyed on a live local process cannot mean anything on another. A pushed
-  branch is the cross-machine signal and it already exists.
+- ~~**No cross-machine claim.**~~ **Withdrawn the same day, and it was the
+  point.** This said a claim keyed on a live local process cannot mean anything
+  on another machine, which is true, and then concluded that the cross-machine
+  case was out of scope, which was wrong: the maintainer clashing with a
+  *contributor* is the case the WP was asked for. It also proposed a pushed
+  branch as the existing signal, and that does not work either — measured
+  2026-09-15, all three open contributor PRs sat on **forks**, so no `origin`
+  branch names them. § The contributor half replaces this.
 - **No release at handover.** The session ending is what makes a claim dormant,
   and dormant already refuses nothing. A release step in `/wp-handover` would be
   one more ritual able to be skipped, for no state that is not reached anyway.
@@ -124,6 +163,9 @@ that never merge.
       and the `"tree"` source value gets the case that reaches it.
 - [x] The review pass's six, the first of them the ranking inversion that let an
       automatic claim outrank the branch it was derived from.
+- [x] **The contributor half**: `open_prs`, `wp_issue_citations`, `overlaps` and
+      the per-PR grouping, reported by `wp_claim.py status [NNNN]` and wired
+      into `/wp-start` step 2. Reports only, needs `gh`, never in the hook.
 - [x] Root CLAUDE.md § Protocol: the one-WP-per-session clause beside the
       one-tree-per-session one, and the cap ledger entry that pays for it.
 - [x] ROADMAP: the index row under § The repo's own process.
@@ -149,12 +191,24 @@ python3 .claude/hooks/session_start.py        # flags a WP held in another tree
 
 ## Handover log
 
-### 2026-09-15 — the WP a session is on is now something the repo can answer
+### 2026-09-15 — the WP someone else is on is now something the repo can answer
 
-A session can now find out, before it starts, whether another session is
-already working the WP it was about to pick, and `EnterWorktree` refuses one
-that is taken. The cost of getting this wrong was a whole duplicated session,
-discovered at handover when both sides have a branch and a PR.
+A session can now find out, before it starts, whether anyone is already working
+the WP it was about to pick — another session on this machine, or a contributor
+on theirs. `EnterWorktree` refuses a WP a live local session holds. The cost of
+getting this wrong was a whole duplicated effort, discovered at handover when
+both sides have a branch and a PR.
+
+**The first build answered only half of that, and the half it left out was the
+point.** It read "every session here runs on one desktop" off the machine in
+front of it and wrote *no cross-machine claim* into the non-goals. The
+requirement was the maintainer not clashing with contributors. The correction is
+recorded in place rather than quietly fixed, because the reasoning failed in a
+way worth recognising again: **the scope was inferred from what was measurable
+rather than from what was asked**, and the measurement was of one desktop
+because that is what a local scan can see. The non-goal even proposed a pushed
+branch as the existing cross-machine signal, which does not work either — every
+contributor PR here is on a fork.
 
 The finding worth keeping is how little had to be built. Everything the answer
 needs was already observable — the worktrees from git, the live ones from the
@@ -183,14 +237,18 @@ no cross-reference to a numbered step moved.
 **Measured** (macOS Darwin 25.5.0, this worktree's own `[dev]` venv, no jax and
 no torch, Python 3.12.12):
 
-- Fast selection `-n auto --dist loadgroup -m "not slow"`: **4880 passed, 132
-  skipped**, three runs across the session at 2:11-2:22 and nothing else on the
-  machine. The one file touched went 30 → 56 collected, +26, and all 26 pass;
+- Fast selection `-n auto --dist loadgroup -m "not slow"`: **4886 passed, 132
+  skipped**, four runs across the session at 2:11-2:22 and nothing else on the
+  machine. The one file touched went 30 → 62 collected, +32, and all 32 pass;
   skips unchanged, so no new skip. Main's own total was not re-run for the
   baseline, so the delta is closed by that collection count rather than by two
   full readings. The full selection did not run: this WP touches no code the
   package imports, which is the ladder's own condition for rung 3
   (`tests/CLAUDE.md` § Running).
+- The contributor half on live data: 3 open contributor PRs, 3 of 3 on forks,
+  0 of 3 naming a WP, 3 of 3 citing an issue, and 0 of 78 open issues carrying
+  an assignee. Printed per WP it gave 8 rows for 3 PRs, because issue #287 is
+  cited by five WP files; grouped per PR it gives 3.
 - The session-start scan itself costs 0.246-0.252 s on this desktop, down from
   0.424 s before the review removed its duplicate process sweep. It runs before
   every session, so the figure is the one that matters for the flag's welcome.
@@ -246,6 +304,14 @@ model's two states at once.
   reason — it catches its own untracked worktree directories instead.
 - **`Claim.by` decides the ranking**, so a future writer of claims must say
   which kind it is. Automatic claims lose to the branch; a session's beats it.
+- **The two halves are not interchangeable and must not be merged.** The local
+  one is stdlib, offline, 0.25 s, and runs in a hook on every session; the
+  contributor one needs `gh` and the network and runs once, in a command. Moving
+  the second into the hook would make every session start depend on GitHub being
+  reachable.
+- **`gh` returning nothing and `gh` failing are different answers.** `open_prs`
+  returns `None` for the second, and the caller prints a sentence rather than an
+  empty list, so a session never reads "could not look" as "nobody is on it".
 - `docs/ROADMAP.md` is now at **710 lines against a cap of 710**. The ledger's
   last entry recorded +1 headroom on 2026-09-15; three lines went in after it
   and this WP's index row took the last one, so the next index row needs a cap
@@ -257,14 +323,21 @@ model's two states at once.
 
 **Next**, in order, and only if wanted. Nothing here is owed.
 
-1. Run with it for a few weeks. The refusal has never fired in anger, and the
+1. **Decide WP-1311 against contributor PR #289 before scheduling it.** That is
+   the live overlap this found, and it is a judgement about the work rather than
+   about the tooling.
+2. Run with it for a few weeks. The refusal has never fired in anger, and the
    one question it cannot answer from inside this session is whether it fires
    when it should not — an idle session parked in a finished tree is the only
    false positive its trigger admits, and `release` is the whole answer if it
    turns out to be common.
-2. If it is common, the next rung is liveness finer than "a process exists":
+3. If it is common, the next rung is liveness finer than "a process exists":
    the transcript's modification time would separate a session that is working
    from one that is merely open. That is `runs.liveness_of`'s pattern one rank
    out, and it is deliberately not built yet.
+4. The contributor half reads open PRs only. A contributor who has started but
+   not pushed is invisible to it, and no mechanism short of them saying so can
+   change that — a draft PR opened early is the convention that would, and it is
+   the contributor's to adopt, not the repo's to enforce.
 
 - **2026-09-15** — created.
