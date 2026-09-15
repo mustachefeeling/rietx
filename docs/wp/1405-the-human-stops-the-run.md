@@ -1,6 +1,6 @@
 # WP-1405 — the human stops the run
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: ✅ 2026-09-15 — a human watching a run can stop it, through the token the fit already had; stopping ships enabled with `--read-only` to decline, and WP-1406's owed skill sentence and manual rows are written
 Depends on: 1403 (the recorder that polls); 1401 (the page the button is on)
 
 ## Goal
@@ -121,83 +121,32 @@ default — a flag to *enable* it — is that the button can put a traceback int
 agent's session, and making that a deliberate act is cheap. Decide it in this WP
 with the dialog in front of you, and record which way and why.
 
-### Inherited
+### What the mailbox carried, and where it went
 
-From **WP-1406** (2026-09-15), which documented the track and found this WP's
-feature missing from it:
+The `### Inherited` block is consumed (protocol rule 1). What survived, folded
+here so a reader of the closed WP still has it:
 
-- **WP-1406's skill body sentence is yours, and so is the cut that pays for
-  it.** 1406 was chartered to add exactly one sentence to the skill body:
+- **The ordering WP-1403 asked to be kept, is kept.** `fit` emits `fit_end` with
+  `status="cancelled"` before re-raising, the recorder projects that to a
+  `cancelled` state, and `close` applies a caller's state only when nothing has
+  claimed one. The `close("failed")` in `fit`'s exception path therefore still
+  cannot overwrite it. Nothing in this WP touched that path.
+- **WP-1401's "a run id is never decoded into a path" is inherited rather than
+  re-checked.** `_cancel` looks the id up in what the walk offered, exactly as
+  `do_GET`'s routes do, so a request can only ever name a directory the server
+  chose to serve. `test_an_unknown_id_cannot_name_a_directory` asserts it for
+  the new verb.
+- **A cancelled run still gets no `summary.txt`**, because there is still no
+  result to write one from. This WP added no half-written one, and two tests
+  assert the absence.
+- **WP-1406's three owed items are written** — the skill body sentence, the
+  `references/watching.md` row and the `using/cli.md` material. The cut that
+  paid for the sentence is named in the commit and in § Decisions.
 
-  > A human may be watching, and may stop you. A `RefinementCancelled` you did
-  > not request is not a bug in your call: the completed stages are kept, and
-  > `.completed_stages` and `.node_id` say where the work stands.
-
-  It was **not written**, because it is not true yet. A fit raises
-  `RefinementCancelled` only when its own caller passed `cancel=`; there is no
-  cancel file in `runs.py`, no poll in `RunRecorder`, and `fit` creates no token
-  of its own. The package's only `CancelToken()` is `gui/session.py`'s, for the
-  GUI's own fits. Write it when this WP lands, and pay for it with a named cut
-  per WP-1330 — 1406 paid for its routing row by cutting §6 item 23, which was
-  duplicated whole in `references/abstention.md`, so that trick is spent.
-- **Two manual items are yours for the same reason.** 1406's charter asked
-  `using/cli.md` to describe "the cancel button and what it does to the other
-  process, the read-only serving flag". Neither exists, so neither was written.
-  The chapter now states reading-only as a property of how the watcher is built;
-  when the flag lands it needs a row, and the cancel button needs a subsection
-  saying plainly what it does to a process the reader cannot see.
-- **`references/watching.md` is the file the cancel story belongs in**, not a
-  new one. It is §9d, routed on "a human may be watching this fit". Row 9d.5
-  already covers `abandoned`, and a cancel row sits naturally beside it. Every
-  row closes with a `(Measured: …)` or `(Hypothesis: …)` tag, and the gate
-  refuses a `Measured` tag that names neither a WP nor a declared corpus.
-
-From **WP-1403** (2026-09-15), which built the run directory this WP stops:
-
-- **The cancel path already records itself correctly.** `fit` emits `fit_end`
-  with `status="cancelled"` before re-raising, the recorder projects that to a
-  `cancelled` state, and `RunRecorder.close` applies a caller's state *only*
-  when nothing has claimed one — so the `close("failed")` in `fit`'s exception
-  path cannot overwrite it. Keep that ordering if you touch either.
-- **The lock is held for the process's life and released by the kernel**,
-  however the writer dies. That is what makes `abandoned` a distinct answer from
-  `done`, verified end to end: a child holding it reads `running`, and after
-  `kill -9` the same directory reads `abandoned` off a free lock under a
-  `running` status.
-- **`_abandon_on_cancel`'s short circuit still holds** (`refine.py:1560`): no
-  token is attached for the watcher's sake, so an ordinary fit still pays
-  nothing. Attaching one ends that guarantee at two `model_copy(deep=True)` a
-  stage, scaling with atom count. **That cost belongs to this WP and is not in
-  1403's numbers.**
-- **A cancelled run gets no `summary.txt`**, because there is no result to write
-  one from, and that absence is not an error. If this WP gives a cancelled run
-  something to say, it is a new file or a status field, never a half-written
-  summary.
-- A cross-process stop has to find the run first. `runs.discover` plus
-  `liveness_of` is that half, and `status.json` now carries `pid` and `host` —
-  `host` is written, so the foreign-host rung fires rather than guessing.
-
-From **WP-1401** (2026-09-14), which landed the reader and the app this WP adds
-a verb to:
-
-- **The watcher has no verbs at all, by construction.** `watch.py` serves GET
-  only, and the page has no POST path of any kind. Cancel is therefore the first
-  verb rather than one more, and the design note in WP-1401 rests on that: a
-  user cannot click what is not there. Adding a second verb reopens an argument
-  that was settled on the strength of there being exactly one.
-- **A run id is never decoded into a path.** `runs.run_id_for` digests the
-  resolved path, and `watch.py` looks an id up in what `discover` returned. A
-  cancel route inherits that property for free, and must keep it: a request can
-  then only ever name a directory the walk chose to offer.
-- **Liveness is already a reader-side answer**, so a cancel verb has somewhere
-  to report into. `runs.liveness_of` returns `running` only on a held flock or a
-  live pid, and `abandoned` where the status claims `running` and the lock is
-  free. A cancelled run should reach `cancelled` through `RunStatus.state`,
-  which is already a terminal state the reader honours above every other rung.
-- **Still true from 2026-09-13, and re-verified:** `refine._abandon_on_cancel`
-  short-circuits on `cancel is None` and says so in its docstring, so attaching
-  a token universally ends a guarantee the code currently makes. It now sits at
-  `refine.py:1537`, with call sites at 1968 and 2079.
+Dropped as stale: every line number the mailbox carried.
+`_abandon_on_cancel` had moved from 1537 to 1592 and its call sites from
+1968/2079 to 2068/2189 before this session started, and quoting a line number
+into a mailbox is what makes that happen.
 
 ## Decisions taken
 
