@@ -32,6 +32,23 @@ process: a fit that raises emits no ``fit_end``, and ``EventKind`` is closed, so
 a run's status travels beside the stream. Across a process boundary the same
 rule needs a channel the operating system maintains, because a dead writer
 writes nothing — see :func:`liveness_of`.
+
+Two things this module deliberately has not got (WP-1406). Both are the reflex,
+so the refusal is written here rather than lost in a commit message.
+
+**No** ``capabilities()`` **surface flag** for "can this build record runs?".
+That question always answers yes, because no optional dependency stands behind
+recording. The flag would be a literal ``True`` wearing a predicate's clothes,
+which ``capabilities._features`` forbids by construction; and ``_SURFACE_FLAGS``
+exists precisely because a *derived* flag rots in silence, ``features``
+``["indexing"]`` having been ``False`` for its whole life (WP-1037).
+
+**No seventh versioned contract** for the run layout. The layout is a second
+process's contract, which is the argument for giving it one. Against it:
+nothing negotiates over it, and WP-1006's own precedent is that a contract
+nothing has exercised is an untested guess. So it waits until the layout has
+survived a release. ``using/compatibility.md`` says the same thing to a reader,
+which is the promise that has to be kept if this is ever revisited.
 """
 
 from __future__ import annotations
@@ -66,18 +83,20 @@ from .schemas.common import Base
 #: by :class:`~rietx.viz.live.LiveSession` on construction.
 EVENTS_FILE = "events.jsonl"
 
-#: Per-stage progress. Written by ``LiveSession.write_snapshot`` today, from
-#: the snapshot payload's own statistics, which records
-#: ``stage``/``rwp``/``gof``/``chi2``/``n_free`` and **no** ``state``.
+#: Per-stage progress, and the run's own state. Two writers, which is why the
+#: schema below is halved: ``LiveSession.write_snapshot`` writes
+#: ``stage``/``rwp``/``gof``/``chi2``/``n_free`` from the snapshot payload's own
+#: statistics and **no** ``state``; :class:`RunRecorder` writes the rest.
 STATUS_FILE = "status.json"
 
-#: The run's own description of itself. **Nothing writes this yet** — WP-1403
-#: does. Absent everywhere today, which is what makes a run *legacy*.
+#: The run's own description of itself, written by :class:`RunRecorder`. A run
+#: directory without one is *legacy* — every run written before WP-1403, and
+#: every directory a ``LiveSession`` makes for itself.
 META_FILE = "meta.json"
 
-#: Held flock'd by the writing process for its life. **Nothing writes this
-#: yet** — WP-1403 does. See :func:`liveness_of` for why a held lock is the
-#: liveness channel and a pid is only the fallback.
+#: Held flock'd by :class:`RunRecorder` for the writing process's life. See
+#: :func:`liveness_of` for why a held lock is the liveness channel and a pid is
+#: only the fallback.
 LOCK_FILE = "run.lock"
 
 #: The stage's curves, ticks and statistics, rewritten per stage by
@@ -185,9 +204,9 @@ class _ReaderBase(Base):
 class RunMeta(_ReaderBase):
     """``meta.json`` — what a run says about itself.
 
-    **Nothing writes this file today**; WP-1403 does, and every field below is
-    optional because of it. A run without one is legacy, and :func:`discover`
-    synthesizes what it can from the log's mtime.
+    :class:`RunRecorder` writes it, and every field below stays optional
+    because a run directory can exist without one. A run without one is legacy,
+    and :func:`discover` synthesizes what it can from the log's mtime.
     """
 
     #: ``"run"`` — :data:`RECORD_TAG`. Declared rather than left to
@@ -211,9 +230,9 @@ class RunMeta(_ReaderBase):
 class RunStatus(_ReaderBase):
     """``status.json`` — the writer's last word on progress and state.
 
-    The first five fields are what ``LiveSession.write_snapshot`` writes today,
-    once per stage. The rest are WP-1403's and absent from every file in the
-    tree.
+    The first five fields are what ``LiveSession.write_snapshot`` writes, once
+    per stage. The rest are :class:`RunRecorder`'s, so a file written by one
+    writer carries only half of them and every field is optional.
 
     :attr:`state` has **no substantive default**. A defaulted ``"running"``
     would be WP-1076's field whose empty state reads as an answer, and this one
@@ -236,7 +255,7 @@ class RunStatus(_ReaderBase):
     chi2: float | None = None
     n_free: int | None = None
 
-    # written by WP-1403's recorder; absent from every file in the tree today
+    # written by RunRecorder; a LiveSession's own status.json has none of them
     state: str | None = None
     pid: int | None = None
     host: str | None = None
@@ -681,12 +700,11 @@ def tail_events(path: str | Path, offset: int = 0, *, inode: int | None = None,
                 max_bytes: int = 4 << 20) -> EventTail:
     """Read an event log from a byte offset, carrying a torn line forward.
 
-    The whole-file refetch the page does today is replaced by this. A trailing
-    fragment is left **unparsed** and the returned offset stops before it, so
-    the next call sees the line whole: a writer flushes per event, but a flush
-    is not an atomic write and the last line on disk can be half of one. This
-    is defensive today and load-bearing from WP-1403 on, when writes become
-    buffered.
+    A trailing fragment is left **unparsed** and the returned offset stops
+    before it, so the next call sees the line whole: a writer flushes per event,
+    but a flush is not an atomic write and the last line on disk can be half of
+    one. It is load-bearing rather than defensive since :class:`RunRecorder`
+    started buffering ``eval`` lines (:data:`FLUSH_INTERVAL_SECONDS`).
 
     A bad line is counted, never raised on. One corrupt line in a log must not
     cost a viewer the other ten thousand.

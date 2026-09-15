@@ -175,8 +175,8 @@ Two items changed shape and one moved out; the reasons are in Context above.
 
 - [x] Prune: three findings superseded in part, the `### Inherited` mailbox
       consumed, this list rewritten.
-- [ ] The root CLAUDE.md clause, edited to keep the rule and drop the false half.
-- [ ] `runs.py`'s own comments, which are the same defect one rank down: three
+- [x] The root CLAUDE.md clause, edited to keep the rule and drop the false half.
+- [x] `runs.py`'s own comments, which are the same defect one rank down: three
       of them still say `meta.json` and `run.lock` are unwritten and `RunStatus`
       names fields "absent from every file in the tree", while `RunRecorder`
       writes all of them. Comments, not code, so the no-code non-goal holds.
@@ -193,7 +193,7 @@ Two items changed shape and one moved out; the reasons are in Context above.
       it true. Its `### Inherited` carries the sentence and the owed cut.
 - [ ] WP-1322's Task 2 recorded as discharged, dated; WP-1133's and WP-1405's
       `### Inherited` noted.
-- [ ] Record the two deliberate refusals — no surface flag, no seventh contract
+- [x] Record the two deliberate refusals — no surface flag, no seventh contract
       — where a later session will find them, which is here and in the module
       docstring, not in a commit message alone.
 - [ ] Skill: this WP **is** the skill task for the track.
