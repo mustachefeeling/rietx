@@ -173,7 +173,19 @@ SIZE_CAPS: dict[str, int | None] = {
     # stray escape cost a whole page load with every python test green. Raised
     # rather than shaved, per the failure message's own instruction. Landed at
     # 765; the +1 is headroom, per this file's docstring.
-    "CLAUDE.md": 766,
+    # 766 -> 793 (WP-1403): two standing rules for automatic run recording —
+    # that every fit records itself and telemetry never breaks a fit, and that
+    # retention deletes by age and size rather than by count.  The first is the
+    # larger clause in the file and it earns the room: it governs anyone
+    # touching `fit`'s control flow, and its who-asked failure boundary reads as
+    # a flat contradiction of `history/events.py`'s stated rule until both
+    # halves are written down, which is exactly the reconciliation a later
+    # session would otherwise make in the wrong direction.  The second governs
+    # the only code in the package that can destroy a user's data.  Neither is
+    # demotable narrative: both are protocol rule 4's test, governing work
+    # outside the WP that measured them.  Raised rather than shaved, per the
+    # failure message's own instruction.  Landed at 791; the +2 is headroom.
+    "CLAUDE.md": 793,
     # 672 -> 676 (WP-1102): the Current focus rewrite at 1102's close names the
     # milestone's one break and what makes 1103 the seam's proving case.
     # 676 -> 682 (WP-1407): a new Unscheduled group, "The formats a lab still
