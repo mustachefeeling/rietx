@@ -196,18 +196,6 @@ and never a silent cap.
   That 12:40 is the same tree as the 5:44, so **say whether another session was
   running** — and check first (§ Running), which makes "alone" a fact rather
   than an assumption.
-- **A comparison between configurations is interleaved, never blocked.** Run
-  every repeat of arm A before arm B and each arm owns a contiguous slice of
-  wall clock, so machine drift lands on one arm entire and arrives as a
-  difference between arms. Blocked, WP-1404's matrix put `events=<path>` at
-  0.816x a bare fit, which is faster than not recording at all, and made a
-  recorder cheaper than the event stream it contains; the control's own 11.4 %
-  and 13.2 % repeat spreads were the same fact said honestly. Interleaved, the
-  spread fell to 1.1-5.9 % and both impossibilities went away. Report the
-  minimum of N beside the median: they estimate one quantity, so a pair that
-  disagree are still measuring the box. WP-1405 reached the same shape by
-  interleaving the arms of one fit, which is why its numbers are finer than any
-  whole-fit matrix.
 - **Quote the extras with any count**: installing `[jax,torch]` converts
   most skips into passes, so a bare "N tests" figure means nothing without
   the venv it was measured in.

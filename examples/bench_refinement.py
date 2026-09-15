@@ -17,20 +17,27 @@ Read these four rules before quoting any number this script prints.
    state moves these further than most changes do: a concurrent ``pytest -n
    auto`` inflated a 1.24 s fit to 4.78 s — 3.9× — during WP-1109.  **Run this
    on an idle machine, alone.**
-2. **Never compare across machines**, and never against a figure whose venv and
+2. **A comparison between arms is interleaved, never blocked**, and reports the
+   minimum of N beside the median.  Blocked, each arm owns a contiguous slice of
+   wall clock and any drift lands on one of them entire: WP-1404's matrix timed
+   a telemetry path as *faster* than no telemetry at all, under control spreads
+   of 11.4 and 13.2 %, and interleaving took those to 1.1-5.9 % and the
+   impossibility away.  Two estimators of one quantity that disagree are still
+   measuring the box.  ``main`` interleaves; a one-off script has to be told.
+3. **Never compare across machines**, and never against a figure whose venv and
    platform are not stamped beside it.  This script stamps its own header with
    both, plus the package version and the numpy build, so a pasted table
    carries its own provenance.
-3. **Rwp is an identity check, not the metric.**  It is printed so that two
+4. **Rwp is an identity check, not the metric.**  It is printed so that two
    runs of the same case can be seen to be the *same fit*, and the repeats are
    compared for it; a speed change that moves Rwp is not a speed change.  The
    metric is wall clock, and the diagnostics are the evaluation counts.
-4. **Every number carries its configuration.**  Since WP-1403 a fit records
+5. **Every number carries its configuration.**  Since WP-1403 a fit records
    itself by default, so "the wall clock of ``cpd-2``" is no longer a complete
    statement — ``--configs`` says which fit was timed, every row prints its
    key, and a number quoted without one is ambiguous rather than merely
    imprecise.
-5. **The counts come from scipy, the wall clock from this process.**  ``nfev``
+6. **The counts come from scipy, the wall clock from this process.**  ``nfev``
    and ``njev`` are read off the ``OptimizeResult`` that
    ``rietx.optimize.least_squares`` gets back, by wrapping the module-level
    ``least_squares`` name for the duration of a run (see ``_counting``).  This
