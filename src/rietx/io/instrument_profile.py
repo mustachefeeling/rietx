@@ -36,6 +36,8 @@ import json
 from datetime import UTC, datetime
 from pathlib import Path
 
+from pydantic import ValidationError
+
 from .._about import PROFILE_FORMAT_KEY
 from ..schemas.common import Diagnostic
 from ..schemas.instrument import (
@@ -373,6 +375,11 @@ def read_gsas_prm(path: str | Path, *,
     value at the model's identity" rule ``io/CLAUDE.md``'s ``recipe.py``
     section already states, applied to a second format's version of it.
 
+    A value the file states that lies outside the range the ``Instrument``
+    schema holds — a negative ``GW``, a ``POLA`` on some other convention's
+    0-100 scale — is refused **naming the file**, by ``_build_instrument``,
+    rather than escaping as pydantic's own report on a field.
+
     **``diagnostics``** completes that rule's other half: a value dropped at
     the model's identity is dropped *with a diagnostic*, so a caller can learn
     that the file said something the ``Instrument`` does not carry.  Pass a
@@ -498,11 +505,14 @@ def read_gsas_prm(path: str | Path, *,
                 f"position 8, so a non-zero one here is unidentified rather "
                 f"than dropped")
 
+    instrument = _build_instrument(icons, (gu, gv, gw, lx, ly, sl, hl), p)
+
     if diagnostics is not None:
         # The drop half of io/CLAUDE.md's rule: a field at the model's
         # identity is dropped *with a diagnostic*, one per record, naming the
         # values so the caller can see what was in the file.  Emitted only
-        # here, past every refusal above, so a file about to be refused does
+        # here, past every refusal above — the build on the line above is the
+        # last thing that can refuse — so a file about to be refused does
         # not leave a half-list behind on the caller's list.
         # Each row is a statement about *this file*, so a row is only built
         # where the file carried the thing it describes.  A drop diagnostic
@@ -542,18 +552,6 @@ def read_gsas_prm(path: str | Path, *,
                 message=f"{p.name}: {record} — {what}",
                 where=[record]))
 
-    instrument = Instrument.debye_scherrer(
-        wavelength=icons.lam1, polarization=icons.polarization)
-    if icons.lam2:
-        # A second line's weight is relative to the first, which the parameter
-        # table pins at 1 (EmissionLine) — so KRATIO, the Kα2/Kα1 intensity
-        # ratio, is exactly the number this slot wants.  Reading it is what
-        # locating the field by column bought: the old reader could not tell
-        # KRATIO from the polarization two fields earlier, both conventionally
-        # 0.5, and refused every doublet rather than guess (WP-1118).
-        instrument.source.lines.append(EmissionLine(
-            wavelength=icons.lam2,
-            weight=Parameter(value=icons.ka2_ratio, min=0.0, max=2.0)))
     if diagnostics is not None:
         diagnostics.append(Diagnostic(
             level="warning", code="GSAS_PRM_GEOMETRY_ASSUMED",
@@ -575,14 +573,63 @@ def read_gsas_prm(path: str | Path, *,
                         "geometry, so a fresh Geometry starts at 0 for both "
                         "and models an instrument with no axial divergence "
                         "at all")))
-    prof = instrument.profile
-    prof.u.value = gu / 1e4
-    prof.v.value = gv / 1e4
-    prof.w.value = gw / 1e4
-    prof.x.value = lx / 1e2
-    prof.y.value = ly / 1e2
-    instrument.geometry.axial_sl.value = sl
-    instrument.geometry.axial_hl.value = hl
+    return instrument
+
+
+def _build_instrument(icons: GsasIcons,
+                      coefficients: tuple[float, ...], p: Path) -> Instrument:
+    """The ``Instrument`` this bank states, frozen, or a refusal naming the file.
+
+    Every value here is the file's own, and the schema holds each to a range
+    (``ProfileTCHZ.w`` is non-negative, ``Source.polarization`` sits in [0, 1],
+    a wavelength is at least 1e-3 Å).  ``Base`` validates on assignment, so a
+    value outside one of those raises **here** rather than at stage compile.
+    Measured 2026-09-15: assigning a negative ``GW`` raises a
+    ``ValidationError`` naming ``Parameter``, with no file in it.  How often a
+    real GSAS refinement writes one is **not** measured, and the conversion is
+    refused on its own terms either way.
+
+    Reading by column is what makes it worth converting.  A whitespace split
+    could put any number in any slot, so an out-of-range value was evidence of
+    a misaligned read; located by column it is the file's own statement, and
+    the refusal is the reader's to make **naming the file** rather than
+    pydantic's to make naming a field (``io/CLAUDE.md`` § Refusals).
+    """
+    gu, gv, gw, lx, ly, sl, hl = coefficients
+    try:
+        instrument = Instrument.debye_scherrer(
+            wavelength=icons.lam1, polarization=icons.polarization)
+        if icons.lam2:
+            # A second line's weight is relative to the first, which the
+            # parameter table pins at 1 (EmissionLine) — so KRATIO, the
+            # Kα2/Kα1 intensity ratio, is exactly the number this slot wants.
+            # Reading it is what locating the field by column bought: the old
+            # reader could not tell KRATIO from the polarization two fields
+            # earlier, both conventionally 0.5, and refused every doublet
+            # rather than guess (WP-1118).
+            instrument.source.lines.append(EmissionLine(
+                wavelength=icons.lam2,
+                weight=Parameter(value=icons.ka2_ratio, min=0.0, max=2.0)))
+        prof = instrument.profile
+        prof.u.value = gu / 1e4
+        prof.v.value = gv / 1e4
+        prof.w.value = gw / 1e4
+        prof.x.value = lx / 1e2
+        prof.y.value = ly / 1e2
+        instrument.geometry.axial_sl.value = sl
+        instrument.geometry.axial_hl.value = hl
+    except ValidationError as exc:
+        raise ValueError(
+            f"{p.name}: this bank states a value outside the range this "
+            f"package's Instrument holds — ICONS LAM1 {icons.lam1}, LAM2 "
+            f"{icons.lam2}, POLA {icons.polarization}, KRATIO "
+            f"{icons.ka2_ratio}; PRCF converted to U {gu / 1e4}, V "
+            f"{gv / 1e4}, W {gw / 1e4}, X {lx / 1e2}, Y {ly / 1e2}, S/L "
+            f"{sl}, H/L {hl}.  Read by column every one of those is the "
+            f"file's own number rather than a field landing in the wrong "
+            f"slot, so the calibration is refused here, naming the file, "
+            f"rather than arriving later as a schema error that names none: "
+            f"{exc}") from exc
     for param in _iter_parameters(instrument):
         param.vary = False
     return instrument

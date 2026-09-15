@@ -1,12 +1,13 @@
 # WP-1118 — foreign model files: read a refinement in, write one back
 
-Milestone: unscheduled · Status: 🔄 2026-09-15 — the TOPAS `.inp` reader
+Milestone: unscheduled · Status: 🔄 2026-09-16 — the TOPAS `.inp` reader
 (PR #98), the FullProf `.pcr` reader (PR #111), the GSAS-I `.PRM`
 instrument-parameter reader (PR #248), the model-format registry over them and
 the GSAS `.EXP` reader (#103), whose acceptance rewire showed the FAP suite
-refines 20 parameters where GSAS refined 28; `read_gsas_prm`'s fixed-format
-records are being read by column, claimed by @yue-here; the `.gpx` reader and
-every writer remain
+refines 20 parameters where GSAS refined 28; `read_gsas_prm` now reads its
+fixed-format records by column and a Kα doublet with them (PR #332), and
+refuses an out-of-range value naming the file; the `.gpx` reader and every
+writer remain
 Depends on: — (WP-1110 found it; WP-1102 owns the one seam that overlaps)
 
 ## Goal
@@ -305,16 +306,22 @@ format token is spelled in `_about.py`, never inline (root CLAUDE.md § Conventi
       was repaired somewhere between 2026-09-03 and 2026-09-13 and now names
       both `rietx.io.projects.read_topas_inp` and `read_fullprof_pcr`, says
       they have no top-level `rx.` entry point yet, and carries `rx.read_gsas_prm`
-      — so it is no longer false. What is still owed is `SKILL.md`'s routing row
-      (line 41), which names only "a PowderLine recipe" and so is *narrow*
-      rather than false, and which must name the **situation** and list the
-      formats in § In, never a reader's name in the *When* column
-      ([1330](1330-skill-references-by-shape.md)). The byte-headroom cautions
-      inherited from WP-1308 (27 B), PR #98 (32 B) and 1330 (36 B) are all
-      stale: measured 2026-09-13, `SKILL.md` is 31 403 B of its 33 000 cap —
-      **1 597 B free** — and `references/api.md` 30 924 B of 36 000. A body
-      sentence is still paid for by a cut named in the commit; there is simply
-      room to pay.
+      — so it is no longer false.
+      **Superseded again, 2026-09-15**: `SKILL.md`'s routing row is not owed
+      either, and the claim that it was has never been true. Line 41 reads
+      "you were handed another program's input file, not a pattern" and routes
+      to `references/api.md` § In, which is the **situation** in the *When*
+      column and the formats in § In, exactly as
+      [1330](1330-skill-references-by-shape.md) asks. It landed 2026-08-30 in
+      `7bc3e3d0` under WP-1308, before the note above it was written. No row in
+      the file says "a PowderLine recipe"; the word `recipe` in that row is a
+      manual page in the third column, which is how it was misread. Nothing is
+      owed on the skill for the readers that have shipped. The byte-headroom
+      cautions inherited from WP-1308 (27 B), PR #98 (32 B) and 1330 (36 B) are
+      stale, and so are 09-13's replacements: measured 2026-09-15, `SKILL.md`
+      is 31 951 B of its 33 000 cap (**1 049 B free**) and `references/api.md`
+      32 796 B of 36 000 (**3 204 B free**). A body sentence is still paid for
+      by a cut named in the commit; there is simply room to pay.
 - [ ] A `#prm`-only integer evaluator for `.inp` `#if` guards, so the
       multi-pattern reel files read instead of refusing (§ Context; WP-1130
       measured three of four workshop files out of reach). Scope it to integer
@@ -363,7 +370,193 @@ work this WP does.
 
 ## Handover log
 
-### 2026-09-15 — the GSAS `.EXP` reader, and the protocol it turned out nobody had
+### 2026-09-16 — the handover the column read never wrote, and the refusal the repair found
+
+A session that finishes its work and never writes it down leaves the next person
+reading commit messages. This is that record. The entry below reconstructs what
+the column read did; this one covers the repair that wrote it.
+
+The repair was meant to be bookkeeping. It turned up two things instead. One is
+a claim in this file that had never been true. The other is a defect in the
+merged reader, and it is the one worth knowing. Handed a `.prm` whose numbers
+fall outside what this package's schema holds, `read_gsas_prm` did not refuse
+it. Pydantic did, naming a `Parameter` and never the file, which is the one
+shape `io/CLAUDE.md` forbids a reader. It refuses by name now.
+
+*Done* — on `wp1118-prm-columns-handover`, cut fresh from `origin/main`. The
+column session's branch was already merged, so a commit on it would have been
+stranded where the merge could not carry it.
+
+- The reconstructed entry below, the Status line, and WP-1314's `### Inherited`.
+- `0efac867`, the refusal, with its parametrised test.
+- The stale claim in the skill task, repaired in place and dated.
+
+*Measured* — this worktree's `.venv`, `[dev]` only (no jax, no torch), python
+3.12.12, darwin/arm64, alone on the machine (checked with `ps aux | grep`, not
+`pgrep`).
+
+- The four `.prm` fixtures re-read on the merged tree. They come back
+  single-line at λ 0.41391, 0.41313, 0.41368 and 0.41330 Å, each weight 1.0,
+  and `INST_XRY.PRM` refuses naming `GP`. That corroborates the shape of the
+  answer. It does not re-verify the bit-identity claimed in the entry below,
+  which needs the pre-branch module and stays that session's measurement.
+- **The column session recorded no selection count. This one measured**, on
+  the repair branch, alone on the machine: fast selection
+  `-n auto --dist loadgroup -m "not slow"` → **4951 passed, 132 skipped**, 3:23.
+  Five of those are this repair's own parametrised refusal test, so `origin/main`
+  stands at 4946, derived per file rather than by re-measuring it
+  (`tests/CLAUDE.md` rung 4).
+- **That figure does not yield the column session's delta.** The 1st session
+  measured 4925 passed on *its branch*, `7747a14e`, and the tree that became
+  `origin/main` is that branch merged into a `main` which had moved under it.
+  Two parents' additions do not sum (`tests/CLAUDE.md` § Quoting numbers), so
+  the attributable figure here is the per-file one: `tests/test_gsas_prm.py`
+  went 29 → 38 test functions.
+- `tests/test_gsas_prm.py` 40 → 45 cases with the refusal test, all passing.
+  `test_manual_api.py`, `test_docs_consistency.py` and `test_skill.py`: 101
+  passed. `ruff check src tests examples` clean.
+- No full selection. On a successful read the refusal converts nothing and
+  reorders nothing, so no measured number can move.
+
+*The review pass* — `/code-review high --fix`, run by this repair. It found
+something in the merged code rather than in the repair. That is the case step 9
+of the handover exists for.
+
+Read what it is before relying on it. The diff under review was this branch's,
+which is documentation, so the reader was opened as **context** and never as
+reviewed scope. One defect surfaced that way. PR #332's code has had exactly one
+systematic review and it is the column session's own (`2a96b536`); nothing here
+re-reviewed it, and a second defect of the same kind would not have been found.
+
+`read_gsas_prm` converts the file's numbers onto the schema by assignment, and
+`Base` validates on assignment while `Parameter` carries a bounds validator. A
+`.prm` stating a negative `GW` therefore raised pydantic's `ValidationError`
+naming `Parameter`, with no file in it, which is the shape `io/CLAUDE.md`
+§ Refusals forbids a reader. The conversion now sits in `_build_instrument`, and
+a schema error at that boundary comes back as a `ValueError` naming the file and
+quoting every value it converted. The same exposure ran through `LAM1`, `LAM2`,
+`POLA`, `KRATIO`, `GU` and the two axial terms, so the test is parametrised over
+five of them (`0efac867`).
+
+Two smaller things came with it. The build moved above the diagnostics block.
+The emission site's own comment already promised that, and the test now asserts
+the caller's list is empty when a file is refused. And the manual
+documented the two diagnostics in the wrong order. `GSAS_PRM_FIELD_DROPPED`
+precedes `GSAS_PRM_GEOMETRY_ASSUMED`, checked on `11bm_gsas.prm`, and that error
+predates the reorder.
+
+One finding was declined as written. The patch's docstring and its test comment
+both said a GSAS fit of a broad laboratory pattern lands `GW` negative
+"routinely". Nothing in this session measured that. The docstring now states the
+measurement that was made and says plainly that the frequency was not.
+
+*Next*, in order, with what decides between them.
+
+1. **The GSAS-II `.gpx` reader behind the restricted unpickler.** It is the last
+   reader, and the writers task cannot be scoped until every reader's model
+   exists. Its own first step is widening the corpus. That is measurement, and
+   it can start before any unpickler is written.
+2. **Origin-choice honesty** (#101), the cheap one. `normalize_space_group` is
+   already drafted in the #98 branch and the task closes an issue.
+3. The writers (#148), then the `#prm` integer evaluator for `.inp` `#if`
+   guards.
+
+One thing the WP file called owed is not owed. This repair checked `SKILL.md`
+before repeating the claim, and line 41 already names the situation and routes
+to `references/api.md` § In. It landed 2026-08-30 under WP-1308, before the
+note calling it missing was written, and the "PowderLine recipe" the note
+quotes is a manual page in the row's third column. The task text now says so,
+with the byte headroom re-measured: `SKILL.md` has 1 049 B free of 33 000 and
+`references/api.md` 3 204 B of 36 000, both tighter than the 09-13 figures they
+replace.
+
+
+### 2026-09-15 (2nd session) — `read_gsas_prm` by column, and the refusal whose reason had expired (reconstructed post hoc)
+
+A lab `.prm` written for a copper tube states two wavelengths. rietx refused
+every such file, and the reason it printed was that no file said how to weight
+the second line against the first. The file did say. The reader could not find
+the number because it read the record by splitting on spaces, and under that
+reading the intensity ratio lands where the polarization is. Located by column
+it is exactly the second emission line's weight, so a doublet now opens and
+comes back with both lines.
+
+Behind that sits the part worth carrying. A `.prm`'s `INS` records and a
+`.EXP`'s `HST` records are the same GSAS records under different four-character
+keys, and this package was parsing three of them two ways. The corpus hid it.
+Every 11-BM file here leaves `IREF` and `IDAMP` blank, so six tokens happened to
+land on the right meanings and the reader looked correct, while the one file
+that writes `IDAMP` was refused for having seven. The grammar now has one home
+and both readers call it.
+
+*Reconstructed post hoc*, from `git log --stat` over the branch's four commits,
+their bodies, and the state of the checklist. The session left no entry of its
+own. Where the diff does not say why something was done, this entry says so
+instead of supplying a reason.
+
+*Done* — four commits on `wp1118-gsas-prm-columns`, merged as PR #332
+(`3e759b54`).
+
+- **The grammar** (`c4b20256`). `io/projects/gsas.py` grew
+  `GsasIcons`/`read_icons`, `GsasPrcfHeader`/`read_prcf_header` and
+  `split_records`, all public and all called by `instrument_profile.py`'s
+  `.prm` reader a package away. The coefficient names come from
+  `CW_PROFILE_COEFFICIENTS`, the table the `.EXP` reader was already using.
+- **The docs** (`e2d2d6d2`). The reader's own docstring described six `ICONS`
+  fields read by position and a doublet refused for want of a convention, and
+  both had gone false. `docs/manual/using/files.md` gains the doublet and loses
+  a sentence saying a GSAS `.EXP` has no reader, which the 1st session had
+  already made untrue. The skill's `GSAS_PRM_FIELD_DROPPED` row names the
+  fields the column layout identifies, and `references/api.md` now tells an
+  agent not to add a Kα2 line after reading one. The addition is staged in the
+  v1.4 record. Post-ship work goes there while no milestone is open.
+- **The review pass** (`2a96b536`), over three blank fields the column read made
+  reachable. A six-token split refused a record missing any field, so no field's
+  absence had had an answer of its own. A blank `POLA` was the one that
+  mattered. The `Instrument.debye_scherrer` constructor defaults its
+  polarization to 0.99 and every real file in the corpus states 0.99, so falling
+  back on the default would have put this package's number into an instrument a
+  caller reads as the file's. It is refused by name. A blank
+  `PRCF1` profile type reached the unrecognised-type refusal and printed `None`,
+  and it now says the header states no type. Two diagnostic rows asserted `= 0`
+  for fields they had not read, which is the defaulted-field lie one message
+  over.
+- **The claim** (`46611638`) carried the FAP-freedom decision the 1st session had
+  left to the maintainer. The suite keeps its 20 free parameters and keeps
+  asserting the difference against GSAS's 28.
+
+*Measured* — the session's own numbers, in the same worktree and `.venv` as
+the 1st session, `[dev]` only (no jax, no torch), python 3.12.12, darwin/arm64.
+
+- The four real calibration files here read **bit-identically**: `11bm_gsas.prm`,
+  `11bm_lab6_gsas.prm`, `11BM_LaB6_cBN_mg2044.prm` and `mg090.prm`, measured
+  against `origin/main`'s module over the whole `model_dump`.
+- `INST_XRY.PRM` is refused for its `GP` of 0.1, a stock GSAS placeholder, where
+  before it was refused for a token count.
+- `tests/test_gsas_prm.py` went 29 → 38 test functions, 12 added and 3 removed.
+  The three that went asserted the split reading: the token-count refusal, the
+  doublet refusal and the reserved-field refusal. The file collects 40 cases and
+  all 40 pass on the merged tree, re-measured 2026-09-16 by the repair above.
+- `src/rietx/io/CLAUDE.md`'s cap went 368 → 383, and the file landed at 381.
+
+*Gotchas*
+
+- **The `PRCF` continuation records stay a token read**, deliberately. GSAS
+  prints coefficient labels inside the 15-column fields on some files, so
+  `11BM_LaB6_cBN_mg2044.prm` is 61 characters where `4E15.6` is 60, and its
+  second field reads `     GV -0.1260` by column. Sharpening the rest of the
+  reader does not licence sharpening this.
+- `tests/data/README.md` had `INST_XRY.PRM`'s `POLA` as 0.5. It is 0.7, and the
+  0.5 beside it is `KRATIO`. That pair is the whole reason the file is worth
+  keeping, since `FAP.EXP` states only `POLA` and the two are conventionally
+  equal.
+- The two rules this session put in `io/CLAUDE.md` are aimed at the next project
+  reader. Staying outside the registry is about dispatch and never about
+  parsing, so one vendor's several file kinds read a record through one
+  function. And a refusal's reason can expire, so a parser getting sharper is a
+  reason to audit its refusals too.
+
+### 2026-09-15 (1st session) — the GSAS `.EXP` reader, and the protocol it turned out nobody had
 
 Someone handed GSAS's own converged refinement can now open it with one call and
 get back the model *and the refine flags* — which parameters that refinement was

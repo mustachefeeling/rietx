@@ -53,6 +53,22 @@ flipping).
 
 ### Inherited
 
+- **2026-09-15 (2nd session), from [1118](1118-foreign-model-files.md): one
+  vendor's several file kinds read a record through one function, and
+  `io/CLAUDE.md` now says so.** A `.prm` and a `.EXP` are both GSAS, and their
+  instrument records are the same records under different four-character keys.
+  This package parsed three of them two ways for a milestone. The corpus hid
+  it, because a whitespace split is right only while two optional fields stay
+  blank. GSAS's grammar now lives in `io/projects/gsas.py`, public, and the
+  `.prm` reader a package away calls it. **Staying outside the registry is
+  about dispatch and never about parsing**, which is the clause aimed straight
+  at a `.m50`/`.m40`/`.m41` trio: however this WP decides to claim the set, the
+  three files want one Jana grammar module between them. Second rule from the
+  same session, and the one no test runs: **a refusal's reason can expire**. A
+  parser's reads are tested and its refusals are prose, so "no file establishes
+  this" sat in the `.prm` doublet refusal long after the file establishing it
+  had been committed. Audit the refusals whenever the parser gets sharper.
+
 - **2026-09-15, from [1118](1118-foreign-model-files.md): the registry has a
   third member, and it moved a seam a Jana reader will meet.**
   `ProjectFormat.reports_at` is no longer two-valued — the GSAS `.EXP` reader
