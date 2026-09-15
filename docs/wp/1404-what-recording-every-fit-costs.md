@@ -107,6 +107,31 @@ recorded, not worked around. In order of preference:
 
 ### Inherited
 
+From **WP-1403** (2026-09-15), which is the thing this WP weighs:
+
+- **Recording is on by default now**, so this WP's subject exists. The knobs to
+  measure against: `telemetry=False` per call, `RIETX_TELEMETRY=0` per process,
+  and `runs.set_enabled` inside one. The suite declines recording entirely, so a
+  benchmark under pytest measures the *off* path unless it says otherwise.
+- **The per-evaluation write is buffered now** and its cadence is
+  `runs.FLUSH_INTERVAL_SECONDS` (0.2 s): `eval` lines sit in the handle's own
+  buffer and every other kind flushes as written. So the `json.dumps` + write +
+  `flush` syscall pair this WP inherited as a per-evaluation cost is now a
+  `dumps` and a buffered write, with the flush amortised. **Re-measure it before
+  building on the old figure.**
+- **`_free_values` was left exactly as it was** (`least_squares.py:822`, called
+  at `:866` and `:1153`): a second full `table.decode` plus a list build, per
+  residual evaluation, *before* any sink is consulted. 1403's mitigation 2 —
+  letting the sink answer whether it wants the values, one `getattr` an
+  evaluation — was written as contingent on this WP's numbers, and nothing has
+  been done to it. It is the obvious first candidate.
+- **A recorded run is 204 kB** on the synthetic five-stage LaB6 case, of which
+  `snapshot.json` is 171 kB and the event log 30.8 kB (87 events). `[dev]`,
+  macOS arm64. A long series' log is the part that scales.
+- **The retention scan is once per process, not once per fit**, and costs
+  0.2 ms at 10 runs, 2.2 ms at 100 and 27.6 ms at 1000. Not per-fit overhead,
+  but it is on the first fit's path.
+
 From **WP-1402** (2026-09-15), which measured the thing this WP was to weigh:
 
 - **`decimation_index` costs 6.6-7.1 ms a stage** and is 50-75 % of a snapshot's

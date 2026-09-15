@@ -71,6 +71,23 @@ from `SeriesResult`, so neither surface invents a second set of names.
 
 ### Inherited
 
+From **WP-1403** (2026-09-15), which removed this WP's Task 2 premise:
+
+- **Task 2 is discharged, not deferred.** The `history` defaults asymmetry was
+  a decision about which knob to flip so that an agent would have a log; every
+  fit now writes one whether or not `history` or `events=` was passed, so there
+  is no longer an asymmetry to decide. Strike the task rather than answering it,
+  and say in the handover that 1403 is why.
+- **Task 1 is untouched and still wanted.** The terminal-shaped post-hoc
+  aggregator now has a reliable input rather than a hoped-for one: a run
+  directory per fit, discoverable by `runs.discover`, with `meta.json` and
+  `status.json` beside the log. An aggregator can read what a run *says about
+  itself* instead of inferring it from the stream.
+- The measurement this WP made is what carried 1403: three agents, three routes
+  to the skill, five occurrences of `history=False`, and 2.7-16.6 % coverage
+  recovered from transcripts afterwards. It is quoted in 1403's own Context and
+  in the new `tests/test_telemetry.py` docstring, so it is no longer only here.
+
 - **2026-09-13, from WP-1401 (the live-watcher track): Task 2 is on its way to
   being answered by removing its own premise — do not decide it standing
   alone.** WP-1403 makes every `fit()` record itself, with an env switch and

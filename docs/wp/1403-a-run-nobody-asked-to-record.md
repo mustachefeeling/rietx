@@ -1,6 +1,7 @@
 # WP-1403 — a run nobody asked to record
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: ✅ 2026-09-15 — every fit records itself;
+not user-shippable until WP-1406 writes the prose
 Depends on: 1401 (the reader, and the baseline measurement that gates this);
 1402 (the snapshot this writes)
 
@@ -380,6 +381,110 @@ The full suite fires once on the final tree: no fitted number changes, but
   `str(result)`.
 
 ## Handover log
+
+### 2026-09-15 — a fit records itself
+
+A refinement now records itself. Any fit leaves behind an event log, a live
+status, a picture of each stage and its termination view, without the caller
+passing anything at all. The alternative was to document the knob harder, and
+that had already been tried. Three independent agents given a benchmarking task
+each read the packaged skill in full, and each switched recording off. One
+environment variable turns it off for anyone who wants their disk left alone; a
+run costs about 200 kB, and a fit that cannot write one carries on anyway.
+
+*Done.* All eleven tasks, plus one the list did not have, over nine commits.
+`_about.py` spells `RUNS_DIR_NAME` and `TELEMETRY_ENV`, with the ambiguity no
+test can catch written into the docstring: `$HOME/.rietx` is the GUI's per-user
+state and `RIETX_STATE_DIR` moves that one alone, while the working directory's
+`.rietx/` is this. `runs.py` is now both halves of one file contract, and the
+recorder writes to the names WP-1401 declared rather than inventing any.
+`runs.attach` hangs it beside a caller's stream and never inside it, so `fit`'s
+`stream is not events` close rule is byte-for-byte what it was; the recorder's
+own `try/finally` is a second one. `Project.fit` and `run_stage` setdefault
+their `live/`, and a bare `ref.fit()` on a project-built `Refinement` derives
+the same directory from a history tree sitting beside a `project.json`. The GUI
+passes a callback-only stream now, because a recorder chained onto one that also
+held a path writes the whole eval stream twice.
+
+**The twelfth task was not in the list and the acceptance could not hold without
+it.** `discover` skips every dotted directory, which hid the whole of
+`.rietx/runs` from a watcher whose default root is the working directory. The
+state dir is recognised by name now, exactly as `*.rex` is, and one
+`_collect_runs` serves both. It asks *at* and *inside*, so a pre-1403 `live/`
+that is itself a run stays visible beside the `live/<run id>/` a recorder
+writes.
+
+*Measured.* `[dev]` venv (no jax, no torch), macOS arm64 (Darwin 25.5.0),
+python 3.12.12, rietx 1.4.0, machine checked idle and measured alone.
+
+A plain `fit()` of the synthetic five-stage LaB6 case, in an empty directory:
+one run the watcher lists, 204 kB over six files — `snapshot.json` 171 kB,
+`events.jsonl` 30.8 kB (87 events), `meta.json` 263 B, `status.json` 235 B,
+`summary.txt` 1425 B, `run.lock` empty. The same fit under `RIETX_TELEMETRY=0`
+and under `telemetry=False` left **nothing at all**, asserted as an empty
+`rglob`. The status's Rwp matched the result's to 1e-12, and the retention scan
+that runs once per process cost 0.2 ms at 10 runs, 2.2 ms at 100 and 27.6 ms at
+1000 (197 MB).
+
+Counts. Fast selection **4782 passed, 132 skipped, 2:19**. The delta is
+measured rather than inferred: collection over that selection is 4912 with
+`tests/test_telemetry.py` and 4884 without it, so the branch adds **exactly 28**
+and changes no existing test's identity. No new skip, 132 both ways. The
+passed+skipped of 4914 against 4912 collected is the two module-level
+`importorskip` modules that fire on a `[dev]` venv (jax, torch), which is the
+gap `tests/CLAUDE.md` documents. The **full suite ran green at 4949 passed, 141
+skipped, 22:32**, on `21171de3`, one commit back. The commit after it splits one
+test function into two and touches no source at all, so by the ladder's own rule
+it cannot move a measured number and the full suite was not repeated for it.
+These are the bare branch's figures; the merged-tree ones are below.
+
+*Gotchas.*
+
+- **A recorder's latch does not cover what happens before it exists.** Choosing
+  a root and making a directory are `attach`'s work, and an unguarded
+  `PermissionError` there took a whole fit down until the read-only test found
+  it on its first run. Both sit inside a guard now. Anything else moved ahead of
+  the constructor inherits the same hole.
+- **A new place to put runs needs a descent rule in `discover`.** The walk
+  reaches a run only at the root, one level under `.rietx/runs`, or one level
+  under a project's `live/`. Nothing else is found, and nothing goes red when it
+  is not.
+- **`_SeriesStream` forwards `write_snapshot` by assignment, not by a method**,
+  so `_snapshot_sinks`'s `hasattr` test keeps telling the truth about an inner
+  stream that cannot take one. A method defined unconditionally would hand a
+  plain `EventStream` a call it cannot answer.
+- **`live/` holds run directories now, and `PROJECT_FORMAT_VERSION` did not
+  move.** The decision, made deliberately: `project.json`'s schema is untouched
+  and `live/`'s *contents* were never part of the format's promise. An old
+  project still opens, and its existing `live/` log still resolves as a legacy
+  run.
+- **`status.json`'s `gof` and `chi2` are the snapshot's, whose `n_free` excludes
+  the Pawley tail; `stage_end`'s includes it.** `rwp` does not depend on
+  `n_free`, so the two always agree there, which is what the test asserts. Under
+  Pawley the other two would not.
+- **A recorder that cannot take the lock records anyway**, falling back to the
+  pid rung of `liveness_of`. That only happens when two writers are pointed at
+  one directory, which the run-id subdirectories otherwise prevent.
+- **`run_stage` records one run per stage.** Five stages driven by hand are five
+  directories, which is the honest shape when nothing in the package knows they
+  were meant as one job.
+
+*Not done, deliberately.* No manual chapter and no skill prose, per this WP's
+non-goals — **so this is not user-shippable as it stands**, and WP-1406 is what
+makes it so. A library user currently gets no sentence anywhere saying that a
+fit writes to their disk. The generated `references/api.md` was regenerated
+because it renders live signatures and the new keyword made it stale by
+construction; that is not prose. `files.md`'s two descriptions of `live/` were
+corrected for the same reason, in four words.
+
+*Next*, in order. **WP-1406 first**, because the feature is not shippable
+without it and every day it waits is a day someone can find `.rietx/` in their
+working directory with nothing to read about it. Then **WP-1404**, which this
+WP hands its number: a fit's remaining 1.03-1.28x is the decimation's python
+bucket loop, and the buffered writer here should have moved the per-evaluation
+half of it. **WP-1405** last, and note that its cancel token ends
+`_abandon_on_cancel`'s short circuit, which is a cost this WP does not include.
+
 
 - **2026-09-13** — created. The premise is WP-1322's measurement, not a
   preference: documenting the knob harder is the fix that was already tried. The
