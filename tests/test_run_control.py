@@ -6,9 +6,16 @@ a token, an exception carrying what completed, and two more event fields.
 
 from __future__ import annotations
 
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
+
 import pytest
 
 import rietx as rx
+from rietx import runs
 from rietx.history.events import (
     EVENT_SCHEMA_VERSION,
     EventKind,
@@ -16,6 +23,10 @@ from rietx.history.events import (
 )
 from rietx.optimize.cancel import CancelToken, RefinementCancelled
 from tests.test_refine_synthetic import perturbed_models, synthesize
+
+#: The tree the child process imports ``rietx`` and ``tests`` from — this one,
+#: not whatever is installed, or a worktree would test the main checkout.
+REPO = Path(__file__).resolve().parent.parent
 
 PLAN = rx.RefinementPlan(stages=[
     rx.Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"], max_iter=30),
@@ -266,6 +277,51 @@ def test_token_is_reusable(ref, pattern):
     assert ref.fit(pattern, plan=PLAN, cancel=token).statistics.rwp > 0
 
 
+# ------------------------------------------------- stopped from outside (1405)
+def test_the_cancelled_exception_is_still_exactly_its_three_fields():
+    """WP-1405 gave a human a way to raise this, and added nothing to it.
+
+    "Who asked" is a property of the *record* and not of the exception, on
+    purpose: downstream, a human's stop and the caller's own ``token.cancel()``
+    are the same cooperative read, and a field telling them apart would be a
+    distinction the fit cannot actually make.
+    """
+    exc = RefinementCancelled()
+    assert (exc.stage, exc.completed_stages, exc.node_id) == ("", [], None)
+    assert set(vars(exc)) == {"stage", "completed_stages", "node_id"}
+
+
+def test_a_watched_token_answers_everything_a_caller_token_does():
+    """The recorder's token is duck-typed, the way ``Deadline`` is.
+
+    Which means a verb added to :class:`CancelToken` would silently not exist
+    on it — and the consumer that called the new verb would get an
+    ``AttributeError`` inside the recorder's latch, where it reads as telemetry
+    failing rather than as a missing method.
+    """
+    from rietx.runs import _WatchedToken
+
+    class _Recorder:
+        flush_interval = 30.0
+        dir = "nowhere"
+
+        def poll_cancel(self):
+            pass
+
+    watched = _WatchedToken(_Recorder(), CancelToken())
+    for name in dir(CancelToken):
+        if name.startswith("_") and name not in ("__bool__", "__repr__"):
+            continue
+        assert hasattr(watched, name), name
+    # and it reads its inner rather than keeping a second opinion
+    inner = CancelToken()
+    watched = _WatchedToken(_Recorder(), inner)
+    inner.cancel()
+    assert watched.is_set() and bool(watched)
+    watched.reset()
+    assert not inner.is_set() and not watched.is_set()
+
+
 def test_a_deadline_serves_as_a_fit_cancel_token(ref, pattern):
     """WP-1037: the indexing ``Deadline`` duck-types ``CancelToken`` at every
     consumer, including the solver's ``.is_set()`` read here — which is the
@@ -279,3 +335,99 @@ def test_a_deadline_serves_as_a_fit_cancel_token(ref, pattern):
         ref.fit(pattern, plan=PLAN, cancel=Deadline(1e-9))
     result = ref.fit(pattern, plan=PLAN, cancel=Deadline(3600.0))
     assert result.statistics.rwp > 0
+
+
+# --------------------------------------------------------- across a process
+#: What the child runs: a long fit that catches the cancellation and reports
+#: where it got to, which is what a script an agent wrote would do. It prints
+#: its run directory the moment the first evaluation happens, so the parent
+#: does not have to poll a filesystem to find out which run it is looking at —
+#: that is the test's own convenience and no part of the mechanism.
+_CHILD = '''
+import sys
+sys.path.insert(0, {repo!r})
+import rietx as rx
+from rietx import runs
+from rietx.optimize.cancel import RefinementCancelled
+from tests.test_refine_synthetic import perturbed_models, synthesize
+
+pattern = synthesize()
+structure, ins = perturbed_models()
+ref = rx.Refinement(structure, ins, history=False)
+plan = rx.RefinementPlan(stages=[
+    rx.Stage("s%d" % i, ["phases.*.scale", "instrument.background.*"],
+             max_iter=40)
+    for i in range({n_stages})])
+
+said = []
+def announce(event):
+    if event["kind"] == "eval" and not said:
+        said.append(1)
+        found = runs.discover({root!r})
+        print("RUN", found[0].path, flush=True)
+
+try:
+    ref.fit(pattern, plan=plan, events=announce, telemetry={root!r})
+except RefinementCancelled as exc:
+    print("CANCELLED stage=%s completed=%d node=%s"
+          % (exc.stage, len(exc.completed_stages), exc.node_id), flush=True)
+    sys.exit(0)
+print("FINISHED", flush=True)
+sys.exit(3)
+'''
+
+
+@pytest.mark.slow
+def test_a_second_process_stops_the_fit(tmp_path):
+    """WP-1405's acceptance, with a real process boundary in it.
+
+    A long fit in one process, the request written from another, and three
+    things asserted about what the first one then does: it stops, it stops
+    *early*, and it reports where it got to rather than dying of its own
+    telemetry. The last is the one that needs two processes — every guard in
+    ``RunRecorder`` exists so that a fit which was never asked to be
+    cancellable does not pay for the fact that it now is.
+    """
+    # Long enough that the parent cannot lose the race on a loaded machine.
+    # Not a budget: the fit takes ~2 s unasked and the request is written
+    # ~1 ms after the child's first evaluation, so the margin is three orders
+    # of magnitude and a slower machine only widens it.
+    n_stages = 150
+    script = tmp_path / "child.py"
+    script.write_text(_CHILD.format(repo=str(REPO), root=str(tmp_path),
+                                    n_stages=n_stages), encoding="utf-8")
+    env = dict(os.environ, RIETX_TELEMETRY="1")   # conftest switched it off
+    child = subprocess.Popen(
+        [sys.executable, str(script)], cwd=str(REPO), env=env,
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    try:
+        first = child.stdout.readline()           # "RUN <path>"
+        assert first.startswith("RUN "), (first, child.stderr.read())
+        run_dir = Path(first.split(" ", 1)[1].strip())
+
+        runs.request_cancel(run_dir, who="the test")
+        # a runaway guard and not a timer: the fit stops within a cadence, and
+        # this is how long we wait before calling the mechanism broken
+        out, err = child.communicate(timeout=120)
+    finally:
+        if child.poll() is None:                  # pragma: no cover - a hang
+            child.kill()
+            child.communicate()
+
+    assert child.returncode == 0, (out, err)
+    assert "CANCELLED" in out, (out, err)
+    assert "FINISHED" not in out
+    completed = int(out.split("completed=")[1].split()[0])
+    assert completed < n_stages, "the fit ran to the end anyway"
+    # the script's own report, not a traceback, and no complaint from telemetry
+    assert "Traceback" not in err and "telemetry" not in err, err
+
+    status = json.loads((run_dir / runs.STATUS_FILE).read_text(encoding="utf-8"))
+    assert status["state"] == "cancelled"
+    assert status["cancelled_by"] == "the test"
+    assert not (run_dir / runs.CANCEL_FILE).exists()
+    assert not (run_dir / runs.SUMMARY_FILE).exists()
+    # the lock is released however the writer ends, so the reader's own answer
+    # agrees with the record rather than reading `abandoned`
+    (row,) = [r for r in runs.discover(tmp_path) if r.path == run_dir]
+    assert runs.liveness_of(row).state == "cancelled"

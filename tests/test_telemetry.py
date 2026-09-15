@@ -26,6 +26,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import time
 import warnings
 from pathlib import Path
 
@@ -35,6 +36,7 @@ import rietx as rx
 from rietx import runs
 from rietx._about import RUNS_DIR_NAME, STATE_DIR_NAME, TELEMETRY_ENV
 from rietx.history.events import EventStream, read_events
+from rietx.optimize.cancel import CancelToken, RefinementCancelled
 from tests.test_refine_synthetic import perturbed_models, synthesize
 
 pytestmark = pytest.mark.xdist_group("telemetry")
@@ -572,6 +574,210 @@ def test_collect_runs_honours_the_cap_it_is_handed(tmp_path):
     room: list = []
     runs._collect_runs(holder, tmp_path, room, max_runs=10)
     assert len(room) == 2      # the holder and its one child
+
+
+# ----------------------------------------------------------------------
+# stopping a run from outside the process (WP-1405)
+# ----------------------------------------------------------------------
+def _fit_and_ask(tmp_path, pattern, *, cancel=None, at=4, body=None,
+                 plan=None):
+    """Run a recorded fit that asks itself to stop, part way through.
+
+    The request is written from inside an ``events=`` callback rather than from
+    another thread, so the test is deterministic: the file exists from a known
+    evaluation onwards, and how long the fit then takes to notice is the thing
+    under test.
+    """
+    structure, ins = perturbed_models()
+    ref = rx.Refinement(structure, ins, history=False)
+    seen = {"n": 0, "asked": False, "at": None}
+
+    def ask(event):
+        if event["kind"] != "eval":
+            return
+        seen["n"] += 1
+        if seen["n"] < at or seen["asked"]:
+            return
+        seen["asked"] = True
+        seen["at"] = seen["n"]
+        (run,) = runs.discover(tmp_path)
+        if body is None:
+            runs.request_cancel(run.path, who="a test")
+        else:
+            (run.path / runs.CANCEL_FILE).write_text(json.dumps(body),
+                                                     encoding="utf-8")
+
+    raised = None
+    try:
+        ref.fit(pattern, plan=plan or "profile_only", events=ask, cancel=cancel)
+    except RefinementCancelled as exc:
+        raised = exc
+    (run,) = runs.discover(tmp_path)
+    status = json.loads((run.path / runs.STATUS_FILE).read_text())
+    return raised, status, run, seen
+
+
+def test_a_recorded_fit_with_no_caller_token_stops(tmp_path, monkeypatch,
+                                                   pattern, recording):
+    """WP-1405's acceptance: a fit nobody made cancellable is cancellable.
+
+    The caller passed no ``cancel=``, so before this the only ``CancelToken``
+    in the package was the GUI's own. The exception that comes out is the one
+    the caller would have got had they asked for it, which is the point: a
+    human's stop and an agent's own ``token.cancel()`` are indistinguishable
+    downstream.
+    """
+    monkeypatch.chdir(tmp_path)
+    exc, status, run, _ = _fit_and_ask(tmp_path, pattern)
+
+    assert exc is not None, "the request did not reach the fit"
+    assert status["state"] == "cancelled"
+    assert status["cancelled_by"] == "a test"
+    assert runs.liveness_of(run).state == "cancelled"
+    # consumed, not left lying: a request read twice is a request that stops
+    # the next fit into this directory as well
+    assert not (run.path / runs.CANCEL_FILE).exists()
+    # ...and no summary, because there is no result to write one from
+    assert not (run.path / runs.SUMMARY_FILE).exists()
+
+
+def test_the_request_sets_the_callers_own_token_and_not_a_second_one(
+        tmp_path, monkeypatch, pattern, recording):
+    """One authority per run for "stop".
+
+    A GUI session holds its token and reads it back; a second flag set
+    somewhere else would leave the two disagreeing about a fit they both
+    stopped.
+    """
+    monkeypatch.chdir(tmp_path)
+    token = CancelToken()
+    exc, status, _, _ = _fit_and_ask(tmp_path, pattern, cancel=token)
+
+    assert exc is not None
+    assert token.is_set() and bool(token)
+    assert status["cancelled_by"] == "a test"
+
+
+def test_a_request_this_version_does_not_know_is_declined_by_name(
+        tmp_path, monkeypatch, pattern, recording):
+    """An old recorder meeting a newer watcher's word must not stop the fit.
+
+    The vocabulary in the request file is open forwards. Rounding an unknown
+    word to the file's *name* would make every future verb a cancel on every
+    older install, which is the one way this seam could become dangerous.
+    """
+    monkeypatch.chdir(tmp_path)
+    exc, status, run, _ = _fit_and_ask(
+        tmp_path, pattern, body={"request": "pause", "who": "a newer watcher"})
+
+    assert exc is None, "an unknown request stopped the fit"
+    assert status["state"] == "done"
+    assert status["declined"] == "pause"
+    assert status.get("cancelled_by") is None
+    # consumed even so, or it is re-read and re-declined every cadence
+    assert not (run.path / runs.CANCEL_FILE).exists()
+
+
+def test_a_request_with_no_body_is_still_a_cancel(tmp_path, monkeypatch,
+                                                  pattern, recording):
+    """``touch cancel`` is the obvious gesture, and the file's name is the verb."""
+    monkeypatch.chdir(tmp_path)
+    exc, status, _, _ = _fit_and_ask(tmp_path, pattern, body={})
+
+    assert exc is not None
+    assert status["state"] == "cancelled"
+    assert status["cancelled_by"] == "unknown"
+
+
+def test_the_probe_needs_no_event_at_all(tmp_path):
+    """The probe hangs on the token, not on the stream — and this is why.
+
+    WP-1403's thinning and WP-1404's stage-boundary configuration both take the
+    ``eval`` stream away. A probe that rode the events would then fire once a
+    **stage**, which on the long runs this button exists for is minutes. Here
+    no event is recorded at all and the token still comes back set, within one
+    cadence of the request being written.
+    """
+    recorder = runs.RunRecorder(tmp_path / "run", flush_interval=0.01)
+    token = recorder.cancel_token()
+    assert not token.is_set()
+
+    runs.request_cancel(recorder.dir, who="a test")
+    time.sleep(0.02)                       # one cadence, so the probe fires
+    assert token.is_set()
+    assert recorder.n_written == 0, "no event was needed"
+    recorder.close()
+
+
+def test_the_probe_is_rate_limited_to_the_cadence(tmp_path):
+    """A stat per residual evaluation is the syscall problem the flush avoids."""
+    recorder = runs.RunRecorder(tmp_path / "run", flush_interval=30.0)
+    token = recorder.cancel_token()
+    assert not token.is_set()              # the first read probes
+
+    runs.request_cancel(recorder.dir, who="a test")
+    for _ in range(50):
+        assert not token.is_set(), "the probe ran again inside one cadence"
+    assert (recorder.dir / runs.CANCEL_FILE).exists()
+    recorder.close()
+
+
+def test_a_stale_request_does_not_stop_the_next_fit(tmp_path):
+    """Impossible in the run-id layout, reachable the moment anything reuses a
+    directory — and there it would cancel instantly, blaming a watcher that had
+    gone home."""
+    directory = tmp_path / "run"
+    directory.mkdir()
+    runs.request_cancel(directory, who="a watcher that has gone home")
+
+    recorder = runs.RunRecorder(directory, flush_interval=0.0)
+    assert not (directory / runs.CANCEL_FILE).exists()
+    assert not recorder.cancel_token().is_set()
+    recorder.close()
+
+
+def test_a_series_is_stopped_at_the_chain_and_not_one_pattern(
+        tmp_path, monkeypatch, pattern, recording):
+    """A series attaches one recorder for the whole job.
+
+    So the token has to be composed at the chain as well as inside each
+    pattern's ``fit``: ``_run`` reads ``bool(cancel)`` to decide the walk
+    ended, and a stop that reached one pattern and not that variable would
+    abandon that pattern and start the next one.
+    """
+    monkeypatch.chdir(tmp_path)
+    structure, ins = perturbed_models()
+    series = rx.SequentialRefinement(structure, ins, history=False)
+    asked = {"done": False}
+
+    def ask(event):
+        if event["kind"] == "eval" and not asked["done"]:
+            asked["done"] = True
+            (run,) = runs.discover(tmp_path)
+            runs.request_cancel(run.path, who="a test")
+
+    result = series.fit([pattern] * 4, x=[300.0, 400.0, 500.0, 600.0],
+                        x_label="T", plan="profile_only", events=ask)
+
+    assert len(result.entries) < 4, "the chain ran on past the stop"
+    assert any(d.code == "SEQUENTIAL_CANCELLED" for d in result.diagnostics)
+
+
+def test_recording_does_not_move_the_answer(tmp_path, monkeypatch, pattern,
+                                            recording):
+    """Attaching a token to every recorded fit must not change one.
+
+    ``test_an_unset_token_costs_nothing_semantically`` makes this claim for a
+    token the *caller* passed. WP-1405 attaches one to every recorded fit, so
+    the claim now has to hold for a fit that asked for neither.
+    """
+    monkeypatch.chdir(tmp_path)
+    recorded = _fit(pattern, plan="profile_only")
+    plain = _fit(pattern, plan="profile_only", telemetry=False)
+
+    assert recorded.statistics.rwp == plain.statistics.rwp
+    assert [p.value for p in recorded.parameters] == [p.value
+                                                      for p in plain.parameters]
 
 
 # ----------------------------------------------------------------------

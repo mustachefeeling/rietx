@@ -10,9 +10,11 @@ import importlib
 import json
 import os
 import shutil
+import socket
 import subprocess
 import tempfile
 import urllib.error
+import urllib.parse
 import urllib.request
 from contextlib import contextmanager
 from pathlib import Path
@@ -24,8 +26,9 @@ from rietx.watch import main, serve
 
 
 @contextmanager
-def _served(directory: Path):
-    server = serve(directory, port=0, block=False)   # port 0 → ephemeral
+def _served(directory: Path, *, allow_cancel: bool = True):
+    server = serve(directory, port=0, block=False,   # port 0 → ephemeral
+                   allow_cancel=allow_cancel)
     try:
         yield f"http://127.0.0.1:{server.server_address[1]}"
     finally:
@@ -39,6 +42,16 @@ def _get(url: str) -> bytes:
 
 def _json(url: str):
     return json.loads(_get(url).decode("utf-8"))
+
+
+def _post(url: str):
+    """POST, and give back ``(status, payload)`` for a refusal as well as a 200."""
+    request = urllib.request.Request(url, method="POST", data=b"")
+    try:
+        with urllib.request.urlopen(request, timeout=5) as response:
+            return response.status, json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as err:
+        return err.code, json.loads(err.read().decode("utf-8"))
 
 
 def _event_line(kind: str, t: float = 1.0, **data) -> str:
@@ -409,6 +422,157 @@ def test_the_embedded_page_parses_as_javascript(module):
     finally:
         os.unlink(path)
     assert done.returncode == 0, done.stderr
+
+
+# ----------------------------------------------------------------------
+# the one verb (WP-1405)
+# ----------------------------------------------------------------------
+def _live_run(directory: Path, **status) -> Path:
+    """A run that reads ``running`` here: this process's pid, and no lock file.
+
+    ``liveness_of``'s pid rung, which is the weaker of the two and the one a
+    test can stand up without holding a flock for the duration.
+    """
+    fields = {"state": "running", "pid": os.getpid(),
+              "host": socket.gethostname(), "stage": "cell"}
+    fields.update(status)
+    return _make_run(directory, events=_event_line("fit_start"), status=fields)
+
+
+def _request_of(run_dir: Path) -> dict:
+    return json.loads((run_dir / runs.CANCEL_FILE).read_text(encoding="utf-8"))
+
+
+def test_a_post_asks_the_run_to_stop(tmp_path):
+    """The acceptance, from the route's side: a request lands in the directory.
+
+    Nothing here waits for a fit to notice — the route's whole job is to put
+    the request where the recorder polling that directory will find it.
+    """
+    run_dir = _live_run(tmp_path / "r")
+    with _served(tmp_path) as base:
+        (row,) = _json(base + "/api/runs")["runs"]
+        status, payload = _post(f"{base}/api/run/{row['run_id']}/cancel")
+
+    assert status == 200 and payload["requested"] is True
+    body = _request_of(run_dir)
+    assert body["request"] == runs.CANCEL_REQUEST
+    # the server names the asker, never the client: a request that could name
+    # itself anything would make `cancelled_by` a field the record cannot trust
+    assert "watch" in body["who"]
+
+
+def test_a_get_does_not_cancel(tmp_path):
+    """A GET that cancels is one prefetching browser away from a bad day."""
+    run_dir = _live_run(tmp_path / "r")
+    with _served(tmp_path) as base:
+        (row,) = _json(base + "/api/runs")["runs"]
+        with pytest.raises(urllib.error.HTTPError) as err:
+            _get(f"{base}/api/run/{row['run_id']}/cancel")
+
+    assert err.value.code == 404
+    assert not (run_dir / runs.CANCEL_FILE).exists()
+
+
+def test_read_only_refuses_and_says_so_in_the_run_list(tmp_path):
+    """``--read-only``: the route refuses *and* the page draws no button.
+
+    Both, because a button that only ever 403s is a worse answer than no
+    button — and because the page cannot be the check.
+    """
+    run_dir = _live_run(tmp_path / "r")
+    with _served(tmp_path, allow_cancel=False) as base:
+        payload = _json(base + "/api/runs")
+        status, body = _post(f"{base}/api/run/{payload['runs'][0]['run_id']}/cancel")
+
+    assert payload["can_cancel"] is False
+    assert status == 403 and "read-only" in body["error"]
+    assert not (run_dir / runs.CANCEL_FILE).exists()
+    with _served(tmp_path) as base:
+        assert _json(base + "/api/runs")["can_cancel"] is True
+
+
+def test_an_unknown_id_cannot_name_a_directory(tmp_path):
+    """The id is looked up in what the walk offered, never decoded into a path.
+
+    So the traversal question does not arise for this route the way it would
+    for a hand-written one that built a path from the request — which is the
+    property WP-1401 established and this verb inherits rather than re-checks.
+    """
+    _live_run(tmp_path / "r")
+    outside = tmp_path.parent / "outside"
+    outside.mkdir(exist_ok=True)
+    with _served(tmp_path) as base:
+        for bogus in ("deadbeef", "../../etc", "..%2f..%2fetc",
+                      urllib.parse.quote(str(outside), safe="")):
+            status, _ = _post(f"{base}/api/run/{bogus}/cancel")
+            assert status == 404, bogus
+    assert not (outside / runs.CANCEL_FILE).exists()
+
+
+@pytest.mark.parametrize("why,status_fields", [
+    ("a finished run", {"state": "done"}),
+    ("a cancelled run", {"state": "cancelled"}),
+    ("another host", {"state": "running", "host": "somebody-elses-laptop"}),
+    ("a dead writer", {"state": "running", "pid": 2 ** 22}),
+])
+def test_only_a_run_being_written_here_is_stoppable(tmp_path, why,
+                                                    status_fields):
+    """A request into any of these would lie in the directory doing nothing."""
+    fields = {"state": "running", "pid": os.getpid(),
+              "host": socket.gethostname()}
+    fields.update(status_fields)
+    run_dir = _make_run(tmp_path / "r", events=_event_line("fit_start"),
+                        status=fields)
+    with _served(tmp_path) as base:
+        (row,) = _json(base + "/api/runs")["runs"]
+        status, payload = _post(f"{base}/api/run/{row['run_id']}/cancel")
+
+    assert status == 409, why
+    assert payload["state"] in ("done", "cancelled", "unknown", "abandoned")
+    assert not (run_dir / runs.CANCEL_FILE).exists()
+
+
+def test_a_run_that_stopped_recording_is_refused_by_name(tmp_path):
+    """A latched recorder still holds its lock and still reads running.
+
+    It is also the thing that would have read the request, so writing one would
+    leave a button that did nothing. The refusal carries the reason the
+    recorder gave.
+    """
+    run_dir = _live_run(tmp_path / "r", error="writing an event: OSError: full")
+    with _served(tmp_path) as base:
+        (row,) = _json(base + "/api/runs")["runs"]
+        status, payload = _post(f"{base}/api/run/{row['run_id']}/cancel")
+
+    assert status == 409 and "stopped recording" in payload["error"]
+    assert not (run_dir / runs.CANCEL_FILE).exists()
+
+
+def test_the_closed_dialog_is_not_a_sheet_over_the_page():
+    """An id selector outranks the browser's own ``[hidden] {display:none}``.
+
+    Without the override the *closed* dialog is an invisible full-page overlay
+    that swallows every click, including the one that opens it. Nothing in
+    python can see that and ``node --check`` parses it happily; it took a real
+    browser and a real click. This is the cheapest guard that would have.
+    """
+    assert "#confirm[hidden] { display:none; }" in watch._PAGE
+
+
+def test_the_dialog_says_what_a_click_does_to_the_other_process():
+    """The sharpest fact in the track belongs in the dialog, not a footnote."""
+    page = watch._PAGE
+    assert "RefinementCancelled" in page
+    assert "traceback" in page
+    # ...and no keyboard shortcut of any kind reaches the button. Read off the
+    # code and not the comments, which say the same thing in words and would
+    # otherwise be what passes this.
+    code = "\n".join(line for line in _page_script(page).splitlines()
+                     if not line.lstrip().startswith("//"))
+    for shortcut in ("keydown", "keyup", "keypress", "autofocus", ".focus("):
+        assert shortcut not in code, shortcut
+    assert "autofocus" not in page, "the dialog's buttons take no focus"
 
 
 def test_no_page_token_is_left_unsubstituted():

@@ -285,7 +285,7 @@ pay for it again.
       traversal refusal, and the read-only serving flag.
 - [x] The confirm dialog, with the three sentences above. Looked at, not only
       asserted.
-- [ ] Tests: the cancel file sets a caller's own token rather than a second one;
+- [x] Tests: the cancel file sets a caller's own token rather than a second one;
       a recorded fit with no caller token still cancels; a fit with eval events
       off cancels within a cadence, not a stage; `RefinementCancelled`'s
       three fields are unchanged; a GET does not cancel; the read-only flag

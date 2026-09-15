@@ -436,9 +436,10 @@ function wireStop(run) {
   if (btn) btn.onclick = () => openConfirm(run);
 }
 
-// Two clicks, and no keyboard shortcut of any kind — no autofocus, no Enter,
-// no Escape. The button raises an exception in a process the reader cannot
-// see, and a stray keystroke must not be able to do that.
+// Two clicks, and no keyboard shortcut of any kind: nothing takes focus when
+// this opens, and neither Enter nor Escape reaches either button. Confirming
+// raises an exception in a process the reader cannot see, and a stray
+// keystroke must not be able to do that.
 function openConfirm(run) {
   const st = run.status || {};
   const box = document.getElementById('confirm');
