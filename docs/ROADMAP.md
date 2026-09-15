@@ -96,14 +96,14 @@ the same scans would make Stoe writable.
 
 **In flight:** [1118](wp/1118-foreign-model-files.md) landed its model-file
 registry 2026-09-13; next are the two offers it unblocks, `.EXP` (#103) and
-`STR(...)` (#107). The **live-watcher track is priced and has no behavioural gap
-left**: [1404](wp/1404-what-recording-every-fit-costs.md) shipped 2026-09-15 and
-found the default-on recorder costs 1.03-1.28x, failing its own 1.05x gate on
-two cases of three, with **84-96 % of that the per-stage snapshot** rather than
-the event stream the WP was written about. Recording stays on by default;
-[1413](wp/1413-the-snapshot-is-what-recording-costs.md) cuts the snapshot and is
-the track's only open item. The manual's and the skill's 1.03-1.28x both stand
-unchanged, so nothing a user reads is owed a correction.
+`STR(...)` (#107). The **live-watcher track is closed on the code and owes one
+decision**: [1413](wp/1413-the-snapshot-is-what-recording-costs.md) shipped
+2026-09-15, cutting the decimation 8.8-11.9x at a bit-identical index set and
+taking recording to 1.03-1.23x, which the manual and the skill now quote.
+`cpd-2` and `trigger` clear WP-1404's 1.05x gate and `nac` cannot: a 0.354 s fit
+has a 17.7 ms budget and its six snapshots cost 50 ms with everything but the
+serialising free. **The one open question is for the maintainer** — write the
+snapshot every stage, or less often and let a watcher redraw less often.
 
 **Queued, unscheduled** ([§ Unscheduled](#unscheduled)): the 2026-09-01
 triage's 1309–1322 plus 1323 and 1325; the 2026-09-03 triage's 1332–1341; the
@@ -658,7 +658,7 @@ behind v1.4's peaks and ahead of the magnetic track.
 | [1404](wp/1404-what-recording-every-fit-costs.md) | What recording every fit costs | ✅ 2026-09-15 | 1403 (1401 baseline) |
 | [1405](wp/1405-the-human-stops-the-run.md) | The human stops the run | ✅ 2026-09-15 | 1403 (1401 soft) |
 | [1406](wp/1406-say-that-the-fit-writes-to-disk.md) | Say that the fit writes to disk | ✅ 2026-09-15 | 1403, 1405 (1402 soft) |
-| [1413](wp/1413-the-snapshot-is-what-recording-costs.md) | The snapshot is what recording costs | ⬜ | 1404, 1402 |
+| [1413](wp/1413-the-snapshot-is-what-recording-costs.md) | The snapshot is what recording costs | ✅ 2026-09-15 | 1404, 1402 |
 
 ### v2+ — fenced
 
