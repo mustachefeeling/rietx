@@ -55,9 +55,11 @@ def test_overall_records(fap):
 def test_gdnft_is_reduced_chi_squared_not_its_root(fap):
     """The record says "Reduced CHI**2" in words, and it is not a GoF.
 
-    Issue #103 brought this from a GSAS-II ``.gpx`` campaign, where
-    ``Rvals['GOF']`` is the same convention; reading either as a
-    goodness-of-fit reports the square of the number meant.
+    Issue #103 brought this from a GSAS-II ``.gpx`` campaign, and this docstring
+    used to add that ``Rvals['GOF']`` is the same convention.  It is not:
+    WP-1118 measured GSAS-II's figure at ``sqrt(chisq / (Nobs - Nvars))``, which
+    ``test_projects_gsas2.py`` now asserts on a real project.  The claim here is
+    about this record alone, where the file states the words itself.
     """
     assert fap.reduced_chi2 == pytest.approx(3.224)
 

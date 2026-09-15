@@ -434,7 +434,9 @@ class GsasModel:
     rwp: float | None = None
     rp: float | None = None
     #: GSAS's ``GDNFT`` figure, which is **reduced χ²** and not its root — the
-    #: record states this in words and GSAS-II's ``Rvals['GOF']`` agrees
+    #: record states so in words.  GSAS-II is *not* the same convention, which
+    #: this field claimed until WP-1118 measured it: its ``Rvals['GOF']`` is the
+    #: **square root** of reduced χ²
     reduced_chi2: float | None = None
     n_variables: int | None = None
     n_observations: int | None = None
@@ -1051,9 +1053,16 @@ def _reduced_chi2(record: str) -> float | None:
 
     The record is free text ("Reduced CHI**2 =  3.224     for   28 variables")
     rather than a fixed-format numeric, so it is read by its own words.  Worth
-    stating plainly because the quantity is **reduced χ² and not its root**:
-    GSAS-II's ``Rvals['GOF']`` is the same convention, so reading either as a
-    goodness-of-fit reports the square of the number meant (issue #103).
+    stating plainly because the quantity is **reduced χ² and not its root**, so
+    reading it as a goodness-of-fit reports the square of the number meant
+    (issue #103).
+
+    **The two GSAS generations disagree here**, which this docstring got wrong
+    until WP-1118 measured it while writing the ``.gpx`` reader: GSAS-II's
+    ``Rvals['GOF']`` is ``sqrt(chisq / (Nobs - Nvars))`` — its own documentation
+    says the root, and it matches to six figures on all six tutorial projects
+    stating the four numbers.  So a caller moving between the two formats
+    converts rather than copies, and `Gsas2Model.gof` is named for what it is.
     """
     if "=" not in record:
         return None
