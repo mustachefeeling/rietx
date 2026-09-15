@@ -305,16 +305,22 @@ format token is spelled in `_about.py`, never inline (root CLAUDE.md § Conventi
       was repaired somewhere between 2026-09-03 and 2026-09-13 and now names
       both `rietx.io.projects.read_topas_inp` and `read_fullprof_pcr`, says
       they have no top-level `rx.` entry point yet, and carries `rx.read_gsas_prm`
-      — so it is no longer false. What is still owed is `SKILL.md`'s routing row
-      (line 41), which names only "a PowderLine recipe" and so is *narrow*
-      rather than false, and which must name the **situation** and list the
-      formats in § In, never a reader's name in the *When* column
-      ([1330](1330-skill-references-by-shape.md)). The byte-headroom cautions
-      inherited from WP-1308 (27 B), PR #98 (32 B) and 1330 (36 B) are all
-      stale: measured 2026-09-13, `SKILL.md` is 31 403 B of its 33 000 cap —
-      **1 597 B free** — and `references/api.md` 30 924 B of 36 000. A body
-      sentence is still paid for by a cut named in the commit; there is simply
-      room to pay.
+      — so it is no longer false.
+      **Superseded again, 2026-09-15**: `SKILL.md`'s routing row is not owed
+      either, and the claim that it was has never been true. Line 41 reads
+      "you were handed another program's input file, not a pattern" and routes
+      to `references/api.md` § In, which is the **situation** in the *When*
+      column and the formats in § In, exactly as
+      [1330](1330-skill-references-by-shape.md) asks. It landed 2026-08-30 in
+      `7bc3e3d0` under WP-1308, before the note above it was written. No row in
+      the file says "a PowderLine recipe"; the word `recipe` in that row is a
+      manual page in the third column, which is how it was misread. Nothing is
+      owed on the skill for the readers that have shipped. The byte-headroom
+      cautions inherited from WP-1308 (27 B), PR #98 (32 B) and 1330 (36 B) are
+      stale, and so are 09-13's replacements: measured 2026-09-15, `SKILL.md`
+      is 31 951 B of its 33 000 cap (**1 049 B free**) and `references/api.md`
+      32 796 B of 36 000 (**3 204 B free**). A body sentence is still paid for
+      by a cut named in the commit; there is simply room to pay.
 - [ ] A `#prm`-only integer evaluator for `.inp` `#if` guards, so the
       multi-pattern reel files read instead of refusing (§ Context; WP-1130
       measured three of four workshop files out of reach). Scope it to integer
@@ -463,9 +469,14 @@ instead of supplying a reason.
 3. The writers (#148), then the `#prm` integer evaluator for `.inp` `#if`
    guards.
 
-`SKILL.md`'s routing row on line 41 is still owed from the 1st session. It names
-only a PowderLine recipe, so it is narrow. Measured 2026-09-13, there were
-1 597 B free under the 33 000 B cap.
+One thing the WP file called owed is not owed. This repair checked `SKILL.md`
+before repeating the claim, and line 41 already names the situation and routes
+to `references/api.md` § In. It landed 2026-08-30 under WP-1308, before the
+note calling it missing was written, and the "PowderLine recipe" the note
+quotes is a manual page in the row's third column. The task text now says so,
+with the byte headroom re-measured: `SKILL.md` has 1 049 B free of 33 000 and
+`references/api.md` 3 204 B of 36 000, both tighter than the 09-13 figures they
+replace.
 
 ### 2026-09-15 (1st session) — the GSAS `.EXP` reader, and the protocol it turned out nobody had
 
