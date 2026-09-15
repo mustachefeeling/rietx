@@ -184,7 +184,8 @@ survives is a noise excursion near a tick. Measured on a synthetic LaB₆ patter
 and 94 of a doubled cell's 153, 61 % either way, so it does not separate them at
 all. The count that does is `LeBailValidation.predicted_but_absent`, which
 integrates net intensity above the fitted background over each predicted
-position.
+position. The blind direction is the one de Wolff's M₂₀ has, and it is why
+Oishi-Tomiyasu (2013, *J. Appl. Cryst.* **46**, 1277) reversed the figure.
 
 ## §4b — the QPA background measurement in full
 

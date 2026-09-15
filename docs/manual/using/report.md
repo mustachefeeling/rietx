@@ -127,7 +127,9 @@ survives does not separate a right cell from a wrong one. Measured on a
 synthetic LaB₆ pattern, it fired on 17 of the certified cell's own 28
 reflections and on 94 of a doubled cell's 153, which is 61 % either way. The
 count that does separate them is `LeBailValidation.predicted_but_absent`
-([](indexing.md)).
+([](indexing.md)). The blind direction is the one de Wolff's M₂₀ has, and
+Oishi-Tomiyasu's reversed figure of merit exists to close it
+{cite}`oishitomiyasu2013`.
 
 ## Layer 1: attributing the misfit
 
