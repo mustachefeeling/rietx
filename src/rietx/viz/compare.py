@@ -959,19 +959,57 @@ def decimation_index(tt: np.ndarray, curves: list[np.ndarray],
     route (WP-1008) sends a 2θ window to a browser under the same budget, and a
     second implementation would be a second answer to "which points survive" —
     the one question a plot must not disagree with the comparison UI about.
+
+    **The index set is the contract, not the way it is found** (WP-1413).  Three
+    consumers read it and a plot that disagreed with the comparison UI about
+    which points it drew would be a picture of a different fit, so the segmented
+    scan below is held to returning what the ``argmin``/``argmax`` loop it
+    replaced returned, element for element, by
+    ``test_decimation_is_the_loop_it_replaced``.  The loop cost 6.5-6.8 ms a
+    snapshot on every pattern size, because its work is ``2000`` buckets of
+    python rather than anything the data does.
     """
     n = len(tt)
     if n <= max_points:
         return np.arange(n)
     n_buckets = max(max_points // 2, 1)
     edges = np.linspace(0, n, n_buckets + 1, dtype=int)
-    keep = {0, n - 1}
+    # Distinct edges are the non-empty buckets: ``reduceat`` reduces
+    # ``starts[i]:starts[i+1]`` and the last one to the end, which is the
+    # ``b > a`` guard the loop spelled out.
+    starts = np.unique(edges[:-1])
+    widths = np.diff(np.append(starts, n))
+    positions = np.arange(n)
+    keep = [np.array([0, n - 1])]
     for y in curves:
-        for a, b in zip(edges[:-1], edges[1:]):
-            if b > a:
-                keep.add(a + int(np.argmin(y[a:b])))
-                keep.add(a + int(np.argmax(y[a:b])))
-    return np.array(sorted(keep))
+        y = np.asarray(y)
+        if np.isnan(y).any():
+            # ``argmin`` returns the first NaN; ``minimum.reduceat`` propagates
+            # it and the equality below then matches nothing.  Rare enough to
+            # pay the loop for rather than to reproduce.
+            keep.append(_extrema_by_loop(y, starts, n))
+            continue
+        for reduction in (np.minimum, np.maximum):
+            best = np.repeat(reduction.reduceat(y, starts), widths)
+            # first index attaining it, which is what argmin/argmax return: a
+            # tie keeps the earliest, so the sentinel is n and the reduce is min
+            keep.append(np.minimum.reduceat(
+                np.where(y == best, positions, n), starts))
+    return np.unique(np.concatenate(keep))
+
+
+def _extrema_by_loop(y: np.ndarray, starts: np.ndarray, n: int) -> np.ndarray:
+    """Each bucket's ``argmin`` and ``argmax``, one bucket at a time.
+
+    The NaN path of :func:`decimation_index`, kept because it is also the
+    statement of what that function's vectorised body has to reproduce.
+    """
+    stops = np.append(starts[1:], n)
+    out = []
+    for a, b in zip(starts, stops):
+        out.append(int(a) + int(np.argmin(y[a:b])))
+        out.append(int(a) + int(np.argmax(y[a:b])))
+    return np.array(out, dtype=np.int64)
 
 
 def catalog(data_dir: Path | None = None) -> dict:

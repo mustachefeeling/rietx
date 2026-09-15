@@ -96,9 +96,9 @@ pairs on 4 165 points is the dispatch-heavy case.
 
 - [x] Profile one snapshot build on each bench case, and confirm WP-1402's split
       still holds on the current tree before optimising anything.
-- [ ] Make `decimation_index` cheap. It buckets 2000 spans in python over an
+- [x] Make `decimation_index` cheap. It buckets 2000 spans in python over an
       already-sorted axis, which is a `searchsorted` shape.
-- [ ] Pin the bit-identity: the new index set equals the old one element for
+- [x] Pin the bit-identity: the new index set equals the old one element for
       element on every bench case and on the acceptance patterns, as an ordinary
       test.
 - [ ] Re-run WP-1404's matrix, interleaved, and report whether `record` now comes
