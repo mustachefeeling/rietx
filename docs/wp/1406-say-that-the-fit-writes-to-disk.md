@@ -35,11 +35,21 @@ does not exist. Keep the reason, which is the part that matters.
 
 - **`using/cli.md`** § `rietx watch` (around line 115) — the no-argument mode,
   the run list, what each liveness word means and especially that **abandoned**
-  is a third answer rather than a rounding, the cancel button and what it does
-  to the other process, the read-only serving flag. The `rietx --help` block near
-  line 16 is a hand-kept copy of `cli.py`'s string: update it too. Nothing
-  crosses those two today; a one-line guard would be cheap, but it is not this
-  WP's job — note it and move on.
+  is a third answer rather than a rounding, the JSON routes, and above all how a
+  run comes to exist at all. The `rietx --help` block near line 16 is a
+  hand-kept copy of `cli.py`'s string: update it too. Nothing crosses those two
+  today; a one-line guard would be cheap, but it is not this WP's job — note it
+  and move on.
+
+  *Superseded in part, 2026-09-15.* This bullet also asked for "the cancel
+  button and what it does to the other process, the read-only serving flag".
+  Neither exists in the tree. The button is WP-1405's and WP-1405 has not
+  started, so `watch.py` carries no cancel route and the package's only
+  `CancelToken()` is `gui/session.py`'s, for the GUI's own fits. There is no
+  read-only flag either: `rietx watch` takes a directory, `--port` and `--open`.
+  Reading-only is a property of the reader's design rather than something a flag
+  selects, which is how the chapter now states it. Both go to WP-1405's manual
+  pass.
 - **`using/files.md`** — the `.rex` tree is drawn twice, as a mermaid diagram
   (line 16) and an annotated listing (line 241); **both** gain the run
   directories, and a new subsection covers the working directory's `.rietx/`
@@ -56,140 +66,96 @@ does not exist. Keep the reason, which is the part that matters.
 - **`using/compatibility.md`** — the `fit.html` break and the change to
   `<project>/live/`'s contents. The promise is a preview and anything may change
   in any release, but every break is recorded.
+
+  *Narrowed, 2026-09-15.* The `fit.html` break's **record** already exists:
+  WP-1402 wrote it into `docs/milestones/v1.4.md` § Breaks on the day it landed,
+  which is where a break goes when no milestone is open. Two other things are
+  missing. WP-1403's recording is a **user-facing addition with no entry** in
+  that record's Additions list, and it is the largest one of the track. And the
+  chapter itself says nothing about the run layout, which is a second process's
+  contract carrying no version string. Both land here.
 - Part 2 is untouched: this track adds no physics, so no equation and no fenced
   constant moves.
 
 ### The skill
 
-Its body takes only what holds for **every** fit, and it is capped. Exactly one
-new fact qualifies:
+Its body takes only what holds for **every** fit, and it is capped.
+
+*Superseded, 2026-09-15.* The one fact this WP reserved for the body was:
 
 > A human may be watching, and may stop you. A `RefinementCancelled` you did not
 > request is not a bug in your call: the completed stages are kept, and
 > `.completed_stages` and `.node_id` say where the work stands.
 
-That changes error handling in every fit, which is the test for a body line. Per
-WP-1330 a body addition is **paid for by a named cut**, and the cap moves only in
-a commit that says so — so name the cut in the commit message, not in a comment.
+**It is not true yet, so it is not written.** A fit raises
+`RefinementCancelled` only when its own caller passed `cancel=`; there is no
+cancel file in `runs.py`, no poll in `RunRecorder`, and `fit` creates no token of
+its own. The sentence describes WP-1405's feature, and WP-1405 has not started.
+Writing it now would put a confident falsehood in the one document every agent
+reads whole, which is the failure the skill's measurement tags exist to prevent.
+It moves to WP-1405, whose `### The material the chapters are written from
 
-Everything else is a reference behind one routing row, keyed by the situation
-rather than the feature: *a human is watching this session, or you need to hand
-one a window onto a long run*. It covers how to point a human at the watcher,
-what a run directory holds, and how to read a run back afterwards. Every row
-carries its `(Measured: …)` or `(Hypothesis: …)` tag, and the file opens with the
-header `tests/test_skill.py` pins. A routing row is likewise paid for by a cut.
+Folded out of `### Inherited` on 2026-09-15, from WP-1401, WP-1402 and
+WP-1403. Each fact below was checked against the tree on the way in; the
+mailbox is consumed and gone.
 
-Then `rietx skill --install . --copy` re-syncs the two committed copies, or they
-drift.
+**What a run directory contains**, so a page can say it plainly: the event log,
+`meta.json` (label, created, package version, the working directory, the command
+line), `status.json` (state, pid, host, heartbeat, stage, Rwp, gof),
+`snapshot.json` (the stage's curves), `summary.txt` (the termination view), and
+`run.lock`. 204 kB in total on a five-stage synthetic fit.
 
-### What deliberately does not happen
+**Three consequences a user will meet, and all three want a sentence.** A run
+directory holds every free parameter's value at every recorded evaluation, so on
+a shared filesystem that is a disclosure nobody opted into; no pattern bytes are
+ever copied. A fit run inside somebody else's package leaves `.rietx/` in
+*their* working directory, and this will be reported as a bug at least once. And
+a `.gitignore` of `*` is written into the runs root, so it does not turn up in
+`git status`.
 
-- **No `capabilities()` surface flag.** "Can this build record runs?" always
-  answers yes — there is no optional dependency behind it — so a flag would be a
-  literal `True` in disguise, which `_features()` forbids by construction, and
-  `_SURFACE_FLAGS` exists because a derived flag rots silently
-  (`features["indexing"]` was `False` for its whole life). Write the refusal
-  down; adding one is the reflex.
-- **No seventh versioned contract.** The run layout is a second process's
-  contract, which argues for an arm; nothing negotiates over it and WP-1006's
-  own precedent is that a contract nothing has exercised is an untested guess,
-  which argues against. Defer until the layout has survived a release, and say so
-  here rather than leaving it unasked.
+**The switches, in the order a page should give them:** `RIETX_TELEMETRY=0` for
+the whole process and everything under it, `telemetry=False` for one call,
+`telemetry=<path>` to put runs somewhere else, and `runs.set_enabled` inside a
+process. The environment outranks the keyword and there is deliberately no value
+that argues back.
 
-### Two WPs to close out
+**Two locations, one spelling.** `$HOME/.rietx` is the GUI's per-user state and
+`RIETX_STATE_DIR` moves that one alone; the working directory's `.rietx/` is the
+runs root and no variable moves it. The page has to keep these apart or it
+teaches the wrong knob.
 
-- **WP-1322's Task 2** — the `history` defaults asymmetry decision — is
-  discharged by WP-1403, which removed its premise. Record that in 1322, dated,
-  and leave its Task 1 (the terminal-shaped post-hoc aggregator over an event
-  log) untouched: it is a different surface for a different moment, and it is a
-  contributor's offered PR.
-- **WP-1133** (a diagnostic names the rendered view that shows it) now has a
-  rendered view to name. Note it in that WP's `### Inherited` rather than
-  claiming it here.
+**A project's `live/` holds one directory per run now**, so a GUI project and an
+agent fitting the same project no longer interleave one log. `files.md` was
+corrected in four words; the chapter is this WP's.
 
-### Inherited
+**Retention deletes by age and size** (a 1 GiB ceiling, a week's floor, oldest
+terminal run first) and warns rather than deleting when nothing is old enough. A
+user who wants their evidence kept should be told that nothing inside the floor
+is ever removed.
 
-From **WP-1403** (2026-09-15), whose feature is not shippable without this WP:
+**`LiveSession` no longer writes `fit.html`.** It writes `snapshot.json`. What
+does *not* break: a `fit.html` already on disk still opens, `rietx watch` serves
+it at `/api/run/<id>/legacy` and by its bare name through the static fallback,
+and `rietx html` / `viz.html.write_html` are untouched. `runs.SNAPSHOT_FILE` is
+`snapshot.json`, `runs.LEGACY_SNAPSHOT_FILE` is `fit.html`,
+`Run.has_legacy_snapshot` sits beside `has_snapshot`.
 
-- **This is now the blocking item, not a follow-up.** Every fit writes to a
-  user's disk and no sentence anywhere in the manual or the skill says so. 1403
-  shipped its code with that stated as a deliberate non-goal; the gap is real
-  and it is this WP's.
-- **What a run directory contains**, so the page can say it plainly: the event
-  log, `meta.json` (label, created, package version, the working directory, the
-  command line), `status.json` (state, pid, host, heartbeat, stage, Rwp, gof),
-  `snapshot.json` (the stage's curves), `summary.txt` (the termination view),
-  and `run.lock`. 204 kB in total on a five-stage synthetic fit.
-- **Three consequences a user will meet, and all three want a sentence.** A run
-  directory holds every free parameter's value at every recorded evaluation, so
-  on a shared filesystem that is a disclosure nobody opted into; no pattern
-  bytes are ever copied. A fit run inside somebody else's package leaves
-  `.rietx/` in *their* working directory, and this will be reported as a bug at
-  least once. And a `.gitignore` of `*` is written into the runs root, so it
-  does not turn up in `git status`.
-- **The switches, in the order a page should give them:**
-  `RIETX_TELEMETRY=0` for the whole process and everything under it,
-  `telemetry=False` for one call, `telemetry=<path>` to put runs somewhere else,
-  and `runs.set_enabled` inside a process. The environment outranks the keyword
-  and there is deliberately no value that argues back.
-- **Two locations, one spelling.** `$HOME/.rietx` is the GUI's per-user state
-  and `RIETX_STATE_DIR` moves that one alone; the working directory's `.rietx/`
-  is the runs root and no variable moves it. The page has to keep these apart or
-  it teaches the wrong knob.
-- **A project's `live/` holds one directory per run now**, so a GUI project and
-  an agent fitting the same project no longer interleave one log. `files.md` was
-  corrected in four words; the chapter is this WP's.
-- **Retention deletes by age and size** (a 1 GiB ceiling, a week's floor, oldest
-  terminal run first) and warns rather than deleting when nothing is old enough.
-  A user who wants their evidence kept should be told that nothing inside the
-  floor is ever removed.
+**The routes are provisional by declaration, like the GUI's.** `watch.py` serves
+`/`, `/plotly.js`, `/api/runs`, `/api/run/<id>`, `/api/run/<id>/events?offset=`,
+`/api/run/<id>/snapshot` (JSON now, not a page) and `/api/run/<id>/legacy`.
+Nothing pins them, so a chapter naming them says what `using/gui-quickstart.md`
+says about the GUI's.
 
-From **WP-1402** (2026-09-15), whose break this WP carries:
+**`using/cli.md` § `rietx watch` is the floor rather than the chapter.** WP-1401
+rewrote it and WP-1402 corrected one sentence in place, both times because the
+old text stated things the command had stopped doing. What is still missing is
+everything a reader *needs* rather than everything that was false.
 
-- **`LiveSession` no longer writes `fit.html`.** It writes `snapshot.json`, and
-  the break is staged in `docs/milestones/v1.4.md` § Breaks as it landed. What
-  does *not* break: a `fit.html` already on disk still opens, `rietx watch`
-  serves it at `/api/run/<id>/legacy` and by its bare name, and `rietx html` /
-  `viz.html.write_html` are untouched — the emailable page is still a
-  capability, what stopped is producing it unasked.
-- **New names a chapter has to cover**: `runs.SNAPSHOT_FILE` is now
-  `snapshot.json`, `runs.LEGACY_SNAPSHOT_FILE` is `fit.html`,
-  `Run.has_legacy_snapshot` sits beside `has_snapshot`, and `watch.py` serves
-  `/plotly.js`, `/api/run/<id>/snapshot` (JSON now, not a page) and
-  `/api/run/<id>/legacy`.
-- **One sentence in `using/cli.md` was corrected in place** rather than left
-  false: the plot "redraws in place … keeping whatever you have zoomed into",
-  where it used to say it reloads. Nothing else in the manual was touched, so
-  the fuller account is still entirely this WP's.
-- **What a reader can now do that they could not**: zoom into a region and watch
-  that region improve across stages. Measured in chromium — the axis range is
-  identical before and after a forced redraw.
-
-From **WP-1401** (2026-09-14):
-
-- **`using/cli.md` § `rietx watch` was rewritten already, and it is the floor
-  rather than the chapter.** WP-1401 declared no manual changes and then made
-  two, both for the same reason: the old text stated things the command had
-  stopped doing. The usage block (mirrored in `src/rietx/cli.py`) now reads
-  `watch [dir]`, and the section describes the run list, the per-run open, and
-  the reading-only promise. What is still missing there is everything a reader
-  needs rather than everything that was false: the liveness column and what
-  `abandoned` and `unknown` mean, the four JSON routes, and how a run comes to
-  exist at all. That last one is this WP's subject.
-- **The routes are provisional by declaration, like the GUI's.** `watch.py`
-  serves `/api/runs`, `/api/run/<id>`, `/api/run/<id>/events?offset=` and
-  `/api/run/<id>/snapshot`. Nothing pins them yet, so a chapter naming them
-  should say what `using/gui-quickstart.md` says about the GUI's.
-- **The skill still has no row from this track, and one of WP-1401's reasons
-  for that has since weakened.** It declared "none" on the grounds that the
-  reader only reads what a writer already wrote, which is true of the reader.
-  It is not the whole picture. `rietx watch` is useless for an agent's run
-  unless the agent passed `events=`, and WP-1322 measured three subagents all
-  switching telemetry off. WP-1401 then measured the cost at 1-3 % of a fit,
-  which refutes the only good reason to switch it off. So there is a live skill
-  rule in the gap — pass `events=`, it is nearly free — and it stays unwritten
-  only because WP-1403 is expected to make it moot by recording anyway. If 1403
-  slips, this row is worth writing before it.
+*Deleted as stale, 2026-09-15.* WP-1401's last entry reserved a skill row saying
+"pass `events=`, it is nearly free", and noted it would be moot if WP-1403
+recorded anyway. WP-1403 shipped, so it is moot: an agent that passes nothing
+still gets a run directory, and telling it to pass `events=` would be advice
+about a knob it no longer needs to touch.
 
 ## Non-goals
 
@@ -204,17 +170,29 @@ From **WP-1401** (2026-09-14):
 
 ## Tasks
 
+Rewritten 2026-09-15 on arrival, against the tree rather than against the plan.
+Two items changed shape and one moved out; the reasons are in Context above.
+
+- [x] Prune: three findings superseded in part, the `### Inherited` mailbox
+      consumed, this list rewritten.
 - [ ] The root CLAUDE.md clause, edited to keep the rule and drop the false half.
+- [ ] `runs.py`'s own comments, which are the same defect one rank down: three
+      of them still say `meta.json` and `run.lock` are unwritten and `RunStatus`
+      names fields "absent from every file in the tree", while `RunRecorder`
+      writes all of them. Comments, not code, so the no-code non-goal holds.
 - [ ] `using/cli.md` (both the section and the `--help` block) and
       `using/files.md`.
 - [ ] `using/refining.md`, with the writes-to-disk sentence early and the sizes
       quoted from WP-1404.
-- [ ] `using/compatibility.md`: the `fit.html` break and the `live/` change.
-- [ ] The skill body sentence, **with its cut named in the commit message**.
+- [ ] `using/compatibility.md`: the run layout as an unversioned contract; and
+      WP-1403's addition staged in `milestones/v1.4.md`, which has none.
 - [ ] The `references/` file and its routing row, with the pinned header and the
-      measurement tags; then `rietx skill --install . --copy`.
-- [ ] WP-1322's Task 2 recorded as discharged, dated; WP-1133's `### Inherited`
-      noted.
+      measurement tags; the row **paid for by a named cut**, named in the commit
+      message. Then `rietx skill --install . --copy`.
+- [ ] ~~The skill body sentence~~ — moved to WP-1405, which is the WP that makes
+      it true. Its `### Inherited` carries the sentence and the owed cut.
+- [ ] WP-1322's Task 2 recorded as discharged, dated; WP-1133's and WP-1405's
+      `### Inherited` noted.
 - [ ] Record the two deliberate refusals — no surface flag, no seventh contract
       — where a later session will find them, which is here and in the module
       docstring, not in a commit message alone.
