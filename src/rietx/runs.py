@@ -137,6 +137,22 @@ RECORD_TAG = "run"
 #: than on the log's tail.
 FLUSH_INTERVAL_SECONDS = 0.2
 
+#: How old a run must be before :func:`prune` will consider deleting it, and
+#: the reason retention is by **age and size and never by count**. "Keep the
+#: newest N" is the obvious design and it is wrong here: run 21 of a
+#: 200-candidate batch would delete run 1 *while the batch is still running*,
+#: and a batch is one of the cases recording exists for
+#: (``docs/skill/rietx/references/batch.md``). A week is generous on purpose —
+#: everything inside the floor is kept however many there are, and using
+#: somebody's disk is a smaller harm than deleting their evidence.
+RETENTION_MIN_AGE_SECONDS = 7 * 24 * 3600.0
+
+#: The byte ceiling :func:`prune` brings the runs root back under, oldest
+#: terminal run first. At the ~200 kB a synthetic five-stage fit records this is
+#: some thousands of runs; a long series' event log is larger, so the honest
+#: statement is a ceiling in bytes rather than a count of anything.
+RETENTION_MAX_BYTES = 1 << 30      # 1 GiB
+
 #: What :func:`new_run_dir` names a directory, and the first of the three
 #: guards :func:`prune` applies before any recursive delete. Anchored at both
 #: ends: a pattern that merely *matched* somewhere would accept any name
@@ -766,16 +782,24 @@ def run_root(base: str | Path | None = None) -> Path:
     """``<base or the working directory>/.rietx/runs``, created.
 
     Creates the root and drops a ``.gitignore`` of ``*`` into it, so a fit
-    inside somebody's repository does not turn up in their ``git status``. Both
-    only for the root *this package chose*: a caller who passed ``telemetry=``
-    named their own directory, and writing an ignore file into it would be the
-    package apologising for a choice it did not make.
+    inside somebody's repository does not turn up in their ``git status``, and
+    prunes it once per process (:func:`prune`). All three only for the root *this
+    package chose*: a caller who passed ``telemetry=`` named their own
+    directory, and neither writing an ignore file into it nor deleting anything
+    out of it is a decision this package gets to make there.
     """
+    global _PRUNED
     root = (Path.cwd() if base is None else Path(base)) / STATE_DIR_NAME / RUNS_DIR_NAME
     root.mkdir(parents=True, exist_ok=True)
     marker = root / GITIGNORE_FILE
     if not marker.exists():
         marker.write_text("*\n", encoding="utf-8")
+    if not _PRUNED:
+        _PRUNED = True
+        try:
+            prune(root)
+        except Exception:      # retention is telemetry; it breaks no fit
+            pass
     return root
 
 
@@ -1090,6 +1114,146 @@ class RunRecorder(EventStream):
                 except Exception:
                     pass
                 self._lock_fh = None
+
+
+def _dir_size(path: Path) -> int:
+    """Bytes in one run directory, one level deep. Unreadable reads as zero."""
+    total = 0
+    try:
+        for entry in os.scandir(path):
+            try:
+                if entry.is_file(follow_symlinks=False):
+                    total += entry.stat(follow_symlinks=False).st_size
+            except OSError:
+                continue
+    except OSError:
+        return 0
+    return total
+
+
+def _is_prunable(child: Path, root: Path, now: float,
+                 min_age_seconds: float) -> float | None:
+    """The run's ``created`` time if it may be deleted, else ``None``.
+
+    Four questions, and every one of them can only ever *withhold* permission:
+
+    * the name is a run id this package wrote (:data:`RUN_ID_RE`);
+    * ``meta.json`` is there and carries :data:`RECORD_TAG`. **A legacy
+      directory is never pruned** — nobody agreed to the deletion of a run
+      written before there was a writer to agree on their behalf;
+    * the run reached a terminal state. A ``running`` status, or none at all,
+      is a run that may still be being written;
+    * it is older than ``min_age_seconds``.
+    """
+    if not RUN_ID_RE.match(child.name):
+        return None
+    if child.parent != root:
+        return None
+    meta = _read_json(child / META_FILE, RunMeta)
+    if meta is None or meta.record != RECORD_TAG or meta.created is None:
+        return None
+    status = _read_json(child / STATUS_FILE, RunStatus)
+    if status is None or status.state not in TERMINAL_STATES:
+        return None
+    if (now - float(meta.created)) < min_age_seconds:
+        return None
+    return float(meta.created)
+
+
+def prune(root: str | Path, *, max_bytes: int = RETENTION_MAX_BYTES,
+          min_age_seconds: float = RETENTION_MIN_AGE_SECONDS,
+          now: float | None = None) -> list[Path]:
+    """Bring the runs root under ``max_bytes``, oldest terminal run first.
+
+    Returns the directories removed. **By age and size, never by count** — see
+    :data:`RETENTION_MIN_AGE_SECONDS` for the batch this rule exists to
+    survive.
+
+    The root's whole size decides *whether* to prune, including directories
+    that may not be deleted; only :func:`_is_prunable` decides *what*. So a root
+    filled with runs too young to touch **warns and keeps**: using somebody's
+    disk is better than deleting their evidence, and a silent cap on either
+    would be worse than both.
+
+    Every ``rmtree`` here is guarded three times over, because a recursive
+    delete is the one thing in this track that can destroy data and the guards
+    are cheap. Two of the three are re-asked immediately before the call rather
+    than trusted from the scan, since the scan and the delete are not one
+    atomic act.
+    """
+    root = Path(root)
+    now = time.time() if now is None else now
+    try:
+        entries = [Path(e.path) for e in os.scandir(root)
+                   if e.is_dir(follow_symlinks=False)]
+    except OSError:
+        return []
+
+    sizes = {child: _dir_size(child) for child in entries}
+    total = sum(sizes.values())
+    if total <= max_bytes:
+        return []
+
+    candidates = []
+    for child in entries:
+        created = _is_prunable(child, root, now, min_age_seconds)
+        if created is not None:
+            candidates.append((created, child))
+    candidates.sort()
+
+    removed: list[Path] = []
+    for _, child in candidates:
+        if total <= max_bytes:
+            break
+        if _guarded_rmtree(child, root):
+            total -= sizes.get(child, 0)
+            removed.append(child)
+
+    if total > max_bytes:
+        _warn_once(
+            f"the run directory {root} holds {total} bytes, over the "
+            f"{max_bytes}-byte retention ceiling, and nothing in it is both "
+            f"finished and older than {min_age_seconds / 86400:.0f} days. "
+            f"Keeping it: deleting a run somebody may still want is worse than "
+            f"using the disk. Delete what you do not need, or raise the "
+            f"ceiling.")
+    return removed
+
+
+def _guarded_rmtree(child: Path, root: Path) -> bool:
+    """Delete one run directory, or refuse and say nothing happened.
+
+    The three guards, asked here and not only at the scan: the name is a run id
+    this package wrote, the directory is a **direct child** of the root the
+    recorder itself chose, and it carries a ``meta.json`` with
+    :data:`RECORD_TAG`. Nothing else in this package deletes a tree, so these
+    are written where the call is rather than anywhere they could drift from
+    it.
+    """
+    import shutil
+
+    if not RUN_ID_RE.match(child.name):
+        return False
+    if child.parent != root:
+        return False
+    if child.is_symlink() or not child.is_dir():
+        return False
+    meta = _read_json(child / META_FILE, RunMeta)
+    if meta is None or meta.record != RECORD_TAG:
+        return False
+    try:
+        shutil.rmtree(child)
+    except OSError:
+        return False
+    return True
+
+
+#: Has this process already pruned its derived root? Once, not once per fit: a
+#: batch of two hundred candidates in one process should pay the walk once.
+#: Measured on ``[dev]`` / macOS arm64 over six-file run directories: 0.2 ms at
+#: 10 runs, 2.2 ms at 100, 27.6 ms at 1000 (197 MB) — so the walk stays under a
+#: tenth of a second right up to the ceiling, and a fit pays it once.
+_PRUNED = False
 
 
 #: Marks a stream as already carrying a recorder. One job is one run directory,

@@ -335,7 +335,7 @@ safe.
       Record the `PROJECT_FORMAT_VERSION` decision in the handover either way.
 - [x] The `summary.txt` call site in `fit`, after the result is built.
       `str(result)`, never `ref.summary()`.
-- [ ] Retention by age and byte ceiling, warn-and-keep when nothing is old
+- [x] Retention by age and byte ceiling, warn-and-keep when nothing is old
       enough, the three `rmtree` guards, legacy directories exempt. Its own
       commit: this is the only code in the track that can destroy data.
 - [x] `tests/conftest.py`: the env `setdefault` beside the `MPLBACKEND` line (the
