@@ -1,6 +1,6 @@
 # WP-1405 — the human stops the run
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: ✅ 2026-09-15 — a human watching a run can stop it, through the token the fit already had; stopping ships enabled with `--read-only` to decline, and WP-1406's owed skill sentence and manual rows are written
 Depends on: 1403 (the recorder that polls); 1401 (the page the button is on)
 
 ## Goal
@@ -121,83 +121,95 @@ default — a flag to *enable* it — is that the button can put a traceback int
 agent's session, and making that a deliberate act is cheap. Decide it in this WP
 with the dialog in front of you, and record which way and why.
 
-### Inherited
+### What the mailbox carried, and where it went
 
-From **WP-1406** (2026-09-15), which documented the track and found this WP's
-feature missing from it:
+The `### Inherited` block is consumed (protocol rule 1). What survived, folded
+here so a reader of the closed WP still has it:
 
-- **WP-1406's skill body sentence is yours, and so is the cut that pays for
-  it.** 1406 was chartered to add exactly one sentence to the skill body:
+- **The ordering WP-1403 asked to be kept, is kept.** `fit` emits `fit_end` with
+  `status="cancelled"` before re-raising, the recorder projects that to a
+  `cancelled` state, and `close` applies a caller's state only when nothing has
+  claimed one. The `close("failed")` in `fit`'s exception path therefore still
+  cannot overwrite it. Nothing in this WP touched that path.
+- **WP-1401's "a run id is never decoded into a path" is inherited rather than
+  re-checked.** `_cancel` looks the id up in what the walk offered, exactly as
+  `do_GET`'s routes do, so a request can only ever name a directory the server
+  chose to serve. `test_an_unknown_id_cannot_name_a_directory` asserts it for
+  the new verb.
+- **A cancelled run still gets no `summary.txt`**, because there is still no
+  result to write one from. This WP added no half-written one, and two tests
+  assert the absence.
+- **WP-1406's three owed items are written** — the skill body sentence, the
+  `references/watching.md` row and the `using/cli.md` material. The cut that
+  paid for the sentence is named in the commit and in § Decisions.
 
-  > A human may be watching, and may stop you. A `RefinementCancelled` you did
-  > not request is not a bug in your call: the completed stages are kept, and
-  > `.completed_stages` and `.node_id` say where the work stands.
+Dropped as stale: every line number the mailbox carried.
+`_abandon_on_cancel` had moved from 1537 to 1592 and its call sites from
+1968/2079 to 2068/2189 before this session started, and quoting a line number
+into a mailbox is what makes that happen.
 
-  It was **not written**, because it is not true yet. A fit raises
-  `RefinementCancelled` only when its own caller passed `cancel=`; there is no
-  cancel file in `runs.py`, no poll in `RunRecorder`, and `fit` creates no token
-  of its own. The package's only `CancelToken()` is `gui/session.py`'s, for the
-  GUI's own fits. Write it when this WP lands, and pay for it with a named cut
-  per WP-1330 — 1406 paid for its routing row by cutting §6 item 23, which was
-  duplicated whole in `references/abstention.md`, so that trick is spent.
-- **Two manual items are yours for the same reason.** 1406's charter asked
-  `using/cli.md` to describe "the cancel button and what it does to the other
-  process, the read-only serving flag". Neither exists, so neither was written.
-  The chapter now states reading-only as a property of how the watcher is built;
-  when the flag lands it needs a row, and the cancel button needs a subsection
-  saying plainly what it does to a process the reader cannot see.
-- **`references/watching.md` is the file the cancel story belongs in**, not a
-  new one. It is §9d, routed on "a human may be watching this fit". Row 9d.5
-  already covers `abandoned`, and a cancel row sits naturally beside it. Every
-  row closes with a `(Measured: …)` or `(Hypothesis: …)` tag, and the gate
-  refuses a `Measured` tag that names neither a WP nor a declared corpus.
+## Decisions taken
 
-From **WP-1403** (2026-09-15), which built the run directory this WP stops:
+### Eager attachment, measured (2026-09-15)
 
-- **The cancel path already records itself correctly.** `fit` emits `fit_end`
-  with `status="cancelled"` before re-raising, the recorder projects that to a
-  `cancelled` state, and `RunRecorder.close` applies a caller's state *only*
-  when nothing has claimed one — so the `close("failed")` in `fit`'s exception
-  path cannot overwrite it. Keep that ordering if you touch either.
-- **The lock is held for the process's life and released by the kernel**,
-  however the writer dies. That is what makes `abandoned` a distinct answer from
-  `done`, verified end to end: a child holding it reads `running`, and after
-  `kill -9` the same directory reads `abandoned` off a free lock under a
-  `running` status.
-- **`_abandon_on_cancel`'s short circuit still holds** (`refine.py:1560`): no
-  token is attached for the watcher's sake, so an ordinary fit still pays
-  nothing. Attaching one ends that guarantee at two `model_copy(deep=True)` a
-  stage, scaling with atom count. **That cost belongs to this WP and is not in
-  1403's numbers.**
-- **A cancelled run gets no `summary.txt`**, because there is no result to write
-  one from, and that absence is not an error. If this WP gives a cancelled run
-  something to say, it is a new file or a status field, never a half-written
-  summary.
-- A cross-process stop has to find the run first. `runs.discover` plus
-  `liveness_of` is that half, and `status.json` now carries `pid` and `host` —
-  `host` is written, so the foreign-host rung fires rather than guessing.
+The WP left this to WP-1404's configuration 3, which nobody has run. Measured
+here instead, on this worktree's `[dev]` venv, macOS/arm64, because the question
+is narrower than 1404's: what does *attaching a token* cost, not what does
+recording cost.
 
-From **WP-1401** (2026-09-14), which landed the reader and the app this WP adds
-a verb to:
+Two components, and neither is the fit:
 
-- **The watcher has no verbs at all, by construction.** `watch.py` serves GET
-  only, and the page has no POST path of any kind. Cancel is therefore the first
-  verb rather than one more, and the design note in WP-1401 rests on that: a
-  user cannot click what is not there. Adding a second verb reopens an argument
-  that was settled on the strength of there being exactly one.
-- **A run id is never decoded into a path.** `runs.run_id_for` digests the
-  resolved path, and `watch.py` looks an id up in what `discover` returned. A
-  cancel route inherits that property for free, and must keep it: a request can
-  then only ever name a directory the walk chose to offer.
-- **Liveness is already a reader-side answer**, so a cancel verb has somewhere
-  to report into. `runs.liveness_of` returns `running` only on a held flock or a
-  live pid, and `abandoned` where the status claims `running` and the lock is
-  free. A cancelled run should reach `cancelled` through `RunStatus.state`,
-  which is already a terminal state the reader honours above every other rung.
-- **Still true from 2026-09-13, and re-verified:** `refine._abandon_on_cancel`
-  short-circuits on `cancel is None` and says so in its docstring, so attaching
-  a token universally ends a guarantee the code currently makes. It now sits at
-  `refine.py:1537`, with call sites at 1968 and 2079.
+| what | cost |
+| --- | --- |
+| `_abandon_on_cancel`'s two `model_copy(deep=True)`, per stage | 132 µs at 2 atoms, 226 µs at 8, 350 µs at 16, 1.12 ms at 64, 4.44 ms at 256, 19.3 ms at 1024 |
+| the solver's extra residual wrapper, per evaluation | 37 ns |
+
+End to end on the three-stage synthetic LaB6 fit (47 evaluations, 2 atoms),
+interleaved arms, n=9 each: **1.0036× median, 1.0019× on the minima**, and the
+answer is bit-identical (`rwp equal: True`). The worst case the copy table
+bounds — 1024 atoms over ten stages — is 0.19 s, against a fit whose residual
+evaluations alone run to minutes.
+
+So: **attach eagerly**, and `_abandon_on_cancel`'s docstring promise is
+withdrawn rather than defended. Lazy attachment was the alternative the WP
+named and it is worse than it looks: a token cannot be attached mid-stage —
+`cancel` is bound when the stage starts — so "lazy" would mean the *first*
+request after a run starts is honoured only at the next stage boundary, which
+is the latency this WP exists to avoid. It buys a fraction of a percent.
+
+This is a bound for the *token*, not for recording. WP-1404's own question is
+untouched.
+
+### Stopping ships enabled, `--read-only` declines it (2026-09-15)
+
+Decided with the dialog on screen, which is what the WP asked for. The case for
+the reverse default is real and is stated in `watch.py`'s own docstring: a click
+raises in a process the reader cannot see.
+
+Three things settled it the other way.
+
+1. The server binds `127.0.0.1`. The only person who can click is the person at
+   the machine the fit is running on, and they can already reach that process
+   with Ctrl-C, which raises in it too. The button is a second route to a power
+   the reader has, not a new one.
+2. A flag you must set *in advance* is not set when a runaway starts. Killing
+   the watcher to restart it with the flag is the one moment you wanted it.
+3. The dialog is already the deliberate act the argument asks for, twice over:
+   two clicks, and no keyboard shortcut of any kind — verified in a real
+   browser that Enter on the open dialog does nothing.
+
+`--read-only` covers what the argument is really about, a reader who is not the
+person who should be stopping things, and that is a situation known in advance.
+
+### What looking at it caught
+
+`#confirm { display:flex }` outranks the browser's own `[hidden] {display:none}`
+— an id selector against an attribute selector — so the closed dialog was an
+invisible full-page sheet swallowing every click, including the one that opens
+it. Nothing in python could see it and `node --check` parses it happily. It took
+a real browser and a real click. `#confirm[hidden] { display:none; }` is the fix,
+and the comment beside it is there so the next person adding an overlay does not
+pay for it again.
 
 ## Non-goals
 
@@ -212,24 +224,24 @@ a verb to:
 
 ## Tasks
 
-- [ ] The recorder's cancel poll, on the flush clock, with the stale-file
+- [x] The recorder's cancel poll, on the flush clock, with the stale-file
       deletion at start.
-- [ ] Token composition: set the caller's if there is one, else create one, and
+- [x] Token composition: set the caller's if there is one, else create one, and
       only when the recorder is active. Decide lazy-versus-eager attachment
       against WP-1404's configuration 3 and record the choice.
-- [ ] The terminal status naming the run cancelled and who asked.
-- [ ] The POST route, the run-id resolution against the served root, the
+- [x] The terminal status naming the run cancelled and who asked.
+- [x] The POST route, the run-id resolution against the served root, the
       traversal refusal, and the read-only serving flag.
-- [ ] The confirm dialog, with the three sentences above. Looked at, not only
+- [x] The confirm dialog, with the three sentences above. Looked at, not only
       asserted.
-- [ ] Tests: the cancel file sets a caller's own token rather than a second one;
+- [x] Tests: the cancel file sets a caller's own token rather than a second one;
       a recorded fit with no caller token still cancels; a fit with eval events
       off cancels within a cadence, not a stage; `RefinementCancelled`'s
       three fields are unchanged; a GET does not cancel; the read-only flag
       refuses; traversal is refused. Plus a `slow`-marked two-process test — a
       subprocess runs a long fit, the parent writes the file, and the child's
       exit and terminal status are asserted.
-- [ ] Skill: **none here**, but this WP is what makes WP-1406's body sentence
+- [x] Skill: **none here**, but this WP is what makes WP-1406's body sentence
       true. Note it in 1406's `### Inherited` when this lands.
 
 ## Acceptance
@@ -255,6 +267,114 @@ telemetry, and the run reads cancelled afterwards.
   node, no commit, models restored.
 
 ## Handover log
+
+- **2026-09-15** — shipped. A person watching a refinement through `rietx watch`
+  can now stop it, from the browser, in whatever process is running the fit.
+  That is the last behavioural gap in the live-watcher track: the window showed
+  you a runaway and gave you nothing to do about it except find the terminal it
+  was started from. It cost the guarantee that an ordinary fit pays nothing for
+  cancellation machinery, which was measured at 1.0036x before it was spent, and
+  it makes true the one sentence WP-1406 was chartered to write into the skill
+  and could not.
+
+  **Done.** The cross-process seam is a request file the recorder polls and the
+  watcher writes. It is a *request* and not a flag, so the next intervention verb
+  is more words in one file, and a word this version does not know is declined
+  into `RunStatus.declined` rather than treated as a cancel — an old install
+  meeting a newer watcher's `pause` must not stop the fit. `POST
+  /api/run/<id>/cancel` is the watcher's first and only verb; `--read-only`
+  serves without it. The confirm dialog is two clicks with no keyboard shortcut
+  and says what the click does to the other process. The token composition runs
+  through `runs.attach_cancel` at three call sites — `fit`, `run_stage` and
+  `sequential.fit` — and the skill, both manual chapters and the root rulebook
+  now say a fit can be stopped by someone else.
+
+  **Measured** (`[dev]` venv, macOS arm64, this worktree):
+
+  - *The token's cost, which is configuration 3 of WP-1404's matrix and is now
+    answered.* 1.0036x median, 1.0019x on the minima, on the three-stage
+    synthetic LaB6 fit (47 evaluations, 2 atoms, interleaved arms, n=9), Rwp
+    bit-identical. Components bounded separately rather than inferred from that
+    one fit: the two `model_copy(deep=True)` run 132 us at 2 atoms, 350 us at
+    16, 4.44 ms at 256, 19.3 ms at 1024, **per stage**; the solver's extra
+    residual wrapper is 37 ns **per evaluation**. Worst case bounded by that
+    table, 1024 atoms over ten stages, is 0.19 s.
+  - *The stop, across a process boundary.* The child exits 0.117-0.126 s after
+    the request is written, at stage 1 of 150, stderr empty. The control that is
+    never asked runs all 150 and prints FINISHED. A 4-pattern series stopped at
+    0 completed entries with `SEQUENTIAL_CANCELLED`, against 4 of 4 unasked.
+  - *Counts.* +26 tests, of which one is `slow` and three came from the review
+    pass. Fast selection **4818 passed, 132 skipped, 2:14-3:49** against
+    WP-1406's 4793/132: **+25 passed, skips unchanged**, and PR #324 in between
+    added no test. Full selection **4987 passed, 141 skipped, 28:30** against
+    4961/141, so **+26 passed**. Both on current main merged into this branch,
+    which is the tree that lands and which nothing else tests.
+
+    That full run is `-n 4`, not `-n auto`. Two attempts at `-n auto` and `-n 6`
+    were killed by the host for memory with other applications open, one of them
+    at 37 %, and neither is a test failure. The wall clock is not comparable with
+    this milestone's other full runs for that reason; the counts are.
+
+  **Decisions, both of which the WP left open on purpose.** Eager attachment,
+  on the numbers above; lazy was worse than it looks, because a token cannot be
+  attached mid-stage and "lazy" would have meant honouring the first request
+  only at the next stage boundary. And stopping ships **enabled** with
+  `--read-only` to decline, decided with the dialog on screen: the server binds
+  127.0.0.1, so the only person who can click already has Ctrl-C into the same
+  process; a flag set in advance is not set when a runaway starts; and two
+  clicks with no keyboard shortcut is already the deliberate act the argument
+  asks for. Both are written up in § Decisions taken with their reasoning.
+
+  **Gotchas.**
+
+  - *The probe hangs on the unthinned evaluation boundary, and that is load
+    bearing rather than incidental.* The recorder only gets control at an event,
+    so a probe riding the stream would fire once a **stage** the moment
+    WP-1403's thinning or WP-1404's configuration 1 lands.
+    `test_the_probe_needs_no_event_at_all` is the guard and it asserts the
+    property, not the implementation.
+  - *`indexing.Deadline` duck-types a token and has no `cancel()` at all.* The
+    watched token therefore sets the caller's where it can and its own event
+    where it cannot. Delegating blindly would have raised inside the recorder's
+    latch, where it reads as telemetry failing rather than as a missing method.
+  - *A series attaches one recorder for the whole job*, so the token is composed
+    at the chain as well as inside each pattern's `fit`. Composed only inside
+    `fit`, a stop would abandon one pattern and start the next, because `_run`
+    reads `bool(cancel)` to decide the walk ended.
+  - *An id selector outranks the browser's own `[hidden] {display:none}`.* The
+    closed dialog was an invisible full-page sheet swallowing every click,
+    including the one that opens it. No python test and no `node --check` can
+    see that; it took a real browser and a real click, and the guard that would
+    have caught it is now in `test_watch_app.py`.
+  - *The full suite earned its 25 minutes.* It caught a `read_text()` without
+    `encoding=` in this WP's own test helper — cp1252 on Windows. All four
+    suites the WP's acceptance names were green with it in place.
+
+  **The review pass changed five things and nothing was declined.** Two were
+  serious. `poll_cancel` recorded the stop before performing it, so a status
+  write that raised would have latched the recorder with the request already
+  consumed and the runaway unstoppable — and a full disk is one of the likelier
+  reasons somebody reaches for this button. And the POST route had no
+  `Origin`/`Referer` check, so any page the reader had open in another tab could
+  have stopped an overnight refinement; `gui/server.py` has carried exactly that
+  check since it grew verbs, which is the prior art this session should have
+  looked for and did not. Three smaller: the non-eval poll fired on a `fit_end`
+  that had already recorded a terminal state, so a request in the last cadence
+  of a *successful* fit would set the caller's own reusable token; the body
+  drain capped its read without closing the connection, which is the desync its
+  own comment claims to prevent; and `sequential.fit` passed `recorder` where
+  `fit` passes `recorder_of(stream)` — the exact bug the comment on that line
+  exists to prevent, written directly under the comment. Reading the fixes added
+  a sixth change of my own: the host set is now duplicated in two servers on
+  purpose, so a meta-test pins the copies equal.
+
+  **Next.** [WP-1404](1404-what-recording-every-fit-costs.md) is what remains in
+  the track, and its `### Inherited` now carries this session's answer to its
+  configuration 3 plus the two things in its framing that moved. Read that block
+  before building its five-configuration matrix: configurations 2 and 3 are no
+  longer separable by switching a keyword, since a recorded fit always carries a
+  token now, so measuring configuration 2 alone needs `telemetry=False` plus an
+  explicitly attached one. Nothing here blocks a release.
 
 - **2026-09-13** — created. The seam is a file because the two processes already
   share a directory and nothing else. The sharpest fact in the whole track lives

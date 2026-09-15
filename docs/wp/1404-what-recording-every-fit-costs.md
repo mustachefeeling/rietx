@@ -107,6 +107,33 @@ recorded, not worked around. In order of preference:
 
 ### Inherited
 
+From **WP-1405** (2026-09-15), which spent the thing configuration 3 was to
+price:
+
+- **Configuration 3 is answered, and the decision it fed has already shipped.**
+  An attached cancel token costs **1.0036× median and 1.0019× on the minima** on
+  the three-stage synthetic LaB6 fit (47 evaluations, 2 atoms, interleaved arms,
+  n=9 each), with a bit-identical Rwp. Both components were bounded separately
+  rather than inferred from that one fit: `_abandon_on_cancel`'s two
+  `model_copy(deep=True)` run 132 µs at 2 atoms, 350 µs at 16, 4.44 ms at 256
+  and 19.3 ms at 1024, **per stage**; the solver's extra residual wrapper is
+  37 ns **per evaluation**. Worst case bounded by that table, 1024 atoms over
+  ten stages, is 0.19 s. `[dev]` venv, macOS arm64.
+- **So a recorded fit now always carries a token**, and
+  `_abandon_on_cancel`'s "an ordinary fit pays nothing" is withdrawn — it now
+  says a fit that *declined telemetry* pays nothing. Configuration 2 and
+  configuration 3 are therefore no longer separable by switching a keyword:
+  measuring configuration 2 alone needs `telemetry=False` plus an explicitly
+  attached token, or the two arms differ by recording as well as by the token.
+- **Do not re-derive the token's cost as part of this WP's five-configuration
+  matrix.** Re-measure it if the matrix disagrees, and treat a disagreement as a
+  finding rather than as noise: these numbers are why eager attachment shipped.
+- **One number in this WP's own framing moved.** Mitigation 3 (thinning the eval
+  stream) no longer only costs the WP-1113 trajectory. The cancel probe is hung
+  on the *unthinned* evaluation boundary precisely so thinning cannot reach it,
+  and `test_the_probe_needs_no_event_at_all` is the guard. Thinning stays
+  available; check that test still passes rather than assuming it is unaffected.
+
 From **WP-1403** (2026-09-15), which is the thing this WP weighs:
 
 - **Recording is on by default now**, so this WP's subject exists. The knobs to

@@ -96,12 +96,10 @@ the same scans would make Stoe writable.
 
 **In flight:** [1118](wp/1118-foreign-model-files.md) landed its model-file
 registry 2026-09-13; next are the two offers it unblocks, `.EXP` (#103) and
-`STR(...)` (#107). The **live-watcher track is user-shippable**:
-[1406](wp/1406-say-that-the-fit-writes-to-disk.md) shipped 2026-09-15, so the
-manual, the skill and both rulebooks now say that every fit writes a run
-directory and how to decline. Two items remain, neither blocking a release.
-[1405](wp/1405-the-human-stops-the-run.md) is the last behavioural gap and
-holds three things 1406 could not write.
+`STR(...)` (#107). The **live-watcher track has no behavioural gap left**:
+[1405](wp/1405-the-human-stops-the-run.md) shipped 2026-09-15, so a human
+watching a run can stop it, and the sentence and two manual rows 1406 could not
+write are written. One item remains and it blocks no release.
 [1404](wp/1404-what-recording-every-fit-costs.md) prices the default-on
 recorder, which nobody has measured directly; the manual quotes the
 `LiveSession` path as the nearest proxy, so a number outside 1.03-1.28x means
@@ -640,7 +638,7 @@ behind v1.4's peaks and ahead of the magnetic track.
 | [1402](wp/1402-the-picture-costs-megabytes.md) | The live picture costs megabytes a stage, and the fit pays it | ✅ 2026-09-15 | 1401 |
 | [1403](wp/1403-a-run-nobody-asked-to-record.md) | A run nobody asked to record | ✅ 2026-09-15 | 1401, 1402 |
 | [1404](wp/1404-what-recording-every-fit-costs.md) | What recording every fit costs | ⬜ | 1403 (1401 baseline) |
-| [1405](wp/1405-the-human-stops-the-run.md) | The human stops the run | ⬜ | 1403 (1401 soft) |
+| [1405](wp/1405-the-human-stops-the-run.md) | The human stops the run | ✅ 2026-09-15 | 1403 (1401 soft) |
 | [1406](wp/1406-say-that-the-fit-writes-to-disk.md) | Say that the fit writes to disk | ✅ 2026-09-15 | 1403, 1405 (1402 soft) |
 
 ### v2+ — fenced

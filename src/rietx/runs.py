@@ -13,6 +13,13 @@ annotation and is why there is no read-only way to open a project; no
 captured. This is a rule and not a preference: a viewer that constructs a
 project mutates what it is looking at.
 
+The reader has exactly one verb, added by WP-1405 and named here because it is
+the exception: :func:`request_cancel` writes :data:`CANCEL_FILE` into a run
+directory, and the fit writing that directory stops at its next evaluation.
+Stopping a runaway is the one thing a reader cannot do from the other side, and
+the verb still constructs nothing — it writes a request into a directory the
+walk already offered, and the fit's own token is what acts on it.
+
 **The two halves share one file contract, which is why they share a module.**
 :class:`RunRecorder` writes the names the reader above looks for — ``meta.json``,
 ``run.lock``, ``status.json`` — and a writer that invented its own would be
@@ -59,6 +66,7 @@ import os
 import re
 import socket
 import sys
+import threading
 import time
 import warnings
 from dataclasses import dataclass
@@ -136,6 +144,26 @@ TERMINAL_STATES = frozenset({"done", "failed", "cancelled"})
 #: whole ``FitReport`` — the expensive half of that call. A run with no result
 #: (cancelled, or raised) has none, and that absence is not an error.
 SUMMARY_FILE = "summary.txt"
+
+#: The one file a *reader* writes, and the whole cross-process stop mechanism
+#: (WP-1405). A file rather than a socket because the two processes already
+#: share exactly one thing — this directory — and a second channel would let a
+#: watcher reach a fit it cannot see.
+#:
+#: It is **request-shaped and not a flag**: the body is a JSON object with a
+#: ``request`` key, so a later vocabulary (pause, edit a parameter, re-run a
+#: stage) is more words in this seam rather than another one. The name is the
+#: verb, so an absent or unreadable body still reads as a cancel — ``touch
+#: cancel`` is the obvious gesture and it works. A body naming something this
+#: version does not know is **declined by name** rather than rounded to the
+#: file's name: an old recorder facing a newer watcher's ``pause`` must not
+#: stop the fit. :func:`request_cancel` writes it, :meth:`RunRecorder.poll_cancel`
+#: consumes it.
+CANCEL_FILE = "cancel"
+
+#: The only request :meth:`RunRecorder.poll_cancel` honours. Everything else in
+#: that file lands in :attr:`RunStatus.declined`.
+CANCEL_REQUEST = "cancel"
 
 #: Written into the runs root on creation, containing ``*``, so a fit inside
 #: somebody's repository does not turn up in their ``git status``. The root is
@@ -271,6 +299,20 @@ class RunStatus(_ReaderBase):
     #: ``running`` state with an ``error`` is looking at a fit that carried on
     #: perfectly well without its telemetry.
     error: str | None = None
+    #: Who asked for the stop, written by :meth:`RunRecorder.poll_cancel` when a
+    #: :data:`CANCEL_FILE` request caused it. **Absent is an answer here and a
+    #: true one**: the fit cannot tell a human's stop from its own caller's
+    #: ``token.cancel()`` and must not, both being the same cooperative read —
+    #: so the record says which by whether anything wrote this. A
+    #: ``cancelled`` state with no ``cancelled_by`` is the agent's own doing.
+    cancelled_by: str | None = None
+    #: A request this version does not know, named rather than obeyed and
+    #: rather than dropped (WP-1405). The vocabulary in
+    #: :data:`CANCEL_FILE` is open forwards, so an older recorder meeting a
+    #: newer watcher's word declines it *visibly* — the alternative, rounding
+    #: an unknown request to the file's name, would stop a fit over a word it
+    #: could not read.
+    declined: str | None = None
     #: Unix time of the writer's last touch. **Reported, never decisive** —
     #: see :func:`liveness_of`.
     heartbeat: float | None = None
@@ -749,6 +791,36 @@ def tail_events(path: str | Path, offset: int = 0, *, inode: int | None = None,
                      bad_lines=bad, size=stat.st_size)
 
 
+def request_cancel(run_dir: str | Path, *, who: str) -> Path:
+    """Ask the fit writing ``run_dir`` to stop. Returns the file written.
+
+    The reader's **one** verb (WP-1405), and the only write anything on this
+    side of the module makes. ``rietx watch`` otherwise reads: it opens no
+    project, constructs no refinement, and a user cannot click what is not
+    there. Stopping a runaway is the exception, because it is the one thing a
+    reader cannot do from the other side.
+
+    Written to a sibling and renamed, for :meth:`RunRecorder._write_status`'s
+    reason read backwards: the poller reads this file on a cadence and a torn
+    read would be a request nobody made.
+
+    ``who`` is the *asker*, and the server fills it rather than the client:
+    a request that could name itself anything would make
+    :attr:`RunStatus.cancelled_by` a field the record cannot trust.
+
+    Writing this is not the same as it being honoured. Nothing here waits, and
+    a run whose writer has already gone leaves the file lying in the directory
+    doing nothing, which is why :class:`RunRecorder` deletes a stale one at
+    start.
+    """
+    path = Path(run_dir) / CANCEL_FILE
+    payload = {"request": CANCEL_REQUEST, "who": who, "t": time.time()}
+    tmp = path.with_name(CANCEL_FILE + ".tmp")
+    tmp.write_text(json.dumps(payload, indent=1), encoding="utf-8")
+    tmp.replace(path)
+    return path
+
+
 # ---------------------------------------------------------------------------
 # The writer (WP-1403) — a fit records itself, having not been asked to
 # ---------------------------------------------------------------------------
@@ -859,6 +931,109 @@ def _warn_once(message: str) -> None:
     warnings.warn(message, RuntimeWarning, stacklevel=3)
 
 
+class _WatchedToken:
+    """A cancel token that also reads :data:`CANCEL_FILE`, on a cadence.
+
+    Duck-typed at the three verbs every consumer in the package uses —
+    ``is_set()`` for the solver, ``bool()`` for ``sequential``, ``cancel()``
+    and ``reset()`` for a caller — which is the same contract
+    ``indexing.Deadline`` satisfies without inheriting anything either.
+
+    **Where the probe hangs, and why it is not the event stream.** The recorder
+    only gets control when something calls it, so a probe "once per cadence"
+    would really be once per cadence *at an event* — and WP-1403's thinning and
+    WP-1404's stage-boundary configuration both take the ``eval`` stream away,
+    which would leave the probe firing once a **stage**. On the long runs this
+    button exists for that is minutes. So it hangs here, on the unthinned
+    evaluation boundary the solver already reads a token at, and it survives
+    whatever gets written. Latency is then the cadence plus the residual
+    evaluation in flight, which on a large pattern is the larger term anyway.
+
+    **It sets the caller's token where it can, and its own where it cannot.**
+    One authority per run for "stop" means the object the caller holds is the
+    one that ends up set, so a GUI session whose own button and whose watcher
+    both stop the same fit agree afterwards. But a token is only duck-typed
+    here: ``indexing.Deadline`` answers ``is_set()`` and has no ``cancel()`` at
+    all, and calling one that is not there would latch the recorder instead of
+    stopping the fit. Hence the fallback event, which is never the *only*
+    mechanism where a real token was passed.
+    """
+
+    __slots__ = ("_recorder", "_inner", "_event", "_next_probe")
+
+    def __init__(self, recorder: "RunRecorder", inner=None):
+        self._recorder = recorder
+        self._inner = inner
+        self._event = threading.Event()
+        self._next_probe = 0.0
+
+    def _probe(self) -> None:
+        # monotonic, and its own clock rather than the recorder's flush time:
+        # they share the *interval*, which is the constant that names this
+        # cadence, and not the variable, which moves with the event stream
+        now = time.monotonic()
+        if now < self._next_probe:
+            return
+        self._next_probe = now + max(self._recorder.flush_interval, 0.0)
+        self._recorder.poll_cancel()
+
+    def stop(self) -> None:
+        """Set whatever will be read — used by the recorder, not by a caller."""
+        cancel = getattr(self._inner, "cancel", None)
+        if callable(cancel):
+            cancel()
+        else:
+            self._event.set()
+
+    # -- the token surface -------------------------------------------------
+
+    def is_set(self) -> bool:
+        self._probe()
+        return self._event.is_set() or (self._inner is not None
+                                        and self._inner.is_set())
+
+    def cancel(self) -> None:
+        self.stop()
+
+    def reset(self) -> None:
+        self._event.clear()
+        reset = getattr(self._inner, "reset", None)
+        if callable(reset):
+            reset()
+
+    def __bool__(self) -> bool:
+        return self.is_set()
+
+    def __repr__(self) -> str:
+        return (f"_WatchedToken(cancelled={self.is_set()}, "
+                f"dir={self._recorder.dir})")
+
+
+def attach_cancel(recorder: "RunRecorder | None", cancel):
+    """The token a recorded fit stops through — the caller's, watched.
+
+    ``cancel`` unchanged when nothing is recording, which is what keeps
+    ``_abandon_on_cancel``'s short circuit alive for a fit that declined
+    telemetry. Otherwise the run's one token, made on first ask and handed
+    back to every later one — a series asks once for the chain and once per
+    pattern, and both must be the same object or the chain would end and the
+    next pattern start.
+
+    **This is what ends "an ordinary fit pays nothing"**, and the price was
+    measured before it was paid (WP-1405): a token makes ``_abandon_on_cancel``
+    take two ``model_copy(deep=True)`` a stage, 132 µs at 2 atoms and 19.3 ms
+    at 1024, plus 37 ns a residual evaluation for the wrapper the solver then
+    installs. On the three-stage synthetic fit that is 1.002-1.004×, and the
+    bound at 1024 atoms over ten stages is 0.19 s against a fit whose
+    evaluations alone run to minutes. Lazy attachment was the alternative and
+    it buys a fraction of a percent for a token that cannot be attached
+    mid-stage anyway.
+    """
+    if recorder is None:
+        return cancel
+    return recorder.cancel_token(cancel)
+
+
 class RunRecorder(EventStream):
     """Records a run into a directory, and never breaks the fit doing it.
 
@@ -910,6 +1085,8 @@ class RunRecorder(EventStream):
         self._host = None
         self._prior_callback = None
         self._chain = None
+        #: This run's one token, made by :meth:`cancel_token` on the first ask.
+        self._token: _WatchedToken | None = None
         # Everything but ``state`` starts absent rather than defaulted: a zero
         # Rwp reads as an answer about a fit nothing has measured (WP-1076).
         self._status: dict = {"state": "running", "pid": os.getpid(),
@@ -919,6 +1096,7 @@ class RunRecorder(EventStream):
             self.path = self.dir / EVENTS_FILE
             self._fh = open(self.path, "a", encoding="utf-8")
             self._take_lock()
+            self._clear_stale_cancel()
             self._write_meta(label, command)
             self._write_status()
         except BaseException as exc:
@@ -1009,6 +1187,72 @@ class RunRecorder(EventStream):
         tmp.write_text(json.dumps(payload, indent=1), encoding="utf-8")
         tmp.replace(self.dir / STATUS_FILE)
 
+    # -- stopping (WP-1405) ------------------------------------------------
+
+    def _clear_stale_cancel(self) -> None:
+        """Delete a leftover request before this run can read it.
+
+        Unreachable in the run-id layout, where :func:`new_run_dir` claims a
+        directory by creating it. Reachable the moment anything writes two runs
+        into one directory — which ``LiveSession`` does by name — and there a
+        request nobody withdrew would stop the *next* fit within a cadence of
+        its first evaluation, with the record blaming a watcher that had gone
+        home. The insurance is one ``unlink``.
+        """
+        (self.dir / CANCEL_FILE).unlink(missing_ok=True)
+
+    def cancel_token(self, inner=None) -> _WatchedToken:
+        """The token this run stops through. One per run, whoever asks.
+
+        ``inner`` is the caller's own token when they passed one, and the first
+        ask is the one that binds it: a series asks once for the chain and then
+        once inside every pattern's ``fit``, handing back what it was given, so
+        memoising is what keeps the chain and its members reading one flag.
+        """
+        if self._token is None:
+            self._token = _WatchedToken(self, inner)
+        return self._token
+
+    def poll_cancel(self) -> None:
+        """Read :data:`CANCEL_FILE` if it is there; honour it or decline it.
+
+        Latched like every other method here: a request the recorder cannot
+        read is telemetry failing, and telemetry does not get to break a fit.
+        The request is **consumed** either way — an unknown one left in place
+        would be re-read and re-declined every cadence for the rest of the run.
+        """
+        if self.error is not None or self._closed or self._token is None:
+            return
+        try:
+            path = self.dir / CANCEL_FILE
+            if not path.exists():
+                return                      # the answer on every other probe
+            try:
+                body = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError, UnicodeDecodeError):
+                body = None                 # the name is the verb; see below
+            path.unlink(missing_ok=True)
+            request = (body.get("request") if isinstance(body, dict)
+                       else CANCEL_REQUEST)
+            if request not in (None, CANCEL_REQUEST):
+                # declined by name, and said out loud: rounding an unread word
+                # to the file's name would stop a fit over a request from a
+                # newer watcher that this version cannot carry out
+                self._status["declined"] = str(request)
+                self._write_status()
+                return
+            who = body.get("who") if isinstance(body, dict) else None
+            # The stop first, the record of it second. The request has already
+            # been consumed, so a ``_write_status`` that raises here would latch
+            # the recorder over a request nobody can write again — and a full
+            # disk is one of the reasons somebody reaches for this button. The
+            # latch below still records the reason it could not say who asked.
+            self._token.stop()
+            self._status["cancelled_by"] = str(who) if who else "unknown"
+            self._write_status()
+        except BaseException as exc:
+            self._latch(exc, "reading a cancel request")
+
     def _observe(self, event: dict) -> None:
         """Project one event onto the status, copying and never computing.
 
@@ -1061,6 +1305,23 @@ class RunRecorder(EventStream):
             self._fh.flush()
             self._write_status(now)
             self._last_flush = now
+        if (event.get("kind") != "eval"
+                and self._status.get("state") not in TERMINAL_STATES):
+            # A stage boundary is the one place no residual is being evaluated,
+            # so the token's own probe cannot fire — and recompiling a large
+            # model, or building a stage report, is where a fit sits longest
+            # looking like it has ignored the button. There are a handful of
+            # these events in a fit, against thousands of ``eval``.
+            #
+            # Never once the run has claimed a terminal state, which
+            # ``_observe`` does above on this same event: a request landing in
+            # the last cadence of a fit that finished would otherwise set the
+            # *caller's* token — the one a GUI session holds and reuses, so
+            # their next fit would raise ``RefinementCancelled`` at its first
+            # evaluation — and write ``cancelled_by`` beside a ``done``. A
+            # series member's ``fit_end`` leaves the state ``running`` on
+            # purpose (see ``_observe``), so the chain still stops here.
+            self.poll_cancel()
 
     # -- the EventStream surface ------------------------------------------
 

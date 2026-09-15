@@ -13,7 +13,8 @@ usage: rietx <command> [...]
 commands:
   gui [PROJECT.rex] [--scratch] [--port N] [--no-open]
                                     the refinement GUI (localhost)
-  watch [dir] [--port N] [--open]   list and watch the runs under a directory
+  watch [dir] [--port N] [--open] [--read-only]
+                                    list and watch the runs under a directory
   html <result.json> <out.html>     render a saved RefinementResult to HTML
   index <pattern> --wavelength A [...]
                                     determine the unit cell of an unknown
@@ -164,9 +165,55 @@ was recorded, which is every run written before the recorder existed; or there
 is no lock file to probe. A heartbeat age is reported beside all of this and
 never decides it. A live process is evidence, and a clock is not.
 
+### Stopping a fit
+
+A run that reads `running` has a stop button on its page. It takes two clicks,
+and there is no keyboard shortcut for it. The confirmation says what is about to
+happen in the other process.
+
+The fit stops at its next residual evaluation. Its process sees
+`RefinementCancelled`, the same exception it would have seen had it passed a
+`cancel=` token of its own and set that. A script that does not catch the
+exception prints a traceback and exits. Latency is one poll interval plus the
+evaluation in flight. Measured on a 150-stage synthetic fit, the process exited
+0.12 s after the request was written.
+
+The stages that already finished are kept, and the working state stands at the
+last of them. The stage in flight is abandoned. No history node is written for
+it, no parameters are committed, and the structure and instrument go back to
+where that stage found them. A cancelled run gets no `summary.txt`, because
+there is no result to write one from.
+
+Only a run being written on this machine can be stopped. A finished run, a run
+on another host, and a run whose writer holds no lock all refuse with 409. A
+request written into any of those would lie in the directory unread.
+
+Afterwards the run reads `cancelled`, and its `status.json` carries
+`cancelled_by`. A fit that its own caller stopped records the same state with no
+`cancelled_by`. That field is the only place the two are told apart. The
+exception does not distinguish them, and neither does the fit.
+
+`--read-only` serves the same pages without the button:
+
+```console
+$ rietx watch --read-only
+rietx watch: 3 run(s) under /Users/yue/work/demo
+             http://127.0.0.1:8899/  (Ctrl-C to stop)
+             read-only: no stop button
+```
+
+The page draws no button, and the route refuses with 403.
+
+The stop route also checks `Origin` and `Referer`, the way the GUI's writing
+routes do. A cross-origin POST needs no preflight, so without that check any
+page open in another tab could stop a refinement, and a domain whose DNS
+answers `127.0.0.1` could read the run ids first. A same-origin fetch sends no
+`Origin` and a command-line client sends none either, so `curl -X POST` against
+`127.0.0.1` works unchanged.
+
 ### The JSON underneath
 
-The page is a client of six routes, and anything the page shows you can read
+The page is a client of seven routes, and anything the page shows you can read
 directly:
 
 | Route | Returns |
@@ -176,14 +223,17 @@ directly:
 | `/api/run/<id>/events?offset=` | events from a byte offset, with the next offset |
 | `/api/run/<id>/snapshot` | the stage's curves, ticks and statistics as JSON |
 | `/api/run/<id>/legacy` | a `fit.html` written before 1.4, served as it stands |
+| `POST /api/run/<id>/cancel` | asks that run to stop; 403 under `--read-only` |
 | `/plotly.js` | plotly out of the installed package, so the page works offline |
 
 These are provisional by declaration, like the GUI's ([](compatibility.md)). A
 route may be added, renamed or split in any release.
 
-The watcher reads and constructs nothing. It never opens a project, never builds
-a refinement and serves no verb that changes one, so you can start and stop it
-while a refinement runs. No flag selects this. It is how the server is built.
+Stopping is the watcher's only verb. Everything else reads. It never opens a
+project and never builds a refinement, so you can start and stop the watcher
+while a refinement runs. The stop writes a request file into a run directory the
+scan already found, and the fit's own token is what acts on it. No model is
+edited from here and no project is touched.
 
 The contrast worth knowing is `Project.open`, which writes an annotation into a
 project before you have clicked anything. Looking at a project without changing
