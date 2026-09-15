@@ -131,7 +131,7 @@ skip the test; the handover names that skip.
 
 ## Tasks
 
-- [ ] The status carries a series pattern's position, read off the stamp
+- [x] The status carries a series pattern's position, read off the stamp
 - [ ] The page is two panels with a collapse each, following the newest run when none is chosen
 - [ ] The list is patched in place under fixed columns
 - [ ] The status strip is fixed slots, and the stop button is one element

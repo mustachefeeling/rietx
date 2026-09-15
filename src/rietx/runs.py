@@ -294,6 +294,15 @@ class RunStatus(_ReaderBase):
     #: (WP-1037), so it is the writer's current claim rather than a constant.
     index: int | None = None
     n_stages: int | None = None
+    #: A series member's place in its chain, copied off the ``series_*`` stamp
+    #: every event of a series carries (``sequential._SeriesStream``) by
+    #: :meth:`RunRecorder._observe` on ``stage_start`` (WP-1423). Absent on a
+    #: single fit. Without them a run page says "stage biso" of a ramp and the
+    #: one fact that matters about a series, which pattern, is in the log only.
+    series_index: int | None = None
+    series_n: int | None = None
+    series_label: str | None = None
+    series_pass: str | None = None
     #: Why the recorder stopped recording, if it did. The failure latch is not
     #: silent (WP-1076): a run that gave up says so here, and a reader seeing a
     #: ``running`` state with an ``error`` is looking at a fit that carried on
@@ -1273,6 +1282,13 @@ class RunRecorder(EventStream):
                 self._status["index"] = int(data["index"])
             if data.get("n_stages") is not None:
                 self._status["n_stages"] = int(data["n_stages"])
+            # a series member's place, off the stamp and never counted: a
+            # rung restart repeats a pattern, and a `both` chain visits each
+            # one twice
+            for key, cast in (("series_index", int), ("series_n", int),
+                              ("series_label", str), ("series_pass", str)):
+                if data.get(key) is not None:
+                    self._status[key] = cast(data[key])
         elif kind == "stage_end":
             if data.get("stage") is not None:
                 self._status["stage"] = data["stage"]
