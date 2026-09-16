@@ -251,6 +251,7 @@ broken here, and only that has a fence. The middle rung does not set it:
 | `Trajectory.value` | the value at each point |
 | `Trajectory.stderr` | its esd, `None` wherever that pattern estimated none |
 | `Trajectory.labels` | the pattern label at each point |
+| `Trajectory.positions` | which entry of `SeriesResult.entries` each point came from |
 | `Trajectory.arrays` | `(x, value, stderr)` as float arrays, missing esds as NaN |
 
 Patterns where the path is absent are skipped rather than filled. A gap in a
@@ -309,6 +310,22 @@ path followed by its esd. `rung` travels beside `status` because it is the other
 half of "how much should I trust this point". A rescued point is a good fit
 whose starting values did not come from its neighbour, and a table that hides
 that reads as a continuous trajectory.
+
+`paths` takes the derived kinds too. `to_table(paths=["qpa.LaB6"])` exports the
+weight-fraction curve, and `r_bragg.` and `r_f.` export the agreement indices,
+all three resolved by `SeriesResult.resolve_trajectory`, the same call the plots
+and the GUI use. Two consequences. A path no pattern in the series carries
+raises, naming it and listing what does exist, rather than returning a column of
+blanks. And a kind with no esd by construction gets no `_esd` column at all: an
+agreement index is a residual, so its esd column would be empty in every row of
+every series. A kind that does have esds keeps its column even where this series
+estimated none, because there a blank says that this pattern did not estimate
+one.
+
+Where a trajectory skips a pattern, the table still has a row for it and leaves
+the cell empty. `Trajectory.positions` is what keeps the two aligned, since a
+trajectory is a subsequence of the series and neither `x` nor `label` identifies
+an entry on its own.
 
 The axis column takes `SeriesResult.x_label`, unless that name is already one
 of the fixed columns, in which case it is `x`. That is what the default hits:
