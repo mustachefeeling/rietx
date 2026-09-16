@@ -172,6 +172,11 @@ _INHERITED_PRUNE_EPOCH = "2026-07-31"
 #                                                          it in § What fires, and what stays silent; landed
 #                                                          713, +4 headroom so the next few index rows do
 #                                                          not each need a cap commit
+#   2026-09-16  docs/ROADMAP.md               717 -> 719  for WP-1434 and WP-1435, the two halves of WP-1310
+#                                                          it measured into their own shape: two index rows,
+#                                                          nothing else. The sentence naming them in § What
+#                                                          fires replaced one 1310 already had, so the
+#                                                          narrative paid for itself; landed 719, no headroom
 SIZE_CAPS: dict[str, int | None] = {
     # 739 -> 755 (WP-1102): two standing rules for the component seam — that an
     # additive non-Bragg term is a union *member* and not a new field, and that
@@ -287,7 +292,7 @@ SIZE_CAPS: dict[str, int | None] = {
     # Current focus naming #101 as closed, which is what a successor reads to
     # know the writers are all that is left of 1118.  Nothing is demotable, so
     # the cap moves rather than the fact.  Landed at 711, headroom +1.
-    "docs/ROADMAP.md": 717,
+    "docs/ROADMAP.md": 719,
     "gui/CLAUDE.md": 1036,
     # 275 -> 283 (WP-1426): a third way a guard goes quiet, and the only one of
     # the three that is about the instrument rather than the assertion — a

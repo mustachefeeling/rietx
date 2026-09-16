@@ -95,7 +95,9 @@ survives from 1407: Stoe `.raw` files paired with the WinXPOW ASCII export of
 the same scans would make Stoe writable.
 
 **Nothing is in flight.** The `.inp` grammar 1118 refuses is
-[1433](wp/1433-the-inp-grammar-still-refused.md), blocked on nothing.
+[1433](wp/1433-the-inp-grammar-still-refused.md), blocked on nothing. 1310
+closed on four of six; its other two, each filed with a fix its measurements
+rule out, carry on as [1434](wp/1434-the-bound-test-asks-the-wrong-question.md) and [1435](wp/1435-a-hold-the-caller-declares.md).
 
 **Ready to pick up:** the **live-watcher track**, three rungs left.
 [1425](wp/1425-the-panels-are-the-readers-to-size.md) closed 2026-09-16: both
@@ -499,10 +501,10 @@ for one specimen), and every converged fit reports a coherent domain size and a
 #### What fires, and what stays silent
 
 Each row is a silent wrong answer, the class the repo's rules are strictest
-about: a report that repeats itself (1310), a parameter that walks unflagged
-(1311), a confident fraction the pattern cannot fix (1320), a bound persisted
-as absent (1321), an alternation with no stop rule (1323), a freeze reading
-parameter *names* that a phase driven through a tie walks past (1342). The
+about: a parameter that walks unflagged (1311), a confident fraction the
+pattern cannot fix (1320), a bound persisted as absent (1321), an alternation
+with no stop rule (1323), a freeze reading parameter *names* that a phase
+driven through a tie walks past (1342). The
 orbit that was not a multiplicity (1324) is closed; 1320 restates what it
 measured. The 2026-09-03 triage adds three: a 2θ axis read 100× wrong from a
 commented header (1332), a fit that says `converged` while its own diagnostics
@@ -513,10 +515,11 @@ four: a reported Rwp the returned model does not give back (1421), a
 feeding two diagnostics that assumed Poisson (1415), and ΔBIC on a raw
 channel count (1417). The 2026-09-16 review of #286 and #293 adds one of
 1342's kind: a tie onto a coordinate DOF, re-applied per write-through (1432).
+1310 closed on four of six; the bound test (1434) and the hold (1435) carry on.
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
-| [1310](wp/1310-report-repeats-itself.md) | The report repeats itself: stage dedup, the declared wavelength, the empty column | 🔄 2026-09-16 | — |
+| [1310](wp/1310-report-repeats-itself.md) | The report repeats itself: stage dedup, the declared wavelength, the empty column | ✅ 2026-09-16 | — |
 | [1311](wp/1311-walking-parameter-bounds.md) | Bounds and flags for the remaining walking parameters | ⬜ | — (1310 soft) |
 | [1320](wp/1320-qpa-multimodal-fraction.md) | A phase fraction the pattern cannot fix | ⬜ | — (1310 soft) |
 | [1321](wp/1321-persisted-bounds-repair.md) | The bounds a Parameter field declared: repair and audit | ⬜ | — (PR #206 first) |
@@ -532,6 +535,8 @@ channel count (1417). The 2026-09-16 review of #286 and #293 adds one of
 | [1417](wp/1417-delta-bic-at-powder-channel-counts.md) | ΔBIC at powder channel counts | ⬜ | — (1339 soft) |
 | [1421](wp/1421-the-result-reproduces-its-own-number.md) | The result reproduces its own number | ⬜ | — (1310 soft) |
 | [1432](wp/1432-a-tie-onto-a-rederived-dof.md) | A tie onto a coordinate DOF, re-applied once per write | ⬜ | — (1119 soft) |
+| [1434](wp/1434-the-bound-test-asks-the-wrong-question.md) | The bound test asks whether the value is near its limit, never whether the limit was binding | ⬜ | — |
+| [1435](wp/1435-a-hold-the-caller-declares.md) | A hold the caller declares, which a plan may not quietly override | ⬜ | — (1070 is the shape) |
 
 #### A long run is not one fit
 

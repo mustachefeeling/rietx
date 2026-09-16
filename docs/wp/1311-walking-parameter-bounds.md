@@ -72,6 +72,21 @@ caller bounded keeps the caller's bound. New codes get skill rows and
 
 ### Inherited
 
+- **From WP-1310, 2026-09-16: the `BOUND_HIT` machinery item 1 reports
+  through has changed once and is about to change again.** Landed: the
+  findings are no longer accumulated per stage, they are re-taken from the
+  final guard, so a bound an early stage pressed and a later one resolved is
+  silent and `RefinedParameter.at_bound` and the diagnostics are now
+  set-equal (`tests/test_bound_hit_at_convergence.py`). That is what item 1's
+  displacement bound will report through. Pending, and it affects how the
+  reports read: the *test* asks how near θ is to the limit, which is a
+  function of the stage's `ftol`, so a parameter 1.2e-10 from its bound goes
+  unreported at `ftol` 1e-4 while a binding bound and an interior optimum
+  differ in gradient by eleven orders. [1434](1434-the-bound-test-asks-the-wrong-question.md)
+  carries the measurement and the redesign. Item 1 can land first; its
+  threshold survey should not assume the current distance test is what will
+  read it.
+
 - **From the 2026-09-01 triage's second batch (issues #204/#209,
   PR #206)**: item 2's premise "the low side needs nothing (readers refuse
   negative B; the transform floors at zero)" holds only once PR #206 lands

@@ -447,7 +447,8 @@ class SeriesResult(Base):
     # -- tabular export ------------------------------------------------
     def to_table(self, *, paths: list[str] | None = None
                  ) -> tuple[list[str], list[list]]:
-        """``(header, rows)``: one row per pattern, value + esd per parameter.
+        """``(header, rows)``: one row per pattern, a column per path (+ esd
+        where that kind of path has one).
 
         The wide form is what gets plotted or pasted into a paper; the columns
         are ``index, label, x, status, rung, rwp, gof, <path>, <path>_esd, …``.

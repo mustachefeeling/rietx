@@ -1,6 +1,6 @@
 # WP-1310 — the report repeats itself: stage dedup, the declared wavelength, the empty column
 
-Milestone: unscheduled · Status: 🔄 2026-09-16 — claimed by @yue-here
+Milestone: unscheduled · Status: ✅ 2026-09-16 — four of six landed; the bound test is 1434 and the caller's hold is 1435
 Depends on: —
 
 ## Goal
@@ -287,19 +287,31 @@ absolute test.
       result (§ 4, fix 1). `staged.bound_findings` stays the one bound test,
       and the fix restores WP-1076's set-equality, which the staleness had
       quietly broken inside a single result.
-- [ ] Settle the tolerance (§ 6). **Measured, and both of the issue's options
-      are ruled out** — the table in § 6 has the sweep. The rule that does
-      separate the cases is esd-relative, which is a third option and changes
-      an existing diagnostic's meaning, so it is the maintainer's call.
-- [ ] A plan that frees a pinned path says so (§ 5). **Measured, and the
+- [x] Settle the tolerance (§ 6). **Measured, and both of the issue's options
+      are ruled out** — the table in § 6 has the sweep. Handed on as
+      [1434](1434-the-bound-test-asks-the-wrong-question.md), which carries the
+      measurement, the prior art and the redesign: the test asks how *near* θ
+      is to the limit, and the question worth asking is whether the limit
+      carried load.
+- [x] A plan that frees a pinned path says so (§ 5). **Measured, and the
       diagnostic the issue proposes cannot be built on `vary`** — 41 of 42
       entries are declared fixed by default, so it would name 16 paths on an
-      ordinary fit and 17 on the one that matters. Needs an authority for a
-      user's pin, on WP-1070's precedent; the maintainer's call.
-- [ ] Tests: a `to_table` case per trajectory kind; a two-stage fixture whose
-      early `BOUND_HIT` resolves, asserting the converged result is clean; a
-      pinned-path-freed fixture; skill and manual rows touched by any wording
-      change.
+      ordinary fit and 17 on the one that matters. Handed on as
+      [1435](1435-a-hold-the-caller-declares.md): the missing thing is an
+      authority for a caller's hold, which is GSAS-II's `'h'` constraint and
+      WP-1070's shape, not a message.
+- [x] Tests: six `to_table` cases across the trajectory kinds
+      (`tests/test_sequential.py`), four on the bound seam
+      (`tests/test_bound_hit_at_convergence.py`), one on the dedup routing
+      (`tests/test_high_correlation_dedup.py`), and the manual's series
+      chapter for `positions` and the derived-path export. No pinned-path
+      fixture: that case moved to 1435 with the feature it needs.
+- [x] Skill: one row, in `references/series.md`, for what `to_table` now takes
+      and what it refuses (`api.md` regenerated with the docstring). Nothing
+      in the body: the two changes a driving agent would act on are the ones
+      handed forward, and their WPs carry the rows. `BOUND_HIT`'s existing row
+      still reads correctly — a bound on a converged result now means what the
+      row already said it meant.
 
 ## Acceptance
 
@@ -316,9 +328,13 @@ one; a plan that frees a pinned path names it. All accepted fit values
 bit-identical throughout.
 
 The shipping PR carries `Closes #106`, `Closes #123`, `Closes #162`,
-`Closes #231`, `Closes #211`, `Closes #273`. #123 closes on the verification
-alone, its fix and its regression test both having shipped in WP-1134; #106
-closes on the verification plus the one routing test this branch adds.
+`Closes #231`. #123 closes on the verification alone, its fix and its
+regression test both having shipped in WP-1134; #106 closes on the
+verification plus the one routing test this branch adds. **#211 and #273 stay
+open**, re-scoped onto [1435](1435-a-hold-the-caller-declares.md) and
+[1434](1434-the-bound-test-asks-the-wrong-question.md): each was filed with a
+fix that the measurements here rule out, so closing either on this branch
+would lose the reason.
 
 ## References
 
@@ -329,6 +345,131 @@ closes on the verification plus the one routing test this branch adds.
   must match.
 
 ## Handover log
+
+### 2026-09-16 — four of six, and the other two were filed with the wrong fix
+
+Three of the six defects this WP collected are gone from the package, and a
+fourth was never there: two of the three it was opened for had already been
+fixed a week before it was written, by WP-1134 and WP-1302, and nobody had
+checked the tree. A reader of a rietx result can now trust three things they
+could not this morning. A warning that a parameter ended on one of its limits
+means that it did, rather than that some earlier stage pushed it there and a
+later one pulled it back. Exporting a series to a table or a CSV gives the
+weight fractions and the agreement indices as numbers, and refuses a name no
+pattern carries instead of handing back a column of blanks. And the report's
+correlation list is now pinned end to end, so the deduplication that stops it
+repeating itself cannot quietly stop being called.
+
+The other two items are the interesting ones, because both were filed with a
+proposed fix and both proposed fixes are wrong. Neither was implemented, and
+each is handed on as a WP carrying the measurement that rules its own fix out,
+so the next session does not begin by building what has already been
+disproved.
+
+**Done.** Verified #106 and #123 discharged by measurement rather than by
+reading, and closed the one gap either had left: nothing pinned that the stage
+loop still routes correlations through `_dedup_high_correlations`, so a
+regression there would have passed all eight of that file's unit tests
+(`tests/test_high_correlation_dedup.py`, one real fit, 0.27 s). Routed
+`to_table`/`write_csv` through `resolve_trajectory`, added `Trajectory.positions`
+so a table row and a trajectory that skips patterns can be aligned, and
+suppressed the `_esd` column for kinds that have none. Made `BOUND_HIT`
+describe the converged vector by holding it back through the stage loop and
+re-taking it from the final guard. Wrote WP-1434 and WP-1435 for what is left,
+pushed forward references into 1311 and 1336, and gave the series skill
+reference a row for the new `to_table` behaviour.
+
+**Measured.**
+
+- #123 is fixed *and* tested: WP-1134 shipped the issue's own two-call case as
+  `test_declared_is_the_constructed_lambda_so_run_stage_reports_cumulatively`.
+  Both calls report +400.2 ppm against the declared 1.539984 Å, which is the
+  injected error. Nothing to write.
+- #106 end to end: a cumulative LaB6 plan freeing `axial_sl`/`axial_hl` flags
+  the pair in four stages and the result carries one entry at ρ = −1.000
+  naming all four.
+- #231: with the zero shift bounded at ±0.02° and a 500 ppm cell error to
+  absorb, stage 1 parks it at 0.0199999999999934 and stage 2 returns it to
+  5.5e-07 with the cell recovered to 4.15659996805922 against a truth of
+  4.15660. The warning used to survive onto that fit. The values either side
+  of the change are bit-identical.
+- #273, which rules out both of the issue's fixes. scipy's own `active_mask`
+  agrees with rietx's test on every row of an `ftol` sweep, including the row
+  1.24e-10 from the bound where rietx goes silent, and scipy's documentation
+  disclaims `active_mask` for TRF in as many words. Scaling to `ftol` has
+  nothing to calibrate against: this fixture lands 1.24e-10 from the bound at
+  `ftol` 1e-4 where the issue's landed 1e-7 to 1e-6. The gradient does
+  separate them, 1.755e+08 on both binding rows against 6.19e-04 at an
+  interior optimum, and it does so identically at every `ftol`. Full table in
+  § 6 and in WP-1434.
+- #211, which rules out the diagnostic the issue asks for. 41 of 42 entries on
+  the shipped LaB6 are declared `vary=False` because that is the default, so
+  `mccusker_default` frees 17 paths of which 16 were already declared fixed,
+  and a caller's pin moves that to 17. `__pydantic_fields_set__` separates an
+  explicit pin from a default in memory and not across a JSON round trip,
+  which is how a project loads from disk.
+- Counts, `[dev]` venv (no jax/torch), darwin, numpy backend. On the branch
+  alone: fast selection **5158 passed, 133 skipped**, against 5154/133
+  measured mid-session after the `BOUND_HIT` source change and before its four
+  tests landed — +4 passed, no new skip. This session added 11 tests (1
+  routing, 6 `to_table`, 4 bound). Acceptance command 138 passed. **On the
+  merged tree, which is what lands: 5165 passed, 133 skipped**; the +7 over
+  the branch is WP-1431's, which merged into main mid-session, so the two
+  parents' additions do not sum and only this number describes the result.
+  Wall clock 138–295 s across four runs of one selection, which is machine
+  state rather than any change here. The full selection did not run: nothing
+  here can move a measured number, every change being what crosses a surface.
+
+**Gotchas for whoever picks up 1434 or 1435.**
+
+- The `BOUND_HIT` fix already took half of #273. The test now runs on the
+  **last** stage's guard only, so `RefinementPlan.intermediate_ftol` (1e-6)
+  can no longer reach it and only a caller's own final `ftol` is left.
+- It also made WP-1076's set-equality true rather than nearly true.
+  `RefinedParameter.at_bound` has always been projected from the last stage's
+  `guard.at_bounds`, so before this a single result could carry
+  `at_bound=False` on a row and `BOUND_HIT` in the diagnostics about that same
+  parameter. The skill's `BOUND_HIT` row already told an agent the two were
+  the same finding, which was not quite true when it was written and is now.
+- `StageResult` still carries no diagnostics, so a stage's own findings reach
+  only its history node. That is issue #231's third fix and nobody has taken
+  it.
+- The `STAGE_MAX_ITER` half of this WP's original bar does not hold as
+  written. In the **stored** diagnostics list the deduped correlations precede
+  every post-fit code, `_max_iter_diagnostics` among them, so a consumer
+  truncating `result.diagnostics` loses it. What bounds its position is
+  `_cap_high_correlation`, which is rendering-only by design. Recorded in § 1,
+  not fixed.
+
+**After the entry was first written.** `/code-review high --fix` raised four.
+Two it fixed: the series skill row claimed a refusal lists the phases that
+exist, which is true only of a derived path, and the checklist said "Skill:
+none" while the branch added one. Two it raised and left, both taken here: the
+WP-1434 title used "bound" as the past tense of *bind*, which stutters in an
+index row, and the § What fires paragraph was left ragged by the 1310 clause
+coming out. Then the merged-tree run caught one the branch never would have:
+the skill row's example phase was the TiO2 polymorph whose name this package
+once carried, which `test_no_stale_name` greps for, so the example became the
+other half of the same canonical QPA pair. That was a miss of mine rather than
+the merge's — the row landed after this session's last full run. WP-1431 hit
+the identical trap on the same day, and naming the token here to explain it
+trips the guard a second time, exactly as prose about a closing keyword is a
+closing keyword.
+
+**One thing to know about how this landed.** PR #352 was opened as the
+`/wp-start` claim draft and **merged at 18:32 while the session was still
+running**, carrying the first six commits. Everything after it — the two
+forward WPs, the skill row, this entry, the review pass — was stranded on a
+branch whose PR was already closed, and went up as a second PR. The claim draft
+carried no closing keyword, so #106, #123, #162 and #231 close on that second
+PR rather than on #352.
+
+**Next:** nothing on this WP. 1434 starts by capturing the gradient on
+`StageOutcome`, because no decision there can be made without it; 1435 starts
+with `Refinement._holds` on WP-1070's model, because every other task reads it.
+Neither is blocked. 1311's displacement bound reports through the machinery
+1434 changes, so it should land before or after that WP rather than beside it.
+
 
 - **2026-09-16** — claimed, and pruned on arrival before any work. Two of the
   three headline tasks were already fixed when this WP was filed on 2026-09-01:

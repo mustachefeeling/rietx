@@ -18,6 +18,17 @@ series = rx.refine_sequential(patterns, structure, instrument,
 a_of_T = series.trajectory("phases.0.cell.a")     # x, value, stderr
 ```
 
+`to_table`/`write_csv` take the **derived** paths too, resolved the same way
+the plots are: `paths=["qpa.Rutile"]` exports the weight-fraction curve and
+`r_bragg.<phase>`/`r_f.<phase>` the agreement indices, beside any ordinary
+dot-path. Two things to expect. A path **no pattern carries raises**, naming
+it and listing what does exist: the phases carrying that kind of curve for a
+derived path, the series' own parameter paths for an ordinary one. A typo is
+therefore an error rather than a column of blanks. And an agreement index gets
+**no `_esd` column at all**, because it is a residual and has no esd in any
+series — where a column *is* present and a cell is empty, that pattern did not
+estimate one, which is a different fact. (Measured: WP-1310.)
+
 `x` is the series coordinate, and where it comes from is the file: a reader
 puts a scan's own temperature in `data.metadata["temperature_k"]`, and
 `rx.io.readers.list_scans(path)` reports the same number per scan before any of

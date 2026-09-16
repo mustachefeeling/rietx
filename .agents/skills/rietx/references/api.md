@@ -138,7 +138,7 @@ A refinement, a series, an indexing run and a suggestion each return their own t
 - `rx.SeriesResult` — The result of a sequential refinement over an ordered set of patterns.
   Fields: `mode: Literal['rietveld', 'lebail', 'pawley'] = 'rietveld'`, `entries: list[SeriesEntry] = []`, `x_label: str = 'index'`, `direction: Literal['forward', 'backward', 'both'] = 'forward'`, `backward: SeriesResult | None = None`, `diagnostics: list[Diagnostic] = []`, `provenance: Provenance | None = None`
 - `rx.SeriesResult.trajectory(path: str) -> Trajectory` — One parameter's trajectory across the series.
-- `rx.SeriesResult.to_table(*, paths: list[str] | None = None) -> tuple[list[str], list[list]]` — `(header, rows)`: one row per pattern, value + esd per parameter.
+- `rx.SeriesResult.to_table(*, paths: list[str] | None = None) -> tuple[list[str], list[list]]` — `(header, rows)`: one row per pattern, a column per path (+ esd where that kind of path has one).
 - `rx.SeriesResult.write_csv(path, *, delimiter: str | None = None, paths: list[str] | None = None)` — Write `to_table` to CSV/TSV (delimiter inferred from suffix).
 - `rx.SeriesResult.summary(*, max_entries: int = 5, deliverable: str | None = None) -> str` — The series termination view (WP-1302): the trajectory table, the `SEQUENTIAL_*` rows, first and last `max_entries` with the count.
 - `rx.SeriesEntry` — One pattern's place in the series: what was fitted and how it went.
