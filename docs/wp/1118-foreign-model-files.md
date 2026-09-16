@@ -469,8 +469,13 @@ same phases, same cell, same atoms, and the part a CIF cannot carry at all,
 which parameters were free. GSAS `.EXP`/`.PRM` and GSAS-II still have no
 writer.
 
-*Done* — two commits, `6538d91e` (TOPAS) and `abea74c7` (FullProf), on this
-branch.
+*Done* — three commits, `6538d91e` (TOPAS), `abea74c7` (FullProf) and
+`f7d875e5` (the review pass below), on this branch. **Two PRs, not one**:
+PR #339 (draft, opened after the TOPAS commit as this session's WP claim)
+was marked ready and merged by the maintainer while the FullProf work was
+still in progress, so `abea74c7` and `f7d875e5` were stranded on an
+already-merged branch (protocol step 10's own named failure mode) until
+pushed and opened as PR #342 against the now-current `main`.
 
 - `io/projects/topas.py` gains `from_structure`/`write_topas_inp` (+101
   lines): a phase's cell and every atom's coordinates, occupancy and
