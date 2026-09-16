@@ -19,6 +19,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import math
+import re
 import sys
 import time
 from pathlib import Path
@@ -374,7 +375,7 @@ READ_CONSOLE = """() => {
 }"""
 
 
-def _pinned(browser, base: str, run_id: str, *, width: int = 1400):
+def _pinned(browser, base: str, run_id: str):
     """Open a run named in the URL, and check the URL still names it.
 
     `run_id` is a digest of the path string (``runs.run_id_for``), so a caller
@@ -644,3 +645,279 @@ def test_the_console_is_re_tailed_when_the_run_changes(browser, tmp_path):
 
     assert not errors, errors
     assert (first, second, back) == (10, 40, 10)
+
+
+
+# ----------------------------------------------------------------------
+# WP-1424: every number is drawn whole, and every row can be told apart
+#
+# `table-layout: fixed` makes a `<col>` width the cell's whole box, padding
+# included, so a column declared wide enough for its content is short by the
+# 14 px the cell pads with. Nothing about that is visible in the markup or to
+# a substring assertion: the cell renders, the text is in the DOM, and the
+# browser quietly replaces the last character with an ellipsis.
+#
+# What is measured is the ink against the room — the range rectangle of the
+# cell's contents against its content box — rather than `scrollWidth`, which
+# is the same as `clientWidth` for anything whose overflow is `visible` and so
+# reports 0 for a `<th>` whose heading is spilling into its neighbour.
+# ----------------------------------------------------------------------
+
+#: Every cell and slot, with how far its contents overrun the box.
+OVERFLOW = """() => {
+  const out = [];
+  const rng = document.createRange();
+  const add = (what, el) => {
+    const cs = getComputedStyle(el);
+    if (cs.display === 'none') return;
+    rng.selectNodeContents(el);
+    const pad = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
+    const room = el.clientWidth - pad;
+    const ink = rng.getBoundingClientRect().width;
+    out.push({what: what, over: +(ink - room).toFixed(2), room: room,
+              ink: +ink.toFixed(2), text: el.textContent.trim(),
+              title: el.getAttribute('title')});
+  };
+  const heads = [...document.querySelectorAll('#runs th')];
+  heads.forEach(th => add('th:' + th.textContent.trim(), th));
+  [...document.querySelectorAll('tr.run')].forEach((tr, r) =>
+    [...tr.children].forEach((td, i) =>
+      add(`td${r}:` + heads[i].textContent.trim(), td)));
+  [...document.querySelectorAll('#strip > *')].forEach(el =>
+    add('slot:' + el.id, el));
+  return out;
+}"""
+
+#: Which cells must fit and which may elide, by what fills them. A cell the
+#: page fills itself — a state word from a closed vocabulary, a number it
+#: formats, a clock time — has a worst case the CSS can be sized for, and a
+#: reader who cannot see all of it has simply been shown the wrong number. A
+#: cell holding a name somebody else chose has no worst case: a stage is the
+#: plan author's string (`preferred_orientation` is 21 characters), a label
+#: and a path are the caller's. Those may be cut, and what is asserted of them
+#: is that the whole string is in a `title` where the reader can still reach
+#: it.
+#: The two halves are a *partition*, and a cell in neither fails below rather
+#: than being quietly waved through: a column or slot added without a decision
+#: about which kind it is would otherwise be tested by nothing.
+BOUNDED = ("state", "Rwp", "GoF", "started")
+ELIDED = ("run", "stage")
+BOUNDED_SLOTS = {"slot:s-state", "slot:s-rwp", "slot:s-gof", "slot:s-free",
+                 "slot:s-notice", "slot:stop"}
+ELIDED_SLOTS = {"slot:s-label", "slot:s-series", "slot:s-stage",
+                "slot:s-where"}
+
+
+def _batch(root: Path, *, n: int = 4) -> list[Path]:
+    """One label over several runs, which is what a batch looks like.
+
+    Every run here is one fit launched from one directory, so
+    `RunRecorder._default_label` gives them all the same word and the list
+    names nothing. The numbers are the maintainer's, off the 2026-09-16 demo:
+    an Rwp that reads `0.1734` in the old form, a GoF of `12.34`, and a start
+    time a minute apart run to run. The last run is cancelled, for the
+    longest word the state pill has.
+
+    The start times are held inside the *local day*, because `clock` renders a
+    date rather than a time for a run that did not start today. Three hours
+    back is yesterday between 00:00 and 03:00, so a fixed offset would have
+    made this suite fail for three hours out of every twenty-four.
+    """
+    made = []
+    now = time.time()
+    midnight = time.mktime((*time.localtime(now)[:3], 0, 0, 0, 0, 0, -1))
+    first = max(now - 10800, midnight)
+    for i in range(n):
+        d = root / f"20260916-14{20 + i:02d}00-9{i}"
+        d.mkdir()
+        (d / runs.EVENTS_FILE).write_text(
+            json.dumps({"record": "event", "v": "2", "t": first + i,
+                        "kind": "fit_start", "data": {}}) + "\n",
+            encoding="utf-8")
+        (d / runs.META_FILE).write_text(
+            json.dumps({"record": runs.RECORD_TAG, "label": "campaign",
+                        "created": first + 60 * i,
+                        "cwd": "/Users/someone/work/campaign",
+                        "command": f"python fit_one.py candidate-{i}"}),
+            encoding="utf-8")
+        (d / runs.SNAPSHOT_FILE).write_text(
+            json.dumps(_snapshot("preferred_orientation", scale=0.83,
+                                 noise=6.0)), encoding="utf-8")
+        (d / runs.STATUS_FILE).write_text(
+            json.dumps({"state": "cancelled" if i == n - 1 else "done",
+                        "stage": "preferred_orientation", "rwp": 0.1734,
+                        "gof": 12.34, "n_free": 17, "index": 3,
+                        "n_stages": 3}), encoding="utf-8")
+        made.append(d)
+    return made
+
+
+def test_every_number_on_the_page_is_drawn_whole(browser, tmp_path):
+    """No cell the page fills itself is cut off, at either window size.
+
+    Measured on the page before WP-1424, in these two viewports, ink minus
+    room in CSS pixels: `GoF` over by 7.13 in every row, `state` by 0.62 on
+    the cancelled one, the `started` heading by 6.58, and `stage` by 20.67
+    with no title to recover it. In the strip, `s-where` over by 1127 at both
+    sizes — its `1fr` track had been squeezed to nothing, so the drawn-point
+    count and the path were not cut but absent. At 1000x700 `s-stage` went
+    with it, over by 136.95 with the stage name the reader is watching for.
+    """
+    _batch(tmp_path)
+    with _served(tmp_path) as base:
+        newest = max(runs.discover(tmp_path), key=lambda r: r.created)
+        page, errors = _pinned(browser, base, newest.run_id)
+        seen = {}
+        for width, height in ((1400, 900), (1000, 700)):
+            page.set_viewport_size({"width": width, "height": height})
+            page.wait_for_timeout(600)
+            seen[width] = page.evaluate(OVERFLOW)
+        page.close()
+
+    assert not errors, errors
+    # reported per column rather than per cell: forty rows cut the same way
+    # is one defect, and the widest cut is the one to size for
+    bad = {}
+    for width, cells in seen.items():
+        for c in cells:
+            what = c["what"].split(":")[1]
+            if c["what"].startswith("th:"):
+                # a heading is the page's own word whatever its column holds
+                bounded = True
+            else:
+                bounded = what in BOUNDED or c["what"] in BOUNDED_SLOTS
+                elided = what in ELIDED or c["what"] in ELIDED_SLOTS
+                assert bounded != elided, (
+                    f"{c['what']} is in neither half of the partition, so "
+                    f"nothing here decides whether it may be cut")
+            if c["over"] <= 0.5:
+                continue
+            why = "cut" if bounded else "cut with no title"
+            if not bounded and c["title"]:
+                continue
+            where = (width, c["what"].split(":")[0].rstrip("0123456789")
+                     + ":" + what)
+            if c["over"] > bad.get(where, (0, ""))[0]:
+                bad[where] = (c["over"], why, c["text"])
+    assert not bad, sorted(bad.items())
+
+
+#: Every row's visible text, cell by cell, and the tooltip behind each.
+ROWS = """() => [...document.querySelectorAll('tr.run')].map(tr =>
+  [...tr.children].map(td => [td.textContent.trim(),
+                              (td.firstElementChild || td).getAttribute('title')]))"""
+
+
+def test_two_runs_of_one_batch_are_told_apart(browser, tmp_path):
+    """Forty runs of a batch carry one label, and the list must still name them.
+
+    `RunRecorder._default_label` calls a run after the directory it was
+    launched from, so a batch driven from one directory is forty rows reading
+    `campaign`, `campaign`, `campaign`. Nothing in the record says what a run
+    fitted — that is a caller's fact and WP-1431 gives the caller a way to
+    write it — but the record does know when each one started, to the second,
+    which is what the run directory is named after. So the started column is
+    a clock time rather than `3h ago`, and the row's tooltip carries the
+    directory, the command line and the working directory behind it.
+    """
+    made = _batch(tmp_path, n=6)
+    with _served(tmp_path) as base:
+        newest = max(runs.discover(tmp_path), key=lambda r: r.created)
+        page, errors = _pinned(browser, base, newest.run_id)
+        rows = page.evaluate(ROWS)
+        page.close()
+
+    assert not errors, errors
+    assert len(rows) == len(made)
+    # the label column is the same word on every row, which is the defect
+    assert len({r[1][0] for r in rows}) == 1
+    # and every row is still distinct, in a cell the reader can see
+    started = [r[5][0] for r in rows]
+    assert len(set(started)) == len(rows), started
+    assert all(re.fullmatch(r"\d\d:\d\d:\d\d", s) for s in started), started
+    # the tooltip is where the rest of the record is
+    titles = [r[1][1] for r in rows]
+    assert len(set(titles)) == len(rows), titles
+    for i, title in enumerate(sorted(titles)):
+        assert "fit_one.py candidate-" in title, title
+        assert "in /Users/someone/work/campaign" in title, title
+
+
+#: Which slots the strip is drawing, and what each one says.
+SLOTS = """() => Object.fromEntries(
+  [...document.querySelectorAll('#strip > *')].map(el =>
+    [el.id, getComputedStyle(el).display === 'none' ? null
+            : el.textContent.trim()]))"""
+
+
+def test_the_status_line_drops_slots_it_cannot_fit(browser, tmp_path):
+    """Whole slots go, in a declared order, rather than each being cut a bit.
+
+    The strip's ten slots want 931 px of declared track and the run panel is
+    882 at 1400x900 with the list open, so something always goes without.
+    Sharing the deficit is the answer that reads worst: before WP-1424 the
+    flexible slot was at zero at both sizes and the stage — the fact being
+    watched — was cut by 49 px and then 202. The order is what a reader can
+    get elsewhere: the GUI command and the label are in the row's tooltip and
+    in the list, the free count is in the report, the series in the list.
+
+    The container is the run panel, not the window, so collapsing the list
+    brings slots back at an unchanged window size. That is measured here too.
+    """
+    project = tmp_path / "sample.rex" / "live"
+    project.mkdir(parents=True)
+    now = time.time()
+    (project / runs.EVENTS_FILE).write_text(
+        json.dumps({"record": "event", "v": "2", "t": now, "kind": "fit_start",
+                    "data": {}}) + "\n", encoding="utf-8")
+    (project / runs.META_FILE).write_text(
+        json.dumps({"record": runs.RECORD_TAG, "label": "sample.rex",
+                    "created": now, "cwd": str(tmp_path),
+                    "command": "rietx gui sample.rex"}), encoding="utf-8")
+    (project / runs.SNAPSHOT_FILE).write_text(
+        json.dumps(_snapshot("preferred_orientation", scale=0.83, noise=6.0)),
+        encoding="utf-8")
+    (project / runs.STATUS_FILE).write_text(
+        json.dumps({"state": "done", "stage": "preferred_orientation",
+                    "rwp": 0.1734, "gof": 12.34, "n_free": 17, "index": 3,
+                    "n_stages": 4, "series_index": 4, "series_n": 8,
+                    "series_label": "cpd-1e", "series_pass": "forward"}),
+        encoding="utf-8")
+
+    with _served(tmp_path) as base:
+        run_id = next(r.run_id for r in runs.discover(tmp_path))
+        page, errors = _pinned(browser, base, run_id)
+        seen = {}
+        for width in (1600, 1400, 1000):
+            page.set_viewport_size({"width": width, "height": 900})
+            page.wait_for_timeout(700)
+            seen[width] = page.evaluate(SLOTS)
+        page.click("#toggle-runs")          # the list closes, the panel grows
+        page.wait_for_timeout(700)
+        wide = page.evaluate(SLOTS)
+        page.close()
+
+    assert not errors, errors
+    # never dropped, at any width
+    for width, slots in seen.items():
+        assert slots["s-state"] == "done", (width, slots)
+        assert slots["s-rwp"] == "Rwp 17.34%", (width, slots)
+        assert slots["s-gof"] == "GoF 12.34", (width, slots)
+        assert slots["s-stage"].startswith("stage 3/4 preferred"), (width, slots)
+    # the GUI command is the whole of the flexible slot now, the path having
+    # moved to the label's tooltip and the point count onto the picture
+    assert seen[1600]["s-where"] == "rietx gui sample.rex"
+    assert "pts drawn" not in (seen[1600]["s-where"] or "")
+    # and it is the first thing to go
+    assert seen[1400]["s-where"] is None
+    assert seen[1400]["s-free"] is None
+    assert seen[1400]["s-label"] == "sample.rex"
+    assert seen[1400]["s-series"] == "pattern 5/8 cpd-1e forward"
+    # at 1000 with the list open the panel is 482 px and only the state, the
+    # stage and the two numbers are left
+    assert seen[1000]["s-label"] is None
+    assert seen[1000]["s-series"] is None
+    # closing the list gives the panel the window, and the slots come back at
+    # a window size that had none of them
+    assert wide["s-label"] == "sample.rex"
+    assert wide["s-series"] == "pattern 5/8 cpd-1e forward"

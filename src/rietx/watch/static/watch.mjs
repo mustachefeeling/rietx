@@ -3,7 +3,8 @@
 // A module script, so nothing here is a global and the page's own functions
 // cannot collide with plotly's. The functions that touch no DOM are next door
 // in `watch-core.mjs`, where the suite can call them.
-import {ago, deltaTitle, esc, nextPanels, num, parsePanels, rangesOf,
+import {ago, clock, deltaTitle, esc, nextPanels, num, parsePanels, pct,
+        rangesOf, rowName, runLabel, runTitle,
         withAlpha} from './watch-core.mjs';
 
 const $ = id => document.getElementById(id);
@@ -62,21 +63,33 @@ function makeRow(run) {
   tr.className = 'run';
   tr.dataset.id = run.run_id;
   tr.innerHTML = '<td><span class="state"></span></td><td></td><td></td>' +
-    '<td class="num"></td><td class="num"></td><td class="muted"></td>';
+    '<td class="num"></td><td class="num"></td>' +
+    '<td class="muted"><time></time></td>';
   tr.onclick = () => { location.hash = '#/run/' + run.run_id; };
   return tr;
 }
 
+// Three cells hold a name somebody else chose — the label, the series label
+// it now carries, and the stage — so each declares a `title` and is allowed
+// to run out of column. The three the page fills itself are sized to fit in
+// `watch.css`, and the browser test measures that they do.
 function fillRow(tr, run) {
   const st = run.status || {};
   const td = tr.children;
   setPill(td[0].firstElementChild, run.liveness);
-  setText(td[1], run.label + (run.legacy ? ' · legacy' : ''));
-  setAttr(td[1], 'title', run.path);
+  setText(td[1], rowName(run));
+  setAttr(td[1], 'title', runTitle(run));
   setText(td[2], st.stage || '—');
-  setText(td[3], num(st.rwp, 4));
+  setAttr(td[2], 'title', st.stage || null);
+  setText(td[3], pct(st.rwp, 2));
   setText(td[4], num(st.gof, 2));
-  setText(td[5], ago(run.created));
+  const when = td[5].firstElementChild;
+  setText(when, clock(run.created));
+  setAttr(when, 'datetime', run.created
+    ? new Date(run.created * 1000).toISOString() : null);
+  setAttr(when, 'title', run.created
+    ? new Date(run.created * 1000).toLocaleString() + ' · ' + ago(run.created)
+    : null);
   tr.classList.toggle('selected', run.run_id === currentId());
 }
 
@@ -153,6 +166,7 @@ function buildPicture(run, kind) {
   // into it, and carrying the run's write time here would say it had
   shell = {id: run.run_id, kind: kind, mtime: null};
   setText($('s-where'), whereOf(run));
+  setAttr($('s-where'), 'title', whereOf(run) || null);
 }
 
 // The console belongs to the run, not to the picture, so a tail is reset when
@@ -297,34 +311,56 @@ async function drawSnapshot(id) {
     // it wraps to on a narrow panel hid the tallest peak behind them.
     legend: {orientation: 'h', y: 1, yanchor: 'top', x: 0, xanchor: 'left',
              bgcolor: withAlpha(HUE.ground, 0.72)},
+    // How much of the pattern is on screen, in the corner of the picture it
+    // is a fact about. It shared the strip's one flexible slot with the path
+    // until WP-1424, where the two of them were 1127 px of sentence in a
+    // track squeezed to nothing. A paper-anchored annotation takes no margin
+    // — `automargin` is off by default — so this does not move the picture,
+    // which the legend did before WP-1426 and is what those tests watch.
+    annotations: [{xref: 'paper', yref: 'paper', x: 1, y: 1,
+                   xanchor: 'right', yanchor: 'top', showarrow: false,
+                   text: `${snap.n_drawn} of ${snap.n_points} pts drawn`,
+                   font: {size: 10, color: HUE.fg},
+                   bgcolor: withAlpha(HUE.ground, 0.72)}],
     // one revision per run: a redraw of the same run keeps the zoom, and
     // opening a different run starts fresh
     uirevision: id,
   }, {displaylogo: false, responsive: true});
-  setText($('s-where'), `${snap.n_drawn} of ${snap.n_points} pts drawn · ` +
-                        whereOf(rows.get(id)));
+  setText($('s-where'), whereOf(rows.get(id)));
+  setAttr($('s-where'), 'title', whereOf(rows.get(id)) || null);
   return true;
 }
 
+// The one thing in this slot a reader would type. The path it used to carry
+// is the label's tooltip, where it is not competing for a track, and the
+// point count it used to share the slot with is on the picture, which is
+// what the count is about (WP-1424).
 function whereOf(run) {
-  if (!run) return '';
-  return run.gui_command ? `${run.gui_command} · ${run.path}` : run.path;
+  return (run && run.gui_command) || '';
 }
 
+// Every slot that can be cut names itself in a `title`, because the width
+// the strip has is the run panel's and the reader did not choose it. The
+// slots the page fills itself are declared wide enough in `watch.css` and
+// are never dropped.
 function fillStrip(run) {
   const st = run.status || {};
   setPill($('s-state'), run.liveness);
-  setText($('s-label'), run.label);
-  setAttr($('s-label'), 'title', run.path);
-  setText($('s-series'), st.series_index != null
+  setText($('s-label'), runLabel(run));
+  setAttr($('s-label'), 'title', runTitle(run));
+  const series = st.series_index != null
     ? `pattern ${st.series_index + 1}/${st.series_n || '?'} ` +
       `${st.series_label || ''} ${st.series_pass || ''}`.trim()
-    : '');
-  setText($('s-stage'), st.stage
+    : '';
+  setText($('s-series'), series);
+  setAttr($('s-series'), 'title', series || null);
+  const stage = st.stage
     ? (st.index != null ? `stage ${st.index}/${st.n_stages || '?'} ` : 'stage ')
       + st.stage
-    : '');
-  setText($('s-rwp'), st.rwp != null ? 'Rwp ' + num(st.rwp, 4) : '');
+    : '';
+  setText($('s-stage'), stage);
+  setAttr($('s-stage'), 'title', stage || null);
+  setText($('s-rwp'), st.rwp != null ? 'Rwp ' + pct(st.rwp, 2) : '');
   setText($('s-gof'), st.gof != null ? 'GoF ' + num(st.gof, 2) : '');
   setText($('s-free'), st.n_free != null ? st.n_free + ' free' : '');
   setText($('s-notice'), notice ? notice.text : '');
@@ -339,7 +375,12 @@ function fillStrip(run) {
 function clearStrip() {
   setPill($('s-state'), {state: 'unknown', evidence: 'no run'});
   for (const id of ['s-label', 's-series', 's-stage', 's-rwp', 's-gof',
-                    's-free', 's-where', 's-notice']) setText($(id), '');
+                    's-free', 's-where', 's-notice']) {
+    setText($(id), '');
+    // the tooltip goes with the text it was explaining, or the strip keeps
+    // answering questions about a run it is no longer showing
+    setAttr($(id), 'title', null);
+  }
   setText($('s-label'), 'no run');
   $('stop').hidden = true;
   if (shell.id !== null) {

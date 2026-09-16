@@ -462,8 +462,29 @@ def test_module_main_lists_a_run(tmp_path, capsys):
                status={"stage": "profile", "rwp": 0.0821})
     assert runs.main([str(tmp_path)]) == 0
     out = capsys.readouterr().out
-    assert "live" in out and "profile" in out and "0.0821" in out
+    assert "live" in out and "profile" in out
+    # a percentage, as the watcher page and the GUI print one (WP-1424); the
+    # fraction is the report layers' form, for quoting into prose
+    assert "8.21%" in out and "0.0821" not in out
     assert "1 run(s)" in out
+
+
+def test_module_main_names_a_series_member_by_its_pattern(tmp_path, capsys):
+    """The text twin of the page's run column, and the same defect.
+
+    Every run of a batch is called after the directory it was launched from,
+    so a column of labels names nothing. The series label is the one fact in
+    the record that separates runs by the work rather than by the clock, and
+    the CLI table takes it for the same reason the page does (WP-1424).
+    """
+    for i, pattern in enumerate(("cpd-1a", "cpd-1b")):
+        _write_run(tmp_path / f"run-{i}", events=_event_line("fit_start"),
+                   status={"stage": "cell", "rwp": 0.1734,
+                           "series_label": pattern})
+    assert runs.main([str(tmp_path)]) == 0
+    out = capsys.readouterr().out
+    assert "cpd-1a" in out and "cpd-1b" in out
+    assert "17.34%" in out
 
 
 # ----------------------------------------------------------------------

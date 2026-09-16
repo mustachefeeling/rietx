@@ -44,6 +44,29 @@ on `fit` would be the same fact under a second name. Keep `label=`.
 
 ### Inherited
 
+- **2026-09-16, from [1424](1424-a-row-that-names-its-run.md): the seam you
+  want already exists, and the limit this WP removes is now measured.**
+  - **`rowName(run)` in `watch-core.mjs` is the one place a run is named in a
+    *list*.** It returns `status.series_label` when there is one and
+    `runLabel(run)` otherwise, so a caller's label is a third source at that
+    same point rather than a new call site. `runLabel` is the plain label plus
+    the `· legacy` marker and is what the strip's own label slot uses; the two
+    are deliberately separate, the strip having a series slot beside it.
+  - **1424 could not name what a run *fitted*, and said so.** Everything the
+    record holds about which run is which is now on the page: the start second
+    in the `started` column (the run directory is named after it), and the
+    label, directory, command line and cwd in the row's `title` via
+    `runTitle(run)`. None of it is about the science. That gap is this WP.
+  - **The run column is the flexible one** — every other column in the list is
+    a declared `ch` width sized for its worst content, so the label column
+    takes whatever is left, about 12ch at the default 72ch panel. A label
+    longer than that elides with the `title` behind it. Sizing the column for
+    a caller's label is not free; it comes out of `stage`, which already
+    elides.
+  - `tests/watch_core.test.mjs` has cases for `rowName`, `runLabel` and
+    `runTitle`; extend them rather than adding a browser test for a naming
+    rule.
+
 - **2026-09-16, from [1430](1430-the-page-is-a-file.md): the page is files, and
   three of its names are not the ones 1430's plan said.** `watch.py` is the
   package `watch/`, and the page is `watch/static/`: `index.html`, `watch.css`,

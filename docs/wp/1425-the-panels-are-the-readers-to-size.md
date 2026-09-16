@@ -66,6 +66,30 @@ position is WP-1426's and must already hold.
 
 ### Inherited
 
+- **2026-09-16, from [1424](1424-a-row-that-names-its-run.md): the strip
+  already follows the panel, and the toggle rename this WP replaces has
+  landed.**
+  - **`#run` is a container (`container-type: inline-size`) and the strip's
+    slots are tiered off it** at 990 / 760 / 560 px, dropping whole slots
+    rather than cutting every one of them a little. A splitter inherits that
+    for nothing: drag the panel and the strip re-tiers, exactly as collapsing
+    the list already does. Do not convert the tiers to viewport media queries
+    on the way — the panel's width is not the window's, which is the whole
+    point.
+  - Each slot carries an explicit `grid-column`, the tiers zero a track through
+    a custom property, and the 12 px between slots is each slot's own
+    `padding-right` rather than `gap` (a dropped slot would still be charged
+    for a gap). A new slot needs all three or it will pull its neighbours left
+    when a tier hides it.
+  - **The buttons are now `list` and `detail`**, with `title` text, which is
+    the interim this WP's splitters replace. Their ids are unchanged
+    (`toggle-runs`, `toggle-run`) and so is the `rietx-watch-panels` storage
+    key, so nothing downstream moved.
+  - The list's columns are declared `ch` widths sized for their worst content
+    (WP-1423 rule 2 still stands). If a splitter makes the list width the
+    reader's, the columns stay declared and the run column keeps taking the
+    remainder.
+
 - **2026-09-16, from [1426](1426-still-under-resize-and-across-a-stage.md): the
   legend fix landed, and it hands you a narrow-panel problem in exchange.**
   - The blocker is discharged. The legend is anchored inside the paper

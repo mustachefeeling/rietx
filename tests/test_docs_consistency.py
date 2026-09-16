@@ -243,7 +243,13 @@ SIZE_CAPS: dict[str, int | None] = {
     # was 833 and landing at exactly 833.  Two parents' additions do not sum
     # (tests/CLAUDE.md § Quoting numbers), so the merged tree is one over and
     # the +1 is arithmetic rather than new content.
-    "CLAUDE.md": 837,
+    # 837 -> 841 (WP-1424): "no file check sees layout" gains its second class.
+    # A cut is not a variant of the invisible sheet: that one was a rule
+    # outranking another, and this is a measurement being right about the
+    # wrong box.  It carries the instrument with it, because `scrollWidth` is
+    # the obvious probe and is blind here, and a reader who reaches for it
+    # measures zero and believes the page.  Raised rather than shaved.
+    "CLAUDE.md": 841,
     # 672 -> 676 (WP-1102): the Current focus rewrite at 1102's close names the
     # milestone's one break and what makes 1103 the seam's proving case.
     # 676 -> 682 (WP-1407): a new Unscheduled group, "The formats a lab still

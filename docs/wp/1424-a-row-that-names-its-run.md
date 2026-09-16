@@ -1,6 +1,7 @@
 # WP-1424 — a row that tells its run apart, and a number that fits its slot
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: ✅ 2026-09-16 — every number the page formats is
+drawn whole, and a row names its run by the second it started
 Depends on: 1430 (the page as files); 1423 soft
 
 ## Goal
@@ -32,15 +33,23 @@ point count and the path share the one `minmax(0,1fr)` slot (`s-where`),
 written by `drawSnapshot` as `${n_drawn} of ${n_points} pts drawn ·
 ${gui_command} · ${path}`.
 
-### A hypothesis about the cuts, to be measured first
+### The hypothesis about the cuts, and what measuring it said
 
 Under `table-layout: fixed` a `<col>` width is the cell's whole box, padding
-included. At 12 px `ui-monospace` one `ch` is about 7.2 px, so an `8ch` column
+included. At 12 px `ui-monospace` one `ch` is 7.227 px, so an `8ch` column
 minus 14 px of padding leaves about 6.05ch for content, and `0.1734` is six
 characters. If that is right the ellipsis is a rounding error in the declared
-width, and the GoF and started columns sit inside the same margin. It has not
-been measured. The first task measures every cell's `scrollWidth` against its
-`clientWidth` in the browser test and only then touches a width.
+width, and the GoF and started columns sit inside the same margin.
+
+**Measured 2026-09-16 and true**, with two corrections to the instrument and
+one to the diagnosis (the numbers are in the handover entry). `scrollWidth`
+is the wrong probe: it equals `clientWidth` wherever overflow is `visible`,
+so it reported no overflow for the `started` *heading*, which was spilling
+6.58 px into nothing. Ink against room — a `Range` rectangle against the
+content box — sees all of it. And the column that was actually cut is `GoF`,
+by 7.13 px in every row; `0.1734` fitted with 0.64 px to spare, which is a
+margin a different font metric loses, and is why the demo showed `0.17…` and
+this machine did not.
 
 The strip's slot budget is 111ch of declared columns plus nine 12 px gaps. The
 `1fr` slot is the only one that can shrink, so it shrinks first, and the
@@ -74,7 +83,7 @@ The GUI renders Rwp as a percentage everywhere it shows one: `Report.svelte`
 to three decimals, `Series.svelte` to two, `Peaks.svelte` to one. The report
 layers print the fraction to four decimals (`layer0.py`, `report/__init__.py`)
 because they are quoted into prose. A list row is the GUI's Series table, so
-it takes the GUI's form. `17.34 %` is still six characters, so the format
+it takes the GUI's form. `17.34%` is still six characters, so the format
 alone does not fix the cut; the width does. Decide the decimals from the width
 budget the measurement gives, and say which in the handover.
 
@@ -86,54 +95,35 @@ fix is a name and a title each: `list` and `detail`, with `title` text saying
 "show or hide the run list" and "show or hide the selected run". One line, and
 it lands here because 1425 is several WPs away.
 
-### Inherited
+### What a session after this one needs, off the two WPs before it
 
-- **2026-09-16, from [1426](1426-still-under-resize-and-across-a-stage.md):
-  `patchList` now holds the reader's place, and a run id is a digest of the
-  path *string*.**
-  - `patchList` takes an anchor before it patches and moves `#runs`'s scroll by
-    however far that anchor moved, so a row arriving above the fold no longer
-    shifts the rows under the reader. It is one helper, `visibleAnchor`. A row
-    edit that changes a row's *height* passes through the same compensation and
-    needs no thought; one that adds or removes rows outside `patchList` would
-    bypass it.
-  - **`runs.run_id_for` hashes `str(path)` and does not resolve it**, though its
-    docstring says "a digest of the resolved path". On macOS `tempfile` hands
-    back `/var/...` while the server walks `/private/var/...`, so the two
-    disagree and a test that pins a run by an id it computed itself silently
-    measures the page following the *newest* run instead. `tmp_path` is already
-    resolved, so the suite is fine; a scratchpad probe is not. 1426 left the
-    docstring alone rather than widen its diff, and added `_pinned()` to
-    `tests/test_watch_browser.py`, which asserts the hash stuck. Use it for any
-    row test that pins a run.
+Folded here from the `Inherited` mailbox on 2026-09-16, all of it still true.
 
-- **2026-09-16, from [1430](1430-the-page-is-a-file.md): the page is files, and
-  three of its names are not the ones 1430's plan said.** `watch.py` is the
-  package `watch/`, and the page is `watch/static/`: `index.html`, `watch.css`,
-  `watch.mjs` (the document) and `watch-core.mjs` (everything that touches no
-  DOM). `rietx.watch` imports unchanged. What to carry:
-  - **The DOM half is `.mjs`, not `.js`.** `node --check` reads a `.js` as
-    CommonJS, where the `import` of `watch-core.mjs` is a syntax error. A
-    browser cares about `type="module"` and the content type, never the
-    extension.
-  - **Node cases live in `tests/watch_core.test.mjs`**, not beside the module:
-    hatchling ships everything under `src/rietx`. They are invoked from
-    `tests/test_watch_app.py::test_the_pure_half_of_the_page_is_unit_tested`
-    (15 cases today), which passes `--test-reporter=tap` because node picks its
-    reporter by whether stdout is a terminal.
-  - **`@SUFFIX@`, `@DIST@` and `@HUE@` are gone.** A file cannot carry a token,
-    so the three ride on `/api/runs` as `payload.page.{suffix,dist,palette}`,
-    read at boot into the module-level `HUE` and `DIST`. That is 299 B of every
-    poll, against rows of 735 B each.
-  - **A new file under `static/` needs a row in `watch.STATIC_FILES`** and
-    nothing else — the route, the content type and the `.gitignore` guard all
-    read that dict. `*.html` in `.gitignore` swallowed `index.html` on the way
-    in, the sixth committed file that one rule has taken.
-  - `ago` and `num` are importable from `watch-core.mjs` and already have
-    cases, so a change to how a row reads its own numbers is testable without a
-    browser. `fillRow`, `makeRow` and `patchList` stay in `watch.mjs`.
-  - `tests/test_watch_browser.py` took no diff and stays the bar: if it
-    moves, the page moved.
+- **The page is files** (WP-1430). `watch/static/` holds `index.html`,
+  `watch.css`, `watch.mjs` (the document) and `watch-core.mjs` (everything
+  touching no DOM); `rietx.watch` imports unchanged. The DOM half is `.mjs`
+  because `node --check` reads a `.js` as CommonJS, where the `import` of
+  `watch-core.mjs` is a syntax error. The node cases are in
+  `tests/watch_core.test.mjs`, not beside the module, because hatchling ships
+  everything under `src/rietx` into the wheel; they are invoked from
+  `tests/test_watch_app.py::test_the_pure_half_of_the_page_is_unit_tested`,
+  which names `--test-reporter=tap` because node picks its reporter by whether
+  stdout is a terminal. A new file under `static/` needs a row in
+  `watch.STATIC_FILES` and nothing else. `@SUFFIX@`, `@DIST@` and `@HUE@` ride
+  on `/api/runs` as `payload.page.{suffix,dist,palette}`, read at boot.
+- **`patchList` holds the reader's place** (WP-1426): it anchors on a row the
+  reader can see and moves `#runs`'s scroll by however far that row moved. A
+  row edit that changes a row's *height* goes through the same compensation
+  and needs no thought; one that adds or removes rows outside `patchList`
+  would bypass it.
+- **`runs.run_id_for` hashes `str(path)` and does not resolve it**, though its
+  docstring says "a digest of the resolved path". On macOS `tempfile` hands
+  back `/var/...` while the server walks `/private/var/...`, so a test that
+  pins a run by an id it computed itself silently measures the page following
+  the *newest* run instead. `tmp_path` is already resolved, so the suite is
+  fine; a scratchpad probe is not. Use `_pinned()` in
+  `tests/test_watch_browser.py` for any row test that pins a run.
+- `tests/test_watch_browser.py` is the bar: if it moves, the page moved.
 
 ## Non-goals
 
@@ -145,31 +135,46 @@ it lands here because 1425 is several WPs away.
 
 ## Tasks
 
-- [ ] Browser test: for every cell and strip slot, `scrollWidth <= clientWidth`
+- [x] Browser test: for every cell and strip slot, `scrollWidth <= clientWidth`
       over a fixture whose Rwp is `0.1734`, GoF `12.34`, and started `3h ago`;
-      record which cells fail today and by how many pixels, in the handover
-- [ ] The toggles renamed `list` and `detail`, with titles
-- [ ] The list: Rwp and GoF as the GUI prints them (percent, decimals chosen
+      record which cells fail today and by how many pixels, in the handover.
+      **The instrument is ink against room, not `scrollWidth`** — see the
+      section above; `scrollWidth` is blind wherever overflow is visible and
+      reported nothing for the heading that was spilling
+- [x] The toggles renamed `list` and `detail`, with titles
+- [x] The list: Rwp and GoF as the GUI prints them (percent, decimals chosen
       from the measurement), widths that hold the content plus the padding,
       `<th scope="col">` on the headings
-- [ ] The list: a column that tells runs apart. The run directory's stamp
+- [x] The list: a column that tells runs apart. The run directory's stamp
       (`HHMMSS`, the date only when it is not today) or the series label,
       with the full stamp, command and cwd in the row's `title`; started
       becomes a `<time datetime>` clock time, relative only in the tooltip
-- [ ] The strip: the drawn-point count moves off the strip onto the picture
+- [x] The strip: the drawn-point count moves off the strip onto the picture
       (a plotly annotation in a corner, or a legend entry), the `1fr` slot
       carries the `gui_command` alone, and the path stays the label's tooltip
-- [ ] Manual: `docs/manual/using/cli.md` § `rietx watch` names the columns as
-      they are now; `make_screenshots.py` re-shoots the page
-- [ ] Skill: none. The page is a human's; an agent driving rietx never reads it.
+- [x] Manual: `docs/manual/using/cli.md` § `rietx watch` names the columns as
+      they are now. **Superseded in part, 2026-09-16**: there is no watcher
+      screenshot to re-shoot. `make_screenshots.py`'s `SHOTS` is nine GUI
+      shots and the watcher is in none of them, so § `rietx watch` has never
+      carried a figure. Adding one is not this WP's, the page changing again
+      in 1425.
+- [x] Skill: none. The page is a human's; an agent driving rietx never reads it.
 
 ## Acceptance
 
 ```sh
 .venv/bin/python -m pytest tests/test_watch_app.py tests/test_watch_browser.py
 .venv/bin/python -m ruff check src tests examples
-node --test src/rietx/watch/static/
+node --test tests/watch_core.test.mjs
 ```
+
+**Corrected 2026-09-16**: the third line was `node --test
+src/rietx/watch/static/`, which fails with `MODULE_NOT_FOUND` — there is no
+test file under `static/` and node reads the directory as a module to run.
+WP-1430 put the cases in `tests/`, because hatchling ships everything under
+`src/rietx` into the wheel, and its own note in this WP's `Inherited` said so.
+The first line runs them anyway, through
+`test_watch_app.py::test_the_pure_half_of_the_page_is_unit_tested`.
 
 The browser test asserts no cell or slot overflows its box at 1400×900 and at
 1000×700, and that two runs of one batch differ in at least one visible cell.
@@ -183,6 +188,121 @@ names the skip and quotes the run here.
 - `gui/src/panels/Series.svelte` line 669, the percentage form the list adopts.
 
 ## Handover log
+
+- **2026-09-16** — The watcher's list no longer shows a number the reader
+  cannot trust. Every figure the page formats itself is drawn whole now, in a
+  column sized for its worst case rather than for its typical one, and the Rwp
+  reads as a percentage the way the GUI has always printed it. A reader looking
+  at forty runs of one batch can tell them apart, by the second each started —
+  which is what the run directory has always been named after — and hovering a
+  row gives the command line that launched it. What none of this can do is say
+  what a run was *fitting*: nothing in the record holds that, and the record is
+  all the watcher has. The measurement that says so is the honest limit of this
+  WP, and it is WP-1431's whole subject.
+
+  The costly part was not the fix. It was that the instrument the WP named for
+  the measurement, `scrollWidth`, is blind to exactly the defect being looked
+  for: it equals `clientWidth` wherever overflow is `visible`, so it reported no
+  overflow for a heading that was spilling 6.58 px into nothing.
+
+  **Done.** The columns are sized from their worst content plus the 14 px the
+  cell pads with, which is what a `table-layout: fixed` width includes: `state`
+  12→13ch (the pill word `cancelled` at 11 px), `Rwp` 8→10ch (`100.00%`), `GoF`
+  6→9ch (a three-digit GoF), `started` 8→11ch (`14:20:00`); `stage` stays 15ch
+  and carries a `title` instead, a stage name being the plan author's string and
+  `preferred_orientation` 21 characters of it. Rwp is `pct(v, 2)`, two decimals
+  and a `%`, taken from `Series.svelte` rather than spelled a fourth way.
+  `started` is a `<time datetime>` clock time, to the second for a run started
+  today and `16 Sep` before that, with the full local time and the relative form
+  in its tooltip. The run column leads with the series label where there is one,
+  the plain label being the same word on every row of a batch. The toggles are
+  `list` and `detail`, and the headings carry `scope="col"`.
+
+  The strip now **drops whole slots rather than cutting every one of them a
+  little**, on a container query over the run panel at 990 / 760 / 560 px: the
+  GUI command and the free count go first, then the label, then the series. The
+  state, Rwp and GoF never move and never shrink; the stage shortens rather than
+  going. Three mechanics make that work and each is load-bearing — each slot has
+  an explicit `grid-column`, so a `display:none` slot leaves its own track empty
+  instead of pulling every later slot one place left; the tiers set the track to
+  `0` through a custom property rather than restating the template; and the 12 px
+  between slots is each slot's own `padding-right` and not `gap`, or a dropped
+  slot would still be charged for the space beside it. Capping the label at 13ch
+  and the series at 28ch is what leaves the stage its 33: a `minmax` track
+  freezes at its maximum and the rest is redistributed. The drawn-point count
+  moved onto the picture, as a paper-anchored plotly annotation, which takes no
+  margin and so does not move the picture the way the legend did before WP-1426.
+
+  **Measured** — `[dev]` **plus playwright 1.63.0** (no jax, no torch), macOS
+  arm64 (darwin 25.5.0), Python 3.12, chromium 148. Ink minus room, in CSS
+  pixels, at 1400×900 and 1000×700 with both panels open, before this WP:
+
+  | cell | 1400×900 | 1000×700 |
+  |---|---|---|
+  | `td:GoF` (`12.34`) | 7.13 | 7.13 |
+  | `td:stage` (`preferred_orientation`) | 57.72, no title | 57.72, no title |
+  | `th:started` | 6.58 | 6.58 |
+  | `td:state` (`cancelled`) | 0.61 | 0.61 |
+  | `slot:s-stage` | 48.97 | 201.97 |
+  | `slot:s-where` | 1127.05 | 1127.05 |
+
+  After: nothing over 0.5 px anywhere the page fills itself, at both sizes.
+  `td:Rwp` (`0.1734`) was *not* cut here — it fitted by 0.64 px, which is the
+  margin a different font metric loses, and is why the demo showed `0.17…` and
+  this machine did not. `slot:s-where` was not cut but *absent*: its `1fr` track
+  had been squeezed to zero at both sizes, so the point count and the path it
+  carried were invisible rather than truncated.
+
+  Fast selection on the final tree: **5159 passed, 132 skipped** in 158 s, +3
+  passed over `origin/main`, exactly the three browser tests added and all three
+  running rather than skipping because this venv has playwright. On a plain
+  `[dev]` venv all 13 of `test_watch_browser.py` skip, so those three would be
+  skips. `tests/test_watch_browser.py` 10→13 tests,
+  `tests/watch_core.test.mjs` 20→24 cases. The full selection did not run: no
+  measured number outside the watcher page moved.
+
+  **Gotchas.** (1) `scrollWidth` is the wrong probe, as above — measure a
+  `Range` rectangle against the content box. (2) The WP's acceptance command
+  `node --test src/rietx/watch/static/` fails with `MODULE_NOT_FOUND`: node
+  reads the directory as a module to run, and WP-1430 put the cases in `tests/`
+  because hatchling ships everything under `src/rietx` into the wheel. Corrected
+  in place. (3) There is no watcher screenshot in the manual to re-shoot —
+  `make_screenshots.py`'s `SHOTS` is nine GUI shots and § `rietx watch` has
+  never carried a figure. (4) `container-type: inline-size` on `#run` is what
+  makes the tiers follow the *panel* rather than the window, so collapsing the
+  list brings slots back at an unchanged window size; a future splitter
+  (WP-1425) inherits that for free. (5) The list's `stage` column still elides
+  for every long stage name at 15ch. It has a tooltip and the run column is the
+  flexible one, which WP-1431 is about to fill.
+
+  **The review pass** (`/code-review high --fix`) found five and applied four,
+  all of them mine. A fixed three-hour offset in the batch fixture would have
+  failed the suite between 00:00 and 03:00 local, `clock` rendering a date for
+  a run that did not start today; start times are anchored to the local
+  midnight now. ROADMAP's live-watcher section still read "six left, 1424
+  first", contradicting the table two lines below it. `#strip > span` carries
+  an id and so outranks `.state`, which left the strip's pill drawing 7 px of
+  coloured ground on the left and 12 on the right — the list's pills were
+  unaffected, so the two disagreed. And `_pinned` declared a `width` it never
+  used, which is the declared-name-with-no-writer class in a helper written
+  this session.
+
+  The fifth it reported and declined, and this session took it: **`python -m
+  rietx.runs` prints the same list in text and had both of the defects this WP
+  fixed on the page** — `0.1734` for an Rwp, and a RUN column reading
+  `campaign` on every row of a batch. A reported defect is a sample, and that
+  is the sibling. Nothing documents the output and one assertion pinned it, so
+  the cost was a test to update and one to add. The naming rule is now stated
+  twice, in `_format_table` and in `rowName`, and the docstring says why: a
+  process boundary runs through it and the page cannot import python. What was
+  **not** generalised: the text table gained no `started` column, that being a
+  feature rather than this class.
+
+  **Next**: WP-1431, which is the honest answer to the thing this WP could not
+  do — a caller-supplied run label, for a batch that is not a series. Take
+  `rowName` in `watch-core.mjs` as the seam: it already prefers the series label
+  over the plain one, and a caller's label is a third source at the same point.
+  After that the track's order stands: 1425, 1429, 1427, 1428.
 
 - **2026-09-16** — created, from the maintainer's reading of the page over the
   demo job; revised the same day: the label became 1431, the toggle rename

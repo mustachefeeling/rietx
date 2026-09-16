@@ -14,8 +14,8 @@ import assert from 'node:assert/strict';
 import {test} from 'node:test';
 
 import {
-  LADDER, ago, deltaTitle, esc, extent, finiteOf, nextPanels, num,
-  parsePanels, rangesOf, withAlpha,
+  LADDER, ago, clock, deltaTitle, esc, extent, finiteOf, nextPanels, num,
+  parsePanels, pct, rangesOf, rowName, runLabel, runTitle, withAlpha,
 } from '../src/rietx/watch/static/watch-core.mjs';
 
 // A pattern the page would draw: 1000 points, and a residual the caller
@@ -55,6 +55,76 @@ test('ago steps units and never reports a negative age', () => {
   assert.equal(ago(now - 3 * 86400), '3d ago');
   // a clock that disagrees with the writer's must not read "-4s ago"
   assert.equal(ago(now + 4), '0s ago');
+});
+
+// ------------------------------------------------------------------ pct
+test('pct is the GUI series table\'s form, and declines a non-number', () => {
+  assert.equal(pct(0.1734, 2), '17.34%');
+  assert.equal(pct(1, 2), '100.00%');
+  assert.equal(pct(0.0512, 2), '5.12%');
+  // the widest string the column has to hold, which is what its width is
+  // declared from
+  assert.equal(pct(1, 2).length, 7);
+  // "NaN" off the wire, the same guard `num` carries
+  assert.equal(pct('NaN', 2), '—');
+  assert.equal(pct(null, 2), '—');
+  assert.equal(pct(undefined, 2), '—');
+});
+
+// ---------------------------------------------------------------- clock
+test('clock is a time today and a date before that', () => {
+  const noon = new Date(2026, 8, 16, 14, 20, 7).getTime() / 1000;
+  const now = new Date(2026, 8, 16, 17, 5, 0).getTime() / 1000;
+  assert.equal(clock(noon, now), '14:20:07');
+  // the seconds are the point: two runs of one batch differ in nothing else
+  assert.equal(clock(noon + 1, now), '14:20:08');
+  // midnight is a time, not a falsy hour
+  assert.equal(clock(new Date(2026, 8, 16, 0, 0, 0).getTime() / 1000, now),
+               '00:00:00');
+  // yesterday is a date: a bare 14:20 on a run from last week is a lie the
+  // tooltip would have to correct
+  const before = new Date(2026, 8, 15, 14, 20, 7).getTime() / 1000;
+  assert.equal(clock(before, now), '15 Sep');
+  assert.equal(clock(new Date(2025, 11, 31, 9, 0).getTime() / 1000, now),
+               '31 Dec');
+  // and the same "never started" answer every other formatter here gives
+  assert.equal(clock(0, now), '—');
+  assert.equal(clock(null, now), '—');
+});
+
+// --------------------------------------- rowName, runLabel, runTitle
+test('a row is named by what separates it from its neighbours', () => {
+  const run = {label: 'campaign', legacy: false, path: '/w/20260916-142000-90',
+               status: {}};
+  assert.equal(rowName(run), 'campaign');
+  // a series member knows which pattern it fitted, which is the one fact in
+  // the record that is about the work rather than the clock. It replaces the
+  // label rather than joining it: the label is the same word on every row,
+  // so a `campaign · cpd-1e` that the column cuts at `campaign…` has shown
+  // the reader the half they already knew.
+  assert.equal(rowName({...run, status: {series_label: 'cpd-1e'}}), 'cpd-1e');
+  // the strip's own label slot is the plain label, the series having a slot
+  // of its own beside it
+  assert.equal(runLabel({...run, status: {series_label: 'cpd-1e'}}),
+               'campaign');
+  // a run with no meta.json still says so
+  assert.equal(runLabel({...run, legacy: true}), 'campaign · legacy');
+  // and a status that is absent, not merely empty, is the ordinary case for
+  // a run whose writer has not reached its first stage
+  assert.equal(rowName({label: 'campaign', path: '/w/x'}), 'campaign');
+});
+
+test('runTitle answers "which run is this one" from the record alone', () => {
+  const run = {label: 'campaign', path: '/w/runs/20260916-142000-90',
+               meta: {command: 'python fit_one.py candidate-3',
+                      cwd: '/Users/someone/work'}};
+  assert.equal(runTitle(run), 'campaign · 20260916-142000-90\n'
+    + 'python fit_one.py candidate-3\nin /Users/someone/work\n'
+    + '/w/runs/20260916-142000-90');
+  // a legacy directory has no meta.json at all, and the two facts it does
+  // have are still worth a tooltip
+  assert.equal(runTitle({label: 'x', legacy: true, path: '/w/runs/old-07'}),
+               'x · legacy · old-07\n/w/runs/old-07');
 });
 
 // ------------------------------------------------------------------ num

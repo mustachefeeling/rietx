@@ -28,11 +28,20 @@ button:hover { background:#2c2c2c; }
 body[data-runs="closed"] #runs, body[data-run="closed"] #run,
 body[data-single] #runs, body[data-single] #toggle-runs { display:none; }
 table { border-collapse:collapse; width:100%; table-layout:fixed; }
-col.c-state { width:12ch; } col.c-stage { width:15ch; }
-col.c-rwp { width:8ch; } col.c-gof { width:6ch; } col.c-started { width:8ch; }
+/* Under `table-layout: fixed` a declared width is the cell's whole box, so
+   every column here is its worst content plus the 14 px the cell pads with.
+   Measured before WP-1424: `GoF` at 6ch held 29 px of room for a `12.34`
+   that inks 36, and the browser's answer to that is an ellipsis nobody
+   reads as one. The worst content is the pill word `cancelled` at 11 px,
+   `100.00%`, a three-digit GoF, and `14:20:00`; the run and stage columns
+   hold somebody else's name, have no worst content, and carry a `title`
+   instead. */
+col.c-state { width:13ch; } col.c-stage { width:15ch; }
+col.c-rwp { width:10ch; } col.c-gof { width:9ch; } col.c-started { width:11ch; }
 th { text-align:left; color:#777; font-weight:normal; padding:6px 7px;
      border-bottom:1px solid #2c2c2c; position:sticky; top:0;
-     background:#151515; }
+     background:#151515; overflow:hidden; text-overflow:ellipsis;
+     white-space:nowrap; }
 td { padding:6px 7px; border-bottom:1px solid #1e1e1e; white-space:nowrap;
      overflow:hidden; text-overflow:ellipsis; }
 tr.run { cursor:pointer; }
@@ -48,14 +57,56 @@ tr.run.selected { background:#1b2130; }
 .num { text-align:right; font-variant-numeric: tabular-nums; }
 .muted { color:#666; }
 #empty { padding:28px 12px; color:#777; }
-/* the strip is a grid of declared slots: a stage name, an Rwp or a
-   pattern label changes its text and never its neighbour's place */
-#strip { flex:0 0 auto; height:29px; padding:0 12px; gap:0 12px;
+/* The strip is a grid of declared slots: a stage name, an Rwp or a pattern
+   label changes its text and never its neighbour's place. What the width
+   decides is which slots are *there*. Squeezed, every `minmax` track shares
+   the deficit and each is cut a little: measured before WP-1424, with the
+   list open the `1fr` slot was at zero at both 1400 and 1000 px, and the
+   stage — the one fact the reader is watching — was cut by 49 px and then
+   202 px. So the strip drops whole slots, in a declared order, and each
+   tier fits what it keeps. The order is what the reader can get elsewhere:
+   the GUI command and the label are in the row's tooltip and in the list,
+   the free count is in the report, the series in the list. The state, the
+   numbers and the stop button are never dropped and never shrink. */
+#run { container-type: inline-size; }
+#strip { flex:0 0 auto; height:29px; padding:0 12px;
          border-bottom:1px solid #2c2c2c; display:grid; align-items:center;
          white-space:nowrap; font-variant-numeric: tabular-nums;
-         grid-template-columns: 11ch minmax(0,16ch) minmax(0,30ch)
-           minmax(0,26ch) 11ch 9ch 8ch minmax(0,1fr) auto auto; }
-#strip > * { min-width:0; overflow:hidden; text-overflow:ellipsis; }
+         --t-label: minmax(0,13ch); --t-series: minmax(0,28ch);
+         --t-free: 10ch; --t-where: minmax(0,1fr);
+         grid-template-columns: 12ch var(--t-label) var(--t-series)
+           minmax(0,33ch) 12ch 12ch var(--t-free) var(--t-where) auto auto; }
+/* the 12 px between slots is each slot's own padding and not `gap`, or a
+   dropped slot would still be charged for the space beside it */
+#strip > * { min-width:0; overflow:hidden; text-overflow:ellipsis;
+             box-sizing:border-box; }
+#strip > span { padding-right:12px; }
+/* except the pill, whose padding is its coloured ground rather than the space
+   beside it: an id in the selector above outranks `.state`, which drew it 7 px
+   on the left and 12 on the right. `justify-self:start` keeps the pill narrower
+   than its 12ch track, so the separation is the track's leftover either way. */
+#strip > #s-state { padding-right:7px; }
+/* declared, so a slot going away leaves its own track empty rather than
+   pulling every later slot one place to the left */
+#s-state { grid-column:1; } #s-label { grid-column:2; }
+#s-series { grid-column:3; } #s-stage { grid-column:4; }
+#s-rwp { grid-column:5; } #s-gof { grid-column:6; }
+#s-free { grid-column:7; } #s-where { grid-column:8; }
+#s-notice { grid-column:9; } #stop { grid-column:10; }
+/* The stage keeps the room it needs before anything else does: a `minmax`
+   track freezes at its maximum and the rest is redistributed, so capping the
+   label and the series is what lets `stage 3/4 preferred_orientation` — 31
+   characters, the longest a preset plan has — be whole at 1400x900 with the
+   list open. The free count is what it costs. */
+@container (max-width: 990px) {
+  #strip { --t-where: 0; --t-free: 0; } #s-where, #s-free { display:none; }
+}
+@container (max-width: 760px) {
+  #strip { --t-label: 0; } #s-label { display:none; }
+}
+@container (max-width: 560px) {
+  #strip { --t-series: 0; } #s-series { display:none; }
+}
 #strip .state { justify-self:start; }
 #picture { flex:1 1 68%; min-height:180px; position:relative; }
 #plot { position:absolute; inset:0; border:0; width:100%; height:100%; }
