@@ -260,8 +260,8 @@ answers `127.0.0.1` could read the run ids first. A same-origin fetch sends no
 The page draws in the GUI's colours. The chrome takes the same tokens and the
 plot takes the same curve colours, so a reader with the watcher and the GUI
 open at once sees one fit rather than two colour schemes. The tokens come out
-of the package, on a `/tokens.css` route, and the GUI's `app.css` is generated
-from the same values.
+of the package, on a `/tokens.css` route. The GUI imports a committed copy
+generated from the same module.
 
 The theme is whichever the GUI stored, in `ui.theme` in
 `~/.rietx/settings.json` (`$RIETX_STATE_DIR` moves that directory). Switch it
