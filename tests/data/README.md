@@ -17,6 +17,7 @@
 | `fluorapatite.cif` | The `FAP.EXP` starting model (7 sites, P 6₃/m, a = 9.3717, c = 6.8859 Å) transcribed to CIF, for `examples/fap_lab.py` and the landing page's worked example. **Not** used by `test_acceptance_fap.py`, which builds the same model from the `CRS1 AT` records instead — one authority per number, and it is not this file | transcribed from `FAP.EXP` (same tutorial repo); the published structure it descends from is Hughes, Cameron & Crowley (1989), *Am. Mineral.* **74**, 870-876 | same |
 | `gsas2_pbso4.gpx` | GSAS-II's CIF-tutorial PbSO₄ refinement: one `P n m a` phase against a constant-wavelength neutron histogram (λ = 1.909 Å) **and** a laboratory Cu Kα doublet, converged at Rwp 6.171 % over 8 739 channels with 49 variables, every site refining `XU`. The corroborating fixture for `rx.read_gsas2_gpx`, and the file that states its own variable count twice — `Rvals['Nvars']` and the length of `varyList` — which is the one assertion no single-field bug passes | GSAS-II tutorials repo, `CIFtutorial/data/NXPbSO4.gpx` (github.com/AdvancedPhotonSource/GSAS-II-tutorials), renamed | GSAS-II Open Source License (UChicago Argonne): royalty-free use and redistribution with the notice; vendored verbatim, test data only — nothing enters the wheel |
 | `gsas2_lacamno3_magnetic.gpx` | The SimpleMagnetic tutorial's La₀.₈Ca₀.₂MnO₃ at 50 K: a nuclear phase **and** a magnetic one, fourteen constraints naming their variables with GSAS-II's own `G2VarObj`, and a pickle stream with no protocol header. It carries the three things the PbSO₄ file cannot — the magnetic refusal, the constraint decoding, and the third of the corpus a magic-byte sniff would have declined | GSAS-II tutorials repo, `SimpleMagnetic/data/LaCaMnO3 bbb.gpx`, renamed | same |
+| `gsas2_mn3o4_setting.gpx` | The Magnetic-V tutorial's hausmannite Mn₃O₄ at 10 K, vendored for one property: it writes its space group as the bare `I 41/a m d`, which the tables hold in two settings, and its own `SGData['SGOps']` are origin choice **2** where the symbol alone resolves to choice 1. It is also the case the *composition* cannot separate — Mn₁₂O₁₆ either way, because both cation sites are Mn — while the two Mn sites exchange multiplicities (8c/4b against 4a/8d), so it is the fixture behind both halves of WP-1118's setting work. Two time-of-flight histograms; the nuclear phase carries a `magPhases` key | GSAS-II tutorials repo, `Magnetic-V/data/Mn3O4 10K.gpx`, renamed | same |
 | `qarr/cpd-1a.prn` … `qarr/cpd-1h.prn` | IUCr CPD QPA round-robin **Sample 1** suite: eight three-phase corundum (Al₂O₃) / zincite (ZnO) / fluorite (CaF₂) mixtures spanning trace→major for each phase; weighed compositions known (below). 2-column ASCII (2θ°, counts), 5–150° 2θ, 0.02° step, 7251 pts — v0.3 QPA acceptance (`test_acceptance_qpa_roundrobin.py`) | IUCr CPD Quantitative Phase Analysis Round Robin, "col" (2θ,counts) format, `www.iucr.org/__data/iucr/powder/QARR/col/`; retrieved via the Internet Archive (the live IUCr site is behind a Cloudflare JS challenge). **The live site is the better route now** — the challenge clears for a real browser session, which is how the `.rd` files below were fetched in 2026-09; see the WP-1407 section | IUCr CPD / CSIRO Minerals round-robin data, freely released on the web (Nov 1999) "for re-analysis with a standard Rietveld code"; no explicit open licence — redistributed here as an academic QPA benchmark, with attribution (see licence note below) |
 | `qarr/cpd-2.prn` | **Sample 2** = sample-1 phases + brucite Mg(OH)₂ (strongly platy → preferred-orientation test) | same | same |
 | `qarr/cpd-4.prn` | **Sample 4** = corundum / coarse magnetite (Fe₃O₄) / zircon (ZrSiO₄) — microabsorption test | same | same |
@@ -1129,6 +1130,14 @@ numbers below are that pass (2026-09-16, `[dev]` venv, darwin/arm64). They are
 here rather than in the module because they are facts about a corpus, not about
 the code: a later corpus moves them.
 
+Re-fetching the corpus costs one blobless clone and about a minute (measured
+2026-09-16, 103 MB on disk for the 34 files): clone
+`AdvancedPhotonSource/GSAS-II-tutorials` with `--filter=blob:none
+--no-checkout`, then `sparse-checkout init --no-cone`, `sparse-checkout set
+'*.gpx'` and `checkout`. A plain clone pulls the tutorials' image and neutron
+data as well, so the blob filter is written down here rather than left to
+whoever needs the corpus next.
+
 | measured across the 34 | number |
 |---|---|
 | top-level tree items | 195 `PWDR`, 4 `IMG`, 4 `HKLF`, 3 `Sequential results`, 1 `Sequential peak fit results`, and the six singletons every project carries |
@@ -1161,6 +1170,18 @@ Four of those settled a decision, and each would otherwise have been a guess:
   state `chisq`, `Nobs` and `Nvars` together it matches `sqrt(chisq/(Nobs-Nvars))`
   to six figures. This repo's `.EXP` reader claimed the opposite convention for
   GSAS-II in a corroborating clause, which is now corrected.
+- **A phase states its setting in its operators, and 4 of the 46 need it to**
+  (WP-1118, 2026-09-16). Those four write a bare two-setting symbol — three the
+  `F d d d` of CuCr₂O₄ (`AllDataStart`, `SeqFit`, `SingleHistFit`), one the
+  `I 41/a m d` of Mn₃O₄ (`Magnetic-V`, vendored as `gsas2_mn3o4_setting.gpx`) —
+  and in **all four** the file's own `SGOps`/`SGCen`/`SGInv` reproduce origin
+  choice **2**, where gemmi reads the bare symbol as choice 1. The other 42
+  reproduce the setting their symbol names, so the operator read agrees with the
+  symbol wherever the symbol is unambiguous and corrects it wherever it is not.
+  What choice 1 costs is not uniform: the spinel becomes Cu₂CrO₄ (ZMV 1 093 848
+  against 1 041 875, 5.0 %), while Mn₃O₄ keeps its formula and exchanges its two
+  Mn sites, which moves 56 % of the calculated intensity after the best common
+  scale and no composition check can see.
 
 And three limits of the corpus are recorded rather than smoothed over:
 

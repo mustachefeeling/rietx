@@ -304,7 +304,11 @@ def test_the_reads_reports_are_on_the_answer_whether_or_not_a_list_was_passed(tm
 
     silent = read_project_model(path)                    # no list passed
     codes = {d.code for d in silent.diagnostics}
-    assert codes == {"TOPAS_SPECIES_NORMALISED"}, (
+    # `R-3c` is bare, and the tables hold it on hexagonal and on rhombohedral
+    # axes, so the read reports the setting it assumed as well (WP-1118).  The
+    # `.inp` carries no operator list to settle it the way a `.gpx` does.
+    assert codes == {"TOPAS_SPECIES_NORMALISED",
+                     "SPACE_GROUP_SETTING_ASSUMED"}, (
         "the read's reports are not on the answer")
 
     collected: list = []

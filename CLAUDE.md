@@ -351,7 +351,11 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   both the `BOUND_HIT` diagnostics and `at_bound`, pinned **set-equal** rather than re-derived.
   Where it has none the honest empty state is `None`, which cannot regress into a lie the way a
   defaulted `False` can. All nine of 1076's surfaced while writing a manual chapter over the type,
-  never by reading the code.
+  never by reading the code. **A message that names its discriminator makes the same claim**, one
+  rank along: `SPACE_GROUP_SETTING_ASSUMED` quoted the composition each setting implies, which is
+  the right evidence until the sites that swap carry one species — on Mn₃O₄ it printed `Mn12 O16`
+  twice and still asserted a ZMV that had not moved. So evidence is computed, *then* checked that
+  it separates, and falls back to what does (WP-1118).
 - **A position correction belongs to a geometry, and so does the action that names it** (WP-1073,
   McCusker §5 eq 3/4). `sin 2θ` is flat-plate transparency on a plate and the along-beam
   capillary offset on a capillary → `report/layer1.POSITION_TEMPLATES` and

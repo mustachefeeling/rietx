@@ -95,7 +95,8 @@ survives from 1407: Stoe `.raw` files paired with the WinXPOW ASCII export of
 the same scans would make Stoe writable.
 
 **In flight:** [1118](wp/1118-foreign-model-files.md) landed the GSAS-II `.gpx`
-reader 2026-09-16 (#234); its corpus pass corrected the `.EXP` reader's own GOF
+reader 2026-09-16 (#234) and closed #101 with it, its operators stating the
+setting its symbol cannot; that pass corrected the `.EXP` reader's own GOF
 claim. The writers (#148) and `STR(...)` (#107) stand. The **live-watcher
 track's page is files now**: [1430](wp/1430-the-page-is-a-file.md) took it out
 of its python string 2026-09-16, so the seven queued behind it edit a `.mjs` an
