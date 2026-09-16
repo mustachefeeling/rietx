@@ -179,6 +179,46 @@ guards on the converged vector inherits whatever tolerance the test uses, so
 the tolerance and the vector are one change. #231 is a stale flag; #273 is a
 missing one.
 
+**Measured 2026-09-16, and it rules out both fixes the issue names.** Fixture:
+`make_lab6` with a ±0.02° zero shift absorbing a 500 ppm cell error, the final
+stage's `ftol` swept. § 4's fix already takes half the issue: the test now runs
+on the **last** stage's guard, so the intermediate 1e-6 can no longer reach it
+and only a caller's own coarse final `ftol` is left.
+
+| final `ftol` | `zero_shift` | gap from bound | gap/esd | `active_mask` | `BOUND_HIT` |
+|---|---|---|---|---|---|
+| 1e-9, 1e-6 | 0.0199999999999934 | 6.58e-15 | 2.3e-12 | 1 | fires |
+| 1e-4, 1e-3 | 0.0199999998757806 | 1.24e-10 | 4.4e-08 | **0** | silent |
+| 1e-2 | 0.0083852136668427 | 1.16e-02 | 2.36 | 0 | silent |
+
+Row 2 is the defect: 1.2e-10 from the bound is *at* it for any physical
+reading, and the fit reports `converged` with ordinary esds and says nothing.
+Row 3 is a stage that genuinely stopped early in the interior, correctly
+silent.
+
+**Fix (a), `active_mask`, changes nothing**: scipy's own mask agrees with
+rietx's test on every row of this sweep, row 2 included, so adopting it would
+make `bound_findings`' docstring honest and fix none of the issue's nine cases.
+**Fix (b), scaling to `ftol`, has nothing to calibrate against**: this fixture
+lands 1.2e-10 from the bound at `ftol` 1e-4 while the issue's landed 1e-7–1e-6
+at the same `ftol`, four orders apart, so a rule reading `ftol` alone is fitted
+to whichever fixture wrote it.
+
+What does separate the rows is **the gap against the parameter's own esd**,
+which is scale-free — independent of the bound's magnitude, the parameter's
+units and the stopping tolerance alike. The two at-bound rows sit at 2.3e-12
+and 4.4e-08, the interior row at 2.36: seven orders of margin, and any
+threshold in ~[1e-3, 1e-1] separates all six cases where the absolute `rtol`
+splits them. It is also the standard reading — a parameter whose distance to
+its limit is far below what the data can resolve is at that limit.
+
+That is a third option the issue does not list and it changes what an existing
+diagnostic means, so it is **the maintainer's call and is asked rather than
+taken here**. Open sub-questions if it is adopted: the threshold; what happens
+where the esd is `None` (`unmeasured_rows`, a fixed or blind direction), where
+the honest answer is probably `at_bound=None` rather than a fallback to the
+absolute test.
+
 ## Non-goals
 
 - **Not #166's esd notation** — the maintainer ruled it not worth a figure
@@ -209,12 +249,15 @@ missing one.
 - [ ] `to_table`/`write_csv` through `resolve_trajectory`; `_esd` columns
       suppressed where `stderr` is `None`; a derived path that
       `resolve_trajectory` cannot serve refuses by name (§ 3).
-- [ ] Re-evaluate the guards on the converged vector before the final
+- [x] Re-evaluate the guards on the converged vector before the final
       diagnostics list is built, so a `BOUND_HIT` on a result is true of that
-      result (§ 4, fix 1). `staged.bound_findings` stays the one bound test.
-- [ ] Settle the tolerance in the same change (§ 6): read `active_mask` off
-      the `OptimizeResult` the solve already returns, or scale the test to the
-      stage's `ftol`. Decide on the measurement and say which in the handover.
+      result (§ 4, fix 1). `staged.bound_findings` stays the one bound test,
+      and the fix restores WP-1076's set-equality, which the staleness had
+      quietly broken inside a single result.
+- [ ] Settle the tolerance (§ 6). **Measured, and both of the issue's options
+      are ruled out** — the table in § 6 has the sweep. The rule that does
+      separate the cases is esd-relative, which is a third option and changes
+      an existing diagnostic's meaning, so it is the maintainer's call.
 - [ ] A plan that frees a pinned path says so (§ 5): a diagnostic naming the
       paths, and `vary` written back or reported per stage.
 - [ ] Tests: a `to_table` case per trajectory kind; a two-stage fixture whose

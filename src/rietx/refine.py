@@ -2072,6 +2072,29 @@ class Refinement:
         — unfiltered, duplicates and all — still goes to :meth:`_stage_report`
         and the history node below: a trajectory rung and a replay both
         describe *that stage's* guard run, not the fit's final summary.
+
+        ``BOUND_HIT`` is held back for a different reason (WP-1310, issue
+        #231): it is not deduplicated but **discarded and re-taken**, because
+        a bound hit is a statement about a *vector* rather than about a run.
+        A staged plan exists to let an early stage absorb an error a later one
+        corrects, so a parameter pressed onto its limit in stage 1 and back in
+        the interior at convergence is the plan working.  Emitting that stage's
+        finding on the final result says "``<path>`` refined to its bound" of a
+        fit five orders of magnitude from it — measured on the repo's own
+        ``make_lab6`` with a ±0.02° zero shift absorbing a 500 ppm cell error:
+        ``zero_shift`` ends at 5.5e-07 with the cell recovered to 4.1565999
+        against a truth of 4.15660, and the warning survived.  It cost two
+        rounds of misdirected analysis on a real capillary fit.
+
+        The final guard is therefore the only one that speaks here, which is
+        also what makes WP-1076's set-equality true rather than nearly true:
+        ``RefinedParameter.at_bound`` has always been projected from
+        ``guard.at_bounds`` of the **last** stage (see ``_build_result``),
+        so before this the two surfaces of one bound test disagreed inside a
+        single result — ``at_bound=False`` on the row, ``BOUND_HIT`` in the
+        diagnostics, about the same parameter.  Every stage's own findings
+        stay on its ``StageReport`` and its history node, where they describe
+        the vector they were measured on.
         """
         model = outcome = guard = None
         ftols = plan.stage_ftols()
@@ -2088,6 +2111,8 @@ class Refinement:
                 if d.code == "HIGH_CORRELATION":
                     correlation_hits.setdefault(frozenset(d.where), []).append(
                         (stage.name, d))
+                elif d.code == "BOUND_HIT":
+                    continue          # re-taken on the converged vector below
                 else:
                     diagnostics.append(d)
             stage_results.append(StageResult(
@@ -2117,6 +2142,11 @@ class Refinement:
                     # schedule), because a cherry-pick re-runs what happened
                     ftol=ftol, window_slack_deg=stage.window_slack_deg,
                 ), model, table, outcome, stage_diagnostics)
+        # the converged vector's own bound findings, and nothing earlier: the
+        # same ``guard`` object ``_build_result`` projects ``at_bound`` from
+        if guard is not None:
+            diagnostics.extend(d for d in _guard_diagnostics(guard)
+                               if d.code == "BOUND_HIT")
         diagnostics.extend(_dedup_high_correlations(correlation_hits))
         return model, outcome, guard, stage_results, diagnostics
 
