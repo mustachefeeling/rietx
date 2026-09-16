@@ -1019,3 +1019,30 @@ def test_a_line_break_in_the_header_is_refused(tmp_path):
 
 def test_write_gsas_prm_is_reachable_at_the_top_level():
     assert rx.write_gsas_prm is write_gsas_prm
+
+
+def test_a_value_that_did_not_fit_its_field_is_named(tmp_path):
+    """The twin of the `.EXP` writer's `GSAS_EXP_VALUE_NARROWED`.
+
+    This writer collected `narrowed` from `write_field` and read it nowhere,
+    so a value written to what a fixed column holds crossed in silence while
+    its sibling reported one — a declared channel with no consumer, WP-1076's
+    class in mirror image. A `PRCF` coefficient multiplied into centidegrees
+    carries the product's own float noise, so a converged calibration reaches
+    it routinely: 0.0043710000000001 × 1e4 is 43.710000000000996.
+    """
+    inst = _calibrated()
+    inst.profile.u.value = 0.0043710000000001
+    diagnostics: list = []
+    from_instrument(inst, diagnostics=diagnostics)
+    (row,) = [d for d in diagnostics if d.code == "GSAS_PRM_VALUE_NARROWED"]
+    assert row.level == "info"
+    assert "43.710000000000996" in row.message
+    assert row.where == ["PRCF GU"]
+
+
+def test_a_calibration_that_fits_says_nothing_about_narrowing(tmp_path):
+    """The empty state is a fact, not an absence: no row means no value moved."""
+    diagnostics: list = []
+    from_instrument(_calibrated(), diagnostics=diagnostics)
+    assert not [d for d in diagnostics if d.code == "GSAS_PRM_VALUE_NARROWED"]

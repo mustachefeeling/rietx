@@ -28,9 +28,11 @@ from __future__ import annotations
 import pickle
 from pathlib import Path
 
+import gemmi
 import pytest
 
 import rietx as rx
+from rietx.crystallography.symmetry import operator_key, setting_from_operators
 from rietx.io.projects.gsas2 import (
     _STATIC_GLOBALS,
     ALLOWED_GLOBALS,
@@ -44,6 +46,7 @@ from rietx.io.projects.gsas2 import (
     read_gsas2_gpx,
     to_structure,
 )
+from rietx.optimize.qpa import phase_zmv
 
 DATA = Path(__file__).parent / "data"
 PBSO4 = DATA / "gsas2_pbso4.gpx"
@@ -695,3 +698,137 @@ def test_a_phase_stating_no_operators_at_all_is_still_read(tmp_path):
     phase = read_gsas2_gpx(path, diagnostics=diagnostics).phases[0]
     assert phase.space_group_from_operators is None
     assert [d.code for d in diagnostics].count("SPACE_GROUP_SETTING_ASSUMED") == 1
+
+
+# ------------------------------------------ the phase CIF GSAS-II imports
+#
+# GSAS-II has no text project format, so the write direction is the pair it
+# imports: this CIF for the phases and an `.instprm` for the machine
+# (`test_gsas2_instprm.py`). The round trip is through `structure_from_cif`,
+# and the setting is checked where GSAS-II checks it — in the operations.
+
+
+def _spinel() -> rx.Structure:
+    """Origin choice 2, the setting a bare ``F d -3 m`` cannot state here.
+
+    The case issue #217 measured: read as choice 1 the 8a and 16d
+    multiplicities swap, so AB₂O₄ becomes A₂BO₄ under a fit that converges.
+    """
+    def p(v):
+        return rx.Parameter(value=v)
+
+    def site(label, species, x, y, z):
+        return rx.Atom(label=label, species=species, x=p(x), y=p(y), z=p(z))
+
+    return rx.Structure(phases=[rx.Phase(
+        name="spinel", space_group="F d -3 m:2",
+        cell=rx.Cell(a=p(8.0831), b=p(8.0831), c=p(8.0831),
+                     alpha=p(90.0), beta=p(90.0), gamma=p(90.0)),
+        atoms=[site("Mg1", "Mg", 0.125, 0.125, 0.125),
+               site("Al1", "Al", 0.5, 0.5, 0.5),
+               site("O1", "O", 0.2624, 0.2624, 0.2624)])])
+
+
+def test_the_phase_cif_round_trips_a_structure(tmp_path):
+    out = tmp_path / "phases.cif"
+    original = rx.Structure.from_cif(str(DATA / "fluorapatite.cif"))
+    rx.write_gsas2_phase_cif(original, out)
+    back = rx.Structure.from_cif(str(out))
+
+    (a, b) = (original.phases[0], back.phases[0])
+    assert b.space_group == a.space_group
+    assert b.cell.a.value == pytest.approx(a.cell.a.value, rel=1e-9)
+    assert b.cell.c.value == pytest.approx(a.cell.c.value, rel=1e-9)
+    assert [at.label for at in b.atoms] == [at.label for at in a.atoms]
+    for site, was in zip(b.atoms, a.atoms, strict=True):
+        assert site.x.value == pytest.approx(was.x.value, abs=5e-7)
+        assert site.biso.value == pytest.approx(was.biso.value, abs=5e-5)
+
+
+def test_the_setting_travels_in_the_operations_and_in_the_alt_symbol(tmp_path):
+    """Two readers, two spellings, and one machine channel.
+
+    GSAS-II resolves a bare two-origin symbol to origin choice 2 and answers a
+    colon-suffixed one by setting the phase to ``P 1``; gemmi resolves the same
+    bare symbol to choice 1 and prefers ``_space_group_name_H-M_alt`` when both
+    H-M tags are present.  So the bare symbol goes in the tag GSAS-II reads,
+    the resolved one in the tag gemmi reads, and the operations state it
+    outright.
+    """
+    out = tmp_path / "spinel.cif"
+    diagnostics: list = []
+    rx.write_gsas2_phase_cif(_spinel(), out, diagnostics=diagnostics)
+    block = gemmi.cif.read(str(out)).sole_block()
+
+    assert block.find_value("_symmetry_space_group_name_H-M").strip("'") == "F d -3 m"
+    assert block.find_value("_space_group_name_H-M_alt").strip("'") == "F d -3 m:2"
+    ops = [row.str(0) for row in
+           block.find("_space_group_symop_", ["operation_xyz"])]
+    # gemmi holds an operation's rotation and translation over ``DEN``, which
+    # is what ``operator_keys`` divides them by
+    keys = {operator_key([[v / op.DEN for v in row] for row in op.rot],
+                         [t / op.DEN for t in op.tran])
+            for op in (gemmi.Op(t) for t in ops)}
+    assert setting_from_operators("F d -3 m", keys) == "F d -3 m:2"
+
+    # and this package reads its own file back into the setting it wrote,
+    # which is the difference between MgAl2O4 and Mg2AlO4 (issue #217)
+    back = rx.Structure.from_cif(str(out)).phases[0]
+    assert back.space_group == "F d -3 m:2"
+    counts = phase_zmv(back.space_group, back.cell.lengths_angles(),
+                       [(a.species, a.x.value, a.y.value, a.z.value,
+                         a.occ.value) for a in back.atoms]).element_counts
+    assert counts == {"Mg": 8.0, "Al": 16.0, "O": 32.0}
+    (row,) = [d for d in diagnostics
+              if d.code == "GSAS2_CIF_SETTING_IN_OPERATORS"]
+    assert "F d -3 m:1" in row.message
+
+
+def test_an_unambiguous_symbol_says_nothing_about_its_setting(tmp_path):
+    diagnostics: list = []
+    rx.write_gsas2_phase_cif(
+        rx.Structure.from_cif(str(DATA / "fluorapatite.cif")),
+        tmp_path / "fap.cif", diagnostics=diagnostics)
+    assert not [d for d in diagnostics
+                if d.code == "GSAS2_CIF_SETTING_IN_OPERATORS"]
+
+
+def test_the_phase_cif_says_what_it_could_not_state(tmp_path):
+    diagnostics: list = []
+    rx.write_gsas2_phase_cif(_spinel(), tmp_path / "said.cif",
+                             diagnostics=diagnostics)
+    (row,) = [d for d in diagnostics if d.code == "GSAS2_CIF_FIELD_NOT_WRITTEN"]
+    assert row.level == "warning"
+    assert "the refine flags" in row.message
+
+
+def test_the_phase_cif_refuses_a_non_finite_value(tmp_path):
+    """``repr`` spells it ``inf`` and no CIF reader parses that — the refusal
+    every writer here makes, and the only one a phase CIF needs."""
+    structure = _spinel()
+    structure.phases[0].atoms[0].biso.max = float("inf")
+    structure.phases[0].atoms[0].biso.value = float("inf")
+    with pytest.raises(ValueError, match="inf"):
+        rx.write_gsas2_phase_cif(structure, tmp_path / "bad.cif")
+
+
+def test_two_phases_of_one_name_get_two_blocks(tmp_path):
+    """A CIF block name is a key, and gemmi answers a duplicate with a bare
+    ``RuntimeError`` — so a two-phase mixture of one material under one name
+    never reached a file. The phase index is what distinguishes them."""
+    structure = _spinel()
+    structure.phases.append(structure.phases[0].model_copy(deep=True))
+    out = tmp_path / "twice.cif"
+    rx.write_gsas2_phase_cif(structure, out)
+    blocks = [b.name for b in gemmi.cif.read(str(out))]
+    assert len(blocks) == 2 and len(set(blocks)) == 2
+
+
+def test_a_site_label_a_cif_loop_cannot_carry_is_refused(tmp_path):
+    """`write_structure_block` adds a label and a species as **bare** loop
+    values, so whitespace in one splits the row and no reader can parse the
+    block back. The three sibling writers refuse the same shape by name."""
+    structure = _spinel()
+    structure.phases[0].atoms[0].label = "Mg 1"
+    with pytest.raises(ValueError, match="splits the row"):
+        rx.write_gsas2_phase_cif(structure, tmp_path / "bad.cif")

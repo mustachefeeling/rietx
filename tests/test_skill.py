@@ -657,7 +657,8 @@ def test_the_verb_exclusions_are_live_and_reasoned():
 #: filed under the wrong one is told to a reader in the wrong voice and travels
 #: with the wrong block the next time one moves.
 FOREIGN_FILE_PREFIXES = ("RECIPE_", "TOPAS_", "FULLPROF_", "GSAS_PRM_",
-                          "GSAS_EXP_", "GSAS2_GPX_")
+                          "GSAS_EXP_", "GSAS2_GPX_", "GSAS2_INSTPRM_",
+                          "GSAS2_CIF_")
 
 _CODE_ROW = re.compile(r"^\| `([A-Z][A-Z0-9_]+)`")
 

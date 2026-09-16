@@ -2126,3 +2126,16 @@ def test_write_fullprof_pcr_refuses_a_non_finite_value():
     structure.phases[0].cell.a.value = float("inf")
     with pytest.raises(ValueError, match="does not parse"):
         from_structure(structure)
+
+
+def test_write_fullprof_pcr_refuses_a_line_break_in_a_phase_name():
+    """The phase-name line is one step of a positional walk, so a break splits
+    it in two and every line after it is read under the wrong name — the same
+    desynchronisation the blank-name refusal above prevents."""
+    atom = rx.Atom(label="Al1", species="Al", x=rx.Parameter(value=0.0),
+                   y=rx.Parameter(value=0.0), z=rx.Parameter(value=0.0))
+    structure = rx.Structure(phases=[rx.Phase(
+        name="apa\ntite", space_group="Fm-3m", cell=rx.Cell.cubic(4.0495),
+        atoms=[atom])])
+    with pytest.raises(ValueError, match="line break"):
+        from_structure(structure)

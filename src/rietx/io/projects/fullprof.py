@@ -2428,6 +2428,14 @@ def from_structure(structure: Structure) -> str:
                 f"other line, so a blank name leaves nothing on it and the "
                 f"line is dropped from the positional walk entirely — "
                 f"desynchronising every line after it rather than raising")
+        if "\n" in phase.name or "\r" in phase.name:
+            raise ValueError(
+                f"phase name {phase.name!r} cannot be written to a FullProf "
+                f".pcr: it carries a line break, and the phase-name line is "
+                f"one line of a positional walk — the remainder becomes a "
+                f"line of its own and every line after it is read under the "
+                f"wrong name, the same desynchronisation a blank name causes "
+                f"above")
         for marker in ("!", "#", "<--"):
             if marker in phase.name:
                 raise ValueError(

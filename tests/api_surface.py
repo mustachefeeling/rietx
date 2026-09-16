@@ -154,7 +154,8 @@ PROVISIONAL_MODULES: dict[str, str] = {
         "per-format models they answer with) are under active development: "
         "WP-1118 landed the registry on 2026-09-13 with two formats and three "
         "more queued, each of which is evidence about the shape, and the "
-        "write direction is not written at all.  A format's own model mirrors "
+        "write direction landed for all four of them in the three days after "
+        "(2026-09-16).  A format's own model mirrors "
         "that format, so its fields move when the reader's coverage does."
     ),
 }

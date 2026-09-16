@@ -3193,3 +3193,14 @@ def test_an_anisotropic_sites_beq_is_refused_non_finite_too():
     atom.biso.value = float("inf")
     with pytest.raises(ValueError, match="does not parse"):
         from_structure(structure)
+
+
+def test_write_topas_inp_refuses_a_line_break_in_a_phase_name():
+    """An `.inp` is read line by line, so a break makes the name come back cut
+    at it — a silent rename rather than a failure — and hands the remainder to
+    the reader as a keyword line of its own. `write_record` refuses the same
+    accident one format over."""
+    structure = _cubic_al()
+    structure.phases[0].name = "apa\ntite"
+    with pytest.raises(ValueError, match="line break"):
+        from_structure(structure)
