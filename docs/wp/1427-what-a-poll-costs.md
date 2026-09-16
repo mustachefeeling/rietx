@@ -1,6 +1,6 @@
 # WP-1427 — what a poll costs
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-09-17 — claimed by @yue-here
 Depends on: 1430 (the page as files); 1426 soft (both rewrite `drawRun`)
 
 ## Goal
