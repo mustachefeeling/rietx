@@ -447,11 +447,14 @@ exist, which is true only of a derived path, and the checklist said "Skill:
 none" while the branch added one. Two it raised and left, both taken here: the
 WP-1434 title used "bound" as the past tense of *bind*, which stutters in an
 index row, and the § What fires paragraph was left ragged by the 1310 clause
-coming out. Then the merged-tree run caught one the branch never would have —
-the skill row's example phase was `qpa.Anatase`, and `anatase` was this
-package's first name, so `test_no_stale_name` greps for it. That was a miss of
-mine rather than the merge's: the row landed after this session's last full
-run. WP-1431 hit the same trap on the same day.
+coming out. Then the merged-tree run caught one the branch never would have:
+the skill row's example phase was the TiO2 polymorph whose name this package
+once carried, which `test_no_stale_name` greps for, so the example became the
+other half of the same canonical QPA pair. That was a miss of mine rather than
+the merge's — the row landed after this session's last full run. WP-1431 hit
+the identical trap on the same day, and naming the token here to explain it
+trips the guard a second time, exactly as prose about a closing keyword is a
+closing keyword.
 
 **One thing to know about how this landed.** PR #352 was opened as the
 `/wp-start` claim draft and **merged at 18:32 while the session was still

@@ -240,32 +240,55 @@ def test_the_ranges_are_the_datas(browser, tmp_path):
     assert got["y3"] == [-1.5, 0.5]
 
 
-def test_either_panel_collapses_and_the_other_takes_the_width(browser, tmp_path):
+def test_a_grip_collapses_its_pane_and_the_other_takes_the_room(browser, tmp_path):
+    """WP-1425: the two toggle buttons are gone and the grips do their job.
+
+    A double-click on a grip collapses the pane it sizes, and the choice
+    survives a reload — which is the whole of what `toggle-runs` did, minus a
+    control.
+    """
     watched = _make_tree(tmp_path, n_done=2)
     with _served(tmp_path) as base:
         run_id = next(r.run_id for r in runs.discover(tmp_path)
                       if r.path == watched)
         page, errors = _open(browser, base, run_id)
+        assert page.query_selector("#toggle-runs") is None
+        assert page.query_selector("#toggle-run") is None
         both = page.evaluate(GEOMETRY)
-        page.click("#toggle-runs")
+
+        page.dblclick("#grip-list")
         page.wait_for_timeout(600)
         list_closed = page.evaluate(GEOMETRY)
-        assert page.evaluate("() => document.body.dataset.runs") == "closed"
-        page.click("#toggle-run")
-        page.wait_for_timeout(300)
-        # closing the last open panel opens the other rather than leaving a
-        # bar over nothing
-        assert page.evaluate("() => document.body.dataset.runs") == "open"
-        assert page.evaluate("() => document.body.dataset.run") == "closed"
+        assert page.evaluate("() => document.body.dataset.list") == "closed"
         # the choice survives a reload
         page.reload(wait_until="networkidle")
-        page.wait_for_timeout(300)
-        assert page.evaluate("() => document.body.dataset.run") == "closed"
+        page.wait_for_timeout(600)
+        assert page.evaluate("() => document.body.dataset.list") == "closed"
+        # ...and the same grip is the way back, a collapsed pane's only one
+        page.dblclick("#grip-list")
+        page.wait_for_timeout(600)
+        assert page.evaluate("() => document.body.dataset.list") == "open"
+
+        # the console's seam is the same control over the other pair
+        picture_before = page.evaluate(
+            "() => Math.round(document.getElementById"
+            "('picture').getBoundingClientRect().height)")
+        page.dblclick("#grip-console")
+        page.wait_for_timeout(600)
+        assert page.evaluate(
+            "() => document.getElementById('run').dataset.console") == "closed"
+        picture_after = page.evaluate(
+            "() => Math.round(document.getElementById"
+            "('picture').getBoundingClientRect().height)")
         page.close()
+
     assert not errors, errors
-    assert list_closed["plot"][0] == 0
+    # the grip keeps its 5 px, because with the buttons gone it is the only
+    # way back to a collapsed pane
+    assert list_closed["plot"][0] == 5
     assert list_closed["plot"][2] > both["plot"][2]
     assert list_closed["size"][2] > both["size"][2], "the plot did not resize"
+    assert picture_after > picture_before, "the picture did not take the room"
 
 
 def test_with_no_run_in_the_url_the_page_follows_the_newest(browser, tmp_path):
@@ -391,6 +414,323 @@ def _pinned(browser, base: str, run_id: str):
     return page, errors
 
 
+def _drag(page, selector: str, dx: int, dy: int) -> None:
+    """Drag a grip by (dx, dy), in steps, the way a pointer arrives."""
+    box = page.locator(selector).bounding_box()
+    assert box is not None, selector
+    page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    page.mouse.down()
+    steps = 20
+    for i in range(1, steps + 1):
+        page.mouse.move(box["x"] + box["width"] / 2 + dx * i / steps,
+                        box["y"] + box["height"] / 2 + dy * i / steps)
+    page.mouse.up()
+    page.wait_for_timeout(400)
+
+
+SEAM = """() => {
+  const plot = document.getElementById('plot');
+  const L = plot && plot._fullLayout;
+  const px = el => Math.round(el.getBoundingClientRect().width);
+  const py = el => Math.round(el.getBoundingClientRect().height);
+  return {
+    list: px(document.getElementById('runs')),
+    run: px(document.getElementById('run')),
+    console: py(document.getElementById('console')),
+    picture: py(document.getElementById('picture')),
+    inner: L ? [L._size.w, L._size.h].map(Math.round) : null,
+    box: [px(plot), py(plot)],
+    resizes: window.__resizes,
+    stored: JSON.parse(localStorage.getItem('rietx-watch-layout') || 'null'),
+    valuenow: +document.getElementById('grip-list')
+      .getAttribute('aria-valuenow'),
+    valuemax: +document.getElementById('grip-list')
+      .getAttribute('aria-valuemax'),
+  };
+}"""
+
+COUNT_RESIZES = """() => {
+  window.__resizes = 0;
+  const orig = window.Plotly.Plots.resize;
+  window.Plotly.Plots.resize = function (...a) {
+    window.__resizes += 1;
+    return orig.apply(this, a);
+  };
+}"""
+
+
+def test_a_drag_moves_the_seam_and_the_picture_follows_it(browser, tmp_path):
+    """WP-1425's acceptance, and the defect it was opened for.
+
+    Measured before the change: moving the list seam from 72ch to 40ch drew
+    **zero** `Plots.resize` calls. The plot *element* followed the seam, 879 px
+    wide to 1110, while plotly's inner size stayed at 807 — the picture drawn
+    303 px narrower than its own box, and nothing repaired it until the pane
+    was collapsed and reopened. So what this asserts is not that the number of
+    resizes is small; it is that the inner size moved at all.
+    """
+    watched = _make_tree(tmp_path, n_done=6)
+    with _served(tmp_path) as base:
+        run_id = next(r.run_id for r in runs.discover(tmp_path)
+                      if r.path == watched)
+        page, errors = _open(browser, base, run_id)
+        page.evaluate(COUNT_RESIZES)
+        before = page.evaluate(SEAM)
+
+        _drag(page, "#grip-list", 180, 0)
+        after = page.evaluate(SEAM)
+
+        # the choice survives a reload, and is applied before the plot is drawn
+        page.reload(wait_until="networkidle")
+        page.wait_for_function("() => document.getElementById('plot') && "
+                               "document.getElementById('plot')._fullLayout",
+                               timeout=15000)
+        page.wait_for_timeout(500)
+        page.evaluate(COUNT_RESIZES)
+        reloaded = page.evaluate(SEAM)
+
+        # ...and a window that cannot hold it re-clamps it, because a drag
+        # clamps against the extent it happened in and nothing else does
+        page.set_viewport_size({"width": 900, "height": 900})
+        page.wait_for_timeout(700)
+        narrow = page.evaluate(SEAM)
+        page.set_viewport_size({"width": 1400, "height": 900})
+        page.wait_for_timeout(700)
+        back = page.evaluate(SEAM)
+        page.close()
+
+    assert not errors, errors
+    # the seam moved, by about what the pointer asked for
+    assert after["list"] == pytest.approx(before["list"] + 180, abs=4)
+    assert after["run"] == pytest.approx(before["run"] - 180, abs=4)
+    # and the picture followed it, which is the whole WP
+    assert after["inner"][0] < before["inner"][0]
+    assert after["inner"][0] == pytest.approx(after["box"][0] - 72, abs=6), \
+        "the plot is drawn at a width that is not its box's"
+    # one resize in flight and at most one queued, so a 20-move drag is not
+    # 20 redraws (WP-1032's `coalesce`, ported)
+    assert 0 < after["resizes"] <= 6, after["resizes"]
+    # persisted on the verb
+    assert reloaded["stored"]["list"]["size"] == pytest.approx(after["list"],
+                                                              abs=2)
+    assert reloaded["list"] == pytest.approx(after["list"], abs=2)
+    # re-clamped at render against the window it reopened in: 900 px of window
+    # cannot hold a 700 px list *and* the 340 px the run pane keeps
+    assert narrow["list"] < reloaded["list"]
+    assert narrow["list"] == pytest.approx(narrow["valuemax"], abs=2)
+    assert narrow["run"] >= 340
+    # ...and the stored size is still the reader's, so the wide window gives it
+    # back rather than keeping what a narrow one could afford
+    assert back["list"] == pytest.approx(reloaded["list"], abs=2)
+
+
+def test_a_drag_stops_at_the_floor_the_columns_set(browser, tmp_path):
+    """The list's floor is measured, not chosen.
+
+    Its five declared columns are 58ch and that is the table's whole
+    min-content; the run column takes the remainder, so it absorbs every
+    narrowing alone and hits 0 px at 56ch with the table overflowing the
+    panel. `run` as a heading inks 36 px, so the floor is the width below
+    which a column cannot show its own name.
+    """
+    watched = _make_tree(tmp_path, n_done=6)
+    with _served(tmp_path) as base:
+        run_id = next(r.run_id for r in runs.discover(tmp_path)
+                      if r.path == watched)
+        page, errors = _open(browser, base, run_id)
+        _drag(page, "#grip-list", -400, 0)       # far past the floor
+        floored = page.evaluate(SEAM)
+        # the run column still has room for its own heading, which is what the
+        # floor is for
+        head = page.evaluate(
+            "() => { const th = document.querySelectorAll('th')[1];"
+            "        return [Math.round(th.getBoundingClientRect().width),"
+            "                th.scrollWidth]; }")
+        page.close()
+
+    assert not errors, errors
+    # 63ch of columns plus the pane's own 1 px border, the basis being
+    # border-box; the assertion that matters is the next one
+    assert floored["list"] == pytest.approx(63 * 7.225 + 1, abs=2)
+    assert floored["list"] == floored["valuenow"]
+    assert head[0] >= head[1], head
+
+
+def test_the_console_seam_is_the_same_control_the_other_way_up(browser, tmp_path):
+    """The log's grip grows it upward, which is the sign `dragged` carries
+    per edge rather than globally."""
+    watched = _make_tree(tmp_path, n_done=2)
+    with _served(tmp_path) as base:
+        run_id = next(r.run_id for r in runs.discover(tmp_path)
+                      if r.path == watched)
+        page, errors = _open(browser, base, run_id)
+        page.evaluate(COUNT_RESIZES)
+        before = page.evaluate(SEAM)
+        # the pointer goes *up*, and the pane below the grip gets taller
+        _drag(page, "#grip-console", 0, -120)
+        after = page.evaluate(SEAM)
+        page.close()
+
+    assert not errors, errors
+    assert after["console"] == pytest.approx(before["console"] + 120, abs=6)
+    assert after["picture"] == pytest.approx(before["picture"] - 120, abs=6)
+    # the picture is shorter and the plot was told
+    assert after["inner"][1] < before["inner"][1]
+    assert 0 < after["resizes"] <= 6, after["resizes"]
+
+
+def test_the_grips_carry_the_aria_splitter_keyboard(browser, tmp_path):
+    """The WAI-ARIA window splitter pattern, so nobody has to invent one.
+
+    It is a pattern rather than a library, so the javascript is still the
+    page's; what the pattern fixes is what the keys do.
+    """
+    watched = _make_tree(tmp_path, n_done=2)
+    with _served(tmp_path) as base:
+        run_id = next(r.run_id for r in runs.discover(tmp_path)
+                      if r.path == watched)
+        page, errors = _open(browser, base, run_id)
+        grip = page.locator("#grip-list")
+        assert grip.get_attribute("role") == "separator"
+        assert grip.get_attribute("aria-orientation") == "vertical"
+        assert grip.get_attribute("aria-controls") == "runs"
+
+        grip.focus()
+        start = page.evaluate(SEAM)
+        page.keyboard.press("ArrowLeft")
+        page.wait_for_timeout(250)
+        left = page.evaluate(SEAM)
+        page.keyboard.press("ArrowRight")
+        page.wait_for_timeout(250)
+        right = page.evaluate(SEAM)
+        page.keyboard.press("End")
+        page.wait_for_timeout(300)
+        end = page.evaluate(SEAM)
+        page.keyboard.press("Home")
+        page.wait_for_timeout(300)
+        home = page.evaluate(SEAM)
+        # Enter collapses, and the pane it collapses is the one it sizes
+        page.keyboard.press("Enter")
+        page.wait_for_timeout(300)
+        collapsed = page.evaluate("() => document.body.dataset.list")
+        page.keyboard.press("Enter")
+        page.wait_for_timeout(300)
+        restored = page.evaluate("() => document.body.dataset.list")
+        page.close()
+
+    assert not errors, errors
+    assert left["list"] == start["list"] - 16
+    assert right["list"] == start["list"]
+    # End and Home are the seam's stops, and they are the clamp's own numbers
+    assert end["list"] == end["valuemax"]
+    assert home["list"] < end["list"]
+    # 58ch of declared columns plus 5ch for the run column's own heading, at
+    # 1ch = 7.225 on this page
+    assert home["list"] == pytest.approx(63 * 7.225, abs=2)
+    assert collapsed == "closed"
+    assert restored == "open"
+
+
+def test_the_old_panel_choice_survives_more_than_one_render(browser, tmp_path):
+    """WP-1423's key carried one bit, and migrating it is a write.
+
+    `readLayout` folds `runs: false` into the new shape and drops the old key.
+    Nothing else stores a layout — `storeLayout` is reached only from a drag,
+    an arrow key or a collapse — so dropping the old key without writing the
+    new one spends the migration on a single render: the list is closed once,
+    and the reload after it finds neither key and opens it again.
+    """
+    watched = _make_tree(tmp_path, n_done=2)
+    with _served(tmp_path) as base:
+        run_id = next(r.run_id for r in runs.discover(tmp_path)
+                      if r.path == watched)
+        page = browser.new_page(viewport={"width": 1400, "height": 900})
+        errors: list[str] = []
+        page.on("pageerror", lambda e: errors.append(str(e)))
+        # a reader who collapsed the list before this WP shipped
+        page.add_init_script(
+            "try { localStorage.setItem('rietx-watch-panels',"
+            " JSON.stringify({runs: false, run: true})); } catch (e) {}")
+        page.goto(f"{base}/#/run/{run_id}", wait_until="networkidle")
+        page.wait_for_timeout(700)
+        first = page.evaluate("() => document.body.dataset.list")
+        keys = page.evaluate(
+            "() => [localStorage.getItem('rietx-watch-panels'),"
+            "       localStorage.getItem('rietx-watch-layout')]")
+
+        # the init script runs on every navigation, so the old key is put back
+        # before the reload: the page must prefer what it stored itself
+        page.reload(wait_until="networkidle")
+        page.wait_for_timeout(700)
+        second = page.evaluate("() => document.body.dataset.list")
+        page.close()
+
+    assert not errors, errors
+    assert first == "closed", "the old choice was not carried over at all"
+    assert keys[0] is None, "the old key outlived its migration"
+    assert keys[1] is not None, "the migration stored nothing"
+    assert second == "closed", "the migrated choice was lost on the reload"
+
+
+def test_a_run_with_no_picture_cannot_hide_its_only_content(browser, tmp_path):
+    """A GUI project's run writes a log and never a snapshot.
+
+    `#run.full` hides the console's grip, there being no picture to size
+    against — and the grip is the collapse's only control now that the buttons
+    are gone. Collapsed first and then opened on such a run, the reader would
+    get a strip, a "no picture here" line, and no way to reach the one thing
+    the run has. The rule this replaces was "closing the last open panel opens
+    the other".
+    """
+    project = tmp_path / "sample.rex" / "live"
+    project.mkdir(parents=True)
+    (project / runs.EVENTS_FILE).write_text(
+        json.dumps({"record": "event", "v": "2", "t": 1e9,
+                    "kind": "fit_start", "data": {}}) + "\n",
+        encoding="utf-8")
+    (project / runs.STATUS_FILE).write_text(
+        json.dumps({"state": "done", "stage": "biso", "rwp": 0.1, "gof": 1.4}),
+        encoding="utf-8")
+
+    with _served(tmp_path) as base:
+        run_id = next(r.run_id for r in runs.discover(tmp_path))
+        page = browser.new_page(viewport={"width": 1400, "height": 900})
+        errors: list[str] = []
+        page.on("pageerror", lambda e: errors.append(str(e)))
+        # the log collapsed from an earlier run that did have a picture
+        page.add_init_script(
+            "try { localStorage.setItem('rietx-watch-layout',"
+            " JSON.stringify({list: {size: null, open: true},"
+            "                 console: {size: null, open: false}})); }"
+            " catch (e) {}")
+        page.goto(f"{base}/#/run/{run_id}", wait_until="networkidle")
+        page.wait_for_timeout(700)
+        seen = page.evaluate("""() => {
+          const run = document.getElementById('run');
+          const con = document.getElementById('console');
+          const grip = document.getElementById('grip-console');
+          const box = el => {
+            const b = el.getBoundingClientRect();
+            return [Math.round(b.width), Math.round(b.height)];
+          };
+          return {
+            full: run.classList.contains('full'),
+            stored: run.dataset.console,
+            console: box(con),
+            grip: box(grip),
+            noplot: !!document.getElementById('noplot'),
+          };
+        }""")
+        page.close()
+
+    assert not errors, errors
+    assert seen["full"] and seen["noplot"], "this is not the picture-less case"
+    assert seen["stored"] == "closed", "the stored collapse was not applied"
+    # the grip is gone, so the collapse it is the only control for goes too
+    assert seen["grip"] == [0, 0]
+    assert seen["console"][1] > 0, "the run panel is showing nothing at all"
+
+
 def test_the_legend_is_a_dimension_the_page_fixes(browser, tmp_path):
     """A window resize moves the legend with the plot and nothing else.
 
@@ -423,15 +763,19 @@ def test_the_legend_is_a_dimension_the_page_fixes(browser, tmp_path):
     # and the legend's top edge is the plot area's, at every width
     assert {w: g["rel"][1] for w, g in seen.items()} == {1400: 0, 1000: 0, 700: 0}
     # its left edge too, wherever the panel is wide enough to hold it. At the
-    # narrowest the legend is wider than the plot area (125 px against 107) and
-    # plotly keeps it inside the paper instead, which moves it left by a few
-    # pixels. That is the panel being too narrow for this picture, which is
-    # WP-1425's, and it is still not the legend driving the margin.
+    # narrowest the legend is wider than the plot area (125 px against 102, the
+    # grip WP-1425 put in the row having taken 5 of them) and plotly keeps it
+    # inside the paper instead, which moves it left. The bound is the legend's
+    # own overflow rather than a measured pixel count, because every number
+    # here moves when the seam does and only that one is a rule: plotly cannot
+    # shift the legend further left than the room it is short of. It is still
+    # not the legend driving the margin.
     for width, g in seen.items():
-        if g["legend"][2] <= g["area"][2]:
+        overflow = g["legend"][2] - g["area"][2]
+        if overflow <= 0:
             assert g["rel"][0] == 0, (width, g)
         else:
-            assert -8 <= g["rel"][0] < 0, (width, g)
+            assert -overflow <= g["rel"][0] < 0, (width, g, overflow)
 
 
 def test_a_stage_that_adds_a_legend_entry_does_not_move_the_picture(browser, tmp_path):
@@ -892,7 +1236,7 @@ def test_the_status_line_drops_slots_it_cannot_fit(browser, tmp_path):
             page.set_viewport_size({"width": width, "height": 900})
             page.wait_for_timeout(700)
             seen[width] = page.evaluate(SLOTS)
-        page.click("#toggle-runs")          # the list closes, the panel grows
+        page.dblclick("#grip-list")         # the list closes, the panel grows
         page.wait_for_timeout(700)
         wide = page.evaluate(SLOTS)
         page.close()

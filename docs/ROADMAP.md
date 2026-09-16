@@ -94,18 +94,19 @@ placement, link resolution, and the size caps on this file and CLAUDE.md.
 survives from 1407: Stoe `.raw` files paired with the WinXPOW ASCII export of
 the same scans would make Stoe writable.
 
-**Nothing is in flight.** [1310](wp/1310-report-repeats-itself.md) closed
-2026-09-16 on four of six (#106, #123, #162, #231): two had shipped before it
-was filed, and the last two, each filed with a fix its measurements rule out,
-carry on as [1434](wp/1434-the-bound-test-asks-the-wrong-question.md) and [1435](wp/1435-a-hold-the-caller-declares.md).
+**Nothing is in flight.** The `.inp` grammar 1118 refuses is
+[1433](wp/1433-the-inp-grammar-still-refused.md), blocked on nothing. 1310
+closed on four of six; its other two, each filed with a fix its measurements
+rule out, carry on as [1434](wp/1434-the-bound-test-asks-the-wrong-question.md) and [1435](wp/1435-a-hold-the-caller-declares.md).
 
-**Ready to pick up:** the **live-watcher track**, four rungs left.
-[1431](wp/1431-a-caller-names-its-run.md) closed 2026-09-16: `label=` on every
-verb that records a run, so a row names what it fitted. Order: 1425, 1429,
-1427, 1428 (§ A window into a run); 1425 inherits a run column that now carries
-a caller's string. **Two questions there are the maintainer's**: 1428's, and
-whether to write the snapshot every stage or less often. 1413 left `nac` over
-WP-1404's 1.05x gate, six snapshots costing 50 ms of a 17.7 ms budget.
+**Ready to pick up:** the **live-watcher track**, three rungs left.
+[1425](wp/1425-the-panels-are-the-readers-to-size.md) closed 2026-09-16: both
+seams are splitters and the plot is told when its width moves, which it never
+was. Order: 1429, 1427, 1428 (§ A window into a run); 1429 inherits four more
+hard-coded greys. **Four questions are the maintainer's**: 1428's; the snapshot
+cadence (1413 left `nac` over WP-1404's 1.05x gate, 50 ms against 17.7); and
+1425's two, whether the run pane should be collapsible again and whether the
+list's 72ch default should widen for a caller's `label=`.
 
 **Queued, unscheduled** ([§ Unscheduled](#unscheduled)): the 2026-09-01
 triage's 1309–1322 plus 1323 and 1325; the 2026-09-03 triage's 1332–1341; the
@@ -665,7 +666,7 @@ order: 1431, 1425, 1429, 1427, 1428 (a decision).
 | [1426](wp/1426-still-under-resize-and-across-a-stage.md) | Still under resize, and across a stage | ✅ 2026-09-16 | 1430, 1423 |
 | [1424](wp/1424-a-row-that-names-its-run.md) | A row that tells its run apart, and a number that fits its slot | ✅ 2026-09-16 | 1430 (1423 soft) |
 | [1431](wp/1431-a-caller-names-its-run.md) | A caller names its run | ✅ 2026-09-16 | 1424 |
-| [1425](wp/1425-the-panels-are-the-readers-to-size.md) | The panels are the reader's to size | ⬜ | 1430, 1426 |
+| [1425](wp/1425-the-panels-are-the-readers-to-size.md) | The panels are the reader's to size | ✅ 2026-09-16 | 1430, 1426 |
 | [1429](wp/1429-one-palette-and-one-theme-for-three-pages.md) | The GUI's tokens and the GUI's theme, on the two python pages | ⬜ | 1430 (1426 soft) |
 | [1427](wp/1427-what-a-poll-costs.md) | What a poll costs | ⬜ | 1430 (1426 soft) |
 | [1428](wp/1428-open-in-the-gui-without-touching-the-fit.md) | Open in the GUI, without touching the fit | ⬜ | 1405, 1401 (1430 soft) |

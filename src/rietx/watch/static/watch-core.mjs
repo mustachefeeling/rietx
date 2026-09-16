@@ -170,30 +170,140 @@ export function rangesOf(snap) {
           y: [lo - 0.03 * ys, hi + 0.05 * ys], y2: [-L, L]};
 }
 
-// ------------------------------------------------------------- panels
-// The stored panel state, and the one rule that moves it. `watch.mjs` owns
-// the storage and the document; what is here is the reading and the rule.
+// ------------------------------------------------------------ splitters
+// The drag arithmetic, ported from the GUI's `gui/src/lib/resize.ts`
+// (WP-1029). The page cannot import TypeScript, so this is a copy, and a copy
+// that is not pinned is a copy that drifts: `tests/watch_core.test.mjs` runs
+// the GUI's own cases against these three, character for character, and
+// `tests/test_watch_app.py` fails when the two case tables stop matching.
 //
-// Two defaults in one expression: an absent key and a key holding anything
-// unreadable both mean two open panels, and `!== false` means a stored state
-// naming only one panel leaves the other open.
-export function parsePanels(raw) {
-  try {
-    const saved = JSON.parse(raw || '{}');
-    return {runs: saved.runs !== false, run: saved.run !== false};
-  } catch (err) {
-    return {runs: true, run: true};
-  }
+// Only what the page needs came over. `fitColumns`, `MODEL_MIN`, `GRIP`,
+// `modelStacks` and `seriesCompact` are the GUI's own furniture and would
+// rot here unread.
+
+/** Which way the pointer travels to make the pane on the grip's side bigger. */
+const AXIS = {up: 'y', down: 'y', left: 'x', right: 'x'};
+const SIGN = {up: -1, down: 1, left: -1, right: 1};
+
+// The pointer coordinate a grip reads; the other one is noise during a drag.
+export function axisOf(grow) {
+  return AXIS[grow];
 }
 
-// A new state, never the one passed in: the caller reads its own copy back
-// out of storage on the next click, and a reducer that mutates its argument
-// is one refactor away from disagreeing with what was stored.
-export function nextPanels(p, which) {
-  const next = {runs: p.runs, run: p.run};
-  next[which] = !next[which];
-  // closing the last open panel opens the other: a page with neither is a
-  // bar over nothing
-  if (!next.runs && !next.run) next[which === 'runs' ? 'run' : 'runs'] = true;
+// The size a pointer now at `at` asks for, having grabbed at `from` on a pane
+// that was `start` px. Sign only: the clamping is the next function's.
+export function dragged(start, from, at, grow) {
+  return start + SIGN[grow] * (at - from);
+}
+
+// Clamp to the floor, and to whatever must survive of the pane next door.
+//
+// `available` is the extent the two panes share. Zero, or anything too small
+// to hold `min + keep`, means nothing is measurable — a drag before the first
+// layout — and then only the floor applies.
+export function clampSize(value, min, keep, available) {
+  const ceiling = available > keep + min ? available - keep : Number.POSITIVE_INFINITY;
+  return Math.round(Math.min(Math.max(value, min), ceiling));
+}
+
+// Run `work` at most once at a time, and once more if it was asked while busy.
+//
+// The GUI measured the case this exists for (WP-1032 task 1): a 60-move drag
+// issued 60 `Plotly.Plots.resize` calls against a ~111 ms redraw, and the last
+// resolved 1.10 s after the drag ended, so the canvas trailed the grip by a
+// second. The trailing re-run is the half that matters. Dropping the extras
+// outright would leave the plot at whatever size the last accepted call
+// started with, which on a drag is its beginning.
+//
+// `Plots.resize` returns a promise, so this awaits one; a synchronous `work`
+// completes at once.
+export function coalesce(work) {
+  let running = false;
+  let queued = false;
+  const done = () => {
+    running = false;
+    if (queued) {
+      queued = false;
+      go();
+    }
+  };
+  const go = () => {
+    if (running) {
+      queued = true;
+      return;
+    }
+    running = true;
+    let out;
+    try {
+      out = work();
+    } catch (error) {
+      done();
+      throw error;
+    }
+    if (out && typeof out.then === 'function') {
+      out.then(done, done);
+    } else {
+      done();
+    }
+  };
+  return go;
+}
+
+// ---------------------------------------------------------------- layout
+// What the reader chose about the two seams, and the rule that moves it.
+// `watch.mjs` owns the storage, the document and the pointer; what is here is
+// the reading and the arithmetic.
+//
+// A seam's `size` is the px size of the pane the grip sizes, and `null` means
+// *no choice made* — which is not the same as a number, because the CSS
+// defaults (`72ch`, `30%`) are font- and window-relative and a px default
+// would freeze them. `open` is the collapse.
+
+//: The stored state of a page nobody has dragged.
+export const LAYOUT_DEFAULT = Object.freeze({
+  list: Object.freeze({size: null, open: true}),
+  console: Object.freeze({size: null, open: true}),
+});
+
+// A size is a number or it is nothing. `Number('420')` is 420, and this is
+// the page's own JSON, so a string here is corruption rather than a value in
+// another spelling.
+function seam(saved) {
+  const size = saved ? saved.size : null;
+  const ok = typeof size === 'number' && Number.isFinite(size) && size > 0;
+  return {size: ok ? size : null, open: !(saved && saved.open === false)};
+}
+
+// Two defaults in one expression, as `parsePanels` had: an absent key and a
+// key holding anything unreadable both mean two open panes at their declared
+// sizes, and a stored state naming only one seam leaves the other alone.
+//
+// `legacy` is WP-1423's `{runs, run}` under the old key. Only `runs` has a
+// home here — the run pane is no longer collapsible — so that is the one bit
+// carried over, and the caller drops the old key once it has.
+export function parseLayout(raw, legacy) {
+  let saved = {};
+  try {
+    saved = JSON.parse(raw || '{}') || {};
+  } catch (err) {
+    saved = {};
+  }
+  const out = {list: seam(saved.list), console: seam(saved.console)};
+  if (!saved.list && legacy) {
+    try {
+      const old = JSON.parse(legacy || '{}') || {};
+      if (old.runs === false) out.list.open = false;
+    } catch (err) {}
+  }
+  return out;
+}
+
+// A new layout, never the one passed in — `nextPanels`' rule, and for the
+// same reason: the caller reads its own copy back out of storage next time,
+// and a reducer that mutates its argument is one refactor away from
+// disagreeing with what was stored.
+export function nextLayout(layout, which, patch) {
+  const next = {list: {...layout.list}, console: {...layout.console}};
+  next[which] = {...next[which], ...patch};
   return next;
 }

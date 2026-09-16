@@ -14,8 +14,9 @@ import assert from 'node:assert/strict';
 import {test} from 'node:test';
 
 import {
-  LADDER, ago, clock, deltaTitle, esc, extent, finiteOf, nextPanels, num,
-  parsePanels, pct, rangesOf, rowName, runLabel, runTitle, withAlpha,
+  LADDER, LAYOUT_DEFAULT, ago, axisOf, clampSize, clock, coalesce, deltaTitle,
+  dragged, esc, extent, finiteOf, nextLayout, num, parseLayout, pct, rangesOf,
+  rowName, runLabel, runTitle, withAlpha,
 } from '../src/rietx/watch/static/watch-core.mjs';
 
 // A pattern the page would draw: 1000 points, and a residual the caller
@@ -244,34 +245,73 @@ test('a residual of nothing but holes does not make an empty axis', () => {
   assert.deepEqual(y2, [-3, 3]);
 });
 
-// ------------------------------------------------------------- panels
-test('an unreadable or absent panel state means both panels open', () => {
-  assert.deepEqual(parsePanels(null), {runs: true, run: true});
-  assert.deepEqual(parsePanels(''), {runs: true, run: true});
-  assert.deepEqual(parsePanels('{oh no'), {runs: true, run: true});
-  assert.deepEqual(parsePanels('null'), {runs: true, run: true});
-  // a state naming one panel leaves the other where it was
-  assert.deepEqual(parsePanels('{"run":false}'), {runs: true, run: false});
-  assert.deepEqual(parsePanels('{"runs":false,"run":false}'),
-                   {runs: false, run: false});
+// ------------------------------------------------------------- layout
+test('an unreadable or absent layout means two open panes at their declared sizes',
+  () => {
+    for (const raw of [null, '', '{oh no', 'null', '[]']) {
+      assert.deepEqual(parseLayout(raw), LAYOUT_DEFAULT, String(raw));
+    }
+  });
+
+test('a size of null is not a size, and neither is a number that is not one',
+  () => {
+    // `null` means *no choice made*, which leaves the stylesheet's `72ch` and
+    // `30%` in force. A px default here would freeze a size that is font- and
+    // window-relative on purpose.
+    assert.equal(parseLayout('{"list":{"size":null}}').list.size, null);
+    for (const bad of ['"420"', 'NaN', '0', '-40', 'true', '{}']) {
+      assert.equal(parseLayout(`{"list":{"size":${bad}}}`).list.size, null,
+                   bad);
+    }
+    assert.equal(parseLayout('{"list":{"size":420}}').list.size, 420);
+    assert.equal(parseLayout('{"list":{"size":420.5}}').list.size, 420.5);
+  });
+
+test('a layout naming one seam leaves the other at its default', () => {
+  const got = parseLayout('{"console":{"size":120,"open":false}}');
+  assert.deepEqual(got.list, {size: null, open: true});
+  assert.deepEqual(got.console, {size: 120, open: false});
 });
 
-test('closing the last open panel opens the other', () => {
-  const both = {runs: true, run: true};
-  assert.deepEqual(nextPanels(both, 'runs'), {runs: false, run: true});
-  // ...and closing the survivor reopens the one just closed, either way round
-  assert.deepEqual(nextPanels({runs: false, run: true}, 'run'),
-                   {runs: true, run: false});
-  assert.deepEqual(nextPanels({runs: true, run: false}, 'runs'),
-                   {runs: false, run: true});
-  // reopening a closed panel leaves the other alone
-  assert.deepEqual(nextPanels({runs: false, run: true}, 'runs'), both);
+test('only an explicit false closes a pane', () => {
+  // the same `!== false` rule `parsePanels` had: a stored state that says
+  // nothing about `open` is a stored size, not a collapsed pane
+  assert.equal(parseLayout('{"list":{"size":420}}').list.open, true);
+  assert.equal(parseLayout('{"list":{"open":0}}').list.open, true);
+  assert.equal(parseLayout('{"list":{"open":false}}').list.open, false);
 });
 
-test('the reducer leaves the state it was handed alone', () => {
-  const before = {runs: true, run: true};
-  nextPanels(before, 'run');
-  assert.deepEqual(before, {runs: true, run: true});
+test('the old panel key gives up its one bit and nothing else', () => {
+  // WP-1423 stored `{runs, run}`. The run pane is not collapsible any more,
+  // so `runs` is the only half with a home here.
+  assert.equal(parseLayout(null, '{"runs":false,"run":true}').list.open, false);
+  assert.equal(parseLayout(null, '{"runs":true,"run":false}').list.open, true);
+  assert.deepEqual(parseLayout(null, '{"runs":false}').console,
+                   {size: null, open: true});
+  // ...and it is only consulted when this page has stored nothing itself
+  assert.equal(parseLayout('{"list":{"size":500}}', '{"runs":false}').list.open,
+               true);
+  // an unreadable old key is no worse than an absent one
+  assert.deepEqual(parseLayout(null, '{oh no'), LAYOUT_DEFAULT);
+});
+
+test('nextLayout leaves the layout it was handed alone', () => {
+  // `nextPanels`' rule, and for the same reason: the caller reads its own copy
+  // back out of storage next time
+  const before = parseLayout(null);
+  const after = nextLayout(before, 'list', {size: 500, open: false});
+  assert.deepEqual(before, LAYOUT_DEFAULT);
+  assert.deepEqual(after.list, {size: 500, open: false});
+  assert.deepEqual(after.console, {size: null, open: true});
+  assert.notEqual(after.console, before.console);
+});
+
+test('a patch touches the keys it names and no others', () => {
+  const sized = nextLayout(parseLayout(null), 'console', {size: 140});
+  assert.deepEqual(sized.console, {size: 140, open: true});
+  const closed = nextLayout(sized, 'console', {open: false});
+  assert.deepEqual(closed.console, {size: 140, open: false},
+                   'collapsing keeps the size to restore to');
 });
 
 
@@ -303,4 +343,95 @@ test('anything it cannot read comes back as itself', () => {
                    'not a colour', null, undefined]) {
     assert.equal(withAlpha(v, 0.5), v);
   }
+});
+
+// ------------------------------------------------------------ splitters
+// The drag arithmetic is the GUI's, ported into `watch-core.mjs` because the
+// page cannot import TypeScript (WP-1425). The table below is the GUI's own
+// case table, copied character for character from
+// `gui/src/lib/resize.test.ts`; the copy is what makes the port a port rather
+// than a second opinion, and `tests/test_watch_app.py` compares the two blocks
+// as text. Do not edit it here. Edit the GUI's, then copy it over.
+
+// --- ported cases: the table below is copied verbatim into
+// tests/watch_core.test.mjs, because `rietx watch`'s page cannot import this
+// module and a copy that is not pinned is a copy that drifts. The two blocks
+// are compared character for character by
+// tests/test_watch_app.py::test_the_ported_drag_arithmetic_keeps_the_guis_cases,
+// so a case edited here fails the page's copy until it follows. Keep the block
+// free of types: it has to parse as plain JavaScript too.
+const PORTED = [
+  // axisOf(grow) — the coordinate a grip reads is the one its pane grows along
+  ["axisOf", ["up"], "y"],
+  ["axisOf", ["down"], "y"],
+  ["axisOf", ["left"], "x"],
+  ["axisOf", ["right"], "x"],
+  // dragged(start, from, at, grow) — sign only, and the sign is per-edge.
+  // Console.svelte's case: the log is below the grip, so dragging *up* makes
+  // it taller.
+  ["dragged", [150, 400, 340, "up"], 210],
+  ["dragged", [150, 400, 460, "up"], 90],
+  // the sidebar: its grip is on its left edge and the pane is to the right
+  ["dragged", [420, 900, 820, "left"], 500],
+  ["dragged", [420, 900, 980, "left"], 340],
+  // the model pane's columns: each grip is on the right edge of the column it
+  // sizes, so the two directions are both in use in one app
+  ["dragged", [300, 300, 380, "right"], 380],
+  // clampSize(value, min, keep, available) — the floor
+  ["clampSize", [10, 26, 120, 800], 26],
+  // and whatever must survive of the pane next door
+  ["clampSize", [999, 26, 120, 800], 680],
+  // jsdom, or a drag before the first layout: `available` of 0 must not clamp
+  // every pane to a negative ceiling, which is what a naive `available - keep`
+  // would do — and the same when the container is too small to hold both
+  ["clampSize", [400, 26, 120, 0], 400],
+  ["clampSize", [400, 26, 120, 100], 400],
+  // rounds, so a style attribute is a whole number of pixels
+  ["clampSize", [210.6, 26, 120, 0], 211],
+];
+// --- end ported cases ---
+
+const PORTED_FNS = {axisOf, clampSize, dragged};
+
+test('the ported drag arithmetic answers every one of the GUI\'s cases', () => {
+  for (const [name, args, want] of PORTED) {
+    assert.equal(PORTED_FNS[name](...args), want,
+                 `${name}(${args.join(', ')})`);
+  }
+});
+
+// `coalesce` came over with them, and its contract is the trailing run: the
+// GUI measured a 60-move drag issuing 60 plotly resizes, the last landing
+// 1.10 s after the mouse came up. Dropping the extras outright would leave the
+// plot at the size the drag *started* at, so the queued one has to run.
+test('coalesce runs one now and at most one more, and the last is the final size',
+  async () => {
+    const seen = [];
+    let release = null;
+    let current = 0;
+    const ask = coalesce(() => {
+      seen.push(current);
+      return new Promise(resolve => { release = resolve; });
+    });
+    current = 100;
+    ask();
+    for (let px = 101; px <= 160; px++) {
+      current = px;
+      ask();
+    }
+    release();
+    await Promise.resolve();
+    await Promise.resolve();
+    assert.deepEqual(seen, [100, 160]);
+  });
+
+test('coalesce is re-armed after a throw, so one failure is not a latch', () => {
+  let n = 0;
+  const ask = coalesce(() => {
+    n += 1;
+    if (n === 1) throw new Error('first one fails');
+  });
+  assert.throws(ask, /first one fails/);
+  ask();
+  assert.equal(n, 2);
 });
