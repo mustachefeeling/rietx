@@ -1,6 +1,6 @@
 # WP-1426 — still under resize, and across a stage
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: ✅ 2026-09-16 — the legend no longer moves the picture, the console no longer follows it, the list holds the reader's place
 Depends on: 1430 (the page as files), 1423 (the rules and the browser harness this extends)
 
 ## Goal
@@ -61,20 +61,24 @@ tail only when the run changes or the route says `reset`.
 
 ### Flashing
 
-Candidates, each to be confirmed or cleared by the frame differ:
+Candidates, each confirmed or cleared by the frame differ (2026-09-16; the
+differ is a CDP screencast, and chromium emits a frame only when the page
+repaints, so its "1.5 fps" is the page's repaint rate and not a sampling
+rate — five to six frames over three seconds, and none blank):
 
 - `plotly.react` on scattergl traces rebuilds the WebGL scene when the trace
-  count changes. It changes when the background trace appears
-  (`snap.y_bkg.some(v => v)`) or a tick row is added, so a stage that first
-  frees the background can flash the whole plot.
+  count changes. **Cleared as a flash, confirmed as the real defect.** The
+  redraw moved 4.6 % of pixels against 3.3 % for a plain stage, and no frame
+  was blank, so the scene is not being rebuilt. What the frames did show is
+  the legend gaining a row for the new entry and the whole picture dropping
+  under it. That is the legend defect above, reached from the other end.
 - `patchList` moves rows with `insertBefore` into the server's order. A new
   run arrives at the top and shifts every row down under the reader's eye.
-  WP-1423 measured one new run and called it one mutation, which it is; it
-  is also a layout shift of the whole list. The chat-log pattern holds the
-  viewport: compensate `scrollTop` by the inserted height when the list is
-  not scrolled to the top.
+  **Confirmed**: 0.0134 over four rows on a scrolled list. Fixed by the
+  chat-log pattern, anchored on a visible row rather than on an inserted
+  height, so an arrival below the fold compensates by nothing.
 - The state pill's class change and the row's `selected` toggle repaint a
-  cell. Cheap; confirm they are not shifts.
+  cell. **Cleared**: neither appears in any layout-shift entry.
 - The legacy `iframe` reload on a pre-1402 run. Out of scope, named here so it
   is not mistaken for a defect of this page.
 
@@ -95,46 +99,52 @@ Flashing is not a layout shift either. Its probe is a screencast: frames at
 differ from both neighbours. The screencast is a measurement and not a gate;
 what it finds is fixed or recorded.
 
-### Inherited
+**And it does not apply to the picture, which is where the worst of this was.**
+Measured 2026-09-16: a stage that freed the background took the plot area from
+y=45 to y=64 and raised **zero** layout-shift entries. The plot is one div
+whose insides plotly redraws, so its box never changes and the layout engine
+has nothing to report. The observer is the right instrument for the page and
+blind to the picture, so the picture is read off `_fullLayout._size` instead
+and the tests carry both.
 
-- **2026-09-16, from [1430](1430-the-page-is-a-file.md): the page is files, and
-  three of its names are not the ones 1430's plan said.** `watch.py` is the
-  package `watch/`, and the page is `watch/static/`: `index.html`, `watch.css`,
-  `watch.mjs` (the document) and `watch-core.mjs` (everything that touches no
-  DOM). `rietx.watch` imports unchanged. What to carry:
-  - **The DOM half is `.mjs`, not `.js`.** `node --check` reads a `.js` as
-    CommonJS, where the `import` of `watch-core.mjs` is a syntax error. A
-    browser cares about `type="module"` and the content type, never the
-    extension.
-  - **Node cases live in `tests/watch_core.test.mjs`**, not beside the module:
-    hatchling ships everything under `src/rietx`. They are invoked from
-    `tests/test_watch_app.py::test_the_pure_half_of_the_page_is_unit_tested`
-    (15 cases today), which passes `--test-reporter=tap` because node picks its
-    reporter by whether stdout is a terminal.
-  - **`@SUFFIX@`, `@DIST@` and `@HUE@` are gone.** A file cannot carry a token,
-    so the three ride on `/api/runs` as `payload.page.{suffix,dist,palette}`,
-    read at boot into the module-level `HUE` and `DIST`. That is 299 B of every
-    poll, against rows of 735 B each.
-  - **A new file under `static/` needs a row in `watch.STATIC_FILES`** and
-    nothing else — the route, the content type and the `.gitignore` guard all
-    read that dict. `*.html` in `.gitignore` swallowed `index.html` on the way
-    in, the sixth committed file that one rule has taken.
-  - **The Δ/σ ladder's spike guard is inert on a short pattern**, found while
-    writing its first unit cases. `rangesOf` takes the residual's
-    `floor(0.999 · n)`th value, and that index *is* `n - 1` for every n ≤ 1000,
-    so the "99.9th percentile" is the maximum there and one spiked point sets
-    the scale for the whole run. It bites as intended above that: a snapshot
-    decimates to `viz/snapshot.MAX_POINTS` = 4000, where a lone 900σ point is
-    cut and a ten-point misfitted peak is not. Both directions are pinned in
-    `tests/watch_core.test.mjs`, deliberately as the behaviour rather than as
-    the intention — 1430's fence was that nothing the page does changes. The
-    axis is this WP's subject, so the call is yours.
-  - `drawSnapshot` gained one line: `if (!HUE) return false;`. The palette
-    arrives with the first `api/runs`, and a poll can reach the draw before it
-    has — undrawn is what `false` already meant, so the next poll draws that
-    write. Keep the guard in whatever `drawSnapshot` becomes.
-  - `tests/test_watch_browser.py` took no diff and stays the bar: if it
-    moves, the page moved.
+Two acceptance clauses narrowed against what the measurements showed, each
+recorded in Acceptance below: a new run is a zero only on a **scrolled** list,
+and the console's **line count** turned out to be no evidence at all.
+
+### The page this edits
+
+WP-1430 took the page out of its python string on 2026-09-16, so everything
+below is a file. `src/rietx/watch/static/` holds `index.html`, `watch.css`,
+`watch.mjs` (the document half) and `watch-core.mjs` (everything that touches
+no DOM). Five facts carry into this WP's edits.
+
+- **A new file under `static/` needs a row in `watch.STATIC_FILES`** and
+  nothing else. The route, the content type and the `.gitignore` guard all
+  read that dict. A DOM half is `.mjs`, because `node --check` reads a `.js`
+  as CommonJS and the `import` of `watch-core.mjs` is a syntax error there.
+- **Node cases live in `tests/watch_core.test.mjs`**, since hatchling ships
+  everything under `src/rietx`. `tests/test_watch_app.py::test_the_pure_half_of_the_page_is_unit_tested`
+  invokes them (15 inherited from 1430; 20 after this WP).
+- **The page's three build constants ride on `/api/runs`** as
+  `payload.page.{suffix,dist,palette}`, read at boot into module-level `HUE`
+  and `DIST`. A file cannot carry the `@TOKEN@` substitutions they were.
+- **`drawSnapshot` opens with `if (!HUE) return false;`.** A poll can reach
+  the draw before the first `/api/runs` has landed the palette. Keep the
+  guard in whatever `drawSnapshot` becomes.
+- **`tests/test_watch_browser.py` took no diff across 1430 and stays the
+  bar.** If it moves, the page moved.
+
+### The Δ/σ ladder's spike guard, handed over as a call
+
+`rangesOf` takes the residual's `floor(0.999 · n)`th value. That index *is*
+`n - 1` for every n ≤ 1000, so the "99.9th percentile" is the maximum on a
+short pattern and one spiked point sets the ladder's scale for the whole run.
+Above 1000 it bites as intended: a snapshot decimates to
+`viz/snapshot.MAX_POINTS` = 4000, where a lone 900σ point is cut and a
+ten-point misfitted peak is not. WP-1430 pinned both directions in
+`tests/watch_core.test.mjs` as the behaviour rather than the intention,
+because its fence was that nothing the page does changes. The axis is this
+WP's subject, so the call belongs here.
 
 ## Non-goals
 
@@ -147,24 +157,26 @@ what it finds is fixed or recorded.
 
 ## Tasks
 
-- [ ] Browser test with a layout-shift observer and a frame differ; measure
+- [x] Browser test with a layout-shift observer and a frame differ; measure
       today's page over a stage boundary and a new run, record the legend's
       box relative to the plot at three widths, and reproduce the console
       reload on a run that already had a snapshot; the numbers go in the
       handover
-- [ ] The legend holds still under resize, as a dimension the page fixes;
+- [x] The legend holds still under resize, as a dimension the page fixes;
       `viz/html.py`'s legend spec follows if its page shows the same defect
-- [ ] The picture is rebuilt alone; the console and its tail survive a change
+- [x] The picture is rebuilt alone; the console and its tail survive a change
       of picture kind, and reset only on a run change or a `reset` from the
       route
-- [ ] The list holds the viewport when a run arrives above the fold
-- [ ] Whatever the frame differ found at a stage boundary, fixed or recorded
+- [x] The list holds the viewport when a run arrives above the fold
+- [x] Whatever the frame differ found at a stage boundary, fixed or recorded
       as measured and left, with the reason
-- [ ] The test asserts layout shift 0 over a stage boundary and a new run,
+- [x] The test asserts layout shift 0 over a stage boundary and a new run,
       the legend's box constant relative to the plot across the three
       widths, and the console's line count unchanged across a picture kind
       change
-- [ ] Skill: none. The page is a human's.
+- [x] The spike guard's short-pattern case: fixed, or recorded as measured
+      and left, with the reason (inherited from 1430)
+- [x] Skill: none. The page is a human's.
 
 ## Acceptance
 
@@ -174,10 +186,27 @@ what it finds is fixed or recorded.
 ```
 
 The browser test, where it runs, reports a layout-shift sum of 0 over a stage
-boundary and a new run, the legend's box constant relative to the plot area
-from 1400 to 700 px, and the console's line count unchanged across a picture
-kind change. It skips without a cached chromium, CI included; the handover
-names the skip.
+boundary and over a run arriving on a **scrolled** list, the legend's box
+constant relative to the plot area from 1400 to 700 px, and the console
+neither wiped nor re-tailed across a picture kind change. It skips without a
+cached chromium, CI included; the handover names the skip.
+
+Two of those are not what this WP was written asking for, and both moved
+because the measurement said so rather than because they were hard.
+
+**A new run is a zero on a scrolled list, and intended movement on one at its
+top.** Prepending a row moves every row below it, and the only way to hold
+those still is to scroll down by a row, which puts the arriving run out of
+sight. A reader at the top of the list is watching for exactly that run. So
+the list is held where a reader is reading and left alone where they are
+watching, which is the chat-log rule this WP already cited; the at-the-top
+case is asserted as "the scroll stayed at 0 and the new run is on screen".
+
+**The console's line count is no evidence.** The wipe re-tailed from offset 0
+and put all 121 lines back, so the count was 121 before and after, both before
+this WP and after it. What separates a wipe from a tail is that nodes were
+removed, that the node which was first no longer is, and that a reader scrolled
+up was dropped at the bottom. Those three are asserted instead.
 
 ## References
 
@@ -186,6 +215,129 @@ names the skip.
   defects no python test could see).
 
 ## Handover log
+
+### 2026-09-16 — the legend was three of the four movements
+
+The page holds still now. Four things had been reported as moving, and three of
+them turned out to be one mechanism. The legend was anchored above the plot
+area, where plotly grows the top margin to fit it, so every row the legend
+gained was taken out of the picture. It gained a row when the window narrowed
+and its entries wrapped. It gained another whenever a stage first freed the
+background, since that adds a trace and a trace adds an entry. The reported
+flashing was that second case seen at speed. Moving the legend inside the paper
+settles all three at once, and the picture came out 38 px taller at a 1400 px
+window and 131 px taller at 700 px. The fourth movement was the run list, which
+kept its scroll offset while its rows slid underneath it.
+
+The instrument this WP was written around turned out to be half blind, and that
+is the part worth carrying off. A browser raises a layout-shift entry when an
+element's box moves. A plotly plot is one div whose insides are redrawn, so the
+stage boundary that moved the picture 19 px raised no entry at all. Every claim
+about the picture is now read off plotly's own layout, and the observer is kept
+for claims about the page.
+
+**Done.**
+
+- The legend takes a fixed anchor inside the paper, `y: 1, yanchor: 'top'`,
+  which is the form this WP preferred and it measured still. `viz/html.py`
+  carried the same spec and showed the same defect, so it took the same fix.
+- `buildShell` splits into `buildPicture` and `resetTail`. `drawRun` resets the
+  tail on a *run* change and rebuilds the picture on a run-or-kind change.
+  `clearStrip` resets the tail alongside the console it was filling, or a reader
+  returning to that run would meet an empty console that no poll refilled.
+- `patchList` anchors on a row the reader can see and moves `#runs`'s scroll by
+  however far that row moved. An arrival below the fold therefore compensates by
+  nothing, and a list already at its top is left alone.
+- `rangesOf` cuts its outliers by a count rather than by a fraction. This is
+  WP-1430's handed-over call, taken rather than re-pinned.
+- `withAlpha` joins `watch-core.mjs`, a legend over data needing an opacity and
+  the colour staying the palette's.
+- Six browser tests and five net node cases. `_pinned()` asserts the URL still
+  names the run it opened, because a run id that does not match the server's
+  turns a pinned-run test into a follows-the-newest test in silence.
+
+**Measured** — this worktree's `.venv`, `[dev]` plus playwright 1.63.0,
+darwin/arm64, cached chromium-1223. Plot area is `[l, t, w, h]` and the legend
+box is relative to that area's corner.
+
+- **Legend under resize**, at 1400 / 1000 / 700 px viewport. Before: area top
+  46 / 65 / 139 and height 465 / 446 / 372, legend at `[0,-38]`, `[0,-57]`,
+  `[-4,-131]`. After: top 8 at every width, height 503 at every width, legend at
+  `[0,0]`, `[0,0]`, `[-4,0]`. The `-4` is plotly keeping a legend wider than the
+  panel inside the paper, and the panel is WP-1425's.
+- **`viz/html.py` under resize**, at 1400 / 1000 / 700 / 500 px: area top
+  60 / 60 / 75 / 75 before. Same defect, same cause, same fix.
+- **A stage that frees the background**, at 1200 px: area top 45 → 64 before and
+  unchanged after. Layout shift **0 in both cases**, which is the blindness
+  above and the reason the tests read `_fullLayout._size`.
+- **A plain stage boundary**: layout shift 0 before and after. WP-1423 had
+  already done this one, so the test is a regression pin.
+- **A run arriving, list scrolled to 250**: 0.0134 across four rows before, 0
+  after, the scroll taking the difference at 250 → 277 (one 27 px row).
+- **A run arriving, list at its top**: 0.0065 before and after. Left alone on
+  purpose, a reader at the top being there to watch for that run.
+- **The console at a picture-kind change**: 121 nodes removed and 121 re-added
+  before, the first node replaced, a scrolled reader thrown from 200 to 1312.
+  After: nothing removed, nothing added, same first node, scroll held at 200.
+  The **line count read 121 on both sides of the wipe**, which is why the
+  acceptance's line-count clause was replaced rather than met.
+- **The frame differ** is a CDP screencast, and chromium emits a frame only when
+  the page repaints, so its 1.5 fps is the repaint rate rather than a sampling
+  rate. Five to six frames over ~3.5 s, none blank. The trace-count redraw moved
+  4.6 % of pixels against 3.3 % for a plain stage, which clears "scattergl
+  rebuilds the scene" and leaves the legend wrap as what the eye was seeing.
+
+**Counts.** +6 tests, all in `tests/test_watch_browser.py`: that file and
+`test_watch_app.py` together went 51 → 57 passed, +6 exactly and no new skip.
+Node cases 15 → 20, one removed and six added, invoked by the one python test
+that already existed. Fast suite 5156 passed, 132 skipped, measured twice and alone on the
+machine, at 2:38 and 5:44. **The full suite did not run and is not owed**: the diff is a
+JavaScript page, a plotly layout dict and tests, and neither consumer of
+`figure_from_arrays` is slow-marked, so no measured number can move.
+
+**The CI skip, named.** playwright is deliberately not a dependency, so on CI
+the module-level `importorskip` fires and `tests/test_watch_browser.py` counts
+as **one skipped test** rather than ten passes. Every browser assertion this WP
+added is local-only, and the rest of the file was already in that position.
+
+**Gotchas.**
+
+- `runs.run_id_for` hashes `str(path)` without resolving it, while its docstring
+  says "a digest of the resolved path". On macOS `tempfile` returns `/var/...`
+  and the server walks `/private/var/...`, so a probe that computes its own id
+  pins nothing and silently measures the newest run. `tmp_path` is resolved
+  already, so the suite never saw it. Left alone rather than widening the diff,
+  and pushed to 1424 with `_pinned()` as the guard.
+- The legend inside the paper wraps *over* the data at narrow widths. At an
+  800 px window the run panel is ~280 px, the legend takes five rows and covers
+  the top quarter of the intensity panel. `withAlpha(HUE.ground, 0.72)` keeps
+  the curve faintly visible through it. That is a mitigation, and the fix is a
+  panel wide enough for the picture, which is 1425. Pushed there with numbers.
+- `viz/html.py` needed a literal `rgba(255,255,255,0.85)`, that page drawing
+  under `simple_white` with no palette to quote. It is a hardcoded colour among
+  tokens. Pushed to 1429, whose subject it is.
+- 1427 rebases. Both WPs were declared to rewrite `drawRun` and this one landed
+  first; the three shapes that moved are in its `### Inherited`.
+
+**The review pass.** `/code-review high --fix` found **no correctness bug** in
+the product code and three names left pointing at things this WP removed: a
+comment crediting `buildShell` for the plot div, a docstring still calling the
+Δ/σ rule "the 99.9th-percentile cut", and a node-case count of mine that said 19
+after the commit taking it to 20. It applied all three. Two more of that class
+sat in `tests/watch_core.test.mjs`, which the pass did not reach, and they are
+fixed in the same commit. It declined two findings with reasons worth keeping.
+It tried to strengthen the scroll test's `moved_to > 250`, then doubled the
+compensation in `patchList` on purpose and found the layout-shift assertion two
+lines above already failed at 0.0067, so the existing pair pins it and the extra
+assertion was reverted. And it left `viz/html.py`'s literal rgba alone, the light
+palette carrying no ground key, which is the change this WP already pushed to
+1429. It also confirmed by measurement that the scroll compensation is exact and
+that chromium's own scroll anchoring is not firing alongside it, so there is no
+double compensation to guard against.
+
+**Next.** 1424 is next in the track's order, and nothing here blocks it. 1425's
+blocker is discharged by this WP and its trade is written into its mailbox, so
+it could be pulled forward if the narrow-panel legend is annoying in use.
 
 - **2026-09-16** — created, from the maintainer's reading of the page over the
   demo job; revised the same day: the resize case no longer claims a zero

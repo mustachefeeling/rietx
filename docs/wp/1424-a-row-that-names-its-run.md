@@ -88,6 +88,25 @@ it lands here because 1425 is several WPs away.
 
 ### Inherited
 
+- **2026-09-16, from [1426](1426-still-under-resize-and-across-a-stage.md):
+  `patchList` now holds the reader's place, and a run id is a digest of the
+  path *string*.**
+  - `patchList` takes an anchor before it patches and moves `#runs`'s scroll by
+    however far that anchor moved, so a row arriving above the fold no longer
+    shifts the rows under the reader. It is one helper, `visibleAnchor`. A row
+    edit that changes a row's *height* passes through the same compensation and
+    needs no thought; one that adds or removes rows outside `patchList` would
+    bypass it.
+  - **`runs.run_id_for` hashes `str(path)` and does not resolve it**, though its
+    docstring says "a digest of the resolved path". On macOS `tempfile` hands
+    back `/var/...` while the server walks `/private/var/...`, so the two
+    disagree and a test that pins a run by an id it computed itself silently
+    measures the page following the *newest* run instead. `tmp_path` is already
+    resolved, so the suite is fine; a scratchpad probe is not. 1426 left the
+    docstring alone rather than widen its diff, and added `_pinned()` to
+    `tests/test_watch_browser.py`, which asserts the hash stuck. Use it for any
+    row test that pins a run.
+
 - **2026-09-16, from [1430](1430-the-page-is-a-file.md): the page is files, and
   three of its names are not the ones 1430's plan said.** `watch.py` is the
   package `watch/`, and the page is `watch/static/`: `index.html`, `watch.css`,

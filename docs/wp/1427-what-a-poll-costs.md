@@ -83,6 +83,22 @@ Browser, per poll:
 
 ### Inherited
 
+- **2026-09-16, from [1426](1426-still-under-resize-and-across-a-stage.md):
+  1426 landed first, so this WP is the one that rebases.** Both were declared
+  to rewrite `drawRun` and they did not collide, but three shapes moved:
+  - `buildShell` is gone, split into **`buildPicture`** (the shell, the plotly
+    purge, the `full` class) and **`resetTail`** (the console and the tail
+    offset). `drawRun` calls `resetTail` on a *run* change and `buildPicture`
+    on a run-or-kind change. A poll-cost change that skips work must keep those
+    two triggers apart: merging them back is the defect 1426 removed.
+  - `patchList` opens by taking a scroll anchor and closes by applying it. A
+    patch made cheaper must still run both ends, or the list shifts under the
+    reader again.
+  - `rangesOf` in `watch-core.mjs` cuts by count rather than by quantile now.
+    It sorts the residual on every draw, which is the one O(n log n) step in
+    the draw path and a candidate if the poll's cost is in the page rather than
+    on the wire. 4000 points is the decimated ceiling.
+
 - **2026-09-16, from [1430](1430-the-page-is-a-file.md): the page is files, and
   three of its names are not the ones 1430's plan said.** `watch.py` is the
   package `watch/`, and the page is `watch/static/`: `index.html`, `watch.css`,

@@ -6,7 +6,7 @@
 // runner has been in node since 18.
 //
 // Every case here is a claim the page made and nothing checked, because until
-// WP-1430 none of this was importable. The Δ/σ ladder, the 99.9th-percentile
+// WP-1430 none of this was importable. The Δ/σ ladder, the residual's outlier
 // cut and the "NaN" guard were each written against a real defect and each
 // verified by looking at a browser.
 
@@ -15,7 +15,7 @@ import {test} from 'node:test';
 
 import {
   LADDER, ago, deltaTitle, esc, extent, finiteOf, nextPanels, num,
-  parsePanels, rangesOf,
+  parsePanels, rangesOf, withAlpha,
 } from '../src/rietx/watch/static/watch-core.mjs';
 
 // A pattern the page would draw: 1000 points, and a residual the caller
@@ -24,8 +24,11 @@ import {
 function snapshot(delta, {points = 1000, from = 10, to = 80} = {}) {
   const tt = [];
   const obs = [];
+  // `|| 1` so a one-point pattern is a point and not a NaN: the short-pattern
+  // cases below ask for one, and a NaN 2θ would make them assert over a
+  // snapshot no reader could ever be shown
   for (let i = 0; i < points; i++) {
-    tt.push(from + (to - from) * i / (points - 1));
+    tt.push(from + (to - from) * i / ((points - 1) || 1));
     obs.push(i);
   }
   return {two_theta: tt, y_obs: obs, delta: delta};
@@ -120,7 +123,7 @@ test('one spiked point does not set the scale, and ten misfitted ones do',
     // a snapshot's arrays are the decimation's, up to `MAX_POINTS` = 4000
     const points = 4000;
     const base = new Array(points).fill(1);
-    // a single 900σ point is above the 99.9th percentile and is cut
+    // a single 900σ point is inside the cut of four and never reaches the scale
     const spike = base.slice();
     spike[2000] = 900;
     assert.deepEqual(rangesOf(snapshot(spike, {points})).y2, [-3, 3]);
@@ -130,21 +133,27 @@ test('one spiked point does not set the scale, and ten misfitted ones do',
     assert.deepEqual(rangesOf(snapshot(peak, {points})).y2, [-50, 50]);
   });
 
-test('the percentile cuts nothing below 1001 points, and the spike shows',
-  () => {
-    // `floor(0.999 * n)` is `n - 1` for every n ≤ 1000, so on a short pattern
-    // the "99.9th percentile" is the maximum and one spiked point does set
-    // the scale. Nothing is wrong with the ladder here; this is the edge the
-    // page has, pinned so a later WP moving it does so on purpose.
-    const spike = new Array(1000).fill(1);
-    spike[500] = 900;
-    assert.deepEqual(rangesOf(snapshot(spike, {points: 1000})).y2,
-                     [-1000, 1000]);
-    // one point more and the cut starts biting
-    const longer = new Array(1001).fill(1);
-    longer[500] = 900;
-    assert.deepEqual(rangesOf(snapshot(longer, {points: 1001})).y2, [-3, 3]);
-  });
+test('the cut is a count, so a short pattern gets one too', () => {
+  // WP-1430 measured that `floor(0.999 * n)` is `n - 1` for every n ≤ 1000,
+  // pinned the consequence and handed the call to WP-1426, which took it: a
+  // tenth of a percent of a short pattern is less than one point, so the
+  // quantile cut nothing and a lone spike put a ±1 residual on a ±1000 axis.
+  // These are the same three lengths, now answering the same way.
+  for (const points of [600, 1000, 1001]) {
+    const spike = new Array(points).fill(1);
+    spike[Math.floor(points / 2)] = 900;
+    assert.deepEqual(rangesOf(snapshot(spike, {points})).y2, [-3, 3],
+                     `one spike set the scale at ${points} points`);
+  }
+});
+
+test('a pattern too short to have an outlier still gets a scale', () => {
+  // one point is not a spike among others, so it is the scale; two is the
+  // smaller of them. Neither may come back undefined, which would take the
+  // axis with it.
+  assert.deepEqual(rangesOf(snapshot([900], {points: 1})).y2, [-1000, 1000]);
+  assert.deepEqual(rangesOf(snapshot([4, 900], {points: 2})).y2, [-5, 5]);
+});
 
 test('the ladder is rungs, so a stage can only step between them', () => {
   assert.deepEqual(LADDER, [3, 5, 10, 20, 50, 100, 200, 500, 1000]);
@@ -187,4 +196,35 @@ test('the reducer leaves the state it was handed alone', () => {
   const before = {runs: true, run: true};
   nextPanels(before, 'run');
   assert.deepEqual(before, {runs: true, run: true});
+});
+
+
+// ------------------------------------------------------------- withAlpha
+// The legend moved inside the paper in WP-1426, so its ground sits over the
+// data and has to be part-transparent. The colour is still the palette's.
+
+test('a palette colour comes back as rgba at the opacity asked for', () => {
+  assert.equal(withAlpha('#1d1813', 0.72), 'rgba(29, 24, 19, 0.72)');
+  assert.equal(withAlpha('#000000', 1), 'rgba(0, 0, 0, 1)');
+  assert.equal(withAlpha('#ffffff', 0), 'rgba(255, 255, 255, 0)');
+});
+
+test('the three-digit form is the six-digit one', () => {
+  assert.equal(withAlpha('#abc', 0.5), withAlpha('#aabbcc', 0.5));
+  assert.equal(withAlpha('#f00', 1), 'rgba(255, 0, 0, 1)');
+});
+
+test('case and surrounding space are not what a colour is', () => {
+  assert.equal(withAlpha('#1D1813', 0.72), withAlpha('#1d1813', 0.72));
+  assert.equal(withAlpha('  #1d1813  ', 0.72), withAlpha('#1d1813', 0.72));
+});
+
+test('anything it cannot read comes back as itself', () => {
+  // The palette arrives off the wire, so this is a real input, not a
+  // hypothetical one. Handing plotly a colour it may still understand beats
+  // handing it `undefined`, which draws no ground at all.
+  for (const v of ['rgba(0,0,0,0.5)', 'red', '#12345', '#1d18134', '',
+                   'not a colour', null, undefined]) {
+    assert.equal(withAlpha(v, 0.5), v);
+  }
 });

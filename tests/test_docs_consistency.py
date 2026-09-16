@@ -280,7 +280,14 @@ SIZE_CAPS: dict[str, int | None] = {
     # the cap moves rather than the fact.  Landed at 711, headroom +1.
     "docs/ROADMAP.md": 717,
     "gui/CLAUDE.md": 1028,
-    "tests/CLAUDE.md": 275,
+    # 275 -> 283 (WP-1426): a third way a guard goes quiet, and the only one of
+    # the three that is about the instrument rather than the assertion — a
+    # browser's layout-shift entry cannot see inside a plotly div, so a
+    # stillness guard over a picture reads 0 while the picture moves. It
+    # governs work well outside the WP that measured it: three queued WPs edit
+    # that page, and `compare_app.py` and the GUI both draw with plotly too.
+    # Landed at 282, headroom +1, per this file's docstring.
+    "tests/CLAUDE.md": 283,
     "src/rietx/indexing/CLAUDE.md": 300,
     # 300 -> 350 (WP-1407): four per-format rows, and three standing rules the
     # Philips √ encoding taught — that a format may encode its counts rather

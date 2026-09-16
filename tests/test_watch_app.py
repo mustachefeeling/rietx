@@ -467,7 +467,7 @@ def test_the_pure_half_of_the_page_is_unit_tested():
     """``node --test`` over ``watch-core.mjs``, run by the python suite.
 
     The page had no unit test of any kind until WP-1430, because none of it was
-    importable: the Δ/σ ladder, the 99.9th-percentile cut, the "NaN" guard and
+    importable: the Δ/σ ladder, the residual's outlier cut, the "NaN" guard and
     the panel rule were all checked by looking at a browser. Running it from
     here is what keeps it from going quiet — a node test nobody invokes is a
     file, not a check.
@@ -510,7 +510,7 @@ def test_the_embedded_page_parses_as_javascript():
 
 
 #: Ids `watch.mjs` reaches for that `index.html` deliberately does not carry.
-#: One entry, and it earns its place: `buildShell` writes the plot div, the
+#: One entry, and it earns its place: `buildPicture` writes the plot div, the
 #: legacy iframe or the no-picture note into `#picture` itself.
 RUNTIME_IDS = {"plot"}
 
