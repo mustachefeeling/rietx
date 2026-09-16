@@ -501,10 +501,10 @@ for one specimen), and every converged fit reports a coherent domain size and a
 #### What fires, and what stays silent
 
 Each row is a silent wrong answer, the class the repo's rules are strictest
-about: a parameter that walks unflagged
-(1311), a confident fraction the pattern cannot fix (1320), a bound persisted
-as absent (1321), an alternation with no stop rule (1323), a freeze reading
-parameter *names* that a phase driven through a tie walks past (1342). The
+about: a parameter that walks unflagged (1311), a confident fraction the
+pattern cannot fix (1320), a bound persisted as absent (1321), an alternation
+with no stop rule (1323), a freeze reading parameter *names* that a phase
+driven through a tie walks past (1342). The
 orbit that was not a multiplicity (1324) is closed; 1320 restates what it
 measured. The 2026-09-03 triage adds three: a 2θ axis read 100× wrong from a
 commented header (1332), a fit that says `converged` while its own diagnostics
@@ -535,7 +535,7 @@ channel count (1417). The 2026-09-16 review of #286 and #293 adds one of
 | [1417](wp/1417-delta-bic-at-powder-channel-counts.md) | ΔBIC at powder channel counts | ⬜ | — (1339 soft) |
 | [1421](wp/1421-the-result-reproduces-its-own-number.md) | The result reproduces its own number | ⬜ | — (1310 soft) |
 | [1432](wp/1432-a-tie-onto-a-rederived-dof.md) | A tie onto a coordinate DOF, re-applied once per write | ⬜ | — (1119 soft) |
-| [1434](wp/1434-the-bound-test-asks-the-wrong-question.md) | The bound test asks whether the value is near the bound, not whether the bound bound | ⬜ | — |
+| [1434](wp/1434-the-bound-test-asks-the-wrong-question.md) | The bound test asks whether the value is near its limit, never whether the limit was binding | ⬜ | — |
 | [1435](wp/1435-a-hold-the-caller-declares.md) | A hold the caller declares, which a plan may not quietly override | ⬜ | — (1070 is the shape) |
 
 #### A long run is not one fit

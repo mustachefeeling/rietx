@@ -306,7 +306,9 @@ absolute test.
       (`tests/test_high_correlation_dedup.py`), and the manual's series
       chapter for `positions` and the derived-path export. No pinned-path
       fixture: that case moved to 1435 with the feature it needs.
-- [x] Skill: none. The two changes a driving agent would act on are the ones
+- [x] Skill: one row, in `references/series.md`, for what `to_table` now takes
+      and what it refuses (`api.md` regenerated with the docstring). Nothing
+      in the body: the two changes a driving agent would act on are the ones
       handed forward, and their WPs carry the rows. `BOUND_HIT`'s existing row
       still reads correctly — a bound on a converged result now means what the
       row already said it meant.

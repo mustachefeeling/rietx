@@ -1,4 +1,4 @@
-# WP-1434 — the bound test asks whether the value is near the bound, not whether the bound bound
+# WP-1434 — the bound test asks whether the value is near its limit, never whether the limit was binding
 
 Milestone: unscheduled · Status: ⬜
 Depends on: — (1310 landed the vector half; this is the tolerance half)
