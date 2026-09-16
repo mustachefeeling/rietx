@@ -48,6 +48,75 @@ export function num(v, d) {
   return (typeof v === 'number' && isFinite(v)) ? v.toFixed(d) : '—';
 }
 
+// An R factor is a percentage everywhere a person reads one: the GUI prints
+// it that way in its report, its series table and its peak list, and so does
+// every other Rietveld code. The fraction is the report layers' form, because
+// they are quoted into prose. A list row is the GUI's series table, so it
+// takes two decimals from there (`Series.svelte`) rather than inventing a
+// third spelling.
+export function pct(v, d) {
+  return (typeof v === 'number' && isFinite(v))
+    ? (v * 100).toFixed(d) + '%' : '—';
+}
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+// The clock time a reader can match against their own terminal, and the
+// column that tells forty rows of one batch apart (WP-1424). A batch names
+// every run the same thing, so the second a run started is the first fact
+// about it that differs — which is what the run directory is named after.
+//
+// Seconds only for a run started today. A time of day with no date on it is
+// a lie about a run from last week, and the date is what a reader wants of
+// one anyway; `ago` is still there, in the tooltip, for "how long ago".
+export function clock(t, now) {
+  if (!t) return '—';
+  const d = new Date(t * 1000);
+  const today = new Date((now === undefined ? Date.now() / 1000 : now) * 1000);
+  const two = n => String(n).padStart(2, '0');
+  const sameDay = d.getFullYear() === today.getFullYear()
+    && d.getMonth() === today.getMonth() && d.getDate() === today.getDate();
+  return sameDay
+    ? `${two(d.getHours())}:${two(d.getMinutes())}:${two(d.getSeconds())}`
+    : `${d.getDate()} ${MONTHS[d.getMonth()]}`;
+}
+
+// What a run is called. `label` is the working directory's name or the
+// project's (`RunRecorder._default_label`), and `legacy` means there was no
+// `meta.json` to read one from.
+export function runLabel(run) {
+  return run.label + (run.legacy ? ' · legacy' : '');
+}
+
+// What a run is called in a *list*, where it is one of many. A batch driven
+// from one directory gives every run the same label, so a column of them
+// names nothing; the series label — which pattern this run fitted — is the
+// one fact in the record that separates runs by the work rather than by the
+// clock, and it goes where the eye is. The strip has a slot of its own for
+// the series and so keeps the plain label in its label slot.
+//
+// Nothing here says what a *batch* member fitted, that being a caller's fact:
+// WP-1431 gives the caller a way to write one.
+export function rowName(run) {
+  return (run.status || {}).series_label || runLabel(run);
+}
+
+// Everything the record knows about which run this is, for the row's tooltip:
+// the label, the directory it was written to (`YYYYMMDD-HHMMSS-<pid>`, which
+// is the second it started), the command line that launched it, and where
+// that was run. A reader scanning identical rows hovers one of them, and this
+// is the answer.
+export function runTitle(run) {
+  const meta = run.meta || {};
+  const stamp = String(run.path).split('/').pop();
+  const lines = [`${runLabel(run)} · ${stamp}`];
+  if (meta.command) lines.push(meta.command);
+  if (meta.cwd) lines.push('in ' + meta.cwd);
+  lines.push(run.path);
+  return lines.join('\n');
+}
+
 // Δ/σ either way — it is what the fit minimised — and the flag changes only
 // what the axis is called (WP-1029)
 export function deltaTitle(weighted) {

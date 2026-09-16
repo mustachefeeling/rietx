@@ -19,6 +19,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import math
+import re
 import sys
 import time
 from pathlib import Path
@@ -644,3 +645,180 @@ def test_the_console_is_re_tailed_when_the_run_changes(browser, tmp_path):
 
     assert not errors, errors
     assert (first, second, back) == (10, 40, 10)
+
+
+
+# ----------------------------------------------------------------------
+# WP-1424: every number is drawn whole, and every row can be told apart
+#
+# `table-layout: fixed` makes a `<col>` width the cell's whole box, padding
+# included, so a column declared wide enough for its content is short by the
+# 14 px the cell pads with. Nothing about that is visible in the markup or to
+# a substring assertion: the cell renders, the text is in the DOM, and the
+# browser quietly replaces the last character with an ellipsis.
+#
+# What is measured is the ink against the room — the range rectangle of the
+# cell's contents against its content box — rather than `scrollWidth`, which
+# is the same as `clientWidth` for anything whose overflow is `visible` and so
+# reports 0 for a `<th>` whose heading is spilling into its neighbour.
+# ----------------------------------------------------------------------
+
+#: Every cell and slot, with how far its contents overrun the box.
+OVERFLOW = """() => {
+  const out = [];
+  const rng = document.createRange();
+  const add = (what, el) => {
+    const cs = getComputedStyle(el);
+    if (cs.display === 'none') return;
+    rng.selectNodeContents(el);
+    const pad = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
+    const room = el.clientWidth - pad;
+    const ink = rng.getBoundingClientRect().width;
+    out.push({what: what, over: +(ink - room).toFixed(2), room: room,
+              ink: +ink.toFixed(2), text: el.textContent.trim(),
+              title: el.getAttribute('title')});
+  };
+  const heads = [...document.querySelectorAll('#runs th')];
+  heads.forEach(th => add('th:' + th.textContent.trim(), th));
+  [...document.querySelectorAll('tr.run')].forEach((tr, r) =>
+    [...tr.children].forEach((td, i) =>
+      add(`td${r}:` + heads[i].textContent.trim(), td)));
+  [...document.querySelectorAll('#strip > *')].forEach(el =>
+    add('slot:' + el.id, el));
+  return out;
+}"""
+
+#: Which cells must fit and which may elide, by what fills them. A cell the
+#: page fills itself — a state word from a closed vocabulary, a number it
+#: formats, a clock time — has a worst case the CSS can be sized for, and a
+#: reader who cannot see all of it has simply been shown the wrong number. A
+#: cell holding a name somebody else chose has no worst case: a stage is the
+#: plan author's string (`preferred_orientation` is 21 characters), a label
+#: and a path are the caller's. Those may be cut, and what is asserted of them
+#: is that the whole string is in a `title` where the reader can still reach
+#: it.
+BOUNDED = ("state", "Rwp", "GoF", "started")
+ELIDED = ("run", "stage")
+BOUNDED_SLOTS = {"slot:s-state", "slot:s-rwp", "slot:s-gof", "slot:s-free",
+                 "slot:s-notice", "slot:stop"}
+
+
+def _batch(root: Path, *, n: int = 4) -> list[Path]:
+    """One label over several runs, which is what a batch looks like.
+
+    Every run here is one fit launched from one directory, so
+    `RunRecorder._default_label` gives them all the same word and the list
+    names nothing. The numbers are the maintainer's, off the 2026-09-16 demo:
+    an Rwp that reads `0.1734` in the old form, a GoF of `12.34`, and a start
+    time far enough back that the relative column says hours. The last run is
+    cancelled, for the longest word the state pill has.
+    """
+    made = []
+    now = time.time()
+    for i in range(n):
+        d = root / f"20260916-14{20 + i:02d}00-9{i}"
+        d.mkdir()
+        (d / runs.EVENTS_FILE).write_text(
+            json.dumps({"record": "event", "v": "2", "t": now - 10800 + i,
+                        "kind": "fit_start", "data": {}}) + "\n",
+            encoding="utf-8")
+        (d / runs.META_FILE).write_text(
+            json.dumps({"record": runs.RECORD_TAG, "label": "campaign",
+                        "created": now - 10800 + 60 * i,
+                        "cwd": "/Users/someone/work/campaign",
+                        "command": f"python fit_one.py candidate-{i}"}),
+            encoding="utf-8")
+        (d / runs.SNAPSHOT_FILE).write_text(
+            json.dumps(_snapshot("preferred_orientation", scale=0.83,
+                                 noise=6.0)), encoding="utf-8")
+        (d / runs.STATUS_FILE).write_text(
+            json.dumps({"state": "cancelled" if i == n - 1 else "done",
+                        "stage": "preferred_orientation", "rwp": 0.1734,
+                        "gof": 12.34, "n_free": 17, "index": 3,
+                        "n_stages": 3}), encoding="utf-8")
+        made.append(d)
+    return made
+
+
+def test_every_number_on_the_page_is_drawn_whole(browser, tmp_path):
+    """No cell the page fills itself is cut off, at either window size.
+
+    Measured on the page before WP-1424, in these two viewports, ink minus
+    room in CSS pixels: `GoF` over by 7.13 in every row, `state` by 0.62 on
+    the cancelled one, the `started` heading by 6.58, and `stage` by 20.67
+    with no title to recover it. In the strip, `s-where` over by 1127 at both
+    sizes — its `1fr` track had been squeezed to nothing, so the drawn-point
+    count and the path were not cut but absent. At 1000x700 `s-stage` went
+    with it, over by 136.95 with the stage name the reader is watching for.
+    """
+    _batch(tmp_path)
+    with _served(tmp_path) as base:
+        newest = max(runs.discover(tmp_path), key=lambda r: r.created)
+        page, errors = _pinned(browser, base, newest.run_id)
+        seen = {}
+        for width, height in ((1400, 900), (1000, 700)):
+            page.set_viewport_size({"width": width, "height": height})
+            page.wait_for_timeout(600)
+            seen[width] = page.evaluate(OVERFLOW)
+        page.close()
+
+    assert not errors, errors
+    # reported per column rather than per cell: forty rows cut the same way
+    # is one defect, and the widest cut is the one to size for
+    bad = {}
+    for width, cells in seen.items():
+        for c in cells:
+            what = c["what"].split(":")[1]
+            bounded = (what in BOUNDED or c["what"] in BOUNDED_SLOTS
+                       or c["what"].startswith("th:"))
+            if c["over"] <= 0.5:
+                continue
+            why = "cut" if bounded else "cut with no title"
+            if not bounded and c["title"]:
+                continue
+            where = (width, c["what"].split(":")[0].rstrip("0123456789")
+                     + ":" + what)
+            if c["over"] > bad.get(where, (0, ""))[0]:
+                bad[where] = (c["over"], why, c["text"])
+    assert not bad, sorted(bad.items())
+
+
+#: Every row's visible text, cell by cell, and the tooltip behind each.
+ROWS = """() => [...document.querySelectorAll('tr.run')].map(tr =>
+  [...tr.children].map(td => [td.textContent.trim(),
+                              (td.firstElementChild || td).getAttribute('title')]))"""
+
+
+def test_two_runs_of_one_batch_are_told_apart(browser, tmp_path):
+    """Forty runs of a batch carry one label, and the list must still name them.
+
+    `RunRecorder._default_label` calls a run after the directory it was
+    launched from, so a batch driven from one directory is forty rows reading
+    `campaign`, `campaign`, `campaign`. Nothing in the record says what a run
+    fitted — that is a caller's fact and WP-1431 gives the caller a way to
+    write it — but the record does know when each one started, to the second,
+    which is what the run directory is named after. So the started column is
+    a clock time rather than `3h ago`, and the row's tooltip carries the
+    directory, the command line and the working directory behind it.
+    """
+    made = _batch(tmp_path, n=6)
+    with _served(tmp_path) as base:
+        newest = max(runs.discover(tmp_path), key=lambda r: r.created)
+        page, errors = _pinned(browser, base, newest.run_id)
+        rows = page.evaluate(ROWS)
+        page.close()
+
+    assert not errors, errors
+    assert len(rows) == len(made)
+    # the label column is the same word on every row, which is the defect
+    assert len({r[1][0] for r in rows}) == 1
+    # and every row is still distinct, in a cell the reader can see
+    started = [r[5][0] for r in rows]
+    assert len(set(started)) == len(rows), started
+    assert all(re.fullmatch(r"\d\d:\d\d:\d\d", s) for s in started), started
+    # the tooltip is where the rest of the record is
+    titles = [r[1][1] for r in rows]
+    assert len(set(titles)) == len(rows), titles
+    for i, title in enumerate(sorted(titles)):
+        assert "fit_one.py candidate-" in title, title
+        assert "in /Users/someone/work/campaign" in title, title

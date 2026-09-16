@@ -145,23 +145,23 @@ it lands here because 1425 is several WPs away.
 
 ## Tasks
 
-- [ ] Browser test: for every cell and strip slot, `scrollWidth <= clientWidth`
+- [x] Browser test: for every cell and strip slot, `scrollWidth <= clientWidth`
       over a fixture whose Rwp is `0.1734`, GoF `12.34`, and started `3h ago`;
       record which cells fail today and by how many pixels, in the handover
-- [ ] The toggles renamed `list` and `detail`, with titles
-- [ ] The list: Rwp and GoF as the GUI prints them (percent, decimals chosen
+- [x] The toggles renamed `list` and `detail`, with titles
+- [x] The list: Rwp and GoF as the GUI prints them (percent, decimals chosen
       from the measurement), widths that hold the content plus the padding,
       `<th scope="col">` on the headings
-- [ ] The list: a column that tells runs apart. The run directory's stamp
+- [x] The list: a column that tells runs apart. The run directory's stamp
       (`HHMMSS`, the date only when it is not today) or the series label,
       with the full stamp, command and cwd in the row's `title`; started
       becomes a `<time datetime>` clock time, relative only in the tooltip
-- [ ] The strip: the drawn-point count moves off the strip onto the picture
+- [x] The strip: the drawn-point count moves off the strip onto the picture
       (a plotly annotation in a corner, or a legend entry), the `1fr` slot
       carries the `gui_command` alone, and the path stays the label's tooltip
 - [ ] Manual: `docs/manual/using/cli.md` § `rietx watch` names the columns as
       they are now; `make_screenshots.py` re-shoots the page
-- [ ] Skill: none. The page is a human's; an agent driving rietx never reads it.
+- [x] Skill: none. The page is a human's; an agent driving rietx never reads it.
 
 ## Acceptance
 
