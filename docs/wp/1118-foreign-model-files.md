@@ -450,12 +450,21 @@ opposite of what this repo's `.EXP` reader said about it.
 *Measured* — this worktree's `.venv`, `[dev]` only (no jax, no torch), python
 3.12.12, darwin/arm64, alone on the machine (checked with `ps aux | grep`).
 
-- Fast selection `-n auto --dist loadgroup -m "not slow"`: **4990 passed, 132
-  skipped**, 2:13. The delta is exact and derived per file: 37 new tests plus
-  **2** parametrised cases the new registry member adds to
+- Fast selection `-n auto --dist loadgroup -m "not slow"`, on **current main
+  merged into this branch**, which is the only tree anything ever tests that
+  resembles what lands: **4997 passed, 133 skipped**, 2:10. On the bare branch
+  before the merge it was 4990/132.
+  The delta is derived per file rather than by re-measuring `main`. This
+  session added **45**: 39 in `test_projects_gsas2.py`, 3 in
+  `test_projects_gsas.py` and 1 in `test_gsas_prm.py` (the last four from the
+  review pass), plus **2** parametrised cases the new registry member adds to
   `test_projects_registry.py` (`[gsas2_gpx]` on the `reports_at` and
-  declared-field rows), against the 4951 the previous session measured on the
-  branch that is now `origin/main`. No new skip.
+  declared-field rows). Against the 4951 the previous session measured on the
+  branch that is now `origin/main`, that is 4996, and the merge with WP-1423's
+  main accounts for the remaining +1 pass and the one new skip — **which is
+  WP-1423's, not this session's**: nothing here added a skip. Two parents'
+  additions do not sum, so the 4997 is quoted as the merged tree's figure and
+  not as either parent's.
 - `tests/test_acceptance_fap.py`: 3 passed, 3.19 s. It reads its protocol from
   the `.EXP` reader, which this session touched (comments only), so it is the
   row that would notice.
