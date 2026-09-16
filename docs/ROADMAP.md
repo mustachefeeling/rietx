@@ -96,14 +96,14 @@ the same scans would make Stoe writable.
 
 **In flight:** [1118](wp/1118-foreign-model-files.md) landed the GSAS-II `.gpx`
 reader 2026-09-16 (#234); its corpus pass corrected the `.EXP` reader's own GOF
-claim. The writers (#148) and `STR(...)` (#107) stand. The **live-watcher track
-is closed on the code and owes one decision**: 1413 took recording to
-1.03-1.23x (`nac` still over WP-1404's 1.05x gate, its six snapshots costing
-50 ms of a 17.7 ms budget), and
-[1423](wp/1423-a-page-that-holds-still.md) reworked the page 2026-09-16 after
-the live demo; the maintainer's reading of it opens 1424–1431 (§ A window into
-a run), 1428 carrying a decision. **The other open question is for the
-maintainer** — write the snapshot every stage, or less often.
+claim. The writers (#148) and `STR(...)` (#107) stand. The **live-watcher
+track's page is files now**: [1430](wp/1430-the-page-is-a-file.md) took it out
+of its python string 2026-09-16, so the seven queued behind it edit a `.mjs` an
+editor lints and a test imports — 1426, 1424, 1431, 1425, 1429, 1427, 1428, in
+that order (§ A window into a run). **Two questions there are the
+maintainer's**: 1428's, and whether to write the snapshot every stage or less
+often — 1413 left `nac` over WP-1404's 1.05x gate, six snapshots costing 50 ms
+of a 17.7 ms budget.
 
 **Queued, unscheduled** ([§ Unscheduled](#unscheduled)): the 2026-09-01
 triage's 1309–1322 plus 1323 and 1325; the 2026-09-03 triage's 1332–1341; the
@@ -640,8 +640,8 @@ carries is whether 1327's non-goal becomes a sequencing statement.
 
 #### A window into a run — the live-watcher track
 
-Eight rungs shipped 2026-09-13 to 2026-09-16. The 2026-09-16 reading adds eight
-more, in order: 1430, 1426, 1424, 1431, 1425, 1429, 1427, 1428 (a decision).
+Nine rungs shipped 2026-09-13 to 2026-09-16, 1430 last. Seven are left, in
+order: 1426, 1424, 1431, 1425, 1429, 1427, 1428 (a decision).
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
@@ -653,7 +653,7 @@ more, in order: 1430, 1426, 1424, 1431, 1425, 1429, 1427, 1428 (a decision).
 | [1406](wp/1406-say-that-the-fit-writes-to-disk.md) | Say that the fit writes to disk | ✅ 2026-09-15 | 1403, 1405 (1402 soft) |
 | [1413](wp/1413-the-snapshot-is-what-recording-costs.md) | The snapshot is what recording costs | ✅ 2026-09-15 | 1404, 1402 |
 | [1423](wp/1423-a-page-that-holds-still.md) | A page that holds still | ✅ 2026-09-16 | 1405, 1402 |
-| [1430](wp/1430-the-page-is-a-file.md) | The page is a file | 🔄 2026-09-16 | 1423 |
+| [1430](wp/1430-the-page-is-a-file.md) | The page is a file | ✅ 2026-09-16 | 1423 |
 | [1426](wp/1426-still-under-resize-and-across-a-stage.md) | Still under resize, and across a stage | ⬜ | 1430, 1423 |
 | [1424](wp/1424-a-row-that-names-its-run.md) | A row that tells its run apart, and a number that fits its slot | ⬜ | 1430 (1423 soft) |
 | [1431](wp/1431-a-caller-names-its-run.md) | A caller names its run | ⬜ | 1424 |
