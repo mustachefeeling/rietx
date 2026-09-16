@@ -184,8 +184,11 @@ column wants a wider declared share of a panel that is now the reader's.
       the stored key migrated or dropped
 - [x] Browser test: drag moves the seam, reload keeps it, a 900 px viewport
       re-clamps it, the plot's inner size follows
-- [ ] Manual: `docs/manual/using/cli.md` § `rietx watch` and the screenshot
-- [ ] Skill: none. The page is a human's.
+- [x] Manual: `docs/manual/using/cli.md` § `rietx watch`; **there is no
+      screenshot of this page to update** — every entry in
+      `make_screenshots.py`'s `SHOTS` is of the GUI, and `cli.md` carries no
+      image at all
+- [x] Skill: none. The page is a human's.
 
 ## Acceptance
 
