@@ -10,7 +10,9 @@ refuses an out-of-range value naming the file; the GSAS-II `.gpx` reader landed
 2026-09-16 behind a restricted unpickler (#234), whose corpus pass corrected the
 `.EXP` reader's GOF claim; origin-choice honesty closed #101 the same day, a
 `.gpx` now reading the setting its operators state and the `.EXP`/`.inp`
-readers reporting the one they assume; every writer remains
+readers reporting the one they assume; the TOPAS and FullProf writers landed
+the same day, each the inverse of its own reader; GSAS `.EXP`/`.PRM` and
+GSAS-II still have no writer
 Depends on: — (WP-1110 found it; WP-1102 owns the one seam that overlaps)
 
 ## Goal
@@ -454,6 +456,224 @@ work this WP does.
   § "Learned in v0.2".
 
 ## Handover log
+
+### 2026-09-16 (3rd session) — the writers begin: TOPAS and FullProf write back what they read
+
+Someone can now take a rietx model and hand it back to TOPAS or FullProf in
+their own language. Before this session the translation only ran one way:
+rietx could read someone else's `.inp` or `.pcr` and build a Structure from
+it, but there was no way back, so a model built or edited in rietx stayed
+here. `rx.write_topas_inp` and `rx.write_fullprof_pcr` close that loop for
+two of the four target formats, each the exact inverse of its own reader:
+same phases, same cell, same atoms, and the part a CIF cannot carry at all,
+which parameters were free. GSAS `.EXP`/`.PRM` and GSAS-II still have no
+writer.
+
+*Done* — two commits, `6538d91e` (TOPAS) and `abea74c7` (FullProf), on this
+branch.
+
+- `io/projects/topas.py` gains `from_structure`/`write_topas_inp` (+101
+  lines): a phase's cell and every atom's coordinates, occupancy and
+  displacement (isotropic `beq`, or the full `u11`…`u23` tensor behind the
+  same `aniso=True` opt-in `to_structure` takes), each `Parameter.vary`
+  written as TOPAS's own `@`/`!` flag, never a bare backtick, so no symbol
+  table is needed to recover it. `rx.write_topas_inp` is a top-level export;
+  `from_structure` stays module-level, matching `io/projects/__init__.py`'s
+  own comment, already in the tree before this session, naming this as the
+  shape a `from_structure` should take.
+- `io/projects/fullprof.py` gains the same pair (+184 lines). FullProf's
+  `.pcr` is whitespace-tokenized like TOPAS but strictly *positional*, with
+  no keyword to resynchronise on, so every control/output/pattern/cycle/
+  background line the reader expects has to exist even though a `Structure`
+  carries no information for most of them; the writer fills those with safe,
+  inert placeholders. Every free parameter gets its own codeword (`10*n+1`,
+  `n` counting up), never a shared tie, since a `Structure` carries no
+  record of which parameters a refinement tied and `to_structure` only ever
+  *reports* a dropped tie rather than needing one restored.
+- Both writers discharge the banked obligation this WP file already named:
+  space groups are written `get_spacegroup(phase.space_group).xhm()`, never
+  the phase's stored string ([1324](1324-symmetry-silences.md)). FullProf's
+  format has **no way to spell an origin or axis suffix at all** — a bare
+  symbol can only read back as whatever `normalize_space_group` already
+  prefers (choice 2, and `:R` only where the cell metric says so) — so
+  `write_fullprof_pcr` refuses a phase whose resolved setting a bare symbol
+  cannot reach, checked by literally calling `normalize_space_group` on the
+  candidate output rather than by a heuristic. TOPAS's `Z`/`S`/`R`/`H`
+  suffixes carry every setting, so no such refusal exists there.
+- Both refuse an anisotropic site their own `to_structure` cannot build
+  either — FullProf always, since its β_ij convention is exactly what
+  `to_structure` refuses to assume on the way in; TOPAS only where the
+  caller writes a `Structure` with `atom.aniso` set, since TOPAS's own
+  `to_structure` *can* build one behind `aniso=True` and the writer carries
+  it the same way.
+- FullProf's `Occ` column is discarded by `to_structure` regardless of what
+  a file states (every atom always comes back fully occupied), so the writer
+  computes it from each site's own multiplicity (`M_site / M_general`), the
+  only value that makes every atom's ratio equal to 1 and so passes
+  `occupancy_factor`'s consistency check, rather than carrying a chemical
+  occupancy the `Structure` schema has no field for.
+- Round-trip acceptance for both: no committed fixture, matching the
+  existing reader tests' own convention (both corpora are private research
+  inputs) — every `Structure` is built by hand in the test, written,
+  re-read through the real reader, and compared field by field.
+  `tests/test_projects_topas.py` +8 test functions (307 collected total);
+  `tests/test_projects_fullprof.py` +9 test functions / +10 collected items
+  (one parametrized ×2; 147 collected total).
+- Docs: `docs/manual/using/files.md` gained a "Writing one back" section
+  (both formats, one code example each) and the provisional-names
+  admonition now lists both writers; `docs/skill/make_api_index.py`'s
+  `SECTIONS` grew a paragraph and both entry-point names, regenerated into
+  `docs/skill/rietx/references/api.md` (34 502 B of 36 000, 1 498 B free)
+  and synced to both committed copies with `rietx skill --install . --copy`.
+
+*Reviewed* — `/code-review high --fix` over the branch diff plus the
+uncommitted writer work. It ran five finder angles; four returned promptly
+and one (a line-by-line scan) took roughly fourteen minutes, so the report
+arrived in two waves — the second amending the first's counts rather than
+replacing them, which is recorded here rather than silently reconciled.
+Ten findings fixed, two left as notes.
+
+- **Two real round-trip holes, one per format, both closed.** Neither
+  writer checked an atom's `label`/`species` for a character the target
+  format treats as structural. TOPAS: an unquoted `'` opens a line comment
+  (`strip_comments`), so `"O'Brien"` would silently drop x/y/z/occ/beq for
+  that site with nothing raised. FullProf: any of `!`/`#`/`<--` cuts the
+  line at `_strip()`, the same class this writer already guarded on
+  `phase.name` but had not extended to an atom's own fields. Both now
+  refuse, naming the character.
+- **A blank FullProf phase name** would strip to nothing and vanish from
+  the reader's own blank-line filter, silently shifting every line after it
+  up by one — refused, the same "positional format, no line may disappear"
+  reasoning the placeholder-lines design already rests on.
+- **Whitespace in a label/species**, for both formats — the class I had
+  already caught for FullProf but had not written for TOPAS; the review
+  added TOPAS's and confirmed FullProf's.
+- **A negative `biso`**, for both formats: each reader's own `to_structure`
+  refuses one on the way in, so writing one out would only fail later, at
+  the read, with the file already on disk and the caller's error message
+  pointing at the wrong function.
+- **The distribution name was spelled `"rietx"` literally** in each
+  writer's file-header comment line, against root CLAUDE.md's own rule
+  ("never spell the distribution name … import it from `_about.py`"), which
+  I missed writing it the first time. Both now import `DIST_NAME`.
+- **FullProf's placeholder Cu Kα1/Kα2** were typed as separate literals
+  (1.540560/1.544390) instead of the package's own canonical
+  `schemas.instrument._KA_DOUBLETS["CuKa"]` (1.5405929/1.5444274) — inert
+  either way (`to_structure` never reads this line into a `Structure`), but
+  a second, independently-sourced copy of a number the package already
+  carries once is exactly the class root CLAUDE.md's numbers rule warns
+  about. The first wave noted this and deliberately left it; the second
+  wave judged it cheap enough to fix and did.
+- **A dead helper** (`_pair`, an unused early draft of `_free_or_held`) and
+  **a comment describing an absence rather than the line it sat on**
+  (`# Nex = 0: no excluded-region lines.` sitting directly above the
+  *required* refined-parameter-count line) were both cleaned up.
+- Two items noted and deliberately left: `capabilities()` has no field
+  naming which project formats support writing, which is this WP's own
+  still-open "capabilities() arm" task rather than a defect in this diff;
+  and the FullProf writer's inline `dict(k=v, …)` placeholder literals
+  restate field names as a second spelling of `_PHASE_FIELDS`/`_CONTROL_
+  FIELDS`/etc. rather than the reader's `dict(zip(_FIELDS, values,
+  strict=True))` shape — cosmetic, no observed defect.
+- One thing surfaced and left for the record rather than fixed: `Parameter.
+  value` may legally be `+inf` (unreachable from a converged fit — softplus
+  bounds prevent it — but not schema-refused), and both writers would emit
+  Python's `inf` token, which neither real program parses. A design
+  question, not a one-line fix.
+- I read every hunk both waves produced before accepting it, then found and
+  fixed one thing the review's own docstring updates missed: FullProf's
+  docstring still said "Four refusals" after the second wave added three
+  more (blank name, both comment-marker checks) without updating the count
+  or narrating them, and TOPAS's said "Two refusals besides the phase-name
+  quote check" after gaining a third (the single quote). Both counts and
+  narrations are corrected in this branch.
+
+*Measured* — this worktree's `.venv`, `[dev]` only (no jax, no torch),
+python 3.12.12, darwin/arm64.
+
+- Fast selection `-n auto --dist loadgroup -m "not slow"`, run four times
+  across the session as work landed: **5040** (TOPAS alone) → **5046**
+  (+ FullProf) → **5050** (+ my own four refusal tests) → **5053** (+ the
+  review's three), **133 skipped** throughout, final run 2:11. Every
+  delta is exactly the collected test items the intervening edit added;
+  nothing else moved. This worktree was fresh off `origin/main` at the
+  session's start and the fast suite was not run before the first edit, so
+  there is no true pre-session baseline on this tree; the per-file counts
+  in *Done* are quoted instead (`tests/CLAUDE.md`'s own preference). Wall
+  clock is quoted without a same-machine `ps aux` check at the moment each
+  run fired, so these are figures rather than confirmed-alone ones.
+- `tests/test_manual.py`, `tests/test_manual_api.py`, `tests/test_skill.py`,
+  `tests/test_skill_cli.py`, `tests/test_docs_consistency.py`: all green on
+  the final tree. One catch worth recording: the manual's zero-em-dash
+  register test (`test_the_manual_keeps_its_register`) caught two em dashes
+  in the first draft of the new manual section — the guard worked exactly
+  as designed.
+- No full selection: nothing here can move a fit result or any existing
+  measured number — both commits add pure I/O functions with no caller
+  inside the package, the same reasoning the GSAS-II `.gpx` reader session
+  gave for skipping it.
+
+*Gotchas* — three, each a place the next session on the writers task should
+not assume.
+
+- **The writer's refusals raise plain `ValueError`, not
+  `TopasInpError`/`FullProfPcrError`.** Deliberate: those classes' own
+  docstrings say "naming the file and the offending line" / "naming the
+  file, never its parser's exception" — read-side semantics for a file on
+  disk, and a writer has no file or line to name, only a `Structure`
+  already in memory. Revisit if a caller wants to catch one error type
+  across both directions.
+- **FullProf's `Occ` write-back is unverifiable by round trip, on purpose**:
+  `to_structure` discards the column entirely (every atom always comes back
+  at `occ = 1.0`), so the value the writer computes (`M_site/M_general`) is
+  never actually checked by re-reading it, only that it does not trip
+  `occupancy_factor`'s consistency refusal. If a future consumer ever reads
+  `FullProfModel.phases[i].atoms[j].values["occ"]` directly (bypassing
+  `to_structure`), the written number should be checked against what a real
+  file states for the same site, not just internal consistency.
+- **Neither writer refuses `+inf`.** A `Parameter.value` of `+inf` is legal
+  schema-side and unreachable from a converged fit (softplus bounds prevent
+  it), but not schema-refused on an arbitrary hand-built `Structure`, and
+  both writers would emit Python's `inf` token, which neither TOPAS nor
+  FullProf parses. Surfaced by the review pass and left as a design
+  question rather than a one-line fix — it is not clear yet whether the
+  right answer is a refusal (matching the other seven) or a `NaN`/`inf`
+  handling convention shared with the CIF exporter.
+
+*Next*, in order, with what decides between them.
+
+1. **GSAS `.EXP`/`.PRM` and GSAS-II (`.instprm` + CIF) writers**, the two
+   remaining formats on the writers task (#148). GSAS `.EXP` is a fixed
+   80-character-card format (`io/CLAUDE.md`'s GSAS row, Fortran `FORMAT`
+   widths) rather than whitespace-tokenized like TOPAS and FullProf — a
+   different and more failure-prone class of work, since a wrong column
+   width corrupts silently rather than raising, and it deserves its own
+   session rather than being rushed at the tail of this one. GSAS-II's
+   write target was already decided in this file's Context section
+   (`.instprm` text + a CIF-shaped structure via the existing
+   `write_refinement_cif`), but **no `.instprm` reader exists yet** — only
+   the binary `.gpx` and GSAS-I's own `.prm` are read — so that direction
+   needs a small reader built alongside the writer to close its own round
+   trip, which TOPAS and FullProf did not need. `capabilities()` still names
+   no field for which formats support writing (raised by the review pass,
+   not new this session) — worth deciding once all four writers exist
+   rather than growing the arm twice.
+2. **The `#prm`-only integer evaluator for `.inp` `#if` guards is blocked
+   on a source, not on design.** Its grammar (`#if (#out pattern_count >
+   1)`, a `Run_Number` guard) is in the TOPAS Technical Reference §19,
+   which this session does not have access to and should not guess at —
+   root CLAUDE.md's rule and this project's own licence fence both say the
+   reference is read, not inferred from archive files a reader may not
+   even see. Ask the maintainer for the §19 pages on `#if`/`#prm` before
+   starting this one.
+3. Fixtures with provenance rows for TOPAS and FullProf: nothing appears
+   to be owed here for what landed this session. Both writer tests already
+   follow the existing reader tests' own convention (inline synthetic
+   fixtures, no committed file, per each module's own docstring) — the
+   WP's fixture task is about committing real corpus files where a
+   redistribution grant exists, which TOPAS's and FullProf's private
+   archives do not have regardless of what a writer adds.
+
 
 ### 2026-09-16 (2nd session) — the setting a file states, and the question the issue had already answered
 

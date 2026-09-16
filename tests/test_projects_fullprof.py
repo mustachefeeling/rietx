@@ -2061,5 +2061,53 @@ def test_write_fullprof_pcr_refuses_an_anisotropic_site(tmp_path):
         from_structure(structure)
 
 
+def test_write_fullprof_pcr_refuses_a_label_or_species_with_whitespace(tmp_path):
+    """A `.pcr` atom line is whitespace-tokenized, so an embedded space would
+    desynchronise every column after it."""
+    atom = rx.Atom(label="Al 1", species="Al", x=rx.Parameter(value=0.0),
+                   y=rx.Parameter(value=0.0), z=rx.Parameter(value=0.0))
+    structure = rx.Structure(phases=[rx.Phase(
+        name="Al", space_group="Fm-3m", cell=rx.Cell.cubic(4.0495), atoms=[atom])])
+    with pytest.raises(ValueError, match="whitespace"):
+        from_structure(structure)
+
+
+def test_write_fullprof_pcr_refuses_a_negative_biso(tmp_path):
+    """`to_structure` itself refuses a negative Biso on the way in, so
+    writing one would only fail later, at the read, with the file already on
+    disk."""
+    atom = rx.Atom(label="Al1", species="Al", x=rx.Parameter(value=0.0),
+                   y=rx.Parameter(value=0.0), z=rx.Parameter(value=0.0),
+                   biso=rx.Parameter(value=-0.1, min=-1.0, max=25.0))
+    structure = rx.Structure(phases=[rx.Phase(
+        name="Al", space_group="Fm-3m", cell=rx.Cell.cubic(4.0495), atoms=[atom])])
+    with pytest.raises(ValueError, match="negative"):
+        from_structure(structure)
+
+
+def test_write_fullprof_pcr_refuses_a_blank_phase_name():
+    """The phase-name line is comment-stripped like every other line in a
+    `.pcr`, so a blank name leaves nothing on it: `_strip` drops the line
+    from the positional walk entirely rather than reading it as an empty
+    name, desynchronising every line after it."""
+    atom = rx.Atom(label="Al1", species="Al", x=rx.Parameter(value=0.0),
+                   y=rx.Parameter(value=0.0), z=rx.Parameter(value=0.0))
+    structure = rx.Structure(phases=[rx.Phase(
+        name="   ", space_group="Fm-3m", cell=rx.Cell.cubic(4.0495), atoms=[atom])])
+    with pytest.raises(ValueError, match="blank"):
+        from_structure(structure)
+
+
+def test_write_fullprof_pcr_refuses_a_comment_marker_in_an_atom_label():
+    """The same `!`/`#`/`<--` markers refused in a phase name also cut a
+    `.pcr` atom line, since `_strip` applies to every data line alike."""
+    atom = rx.Atom(label="Fe#1", species="Fe3+", x=rx.Parameter(value=0.0),
+                   y=rx.Parameter(value=0.0), z=rx.Parameter(value=0.0))
+    structure = rx.Structure(phases=[rx.Phase(
+        name="FeO", space_group="Fm-3m", cell=rx.Cell.cubic(4.0495), atoms=[atom])])
+    with pytest.raises(ValueError, match="comment marker"):
+        from_structure(structure)
+
+
 def test_write_fullprof_pcr_is_reachable_at_the_top_level():
     assert rx.write_fullprof_pcr is write_fullprof_pcr

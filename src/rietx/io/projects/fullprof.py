@@ -2367,25 +2367,47 @@ def from_structure(structure: Structure) -> str:
     :func:`occupancy_factor`'s consistency check) rather than carrying the
     source ``Structure``'s (nonexistent) chemical occupancy.
 
-    Two refusals, each naming what FullProf's grammar cannot state. An
-    anisotropic site: FullProf's β_ij convention is exactly what
-    :func:`to_structure` itself refuses to assume on the way in, so writing
-    one would assume the convention this reader declines to read back. And a
-    space group whose resolved setting a bare symbol cannot reach: FullProf
-    writes no origin or axis suffix at all, so :func:`normalize_space_group`
-    always *prefers* origin choice 2 over a bare symbol landing on choice 1,
-    and the rhombohedral axes only where the cell metric already says so —
-    there is no way to spell "no, choice 1" in this format. The check is not
-    a heuristic: it calls :func:`normalize_space_group` on the candidate bare
-    symbol and this phase's own cell, the same call :func:`read_fullprof_pcr`
-    will make, and refuses unless that reproduces
-    ``get_spacegroup(phase.space_group).xhm()`` exactly.
+    Seven refusals, each naming what FullProf's grammar cannot state, or
+    what this same module's own reader would refuse on the way back in. A
+    blank phase name: the name line is comment-stripped like every other
+    line, so a name that strips to nothing leaves the line blank and the
+    reader's own blank-line filter drops it from the positional walk
+    entirely, desynchronising everything after it rather than raising. A
+    phase name, or an atom's label or species, carrying one of FullProf's
+    comment markers (``!``/``#``/``<--``): the reader cuts a line at the
+    first one it meets, so the rest of that line, codeword and all, would
+    silently vanish. An anisotropic site: FullProf's β_ij convention is
+    exactly what :func:`to_structure` itself refuses to assume on the way
+    in, so writing one would assume the convention this reader declines to
+    read back. A space group whose resolved setting a bare symbol cannot
+    reach: FullProf writes no origin or axis suffix at all, so
+    :func:`normalize_space_group` always *prefers* origin choice 2 over a
+    bare symbol landing on choice 1, and the rhombohedral axes only where
+    the cell metric already says so — there is no way to spell "no, choice
+    1" in this format. The check is not a heuristic: it calls
+    :func:`normalize_space_group` on the candidate bare symbol and this
+    phase's own cell, the same call :func:`read_fullprof_pcr` will make, and
+    refuses unless that reproduces ``get_spacegroup(phase.space_group).xhm()``
+    exactly. An atom's label or species carrying whitespace: a ``.pcr`` atom
+    line is whitespace-tokenized, so an embedded space would desynchronise
+    every column after it. And a negative ``biso``: :func:`to_structure`
+    refuses one on the way in (§ above), so writing one here would only fail
+    later, at the read, with the file already on disk.
     """
     import numpy as np
 
+    from ..._about import DIST_NAME
     from ...crystallography.symmetry import expand_positions, get_spacegroup
+    from ...schemas.instrument import _KA_DOUBLETS
 
     for phase in structure.phases:
+        if not phase.name.strip():
+            raise ValueError(
+                f"phase name {phase.name!r} cannot be written to a FullProf "
+                f".pcr: the phase-name line is comment-stripped like every "
+                f"other line, so a blank name leaves nothing on it and the "
+                f"line is dropped from the positional walk entirely — "
+                f"desynchronising every line after it rather than raising")
         for marker in ("!", "#", "<--"):
             if marker in phase.name:
                 raise ValueError(
@@ -2393,6 +2415,14 @@ def from_structure(structure: Structure) -> str:
                     f"FullProf .pcr: it contains {marker!r}, which the reader "
                     f"takes as a comment marker and cuts the line there")
         for atom in phase.atoms:
+            for marker in ("!", "#", "<--"):
+                if marker in atom.label or marker in atom.species:
+                    raise ValueError(
+                        f"phase {phase.name!r}: atom label {atom.label!r} / "
+                        f"species {atom.species!r} contains {marker!r}, which "
+                        f"a .pcr atom line takes as a comment marker and cuts "
+                        f"the line there — the same reason the phase name is "
+                        f"refused this marker above")
             if atom.aniso is not None:
                 raise ValueError(
                     f"phase {phase.name!r}: atom {atom.label!r} carries an "
@@ -2403,6 +2433,22 @@ def from_structure(structure: Structure) -> str:
                     f"one would assume a convention this reader refuses to "
                     f"read back — the same refusal to_structure makes on the "
                     f"way in.")
+            if any(ch.isspace() for ch in atom.label) or any(
+                    ch.isspace() for ch in atom.species):
+                raise ValueError(
+                    f"phase {phase.name!r}: atom label {atom.label!r} / "
+                    f"species {atom.species!r} contains whitespace, which a "
+                    f".pcr atom line cannot carry — the line is "
+                    f"whitespace-tokenized and a space inside either field "
+                    f"desynchronises every column after it")
+            if atom.biso.value < 0.0:
+                raise ValueError(
+                    f"phase {phase.name!r}: atom {atom.label!r} has Biso = "
+                    f"{atom.biso.value}, and read_fullprof_pcr's own "
+                    f"to_structure refuses a negative Biso on the way back "
+                    f"in (it bounds biso at zero) — writing this file would "
+                    f"only fail later, at the read, rather than here where "
+                    f"the value is still in hand")
 
     counter = [0]
 
@@ -2412,9 +2458,6 @@ def from_structure(structure: Structure) -> str:
 
     def _free_or_held(param: Parameter) -> float:
         return _code() if param.vary else 0.0
-
-    def _pair(param: Parameter) -> str:
-        return f"{param.value!r} {_free_or_held(param)!r}"
 
     body: list[str] = []
     # The zero-shift line: value/codeword interleaved, four pairs. Nothing a
@@ -2480,13 +2523,19 @@ def from_structure(structure: Structure) -> str:
         body.append("0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0")
         body.append("0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0")
 
-    lines: list[str] = ["COMM Written by rietx.io.projects.fullprof.write_fullprof_pcr"]
+    lines: list[str] = [f"COMM Written by {DIST_NAME}.io.projects.fullprof.write_fullprof_pcr"]
     control = dict(job=0, npr=0, nph=len(structure.phases), nba=2, nex=0,
                    nsc=0, nor=0, dum=0, iwg=0, ilo=0, ias=0, res=0, ste=0,
                    nre=0, cry=0, uni=0, cor=0, opt=0, aut=0)
     lines.append(" ".join(str(control[k]) for k in _CONTROL_FIELDS))
     lines.append(" ".join("0" for _ in _OUTPUT_FIELDS))
-    pattern = dict(lambda1=1.540560, lambda2=1.544390, ratio=0.5, bkpos=40.0,
+    # Cu Kα1/Kα2 from the package's own canonical anode table — never a
+    # second, independently-sourced pair — even though `to_structure` never
+    # reads this line back into a `Structure` at all (a `Structure` carries
+    # no `Instrument`, so this whole line is an inert placeholder for the
+    # reader's positional walk regardless of which anode it names).
+    ka1, ka2 = _KA_DOUBLETS["CuKa"]
+    pattern = dict(lambda1=ka1, lambda2=ka2, ratio=0.5, bkpos=40.0,
                    wdt=8.0, cthm=1.0, mur=0.0, asylim=50.0, rpolarz=0.0,
                    mur2=0.0)
     lines.append(" ".join(repr(pattern[k]) for k in _PATTERN_FIELDS))
@@ -2496,7 +2545,11 @@ def from_structure(structure: Structure) -> str:
     # Nba = 2, a flat two-point background — the minimum this reader accepts.
     lines.append("5.0 10.0 0.0")
     lines.append("155.0 10.0 0.0")
-    # Nex = 0: no excluded-region lines.
+    # Nex = 0, so no excluded-region lines follow the background — then the
+    # refined-parameter count `_read_phase`'s caller reads next
+    # (`cur.floats("the refined-parameter count", ...)`), which is a
+    # required line regardless of Nex and is `counter[0]`, the number of
+    # codewords this writer actually handed out.
     lines.append(str(counter[0]))
     lines.extend(body)
     return "\n".join(lines) + "\n"

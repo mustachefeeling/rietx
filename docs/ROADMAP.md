@@ -97,7 +97,8 @@ the same scans would make Stoe writable.
 **In flight:** [1118](wp/1118-foreign-model-files.md) landed the GSAS-II `.gpx`
 reader 2026-09-16 (#234) and closed #101 with it, its operators stating the
 setting its symbol cannot; that pass corrected the `.EXP` reader's own GOF
-claim. The writers (#148) and `STR(...)` (#107) stand. The **live-watcher
+claim. The writers (#148) are half landed (TOPAS, FullProf). `STR(...)`
+(#107) stands. The **live-watcher
 track's page is files now**: [1430](wp/1430-the-page-is-a-file.md) took it out
 of its python string 2026-09-16, so the seven queued behind it edit a `.mjs` an
 editor lints and a test imports — 1426, 1424, 1431, 1425, 1429, 1427, 1428, in
