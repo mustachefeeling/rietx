@@ -25,6 +25,33 @@ export function esc(s) {
 // panel. Anything that is not `#rgb` or `#rrggbb` comes back unchanged: a
 // palette is data off the wire, and a colour this cannot read is better drawn
 // as itself than dropped.
+/**
+ * The plot's colours, read from the custom properties `tokens.css` declares.
+ *
+ * The same shape as the GUI's `curveColors` (`gui/src/lib/plot.ts`) and for the
+ * same reasons: the plot samples these at *draw* time, because a theme change
+ * restyles the page by CSS alone while a canvas keeps whatever colours it was
+ * painted with, and `read` is injected so this stays a pure function.
+ *
+ * No fallbacks, which is where it differs. The GUI's are for jsdom, a page with
+ * no stylesheet at all; this page has one or is unstyled, and a fallback here
+ * would be a fourth copy of the light palette for a case where every other
+ * colour on the page is missing too.
+ *
+ * `grid` is `--line` and not `--plot-zero`: the GUI draws its gridlines in the
+ * chrome's rule colour and keeps `--plot-zero` for the residual's zero, which
+ * is a mark about the data. `band` is `--ok` — the ±3σ rectangle says the
+ * residual is inside expectation, and the GUI has no counterpart to quote.
+ */
+export function paletteFrom(read) {
+  const pick = (name) => (read(name) || '').trim();
+  return {
+    obs: pick('--plot-obs'), calc: pick('--plot-calc'), bkg: pick('--plot-bkg'),
+    diff: pick('--plot-diff'), zero: pick('--plot-zero'), grid: pick('--line'),
+    fg: pick('--fg'), ground: pick('--bg'), band: pick('--ok'),
+  };
+}
+
 export function withAlpha(hex, alpha) {
   const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(String(hex).trim());
   if (!m) return hex;

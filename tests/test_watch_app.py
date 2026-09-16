@@ -27,6 +27,7 @@ from pathlib import Path
 import pytest
 
 from rietx import runs, watch
+from rietx._about import STATE_DIR_ENV
 from rietx.watch import main, serve
 
 
@@ -772,26 +773,95 @@ def test_the_dialog_says_what_a_click_does_to_the_other_process():
     assert "autofocus" not in page, "the dialog's buttons take no focus"
 
 
-def test_the_payload_carries_what_the_page_cannot_know(tmp_path):
+def test_the_payload_carries_what_the_page_cannot_know(tmp_path, monkeypatch):
     """The three facts that were ``@TOKEN@`` substitutions until WP-1430.
 
     A file cannot carry a token, so the page reads them off the ``api/runs``
     it already fetches first. Each comes from its one authority: a literal
-    ``.rex`` or a literal colour here would be a second answer, and the literal
-    would read as working right up until somebody looked at it.
+    ``.rex`` here would be a second answer, and the literal would read as
+    working right up until somebody looked at it.
+
+    The palette left in WP-1429: the colours are custom properties the page
+    reads off its own root element now, and what rides here in their place is
+    the theme *choice*, which is the only one of the three a person changes
+    while the page is open.
     """
     from rietx._about import DIST_NAME, PROJECT_SUFFIX
-    from rietx.viz.plots import PALETTES
 
+    monkeypatch.setenv(STATE_DIR_ENV, str(tmp_path / "state"))
     with _served(tmp_path) as base:
         page = _json(base + "/api/runs")["page"]
     assert page == {"suffix": PROJECT_SUFFIX, "dist": DIST_NAME,
-                    "palette": PALETTES["dark"]}
+                    "theme": "system"}
     # and no token survived the move into the files
     for name in watch.STATIC_FILES:
         text = (watch.STATIC_DIR / name).read_text(encoding="utf-8")
         for token in ("@SUFFIX@", "@DIST@", "@HUE@"):
             assert token not in text, f"{token} in {name}"
+
+
+def test_the_page_follows_the_theme_the_gui_stored(tmp_path, monkeypatch):
+    """The GUI writes the choice, both Python pages read it (WP-1429).
+
+    One writer per fact: the setting lives in the state directory beside the
+    recent list, where it survives the project, the port and the browser
+    profile (WP-1044), and nothing here writes it.  Every poll carries it, so a
+    choice made in the GUI reaches an open watch page without a reload.
+    """
+    state = tmp_path / "state"
+    state.mkdir()
+    monkeypatch.setenv(STATE_DIR_ENV, str(state))
+    (state / "settings.json").write_text(
+        json.dumps({"ui": {"theme": "light", "unrelated": 3}}), encoding="utf-8")
+    with _served(tmp_path) as base:
+        assert _json(base + "/api/runs")["page"]["theme"] == "light"
+        # a hand-mangled file is `system`, never an error: no setting here is
+        # worth refusing to draw the page over
+        (state / "settings.json").write_text("{not json", encoding="utf-8")
+        assert _json(base + "/api/runs")["page"]["theme"] == "system"
+
+
+def test_the_stylesheet_is_served_out_of_the_package(tmp_path):
+    """`tokens.css` is emitted, never read off disk (WP-1429).
+
+    `viz/plotlyjs.py` one rank down: a value the wheel has to serve cannot live
+    in the GUI workspace, which is a build input and is not installed.  So the
+    route renders the emitter and `gui/src/tokens.css` is the generated copy,
+    not the source.
+    """
+    from rietx.viz import theme
+
+    with _served(tmp_path) as base:
+        with urllib.request.urlopen(base + theme.CSS_ROUTE, timeout=5) as r:
+            body, content_type = r.read(), r.headers["Content-Type"]
+    assert body.decode("utf-8") == theme.tokens_css()
+    assert content_type == theme.CSS_CONTENT_TYPE
+    # the page links it, and before its own stylesheet: `watch.css` reads the
+    # tokens and a cascade that has not declared them yet has nothing to read
+    page = (watch.STATIC_DIR / "index.html").read_text(encoding="utf-8")
+    assert page.index('href="tokens.css"') < page.index('href="watch.css"')
+
+
+def test_no_colour_literal_is_left_in_the_page(tmp_path):
+    """Every colour on this page is a token, or the page is a second answer.
+
+    The exemption is the confirm dialog's scrim, and it is one because a scrim
+    *darkens* whatever is under it: black in both themes, as the GUI's own two
+    backdrops are (`Browse.svelte`, `Palette.svelte`).  `rgba(0,0,0,0)` is not
+    a colour at all — it is plotly's way of saying the paper is transparent, so
+    the page's own background shows through, which is what makes the picture
+    part of the page rather than a card on it.
+    """
+    allowed = {"rgba(0,0,0,0.62)", "rgba(0,0,0,0)"}
+    # a *literal* — only digits inside the parentheses.  `withAlpha` composes
+    # `rgba(${…})` out of a token it was handed, which is the opposite of a
+    # colour this page chose, and a looser pattern would flag the machinery
+    # that exists to keep the choice in one place.
+    literal = re.compile(r"#[0-9a-fA-F]{3,8}\b|rgba?\([\d.,\s%]*\)")
+    for name in ("watch.css", "watch.mjs", "watch-core.mjs", "index.html"):
+        text = (watch.STATIC_DIR / name).read_text(encoding="utf-8")
+        found = set(literal.findall(text))
+        assert found <= allowed, f"{name} still declares {sorted(found - allowed)}"
 
 
 def test_the_two_local_servers_allow_the_same_hosts():

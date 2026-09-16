@@ -56,9 +56,9 @@ from pathlib import Path
 
 from .. import runs as runs_mod
 from .._about import DIST_NAME, LIVE_DIR_NAME, PROJECT_SUFFIX
+from ..viz import theme as theme_mod
 from ..viz.plotlyjs import CONTENT_TYPE as PLOTLY_CONTENT_TYPE
 from ..viz.plotlyjs import plotly_js
-from ..viz.plots import PALETTES
 
 #: What a missing plotly says, in the pane the plot would have filled. Each
 #: page that serves plotly owns its own fallback (``viz/plotlyjs.py``), and
@@ -90,13 +90,18 @@ def _page_constants() -> dict:
 
     These were ``@TOKEN@`` substitutions into the page's text while the page
     was a python string, which a file cannot carry. A literal ``.rex`` in the
-    page would be invisible to every test in the suite (``_about.py``), and
-    literal colours would make it the second answer to which curve is which —
-    a reader flipping between the watcher, the GUI and a saved figure must not
-    have to relearn it (``viz/plots.PALETTES``).
+    page would be invisible to every test in the suite (``_about.py``).
+
+    ``theme`` is the *choice* and not a resolved answer, and it rides here
+    rather than being read once at boot because it is the one thing on this
+    page a person changes while the page is open: the GUI writes it
+    (WP-1044), every poll carries it, and the page re-stamps without a reload
+    (WP-1429).  The colours themselves are not here at all any more — they are
+    custom properties the page reads off its own root element, so one
+    stylesheet answers for all three surfaces.
     """
     return {"suffix": PROJECT_SUFFIX, "dist": DIST_NAME,
-            "palette": PALETTES["dark"]}
+            "theme": theme_mod.theme_choice()}
 
 
 #: How long a walk's result stands before the next request pays for another.
@@ -254,6 +259,13 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
         name = path.lstrip("/")
         if name in STATIC_FILES:
             self._static(name)
+            return
+
+        if path == theme_mod.CSS_ROUTE:
+            # generated rather than served off disk: `viz/theme.py` is the
+            # authority and `gui/src/tokens.css` is the copy, not the reverse
+            self._send(theme_mod.tokens_css().encode("utf-8"),
+                       theme_mod.CSS_CONTENT_TYPE)
             return
 
         if path == "/plotly.js":

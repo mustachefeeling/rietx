@@ -128,10 +128,10 @@ WP starts; every entry below is still true.
       a CSS emitter; `gui/src/tokens.css` generated and committed, imported by
       `app.css`, pinned equal to the emitter by a test;
       `test_gui_palette.py` reading from one authority
-- [ ] `tokens.css` route on both python servers; every hex literal in the
+- [x] `tokens.css` route on both python servers; every hex literal in the
       watch page's stylesheet and `compare_app.py`'s template replaced by a
       token, and a test that none remains
-- [ ] The theme choice read from `settings.json`, stamped on both pages,
+- [x] The theme choice read from `settings.json`, stamped on both pages,
       `system` through the media query, carried on `api/runs` so an open watch
       page follows a change; the plot follows the theme
 - [ ] Browser test: the watch page in light and dark, the plot's calculated

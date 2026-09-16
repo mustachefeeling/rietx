@@ -148,6 +148,15 @@ colour.  The chroma is what the 72° spacing is measured against
 because a rail is drawn on `--panel` and has to read there.""",
 }
 
+#: The route both Python pages link, and what it is served as — one spelling,
+#: because two servers linking two different paths to one stylesheet is the
+#: duplication this module exists to remove.  ``viz/plotlyjs.py`` is the
+#: precedent for serving an asset out of the installed package; the difference
+#: is that this one is *rendered*, the GUI's committed copy being the generated
+#: side rather than the source.
+CSS_ROUTE = "/tokens.css"
+CSS_CONTENT_TYPE = "text/css; charset=utf-8"
+
 #: What the emitted stylesheet opens with.  It names the generator, because the
 #: one thing a reader of a generated file needs is where to make the edit.
 _HEADER = """\
@@ -251,7 +260,9 @@ def theme_choice(override: str | Path | None = None) -> str:
         raw = json.loads((state_dir(override) / "settings.json")
                          .read_text(encoding="utf-8"))
         value = raw["ui"]["theme"]
-    except (OSError, ValueError, KeyError, TypeError):
+    except (OSError, ValueError, KeyError, TypeError, RuntimeError):
+        # `RuntimeError` is `Path.home()` on a machine with no home to find:
+        # a page draws in the default theme there, rather than not at all
         return "system"
     return value if value in THEME_CHOICES else "system"
 

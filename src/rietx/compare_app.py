@@ -29,6 +29,7 @@ from pathlib import Path
 
 from ._about import DIST_NAME
 from .viz import compare as cmp
+from .viz import theme
 from .viz.plotlyjs import CONTENT_TYPE as PLOTLY_CONTENT_TYPE
 from .viz.plotlyjs import plotly_js
 
@@ -102,6 +103,23 @@ class _State:
                     "log": list(self.log[-40:])}
 
 
+def _themed(page: str) -> str:
+    """Stamp the GUI's stored theme on the document, at load (WP-1429).
+
+    This page has no poll to carry a change on, so it reads the choice when it
+    is asked for and a switch in the GUI reaches it on the next reload.  An
+    explicit choice becomes ``data-theme``; ``system`` is the *absence* of the
+    attribute, which is what lets the ``prefers-color-scheme`` block in
+    ``tokens.css`` answer — no server can see the machine the page is open on.
+
+    Server-side rather than in script, because this page can be: there is no
+    first paint in the wrong theme to correct afterwards.
+    """
+    choice = theme.theme_choice()
+    stamp = f' data-theme="{choice}"' if choice in theme.THEMES else ""
+    return page.replace("<html>", f"<html{stamp}>", 1)
+
+
 #: This page has one panel and no shell worth keeping, so a missing plotly
 #: replaces the body outright. The GUI answers the same absence with a window
 #: flag its dist checks — which is why the fallback belongs to the caller.
@@ -134,7 +152,11 @@ def _handler(state: _State):
         def do_GET(self) -> None:  # noqa: N802 - stdlib API
             path = self.path.split("?")[0]
             if path in ("/", "/index.html"):
-                self._send(page.encode("utf-8"), "text/html; charset=utf-8")
+                self._send(_themed(page).encode("utf-8"),
+                           "text/html; charset=utf-8")
+            elif path == theme.CSS_ROUTE:
+                self._send(theme.tokens_css().encode("utf-8"),
+                           theme.CSS_CONTENT_TYPE)
             elif path == "/plotly.js":
                 self._send(plotly_js(_NO_PLOTLY_JS).encode("utf-8"),
                            PLOTLY_CONTENT_TYPE)
@@ -210,14 +232,13 @@ def main(argv: list[str] | None = None) -> int:
 # ----------------------------------------------------------------------
 _PAGE = r"""<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>rietx — compare settings</title>
+<link rel="stylesheet" href="/tokens.css">
 <script src="/plotly.js"></script>
 <style>
-  :root { color-scheme: light dark; --fg:#1b1b1b; --bg:#fbfbfa; --panel:#fff;
-          --line:#dcdcd6; --muted:#6b6b66; --accent:#1f5fa8; }
-  @media (prefers-color-scheme: dark) {
-    :root { --fg:#e6e6e2; --bg:#151515; --panel:#1e1e1e; --line:#333;
-            --muted:#9a9a94; --accent:#7fb2ea; }
-  }
+  /* The tokens are `viz/theme.py`'s, linked above — the GUI's own values, so
+     the two pages a reader has open at once are one program (WP-1429). This
+     block had a literal copy of six of them, light and dark, which is exactly
+     the second authority that removes. */
   * { box-sizing: border-box; }
   body { margin:0; display:flex; height:100vh; color:var(--fg);
          background:var(--bg); font:13px/1.45 ui-sans-serif, system-ui, sans-serif; }
@@ -248,15 +269,19 @@ _PAGE = r"""<!DOCTYPE html>
   .best { font-weight:700; }
   .plot { height:300px; margin-bottom:6px; }
   .note { color:var(--muted); font-size:11px; margin:0 0 12px; max-width:70ch; }
-  .diag { margin:2px 0; padding:5px 8px; border-left:3px solid #c93; border-radius:3px;
-          background:rgba(200,150,50,.10); font-size:11.5px; }
-  .diag.info { border-left-color:#59a; background:rgba(80,150,190,.10); }
+  /* a caution and a remark, in the app's own two tones rather than in a gold
+     and a blue this page invented */
+  .diag { margin:2px 0; padding:5px 8px; border-left:3px solid var(--warn);
+          border-radius:3px; font-size:11.5px;
+          background:color-mix(in srgb, var(--warn) 12%, transparent); }
+  .diag.info { border-left-color:var(--accent);
+               background:color-mix(in srgb, var(--accent) 12%, transparent); }
   .diag code { font-weight:700; }
   #log { font:11px ui-monospace, Menlo, monospace; color:var(--muted);
          white-space:pre-wrap; margin-top:10px; max-height:150px; overflow-y:auto; }
   .swatch { display:inline-block; width:9px; height:9px; border-radius:2px;
             margin-right:5px; vertical-align:baseline; }
-  .warn { color:#b3541e; }
+  .warn { color:var(--warn); }
 </style></head><body>
 <div id="side">
   <h1>rietx · compare settings</h1>
@@ -310,8 +335,18 @@ _PAGE = r"""<!DOCTYPE html>
 </div>
 
 <script>
+// One variant, one hue — a categorical set of ten, which is the one palette
+// on these three pages the GUI has nothing to lend: its only categorical set
+// is the history graph's five lanes, and ten hues at one lightness cannot
+// clear the separability floor five at 72 degrees were chosen for. So these
+// stay literals, and WP-1429 says so rather than inventing a palette nobody
+// asked for. What is *not* here any more are the observed points and the zero
+// line, which are Rietveld roles the GUI does answer.
 const COLORS = ["#1f5fa8","#c23b22","#2e8b57","#8a5cc4","#c98a17","#0f8f9c",
                 "#b3487e","#6b7280","#4b7f1f","#a1421f"];
+// read at use, not held: a token is whatever the root element says it is now
+const tok = (name) => getComputedStyle(document.documentElement)
+  .getPropertyValue(name).trim();
 let CATALOG = null, RECORDS = {}, POLL = null;
 
 const $ = (id) => document.getElementById(id);
@@ -403,7 +438,8 @@ const LAYOUT = (title, ytitle) => ({
   margin: {l: 62, r: 12, t: 6, b: 38}, showlegend: true,
   legend: {orientation: 'h', y: 1.14, x: 0},
   xaxis: {title: {text: '2θ (°)'}, zeroline: false},
-  yaxis: {title: {text: ytitle}, zeroline: true, zerolinecolor: '#9995'},
+  yaxis: {title: {text: ytitle}, zeroline: true,
+          zerolinecolor: tok('--plot-zero')},
   paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
   font: {color: getComputedStyle(document.body).color, size: 11},
 });
@@ -467,7 +503,8 @@ function draw() {
     const lo = Math.min(...anyRec.y_obs), hi = Math.max(...anyRec.y_obs);
     const span = (hi - lo) || 1;
     fit.push({x: anyRec.two_theta, y: anyRec.y_obs, type: 'scattergl', mode: 'markers',
-              name: 'observed', marker: {size: 2.5, color: '#8888'}});
+              name: 'observed',
+              marker: {size: 2.5, color: tok('--plot-obs')}});
     for (const k of variants) {
       if (!ok(RECORDS[k])) continue;
       fit.push({x: RECORDS[k].two_theta, y: RECORDS[k].y_calc, type: 'scattergl',
