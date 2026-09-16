@@ -2945,7 +2945,9 @@ def test_a_bare_two_setting_symbol_is_reported_at_read(tmp_path):
     found = [d for d in diagnostics
              if d.code == "SPACE_GROUP_SETTING_ASSUMED"]
     assert len(found) == 1
-    assert found[0].where == ["phases.0.space_group"]
+    # by phase name, which is how this reader addresses a phase in every
+    # other row it writes, `TOPAS_ORIGIN_TRANSLATED` included
+    assert found[0].where == ["phases.spinel.space_group"]
     assert "F d -3 m:1 → Al8 Mg16 O32" in found[0].message
     assert "F d -3 m:2 → Al16 Mg8 O32" in found[0].message
 

@@ -37,7 +37,9 @@ from rietx.io.projects.gsas2 import (
     CW_CENTIDEGREE_POWER,
     TREE_ITEM_STANCE,
     Gsas2GpxError,
+    Gsas2Phase,
     _numpy_globals,
+    _report_setting,
     item_kind,
     read_gsas2_gpx,
     to_structure,
@@ -581,6 +583,31 @@ def test_reading_the_setting_is_reported_rather_than_done_in_silence():
     # and the fit-time report is not also raised about a setting that was read
     assert [d for d in diagnostics
             if d.code == "SPACE_GROUP_SETTING_ASSUMED"] == []
+
+    # and it names what the bare symbol would have resolved to, which is the
+    # whole content of the row: the operators overturned that reading
+    assert "I 41/a m d:1" in found[0].message
+
+
+def test_operators_that_confirm_the_bare_reading_do_not_claim_to_overturn_it():
+    """Reading a setting is not the same as changing one (WP-1118 review).
+
+    Every rhombohedral GSAS-II phase writes a bare ``R -3 c`` with hexagonal
+    operators, and hexagonal axes are what the bare symbol resolves to anyway.
+    Saying the phase was built under something "rather than" that reading would
+    be a confident wrong statement about a file nothing was taken from.
+    """
+    phase = Gsas2Phase(
+        name="calcite", kind="nuclear", space_group="R -3 c",
+        space_group_from_operators="R -3 c:H",
+        cell=(4.9896, 4.9896, 17.061, 90.0, 90.0, 120.0),
+        refine_cell=False, number=0)
+    diagnostics: list = []
+    _report_setting("<model>", phase, diagnostics)
+    (found,) = diagnostics
+    assert found.code == "GSAS2_GPX_SETTING_FROM_OPERATORS"
+    assert "confirm that reading" in found.message
+    assert "is built under" not in found.message
 
 
 def test_the_settings_this_file_chooses_between_swap_its_two_sites():

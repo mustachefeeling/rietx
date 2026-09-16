@@ -697,3 +697,22 @@ def test_no_table_mixes_a_foreign_file_family_with_an_engine_row(path: Path):
             f"{path.name}: a table of {foreign[0]}'s family also lists "
             f"{engine} — those fire on result.diagnostics, so they belong in "
             "the engine table under its own preamble, not this one")
+
+
+@pytest.mark.parametrize("path", REFERENCES, ids=lambda p: p.name)
+def test_no_code_is_listed_twice_in_one_reference(path: Path):
+    """A row is a lookup, so a second one for the same code is a wrong answer.
+
+    The two copies drift as soon as either is edited, and a reader who stops at
+    the first never learns the second exists — ``GSAS2_GPX_SETTING_FROM_OPERATORS``
+    shipped twice, once saying the operators' setting "need not be" the symbol's
+    and once saying it "is not", which are different claims (WP-1118 review).
+    """
+    seen: dict[str, int] = {}
+    for codes in _code_tables(path.read_text(encoding="utf-8")):
+        for code in codes:
+            seen[code] = seen.get(code, 0) + 1
+    twice = sorted(c for c, n in seen.items() if n > 1)
+    assert not twice, (
+        f"{path.name}: {twice} each have more than one row — a lookup with two "
+        "answers, and the copies drift the first time either is edited")

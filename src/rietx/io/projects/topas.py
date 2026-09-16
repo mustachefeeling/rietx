@@ -2345,7 +2345,7 @@ def read_topas_inp(path: str | Path, *,
         # reports the translation; a symbol written **bare** says nothing, and
         # `.inp` carries no operators to settle it the way a `.gpx` does.  So it
         # is reported as assumed, from the package-wide builder, at read.
-        for i, phase in enumerate(model.phases):
+        for phase in model.phases:
             if not phase.space_group:
                 continue
             cell = phase.cell
@@ -2353,7 +2353,10 @@ def read_topas_inp(path: str | Path, *,
                 diagnostics.extend(setting_diagnostics(
                     phase.space_group,
                     source=f"{path}: phase {phase.name!r}",
-                    where=[f"phases.{i}.space_group"],
+                    # by name, as `TOPAS_ORIGIN_TRANSLATED` addresses the very
+                    # same field of the very same phase two rows up: one field
+                    # reached two ways is worse for a consumer than either way
+                    where=[f"phases.{phase.name}.space_group"],
                     cell=([cell[k] for k in ("a", "b", "c", "al", "be", "ga")]
                           if all(k in cell for k in
                                  ("a", "b", "c", "al", "be", "ga")) else None),

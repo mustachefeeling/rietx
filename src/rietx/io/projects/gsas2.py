@@ -1263,13 +1263,27 @@ def _report_setting(named: str, phase: Gsas2Phase,
     and the answer improved.  Left unsettled, it is the ordinary assumption and
     goes out under the package-wide ``SPACE_GROUP_SETTING_ASSUMED``, from the
     same builder a fit uses, because a reader and a fit are reporting one fact.
+
+    The operators settle a symbol whether or not they *overturn* it, so the
+    message says which of the two happened.  ``F d d d`` written with origin
+    choice 1's operators is read as ``'F d d d:1'``, which is what the bare
+    symbol resolves to anyway; a message claiming the phase was built under
+    something other than that reading would be a confident wrong statement of
+    the kind the root rulebook's declared-name clause is about.
     """
-    from ...crystallography.symmetry import setting_diagnostics
+    from ...crystallography.symmetry import setting_alternatives, setting_diagnostics
 
     if not phase.space_group:
         return
     where = [f"phases.{phase.number}.space_group"]
     if phase.space_group_from_operators:
+        settled = phase.space_group_from_operators
+        assumed, _ = setting_alternatives(phase.space_group)
+        tail = (f"The bare symbol resolves to {settled!r} too, so the "
+                f"operators confirm that reading rather than overturn it."
+                if settled == assumed else
+                f"That is what the phase is built under, rather than the "
+                f"{assumed!r} the bare symbol resolves to.")
         diagnostics.append(Diagnostic(
             level="info", code="GSAS2_GPX_SETTING_FROM_OPERATORS",
             where=where,
@@ -1277,9 +1291,7 @@ def _report_setting(named: str, phase: Gsas2Phase,
                 f"{named}: phase {phase.name!r} names space group "
                 f"{phase.space_group!r}, which the tables hold in more than one "
                 f"setting, and the project's own operators state "
-                f"{phase.space_group_from_operators!r} — that is what the phase "
-                f"is built under, rather than the setting the bare symbol "
-                f"resolves to"),
+                f"{settled!r}. " + tail),
             suggestion="nothing is needed: GSAS-II stores the operations "
                        "themselves (`SGData['SGOps']`), so the setting is read "
                        "from the file rather than assumed. `model.phases[…]"
