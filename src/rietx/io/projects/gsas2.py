@@ -1650,10 +1650,11 @@ def from_structure(structure, *,
 
     doc = gemmi.cif.Document()
     ambiguous: list[str] = []
+    taken_names: set[str] = set()
     for index, phase in enumerate(structure.phases):
         _refuse_non_finite(phase, index)
-        block = doc.add_new_block(
-            re.sub(r"\W+", "_", phase.name) or f"phase_{index}")
+        _refuse_unquotable(phase, index)
+        block = doc.add_new_block(_block_name(phase.name, index, taken_names))
         sg = get_spacegroup(phase.space_group)
         resolved = sg.xhm()
         bare = resolved.split(":")[0]
@@ -1678,13 +1679,52 @@ def from_structure(structure, *,
     return doc.as_string()
 
 
+def _block_name(name: str, index: int, taken: set[str]) -> str:
+    """One CIF data-block name, unique within the document.
+
+    A block name is a **key**, and ``\\W+`` collapses distinct phase names onto
+    one — ``"phase 1"`` and ``"phase-1"`` both become ``phase_1``, and a
+    two-phase mixture of one material under one name needs no collapsing at
+    all.  gemmi answers a duplicate with a bare ``RuntimeError``, so the
+    ordinary case never reached a file; the phase's index is what distinguishes
+    them, being the one thing a phase carries that is unique by construction.
+    """
+    stem = re.sub(r"\W+", "_", name) or f"phase_{index}"
+    chosen, suffix = stem, index
+    while chosen in taken:
+        chosen = f"{stem}_{suffix}"
+        suffix += 1
+    taken.add(chosen)
+    return chosen
+
+
+def _refuse_unquotable(phase, index: int) -> None:
+    """A site name a CIF loop cannot carry, refused before the loop is built.
+
+    ``write_structure_block`` adds a label and a species as **bare** loop
+    values, so whitespace inside either splits one row into two and the block
+    comes back "wrong number of values in loop" from any CIF reader, gemmi's
+    included.  The ``.inp``, ``.pcr`` and ``.EXP`` writers each refuse the same
+    shape by name, for the same reason one rank over.
+    """
+    for j, atom in enumerate(phase.atoms):
+        for what, text in ((f"phases.{index}.atoms.{j}.label", atom.label),
+                           (f"phases.{index}.atoms.{j}.species", atom.species)):
+            if not text.strip() or any(ch.isspace() for ch in text):
+                raise ValueError(
+                    f"{what} is {text!r}, and a CIF loop carries a label and a "
+                    f"species as bare values: whitespace inside one splits the "
+                    f"row in two and no reader, GSAS-II's importer included, "
+                    f"can parse the block back")
+
+
 def _refuse_non_finite(phase, index: int) -> None:
     """A value ``repr`` would spell ``inf``, refused where it is still in hand.
 
-    ``io/CLAUDE.md`` § Project writers' rule, and the only one of the five
-    writers' refusals a CIF needs: every other shape this package can hold —
-    an anisotropic site, a partial occupancy, a non-standard setting — GSAS-II's
-    own importer reads.
+    ``io/CLAUDE.md`` § Project writers' rule, and one of the two a CIF needs
+    (:func:`_refuse_unquotable` is the other): every other shape this package
+    can hold — an anisotropic site, a partial occupancy, a non-standard
+    setting — GSAS-II's own importer reads.
     """
     numbers = [(f"phases.{index}.cell.{n}", getattr(phase.cell, n).value)
                for n in ("a", "b", "c", "alpha", "beta", "gamma")]
@@ -1866,9 +1906,14 @@ def read_instprm(text: str) -> tuple[InstprmBank, ...]:
     is ``io/CLAUDE.md`` § Refusals' split between a parser and a reader.
     """
     lines = text.splitlines()
+    # Read before the test, not inside the message: an empty file has no first
+    # line, and indexing one there raised `IndexError` out of a reader whose
+    # whole contract is a `ValueError` naming the file (``io/CLAUDE.md``
+    # § Refusals).  A zero-byte file is the ordinary way a download fails.
+    first = lines[0].strip() if lines else ""
     if not lines or INSTPRM_MARKER not in lines[0]:
         raise ValueError(
-            f"the first line is {lines[0].strip()!r} if there is one, and an "
+            f"the first line is {first!r} if there is one, and an "
             f"instrument-parameter file GSAS-II wrote opens on a header "
             f"carrying {INSTPRM_MARKER!r}")
 
@@ -1892,6 +1937,14 @@ def read_instprm(text: str) -> tuple[InstprmBank, ...]:
         delim = '"""' if '"""' in line else ("'''" if "'''" in line else "")
         if delim:
             key, _, rest = line.strip().partition(":")
+            if rest.count(delim) >= 2:
+                # Opened *and* closed on this line.  Scanning on for a closing
+                # delimiter there is not swallows every item after it — the
+                # whole rest of the bank, `Type` and the wavelength included —
+                # into one value, and the bank is then refused for stating a
+                # type it does state.
+                items[key.strip()] = rest.replace(delim, "").strip()
+                continue
             value = [rest.replace(delim, "")]
             while il < len(lines) and delim not in lines[il]:
                 value.append(lines[il])

@@ -810,3 +810,25 @@ def test_the_phase_cif_refuses_a_non_finite_value(tmp_path):
     structure.phases[0].atoms[0].biso.value = float("inf")
     with pytest.raises(ValueError, match="inf"):
         rx.write_gsas2_phase_cif(structure, tmp_path / "bad.cif")
+
+
+def test_two_phases_of_one_name_get_two_blocks(tmp_path):
+    """A CIF block name is a key, and gemmi answers a duplicate with a bare
+    ``RuntimeError`` — so a two-phase mixture of one material under one name
+    never reached a file. The phase index is what distinguishes them."""
+    structure = _spinel()
+    structure.phases.append(structure.phases[0].model_copy(deep=True))
+    out = tmp_path / "twice.cif"
+    rx.write_gsas2_phase_cif(structure, out)
+    blocks = [b.name for b in gemmi.cif.read(str(out))]
+    assert len(blocks) == 2 and len(set(blocks)) == 2
+
+
+def test_a_site_label_a_cif_loop_cannot_carry_is_refused(tmp_path):
+    """`write_structure_block` adds a label and a species as **bare** loop
+    values, so whitespace in one splits the row and no reader can parse the
+    block back. The three sibling writers refuse the same shape by name."""
+    structure = _spinel()
+    structure.phases[0].atoms[0].label = "Mg 1"
+    with pytest.raises(ValueError, match="splits the row"):
+        rx.write_gsas2_phase_cif(structure, tmp_path / "bad.cif")

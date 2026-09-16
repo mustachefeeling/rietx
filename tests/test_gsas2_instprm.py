@@ -16,6 +16,7 @@ corroborated instead by ``gsas2_pbso4.gpx``, whose two histograms carry
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -437,3 +438,46 @@ def test_an_item_the_format_declares_and_a_file_omits_is_named(tmp_path):
     (row,) = [d for d in diagnostics
               if d.code == "GSAS2_INSTPRM_VALUE_DEFAULTED"]
     assert "SH/L" in row.message and "Polariz." in row.message
+
+
+# ------------------------------------- what the review pass measured (WP-1118)
+
+
+def test_an_empty_file_is_refused_by_name(tmp_path):
+    """A zero-byte file has no first line, and indexing one raised
+    ``IndexError`` out of a reader whose contract is a `ValueError` naming the
+    file. A truncated download is the ordinary way to get one."""
+    path = tmp_path / "empty.instprm"
+    path.write_text("", encoding="utf-8")
+    with pytest.raises(ValueError, match="GSAS-II"):
+        read_gsas2_instprm(path)
+
+
+def test_a_triple_quoted_value_may_open_and_close_on_one_line():
+    """Scanning on for a closing delimiter that is already there swallowed
+    every item after it — `Type` and the wavelength included — into one
+    value, and the bank was then refused for stating no type it does state."""
+    text = ("#GSAS-II instrument parameter file; do not add/delete items!\n"
+            "InstrName:'''My Lab'''\n"
+            "Type:PXC\n"
+            "Lam:1.5406\n")
+    (bank,) = read_instprm(text)
+    assert bank.items["InstrName"] == "My Lab"
+    assert bank.items["Type"] == "PXC"
+    assert bank.items["Lam"] == "1.5406"
+
+
+def test_a_file_stating_lam1_is_not_reported_as_missing_lam(tmp_path):
+    """``Lam`` and ``Lam1`` are two spellings of one item, so a file stating
+    either is not a file missing the other."""
+    path = tmp_path / "one.instprm"
+    path.write_text("#GSAS-II instrument parameter file; do not add/delete items!\n"
+                    "Type:PXC\nLam1:1.5405\n", encoding="utf-8")
+    diagnostics: list = []
+    read_gsas2_instprm(path, diagnostics=diagnostics)
+    (row,) = [d for d in diagnostics
+              if d.code == "GSAS2_INSTPRM_VALUE_DEFAULTED"]
+    # `\bLam\b` does not match `Lam1`, which is the point: the row may name
+    # the items this file really does omit, and must not name the wavelength
+    assert not re.search(r"\bLam\b", row.message)
+    assert "SH/L" in row.message

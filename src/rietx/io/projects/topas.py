@@ -2796,6 +2796,14 @@ def from_structure(structure: Structure) -> str:
                 f"phase name {phase.name!r} cannot be written to a TOPAS "
                 f"`.inp`: it contains a double quote, which the reader takes "
                 f"as the closing one")
+        if "\n" in phase.name or "\r" in phase.name:
+            raise ValueError(
+                f"phase name {phase.name!r} cannot be written to a TOPAS "
+                f"`.inp`: it carries a line break, and an `.inp` is read line "
+                f"by line — the name comes back cut at the break, a silent "
+                f"rename rather than a failure, and the remainder is read as "
+                f"a keyword line of its own.  The same accident the `.EXP` "
+                f"writer's `write_record` refuses one format over")
         sg = get_spacegroup(phase.space_group).xhm()
         lines.append("str")
         lines.append(f'  phase_name "{phase.name}"')
