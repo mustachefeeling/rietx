@@ -270,7 +270,7 @@ cached chromium-1223, 1400x900 viewport unless said otherwise):
   over. The cliff is between 339 and 299.
 - *The log's floor, 51 px*: three lines of 13 px plus its 12 px of padding,
   against `#picture`'s declared `min-height: 180px`.
-- *Suites.* Fast selection FASTCOUNT, this session alone on the machine. Net
+- *Suites.* Fast selection 5185 passed, 132 skipped, 2:24, this session alone on the machine. Net
   **+7** pytest tests (eight added, one renamed away), no new skip.
   `test_watch_browser` 19, `test_watch_app` 48, `node --test` 31 pass, vitest
   584 over 22 files (24 `it` blocks in `resize.test.ts` became 17, so that
