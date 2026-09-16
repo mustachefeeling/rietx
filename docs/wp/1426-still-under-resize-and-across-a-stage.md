@@ -1,6 +1,6 @@
 # WP-1426 — still under resize, and across a stage
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-09-16 — claimed by @yue-here
 Depends on: 1430 (the page as files), 1423 (the rules and the browser harness this extends)
 
 ## Goal
