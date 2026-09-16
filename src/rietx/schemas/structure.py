@@ -49,6 +49,7 @@ MARCH_R_MAX = 6.0
 #: indexing (WP-1206).  That module re-exports the name.
 DUMMY_SPECIES = "C"
 
+
 class Cell(Base):
     """Unit-cell lengths (Å) and angles (degrees).
 

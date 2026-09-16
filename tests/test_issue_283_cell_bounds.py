@@ -10,23 +10,34 @@ so this file has no test asserting ``Cell`` carries bounds.
 """
 
 import warnings
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
 
-from rietx import Instrument, PatternData, Refinement
+from rietx import (
+    Instrument,
+    MultiHistogramRefinement,
+    PatternData,
+    Refinement,
+)
 from rietx.crystallography.lattice import DegenerateCellError, d_spacings
 from rietx.model.forward import compile_model
+from rietx.optimize import least_squares as lsq
 from rietx.optimize.least_squares import (
     _DegenerateCellGuard,
     _DegenerateCellJacobianGuard,
     _jacobian_for,
     _make_residual,
+    _multi_closures,
     run_least_squares,
+    run_multi_least_squares,
 )
+from rietx.params.multi import MultiParameterTable
 from rietx.params.vector import ParameterTable
 from rietx.schemas.common import Parameter
 from rietx.schemas.structure import Atom, Cell, Phase, Structure, lebail_scaffold
+from rietx.strategy.staged import RefinementPlan, Stage
 
 
 def test_d_spacings_refuses_degenerate_cell_by_name():
@@ -352,3 +363,142 @@ def test_run_least_squares_completes_from_a_jacobian_boundary_adjacent_start():
     outcome = run_least_squares(model, table, max_iter=5, backend="numpy")
     assert outcome.status in ("converged", "max_iter", "diverged")
     assert outcome.n_degenerate_cell_probes >= 0
+
+
+# --- the joint entry point ------------------------------------------------
+#
+# ``run_multi_least_squares`` is the second solver entry point (its own
+# docstring says so, quoting WP-0308), and it stacks the very
+# ``_make_residual``/``_jacobian_for`` pairs the single-histogram one wraps.
+# Left unguarded it turned this issue's survivable ``RuntimeWarning`` into a
+# ``DegenerateCellError`` that killed the stage, on the one path none of the
+# tests above enters.
+
+
+def _joint_alpha_only(structure):
+    """:func:`_compile_alpha_only`, stacked: the same one free column
+    (``phases.0.cell.alpha``, shared across histograms because a structural
+    parameter is) in the two-wavelength joint setup
+    ``run_multi_least_squares`` consumes."""
+    structure.phases[0].scale.value = 1e-3
+    instruments, patterns = [], []
+    for lam, lo, hi in ((1.5406, 10.0, 90.0), (0.7107, 5.0, 45.0)):
+        ins = Instrument.debye_scherrer(wavelength=lam)
+        ins.profile.w.value = 1e-2
+        instruments.append(ins)
+        tt = np.arange(lo, hi, 0.05)
+        patterns.append(PatternData(two_theta=tt.tolist(),
+                                    intensity=np.ones_like(tt).tolist()))
+    mtable = MultiParameterTable(structure, instruments)
+    mtable.set_vary(["*"], False)
+    assert mtable.set_vary(["phases.0.cell.alpha"], True)
+    mtable.apply_to_models()
+    models = [compile_model(structure, ins, pat, mode="rietveld",
+                            moving_paths=set(table.moving_paths))
+              for ins, pat, table in zip(instruments, patterns, mtable.tables)]
+    return models, mtable
+
+
+def test_the_joint_closures_reach_a_degenerate_cell_the_same_way():
+    """The gap's existence proof: ``_multi_closures``' stacked residual and
+    Jacobian reach ``d_spacings`` exactly as the single-histogram pair does,
+    and a shared cell is unbounded here too (``_freeze_cell_windows_multi``
+    windows only phases below support), so nothing keeps a joint search out
+    of the degenerate region."""
+    structure = _rhombohedral_boundary_cell()
+    models, mtable = _joint_alpha_only(structure)
+    assert list(mtable.free_paths) == ["phases.0.cell.alpha"]  # shared, one column
+    lo, hi = mtable.bounds()
+    assert (lo[0], hi[0]) == (-np.inf, np.inf)
+
+    residual, jacobian, _ = _multi_closures(models, mtable, backend="numpy")
+    theta = mtable.x0()
+    assert theta == pytest.approx([120.0001])
+
+    assert np.isfinite(residual(theta)).all()  # the cell itself is admissible
+    with pytest.raises(DegenerateCellError):
+        jacobian(theta)  # the FD step crosses, as it does on one histogram
+    with pytest.raises(DegenerateCellError):
+        residual(np.array([180.0]))  # and a degenerate trial, directly
+
+
+def test_run_multi_least_squares_guards_both_closures_and_reports_the_count(
+        monkeypatch):
+    """The joint entry point hands its driver the same two guards, sharing
+    one counter, and the count reaches its :class:`LSQOutcome`.
+
+    Driven through the driver seat rather than through a real trust-region
+    path: scipy's ``least_squares`` is replaced by a stand-in that exercises
+    the two callables it is handed, which is what ``run_multi_least_squares``
+    actually promises about them.  The ``_inner`` swap is the same trick the
+    two guard unit tests above use."""
+    structure = _rhombohedral_boundary_cell()
+    structure.phases[0].cell.alpha.value = 120.0
+    models, mtable = _joint_alpha_only(structure)
+
+    def boom(_theta):
+        raise DegenerateCellError("a trial the joint search reached")
+
+    seen = {}
+
+    def driver(fun, x0, jac=None, **kwargs):
+        seen["fun"], seen["jac"] = fun, jac
+        r = fun(np.asarray(x0))      # seeds both fallbacks from a good point
+        J = jac(np.asarray(x0))
+        fun._inner = boom
+        jac._inner = boom
+        assert np.array_equal(fun(np.asarray(x0)), r * 10.0)  # penalised
+        assert np.array_equal(jac(np.asarray(x0)), J)         # last good one
+        return SimpleNamespace(x=np.asarray(x0), cost=0.5 * float(r @ r),
+                               nfev=3, status=1, jac=J, fun=r,
+                               termination="ftol")
+
+    monkeypatch.setattr(lsq, "least_squares", driver)
+    outcome = run_multi_least_squares(models, mtable, max_iter=3,
+                                      backend="numpy",
+                                      compute_uncertainties=False)
+
+    assert isinstance(seen["fun"], _DegenerateCellGuard)
+    assert isinstance(seen["jac"], _DegenerateCellJacobianGuard)
+    assert seen["jac"]._residual_guard is seen["fun"]  # one counter, not two
+    assert outcome.n_degenerate_cell_probes == 2  # one off each path
+
+
+def test_a_joint_fit_reaches_the_boundary_survives_it_and_says_so():
+    """End to end on the joint path: a real two-wavelength fit whose search
+    reaches the degenerate region, completes, and reports it.
+
+    This is the regression test for the crash.  Against the unguarded
+    :func:`run_multi_least_squares` the same fit raises
+    :class:`DegenerateCellError` out of ``fit()`` (measured on this fixture,
+    11 reaches in the one stage), because a joint refinement decodes through
+    the same ``C`` and calls the same ``d_spacings``.  It also pins
+    ``multi.py``'s two writers: the count onto its ``StageResult``, and the
+    sum across stages into ``CELL_DEGENERATE_PROBE``.  The count itself is
+    asserted as "at least one", since how many trials a trust region spends
+    near a boundary is not a number this test controls."""
+    structure = _rhombohedral_boundary_cell()
+    structure.phases[0].cell.alpha.value = 120.0  # one FD step short of it
+    structure.phases[0].scale.value = 1e-3
+    instruments, patterns = [], []
+    for lam, lo, hi in ((1.5406, 10.0, 90.0), (0.7107, 5.0, 45.0)):
+        ins = Instrument.debye_scherrer(wavelength=lam)
+        ins.profile.w.value = 1e-2
+        instruments.append(ins)
+        tt = np.arange(lo, hi, 0.05)
+        patterns.append(PatternData(two_theta=tt.tolist(),
+                                    intensity=np.ones_like(tt).tolist()))
+
+    plan = RefinementPlan(stages=[
+        Stage(name="cell", turn_on=["phases.0.cell.alpha"], max_iter=3)])
+    result = MultiHistogramRefinement(structure, instruments).fit(
+        patterns, plan=plan)
+
+    counts = [s.n_degenerate_cell_probes for s in result.stages]
+    assert counts and counts[0] >= 1  # reached, counted, and not raised
+
+    probe = next(d for d in result.diagnostics
+                 if d.code == "CELL_DEGENERATE_PROBE")
+    assert probe.level == "info"
+    assert probe.value == float(sum(counts))
+    assert probe.where == ["cell"]

@@ -214,11 +214,16 @@ class LSQOutcome:
     #: such data, pushed back out rather than crashing -- see
     #: ``_DegenerateCellGuard`` and ``_DegenerateCellJacobianGuard`` below,
     #: which share this one counter so the field means "every degenerate
-    #: probe this stage made", not "every degenerate residual call".
+    #: probe this stage made", not "every degenerate residual call".  Both
+    #: solver entry points wrap both closures, so "either path" is a claim
+    #: about the package and not about one of them: a joint refinement reaches
+    #: ``d_spacings`` through the same ``_make_residual``/``_jacobian_for``
+    #: pairs, stacked (:func:`run_multi_least_squares`).
     #: ``LSQOutcome`` itself
-    #: is an internal dataclass, never serialised; ``refine.py`` copies this
-    #: onto the (pydantic) ``StageResult.n_degenerate_cell_probes``, which is
-    #: the field pending ``SCHEMA_VERSION`` renumbering.
+    #: is an internal dataclass, never serialised; ``refine.py`` and
+    #: ``multi.py`` copy this onto the (pydantic)
+    #: ``StageResult.n_degenerate_cell_probes``, carried by
+    #: ``SCHEMA_VERSION`` 0.19 → 0.20 (see ``schemas/common.py``).
     n_degenerate_cell_probes: int = 0
 
 
@@ -1439,6 +1444,17 @@ def run_multi_least_squares(models: list[CompiledModel],
         raise ValueError(f"unknown solver {solver!r}; available: {', '.join(SOLVERS)}")
     residual, jacobian, n_data_total = _multi_closures(
         models, mtable, weights=weights, backend=backend)
+    # The same two guards :func:`run_least_squares` wires up, for the same
+    # reason and on the same closures: ``_multi_closures`` stacks the very
+    # ``_make_residual``/``_jacobian_for`` pairs that function wraps, and a
+    # shared cell is unbounded here exactly as it is there
+    # (``_freeze_cell_windows_multi`` windows only phases below support).  Left
+    # unguarded this entry point turned issue #283's survivable
+    # ``RuntimeWarning`` into a stage-killing ``DegenerateCellError``, which is
+    # the outcome the guards exist to prevent.
+    cell_guard = _DegenerateCellGuard(residual)
+    residual = cell_guard
+    jacobian = _DegenerateCellJacobianGuard(jacobian, cell_guard)
     n_cols = len(mtable.free_paths)
 
     # sample caps first: ``_freeze_cell_windows_multi`` ends in
@@ -1455,7 +1471,8 @@ def run_multi_least_squares(models: list[CompiledModel],
     cost0 = 0.5 * float(r0 @ r0)
     if n_cols == 0:
         return LSQOutcome(x0, cost0, cost0, 0, "converged", None, None, None,
-                          solver=solver)
+                          solver=solver,
+                          n_degenerate_cell_probes=cell_guard.n_degenerate)
 
     if solver == "lm":
         res = _lm_outcome(residual, jacobian, x0, lo, hi, max_iter=max_iter,
@@ -1475,7 +1492,8 @@ def run_multi_least_squares(models: list[CompiledModel],
     jac_data = np.asarray(res.jac)[:n_data_total] if res.jac is not None else None
     return LSQOutcome(res.x, cost0, float(res.cost), int(res.nfev), status,
                       jac_data, stderr, corr, solver=solver,
-                      termination=termination)
+                      termination=termination,
+                      n_degenerate_cell_probes=cell_guard.n_degenerate)
 
 
 def covariance_estimates(jac: np.ndarray, fun: np.ndarray, n_free: int,

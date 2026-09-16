@@ -47,6 +47,7 @@ from .refine import (
     _capillary_offset_diagnostics,
     _constraint_diagnostics,
     _declared_wavelengths,
+    _degenerate_cell_diagnostics,
     _guard_diagnostics,
     _phase_agreement,
     _phase_support_diagnostics,
@@ -319,7 +320,11 @@ class MultiHistogramRefinement:
                     second, cost_initial=outcome.cost_initial,
                     n_iterations=outcome.n_iterations + second.n_iterations,
                     n_constraint_truncations=(outcome.n_constraint_truncations
-                                              + second.n_constraint_truncations))
+                                              + second.n_constraint_truncations),
+                    # summed for the same reason the truncations are: the stage
+                    # ran twice and the count is a fact about its whole search
+                    n_degenerate_cell_probes=(outcome.n_degenerate_cell_probes
+                                              + second.n_degenerate_cell_probes))
             self.mtable.apply_to_models()
             carried_hold = list(held)
             stage_results.append(StageResult(
@@ -328,6 +333,7 @@ class MultiHistogramRefinement:
                 cost_initial=outcome.cost_initial, cost_final=outcome.cost_final,
                 freed=freed,
                 n_constraint_truncations=outcome.n_constraint_truncations,
+                n_degenerate_cell_probes=outcome.n_degenerate_cell_probes,
                 ftol=ftol, held=held, released=released))
 
         assert models is not None and outcome is not None
@@ -500,6 +506,11 @@ class MultiHistogramRefinement:
         if stage_results:
             diagnostics = diagnostics + _constraint_diagnostics(
                 stage_results[-1].name, outcome)
+        # Every stage, not only the last one, exactly as the single-histogram
+        # path sums it (``refine._degenerate_cell_diagnostics``): a degenerate
+        # probe is a fact about the search and not about the final point.
+        diagnostics = diagnostics + _degenerate_cell_diagnostics(
+            [(sr.name, sr.n_degenerate_cell_probes) for sr in stage_results])
         # A phase the joint fit cannot see, and what the run did about it
         # (WP-1301).  Once for the fit rather than once per histogram, because
         # the statement is joint: the support is the phase's **strongest**
