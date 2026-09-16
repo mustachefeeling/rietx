@@ -33,8 +33,10 @@ from .io.exporters import (
 )
 from .io.instrument_profile import (
     load_instrument_profile,
+    read_gsas2_instprm,
     read_gsas_prm,
     save_instrument_profile,
+    write_gsas2_instprm,
     write_gsas_prm,
 )
 from .io.projects import (
@@ -175,6 +177,7 @@ __all__ = [
     "fit_peaks",
     "pick_peaks",
     "identify_project_format",
+    "read_gsas2_instprm",
     "read_gsas_prm",
     "read_pattern",
     "read_pdcif",
@@ -195,6 +198,7 @@ __all__ = [
     "write_recipe_tables",
     "write_fullprof_pcr",
     "write_gsas_exp",
+    "write_gsas2_instprm",
     "write_gsas_prm",
     "write_reflection_table",
     "write_refinement_cif",

@@ -351,6 +351,19 @@ CW_CENTIDEGREE_POWER: dict[str, int] = {
     "U": 2, "V": 2, "W": 2, "X": 1, "Y": 1, "Z": 1,
 }
 
+
+def centidegree_factor(name: str) -> float | None:
+    """What a stored CW coefficient is multiplied by, or ``None`` for a ratio.
+
+    One authority for both directions (WP-1118): :func:`_term` divides a value
+    the ``.gpx`` states by it to report degrees, and
+    :func:`~rietx.io.instrument_profile.write_gsas2_instprm` multiplies by it
+    to write an ``.instprm``.  Two spellings of one conversion is how the two
+    GSAS-I readers here came to disagree about ``ICONS``.
+    """
+    power = CW_CENTIDEGREE_POWER.get(name)
+    return None if power is None else 100.0 ** power
+
 #: The refine-flag letters a GSAS-II atom record carries at ``ct+1``.
 ATOM_REFINE_FLAGS: dict[str, str] = {
     "F": "site occupancy",
@@ -769,8 +782,8 @@ def _term(name: str, entry: Any) -> Gsas2Term | None:
     initial, value = _float(entry[0]), _float(entry[1])
     if value is None:
         return None
-    power = CW_CENTIDEGREE_POWER.get(name)
-    degrees = None if power is None else value / 100.0 ** power
+    factor = centidegree_factor(name)
+    degrees = None if factor is None else value / factor
     return Gsas2Term(
         name=name, value=value,
         initial=initial if initial is not None else value,
@@ -1586,3 +1599,179 @@ def to_structure(model: Gsas2Model, *, phase: str | int | None = None,
                 f"`model.hap[…].scale`"),
             where=["phases.0.scale"]))
     return structure
+
+
+# ---------------------------------------------------------------------------
+# The ``.instprm`` instrument-parameter file
+# ---------------------------------------------------------------------------
+#
+# GSAS-II's other text format, and the only one it *writes* for someone else to
+# read: a project is the binary ``.gpx`` above, while an instrument calibration
+# travels as this.  The grammar lives here, beside the ``.gpx`` reader, for the
+# reason ``projects/gsas.py`` holds the ``ICONS`` grammar the ``.EXP`` and
+# ``.prm`` readers share — one record read two ways by two readers in one
+# package is the thing this codebase most dislikes.  The ``Instrument`` this
+# grammar is converted to and from lives in ``io/instrument_profile.py``, with
+# the GSAS-I ``.prm`` pair it is the sibling of (WP-1118).
+#
+# Specification: GSAS-II's own ``GSASIIfiles.ReadInstprm``/``WriteInstprm``,
+# read 2026-09-16 as **specification only**, which is the licence fence
+# ``ATTRIBUTION.md`` records for GSAS-II.  No GSAS-II code is reproduced.
+
+#: What GSAS-II's own reader tests the first line for, and the whole of that
+#: test: ``if 'GSAS-II' not in instLines[0]: raise``.  A sniff here matches it
+#: rather than the full header sentence, because real files write two different
+#: headers (``#GSAS-II instrument parameter file; do not add/delete items!`` and
+#: an older one adding ``or change order of items``) and both are this format.
+INSTPRM_MARKER = "GSAS-II"
+
+#: The header a single-bank file written here opens with, byte for byte what
+#: GSAS-II writes for ``bank=None``.
+INSTPRM_HEADER = ("#GSAS-II instrument parameter file; "
+                  "do not add/delete items!")
+
+#: The constant-wavelength keys, in the order GSAS-II's own importer builds
+#: them (``GSASIIfiles.SetPowderInstParms``, with ``Bank`` appended after),
+#: single line and doublet.  A file is one or the other: ``Lam`` and
+#: ``Lam1``/``Lam2`` are alternatives, and the doublet carries the intensity
+#: ratio the single line has no use for.  Nothing reads a file positionally,
+#: so the order serves the *writer*.
+#:
+#: Corroborated in this repo rather than taken from the specification alone:
+#: ``tests/data/gsas2_pbso4.gpx`` carries one histogram of each kind, and their
+#: coefficient names are these two tuples exactly, in this order.
+INSTPRM_CW_SINGLE: tuple[str, ...] = (
+    "Type", "Lam", "Zero", "Polariz.", "U", "V", "W", "X", "Y", "Z",
+    "SH/L", "Azimuth", "Bank")
+INSTPRM_CW_DOUBLET: tuple[str, ...] = (
+    "Type", "Lam1", "Lam2", "Zero", "I(L2)/I(L1)", "Polariz.", "U", "V", "W",
+    "X", "Y", "Z", "SH/L", "Azimuth", "Bank")
+
+#: The two sample kinds GSAS-II's ``Diff-type`` names, mapped onto this
+#: package's :class:`~rietx.schemas.instrument.Geometry` kinds.  GSAS-II states
+#: no third, so ``flat_plate_transmission`` has no spelling here and is refused
+#: on the way out rather than written as one of these.
+INSTPRM_DIFF_TYPES: dict[str, str] = {
+    "Bragg-Brentano": "bragg_brentano",
+    "Debye-Scherrer": "debye_scherrer",
+}
+
+
+@dataclass(frozen=True)
+class InstprmBank:
+    """One bank of an ``.instprm``: its number, and the items it states.
+
+    ``number`` is ``None`` for a file whose header names no bank, which is what
+    a single-detector calibration looks like.  ``items`` are the file's own key
+    and value strings, unconverted: what a number *means* is the reader's
+    question, not the grammar's, and a value GSAS-II leaves as text (``Diff-type``,
+    ``InstrName``) is the same shape here as one that floats.
+    """
+
+    number: int | None
+    items: dict[str, str]
+
+
+def _instprm_bank_number(line: str) -> int | None:
+    """The bank a ``#`` line opens, by GSAS-II's own reading of it.
+
+    ``#Bank 6: GSAS-II instrument parameter file…`` is bank 6; a header with no
+    ``Bank`` word opens the file's single unnumbered bank.  A malformed number
+    is refused rather than skipped, because the alternative is reading one
+    bank's coefficients under another bank's name.
+    """
+    if "Bank" not in line:
+        return None
+    field = line.split(":")[0].split()
+    if len(field) < 2 or not field[1].lstrip("-").isdigit():
+        raise ValueError(
+            f"{line.strip()!r} opens a bank whose number this reader cannot "
+            f"read; GSAS-II writes '#Bank <n>: …' and takes the integer after "
+            f"the word")
+    return int(field[1])
+
+
+def read_instprm(text: str) -> tuple[InstprmBank, ...]:
+    """Split an ``.instprm`` into its banks, keys and values.
+
+    The grammar, and only the grammar: every value comes back as the file's own
+    string.  Four rules, each GSAS-II's own and none of them guessed:
+
+    * the **first line carries** ``GSAS-II``, which is the whole of that
+      reader's file test;
+    * a line beginning ``#`` opens a bank, numbered when it names one;
+    * **every space is stripped** from a value line before it is read, so
+      ``Gonio. radius`` is stored as ``Gonio.radius`` and a value never carries
+      one;
+    * one line may hold several items separated by ``;``, and a value delimited
+      by ``'''`` or ``\"\"\"`` runs to its closing delimiter.
+
+    Raises ``ValueError`` describing the line; the caller names the file, which
+    is ``io/CLAUDE.md`` § Refusals' split between a parser and a reader.
+    """
+    lines = text.splitlines()
+    if not lines or INSTPRM_MARKER not in lines[0]:
+        raise ValueError(
+            f"the first line is {lines[0].strip()!r} if there is one, and an "
+            f"instrument-parameter file GSAS-II wrote opens on a header "
+            f"carrying {INSTPRM_MARKER!r}")
+
+    banks: list[InstprmBank] = []
+    items: dict[str, str] = {}
+    number: int | None = None
+    opened = False
+    il = 0
+    while il < len(lines):
+        line = lines[il]
+        il += 1
+        if line.startswith("#"):
+            if opened:
+                banks.append(InstprmBank(number=number, items=items))
+                items = {}
+            opened = True
+            number = _instprm_bank_number(line)
+            continue
+        if not line.strip():
+            continue
+        delim = '"""' if '"""' in line else ("'''" if "'''" in line else "")
+        if delim:
+            key, _, rest = line.strip().partition(":")
+            value = [rest.replace(delim, "")]
+            while il < len(lines) and delim not in lines[il]:
+                value.append(lines[il])
+                il += 1
+            if il < len(lines):
+                value.append(lines[il].replace(delim, ""))
+                il += 1
+            items[key.strip()] = "\n".join(value).strip()
+            continue
+        for chunk in line.replace(" ", "").split(";"):
+            if not chunk:
+                continue
+            key, sep, value = chunk.partition(":")
+            if not sep:
+                raise ValueError(
+                    f"{line.strip()!r} is not one of this format's "
+                    f"'item:value' lines")
+            items[key] = value
+    if opened:
+        banks.append(InstprmBank(number=number, items=items))
+    return tuple(banks)
+
+
+def write_instprm(items: dict[str, str], *, bank: int | None = None) -> str:
+    """Render items as ``.instprm`` text — :func:`read_instprm`'s inverse.
+
+    ``bank`` writes the numbered header and the two-space indent GSAS-II uses
+    for a multi-bank file, and ``None`` the plain header of a single-bank one.
+    The values are strings because the *caller* owns how a number is spelled:
+    this is a token format rather than a fixed-column one, so a value's own
+    ``repr`` crosses exactly and there is no field budget to spend
+    (``io/CLAUDE.md`` § Project writers).
+    """
+    if bank is None:
+        head, indent = INSTPRM_HEADER, ""
+    else:
+        head, indent = f"#Bank {bank}: {INSTPRM_HEADER[1:]}", "  "
+    rows = "".join(f"{indent}{k}:{v}\n" for k, v in items.items())
+    return f"{head}\n{rows}"
