@@ -425,3 +425,48 @@ same reason. Six rules the pattern readers do not need:
   since a reader and a fit are reporting one fact. The next reader answers which
   of the two it is before it is written; `.m50` states operators
   ([1314](../../../docs/wp/1314-mfile-reader.md)).
+
+## Project writers
+
+A writer is its own reader's inverse and its acceptance is the **round trip**:
+export, re-import, compare field by field. No fixture is needed and none is
+added, which is what made this the cheapest adversarial test the readers have.
+Four rules the readers do not need (WP-1118, four formats: `.inp`, `.pcr`,
+`.EXP`, `.prm`).
+
+- **Refuse on the way out whatever the reader refuses on the way in**, and
+  refuse it where the value is still in hand rather than leaving the file on
+  disk to fail in someone else's program. A negative `Biso`, an anisotropic
+  site under a convention `to_structure` declines to assume, a setting the
+  format cannot spell — and a **non-finite** value, which `repr` writes as
+  `inf` and no real program parses. The reader's own refusals are the list to
+  work from; where the reader refuses *for want of evidence*, § What a reader
+  may repair's rule decides the direction — magnitude, not the refine flag, so
+  a value at the model's identity is dropped and a non-zero one raises (a
+  `.prm`'s `ICONS ZERO`, whose unit no file here settles).
+- **A fixed-column writer owes two things a token writer does not.** The field
+  is the *budget*: spend it (`gsas.write_field`, `%g` descending from seventeen
+  digits, which is the value's own `repr` wherever that fits) and name what
+  still had to narrow, once per file rather than once per value, since on a
+  converged model most values narrow. **How much of it is spendable is the
+  *reader's* question, not the field's** — a field read by column may fill
+  itself, one read by token must leave a separator, and a writer that spends
+  all fifteen columns of a `.prm` `PRCF` field wrote a file this package's own
+  reader refused (`_PRM_COEFFICIENT_DIGITS`; the multiply into centidegrees
+  carries the product's float noise, so a converged calibration hits it). And
+  **write the decimal point** — a Fortran `F`/`E` edit descriptor supplies one
+  from its own `d` when the field has none, so `90` in an `F10.6` field is 9e-5
+  to the program the file is *for* while `float()` here reads 90. That is the
+  one class a round trip through this package cannot catch, so it is checked
+  against a real file's own spelling instead. The characters are the field's
+  too: a line break splits a card in two under keys nothing wrote, and a
+  character the file's encoding cannot spell must be refused at the field
+  rather than at the encode, which names a byte offset into the finished file.
+- **A flag narrower than the model merges free, and the group is named.** GSAS
+  states one refine flag for a whole cell and one for a site's three
+  coordinates, both meaning "as symmetry permits". Freeing keeps more of the
+  caller's protocol than holding, and the protocol is what these files are for.
+- **The write grammar is shared exactly as the read grammar is**:
+  `projects/gsas.write_field`/`write_record` are public and
+  `instrument_profile.py`'s `.prm` writer calls them. Two writers spelling one
+  record two ways is how the two *readers* came to disagree about `ICONS`.

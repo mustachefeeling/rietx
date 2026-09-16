@@ -116,6 +116,15 @@ class ProjectFormat:
     read: Callable[..., Any]
     #: the format's own conversion to a :class:`~rietx.schemas.Structure`
     to_structure: Callable[..., Structure]
+    #: the format's own **writer**, or ``None`` where this build has none
+    #: (WP-1118).  A callable rather than a flag, so ``capabilities()`` can
+    #: publish the entry point's *name* and a client learns what to call rather
+    #: than only that something is possible — and ``None`` is the honest empty
+    #: state a ``bool`` default could not be, since ``False`` would say "this
+    #: format cannot be written" about one nobody had wired (WP-1076).  The
+    #: field is written once whatever the coverage: a format gaining a writer
+    #: changes its value, never this shape
+    write: Callable[..., None] | None = None
     #: why this format is recognised **in order to be refused**, or ``None`` for
     #: one that reads.  One field rather than a side table, so an entry says for
     #: itself which it is — ``PatternFormat.refuses``' reasoning, and the same
@@ -370,6 +379,7 @@ PROJECT_FORMATS: tuple[ProjectFormat, ...] = (
             matches=_matches_fullprof_pcr,
             read=fullprof.read_fullprof_pcr,
             to_structure=fullprof.to_structure,
+            write=fullprof.write_fullprof_pcr,
         ),
         ProjectFormat(
             name="gsas_exp",
@@ -387,6 +397,7 @@ PROJECT_FORMATS: tuple[ProjectFormat, ...] = (
             matches=_matches_gsas_exp,
             read=gsas.read_gsas_exp,
             to_structure=gsas.to_structure,
+            write=gsas.write_gsas_exp,
         ),
         ProjectFormat(
             name="topas_inp",
@@ -401,6 +412,7 @@ PROJECT_FORMATS: tuple[ProjectFormat, ...] = (
             matches=_matches_topas_inp,
             read=topas.read_topas_inp,
             to_structure=topas.to_structure,
+            write=topas.write_topas_inp,
         ),
 )
 

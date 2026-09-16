@@ -81,11 +81,16 @@ source was consulted.  See ``ATTRIBUTION.md``.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from ...crystallography.symmetry import setting_diagnostics
 from ...schemas.common import Diagnostic
+
+if TYPE_CHECKING:
+    from ...schemas import Structure
 
 #: One record: 80 characters, of which the first 12 are the fetch key.
 RECORD_BYTES = 80
@@ -798,8 +803,17 @@ def _read_phase(number: int, block: dict[str, str], path: str,
             refine_u="U" in codes.upper(),
             damping=tuple(int(c) if c.isdigit() else 0 for c in head[63:66])))
 
+    # ``CHMF`` is ``2X, A8, F10.2`` — the same lead-in the ``ATmmmA`` record
+    # above uses for its own species token, which is what settles it.  Read two
+    # columns short (species at 0 and the content at 8) both fields still come
+    # out right on this repo's one fixture, because every content in it ends
+    # ``.00``: ``'  CA            5.00'`` sliced at ``[8:18]`` is ``'        5.'``,
+    # which floats to 5.0.  A partially occupied site — a solid solution, the
+    # ordinary case — is where it bites, and 5.25 arrived as 5.0.  The species
+    # field moves with it by the same two columns.  The corpus hiding a wrong
+    # offset is this module's own ``ICONS`` story one record along (WP-1118).
     formula = tuple(
-        (_text(block[k], 0, 8), _num(block[k], 8, 10) or 0.0)
+        (_text(block[k], 2, 8), _num(block[k], 10, 10) or 0.0)
         for k in sorted(k for k in block if k.startswith("CHMF")))
 
     return GsasPhase(
@@ -1390,3 +1404,396 @@ def to_structure(model: GsasModel, *, phase: int | None = None,
                 f"trusting a converted value"),
             where=["phases.0.scale"]))
     return structure
+
+
+# ------------------------------------------------------------------ writing it
+#
+# :func:`write_field` and :func:`write_record` are **public and shared**, for
+# the reason :func:`read_icons` is: the card index is GSAS's, not this file
+# kind's, so an instrument-parameter file writes its fields the same way an
+# experiment file does and ``io/instrument_profile.py``'s ``.prm`` writer calls
+# them rather than carrying a second copy.  Two writers spelling one record two
+# ways is how they come to disagree about it, which the two readers did until
+# WP-1118.
+
+#: The column widths the writer fills, each quoted from the read above rather
+#: than restated.  A number is the ten columns :func:`_num` slices off ``ABC``,
+#: ``ANGLES`` and the atom records; a species or a site label is the eight
+#: :func:`_text` takes; a payload is what a card has left once its key is
+#: written.  A ``.prm``'s ``PRCF`` fields are wider, which is why
+#: :func:`write_field` takes the width rather than holding one.
+_WRITE_NUMBER = 10
+_WRITE_LABEL = 8
+_WRITE_PAYLOAD = RECORD_BYTES - KEY_BYTES
+
+#: The two counts the *format* cannot exceed, as opposed to this build:
+#: ``EXPR NPHAS`` states nine phase types in nine ``I5`` fields, and the
+#: ``ATmmmA`` key numbers a site in three columns.
+_WRITE_MAX_PHASES = 9
+_WRITE_MAX_ATOMS = 999
+
+#: The ``VERSION`` this writer stamps — the edition :data:`SPEC` names, which
+#: is the one ``FAP.EXP`` states.  Written rather than left blank because the
+#: field says which layout the records below follow.
+_WRITE_VERSION = 6
+
+
+def write_field(value: float, width: int, *, what: str,
+                narrowed: list[tuple[str, float, float]]) -> str:
+    """``value`` as the most precise text that fits ``width`` columns.
+
+    The inverse of :func:`_num`, and the rule both GSAS writers rest on: **the
+    field is the contract**.  A GSAS card is read by column, so a number is
+    worth exactly as many characters as its field has and the writer's job is
+    to spend them.  ``%g`` descending from seventeen significant digits gives
+    the shortest text that fits, which — where the value's own ``repr`` fits —
+    *is* that ``repr``, so every realistic cell edge, coordinate and occupancy
+    crosses bit-identically and only a value needing more than its field is
+    narrowed at all.
+
+    A narrowed value is **recorded** rather than dropped in silence: the caller
+    gets one diagnostic naming how many and the worst of them
+    (:func:`from_structure`).  A non-finite one is **refused**, because ``inf``
+    fits ten columns and reads back as a float — a cell edge of infinity would
+    round-trip perfectly into a structure no program can refine.
+
+    **The decimal point is always written**, and this is the one place a round
+    trip through *this* package cannot catch the mistake.  A Fortran ``F`` or
+    ``E`` edit descriptor supplies the decimal point from its own ``d`` when
+    the input field has none, which is why punched data could leave it out —
+    so ``90`` in an ``F10.6`` field is 9e-5 to the program this file is *for*,
+    while :func:`_num`'s ``float`` reads 90 and every test here passes.  Real
+    GSAS files write ``0.333333`` and ``0.000000E+00`` for the same reason.
+    """
+    if not math.isfinite(value):
+        raise ValueError(
+            f"{what} is {value!r}, which no GSAS field can state.  The token "
+            f"Python writes for it fits the column and reads back as a float, "
+            f"so the file would round-trip into a model nothing can refine "
+            f"rather than failing here, where the value is still in hand")
+    for digits in range(17, 0, -1):
+        text = f"{value:.{digits}g}".upper()
+        if "." not in text:
+            mantissa, _, exponent = text.partition("E")
+            text = mantissa + "." + (f"E{exponent}" if exponent else "")
+        if len(text) <= width:
+            if float(text) != value:
+                narrowed.append((what, value, float(text)))
+            return text.rjust(width)
+    raise ValueError(
+        f"{what} is {value!r}, which no {width}-column GSAS field can hold at "
+        f"any precision")
+
+
+def write_record(key: str, payload: str = "") -> str:
+    """One 80-character card: a twelve-character key and its payload.
+
+    The width is structural — GSAS read these files by direct access and
+    ``registry._matches_gsas_exp`` measures it — so a payload that would
+    overrun is a refusal rather than a truncation.  Cutting a title at column
+    80 is a repair, and a repair a writer cannot report is one it may not make.
+
+    Two more refusals, both about the *characters* rather than the count, and
+    both placed here because this is the one function that spells a card.
+
+    **A line break is refused.**  :func:`split_records` splits on CR and LF, so
+    one inside a payload cuts the card in two and the halves are read as
+    records with keys the writer never wrote — the same accident that
+    function's docstring names from the reading side, arriving here through a
+    ``title`` or a ``phase.name``.
+
+    **A character ``latin-1`` cannot spell is refused.**  A ``.EXP`` is a byte
+    format and :func:`write_gsas_exp` encodes one, so a Greek α in a phase name
+    otherwise raised ``UnicodeEncodeError`` at the encode, naming a byte offset
+    into the whole file rather than the field the caller can fix.
+    """
+    if len(key) != KEY_BYTES:                                # pragma: no cover
+        raise ValueError(f"{key!r} is not a {KEY_BYTES}-character record key")
+    if len(payload) > _WRITE_PAYLOAD:
+        raise ValueError(
+            f"a .EXP card's payload is {_WRITE_PAYLOAD} columns and record "
+            f"{key.strip()!r} needs {len(payload)}: {payload.strip()!r}.  The "
+            f"80-character width is what GSAS fetched these records by, so it "
+            f"is not a field this writer may overrun")
+    if "\r" in payload or "\n" in payload:
+        raise ValueError(
+            f"record {key.strip()!r} carries a line break: "
+            f"{payload.strip()!r}.  A card index is split on CR and LF, so the "
+            f"card would be read back as two records under keys nothing wrote "
+            f"— a silent corruption rather than a failure")
+    try:
+        payload.encode("latin-1")
+    except UnicodeEncodeError as exc:
+        raise ValueError(
+            f"record {key.strip()!r} carries {payload[exc.start:exc.end]!r}, "
+            f"which latin-1 cannot spell: {payload.strip()!r}.  A .EXP is a "
+            f"byte format and this is the field that has to change, which an "
+            f"encode error over the finished file could not say") from None
+    return f"{key}{payload}".ljust(RECORD_BYTES)
+
+
+def _merged_flag(params, *, what: str, merged: list[str]) -> bool:
+    """One GSAS refine flag for several rietx parameters.
+
+    GSAS states one flag for the whole cell and one ``X`` letter for a site's
+    three coordinates, both meaning "refine **as permitted by symmetry**" —
+    which is why :func:`to_structure` spreads each of them over the six or
+    three parameters it arrives as.  Writing one back is therefore a merge, and
+    the flag is set where **any** member varies: a file saying "this cell
+    refined" and freeing one parameter too many carries more of the caller's
+    protocol than one saying it did not refine at all.
+
+    Where the members disagree the group is *named*, so the caller learns which
+    held parameter the file now frees here rather than from GSAS.
+    """
+    flags = [bool(p.vary) for p in params]
+    if any(flags) and not all(flags):
+        merged.append(what)
+    return any(flags)
+
+
+def _write_label(text: str, *, what: str) -> str:
+    """A species token or a site label, in its eight columns.
+
+    Whitespace *inside* the field is fine — this is a fixed-column format, so
+    :func:`_text` recovers ``"C a"`` intact, where the whitespace-tokenized
+    ``.inp`` and ``.pcr`` writers both have to refuse it.  Whitespace at either
+    end is not: :func:`_text` strips, so it would come back a different name.
+    """
+    if not text.strip():
+        raise ValueError(
+            f"{what} is {text!r}, and a blank site label reads back as the "
+            f"site's species — GSAS's own fallback for a record that names "
+            f"none, so the atom would return under another name rather than "
+            f"failing here")
+    if text != text.strip():
+        raise ValueError(
+            f"{what} is {text!r}, which has whitespace at one end.  A .EXP "
+            f"field is fixed-width and is read back stripped, so the name "
+            f"would come back as {text.strip()!r} — a silent rename.  Space "
+            f"*inside* the name is fine, this format being columns rather "
+            f"than tokens")
+    if len(text) > _WRITE_LABEL:
+        raise ValueError(
+            f"{what} is {text!r}, which is {len(text)} characters against the "
+            f"{_WRITE_LABEL} an A8 field holds.  Truncating it would hand the "
+            f"site back under a name nobody chose")
+    return f"{text:<{_WRITE_LABEL}}"
+
+
+def from_structure(structure: Structure, *, title: str = "",
+                   diagnostics: list[Diagnostic] | None = None) -> str:
+    """Serialise ``structure`` as GSAS-I ``.EXP`` text — the inverse of
+    :func:`to_structure`.
+
+    Carries exactly what :func:`to_structure` reads back: per phase, the space
+    group, the six cell edges, and every atom's coordinates, occupancy,
+    displacement and ``vary``.  ``Biso`` goes back through
+    :data:`EIGHT_PI_SQUARED` to the ``Uiso`` the ``ATmmmB`` record holds.  Two
+    fields are *derived* rather than carried, because GSAS states them and a
+    ``Structure`` does not: each site's ``multiplicity``, from its own orbit
+    under the space group, and the ``CHMF`` unit-cell contents, which are the
+    occupancies summed over those multiplicities.
+
+    **This is the first writer here whose columns are fixed**, and that changes
+    two things the ``.inp`` and ``.pcr`` writers did not have to decide.
+
+    *A field is a budget.*  :func:`write_field` spends every column it has, so a
+    value whose own ``repr`` fits ten characters crosses bit-identically and
+    one that does not is written to the precision the field holds and
+    **named** — ``GSAS_EXP_VALUE_NARROWED``, once per file with the worst of
+    them, rather than once per value, since on a converged model most refined
+    numbers narrow and a row that fires on every file is one a reader learns to
+    skip.  A ``Uiso`` divided out of a ``Biso`` is the usual case: ten columns
+    hold it to about 1e-7 of itself, five orders below any esd a refinement
+    reports.
+
+    *A flag can be narrower than the model.*  GSAS refines the cell under one
+    flag and a site's coordinates under one letter, so writing back the six and
+    the three ``vary`` values is a merge (:func:`_merged_flag`): the flag is
+    set where any member varies, and a group whose members disagree is named,
+    ``GSAS_EXP_REFINE_FLAG_MERGED``.
+
+    Space groups are written ``get_spacegroup(phase.space_group).xhm()``, never
+    the phase's stored spelling, so a setting a reader *resolved* is not
+    laundered back into an ambiguous symbol ([1324] and both sibling writers).
+    Unlike a ``.pcr``, a ``.EXP`` can spell every setting: ``SG SYM`` takes the
+    whole payload, so the ``:2``/``:R`` suffix travels and no refusal is owed.
+
+    **What does not carry**, because :func:`to_structure` never builds it: the
+    instrument, the histograms and everything on them — wavelengths, the
+    profile coefficients, the background, the excluded regions, the converged
+    figures of merit.  The file states ``EXPR NHST`` of zero, which is the
+    honest shape rather than an omission: it is exactly what a ``.EXP`` written
+    before any data was loaded looks like, and this reader already has a
+    sentence for one.  The phase scale does not carry either — the read drops
+    it in the other direction for the reason ``GSAS_EXP_SCALE_NOT_COMPARABLE``
+    gives.
+
+    Five refusals besides the two in :func:`_write_label`.  More than
+    :data:`_WRITE_MAX_PHASES` phases or :data:`_WRITE_MAX_ATOMS` sites in one,
+    both limits of the format's own key and record layout rather than of this
+    build.  An **anisotropic site**, which :func:`to_structure` refuses on the
+    way in because no file here settles GSAS's off-diagonal convention — so
+    writing six numbers under a convention this module declines to read would
+    be worse than declining to write them.  A **negative** ``biso``, which the
+    same function refuses on the way in, so writing one would only fail later
+    with the file already on disk.  And a **non-finite** value, in
+    :func:`write_field`.
+    """
+    import numpy as np
+
+    from ..._about import DIST_NAME
+    from ...crystallography.symmetry import expand_positions, get_spacegroup
+
+    if len(structure.phases) > _WRITE_MAX_PHASES:
+        raise ValueError(
+            f"a .EXP states its phase types on one 'EXPR NPHAS' record of "
+            f"{_WRITE_MAX_PHASES} I5 fields, and this structure has "
+            f"{len(structure.phases)} phases.  A tenth has nowhere to be "
+            f"typed, and an untyped phase is what to_structure refuses on the "
+            f"way back in")
+
+    narrowed: list[tuple[str, float, float]] = []
+    merged: list[str] = []
+    cards = [
+        write_record("     VERSION", f"{_WRITE_VERSION:5d}"),
+        write_record("      DESCR ", f"  {title}"),
+        # HSTRY is GSAS's own record for "which program touched this file",
+        # and the reader ignores it — so the provenance line goes there rather
+        # than into DESCR, which is the caller's title.
+        write_record("    HSTRY  1", f"  written by {DIST_NAME}"),
+        write_record(" EXPR NPHAS ", "".join(
+            f"{1 if i < len(structure.phases) else 0:5d}"
+            for i in range(_WRITE_MAX_PHASES))),
+        write_record(" EXPR  NHST ", f"{0:5d}"),
+    ]
+
+    for n, phase in enumerate(structure.phases, start=1):
+        where = f"phases.{n - 1}"
+        if len(phase.atoms) > _WRITE_MAX_ATOMS:
+            raise ValueError(
+                f"phase {phase.name!r} has {len(phase.atoms)} sites, and the "
+                f"ATmmmA record numbers a site in three columns — site "
+                f"{_WRITE_MAX_ATOMS + 1} has no key")
+        sg = get_spacegroup(phase.space_group)
+        cell = phase.cell
+        edges = (cell.a, cell.b, cell.c)
+        angles = (cell.alpha, cell.beta, cell.gamma)
+        cell_refined = _merged_flag(
+            edges + angles, what=f"{where}.cell", merged=merged)
+
+        cards.append(write_record(f"CRS{n}    PNAM", f"  {phase.name}"))
+        cards.append(write_record(f"CRS{n}   NATOM", f"{len(phase.atoms):5d}"))
+        cards.append(write_record(f"CRS{n}  ABC   ", "".join(
+            write_field(p.value, _WRITE_NUMBER, what=f"{where}.cell.{k}",
+                   narrowed=narrowed)
+            for k, p in zip("abc", edges, strict=True))
+            # the flag sits at payload column 34 and the damping code at 39
+            + "    " + ("Y" if cell_refined else "N") + "    0"))
+        cards.append(write_record(f"CRS{n}  ANGLES", "".join(
+            write_field(p.value, _WRITE_NUMBER, what=f"{where}.cell.{k}",
+                   narrowed=narrowed)
+            for k, p in zip(("alpha", "beta", "gamma"), angles, strict=True))))
+        cards.append(write_record(f"CRS{n}  SG SYM", f"  {sg.xhm()}"))
+
+        contents: dict[str, float] = {}
+        for i, atom in enumerate(phase.atoms):
+            site = f"{where}.atoms.{i}"
+            if atom.aniso is not None:
+                raise ValueError(
+                    f"{site} ({atom.label!r}) is anisotropic, and to_structure "
+                    f"refuses an anisotropic .EXP site on the way in: which "
+                    f"off-diagonal convention GSAS writes UIJ in is settled by "
+                    f"no file in this repo, and a wrong factor of two is a "
+                    f"silently wrong Debye-Waller factor at high Q.  Writing "
+                    f"six numbers under a convention this module declines to "
+                    f"read back would be the same guess in the other "
+                    f"direction")
+            if atom.biso.value < 0.0:
+                raise ValueError(
+                    f"{site} ({atom.label!r}) has biso = {atom.biso.value}, "
+                    f"and to_structure refuses a negative Uiso on the way back "
+                    f"in — exp(-B·s²) with B < 0 grows without bound at high "
+                    f"Q.  Writing it would only fail at the read, with the "
+                    f"file already on disk")
+            species = _write_label(atom.species, what=f"{site}.species")
+            label = _write_label(atom.label, what=f"{site}.label")
+            xyz = (atom.x, atom.y, atom.z)
+            multiplicity = len(expand_positions(
+                sg, np.array([atom.x.value, atom.y.value, atom.z.value])))
+            contents[atom.species] = (contents.get(atom.species, 0.0)
+                                      + atom.occ.value * multiplicity)
+            head = (f"  {species}" + "".join(
+                write_field(p.value, _WRITE_NUMBER, what=f"{site}.{k}",
+                       narrowed=narrowed)
+                for k, p in zip(("x", "y", "z"), xyz, strict=True))
+                + write_field(atom.occ.value, _WRITE_NUMBER, what=f"{site}.occ",
+                         narrowed=narrowed)
+                + label + f"{multiplicity:4d}" + " 000")
+            # 'I' for isotropic, then the F/X/U letters, at payload column 62
+            codes = ("I"
+                     + ("F" if atom.occ.vary else " ")
+                     + ("X" if _merged_flag(xyz, what=f"{site}.xyz",
+                                            merged=merged) else " ")
+                     + ("U" if atom.biso.vary else " "))
+            tail = (write_field(atom.biso.value / EIGHT_PI_SQUARED, _WRITE_NUMBER,
+                           what=f"{site}.biso", narrowed=narrowed)
+                    + " " * 52 + codes)
+            cards.append(write_record(f"CRS{n}  AT{i + 1:3d}A", head))
+            cards.append(write_record(f"CRS{n}  AT{i + 1:3d}B", tail))
+
+        # The unit-cell content is *derived* and `to_structure` discards
+        # `formula` outright, so narrowing one loses nothing a round trip could
+        # show — it does not join the count of values that did.
+        derived: list[tuple[str, float, float]] = []
+        for j, (species, total) in enumerate(contents.items(), start=1):
+            cards.append(write_record(
+                f"CRS{n}  CHMF{j:2d}",
+                f"  {_write_label(species, what=f'{where}.atoms species')}"
+                + write_field(total, _WRITE_NUMBER, what=f"{where}.atoms",
+                         narrowed=derived)))
+
+    cards.append(write_record(TERMINATOR, "  Last EXP file record"))
+
+    if diagnostics is not None:
+        if narrowed:
+            what, value, written = max(
+                narrowed, key=lambda row: abs(row[2] - row[1]) / (abs(row[1]) or 1.0))
+            diagnostics.append(Diagnostic(
+                level="info", code="GSAS_EXP_VALUE_NARROWED",
+                message=(
+                    f"{len(narrowed)} value(s) need more than "
+                    f"{_WRITE_NUMBER} characters and were written to what a "
+                    f".EXP's fixed columns hold; the largest change is {what} "
+                    f"{value!r} → {written!r}.  A converged refinement's "
+                    f"numbers are full-precision doubles, so this is the "
+                    f"ordinary case rather than a warning sign — the format "
+                    f"reads by column and a column is the budget"),
+                where=[row[0] for row in narrowed]))
+        if merged:
+            diagnostics.append(Diagnostic(
+                level="warning", code="GSAS_EXP_REFINE_FLAG_MERGED",
+                message=(
+                    f"GSAS states one refine flag for a whole cell and one for "
+                    f"a site's three coordinates, meaning 'refine as permitted "
+                    f"by symmetry'.  {len(merged)} group(s) here disagree "
+                    f"internally ({', '.join(merged)}) and were written "
+                    f"**free**, so the file frees a parameter this structure "
+                    f"holds.  Reading it back gives every member of the group "
+                    f"the one flag"),
+                where=list(merged)))
+    return "\r\n".join(cards) + "\r\n"
+
+
+def write_gsas_exp(structure: Structure, path: str | Path, *, title: str = "",
+                   diagnostics: list[Diagnostic] | None = None) -> None:
+    """Write ``structure`` to ``path`` as a GSAS-I ``.EXP``.
+
+    ``latin-1``, because a ``.EXP`` is a byte format — the same decoding
+    :func:`_records` reads one with.  See :func:`from_structure` for exactly
+    what carries and what does not.
+    """
+    Path(path).write_bytes(
+        from_structure(structure, title=title,
+                       diagnostics=diagnostics).encode("latin-1"))

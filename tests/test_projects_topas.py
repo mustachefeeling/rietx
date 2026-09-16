@@ -3149,3 +3149,47 @@ def test_write_topas_inp_refuses_a_single_quote_in_a_label(tmp_path):
 
 def test_write_topas_inp_is_reachable_at_the_top_level():
     assert rx.write_topas_inp is write_topas_inp
+
+
+def test_write_topas_inp_refuses_a_non_finite_value():
+    """`Parameter` does not forbid `inf` and a converged fit cannot reach one,
+    but `repr` spells it `inf` and TOPAS does not parse that — so the file
+    would be written and fail in someone else's program. Surfaced by the review
+    pass on this writer's own branch and left as a design question; the answer
+    is the same for all three foreign-format writers (WP-1118)."""
+    structure = _cubic_al()
+    structure.phases[0].cell.a.max = float("inf")
+    structure.phases[0].cell.a.value = float("inf")
+    with pytest.raises(ValueError, match="does not parse"):
+        from_structure(structure)
+
+
+def test_an_anisotropic_sites_beq_is_refused_non_finite_too():
+    """The one number this writer spells without a tail.
+
+    An anisotropic site's ``beq`` is forced held whatever its ``vary`` says, so
+    it goes out as a bare ``repr`` rather than through :func:`_tail` — which is
+    why the refusal lives one rank down, in ``_number``.  Carried by ``_tail``
+    alone, this is exactly the value that would have escaped it: ``biso``'s own
+    ``< 0`` guard passes ``inf``, and ``beq ! inf`` is a file TOPAS cannot
+    read.
+    """
+    cell = rx.Cell.cubic(5.62)
+    atom = rx.Atom(
+        label="Na1", species="Na1+",
+        x=rx.Parameter(value=0.0), y=rx.Parameter(value=0.0),
+        z=rx.Parameter(value=0.0), occ=rx.Parameter(value=1.0),
+        biso=rx.Parameter(value=1.026, min=0.0, max=25.0, unit="A^2"),
+        aniso=rx.AnisoU(
+            u11=rx.Parameter(value=0.013, unit="A^2"),
+            u22=rx.Parameter(value=0.013, unit="A^2"),
+            u33=rx.Parameter(value=0.013, unit="A^2"),
+            u12=rx.Parameter(value=0.0, unit="A^2"),
+            u13=rx.Parameter(value=0.0, unit="A^2"),
+            u23=rx.Parameter(value=0.0, unit="A^2")))
+    structure = rx.Structure(phases=[rx.Phase(
+        name="NaCl", space_group="Fm-3m", cell=cell, atoms=[atom])])
+    atom.biso.max = float("inf")
+    atom.biso.value = float("inf")
+    with pytest.raises(ValueError, match="does not parse"):
+        from_structure(structure)

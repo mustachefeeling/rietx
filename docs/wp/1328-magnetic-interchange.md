@@ -66,6 +66,16 @@ is still named in the result.
 
 ### Inherited
 
+- **2026-09-16, from [1118](1118-foreign-model-files.md): "out" now has a
+  rulebook, and this WP's magCIF writer inherits it.** `io/CLAUDE.md` gained a
+  § Project writers when the GSAS-I pair landed, four rules covering every
+  later writer in this family. Two bear on a magCIF: refuse on the way out
+  whatever the reader refuses on the way in, and where the reader refuses *for
+  want of evidence* let magnitude decide drop against refuse — which is the
+  shape a magnetic writer meets immediately, since this build refuses a
+  magnetic phase for want of a model rather than for want of a spelling. The
+  acceptance is the round trip through the matching reader, with no committed
+  fixture.
 - **2026-09-16, from [1118](1118-foreign-model-files.md): a fourth magnetic
   refusal, a second *shape* of one, and a real magnetic project now in
   `tests/data`.** The GSAS-II `.gpx` reader refuses a phase GSAS-II types

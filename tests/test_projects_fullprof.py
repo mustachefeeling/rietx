@@ -2111,3 +2111,18 @@ def test_write_fullprof_pcr_refuses_a_comment_marker_in_an_atom_label():
 
 def test_write_fullprof_pcr_is_reachable_at_the_top_level():
     assert rx.write_fullprof_pcr is write_fullprof_pcr
+
+
+def test_write_fullprof_pcr_refuses_a_non_finite_value():
+    """The sibling of the TOPAS and GSAS rows: `repr` spells it `inf`, no real
+    program parses that, and the failure would otherwise land in someone
+    else's (WP-1118)."""
+    structure = rx.Structure(phases=[rx.Phase(
+        name="Al", space_group="Fm-3m",
+        cell=rx.Cell.cubic(4.0495, vary=True),
+        atoms=[rx.Atom(label="Al1", species="Al", x=rx.Parameter(value=0.0),
+                       y=rx.Parameter(value=0.0), z=rx.Parameter(value=0.0))])])
+    structure.phases[0].cell.a.max = float("inf")
+    structure.phases[0].cell.a.value = float("inf")
+    with pytest.raises(ValueError, match="does not parse"):
+        from_structure(structure)

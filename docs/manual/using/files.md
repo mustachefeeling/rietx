@@ -240,6 +240,38 @@ instrument = rx.read_gsas_prm("beamline.prm", diagnostics=notes)
 # GSAS_PRM_GEOMETRY_ASSUMED: the geometry was not read from the file
 ```
 
+### Writing a GSAS-I `.prm` back
+
+`write_gsas_prm` is that reader's inverse, and the fourth of the
+foreign-format writers. It takes a calibrated `Instrument` and states it as
+GSAS states one: the wavelengths, the polarization, `profile.u/v/w` as
+`GU`/`GV`/`GW` and `profile.x/y` as `LX`/`LY` multiplied back into
+centidegrees, and `geometry.axial_sl`/`axial_hl` as `S/L` and `H/L`:
+
+<!-- api-doc: no-exec — it writes a file -->
+```python
+notes = []
+rx.write_gsas_prm(instrument, "beamline.prm", header="LaB6, March",
+                  diagnostics=notes)
+```
+
+Unlike the three structure writers, the refine flags are deliberately not the
+payload. An instrument-parameter file is a beamline calibration rather than a
+starting guess, which is why both readers here hand one back frozen, so the
+`PRCF` header's flag columns are left blank as a real calibration file leaves
+them. `GSAS_PRM_FIELD_NOT_WRITTEN` names what this instrument carries that the
+format cannot state, the geometry always among it.
+
+One value is refused rather than reported. `ICONS`' `ZERO` field is the one
+number here whose unit this package has not established, and `read_gsas_prm`
+refuses a non-zero one on the way in for that reason, so writing a guess would
+make a file this package will not read back and a `ZERO` wrong by 100× puts
+every peak in the wrong place. Set `zero_shift` to 0 and let the receiving
+program refine it; a zero shift belongs to the mount rather than to the
+goniometer. A neutron source, a third emission line and a second line whose
+weight is not a `KRATIO` are refused for the same reason in the other three
+cases: each would make a file this package's own reader declines.
+
 Pass no list and the read is silent and identical, so the channel is opt-in
 rather than a behaviour change.
 
@@ -258,10 +290,11 @@ error.
 The foreign-refinement readers are under active development, so the names in
 this section are documented and not frozen. `read_project_model`,
 `identify_project_format`, `read_topas_inp`, `read_fullprof_pcr`,
-`read_gsas_exp`, `read_gsas2_gpx`, `write_topas_inp`, `write_fullprof_pcr` and
+`read_gsas_exp`, `read_gsas2_gpx`, `write_topas_inp`, `write_fullprof_pcr`,
+`write_gsas_exp` and
 the per-format models they answer with (`rietx.io.projects`) may change in a
 1.x release: the registry has four formats and one more queued, each of which
-is evidence about its shape, and the write direction has landed for two
+is evidence about its shape, and the write direction has landed for three
 formats of four. A format's own model mirrors that format, so its fields move
 when the reader's coverage does.
 {ref}`provisional-by-declaration` has the promise in full.
@@ -293,13 +326,15 @@ file without parsing it, reading only enough of the head to decide.
 
 ### Writing one back
 
-`rx.write_topas_inp(structure, path)` and `rx.write_fullprof_pcr(structure,
-path)` are each format's inverse of its own reader +
-`ProjectModel.to_structure`. Both write a file that states the same phases,
-the same cell and the same atoms, plus the part a CIF cannot carry: the same
-refine flags, each `Parameter.vary` written in the target format's own
-grammar (TOPAS's `@`/`!`; FullProf's codeword, one free parameter to one
-codeword number, never a shared tie).
+`rx.write_topas_inp(structure, path)`, `rx.write_fullprof_pcr(structure,
+path)` and `rx.write_gsas_exp(structure, path)` are each format's inverse of
+its own reader +
+`ProjectModel.to_structure`. All three write a file that states the same
+phases, the same cell and the same atoms, plus the part a CIF cannot carry:
+the same refine flags, each `Parameter.vary` written in the target format's
+own grammar (TOPAS's `@`/`!`; FullProf's codeword, one free parameter to one
+codeword number, never a shared tie; GSAS's `Y` on the cell record and its
+`X`/`U`/`F` letters on a site's).
 
 <!-- api-doc: no-exec — needs a real Structure and writes a file -->
 ```python
@@ -308,30 +343,53 @@ back = rx.read_topas_inp("exported.inp").to_structure()
 
 rx.write_fullprof_pcr(structure, "exported.pcr")
 back = rx.read_fullprof_pcr("exported.pcr").to_structure()
+
+rx.write_gsas_exp(structure, "exported.EXP", title="my experiment")
+back = rx.read_gsas_exp("exported.EXP")
 ```
 
-Both write space groups from `get_spacegroup(...).xhm()`, never a phase's own
-stored spelling, so a setting this build already resolved is not laundered
-back into an ambiguous symbol. FullProf's grammar has no origin or axis
-suffix at all, though, so it can only *state* a setting its own bare-symbol
-convention already prefers (root CLAUDE.md's "an R lattice on rhombohedral
-axes" and "choice 2 wherever the bare symbol lands on choice 1"). A phase
-whose resolved setting disagrees, most commonly origin choice 1, is refused
-by name instead of being silently written as the other setting. An
-anisotropic site is refused too, in both writers, because `to_structure`
-refuses to assume a displacement-tensor convention on the way in and writing
-one out would assume the very thing the reader declines to read back.
+All three write space groups from `get_spacegroup(...).xhm()`, never a
+phase's own stored spelling, so a setting this build already resolved is not
+laundered back into an ambiguous symbol. FullProf's grammar has no origin or
+axis suffix at all, though, so it can only *state* a setting its own
+bare-symbol convention already prefers (root CLAUDE.md's "an R lattice on
+rhombohedral axes" and "choice 2 wherever the bare symbol lands on choice
+1"). A phase whose resolved setting disagrees, most commonly origin choice 1,
+is refused by name instead of being silently written as the other setting.
+TOPAS and GSAS can both spell every setting, so neither owes that refusal. An
+anisotropic site is refused by the FullProf and GSAS writers, because
+`to_structure` refuses to assume a displacement-tensor convention on the way
+in and writing one out would assume the very thing the reader declines to
+read back.
 
-Some things do not travel, because neither `to_structure` builds them from
-its file. Common to both: the emission profile and instrument geometry
-(`Instrument` is not part of what either reader returns), and cell/site
-bound windows. FullProf-specific: the fitted 2θ range, the resolution
+A `.EXP` is the one target read by column rather than by token, and two
+things follow from that. A number is worth as many characters as its field
+has, so a value whose shortest exact decimal fits ten columns crosses
+untouched and one that does not is written to the precision the field holds
+and named, `GSAS_EXP_VALUE_NARROWED`, once for the file. The displacement is
+always in that second class: GSAS stores `Uiso` and rietx stores `Biso`, so
+the 8π² between them turns a two-character `Biso` into a `Uiso` no ten-column
+field can hold exactly. Ten columns keep it to about seven significant
+figures, five orders below the esd a refinement reports, and two figures
+better than the six decimals GSAS itself writes. The other thing is that GSAS
+states one refine flag for a whole cell and one for a site's three
+coordinates, both meaning "refine as symmetry permits". A structure whose six
+or three disagree is written free and the group is named,
+`GSAS_EXP_REFINE_FLAG_MERGED`, so the file still says the cell refined and
+you learn which held parameter it frees. Pass `diagnostics=[]` to collect
+both.
+
+Some things do not travel, because no `to_structure` builds them from its
+file. Common to all three: the emission profile and instrument geometry
+(`Instrument` is not part of what any of these readers returns), and cell and
+site bound windows. FullProf-specific: the fitted 2θ range, the resolution
 function and every control/output switch on a `.pcr` are protocol
 `to_structure` never reads into a `Structure`. `write_fullprof_pcr` fills them
 with safe, inert placeholders purely to keep the file complete, since a
 `.pcr` is positional and every line the reader expects has to exist even
-where a `Structure` carries nothing for it. GSAS and GSAS-II have no writer
-yet.
+where a `Structure` carries nothing for it. A written `.EXP` states no
+histograms at all, which is what a GSAS experiment file looks like before any
+data is loaded rather than an omission. GSAS-II has no writer yet.
 
 ### What comes back
 
@@ -677,6 +735,7 @@ caps = rx.capabilities()
 | `ProjectFormatCapability.sniff` | how the format is recognised, in words |
 | `ProjectFormatCapability.carries` | what the file holds beyond a structure; read this before reading a model you have no common shape for |
 | `ProjectFormatCapability.reports_at` | `"read"`, `"build"` or `"both"`: which call takes your `diagnostics=` list |
+| `ProjectFormatCapability.writes` | the top-level verb that writes this format, or `None` where this build has no writer for it |
 | `ProjectFormatCapability.refuses` | set when the build recognises a format in order to decline it, carrying why |
 
 `reports_at` is a real difference and not bookkeeping. A `.inp`'s repairs, such
@@ -694,11 +753,17 @@ or no list. That matters more than it sounds. An empty list reads as "this file
 needed no repairs", and a caller who had passed it to the other call would
 believe it.
 
+`writes` is a name rather than a flag, so a client learns what to call and not
+only that something is possible. It is `None` where this build has no writer,
+which is `.gpx` today, and `None` rather than `False` on purpose: a `False`
+would be an answer about a format nobody had wired.
+
 The same facts are in the registry the arm is built from. `ProjectFormat.name`,
 `ProjectFormat.title`, `ProjectFormat.extensions`, `ProjectFormat.sniff`,
 `ProjectFormat.carries`, `ProjectFormat.reports_at` and `ProjectFormat.refuses`
-carry the declarations, while `ProjectFormat.matches`, `ProjectFormat.read` and
-`ProjectFormat.to_structure` are the callables the dispatch uses.
+carry the declarations, while `ProjectFormat.matches`, `ProjectFormat.read`,
+`ProjectFormat.to_structure` and `ProjectFormat.write` are the callables the
+dispatch and the writers use.
 
 ### What a reader will not guess
 
