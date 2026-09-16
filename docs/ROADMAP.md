@@ -466,6 +466,7 @@ seam written out in [1325](wp/1325-parametric-series.md)'s `### Inherited`.
 | [1119](wp/1119-named-variables.md) | Named variables and equations: a `prm` of one's own | ✅ 2026-09-04 | — |
 | [1314](wp/1314-mfile-reader.md) | A Jana2020 project reader: .m50/.m40/.m41 | ⬜ | 1118 |
 | [1319](wp/1319-structure-interchange.md) | Structure interchange: checkCIF conformance and a bare XYZ importer | ⬜ | — |
+| [1433](wp/1433-the-inp-grammar-still-refused.md) | The `.inp` grammar the reader still refuses: `STR(...)` and `#if` | ⬜ | — |
 
 #### The fit has no reference
 
