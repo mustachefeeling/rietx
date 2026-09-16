@@ -32,9 +32,26 @@ that mattered sat at the tail where a context-budgeted consumer truncates:
 the worst |ρ| among the stages that flagged it, naming every such stage in the
 message; the unfiltered per-stage list still reaches the stage report and the
 history node, so the trajectory that shape 1 was accused of losing is held.
-`refine.py:2120` extends the deduped correlations **after** every other code
-and sorts them by |ρ| descending, so both halves of the bar below are met by
-construction. What is left is the measurement, not the fix.
+Measured end-to-end 2026-09-16 on a cumulative LaB6 plan that frees
+`axial_sl`/`axial_hl` in stage 2: the pair is flagged in four stages and the
+result carries **one** entry, ρ = −1.000, naming all four.
+
+**The ρ half of the bar is met; the `STAGE_MAX_ITER` half is met only in the
+rendered view, and the WP's original wording about ranking does not hold.**
+`refine.py:2120` appends the deduped correlations to what the stage loop
+collected, sorted by |ρ| descending, but `_build_result` then appends the
+post-fit diagnostics — `_max_iter_diagnostics` at `refine.py:3335` among them
+— so in the **stored** list `STAGE_MAX_ITER` sits *after* every correlation.
+What bounds its position is `_cap_high_correlation`
+(`schemas/results.py:869`), which is documented **for rendering only** and
+must never touch a stored list: it keeps the worst ten and one
+`HIGH_CORRELATION_OMITTED` line, so a summary shows `STAGE_MAX_ITER` within a
+bounded number of lines however many pairs fired. A consumer truncating
+`result.diagnostics` itself still loses it. That residue is the original
+shape-3 question — rank rather than dedup — which this WP said to measure
+before deciding. Measured: dedup alone takes the fixture from 96 to 16 and
+the render cap bounds the rendered view at 11 correlation lines, so ranking
+buys ordering inside the stored list and nothing else. Recorded, not fixed.
 
 **2. The declared wavelength is per-call (issue #123). Superseded 2026-09-16:
 fixed in WP-1134 (`a173cb84` and `61cbce11`, 2026-08-25), a week before this
@@ -177,10 +194,18 @@ missing one.
 - [x] **Superseded, not done here** — stage dedup (§ 1) landed in WP-1302 and
       the construction-snapshot λ (§ 2) in WP-1134, both before this WP was
       filed. Verified on arrival 2026-09-16 by reading the seams.
-- [ ] Verify the two on their own fixtures and close #106 and #123: the #106
-      fixture reports one finding per pair with `STAGE_MAX_ITER` ahead of them,
-      and a second `run_stage` reports its move against the constructed λ. A
-      regression test for each, since neither issue's bar is pinned today.
+- [x] Verified both by measurement, 2026-09-16. #123 needs nothing: WP-1134
+      shipped `test_declared_is_the_constructed_lambda_so_run_stage_reports_cumulatively`
+      (`tests/test_wavelength_freedom.py`), which is the issue's own two-call
+      case quoting its +417/−18 ppm numbers, and it passes. #106 is fixed and
+      unit-tested, but nothing pinned the **routing** — that the stage loop
+      still collects into `correlation_hits` and calls the dedup — so a
+      regression there would pass every test in
+      `tests/test_high_correlation_dedup.py`.
+- [ ] One end-to-end test for that routing: a cumulative plan freeing
+      `axial_sl`/`axial_hl`, asserting the result carries one entry naming
+      every stage that flagged it. Measured at 0.93 s, so it belongs in the
+      fast selection.
 - [ ] `to_table`/`write_csv` through `resolve_trajectory`; `_esd` columns
       suppressed where `stderr` is `None`; a derived path that
       `resolve_trajectory` cannot serve refuses by name (§ 3).
@@ -212,8 +237,9 @@ one; a plan that frees a pinned path names it. All accepted fit values
 bit-identical throughout.
 
 The shipping PR carries `Closes #106`, `Closes #123`, `Closes #162`,
-`Closes #231`, `Closes #211`, `Closes #273` — #106 and #123 close on the
-verification and their new regression tests, not on a fix in this branch.
+`Closes #231`, `Closes #211`, `Closes #273`. #123 closes on the verification
+alone, its fix and its regression test both having shipped in WP-1134; #106
+closes on the verification plus the one routing test this branch adds.
 
 ## References
 
@@ -230,7 +256,7 @@ verification and their new regression tests, not on a fix in this branch.
   the stage dedup by WP-1302 (2026-08-29) and the construction-snapshot
   wavelength by WP-1134 (2026-08-25). Both are recorded as superseded in
   Context rather than deleted, because their measurements are the fixtures that
-  verify them and neither issue has a regression test. The three mailbox
+  verify them. The three mailbox
   entries (#231, #211, #273) were each checked against the tree and are all
   live; they are folded into Context as § 4, 5 and 6 and the mailbox is
   consumed. Net: one original task survives (§ 3) and three inherited ones
