@@ -345,7 +345,10 @@ SIZE_CAPS: dict[str, int | None] = {
     # field wrote a file this package's own reader refused.  That is the rule
     # the section exists for, so it is corrected in place rather than shaved.
     # The +1 is headroom, per this file's docstring.
-    "src/rietx/io/CLAUDE.md": 473,
+    # 473 -> 485 (WP-1118, 2026-09-16): the GSAS-II pair added the one rule a
+    # writer cannot derive from the four before it — two programs reading one
+    # string opposite ways, so the fact goes in the channel the target reads.
+    "src/rietx/io/CLAUDE.md": 485,
 }
 CURRENT_FOCUS_CAP: int | None = 60  # lines within ROADMAP's Current focus (WP-1031 landed at 33; the 1060 rewrite at 44)
 # Words, because a line cap alone was met by nine 1000-character paragraphs

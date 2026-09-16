@@ -65,6 +65,14 @@ exercising this combination.
 
 ### Inherited
 
+- **2026-09-16, from [1118](1118-foreign-model-files.md): there is now a real
+  CW-neutron instrument to start from.** `rx.read_gsas2_instprm` reads a
+  GSAS-II `.instprm` into a frozen `Instrument`, and `tests/data/gsas2_hb2a.instprm`
+  is HFIR's HB-2A at λ = 2.40627 Å with its refined Caglioti terms, its zero
+  and its axial divergence. Task 3's joint fit needs a neutron histogram's
+  instrument from somewhere; this is one nobody here invented, and its widths
+  (U = 0.0799, V = -0.0444, W = 0.0242 deg²) are a real reactor
+  diffractometer's rather than a seed.
 - **2026-09-02, from the magnetic scattering track
   ([1327](1327-magnetic-structure.md)): the joint-fit audit gains a third row
   when the moment lands.** Task 3 here audits that per-histogram physics keys

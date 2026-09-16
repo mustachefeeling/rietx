@@ -56,6 +56,22 @@ stated here so no later WP builds bond perception on geometry alone.
 
 ### Inherited
 
+- **2026-09-16 (2nd), from [1118](1118-foreign-model-files.md): a CIF can
+  state its setting in three places, and this build's own reader uses only one
+  of them.** Measured while writing the GSAS-II phase CIF: gemmi's
+  small-structure reader prefers `_space_group_name_H-M_alt` over
+  `_symmetry_space_group_name_H-M` when both are present, ignores
+  `_space_group_IT_coordinate_system_code` (the core dictionary says outright
+  that item "cannot be used to define the coordinate system"), and ignores a
+  `_space_group_symop_operation_xyz` loop entirely. So a CIF whose symbol is a
+  bare `F d -3 m` and whose operations are origin choice 2 reads here as choice
+  1, while GSAS-II reads the same file correctly, because it checks the
+  operations. `crystallography.symmetry.setting_from_operators` already does
+  that comparison for the `.gpx` reader and would close the gap in
+  `structure_from_cif` with no new authority. 1118 left it alone as a change to
+  the core reader rather than to a foreign-format one; it belongs with the
+  writer obligation this WP already inherits. `write_structure_block` writes no
+  operator loop at all today, which is the other half.
 - **2026-09-16, from [1118](1118-foreign-model-files.md): `structure_from_cif`
   resolves a bare multi-setting symbol two different ways, depending on which
   of its two paths ran.** The primary path takes `gemmi.read_small_structure`'s

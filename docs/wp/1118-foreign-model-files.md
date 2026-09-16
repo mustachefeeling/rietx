@@ -14,7 +14,10 @@ readers reporting the one they assume; the TOPAS and FullProf writers landed
 the same day, each the inverse of its own reader, and the GSAS-I `.EXP`/`.prm`
 pair the same day again — the first writers here read by **column**, which
 bought `io/CLAUDE.md` § Project writers and caught a `CHMF` record the reader
-had been taking two columns short; GSAS-II is the one format with no writer
+had been taking two columns short; GSAS-II's pair landed the same day too —
+an `.instprm` reader and writer and the phase CIF its importer reads, with the
+setting stated in the channel that program checks — so all four formats now
+write back and #148 is closed
 Depends on: — (WP-1110 found it; WP-1102 owns the one seam that overlaps)
 
 ## Goal
@@ -524,6 +527,115 @@ work this WP does.
   § "Learned in v0.2".
 
 ## Handover log
+
+### 2026-09-16 (5th session) — GSAS-II writes back, and the symbol two programs read opposite ways
+
+A model built here can now be handed to GSAS-II, which is the last of the four
+foreign formats and the only one with no project file to write: GSAS-II imports
+a phase from a CIF and a machine from a small text file, so the writer is that
+pair. Both halves are new, and one of them cuts both ways — nothing here could
+read a GSAS-II `.instprm` before either, so a beamline calibration from that
+program now opens as a frozen instrument. The work also found a real
+interchange trap that no round trip inside this package could show. GSAS-II and
+gemmi read the same bare space-group symbol as two *different* groups, and each
+refuses the other's way of disambiguating it, so a CIF written for one of them
+is wrong in the other unless the setting travels in a third channel that needs
+no convention: the symmetry operations themselves.
+
+*Done* — five commits on `wp1118-gsas2-writer`, branched off `eb2f6f91`.
+
+- **`fa5d007c`, the `.instprm` pair.** `rx.read_gsas2_instprm` and
+  `rx.write_gsas2_instprm` in `io/instrument_profile.py`, beside the GSAS-I
+  `.prm` pair they are the sibling of; the grammar (`read_instprm`,
+  `write_instprm`, `INSTPRM_CW_SINGLE`/`_DOUBLET`, `centidegree_factor`) in
+  `projects/gsas2.py`, beside the `.gpx` reader that shares its vocabulary.
+  Constant-wavelength X-ray and neutron both read, a `PNC` bank becoming a
+  `NeutronSource`.
+- **`554da8b3`, the phase CIF.** `projects/gsas2.from_structure` and
+  `rx.write_gsas2_phase_cif`. GSAS-II's importer already reads every atom tag
+  `write_structure_block` writes — `B_iso_or_equiv` divided by 8π², `adp_type`
+  of `Uani`, the separate aniso loop keyed by label — so the block writer is
+  shared and the whole of the work is the symmetry.
+- **`5a7949e3`, the documentation.** A Part 1 section for the reader and the
+  writer and a paragraph on the CIF, nine `GSAS2_INSTPRM_*`/`GSAS2_CIF_*` rows
+  in the skill's §7g, the three verbs in `make_api_index.py`, an
+  `ATTRIBUTION.md` row for the pair, two fixture rows and a corpus section in
+  `tests/data/README.md`.
+- **`f6470573`, `0bca117c`** — the two task lines ticked, ROADMAP's focus, and
+  two gates the new files tripped (an em-dash aside in Part 1, and `encoding=`
+  on a test's `tmp_path` writes).
+
+*Measured* — `[dev]` venv, darwin/arm64, this branch level with `origin/main`
+(fetched at handover, unmoved since the branch was cut, so these are the merged
+tree's numbers).
+
+- **Fast selection: 5137 passed, 133 skipped, 2:21-2:35.** +36 tests, all of
+  them new here: 31 in `tests/test_gsas2_instprm.py` and 5 added to
+  `tests/test_projects_gsas2.py` (52 now). No new skip. The full selection did
+  not run: nothing this session touched can move a measured number, the
+  refinement path being unchanged, and the WP's own acceptance
+  (`tests/test_acceptance_fap.py`) passes in 3.25 s.
+- **The corpus is 12 `.instprm` files, and 2 of them read.** 27 banks: 23
+  `PNT` (time of flight), 2 `PXC`, 2 `PNC`. Both `PXC` files are **refused**,
+  each having converged to `X` = −0.0978 centidegrees, which this package's
+  softplus-bounded Lorentzian term cannot hold. Three files are multi-bank and
+  every one of those writes `#Bank 6` twice. None states a `Diff-type`, a
+  goniometer radius or a Kα doublet.
+- **The writer reproduces a real file character for character.** Reading
+  `gsas2_hb2a.instprm` and writing it back gives all 13 items it states, string
+  for string — the check the `.EXP` writer could only make by eye against
+  `FAP.EXP`, and a token format lets a test make it.
+- **`references/api.md` is 35 942 B of its 36 000 cap**, 58 B free. The three
+  new entries were paid for by five cuts named in `5a7949e3`, all of them
+  statements the diagnostics rows or the refusal messages already carry.
+  `io/CLAUDE.md`'s line cap went 473 → 485 in the commit that added its rule.
+
+*Gotchas* — three, and the first is the one to carry out of this WP.
+
+- **Two readers can resolve one symbol to two different groups, and each
+  refuses the other's spelling of the fix.** GSAS-II reads a bare `F d -3 m` as
+  origin choice **2** (its own message calls choice 1 "a space group setting
+  not compatible with GSAS-II") and answers a colon-suffixed symbol by setting
+  the phase to `P 1`; gemmi reads the same bare string as choice **1** and
+  needs the colon to say otherwise. So the exported CIF states the setting
+  three times: the bare symbol in `_symmetry_space_group_name_H-M`, which
+  GSAS-II reads first; the resolved `xhm()` in `_space_group_name_H-M_alt`,
+  which gemmi prefers when both are present (measured here, not read anywhere);
+  and the operations in `_space_group_symop_operation_xyz`, which GSAS-II
+  checks its own reading against and which `setting_from_operators` reads one
+  rank over on a `.gpx`. `_space_group_IT_coordinate_system_code` is **not** an
+  answer: the core dictionary says outright that it "cannot be used to define
+  the coordinate system", and neither program reads it.
+- **A refusal can be the common case.** Both X-ray files in the corpus carry a
+  negative `X`, so the reader refuses the only two files of the radiation most
+  users have. That is `io/recipe.py`'s rule, earned there for the same reason
+  (both committed LaB6 references converge to a negative `Y`), and the
+  alternative is silently reading ~0 where the file states a number. It does
+  mean the X-ray arm has **no corroborating file that reads**: its key names
+  come from the specification and from `gsas2_pbso4.gpx`, whose two histograms
+  carry the two key tuples exactly.
+- **The arm that did not need editing.** The 4th session expected GSAS-II's
+  writer to give `ProjectFormat.write` a value on the `gsas2_gpx` member. It
+  does not, and should not: this build writes no `.gpx`, so that `None` is
+  true, and the pair is published where the `.prm` pair is — the manual and the
+  skill, with `capabilities()` naming neither. A GSAS-II-shaped capability
+  question has no arm to read today, which is a gap somebody may want to close
+  deliberately rather than by attaching this writer to the wrong member.
+
+*Next*, in order.
+
+1. **Decide whether this WP closes.** #148 is done and #234, #103, #101 and
+   #107's decision are behind it. Two task lines are open and neither is
+   ordinary work: the `#prm`-only integer evaluator is still blocked on TOPAS
+   Technical Reference §19, which no session here has, and the fixtures line is
+   open only for formats whose corpora cannot be redistributed, which will not
+   change. Closing it and filing the evaluator as its own WP is the honest
+   shape; leaving it open holds a WP number against a blocked ask.
+2. **PR #291 touches `references/diagnostics-projects.md` §7g**, the file this
+   session appended nine rows to. It is a contributor PR on a fork, moving the
+   `RECIPE_*` block into that same section, so expect a conflict at the seam
+   and take both — the rows are additive and the preamble edits are not.
+3. Nothing is owed on the skill or the manual for what landed here.
 
 ### 2026-09-16 (4th session) — the GSAS writers, and the decimal point no test could catch
 
