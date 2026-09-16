@@ -313,7 +313,7 @@ format token is spelled in `_about.py`, never inline (root CLAUDE.md § Conventi
       separates nothing: on Mn₃O₄ it printed `Mn12 O16` twice while asserting a
       ZMV that had not moved, so it now falls back to the site multiplicities.
       Numbers in the handover entry. `Closes #101`.
-- [ ] The writers, each naming what did not cross — GSAS-II included — with
+- [x] The writers, each naming what did not cross — GSAS-II included — with
       export → re-import round-trip as each format's acceptance (issue #148).
       Two obligations already banked. An exporter writes
       `get_spacegroup(sym).xhm()`, never the phase's stored string, or a
@@ -389,9 +389,27 @@ format token is spelled in `_about.py`, never inline (root CLAUDE.md § Conventi
       package has established and the reader refusing one on the way in.
       The review pass's open `+inf` question is closed for all five writers at
       once: refused, since `repr` spells it `inf` and no real program parses
-      that. GSAS-II (`.instprm` + CIF, per the decision above) is the one
-      format left, and the `Z`-term question above is its to answer.
-- [ ] `capabilities()` arm, skill rows for the new diagnostic codes
+      that.
+      **GSAS-II landed 2026-09-16** (5th session) and `Closes #148`. It is the
+      one format with no project file to write, so the target is the pair it
+      imports: `rx.write_gsas2_instprm` (`instrument_profile.from_instrument_gsas2`)
+      and `rx.write_gsas2_phase_cif` (`projects/gsas2.from_structure`). Neither
+      `.instprm` end existed, so `rx.read_gsas2_instprm` was built alongside it
+      and the round trip is the ordinary one. **The `Z`-term question is
+      closed as the corpus had already answered it**: refused by name, no
+      schema field, which is `io/recipe.py`'s decision one format over. Two
+      findings the write direction produced. `Polariz.` is inert on a `PNC`
+      bank in *both* packages, GSAS-II applying the factor only to an `XC` or
+      `XB` type, so a neutron file's is dropped by name rather than carried.
+      And the phase CIF states its **setting three times** because the two
+      programs read one string opposite ways — GSAS-II resolves a bare
+      two-origin symbol to origin choice 2 and answers a colon-suffixed one by
+      setting the phase to `P 1`, gemmi resolves the same string to choice 1
+      — so the bare symbol goes in the tag GSAS-II reads, the resolved `xhm()`
+      in the one gemmi prefers, and the operations in the loop both can check.
+      That makes the obligation banked here from WP-1324 met in a fourth way:
+      not a spelling but a channel.
+- [x] `capabilities()` arm, skill rows for the new diagnostic codes
       (`docs/skill/rietx/` — `AGENT_PROTOCOL.md` is a redirect stub since
       WP-1304), a Part 1 manual section, and an `ATTRIBUTION.md` row per
       format. The TOPAS half of the diagnostic rows and its `ATTRIBUTION.md`
@@ -436,6 +454,22 @@ format token is spelled in `_about.py`, never inline (root CLAUDE.md § Conventi
       is 31 951 B of its 33 000 cap (**1 049 B free**) and `references/api.md`
       32 796 B of 36 000 (**3 204 B free**). A body sentence is still paid for
       by a cut named in the commit; there is simply room to pay.
+      **The GSAS-II pair's half landed 2026-09-16** (5th session): a Part 1
+      section for the `.instprm` reader and writer and a paragraph on the
+      phase CIF, nine `GSAS2_INSTPRM_*`/`GSAS2_CIF_*` rows in
+      `references/diagnostics-projects.md` §7g (whose family-prefix list in
+      `tests/test_skill.py` grew with them), the three verbs in
+      `make_api_index.py`'s In section, and an `ATTRIBUTION.md` row of its own
+      for the pair. **The arm needed no edit and that is the answer, not an
+      omission**: the 4th session expected GSAS-II's writer to change
+      `ProjectFormat.write`'s value, and it does not, because the writer is
+      not a `.gpx` writer. This build writes no `.gpx`, so that member's
+      `None` is true, and the pair is published where the `.prm` pair is —
+      the manual and the skill, `capabilities()` naming neither. **Headroom is
+      now the binding constraint**: paying for three entries took
+      `references/api.md` to 35 942 B of 36 000 (**58 B free**), the cuts
+      named in the commit, so the next addition there is a real cut rather
+      than a squeeze.
 - [ ] A `#prm`-only integer evaluator for `.inp` `#if` guards, so the
       multi-pattern reel files read instead of refusing (§ Context; WP-1130
       measured three of four workshop files out of reach). Scope it to integer
