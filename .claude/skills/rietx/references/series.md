@@ -19,7 +19,7 @@ a_of_T = series.trajectory("phases.0.cell.a")     # x, value, stderr
 ```
 
 `to_table`/`write_csv` take the **derived** paths too, resolved the same way
-the plots are: `paths=["qpa.Anatase"]` exports the weight-fraction curve and
+the plots are: `paths=["qpa.Rutile"]` exports the weight-fraction curve and
 `r_bragg.<phase>`/`r_f.<phase>` the agreement indices, beside any ordinary
 dot-path. Two things to expect. A path **no pattern carries raises**, naming
 it and listing what does exist: the phases carrying that kind of curve for a
