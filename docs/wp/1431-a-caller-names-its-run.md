@@ -1,6 +1,6 @@
 # WP-1431 — a caller names its run
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-09-16 — claimed by @yue-here
 Depends on: 1424 (the column that shows the name)
 
 ## Goal
