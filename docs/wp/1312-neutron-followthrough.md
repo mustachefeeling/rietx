@@ -143,9 +143,10 @@ exercising this combination.
 
 ## Tasks
 
-- [ ] Seed fix: `w` alone; the 20–150° FWHM assertion; the WP-1134 record
-      line. In flight as PR #280, held on the `ProfileTCHZ.w` bound —
-      decided 2026-09-11, see the entry.
+- [x] Seed fix: `w` alone; the 20–150° FWHM assertion; the WP-1134 record
+      line. Landed from outside as PR #280 (`9d8b7043`, 2026-09-16), with the
+      `ProfileTCHZ.w` bound decided 2026-09-11 and the refusal built on it.
+      See the 2026-09-16 entry.
 - [ ] ~~Yb into `RESONANT_ABSORBERS`; the resonant-absorber diagnostic;
       skill row~~ — landed from outside, PR #282 (`8c39a02c`). **Left: a
       cited resonance energy per member**, which that PR deliberately
@@ -184,6 +185,74 @@ issue #113 saying its (a) slice landed — #113 stays open for the fenced
 - Sears, V. F. (1992), *Neutron News* **3**(3), 26 — the shipped table.
 
 ## Handover log
+
+### 2026-09-16 — task 1 landed from outside; the seed is the width you asked for
+
+`Instrument.constant_wavelength_neutron(fwhm_deg=...)` now seeds `w` alone, at
+`fwhm_deg ** 2`, and leaves `x` at its default. That is task 1, live in the
+package since PR #280 merged (`9d8b7043`), and like task 2 it arrived from an
+outside contributor with no `WP-NNNN:` prefix and no touch of any file under
+`docs/wp/`. This entry exists because nothing in the tooling would have asked
+for one. The WP stays `⬜`: tasks 3 and 4 are untouched and no session owns it.
+
+**What the fix buys.** With U = V = 0 the Caglioti law gives Γ_G = √W, so
+`W = fwhm²` reproduces the stated width at every angle. Measured on the merged
+tree at `fwhm_deg = 0.30`, the Gaussian width reads 0.30000 at 2θ = 20, 60,
+100, 140 and 150, against the old seed's 1.179° at 150 (3.93×). The Lorentzian
+stays at its default 0.001, worth 0.3 to 0.7 % of the line. The frozen
+per-stage windows are sized from the seed, so the over-width is no longer paid
+at every stage compile.
+
+**What it deliberately does not do.** The `ProfileTCHZ.w` bound stays at
+`max = 1.0` deg², which caps `fwhm_deg` at 1.0° where the old seed accepted
+2.0°. The 2026-09-11 decision declined widening it, because `min`/`max` are
+serialised fields and refinement bounds both, so raising the schema default
+would move the search box of every newly built instrument. Instead
+`constant_wavelength_neutron` raises before assigning, naming `fwhm_deg`, its
+value, the `w` it would have seeded, the bound and the escape hatch. It reads
+the bound off `inst.profile.w.max` rather than restating `1.0`, so the message
+follows the field. The fence is inclusive: `fwhm_deg = 1.0` builds. A genuinely
+coarser instrument is declared by setting `instrument.profile.w` explicitly
+with its own bounds, which round-trips through JSON with that bound intact.
+
+**The gotcha the review turned up, and it is still open.**
+`indexing.workflow.seed_widths` does `out.profile.w.value = float(measured **
+2)`, the same seed and the correct idiom, with no fence in front of it. Built a
+peak list whose median FWHM is 1.4° and called it:
+
+```
+pydantic ValidationError: value 1.9599999999999997 lies outside bounds [0.0, 1.0]
+```
+
+That is issue #124's defect in pydantic's own words, one module over, and it
+fires during an indexing run rather than at a constructor argument the caller
+typed. It is reached from `index_pattern` (`workflow.py:423`) and from
+`extinction.py:714`, so a coarse enough pattern takes the whole search down
+with a message about a Caglioti coefficient. This is on `main` today, and
+PR #280 neither causes it nor worsens it. Whoever picks up this WP should close
+it as one class with the constructor, since the fence and its message already
+exist next door. Smaller: `docs/manual/using/data.md` describes the seed well
+and does not mention the 1.0° ceiling, which only the docstring carries.
+
+**Measured** (bench worktree, `[dev,jax]`, macOS arm64, `-n auto --dist
+loadgroup`, nothing else in the suite), on PR #280 merged onto `origin/main`
+`ad6085c9`:
+
+| | measured |
+|---|---|
+| fast selection | 5122 passed, 82 skipped, ~2m41s |
+| fast selection, main alone | 5115 passed, 82 skipped, ~3m18s |
+| `-m slow` on the merged tree | 176 passed, 7 skipped, ~32 min |
+
++7 passed and no new skip, which is exactly the seven test cases the diff adds
+(three parametrised width cases, the Lorentzian check, and three around the new
+ceiling). The bench venv reads `1.4.0`; the contributor's reported
+`test_skill.py` metadata failure is a stale editable install on their bench and
+does not reproduce here.
+
+**Next** for this WP is unchanged from the 2026-09-11 entry, minus the #280
+line: comment on #113(a), then task 3, whose first open item is still sourcing
+the public X-ray + neutron dual dataset.
 
 ### 2026-09-11 — two of the three tasks landed from outside, and this WP never opened
 
