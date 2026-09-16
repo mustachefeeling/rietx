@@ -2750,8 +2750,21 @@ def from_structure(structure: Structure) -> str:
     ``phase.space_group`` exactly as written; compare space groups with
     ``get_spacegroup(...).xhm()`` on both sides, not by string, since the
     written spacing (``"P n -3 m"``) need not match a caller's own.
+
+    Three refusals besides the phase-name quote check above. A label or
+    species carrying whitespace: a ``site`` line is space-separated, so an
+    embedded space is read back as an extra, silently dropped token rather
+    than part of the name. A label or species carrying a single quote:
+    unlike ``phase_name``, a site's label and species are not quoted, so an
+    unquoted ``'`` opens a line comment (:func:`strip_comments`) and drops
+    everything after it on that line, x/y/z/occ/beq included. And a
+    negative ``biso``: :func:`to_structure` refuses one on the way in (it
+    bounds biso at zero), so writing one here would only fail later, at the
+    read, with the file already on disk.
     """
-    lines: list[str] = ["' Written by rietx.io.projects.topas.write_topas_inp"]
+    from ..._about import DIST_NAME
+
+    lines: list[str] = [f"' Written by {DIST_NAME}.io.projects.topas.write_topas_inp"]
     for phase in structure.phases:
         if '"' in phase.name:
             raise ValueError(
@@ -2769,6 +2782,30 @@ def from_structure(structure: Structure) -> str:
                            ("ga", cell.gamma)):
             lines.append(f"  {key} {_tail(param)}")
         for atom in phase.atoms:
+            if any(ch.isspace() for ch in atom.label) or any(
+                    ch.isspace() for ch in atom.species):
+                raise ValueError(
+                    f"phase {phase.name!r}: atom label {atom.label!r} / "
+                    f"species {atom.species!r} contains whitespace, which a "
+                    f"`site` line cannot carry — the line is space-separated "
+                    f"and a space inside either field is read as an extra, "
+                    f"silently dropped token rather than part of the name")
+            if "'" in atom.label or "'" in atom.species:
+                raise ValueError(
+                    f"phase {phase.name!r}: atom label {atom.label!r} / "
+                    f"species {atom.species!r} contains a single quote — "
+                    f"unlike `phase_name`, a `site` line's label and species "
+                    f"are not quoted, so `strip_comments` reads an unquoted "
+                    f"``'`` as opening a line comment and drops everything "
+                    f"after it on that line, including x/y/z/occ/beq")
+            if atom.biso.value < 0.0:
+                raise ValueError(
+                    f"phase {phase.name!r}: atom {atom.label!r} has biso = "
+                    f"{atom.biso.value}, and read_topas_inp's own "
+                    f"to_structure refuses a negative beq on the way back "
+                    f"in (it bounds biso at zero) — writing this file would "
+                    f"only fail later, at the read, rather than here where "
+                    f"the value is still in hand")
             site = (f"  site {atom.label} x {_tail(atom.x)} y {_tail(atom.y)} "
                     f"z {_tail(atom.z)} occ {atom.species} {_tail(atom.occ)}")
             if atom.aniso is not None:

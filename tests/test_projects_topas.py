@@ -3116,5 +3116,36 @@ def test_write_topas_inp_refuses_a_phase_name_with_a_double_quote(tmp_path):
         from_structure(structure)
 
 
+def test_write_topas_inp_refuses_a_label_or_species_with_whitespace(tmp_path):
+    """A `site` line is space-separated, so an embedded space in the label or
+    species would be read back as an extra, silently dropped token."""
+    structure = _cubic_al()
+    structure.phases[0].atoms[0].label = "Al 1"
+    with pytest.raises(ValueError, match="whitespace"):
+        from_structure(structure)
+
+
+def test_write_topas_inp_refuses_a_negative_biso(tmp_path):
+    """`to_structure` itself refuses a negative beq on the way in, so writing
+    one would only fail later, at the read, with the file already on disk."""
+    atom = rx.Atom(label="Al1", species="Al", x=rx.Parameter(value=0.0),
+                   y=rx.Parameter(value=0.0), z=rx.Parameter(value=0.0),
+                   biso=rx.Parameter(value=-0.1, min=-1.0, max=25.0))
+    structure = rx.Structure(phases=[rx.Phase(
+        name="Al", space_group="Fm-3m", cell=rx.Cell.cubic(4.0495), atoms=[atom])])
+    with pytest.raises(ValueError, match="negative"):
+        from_structure(structure)
+
+
+def test_write_topas_inp_refuses_a_single_quote_in_a_label(tmp_path):
+    """Unlike `phase_name`, a `site` line's label and species are not
+    quoted, so an unquoted `'` would open a TOPAS line comment and silently
+    drop x/y/z/occ/beq for that site rather than surviving as a character."""
+    structure = _cubic_al()
+    structure.phases[0].atoms[0].label = "O'Brien"
+    with pytest.raises(ValueError, match="single quote"):
+        from_structure(structure)
+
+
 def test_write_topas_inp_is_reachable_at_the_top_level():
     assert rx.write_topas_inp is write_topas_inp

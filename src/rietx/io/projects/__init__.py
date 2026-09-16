@@ -10,7 +10,7 @@ specification citation, its parser, its refusals and its licence fence are one
 fact each, and several fences in one file drift.
 """
 
-from .fullprof import FullProfPcrError, read_fullprof_pcr
+from .fullprof import FullProfPcrError, read_fullprof_pcr, write_fullprof_pcr
 from .gsas import GsasExpError, read_gsas_exp
 from .gsas2 import Gsas2GpxError, read_gsas2_gpx
 from .registry import (
@@ -35,7 +35,7 @@ from .topas import TopasInpError, read_topas_inp, write_topas_inp
 # format-named entry points: `read_project_model` is the one call for "someone
 # handed me a file", the per-format readers the one for "I know what this is".
 __all__ = ["read_topas_inp", "write_topas_inp", "TopasInpError",
-           "read_fullprof_pcr", "FullProfPcrError", "read_gsas_exp",
-           "GsasExpError", "read_gsas2_gpx", "Gsas2GpxError",
+           "read_fullprof_pcr", "write_fullprof_pcr", "FullProfPcrError",
+           "read_gsas_exp", "GsasExpError", "read_gsas2_gpx", "Gsas2GpxError",
            "read_project_model", "identify_project_format",
            "PROJECT_FORMATS", "ProjectFormat", "ProjectModel"]

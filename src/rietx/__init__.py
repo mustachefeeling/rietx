@@ -45,6 +45,7 @@ from .io.projects import (
     read_gsas_exp,
     read_project_model,
     read_topas_inp,
+    write_fullprof_pcr,
     write_topas_inp,
 )
 from .io.readers import read_pattern, read_pdcif
@@ -190,6 +191,7 @@ __all__ = [
     "write_qpa_table",
     "estimate_mu_r",
     "write_recipe_tables",
+    "write_fullprof_pcr",
     "write_reflection_table",
     "write_refinement_cif",
     "write_topas_inp",
