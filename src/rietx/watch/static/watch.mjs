@@ -334,8 +334,9 @@ async function drawSnapshot(id) {
     // entry reports it, the div's own box never having changed. Anchored here
     // the area's top is the declared 8 px margin at every width, and the
     // picture is 38 px taller at 1400 and 131 px at 700. `bgcolor` is the
-    // ground the paper already carries, at an opacity: opaque, the five rows
-    // it wraps to on a narrow panel hid the tallest peak behind them.
+    // page's own ground at an opacity, the paper being transparent since
+    // WP-1429: opaque, the five rows it wraps to on a narrow panel hid the
+    // tallest peak behind them.
     legend: {orientation: 'h', y: 1, yanchor: 'top', x: 0, xanchor: 'left',
              bgcolor: withAlpha(hue.ground, 0.72)},
     // How much of the pattern is on screen, in the corner of the picture it
@@ -774,7 +775,7 @@ function currentId() {
 }
 // The page's constants, off whichever `api/runs` answers first — every poll
 // carries them, so a failed boot fetch costs nothing the next poll does not
-// repair. The name and the suffix are read once; the **theme** is read every
+// repair. The name and the suffix are read once; the *theme* is read every
 // poll, because it is the one thing here a person can change while the page is
 // open, and a change reaches this tab through the payload it already fetches
 // rather than through a reload (WP-1429).
