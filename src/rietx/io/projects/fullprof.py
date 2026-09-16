@@ -2367,7 +2367,7 @@ def from_structure(structure: Structure) -> str:
     :func:`occupancy_factor`'s consistency check) rather than carrying the
     source ``Structure``'s (nonexistent) chemical occupancy.
 
-    Seven refusals, each naming what FullProf's grammar cannot state, or
+    Eight refusals, each naming what FullProf's grammar cannot state, or
     what this same module's own reader would refuse on the way back in. A
     blank phase name: the name line is comment-stripped like every other
     line, so a name that strips to nothing leaves the line blank and the
@@ -2390,9 +2390,12 @@ def from_structure(structure: Structure) -> str:
     refuses unless that reproduces ``get_spacegroup(phase.space_group).xhm()``
     exactly. An atom's label or species carrying whitespace: a ``.pcr`` atom
     line is whitespace-tokenized, so an embedded space would desynchronise
-    every column after it. And a negative ``biso``: :func:`to_structure`
+    every column after it. A negative ``biso``: :func:`to_structure`
     refuses one on the way in (§ above), so writing one here would only fail
-    later, at the read, with the file already on disk.
+    later, at the read, with the file already on disk. And a **non-finite**
+    value, which ``repr`` spells ``inf``/``nan`` and FullProf does not parse —
+    surfaced by the review pass on this writer's own branch and answered for
+    all three foreign-format writers at once (WP-1118).
     """
     import numpy as np
 
@@ -2401,6 +2404,23 @@ def from_structure(structure: Structure) -> str:
     from ...schemas.instrument import _KA_DOUBLETS
 
     for phase in structure.phases:
+        # A non-finite value is refused before anything else, for all three
+        # foreign-format writers at once (WP-1118). `Parameter` does not forbid
+        # one and a converged fit cannot reach one, but `repr` spells it
+        # `inf`/`nan` and FullProf parses neither — so the file would be
+        # written and fail in someone else's program instead of here.
+        for param in (phase.cell.a, phase.cell.b, phase.cell.c,
+                      phase.cell.alpha, phase.cell.beta, phase.cell.gamma,
+                      phase.scale,
+                      *(p for atom in phase.atoms
+                        for p in (atom.x, atom.y, atom.z, atom.biso))):
+            if not math.isfinite(param.value):
+                raise ValueError(
+                    f"phase {phase.name!r} carries a value of "
+                    f"{param.value!r}, which `repr` spells "
+                    f"'{param.value}' and FullProf does not parse — refused "
+                    f"here rather than written into a file that fails in "
+                    f"another program")
         if not phase.name.strip():
             raise ValueError(
                 f"phase name {phase.name!r} cannot be written to a FullProf "

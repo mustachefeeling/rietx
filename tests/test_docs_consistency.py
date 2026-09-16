@@ -332,7 +332,15 @@ SIZE_CAPS: dict[str, int | None] = {
     # a format stating only a symbol reports the assumption at read.  It
     # governs work outside the WP that measured it: `.m50` states operators
     # too (WP-1314).  Raised rather than shaved, per the failure message.
-    "src/rietx/io/CLAUDE.md": 428,
+    # 428 -> 465 (WP-1118): a § Project writers, four rules the readers do not
+    # need.  It governs work outside the WP that measured them — every later
+    # writer this family grows, GSAS-II being next — and one of the four is a
+    # class no test in this package can catch, since a Fortran edit descriptor
+    # supplies the decimal point a field omits while `float()` here does not,
+    # so a round trip stays green about a file that says something else to the
+    # program it is for.  Raised rather than shaved, per the failure message.
+    # Landed at 464; the +1 is headroom, per this file's docstring.
+    "src/rietx/io/CLAUDE.md": 465,
 }
 CURRENT_FOCUS_CAP: int | None = 60  # lines within ROADMAP's Current focus (WP-1031 landed at 33; the 1060 rewrite at 44)
 # Words, because a line cap alone was met by nine 1000-character paragraphs

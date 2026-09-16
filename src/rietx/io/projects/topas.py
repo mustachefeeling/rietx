@@ -2707,7 +2707,19 @@ def _tail(param: Parameter) -> str:
     decimal that reads back to the same double (:func:`_arith`/``_NUM`` parse
     ordinary decimal and exponent notation alike), which is what a *value*
     round trip needs — a fixed precision would round every number written.
+
+    A **non-finite** value is refused. ``Parameter`` does not forbid one and a
+    converged fit cannot reach one, but ``repr`` spells it ``inf``/``nan``,
+    which TOPAS does not parse — so the file would be written and fail
+    somewhere else, in someone else's program. Surfaced by the review pass on
+    this writer and answered for all three GSAS/TOPAS/FullProf writers at once
+    (WP-1118).
     """
+    if not math.isfinite(param.value):
+        raise ValueError(
+            f"a parameter's value is {param.value!r}, which `repr` spells "
+            f"'{param.value}' and TOPAS does not parse — refused here rather "
+            f"than written into a file that fails in another program")
     return f"{'@' if param.vary else '!'} {param.value!r}"
 
 
@@ -2751,7 +2763,8 @@ def from_structure(structure: Structure) -> str:
     ``get_spacegroup(...).xhm()`` on both sides, not by string, since the
     written spacing (``"P n -3 m"``) need not match a caller's own.
 
-    Three refusals besides the phase-name quote check above. A label or
+    Four refusals besides the phase-name quote check above, the fourth being
+    :func:`_tail`'s on a non-finite value. A label or
     species carrying whitespace: a ``site`` line is space-separated, so an
     embedded space is read back as an extra, silently dropped token rather
     than part of the name. A label or species carrying a single quote:

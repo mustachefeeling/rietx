@@ -3149,3 +3149,16 @@ def test_write_topas_inp_refuses_a_single_quote_in_a_label(tmp_path):
 
 def test_write_topas_inp_is_reachable_at_the_top_level():
     assert rx.write_topas_inp is write_topas_inp
+
+
+def test_write_topas_inp_refuses_a_non_finite_value():
+    """`Parameter` does not forbid `inf` and a converged fit cannot reach one,
+    but `repr` spells it `inf` and TOPAS does not parse that — so the file
+    would be written and fail in someone else's program. Surfaced by the review
+    pass on this writer's own branch and left as a design question; the answer
+    is the same for all three foreign-format writers (WP-1118)."""
+    structure = _cubic_al()
+    structure.phases[0].cell.a.max = float("inf")
+    structure.phases[0].cell.a.value = float("inf")
+    with pytest.raises(ValueError, match="does not parse"):
+        from_structure(structure)
