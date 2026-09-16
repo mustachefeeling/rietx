@@ -646,8 +646,8 @@ carries is whether 1327's non-goal becomes a sequencing statement.
 
 #### A window into a run — the live-watcher track
 
-Ten rungs shipped 2026-09-13 to 2026-09-16, 1426 last. Six are left, in
-order: 1424, 1431, 1425, 1429, 1427, 1428 (a decision).
+Eleven rungs shipped 2026-09-13 to 2026-09-16, 1424 last. Five are left, in
+order: 1431, 1425, 1429, 1427, 1428 (a decision).
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|

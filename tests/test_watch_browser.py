@@ -375,7 +375,7 @@ READ_CONSOLE = """() => {
 }"""
 
 
-def _pinned(browser, base: str, run_id: str, *, width: int = 1400):
+def _pinned(browser, base: str, run_id: str):
     """Open a run named in the URL, and check the URL still names it.
 
     `run_id` is a digest of the path string (``runs.run_id_for``), so a caller
@@ -715,21 +715,28 @@ def _batch(root: Path, *, n: int = 4) -> list[Path]:
     `RunRecorder._default_label` gives them all the same word and the list
     names nothing. The numbers are the maintainer's, off the 2026-09-16 demo:
     an Rwp that reads `0.1734` in the old form, a GoF of `12.34`, and a start
-    time far enough back that the relative column says hours. The last run is
-    cancelled, for the longest word the state pill has.
+    time a minute apart run to run. The last run is cancelled, for the
+    longest word the state pill has.
+
+    The start times are held inside the *local day*, because `clock` renders a
+    date rather than a time for a run that did not start today. Three hours
+    back is yesterday between 00:00 and 03:00, so a fixed offset would have
+    made this suite fail for three hours out of every twenty-four.
     """
     made = []
     now = time.time()
+    midnight = time.mktime((*time.localtime(now)[:3], 0, 0, 0, 0, 0, -1))
+    first = max(now - 10800, midnight)
     for i in range(n):
         d = root / f"20260916-14{20 + i:02d}00-9{i}"
         d.mkdir()
         (d / runs.EVENTS_FILE).write_text(
-            json.dumps({"record": "event", "v": "2", "t": now - 10800 + i,
+            json.dumps({"record": "event", "v": "2", "t": first + i,
                         "kind": "fit_start", "data": {}}) + "\n",
             encoding="utf-8")
         (d / runs.META_FILE).write_text(
             json.dumps({"record": runs.RECORD_TAG, "label": "campaign",
-                        "created": now - 10800 + 60 * i,
+                        "created": first + 60 * i,
                         "cwd": "/Users/someone/work/campaign",
                         "command": f"python fit_one.py candidate-{i}"}),
             encoding="utf-8")

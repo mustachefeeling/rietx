@@ -81,6 +81,11 @@ tr.run.selected { background:#1b2130; }
 #strip > * { min-width:0; overflow:hidden; text-overflow:ellipsis;
              box-sizing:border-box; }
 #strip > span { padding-right:12px; }
+/* except the pill, whose padding is its coloured ground rather than the space
+   beside it: an id in the selector above outranks `.state`, which drew it 7 px
+   on the left and 12 on the right. `justify-self:start` keeps the pill narrower
+   than its 12ch track, so the separation is the track's leftover either way. */
+#strip > #s-state { padding-right:7px; }
 /* declared, so a slot going away leaves its own track empty rather than
    pulling every later slot one place to the left */
 #s-state { grid-column:1; } #s-label { grid-column:2; }
