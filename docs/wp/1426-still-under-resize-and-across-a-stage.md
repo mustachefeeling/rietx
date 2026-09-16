@@ -290,8 +290,8 @@ box is relative to that area's corner.
 **Counts.** +6 tests, all in `tests/test_watch_browser.py`: that file and
 `test_watch_app.py` together went 51 → 57 passed, +6 exactly and no new skip.
 Node cases 15 → 20, one removed and six added, invoked by the one python test
-that already existed. Fast suite 5156 passed, 132 skipped, 5:44, nothing else
-on the machine. **The full suite did not run and is not owed**: the diff is a
+that already existed. Fast suite 5156 passed, 132 skipped, measured twice and alone on the
+machine, at 2:38 and 5:44. **The full suite did not run and is not owed**: the diff is a
 JavaScript page, a plotly layout dict and tests, and neither consumer of
 `figure_from_arrays` is slow-marked, so no measured number can move.
 
