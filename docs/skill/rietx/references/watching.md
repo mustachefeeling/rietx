@@ -33,8 +33,9 @@ zoomed while the stages go past, which is what makes it worth their attention
 rather than a picture they have to re-find their place in after every stage.
 
 Give them the command and the port, and say which run is yours if the directory
-holds several. The run's label is the working directory's name by default, so
-in a shared tree say the run id instead. The window has a stop button in it, and
+holds several. Name the run as you start it, with `label=` on the fit verb
+(9c.32). Unnamed, its label is the working directory's name, so in a shared tree
+say the run id instead. The window has a stop button in it, and
 9d.9 is what that does to you.
 
 *(Measured: WP-1402 checked the zoom in chromium — the axis range is identical
