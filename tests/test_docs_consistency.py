@@ -261,7 +261,14 @@ SIZE_CAPS: dict[str, int | None] = {
     # here is demotable — eight index rows, and the focus paragraph that names
     # the one open item of the watcher track.  The same race gave both branches
     # the number 1413; the triage's is renumbered 1421.  The headroom is +2.
-    "docs/ROADMAP.md": 710,
+    # 710 -> 712 (WP-1118): the same race again, and the headroom above was
+    # spent by the branch that won it.  The watch-unroll merge filled 710
+    # exactly with the 1424-1431 rows and a rewritten focus paragraph, while
+    # this branch was measured against the older number; the one line here is
+    # Current focus naming #101 as closed, which is what a successor reads to
+    # know the writers are all that is left of 1118.  Nothing is demotable, so
+    # the cap moves rather than the fact.  Landed at 711, headroom +1.
+    "docs/ROADMAP.md": 712,
     "gui/CLAUDE.md": 1028,
     "tests/CLAUDE.md": 275,
     "src/rietx/indexing/CLAUDE.md": 300,
