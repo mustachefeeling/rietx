@@ -13,6 +13,22 @@ warning beforehand.
 
 ### Inherited
 
+- **2026-09-16, from [1431](1431-a-caller-names-its-run.md): the api.md half
+  of the cap race is settled, and `REFERENCE_MAX_BYTES` is untouched.**
+  `references/api.md` is generated from the installed package, one signature
+  per public name, so its size is a fact about the API rather than an
+  authoring choice, and the authored cap's advice ("split it") is advice it
+  cannot take. It sat at 35 942 B against 36 000 and a single new public
+  keyword took it 20 B over. Raising the shared constant would have handed
+  `diagnostics.md` the room this WP deliberately denied it, so the generated
+  file now has its own `API_INDEX_MAX_BYTES` = 39 000 against the same 40 kB
+  Bash truncation, and `test_every_reference_file_is_within_its_cap` picks
+  the bar by whether the file is `API_INDEX`. **What this WP still owns is
+  unchanged**: `diagnostics.md` at ~20 B free, PR #291 as the split that buys
+  the next diagnostic row, and whether a per-cell byte gate belongs on the
+  §4b table. What it no longer has to decide is whether a generated file
+  should share an authored file's cap.
+
 From **WP-1409** (2026-09-14), which swept the manual's register and found a
 skill defect on the way.
 

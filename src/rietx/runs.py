@@ -1682,7 +1682,30 @@ def attach(stream, events, *, telemetry=None, project_hint=None,
     hook that *does* raise then leaves a complete log behind rather than
     costing the run the telemetry it was recording. That ordering is this
     function's choice and not a contract.
+
+    ``label`` names the run, and is the one thing here a **caller** supplies
+    (WP-1431), so it is the one thing that can arrive as the wrong type. It is
+    checked at this funnel and raises, which "telemetry never breaks a fit"
+    does not cover: that rule is about the *environment* — an unwritable
+    directory, a full disk — and this is a programming error at the call, in
+    the same place and for the same reason the root and the directory are
+    chosen outside the recorder's latch. Left unchecked it is silent and
+    costs the record: ``_write_meta`` writes raw JSON, so a list lands in
+    ``meta.json`` as an array, ``RunMeta`` then refuses the whole file, and
+    ``read_run`` reads the run back as *legacy* — a derived name and no
+    tooltip, from a run that recorded perfectly. The hazard is real and one
+    letter wide: ``SequentialRefinement.fit`` has a ``labels=`` too, the
+    series members' names, beside this ``label=`` for the job.
+
+    Checked **before** the switch-off guard below, so a caller's suite running
+    with ``RIETX_TELEMETRY=0`` catches the mistake that would otherwise
+    surface only on a machine where recording is on.
     """
+    if label is not None and not isinstance(label, str):
+        raise TypeError(
+            f"label must be a string naming this run, not "
+            f"{type(label).__name__}. (A series names its *members* with "
+            f"labels=, a sequence; label= names the whole job.)")
     if not enabled() or telemetry is False:
         return None
     if _already_recorded(stream):

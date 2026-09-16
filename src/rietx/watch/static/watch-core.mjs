@@ -89,15 +89,21 @@ export function runLabel(run) {
   return run.label + (run.legacy ? ' · legacy' : '');
 }
 
-// What a run is called in a *list*, where it is one of many. A batch driven
-// from one directory gives every run the same label, so a column of them
-// names nothing; the series label — which pattern this run fitted — is the
-// one fact in the record that separates runs by the work rather than by the
-// clock, and it goes where the eye is. The strip has a slot of its own for
-// the series and so keeps the plain label in its label slot.
+// What a run is called in a *list*, where it is one of many. Two sources, and
+// the series label wins because it is the more specific of them.
 //
-// Nothing here says what a *batch* member fitted, that being a caller's fact:
-// WP-1431 gives the caller a way to write one.
+// `label` is the caller's word when they passed one (WP-1431) and the working
+// directory's or the project's when they did not. Unnamed, a batch driven from
+// one directory gives every run the same label and a column of them names
+// nothing — which is what the keyword exists for, and why what this returns is
+// worth a column at all.
+//
+// `status.series_label` — which pattern this run fitted — stays ahead of it:
+// one series is one run, so a caller's label there names the whole chain while
+// the series label names the row. It replaces rather than joins, a
+// `ramp-A · 250C` cut to `ramp-A…` by the column having shown the reader the
+// half they already knew. The strip has a slot of its own for the series and
+// so keeps the plain label in its label slot.
 export function rowName(run) {
   return (run.status || {}).series_label || runLabel(run);
 }

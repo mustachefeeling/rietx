@@ -66,6 +66,19 @@ position is WP-1426's and must already hold.
 
 ### Inherited
 
+- **2026-09-16, from [1431](1431-a-caller-names-its-run.md): the run column
+  now carries something worth widening it for.** 1424 measured the column at
+  about 12ch at the default 72ch panel and left it the flexible one, which was
+  the right call while every row in a batch said the same word. A caller can
+  now name each run with `label=`, so the column's content is the first thing
+  in that list that varies per row *and* is worth reading in full. Two
+  consequences for this WP's sizing decision: a label long enough to elide is
+  now the ordinary case rather than the odd one, and the `title` behind it
+  (`runTitle`) is a hover, so it does not serve a reader scanning the column.
+  Whatever this WP does about panel width, the run column is where a
+  caller-supplied string competes with `stage`, which already elides. Nothing
+  here says widen it — that is this WP's measurement to make.
+
 - **2026-09-16, from [1424](1424-a-row-that-names-its-run.md): the strip
   already follows the panel, and the toggle rename this WP replaces has
   landed.**
