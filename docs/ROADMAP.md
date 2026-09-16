@@ -94,17 +94,18 @@ placement, link resolution, and the size caps on this file and CLAUDE.md.
 survives from 1407: Stoe `.raw` files paired with the WinXPOW ASCII export of
 the same scans would make Stoe writable.
 
-**In flight:** [1118](wp/1118-foreign-model-files.md) landed the GSAS-II `.gpx`
-reader 2026-09-16 (#234) and closed #101 with it, its operators stating the
-setting its symbol cannot. **Writers (#148) are done**, GSAS-II last, as the
-`.instprm` + CIF pair it imports. `STR(...)` (#107) stands. The **live-watcher
-track's page is files now**: [1430](wp/1430-the-page-is-a-file.md) took it out
-of its python string 2026-09-16, so the seven queued behind it edit a `.mjs` an
-editor lints and a test imports — 1426, 1424, 1431, 1425, 1429, 1427, 1428, in
-that order (§ A window into a run). **Two questions there are the
-maintainer's**: 1428's, and whether to write the snapshot every stage or less
-often — 1413 left `nac` over WP-1404's 1.05x gate, six snapshots costing 50 ms
-of a 17.7 ms budget.
+**Nothing is in flight.** [1118](wp/1118-foreign-model-files.md) closed
+2026-09-16: TOPAS, FullProf, GSAS and GSAS-II all read and all write, and #101,
+#148 and #234 close with its last PR. The `.inp` grammar it refuses is
+[1433](wp/1433-the-inp-grammar-still-refused.md), blocked on nothing.
+
+**Ready to pick up:** the **live-watcher track's page is files now**.
+[1430](wp/1430-the-page-is-a-file.md) took it out of its python string
+2026-09-16, so the seven queued behind it edit a `.mjs` an editor lints and a
+test imports: 1426, 1424, 1431, 1425, 1429, 1427, 1428, in that order (§ A
+window into a run). **Two questions there are the maintainer's**: 1428's, and
+whether to write the snapshot every stage or less often. 1413 left `nac` over
+WP-1404's 1.05x gate, six snapshots costing 50 ms of a 17.7 ms budget.
 
 **Queued, unscheduled** ([§ Unscheduled](#unscheduled)): the 2026-09-01
 triage's 1309–1322 plus 1323 and 1325; the 2026-09-03 triage's 1332–1341; the
@@ -462,7 +463,7 @@ seam written out in [1325](wp/1325-parametric-series.md)'s `### Inherited`.
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
-| [1118](wp/1118-foreign-model-files.md) | Foreign model files: read a refinement in, write one back | 🔄 2026-09-16 | — |
+| [1118](wp/1118-foreign-model-files.md) | Foreign model files: read a refinement in, write one back | ✅ 2026-09-16 | — |
 | [1119](wp/1119-named-variables.md) | Named variables and equations: a `prm` of one's own | ✅ 2026-09-04 | — |
 | [1314](wp/1314-mfile-reader.md) | A Jana2020 project reader: .m50/.m40/.m41 | ⬜ | 1118 |
 | [1319](wp/1319-structure-interchange.md) | Structure interchange: checkCIF conformance and a bare XYZ importer | ⬜ | — |
