@@ -17,12 +17,15 @@ from pathlib import Path
 
 import pytest
 
+import rietx as rx
+from rietx.crystallography.symmetry import get_spacegroup
 from rietx.io.projects import coverage
 from rietx.io.projects.topas import (
     _CELL_MACROS,
     TopasInpError,
     _cell_search_text,
     _masked,
+    from_structure,
     normalize_space_group,
     normalize_species,
     read_topas_inp,
@@ -31,6 +34,7 @@ from rietx.io.projects.topas import (
     strip_comments,
     symbol_table,
     to_structure,
+    write_topas_inp,
 )
 
 
@@ -2969,3 +2973,148 @@ def test_a_symbol_the_tables_hold_once_says_nothing(tmp_path):
     diagnostics: list = []
     read_topas_inp(path, diagnostics=diagnostics)
     assert [d for d in diagnostics if "SETTING" in d.code] == []
+
+
+# --------------------------------------------------- the writer (WP-1118, #148)
+#
+# `from_structure` is the inverse of `to_structure`, so its test is a round
+# trip through the *reader* this module already carries — the cheapest
+# adversarial test a writer can get, and the WP's own acceptance for it. Every
+# `Structure` below is built by hand rather than loaded from a fixture, since
+# nothing here needs a `.inp` at all until the writer produces one.
+
+
+def _cubic_al(*, a_vary=True, biso_vary=True):
+    cell = rx.Cell.cubic(4.0495, vary=a_vary)
+    atom = rx.Atom(
+        label="Al1", species="Al",
+        x=rx.Parameter(value=0.0, vary=False), y=rx.Parameter(value=0.0, vary=False),
+        z=rx.Parameter(value=0.0, vary=False), occ=rx.Parameter(value=1.0, vary=False),
+        biso=rx.Parameter(value=0.55, vary=biso_vary, min=0.0, max=25.0, unit="A^2"))
+    phase = rx.Phase(name="Al", space_group="Fm-3m", cell=cell, atoms=[atom],
+                     scale=rx.Parameter(value=0.0123, vary=True, min=0.0))
+    return rx.Structure(phases=[phase])
+
+
+def _assert_parameter_equal(a: rx.Parameter, b: rx.Parameter):
+    assert a.value == b.value and a.vary == b.vary
+
+
+def test_write_topas_inp_round_trips_cell_atoms_and_refine_flags(tmp_path):
+    """A structure exported and re-imported is the same structure — values
+    exactly (``repr`` is the shortest decimal that reads back to the same
+    double) and every ``vary`` flag (the payload, per this reader's own
+    headline claim)."""
+    cell = rx.Cell(a=rx.Parameter(value=8.123, vary=True),
+                   b=rx.Parameter(value=5.234, vary=False),
+                   c=rx.Parameter(value=9.345, vary=True),
+                   alpha=rx.Parameter(value=90.0, vary=False),
+                   beta=rx.Parameter(value=105.41, vary=True),
+                   gamma=rx.Parameter(value=90.0, vary=False))
+    fe = rx.Atom(label="Fe1", species="Fe3+",
+                 x=rx.Parameter(value=-0.123, vary=True),
+                 y=rx.Parameter(value=0.25, vary=False),
+                 z=rx.Parameter(value=0.04512345678, vary=True),
+                 occ=rx.Parameter(value=0.75, vary=True),
+                 biso=rx.Parameter(value=0.9123456789, vary=True,
+                                   min=0.0, max=25.0, unit="A^2"))
+    phase = rx.Phase(name="Fe phase", space_group="P21/c", cell=cell,
+                     atoms=[fe], scale=rx.Parameter(value=1.5e-5, vary=True, min=0.0))
+    structure = rx.Structure(phases=[phase, _cubic_al().phases[0]])
+
+    out = tmp_path / "round_trip.inp"
+    rx.write_topas_inp(structure, out)
+    back = to_structure(read_topas_inp(out))
+
+    assert len(back.phases) == 2
+    for orig, built in zip(structure.phases, back.phases):
+        assert built.name == orig.name
+        assert (get_spacegroup(built.space_group).xhm()
+               == get_spacegroup(orig.space_group).xhm())
+        for key in ("a", "b", "c", "alpha", "beta", "gamma"):
+            _assert_parameter_equal(getattr(orig.cell, key), getattr(built.cell, key))
+        _assert_parameter_equal(orig.scale, built.scale)
+        assert len(built.atoms) == len(orig.atoms)
+        for oa, ba in zip(orig.atoms, built.atoms):
+            assert ba.label == oa.label
+            assert ba.species == oa.species
+            for key in ("x", "y", "z", "occ", "biso"):
+                _assert_parameter_equal(getattr(oa, key), getattr(ba, key))
+
+
+def test_write_topas_inp_round_trips_anisotropic_adps(tmp_path):
+    """A stated tensor comes back the same tensor, each component's own
+    ``vary`` intact, and ``biso`` — the schema's inert record for an
+    anisotropic site — held regardless of what the source structure gave it,
+    matching what :func:`to_structure` itself always builds."""
+    cell = rx.Cell.cubic(5.62)
+    na = rx.Atom(
+        label="Na1", species="Na1+",
+        x=rx.Parameter(value=0.0, vary=False), y=rx.Parameter(value=0.0, vary=False),
+        z=rx.Parameter(value=0.0, vary=False), occ=rx.Parameter(value=1.0, vary=False),
+        biso=rx.Parameter(value=1.026, vary=False, min=0.0, max=25.0, unit="A^2"),
+        aniso=rx.AnisoU(
+            u11=rx.Parameter(value=0.013, vary=True, unit="A^2"),
+            u22=rx.Parameter(value=0.013, vary=False, unit="A^2"),
+            u33=rx.Parameter(value=0.013, vary=False, unit="A^2"),
+            u12=rx.Parameter(value=0.0007, vary=True, unit="A^2"),
+            u13=rx.Parameter(value=0.0, vary=False, unit="A^2"),
+            u23=rx.Parameter(value=0.0, vary=False, unit="A^2")))
+    phase = rx.Phase(name="NaCl", space_group="Fm-3m", cell=cell, atoms=[na],
+                     scale=rx.Parameter(value=1e-3, vary=True, min=0.0))
+    structure = rx.Structure(phases=[phase])
+
+    out = tmp_path / "aniso.inp"
+    write_topas_inp(structure, out)
+    back = to_structure(read_topas_inp(out), aniso=True)
+
+    ba = back.phases[0].atoms[0]
+    assert ba.aniso is not None
+    for key in ("u11", "u22", "u33", "u12", "u13", "u23"):
+        _assert_parameter_equal(getattr(na.aniso, key), getattr(ba.aniso, key))
+    assert ba.biso.value == na.biso.value
+    assert ba.biso.vary is False
+
+
+def test_write_topas_inp_writes_the_resolved_setting_not_the_bare_symbol(tmp_path):
+    """`Fd-3m` is one of the 40 symbols the tables hold in two settings
+    (issue #101); the writer must emit ``get_spacegroup(...).xhm()`` rather
+    than the phase's own stored spelling, so a setting this build already
+    resolved is not laundered back into an ambiguous symbol on export — the
+    obligation this WP's own file banks against the writers task."""
+    resolved = get_spacegroup("Fd-3m").xhm()
+    assert ":" in resolved     # this symbol *is* one of the ambiguous ones
+    cell = rx.Cell.cubic(8.0806)
+    atom = rx.Atom(label="Mg1", species="Mg",
+                   x=rx.Parameter(value=0.125), y=rx.Parameter(value=0.125),
+                   z=rx.Parameter(value=0.125))
+    phase = rx.Phase(name="spinel", space_group=resolved, cell=cell, atoms=[atom])
+    structure = rx.Structure(phases=[phase])
+
+    out = tmp_path / "spinel.inp"
+    write_topas_inp(structure, out)
+    text = out.read_text(encoding="utf-8")
+    assert resolved in text
+
+    diagnostics: list = []
+    model = read_topas_inp(out, diagnostics=diagnostics)
+    # already-resolved on the way out, so the way back in states nothing to
+    # assume: `normalize_space_group` passes a colon-suffixed symbol through
+    # unrecognised, and the assumption diagnostic never fires on a phase that
+    # was never ambiguous to begin with.
+    assert model.phases[0].space_group == resolved
+    assert [d for d in diagnostics if "SETTING" in d.code] == []
+
+
+def test_write_topas_inp_refuses_a_phase_name_with_a_double_quote(tmp_path):
+    """A quote in the name would close ``phase_name "..."`` early and hand the
+    rest of the line to the reader as garbage — refused naming the phase,
+    never written and left for the reader to mis-parse."""
+    structure = _cubic_al()
+    structure.phases[0].name = 'Weird"Name'
+    with pytest.raises(ValueError, match="double quote"):
+        from_structure(structure)
+
+
+def test_write_topas_inp_is_reachable_at_the_top_level():
+    assert rx.write_topas_inp is write_topas_inp

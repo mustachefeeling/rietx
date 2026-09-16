@@ -258,11 +258,12 @@ error.
 The foreign-refinement readers are under active development, so the names in
 this section are documented and not frozen. `read_project_model`,
 `identify_project_format`, `read_topas_inp`, `read_fullprof_pcr`,
-`read_gsas_exp`, `read_gsas2_gpx` and the per-format models they answer with
-(`rietx.io.projects`) may change in a 1.x release: the registry has four
-formats and one more queued, each of which is evidence about its shape, and the
-write direction is not written at all. A format's own model mirrors that format, so its fields move when the
-reader's coverage does.
+`read_gsas_exp`, `read_gsas2_gpx`, `write_topas_inp` and the per-format models
+they answer with (`rietx.io.projects`) may change in a 1.x release: the
+registry has four formats and one more queued, each of which is evidence about
+its shape, and the write direction has landed for one format of four. A
+format's own model mirrors that format, so its fields move when the reader's
+coverage does.
 {ref}`provisional-by-declaration` has the promise in full.
 :::
 
@@ -289,6 +290,31 @@ file usually turns out to be.
 Call `rx.read_topas_inp`, `rx.read_fullprof_pcr`, `rx.read_gsas_exp` or
 `rx.read_gsas2_gpx` directly when you already know what you have; `rx.identify_project_format` answers which format claims a
 file without parsing it, reading only enough of the head to decide.
+
+### Writing one back
+
+`rx.write_topas_inp(structure, path)` is the inverse of `read_topas_inp` +
+`ProjectModel.to_structure`. It writes a `.inp` that states the same phases,
+the same cell and the same atoms, plus the part a CIF cannot carry: the same
+refine flags, each `Parameter.vary` written as TOPAS's own `@`/`!` grammar.
+
+<!-- api-doc: no-exec — needs a real Structure and writes a file -->
+```python
+rx.write_topas_inp(structure, "exported.inp")
+back = rx.read_topas_inp("exported.inp").to_structure()
+```
+
+Space groups are written from `get_spacegroup(...).xhm()`, never a phase's own
+stored spelling, so a setting this build already resolved is not laundered
+back into an ambiguous symbol.
+
+Some things do not travel, because `to_structure` does not build them from a
+`.inp` either: the emission profile and instrument geometry (`Instrument` is
+not part of what a `.inp` reads into today), cell and site bound windows, and
+any extinction, preferred-orientation or sample-broadening term a phase
+carries. None of those are TOPAS constructs this reader's `to_structure`
+populates on the way in, so writing them out would claim a round trip the
+reader cannot close. The other three formats have no writer yet.
 
 ### What comes back
 

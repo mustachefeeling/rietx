@@ -20,7 +20,7 @@ from .registry import (
     identify_project_format,
     read_project_model,
 )
-from .topas import TopasInpError, read_topas_inp
+from .topas import TopasInpError, read_topas_inp, write_topas_inp
 
 # The package exports only each format's *format-named* entry point (and its
 # error) — never the module's ``to_structure``. WP-1118's scope is "read a
@@ -34,8 +34,8 @@ from .topas import TopasInpError, read_topas_inp
 # The registry is the package's front door and is exported beside the
 # format-named entry points: `read_project_model` is the one call for "someone
 # handed me a file", the per-format readers the one for "I know what this is".
-__all__ = ["read_topas_inp", "TopasInpError", "read_fullprof_pcr",
-           "FullProfPcrError", "read_gsas_exp", "GsasExpError",
-           "read_gsas2_gpx", "Gsas2GpxError",
+__all__ = ["read_topas_inp", "write_topas_inp", "TopasInpError",
+           "read_fullprof_pcr", "FullProfPcrError", "read_gsas_exp",
+           "GsasExpError", "read_gsas2_gpx", "Gsas2GpxError",
            "read_project_model", "identify_project_format",
            "PROJECT_FORMATS", "ProjectFormat", "ProjectModel"]
