@@ -227,6 +227,14 @@ class ProjectFormatCapability(Base):
     #: per-format difference: a ``.inp``'s species and origin repairs happen
     #: while parsing, a ``.pcr``'s while converting codewords
     reports_at: str
+    #: the top-level verb that writes this format (``"write_topas_inp"``), or
+    #: ``None`` where this build has no writer for it (WP-1118).  The **name**
+    #: rather than a flag, so a client learns what to call; ``None`` rather than
+    #: ``False``, so an unwired format does not answer a question nobody asked
+    #: (WP-1076).  Quoted from ``ProjectFormat.write.__name__`` and meta-tested
+    #: against ``rietx.__all__``, which is ``_SURFACE_FLAGS``' rule — a declared
+    #: name drifts from its export in silence otherwise
+    writes: str | None = None
     #: set when this entry is a format the build **recognises in order to
     #: decline**, carrying why — ``ReaderCapability.refuses``' reasoning
     refuses: str | None = None
@@ -371,7 +379,9 @@ def capabilities() -> Capabilities:
             ProjectFormatCapability(name=f.name, title=f.title,
                                     extensions=list(f.extensions), sniff=f.sniff,
                                     carries=list(f.carries),
-                                    reports_at=f.reports_at, refuses=f.refuses)
+                                    reports_at=f.reports_at,
+                                    writes=None if f.write is None else f.write.__name__,
+                                    refuses=f.refuses)
             for f in PROJECT_FORMATS],
         reader_options=[
             ReaderOptionCapability(name=o.name, kind=o.kind, help=o.help)

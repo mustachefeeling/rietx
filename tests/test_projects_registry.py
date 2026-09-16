@@ -542,3 +542,31 @@ def test_the_three_readers_left_out_are_left_out_on_purpose():
     assert "read_gsas_prm" not in names and "read_recipe" not in names
     assert hasattr(rx, "read_gsas_prm") and hasattr(rx, "read_recipe")
     assert rx.capabilities().features["powderline_recipe"] is True
+
+
+def test_the_arm_names_each_format_writer_by_its_exported_name():
+    """The write direction is a name, not a flag, and the name must resolve.
+
+    A format's writer is published as the top-level verb that writes it, so a
+    client learns what to call rather than only that something is possible, and
+    a format with no writer answers ``None`` rather than ``False`` — which
+    would be a claim about a format nobody had wired (WP-1076).  The pair
+    drifts exactly as ``_SURFACE_FLAGS`` describes, so the name is checked
+    against ``rietx.__all__`` and the callable by identity.
+    """
+    by_name = {f.name: f for f in rx.capabilities().project_formats}
+    for fmt in PROJECT_FORMATS:
+        published = by_name[fmt.name].writes
+        if fmt.write is None:
+            assert published is None
+            continue
+        assert published == fmt.write.__name__
+        assert published in rx.__all__
+        assert getattr(rx, published) is fmt.write
+
+    # Three of the four write today, and GSAS-II is the one that does not —
+    # a task line in WP-1118 rather than a shape this arm still needs, since a
+    # format gaining a writer changes its value and never this field.
+    assert by_name["gsas2_gpx"].writes is None
+    assert {f.name for f in PROJECT_FORMATS if f.write is not None} == {
+        "topas_inp", "fullprof_pcr", "gsas_exp"}

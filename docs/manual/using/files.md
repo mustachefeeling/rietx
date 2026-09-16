@@ -735,6 +735,7 @@ caps = rx.capabilities()
 | `ProjectFormatCapability.sniff` | how the format is recognised, in words |
 | `ProjectFormatCapability.carries` | what the file holds beyond a structure; read this before reading a model you have no common shape for |
 | `ProjectFormatCapability.reports_at` | `"read"`, `"build"` or `"both"`: which call takes your `diagnostics=` list |
+| `ProjectFormatCapability.writes` | the top-level verb that writes this format, or `None` where this build has no writer for it |
 | `ProjectFormatCapability.refuses` | set when the build recognises a format in order to decline it, carrying why |
 
 `reports_at` is a real difference and not bookkeeping. A `.inp`'s repairs, such
@@ -752,11 +753,17 @@ or no list. That matters more than it sounds. An empty list reads as "this file
 needed no repairs", and a caller who had passed it to the other call would
 believe it.
 
+`writes` is a name rather than a flag, so a client learns what to call and not
+only that something is possible. It is `None` where this build has no writer,
+which is `.gpx` today, and `None` rather than `False` on purpose: a `False`
+would be an answer about a format nobody had wired.
+
 The same facts are in the registry the arm is built from. `ProjectFormat.name`,
 `ProjectFormat.title`, `ProjectFormat.extensions`, `ProjectFormat.sniff`,
 `ProjectFormat.carries`, `ProjectFormat.reports_at` and `ProjectFormat.refuses`
-carry the declarations, while `ProjectFormat.matches`, `ProjectFormat.read` and
-`ProjectFormat.to_structure` are the callables the dispatch uses.
+carry the declarations, while `ProjectFormat.matches`, `ProjectFormat.read`,
+`ProjectFormat.to_structure` and `ProjectFormat.write` are the callables the
+dispatch and the writers use.
 
 ### What a reader will not guess
 
