@@ -568,11 +568,16 @@ findings, all four real and all four fixed; nothing was declined.
 *Measured* — this worktree's `.venv`, `[dev]` only (no jax, no torch), python
 3.12.12, darwin/arm64.
 
-- Fast selection `-n auto --dist loadgroup -m "not slow"` on the final tree:
-  **5094 passed, 133 skipped**. The tests this session added are **+41
-  collected items** against the merge base `ad6085c9` — 37 functions across
-  five files (`test_projects_gsas` +22, `test_gsas_prm` +11,
-  `test_projects_topas` +2, `test_projects_fullprof` +1,
+- Fast selection `-n auto --dist loadgroup -m "not slow"` on **current `main`
+  merged into this branch**, which is the tree that lands: **5101 passed, 133
+  skipped**, 2:48, and this run was **alone** (`ps` checked, nothing
+  mid-suite). `main` moved during the session — PR #280 merged, and its seven
+  new `test_neutron_cw` rows are the whole of 5094 → 5101, so the two
+  parents' additions do not simply sum and the branch-only figure is not what
+  merges.
+- The tests this session added are **+41 collected items** against the merge
+  base `ad6085c9` — 37 functions across five files (`test_projects_gsas` +22,
+  `test_gsas_prm` +11, `test_projects_topas` +2, `test_projects_fullprof` +1,
   `test_projects_registry` +1), plus four extra parametrized cases on one of
   them, five of the 37 being the review pass's. **No new skip.** That puts
   the merge base at
@@ -580,9 +585,10 @@ findings, all four real and all four fixed; nothing was declined.
   off `origin/main` and the first edit preceded any run, so there is no
   pre-session baseline on this tree and the per-file counts are what is
   quoted (`tests/CLAUDE.md`'s own preference).
-- Wall clock 3:46–7:07 across four runs of that selection. **Not
-  alone-figures**: a `/pr-review` session was running the *slow* suite in
-  `worktrees/pr-bench` for part of it, which is most of the spread.
+- Wall clock on the branch alone was 3:46–7:07 across four runs of the same
+  selection, and those are **not alone-figures**: a `/pr-review` session was
+  running the *slow* suite in `worktrees/pr-bench` for part of it, which is
+  most of the spread. The 2:48 above is the only one measured alone.
 - **No full selection, deliberately.** Nothing here can move a measured
   number: the writers have no caller inside the package, the `CHMF` fix
   touches a field (`GsasPhase.formula`) no fit reads, and the registry field
