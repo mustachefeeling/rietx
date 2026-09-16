@@ -230,6 +230,30 @@ def test_every_verb_that_records_a_run_can_name_it(tmp_path, monkeypatch,
     assert run.label == "the one-shot form"
 
 
+def test_a_project_forwards_the_label_through_its_kw(tmp_path, pattern,
+                                                    recording):
+    """``Project.fit`` takes no explicit keyword, so this is the hop itself.
+
+    It forwards ``**kw`` to ``Refinement.fit`` after its own setdefaults, and
+    the manual and the skill both name it as a verb that takes ``label=``. A
+    documented claim with no writer is the class WP-1076 is about, so the hop
+    is asserted rather than read off the source. The run lands in the
+    project's ``live/``, which is where a project's telemetry goes.
+    """
+    from tests.test_project import _write_xye
+
+    structure, ins = perturbed_models()
+    path = _write_xye(tmp_path / "synth.xye", pattern)
+    project = rx.Project.create(tmp_path / "p.rex", pattern=path,
+                                structure=structure, instrument=ins)
+    project.fit(label="the project's own run")
+
+    (run,) = runs.discover(project.live_dir)
+    assert run.label == "the project's own run"
+    # and the default it displaced is the project directory, not `live`
+    assert run.label != runs.LIVE_DIR_NAME
+
+
 def test_a_series_names_the_job_and_the_row_still_prefers_the_member(
         tmp_path, monkeypatch, pattern, recording):
     """One series is one run directory, so ``label`` is the chain's name.
