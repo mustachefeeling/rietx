@@ -80,77 +80,35 @@ resolved theme and the page re-stamps on change, so no reload is needed.
 The plot follows the theme. The pages embed both palettes and `plotly.react`
 with the resolved theme's hues, on load and on change.
 
-### Inherited
+### What the four WPs before this one left
 
-- **2026-09-16, from [1425](1425-the-panels-are-the-readers-to-size.md): two
-  grips, four more hard-coded greys, and a control that has states.** The
-  watcher page's two seams are splitters now, and `.grip` in `watch.css`
-  carries its own literals: `#1c1c1c` at rest, `#31405a` on hover, `#3d4a66`
-  for `:focus-visible` and while dragging, `#2a3140` when the pane it sizes is
-  collapsed. The two toggle buttons those replaced are gone, so
-  `.toggle[aria-pressed="true"]`'s `#2a3140`/`#3d4a66` pair is gone with them
-  and the count of literals is roughly unchanged. What is new for this WP is
-  that the grip is the first control on the page with **four** states rather
-  than two, so whatever token set lands has to name a focus ring as well as a
-  hover — and `:focus-visible` here is load-bearing rather than cosmetic, the
-  grip being keyboard-operable (arrows, Home, End, Enter) and 5 px wide.
+Checked against the tree on 2026-09-16, the day they landed and the day this
+WP starts; every entry below is still true.
 
-- **2026-09-16, from [1424](1424-a-row-that-names-its-run.md): one more palette
-  consumer on the watcher page.**
-  - `drawSnapshot` now writes a plotly annotation for the drawn-point count,
-    using `HUE.fg` and `withAlpha(HUE.ground, 0.72)` — the same two the legend
-    took in WP-1426. Nothing new is hardcoded, but it is a third place the
-    palette reaches inside one function.
-  - The page's own colours in `watch.css` are unchanged by 1424; the state pill
-    words are still the six literals there.
-
-- **2026-09-16, from [1426](1426-still-under-resize-and-across-a-stage.md): one
-  new colour helper, and one hardcoded colour that is yours to take.**
-  - The legend moved inside the paper, so its ground now sits over the data and
-    needs an opacity. `watch-core.mjs` gained **`withAlpha(hex, alpha)`**, which
-    composes `rgba(...)` from a palette token so the colour keeps one authority;
-    anything it cannot parse comes back unchanged, a palette being data off the
-    wire. `watch.mjs` uses `withAlpha(HUE.ground, 0.72)`. Four node cases in
-    `tests/watch_core.test.mjs`.
-  - **`viz/html.py` got a literal `"rgba(255,255,255,0.85)"` for the same job**,
-    because that page draws under plotly's `simple_white` template and has no
-    `HUE` to quote. It is a hardcoded colour in a file whose other colours all
-    come from `PALETTES`, and it is exactly the kind of second authority this
-    WP exists to remove. Folding it into the token story is a one-line change
-    once the light palette carries a ground.
-  - The 0.72 and the 0.85 were chosen by looking at the rendered pages, not
-    measured. If this WP sets opacity tokens, they should be its numbers rather
-    than these.
-
-- **2026-09-16, from [1430](1430-the-page-is-a-file.md): the page is files, and
-  three of its names are not the ones 1430's plan said.** `watch.py` is the
-  package `watch/`, and the page is `watch/static/`: `index.html`, `watch.css`,
-  `watch.mjs` (the document) and `watch-core.mjs` (everything that touches no
-  DOM). `rietx.watch` imports unchanged. What to carry:
-  - **The DOM half is `.mjs`, not `.js`.** `node --check` reads a `.js` as
-    CommonJS, where the `import` of `watch-core.mjs` is a syntax error. A
-    browser cares about `type="module"` and the content type, never the
-    extension.
-  - **Node cases live in `tests/watch_core.test.mjs`**, not beside the module:
-    hatchling ships everything under `src/rietx`. They are invoked from
-    `tests/test_watch_app.py::test_the_pure_half_of_the_page_is_unit_tested`
-    (15 cases today), which passes `--test-reporter=tap` because node picks its
-    reporter by whether stdout is a terminal.
-  - **`@SUFFIX@`, `@DIST@` and `@HUE@` are gone.** A file cannot carry a token,
-    so the three ride on `/api/runs` as `payload.page.{suffix,dist,palette}`,
-    read at boot into the module-level `HUE` and `DIST`. That is 299 B of every
-    poll, against rows of 735 B each.
-  - **A new file under `static/` needs a row in `watch.STATIC_FILES`** and
-    nothing else — the route, the content type and the `.gitignore` guard all
-    read that dict. `*.html` in `.gitignore` swallowed `index.html` on the way
-    in, the sixth committed file that one rule has taken.
-  - Half of this WP's watcher half is done: the page takes
-    `viz/plots.PALETTES["dark"]` off the payload rather than carrying literals,
-    so a theme is a matter of which palette is sent. The page's own greys are
-    still literals, in `watch.css`. `compare_app.py` is the one page left as a
-    string in python, and this is the recipe if 1429 wants to move it.
-  - `tests/test_watch_browser.py` took no diff and stays the bar: if it
-    moves, the page moved.
+- **The watch page is four files** (WP-1430), `watch/static/`: `index.html`,
+  `watch.css`, `watch.mjs` (the document) and `watch-core.mjs` (everything that
+  touches no DOM). A new file needs a row in `watch.STATIC_FILES` and nothing
+  else — the route, the content type and the `.gitignore` guard all read that
+  dict. Node cases live in `tests/watch_core.test.mjs`, invoked from
+  `tests/test_watch_app.py`. So half the watcher's half of this WP is already
+  done: the page takes `PALETTES["dark"]` off `/api/runs` as
+  `payload.page.palette` rather than carrying literals, and a theme is a matter
+  of what is sent. Its own greys are still literals, in `watch.css`.
+- **The grip has four states** (WP-1425), so the token set has to name a focus
+  ring as well as a hover: `#1c1c1c` at rest, `#31405a` on hover, `#3d4a66` for
+  `:focus-visible` and while dragging, `#2a3140` when the pane it sizes is
+  collapsed. `:focus-visible` is load-bearing rather than cosmetic — the grip is
+  keyboard-operable and 5 px wide.
+- **`withAlpha(hex, alpha)`** (WP-1426) composes `rgba(...)` from a palette
+  token, so a translucent ground keeps one authority; anything it cannot parse
+  comes back unchanged. `watch.mjs` uses it for the legend and, since WP-1424,
+  for the drawn-point annotation.
+- **`viz/html.py` carries a literal `"rgba(255,255,255,0.85)"`** for that same
+  job, in a file whose other colours all come from `PALETTES`. It is the second
+  authority this WP exists to remove, and it is one line once a light palette
+  carries a ground.
+- **The 0.72 and the 0.85 were chosen by looking**, not measured. If this WP
+  sets opacity tokens they should be its own numbers.
 
 ## Non-goals
 
