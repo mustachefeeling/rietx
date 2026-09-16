@@ -1,14 +1,16 @@
 # WP-1428 — open in the GUI, without touching the fit
 
 Milestone: unscheduled · Status: ⬜
-Depends on: 1405 (the one verb and its gate), 1401 (the decision this revisits)
+Depends on: 1405 (the one verb and its gate), 1401 (the decision this revisits); 1430 soft
 
 ## Goal
 
-A reader of `rietx watch` can open the project a running fit is writing in the
-GUI with one click, and the fit does not notice. The GUI opens a scratch copy,
-never the live project, and the watcher's gate for it is the one the stop
-button already has.
+A reader of `rietx watch` can open, in the GUI, a copy of the project a
+running fit is writing, as it stood at the click, and the fit does not
+notice. The copy is frozen: it shows the model, the parameters and the
+history up to that moment and never the next stage. The GUI opens a scratch
+copy, never the live project, and the watcher's gate for it is the one the
+stop button already has.
 
 ## Context
 
@@ -18,8 +20,20 @@ human can copy, `rietx gui <project>`, built by `_row` in `watch.py` for a run
 that sits in a project's `live/`. WP-1401 § the decision kept it a string:
 launching the GUI is a process boundary and the watcher performs no verbs.
 WP-1405 then gave it one verb, stop, behind a host allowlist and a
-`--read-only` flag. This WP asks whether the second verb is worth its cost,
+`--read-only` flag. This WP asks whether a second verb is worth its cost,
 and what "safe" has to mean first.
+
+### What the feature can and cannot be
+
+The GUI's live panel reads an in-process ring. It cannot follow a fit in
+another process; `rietx watch` exists because of that (ROADMAP § A window into
+a run). So "open in GUI" cannot mean a live view of the running fit. It means
+a snapshot of the project at the click, opened for what the GUI is good at
+and the watcher is not: reading the parameter table, the report, the 3D
+structure, and branching a strategy from the current head in the copy. The
+copy is frozen; the watcher stays the live view. The strip's button and the
+manual say so in those words, or a reader clicks expecting the fit to follow
+them.
 
 ### Why the live project is never safe to open
 
@@ -29,8 +43,11 @@ and what "safe" has to mean first.
 - The fit appends to the same `history.jsonl` at every stage. Two appenders on
   one log is the interleaving WP-1403 separated the *run* directories to
   avoid, and the history log has no such separation.
-- The GUI's 409 while a run is in flight guards its own in-process run. It
-  cannot see a fit in another process.
+- Two sessions would hold two heads. The fit advances the head with every
+  stage; a GUI that opened earlier holds the older one, and its stale-revision
+  409 (`gui/CLAUDE.md`) guards against its own in-process run, not a foreign
+  writer. What a verb from the stale side does to the tree has never been
+  defined.
 
 So the only object the GUI may open is a copy. `rietx gui --scratch` makes
 one with `shutil.copytree`, byte for byte, into a temp directory that nothing
@@ -39,14 +56,15 @@ removes, and its header says the source is not written to.
 ### Where the copy is fragile
 
 `history/store.py:read_records` raises `malformed history record` on any line
-it cannot parse. A history node is about 10 kB (root CLAUDE.md § Conventions),
-larger than `PIPE_BUF`, so a copy taken while the fit is mid-append can carry
-a torn last line and fail to open. Measure how often: copy a project under a
-fit two hundred times at random moments and count failures. Then choose:
-retry the copy once on a torn tail (the append finishes within milliseconds),
-or teach `read_records` to stop at a final line with no newline and report it.
-The second changes a "bad lines raise" rule and needs the measurement to
-justify it.
+it cannot parse. A history node is about 10 kB (root CLAUDE.md § Conventions).
+Python's buffered writer and the kernel may each split an append of that size
+into more than one write, so a copy taken while the fit is mid-append can
+carry a torn last line and fail to open. Measure how often: copy a project
+under a fit two hundred times at random moments and count failures. Then
+choose: retry the copy once on a torn tail (the append finishes within
+milliseconds), or teach `read_records` to stop at a final line with no
+newline and report it. The second changes a "bad lines raise" rule and needs
+the measurement to justify it.
 
 ### The two forms, and the decision
 
@@ -65,9 +83,11 @@ project, pid, scratch_of) exists for exactly this caller.
 The launch form is what the ask means by a feature. It costs a second verb in
 an app whose strength ROADMAP § A window into a run states as having none,
 and a process the watcher spawns but does not own. The recommendation is the
-launch form, on two conditions: the scratch copy is the only thing it can
-open, and the copy's consistency is measured and handled before the button
-exists. **The maintainer decides**, in this file, before the verb is written.
+launch form, on three conditions: the scratch copy is the only thing it can
+open, the copy's consistency is measured and handled before the button
+exists, and the button's label says the copy is frozen. **The maintainer
+decides**, in this file, before the verb is written, and the decision weighs
+whether a frozen copy is worth a verb at all.
 
 ### What a run without a project gets
 
@@ -77,9 +97,9 @@ snapshot is not a thing; the snapshot is a picture.
 
 ## Non-goals
 
-- Opening the live project. Never.
-- A GUI that reads a foreign run's events (the GUI's live panel is
-  in-process; `rietx watch` exists because of that).
+- Opening the live project.
+- A GUI that follows a foreign run. The GUI's live panel is in-process, and
+  the watcher is the live view.
 - Removing scratch copies. `scratch_copy` says why nothing does.
 - Two appenders on one `history.jsonl` when a caller runs `Project.fit` with
   the GUI already open on that project. Named here; not this WP's.
@@ -91,7 +111,7 @@ snapshot is not a thing; the snapshot is a picture.
 - [ ] The decision: copy-the-command or launch, written into this file by the
       maintainer with the date
 - [ ] Either way: `gui_command` carries `--scratch`, and the strip gets a
-      copy button beside it
+      copy button beside it, labelled as a copy at the click
 - [ ] If launch: the route, gated as stop is (`_origin_ok`, `--read-only`,
       project runs only), spawning with `--json` and returning the url; the
       page opens it in a new tab and shows the url in the strip until the tab
@@ -101,7 +121,7 @@ snapshot is not a thing; the snapshot is a picture.
       (sha256 of `history.jsonl` before and after), the fit's run still
       writing afterwards; a browser test clicks the button
 - [ ] Manual: `cli.md` § `rietx watch` and § `rietx gui` say what the button
-      opens and that it is a copy
+      opens, that it is a copy, and that the copy does not follow the fit
 - [ ] Skill: none. An agent driving rietx does not open a GUI.
 
 ## Acceptance
@@ -123,5 +143,6 @@ copy. The handover states the torn-tail rate.
 
 ## Handover log
 
-- **2026-09-16** — created, from the maintainer's ask after the demo job,
-  unrolled with 1424–1427 and 1429.
+- **2026-09-16** — created, from the maintainer's ask after the demo job;
+  revised the same day: the Goal says the copy is frozen, the stale-head
+  reason is added, and the torn-tail paragraph no longer cites `PIPE_BUF`.

@@ -101,7 +101,7 @@ is closed on the code and owes one decision**: 1413 took recording to
 1.03-1.23x (`nac` still over WP-1404's 1.05x gate, its six snapshots costing
 50 ms of a 17.7 ms budget), and
 [1423](wp/1423-a-page-that-holds-still.md) reworked the page 2026-09-16 after
-the live demo; the maintainer's reading of it opens 1424–1429 (§ A window into
+the live demo; the maintainer's reading of it opens 1424–1431 (§ A window into
 a run), 1428 carrying a decision. **The other open question is for the
 maintainer** — write the snapshot every stage, or less often.
 
@@ -640,10 +640,8 @@ carries is whether 1327's non-goal becomes a sequencing statement.
 
 #### A window into a run — the live-watcher track
 
-Eight rungs shipped 2026-09-13 to 2026-09-16 (why the surface is `watch` and
-not a `gui` mode: v1.4 record § How v1.4 is getting here). The maintainer's
-2026-09-16 reading of the reworked page adds 1424–1429, one mechanism each;
-1428 carries a decision.
+Eight rungs shipped 2026-09-13 to 2026-09-16. The 2026-09-16 reading adds eight
+more, in order: 1430, 1426, 1424, 1431, 1425, 1429, 1427, 1428 (a decision).
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
@@ -655,12 +653,14 @@ not a `gui` mode: v1.4 record § How v1.4 is getting here). The maintainer's
 | [1406](wp/1406-say-that-the-fit-writes-to-disk.md) | Say that the fit writes to disk | ✅ 2026-09-15 | 1403, 1405 (1402 soft) |
 | [1413](wp/1413-the-snapshot-is-what-recording-costs.md) | The snapshot is what recording costs | ✅ 2026-09-15 | 1404, 1402 |
 | [1423](wp/1423-a-page-that-holds-still.md) | A page that holds still | ✅ 2026-09-16 | 1405, 1402 |
-| [1424](wp/1424-a-row-that-names-its-run.md) | A row that names its run, and a number that fits its slot | ⬜ | — (1423 soft) |
-| [1425](wp/1425-the-panels-are-the-readers-to-size.md) | The panels are the reader's to size | ⬜ | 1426 (1423 soft) |
-| [1426](wp/1426-still-under-resize-and-across-a-stage.md) | Still under resize, and across a stage | ⬜ | 1423 |
-| [1427](wp/1427-what-a-poll-costs.md) | What a poll costs | ⬜ | — (1423 soft) |
-| [1428](wp/1428-open-in-the-gui-without-touching-the-fit.md) | Open in the GUI, without touching the fit | ⬜ | 1405, 1401 |
-| [1429](wp/1429-one-palette-and-one-theme-for-three-pages.md) | One palette and one theme for three pages | ⬜ | — (1426, 1423 soft) |
+| [1430](wp/1430-the-page-is-a-file.md) | The page is a file | ⬜ | 1423 |
+| [1426](wp/1426-still-under-resize-and-across-a-stage.md) | Still under resize, and across a stage | ⬜ | 1430, 1423 |
+| [1424](wp/1424-a-row-that-names-its-run.md) | A row that tells its run apart, and a number that fits its slot | ⬜ | 1430 (1423 soft) |
+| [1431](wp/1431-a-caller-names-its-run.md) | A caller names its run | ⬜ | 1424 |
+| [1425](wp/1425-the-panels-are-the-readers-to-size.md) | The panels are the reader's to size | ⬜ | 1430, 1426 |
+| [1429](wp/1429-one-palette-and-one-theme-for-three-pages.md) | The GUI's tokens and the GUI's theme, on the two python pages | ⬜ | 1430 (1426 soft) |
+| [1427](wp/1427-what-a-poll-costs.md) | What a poll costs | ⬜ | 1430 (1426 soft) |
+| [1428](wp/1428-open-in-the-gui-without-touching-the-fit.md) | Open in the GUI, without touching the fit | ⬜ | 1405, 1401 (1430 soft) |
 
 ### v2+ — fenced
 

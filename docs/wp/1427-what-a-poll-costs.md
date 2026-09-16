@@ -1,21 +1,22 @@
 # WP-1427 — what a poll costs
 
 Milestone: unscheduled · Status: ⬜
-Depends on: — (1423 soft: the poll cycle this measures)
+Depends on: 1430 (the page as files); 1426 soft (both rewrite `drawRun`)
 
 ## Goal
 
 One idle poll of the `rietx watch` page, where nothing changed, costs the
 server and the browser a measured and stated amount on a root of two hundred
 runs, and a stage redraw produces no long task. Every optimisation lands with
-the number it moved.
+the number it moved, and anything that did not move a number is not landed.
 
 ## Context
 
-The maintainer asked for further performance work after the 2026-09-16 demo.
-Nothing has been measured yet, so this WP starts with the instrument and ends
-with the numbers. The candidates below are read off the code and ranked by
-what the measurement says.
+The maintainer asked for further performance work after the 2026-09-16 demo,
+without naming what was slow. Nothing has been measured, so this WP starts
+with the instrument and ends with the numbers. The candidates below are read
+off the code. One of them has a plausible number behind it; the rest are
+listed so the measurement can dismiss them.
 
 ### The poll cycle today
 
@@ -23,13 +24,15 @@ Every 1.2 s while the tab is visible (`schedule`), `refresh` fetches
 `api/runs`, patches the list, and for the selected run fetches the snapshot
 when its `snapshot_mtime` moved and the events tail from its offset.
 
-Server, per `api/runs` request (`watch.py`):
+Server, per `api/runs` request:
 
 - `_RunIndex.runs()` re-walks the root when its 1.0 s TTL has lapsed
   (`INDEX_TTL_SECONDS`), so with one open tab the walk runs about once a
   second. `read_run` opens two files per run (`meta.json`, `status.json`,
   asserted by `tests/test_runs.py`) and stats the log. Two hundred runs is
-  four hundred JSON parses a second while nothing changes.
+  four hundred JSON reads and parses a second while nothing changes. That is
+  the one candidate with a number: small files, so likely tens of
+  milliseconds a second, and the measurement says whether that matters.
 - `_row` calls `liveness_of` (a pid check and a lock probe) and stats the
   snapshot file, per run, per request, outside the TTL cache.
 - The payload is every row every time. There is no `ETag`, so the browser
@@ -37,8 +40,6 @@ Server, per `api/runs` request (`watch.py`):
 
 Browser, per poll:
 
-- `patchList` does `tbody.querySelector('tr[data-id=…]')` inside a loop over
-  the runs, O(N²) on the list.
 - A snapshot redraw is one JSON of `n_drawn` points in four arrays plus the
   tick rows, then `plotly.react` over four scattergl traces. WP-1423 saw
   5859 of 7251 points drawn on the demo; 11-BM NAC would be its 22 003 points
@@ -62,20 +63,18 @@ Browser, per poll:
   (the batch shape WP-1403's retention rule was written for), and one run
   drawing NAC.
 
-### Candidates, to be ranked by the numbers
+### Candidates, to be kept or dismissed by the numbers
 
 1. A per-run read cache in `_RunIndex` keyed on the `mtime` of `meta.json`
    and `status.json`, so an unchanged run is a stat and not a parse.
 2. An `ETag` on `api/runs` (a digest of the payload) honoured with
    `If-None-Match`, so an idle poll is a 304 with no body and no client
    work. `http.server` has no helper for it; it is two header lines.
-3. `patchList` on a `Map` from id to row.
-4. `Content-Encoding: gzip` on the snapshot when the client accepts it
-   (stdlib `gzip`; decimal arrays compress several-fold), measured against
-   the parse cost it adds.
-5. A console that renders the lines it shows, or caps lines per poll and says
-   `+N more`, and drops the per-line `series_*` keys the strip already shows.
-6. Server-sent events in place of polling. `ThreadingHTTPServer` can hold a
+3. `Content-Encoding: gzip` on the snapshot when the client accepts it
+   (stdlib `gzip`), measured against the parse cost it adds.
+4. A console that caps lines per poll and says `+N more`, and drops the
+   per-line `series_*` keys the strip already shows.
+5. Server-sent events in place of polling. `ThreadingHTTPServer` can hold a
    `text/event-stream` per tab. It removes the round trip and the empty polls
    but not the walk: the stdlib has no file watcher, so the server would poll
    the disk instead of the browser polling the server. Take it only if the
@@ -90,6 +89,9 @@ Browser, per poll:
   WP's; a wrong layout is 1426's.
 - A second server or a websocket library. The page stays on the stdlib.
 - The GUI's own live panel, which reads an in-process ring.
+- Micro-optimisations without a number. `patchList`'s per-row
+  `querySelector` is quadratic and irrelevant at 200 rows; it is fixed only if
+  the measure says otherwise.
 
 ## Tasks
 
@@ -97,15 +99,15 @@ Browser, per poll:
       the page, read by the browser harness; the before numbers on the three
       roots in the handover
 - [ ] The read cache in `_RunIndex`, with `test_runs.py`'s two-files budget
-      restated as two files per *changed* run
+      restated as two files per *changed* run, if the walk is where the time
+      is
 - [ ] `ETag`/`If-None-Match` on `api/runs`; the page skips patching on a 304
-- [ ] `patchList` on a Map; the console's per-poll cap and the stamp keys
-      dropped from the line
+- [ ] The console's per-poll cap and the stamp keys dropped from the line
 - [ ] gzip on the snapshot, kept or dropped on its own measurement
 - [ ] The SSE question answered from the numbers, in the handover, with no
       code unless it wins
 - [ ] Tests: the 304 path, the cache invalidating on a status write, and a
-      budget on the idle poll as a runaway guard (root CLAUDE.md § Testing,
+      budget on the idle poll as a runaway guard (root CLAUDE.md § Testing:
       a budget is never a timer)
 - [ ] Skill: none. The page is a human's.
 
@@ -119,7 +121,8 @@ Browser, per poll:
 The handover states, as ranges over three runs each, the idle poll's server
 time and main-thread time on the 200-run root before and after, and the long
 task count over a NAC stage redraw. Quote wall clock as a range, never a
-figure.
+figure. The browser-side numbers need the cached chromium and are this
+machine's; the `Server-Timing` numbers come from a python test and run in CI.
 
 ## References
 
@@ -130,5 +133,6 @@ figure.
 
 ## Handover log
 
-- **2026-09-16** — created, from the maintainer's asks after the demo job,
-  unrolled with 1424–1426, 1428 and 1429.
+- **2026-09-16** — created, from the maintainer's asks after the demo job;
+  revised the same day: the padded candidates moved to the non-goals, and the
+  one with a number is said to be the one.

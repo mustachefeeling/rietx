@@ -1,118 +1,115 @@
-# WP-1429 — one palette and one theme for three pages
+# WP-1429 — the GUI's tokens and the GUI's theme, on the two python pages
 
 Milestone: unscheduled · Status: ⬜
-Depends on: — (1426 soft: the browser harness; 1423 soft)
+Depends on: 1430 (the watch page as files); 1426 soft (the browser harness)
 
 ## Goal
 
-The GUI, `rietx watch` and `rietx compare` draw their chrome and their curves
-from one set of colour tokens, follow one theme choice, and a change to the
-tokens in one place fails a test until the other places have it. The watch
-page has a light theme.
+`rietx watch` and `rietx compare` draw their chrome and their curves from the
+GUI's colour tokens, follow the theme the GUI stores, and a change to a token
+on either side fails a test until the other has it. The watch page has a
+light theme. The figure palette is left where it is.
 
 ## Context
 
 The maintainer asked whether the watch page shares DNA with the GUI, for
 light and dark mode and for the look in general, and asked that the two stay
-consistent if either changes. Today they do not share it. There are three
-chrome palettes and two plot palettes in the tree.
+consistent if either changes. Today they do not share it.
 
 ### What exists
 
 | Surface | Chrome tokens | Curve colours | Theme |
 |---|---|---|---|
 | GUI (`gui/src/app.css`, `lib/theme.ts`) | `--fg --bg --panel --line --muted --accent --ok --warn --bad`, light and dark | `--plot-obs/calc/bkg/diff/zero/peak/peakfit/candidate/mask` | three-way, resolved once, stamped `data-theme` on the root; the choice lives in `state_dir/settings.json` through `GET/POST /api/settings` (WP-1044) |
-| `rietx compare` (`compare_app.py` lines 215–219) | a literal copy of the GUI's six chrome tokens, light and dark | its own `COLORS` list of ten hues | `prefers-color-scheme` only |
+| `rietx compare` (`compare_app.py` lines 215–219) | a literal copy of the GUI's six chrome tokens, light and dark | its own `COLORS` list of ten hues for variants | `prefers-color-scheme` only |
 | `rietx watch` (`watch.py`) | its own greys: `#111` ground, `#cdc` ink, `#9ad` links, `#1c1c1c` bar, pill greens and blues | `viz/plots.PALETTES["dark"]`: warm ground `#1d1813`, obs `#d2c9bd`, calc `#ff9d4d` | `color-scheme: dark`, fixed |
 | figures and `rietx html` (`viz/plots.py`, `viz/html.py`) | — | `PALETTES`, light and dark, chosen for the manual's and landing page's warm dark panel | per call |
 
-The two plot palettes disagree on every curve. The GUI's dark calculated line
-is `#e56a52` and the watcher's is `#ff9d4d`; the GUI's observed points are
-`#909090` and the watcher's `#d2c9bd`. WP-1423's page comment says literal
-colours would make the watcher "the second answer to which curve is which".
-The GUI already is a second answer. A reader with the GUI and the watcher
-open sees two pictures of one fit in two colour schemes on two different
-darks.
+The GUI's dark calculated line is `#e56a52` and the watcher's is `#ff9d4d`;
+the GUI's observed points are `#909090` and the watcher's `#d2c9bd`. WP-1423's
+page comment says literal colours would make the watcher "the second answer
+to which curve is which". The GUI already is a second answer, and it is the
+surface the watcher sits beside on a screen. A reader with both open sees one
+fit in two colour schemes on two different darks.
 
-Each palette has a reason on record. The GUI's `--plot-*` set was chosen for
-separability against the peak, peak-fit and candidate layers, and
-`tests/test_gui_palette.py` holds every pair to a 0.13 OKLab floor
-(`structure3d._oklab_distance` is the one distance the package has).
-`PALETTES` was chosen so a figure sits on the landing page's warm panel
-rather than as a brighter card on it (`plots._ground_rc`). Neither reason
-says the two must differ in hue.
+### The decision this WP makes, and the one it does not
+
+The watch and compare pages adopt the GUI's tokens, chrome and curves both.
+The GUI is what they sit beside, and its `--plot-*` set is the one held to a
+separability floor by a test (`tests/test_gui_palette.py`, 0.13 in OKLab,
+`structure3d._oklab_distance`).
+
+`PALETTES` stays the figure palette. It was chosen so a figure sits on the
+landing page's warm panel rather than as a brighter card on it
+(`plots._ground_rc`), and a figure for print has different needs from a live
+page. Changing it would regenerate every committed manual figure pair
+(`make_figures.py`) and possibly the landing payload, for a consistency the
+maintainer did not ask about. Whether the figures should one day follow the
+GUI is a question for a WP of its own, opened only if someone finds the two
+pictures confusing side by side. `rietx html` stays with `PALETTES` for the
+same reason: it is a saved figure.
 
 ### The mechanism
 
 Root CLAUDE.md § Conventions: a thing written once and consumed everywhere is
-never restated. Two precedents already do this across the python/JS seam.
+never restated. Two precedents already cross the python/JS seam this way.
 `help.py` generates `docs/manual/using/glossary.md` in `conf.py`, and the
-GUI's `dist/` is committed and rebuilt by a command, with a test on the
-committed copy.
+GUI's `dist/` is committed, rebuilt by a command, and pinned by a test.
 
-So: one python module owns the token values for both themes, chrome and plot
-(`viz/plots.PALETTES` grows the chrome, or a `viz/theme.py` holds both and
-`PALETTES` reads it). It emits CSS custom properties. The two python pages
-link a `tokens.css` route served out of the package (`viz/plotlyjs.py` is the
-precedent for serving a file from the installed package). The GUI imports a
-committed `gui/src/tokens.css` generated by the same emitter, and a test
-asserts the committed file equals the emitter's output byte for byte, so an
-edit on either side fails until the other follows. `app.css` keeps everything
-that is not a colour value.
+So: one python module owns the GUI's token values for both themes, chrome and
+plot (`viz/theme.py`, or wherever the session finds them best placed), and
+emits CSS custom properties. The two python pages link a `tokens.css` route
+served out of the package (`viz/plotlyjs.py` is the precedent for serving a
+file from the installed package). The GUI imports a committed
+`gui/src/tokens.css` generated by the same emitter, and a test asserts the
+committed file equals the emitter's output byte for byte, so an edit on either
+side fails until the other follows. `app.css` keeps everything that is not a
+colour value. `test_gui_palette.py` reads the tokens from the module or the
+file, and says which.
 
 The theme choice is the person's, and the GUI already stores it where every
 process on the machine can read it. The two python servers read
-`state_dir/settings.json` at page-serve time and stamp `data-theme` on the
-root; `system` becomes the same `prefers-color-scheme` block `app.css`
-declares twice on purpose (`test_gui_palette.py` says why). The python pages
-do not write the choice. One writer per fact.
+`state_dir/settings.json` and stamp `data-theme` on the root; `system`
+becomes the same `prefers-color-scheme` block `app.css` declares twice on
+purpose (`test_gui_palette.py` says why). The python pages do not write the
+choice. One writer per fact. A choice changed in the GUI reaches an open
+watch page through the payload it already polls: `api/runs` carries the
+resolved theme and the page re-stamps on change, so no reload is needed.
+`compare` has no poll and reads the choice at load.
 
 The plot follows the theme. The pages embed both palettes and `plotly.react`
-with the resolved theme's hues, on load and on a `matchMedia` change.
-
-### Deciding the curve colours
-
-One plot palette for the whole package, decided by the test that exists:
-extend `test_gui_palette.py`'s floor to the merged set of curve, layer and
-chrome tokens per theme and see which candidate set passes. The likely answer
-is the GUI's curve set, because it was tested against more neighbours; the
-warm ground and ink `PALETTES` carries for figures are chrome and can stay
-the figure's own. Whichever loses, the cost is stated: the manual's committed
-light/dark figure pairs are regenerated by `make_figures.py`, and the landing
-page's animation payload may follow. The loser is recorded in the handover
-with the distances.
+with the resolved theme's hues, on load and on change.
 
 ## Non-goals
 
-- Moving the two page templates out of their python strings into files. It
-  may make sharing a script easier later (WP-1425 ports one function by hand)
-  but nothing here needs it, and `node --check` already covers the strings.
+- Changing `PALETTES`, the figures or `rietx html` (above).
 - A theme toggle on the watch or compare page. The GUI writes the choice;
-  the pages read it. Revisit if a user has no GUI open and wants to switch.
+  the pages read it. Revisit if a user with no GUI open asks to switch.
 - Restyling either page's layout. Tokens only.
 - The manual's Sphinx theme (WP-1412) and the landing page's own CSS, which
   have their own token blocks and their own reasons.
+- Moving `compare_app.py`'s page out of its string. WP-1430 did the watch
+  page and named this one; this WP may do it if replacing the literals is
+  easier in a file, and says so if it does.
 
 ## Tasks
 
-- [ ] The token module: both themes, chrome and plot, with a CSS emitter;
-      `PALETTES` reads from it so `viz/plots.py` and `viz/html.py` are
-      unchanged callers
-- [ ] The curve decision through the extended floor test, with the loser and
-      the distances in the handover; regenerated figures if the figures lose
-- [ ] `gui/src/tokens.css` generated and committed, imported by `app.css`,
-      pinned equal to the emitter by a test; `test_gui_palette.py` reads the
-      tokens from the module or the file, and says which
-- [ ] `tokens.css` route on both python servers; every hex literal in
-      `watch.py`'s and `compare_app.py`'s templates replaced by a token, and a
-      test that none remains
-- [ ] The theme choice read from `settings.json` and stamped on both pages,
-      `system` through the media query; the plot follows the theme
+- [ ] The token module: the GUI's values, both themes, chrome and plot, with
+      a CSS emitter; `gui/src/tokens.css` generated and committed, imported by
+      `app.css`, pinned equal to the emitter by a test;
+      `test_gui_palette.py` reading from one authority
+- [ ] `tokens.css` route on both python servers; every hex literal in the
+      watch page's stylesheet and `compare_app.py`'s template replaced by a
+      token, and a test that none remains
+- [ ] The theme choice read from `settings.json`, stamped on both pages,
+      `system` through the media query, carried on `api/runs` so an open watch
+      page follows a change; the plot follows the theme
 - [ ] Browser test: the watch page in light and dark, the plot's calculated
-      line colour equal to the GUI's token in each
-- [ ] Manual: `cli.md` § `rietx watch` says the page follows the GUI's theme;
-      `gui/CLAUDE.md` § House style gains the one-line rule that the token
-      values live in python and `tokens.css` is generated
+      line colour equal to the GUI's token in each, and a theme change in
+      `settings.json` reaching the page within two polls
+- [ ] Manual: `cli.md` § `rietx watch` and § `rietx compare` say the pages
+      follow the GUI's theme; `gui/CLAUDE.md` § House style gains the one-line
+      rule that the token values live in python and `tokens.css` is generated
 - [ ] Skill: none. Colour reaches no agent.
 
 ## Acceptance
@@ -124,9 +121,9 @@ npm --prefix gui test && npm --prefix gui run check
 ```
 
 The committed `tokens.css` equals the emitter's output; no hex literal is left
-in either page template; the merged palette clears the OKLab floor in both
-themes, or the pairs that do not are named as `test_gui_palette.py` already
-names two.
+in either page; the palette test passes against the one authority. The browser
+test skips without a cached chromium, CI included; the handover names the
+skip.
 
 ## References
 
@@ -138,5 +135,7 @@ names two.
 
 ## Handover log
 
-- **2026-09-16** — created, from the maintainer's question after the demo job,
-  unrolled with 1424–1428.
+- **2026-09-16** — created, from the maintainer's question after the demo job;
+  revised the same day: the pages adopt the GUI's tokens and the figure
+  palette is left alone, the theme change reaches an open page through the
+  poll, and the page-as-file move is 1430's.
