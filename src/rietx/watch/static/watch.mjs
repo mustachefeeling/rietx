@@ -556,10 +556,16 @@ function readLayout() {
     legacy = localStorage.getItem(PANELS_KEY);
   } catch (err) {}
   const parsed = parseLayout(raw, legacy);
-  // the old key has given up the one bit it had, so it stops sitting in
-  // storage looking like state
+  // The old key has given up the one bit it had, so it stops sitting in
+  // storage looking like state. Written before it is dropped, and not only on
+  // the reader's next verb: nothing else stores a layout, so removing the old
+  // key first spends the migrated bit on one render and the list comes back
+  // open on the reload after it.
   if (legacy !== null) {
-    try { localStorage.removeItem(PANELS_KEY); } catch (err) {}
+    try {
+      localStorage.setItem(LAYOUT_KEY, JSON.stringify(parsed));
+      localStorage.removeItem(PANELS_KEY);
+    } catch (err) {}
   }
   return parsed;
 }
@@ -570,13 +576,23 @@ function storeLayout() {
 
 // One `ch` of the page's own font, measured rather than assumed: the list's
 // floor is declared in `ch` because the columns it is made of are.
+//
+// Measured once and kept: the probe is a DOM write and a forced reflow, and
+// `floorOf` is asked four times a pointer move. What moves the answer is the
+// page's font size, which moves when the window or the zoom does, so the
+// window's own `resize` is what drops it.
+let CH = null;
 function oneCh() {
+  if (CH !== null) return CH;
   const probe = document.createElement('span');
   probe.style.cssText = 'position:absolute;visibility:hidden;font:inherit';
   probe.textContent = '0'.repeat(100);
   document.body.appendChild(probe);
   const ch = probe.getBoundingClientRect().width / 100;
   probe.remove();
+  // an unmeasurable page is not an answer worth keeping, so only a real one
+  // is cached and the fallback is re-asked next time
+  if (ch > 0) CH = ch;
   return ch || 7;
 }
 
@@ -723,7 +739,7 @@ function armGrip(which) {
 
 // A stored size outlives the window it was chosen in, so the clamp is redone
 // whenever the window changes — the render-time half of WP-1029's rule.
-window.addEventListener('resize', () => applyLayout());
+window.addEventListener('resize', () => { CH = null; applyLayout(); });
 
 // ------------------------------------------------------------- routing
 // A run named in the URL is pinned. With none the page follows the newest,

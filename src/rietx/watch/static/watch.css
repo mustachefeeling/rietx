@@ -18,7 +18,6 @@ a:hover { text-decoration:underline; }
 button { font: inherit; color:#cdc; background:#242424; cursor:pointer;
          border:1px solid #3a3a3a; border-radius:4px; padding:2px 9px; }
 button:hover { background:#2c2c2c; }
-.toggle[aria-pressed="true"] { background:#2a3140; border-color:#3d4a66; }
 #main { flex:1 1 auto; display:flex; min-height:0; }
 /* The list is one panel and the run the other, and the seam between them is
    the reader's to drag (WP-1425). `--list` is what the grip writes, in px;
@@ -143,8 +142,10 @@ iframe#plot { background:#fff; }
            box-sizing:border-box; }
 #run[data-console="closed"] #console { display:none; }
 /* with no picture to size against, the seam has nothing to divide: the log
-   takes the pane and its grip goes away with the argument for it */
-#run.full #console { flex:1 1 auto; }
+   takes the pane and its grip goes away with the argument for it. The collapse
+   goes with the grip: hiding both leaves a run panel holding nothing, and the
+   log is the only thing a run without a picture has to show. */
+#run.full #console { flex:1 1 auto; display:block; }
 #run.full #grip-console { display:none; }
 .k { color:#e8b339; }
 .ev { color:#888; }

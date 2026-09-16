@@ -631,6 +631,106 @@ def test_the_grips_carry_the_aria_splitter_keyboard(browser, tmp_path):
     assert restored == "open"
 
 
+def test_the_old_panel_choice_survives_more_than_one_render(browser, tmp_path):
+    """WP-1423's key carried one bit, and migrating it is a write.
+
+    `readLayout` folds `runs: false` into the new shape and drops the old key.
+    Nothing else stores a layout — `storeLayout` is reached only from a drag,
+    an arrow key or a collapse — so dropping the old key without writing the
+    new one spends the migration on a single render: the list is closed once,
+    and the reload after it finds neither key and opens it again.
+    """
+    watched = _make_tree(tmp_path, n_done=2)
+    with _served(tmp_path) as base:
+        run_id = next(r.run_id for r in runs.discover(tmp_path)
+                      if r.path == watched)
+        page = browser.new_page(viewport={"width": 1400, "height": 900})
+        errors: list[str] = []
+        page.on("pageerror", lambda e: errors.append(str(e)))
+        # a reader who collapsed the list before this WP shipped
+        page.add_init_script(
+            "try { localStorage.setItem('rietx-watch-panels',"
+            " JSON.stringify({runs: false, run: true})); } catch (e) {}")
+        page.goto(f"{base}/#/run/{run_id}", wait_until="networkidle")
+        page.wait_for_timeout(700)
+        first = page.evaluate("() => document.body.dataset.list")
+        keys = page.evaluate(
+            "() => [localStorage.getItem('rietx-watch-panels'),"
+            "       localStorage.getItem('rietx-watch-layout')]")
+
+        # the init script runs on every navigation, so the old key is put back
+        # before the reload: the page must prefer what it stored itself
+        page.reload(wait_until="networkidle")
+        page.wait_for_timeout(700)
+        second = page.evaluate("() => document.body.dataset.list")
+        page.close()
+
+    assert not errors, errors
+    assert first == "closed", "the old choice was not carried over at all"
+    assert keys[0] is None, "the old key outlived its migration"
+    assert keys[1] is not None, "the migration stored nothing"
+    assert second == "closed", "the migrated choice was lost on the reload"
+
+
+def test_a_run_with_no_picture_cannot_hide_its_only_content(browser, tmp_path):
+    """A GUI project's run writes a log and never a snapshot.
+
+    `#run.full` hides the console's grip, there being no picture to size
+    against — and the grip is the collapse's only control now that the buttons
+    are gone. Collapsed first and then opened on such a run, the reader would
+    get a strip, a "no picture here" line, and no way to reach the one thing
+    the run has. The rule this replaces was "closing the last open panel opens
+    the other".
+    """
+    project = tmp_path / "sample.rex" / "live"
+    project.mkdir(parents=True)
+    (project / runs.EVENTS_FILE).write_text(
+        json.dumps({"record": "event", "v": "2", "t": 1e9,
+                    "kind": "fit_start", "data": {}}) + "\n",
+        encoding="utf-8")
+    (project / runs.STATUS_FILE).write_text(
+        json.dumps({"state": "done", "stage": "biso", "rwp": 0.1, "gof": 1.4}),
+        encoding="utf-8")
+
+    with _served(tmp_path) as base:
+        run_id = next(r.run_id for r in runs.discover(tmp_path))
+        page = browser.new_page(viewport={"width": 1400, "height": 900})
+        errors: list[str] = []
+        page.on("pageerror", lambda e: errors.append(str(e)))
+        # the log collapsed from an earlier run that did have a picture
+        page.add_init_script(
+            "try { localStorage.setItem('rietx-watch-layout',"
+            " JSON.stringify({list: {size: null, open: true},"
+            "                 console: {size: null, open: false}})); }"
+            " catch (e) {}")
+        page.goto(f"{base}/#/run/{run_id}", wait_until="networkidle")
+        page.wait_for_timeout(700)
+        seen = page.evaluate("""() => {
+          const run = document.getElementById('run');
+          const con = document.getElementById('console');
+          const grip = document.getElementById('grip-console');
+          const box = el => {
+            const b = el.getBoundingClientRect();
+            return [Math.round(b.width), Math.round(b.height)];
+          };
+          return {
+            full: run.classList.contains('full'),
+            stored: run.dataset.console,
+            console: box(con),
+            grip: box(grip),
+            noplot: !!document.getElementById('noplot'),
+          };
+        }""")
+        page.close()
+
+    assert not errors, errors
+    assert seen["full"] and seen["noplot"], "this is not the picture-less case"
+    assert seen["stored"] == "closed", "the stored collapse was not applied"
+    # the grip is gone, so the collapse it is the only control for goes too
+    assert seen["grip"] == [0, 0]
+    assert seen["console"][1] > 0, "the run panel is showing nothing at all"
+
+
 def test_the_legend_is_a_dimension_the_page_fixes(browser, tmp_path):
     """A window resize moves the legend with the plot and nothing else.
 
