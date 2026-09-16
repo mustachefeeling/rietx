@@ -175,14 +175,14 @@ column wants a wider declared share of a panel that is now the reader's.
 
 - [x] Measure: the drag probe above, before any change, in the handover
 - [x] `clampSize` and `dragged` in `watch-core.mjs`, pinned to the GUI's cases
-- [ ] The list splitter: a grip between `#runs` and `#run`, pointer and
+- [x] The list splitter: a grip between `#runs` and `#run`, pointer and
       keyboard, sizes in px re-clamped at render, `Plots.resize` coalesced to
       one per animation frame
-- [ ] The console splitter: the same grip between `#picture` and `#console`
-- [ ] Collapse and restore on the grip (double-click, Enter), the last panel
+- [x] The console splitter: the same grip between `#picture` and `#console`
+- [x] Collapse and restore on the grip (double-click, Enter), the last panel
       refusing to close; the two buttons and `data-runs`/`data-run` removed,
       the stored key migrated or dropped
-- [ ] Browser test: drag moves the seam, reload keeps it, a 900 px viewport
+- [x] Browser test: drag moves the seam, reload keeps it, a 900 px viewport
       re-clamps it, the plot's inner size follows
 - [ ] Manual: `docs/manual/using/cli.md` § `rietx watch` and the screenshot
 - [ ] Skill: none. The page is a human's.
@@ -192,13 +192,24 @@ column wants a wider declared share of a panel that is now the reader's.
 ```sh
 .venv/bin/python -m pytest tests/test_watch_app.py tests/test_watch_browser.py
 .venv/bin/python -m ruff check src tests examples
-node --test src/rietx/watch/static/
+node --test tests/watch_core.test.mjs
+npm --prefix gui test && npm --prefix gui run check
 ```
 
 The browser test drags each grip, reloads, and asserts the size persisted and
 was clamped at a 900 px viewport. `node --test` runs the GUI's `clampSize`
 cases against the port. The browser test skips without a cached chromium, CI
 included; the handover names the skip.
+
+**Corrected 2026-09-16.** This block said `node --test src/rietx/watch/static/`,
+which has never run anything: WP-1430 put the node cases in
+`tests/watch_core.test.mjs` rather than beside the module, because hatchling
+ships everything under `src/rietx`, and `static/` has held four files since.
+The line was written before 1430 chose that layout. `node --test` on a
+directory with no test file in it exits non-zero with `MODULE_NOT_FOUND`, so
+this was loud rather than silent, but it was never this WP's check. The vitest
+line is new: the port's case table lives in the GUI's own test file, so a
+change here can fail a suite over there.
 
 ## References
 

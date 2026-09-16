@@ -752,12 +752,22 @@ def test_the_dialog_says_what_a_click_does_to_the_other_process():
     script = (watch.STATIC_DIR / "watch.mjs").read_text(encoding="utf-8")
     assert "RefinementCancelled" in page
     assert "traceback" in page
-    # ...and no keyboard shortcut of any kind reaches the button. Read off the
-    # code and not the comments, which say the same thing in words and would
-    # otherwise be what passes this.
+    # ...and no keyboard shortcut reaches the button. Read off the code and not
+    # the comments, which say the same thing in words and would otherwise be
+    # what passes this.
+    #
+    # WP-1425 gave the two grips an ARIA splitter keyboard, so the guard is no
+    # longer "this page listens for no key at all". It is the claim that was
+    # always meant: no key listener sits anywhere a stray press could reach the
+    # stop verb from. A listener on `document` or `window` could; one on a grip,
+    # which has to be focused first and whose Enter collapses a pane, could not.
     code = "\n".join(line for line in script.splitlines()
                      if not line.lstrip().startswith("//"))
-    for shortcut in ("keydown", "keyup", "keypress", "autofocus", ".focus("):
+    listeners = re.findall(r"(\w+)\.addEventListener\('(key\w+)'", code)
+    assert listeners, "the guard found no key listener at all to check"
+    assert {target for target, _ in listeners} == {"grip"}, listeners
+    for shortcut in ("onkeydown", "onkeyup", "onkeypress", "autofocus",
+                     ".focus("):
         assert shortcut not in code, shortcut
     assert "autofocus" not in page, "the dialog's buttons take no focus"
 

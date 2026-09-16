@@ -5,10 +5,6 @@
 </head><body>
 <div id="bar">
   <strong>rietx watch</strong>
-  <button id="toggle-runs" class="toggle" aria-pressed="true"
-          title="show or hide the run list">list</button>
-  <button id="toggle-run" class="toggle" aria-pressed="true"
-          title="show or hide the selected run">detail</button>
   <span id="root"></span>
 </div>
 <div id="main">
@@ -26,6 +22,10 @@
       <code>LiveSession</code>, or open a <code id="empty-suffix"></code> project in the
       GUI.</div>
   </aside>
+  <div id="grip-list" class="grip v" role="separator" tabindex="0"
+       aria-orientation="vertical" aria-controls="runs"
+       aria-label="run list width"
+       title="drag to resize; double-click or Enter to collapse"></div>
   <section id="run">
     <div id="strip">
       <span id="s-state" class="state unknown">scanning</span>
@@ -40,6 +40,10 @@
       <button id="stop" hidden>stop</button>
     </div>
     <div id="picture"></div>
+    <div id="grip-console" class="grip h" role="separator" tabindex="0"
+         aria-orientation="horizontal" aria-controls="console"
+         aria-label="log height"
+         title="drag to resize; double-click or Enter to collapse"></div>
     <div id="console"></div>
   </section>
 </div>

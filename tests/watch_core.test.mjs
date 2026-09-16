@@ -14,9 +14,9 @@ import assert from 'node:assert/strict';
 import {test} from 'node:test';
 
 import {
-  LADDER, ago, axisOf, clampSize, clock, coalesce, deltaTitle, dragged, esc,
-  extent, finiteOf, nextPanels, num, parsePanels, pct, rangesOf, rowName,
-  runLabel, runTitle, withAlpha,
+  LADDER, LAYOUT_DEFAULT, ago, axisOf, clampSize, clock, coalesce, deltaTitle,
+  dragged, esc, extent, finiteOf, nextLayout, num, parseLayout, pct, rangesOf,
+  rowName, runLabel, runTitle, withAlpha,
 } from '../src/rietx/watch/static/watch-core.mjs';
 
 // A pattern the page would draw: 1000 points, and a residual the caller
@@ -245,34 +245,73 @@ test('a residual of nothing but holes does not make an empty axis', () => {
   assert.deepEqual(y2, [-3, 3]);
 });
 
-// ------------------------------------------------------------- panels
-test('an unreadable or absent panel state means both panels open', () => {
-  assert.deepEqual(parsePanels(null), {runs: true, run: true});
-  assert.deepEqual(parsePanels(''), {runs: true, run: true});
-  assert.deepEqual(parsePanels('{oh no'), {runs: true, run: true});
-  assert.deepEqual(parsePanels('null'), {runs: true, run: true});
-  // a state naming one panel leaves the other where it was
-  assert.deepEqual(parsePanels('{"run":false}'), {runs: true, run: false});
-  assert.deepEqual(parsePanels('{"runs":false,"run":false}'),
-                   {runs: false, run: false});
+// ------------------------------------------------------------- layout
+test('an unreadable or absent layout means two open panes at their declared sizes',
+  () => {
+    for (const raw of [null, '', '{oh no', 'null', '[]']) {
+      assert.deepEqual(parseLayout(raw), LAYOUT_DEFAULT, String(raw));
+    }
+  });
+
+test('a size of null is not a size, and neither is a number that is not one',
+  () => {
+    // `null` means *no choice made*, which leaves the stylesheet's `72ch` and
+    // `30%` in force. A px default here would freeze a size that is font- and
+    // window-relative on purpose.
+    assert.equal(parseLayout('{"list":{"size":null}}').list.size, null);
+    for (const bad of ['"420"', 'NaN', '0', '-40', 'true', '{}']) {
+      assert.equal(parseLayout(`{"list":{"size":${bad}}}`).list.size, null,
+                   bad);
+    }
+    assert.equal(parseLayout('{"list":{"size":420}}').list.size, 420);
+    assert.equal(parseLayout('{"list":{"size":420.5}}').list.size, 420.5);
+  });
+
+test('a layout naming one seam leaves the other at its default', () => {
+  const got = parseLayout('{"console":{"size":120,"open":false}}');
+  assert.deepEqual(got.list, {size: null, open: true});
+  assert.deepEqual(got.console, {size: 120, open: false});
 });
 
-test('closing the last open panel opens the other', () => {
-  const both = {runs: true, run: true};
-  assert.deepEqual(nextPanels(both, 'runs'), {runs: false, run: true});
-  // ...and closing the survivor reopens the one just closed, either way round
-  assert.deepEqual(nextPanels({runs: false, run: true}, 'run'),
-                   {runs: true, run: false});
-  assert.deepEqual(nextPanels({runs: true, run: false}, 'runs'),
-                   {runs: false, run: true});
-  // reopening a closed panel leaves the other alone
-  assert.deepEqual(nextPanels({runs: false, run: true}, 'runs'), both);
+test('only an explicit false closes a pane', () => {
+  // the same `!== false` rule `parsePanels` had: a stored state that says
+  // nothing about `open` is a stored size, not a collapsed pane
+  assert.equal(parseLayout('{"list":{"size":420}}').list.open, true);
+  assert.equal(parseLayout('{"list":{"open":0}}').list.open, true);
+  assert.equal(parseLayout('{"list":{"open":false}}').list.open, false);
 });
 
-test('the reducer leaves the state it was handed alone', () => {
-  const before = {runs: true, run: true};
-  nextPanels(before, 'run');
-  assert.deepEqual(before, {runs: true, run: true});
+test('the old panel key gives up its one bit and nothing else', () => {
+  // WP-1423 stored `{runs, run}`. The run pane is not collapsible any more,
+  // so `runs` is the only half with a home here.
+  assert.equal(parseLayout(null, '{"runs":false,"run":true}').list.open, false);
+  assert.equal(parseLayout(null, '{"runs":true,"run":false}').list.open, true);
+  assert.deepEqual(parseLayout(null, '{"runs":false}').console,
+                   {size: null, open: true});
+  // ...and it is only consulted when this page has stored nothing itself
+  assert.equal(parseLayout('{"list":{"size":500}}', '{"runs":false}').list.open,
+               true);
+  // an unreadable old key is no worse than an absent one
+  assert.deepEqual(parseLayout(null, '{oh no'), LAYOUT_DEFAULT);
+});
+
+test('nextLayout leaves the layout it was handed alone', () => {
+  // `nextPanels`' rule, and for the same reason: the caller reads its own copy
+  // back out of storage next time
+  const before = parseLayout(null);
+  const after = nextLayout(before, 'list', {size: 500, open: false});
+  assert.deepEqual(before, LAYOUT_DEFAULT);
+  assert.deepEqual(after.list, {size: 500, open: false});
+  assert.deepEqual(after.console, {size: null, open: true});
+  assert.notEqual(after.console, before.console);
+});
+
+test('a patch touches the keys it names and no others', () => {
+  const sized = nextLayout(parseLayout(null), 'console', {size: 140});
+  assert.deepEqual(sized.console, {size: 140, open: true});
+  const closed = nextLayout(sized, 'console', {open: false});
+  assert.deepEqual(closed.console, {size: 140, open: false},
+                   'collapsing keeps the size to restore to');
 });
 
 
