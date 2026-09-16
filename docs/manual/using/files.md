@@ -275,6 +275,65 @@ cases: each would make a file this package's own reader declines.
 Pass no list and the read is silent and identical, so the channel is opt-in
 rather than a behaviour change.
 
+### Reading a GSAS-II `.instprm` file
+
+GSAS-II keeps a project in the binary `.gpx` the next section opens, and ships
+a calibration as a small text file instead. `read_gsas2_instprm` reads one into
+a frozen `Instrument`, on the same contract as the two readers above:
+
+<!-- api-doc: no-exec — needs a real .instprm file on disk -->
+```python
+notes = []
+instrument = rx.read_gsas2_instprm("beamline.instprm", diagnostics=notes)
+```
+
+It reads the constant-wavelength types, `PXC` (X-ray) and `PNC` (neutron), and
+a neutron file comes back with a `NeutronSource`. `U`, `V` and `W` are
+centidegrees squared and `X` and `Y` centidegrees, converted through the same
+factors the `.gpx` reader uses. `Zero` is already in degrees, and it means what
+`instrument.zero_shift` means: a constant added to the calculated 2θ. `SH/L` is
+GSAS-II's combined (S+H)/L, so it is split evenly into `axial_sl` and
+`axial_hl`, which is the symmetric Finger-Cox-Jephcoat reading and the only one
+a single number admits.
+
+Several banks in one file are a selection rather than a default: pass
+`bank=`, as `#Bank n:` states it, or the read refuses and names the numbers it
+found. Refused by name as well: a time-of-flight or energy-dispersive `Type`,
+a non-zero `Z` (this package's profile is `u, v, w, x, y` exactly, and `Z` is
+zero in all 95 constant-wavelength histograms of GSAS-II's own tutorial
+corpus), a non-zero `Azimuth`, which changes what `Polariz.` means, and a
+negative `U`, `W`, `X` or `Y`. That last one is the ordinary case rather than a
+corner. GSAS-II bounds none of its width coefficients, this package's are
+bounded at zero through a softplus, and two of the four constant-wavelength
+files in that corpus converged to a negative `X`.
+
+The geometry comes from `Diff-type` where the file states one. Where it does
+not, the reader falls back the way GSAS-II's own does — a stated doublet is
+Bragg-Brentano and anything else Debye-Scherrer — and says so with
+`GSAS2_INSTPRM_GEOMETRY_ASSUMED`, because the choice was not read from the
+file.
+
+### Writing a GSAS-II `.instprm` back
+
+`write_gsas2_instprm` is that reader's inverse and the machine half of what
+GSAS-II imports. The structure half is a CIF, below.
+
+<!-- api-doc: no-exec — it writes a file -->
+```python
+notes = []
+rx.write_gsas2_instprm(instrument, "beamline.instprm", diagnostics=notes)
+```
+
+The refine flags are dropped here as they are from a `.prm`, an `.instprm`
+stating none at all. Two values are worth knowing about before you hand the
+file to GSAS-II. `axial_sl` and `axial_hl` are written as their sum, GSAS-II
+modelling one number where this package holds two, and an uneven pair is named
+`GSAS2_INSTPRM_VALUE_MERGED` rather than quietly halved on the way back. And
+GSAS-II floors `SH/L` at 0.002 when it evaluates a profile, so a smaller sum is
+written faithfully and still modelled as the floor by the program the file is
+for; that is `GSAS2_INSTPRM_VALUE_FLOORED`, and no round trip through this
+package can show it.
+
 ## Refinement files another program wrote
 
 A TOPAS `.inp`, a FullProf `.pcr` and their kind are neither patterns nor
@@ -291,12 +350,11 @@ The foreign-refinement readers are under active development, so the names in
 this section are documented and not frozen. `read_project_model`,
 `identify_project_format`, `read_topas_inp`, `read_fullprof_pcr`,
 `read_gsas_exp`, `read_gsas2_gpx`, `write_topas_inp`, `write_fullprof_pcr`,
-`write_gsas_exp` and
+`write_gsas_exp`, `write_gsas2_phase_cif` and
 the per-format models they answer with (`rietx.io.projects`) may change in a
 1.x release: the registry has four formats and one more queued, each of which
-is evidence about its shape, and the write direction has landed for three
-formats of four. A format's own model mirrors that format, so its fields move
-when the reader's coverage does.
+is evidence about its shape, and all four can now be written. A format's own
+model mirrors that format, so its fields move when the reader's coverage does.
 {ref}`provisional-by-declaration` has the promise in full.
 :::
 
@@ -389,7 +447,34 @@ with safe, inert placeholders purely to keep the file complete, since a
 `.pcr` is positional and every line the reader expects has to exist even
 where a `Structure` carries nothing for it. A written `.EXP` states no
 histograms at all, which is what a GSAS experiment file looks like before any
-data is loaded rather than an omission. GSAS-II has no writer yet.
+data is loaded rather than an omission.
+
+GSAS-II is the fourth target and the one with no project file to write.
+It imports a phase from a CIF and a machine from an `.instprm`, so the pair is
+what `rx.write_gsas2_phase_cif(structure, path)` and `rx.write_gsas2_instprm`
+produce:
+
+<!-- api-doc: no-exec — needs a real Structure and writes a file -->
+```python
+rx.write_gsas2_phase_cif(structure, "exported.cif")
+back = rx.Structure.from_cif("exported.cif")
+```
+
+Its atom tags are the ones GSAS-II's own importer reads, so the file is the
+package's ordinary structure block with the symmetry stated three times. That
+is not belt and braces. GSAS-II resolves a bare two-origin symbol such as
+`F d -3 m` to origin choice 2, and calls choice 1 a setting not compatible with
+it; gemmi, and so this package, resolves the same string to choice 1. No single
+symbol satisfies both, so each tag carries the spelling its own reader takes:
+`_symmetry_space_group_name_H-M` the bare symbol, which is the tag GSAS-II
+reads first and the only grammar it accepts, `_space_group_name_H-M_alt` the
+resolved `xhm()`, which gemmi prefers when both are present, and
+`_space_group_symop_operation_xyz` the operations themselves, which need no
+convention at all. GSAS-II checks its own reading of the symbol against those
+operations and offers to transform a structure that disagrees. A phase whose
+symbol is ambiguous is named `GSAS2_CIF_SETTING_IN_OPERATORS`, and what a CIF
+cannot state — the refine flags, the phase scale, the sample broadening —
+is named `GSAS2_CIF_FIELD_NOT_WRITTEN`.
 
 ### What comes back
 
