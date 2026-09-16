@@ -32,15 +32,23 @@ point count and the path share the one `minmax(0,1fr)` slot (`s-where`),
 written by `drawSnapshot` as `${n_drawn} of ${n_points} pts drawn ·
 ${gui_command} · ${path}`.
 
-### A hypothesis about the cuts, to be measured first
+### The hypothesis about the cuts, and what measuring it said
 
 Under `table-layout: fixed` a `<col>` width is the cell's whole box, padding
-included. At 12 px `ui-monospace` one `ch` is about 7.2 px, so an `8ch` column
+included. At 12 px `ui-monospace` one `ch` is 7.227 px, so an `8ch` column
 minus 14 px of padding leaves about 6.05ch for content, and `0.1734` is six
 characters. If that is right the ellipsis is a rounding error in the declared
-width, and the GoF and started columns sit inside the same margin. It has not
-been measured. The first task measures every cell's `scrollWidth` against its
-`clientWidth` in the browser test and only then touches a width.
+width, and the GoF and started columns sit inside the same margin.
+
+**Measured 2026-09-16 and true**, with two corrections to the instrument and
+one to the diagnosis (the numbers are in the handover entry). `scrollWidth`
+is the wrong probe: it equals `clientWidth` wherever overflow is `visible`,
+so it reported no overflow for the `started` *heading*, which was spilling
+6.58 px into nothing. Ink against room — a `Range` rectangle against the
+content box — sees all of it. And the column that was actually cut is `GoF`,
+by 7.13 px in every row; `0.1734` fitted with 0.64 px to spare, which is a
+margin a different font metric loses, and is why the demo showed `0.17…` and
+this machine did not.
 
 The strip's slot budget is 111ch of declared columns plus nine 12 px gaps. The
 `1fr` slot is the only one that can shrink, so it shrinks first, and the
@@ -74,7 +82,7 @@ The GUI renders Rwp as a percentage everywhere it shows one: `Report.svelte`
 to three decimals, `Series.svelte` to two, `Peaks.svelte` to one. The report
 layers print the fraction to four decimals (`layer0.py`, `report/__init__.py`)
 because they are quoted into prose. A list row is the GUI's Series table, so
-it takes the GUI's form. `17.34 %` is still six characters, so the format
+it takes the GUI's form. `17.34%` is still six characters, so the format
 alone does not fix the cut; the width does. Decide the decimals from the width
 budget the measurement gives, and say which in the handover.
 
