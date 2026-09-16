@@ -197,3 +197,82 @@ export function nextPanels(p, which) {
   if (!next.runs && !next.run) next[which === 'runs' ? 'run' : 'runs'] = true;
   return next;
 }
+
+// ------------------------------------------------------------ splitters
+// The drag arithmetic, ported from the GUI's `gui/src/lib/resize.ts`
+// (WP-1029). The page cannot import TypeScript, so this is a copy, and a copy
+// that is not pinned is a copy that drifts: `tests/watch_core.test.mjs` runs
+// the GUI's own cases against these three, character for character, and
+// `tests/test_watch_app.py` fails when the two case tables stop matching.
+//
+// Only what the page needs came over. `fitColumns`, `MODEL_MIN`, `GRIP`,
+// `modelStacks` and `seriesCompact` are the GUI's own furniture and would
+// rot here unread.
+
+/** Which way the pointer travels to make the pane on the grip's side bigger. */
+const AXIS = {up: 'y', down: 'y', left: 'x', right: 'x'};
+const SIGN = {up: -1, down: 1, left: -1, right: 1};
+
+// The pointer coordinate a grip reads; the other one is noise during a drag.
+export function axisOf(grow) {
+  return AXIS[grow];
+}
+
+// The size a pointer now at `at` asks for, having grabbed at `from` on a pane
+// that was `start` px. Sign only: the clamping is the next function's.
+export function dragged(start, from, at, grow) {
+  return start + SIGN[grow] * (at - from);
+}
+
+// Clamp to the floor, and to whatever must survive of the pane next door.
+//
+// `available` is the extent the two panes share. Zero, or anything too small
+// to hold `min + keep`, means nothing is measurable — a drag before the first
+// layout — and then only the floor applies.
+export function clampSize(value, min, keep, available) {
+  const ceiling = available > keep + min ? available - keep : Number.POSITIVE_INFINITY;
+  return Math.round(Math.min(Math.max(value, min), ceiling));
+}
+
+// Run `work` at most once at a time, and once more if it was asked while busy.
+//
+// The GUI measured the case this exists for (WP-1032 task 1): a 60-move drag
+// issued 60 `Plotly.Plots.resize` calls against a ~111 ms redraw, and the last
+// resolved 1.10 s after the drag ended, so the canvas trailed the grip by a
+// second. The trailing re-run is the half that matters. Dropping the extras
+// outright would leave the plot at whatever size the last accepted call
+// started with, which on a drag is its beginning.
+//
+// `Plots.resize` returns a promise, so this awaits one; a synchronous `work`
+// completes at once.
+export function coalesce(work) {
+  let running = false;
+  let queued = false;
+  const done = () => {
+    running = false;
+    if (queued) {
+      queued = false;
+      go();
+    }
+  };
+  const go = () => {
+    if (running) {
+      queued = true;
+      return;
+    }
+    running = true;
+    let out;
+    try {
+      out = work();
+    } catch (error) {
+      done();
+      throw error;
+    }
+    if (out && typeof out.then === 'function') {
+      out.then(done, done);
+    } else {
+      done();
+    }
+  };
+  return go;
+}

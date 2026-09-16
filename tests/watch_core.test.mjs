@@ -14,8 +14,9 @@ import assert from 'node:assert/strict';
 import {test} from 'node:test';
 
 import {
-  LADDER, ago, clock, deltaTitle, esc, extent, finiteOf, nextPanels, num,
-  parsePanels, pct, rangesOf, rowName, runLabel, runTitle, withAlpha,
+  LADDER, ago, axisOf, clampSize, clock, coalesce, deltaTitle, dragged, esc,
+  extent, finiteOf, nextPanels, num, parsePanels, pct, rangesOf, rowName,
+  runLabel, runTitle, withAlpha,
 } from '../src/rietx/watch/static/watch-core.mjs';
 
 // A pattern the page would draw: 1000 points, and a residual the caller
@@ -303,4 +304,95 @@ test('anything it cannot read comes back as itself', () => {
                    'not a colour', null, undefined]) {
     assert.equal(withAlpha(v, 0.5), v);
   }
+});
+
+// ------------------------------------------------------------ splitters
+// The drag arithmetic is the GUI's, ported into `watch-core.mjs` because the
+// page cannot import TypeScript (WP-1425). The table below is the GUI's own
+// case table, copied character for character from
+// `gui/src/lib/resize.test.ts`; the copy is what makes the port a port rather
+// than a second opinion, and `tests/test_watch_app.py` compares the two blocks
+// as text. Do not edit it here. Edit the GUI's, then copy it over.
+
+// --- ported cases: the table below is copied verbatim into
+// tests/watch_core.test.mjs, because `rietx watch`'s page cannot import this
+// module and a copy that is not pinned is a copy that drifts. The two blocks
+// are compared character for character by
+// tests/test_watch_app.py::test_the_ported_drag_arithmetic_keeps_the_guis_cases,
+// so a case edited here fails the page's copy until it follows. Keep the block
+// free of types: it has to parse as plain JavaScript too.
+const PORTED = [
+  // axisOf(grow) — the coordinate a grip reads is the one its pane grows along
+  ["axisOf", ["up"], "y"],
+  ["axisOf", ["down"], "y"],
+  ["axisOf", ["left"], "x"],
+  ["axisOf", ["right"], "x"],
+  // dragged(start, from, at, grow) — sign only, and the sign is per-edge.
+  // Console.svelte's case: the log is below the grip, so dragging *up* makes
+  // it taller.
+  ["dragged", [150, 400, 340, "up"], 210],
+  ["dragged", [150, 400, 460, "up"], 90],
+  // the sidebar: its grip is on its left edge and the pane is to the right
+  ["dragged", [420, 900, 820, "left"], 500],
+  ["dragged", [420, 900, 980, "left"], 340],
+  // the model pane's columns: each grip is on the right edge of the column it
+  // sizes, so the two directions are both in use in one app
+  ["dragged", [300, 300, 380, "right"], 380],
+  // clampSize(value, min, keep, available) — the floor
+  ["clampSize", [10, 26, 120, 800], 26],
+  // and whatever must survive of the pane next door
+  ["clampSize", [999, 26, 120, 800], 680],
+  // jsdom, or a drag before the first layout: `available` of 0 must not clamp
+  // every pane to a negative ceiling, which is what a naive `available - keep`
+  // would do — and the same when the container is too small to hold both
+  ["clampSize", [400, 26, 120, 0], 400],
+  ["clampSize", [400, 26, 120, 100], 400],
+  // rounds, so a style attribute is a whole number of pixels
+  ["clampSize", [210.6, 26, 120, 0], 211],
+];
+// --- end ported cases ---
+
+const PORTED_FNS = {axisOf, clampSize, dragged};
+
+test('the ported drag arithmetic answers every one of the GUI\'s cases', () => {
+  for (const [name, args, want] of PORTED) {
+    assert.equal(PORTED_FNS[name](...args), want,
+                 `${name}(${args.join(', ')})`);
+  }
+});
+
+// `coalesce` came over with them, and its contract is the trailing run: the
+// GUI measured a 60-move drag issuing 60 plotly resizes, the last landing
+// 1.10 s after the mouse came up. Dropping the extras outright would leave the
+// plot at the size the drag *started* at, so the queued one has to run.
+test('coalesce runs one now and at most one more, and the last is the final size',
+  async () => {
+    const seen = [];
+    let release = null;
+    let current = 0;
+    const ask = coalesce(() => {
+      seen.push(current);
+      return new Promise(resolve => { release = resolve; });
+    });
+    current = 100;
+    ask();
+    for (let px = 101; px <= 160; px++) {
+      current = px;
+      ask();
+    }
+    release();
+    await Promise.resolve();
+    await Promise.resolve();
+    assert.deepEqual(seen, [100, 160]);
+  });
+
+test('coalesce is re-armed after a throw, so one failure is not a latch', () => {
+  let n = 0;
+  const ask = coalesce(() => {
+    n += 1;
+    if (n === 1) throw new Error('first one fails');
+  });
+  assert.throws(ask, /first one fails/);
+  ask();
+  assert.equal(n, 2);
 });

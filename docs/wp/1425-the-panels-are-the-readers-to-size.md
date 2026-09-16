@@ -174,7 +174,7 @@ column wants a wider declared share of a panel that is now the reader's.
 ## Tasks
 
 - [x] Measure: the drag probe above, before any change, in the handover
-- [ ] `clampSize` and `dragged` in `watch-core.mjs`, pinned to the GUI's cases
+- [x] `clampSize` and `dragged` in `watch-core.mjs`, pinned to the GUI's cases
 - [ ] The list splitter: a grip between `#runs` and `#run`, pointer and
       keyboard, sizes in px re-clamped at render, `Plots.resize` coalesced to
       one per animation frame
