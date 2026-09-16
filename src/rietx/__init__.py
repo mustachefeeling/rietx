@@ -49,6 +49,7 @@ from .io.projects import (
     read_project_model,
     read_topas_inp,
     write_fullprof_pcr,
+    write_gsas2_phase_cif,
     write_gsas_exp,
     write_topas_inp,
 )
@@ -199,6 +200,7 @@ __all__ = [
     "write_fullprof_pcr",
     "write_gsas_exp",
     "write_gsas2_instprm",
+    "write_gsas2_phase_cif",
     "write_gsas_prm",
     "write_reflection_table",
     "write_refinement_cif",

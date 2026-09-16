@@ -77,7 +77,9 @@ here.
 
 from __future__ import annotations
 
+import math
 import pickle
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -1599,6 +1601,160 @@ def to_structure(model: Gsas2Model, *, phase: str | int | None = None,
                 f"`model.hap[…].scale`"),
             where=["phases.0.scale"]))
     return structure
+
+
+def from_structure(structure, *,
+                   diagnostics: list[Diagnostic] | None = None) -> str:
+    """A phase CIF for GSAS-II's own importer — :func:`to_structure`'s inverse.
+
+    GSAS-II has no text project format, so a model travels to it as the pair it
+    imports: this CIF for the phases, and an ``.instprm``
+    (:func:`~rietx.io.instrument_profile.write_gsas2_instprm`) for the machine.
+    The cell, the sites, their occupancies and their displacement parameters are
+    written by the same :func:`~rietx.crystallography.cif.write_structure_block`
+    every CIF this package writes uses, because GSAS-II's importer reads exactly
+    those tags: ``_atom_site_b_iso_or_equiv`` divided by 8π² into its own Uiso,
+    ``adp_type`` of ``Uani`` to mark an anisotropic site, and the separate
+    ``_atom_site_aniso_*`` loop keyed by label.
+
+    **The setting is written three times, because two readers disagree about
+    one string** (WP-1118).  ``F d -3 m`` is two groups, and GSAS-II resolves a
+    bare two-origin symbol to origin choice **2** — its own message calls choice
+    1 "a space group setting not compatible with GSAS-II" — while gemmi, and so
+    this package, resolves the same string to choice **1**.  Neither is wrong
+    and no single symbol satisfies both, so each tag carries the spelling its
+    reader takes:
+
+    * ``_symmetry_space_group_name_H-M`` — the symbol with **no suffix**, which
+      is the tag GSAS-II reads first and the only grammar its ``SpcGroup``
+      accepts.  A colon-suffixed symbol there is an error GSAS-II answers by
+      setting the phase to ``P 1``.
+    * ``_space_group_name_H-M_alt`` — the fully resolved ``xhm()``, the current
+      dictionary's tag, and the one gemmi prefers when both are present
+      (measured).  This is what makes the round trip through
+      :func:`~rietx.structure_from_cif` exact.
+    * ``_space_group_symop_operation_xyz`` — the operations themselves, which is
+      the channel that needs no convention at all.  GSAS-II reads them to check
+      its own resolution of the symbol, and
+      :func:`~rietx.crystallography.symmetry.setting_from_operators` reads them
+      the same way one rank over, on a ``.gpx``.
+
+    What does not cross is named in the diagnostics rather than dropped in
+    silence: a CIF states no refine flags, no phase scale and no sample
+    broadening, so a GSAS-II project built from this file starts with its own.
+    """
+    import gemmi
+
+    from ...crystallography.cif import write_structure_block
+    from ...crystallography.symmetry import get_spacegroup, setting_alternatives
+
+    doc = gemmi.cif.Document()
+    ambiguous: list[str] = []
+    for index, phase in enumerate(structure.phases):
+        _refuse_non_finite(phase, index)
+        block = doc.add_new_block(
+            re.sub(r"\W+", "_", phase.name) or f"phase_{index}")
+        sg = get_spacegroup(phase.space_group)
+        resolved = sg.xhm()
+        bare = resolved.split(":")[0]
+        # Set before the block is built so the two symbols sit together: the
+        # block writer sets the bare tag itself, in place, a few lines on.
+        block.set_pair("_space_group_name_H-M_alt", gemmi.cif.quote(resolved))
+        write_structure_block(block, phase)
+        block.set_pair("_symmetry_space_group_name_H-M", gemmi.cif.quote(bare))
+        loop = block.init_loop("_space_group_symop_", ["operation_xyz"])
+        for op in sg.operations():
+            loop.add_row([gemmi.cif.quote(op.triplet())])
+        # Asked of the **bare** symbol, which is what is being written: the
+        # stored one may already name its setting, and that is exactly the
+        # phase whose setting the bare tag cannot carry.
+        taken, others = setting_alternatives(bare)
+        if others:
+            ambiguous.append(f"{phase.name} is {resolved} and {bare} alone "
+                             f"reads as {taken} here")
+
+    if diagnostics is not None:
+        _report_cif(structure, ambiguous, diagnostics)
+    return doc.as_string()
+
+
+def _refuse_non_finite(phase, index: int) -> None:
+    """A value ``repr`` would spell ``inf``, refused where it is still in hand.
+
+    ``io/CLAUDE.md`` § Project writers' rule, and the only one of the five
+    writers' refusals a CIF needs: every other shape this package can hold —
+    an anisotropic site, a partial occupancy, a non-standard setting — GSAS-II's
+    own importer reads.
+    """
+    numbers = [(f"phases.{index}.cell.{n}", getattr(phase.cell, n).value)
+               for n in ("a", "b", "c", "alpha", "beta", "gamma")]
+    for j, atom in enumerate(phase.atoms):
+        for name in ("x", "y", "z", "occ", "biso"):
+            numbers.append((f"phases.{index}.atoms.{j}.{name}",
+                            getattr(atom, name).value))
+        if atom.aniso is not None:
+            numbers.extend(
+                (f"phases.{index}.atoms.{j}.aniso.{n}", v)
+                for n, v in zip(("u11", "u22", "u33", "u12", "u13", "u23"),
+                                atom.aniso.values(), strict=True))
+    for path, value in numbers:
+        if not math.isfinite(value):
+            raise ValueError(
+                f"{path} is {value!r}, and a file states numbers a program can "
+                f"read: repr spells this 'inf' or 'nan' and no CIF reader "
+                f"parses that")
+
+
+def _report_cif(structure, ambiguous: list[str],
+                diagnostics: list[Diagnostic]) -> None:
+    """What this CIF states in an unusual place, and what it cannot state."""
+    if ambiguous:
+        diagnostics.append(Diagnostic(
+            level="info", code="GSAS2_CIF_SETTING_IN_OPERATORS",
+            message=(
+                f"{'; '.join(ambiguous)}.  The two programs read such a symbol "
+                f"opposite ways — GSAS-II takes a bare two-origin symbol as "
+                f"origin choice 2 and gemmi as choice 1 — so the setting is "
+                f"stated in the symmetry operations, which "
+                f"GSAS-II checks its own reading against, and in "
+                f"_space_group_name_H-M_alt, which this package reads.  "
+                f"_symmetry_space_group_name_H-M carries the bare symbol "
+                f"because GSAS-II's symbol grammar has no suffix and answers "
+                f"one by setting the phase to P 1"),
+            where=[f"phases.{i}.space_group"
+                   for i in range(len(structure.phases))]))
+    clauses = [
+        "the refine flags: a CIF states none, so a GSAS-II project built from "
+        "this file starts from that program's own defaults rather than from "
+        "the protocol this model carries",
+        "the phase scale and the sample broadening, which belong to a phase "
+        "and a histogram together and live in GSAS-II's own HAP tables",
+    ]
+    extras = {
+        "microstrain": "the Stephens anisotropic strain coefficients",
+        "preferred_orientation": "the March-Dollase preferred orientation",
+        "extinction": "the secondary-extinction coefficient",
+        "restraints": "the soft restraints",
+    }
+    for name, what in extras.items():
+        if any(getattr(p, name, None) for p in structure.phases):
+            clauses.append(what + ", which a phase CIF has no tags for")
+    diagnostics.append(Diagnostic(
+        level="warning", code="GSAS2_CIF_FIELD_NOT_WRITTEN",
+        message="a phase CIF cannot state: " + "; ".join(clauses),
+        where=["phases"]))
+
+
+def write_gsas2_phase_cif(structure, path: str | Path, *,
+                          diagnostics: list[Diagnostic] | None = None) -> None:
+    """Write ``structure`` to ``path`` as the phase CIF GSAS-II imports.
+
+    One data block per phase, which is what GSAS-II's importer offers a choice
+    between.  See :func:`from_structure` for what crosses, and
+    :func:`~rietx.write_gsas2_instprm` for the other half of the pair.
+    """
+    Path(path).write_text(from_structure(structure, diagnostics=diagnostics),
+                          encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------
