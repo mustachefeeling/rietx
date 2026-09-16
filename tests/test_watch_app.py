@@ -19,6 +19,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -970,6 +971,74 @@ def test_a_marks_header_is_about_one_request_and_not_the_connection(tmp_path):
     for header in seen:
         assert [p.split(";")[0].strip() for p in header.split(",")] == [
             "walk", "rows", "serialize"]
+
+
+def _conditional(base: str, etag: str | None = None):
+    """``GET /api/runs``, optionally conditional. Returns status, body, ETag."""
+    headers = {"If-None-Match": etag} if etag else {}
+    request = urllib.request.Request(base + "/api/runs", headers=headers)
+    try:
+        with urllib.request.urlopen(request, timeout=5) as response:
+            return response.status, response.read(), response.headers.get("ETag")
+    except urllib.error.HTTPError as err:
+        return err.code, err.read(), err.headers.get("ETag")
+
+
+def test_a_poll_where_nothing_changed_is_two_header_lines(tmp_path):
+    """``ETag``/``If-None-Match``, which is the documented mechanism.
+
+    The walk and the rows are paid for either way — the digest is of the body,
+    so the body has to exist. What a 304 saves is the wire and the page's own
+    parse and patch, which measured 3.1 ms of main thread and 222 kB an idle
+    poll on 200 runs, once a second for as long as a tab is open (WP-1427).
+    """
+    _make_run(tmp_path / "r", events=_event_line("fit_start"),
+              status={"state": "done", "stage": "cell", "rwp": 0.1})
+    with _served(tmp_path) as base:
+        status, body, etag = _conditional(base)
+        assert status == 200 and etag
+        again, empty, same = _conditional(base, etag)
+
+    assert again == 304
+    assert empty == b""
+    assert same == etag
+
+
+def test_a_run_that_moved_invalidates_the_tag(tmp_path):
+    """A 304 must mean *this list*, not *a list*."""
+    run = _make_run(tmp_path / "r", events=_event_line("fit_start"),
+                    status={"state": "running", "stage": "cell", "rwp": 0.4})
+    with _served(tmp_path) as base:
+        _, _, etag = _conditional(base)
+        assert _conditional(base, etag)[0] == 304
+
+        (run / runs.STATUS_FILE).write_text(
+            json.dumps({"state": "running", "stage": "biso", "rwp": 0.2}),
+            encoding="utf-8")
+        # past the index TTL, which is what bounds how soon a write is seen;
+        # the tag is about the payload and the TTL is about the walk
+        time.sleep(watch.INDEX_TTL_SECONDS + 0.05)
+        status, body, moved = _conditional(base, etag)
+
+    assert status == 200
+    assert moved != etag
+    assert json.loads(body)["runs"][0]["status"]["stage"] == "biso"
+
+
+def test_a_row_carries_no_clock_of_its_own(tmp_path):
+    """``heartbeat_age`` is ``now - heartbeat``, so it moved on every poll and
+    made every idle answer a different one — which is the whole of what the
+    tag above has to decide. Nothing read it (WP-1427). The heartbeat it came
+    from is in ``status`` already, so nothing was lost.
+    """
+    _make_run(tmp_path / "r", events=_event_line("fit_start"),
+              status={"state": "running", "pid": os.getpid(),
+                      "host": socket.gethostname(), "heartbeat": 1.0})
+    with _served(tmp_path) as base:
+        (row,) = _json(base + "/api/runs")["runs"]
+
+    assert set(row["liveness"]) == {"state", "evidence"}
+    assert row["status"]["heartbeat"] == 1.0
 
 
 def test_the_two_local_servers_allow_the_same_hosts():

@@ -46,6 +46,7 @@ and the viewer in another::
 from __future__ import annotations
 
 import functools
+import hashlib
 import http.server
 import json
 import os
@@ -197,16 +198,45 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
         finally:
             self._marks.append((name, (time.perf_counter() - started) * 1e3))
 
-    def _send(self, body: bytes, content_type: str, status: int = 200) -> None:
+    def _send(self, body: bytes, content_type: str, status: int = 200,
+              etag: str | None = None) -> None:
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
+        if etag is not None:
+            self.send_header("ETag", etag)
         if self._marks:
             self.send_header("Server-Timing", ", ".join(
                 f"{name};dur={ms:.3f}" for name, ms in self._marks))
         self.end_headers()
         self.wfile.write(body)
+
+    def _json_or_304(self, payload) -> None:
+        """``/api/runs``'s answer, or the two header lines saying it has not
+        moved (WP-1427).
+
+        The ``ETag`` is a digest of the body, so the walk and the rows are paid
+        for either way: what a 304 saves is the wire and the page's own parse
+        and patch, once a second for as long as a tab is open. On a batch of
+        200 finished runs that is 229 kB a poll, which is 6.6 GB over an
+        overnight watch.
+
+        The header is read here rather than left to the browser because
+        ``no-store`` is right for this route and forbids the browser keeping
+        the copy it would revalidate. Reading it ourselves also lets the page
+        see the 304 and skip patching, which a transparent revalidation would
+        not: fetch would hand it the stored body and the page would do the work
+        again.
+        """
+        body = self._timed(
+            "serialize", lambda: json.dumps(payload).encode("utf-8"))
+        etag = f'"{hashlib.sha256(body).hexdigest()[:32]}"'
+        if self.headers.get("If-None-Match") == etag:
+            self._send(b"", "application/json; charset=utf-8", status=304,
+                       etag=etag)
+            return
+        self._send(body, "application/json; charset=utf-8", etag=etag)
 
     def _static(self, name: str) -> None:
         """One of the page's own files, out of the installed package.
@@ -219,7 +249,10 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
         """
         self._send((STATIC_DIR / name).read_bytes(), STATIC_FILES[name])
 
-    def _json(self, payload, status: int = 200) -> None:
+    def _json(self, payload, status: int = 200, *, etag: bool = False) -> None:
+        if etag:
+            self._json_or_304(payload)
+            return
         body = self._timed(
             "serialize", lambda: json.dumps(payload).encode("utf-8"))
         self._send(body, "application/json; charset=utf-8", status)
@@ -265,8 +298,13 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
     def _row(self, run) -> dict:
         live = runs_mod.liveness_of(run)
         row = run.as_dict()
-        row["liveness"] = {"state": live.state, "evidence": live.evidence,
-                           "heartbeat_age": live.heartbeat_age}
+        # `heartbeat_age` is not here, and its absence is the point (WP-1427).
+        # It is `now - status.heartbeat`, so it moved on every poll and made
+        # every idle answer a different one — which is the whole of what an
+        # `ETag` on this route has to decide. Nothing read it: not this page,
+        # not the GUI. The heartbeat it derives from is in `status` already,
+        # and a client wanting an age can subtract.
+        row["liveness"] = {"state": live.state, "evidence": live.evidence}
         # the picture is rewritten per stage, so the page needs to know when to
         # redraw rather than sit on the one it opened with.  The mtime is of
         # whichever file this run actually has: a legacy run's is its page's.
@@ -339,7 +377,8 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
                         # second authority for what this server is.
                         "page": _page_constants(),
                         "runs": self._timed(
-                            "rows", lambda: [self._row(r) for r in found])})
+                            "rows", lambda: [self._row(r) for r in found])},
+                       etag=True)
             return
 
         parts = [p for p in path.split("/") if p]

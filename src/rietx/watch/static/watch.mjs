@@ -879,13 +879,31 @@ function readPage(payload) {
 }
 
 let refreshing = false;
+// What the last `/api/runs` answered with, sent back on the next one. A poll
+// where nothing changed is then two header lines instead of the whole list
+// (WP-1427): 229 kB a poll on a batch of 200 finished runs, which is what a
+// tab left open overnight spends on a directory nobody is writing to.
+let etag = null;
 async function refresh() {
   if (refreshing) return;              // a slow poll is not two polls
   refreshing = true;
   try {
     const t0 = performance.now();
-    const r = await fetch('api/runs', {cache: 'no-store'});
+    const r = await fetch('api/runs', {
+      cache: 'no-store',
+      headers: etag ? {'If-None-Match': etag} : {},
+    });
+    // 304: the list is the one already on the page, so there is nothing to
+    // parse and nothing to patch. The run panel still gets its poll, because
+    // a snapshot and a log move without the list moving.
+    if (r.status === 304) {
+      since('runs:net', t0);
+      const id = currentId();
+      if (id) await drawRun(id);
+      return;
+    }
     if (!r.ok) return;
+    etag = r.headers.get('ETag');
     since('runs:net', t0);
     const t1 = performance.now();
     const payload = await r.json();

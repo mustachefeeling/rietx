@@ -1170,13 +1170,13 @@ def test_opening_a_long_log_does_not_freeze_the_page(browser, tmp_path):
         f"look at (WP-1427). All tasks over 50 ms: {sorted(long, reverse=True)}")
 
 
-def test_an_idle_poll_names_what_it_spent(browser, tmp_path):
+def test_an_idle_poll_does_no_work_at_all(browser, tmp_path):
     """The page's own spans, which is how any of this was measured.
 
-    An idle poll fetches the list, parses it and patches the table, and draws
-    nothing: the snapshot is refetched only when its mtime moved. So the three
-    ``runs:`` spans are present on a poll where nothing changed and the
-    ``snap:`` ones are not.
+    A poll where nothing changed asks for the list and is told it has not
+    moved, so there is nothing to parse and nothing to patch. The picture is
+    not redrawn either, its mtime not having moved. What is left of an idle
+    poll is one conditional request.
     """
     watched = _make_tree(tmp_path, n_done=40)
     with _served(tmp_path) as base:
@@ -1190,9 +1190,36 @@ def test_an_idle_poll_names_what_it_spent(browser, tmp_path):
 
     assert not errors, errors
     spans = seen["spans"]
-    assert {"runs:net", "runs:parse", "runs:patch"} <= set(spans), sorted(spans)
+    assert "runs:net" in spans, sorted(spans)
+    assert "runs:parse" not in spans, "an idle poll parsed a list it had"
+    assert "runs:patch" not in spans, "an idle poll patched a list it had"
     assert "snap:react" not in spans, "an idle poll redrew the picture"
     assert all(v >= 0 for vals in spans.values() for v in vals)
+
+
+def test_a_run_that_moves_still_reaches_the_list(browser, tmp_path):
+    """The other half of the tag: a 304 must mean *this list*, not *a list*.
+
+    Without this, the test above is satisfied by a page that stopped polling.
+    """
+    watched = _make_tree(tmp_path, n_done=40)
+    stage = "() => document.getElementById('s-stage').textContent"
+    with _served(tmp_path) as base:
+        run_id = next(r.run_id for r in runs.discover(tmp_path)
+                      if r.path == watched)
+        page, errors = _open(browser, base, run_id)
+        before = page.evaluate(stage)
+        _write_stage(watched, "biso", scale=0.95, noise=2.0, rwp=0.11)
+        page.wait_for_timeout(int(4.0 * POLL * 1000))
+        after = page.evaluate(stage)
+        seen = page.evaluate(SPANS)
+        page.close()
+
+    assert not errors, errors
+    assert before != after, (before, after)
+    assert "biso" in after
+    # the poll that carried the change did parse and patch
+    assert "runs:patch" in seen["spans"], sorted(seen["spans"])
 
 
 def test_the_console_is_re_tailed_when_the_run_changes(browser, tmp_path):
