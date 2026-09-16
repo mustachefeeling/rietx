@@ -1,6 +1,6 @@
 # WP-1310 — the report repeats itself: stage dedup, the declared wavelength, the empty column
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-09-16 — claimed by @yue-here
 Depends on: —
 
 ## Goal
