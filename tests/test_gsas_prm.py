@@ -822,7 +822,7 @@ def test_the_prcf_drop_row_names_both_objects_the_eight_land_on():
     positions 1-8 onto ProfileTCHZ".  Neither is true of positions 7-8, which
     are the two that reach ``Geometry`` — and that was the only clue in the
     tree about where they land, which is what made round three's item 2
-    invisible.  The agent skill's own row (``diagnostics-projects.md``) had it
+    invisible.  The agent skill's own row (``diagnostics-gsas.md``) had it
     right all along: "what ``ProfileTCHZ`` and ``Geometry`` have room for"."""
     diagnostics: list = []
     read_gsas_prm(DATA / "mg090.prm", diagnostics=diagnostics)

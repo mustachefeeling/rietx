@@ -251,3 +251,24 @@ deliberately broken fixture of each kind fails.
   #241, #247). The cap table was re-measured rather than copied: `SKILL.md`
   now has 22 B of headroom, not the 34 the issue reported. Decided the same
   day: warn at 95 % first, split versus raise deferred to the next row.
+- **2026-09-16** — the `diagnostics-projects.md` half of the cap race is
+  settled by a split, and `REFERENCE_MAX_BYTES` is still 36 000. PR #346 put
+  17 `GSAS2_*` rows (10 127 B) into that file while PR #291 waited, and the two
+  together came to 37 641 B against the cap, which is how a docs change fails a
+  gate neither author touched. The 2026-09-09 ruling above says the constant
+  stays, so the fix is the one the cap's own docstring names: the 29 GSAS and
+  GSAS-II rows moved to `references/diagnostics-gsas.md` as §7h, in main's
+  order, so the `.EXP` rows still sit beside the `.gpx` rows they share five
+  suffixes with and the `.prm` rows beside the `.instprm` ones. The seam is a
+  program rather than a file kind, and the writer rows go with it, because this
+  build writes a `.EXP`, a `.prm`, an `.instprm` and a GSAS-II phase CIF and no
+  other foreign format's writer has a row. Measured after:
+  `diagnostics-projects.md` 10 448 B, `diagnostics-gsas.md` 21 436 B,
+  `SKILL.md` 32 068 B of 33 000, `diagnostics.md` 35 963 B of 36 000. #291
+  rebases onto about 17 kB of room, and #289 onto what #291 then frees in
+  `diagnostics.md`. **What this does not do**: the three unticked tasks are
+  untouched and Status stays ⬜, since the split executes a ruling rather than
+  landing a gate. `diagnostics.md` still has 37 B of headroom until #291 lands,
+  so a new engine row is blocked today exactly as it was. The count moves by
+  four, one per `REFERENCES`-parametrised gate in `tests/test_skill.py`, and by
+  nothing else.
