@@ -8,8 +8,9 @@ refines 20 parameters where GSAS refined 28; `read_gsas_prm` now reads its
 fixed-format records by column and a Kα doublet with them (PR #332), and
 refuses an out-of-range value naming the file; the GSAS-II `.gpx` reader landed
 2026-09-16 behind a restricted unpickler (#234), whose corpus pass corrected the
-`.EXP` reader's GOF claim; every writer remains, and origin-choice
-honesty (#101) is claimed 2026-09-16 by @yue-here
+`.EXP` reader's GOF claim; origin-choice honesty closed #101 the same day, a
+`.gpx` now reading the setting its operators state and the `.EXP`/`.inp`
+readers reporting the one they assume; every writer remains
 Depends on: — (WP-1110 found it; WP-1102 owns the one seam that overlaps)
 
 ## Goal
@@ -413,6 +414,185 @@ work this WP does.
   § "Learned in v0.2".
 
 ## Handover log
+
+### 2026-09-16 (2nd session) — the setting a file states, and the question the issue had already answered
+
+Hand this package a GSAS-II refinement and it now builds the phase under the
+symmetry the file describes, rather than under gemmi's reading of the symbol's
+name. A Hermann-Mauguin symbol such as `F d d d` names two different groups,
+and which one is meant decides how many atoms each site puts in the cell. Taken
+the wrong way, GSAS-II's own tutorial spinel CuCr₂O₄ imports as Cu₂CrO₄: the
+quantity every weight fraction divides by is then out by 5 %, and the fit
+converges regardless. GSAS-II writes the operations beside the symbol, so
+nothing here needs to guess — the reader checks which setting they are. Four of
+the 46 phases in the public tutorial corpus needed that, and all four were being
+read the wrong way. The two formats that state a symbol and nothing else,
+`.EXP` and `.inp`, cannot be read this way, so they now say **at read** that the
+setting was assumed, which is what issue #101 asked for at the place it asked
+for it.
+
+The issue's own proposal had expired in both halves before the work began, and
+that is the part worth carrying. The TOPAS suffixes it asked for landed with
+PR #98 a fortnight earlier. The diagnostic it proposed had landed too, under
+another name and covering more: WP-1324's `SPACE_GROUP_SETTING_ASSUMED` spans
+all 40 multi-setting symbols rather than the origin choices alone. So there is
+no `SPACE_GROUP_ORIGIN_ASSUMED` and there should not be, and the useful work was
+never the work the issue described. Checking that cost an hour against a
+two-line claim in this file.
+
+*Done* — nine commits on `wp1118-origin-choice`, cut from `origin/main` at
+`b48088f8`.
+
+- `crystallography/symmetry.py` holds both halves of the answer.
+  `setting_from_operators(symbol, operators)` returns the one setting whose
+  tabulated operations equal the ones a file states, or `None` where none does
+  or where there was nothing to choose. `operator_key`/`operator_keys` are the
+  comparison, translations reduced to twelfths so `-1/4` and `3/4` are one
+  operation and no tolerance enters it. `setting_diagnostics` is the
+  `SPACE_GROUP_SETTING_ASSUMED` builder, lifted whole out of `refine.py` so a
+  reader and a fit report one fact from one place.
+- `io/projects/gsas2.py` feeds it `SGData['SGOps']` × `SGCen` × `SGInv`.
+  `Gsas2Phase.space_group` still holds the file's own string,
+  `.space_group_from_operators` what the operators say, and
+  `.resolved_space_group` is what `to_structure` builds under.
+  `GSAS2_GPX_SETTING_FROM_OPERATORS` reports the read, saying whether the
+  operators overturned the bare reading or confirmed it.
+- `io/projects/gsas.py` and `io/projects/topas.py` report at read through the
+  shared builder. A `.inp` carrying TOPAS's origin suffix is translated as
+  before and is **not** also reported as assumed.
+- The message stops quoting a discriminator it has not checked. Where every
+  setting implies the same contents it quotes the site multiplicities instead,
+  and the suggestion stops claiming a ZMV that has not moved.
+- `tests/data/gsas2_mn3o4_setting.gpx`, the third vendored `.gpx` and the only
+  corpus file that both states a setting its symbol does not and builds end to
+  end. `tests/data/README.md` gains the blobless-clone recipe for re-fetching
+  the 34-project corpus, which took working out twice.
+- `io/CLAUDE.md` 410 → 428 and `CLAUDE.md` 833 → 836, each raised in the commit
+  that says why.
+
+*Measured* — this worktree's `.venv`, `[dev]` only (no jax, no torch), python
+3.12.12, darwin/arm64. `origin/main` had not moved since the branch was cut
+(re-checked immediately before the last run), so this tree **is** the one that
+merges and the counts need no merge caveat. The machine was **not** idle —
+three other sessions were running through most of it — so the wall clock is a
+range, not a figure.
+
+- Fast selection `-n auto --dist loadgroup -m "not slow"`: **5030 passed, 133
+  skipped**, 2:10. Against the 4997/133 the previous session measured on what
+  is now `origin/main`, in this same worktree and venv, that is **+33 passed
+  and no skip moved**. It divides exactly: 19 this session wrote
+  (`test_projects_gsas2.py` +7, `test_symmetry_orbits.py` +6,
+  `test_projects_gsas.py` +3, `test_projects_topas.py` +3) and 14 the review
+  pass added (1 in `test_projects_gsas2.py`, 13 parametrised cases in
+  `test_skill.py`). Nothing here added a skip.
+- Full selection `-n auto --dist loadgroup`, on the same final tree, with
+  nothing else mid-suite (checked with `ps aux | grep`): **5200 passed, 142
+  skipped**, 24:22. It ran because the change touches `refine.py`, which is in
+  the fit path even though only its diagnostics moved. There is **no comparable
+  baseline**: the previous session ran no full selection, and the nightly's
+  figures are Linux under `[dev,jax]`, so this is quoted as this tree's number
+  and not as a delta.
+- `tests/test_acceptance_fap.py`: 3 passed, 3.19 s — the row that would notice,
+  since it reads its protocol from the `.EXP` reader this session changed.
+
+*The measurement the work rests on* — the 34 public GSAS-II tutorial projects,
+read with the finished reader.
+
+- **4 of 46 phases state a bare symbol the tables hold in two settings**, and in
+  every one the file's own operators are origin choice **2** where the bare
+  symbol resolves to choice 1: `F d d d` in `AllDataStart`, `SeqFit` and
+  `SingleHistFit` (all CuCr₂O₄), `I 41/a m d` in `Magnetic-V` (Mn₃O₄). The other
+  42 reproduce the setting their symbol names, so reading the operators agrees
+  with the symbol wherever the symbol is unambiguous and corrects it where it is
+  not. After the change, 4 settled and **0 left assumed**.
+- **What choice 1 costs is not uniform, and that is the interesting half.** The
+  spinel's composition changes — Cu₂CrO₄ for CuCr₂O₄, ZMV 1 093 848 against
+  1 041 875, 5.0 %. Mn₃O₄'s does **not**: it is Mn₁₂O₁₆ either way, because both
+  cation sites are Mn. What moves there is which site carries which
+  multiplicity (8c/4b against 4a/8d), and that moves **56 % of the calculated
+  intensity** after the best common scale (measured against a synthetic Cu Kα
+  pattern, 10–90° at 0.02°). So a composition check cannot see the second case
+  at all.
+- **That is also what was wrong with the message.** Its discriminator is the
+  composition each setting implies, which on Mn₃O₄ printed `Mn12 O16` twice
+  while the suggestion still asserted that the choice "changes ZMV and every
+  weight fraction". Both settings give the same ZMV there. It now falls back to
+  the site multiplicities and says what does move.
+- **Nothing in the corpus reaches a wrong answer through `to_structure` today**,
+  and that is luck rather than a defence: the three spinel files refuse for an
+  unrelated negative `Uiso`, and Mn₃O₄'s composition is setting-blind. The
+  defect was the reader discarding what the file states, and it is fixed at the
+  mechanism.
+
+*Reviewed* — `/code-review high --fix` over the branch diff. Three findings,
+all three acted on rather than two.
+
+- **The new message claimed an overturn it had not made.** `setting_from_operators`
+  returns a setting whenever the operators match one, including the setting the
+  bare symbol already resolved to, and the message said the phase was built
+  under the operators' answer "rather than" that reading. On a hexagonal-axes R
+  phase the two are the same string, so it fired asserting a change that did not
+  happen. Exactly the class the root rulebook's declared-name clause covers, in
+  message text rather than in a field. The message now branches on which
+  happened.
+- **The skill row shipped twice**, in all three committed copies, the two
+  claiming slightly different things. A scripted edit added it and then an
+  inline one added it again. A new meta-test over every reference
+  (`test_no_code_is_listed_twice_in_one_reference`) closes the class; it is the
+  only duplicated code in the references today.
+- **The review declined the third and this session took it.** The new TOPAS row
+  addressed its phase by index where every other row in that reader addresses it
+  by name — including `TOPAS_ORIGIN_TRANSLATED`, which writes the *same field of
+  the same phase*. One field reachable two ways is worse for a consumer than
+  either convention, so the new row matches its siblings. Whether that reader
+  should address phases by name at all, when the rest of the package uses
+  index-based dot-paths, is a real question and is **not** this WP's.
+
+*Gotchas* — three, each a place the next session should not assume.
+
+- **The `:H`/`:R` half is decidable from the cell and is deliberately still
+  reported.** An axis choice, unlike an origin choice, is settled by the metric,
+  and `fullprof.normalize_space_group` already does exactly that for a `.pcr`.
+  Extending it to the `.EXP` and `.inp` readers was built and then **reverted**:
+  it would silence the calcite case that WP-1324 chose on purpose to report, for
+  a case no corpus here contains — every R phase in every corpus available is on
+  hexagonal axes. The consequence to know is that a bare `R -3 c` in a `.inp`
+  now raises `SPACE_GROUP_SETTING_ASSUMED` at read as well as at fit, which is
+  why `test_projects_registry.py`'s expected code set grew one member.
+- **`structure_from_cif` resolves a bare multi-setting symbol two ways**, by
+  which of its two paths ran: `gemmi.read_small_structure`'s own `spacegroup`
+  gives `F d -3 m:2`, and the fallback's `find_spacegroup_by_name` on the raw
+  H-M string gives `:1` — the two settings whose multiplicities swap. Both
+  resolvers were measured; no file was built that takes the fallback, so how
+  reachable it is stays open. Filed into [1319](1319-structure-interchange.md),
+  which owns CIF interchange. Out of scope here deliberately: this WP's subject
+  is the four foreign *project* formats, and the CIF route at least pins its
+  choice into the symbol it returns.
+- **The operator expansion is validated, not assumed.** `SGOps` are coset
+  representatives, so the group is their product with `SGCen` and with the
+  inversion — and that reconstruction reproduces a tabulated setting exactly on
+  all 46 corpus phases, which is the evidence that the expansion is right. The
+  `F d d d` operators in the synthetic tests are written from the tables rather
+  than generated from gemmi: a fixture built from gemmi could only show the
+  reader agreeing with itself (`io/CLAUDE.md` § Adding a format, rule 4).
+
+*Next*, in order, with what decides between them.
+
+1. **The writers** (#148), now the only substantial task left on this WP. Its
+   two banked obligations both stand, and one is cheap: `Z` is zero in all 95
+   constant-wavelength histograms the corpus states it on, so refusing a
+   non-zero `Z` by name costs nothing a round-trip can see, and growing
+   `ProfileTCHZ` a sixth coefficient would be a declared name with no writer.
+   The second obligation gains a sibling from this session: an exporter writes
+   `get_spacegroup(sym).xhm()` rather than the stored string
+   ([1324](1324-symmetry-silences.md)), and a GSAS-II exporter should write the
+   **operators** too, since that is what this session made a `.gpx` reader trust.
+2. The `#prm` integer evaluator for `.inp` `#if` guards, which is what puts the
+   three multi-pattern Durham reel files in reach.
+3. Fixtures with provenance rows for the formats that still have none — which
+   means TOPAS and FullProf, whose corpora are private, so the honest form is
+   what a synthetic file can prove.
+
 
 ### 2026-09-16 — the GSAS-II `.gpx` reader, and the corpus that changed three answers
 

@@ -96,12 +96,13 @@ the same scans would make Stoe writable.
 
 **In flight:** [1118](wp/1118-foreign-model-files.md) landed the GSAS-II `.gpx`
 reader 2026-09-16 (#234); its corpus pass corrected the `.EXP` reader's own GOF
-claim. The writers (#148) and `STR(...)` (#107) stand. The **live-watcher track
+claim. Origin-choice honesty closed #101 the same day: a `.gpx` states its
+operators, so its setting is read rather than assumed, and 4 of 46 corpus
+phases needed it. The writers (#148) and `STR(...)` (#107) stand. The **live-watcher track
 is closed on the code and owes one decision**: 1413 took recording to
-1.03-1.23x (`nac` still over WP-1404's 1.05x gate, its six snapshots costing
-50 ms of a 17.7 ms budget), and
-[1423](wp/1423-a-page-that-holds-still.md) reworked the page 2026-09-16 after
-the live demo, so it holds still and shows the list and the run together.
+1.03-1.23x, over WP-1404's gate, and
+[1423](wp/1423-a-page-that-holds-still.md) reworked the page 2026-09-16 so it
+holds still.
 **The one open question is for the maintainer** — write the snapshot every
 stage, or less often and let a watcher redraw less often.
 
