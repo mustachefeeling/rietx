@@ -223,7 +223,7 @@ answers `127.0.0.1` could read the run ids first. A same-origin fetch sends no
 
 ### The JSON underneath
 
-The page is a client of seven routes, and anything the page shows you can read
+Seven routes carry everything the page shows, and you can read any of them
 directly:
 
 | Route | Returns |

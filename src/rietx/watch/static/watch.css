@@ -1,0 +1,89 @@
+:root { color-scheme: dark; }
+/* Two rules keep this page still (WP-1423). Nothing here is rewritten
+   wholesale: rows, slots and the plot are patched, so the scroll, hover
+   and zoom the reader holds survive a poll. And no dimension is derived
+   from the stage being drawn: columns and slots are declared widths, the
+   bar and the strip are one clipped line each, and the plot's axes come
+   from the data. */
+body { margin:0; font-family: ui-monospace, Menlo, monospace; font-size:12px;
+       background:#111; color:#cdc; display:flex; flex-direction:column;
+       height:100vh; overflow:hidden; }
+a { color:#9ad; text-decoration:none; }
+a:hover { text-decoration:underline; }
+#bar { background:#1c1c1c; border-bottom:1px solid #2c2c2c; padding:0 12px;
+       display:flex; gap:12px; align-items:center; flex:0 0 auto;
+       height:29px; white-space:nowrap; }
+#root { color:#777; flex:1 1 auto; min-width:0; overflow:hidden;
+        text-overflow:ellipsis; }
+button { font: inherit; color:#cdc; background:#242424; cursor:pointer;
+         border:1px solid #3a3a3a; border-radius:4px; padding:2px 9px; }
+button:hover { background:#2c2c2c; }
+.toggle[aria-pressed="true"] { background:#2a3140; border-color:#3d4a66; }
+#main { flex:1 1 auto; display:flex; min-height:0; }
+/* the list is one panel and the run the other; a closed one gives the
+   other its width, and the choice is the reader's (localStorage) */
+#runs { flex:0 0 72ch; overflow:auto; scrollbar-gutter:stable;
+        border-right:1px solid #2c2c2c; }
+#run { flex:1 1 auto; min-width:0; display:flex; flex-direction:column; }
+body[data-runs="closed"] #runs, body[data-run="closed"] #run,
+body[data-single] #runs, body[data-single] #toggle-runs { display:none; }
+table { border-collapse:collapse; width:100%; table-layout:fixed; }
+col.c-state { width:12ch; } col.c-stage { width:15ch; }
+col.c-rwp { width:8ch; } col.c-gof { width:6ch; } col.c-started { width:8ch; }
+th { text-align:left; color:#777; font-weight:normal; padding:6px 7px;
+     border-bottom:1px solid #2c2c2c; position:sticky; top:0;
+     background:#151515; }
+td { padding:6px 7px; border-bottom:1px solid #1e1e1e; white-space:nowrap;
+     overflow:hidden; text-overflow:ellipsis; }
+tr.run { cursor:pointer; }
+tr.run:hover { background:#181818; }
+tr.run.selected { background:#1b2130; }
+.state { padding:1px 7px; border-radius:9px; font-size:11px; }
+.running   { background:#14361d; color:#6ede8a; }
+.done      { background:#1b2d3d; color:#79b8e8; }
+.failed    { background:#3d1b1b; color:#e88; }
+.cancelled { background:#332b16; color:#e8b339; }
+.abandoned { background:#332b16; color:#c9a227; }
+.unknown   { background:#242424; color:#888; }
+.num { text-align:right; font-variant-numeric: tabular-nums; }
+.muted { color:#666; }
+#empty { padding:28px 12px; color:#777; }
+/* the strip is a grid of declared slots: a stage name, an Rwp or a
+   pattern label changes its text and never its neighbour's place */
+#strip { flex:0 0 auto; height:29px; padding:0 12px; gap:0 12px;
+         border-bottom:1px solid #2c2c2c; display:grid; align-items:center;
+         white-space:nowrap; font-variant-numeric: tabular-nums;
+         grid-template-columns: 11ch minmax(0,16ch) minmax(0,30ch)
+           minmax(0,26ch) 11ch 9ch 8ch minmax(0,1fr) auto auto; }
+#strip > * { min-width:0; overflow:hidden; text-overflow:ellipsis; }
+#strip .state { justify-self:start; }
+#picture { flex:1 1 68%; min-height:180px; position:relative; }
+#plot { position:absolute; inset:0; border:0; width:100%; height:100%; }
+/* a pre-WP-1402 run left a self-contained page behind; it still opens, in
+   the frame it was always shown in */
+iframe#plot { background:#fff; }
+/* a GUI project's run has no picture and never will, so the note is a
+   line and the log gets the room rather than the other way round */
+#noplot { padding:7px 12px; color:#666; }
+#run.full #picture { flex:0 0 auto; min-height:0; }
+#console { flex:0 0 30%; overflow:auto; background:#181818; font-size:11px;
+           padding:6px 10px; white-space:pre; }
+#run.full #console { flex:1 1 auto; }
+.k { color:#e8b339; }
+.ev { color:#888; }
+code { background:#1c1c1c; padding:1px 5px; border-radius:3px; color:#9ad; }
+#stop { border-color:#5a2c2c; color:#e88; }
+#stop:hover { background:#3d1b1b; }
+#confirm { position:fixed; inset:0; background:rgba(0,0,0,0.62);
+           display:flex; align-items:center; justify-content:center;
+           z-index:10; }
+/* an id selector outranks the browser's own `[hidden] {display:none}`, so
+   without this the closed dialog is an invisible sheet over the whole page
+   swallowing every click — including the one that opens it */
+#confirm[hidden] { display:none; }
+#box { background:#1a1a1a; border:1px solid #3a3a3a; border-radius:6px;
+       max-width:33em; padding:16px 18px; line-height:1.5; }
+#box h3 { margin:0 0 9px; font-size:13px; font-weight:normal; color:#e88; }
+#box p { margin:0 0 9px; color:#bbb; }
+#box .row { display:flex; gap:9px; justify-content:flex-end;
+            margin-top:14px; }

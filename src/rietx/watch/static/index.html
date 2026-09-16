@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>rietx watch</title>
+<link rel="stylesheet" href="watch.css">
+<script type="module" src="watch.mjs"></script>
+</head><body>
+<div id="bar">
+  <strong>rietx watch</strong>
+  <button id="toggle-runs" class="toggle" aria-pressed="true"
+          title="show or hide the run list">runs</button>
+  <button id="toggle-run" class="toggle" aria-pressed="true"
+          title="show or hide the selected run">run</button>
+  <span id="root"></span>
+</div>
+<div id="main">
+  <aside id="runs">
+    <table><colgroup>
+      <col class="c-state"><col><col class="c-stage"><col class="c-rwp">
+      <col class="c-gof"><col class="c-started">
+    </colgroup><thead><tr>
+      <th>state</th><th>run</th><th>stage</th><th class="num">Rwp</th>
+      <th class="num">GoF</th><th>started</th>
+    </tr></thead><tbody id="rows"></tbody></table>
+    <div id="empty" hidden>No runs under this directory. A run is a directory
+      holding an <code>events.jsonl</code> — pass one to
+      <code>LiveSession</code>, or open a <code id="empty-suffix"></code> project in the
+      GUI.</div>
+  </aside>
+  <section id="run">
+    <div id="strip">
+      <span id="s-state" class="state unknown">scanning</span>
+      <span id="s-label"></span>
+      <span id="s-series" class="muted"></span>
+      <span id="s-stage"></span>
+      <span id="s-rwp" class="num"></span>
+      <span id="s-gof" class="num"></span>
+      <span id="s-free" class="num"></span>
+      <span id="s-where" class="muted"></span>
+      <span id="s-notice" class="muted"></span>
+      <button id="stop" hidden>stop</button>
+    </div>
+    <div id="picture"></div>
+    <div id="console"></div>
+  </section>
+</div>
+<div id="confirm" hidden><div id="box">
+  <h3 id="box-what"></h3>
+  <p>This raises <code>RefinementCancelled</code> in the process running the
+     fit, at its next residual evaluation. A script that does not catch it
+     prints a traceback and exits.</p>
+  <p>The stages that already finished are kept, and the working state stands
+     at the last of them.</p>
+  <p>The stage in flight is abandoned: no history node, no committed
+     parameters, and the model goes back to where that stage found it.</p>
+  <div class="row">
+    <button id="box-no">Keep running</button>
+    <button id="box-yes">Stop the fit</button>
+  </div>
+</div></div>
+</body></html>

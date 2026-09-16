@@ -71,7 +71,7 @@ progress bar; ``rietx watch`` renders it as the console pane.
 
 **Adding a field to an existing kind does not bump**
 :data:`EVENT_SCHEMA_VERSION`.  ``data`` is an open dict on both sides: readers
-render whatever keys arrive (``watch.py`` iterates ``Object.entries``) and
+render whatever keys arrive (``watch.mjs`` iterates ``Object.entries``) and
 :class:`EventRecord` validates the envelope, not the payload — so an older
 reader tailing a newer log shows the new key and misses nothing it knew about.
 A **new kind**, a **removed or renamed field**, or a change of a field's

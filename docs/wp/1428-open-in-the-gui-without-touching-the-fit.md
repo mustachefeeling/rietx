@@ -95,6 +95,36 @@ A bare `fit()` records under `.rietx/runs/` and has no project to copy. Its
 row and strip show nothing for this feature. Building a project from a run's
 snapshot is not a thing; the snapshot is a picture.
 
+### Inherited
+
+- **2026-09-16, from [1430](1430-the-page-is-a-file.md): the page is files, and
+  three of its names are not the ones 1430's plan said.** `watch.py` is the
+  package `watch/`, and the page is `watch/static/`: `index.html`, `watch.css`,
+  `watch.mjs` (the document) and `watch-core.mjs` (everything that touches no
+  DOM). `rietx.watch` imports unchanged. What to carry:
+  - **The DOM half is `.mjs`, not `.js`.** `node --check` reads a `.js` as
+    CommonJS, where the `import` of `watch-core.mjs` is a syntax error. A
+    browser cares about `type="module"` and the content type, never the
+    extension.
+  - **Node cases live in `tests/watch_core.test.mjs`**, not beside the module:
+    hatchling ships everything under `src/rietx`. They are invoked from
+    `tests/test_watch_app.py::test_the_pure_half_of_the_page_is_unit_tested`
+    (15 cases today), which passes `--test-reporter=tap` because node picks its
+    reporter by whether stdout is a terminal.
+  - **`@SUFFIX@`, `@DIST@` and `@HUE@` are gone.** A file cannot carry a token,
+    so the three ride on `/api/runs` as `payload.page.{suffix,dist,palette}`,
+    read at boot into the module-level `HUE` and `DIST`. That is 299 B of every
+    poll, against rows of 735 B each.
+  - **A new file under `static/` needs a row in `watch.STATIC_FILES`** and
+    nothing else — the route, the content type and the `.gitignore` guard all
+    read that dict. `*.html` in `.gitignore` swallowed `index.html` on the way
+    in, the sixth committed file that one rule has taken.
+  - `_row`'s `gui_command` is in `watch/__init__.py` now, unchanged. The
+    strip element that shows it is `#s-where` in `index.html`, filled by
+    `whereOf` in `watch.mjs`.
+  - `tests/test_watch_browser.py` took no diff and stays the bar: if it
+    moves, the page moved.
+
 ## Non-goals
 
 - Opening the live project.

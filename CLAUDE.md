@@ -85,7 +85,7 @@ Structure/Instrument/PatternData (schemas/, pydantic, JSON round-trip)
     immutable restorable node; checkout/run_stage/branch to fork a strategy,
     merge/cherry_pick to recombine, replay to recompute a node evaluate-only,
     append-only JSONL to persist; history/events.py streams per-iteration
-    events, viz/live.py + watch.py render them live
+    events, viz/live.py + watch/ render them live
 ```
 
 **Telemetry/cancel.** `fit`/`run_stage`/`refine` take `events=` and `cancel=` (an
@@ -554,12 +554,14 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   measured before it was spent; that docstring holds the numbers). **Who asked is a fact
   about the record** (`RunStatus.cancelled_by`) and never about the exception — downstream, a
   human's stop and the caller's own `token.cancel()` are one cooperative read.
-- **A page that is javascript quoted inside python is syntax-checked with `node --check`**
-  (`tests/test_watch_app.py`, over `watch.py` and `compare_app.py`). A broken page is
-  invisible to a python test, which asserts substrings of a script nobody executed: one
-  stray escape cost the whole run list while every test stayed green (WP-1402). **It cannot
-  see layout either**: an id selector outranks `[hidden] {display:none}`, so a closed dialog
-  was an invisible sheet swallowing every click (WP-1405).
+- **A page that is javascript is a *file*: `node --check`ed, its DOM-free half run by `node
+  --test`** (WP-1430; `src/rietx/watch/static/` + `tests/watch_core.test.mjs`, both run from
+  `tests/test_watch_app.py`). Quoted inside python it is unlinted and unimportable, and one
+  stray escape cost a page while every test stayed green (WP-1402). `.mjs`, since `node
+  --check` reads a `.js` as CommonJS; cases in `tests/`, since the wheel takes `src/rietx`
+  whole. `compare_app.py` is the page still in a string. **No file check sees layout**
+  (WP-1405): an id selector outranks `[hidden] {display:none}`, so a closed dialog was a sheet
+  swallowing every click — `test_watch_browser.py` drives chromium.
 - **Two things are written once and consumed everywhere; never restate either.** (1) The residual
   **row layout** `[data | background-penalty | Pawley-restraint | soft-restraint]` lives in
   `model/rows.py` (`BLOCK_ORDER`, `layout()`, `assemble()`) — the numpy residual, the numpy

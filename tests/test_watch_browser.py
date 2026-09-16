@@ -34,8 +34,9 @@ from playwright.sync_api import sync_playwright  # noqa: E402
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MAKE_SHOTS = REPO_ROOT / "docs" / "manual" / "make_screenshots.py"
 
-#: One poll of the page, in seconds (``schedule`` in ``watch.py``); a wait of
-#: two of them is what "the page has seen the write" means here.
+#: One poll of the page, in seconds (``schedule`` in
+#: ``watch/static/watch.mjs``); a wait of two of them is what "the page has
+#: seen the write" means here.
 POLL = 1.2
 
 

@@ -233,7 +233,12 @@ SIZE_CAPS: dict[str, int | None] = {
     # does, so the evidence is checked to separate before it is quoted.  It
     # governs every diagnostic that argues from a computed quantity, not
     # only the one that was measured wrong.  Raised rather than shaved.
-    "CLAUDE.md": 836,
+    # 836 -> 837 (WP-1430, at the merge): the `node --check` clause became the
+    # rule that a javascript page is a file, +2 on a branch cut when the cap
+    # was 833 and landing at exactly 833.  Two parents' additions do not sum
+    # (tests/CLAUDE.md § Quoting numbers), so the merged tree is one over and
+    # the +1 is arithmetic rather than new content.
+    "CLAUDE.md": 837,
     # 672 -> 676 (WP-1102): the Current focus rewrite at 1102's close names the
     # milestone's one break and what makes 1103 the seam's proving case.
     # 676 -> 682 (WP-1407): a new Unscheduled group, "The formats a lab still
