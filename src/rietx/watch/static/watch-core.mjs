@@ -71,15 +71,25 @@ export function extent(values) {
 // first and last point and every bucket's extremes, so the 2θ span and the
 // observed range read off the decimated arrays are the pattern's own, and
 // they do not move while the fit does. The Δ/σ range is the fit's; it takes
-// the ladder above, off the 99.9th percentile so one spiked point does not
-// set the scale for a run while a misfitted peak of ten points still does.
+// the ladder above, off a cut that drops the worst few points so one spiked
+// point does not set the scale while a misfitted peak of ten still does.
+//
+// The cut is a **count**, not a fraction, which is WP-1426 correcting what
+// WP-1430 found and pinned. Written as the 0.999 quantile it cut nothing at
+// all below 1001 points, because a tenth of a percent of a short pattern is
+// less than one point — so on a 1000-point pattern a lone 900σ spike put a
+// residual of ±1 on a ±1000 axis, which is the panel showing nothing, and
+// exactly what the quantile was there to prevent. `max(1, …)` is the whole
+// fix: at least one point is always dropped, and above 1000 the count is the
+// same few the quantile was dropping.
 export function rangesOf(snap) {
   const tt = snap.two_theta;
   const x0 = tt[0], x1 = tt[tt.length - 1], xs = (x1 - x0) || 1;
   const [lo, hi] = extent(finiteOf(snap.y_obs));
   const ys = (hi - lo) || 1;
   const d = finiteOf(snap.delta).map(Math.abs).sort((a, b) => a - b);
-  const q = d.length ? d[Math.min(d.length - 1, Math.floor(0.999 * d.length))] : 0;
+  const cut = Math.max(1, Math.round(0.001 * d.length));
+  const q = d.length ? d[Math.max(0, d.length - 1 - cut)] : 0;
   const L = LADDER.find(v => v >= q) || Math.ceil(q);
   return {x: [x0 - 0.01 * xs, x1 + 0.01 * xs],
           y: [lo - 0.03 * ys, hi + 0.05 * ys], y2: [-L, L]};

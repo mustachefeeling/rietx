@@ -108,7 +108,7 @@ no DOM). Five facts carry into this WP's edits.
   as CommonJS and the `import` of `watch-core.mjs` is a syntax error there.
 - **Node cases live in `tests/watch_core.test.mjs`**, since hatchling ships
   everything under `src/rietx`. `tests/test_watch_app.py::test_the_pure_half_of_the_page_is_unit_tested`
-  invokes the 15 of them.
+  invokes the 19 of them.
 - **The page's three build constants ride on `/api/runs`** as
   `payload.page.{suffix,dist,palette}`, read at boot into module-level `HUE`
   and `DIST`. A file cannot carry the `@TOKEN@` substitutions they were.
@@ -158,7 +158,7 @@ WP's subject, so the call belongs here.
       the legend's box constant relative to the plot across the three
       widths, and the console's line count unchanged across a picture kind
       change
-- [ ] The spike guard's short-pattern case: fixed, or recorded as measured
+- [x] The spike guard's short-pattern case: fixed, or recorded as measured
       and left, with the reason (inherited from 1430)
 - [ ] Skill: none. The page is a human's.
 
