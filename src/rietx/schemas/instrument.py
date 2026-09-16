@@ -1637,12 +1637,20 @@ class Instrument(Base):
         circle — so the cylindrical absorption correction and the eq (4)
         capillary offsets apply unchanged.
 
-        ``fwhm_deg`` seeds the Caglioti terms from an observed peak width, which
-        matters more here than on a lab X-ray: a neutron instrument's lines are
-        typically 0.2-0.5° where the ``ProfileTCHZ`` default is a *synchrotron*
-        line of ~0.03°, and the frozen per-stage evaluation windows are sized
-        from the seed.  Left ``None``, the default stands and a 0.3° line will
-        not be found.
+        ``fwhm_deg`` seeds ``w`` alone, at the observed peak width squared,
+        which matters more here than on a lab X-ray: a neutron instrument's
+        lines are typically 0.2-0.5° where the ``ProfileTCHZ`` default is a
+        *synchrotron* line of ~0.03°, and the frozen per-stage evaluation
+        windows are sized from the seed.  Left ``None``, the default stands and
+        a 0.3° line will not be found.
+
+        The seeded profile is a flat Gaussian of ``fwhm_deg`` at every angle,
+        with ``x`` left at its negligible default: the width you observed is
+        the width you get.  ``fwhm_deg`` may not exceed the square
+        root of ``w``'s upper bound, 1.0° at the schema default: above that it
+        raises ``ValueError`` naming the value passed and the bound.  To
+        declare a genuinely coarser instrument, set ``instrument.profile.w``
+        explicitly, with its own bounds, instead of ``fwhm_deg``.
 
         Note the profile itself needs no neutron-specific code: the Caglioti
         law U·tan²θ + V·tanθ + W *is* the neutron resolution function (Caglioti,
@@ -1672,8 +1680,30 @@ class Instrument(Base):
                                      capillary_radius_mm=capillary_radius_mm,
                                      mu_r=mu_r))
         if fwhm_deg is not None:
-            inst.profile.w.value = (0.5 * fwhm_deg) ** 2
-            inst.profile.x.value = fwhm_deg
+            # Seed the Gaussian constant term alone, at the *full* observed
+            # width: with U = V = 0 the Caglioti law gives Gamma_G = sqrt(W),
+            # so W = fwhm^2 reproduces `fwhm_deg` exactly and at every angle
+            # (issue #124).  `x` is deliberately left at its default.  It is
+            # the Lorentzian Scherrer term, Gamma_L = X/cos(theta), so seeding
+            # it from an observed width both double-counts the width and makes
+            # the seed climb with angle -- 3.93x the stated FWHM at 150 deg,
+            # over exactly the high-angle peaks a CW neutron cell refinement
+            # leans on hardest.  A real CW resolution function is narrowest
+            # near the focusing angle and widens either side (Caglioti,
+            # Paoletti & Ricci 1958), so a monotonically climbing seed is not
+            # a coarse version of that curve; a flat one is the honest
+            # zeroth-order stand-in, and U/V/X/Y refine away from it.
+            w_seed = fwhm_deg ** 2
+            w_bound = inst.profile.w.max
+            if w_seed > w_bound:
+                raise ValueError(
+                    f"fwhm_deg={fwhm_deg} seeds w={w_seed} (fwhm_deg ** 2), "
+                    f"which exceeds w's upper bound of {w_bound}; to declare "
+                    f"a genuinely coarser instrument, set "
+                    f"instrument.profile.w explicitly, with its own bounds, "
+                    f"instead of fwhm_deg."
+                )
+            inst.profile.w.value = w_seed
         return inst
 
     @classmethod
