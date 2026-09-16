@@ -164,6 +164,11 @@ _INHERITED_PRUNE_EPOCH = "2026-07-31"
 #                                                          magnetic track's landed layer, and #258 on the
 #                                                          fence; the Current focus paragraph was cut to
 #                                                          pay for its own sentence; landed 706, +1 headroom
+#   2026-09-16  docs/ROADMAP.md               712 -> 717  for WP-1432, filed by the review of issues #286
+#                                                          and #293: one index row and one sentence naming
+#                                                          it in § What fires, and what stays silent; landed
+#                                                          713, +4 headroom so the next few index rows do
+#                                                          not each need a cap commit
 SIZE_CAPS: dict[str, int | None] = {
     # 739 -> 755 (WP-1102): two standing rules for the component seam — that an
     # additive non-Bragg term is a union *member* and not a new field, and that
@@ -273,7 +278,7 @@ SIZE_CAPS: dict[str, int | None] = {
     # Current focus naming #101 as closed, which is what a successor reads to
     # know the writers are all that is left of 1118.  Nothing is demotable, so
     # the cap moves rather than the fact.  Landed at 711, headroom +1.
-    "docs/ROADMAP.md": 712,
+    "docs/ROADMAP.md": 717,
     "gui/CLAUDE.md": 1028,
     "tests/CLAUDE.md": 275,
     "src/rietx/indexing/CLAUDE.md": 300,
