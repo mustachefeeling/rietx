@@ -73,7 +73,12 @@ SECTIONS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
         "refused by name). A Kα1/Kα2 doublet there comes back as two "
         "emission lines, the second weighted by the file's own `KRATIO`, so "
         "do not add a Kα2 line yourself after reading one "
-        "(Measured: WP-1118). **Handed another program's whole refinement** — a "
+        "(Measured: WP-1118). `rx.write_gsas_prm` is its inverse, and the one "
+        "writer here whose payload is *not* the refine flags: an "
+        "instrument-parameter file is a calibration, so it goes out frozen. It "
+        "refuses a non-zero `zero_shift` — `ICONS`' `ZERO` has no established "
+        "unit here and a guess is wrong by 100× — so zero it and let the "
+        "receiving program refine it. **Handed another program's whole refinement** — a "
         "TOPAS `.inp`, a FullProf `.pcr`, a GSAS `.EXP` — call "
         "`rx.read_project_model`, which "
         "dispatches on content and returns what the file stated plus a "
@@ -119,7 +124,7 @@ SECTIONS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
         "them; a `Biso` always narrows, the file storing `Uiso` (Measured: "
         "WP-1118 — 1e-7 relative, against an esd of ~1e-2).",
         ("rx.read_pattern", "rx.read_pdcif", "rx.read_recipe",
-         "rx.read_gsas_prm", "rx.read_project_model",
+         "rx.read_gsas_prm", "rx.write_gsas_prm", "rx.read_project_model",
          "rx.identify_project_format", "rx.read_topas_inp", "rx.write_topas_inp",
          "rx.read_fullprof_pcr", "rx.write_fullprof_pcr",
          "rx.read_gsas_exp", "rx.write_gsas_exp", "rx.read_gsas2_gpx",

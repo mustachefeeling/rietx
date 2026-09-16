@@ -805,3 +805,224 @@ def _read_prcf(records: list[tuple[str, str]],
             f"the header, not the number of lines present, is what this "
             f"reader trusts, so a short file is refused rather than padded")
     return prof_type, coeffs[:ncoef]
+
+
+# ---------------------------------------------------------------------------
+# GSAS-I .prm — write_gsas_prm, the inverse of read_gsas_prm
+# ---------------------------------------------------------------------------
+
+#: The ``PRCF`` continuation records are ``4E15.6``, so a coefficient gets
+#: fifteen columns where a ``.EXP``'s cell edge gets ten.  Both go through
+#: :func:`~rietx.io.projects.gsas.write_field`, which takes the width for
+#: exactly this reason.
+_PRM_COEFFICIENT_COLUMNS = 15
+_PRM_PER_RECORD = 4
+
+#: What this writer states on the two file-wide records.  ``PXCR`` is the one
+#: :func:`read_gsas_prm` reads, and type 3 the one profile function it maps, so
+#: writing anything else would produce a file this package refuses.
+_PRM_BANK = 1
+_PRM_CUTOFF = 0.001
+
+#: ``S/L`` and ``H/L`` are dimensionless and cross unconverted; the rest are
+#: the inverse of :func:`read_gsas_prm`'s own centidegree division, written
+#: here as the multiplication it is so the two cannot drift apart.
+_PRM_CENTIDEG_SQUARED = 1e4
+_PRM_CENTIDEG = 1e2
+
+
+def from_instrument(instrument: Instrument, *, header: str = "",
+                    diagnostics: list[Diagnostic] | None = None) -> str:
+    """Serialise ``instrument`` as GSAS-I ``.prm`` text — :func:`read_gsas_prm`'s
+    inverse, and the fourth of this package's foreign-format writers.
+
+    Named for the shape the three in :mod:`rietx.io.projects` use
+    (``from_structure``) rather than for this module's own
+    ``save_instrument_profile``: what varies between the four writers is the
+    format, not the verb.  A ``.prm`` carries a machine and no model, which is
+    why it lives here and stays out of the project registry (``io/CLAUDE.md``
+    § Project readers) — but the card grammar is GSAS's, so the fields and
+    records are written by :func:`~rietx.io.projects.gsas.write_field` and
+    :func:`~rietx.io.projects.gsas.write_record`, the two functions the ``.EXP``
+    writer uses.  Two writers spelling one record two ways is how the two
+    *readers* came to disagree about ``ICONS``.
+
+    What crosses is exactly what :func:`read_gsas_prm` reads back: the primary
+    wavelength and, where the source states a second line, its wavelength and
+    its weight as ``KRATIO``; the polarization; ``profile.u/v/w`` as ``GU/GV/GW``
+    and ``profile.x/y`` as ``LX/LY``, multiplied back into GSAS's centidegrees;
+    and ``geometry.axial_sl``/``axial_hl`` as ``S/L`` and ``H/L``, which are
+    dimensionless and cross unconverted.  ``GP`` and the coefficients past
+    position 8 are written at 0, the identity the reader requires them at.
+
+    **Every parameter's ``vary`` is dropped, and that is not a loss.**  An
+    instrument-parameter file is a beamline calibration rather than a starting
+    guess, which is why :func:`read_gsas_prm` and
+    :func:`load_instrument_profile` both return everything frozen; the
+    ``PRCF`` header's flag columns are left blank for the same reason, which is
+    what a real calibration file does.  So unlike the three structure writers,
+    the refine flags are deliberately *not* the payload here.
+
+    **A non-zero ``zero_shift`` is refused.**  ``ICONS``' ``ZERO`` field is the
+    one number here whose unit this package has not established: GSAS-I's
+    constant-wavelength pattern axis is centidegrees (``io/formats/gsas.py``
+    measured that on real ``CONS`` banks), which would make ``ZERO``
+    centidegrees too, but no file in this corpus states a non-zero one to check
+    it against and :func:`read_gsas_prm` refuses one on the way in for exactly
+    that reason.  Writing a guess would produce a file this package will not
+    read back, and a ``ZERO`` wrong by 100× puts every peak in the wrong place.
+    ``io/CLAUDE.md``'s own rule settles which way it goes: magnitude decides
+    drop against refuse, so a zero crosses silently and a non-zero raises.  A
+    zero shift is per-mount anyway — set it to 0 and let the receiving program
+    refine it.
+
+    Three more refusals, each naming what ``ICONS`` cannot state.  A neutron
+    source, which is ``HTYPE PNCR``/``PNTR`` and not the ``PXCR`` this pair
+    reads.  More than two emission lines, ``ICONS`` holding ``LAM1`` and
+    ``LAM2`` and nothing further.  And a second line whose weight is outside the
+    ``0 < w <= 2`` a ``KRATIO`` means, which is the bound the reader checks.
+
+    ``diagnostics`` collects one row, ``GSAS_PRM_FIELD_NOT_WRITTEN``, naming
+    what this instrument carries that the format cannot state.  Its first
+    clause is always the geometry: a ``.prm`` states none at all, so the kind,
+    the sample displacement and transparency, and the specimen absorption stay
+    behind and reading the file back gives ``debye_scherrer`` — the mirror of
+    the reader's own ``GSAS_PRM_GEOMETRY_ASSUMED``.  A true-Voigt profile is
+    named there too rather than refused: GSAS's type 3 is a pseudo-Voigt and
+    has no Voigt option, the widths are the content either way, and what
+    changes is the target's own shape model.
+    """
+    from ..schemas.instrument import NeutronSource
+    from .projects.gsas import write_field, write_record
+
+    if isinstance(instrument.source, NeutronSource):
+        raise ValueError(
+            "a GSAS-I .prm written by this package states HTYPE PXCR, "
+            "constant-wavelength X-ray, which is the one type read_gsas_prm "
+            "reads.  A neutron source is PNCR or PNTR, and this package "
+            "refuses both on the way in — PNTR because a flight-time peak "
+            "shape has nowhere in ProfileTCHZ to go, PNCR for want of a real "
+            "type-3 file to check a layout against")
+
+    source = instrument.source
+    if len(source.lines) > 2:
+        raise ValueError(
+            f"this source states {len(source.lines)} emission lines and an "
+            f"ICONS record holds two, LAM1 and LAM2.  Dropping the rest would "
+            f"hand back an instrument with a different spectrum under a file "
+            f"that looks complete")
+    if instrument.zero_shift.value != 0.0:
+        raise ValueError(
+            f"zero_shift is {instrument.zero_shift.value!r}, and ICONS' ZERO "
+            f"field is the one number here whose unit this package has not "
+            f"established — GSAS-I's CW pattern axis is centidegrees, which "
+            f"would make ZERO centidegrees, but no file in this corpus states "
+            f"a non-zero one to check that against and read_gsas_prm refuses "
+            f"one on the way in for the same reason.  A ZERO wrong by 100x "
+            f"puts every peak in the wrong place.  A zero shift belongs to the "
+            f"mount rather than to the goniometer, so set it to 0 and let the "
+            f"receiving program refine it")
+    second = source.lines[1] if len(source.lines) > 1 else None
+    if second is not None and not 0.0 < second.weight.value <= 2.0:
+        raise ValueError(
+            f"the second emission line's weight is {second.weight.value!r}, "
+            f"and it is written as ICONS' KRATIO — the Ka2/Ka1 intensity "
+            f"ratio, which read_gsas_prm holds to 0 < w <= 2 (a sealed tube is "
+            f"about 0.5).  A value outside that is refused rather than written "
+            f"into a field it would not mean")
+
+    # Nothing here is narrowed in practice — fifteen columns hold any
+    # coefficient's own repr — but the channel is what makes `write_field`
+    # refuse a non-finite value rather than writing a token GSAS cannot parse.
+    narrowed: list[tuple[str, float, float]] = []
+
+    def field(value: float, what: str, width: int = _PRM_COEFFICIENT_COLUMNS) -> str:
+        return write_field(value, width, what=what, narrowed=narrowed)
+
+    profile, geometry = instrument.profile, instrument.geometry
+    # The inverse of read_gsas_prm's conversion, written as the multiplication
+    # it is: GU/GV/GW are centidegrees squared and LX/LY centidegrees, while
+    # S/L and H/L are ratios.  GP (position 4) and everything past position 8
+    # are 0, which is the identity the reader requires them at.
+    coefficients = [
+        profile.u.value * _PRM_CENTIDEG_SQUARED,
+        profile.v.value * _PRM_CENTIDEG_SQUARED,
+        profile.w.value * _PRM_CENTIDEG_SQUARED,
+        0.0,
+        profile.x.value * _PRM_CENTIDEG,
+        profile.y.value * _PRM_CENTIDEG,
+        geometry.axial_sl.value,
+        geometry.axial_hl.value,
+    ]
+    names = CW_PROFILE_COEFFICIENTS[_PRCF_TYPE_3][:len(coefficients)]
+
+    cards = [
+        write_record("INS   BANK  ", f"{_PRM_BANK:5d}"),
+        write_record("INS   HTYPE ", f"  {_HTYPE_PXCR}"),
+        write_record("INS  1 ICONS",
+                     field(source.lines[0].wavelength.value, "source.lines.0.wavelength", 10)
+                     + field(second.wavelength.value if second else 0.0,
+                             "source.lines.1.wavelength", 10)
+                     + field(0.0, "zero_shift", 10)
+                     # the three refine flags sit at 32-35 and IDAMP at 39: a
+                     # calibration has refined nothing, so both stay blank
+                     + " " * 10
+                     + field(source.polarization.value, "source.polarization", 10)
+                     + f"{0:5d}"
+                     + field(second.weight.value if second else 0.0,
+                             "source.lines.1.weight", 10)),
+    ]
+    if header:
+        cards.append(write_record("INS  1I HEAD", f"  {header}"))
+    cards.append(write_record(
+        "INS  1PRCF1 ",
+        f"{_PRCF_TYPE_3:5d}{len(coefficients):5d}" + field(_PRM_CUTOFF, "cutoff", 10)))
+    for i in range(0, len(coefficients), _PRM_PER_RECORD):
+        chunk = coefficients[i:i + _PRM_PER_RECORD]
+        cards.append(write_record(
+            f"INS  1PRCF1{i // _PRM_PER_RECORD + 1}",
+            "".join(field(v, f"PRCF {name}")
+                    for v, name in zip(chunk, names[i:i + _PRM_PER_RECORD],
+                                       strict=True))))
+
+    if diagnostics is not None:
+        clauses = [
+            "the geometry: a .prm states none at all, so the kind, the sample "
+            "displacement and transparency and the specimen absorption stay "
+            "here and reading this file back gives debye_scherrer.  S/L and "
+            "H/L are the two geometry numbers that do cross"]
+        if profile.shape != "tchz_pv":
+            clauses.append(
+                f"the peak shape: this profile is {profile.shape!r} and GSAS's "
+                f"PRCF type 3 is a pseudo-Voigt with no Voigt option, so the "
+                f"widths cross and the shape model becomes the target's")
+        if instrument.extra_components:
+            clauses.append(
+                f"{len(instrument.extra_components)} extra component(s), which "
+                f"belong to a specimen rather than to a goniometer and which "
+                f"this format cannot state")
+        if any(p.vary for p in _iter_parameters(instrument)):
+            clauses.append(
+                "every refine flag: an instrument-parameter file is a "
+                "calibration rather than a starting guess, so the PRCF "
+                "header's flag columns are blank and read_gsas_prm returns "
+                "everything vary=False")
+        diagnostics.append(Diagnostic(
+            level="warning", code="GSAS_PRM_FIELD_NOT_WRITTEN",
+            message=("a GSAS-I .prm cannot state: " + "; ".join(clauses)),
+            where=["instrument.geometry"]))
+    return "\r\n".join(cards) + "\r\n"
+
+
+def write_gsas_prm(instrument: Instrument, path: str | Path, *,
+                   header: str = "",
+                   diagnostics: list[Diagnostic] | None = None) -> None:
+    """Write ``instrument`` to ``path`` as a GSAS-I ``.prm``.
+
+    ``latin-1``, the encoding :func:`read_gsas_prm` decodes one with: the
+    ``I HEAD`` record holds whatever the experimenter typed.  See
+    :func:`from_instrument` for what carries and what does not.
+    """
+    Path(path).write_bytes(
+        from_instrument(instrument, header=header,
+                        diagnostics=diagnostics).encode("latin-1"))

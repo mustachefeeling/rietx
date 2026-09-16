@@ -1407,12 +1407,21 @@ def to_structure(model: GsasModel, *, phase: int | None = None,
 
 
 # ------------------------------------------------------------------ writing it
+#
+# :func:`write_field` and :func:`write_record` are **public and shared**, for
+# the reason :func:`read_icons` is: the card index is GSAS's, not this file
+# kind's, so an instrument-parameter file writes its fields the same way an
+# experiment file does and ``io/instrument_profile.py``'s ``.prm`` writer calls
+# them rather than carrying a second copy.  Two writers spelling one record two
+# ways is how they come to disagree about it, which the two readers did until
+# WP-1118.
 
 #: The column widths the writer fills, each quoted from the read above rather
 #: than restated.  A number is the ten columns :func:`_num` slices off ``ABC``,
 #: ``ANGLES`` and the atom records; a species or a site label is the eight
 #: :func:`_text` takes; a payload is what a card has left once its key is
-#: written.
+#: written.  A ``.prm``'s ``PRCF`` fields are wider, which is why
+#: :func:`write_field` takes the width rather than holding one.
 _WRITE_NUMBER = 10
 _WRITE_LABEL = 8
 _WRITE_PAYLOAD = RECORD_BYTES - KEY_BYTES
@@ -1429,24 +1438,32 @@ _WRITE_MAX_ATOMS = 999
 _WRITE_VERSION = 6
 
 
-def _fixed(value: float, width: int, *, what: str,
-           narrowed: list[tuple[str, float, float]]) -> str:
+def write_field(value: float, width: int, *, what: str,
+                narrowed: list[tuple[str, float, float]]) -> str:
     """``value`` as the most precise text that fits ``width`` columns.
 
-    The inverse of :func:`_num`, and the rule the whole writer rests on: **the
-    field is the contract**.  A ``.EXP`` is read by column, so a number is
+    The inverse of :func:`_num`, and the rule both GSAS writers rest on: **the
+    field is the contract**.  A GSAS card is read by column, so a number is
     worth exactly as many characters as its field has and the writer's job is
     to spend them.  ``%g`` descending from seventeen significant digits gives
     the shortest text that fits, which — where the value's own ``repr`` fits —
     *is* that ``repr``, so every realistic cell edge, coordinate and occupancy
-    crosses bit-identically and only a value needing more than ten characters
-    is narrowed at all.
+    crosses bit-identically and only a value needing more than its field is
+    narrowed at all.
 
     A narrowed value is **recorded** rather than dropped in silence: the caller
     gets one diagnostic naming how many and the worst of them
     (:func:`from_structure`).  A non-finite one is **refused**, because ``inf``
     fits ten columns and reads back as a float — a cell edge of infinity would
     round-trip perfectly into a structure no program can refine.
+
+    **The decimal point is always written**, and this is the one place a round
+    trip through *this* package cannot catch the mistake.  A Fortran ``F`` or
+    ``E`` edit descriptor supplies the decimal point from its own ``d`` when
+    the input field has none, which is why punched data could leave it out —
+    so ``90`` in an ``F10.6`` field is 9e-5 to the program this file is *for*,
+    while :func:`_num`'s ``float`` reads 90 and every test here passes.  Real
+    GSAS files write ``0.333333`` and ``0.000000E+00`` for the same reason.
     """
     if not math.isfinite(value):
         raise ValueError(
@@ -1456,6 +1473,9 @@ def _fixed(value: float, width: int, *, what: str,
             f"rather than failing here, where the value is still in hand")
     for digits in range(17, 0, -1):
         text = f"{value:.{digits}g}".upper()
+        if "." not in text:
+            mantissa, _, exponent = text.partition("E")
+            text = mantissa + "." + (f"E{exponent}" if exponent else "")
         if len(text) <= width:
             if float(text) != value:
                 narrowed.append((what, value, float(text)))
@@ -1465,7 +1485,7 @@ def _fixed(value: float, width: int, *, what: str,
         f"any precision")
 
 
-def _write_record(key: str, payload: str = "") -> str:
+def write_record(key: str, payload: str = "") -> str:
     """One 80-character card: a twelve-character key and its payload.
 
     The width is structural — GSAS read these files by direct access and
@@ -1550,7 +1570,7 @@ def from_structure(structure: Structure, *, title: str = "",
     **This is the first writer here whose columns are fixed**, and that changes
     two things the ``.inp`` and ``.pcr`` writers did not have to decide.
 
-    *A field is a budget.*  :func:`_fixed` spends every column it has, so a
+    *A field is a budget.*  :func:`write_field` spends every column it has, so a
     value whose own ``repr`` fits ten characters crosses bit-identically and
     one that does not is written to the precision the field holds and
     **named** — ``GSAS_EXP_VALUE_NARROWED``, once per file with the worst of
@@ -1591,7 +1611,7 @@ def from_structure(structure: Structure, *, title: str = "",
     be worse than declining to write them.  A **negative** ``biso``, which the
     same function refuses on the way in, so writing one would only fail later
     with the file already on disk.  And a **non-finite** value, in
-    :func:`_fixed`.
+    :func:`write_field`.
     """
     import numpy as np
 
@@ -1609,16 +1629,16 @@ def from_structure(structure: Structure, *, title: str = "",
     narrowed: list[tuple[str, float, float]] = []
     merged: list[str] = []
     cards = [
-        _write_record("     VERSION", f"{_WRITE_VERSION:5d}"),
-        _write_record("      DESCR ", f"  {title}"),
+        write_record("     VERSION", f"{_WRITE_VERSION:5d}"),
+        write_record("      DESCR ", f"  {title}"),
         # HSTRY is GSAS's own record for "which program touched this file",
         # and the reader ignores it — so the provenance line goes there rather
         # than into DESCR, which is the caller's title.
-        _write_record("    HSTRY  1", f"  written by {DIST_NAME}"),
-        _write_record(" EXPR NPHAS ", "".join(
+        write_record("    HSTRY  1", f"  written by {DIST_NAME}"),
+        write_record(" EXPR NPHAS ", "".join(
             f"{1 if i < len(structure.phases) else 0:5d}"
             for i in range(_WRITE_MAX_PHASES))),
-        _write_record(" EXPR  NHST ", f"{0:5d}"),
+        write_record(" EXPR  NHST ", f"{0:5d}"),
     ]
 
     for n, phase in enumerate(structure.phases, start=1):
@@ -1635,19 +1655,19 @@ def from_structure(structure: Structure, *, title: str = "",
         cell_refined = _merged_flag(
             edges + angles, what=f"{where}.cell", merged=merged)
 
-        cards.append(_write_record(f"CRS{n}    PNAM", f"  {phase.name}"))
-        cards.append(_write_record(f"CRS{n}   NATOM", f"{len(phase.atoms):5d}"))
-        cards.append(_write_record(f"CRS{n}  ABC   ", "".join(
-            _fixed(p.value, _WRITE_NUMBER, what=f"{where}.cell.{k}",
+        cards.append(write_record(f"CRS{n}    PNAM", f"  {phase.name}"))
+        cards.append(write_record(f"CRS{n}   NATOM", f"{len(phase.atoms):5d}"))
+        cards.append(write_record(f"CRS{n}  ABC   ", "".join(
+            write_field(p.value, _WRITE_NUMBER, what=f"{where}.cell.{k}",
                    narrowed=narrowed)
             for k, p in zip("abc", edges, strict=True))
             # the flag sits at payload column 34 and the damping code at 39
             + "    " + ("Y" if cell_refined else "N") + "    0"))
-        cards.append(_write_record(f"CRS{n}  ANGLES", "".join(
-            _fixed(p.value, _WRITE_NUMBER, what=f"{where}.cell.{k}",
+        cards.append(write_record(f"CRS{n}  ANGLES", "".join(
+            write_field(p.value, _WRITE_NUMBER, what=f"{where}.cell.{k}",
                    narrowed=narrowed)
             for k, p in zip(("alpha", "beta", "gamma"), angles, strict=True))))
-        cards.append(_write_record(f"CRS{n}  SG SYM", f"  {sg.xhm()}"))
+        cards.append(write_record(f"CRS{n}  SG SYM", f"  {sg.xhm()}"))
 
         contents: dict[str, float] = {}
         for i, atom in enumerate(phase.atoms):
@@ -1677,10 +1697,10 @@ def from_structure(structure: Structure, *, title: str = "",
             contents[atom.species] = (contents.get(atom.species, 0.0)
                                       + atom.occ.value * multiplicity)
             head = (f"  {species}" + "".join(
-                _fixed(p.value, _WRITE_NUMBER, what=f"{site}.{k}",
+                write_field(p.value, _WRITE_NUMBER, what=f"{site}.{k}",
                        narrowed=narrowed)
                 for k, p in zip(("x", "y", "z"), xyz, strict=True))
-                + _fixed(atom.occ.value, _WRITE_NUMBER, what=f"{site}.occ",
+                + write_field(atom.occ.value, _WRITE_NUMBER, what=f"{site}.occ",
                          narrowed=narrowed)
                 + label + f"{multiplicity:4d}" + " 000")
             # 'I' for isotropic, then the F/X/U letters, at payload column 62
@@ -1689,24 +1709,24 @@ def from_structure(structure: Structure, *, title: str = "",
                      + ("X" if _merged_flag(xyz, what=f"{site}.xyz",
                                             merged=merged) else " ")
                      + ("U" if atom.biso.vary else " "))
-            tail = (_fixed(atom.biso.value / EIGHT_PI_SQUARED, _WRITE_NUMBER,
+            tail = (write_field(atom.biso.value / EIGHT_PI_SQUARED, _WRITE_NUMBER,
                            what=f"{site}.biso", narrowed=narrowed)
                     + " " * 52 + codes)
-            cards.append(_write_record(f"CRS{n}  AT{i + 1:3d}A", head))
-            cards.append(_write_record(f"CRS{n}  AT{i + 1:3d}B", tail))
+            cards.append(write_record(f"CRS{n}  AT{i + 1:3d}A", head))
+            cards.append(write_record(f"CRS{n}  AT{i + 1:3d}B", tail))
 
         # The unit-cell content is *derived* and `to_structure` discards
         # `formula` outright, so narrowing one loses nothing a round trip could
         # show — it does not join the count of values that did.
         derived: list[tuple[str, float, float]] = []
         for j, (species, total) in enumerate(contents.items(), start=1):
-            cards.append(_write_record(
+            cards.append(write_record(
                 f"CRS{n}  CHMF{j:2d}",
                 f"  {_write_label(species, what=f'{where}.atoms species')}"
-                + _fixed(total, _WRITE_NUMBER, what=f"{where}.atoms",
+                + write_field(total, _WRITE_NUMBER, what=f"{where}.atoms",
                          narrowed=derived)))
 
-    cards.append(_write_record(TERMINATOR, "  Last EXP file record"))
+    cards.append(write_record(TERMINATOR, "  Last EXP file record"))
 
     if diagnostics is not None:
         if narrowed:

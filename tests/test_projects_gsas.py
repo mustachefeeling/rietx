@@ -30,6 +30,7 @@ from rietx.io.projects.gsas import (
     GsasExpError,
     from_structure,
     read_gsas_exp,
+    split_records,
     to_structure,
     write_gsas_exp,
 )
@@ -975,3 +976,26 @@ def test_a_payload_that_would_overrun_its_card_is_refused():
 
 def test_write_gsas_exp_is_reachable_at_the_top_level():
     assert rx.write_gsas_exp is write_gsas_exp
+
+
+def test_every_numeric_field_carries_its_decimal_point():
+    """The one mistake a round trip through this package cannot catch.
+
+    A Fortran ``F`` or ``E`` edit descriptor supplies the decimal point from
+    its own ``d`` when the input field has none, which is why punched data
+    could leave it out.  So ``90`` in an ``F10.6`` field is 9e-5 to GSAS and
+    90 to ``float()``, and every test here would pass while the file said
+    something else to the program it is for.  Real ``.EXP`` and ``.prm`` files
+    write ``0.333333`` and ``0.000000E+00``, which is the corroboration.  The
+    integer fields — ``VERSION``, ``NATOM``, a site multiplicity, ``NPHAS`` —
+    are ``I`` descriptors and rightly carry none, so they are written by ``%d``
+    and never reach :func:`write_field`.
+    """
+    text = from_structure(_hexagonal(vary=False))
+    records = dict(split_records(text))
+    for key in ("CRS1  ABC   ", "CRS1  ANGLES"):
+        for start in (0, 10, 20):
+            assert "." in records[key][start:start + 10]
+    for start in (10, 20, 30, 40):          # x, y, z, occupancy
+        assert "." in records["CRS1  AT  1A"][start:start + 10]
+    assert "." in records["CRS1  AT  1B"][0:10]

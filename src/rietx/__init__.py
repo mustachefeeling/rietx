@@ -35,6 +35,7 @@ from .io.instrument_profile import (
     load_instrument_profile,
     read_gsas_prm,
     save_instrument_profile,
+    write_gsas_prm,
 )
 from .io.projects import (
     ProjectFormat,
@@ -194,6 +195,7 @@ __all__ = [
     "write_recipe_tables",
     "write_fullprof_pcr",
     "write_gsas_exp",
+    "write_gsas_prm",
     "write_reflection_table",
     "write_refinement_cif",
     "write_topas_inp",

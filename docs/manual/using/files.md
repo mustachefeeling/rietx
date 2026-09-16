@@ -240,6 +240,38 @@ instrument = rx.read_gsas_prm("beamline.prm", diagnostics=notes)
 # GSAS_PRM_GEOMETRY_ASSUMED: the geometry was not read from the file
 ```
 
+### Writing a GSAS-I `.prm` back
+
+`write_gsas_prm` is that reader's inverse, and the fourth of the
+foreign-format writers. It takes a calibrated `Instrument` and states it as
+GSAS states one: the wavelengths, the polarization, `profile.u/v/w` as
+`GU`/`GV`/`GW` and `profile.x/y` as `LX`/`LY` multiplied back into
+centidegrees, and `geometry.axial_sl`/`axial_hl` as `S/L` and `H/L`:
+
+<!-- api-doc: no-exec — it writes a file -->
+```python
+notes = []
+rx.write_gsas_prm(instrument, "beamline.prm", header="LaB6, March",
+                  diagnostics=notes)
+```
+
+Unlike the three structure writers, the refine flags are deliberately not the
+payload. An instrument-parameter file is a beamline calibration rather than a
+starting guess, which is why both readers here hand one back frozen, so the
+`PRCF` header's flag columns are left blank as a real calibration file leaves
+them. `GSAS_PRM_FIELD_NOT_WRITTEN` names what this instrument carries that the
+format cannot state, the geometry always among it.
+
+One value is refused rather than reported. `ICONS`' `ZERO` field is the one
+number here whose unit this package has not established, and `read_gsas_prm`
+refuses a non-zero one on the way in for that reason, so writing a guess would
+make a file this package will not read back and a `ZERO` wrong by 100× puts
+every peak in the wrong place. Set `zero_shift` to 0 and let the receiving
+program refine it; a zero shift belongs to the mount rather than to the
+goniometer. A neutron source, a third emission line and a second line whose
+weight is not a `KRATIO` are refused for the same reason in the other three
+cases: each would make a file this package's own reader declines.
+
 Pass no list and the read is silent and identical, so the channel is opt-in
 rather than a behaviour change.
 
