@@ -1030,6 +1030,28 @@ def from_instrument(instrument: Instrument, *, header: str = "",
                                        strict=True))))
 
     if diagnostics is not None:
+        if narrowed:
+            # The twin of the `.EXP` writer's GSAS_EXP_VALUE_NARROWED, and owed
+            # for the same reason: this writer collected `narrowed` from the
+            # first and read it nowhere, so a value that did not fit its field
+            # crossed in silence while its sibling reported one (WP-1118, the
+            # 5th session's review pass).  A PRCF coefficient multiplied into
+            # centidegrees carries the product's float noise, so a converged
+            # calibration reaches this routinely.
+            what, value, written = max(
+                narrowed,
+                key=lambda row: abs(row[2] - row[1]) / (abs(row[1]) or 1.0))
+            diagnostics.append(Diagnostic(
+                level="info", code="GSAS_PRM_VALUE_NARROWED",
+                message=(
+                    f"{len(narrowed)} value(s) need more characters than a "
+                    f".prm's fixed columns hold and were written to what fits; "
+                    f"the largest change is {what} {value!r} -> {written!r}.  "
+                    f"A converged calibration's numbers are full-precision "
+                    f"doubles and a centidegree conversion adds the product's "
+                    f"own float noise, so this is the ordinary case rather "
+                    f"than a warning sign"),
+                where=[row[0] for row in narrowed]))
         clauses = [
             "the geometry: a .prm states none at all, so the kind, the sample "
             "displacement and transparency and the specimen absorption stay "
@@ -1355,6 +1377,14 @@ def _instprm_reports(items: dict[str, str], read: list[str],
     # value used is this package's default, and a writer would spell it out.
     declared = INSTPRM_CW_DOUBLET if doublet else INSTPRM_CW_SINGLE
     skip = {"Bank"} | ({"Polariz."} if neutron else set())
+    # ``Lam`` and ``Lam1`` are two spellings of one item, so a file stating
+    # either is not a file missing the other.  Un-skipped, a ``Lam1`` with no
+    # ``Lam2`` reported "this file states no Lam, so that came back at this
+    # package's own default" about a wavelength read from the file.
+    if "Lam" in items:
+        skip.add("Lam1")
+    elif "Lam1" in items:
+        skip.add("Lam")
     absent = [k for k in declared if k not in items and k not in skip]
     if absent:
         diagnostics.append(Diagnostic(

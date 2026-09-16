@@ -260,7 +260,10 @@ payload. An instrument-parameter file is a beamline calibration rather than a
 starting guess, which is why both readers here hand one back frozen, so the
 `PRCF` header's flag columns are left blank as a real calibration file leaves
 them. `GSAS_PRM_FIELD_NOT_WRITTEN` names what this instrument carries that the
-format cannot state, the geometry always among it.
+format cannot state, the geometry always among it. `GSAS_PRM_VALUE_NARROWED`
+names what did not fit: a `.prm` is read by column and a column is the budget,
+so a converged calibration's full-precision numbers are written to what the
+field holds.
 
 One value is refused rather than reported. `ICONS`' `ZERO` field is the one
 number here whose unit this package has not established, and `read_gsas_prm`
