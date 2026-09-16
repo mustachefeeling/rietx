@@ -194,8 +194,11 @@ skip.
   **Measured** (`[dev]` + `playwright`, darwin/arm64, machine otherwise idle —
   checked with `ps`).
 
-  - Fast selection **5197 passed, 132 skipped in 2:47**, and the same counts on
-    the tree four commits earlier, so the tail of this session moved no test.
+  - Fast selection **5202 passed, 132 skipped in 2:52**, on **current main
+    merged into this branch** — the tree that lands, which branch protection
+    never builds (`strict: false`). WP-1338 landed under this branch while it
+    was open and brought four of those passes with it; the branch alone
+    measured 5197/132 earlier in the session.
   - The WP's acceptance selection **156 passed**, against **124 passed and 1
     skipped** on `main` at the session's start, so passed+skipped moved **+31**:
     **14 items this WP added** (4 `test_gui_palette`, 3 `test_watch_app`, 3
