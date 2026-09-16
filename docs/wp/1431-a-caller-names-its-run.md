@@ -160,10 +160,15 @@ rule.
     `API_INDEX_MAX_BYTES` and the authored bar is untouched.
 
   **Gotchas, each paid for once.**
-  - **`anatase` is the package's own pre-WP-1066 name** and
-    `test_no_stale_name.py` keeps it gone. Reaching for a TiO₂ polymorph to
-    name an example candidate put it in the manual, the telemetry tests and
-    the node cases in one go. Rutile now.
+  - **The obvious TiO₂ polymorph for naming an example candidate is the
+    package's own pre-WP-1066 name**, and `test_no_stale_name.py` keeps that
+    word gone. One reach for it put the old brand in the manual, the telemetry
+    tests and the node cases at once; rutile is the other polymorph and does
+    the same job. **Prose *about* the token is the token**, which is the second
+    half of the trap: writing this gotcha up tripped the same guard in this
+    file and in the v1.4 record, and the allowlist is for files whose subject
+    *is* a rename, so the fix is to make the point without spelling it. The
+    test and WP-1066 are where the word lives.
   - **A caller's label is the one field in `meta.json` that a caller supplies,
     so it is the one that can arrive as the wrong type**, and the silent
     failure costs the whole record: `_write_meta` writes raw JSON, a list
