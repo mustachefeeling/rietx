@@ -136,7 +136,10 @@ Folded here from the `Inherited` mailbox on 2026-09-16, all of it still true.
 
 - [x] Browser test: for every cell and strip slot, `scrollWidth <= clientWidth`
       over a fixture whose Rwp is `0.1734`, GoF `12.34`, and started `3h ago`;
-      record which cells fail today and by how many pixels, in the handover
+      record which cells fail today and by how many pixels, in the handover.
+      **The instrument is ink against room, not `scrollWidth`** — see the
+      section above; `scrollWidth` is blind wherever overflow is visible and
+      reported nothing for the heading that was spilling
 - [x] The toggles renamed `list` and `detail`, with titles
 - [x] The list: Rwp and GoF as the GUI prints them (percent, decimals chosen
       from the measurement), widths that hold the content plus the padding,
