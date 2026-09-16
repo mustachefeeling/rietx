@@ -16,7 +16,7 @@ import {test} from 'node:test';
 import {
   LADDER, LAYOUT_DEFAULT, ago, axisOf, clampSize, clock, coalesce, deltaTitle,
   dragged, esc, extent, finiteOf, nextLayout, num, parseLayout, pct, rangesOf,
-  rowName, runLabel, runTitle, withAlpha,
+  paletteFrom, rowName, runLabel, runTitle, withAlpha,
 } from '../src/rietx/watch/static/watch-core.mjs';
 
 // A pattern the page would draw: 1000 points, and a residual the caller
@@ -314,6 +314,39 @@ test('a patch touches the keys it names and no others', () => {
                    'collapsing keeps the size to restore to');
 });
 
+
+// ----------------------------------------------------------- paletteFrom
+// WP-1429: the plot's colours are the GUI's custom properties, read off the
+// root element at draw time. `read` is injected, so the page's answer to
+// "which colour is the calculated curve" is testable without a browser.
+
+test('every plot colour comes from the property that owns it', () => {
+  const declared = {
+    '--plot-obs': '#8a8a8a', '--plot-calc': '#c23b22', '--plot-bkg': '#6b7280',
+    '--plot-diff': '#1f5fa8', '--plot-zero': '#88888888', '--line': '#dcdcd6',
+    '--fg': '#1b1b1b', '--bg': '#fbfbfa', '--ok': '#2e8b57',
+  };
+  assert.deepEqual(paletteFrom(name => declared[name]), {
+    obs: '#8a8a8a', calc: '#c23b22', bkg: '#6b7280', diff: '#1f5fa8',
+    zero: '#88888888', grid: '#dcdcd6', fg: '#1b1b1b', ground: '#fbfbfa',
+    band: '#2e8b57',
+  });
+});
+
+test('a browser hands back a leading space, and it is not part of the colour',
+  () => {
+    // `getComputedStyle().getPropertyValue()` keeps the whitespace after the
+    // colon, and plotly takes the string as given
+    assert.equal(paletteFrom(() => ' #e56a52 ').calc, '#e56a52');
+  });
+
+test('a property nobody declared is empty, never the word undefined', () => {
+  // an unstyled page draws in plotly's own colours; `'undefined'` would be a
+  // colour plotly rejects trace by trace, which looks like a plotting bug
+  const hue = paletteFrom(() => undefined);
+  assert.equal(hue.calc, '');
+  assert.equal(Object.values(hue).join(''), '');
+});
 
 // ------------------------------------------------------------- withAlpha
 // The legend moved inside the paper in WP-1426, so its ground sits over the

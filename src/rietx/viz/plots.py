@@ -94,9 +94,13 @@ Y_SCALES = ("linear", "sqrt", "log", "asinh")
 #: says what it is, and the grey it would otherwise share with the residual is
 #: too faint to carry its own gutter label on a white page.
 PALETTES = {
+    # `ground` is the page the figure sits on.  Dark's is the manual's and the
+    # landing page's warm panel, which is what `_ground_rc` paints; light's is
+    # matplotlib's own white, and it is declared rather than assumed because
+    # `viz/html.py` needs something to put its legend behind (WP-1429).
     "light": {"obs": "#1a1a1a", "calc": "#ff7f0e", "bkg": "#b5793a",
               "diff": "#737373", "zero": "#c9c9c9", "band": "#2a9d2a",
-              "tick": "#1a1a1a",
+              "tick": "#1a1a1a", "ground": "#ffffff",
               "phase": ["#1f77b4", "#d62728", "#2ca02c", "#9467bd"]},
     "dark": {"obs": "#d2c9bd", "calc": "#ff9d4d", "bkg": "#c99a6a",
              "diff": "#8f8f8f", "zero": "#4a4a4a", "band": "#4fd44f",

@@ -11,6 +11,7 @@ runs.
 from __future__ import annotations
 
 import json
+import re
 import threading
 import urllib.request
 from dataclasses import asdict
@@ -20,8 +21,10 @@ import pytest
 
 import rietx as rx
 from rietx import compare_app
+from rietx._about import STATE_DIR_ENV
 from rietx.schemas.instrument import HUMP_FWHM_MIN
 from rietx.viz import compare as cmp
+from rietx.viz import theme
 
 from .test_acceptance_qpa_roundrobin import DATA as QARR_DATA
 from .test_acceptance_qpa_roundrobin import (
@@ -489,6 +492,64 @@ def test_server_serves_the_page_and_the_catalog(server):
     assert "<title>rietx" in page and "plot-cum" in page
     catalog = json.loads(_get(base + "/api/catalog"))
     assert {s["key"] for s in catalog["standards"]} == {s.key for s in cmp.STANDARDS}
+
+
+def test_the_page_links_the_tokens_and_the_server_emits_them(server):
+    """One stylesheet for three surfaces, out of the installed package (WP-1429).
+
+    This page had a literal copy of six of the GUI's chrome tokens, light and
+    dark, so a retuned `--accent` moved the GUI and left this page on the old
+    one.  The copy is gone: the page links the route and the route renders
+    `viz/theme.py`, which is also what `gui/src/tokens.css` is generated from.
+    """
+    base, _ = server
+    page = _get(base + "/").decode()
+    assert 'href="/tokens.css"' in page
+    assert _get(base + theme.CSS_ROUTE).decode() == theme.tokens_css()
+
+
+def test_the_page_is_stamped_with_the_theme_the_gui_stored(server, tmp_path,
+                                                           monkeypatch):
+    """Read at load, because this page has no poll to carry a change on.
+
+    `system` is the *absence* of the attribute rather than a third value: the
+    `prefers-color-scheme` block in `tokens.css` is what answers then, and no
+    server can see the machine the page is open on.
+    """
+    base, _ = server
+    state = tmp_path / "state"
+    state.mkdir()
+    monkeypatch.setenv(STATE_DIR_ENV, str(state))
+    assert "<html>" in _get(base + "/").decode()          # nothing chosen
+    (state / "settings.json").write_text(
+        json.dumps({"ui": {"theme": "dark"}}), encoding="utf-8")
+    assert '<html data-theme="dark">' in _get(base + "/").decode()
+    (state / "settings.json").write_text(
+        json.dumps({"ui": {"theme": "system"}}), encoding="utf-8")
+    assert "<html>" in _get(base + "/").decode()
+
+
+def test_the_only_colours_the_page_still_declares_are_the_ten_variant_hues():
+    """What WP-1429 deliberately did not fold, named rather than left quiet.
+
+    A variant's curve needs a *categorical* hue, and the GUI has none to lend:
+    its one categorical set is the history graph's five lanes at 72°, and ten
+    hues at one lightness and chroma cannot clear the 0.13 floor those five
+    were chosen for.  Inventing a ten-colour palette is a WP of its own.
+
+    Two others, and neither is a colour this page chose: `#fff` is the ink on a
+    filled accent button, which `app.css` writes the same way and for the same
+    reason — it is white in both themes; and `rgba(0,0,0,0)` is plotly's way of
+    saying the paper is transparent, so the page's own background shows through.
+    """
+    variant_hues = set(re.findall(r'"(#[0-9a-fA-F]{6})"',
+                                  compare_app._PAGE.split("const COLORS")[1]
+                                  .split("]")[0]))
+    assert len(variant_hues) == 10
+    literal = re.compile(r"#[0-9a-fA-F]{3,8}\b|rgba?\([\d.,\s%]*\)")
+    found = set(literal.findall(compare_app._PAGE))
+    assert found - variant_hues == {"#fff", "rgba(0,0,0,0)"}, \
+        sorted(found - variant_hues)
 
 
 def test_server_runs_caches_and_reports(server):

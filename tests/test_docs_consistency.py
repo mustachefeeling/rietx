@@ -257,7 +257,10 @@ SIZE_CAPS: dict[str, int | None] = {
     # wrong box.  It carries the instrument with it, because `scrollWidth` is
     # the obvious probe and is blind here, and a reader who reaches for it
     # measures zero and believes the page.  Raised rather than shaved.
-    "CLAUDE.md": 841,
+    # 841 -> 853 (WP-1429): one standing rule for the colour values the three
+    # browser surfaces share, which governs `watch/`, `compare_app.py` and
+    # `gui/` at once and so belongs to none of their rulebooks. Landed at 852.
+    "CLAUDE.md": 853,
     # 672 -> 676 (WP-1102): the Current focus rewrite at 1102's close names the
     # milestone's one break and what makes 1103 the seam's proving case.
     # 676 -> 682 (WP-1407): a new Unscheduled group, "The formats a lab still
@@ -293,7 +296,12 @@ SIZE_CAPS: dict[str, int | None] = {
     # know the writers are all that is left of 1118.  Nothing is demotable, so
     # the cap moves rather than the fact.  Landed at 711, headroom +1.
     "docs/ROADMAP.md": 719,
-    "gui/CLAUDE.md": 1036,
+    # 1036 -> 1053 (WP-1429): where the GUI's colour values live, now that
+    # they are Python and this workspace's `tokens.css` is generated from
+    # them. It governs work outside the WP that measured it — an edit to a
+    # token here is a rebuild, and an edit in the wrong file is a test
+    # failure nobody can act on without the rule. Landed at 1045.
+    "gui/CLAUDE.md": 1053,
     # 275 -> 283 (WP-1426): a third way a guard goes quiet, and the only one of
     # the three that is about the instrument rather than the assertion — a
     # browser's layout-shift entry cannot see inside a plotly div, so a

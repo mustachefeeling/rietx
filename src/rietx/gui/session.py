@@ -72,6 +72,7 @@ from ..schemas.instrument import Instrument
 from ..schemas.plan import PlanSpec, StageSpec
 from ..schemas.structure import Structure
 from ..strategy.staged import PLAN_PRESETS, resolve_plan
+from ..viz import theme
 from ..viz.compare import decimation_index
 from . import series as series_mod
 from . import symmetry
@@ -97,11 +98,6 @@ RunState = Literal["idle", "running", "cancelling"]
 #: can tell it missed some instead of silently renumbering.  The log on disk is
 #: the archive.
 EVENT_RING = 4096
-
-#: Where ``/api/recent`` is remembered.  Overridable so tests (and a sandboxed
-#: build) never touch a real home directory.  Both spellings live in
-#: :mod:`.._about` with the other name-bearing literals (WP-1062).
-STATE_DIR_ENV = _about.STATE_DIR_ENV
 
 _MAX_RECENT = 12
 
@@ -195,8 +191,10 @@ class GuiSession:
         self.project = project
         self.backend = backend
         self.solver = solver
-        self.state_dir = Path(state_dir) if state_dir is not None else Path(
-            os.environ.get(STATE_DIR_ENV) or Path.home() / _about.STATE_DIR_NAME)
+        # one expression, shared with the two Python pages that *read* the
+        # theme this session writes (WP-1429): a reader resolving a different
+        # directory is a bug that looks like the choice not sticking
+        self.state_dir = theme.state_dir(state_dir)
         #: staged uploads (WP-1014).  Session-scoped on purpose: a token is only
         #: meaningful to the process that issued it, and the directory goes away
         #: with :meth:`close` rather than accumulating in a temp dir.

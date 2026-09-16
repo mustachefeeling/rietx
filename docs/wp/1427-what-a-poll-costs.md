@@ -83,6 +83,46 @@ Browser, per poll:
 
 ### Inherited
 
+- **2026-09-16, from [1429](1429-one-palette-and-one-theme-for-three-pages.md):
+  the poll's payload changed under this WP, in both directions.** Measured on
+  this machine, `[dev]`, darwin/arm64.
+  - The `page` block shrank **262 B → 49 B** per poll. The dark palette left it
+    — the page reads its colours off its own root element now — and the theme
+    *choice* took its place. So 1430's "299 B of every poll" is stale and the
+    row cost it was compared against (735 B each) is unchanged.
+  - Every `/api/runs` now reads `state_dir/settings.json`, because the theme is
+    the one thing on the page a person changes while it is open. **16.8 µs**
+    with the file present, 4.6 µs without, against a 1.2 s poll. It is
+    uncached on purpose; if this WP's instrument says the read is worth
+    caching, the cache has to expire faster than a person notices a theme
+    switch not arriving.
+  - A new route, `/tokens.css`, is **43.6 µs** and 4972 B, rendered per request
+    and fetched once per page load rather than per poll. It carries
+    `Cache-Control: no-store` from `_send`, like every other route this server
+    answers, so a reload pays for it again.
+  - A theme change clears `shell.mtime`, which forces one extra snapshot fetch
+    and redraw on the poll that carries it. Once per switch, so it is not a
+    steady-state cost, but a benchmark that flips the theme will see it. It is
+    gated on `shell.kind === 'json'`: a legacy run's picture is an iframe, and
+    re-pointing it would refetch the 4.51-6.03 MB page WP-1402 measured.
+
+- **2026-09-16, from [1429](1429-one-palette-and-one-theme-for-three-pages.md):
+  a defect on the page this WP measures, found in its browser and not fixed
+  here.** The GUI's reflection tick rows carry no explicit colour, so they take
+  plotly's colorway — which is indexed by **position in the trace array**, and
+  the GUI's background trace is both conditional on there being a background
+  *and* toggleable by the reader (`Plot.svelte`, `shows(hidden, "bkg")`). So
+  hiding the background moves every phase's tick colour one step along the
+  colorway, on a click. Measured on the watcher, which briefly had the same
+  shape: `phase 0` went `#d62728` → `#9467bd`, and `#d62728` is **0.043** from
+  `--plot-calc` in OKLab on the light theme, against the 0.13 floor
+  `tests/test_gui_palette.py` holds every other plot colour to. The watcher
+  keeps explicit colours because of it (`PALETTES["dark"]`, with a guard in
+  `test_watch_browser.py`); the GUI still has it. The fix needs a **categorical
+  palette** the GUI does not own, which is the maintainer's question rather than
+  either WP's — it is filed here because this is the WP with the instrument.
+
+
 - **2026-09-16, from [1424](1424-a-row-that-names-its-run.md): a row does more
   per poll than it did when this WP was written.**
   - `fillRow` now writes three `title` attributes and a `<time>` element's

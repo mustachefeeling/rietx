@@ -56,6 +56,7 @@ from pathlib import Path
 
 from .. import runs as runs_mod
 from .._about import DIST_NAME, LIVE_DIR_NAME, PROJECT_SUFFIX
+from ..viz import theme as theme_mod
 from ..viz.plotlyjs import CONTENT_TYPE as PLOTLY_CONTENT_TYPE
 from ..viz.plotlyjs import plotly_js
 from ..viz.plots import PALETTES
@@ -90,13 +91,30 @@ def _page_constants() -> dict:
 
     These were ``@TOKEN@`` substitutions into the page's text while the page
     was a python string, which a file cannot carry. A literal ``.rex`` in the
-    page would be invisible to every test in the suite (``_about.py``), and
-    literal colours would make it the second answer to which curve is which —
-    a reader flipping between the watcher, the GUI and a saved figure must not
-    have to relearn it (``viz/plots.PALETTES``).
+    page would be invisible to every test in the suite (``_about.py``).
+
+    ``theme`` is the *choice* and not a resolved answer, and it rides here
+    rather than being read once at boot because it is the one thing on this
+    page a person changes while the page is open: the GUI writes it
+    (WP-1044), every poll carries it, and the page re-stamps without a reload
+    (WP-1429).  Every colour a *curve* is drawn in left this payload with that
+    WP — those are custom properties the page reads off its own root element,
+    so one stylesheet answers for all three surfaces.
+
+    ``ticks`` did not, and the reason is the one WP-1429 could not settle. A
+    reflection row per phase is a **categorical** set, and the GUI has none to
+    lend: its `--plot-*` tokens each name one role, and its own tick rows take
+    plotly's colorway, which is indexed by position in the trace array — so
+    the row a phase owns changes colour at the stage that frees the background
+    (measured, and `#d62728` at 0.043 from `--plot-calc` on the light theme,
+    a third of the distance the curve colours themselves are held apart by). This page keeps the phase list it has always used,
+    :data:`~rietx.viz.plots.PALETTES`, until somebody decides what a shared
+    categorical palette should be.
     """
     return {"suffix": PROJECT_SUFFIX, "dist": DIST_NAME,
-            "palette": PALETTES["dark"]}
+            "theme": theme_mod.theme_choice(),
+            "ticks": {"one": PALETTES["dark"]["tick"],
+                      "phase": PALETTES["dark"]["phase"]}}
 
 
 #: How long a walk's result stands before the next request pays for another.
@@ -254,6 +272,13 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
         name = path.lstrip("/")
         if name in STATIC_FILES:
             self._static(name)
+            return
+
+        if path == theme_mod.CSS_ROUTE:
+            # generated rather than served off disk: `viz/theme.py` is the
+            # authority and `gui/src/tokens.css` is the copy, not the reverse
+            self._send(theme_mod.tokens_css().encode("utf-8"),
+                       theme_mod.CSS_CONTENT_TYPE)
             return
 
         if path == "/plotly.js":

@@ -255,6 +255,21 @@ answers `127.0.0.1` could read the run ids first. A same-origin fetch sends no
 `Origin` and a command-line client sends none either, so `curl -X POST` against
 `127.0.0.1` works unchanged.
 
+### Colours and the theme
+
+The page draws in the GUI's colours. The chrome takes the same tokens and the
+plot takes the same curve colours, so a reader with the watcher and the GUI
+open at once sees one fit rather than two colour schemes. The tokens come out
+of the package, on a `/tokens.css` route. The GUI imports a committed copy
+generated from the same module.
+
+The theme is whichever the GUI stored, in `ui.theme` in
+`~/.rietx/settings.json` (`$RIETX_STATE_DIR` moves that directory). Switch it
+in the GUI and an open watch page follows on its next poll, 1.2 s, chrome and
+plot together. This page has no theme control and writes the setting nowhere:
+one writer per fact, and the GUI is it. With nothing stored the choice is
+`system`, and the page follows the browser's `prefers-color-scheme`.
+
 ### The JSON underneath
 
 Seven routes carry everything the page shows, and you can read any of them
@@ -319,6 +334,17 @@ and lists nothing:
 
 `rietx.viz.compare.run` is the same computation headless, and takes the same
 standard and variant keys.
+
+### The variant colours
+
+The chrome is the GUI's, through the same `/tokens.css` the watcher links, and
+the theme is read when the page is served. This page has no poll, so switching
+in the GUI reaches it on a reload.
+
+The ten variant curves keep colours of their own. A categorical set of ten is
+one the GUI has no answer to lend: its only categorical set is the history
+graph's five lanes, and ten hues at one lightness cannot be told apart the way
+five at 72° can.
 
 ## `rietx gui`: the refinement GUI
 

@@ -1,6 +1,6 @@
 # WP-1429 — the GUI's tokens and the GUI's theme, on the two python pages
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: ✅ 2026-09-16 — one token module, both Python pages on the GUI's colours and its theme, and the watcher has a light theme
 Depends on: 1430 (the watch page as files); 1426 soft (the browser harness)
 
 ## Goal
@@ -80,77 +80,35 @@ resolved theme and the page re-stamps on change, so no reload is needed.
 The plot follows the theme. The pages embed both palettes and `plotly.react`
 with the resolved theme's hues, on load and on change.
 
-### Inherited
+### What the four WPs before this one left
 
-- **2026-09-16, from [1425](1425-the-panels-are-the-readers-to-size.md): two
-  grips, four more hard-coded greys, and a control that has states.** The
-  watcher page's two seams are splitters now, and `.grip` in `watch.css`
-  carries its own literals: `#1c1c1c` at rest, `#31405a` on hover, `#3d4a66`
-  for `:focus-visible` and while dragging, `#2a3140` when the pane it sizes is
-  collapsed. The two toggle buttons those replaced are gone, so
-  `.toggle[aria-pressed="true"]`'s `#2a3140`/`#3d4a66` pair is gone with them
-  and the count of literals is roughly unchanged. What is new for this WP is
-  that the grip is the first control on the page with **four** states rather
-  than two, so whatever token set lands has to name a focus ring as well as a
-  hover — and `:focus-visible` here is load-bearing rather than cosmetic, the
-  grip being keyboard-operable (arrows, Home, End, Enter) and 5 px wide.
+Checked against the tree on 2026-09-16, the day they landed and the day this
+WP starts; every entry below is still true.
 
-- **2026-09-16, from [1424](1424-a-row-that-names-its-run.md): one more palette
-  consumer on the watcher page.**
-  - `drawSnapshot` now writes a plotly annotation for the drawn-point count,
-    using `HUE.fg` and `withAlpha(HUE.ground, 0.72)` — the same two the legend
-    took in WP-1426. Nothing new is hardcoded, but it is a third place the
-    palette reaches inside one function.
-  - The page's own colours in `watch.css` are unchanged by 1424; the state pill
-    words are still the six literals there.
-
-- **2026-09-16, from [1426](1426-still-under-resize-and-across-a-stage.md): one
-  new colour helper, and one hardcoded colour that is yours to take.**
-  - The legend moved inside the paper, so its ground now sits over the data and
-    needs an opacity. `watch-core.mjs` gained **`withAlpha(hex, alpha)`**, which
-    composes `rgba(...)` from a palette token so the colour keeps one authority;
-    anything it cannot parse comes back unchanged, a palette being data off the
-    wire. `watch.mjs` uses `withAlpha(HUE.ground, 0.72)`. Four node cases in
-    `tests/watch_core.test.mjs`.
-  - **`viz/html.py` got a literal `"rgba(255,255,255,0.85)"` for the same job**,
-    because that page draws under plotly's `simple_white` template and has no
-    `HUE` to quote. It is a hardcoded colour in a file whose other colours all
-    come from `PALETTES`, and it is exactly the kind of second authority this
-    WP exists to remove. Folding it into the token story is a one-line change
-    once the light palette carries a ground.
-  - The 0.72 and the 0.85 were chosen by looking at the rendered pages, not
-    measured. If this WP sets opacity tokens, they should be its numbers rather
-    than these.
-
-- **2026-09-16, from [1430](1430-the-page-is-a-file.md): the page is files, and
-  three of its names are not the ones 1430's plan said.** `watch.py` is the
-  package `watch/`, and the page is `watch/static/`: `index.html`, `watch.css`,
-  `watch.mjs` (the document) and `watch-core.mjs` (everything that touches no
-  DOM). `rietx.watch` imports unchanged. What to carry:
-  - **The DOM half is `.mjs`, not `.js`.** `node --check` reads a `.js` as
-    CommonJS, where the `import` of `watch-core.mjs` is a syntax error. A
-    browser cares about `type="module"` and the content type, never the
-    extension.
-  - **Node cases live in `tests/watch_core.test.mjs`**, not beside the module:
-    hatchling ships everything under `src/rietx`. They are invoked from
-    `tests/test_watch_app.py::test_the_pure_half_of_the_page_is_unit_tested`
-    (15 cases today), which passes `--test-reporter=tap` because node picks its
-    reporter by whether stdout is a terminal.
-  - **`@SUFFIX@`, `@DIST@` and `@HUE@` are gone.** A file cannot carry a token,
-    so the three ride on `/api/runs` as `payload.page.{suffix,dist,palette}`,
-    read at boot into the module-level `HUE` and `DIST`. That is 299 B of every
-    poll, against rows of 735 B each.
-  - **A new file under `static/` needs a row in `watch.STATIC_FILES`** and
-    nothing else — the route, the content type and the `.gitignore` guard all
-    read that dict. `*.html` in `.gitignore` swallowed `index.html` on the way
-    in, the sixth committed file that one rule has taken.
-  - Half of this WP's watcher half is done: the page takes
-    `viz/plots.PALETTES["dark"]` off the payload rather than carrying literals,
-    so a theme is a matter of which palette is sent. The page's own greys are
-    still literals, in `watch.css`. `compare_app.py` is the one page left as a
-    string in python, and this is the recipe if 1429 wants to move it.
-  - `tests/test_watch_browser.py` took no diff and stays the bar: if it
-    moves, the page moved.
+- **The watch page is four files** (WP-1430), `watch/static/`: `index.html`,
+  `watch.css`, `watch.mjs` (the document) and `watch-core.mjs` (everything that
+  touches no DOM). A new file needs a row in `watch.STATIC_FILES` and nothing
+  else — the route, the content type and the `.gitignore` guard all read that
+  dict. Node cases live in `tests/watch_core.test.mjs`, invoked from
+  `tests/test_watch_app.py`. So half the watcher's half of this WP is already
+  done: the page takes `PALETTES["dark"]` off `/api/runs` as
+  `payload.page.palette` rather than carrying literals, and a theme is a matter
+  of what is sent. Its own greys are still literals, in `watch.css`.
+- **The grip has four states** (WP-1425), so the token set has to name a focus
+  ring as well as a hover: `#1c1c1c` at rest, `#31405a` on hover, `#3d4a66` for
+  `:focus-visible` and while dragging, `#2a3140` when the pane it sizes is
+  collapsed. `:focus-visible` is load-bearing rather than cosmetic — the grip is
+  keyboard-operable and 5 px wide.
+- **`withAlpha(hex, alpha)`** (WP-1426) composes `rgba(...)` from a palette
+  token, so a translucent ground keeps one authority; anything it cannot parse
+  comes back unchanged. `watch.mjs` uses it for the legend and, since WP-1424,
+  for the drawn-point annotation.
+- **`viz/html.py` carries a literal `"rgba(255,255,255,0.85)"`** for that same
+  job, in a file whose other colours all come from `PALETTES`. It is the second
+  authority this WP exists to remove, and it is one line once a light palette
+  carries a ground.
+- **The 0.72 and the 0.85 were chosen by looking**, not measured. If this WP
+  sets opacity tokens they should be its own numbers.
 
 ## Non-goals
 
@@ -166,23 +124,23 @@ with the resolved theme's hues, on load and on change.
 
 ## Tasks
 
-- [ ] The token module: the GUI's values, both themes, chrome and plot, with
+- [x] The token module: the GUI's values, both themes, chrome and plot, with
       a CSS emitter; `gui/src/tokens.css` generated and committed, imported by
       `app.css`, pinned equal to the emitter by a test;
       `test_gui_palette.py` reading from one authority
-- [ ] `tokens.css` route on both python servers; every hex literal in the
+- [x] `tokens.css` route on both python servers; every hex literal in the
       watch page's stylesheet and `compare_app.py`'s template replaced by a
       token, and a test that none remains
-- [ ] The theme choice read from `settings.json`, stamped on both pages,
+- [x] The theme choice read from `settings.json`, stamped on both pages,
       `system` through the media query, carried on `api/runs` so an open watch
       page follows a change; the plot follows the theme
-- [ ] Browser test: the watch page in light and dark, the plot's calculated
+- [x] Browser test: the watch page in light and dark, the plot's calculated
       line colour equal to the GUI's token in each, and a theme change in
       `settings.json` reaching the page within two polls
-- [ ] Manual: `cli.md` § `rietx watch` and § `rietx compare` say the pages
+- [x] Manual: `cli.md` § `rietx watch` and § `rietx compare` say the pages
       follow the GUI's theme; `gui/CLAUDE.md` § House style gains the one-line
       rule that the token values live in python and `tokens.css` is generated
-- [ ] Skill: none. Colour reaches no agent.
+- [x] Skill: none. Colour reaches no agent.
 
 ## Acceptance
 
@@ -206,6 +164,149 @@ skip.
   215–219 and 313.
 
 ## Handover log
+
+- **2026-09-16** — **the three pages agree about colour, and two of them
+  follow the theme the GUI stores.** Somebody with `rietx watch` and the GUI
+  open beside each other was looking at one fit in two colour schemes, on two
+  different darks, with the calculated curve orange in one window and red in
+  the other. It is one scheme now, because the colour *values* moved into
+  Python and everything reads them from there. The watch page has a light
+  theme for the first time, and switching in the GUI reaches an open watch tab
+  on its next poll without a reload. One thing did not move and the reason is
+  worth the maintainer's attention: the reflection rows keep the phase colours
+  they always had, because a *categorical* palette is the one thing the GUI has
+  none of to lend, and the obvious substitute turned out to be unsafe.
+
+  **Done.** `viz/theme.py` owns `TOKENS` for both themes, chrome and plot, with
+  the `app.css` comments moved across as `NOTES` and emitted into the file;
+  `tokens_css()` writes the three blocks and `gui/src/tokens.css` is generated
+  and committed, `app.css` importing it and keeping everything that is not a
+  colour. `theme_choice()` reads `ui.theme` out of `state_dir/settings.json`
+  and never writes it. Both Python servers serve `theme.CSS_ROUTE`. The watch
+  page reads its plot colours off the root element per draw
+  (`paletteFrom` in `watch-core.mjs`, the shape of the GUI's `curveColors`),
+  stamps `data-theme` from the poll and drops `shell.mtime` when the stamp
+  moves, which is what repaints the canvas; `compare` is stamped server-side at
+  load. `viz/html.py`'s literal legend ground became `with_alpha(hue["ground"],
+  0.85)` once the light figure palette declared a `ground`. `gui/session.py`
+  now calls `theme.state_dir` rather than resolving `$RIETX_STATE_DIR` itself.
+
+  **Measured** (`[dev]` + `playwright`, darwin/arm64, machine otherwise idle —
+  checked with `ps`).
+
+  - Fast selection **5202 passed, 132 skipped in 2:52**, on **current main
+    merged into this branch** — the tree that lands, which branch protection
+    never builds (`strict: false`). WP-1338 landed under this branch while it
+    was open and brought four of those passes with it; the branch alone
+    measured 5197/132 earlier in the session.
+  - The WP's acceptance selection **156 passed**, against **124 passed and 1
+    skipped** on `main` at the session's start, so passed+skipped moved **+31**:
+    **14 items this WP added** (4 `test_gui_palette`, 3 `test_watch_app`, 3
+    `test_compare_ui`, 4 `test_watch_browser`), **1 it removed** (the lane pair
+    declared twice, which the emitter now makes structural), and **19 browser
+    rows the baseline skipped** as a module and this venv runs. Those 19 and my
+    4 **skip in CI**, which is the skip the acceptance asked this entry to
+    name. Node cases 31 → 34. vitest 584 and svelte-check 0 errors, both
+    unchanged.
+  - **The full suite did not run, deliberately.** Nothing here reaches the
+    forward model, a solver or a reader: the only non-GUI edits are a `ground`
+    key on the light figure palette that `_ground_rc` reads on the dark branch
+    only, a legend colour whose bytes are identical to the literal it replaced,
+    and a state-dir expression that resolves what it always did.
+  - Colour literals: `watch.css` **31 distinct → 0**, the one exemption being
+    the dialog's black scrim (a scrim darkens, so it is not a theme colour, as
+    the GUI's own two backdrops are not). `compare_app.py` **29 → 12**: the ten
+    variant hues, `#fff` on a filled accent button, and plotly's transparent
+    paper.
+  - The poll got smaller and slightly dearer. `page` went **262 B → 125 B** per
+    poll: every curve colour left it and the tick rows' two kept their place; `theme_choice()` costs **16.8 µs** with a
+    settings file present and 4.6 µs without, against a 1.2 s poll.
+    `tokens_css()` is **43.6 µs** and 4972 B, once per page load.
+  - Looked at in chromium, both themes, both pages, plus the confirm dialog.
+
+  **The tick rows, and why they are the one thing that did not change.** The
+  page briefly handed them to plotly's colorway, which is what the GUI's tick
+  rows take and looked like the consistent answer. The review caught it and the
+  browser settled it: the colorway is indexed by position in the **trace
+  array**, and the background trace is conditional, so the stage that frees the
+  background moved every row one step along it — `phase 0` from `#d62728` to
+  `#9467bd`, mid-run, with nobody touching anything. That colour is also
+  **0.043** from `--plot-calc` in OKLab on the light theme, a third of the
+  distance every *curve* colour is held to, which is the two-marks-in-one-red
+  shape WP-1210 exists to prevent. Pinning the array's shape does not help: a `visible: false` trace
+  does not hold its colorway slot, measured. Putting the tick traces **first**
+  does, and `legendrank` restores the reader's legend order, also measured.
+
+  So the choice was between three sources, and **all three collide somewhere**
+  once the curves are the GUI's — the nearest token to any of their colours,
+  in OKLab, across both themes:
+
+  | source | nearest | stable across a stage |
+  |---|---|---|
+  | plotly's colorway, as drawn | `#d62728` **0.043** from `--plot-calc`, light | **no** |
+  | plotly's colorway, ticks first + `legendrank` | `#1f77b4` **0.069** from `--plot-diff`, light | yes |
+  | `PALETTES["dark"]["phase"]`, what shipped before | `#ff7b7b` **0.074** from `--plot-calc`, dark | yes |
+
+  None of the three is a floor *violation*: `test_gui_palette`'s `CURVES` set is
+  curves a reader tells apart, and a tick row is a 7 px open line on an axis
+  band of its own. So the discriminator is the second column, and between the
+  two that pass it the status quo is both the furthest away and the smallest
+  change. The rows keep `PALETTES["dark"]`, and `test_watch_browser` has a guard
+  that fails when the colour is dropped (checked by dropping it).
+
+  **This is a question for the maintainer and it is the GUI's too.** The GUI's
+  tick rows take the colorway today, and its background trace is not only
+  conditional but **reader-toggleable**, so a click moves every phase's colour
+  there. Filed into 1427's mailbox as the page it will be measuring.
+
+  **Two departures from this WP's own sketch**, both deliberate. It said
+  `api/runs` would carry the *resolved* theme: it carries the **choice**,
+  because no server can see the machine a page is open on, and `system` is
+  answered by the `prefers-color-scheme` block the emitter already writes. And
+  it said the pages would embed both palettes: they read **one**, off their own
+  root element at draw time, so there is no second palette on the wire at all.
+
+  **Deliberately not generalised**, each said so in the code it sits in: every
+  categorical palette on these pages — `compare`'s ten variant hues and the
+  watcher's four phase colours alike — because the GUI's only categorical set is
+  five lanes at 72°, and a set of four or ten is one this WP would have had to
+  invent; `viz/plots.PALETTES`, which is the figure palette and a
+  non-goal; `compare_app.py`'s page, still a string; `curveColors`' TypeScript
+  fallbacks, pinned to the light tokens by a new test rather than generated;
+  and `model/compiled.py`'s own copy of the state-dir expression, which is a
+  cache root and would cost a hot-path module an import of `viz` to share.
+
+  **The review pass changed three things and one of them was a defect**
+  (`/code-review high --fix`). It found the legacy-iframe reload: clearing
+  `shell.mtime` on a theme change re-pointed a pre-WP-1402 run's `frame.src`,
+  refetching the 4.51-6.03 MB page for a picture that takes no colour from the
+  theme, so the clear is now gated on `shell.kind === 'json'`. It moved a
+  comment block my insertion had orphaned onto the wrong function. And it
+  corrected a claim I had written into 1427's mailbox **without checking** —
+  that `/tokens.css` carries no `Cache-Control`; it carries `no-store`, like
+  every route this server answers. The fourth finding, the tick colorway, is
+  the one above; it was reported unfixed and is what sent me to the browser.
+
+  **Gotchas.**
+
+  - The first paint has no `data-theme` on it, so an explicit *light* choice on
+    a dark system flashes dark for one fetch. That is the GUI's behaviour too,
+    and `app.css`'s comment is where the argument lives.
+  - `tokens.css` is generated. An edit to a colour goes in `viz/theme.py`, then
+    `python -m rietx.viz.theme > gui/src/tokens.css`, then
+    `npm --prefix gui run build` — the dist digest covers `src/**`, so a
+    forgotten rebuild fails `test_gui_dist.py` rather than going quiet.
+  - The browser file carries no `slow` mark, so in a venv with playwright it
+    joins the fast suite and costs it about 112 s.
+
+  **Next**, in order: **1427** takes the poll this WP just changed, and the two
+  numbers above are its starting point rather than a result. Then **1428**,
+  which is the maintainer's decision first. Two questions for the maintainer
+  are this WP's own. The **categorical palette** above, which is a real one and
+  reaches the GUI as much as these two pages. And a cosmetic one: whether
+  `abandoned` sharing the warning hue with `cancelled` (stepped towards
+  `--muted`) still reads as the distinction it used to make in gold against
+  gold.
 
 - **2026-09-16** — created, from the maintainer's question after the demo job;
   revised the same day: the pages adopt the GUI's tokens and the figure

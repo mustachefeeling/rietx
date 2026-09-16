@@ -5,7 +5,7 @@
 // in `watch-core.mjs`, where the suite can call them.
 import {LAYOUT_DEFAULT, ago, axisOf, clampSize, clock, coalesce, deltaTitle,
         dragged, esc, nextLayout, num, parseLayout, pct, rangesOf, rowName,
-        runLabel, runTitle, withAlpha} from './watch-core.mjs';
+        paletteFrom, runLabel, runTitle, withAlpha} from './watch-core.mjs';
 
 const $ = id => document.getElementById(id);
 let SINGLE = null;          // set when the served directory is itself a run
@@ -28,13 +28,20 @@ let newest = null;
 // plotly is fetched once per page, on the first run that needs it — never
 // for the run list alone, which would be 4 MB to draw a table
 let plotlyPromise = null;
-// What this build is called and what it draws with, read off the first
-// `api/runs` (WP-1430). They were `@TOKEN@` substitutions into the page's text
-// while the page was a python string; a file cannot carry those, and a literal
-// here would be a second authority for a fact `_about.py` and
-// `viz/plots.PALETTES` already own.
-let HUE = null;             // PALETTES['dark'] — one answer for three pages
+// What this build is called, read off the first `api/runs` (WP-1430). It was
+// a `@TOKEN@` substitution into the page's text while the page was a python
+// string; a file cannot carry one, and a literal here would be a second
+// authority for a fact `_about.py` already owns.
 let DIST = '';              // the distribution name
+// The reflection rows' colours, the one categorical set on this page and the
+// one thing here that is still the *figure* palette's (`_page_constants` says
+// why). Theme-blind on purpose: a mid-tone list that reads on either ground
+// beats a set that changes under the reader at a stage boundary.
+let TICKS = null;
+// The theme *choice* the GUI stored, as it was last applied here (WP-1429).
+// The page never writes it: the GUI owns the setting, this page follows it,
+// and `null` is "nothing applied yet" rather than a choice.
+let THEME = null;
 // the console is a tail and not an archive; the log on disk is the archive
 const MAX_LINES = 2000;
 //: WP-1423's `{runs, run}`, read once at boot and then removed: the shape
@@ -207,25 +214,48 @@ function ensurePlotly() {
   return plotlyPromise;
 }
 
+// The colours as they are *now*, off the root element's custom properties
+// (WP-1429). Read per draw rather than held: a theme change restyles the page
+// by CSS alone, and a canvas keeps whatever it was painted with, so the value
+// held at boot is the wrong one the moment somebody switches in the GUI.
+function hues() {
+  const style = getComputedStyle(document.documentElement);
+  return paletteFrom(name => style.getPropertyValue(name));
+}
+
+// Follow the GUI's stored choice: stamp an explicit one on the root, and let
+// `system` fall through to the `prefers-color-scheme` block `tokens.css`
+// declares — no server can see the machine the page is open on, and CSS
+// answers that question correctly without being asked. Returns whether the
+// stamp moved, which is what tells the caller to repaint the canvas.
+function applyTheme(choice) {
+  if (choice === THEME) return false;
+  THEME = choice;
+  const root = document.documentElement;
+  if (choice === 'light' || choice === 'dark') root.dataset.theme = choice;
+  else delete root.dataset.theme;
+  return true;
+}
+
 // Every mark below is `viz/html.py`'s, mode for mode and width for width.
 // This page and the emailable one are two pictures of one fit, and a reader
 // who flips between them must not have to relearn which curve is which.
-function snapshotTraces(snap) {
+function snapshotTraces(snap, hue) {
   const tt = snap.two_theta;
   const traces = [
     {x: tt, y: snap.y_obs, name: 'observed', mode: 'markers',
-     type: 'scattergl', marker: {size: 3, color: HUE.obs}},
+     type: 'scattergl', marker: {size: 3, color: hue.obs}},
     {x: tt, y: snap.y_calc, name: 'calculated', mode: 'lines',
-     type: 'scattergl', line: {width: 1.2, color: HUE.calc}},
+     type: 'scattergl', line: {width: 1.2, color: hue.calc}},
   ];
   if (snap.y_bkg.some(v => v)) {
     traces.push({x: tt, y: snap.y_bkg, name: 'background', mode: 'lines',
                  type: 'scattergl',
-                 line: {width: 1, dash: 'dash', color: HUE.bkg}});
+                 line: {width: 1, dash: 'dash', color: hue.bkg}});
   }
   traces.push({x: tt, y: snap.delta, name: 'Δ/σ', mode: 'lines',
                type: 'scattergl', yaxis: 'y2',
-               line: {width: 1, color: HUE.diff}});
+               line: {width: 1, color: hue.diff}});
   // the rows live on an axis of their own under the Δ/σ panel, one unit a
   // row: they are read against the residual above them and must not move
   // when it does
@@ -234,8 +264,8 @@ function snapshotTraces(snap) {
     const row = snap.ticks[name];
     // one row has nothing to be told apart from, so colour stays for when
     // there are several
-    const colour = names.length === 1 ? HUE.tick
-                                      : HUE.phase[i % HUE.phase.length];
+    const colour = names.length === 1 ? TICKS.one
+                                      : TICKS.phase[i % TICKS.phase.length];
     // the cap is in the legend, because a silent cap reads as coverage
     const label = row.n_total > row.two_theta.length
       ? `hkl: ${name} (${row.two_theta.length} of ${row.n_total})`
@@ -258,7 +288,7 @@ async function drawSnapshot(id) {
   // a poll can reach here before the first `api/runs` has answered, and an
   // undrawn write is what `false` already means: the next poll draws it,
   // rather than this one throwing on a colour that is not in yet
-  if (!HUE) return false;
+  if (!TICKS) return false;
   const plotly = await ensurePlotly();
   const div = $('plot');
   if (!div || currentId() !== id) return true;
@@ -280,24 +310,27 @@ async function drawSnapshot(id) {
   const nrows = Math.max(1, Object.keys(snap.ticks || {}).length);
   // react, never newPlot: it keeps the reader's zoom across a stage, which is
   // the whole reason the picture stopped being a page that reloads
-  plotly.react(div, snapshotTraces(snap), {
+  const hue = hues();
+  plotly.react(div, snapshotTraces(snap, hue), {
     margin: {l: 58, r: 14, t: 8, b: 56},   // room for the 2θ title
     // expectation 1 under a correct model, so the residual reads on an
     // absolute statistical scale (Toby 2024) — the same band `viz/html.py`
     // draws
     shapes: [{type: 'rect', xref: 'paper', yref: 'y2', x0: 0, x1: 1,
-              y0: -3, y1: 3, line: {width: 0}, fillcolor: HUE.band,
+              y0: -3, y1: 3, line: {width: 0}, fillcolor: hue.band,
               opacity: 0.15, layer: 'below'}],
-    paper_bgcolor: HUE.ground, plot_bgcolor: HUE.ground,
-    font: {color: HUE.fg, family: 'ui-monospace, Menlo, monospace', size: 11},
-    xaxis: {anchor: 'y3', title: {text: '2θ (°)'}, gridcolor: HUE.zero,
+    // transparent, as the GUI's plot is: the page's own background is a token
+    // and a paper colour would be a second answer to what this panel sits on
+    paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+    font: {color: hue.fg, family: 'ui-monospace, Menlo, monospace', size: 11},
+    xaxis: {anchor: 'y3', title: {text: '2θ (°)'}, gridcolor: hue.grid,
             zeroline: false, range: range.x, autorange: false},
     yaxis: {domain: [0.41, 1], title: {text: 'intensity'},
-            gridcolor: HUE.zero, zeroline: false, range: range.y,
+            gridcolor: hue.grid, zeroline: false, range: range.y,
             autorange: false},
     yaxis2: {domain: [0.10, 0.36], anchor: 'x',
              title: {text: deltaTitle(snap.weighted)},
-             gridcolor: HUE.zero, zerolinecolor: HUE.zero,
+             gridcolor: hue.grid, zerolinecolor: hue.zero,
              range: range.y2, autorange: false},
     yaxis3: {domain: [0, 0.07], anchor: 'x', visible: false,
              range: [0.5 - nrows, 0.5], autorange: false, fixedrange: true},
@@ -311,10 +344,11 @@ async function drawSnapshot(id) {
     // entry reports it, the div's own box never having changed. Anchored here
     // the area's top is the declared 8 px margin at every width, and the
     // picture is 38 px taller at 1400 and 131 px at 700. `bgcolor` is the
-    // ground the paper already carries, at an opacity: opaque, the five rows
-    // it wraps to on a narrow panel hid the tallest peak behind them.
+    // page's own ground at an opacity, the paper being transparent since
+    // WP-1429: opaque, the five rows it wraps to on a narrow panel hid the
+    // tallest peak behind them.
     legend: {orientation: 'h', y: 1, yanchor: 'top', x: 0, xanchor: 'left',
-             bgcolor: withAlpha(HUE.ground, 0.72)},
+             bgcolor: withAlpha(hue.ground, 0.72)},
     // How much of the pattern is on screen, in the corner of the picture it
     // is a fact about. It shared the strip's one flexible slot with the path
     // until WP-1424, where the two of them were 1127 px of sentence in a
@@ -324,8 +358,8 @@ async function drawSnapshot(id) {
     annotations: [{xref: 'paper', yref: 'paper', x: 1, y: 1,
                    xanchor: 'right', yanchor: 'top', showarrow: false,
                    text: `${snap.n_drawn} of ${snap.n_points} pts drawn`,
-                   font: {size: 10, color: HUE.fg},
-                   bgcolor: withAlpha(HUE.ground, 0.72)}],
+                   font: {size: 10, color: hue.fg},
+                   bgcolor: withAlpha(hue.ground, 0.72)}],
     // one revision per run: a redraw of the same run keeps the zoom, and
     // opening a different run starts fresh
     uirevision: id,
@@ -749,16 +783,20 @@ function currentId() {
   const m = location.hash.match(/^#\/run\/([0-9a-f]+)$/);
   return m ? m[1] : (SINGLE || newest);
 }
-// The page's constants, off whichever `api/runs` answers first. Once, and
-// from any of them rather than only the boot fetch: every poll carries them,
-// and a boot fetch that fails would otherwise leave `HUE` null for the life of
-// the tab, with `drawSnapshot` declining every write while the list and the
-// log recovered on the next poll.
+// The page's constants, off whichever `api/runs` answers first — every poll
+// carries them, so a failed boot fetch costs nothing the next poll does not
+// repair. The name and the suffix are read once; the *theme* is read every
+// poll, because it is the one thing here a person can change while the page is
+// open, and a change reaches this tab through the payload it already fetches
+// rather than through a reload (WP-1429).
 function readPage(payload) {
-  if (HUE || !payload.page) return;
-  HUE = payload.page.palette;
-  DIST = payload.page.dist;
-  setText($('empty-suffix'), payload.page.suffix);
+  if (!payload.page) return false;
+  if (!DIST) {
+    DIST = payload.page.dist;
+    TICKS = payload.page.ticks;
+    setText($('empty-suffix'), payload.page.suffix);
+  }
+  return applyTheme(payload.page.theme);
 }
 
 let refreshing = false;
@@ -769,7 +807,12 @@ async function refresh() {
     const r = await fetch('api/runs', {cache: 'no-store'});
     if (!r.ok) return;
     const payload = await r.json();
-    readPage(payload);
+    // a theme that moved repaints the canvas, which CSS cannot do for it:
+    // the picture is the one thing on this page a stylesheet does not reach.
+    // The snapshot only: a legacy run's picture is a self-contained page that
+    // takes no colour from here, and re-pointing its frame would refetch the
+    // megabytes WP-1402 measured and lose the reader's place inside it.
+    if (readPage(payload) && shell.kind === 'json') shell.mtime = null;
     setText($('root'), 'scanned ' + payload.root);
     rows = new Map(payload.runs.map(run => [run.run_id, run]));
     newest = payload.runs.length ? payload.runs[0].run_id : null;

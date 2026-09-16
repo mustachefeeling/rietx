@@ -1,4 +1,13 @@
-:root { color-scheme: dark; }
+/* Every colour here is a token from `tokens.css`, which the server emits
+   from `viz/theme.py` — the values the GUI is drawn from (WP-1429). A reader
+   with this page and the GUI open side by side sees one fit, and before this
+   the two disagreed about which curve was which and about which dark they sat
+   on. The roles this page needs beyond the GUI's nine — a row hover, a
+   selected row, four grip states, six state pills — are `color-mix` over those
+   nine rather than tokens of their own, because a token the GUI never reads
+   would be a declared name with no writer.
+
+   `color-scheme` comes with the theme, from `tokens.css`. */
 /* Two rules keep this page still (WP-1423). Nothing here is rewritten
    wholesale: rows, slots and the plot are patched, so the scroll, hover
    and zoom the reader holds survive a poll. And no dimension is derived
@@ -6,18 +15,19 @@
    bar and the strip are one clipped line each, and the plot's axes come
    from the data. */
 body { margin:0; font-family: ui-monospace, Menlo, monospace; font-size:12px;
-       background:#111; color:#cdc; display:flex; flex-direction:column;
+       background:var(--bg); color:var(--fg); display:flex; flex-direction:column;
        height:100vh; overflow:hidden; }
-a { color:#9ad; text-decoration:none; }
+a { color:var(--accent); text-decoration:none; }
 a:hover { text-decoration:underline; }
-#bar { background:#1c1c1c; border-bottom:1px solid #2c2c2c; padding:0 12px;
-       display:flex; gap:12px; align-items:center; flex:0 0 auto;
+#bar { background:var(--panel); border-bottom:1px solid var(--line);
+       padding:0 12px; display:flex; gap:12px; align-items:center; flex:0 0 auto;
        height:29px; white-space:nowrap; }
-#root { color:#777; flex:1 1 auto; min-width:0; overflow:hidden;
+#root { color:var(--muted); flex:1 1 auto; min-width:0; overflow:hidden;
         text-overflow:ellipsis; }
-button { font: inherit; color:#cdc; background:#242424; cursor:pointer;
-         border:1px solid #3a3a3a; border-radius:4px; padding:2px 9px; }
-button:hover { background:#2c2c2c; }
+button { font: inherit; color:var(--fg); background:var(--panel); cursor:pointer;
+         border:1px solid var(--line); border-radius:4px; padding:2px 9px; }
+/* the GUI's one hover, over this page's filled button rather than its ghost */
+button:hover { background:color-mix(in srgb, var(--accent) 12%, var(--panel)); }
 #main { flex:1 1 auto; display:flex; min-height:0; }
 /* The list is one panel and the run the other, and the seam between them is
    the reader's to drag (WP-1425). `--list` is what the grip writes, in px;
@@ -29,24 +39,31 @@ button:hover { background:#2c2c2c; }
    would have moved the seam 15 px and reported 16. The log's padding is 12 of
    them. */
 #runs { flex:0 0 var(--list, 72ch); overflow:auto; scrollbar-gutter:stable;
-        border-right:1px solid #2c2c2c; box-sizing:border-box; }
+        border-right:1px solid var(--line); box-sizing:border-box; }
 #run { flex:1 1 auto; min-width:0; display:flex; flex-direction:column; }
 body[data-list="closed"] #runs,
 body[data-single] #runs, body[data-single] #grip-list { display:none; }
 /* The grip flows inline, taking its 5 px out of the row: an absolute grip
    inside `overflow: auto` scrolls away from the edge it marks (WP-1029). It
    is the whole control now — the two toggle buttons it replaced are gone. */
-.grip { flex:0 0 5px; background:#1c1c1c; border:0; padding:0;
+/* Four states and one hue: the accent, at four strengths over the panel the
+   grip sits in. It is the only control on this page with more than two, and
+   `:focus-visible` is load-bearing rather than cosmetic — the grip is
+   keyboard-operable and 5 px wide. The ring is the GUI's own
+   (`app.css`'s `.help:focus-visible`), inset so a 5 px control keeps it. */
+.grip { flex:0 0 5px; background:var(--panel); border:0; padding:0;
         touch-action:none; }
-.grip:hover { background:#31405a; }
-.grip:focus-visible { background:#3d4a66; outline:1px solid #6b83b3;
-                      outline-offset:-1px; }
-.grip.dragging { background:#3d4a66; }
+.grip:hover { background:color-mix(in srgb, var(--accent) 30%, var(--panel)); }
+.grip:focus-visible { outline:1px solid var(--accent); outline-offset:-1px;
+                      background:color-mix(in srgb, var(--accent) 45%,
+                                           var(--panel)); }
+.grip.dragging { background:color-mix(in srgb, var(--accent) 45%, var(--panel)); }
 .grip.v { cursor:col-resize; }
 .grip.h { cursor:row-resize; }
 /* a collapsed pane's grip is the only way back to it, so it says so */
-.grip.closed { background:#2a3140; }
-.grip.closed:hover { background:#3d4a66; }
+.grip.closed { background:color-mix(in srgb, var(--accent) 18%, var(--panel)); }
+.grip.closed:hover { background:color-mix(in srgb, var(--accent) 45%,
+                                          var(--panel)); }
 table { border-collapse:collapse; width:100%; table-layout:fixed; }
 /* Under `table-layout: fixed` a declared width is the cell's whole box, so
    every column here is its worst content plus the 14 px the cell pads with.
@@ -58,25 +75,39 @@ table { border-collapse:collapse; width:100%; table-layout:fixed; }
    instead. */
 col.c-state { width:13ch; } col.c-stage { width:15ch; }
 col.c-rwp { width:10ch; } col.c-gof { width:9ch; } col.c-started { width:11ch; }
-th { text-align:left; color:#777; font-weight:normal; padding:6px 7px;
-     border-bottom:1px solid #2c2c2c; position:sticky; top:0;
-     background:#151515; overflow:hidden; text-overflow:ellipsis;
+th { text-align:left; color:var(--muted); font-weight:normal; padding:6px 7px;
+     border-bottom:1px solid var(--line); position:sticky; top:0;
+     background:var(--bg); overflow:hidden; text-overflow:ellipsis;
      white-space:nowrap; }
-td { padding:6px 7px; border-bottom:1px solid #1e1e1e; white-space:nowrap;
+/* a row rule is lighter than the header's, as it was: the head is a boundary
+   and a row is a separation */
+td { padding:6px 7px; white-space:nowrap;
+     border-bottom:1px solid color-mix(in srgb, var(--line) 45%, transparent);
      overflow:hidden; text-overflow:ellipsis; }
 tr.run { cursor:pointer; }
-tr.run:hover { background:#181818; }
-tr.run.selected { background:#1b2130; }
+tr.run:hover { background:color-mix(in srgb, var(--fg) 6%, transparent); }
+tr.run.selected { background:color-mix(in srgb, var(--accent) 16%, transparent); }
 .state { padding:1px 7px; border-radius:9px; font-size:11px; }
-.running   { background:#14361d; color:#6ede8a; }
-.done      { background:#1b2d3d; color:#79b8e8; }
-.failed    { background:#3d1b1b; color:#e88; }
-.cancelled { background:#332b16; color:#e8b339; }
-.abandoned { background:#332b16; color:#c9a227; }
-.unknown   { background:#242424; color:#888; }
+/* Six states out of the GUI's five tones, each a wash of its own ink: running
+   is `--ok`, done `--accent`, failed `--bad`, cancelled `--warn`. Abandoned
+   shares the warning hue with cancelled because it is the same kind of fact —
+   a run that stopped without an answer — and is stepped towards `--muted`,
+   nobody having asked for it. Unknown is the absence of a tone. */
+.running   { background:color-mix(in srgb, var(--ok) 18%, transparent);
+             color:var(--ok); }
+.done      { background:color-mix(in srgb, var(--accent) 18%, transparent);
+             color:var(--accent); }
+.failed    { background:color-mix(in srgb, var(--bad) 18%, transparent);
+             color:var(--bad); }
+.cancelled { background:color-mix(in srgb, var(--warn) 18%, transparent);
+             color:var(--warn); }
+.abandoned { background:color-mix(in srgb, var(--warn) 12%, transparent);
+             color:color-mix(in srgb, var(--warn) 70%, var(--muted)); }
+.unknown   { background:color-mix(in srgb, var(--muted) 15%, transparent);
+             color:var(--muted); }
 .num { text-align:right; font-variant-numeric: tabular-nums; }
-.muted { color:#666; }
-#empty { padding:28px 12px; color:#777; }
+.muted { color:var(--muted); }
+#empty { padding:28px 12px; color:var(--muted); }
 /* The strip is a grid of declared slots: a stage name, an Rwp or a pattern
    label changes its text and never its neighbour's place. What the width
    decides is which slots are *there*. Squeezed, every `minmax` track shares
@@ -90,7 +121,7 @@ tr.run.selected { background:#1b2130; }
    numbers and the stop button are never dropped and never shrink. */
 #run { container-type: inline-size; }
 #strip { flex:0 0 auto; height:29px; padding:0 12px;
-         border-bottom:1px solid #2c2c2c; display:grid; align-items:center;
+         border-bottom:1px solid var(--line); display:grid; align-items:center;
          white-space:nowrap; font-variant-numeric: tabular-nums;
          --t-label: minmax(0,13ch); --t-series: minmax(0,28ch);
          --t-free: 10ch; --t-where: minmax(0,1fr);
@@ -132,12 +163,13 @@ tr.run.selected { background:#1b2130; }
 #plot { position:absolute; inset:0; border:0; width:100%; height:100%; }
 /* a pre-WP-1402 run left a self-contained page behind; it still opens, in
    the frame it was always shown in */
-iframe#plot { background:#fff; }
+iframe#plot { background:var(--panel); }
 /* a GUI project's run has no picture and never will, so the note is a
    line and the log gets the room rather than the other way round */
-#noplot { padding:7px 12px; color:#666; }
+#noplot { padding:7px 12px; color:var(--muted); }
 #run.full #picture { flex:0 0 auto; min-height:0; }
-#console { flex:0 0 var(--console, 30%); overflow:auto; background:#181818;
+#console { flex:0 0 var(--console, 30%); overflow:auto;
+           background:color-mix(in srgb, var(--fg) 4%, transparent);
            font-size:11px; padding:6px 10px; white-space:pre;
            box-sizing:border-box; }
 #run[data-console="closed"] #console { display:none; }
@@ -147,11 +179,16 @@ iframe#plot { background:#fff; }
    log is the only thing a run without a picture has to show. */
 #run.full #console { flex:1 1 auto; display:block; }
 #run.full #grip-console { display:none; }
-.k { color:#e8b339; }
-.ev { color:#888; }
-code { background:#1c1c1c; padding:1px 5px; border-radius:3px; color:#9ad; }
-#stop { border-color:#5a2c2c; color:#e88; }
-#stop:hover { background:#3d1b1b; }
+.k { color:var(--warn); }
+.ev { color:var(--muted); }
+code { background:color-mix(in srgb, var(--fg) 7%, transparent); padding:1px 5px;
+       border-radius:3px; color:var(--accent); }
+#stop { border-color:color-mix(in srgb, var(--bad) 45%, transparent);
+        color:var(--bad); }
+#stop:hover { background:color-mix(in srgb, var(--bad) 18%, var(--panel)); }
+/* The one colour on this page that is not a token: a scrim darkens whatever
+   is under it, so it is black in both themes — as the GUI's two backdrops are
+   (`Browse.svelte`, `Palette.svelte`). */
 #confirm { position:fixed; inset:0; background:rgba(0,0,0,0.62);
            display:flex; align-items:center; justify-content:center;
            z-index:10; }
@@ -159,9 +196,9 @@ code { background:#1c1c1c; padding:1px 5px; border-radius:3px; color:#9ad; }
    without this the closed dialog is an invisible sheet over the whole page
    swallowing every click — including the one that opens it */
 #confirm[hidden] { display:none; }
-#box { background:#1a1a1a; border:1px solid #3a3a3a; border-radius:6px;
+#box { background:var(--panel); border:1px solid var(--line); border-radius:6px;
        max-width:33em; padding:16px 18px; line-height:1.5; }
-#box h3 { margin:0 0 9px; font-size:13px; font-weight:normal; color:#e88; }
-#box p { margin:0 0 9px; color:#bbb; }
+#box h3 { margin:0 0 9px; font-size:13px; font-weight:normal; color:var(--bad); }
+#box p { margin:0 0 9px; color:var(--fg); }
 #box .row { display:flex; gap:9px; justify-content:flex-end;
             margin-top:14px; }
