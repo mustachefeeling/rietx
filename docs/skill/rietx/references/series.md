@@ -228,7 +228,9 @@ that must be estimated from *this* pattern rather than carried or left at an
 initial value has somewhere to be set.  Two smaller hooks worth passing on any
 long run: `progress=` (a stream or path) emits one line per stage boundary per
 pattern and is the cheap way to know a run is alive, and `labels=` names the
-entries — without it every downstream table is keyed by integer.  A cancelled
+entries — without it every downstream table is keyed by integer. One letter
+away, `label=` names the whole chain in `rietx watch`'s list, and a sequence
+passed to it raises `TypeError` rather than being recorded.  A cancelled
 series **returns** what completed, with `SEQUENTIAL_CANCELLED`.  Note that
 `stage_reports=True` does *not* exist here; it is a `Refinement.fit()` argument
 and raises `TypeError`, and per-stage Rwp lives on the `stage_end` events of the

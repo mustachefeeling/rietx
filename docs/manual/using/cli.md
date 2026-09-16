@@ -128,18 +128,19 @@ agent's job shows what is happening now. Clicking a run pins it. The `list` and
 the choice.
 
 The list has six columns. `state` is the liveness word below. `run` is what the
-run is called: for a series member the pattern it fitted, otherwise the label,
-which is the project's name or the directory the fit was launched from. `stage`
+run is called: for a series member the pattern it fitted, otherwise the label.
+The label is the word the caller passed as `label=`, and failing that the
+project's name or the directory the fit was launched from. `stage`
 is the stage its writer last recorded, and `Rwp` and `GoF` the fit at that
 point, Rwp as a percentage. `started` is a clock time, to the second for a run
 started today and a date before that. Hovering a row gives the rest of the
 record: the label, the run directory, the command line that launched it, and
 where that was run.
 
-A batch launched from one directory gives every run the same label, so the
-second it started is what tells its rows apart. That is a fact about the
-record rather than about the fit. Nothing the record holds says what a run was
-fitting.
+An unnamed batch launched from one directory gives every run the same label, so
+the second it started is what tells its rows apart. That is a fact about the
+record rather than about the fit. Pass `label=` to the verb that starts the fit
+and the row carries the work instead ([](refining.md)).
 
 The page holds still while the fit moves. The plot redraws in place as the fit
 writes each stage. Its 2θ and intensity axes are set by the pattern, so they

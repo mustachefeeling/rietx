@@ -99,14 +99,13 @@ the same scans would make Stoe writable.
 was filed, and the last two, each filed with a fix its measurements rule out,
 carry on as [1434](wp/1434-the-bound-test-asks-the-wrong-question.md) and [1435](wp/1435-a-hold-the-caller-declares.md).
 
-**Ready to pick up:** the **live-watcher track**, five rungs left.
-[1424](wp/1424-a-row-that-names-its-run.md) closed 2026-09-16: every number is
-drawn whole and a row names its run by the second it started. No run record
-says what a run *fitted*, which is [1431](wp/1431-a-caller-names-its-run.md).
-Order: 1431, 1425, 1429, 1427, 1428 (§ A window into a run). **Two questions
-there are the maintainer's**: 1428's, and whether to write the snapshot every
-stage or less often. 1413 left `nac` over WP-1404's 1.05x gate, six snapshots
-costing 50 ms of a 17.7 ms budget.
+**Ready to pick up:** the **live-watcher track**, four rungs left.
+[1431](wp/1431-a-caller-names-its-run.md) closed 2026-09-16: `label=` on every
+verb that records a run, so a row names what it fitted. Order: 1425, 1429,
+1427, 1428 (§ A window into a run); 1425 inherits a run column that now carries
+a caller's string. **Two questions there are the maintainer's**: 1428's, and
+whether to write the snapshot every stage or less often. 1413 left `nac` over
+WP-1404's 1.05x gate, six snapshots costing 50 ms of a 17.7 ms budget.
 
 **Queued, unscheduled** ([§ Unscheduled](#unscheduled)): the 2026-09-01
 triage's 1309–1322 plus 1323 and 1325; the 2026-09-03 triage's 1332–1341; the
@@ -665,7 +664,7 @@ order: 1431, 1425, 1429, 1427, 1428 (a decision).
 | [1430](wp/1430-the-page-is-a-file.md) | The page is a file | ✅ 2026-09-16 | 1423 |
 | [1426](wp/1426-still-under-resize-and-across-a-stage.md) | Still under resize, and across a stage | ✅ 2026-09-16 | 1430, 1423 |
 | [1424](wp/1424-a-row-that-names-its-run.md) | A row that tells its run apart, and a number that fits its slot | ✅ 2026-09-16 | 1430 (1423 soft) |
-| [1431](wp/1431-a-caller-names-its-run.md) | A caller names its run | ⬜ | 1424 |
+| [1431](wp/1431-a-caller-names-its-run.md) | A caller names its run | ✅ 2026-09-16 | 1424 |
 | [1425](wp/1425-the-panels-are-the-readers-to-size.md) | The panels are the reader's to size | ⬜ | 1430, 1426 |
 | [1429](wp/1429-one-palette-and-one-theme-for-three-pages.md) | The GUI's tokens and the GUI's theme, on the two python pages | ⬜ | 1430 (1426 soft) |
 | [1427](wp/1427-what-a-poll-costs.md) | What a poll costs | ⬜ | 1430 (1426 soft) |
