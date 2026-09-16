@@ -199,15 +199,19 @@ rule.
   annotation on this class, so the word now carries two meanings on one
   object, and unifying them is a rename outside this diff.
 
-  **Numbers.** Fast selection green at 5153 passed, 133 skipped, `[dev]`
-  venv, macOS arm64, nothing else mid-suite — measured before the review pass
-  and the project-hop test, which add 1 test between them. 7 tests added in
-  all, every one a pass. `tests/test_watch_browser.py` **skipped**: this
-  worktree's `[dev]` venv has no playwright, and the page diff is comments
-  only, so the browser bar did not run and did not need to. **The full suite
-  did not run**, deliberately: the change adds an optional keyword, a type
-  check and prose, and moves no measured number, which is the condition
-  `tests/CLAUDE.md` § Running puts on rung 3.
+  **Numbers.** Fast selection green on the final tree at **5154 passed, 133
+  skipped**, `[dev]` venv, macOS arm64, measured with nothing else mid-suite.
+  7 tests added, every one a pass, and the skips are unchanged: an
+  intermediate tree measured 5153 before the project-hop test landed, so the
+  delta is exactly the tests added. `origin/main` had not moved under the
+  branch, so these are the merged tree's counts. Wall clock 2:22 to 5:09 for
+  the same selection on this machine, which is the range rather than a figure.
+  `tests/test_watch_browser.py` **skipped**: this worktree's `[dev]` venv has
+  no playwright, and the page diff is comments only, so the browser bar did
+  not run and did not need to. **The full suite did not run**, deliberately:
+  the change adds an optional keyword, a type check and prose, and moves no
+  measured number, which is the condition `tests/CLAUDE.md` § Running puts on
+  rung 3.
 
   **Next:** [1425](1425-the-panels-are-the-readers-to-size.md), the next rung
   of the watcher track, which now has a reason to widen the run column that
