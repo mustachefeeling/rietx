@@ -19,12 +19,54 @@ collapses is one control where there were three.
 
 ### What is on the page today
 
+The page is four files under `src/rietx/watch/static/` (WP-1430): `index.html`,
+`watch.css`, `watch.mjs` (the document) and `watch-core.mjs` (everything that
+touches no DOM). A new file there needs a row in `watch.STATIC_FILES` and nothing
+else, since the route, the content type and the `.gitignore` guard all read that
+dict. The DOM half is `.mjs` because `node --check` reads a `.js` as CommonJS,
+where the import of `watch-core.mjs` is a syntax error. Node cases live in
+`tests/watch_core.test.mjs` rather than beside the module, since hatchling ships
+everything under `src/rietx`; they are invoked from
+`tests/test_watch_app.py::test_the_pure_half_of_the_page_is_unit_tested` (15 cases
+today), which passes `--test-reporter=tap` because node picks its reporter by
+whether stdout is a terminal. `@SUFFIX@`, `@DIST@` and `@HUE@` are gone. A file
+cannot carry a token, so the three ride on `/api/runs` as
+`payload.page.{suffix,dist,palette}`, read at boot into the module-level `HUE` and
+`DIST`.
+
 `#runs { flex: 0 0 72ch }` and `#console { flex: 0 0 30% }` are the two fixed
 sizes. `applyPanels` writes `data-runs`/`data-run` on the body from a
-`localStorage` key (`rietx-watch-panels`) and calls `Plotly.Plots.resize` on
-the plot when the run panel reopens, because plotly's `responsive` option
-follows the window and not the element. `togglePanel` refuses to close the
-last open panel.
+`localStorage` key (`rietx-watch-panels`) and calls `Plotly.Plots.resize` on the
+plot when the run panel reopens, because plotly's `responsive` option follows the
+window and not the element. `togglePanel` refuses to close the last open panel.
+The two buttons read `list` and `detail` since WP-1424, with `title` text and
+their ids unchanged (`toggle-runs`, `toggle-run`); that rename is the interim this
+WP's grips replace. The panel state is already split the way this WP wants
+`clampSize`: `parsePanels(raw)` and `nextPanels(p, which)` sit in `watch-core.mjs`
+with cases, and `watch.mjs` keeps `localStorage` and the document. Put the port
+beside them.
+
+`#run` is a container (`container-type: inline-size`) and the strip's slots are
+tiered off it at 990 / 760 / 560 px, dropping whole slots rather than cutting every
+one of them a little. A splitter inherits that for nothing: drag the panel and the
+strip re-tiers, exactly as collapsing the list already does. Do not convert the
+tiers to viewport media queries on the way, because the panel's width is not the
+window's. Each slot carries an explicit `grid-column`, the tiers zero a track
+through a custom property, and the 12 px between slots is each slot's own
+`padding-right` rather than `gap` (a dropped slot would still be charged for a
+gap). A new slot needs all three or it will pull its neighbours left when a tier
+hides it.
+
+The list's columns are declared `ch` widths sized for their worst content (WP-1423
+rule 2 still stands), and the run column takes the remainder. WP-1424 measured that
+column at about 12ch at the default 72ch panel and left it the flexible one, which
+was the right call while every row in a batch said the same word. WP-1431's
+`label=` changed the content: a caller names each run, so the column is the first
+thing in the list that varies per row and is worth reading in full. A label long
+enough to elide is now the ordinary case, and the `title` behind it (`runTitle`) is
+a hover, so it does not serve a reader scanning the column. That column is where a
+caller-supplied string competes with `stage`, which already elides. Nothing here
+says widen it. That is this WP's measurement to make.
 
 ### The GUI already has the rules
 
@@ -59,99 +101,30 @@ the keyboard does so nobody invents it.
 
 ### Measured before, to take at the start
 
-WP-1423's browser harness (`tests/test_watch_browser.py`) is the tool. Record,
-over a drag of the list seam from 72ch to 40ch: how many `Plots.resize`
-calls plotly saw, and the plot's inner size before and after. The legend's
-position is WP-1426's and must already hold.
+WP-1423's browser harness (`tests/test_watch_browser.py`) is the tool, and it took
+no diff through WP-1430, so it stays the bar: if it moves, the page moved. Record,
+over a drag of the list seam from 72ch to 40ch: how many `Plots.resize` calls
+plotly saw, and the plot's inner size before and after.
 
-### Inherited
+WP-1426's legend fix has landed, so the picture holds still while a panel moves.
+The legend is anchored inside the paper (`y: 1, yanchor: 'top'`), the plot area's
+top is the declared 8 px margin at every width, and its height is constant.
+Resizing a panel now changes the picture's width alone, which is what makes a drag
+measurable; before that fix, narrowing a panel also shortened the picture.
+Measured, `[dev]` + playwright, darwin/arm64, at 1400 / 1000 / 700 px viewport:
+plot area `[58, 8, 807, 503]`, `[58, 8, 407, 503]`, `[58, 8, 107, 503]`. Before the
+fix: top 46 / 65 / 139, height 465 / 446 / 372.
+`tests/test_watch_browser.py::test_the_legend_is_a_dimension_the_page_fixes` reads
+the geometry at those three widths and is where a panel change gets checked against
+the legend.
 
-- **2026-09-16, from [1431](1431-a-caller-names-its-run.md): the run column
-  now carries something worth widening it for.** 1424 measured the column at
-  about 12ch at the default 72ch panel and left it the flexible one, which was
-  the right call while every row in a batch said the same word. A caller can
-  now name each run with `label=`, so the column's content is the first thing
-  in that list that varies per row *and* is worth reading in full. Two
-  consequences for this WP's sizing decision: a label long enough to elide is
-  now the ordinary case rather than the odd one, and the `title` behind it
-  (`runTitle`) is a hover, so it does not serve a reader scanning the column.
-  Whatever this WP does about panel width, the run column is where a
-  caller-supplied string competes with `stage`, which already elides. Nothing
-  here says widen it — that is this WP's measurement to make.
-
-- **2026-09-16, from [1424](1424-a-row-that-names-its-run.md): the strip
-  already follows the panel, and the toggle rename this WP replaces has
-  landed.**
-  - **`#run` is a container (`container-type: inline-size`) and the strip's
-    slots are tiered off it** at 990 / 760 / 560 px, dropping whole slots
-    rather than cutting every one of them a little. A splitter inherits that
-    for nothing: drag the panel and the strip re-tiers, exactly as collapsing
-    the list already does. Do not convert the tiers to viewport media queries
-    on the way — the panel's width is not the window's, which is the whole
-    point.
-  - Each slot carries an explicit `grid-column`, the tiers zero a track through
-    a custom property, and the 12 px between slots is each slot's own
-    `padding-right` rather than `gap` (a dropped slot would still be charged
-    for a gap). A new slot needs all three or it will pull its neighbours left
-    when a tier hides it.
-  - **The buttons are now `list` and `detail`**, with `title` text, which is
-    the interim this WP's splitters replace. Their ids are unchanged
-    (`toggle-runs`, `toggle-run`) and so is the `rietx-watch-panels` storage
-    key, so nothing downstream moved.
-  - The list's columns are declared `ch` widths sized for their worst content
-    (WP-1423 rule 2 still stands). If a splitter makes the list width the
-    reader's, the columns stay declared and the run column keeps taking the
-    remainder.
-
-- **2026-09-16, from [1426](1426-still-under-resize-and-across-a-stage.md): the
-  legend fix landed, and it hands you a narrow-panel problem in exchange.**
-  - The blocker is discharged. The legend is anchored inside the paper
-    (`y: 1, yanchor: 'top'`), so the plot area's top is the declared 8 px
-    margin at every width and its height is constant. Resizing a panel now
-    changes the picture's *width* alone, which is what makes a drag handle
-    measurable: before this, narrowing a panel also shortened the picture.
-  - **The cost is at narrow widths and it is yours.** A horizontal legend still
-    wraps, and inside the paper it wraps *over* the data rather than pushing it
-    down. At an 800 px window with both panels open the run panel is ~280 px,
-    the legend takes five rows, and it covers the top quarter of the intensity
-    panel, tallest peak included. `withAlpha(HUE.ground, 0.72)` keeps the curve
-    faintly visible through it, which is a mitigation and not a fix. The fix is
-    a panel wide enough for the picture, which is this WP.
-  - Measured, `[dev]` + playwright, darwin/arm64, at 1400 / 1000 / 700 px
-    viewport: plot area `[58, 8, 807, 503]`, `[58, 8, 407, 503]`,
-    `[58, 8, 107, 503]`. Before: top 46 / 65 / 139, height 465 / 446 / 372.
-  - `tests/test_watch_browser.py::test_the_legend_is_a_dimension_the_page_fixes`
-    reads the geometry at those three widths and is where a panel change gets
-    checked against the legend.
-
-- **2026-09-16, from [1430](1430-the-page-is-a-file.md): the page is files, and
-  three of its names are not the ones 1430's plan said.** `watch.py` is the
-  package `watch/`, and the page is `watch/static/`: `index.html`, `watch.css`,
-  `watch.mjs` (the document) and `watch-core.mjs` (everything that touches no
-  DOM). `rietx.watch` imports unchanged. What to carry:
-  - **The DOM half is `.mjs`, not `.js`.** `node --check` reads a `.js` as
-    CommonJS, where the `import` of `watch-core.mjs` is a syntax error. A
-    browser cares about `type="module"` and the content type, never the
-    extension.
-  - **Node cases live in `tests/watch_core.test.mjs`**, not beside the module:
-    hatchling ships everything under `src/rietx`. They are invoked from
-    `tests/test_watch_app.py::test_the_pure_half_of_the_page_is_unit_tested`
-    (15 cases today), which passes `--test-reporter=tap` because node picks its
-    reporter by whether stdout is a terminal.
-  - **`@SUFFIX@`, `@DIST@` and `@HUE@` are gone.** A file cannot carry a token,
-    so the three ride on `/api/runs` as `payload.page.{suffix,dist,palette}`,
-    read at boot into the module-level `HUE` and `DIST`. That is 299 B of every
-    poll, against rows of 735 B each.
-  - **A new file under `static/` needs a row in `watch.STATIC_FILES`** and
-    nothing else — the route, the content type and the `.gitignore` guard all
-    read that dict. `*.html` in `.gitignore` swallowed `index.html` on the way
-    in, the sixth committed file that one rule has taken.
-  - The panel state is already split the way this WP wants `clampSize`:
-    `parsePanels(raw)` and `nextPanels(p, which)` are in `watch-core.mjs` with
-    cases, and `watch.mjs` keeps `localStorage` and the document. Put the port
-    beside them.
-  - `tests/test_watch_browser.py` took no diff and stays the bar: if it
-    moves, the page moved.
+The cost 1426 hands over is at narrow widths and it belongs to this WP. A
+horizontal legend still wraps, and inside the paper it wraps over the data rather
+than pushing it down. At an 800 px window with both panels open the run panel is
+about 280 px, the legend takes five rows, and it covers the top quarter of the
+intensity panel, tallest peak included. `withAlpha(HUE.ground, 0.72)` keeps the
+curve faintly visible through it, which is a mitigation and not a fix. The fix is a
+panel wide enough for the picture, which is this WP.
 
 ## Non-goals
 
