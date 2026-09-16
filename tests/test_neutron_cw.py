@@ -95,6 +95,40 @@ def test_profile_seed_sets_the_gaussian_constant_term_only():
     assert inst.profile.x.value == default.profile.x.value
 
 
+def test_fwhm_deg_above_the_ceiling_raises_value_error():
+    """The maintainer's 2026-09-11 decision: a `fwhm_deg` that would seed `w`
+    past its own declared upper bound is refused rather than silently
+    building an instrument whose seed sits on or past a wall the model does
+    not admit. 1.2 deg squares to 1.44, past the schema default's 1.0."""
+    with pytest.raises(ValueError) as exc:
+        rx.Instrument.constant_wavelength_neutron(2.0780, fwhm_deg=1.2)
+    message = str(exc.value)
+    assert "fwhm_deg" in message
+    assert "1.2" in message
+    assert "profile.w" in message
+
+
+def test_fwhm_deg_just_under_the_ceiling_builds():
+    """The other side of the same fence: nothing this close to the bound is
+    refused, and the seed is exactly what was asked for."""
+    inst = rx.Instrument.constant_wavelength_neutron(2.0780, fwhm_deg=0.999)
+    assert inst.profile.w.value == pytest.approx(0.999 ** 2)
+
+
+def test_the_explicit_parameter_escape_hatch_round_trips_with_its_own_bound():
+    """Yue's own check: the refusal names an escape hatch. Set
+    ``instrument.profile.w`` explicitly, with its own (wider) bounds, to
+    declare a genuinely coarser instrument. That bound must survive a JSON
+    round trip rather than reverting to the schema default of 1.0."""
+    inst = rx.Instrument.constant_wavelength_neutron(2.0780)
+    inst.profile.w = rx.Parameter(value=4.0, min=0.0, max=9.0, unit="deg^2",
+                                  transform="softplus")
+    dumped = inst.model_dump(mode="json")
+    again = rx.Instrument(**dumped)
+    assert again.profile.w.value == pytest.approx(4.0)
+    assert again.profile.w.max == pytest.approx(9.0)
+
+
 # ------------------------------------------------------------ the amplitude ---
 def test_scattering_length_is_frozen_on_the_phase():
     sites = compile_phase_sites(corundum(), neutron=True)
