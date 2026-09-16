@@ -498,7 +498,7 @@ A phase is a `Gsas2Phase`:
 |---|---|
 | `Gsas2Phase.name`, `Gsas2Phase.number` | the name GSAS-II gives it, and its `pId`, which is the `p` of a `p:h:name` variable |
 | `Gsas2Phase.space_group` | the symbol, as written |
-| `Gsas2Phase.space_group_from_operators`, `Gsas2Phase.resolved_space_group` | the setting the project's own operators describe, and the symbol to build under — which is that setting where the file settled one and `space_group` otherwise. GSAS-II writes the operations themselves, so a symbol like `F d d d` that the tables hold in two settings is **read** rather than assumed; `to_structure` builds under `resolved_space_group` and `GSAS2_GPX_SETTING_FROM_OPERATORS` says when the two differ |
+| `Gsas2Phase.space_group_from_operators`, `Gsas2Phase.resolved_space_group` | the setting the project's own operators describe, and the symbol to build under. The second is the first where the file settled one, and `space_group` otherwise. GSAS-II writes the operations themselves, so a symbol like `F d d d` that the tables hold in two settings is read rather than assumed. `to_structure` builds under `resolved_space_group`, and `GSAS2_GPX_SETTING_FROM_OPERATORS` says when the two differ |
 | `Gsas2Phase.cell`, `Gsas2Phase.volume` | the six lattice parameters and the cell volume |
 | `Gsas2Phase.refine_cell` | GSAS-II refines a cell under one flag, so there is one here rather than six |
 | `Gsas2Phase.atoms` | the sites |
