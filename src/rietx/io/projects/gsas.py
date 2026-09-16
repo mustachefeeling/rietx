@@ -798,8 +798,17 @@ def _read_phase(number: int, block: dict[str, str], path: str,
             refine_u="U" in codes.upper(),
             damping=tuple(int(c) if c.isdigit() else 0 for c in head[63:66])))
 
+    # ``CHMF`` is ``2X, A8, F10.2`` — the same lead-in the ``ATmmmA`` record
+    # above uses for its own species token, which is what settles it.  Read two
+    # columns short (species at 0 and the content at 8) both fields still come
+    # out right on this repo's one fixture, because every content in it ends
+    # ``.00``: ``'  CA            5.00'`` sliced at ``[8:18]`` is ``'        5.'``,
+    # which floats to 5.0.  A partially occupied site — a solid solution, the
+    # ordinary case — is where it bites, and 5.25 arrived as 5.0.  The species
+    # field moves with it by the same two columns.  The corpus hiding a wrong
+    # offset is this module's own ``ICONS`` story one record along (WP-1118).
     formula = tuple(
-        (_text(block[k], 0, 8), _num(block[k], 8, 10) or 0.0)
+        (_text(block[k], 2, 8), _num(block[k], 10, 10) or 0.0)
         for k in sorted(k for k in block if k.startswith("CHMF")))
 
     return GsasPhase(

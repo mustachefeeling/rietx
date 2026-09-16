@@ -297,6 +297,20 @@ def test_a_record_after_the_terminator_is_still_read(tmp_path):
     assert model.phases[0].name == "one"
 
 
+def test_a_fractional_unit_cell_content_is_read_at_its_own_columns(tmp_path):
+    """``CHMF`` is ``2X, A8, F10.2``, and this repo's one fixture hides it.
+
+    Every content in ``FAP.EXP`` ends ``.00``, so a read two columns short
+    still floats to the right number — ``'  CA            5.00'`` sliced at
+    ``[8:18]`` is ``'        5.'``, which is 5.0.  A partially occupied site is
+    where the offset shows, and it is the ordinary case for a solid solution.
+    Found while writing the writer, which had to know the true columns.
+    """
+    cards = list(_MINIMAL) + [_card("CRS1  CHMF 1", "  NA            5.25")]
+    model = read_gsas_exp(_exp(tmp_path, "content.EXP", *cards))
+    assert model.phases[0].formula == (("NA", 5.25),)
+
+
 def test_a_negative_uiso_is_refused_rather_than_built(tmp_path):
     """A real GSAS refinement reaches one, and no structure can hold it.
 
