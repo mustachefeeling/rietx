@@ -42,57 +42,34 @@ keyword nobody is told about is WP-1322's `history=False` again.
 `label=` is what `attach` and `RunRecorder` already call it. A `run_label=`
 on `fit` would be the same fact under a second name. Keep `label=`.
 
-### Inherited
+### What the page already does with it (verified 2026-09-16)
 
-- **2026-09-16, from [1424](1424-a-row-that-names-its-run.md): the seam you
-  want already exists, and the limit this WP removes is now measured.**
-  - **`rowName(run)` in `watch-core.mjs` is the one place a run is named in a
-    *list*.** It returns `status.series_label` when there is one and
-    `runLabel(run)` otherwise, so a caller's label is a third source at that
-    same point rather than a new call site. `runLabel` is the plain label plus
-    the `· legacy` marker and is what the strip's own label slot uses; the two
-    are deliberately separate, the strip having a series slot beside it.
-  - **1424 could not name what a run *fitted*, and said so.** Everything the
-    record holds about which run is which is now on the page: the start second
-    in the `started` column (the run directory is named after it), and the
-    label, directory, command line and cwd in the row's `title` via
-    `runTitle(run)`. None of it is about the science. That gap is this WP.
-  - **The run column is the flexible one** — every other column in the list is
-    a declared `ch` width sized for its worst content, so the label column
-    takes whatever is left, about 12ch at the default 72ch panel. A label
-    longer than that elides with the `title` behind it. Sizing the column for
-    a caller's label is not free; it comes out of `stage`, which already
-    elides.
-  - `tests/watch_core.test.mjs` has cases for `rowName`, `runLabel` and
-    `runTitle`; extend them rather than adding a browser test for a naming
-    rule.
+The read path needs **no change**. `runs.read_run` prefers `meta.label` over
+`_label_for`'s derived name, `Run.label` carries it to `/api/runs`, and
+`watch-core.mjs` renders it: `runLabel(run)` is the label plus the `· legacy`
+marker, and `rowName(run)` — the one place a run is named in a *list* —
+returns `status.series_label` when there is one and `runLabel` otherwise.
+`rowName`'s own comment already names this WP as what fills its gap. So a
+caller's label is a **third source at an existing call site**, not a new one,
+and the task below that says "a series ignores it" is asserting behaviour
+`rowName` already has.
 
-- **2026-09-16, from [1430](1430-the-page-is-a-file.md): the page is files, and
-  three of its names are not the ones 1430's plan said.** `watch.py` is the
-  package `watch/`, and the page is `watch/static/`: `index.html`, `watch.css`,
-  `watch.mjs` (the document) and `watch-core.mjs` (everything that touches no
-  DOM). `rietx.watch` imports unchanged. What to carry:
-  - **The DOM half is `.mjs`, not `.js`.** `node --check` reads a `.js` as
-    CommonJS, where the `import` of `watch-core.mjs` is a syntax error. A
-    browser cares about `type="module"` and the content type, never the
-    extension.
-  - **Node cases live in `tests/watch_core.test.mjs`**, not beside the module:
-    hatchling ships everything under `src/rietx`. They are invoked from
-    `tests/test_watch_app.py::test_the_pure_half_of_the_page_is_unit_tested`
-    (15 cases today), which passes `--test-reporter=tap` because node picks its
-    reporter by whether stdout is a terminal.
-  - **`@SUFFIX@`, `@DIST@` and `@HUE@` are gone.** A file cannot carry a token,
-    so the three ride on `/api/runs` as `payload.page.{suffix,dist,palette}`,
-    read at boot into the module-level `HUE` and `DIST`. That is 299 B of every
-    poll, against rows of 735 B each.
-  - **A new file under `static/` needs a row in `watch.STATIC_FILES`** and
-    nothing else — the route, the content type and the `.gitignore` guard all
-    read that dict. `*.html` in `.gitignore` swallowed `index.html` on the way
-    in, the sixth committed file that one rule has taken.
-  - Nothing here touches the page: what moved for this WP is only that
-    `watch.py` is `watch/__init__.py`.
-  - `tests/test_watch_browser.py` took no diff and stays the bar: if it
-    moves, the page moved.
+Two limits inherited from [1424](1424-a-row-that-names-its-run.md), both still
+true:
+
+- **1424 could not name what a run *fitted*, and said so.** What the record
+  holds about which run is which is the start second in the `started` column,
+  plus the label, directory, command line and cwd in the row's `title` via
+  `runTitle(run)`. None of it is about the science.
+- **The run column is the flexible one** — every other column is a declared
+  `ch` width sized for its worst content, so the label column takes what is
+  left, about 12ch at the default 72ch panel. A longer label elides with the
+  `title` behind it. Widening it costs `stage`, which already elides.
+
+Node cases live in `tests/watch_core.test.mjs` (invoked from
+`tests/test_watch_app.py`), which already has cases for `rowName`, `runLabel`
+and `runTitle`: extend them rather than adding a browser test for a naming
+rule.
 
 ## Non-goals
 
@@ -103,12 +80,21 @@ on `fit` would be the same fact under a second name. Keep `label=`.
 
 ## Tasks
 
-- [ ] `label=` on `Refinement.fit`, `refine` and `Project.fit`, threaded to
-      `runs.attach`; the recorder's default unchanged when it is absent
+- [ ] `label=` on **every entry point that attaches a recorder**, threaded to
+      `runs.attach`; the recorder's default unchanged when it is absent.
+      Three `attach` call sites, so five verbs: `Refinement.fit`,
+      `Refinement.run_stage`, `refine`, `SequentialRefinement.run` /
+      `refine_sequential`, and `Project.fit` / `Project.run_stage` free
+      through their `**kw`. The WP named three; `run_stage` and the series
+      are the siblings, and a series label names the *job*, which is not the
+      per-member fact the non-goal excludes.
 - [ ] Tests: the label reaches `meta.json`; `rietx watch`'s row shows it;
       a series ignores it in favour of `series_label`
 - [ ] Manual: the telemetry section of `docs/manual/using/` documents the
-      keyword; the API partition is green
+      keyword. **Measure the partition claim**: `tests/api_surface.py` is
+      derived over names and fields, so a keyword may not enter the
+      denominator at all — document it because a knob nobody is told about is
+      WP-1322 again, not because a test went red.
 - [ ] Skill: one row in the batch reference, `(Hypothesis: …)` until a run
       shows the page read better; `rietx skill --install . --copy` re-syncs
       the two committed copies
