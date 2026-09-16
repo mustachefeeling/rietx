@@ -82,6 +82,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+
 from ...schemas.common import Diagnostic
 from .coverage import Stance
 
@@ -468,6 +470,16 @@ class Gsas2Phase:
     atoms: tuple[Gsas2Atom, ...] = ()
     volume: float | None = None
     pawley: bool = False
+    #: the setting the file's own ``SGData['SGOps']`` describes, where the
+    #: symbol leaves a choice and the operators settle it — ``'F d d d:2'`` for
+    #: a phase whose ``SpGrp`` is the bare ``'F d d d'``.  ``None`` means there
+    #: was nothing to settle (the symbol names its setting, or the tables hold
+    #: only one) **or** that the operators matched no setting of it, which are
+    #: different facts and are told apart by :func:`setting_alternatives` rather
+    #: than by this field: a reader that conflated them would report a file with
+    #: unreadable symmetry as one with none.  ``space_group`` stays the string
+    #: the file wrote, because this model mirrors the file
+    space_group_from_operators: str | None = None
     #: GSAS-II's own index for the phase, the ``p`` of a ``p:h:name`` variable
     number: int | None = None
     #: the file's ``General['magPhases']`` entry, verbatim.  A nuclear phase
@@ -481,6 +493,12 @@ class Gsas2Phase:
     @property
     def magnetic(self) -> bool:
         return self.kind.lower().startswith("magnetic")
+
+    @property
+    def resolved_space_group(self) -> str:
+        """The symbol to build the phase under: the operators' setting if the
+        file settled one, else the string it wrote."""
+        return self.space_group_from_operators or self.space_group
 
 
 @dataclass(frozen=True)
@@ -834,6 +852,52 @@ def _atom(row: list, pointers: tuple[int, int, int, int]) -> Gsas2Atom | None:
         adp=str(row[cia]), uiso=_float(row[cia + 1]), uij=uij)
 
 
+def _sgdata_operators(sgdata: dict) -> list[tuple] | None:
+    """The full operator set an ``SGData`` block states, as comparison keys.
+
+    GSAS-II stores the group in three pieces — ``SGOps`` the coset
+    representatives, ``SGCen`` the centring vectors, ``SGInv`` whether the
+    inversion is present — so the group is their product, and expanding it here
+    is what makes it comparable with a tabulated setting.  ``None`` when the
+    block states no operators at all, or states them in a shape this cannot
+    read; the caller then has only the symbol, which is the case the report
+    exists for.
+
+    Validated on all 46 phases of the public tutorial corpus: every one
+    reproduces a tabulated setting exactly, 42 the one its symbol names and 4
+    the other one (WP-1118).
+    """
+    from ...crystallography.symmetry import operator_key
+
+    try:
+        ops = list(sgdata["SGOps"])
+    except (KeyError, TypeError):
+        return None
+    if not ops:
+        return None
+    try:
+        centring = list(sgdata.get("SGCen", [(0.0, 0.0, 0.0)])) or [(0.0, 0.0, 0.0)]
+    except TypeError:
+        return None
+    signs = (1.0, -1.0) if sgdata.get("SGInv") else (1.0,)
+    keys: set[tuple] = set()
+    try:
+        for rotation, translation in ops:
+            rot = np.asarray(rotation, dtype=np.float64)
+            tran = np.asarray(translation, dtype=np.float64)
+            if rot.shape != (3, 3) or tran.shape != (3,):
+                return None
+            for centre in centring:
+                shift = np.asarray(centre, dtype=np.float64)
+                if shift.shape != (3,):
+                    return None
+                for sign in signs:
+                    keys.add(operator_key(sign * rot, sign * tran + shift))
+    except (TypeError, ValueError):
+        return None
+    return sorted(keys)
+
+
 def _phase(name: str, data: dict) -> Gsas2Phase:
     """One entry of the ``Phases`` item."""
     general = data.get("General", {}) if isinstance(data, dict) else {}
@@ -853,10 +917,25 @@ def _phase(name: str, data: dict) -> Gsas2Phase:
         a for a in (_atom(row, pointers)  # type: ignore[arg-type]
                     for row in data.get("Atoms", []) if isinstance(row, list))
         if a is not None)
+    from ...crystallography.symmetry import setting_from_operators
+
+    sgdata = general.get("SGData", {})
+    sgdata = sgdata if isinstance(sgdata, dict) else {}
+    symbol = str(sgdata.get("SpGrp", "")).strip()
+    stated = _sgdata_operators(sgdata)
+    from_operators = None
+    if symbol and stated is not None:
+        try:
+            from_operators = setting_from_operators(symbol, stated)
+        except ValueError:
+            # an unresolvable symbol is `to_structure`'s refusal to make, with
+            # the file's name on it; reading the operators must not pre-empt it
+            from_operators = None
     return Gsas2Phase(
         name=str(general.get("Name", name)),
         kind=str(general.get("Type", "")),
-        space_group=str(general.get("SGData", {}).get("SpGrp", "")).strip(),
+        space_group=symbol,
+        space_group_from_operators=from_operators,
         cell=tuple(numbers),  # type: ignore[arg-type]
         refine_cell=_flag(cell_row[0]) if cell_row else False,
         atoms=atoms,
@@ -1174,6 +1253,50 @@ def read_gsas2_gpx(path: str | Path, *,
     return model
 
 
+def _report_setting(named: str, phase: Gsas2Phase,
+                    diagnostics: list[Diagnostic]) -> None:
+    """What the file said about a two-setting symbol, in whichever of two ways.
+
+    Read from the operators, this is a *repair with a record* — the reader's
+    half of root CLAUDE.md's silent-correction rule, beside
+    ``CIF_CELL_ANGLE_CORRECTED`` — so it reports at ``info``: nothing was lost
+    and the answer improved.  Left unsettled, it is the ordinary assumption and
+    goes out under the package-wide ``SPACE_GROUP_SETTING_ASSUMED``, from the
+    same builder a fit uses, because a reader and a fit are reporting one fact.
+    """
+    from ...crystallography.symmetry import setting_diagnostics
+
+    if not phase.space_group:
+        return
+    where = [f"phases.{phase.number}.space_group"]
+    if phase.space_group_from_operators:
+        diagnostics.append(Diagnostic(
+            level="info", code="GSAS2_GPX_SETTING_FROM_OPERATORS",
+            where=where,
+            message=(
+                f"{named}: phase {phase.name!r} names space group "
+                f"{phase.space_group!r}, which the tables hold in more than one "
+                f"setting, and the project's own operators state "
+                f"{phase.space_group_from_operators!r} — that is what the phase "
+                f"is built under, rather than the setting the bare symbol "
+                f"resolves to"),
+            suggestion="nothing is needed: GSAS-II stores the operations "
+                       "themselves (`SGData['SGOps']`), so the setting is read "
+                       "from the file rather than assumed. `model.phases[…]"
+                       ".space_group` is still the symbol the file wrote"))
+        return
+    try:
+        diagnostics.extend(setting_diagnostics(
+            phase.space_group, source=f"{named}: phase {phase.name!r}",
+            where=where, cell=phase.cell,
+            sites=[(a.species, a.x, a.y, a.z, a.occupancy)
+                   for a in phase.atoms]))
+    except ValueError:
+        # an unresolvable symbol is `to_structure`'s refusal to make, naming the
+        # file; a read that only lists what it could not carry must not raise
+        return
+
+
 def _report(model: Gsas2Model, diagnostics: list[Diagnostic]) -> None:
     """Append one diagnostic per thing the read could not carry across."""
     named = model.path or "<model>"
@@ -1198,6 +1321,7 @@ def _report(model: Gsas2Model, diagnostics: list[Diagnostic]) -> None:
                   "and the background to fit with is yours to choose"),
             where=[f"histograms.{hist.number}.background"]))
     for phase in model.phases:
+        _report_setting(named, phase, diagnostics)
         if phase.magnetic:
             diagnostics.append(Diagnostic(
                 level="warning", code="GSAS2_GPX_PHASE_MAGNETIC",
@@ -1346,8 +1470,12 @@ def to_structure(model: Gsas2Model, *, phase: str | int | None = None,
         raise Gsas2GpxError(
             f"{named}: phase {chosen.name!r} states no space-group symbol, so "
             f"there is no symmetry to build the structure under")
+    # the operators' setting where the file settled one, so a bare two-setting
+    # symbol is built under the group the file actually describes rather than
+    # under gemmi's first reading of its name (WP-1118)
+    symbol = chosen.resolved_space_group
     try:
-        sg = gemmi.SpaceGroup(chosen.space_group)
+        sg = gemmi.SpaceGroup(symbol)
     except (ValueError, RuntimeError) as exc:
         raise Gsas2GpxError(
             f"{named}: phase {chosen.name!r} states the space-group symbol "
@@ -1389,7 +1517,7 @@ def to_structure(model: Gsas2Model, *, phase: str | int | None = None,
         varies = chosen.refine_cell
         structure = rx.Structure(phases=[rx.Phase(
             name=chosen.name or "phase",
-            space_group=chosen.space_group,
+            space_group=symbol,
             cell=rx.Cell(
                 a=rx.Parameter(value=a, min=1.0, vary=varies),
                 b=rx.Parameter(value=b, min=1.0, vary=varies),

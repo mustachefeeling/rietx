@@ -155,6 +155,7 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from ...crystallography.symmetry import setting_diagnostics
 from ...schemas.common import Diagnostic
 from ..formats.base import decode
 from . import coverage as _coverage
@@ -2339,6 +2340,29 @@ def read_topas_inp(path: str | Path, *,
                 message=(f"space group {raw!r} on phase {phase_name!r} in {path} "
                          f"read as {canonical!r} — the suffix selects the origin"),
                 where=[f"phases.{phase_name}.space_group"]))
+        # The other half of the same question (issue #101).  A trailing `Z`/`S`/
+        # `R`/`H` is TOPAS saying which setting it meant, and the line above
+        # reports the translation; a symbol written **bare** says nothing, and
+        # `.inp` carries no operators to settle it the way a `.gpx` does.  So it
+        # is reported as assumed, from the package-wide builder, at read.
+        for i, phase in enumerate(model.phases):
+            if not phase.space_group:
+                continue
+            cell = phase.cell
+            try:
+                diagnostics.extend(setting_diagnostics(
+                    phase.space_group,
+                    source=f"{path}: phase {phase.name!r}",
+                    where=[f"phases.{i}.space_group"],
+                    cell=([cell[k] for k in ("a", "b", "c", "al", "be", "ga")]
+                          if all(k in cell for k in
+                                 ("a", "b", "c", "al", "be", "ga")) else None),
+                    sites=[(s.species, s.x, s.y, s.z, s.occupancy)
+                           for s in phase.sites] or None))
+            except ValueError:
+                # an unresolvable symbol is `to_structure`'s refusal to make,
+                # naming the file; a read's report must not raise
+                pass
         # The skipped-block "report" arm (WP-1118): a `str` block that stated no
         # `phase_name`/`space_group` is recorded on `model.skipped_blocks`
         # regardless, so the read never drops it in silence. When a channel is

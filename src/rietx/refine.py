@@ -3553,10 +3553,9 @@ def _symmetry_silence_diagnostics(structure: Structure,
     """
     from .crystallography.symmetry import (
         get_spacegroup,
-        setting_alternatives,
+        setting_diagnostics,
         snap_diagnostics,
     )
-    from .optimize.qpa import phase_zmv
 
     structural = mode == "rietveld"
     out: list[Diagnostic] = []
@@ -3568,52 +3567,18 @@ def _symmetry_silence_diagnostics(structure: Structure,
                 [(a.label, (a.x.value, a.y.value, a.z.value)) for a in phase.atoms],
                 source=f"phase {phase.name!r}", prefix=f"phases.{i}"))
 
-        taken, others = setting_alternatives(phase.space_group)
-        if not others:
-            continue
-        # An origin choice keeps the axes, so one coordinate list means
-        # something under each setting and the compositions are comparable —
-        # that comparison is the whole point.  ``:H`` against ``:R`` changes
-        # the axes themselves, so the cell and the coordinates belong to one of
-        # the two and reading them under the other is arithmetic, not a
-        # composition: calcite's hexagonal 6/6/18 came back as 2/12/12.
-        same_axes = not any(s.rsplit(":", 1)[-1] in ("H", "R")
-                            for s in (taken, *others))
-        implied = []
-        if structural and same_axes:
-            cell = tuple(getattr(phase.cell, n).value
-                         for n in ("a", "b", "c", "alpha", "beta", "gamma"))
-            sites = [(a.species, a.x.value, a.y.value, a.z.value, a.occ.value)
-                     for a in phase.atoms]
-            for setting in (taken, *others):
-                try:
-                    counts = phase_zmv(setting, cell, sites).element_counts
-                except (ValueError, KeyError):
-                    continue
-                formula = " ".join(f"{s}{c:g}" for s, c in sorted(counts.items()))
-                implied.append(f"{setting} → {formula}")
-        detail = ("; ".join(implied) if implied
-                  else f"{taken}, against {', '.join(others)}"
-                  + ("" if same_axes else " — hexagonal against rhombohedral "
-                     "axes, so the cell and the coordinates belong to one of "
-                     "them and no composition compares the two"))
-        out.append(Diagnostic(
-            level="warning", code="SPACE_GROUP_SETTING_ASSUMED",
+        # ``mode`` decides whether the atoms may be asked for a composition:
+        # outside rietveld they are a scaffold and ``C8`` from a dummy carbon is
+        # a fiction.  The setting is reported either way.
+        out.extend(setting_diagnostics(
+            phase.space_group,
+            source=f"phase {phase.name!r}",
             where=[f"phases.{i}.space_group"],
-            message=(f"phase {phase.name!r} names space group "
-                     f"{phase.space_group!r}, which the tables hold in "
-                     f"{1 + len(others)} settings; it was resolved to {taken}. "
-                     + (f"Cell contents each setting implies: {detail}"
-                        if implied else f"The alternatives are {detail}")),
-            suggestion="if that is the setting you meant, nothing is "
-                       "wrong — write it into the symbol "
-                       f"({taken!r}) to say so. If it is not, the coordinates "
-                       "belong to another setting: name it instead "
-                       f"({', '.join(repr(s) for s in others)}). The site "
-                       "multiplicities differ between settings, so the choice "
-                       "changes ZMV and every weight fraction while leaving "
-                       "Rwp alone",
-        ))
+            cell=(tuple(getattr(phase.cell, n).value
+                        for n in ("a", "b", "c", "alpha", "beta", "gamma"))
+                  if structural else None),
+            sites=([(a.species, a.x.value, a.y.value, a.z.value, a.occ.value)
+                    for a in phase.atoms] if structural else None)))
     return out
 
 
