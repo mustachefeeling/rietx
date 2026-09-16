@@ -406,3 +406,22 @@ same reason. Six rules the pattern readers do not need:
   (`for`/`load`/`move_to`), a macro whose body lives in a library, and a file
   whose phases belong to different patterns — the last a *selection*, following
   `read_pattern`'s `scan=`: `to_structure(model, dataset=N)`, never concatenated.
+- **Where a file states its symmetry twice, the operators outrank the symbol —
+  and where it states it once, the reader says so** (WP-1118, issue #101). A
+  Hermann-Mauguin symbol is ambiguous for 40 of gemmi's settings, the `:1`/`:2`
+  origin choices and the `:H`/`:R` axis choices, and gemmi has to pick one. A
+  format that also writes the operations has already chosen:
+  `crystallography.symmetry.setting_from_operators` takes the expanded group
+  and returns the setting that matches exactly, so the choice is an equality
+  checked rather than a convention adopted — the same footing as § Adding a
+  format's rule that a unit is measured against the format's own reference
+  output. GSAS-II writes them (`SGData['SGOps']` × `SGCen` × `SGInv`), and 4 of
+  the 46 phases in its public corpus need it: all four state a bare two-setting
+  symbol whose operators are origin choice **2** where the symbol alone resolves
+  to choice 1, which read the other way makes CuCr₂O₄ into Cu₂CrO₄ and exchanges
+  Mn₃O₄'s two cation sites. A `.EXP` and a `.inp` state only a symbol, so they
+  cannot be read this way and raise `SPACE_GROUP_SETTING_ASSUMED` **at read**
+  instead — from `symmetry.setting_diagnostics`, the one builder a fit uses too,
+  since a reader and a fit are reporting one fact. The next reader answers which
+  of the two it is before it is written; `.m50` states operators
+  ([1314](../../../docs/wp/1314-mfile-reader.md)).

@@ -228,7 +228,12 @@ SIZE_CAPS: dict[str, int | None] = {
     # nothing refuses on it, and it needs the network, so it stays out of the
     # SessionStart hook that has to survive being offline.  Landed at 831; the
     # headroom is +2.
-    "CLAUDE.md": 833,
+    # 833 -> 836 (WP-1118): the WP-1076 clause gains its sibling — a message
+    # that names its discriminator makes the same claim a declared field
+    # does, so the evidence is checked to separate before it is quoted.  It
+    # governs every diagnostic that argues from a computed quantity, not
+    # only the one that was measured wrong.  Raised rather than shaved.
+    "CLAUDE.md": 836,
     # 672 -> 676 (WP-1102): the Current focus rewrite at 1102's close names the
     # milestone's one break and what makes 1103 the seam's proving case.
     # 676 -> 682 (WP-1407): a new Unscheduled group, "The formats a lab still
@@ -304,7 +309,13 @@ SIZE_CAPS: dict[str, int | None] = {
     # a third of a real corpus does not write them; and that a conversion builds
     # every schema object inside one guard, which is the class `read_gsas_prm`'s
     # repair opened and this closes. The section's existing rules were not cut.
-    "src/rietx/io/CLAUDE.md": 410,
+    # 410 -> 428 (WP-1118): one standing rule for the next project reader —
+    # that a format stating its operators has already chosen its setting, so
+    # the choice is an equality checked rather than a convention adopted, and
+    # a format stating only a symbol reports the assumption at read.  It
+    # governs work outside the WP that measured it: `.m50` states operators
+    # too (WP-1314).  Raised rather than shaved, per the failure message.
+    "src/rietx/io/CLAUDE.md": 428,
 }
 CURRENT_FOCUS_CAP: int | None = 60  # lines within ROADMAP's Current focus (WP-1031 landed at 33; the 1060 rewrite at 44)
 # Words, because a line cap alone was met by nine 1000-character paragraphs
