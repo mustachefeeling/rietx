@@ -3,8 +3,8 @@
 // A module script, so nothing here is a global and the page's own functions
 // cannot collide with plotly's. The functions that touch no DOM are next door
 // in `watch-core.mjs`, where the suite can call them.
-import {ago, deltaTitle, esc, nextPanels, num, parsePanels, rangesOf}
-  from './watch-core.mjs';
+import {ago, deltaTitle, esc, nextPanels, num, parsePanels, rangesOf,
+        withAlpha} from './watch-core.mjs';
 
 const $ = id => document.getElementById(id);
 let SINGLE = null;          // set when the served directory is itself a run
@@ -84,8 +84,31 @@ function fillRow(tr, run) {
 // server's order, so a list longer than the window keeps its scroll and a
 // row the pointer is on keeps its hover. Rebuilding the table on every poll
 // threw both away twenty-one times in a 25 s probe (WP-1423).
+// The first row the reader can still see, or null when the list is at its top.
+// Chosen by rectangle, which is what "on screen" means, and reported as an
+// `offsetTop`, which is a position in the flow and so survives the scrolling
+// this is about to do.
+function visibleAnchor(tbody, box) {
+  if (box.scrollTop <= 0) return null;
+  const top = box.getBoundingClientRect().top;
+  return [...tbody.children].find(tr =>
+    tr.getBoundingClientRect().bottom > top) || null;
+}
+
 function patchList(runs) {
   const tbody = $('rows');
+  const box = $('runs');
+  // Hold the reader's place across an arrival. A new run is prepended, so
+  // every row below it moves down a row's height and the whole list shifts
+  // under the eye: one arrival on a scrolled list scored 0.0134 of layout
+  // shift across four rows (WP-1426). The chat-log answer is to anchor on a
+  // row the reader can see and move the scroll by however far that row moved.
+  // Insertions above it are then compensated exactly, and an insertion below
+  // it, which moves it not at all, is left alone. A list already at its top is
+  // also left alone: there the arriving run is the thing being watched for,
+  // and holding the viewport would scroll it straight out of sight.
+  const anchor = visibleAnchor(tbody, box);
+  const was = anchor ? anchor.offsetTop : 0;
   const want = new Set(runs.map(r => r.run_id));
   for (const tr of [...tbody.children]) {
     if (!want.has(tr.dataset.id)) tr.remove();
@@ -98,6 +121,11 @@ function patchList(runs) {
     fillRow(tr, run);
   });
   $('empty').hidden = runs.length > 0;
+  // a row the walk dropped cannot say where it went, and the reader has lost
+  // that place whatever we do
+  if (anchor && anchor.isConnected && anchor.offsetTop !== was) {
+    box.scrollTop += anchor.offsetTop - was;
+  }
 }
 
 // -------------------------------------------------------------- run
@@ -107,7 +135,10 @@ function pictureKind(run) {
   return 'none';
 }
 
-function buildShell(run, kind) {
+// The picture alone. A run that had no snapshot when it was opened grows one
+// at its first stage boundary, and the kind changing from 'none' to 'json' is
+// what brings us back here.
+function buildPicture(run, kind) {
   const picture = $('picture');
   const old = $('plot');
   // a scattergl plot holds a WebGL context; dropping the div leaks it
@@ -121,9 +152,19 @@ function buildShell(run, kind) {
   // mtime null, never the run's: the shell is empty until something draws
   // into it, and carrying the run's write time here would say it had
   shell = {id: run.run_id, kind: kind, mtime: null};
-  tail = {offset: 0, inode: null, id: run.run_id};
-  $('console').textContent = '';
   setText($('s-where'), whereOf(run));
+}
+
+// The console belongs to the run, not to the picture, so a tail is reset when
+// the log it is following changes and not when the picture is rebuilt. The two
+// shared a builder until WP-1426: a run opened before its first snapshot had
+// its console wiped and re-fetched from offset 0 at that first stage boundary,
+// 121 lines out and 121 back for no change, and a reader who had scrolled up
+// to read was dropped at the bottom. The other reset is the route's, in
+// `pumpEvents`, where a log that is a different file says so.
+function resetTail(id) {
+  tail = {offset: 0, inode: null, id: id};
+  $('console').textContent = '';
 }
 
 // the mtime is in the URL rather than a cache-buster of its own: the same
@@ -242,7 +283,20 @@ async function drawSnapshot(id) {
              range: range.y2, autorange: false},
     yaxis3: {domain: [0, 0.07], anchor: 'x', visible: false,
              range: [0.5 - nrows, 0.5], autorange: false, fixedrange: true},
-    legend: {orientation: 'h', y: 1.02, yanchor: 'bottom', x: 0},
+    // Inside the paper at a fixed anchor, never above it. A legend anchored
+    // in the top margin makes plotly grow that margin to fit, so the picture
+    // moves whenever the legend gains a row. Two ways it gains one, both
+    // measured on this page (WP-1426): the window narrows and the row wraps,
+    // taking the plot area's top from 46 px to 139 px across 1400 → 700; or a
+    // stage frees the background, and one new entry takes it 45 → 64. The
+    // second is a stage boundary moving the whole picture, and no layout-shift
+    // entry reports it, the div's own box never having changed. Anchored here
+    // the area's top is the declared 8 px margin at every width, and the
+    // picture is 38 px taller at 1400 and 131 px at 700. `bgcolor` is the
+    // ground the paper already carries, at an opacity: opaque, the five rows
+    // it wraps to on a narrow panel hid the tallest peak behind them.
+    legend: {orientation: 'h', y: 1, yanchor: 'top', x: 0, xanchor: 'left',
+             bgcolor: withAlpha(HUE.ground, 0.72)},
     // one revision per run: a redraw of the same run keeps the zoom, and
     // opening a different run starts fresh
     uirevision: id,
@@ -293,8 +347,10 @@ function clearStrip() {
       window.Plotly.purge($('plot'));
     }
     $('picture').innerHTML = '';
-    $('console').textContent = '';
     shell = {id: null, kind: null, mtime: null};
+    // the tail goes with the console it was filling, or a reader who came
+    // back to this run would meet an empty console no poll ever refilled
+    resetTail(null);
   }
 }
 
@@ -312,10 +368,11 @@ async function drawRun(id) {
                  || (notice.stop && run.liveness.state !== 'running'))) {
     notice = null;
   }
-  const kind = pictureKind(run);
   // a running fit rewrites its snapshot per stage, and a run that had none
   // when it was opened grows one at its first
-  if (shell.id !== id || shell.kind !== kind) buildShell(run, kind);
+  const kind = pictureKind(run);
+  if (tail.id !== id) resetTail(id);
+  if (shell.id !== id || shell.kind !== kind) buildPicture(run, kind);
   fillStrip(run);
   // the write is recorded once it is on the page, never before: a draw that
   // did not happen must stay outstanding for the next poll

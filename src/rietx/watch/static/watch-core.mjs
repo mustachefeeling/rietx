@@ -19,6 +19,20 @@ export function esc(s) {
     ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 }
 
+// One palette colour at an opacity, so a ground can sit over a curve without
+// becoming a second authority for what that ground is. The legend moved inside
+// the paper in WP-1426 and an opaque box there hid the tallest peak on a narrow
+// panel. Anything that is not `#rgb` or `#rrggbb` comes back unchanged: a
+// palette is data off the wire, and a colour this cannot read is better drawn
+// as itself than dropped.
+export function withAlpha(hex, alpha) {
+  const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(String(hex).trim());
+  if (!m) return hex;
+  const h = m[1].length === 3 ? m[1].replace(/./g, c => c + c) : m[1];
+  const n = parseInt(h, 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+}
+
 export function ago(t) {
   if (!t) return '—';
   const s = Date.now()/1000 - t;

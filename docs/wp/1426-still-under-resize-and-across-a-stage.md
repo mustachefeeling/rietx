@@ -141,17 +141,17 @@ WP's subject, so the call belongs here.
 
 ## Tasks
 
-- [ ] Browser test with a layout-shift observer and a frame differ; measure
+- [x] Browser test with a layout-shift observer and a frame differ; measure
       today's page over a stage boundary and a new run, record the legend's
       box relative to the plot at three widths, and reproduce the console
       reload on a run that already had a snapshot; the numbers go in the
       handover
-- [ ] The legend holds still under resize, as a dimension the page fixes;
+- [x] The legend holds still under resize, as a dimension the page fixes;
       `viz/html.py`'s legend spec follows if its page shows the same defect
-- [ ] The picture is rebuilt alone; the console and its tail survive a change
+- [x] The picture is rebuilt alone; the console and its tail survive a change
       of picture kind, and reset only on a run change or a `reset` from the
       route
-- [ ] The list holds the viewport when a run arrives above the fold
+- [x] The list holds the viewport when a run arrives above the fold
 - [ ] Whatever the frame differ found at a stage boundary, fixed or recorded
       as measured and left, with the reason
 - [ ] The test asserts layout shift 0 over a stage boundary and a new run,
