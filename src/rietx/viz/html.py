@@ -72,6 +72,7 @@ def figure_from_arrays(tt: np.ndarray, y_obs: np.ndarray, y_calc: np.ndarray,
             f"the HTML viewer needs plotly: pip install '{DIST_NAME}[viz]'") from exc
 
     from .plots import PALETTES
+    from .theme import with_alpha
 
     hue = PALETTES["light"]
     weighted = sigma is not None
@@ -149,9 +150,10 @@ def figure_from_arrays(tt: np.ndarray, y_obs: np.ndarray, y_calc: np.ndarray,
         # area's top went 60 px to 75 px between a 1000 px and a 700 px window
         # while the title stayed put, so the picture moved and the page around
         # it did not. The title keeps the margin; the legend no longer shares
-        # it. A white ground behind the rows keeps them readable over a peak.
+        # it. A ground behind the rows keeps them readable over a peak, and it
+        # is the palette's like every other colour on this page (WP-1429).
         legend={"orientation": "h", "y": 1, "yanchor": "top", "x": 0,
-                "xanchor": "left", "bgcolor": "rgba(255,255,255,0.85)"},
+                "xanchor": "left", "bgcolor": with_alpha(hue["ground"], 0.85)},
         margin={"l": 60, "r": 20, "t": 60, "b": 50},
     )
     if weighted:

@@ -229,6 +229,32 @@ def tokens_css() -> str:
     )
 
 
+def with_alpha(colour: str, alpha: float) -> str:
+    """``#rrggbb`` at an opacity, as the ``rgba()`` a plotting library takes.
+
+    The Python twin of ``watch-core.mjs``'s ``withAlpha``, and it exists for the
+    same job on the other page: a legend that sits *inside* the paper is over
+    the data, so its ground has to be part-transparent while still being the
+    palette's colour rather than a literal one.
+
+    Anything that is not a six-digit hex comes back unchanged, which is what a
+    caller passing an already-translucent colour wants and what the JS side
+    does with a value it cannot parse.
+
+    The spacing is not the JS twin's, and that is deliberate: plotly takes
+    either, and this spelling is byte for byte the literal it replaced, so no
+    saved page's bytes moved when the literal went.
+    """
+    text = colour.strip()
+    if len(text) != 7 or not text.startswith("#"):
+        return colour
+    try:
+        r, g, b = (int(text[i:i + 2], 16) for i in (1, 3, 5))
+    except ValueError:
+        return colour
+    return f"rgba({r},{g},{b},{alpha})"
+
+
 def state_dir(override: str | Path | None = None) -> Path:
     """Where the person's own settings live — the recent list and the theme.
 
