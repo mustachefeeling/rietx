@@ -873,6 +873,43 @@ def test_no_colour_literal_is_left_in_the_page(tmp_path):
 # ----------------------------------------------------------------------
 # what a poll costs (WP-1427)
 # ----------------------------------------------------------------------
+def test_the_tail_route_caps_at_the_limit_the_page_asks_for(tmp_path):
+    """The console is a tail over a pane of fixed length, so the page names
+    the cap and the route honours it.
+
+    Without it, clicking a job that has been running a few minutes delivers
+    every event of it in one response: 60 000 lines parsed and built into
+    ``<div>``s to keep 2000 of them.
+    """
+    events = "".join(_event_line("eval", t=float(i), i=i) for i in range(300))
+    _make_run(tmp_path / "r", events=events)
+    with _served(tmp_path) as base:
+        (row,) = _json(base + "/api/runs")["runs"]
+        url = f"{base}/api/run/{row['run_id']}/events?offset=0"
+        capped = _json(url + "&limit=25")
+        whole = _json(url)
+
+    assert len(capped["events"]) == 25
+    assert capped["skipped"] == 275
+    assert [e["data"]["i"] for e in capped["events"]] == list(range(275, 300))
+    # the offset is the same either way, so a capped poll still reaches the end
+    assert capped["offset"] == whole["offset"]
+    assert len(whole["events"]) == 300 and whole["skipped"] == 0
+
+
+@pytest.mark.parametrize("query", ["", "&limit=0", "&limit=-5", "&limit=lots"])
+def test_an_absent_or_junk_limit_is_no_cap(tmp_path, query):
+    """What this route did before WP-1427, for anything that is not a count."""
+    events = "".join(_event_line("eval", t=float(i), i=i) for i in range(40))
+    _make_run(tmp_path / "r", events=events)
+    with _served(tmp_path) as base:
+        (row,) = _json(base + "/api/runs")["runs"]
+        tail = _json(f"{base}/api/run/{row['run_id']}/events?offset=0{query}")
+    assert len(tail["events"]) == 40
+    assert tail["skipped"] == 0
+
+
+
 def _server_timing(url: str) -> dict:
     """The response's ``Server-Timing`` marks, as ``{phase: milliseconds}``."""
     with urllib.request.urlopen(url, timeout=5) as response:

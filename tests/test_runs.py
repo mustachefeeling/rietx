@@ -434,6 +434,54 @@ def test_a_replaced_log_resets_the_cursor(tmp_path):
     assert len(second.events) == 2
 
 
+def test_a_capped_tail_keeps_the_newest_and_counts_what_it_dropped(tmp_path):
+    """``max_events`` is a tailing viewer's cap, and it is honest about it.
+
+    The pane it exists for holds a fixed number of lines, so every event before
+    those is work with no reader. Dropping them *before* the JSON parse is
+    where the saving is (WP-1427).
+    """
+    log = tmp_path / "events.jsonl"
+    log.write_text("".join(
+        json.dumps({"record": "event", "v": "2", "t": float(i),
+                    "kind": "eval", "data": {"i": i}}) + "\n"
+        for i in range(500)), encoding="utf-8")
+
+    whole = runs.tail_events(log)
+    capped = runs.tail_events(log, max_events=10)
+
+    assert len(whole.events) == 500 and whole.skipped == 0
+    assert len(capped.events) == 10
+    assert capped.skipped == 490
+    assert [e["data"]["i"] for e in capped.events] == list(range(490, 500))
+    # the offset walks over everything read, or the next poll re-reads the
+    # events this one deliberately dropped, forever
+    assert capped.offset == whole.offset
+
+
+def test_an_uncapped_tail_is_what_it_always_was(tmp_path):
+    """The default is no cap. A library function that dropped events unasked
+    would be deciding what somebody else's log says."""
+    log = tmp_path / "events.jsonl"
+    log.write_text("".join(
+        json.dumps({"record": "event", "v": "2", "t": float(i),
+                    "kind": "eval", "data": {}}) + "\n"
+        for i in range(50)), encoding="utf-8")
+    tail = runs.tail_events(log)
+    assert len(tail.events) == 50
+    assert tail.skipped == 0
+
+
+def test_a_cap_larger_than_the_log_drops_nothing(tmp_path):
+    log = tmp_path / "events.jsonl"
+    log.write_text(json.dumps({"record": "event", "v": "2", "t": 1.0,
+                               "kind": "fit_start", "data": {}}) + "\n",
+                   encoding="utf-8")
+    tail = runs.tail_events(log, max_events=2000)
+    assert len(tail.events) == 1
+    assert tail.skipped == 0
+
+
 def test_tailing_a_missing_log_is_empty_not_an_error(tmp_path):
     tail = runs.tail_events(tmp_path / "nope.jsonl", 0)
     assert tail.events == [] and tail.reset is False

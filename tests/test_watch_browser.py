@@ -1087,6 +1087,114 @@ def test_the_console_survives_the_picture_being_rebuilt(browser, tmp_path):
     assert console["scrollTop"] == 200, "the reader lost their place"
 
 
+# ----------------------------------------------------------------------
+# what a poll costs (WP-1427)
+# ----------------------------------------------------------------------
+#: Installed before the page's own script, so the observer is watching by the
+#: time anything is drawn. The page does not carry one: an observer nobody
+#: reads is telemetry on somebody's overnight tab.
+LONG_TASKS = """
+window.__long = [];
+try {
+  new PerformanceObserver(list => {
+    for (const e of list.getEntries()) window.__long.push(Math.round(e.duration));
+  }).observe({type: 'longtask', buffered: true});
+} catch (e) { window.__long = null; }
+"""
+
+SPANS = """() => {
+  const out = {};
+  for (const e of performance.getEntriesByType('measure')) {
+    (out[e.name] ||= []).push(+e.duration.toFixed(1));
+  }
+  return {spans: out, long: window.__long,
+          lines: document.getElementById('console').childElementCount,
+          gap: document.querySelector('#console .muted')?.textContent ?? null};
+}"""
+
+#: A runaway guard and not a timer (root CLAUDE.md § Testing). The render this
+#: bounds measured 31.0 ms after the cap landed and 997 ms before it, so
+#: anything in between is this machine having a bad day and anything above it
+#: is the cap gone.
+LONG_TASK_CEILING_MS = 300
+
+
+def test_opening_a_long_log_does_not_freeze_the_page(browser, tmp_path):
+    """A reader clicks a job that has been running a while (WP-1427).
+
+    ``resetTail`` asks from offset 0, so the whole log arrives on one poll.
+    Uncapped, 60 000 events were parsed and built into ``<div>``s to keep the
+    last 2000: 997 ms of frozen main thread and three long tasks, measured in
+    this browser. The pane names its own length as the route's ``limit``, so
+    what arrives is what the pane can hold, and what did not arrive is counted
+    in a line the reader can see.
+    """
+    n_events = 40_000
+    d = tmp_path / "long"
+    d.mkdir()
+    (d / runs.EVENTS_FILE).write_text(
+        "".join(json.dumps({"record": "event", "v": "2", "t": 1e9 + i,
+                            "kind": "eval",
+                            "data": {"i": i, "cost": 1234.56789 / (i + 1),
+                                     "series_index": 4, "series_n": 8,
+                                     "series_label": "cpd-1e"}}) + "\n"
+                for i in range(n_events)), encoding="utf-8")
+    (d / runs.STATUS_FILE).write_text(
+        json.dumps({"state": "running", "stage": "biso", "rwp": 0.2}),
+        encoding="utf-8")
+
+    with _served(tmp_path) as base:
+        run_id = next(r.run_id for r in runs.discover(tmp_path) if r.path == d)
+        page = browser.new_page(viewport={"width": 1400, "height": 900})
+        errors: list[str] = []
+        page.on("pageerror", lambda e: errors.append(str(e)))
+        page.add_init_script(LONG_TASKS)
+        page.goto(f"{base}/#/run/{run_id}", wait_until="domcontentloaded")
+        page.wait_for_function(
+            "() => document.getElementById('console').childElementCount > 0",
+            timeout=30000)
+        page.wait_for_timeout(int(3.0 * POLL * 1000))
+        seen = page.evaluate(SPANS)
+        page.close()
+
+    assert not errors, errors
+    # the pane holds what a pane holds, however long the log is
+    assert seen["lines"] <= 2001, seen["lines"]
+    assert seen["gap"] and "earlier lines" in seen["gap"], seen["gap"]
+
+    long = seen["long"]
+    assert long is not None, "this browser reports no long tasks; the guard is blind"
+    worst = max(long, default=0)
+    assert worst <= LONG_TASK_CEILING_MS, (
+        f"a poll froze the page for {worst} ms; the tail cap is the thing to "
+        f"look at (WP-1427). All tasks over 50 ms: {sorted(long, reverse=True)}")
+
+
+def test_an_idle_poll_names_what_it_spent(browser, tmp_path):
+    """The page's own spans, which is how any of this was measured.
+
+    An idle poll fetches the list, parses it and patches the table, and draws
+    nothing: the snapshot is refetched only when its mtime moved. So the three
+    ``runs:`` spans are present on a poll where nothing changed and the
+    ``snap:`` ones are not.
+    """
+    watched = _make_tree(tmp_path, n_done=40)
+    with _served(tmp_path) as base:
+        run_id = next(r.run_id for r in runs.discover(tmp_path)
+                      if r.path == watched)
+        page, errors = _open(browser, base, run_id)
+        page.evaluate("() => performance.clearMeasures()")
+        page.wait_for_timeout(int(3.0 * POLL * 1000))
+        seen = page.evaluate(SPANS)
+        page.close()
+
+    assert not errors, errors
+    spans = seen["spans"]
+    assert {"runs:net", "runs:parse", "runs:patch"} <= set(spans), sorted(spans)
+    assert "snap:react" not in spans, "an idle poll redrew the picture"
+    assert all(v >= 0 for vals in spans.values() for v in vals)
+
+
 def test_the_console_is_re_tailed_when_the_run_changes(browser, tmp_path):
     """The other half of the rule above: a reset still happens when it should.
 

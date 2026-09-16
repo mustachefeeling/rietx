@@ -745,10 +745,17 @@ class EventTail:
     reset: bool = False
     bad_lines: int = 0
     size: int = 0
+    #: How many complete events were read and then dropped to honour a
+    #: caller's ``max_events``. Zero whenever nothing was dropped, so a client
+    #: that ignores it sees the field it always saw. It counts only events this
+    #: call parsed: bytes beyond ``max_bytes`` are not read, and their events
+    #: are not guessed at.
+    skipped: int = 0
 
 
 def tail_events(path: str | Path, offset: int = 0, *, inode: int | None = None,
-                max_bytes: int = 4 << 20) -> EventTail:
+                max_bytes: int = 4 << 20,
+                max_events: int | None = None) -> EventTail:
     """Read an event log from a byte offset, carrying a torn line forward.
 
     A trailing fragment is left **unparsed** and the returned offset stops
@@ -759,6 +766,16 @@ def tail_events(path: str | Path, offset: int = 0, *, inode: int | None = None,
 
     A bad line is counted, never raised on. One corrupt line in a log must not
     cost a viewer the other ten thousand.
+
+    ``max_events`` keeps the **newest** that many and reports the rest in
+    :attr:`EventTail.skipped`. The offset still advances over everything read,
+    so a capped call loses events and never loops. It defaults to ``None``,
+    which is no cap and is what every caller but a tailing viewer wants: a cap
+    that dropped events by default would be this module deciding what somebody
+    else's log says. The one caller that sets it is ``watch``'s console, which
+    is a tail over a pane of a fixed number of lines, and where without it a
+    single poll built 60 000 ``<div>``s to keep 2000 of them (997 ms on the
+    main thread, WP-1427).
     """
     path = Path(path)
     try:
@@ -787,17 +804,23 @@ def tail_events(path: str | Path, offset: int = 0, *, inode: int | None = None,
         return EventTail([], start, stat.st_ino, reset=reset, size=stat.st_size)
     complete, _fragment = chunk[:cut + 1], chunk[cut + 1:]
 
+    lines = [raw for raw in complete.split(b"\n") if raw.strip()]
+    skipped = 0
+    if max_events is not None and len(lines) > max_events:
+        # dropped before parsing, which is where the cost is: 60 000 lines of
+        # JSON to keep 2000 of them is 58 000 parses nobody asked for
+        skipped = len(lines) - max_events
+        lines = lines[skipped:]
+
     events: list[dict] = []
     bad = 0
-    for raw in complete.split(b"\n"):
-        if not raw.strip():
-            continue
+    for raw in lines:
         try:
             events.append(json.loads(raw.decode("utf-8")))
         except (ValueError, UnicodeDecodeError):
             bad += 1
     return EventTail(events, start + cut + 1, stat.st_ino, reset=reset,
-                     bad_lines=bad, size=stat.st_size)
+                     bad_lines=bad, size=stat.st_size, skipped=skipped)
 
 
 def request_cancel(run_dir: str | Path, *, who: str) -> Path:

@@ -351,12 +351,23 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
                         return int(query.get(name, [""])[0])
                     except (TypeError, ValueError):
                         return None
+
+                def _limit():
+                    value = _int("limit")
+                    return value if value is not None and value > 0 else None
+                # the cap is the page's, passed in rather than known here:
+                # `MAX_LINES` lives in `watch.mjs` beside the pane it bounds,
+                # and a second copy of it in python is a second authority for
+                # how many lines a console keeps. An absent or junk `limit` is
+                # no cap, which is what this route did before WP-1427.
                 tail = self._timed("tail", lambda: runs_mod.tail_events(
                     run.path / runs_mod.EVENTS_FILE,
-                    _int("offset") or 0, inode=_int("inode")))
+                    _int("offset") or 0, inode=_int("inode"),
+                    max_events=_limit()))
                 self._json({"events": tail.events, "offset": tail.offset,
                             "inode": tail.inode, "reset": tail.reset,
-                            "bad_lines": tail.bad_lines, "size": tail.size})
+                            "bad_lines": tail.bad_lines, "size": tail.size,
+                            "skipped": tail.skipped})
                 return
             if rest in ("snapshot", "legacy"):
                 # served as bytes, never parsed here: the reader constructs

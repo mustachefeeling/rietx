@@ -17,7 +17,7 @@ let CAN_CANCEL = false;     // false under --read-only: no button is drawn
 // the click
 let notice = null;
 let timer = null;
-let tail = {offset: 0, inode: null, id: null};
+let tail = {offset: 0, inode: null, id: null, skipped: 0};
 // what the run panel was built for: the run, which kind of picture it has
 // ('json', a legacy 'html' page, or 'none'), and which write we have drawn
 let shell = {id: null, kind: null, mtime: null};
@@ -42,7 +42,10 @@ let TICKS = null;
 // The page never writes it: the GUI owns the setting, this page follows it,
 // and `null` is "nothing applied yet" rather than a choice.
 let THEME = null;
-// the console is a tail and not an archive; the log on disk is the archive
+// the console is a tail and not an archive; the log on disk is the archive.
+// It is also what the route is asked to cap at (`pumpEvents`): the pane's
+// length is the one authority for how many lines are worth sending, and a
+// second copy of the number in python would be a second answer to that.
 const MAX_LINES = 2000;
 //: WP-1423's `{runs, run}`, read once at boot and then removed: the shape
 //: WP-1425 stores is not that one, so it takes a name of its own rather than
@@ -211,7 +214,7 @@ function buildPicture(run, kind) {
 // to read was dropped at the bottom. The other reset is the route's, in
 // `pumpEvents`, where a log that is a different file says so.
 function resetTail(id) {
-  tail = {offset: 0, inode: null, id: id};
+  tail = {offset: 0, inode: null, id: id, skipped: 0};
   $('console').textContent = '';
 }
 
@@ -532,8 +535,46 @@ async function stopRun(id) {
   refresh();
 }
 
+// The class on the one element in the console that is not a line of the log.
+const GAP = 'gap';
+
+// A note about the pane rather than a line in it, so it does not count against
+// the pane's length and is never what the trim cuts. Cumulative, because two
+// capped polls skipped two batches and the reader wants the total.
+function noteGap(pane) {
+  if (!tail.skipped) return;
+  const text = `… ${tail.skipped.toLocaleString()} earlier lines are in the `
+    + `log and not in this pane`;
+  const first = pane.firstElementChild;
+  if (first && first.classList.contains(GAP)) { setText(first, text); return; }
+  const note = document.createElement('div');
+  note.className = `line muted ${GAP}`;
+  note.textContent = text;
+  pane.insertBefore(note, first);
+}
+
+// One removal at a time is right for a poll's worth of arrivals and wrong for
+// a pane being replaced wholesale, which is what a capped batch is.
+function trimConsole(pane) {
+  const gap = pane.firstElementChild?.classList.contains(GAP) ? 1 : 0;
+  const cap = MAX_LINES + gap;
+  if (pane.childElementCount - cap > MAX_LINES / 2) {
+    const keep = [...pane.children].slice(-MAX_LINES);
+    pane.replaceChildren(...(gap ? [pane.firstElementChild, ...keep] : keep));
+    return;
+  }
+  while (pane.childElementCount > cap) {
+    (gap ? pane.children[1] : pane.firstElementChild).remove();
+  }
+}
+
 async function pumpEvents(id) {
-  const q = new URLSearchParams({offset: tail.offset});
+  // `limit` is the pane's own length. Without it a reader clicking a job that
+  // has been running a few minutes gets every event of it in one response:
+  // 60 000 lines parsed and built into `<div>`s to keep the last 2000, which
+  // was 997 ms of frozen main thread and three long tasks (WP-1427). The
+  // server drops the oldest of the slice and says how many in `skipped`.
+  const q = new URLSearchParams({offset: tail.offset, limit: MAX_LINES});
   if (tail.inode !== null) q.set('inode', tail.inode);
   const t0 = performance.now();
   const r = await fetch(`api/run/${id}/events?` + q, {cache: 'no-store'});
@@ -545,9 +586,11 @@ async function pumpEvents(id) {
   // an in-flight tail of the run we just left must not renumber this one
   if (tail.id !== id || currentId() !== id) return;
   const pane = $('console');
-  if (payload.reset) pane.textContent = '';   // a different log; do not renumber
+  // a different log; do not renumber, and do not carry its gap over
+  if (payload.reset) { pane.textContent = ''; tail.skipped = 0; }
   tail.offset = payload.offset;
   tail.inode = payload.inode;
+  tail.skipped += payload.skipped || 0;
   if (!payload.events.length) return;
   // the tail follows the log only while the reader is at its end; a reader
   // who scrolled up to read is left where they are
@@ -566,7 +609,8 @@ async function pumpEvents(id) {
   // there, so a fit emitting an event per residual evaluation would pay for
   // its whole history on every poll
   pane.insertAdjacentHTML('beforeend', html);
-  while (pane.childElementCount > MAX_LINES) pane.firstElementChild.remove();
+  trimConsole(pane);
+  noteGap(pane);
   if (atBottom) pane.scrollTop = pane.scrollHeight;
   since('tail:render', t2);
 }
