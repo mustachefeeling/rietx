@@ -1,6 +1,6 @@
 # WP-1429 — the GUI's tokens and the GUI's theme, on the two python pages
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-09-16 — claimed by @yue-here
 Depends on: 1430 (the watch page as files); 1426 soft (the browser harness)
 
 ## Goal
