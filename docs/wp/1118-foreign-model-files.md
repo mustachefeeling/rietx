@@ -471,21 +471,24 @@ two-line claim in this file.
   that says why.
 
 *Measured* — this worktree's `.venv`, `[dev]` only (no jax, no torch), python
-3.12.12, darwin/arm64. `origin/main` had not moved since the branch was cut
-(re-checked immediately before the last run), so this tree **is** the one that
-merges and the counts need no merge caveat. The machine was **not** idle —
-three other sessions were running through most of it — so the wall clock is a
-range, not a figure.
+3.12.12, darwin/arm64. Counts are the **merged** tree's: `origin/main` moved
+three commits under this branch during the handover (the watch-unroll merge,
+PR #337) and was merged in before the last run. Those three are **docs only**,
+`docs/` and nothing else — which is why the full selection below was not
+re-run after the merge and why the fast selection came back unchanged across
+it. The machine was **not** idle for any of this, so every wall clock here is
+a range rather than a figure: the same fast selection took 2:10 alone and
+4:27 beside another session's suite.
 
-- Fast selection `-n auto --dist loadgroup -m "not slow"`: **5030 passed, 133
-  skipped**, 2:10. Against the 4997/133 the previous session measured on what
+- Fast selection `-n auto --dist loadgroup -m "not slow"`, run both sides of
+  the merge and identical across it: **5030 passed, 133 skipped**. Against the 4997/133 the previous session measured on what
   is now `origin/main`, in this same worktree and venv, that is **+33 passed
   and no skip moved**. It divides exactly: 19 this session wrote
   (`test_projects_gsas2.py` +7, `test_symmetry_orbits.py` +6,
   `test_projects_gsas.py` +3, `test_projects_topas.py` +3) and 14 the review
   pass added (1 in `test_projects_gsas2.py`, 13 parametrised cases in
   `test_skill.py`). Nothing here added a skip.
-- Full selection `-n auto --dist loadgroup`, on the same final tree, with
+- Full selection `-n auto --dist loadgroup`, run **before** the merge with
   nothing else mid-suite (checked with `ps aux | grep`): **5200 passed, 142
   skipped**, 24:22. It ran because the change touches `refine.py`, which is in
   the fit path even though only its diagnostics moved. There is **no comparable
