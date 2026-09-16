@@ -763,6 +763,40 @@ def test_the_displacement_is_the_one_value_a_exp_cannot_carry_exactly(tmp_path):
     assert row.where == ["phases.0.atoms.0.biso", "phases.0.atoms.1.biso"]
 
 
+def test_two_phases_keep_their_own_records(tmp_path):
+    """The `CRS<n>` keys and `EXPR NPHAS`' nine fields, which one phase cannot
+    exercise: a phase number is part of every key in its block, and a phase
+    whose type the `NPHAS` record does not state is what `to_structure` refuses
+    on the way back in.  Selecting one is the caller's, following the reader's
+    own rule, so both are asked for by number."""
+    P = rx.Parameter
+
+    def phase(name, a, label, species):
+        return rx.Phase(
+            name=name, space_group="Fm-3m", cell=rx.Cell.cubic(a, vary=True),
+            atoms=[rx.Atom(label=label, species=species,
+                           x=P(value=0.0), y=P(value=0.0), z=P(value=0.0),
+                           occ=P(value=1.0, min=0.0, max=1.5),
+                           biso=P(value=0.5, min=0.0, max=25.0, vary=True))])
+
+    structure = rx.Structure(phases=[phase("Al", 4.0495, "Al1", "Al"),
+                                     phase("NaCl", 5.64, "Na1", "Na")])
+    out = tmp_path / "two.EXP"
+    rx.write_gsas_exp(structure, out, title="two phases")
+    model = read_gsas_exp(out)
+
+    assert [(p.number, p.name, p.kind) for p in model.phases] == [
+        (1, "Al", 1), (2, "NaCl", 1)]
+    for number, original in zip((1, 2), structure.phases):
+        built = to_structure(model, phase=number).phases[0]
+        assert built.name == original.name
+        _assert_parameter_equal(original.cell.a, built.cell.a)
+        assert [(a.label, a.species) for a in built.atoms] == [
+            (a.label, a.species) for a in original.atoms]
+    with pytest.raises(GsasExpError, match="pass phase=N"):
+        to_structure(model)
+
+
 def test_a_held_structure_comes_back_held(tmp_path):
     """The other answer for every flag, since ``any()`` is how they merge."""
     back = _round_trip(_hexagonal(vary=False), tmp_path)
