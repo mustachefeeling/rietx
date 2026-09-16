@@ -80,7 +80,7 @@ without an edit, or the move changed behaviour.
       without node
 - [x] `tests/test_watch_app.py` adapted (the substitution test, the
       `node --check` test), `tests/test_watch_browser.py` untouched and green
-- [ ] Root CLAUDE.md § Conventions: the `node --check` rule becomes "a page
+- [x] Root CLAUDE.md § Conventions: the `node --check` rule becomes "a page
       that is JavaScript is a file, checked by `node --test`", one line, with
       `compare_app.py` named as the remaining string
 - [x] Skill: none. The page is a human's.
