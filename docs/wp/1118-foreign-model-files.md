@@ -474,6 +474,34 @@ opposite of what this repo's `.EXP` reader said about it.
   exception and is degrees in GSAS-II, by its own specification and by the
   magnitude of the nine non-zero values in the corpus (0.0004° to 0.0219°).
 
+*Reviewed* — `/code-review high --fix` over the branch diff, and it found the
+class this session thought it had closed. Six fixes accepted, each with the test
+it was missing; the review reproduced every one before changing anything.
+
+- **The `.EXP` reader had the same hole the `.gpx` reader was written to
+  avoid.** A file stating a negative `Uiso` reached `rx.Parameter` and came back
+  as a pydantic `ValidationError` naming a `Parameter` and never the file. The
+  refusal and the one-guard build are now in both readers, which is what
+  "generalise the fix" should have meant while writing the second one rather
+  than after.
+- Two in the new reader, both on malformed input: the id-resolving passes
+  assumed a tree-item shape the main loop had already reported as unreadable
+  (a bare `[42]` raised `TypeError` out of the reader), and an empty atom row
+  reached `row[-1]`.
+- `GsasHistogram.two_theta_range` could come back `(None, 129.98)` under a
+  `tuple[float, float] | None` annotation, which is WP-1076's shape in a field
+  nobody had looked at.
+- `BANK` was the one record in `instrument_profile.py` not read by column, in a
+  module whose whole argument is that they are: a record carrying a comment
+  after its `I5` count was reported as an absent record.
+- Two dead names removed (`seen` here, `_EIGHT_PI2` in `viz/compare.py`).
+
+Two findings were looked at and left, both recorded here rather than silently:
+the `.EXP` row's `extensions=(".exp", ".EXP")` renders a second suffix that buys
+nothing when matching is content-based, and `_matches_gsas_exp`'s `lines[:-1] or
+lines` drops the last complete record when the head covers the whole file, which
+can only bite a `.EXP` whose one vocabulary key sits on its final card.
+
 *Gotchas* — three, each a place the next session should not assume.
 
 - **The excluded-region path is specification-only.** Not one of the 195
