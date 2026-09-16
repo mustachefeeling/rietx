@@ -56,6 +56,20 @@ stated here so no later WP builds bond perception on geometry alone.
 
 ### Inherited
 
+- **2026-09-16, from [1118](1118-foreign-model-files.md): `structure_from_cif`
+  resolves a bare multi-setting symbol two different ways, depending on which
+  of its two paths ran.** The primary path takes `gemmi.read_small_structure`'s
+  own `spacegroup`, and the fallback for a file that resolver cannot read calls
+  `find_spacegroup_by_name` on the raw H-M string. Measured 2026-09-16 on
+  `F d -3 m`: the first gives `F d -3 m:2`, the second `F d -3 m:1` — the two
+  settings whose 8a and 16d multiplicities swap, so the same file could import
+  as AB₂O₄ or as A₂BO₄ according to a branch the caller cannot see. Only the
+  resolvers were measured; no file was constructed that takes the fallback, so
+  how reachable it is in practice is open. 1118 left this alone deliberately:
+  its scope was the four foreign *project* formats, and the CIF route already
+  pins a setting into the symbol it returns, so the choice is at least visible
+  on the answer. A writer that round-trips through CIF is where it bites, which
+  is this WP.
 - **2026-09-02, from the magnetic scattering track
   ([1328](1328-magnetic-interchange.md)): magCIF is not this WP's.** The
   operator list with time-reversal signs, the site moments and the parent

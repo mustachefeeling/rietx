@@ -1130,6 +1130,14 @@ numbers below are that pass (2026-09-16, `[dev]` venv, darwin/arm64). They are
 here rather than in the module because they are facts about a corpus, not about
 the code: a later corpus moves them.
 
+Re-fetching the corpus costs one blobless clone and about a minute (measured
+2026-09-16, 103 MB on disk for the 34 files): clone
+`AdvancedPhotonSource/GSAS-II-tutorials` with `--filter=blob:none
+--no-checkout`, then `sparse-checkout init --no-cone`, `sparse-checkout set
+'*.gpx'` and `checkout`. A plain clone pulls the tutorials' image and neutron
+data as well, so the blob filter is written down here rather than left to
+whoever needs the corpus next.
+
 | measured across the 34 | number |
 |---|---|
 | top-level tree items | 195 `PWDR`, 4 `IMG`, 4 `HKLF`, 3 `Sequential results`, 1 `Sequential peak fit results`, and the six singletons every project carries |
