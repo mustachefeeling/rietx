@@ -101,9 +101,9 @@ is closed on the code and owes one decision**: 1413 took recording to
 1.03-1.23x (`nac` still over WP-1404's 1.05x gate, its six snapshots costing
 50 ms of a 17.7 ms budget), and
 [1423](wp/1423-a-page-that-holds-still.md) reworked the page 2026-09-16 after
-the live demo, so it holds still and shows the list and the run together.
-**The one open question is for the maintainer** — write the snapshot every
-stage, or less often and let a watcher redraw less often.
+the live demo; the maintainer's reading of it opens 1424–1429 (§ A window into
+a run), 1428 carrying a decision. **The other open question is for the
+maintainer** — write the snapshot every stage, or less often.
 
 **Queued, unscheduled** ([§ Unscheduled](#unscheduled)): the 2026-09-01
 triage's 1309–1322 plus 1323 and 1325; the 2026-09-03 triage's 1332–1341; the
@@ -640,15 +640,10 @@ carries is whether 1327's non-goal becomes a sequencing statement.
 
 #### A window into a run — the live-watcher track
 
-Seven rungs, six opened 2026-09-13 and 1413 added 2026-09-15 by 1404's
-measurement; 1423 reworks the page after the 2026-09-15 demo. An agent driving
-rietx leaves a human no view of the work, and 1322 measured what documenting the
-knob achieves: three subagents each read the skill in full and each wrote
-`history=False`. So 1403 records every fit, and 1404 is licensed to send it back
-if the cost says it cannot. The surface grows `watch` rather than adding a mode
-to `gui`, whose live ring is in-process and cannot see a foreign run: read-only
-is stronger when the app has no verbs than when a mode hides them. 1401 lands
-first over directories today's code already writes, so a window arrives first.
+Eight rungs shipped 2026-09-13 to 2026-09-16 (why the surface is `watch` and
+not a `gui` mode: v1.4 record § How v1.4 is getting here). The maintainer's
+2026-09-16 reading of the reworked page adds 1424–1429, one mechanism each;
+1428 carries a decision.
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
@@ -660,6 +655,12 @@ first over directories today's code already writes, so a window arrives first.
 | [1406](wp/1406-say-that-the-fit-writes-to-disk.md) | Say that the fit writes to disk | ✅ 2026-09-15 | 1403, 1405 (1402 soft) |
 | [1413](wp/1413-the-snapshot-is-what-recording-costs.md) | The snapshot is what recording costs | ✅ 2026-09-15 | 1404, 1402 |
 | [1423](wp/1423-a-page-that-holds-still.md) | A page that holds still | ✅ 2026-09-16 | 1405, 1402 |
+| [1424](wp/1424-a-row-that-names-its-run.md) | A row that names its run, and a number that fits its slot | ⬜ | — (1423 soft) |
+| [1425](wp/1425-the-panels-are-the-readers-to-size.md) | The panels are the reader's to size | ⬜ | 1426 (1423 soft) |
+| [1426](wp/1426-still-under-resize-and-across-a-stage.md) | Still under resize, and across a stage | ⬜ | 1423 |
+| [1427](wp/1427-what-a-poll-costs.md) | What a poll costs | ⬜ | — (1423 soft) |
+| [1428](wp/1428-open-in-the-gui-without-touching-the-fit.md) | Open in the GUI, without touching the fit | ⬜ | 1405, 1401 |
+| [1429](wp/1429-one-palette-and-one-theme-for-three-pages.md) | One palette and one theme for three pages | ⬜ | — (1426, 1423 soft) |
 
 ### v2+ — fenced
 
