@@ -408,14 +408,17 @@ reference a row for the new `to_table` behaviour.
   and a caller's pin moves that to 17. `__pydantic_fields_set__` separates an
   explicit pin from a default in memory and not across a JSON round trip,
   which is how a project loads from disk.
-- Counts, `[dev]` venv (no jax/torch), darwin, numpy backend: fast selection
-  **5158 passed, 133 skipped**, against 5154/133 measured mid-session after
-  the `BOUND_HIT` source change and before its four tests landed — +4 passed,
-  no new skip. This session added 11 tests in all (1 routing, 6 `to_table`, 4
-  bound). Acceptance command 138 passed. Wall clock 138 s and 295 s on two
-  runs of the same selection, which is machine state rather than the change.
-  The full selection did not run: nothing here can move a measured number,
-  every change being what crosses a surface.
+- Counts, `[dev]` venv (no jax/torch), darwin, numpy backend. On the branch
+  alone: fast selection **5158 passed, 133 skipped**, against 5154/133
+  measured mid-session after the `BOUND_HIT` source change and before its four
+  tests landed — +4 passed, no new skip. This session added 11 tests (1
+  routing, 6 `to_table`, 4 bound). Acceptance command 138 passed. **On the
+  merged tree, which is what lands: 5165 passed, 133 skipped**; the +7 over
+  the branch is WP-1431's, which merged into main mid-session, so the two
+  parents' additions do not sum and only this number describes the result.
+  Wall clock 138–295 s across four runs of one selection, which is machine
+  state rather than any change here. The full selection did not run: nothing
+  here can move a measured number, every change being what crosses a surface.
 
 **Gotchas for whoever picks up 1434 or 1435.**
 
@@ -437,6 +440,26 @@ reference a row for the new `to_table` behaviour.
   truncating `result.diagnostics` loses it. What bounds its position is
   `_cap_high_correlation`, which is rendering-only by design. Recorded in § 1,
   not fixed.
+
+**After the entry was first written.** `/code-review high --fix` raised four.
+Two it fixed: the series skill row claimed a refusal lists the phases that
+exist, which is true only of a derived path, and the checklist said "Skill:
+none" while the branch added one. Two it raised and left, both taken here: the
+WP-1434 title used "bound" as the past tense of *bind*, which stutters in an
+index row, and the § What fires paragraph was left ragged by the 1310 clause
+coming out. Then the merged-tree run caught one the branch never would have —
+the skill row's example phase was `qpa.Anatase`, and `anatase` was this
+package's first name, so `test_no_stale_name` greps for it. That was a miss of
+mine rather than the merge's: the row landed after this session's last full
+run. WP-1431 hit the same trap on the same day.
+
+**One thing to know about how this landed.** PR #352 was opened as the
+`/wp-start` claim draft and **merged at 18:32 while the session was still
+running**, carrying the first six commits. Everything after it — the two
+forward WPs, the skill row, this entry, the review pass — was stranded on a
+branch whose PR was already closed, and went up as a second PR. The claim draft
+carried no closing keyword, so #106, #123, #162 and #231 close on that second
+PR rather than on #352.
 
 **Next:** nothing on this WP. 1434 starts by capturing the gradient on
 `StageOutcome`, because no decision there can be made without it; 1435 starts
