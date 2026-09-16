@@ -311,6 +311,22 @@ def item_kind(label: str) -> str:
     return head if head in DATA_PREFIXES else label
 
 
+def _labelled(item: Any) -> tuple[str, Any] | None:
+    """One top-level item's ``(label, payload)``, or ``None`` if it has none.
+
+    **One test, read by every pass over the tree.**  A truncated or hand-edited
+    project can hold an item that is not the ``[[label, data], *children]``
+    shape, and a pass that assumed the shape after another had already reported
+    it unlabelable raised a bare ``TypeError`` out of the reader — the one
+    thing ``io/CLAUDE.md`` forbids, since the answer must be a refusal naming
+    the file.
+    """
+    if not (isinstance(item, list) and item
+            and isinstance(item[0], (list, tuple)) and len(item[0]) == 2):
+        return None
+    return str(item[0][0]), item[0][1]
+
+
 #: The histogram types this reader names coefficients for, from the
 #: specification's own CW table.
 CW_TYPES: tuple[str, ...] = ("PXC", "PNC")
@@ -1040,20 +1056,17 @@ def read_gsas2_gpx(path: str | Path, *,
     constraints_payload: Any = None
     covariance: dict = {}
     controls: dict = {}
-    seen: set[str] = set()
 
     for item in items:
-        if not (isinstance(item, list) and item
-                and isinstance(item[0], (list, tuple)) and len(item[0]) == 2):
+        headed = _labelled(item)
+        if headed is None:
             reported.append("a tree item this reader could not label")
             continue
-        label = str(item[0][0])
-        payload = item[0][1]
+        label, payload = headed
         children = {str(c[0]): c[1] for c in item[1:]
                     if isinstance(c, (list, tuple)) and len(c) == 2}
         kind = item_kind(label)
         stance, what = TREE_ITEM_STANCE.get(kind, (None, ""))
-        seen.add(kind)
 
         if kind == "PWDR":
             histograms.append(_histogram(label, payload, children))
@@ -1107,7 +1120,8 @@ def read_gsas2_gpx(path: str | Path, *,
     ran_phases = {}
     ran_atoms: dict[int, tuple[str, int]] = {}
     for item in items:
-        if isinstance(item, list) and item and str(item[0][0]) == "Phases":
+        headed = _labelled(item)
+        if headed is not None and headed[0] == "Phases":
             for child in item[1:]:
                 if not (isinstance(child, (list, tuple)) and len(child) == 2):
                     continue
@@ -1118,15 +1132,14 @@ def read_gsas2_gpx(path: str | Path, *,
                 if isinstance(data.get("ranId"), int):
                     ran_phases[data["ranId"]] = number if number is not None else child[0]
                 for index, row in enumerate(data.get("Atoms", [])):
-                    if isinstance(row, list) and isinstance(row[-1], int):
+                    if isinstance(row, list) and row and isinstance(row[-1], int):
                         ran_atoms[row[-1]] = (str(child[0]), index)
     ran_histograms = {}
     for hist_item in items:
-        if not (isinstance(hist_item, list) and hist_item):
+        headed = _labelled(hist_item)
+        if headed is None or not headed[0].startswith("PWDR"):
             continue
-        if not str(hist_item[0][0]).startswith("PWDR"):
-            continue
-        payload = hist_item[0][1]
+        payload = headed[1]
         data = payload[0] if isinstance(payload, (list, tuple)) and payload else {}
         if isinstance(data, dict) and isinstance(data.get("ranId"), int):
             ran_histograms[data["ranId"]] = data.get("hId", "?")

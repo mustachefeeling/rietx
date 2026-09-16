@@ -481,6 +481,32 @@ def test_an_unclassified_tree_item_is_reported_not_dropped(tmp_path):
     assert any("Wombat data" in line for line in model.unsupported)
 
 
+def test_an_item_with_no_label_is_reported_by_every_pass(tmp_path):
+    """A malformed item is reported once and crashes nothing afterwards.
+
+    The reader walks the tree three times: once to build the model, twice more
+    to resolve the random-number ids a constraint names. The later passes used
+    to assume the shape the first had already reported as unreadable, so a
+    project holding a bare ``[42]`` raised ``TypeError`` out of the reader
+    rather than a refusal or a report. Found by the review pass.
+    """
+    tree = _minimal_project()
+    tree.append([42])
+    tree.append("not a tree item at all")
+    model = read_gsas2_gpx(_write_gpx(tmp_path / "malformed.gpx", tree))
+    assert sum("could not label" in line for line in model.unsupported) == 2
+    assert model.phases[0].name == "widget"
+
+
+def test_an_empty_atom_row_does_not_reach_a_negative_index(tmp_path):
+    """``_atom`` tolerates a short row, so the id pass must tolerate it too."""
+    tree = _minimal_project(atoms=[[], ["Na1", "Na", "XU", 0.0, 0.0, 0.0, 1.0,
+                                        "m3m", 1, "I", 0.01, 0, 0, 0, 0, 0, 0,
+                                        12345]])
+    model = read_gsas2_gpx(_write_gpx(tmp_path / "shortrow.gpx", tree))
+    assert [a.label for a in model.phases[0].atoms] == ["Na1"]
+
+
 def test_every_stance_key_is_a_kind_the_reader_computes():
     """The table is keyed by what ``item_kind`` produces, both ways.
 
