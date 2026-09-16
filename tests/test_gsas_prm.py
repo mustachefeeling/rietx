@@ -17,10 +17,16 @@ from pathlib import Path
 import pytest
 
 import rietx as rx
-from rietx.io.instrument_profile import _PRCF_MAPPED, read_gsas_prm
+from rietx.io.instrument_profile import (
+    _PRCF_MAPPED,
+    from_instrument,
+    read_gsas_prm,
+    write_gsas_prm,
+)
 from rietx.io.projects.gsas import (
     CW_PROFILE_COEFFICIENTS,
     read_icons,
+    read_prcf_header,
     split_records,
 )
 
@@ -816,7 +822,7 @@ def test_the_prcf_drop_row_names_both_objects_the_eight_land_on():
     positions 1-8 onto ProfileTCHZ".  Neither is true of positions 7-8, which
     are the two that reach ``Geometry`` — and that was the only clue in the
     tree about where they land, which is what made round three's item 2
-    invisible.  The agent skill's own row (``diagnostics-projects.md``) had it
+    invisible.  The agent skill's own row (``diagnostics-gsas.md``) had it
     right all along: "what ``ProfileTCHZ`` and ``Geometry`` have room for"."""
     diagnostics: list = []
     read_gsas_prm(DATA / "mg090.prm", diagnostics=diagnostics)
@@ -838,3 +844,205 @@ def test_the_bank_count_is_read_at_its_column(tmp_path):
     path.write_text(text, encoding="latin-1")
     instrument = read_gsas_prm(path)
     assert instrument.source.lines[0].wavelength.value > 0
+
+
+# --------------------------------------------------- the writer (WP-1118, #148)
+#
+# `from_instrument` is the inverse of `read_gsas_prm`, so its test is a round
+# trip through that reader — the same acceptance the three structure writers
+# take, and the fourth format on the WP's writers task. What is different here
+# is that the flags are deliberately *not* the payload: a `.prm` is a
+# calibration, and both readers in this package hand one back frozen.
+
+
+def _calibrated() -> rx.Instrument:
+    """A instrument shaped like a converged `lab_calibrate`, doublet and all."""
+    inst = rx.Instrument.debye_scherrer(wavelength=1.5405929, polarization=0.99)
+    inst.source.lines.append(rx.EmissionLine(
+        wavelength=1.5444274, weight=rx.Parameter(value=0.5, min=0.0, max=2.0)))
+    inst.profile.u.value = 1.163e-4
+    inst.profile.v.value = -0.126e-4
+    inst.profile.w.value = 0.063e-4
+    inst.profile.x.value = 0.173e-2
+    inst.profile.y.value = 0.0
+    inst.geometry.axial_sl.value = 0.0011
+    inst.geometry.axial_hl.value = 0.0022
+    return inst
+
+
+def test_write_gsas_prm_round_trips_the_calibration(tmp_path):
+    """Every number `read_gsas_prm` maps comes back, through its own
+    centidegree conversion rather than a second copy of it."""
+    inst = _calibrated()
+    out = tmp_path / "written.prm"
+    rx.write_gsas_prm(inst, out, header="a rietx calibration")
+    back = read_gsas_prm(out)
+
+    assert back.source.primary_wavelength == pytest.approx(1.5405929, rel=1e-15)
+    assert back.source.polarization.value == pytest.approx(0.99, rel=1e-15)
+    assert len(back.source.lines) == 2
+    assert back.source.lines[1].wavelength.value == pytest.approx(1.5444274, rel=1e-15)
+    assert back.source.lines[1].weight.value == pytest.approx(0.5, rel=1e-15)
+    for key in ("u", "v", "w", "x", "y"):
+        assert getattr(back.profile, key).value == pytest.approx(
+            getattr(inst.profile, key).value, rel=1e-12)
+    assert back.geometry.axial_sl.value == pytest.approx(0.0011, rel=1e-15)
+    assert back.geometry.axial_hl.value == pytest.approx(0.0022, rel=1e-15)
+    assert back.zero_shift.value == 0.0
+
+
+def test_a_single_line_source_writes_no_doublet(tmp_path):
+    """``LAM2 = 0`` *is* "no second line", which is what the reader reads it
+    as — so a monochromatic source must not come back with a ghost line."""
+    inst = rx.Instrument.debye_scherrer(wavelength=0.4139090, polarization=0.99)
+    out = tmp_path / "mono.prm"
+    rx.write_gsas_prm(inst, out)
+    back = read_gsas_prm(out)
+    assert len(back.source.lines) == 1
+    assert back.source.primary_wavelength == pytest.approx(0.4139090, rel=1e-15)
+
+
+def test_the_written_file_says_what_it_could_not_state(tmp_path):
+    """The mirror of the reader's own ``GSAS_PRM_GEOMETRY_ASSUMED``: a ``.prm``
+    states no geometry at all, so a Bragg-Brentano calibration comes back
+    Debye-Scherrer and the writer says so before the file is on disk."""
+    inst = _calibrated()
+    inst.profile.u.vary = True
+    diagnostics: list = []
+    rx.write_gsas_prm(inst, tmp_path / "said.prm", diagnostics=diagnostics)
+
+    (row,) = [d for d in diagnostics if d.code == "GSAS_PRM_FIELD_NOT_WRITTEN"]
+    assert row.level == "warning"
+    assert "debye_scherrer" in row.message
+    assert "S/L and H/L are the two geometry numbers that do cross" in row.message
+    assert "every refine flag" in row.message
+
+
+def test_write_gsas_prm_refuses_a_non_zero_zero_shift(tmp_path):
+    """``ICONS``' ``ZERO`` is the one field here whose unit no file in this
+    corpus settles, and ``read_gsas_prm`` refuses a non-zero one for that
+    reason — so writing a guess would make a file this package will not read
+    back, wrong by 100× if the guess is wrong.  ``io/CLAUDE.md``'s own rule
+    decides the direction: a value at the model's identity is dropped, a
+    non-zero one raises."""
+    inst = _calibrated()
+    inst.zero_shift.value = 0.013
+    with pytest.raises(ValueError, match="ZERO"):
+        from_instrument(inst)
+
+
+def test_write_gsas_prm_refuses_a_neutron_source(tmp_path):
+    """``HTYPE PXCR`` is constant-wavelength X-ray, the one type this pair
+    reads; a neutron source is ``PNCR`` or ``PNTR`` and both are refused on the
+    way in."""
+    inst = rx.Instrument.constant_wavelength_neutron(wavelength=1.5)
+    with pytest.raises(ValueError, match="PXCR"):
+        from_instrument(inst)
+
+
+def test_write_gsas_prm_refuses_more_lines_than_icons_can_hold(tmp_path):
+    """``ICONS`` holds ``LAM1`` and ``LAM2``; a third line would be dropped
+    into a file that still looked complete."""
+    inst = _calibrated()
+    inst.source.lines.append(rx.EmissionLine(
+        wavelength=1.39222, weight=rx.Parameter(value=0.1, min=0.0, max=2.0)))
+    with pytest.raises(ValueError, match="emission lines"):
+        from_instrument(inst)
+
+
+def test_write_gsas_prm_refuses_a_weight_that_is_not_a_kratio(tmp_path):
+    """The bound the reader checks, checked on the way out too, so the file is
+    never written rather than being refused when it is read."""
+    inst = _calibrated()
+    inst.source.lines[1].weight.value = 0.0
+    with pytest.raises(ValueError, match="KRATIO"):
+        from_instrument(inst)
+
+
+def test_the_written_records_are_gsas_own_grammar(tmp_path):
+    """The fields are written by the same two functions the ``.EXP`` writer
+    uses, for the reason ``read_icons`` is shared: one vendor's record, one
+    spelling.  This row is what would fail if a key or a column moved."""
+    text = from_instrument(_calibrated(), header="h")
+    records = dict(split_records(text))
+    assert records["INS   HTYPE "].strip() == "PXCR"
+    assert records["INS   BANK  "][:5].strip() == "1"
+    icons = read_icons(records["INS  1 ICONS"])
+    assert icons.lam1 == pytest.approx(1.5405929, rel=1e-15)
+    assert icons.ka2_ratio == pytest.approx(0.5, rel=1e-15)
+    assert icons.zero == 0.0 and icons.polarization_type == 0
+    header = read_prcf_header(records["INS  1PRCF1 "])
+    assert (header.function, header.n_coefficients) == (3, 8)
+    # a calibration has refined nothing, so the header's flag columns are blank
+    assert header.flags.strip() == ""
+
+
+def test_a_coefficient_that_would_fill_its_field_still_reads_back(tmp_path):
+    """The one column a ``PRCF`` field does not spend, and why.
+
+    ``_read_prcf`` splits its continuation records on whitespace — the one
+    place in either GSAS reader that does, because GSAS's own editor prints
+    labels inside the fields — while ``write_field`` right-justifies.  So a
+    value whose shortest exact decimal is fifteen characters long leaves no
+    separating space and fuses with the field before it, and the pair reads as
+    one token that is not a number.  A converged ``u`` multiplied into
+    centidegrees carries the product's own float noise and reaches that length
+    routinely: ``0.0043710000000001 * 1e4`` is 43.710000000000996.
+    """
+    inst = _calibrated()
+    inst.profile.u.value = 0.0043710000000001
+    inst.profile.v.value = -0.0012609876543211
+    inst.profile.x.value = 0.0123456789012347
+    inst.profile.y.value = 0.0234567890123457
+    out = tmp_path / "wide.prm"
+    rx.write_gsas_prm(inst, out)
+
+    for name, payload in split_records(out.read_text(encoding="latin-1")):
+        if name.startswith("INS  1PRCF1") and name[11:].strip().isdigit():
+            assert len(payload.split()) == 4, payload
+
+    back = read_gsas_prm(out)
+    for key in ("u", "v", "x", "y"):
+        assert getattr(back.profile, key).value == pytest.approx(
+            getattr(inst.profile, key).value, rel=1e-12)
+
+
+def test_a_line_break_in_the_header_is_refused(tmp_path):
+    """``I HEAD`` holds whatever the experimenter typed, and a card index is
+    split on CR and LF — so a break in it would be read back as a second
+    record under a key nothing wrote.  The refusal is ``write_record``'s, one
+    module over, which is what makes it the ``.EXP`` writer's too."""
+    inst = _calibrated()
+    with pytest.raises(ValueError, match="line break"):
+        from_instrument(inst, header="two\nlines")
+
+
+def test_write_gsas_prm_is_reachable_at_the_top_level():
+    assert rx.write_gsas_prm is write_gsas_prm
+
+
+def test_a_value_that_did_not_fit_its_field_is_named(tmp_path):
+    """The twin of the `.EXP` writer's `GSAS_EXP_VALUE_NARROWED`.
+
+    This writer collected `narrowed` from `write_field` and read it nowhere,
+    so a value written to what a fixed column holds crossed in silence while
+    its sibling reported one — a declared channel with no consumer, WP-1076's
+    class in mirror image. A `PRCF` coefficient multiplied into centidegrees
+    carries the product's own float noise, so a converged calibration reaches
+    it routinely: 0.0043710000000001 × 1e4 is 43.710000000000996.
+    """
+    inst = _calibrated()
+    inst.profile.u.value = 0.0043710000000001
+    diagnostics: list = []
+    from_instrument(inst, diagnostics=diagnostics)
+    (row,) = [d for d in diagnostics if d.code == "GSAS_PRM_VALUE_NARROWED"]
+    assert row.level == "info"
+    assert "43.710000000000996" in row.message
+    assert row.where == ["PRCF GU"]
+
+
+def test_a_calibration_that_fits_says_nothing_about_narrowing(tmp_path):
+    """The empty state is a fact, not an absence: no row means no value moved."""
+    diagnostics: list = []
+    from_instrument(_calibrated(), diagnostics=diagnostics)
+    assert not [d for d in diagnostics if d.code == "GSAS_PRM_VALUE_NARROWED"]

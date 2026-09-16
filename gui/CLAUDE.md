@@ -123,6 +123,14 @@ and says so when it is absent). `npm run build` needs `python3`, `vitest` needs
 `resolve.conditions: ["browser"]` or `mount()` comes from svelte's server build,
 and `@sveltejs/vite-plugin-svelte` must be v7 for Vite 8.
 
+**`lib/resize.ts`'s cases are copied out, and `gui/src` is hashed whole**
+(WP-1425). `rietx watch` cannot import TypeScript, so it ports
+`clampSize`/`dragged`/`axisOf`/`coalesce` and `tests/test_watch_app.py` compares
+`resize.test.ts`'s `ported cases` block against `tests/watch_core.test.mjs` **as
+text**, comments included: edit them here and the copy fails until it follows.
+`build_info.py` hashes `gui/src/**/*`, test files included, so editing any test
+here marks the committed dist stale and costs an `npm run build`.
+
 **Driving a real browser: the chromium binaries are already cached even when
 playwright is not installed**, so a browser pass costs an
 `npm i playwright-core` **in a scratch directory, never in `gui/`** (it must not

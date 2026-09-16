@@ -1682,7 +1682,30 @@ def attach(stream, events, *, telemetry=None, project_hint=None,
     hook that *does* raise then leaves a complete log behind rather than
     costing the run the telemetry it was recording. That ordering is this
     function's choice and not a contract.
+
+    ``label`` names the run, and is the one thing here a **caller** supplies
+    (WP-1431), so it is the one thing that can arrive as the wrong type. It is
+    checked at this funnel and raises, which "telemetry never breaks a fit"
+    does not cover: that rule is about the *environment* — an unwritable
+    directory, a full disk — and this is a programming error at the call, in
+    the same place and for the same reason the root and the directory are
+    chosen outside the recorder's latch. Left unchecked it is silent and
+    costs the record: ``_write_meta`` writes raw JSON, so a list lands in
+    ``meta.json`` as an array, ``RunMeta`` then refuses the whole file, and
+    ``read_run`` reads the run back as *legacy* — a derived name and no
+    tooltip, from a run that recorded perfectly. The hazard is real and one
+    letter wide: ``SequentialRefinement.fit`` has a ``labels=`` too, the
+    series members' names, beside this ``label=`` for the job.
+
+    Checked **before** the switch-off guard below, so a caller's suite running
+    with ``RIETX_TELEMETRY=0`` catches the mistake that would otherwise
+    surface only on a machine where recording is on.
     """
+    if label is not None and not isinstance(label, str):
+        raise TypeError(
+            f"label must be a string naming this run, not "
+            f"{type(label).__name__}. (A series names its *members* with "
+            f"labels=, a sequence; label= names the whole job.)")
     if not enabled() or telemetry is False:
         return None
     if _already_recorded(stream):
@@ -1729,15 +1752,29 @@ def attach(stream, events, *, telemetry=None, project_hint=None,
 
 
 def _format_table(runs: list[Run], root: Path) -> str:
+    """The text twin of the ``rietx watch`` list, and it answers the same two
+    questions the same way (WP-1424).
+
+    An R factor is a percentage wherever a person reads one, here as on the
+    page and in the GUI; the fraction is the report layers' form, because they
+    are quoted into prose. And a run is named by what tells it from its
+    neighbours: a batch driven from one directory gives every run the same
+    label, so the series label goes in the column where there is one. The page
+    does this in ``rowName`` (``watch/static/watch-core.mjs``). The rule is
+    stated twice because a process boundary runs through it — the page gets
+    these rows as JSON and cannot import python — so a change to one is a
+    change to both.
+    """
     rows = [("STATE", "RUN", "STAGE", "RWP", "SIZE", "ID")]
     for run in runs:
         live = liveness_of(run)
         st = run.status
+        series = st.series_label if st else None
         rows.append((
             live.state,
-            run.label,
+            series or run.label,
             (st.stage if st and st.stage else "—"),
-            (f"{st.rwp:.4f}" if st and st.rwp is not None else "—"),
+            (f"{st.rwp * 100:.2f}%" if st and st.rwp is not None else "—"),
             f"{run.size_bytes / 1024:.0f}k",
             run.run_id,
         ))

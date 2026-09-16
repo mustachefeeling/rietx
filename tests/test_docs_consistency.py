@@ -137,6 +137,9 @@ _INHERITED_PRUNE_EPOCH = "2026-07-31"
 #                                                          (PRs #227, #228), which landed at 723 with no bump; repaired in #229
 #   2026-09-02  CLAUDE.md                     723 -> 732  for WP-1330's skill bullet: the three destinations
 #                                                          and the shape rule, landed at the cap
+#   2026-09-16  gui/CLAUDE.md                1028 -> 1036 for WP-1425's one rule: the watch page's
+#                                                          port of lib/resize.ts, pinned by a text-compared
+#                                                          case table, and the dist digest that hashes tests
 #   2026-09-03  docs/ROADMAP.md               621 -> 645  for the 2026-09-03 issue triage (1332-1341): ten rows
 #                                                          across three existing sections and one new one, landed 641
 #   2026-09-08  docs/ROADMAP.md               645 -> 648  for WP-1343 (issue #277, the magnetic
@@ -164,6 +167,16 @@ _INHERITED_PRUNE_EPOCH = "2026-07-31"
 #                                                          magnetic track's landed layer, and #258 on the
 #                                                          fence; the Current focus paragraph was cut to
 #                                                          pay for its own sentence; landed 706, +1 headroom
+#   2026-09-16  docs/ROADMAP.md               712 -> 717  for WP-1432, filed by the review of issues #286
+#                                                          and #293: one index row and one sentence naming
+#                                                          it in § What fires, and what stays silent; landed
+#                                                          713, +4 headroom so the next few index rows do
+#                                                          not each need a cap commit
+#   2026-09-16  docs/ROADMAP.md               717 -> 719  for WP-1434 and WP-1435, the two halves of WP-1310
+#                                                          it measured into their own shape: two index rows,
+#                                                          nothing else. The sentence naming them in § What
+#                                                          fires replaced one 1310 already had, so the
+#                                                          narrative paid for itself; landed 719, no headroom
 SIZE_CAPS: dict[str, int | None] = {
     # 739 -> 755 (WP-1102): two standing rules for the component seam — that an
     # additive non-Bragg term is a union *member* and not a new field, and that
@@ -238,7 +251,13 @@ SIZE_CAPS: dict[str, int | None] = {
     # was 833 and landing at exactly 833.  Two parents' additions do not sum
     # (tests/CLAUDE.md § Quoting numbers), so the merged tree is one over and
     # the +1 is arithmetic rather than new content.
-    "CLAUDE.md": 837,
+    # 837 -> 841 (WP-1424): "no file check sees layout" gains its second class.
+    # A cut is not a variant of the invisible sheet: that one was a rule
+    # outranking another, and this is a measurement being right about the
+    # wrong box.  It carries the instrument with it, because `scrollWidth` is
+    # the obvious probe and is blind here, and a reader who reaches for it
+    # measures zero and believes the page.  Raised rather than shaved.
+    "CLAUDE.md": 841,
     # 672 -> 676 (WP-1102): the Current focus rewrite at 1102's close names the
     # milestone's one break and what makes 1103 the seam's proving case.
     # 676 -> 682 (WP-1407): a new Unscheduled group, "The formats a lab still
@@ -273,9 +292,16 @@ SIZE_CAPS: dict[str, int | None] = {
     # Current focus naming #101 as closed, which is what a successor reads to
     # know the writers are all that is left of 1118.  Nothing is demotable, so
     # the cap moves rather than the fact.  Landed at 711, headroom +1.
-    "docs/ROADMAP.md": 712,
-    "gui/CLAUDE.md": 1028,
-    "tests/CLAUDE.md": 275,
+    "docs/ROADMAP.md": 719,
+    "gui/CLAUDE.md": 1036,
+    # 275 -> 283 (WP-1426): a third way a guard goes quiet, and the only one of
+    # the three that is about the instrument rather than the assertion — a
+    # browser's layout-shift entry cannot see inside a plotly div, so a
+    # stillness guard over a picture reads 0 while the picture moves. It
+    # governs work well outside the WP that measured it: three queued WPs edit
+    # that page, and `compare_app.py` and the GUI both draw with plotly too.
+    # Landed at 282, headroom +1, per this file's docstring.
+    "tests/CLAUDE.md": 283,
     "src/rietx/indexing/CLAUDE.md": 300,
     # 300 -> 350 (WP-1407): four per-format rows, and three standing rules the
     # Philips √ encoding taught — that a format may encode its counts rather
@@ -327,7 +353,23 @@ SIZE_CAPS: dict[str, int | None] = {
     # a format stating only a symbol reports the assumption at read.  It
     # governs work outside the WP that measured it: `.m50` states operators
     # too (WP-1314).  Raised rather than shaved, per the failure message.
-    "src/rietx/io/CLAUDE.md": 428,
+    # 428 -> 465 (WP-1118): a § Project writers, four rules the readers do not
+    # need.  It governs work outside the WP that measured them — every later
+    # writer this family grows, GSAS-II being next — and one of the four is a
+    # class no test in this package can catch, since a Fortran edit descriptor
+    # supplies the decimal point a field omits while `float()` here does not,
+    # so a round trip stays green about a file that says something else to the
+    # program it is for.  Raised rather than shaved, per the failure message.
+    # Landed at 464, then 472 after the review pass found the budget rule
+    # stated too simply: how much of a field is spendable is the *reader's*
+    # question, and a writer that spent all fifteen columns of a `.prm` PRCF
+    # field wrote a file this package's own reader refused.  That is the rule
+    # the section exists for, so it is corrected in place rather than shaved.
+    # The +1 is headroom, per this file's docstring.
+    # 473 -> 485 (WP-1118, 2026-09-16): the GSAS-II pair added the one rule a
+    # writer cannot derive from the four before it — two programs reading one
+    # string opposite ways, so the fact goes in the channel the target reads.
+    "src/rietx/io/CLAUDE.md": 485,
 }
 CURRENT_FOCUS_CAP: int | None = 60  # lines within ROADMAP's Current focus (WP-1031 landed at 33; the 1060 rewrite at 44)
 # Words, because a line cap alone was met by nine 1000-character paragraphs

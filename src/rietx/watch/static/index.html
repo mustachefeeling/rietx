@@ -5,10 +5,6 @@
 </head><body>
 <div id="bar">
   <strong>rietx watch</strong>
-  <button id="toggle-runs" class="toggle" aria-pressed="true"
-          title="show or hide the run list">runs</button>
-  <button id="toggle-run" class="toggle" aria-pressed="true"
-          title="show or hide the selected run">run</button>
   <span id="root"></span>
 </div>
 <div id="main">
@@ -17,14 +13,19 @@
       <col class="c-state"><col><col class="c-stage"><col class="c-rwp">
       <col class="c-gof"><col class="c-started">
     </colgroup><thead><tr>
-      <th>state</th><th>run</th><th>stage</th><th class="num">Rwp</th>
-      <th class="num">GoF</th><th>started</th>
+      <th scope="col">state</th><th scope="col">run</th>
+      <th scope="col">stage</th><th scope="col" class="num">Rwp</th>
+      <th scope="col" class="num">GoF</th><th scope="col">started</th>
     </tr></thead><tbody id="rows"></tbody></table>
     <div id="empty" hidden>No runs under this directory. A run is a directory
       holding an <code>events.jsonl</code> — pass one to
       <code>LiveSession</code>, or open a <code id="empty-suffix"></code> project in the
       GUI.</div>
   </aside>
+  <div id="grip-list" class="grip v" role="separator" tabindex="0"
+       aria-orientation="vertical" aria-controls="runs"
+       aria-label="run list width"
+       title="drag to resize; double-click or Enter to collapse"></div>
   <section id="run">
     <div id="strip">
       <span id="s-state" class="state unknown">scanning</span>
@@ -39,6 +40,10 @@
       <button id="stop" hidden>stop</button>
     </div>
     <div id="picture"></div>
+    <div id="grip-console" class="grip h" role="separator" tabindex="0"
+         aria-orientation="horizontal" aria-controls="console"
+         aria-label="log height"
+         title="drag to resize; double-click or Enter to collapse"></div>
     <div id="console"></div>
   </section>
 </div>

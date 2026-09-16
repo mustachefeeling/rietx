@@ -28,8 +28,11 @@ from rietx.io.projects.gsas import (
     CW_CENTIDEG_POWER,
     CW_PROFILE_COEFFICIENTS,
     GsasExpError,
+    from_structure,
     read_gsas_exp,
+    split_records,
     to_structure,
+    write_gsas_exp,
 )
 
 DATA = Path(__file__).parent / "data"
@@ -295,6 +298,20 @@ def test_a_record_after_the_terminator_is_still_read(tmp_path):
                 _card("    HSTRY 17", " GENLES appended after the end marker"))
     model = read_gsas_exp(path)
     assert model.phases[0].name == "one"
+
+
+def test_a_fractional_unit_cell_content_is_read_at_its_own_columns(tmp_path):
+    """``CHMF`` is ``2X, A8, F10.2``, and this repo's one fixture hides it.
+
+    Every content in ``FAP.EXP`` ends ``.00``, so a read two columns short
+    still floats to the right number — ``'  CA            5.00'`` sliced at
+    ``[8:18]`` is ``'        5.'``, which is 5.0.  A partially occupied site is
+    where the offset shows, and it is the ordinary case for a solid solution.
+    Found while writing the writer, which had to know the true columns.
+    """
+    cards = list(_MINIMAL) + [_card("CRS1  CHMF 1", "  NA            5.25")]
+    model = read_gsas_exp(_exp(tmp_path, "content.EXP", *cards))
+    assert model.phases[0].formula == (("NA", 5.25),)
 
 
 def test_a_negative_uiso_is_refused_rather_than_built(tmp_path):
@@ -645,3 +662,402 @@ def test_the_corroborating_fixture_names_a_group_held_once(tmp_path):
     diagnostics: list = []
     read_gsas_exp(FAP, diagnostics=diagnostics)
     assert [d for d in diagnostics if "SETTING" in d.code] == []
+
+
+# --------------------------------------------------- the writer (WP-1118, #148)
+#
+# `from_structure` is the inverse of `to_structure`, so its test is a round trip
+# through the reader above — the WP's own acceptance for a writer. What is new
+# here and was not true of the `.inp` and `.pcr` writers is that the columns are
+# **fixed**, so the round trip also tests every field's offset: a number written
+# one column left comes back as a different number or as nothing at all.
+
+
+def _round_trip(structure: rx.Structure, tmp_path: Path, name="out.EXP",
+                **kwargs) -> rx.Structure:
+    out = tmp_path / name
+    rx.write_gsas_exp(structure, out, **kwargs)
+    return to_structure(read_gsas_exp(out))
+
+
+def _assert_parameter_equal(a: rx.Parameter, b: rx.Parameter):
+    assert a.value == b.value and a.vary == b.vary
+
+
+def _hexagonal(*, vary=True) -> rx.Structure:
+    """One phase whose numbers all fit ten columns, so the trip is exact."""
+    cell = rx.Cell(a=rx.Parameter(value=9.371724, min=1.0, vary=vary),
+                   b=rx.Parameter(value=9.371724, min=1.0, vary=vary),
+                   c=rx.Parameter(value=6.885867, min=1.0, vary=vary),
+                   alpha=rx.Parameter(value=90.0, vary=vary),
+                   beta=rx.Parameter(value=90.0, vary=vary),
+                   gamma=rx.Parameter(value=120.0, vary=vary))
+    atoms = [
+        rx.Atom(label="Ca1", species="Ca",
+                x=rx.Parameter(value=0.333333, vary=vary),
+                y=rx.Parameter(value=0.666667, vary=vary),
+                z=rx.Parameter(value=0.001913, vary=vary),
+                occ=rx.Parameter(value=1.0, min=0.0, max=1.5, vary=False),
+                biso=rx.Parameter(value=0.48, min=0.0, max=25.0, vary=vary)),
+        rx.Atom(label="F4", species="F1-",
+                x=rx.Parameter(value=0.0, vary=False),
+                y=rx.Parameter(value=0.0, vary=False),
+                z=rx.Parameter(value=0.25, vary=False),
+                occ=rx.Parameter(value=0.5, min=0.0, max=1.5, vary=True),
+                biso=rx.Parameter(value=1.09, min=0.0, max=25.0, vary=False)),
+    ]
+    return rx.Structure(phases=[rx.Phase(
+        name="fap", space_group="P 63/m", cell=cell, atoms=atoms)])
+
+
+def test_write_gsas_exp_round_trips_cell_atoms_and_refine_flags(tmp_path):
+    """Exported and re-imported is the same structure, values exactly.
+
+    ``%g`` descending from seventeen digits spends the whole ten-column field,
+    so a value whose own ``repr`` fits crosses bit-identically — which is every
+    number in this phase but the displacement, whose own row is below.  The
+    flags are the payload: GSAS states one for the cell and one ``X`` letter
+    for a site's coordinates, so this structure gives each group one answer and
+    the trip has to return it.
+    """
+    structure = _hexagonal()
+    back = _round_trip(structure, tmp_path)
+    (orig,), (built,) = structure.phases, back.phases
+
+    assert built.name == orig.name
+    assert built.space_group == "P 63/m"
+    for key in ("a", "b", "c", "alpha", "beta", "gamma"):
+        _assert_parameter_equal(getattr(orig.cell, key), getattr(built.cell, key))
+    assert len(built.atoms) == 2
+    for oa, ba in zip(orig.atoms, built.atoms):
+        assert (ba.label, ba.species) == (oa.label, oa.species)
+        for key in ("x", "y", "z", "occ"):
+            _assert_parameter_equal(getattr(oa, key), getattr(ba, key))
+        assert ba.biso.vary == oa.biso.vary
+
+
+def test_the_displacement_is_the_one_value_a_exp_cannot_carry_exactly(tmp_path):
+    """And it is arithmetic, not a defect: GSAS stores ``Uiso``.
+
+    ``Biso / 8π²`` is irrational in the decimal sense, so a ``biso`` of 0.48 —
+    two characters — becomes a ``Uiso`` of 0.0060792710185… that no ten-column
+    field can hold.  Ten columns give it about seven significant figures, which
+    is 1e-7 of itself against an esd a refinement reports at ~1e-2, and it is
+    two more figures than the six decimals real GSAS writes.  The writer says
+    so rather than letting it pass: that is what ``GSAS_EXP_VALUE_NARROWED``
+    is, and it fires once for the file rather than once per value.
+    """
+    diagnostics: list = []
+    structure = _hexagonal()
+    back = _round_trip(structure, tmp_path, diagnostics=diagnostics)
+
+    got = back.phases[0].atoms[0].biso.value
+    assert got != 0.48                         # not exact, and not pretended to be
+    assert got == pytest.approx(0.48, rel=1e-6)
+
+    (row,) = [d for d in diagnostics if d.code == "GSAS_EXP_VALUE_NARROWED"]
+    assert row.level == "info"
+    assert "phases.0.atoms.0.biso" in row.where
+    # every other number in this phase fits its field, so only the two
+    # displacements are named
+    assert row.where == ["phases.0.atoms.0.biso", "phases.0.atoms.1.biso"]
+
+
+def test_two_phases_keep_their_own_records(tmp_path):
+    """The `CRS<n>` keys and `EXPR NPHAS`' nine fields, which one phase cannot
+    exercise: a phase number is part of every key in its block, and a phase
+    whose type the `NPHAS` record does not state is what `to_structure` refuses
+    on the way back in.  Selecting one is the caller's, following the reader's
+    own rule, so both are asked for by number."""
+    P = rx.Parameter
+
+    def phase(name, a, label, species):
+        return rx.Phase(
+            name=name, space_group="Fm-3m", cell=rx.Cell.cubic(a, vary=True),
+            atoms=[rx.Atom(label=label, species=species,
+                           x=P(value=0.0), y=P(value=0.0), z=P(value=0.0),
+                           occ=P(value=1.0, min=0.0, max=1.5),
+                           biso=P(value=0.5, min=0.0, max=25.0, vary=True))])
+
+    structure = rx.Structure(phases=[phase("Al", 4.0495, "Al1", "Al"),
+                                     phase("NaCl", 5.64, "Na1", "Na")])
+    out = tmp_path / "two.EXP"
+    rx.write_gsas_exp(structure, out, title="two phases")
+    model = read_gsas_exp(out)
+
+    assert [(p.number, p.name, p.kind) for p in model.phases] == [
+        (1, "Al", 1), (2, "NaCl", 1)]
+    for number, original in zip((1, 2), structure.phases):
+        built = to_structure(model, phase=number).phases[0]
+        assert built.name == original.name
+        _assert_parameter_equal(original.cell.a, built.cell.a)
+        assert [(a.label, a.species) for a in built.atoms] == [
+            (a.label, a.species) for a in original.atoms]
+    with pytest.raises(GsasExpError, match="pass phase=N"):
+        to_structure(model)
+
+
+def test_a_held_structure_comes_back_held(tmp_path):
+    """The other answer for every flag, since ``any()`` is how they merge."""
+    back = _round_trip(_hexagonal(vary=False), tmp_path)
+    (built,) = back.phases
+    assert not any(getattr(built.cell, k).vary
+                   for k in ("a", "b", "c", "alpha", "beta", "gamma"))
+    assert not built.atoms[0].x.vary and not built.atoms[0].biso.vary
+
+
+def test_the_real_converged_refinement_survives_the_round_trip(tmp_path):
+    """``FAP.EXP`` out through the writer and back in, against itself.
+
+    A hand-built structure exercises the fields; GSAS's own converged file
+    exercises the *values* — seven sites, a hexagonal cell and the refine
+    protocol ``test_the_recovered_protocol_reproduces_gsas_own_variable_count``
+    checks against the number the file states in words.
+    """
+    original = to_structure(read_gsas_exp(FAP))
+    back = _round_trip(original, tmp_path, "fap_again.EXP")
+    (orig,), (built,) = original.phases, back.phases
+    assert built.space_group == orig.space_group
+    for key in ("a", "b", "c", "alpha", "beta", "gamma"):
+        _assert_parameter_equal(getattr(orig.cell, key), getattr(built.cell, key))
+    assert len(built.atoms) == 7
+    for oa, ba in zip(orig.atoms, built.atoms):
+        assert (ba.label, ba.species) == (oa.label, oa.species)
+        _assert_parameter_equal(oa.x, ba.x)
+        _assert_parameter_equal(oa.occ, ba.occ)
+        # Biso → Uiso → Biso is the one lossy step: ten columns hold a Uiso of
+        # ~0.0067 to six figures, which is 1e-7 of itself against an esd of
+        # ~1e-2.  The file's own Uiso is six decimals, so this beats GSAS.
+        assert ba.biso.value == pytest.approx(oa.biso.value, rel=1e-6)
+        assert ba.biso.vary == oa.biso.vary
+
+
+def test_a_written_file_is_claimed_by_the_registry_as_a_gsas_exp(tmp_path):
+    """The sniff measures the 80-column width, so the writer has to keep it."""
+    out = tmp_path / "claimed.EXP"
+    rx.write_gsas_exp(_hexagonal(), out, title="a written experiment")
+    assert rx.identify_project_format(out).name == "gsas_exp"
+    assert rx.read_project_model(out).stated.title == "a written experiment"
+
+
+def test_every_card_is_exactly_eighty_columns(tmp_path):
+    """The width is the format, not the presentation: GSAS fetched these
+    records by direct access, and a short card shifts every field after it."""
+    text = from_structure(_hexagonal())
+    lines = text.split("\r\n")[:-1]
+    assert lines and all(len(line) == 80 for line in lines)
+
+
+def test_the_multiplicity_and_contents_are_derived_from_the_sites(tmp_path):
+    """Two fields GSAS states that a ``Structure`` does not.
+
+    ``F4`` sits on the 2-fold special position at ``(0, 0, ¼)`` and ``Ca1`` on
+    the 4-fold one, so the orbit gives 2 and 4 — and ``CHMF`` is the occupancy
+    summed over them, which is where the record's own columns get tested.
+    """
+    out = tmp_path / "contents.EXP"
+    rx.write_gsas_exp(_hexagonal(), out)
+    model = read_gsas_exp(out)
+    (phase,) = model.phases
+    assert [a.multiplicity for a in phase.atoms] == [4, 2]
+    assert phase.formula == (("Ca", 4.0), ("F1-", 1.0))
+
+
+def test_write_gsas_exp_writes_the_resolved_setting_not_the_bare_symbol(tmp_path):
+    """A ``.EXP`` states its symbol and no operators, so a resolved setting
+    that went out as a bare symbol would come back ambiguous — and the reader
+    would rightly say so.  ``SG SYM`` takes the whole payload, so unlike a
+    ``.pcr`` this format can spell every setting and no refusal is owed."""
+    from rietx.crystallography.symmetry import get_spacegroup
+
+    resolved = get_spacegroup("Fd-3m").xhm()
+    assert ":" in resolved
+    structure = rx.Structure(phases=[rx.Phase(
+        name="spinel", space_group=resolved, cell=rx.Cell.cubic(8.0806),
+        atoms=[rx.Atom(label="Mg1", species="Mg",
+                       x=rx.Parameter(value=0.125), y=rx.Parameter(value=0.125),
+                       z=rx.Parameter(value=0.125))])])
+    out = tmp_path / "spinel.EXP"
+    rx.write_gsas_exp(structure, out)
+    assert resolved in out.read_text(encoding="latin-1")
+
+    diagnostics: list = []
+    model = read_gsas_exp(out, diagnostics=diagnostics)
+    assert model.phases[0].space_group == resolved
+    assert [d for d in diagnostics if "SETTING" in d.code] == []
+
+
+def test_a_flag_that_is_narrower_than_the_model_merges_and_says_so(tmp_path):
+    """GSAS states one flag for the cell and one for a site's coordinates.
+
+    A structure whose members disagree cannot be written as it stands, and the
+    choice is between freeing a parameter it holds and holding one it frees.
+    Freeing carries more of the caller's protocol — the file still says "this
+    cell refined" — so that is what is written, and the group is **named**
+    rather than the caller finding out from GSAS.
+    """
+    structure = _hexagonal()
+    phase = structure.phases[0]
+    phase.cell.alpha.vary = False           # against a/b/c, which vary
+    phase.atoms[0].z.vary = False           # against x/y, which vary
+
+    diagnostics: list = []
+    back = _round_trip(structure, tmp_path, diagnostics=diagnostics)
+
+    (row,) = [d for d in diagnostics if d.code == "GSAS_EXP_REFINE_FLAG_MERGED"]
+    assert row.level == "warning"
+    assert row.where == ["phases.0.cell", "phases.0.atoms.0.xyz"]
+    built = back.phases[0]
+    assert built.cell.alpha.vary is True
+    assert built.atoms[0].z.vary is True
+    # a group that agreed is not named and is not changed
+    assert built.atoms[1].x.vary is False
+
+
+def test_write_gsas_exp_refuses_an_anisotropic_site(tmp_path):
+    """``to_structure`` refuses one on the way in, because no file here settles
+    GSAS's off-diagonal convention — so writing six numbers under a convention
+    this module declines to read back is the same guess pointing the other
+    way."""
+    structure = _hexagonal()
+    structure.phases[0].atoms[0].biso.vary = False   # the schema's own rule
+    structure.phases[0].atoms[0].aniso = rx.AnisoU(
+        u11=rx.Parameter(value=0.006, unit="A^2"),
+        u22=rx.Parameter(value=0.006, unit="A^2"),
+        u33=rx.Parameter(value=0.006, unit="A^2"),
+        u12=rx.Parameter(value=0.003, unit="A^2"),
+        u13=rx.Parameter(value=0.0, unit="A^2"),
+        u23=rx.Parameter(value=0.0, unit="A^2"))
+    with pytest.raises(ValueError, match="anisotropic"):
+        from_structure(structure)
+
+
+def test_write_gsas_exp_refuses_a_negative_biso(tmp_path):
+    """The reader refuses a negative ``Uiso``, so writing one would only fail
+    at the read with the file already on disk."""
+    structure = _hexagonal()
+    atom = structure.phases[0].atoms[0]
+    atom.biso.min = -1.0
+    atom.biso.value = -0.1
+    with pytest.raises(ValueError, match="negative"):
+        from_structure(structure)
+
+
+def test_write_gsas_exp_refuses_a_non_finite_value(tmp_path):
+    """``inf`` fits ten columns and reads back as a float.
+
+    So a cell edge of infinity would round-trip *perfectly* into a structure
+    nothing can refine — the one shape where a fixed-width field's tolerance is
+    the hazard rather than the constraint.  Surfaced by the review pass on the
+    ``.inp``/``.pcr`` writers, which left it as a design question; the answer
+    is the same for all three.
+    """
+    structure = _hexagonal()
+    structure.phases[0].cell.a.max = float("inf")
+    structure.phases[0].cell.a.value = float("inf")
+    with pytest.raises(ValueError, match="no GSAS field can state"):
+        from_structure(structure)
+
+
+@pytest.mark.parametrize("label, reason", [
+    ("", "blank site label"),
+    ("  ", "blank site label"),
+    ("Ca1 ", "whitespace at one end"),
+    ("Calcium1", None),                     # eight characters: the field holds it
+    ("Calcium11", "characters against"),
+])
+def test_a_label_that_would_come_back_renamed_is_refused(label, reason):
+    """A fixed-width field is read back **stripped**, so a name with an end
+    space returns as a different name and a blank one returns as the species —
+    GSAS's own fallback for a record that names none.  Space *inside* is fine,
+    this format being columns rather than tokens, which is where it parts
+    company with the ``.inp`` and ``.pcr`` writers."""
+    structure = _hexagonal()
+    structure.phases[0].atoms[0].label = label
+    if reason is None:
+        assert label in from_structure(structure)
+        return
+    with pytest.raises(ValueError, match=reason):
+        from_structure(structure)
+
+
+def test_a_label_may_hold_a_space_inside_it(tmp_path):
+    """The other half of the row above, and the one that distinguishes a
+    column format from a token one."""
+    structure = _hexagonal()
+    structure.phases[0].atoms[0].label = "Ca 1"
+    back = _round_trip(structure, tmp_path)
+    assert back.phases[0].atoms[0].label == "Ca 1"
+
+
+def test_more_phases_than_the_format_can_type_is_refused():
+    """``EXPR NPHAS`` holds nine ``I5`` fields, and a phase with no stated type
+    is what ``to_structure`` refuses on the way back in — so a tenth phase
+    would be written into a file that cannot be read."""
+    one = _hexagonal().phases[0]
+    structure = rx.Structure(phases=[one.model_copy(deep=True) for _ in range(10)])
+    with pytest.raises(ValueError, match="EXPR NPHAS"):
+        from_structure(structure)
+
+
+def test_a_payload_that_would_overrun_its_card_is_refused():
+    """80 characters is what GSAS fetched these records by, so a long title is
+    a refusal rather than a truncation: a repair a writer cannot report is one
+    it may not make."""
+    with pytest.raises(ValueError, match="80-character width"):
+        from_structure(_hexagonal(), title="x" * 80)
+
+
+def test_a_line_break_in_a_payload_is_refused():
+    """The other half of the record above, and the sharper one.
+
+    A payload that overruns is caught by its length; one carrying a line break
+    is the right length and still wrong, because :func:`split_records` splits
+    on CR and LF — so the card is read back as two records under keys nothing
+    wrote.  That is the accident that function's own docstring names from the
+    reading side, arriving here through a ``title`` or a ``phase.name``.
+    """
+    with pytest.raises(ValueError, match="line break"):
+        from_structure(_hexagonal(), title="one\nCRS1  ABCSIG")
+    structure = _hexagonal()
+    structure.phases[0].name = "one\rtwo"
+    with pytest.raises(ValueError, match="line break"):
+        from_structure(structure)
+
+
+def test_a_character_latin_1_cannot_spell_is_refused():
+    """A ``.EXP`` is a byte format and :func:`write_gsas_exp` encodes one, so a
+    Greek α in a phase name has to be refused somewhere.  Here, naming the
+    record and the character, rather than at the encode, where a
+    ``UnicodeEncodeError`` names a byte offset into the finished file."""
+    structure = _hexagonal()
+    structure.phases[0].name = "α-quartz"
+    with pytest.raises(ValueError, match="latin-1 cannot spell"):
+        from_structure(structure)
+
+
+def test_write_gsas_exp_is_reachable_at_the_top_level():
+    assert rx.write_gsas_exp is write_gsas_exp
+
+
+def test_every_numeric_field_carries_its_decimal_point():
+    """The one mistake a round trip through this package cannot catch.
+
+    A Fortran ``F`` or ``E`` edit descriptor supplies the decimal point from
+    its own ``d`` when the input field has none, which is why punched data
+    could leave it out.  So ``90`` in an ``F10.6`` field is 9e-5 to GSAS and
+    90 to ``float()``, and every test here would pass while the file said
+    something else to the program it is for.  Real ``.EXP`` and ``.prm`` files
+    write ``0.333333`` and ``0.000000E+00``, which is the corroboration.  The
+    integer fields — ``VERSION``, ``NATOM``, a site multiplicity, ``NPHAS`` —
+    are ``I`` descriptors and rightly carry none, so they are written by ``%d``
+    and never reach :func:`write_field`.
+    """
+    text = from_structure(_hexagonal(vary=False))
+    records = dict(split_records(text))
+    for key in ("CRS1  ABC   ", "CRS1  ANGLES"):
+        for start in (0, 10, 20):
+            assert "." in records[key][start:start + 10]
+    for start in (10, 20, 30, 40):          # x, y, z, occupancy
+        assert "." in records["CRS1  AT  1A"][start:start + 10]
+    assert "." in records["CRS1  AT  1B"][0:10]

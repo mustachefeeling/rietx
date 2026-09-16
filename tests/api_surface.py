@@ -42,6 +42,16 @@ Two derivation rules carry the weight, both measured 2026-08-14:
    the manual's own guard rejected the first of them as a name that does not
    resolve.  Instance attributes are read off the class's source with ``ast``.
 
+**What the partition does not reach: a keyword.**  The denominator is names —
+methods, fields, and the types they close over — so a new *keyword argument* on
+an already-documented method adds nothing to it and nothing goes red.  Measured
+WP-1431: `label=` landed on `Refinement.fit`, `Refinement.run_stage` and
+`refine`, and removing the manual section that documents it left
+`test_manual_api.py` at 17 passed, unchanged.  Document a new keyword because an
+unannounced knob is WP-1322 again, never because a gate asked.  Closing this
+would mean partitioning signatures rather than names, which is a bigger
+denominator than the manual's coverage question needs.
+
 **The tier a name is on is data too** (WP-1078).  A documented name is frozen
 from the release that documents it, which is the wrong promise for a subsystem
 still under development, so ``PROVISIONAL_MODULES`` declares one by **module
@@ -154,7 +164,8 @@ PROVISIONAL_MODULES: dict[str, str] = {
         "per-format models they answer with) are under active development: "
         "WP-1118 landed the registry on 2026-09-13 with two formats and three "
         "more queued, each of which is evidence about the shape, and the "
-        "write direction is not written at all.  A format's own model mirrors "
+        "write direction landed for all four of them in the three days after "
+        "(2026-09-16).  A format's own model mirrors "
         "that format, so its fields move when the reader's coverage does."
     ),
 }

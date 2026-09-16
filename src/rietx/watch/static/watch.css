@@ -18,21 +18,50 @@ a:hover { text-decoration:underline; }
 button { font: inherit; color:#cdc; background:#242424; cursor:pointer;
          border:1px solid #3a3a3a; border-radius:4px; padding:2px 9px; }
 button:hover { background:#2c2c2c; }
-.toggle[aria-pressed="true"] { background:#2a3140; border-color:#3d4a66; }
 #main { flex:1 1 auto; display:flex; min-height:0; }
-/* the list is one panel and the run the other; a closed one gives the
-   other its width, and the choice is the reader's (localStorage) */
-#runs { flex:0 0 72ch; overflow:auto; scrollbar-gutter:stable;
-        border-right:1px solid #2c2c2c; }
+/* The list is one panel and the run the other, and the seam between them is
+   the reader's to drag (WP-1425). `--list` is what the grip writes, in px;
+   unset it and the declared `72ch` holds, which is why a page nobody has
+   dragged stores no number — a px default would freeze a width that is
+   font-relative on purpose. */
+/* border-box, because the grip measures the pane's rect and writes its flex
+   basis: a content-box basis is short by the 1 px border, so every arrow key
+   would have moved the seam 15 px and reported 16. The log's padding is 12 of
+   them. */
+#runs { flex:0 0 var(--list, 72ch); overflow:auto; scrollbar-gutter:stable;
+        border-right:1px solid #2c2c2c; box-sizing:border-box; }
 #run { flex:1 1 auto; min-width:0; display:flex; flex-direction:column; }
-body[data-runs="closed"] #runs, body[data-run="closed"] #run,
-body[data-single] #runs, body[data-single] #toggle-runs { display:none; }
+body[data-list="closed"] #runs,
+body[data-single] #runs, body[data-single] #grip-list { display:none; }
+/* The grip flows inline, taking its 5 px out of the row: an absolute grip
+   inside `overflow: auto` scrolls away from the edge it marks (WP-1029). It
+   is the whole control now — the two toggle buttons it replaced are gone. */
+.grip { flex:0 0 5px; background:#1c1c1c; border:0; padding:0;
+        touch-action:none; }
+.grip:hover { background:#31405a; }
+.grip:focus-visible { background:#3d4a66; outline:1px solid #6b83b3;
+                      outline-offset:-1px; }
+.grip.dragging { background:#3d4a66; }
+.grip.v { cursor:col-resize; }
+.grip.h { cursor:row-resize; }
+/* a collapsed pane's grip is the only way back to it, so it says so */
+.grip.closed { background:#2a3140; }
+.grip.closed:hover { background:#3d4a66; }
 table { border-collapse:collapse; width:100%; table-layout:fixed; }
-col.c-state { width:12ch; } col.c-stage { width:15ch; }
-col.c-rwp { width:8ch; } col.c-gof { width:6ch; } col.c-started { width:8ch; }
+/* Under `table-layout: fixed` a declared width is the cell's whole box, so
+   every column here is its worst content plus the 14 px the cell pads with.
+   Measured before WP-1424: `GoF` at 6ch held 29 px of room for a `12.34`
+   that inks 36, and the browser's answer to that is an ellipsis nobody
+   reads as one. The worst content is the pill word `cancelled` at 11 px,
+   `100.00%`, a three-digit GoF, and `14:20:00`; the run and stage columns
+   hold somebody else's name, have no worst content, and carry a `title`
+   instead. */
+col.c-state { width:13ch; } col.c-stage { width:15ch; }
+col.c-rwp { width:10ch; } col.c-gof { width:9ch; } col.c-started { width:11ch; }
 th { text-align:left; color:#777; font-weight:normal; padding:6px 7px;
      border-bottom:1px solid #2c2c2c; position:sticky; top:0;
-     background:#151515; }
+     background:#151515; overflow:hidden; text-overflow:ellipsis;
+     white-space:nowrap; }
 td { padding:6px 7px; border-bottom:1px solid #1e1e1e; white-space:nowrap;
      overflow:hidden; text-overflow:ellipsis; }
 tr.run { cursor:pointer; }
@@ -48,14 +77,56 @@ tr.run.selected { background:#1b2130; }
 .num { text-align:right; font-variant-numeric: tabular-nums; }
 .muted { color:#666; }
 #empty { padding:28px 12px; color:#777; }
-/* the strip is a grid of declared slots: a stage name, an Rwp or a
-   pattern label changes its text and never its neighbour's place */
-#strip { flex:0 0 auto; height:29px; padding:0 12px; gap:0 12px;
+/* The strip is a grid of declared slots: a stage name, an Rwp or a pattern
+   label changes its text and never its neighbour's place. What the width
+   decides is which slots are *there*. Squeezed, every `minmax` track shares
+   the deficit and each is cut a little: measured before WP-1424, with the
+   list open the `1fr` slot was at zero at both 1400 and 1000 px, and the
+   stage — the one fact the reader is watching — was cut by 49 px and then
+   202 px. So the strip drops whole slots, in a declared order, and each
+   tier fits what it keeps. The order is what the reader can get elsewhere:
+   the GUI command and the label are in the row's tooltip and in the list,
+   the free count is in the report, the series in the list. The state, the
+   numbers and the stop button are never dropped and never shrink. */
+#run { container-type: inline-size; }
+#strip { flex:0 0 auto; height:29px; padding:0 12px;
          border-bottom:1px solid #2c2c2c; display:grid; align-items:center;
          white-space:nowrap; font-variant-numeric: tabular-nums;
-         grid-template-columns: 11ch minmax(0,16ch) minmax(0,30ch)
-           minmax(0,26ch) 11ch 9ch 8ch minmax(0,1fr) auto auto; }
-#strip > * { min-width:0; overflow:hidden; text-overflow:ellipsis; }
+         --t-label: minmax(0,13ch); --t-series: minmax(0,28ch);
+         --t-free: 10ch; --t-where: minmax(0,1fr);
+         grid-template-columns: 12ch var(--t-label) var(--t-series)
+           minmax(0,33ch) 12ch 12ch var(--t-free) var(--t-where) auto auto; }
+/* the 12 px between slots is each slot's own padding and not `gap`, or a
+   dropped slot would still be charged for the space beside it */
+#strip > * { min-width:0; overflow:hidden; text-overflow:ellipsis;
+             box-sizing:border-box; }
+#strip > span { padding-right:12px; }
+/* except the pill, whose padding is its coloured ground rather than the space
+   beside it: an id in the selector above outranks `.state`, which drew it 7 px
+   on the left and 12 on the right. `justify-self:start` keeps the pill narrower
+   than its 12ch track, so the separation is the track's leftover either way. */
+#strip > #s-state { padding-right:7px; }
+/* declared, so a slot going away leaves its own track empty rather than
+   pulling every later slot one place to the left */
+#s-state { grid-column:1; } #s-label { grid-column:2; }
+#s-series { grid-column:3; } #s-stage { grid-column:4; }
+#s-rwp { grid-column:5; } #s-gof { grid-column:6; }
+#s-free { grid-column:7; } #s-where { grid-column:8; }
+#s-notice { grid-column:9; } #stop { grid-column:10; }
+/* The stage keeps the room it needs before anything else does: a `minmax`
+   track freezes at its maximum and the rest is redistributed, so capping the
+   label and the series is what lets `stage 3/4 preferred_orientation` — 31
+   characters, the longest a preset plan has — be whole at 1400x900 with the
+   list open. The free count is what it costs. */
+@container (max-width: 990px) {
+  #strip { --t-where: 0; --t-free: 0; } #s-where, #s-free { display:none; }
+}
+@container (max-width: 760px) {
+  #strip { --t-label: 0; } #s-label { display:none; }
+}
+@container (max-width: 560px) {
+  #strip { --t-series: 0; } #s-series { display:none; }
+}
 #strip .state { justify-self:start; }
 #picture { flex:1 1 68%; min-height:180px; position:relative; }
 #plot { position:absolute; inset:0; border:0; width:100%; height:100%; }
@@ -66,9 +137,16 @@ iframe#plot { background:#fff; }
    line and the log gets the room rather than the other way round */
 #noplot { padding:7px 12px; color:#666; }
 #run.full #picture { flex:0 0 auto; min-height:0; }
-#console { flex:0 0 30%; overflow:auto; background:#181818; font-size:11px;
-           padding:6px 10px; white-space:pre; }
-#run.full #console { flex:1 1 auto; }
+#console { flex:0 0 var(--console, 30%); overflow:auto; background:#181818;
+           font-size:11px; padding:6px 10px; white-space:pre;
+           box-sizing:border-box; }
+#run[data-console="closed"] #console { display:none; }
+/* with no picture to size against, the seam has nothing to divide: the log
+   takes the pane and its grip goes away with the argument for it. The collapse
+   goes with the grip: hiding both leaves a run panel holding nothing, and the
+   log is the only thing a run without a picture has to show. */
+#run.full #console { flex:1 1 auto; display:block; }
+#run.full #grip-console { display:none; }
 .k { color:#e8b339; }
 .ev { color:#888; }
 code { background:#1c1c1c; padding:1px 5px; border-radius:3px; color:#9ad; }

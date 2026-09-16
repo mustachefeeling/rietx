@@ -43,8 +43,12 @@ from ..schemas.common import Diagnostic
 from ..schemas.instrument import (
     BackgroundChebyshev,
     EmissionLine,
+    Geometry,
     Instrument,
+    NeutronSource,
     Parameter,
+    ProfileTCHZ,
+    Source,
 )
 
 # The GSAS record grammar, not the .EXP reader's: an instrument-parameter file
@@ -59,6 +63,21 @@ from .projects.gsas import (
     read_icons,
     read_prcf_header,
     split_records,
+)
+
+# GSAS-II's own grammar, on the same footing and for the same reason: the
+# ``.instprm`` key vocabulary, its centidegree conversion and its bank layout
+# belong beside the ``.gpx`` reader that shares them, and the Instrument this
+# module builds from them belongs here beside the ``.prm`` pair (WP-1118).
+from .projects.gsas2 import (
+    CW_TYPES,
+    HISTOGRAM_TYPES,
+    INSTPRM_CW_DOUBLET,
+    INSTPRM_CW_SINGLE,
+    INSTPRM_DIFF_TYPES,
+    centidegree_factor,
+    read_instprm,
+    write_instprm,
 )
 
 #: Tag a profile file is recognised by.  A format contract, so the token lives
@@ -805,3 +824,867 @@ def _read_prcf(records: list[tuple[str, str]],
             f"the header, not the number of lines present, is what this "
             f"reader trusts, so a short file is refused rather than padded")
     return prof_type, coeffs[:ncoef]
+
+
+# ---------------------------------------------------------------------------
+# GSAS-I .prm — write_gsas_prm, the inverse of read_gsas_prm
+# ---------------------------------------------------------------------------
+
+#: The ``PRCF`` continuation records are ``4E15.6``, so a coefficient gets
+#: fifteen columns where a ``.EXP``'s cell edge gets ten.  Both go through
+#: :func:`~rietx.io.projects.gsas.write_field`, which takes the width for
+#: exactly this reason.
+_PRM_COEFFICIENT_COLUMNS = 15
+_PRM_PER_RECORD = 4
+
+#: One of those fifteen columns is **reserved as a separator**, so a value is
+#: written into fourteen and right-justified into fifteen.  A ``.EXP``'s fields
+#: are read back by column and may fill themselves; a ``.prm``'s continuation
+#: records are the one place :func:`_read_prcf` splits on whitespace instead
+#: (its docstring says why — GSAS's own editor prints labels inside the
+#: fields), and :func:`~rietx.io.projects.gsas.write_field` right-justifies, so
+#: a value whose shortest exact decimal is fifteen characters long abuts its
+#: neighbour and the pair reads as one unparseable token.  Fourteen columns
+#: still hold more digits than any esd a calibration reports, and the leading
+#: blank is what a real ``4E15.6`` record has anyway.  Un-reserved, a converged
+#: ``GU`` of 43.710000000000996 wrote a file this package's own reader refused
+#: (WP-1118, the review pass on this writer).
+_PRM_COEFFICIENT_DIGITS = _PRM_COEFFICIENT_COLUMNS - 1
+
+#: What this writer states on the two file-wide records.  ``PXCR`` is the one
+#: :func:`read_gsas_prm` reads, and type 3 the one profile function it maps, so
+#: writing anything else would produce a file this package refuses.
+_PRM_BANK = 1
+_PRM_CUTOFF = 0.001
+
+#: ``S/L`` and ``H/L`` are dimensionless and cross unconverted; the rest are
+#: the inverse of :func:`read_gsas_prm`'s own centidegree division, written
+#: here as the multiplication it is so the two cannot drift apart.
+_PRM_CENTIDEG_SQUARED = 1e4
+_PRM_CENTIDEG = 1e2
+
+
+def from_instrument(instrument: Instrument, *, header: str = "",
+                    diagnostics: list[Diagnostic] | None = None) -> str:
+    """Serialise ``instrument`` as GSAS-I ``.prm`` text — :func:`read_gsas_prm`'s
+    inverse, and the fourth of this package's foreign-format writers.
+
+    Named for the shape the three in :mod:`rietx.io.projects` use
+    (``from_structure``) rather than for this module's own
+    ``save_instrument_profile``: what varies between the four writers is the
+    format, not the verb.  A ``.prm`` carries a machine and no model, which is
+    why it lives here and stays out of the project registry (``io/CLAUDE.md``
+    § Project readers) — but the card grammar is GSAS's, so the fields and
+    records are written by :func:`~rietx.io.projects.gsas.write_field` and
+    :func:`~rietx.io.projects.gsas.write_record`, the two functions the ``.EXP``
+    writer uses.  Two writers spelling one record two ways is how the two
+    *readers* came to disagree about ``ICONS``.
+
+    What crosses is exactly what :func:`read_gsas_prm` reads back: the primary
+    wavelength and, where the source states a second line, its wavelength and
+    its weight as ``KRATIO``; the polarization; ``profile.u/v/w`` as ``GU/GV/GW``
+    and ``profile.x/y`` as ``LX/LY``, multiplied back into GSAS's centidegrees;
+    and ``geometry.axial_sl``/``axial_hl`` as ``S/L`` and ``H/L``, which are
+    dimensionless and cross unconverted.  ``GP`` and the coefficients past
+    position 8 are written at 0, the identity the reader requires them at.
+
+    **Every parameter's ``vary`` is dropped, and that is not a loss.**  An
+    instrument-parameter file is a beamline calibration rather than a starting
+    guess, which is why :func:`read_gsas_prm` and
+    :func:`load_instrument_profile` both return everything frozen; the
+    ``PRCF`` header's flag columns are left blank for the same reason, which is
+    what a real calibration file does.  So unlike the three structure writers,
+    the refine flags are deliberately *not* the payload here.
+
+    **A non-zero ``zero_shift`` is refused.**  ``ICONS``' ``ZERO`` field is the
+    one number here whose unit this package has not established: GSAS-I's
+    constant-wavelength pattern axis is centidegrees (``io/formats/gsas.py``
+    measured that on real ``CONS`` banks), which would make ``ZERO``
+    centidegrees too, but no file in this corpus states a non-zero one to check
+    it against and :func:`read_gsas_prm` refuses one on the way in for exactly
+    that reason.  Writing a guess would produce a file this package will not
+    read back, and a ``ZERO`` wrong by 100× puts every peak in the wrong place.
+    ``io/CLAUDE.md``'s own rule settles which way it goes: magnitude decides
+    drop against refuse, so a zero crosses silently and a non-zero raises.  A
+    zero shift is per-mount anyway — set it to 0 and let the receiving program
+    refine it.
+
+    Three more refusals, each naming what ``ICONS`` cannot state.  A neutron
+    source, which is ``HTYPE PNCR``/``PNTR`` and not the ``PXCR`` this pair
+    reads.  More than two emission lines, ``ICONS`` holding ``LAM1`` and
+    ``LAM2`` and nothing further.  And a second line whose weight is outside the
+    ``0 < w <= 2`` a ``KRATIO`` means, which is the bound the reader checks.
+
+    ``diagnostics`` collects one row, ``GSAS_PRM_FIELD_NOT_WRITTEN``, naming
+    what this instrument carries that the format cannot state.  Its first
+    clause is always the geometry: a ``.prm`` states none at all, so the kind,
+    the sample displacement and transparency, and the specimen absorption stay
+    behind and reading the file back gives ``debye_scherrer`` — the mirror of
+    the reader's own ``GSAS_PRM_GEOMETRY_ASSUMED``.  A true-Voigt profile is
+    named there too rather than refused: GSAS's type 3 is a pseudo-Voigt and
+    has no Voigt option, the widths are the content either way, and what
+    changes is the target's own shape model.
+    """
+    from ..schemas.instrument import NeutronSource
+    from .projects.gsas import write_field, write_record
+
+    if isinstance(instrument.source, NeutronSource):
+        raise ValueError(
+            "a GSAS-I .prm written by this package states HTYPE PXCR, "
+            "constant-wavelength X-ray, which is the one type read_gsas_prm "
+            "reads.  A neutron source is PNCR or PNTR, and this package "
+            "refuses both on the way in — PNTR because a flight-time peak "
+            "shape has nowhere in ProfileTCHZ to go, PNCR for want of a real "
+            "type-3 file to check a layout against")
+
+    source = instrument.source
+    if len(source.lines) > 2:
+        raise ValueError(
+            f"this source states {len(source.lines)} emission lines and an "
+            f"ICONS record holds two, LAM1 and LAM2.  Dropping the rest would "
+            f"hand back an instrument with a different spectrum under a file "
+            f"that looks complete")
+    if instrument.zero_shift.value != 0.0:
+        raise ValueError(
+            f"zero_shift is {instrument.zero_shift.value!r}, and ICONS' ZERO "
+            f"field is the one number here whose unit this package has not "
+            f"established — GSAS-I's CW pattern axis is centidegrees, which "
+            f"would make ZERO centidegrees, but no file in this corpus states "
+            f"a non-zero one to check that against and read_gsas_prm refuses "
+            f"one on the way in for the same reason.  A ZERO wrong by 100x "
+            f"puts every peak in the wrong place.  A zero shift belongs to the "
+            f"mount rather than to the goniometer, so set it to 0 and let the "
+            f"receiving program refine it")
+    second = source.lines[1] if len(source.lines) > 1 else None
+    if second is not None and not 0.0 < second.weight.value <= 2.0:
+        raise ValueError(
+            f"the second emission line's weight is {second.weight.value!r}, "
+            f"and it is written as ICONS' KRATIO — the Ka2/Ka1 intensity "
+            f"ratio, which read_gsas_prm holds to 0 < w <= 2 (a sealed tube is "
+            f"about 0.5).  A value outside that is refused rather than written "
+            f"into a field it would not mean")
+
+    # A calibration's numbers are well inside fourteen significant characters,
+    # so this list is ordinarily empty — but the channel is what makes
+    # `write_field` refuse a non-finite value rather than writing a token GSAS
+    # cannot parse, and a value multiplied into centidegrees carries the
+    # product's own float noise, which is what spends the columns.
+    narrowed: list[tuple[str, float, float]] = []
+
+    def field(value: float, what: str, width: int = _PRM_COEFFICIENT_COLUMNS) -> str:
+        return write_field(value, width, what=what, narrowed=narrowed)
+
+    def coefficient(value: float, what: str) -> str:
+        """One ``PRCF`` coefficient, in fourteen columns of its fifteen.
+
+        See :data:`_PRM_COEFFICIENT_DIGITS`: the spare column is the separator
+        the reader's whitespace split needs.
+        """
+        return field(value, what, _PRM_COEFFICIENT_DIGITS).rjust(
+            _PRM_COEFFICIENT_COLUMNS)
+
+    profile, geometry = instrument.profile, instrument.geometry
+    # The inverse of read_gsas_prm's conversion, written as the multiplication
+    # it is: GU/GV/GW are centidegrees squared and LX/LY centidegrees, while
+    # S/L and H/L are ratios.  GP (position 4) and everything past position 8
+    # are 0, which is the identity the reader requires them at.
+    coefficients = [
+        profile.u.value * _PRM_CENTIDEG_SQUARED,
+        profile.v.value * _PRM_CENTIDEG_SQUARED,
+        profile.w.value * _PRM_CENTIDEG_SQUARED,
+        0.0,
+        profile.x.value * _PRM_CENTIDEG,
+        profile.y.value * _PRM_CENTIDEG,
+        geometry.axial_sl.value,
+        geometry.axial_hl.value,
+    ]
+    names = CW_PROFILE_COEFFICIENTS[_PRCF_TYPE_3][:len(coefficients)]
+
+    cards = [
+        write_record("INS   BANK  ", f"{_PRM_BANK:5d}"),
+        write_record("INS   HTYPE ", f"  {_HTYPE_PXCR}"),
+        write_record("INS  1 ICONS",
+                     field(source.lines[0].wavelength.value, "source.lines.0.wavelength", 10)
+                     + field(second.wavelength.value if second else 0.0,
+                             "source.lines.1.wavelength", 10)
+                     + field(0.0, "zero_shift", 10)
+                     # the three refine flags sit at 32-35 and IDAMP at 39: a
+                     # calibration has refined nothing, so both stay blank
+                     + " " * 10
+                     + field(source.polarization.value, "source.polarization", 10)
+                     + f"{0:5d}"
+                     + field(second.weight.value if second else 0.0,
+                             "source.lines.1.weight", 10)),
+    ]
+    if header:
+        cards.append(write_record("INS  1I HEAD", f"  {header}"))
+    cards.append(write_record(
+        "INS  1PRCF1 ",
+        f"{_PRCF_TYPE_3:5d}{len(coefficients):5d}" + field(_PRM_CUTOFF, "cutoff", 10)))
+    for i in range(0, len(coefficients), _PRM_PER_RECORD):
+        chunk = coefficients[i:i + _PRM_PER_RECORD]
+        cards.append(write_record(
+            f"INS  1PRCF1{i // _PRM_PER_RECORD + 1}",
+            "".join(coefficient(v, f"PRCF {name}")
+                    for v, name in zip(chunk, names[i:i + _PRM_PER_RECORD],
+                                       strict=True))))
+
+    if diagnostics is not None:
+        if narrowed:
+            # The twin of the `.EXP` writer's GSAS_EXP_VALUE_NARROWED, and owed
+            # for the same reason: this writer collected `narrowed` from the
+            # first and read it nowhere, so a value that did not fit its field
+            # crossed in silence while its sibling reported one (WP-1118, the
+            # 5th session's review pass).  A PRCF coefficient multiplied into
+            # centidegrees carries the product's float noise, so a converged
+            # calibration reaches this routinely.
+            what, value, written = max(
+                narrowed,
+                key=lambda row: abs(row[2] - row[1]) / (abs(row[1]) or 1.0))
+            diagnostics.append(Diagnostic(
+                level="info", code="GSAS_PRM_VALUE_NARROWED",
+                message=(
+                    f"{len(narrowed)} value(s) need more characters than a "
+                    f".prm's fixed columns hold and were written to what fits; "
+                    f"the largest change is {what} {value!r} -> {written!r}.  "
+                    f"A converged calibration's numbers are full-precision "
+                    f"doubles and a centidegree conversion adds the product's "
+                    f"own float noise, so this is the ordinary case rather "
+                    f"than a warning sign"),
+                where=[row[0] for row in narrowed]))
+        clauses = [
+            "the geometry: a .prm states none at all, so the kind, the sample "
+            "displacement and transparency and the specimen absorption stay "
+            "here and reading this file back gives debye_scherrer.  S/L and "
+            "H/L are the two geometry numbers that do cross"]
+        if profile.shape != "tchz_pv":
+            clauses.append(
+                f"the peak shape: this profile is {profile.shape!r} and GSAS's "
+                f"PRCF type 3 is a pseudo-Voigt with no Voigt option, so the "
+                f"widths cross and the shape model becomes the target's")
+        if instrument.extra_components:
+            clauses.append(
+                f"{len(instrument.extra_components)} extra component(s), which "
+                f"belong to a specimen rather than to a goniometer and which "
+                f"this format cannot state")
+        if any(p.vary for p in _iter_parameters(instrument)):
+            clauses.append(
+                "every refine flag: an instrument-parameter file is a "
+                "calibration rather than a starting guess, so the PRCF "
+                "header's flag columns are blank and read_gsas_prm returns "
+                "everything vary=False")
+        diagnostics.append(Diagnostic(
+            level="warning", code="GSAS_PRM_FIELD_NOT_WRITTEN",
+            message=("a GSAS-I .prm cannot state: " + "; ".join(clauses)),
+            where=["instrument.geometry"]))
+    return "\r\n".join(cards) + "\r\n"
+
+
+def write_gsas_prm(instrument: Instrument, path: str | Path, *,
+                   header: str = "",
+                   diagnostics: list[Diagnostic] | None = None) -> None:
+    """Write ``instrument`` to ``path`` as a GSAS-I ``.prm``.
+
+    ``latin-1``, the encoding :func:`read_gsas_prm` decodes one with: the
+    ``I HEAD`` record holds whatever the experimenter typed.  See
+    :func:`from_instrument` for what carries and what does not.
+    """
+    Path(path).write_bytes(
+        from_instrument(instrument, header=header,
+                        diagnostics=diagnostics).encode("latin-1"))
+
+
+# ---------------------------------------------------------------------------
+# GSAS-II ``.instprm``
+# ---------------------------------------------------------------------------
+#
+# The GSAS-I ``.prm`` pair above and this one are the same kind of object under
+# two programs' grammars, so they live together and stay out of the project
+# registry for the reason ``io/CLAUDE.md`` § Project readers gives: an
+# instrument file carries a machine and no model.  What differs is that an
+# ``.instprm`` is a *token* format — ``item:value`` lines, no columns — so none
+# of the field-budget rules the ``.EXP``/``.prm`` writers obey apply, and a
+# value's own ``repr`` crosses exactly.
+
+#: GSAS-II floors the axial-divergence sum at this when it evaluates a profile
+#: (``GSASIIpwd.SetInstParms``: ``max(instDict['SH/L'], 0.002)``), so a smaller
+#: one is written faithfully and still read as 0.002 by the program the file is
+#: for.  Named here because the writer reports it, which is the only thing this
+#: package can do about another program's floor.
+INSTPRM_SHL_FLOOR = 0.002
+
+#: What a bank's ``Polariz.`` means, by histogram type.  GSAS-II applies the
+#: polarization factor only where the type carries ``XC`` or ``XB``
+#: (``GSASIIstrMath.GetIntensityCorr``), so on a ``PNC`` bank the field is inert
+#: in GSAS-II exactly as it is here: :class:`NeutronSource` pins K = 1, the bare
+#: Lorentz factor.  Both of the corpus's neutron files state ``0.0``.
+_INSTPRM_NEUTRON_POLARIZATION = "0.0"
+
+
+def _instprm_bank(banks: tuple, bank: int | None, p: Path):
+    """The one bank to read, or a refusal naming what the file holds.
+
+    A multi-bank file is a **selection**, following ``read_pattern``'s ``scan=``
+    (``io/CLAUDE.md`` § Options): reading the first of several would pick a
+    detector rather than read one.  GSAS-II's own reader takes the
+    lowest-numbered bank silently; here that is a refusal naming the numbers,
+    because the caller knows which detector their pattern came from and this
+    reader does not.
+
+    Duplicate numbers are refused rather than resolved, and the corpus is why:
+    three of its twelve files write ``#Bank 6`` twice, so "bank 6" names two
+    different calibrations in one file.
+    """
+    if not banks:
+        raise ValueError(
+            f"{p.name}: the header is there and no bank follows it, so this "
+            f"file states no instrument")
+    if bank is None:
+        if len(banks) > 1:
+            numbers = ", ".join(str(b.number) for b in banks)
+            raise ValueError(
+                f"{p.name}: states {len(banks)} banks ({numbers}) and an "
+                f"Instrument describes one.  Name the one you measured with, "
+                f"read_gsas2_instprm(..., bank=N) — reading the first would "
+                f"pick a detector rather than read one")
+        return banks[0]
+    matched = [b for b in banks if b.number == bank]
+    if len(matched) > 1:
+        raise ValueError(
+            f"{p.name}: states bank {bank} {len(matched)} times, so the number "
+            f"names two calibrations here rather than one.  Three of the "
+            f"twelve files in GSAS-II's own tutorial corpus write one bank "
+            f"twice, so this is the format's normal accident rather than a "
+            f"corrupt file")
+    if not matched:
+        have = ", ".join(str(b.number) for b in banks)
+        raise ValueError(
+            f"{p.name}: asked for bank {bank} and the file states {have}")
+    return matched[0]
+
+
+def _instprm_float(items: dict[str, str], key: str, p: Path) -> float | None:
+    """One item as a number, or ``None`` when the file does not state it."""
+    raw = items.get(key)
+    if raw is None or not raw.strip():
+        return None
+    try:
+        return float(raw)
+    except ValueError:
+        raise ValueError(
+            f"{p.name}: {key} is {raw!r}, which is not a number.  GSAS-II "
+            f"floats every item it can and leaves the rest as text, so a "
+            f"coefficient that does not float is a damaged file rather than a "
+            f"convention this reader has not met") from None
+
+
+def _instprm_width(profile, letter: str, attr: str, value: float,
+                   p: Path) -> None:
+    """One profile coefficient, converted out of centidegrees and bounded.
+
+    Two rules, both :mod:`~rietx.io.recipe`'s and both earned there rather than
+    here (``_refuse_negative_width``, ``_widen``).  A **negative** softplus
+    width is refused by name: ``to_internal`` clamps a non-positive value to
+    1e-12 before the inverse softplus, so reading one would answer from a model
+    the file does not describe.  It is the ordinary case rather than a corner —
+    GSAS-II bounds none of U V W X Y Z, and **two of the four**
+    constant-wavelength files in its own tutorial corpus converged to a
+    negative ``X``.  And a value outside this package's default box **widens**
+    the box rather than being clipped, because the box is a lab-pattern seed
+    and the file is the caller's claim.
+
+    Not shared with :mod:`~rietx.io.recipe`'s pair: they raise that reader's own
+    exception type and name a recipe's JSON path, while these name a file and a
+    GSAS-II letter.  The rule is one and the message is each format's own.
+    """
+    param = getattr(profile, attr)
+    factor = centidegree_factor(letter)
+    assert factor is not None  # every letter here is in CW_CENTIDEGREE_POWER
+    degrees = value / factor
+    if param.transform == "softplus" and degrees < 0.0:
+        raise ValueError(
+            f"{p.name}: {letter} = {value:g} converts to "
+            f"instrument.profile.{attr} = {degrees:g}, and this package's "
+            f"{'Gaussian variance' if attr == 'w' else 'Lorentzian FWHM'} term "
+            f"is softplus-bounded at zero — a width that is negative is not a "
+            f"shape.  GSAS-II bounds none of U V W X Y Z, so a calibration "
+            f"saved from a converged fit can carry one; reading it would "
+            f"silently give ~0 rather than the value the file states.  Refine "
+            f"{attr} from this package's own zero instead")
+    if degrees < param.min:
+        # Only u and v reach this: a softplus width's lower bound is the
+        # transform's own domain rather than a seeded guess, and a negative one
+        # was refused above.
+        param.min = degrees - abs(degrees) - 1.0
+    if degrees > param.max:
+        param.max = degrees + abs(degrees) + 1.0
+    param.value = degrees
+
+
+def _instprm_instrument(items: dict[str, str], p: Path,
+                        diagnostics: list[Diagnostic] | None) -> Instrument:
+    """The ``Instrument`` one bank states, frozen, or a refusal naming the file.
+
+    Every schema object is built inside the one guard below, so a value outside
+    this package's ranges is refused **here**, naming the file, rather than
+    arriving as a pydantic error naming a ``Parameter`` (``io/CLAUDE.md``
+    § Project readers).
+    """
+    read: list[str] = []
+
+    def number(key: str) -> float | None:
+        value = _instprm_float(items, key, p)
+        if value is not None:
+            read.append(key)
+        return value
+
+    kind = (items.get("Type") or "").strip()
+    read.append("Type")
+    if kind not in CW_TYPES:
+        what = HISTOGRAM_TYPES.get(kind)
+        raise ValueError(
+            f"{p.name}: states Type {kind!r}"
+            + (f", {what}" if what else "")
+            + f", and this reader takes the constant-wavelength types "
+              f"({', '.join(CW_TYPES)}).  A flight-time or energy-dispersive "
+              f"bank puts a different quantity on the x axis than PatternData "
+              f"holds, and its profile coefficients are a different function")
+
+    for key in ("Z", "Azimuth"):
+        value = number(key)
+        if value:
+            raise ValueError(
+                f"{p.name}: states {key} = {value:g}, and this package has no "
+                + ("constant Lorentzian term: ProfileTCHZ is u, v, w, x, y "
+                   "exactly, so Z has nowhere to land.  Z is zero in all 95 "
+                   "constant-wavelength histograms of GSAS-II's own tutorial "
+                   "corpus, which is why it is refused here rather than "
+                   "carried"
+                   if key == "Z" else
+                   "azimuth: the polarization factor this package applies is "
+                   "the in-plane one, K + (1-K)cos^2(2th), and GSAS-II mixes "
+                   "the two polarization components at a non-zero azimuth.  "
+                   "Reading Polariz. as K would not then mean what the file "
+                   "states"))
+
+    lam, lam1, lam2 = number("Lam"), number("Lam1"), number("Lam2")
+    neutron = kind == "PNC"
+    if lam is None and lam1 is None:
+        raise ValueError(
+            f"{p.name}: states neither Lam nor Lam1, and a calibration "
+            f"without a wavelength describes no instrument")
+    if neutron and (lam1 is not None or lam2 is not None):
+        raise ValueError(
+            f"{p.name}: is a PNC (constant-wavelength neutron) bank stating "
+            f"the Lam1/Lam2 pair a sealed X-ray tube's doublet uses.  A "
+            f"monochromator selects one wavelength, so NeutronSource holds "
+            f"one, and which of the two this file means is the caller's to "
+            f"say rather than this reader's to pick")
+    ratio = number("I(L2)/I(L1)")
+    if lam2 is not None and ratio is None:
+        raise ValueError(
+            f"{p.name}: states the Lam2 line and no I(L2)/I(L1), so the "
+            f"second line's weight is unstated.  A doublet without its "
+            f"intensity ratio is an incomplete emission profile, and the "
+            f"conventional 0.5 is this reader's guess rather than the file's "
+            f"statement")
+    # Read for an X-ray bank and left unread for a neutron one, so the reports
+    # below name it: GSAS-II applies the factor only to an XC or XB type.
+    polarization = _instprm_float(items, "Polariz.", p)
+    if polarization is not None and not neutron:
+        read.append("Polariz.")
+
+    diff_type = (items.get("Diff-type") or "").strip()
+    if diff_type:
+        read.append("Diff-type")
+        if diff_type not in INSTPRM_DIFF_TYPES:
+            raise ValueError(
+                f"{p.name}: states Diff-type {diff_type!r} and GSAS-II names "
+                f"two, {' and '.join(INSTPRM_DIFF_TYPES)}")
+        geometry_kind = INSTPRM_DIFF_TYPES[diff_type]
+    else:
+        geometry_kind = "bragg_brentano" if lam2 is not None else "debye_scherrer"
+
+    radius = _instprm_float(items, "Gonio.radius", p)
+    if radius is not None:
+        read.append("Gonio.radius")
+
+    try:
+        source: Source | NeutronSource
+        if neutron:
+            source = NeutronSource(wavelength=Parameter(value=lam, unit="A"))
+        else:
+            lines = [EmissionLine(
+                wavelength=Parameter(value=lam if lam is not None else lam1,
+                                     unit="A"))]
+            if lam2 is not None:
+                lines.append(EmissionLine(
+                    wavelength=Parameter(value=lam2, unit="A"),
+                    weight=Parameter(value=ratio, min=0.0, max=2.0)))
+            source = Source(
+                lines=lines,
+                polarization=Parameter(
+                    value=0.99 if polarization is None else polarization,
+                    min=0.0, max=1.0))
+
+        profile = ProfileTCHZ()
+        for letter, attr in (("U", "u"), ("V", "v"), ("W", "w"),
+                             ("X", "x"), ("Y", "y")):
+            value = number(letter)
+            if value is not None:
+                _instprm_width(profile, letter, attr, value, p)
+
+        geometry = Geometry(kind=geometry_kind, goniometer_radius_mm=radius)
+        shl = number("SH/L")
+        if shl:
+            half = 0.5 * shl
+            geometry.axial_sl = Parameter(value=half, min=0.0, max=0.2)
+            geometry.axial_hl = Parameter(value=half, min=0.0, max=0.2)
+
+        instrument = Instrument(source=source, geometry=geometry,
+                                profile=profile)
+        zero = number("Zero")
+        if zero:
+            if abs(zero) > instrument.zero_shift.max:
+                instrument.zero_shift.min = -abs(zero) - 1.0
+                instrument.zero_shift.max = abs(zero) + 1.0
+            instrument.zero_shift.value = zero
+    except ValidationError as exc:
+        raise ValueError(
+            f"{p.name}: this bank states a value outside the range this "
+            f"package's Instrument holds, so the calibration is refused here, "
+            f"naming the file, rather than arriving later as a schema error "
+            f"that names none: {exc}") from exc
+
+    for param in _iter_parameters(instrument):
+        param.vary = False
+
+    if diagnostics is not None:
+        _instprm_reports(items, read, instrument, neutron, bool(diff_type),
+                         lam2 is not None, diagnostics)
+    return instrument
+
+
+def _instprm_reports(items: dict[str, str], read: list[str],
+                     instrument: Instrument, neutron: bool, stated: bool,
+                     doublet: bool, diagnostics: list[Diagnostic]) -> None:
+    """What this read assumed, and what of the file it did not carry."""
+    geometry = instrument.geometry
+    # An item the format declares and this file omits: GSAS-II's own header
+    # says "do not add/delete items", so a missing one is the file breaking
+    # that rule rather than a convention.  Reported rather than refused, and
+    # reported because the alternative is a silence becoming a number — the
+    # value used is this package's default, and a writer would spell it out.
+    declared = INSTPRM_CW_DOUBLET if doublet else INSTPRM_CW_SINGLE
+    skip = {"Bank"} | ({"Polariz."} if neutron else set())
+    # ``Lam`` and ``Lam1`` are two spellings of one item, so a file stating
+    # either is not a file missing the other.  Un-skipped, a ``Lam1`` with no
+    # ``Lam2`` reported "this file states no Lam, so that came back at this
+    # package's own default" about a wavelength read from the file.
+    if "Lam" in items:
+        skip.add("Lam1")
+    elif "Lam1" in items:
+        skip.add("Lam")
+    absent = [k for k in declared if k not in items and k not in skip]
+    if absent:
+        diagnostics.append(Diagnostic(
+            level="warning", code="GSAS2_INSTPRM_VALUE_DEFAULTED",
+            message=(
+                f"this file states no {', '.join(absent)}, so "
+                f"{'those came' if len(absent) > 1 else 'that came'} back at "
+                f"this package's own default rather than from the file.  "
+                f"GSAS-II writes every item of a bank and its header says not "
+                f"to delete any, so a missing one is a hand-edited file"),
+            where=["instrument.profile"]))
+    if geometry.axial_sl.value:
+        half = geometry.axial_sl.value
+        diagnostics.append(Diagnostic(
+            level="info", code="GSAS2_INSTPRM_CONVENTION_ASSUMED",
+            message=(
+                f"SH/L = {2.0 * half:g} is GSAS-II's combined (S+H)/L; it is "
+                f"split evenly into axial_sl = axial_hl = {half:g}, the "
+                f"symmetric Finger-Cox-Jephcoat reading.  A single number "
+                f"admits no other, and rietx's read_recipe makes the same "
+                f"split for the same field"),
+            where=["instrument.geometry.axial_sl",
+                   "instrument.geometry.axial_hl"],
+            value=half))
+    if not stated:
+        diagnostics.append(Diagnostic(
+            level="warning", code="GSAS2_INSTPRM_GEOMETRY_ASSUMED",
+            message=(
+                f"this file states no Diff-type, so its geometry came back "
+                f"{geometry.kind} — GSAS-II's own fallback, which reads a "
+                f"stated doublet as Bragg-Brentano and anything else as "
+                f"Debye-Scherrer.  It was not read from the file, and the two "
+                f"geometries differ in more than a name: the position "
+                f"correction is a different function and the absorption "
+                f"corrections have different off states (mu_r = 0 against "
+                f"mu_t = inf)"),
+            where=["instrument.geometry.kind"],
+            suggestion=("set geometry.kind yourself if you know the "
+                        "diffractometer; carry geometry.axial_sl and "
+                        "axial_hl over first, since SH/L was read from this "
+                        "file and a fresh Geometry starts at 0 for both")))
+    not_read = [k for k in items if k not in read]
+    if not_read:
+        why = {
+            "Bank": "the bank number, which names a detector rather than "
+                    "describing one",
+            "Polariz.": ("inert on a neutron bank in both packages: GSAS-II "
+                         "applies the polarization factor only to an XC or XB "
+                         "type, and NeutronSource pins K = 1"),
+            "InstrName": "a name, which Instrument has no field for",
+            "Diff-type": "not one of the two sample types GSAS-II names",
+        }
+        clauses = [f"{k} ({why[k]})" if k in why else k for k in not_read]
+        diagnostics.append(Diagnostic(
+            level="info", code="GSAS2_INSTPRM_FIELD_NOT_READ",
+            message=("this file states items this Instrument has no place "
+                     "for: " + ", ".join(clauses)),
+            where=["instrument"]))
+
+
+def read_gsas2_instprm(path: str | Path, *, bank: int | None = None,
+                       diagnostics: list[Diagnostic] | None = None
+                       ) -> Instrument:
+    """Read a GSAS-II ``.instprm`` file as a **frozen** ``Instrument``.
+
+    The text half of GSAS-II's pair: a project is the binary ``.gpx``
+    :func:`~rietx.read_gsas2_gpx` opens, while a calibration travels as this.
+    Like :func:`read_gsas_prm` and :func:`load_instrument_profile` every
+    parameter comes back ``vary=False``, because an instrument-parameter file is
+    a beamline calibration rather than a starting guess (the module docstring's
+    calibrate → freeze → refine-sample workflow).
+
+    **The unit conversion** is the ``.gpx`` reader's, shared rather than
+    restated (:func:`~rietx.io.projects.gsas2.centidegree_factor`): U, V and W
+    are centidegrees squared and X, Y centidegrees, while ``Zero`` is already
+    in degrees, and ``SH/L`` and ``Polariz.`` are ratios.  GSAS-II's own
+    importer corroborates it from the other side, copying a GSAS-I ``.prm``'s
+    ``GU/GV/GW`` across unconverted and dividing its ``ZERO`` by 100.
+
+    ``Zero`` is a **constant added to the calculated 2θ**, the same sense
+    ``instrument.zero_shift`` has: GSAS-II corrects an observed position as
+    ``tth = pos - Zero``.
+
+    Read: ``Type``, the wavelengths and the doublet's intensity ratio,
+    ``Polariz.``, ``U V W X Y``, ``SH/L``, ``Zero``, ``Diff-type`` and
+    ``Gonio. radius``.  Refused by name: a time-of-flight or energy-dispersive
+    ``Type``; a non-zero ``Z``, which ``ProfileTCHZ`` has no term for; a
+    non-zero ``Azimuth``, which changes what ``Polariz.`` means; a negative
+    softplus width; and a multi-bank file with no ``bank=`` to select one.
+
+    ``bank`` names the bank of a multi-bank file, as ``#Bank n:`` states it.
+    ``diagnostics`` collects what the read assumed or could not carry.
+    """
+    p = Path(path)
+    try:
+        text = p.read_text(encoding="utf-8")
+    except UnicodeDecodeError as exc:
+        raise ValueError(
+            f"{p.name}: is not text this reader can decode as UTF-8, and "
+            f"GSAS-II writes an .instprm as plain text.  A binary GSAS-II "
+            f"file is the project itself, which read_gsas2_gpx opens: "
+            f"{exc}") from exc
+    except OSError:
+        raise
+    try:
+        banks = read_instprm(text)
+    except ValueError as exc:
+        raise ValueError(f"{p.name}: {exc}") from exc
+    return _instprm_instrument(_instprm_bank(banks, bank, p).items, p,
+                               diagnostics)
+
+
+def from_instrument_gsas2(instrument: Instrument, *,
+                          diagnostics: list[Diagnostic] | None = None) -> str:
+    """Serialise ``instrument`` as GSAS-II ``.instprm`` text.
+
+    :func:`read_gsas2_instprm`'s inverse, and the fifth of this package's
+    foreign-format writers.  Named as
+    :func:`from_instrument` is, with the format appended because both live here:
+    a ``.prm`` and an ``.instprm`` are one kind of object under two programs'
+    grammars.
+
+    What crosses is what the reader reads back: the wavelengths and the
+    doublet's ratio, the polarization, ``profile.u/v/w`` as ``U/V/W`` and
+    ``profile.x/y`` as ``X/Y`` multiplied back into centidegrees, the axial
+    divergence as ``SH/L``, ``zero_shift`` as ``Zero`` in degrees, and the
+    geometry as ``Diff-type``.  ``Z`` is written at 0, the identity the reader
+    requires it at.
+
+    **The axial pair is merged and the merge is named.**  GSAS-II models one
+    ``(S+H)/L`` where this package holds ``axial_sl`` and ``axial_hl``
+    separately, so the sum crosses and an uneven split does not — the
+    "a field narrower than the model merges, and the group is named" rule of
+    ``io/CLAUDE.md`` § Project writers, met here on a value rather than a refine
+    flag.
+
+    **Every ``vary`` is dropped**, as :func:`from_instrument` drops them and for
+    the same reason: an ``.instprm`` states no refine flags at all, a
+    calibration having refined nothing by the time it ships.
+
+    Refused by name: a ``flat_plate_transmission`` geometry, GSAS-II's
+    ``Diff-type`` naming two sample kinds and not that one; more than two
+    emission lines; a declared λ/n harmonic, which GSAS-II's constant-wavelength
+    model has no term for; and a non-finite value, which ``repr`` spells ``inf``
+    and no real program parses.
+    """
+    import math
+
+    source, profile, geometry = (instrument.source, instrument.profile,
+                                 instrument.geometry)
+    neutron = isinstance(source, NeutronSource)
+    if geometry.kind not in set(INSTPRM_DIFF_TYPES.values()):
+        raise ValueError(
+            f"this instrument's geometry is {geometry.kind!r}, and GSAS-II's "
+            f"Diff-type names two sample kinds: "
+            f"{' and '.join(INSTPRM_DIFF_TYPES)}.  Writing one of those would "
+            f"hand over a different experiment, and leaving the item out would "
+            f"let GSAS-II's own fallback pick one")
+    if neutron:
+        if source.harmonics:
+            raise ValueError(
+                f"this source declares {len(source.harmonics)} harmonic "
+                f"line(s), and a GSAS-II constant-wavelength bank states one "
+                f"wavelength with no lambda/n term.  Dropping them would hand "
+                f"back an instrument with a different spectrum under a file "
+                f"that looks complete")
+        lines = [(source.wavelength, None)]
+    else:
+        if len(source.lines) > 2:
+            raise ValueError(
+                f"this source states {len(source.lines)} emission lines and a "
+                f"constant-wavelength bank holds two, Lam1 and Lam2.  "
+                f"Dropping the rest would hand back an instrument with a "
+                f"different spectrum under a file that looks complete")
+        lines = [(line.wavelength, line.weight) for line in source.lines]
+
+    def value(number: float, what: str) -> str:
+        """One item's value, spelled as the number's own ``repr``.
+
+        A token format has no field to spend, so the shortest string that
+        reads back as this double is exactly right and nothing narrows
+        (``io/CLAUDE.md`` § Project writers).  Non-finite is refused here
+        rather than written: ``repr`` spells it ``inf`` and no real program
+        parses that.
+        """
+        if not math.isfinite(number):
+            raise ValueError(
+                f"{what} is {number!r}, and a file states numbers a program "
+                f"can read: repr spells this 'inf' or 'nan' and GSAS-II's "
+                f"reader floats every value it can")
+        return repr(float(number))
+
+    def centidegrees(letter: str, param) -> str:
+        factor = centidegree_factor(letter)
+        return value(param.value * factor, f"profile.{letter.lower()}")
+
+    shl = geometry.axial_sl.value + geometry.axial_hl.value
+    stated: dict[str, str] = {
+        "Type": "PNC" if neutron else "PXC",
+        "Zero": value(instrument.zero_shift.value, "zero_shift"),
+        "Polariz.": (_INSTPRM_NEUTRON_POLARIZATION if neutron
+                     else value(source.polarization.value,
+                                "source.polarization")),
+        "Z": "0.0",
+        "SH/L": value(shl, "geometry.axial_sl + axial_hl"),
+        "Azimuth": "0.0",
+        "Bank": "1.0",
+    }
+    if len(lines) == 1:
+        stated["Lam"] = value(lines[0][0].value, "source wavelength")
+    else:
+        stated["Lam1"] = value(lines[0][0].value, "source.lines.0.wavelength")
+        stated["Lam2"] = value(lines[1][0].value, "source.lines.1.wavelength")
+        stated["I(L2)/I(L1)"] = value(lines[1][1].value,
+                                      "source.lines.1.weight")
+    for letter, attr in (("U", "u"), ("V", "v"), ("W", "w"),
+                         ("X", "x"), ("Y", "y")):
+        stated[letter] = centidegrees(letter, getattr(profile, attr))
+
+    # Ordered by the format's own key list rather than by the order this
+    # function happened to build them in: the tuples are the specification's,
+    # and a second statement of the order here would be a second grammar.
+    keys = INSTPRM_CW_DOUBLET if len(lines) == 2 else INSTPRM_CW_SINGLE
+    items = {k: stated[k] for k in keys}
+    items["Diff-type"] = next(k for k, v in INSTPRM_DIFF_TYPES.items()
+                              if v == geometry.kind)
+    if geometry.goniometer_radius_mm is not None:
+        # GSAS-II writes the space and reads the key with every space stripped,
+        # so this item is written `Gonio. radius` and read `Gonio.radius`.
+        items["Gonio. radius"] = value(geometry.goniometer_radius_mm,
+                                       "geometry.goniometer_radius_mm")
+
+    if diagnostics is not None:
+        _instprm_write_reports(instrument, shl, diagnostics)
+    return write_instprm(items)
+
+
+def _instprm_write_reports(instrument: Instrument, shl: float,
+                           diagnostics: list[Diagnostic]) -> None:
+    """What this instrument carries that an ``.instprm`` cannot state."""
+    geometry, profile = instrument.geometry, instrument.profile
+    if geometry.axial_sl.value != geometry.axial_hl.value:
+        diagnostics.append(Diagnostic(
+            level="warning", code="GSAS2_INSTPRM_VALUE_MERGED",
+            message=(
+                f"axial_sl = {geometry.axial_sl.value:g} and axial_hl = "
+                f"{geometry.axial_hl.value:g} are written as one SH/L = "
+                f"{shl:g}, GSAS-II modelling their sum.  Reading this file "
+                f"back splits it evenly, so the pair comes home as "
+                f"{0.5 * shl:g} twice"),
+            where=["instrument.geometry.axial_sl",
+                   "instrument.geometry.axial_hl"],
+            value=shl))
+    if shl < INSTPRM_SHL_FLOOR:
+        diagnostics.append(Diagnostic(
+            level="warning", code="GSAS2_INSTPRM_VALUE_FLOORED",
+            message=(
+                f"SH/L = {shl:g} is written as it stands and GSAS-II floors it "
+                f"at {INSTPRM_SHL_FLOOR} when it evaluates a profile, so the "
+                f"axial divergence this file describes is not the one that "
+                f"program will model.  A round trip through rietx cannot show "
+                f"it: the floor is the reader's, not the file's"),
+            where=["instrument.geometry.axial_sl"],
+            value=shl))
+    clauses = [
+        "the background, which belongs to a measurement rather than to a "
+        "goniometer and which this format has no items for",
+        "the specimen absorption, the sample displacement and the "
+        "transparency, for the same reason: GSAS-II keeps those in its own "
+        "sample parameters rather than in an instrument file",
+    ]
+    if profile.shape != "tchz_pv":
+        clauses.append(
+            f"the peak shape: this profile is {profile.shape!r} and GSAS-II's "
+            f"constant-wavelength function is a TCH pseudo-Voigt with no Voigt "
+            f"option, so the widths cross and the shape model becomes the "
+            f"target's")
+    if instrument.extra_components:
+        clauses.append(
+            f"{len(instrument.extra_components)} extra component(s), which "
+            f"belong to a specimen rather than to a goniometer")
+    if any(p.vary for p in _iter_parameters(instrument)):
+        clauses.append(
+            "every refine flag: an .instprm states none, a calibration having "
+            "refined nothing by the time it ships, so read_gsas2_instprm "
+            "returns everything vary=False")
+    diagnostics.append(Diagnostic(
+        level="warning", code="GSAS2_INSTPRM_FIELD_NOT_WRITTEN",
+        message="a GSAS-II .instprm cannot state: " + "; ".join(clauses),
+        where=["instrument"]))
+
+
+def write_gsas2_instprm(instrument: Instrument, path: str | Path, *,
+                        diagnostics: list[Diagnostic] | None = None) -> None:
+    """Write ``instrument`` to ``path`` as a GSAS-II ``.instprm``.
+
+    UTF-8, which is what GSAS-II writes and what :func:`read_gsas2_instprm`
+    decodes.  See :func:`from_instrument_gsas2` for what crosses and what does
+    not.
+    """
+    Path(path).write_text(
+        from_instrument_gsas2(instrument, diagnostics=diagnostics),
+        encoding="utf-8")

@@ -68,6 +68,18 @@ SKILL_MAX_LINES = 500
 #: Bash output above 40 kB is truncated to a ~2 kB preview, so a reference file
 #: stays comfortably under that even when a session cats it rather than Reads.
 REFERENCE_MAX_BYTES = 36_000
+#: `api.md` is **generated** from the installed package, so its size is a fact
+#: about the public API and not a thing an author chose.  The authored cap says
+#: "stop writing, split the file", which is advice this file cannot take: the
+#: whole of it is one signature per public name, and cutting a signature is
+#: cutting the document three "explore the library" runs needed.  A public
+#: keyword therefore pushes it over a bar that has nothing to do with the
+#: decision that added the keyword — WP-1431's `label=` did, at 58 B of
+#: headroom.  Raising `REFERENCE_MAX_BYTES` instead would hand
+#: `diagnostics.md` the room WP-1338 deliberately denied it (20 B free, and
+#: PR #291 is the split that buys the next diagnostic row), so the generated
+#: file gets its own bar against the same 40 kB truncation.
+API_INDEX_MAX_BYTES = 39_000
 
 #: Every field the specification defines, and whether it is required.
 #: agentskills.io/specification, verified 2026-08-29.
@@ -106,9 +118,15 @@ def test_the_body_is_within_its_caps():
 
 @pytest.mark.parametrize("path", REFERENCES, ids=lambda p: p.name)
 def test_every_reference_file_is_within_its_cap(path: Path):
+    generated = path == API_INDEX
+    cap = API_INDEX_MAX_BYTES if generated else REFERENCE_MAX_BYTES
     size = len(path.read_bytes())
-    assert size <= REFERENCE_MAX_BYTES, (
-        f"{path.name} is {size} B (cap {REFERENCE_MAX_BYTES}); split it."
+    assert size <= cap, (
+        f"{path.name} is {size} B (cap {cap}); "
+        + ("the generator renders one signature per public name, so this is "
+           "the public API outgrowing the file: narrow what "
+           "make_api_index.py renders, or split the index."
+           if generated else "split it.")
     )
 
 
@@ -657,7 +675,8 @@ def test_the_verb_exclusions_are_live_and_reasoned():
 #: filed under the wrong one is told to a reader in the wrong voice and travels
 #: with the wrong block the next time one moves.
 FOREIGN_FILE_PREFIXES = ("RECIPE_", "TOPAS_", "FULLPROF_", "GSAS_PRM_",
-                          "GSAS_EXP_", "GSAS2_GPX_")
+                          "GSAS_EXP_", "GSAS2_GPX_", "GSAS2_INSTPRM_",
+                          "GSAS2_CIF_")
 
 _CODE_ROW = re.compile(r"^\| `([A-Z][A-Z0-9_]+)`")
 

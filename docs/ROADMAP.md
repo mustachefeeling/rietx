@@ -94,17 +94,19 @@ placement, link resolution, and the size caps on this file and CLAUDE.md.
 survives from 1407: Stoe `.raw` files paired with the WinXPOW ASCII export of
 the same scans would make Stoe writable.
 
-**In flight:** [1118](wp/1118-foreign-model-files.md) landed the GSAS-II `.gpx`
-reader 2026-09-16 (#234) and closed #101 with it, its operators stating the
-setting its symbol cannot; that pass corrected the `.EXP` reader's own GOF
-claim. The writers (#148) and `STR(...)` (#107) stand. The **live-watcher
-track's page is files now**: [1430](wp/1430-the-page-is-a-file.md) took it out
-of its python string 2026-09-16, so the seven queued behind it edit a `.mjs` an
-editor lints and a test imports — 1426, 1424, 1431, 1425, 1429, 1427, 1428, in
-that order (§ A window into a run). **Two questions there are the
-maintainer's**: 1428's, and whether to write the snapshot every stage or less
-often — 1413 left `nac` over WP-1404's 1.05x gate, six snapshots costing 50 ms
-of a 17.7 ms budget.
+**Nothing is in flight.** The `.inp` grammar 1118 refuses is
+[1433](wp/1433-the-inp-grammar-still-refused.md), blocked on nothing. 1310
+closed on four of six; its other two, each filed with a fix its measurements
+rule out, carry on as [1434](wp/1434-the-bound-test-asks-the-wrong-question.md) and [1435](wp/1435-a-hold-the-caller-declares.md).
+
+**Ready to pick up:** the **live-watcher track**, three rungs left.
+[1425](wp/1425-the-panels-are-the-readers-to-size.md) closed 2026-09-16: both
+seams are splitters and the plot is told when its width moves, which it never
+was. Order: 1429, 1427, 1428 (§ A window into a run); 1429 inherits four more
+hard-coded greys. **Four questions are the maintainer's**: 1428's; the snapshot
+cadence (1413 left `nac` over WP-1404's 1.05x gate, 50 ms against 17.7); and
+1425's two, whether the run pane should be collapsible again and whether the
+list's 72ch default should widen for a caller's `label=`.
 
 **Queued, unscheduled** ([§ Unscheduled](#unscheduled)): the 2026-09-01
 triage's 1309–1322 plus 1323 and 1325; the 2026-09-03 triage's 1332–1341; the
@@ -462,10 +464,11 @@ seam written out in [1325](wp/1325-parametric-series.md)'s `### Inherited`.
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
-| [1118](wp/1118-foreign-model-files.md) | Foreign model files: read a refinement in, write one back | 🔄 2026-09-16 | — |
+| [1118](wp/1118-foreign-model-files.md) | Foreign model files: read a refinement in, write one back | ✅ 2026-09-16 | — |
 | [1119](wp/1119-named-variables.md) | Named variables and equations: a `prm` of one's own | ✅ 2026-09-04 | — |
 | [1314](wp/1314-mfile-reader.md) | A Jana2020 project reader: .m50/.m40/.m41 | ⬜ | 1118 |
 | [1319](wp/1319-structure-interchange.md) | Structure interchange: checkCIF conformance and a bare XYZ importer | ⬜ | — |
+| [1433](wp/1433-the-inp-grammar-still-refused.md) | The `.inp` grammar the reader still refuses: `STR(...)` and `#if` | ⬜ | — |
 
 #### The fit has no reference
 
@@ -498,10 +501,10 @@ for one specimen), and every converged fit reports a coherent domain size and a
 #### What fires, and what stays silent
 
 Each row is a silent wrong answer, the class the repo's rules are strictest
-about: a report that repeats itself (1310), a parameter that walks unflagged
-(1311), a confident fraction the pattern cannot fix (1320), a bound persisted
-as absent (1321), an alternation with no stop rule (1323), a freeze reading
-parameter *names* that a phase driven through a tie walks past (1342). The
+about: a parameter that walks unflagged (1311), a confident fraction the
+pattern cannot fix (1320), a bound persisted as absent (1321), an alternation
+with no stop rule (1323), a freeze reading parameter *names* that a phase
+driven through a tie walks past (1342). The
 orbit that was not a multiplicity (1324) is closed; 1320 restates what it
 measured. The 2026-09-03 triage adds three: a 2θ axis read 100× wrong from a
 commented header (1332), a fit that says `converged` while its own diagnostics
@@ -510,11 +513,13 @@ package promised an authored refusal (1337). The 2026-09-15 triage adds
 four: a reported Rwp the returned model does not give back (1421), a
 `turn_on` path that reached nothing (1414), a σ column smaller than √y
 feeding two diagnostics that assumed Poisson (1415), and ΔBIC on a raw
-channel count (1417).
+channel count (1417). The 2026-09-16 review of #286 and #293 adds one of
+1342's kind: a tie onto a coordinate DOF, re-applied per write-through (1432).
+1310 closed on four of six; the bound test (1434) and the hold (1435) carry on.
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
-| [1310](wp/1310-report-repeats-itself.md) | The report repeats itself: stage dedup, the declared wavelength, the empty column | ⬜ | — |
+| [1310](wp/1310-report-repeats-itself.md) | The report repeats itself: stage dedup, the declared wavelength, the empty column | ✅ 2026-09-16 | — |
 | [1311](wp/1311-walking-parameter-bounds.md) | Bounds and flags for the remaining walking parameters | ⬜ | — (1310 soft) |
 | [1320](wp/1320-qpa-multimodal-fraction.md) | A phase fraction the pattern cannot fix | ⬜ | — (1310 soft) |
 | [1321](wp/1321-persisted-bounds-repair.md) | The bounds a Parameter field declared: repair and audit | ⬜ | — (PR #206 first) |
@@ -529,6 +534,9 @@ channel count (1417).
 | [1415](wp/1415-a-sigma-column-smaller-than-root-y.md) | A σ column smaller than √y | ⬜ | — |
 | [1417](wp/1417-delta-bic-at-powder-channel-counts.md) | ΔBIC at powder channel counts | ⬜ | — (1339 soft) |
 | [1421](wp/1421-the-result-reproduces-its-own-number.md) | The result reproduces its own number | ⬜ | — (1310 soft) |
+| [1432](wp/1432-a-tie-onto-a-rederived-dof.md) | A tie onto a coordinate DOF, re-applied once per write | ⬜ | — (1119 soft) |
+| [1434](wp/1434-the-bound-test-asks-the-wrong-question.md) | The bound test asks whether the value is near its limit, never whether the limit was binding | ⬜ | — |
+| [1435](wp/1435-a-hold-the-caller-declares.md) | A hold the caller declares, which a plan may not quietly override | ⬜ | — (1070 is the shape) |
 
 #### A long run is not one fit
 
@@ -641,8 +649,8 @@ carries is whether 1327's non-goal becomes a sequencing statement.
 
 #### A window into a run — the live-watcher track
 
-Nine rungs shipped 2026-09-13 to 2026-09-16, 1430 last. Seven are left, in
-order: 1426, 1424, 1431, 1425, 1429, 1427, 1428 (a decision).
+Eleven rungs shipped 2026-09-13 to 2026-09-16, 1424 last. Five are left, in
+order: 1431, 1425, 1429, 1427, 1428 (a decision).
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
@@ -655,10 +663,10 @@ order: 1426, 1424, 1431, 1425, 1429, 1427, 1428 (a decision).
 | [1413](wp/1413-the-snapshot-is-what-recording-costs.md) | The snapshot is what recording costs | ✅ 2026-09-15 | 1404, 1402 |
 | [1423](wp/1423-a-page-that-holds-still.md) | A page that holds still | ✅ 2026-09-16 | 1405, 1402 |
 | [1430](wp/1430-the-page-is-a-file.md) | The page is a file | ✅ 2026-09-16 | 1423 |
-| [1426](wp/1426-still-under-resize-and-across-a-stage.md) | Still under resize, and across a stage | ⬜ | 1430, 1423 |
-| [1424](wp/1424-a-row-that-names-its-run.md) | A row that tells its run apart, and a number that fits its slot | ⬜ | 1430 (1423 soft) |
-| [1431](wp/1431-a-caller-names-its-run.md) | A caller names its run | ⬜ | 1424 |
-| [1425](wp/1425-the-panels-are-the-readers-to-size.md) | The panels are the reader's to size | ⬜ | 1430, 1426 |
+| [1426](wp/1426-still-under-resize-and-across-a-stage.md) | Still under resize, and across a stage | ✅ 2026-09-16 | 1430, 1423 |
+| [1424](wp/1424-a-row-that-names-its-run.md) | A row that tells its run apart, and a number that fits its slot | ✅ 2026-09-16 | 1430 (1423 soft) |
+| [1431](wp/1431-a-caller-names-its-run.md) | A caller names its run | ✅ 2026-09-16 | 1424 |
+| [1425](wp/1425-the-panels-are-the-readers-to-size.md) | The panels are the reader's to size | ✅ 2026-09-16 | 1430, 1426 |
 | [1429](wp/1429-one-palette-and-one-theme-for-three-pages.md) | The GUI's tokens and the GUI's theme, on the two python pages | ⬜ | 1430 (1426 soft) |
 | [1427](wp/1427-what-a-poll-costs.md) | What a poll costs | ⬜ | 1430 (1426 soft) |
 | [1428](wp/1428-open-in-the-gui-without-touching-the-fit.md) | Open in the GUI, without touching the fit | ⬜ | 1405, 1401 (1430 soft) |

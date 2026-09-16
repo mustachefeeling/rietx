@@ -601,6 +601,7 @@ class SequentialRefinement:
                               None] | None = None,
             on_result: Callable[[int, RefinementResult], None] | None = None,
             events=None, cancel=None, progress=None, telemetry=None,
+            label: str | None = None,
             ) -> SeriesResult:
         """Run the series.
 
@@ -708,6 +709,15 @@ class SequentialRefinement:
             series stamp making it read one line per pattern here rather than
             per fit.  Same mechanism as ``Refinement.fit``'s ``progress``,
             combining freely with ``events``.
+        label:
+            What the *job* is called (WP-1431).  A series is one run directory
+            however many patterns it walks, so this names the chain — the ramp,
+            the tray, the sweep — and never a pattern.  A pattern is named by
+            ``labels`` above, and ``rietx watch`` prefers that in a row, so the
+            job's name is what the row's tooltip and the strip's label slot
+            carry.  One letter apart and not interchangeable: passing a
+            sequence here raises rather than writing a record that reads back
+            as unnamed.
         """
         # Refused here rather than pattern by pattern: every member fit would
         # raise identically, and the ladder would read the first raise as a
@@ -739,7 +749,10 @@ class SequentialRefinement:
         # fit would make 60 run directories for one job.  ``runs.attach`` looks
         # for its stamp through the ``_inner`` chain, which is what makes every
         # fit below this one decline.
-        recorder = runs.attach(stream, events, telemetry=telemetry)
+        # ``label`` names the *job* — one series is one run directory, so the
+        # name is the chain's, never a pattern's.  A member is named by
+        # ``series_label``, which the page prefers over this in a row.
+        recorder = runs.attach(stream, events, telemetry=telemetry, label=label)
         if recorder is not None and stream is None:
             stream = recorder
         # The chain's own token, not only each pattern's (WP-1405): ``_run``

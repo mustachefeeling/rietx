@@ -19,6 +19,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import math
+import re
 import sys
 import time
 from pathlib import Path
@@ -74,11 +75,16 @@ def browser():
 N = 600
 
 
-def _snapshot(stage: str, *, scale: float, noise: float) -> dict:
+def _snapshot(stage: str, *, scale: float, noise: float, bkg: bool = True) -> dict:
     """A pattern with three peaks, and a fit at ``scale`` of it.
 
     Observed is the same in every stage; calculated and Δ/σ are not. That is
     the contract the page's ranges rest on: two of three are the data's.
+
+    ``bkg=False`` writes an all-zero background, which the page reads as no
+    background to draw. It is one trace and one legend entry fewer, and so the
+    way to write the stage that *frees* the background: the entry arrives, the
+    legend gains a row, and before WP-1426 the whole picture moved down.
     """
     tt = [10.0 + 70.0 * i / (N - 1) for i in range(N)]
     obs = [50.0 + 3000.0 * math.exp(-((t - 25) ** 2) / 0.05)
@@ -90,7 +96,7 @@ def _snapshot(stage: str, *, scale: float, noise: float) -> dict:
     delta = [d + noise * math.sin(i) for i, d in enumerate(delta)]
     return {"schema": 1, "stage": stage, "weighted": False, "n_points": N,
             "n_drawn": N, "two_theta": tt, "y_obs": obs, "y_calc": calc,
-            "y_bkg": [50.0] * N, "delta": delta,
+            "y_bkg": [50.0 if bkg else 0.0] * N, "delta": delta,
             "ticks": {"phase 0": {"two_theta": [25.0, 44.0], "n_total": 2},
                       "phase 1": {"two_theta": [63.0], "n_total": 1}},
             "statistics": {"rwp": 0.3 if scale < 1 else 0.05, "gof": 2.0,
@@ -98,9 +104,10 @@ def _snapshot(stage: str, *, scale: float, noise: float) -> dict:
 
 
 def _write_stage(run_dir: Path, stage: str, *, scale: float, noise: float,
-                 rwp: float) -> None:
+                 rwp: float, bkg: bool = True) -> None:
     (run_dir / runs.SNAPSHOT_FILE).write_text(
-        json.dumps(_snapshot(stage, scale=scale, noise=noise)), encoding="utf-8")
+        json.dumps(_snapshot(stage, scale=scale, noise=noise, bkg=bkg)),
+        encoding="utf-8")
     (run_dir / runs.STATUS_FILE).write_text(
         json.dumps({"state": "done", "stage": stage, "rwp": rwp, "gof": 2.0,
                     "n_free": 5, "index": 2 if stage == "cell" else 3,
@@ -233,32 +240,55 @@ def test_the_ranges_are_the_datas(browser, tmp_path):
     assert got["y3"] == [-1.5, 0.5]
 
 
-def test_either_panel_collapses_and_the_other_takes_the_width(browser, tmp_path):
+def test_a_grip_collapses_its_pane_and_the_other_takes_the_room(browser, tmp_path):
+    """WP-1425: the two toggle buttons are gone and the grips do their job.
+
+    A double-click on a grip collapses the pane it sizes, and the choice
+    survives a reload — which is the whole of what `toggle-runs` did, minus a
+    control.
+    """
     watched = _make_tree(tmp_path, n_done=2)
     with _served(tmp_path) as base:
         run_id = next(r.run_id for r in runs.discover(tmp_path)
                       if r.path == watched)
         page, errors = _open(browser, base, run_id)
+        assert page.query_selector("#toggle-runs") is None
+        assert page.query_selector("#toggle-run") is None
         both = page.evaluate(GEOMETRY)
-        page.click("#toggle-runs")
+
+        page.dblclick("#grip-list")
         page.wait_for_timeout(600)
         list_closed = page.evaluate(GEOMETRY)
-        assert page.evaluate("() => document.body.dataset.runs") == "closed"
-        page.click("#toggle-run")
-        page.wait_for_timeout(300)
-        # closing the last open panel opens the other rather than leaving a
-        # bar over nothing
-        assert page.evaluate("() => document.body.dataset.runs") == "open"
-        assert page.evaluate("() => document.body.dataset.run") == "closed"
+        assert page.evaluate("() => document.body.dataset.list") == "closed"
         # the choice survives a reload
         page.reload(wait_until="networkidle")
-        page.wait_for_timeout(300)
-        assert page.evaluate("() => document.body.dataset.run") == "closed"
+        page.wait_for_timeout(600)
+        assert page.evaluate("() => document.body.dataset.list") == "closed"
+        # ...and the same grip is the way back, a collapsed pane's only one
+        page.dblclick("#grip-list")
+        page.wait_for_timeout(600)
+        assert page.evaluate("() => document.body.dataset.list") == "open"
+
+        # the console's seam is the same control over the other pair
+        picture_before = page.evaluate(
+            "() => Math.round(document.getElementById"
+            "('picture').getBoundingClientRect().height)")
+        page.dblclick("#grip-console")
+        page.wait_for_timeout(600)
+        assert page.evaluate(
+            "() => document.getElementById('run').dataset.console") == "closed"
+        picture_after = page.evaluate(
+            "() => Math.round(document.getElementById"
+            "('picture').getBoundingClientRect().height)")
         page.close()
+
     assert not errors, errors
-    assert list_closed["plot"][0] == 0
+    # the grip keeps its 5 px, because with the buttons gone it is the only
+    # way back to a collapsed pane
+    assert list_closed["plot"][0] == 5
     assert list_closed["plot"][2] > both["plot"][2]
     assert list_closed["size"][2] > both["size"][2], "the plot did not resize"
+    assert picture_after > picture_before, "the picture did not take the room"
 
 
 def test_with_no_run_in_the_url_the_page_follows_the_newest(browser, tmp_path):
@@ -294,3 +324,944 @@ def test_with_no_run_in_the_url_the_page_follows_the_newest(browser, tmp_path):
         assert page.evaluate("() => document.getElementById('s-stage').textContent") \
             == "stage 2/3 cell"
         page.close()
+
+
+# ----------------------------------------------------------------------
+# WP-1426: what moves when a stage lands, a run arrives, or the window changes
+#
+# Two instruments, because neither sees what the other does. The browser's own
+# `layout-shift` entry is the measure of a *box* moving, and it names the
+# element; it is blind to the picture, the plot being one div whose insides
+# plotly redraws without the layout engine ever hearing about it. Measured on
+# the page before this WP: a stage that freed the background took the plot area
+# from y=45 to y=64 and reported a layout shift of exactly 0. So the picture is
+# read off `_fullLayout._size`, which is where that movement is.
+# ----------------------------------------------------------------------
+
+OBSERVE_SHIFT = """() => {
+  window.__shifts = [];
+  new PerformanceObserver(list => {
+    for (const e of list.getEntries()) window.__shifts.push({
+      value: e.value,
+      nodes: (e.sources || []).map(s =>
+        s.node ? (s.node.id || s.node.tagName + '.' + (s.node.className || '')) : null),
+    });
+  }).observe({type: 'layout-shift', buffered: true});
+}"""
+
+#: Reading drains, so each read covers the interval since the last one and the
+#: shifts of settling in after load are never charged to a later act.
+READ_SHIFT = """() => {
+  const s = window.__shifts;
+  window.__shifts = [];
+  return {sum: s.reduce((a, e) => a + e.value, 0), n: s.length,
+          nodes: s.flatMap(e => e.nodes)};
+}"""
+
+#: The plot area and the legend, in the plot div's own coordinates. `_size` is
+#: the area plotly drew inside the margins, so `_size.t` growing is the picture
+#: being pushed down by whatever is in the top margin.
+PLOT_GEOMETRY = """() => {
+  const div = document.getElementById('plot');
+  const L = div._fullLayout;
+  const g = div.querySelector('g.legend');
+  const pr = div.getBoundingClientRect();
+  const area = [L._size.l, L._size.t, L._size.w, L._size.h].map(Math.round);
+  const b = g.getBoundingClientRect();
+  const legend = [b.x - pr.x, b.y - pr.y, b.width, b.height].map(Math.round);
+  return {ntraces: div.data.length, area, legend,
+          rel: [legend[0] - area[0], legend[1] - area[1]],
+          div: [Math.round(pr.width), Math.round(pr.height)]};
+}"""
+
+#: A wipe and a tail are both `childList` mutations, and the console's *line
+#: count* tells them apart not at all: the wipe re-fetched from offset 0 and
+#: put all 121 lines back, so before WP-1426 the count was 121 either way.
+#: What separates them is whether any node was removed, whether the node that
+#: was first still is, and whether a reader scrolled up kept their place.
+WATCH_CONSOLE = """() => {
+  const pane = document.getElementById('console');
+  window.__con = {removed: 0, added: 0};
+  window.__firstNode = pane.firstElementChild;
+  new MutationObserver(ms => { for (const m of ms) {
+    window.__con.removed += m.removedNodes.length;
+    window.__con.added += m.addedNodes.length; } })
+    .observe(pane, {childList: true});
+}"""
+
+READ_CONSOLE = """() => {
+  const pane = document.getElementById('console');
+  return Object.assign({}, window.__con, {
+    lines: pane.childElementCount,
+    sameFirstNode: window.__firstNode === pane.firstElementChild,
+    scrollTop: Math.round(pane.scrollTop)});
+}"""
+
+
+def _pinned(browser, base: str, run_id: str):
+    """Open a run named in the URL, and check the URL still names it.
+
+    `run_id` is a digest of the path string (``runs.run_id_for``), so a caller
+    that walked one spelling of a directory while the server walked another
+    hands over an id the page cannot find — whereupon the page clears the hash
+    and follows the newest run instead, which is a different measurement
+    wearing this one's name. ``tmp_path`` is already resolved and the two
+    agree; this says so rather than trusting it.
+    """
+    page, errors = _open(browser, base, run_id)
+    assert page.evaluate("() => location.hash") == f"#/run/{run_id}", \
+        "the page did not stay on the run this test pinned"
+    return page, errors
+
+
+def _drag(page, selector: str, dx: int, dy: int) -> None:
+    """Drag a grip by (dx, dy), in steps, the way a pointer arrives."""
+    box = page.locator(selector).bounding_box()
+    assert box is not None, selector
+    page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    page.mouse.down()
+    steps = 20
+    for i in range(1, steps + 1):
+        page.mouse.move(box["x"] + box["width"] / 2 + dx * i / steps,
+                        box["y"] + box["height"] / 2 + dy * i / steps)
+    page.mouse.up()
+    page.wait_for_timeout(400)
+
+
+SEAM = """() => {
+  const plot = document.getElementById('plot');
+  const L = plot && plot._fullLayout;
+  const px = el => Math.round(el.getBoundingClientRect().width);
+  const py = el => Math.round(el.getBoundingClientRect().height);
+  return {
+    list: px(document.getElementById('runs')),
+    run: px(document.getElementById('run')),
+    console: py(document.getElementById('console')),
+    picture: py(document.getElementById('picture')),
+    inner: L ? [L._size.w, L._size.h].map(Math.round) : null,
+    box: [px(plot), py(plot)],
+    resizes: window.__resizes,
+    stored: JSON.parse(localStorage.getItem('rietx-watch-layout') || 'null'),
+    valuenow: +document.getElementById('grip-list')
+      .getAttribute('aria-valuenow'),
+    valuemax: +document.getElementById('grip-list')
+      .getAttribute('aria-valuemax'),
+  };
+}"""
+
+COUNT_RESIZES = """() => {
+  window.__resizes = 0;
+  const orig = window.Plotly.Plots.resize;
+  window.Plotly.Plots.resize = function (...a) {
+    window.__resizes += 1;
+    return orig.apply(this, a);
+  };
+}"""
+
+
+def test_a_drag_moves_the_seam_and_the_picture_follows_it(browser, tmp_path):
+    """WP-1425's acceptance, and the defect it was opened for.
+
+    Measured before the change: moving the list seam from 72ch to 40ch drew
+    **zero** `Plots.resize` calls. The plot *element* followed the seam, 879 px
+    wide to 1110, while plotly's inner size stayed at 807 — the picture drawn
+    303 px narrower than its own box, and nothing repaired it until the pane
+    was collapsed and reopened. So what this asserts is not that the number of
+    resizes is small; it is that the inner size moved at all.
+    """
+    watched = _make_tree(tmp_path, n_done=6)
+    with _served(tmp_path) as base:
+        run_id = next(r.run_id for r in runs.discover(tmp_path)
+                      if r.path == watched)
+        page, errors = _open(browser, base, run_id)
+        page.evaluate(COUNT_RESIZES)
+        before = page.evaluate(SEAM)
+
+        _drag(page, "#grip-list", 180, 0)
+        after = page.evaluate(SEAM)
+
+        # the choice survives a reload, and is applied before the plot is drawn
+        page.reload(wait_until="networkidle")
+        page.wait_for_function("() => document.getElementById('plot') && "
+                               "document.getElementById('plot')._fullLayout",
+                               timeout=15000)
+        page.wait_for_timeout(500)
+        page.evaluate(COUNT_RESIZES)
+        reloaded = page.evaluate(SEAM)
+
+        # ...and a window that cannot hold it re-clamps it, because a drag
+        # clamps against the extent it happened in and nothing else does
+        page.set_viewport_size({"width": 900, "height": 900})
+        page.wait_for_timeout(700)
+        narrow = page.evaluate(SEAM)
+        page.set_viewport_size({"width": 1400, "height": 900})
+        page.wait_for_timeout(700)
+        back = page.evaluate(SEAM)
+        page.close()
+
+    assert not errors, errors
+    # the seam moved, by about what the pointer asked for
+    assert after["list"] == pytest.approx(before["list"] + 180, abs=4)
+    assert after["run"] == pytest.approx(before["run"] - 180, abs=4)
+    # and the picture followed it, which is the whole WP
+    assert after["inner"][0] < before["inner"][0]
+    assert after["inner"][0] == pytest.approx(after["box"][0] - 72, abs=6), \
+        "the plot is drawn at a width that is not its box's"
+    # one resize in flight and at most one queued, so a 20-move drag is not
+    # 20 redraws (WP-1032's `coalesce`, ported)
+    assert 0 < after["resizes"] <= 6, after["resizes"]
+    # persisted on the verb
+    assert reloaded["stored"]["list"]["size"] == pytest.approx(after["list"],
+                                                              abs=2)
+    assert reloaded["list"] == pytest.approx(after["list"], abs=2)
+    # re-clamped at render against the window it reopened in: 900 px of window
+    # cannot hold a 700 px list *and* the 340 px the run pane keeps
+    assert narrow["list"] < reloaded["list"]
+    assert narrow["list"] == pytest.approx(narrow["valuemax"], abs=2)
+    assert narrow["run"] >= 340
+    # ...and the stored size is still the reader's, so the wide window gives it
+    # back rather than keeping what a narrow one could afford
+    assert back["list"] == pytest.approx(reloaded["list"], abs=2)
+
+
+def test_a_drag_stops_at_the_floor_the_columns_set(browser, tmp_path):
+    """The list's floor is measured, not chosen.
+
+    Its five declared columns are 58ch and that is the table's whole
+    min-content; the run column takes the remainder, so it absorbs every
+    narrowing alone and hits 0 px at 56ch with the table overflowing the
+    panel. `run` as a heading inks 36 px, so the floor is the width below
+    which a column cannot show its own name.
+    """
+    watched = _make_tree(tmp_path, n_done=6)
+    with _served(tmp_path) as base:
+        run_id = next(r.run_id for r in runs.discover(tmp_path)
+                      if r.path == watched)
+        page, errors = _open(browser, base, run_id)
+        _drag(page, "#grip-list", -400, 0)       # far past the floor
+        floored = page.evaluate(SEAM)
+        # the run column still has room for its own heading, which is what the
+        # floor is for
+        head = page.evaluate(
+            "() => { const th = document.querySelectorAll('th')[1];"
+            "        return [Math.round(th.getBoundingClientRect().width),"
+            "                th.scrollWidth]; }")
+        page.close()
+
+    assert not errors, errors
+    # 63ch of columns plus the pane's own 1 px border, the basis being
+    # border-box; the assertion that matters is the next one
+    assert floored["list"] == pytest.approx(63 * 7.225 + 1, abs=2)
+    assert floored["list"] == floored["valuenow"]
+    assert head[0] >= head[1], head
+
+
+def test_the_console_seam_is_the_same_control_the_other_way_up(browser, tmp_path):
+    """The log's grip grows it upward, which is the sign `dragged` carries
+    per edge rather than globally."""
+    watched = _make_tree(tmp_path, n_done=2)
+    with _served(tmp_path) as base:
+        run_id = next(r.run_id for r in runs.discover(tmp_path)
+                      if r.path == watched)
+        page, errors = _open(browser, base, run_id)
+        page.evaluate(COUNT_RESIZES)
+        before = page.evaluate(SEAM)
+        # the pointer goes *up*, and the pane below the grip gets taller
+        _drag(page, "#grip-console", 0, -120)
+        after = page.evaluate(SEAM)
+        page.close()
+
+    assert not errors, errors
+    assert after["console"] == pytest.approx(before["console"] + 120, abs=6)
+    assert after["picture"] == pytest.approx(before["picture"] - 120, abs=6)
+    # the picture is shorter and the plot was told
+    assert after["inner"][1] < before["inner"][1]
+    assert 0 < after["resizes"] <= 6, after["resizes"]
+
+
+def test_the_grips_carry_the_aria_splitter_keyboard(browser, tmp_path):
+    """The WAI-ARIA window splitter pattern, so nobody has to invent one.
+
+    It is a pattern rather than a library, so the javascript is still the
+    page's; what the pattern fixes is what the keys do.
+    """
+    watched = _make_tree(tmp_path, n_done=2)
+    with _served(tmp_path) as base:
+        run_id = next(r.run_id for r in runs.discover(tmp_path)
+                      if r.path == watched)
+        page, errors = _open(browser, base, run_id)
+        grip = page.locator("#grip-list")
+        assert grip.get_attribute("role") == "separator"
+        assert grip.get_attribute("aria-orientation") == "vertical"
+        assert grip.get_attribute("aria-controls") == "runs"
+
+        grip.focus()
+        start = page.evaluate(SEAM)
+        page.keyboard.press("ArrowLeft")
+        page.wait_for_timeout(250)
+        left = page.evaluate(SEAM)
+        page.keyboard.press("ArrowRight")
+        page.wait_for_timeout(250)
+        right = page.evaluate(SEAM)
+        page.keyboard.press("End")
+        page.wait_for_timeout(300)
+        end = page.evaluate(SEAM)
+        page.keyboard.press("Home")
+        page.wait_for_timeout(300)
+        home = page.evaluate(SEAM)
+        # Enter collapses, and the pane it collapses is the one it sizes
+        page.keyboard.press("Enter")
+        page.wait_for_timeout(300)
+        collapsed = page.evaluate("() => document.body.dataset.list")
+        page.keyboard.press("Enter")
+        page.wait_for_timeout(300)
+        restored = page.evaluate("() => document.body.dataset.list")
+        page.close()
+
+    assert not errors, errors
+    assert left["list"] == start["list"] - 16
+    assert right["list"] == start["list"]
+    # End and Home are the seam's stops, and they are the clamp's own numbers
+    assert end["list"] == end["valuemax"]
+    assert home["list"] < end["list"]
+    # 58ch of declared columns plus 5ch for the run column's own heading, at
+    # 1ch = 7.225 on this page
+    assert home["list"] == pytest.approx(63 * 7.225, abs=2)
+    assert collapsed == "closed"
+    assert restored == "open"
+
+
+def test_the_old_panel_choice_survives_more_than_one_render(browser, tmp_path):
+    """WP-1423's key carried one bit, and migrating it is a write.
+
+    `readLayout` folds `runs: false` into the new shape and drops the old key.
+    Nothing else stores a layout — `storeLayout` is reached only from a drag,
+    an arrow key or a collapse — so dropping the old key without writing the
+    new one spends the migration on a single render: the list is closed once,
+    and the reload after it finds neither key and opens it again.
+    """
+    watched = _make_tree(tmp_path, n_done=2)
+    with _served(tmp_path) as base:
+        run_id = next(r.run_id for r in runs.discover(tmp_path)
+                      if r.path == watched)
+        page = browser.new_page(viewport={"width": 1400, "height": 900})
+        errors: list[str] = []
+        page.on("pageerror", lambda e: errors.append(str(e)))
+        # a reader who collapsed the list before this WP shipped
+        page.add_init_script(
+            "try { localStorage.setItem('rietx-watch-panels',"
+            " JSON.stringify({runs: false, run: true})); } catch (e) {}")
+        page.goto(f"{base}/#/run/{run_id}", wait_until="networkidle")
+        page.wait_for_timeout(700)
+        first = page.evaluate("() => document.body.dataset.list")
+        keys = page.evaluate(
+            "() => [localStorage.getItem('rietx-watch-panels'),"
+            "       localStorage.getItem('rietx-watch-layout')]")
+
+        # the init script runs on every navigation, so the old key is put back
+        # before the reload: the page must prefer what it stored itself
+        page.reload(wait_until="networkidle")
+        page.wait_for_timeout(700)
+        second = page.evaluate("() => document.body.dataset.list")
+        page.close()
+
+    assert not errors, errors
+    assert first == "closed", "the old choice was not carried over at all"
+    assert keys[0] is None, "the old key outlived its migration"
+    assert keys[1] is not None, "the migration stored nothing"
+    assert second == "closed", "the migrated choice was lost on the reload"
+
+
+def test_a_run_with_no_picture_cannot_hide_its_only_content(browser, tmp_path):
+    """A GUI project's run writes a log and never a snapshot.
+
+    `#run.full` hides the console's grip, there being no picture to size
+    against — and the grip is the collapse's only control now that the buttons
+    are gone. Collapsed first and then opened on such a run, the reader would
+    get a strip, a "no picture here" line, and no way to reach the one thing
+    the run has. The rule this replaces was "closing the last open panel opens
+    the other".
+    """
+    project = tmp_path / "sample.rex" / "live"
+    project.mkdir(parents=True)
+    (project / runs.EVENTS_FILE).write_text(
+        json.dumps({"record": "event", "v": "2", "t": 1e9,
+                    "kind": "fit_start", "data": {}}) + "\n",
+        encoding="utf-8")
+    (project / runs.STATUS_FILE).write_text(
+        json.dumps({"state": "done", "stage": "biso", "rwp": 0.1, "gof": 1.4}),
+        encoding="utf-8")
+
+    with _served(tmp_path) as base:
+        run_id = next(r.run_id for r in runs.discover(tmp_path))
+        page = browser.new_page(viewport={"width": 1400, "height": 900})
+        errors: list[str] = []
+        page.on("pageerror", lambda e: errors.append(str(e)))
+        # the log collapsed from an earlier run that did have a picture
+        page.add_init_script(
+            "try { localStorage.setItem('rietx-watch-layout',"
+            " JSON.stringify({list: {size: null, open: true},"
+            "                 console: {size: null, open: false}})); }"
+            " catch (e) {}")
+        page.goto(f"{base}/#/run/{run_id}", wait_until="networkidle")
+        page.wait_for_timeout(700)
+        seen = page.evaluate("""() => {
+          const run = document.getElementById('run');
+          const con = document.getElementById('console');
+          const grip = document.getElementById('grip-console');
+          const box = el => {
+            const b = el.getBoundingClientRect();
+            return [Math.round(b.width), Math.round(b.height)];
+          };
+          return {
+            full: run.classList.contains('full'),
+            stored: run.dataset.console,
+            console: box(con),
+            grip: box(grip),
+            noplot: !!document.getElementById('noplot'),
+          };
+        }""")
+        page.close()
+
+    assert not errors, errors
+    assert seen["full"] and seen["noplot"], "this is not the picture-less case"
+    assert seen["stored"] == "closed", "the stored collapse was not applied"
+    # the grip is gone, so the collapse it is the only control for goes too
+    assert seen["grip"] == [0, 0]
+    assert seen["console"][1] > 0, "the run panel is showing nothing at all"
+
+
+def test_the_legend_is_a_dimension_the_page_fixes(browser, tmp_path):
+    """A window resize moves the legend with the plot and nothing else.
+
+    The legend used to sit above the plot area, where plotly grows the top
+    margin to fit it. Narrowing the window wrapped its one row to two and then
+    four, and each row came out of the picture: the plot area's top ran
+    46 → 65 → 139 px and its height 465 → 446 → 372 across 1400 → 700 px. A
+    resize moves everything by design, so the bar is not a layout shift of
+    zero; it is that the legend's box relative to the plot area is the same at
+    every width, which is what "a dimension the page fixes" means.
+    """
+    _make_tree(tmp_path, n_done=2)
+    seen = {}
+    with _served(tmp_path) as base:
+        run_id = next(r.run_id for r in runs.discover(tmp_path)
+                      if r.path.name == "watched")
+        page, errors = _pinned(browser, base, run_id)
+        for width in (1400, 1000, 700):
+            page.set_viewport_size({"width": width, "height": 900})
+            page.wait_for_timeout(800)
+            seen[width] = page.evaluate(PLOT_GEOMETRY)
+        page.close()
+
+    assert not errors, errors
+    tops = {w: g["area"][1] for w, g in seen.items()}
+    heights = {w: g["area"][3] for w, g in seen.items()}
+    # the declared top margin, and nothing added to it for a legend
+    assert set(tops.values()) == {8}, tops
+    assert len(set(heights.values())) == 1, heights
+    # and the legend's top edge is the plot area's, at every width
+    assert {w: g["rel"][1] for w, g in seen.items()} == {1400: 0, 1000: 0, 700: 0}
+    # its left edge too, wherever the panel is wide enough to hold it. At the
+    # narrowest the legend is wider than the plot area (125 px against 102, the
+    # grip WP-1425 put in the row having taken 5 of them) and plotly keeps it
+    # inside the paper instead, which moves it left. The bound is the legend's
+    # own overflow rather than a measured pixel count, because every number
+    # here moves when the seam does and only that one is a rule: plotly cannot
+    # shift the legend further left than the room it is short of. It is still
+    # not the legend driving the margin.
+    for width, g in seen.items():
+        overflow = g["legend"][2] - g["area"][2]
+        if overflow <= 0:
+            assert g["rel"][0] == 0, (width, g)
+        else:
+            assert -overflow <= g["rel"][0] < 0, (width, g, overflow)
+
+
+def test_a_stage_that_adds_a_legend_entry_does_not_move_the_picture(browser, tmp_path):
+    """The stage that frees the background is the one that used to jump.
+
+    It adds a trace, the trace adds a legend entry, the entry wraps the legend
+    to a second row, and the row came out of the picture. No `layout-shift`
+    entry was ever raised for it: the plot div's own box is untouched, and the
+    movement is entirely inside plotly's redraw. Both instruments are read
+    here, and the point of the second is that the first reported 0 while the
+    picture moved 19 px.
+    """
+    watched = _make_tree(tmp_path, n_done=4)
+    _write_stage(watched, "cell", scale=0.7, noise=30.0, rwp=0.3, bkg=False)
+    with _served(tmp_path) as base:
+        run_id = next(r.run_id for r in runs.discover(tmp_path)
+                      if r.path == watched)
+        page, errors = _pinned(browser, base, run_id)
+        # narrow enough that the sixth entry is the one that wraps the row: at
+        # 1400 the legend has 807 px of plot area and both counts fit on one
+        # line, so the defect this test is about cannot arise there
+        page.set_viewport_size({"width": 1200, "height": 800})
+        page.wait_for_timeout(800)
+        page.evaluate(OBSERVE_SHIFT)
+        page.wait_for_timeout(300)
+        page.evaluate(READ_SHIFT)
+        before = page.evaluate(PLOT_GEOMETRY)
+        _write_stage(watched, "bkg", scale=0.9, noise=10.0, rwp=0.2, bkg=True)
+        page.wait_for_timeout(int(3.0 * POLL * 1000))
+        after = page.evaluate(PLOT_GEOMETRY)
+        shift = page.evaluate(READ_SHIFT)
+        page.close()
+
+    assert not errors, errors
+    # the stage landed, and it is the trace count that changed
+    assert before["ntraces"] + 1 == after["ntraces"]
+    assert after["legend"][3] > before["legend"][3], "the legend did not gain a row"
+    # and the picture did not move
+    assert before["area"] == after["area"]
+    assert before["div"] == after["div"]
+    assert shift["sum"] == 0, shift
+
+
+def test_a_stage_lands_with_no_layout_shift(browser, tmp_path):
+    """The ordinary stage boundary, on both instruments."""
+    watched = _make_tree(tmp_path, n_done=4)
+    with _served(tmp_path) as base:
+        run_id = next(r.run_id for r in runs.discover(tmp_path)
+                      if r.path == watched)
+        page, errors = _pinned(browser, base, run_id)
+        page.evaluate(OBSERVE_SHIFT)
+        page.wait_for_timeout(300)
+        page.evaluate(READ_SHIFT)
+        before = page.evaluate(PLOT_GEOMETRY)
+        time.sleep(0.05)
+        _write_stage(watched, "biso", scale=1.0, noise=4.0, rwp=0.05)
+        page.wait_for_timeout(int(2.5 * POLL * 1000))
+        after = page.evaluate(PLOT_GEOMETRY)
+        shift = page.evaluate(READ_SHIFT)
+        stage = page.evaluate("() => document.getElementById('s-stage').textContent")
+        page.close()
+
+    assert not errors, errors
+    assert stage == "stage 3/3 biso", "the poll never happened"
+    assert shift["sum"] == 0, shift
+    assert before["area"] == after["area"]
+
+
+def test_a_run_arriving_holds_the_readers_place(browser, tmp_path):
+    """A new run is prepended, and the list must not move under the reader.
+
+    Every row below the insertion goes down a row's height. Measured before
+    WP-1426: one arrival on a scrolled list, 0.0134 of layout shift across four
+    rows. A list already at its top is the other case and is left alone, the
+    arriving run being the thing a reader at the top is watching for.
+    """
+    watched = _make_tree(tmp_path, n_done=40)
+
+    def arrive(name: str, t: float) -> None:
+        d = tmp_path / name
+        d.mkdir()
+        (d / runs.EVENTS_FILE).write_text(
+            json.dumps({"record": "event", "v": "2", "t": t,
+                        "kind": "fit_start", "data": {}}) + "\n", encoding="utf-8")
+        (d / runs.STATUS_FILE).write_text(
+            json.dumps({"state": "done", "stage": "scale", "rwp": 0.5}),
+            encoding="utf-8")
+
+    with _served(tmp_path) as base:
+        run_id = next(r.run_id for r in runs.discover(tmp_path)
+                      if r.path == watched)
+        page, errors = _pinned(browser, base, run_id)
+
+        page.evaluate("() => { document.getElementById('runs').scrollTop = 250; }")
+        page.wait_for_timeout(300)
+        page.evaluate(OBSERVE_SHIFT)
+        page.wait_for_timeout(200)
+        page.evaluate(READ_SHIFT)
+        rows_before = page.evaluate("() => document.getElementById('rows').childElementCount")
+        arrive("later-a", 2e9)
+        page.wait_for_timeout(int(3.0 * POLL * 1000))
+        scrolled = page.evaluate(READ_SHIFT)
+        rows_after = page.evaluate("() => document.getElementById('rows').childElementCount")
+        moved_to = page.evaluate("() => document.getElementById('runs').scrollTop")
+
+        # and again with the list at its top
+        page.evaluate("() => { document.getElementById('runs').scrollTop = 0; }")
+        page.wait_for_timeout(300)
+        page.evaluate(READ_SHIFT)
+        arrive("later-b", 3e9)
+        page.wait_for_timeout(int(3.0 * POLL * 1000))
+        at_top = page.evaluate("() => document.getElementById('runs').scrollTop")
+        newest_visible = page.evaluate(
+            "() => { const box = document.getElementById('runs');"
+            "        const tr = document.querySelector('tr.run');"
+            "        return tr.getBoundingClientRect().top"
+            "               >= box.getBoundingClientRect().top - 1; }")
+        page.close()
+
+    assert not errors, errors
+    assert rows_after == rows_before + 1, "the run never arrived"
+    # the reader's rows are where they were, and the scroll took the difference
+    assert scrolled["sum"] == 0, scrolled
+    assert moved_to > 250, "the scroll was not compensated"
+    # a list at its top stays at its top, and the new run is what is there
+    assert at_top == 0
+    assert newest_visible
+
+
+def test_the_console_survives_the_picture_being_rebuilt(browser, tmp_path):
+    """A run opened before its first snapshot keeps its log at that snapshot.
+
+    The picture and the console shared a builder, so the kind going from
+    'none' to 'json' wiped the console and re-tailed it from offset 0: 121
+    lines out and 121 back, and a reader who had scrolled up to read was
+    dropped at the bottom. The line count is the one thing that did *not*
+    change, which is why nothing about it is asserted here.
+    """
+    bare = tmp_path / "bare"
+    bare.mkdir()
+    (bare / runs.EVENTS_FILE).write_text(
+        "".join(json.dumps({"record": "event", "v": "2", "t": 1e9 + i,
+                            "kind": "iteration", "data": {"i": i}}) + "\n"
+                for i in range(120)), encoding="utf-8")
+    (bare / runs.STATUS_FILE).write_text(
+        json.dumps({"state": "running", "stage": "scale", "rwp": 0.4}),
+        encoding="utf-8")
+
+    with _served(tmp_path) as base:
+        run_id = next(r.run_id for r in runs.discover(tmp_path) if r.path == bare)
+        page = browser.new_page(viewport={"width": 1400, "height": 900})
+        errors: list[str] = []
+        page.on("pageerror", lambda e: errors.append(str(e)))
+        page.goto(f"{base}/#/run/{run_id}", wait_until="networkidle")
+        page.wait_for_timeout(int(2.0 * POLL * 1000))
+        assert page.evaluate("() => !document.getElementById('plot')"), \
+            "this run was supposed to open with no picture"
+        # a reader who scrolled up to read
+        page.evaluate("() => { document.getElementById('console').scrollTop = 200; }")
+        page.wait_for_timeout(200)
+        page.evaluate(WATCH_CONSOLE)
+        page.wait_for_timeout(200)
+        _write_stage(bare, "cell", scale=0.7, noise=30.0, rwp=0.3)
+        page.wait_for_timeout(int(3.0 * POLL * 1000))
+        console = page.evaluate(READ_CONSOLE)
+        drawn = page.evaluate("() => !!document.getElementById('plot')")
+        page.close()
+
+    assert not errors, errors
+    assert drawn, "the picture was never built"
+    assert console["removed"] == 0, "the console was wiped"
+    assert console["added"] == 0, "the console was re-tailed"
+    assert console["sameFirstNode"]
+    assert console["scrollTop"] == 200, "the reader lost their place"
+
+
+def test_the_console_is_re_tailed_when_the_run_changes(browser, tmp_path):
+    """The other half of the rule above: a reset still happens when it should.
+
+    The tail follows the log, so moving to another run must drop it. Without
+    this the console would keep the previous run's lines and carry an offset
+    into a file it does not belong to.
+    """
+    for name, n in (("run-a", 10), ("run-b", 40)):
+        d = tmp_path / name
+        d.mkdir()
+        (d / runs.EVENTS_FILE).write_text(
+            "".join(json.dumps({"record": "event", "v": "2", "t": 1e9 + i,
+                                "kind": "iteration", "data": {"i": i}}) + "\n"
+                    for i in range(n)), encoding="utf-8")
+        (d / runs.STATUS_FILE).write_text(
+            json.dumps({"state": "done", "stage": name, "rwp": 0.1}),
+            encoding="utf-8")
+
+    lines = "() => document.getElementById('console').childElementCount"
+    with _served(tmp_path) as base:
+        found = {r.path.name: r.run_id for r in runs.discover(tmp_path)}
+        page = browser.new_page(viewport={"width": 1400, "height": 900})
+        errors: list[str] = []
+        page.on("pageerror", lambda e: errors.append(str(e)))
+        page.goto(f"{base}/#/run/{found['run-a']}", wait_until="networkidle")
+        page.wait_for_timeout(int(2.0 * POLL * 1000))
+        first = page.evaluate(lines)
+        page.evaluate("id => { location.hash = '#/run/' + id; }", found["run-b"])
+        page.wait_for_timeout(int(2.0 * POLL * 1000))
+        second = page.evaluate(lines)
+        page.evaluate("id => { location.hash = '#/run/' + id; }", found["run-a"])
+        page.wait_for_timeout(int(2.0 * POLL * 1000))
+        back = page.evaluate(lines)
+        page.close()
+
+    assert not errors, errors
+    assert (first, second, back) == (10, 40, 10)
+
+
+
+# ----------------------------------------------------------------------
+# WP-1424: every number is drawn whole, and every row can be told apart
+#
+# `table-layout: fixed` makes a `<col>` width the cell's whole box, padding
+# included, so a column declared wide enough for its content is short by the
+# 14 px the cell pads with. Nothing about that is visible in the markup or to
+# a substring assertion: the cell renders, the text is in the DOM, and the
+# browser quietly replaces the last character with an ellipsis.
+#
+# What is measured is the ink against the room — the range rectangle of the
+# cell's contents against its content box — rather than `scrollWidth`, which
+# is the same as `clientWidth` for anything whose overflow is `visible` and so
+# reports 0 for a `<th>` whose heading is spilling into its neighbour.
+# ----------------------------------------------------------------------
+
+#: Every cell and slot, with how far its contents overrun the box.
+OVERFLOW = """() => {
+  const out = [];
+  const rng = document.createRange();
+  const add = (what, el) => {
+    const cs = getComputedStyle(el);
+    if (cs.display === 'none') return;
+    rng.selectNodeContents(el);
+    const pad = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
+    const room = el.clientWidth - pad;
+    const ink = rng.getBoundingClientRect().width;
+    out.push({what: what, over: +(ink - room).toFixed(2), room: room,
+              ink: +ink.toFixed(2), text: el.textContent.trim(),
+              title: el.getAttribute('title')});
+  };
+  const heads = [...document.querySelectorAll('#runs th')];
+  heads.forEach(th => add('th:' + th.textContent.trim(), th));
+  [...document.querySelectorAll('tr.run')].forEach((tr, r) =>
+    [...tr.children].forEach((td, i) =>
+      add(`td${r}:` + heads[i].textContent.trim(), td)));
+  [...document.querySelectorAll('#strip > *')].forEach(el =>
+    add('slot:' + el.id, el));
+  return out;
+}"""
+
+#: Which cells must fit and which may elide, by what fills them. A cell the
+#: page fills itself — a state word from a closed vocabulary, a number it
+#: formats, a clock time — has a worst case the CSS can be sized for, and a
+#: reader who cannot see all of it has simply been shown the wrong number. A
+#: cell holding a name somebody else chose has no worst case: a stage is the
+#: plan author's string (`preferred_orientation` is 21 characters), a label
+#: and a path are the caller's. Those may be cut, and what is asserted of them
+#: is that the whole string is in a `title` where the reader can still reach
+#: it.
+#: The two halves are a *partition*, and a cell in neither fails below rather
+#: than being quietly waved through: a column or slot added without a decision
+#: about which kind it is would otherwise be tested by nothing.
+BOUNDED = ("state", "Rwp", "GoF", "started")
+ELIDED = ("run", "stage")
+BOUNDED_SLOTS = {"slot:s-state", "slot:s-rwp", "slot:s-gof", "slot:s-free",
+                 "slot:s-notice", "slot:stop"}
+ELIDED_SLOTS = {"slot:s-label", "slot:s-series", "slot:s-stage",
+                "slot:s-where"}
+
+
+def _batch(root: Path, *, n: int = 4) -> list[Path]:
+    """One label over several runs, which is what a batch looks like.
+
+    Every run here is one fit launched from one directory, so
+    `RunRecorder._default_label` gives them all the same word and the list
+    names nothing. The numbers are the maintainer's, off the 2026-09-16 demo:
+    an Rwp that reads `0.1734` in the old form, a GoF of `12.34`, and a start
+    time a minute apart run to run. The last run is cancelled, for the
+    longest word the state pill has.
+
+    The start times are held inside the *local day*, because `clock` renders a
+    date rather than a time for a run that did not start today. Three hours
+    back is yesterday between 00:00 and 03:00, so a fixed offset would have
+    made this suite fail for three hours out of every twenty-four.
+    """
+    made = []
+    now = time.time()
+    midnight = time.mktime((*time.localtime(now)[:3], 0, 0, 0, 0, 0, -1))
+    first = max(now - 10800, midnight)
+    for i in range(n):
+        d = root / f"20260916-14{20 + i:02d}00-9{i}"
+        d.mkdir()
+        (d / runs.EVENTS_FILE).write_text(
+            json.dumps({"record": "event", "v": "2", "t": first + i,
+                        "kind": "fit_start", "data": {}}) + "\n",
+            encoding="utf-8")
+        (d / runs.META_FILE).write_text(
+            json.dumps({"record": runs.RECORD_TAG, "label": "campaign",
+                        "created": first + 60 * i,
+                        "cwd": "/Users/someone/work/campaign",
+                        "command": f"python fit_one.py candidate-{i}"}),
+            encoding="utf-8")
+        (d / runs.SNAPSHOT_FILE).write_text(
+            json.dumps(_snapshot("preferred_orientation", scale=0.83,
+                                 noise=6.0)), encoding="utf-8")
+        (d / runs.STATUS_FILE).write_text(
+            json.dumps({"state": "cancelled" if i == n - 1 else "done",
+                        "stage": "preferred_orientation", "rwp": 0.1734,
+                        "gof": 12.34, "n_free": 17, "index": 3,
+                        "n_stages": 3}), encoding="utf-8")
+        made.append(d)
+    return made
+
+
+def test_every_number_on_the_page_is_drawn_whole(browser, tmp_path):
+    """No cell the page fills itself is cut off, at either window size.
+
+    Measured on the page before WP-1424, in these two viewports, ink minus
+    room in CSS pixels: `GoF` over by 7.13 in every row, `state` by 0.62 on
+    the cancelled one, the `started` heading by 6.58, and `stage` by 20.67
+    with no title to recover it. In the strip, `s-where` over by 1127 at both
+    sizes — its `1fr` track had been squeezed to nothing, so the drawn-point
+    count and the path were not cut but absent. At 1000x700 `s-stage` went
+    with it, over by 136.95 with the stage name the reader is watching for.
+    """
+    _batch(tmp_path)
+    with _served(tmp_path) as base:
+        newest = max(runs.discover(tmp_path), key=lambda r: r.created)
+        page, errors = _pinned(browser, base, newest.run_id)
+        seen = {}
+        for width, height in ((1400, 900), (1000, 700)):
+            page.set_viewport_size({"width": width, "height": height})
+            page.wait_for_timeout(600)
+            seen[width] = page.evaluate(OVERFLOW)
+        page.close()
+
+    assert not errors, errors
+    # reported per column rather than per cell: forty rows cut the same way
+    # is one defect, and the widest cut is the one to size for
+    bad = {}
+    for width, cells in seen.items():
+        for c in cells:
+            what = c["what"].split(":")[1]
+            if c["what"].startswith("th:"):
+                # a heading is the page's own word whatever its column holds
+                bounded = True
+            else:
+                bounded = what in BOUNDED or c["what"] in BOUNDED_SLOTS
+                elided = what in ELIDED or c["what"] in ELIDED_SLOTS
+                assert bounded != elided, (
+                    f"{c['what']} is in neither half of the partition, so "
+                    f"nothing here decides whether it may be cut")
+            if c["over"] <= 0.5:
+                continue
+            why = "cut" if bounded else "cut with no title"
+            if not bounded and c["title"]:
+                continue
+            where = (width, c["what"].split(":")[0].rstrip("0123456789")
+                     + ":" + what)
+            if c["over"] > bad.get(where, (0, ""))[0]:
+                bad[where] = (c["over"], why, c["text"])
+    assert not bad, sorted(bad.items())
+
+
+#: Every row's visible text, cell by cell, and the tooltip behind each.
+ROWS = """() => [...document.querySelectorAll('tr.run')].map(tr =>
+  [...tr.children].map(td => [td.textContent.trim(),
+                              (td.firstElementChild || td).getAttribute('title')]))"""
+
+
+def test_two_runs_of_one_batch_are_told_apart(browser, tmp_path):
+    """Forty runs of a batch carry one label, and the list must still name them.
+
+    `RunRecorder._default_label` calls a run after the directory it was
+    launched from, so a batch driven from one directory is forty rows reading
+    `campaign`, `campaign`, `campaign`. Nothing in the record says what a run
+    fitted — that is a caller's fact and WP-1431 gives the caller a way to
+    write it — but the record does know when each one started, to the second,
+    which is what the run directory is named after. So the started column is
+    a clock time rather than `3h ago`, and the row's tooltip carries the
+    directory, the command line and the working directory behind it.
+    """
+    made = _batch(tmp_path, n=6)
+    with _served(tmp_path) as base:
+        newest = max(runs.discover(tmp_path), key=lambda r: r.created)
+        page, errors = _pinned(browser, base, newest.run_id)
+        rows = page.evaluate(ROWS)
+        page.close()
+
+    assert not errors, errors
+    assert len(rows) == len(made)
+    # the label column is the same word on every row, which is the defect
+    assert len({r[1][0] for r in rows}) == 1
+    # and every row is still distinct, in a cell the reader can see
+    started = [r[5][0] for r in rows]
+    assert len(set(started)) == len(rows), started
+    assert all(re.fullmatch(r"\d\d:\d\d:\d\d", s) for s in started), started
+    # the tooltip is where the rest of the record is
+    titles = [r[1][1] for r in rows]
+    assert len(set(titles)) == len(rows), titles
+    for i, title in enumerate(sorted(titles)):
+        assert "fit_one.py candidate-" in title, title
+        assert "in /Users/someone/work/campaign" in title, title
+
+
+#: Which slots the strip is drawing, and what each one says.
+SLOTS = """() => Object.fromEntries(
+  [...document.querySelectorAll('#strip > *')].map(el =>
+    [el.id, getComputedStyle(el).display === 'none' ? null
+            : el.textContent.trim()]))"""
+
+
+def test_the_status_line_drops_slots_it_cannot_fit(browser, tmp_path):
+    """Whole slots go, in a declared order, rather than each being cut a bit.
+
+    The strip's ten slots want 931 px of declared track and the run panel is
+    882 at 1400x900 with the list open, so something always goes without.
+    Sharing the deficit is the answer that reads worst: before WP-1424 the
+    flexible slot was at zero at both sizes and the stage — the fact being
+    watched — was cut by 49 px and then 202. The order is what a reader can
+    get elsewhere: the GUI command and the label are in the row's tooltip and
+    in the list, the free count is in the report, the series in the list.
+
+    The container is the run panel, not the window, so collapsing the list
+    brings slots back at an unchanged window size. That is measured here too.
+    """
+    project = tmp_path / "sample.rex" / "live"
+    project.mkdir(parents=True)
+    now = time.time()
+    (project / runs.EVENTS_FILE).write_text(
+        json.dumps({"record": "event", "v": "2", "t": now, "kind": "fit_start",
+                    "data": {}}) + "\n", encoding="utf-8")
+    (project / runs.META_FILE).write_text(
+        json.dumps({"record": runs.RECORD_TAG, "label": "sample.rex",
+                    "created": now, "cwd": str(tmp_path),
+                    "command": "rietx gui sample.rex"}), encoding="utf-8")
+    (project / runs.SNAPSHOT_FILE).write_text(
+        json.dumps(_snapshot("preferred_orientation", scale=0.83, noise=6.0)),
+        encoding="utf-8")
+    (project / runs.STATUS_FILE).write_text(
+        json.dumps({"state": "done", "stage": "preferred_orientation",
+                    "rwp": 0.1734, "gof": 12.34, "n_free": 17, "index": 3,
+                    "n_stages": 4, "series_index": 4, "series_n": 8,
+                    "series_label": "cpd-1e", "series_pass": "forward"}),
+        encoding="utf-8")
+
+    with _served(tmp_path) as base:
+        run_id = next(r.run_id for r in runs.discover(tmp_path))
+        page, errors = _pinned(browser, base, run_id)
+        seen = {}
+        for width in (1600, 1400, 1000):
+            page.set_viewport_size({"width": width, "height": 900})
+            page.wait_for_timeout(700)
+            seen[width] = page.evaluate(SLOTS)
+        page.dblclick("#grip-list")         # the list closes, the panel grows
+        page.wait_for_timeout(700)
+        wide = page.evaluate(SLOTS)
+        page.close()
+
+    assert not errors, errors
+    # never dropped, at any width
+    for width, slots in seen.items():
+        assert slots["s-state"] == "done", (width, slots)
+        assert slots["s-rwp"] == "Rwp 17.34%", (width, slots)
+        assert slots["s-gof"] == "GoF 12.34", (width, slots)
+        assert slots["s-stage"].startswith("stage 3/4 preferred"), (width, slots)
+    # the GUI command is the whole of the flexible slot now, the path having
+    # moved to the label's tooltip and the point count onto the picture
+    assert seen[1600]["s-where"] == "rietx gui sample.rex"
+    assert "pts drawn" not in (seen[1600]["s-where"] or "")
+    # and it is the first thing to go
+    assert seen[1400]["s-where"] is None
+    assert seen[1400]["s-free"] is None
+    assert seen[1400]["s-label"] == "sample.rex"
+    assert seen[1400]["s-series"] == "pattern 5/8 cpd-1e forward"
+    # at 1000 with the list open the panel is 482 px and only the state, the
+    # stage and the two numbers are left
+    assert seen[1000]["s-label"] is None
+    assert seen[1000]["s-series"] is None
+    # closing the list gives the panel the window, and the slots come back at
+    # a window size that had none of them
+    assert wide["s-label"] == "sample.rex"
+    assert wide["s-series"] == "pattern 5/8 cpd-1e forward"

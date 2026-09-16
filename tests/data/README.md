@@ -18,6 +18,8 @@
 | `gsas2_pbso4.gpx` | GSAS-II's CIF-tutorial PbSO₄ refinement: one `P n m a` phase against a constant-wavelength neutron histogram (λ = 1.909 Å) **and** a laboratory Cu Kα doublet, converged at Rwp 6.171 % over 8 739 channels with 49 variables, every site refining `XU`. The corroborating fixture for `rx.read_gsas2_gpx`, and the file that states its own variable count twice — `Rvals['Nvars']` and the length of `varyList` — which is the one assertion no single-field bug passes | GSAS-II tutorials repo, `CIFtutorial/data/NXPbSO4.gpx` (github.com/AdvancedPhotonSource/GSAS-II-tutorials), renamed | GSAS-II Open Source License (UChicago Argonne): royalty-free use and redistribution with the notice; vendored verbatim, test data only — nothing enters the wheel |
 | `gsas2_lacamno3_magnetic.gpx` | The SimpleMagnetic tutorial's La₀.₈Ca₀.₂MnO₃ at 50 K: a nuclear phase **and** a magnetic one, fourteen constraints naming their variables with GSAS-II's own `G2VarObj`, and a pickle stream with no protocol header. It carries the three things the PbSO₄ file cannot — the magnetic refusal, the constraint decoding, and the third of the corpus a magic-byte sniff would have declined | GSAS-II tutorials repo, `SimpleMagnetic/data/LaCaMnO3 bbb.gpx`, renamed | same |
 | `gsas2_mn3o4_setting.gpx` | The Magnetic-V tutorial's hausmannite Mn₃O₄ at 10 K, vendored for one property: it writes its space group as the bare `I 41/a m d`, which the tables hold in two settings, and its own `SGData['SGOps']` are origin choice **2** where the symbol alone resolves to choice 1. It is also the case the *composition* cannot separate — Mn₁₂O₁₆ either way, because both cation sites are Mn — while the two Mn sites exchange multiplicities (8c/4b against 4a/8d), so it is the fixture behind both halves of WP-1118's setting work. Two time-of-flight histograms; the nuclear phase carries a `magPhases` key | GSAS-II tutorials repo, `Magnetic-V/data/Mn3O4 10K.gpx`, renamed | same |
+| `gsas2_hb2a.instprm` | A GSAS-II **text instrument file**, HFIR's HB-2A at λ = 2.40627 Å (`PNC`, constant-wavelength neutron): the one file in the tutorial corpus's twelve that `rx.read_gsas2_instprm` reads end to end, and the one the writer is checked against character for character. It states all 13 items of a single-bank constant-wavelength file, a non-zero `Zero` among them, so it pins the degrees convention as well as the centidegree one | GSAS-II tutorials repo, `MDtutorials/k_vec_tutorial/data/HB2A_ge113_op2112_Si_cycle866.instprm` (github.com/AdvancedPhotonSource/GSAS-II-tutorials), renamed | GSAS-II Open Source License (UChicago Argonne): royalty-free use and redistribution with the notice; vendored verbatim, test data only — nothing enters the wheel |
+| `gsas2_bnl.instprm` | The same format and the opposite answer: a converged `PXC` (X-ray) calibration whose `X` is **−0.0978 centidegrees**. GSAS-II bounds none of its width coefficients and this package's Lorentzian terms are softplus-bounded at zero, so it is refused by name — and 2 of the corpus's 4 constant-wavelength files are this case, which is why the refusal is tested against a real file rather than a written one | GSAS-II tutorials repo, `MCsimanneal/data/BNL-I.instprm`, renamed | same |
 | `qarr/cpd-1a.prn` … `qarr/cpd-1h.prn` | IUCr CPD QPA round-robin **Sample 1** suite: eight three-phase corundum (Al₂O₃) / zincite (ZnO) / fluorite (CaF₂) mixtures spanning trace→major for each phase; weighed compositions known (below). 2-column ASCII (2θ°, counts), 5–150° 2θ, 0.02° step, 7251 pts — v0.3 QPA acceptance (`test_acceptance_qpa_roundrobin.py`) | IUCr CPD Quantitative Phase Analysis Round Robin, "col" (2θ,counts) format, `www.iucr.org/__data/iucr/powder/QARR/col/`; retrieved via the Internet Archive (the live IUCr site is behind a Cloudflare JS challenge). **The live site is the better route now** — the challenge clears for a real browser session, which is how the `.rd` files below were fetched in 2026-09; see the WP-1407 section | IUCr CPD / CSIRO Minerals round-robin data, freely released on the web (Nov 1999) "for re-analysis with a standard Rietveld code"; no explicit open licence — redistributed here as an academic QPA benchmark, with attribution (see licence note below) |
 | `qarr/cpd-2.prn` | **Sample 2** = sample-1 phases + brucite Mg(OH)₂ (strongly platy → preferred-orientation test) | same | same |
 | `qarr/cpd-4.prn` | **Sample 4** = corundum / coarse magnetite (Fe₃O₄) / zircon (ZrSiO₄) — microabsorption test | same | same |
@@ -1199,6 +1201,44 @@ And three limits of the corpus are recorded rather than smoothed over:
   analysis and a sequential peak fit), 1 for a Le Bail phase with no sites.
   A corpus of teaching files is *meant* to contain mid-refinement states, so
   that ratio is a property of the corpus and not a defect rate.
+
+### GSAS-II `.instprm` — 12 tutorial files, and the two that ship
+
+The same corpus one directory over, fetched the same way with `'*.instprm'` in
+place of `'*.gpx'` (a blobless clone, seconds rather than a minute). Measured
+2026-09-16, `[dev]` venv, darwin/arm64, over all 12 files and the 27 banks they
+hold.
+
+| measured across the 12 | number |
+|---|---|
+| banks | 27: 23 `PNT` (time of flight), 2 `PXC`, 2 `PNC` |
+| files stating several banks | 3, each 6 banks, and each writes `#Bank 6` **twice** |
+| constant-wavelength files this build reads | 2 of 4 — the other two are refused for a negative `X` |
+| files stating `Diff-type`, `Gonio. radius` or a Kα doublet | 0, 0, 0 |
+
+Four of those decided something:
+
+- **A negative width coefficient is the ordinary case, not a corner.** GSAS-II
+  bounds none of `U V W X Y Z`; this package's Lorentzian and Gaussian terms are
+  softplus-bounded at zero, where `to_internal` clamps a non-positive value to
+  1e-12. Both `PXC` files converged to `X` = −0.0978, so reading them would
+  answer from a model the file does not describe. Refused by name, which is
+  `io/recipe.py`'s rule one format over — and the same reason it was earned
+  there, both committed LaB6 references converging to a negative `Y`.
+- **A bank number can name two banks.** GSAS-II's own reader takes the
+  lowest-numbered bank silently; a quarter of this corpus writes one number
+  twice, so `read_gsas2_instprm` refuses a multi-bank file without `bank=` and
+  refuses a repeated number outright.
+- **The doublet arm has no file.** No `.instprm` here states `Lam1`/`Lam2`, so
+  the key names and their order come from the specification and from
+  `gsas2_pbso4.gpx`, whose two histograms carry `INSTPRM_CW_SINGLE` and
+  `INSTPRM_CW_DOUBLET` exactly — the same vocabulary GSAS-II writes into both
+  files. The same is true of `Diff-type` and the goniometer radius.
+- **A token format can be checked character for character.** Reading
+  `gsas2_hb2a.instprm` and writing it back reproduces all 13 items it states,
+  string for string. The `.EXP` writer had to compare its cards against
+  `FAP.EXP`'s own spelling by eye for the same class of check, because a field
+  read by column can say something to Fortran that `float()` does not see.
 
 ## v1.3 PowderLine recipe fixtures (WP-1306)
 

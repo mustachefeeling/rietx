@@ -154,11 +154,15 @@ import math
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from ...crystallography.symmetry import setting_diagnostics
-from ...schemas.common import Diagnostic
+from ...crystallography.symmetry import get_spacegroup, setting_diagnostics
+from ...schemas.common import Diagnostic, Parameter
 from ..formats.base import decode
 from . import coverage as _coverage
+
+if TYPE_CHECKING:  # pragma: no cover - typing only
+    from ...schemas import Structure
 
 #: What a phase scope keyword this reader does not build into the model costs a
 #: caller, decided per construct in :mod:`.coverage` rather than at each call
@@ -2693,3 +2697,166 @@ def to_structure(model: TopasModel, *, cell_limits: bool = True,
     except Exception as exc:
         # e.g. a phase whose site lines were all inside a disabled #ifdef branch
         raise TopasInpError(f"{model.path or '<model>'}: {exc}") from exc
+
+
+def _tail(param: Parameter) -> str:
+    """One value grammar, one direction: ``@ <value>`` (free) or ``! <value>``
+    (held) — Technical Reference §2.1's ``@``/``!`` spellings, never the bare
+    "a name is itself the refine flag" form, so nothing here depends on a
+    symbol table. ``repr`` rather than a fixed format: it is the shortest
+    decimal that reads back to the same double (:func:`_arith`/``_NUM`` parse
+    ordinary decimal and exponent notation alike), which is what a *value*
+    round trip needs — a fixed precision would round every number written.
+
+    A **non-finite** value is refused. ``Parameter`` does not forbid one and a
+    converged fit cannot reach one, but ``repr`` spells it ``inf``/``nan``,
+    which TOPAS does not parse — so the file would be written and fail
+    somewhere else, in someone else's program. Surfaced by the review pass on
+    this writer and answered for all three GSAS/TOPAS/FullProf writers at once
+    (WP-1118). The check lives in :func:`_number`, not here, because an
+    anisotropic site's ``beq`` is the one number this writer spells without a
+    tail — held unconditionally, whatever its ``vary`` says — and a guard only
+    the tail carried would have let exactly that one through.
+    """
+    return f"{'@' if param.vary else '!'} {_number(param.value)}"
+
+
+def _number(value: float) -> str:
+    """One value, as the shortest decimal that reads back to the same double.
+
+    See :func:`_tail` for why ``repr``, and for why the non-finite refusal is
+    at this rank rather than one up.
+    """
+    if not math.isfinite(value):
+        raise ValueError(
+            f"a parameter's value is {value!r}, which `repr` spells "
+            f"'{value}' and TOPAS does not parse — refused here rather "
+            f"than written into a file that fails in another program")
+    return repr(value)
+
+
+def from_structure(structure: Structure) -> str:
+    """Serialise ``structure`` as TOPAS ``.inp`` text — the inverse of
+    :func:`to_structure`.
+
+    Carries exactly what :func:`to_structure` reads back and nothing more:
+    per phase, the space group, the six cell edges, and every atom's
+    coordinates, occupancy and displacement (isotropic ``beq`` or, when
+    ``atom.aniso`` is set, the six ``u11``…``u23`` components alongside a
+    held ``beq`` record — the same asymmetry :func:`to_structure` builds).
+    Each :class:`~rietx.schemas.Parameter`'s own ``vary`` is written as the
+    format's ``@``/``!`` flag, never a bare backtick, so reading the file back
+    needs no symbol table to recover it (WP-1118's own finding: a *name* also
+    means "free" in TOPAS's primary spelling, but that form ties the flag to
+    a fresh symbol per parameter for no gain here).
+
+    **What does not round-trip, because it is not built from a ``.inp`` at
+    all**: the emission profile and instrument geometry TOPAS states are on
+    ``TopasModel``, not ``Structure`` — :func:`to_structure` never builds an
+    ``Instrument`` — and cell/site bound windows (``min``/``max``) are
+    dropped rather than written, since :func:`to_structure`'s own ``_p()``
+    only ever narrows a *stated* bound and a Structure carries no window a
+    caller cannot already see on the ``Parameter`` itself. Extinction,
+    preferred orientation and sample broadening are not TOPAS constructs
+    :func:`to_structure` reads either, so a phase carrying a non-default
+    value there loses it in silence — the same silence :func:`to_structure`
+    itself keeps about them on the way in, so this is symmetric rather than a
+    new gap.
+
+    Space groups are written ``get_spacegroup(phase.space_group).xhm()``,
+    never the phase's own stored spelling: the ``:1``/``:2``/``:H``/``:R``
+    suffix a bare symbol can leave ambiguous is what a reader may have
+    *resolved* (root CLAUDE.md § "Where a file states its symmetry twice"),
+    and re-exporting the stored string would launder that resolution back
+    into the ambiguous form. ``normalize_space_group`` only strips a
+    *trailing* TOPAS-shaped suffix letter (``Z``/``S``/``R``/``H``), so a
+    colon-suffixed ``xhm()`` string passes through unrecognised and lands on
+    ``phase.space_group`` exactly as written; compare space groups with
+    ``get_spacegroup(...).xhm()`` on both sides, not by string, since the
+    written spacing (``"P n -3 m"``) need not match a caller's own.
+
+    Four refusals besides the phase-name quote check above, the fourth being
+    :func:`_tail`'s on a non-finite value. A label or
+    species carrying whitespace: a ``site`` line is space-separated, so an
+    embedded space is read back as an extra, silently dropped token rather
+    than part of the name. A label or species carrying a single quote:
+    unlike ``phase_name``, a site's label and species are not quoted, so an
+    unquoted ``'`` opens a line comment (:func:`strip_comments`) and drops
+    everything after it on that line, x/y/z/occ/beq included. And a
+    negative ``biso``: :func:`to_structure` refuses one on the way in (it
+    bounds biso at zero), so writing one here would only fail later, at the
+    read, with the file already on disk.
+    """
+    from ..._about import DIST_NAME
+
+    lines: list[str] = [f"' Written by {DIST_NAME}.io.projects.topas.write_topas_inp"]
+    for phase in structure.phases:
+        if '"' in phase.name:
+            raise ValueError(
+                f"phase name {phase.name!r} cannot be written to a TOPAS "
+                f"`.inp`: it contains a double quote, which the reader takes "
+                f"as the closing one")
+        if "\n" in phase.name or "\r" in phase.name:
+            raise ValueError(
+                f"phase name {phase.name!r} cannot be written to a TOPAS "
+                f"`.inp`: it carries a line break, and an `.inp` is read line "
+                f"by line — the name comes back cut at the break, a silent "
+                f"rename rather than a failure, and the remainder is read as "
+                f"a keyword line of its own.  The same accident the `.EXP` "
+                f"writer's `write_record` refuses one format over")
+        sg = get_spacegroup(phase.space_group).xhm()
+        lines.append("str")
+        lines.append(f'  phase_name "{phase.name}"')
+        lines.append(f'  space_group "{sg}"')
+        lines.append(f"  scale {_tail(phase.scale)}")
+        cell = phase.cell
+        for key, param in (("a", cell.a), ("b", cell.b), ("c", cell.c),
+                           ("al", cell.alpha), ("be", cell.beta),
+                           ("ga", cell.gamma)):
+            lines.append(f"  {key} {_tail(param)}")
+        for atom in phase.atoms:
+            if any(ch.isspace() for ch in atom.label) or any(
+                    ch.isspace() for ch in atom.species):
+                raise ValueError(
+                    f"phase {phase.name!r}: atom label {atom.label!r} / "
+                    f"species {atom.species!r} contains whitespace, which a "
+                    f"`site` line cannot carry — the line is space-separated "
+                    f"and a space inside either field is read as an extra, "
+                    f"silently dropped token rather than part of the name")
+            if "'" in atom.label or "'" in atom.species:
+                raise ValueError(
+                    f"phase {phase.name!r}: atom label {atom.label!r} / "
+                    f"species {atom.species!r} contains a single quote — "
+                    f"unlike `phase_name`, a `site` line's label and species "
+                    f"are not quoted, so `strip_comments` reads an unquoted "
+                    f"``'`` as opening a line comment and drops everything "
+                    f"after it on that line, including x/y/z/occ/beq")
+            if atom.biso.value < 0.0:
+                raise ValueError(
+                    f"phase {phase.name!r}: atom {atom.label!r} has biso = "
+                    f"{atom.biso.value}, and read_topas_inp's own "
+                    f"to_structure refuses a negative beq on the way back "
+                    f"in (it bounds biso at zero) — writing this file would "
+                    f"only fail later, at the read, rather than here where "
+                    f"the value is still in hand")
+            site = (f"  site {atom.label} x {_tail(atom.x)} y {_tail(atom.y)} "
+                    f"z {_tail(atom.z)} occ {atom.species} {_tail(atom.occ)}")
+            if atom.aniso is not None:
+                # `to_structure` always builds an aniso site's `biso` held
+                # (`vary=False`) — it is the schema's inert record, not a
+                # refinable column — so the write-back forces `!` rather than
+                # trusting `atom.biso.vary`, which keeps a malformed input
+                # Structure from round-tripping into a file that lies about
+                # which number the fit actually moved.
+                tensor = " ".join(f"{u} {_tail(getattr(atom.aniso, u))}"
+                                  for u in _ADP_KEYS)
+                lines.append(f"{site} beq ! {_number(atom.biso.value)} {tensor}")
+            else:
+                lines.append(f"{site} beq {_tail(atom.biso)}")
+    return "\n".join(lines) + "\n"
+
+
+def write_topas_inp(structure: Structure, path: str | Path) -> None:
+    """Write ``structure`` to ``path`` as a TOPAS ``.inp``. See
+    :func:`from_structure` for exactly what carries and what does not."""
+    Path(path).write_text(from_structure(structure), encoding="utf-8")

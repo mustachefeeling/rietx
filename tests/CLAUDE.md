@@ -96,8 +96,8 @@ group was free because nothing in the group shared a fixture. Re-read the
 ## Guards that go quiet instead of red
 
 A guard asserting that something is *absent* fails safe only if you know it can
-still fail. Two measured ways one stops asking (both WP-1062, both green for
-months):
+still fail. Three measured ways one stops asking (the first two WP-1062, both
+green for months; the third WP-1426):
 
 - **It pins a copy of a string that lives somewhere else.** `test_gui_dist`
   filtered `check-ignore` output on the literal text of a `.gitignore` rule, so
@@ -109,7 +109,14 @@ months):
   the ignore rules at all; every file that test checks is committed, so the
   rules were never asked. `--no-index` is what makes it ask.
 
-The check both share: make the guard fail on purpose once, and confirm the
+- **The instrument does not reach the thing you aimed it at.** A browser raises
+  a `layout-shift` entry when an element's *box* moves, and a plotly plot is one
+  div whose insides it redraws, so nothing drawn inside one is ever a layout
+  shift. A stage boundary that moved the plot area 19 px scored exactly 0. A
+  claim about the *page* reads the observer; a claim about the *picture* reads
+  `_fullLayout._size`, and a stillness test needs both instruments.
+
+The check all three share: make the guard fail on purpose once, and confirm the
 failure message is the one you expected.
 
 ## Two eval protocols, and they pool with nothing of each other's

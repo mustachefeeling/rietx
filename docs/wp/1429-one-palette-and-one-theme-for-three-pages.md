@@ -82,6 +82,46 @@ with the resolved theme's hues, on load and on change.
 
 ### Inherited
 
+- **2026-09-16, from [1425](1425-the-panels-are-the-readers-to-size.md): two
+  grips, four more hard-coded greys, and a control that has states.** The
+  watcher page's two seams are splitters now, and `.grip` in `watch.css`
+  carries its own literals: `#1c1c1c` at rest, `#31405a` on hover, `#3d4a66`
+  for `:focus-visible` and while dragging, `#2a3140` when the pane it sizes is
+  collapsed. The two toggle buttons those replaced are gone, so
+  `.toggle[aria-pressed="true"]`'s `#2a3140`/`#3d4a66` pair is gone with them
+  and the count of literals is roughly unchanged. What is new for this WP is
+  that the grip is the first control on the page with **four** states rather
+  than two, so whatever token set lands has to name a focus ring as well as a
+  hover — and `:focus-visible` here is load-bearing rather than cosmetic, the
+  grip being keyboard-operable (arrows, Home, End, Enter) and 5 px wide.
+
+- **2026-09-16, from [1424](1424-a-row-that-names-its-run.md): one more palette
+  consumer on the watcher page.**
+  - `drawSnapshot` now writes a plotly annotation for the drawn-point count,
+    using `HUE.fg` and `withAlpha(HUE.ground, 0.72)` — the same two the legend
+    took in WP-1426. Nothing new is hardcoded, but it is a third place the
+    palette reaches inside one function.
+  - The page's own colours in `watch.css` are unchanged by 1424; the state pill
+    words are still the six literals there.
+
+- **2026-09-16, from [1426](1426-still-under-resize-and-across-a-stage.md): one
+  new colour helper, and one hardcoded colour that is yours to take.**
+  - The legend moved inside the paper, so its ground now sits over the data and
+    needs an opacity. `watch-core.mjs` gained **`withAlpha(hex, alpha)`**, which
+    composes `rgba(...)` from a palette token so the colour keeps one authority;
+    anything it cannot parse comes back unchanged, a palette being data off the
+    wire. `watch.mjs` uses `withAlpha(HUE.ground, 0.72)`. Four node cases in
+    `tests/watch_core.test.mjs`.
+  - **`viz/html.py` got a literal `"rgba(255,255,255,0.85)"` for the same job**,
+    because that page draws under plotly's `simple_white` template and has no
+    `HUE` to quote. It is a hardcoded colour in a file whose other colours all
+    come from `PALETTES`, and it is exactly the kind of second authority this
+    WP exists to remove. Folding it into the token story is a one-line change
+    once the light palette carries a ground.
+  - The 0.72 and the 0.85 were chosen by looking at the rendered pages, not
+    measured. If this WP sets opacity tokens, they should be its numbers rather
+    than these.
+
 - **2026-09-16, from [1430](1430-the-page-is-a-file.md): the page is files, and
   three of its names are not the ones 1430's plan said.** `watch.py` is the
   package `watch/`, and the page is `watch/static/`: `index.html`, `watch.css`,

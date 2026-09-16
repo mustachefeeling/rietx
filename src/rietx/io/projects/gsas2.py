@@ -77,7 +77,9 @@ here.
 
 from __future__ import annotations
 
+import math
 import pickle
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -350,6 +352,19 @@ HISTOGRAM_TYPES: dict[str, str] = {
 CW_CENTIDEGREE_POWER: dict[str, int] = {
     "U": 2, "V": 2, "W": 2, "X": 1, "Y": 1, "Z": 1,
 }
+
+
+def centidegree_factor(name: str) -> float | None:
+    """What a stored CW coefficient is multiplied by, or ``None`` for a ratio.
+
+    One authority for both directions (WP-1118): :func:`_term` divides a value
+    the ``.gpx`` states by it to report degrees, and
+    :func:`~rietx.io.instrument_profile.write_gsas2_instprm` multiplies by it
+    to write an ``.instprm``.  Two spellings of one conversion is how the two
+    GSAS-I readers here came to disagree about ``ICONS``.
+    """
+    power = CW_CENTIDEGREE_POWER.get(name)
+    return None if power is None else 100.0 ** power
 
 #: The refine-flag letters a GSAS-II atom record carries at ``ct+1``.
 ATOM_REFINE_FLAGS: dict[str, str] = {
@@ -769,8 +784,8 @@ def _term(name: str, entry: Any) -> Gsas2Term | None:
     initial, value = _float(entry[0]), _float(entry[1])
     if value is None:
         return None
-    power = CW_CENTIDEGREE_POWER.get(name)
-    degrees = None if power is None else value / 100.0 ** power
+    factor = centidegree_factor(name)
+    degrees = None if factor is None else value / factor
     return Gsas2Term(
         name=name, value=value,
         initial=initial if initial is not None else value,
@@ -1586,3 +1601,386 @@ def to_structure(model: Gsas2Model, *, phase: str | int | None = None,
                 f"`model.hap[…].scale`"),
             where=["phases.0.scale"]))
     return structure
+
+
+def from_structure(structure, *,
+                   diagnostics: list[Diagnostic] | None = None) -> str:
+    """A phase CIF for GSAS-II's own importer — :func:`to_structure`'s inverse.
+
+    GSAS-II has no text project format, so a model travels to it as the pair it
+    imports: this CIF for the phases, and an ``.instprm``
+    (:func:`~rietx.io.instrument_profile.write_gsas2_instprm`) for the machine.
+    The cell, the sites, their occupancies and their displacement parameters are
+    written by the same :func:`~rietx.crystallography.cif.write_structure_block`
+    every CIF this package writes uses, because GSAS-II's importer reads exactly
+    those tags: ``_atom_site_b_iso_or_equiv`` divided by 8π² into its own Uiso,
+    ``adp_type`` of ``Uani`` to mark an anisotropic site, and the separate
+    ``_atom_site_aniso_*`` loop keyed by label.
+
+    **The setting is written three times, because two readers disagree about
+    one string** (WP-1118).  ``F d -3 m`` is two groups, and GSAS-II resolves a
+    bare two-origin symbol to origin choice **2** — its own message calls choice
+    1 "a space group setting not compatible with GSAS-II" — while gemmi, and so
+    this package, resolves the same string to choice **1**.  Neither is wrong
+    and no single symbol satisfies both, so each tag carries the spelling its
+    reader takes:
+
+    * ``_symmetry_space_group_name_H-M`` — the symbol with **no suffix**, which
+      is the tag GSAS-II reads first and the only grammar its ``SpcGroup``
+      accepts.  A colon-suffixed symbol there is an error GSAS-II answers by
+      setting the phase to ``P 1``.
+    * ``_space_group_name_H-M_alt`` — the fully resolved ``xhm()``, the current
+      dictionary's tag, and the one gemmi prefers when both are present
+      (measured).  This is what makes the round trip through
+      :func:`~rietx.structure_from_cif` exact.
+    * ``_space_group_symop_operation_xyz`` — the operations themselves, which is
+      the channel that needs no convention at all.  GSAS-II reads them to check
+      its own resolution of the symbol, and
+      :func:`~rietx.crystallography.symmetry.setting_from_operators` reads them
+      the same way one rank over, on a ``.gpx``.
+
+    What does not cross is named in the diagnostics rather than dropped in
+    silence: a CIF states no refine flags, no phase scale and no sample
+    broadening, so a GSAS-II project built from this file starts with its own.
+    """
+    import gemmi
+
+    from ...crystallography.cif import write_structure_block
+    from ...crystallography.symmetry import get_spacegroup, setting_alternatives
+
+    doc = gemmi.cif.Document()
+    ambiguous: list[str] = []
+    taken_names: set[str] = set()
+    for index, phase in enumerate(structure.phases):
+        _refuse_non_finite(phase, index)
+        _refuse_unquotable(phase, index)
+        block = doc.add_new_block(_block_name(phase.name, index, taken_names))
+        sg = get_spacegroup(phase.space_group)
+        resolved = sg.xhm()
+        bare = resolved.split(":")[0]
+        # Set before the block is built so the two symbols sit together: the
+        # block writer sets the bare tag itself, in place, a few lines on.
+        block.set_pair("_space_group_name_H-M_alt", gemmi.cif.quote(resolved))
+        write_structure_block(block, phase)
+        block.set_pair("_symmetry_space_group_name_H-M", gemmi.cif.quote(bare))
+        loop = block.init_loop("_space_group_symop_", ["operation_xyz"])
+        for op in sg.operations():
+            loop.add_row([gemmi.cif.quote(op.triplet())])
+        # Asked of the **bare** symbol, which is what is being written: the
+        # stored one may already name its setting, and that is exactly the
+        # phase whose setting the bare tag cannot carry.
+        taken, others = setting_alternatives(bare)
+        if others:
+            ambiguous.append(f"{phase.name} is {resolved} and {bare} alone "
+                             f"reads as {taken} here")
+
+    if diagnostics is not None:
+        _report_cif(structure, ambiguous, diagnostics)
+    return doc.as_string()
+
+
+def _block_name(name: str, index: int, taken: set[str]) -> str:
+    """One CIF data-block name, unique within the document.
+
+    A block name is a **key**, and ``\\W+`` collapses distinct phase names onto
+    one — ``"phase 1"`` and ``"phase-1"`` both become ``phase_1``, and a
+    two-phase mixture of one material under one name needs no collapsing at
+    all.  gemmi answers a duplicate with a bare ``RuntimeError``, so the
+    ordinary case never reached a file; the phase's index is what distinguishes
+    them, being the one thing a phase carries that is unique by construction.
+    """
+    stem = re.sub(r"\W+", "_", name) or f"phase_{index}"
+    chosen, suffix = stem, index
+    while chosen in taken:
+        chosen = f"{stem}_{suffix}"
+        suffix += 1
+    taken.add(chosen)
+    return chosen
+
+
+def _refuse_unquotable(phase, index: int) -> None:
+    """A site name a CIF loop cannot carry, refused before the loop is built.
+
+    ``write_structure_block`` adds a label and a species as **bare** loop
+    values, so whitespace inside either splits one row into two and the block
+    comes back "wrong number of values in loop" from any CIF reader, gemmi's
+    included.  The ``.inp``, ``.pcr`` and ``.EXP`` writers each refuse the same
+    shape by name, for the same reason one rank over.
+    """
+    for j, atom in enumerate(phase.atoms):
+        for what, text in ((f"phases.{index}.atoms.{j}.label", atom.label),
+                           (f"phases.{index}.atoms.{j}.species", atom.species)):
+            if not text.strip() or any(ch.isspace() for ch in text):
+                raise ValueError(
+                    f"{what} is {text!r}, and a CIF loop carries a label and a "
+                    f"species as bare values: whitespace inside one splits the "
+                    f"row in two and no reader, GSAS-II's importer included, "
+                    f"can parse the block back")
+
+
+def _refuse_non_finite(phase, index: int) -> None:
+    """A value ``repr`` would spell ``inf``, refused where it is still in hand.
+
+    ``io/CLAUDE.md`` § Project writers' rule, and one of the two a CIF needs
+    (:func:`_refuse_unquotable` is the other): every other shape this package
+    can hold — an anisotropic site, a partial occupancy, a non-standard
+    setting — GSAS-II's own importer reads.
+    """
+    numbers = [(f"phases.{index}.cell.{n}", getattr(phase.cell, n).value)
+               for n in ("a", "b", "c", "alpha", "beta", "gamma")]
+    for j, atom in enumerate(phase.atoms):
+        for name in ("x", "y", "z", "occ", "biso"):
+            numbers.append((f"phases.{index}.atoms.{j}.{name}",
+                            getattr(atom, name).value))
+        if atom.aniso is not None:
+            numbers.extend(
+                (f"phases.{index}.atoms.{j}.aniso.{n}", v)
+                for n, v in zip(("u11", "u22", "u33", "u12", "u13", "u23"),
+                                atom.aniso.values(), strict=True))
+    for path, value in numbers:
+        if not math.isfinite(value):
+            raise ValueError(
+                f"{path} is {value!r}, and a file states numbers a program can "
+                f"read: repr spells this 'inf' or 'nan' and no CIF reader "
+                f"parses that")
+
+
+def _report_cif(structure, ambiguous: list[str],
+                diagnostics: list[Diagnostic]) -> None:
+    """What this CIF states in an unusual place, and what it cannot state."""
+    if ambiguous:
+        diagnostics.append(Diagnostic(
+            level="info", code="GSAS2_CIF_SETTING_IN_OPERATORS",
+            message=(
+                f"{'; '.join(ambiguous)}.  The two programs read such a symbol "
+                f"opposite ways — GSAS-II takes a bare two-origin symbol as "
+                f"origin choice 2 and gemmi as choice 1 — so the setting is "
+                f"stated in the symmetry operations, which "
+                f"GSAS-II checks its own reading against, and in "
+                f"_space_group_name_H-M_alt, which this package reads.  "
+                f"_symmetry_space_group_name_H-M carries the bare symbol "
+                f"because GSAS-II's symbol grammar has no suffix and answers "
+                f"one by setting the phase to P 1"),
+            where=[f"phases.{i}.space_group"
+                   for i in range(len(structure.phases))]))
+    clauses = [
+        "the refine flags: a CIF states none, so a GSAS-II project built from "
+        "this file starts from that program's own defaults rather than from "
+        "the protocol this model carries",
+        "the phase scale and the sample broadening, which belong to a phase "
+        "and a histogram together and live in GSAS-II's own HAP tables",
+    ]
+    extras = {
+        "microstrain": "the Stephens anisotropic strain coefficients",
+        "preferred_orientation": "the March-Dollase preferred orientation",
+        "extinction": "the secondary-extinction coefficient",
+        "restraints": "the soft restraints",
+    }
+    for name, what in extras.items():
+        if any(getattr(p, name, None) for p in structure.phases):
+            clauses.append(what + ", which a phase CIF has no tags for")
+    diagnostics.append(Diagnostic(
+        level="warning", code="GSAS2_CIF_FIELD_NOT_WRITTEN",
+        message="a phase CIF cannot state: " + "; ".join(clauses),
+        where=["phases"]))
+
+
+def write_gsas2_phase_cif(structure, path: str | Path, *,
+                          diagnostics: list[Diagnostic] | None = None) -> None:
+    """Write ``structure`` to ``path`` as the phase CIF GSAS-II imports.
+
+    One data block per phase, which is what GSAS-II's importer offers a choice
+    between.  See :func:`from_structure` for what crosses, and
+    :func:`~rietx.write_gsas2_instprm` for the other half of the pair.
+    """
+    Path(path).write_text(from_structure(structure, diagnostics=diagnostics),
+                          encoding="utf-8")
+
+
+# ---------------------------------------------------------------------------
+# The ``.instprm`` instrument-parameter file
+# ---------------------------------------------------------------------------
+#
+# GSAS-II's other text format, and the only one it *writes* for someone else to
+# read: a project is the binary ``.gpx`` above, while an instrument calibration
+# travels as this.  The grammar lives here, beside the ``.gpx`` reader, for the
+# reason ``projects/gsas.py`` holds the ``ICONS`` grammar the ``.EXP`` and
+# ``.prm`` readers share — one record read two ways by two readers in one
+# package is the thing this codebase most dislikes.  The ``Instrument`` this
+# grammar is converted to and from lives in ``io/instrument_profile.py``, with
+# the GSAS-I ``.prm`` pair it is the sibling of (WP-1118).
+#
+# Specification: GSAS-II's own ``GSASIIfiles.ReadInstprm``/``WriteInstprm``,
+# read 2026-09-16 as **specification only**, which is the licence fence
+# ``ATTRIBUTION.md`` records for GSAS-II.  No GSAS-II code is reproduced.
+
+#: What GSAS-II's own reader tests the first line for, and the whole of that
+#: test: ``if 'GSAS-II' not in instLines[0]: raise``.  A sniff here matches it
+#: rather than the full header sentence, because real files write two different
+#: headers (``#GSAS-II instrument parameter file; do not add/delete items!`` and
+#: an older one adding ``or change order of items``) and both are this format.
+INSTPRM_MARKER = "GSAS-II"
+
+#: The header a single-bank file written here opens with, byte for byte what
+#: GSAS-II writes for ``bank=None``.
+INSTPRM_HEADER = ("#GSAS-II instrument parameter file; "
+                  "do not add/delete items!")
+
+#: The constant-wavelength keys, in the order GSAS-II's own importer builds
+#: them (``GSASIIfiles.SetPowderInstParms``, with ``Bank`` appended after),
+#: single line and doublet.  A file is one or the other: ``Lam`` and
+#: ``Lam1``/``Lam2`` are alternatives, and the doublet carries the intensity
+#: ratio the single line has no use for.  Nothing reads a file positionally,
+#: so the order serves the *writer*.
+#:
+#: Corroborated in this repo rather than taken from the specification alone:
+#: ``tests/data/gsas2_pbso4.gpx`` carries one histogram of each kind, and their
+#: coefficient names are these two tuples exactly, in this order.
+INSTPRM_CW_SINGLE: tuple[str, ...] = (
+    "Type", "Lam", "Zero", "Polariz.", "U", "V", "W", "X", "Y", "Z",
+    "SH/L", "Azimuth", "Bank")
+INSTPRM_CW_DOUBLET: tuple[str, ...] = (
+    "Type", "Lam1", "Lam2", "Zero", "I(L2)/I(L1)", "Polariz.", "U", "V", "W",
+    "X", "Y", "Z", "SH/L", "Azimuth", "Bank")
+
+#: The two sample kinds GSAS-II's ``Diff-type`` names, mapped onto this
+#: package's :class:`~rietx.schemas.instrument.Geometry` kinds.  GSAS-II states
+#: no third, so ``flat_plate_transmission`` has no spelling here and is refused
+#: on the way out rather than written as one of these.
+INSTPRM_DIFF_TYPES: dict[str, str] = {
+    "Bragg-Brentano": "bragg_brentano",
+    "Debye-Scherrer": "debye_scherrer",
+}
+
+
+@dataclass(frozen=True)
+class InstprmBank:
+    """One bank of an ``.instprm``: its number, and the items it states.
+
+    ``number`` is ``None`` for a file whose header names no bank, which is what
+    a single-detector calibration looks like.  ``items`` are the file's own key
+    and value strings, unconverted: what a number *means* is the reader's
+    question, not the grammar's, and a value GSAS-II leaves as text (``Diff-type``,
+    ``InstrName``) is the same shape here as one that floats.
+    """
+
+    number: int | None
+    items: dict[str, str]
+
+
+def _instprm_bank_number(line: str) -> int | None:
+    """The bank a ``#`` line opens, by GSAS-II's own reading of it.
+
+    ``#Bank 6: GSAS-II instrument parameter file…`` is bank 6; a header with no
+    ``Bank`` word opens the file's single unnumbered bank.  A malformed number
+    is refused rather than skipped, because the alternative is reading one
+    bank's coefficients under another bank's name.
+    """
+    if "Bank" not in line:
+        return None
+    field = line.split(":")[0].split()
+    if len(field) < 2 or not field[1].lstrip("-").isdigit():
+        raise ValueError(
+            f"{line.strip()!r} opens a bank whose number this reader cannot "
+            f"read; GSAS-II writes '#Bank <n>: …' and takes the integer after "
+            f"the word")
+    return int(field[1])
+
+
+def read_instprm(text: str) -> tuple[InstprmBank, ...]:
+    """Split an ``.instprm`` into its banks, keys and values.
+
+    The grammar, and only the grammar: every value comes back as the file's own
+    string.  Four rules, each GSAS-II's own and none of them guessed:
+
+    * the **first line carries** ``GSAS-II``, which is the whole of that
+      reader's file test;
+    * a line beginning ``#`` opens a bank, numbered when it names one;
+    * **every space is stripped** from a value line before it is read, so
+      ``Gonio. radius`` is stored as ``Gonio.radius`` and a value never carries
+      one;
+    * one line may hold several items separated by ``;``, and a value delimited
+      by ``'''`` or ``\"\"\"`` runs to its closing delimiter.
+
+    Raises ``ValueError`` describing the line; the caller names the file, which
+    is ``io/CLAUDE.md`` § Refusals' split between a parser and a reader.
+    """
+    lines = text.splitlines()
+    # Read before the test, not inside the message: an empty file has no first
+    # line, and indexing one there raised `IndexError` out of a reader whose
+    # whole contract is a `ValueError` naming the file (``io/CLAUDE.md``
+    # § Refusals).  A zero-byte file is the ordinary way a download fails.
+    first = lines[0].strip() if lines else ""
+    if not lines or INSTPRM_MARKER not in lines[0]:
+        raise ValueError(
+            f"the first line is {first!r} if there is one, and an "
+            f"instrument-parameter file GSAS-II wrote opens on a header "
+            f"carrying {INSTPRM_MARKER!r}")
+
+    banks: list[InstprmBank] = []
+    items: dict[str, str] = {}
+    number: int | None = None
+    opened = False
+    il = 0
+    while il < len(lines):
+        line = lines[il]
+        il += 1
+        if line.startswith("#"):
+            if opened:
+                banks.append(InstprmBank(number=number, items=items))
+                items = {}
+            opened = True
+            number = _instprm_bank_number(line)
+            continue
+        if not line.strip():
+            continue
+        delim = '"""' if '"""' in line else ("'''" if "'''" in line else "")
+        if delim:
+            key, _, rest = line.strip().partition(":")
+            if rest.count(delim) >= 2:
+                # Opened *and* closed on this line.  Scanning on for a closing
+                # delimiter there is not swallows every item after it — the
+                # whole rest of the bank, `Type` and the wavelength included —
+                # into one value, and the bank is then refused for stating a
+                # type it does state.
+                items[key.strip()] = rest.replace(delim, "").strip()
+                continue
+            value = [rest.replace(delim, "")]
+            while il < len(lines) and delim not in lines[il]:
+                value.append(lines[il])
+                il += 1
+            if il < len(lines):
+                value.append(lines[il].replace(delim, ""))
+                il += 1
+            items[key.strip()] = "\n".join(value).strip()
+            continue
+        for chunk in line.replace(" ", "").split(";"):
+            if not chunk:
+                continue
+            key, sep, value = chunk.partition(":")
+            if not sep:
+                raise ValueError(
+                    f"{line.strip()!r} is not one of this format's "
+                    f"'item:value' lines")
+            items[key] = value
+    if opened:
+        banks.append(InstprmBank(number=number, items=items))
+    return tuple(banks)
+
+
+def write_instprm(items: dict[str, str], *, bank: int | None = None) -> str:
+    """Render items as ``.instprm`` text — :func:`read_instprm`'s inverse.
+
+    ``bank`` writes the numbered header and the two-space indent GSAS-II uses
+    for a multi-bank file, and ``None`` the plain header of a single-bank one.
+    The values are strings because the *caller* owns how a number is spelled:
+    this is a token format rather than a fixed-column one, so a value's own
+    ``repr`` crosses exactly and there is no field budget to spend
+    (``io/CLAUDE.md`` § Project writers).
+    """
+    if bank is None:
+        head, indent = INSTPRM_HEADER, ""
+    else:
+        head, indent = f"#Bank {bank}: {INSTPRM_HEADER[1:]}", "  "
+    rows = "".join(f"{indent}{k}:{v}\n" for k, v in items.items())
+    return f"{head}\n{rows}"

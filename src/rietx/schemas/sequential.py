@@ -158,6 +158,16 @@ class Trajectory(Base):
     value: list[float] = Field(default_factory=list)
     stderr: list[float | None] = Field(default_factory=list)
     labels: list[str] = Field(default_factory=list)
+    #: Which entry of ``SeriesResult.entries`` each point came from, by
+    #: **position** (WP-1310).  A trajectory skips the patterns a path is
+    #: absent from, so it is a subsequence of the series and nothing else here
+    #: says which one: ``x`` can repeat when a caller supplies a coordinate,
+    #: and ``label`` defaults to ``""`` for every entry.  ``to_table`` needs
+    #: the alignment to put a derived path in a row, and without it would have
+    #: to re-resolve the path itself — which is the second resolver this field
+    #: exists to remove.  Positional rather than ``SeriesEntry.index``, since
+    #: the row being filled is a position.
+    positions: list[int] = Field(default_factory=list)
 
     def __len__(self) -> int:
         return len(self.value)
@@ -170,6 +180,33 @@ class Trajectory(Base):
                 np.asarray(self.value, dtype=float),
                 np.asarray([np.nan if s is None else s for s in self.stderr],
                            dtype=float))
+
+
+def _unservable(series: "SeriesResult", path: str) -> str:
+    """Why ``path`` reaches no pattern, and what the caller could have meant.
+
+    A typo in a derived path and a typo in a parameter path fail for different
+    reasons and want different lists back: a phase name is checked against the
+    phases that *carry that kind of curve*, which is not the same set as the
+    QPA phases (a phase can have an agreement index and no weight fraction —
+    QPA needs Z and a molar mass and a structure R does not).
+    """
+    if path.startswith("qpa."):
+        known = sorted({r.name for e in series.entries
+                        if e.qpa is not None for r in e.qpa.phases})
+        what = "carries a weight fraction"
+    elif series.is_derived_path(path):
+        known = series.agreement_phases()
+        what = "carries an agreement index"
+    else:
+        return (f"no pattern in this series carries {path!r}: it is not a "
+                f"refined parameter of any entry (available: "
+                f"{', '.join(series.paths()[:6])}…)")
+    prefix, _, phase = path.partition(".")
+    return (f"no pattern in this series carries {path!r}: no phase named "
+            f"{phase!r} {what} here"
+            + (f" (available: {', '.join(known)})" if known else
+               f" — no phase in this series carries a {prefix!r} curve at all"))
 
 
 class SeriesResult(Base):
@@ -246,7 +283,7 @@ class SeriesResult(Base):
         against.
         """
         traj = Trajectory(path=path, x_label=self.x_label)
-        for e, xv in zip(self.entries, self.x, strict=True):
+        for i, (e, xv) in enumerate(zip(self.entries, self.x, strict=True)):
             found = next((p for p in e.parameters if p.path == path), None)
             if found is None:
                 continue
@@ -254,6 +291,7 @@ class SeriesResult(Base):
             traj.value.append(found.value)
             traj.stderr.append(found.stderr)
             traj.labels.append(e.label)
+            traj.positions.append(i)
         return traj
 
     def paths(self, *, varied_only: bool = False) -> list[str]:
@@ -279,7 +317,7 @@ class SeriesResult(Base):
     def qpa_trajectory(self, phase: str) -> Trajectory:
         """A phase's weight fraction (as a percentage) across the series."""
         traj = Trajectory(path=f"qpa.{phase}", x_label=self.x_label)
-        for e, xv in zip(self.entries, self.x, strict=True):
+        for i, (e, xv) in enumerate(zip(self.entries, self.x, strict=True)):
             if e.qpa is None:
                 continue
             row = next((r for r in e.qpa.phases if r.name == phase), None)
@@ -290,6 +328,7 @@ class SeriesResult(Base):
             traj.stderr.append(None if row.weight_fraction_stderr is None
                                else 100.0 * row.weight_fraction_stderr)
             traj.labels.append(e.label)
+            traj.positions.append(i)
         return traj
 
     def agreement_trajectory(self, phase: str, *,
@@ -319,7 +358,7 @@ class SeriesResult(Base):
             raise ValueError(
                 f"metric must be 'r_bragg' or 'r_f', got {metric!r}")
         traj = Trajectory(path=f"{metric}.{phase}", x_label=self.x_label)
-        for e, xv in zip(self.entries, self.x, strict=True):
+        for i, (e, xv) in enumerate(zip(self.entries, self.x, strict=True)):
             row = next((r for r in e.phase_agreement if r.name == phase), None)
             if row is None:
                 continue
@@ -333,6 +372,7 @@ class SeriesResult(Base):
             traj.value.append(value)
             traj.stderr.append(None)
             traj.labels.append(e.label)
+            traj.positions.append(i)
         return traj
 
     #: Prefixes :meth:`resolve_trajectory` dispatches on, longest first so a
@@ -342,6 +382,17 @@ class SeriesResult(Base):
     #: nested namespace, not that.
     _TRAJECTORY_PREFIXES: ClassVar[tuple[str, ...]] = (
         "r_bragg.", "r_f.", "qpa.")
+
+    #: Prefixes whose trajectories carry no esd **by construction**, as
+    #: distinct from one whose esd a given fit happened not to estimate
+    #: (WP-1310).  An agreement index is a residual rather than a fitted
+    #: parameter, so it has no covariance entry to propagate from and every
+    #: ``stderr`` is ``None`` for every series — see
+    #: :meth:`agreement_trajectory`.  ``to_table`` reads this to leave the
+    #: ``_esd`` column out rather than emit one that is blank in every row,
+    #: which is the ambiguity WP-1076 exists to prevent: a reader cannot tell
+    #: a blank meaning "zero" from one meaning "never defined".
+    _ESDLESS_PREFIXES: ClassVar[tuple[str, ...]] = ("r_bragg.", "r_f.")
 
     def resolve_trajectory(self, path: str) -> Trajectory:
         """The trajectory a *prefixed* path names, whichever kind it is.
@@ -396,7 +447,8 @@ class SeriesResult(Base):
     # -- tabular export ------------------------------------------------
     def to_table(self, *, paths: list[str] | None = None
                  ) -> tuple[list[str], list[list]]:
-        """``(header, rows)``: one row per pattern, value + esd per parameter.
+        """``(header, rows)``: one row per pattern, a column per path (+ esd
+        where that kind of path has one).
 
         The wide form is what gets plotted or pasted into a paper; the columns
         are ``index, label, x, status, rung, rwp, gof, <path>, <path>_esd, …``.
@@ -404,6 +456,18 @@ class SeriesResult(Base):
         much should I trust this point": a rescued point is a good fit whose
         starting values did not come from its neighbour, and a table that hides
         that reads as a continuous trajectory.
+
+        **A path is resolved by** :meth:`resolve_trajectory`, **the same one
+        authority the plots and the GUI use** (WP-1310, issue #162), so a
+        derived path — ``qpa.<phase>``, ``r_bragg.<phase>``, ``r_f.<phase>`` —
+        exports its curve rather than a column of blanks.  Two consequences.
+        A path **no entry in the series carries raises**, naming it: an empty
+        column is indistinguishable from a measured absence, which is the
+        confident-wrong-empty-state WP-1076 is about.  And a kind with no esd
+        **by construction** gets no ``_esd`` column at all
+        (:attr:`_ESDLESS_PREFIXES`) rather than one blank in every row; a kind
+        that *has* esds keeps its column even when this series estimated none,
+        because there the blank carries information.
 
         **The axis column takes** :attr:`x_label`, **unless that name is
         already a column**, in which case it is ``x`` (WP-1076).  ``x_label``
@@ -418,15 +482,36 @@ class SeriesResult(Base):
         fixed = ["index", "label", "status", "rung", "rwp", "gof"]
         x_col = "x" if self.x_label in fixed else self.x_label
         header = ["index", "label", x_col, "status", "rung", "rwp", "gof"]
+
+        # One resolver, not two (WP-1310, issue #162).  Before this, the loop
+        # below called ``SeriesEntry.value``, which scans ``parameters`` only —
+        # so every derived path produced a well-formed column of ``None``
+        # rather than the curve or a refusal.
+        resolved: dict[str, dict[int, tuple[float, float | None]]] = {}
+        with_esd: list[bool] = []
         for p in paths:
-            header += [p, f"{p}_esd"]
+            traj = self.resolve_trajectory(p)
+            if not traj.positions and self.entries:
+                raise ValueError(_unservable(self, p))
+            resolved[p] = {pos: (v, s) for pos, v, s
+                           in zip(traj.positions, traj.value, traj.stderr,
+                                  strict=True)}
+            # an esd-less *kind* loses the column; a kind that has esds keeps
+            # it even when this particular series estimated none, because there
+            # the blank means "not estimated here" and that is a fact
+            with_esd.append(not p.startswith(self._ESDLESS_PREFIXES))
+
+        for p, esd in zip(paths, with_esd, strict=True):
+            header += [p, f"{p}_esd"] if esd else [p]
+
         rows: list[list] = []
-        for e, xv in zip(self.entries, self.x, strict=True):
+        for i, (e, xv) in enumerate(zip(self.entries, self.x, strict=True)):
             row: list = [e.index, e.label, xv, e.status, e.rung,
                          e.statistics.rwp if e.statistics else None,
                          e.statistics.gof if e.statistics else None]
-            for p in paths:
-                row += [e.value(p), e.stderr(p)]
+            for p, esd in zip(paths, with_esd, strict=True):
+                value, stderr = resolved[p].get(i, (None, None))
+                row += [value, stderr] if esd else [value]
             rows.append(row)
         return header, rows
 

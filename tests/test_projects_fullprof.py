@@ -33,18 +33,21 @@ from pathlib import Path
 import pytest
 
 import rietx as rx
+from rietx.crystallography.symmetry import get_spacegroup
 from rietx.io.projects.fullprof import (
     FullProfPcrError,
     _strip,
     atom_tie_recoverability,
     cell_parameter_ties,
     decode_codeword,
+    from_structure,
     normalize_space_group,
     normalize_species,
     nuclear_parameter_ties,
     occupancy_factor,
     read_fullprof_pcr,
     to_structure,
+    write_fullprof_pcr,
 )
 from rietx.schemas.instrument import NeutronSource
 
@@ -1932,3 +1935,207 @@ def test_a_multi_site_phase_makes_no_such_claim(tmp_path):
                  diagnostics=diagnostics)
     assert [d for d in diagnostics
             if d.code == "FULLPROF_OCCUPANCY_UNCHECKED"] == []
+
+
+# --------------------------------------------------- the writer (WP-1118, #148)
+#
+# `from_structure` is the inverse of `to_structure`, and its acceptance is a
+# round trip through the reader this module already carries. No committed
+# fixture is needed and none is added: every `Structure` below is built by
+# hand, the same way the synthetic `.pcr` fixtures above are.
+
+
+def _assert_parameter_equal(a: rx.Parameter, b: rx.Parameter):
+    assert a.value == b.value and a.vary == b.vary
+
+
+def test_write_fullprof_pcr_round_trips_a_multi_phase_structure(tmp_path):
+    """Cell, atoms and scale come back exactly, every `vary` intact, across a
+    monoclinic two-site phase and a cubic one-site phase in the same file."""
+    cell = rx.Cell(a=rx.Parameter(value=8.123, vary=True),
+                   b=rx.Parameter(value=5.234, vary=False),
+                   c=rx.Parameter(value=9.345, vary=True),
+                   alpha=rx.Parameter(value=90.0, vary=False),
+                   beta=rx.Parameter(value=105.41, vary=True),
+                   gamma=rx.Parameter(value=90.0, vary=False))
+    fe = rx.Atom(label="Fe1", species="Fe3+",
+                 x=rx.Parameter(value=-0.123, vary=True),
+                 y=rx.Parameter(value=0.25, vary=False),
+                 z=rx.Parameter(value=0.04512345678, vary=True),
+                 occ=rx.Parameter(value=1.0, vary=False),
+                 biso=rx.Parameter(value=0.9123456789, vary=True,
+                                   min=0.0, max=25.0, unit="A^2"))
+    o = rx.Atom(label="O1", species="O2-",
+                x=rx.Parameter(value=0.31, vary=True),
+                y=rx.Parameter(value=0.11, vary=True),
+                z=rx.Parameter(value=0.41, vary=False),
+                occ=rx.Parameter(value=1.0, vary=False),
+                biso=rx.Parameter(value=0.5, vary=False,
+                                  min=0.0, max=25.0, unit="A^2"))
+    monoclinic = rx.Phase(name="FeO phase", space_group="P21/c", cell=cell,
+                          atoms=[fe, o],
+                          scale=rx.Parameter(value=1.5e-5, vary=True, min=0.0))
+    cubic = rx.Phase(
+        name="Al", space_group="Fm-3m", cell=rx.Cell.cubic(4.0495, vary=True),
+        atoms=[rx.Atom(label="Al1", species="Al",
+                       x=rx.Parameter(value=0.0), y=rx.Parameter(value=0.0),
+                       z=rx.Parameter(value=0.0),
+                       biso=rx.Parameter(value=0.55, vary=True,
+                                         min=0.0, max=25.0, unit="A^2"))],
+        scale=rx.Parameter(value=0.02, vary=True, min=0.0))
+    structure = rx.Structure(phases=[monoclinic, cubic])
+
+    out = tmp_path / "round_trip.pcr"
+    rx.write_fullprof_pcr(structure, out)
+    back = to_structure(read_fullprof_pcr(out))
+
+    assert len(back.phases) == 2
+    for orig, built in zip(structure.phases, back.phases):
+        assert built.name == orig.name
+        assert (get_spacegroup(built.space_group).xhm()
+               == get_spacegroup(orig.space_group).xhm())
+        for key in ("a", "b", "c", "alpha", "beta", "gamma"):
+            _assert_parameter_equal(getattr(orig.cell, key), getattr(built.cell, key))
+        _assert_parameter_equal(orig.scale, built.scale)
+        assert len(built.atoms) == len(orig.atoms)
+        for oa, ba in zip(orig.atoms, built.atoms):
+            assert ba.label == oa.label
+            assert ba.species == oa.species
+            for key in ("x", "y", "z", "biso"):
+                _assert_parameter_equal(getattr(oa, key), getattr(ba, key))
+            # Occ is the one field `to_structure` never carries — every atom
+            # comes back fully occupied regardless of what the file states.
+            assert ba.occ.value == 1.0
+
+
+@pytest.mark.parametrize("symbol", ["R-3c:H", "R-3c:R"])
+def test_write_fullprof_pcr_round_trips_both_r_lattice_axis_choices(tmp_path, symbol):
+    """`.pcr` writes no axis suffix at all, so the setting must come back
+    from the cell metric alone — hexagonal axes for a=b≠c,γ=120°, rhombohedral
+    for a=b=c with equal angles — exactly as `normalize_space_group` picks it
+    on the way in."""
+    if symbol.endswith(":H"):
+        cell = rx.Cell(a=rx.Parameter(value=4.9542), b=rx.Parameter(value=4.9542),
+                       c=rx.Parameter(value=13.4213), alpha=rx.Parameter(value=90.0),
+                       beta=rx.Parameter(value=90.0), gamma=rx.Parameter(value=120.0))
+    else:
+        cell = rx.Cell(a=rx.Parameter(value=5.5), b=rx.Parameter(value=5.5),
+                       c=rx.Parameter(value=5.5), alpha=rx.Parameter(value=55.0),
+                       beta=rx.Parameter(value=55.0), gamma=rx.Parameter(value=55.0))
+    atom = rx.Atom(label="Cr1", species="Cr3+", x=rx.Parameter(value=0.35),
+                   y=rx.Parameter(value=0.35), z=rx.Parameter(value=0.35))
+    structure = rx.Structure(phases=[rx.Phase(name="Cr2O3", space_group=symbol,
+                                              cell=cell, atoms=[atom])])
+    out = tmp_path / "r.pcr"
+    write_fullprof_pcr(structure, out)
+    back = to_structure(read_fullprof_pcr(out))
+    assert (get_spacegroup(back.phases[0].space_group).xhm()
+           == get_spacegroup(symbol).xhm())
+
+
+def test_write_fullprof_pcr_refuses_an_unreachable_origin_choice(tmp_path):
+    """`Fd-3m:1` cannot be spelled in a `.pcr`: the format writes no origin
+    suffix, and a bare symbol always reads back as choice 2 (root CLAUDE.md's
+    own convention), so writing one here would silently launder the phase
+    into the other origin — refused instead, naming both settings."""
+    structure = rx.Structure(phases=[rx.Phase(
+        name="spinel", space_group="Fd-3m:1", cell=rx.Cell.cubic(8.0806),
+        atoms=[rx.Atom(label="Mg1", species="Mg", x=rx.Parameter(value=0.0),
+                       y=rx.Parameter(value=0.0), z=rx.Parameter(value=0.0))])])
+    with pytest.raises(ValueError, match="cannot be written"):
+        from_structure(structure)
+
+
+def test_write_fullprof_pcr_refuses_an_anisotropic_site(tmp_path):
+    """FullProf's beta_ij convention is exactly what `to_structure` itself
+    refuses to assume on the way in, so the writer refuses the same way
+    rather than inventing a convention on the way out."""
+    atom = rx.Atom(label="Na1", species="Na1+", x=rx.Parameter(value=0.0),
+                   y=rx.Parameter(value=0.0), z=rx.Parameter(value=0.0),
+                   aniso=rx.AnisoU(u11=rx.Parameter(value=0.01),
+                                   u22=rx.Parameter(value=0.01),
+                                   u33=rx.Parameter(value=0.01)))
+    structure = rx.Structure(phases=[rx.Phase(
+        name="NaCl", space_group="Fm-3m", cell=rx.Cell.cubic(5.62), atoms=[atom])])
+    with pytest.raises(ValueError, match="anisotropic"):
+        from_structure(structure)
+
+
+def test_write_fullprof_pcr_refuses_a_label_or_species_with_whitespace(tmp_path):
+    """A `.pcr` atom line is whitespace-tokenized, so an embedded space would
+    desynchronise every column after it."""
+    atom = rx.Atom(label="Al 1", species="Al", x=rx.Parameter(value=0.0),
+                   y=rx.Parameter(value=0.0), z=rx.Parameter(value=0.0))
+    structure = rx.Structure(phases=[rx.Phase(
+        name="Al", space_group="Fm-3m", cell=rx.Cell.cubic(4.0495), atoms=[atom])])
+    with pytest.raises(ValueError, match="whitespace"):
+        from_structure(structure)
+
+
+def test_write_fullprof_pcr_refuses_a_negative_biso(tmp_path):
+    """`to_structure` itself refuses a negative Biso on the way in, so
+    writing one would only fail later, at the read, with the file already on
+    disk."""
+    atom = rx.Atom(label="Al1", species="Al", x=rx.Parameter(value=0.0),
+                   y=rx.Parameter(value=0.0), z=rx.Parameter(value=0.0),
+                   biso=rx.Parameter(value=-0.1, min=-1.0, max=25.0))
+    structure = rx.Structure(phases=[rx.Phase(
+        name="Al", space_group="Fm-3m", cell=rx.Cell.cubic(4.0495), atoms=[atom])])
+    with pytest.raises(ValueError, match="negative"):
+        from_structure(structure)
+
+
+def test_write_fullprof_pcr_refuses_a_blank_phase_name():
+    """The phase-name line is comment-stripped like every other line in a
+    `.pcr`, so a blank name leaves nothing on it: `_strip` drops the line
+    from the positional walk entirely rather than reading it as an empty
+    name, desynchronising every line after it."""
+    atom = rx.Atom(label="Al1", species="Al", x=rx.Parameter(value=0.0),
+                   y=rx.Parameter(value=0.0), z=rx.Parameter(value=0.0))
+    structure = rx.Structure(phases=[rx.Phase(
+        name="   ", space_group="Fm-3m", cell=rx.Cell.cubic(4.0495), atoms=[atom])])
+    with pytest.raises(ValueError, match="blank"):
+        from_structure(structure)
+
+
+def test_write_fullprof_pcr_refuses_a_comment_marker_in_an_atom_label():
+    """The same `!`/`#`/`<--` markers refused in a phase name also cut a
+    `.pcr` atom line, since `_strip` applies to every data line alike."""
+    atom = rx.Atom(label="Fe#1", species="Fe3+", x=rx.Parameter(value=0.0),
+                   y=rx.Parameter(value=0.0), z=rx.Parameter(value=0.0))
+    structure = rx.Structure(phases=[rx.Phase(
+        name="FeO", space_group="Fm-3m", cell=rx.Cell.cubic(4.0495), atoms=[atom])])
+    with pytest.raises(ValueError, match="comment marker"):
+        from_structure(structure)
+
+
+def test_write_fullprof_pcr_is_reachable_at_the_top_level():
+    assert rx.write_fullprof_pcr is write_fullprof_pcr
+
+
+def test_write_fullprof_pcr_refuses_a_non_finite_value():
+    """The sibling of the TOPAS and GSAS rows: `repr` spells it `inf`, no real
+    program parses that, and the failure would otherwise land in someone
+    else's (WP-1118)."""
+    structure = rx.Structure(phases=[rx.Phase(
+        name="Al", space_group="Fm-3m",
+        cell=rx.Cell.cubic(4.0495, vary=True),
+        atoms=[rx.Atom(label="Al1", species="Al", x=rx.Parameter(value=0.0),
+                       y=rx.Parameter(value=0.0), z=rx.Parameter(value=0.0))])])
+    structure.phases[0].cell.a.max = float("inf")
+    structure.phases[0].cell.a.value = float("inf")
+    with pytest.raises(ValueError, match="does not parse"):
+        from_structure(structure)
+
+
+def test_write_fullprof_pcr_refuses_a_line_break_in_a_phase_name():
+    """The phase-name line is one step of a positional walk, so a break splits
+    it in two and every line after it is read under the wrong name — the same
+    desynchronisation the blank-name refusal above prevents."""
+    atom = rx.Atom(label="Al1", species="Al", x=rx.Parameter(value=0.0),
+                   y=rx.Parameter(value=0.0), z=rx.Parameter(value=0.0))
+    structure = rx.Structure(phases=[rx.Phase(
+        name="apa\ntite", space_group="Fm-3m", cell=rx.Cell.cubic(4.0495),
+        atoms=[atom])])
+    with pytest.raises(ValueError, match="line break"):
+        from_structure(structure)
