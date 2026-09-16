@@ -99,13 +99,13 @@ the same scans would make Stoe writable.
 #148 and #234 close with its last PR. The `.inp` grammar it refuses is
 [1433](wp/1433-the-inp-grammar-still-refused.md), blocked on nothing.
 
-**Ready to pick up:** the **live-watcher track's page is files now**.
-[1430](wp/1430-the-page-is-a-file.md) took it out of its python string
-2026-09-16, so the seven queued behind it edit a `.mjs` an editor lints and a
-test imports: 1426, 1424, 1431, 1425, 1429, 1427, 1428, in that order (§ A
-window into a run). **Two questions there are the maintainer's**: 1428's, and
-whether to write the snapshot every stage or less often. 1413 left `nac` over
-WP-1404's 1.05x gate, six snapshots costing 50 ms of a 17.7 ms budget.
+**Ready to pick up:** the **live-watcher track**, six rungs left.
+[1426](wp/1426-still-under-resize-and-across-a-stage.md) closed 2026-09-16: the
+legend no longer moves the picture, the console no longer follows it, and the
+run list holds the reader's place. Order: 1424, 1431, 1425, 1429, 1427, 1428
+(§ A window into a run). **Two questions there are the maintainer's**: 1428's,
+and whether to write the snapshot every stage or less often. 1413 left `nac`
+over WP-1404's 1.05x gate, six snapshots costing 50 ms of a 17.7 ms budget.
 
 **Queued, unscheduled** ([§ Unscheduled](#unscheduled)): the 2026-09-01
 triage's 1309–1322 plus 1323 and 1325; the 2026-09-03 triage's 1332–1341; the
@@ -645,8 +645,8 @@ carries is whether 1327's non-goal becomes a sequencing statement.
 
 #### A window into a run — the live-watcher track
 
-Nine rungs shipped 2026-09-13 to 2026-09-16, 1430 last. Seven are left, in
-order: 1426, 1424, 1431, 1425, 1429, 1427, 1428 (a decision).
+Ten rungs shipped 2026-09-13 to 2026-09-16, 1426 last. Six are left, in
+order: 1424, 1431, 1425, 1429, 1427, 1428 (a decision).
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
@@ -659,7 +659,7 @@ order: 1426, 1424, 1431, 1425, 1429, 1427, 1428 (a decision).
 | [1413](wp/1413-the-snapshot-is-what-recording-costs.md) | The snapshot is what recording costs | ✅ 2026-09-15 | 1404, 1402 |
 | [1423](wp/1423-a-page-that-holds-still.md) | A page that holds still | ✅ 2026-09-16 | 1405, 1402 |
 | [1430](wp/1430-the-page-is-a-file.md) | The page is a file | ✅ 2026-09-16 | 1423 |
-| [1426](wp/1426-still-under-resize-and-across-a-stage.md) | Still under resize, and across a stage | 🔄 2026-09-16 | 1430, 1423 |
+| [1426](wp/1426-still-under-resize-and-across-a-stage.md) | Still under resize, and across a stage | ✅ 2026-09-16 | 1430, 1423 |
 | [1424](wp/1424-a-row-that-names-its-run.md) | A row that tells its run apart, and a number that fits its slot | ⬜ | 1430 (1423 soft) |
 | [1431](wp/1431-a-caller-names-its-run.md) | A caller names its run | ⬜ | 1424 |
 | [1425](wp/1425-the-panels-are-the-readers-to-size.md) | The panels are the reader's to size | ⬜ | 1430, 1426 |

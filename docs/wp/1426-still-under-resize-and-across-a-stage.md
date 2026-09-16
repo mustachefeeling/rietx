@@ -1,6 +1,6 @@
 # WP-1426 — still under resize, and across a stage
 
-Milestone: unscheduled · Status: 🔄 2026-09-16 — claimed by @yue-here
+Milestone: unscheduled · Status: ✅ 2026-09-16 — the legend no longer moves the picture, the console no longer follows it, the list holds the reader's place
 Depends on: 1430 (the page as files), 1423 (the rules and the browser harness this extends)
 
 ## Goal
@@ -215,6 +215,113 @@ up was dropped at the bottom. Those three are asserted instead.
   defects no python test could see).
 
 ## Handover log
+
+### 2026-09-16 — the legend was three of the four movements
+
+The page holds still now. Four things had been reported as moving, and three of
+them turned out to be one mechanism. The legend was anchored above the plot
+area, where plotly grows the top margin to fit it, so every row the legend
+gained was taken out of the picture. It gained a row when the window narrowed
+and its entries wrapped. It gained another whenever a stage first freed the
+background, since that adds a trace and a trace adds an entry. The reported
+flashing was that second case seen at speed. Moving the legend inside the paper
+settles all three at once, and the picture came out 38 px taller at a 1400 px
+window and 131 px taller at 700 px. The fourth movement was the run list, which
+kept its scroll offset while its rows slid underneath it.
+
+The instrument this WP was written around turned out to be half blind, and that
+is the part worth carrying off. A browser raises a layout-shift entry when an
+element's box moves. A plotly plot is one div whose insides are redrawn, so the
+stage boundary that moved the picture 19 px raised no entry at all. Every claim
+about the picture is now read off plotly's own layout, and the observer is kept
+for claims about the page.
+
+**Done.**
+
+- The legend takes a fixed anchor inside the paper, `y: 1, yanchor: 'top'`,
+  which is the form this WP preferred and it measured still. `viz/html.py`
+  carried the same spec and showed the same defect, so it took the same fix.
+- `buildShell` splits into `buildPicture` and `resetTail`. `drawRun` resets the
+  tail on a *run* change and rebuilds the picture on a run-or-kind change.
+  `clearStrip` resets the tail alongside the console it was filling, or a reader
+  returning to that run would meet an empty console that no poll refilled.
+- `patchList` anchors on a row the reader can see and moves `#runs`'s scroll by
+  however far that row moved. An arrival below the fold therefore compensates by
+  nothing, and a list already at its top is left alone.
+- `rangesOf` cuts its outliers by a count rather than by a fraction. This is
+  WP-1430's handed-over call, taken rather than re-pinned.
+- `withAlpha` joins `watch-core.mjs`, a legend over data needing an opacity and
+  the colour staying the palette's.
+- Six browser tests and five net node cases. `_pinned()` asserts the URL still
+  names the run it opened, because a run id that does not match the server's
+  turns a pinned-run test into a follows-the-newest test in silence.
+
+**Measured** — this worktree's `.venv`, `[dev]` plus playwright 1.63.0,
+darwin/arm64, cached chromium-1223. Plot area is `[l, t, w, h]` and the legend
+box is relative to that area's corner.
+
+- **Legend under resize**, at 1400 / 1000 / 700 px viewport. Before: area top
+  46 / 65 / 139 and height 465 / 446 / 372, legend at `[0,-38]`, `[0,-57]`,
+  `[-4,-131]`. After: top 8 at every width, height 503 at every width, legend at
+  `[0,0]`, `[0,0]`, `[-4,0]`. The `-4` is plotly keeping a legend wider than the
+  panel inside the paper, and the panel is WP-1425's.
+- **`viz/html.py` under resize**, at 1400 / 1000 / 700 / 500 px: area top
+  60 / 60 / 75 / 75 before. Same defect, same cause, same fix.
+- **A stage that frees the background**, at 1200 px: area top 45 → 64 before and
+  unchanged after. Layout shift **0 in both cases**, which is the blindness
+  above and the reason the tests read `_fullLayout._size`.
+- **A plain stage boundary**: layout shift 0 before and after. WP-1423 had
+  already done this one, so the test is a regression pin.
+- **A run arriving, list scrolled to 250**: 0.0134 across four rows before, 0
+  after, the scroll taking the difference at 250 → 277 (one 27 px row).
+- **A run arriving, list at its top**: 0.0065 before and after. Left alone on
+  purpose, a reader at the top being there to watch for that run.
+- **The console at a picture-kind change**: 121 nodes removed and 121 re-added
+  before, the first node replaced, a scrolled reader thrown from 200 to 1312.
+  After: nothing removed, nothing added, same first node, scroll held at 200.
+  The **line count read 121 on both sides of the wipe**, which is why the
+  acceptance's line-count clause was replaced rather than met.
+- **The frame differ** is a CDP screencast, and chromium emits a frame only when
+  the page repaints, so its 1.5 fps is the repaint rate rather than a sampling
+  rate. Five to six frames over ~3.5 s, none blank. The trace-count redraw moved
+  4.6 % of pixels against 3.3 % for a plain stage, which clears "scattergl
+  rebuilds the scene" and leaves the legend wrap as what the eye was seeing.
+
+**Counts.** +6 tests, all in `tests/test_watch_browser.py`: that file and
+`test_watch_app.py` together went 51 → 57 passed, +6 exactly and no new skip.
+Node cases 15 → 20, one removed and six added, invoked by the one python test
+that already existed. Fast suite 5156 passed, 132 skipped, 5:44, nothing else
+on the machine. **The full suite did not run and is not owed**: the diff is a
+JavaScript page, a plotly layout dict and tests, and neither consumer of
+`figure_from_arrays` is slow-marked, so no measured number can move.
+
+**The CI skip, named.** playwright is deliberately not a dependency, so on CI
+the module-level `importorskip` fires and `tests/test_watch_browser.py` counts
+as **one skipped test** rather than ten passes. Every browser assertion this WP
+added is local-only, and the rest of the file was already in that position.
+
+**Gotchas.**
+
+- `runs.run_id_for` hashes `str(path)` without resolving it, while its docstring
+  says "a digest of the resolved path". On macOS `tempfile` returns `/var/...`
+  and the server walks `/private/var/...`, so a probe that computes its own id
+  pins nothing and silently measures the newest run. `tmp_path` is resolved
+  already, so the suite never saw it. Left alone rather than widening the diff,
+  and pushed to 1424 with `_pinned()` as the guard.
+- The legend inside the paper wraps *over* the data at narrow widths. At an
+  800 px window the run panel is ~280 px, the legend takes five rows and covers
+  the top quarter of the intensity panel. `withAlpha(HUE.ground, 0.72)` keeps
+  the curve faintly visible through it. That is a mitigation, and the fix is a
+  panel wide enough for the picture, which is 1425. Pushed there with numbers.
+- `viz/html.py` needed a literal `rgba(255,255,255,0.85)`, that page drawing
+  under `simple_white` with no palette to quote. It is a hardcoded colour among
+  tokens. Pushed to 1429, whose subject it is.
+- 1427 rebases. Both WPs were declared to rewrite `drawRun` and this one landed
+  first; the three shapes that moved are in its `### Inherited`.
+
+**Next.** 1424 is next in the track's order, and nothing here blocks it. 1425's
+blocker is discharged by this WP and its trade is written into its mailbox, so
+it could be pulled forward if the narrow-panel legend is annoying in use.
 
 - **2026-09-16** — created, from the maintainer's reading of the page over the
   demo job; revised the same day: the resize case no longer claims a zero
