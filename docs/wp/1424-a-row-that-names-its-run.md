@@ -275,6 +275,29 @@ names the skip and quotes the run here.
   for every long stage name at 15ch. It has a tooltip and the run column is the
   flexible one, which WP-1431 is about to fill.
 
+  **The review pass** (`/code-review high --fix`) found five and applied four,
+  all of them mine. A fixed three-hour offset in the batch fixture would have
+  failed the suite between 00:00 and 03:00 local, `clock` rendering a date for
+  a run that did not start today; start times are anchored to the local
+  midnight now. ROADMAP's live-watcher section still read "six left, 1424
+  first", contradicting the table two lines below it. `#strip > span` carries
+  an id and so outranks `.state`, which left the strip's pill drawing 7 px of
+  coloured ground on the left and 12 on the right — the list's pills were
+  unaffected, so the two disagreed. And `_pinned` declared a `width` it never
+  used, which is the declared-name-with-no-writer class in a helper written
+  this session.
+
+  The fifth it reported and declined, and this session took it: **`python -m
+  rietx.runs` prints the same list in text and had both of the defects this WP
+  fixed on the page** — `0.1734` for an Rwp, and a RUN column reading
+  `campaign` on every row of a batch. A reported defect is a sample, and that
+  is the sibling. Nothing documents the output and one assertion pinned it, so
+  the cost was a test to update and one to add. The naming rule is now stated
+  twice, in `_format_table` and in `rowName`, and the docstring says why: a
+  process boundary runs through it and the page cannot import python. What was
+  **not** generalised: the text table gained no `started` column, that being a
+  feature rather than this class.
+
   **Next**: WP-1431, which is the honest answer to the thing this WP could not
   do — a caller-supplied run label, for a batch that is not a series. Take
   `rowName` in `watch-core.mjs` as the seam: it already prefers the series label
