@@ -96,15 +96,14 @@ the same scans would make Stoe writable.
 
 **In flight:** [1118](wp/1118-foreign-model-files.md) landed the GSAS-II `.gpx`
 reader 2026-09-16 (#234); its corpus pass corrected the `.EXP` reader's own GOF
-claim. The writers (#148) and `STR(...)` (#107) stand. The **live-watcher track is closed on the code and owes one
-decision**: [1413](wp/1413-the-snapshot-is-what-recording-costs.md) shipped
-2026-09-15, cutting the decimation 8.8-11.9x at a bit-identical index set and
-taking recording to 1.03-1.23x, which the manual and the skill now quote.
-`cpd-2` and `trigger` clear WP-1404's 1.05x gate and `nac` cannot: a 0.354 s fit
-has a 17.7 ms budget and its six snapshots cost 50 ms, still over it with
-everything but the serialising free. **The one open question is for the
-maintainer** — write the snapshot every stage, or less often and let a watcher
-redraw less often.
+claim. The writers (#148) and `STR(...)` (#107) stand. The **live-watcher track
+is closed on the code and owes one decision**: 1413 took recording to
+1.03-1.23x (`nac` still over WP-1404's 1.05x gate, its six snapshots costing
+50 ms of a 17.7 ms budget), and
+[1423](wp/1423-a-page-that-holds-still.md) reworked the page 2026-09-16 after
+the live demo, so it holds still and shows the list and the run together.
+**The one open question is for the maintainer** — write the snapshot every
+stage, or less often and let a watcher redraw less often.
 
 **Queued, unscheduled** ([§ Unscheduled](#unscheduled)): the 2026-09-01
 triage's 1309–1322 plus 1323 and 1325; the 2026-09-03 triage's 1332–1341; the
@@ -642,15 +641,14 @@ carries is whether 1327's non-goal becomes a sequencing statement.
 #### A window into a run — the live-watcher track
 
 Seven rungs, six opened 2026-09-13 and 1413 added 2026-09-15 by 1404's
-measurement. An agent driving rietx leaves a human no view of
-the work, and 1322 measured what documenting the knob achieves: three subagents
-each read the skill in full and each wrote `history=False`. So 1403 records every
-fit, and 1404 is licensed to send it back if the cost says it cannot. The surface
-grows `watch` rather than adding a mode to `gui`, whose live ring is in-process
-and cannot see a foreign run: read-only is stronger when the app has no verbs
-than when a mode hides them. 1401 lands first over directories today's code
-already writes, so a window arrives before the risky half. Slated for v1.5,
-behind v1.4's peaks and ahead of the magnetic track.
+measurement; 1423 reworks the page after the 2026-09-15 demo. An agent driving
+rietx leaves a human no view of the work, and 1322 measured what documenting the
+knob achieves: three subagents each read the skill in full and each wrote
+`history=False`. So 1403 records every fit, and 1404 is licensed to send it back
+if the cost says it cannot. The surface grows `watch` rather than adding a mode
+to `gui`, whose live ring is in-process and cannot see a foreign run: read-only
+is stronger when the app has no verbs than when a mode hides them. 1401 lands
+first over directories today's code already writes, so a window arrives first.
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
@@ -661,6 +659,7 @@ behind v1.4's peaks and ahead of the magnetic track.
 | [1405](wp/1405-the-human-stops-the-run.md) | The human stops the run | ✅ 2026-09-15 | 1403 (1401 soft) |
 | [1406](wp/1406-say-that-the-fit-writes-to-disk.md) | Say that the fit writes to disk | ✅ 2026-09-15 | 1403, 1405 (1402 soft) |
 | [1413](wp/1413-the-snapshot-is-what-recording-costs.md) | The snapshot is what recording costs | ✅ 2026-09-15 | 1404, 1402 |
+| [1423](wp/1423-a-page-that-holds-still.md) | A page that holds still | ✅ 2026-09-16 | 1405, 1402 |
 
 ### v2+ — fenced
 
