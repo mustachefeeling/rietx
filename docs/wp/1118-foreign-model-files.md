@@ -1,23 +1,15 @@
 # WP-1118 — foreign model files: read a refinement in, write one back
 
-Milestone: unscheduled · Status: 🔄 2026-09-16 — the TOPAS `.inp` reader
-(PR #98), the FullProf `.pcr` reader (PR #111), the GSAS-I `.PRM`
-instrument-parameter reader (PR #248), the model-format registry over them and
-the GSAS `.EXP` reader (#103), whose acceptance rewire showed the FAP suite
-refines 20 parameters where GSAS refined 28; `read_gsas_prm` now reads its
-fixed-format records by column and a Kα doublet with them (PR #332), and
-refuses an out-of-range value naming the file; the GSAS-II `.gpx` reader landed
-2026-09-16 behind a restricted unpickler (#234), whose corpus pass corrected the
-`.EXP` reader's GOF claim; origin-choice honesty closed #101 the same day, a
-`.gpx` now reading the setting its operators state and the `.EXP`/`.inp`
-readers reporting the one they assume; the TOPAS and FullProf writers landed
-the same day, each the inverse of its own reader, and the GSAS-I `.EXP`/`.prm`
-pair the same day again — the first writers here read by **column**, which
-bought `io/CLAUDE.md` § Project writers and caught a `CHMF` record the reader
-had been taking two columns short; GSAS-II's pair landed the same day too —
-an `.instprm` reader and writer and the phase CIF its importer reads, with the
-setting stated in the channel that program checks — so all four formats now
-write back and #148 is closed
+Milestone: unscheduled · Status: ✅ 2026-09-16 — all four foreign formats read
+and write. TOPAS `.inp` (PR #98), FullProf `.pcr` (#111), GSAS `.EXP` + `.PRM`
+(#248, #103) and GSAS-II `.gpx` behind a restricted unpickler (#234), each with
+a writer that is the inverse of its own reader and round-trips through it;
+GSAS-II's is the `.instprm` + phase CIF pair that program imports, this build
+writing no `.gpx`. Origin-choice honesty closed #101, the writers closed #148,
+and the `.EXP` protocol now reaches `tests/test_acceptance_fap.py` from the
+reader instead of from transcribed constants. What outlived the WP is the
+`.inp` grammar the reader refuses, `STR(...)` (#107) and `#if`, which is
+WP-1433; #196 (Rietica/XND) stays this family's recorded boundary
 Depends on: — (WP-1110 found it; WP-1102 owns the one seam that overlaps)
 
 ## Goal
@@ -473,12 +465,20 @@ format token is spelled in `_about.py`, never inline (root CLAUDE.md § Conventi
       `references/api.md` to 35 942 B of 36 000 (**58 B free**), the cuts
       named in the commit, so the next addition there is a real cut rather
       than a squeeze.
-- [ ] A `#prm`-only integer evaluator for `.inp` `#if` guards, so the
+- [x] A `#prm`-only integer evaluator for `.inp` `#if` guards, so the
       multi-pattern reel files read instead of refusing (§ Context; WP-1130
       measured three of four workshop files out of reach). Scope it to integer
       `#prm` comparisons — it is not the macro language, and § Non-goals still
-      holds.
-- [ ] Fixtures with provenance rows in `tests/data/README.md`; tests, and the
+      holds. — **moved to [1433](1433-the-inp-grammar-still-refused.md)
+      2026-09-16**, with issue #107's `STR(...)` decision beside it. The two are
+      one shape: both are `.inp` grammar, both live in `io/projects/topas.py`,
+      and both answer to the Technical Reference. **The block recorded against
+      this line is not real**: the reference is public at
+      `topas-academic.com/technical_reference`, one 10.8 MB page over plain
+      `curl`, and `ATTRIBUTION.md`'s TOPAS row already cites §19.3.2 with
+      content. §19.1.2 specifies `#prm`/`#if`/`#out` whole, and 1433 § Context
+      carries what it says, the `Rand` condition that stays refused included.
+- [x] Fixtures with provenance rows in `tests/data/README.md`; tests, and the
       obs/calc/diff PNGs for any refinement one of them drives. — the GSAS
       `.EXP` half landed 2026-09-15: `FAP.EXP`'s row says it is now the
       reader's corroborating fixture, and the file also **ships in the wheel**
@@ -491,7 +491,16 @@ format token is spelled in `_about.py`, never inline (root CLAUDE.md § Conventi
       survey behind them has its own section in `tests/data/README.md`. A third
       joined them 2026-09-16 — `gsas2_mn3o4_setting.gpx`, the one corpus file
       that both states a setting its symbol does not and builds end to end.
-      Open for the formats with no fixture yet.
+      — closed 2026-09-16, and the two formats with no vendored fixture are
+      **answered rather than owed**. A `.inp` and a `.pcr` are their owners'
+      research data, so `tests/test_projects_topas.py` and
+      `tests/test_projects_fullprof.py` synthesize every fixture inline, each
+      with a comment naming the archive idiom it stands for and what reading it
+      wrong would do (`ATTRIBUTION.md`'s TOPAS row states the fence). That is
+      the licence answer and it does not expire, so no corpus is pending here.
+      What a later session can still add is a *reading* of files it may not
+      ship, which is [1433](1433-the-inp-grammar-still-refused.md)'s archive
+      pass.
 
 ## Acceptance
 
@@ -527,6 +536,96 @@ work this WP does.
   § "Learned in v0.2".
 
 ## Handover log
+
+### 2026-09-16 (6th session) — the WP closes, and the keyword three of its PRs wrote in backticks
+
+WP-1118 is finished. Someone holding a TOPAS, GSAS, GSAS-II or FullProf
+refinement can open it here, and a model built here goes back out in any of the
+four. This session wrote no code. It answered the two task lines that outlived
+the work and filed them as WP-1433, and it found that three issues this WP
+believed it had closed are still open. Their pull requests wrote the closing
+keyword inside backticks, which GitHub renders as code and does not act on.
+
+*Done* — three commits on `wp1118-close`, branched off `4a034414`, the merge of
+PR #346.
+
+- **`fa493f4d`, WP-1433.** The `#if` evaluator and issue #107's `STR(...)`
+  decision are one shape: both are `.inp` grammar, both sit in
+  `io/projects/topas.py`, and both answer to the Technical Reference. They get
+  their own WP rather than holding this one open.
+- **`550d3dd3`, the two task lines.** The `#if` line moves out. The fixtures
+  line closes on its licence answer, which is that a `.inp` and a `.pcr` are
+  their owners' research data, so both suites synthesize every fixture inline
+  with the archive idiom named on it. That answer does not expire, so no corpus
+  is pending.
+- **`e4a9662d`, the keyword rule and WP-1314's mailbox.** `/wp-handover` step 11
+  now says a closing keyword is plain text. 1314 takes the `capabilities()` gap
+  the 5th session named: `ProjectFormat.write` publishes a registry member's
+  writer, GSAS-II's writers write the pair that program imports rather than a
+  `.gpx`, so that member's `None` is true and a GSAS-II-shaped question has no
+  arm to read. The same entry had a line duplicated in place, fixed with it.
+
+*Measured* — this worktree's `.venv`, `[dev]` only (no jax, no torch), python
+3.12, darwin/arm64, on `origin/main` at `4a034414`.
+
+- **Fast selection: 5146 passed, 133 skipped, 3:20** at a load average of 4.
+  Identical to the 5th session's figure on the same tree, which is what a
+  documentation change must leave. No test was added and no skip moved.
+- **The closing keyword, over the last 120 merged PRs: 17 closing phrases.** 10
+  written plain, and every one of their issues is closed. 7 written inside
+  backticks, and every one of their issues is open. Four of those seven quote
+  the keyword deliberately (#206 and #213, both declining to close #204). The
+  other three are this WP's: #101 from PR #336, #148 from #346, #234 from #335.
+  PR #347 re-issues all three plain.
+- **The TOPAS Technical Reference is public and fetchable**: HTTP 200, 10.8 MB,
+  one page, plain `curl` with a user agent. §19.1.2 specifies `#prm`, `#if`,
+  `#elseif` and `#out` whole, and §19.1.4 the `#m_*` family. The 5th session
+  recorded the `#if` evaluator as blocked on a document no session here had, and
+  that is wrong: `ATTRIBUTION.md`'s TOPAS row has cited §19.3.2 with content
+  since PR #98. WP-1433 § Context carries what the section says, including the
+  `Constant(Rand(0,1))` condition that stays refused because no reader can
+  decide it.
+
+*Decided*
+
+- **The WP closes on its own acceptance.** The four formats read, all four
+  write, and `tests/test_acceptance_fap.py` takes the FAP protocol from the
+  reader rather than from transcribed constants. The issue half is #103, #101,
+  #148 and #234.
+- **No root CLAUDE.md clause.** The rules the writers earned live in
+  `io/CLAUDE.md` § Project writers, loaded with the subtree that needs them, and
+  the root file sits at its 837-line cap. Root already points there for how to
+  add a format.
+- **The review pass does not apply.** This branch's diff is markdown only, so
+  `/code-review` has no code to read. The 5th session's pass, eight findings and
+  all eight taken, is what the code went through.
+- **Nothing for the agent skill.** What this session measured is about this
+  repo's workflow, not about driving a refinement.
+
+*Gotchas*
+
+- **A closing keyword in backticks is a class here, not one slip.** Every PR
+  body in this repo spells identifiers in code spans, and the keyword looks like
+  one. The rule now sits in `/wp-handover` step 11, where the body gets written.
+  Closing an issue by hand afterwards records nothing about which PR did it,
+  which is why the finalisation PR carries the keywords instead. **The trap has a second half**: prose
+  about a keyword is a keyword. Writing that PRs #206 and #213 declined to close
+  #204 linked #204 to PR #347, and rewording around the number left the link
+  standing. Deleting the number cleared it, and
+  `gh pr view N --json closingIssuesReferences` is what says so.
+- **The dormant `wp1118-*` worktrees drop out by themselves.** Five branches
+  besides this one are merged into `origin/main`, and `wp_claim.py status`
+  filters a closed WP's kept trees, so the two dormant rows stop advertising
+  work to resume once this Status line is ✅.
+
+*Next*, in order.
+
+1. **Merge PR #347.** Nothing else closes #101, #148 and #234.
+2. **WP-1433 whenever someone wants it.** Neither half is blocked, and #107's
+   filer offered the `STR(...)` fix once told which shape to write.
+3. **1314 (Jana) is this family's open member**, with a mailbox holding what
+   1118 learned about settings, binary sniffs, one grammar per vendor and the
+   `write` arm. #196 (Rietica/XND) stays the recorded boundary.
 
 ### 2026-09-16 (5th session) — GSAS-II writes back, and the symbol two programs read opposite ways
 
