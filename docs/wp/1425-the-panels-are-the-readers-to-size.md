@@ -1,6 +1,6 @@
 # WP-1425 — the panels are the reader's to size
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-09-16 — claimed by @yue-here
 Depends on: 1430 (the page as files, so the port below is importable), 1426 (the legend must hold still under resize before a splitter makes resize continuous)
 
 ## Goal
