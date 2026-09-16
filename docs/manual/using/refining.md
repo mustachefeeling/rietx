@@ -625,6 +625,33 @@ set `RIETX_TELEMETRY=0` where the trajectory is confidential. No pattern bytes
 are ever copied into a run.
 :::
 
+### Naming a run
+
+`label=` names the run in `rietx watch`'s list.
+Without one, a run takes the name of the working directory it ran in, or of its
+project.
+Forty candidate fits driven from one directory write forty rows under one name.
+
+<!-- api-doc: no-exec — it refines the reader's own pattern -->
+```python
+result = ref.fit(data, label="candidate-07 anatase")
+```
+
+The keyword is on every verb that records a run: `Refinement.fit`,
+`Refinement.run_stage`, `refine`, `SequentialRefinement.fit`,
+`refine_sequential`, `Project.fit` and `Project.run_stage`.
+
+The name goes to the run's `meta.json`.
+It is telemetry rather than a refined quantity, so it reaches no history node
+and no result, and naming a run changes no number the fit produces.
+
+A series is one run directory however many patterns it walks, so `label=` names
+the whole chain.
+Its patterns are named by `labels=`, and that is what the watcher shows in the
+row.
+The two keywords are one letter apart and mean different things, so a sequence
+passed to `label=` raises `TypeError` rather than being written.
+
 ### Retention
 
 The runs root is pruned by age and size, once per process, on the first fit.

@@ -97,12 +97,18 @@ test('a row is named by what separates it from its neighbours', () => {
   const run = {label: 'campaign', legacy: false, path: '/w/20260916-142000-90',
                status: {}};
   assert.equal(rowName(run), 'campaign');
-  // a series member knows which pattern it fitted, which is the one fact in
-  // the record that is about the work rather than the clock. It replaces the
-  // label rather than joining it: the label is the same word on every row,
-  // so a `campaign · cpd-1e` that the column cuts at `campaign…` has shown
-  // the reader the half they already knew.
+  // a caller may name the run itself (WP-1431), and then the label is the
+  // thing that separates the rows rather than the word they share
+  assert.equal(rowName({...run, label: 'candidate-07 anatase'}),
+               'candidate-07 anatase');
+  // a series member knows which pattern it fitted, and stays ahead of both:
+  // one series is one run, so a caller's label there names the whole chain
+  // while this names the row. It replaces rather than joins — a
+  // `campaign · cpd-1e` that the column cuts at `campaign…` has shown the
+  // reader the half they already knew.
   assert.equal(rowName({...run, status: {series_label: 'cpd-1e'}}), 'cpd-1e');
+  assert.equal(rowName({...run, label: 'the ramp',
+                        status: {series_label: '250C'}}), '250C');
   // the strip's own label slot is the plain label, the series having a slot
   // of its own beside it
   assert.equal(runLabel({...run, status: {series_label: 'cpd-1e'}}),

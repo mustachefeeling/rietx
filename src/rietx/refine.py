@@ -1850,7 +1850,7 @@ class Refinement:
     def fit(self, data: PatternData, *, mode: Mode = "rietveld",
             plan: RefinementPlan | str = "mccusker_default",
             two_theta_limits: tuple[float, float] | None = None,
-            events=None, cancel=None, telemetry=None,
+            events=None, cancel=None, telemetry=None, label: str | None = None,
             stage_reports: bool = False, progress=None) -> RefinementResult:
         """Run a staged refinement.
 
@@ -1878,6 +1878,15 @@ class Refinement:
         :data:`~rietx._about.TELEMETRY_ENV` outranks all of it, and there is
         deliberately no value here that argues back.  Recording never breaks a
         fit: a failure latches, says so in the run's status, and warns once.
+
+        ``label`` — what this run is **called** in ``rietx watch``'s list
+        (WP-1431).  Unnamed, a run is called after the directory it ran in, or
+        after its project; a batch of forty candidates driven from one
+        directory therefore writes forty rows under one name, and only the
+        caller knows which candidate each one fitted.  Pass that: the phase, the
+        sample, the candidate cell.  It is written to the run's ``meta.json``
+        and lives nowhere a result reproduces — telemetry, not a refined
+        quantity — so naming a run changes no number the fit produces.
 
         ``cancel`` — an :class:`~rietx.optimize.cancel.CancelToken` another
         thread can set.  The stage in flight is abandoned (no node, no commit,
@@ -1934,7 +1943,7 @@ class Refinement:
         # has its own lifetime (the try/finally below) and the existing
         # ``stream is not events`` close rule is left exactly as it was.
         recorder = runs.attach(stream, events, telemetry=telemetry,
-                               project_hint=self._project_hint())
+                               project_hint=self._project_hint(), label=label)
         if recorder is not None and stream is None:
             stream = recorder
         # A recorded run can be stopped from outside the process (WP-1405), and
@@ -2158,15 +2167,17 @@ class Refinement:
                   mode: Mode | None = None,
                   two_theta_limits: tuple[float, float] | None = None,
                   correlation_guard: float = 0.98,
-                  events=None, cancel=None, telemetry=None) -> RefinementResult:
+                  events=None, cancel=None, telemetry=None,
+                  label: str | None = None) -> RefinementResult:
         """Run a single stage from the current state, recording a child node.
 
         This is the incremental verb: after ``checkout``, it continues down a
         new branch.  (``fit`` is the other verb — it resets the free set and
         runs a whole plan from wherever the working state currently is.)
 
-        ``events``, ``cancel`` and ``telemetry`` mean exactly what they mean on
-        :meth:`fit`, and are here for the same reason the GUI exists:
+        ``events``, ``cancel``, ``telemetry`` and ``label`` mean exactly what
+        they mean on :meth:`fit`, and are here for the same reason the GUI
+        exists:
         interactive single-stage work was the one path with no telemetry at all,
         so a client driving stages one at a time was blind to a run it had
         started.  One stage is one run here — a caller driving five stages in a
@@ -2185,7 +2196,7 @@ class Refinement:
         tree = self._ensure_history(data)
         stream = as_event_stream(events)
         recorder = runs.attach(stream, events, telemetry=telemetry,
-                               project_hint=self._project_hint())
+                               project_hint=self._project_hint(), label=label)
         if recorder is not None and stream is None:
             stream = recorder
         cancel = runs.attach_cancel(runs.recorder_of(stream), cancel)   # WP-1405
@@ -5068,16 +5079,20 @@ def refine(data: PatternData, structure: Structure, instrument: Instrument,
            two_theta_limits: tuple[float, float] | None = None,
            backend: str = "numpy", solver: str = "trf",
            history: bool | str | Path | RefinementTree = False,
-           events=None, cancel=None, telemetry=None) -> RefinementResult:
+           events=None, cancel=None, telemetry=None,
+           label: str | None = None) -> RefinementResult:
     """One-shot functional API: ``refine(data, structure, instrument)``.
 
     History defaults to *off* here: this call discards the ``Refinement``, so
     an in-memory tree would be unreachable.  Pass a path to keep one.
 
-    ``events``/``cancel``/``telemetry`` are :meth:`Refinement.fit`'s, forwarded
-    — a run this call started is otherwise unwatchable and unstoppable, and a
-    caller who reached for the one-shot form is the one least able to build the
-    object graph that would fix that.
+    ``events``/``cancel``/``telemetry``/``label`` are :meth:`Refinement.fit`'s,
+    forwarded — a run this call started is otherwise unwatchable, unstoppable
+    and unnamed, and a caller who reached for the one-shot form is the one least
+    able to build the object graph that would fix that.  ``label`` matters most
+    here for the reason below: the run directory is all that survives the call,
+    so a batch written as a loop over ``refine`` is the case with nothing else
+    to tell its runs apart.
 
     Telemetry matters more here than anywhere, for the same reason history
     defaults off: this call discards the ``Refinement``, so **the run directory
@@ -5088,4 +5103,4 @@ def refine(data: PatternData, structure: Structure, instrument: Instrument,
     ref = Refinement(structure, instrument, backend=backend, solver=solver,
                      history=history)
     return ref.fit(data, mode=mode, plan=plan, two_theta_limits=two_theta_limits,
-                   events=events, cancel=cancel, telemetry=telemetry)
+                   events=events, cancel=cancel, telemetry=telemetry, label=label)

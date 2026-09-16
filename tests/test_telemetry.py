@@ -173,6 +173,114 @@ def test_run_stage_records_a_run_with_a_picture(tmp_path, monkeypatch, pattern,
 
 
 # ----------------------------------------------------------------------
+# naming a run (WP-1431)
+# ----------------------------------------------------------------------
+def test_a_caller_names_its_run_and_the_watcher_shows_that_name(
+        tmp_path, monkeypatch, pattern, recording):
+    """WP-1431's acceptance: the caller's word wins over the derived one.
+
+    Unnamed, every run driven from one directory is called after that
+    directory, so a batch of candidates writes a column of identical names.
+    The label goes to ``meta.json`` and comes back through ``read_run``, which
+    is the whole path the page reads.
+    """
+    monkeypatch.chdir(tmp_path)
+    _fit(pattern, label="candidate-07 anatase")
+
+    (run,) = runs.discover(tmp_path)
+    assert run.label == "candidate-07 anatase"
+    assert run.meta is not None and run.meta.label == "candidate-07 anatase"
+    assert json.loads((run.path / runs.META_FILE).read_text(
+        encoding="utf-8"))["label"] == "candidate-07 anatase"
+    # the derived name is what it displaced, and it was the directory's
+    assert run.label != tmp_path.name
+
+
+def test_an_unnamed_run_keeps_the_derived_name(tmp_path, monkeypatch, pattern,
+                                               recording):
+    """The default is unchanged by the keyword existing."""
+    monkeypatch.chdir(tmp_path)
+    _fit(pattern)
+    (run,) = runs.discover(tmp_path)
+    assert run.label == tmp_path.name
+
+
+def test_every_verb_that_records_a_run_can_name_it(tmp_path, monkeypatch,
+                                                   pattern, recording):
+    """Three ``runs.attach`` call sites, so the keyword is on all of them.
+
+    ``Refinement.fit`` is covered above; this is the rest of the class.
+    ``refine`` forwards to ``fit`` and ``Project.fit`` forwards through its
+    ``**kw``, so what is asserted here is that the label survives each hop.
+    """
+    monkeypatch.chdir(tmp_path)
+    structure, ins = perturbed_models()
+
+    stage_dir = tmp_path / "stage"
+    rx.Refinement(structure, ins, history=False).run_stage(
+        pattern, rx.Stage(name="background", turn_on=["instrument.background.*"]),
+        telemetry=str(stage_dir), label="one stage by hand")
+    (run,) = runs.discover(stage_dir)
+    assert run.label == "one stage by hand"
+
+    shot_dir = tmp_path / "shot"
+    rx.refine(pattern, structure, ins, telemetry=str(shot_dir),
+              label="the one-shot form")
+    (run,) = runs.discover(shot_dir)
+    assert run.label == "the one-shot form"
+
+
+def test_a_series_names_the_job_and_the_row_still_prefers_the_member(
+        tmp_path, monkeypatch, pattern, recording):
+    """One series is one run directory, so ``label`` is the chain's name.
+
+    ``labels`` names the members and sits one letter away; the page's
+    ``rowName`` prefers the member in a row, so the job's name is what the
+    tooltip and the strip's label slot carry. Both facts are in the record at
+    once, which is what this asserts.
+    """
+    monkeypatch.chdir(tmp_path)
+    structure, ins = perturbed_models()
+    series = rx.SequentialRefinement(structure, ins, history=False)
+    series.fit([pattern, pattern], x=[300.0, 400.0], x_label="T",
+               labels=["300C", "400C"], label="the ramp of 2026-09-16")
+
+    (run,) = runs.discover(tmp_path)
+    assert run.label == "the ramp of 2026-09-16"
+    assert run.status is not None
+    assert run.status.series_label == "400C"
+
+
+def test_a_label_that_is_not_a_string_is_refused_at_the_call(
+        tmp_path, monkeypatch, pattern, recording):
+    """The silent alternative costs the record, so this raises.
+
+    ``_write_meta`` writes raw JSON, so a sequence would land in ``meta.json``
+    as an array; ``RunMeta`` then refuses the whole file and ``read_run``
+    reads a perfectly recorded run back as *legacy*, with a derived name and
+    no tooltip. The hazard is one letter wide, ``labels`` being a real keyword
+    on the series verb.
+    """
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(TypeError, match="label must be a string"):
+        _fit(pattern, label=["300C", "400C"])
+    assert runs.discover(tmp_path) == []
+
+
+def test_the_label_is_checked_even_when_recording_is_off(tmp_path, monkeypatch,
+                                                         pattern):
+    """No ``recording`` fixture, deliberately.
+
+    Checked before ``attach``'s switch-off guard, so a caller's suite — which
+    runs with telemetry declined, as this one does — catches the mistake that
+    would otherwise surface only where recording is on.
+    """
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(TypeError, match="label must be a string"):
+        _fit(pattern, label=Path("not-a-name"))
+
+
+# ----------------------------------------------------------------------
 # declining
 # ----------------------------------------------------------------------
 def test_telemetry_false_writes_nothing(tmp_path, monkeypatch, pattern,

@@ -251,3 +251,20 @@ the shell that launched it, and record `result.provenance` per unit so a later
 reader can tell which build produced which number. *(Measured: archive
 screening campaign — the CuO/Cu₂O timing pilot's BLAS miss, and the campaign's
 collapsed version baselines.)*
+
+**9c.32 Name every run with `label=`, after the thing that fit is about.**
+Unnamed, a run takes the name of the working directory it ran in, so a batch
+driven from one directory writes one name down every row of `rietx watch`'s
+list, and the reader tells the runs apart by start time alone. `label=` is on
+every verb that records a run (`fit`, `run_stage`, `refine`,
+`refine_sequential`, `Project.fit`) and costs one keyword at the call. Pass the
+candidate, the phase, the specimen: the fact that makes this fit the one you
+will want to reopen. It is telemetry, so it changes no number the fit produces
+and appears in no result. On a chain `label=` names the job while `labels=`
+names the patterns, and the list shows the pattern. *(Hypothesis: the limit it
+removes is measured, WP-1424 having made the rows tell apart by start second
+and reported that the record still names no run after its science. No campaign
+has yet run with labels on, so whether a named list is read faster than a
+timestamped one is undecided. What would decide it: a batch operator asked to
+reopen a named candidate from the watcher list, against the same task on a
+timestamped one.)*

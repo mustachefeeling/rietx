@@ -80,7 +80,7 @@ rule.
 
 ## Tasks
 
-- [ ] `label=` on **every entry point that attaches a recorder**, threaded to
+- [x] `label=` on **every entry point that attaches a recorder**, threaded to
       `runs.attach`; the recorder's default unchanged when it is absent.
       Three `attach` call sites, so five verbs: `Refinement.fit`,
       `Refinement.run_stage`, `refine`, `SequentialRefinement.run` /
@@ -88,14 +88,14 @@ rule.
       through their `**kw`. The WP named three; `run_stage` and the series
       are the siblings, and a series label names the *job*, which is not the
       per-member fact the non-goal excludes.
-- [ ] Tests: the label reaches `meta.json`; `rietx watch`'s row shows it;
+- [x] Tests: the label reaches `meta.json`; `rietx watch`'s row shows it;
       a series ignores it in favour of `series_label`
-- [ ] Manual: the telemetry section of `docs/manual/using/` documents the
+- [x] Manual: the telemetry section of `docs/manual/using/` documents the
       keyword. **Measure the partition claim**: `tests/api_surface.py` is
       derived over names and fields, so a keyword may not enter the
       denominator at all — document it because a knob nobody is told about is
       WP-1322 again, not because a test went red.
-- [ ] Skill: one row in the batch reference, `(Hypothesis: …)` until a run
+- [x] Skill: one row in the batch reference, `(Hypothesis: …)` until a run
       shows the page read better; `rietx skill --install . --copy` re-syncs
       the two committed copies
 
