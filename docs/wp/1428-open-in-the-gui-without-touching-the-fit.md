@@ -1,6 +1,6 @@
 # WP-1428 — open in the GUI, without touching the fit
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-09-17 — claimed by @yue-here
 Depends on: 1405 (the one verb and its gate), 1401 (the decision this revisits); 1430 soft
 
 ## Goal
