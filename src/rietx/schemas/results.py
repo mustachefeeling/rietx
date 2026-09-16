@@ -787,8 +787,8 @@ class StageResult(Base):
     #: count of every trial pushed back out rather than crashing the stage,
     #: and 0 only means this particular stage never reached one.
     #: Additive field, defaulted to 0 (the honest "never happened" state);
-    #: pending SCHEMA_VERSION renumbering rather than bumped with this change
-    #: (see ``schemas/common.py``).
+    #: bumped with this change, ``SCHEMA_VERSION`` 0.19 → 0.20 (see the
+    #: changelog entry in ``schemas/common.py``).
     n_degenerate_cell_probes: int = 0
     #: paths this stage **held** although the plan had freed them: the
     #: structural parameters of a phase the data could not see at stage start
