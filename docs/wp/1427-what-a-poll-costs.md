@@ -81,106 +81,76 @@ Browser, per poll:
    measurement puts the cost in the HTTP round trip and not in the walk, and
    say so either way.
 
-### Inherited
+### What the five WPs before this one left on the poll path
 
-- **2026-09-16, from [1429](1429-one-palette-and-one-theme-for-three-pages.md):
-  the poll's payload changed under this WP, in both directions.** Measured on
-  this machine, `[dev]`, darwin/arm64.
-  - The `page` block shrank **262 B → 49 B** per poll. The dark palette left it
-    — the page reads its colours off its own root element now — and the theme
-    *choice* took its place. So 1430's "299 B of every poll" is stale and the
-    row cost it was compared against (735 B each) is unchanged.
-  - Every `/api/runs` now reads `state_dir/settings.json`, because the theme is
-    the one thing on the page a person changes while it is open. **16.8 µs**
-    with the file present, 4.6 µs without, against a 1.2 s poll. It is
-    uncached on purpose; if this WP's instrument says the read is worth
-    caching, the cache has to expire faster than a person notices a theme
-    switch not arriving.
-  - A new route, `/tokens.css`, is **43.6 µs** and 4972 B, rendered per request
-    and fetched once per page load rather than per poll. It carries
-    `Cache-Control: no-store` from `_send`, like every other route this server
-    answers, so a reload pays for it again.
-  - A theme change clears `shell.mtime`, which forces one extra snapshot fetch
-    and redraw on the poll that carries it. Once per switch, so it is not a
-    steady-state cost, but a benchmark that flips the theme will see it. It is
-    gated on `shell.kind === 'json'`: a legacy run's picture is an iframe, and
-    re-pointing it would refetch the 4.51-6.03 MB page WP-1402 measured.
+All measured or read off the tree on 2026-09-17, in this worktree, `[dev]`
+plus playwright, darwin/arm64. The mailbox they arrived in is consumed here.
 
-- **2026-09-16, from [1429](1429-one-palette-and-one-theme-for-three-pages.md):
-  a defect on the page this WP measures, found in its browser and not fixed
-  here.** The GUI's reflection tick rows carry no explicit colour, so they take
-  plotly's colorway — which is indexed by **position in the trace array**, and
-  the GUI's background trace is both conditional on there being a background
-  *and* toggleable by the reader (`Plot.svelte`, `shows(hidden, "bkg")`). So
-  hiding the background moves every phase's tick colour one step along the
-  colorway, on a click. Measured on the watcher, which briefly had the same
-  shape: `phase 0` went `#d62728` → `#9467bd`, and `#d62728` is **0.043** from
-  `--plot-calc` in OKLab on the light theme, against the 0.13 floor
-  `tests/test_gui_palette.py` holds every other plot colour to. The watcher
-  keeps explicit colours because of it (`PALETTES["dark"]`, with a guard in
-  `test_watch_browser.py`); the GUI still has it. The fix needs a **categorical
-  palette** the GUI does not own, which is the maintainer's question rather than
-  either WP's — it is filed here because this is the WP with the instrument.
+**The payload's constant block is 137 B, not the 49 B its note claimed.**
+WP-1429 wrote that number when the dark palette left `_page_constants` and the
+theme choice took its place. The reflection tick colours went back in the same
+WP's review pass (`d5529c6c`), so the block carries `suffix`, `dist`, `theme`
+and `ticks` today. WP-1430's "299 B of every poll" is stale in the other
+direction. Either way it is one part in 220 of a 41-run answer, whose rows are
+735 B each, so a boot-only route for it buys nothing this WP would report.
 
+**Every `/api/runs` reads `state_dir/settings.json`.** The theme is the one
+thing on the page a person changes while it is open, so the read is uncached on
+purpose: 16.8 µs with the file present, 4.6 µs without, against a 1.2 s poll
+(WP-1429). A cache here has to expire faster than a person notices a theme
+switch not arriving.
 
-- **2026-09-16, from [1424](1424-a-row-that-names-its-run.md): a row does more
-  per poll than it did when this WP was written.**
-  - `fillRow` now writes three `title` attributes and a `<time>` element's
-    `datetime` and `title` per row, on top of the six cells. Every one goes
-    through `setAttr`/`setText`, which compare before assigning, so a poll that
-    changes nothing still writes nothing — but the *comparison* count per row
-    is up, and `runTitle` builds a four-line string per row per poll.
-  - If this WP measures a per-row cost, measure it against a list of 40, and
-    note that `runTitle` is a pure function of the run object: it is the
-    obvious thing to memoise by `run_id` if the number matters. Nothing
-    suggests it does yet; nothing has measured it either.
-  - `drawSnapshot` gained one plotly annotation in the layout. It is
-    paper-anchored with `automargin` off, so it costs no relayout.
+**`/tokens.css` is 43.6 µs and 4972 B, once per page load.** It carries
+`no-store` from `_send`, as every route here does, so a reload pays again. It
+is off the poll path.
 
-- **2026-09-16, from [1426](1426-still-under-resize-and-across-a-stage.md):
-  1426 landed first, so this WP is the one that rebases.** Both were declared
-  to rewrite `drawRun` and they did not collide, but three shapes moved:
-  - `buildShell` is gone, split into **`buildPicture`** (the shell, the plotly
-    purge, the `full` class) and **`resetTail`** (the console and the tail
-    offset). `drawRun` calls `resetTail` on a *run* change and `buildPicture`
-    on a run-or-kind change. A poll-cost change that skips work must keep those
-    two triggers apart: merging them back is the defect 1426 removed.
-  - `patchList` opens by taking a scroll anchor and closes by applying it. A
-    patch made cheaper must still run both ends, or the list shifts under the
-    reader again.
-  - `rangesOf` in `watch-core.mjs` cuts by count rather than by quantile now.
-    It sorts the residual on every draw, which is the one O(n log n) step in
-    the draw path and a candidate if the poll's cost is in the page rather than
-    on the wire. 4000 points is the decimated ceiling.
+**A theme change clears `shell.mtime`.** That forces one extra snapshot fetch
+and redraw on the poll carrying it, once per switch. A benchmark that flips the
+theme sees it; a steady-state one does not. It is gated on
+`shell.kind === 'json'`, because re-pointing a legacy run's iframe would
+refetch the 4.51-6.03 MB page WP-1402 measured.
 
-- **2026-09-16, from [1430](1430-the-page-is-a-file.md): the page is files, and
-  three of its names are not the ones 1430's plan said.** `watch.py` is the
-  package `watch/`, and the page is `watch/static/`: `index.html`, `watch.css`,
-  `watch.mjs` (the document) and `watch-core.mjs` (everything that touches no
-  DOM). `rietx.watch` imports unchanged. What to carry:
-  - **The DOM half is `.mjs`, not `.js`.** `node --check` reads a `.js` as
-    CommonJS, where the `import` of `watch-core.mjs` is a syntax error. A
-    browser cares about `type="module"` and the content type, never the
-    extension.
-  - **Node cases live in `tests/watch_core.test.mjs`**, not beside the module:
-    hatchling ships everything under `src/rietx`. They are invoked from
-    `tests/test_watch_app.py::test_the_pure_half_of_the_page_is_unit_tested`
-    (15 cases today), which passes `--test-reporter=tap` because node picks its
-    reporter by whether stdout is a terminal.
-  - **`@SUFFIX@`, `@DIST@` and `@HUE@` are gone.** A file cannot carry a token,
-    so the three ride on `/api/runs` as `payload.page.{suffix,dist,palette}`,
-    read at boot into the module-level `HUE` and `DIST`. That is 299 B of every
-    poll, against rows of 735 B each.
-  - **A new file under `static/` needs a row in `watch.STATIC_FILES`** and
-    nothing else — the route, the content type and the `.gitignore` guard all
-    read that dict. `*.html` in `.gitignore` swallowed `index.html` on the way
-    in, the sixth committed file that one rule has taken.
-  - The poll payload grew a constant: `page` is 299 B of every `/api/runs`,
-    measured against 735 B a row on a 41-run tree (30 431 B in all). It is one
-    key and one function (`watch._page_constants`), so moving it to a
-    boot-only route is a small edit if the measurement says to.
-  - `tests/test_watch_browser.py` took no diff and stays the bar: if it
-    moves, the page moved.
+**A row does more per poll than this WP's context said.** `fillRow` writes
+three `title` attributes and a `<time>`'s `datetime` and `title` on top of the
+six cells (WP-1424). Every one goes through `setAttr`/`setText`, which compare
+before assigning, so an unchanged poll still writes nothing to the DOM. The
+comparison count is up, and `runTitle` builds a four-line string per row per
+poll. It is a pure function of the run object, so memoising it by `run_id` is
+the obvious move if the number says so. `drawSnapshot` also gained one
+paper-anchored annotation, which takes no relayout.
+
+**Three shapes moved under WP-1426, and two of them are traps for this WP.**
+`buildShell` split into `buildPicture` (the shell, the plotly purge, the `full`
+class) and `resetTail` (the console and the tail offset); `drawRun` calls
+`resetTail` on a run change and `buildPicture` on a run-or-kind change, and
+merging the two triggers back together is the defect 1426 removed. `patchList`
+opens by taking a scroll anchor and closes by applying it, and a cheaper patch
+must still run both ends. `rangesOf` in `watch-core.mjs` cuts by count rather
+than by quantile, sorting the residual on every draw: the one O(n log n) step
+in the draw path, over a decimated ceiling of 4000 points.
+
+**The page is four files under `watch/static/`** (WP-1430): `index.html`,
+`watch.css`, `watch.mjs` and `watch-core.mjs`, the last being everything that
+touches no DOM. A new file needs a row in `watch.STATIC_FILES` and nothing
+else. The DOM half is `.mjs` because `node --check` reads a `.js` as CommonJS.
+Node cases live in `tests/watch_core.test.mjs` and are invoked from
+`tests/test_watch_app.py::test_the_pure_half_of_the_page_is_unit_tested`.
+`tests/test_watch_browser.py` is the bar: if it moves, the page moved.
+
+### Filed here, for the maintainer, and not this WP's to fix
+
+**The GUI's reflection tick rows take plotly's colorway, which is indexed by
+position in the trace array.** The GUI's background trace is conditional on
+there being a background and toggleable by the reader (`Plot.svelte`,
+`shows(hidden, "bkg")`), so hiding the background moves every phase's tick
+colour one step along the colorway, on a click. Measured on the watcher, which
+briefly had the same shape: `phase 0` went `#d62728` → `#9467bd`, and `#d62728`
+sits **0.043** from `--plot-calc` in OKLab on the light theme, against the 0.13
+floor `tests/test_gui_palette.py` holds every other plot colour to. The watcher
+keeps explicit colours because of it (`PALETTES["dark"]`, guarded in
+`test_watch_browser.py`). The fix needs a categorical palette the GUI does not
+own. It is filed here because this is the WP with the instrument (WP-1429).
+
 
 ## Non-goals
 
