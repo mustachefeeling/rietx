@@ -822,3 +822,83 @@ def test_two_runs_of_one_batch_are_told_apart(browser, tmp_path):
     for i, title in enumerate(sorted(titles)):
         assert "fit_one.py candidate-" in title, title
         assert "in /Users/someone/work/campaign" in title, title
+
+
+#: Which slots the strip is drawing, and what each one says.
+SLOTS = """() => Object.fromEntries(
+  [...document.querySelectorAll('#strip > *')].map(el =>
+    [el.id, getComputedStyle(el).display === 'none' ? null
+            : el.textContent.trim()]))"""
+
+
+def test_the_status_line_drops_slots_it_cannot_fit(browser, tmp_path):
+    """Whole slots go, in a declared order, rather than each being cut a bit.
+
+    The strip's ten slots want 931 px of declared track and the run panel is
+    882 at 1400x900 with the list open, so something always goes without.
+    Sharing the deficit is the answer that reads worst: before WP-1424 the
+    flexible slot was at zero at both sizes and the stage — the fact being
+    watched — was cut by 49 px and then 202. The order is what a reader can
+    get elsewhere: the GUI command and the label are in the row's tooltip and
+    in the list, the free count is in the report, the series in the list.
+
+    The container is the run panel, not the window, so collapsing the list
+    brings slots back at an unchanged window size. That is measured here too.
+    """
+    project = tmp_path / "sample.rex" / "live"
+    project.mkdir(parents=True)
+    now = time.time()
+    (project / runs.EVENTS_FILE).write_text(
+        json.dumps({"record": "event", "v": "2", "t": now, "kind": "fit_start",
+                    "data": {}}) + "\n", encoding="utf-8")
+    (project / runs.META_FILE).write_text(
+        json.dumps({"record": runs.RECORD_TAG, "label": "sample.rex",
+                    "created": now, "cwd": str(tmp_path),
+                    "command": "rietx gui sample.rex"}), encoding="utf-8")
+    (project / runs.SNAPSHOT_FILE).write_text(
+        json.dumps(_snapshot("preferred_orientation", scale=0.83, noise=6.0)),
+        encoding="utf-8")
+    (project / runs.STATUS_FILE).write_text(
+        json.dumps({"state": "done", "stage": "preferred_orientation",
+                    "rwp": 0.1734, "gof": 12.34, "n_free": 17, "index": 3,
+                    "n_stages": 4, "series_index": 4, "series_n": 8,
+                    "series_label": "cpd-1e", "series_pass": "forward"}),
+        encoding="utf-8")
+
+    with _served(tmp_path) as base:
+        run_id = next(r.run_id for r in runs.discover(tmp_path))
+        page, errors = _pinned(browser, base, run_id)
+        seen = {}
+        for width in (1600, 1400, 1000):
+            page.set_viewport_size({"width": width, "height": 900})
+            page.wait_for_timeout(700)
+            seen[width] = page.evaluate(SLOTS)
+        page.click("#toggle-runs")          # the list closes, the panel grows
+        page.wait_for_timeout(700)
+        wide = page.evaluate(SLOTS)
+        page.close()
+
+    assert not errors, errors
+    # never dropped, at any width
+    for width, slots in seen.items():
+        assert slots["s-state"] == "done", (width, slots)
+        assert slots["s-rwp"] == "Rwp 17.34%", (width, slots)
+        assert slots["s-gof"] == "GoF 12.34", (width, slots)
+        assert slots["s-stage"].startswith("stage 3/4 preferred"), (width, slots)
+    # the GUI command is the whole of the flexible slot now, the path having
+    # moved to the label's tooltip and the point count onto the picture
+    assert seen[1600]["s-where"] == "rietx gui sample.rex"
+    assert "pts drawn" not in (seen[1600]["s-where"] or "")
+    # and it is the first thing to go
+    assert seen[1400]["s-where"] is None
+    assert seen[1400]["s-free"] is None
+    assert seen[1400]["s-label"] == "sample.rex"
+    assert seen[1400]["s-series"] == "pattern 5/8 cpd-1e forward"
+    # at 1000 with the list open the panel is 482 px and only the state, the
+    # stage and the two numbers are left
+    assert seen[1000]["s-label"] is None
+    assert seen[1000]["s-series"] is None
+    # closing the list gives the panel the window, and the slots come back at
+    # a window size that had none of them
+    assert wide["s-label"] == "sample.rex"
+    assert wide["s-series"] == "pattern 5/8 cpd-1e forward"
