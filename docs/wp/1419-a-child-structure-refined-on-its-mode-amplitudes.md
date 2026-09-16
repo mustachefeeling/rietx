@@ -158,6 +158,92 @@ CLAUDE.md: the acceptance is that the true metric of each child *lies in
 the span* of the derived subspace, never that the dimension is right, since
 the transposed rotation set is a group too and passes any dimension count.
 
+### Inherited
+
+From the 2026-09-16 `/pr-review` round on issues #286 and #293, measured on
+`main` at `f1d89cb0` and posted to both threads. Nothing here was measured on
+the reporter's fork.
+
+- **An amplitude's Jacobian column is exactly zero at A = 0, and so is the
+  whole block.** The lost parent translation carries the mode field to its
+  negative, so the pattern is an even function of the amplitude vector and its
+  gradient at the origin vanishes for every mode at once. Measured on a toy
+  zone-boundary superstructure (P1, a = b = 4 Å, c = 8 Å, an antiphase Sr pair
+  at ¼ and ¾): dχ²/du is −2.9e-8 at u = 0 against −1.57e7 at u = 0.005, and
+  χ²(u) is symmetric in u to 2.4e-15. Three consequences for the tasks below.
+  A = 0 is a local *maximum* of fit quality along the mode, so an amplitude
+  needs a seed rule of its own, in the shape `Stage.strain_seed` has for
+  Stephens coefficients (`Stage.seed` reaches softplus entries only, and an
+  amplitude is signed). The `d_f2_d_xyz` contraction is then a correctness
+  question as well as a speed one: the toy escaped A = 0 only because the
+  peak-chain column is a finite difference, so an exact analytic column would
+  remove the ability to start from the parent. And the acceptance needs a case
+  that *starts* at the parent, which the A = 0 control does not cover.
+- **A single amplitude's sign is a domain label, not a measurement.** Two runs
+  seeded at ±0.005 converged to ±0.01251 with Rwp agreeing to fifteen digits.
+  Perez-Mato, Orobengoa & Aroyo (2010) §7 says the same from the other end: the
+  lost translation maps the structure to its antiphase domain and flips the
+  primary mode's sign alone. Only relative signs inside a basis are measured.
+  Anything printing an amplitude states the convention, or it is the confident
+  wrong singleton the FitReport rule forbids.
+- **A mode cannot drive coordinates, and the DOFs it must drive re-base under
+  it.** `tie` on `phases.0.atoms.0.z` is refused (*symmetry outranks a user
+  tie*), so the expansion has to be written on `…dof.k`. A coordinate DOF is a
+  displacement from the stored coordinate and returns to zero on every table
+  build, while a variable keeps its value, so a variable driving one re-applies
+  itself at every write-through verb: z ran 0.26 → 0.27 → 0.28 → 0.29 → 0.30
+  over four unrelated `set_values` calls with `vars.A` fixed at 0.01. Seeded at
+  0.005, an antiphase pair ended at +0.02251 and −0.01751, so the child stops
+  being the symmetry-adapted structure the amplitude names. A second `fit()` on
+  the same `Refinement` reported **A = 0.0** while the structure still carried
+  u = 0.0200. **So an amplitude has to be absolute**, in the `Atom.aniso` and
+  Stephens pattern, or the parent base has to be pinned in the mode record.
+  The underlying defect is WP-1432's and is not this WP's to fix.
+- **The reported quantity is the per-irrep amplitude, not the basis
+  components.** AMPLIMODES normalises each mode within a primitive cell of the
+  child lattice in absolute units (eq 3) *and* orthonormalises the basis
+  (eq 4), the second of which is free across irreps and across parent orbits
+  and needs an explicit orthogonalisation within one orbit's several free
+  amplitudes. Eq (6)–(7) then give A_τ = (Σ_m A²_{τ,m})^½ with a unit direction
+  {a_{τ,m}}. A_τ is basis-independent and the individual A_{τ,m} are not, which
+  reframes § The 65 K acceptance's "0 of 22 individually supported": that test
+  asked a question the arbitrary basis chose. Gate `DISTORTION_MODE_UNSUPPORTED`
+  on A_τ, with its esd through the block covariance in `model/geometry.py`'s
+  J·Cov·Jᵀ pattern.
+- **§ The 65 K acceptance's S3(a,b) row is superseded.** #286's 2026-09-15
+  23:53 comment retracts the refusal after fixing the ε bookkeeping, and the
+  02:42 comment qualifies what replaced it: ΔBIC −179.1 → +21.0 → +57.0 at a
+  4× cap, Rwp 0.0622 → 0.0547 → 0.0535, the 71.9° window 182.4 → 23.8 → 19.0,
+  still 0/32 individually supported, still stopping on the iteration cap, and
+  the 46.7° window getting *worse* (25.3 → 48.8 against 40.1 for the parent)
+  while 57 ordinary Bragg positions lose more than 20 % of the 71.9° peak
+  height. Neither "rejected" nor "supported" is safe for S3(a,b). Fold the row
+  in rather than quoting the old one.
+- **The declared operator list and the group are two different objects.** The ε
+  fix reduces a displacive child's declared list to the sign-consistent
+  stabiliser of its mode field, a strict subgroup. The full child group still
+  has to drive reflection generation, multiplicities and the metric derivation
+  of § The metric subspace, since reading `cell_constraints` off the reduced
+  list refines the cell with more freedom than the crystal has. Whatever shape
+  the operator-list phase takes with 1327, it carries both.
+- **The bracketed label costs an audit.** `Phase.space_group` is read at 80
+  sites in 23 modules, including five foreign-format writers (fullprof, gsas,
+  gsas2, topas, recipe) and four GUI modules. gemmi raises on the label
+  (`ValueError: Unknown space-group name: Pm [unnamed in 2a,b,a+c]`), so the
+  bracket fails loudly, which is the safety property working. WP-1103's
+  third-member rule applies: audit the readers before the field lands, and the
+  exporters refuse rather than write a symbol they cannot honour.
+- **The metric fallback is measured unreachable from any tabulated setting, and
+  its trigger is a count comparison.** Over all 564 gemmi settings the
+  two-dictionary read-off agrees with the invariant-subspace dimension 564/564,
+  every span test passes (worst residual 7.5e-16) and `cell_constraints` refuses
+  none. On the refusing side, a Pnma doubling at k = (0,½,½) rebuilt from the
+  transform alone (a′ = a, b′ = 2b, c′ = b + c) gives G₂₃/G₂₂ = 0.5 exactly, and
+  the read-off's shortfall depends on which parent operation survives: 4, 5 or
+  6 free against a 4-dimensional subspace. A fallback keyed on "the read-off
+  found nothing" misses the middle case. Detail and the three answers are in
+  #293's thread.
+
 ## Non-goals
 
 - Moment modes (SARAh-style basis-vector amplitudes): 1327 owns
@@ -211,6 +297,17 @@ every shipped fixture are bit-identical.
 
 ## Handover log
 
+- **2026-09-16** — a `/pr-review` round answered #286's three
+  decide-with-the-maintainer items and #293's three questions, and posted both
+  to their threads. The decisions are in § Inherited above, along with five
+  findings measured on `main` that change how this WP is built: the amplitude
+  block's Jacobian is identically zero at A = 0, a single amplitude's sign is a
+  domain label, an amplitude must be absolute rather than a coordinate-DOF
+  offset, the reportable quantity is AMPLIMODES' per-irrep A_τ, and the 65 K
+  table's S3(a,b) row is superseded by the reporter's own retraction. The
+  re-basing defect underneath the third one is WP-1432. Next: the session that
+  picks this WP up prunes § Inherited into Context and Tasks, which is where
+  the seed rule and the A_τ gate become checklist items.
 - **2026-09-15** — created, from the 2026-09-15 issue triage (issues #286,
   #293). Checked against the tree: none of the named symbols
   (`propagation_vector`, `magnetic_supercell`, `distortion_modes`,
