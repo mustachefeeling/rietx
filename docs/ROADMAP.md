@@ -510,7 +510,8 @@ package promised an authored refusal (1337). The 2026-09-15 triage adds
 four: a reported Rwp the returned model does not give back (1421), a
 `turn_on` path that reached nothing (1414), a σ column smaller than √y
 feeding two diagnostics that assumed Poisson (1415), and ΔBIC on a raw
-channel count (1417).
+channel count (1417). The 2026-09-16 review of #286 and #293 adds one of
+1342's kind: a tie onto a coordinate DOF, re-applied per write-through (1432).
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
@@ -529,6 +530,7 @@ channel count (1417).
 | [1415](wp/1415-a-sigma-column-smaller-than-root-y.md) | A σ column smaller than √y | ⬜ | — |
 | [1417](wp/1417-delta-bic-at-powder-channel-counts.md) | ΔBIC at powder channel counts | ⬜ | — (1339 soft) |
 | [1421](wp/1421-the-result-reproduces-its-own-number.md) | The result reproduces its own number | ⬜ | — (1310 soft) |
+| [1432](wp/1432-a-tie-onto-a-rederived-dof.md) | A tie onto a coordinate DOF, re-applied once per write | ⬜ | — (1119 soft) |
 
 #### A long run is not one fit
 
