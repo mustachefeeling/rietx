@@ -697,10 +697,15 @@ OVERFLOW = """() => {
 #: and a path are the caller's. Those may be cut, and what is asserted of them
 #: is that the whole string is in a `title` where the reader can still reach
 #: it.
+#: The two halves are a *partition*, and a cell in neither fails below rather
+#: than being quietly waved through: a column or slot added without a decision
+#: about which kind it is would otherwise be tested by nothing.
 BOUNDED = ("state", "Rwp", "GoF", "started")
 ELIDED = ("run", "stage")
 BOUNDED_SLOTS = {"slot:s-state", "slot:s-rwp", "slot:s-gof", "slot:s-free",
                  "slot:s-notice", "slot:stop"}
+ELIDED_SLOTS = {"slot:s-label", "slot:s-series", "slot:s-stage",
+                "slot:s-where"}
 
 
 def _batch(root: Path, *, n: int = 4) -> list[Path]:
@@ -769,8 +774,15 @@ def test_every_number_on_the_page_is_drawn_whole(browser, tmp_path):
     for width, cells in seen.items():
         for c in cells:
             what = c["what"].split(":")[1]
-            bounded = (what in BOUNDED or c["what"] in BOUNDED_SLOTS
-                       or c["what"].startswith("th:"))
+            if c["what"].startswith("th:"):
+                # a heading is the page's own word whatever its column holds
+                bounded = True
+            else:
+                bounded = what in BOUNDED or c["what"] in BOUNDED_SLOTS
+                elided = what in ELIDED or c["what"] in ELIDED_SLOTS
+                assert bounded != elided, (
+                    f"{c['what']} is in neither half of the partition, so "
+                    f"nothing here decides whether it may be cut")
             if c["over"] <= 0.5:
                 continue
             why = "cut" if bounded else "cut with no title"

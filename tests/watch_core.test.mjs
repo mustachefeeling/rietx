@@ -92,7 +92,7 @@ test('clock is a time today and a date before that', () => {
   assert.equal(clock(null, now), '—');
 });
 
-// ------------------------------------------------- runName and runTitle
+// --------------------------------------- rowName, runLabel, runTitle
 test('a row is named by what separates it from its neighbours', () => {
   const run = {label: 'campaign', legacy: false, path: '/w/20260916-142000-90',
                status: {}};
