@@ -2713,14 +2713,26 @@ def _tail(param: Parameter) -> str:
     which TOPAS does not parse — so the file would be written and fail
     somewhere else, in someone else's program. Surfaced by the review pass on
     this writer and answered for all three GSAS/TOPAS/FullProf writers at once
-    (WP-1118).
+    (WP-1118). The check lives in :func:`_number`, not here, because an
+    anisotropic site's ``beq`` is the one number this writer spells without a
+    tail — held unconditionally, whatever its ``vary`` says — and a guard only
+    the tail carried would have let exactly that one through.
     """
-    if not math.isfinite(param.value):
+    return f"{'@' if param.vary else '!'} {_number(param.value)}"
+
+
+def _number(value: float) -> str:
+    """One value, as the shortest decimal that reads back to the same double.
+
+    See :func:`_tail` for why ``repr``, and for why the non-finite refusal is
+    at this rank rather than one up.
+    """
+    if not math.isfinite(value):
         raise ValueError(
-            f"a parameter's value is {param.value!r}, which `repr` spells "
-            f"'{param.value}' and TOPAS does not parse — refused here rather "
+            f"a parameter's value is {value!r}, which `repr` spells "
+            f"'{value}' and TOPAS does not parse — refused here rather "
             f"than written into a file that fails in another program")
-    return f"{'@' if param.vary else '!'} {param.value!r}"
+    return repr(value)
 
 
 def from_structure(structure: Structure) -> str:
@@ -2830,7 +2842,7 @@ def from_structure(structure: Structure) -> str:
                 # which number the fit actually moved.
                 tensor = " ".join(f"{u} {_tail(getattr(atom.aniso, u))}"
                                   for u in _ADP_KEYS)
-                lines.append(f"{site} beq ! {atom.biso.value!r} {tensor}")
+                lines.append(f"{site} beq ! {_number(atom.biso.value)} {tensor}")
             else:
                 lines.append(f"{site} beq {_tail(atom.biso)}")
     return "\n".join(lines) + "\n"

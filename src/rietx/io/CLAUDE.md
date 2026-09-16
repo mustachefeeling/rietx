@@ -445,15 +445,23 @@ Four rules the readers do not need (WP-1118, four formats: `.inp`, `.pcr`,
   a value at the model's identity is dropped and a non-zero one raises (a
   `.prm`'s `ICONS ZERO`, whose unit no file here settles).
 - **A fixed-column writer owes two things a token writer does not.** The field
-  is the *budget*: spend every column (`gsas.write_field`, `%g` descending from
-  seventeen digits, which is the value's own `repr` wherever that fits) and
-  name what still had to narrow, once per file rather than once per value,
-  since on a converged model most values narrow. And **write the decimal
-  point** — a Fortran `F`/`E` edit descriptor supplies one from its own `d`
-  when the field has none, so `90` in an `F10.6` field is 9e-5 to the program
-  the file is *for* while `float()` here reads 90. That is the one class a
-  round trip through this package cannot catch, so it is checked against a real
-  file's own spelling instead.
+  is the *budget*: spend it (`gsas.write_field`, `%g` descending from seventeen
+  digits, which is the value's own `repr` wherever that fits) and name what
+  still had to narrow, once per file rather than once per value, since on a
+  converged model most values narrow. **How much of it is spendable is the
+  *reader's* question, not the field's** — a field read by column may fill
+  itself, one read by token must leave a separator, and a writer that spends
+  all fifteen columns of a `.prm` `PRCF` field wrote a file this package's own
+  reader refused (`_PRM_COEFFICIENT_DIGITS`; the multiply into centidegrees
+  carries the product's float noise, so a converged calibration hits it). And
+  **write the decimal point** — a Fortran `F`/`E` edit descriptor supplies one
+  from its own `d` when the field has none, so `90` in an `F10.6` field is 9e-5
+  to the program the file is *for* while `float()` here reads 90. That is the
+  one class a round trip through this package cannot catch, so it is checked
+  against a real file's own spelling instead. The characters are the field's
+  too: a line break splits a card in two under keys nothing wrote, and a
+  character the file's encoding cannot spell must be refused at the field
+  rather than at the encode, which names a byte offset into the finished file.
 - **A flag narrower than the model merges free, and the group is named.** GSAS
   states one refine flag for a whole cell and one for a site's three
   coordinates, both meaning "as symmetry permits". Freeing keeps more of the

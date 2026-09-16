@@ -977,5 +977,45 @@ def test_the_written_records_are_gsas_own_grammar(tmp_path):
     assert header.flags.strip() == ""
 
 
+def test_a_coefficient_that_would_fill_its_field_still_reads_back(tmp_path):
+    """The one column a ``PRCF`` field does not spend, and why.
+
+    ``_read_prcf`` splits its continuation records on whitespace — the one
+    place in either GSAS reader that does, because GSAS's own editor prints
+    labels inside the fields — while ``write_field`` right-justifies.  So a
+    value whose shortest exact decimal is fifteen characters long leaves no
+    separating space and fuses with the field before it, and the pair reads as
+    one token that is not a number.  A converged ``u`` multiplied into
+    centidegrees carries the product's own float noise and reaches that length
+    routinely: ``0.0043710000000001 * 1e4`` is 43.710000000000996.
+    """
+    inst = _calibrated()
+    inst.profile.u.value = 0.0043710000000001
+    inst.profile.v.value = -0.0012609876543211
+    inst.profile.x.value = 0.0123456789012347
+    inst.profile.y.value = 0.0234567890123457
+    out = tmp_path / "wide.prm"
+    rx.write_gsas_prm(inst, out)
+
+    for name, payload in split_records(out.read_text(encoding="latin-1")):
+        if name.startswith("INS  1PRCF1") and name[11:].strip().isdigit():
+            assert len(payload.split()) == 4, payload
+
+    back = read_gsas_prm(out)
+    for key in ("u", "v", "x", "y"):
+        assert getattr(back.profile, key).value == pytest.approx(
+            getattr(inst.profile, key).value, rel=1e-12)
+
+
+def test_a_line_break_in_the_header_is_refused(tmp_path):
+    """``I HEAD`` holds whatever the experimenter typed, and a card index is
+    split on CR and LF — so a break in it would be read back as a second
+    record under a key nothing wrote.  The refusal is ``write_record``'s, one
+    module over, which is what makes it the ``.EXP`` writer's too."""
+    inst = _calibrated()
+    with pytest.raises(ValueError, match="line break"):
+        from_instrument(inst, header="two\nlines")
+
+
 def test_write_gsas_prm_is_reachable_at_the_top_level():
     assert rx.write_gsas_prm is write_gsas_prm

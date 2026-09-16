@@ -818,6 +818,20 @@ def _read_prcf(records: list[tuple[str, str]],
 _PRM_COEFFICIENT_COLUMNS = 15
 _PRM_PER_RECORD = 4
 
+#: One of those fifteen columns is **reserved as a separator**, so a value is
+#: written into fourteen and right-justified into fifteen.  A ``.EXP``'s fields
+#: are read back by column and may fill themselves; a ``.prm``'s continuation
+#: records are the one place :func:`_read_prcf` splits on whitespace instead
+#: (its docstring says why — GSAS's own editor prints labels inside the
+#: fields), and :func:`~rietx.io.projects.gsas.write_field` right-justifies, so
+#: a value whose shortest exact decimal is fifteen characters long abuts its
+#: neighbour and the pair reads as one unparseable token.  Fourteen columns
+#: still hold more digits than any esd a calibration reports, and the leading
+#: blank is what a real ``4E15.6`` record has anyway.  Un-reserved, a converged
+#: ``GU`` of 43.710000000000996 wrote a file this package's own reader refused
+#: (WP-1118, the review pass on this writer).
+_PRM_COEFFICIENT_DIGITS = _PRM_COEFFICIENT_COLUMNS - 1
+
 #: What this writer states on the two file-wide records.  ``PXCR`` is the one
 #: :func:`read_gsas_prm` reads, and type 3 the one profile function it maps, so
 #: writing anything else would produce a file this package refuses.
@@ -931,13 +945,24 @@ def from_instrument(instrument: Instrument, *, header: str = "",
             f"about 0.5).  A value outside that is refused rather than written "
             f"into a field it would not mean")
 
-    # Nothing here is narrowed in practice — fifteen columns hold any
-    # coefficient's own repr — but the channel is what makes `write_field`
-    # refuse a non-finite value rather than writing a token GSAS cannot parse.
+    # A calibration's numbers are well inside fourteen significant characters,
+    # so this list is ordinarily empty — but the channel is what makes
+    # `write_field` refuse a non-finite value rather than writing a token GSAS
+    # cannot parse, and a value multiplied into centidegrees carries the
+    # product's own float noise, which is what spends the columns.
     narrowed: list[tuple[str, float, float]] = []
 
     def field(value: float, what: str, width: int = _PRM_COEFFICIENT_COLUMNS) -> str:
         return write_field(value, width, what=what, narrowed=narrowed)
+
+    def coefficient(value: float, what: str) -> str:
+        """One ``PRCF`` coefficient, in fourteen columns of its fifteen.
+
+        See :data:`_PRM_COEFFICIENT_DIGITS`: the spare column is the separator
+        the reader's whitespace split needs.
+        """
+        return field(value, what, _PRM_COEFFICIENT_DIGITS).rjust(
+            _PRM_COEFFICIENT_COLUMNS)
 
     profile, geometry = instrument.profile, instrument.geometry
     # The inverse of read_gsas_prm's conversion, written as the multiplication
@@ -981,7 +1006,7 @@ def from_instrument(instrument: Instrument, *, header: str = "",
         chunk = coefficients[i:i + _PRM_PER_RECORD]
         cards.append(write_record(
             f"INS  1PRCF1{i // _PRM_PER_RECORD + 1}",
-            "".join(field(v, f"PRCF {name}")
+            "".join(coefficient(v, f"PRCF {name}")
                     for v, name in zip(chunk, names[i:i + _PRM_PER_RECORD],
                                        strict=True))))
 

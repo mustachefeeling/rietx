@@ -1008,6 +1008,34 @@ def test_a_payload_that_would_overrun_its_card_is_refused():
         from_structure(_hexagonal(), title="x" * 80)
 
 
+def test_a_line_break_in_a_payload_is_refused():
+    """The other half of the record above, and the sharper one.
+
+    A payload that overruns is caught by its length; one carrying a line break
+    is the right length and still wrong, because :func:`split_records` splits
+    on CR and LF — so the card is read back as two records under keys nothing
+    wrote.  That is the accident that function's own docstring names from the
+    reading side, arriving here through a ``title`` or a ``phase.name``.
+    """
+    with pytest.raises(ValueError, match="line break"):
+        from_structure(_hexagonal(), title="one\nCRS1  ABCSIG")
+    structure = _hexagonal()
+    structure.phases[0].name = "one\rtwo"
+    with pytest.raises(ValueError, match="line break"):
+        from_structure(structure)
+
+
+def test_a_character_latin_1_cannot_spell_is_refused():
+    """A ``.EXP`` is a byte format and :func:`write_gsas_exp` encodes one, so a
+    Greek α in a phase name has to be refused somewhere.  Here, naming the
+    record and the character, rather than at the encode, where a
+    ``UnicodeEncodeError`` names a byte offset into the finished file."""
+    structure = _hexagonal()
+    structure.phases[0].name = "α-quartz"
+    with pytest.raises(ValueError, match="latin-1 cannot spell"):
+        from_structure(structure)
+
+
 def test_write_gsas_exp_is_reachable_at_the_top_level():
     assert rx.write_gsas_exp is write_gsas_exp
 

@@ -1492,6 +1492,20 @@ def write_record(key: str, payload: str = "") -> str:
     ``registry._matches_gsas_exp`` measures it — so a payload that would
     overrun is a refusal rather than a truncation.  Cutting a title at column
     80 is a repair, and a repair a writer cannot report is one it may not make.
+
+    Two more refusals, both about the *characters* rather than the count, and
+    both placed here because this is the one function that spells a card.
+
+    **A line break is refused.**  :func:`split_records` splits on CR and LF, so
+    one inside a payload cuts the card in two and the halves are read as
+    records with keys the writer never wrote — the same accident that
+    function's docstring names from the reading side, arriving here through a
+    ``title`` or a ``phase.name``.
+
+    **A character ``latin-1`` cannot spell is refused.**  A ``.EXP`` is a byte
+    format and :func:`write_gsas_exp` encodes one, so a Greek α in a phase name
+    otherwise raised ``UnicodeEncodeError`` at the encode, naming a byte offset
+    into the whole file rather than the field the caller can fix.
     """
     if len(key) != KEY_BYTES:                                # pragma: no cover
         raise ValueError(f"{key!r} is not a {KEY_BYTES}-character record key")
@@ -1501,6 +1515,20 @@ def write_record(key: str, payload: str = "") -> str:
             f"{key.strip()!r} needs {len(payload)}: {payload.strip()!r}.  The "
             f"80-character width is what GSAS fetched these records by, so it "
             f"is not a field this writer may overrun")
+    if "\r" in payload or "\n" in payload:
+        raise ValueError(
+            f"record {key.strip()!r} carries a line break: "
+            f"{payload.strip()!r}.  A card index is split on CR and LF, so the "
+            f"card would be read back as two records under keys nothing wrote "
+            f"— a silent corruption rather than a failure")
+    try:
+        payload.encode("latin-1")
+    except UnicodeEncodeError as exc:
+        raise ValueError(
+            f"record {key.strip()!r} carries {payload[exc.start:exc.end]!r}, "
+            f"which latin-1 cannot spell: {payload.strip()!r}.  A .EXP is a "
+            f"byte format and this is the field that has to change, which an "
+            f"encode error over the finished file could not say") from None
     return f"{key}{payload}".ljust(RECORD_BYTES)
 
 
