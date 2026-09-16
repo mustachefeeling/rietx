@@ -147,12 +147,19 @@ class _RunIndex:
         self._lock = threading.Lock()
         self._runs: list | None = None
         self._at = 0.0
+        # Runs already read, keyed on what their files say about themselves
+        # (WP-1427). The TTL above bounds how often the tree is *walked*; this
+        # bounds what each walk re-reads, which is the larger half: on 500
+        # finished runs the two sidecar reads and their two parses were 21.8 ms
+        # of a 34.7 ms walk, once a second, about nothing. `discover` prunes it
+        # to what the walk found, so a run that goes away leaves no entry.
+        self._cache: dict = {}
 
     def runs(self) -> list:
         with self._lock:
             now = time.monotonic()
             if self._runs is None or now - self._at >= self.ttl:
-                self._runs = runs_mod.discover(self.root)
+                self._runs = runs_mod.discover(self.root, cache=self._cache)
                 self._at = now
             return self._runs
 

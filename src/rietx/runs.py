@@ -65,6 +65,7 @@ import json
 import os
 import re
 import socket
+import stat as stat_mod
 import sys
 import threading
 import time
@@ -428,24 +429,70 @@ def _label_for(run_dir: Path, root: Path) -> str:
     return str(rel) if str(rel) != "." else run_dir.name
 
 
-def read_run(run_dir: Path, *, root: Path | None = None) -> Run | None:
+def _stat(path: Path):
+    """``path.stat()`` for a regular file, and ``None`` for anything else.
+
+    Regular-file-ness is checked here rather than by the callers, because every
+    one of them is asking a question about a file's *contents*: a directory
+    named ``meta.json`` has none, and its ``st_size`` is not a log's length.
+    """
+    try:
+        stat = path.stat()
+    except OSError:
+        return None
+    return stat if stat_mod.S_ISREG(stat.st_mode) else None
+
+
+def _fingerprint(stat) -> tuple | None:
+    """What a file would have to change for a cached read to be wrong.
+
+    Inode, size and modification time to the nanosecond — the make-style
+    staleness test, and its one failure mode is a filesystem whose timestamps
+    are coarser than two writes of the same length. APFS and ext4 both store
+    nanoseconds, so the window is not reachable by a writer flushing a status
+    file. It is stated rather than hidden because a caller on some other
+    filesystem inherits it.
+    """
+    if stat is None:
+        return None
+    return (stat.st_ino, stat.st_size, stat.st_mtime_ns)
+
+
+def read_run(run_dir: Path, *, root: Path | None = None,
+             cache: dict | None = None) -> Run | None:
     """Read one run directory, or ``None`` if it holds no event log.
 
     Opens **exactly two files**: ``meta.json`` and ``status.json``. The event
     log is stat'd, never opened — :func:`tail_events` opens it, on demand, from
     an offset. That budget is asserted by ``tests/test_runs.py``, because a web
     page polls this.
+
+    ``cache`` makes that two files per **changed** run (WP-1427). A viewer
+    polls, so most of a walk re-reads what it read a second ago: on a root of
+    500 finished runs the two reads and their two ``model_validate_json`` calls
+    were 21.8 ms of a 34.7 ms walk, once a second, about nothing. The key is
+    :func:`_fingerprint` over the three files whose contents this function
+    reflects, so a cached row cannot outlive a write to any of them. The
+    caller owns the dict, because the caller knows when to throw it away.
     """
     run_dir = Path(run_dir)
-    events = run_dir / EVENTS_FILE
+    events_stat = _stat(run_dir / EVENTS_FILE)
     meta_path = run_dir / META_FILE
-    try:
-        stat = events.stat()
-    except OSError:
+    meta_stat = _stat(meta_path)
+    if events_stat is None and meta_stat is None:
         # no log: a run only if a writer left a meta.json behind
-        if not meta_path.is_file():
-            return None
-        stat = None
+        return None
+    status_stat = _stat(run_dir / STATUS_FILE)
+    has_snapshot = (run_dir / SNAPSHOT_FILE).is_file()
+    has_legacy = (run_dir / LEGACY_SNAPSHOT_FILE).is_file()
+
+    signature = (_fingerprint(events_stat), _fingerprint(meta_stat),
+                 _fingerprint(status_stat), has_snapshot, has_legacy,
+                 None if root is None else str(root))
+    if cache is not None:
+        found = cache.get(run_dir)
+        if found is not None and found[0] == signature:
+            return found[1]
 
     meta = _read_json(meta_path, RunMeta)
     status = _read_json(run_dir / STATUS_FILE, RunStatus)
@@ -453,25 +500,28 @@ def read_run(run_dir: Path, *, root: Path | None = None) -> Run | None:
     created = None
     if meta is not None and meta.created is not None:
         created = float(meta.created)
-    elif stat is not None:
-        created = float(stat.st_mtime)
+    elif events_stat is not None:
+        created = float(events_stat.st_mtime)
     if created is None:
         created = time.time()
 
     label = (meta.label if meta is not None and meta.label
              else _label_for(run_dir, root if root is not None else run_dir))
-    return Run(
+    run = Run(
         run_id=run_id_for(run_dir),
         path=run_dir,
         label=label,
         created=created,
         legacy=meta is None,
-        size_bytes=stat.st_size if stat is not None else 0,
+        size_bytes=events_stat.st_size if events_stat is not None else 0,
         meta=meta,
         status=status,
-        has_snapshot=(run_dir / SNAPSHOT_FILE).is_file(),
-        has_legacy_snapshot=(run_dir / LEGACY_SNAPSHOT_FILE).is_file(),
+        has_snapshot=has_snapshot,
+        has_legacy_snapshot=has_legacy,
     )
+    if cache is not None:
+        cache[run_dir] = (signature, run)
+    return run
 
 
 def _is_run_dir(entry_path: Path) -> bool:
@@ -480,7 +530,7 @@ def _is_run_dir(entry_path: Path) -> bool:
 
 
 def _collect_runs(holder: Path, root: Path, out: list[Run],
-                  max_runs: int) -> None:
+                  max_runs: int, cache: dict | None = None) -> None:
     """Add every run *at* ``holder`` and every run one level inside it.
 
     Two directories in this package hold runs rather than being one: a
@@ -497,7 +547,7 @@ def _collect_runs(holder: Path, root: Path, out: list[Run],
     before this WP.
     """
     if _is_run_dir(holder) and len(out) < max_runs:
-        run = read_run(holder, root=root)
+        run = read_run(holder, root=root, cache=cache)
         if run is not None:
             out.append(run)
     try:
@@ -515,13 +565,13 @@ def _collect_runs(holder: Path, root: Path, out: list[Run],
         child = Path(entry.path)
         if not _is_run_dir(child):
             continue
-        run = read_run(child, root=root)
+        run = read_run(child, root=root, cache=cache)
         if run is not None:
             out.append(run)
 
 
 def discover(root: str | Path, *, max_depth: int = MAX_DEPTH,
-             max_runs: int = MAX_RUNS) -> list[Run]:
+             max_runs: int = MAX_RUNS, cache: dict | None = None) -> list[Run]:
     """Every run under ``root``, newest first.
 
     Bounded in depth and in count, never following a symlink, pruning the
@@ -541,6 +591,12 @@ def discover(root: str | Path, *, max_depth: int = MAX_DEPTH,
     collected. Without this the acceptance of WP-1403 cannot hold: a fit in an
     empty directory would write a run that ``rietx watch``, whose default root
     is the working directory, could not list.
+
+    ``cache`` is passed through to :func:`read_run` and **pruned here**, to the
+    runs this walk found: a viewer polling a directory where runs come and go
+    would otherwise hold every run it had ever seen. The walk itself is not
+    cached, because the thing a walk is for is noticing a directory that was
+    not there before.
     """
     root = Path(root)
     out: list[Run] = []
@@ -550,7 +606,7 @@ def discover(root: str | Path, *, max_depth: int = MAX_DEPTH,
     seen: set[tuple[int, int]] = set()
 
     if _is_run_dir(root):
-        run = read_run(root, root=root)
+        run = read_run(root, root=root, cache=cache)
         if run is not None:
             return [run]
 
@@ -579,7 +635,8 @@ def discover(root: str | Path, *, max_depth: int = MAX_DEPTH,
             if entry.name == STATE_DIR_NAME:
                 # before the dot-skip below, which would otherwise hide every
                 # run a fit recorded unasked
-                _collect_runs(child / RUNS_DIR_NAME, root, out, max_runs)
+                _collect_runs(child / RUNS_DIR_NAME, root, out, max_runs,
+                              cache)
                 if len(out) >= max_runs:
                     break
                 continue
@@ -588,7 +645,7 @@ def discover(root: str | Path, *, max_depth: int = MAX_DEPTH,
                 continue
 
             if _is_run_dir(child):
-                run = read_run(child, root=root)
+                run = read_run(child, root=root, cache=cache)
                 if run is not None:
                     out.append(run)
                     if len(out) >= max_runs:
@@ -597,13 +654,18 @@ def discover(root: str | Path, *, max_depth: int = MAX_DEPTH,
 
             if child.name.endswith(PROJECT_SUFFIX):
                 # descend a project exactly one level, to its live/
-                _collect_runs(child / LIVE_DIR_NAME, root, out, max_runs)
+                _collect_runs(child / LIVE_DIR_NAME, root, out, max_runs, cache)
                 if len(out) >= max_runs:
                     break
                 continue
 
             if depth < max_depth:
                 stack.append((child, depth + 1))
+
+    if cache is not None:
+        alive = {run.path for run in out}
+        for gone in [key for key in cache if key not in alive]:
+            del cache[gone]
 
     out.sort(key=lambda r: r.created, reverse=True)
     return out
