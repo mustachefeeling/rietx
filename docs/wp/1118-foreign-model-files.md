@@ -365,10 +365,31 @@ format token is spelled in `_about.py`, never inline (root CLAUDE.md § Conventi
       by name, checked by calling `normalize_space_group` on the candidate
       output the same way the reader would rather than by a heuristic. An
       anisotropic site is refused too, mirroring `to_structure`'s own refusal
-      to assume FullProf's β convention. GSAS `.EXP`/`.PRM` and GSAS-II
-      (`.instprm` + CIF, per the decision above) still have no writer; the
-      GSAS-II `Z`-term question above is theirs to answer, not TOPAS's or
-      FullProf's.
+      to assume FullProf's β convention.
+      **The GSAS-I pair landed 2026-09-16** (4th session): `rx.write_gsas_exp`
+      (`projects/gsas.from_structure`) and `rx.write_gsas_prm`
+      (`instrument_profile.from_instrument`), each round-tripped through its
+      own reader, `FAP.EXP`'s converged model among them and bit-identically.
+      These are the first writers here whose **columns are fixed**, and the
+      four rules that fell out govern every later one, so they are in
+      `io/CLAUDE.md` § Project writers rather than here. Two are worth naming:
+      the field is a *budget* — `gsas.write_field` spends every column, and
+      what still narrows is named once per file (`GSAS_EXP_VALUE_NARROWED`;
+      a `Biso` always does, the file storing `Uiso`) — and **the decimal point
+      is written explicitly**, because a Fortran `F`/`E` descriptor supplies
+      one from its own `d` when the field has none, so `90` in an `F10.6`
+      field is 9e-5 to GSAS while `float()` here reads 90. That last is the
+      one class a round trip through this package cannot catch. A flag
+      narrower than the model (GSAS states one per cell and one per site's
+      coordinates) merges **free** and names the group
+      (`GSAS_EXP_REFINE_FLAG_MERGED`). The `.prm` writer is the one whose
+      payload is *not* the refine flags — a calibration goes out frozen — and
+      it refuses a non-zero `zero_shift`, `ICONS`' `ZERO` having no unit this
+      package has established and the reader refusing one on the way in.
+      The review pass's open `+inf` question is closed for all five writers at
+      once: refused, since `repr` spells it `inf` and no real program parses
+      that. GSAS-II (`.instprm` + CIF, per the decision above) is the one
+      format left, and the `Z`-term question above is its to answer.
 - [ ] `capabilities()` arm, skill rows for the new diagnostic codes
       (`docs/skill/rietx/` — `AGENT_PROTOCOL.md` is a redirect stub since
       WP-1304), a Part 1 manual section, and an `ATTRIBUTION.md` row per
@@ -381,8 +402,19 @@ format token is spelled in `_about.py`, never inline (root CLAUDE.md § Conventi
       `references/diagnostics-projects.md` §7g (whose family prefix list in
       `tests/test_skill.py` grew with them), `rx.read_gsas2_gpx` joined
       `make_api_index.py`'s In section, a Part 1 section documents the whole
-      `Gsas2Model` tree, and `ATTRIBUTION.md` has its row. **Still open for the
-      writers.**
+      `Gsas2Model` tree, and `ATTRIBUTION.md` has its row.
+      **The writers' half landed 2026-09-16** (4th session): the arm gained
+      `ProjectFormat.write` / `ProjectFormatCapability.writes`, publishing the
+      *exported name* of each format's writer and `None` where there is none —
+      a name so a client learns what to call, `None` so an unwired format does
+      not answer a question nobody asked, and the meta-test is
+      `_SURFACE_FLAGS`' (checked against `rietx.__all__` and by identity). The
+      3rd session left this open against growing the arm twice; a `None`-valued
+      field does not, since GSAS-II's writer will change a *value*. Four
+      `GSAS_EXP_*`/`GSAS_PRM_*` writer rows joined
+      `references/diagnostics-projects.md` §7g and `files.md` gained a section
+      per writer. **Headroom is the constraint now**: `references/api.md` is
+      35 627 B of 36 000, so GSAS-II's paragraph is paid for by a cut.
       **Superseded in part, 2026-09-13**: `references/api.md` § In
       was repaired somewhere between 2026-09-03 and 2026-09-13 and now names
       both `rietx.io.projects.read_topas_inp` and `read_fullprof_pcr`, says
