@@ -159,8 +159,12 @@ it lands here because 1425 is several WPs away.
 - [x] The strip: the drawn-point count moves off the strip onto the picture
       (a plotly annotation in a corner, or a legend entry), the `1fr` slot
       carries the `gui_command` alone, and the path stays the label's tooltip
-- [ ] Manual: `docs/manual/using/cli.md` § `rietx watch` names the columns as
-      they are now; `make_screenshots.py` re-shoots the page
+- [x] Manual: `docs/manual/using/cli.md` § `rietx watch` names the columns as
+      they are now. **Superseded in part, 2026-09-16**: there is no watcher
+      screenshot to re-shoot. `make_screenshots.py`'s `SHOTS` is nine GUI
+      shots and the watcher is in none of them, so § `rietx watch` has never
+      carried a figure. Adding one is not this WP's, the page changing again
+      in 1425.
 - [x] Skill: none. The page is a human's; an agent driving rietx never reads it.
 
 ## Acceptance
