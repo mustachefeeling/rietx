@@ -660,7 +660,7 @@ order: 1424, 1431, 1425, 1429, 1427, 1428 (a decision).
 | [1423](wp/1423-a-page-that-holds-still.md) | A page that holds still | ✅ 2026-09-16 | 1405, 1402 |
 | [1430](wp/1430-the-page-is-a-file.md) | The page is a file | ✅ 2026-09-16 | 1423 |
 | [1426](wp/1426-still-under-resize-and-across-a-stage.md) | Still under resize, and across a stage | ✅ 2026-09-16 | 1430, 1423 |
-| [1424](wp/1424-a-row-that-names-its-run.md) | A row that tells its run apart, and a number that fits its slot | ⬜ | 1430 (1423 soft) |
+| [1424](wp/1424-a-row-that-names-its-run.md) | A row that tells its run apart, and a number that fits its slot | 🔄 2026-09-16 | 1430 (1423 soft) |
 | [1431](wp/1431-a-caller-names-its-run.md) | A caller names its run | ⬜ | 1424 |
 | [1425](wp/1425-the-panels-are-the-readers-to-size.md) | The panels are the reader's to size | ⬜ | 1430, 1426 |
 | [1429](wp/1429-one-palette-and-one-theme-for-three-pages.md) | The GUI's tokens and the GUI's theme, on the two python pages | ⬜ | 1430 (1426 soft) |

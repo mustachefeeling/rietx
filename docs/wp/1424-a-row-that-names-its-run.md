@@ -1,6 +1,6 @@
 # WP-1424 — a row that tells its run apart, and a number that fits its slot
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-09-16 — claimed by @yue-here
 Depends on: 1430 (the page as files); 1423 soft
 
 ## Goal
