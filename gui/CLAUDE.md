@@ -9,6 +9,15 @@ measured detail behind each rule below.
 
 ## House style
 
+**The token *values* are Python and `gui/src/tokens.css` is generated**
+(WP-1429, `src/rietx/viz/theme.py`; regenerate with `python -m rietx.viz.theme >
+gui/src/tokens.css`, then rebuild the dist). `rietx watch` and `rietx compare`
+ship inside the wheel and this workspace does not, so a colour the two Python
+pages serve cannot live in `gui/src`; they link a `/tokens.css` route rendered
+from that module. `app.css` imports the file and keeps everything that is not a
+colour, and `tests/test_gui_palette.py` reads the palette from the module and
+holds the committed file equal to the emitter byte for byte.
+
 **One token layer and nine registers** (WP-1201, `gui/src/app.css`). A register
 means one thing and is drawn one way everywhere, so **size, padding and radius
 belong to the register and never to the call site**: a panel wanting a smaller

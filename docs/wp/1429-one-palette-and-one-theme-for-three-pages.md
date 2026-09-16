@@ -137,10 +137,10 @@ WP starts; every entry below is still true.
 - [x] Browser test: the watch page in light and dark, the plot's calculated
       line colour equal to the GUI's token in each, and a theme change in
       `settings.json` reaching the page within two polls
-- [ ] Manual: `cli.md` § `rietx watch` and § `rietx compare` say the pages
+- [x] Manual: `cli.md` § `rietx watch` and § `rietx compare` say the pages
       follow the GUI's theme; `gui/CLAUDE.md` § House style gains the one-line
       rule that the token values live in python and `tokens.css` is generated
-- [ ] Skill: none. Colour reaches no agent.
+- [x] Skill: none. Colour reaches no agent.
 
 ## Acceptance
 

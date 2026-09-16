@@ -566,6 +566,17 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   content is short by its padding and elides, and an ellipsis is what fitting and not fitting
   look the same amount of. Measure ink against room, never `scrollWidth`, which is
   `clientWidth` wherever overflow is visible.
+- **Three browser surfaces, one set of colour values, and they are Python** (WP-1429,
+  `viz/theme.py`). The GUI, `rietx watch` and `rietx compare` each answered "which colour is
+  the calculated curve" for itself, on two different darks. The values cannot live in
+  `gui/src`, which is a build input the wheel does not ship, so the module owns them, the two
+  Python servers render a `/tokens.css` route, `gui/src/tokens.css` is **generated and
+  committed** and a test holds it equal to the emitter. A page's extra roles — a hover, a
+  focus ring, a state pill — are `color-mix` over the nine chrome tokens, never a token of
+  their own: one the GUI never reads is a declared name with no writer. The **theme** is the
+  GUI's to write and everyone else's to read (`state_dir/settings.json`), and a change reaches
+  an open page on the poll it already makes. The **figure** palette (`viz/plots.PALETTES`) is
+  not in this story and stays where it is.
 - **Two things are written once and consumed everywhere; never restate either.** (1) The residual
   **row layout** `[data | background-penalty | Pawley-restraint | soft-restraint]` lives in
   `model/rows.py` (`BLOCK_ORDER`, `layout()`, `assemble()`) — the numpy residual, the numpy
