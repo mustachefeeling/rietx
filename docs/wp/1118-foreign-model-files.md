@@ -608,7 +608,11 @@ PR #346.
   body in this repo spells identifiers in code spans, and the keyword looks like
   one. The rule now sits in `/wp-handover` step 11, where the body gets written.
   Closing an issue by hand afterwards records nothing about which PR did it,
-  which is why the finalisation PR carries the keywords instead.
+  which is why the finalisation PR carries the keywords instead. **The trap has a second half**: prose
+  about a keyword is a keyword. Writing that PRs #206 and #213 declined to close
+  #204 linked #204 to PR #347, and rewording around the number left the link
+  standing. Deleting the number cleared it, and
+  `gh pr view N --json closingIssuesReferences` is what says so.
 - **The dormant `wp1118-*` worktrees drop out by themselves.** Five branches
   besides this one are merged into `origin/main`, and `wp_claim.py status`
   filters a closed WP's kept trees, so the two dormant rows stop advertising
