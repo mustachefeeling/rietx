@@ -80,6 +80,38 @@ resolved theme and the page re-stamps on change, so no reload is needed.
 The plot follows the theme. The pages embed both palettes and `plotly.react`
 with the resolved theme's hues, on load and on change.
 
+### Inherited
+
+- **2026-09-16, from [1430](1430-the-page-is-a-file.md): the page is files, and
+  three of its names are not the ones 1430's plan said.** `watch.py` is the
+  package `watch/`, and the page is `watch/static/`: `index.html`, `watch.css`,
+  `watch.mjs` (the document) and `watch-core.mjs` (everything that touches no
+  DOM). `rietx.watch` imports unchanged. What to carry:
+  - **The DOM half is `.mjs`, not `.js`.** `node --check` reads a `.js` as
+    CommonJS, where the `import` of `watch-core.mjs` is a syntax error. A
+    browser cares about `type="module"` and the content type, never the
+    extension.
+  - **Node cases live in `tests/watch_core.test.mjs`**, not beside the module:
+    hatchling ships everything under `src/rietx`. They are invoked from
+    `tests/test_watch_app.py::test_the_pure_half_of_the_page_is_unit_tested`
+    (15 cases today), which passes `--test-reporter=tap` because node picks its
+    reporter by whether stdout is a terminal.
+  - **`@SUFFIX@`, `@DIST@` and `@HUE@` are gone.** A file cannot carry a token,
+    so the three ride on `/api/runs` as `payload.page.{suffix,dist,palette}`,
+    read at boot into the module-level `HUE` and `DIST`. That is 299 B of every
+    poll, against rows of 735 B each.
+  - **A new file under `static/` needs a row in `watch.STATIC_FILES`** and
+    nothing else — the route, the content type and the `.gitignore` guard all
+    read that dict. `*.html` in `.gitignore` swallowed `index.html` on the way
+    in, the sixth committed file that one rule has taken.
+  - Half of this WP's watcher half is done: the page takes
+    `viz/plots.PALETTES["dark"]` off the payload rather than carrying literals,
+    so a theme is a matter of which palette is sent. The page's own greys are
+    still literals, in `watch.css`. `compare_app.py` is the one page left as a
+    string in python, and this is the recipe if 1429 wants to move it.
+  - `tests/test_watch_browser.py` took no diff and stays the bar: if it
+    moves, the page moved.
+
 ## Non-goals
 
 - Changing `PALETTES`, the figures or `rietx html` (above).
