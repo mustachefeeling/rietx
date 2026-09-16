@@ -59,12 +59,52 @@ removes, and its header says the source is not written to.
 it cannot parse. A history node is about 10 kB (root CLAUDE.md § Conventions).
 Python's buffered writer and the kernel may each split an append of that size
 into more than one write, so a copy taken while the fit is mid-append can
-carry a torn last line and fail to open. Measure how often: copy a project
-under a fit two hundred times at random moments and count failures. Then
-choose: retry the copy once on a torn tail (the append finishes within
-milliseconds), or teach `read_records` to stop at a final line with no
-newline and report it. The second changes a "bad lines raise" rule and needs
-the measurement to justify it.
+carry a torn last line and fail to open.
+
+**Measured 2026-09-17** (macOS 25.5.0, M-series, `[dev]` venv; the writer is a
+subprocess in every run, because `rietx watch` is not the process running the
+fit and a thread would put the GIL in the window).
+
+**The window opens at one threshold, and it is the write buffer.**
+`append_record` writes through a `TextIOWrapper` whose buffer is
+`io.DEFAULT_BUFFER_SIZE` = 8192 B. A record that fits lands in one `write(2)`
+and is never visible half-written; one that does not is flushed in pieces. So
+the mode decides whether the window exists at all:
+
+| mode | 8 records, smallest-largest | over the buffer |
+| --- | --- | --- |
+| `rietveld` | 142-8068 B | 0 |
+| `lebail` | 142-8573 B | 1 |
+| `pawley` | 142-8963 B | 3 |
+
+Polling the raw bytes against a hammer appending the largest record, 6 rounds
+each: **34 of 258 107 samples (0.013 %) carried a partial last line on the
+Pawley seed, and 0 of 260 107 on the rietveld one.** At 562 appends/s that is
+about 0.24 µs of torn state per append — the interval between the buffer's
+flush at 8192 B and the record's own.
+
+**A copy does reproduce one.** Written deliberately rather than raced for, a
+torn tail survives `scratch_copy` byte for byte, and both `read_records` and
+`Project.open` refuse it by name: `history.jsonl:8: malformed history record`.
+Copying again, the append having landed, opens.
+
+**No copy caught one by racing**: 0 of 14 088 `copytree` copies under the
+hammer, 0 of 2 767 in a shorter run, 0 of 200 under a real fit. The hammer's
+duty cycle predicts ~1.8 in 14 088, so this is an upper bound rather than a
+floor.
+
+**What a reader would actually meet.** 20 fresh Pawley projects, a staged
+`mccusker_default` fit in another process, 10 copies each at random moments:
+**6.0 history appends per fit at 3.7/s, a 48 kB log, `scratch_copy` at 1.1 ms,
+0 failures in 200 copies.** Scaling the window by that append rate puts a click
+at roughly **10⁻⁶** of landing on a torn tail — and at zero for a `rietveld`
+project, whose records never cross the buffer.
+
+**So: retry the copy once.** It costs 1.1 ms on an event that does not
+otherwise happen, and the second copy is measured to open. Teaching
+`read_records` to tolerate a partial final line would change a load-bearing
+"bad lines raise" rule for a one-in-a-million event, and the measurement does
+not justify it.
 
 ### The two forms, and the decision
 
@@ -74,11 +114,19 @@ no process spawned by the watcher, nothing for `--read-only` to refuse. It is
 what exists today with one flag and one button.
 
 **Launch it.** `POST api/run/<id>/gui` spawns `rietx gui --scratch <project>
---no-open --json` and returns the boot line's `url`; the page opens it in a new
-tab. Behind the same host allowlist as stop, refused under `--read-only`,
+--no-open --machine` and returns the boot line's `url`; the page opens it in a
+new tab. Behind the same host allowlist as stop, refused under `--read-only`,
 refused for a run with no project. The spawned GUI outlives the watcher, as a
-scratch copy already outlives its GUI. The `--json` boot line (url, port,
-project, pid, scratch_of) exists for exactly this caller.
+scratch copy already outlives its GUI. The `--machine` boot line (url, port,
+project, pid, scratch_of) exists for exactly this caller. **The flag is
+`--machine`; this file said `--json` until 2026-09-17 and no such flag exists.**
+
+**Measured 2026-09-17, the spawn works as described.** Three GUIs launched in
+turn on one project: **0.58-0.89 s from `Popen` to the boot line**, ports
+8731 then 63972 then 63973 — `build_server` already falls back to an ephemeral
+port when one is busy, so a second window needs no port argument from the
+caller — and the source project's `history.jsonl` was byte-identical after all
+three.
 
 The launch form is what the ask means by a feature. It costs a second verb in
 an app whose strength ROADMAP § A window into a run states as having none,
@@ -95,7 +143,11 @@ A bare `fit()` records under `.rietx/runs/` and has no project to copy. Its
 row and strip show nothing for this feature. Building a project from a run's
 snapshot is not a thing; the snapshot is a picture.
 
-### Inherited
+### What the page already gives this WP
+
+Folded out of `### Inherited` on 2026-09-17. Three entries were there on
+arrival and all three still held; two more arrived from 1427 mid-session, while
+this WP was being built, and are folded in below.
 
 - **2026-09-17, from [1427](1427-what-a-poll-costs.md): the watcher's routes
   gained two things a GUI-launching WP should know, and left one open
@@ -133,61 +185,24 @@ snapshot is not a thing; the snapshot is a picture.
   `test_watch_browser.py`). The fix needs a **categorical palette the GUI does
   not own**, which is the maintainer's question rather than any WP's.
 
-
-- **2026-09-16, from [1429](1429-one-palette-and-one-theme-for-three-pages.md):
-  a GUI opened from the watcher now matches the page it was opened from.**
-  Both read the theme out of `state_dir/settings.json` and draw from the same
-  colour tokens, so the scratch copy this WP is considering will not arrive in
-  a different colour scheme from the run list that launched it. One thing to
-  carry if this WP ever passes `--state-dir`: `theme.state_dir` is the single
-  resolver for that directory now (`gui/session.py` calls it), and a launch
-  that pointed the GUI somewhere else would give the two windows different
-  themes and nothing else.
-
-
-- **2026-09-16, from [1424](1424-a-row-that-names-its-run.md): the GUI command
-  has the strip's flexible slot to itself, and is the first thing the strip
-  drops.**
-  - `whereOf(run)` is now `run.gui_command` alone. The path it used to carry is
-    the label's tooltip (`runTitle`) and the point count is on the picture, so
-    `#s-where` holds one copyable command and nothing else.
-  - **It is hidden below 990 px of run panel**, the first slot to go, because
-    at 1400×900 with the list open the panel is 882 px and the slot's track was
-    being squeezed to zero anyway — the command was not being cut, it was
-    absent. So today a reader on an ordinary window sees no GUI affordance at
-    all unless they collapse the list. That is the gap this WP fills, and a
-    real affordance should not live in that slot: it is the one the strip drops
-    first.
-  - The command itself is unchanged (`watch/__init__.py` `_row`), still a
-    string a human copies rather than a verb the app performs.
-
-- **2026-09-16, from [1430](1430-the-page-is-a-file.md): the page is files, and
-  three of its names are not the ones 1430's plan said.** `watch.py` is the
-  package `watch/`, and the page is `watch/static/`: `index.html`, `watch.css`,
-  `watch.mjs` (the document) and `watch-core.mjs` (everything that touches no
-  DOM). `rietx.watch` imports unchanged. What to carry:
-  - **The DOM half is `.mjs`, not `.js`.** `node --check` reads a `.js` as
-    CommonJS, where the `import` of `watch-core.mjs` is a syntax error. A
-    browser cares about `type="module"` and the content type, never the
-    extension.
-  - **Node cases live in `tests/watch_core.test.mjs`**, not beside the module:
-    hatchling ships everything under `src/rietx`. They are invoked from
-    `tests/test_watch_app.py::test_the_pure_half_of_the_page_is_unit_tested`
-    (15 cases today), which passes `--test-reporter=tap` because node picks its
-    reporter by whether stdout is a terminal.
-  - **`@SUFFIX@`, `@DIST@` and `@HUE@` are gone.** A file cannot carry a token,
-    so the three ride on `/api/runs` as `payload.page.{suffix,dist,palette}`,
-    read at boot into the module-level `HUE` and `DIST`. That is 299 B of every
-    poll, against rows of 735 B each.
-  - **A new file under `static/` needs a row in `watch.STATIC_FILES`** and
-    nothing else — the route, the content type and the `.gitignore` guard all
-    read that dict. `*.html` in `.gitignore` swallowed `index.html` on the way
-    in, the sixth committed file that one rule has taken.
-  - `_row`'s `gui_command` is in `watch/__init__.py` now, unchanged. The
-    strip element that shows it is `#s-where` in `index.html`, filled by
-    `whereOf` in `watch.mjs`.
-  - `tests/test_watch_browser.py` took no diff and stays the bar: if it
-    moves, the page moved.
+- **The affordance has no home that survives an ordinary window** (1424). The
+  strip's `#s-where` holds `run.gui_command` alone, and it is the **first slot
+  the strip drops**: `@container (max-width: 990px)` sets `display:none` on it
+  and on `#s-free`, and at 1400x900 with the list open the run panel is 882 px.
+  So a reader on an ordinary window sees no GUI affordance at all today. 1424's
+  own words: a real affordance should not live in that slot. `#stop` is
+  grid-column 10 and is never dropped.
+- **The page is files, and the names are `watch/static/`** (1430): `index.html`,
+  `watch.css`, `watch.mjs` (the document) and `watch-core.mjs` (no DOM). A new
+  file under `static/` needs a row in `watch.STATIC_FILES` and nothing else.
+  Node cases live in `tests/watch_core.test.mjs`, invoked from
+  `tests/test_watch_app.py::test_the_pure_half_of_the_page_is_unit_tested`.
+  `_row`'s `gui_command` is in `watch/__init__.py`.
+- **A GUI opened from the watcher already matches the page that opened it**
+  (1429): both read the theme from `state_dir/settings.json` and draw from the
+  same tokens. `theme.state_dir` is the single resolver, so a launch that
+  passed a different `--state-dir` would split the two windows' themes and
+  nothing else. This WP passes none.
 
 ## Non-goals
 
@@ -200,7 +215,7 @@ snapshot is not a thing; the snapshot is a picture.
 
 ## Tasks
 
-- [ ] Measure the torn-tail rate of `scratch_copy` under a fit (200 copies at
+- [x] Measure the torn-tail rate of `scratch_copy` under a fit (200 copies at
       random moments), and record it here with the choice it forces
 - [ ] The decision: copy-the-command or launch, written into this file by the
       maintainer with the date

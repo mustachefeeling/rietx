@@ -327,7 +327,12 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
                 where = os.path.relpath(project, self.scan_root)
             except ValueError:                      # pragma: no cover - Windows
                 where = str(project)
-            row["gui_command"] = f"{DIST_NAME} gui {where}"
+            # `--scratch`, always: the run this row is about is *writing* that
+            # project, and there is no read-only way to open one — `Project.open`
+            # appends a head annotation before any verb runs (WP-1428). Without
+            # the flag this row hands a reader the one command that puts a
+            # second appender on a `history.jsonl` a fit is still growing.
+            row["gui_command"] = f"{DIST_NAME} gui --scratch {where}"
         return row
 
     def do_GET(self):  # noqa: N802 - http.server API

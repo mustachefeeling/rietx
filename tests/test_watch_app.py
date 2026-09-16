@@ -163,7 +163,7 @@ def test_a_project_run_carries_the_gui_command(tmp_path):
     with _served(tmp_path) as base:
         (row,) = _json(base + "/api/runs")["runs"]
     assert row["label"] == "sample.rex"
-    assert row["gui_command"] == "rietx gui sample.rex"
+    assert row["gui_command"] == "rietx gui --scratch sample.rex"
 
 
 def test_a_nested_project_command_names_the_path_not_the_name(tmp_path):
@@ -172,7 +172,7 @@ def test_a_nested_project_command_names_the_path_not_the_name(tmp_path):
               events=_event_line("fit_start"))
     with _served(tmp_path) as base:
         (row,) = _json(base + "/api/runs")["runs"]
-    assert row["gui_command"] == "rietx gui campaign/sample.rex"
+    assert row["gui_command"] == "rietx gui --scratch campaign/sample.rex"
 
 
 def test_a_plain_run_offers_no_gui_command(tmp_path):
