@@ -1,6 +1,6 @@
 # WP-1429 — the GUI's tokens and the GUI's theme, on the two python pages
 
-Milestone: unscheduled · Status: 🔄 2026-09-16 — claimed by @yue-here
+Milestone: unscheduled · Status: ✅ 2026-09-16 — one token module, both Python pages on the GUI's colours and its theme, and the watcher has a light theme
 Depends on: 1430 (the watch page as files); 1426 soft (the browser harness)
 
 ## Goal
@@ -164,6 +164,97 @@ skip.
   215–219 and 313.
 
 ## Handover log
+
+- **2026-09-16** — **the three pages agree about colour, and two of them
+  follow the theme the GUI stores.** Somebody with `rietx watch` and the GUI
+  open beside each other was looking at one fit in two colour schemes, on two
+  different darks, with the calculated curve orange in one window and red in
+  the other. It is one scheme now, because the colour *values* moved into
+  Python and everything reads them from there. The watch page has a light
+  theme for the first time, and switching in the GUI reaches an open watch tab
+  on its next poll without a reload. What it cost is one visible change nobody
+  asked for: the reflection tick rows lost their own colours to plotly's
+  cycle, which is what the GUI's tick rows have always taken.
+
+  **Done.** `viz/theme.py` owns `TOKENS` for both themes, chrome and plot, with
+  the `app.css` comments moved across as `NOTES` and emitted into the file;
+  `tokens_css()` writes the three blocks and `gui/src/tokens.css` is generated
+  and committed, `app.css` importing it and keeping everything that is not a
+  colour. `theme_choice()` reads `ui.theme` out of `state_dir/settings.json`
+  and never writes it. Both Python servers serve `theme.CSS_ROUTE`. The watch
+  page reads its plot colours off the root element per draw
+  (`paletteFrom` in `watch-core.mjs`, the shape of the GUI's `curveColors`),
+  stamps `data-theme` from the poll and drops `shell.mtime` when the stamp
+  moves, which is what repaints the canvas; `compare` is stamped server-side at
+  load. `viz/html.py`'s literal legend ground became `with_alpha(hue["ground"],
+  0.85)` once the light figure palette declared a `ground`. `gui/session.py`
+  now calls `theme.state_dir` rather than resolving `$RIETX_STATE_DIR` itself.
+
+  **Measured** (`[dev]` + `playwright`, darwin/arm64, machine otherwise idle —
+  checked with `ps`).
+
+  - Fast selection **5197 passed, 132 skipped in 2:47**, and the same counts on
+    the tree four commits earlier, so the tail of this session moved no test.
+  - The WP's acceptance selection **155 passed**, against **124 passed and 1
+    skipped** on `main` at the session's start, so passed+skipped moved **+30**:
+    **13 items this WP added** (4 `test_gui_palette`, 3 `test_watch_app`, 3
+    `test_compare_ui`, 3 `test_watch_browser`), **1 it removed** (the lane pair
+    declared twice, which the emitter now makes structural), and **19 browser
+    rows the baseline skipped** as a module and this venv runs. Those 19 and my
+    3 **skip in CI**, which is the skip the acceptance asked this entry to
+    name. Node cases 31 → 34. vitest 584 and svelte-check 0 errors, both
+    unchanged.
+  - **The full suite did not run, deliberately.** Nothing here reaches the
+    forward model, a solver or a reader: the only non-GUI edits are a `ground`
+    key on the light figure palette that `_ground_rc` reads on the dark branch
+    only, a legend colour whose bytes are identical to the literal it replaced,
+    and a state-dir expression that resolves what it always did.
+  - Colour literals: `watch.css` **31 distinct → 0**, the one exemption being
+    the dialog's black scrim (a scrim darkens, so it is not a theme colour, as
+    the GUI's own two backdrops are not). `compare_app.py` **29 → 12**: the ten
+    variant hues, `#fff` on a filled accent button, and plotly's transparent
+    paper.
+  - The poll got smaller and slightly dearer. `page` went **262 B → 49 B** per
+    poll, the palette having left it; `theme_choice()` costs **16.8 µs** with a
+    settings file present and 4.6 µs without, against a 1.2 s poll.
+    `tokens_css()` is **43.6 µs** and 4972 B, once per page load.
+  - Looked at in chromium, both themes, both pages, plus the confirm dialog.
+
+  **Two departures from this WP's own sketch**, both deliberate. It said
+  `api/runs` would carry the *resolved* theme: it carries the **choice**,
+  because no server can see the machine a page is open on, and `system` is
+  answered by the `prefers-color-scheme` block the emitter already writes. And
+  it said the pages would embed both palettes: they read **one**, off their own
+  root element at draw time, so there is no second palette on the wire at all.
+
+  **Deliberately not generalised**, each said so in the code it sits in:
+  `compare`'s ten variant hues (a categorical set of ten, and the GUI's only
+  categorical set is five lanes at 72°, which is a palette this WP would have
+  had to invent); `viz/plots.PALETTES`, which is the figure palette and a
+  non-goal; `compare_app.py`'s page, still a string; `curveColors`' TypeScript
+  fallbacks, pinned to the light tokens by a new test rather than generated;
+  and `model/compiled.py`'s own copy of the state-dir expression, which is a
+  cache root and would cost a hot-path module an import of `viz` to share.
+
+  **Gotchas.**
+
+  - The first paint has no `data-theme` on it, so an explicit *light* choice on
+    a dark system flashes dark for one fetch. That is the GUI's behaviour too,
+    and `app.css`'s comment is where the argument lives.
+  - `tokens.css` is generated. An edit to a colour goes in `viz/theme.py`, then
+    `python -m rietx.viz.theme > gui/src/tokens.css`, then
+    `npm --prefix gui run build` — the dist digest covers `src/**`, so a
+    forgotten rebuild fails `test_gui_dist.py` rather than going quiet.
+  - The browser file carries no `slow` mark, so in a venv with playwright it
+    joins the fast suite and costs it about 112 s.
+
+  **Next**, in order: **1427** takes the poll this WP just changed, and the two
+  numbers above are its starting point rather than a result. Then **1428**,
+  which is the maintainer's decision first. Two questions for the maintainer
+  are this WP's own, both cosmetic and both visible in a screenshot: whether
+  the tick rows should keep plotly's cycle now that they have it, and whether
+  `abandoned` sharing the warning hue with `cancelled` (stepped towards
+  `--muted`) reads as the distinction it used to make in gold against gold.
 
 - **2026-09-16** — created, from the maintainer's question after the demo job;
   revised the same day: the pages adopt the GUI's tokens and the figure

@@ -272,7 +272,7 @@ def state_dir(override: str | Path | None = None) -> Path:
     return Path(os.environ.get(STATE_DIR_ENV) or Path.home() / STATE_DIR_NAME)
 
 
-def theme_choice(override: str | Path | None = None) -> str:
+def theme_choice() -> str:
     """The theme the person chose, from ``settings.json``; ``system`` by default.
 
     Read-only, and that is the rule rather than an omission: the GUI writes the
@@ -281,9 +281,13 @@ def theme_choice(override: str | Path | None = None) -> str:
     ``"system"``, never an error — the same grammar
     :meth:`~rietx.gui.session.Session.settings` uses, and for the same reason:
     no setting here is worth refusing to start over.
+
+    No directory argument: both callers want the person's, and a parameter
+    nothing passes is a claim with no writer.  A caller that one day wants to
+    ask about some other directory adds it then.
     """
     try:
-        raw = json.loads((state_dir(override) / "settings.json")
+        raw = json.loads((state_dir() / "settings.json")
                          .read_text(encoding="utf-8"))
         value = raw["ui"]["theme"]
     except (OSError, ValueError, KeyError, TypeError, RuntimeError):

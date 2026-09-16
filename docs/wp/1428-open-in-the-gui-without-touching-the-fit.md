@@ -97,6 +97,17 @@ snapshot is not a thing; the snapshot is a picture.
 
 ### Inherited
 
+- **2026-09-16, from [1429](1429-one-palette-and-one-theme-for-three-pages.md):
+  a GUI opened from the watcher now matches the page it was opened from.**
+  Both read the theme out of `state_dir/settings.json` and draw from the same
+  colour tokens, so the scratch copy this WP is considering will not arrive in
+  a different colour scheme from the run list that launched it. One thing to
+  carry if this WP ever passes `--state-dir`: `theme.state_dir` is the single
+  resolver for that directory now (`gui/session.py` calls it), and a launch
+  that pointed the GUI somewhere else would give the two windows different
+  themes and nothing else.
+
+
 - **2026-09-16, from [1424](1424-a-row-that-names-its-run.md): the GUI command
   has the strip's flexible slot to itself, and is the first thing the strip
   drops.**

@@ -83,6 +83,28 @@ Browser, per poll:
 
 ### Inherited
 
+- **2026-09-16, from [1429](1429-one-palette-and-one-theme-for-three-pages.md):
+  the poll's payload changed under this WP, in both directions.** Measured on
+  this machine, `[dev]`, darwin/arm64.
+  - The `page` block shrank **262 B → 49 B** per poll. The dark palette left it
+    — the page reads its colours off its own root element now — and the theme
+    *choice* took its place. So 1430's "299 B of every poll" is stale and the
+    row cost it was compared against (735 B each) is unchanged.
+  - Every `/api/runs` now reads `state_dir/settings.json`, because the theme is
+    the one thing on the page a person changes while it is open. **16.8 µs**
+    with the file present, 4.6 µs without, against a 1.2 s poll. It is
+    uncached on purpose; if this WP's instrument says the read is worth
+    caching, the cache has to expire faster than a person notices a theme
+    switch not arriving.
+  - A new route, `/tokens.css`, is **43.6 µs** and 4972 B, rendered per request
+    and fetched once per page load rather than per poll. It carries no
+    `Cache-Control`, which is a free thing to fix if this WP is counting bytes
+    on the wire at all.
+  - A theme change clears `shell.mtime`, which forces one extra snapshot fetch
+    and redraw on the poll that carries it. Once per switch, so it is not a
+    steady-state cost, but a benchmark that flips the theme will see it.
+
+
 - **2026-09-16, from [1424](1424-a-row-that-names-its-run.md): a row does more
   per poll than it did when this WP was written.**
   - `fillRow` now writes three `title` attributes and a `<time>` element's
