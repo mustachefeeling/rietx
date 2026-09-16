@@ -66,6 +66,27 @@ position is WP-1426's and must already hold.
 
 ### Inherited
 
+- **2026-09-16, from [1426](1426-still-under-resize-and-across-a-stage.md): the
+  legend fix landed, and it hands you a narrow-panel problem in exchange.**
+  - The blocker is discharged. The legend is anchored inside the paper
+    (`y: 1, yanchor: 'top'`), so the plot area's top is the declared 8 px
+    margin at every width and its height is constant. Resizing a panel now
+    changes the picture's *width* alone, which is what makes a drag handle
+    measurable: before this, narrowing a panel also shortened the picture.
+  - **The cost is at narrow widths and it is yours.** A horizontal legend still
+    wraps, and inside the paper it wraps *over* the data rather than pushing it
+    down. At an 800 px window with both panels open the run panel is ~280 px,
+    the legend takes five rows, and it covers the top quarter of the intensity
+    panel, tallest peak included. `withAlpha(HUE.ground, 0.72)` keeps the curve
+    faintly visible through it, which is a mitigation and not a fix. The fix is
+    a panel wide enough for the picture, which is this WP.
+  - Measured, `[dev]` + playwright, darwin/arm64, at 1400 / 1000 / 700 px
+    viewport: plot area `[58, 8, 807, 503]`, `[58, 8, 407, 503]`,
+    `[58, 8, 107, 503]`. Before: top 46 / 65 / 139, height 465 / 446 / 372.
+  - `tests/test_watch_browser.py::test_the_legend_is_a_dimension_the_page_fixes`
+    reads the geometry at those three widths and is where a panel change gets
+    checked against the legend.
+
 - **2026-09-16, from [1430](1430-the-page-is-a-file.md): the page is files, and
   three of its names are not the ones 1430's plan said.** `watch.py` is the
   package `watch/`, and the page is `watch/static/`: `index.html`, `watch.css`,

@@ -82,6 +82,24 @@ with the resolved theme's hues, on load and on change.
 
 ### Inherited
 
+- **2026-09-16, from [1426](1426-still-under-resize-and-across-a-stage.md): one
+  new colour helper, and one hardcoded colour that is yours to take.**
+  - The legend moved inside the paper, so its ground now sits over the data and
+    needs an opacity. `watch-core.mjs` gained **`withAlpha(hex, alpha)`**, which
+    composes `rgba(...)` from a palette token so the colour keeps one authority;
+    anything it cannot parse comes back unchanged, a palette being data off the
+    wire. `watch.mjs` uses `withAlpha(HUE.ground, 0.72)`. Four node cases in
+    `tests/watch_core.test.mjs`.
+  - **`viz/html.py` got a literal `"rgba(255,255,255,0.85)"` for the same job**,
+    because that page draws under plotly's `simple_white` template and has no
+    `HUE` to quote. It is a hardcoded colour in a file whose other colours all
+    come from `PALETTES`, and it is exactly the kind of second authority this
+    WP exists to remove. Folding it into the token story is a one-line change
+    once the light palette carries a ground.
+  - The 0.72 and the 0.85 were chosen by looking at the rendered pages, not
+    measured. If this WP sets opacity tokens, they should be its numbers rather
+    than these.
+
 - **2026-09-16, from [1430](1430-the-page-is-a-file.md): the page is files, and
   three of its names are not the ones 1430's plan said.** `watch.py` is the
   package `watch/`, and the page is `watch/static/`: `index.html`, `watch.css`,
