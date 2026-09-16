@@ -6,7 +6,7 @@
 // runner has been in node since 18.
 //
 // Every case here is a claim the page made and nothing checked, because until
-// WP-1430 none of this was importable. The Δ/σ ladder, the 99.9th-percentile
+// WP-1430 none of this was importable. The Δ/σ ladder, the residual's outlier
 // cut and the "NaN" guard were each written against a real defect and each
 // verified by looking at a browser.
 
@@ -123,7 +123,7 @@ test('one spiked point does not set the scale, and ten misfitted ones do',
     // a snapshot's arrays are the decimation's, up to `MAX_POINTS` = 4000
     const points = 4000;
     const base = new Array(points).fill(1);
-    // a single 900σ point is above the 99.9th percentile and is cut
+    // a single 900σ point is inside the cut of four and never reaches the scale
     const spike = base.slice();
     spike[2000] = 900;
     assert.deepEqual(rangesOf(snapshot(spike, {points})).y2, [-3, 3]);

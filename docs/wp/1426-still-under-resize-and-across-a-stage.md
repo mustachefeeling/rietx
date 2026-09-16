@@ -124,7 +124,7 @@ no DOM). Five facts carry into this WP's edits.
   as CommonJS and the `import` of `watch-core.mjs` is a syntax error there.
 - **Node cases live in `tests/watch_core.test.mjs`**, since hatchling ships
   everything under `src/rietx`. `tests/test_watch_app.py::test_the_pure_half_of_the_page_is_unit_tested`
-  invokes the 19 of them.
+  invokes them (15 inherited from 1430; 20 after this WP).
 - **The page's three build constants ride on `/api/runs`** as
   `payload.page.{suffix,dist,palette}`, read at boot into module-level `HUE`
   and `DIST`. A file cannot carry the `@TOKEN@` substitutions they were.
