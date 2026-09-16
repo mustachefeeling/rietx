@@ -138,7 +138,8 @@ where that was run.
 
 A batch launched from one directory gives every run the same label, so the
 second it started is what tells its rows apart. That is a fact about the
-record rather than about the fit — nothing in it says what a run was fitting.
+record rather than about the fit. Nothing the record holds says what a run was
+fitting.
 
 The page holds still while the fit moves. The plot redraws in place as the fit
 writes each stage. Its 2θ and intensity axes are set by the pattern, so they
