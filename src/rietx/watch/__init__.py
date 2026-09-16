@@ -249,8 +249,11 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
             self._static("index.html")
             return
 
-        if path.lstrip("/") in STATIC_FILES:
-            self._static(path.lstrip("/"))
+        # the page's own files, before the fallback: a run directory holding a
+        # `watch.css` of its own does not get to replace the page's
+        name = path.lstrip("/")
+        if name in STATIC_FILES:
+            self._static(name)
             return
 
         if path == "/plotly.js":
