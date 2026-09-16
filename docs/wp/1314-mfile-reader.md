@@ -53,6 +53,19 @@ flipping).
 
 ### Inherited
 
+- **2026-09-16, from [1118](1118-foreign-model-files.md): the `write` arm
+  publishes a registry member's writer, and a writer that is not the format's
+  own file has no member to sit on.**
+  `capabilities().project_formats[i].write` carries the exported name of that
+  format's writer or `None`. GSAS-II's writers are `rx.write_gsas2_instprm` and
+  `rx.write_gsas2_phase_cif`, the pair that program *imports*, so the
+  `gsas2_gpx` member's `write` stays `None` and that is true: this build writes
+  no `.gpx`. The pair is published in the manual and the skill instead, and a
+  client asking the arm a GSAS-II-shaped question is told nothing. A `.m50`
+  writer has its own member and fills the field. A writer aimed at some other
+  file Jana imports meets the same gap, and closing it is a deliberate change
+  to the arm rather than a writer hung on a member it does not write.
+
 - **2026-09-16, from [1118](1118-foreign-model-files.md): a `.m50` states its
   symmetry operators, so its setting is read rather than assumed.** A bare
   Hermann-Mauguin symbol is two groups for 40 of gemmi's settings, and gemmi
@@ -67,7 +80,6 @@ flipping).
   should not reach for `SPACE_GROUP_SETTING_ASSUMED`, which is the answer only
   for a format stating a symbol alone (`io/CLAUDE.md` carries the rule).
 - **2026-09-16, from [1118](1118-foreign-model-files.md): the registry has a
-  binary member now, and two of its rules are yours to inherit.** The GSAS-II
   binary member now, and two of its rules are yours to inherit.** The GSAS-II
   `.gpx` reader went in first in `PROJECT_FORMATS`, because every other sniff
   decodes the head with `errors="ignore"` and meets a binary file as text with
