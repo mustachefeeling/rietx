@@ -1,6 +1,6 @@
 # WP-1431 — a caller names its run
 
-Milestone: unscheduled · Status: 🔄 2026-09-16 — claimed by @yue-here
+Milestone: unscheduled · Status: ✅ 2026-09-16 — `label=` on every verb that records a run; the page needed no change
 Depends on: 1424 (the column that shows the name)
 
 ## Goal
@@ -112,6 +112,102 @@ rule.
   knob achieves without a skill row), WP-1330 (where a batch rule lives).
 
 ## Handover log
+
+- **2026-09-16** — **a run can be named after the thing it fitted, and the
+  watcher shows that name.** Before this, every run driven from one directory
+  was called after that directory, so a batch of forty candidates wrote forty
+  rows under one word and a reader told them apart by start time alone. A
+  caller now passes `label=` and the row carries the work. The keyword turned
+  out to be the only thing missing: `runs.attach` already took one, the record
+  already stored it, and the page already preferred it over the derived name,
+  so nothing between the writer and the reader needed building. What the WP
+  predicted would gate the work did not, and what actually resisted was a
+  size cap on a generated file and the package's own former name.
+
+  **Done.** `label=` threads to `runs.attach` from `Refinement.fit`,
+  `Refinement.run_stage`, `refine` and `SequentialRefinement.fit`;
+  `Project.fit`, `Project.run_stage` and `refine_sequential` forward it through
+  their `**kw`. The WP named three verbs, and `run_stage` and the series are
+  its siblings: three `attach` call sites is the class, so all three take one.
+  A series label names the **job**, one run directory however many patterns it
+  walks, which is not the per-member fact the non-goals exclude. The manual
+  gains `refining.md` § Naming a run, and the skill gains `9c.32` in
+  `batch-operating.md`, tagged `(Hypothesis: …)` because no campaign has yet
+  run with labels on.
+
+  **The page took no functional diff.** `read_run` already prefers
+  `meta.label` over `_label_for`'s derived name, and `rowName` already renders
+  it, so a caller's label reaches the list through the call site 1424 left.
+  What changed in `watch-core.mjs` is comments, every line of them: `rowName`'s
+  own comment said "a batch driven from one directory gives every run the same
+  label", which this WP falsifies.
+
+  **Measured, and both of this WP's own premises were wrong.**
+  - The WP said `tests/test_manual_api.py`'s partition would fail until the
+    manual documented the keyword. It does not. Removing the section and
+    re-running gave 17 passed, unchanged. `tests/api_surface.py` is derived
+    over **names and fields**, so a new *keyword* on an already-documented
+    method enters no denominator and no gate sees it. The section is there
+    because an undocumented knob is WP-1322 again, not because a test went
+    red. **This is a real hole in a coverage gate**, and closing it is not
+    this WP's: it would mean partitioning signatures, not names.
+  - `references/api.md` is **generated**, one signature per public name, and
+    sat at 35 942 B against `REFERENCE_MAX_BYTES` 36 000. This keyword took it
+    to 36 020. The next public keyword would have done the same to whoever
+    added it. Raising the shared cap would have handed `diagnostics.md` the
+    room WP-1338 deliberately denied it (20 B free, PR #291 open as the split
+    that buys the next diagnostic row), so the generated file has its own
+    `API_INDEX_MAX_BYTES` and the authored bar is untouched.
+
+  **Gotchas, each paid for once.**
+  - **`anatase` is the package's own pre-WP-1066 name** and
+    `test_no_stale_name.py` keeps it gone. Reaching for a TiO₂ polymorph to
+    name an example candidate put it in the manual, the telemetry tests and
+    the node cases in one go. Rutile now.
+  - **A caller's label is the one field in `meta.json` that a caller supplies,
+    so it is the one that can arrive as the wrong type**, and the silent
+    failure costs the whole record: `_write_meta` writes raw JSON, a list
+    lands as an array, `RunMeta` refuses the file, and a perfectly recorded
+    run reads back as `· legacy` with a derived name and no tooltip. It is
+    refused at the funnel instead. The hazard is one letter wide —
+    `SequentialRefinement.fit` has a `labels=` for the patterns beside this
+    `label=` for the job. The check sits **before** `attach`'s switch-off
+    guard, so a caller's suite catches it with telemetry declined.
+  - **The skill's tag regex wants a literal space after the colon.**
+    `*(Hypothesis:\nthe …)*` does not match `\*\((Measured|Hypothesis): .+\)\*\Z`,
+    and the failure reads as a missing tag rather than a wrapped one.
+
+  **The review pass changed three things and declined three.**
+  `/code-review high --fix` found that every doc it touched was asserting the
+  limitation this WP removes. `cli.md` said "Nothing the record holds says
+  what a run was fitting"; `watching.md` § 9d.2 told an agent to quote a run
+  id because the label is the working directory's; `series.md` named `labels=`
+  and not its one-letter neighbour. No gate catches prose that has become
+  false — `test_manual_api` checks that names resolve, not that sentences are
+  true. Declined, with reasons: the funnel check runs **after** a verb has
+  reset its own state, so `run_stage(…, label=["a"])` raises having already
+  cleared `stage_reports_` (self-healing on the next `fit`, and hoisting the
+  check into five verbs to fix it costs more than it saves);
+  `API_INDEX_MAX_BYTES` clears a 20 B overshoot by 2980 B, which the comment
+  states deliberately and which still fires a kilobyte before the truncation
+  it defends; and `Refinement.edit(label=)` already means a history
+  annotation on this class, so the word now carries two meanings on one
+  object, and unifying them is a rename outside this diff.
+
+  **Numbers.** Fast selection green at 5153 passed, 133 skipped, `[dev]`
+  venv, macOS arm64, nothing else mid-suite — measured before the review pass
+  and the project-hop test, which add 1 test between them. 7 tests added in
+  all, every one a pass. `tests/test_watch_browser.py` **skipped**: this
+  worktree's `[dev]` venv has no playwright, and the page diff is comments
+  only, so the browser bar did not run and did not need to. **The full suite
+  did not run**, deliberately: the change adds an optional keyword, a type
+  check and prose, and moves no measured number, which is the condition
+  `tests/CLAUDE.md` § Running puts on rung 3.
+
+  **Next:** [1425](1425-the-panels-are-the-readers-to-size.md), the next rung
+  of the watcher track, which now has a reason to widen the run column that
+  1424 did not have — a caller's label is the first thing that column carries
+  that is worth more than 12ch. Then 1429, 1427, 1428.
 
 - **2026-09-16** — created in the revision of 1424–1429, split out of 1424's
   non-goals.
