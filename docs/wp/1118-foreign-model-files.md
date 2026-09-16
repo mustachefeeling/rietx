@@ -8,7 +8,8 @@ refines 20 parameters where GSAS refined 28; `read_gsas_prm` now reads its
 fixed-format records by column and a Kα doublet with them (PR #332), and
 refuses an out-of-range value naming the file; the GSAS-II `.gpx` reader landed
 2026-09-16 behind a restricted unpickler (#234), whose corpus pass corrected the
-`.EXP` reader's GOF claim; every writer remains
+`.EXP` reader's GOF claim; every writer remains, and origin-choice
+honesty (#101) is claimed 2026-09-16 by @yue-here
 Depends on: — (WP-1110 found it; WP-1102 owns the one seam that overlaps)
 
 ## Goal
