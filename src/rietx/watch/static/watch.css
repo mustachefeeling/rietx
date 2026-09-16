@@ -19,8 +19,8 @@ body { margin:0; font-family: ui-monospace, Menlo, monospace; font-size:12px;
        height:100vh; overflow:hidden; }
 a { color:var(--accent); text-decoration:none; }
 a:hover { text-decoration:underline; }
-#bar { background:var(--panel); border-bottom:1px solid var(--line); padding:0 12px;
-       display:flex; gap:12px; align-items:center; flex:0 0 auto;
+#bar { background:var(--panel); border-bottom:1px solid var(--line);
+       padding:0 12px; display:flex; gap:12px; align-items:center; flex:0 0 auto;
        height:29px; white-space:nowrap; }
 #root { color:var(--muted); flex:1 1 auto; min-width:0; overflow:hidden;
         text-overflow:ellipsis; }
@@ -54,14 +54,16 @@ body[data-single] #runs, body[data-single] #grip-list { display:none; }
 .grip { flex:0 0 5px; background:var(--panel); border:0; padding:0;
         touch-action:none; }
 .grip:hover { background:color-mix(in srgb, var(--accent) 30%, var(--panel)); }
-.grip:focus-visible { background:color-mix(in srgb, var(--accent) 45%, var(--panel));
-                      outline:1px solid var(--accent); outline-offset:-1px; }
+.grip:focus-visible { outline:1px solid var(--accent); outline-offset:-1px;
+                      background:color-mix(in srgb, var(--accent) 45%,
+                                           var(--panel)); }
 .grip.dragging { background:color-mix(in srgb, var(--accent) 45%, var(--panel)); }
 .grip.v { cursor:col-resize; }
 .grip.h { cursor:row-resize; }
 /* a collapsed pane's grip is the only way back to it, so it says so */
 .grip.closed { background:color-mix(in srgb, var(--accent) 18%, var(--panel)); }
-.grip.closed:hover { background:color-mix(in srgb, var(--accent) 45%, var(--panel)); }
+.grip.closed:hover { background:color-mix(in srgb, var(--accent) 45%,
+                                          var(--panel)); }
 table { border-collapse:collapse; width:100%; table-layout:fixed; }
 /* Under `table-layout: fixed` a declared width is the cell's whole box, so
    every column here is its worst content plus the 14 px the cell pads with.
@@ -77,7 +79,10 @@ th { text-align:left; color:var(--muted); font-weight:normal; padding:6px 7px;
      border-bottom:1px solid var(--line); position:sticky; top:0;
      background:var(--bg); overflow:hidden; text-overflow:ellipsis;
      white-space:nowrap; }
-td { padding:6px 7px; border-bottom:1px solid color-mix(in srgb, var(--line) 45%, transparent); white-space:nowrap;
+/* a row rule is lighter than the header's, as it was: the head is a boundary
+   and a row is a separation */
+td { padding:6px 7px; white-space:nowrap;
+     border-bottom:1px solid color-mix(in srgb, var(--line) 45%, transparent);
      overflow:hidden; text-overflow:ellipsis; }
 tr.run { cursor:pointer; }
 tr.run:hover { background:color-mix(in srgb, var(--fg) 6%, transparent); }
