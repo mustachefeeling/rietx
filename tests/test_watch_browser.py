@@ -27,6 +27,8 @@ from pathlib import Path
 import pytest
 
 from rietx import runs
+from rietx._about import STATE_DIR_ENV
+from rietx.viz.theme import TOKENS
 from tests.test_watch_app import _served
 
 playwright = pytest.importorskip("playwright")
@@ -179,6 +181,98 @@ def _open(browser, base: str, run_id: str):
                            timeout=15000)
     page.wait_for_timeout(500)
     return page, errors
+
+
+# ----------------------------------------------------------------------
+# the theme (WP-1429)
+# ----------------------------------------------------------------------
+def _rgb(value: str) -> tuple[int, int, int]:
+    """A colour as a triple, from either spelling a browser hands back.
+
+    plotly is given a `#rrggbb` and reports `rgb(r, g, b)`; `getComputedStyle`
+    answers in `rgb()` too.  Comparing strings would be comparing spellings.
+    """
+    value = value.strip()
+    if value.startswith("#"):
+        return tuple(int(value[i:i + 2], 16) for i in (1, 3, 5))
+    return tuple(int(float(n)) for n in re.findall(r"[\d.]+", value)[:3])
+
+
+THEME_STATE = """() => {
+  const plot = document.getElementById('plot');
+  const root = document.documentElement;
+  return {
+    stamped: root.dataset.theme ?? null,
+    calc: plot._fullData.find(t => t.name === 'calculated').line.color,
+    obs: plot._fullData.find(t => t.name === 'observed').marker.color,
+    page: getComputedStyle(document.body).backgroundColor,
+    ink: getComputedStyle(document.body).color,
+  };
+}"""
+
+
+@pytest.mark.parametrize("choice", ["dark", "light"])
+def test_the_page_is_drawn_in_the_theme_the_gui_stored(browser, tmp_path,
+                                                       monkeypatch, choice):
+    """Chrome *and* curves, against the GUI's own token values (WP-1429).
+
+    The assertion that matters is the calculated line: the watcher drew it
+    `#ff9d4d` and the GUI `#e56a52`, so a reader with both open saw one fit in
+    two colour schemes.  Reading it out of `_fullData` is reading what was
+    painted rather than what was asked for.
+    """
+    state = tmp_path / "state"
+    state.mkdir()
+    monkeypatch.setenv(STATE_DIR_ENV, str(state))
+    (state / "settings.json").write_text(
+        json.dumps({"ui": {"theme": choice}}), encoding="utf-8")
+    watched = _make_tree(tmp_path, n_done=2)
+    with _served(tmp_path) as base:
+        run_id = next(r.run_id for r in runs.discover(tmp_path)
+                      if r.path == watched)
+        page, errors = _open(browser, base, run_id)
+        drawn = page.evaluate(THEME_STATE)
+        page.close()
+    assert errors == []
+    tokens = TOKENS[choice]
+    assert drawn["stamped"] == choice
+    assert _rgb(drawn["calc"]) == _rgb(tokens["--plot-calc"])
+    assert _rgb(drawn["obs"]) == _rgb(tokens["--plot-obs"])
+    assert _rgb(drawn["page"]) == _rgb(tokens["--bg"])
+    assert _rgb(drawn["ink"]) == _rgb(tokens["--fg"])
+
+
+def test_a_theme_changed_in_the_gui_reaches_an_open_page(browser, tmp_path,
+                                                         monkeypatch):
+    """Through the poll the page already makes, without a reload.
+
+    The canvas is the half CSS cannot repaint: a stylesheet reaches the chrome
+    the moment `data-theme` moves, and the plot keeps whatever colours it was
+    painted with until something redraws it.  So the page drops the mark it
+    uses to skip an unchanged snapshot, and the next poll draws.
+    """
+    state = tmp_path / "state"
+    state.mkdir()
+    monkeypatch.setenv(STATE_DIR_ENV, str(state))
+    (state / "settings.json").write_text(
+        json.dumps({"ui": {"theme": "dark"}}), encoding="utf-8")
+    watched = _make_tree(tmp_path, n_done=2)
+    with _served(tmp_path) as base:
+        run_id = next(r.run_id for r in runs.discover(tmp_path)
+                      if r.path == watched)
+        page, errors = _open(browser, base, run_id)
+        before = page.evaluate(THEME_STATE)
+        (state / "settings.json").write_text(
+            json.dumps({"ui": {"theme": "light"}}), encoding="utf-8")
+        page.wait_for_timeout(int(2.5 * POLL * 1000))
+        after = page.evaluate(THEME_STATE)
+        page.close()
+    assert errors == []
+    assert _rgb(before["calc"]) == _rgb(TOKENS["dark"]["--plot-calc"])
+    assert after["stamped"] == "light"
+    assert _rgb(after["page"]) == _rgb(TOKENS["light"]["--bg"])
+    # the picture too, which is the half a stylesheet does not reach
+    assert _rgb(after["calc"]) == _rgb(TOKENS["light"]["--plot-calc"])
 
 
 def test_a_stage_changes_the_text_and_nothing_else(browser, tmp_path):

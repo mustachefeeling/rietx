@@ -134,7 +134,7 @@ WP starts; every entry below is still true.
 - [x] The theme choice read from `settings.json`, stamped on both pages,
       `system` through the media query, carried on `api/runs` so an open watch
       page follows a change; the plot follows the theme
-- [ ] Browser test: the watch page in light and dark, the plot's calculated
+- [x] Browser test: the watch page in light and dark, the plot's calculated
       line colour equal to the GUI's token in each, and a theme change in
       `settings.json` reaching the page within two polls
 - [ ] Manual: `cli.md` § `rietx watch` and § `rietx compare` say the pages
