@@ -50,6 +50,29 @@ const MAX_LINES = 2000;
 const PANELS_KEY = 'rietx-watch-panels';
 const LAYOUT_KEY = 'rietx-watch-layout';
 
+// ------------------------------------------------------------- stopwatch
+// What one poll costs, on the page's own timeline (WP-1427).
+//
+// `performance.measure` with an explicit start is the browser's documented way
+// to name a span, it costs about a microsecond, and it lands in the profiler's
+// User Timing track where a human debugging a slow poll would already be
+// looking. The suite reads the same entries through `getEntriesByType`, which
+// is why the names are stable strings: `net` is the wire, `parse` is JSON, and
+// everything after those two is this page's own work.
+//
+// The timeline is cleared every `MARK_CAP` spans. Nothing else here clears it,
+// and a page left open overnight would otherwise grow one entry per span per
+// poll for as long as the fit runs. About a minute of history is what a reader
+// or a test ever asks for.
+const MARK_CAP = 400;
+let marks = 0;
+function since(name, t0) {
+  try {
+    performance.measure(name, {start: t0});
+    if (++marks > MARK_CAP) { performance.clearMeasures(); marks = 0; }
+  } catch { /* no timeline here, and the page is no worse for it */ }
+}
+
 // text is written only when it changed: assigning the same string still
 // replaces the node, and a replaced node is a layout
 function setText(el, s) {
@@ -299,9 +322,13 @@ async function drawSnapshot(id) {
   }
   let snap;
   try {
+    const t0 = performance.now();
     const r = await fetch(`api/run/${id}/snapshot`, {cache: 'no-store'});
     if (!r.ok) return false;
+    since('snap:net', t0);
+    const t1 = performance.now();
     snap = await r.json();
+    since('snap:parse', t1);
   } catch (err) {
     return false;                      // the console tail is not the plot's
   }
@@ -311,6 +338,7 @@ async function drawSnapshot(id) {
   // react, never newPlot: it keeps the reader's zoom across a stage, which is
   // the whole reason the picture stopped being a page that reloads
   const hue = hues();
+  const drawn = performance.now();
   plotly.react(div, snapshotTraces(snap, hue), {
     margin: {l: 58, r: 14, t: 8, b: 56},   // room for the 2θ title
     // expectation 1 under a correct model, so the residual reads on an
@@ -364,6 +392,7 @@ async function drawSnapshot(id) {
     // opening a different run starts fresh
     uirevision: id,
   }, {displaylogo: false, responsive: true});
+  since('snap:react', drawn);
   setText($('s-where'), whereOf(rows.get(id)));
   setAttr($('s-where'), 'title', whereOf(rows.get(id)) || null);
   return true;
@@ -506,9 +535,13 @@ async function stopRun(id) {
 async function pumpEvents(id) {
   const q = new URLSearchParams({offset: tail.offset});
   if (tail.inode !== null) q.set('inode', tail.inode);
+  const t0 = performance.now();
   const r = await fetch(`api/run/${id}/events?` + q, {cache: 'no-store'});
   if (!r.ok) return;
+  since('tail:net', t0);
+  const t1 = performance.now();
   const payload = await r.json();
+  since('tail:parse', t1);
   // an in-flight tail of the run we just left must not renumber this one
   if (tail.id !== id || currentId() !== id) return;
   const pane = $('console');
@@ -519,6 +552,7 @@ async function pumpEvents(id) {
   // the tail follows the log only while the reader is at its end; a reader
   // who scrolled up to read is left where they are
   const atBottom = pane.scrollTop + pane.clientHeight >= pane.scrollHeight - 30;
+  const t2 = performance.now();
   const html = payload.events.map(e => {
     const t = new Date(e.t * 1000).toLocaleTimeString();
     const data = Object.entries(e.data || {}).map(([k, v]) =>
@@ -534,6 +568,7 @@ async function pumpEvents(id) {
   pane.insertAdjacentHTML('beforeend', html);
   while (pane.childElementCount > MAX_LINES) pane.firstElementChild.remove();
   if (atBottom) pane.scrollTop = pane.scrollHeight;
+  since('tail:render', t2);
 }
 
 // ------------------------------------------------------------- splitters
@@ -804,9 +839,13 @@ async function refresh() {
   if (refreshing) return;              // a slow poll is not two polls
   refreshing = true;
   try {
+    const t0 = performance.now();
     const r = await fetch('api/runs', {cache: 'no-store'});
     if (!r.ok) return;
+    since('runs:net', t0);
+    const t1 = performance.now();
     const payload = await r.json();
+    since('runs:parse', t1);
     // a theme that moved repaints the canvas, which CSS cannot do for it:
     // the picture is the one thing on this page a stylesheet does not reach.
     // The snapshot only: a legacy run's picture is a self-contained page that
@@ -816,7 +855,9 @@ async function refresh() {
     setText($('root'), 'scanned ' + payload.root);
     rows = new Map(payload.runs.map(run => [run.run_id, run]));
     newest = payload.runs.length ? payload.runs[0].run_id : null;
+    const t2 = performance.now();
     patchList(payload.runs);
+    since('runs:patch', t2);
     const id = currentId();
     if (id) await drawRun(id); else clearStrip();
   } finally {

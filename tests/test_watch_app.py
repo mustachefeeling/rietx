@@ -10,6 +10,7 @@ it — the script for anything in the script, the stylesheet for a rule.
 
 from __future__ import annotations
 
+import http.client
 import json
 import os
 import re
@@ -867,6 +868,71 @@ def test_no_colour_literal_is_left_in_the_page(tmp_path):
         text = (watch.STATIC_DIR / name).read_text(encoding="utf-8")
         found = set(literal.findall(text))
         assert found <= allowed, f"{name} still declares {sorted(found - allowed)}"
+
+
+# ----------------------------------------------------------------------
+# what a poll costs (WP-1427)
+# ----------------------------------------------------------------------
+def _server_timing(url: str) -> dict:
+    """The response's ``Server-Timing`` marks, as ``{phase: milliseconds}``."""
+    with urllib.request.urlopen(url, timeout=5) as response:
+        raw = response.headers.get("Server-Timing") or ""
+    out = {}
+    for part in raw.split(","):
+        name, _, dur = part.strip().partition(";dur=")
+        if name:
+            out[name] = float(dur)
+    return out
+
+
+def test_every_route_on_the_poll_says_what_it_cost(tmp_path):
+    """``Server-Timing``, which is the documented header for exactly this.
+
+    A browser shows it beside the request in the network panel, and this test
+    reads the same numbers with no profiler. The phases are named for what they
+    do rather than for the function doing it, so a rewrite of :class:`_RunIndex`
+    keeps ``walk`` meaning the walk.
+    """
+    _make_run(tmp_path / "r", events=_event_line("fit_start"), snapshot=True)
+    with _served(tmp_path) as base:
+        (row,) = _json(base + "/api/runs")["runs"]
+        run_id = row["run_id"]
+        listing = _server_timing(base + "/api/runs")
+        events = _server_timing(f"{base}/api/run/{run_id}/events?offset=0")
+        snapshot = _server_timing(f"{base}/api/run/{run_id}/snapshot")
+
+    assert set(listing) == {"walk", "rows", "serialize"}
+    assert set(events) == {"walk", "tail", "serialize"}
+    assert set(snapshot) == {"walk", "read"}
+    # a mark is a duration and not a clock: negative or absent is a bug in the
+    # instrument, and this is the only assertion worth making about the value
+    assert all(v >= 0.0 for marks in (listing, events, snapshot)
+               for v in marks.values())
+
+
+def test_a_marks_header_is_about_one_request_and_not_the_connection(tmp_path):
+    """Keep-alive serves many requests through one handler object.
+
+    The marks list is built per request and must be cleared per request, or the
+    second response on a connection carries the first one's numbers as well as
+    its own — a header that grows for as long as the browser holds the socket.
+    """
+    _make_run(tmp_path / "r", events=_event_line("fit_start"))
+    with _served(tmp_path) as base:
+        host, port = urllib.parse.urlsplit(base).netloc.split(":")
+        conn = http.client.HTTPConnection(host, int(port), timeout=5)
+        try:
+            seen = []
+            for _ in range(3):
+                conn.request("GET", "/api/runs")
+                response = conn.getresponse()
+                response.read()
+                seen.append(response.headers.get("Server-Timing") or "")
+        finally:
+            conn.close()
+    for header in seen:
+        assert [p.split(";")[0].strip() for p in header.split(",")] == [
+            "walk", "rows", "serialize"]
 
 
 def test_the_two_local_servers_allow_the_same_hosts():

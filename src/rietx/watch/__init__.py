@@ -171,13 +171,33 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
         self.scan_root = scan_root
         self.index = index
         self.allow_cancel = allow_cancel
+        self._marks: list[tuple[str, float]] = []
         super().__init__(*args, **kwargs)
+
+    def _timed(self, name: str, call):
+        """Run ``call``, and remember what it cost this request.
+
+        The marks go out as ``Server-Timing``, which is the documented header
+        for exactly this (MDN). A browser shows it in the network panel beside
+        the request it belongs to, and a python test reads it off the response
+        with no profiler and no clock of its own. That second reader is why the
+        phases are named for what they do rather than for the function that
+        does it: ``walk`` stays ``walk`` when :class:`_RunIndex` changes shape.
+        """
+        started = time.perf_counter()
+        try:
+            return call()
+        finally:
+            self._marks.append((name, (time.perf_counter() - started) * 1e3))
 
     def _send(self, body: bytes, content_type: str, status: int = 200) -> None:
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
+        if self._marks:
+            self.send_header("Server-Timing", ", ".join(
+                f"{name};dur={ms:.3f}" for name, ms in self._marks))
         self.end_headers()
         self.wfile.write(body)
 
@@ -193,8 +213,9 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
         self._send((STATIC_DIR / name).read_bytes(), STATIC_FILES[name])
 
     def _json(self, payload, status: int = 200) -> None:
-        self._send(json.dumps(payload).encode("utf-8"),
-                   "application/json; charset=utf-8", status)
+        body = self._timed(
+            "serialize", lambda: json.dumps(payload).encode("utf-8"))
+        self._send(body, "application/json; charset=utf-8", status)
 
     def _origin_ok(self) -> bool:
         """Whether a write may be honoured — ``gui/server.py``'s check, here.
@@ -216,8 +237,14 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
         host = (self.headers.get("Host") or "").rsplit(":", 1)[0]
         return host in _ALLOWED_HOSTS
 
+    def handle_one_request(self):  # noqa: D102 - http.server API
+        # A keep-alive connection serves many requests through one handler
+        # object, and the header is a fact about one of them.
+        self._marks = []
+        super().handle_one_request()
+
     def _runs(self) -> list:
-        return self.index.runs()
+        return self._timed("walk", self.index.runs)
 
     def _find(self, run_id: str):
         """An id is looked up in what the walk offered, never decoded into a
@@ -304,7 +331,8 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
                         # each. A route of its own would save that and make a
                         # second authority for what this server is.
                         "page": _page_constants(),
-                        "runs": [self._row(r) for r in found]})
+                        "runs": self._timed(
+                            "rows", lambda: [self._row(r) for r in found])})
             return
 
         parts = [p for p in path.split("/") if p]
@@ -323,9 +351,9 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
                         return int(query.get(name, [""])[0])
                     except (TypeError, ValueError):
                         return None
-                tail = runs_mod.tail_events(
+                tail = self._timed("tail", lambda: runs_mod.tail_events(
                     run.path / runs_mod.EVENTS_FILE,
-                    _int("offset") or 0, inode=_int("inode"))
+                    _int("offset") or 0, inode=_int("inode")))
                 self._json({"events": tail.events, "offset": tail.offset,
                             "inode": tail.inode, "reset": tail.reset,
                             "bad_lines": tail.bad_lines, "size": tail.size})
@@ -339,7 +367,8 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
                 kind = ("application/json; charset=utf-8" if rest == "snapshot"
                         else "text/html; charset=utf-8")
                 try:
-                    body = (run.path / name).read_bytes()
+                    body = self._timed("read",
+                                       (run.path / name).read_bytes)
                 except OSError:
                     self._send(b"no snapshot yet", "text/plain; charset=utf-8",
                                status=404)
