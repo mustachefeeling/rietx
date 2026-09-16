@@ -326,6 +326,23 @@ format token is spelled in `_about.py`, never inline (root CLAUDE.md § Conventi
       it here). For the same reader: rietx's `profile.x` is the 1/cosθ (size)
       coefficient and matches GSAS-II's `X` by law, while TOPAS's `pkx`/`pky`
       map to rietx's `y`/`x` and **not** by letter (measured in WP-1130).
+      **The TOPAS `.inp` writer landed 2026-09-16** (`from_structure`,
+      `write_topas_inp`, `rx.write_topas_inp`, `io/projects/topas.py`): the
+      inverse of `to_structure` — phase, space group, cell, every atom's
+      coordinates/occupancy/displacement (isotropic or, opt-in, the full
+      anisotropic tensor), and every `Parameter`'s own `vary` written as
+      TOPAS's `@`/`!` grammar — round-tripped through `read_topas_inp` itself
+      as the acceptance, no external fixture needed. The first obligation is
+      discharged **here**: `get_spacegroup(phase.space_group).xhm()` is what
+      gets written, never the stored string, checked by a test that starts
+      from an ambiguous bare symbol. What does not carry, because
+      `to_structure` does not build it from a `.inp` either: the emission
+      profile and instrument geometry (no `Instrument` comes off a `.inp` at
+      all today), cell/site bound windows, and extinction/preferred-
+      orientation/sample-broadening — stated in the writer's own docstring
+      rather than silently dropped. FullProf `.pcr`, GSAS `.EXP`/`.PRM` and
+      GSAS-II (`.instprm` + CIF, per the decision above) still have no writer;
+      the GSAS-II `Z`-term question above is theirs to answer, not TOPAS's.
 - [ ] `capabilities()` arm, skill rows for the new diagnostic codes
       (`docs/skill/rietx/` — `AGENT_PROTOCOL.md` is a redirect stub since
       WP-1304), a Part 1 manual section, and an `ATTRIBUTION.md` row per

@@ -103,10 +103,15 @@ SECTIONS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
         "`.EXP`’s `reduced_chi2` is not a root at all, so comparing your fit with "
         "either file’s figure means knowing which one it quoted (Measured: WP-1118, "
         "on six projects stating chisq, Nobs and Nvars together). A GSAS `.LST` "
-        "refinement output still has no reader and is transcribed by hand.",
+        "refinement output still has no reader and is transcribed by hand. "
+        "**The write direction has one format so far**: `rx.write_topas_inp` is "
+        "`to_structure`'s inverse, a `.inp` whose refine flags reproduce the "
+        "`Structure`'s own `vary` exactly and whose space group is "
+        "`get_spacegroup(...).xhm()`, never the phase's stored spelling, so a "
+        "setting this build already resolved does not come back ambiguous.",
         ("rx.read_pattern", "rx.read_pdcif", "rx.read_recipe",
          "rx.read_gsas_prm", "rx.read_project_model",
-         "rx.identify_project_format", "rx.read_topas_inp",
+         "rx.identify_project_format", "rx.read_topas_inp", "rx.write_topas_inp",
          "rx.read_fullprof_pcr", "rx.read_gsas_exp", "rx.read_gsas2_gpx",
          "rx.Structure.from_cif",
          "rx.Instrument.bragg_brentano", "rx.Instrument.debye_scherrer",
