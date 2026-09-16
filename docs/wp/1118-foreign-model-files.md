@@ -287,9 +287,27 @@ format token is spelled in `_about.py`, never inline (root CLAUDE.md § Conventi
       real corpus contains them: a negative `Uiso` (7 of 34) and a phase with no
       sites (GSAS-II's Le Bail extraction). 19 of the 34 build a structure and
       15 refuse, each naming its phase.
-- [ ] Origin-choice honesty: `SPACE_GROUP_ORIGIN_ASSUMED` when a multi-origin
-      symbol resolves unpinned, and the TOPAS suffixes accepted on input
-      (issue #101; lift `normalize_space_group` from the #98 draft).
+- [x] Origin-choice honesty (issue #101). — landed 2026-09-16, and the issue's
+      two halves had both moved before the work started. The TOPAS suffixes
+      landed with PR #98 (`topas.normalize_space_group`) and FullProf grew its
+      own variant with PR #111, so nothing was left to lift. The diagnostic
+      landed too, **wider than #101 asked and under another name**: WP-1324
+      shipped `SPACE_GROUP_SETTING_ASSUMED` on 2026-09-02 over all 40
+      multi-setting symbols — the `:1`/`:2` origin choices *and* the `:H`/`:R`
+      axis choices — so there is no `SPACE_GROUP_ORIGIN_ASSUMED` and there
+      should not be. What was left is where it fires and what it can see.
+      **Where**: it had one consumer, `refine.py`, so a caller who converted a
+      model without fitting it was told nothing; `setting_diagnostics` is now
+      the one builder and the `.EXP` and `.inp` readers report at read, which
+      is what the issue asked for. **What it can see**: a `.gpx` states its
+      operators, so its setting is *read* rather than assumed —
+      `symmetry.setting_from_operators`, `Gsas2Phase.resolved_space_group`,
+      `GSAS2_GPX_SETTING_FROM_OPERATORS` — and 4 of the 46 phases in the public
+      corpus needed it, every one of them origin choice 2 under a symbol
+      resolving to choice 1. And the message stops quoting a composition that
+      separates nothing: on Mn₃O₄ it printed `Mn12 O16` twice while asserting a
+      ZMV that had not moved, so it now falls back to the site multiplicities.
+      Numbers in the handover entry. `Closes #101`.
 - [ ] The writers, each naming what did not cross — GSAS-II included — with
       export → re-import round-trip as each format's acceptance (issue #148).
       Two obligations already banked. An exporter writes
@@ -356,8 +374,10 @@ format token is spelled in `_about.py`, never inline (root CLAUDE.md § Conventi
       the first project-reader fixtures this WP could **vendor at all**, since
       the GSAS-II tutorials carry a redistribution grant where TOPAS's and
       FullProf's corpora are private. Nothing enters the wheel. The 34-project
-      survey behind them has its own section in `tests/data/README.md`. Open
-      for the formats with no fixture yet.
+      survey behind them has its own section in `tests/data/README.md`. A third
+      joined them 2026-09-16 — `gsas2_mn3o4_setting.gpx`, the one corpus file
+      that both states a setting its symbol does not and builds end to end.
+      Open for the formats with no fixture yet.
 
 ## Acceptance
 
