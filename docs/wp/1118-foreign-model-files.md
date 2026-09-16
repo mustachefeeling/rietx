@@ -11,9 +11,10 @@ refuses an out-of-range value naming the file; the GSAS-II `.gpx` reader landed
 `.EXP` reader's GOF claim; origin-choice honesty closed #101 the same day, a
 `.gpx` now reading the setting its operators state and the `.EXP`/`.inp`
 readers reporting the one they assume; the TOPAS and FullProf writers landed
-the same day, each the inverse of its own reader; the GSAS-I `.EXP`/`.PRM`
-writers are in hand 2026-09-16 (4th session, claimed by @yue-here), and
-GSAS-II still has none
+the same day, each the inverse of its own reader, and the GSAS-I `.EXP`/`.prm`
+pair the same day again — the first writers here read by **column**, which
+bought `io/CLAUDE.md` § Project writers and caught a `CHMF` record the reader
+had been taking two columns short; GSAS-II is the one format with no writer
 Depends on: — (WP-1110 found it; WP-1102 owns the one seam that overlaps)
 
 ## Goal
@@ -489,6 +490,154 @@ work this WP does.
   § "Learned in v0.2".
 
 ## Handover log
+
+### 2026-09-16 (4th session) — the GSAS writers, and the decimal point no test could catch
+
+A model or a calibration built in rietx can now be handed to GSAS-I in GSAS's
+own language, both halves of it: `rx.write_gsas_exp` writes the experiment —
+phases, cell, sites, and which parameters were free — and `rx.write_gsas_prm`
+writes a calibrated instrument as the `.prm` a beamline ships. Three of the
+four foreign formats now travel in both directions, GSAS-II being the one
+left. The work also found two things the *reading* side had wrong. One record
+was being read two columns short, which no file in this repo could show. And
+the writers were about to produce files that real GSAS would silently
+misread, because a Fortran fixed-format field supplies its own decimal point
+when you leave one out — a class no test in this package can catch, since
+`float()` reads what GSAS would not.
+
+*Done* — nine commits on `wp1118-gsas-writers`, branched off `ad6085c9`.
+
+- **`aad84802`, the reader fix that came first.** `CHMF` — a phase's
+  unit-cell contents — is `2X, A8, F10.2` and was read with both fields two
+  columns short. `FAP.EXP` hides it completely: every content in it ends
+  `.00`, so `'  CA            5.00'` sliced at `[8:18]` is `'        5.'`,
+  which floats to 5.0. A partially occupied site is where it bites, and that
+  is the ordinary case for a solid solution: 5.25 arrived as 5.0. Found by
+  needing the true columns in order to *write* the record, which is an
+  argument for writing a writer at all.
+- **`88ab6dd6`, the `.EXP` writer** (`projects/gsas.from_structure`,
+  `write_gsas_exp`, `rx.write_gsas_exp`): the inverse of `to_structure` —
+  cell, sites, occupancies, `Biso` back through `EIGHT_PI_SQUARED` to the
+  `Uiso` the record holds, and each `Parameter.vary` as GSAS's `Y` on the cell
+  record and its `X`/`U`/`F` letters on a site's. Two fields are *derived*
+  rather than carried, GSAS stating them and a `Structure` not: each site's
+  multiplicity from its own orbit, and the `CHMF` contents summed over those.
+  `d1f9eced` adds the two-phase row, which is what exercises the `CRS<n>`
+  keys and `EXPR NPHAS`' nine fields.
+- **`9dbd04f3`, the `.prm` writer** (`instrument_profile.from_instrument`,
+  `write_gsas_prm`, `rx.write_gsas_prm`): `BANK`, `HTYPE PXCR`, `ICONS` and a
+  type-3 `PRCF` block, `u/v/w` and `x/y` multiplied back into centidegrees and
+  `axial_sl`/`axial_hl` written as `S/L` and `H/L`. Named `from_instrument` to
+  match the three `from_structure`s: what varies between the four writers is
+  the format, not the verb.
+- **`dda4affc`, the class the 3rd session's review left open.** A
+  `Parameter.value` of `+inf` is legal schema-side and both writers would have
+  emitted Python's `inf` token; it is now refused by all five writing
+  surfaces.
+- **`f5936e21`, the arm.** `ProjectFormat.write` and
+  `ProjectFormatCapability.writes` publish each format's writer by its
+  *exported name*, `None` where there is none.
+- **`686910f9`**, the two `ATTRIBUTION.md` rows, and **`af19f3e0`**, the
+  forward reference into [1328](1328-magnetic-interchange.md), whose magCIF
+  writer inherits `io/CLAUDE.md` § Project writers.
+
+*Reviewed* — `/code-review high --fix` over the branch diff, `45e9f8ba`. Four
+findings, all four real and all four fixed; nothing was declined.
+
+- **The `.prm` `PRCF` fields fused, and the writer's own reader refused the
+  file.** `_read_prcf` splits those continuation records on whitespace — the
+  one place either GSAS reader does — while `write_field` right-justifies into
+  fifteen columns, so a coefficient whose shortest exact decimal is fifteen
+  characters abuts its neighbour and the pair reads as one unparseable token.
+  The multiply into centidegrees carries the product's own float noise, so a
+  **converged calibration hits this routinely**; every test written for the
+  writer used round values (`1.163e-4` → `1.163`) and none of them saw it.
+  One column is now reserved as the separator the token read needs. This is
+  the finding worth carrying: I had written "the field is the budget" as
+  though the budget were a property of the field, and it is a property of the
+  *reader*.
+- **The new non-finite refusal missed the one number that bypasses `_tail`**:
+  an anisotropic site's `beq`, spelled bare because it is forced held.
+  `beq ! inf` was exactly what that refusal was added to prevent.
+- **`write_record` accepted a line break in a payload**, which splits a card
+  in two under keys nothing wrote — the accident `split_records`' own
+  docstring names from the reading side — and **a character `latin-1` cannot
+  spell** raised `UnicodeEncodeError` at the encode, naming a byte offset into
+  the finished file rather than the field a caller can fix.
+
+*Measured* — this worktree's `.venv`, `[dev]` only (no jax, no torch), python
+3.12.12, darwin/arm64.
+
+- Fast selection `-n auto --dist loadgroup -m "not slow"` on the final tree:
+  **5094 passed, 133 skipped**. The tests this session added are **+41
+  collected items** against the merge base `ad6085c9` — 37 functions across
+  five files (`test_projects_gsas` +22, `test_gsas_prm` +11,
+  `test_projects_topas` +2, `test_projects_fullprof` +1,
+  `test_projects_registry` +1), plus four extra parametrized cases on one of
+  them, five of the 37 being the review pass's. **No new skip.** That puts
+  the merge base at
+  5053 by arithmetic rather than by measurement: this worktree branched fresh
+  off `origin/main` and the first edit preceded any run, so there is no
+  pre-session baseline on this tree and the per-file counts are what is
+  quoted (`tests/CLAUDE.md`'s own preference).
+- Wall clock 3:46–7:07 across four runs of that selection. **Not
+  alone-figures**: a `/pr-review` session was running the *slow* suite in
+  `worktrees/pr-bench` for part of it, which is most of the spread.
+- **No full selection, deliberately.** Nothing here can move a measured
+  number: the writers have no caller inside the package, the `CHMF` fix
+  touches a field (`GsasPhase.formula`) no fit reads, and the registry field
+  is a declaration. Rung 3 is exclusive across sessions and the `/pr-review`
+  slow suite held it anyway.
+- The round trip on `FAP.EXP`'s own converged model is **bit-identical**,
+  displacements included — its `Uiso` values came off a `.EXP` in the first
+  place, so `×8π²` and back recovers them exactly. A hand-built `biso` does
+  not, and that row is asserted separately at 1e-6 relative.
+
+*Gotchas* — three, and the first is the one to carry out of this WP.
+
+- **A Fortran `F` or `E` edit descriptor supplies the decimal point when the
+  field has none.** So `90` written into an `F10.6` field is 9e-5 to GSAS
+  while `_num`'s `float()` here reads 90: a round trip through this package
+  stays green about a file that says something else to the program it is for.
+  Caught by comparing the written cards against `FAP.EXP`'s own spelling,
+  which is the only check available. **No test in this package can catch this
+  class.**
+- **`ICONS`' `ZERO` is unresolved, and it is what stops a useful `.prm`
+  export.** The reader refuses a non-zero one because no file in this corpus
+  states one to settle its unit against, so the writer refuses it too
+  (`io/CLAUDE.md`'s magnitude rule) — which means a calibration with a refined
+  zero shift cannot be exported as it stands. The evidence leans centidegrees:
+  `io/formats/gsas.py` measured GSAS-I's CW pattern axis in centidegrees on
+  real `CONS` banks. What would close it is **one real `.prm` with a non-zero
+  `ZERO`, plus the `.LST` or pattern showing the offset** — a cheap
+  maintainer-only ask, the shape of the Stoe `.raw` one.
+- **A written `.EXP` states `EXPR NHST` of zero** and no `AFAC`
+  scattering-factor records. That is an honest shape — it is what a `.EXP`
+  written before any data was loaded looks like, and the reader already has a
+  sentence for one — but it has **not** been opened in real GSAS and nothing
+  here can check that it would be. The claim this session makes is the round
+  trip through this package's own reader, plus columns matching `FAP.EXP`'s;
+  the other three writers claim no more.
+
+*Next*, in order.
+
+1. **The GSAS-II writer** (`.instprm` + a CIF-shaped structure), the fourth
+   and last format on #148. It needs a small `.instprm` reader built alongside
+   to close its own round trip — only the binary `.gpx` and GSAS-I's `.prm`
+   are read today — and it is where the banked **`Z`-term question** has to be
+   answered: GSAS-II's CW Lorentzian is `γ = X/cosθ + Y·tanθ + Z` while
+   `ProfileTCHZ` declares exactly `u, v, w, x, y`. Carry it or refuse it by
+   name is still this WP's call. `io/CLAUDE.md` § Project writers is the
+   rulebook it inherits, and **`references/api.md` has 373 B of headroom**, so
+   its skill paragraph is paid for by a cut named in the commit.
+2. **The `#prm`-only integer evaluator for `.inp` `#if` guards** is still
+   blocked on a source, unchanged from the 3rd session: the grammar is TOPAS
+   Technical Reference §19, which no session here has and none should guess
+   at. Ask the maintainer for those pages first.
+3. Nothing is owed on fixtures for what landed here. Both writers' tests build
+   their `Structure` and `Instrument` by hand, the convention the reader tests
+   already follow; the WP's fixture task is about committing real corpus files
+   where a redistribution grant exists, and neither GSAS corpus has one.
 
 ### 2026-09-16 (3rd session) — the writers begin: TOPAS and FullProf write back what they read
 
