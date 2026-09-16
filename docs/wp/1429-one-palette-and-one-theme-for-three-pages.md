@@ -82,6 +82,15 @@ with the resolved theme's hues, on load and on change.
 
 ### Inherited
 
+- **2026-09-16, from [1424](1424-a-row-that-names-its-run.md): one more palette
+  consumer on the watcher page.**
+  - `drawSnapshot` now writes a plotly annotation for the drawn-point count,
+    using `HUE.fg` and `withAlpha(HUE.ground, 0.72)` — the same two the legend
+    took in WP-1426. Nothing new is hardcoded, but it is a third place the
+    palette reaches inside one function.
+  - The page's own colours in `watch.css` are unchanged by 1424; the state pill
+    words are still the six literals there.
+
 - **2026-09-16, from [1426](1426-still-under-resize-and-across-a-stage.md): one
   new colour helper, and one hardcoded colour that is yours to take.**
   - The legend moved inside the paper, so its ground now sits over the data and

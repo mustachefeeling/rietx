@@ -83,6 +83,20 @@ Browser, per poll:
 
 ### Inherited
 
+- **2026-09-16, from [1424](1424-a-row-that-names-its-run.md): a row does more
+  per poll than it did when this WP was written.**
+  - `fillRow` now writes three `title` attributes and a `<time>` element's
+    `datetime` and `title` per row, on top of the six cells. Every one goes
+    through `setAttr`/`setText`, which compare before assigning, so a poll that
+    changes nothing still writes nothing — but the *comparison* count per row
+    is up, and `runTitle` builds a four-line string per row per poll.
+  - If this WP measures a per-row cost, measure it against a list of 40, and
+    note that `runTitle` is a pure function of the run object: it is the
+    obvious thing to memoise by `run_id` if the number matters. Nothing
+    suggests it does yet; nothing has measured it either.
+  - `drawSnapshot` gained one plotly annotation in the layout. It is
+    paper-anchored with `automargin` off, so it costs no relayout.
+
 - **2026-09-16, from [1426](1426-still-under-resize-and-across-a-stage.md):
   1426 landed first, so this WP is the one that rebases.** Both were declared
   to rewrite `drawRun` and they did not collide, but three shapes moved:

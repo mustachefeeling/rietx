@@ -1,6 +1,7 @@
 # WP-1424 — a row that tells its run apart, and a number that fits its slot
 
-Milestone: unscheduled · Status: 🔄 2026-09-16 — claimed by @yue-here
+Milestone: unscheduled · Status: ✅ 2026-09-16 — every number the page formats is
+drawn whole, and a row names its run by the second it started
 Depends on: 1430 (the page as files); 1423 soft
 
 ## Goal
@@ -187,6 +188,98 @@ names the skip and quotes the run here.
 - `gui/src/panels/Series.svelte` line 669, the percentage form the list adopts.
 
 ## Handover log
+
+- **2026-09-16** — The watcher's list no longer shows a number the reader
+  cannot trust. Every figure the page formats itself is drawn whole now, in a
+  column sized for its worst case rather than for its typical one, and the Rwp
+  reads as a percentage the way the GUI has always printed it. A reader looking
+  at forty runs of one batch can tell them apart, by the second each started —
+  which is what the run directory has always been named after — and hovering a
+  row gives the command line that launched it. What none of this can do is say
+  what a run was *fitting*: nothing in the record holds that, and the record is
+  all the watcher has. The measurement that says so is the honest limit of this
+  WP, and it is WP-1431's whole subject.
+
+  The costly part was not the fix. It was that the instrument the WP named for
+  the measurement, `scrollWidth`, is blind to exactly the defect being looked
+  for: it equals `clientWidth` wherever overflow is `visible`, so it reported no
+  overflow for a heading that was spilling 6.58 px into nothing.
+
+  **Done.** The columns are sized from their worst content plus the 14 px the
+  cell pads with, which is what a `table-layout: fixed` width includes: `state`
+  12→13ch (the pill word `cancelled` at 11 px), `Rwp` 8→10ch (`100.00%`), `GoF`
+  6→9ch (a three-digit GoF), `started` 8→11ch (`14:20:00`); `stage` stays 15ch
+  and carries a `title` instead, a stage name being the plan author's string and
+  `preferred_orientation` 21 characters of it. Rwp is `pct(v, 2)`, two decimals
+  and a `%`, taken from `Series.svelte` rather than spelled a fourth way.
+  `started` is a `<time datetime>` clock time, to the second for a run started
+  today and `16 Sep` before that, with the full local time and the relative form
+  in its tooltip. The run column leads with the series label where there is one,
+  the plain label being the same word on every row of a batch. The toggles are
+  `list` and `detail`, and the headings carry `scope="col"`.
+
+  The strip now **drops whole slots rather than cutting every one of them a
+  little**, on a container query over the run panel at 990 / 760 / 560 px: the
+  GUI command and the free count go first, then the label, then the series. The
+  state, Rwp and GoF never move and never shrink; the stage shortens rather than
+  going. Three mechanics make that work and each is load-bearing — each slot has
+  an explicit `grid-column`, so a `display:none` slot leaves its own track empty
+  instead of pulling every later slot one place left; the tiers set the track to
+  `0` through a custom property rather than restating the template; and the 12 px
+  between slots is each slot's own `padding-right` and not `gap`, or a dropped
+  slot would still be charged for the space beside it. Capping the label at 13ch
+  and the series at 28ch is what leaves the stage its 33: a `minmax` track
+  freezes at its maximum and the rest is redistributed. The drawn-point count
+  moved onto the picture, as a paper-anchored plotly annotation, which takes no
+  margin and so does not move the picture the way the legend did before WP-1426.
+
+  **Measured** — `[dev]` **plus playwright 1.63.0** (no jax, no torch), macOS
+  arm64 (darwin 25.5.0), Python 3.12, chromium 148. Ink minus room, in CSS
+  pixels, at 1400×900 and 1000×700 with both panels open, before this WP:
+
+  | cell | 1400×900 | 1000×700 |
+  |---|---|---|
+  | `td:GoF` (`12.34`) | 7.13 | 7.13 |
+  | `td:stage` (`preferred_orientation`) | 57.72, no title | 57.72, no title |
+  | `th:started` | 6.58 | 6.58 |
+  | `td:state` (`cancelled`) | 0.61 | 0.61 |
+  | `slot:s-stage` | 48.97 | 201.97 |
+  | `slot:s-where` | 1127.05 | 1127.05 |
+
+  After: nothing over 0.5 px anywhere the page fills itself, at both sizes.
+  `td:Rwp` (`0.1734`) was *not* cut here — it fitted by 0.64 px, which is the
+  margin a different font metric loses, and is why the demo showed `0.17…` and
+  this machine did not. `slot:s-where` was not cut but *absent*: its `1fr` track
+  had been squeezed to zero at both sizes, so the point count and the path it
+  carried were invisible rather than truncated.
+
+  Fast selection on the final tree: **5159 passed, 132 skipped** in 158 s, +3
+  passed over `origin/main`, exactly the three browser tests added and all three
+  running rather than skipping because this venv has playwright. On a plain
+  `[dev]` venv all 13 of `test_watch_browser.py` skip, so those three would be
+  skips. `tests/test_watch_browser.py` 10→13 tests,
+  `tests/watch_core.test.mjs` 20→24 cases. The full selection did not run: no
+  measured number outside the watcher page moved.
+
+  **Gotchas.** (1) `scrollWidth` is the wrong probe, as above — measure a
+  `Range` rectangle against the content box. (2) The WP's acceptance command
+  `node --test src/rietx/watch/static/` fails with `MODULE_NOT_FOUND`: node
+  reads the directory as a module to run, and WP-1430 put the cases in `tests/`
+  because hatchling ships everything under `src/rietx` into the wheel. Corrected
+  in place. (3) There is no watcher screenshot in the manual to re-shoot —
+  `make_screenshots.py`'s `SHOTS` is nine GUI shots and § `rietx watch` has
+  never carried a figure. (4) `container-type: inline-size` on `#run` is what
+  makes the tiers follow the *panel* rather than the window, so collapsing the
+  list brings slots back at an unchanged window size; a future splitter
+  (WP-1425) inherits that for free. (5) The list's `stage` column still elides
+  for every long stage name at 15ch. It has a tooltip and the run column is the
+  flexible one, which WP-1431 is about to fill.
+
+  **Next**: WP-1431, which is the honest answer to the thing this WP could not
+  do — a caller-supplied run label, for a batch that is not a series. Take
+  `rowName` in `watch-core.mjs` as the seam: it already prefers the series label
+  over the plain one, and a caller's label is a third source at the same point.
+  After that the track's order stands: 1425, 1429, 1427, 1428.
 
 - **2026-09-16** — created, from the maintainer's reading of the page over the
   demo job; revised the same day: the label became 1431, the toggle rename

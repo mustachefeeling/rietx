@@ -97,6 +97,22 @@ snapshot is not a thing; the snapshot is a picture.
 
 ### Inherited
 
+- **2026-09-16, from [1424](1424-a-row-that-names-its-run.md): the GUI command
+  has the strip's flexible slot to itself, and is the first thing the strip
+  drops.**
+  - `whereOf(run)` is now `run.gui_command` alone. The path it used to carry is
+    the label's tooltip (`runTitle`) and the point count is on the picture, so
+    `#s-where` holds one copyable command and nothing else.
+  - **It is hidden below 990 px of run panel**, the first slot to go, because
+    at 1400×900 with the list open the panel is 882 px and the slot's track was
+    being squeezed to zero anyway — the command was not being cut, it was
+    absent. So today a reader on an ordinary window sees no GUI affordance at
+    all unless they collapse the list. That is the gap this WP fills, and a
+    real affordance should not live in that slot: it is the one the strip drops
+    first.
+  - The command itself is unchanged (`watch/__init__.py` `_row`), still a
+    string a human copies rather than a verb the app performs.
+
 - **2026-09-16, from [1430](1430-the-page-is-a-file.md): the page is files, and
   three of its names are not the ones 1430's plan said.** `watch.py` is the
   package `watch/`, and the page is `watch/static/`: `index.html`, `watch.css`,
