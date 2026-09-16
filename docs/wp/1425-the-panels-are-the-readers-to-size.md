@@ -126,6 +126,43 @@ intensity panel, tallest peak included. `withAlpha(HUE.ground, 0.72)` keeps the
 curve faintly visible through it, which is a mitigation and not a fix. The fix is a
 panel wide enough for the picture, which is this WP.
 
+#### Measured, 2026-09-16, before any change
+
+`[dev]` + playwright (not a `[dev]` extra), darwin/arm64, 1400x900 viewport,
+cached chromium-1223. The seam moved by setting `#runs`'s flex basis, which is
+what a drag will do.
+
+**The plot does not hear the seam move.** From 72ch to 40ch: **0**
+`Plots.resize` calls, as the WP guessed. The sharper statement is the one the
+count does not make. The plot *element* followed the seam, 879 px wide to
+1110 px, while plotly's inner size stayed at `[58, 8, 807, 503]` throughout.
+The picture is drawn at the old width inside a box 303 px wider than it, and
+nothing repairs that until the run panel is closed and reopened, where the one
+`Plots.resize` call in `applyPanels` fires and the inner size becomes
+`[58, 8, 1328, 503]`. So the splitter's resize is not a refinement of an
+existing behaviour. There is no existing behaviour.
+
+**The run column is the first casualty of any narrowing, and it dies whole.**
+The other five columns are declared `ch` and held their widths to the pixel at
+every seam position (state 94, stage 108, Rwp 72, GoF 65, started 79). The run
+column takes the remainder, so it absorbs the entire loss. With a 20-character
+label, the WP-1431 ordinary case:
+
+| seam | panel | run column | label needs | elided |
+|------|-------|-----------|-------------|--------|
+| 90ch | 651px | 231px | 159px | no |
+| 80ch | 579px | 159px | 159px | no |
+| 72ch | 521px | 101px | 159px | **yes** |
+| 64ch | 463px | 43px | 159px | yes |
+| 56ch | 406px | **0px** | 159px | yes, and the table overflows the panel |
+
+Two numbers for the tasks below. The list's floor is **56ch**: under it the run
+column is gone and the table scrolls sideways inside the panel, so that is where
+the splitter clamps rather than at an invented round number. And the default
+72ch already elides an ordinary label. The answer to this WP's open question is
+that the default is too narrow for what WP-1431 put in that column, not that the
+column wants a wider declared share of a panel that is now the reader's.
+
 ## Non-goals
 
 - Column widths inside the list. Declared (WP-1423 rule 2).
@@ -136,7 +173,7 @@ panel wide enough for the picture, which is this WP.
 
 ## Tasks
 
-- [ ] Measure: the drag probe above, before any change, in the handover
+- [x] Measure: the drag probe above, before any change, in the handover
 - [ ] `clampSize` and `dragged` in `watch-core.mjs`, pinned to the GUI's cases
 - [ ] The list splitter: a grip between `#runs` and `#run`, pointer and
       keyboard, sizes in px re-clamped at render, `Plots.resize` coalesced to
