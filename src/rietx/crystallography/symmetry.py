@@ -707,13 +707,17 @@ def setting_diagnostics(symbol: str, *, source: str, where: list[str],
     same_axes = not any(s.rsplit(":", 1)[-1] in ("H", "R")
                         for s in (taken, *others))
     settings = (taken, *others)
+    # materialised once: the rows are walked twice below, and a caller passing a
+    # generator would leave the second pass reading an exhausted one — an empty
+    # multiplicity list rather than an error
+    rows = [] if sites is None else [(s, x, y, z, occ)
+                                     for s, x, y, z, occ in sites]
     formulas: list[str] = []
-    if cell is not None and sites is not None and same_axes:
+    if cell is not None and rows and same_axes:
         # here rather than at module scope: ``optimize.qpa`` is built on this
         # module, so the composition a report quotes is fetched when a report is
         # built and never on the way in
         from ..optimize.qpa import phase_zmv
-        rows = [(s, x, y, z, occ) for s, x, y, z, occ in sites]
         for setting in settings:
             try:
                 counts = phase_zmv(setting, tuple(cell), rows).element_counts
@@ -731,7 +735,7 @@ def setting_diagnostics(symbol: str, *, source: str, where: list[str],
             multiplicities[setting] = ", ".join(
                 str(len(expand_positions(sg, np.asarray(row[1:4],
                                                         dtype=np.float64))))
-                for row in sites)
+                for row in rows)
 
     if separated:
         detail = "; ".join(f"{s} → {f}" for s, f in zip(settings, formulas))
