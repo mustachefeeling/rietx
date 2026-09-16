@@ -71,26 +71,39 @@ without an edit, or the move changed behaviour.
 
 ## Tasks
 
-- [ ] `watch/` package, static files, the three substitutions on the payload,
+- [x] `watch/` package, static files, the three substitutions on the payload,
       routes serving the files with the right content types
-- [ ] `watch-core.mjs` with the pure functions, imported by `watch.js`
-- [ ] `node --test` over `rangesOf` (the ladder rungs, the 99.9th percentile,
+- [x] `watch-core.mjs` with the pure functions, imported by `watch.mjs`
+- [x] `node --test` over `rangesOf` (the ladder rungs, the 99.9th percentile,
       the data-derived ranges), `ago`, `num` on `"NaN"`, and the panel
       reducer's last-panel rule; run from `tests/test_watch_app.py`, skipping
       without node
-- [ ] `tests/test_watch_app.py` adapted (the substitution test, the
+- [x] `tests/test_watch_app.py` adapted (the substitution test, the
       `node --check` test), `tests/test_watch_browser.py` untouched and green
 - [ ] Root CLAUDE.md § Conventions: the `node --check` rule becomes "a page
       that is JavaScript is a file, checked by `node --test`", one line, with
       `compare_app.py` named as the remaining string
-- [ ] Skill: none. The page is a human's.
+- [x] Skill: none. The page is a human's.
+
+Two revisions to the shape, both made while building it and both recorded in
+the handover entry:
+
+- **The DOM half is `watch.mjs`, not `watch.js`.** `node --check` parses a
+  `.js` file as CommonJS, where the `import` of `watch-core.mjs` is a syntax
+  error, so the plan's own check could not have run on it. A browser cares
+  about `type="module"` and the content type, never the extension.
+- **The node test file lives in `tests/`, not beside the module.** Hatchling
+  takes every non-ignored file under `src/rietx`, so a `.test.mjs` there ships
+  in the wheel — the trap `pyproject.toml`'s `exclude = ["**/CLAUDE.md"]`
+  already names. Nothing under `src/rietx` is a test file, and this does not
+  become the first.
 
 ## Acceptance
 
 ```sh
 .venv/bin/python -m pytest tests/test_watch_app.py tests/test_watch_browser.py tests/test_telemetry.py
 .venv/bin/python -m ruff check src tests examples
-node --test src/rietx/watch/static/
+node --test tests/watch_core.test.mjs
 ```
 
 The browser test file has no diff on this branch. `node --test` runs at least

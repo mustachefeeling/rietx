@@ -1,17 +1,22 @@
 """WP-1401 — the ``rietx watch`` app: the run list, and the routes under it.
 
-``watch.py`` is transport, so these tests are about what the routes send.
+``watch/`` is transport, so these tests are about what the routes send.
 What they send it *about* is :mod:`rietx.runs`, tested next door.
+
+Since WP-1430 the page is four files in ``watch/static/`` rather than a string
+in the module, so a test about what the *page* says fetches the file that says
+it — the script for anything in the script, the stylesheet for a rule.
 """
 
 from __future__ import annotations
 
-import importlib
 import json
 import os
+import re
 import shutil
 import socket
 import subprocess
+import sys
 import tempfile
 import urllib.error
 import urllib.parse
@@ -96,18 +101,34 @@ def _make_run(directory: Path, *, events: str = "", status: dict | None = None,
 def test_index_is_served(tmp_path):
     with _served(tmp_path) as base:
         page = _get(base + "/").decode()
+        script = _get(base + "/watch.mjs").decode()
     assert "rietx watch" in page
-    assert "api/runs" in page
+    assert 'href="watch.css"' in page and 'src="watch.mjs"' in page
+    assert "api/runs" in script
     # polling stops when nobody is looking
-    assert "document.hidden" in page and "visibilitychange" in page
+    assert "document.hidden" in script and "visibilitychange" in script
+
+
+def test_every_file_the_page_asks_for_is_served_as_itself(tmp_path):
+    """A stylesheet sent as ``text/html`` is a page with no styling and no
+    error, and a module sent as anything but javascript is refused by the
+    browser rather than run (WP-1430)."""
+    with _served(tmp_path) as base:
+        for name, kind in watch.STATIC_FILES.items():
+            response = urllib.request.urlopen(f"{base}/{name}", timeout=5)
+            assert response.headers["Content-Type"] == kind, name
+            assert response.read()
+        # the module the script imports resolves beside it, not at the root of
+        # whatever directory this watcher was pointed at
+        assert b"export function rangesOf" in _get(base + "/watch-core.mjs")
 
 
 def test_the_page_reports_the_root_it_scanned(tmp_path):
     """An empty list must not read as "no runs exist"."""
     with _served(tmp_path) as base:
-        page = _get(base + "/").decode()
+        script = _get(base + "/watch.mjs").decode()
         payload = _json(base + "/api/runs")
-    assert "scanned " in page
+    assert "scanned " in script
     assert payload["root"] == str(tmp_path.resolve())
     assert payload["runs"] == []
 
@@ -299,9 +320,9 @@ def test_a_legacy_page_is_still_served(tmp_path):
 def test_the_page_loads_plotly_from_the_installed_package(tmp_path):
     """Air-gapped, and out of one shared route (``viz/plotlyjs.py``)."""
     with _served(tmp_path) as base:
-        page = _get(base + "/").decode()
+        script = _get(base + "/watch.mjs").decode()
         body = _get(base + "/plotly.js")
-    assert "plotly.js" in page and "react" in page
+    assert "plotly.js" in script and "react" in script
     assert len(body) > 100_000 or b"plotly is not installed" in body
 
 
@@ -361,6 +382,20 @@ def test_the_directory_argument_is_optional(monkeypatch, tmp_path):
     assert seen["allow_cancel"] is False
 
 
+def test_the_module_is_still_runnable_with_dash_m():
+    """``python -m rietx.watch`` was an ``if __name__`` guard in a module, and
+    a package's ``__init__`` never fires one (WP-1430).
+
+    So the entry moved to ``watch/__main__.py``, which nothing else imports and
+    no other test reaches — a new file with no writer named at review is
+    exactly WP-1076's shape. ``--help`` exercises every line of it and exits.
+    """
+    done = subprocess.run([sys.executable, "-m", "rietx.watch", "--help"],
+                          capture_output=True, text=True, check=False)
+    assert done.returncode == 0, done.stderr
+    assert "--read-only" in done.stdout
+
+
 def test_serve_defaults_to_the_working_directory(tmp_path, monkeypatch):
     _make_run(tmp_path / "r", events=_event_line("fit_start"))
     monkeypatch.chdir(tmp_path)
@@ -388,34 +423,83 @@ def test_the_bare_static_names_still_resolve(tmp_path):
 # ----------------------------------------------------------------------
 # the page's own script
 # ----------------------------------------------------------------------
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+#: The node test file for ``watch-core.mjs``. Beside the suite rather than
+#: beside the module it imports, because everything under ``src/rietx`` ships
+#: in the wheel and a test case is not something to install.
+CORE_TESTS = Path(__file__).with_name("watch_core.test.mjs")
+
+
+def _node() -> str:
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("node is not installed; the gui suite needs it too")
+    return node
+
+
 def _page_script(page: str) -> str:
     start = page.index("<script>") + len("<script>")
     return page[start:page.index("</script>", start)]
 
 
-@pytest.mark.parametrize("module", ["rietx.watch", "rietx.compare_app"])
-def test_the_embedded_page_parses_as_javascript(module):
-    """Two pages are javascript quoted inside python, and python cannot see a
-    syntax error in one.
+def test_the_page_files_parse_as_javascript():
+    """The page is files now (WP-1430), and this is what it bought.
 
-    A stray escape in ``watch.py`` cost the whole page while WP-1402 was being
-    written: the script threw on load, the run list sat at "scanning" forever,
-    and every test in this file still passed, because they all assert
-    substrings of a page nobody executed. ``node --check`` is the smallest
-    thing that catches it, and node is already a dev requirement
-    (``npm --prefix gui test``).
+    A stray escape in the old python string cost the whole page while WP-1402
+    was being written: the script threw on load, the run list sat at "scanning"
+    forever, and every test in this file still passed, because they all assert
+    substrings of a script nobody executed. ``node --check`` is the smallest
+    thing that catches it, and it now reads the file the browser is served
+    rather than a copy cut out of a string.
 
-    Both pages, because the defect is the *shape* and ``compare_app`` has the
-    same shape.
+    Both modules, and as ESM — ``.mjs`` is what makes ``node --check`` parse
+    ``import`` rather than reject it as CommonJS.
     """
-    node = shutil.which("node")
-    if node is None:
-        pytest.skip("node is not installed; the gui suite needs it too")
+    node = _node()
+    for name in ("watch.mjs", "watch-core.mjs"):
+        done = subprocess.run([node, "--check", str(watch.STATIC_DIR / name)],
+                              capture_output=True, text=True, check=False)
+        assert done.returncode == 0, done.stderr
 
-    page = importlib.import_module(module)._PAGE
+
+def test_the_pure_half_of_the_page_is_unit_tested():
+    """``node --test`` over ``watch-core.mjs``, run by the python suite.
+
+    The page had no unit test of any kind until WP-1430, because none of it was
+    importable: the Δ/σ ladder, the 99.9th-percentile cut, the "NaN" guard and
+    the panel rule were all checked by looking at a browser. Running it from
+    here is what keeps it from going quiet — a node test nobody invokes is a
+    file, not a check.
+    """
+    node = _node()
+    # the reporter is named rather than inherited: node picks `spec` for a
+    # pipe and `tap` for some versions, and the count below is read off it
+    done = subprocess.run([node, "--test", "--test-reporter=tap",
+                           str(CORE_TESTS)],
+                          capture_output=True, text=True, check=False,
+                          cwd=REPO_ROOT)
+    assert done.returncode == 0, done.stdout + done.stderr
+    # ...and it ran something: `node --test` exits 0 on a file of no cases
+    match = re.search(r"^# pass (\d+)$", done.stdout, re.MULTILINE)
+    assert match is not None, done.stdout
+    assert int(match.group(1)) >= 6, done.stdout
+
+
+def test_the_embedded_page_parses_as_javascript():
+    """``compare_app`` is still a page quoted inside python, and python cannot
+    see a syntax error in one.
+
+    The same defect, the same check, the one page it still applies to. WP-1430
+    moved the watcher's page out of its string and named this one as the
+    remaining case; WP-1429 is queued over it and may do the same.
+    """
+    node = _node()
+    from rietx import compare_app
+
     with tempfile.NamedTemporaryFile("w", suffix=".js", encoding="utf-8",
                                      delete=False) as fh:
-        fh.write(_page_script(page))
+        fh.write(_page_script(compare_app._PAGE))
         path = fh.name
     try:
         done = subprocess.run([node, "--check", path],
@@ -423,6 +507,23 @@ def test_the_embedded_page_parses_as_javascript(module):
     finally:
         os.unlink(path)
     assert done.returncode == 0, done.stderr
+
+
+def test_the_pages_files_reach_a_fresh_clone():
+    """``*.html`` in ``.gitignore`` has swallowed a committed file five times
+    (its own comments say so), and ``index.html`` was the sixth.
+
+    Ignored, the wheel ships a watcher whose ``/`` is a 500 and every test on
+    this machine stays green, because the file exists here. ``--no-index`` is
+    what makes git read the rules at all: for a *tracked* file it otherwise
+    answers from the index and never consults them (``tests/CLAUDE.md``).
+    """
+    for name in watch.STATIC_FILES:
+        path = (watch.STATIC_DIR / name).relative_to(REPO_ROOT)
+        done = subprocess.run(["git", "check-ignore", "--no-index", str(path)],
+                              capture_output=True, text=True, check=False,
+                              cwd=REPO_ROOT)
+        assert done.returncode == 1, f"{path} is gitignored: {done.stdout}"
 
 
 # ----------------------------------------------------------------------
@@ -580,32 +681,46 @@ def test_the_closed_dialog_is_not_a_sheet_over_the_page():
     python can see that and ``node --check`` parses it happily; it took a real
     browser and a real click. This is the cheapest guard that would have.
     """
-    assert "#confirm[hidden] { display:none; }" in watch._PAGE
+    css = (watch.STATIC_DIR / "watch.css").read_text(encoding="utf-8")
+    assert "#confirm[hidden] { display:none; }" in css
 
 
 def test_the_dialog_says_what_a_click_does_to_the_other_process():
     """The sharpest fact in the track belongs in the dialog, not a footnote."""
-    page = watch._PAGE
+    page = (watch.STATIC_DIR / "index.html").read_text(encoding="utf-8")
+    script = (watch.STATIC_DIR / "watch.mjs").read_text(encoding="utf-8")
     assert "RefinementCancelled" in page
     assert "traceback" in page
     # ...and no keyboard shortcut of any kind reaches the button. Read off the
     # code and not the comments, which say the same thing in words and would
     # otherwise be what passes this.
-    code = "\n".join(line for line in _page_script(page).splitlines()
+    code = "\n".join(line for line in script.splitlines()
                      if not line.lstrip().startswith("//"))
     for shortcut in ("keydown", "keyup", "keypress", "autofocus", ".focus("):
         assert shortcut not in code, shortcut
     assert "autofocus" not in page, "the dialog's buttons take no focus"
 
 
-def test_no_page_token_is_left_unsubstituted():
-    """Each token is filled at import from its one authority.
+def test_the_payload_carries_what_the_page_cannot_know(tmp_path):
+    """The three facts that were ``@TOKEN@`` substitutions until WP-1430.
 
-    One left behind is a literal in the page, which reads as working right up
-    until somebody looks at it.
+    A file cannot carry a token, so the page reads them off the ``api/runs``
+    it already fetches first. Each comes from its one authority: a literal
+    ``.rex`` or a literal colour here would be a second answer, and the literal
+    would read as working right up until somebody looked at it.
     """
-    for token in ("@SUFFIX@", "@DIST@", "@HUE@"):
-        assert token not in watch._PAGE
+    from rietx._about import DIST_NAME, PROJECT_SUFFIX
+    from rietx.viz.plots import PALETTES
+
+    with _served(tmp_path) as base:
+        page = _json(base + "/api/runs")["page"]
+    assert page == {"suffix": PROJECT_SUFFIX, "dist": DIST_NAME,
+                    "palette": PALETTES["dark"]}
+    # and no token survived the move into the files
+    for name in watch.STATIC_FILES:
+        text = (watch.STATIC_DIR / name).read_text(encoding="utf-8")
+        for token in ("@SUFFIX@", "@DIST@", "@HUE@"):
+            assert token not in text, f"{token} in {name}"
 
 
 def test_the_two_local_servers_allow_the_same_hosts():
