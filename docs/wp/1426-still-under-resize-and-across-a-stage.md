@@ -119,6 +119,16 @@ what it finds is fixed or recorded.
     nothing else — the route, the content type and the `.gitignore` guard all
     read that dict. `*.html` in `.gitignore` swallowed `index.html` on the way
     in, the sixth committed file that one rule has taken.
+  - **The Δ/σ ladder's spike guard is inert on a short pattern**, found while
+    writing its first unit cases. `rangesOf` takes the residual's
+    `floor(0.999 · n)`th value, and that index *is* `n - 1` for every n ≤ 1000,
+    so the "99.9th percentile" is the maximum there and one spiked point sets
+    the scale for the whole run. It bites as intended above that: a snapshot
+    decimates to `viz/snapshot.MAX_POINTS` = 4000, where a lone 900σ point is
+    cut and a ten-point misfitted peak is not. Both directions are pinned in
+    `tests/watch_core.test.mjs`, deliberately as the behaviour rather than as
+    the intention — 1430's fence was that nothing the page does changes. The
+    axis is this WP's subject, so the call is yours.
   - `drawSnapshot` gained one line: `if (!HUE) return false;`. The palette
     arrives with the first `api/runs`, and a poll can reach the draw before it
     has — undrawn is what `false` already meant, so the next poll draws that
