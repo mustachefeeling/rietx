@@ -308,8 +308,8 @@ bounded at zero through a softplus, and two of the four constant-wavelength
 files in that corpus converged to a negative `X`.
 
 The geometry comes from `Diff-type` where the file states one. Where it does
-not, the reader falls back the way GSAS-II's own does — a stated doublet is
-Bragg-Brentano and anything else Debye-Scherrer — and says so with
+not, the reader falls back the way GSAS-II's own does (a stated doublet is
+Bragg-Brentano and anything else Debye-Scherrer) and says so with
 `GSAS2_INSTPRM_GEOMETRY_ASSUMED`, because the choice was not read from the
 file.
 
@@ -472,9 +472,9 @@ resolved `xhm()`, which gemmi prefers when both are present, and
 `_space_group_symop_operation_xyz` the operations themselves, which need no
 convention at all. GSAS-II checks its own reading of the symbol against those
 operations and offers to transform a structure that disagrees. A phase whose
-symbol is ambiguous is named `GSAS2_CIF_SETTING_IN_OPERATORS`, and what a CIF
-cannot state — the refine flags, the phase scale, the sample broadening —
-is named `GSAS2_CIF_FIELD_NOT_WRITTEN`.
+symbol is ambiguous is named `GSAS2_CIF_SETTING_IN_OPERATORS`. What a CIF
+cannot state (the refine flags, the phase scale, the sample broadening) is
+named `GSAS2_CIF_FIELD_NOT_WRITTEN`.
 
 ### What comes back
 

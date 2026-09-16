@@ -62,7 +62,7 @@ def _calibrated() -> rx.Instrument:
 
 def test_the_grammar_reads_the_items_gsas_ii_writes():
     """One bank, keys and values as strings, spaces stripped from both."""
-    (bank,) = read_instprm(HB2A.read_text())
+    (bank,) = read_instprm(HB2A.read_text(encoding="utf-8"))
     assert bank.number is None
     assert bank.items["Type"] == "PNC"
     assert bank.items["Lam"] == "2.4062686168735197"
@@ -171,7 +171,7 @@ def test_a_real_x_ray_calibration_is_refused_for_its_negative_x():
 def test_a_time_of_flight_bank_is_refused_by_name(tmp_path):
     path = tmp_path / "tof.instprm"
     path.write_text("#GSAS-II instrument parameter file; do not add/delete items!\n"
-                    "Type:PNT\ndifC:22583.9\n")
+                    "Type:PNT\ndifC:22583.9\n", encoding="utf-8")
     with pytest.raises(ValueError, match="time-of-flight"):
         read_gsas2_instprm(path)
 
@@ -181,7 +181,7 @@ def test_a_non_zero_z_is_refused(tmp_path):
     constant-wavelength histograms of the ``.gpx`` corpus."""
     path = tmp_path / "z.instprm"
     path.write_text("#GSAS-II instrument parameter file; do not add/delete items!\n"
-                    "Type:PXC\nLam:1.5405\nZ:0.4\n")
+                    "Type:PXC\nLam:1.5405\nZ:0.4\n", encoding="utf-8")
     with pytest.raises(ValueError, match="constant Lorentzian"):
         read_gsas2_instprm(path)
 
@@ -191,7 +191,7 @@ def test_a_non_zero_azimuth_is_refused(tmp_path):
     ``Polariz.`` no longer means this package's K."""
     path = tmp_path / "azm.instprm"
     path.write_text("#GSAS-II instrument parameter file; do not add/delete items!\n"
-                    "Type:PXC\nLam:1.5405\nAzimuth:90.0\n")
+                    "Type:PXC\nLam:1.5405\nAzimuth:90.0\n", encoding="utf-8")
     with pytest.raises(ValueError, match="azimuth"):
         read_gsas2_instprm(path)
 
@@ -199,7 +199,7 @@ def test_a_non_zero_azimuth_is_refused(tmp_path):
 def test_a_doublet_without_its_ratio_is_refused(tmp_path):
     path = tmp_path / "pair.instprm"
     path.write_text("#GSAS-II instrument parameter file; do not add/delete items!\n"
-                    "Type:PXC\nLam1:1.5405\nLam2:1.5444\n")
+                    "Type:PXC\nLam1:1.5405\nLam2:1.5444\n", encoding="utf-8")
     with pytest.raises(ValueError, match="I\\(L2\\)/I\\(L1\\)"):
         read_gsas2_instprm(path)
 
@@ -209,7 +209,7 @@ def test_a_neutron_bank_stating_a_doublet_is_refused(tmp_path):
     and picking between the pair would be this reader's guess."""
     path = tmp_path / "npair.instprm"
     path.write_text("#GSAS-II instrument parameter file; do not add/delete items!\n"
-                    "Type:PNC\nLam1:1.5405\nLam2:1.5444\nI(L2)/I(L1):0.5\n")
+                    "Type:PNC\nLam1:1.5405\nLam2:1.5444\nI(L2)/I(L1):0.5\n", encoding="utf-8")
     with pytest.raises(ValueError, match="NeutronSource holds"):
         read_gsas2_instprm(path)
 
@@ -226,7 +226,7 @@ def test_a_multi_bank_file_needs_a_bank(tmp_path):
     of several would pick a detector rather than read one.  Three of the
     corpus's twelve files are multi-bank."""
     path = tmp_path / "gem.instprm"
-    path.write_text(_two_banks())
+    path.write_text(_two_banks(), encoding="utf-8")
     with pytest.raises(ValueError, match="bank=N"):
         read_gsas2_instprm(path)
 
@@ -237,7 +237,7 @@ def test_a_multi_bank_file_needs_a_bank(tmp_path):
 
 def test_a_bank_the_file_does_not_state_is_refused(tmp_path):
     path = tmp_path / "gem.instprm"
-    path.write_text(_two_banks())
+    path.write_text(_two_banks(), encoding="utf-8")
     with pytest.raises(ValueError, match="states 1, 2"):
         read_gsas2_instprm(path, bank=7)
 
@@ -246,7 +246,8 @@ def test_a_repeated_bank_number_is_refused(tmp_path):
     """Three of the corpus's twelve files write ``#Bank 6`` twice, so a number
     can name two calibrations in one file."""
     path = tmp_path / "twice.instprm"
-    path.write_text(_two_banks().replace("#Bank 2:", "#Bank 1:"))
+    path.write_text(_two_banks().replace("#Bank 2:", "#Bank 1:"),
+                    encoding="utf-8")
     with pytest.raises(ValueError, match="names two calibrations"):
         read_gsas2_instprm(path, bank=1)
 
@@ -255,7 +256,7 @@ def test_a_stated_geometry_is_read_rather_than_assumed(tmp_path):
     path = tmp_path / "bb.instprm"
     path.write_text("#GSAS-II instrument parameter file; do not add/delete items!\n"
                     "Type:PXC\nLam:1.5405\nDiff-type:Bragg-Brentano\n"
-                    "Gonio. radius:217.5\n")
+                    "Gonio. radius:217.5\n", encoding="utf-8")
     diagnostics: list = []
     instrument = read_gsas2_instprm(path, diagnostics=diagnostics)
     assert instrument.geometry.kind == "bragg_brentano"
@@ -293,7 +294,7 @@ def test_a_single_line_source_writes_lam_and_not_the_pair(tmp_path):
     inst = rx.Instrument.debye_scherrer(wavelength=0.4139090, polarization=0.99)
     out = tmp_path / "mono.instprm"
     rx.write_gsas2_instprm(inst, out)
-    assert "\nLam:" in out.read_text()
+    assert "\nLam:" in out.read_text(encoding="utf-8")
     back = read_gsas2_instprm(out)
     assert len(back.source.lines) == 1
     assert back.source.primary_wavelength == pytest.approx(0.4139090, rel=1e-15)
@@ -306,7 +307,7 @@ def test_a_neutron_instrument_round_trips(tmp_path):
     inst.profile.w.value = 0.02
     out = tmp_path / "neutron.instprm"
     rx.write_gsas2_instprm(inst, out)
-    assert "\nType:PNC\n" in out.read_text()
+    assert "\nType:PNC\n" in out.read_text(encoding="utf-8")
     back = read_gsas2_instprm(out)
     assert back.source.kind == "neutron_cw"
     assert back.source.wavelength.value == pytest.approx(1.5401, rel=1e-15)
@@ -417,8 +418,8 @@ def test_the_written_values_are_the_real_files_own_spelling(tmp_path):
     """
     out = tmp_path / "again.instprm"
     rx.write_gsas2_instprm(read_gsas2_instprm(HB2A), out)
-    (original,) = read_instprm(HB2A.read_text())
-    (written,) = read_instprm(out.read_text())
+    (original,) = read_instprm(HB2A.read_text(encoding="utf-8"))
+    (written,) = read_instprm(out.read_text(encoding="utf-8"))
     assert original.items == {k: v for k, v in written.items.items()
                               if k in original.items}
     assert len(original.items) == 13
@@ -430,7 +431,7 @@ def test_an_item_the_format_declares_and_a_file_omits_is_named(tmp_path):
     default rather than the file's."""
     path = tmp_path / "thin.instprm"
     path.write_text("#GSAS-II instrument parameter file; do not add/delete items!\n"
-                    "Type:PXC\nLam:1.5405\n")
+                    "Type:PXC\nLam:1.5405\n", encoding="utf-8")
     diagnostics: list = []
     read_gsas2_instprm(path, diagnostics=diagnostics)
     (row,) = [d for d in diagnostics
