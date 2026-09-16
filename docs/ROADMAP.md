@@ -94,10 +94,10 @@ placement, link resolution, and the size caps on this file and CLAUDE.md.
 survives from 1407: Stoe `.raw` files paired with the WinXPOW ASCII export of
 the same scans would make Stoe writable.
 
-**Nothing is in flight.** [1118](wp/1118-foreign-model-files.md) closed
-2026-09-16: TOPAS, FullProf, GSAS and GSAS-II all read and all write, and #101,
-#148 and #234 close with its last PR. The `.inp` grammar it refuses is
-[1433](wp/1433-the-inp-grammar-still-refused.md), blocked on nothing.
+**Nothing is in flight.** [1310](wp/1310-report-repeats-itself.md) closed
+2026-09-16 on four of six (#106, #123, #162, #231): two had shipped before it
+was filed, and the last two, each filed with a fix its measurements rule out,
+carry on as [1434](wp/1434-the-bound-test-asks-the-wrong-question.md) and [1435](wp/1435-a-hold-the-caller-declares.md).
 
 **Ready to pick up:** the **live-watcher track**, five rungs left.
 [1424](wp/1424-a-row-that-names-its-run.md) closed 2026-09-16: every number is
