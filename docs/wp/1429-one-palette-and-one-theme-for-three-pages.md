@@ -124,7 +124,7 @@ WP starts; every entry below is still true.
 
 ## Tasks
 
-- [ ] The token module: the GUI's values, both themes, chrome and plot, with
+- [x] The token module: the GUI's values, both themes, chrome and plot, with
       a CSS emitter; `gui/src/tokens.css` generated and committed, imported by
       `app.css`, pinned equal to the emitter by a test;
       `test_gui_palette.py` reading from one authority
