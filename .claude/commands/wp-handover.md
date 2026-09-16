@@ -165,6 +165,19 @@ steps below run unchanged.
       per `tests/CLAUDE.md` § Quoting numbers), what it deliberately did not
       do, and any finding filed into another WP, named with its number. End
       with the repo's two-line Claude Code footer.
+    - **A closing keyword is plain text, never a code span.** GitHub does not
+      parse `` `Closes #148` `` inside backticks, so the issue stays open with
+      its work merged and nothing says so. Measured 2026-09-16 over the last
+      120 merged PRs: 10 closing phrases written plain, every one of their
+      issues closed; 7 written in backticks, every one of their issues open.
+      Four of those seven quote the keyword on purpose (#206 and #213, which
+      say they are leaving their issue open); the other three are WP-1118
+      losing #101, #148 and #234. **The trap has a second half**: prose about
+      a keyword is a keyword. Writing that another PR declined to close an
+      issue linked that issue here, and rewording around the number left the
+      link standing. Check with
+      `gh pr view N --json closingIssuesReferences`, and clear a stray link by
+      taking the **number** out, since editing the words around it does not.
     - **Never merge, and never wait on CI to decide.** Whether green is
       enough, and when to merge, is the maintainer's call.
 12. **Report**, to the person and not to the log: **first the same

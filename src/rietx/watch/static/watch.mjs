@@ -3,8 +3,9 @@
 // A module script, so nothing here is a global and the page's own functions
 // cannot collide with plotly's. The functions that touch no DOM are next door
 // in `watch-core.mjs`, where the suite can call them.
-import {ago, deltaTitle, esc, nextPanels, num, parsePanels, rangesOf}
-  from './watch-core.mjs';
+import {LAYOUT_DEFAULT, ago, axisOf, clampSize, clock, coalesce, deltaTitle,
+        dragged, esc, nextLayout, num, parseLayout, pct, rangesOf, rowName,
+        runLabel, runTitle, withAlpha} from './watch-core.mjs';
 
 const $ = id => document.getElementById(id);
 let SINGLE = null;          // set when the served directory is itself a run
@@ -36,7 +37,11 @@ let HUE = null;             // PALETTES['dark'] — one answer for three pages
 let DIST = '';              // the distribution name
 // the console is a tail and not an archive; the log on disk is the archive
 const MAX_LINES = 2000;
+//: WP-1423's `{runs, run}`, read once at boot and then removed: the shape
+//: WP-1425 stores is not that one, so it takes a name of its own rather than
+//: a version field.
 const PANELS_KEY = 'rietx-watch-panels';
+const LAYOUT_KEY = 'rietx-watch-layout';
 
 // text is written only when it changed: assigning the same string still
 // replaces the node, and a replaced node is a layout
@@ -62,21 +67,33 @@ function makeRow(run) {
   tr.className = 'run';
   tr.dataset.id = run.run_id;
   tr.innerHTML = '<td><span class="state"></span></td><td></td><td></td>' +
-    '<td class="num"></td><td class="num"></td><td class="muted"></td>';
+    '<td class="num"></td><td class="num"></td>' +
+    '<td class="muted"><time></time></td>';
   tr.onclick = () => { location.hash = '#/run/' + run.run_id; };
   return tr;
 }
 
+// Three cells hold a name somebody else chose — the label, the series label
+// it now carries, and the stage — so each declares a `title` and is allowed
+// to run out of column. The three the page fills itself are sized to fit in
+// `watch.css`, and the browser test measures that they do.
 function fillRow(tr, run) {
   const st = run.status || {};
   const td = tr.children;
   setPill(td[0].firstElementChild, run.liveness);
-  setText(td[1], run.label + (run.legacy ? ' · legacy' : ''));
-  setAttr(td[1], 'title', run.path);
+  setText(td[1], rowName(run));
+  setAttr(td[1], 'title', runTitle(run));
   setText(td[2], st.stage || '—');
-  setText(td[3], num(st.rwp, 4));
+  setAttr(td[2], 'title', st.stage || null);
+  setText(td[3], pct(st.rwp, 2));
   setText(td[4], num(st.gof, 2));
-  setText(td[5], ago(run.created));
+  const when = td[5].firstElementChild;
+  setText(when, clock(run.created));
+  setAttr(when, 'datetime', run.created
+    ? new Date(run.created * 1000).toISOString() : null);
+  setAttr(when, 'title', run.created
+    ? new Date(run.created * 1000).toLocaleString() + ' · ' + ago(run.created)
+    : null);
   tr.classList.toggle('selected', run.run_id === currentId());
 }
 
@@ -84,8 +101,31 @@ function fillRow(tr, run) {
 // server's order, so a list longer than the window keeps its scroll and a
 // row the pointer is on keeps its hover. Rebuilding the table on every poll
 // threw both away twenty-one times in a 25 s probe (WP-1423).
+// The first row the reader can still see, or null when the list is at its top.
+// Chosen by rectangle, which is what "on screen" means, and reported as an
+// `offsetTop`, which is a position in the flow and so survives the scrolling
+// this is about to do.
+function visibleAnchor(tbody, box) {
+  if (box.scrollTop <= 0) return null;
+  const top = box.getBoundingClientRect().top;
+  return [...tbody.children].find(tr =>
+    tr.getBoundingClientRect().bottom > top) || null;
+}
+
 function patchList(runs) {
   const tbody = $('rows');
+  const box = $('runs');
+  // Hold the reader's place across an arrival. A new run is prepended, so
+  // every row below it moves down a row's height and the whole list shifts
+  // under the eye: one arrival on a scrolled list scored 0.0134 of layout
+  // shift across four rows (WP-1426). The chat-log answer is to anchor on a
+  // row the reader can see and move the scroll by however far that row moved.
+  // Insertions above it are then compensated exactly, and an insertion below
+  // it, which moves it not at all, is left alone. A list already at its top is
+  // also left alone: there the arriving run is the thing being watched for,
+  // and holding the viewport would scroll it straight out of sight.
+  const anchor = visibleAnchor(tbody, box);
+  const was = anchor ? anchor.offsetTop : 0;
   const want = new Set(runs.map(r => r.run_id));
   for (const tr of [...tbody.children]) {
     if (!want.has(tr.dataset.id)) tr.remove();
@@ -98,6 +138,11 @@ function patchList(runs) {
     fillRow(tr, run);
   });
   $('empty').hidden = runs.length > 0;
+  // a row the walk dropped cannot say where it went, and the reader has lost
+  // that place whatever we do
+  if (anchor && anchor.isConnected && anchor.offsetTop !== was) {
+    box.scrollTop += anchor.offsetTop - was;
+  }
 }
 
 // -------------------------------------------------------------- run
@@ -107,7 +152,10 @@ function pictureKind(run) {
   return 'none';
 }
 
-function buildShell(run, kind) {
+// The picture alone. A run that had no snapshot when it was opened grows one
+// at its first stage boundary, and the kind changing from 'none' to 'json' is
+// what brings us back here.
+function buildPicture(run, kind) {
   const picture = $('picture');
   const old = $('plot');
   // a scattergl plot holds a WebGL context; dropping the div leaks it
@@ -121,9 +169,20 @@ function buildShell(run, kind) {
   // mtime null, never the run's: the shell is empty until something draws
   // into it, and carrying the run's write time here would say it had
   shell = {id: run.run_id, kind: kind, mtime: null};
-  tail = {offset: 0, inode: null, id: run.run_id};
-  $('console').textContent = '';
   setText($('s-where'), whereOf(run));
+  setAttr($('s-where'), 'title', whereOf(run) || null);
+}
+
+// The console belongs to the run, not to the picture, so a tail is reset when
+// the log it is following changes and not when the picture is rebuilt. The two
+// shared a builder until WP-1426: a run opened before its first snapshot had
+// its console wiped and re-fetched from offset 0 at that first stage boundary,
+// 121 lines out and 121 back for no change, and a reader who had scrolled up
+// to read was dropped at the bottom. The other reset is the route's, in
+// `pumpEvents`, where a log that is a different file says so.
+function resetTail(id) {
+  tail = {offset: 0, inode: null, id: id};
+  $('console').textContent = '';
 }
 
 // the mtime is in the URL rather than a cache-buster of its own: the same
@@ -242,35 +301,70 @@ async function drawSnapshot(id) {
              range: range.y2, autorange: false},
     yaxis3: {domain: [0, 0.07], anchor: 'x', visible: false,
              range: [0.5 - nrows, 0.5], autorange: false, fixedrange: true},
-    legend: {orientation: 'h', y: 1.02, yanchor: 'bottom', x: 0},
+    // Inside the paper at a fixed anchor, never above it. A legend anchored
+    // in the top margin makes plotly grow that margin to fit, so the picture
+    // moves whenever the legend gains a row. Two ways it gains one, both
+    // measured on this page (WP-1426): the window narrows and the row wraps,
+    // taking the plot area's top from 46 px to 139 px across 1400 → 700; or a
+    // stage frees the background, and one new entry takes it 45 → 64. The
+    // second is a stage boundary moving the whole picture, and no layout-shift
+    // entry reports it, the div's own box never having changed. Anchored here
+    // the area's top is the declared 8 px margin at every width, and the
+    // picture is 38 px taller at 1400 and 131 px at 700. `bgcolor` is the
+    // ground the paper already carries, at an opacity: opaque, the five rows
+    // it wraps to on a narrow panel hid the tallest peak behind them.
+    legend: {orientation: 'h', y: 1, yanchor: 'top', x: 0, xanchor: 'left',
+             bgcolor: withAlpha(HUE.ground, 0.72)},
+    // How much of the pattern is on screen, in the corner of the picture it
+    // is a fact about. It shared the strip's one flexible slot with the path
+    // until WP-1424, where the two of them were 1127 px of sentence in a
+    // track squeezed to nothing. A paper-anchored annotation takes no margin
+    // — `automargin` is off by default — so this does not move the picture,
+    // which the legend did before WP-1426 and is what those tests watch.
+    annotations: [{xref: 'paper', yref: 'paper', x: 1, y: 1,
+                   xanchor: 'right', yanchor: 'top', showarrow: false,
+                   text: `${snap.n_drawn} of ${snap.n_points} pts drawn`,
+                   font: {size: 10, color: HUE.fg},
+                   bgcolor: withAlpha(HUE.ground, 0.72)}],
     // one revision per run: a redraw of the same run keeps the zoom, and
     // opening a different run starts fresh
     uirevision: id,
   }, {displaylogo: false, responsive: true});
-  setText($('s-where'), `${snap.n_drawn} of ${snap.n_points} pts drawn · ` +
-                        whereOf(rows.get(id)));
+  setText($('s-where'), whereOf(rows.get(id)));
+  setAttr($('s-where'), 'title', whereOf(rows.get(id)) || null);
   return true;
 }
 
+// The one thing in this slot a reader would type. The path it used to carry
+// is the label's tooltip, where it is not competing for a track, and the
+// point count it used to share the slot with is on the picture, which is
+// what the count is about (WP-1424).
 function whereOf(run) {
-  if (!run) return '';
-  return run.gui_command ? `${run.gui_command} · ${run.path}` : run.path;
+  return (run && run.gui_command) || '';
 }
 
+// Every slot that can be cut names itself in a `title`, because the width
+// the strip has is the run panel's and the reader did not choose it. The
+// slots the page fills itself are declared wide enough in `watch.css` and
+// are never dropped.
 function fillStrip(run) {
   const st = run.status || {};
   setPill($('s-state'), run.liveness);
-  setText($('s-label'), run.label);
-  setAttr($('s-label'), 'title', run.path);
-  setText($('s-series'), st.series_index != null
+  setText($('s-label'), runLabel(run));
+  setAttr($('s-label'), 'title', runTitle(run));
+  const series = st.series_index != null
     ? `pattern ${st.series_index + 1}/${st.series_n || '?'} ` +
       `${st.series_label || ''} ${st.series_pass || ''}`.trim()
-    : '');
-  setText($('s-stage'), st.stage
+    : '';
+  setText($('s-series'), series);
+  setAttr($('s-series'), 'title', series || null);
+  const stage = st.stage
     ? (st.index != null ? `stage ${st.index}/${st.n_stages || '?'} ` : 'stage ')
       + st.stage
-    : '');
-  setText($('s-rwp'), st.rwp != null ? 'Rwp ' + num(st.rwp, 4) : '');
+    : '';
+  setText($('s-stage'), stage);
+  setAttr($('s-stage'), 'title', stage || null);
+  setText($('s-rwp'), st.rwp != null ? 'Rwp ' + pct(st.rwp, 2) : '');
   setText($('s-gof'), st.gof != null ? 'GoF ' + num(st.gof, 2) : '');
   setText($('s-free'), st.n_free != null ? st.n_free + ' free' : '');
   setText($('s-notice'), notice ? notice.text : '');
@@ -285,7 +379,12 @@ function fillStrip(run) {
 function clearStrip() {
   setPill($('s-state'), {state: 'unknown', evidence: 'no run'});
   for (const id of ['s-label', 's-series', 's-stage', 's-rwp', 's-gof',
-                    's-free', 's-where', 's-notice']) setText($(id), '');
+                    's-free', 's-where', 's-notice']) {
+    setText($(id), '');
+    // the tooltip goes with the text it was explaining, or the strip keeps
+    // answering questions about a run it is no longer showing
+    setAttr($(id), 'title', null);
+  }
   setText($('s-label'), 'no run');
   $('stop').hidden = true;
   if (shell.id !== null) {
@@ -293,8 +392,10 @@ function clearStrip() {
       window.Plotly.purge($('plot'));
     }
     $('picture').innerHTML = '';
-    $('console').textContent = '';
     shell = {id: null, kind: null, mtime: null};
+    // the tail goes with the console it was filling, or a reader who came
+    // back to this run would meet an empty console no poll ever refilled
+    resetTail(null);
   }
 }
 
@@ -312,10 +413,11 @@ async function drawRun(id) {
                  || (notice.stop && run.liveness.state !== 'running'))) {
     notice = null;
   }
-  const kind = pictureKind(run);
   // a running fit rewrites its snapshot per stage, and a run that had none
   // when it was opened grows one at its first
-  if (shell.id !== id || shell.kind !== kind) buildShell(run, kind);
+  const kind = pictureKind(run);
+  if (tail.id !== id) resetTail(id);
+  if (shell.id !== id || shell.kind !== kind) buildPicture(run, kind);
   fillStrip(run);
   // the write is recorded once it is on the page, never before: a draw that
   // did not happen must stay outstanding for the next poll
@@ -400,30 +502,244 @@ async function pumpEvents(id) {
   if (atBottom) pane.scrollTop = pane.scrollHeight;
 }
 
-// ------------------------------------------------------------- panels
-function panels() {
+// ------------------------------------------------------------- splitters
+// The two seams, and everything true of both (WP-1425).
+//
+// Each seam sizes one pane and leaves its neighbour a floor. Every number
+// here was measured on this page rather than chosen, and each is quoted
+// beside the constant it set.
+const SEAMS = {
+  // The list. Its five declared columns are 58ch, and that is exactly the
+  // table's whole min-content (measured 419 px at 1ch = 7.225). The run
+  // column takes the remainder, so it absorbs every narrowing on its own and
+  // reaches 0 px at 56ch with the table overflowing the panel. `run` as a
+  // heading inks 36 px, so 58 + 5 is the width below which a column cannot
+  // show its own name. In `ch`, because the columns it is made of are.
+  list: {
+    pane: 'runs', grip: 'grip-list', grow: 'right', prop: '--list',
+    minCh: 63,
+    // What the run pane keeps. A horizontal legend wraps *inside* the paper
+    // (WP-1426), so a narrow pane loses picture instead of gaining height:
+    // measured at 1400x900, the legend holds three rows down to a 340 px
+    // pane and collapses to six rows and 124 px — a quarter of the 503 px
+    // plot — by 300.
+    keep: 340,
+    of: el => el.getBoundingClientRect().width,
+    // the floor above is a width of *columns*, and the pane is sized
+    // border-box, so its own border and scrollbar gutter are on top. Measured
+    // rather than added as a constant: at the floor the run column came out
+    // 35 px against the 36 its heading inks, one pixel of border.
+    chrome: el => el.offsetWidth - el.clientWidth,
+  },
+  // The log. Three lines of 13 px plus the pane's 12 px of padding, against
+  // `#picture`'s own declared `min-height`, which is this page's existing
+  // answer to how short a picture may be.
+  console: {
+    pane: 'console', grip: 'grip-console', grow: 'up', prop: '--console',
+    min: 51, keep: 180,
+    of: el => el.getBoundingClientRect().height,
+  },
+};
+
+//: An arrow key moves the seam by this much, Shift by ten times it.
+const STEP = 16;
+
+let layout = LAYOUT_DEFAULT;
+
+function readLayout() {
   let raw = null;
-  // reading it can throw as well as come back empty (a private window, site
-  // data blocked), and both mean the same thing: no choice stored
-  try { raw = localStorage.getItem(PANELS_KEY); } catch (err) {}
-  return parsePanels(raw);
-}
-function applyPanels(p) {
-  document.body.dataset.runs = p.runs ? 'open' : 'closed';
-  document.body.dataset.run = p.run ? 'open' : 'closed';
-  $('toggle-runs').setAttribute('aria-pressed', String(p.runs));
-  $('toggle-run').setAttribute('aria-pressed', String(p.run));
-  try { localStorage.setItem(PANELS_KEY, JSON.stringify(p)); } catch (err) {}
-  // the plot's width just changed under it, and `responsive` only follows
-  // the window
-  const plot = $('plot');
-  if (p.run && plot && plot.tagName === 'DIV' && window.Plotly) {
-    window.Plotly.Plots.resize(plot);
+  let legacy = null;
+  // reading can throw as well as come back empty (a private window, site data
+  // blocked), and both mean the same thing: no choice stored
+  try {
+    raw = localStorage.getItem(LAYOUT_KEY);
+    legacy = localStorage.getItem(PANELS_KEY);
+  } catch (err) {}
+  const parsed = parseLayout(raw, legacy);
+  // The old key has given up the one bit it had, so it stops sitting in
+  // storage looking like state. Written before it is dropped, and not only on
+  // the reader's next verb: nothing else stores a layout, so removing the old
+  // key first spends the migrated bit on one render and the list comes back
+  // open on the reload after it.
+  if (legacy !== null) {
+    try {
+      localStorage.setItem(LAYOUT_KEY, JSON.stringify(parsed));
+      localStorage.removeItem(PANELS_KEY);
+    } catch (err) {}
   }
+  return parsed;
 }
-function togglePanel(which) {
-  applyPanels(nextPanels(panels(), which));
+
+function storeLayout() {
+  try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(layout)); } catch (err) {}
 }
+
+// One `ch` of the page's own font, measured rather than assumed: the list's
+// floor is declared in `ch` because the columns it is made of are.
+//
+// Measured once and kept: the probe is a DOM write and a forced reflow, and
+// `floorOf` is asked four times a pointer move. What moves the answer is the
+// page's font size, which moves when the window or the zoom does, so the
+// window's own `resize` is what drops it.
+let CH = null;
+function oneCh() {
+  if (CH !== null) return CH;
+  const probe = document.createElement('span');
+  probe.style.cssText = 'position:absolute;visibility:hidden;font:inherit';
+  probe.textContent = '0'.repeat(100);
+  document.body.appendChild(probe);
+  const ch = probe.getBoundingClientRect().width / 100;
+  probe.remove();
+  // an unmeasurable page is not an answer worth keeping, so only a real one
+  // is cached and the fallback is re-asked next time
+  if (ch > 0) CH = ch;
+  return ch || 7;
+}
+
+function floorOf(seam) {
+  const base = seam.min !== undefined ? seam.min
+                                      : Math.round(seam.minCh * oneCh());
+  return base + (seam.chrome ? seam.chrome($(seam.pane)) : 0);
+}
+
+// The extent the two panes share, which is what a stored size is re-clamped
+// against. Read off the page, so the grip's own 5 px are already out of it.
+function extentOf(which) {
+  if (which === 'list') {
+    return $('main').getBoundingClientRect().width
+           - $('grip-list').getBoundingClientRect().width;
+  }
+  return $('run').getBoundingClientRect().height
+         - $('strip').getBoundingClientRect().height
+         - $('grip-console').getBoundingClientRect().height;
+}
+
+// One resize in flight and at most one queued, and the queued one runs, so
+// the last redraw is the final size (WP-1032, through the ported `coalesce`).
+// Un-coalesced this is one plotly redraw per pointer move.
+const resizePlot = coalesce(() => {
+  const plot = $('plot');
+  if (plot && plot.tagName === 'DIV' && window.Plotly) {
+    return window.Plotly.Plots.resize(plot);
+  }
+  return undefined;
+});
+
+// A size for the pane, or `null` for "no choice made" — which leaves the
+// stylesheet's own `72ch`/`30%` in force rather than freezing a px number
+// over a size that is font- and window-relative on purpose.
+//
+// A stored size is not a settled size (WP-1029): a drag clamps against the
+// extent it happened in, and nothing clamps a size that outlives its window,
+// so this runs at *render* and not only at the end of a drag.
+function sizeOf(which) {
+  const state = layout[which];
+  if (state.size === null) return null;
+  const seam = SEAMS[which];
+  return clampSize(state.size, floorOf(seam), seam.keep, extentOf(which));
+}
+
+function applyLayout() {
+  document.body.dataset.list = layout.list.open ? 'open' : 'closed';
+  $('run').dataset.console = layout.console.open ? 'open' : 'closed';
+  for (const which of Object.keys(SEAMS)) {
+    const seam = SEAMS[which];
+    const size = sizeOf(which);
+    if (size === null) document.body.style.removeProperty(seam.prop);
+    else document.body.style.setProperty(seam.prop, size + 'px');
+    const grip = $(seam.grip);
+    grip.classList.toggle('closed', !layout[which].open);
+    const floor = floorOf(seam);
+    const ceiling = Math.max(floor, extentOf(which) - seam.keep);
+    // the ARIA window splitter's numbers. A collapsed pane sits at its own
+    // minimum, which is how the pattern says "collapsed" without inventing a
+    // second attribute for it.
+    grip.setAttribute('aria-valuemin', String(Math.round(floor)));
+    grip.setAttribute('aria-valuemax', String(Math.round(ceiling)));
+    grip.setAttribute('aria-valuenow', String(Math.round(
+      layout[which].open ? (seam.of($(seam.pane)) || size || floor) : floor)));
+  }
+  resizePlot();
+}
+
+function setSize(which, size, {store = true} = {}) {
+  layout = nextLayout(layout, which, {size: Math.round(size), open: true});
+  if (store) storeLayout();
+  applyLayout();
+}
+
+// Collapse and restore. The pane comes back at the size it had, and at the
+// declared default when it never had one.
+function toggleSeam(which) {
+  layout = nextLayout(layout, which, {open: !layout[which].open});
+  storeLayout();
+  applyLayout();
+}
+
+function armGrip(which) {
+  const seam = SEAMS[which];
+  const grip = $(seam.grip);
+  const pane = $(seam.pane);
+  const horizontal = axisOf(seam.grow) === 'x';
+
+  grip.addEventListener('pointerdown', ev => {
+    if (ev.button !== 0) return;
+    if (!layout[which].open) return;     // collapsed: the verb is the toggle
+    ev.preventDefault();
+    const from = horizontal ? ev.clientX : ev.clientY;
+    const start = seam.of(pane);
+    grip.setPointerCapture(ev.pointerId);
+    grip.classList.add('dragging');
+    const move = e => {
+      const at = horizontal ? e.clientX : e.clientY;
+      // report a size, never write one (WP-1029): `dragged` says what was
+      // asked for, `clampSize` what is allowed, and the owner writes it
+      setSize(which, clampSize(dragged(start, from, at, seam.grow),
+                               floorOf(seam), seam.keep, extentOf(which)),
+              {store: false});
+    };
+    const up = () => {
+      grip.classList.remove('dragging');
+      grip.removeEventListener('pointermove', move);
+      grip.removeEventListener('pointerup', up);
+      grip.removeEventListener('pointercancel', up);
+      storeLayout();              // persisted on the verb, not per pixel
+    };
+    grip.addEventListener('pointermove', move);
+    grip.addEventListener('pointerup', up);
+    grip.addEventListener('pointercancel', up);
+  });
+
+  grip.addEventListener('dblclick', () => toggleSeam(which));
+
+  // The WAI-ARIA window splitter's keyboard, so nobody has to invent one: the
+  // arrows move the separator, Home and End take it to its stops, and Enter
+  // collapses and restores. An arrow names a direction *on screen*; which way
+  // that grows this pane is `grow`'s business, which is why the sign is not
+  // spelled twice.
+  grip.addEventListener('keydown', ev => {
+    if (ev.key === 'Enter') { ev.preventDefault(); toggleSeam(which); return; }
+    if (!layout[which].open) return;
+    const back = horizontal ? 'ArrowLeft' : 'ArrowUp';
+    const forward = horizontal ? 'ArrowRight' : 'ArrowDown';
+    const extent = extentOf(which);
+    const floor = floorOf(seam);
+    const step = ev.shiftKey ? STEP * 10 : STEP;
+    const now = seam.of(pane);
+    let next;
+    if (ev.key === back) next = dragged(now, 0, -step, seam.grow);
+    else if (ev.key === forward) next = dragged(now, 0, step, seam.grow);
+    else if (ev.key === 'Home') next = floor;
+    else if (ev.key === 'End') next = Math.max(floor, extent - seam.keep);
+    else return;
+    ev.preventDefault();
+    setSize(which, clampSize(next, floor, seam.keep, extent));
+  });
+}
+
+// A stored size outlives the window it was chosen in, so the clamp is redone
+// whenever the window changes — the render-time half of WP-1029's rule.
+window.addEventListener('resize', () => { CH = null; applyLayout(); });
 
 // ------------------------------------------------------------- routing
 // A run named in the URL is pinned. With none the page follows the newest,
@@ -473,8 +789,6 @@ window.addEventListener('hashchange', () => refresh());
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) refresh();
 });
-$('toggle-runs').onclick = () => togglePanel('runs');
-$('toggle-run').onclick = () => togglePanel('run');
 $('stop').onclick = () => {
   const run = rows.get(currentId());
   if (run) openConfirm(run);
@@ -486,7 +800,10 @@ $('stop').onclick = () => {
   CAN_CANCEL = meta.can_cancel === true;
   readPage(meta);
   if (SINGLE) document.body.dataset.single = '';
-  applyPanels(panels());
+  layout = readLayout();
+  armGrip('list');
+  armGrip('console');
+  applyLayout();
   await refresh();
   schedule();
 })();

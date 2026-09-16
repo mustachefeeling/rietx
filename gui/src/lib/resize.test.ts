@@ -13,56 +13,55 @@ import { describe, expect, it } from "vitest";
 import { GRIP, MODEL_MIN, SERIES_MIN, axisOf, clampSize, coalesce, dragged,
          fitColumns, modelStacks, modelThreshold, seriesCompact } from "./resize";
 
-describe("which coordinate a grip reads", () => {
-  it("is the one its pane grows along", () => {
-    expect(axisOf("up")).toBe("y");
-    expect(axisOf("down")).toBe("y");
-    expect(axisOf("left")).toBe("x");
-    expect(axisOf("right")).toBe("x");
-  });
-});
+// --- ported cases: the table below is copied verbatim into
+// tests/watch_core.test.mjs, because `rietx watch`'s page cannot import this
+// module and a copy that is not pinned is a copy that drifts. The two blocks
+// are compared character for character by
+// tests/test_watch_app.py::test_the_ported_drag_arithmetic_keeps_the_guis_cases,
+// so a case edited here fails the page's copy until it follows. Keep the block
+// free of types: it has to parse as plain JavaScript too.
+const PORTED = [
+  // axisOf(grow) — the coordinate a grip reads is the one its pane grows along
+  ["axisOf", ["up"], "y"],
+  ["axisOf", ["down"], "y"],
+  ["axisOf", ["left"], "x"],
+  ["axisOf", ["right"], "x"],
+  // dragged(start, from, at, grow) — sign only, and the sign is per-edge.
+  // Console.svelte's case: the log is below the grip, so dragging *up* makes
+  // it taller.
+  ["dragged", [150, 400, 340, "up"], 210],
+  ["dragged", [150, 400, 460, "up"], 90],
+  // the sidebar: its grip is on its left edge and the pane is to the right
+  ["dragged", [420, 900, 820, "left"], 500],
+  ["dragged", [420, 900, 980, "left"], 340],
+  // the model pane's columns: each grip is on the right edge of the column it
+  // sizes, so the two directions are both in use in one app
+  ["dragged", [300, 300, 380, "right"], 380],
+  // clampSize(value, min, keep, available) — the floor
+  ["clampSize", [10, 26, 120, 800], 26],
+  // and whatever must survive of the pane next door
+  ["clampSize", [999, 26, 120, 800], 680],
+  // jsdom, or a drag before the first layout: `available` of 0 must not clamp
+  // every pane to a negative ceiling, which is what a naive `available - keep`
+  // would do — and the same when the container is too small to hold both
+  ["clampSize", [400, 26, 120, 0], 400],
+  ["clampSize", [400, 26, 120, 100], 400],
+  // rounds, so a style attribute is a whole number of pixels
+  ["clampSize", [210.6, 26, 120, 0], 211],
+];
+// --- end ported cases ---
 
-describe("the size a drag asks for", () => {
-  it("grows a top-edge grip when the pointer moves up", () => {
-    // Console.svelte's case: the log is below the grip, so dragging *up* makes
-    // it taller — the sign that has to be per-edge rather than global
-    expect(dragged(150, 400, 340, "up")).toBe(210);
-    expect(dragged(150, 400, 460, "up")).toBe(90);
-  });
+const PORTED_FNS: Record<string, (...a: never[]) => unknown> =
+  { axisOf, clampSize, dragged } as unknown as
+  Record<string, (...a: never[]) => unknown>;
 
-  it("grows a left-edge grip when the pointer moves left", () => {
-    // the sidebar: its grip is on its left edge and the pane is to the right
-    expect(dragged(420, 900, 820, "left")).toBe(500);
-    expect(dragged(420, 900, 980, "left")).toBe(340);
-  });
-
-  it("grows a right-edge grip when the pointer moves right", () => {
-    // the model pane's columns: each grip is on the right edge of the column
-    // it sizes, so the two directions are both in use in one app
-    expect(dragged(300, 300, 380, "right")).toBe(380);
-  });
-});
-
-describe("clamping", () => {
-  it("holds the floor", () => {
-    expect(clampSize(10, 26, 120, 800)).toBe(26);
-  });
-
-  it("leaves the neighbour what it must keep", () => {
-    expect(clampSize(999, 26, 120, 800)).toBe(680);
-  });
-
-  it("applies the floor alone when nothing is measurable", () => {
-    // jsdom, or a drag before the first layout: `available` of 0 must not
-    // clamp every pane to a negative ceiling, which is what a naive
-    // `available - keep` would do
-    expect(clampSize(400, 26, 120, 0)).toBe(400);
-    // …and the same when the container is too small to hold both
-    expect(clampSize(400, 26, 120, 100)).toBe(400);
-  });
-
-  it("rounds, so a style attribute is a whole number of pixels", () => {
-    expect(clampSize(210.6, 26, 120, 0)).toBe(211);
+describe("the arithmetic the rietx watch page also runs", () => {
+  it("answers every ported case", () => {
+    for (const row of PORTED as unknown as [string, never[], unknown][]) {
+      const [name, args, want] = row;
+      expect(PORTED_FNS[name](...args), `${name}(${args.join(", ")})`)
+        .toBe(want);
+    }
   });
 });
 

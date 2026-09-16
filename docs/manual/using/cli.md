@@ -120,12 +120,39 @@ $ rietx watch --port 8899 --open
 ```
 
 With no directory it scans the working directory and lists every run beneath it,
-running and finished together, each with the stage and Rwp its writer last
-recorded. The list is one panel and the selected run is the other. The run
-panel carries a status line, the plot and the event console. With no run in
-the URL the page follows the newest run, so opening it beside an agent's job
-shows what is happening now. Clicking a run pins it. The `runs` and `run`
-buttons in the bar collapse either panel, and the browser remembers the choice.
+running and finished together. The list is one panel and the selected run is
+the other. The run panel carries a status line, the plot and the event console.
+With no run in the URL the page follows the newest run, so opening it beside an
+agent's job shows what is happening now. Clicking a run pins it.
+
+Two seams divide the page and both are yours to move. One runs between the list
+and the run, the other between the plot and the console. Drag a seam to size
+the panel beside it. Double-click it, or focus it and press Enter, to collapse
+that panel, and repeat the gesture to bring it back. A focused seam also takes
+the arrow keys, 16 px a press and ten times that with Shift, with Home and End
+for its two stops. The browser remembers both sizes and re-fits them to the
+window you next open in, so a width chosen on a wide screen does not leave a
+sliver on a narrow one.
+
+A seam stops where the panel stops being readable. The list stops at the width
+its five declared columns need plus room for the run column's own heading, 63
+characters in all. The run panel keeps 340 px, below which the plot's legend
+wraps to six rows and covers the top quarter of the picture.
+
+The list has six columns. `state` is the liveness word below. `run` is what the
+run is called: for a series member the pattern it fitted, otherwise the label.
+The label is the word the caller passed as `label=`, and failing that the
+project's name or the directory the fit was launched from. `stage`
+is the stage its writer last recorded, and `Rwp` and `GoF` the fit at that
+point, Rwp as a percentage. `started` is a clock time, to the second for a run
+started today and a date before that. Hovering a row gives the rest of the
+record: the label, the run directory, the command line that launched it, and
+where that was run.
+
+An unnamed batch launched from one directory gives every run the same label, so
+the second it started is what tells its rows apart. That is a fact about the
+record rather than about the fit. Pass `label=` to the verb that starts the fit
+and the row carries the work instead ([](refining.md)).
 
 The page holds still while the fit moves. The plot redraws in place as the fit
 writes each stage. Its 2θ and intensity axes are set by the pattern, so they
@@ -134,6 +161,13 @@ symmetric and steps between fixed rungs (±3, ±5, ±10, ±20 and so on) as the
 residual tightens. The console tails the log from where it left off and follows
 it only while you are at the end. For a series the status line names the
 pattern being fitted, its pass and its stage.
+
+The status line shows what the run panel is wide enough to hold, and it drops
+slots rather than cutting each of them a little. The GUI command and the
+free-parameter count go first, then the label, then the series. The state, the
+Rwp and the GoF are always there, and the stage shortens rather than going.
+Widening the window, dragging the seam, or collapsing the list brings the rest
+back.
 
 ### Where the runs come from
 

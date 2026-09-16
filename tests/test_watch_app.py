@@ -467,7 +467,7 @@ def test_the_pure_half_of_the_page_is_unit_tested():
     """``node --test`` over ``watch-core.mjs``, run by the python suite.
 
     The page had no unit test of any kind until WP-1430, because none of it was
-    importable: the Δ/σ ladder, the 99.9th-percentile cut, the "NaN" guard and
+    importable: the Δ/σ ladder, the residual's outlier cut, the "NaN" guard and
     the panel rule were all checked by looking at a browser. Running it from
     here is what keeps it from going quiet — a node test nobody invokes is a
     file, not a check.
@@ -484,6 +484,39 @@ def test_the_pure_half_of_the_page_is_unit_tested():
     match = re.search(r"^# pass (\d+)$", done.stdout, re.MULTILINE)
     assert match is not None, done.stdout
     assert int(match.group(1)) >= 6, done.stdout
+
+
+#: The two files holding the GUI's drag-arithmetic cases, and the markers
+#: bounding the block that has to be the same in both.
+GUI_RESIZE_TESTS = REPO_ROOT / "gui/src/lib/resize.test.ts"
+PORTED_OPEN = "// --- ported cases:"
+PORTED_CLOSE = "// --- end ported cases ---"
+
+
+def _ported_block(path: Path) -> str:
+    text = path.read_text(encoding="utf-8")
+    start = text.find(PORTED_OPEN)
+    end = text.find(PORTED_CLOSE, start)
+    assert start >= 0 and end >= 0, f"no ported-case block in {path}"
+    return text[start:end + len(PORTED_CLOSE)]
+
+
+def test_the_ported_drag_arithmetic_keeps_the_guis_cases():
+    """`watch-core.mjs`'s `clampSize`/`dragged`/`axisOf` are the GUI's,
+    copied because the page cannot import TypeScript (WP-1425).
+
+    A copy that is not pinned is a copy that drifts, and the drift is silent:
+    both suites stay green while the two implementations answer differently.
+    So the *cases* are one block of text living in `gui/src/lib/resize.test.ts`
+    and copied into `tests/watch_core.test.mjs`, and this compares them
+    character for character. Editing the GUI's cases fails the page's copy
+    until it follows, which is the whole point.
+
+    It is a text comparison rather than a parsed one on purpose: a comment in
+    the table says *why* a case is there, and a copy that kept the numbers and
+    dropped the reasons would pass a parsed check.
+    """
+    assert _ported_block(GUI_RESIZE_TESTS) == _ported_block(CORE_TESTS)
 
 
 def test_the_embedded_page_parses_as_javascript():
@@ -510,7 +543,7 @@ def test_the_embedded_page_parses_as_javascript():
 
 
 #: Ids `watch.mjs` reaches for that `index.html` deliberately does not carry.
-#: One entry, and it earns its place: `buildShell` writes the plot div, the
+#: One entry, and it earns its place: `buildPicture` writes the plot div, the
 #: legacy iframe or the no-picture note into `#picture` itself.
 RUNTIME_IDS = {"plot"}
 
@@ -719,12 +752,22 @@ def test_the_dialog_says_what_a_click_does_to_the_other_process():
     script = (watch.STATIC_DIR / "watch.mjs").read_text(encoding="utf-8")
     assert "RefinementCancelled" in page
     assert "traceback" in page
-    # ...and no keyboard shortcut of any kind reaches the button. Read off the
-    # code and not the comments, which say the same thing in words and would
-    # otherwise be what passes this.
+    # ...and no keyboard shortcut reaches the button. Read off the code and not
+    # the comments, which say the same thing in words and would otherwise be
+    # what passes this.
+    #
+    # WP-1425 gave the two grips an ARIA splitter keyboard, so the guard is no
+    # longer "this page listens for no key at all". It is the claim that was
+    # always meant: no key listener sits anywhere a stray press could reach the
+    # stop verb from. A listener on `document` or `window` could; one on a grip,
+    # which has to be focused first and whose Enter collapses a pane, could not.
     code = "\n".join(line for line in script.splitlines()
                      if not line.lstrip().startswith("//"))
-    for shortcut in ("keydown", "keyup", "keypress", "autofocus", ".focus("):
+    listeners = re.findall(r"(\w+)\.addEventListener\('(key\w+)'", code)
+    assert listeners, "the guard found no key listener at all to check"
+    assert {target for target, _ in listeners} == {"grip"}, listeners
+    for shortcut in ("onkeydown", "onkeyup", "onkeypress", "autofocus",
+                     ".focus("):
         assert shortcut not in code, shortcut
     assert "autofocus" not in page, "the dialog's buttons take no focus"
 

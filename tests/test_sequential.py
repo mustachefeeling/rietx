@@ -1641,3 +1641,144 @@ def test_a_lebail_series_has_an_empty_agreement_trajectory_not_a_zero_one(
         x_label=thermal_series.x_label)
     assert stripped.agreement_phases() == []
     assert len(stripped.agreement_trajectory("anything")) == 0
+
+
+# -- to_table resolves a path the way everything else does (WP-1310) -------
+#
+# Issue #162: ``to_table`` called ``SeriesEntry.value``, which scans
+# ``parameters`` only, so every derived path came back as a well-formed column
+# of ``None`` — the declared-shape-with-a-lying-empty-state class of WP-1076.
+
+
+def _derived_series() -> SeriesResult:
+    """Three patterns; the second has no QPA and the third lacks one phase.
+
+    Hand-built, because what is under test is the *alignment* between a
+    trajectory (which skips what it cannot serve) and a table row per entry,
+    and a fitted series would carry every phase on every pattern and so could
+    not show the skip at all.
+    """
+    from rietx.schemas.results import (
+        PhaseAgreement,
+        PhaseQuantity,
+        QuantitativePhaseAnalysis,
+    )
+
+    def quantity(name, wf, **kw):
+        # the scale-and-mass block is required and irrelevant here: the table
+        # reads weight_fraction, so these carry one self-consistent set
+        return PhaseQuantity(name=name, weight_fraction=wf, scale=1.0,
+                             cell_mass=100.0, cell_volume=70.0, zmv=7000.0,
+                             **kw)
+
+    def entry(i, *, wf=None, rb=None, extra_phase=False, wf_esd=0.01):
+        qpa = None
+        if wf is not None:
+            rows = [quantity("LaB6", wf, weight_fraction_stderr=wf_esd)]
+            if extra_phase:
+                rows.append(quantity("CaF2", 1.0 - wf))
+            qpa = QuantitativePhaseAnalysis(phases=rows)
+        return SeriesEntry(
+            index=i, label=f"p{i}", x=float(i),
+            statistics=Statistics(rwp=0.1, rp=0.1, rexp=0.05, chi2=1.0,
+                                  gof=1.0, n_points=10, n_free_parameters=1),
+            parameters=[RefinedParameter(path="phases.0.cell.a",
+                                         value=4.0 + 0.01 * i, stderr=1e-4)],
+            qpa=qpa,
+            phase_agreement=([PhaseAgreement(name="LaB6", r_bragg=rb, r_f=rb)]
+                             if rb is not None else []))
+
+    return SeriesResult(entries=[
+        entry(0, wf=0.9, rb=0.05, extra_phase=True),
+        entry(1, wf=None, rb=0.06),          # no QPA at all on this pattern
+        # no agreement index, and a weight fraction whose esd was not estimated
+        entry(2, wf=0.8, rb=None, wf_esd=None),
+    ])
+
+
+def test_to_table_exports_a_qpa_path_as_numbers_not_blanks():
+    """The issue's headline: a derived path used to yield a column of None."""
+    series = _derived_series()
+    header, rows = series.to_table(paths=["qpa.LaB6"])
+
+    assert header[7:] == ["qpa.LaB6", "qpa.LaB6_esd"]
+    # percentages, and the pattern with no QPA is a hole rather than a zero
+    assert [row[7] for row in rows] == [90.0, None, 80.0]
+    # the esd column stays, and its two blanks mean different things: pattern 1
+    # has no QPA at all, pattern 2 has one whose esd was not estimated
+    assert [row[8] for row in rows] == [1.0, None, None]
+
+
+def test_an_agreement_path_gets_no_esd_column_at_all():
+    """An agreement index has ``stderr = None`` by construction, so a column
+    of blanks would invite the "zero or absent?" reading WP-1076 removes."""
+    series = _derived_series()
+    header, rows = series.to_table(paths=["r_bragg.LaB6"])
+
+    assert header[7:] == ["r_bragg.LaB6"]          # no _esd sibling
+    assert [row[7] for row in rows] == [0.05, 0.06, None]
+
+    # …while a kind that *has* esds keeps the column even where this series
+    # estimated none, because there the blank carries information
+    header_p, _ = series.to_table(paths=["phases.0.cell.a"])
+    assert header_p[7:] == ["phases.0.cell.a", "phases.0.cell.a_esd"]
+
+
+def test_the_row_a_trajectory_skipped_stays_aligned():
+    """A trajectory is a *subsequence* of the series, so the table cannot zip
+    it positionally — the hole has to land on the pattern it belongs to."""
+    series = _derived_series()
+    traj = series.resolve_trajectory("qpa.LaB6")
+
+    assert len(traj) == 2                      # pattern 1 carries no QPA
+    assert traj.positions == [0, 2]            # …and it is *which* two
+    _, rows = series.to_table(paths=["qpa.LaB6"])
+    assert [row[0] for row in rows] == [0, 1, 2]
+    assert rows[1][7] is None and rows[0][7] == 90.0 and rows[2][7] == 80.0
+
+
+def test_mixed_paths_keep_their_own_column_shapes():
+    """Three kinds in one call: the widths differ and must not drift."""
+    series = _derived_series()
+    header, rows = series.to_table(
+        paths=["phases.0.cell.a", "qpa.LaB6", "r_bragg.LaB6"])
+
+    assert header[7:] == ["phases.0.cell.a", "phases.0.cell.a_esd",
+                          "qpa.LaB6", "qpa.LaB6_esd", "r_bragg.LaB6"]
+    assert all(len(row) == len(header) for row in rows)
+    assert rows[0][7] == pytest.approx(4.0)
+    assert rows[0][9] == 90.0
+    assert rows[0][11] == 0.05
+
+
+def test_a_path_no_pattern_carries_refuses_by_name():
+    """Never a well-formed empty column — and the refusal says what exists."""
+    series = _derived_series()
+
+    with pytest.raises(ValueError, match="NotAPhase"):
+        series.to_table(paths=["qpa.NotAPhase"])
+    with pytest.raises(ValueError, match="agreement index"):
+        series.to_table(paths=["r_bragg.NotAPhase"])
+    with pytest.raises(ValueError, match="not a refined parameter"):
+        series.to_table(paths=["phases.0.cell.nonsense"])
+
+    # the two derived kinds answer with their own vocabulary, which is not the
+    # same set: CaF2 has a weight fraction on pattern 0 and never an R_B
+    with pytest.raises(ValueError, match="CaF2"):
+        series.to_table(paths=["qpa.NotAPhase"])
+    with pytest.raises(ValueError, match=r"available: LaB6\)"):
+        series.to_table(paths=["r_bragg.NotAPhase"])
+
+
+def test_write_csv_follows_to_table_through_the_resolver(tmp_path):
+    """``write_csv`` is a thin wrapper, so the fix has to reach the file."""
+    series = _derived_series()
+    out = tmp_path / "derived.csv"
+    series.write_csv(out, paths=["r_bragg.LaB6", "qpa.LaB6"])
+
+    lines = out.read_text(encoding="utf-8").strip().splitlines()
+    assert lines[0].split(",")[7:] == ["r_bragg.LaB6", "qpa.LaB6",
+                                       "qpa.LaB6_esd"]
+    assert lines[1].split(",")[7:] == ["0.05", "90.0", "1.0"]
+    # the skipped pattern writes empty cells, as every other absence does
+    assert lines[2].split(",")[7:] == ["0.06", "", ""]

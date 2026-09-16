@@ -13,6 +13,22 @@ warning beforehand.
 
 ### Inherited
 
+- **2026-09-16, from [1431](1431-a-caller-names-its-run.md): the api.md half
+  of the cap race is settled, and `REFERENCE_MAX_BYTES` is untouched.**
+  `references/api.md` is generated from the installed package, one signature
+  per public name, so its size is a fact about the API rather than an
+  authoring choice, and the authored cap's advice ("split it") is advice it
+  cannot take. It sat at 35 942 B against 36 000 and a single new public
+  keyword took it 20 B over. Raising the shared constant would have handed
+  `diagnostics.md` the room this WP deliberately denied it, so the generated
+  file now has its own `API_INDEX_MAX_BYTES` = 39 000 against the same 40 kB
+  Bash truncation, and `test_every_reference_file_is_within_its_cap` picks
+  the bar by whether the file is `API_INDEX`. **What this WP still owns is
+  unchanged**: `diagnostics.md` at ~20 B free, PR #291 as the split that buys
+  the next diagnostic row, and whether a per-cell byte gate belongs on the
+  §4b table. What it no longer has to decide is whether a generated file
+  should share an authored file's cap.
+
 From **WP-1409** (2026-09-14), which swept the manual's register and found a
 skill defect on the way.
 
@@ -235,3 +251,24 @@ deliberately broken fixture of each kind fails.
   #241, #247). The cap table was re-measured rather than copied: `SKILL.md`
   now has 22 B of headroom, not the 34 the issue reported. Decided the same
   day: warn at 95 % first, split versus raise deferred to the next row.
+- **2026-09-16** — the `diagnostics-projects.md` half of the cap race is
+  settled by a split, and `REFERENCE_MAX_BYTES` is still 36 000. PR #346 put
+  17 `GSAS2_*` rows (10 127 B) into that file while PR #291 waited, and the two
+  together came to 37 641 B against the cap, which is how a docs change fails a
+  gate neither author touched. The 2026-09-09 ruling above says the constant
+  stays, so the fix is the one the cap's own docstring names: the 29 GSAS and
+  GSAS-II rows moved to `references/diagnostics-gsas.md` as §7h, in main's
+  order, so the `.EXP` rows still sit beside the `.gpx` rows they share five
+  suffixes with and the `.prm` rows beside the `.instprm` ones. The seam is a
+  program rather than a file kind, and the writer rows go with it, because this
+  build writes a `.EXP`, a `.prm`, an `.instprm` and a GSAS-II phase CIF and no
+  other foreign format's writer has a row. Measured after:
+  `diagnostics-projects.md` 10 448 B, `diagnostics-gsas.md` 21 436 B,
+  `SKILL.md` 32 068 B of 33 000, `diagnostics.md` 35 963 B of 36 000. #291
+  rebases onto about 17 kB of room, and #289 onto what #291 then frees in
+  `diagnostics.md`. **What this does not do**: the three unticked tasks are
+  untouched and Status stays ⬜, since the split executes a ruling rather than
+  landing a gate. `diagnostics.md` still has 37 B of headroom until #291 lands,
+  so a new engine row is blocked today exactly as it was. The count moves by
+  four, one per `REFERENCES`-parametrised gate in `tests/test_skill.py`, and by
+  nothing else.

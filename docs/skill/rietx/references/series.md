@@ -18,6 +18,17 @@ series = rx.refine_sequential(patterns, structure, instrument,
 a_of_T = series.trajectory("phases.0.cell.a")     # x, value, stderr
 ```
 
+`to_table`/`write_csv` take the **derived** paths too, resolved the same way
+the plots are: `paths=["qpa.Rutile"]` exports the weight-fraction curve and
+`r_bragg.<phase>`/`r_f.<phase>` the agreement indices, beside any ordinary
+dot-path. Two things to expect. A path **no pattern carries raises**, naming
+it and listing what does exist: the phases carrying that kind of curve for a
+derived path, the series' own parameter paths for an ordinary one. A typo is
+therefore an error rather than a column of blanks. And an agreement index gets
+**no `_esd` column at all**, because it is a residual and has no esd in any
+series — where a column *is* present and a cell is empty, that pattern did not
+estimate one, which is a different fact. (Measured: WP-1310.)
+
 `x` is the series coordinate, and where it comes from is the file: a reader
 puts a scan's own temperature in `data.metadata["temperature_k"]`, and
 `rx.io.readers.list_scans(path)` reports the same number per scan before any of
@@ -217,7 +228,9 @@ that must be estimated from *this* pattern rather than carried or left at an
 initial value has somewhere to be set.  Two smaller hooks worth passing on any
 long run: `progress=` (a stream or path) emits one line per stage boundary per
 pattern and is the cheap way to know a run is alive, and `labels=` names the
-entries — without it every downstream table is keyed by integer.  A cancelled
+entries — without it every downstream table is keyed by integer. One letter
+away, `label=` names the whole chain in `rietx watch`'s list, and a sequence
+passed to it raises `TypeError` rather than being recorded.  A cancelled
 series **returns** what completed, with `SEQUENTIAL_CANCELLED`.  Note that
 `stage_reports=True` does *not* exist here; it is a `Refinement.fit()` argument
 and raises `TypeError`, and per-stage Rwp lives on the `stage_end` events of the

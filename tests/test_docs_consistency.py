@@ -137,6 +137,9 @@ _INHERITED_PRUNE_EPOCH = "2026-07-31"
 #                                                          (PRs #227, #228), which landed at 723 with no bump; repaired in #229
 #   2026-09-02  CLAUDE.md                     723 -> 732  for WP-1330's skill bullet: the three destinations
 #                                                          and the shape rule, landed at the cap
+#   2026-09-16  gui/CLAUDE.md                1028 -> 1036 for WP-1425's one rule: the watch page's
+#                                                          port of lib/resize.ts, pinned by a text-compared
+#                                                          case table, and the dist digest that hashes tests
 #   2026-09-03  docs/ROADMAP.md               621 -> 645  for the 2026-09-03 issue triage (1332-1341): ten rows
 #                                                          across three existing sections and one new one, landed 641
 #   2026-09-08  docs/ROADMAP.md               645 -> 648  for WP-1343 (issue #277, the magnetic
@@ -169,6 +172,11 @@ _INHERITED_PRUNE_EPOCH = "2026-07-31"
 #                                                          it in § What fires, and what stays silent; landed
 #                                                          713, +4 headroom so the next few index rows do
 #                                                          not each need a cap commit
+#   2026-09-16  docs/ROADMAP.md               717 -> 719  for WP-1434 and WP-1435, the two halves of WP-1310
+#                                                          it measured into their own shape: two index rows,
+#                                                          nothing else. The sentence naming them in § What
+#                                                          fires replaced one 1310 already had, so the
+#                                                          narrative paid for itself; landed 719, no headroom
 SIZE_CAPS: dict[str, int | None] = {
     # 739 -> 755 (WP-1102): two standing rules for the component seam — that an
     # additive non-Bragg term is a union *member* and not a new field, and that
@@ -243,7 +251,13 @@ SIZE_CAPS: dict[str, int | None] = {
     # was 833 and landing at exactly 833.  Two parents' additions do not sum
     # (tests/CLAUDE.md § Quoting numbers), so the merged tree is one over and
     # the +1 is arithmetic rather than new content.
-    "CLAUDE.md": 837,
+    # 837 -> 841 (WP-1424): "no file check sees layout" gains its second class.
+    # A cut is not a variant of the invisible sheet: that one was a rule
+    # outranking another, and this is a measurement being right about the
+    # wrong box.  It carries the instrument with it, because `scrollWidth` is
+    # the obvious probe and is blind here, and a reader who reaches for it
+    # measures zero and believes the page.  Raised rather than shaved.
+    "CLAUDE.md": 841,
     # 672 -> 676 (WP-1102): the Current focus rewrite at 1102's close names the
     # milestone's one break and what makes 1103 the seam's proving case.
     # 676 -> 682 (WP-1407): a new Unscheduled group, "The formats a lab still
@@ -278,9 +292,16 @@ SIZE_CAPS: dict[str, int | None] = {
     # Current focus naming #101 as closed, which is what a successor reads to
     # know the writers are all that is left of 1118.  Nothing is demotable, so
     # the cap moves rather than the fact.  Landed at 711, headroom +1.
-    "docs/ROADMAP.md": 717,
-    "gui/CLAUDE.md": 1028,
-    "tests/CLAUDE.md": 275,
+    "docs/ROADMAP.md": 719,
+    "gui/CLAUDE.md": 1036,
+    # 275 -> 283 (WP-1426): a third way a guard goes quiet, and the only one of
+    # the three that is about the instrument rather than the assertion — a
+    # browser's layout-shift entry cannot see inside a plotly div, so a
+    # stillness guard over a picture reads 0 while the picture moves. It
+    # governs work well outside the WP that measured it: three queued WPs edit
+    # that page, and `compare_app.py` and the GUI both draw with plotly too.
+    # Landed at 282, headroom +1, per this file's docstring.
+    "tests/CLAUDE.md": 283,
     "src/rietx/indexing/CLAUDE.md": 300,
     # 300 -> 350 (WP-1407): four per-format rows, and three standing rules the
     # Philips √ encoding taught — that a format may encode its counts rather

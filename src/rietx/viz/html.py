@@ -143,7 +143,15 @@ def figure_from_arrays(tt: np.ndarray, y_obs: np.ndarray, y_calc: np.ndarray,
 
     fig.update_layout(
         title=title, template="simple_white",
-        legend={"orientation": "h", "y": 1.02, "yanchor": "bottom"},
+        # Inside the paper, for the reason the watch page's legend is
+        # (WP-1426): anchored above the plot area it lives in the top margin,
+        # and plotly grows that margin when the row wraps. Measured here, the
+        # area's top went 60 px to 75 px between a 1000 px and a 700 px window
+        # while the title stayed put, so the picture moved and the page around
+        # it did not. The title keeps the margin; the legend no longer shares
+        # it. A white ground behind the rows keeps them readable over a peak.
+        legend={"orientation": "h", "y": 1, "yanchor": "top", "x": 0,
+                "xanchor": "left", "bgcolor": "rgba(255,255,255,0.85)"},
         margin={"l": 60, "r": 20, "t": 60, "b": 50},
     )
     if weighted:

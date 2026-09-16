@@ -97,12 +97,12 @@ Every refinable quantity is a `rx.Parameter` (`value`, `vary`, bounds), addresse
 `rx.Refinement` is the stateful entry point and `rx.refine` the one-shot function form. Plans are named in `rx.PLAN_INFO` or built as a `rx.RefinementPlan` of `rx.Stage`s; `ref.parameters()` lists every entry, fixed, locked and tied included, and the editing verbs auto-commit a history node each.
 
 - `rx.Refinement(structure: Structure, instrument: Instrument, *, backend: str = 'numpy', solver: str = 'trf', history: bool | str | Path | RefinementTree = True)` — Refine `structure` + `instrument` against a powder pattern.
-- `rx.Refinement.fit(data: PatternData, *, mode: Mode = 'rietveld', plan: RefinementPlan | str = 'mccusker_default', two_theta_limits: tuple[float, float] | None = None, events=None, cancel=None, telemetry=None, stage_reports: bool = False, progress=None) -> RefinementResult` — Run a staged refinement.
+- `rx.Refinement.fit(data: PatternData, *, mode: Mode = 'rietveld', plan: RefinementPlan | str = 'mccusker_default', two_theta_limits: tuple[float, float] | None = None, events=None, cancel=None, telemetry=None, label: str | None = None, stage_reports: bool = False, progress=None) -> RefinementResult` — Run a staged refinement.
 - `rx.Refinement.report(*, plan: RefinementPlan | str | None = None, **kw)` — The full `rietx.report.FitReport` for the last fit.
 - `rx.Refinement.summary(*, deliverable: str | None = None, plot: str | None = None, plan: RefinementPlan | str | None = None, report: FitReport | None = None) -> str` — The termination view (WP-1302): "done, or not, and why" from one call.
 - `rx.Refinement.suggest(data: PatternData, *, top_n: int = 5, include: str | list[str] = '*', exclude: list[str] | tuple[str, ...] = (), mode: Mode | None = None, two_theta_limits: tuple[float, float] | None = None, report=None) -> SuggestionResult` — Which held parameter should be freed next?
 - `rx.Refinement.predict(two_theta=None) -> np.ndarray` — y_calc at the current parameters — **the evaluate-only path**.
-- `rx.Refinement.run_stage(data: PatternData, stage: Stage, *, mode: Mode | None = None, two_theta_limits: tuple[float, float] | None = None, correlation_guard: float = 0.98, events=None, cancel=None, telemetry=None) -> RefinementResult` — Run a single stage from the current state, recording a child node.
+- `rx.Refinement.run_stage(data: PatternData, stage: Stage, *, mode: Mode | None = None, two_theta_limits: tuple[float, float] | None = None, correlation_guard: float = 0.98, events=None, cancel=None, telemetry=None, label: str | None = None) -> RefinementResult` — Run a single stage from the current state, recording a child node.
 - `rx.Refinement.parameters(*, mode: Mode | None = None) -> list[ParameterRow]` — Every parameter as data — fixed, locked and tied rows included.
 - `rx.Refinement.set_vary(path_globs: list[str] | str, vary: bool = True) -> list[str]` — Free (or hold) every parameter matching `path_globs`.
 - `rx.Refinement.set_values(values: dict[str, float])` — Set parameter values by dot-path, recording a `set_value` node.
@@ -112,7 +112,7 @@ Every refinable quantity is a `rx.Parameter` (`value`, `vary`, bounds), addresse
 - `rx.Refinement.add_variable(name: str, value: float, *, vary: bool = False, min: float = -inf, max: float = inf, transform: str = 'identity', unit: str | None = None) -> str` — Declare a named variable other parameters can follow.
 - `rx.Refinement.remove_variable(name: str) -> str` — Delete a named variable, refusing while anything follows it.
 - `rx.Refinement.edit(*, structure: Structure | None = None, instrument: Instrument | None = None, label: str = '') -> str | None` — Record a change to the model itself — adding an impurity phase, raising the background order, swapping the geometry.
-- `rx.refine(data: PatternData, structure: Structure, instrument: Instrument, *, mode: Mode = 'rietveld', plan: RefinementPlan | str = 'mccusker_default', two_theta_limits: tuple[float, float] | None = None, backend: str = 'numpy', solver: str = 'trf', history: bool | str | Path | RefinementTree = False, events=None, cancel=None, telemetry=None) -> RefinementResult` — One-shot functional API: `refine(data, structure, instrument)`.
+- `rx.refine(data: PatternData, structure: Structure, instrument: Instrument, *, mode: Mode = 'rietveld', plan: RefinementPlan | str = 'mccusker_default', two_theta_limits: tuple[float, float] | None = None, backend: str = 'numpy', solver: str = 'trf', history: bool | str | Path | RefinementTree = False, events=None, cancel=None, telemetry=None, label: str | None = None) -> RefinementResult` — One-shot functional API: `refine(data, structure, instrument)`.
 - `rx.RefinementPlan`
   Fields: `stages: list[Stage]`, `correlation_guard: float = 0.98`, `intermediate_ftol: float | None = 1e-06`
 - `rx.Stage` — One turn-on group of a staged plan — a declaration, not a result.
@@ -138,7 +138,7 @@ A refinement, a series, an indexing run and a suggestion each return their own t
 - `rx.SeriesResult` — The result of a sequential refinement over an ordered set of patterns.
   Fields: `mode: Literal['rietveld', 'lebail', 'pawley'] = 'rietveld'`, `entries: list[SeriesEntry] = []`, `x_label: str = 'index'`, `direction: Literal['forward', 'backward', 'both'] = 'forward'`, `backward: SeriesResult | None = None`, `diagnostics: list[Diagnostic] = []`, `provenance: Provenance | None = None`
 - `rx.SeriesResult.trajectory(path: str) -> Trajectory` — One parameter's trajectory across the series.
-- `rx.SeriesResult.to_table(*, paths: list[str] | None = None) -> tuple[list[str], list[list]]` — `(header, rows)`: one row per pattern, value + esd per parameter.
+- `rx.SeriesResult.to_table(*, paths: list[str] | None = None) -> tuple[list[str], list[list]]` — `(header, rows)`: one row per pattern, a column per path (+ esd where that kind of path has one).
 - `rx.SeriesResult.write_csv(path, *, delimiter: str | None = None, paths: list[str] | None = None)` — Write `to_table` to CSV/TSV (delimiter inferred from suffix).
 - `rx.SeriesResult.summary(*, max_entries: int = 5, deliverable: str | None = None) -> str` — The series termination view (WP-1302): the trajectory table, the `SEQUENTIAL_*` rows, first and last `max_entries` with the count.
 - `rx.SeriesEntry` — One pattern's place in the series: what was fitted and how it went.
