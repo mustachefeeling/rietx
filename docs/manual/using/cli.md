@@ -150,10 +150,10 @@ it only while you are at the end. For a series the status line names the
 pattern being fitted, its pass and its stage.
 
 The status line shows what the run panel is wide enough to hold, and it drops
-slots rather than cutting each of them a little: the GUI command goes first,
-then the free-parameter count, then the label, then the series. The state, the
-stage and the numbers stay. Widening the window, or collapsing the list, brings
-the rest back.
+slots rather than cutting each of them a little. The GUI command and the
+free-parameter count go first, then the label, then the series. The state, the
+Rwp and the GoF are always there, and the stage shortens rather than going.
+Widening the window, or collapsing the list, brings the rest back.
 
 ### Where the runs come from
 
