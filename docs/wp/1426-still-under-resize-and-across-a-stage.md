@@ -95,46 +95,40 @@ Flashing is not a layout shift either. Its probe is a screencast: frames at
 differ from both neighbours. The screencast is a measurement and not a gate;
 what it finds is fixed or recorded.
 
-### Inherited
+### The page this edits
 
-- **2026-09-16, from [1430](1430-the-page-is-a-file.md): the page is files, and
-  three of its names are not the ones 1430's plan said.** `watch.py` is the
-  package `watch/`, and the page is `watch/static/`: `index.html`, `watch.css`,
-  `watch.mjs` (the document) and `watch-core.mjs` (everything that touches no
-  DOM). `rietx.watch` imports unchanged. What to carry:
-  - **The DOM half is `.mjs`, not `.js`.** `node --check` reads a `.js` as
-    CommonJS, where the `import` of `watch-core.mjs` is a syntax error. A
-    browser cares about `type="module"` and the content type, never the
-    extension.
-  - **Node cases live in `tests/watch_core.test.mjs`**, not beside the module:
-    hatchling ships everything under `src/rietx`. They are invoked from
-    `tests/test_watch_app.py::test_the_pure_half_of_the_page_is_unit_tested`
-    (15 cases today), which passes `--test-reporter=tap` because node picks its
-    reporter by whether stdout is a terminal.
-  - **`@SUFFIX@`, `@DIST@` and `@HUE@` are gone.** A file cannot carry a token,
-    so the three ride on `/api/runs` as `payload.page.{suffix,dist,palette}`,
-    read at boot into the module-level `HUE` and `DIST`. That is 299 B of every
-    poll, against rows of 735 B each.
-  - **A new file under `static/` needs a row in `watch.STATIC_FILES`** and
-    nothing else — the route, the content type and the `.gitignore` guard all
-    read that dict. `*.html` in `.gitignore` swallowed `index.html` on the way
-    in, the sixth committed file that one rule has taken.
-  - **The Δ/σ ladder's spike guard is inert on a short pattern**, found while
-    writing its first unit cases. `rangesOf` takes the residual's
-    `floor(0.999 · n)`th value, and that index *is* `n - 1` for every n ≤ 1000,
-    so the "99.9th percentile" is the maximum there and one spiked point sets
-    the scale for the whole run. It bites as intended above that: a snapshot
-    decimates to `viz/snapshot.MAX_POINTS` = 4000, where a lone 900σ point is
-    cut and a ten-point misfitted peak is not. Both directions are pinned in
-    `tests/watch_core.test.mjs`, deliberately as the behaviour rather than as
-    the intention — 1430's fence was that nothing the page does changes. The
-    axis is this WP's subject, so the call is yours.
-  - `drawSnapshot` gained one line: `if (!HUE) return false;`. The palette
-    arrives with the first `api/runs`, and a poll can reach the draw before it
-    has — undrawn is what `false` already meant, so the next poll draws that
-    write. Keep the guard in whatever `drawSnapshot` becomes.
-  - `tests/test_watch_browser.py` took no diff and stays the bar: if it
-    moves, the page moved.
+WP-1430 took the page out of its python string on 2026-09-16, so everything
+below is a file. `src/rietx/watch/static/` holds `index.html`, `watch.css`,
+`watch.mjs` (the document half) and `watch-core.mjs` (everything that touches
+no DOM). Five facts carry into this WP's edits.
+
+- **A new file under `static/` needs a row in `watch.STATIC_FILES`** and
+  nothing else. The route, the content type and the `.gitignore` guard all
+  read that dict. A DOM half is `.mjs`, because `node --check` reads a `.js`
+  as CommonJS and the `import` of `watch-core.mjs` is a syntax error there.
+- **Node cases live in `tests/watch_core.test.mjs`**, since hatchling ships
+  everything under `src/rietx`. `tests/test_watch_app.py::test_the_pure_half_of_the_page_is_unit_tested`
+  invokes the 15 of them.
+- **The page's three build constants ride on `/api/runs`** as
+  `payload.page.{suffix,dist,palette}`, read at boot into module-level `HUE`
+  and `DIST`. A file cannot carry the `@TOKEN@` substitutions they were.
+- **`drawSnapshot` opens with `if (!HUE) return false;`.** A poll can reach
+  the draw before the first `/api/runs` has landed the palette. Keep the
+  guard in whatever `drawSnapshot` becomes.
+- **`tests/test_watch_browser.py` took no diff across 1430 and stays the
+  bar.** If it moves, the page moved.
+
+### The Δ/σ ladder's spike guard, handed over as a call
+
+`rangesOf` takes the residual's `floor(0.999 · n)`th value. That index *is*
+`n - 1` for every n ≤ 1000, so the "99.9th percentile" is the maximum on a
+short pattern and one spiked point sets the ladder's scale for the whole run.
+Above 1000 it bites as intended: a snapshot decimates to
+`viz/snapshot.MAX_POINTS` = 4000, where a lone 900σ point is cut and a
+ten-point misfitted peak is not. WP-1430 pinned both directions in
+`tests/watch_core.test.mjs` as the behaviour rather than the intention,
+because its fence was that nothing the page does changes. The axis is this
+WP's subject, so the call belongs here.
 
 ## Non-goals
 
@@ -164,6 +158,8 @@ what it finds is fixed or recorded.
       the legend's box constant relative to the plot across the three
       widths, and the console's line count unchanged across a picture kind
       change
+- [ ] The spike guard's short-pattern case: fixed, or recorded as measured
+      and left, with the reason (inherited from 1430)
 - [ ] Skill: none. The page is a human's.
 
 ## Acceptance
