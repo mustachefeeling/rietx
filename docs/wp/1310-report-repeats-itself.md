@@ -157,6 +157,39 @@ freed, and `vary` written back or reported per stage). Measured cost in the
 issue: an invalidated pin-and-scan study, and it is the failure mode of
 calibrate-on-a-certified-standard.
 
+**Measured 2026-09-16, and the proposed diagnostic cannot be built on `vary`.**
+Reproduced first: a LaB6 whose six cell parameters are declared `vary=False`,
+fitted under a plan whose second stage carries `phases.*.cell.*`, refines
+`cell.a` from the declared 4.15660 to 4.156599952 while `ref.structure`
+still reads `vary=False` and no diagnostic names it. The row on
+`RefinementResult.parameters` does say `vary=True`, so the result and the
+fitted model contradict each other about the same parameter.
+
+The trouble is the discriminator. On the shipped LaB6, **41 of 42 entries are
+declared `vary=False`**, because that is the default rather than a decision, so
+"declared fixed and freed by the plan" names almost everything a plan touches:
+
+| plan | frees | of which declared fixed | with the cell pinned |
+|---|---|---|---|
+| `mccusker_default` | 17 | 16 | 17 |
+| `mccusker_structural` | 21 | 20 | 21 |
+| `lab_bragg_brentano` | 21 | 20 | 21 |
+| `lab_calibrate` | 17 | 17 | 17 |
+
+The user's pin moves one number in seventeen. A diagnostic keyed on it would
+print sixteen lines on every ordinary fit and seventeen on the one that matters,
+which is not a signal. `__pydantic_fields_set__` does separate an explicit
+`vary=False` from a default one **in memory**, and does not survive a JSON round
+trip — every field comes back set — so a project opened from disk reports every
+parameter as deliberately pinned, and that is the commonest path.
+
+So the missing thing is not a diagnostic. **A user's pin has no authority to be
+read off**, exactly as a user's *tie* had none before WP-1070 gave it
+`Refinement._ties` and made that the one place a user's declaration lives. The
+same shape would fix this: a pin the caller states, which a plan's glob reports
+rather than silently overriding. That is a feature rather than the fix this WP
+scoped, so it is **asked rather than taken here**.
+
 **6. The bound test is a function of the stage's `ftol` (issue #273, folded
 from the mailbox 2026-09-15).** Measured read-only on `origin/main`
 `2ba7a9a3` by moving a declared bound to the wrong side of a converged optimum
@@ -258,8 +291,11 @@ absolute test.
       are ruled out** — the table in § 6 has the sweep. The rule that does
       separate the cases is esd-relative, which is a third option and changes
       an existing diagnostic's meaning, so it is the maintainer's call.
-- [ ] A plan that frees a pinned path says so (§ 5): a diagnostic naming the
-      paths, and `vary` written back or reported per stage.
+- [ ] A plan that frees a pinned path says so (§ 5). **Measured, and the
+      diagnostic the issue proposes cannot be built on `vary`** — 41 of 42
+      entries are declared fixed by default, so it would name 16 paths on an
+      ordinary fit and 17 on the one that matters. Needs an authority for a
+      user's pin, on WP-1070's precedent; the maintainer's call.
 - [ ] Tests: a `to_table` case per trajectory kind; a two-stage fixture whose
       early `BOUND_HIT` resolves, asserting the converged result is clean; a
       pinned-path-freed fixture; skill and manual rows touched by any wording
