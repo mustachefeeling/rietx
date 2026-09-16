@@ -82,6 +82,19 @@ with the resolved theme's hues, on load and on change.
 
 ### Inherited
 
+- **2026-09-16, from [1425](1425-the-panels-are-the-readers-to-size.md): two
+  grips, four more hard-coded greys, and a control that has states.** The
+  watcher page's two seams are splitters now, and `.grip` in `watch.css`
+  carries its own literals: `#1c1c1c` at rest, `#31405a` on hover, `#3d4a66`
+  for `:focus-visible` and while dragging, `#2a3140` when the pane it sizes is
+  collapsed. The two toggle buttons those replaced are gone, so
+  `.toggle[aria-pressed="true"]`'s `#2a3140`/`#3d4a66` pair is gone with them
+  and the count of literals is roughly unchanged. What is new for this WP is
+  that the grip is the first control on the page with **four** states rather
+  than two, so whatever token set lands has to name a focus ring as well as a
+  hover — and `:focus-visible` here is load-bearing rather than cosmetic, the
+  grip being keyboard-operable (arrows, Home, End, Enter) and 5 px wide.
+
 - **2026-09-16, from [1424](1424-a-row-that-names-its-run.md): one more palette
   consumer on the watcher page.**
   - `drawSnapshot` now writes a plotly annotation for the drawn-point count,
