@@ -1,10 +1,18 @@
 """HIGH_CORRELATION deduplication and the per-fit cap (WP-1302).
 
-Unit-level rather than a real refinement: the mechanism is pure list
-processing over ``Diagnostic`` objects, and a persistently correlated real
-pair (``tests/test_capillary_displacement.py``,
-``tests/test_acceptance_lab6_cbn.py``) is expensive to reproduce on every
-run just to re-check dedup arithmetic already covered here.
+Mostly unit-level: the mechanism is pure list processing over ``Diagnostic``
+objects, and a persistently correlated real pair
+(``tests/test_capillary_displacement.py``,
+``tests/test_acceptance_lab6_cbn.py``) is expensive to reproduce on every run
+just to re-check dedup arithmetic already covered here.
+
+**One real fit at the end, and it covers what none of the unit tests can**
+(WP-1310): that the stage loop still routes correlations through the dedup at
+all.  ``_run_plan`` treats ``HIGH_CORRELATION`` unlike every other code — it
+collects into ``correlation_hits`` rather than extending ``diagnostics`` — so
+losing that branch restores issue #106 in full with every unit test below
+still green.  0.27 s, which is what makes it affordable here rather than in
+the slow selection.
 """
 
 from __future__ import annotations
@@ -126,3 +134,86 @@ def test_the_cap_is_never_applied_to_a_stored_diagnostics_list():
 
     lines = _diagnostic_lines(result.diagnostics)
     assert sum(1 for ln in lines if "HIGH_CORRELATION:" in ln) == HIGH_CORRELATION_MAX
+
+
+# --- the routing (WP-1310) -----------------------------------------------
+#
+# Everything above tests ``_dedup_high_correlations`` as a function.  Nothing
+# above tests that the stage loop still *calls* it: ``_run_plan`` collects
+# ``HIGH_CORRELATION`` into ``correlation_hits`` instead of extending
+# ``diagnostics`` like every other code, and a regression that dropped that
+# branch would restore issue #106 with every unit test above still green.
+# Hence one real fit, kept as cheap as a real fit can be (~1 s).
+
+
+def _lab6_pattern():
+    """LaB6 over a range wide enough for the axial pair to be measurable."""
+    import numpy as np
+
+    from rietx.model.forward import compile_model
+    from rietx.params.vector import ParameterTable
+    from rietx.schemas.instrument import Instrument
+    from rietx.schemas.pattern import PatternData
+    from tests.test_schemas import make_lab6
+
+    structure = make_lab6()
+    ins = Instrument.debye_scherrer(wavelength=1.5406)
+    tt = np.arange(15.0, 110.0, 0.02)
+    empty = PatternData(two_theta=tt.tolist(),
+                        intensity=np.zeros_like(tt).tolist())
+    model = compile_model(structure, ins, empty, mode="rietveld")
+    table = ParameterTable(structure, ins)
+    y = model.evaluate(table.decode(table.x0())) + 80.0
+    rng = np.random.default_rng(11)
+    return PatternData(
+        two_theta=model.tt.tolist(),
+        intensity=rng.poisson(np.maximum(y, 1.0)).astype(float).tolist())
+
+
+def test_a_real_plan_reports_a_persistent_pair_once_naming_every_stage():
+    """Issue #106 end to end: four stages measure the pair, one entry survives.
+
+    ``axial_sl ~ axial_hl`` is the ρ = −1.000 pair the issue named, and the
+    FCJ axial pair is exactly degenerate on a well-centred specimen, so it
+    fires on every stage that re-measures the Jacobian after it goes free.
+    The plan is **cumulative**, which is what makes that happen: the pair is
+    freed in stage 2 and stays free, so stages 3, 4 and 5 each re-measure it.
+
+    The assertion is on the *stored* list, never ``str(result)`` — the render
+    cap would bound the count either way and so could not tell dedup from
+    truncation.
+    """
+    import collections
+
+    import rietx as rx
+    from rietx.schemas.instrument import Instrument
+    from rietx.strategy.staged import RefinementPlan, Stage
+    from tests.test_schemas import make_lab6
+
+    sl, hl = "instrument.geometry.axial_sl", "instrument.geometry.axial_hl"
+    plan = RefinementPlan(stages=[
+        Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"]),
+        Stage("axial", [sl, hl]),
+        Stage("cell", ["phases.*.cell.*"]),
+        Stage("profile", ["instrument.profile.w"]),
+        Stage("biso", ["phases.*.atoms.*.biso"]),
+    ])
+    ref = rx.Refinement(make_lab6(),
+                        Instrument.debye_scherrer(wavelength=1.5406),
+                        history=False)
+    result = ref.fit(_lab6_pattern(), plan=plan)
+
+    corr = [d for d in result.diagnostics if d.code == "HIGH_CORRELATION"]
+    pairs = collections.Counter(frozenset(d.where) for d in corr)
+    assert pairs, "the axial pair raised no HIGH_CORRELATION at all"
+    assert max(pairs.values()) == 1, (
+        "a pair is reported more than once — the stage loop is no longer "
+        f"routing through _dedup_high_correlations: {[d.message for d in corr]}")
+
+    axial = [d for d in corr if set(d.where) == {sl, hl}]
+    assert len(axial) == 1
+    # the four stages that re-measured it are named, which is what makes one
+    # entry as informative as the four it replaces
+    assert "flagged in stages:" in axial[0].message
+    for stage in ("axial", "cell", "profile", "biso"):
+        assert stage in axial[0].message
