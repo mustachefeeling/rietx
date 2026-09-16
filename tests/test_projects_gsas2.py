@@ -46,6 +46,7 @@ from rietx.io.projects.gsas2 import (
 DATA = Path(__file__).parent / "data"
 PBSO4 = DATA / "gsas2_pbso4.gpx"
 MAGNETIC = DATA / "gsas2_lacamno3_magnetic.gpx"
+SETTING = DATA / "gsas2_mn3o4_setting.gpx"
 
 
 @pytest.fixture(scope="module")
@@ -538,7 +539,7 @@ def test_the_corpus_fixtures_name_nothing_outside_the_allow_list():
     """The two vendored projects exercise the boundary they are here to prove."""
     import pickletools
 
-    for path in (PBSO4, MAGNETIC):
+    for path in (PBSO4, MAGNETIC, SETTING):
         with path.open("rb") as stream:
             names = []
             while stream.read(1):
@@ -548,3 +549,122 @@ def test_the_corpus_fixtures_name_nothing_outside_the_allow_list():
                         names.append(tuple(str(argument).split(" ", 1)))
         assert names, f"{path.name} names no globals at all"
         assert set(names) <= set(ALLOWED_GLOBALS), sorted(set(names) - set(ALLOWED_GLOBALS))
+
+
+# ------------------------------------------ the setting the operators state
+
+def test_the_operators_settle_a_symbol_that_names_two_settings():
+    """``tests/data/gsas2_mn3o4_setting.gpx`` writes ``I 41/a m d`` bare.
+
+    A bare symbol is two groups and gemmi has to pick one; it picks ``:1``.  The
+    project also writes the operations themselves, and they are ``:2`` — so the
+    setting is *read* here rather than assumed, and the phase is built under the
+    group the file describes (issue #101, WP-1118).
+    """
+    phase = read_gsas2_gpx(SETTING).phases[0]
+    assert phase.space_group == "I 41/a m d"          # the file's own string
+    assert phase.space_group_from_operators == "I 41/a m d:2"
+    assert phase.resolved_space_group == "I 41/a m d:2"
+    assert to_structure(read_gsas2_gpx(SETTING)).phases[0].space_group \
+        == "I 41/a m d:2"
+
+
+def test_reading_the_setting_is_reported_rather_than_done_in_silence():
+    diagnostics: list = []
+    read_gsas2_gpx(SETTING, diagnostics=diagnostics)
+    found = [d for d in diagnostics
+             if d.code == "GSAS2_GPX_SETTING_FROM_OPERATORS"]
+    assert len(found) == 1
+    assert found[0].level == "info"        # nothing lost; the answer improved
+    assert "I 41/a m d:2" in found[0].message
+    assert found[0].where == ["phases.0.space_group"]
+    # and the fit-time report is not also raised about a setting that was read
+    assert [d for d in diagnostics
+            if d.code == "SPACE_GROUP_SETTING_ASSUMED"] == []
+
+
+def test_the_settings_this_file_chooses_between_swap_its_two_sites():
+    """Why the choice matters here, where the *composition* cannot show it.
+
+    Mn3O4 is Mn12 O16 under either setting because both cation sites are Mn.
+    What differs is which site carries which multiplicity, so a reader that took
+    gemmi's ``:1`` would put 8 Mn where the file puts 4.
+    """
+    import numpy as np
+
+    from rietx.crystallography.symmetry import expand_positions, get_spacegroup
+
+    sites = [(0.0, 0.75, 0.125), (0.0, 0.0, 0.5), (0.0, 0.02775, 0.25924)]
+    counts = {s: [len(expand_positions(get_spacegroup(s), np.array(p)))
+                  for p in sites]
+              for s in ("I 41/a m d:1", "I 41/a m d:2")}
+    assert counts["I 41/a m d:1"] == [8, 4, 16]
+    assert counts["I 41/a m d:2"] == [4, 8, 16]
+
+
+def test_a_single_setting_symbol_says_nothing_either_way():
+    """The vendored PbSO4 is ``P n m a``, which the tables hold once."""
+    diagnostics: list = []
+    phase = read_gsas2_gpx(PBSO4, diagnostics=diagnostics).phases[0]
+    assert phase.space_group_from_operators is None
+    assert phase.resolved_space_group == "P n m a"
+    assert [d for d in diagnostics if "SETTING" in d.code] == []
+
+
+#: ``F d d d:2``'s coset representatives, written out rather than generated.  A
+#: fixture built from gemmi could only show the reader agreeing with itself
+#: (``io/CLAUDE.md`` § Adding a format, rule 4), so these come from the tables,
+#: in GSAS-II's own ``(rotation, translation)`` shape; the F centring and the
+#: inversion are the ``SGCen``/``SGInv`` entries beside them, as GSAS-II stores
+#: them.
+_FDDD_2_OPS = [
+    ([[1, 0, 0], [0, 1, 0], [0, 0, 1]], [0.0, 0.0, 0.0]),
+    ([[-1, 0, 0], [0, -1, 0], [0, 0, 1]], [0.75, 0.75, 0.0]),
+    ([[-1, 0, 0], [0, 1, 0], [0, 0, -1]], [0.75, 0.0, 0.75]),
+    ([[1, 0, 0], [0, -1, 0], [0, 0, -1]], [0.0, 0.75, 0.75]),
+]
+_FDDD_CEN = [[0.0, 0.0, 0.0], [0.0, 0.5, 0.5], [0.5, 0.0, 0.5], [0.5, 0.5, 0.0]]
+_FDDD_CELL = [True, 7.7127, 8.54329, 8.53643, 90.0, 90.0, 90.0, 562.48]
+
+
+def test_operators_written_from_the_tables_pick_the_same_setting(tmp_path):
+    """The corpus case, reproduced from the tables instead of from a file."""
+    project = _minimal_project(
+        SGData={"SpGrp": "F d d d", "SGOps": _FDDD_2_OPS,
+                "SGCen": _FDDD_CEN, "SGInv": True},
+        Cell=list(_FDDD_CELL))
+    path = _write_gpx(tmp_path / "fddd.gpx", project)
+    assert read_gsas2_gpx(path).phases[0].space_group_from_operators \
+        == "F d d d:2"
+
+
+def test_operators_matching_no_setting_leave_the_symbol_assumed(tmp_path):
+    """A shape no corpus file has, so it is written here.
+
+    Half of ``F d d d:2`` is a subgroup and no setting of the symbol, so the
+    operators settle nothing — and the honest answer is the ordinary assumption
+    with the ordinary report, not a confident wrong pin.
+    """
+    project = _minimal_project(
+        SGData={"SpGrp": "F d d d", "SGOps": _FDDD_2_OPS[:2],
+                "SGCen": _FDDD_CEN, "SGInv": True},
+        Cell=list(_FDDD_CELL))
+    path = _write_gpx(tmp_path / "partial.gpx", project)
+    diagnostics: list = []
+    phase = read_gsas2_gpx(path, diagnostics=diagnostics).phases[0]
+    assert phase.space_group_from_operators is None
+    assert phase.resolved_space_group == "F d d d"
+    codes = [d.code for d in diagnostics]
+    assert "SPACE_GROUP_SETTING_ASSUMED" in codes
+    assert "GSAS2_GPX_SETTING_FROM_OPERATORS" not in codes
+
+
+def test_a_phase_stating_no_operators_at_all_is_still_read(tmp_path):
+    """``SGData`` with only ``SpGrp`` is what every other project reader has."""
+    path = _write_gpx(tmp_path / "bare.gpx",
+                      _minimal_project(SGData={"SpGrp": "F d d d"},
+                                       Cell=list(_FDDD_CELL)))
+    diagnostics: list = []
+    phase = read_gsas2_gpx(path, diagnostics=diagnostics).phases[0]
+    assert phase.space_group_from_operators is None
+    assert [d.code for d in diagnostics].count("SPACE_GROUP_SETTING_ASSUMED") == 1

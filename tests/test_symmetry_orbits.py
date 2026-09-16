@@ -324,3 +324,106 @@ def test_a_scaffold_is_not_asked_for_a_composition() -> None:
     # and the snap is not reported about a dummy atom
     assert [d for d in _symmetry_silence_diagnostics(scaffold, "pawley")
             if d.code == "SITE_SNAPPED_TO_SPECIAL_POSITION"] == []
+
+
+# --- a setting read from stated operators ------------------------------------
+
+
+def _hausmannite(symbol: str) -> Structure:
+    """Mn3O4 as ``tests/data/gsas2_mn3o4_setting.gpx`` states it.
+
+    Both cation sites are Mn, so the two settings imply the *same* cell
+    contents and the composition — the discriminator everywhere else — says
+    nothing here.
+    """
+    return Structure(phases=[Phase(
+        name="Mn3O4", space_group=symbol,
+        cell=Cell(a=P(value=5.76345), b=P(value=5.76345), c=P(value=9.4522),
+                  alpha=P(value=90.0), beta=P(value=90.0), gamma=P(value=90.0)),
+        atoms=[
+            Atom(label="Mn1", species="Mn",
+                 x=P(value=0.0), y=P(value=0.75), z=P(value=0.125)),
+            Atom(label="Mn2", species="Mn",
+                 x=P(value=0.0), y=P(value=0.0), z=P(value=0.5)),
+            Atom(label="O1", species="O",
+                 x=P(value=0.0), y=P(value=0.02775), z=P(value=0.25924)),
+        ])])
+
+
+def test_operators_pick_the_setting_they_describe() -> None:
+    from rietx.crystallography.symmetry import operator_keys, setting_from_operators
+
+    for setting in ("F d -3 m:1", "F d -3 m:2"):
+        stated = operator_keys(get_spacegroup(setting))
+        assert setting_from_operators("F d -3 m", stated) == setting
+
+
+def test_a_symbol_with_one_setting_has_nothing_to_settle() -> None:
+    from rietx.crystallography.symmetry import operator_keys, setting_from_operators
+
+    stated = operator_keys(get_spacegroup("P n m a"))
+    assert setting_from_operators("P n m a", stated) is None
+
+
+def test_operators_matching_no_setting_settle_nothing() -> None:
+    """A subgroup is not a setting, and a confident pin would be worse than
+    the assumption it replaced."""
+    from rietx.crystallography.symmetry import operator_keys, setting_from_operators
+
+    half = frozenset(list(operator_keys(get_spacegroup("F d -3 m:2")))[:8])
+    assert setting_from_operators("F d -3 m", half) is None
+
+
+def test_a_translation_is_compared_in_twelfths_not_by_tolerance() -> None:
+    """``-1/4`` and ``3/4`` are one translation; ``1/4`` and ``1/3`` are not."""
+    from rietx.crystallography.symmetry import operator_key
+
+    eye = np.eye(3)
+    assert operator_key(eye, [-0.25, 0.0, 0.0]) == operator_key(eye, [0.75, 0, 0])
+    assert operator_key(eye, [1.0, 2.0, -3.0]) == operator_key(eye, [0, 0, 0])
+    assert operator_key(eye, [0.25, 0, 0]) != operator_key(eye, [1 / 3, 0, 0])
+
+
+def test_the_message_drops_the_composition_where_it_separates_nothing() -> None:
+    """Hausmannite is Mn12 O16 under both settings.
+
+    Quoting one formula twice reads as evidence that the choice does not
+    matter.  It does: the two Mn sites exchange multiplicities, so the message
+    falls back to those and the suggestion stops claiming a ZMV that has not
+    moved (WP-1118).
+    """
+    found = [d for d in _symmetry_silence_diagnostics(_hausmannite("I 41/a m d"))
+             if d.code == "SPACE_GROUP_SETTING_ASSUMED"]
+    assert len(found) == 1
+    message, suggestion = found[0].message, found[0].suggestion
+    assert "same cell contents (Mn12 O16)" in message
+    assert "I 41/a m d:1 → 8, 4, 16" in message
+    assert "I 41/a m d:2 → 4, 8, 16" in message
+    assert "changes ZMV and every weight fraction" not in suggestion
+    assert "exchange multiplicities" in suggestion
+
+    # and the case where the composition *does* separate them still leads with it
+    spinel = [d for d in _symmetry_silence_diagnostics(_spinel("F d -3 m"))
+              if d.code == "SPACE_GROUP_SETTING_ASSUMED"]
+    assert "Cell contents each setting implies" in spinel[0].message
+    assert "changes ZMV and every weight fraction" in spinel[0].suggestion
+
+
+def test_a_reader_and_a_fit_report_the_same_fact_from_one_builder() -> None:
+    """``setting_diagnostics`` is the one authority; ``source`` is all that
+    differs between a phase in a fit and a phase in a file."""
+    from rietx.crystallography.symmetry import setting_diagnostics
+
+    phase = _spinel("F d -3 m").phases[0]
+    cell = tuple(getattr(phase.cell, n).value
+                 for n in ("a", "b", "c", "alpha", "beta", "gamma"))
+    sites = [(a.species, a.x.value, a.y.value, a.z.value, a.occ.value)
+             for a in phase.atoms]
+    (built,) = setting_diagnostics("F d -3 m", source="phase 'spinel'",
+                                   where=["phases.0.space_group"],
+                                   cell=cell, sites=sites)
+    (at_fit,) = [d for d in _symmetry_silence_diagnostics(_spinel("F d -3 m"))
+                 if d.code == "SPACE_GROUP_SETTING_ASSUMED"]
+    assert built.message == at_fit.message
+    assert built.suggestion == at_fit.suggestion
+    assert built.where == at_fit.where
