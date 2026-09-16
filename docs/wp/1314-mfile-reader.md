@@ -53,7 +53,21 @@ flipping).
 
 ### Inherited
 
+- **2026-09-16, from [1118](1118-foreign-model-files.md): a `.m50` states its
+  symmetry operators, so its setting is read rather than assumed.** A bare
+  Hermann-Mauguin symbol is two groups for 40 of gemmi's settings, and gemmi
+  picks the first; a format that also writes the operations has already chosen.
+  `crystallography.symmetry.setting_from_operators` takes the expanded group
+  (centring and inversion included) and returns the setting matching exactly,
+  which is where `.gpx` sends `SGData['SGOps']` × `SGCen` × `SGInv`. Measured
+  there: 4 of 46 corpus phases state a bare two-setting symbol and every one
+  is origin choice 2 where the symbol alone resolves to choice 1 — read the
+  other way that is CuCr₂O₄ built as Cu₂CrO₄. Jana writes a symmetry-operation
+  list in the `.m50`, so this reader is on the operator side of that fork and
+  should not reach for `SPACE_GROUP_SETTING_ASSUMED`, which is the answer only
+  for a format stating a symbol alone (`io/CLAUDE.md` carries the rule).
 - **2026-09-16, from [1118](1118-foreign-model-files.md): the registry has a
+  binary member now, and two of its rules are yours to inherit.** The GSAS-II
   binary member now, and two of its rules are yours to inherit.** The GSAS-II
   `.gpx` reader went in first in `PROJECT_FORMATS`, because every other sniff
   decodes the head with `errors="ignore"` and meets a binary file as text with

@@ -2914,3 +2914,58 @@ def test_the_get_arm_is_unchanged(tmp_path):
     assert phase.vary.get("b") is None
     (drop,) = [d for d in diags if d.code == "TOPAS_CELL_COUPLING_DROPPED"]
     assert "`Get(a)`" in drop.message
+
+
+# ------------------------- the origin the file did not state (issue #101)
+
+_SPINEL_INP = """
+xdd "spinel.xy"
+   str
+      phase_name "spinel"
+      space_group "{symbol}"
+      a  8.0806  b  8.0806  c  8.0806  al 90 be 90 ga 90
+      site Mg x 0.125  y 0.125  z 0.125  occ Mg 1 beq 0.5
+      site Al x 0.5    y 0.5    z 0.5    occ Al 1 beq 0.5
+      site O  x 0.2624 y 0.2624 z 0.2624 occ O  1 beq 0.5
+      scale 0.0001
+"""
+
+
+def test_a_bare_two_setting_symbol_is_reported_at_read(tmp_path):
+    """TOPAS's trailing ``Z`` says which origin; a bare symbol says nothing.
+
+    `.inp` carries no operator list, so nothing in the file can settle it and
+    the reader reports the assumption rather than making it silently — the
+    composition being the discriminator (issue #101, issue #217).
+    """
+    path = _inp(tmp_path, "bare.inp", _SPINEL_INP.format(symbol="Fd-3m"))
+    diagnostics: list = []
+    model = read_topas_inp(path, diagnostics=diagnostics)
+    assert model.phases[0].space_group == "Fd-3m"
+    found = [d for d in diagnostics
+             if d.code == "SPACE_GROUP_SETTING_ASSUMED"]
+    assert len(found) == 1
+    # by phase name, which is how this reader addresses a phase in every
+    # other row it writes, `TOPAS_ORIGIN_TRANSLATED` included
+    assert found[0].where == ["phases.spinel.space_group"]
+    assert "F d -3 m:1 → Al8 Mg16 O32" in found[0].message
+    assert "F d -3 m:2 → Al16 Mg8 O32" in found[0].message
+
+
+def test_the_suffix_that_states_the_origin_is_translated_not_assumed(tmp_path):
+    """``Fd-3mZ`` is TOPAS saying ``:2``, so the file settled it and the
+    assumption report must not also fire."""
+    path = _inp(tmp_path, "suffixed.inp", _SPINEL_INP.format(symbol="Fd-3mZ"))
+    diagnostics: list = []
+    model = read_topas_inp(path, diagnostics=diagnostics)
+    assert model.phases[0].space_group == "Fd-3m:2"
+    codes = [d.code for d in diagnostics]
+    assert "TOPAS_ORIGIN_TRANSLATED" in codes
+    assert "SPACE_GROUP_SETTING_ASSUMED" not in codes
+
+
+def test_a_symbol_the_tables_hold_once_says_nothing(tmp_path):
+    path = _inp(tmp_path, "single.inp", _SPINEL_INP.format(symbol="Pnma"))
+    diagnostics: list = []
+    read_topas_inp(path, diagnostics=diagnostics)
+    assert [d for d in diagnostics if "SETTING" in d.code] == []

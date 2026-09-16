@@ -84,6 +84,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from ...crystallography.symmetry import setting_diagnostics
 from ...schemas.common import Diagnostic
 
 #: One record: 80 characters, of which the first 12 are the fetch key.
@@ -1140,6 +1141,25 @@ def _report(model: GsasModel, diagnostics: list[Diagnostic]) -> None:
                     f"magnetic phase (GSAS phase type {phase.kind}) and rietx "
                     f"has no magnetic scattering model"),
                 where=[f"phases.{phase.number}"]))
+        # A `.EXP` states `SG SYM` and no operators, so where the symbol names
+        # two settings the file has not chosen between them and neither can this
+        # reader.  Saying so at *read* is the point: a fit says it too, but a
+        # caller who only converts a model never reaches one (issue #101).
+        if phase.space_group:
+            try:
+                diagnostics.extend(setting_diagnostics(
+                    phase.space_group,
+                    source=f"{named}: phase {phase.number} ({phase.name!r})",
+                    where=[f"phases.{phase.number}.space_group"],
+                    cell=(phase.cell.a, phase.cell.b, phase.cell.c,
+                          phase.cell.alpha, phase.cell.beta, phase.cell.gamma),
+                    sites=[(a.species, a.x, a.y, a.z, a.occupancy)
+                           for a in phase.atoms]))
+            except ValueError:
+                # an unresolvable symbol is `to_structure`'s refusal to make,
+                # with the file's name on it; listing what a read could not
+                # carry must not raise
+                pass
 
 
 #: Uiso (Å²) → Biso (Å²).  GSAS stores U on the ``ATmmmB`` record and rietx's

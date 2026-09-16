@@ -591,3 +591,57 @@ def test_a_high_byte_in_a_title_does_not_split_its_card(tmp_path):
     model = read_gsas_exp(_exp(tmp_path, "nel.EXP", *cards))
     assert model.title == "caf\x85 standard"
     assert model.phases[0].cell.a == pytest.approx(4.0)
+
+
+# ------------------------------- a setting the file states no way of settling
+
+def _spinel_exp(tmp_path: Path, symbol: str) -> Path:
+    """Spinel at origin choice 2's coordinates, which is how papers print it."""
+    return _exp(
+        tmp_path, "spinel.EXP",
+        _card("     VERSION", "    6"),
+        _card("      DESCR ", "  spinel"),
+        _card(" EXPR NPHAS ", "    1"),
+        _card("CRS1    PNAM", "  spinel"),
+        _card("CRS1  ABC   ", "  8.080600  8.080600  8.080600    Y    0"),
+        _card("CRS1  ANGLES", "   90.0000   90.0000   90.0000"),
+        _card("CRS1  SG SYM", f"  {symbol}"),
+        _card("CRS1  AT  1A", "  MG        0.125000  0.125000  0.125000  1.000000MG1        1 000"),
+        _card("CRS1  AT  1B", "  0.010000                                                    I  U"),
+        _card("CRS1  AT  2A", "  AL        0.500000  0.500000  0.500000  1.000000AL1        1 000"),
+        _card("CRS1  AT  2B", "  0.010000                                                    I  U"),
+        _card("CRS1  AT  3A", "  O         0.262400  0.262400  0.262400  1.000000O1         1 000"),
+        _card("CRS1  AT  3B", "  0.010000                                                    I  U"),
+    )
+
+
+def test_a_bare_two_setting_symbol_is_reported_at_read(tmp_path):
+    """A ``.EXP`` states ``SG SYM`` and no operators, so it cannot settle this.
+
+    The fit reports it too, but a caller who only converts a model never runs
+    one — which is the whole of issue #101.  The composition is the
+    discriminator: origin choice 1 reads AB2O4 as A2BO4.
+    """
+    diagnostics: list = []
+    read_gsas_exp(_spinel_exp(tmp_path, "F d -3 m"), diagnostics=diagnostics)
+    found = [d for d in diagnostics
+             if d.code == "SPACE_GROUP_SETTING_ASSUMED"]
+    assert len(found) == 1
+    assert found[0].level == "warning"
+    assert found[0].where == ["phases.1.space_group"]
+    assert "F d -3 m:1 → Al8 Mg16 O32" in found[0].message
+    assert "F d -3 m:2 → Al16 Mg8 O32" in found[0].message
+
+
+def test_naming_the_setting_in_the_file_silences_it(tmp_path):
+    diagnostics: list = []
+    read_gsas_exp(_spinel_exp(tmp_path, "F d -3 m:2"), diagnostics=diagnostics)
+    assert [d for d in diagnostics
+            if d.code == "SPACE_GROUP_SETTING_ASSUMED"] == []
+
+
+def test_the_corroborating_fixture_names_a_group_held_once(tmp_path):
+    """``FAP.EXP`` is ``P 63/m``, so the report must not fire on it."""
+    diagnostics: list = []
+    read_gsas_exp(FAP, diagnostics=diagnostics)
+    assert [d for d in diagnostics if "SETTING" in d.code] == []

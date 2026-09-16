@@ -99,6 +99,60 @@ def setting_alternatives(symbol: str) -> tuple[str, tuple[str, ...]]:
     return taken, tuple(s for s in settings if s != taken)
 
 
+#: Denominator every space-group translation is an exact multiple of, which is
+#: what lets a stated operator be compared with a tabulated one by integers
+#: rather than by tolerance.
+_TRANSLATION_DEN = 12
+
+
+def operator_key(rotation, translation) -> tuple:
+    """One symmetry operation as integers, for comparing two operator lists.
+
+    ``rotation`` is a 3×3 integer matrix and ``translation`` a fractional
+    triple.  The translation is reduced modulo 1 and expressed in twelfths,
+    which every space-group translation is an exact multiple of, so two
+    spellings of one operation (``0.25`` against ``1/4``, ``-1/4`` against
+    ``3/4``) give the same key and no tolerance is involved.
+    """
+    rot = np.asarray(rotation, dtype=np.float64)
+    tran = np.asarray(translation, dtype=np.float64)
+    return (tuple(np.rint(rot).astype(int).ravel().tolist()),
+            tuple(int(round(v * _TRANSLATION_DEN)) % _TRANSLATION_DEN
+                  for v in tran.ravel()))
+
+
+def operator_keys(sg: gemmi.SpaceGroup) -> frozenset[tuple]:
+    """The tabulated operations of ``sg`` as :func:`operator_key` keys."""
+    return frozenset(
+        operator_key(np.asarray(op.rot, dtype=np.float64) / op.DEN,
+                     np.asarray(op.tran, dtype=np.float64) / op.DEN)
+        for op in sg.operations())
+
+
+def setting_from_operators(symbol: str, operators) -> str | None:
+    """The setting of ``symbol`` whose operations are exactly ``operators``.
+
+    ``operators`` is an iterable of :func:`operator_key` keys — the full group,
+    centring and inversion already expanded.  Returns the extended H-M symbol of
+    the single setting that matches, or ``None`` when none does or when the
+    symbol resolves to only one setting anyway (nothing to choose).
+
+    **This is what a format that states its operators is for.**  A bare
+    ``F d -3 m`` is two different groups and the symbol cannot say which, but a
+    file that also writes the operations has already said it, and reading them
+    is not a convention to be trusted but an equality to be checked.  GSAS-II
+    writes them (``SGData['SGOps']``), and 4 of the 46 phases in its public
+    tutorial corpus state a bare two-setting symbol whose operators are origin
+    choice 2 — where gemmi's reading of the symbol alone is choice 1 (WP-1118).
+    """
+    taken, others = setting_alternatives(symbol)
+    if not others:
+        return None
+    stated = frozenset(operators)
+    matches = [s for s in (taken, *others) if operator_keys(get_spacegroup(s)) == stated]
+    return matches[0] if len(matches) == 1 else None
+
+
 #: Largest deviation of a symmetry-fixed cell angle from its exact value that
 #: :func:`cell_constraints` accepts, in degrees.  Chosen by consequence, not by
 #: float tolerance: at 1e-3° the worst-case d-spacing bias is **8.3 ppm**
@@ -606,6 +660,118 @@ def snap_diagnostics(sg: gemmi.SpaceGroup, sites, *, source: str,
                    "nothing is wrong and the coordinates are simply rounded; "
                    "if they disagree, the coordinates and the space group are "
                    "telling you different things",
+    )]
+
+
+def setting_diagnostics(symbol: str, *, source: str, where: list[str],
+                        cell=None, sites=None) -> list[Diagnostic]:
+    """``SPACE_GROUP_SETTING_ASSUMED`` for a bare symbol the tables hold twice.
+
+    ``source`` names what the symbol belongs to and opens the message (``"phase
+    'spinel'"`` from a fit, ``"spinel.gpx: phase 'CuCr2O4'"`` from a reader);
+    ``where`` is the dot-path the report hangs on.  ``cell`` and ``sites`` are
+    optional — a caller that has them gets the composition each setting implies,
+    which is the discriminator the reader recognises (issue #217).  ``sites`` is
+    an iterable of ``(species, x, y, z, occupancy)``.
+
+    **One builder, because a reader and a fit report the same fact.**  A `.EXP`
+    or a `.inp` states a symbol and nothing else, so the setting is assumed at
+    *read* and saying so there is the point of the report (issue #101); a
+    hand-built ``Phase`` reaches the same silence with no file involved, and
+    ``refine.py`` catches that one.  A format that states its operators is a
+    different case entirely and does not come here — it is read, by
+    :func:`setting_from_operators`, and there is nothing to assume.
+
+    Empty when the symbol names its setting, when the tables hold only one, or
+    when the caller already pinned it.
+
+    **The composition is quoted only where it separates the settings.**  It
+    usually does, which is why it leads: spinel's A and B multiplicities swap,
+    so ``F d -3 m:1`` reads AB₂O₄ as A₂BO₄.  Where the swapping sites carry the
+    *same* species it separates nothing — hausmannite Mn₃O₄ under ``I 41/a m
+    d`` is Mn₁₂O₁₆ either way, measured on the GSAS-II corpus — and quoting one
+    formula twice reads as evidence that the choice does not matter.  It does:
+    the two Mn sites exchange multiplicities (8c/4b against 4a/8d), so the
+    message falls back to the multiplicities themselves and the suggestion stops
+    claiming a ZMV that has not moved (WP-1118).
+    """
+    taken, others = setting_alternatives(symbol)
+    if not others:
+        return []
+    # An origin choice keeps the axes, so one coordinate list means something
+    # under each setting and the compositions are comparable — that comparison
+    # is the whole point.  ``:H`` against ``:R`` changes the axes themselves, so
+    # the cell and the coordinates belong to one of the two and reading them
+    # under the other is arithmetic, not a composition: calcite's hexagonal
+    # 6/6/18 came back as 2/12/12.
+    same_axes = not any(s.rsplit(":", 1)[-1] in ("H", "R")
+                        for s in (taken, *others))
+    settings = (taken, *others)
+    # materialised once: the rows are walked twice below, and a caller passing a
+    # generator would leave the second pass reading an exhausted one — an empty
+    # multiplicity list rather than an error
+    rows = [] if sites is None else [(s, x, y, z, occ)
+                                     for s, x, y, z, occ in sites]
+    formulas: list[str] = []
+    if cell is not None and rows and same_axes:
+        # here rather than at module scope: ``optimize.qpa`` is built on this
+        # module, so the composition a report quotes is fetched when a report is
+        # built and never on the way in
+        from ..optimize.qpa import phase_zmv
+        for setting in settings:
+            try:
+                counts = phase_zmv(setting, tuple(cell), rows).element_counts
+            except (ValueError, KeyError):
+                formulas = []
+                break
+            formulas.append(" ".join(f"{s}{c:g}"
+                                     for s, c in sorted(counts.items())))
+
+    separated = len(set(formulas)) > 1
+    multiplicities: dict[str, str] = {}
+    if formulas and not separated:
+        for setting in settings:
+            sg = get_spacegroup(setting)
+            multiplicities[setting] = ", ".join(
+                str(len(expand_positions(sg, np.asarray(row[1:4],
+                                                        dtype=np.float64))))
+                for row in rows)
+
+    if separated:
+        detail = "; ".join(f"{s} → {f}" for s, f in zip(settings, formulas))
+        body = f"Cell contents each setting implies: {detail}"
+        closing = ("The site multiplicities differ between settings, so the "
+                   "choice changes ZMV and every weight fraction while leaving "
+                   "Rwp alone")
+    elif multiplicities:
+        detail = "; ".join(f"{s} → {m}" for s, m in multiplicities.items())
+        body = (f"Both settings imply the same cell contents ({formulas[0]}), "
+                f"so the composition does not separate them — the site "
+                f"multiplicities do: {detail}")
+        closing = ("The sites exchange multiplicities between settings without "
+                   "changing the cell contents, so ZMV and the weight fractions "
+                   "cannot tell you which is right — what moves is which site "
+                   "carries which multiplicity, and with it the calculated "
+                   "pattern")
+    else:
+        detail = (f"{taken}, against {', '.join(others)}"
+                  + ("" if same_axes else " — hexagonal against rhombohedral "
+                     "axes, so the cell and the coordinates belong to one of "
+                     "them and no composition compares the two"))
+        body = f"The alternatives are {detail}"
+        closing = ("The site multiplicities differ between settings, so the "
+                   "choice changes ZMV and every weight fraction while leaving "
+                   "Rwp alone")
+
+    return [Diagnostic(
+        level="warning", code="SPACE_GROUP_SETTING_ASSUMED", where=list(where),
+        message=(f"{source} names space group {symbol!r}, which the tables hold "
+                 f"in {1 + len(others)} settings; it was resolved to {taken}. "
+                 + body),
+        suggestion=("if that is the setting you meant, nothing is wrong — write "
+                    f"it into the symbol ({taken!r}) to say so. If it is not, "
+                    "the coordinates belong to another setting: name it instead "
+                    f"({', '.join(repr(s) for s in others)}). " + closing),
     )]
 
 
