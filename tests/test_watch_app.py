@@ -781,18 +781,23 @@ def test_the_payload_carries_what_the_page_cannot_know(tmp_path, monkeypatch):
     ``.rex`` here would be a second answer, and the literal would read as
     working right up until somebody looked at it.
 
-    The palette left in WP-1429: the colours are custom properties the page
+    Every *curve* colour left in WP-1429: those are custom properties the page
     reads off its own root element now, and what rides here in their place is
-    the theme *choice*, which is the only one of the three a person changes
-    while the page is open.
+    the theme *choice*, the one thing here a person changes while the page is
+    open. The reflection rows did not leave, because a categorical set is the
+    one palette the GUI has none of to lend — `_page_constants` holds the
+    measurement that decided it.
     """
     from rietx._about import DIST_NAME, PROJECT_SUFFIX
+    from rietx.viz.plots import PALETTES
 
     monkeypatch.setenv(STATE_DIR_ENV, str(tmp_path / "state"))
     with _served(tmp_path) as base:
         page = _json(base + "/api/runs")["page"]
     assert page == {"suffix": PROJECT_SUFFIX, "dist": DIST_NAME,
-                    "theme": "system"}
+                    "theme": "system",
+                    "ticks": {"one": PALETTES["dark"]["tick"],
+                              "phase": PALETTES["dark"]["phase"]}}
     # and no token survived the move into the files
     for name in watch.STATIC_FILES:
         text = (watch.STATIC_DIR / name).read_text(encoding="utf-8")

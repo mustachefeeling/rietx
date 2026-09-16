@@ -275,6 +275,47 @@ def test_a_theme_changed_in_the_gui_reaches_an_open_page(browser, tmp_path,
     assert _rgb(after["calc"]) == _rgb(TOKENS["light"]["--plot-calc"])
 
 
+TICK_COLOURS = """() => {
+  const d = document.getElementById('plot')._fullData;
+  return Object.fromEntries(d.filter(t => t.name.startsWith('hkl:'))
+                             .map(t => [t.name, t.marker.color]));
+}"""
+
+
+def test_a_stage_that_frees_the_background_leaves_the_tick_colours_alone(
+        browser, tmp_path):
+    """A phase's row keeps its colour across a stage boundary (WP-1429).
+
+    The row has to be nameable against the list beside it, so a colour that
+    moves under the reader is worse than one that is merely not the GUI's.
+    Measured while WP-1429 briefly handed these rows to plotly's own colorway,
+    which the GUI's tick rows take: the colorway is indexed by position in the
+    trace array and the background trace is conditional, so the stage that
+    frees the background moved every row one step along it — `phase 0` from
+    `#d62728` to `#9467bd` with no reader action. `#d62728` is also 0.043 from
+    `--plot-calc` in OKLab, a third of the distance the curve colours are held
+    apart by, which is the two-marks-in-one-red shape WP-1210 exists to
+    prevent. Pinning the array's shape does not fix
+    it either: a `visible: false` trace does not hold its colorway slot
+    (measured). So the rows keep an explicit colour, and this is the guard.
+    """
+    watched = _make_tree(tmp_path, n_done=2)
+    _write_stage(watched, "cell", scale=0.7, noise=30.0, rwp=0.3, bkg=False)
+    with _served(tmp_path) as base:
+        run_id = next(r.run_id for r in runs.discover(tmp_path)
+                      if r.path == watched)
+        page, errors = _open(browser, base, run_id)
+        before = page.evaluate(TICK_COLOURS)
+        time.sleep(0.05)
+        _write_stage(watched, "biso", scale=1.0, noise=4.0, rwp=0.05, bkg=True)
+        page.wait_for_timeout(int(2.5 * POLL * 1000))
+        after = page.evaluate(TICK_COLOURS)
+        page.close()
+    assert errors == []
+    assert set(before) == {"hkl: phase 0", "hkl: phase 1"}
+    assert before == after, "a stage boundary moved a phase's tick colour"
+
+
 def test_a_stage_changes_the_text_and_nothing_else(browser, tmp_path):
     """The WP's acceptance: two polls after the writer moves on, every
     dimension the eye fixes on is where it was."""

@@ -33,6 +33,11 @@ let plotlyPromise = null;
 // string; a file cannot carry one, and a literal here would be a second
 // authority for a fact `_about.py` already owns.
 let DIST = '';              // the distribution name
+// The reflection rows' colours, the one categorical set on this page and the
+// one thing here that is still the *figure* palette's (`_page_constants` says
+// why). Theme-blind on purpose: a mid-tone list that reads on either ground
+// beats a set that changes under the reader at a stage boundary.
+let TICKS = null;
 // The theme *choice* the GUI stored, as it was last applied here (WP-1429).
 // The page never writes it: the GUI owns the setting, this page follows it,
 // and `null` is "nothing applied yet" rather than a choice.
@@ -257,9 +262,10 @@ function snapshotTraces(snap, hue) {
   const names = Object.keys(snap.ticks || {});
   names.forEach((name, i) => {
     const row = snap.ticks[name];
-    // no colour: plotly's own cycle, which is what the GUI's tick rows take
-    // and therefore not a value this page could quote (WP-1429). A phase
-    // palette here would be a second answer to which row is which phase.
+    // one row has nothing to be told apart from, so colour stays for when
+    // there are several
+    const colour = names.length === 1 ? TICKS.one
+                                      : TICKS.phase[i % TICKS.phase.length];
     // the cap is in the legend, because a silent cap reads as coverage
     const label = row.n_total > row.two_theta.length
       ? `hkl: ${name} (${row.two_theta.length} of ${row.n_total})`
@@ -267,7 +273,7 @@ function snapshotTraces(snap, hue) {
     traces.push({
       x: row.two_theta, y: row.two_theta.map(() => -i), name: label,
       mode: 'markers', type: 'scattergl', yaxis: 'y3', hoverinfo: 'x',
-      marker: {symbol: 'line-ns-open', size: 7},
+      marker: {symbol: 'line-ns-open', size: 7, color: colour},
     });
   });
   return traces;
@@ -279,6 +285,10 @@ function snapshotTraces(snap, hue) {
 // on the last stage of a fit would otherwise leave the previous stage's
 // picture up for good, there being no later write to notice.
 async function drawSnapshot(id) {
+  // a poll can reach here before the first `api/runs` has answered, and an
+  // undrawn write is what `false` already means: the next poll draws it,
+  // rather than this one throwing on a colour that is not in yet
+  if (!TICKS) return false;
   const plotly = await ensurePlotly();
   const div = $('plot');
   if (!div || currentId() !== id) return true;
@@ -783,6 +793,7 @@ function readPage(payload) {
   if (!payload.page) return false;
   if (!DIST) {
     DIST = payload.page.dist;
+    TICKS = payload.page.ticks;
     setText($('empty-suffix'), payload.page.suffix);
   }
   return applyTheme(payload.page.theme);
@@ -797,8 +808,11 @@ async function refresh() {
     if (!r.ok) return;
     const payload = await r.json();
     // a theme that moved repaints the canvas, which CSS cannot do for it:
-    // the picture is the one thing on this page a stylesheet does not reach
-    if (readPage(payload)) shell.mtime = null;
+    // the picture is the one thing on this page a stylesheet does not reach.
+    // The snapshot only: a legacy run's picture is a self-contained page that
+    // takes no colour from here, and re-pointing its frame would refetch the
+    // megabytes WP-1402 measured and lose the reader's place inside it.
+    if (readPage(payload) && shell.kind === 'json') shell.mtime = null;
     setText($('root'), 'scanned ' + payload.root);
     rows = new Map(payload.runs.map(run => [run.run_id, run]));
     newest = payload.runs.length ? payload.runs[0].run_id : null;

@@ -19,12 +19,6 @@ export function esc(s) {
     ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 }
 
-// One palette colour at an opacity, so a ground can sit over a curve without
-// becoming a second authority for what that ground is. The legend moved inside
-// the paper in WP-1426 and an opaque box there hid the tallest peak on a narrow
-// panel. Anything that is not `#rgb` or `#rrggbb` comes back unchanged: a
-// palette is data off the wire, and a colour this cannot read is better drawn
-// as itself than dropped.
 /**
  * The plot's colours, read from the custom properties `tokens.css` declares.
  *
@@ -52,6 +46,12 @@ export function paletteFrom(read) {
   };
 }
 
+// One palette colour at an opacity, so a ground can sit over a curve without
+// becoming a second authority for what that ground is. The legend moved inside
+// the paper in WP-1426 and an opaque box there hid the tallest peak on a narrow
+// panel. Anything that is not `#rgb` or `#rrggbb` comes back unchanged: the
+// colour is whatever the root element says it is now (WP-1429), and one this
+// cannot read is better drawn as itself than dropped.
 export function withAlpha(hex, alpha) {
   const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(String(hex).trim());
   if (!m) return hex;

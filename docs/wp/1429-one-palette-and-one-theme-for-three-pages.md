@@ -172,9 +172,10 @@ skip.
   the other. It is one scheme now, because the colour *values* moved into
   Python and everything reads them from there. The watch page has a light
   theme for the first time, and switching in the GUI reaches an open watch tab
-  on its next poll without a reload. What it cost is one visible change nobody
-  asked for: the reflection tick rows lost their own colours to plotly's
-  cycle, which is what the GUI's tick rows have always taken.
+  on its next poll without a reload. One thing did not move and the reason is
+  worth the maintainer's attention: the reflection rows keep the phase colours
+  they always had, because a *categorical* palette is the one thing the GUI has
+  none of to lend, and the obvious substitute turned out to be unsafe.
 
   **Done.** `viz/theme.py` owns `TOKENS` for both themes, chrome and plot, with
   the `app.css` comments moved across as `NOTES` and emitted into the file;
@@ -195,13 +196,13 @@ skip.
 
   - Fast selection **5197 passed, 132 skipped in 2:47**, and the same counts on
     the tree four commits earlier, so the tail of this session moved no test.
-  - The WP's acceptance selection **155 passed**, against **124 passed and 1
-    skipped** on `main` at the session's start, so passed+skipped moved **+30**:
-    **13 items this WP added** (4 `test_gui_palette`, 3 `test_watch_app`, 3
-    `test_compare_ui`, 3 `test_watch_browser`), **1 it removed** (the lane pair
+  - The WP's acceptance selection **156 passed**, against **124 passed and 1
+    skipped** on `main` at the session's start, so passed+skipped moved **+31**:
+    **14 items this WP added** (4 `test_gui_palette`, 3 `test_watch_app`, 3
+    `test_compare_ui`, 4 `test_watch_browser`), **1 it removed** (the lane pair
     declared twice, which the emitter now makes structural), and **19 browser
     rows the baseline skipped** as a module and this venv runs. Those 19 and my
-    3 **skip in CI**, which is the skip the acceptance asked this entry to
+    4 **skip in CI**, which is the skip the acceptance asked this entry to
     name. Node cases 31 → 34. vitest 584 and svelte-check 0 errors, both
     unchanged.
   - **The full suite did not run, deliberately.** Nothing here reaches the
@@ -214,11 +215,46 @@ skip.
     the GUI's own two backdrops are not). `compare_app.py` **29 → 12**: the ten
     variant hues, `#fff` on a filled accent button, and plotly's transparent
     paper.
-  - The poll got smaller and slightly dearer. `page` went **262 B → 49 B** per
-    poll, the palette having left it; `theme_choice()` costs **16.8 µs** with a
+  - The poll got smaller and slightly dearer. `page` went **262 B → 125 B** per
+    poll: every curve colour left it and the tick rows' two kept their place; `theme_choice()` costs **16.8 µs** with a
     settings file present and 4.6 µs without, against a 1.2 s poll.
     `tokens_css()` is **43.6 µs** and 4972 B, once per page load.
   - Looked at in chromium, both themes, both pages, plus the confirm dialog.
+
+  **The tick rows, and why they are the one thing that did not change.** The
+  page briefly handed them to plotly's colorway, which is what the GUI's tick
+  rows take and looked like the consistent answer. The review caught it and the
+  browser settled it: the colorway is indexed by position in the **trace
+  array**, and the background trace is conditional, so the stage that frees the
+  background moved every row one step along it — `phase 0` from `#d62728` to
+  `#9467bd`, mid-run, with nobody touching anything. That colour is also
+  **0.043** from `--plot-calc` in OKLab on the light theme, a third of the
+  distance every *curve* colour is held to, which is the two-marks-in-one-red
+  shape WP-1210 exists to prevent. Pinning the array's shape does not help: a `visible: false` trace
+  does not hold its colorway slot, measured. Putting the tick traces **first**
+  does, and `legendrank` restores the reader's legend order, also measured.
+
+  So the choice was between three sources, and **all three collide somewhere**
+  once the curves are the GUI's — the nearest token to any of their colours,
+  in OKLab, across both themes:
+
+  | source | nearest | stable across a stage |
+  |---|---|---|
+  | plotly's colorway, as drawn | `#d62728` **0.043** from `--plot-calc`, light | **no** |
+  | plotly's colorway, ticks first + `legendrank` | `#1f77b4` **0.069** from `--plot-diff`, light | yes |
+  | `PALETTES["dark"]["phase"]`, what shipped before | `#ff7b7b` **0.074** from `--plot-calc`, dark | yes |
+
+  None of the three is a floor *violation*: `test_gui_palette`'s `CURVES` set is
+  curves a reader tells apart, and a tick row is a 7 px open line on an axis
+  band of its own. So the discriminator is the second column, and between the
+  two that pass it the status quo is both the furthest away and the smallest
+  change. The rows keep `PALETTES["dark"]`, and `test_watch_browser` has a guard
+  that fails when the colour is dropped (checked by dropping it).
+
+  **This is a question for the maintainer and it is the GUI's too.** The GUI's
+  tick rows take the colorway today, and its background trace is not only
+  conditional but **reader-toggleable**, so a click moves every phase's colour
+  there. Filed into 1427's mailbox as the page it will be measuring.
 
   **Two departures from this WP's own sketch**, both deliberate. It said
   `api/runs` would carry the *resolved* theme: it carries the **choice**,
@@ -227,14 +263,26 @@ skip.
   it said the pages would embed both palettes: they read **one**, off their own
   root element at draw time, so there is no second palette on the wire at all.
 
-  **Deliberately not generalised**, each said so in the code it sits in:
-  `compare`'s ten variant hues (a categorical set of ten, and the GUI's only
-  categorical set is five lanes at 72°, which is a palette this WP would have
-  had to invent); `viz/plots.PALETTES`, which is the figure palette and a
+  **Deliberately not generalised**, each said so in the code it sits in: every
+  categorical palette on these pages — `compare`'s ten variant hues and the
+  watcher's four phase colours alike — because the GUI's only categorical set is
+  five lanes at 72°, and a set of four or ten is one this WP would have had to
+  invent; `viz/plots.PALETTES`, which is the figure palette and a
   non-goal; `compare_app.py`'s page, still a string; `curveColors`' TypeScript
   fallbacks, pinned to the light tokens by a new test rather than generated;
   and `model/compiled.py`'s own copy of the state-dir expression, which is a
   cache root and would cost a hot-path module an import of `viz` to share.
+
+  **The review pass changed three things and one of them was a defect**
+  (`/code-review high --fix`). It found the legacy-iframe reload: clearing
+  `shell.mtime` on a theme change re-pointed a pre-WP-1402 run's `frame.src`,
+  refetching the 4.51-6.03 MB page for a picture that takes no colour from the
+  theme, so the clear is now gated on `shell.kind === 'json'`. It moved a
+  comment block my insertion had orphaned onto the wrong function. And it
+  corrected a claim I had written into 1427's mailbox **without checking** —
+  that `/tokens.css` carries no `Cache-Control`; it carries `no-store`, like
+  every route this server answers. The fourth finding, the tick colorway, is
+  the one above; it was reported unfixed and is what sent me to the browser.
 
   **Gotchas.**
 
@@ -251,10 +299,11 @@ skip.
   **Next**, in order: **1427** takes the poll this WP just changed, and the two
   numbers above are its starting point rather than a result. Then **1428**,
   which is the maintainer's decision first. Two questions for the maintainer
-  are this WP's own, both cosmetic and both visible in a screenshot: whether
-  the tick rows should keep plotly's cycle now that they have it, and whether
+  are this WP's own. The **categorical palette** above, which is a real one and
+  reaches the GUI as much as these two pages. And a cosmetic one: whether
   `abandoned` sharing the warning hue with `cancelled` (stepped towards
-  `--muted`) reads as the distinction it used to make in gold against gold.
+  `--muted`) still reads as the distinction it used to make in gold against
+  gold.
 
 - **2026-09-16** — created, from the maintainer's question after the demo job;
   revised the same day: the pages adopt the GUI's tokens and the figure

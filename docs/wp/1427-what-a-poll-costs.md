@@ -97,12 +97,30 @@ Browser, per poll:
     caching, the cache has to expire faster than a person notices a theme
     switch not arriving.
   - A new route, `/tokens.css`, is **43.6 µs** and 4972 B, rendered per request
-    and fetched once per page load rather than per poll. It carries no
-    `Cache-Control`, which is a free thing to fix if this WP is counting bytes
-    on the wire at all.
+    and fetched once per page load rather than per poll. It carries
+    `Cache-Control: no-store` from `_send`, like every other route this server
+    answers, so a reload pays for it again.
   - A theme change clears `shell.mtime`, which forces one extra snapshot fetch
     and redraw on the poll that carries it. Once per switch, so it is not a
-    steady-state cost, but a benchmark that flips the theme will see it.
+    steady-state cost, but a benchmark that flips the theme will see it. It is
+    gated on `shell.kind === 'json'`: a legacy run's picture is an iframe, and
+    re-pointing it would refetch the 4.51-6.03 MB page WP-1402 measured.
+
+- **2026-09-16, from [1429](1429-one-palette-and-one-theme-for-three-pages.md):
+  a defect on the page this WP measures, found in its browser and not fixed
+  here.** The GUI's reflection tick rows carry no explicit colour, so they take
+  plotly's colorway — which is indexed by **position in the trace array**, and
+  the GUI's background trace is both conditional on there being a background
+  *and* toggleable by the reader (`Plot.svelte`, `shows(hidden, "bkg")`). So
+  hiding the background moves every phase's tick colour one step along the
+  colorway, on a click. Measured on the watcher, which briefly had the same
+  shape: `phase 0` went `#d62728` → `#9467bd`, and `#d62728` is **0.043** from
+  `--plot-calc` in OKLab on the light theme, against the 0.13 floor
+  `tests/test_gui_palette.py` holds every other plot colour to. The watcher
+  keeps explicit colours because of it (`PALETTES["dark"]`, with a guard in
+  `test_watch_browser.py`); the GUI still has it. The fix needs a **categorical
+  palette** the GUI does not own, which is the maintainer's question rather than
+  either WP's — it is filed here because this is the WP with the instrument.
 
 
 - **2026-09-16, from [1424](1424-a-row-that-names-its-run.md): a row does more
