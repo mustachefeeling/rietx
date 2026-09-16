@@ -108,6 +108,18 @@ case the useful change is a **callable precondition check**
 through. Take that decision explicitly; either answer is defensible and the
 choice should be visible.
 
+### Inherited
+
+- **From WP-1310, 2026-09-16: one way a result contradicted itself is gone,
+  and this WP should not re-report it.** `BOUND_HIT` used to be appended as
+  each stage ended with nothing re-evaluating it, so a converged fit could
+  carry "refined to its bound" about a parameter five orders of magnitude
+  from one, while the row for that same parameter said `at_bound=False`. The
+  findings are now re-taken from the final guard, and the two surfaces are
+  pinned set-equal (`tests/test_bound_hit_at_convergence.py`). A fit whose
+  status and diagnostics disagree is still this WP's subject; that particular
+  disagreement is no longer an instance of it.
+
 ## Non-goals
 
 - Making the unseeded configuration converge. The fits in #243 should not have

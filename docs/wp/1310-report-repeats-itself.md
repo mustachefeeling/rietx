@@ -1,6 +1,6 @@
 # WP-1310 — the report repeats itself: stage dedup, the declared wavelength, the empty column
 
-Milestone: unscheduled · Status: 🔄 2026-09-16 — claimed by @yue-here
+Milestone: unscheduled · Status: ✅ 2026-09-16 — four of six landed; the bound test is 1434 and the caller's hold is 1435
 Depends on: —
 
 ## Goal
@@ -287,19 +287,29 @@ absolute test.
       result (§ 4, fix 1). `staged.bound_findings` stays the one bound test,
       and the fix restores WP-1076's set-equality, which the staleness had
       quietly broken inside a single result.
-- [ ] Settle the tolerance (§ 6). **Measured, and both of the issue's options
-      are ruled out** — the table in § 6 has the sweep. The rule that does
-      separate the cases is esd-relative, which is a third option and changes
-      an existing diagnostic's meaning, so it is the maintainer's call.
-- [ ] A plan that frees a pinned path says so (§ 5). **Measured, and the
+- [x] Settle the tolerance (§ 6). **Measured, and both of the issue's options
+      are ruled out** — the table in § 6 has the sweep. Handed on as
+      [1434](1434-the-bound-test-asks-the-wrong-question.md), which carries the
+      measurement, the prior art and the redesign: the test asks how *near* θ
+      is to the limit, and the question worth asking is whether the limit
+      carried load.
+- [x] A plan that frees a pinned path says so (§ 5). **Measured, and the
       diagnostic the issue proposes cannot be built on `vary`** — 41 of 42
       entries are declared fixed by default, so it would name 16 paths on an
-      ordinary fit and 17 on the one that matters. Needs an authority for a
-      user's pin, on WP-1070's precedent; the maintainer's call.
-- [ ] Tests: a `to_table` case per trajectory kind; a two-stage fixture whose
-      early `BOUND_HIT` resolves, asserting the converged result is clean; a
-      pinned-path-freed fixture; skill and manual rows touched by any wording
-      change.
+      ordinary fit and 17 on the one that matters. Handed on as
+      [1435](1435-a-hold-the-caller-declares.md): the missing thing is an
+      authority for a caller's hold, which is GSAS-II's `'h'` constraint and
+      WP-1070's shape, not a message.
+- [x] Tests: six `to_table` cases across the trajectory kinds
+      (`tests/test_sequential.py`), four on the bound seam
+      (`tests/test_bound_hit_at_convergence.py`), one on the dedup routing
+      (`tests/test_high_correlation_dedup.py`), and the manual's series
+      chapter for `positions` and the derived-path export. No pinned-path
+      fixture: that case moved to 1435 with the feature it needs.
+- [x] Skill: none. The two changes a driving agent would act on are the ones
+      handed forward, and their WPs carry the rows. `BOUND_HIT`'s existing row
+      still reads correctly — a bound on a converged result now means what the
+      row already said it meant.
 
 ## Acceptance
 
@@ -316,9 +326,13 @@ one; a plan that frees a pinned path names it. All accepted fit values
 bit-identical throughout.
 
 The shipping PR carries `Closes #106`, `Closes #123`, `Closes #162`,
-`Closes #231`, `Closes #211`, `Closes #273`. #123 closes on the verification
-alone, its fix and its regression test both having shipped in WP-1134; #106
-closes on the verification plus the one routing test this branch adds.
+`Closes #231`. #123 closes on the verification alone, its fix and its
+regression test both having shipped in WP-1134; #106 closes on the
+verification plus the one routing test this branch adds. **#211 and #273 stay
+open**, re-scoped onto [1435](1435-a-hold-the-caller-declares.md) and
+[1434](1434-the-bound-test-asks-the-wrong-question.md): each was filed with a
+fix that the measurements here rule out, so closing either on this branch
+would lose the reason.
 
 ## References
 
