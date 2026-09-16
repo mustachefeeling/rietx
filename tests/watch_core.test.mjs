@@ -99,8 +99,8 @@ test('a row is named by what separates it from its neighbours', () => {
   assert.equal(rowName(run), 'campaign');
   // a caller may name the run itself (WP-1431), and then the label is the
   // thing that separates the rows rather than the word they share
-  assert.equal(rowName({...run, label: 'candidate-07 anatase'}),
-               'candidate-07 anatase');
+  assert.equal(rowName({...run, label: 'candidate-07 rutile'}),
+               'candidate-07 rutile');
   // a series member knows which pattern it fitted, and stays ahead of both:
   // one series is one run, so a caller's label there names the whole chain
   // while this names the row. It replaces rather than joins — a

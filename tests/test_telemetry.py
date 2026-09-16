@@ -185,13 +185,13 @@ def test_a_caller_names_its_run_and_the_watcher_shows_that_name(
     is the whole path the page reads.
     """
     monkeypatch.chdir(tmp_path)
-    _fit(pattern, label="candidate-07 anatase")
+    _fit(pattern, label="candidate-07 rutile")
 
     (run,) = runs.discover(tmp_path)
-    assert run.label == "candidate-07 anatase"
-    assert run.meta is not None and run.meta.label == "candidate-07 anatase"
+    assert run.label == "candidate-07 rutile"
+    assert run.meta is not None and run.meta.label == "candidate-07 rutile"
     assert json.loads((run.path / runs.META_FILE).read_text(
-        encoding="utf-8"))["label"] == "candidate-07 anatase"
+        encoding="utf-8"))["label"] == "candidate-07 rutile"
     # the derived name is what it displaced, and it was the directory's
     assert run.label != tmp_path.name
 

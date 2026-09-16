@@ -634,7 +634,7 @@ Forty candidate fits driven from one directory write forty rows under one name.
 
 <!-- api-doc: no-exec — it refines the reader's own pattern -->
 ```python
-result = ref.fit(data, label="candidate-07 anatase")
+result = ref.fit(data, label="candidate-07 rutile")
 ```
 
 The keyword is on every verb that records a run: `Refinement.fit`,
