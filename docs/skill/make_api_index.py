@@ -98,7 +98,11 @@ SECTIONS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
         "without reading the file (Measured: WP-1118 — 11 distinct globals across "
         "34 public tutorial projects, 7 of them outside the list first proposed). "
         "`to_structure` refuses a negative `Uiso` and a phase with no sites, both of "
-        "which real projects contain. A GSAS `.LST` "
+        "which real projects contain. **Two codes, two goodness-of-fit "
+        "conventions**: a `.gpx`’s `gof` is the square root of reduced χ² and a "
+        "`.EXP`’s `reduced_chi2` is not a root at all, so comparing your fit with "
+        "either file’s figure means knowing which one it quoted (Measured: WP-1118, "
+        "on six projects stating chisq, Nobs and Nvars together). A GSAS `.LST` "
         "refinement output still has no reader and is transcribed by hand.",
         ("rx.read_pattern", "rx.read_pdcif", "rx.read_recipe",
          "rx.read_gsas_prm", "rx.read_project_model",
