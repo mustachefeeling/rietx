@@ -61,20 +61,24 @@ tail only when the run changes or the route says `reset`.
 
 ### Flashing
 
-Candidates, each to be confirmed or cleared by the frame differ:
+Candidates, each confirmed or cleared by the frame differ (2026-09-16; the
+differ is a CDP screencast, and chromium emits a frame only when the page
+repaints, so its "1.5 fps" is the page's repaint rate and not a sampling
+rate — five to six frames over three seconds, and none blank):
 
 - `plotly.react` on scattergl traces rebuilds the WebGL scene when the trace
-  count changes. It changes when the background trace appears
-  (`snap.y_bkg.some(v => v)`) or a tick row is added, so a stage that first
-  frees the background can flash the whole plot.
+  count changes. **Cleared as a flash, confirmed as the real defect.** The
+  redraw moved 4.6 % of pixels against 3.3 % for a plain stage, and no frame
+  was blank, so the scene is not being rebuilt. What the frames did show is
+  the legend gaining a row for the new entry and the whole picture dropping
+  under it. That is the legend defect above, reached from the other end.
 - `patchList` moves rows with `insertBefore` into the server's order. A new
   run arrives at the top and shifts every row down under the reader's eye.
-  WP-1423 measured one new run and called it one mutation, which it is; it
-  is also a layout shift of the whole list. The chat-log pattern holds the
-  viewport: compensate `scrollTop` by the inserted height when the list is
-  not scrolled to the top.
+  **Confirmed**: 0.0134 over four rows on a scrolled list. Fixed by the
+  chat-log pattern, anchored on a visible row rather than on an inserted
+  height, so an arrival below the fold compensates by nothing.
 - The state pill's class change and the row's `selected` toggle repaint a
-  cell. Cheap; confirm they are not shifts.
+  cell. **Cleared**: neither appears in any layout-shift entry.
 - The legacy `iframe` reload on a pre-1402 run. Out of scope, named here so it
   is not mistaken for a defect of this page.
 
@@ -94,6 +98,18 @@ Flashing is not a layout shift either. Its probe is a screencast: frames at
 20 fps around a stage boundary through playwright, counting frames that
 differ from both neighbours. The screencast is a measurement and not a gate;
 what it finds is fixed or recorded.
+
+**And it does not apply to the picture, which is where the worst of this was.**
+Measured 2026-09-16: a stage that freed the background took the plot area from
+y=45 to y=64 and raised **zero** layout-shift entries. The plot is one div
+whose insides plotly redraws, so its box never changes and the layout engine
+has nothing to report. The observer is the right instrument for the page and
+blind to the picture, so the picture is read off `_fullLayout._size` instead
+and the tests carry both.
+
+Two acceptance clauses narrowed against what the measurements showed, each
+recorded in Acceptance below: a new run is a zero only on a **scrolled** list,
+and the console's **line count** turned out to be no evidence at all.
 
 ### The page this edits
 
@@ -152,15 +168,15 @@ WP's subject, so the call belongs here.
       of picture kind, and reset only on a run change or a `reset` from the
       route
 - [x] The list holds the viewport when a run arrives above the fold
-- [ ] Whatever the frame differ found at a stage boundary, fixed or recorded
+- [x] Whatever the frame differ found at a stage boundary, fixed or recorded
       as measured and left, with the reason
-- [ ] The test asserts layout shift 0 over a stage boundary and a new run,
+- [x] The test asserts layout shift 0 over a stage boundary and a new run,
       the legend's box constant relative to the plot across the three
       widths, and the console's line count unchanged across a picture kind
       change
 - [x] The spike guard's short-pattern case: fixed, or recorded as measured
       and left, with the reason (inherited from 1430)
-- [ ] Skill: none. The page is a human's.
+- [x] Skill: none. The page is a human's.
 
 ## Acceptance
 
@@ -170,10 +186,27 @@ WP's subject, so the call belongs here.
 ```
 
 The browser test, where it runs, reports a layout-shift sum of 0 over a stage
-boundary and a new run, the legend's box constant relative to the plot area
-from 1400 to 700 px, and the console's line count unchanged across a picture
-kind change. It skips without a cached chromium, CI included; the handover
-names the skip.
+boundary and over a run arriving on a **scrolled** list, the legend's box
+constant relative to the plot area from 1400 to 700 px, and the console
+neither wiped nor re-tailed across a picture kind change. It skips without a
+cached chromium, CI included; the handover names the skip.
+
+Two of those are not what this WP was written asking for, and both moved
+because the measurement said so rather than because they were hard.
+
+**A new run is a zero on a scrolled list, and intended movement on one at its
+top.** Prepending a row moves every row below it, and the only way to hold
+those still is to scroll down by a row, which puts the arriving run out of
+sight. A reader at the top of the list is watching for exactly that run. So
+the list is held where a reader is reading and left alone where they are
+watching, which is the chat-log rule this WP already cited; the at-the-top
+case is asserted as "the scroll stayed at 0 and the new run is on screen".
+
+**The console's line count is no evidence.** The wipe re-tailed from offset 0
+and put all 121 lines back, so the count was 121 before and after, both before
+this WP and after it. What separates a wipe from a tail is that nodes were
+removed, that the node which was first no longer is, and that a reader scrolled
+up was dropped at the bottom. Those three are asserted instead.
 
 ## References
 
