@@ -319,6 +319,22 @@ added is local-only, and the rest of the file was already in that position.
 - 1427 rebases. Both WPs were declared to rewrite `drawRun` and this one landed
   first; the three shapes that moved are in its `### Inherited`.
 
+**The review pass.** `/code-review high --fix` found **no correctness bug** in
+the product code and three names left pointing at things this WP removed: a
+comment crediting `buildShell` for the plot div, a docstring still calling the
+Δ/σ rule "the 99.9th-percentile cut", and a node-case count of mine that said 19
+after the commit taking it to 20. It applied all three. Two more of that class
+sat in `tests/watch_core.test.mjs`, which the pass did not reach, and they are
+fixed in the same commit. It declined two findings with reasons worth keeping.
+It tried to strengthen the scroll test's `moved_to > 250`, then doubled the
+compensation in `patchList` on purpose and found the layout-shift assertion two
+lines above already failed at 0.0067, so the existing pair pins it and the extra
+assertion was reverted. And it left `viz/html.py`'s literal rgba alone, the light
+palette carrying no ground key, which is the change this WP already pushed to
+1429. It also confirmed by measurement that the scroll compensation is exact and
+that chromium's own scroll anchoring is not firing alongside it, so there is no
+double compensation to guard against.
+
 **Next.** 1424 is next in the track's order, and nothing here blocks it. 1425's
 blocker is discharged by this WP and its trade is written into its mailbox, so
 it could be pulled forward if the narrow-panel legend is annoying in use.
