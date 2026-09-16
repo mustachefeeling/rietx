@@ -473,12 +473,20 @@ format token is spelled in `_about.py`, never inline (root CLAUDE.md § Conventi
       `references/api.md` to 35 942 B of 36 000 (**58 B free**), the cuts
       named in the commit, so the next addition there is a real cut rather
       than a squeeze.
-- [ ] A `#prm`-only integer evaluator for `.inp` `#if` guards, so the
+- [x] A `#prm`-only integer evaluator for `.inp` `#if` guards, so the
       multi-pattern reel files read instead of refusing (§ Context; WP-1130
       measured three of four workshop files out of reach). Scope it to integer
       `#prm` comparisons — it is not the macro language, and § Non-goals still
-      holds.
-- [ ] Fixtures with provenance rows in `tests/data/README.md`; tests, and the
+      holds. — **moved to [1433](1433-the-inp-grammar-still-refused.md)
+      2026-09-16**, with issue #107's `STR(...)` decision beside it. The two are
+      one shape: both are `.inp` grammar, both live in `io/projects/topas.py`,
+      and both answer to the Technical Reference. **The block recorded against
+      this line is not real**: the reference is public at
+      `topas-academic.com/technical_reference`, one 10.8 MB page over plain
+      `curl`, and `ATTRIBUTION.md`'s TOPAS row already cites §19.3.2 with
+      content. §19.1.2 specifies `#prm`/`#if`/`#out` whole, and 1433 § Context
+      carries what it says, the `Rand` condition that stays refused included.
+- [x] Fixtures with provenance rows in `tests/data/README.md`; tests, and the
       obs/calc/diff PNGs for any refinement one of them drives. — the GSAS
       `.EXP` half landed 2026-09-15: `FAP.EXP`'s row says it is now the
       reader's corroborating fixture, and the file also **ships in the wheel**
@@ -491,7 +499,16 @@ format token is spelled in `_about.py`, never inline (root CLAUDE.md § Conventi
       survey behind them has its own section in `tests/data/README.md`. A third
       joined them 2026-09-16 — `gsas2_mn3o4_setting.gpx`, the one corpus file
       that both states a setting its symbol does not and builds end to end.
-      Open for the formats with no fixture yet.
+      — closed 2026-09-16, and the two formats with no vendored fixture are
+      **answered rather than owed**. A `.inp` and a `.pcr` are their owners'
+      research data, so `tests/test_projects_topas.py` and
+      `tests/test_projects_fullprof.py` synthesize every fixture inline, each
+      with a comment naming the archive idiom it stands for and what reading it
+      wrong would do (`ATTRIBUTION.md`'s TOPAS row states the fence). That is
+      the licence answer and it does not expire, so no corpus is pending here.
+      What a later session can still add is a *reading* of files it may not
+      ship, which is [1433](1433-the-inp-grammar-still-refused.md)'s archive
+      pass.
 
 ## Acceptance
 
