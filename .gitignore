@@ -44,8 +44,9 @@ htmlcov/
 # The watcher's page is files in the package too (WP-1430), and `*.html` took
 # its `index.html` exactly as it took the two above — the sixth time that one
 # rule has swallowed a committed file.  Here it would have shipped a wheel
-# whose `rietx watch` answers 500 on `/`, green on every machine that has run
-# the split.  `tests/test_watch_app.py` asks `git check-ignore` about all four.
+# whose `rietx watch` drops the connection on `/`, green on every machine that
+# has run the split.  `tests/test_watch_app.py` asks `git check-ignore` about
+# all four.
 !src/rietx/watch/static/**
 gui/node_modules/
 gui/.vite/

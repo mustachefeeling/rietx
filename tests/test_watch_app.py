@@ -509,6 +509,34 @@ def test_the_embedded_page_parses_as_javascript():
     assert done.returncode == 0, done.stderr
 
 
+#: Ids `watch.mjs` reaches for that `index.html` deliberately does not carry.
+#: One entry, and it earns its place: `buildShell` writes the plot div, the
+#: legacy iframe or the no-picture note into `#picture` itself.
+RUNTIME_IDS = {"plot"}
+
+
+def test_every_element_the_script_reaches_for_exists():
+    """The failure one page split across two files invites (WP-1430).
+
+    `$('s-where')` against an `index.html` that says `s-path` is ``null``, and
+    the page throws at its first poll with every python test in this file still
+    green. ``node --check`` cannot see it, because it is not a syntax error,
+    and the two defects of this shape before it each needed a real browser
+    (WP-1402, WP-1405). The ids are cheap to compare, so compare them.
+    """
+    script = (watch.STATIC_DIR / "watch.mjs").read_text(encoding="utf-8")
+    page = (watch.STATIC_DIR / "index.html").read_text(encoding="utf-8")
+    declared = set(re.findall(r'id="([^"]+)"', page))
+    wanted = set(re.findall(r"""\$\(['"]([^'"]+)['"]\)""", script))
+    # a guard that stops finding its own subject goes quiet rather than red
+    assert len(wanted) > 15, f"the id helper moved; this reads $(): {wanted}"
+    missing = wanted - declared - RUNTIME_IDS
+    assert not missing, f"watch.mjs reaches for ids index.html has not: {missing}"
+    # ...and the exception list stays honest: an id the page does declare has
+    # no business being named as one the script builds
+    assert not (RUNTIME_IDS & declared), RUNTIME_IDS & declared
+
+
 def test_the_pages_files_reach_a_fresh_clone():
     """``*.html`` in ``.gitignore`` has swallowed a committed file five times
     (its own comments say so), and ``index.html`` was the sixth.
@@ -726,7 +754,7 @@ def test_the_payload_carries_what_the_page_cannot_know(tmp_path):
 def test_the_two_local_servers_allow_the_same_hosts():
     """One security rule, written twice, so pin the copies together.
 
-    ``watch.py`` cannot import ``gui/server.py``: that module reaches
+    ``watch/`` cannot import ``gui/server.py``: that module reaches
     ``gui/session.py`` and the whole refinement graph behind it, and a viewer
     importing the watcher pays for nothing it will not draw. So the host set is
     duplicated on purpose. What must not happen is one of them being tightened

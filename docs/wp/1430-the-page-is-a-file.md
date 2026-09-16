@@ -106,8 +106,9 @@ the handover entry:
 node --test tests/watch_core.test.mjs
 ```
 
-The browser test file has no diff on this branch. `node --test` runs at least
-six cases and is invoked by the suite.
+No assertion in the browser test file moves on this branch; the `/code-review`
+pass corrected a stale `watch.py` in one of its comments, and that is the whole
+diff. `node --test` runs at least six cases and is invoked by the suite.
 
 ## References
 
@@ -120,8 +121,8 @@ six cases and is invoked by the suite.
   stylesheet and its javascript are files in the package now, served as files,
   and the half of the javascript that touches no document is a module with
   fifteen `node --test` cases behind it. Nothing the page does changed.
-  WP-1423's chromium test took no diff and passes, and for a move like this
-  that is the only evidence worth having. What it buys is the seven WPs queued
+  WP-1423's chromium test passes with no assertion touched, and for a move like
+  this that is the only evidence worth having. What it buys is the seven WPs queued
   against this page: they edit files an editor lints, a test imports and a
   merge can resolve, and the Δ/σ ladder, the "NaN" guard and the panel rule are
   checked now by something other than a person looking at a browser. The move
@@ -155,6 +156,11 @@ six cases and is invoked by the suite.
     It skips without node, the way the old `node --check` test did.
   - `.gitignore` gained `!src/rietx/watch/static/**`, and
     `test_the_pages_files_reach_a_fresh_clone` guards all four files.
+  - `test_every_element_the_script_reaches_for_exists` compares the ids
+    `watch.mjs` reaches for against the ids `index.html` declares, with `plot`
+    the one declared exception because `buildShell` writes it. A page split
+    across two files can have an id renamed in one of them, and that throws at
+    the first poll with every python test green.
   - Root CLAUDE.md § Conventions: the `node --check` clause is the file rule
     now, and the file lands at 833 lines against a cap of 833.
     `docs/manual/using/cli.md` said the page is a client of seven routes. It is
@@ -169,15 +175,16 @@ six cases and is invoked by the suite.
   for a reason that is the venv and has nothing to do with the change.
 
   - `tests/test_watch_app.py` + `tests/test_watch_browser.py`: **46 passed
-    before the move, 50 after**, so +4 net. Five new cases, less one from
+    before the move, 51 after**, so +5 net. Six new cases, less one from
     un-parametrising the `node --check` test down to `compare_app` alone. The
     15 node cases are counted separately, like vitest's.
-  - Fast selection after: **5005 passed, 132 skipped in 5:04**, on an idle
-    machine. Another session's full suite was running when this one started and
-    was waited out. The same venv before the change is 5001 + 132, from the +4
-    above. Nothing else in the suite moved.
+  - Fast selection after: **5006 passed, 132 skipped**, on an idle machine.
+    Another session's full suite was running when this one started and was
+    waited out. Wall clock is a range here: 2:14 for this run, 5:04 for the one
+    before the last test landed. The same venv before the change is 5001 + 132,
+    from the +5 above. Nothing else in the suite moved.
   - The WP's acceptance (`test_watch_app`, `test_watch_browser`,
-    `test_telemetry`): 97 passed in 46 s. `ruff check src tests examples`
+    `test_telemetry`): 98 passed in 46 s. `ruff check src tests examples`
     clean. `node --test tests/watch_core.test.mjs`: 15 pass, 0 fail.
   - The page as files is 31 939 B. `watch.mjs` 20 263, `watch.css` 5020,
     `watch-core.mjs` 4289, `index.html` 2367.
@@ -224,6 +231,21 @@ six cases and is invoked by the suite.
     had merged and that it was `ahead 1 / behind 1`. A commit pushed there
     would have been stranded. The work moved to `wp1430-the-page-is-a-file`,
     cut from `origin/main`, with the claim commit cherry-picked.
+
+  **What `/code-review high --fix` changed.** It found one defect and four
+  stale paths, and all five were taken. The defect: `HUE` and `DIST` were read
+  in the boot fetch alone, so a boot `fetch` that rejects leaves the IIFE's
+  promise rejected and `schedule()` unrun, while the `visibilitychange` and
+  `hashchange` listeners still call `refresh()`. The list and the log recover
+  on the next poll and `drawSnapshot` declines every write for the life of the
+  tab, because `HUE` is still `null`. `readPage(payload)` now reads the block
+  off whichever `/api/runs` answers first, and the `!HUE` guard stays as the
+  belt. The four stale paths were docstrings naming `watch.py` in
+  `viz/plotlyjs.py`, `history/events.py`, `tests/test_watch_app.py` and
+  `tests/test_watch_browser.py`. One finding was declined by the pass itself
+  and stands: `_static` lets an `OSError` out of `do_GET`, so a missing page
+  file drops the connection instead of answering 500. The `.gitignore` comment
+  promising a 500 has been corrected to say what happens.
 
   **Not done, deliberately.** `compare_app.py` is still a page in a python
   string. WP-1430 named it for 1429 and left it alone. No `viz/compare.py` row

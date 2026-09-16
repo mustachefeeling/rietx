@@ -1,6 +1,6 @@
 """plotly.js out of the installed package — one answer, three servers.
 
-``gui/server.py``, ``compare_app.py`` and ``watch.py`` each serve a page that
+``gui/server.py``, ``compare_app.py`` and ``watch/`` each serve a page that
 draws with plotly, and each serves the library itself from the installed python
 package rather than a CDN or a vendored copy in a dist. That is deliberate
 twice over: a page works air-gapped, and no build step can leave a stale

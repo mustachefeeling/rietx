@@ -433,6 +433,18 @@ function currentId() {
   const m = location.hash.match(/^#\/run\/([0-9a-f]+)$/);
   return m ? m[1] : (SINGLE || newest);
 }
+// The page's constants, off whichever `api/runs` answers first. Once, and
+// from any of them rather than only the boot fetch: every poll carries them,
+// and a boot fetch that fails would otherwise leave `HUE` null for the life of
+// the tab, with `drawSnapshot` declining every write while the list and the
+// log recovered on the next poll.
+function readPage(payload) {
+  if (HUE || !payload.page) return;
+  HUE = payload.page.palette;
+  DIST = payload.page.dist;
+  setText($('empty-suffix'), payload.page.suffix);
+}
+
 let refreshing = false;
 async function refresh() {
   if (refreshing) return;              // a slow poll is not two polls
@@ -441,6 +453,7 @@ async function refresh() {
     const r = await fetch('api/runs', {cache: 'no-store'});
     if (!r.ok) return;
     const payload = await r.json();
+    readPage(payload);
     setText($('root'), 'scanned ' + payload.root);
     rows = new Map(payload.runs.map(run => [run.run_id, run]));
     newest = payload.runs.length ? payload.runs[0].run_id : null;
@@ -471,9 +484,7 @@ $('stop').onclick = () => {
   const meta = await (await fetch('api/runs', {cache: 'no-store'})).json();
   SINGLE = meta.single_run_id;
   CAN_CANCEL = meta.can_cancel === true;
-  HUE = meta.page.palette;
-  DIST = meta.page.dist;
-  setText($('empty-suffix'), meta.page.suffix);
+  readPage(meta);
   if (SINGLE) document.body.dataset.single = '';
   applyPanels(panels());
   await refresh();
