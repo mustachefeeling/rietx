@@ -561,7 +561,11 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   --check` reads a `.js` as CommonJS; cases in `tests/`, since the wheel takes `src/rietx`
   whole. `compare_app.py` is the page still in a string. **No file check sees layout**
   (WP-1405): an id selector outranks `[hidden] {display:none}`, so a closed dialog was a sheet
-  swallowing every click — `test_watch_browser.py` drives chromium.
+  swallowing every click — `test_watch_browser.py` drives chromium. **Nor a cut** (WP-1424): a
+  `table-layout:fixed` column's declared width is the cell's whole *box*, so one sized for its
+  content is short by its padding and elides, and an ellipsis is what fitting and not fitting
+  look the same amount of. Measure ink against room, never `scrollWidth`, which is
+  `clientWidth` wherever overflow is visible.
 - **Two things are written once and consumed everywhere; never restate either.** (1) The residual
   **row layout** `[data | background-penalty | Pawley-restraint | soft-restraint]` lives in
   `model/rows.py` (`BLOCK_ORDER`, `layout()`, `assemble()`) — the numpy residual, the numpy
