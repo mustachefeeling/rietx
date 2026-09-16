@@ -1,6 +1,6 @@
 # WP-1425 — the panels are the reader's to size
 
-Milestone: unscheduled · Status: 🔄 2026-09-16 — claimed by @yue-here
+Milestone: unscheduled · Status: ✅ 2026-09-16 — both seams are splitters, the two toggles are gone, and the plot is told when its width moves
 Depends on: 1430 (the page as files, so the port below is importable), 1426 (the legend must hold still under resize before a splitter makes resize continuous)
 
 ## Goal
@@ -221,6 +221,136 @@ change here can fail a suite over there.
   the port lives in).
 
 ## Handover log
+
+### 2026-09-16 — the two seams are the reader's, and the picture finally hears them move
+
+The `rietx watch` page's two divisions are now splitters you drag. The list
+against the run, and the picture against the log. What this buys is not mainly
+the dragging: it is that the plot was never told when its width changed. A seam
+moved by the old buttons redrew the picture; a seam moved any other way did
+not, so the plot sat at whatever width it was last told about inside a box that
+had moved on. Measured before the change, a 72ch-to-40ch move drew zero
+`Plots.resize` calls and left the picture 303 px narrower than its own element.
+Both toggle buttons are gone with the grips doing their job, and every floor
+the seams stop at is a number measured on the page rather than one somebody
+liked. The cost is one capability: the run panel can no longer be hidden
+outright, because a splitter's collapse belongs to the pane its grip sizes.
+
+**Done.** All eight tasks. The port (`clampSize`, `dragged`, `axisOf`,
+`coalesce`) is in `watch-core.mjs`, pinned to the GUI's own cases by a block of
+text copied character for character between `gui/src/lib/resize.test.ts` and
+`tests/watch_core.test.mjs` and compared by
+`test_watch_app.py::test_the_ported_drag_arithmetic_keeps_the_guis_cases`. The
+GUI's three hand-written describes became that table rather than sitting beside
+it, so the cases have one authority on its side too. Both grips carry the
+WAI-ARIA window splitter keyboard: arrows at 16 px, Shift at ten times that,
+Home and End for the stops, Enter to collapse. `parsePanels`/`nextPanels` are
+gone, replaced by `parseLayout`/`nextLayout` under a new storage key
+(`rietx-watch-layout`); WP-1423's `{runs, run}` is read once for the one bit
+with a home here and then removed.
+
+**Measured** (`[dev]` + playwright, no jax, no torch, darwin/arm64,
+cached chromium-1223, 1400x900 viewport unless said otherwise):
+
+- *The defect, before any change.* 72ch to 40ch: **0** `Plots.resize` calls.
+  The plot element followed, 879 px to 1110; plotly's inner size stayed
+  `[58, 8, 807, 503]` throughout. Closing and reopening the run pane fires the
+  one `applyPanels` resize and the inner size becomes `[58, 8, 1328, 503]`.
+- *The list's floor, 63ch.* The five declared columns are 58ch and that is
+  exactly the table's whole min-content (419 px; 1ch = 7.225). The run column
+  takes the remainder, so it absorbs every narrowing alone: with a 20-character
+  label it is 231 px at 90ch, 159 at 80ch (where the label just fits), 101 at
+  72ch, 43 at 64ch, and 0 at 56ch with the table overflowing the panel. `run`
+  as a heading inks 36 px, so 58 + 5 is the width below which a column cannot
+  show its own name. Plus the pane's 1 px border, read off
+  `offsetWidth - clientWidth`.
+- *The run pane's keep, 340 px.* Legend rows against pane width: 1 row at
+  899 px, 2 from 699 to 459, 3 from 419 to 339, and **6 rows / 124 px** at 299
+  and below — a quarter of the 503 px plot, which is the cover WP-1426 handed
+  over. The cliff is between 339 and 299.
+- *The log's floor, 51 px*: three lines of 13 px plus its 12 px of padding,
+  against `#picture`'s declared `min-height: 180px`.
+- *Suites.* Fast selection FASTCOUNT, this session alone on the machine. Net
+  **+7** pytest tests (eight added, one renamed away), no new skip.
+  `test_watch_browser` 19, `test_watch_app` 48, `node --test` 31 pass, vitest
+  584 over 22 files (24 `it` blocks in `resize.test.ts` became 17, so that
+  suite is 7 lower than the 591 it was), svelte-check 381 files 0 errors, ruff
+  clean, sphinx `-W` clean. The full selection did not run: this WP touches a
+  page, its tests and the manual, and moves no measured number
+  (`tests/CLAUDE.md` § Running, rung 3).
+
+**Decisions a successor should not have to re-derive.**
+
+- *The run pane is no longer collapsible.* `toggle-run` could hide it; no grip
+  can, because a splitter's collapse belongs to the pane its grip sizes and the
+  run pane holds the picture. A reader who wants a wide list drags, or presses
+  End on the list grip for the same thing in one key. This is the one shipped
+  capability the WP removed, and it is the maintainer's to overturn.
+- *The 72ch default stays.* The WP left the run column's width as this
+  session's measurement, and the measurement says 72ch already elides an
+  ordinary WP-1431 label, which wants 80ch. It was left alone anyway: widening
+  the default takes 58 px of picture from every reader to serve label-readers,
+  and picture width is the scarce thing WP-1426 handed over. The seam is now
+  the reader's and the choice persists, so one drag settles it per person.
+- *`coalesce`, not a per-animation-frame gate.* The task line said the frame;
+  `gui/CLAUDE.md` (WP-1032) says every `Plots.resize` goes through `coalesce`,
+  and the reason is the trailing run — a frame gate drops the last ask and
+  leaves the plot at the size the drag started at. `Plots.resize` returns a
+  promise, which `coalesce` already awaits.
+
+**The review pass.** `/code-review high --fix` raised four and all four are
+applied; nothing was declined. Two were defects in this WP's own work and
+neither had a test, so each now has one, made to fail by reverting its fix.
+The migration was **spent on one render** — `readLayout` dropped WP-1423's key
+without writing the new one, and nothing else stores a layout, so a reader who
+had the list collapsed saw it collapsed exactly once. And a **picture-less run
+with a collapsed log showed nothing at all**: `#run.full` hides the console's
+grip, the grip is the collapse's only control now, and the two meet on every
+run that has not written a snapshot. That second one is the old "closing the
+last open panel opens the other" rule, which I had reasoned was trivially
+satisfied once the run pane stopped being collapsible; it was not. The other
+two were an `oneCh()` reflow four times a pointer move and a dead
+`.toggle[aria-pressed]` rule.
+
+**Gotchas, each found by a test rather than by reading.**
+
+- *Read a rect, write a basis, and the box model bites.* The grips measure a
+  pane's border box and write its flex basis, which is content-box by default,
+  so every arrow key moved the seam 15 px and reported 16 — and the log's
+  padding is 12 of them. Both panes are `box-sizing: border-box` now.
+- *A stored size is a number or it is nothing.* `Number('420')` is 420, and
+  this is the page's own JSON, so a string there is corruption rather than a
+  value in another spelling.
+- *Editing a GUI test file costs a dist rebuild.* `build_info.py` hashes
+  `gui/src/**/*`, test files included, so the case table's new home marked the
+  committed dist stale and failed both `test_gui_dist` guards. The bundle came
+  back byte-identical; only `build-info.json`'s `source_hash` moved. Now a rule
+  in `gui/CLAUDE.md`.
+- *A guard that banned a string.*
+  `test_the_dialog_says_what_a_click_does_to_the_other_process` asserted that
+  `keydown` appears nowhere in the script. Its claim is that no keyboard route
+  reaches the stop button, so it now checks that every key listener sits on a
+  grip: one on `document` or `window` could reach the verb, one on a grip that
+  must be focused first cannot. Made to fail on purpose before being kept.
+- *The acceptance block was stale.* It said
+  `node --test src/rietx/watch/static/`, which has never run anything — WP-1430
+  put the cases in `tests/` because hatchling ships everything under
+  `src/rietx`, and the line predates that choice. `node --test` on a directory
+  with no test file exits non-zero with `MODULE_NOT_FOUND`, so it was loud
+  rather than silent. Corrected in the WP, with the vitest pair added, since a
+  change here can now fail a suite in `gui/`.
+- *There is no screenshot of this page.* Every entry in
+  `make_screenshots.py`'s `SHOTS` is of the GUI and `cli.md` carries no image,
+  so task 7's second half had nothing behind it.
+
+**Next.** [1429](1429-one-palette-and-one-theme-for-three-pages.md) is the next
+rung and this WP added to its pile: the grips carry four more hard-coded greys.
+Then [1427](1427-what-a-poll-costs.md), then
+[1428](1428-open-in-the-gui-without-touching-the-fit.md), whose question is the
+maintainer's. The two open questions this WP leaves are both the maintainer's
+and both stated above: whether the run pane should be collapsible again, and
+whether the 72ch default should move to 80ch now that a caller's `label=` is
+what fills the column it squeezes.
 
 - **2026-09-16** — created, from the maintainer's reading of the page over the
   demo job; revised the same day: the toggle rename went to 1424 as the

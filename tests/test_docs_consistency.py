@@ -137,6 +137,9 @@ _INHERITED_PRUNE_EPOCH = "2026-07-31"
 #                                                          (PRs #227, #228), which landed at 723 with no bump; repaired in #229
 #   2026-09-02  CLAUDE.md                     723 -> 732  for WP-1330's skill bullet: the three destinations
 #                                                          and the shape rule, landed at the cap
+#   2026-09-16  gui/CLAUDE.md                1028 -> 1036 for WP-1425's one rule: the watch page's
+#                                                          port of lib/resize.ts, pinned by a text-compared
+#                                                          case table, and the dist digest that hashes tests
 #   2026-09-03  docs/ROADMAP.md               621 -> 645  for the 2026-09-03 issue triage (1332-1341): ten rows
 #                                                          across three existing sections and one new one, landed 641
 #   2026-09-08  docs/ROADMAP.md               645 -> 648  for WP-1343 (issue #277, the magnetic
@@ -285,7 +288,7 @@ SIZE_CAPS: dict[str, int | None] = {
     # know the writers are all that is left of 1118.  Nothing is demotable, so
     # the cap moves rather than the fact.  Landed at 711, headroom +1.
     "docs/ROADMAP.md": 717,
-    "gui/CLAUDE.md": 1028,
+    "gui/CLAUDE.md": 1036,
     # 275 -> 283 (WP-1426): a third way a guard goes quiet, and the only one of
     # the three that is about the instrument rather than the assertion — a
     # browser's layout-shift entry cannot see inside a plotly div, so a
