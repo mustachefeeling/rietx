@@ -152,9 +152,13 @@ import math
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from ...schemas.common import Diagnostic
+from ...schemas.common import Diagnostic, Parameter
 from ..formats.base import decode
+
+if TYPE_CHECKING:  # pragma: no cover - typing only
+    from ...schemas import Structure
 
 # --------------------------------------------------------------------- errors
 
@@ -2324,3 +2328,181 @@ def to_structure(model: FullProfModel, *, nuclear_only: bool = False,
         return rx.Structure(phases=phases)
     except Exception as exc:
         raise FullProfPcrError(f"{model.path or '<model>'}: {exc}") from exc
+
+
+# ------------------------------------------------------------------- the writer
+
+
+def _bare_symbol(xhm: str) -> str:
+    return xhm.split(":", 1)[0].strip()
+
+
+def from_structure(structure: Structure) -> str:
+    """Serialise ``structure`` as a FullProf ``.pcr`` — the inverse of
+    :func:`to_structure`.
+
+    Carries exactly what :func:`to_structure` reads back: per phase, the
+    space group, the six cell edges, and every atom's coordinates, Biso and
+    ``vary``. Nothing else — the instrument resolution function, the fitted
+    2θ range and every control/output switch on the file are FullProf
+    protocol :func:`to_structure` never reads into a ``Structure``, so this
+    writer invents safe, inert values for them (a two-point flat background,
+    Cu Kα1/Kα2 on the pattern line, one cycle) purely so the file is
+    *complete* — a ``.pcr`` is positional with no keyword to resynchronise
+    on, so every line :func:`read_fullprof_pcr` expects must exist even
+    where a ``Structure`` carries nothing for it.
+
+    Every free parameter gets its **own** codeword number
+    (``10 * n + 1``, `n` counting up from 1), never a shared tie: a
+    Structure carries no record of which parameters were tied in the
+    refinement that produced it, and :func:`to_structure` only ever *reports*
+    a dropped tie rather than needing one reconstructed, so a tie-free
+    encoding loses nothing a caller could tell apart from one that tried and
+    got the grouping wrong.
+
+    FullProf's ``Occ`` column is discarded by :func:`to_structure` — every
+    atom always comes back fully occupied — so this writer computes it from
+    each site's own multiplicity (``Occ = M_site / M_general``, the *only*
+    value that makes every ratio equal to 1 and so passes
+    :func:`occupancy_factor`'s consistency check) rather than carrying the
+    source ``Structure``'s (nonexistent) chemical occupancy.
+
+    Two refusals, each naming what FullProf's grammar cannot state. An
+    anisotropic site: FullProf's β_ij convention is exactly what
+    :func:`to_structure` itself refuses to assume on the way in, so writing
+    one would assume the convention this reader declines to read back. And a
+    space group whose resolved setting a bare symbol cannot reach: FullProf
+    writes no origin or axis suffix at all, so :func:`normalize_space_group`
+    always *prefers* origin choice 2 over a bare symbol landing on choice 1,
+    and the rhombohedral axes only where the cell metric already says so —
+    there is no way to spell "no, choice 1" in this format. The check is not
+    a heuristic: it calls :func:`normalize_space_group` on the candidate bare
+    symbol and this phase's own cell, the same call :func:`read_fullprof_pcr`
+    will make, and refuses unless that reproduces
+    ``get_spacegroup(phase.space_group).xhm()`` exactly.
+    """
+    import numpy as np
+
+    from ...crystallography.symmetry import expand_positions, get_spacegroup
+
+    for phase in structure.phases:
+        for marker in ("!", "#", "<--"):
+            if marker in phase.name:
+                raise ValueError(
+                    f"phase name {phase.name!r} cannot be written to a "
+                    f"FullProf .pcr: it contains {marker!r}, which the reader "
+                    f"takes as a comment marker and cuts the line there")
+        for atom in phase.atoms:
+            if atom.aniso is not None:
+                raise ValueError(
+                    f"phase {phase.name!r}: atom {atom.label!r} carries an "
+                    f"anisotropic displacement tensor. FullProf's beta_ij "
+                    f"convention (whether the stored off-diagonal already "
+                    f"carries the exponent's factor of 2) is not settled by "
+                    f"any file to_structure was written against, so writing "
+                    f"one would assume a convention this reader refuses to "
+                    f"read back — the same refusal to_structure makes on the "
+                    f"way in.")
+
+    counter = [0]
+
+    def _code() -> float:
+        counter[0] += 1
+        return 10.0 * counter[0] + 1.0
+
+    def _free_or_held(param: Parameter) -> float:
+        return _code() if param.vary else 0.0
+
+    def _pair(param: Parameter) -> str:
+        return f"{param.value!r} {_free_or_held(param)!r}"
+
+    body: list[str] = []
+    # The zero-shift line: value/codeword interleaved, four pairs. Nothing a
+    # Structure carries maps onto it, so every value is inert and every
+    # codeword held — `lambda_slot`'s own docstring calls it "a stale number
+    # with an inert codeword, never the wavelength".
+    body.append("0.0 0.0 0.0 0.0 0.0 0.0 1.0 0.0")
+
+    for phase in structure.phases:
+        sg = get_spacegroup(phase.space_group)
+        resolved = sg.xhm()
+        bare = _bare_symbol(resolved)
+        cell_dict = {"a": phase.cell.a.value, "b": phase.cell.b.value,
+                    "c": phase.cell.c.value, "alpha": phase.cell.alpha.value,
+                    "beta": phase.cell.beta.value, "gamma": phase.cell.gamma.value}
+        check = normalize_space_group(bare, cell_dict)
+        # Compared as *settings*, not as text: a hexagonal-axes R symbol reads
+        # back with no suffix at all (`get_spacegroup`'s default for a bare
+        # `R -3 c` already is `:H`), so the literal strings disagree while the
+        # group is the same one.
+        if get_spacegroup(check).xhm() != resolved:
+            raise ValueError(
+                f"phase {phase.name!r}: space group {resolved!r} cannot be "
+                f"written to a FullProf .pcr — the format has no suffix for "
+                f"an origin or axis choice, and the bare symbol {bare!r} "
+                f"would read back as {check!r} instead. FullProf can only "
+                f"state a setting its own case/origin/rhombohedral-axes "
+                f"convention already prefers.")
+
+        general = len(list(sg.operations()))
+        body.append(phase.name)
+        phase_control = dict(nat=len(phase.atoms), dis=0, ang_or_mom=0,
+                             pr1=0.0, pr2=0.0, pr3=1.0, jbt=0, irf=0, isy=0,
+                             str=0, furth=0, atz=0.0, nvk=0, npr=0, more=0)
+        body.append(" ".join(repr(phase_control[k]) for k in _PHASE_FIELDS))
+        body.append(bare)
+
+        for atom in phase.atoms:
+            xyz = np.array([atom.x.value, atom.y.value, atom.z.value], float)
+            multiplicity = len(expand_positions(sg, xyz))
+            occ = multiplicity / general
+            body.append(f"{atom.label} {atom.species} {atom.x.value!r} "
+                       f"{atom.y.value!r} {atom.z.value!r} {atom.biso.value!r} "
+                       f"{occ!r}")
+            # Occ carries no vary state on our side (to_structure discards the
+            # column entire), so its own codeword is held.
+            body.append(" ".join(repr(_free_or_held(p)) for p in
+                                 (atom.x, atom.y, atom.z, atom.biso)) + " 0.0")
+
+        # Scale/shape line: `scale` is the phase's own, everything else is a
+        # profile term no Structure carries, so it is inert and held.
+        body.append(f"{phase.scale.value!r} 0.0 0.0 0.0 0.0 0.0 0")
+        body.append(f"{_free_or_held(phase.scale)!r} 0.0 0.0 0.0 0.0 0.0")
+        # Width line (U/V/W/X/Y/GauSiz/LorSiz): instrument profile, inert.
+        body.append("0.0 0.0 0.0 0.0 0.0 0.0 0.0 0")
+        body.append("0.0 0.0 0.0 0.0 0.0 0.0 0.0")
+        # Cell line: the six edges, each its own codeword, no trailing selector.
+        cell_params = (phase.cell.a, phase.cell.b, phase.cell.c,
+                       phase.cell.alpha, phase.cell.beta, phase.cell.gamma)
+        body.append(" ".join(repr(p.value) for p in cell_params))
+        body.append(" ".join(repr(_free_or_held(p)) for p in cell_params))
+        # Pref/Asy line: preferred orientation and asymmetry, inert.
+        body.append("0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0")
+        body.append("0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0")
+
+    lines: list[str] = ["COMM Written by rietx.io.projects.fullprof.write_fullprof_pcr"]
+    control = dict(job=0, npr=0, nph=len(structure.phases), nba=2, nex=0,
+                   nsc=0, nor=0, dum=0, iwg=0, ilo=0, ias=0, res=0, ste=0,
+                   nre=0, cry=0, uni=0, cor=0, opt=0, aut=0)
+    lines.append(" ".join(str(control[k]) for k in _CONTROL_FIELDS))
+    lines.append(" ".join("0" for _ in _OUTPUT_FIELDS))
+    pattern = dict(lambda1=1.540560, lambda2=1.544390, ratio=0.5, bkpos=40.0,
+                   wdt=8.0, cthm=1.0, mur=0.0, asylim=50.0, rpolarz=0.0,
+                   mur2=0.0)
+    lines.append(" ".join(repr(pattern[k]) for k in _PATTERN_FIELDS))
+    cycles = dict(ncy=1, eps=0.01, r_at=1.0, r_an=1.0, r_pr=1.0, r_gl=1.0,
+                 thmin=5.0, step=0.02, thmax=100.0, psd=0.0, sent0=0.0)
+    lines.append(" ".join(repr(cycles[k]) for k in _CYCLE_FIELDS))
+    # Nba = 2, a flat two-point background — the minimum this reader accepts.
+    lines.append("5.0 10.0 0.0")
+    lines.append("155.0 10.0 0.0")
+    # Nex = 0: no excluded-region lines.
+    lines.append(str(counter[0]))
+    lines.extend(body)
+    return "\n".join(lines) + "\n"
+
+
+def write_fullprof_pcr(structure: Structure, path: str | Path) -> None:
+    """Write ``structure`` to ``path`` as a FullProf ``.pcr``. See
+    :func:`from_structure` for exactly what carries and what does not."""
+    Path(path).write_text(from_structure(structure), encoding="utf-8")

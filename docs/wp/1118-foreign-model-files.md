@@ -340,9 +340,32 @@ format token is spelled in `_about.py`, never inline (root CLAUDE.md § Conventi
       profile and instrument geometry (no `Instrument` comes off a `.inp` at
       all today), cell/site bound windows, and extinction/preferred-
       orientation/sample-broadening — stated in the writer's own docstring
-      rather than silently dropped. FullProf `.pcr`, GSAS `.EXP`/`.PRM` and
-      GSAS-II (`.instprm` + CIF, per the decision above) still have no writer;
-      the GSAS-II `Z`-term question above is theirs to answer, not TOPAS's.
+      rather than silently dropped.
+      **The FullProf `.pcr` writer landed the same day** (`from_structure`,
+      `write_fullprof_pcr`, `rx.write_fullprof_pcr`, `io/projects/fullprof.py`):
+      same shape (cell, atoms, scale, refine flags via one codeword per free
+      parameter — `10*n+1`, never a shared tie, since a `Structure` carries no
+      record of which parameters a refinement tied), round-tripped through
+      `read_fullprof_pcr` as the acceptance. Two things a `.pcr` needs that a
+      `Structure` does not state at all — every control/output/pattern/cycle
+      line, the background and the fitted range — get safe inert placeholders,
+      because the format is positional with no keyword to resynchronise on, so
+      every line the reader expects must exist regardless. `Occ` is discarded
+      by `to_structure` either way (every atom always comes back fully
+      occupied), so the writer computes it from each site's own multiplicity
+      (`M_site/M_general`) rather than carrying a chemical occupancy the
+      Structure has no field for. The `get_spacegroup(...).xhm()` obligation
+      met a real limit here rather than a restatement: FullProf's grammar has
+      **no origin or axis suffix at all**, so a bare symbol can only state the
+      setting `normalize_space_group` already prefers (choice 2, and `:R` only
+      where the cell metric says so) — a resolved origin choice 1 is refused
+      by name, checked by calling `normalize_space_group` on the candidate
+      output the same way the reader would rather than by a heuristic. An
+      anisotropic site is refused too, mirroring `to_structure`'s own refusal
+      to assume FullProf's β convention. GSAS `.EXP`/`.PRM` and GSAS-II
+      (`.instprm` + CIF, per the decision above) still have no writer; the
+      GSAS-II `Z`-term question above is theirs to answer, not TOPAS's or
+      FullProf's.
 - [ ] `capabilities()` arm, skill rows for the new diagnostic codes
       (`docs/skill/rietx/` — `AGENT_PROTOCOL.md` is a redirect stub since
       WP-1304), a Part 1 manual section, and an `ATTRIBUTION.md` row per

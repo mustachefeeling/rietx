@@ -258,12 +258,12 @@ error.
 The foreign-refinement readers are under active development, so the names in
 this section are documented and not frozen. `read_project_model`,
 `identify_project_format`, `read_topas_inp`, `read_fullprof_pcr`,
-`read_gsas_exp`, `read_gsas2_gpx`, `write_topas_inp` and the per-format models
-they answer with (`rietx.io.projects`) may change in a 1.x release: the
-registry has four formats and one more queued, each of which is evidence about
-its shape, and the write direction has landed for one format of four. A
-format's own model mirrors that format, so its fields move when the reader's
-coverage does.
+`read_gsas_exp`, `read_gsas2_gpx`, `write_topas_inp`, `write_fullprof_pcr` and
+the per-format models they answer with (`rietx.io.projects`) may change in a
+1.x release: the registry has four formats and one more queued, each of which
+is evidence about its shape, and the write direction has landed for two
+formats of four. A format's own model mirrors that format, so its fields move
+when the reader's coverage does.
 {ref}`provisional-by-declaration` has the promise in full.
 :::
 
@@ -293,28 +293,45 @@ file without parsing it, reading only enough of the head to decide.
 
 ### Writing one back
 
-`rx.write_topas_inp(structure, path)` is the inverse of `read_topas_inp` +
-`ProjectModel.to_structure`. It writes a `.inp` that states the same phases,
+`rx.write_topas_inp(structure, path)` and `rx.write_fullprof_pcr(structure,
+path)` are each format's inverse of its own reader +
+`ProjectModel.to_structure`. Both write a file that states the same phases,
 the same cell and the same atoms, plus the part a CIF cannot carry: the same
-refine flags, each `Parameter.vary` written as TOPAS's own `@`/`!` grammar.
+refine flags, each `Parameter.vary` written in the target format's own
+grammar (TOPAS's `@`/`!`; FullProf's codeword, one free parameter to one
+codeword number, never a shared tie).
 
 <!-- api-doc: no-exec — needs a real Structure and writes a file -->
 ```python
 rx.write_topas_inp(structure, "exported.inp")
 back = rx.read_topas_inp("exported.inp").to_structure()
+
+rx.write_fullprof_pcr(structure, "exported.pcr")
+back = rx.read_fullprof_pcr("exported.pcr").to_structure()
 ```
 
-Space groups are written from `get_spacegroup(...).xhm()`, never a phase's own
+Both write space groups from `get_spacegroup(...).xhm()`, never a phase's own
 stored spelling, so a setting this build already resolved is not laundered
-back into an ambiguous symbol.
+back into an ambiguous symbol. FullProf's grammar has no origin or axis
+suffix at all, though, so it can only *state* a setting its own bare-symbol
+convention already prefers (root CLAUDE.md's "an R lattice on rhombohedral
+axes" and "choice 2 wherever the bare symbol lands on choice 1"). A phase
+whose resolved setting disagrees, most commonly origin choice 1, is refused
+by name instead of being silently written as the other setting. An
+anisotropic site is refused too, in both writers, because `to_structure`
+refuses to assume a displacement-tensor convention on the way in and writing
+one out would assume the very thing the reader declines to read back.
 
-Some things do not travel, because `to_structure` does not build them from a
-`.inp` either: the emission profile and instrument geometry (`Instrument` is
-not part of what a `.inp` reads into today), cell and site bound windows, and
-any extinction, preferred-orientation or sample-broadening term a phase
-carries. None of those are TOPAS constructs this reader's `to_structure`
-populates on the way in, so writing them out would claim a round trip the
-reader cannot close. The other three formats have no writer yet.
+Some things do not travel, because neither `to_structure` builds them from
+its file. Common to both: the emission profile and instrument geometry
+(`Instrument` is not part of what either reader returns), and cell/site
+bound windows. FullProf-specific: the fitted 2θ range, the resolution
+function and every control/output switch on a `.pcr` are protocol
+`to_structure` never reads into a `Structure`. `write_fullprof_pcr` fills them
+with safe, inert placeholders purely to keep the file complete, since a
+`.pcr` is positional and every line the reader expects has to exist even
+where a `Structure` carries nothing for it. GSAS and GSAS-II have no writer
+yet.
 
 ### What comes back
 

@@ -104,15 +104,18 @@ SECTIONS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
         "either file’s figure means knowing which one it quoted (Measured: WP-1118, "
         "on six projects stating chisq, Nobs and Nvars together). A GSAS `.LST` "
         "refinement output still has no reader and is transcribed by hand. "
-        "**The write direction has one format so far**: `rx.write_topas_inp` is "
-        "`to_structure`'s inverse, a `.inp` whose refine flags reproduce the "
-        "`Structure`'s own `vary` exactly and whose space group is "
-        "`get_spacegroup(...).xhm()`, never the phase's stored spelling, so a "
-        "setting this build already resolved does not come back ambiguous.",
+        "**The write direction has two formats so far**: `rx.write_topas_inp` and "
+        "`rx.write_fullprof_pcr` are each format's `to_structure` inverse, a file "
+        "whose refine flags reproduce the `Structure`'s own `vary` exactly and "
+        "whose space group is `get_spacegroup(...).xhm()`, never the phase's "
+        "stored spelling. FullProf's grammar has no origin/axis suffix at all, so "
+        "`write_fullprof_pcr` refuses a phase whose resolved setting a bare "
+        "symbol cannot reach — most often origin choice 1 (Measured: WP-1118).",
         ("rx.read_pattern", "rx.read_pdcif", "rx.read_recipe",
          "rx.read_gsas_prm", "rx.read_project_model",
          "rx.identify_project_format", "rx.read_topas_inp", "rx.write_topas_inp",
-         "rx.read_fullprof_pcr", "rx.read_gsas_exp", "rx.read_gsas2_gpx",
+         "rx.read_fullprof_pcr", "rx.write_fullprof_pcr",
+         "rx.read_gsas_exp", "rx.read_gsas2_gpx",
          "rx.Structure.from_cif",
          "rx.Instrument.bragg_brentano", "rx.Instrument.debye_scherrer",
          "rx.estimate_mu_r", "rx.auto_background", "rx.diagnose",
