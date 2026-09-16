@@ -11,8 +11,9 @@ refuses an out-of-range value naming the file; the GSAS-II `.gpx` reader landed
 `.EXP` reader's GOF claim; origin-choice honesty closed #101 the same day, a
 `.gpx` now reading the setting its operators state and the `.EXP`/`.inp`
 readers reporting the one they assume; the TOPAS and FullProf writers landed
-the same day, each the inverse of its own reader; GSAS `.EXP`/`.PRM` and
-GSAS-II still have no writer
+the same day, each the inverse of its own reader; the GSAS-I `.EXP`/`.PRM`
+writers are in hand 2026-09-16 (4th session, claimed by @yue-here), and
+GSAS-II still has none
 Depends on: — (WP-1110 found it; WP-1102 owns the one seam that overlaps)
 
 ## Goal
