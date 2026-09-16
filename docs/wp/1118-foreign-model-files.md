@@ -564,14 +564,38 @@ no convention: the symmetry operations themselves.
 - **`f6470573`, `0bca117c`** — the two task lines ticked, ROADMAP's focus, and
   two gates the new files tripped (an em-dash aside in Part 1, and `encoding=`
   on a test's `tmp_path` writes).
+- **`63963c8f`, `c1acf860`, the review pass** (`/code-review high --fix`):
+  eight findings, **all eight taken**, each with a test reproducing the
+  review's own measurement. Four in the new code — an empty `.instprm` raised
+  `IndexError` where the contract is a `ValueError` naming the file; a
+  triple-quoted value opened and closed on one line swallowed the rest of the
+  bank; two phases of one name collided on a CIF block name (gemmi answers a
+  duplicate with a bare `RuntimeError`, and `\W+` also collapses `"phase 1"`
+  onto `"phase-1"`); a site label with whitespace split its own loop row.
+  **Two in the siblings**, the same accident one format over: a line break in
+  a phase name passes the TOPAS writer's quote check and comes back as a
+  silent rename, and passes the FullProf writer's blank-and-marker checks and
+  desynchronises the positional walk. One message fix
+  (`GSAS2_INSTPRM_VALUE_DEFAULTED` said "no Lam" about a file stating `Lam1`).
+  And the eighth, which the review reported rather than fixed and this session
+  took: the `.prm` writer collected `narrowed` from every `write_field` call
+  and read it nowhere, so a value written to what a fixed column holds crossed
+  in silence while the `.EXP` writer beside it reported one. That is WP-1076's
+  class in mirror image — a declared channel with no consumer — and it is not
+  hypothetical, the 4th session's own measured case reaching it on an ordinary
+  converged calibration. `GSAS_PRM_VALUE_NARROWED` is the twin's name and
+  shape, with its §7g row and a manual sentence. Nothing was declined.
 
 *Measured* — `[dev]` venv, darwin/arm64, this branch level with `origin/main`
 (fetched at handover, unmoved since the branch was cut, so these are the merged
 tree's numbers).
 
-- **Fast selection: 5137 passed, 133 skipped, 2:21-2:35.** +36 tests, all of
-  them new here: 31 in `tests/test_gsas2_instprm.py` and 5 added to
-  `tests/test_projects_gsas2.py` (52 now). No new skip. The full selection did
+- **Fast selection: 5146 passed, 133 skipped, 2:21-2:45.** +45 tests, all of
+  them new here: 34 in `tests/test_gsas2_instprm.py`, 7 added to
+  `tests/test_projects_gsas2.py` (54 now), and one each to the TOPAS,
+  FullProf and `.prm` writers' files for the review's findings (2 to the last).
+  No new skip; the run before the review pass was 5137 and every one of the
+  nine added since is a review finding's test. The full selection did
   not run: nothing this session touched can move a measured number, the
   refinement path being unchanged, and the WP's own acceptance
   (`tests/test_acceptance_fap.py`) passes in 3.25 s.
