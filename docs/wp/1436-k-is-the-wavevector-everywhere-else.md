@@ -329,6 +329,44 @@ every labelled equation has one.
 
 ## Handover log
 
+### 2026-09-17 (2nd session) — a second reading of the two files, before merge
+
+A fresh session re-resolved every anchor and claim in this file and in 1437
+against the tree, as the maintainer asked before merging. The physics and the
+numbers held. What a successor now has is a pair of files whose line numbers,
+paths and stated reasons can be followed without a detour, and a site list
+that reaches the whole tree rather than the four files the audit scanned.
+Nothing on the checklist landed and nothing computed moved.
+
+*Done.* Six corrections, one commit. The site list gained three tests outside
+the four files that bind a local `k` for sinθ/λ, and the docstring writing it
+as `f0(Q=0)`. The shadowing reason now says it holds in `structure_factor.py`
+and not in `scattering.py`. One path in 1437 gained its `src/rietx/` prefix.
+Four anchors moved by one or two lines. "Five" over a six-row table became
+six. The dependency on 1437 now names `intensities.md`, the file both edit,
+since no line of `help.py` writes sinθ/λ.
+
+*Measured.* The Lp divergence table reproduces to three decimals by running
+both forms; graphite (002) at Cu gives cos²2θ_m = 0.800 and K = 0.556. The
+twenty `k` anchors in the three modules and the eight in `intensities.md` are
+exact. Lower-case `s` is free in the manual's maths, since the phase scale is
+`S_p`. `crystallography/magnetic/` writes `k` today only as a loop index, so
+the collision is still scheduled and not present. `test_docs_consistency.py`
+22 passed, worktree `.venv`, `[dev]`, darwin/arm64. No test was added, so no
+count can move; the full suite did not run, this being documentation.
+
+*Declined.* The diff review was not re-run on the fix commit, at the
+maintainer's instruction; the branch's earlier `/code-review high --fix` pass
+is recorded in the entry below.
+
+*Gotchas.* One reading worth carrying: GSAS-II's polarisation routine at zero
+azimuth is `(1 − Pola)·cos²2θ + Pola`, the package's own form, and it is where
+11-BM's 0.99 comes from. That is from memory and unverified this session;
+1437 may cite it once checked against `GSASIIpwd.Polarization`.
+
+*Next.* Unchanged from the entry below: land 1437 first, then rebase and work
+the task list top down.
+
 ### 2026-09-17 — the audit, and what it moved
 
 Opened from a comment on a LinkedIn post about the project, which read our `k`
@@ -383,20 +421,8 @@ also opened as `wp1434-…` and renamed at handover, because until then it was
 telling every other session that WP-1434 was claimed.
 
 *Next.* Land [1437](1437-a-formula-the-code-does-not-compute.md) first, since
-both edit `intensities.md` and 1437 fixes a wrong number a user can act on. Then rebase this branch onto it and work the task list top down. The
+both edit `intensities.md` and 1437 fixes a wrong number a user can act on.
+Then rebase this branch onto it and work the task list top down. The
 first task decides the rest: once `scattering.py` is renamed, tasks 2 to 5 are
 mechanical, and tasks 6 to 8 are independent of all of them and could be taken
 by anyone in any order.
-
-### 2026-09-17 — a second reading of the two files, before merge
-
-Every anchor in this file and in 1437 was re-resolved against the tree by a
-fresh session. The physics and the numbers held: the Lp table reproduces to
-three decimals, the twenty `k` anchors in the three modules are exact, lower
-case `s` is free in the manual's maths because the phase scale is `S_p`, and
-`crystallography/magnetic/` writes `k` today only as a loop index. Six things
-did not hold and are fixed in place: the site list stopped at the four files
-while three other tests bind the same local; the shadowing reason was true in
-one module and not the other; one path in 1437 lacked its `src/rietx/` prefix;
-four anchors were off by one or two lines; "five" headed a six-row table; and
-the dependency on 1437 named `help.py`, which this WP never opens.
