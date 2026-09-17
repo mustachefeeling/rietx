@@ -122,7 +122,7 @@ project bit-identical.
       never silent).
 - [x] σ propagation through `interpolate_fixed`; `background/select.py` made
       aware of the fixed direction (trap 4).
-- [ ] A `rietx compare` row for the new correction.
+- [x] A `rietx compare` row for the new correction.
 - [ ] **Deferred, waiting on the file** (2026-09-17): vendor the 11-BM
       empty-Kapton blank (run 4736) with a provenance row in
       `tests/data/README.md`, and check the fit against it. The beamline's
@@ -200,6 +200,15 @@ scale changes the response variable, so BIC is comparable *within* a setting of
 case to be careful with: given enough terms the scan dials the measured curve
 away and describes the shape itself, which is the identifiability warning
 arriving from the selection side.
+
+**The compare row does real work on a real standard.** `fixed_curve_scale`
+holds the pattern's own arPLS baseline (λ = 1e7) under a Chebyshev-3 and frees
+the scale, since no standard here ships with the blank scanned beside it. The
+expectation was s ≈ 1 and nothing bought. Measured on NAC it is **0.850(67)**,
+with Rwp 0.09317 → 0.08603 and `HIGH_CORRELATION` firing against c0: a stiff
+arPLS baseline sits ~15 % high in level over a peaky range, and the scale is the
+only parameter that can say so, because the polynomial is additive. The blurb
+now says what was measured rather than what was predicted.
 
 **The member had no test at all before this WP.** Nothing in the suite built a
 `BackgroundFixedPlusChebyshev`, which is why `interpolate_fixed`'s silent clamp

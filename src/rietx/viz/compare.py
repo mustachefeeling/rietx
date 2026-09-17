@@ -50,10 +50,12 @@ from pathlib import Path
 
 import numpy as np
 
+from ..background import arpls
 from ..schemas.instrument import (
     CAPILLARY_OFFSETS,
     HUMP_FWHM_MIN,
     BackgroundChebyshev,
+    BackgroundFixedPlusChebyshev,
     BackgroundPSpline,
     Dispersion,
     EmissionLine,
@@ -574,6 +576,46 @@ def _with_pspline(inputs: StandardInputs) -> None:
                                                                knot_step_deg=8.0)
 
 
+def _with_fixed_curve_scale(inputs: StandardInputs) -> None:
+    """An arPLS baseline held under a low-order polynomial, with its scale free.
+
+    The shape WP-1309 added is ``y = Σ c_n T_n + s·f``, and what it exists for is
+    a **measured** f: an empty can, a blank capillary, a matrix-only scan.  None
+    of these standards ships with the blank that was scanned beside it, so the
+    curve here is the pattern's own arPLS baseline (λ = 1e7, the λ
+    ``background.peak_mask`` already quotes) and the comparison is about the
+    *scale*, not about the curve.
+
+    The expectation was s ≈ 1, on the grounds that an estimated baseline is on
+    the pattern's own scale by construction.  Measured on the NAC standard it is
+    **0.850(67)**, with Rwp 0.09317 → 0.08603: a stiff arPLS baseline sits some
+    15 % high in level over a peaky range, and the scale is the only parameter in
+    the model that can say so, because the Chebyshev on top is additive.  So this
+    variant does move Rwp, and what it demonstrates is the mechanism the feature
+    is for rather than an estimator's failing.
+
+    `HIGH_CORRELATION` fires, against c0, and that is the correct report rather
+    than a fit failure: the curve and the constant term are largely parallel.
+    Read the scale beside it, and keep the polynomial low-order — given enough
+    terms the polynomial describes the curve itself and the scale becomes a
+    number about the polynomial (WP-1309's Findings has that row measured).
+
+    With a *measured* blank the same scale answers a physical question instead:
+    a blank is never on the specimen's scale, because the two scans differ in
+    monitor normalisation and the specimen attenuates the container's own
+    scattering.
+    """
+    tt = np.asarray(inputs.data.tt())
+    baseline = arpls(np.asarray(inputs.data.y()), 1e7)
+    inputs.instrument.background = BackgroundFixedPlusChebyshev(
+        fixed_two_theta=tt.tolist(),
+        fixed_intensity=baseline.tolist(),
+        fixed_source="arPLS λ=1e7 baseline of this pattern (rietx compare)",
+        scale=Parameter(value=1.0, vary=True, min=0.0, transform="softplus"),
+        chebyshev=BackgroundChebyshev.with_terms(3, vary=True),
+    )
+
+
 def _with_hump(inputs: StandardInputs) -> None:
     """Declare one broad Gaussian at the low-angle third of the range and free it.
 
@@ -762,6 +804,16 @@ VARIANTS: tuple[Variant, ...] = (
             "background flexible enough to imitate peaks biases ADPs up and "
             "scales down while Rwp falls.",
             _with_pspline),
+    Variant("fixed_curve_scale", "+ a scaled fixed curve",
+            "The pattern's own arPLS baseline held additively under a "
+            "Chebyshev-3, with the curve's scale refined — TOPAS's "
+            "bkg_file(\"f.xy\", @, s) shape. On NAC the scale lands at "
+            "0.850(67) and Rwp falls 0.09317 → 0.08603: the stiff baseline is "
+            "~15 % high in level and an additive polynomial cannot say so. "
+            "Expect HIGH_CORRELATION against c0, which is the correct report "
+            "and not a failure — and keep the polynomial low-order, because "
+            "enough terms describe the curve themselves.",
+            _with_fixed_curve_scale),
     Variant("hump", "+ one explicit hump",
             "One broad Gaussian (6° FWHM, a third of the way up the range) "
             "added on top of the standard's own background, freed in a late "

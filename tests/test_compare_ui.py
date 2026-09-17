@@ -22,7 +22,11 @@ import pytest
 import rietx as rx
 from rietx import compare_app
 from rietx._about import STATE_DIR_ENV
-from rietx.schemas.instrument import HUMP_FWHM_MIN
+from rietx.schemas.instrument import (
+    HUMP_FWHM_MIN,
+    BackgroundChebyshev,
+    BackgroundFixedPlusChebyshev,
+)
 from rietx.viz import compare as cmp
 from rietx.viz import theme
 
@@ -263,6 +267,44 @@ def test_hump_variant_declares_a_broad_peak_and_frees_it_late():
     # the baseline must not carry it — the variant is the only difference
     assert cmp.STANDARD_BY_KEY["nac"].build(DATA_DIR).instrument.extra_components \
         == []
+
+
+def test_fixed_curve_scale_variant_covers_the_range_it_will_be_asked_about():
+    """The curve is the pattern's own baseline, so it spans the fit by
+    construction — and that is the property worth pinning, because a curve
+    shorter than the fitted range is now a refusal rather than a silent clamp
+    (WP-1309).  A variant that made ``compile_model`` raise would be a row
+    nobody could run.
+
+    The scale is what the row is for: free, seeded at one, bounded at zero so a
+    double-counted curve walks into a bound instead of reporting s − 1.
+    """
+    if not (DATA_DIR / "11BM_NAC.fxye").exists():
+        pytest.skip("11-BM NAC dataset not present")
+    inputs = cmp.STANDARD_BY_KEY["nac"].build(DATA_DIR)
+    cmp.VARIANT_BY_KEY["fixed_curve_scale"].apply(inputs)
+
+    bkg = inputs.instrument.background
+    assert isinstance(bkg, BackgroundFixedPlusChebyshev)
+    assert bkg.scale.vary is True
+    assert bkg.scale.value == 1.0 and bkg.scale.min == 0.0
+    assert bkg.fixed_source and "arPLS" in bkg.fixed_source
+
+    tt = np.asarray(inputs.data.two_theta)
+    lo, hi = inputs.two_theta_limits or (float(tt.min()), float(tt.max()))
+    assert len(bkg.fixed_two_theta) == len(tt)
+    assert bkg.fixed_two_theta[0] <= lo and bkg.fixed_two_theta[-1] >= hi
+    # a baseline rather than the data: positive everywhere, and nowhere near
+    # the peak tops (arPLS rides through the noise, so it is not below every
+    # single channel and must not be asserted to be)
+    curve = np.asarray(bkg.fixed_intensity)
+    y = np.asarray(inputs.data.intensity)
+    assert np.all(curve > 0.0)
+    assert curve.max() < 0.1 * y.max()
+
+    # the baseline must not carry it — the variant is the only difference
+    assert isinstance(cmp.STANDARD_BY_KEY["nac"].build(DATA_DIR).instrument.background,
+                      BackgroundChebyshev)
 
 
 def test_capillary_displacement_variant_frees_the_pair_with_the_zero_shift():
