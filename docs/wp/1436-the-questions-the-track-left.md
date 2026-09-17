@@ -1,6 +1,6 @@
 # WP-1436 — the questions the watcher track left
 
-Milestone: unscheduled · Status: 🚧 2026-09-17 — the six open questions, answered and landed
+Milestone: unscheduled · Status: 🔄 2026-09-17 — the six open questions, answered and landing
 Depends on: 1429 (the tokens), 1427 (the console walk), 1425 (the seams), 1413 (the cadence), 1428 soft (the width it moved)
 
 ## Goal
@@ -38,31 +38,49 @@ reported the first of those; the other two are this WP's.
 
 **What the two lists measure.** In OKLab with the package's own metric
 (`gui/structure3d._oklab_distance`, floor 0.13), scored against every curve
-role and page of both themes on both surfaces:
+role and page of both themes **and** the figure palette's roles, which are not
+the tokens' — matplotlib orange against the app's red, plus a green ±3σ band:
 
-| list | weakest role distance | weakest pair |
+| list | nearest role | closest pair |
 |---|---|---|
-| `PALETTES["light"]["phase"]` (tab10) | 0.043 | 0.142 |
-| `PALETTES["dark"]["phase"]` | 0.074 | 0.113 |
-| Okabe-Ito, the four below | **0.078** | **0.184** |
+| `PALETTES["light"]["phase"]` (tab10) | **0.009** | 0.142 |
+| `PALETTES["dark"]["phase"]` | 0.052 | 0.113 |
+| Okabe-Ito, the four below | **0.0637** | **0.184** |
 
-So the shipped lists are worse than the replacement on both counts, and the
-dark one fails its own pairwise floor: `#6fb1ff` and `#c9a6ff` are 0.113 apart.
+So the shipped lists are worse than the replacement on both counts. The light
+one's green is the figures' own band green — `#2ca02c` against `#2a9d2a`, one
+colour twice — and the dark one fails its own pairwise floor at 0.113.
+
+**The first pass of that measurement was short**, and the test written from it
+is what caught it: the search scored the four curve roles and the page and left
+out the three overlay layers and the band, so it chose bluish green at a claimed
+0.130 when the light candidate overlay sits 0.0637 away. The lesson is
+WP-1076's from the other side — a claim is checked where it is *used*, and the
+use here is a palette test that scores every role on the page.
 
 **Which four, and why those.** Okabe-Ito is eight colours for a white page
 (Okabe & Ito 2002; Wong, *Nature Methods* **8**, 441, 2011), and the Rietveld
-plot has already spent the red and blue ends of it: orange and vermillion land
-0.061 and 0.065 from the calculated curve, blue and sky blue 0.053 and 0.078
-from the difference curve. What is left is **bluish green, reddish purple, sky
-blue and yellow**, and sky blue survives only because the tick band is its own
-row. Black is not in the set: the house rule spends it on the single-phase row,
-where it is the neutral rather than a member.
+plot has already spent the red and blue ends of it: blue lands 0.053 from the
+difference curve, orange 0.061 from the figures' calculated curve, vermillion
+0.065 from the app's. What is left is **bluish green, reddish purple, sky blue
+and yellow**. Black is not in the set: the house rule spends it on the
+single-phase row, where it is the neutral rather than a member.
+
+**No four of the eight clear 0.13 against everything**, and a tick row does not
+have to: it sits in a row of its own below the data, so hue is a second
+encoding and the floor is what a mark drawn *over* the data is held to. The
+set is chosen by its weakest link and the number is pinned so it can only
+improve. Vermillion in place of bluish green would buy 0.001 and move the
+collision onto the *calculated curve*, which is on screen whenever a tick row
+is, while the candidate overlay is the indexing tab's.
 
 **The order is the page's, not the palette's.** Spending order is by contrast
 against the page — bluish green 0.390, reddish purple 0.330, sky blue 0.280,
 yellow 0.191 — because a tick that collides with a curve is still in a row of
 its own, and a tick invisible against the page is not saved by anything. Which
-four is the curve measurement's answer; in what order is this one's.
+four is the curve measurement's answer; in what order is this one's, and the
+palette's own order is not used at all: Okabe-Ito's yellow is its weakest
+against a white page and its safest against these curves.
 
 **Practice.** One stable colour per phase, chosen by the program: GSAS-II makes
 it a configurable list (`Ref_Colors`), and the house figure style declares
@@ -167,9 +185,12 @@ themes, and the run list showing the five liveness words.
 
 *(written as the work lands)*
 
-## Handover
+## Handover log
 
-- **2026-09-17** — created, from the maintainer's answers to the six questions
-  the track left. The three colour and layout answers were chosen against
-  practice rather than taste: GSAS-II and the house figure style for the phase
-  palette, CI dashboards for the pills, VS Code for the toggle.
+### 2026-09-17 — created, and the six answers with the practice each follows
+
+From the maintainer's answers to the questions the live-watcher track left.
+None of the six was decided on taste: GSAS-II's per-phase colour list and the
+house figure style chose the palette, CI dashboards the state pills, VS Code
+the collapse command, log viewers the cold open, and the cadence answer is
+WP-1413's own measurement read against what a ratio means on a 0.354 s fit.

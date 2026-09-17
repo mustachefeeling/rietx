@@ -29,6 +29,18 @@ Three conventions this file must not get wrong, each with a WP behind it:
 * **A tick cap is reported, never silent** — ``n_total`` rides beside every
   capped list, the way ``MAX_CANDIDATE_TICKS`` does it in ``gui/session.py``,
   because a silent cap reads as coverage.
+
+**One is written every stage, and that is a decision rather than the absence of
+one** (WP-1436, answering the question WP-1413 left the maintainer). Measured
+there: 8.30 / 6.54 / 10.56 ms a stage on ``nac`` / ``cpd-2`` / ``trigger``, so
+50 / 59 / 84 ms of a whole fit and 1.233× / 1.049× / 1.031× of its wall clock.
+Only ``nac`` is over the 5 % budget and it is a 0.354 s fit, where the whole
+charge is 50 ms — a *ratio* is the wrong test on a fit that short, because what
+a person could notice is the absolute number, and thinning would cost the live
+view its redraws on precisely the fits somebody is watching. If that number
+ever moves, the throttle is by **time** and never by count, which is what a
+logger does when it needs one (TensorBoard's ``flush_secs``): a stage boundary
+is the natural thing to write on, and how often it comes is the fit's business.
 """
 
 from __future__ import annotations

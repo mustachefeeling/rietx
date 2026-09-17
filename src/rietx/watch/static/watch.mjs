@@ -414,14 +414,23 @@ async function drawSnapshot(id) {
     // tallest peak behind them.
     legend: {orientation: 'h', y: 1, yanchor: 'top', x: 0, xanchor: 'left',
              bgcolor: withAlpha(hue.ground, 0.72)},
-    // How much of the pattern is on screen, in the corner of the picture it
-    // is a fact about. It shared the strip's one flexible slot with the path
-    // until WP-1424, where the two of them were 1127 px of sentence in a
+    // How much of the pattern is on screen, under the axis it is a fact about
+    // and beside its title. It shared the strip's one flexible slot with the
+    // path until WP-1424, where the two of them were 1127 px of sentence in a
     // track squeezed to nothing. A paper-anchored annotation takes no margin
     // — `automargin` is off by default — so this does not move the picture,
     // which the legend did before WP-1426 and is what those tests watch.
-    annotations: [{xref: 'paper', yref: 'paper', x: 1, y: 1,
-                   xanchor: 'right', yanchor: 'top', showarrow: false,
+    //
+    // It sat at the paper's top right until WP-1436, which is the corner the
+    // legend's *first row* ends in: measured at 1180 px on a two-phase fit,
+    // the row wrapped and `Δ/σ` was drawn under the caption. Two marks in one
+    // place is the class WP-1424 named — measure ink against room — and the
+    // room up there belongs to the legend, which grows with the model while
+    // this is one line of fixed length. The bottom margin is 56 px for a
+    // centred axis title, and the right of it is empty at every width.
+    annotations: [{xref: 'paper', yref: 'paper', x: 1, y: 0,
+                   xanchor: 'right', yanchor: 'top', yshift: -34,
+                   showarrow: false,
                    text: `${snap.n_drawn} of ${snap.n_points} pts drawn`,
                    font: {size: 10, color: hue.fg},
                    bgcolor: withAlpha(hue.ground, 0.72)}],

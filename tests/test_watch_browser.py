@@ -376,11 +376,15 @@ def test_the_ranges_are_the_datas(browser, tmp_path):
 
 
 def test_a_grip_collapses_its_pane_and_the_other_takes_the_room(browser, tmp_path):
-    """WP-1425: the two toggle buttons are gone and the grips do their job.
+    """WP-1425: the list's toggle button is gone and the grips do their job.
 
     A double-click on a grip collapses the pane it sizes, and the choice
     survives a reload — which is the whole of what `toggle-runs` did, minus a
     control.
+
+    `toggle-run` is the other one and it came back in WP-1436, for the pane no
+    grip sizes — so this page carries it and the grips still answer for
+    themselves, which is what the rest of this test measures.
     """
     watched = _make_tree(tmp_path, n_done=2)
     with _served(tmp_path) as base:
@@ -388,7 +392,8 @@ def test_a_grip_collapses_its_pane_and_the_other_takes_the_room(browser, tmp_pat
                       if r.path == watched)
         page, errors = _open(browser, base, run_id)
         assert page.query_selector("#toggle-runs") is None
-        assert page.query_selector("#toggle-run") is None
+        assert page.query_selector("#toggle-run") is not None, (
+            "the run pane's own command (WP-1436)")
         both = page.evaluate(GEOMETRY)
 
         page.dblclick("#grip-list")
@@ -1786,3 +1791,53 @@ def test_a_cold_open_shows_the_newest_line_first(browser, tmp_path):
     # would have had to read the whole file to know
     assert "earlier lines are in the log" in gap, gap
     assert re.search(r"\d", gap.split("earlier")[0]) is None, gap
+
+
+BOXES = """() => {
+  const rect = (el) => { const b = el.getBoundingClientRect();
+    return {left: b.left, right: b.right, top: b.top, bottom: b.bottom}; };
+  const legend = document.querySelector('#plot .legend');
+  const note = document.querySelector('#plot .annotation');
+  return legend && note ? {legend: rect(legend), note: rect(note)} : null;
+}"""
+
+
+@pytest.mark.parametrize("width", [1500, 1180, 900])
+def test_the_point_count_is_never_drawn_over_the_legend(browser, tmp_path,
+                                                        width):
+    """WP-1424's rule on the picture: measure ink against room.
+
+    The caption sat at the paper's top right, which is where the legend's
+    first row ends. Measured at 1180 px on a two-phase fit, the row wrapped and
+    `Δ/σ` was drawn under `901 of 901 pts drawn`, each legible and the pair not
+    (WP-1436). Two marks in one place, and the room up there belongs to the
+    legend: it grows with the model, while the caption is one line of a fixed
+    length.
+    """
+    run = tmp_path / "two-phase"
+    run.mkdir()
+    (run / runs.EVENTS_FILE).write_text(
+        json.dumps({"record": "event", "v": "2", "t": 1e9, "kind": "fit_start",
+                    "data": {}}) + "\n", encoding="utf-8")
+    _write_stage(run, "cell", scale=0.7, noise=3.0, rwp=0.2)
+
+    with _served(tmp_path) as base:
+        run_id = next(r.run_id for r in runs.discover(tmp_path))
+        page = browser.new_page(viewport={"width": width, "height": 900})
+        errors: list[str] = []
+        page.on("pageerror", lambda e: errors.append(str(e)))
+        page.goto(f"{base}/#/run/{run_id}", wait_until="networkidle")
+        page.wait_for_function("() => document.getElementById('plot') && "
+                               "document.getElementById('plot')._fullLayout",
+                               timeout=15000)
+        page.wait_for_timeout(600)
+        boxes = page.evaluate(BOXES)
+        page.close()
+
+    assert not errors, errors
+    assert boxes, "the legend or the caption was not drawn"
+    legend, note = boxes["legend"], boxes["note"]
+    overlap = (min(legend["right"], note["right"]) - max(legend["left"], note["left"]) > 0
+               and min(legend["bottom"], note["bottom"])
+               - max(legend["top"], note["top"]) > 0)
+    assert not overlap, f"{width} px: legend {legend} under caption {note}"

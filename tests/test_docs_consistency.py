@@ -273,7 +273,13 @@ SIZE_CAPS: dict[str, int | None] = {
     # readers that had open-coded one each, and a GUI command that was `None`
     # for every run a project records. The torn-copy measurement that sized
     # the risk stayed in the WP file, per rule 4.
-    "CLAUDE.md": 871,
+    # 871 -> 874 (WP-1436): the per-stage charge clause gains its *answer*.
+    # WP-1413 measured the number and left the cadence to the maintainer, so
+    # the clause named a cost with no decision beside it; three lines say the
+    # decision, why a ratio is the wrong test on a sub-second fit, and what a
+    # throttle would be if the number ever moved. The other five answers this
+    # WP landed reach no rule outside their own subtree.
+    "CLAUDE.md": 874,
     # 672 -> 676 (WP-1102): the Current focus rewrite at 1102's close names the
     # milestone's one break and what makes 1103 the seam's proving case.
     # 676 -> 682 (WP-1407): a new Unscheduled group, "The formats a lab still
@@ -308,7 +314,11 @@ SIZE_CAPS: dict[str, int | None] = {
     # Current focus naming #101 as closed, which is what a successor reads to
     # know the writers are all that is left of 1118.  Nothing is demotable, so
     # the cap moves rather than the fact.  Landed at 711, headroom +1.
-    "docs/ROADMAP.md": 719,
+    # 719 -> 720 (WP-1436): one index row, for the WP that answered the six
+    # questions the watcher track left.  Current focus paid for itself — the
+    # list of open questions became the list of answers in the same eight
+    # lines — so the whole move is the row.
+    "docs/ROADMAP.md": 720,
     # 1036 -> 1053 (WP-1429): where the GUI's colour values live, now that
     # they are Python and this workspace's `tokens.css` is generated from
     # them. It governs work outside the WP that measured it — an edit to a

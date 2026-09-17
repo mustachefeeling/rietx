@@ -514,6 +514,9 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   `rietx html` still writes one on demand — what stopped is producing it unasked.
 - **A per-stage charge is judged on the shortest fit, never the typical one** (WP-1413): it is
   near-constant, so `nac` at 0.354 s spends 50 ms on six snapshots against a 17.7 ms budget.
+  **That one is paid** (WP-1436): a ratio is the wrong test where the absolute charge is 50 ms,
+  and thinning would cost the live view its redraws on the fits somebody is watching. A
+  throttle, if the number ever moves, is by time and never by count.
 - **Every fit records itself, and telemetry never breaks a fit** (WP-1403). `runs.py` holds
   both halves of one contract: the reader `rietx watch` is built on, and `RunRecorder`, which
   writes the `meta.json`/`run.lock`/`status.json` it looks for. `runs.attach` hangs the
