@@ -86,13 +86,20 @@ def _text_io_calls(tree: ast.AST, source: str) -> list[tuple[ast.Call, str]]:
         func = node.func
         if isinstance(func, ast.Attribute):
             name = func.attr
-            receiver = ast.get_source_segment(source, func.value) or ""
         elif isinstance(func, ast.Name):
-            name, receiver = func.id, ""
+            name = func.id
         else:
             continue
         if name not in _TEXT_IO:
             continue
+        # The receiver is only read by the two exemptions below, and
+        # ast.get_source_segment re-splits the whole source on every call.
+        # Taken before this filter it ran once per *attribute* call in the
+        # tree rather than once per text-I/O call, which is quadratic in file
+        # size and was the whole cost of this file.
+        receiver = ""
+        if isinstance(func, ast.Attribute):
+            receiver = ast.get_source_segment(source, func.value) or ""
         # os.open returns a file descriptor, never a text stream, and rejects
         # `encoding=` outright -- so flagging it asks for an argument that
         # cannot be given.  _NOT_FILE_IO cannot express this: it substring-

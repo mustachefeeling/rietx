@@ -349,10 +349,20 @@ A_NAC = 10.2510
 
 @pytest.fixture(scope="module")
 def nac_index():
-    """The synchrotron pattern indexed over its **whole** range. ~1 s.
+    """The synchrotron pattern indexed over its **whole** range.
 
-    Fast, because nothing happens: the run abstains before exploring a single
-    box, for the reason the row explains.
+    It cost ~1 s while nothing happened, and that sentence stood here long
+    after it stopped being true.  The dichotomy still explores no box, for the
+    reason its consumer explains, but since WP-1040/1041 ``search_svd`` and
+    ``search_trial_error`` both solve the metric and return a cell — so two
+    real searches run here, and the consumer is ``slow``-marked for it.
+
+    The mark is what this file's header always asked for ("then the search
+    itself, marked ``slow``"), and § Budgets in ``tests/CLAUDE.md`` says why it
+    matters more than the minutes: a search whose serial cost is a large
+    fraction of this file's 300 s ``REAL_DATA_BUDGET_SECONDS`` is a load sensor
+    rather than an assertion.  Unmarked, it was the longest single item in the
+    fast selection and set that suite's whole wall clock under ``-n auto``.
     """
     from rietx.indexing import index_pattern
     from rietx.indexing.engines import SearchSpec
@@ -1522,6 +1532,7 @@ def test_magnetites_correct_cell_is_ranked_first_and_graded_below_its_rival(
     assert rival.confidence != "high" and best.confidence != "high"
 
 
+@pytest.mark.slow
 def test_short_wavelength_data_is_indexed_by_the_engines_that_enumerate_nothing(
         nac_index):
     """The 11-BM synchrotron pattern **is** indexed as measured — by two engines.
