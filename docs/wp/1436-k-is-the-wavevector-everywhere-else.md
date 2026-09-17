@@ -100,8 +100,45 @@ Five further findings are in scope here:
 | `k` | `qpa.py:168` | per-phase Z·M·V | Hill & Howard give the product no letter, and `K` in QPA means O'Connor & Raven's calibration constant, whose method `qpa.py:22` fences to v2. Both callers already pass `[z.zmv for z in zmvs]` |
 | `Q` | `manual.md:163` against `schemas/indexing.py:537` | 4π sinθ/λ against 1/d² | The notation table contradicts the package's own public `PeakLine.q` |
 | `1/d` | missing from `manual.md:163` | the third reciprocal length | It is what half the manual calls `Q`, and it is what the comment named. `forward-model.md:50` and `peak-positions.md:125` both spell out "sinθ/λ = 1/2d" to defuse the same confusion |
-| "F20" | `fom.py:47`, `:581` | user-facing diagnostic prose | Claims Smith & Snyder define F₂₀ on the first twenty. `f_n` and `FOM_N` are correct; the sentence overclaims |
+| "F20" | `fom.py:47`, `:581` | user-facing diagnostic prose | Claims Smith & Snyder define F₂₀ on the first twenty. **Settled against the paper**, below |
+| `β` | `microstructure.md:34` | FWHM in radians | Langford & Wilson write `β` for the *integral breadth* and `2w` for the FWHM. **Settled against the paper**, below |
 | `gamma` | `voigt.py:40` | returns a HWHM from inputs named `gamma_g`/`gamma_l`, which are FWHMs | The docstring says so, the names do not |
+
+### Two findings settled against the papers (2026-09-17)
+
+Both were opened as an agent's reading and closed by reading the source. In
+each case **the code is right and only the prose drifted**, which bounds the
+work to a comment and a sentence.
+
+**Smith & Snyder (1979)** define F_N generally, as equation (1):
+`F_N = (1/|Δ2θ|)·(N/N_poss)`. Their § *Recommendations for usage of F_N*,
+subsection 1, says "it is recommended that **N be taken as 30**, or as the last
+line if there are fewer than 30 lines in the entire pattern". Their worked
+example happens to be `F₂₀ = 101 (0.009, 22)` for Cr₃Rh, because that pattern
+had twenty lines reported. The string "F30" appears nowhere in the paper, so do
+not write that it does.
+
+`f_n` at `fom.py:372` is correct: the right formula, the right citation, `n` a
+parameter, and `n_lines`/`n_possible` returned, which is exactly the paper's
+recommended reporting format. What is wrong is the comment at `fom.py:47` and
+the message it feeds at `:581`, which present N = 20 as the paper's definition.
+N = 20 is in fact this package's own choice, aliased to
+`PEAK_MIN_USABLE_LINES` so the scoring precondition cannot drift from the
+figures it scores (`fom.py:48-51`). That reason is good and the value stays.
+Only the attribution changes.
+
+**Langford & Wilson (1978)** set their notation explicitly, warning it "does
+not necessarily conform with that used previously in the literature". Their
+list gives `2w` for "Full width at half maximum intensity (half-width)" and
+`β` for "Integral breadth", and the text defines the integral breadth as "the
+total area under the diffraction maximum divided by the peak intensity".
+
+So `microstructure.md:34` does borrow their `β` for the quantity they call
+`2w`. The scope is the manual alone. `caglioti.py:88-97` is already exemplary:
+it labels `SCHERRER_K` "Scherrer constant for a **FWHM**", cites Langford &
+Wilson, and quotes 0.89 for the FWHM of a sphere against 1.0747 for its
+integral breadth. The code therefore pairs the right constant with the right
+breadth measure, and no computed size is wrong.
 
 ### Sites for the rename
 
@@ -157,8 +194,13 @@ the two sibling data files for the same reason.
       clause recording the maths/identifier split with its reason.
 - [ ] `docs/skill/rietx/references/diagnostics.md:36`, then re-sync the two
       committed copies with `rietx skill --install . --copy`.
-- [ ] `fom.py:47` and `:581`: say F_N at N = 20 instead of claiming Smith &
-      Snyder define F₂₀. One sentence, and it needs no ruling on the paper.
+- [ ] `fom.py:47` and `:581`: say F_N at N = 20, name `PEAK_MIN_USABLE_LINES`
+      as the reason for the twenty, and record that Smith & Snyder recommend
+      N = 30. Keep the value; change only the attribution.
+- [ ] `microstructure.md:34`: stop calling the FWHM `β`, which is Langford &
+      Wilson's integral breadth. Their FWHM symbol is `2w`. The manual's own
+      notation table already forbids the integral breadth as a width measure
+      (`manual.md:160`), so this row contradicts it.
 - [ ] `voigt.py:40`: name the returned HWHM so a caller cannot read it as the
       FWHM its inputs are.
 - [ ] Tests: `test_dispersion.py:122`'s local, and a bit-identity check that a
@@ -185,9 +227,6 @@ Recorded here so a later session knows these were seen and left:
   by equation (2) at its point of use and never ambiguous inside the package.
 - **`U*`** at `adp.py:14`. cctbx's letter, where the cited IUCr nomenclature
   report (Trueblood 1996) writes `β^ij`. Naming drift, definition exact.
-- **`β` for FWHM** at `microstructure.md:34`, where Langford & Wilson 1978 are
-  said to use `β` for the integral breadth. **Unverified**: that paper is not in
-  the local corpus. Needs the paper before anyone acts on it.
 - **`caglioti.apparent_size(..., k=SCHERRER_K)`** at `caglioti.py:136` and
   `:165`. A bare `k`, but every call site is positional and `SCHERRER_K`
   carries the name.
@@ -214,8 +253,16 @@ every labelled equation has one.
 
 ## References
 
-- Waasmaier, D. & Kirfel, A. (1995). *Acta Cryst.* **A51**, 416-431. Local copy
-  at `~/zotero-linker/derived/34WYGAJ4/s0108767394013292.md`.
+- Waasmaier, D. & Kirfel, A. (1995). *Acta Cryst.* **A51**, 416-431. Two local
+  copies, `~/zotero-linker/derived/86VUZT8W/` and `34WYGAJ4/`, checked
+  independently. Both give "s = sin Θ/λ" and neither writes `k` in that role.
+- Langford, J. I. & Wilson, A. J. C. (1978). *J. Appl. Cryst.* **11**, 102-113,
+  "Scherrer after sixty years". Local copy at
+  `~/zotero-linker/derived/9X843RS3/`. Its notation list is the authority for
+  `2w` against `β`.
+- Smith, G. S. & Snyder, R. L. (1979). *J. Appl. Cryst.* **12**, 60-65. Local
+  copy at `~/zotero-linker/derived/J9E3EMAM/`. Equation (1) and
+  § *Recommendations for usage of F_N* are the two places to read.
 - IUCr CIF core dictionary, `_refln.sin_theta_over_lambda` and
   `_refln.form_factor_table`. [COMCIFS/cif_core](https://github.com/COMCIFS/cif_core).
 - *International Tables for Crystallography* Vol. C, Tables 6.1.1.1 and
@@ -245,9 +292,23 @@ ambiguous and almost all defensibly so. `s` is unavailable as a python
 identifier in both target modules, which is why the split is `s` in maths and
 `stol` in code.
 
-*Gotchas.* The main checkout was two sessions stale when this WP was numbered,
-so it was first written as 1434 and renumbered after `EnterWorktree` showed
-1434 and 1435 already on `main`. Re-read the WP directory from the worktree.
+*Settled the same day.* The maintainer supplied the three papers the audit had
+fenced out. All three confirm the finding and each narrows the work, because in
+every case the code was right and only prose had drifted. A second Waasmaier &
+Kirfel copy gives "s = sin Θ/λ" with no `k`. Langford & Wilson's notation list
+gives `2w` for the FWHM and `β` for the integral breadth, while
+`caglioti.py:88-97` already pairs the FWHM with the FWHM constant, so the scope
+is `microstructure.md:34` alone. Smith & Snyder define F_N generally and
+recommend N = 30; `f_n` is correct and only its surrounding comment overclaims.
+
+*Gotchas.* Two agent claims did not survive the papers, so check any that
+matter. "Smith & Snyder's reporting instance is F30" is wrong: the string F30
+is absent from the paper and their worked example is F₂₀. And the
+`qpa.weight_fractions` `k` is the per-phase ZMV, never a calibration constant.
+
+The main checkout was two sessions stale when this WP was numbered, so it was
+first written as 1434 and renumbered after `EnterWorktree` showed 1434 and 1435
+already on `main`. Re-read the WP directory from the worktree.
 
 *Next.* Land [1437](1437-a-formula-the-code-does-not-compute.md) first, since
 both touch `help.py` and the manual, then rebase this branch onto it and work
