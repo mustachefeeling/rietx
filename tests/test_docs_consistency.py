@@ -177,6 +177,11 @@ _INHERITED_PRUNE_EPOCH = "2026-07-31"
 #                                                          nothing else. The sentence naming them in § What
 #                                                          fires replaced one 1310 already had, so the
 #                                                          narrative paid for itself; landed 719, no headroom
+#   2026-09-17  docs/ROADMAP.md               719 -> 722  for WP-1436 and WP-1437, opened by the notation
+#                                                          audit a LinkedIn comment started: two index rows
+#                                                          under § The repo's own process, no narrative at
+#                                                          all, since both WP files carry their own. Landed
+#                                                          720, +2 headroom
 SIZE_CAPS: dict[str, int | None] = {
     # 739 -> 755 (WP-1102): two standing rules for the component seam — that an
     # additive non-Bragg term is a union *member* and not a new field, and that
@@ -301,7 +306,7 @@ SIZE_CAPS: dict[str, int | None] = {
     # Current focus naming #101 as closed, which is what a successor reads to
     # know the writers are all that is left of 1118.  Nothing is demotable, so
     # the cap moves rather than the fact.  Landed at 711, headroom +1.
-    "docs/ROADMAP.md": 719,
+    "docs/ROADMAP.md": 722,
     # 1036 -> 1053 (WP-1429): where the GUI's colour values live, now that
     # they are Python and this workspace's `tokens.css` is generated from
     # them. It governs work outside the WP that measured it — an edit to a
