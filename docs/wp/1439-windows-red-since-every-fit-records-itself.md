@@ -73,7 +73,7 @@ platform, and it is a real filesystem failure rather than a simulated one.
 ## Tasks
 
 - [x] `tests/test_runs.py` imports `fcntl` the way the package does, and the cases that need a real lock skip on a platform without one
-- [ ] `tests/test_telemetry.py`'s unwritable-root case is provoked portably; the `chmod` provocation stays where it reproduces the measured failure
+- [x] `tests/test_telemetry.py`'s unwritable-root case is provoked portably; the `chmod` provocation stays where it reproduces the measured failure
 - [ ] The two JSONL writers open with `newline="\n"`, so a run log and a `history.jsonl` are the same bytes on every platform
 - [ ] `tests/test_watch_app.py` compares `gui_command` against the platform's separator
 - [ ] `tests/test_portability.py` grows the two rules that would have caught this: no unguarded POSIX-only import, and a line-oriented writer names its newline

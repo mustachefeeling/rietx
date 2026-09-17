@@ -28,6 +28,7 @@ import os
 import sys
 import time
 import warnings
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
@@ -421,8 +422,47 @@ def test_a_latched_recorder_still_runs_the_callers_callback(
     assert [e["kind"] for e in seen] == ["fit_start", "fit_end"]
 
 
-def test_a_read_only_directory_declines_and_the_fit_still_returns(
-        tmp_path, monkeypatch, pattern, recording):
+@contextmanager
+def _a_directory_this_user_cannot_write(tmp_path):
+    """The measured provocation: a read-only working directory (WP-1403).
+
+    POSIX only. ``chmod`` on Windows reaches the read-only *attribute* and
+    nothing a directory's writability is decided by, so the ``mkdir`` below
+    would simply succeed there and the fit would record happily.
+    """
+    blocked = tmp_path / "blocked"
+    blocked.mkdir()
+    blocked.chmod(0o500)
+    try:
+        yield str(blocked / "runs")
+    finally:
+        blocked.chmod(0o700)
+
+
+@contextmanager
+def _a_root_whose_parent_is_a_file(tmp_path):
+    """The same boundary, provoked by a fact no permission model can vary.
+
+    ``new_run_dir`` opens with ``root.mkdir(parents=True, exist_ok=True)``, and
+    a path component that is a regular file defeats that on every platform.
+    Still a real filesystem failure rather than a patched-in one, which is what
+    keeps this test about ``attach`` and not about the mock.
+    """
+    occupied = tmp_path / "occupied"
+    occupied.write_text("a file, where a directory would have to be\n",
+                        encoding="utf-8")
+    yield str(occupied / "runs")
+
+
+@pytest.mark.parametrize("provoke", [
+    pytest.param(_a_directory_this_user_cannot_write, id="unwritable-directory",
+                 marks=pytest.mark.skipif(
+                     os.name == "nt",
+                     reason="chmod does not make a directory unwritable here")),
+    pytest.param(_a_root_whose_parent_is_a_file, id="parent-is-a-file"),
+])
+def test_a_root_it_cannot_create_declines_and_the_fit_still_returns(
+        tmp_path, monkeypatch, pattern, recording, provoke):
     """The whole point. A fit that dies over a directory nobody requested is
     the package breaking a working call for its own convenience.
 
@@ -430,17 +470,16 @@ def test_a_read_only_directory_declines_and_the_fit_still_returns(
     making the directory happen in ``attach``, where no latch can reach them.
     The first version of this test found exactly that hole: the
     ``PermissionError`` propagated and took the fit with it.
+
+    Two provocations, because the measured one is not portable and the
+    portable one is not what was measured (WP-1439). Both land in the same
+    ``except BaseException`` in ``attach``, which is the thing under test.
     """
     monkeypatch.chdir(tmp_path)
-    blocked = tmp_path / "blocked"
-    blocked.mkdir()
-    blocked.chmod(0o500)
-    try:
+    with provoke(tmp_path) as telemetry:
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
-            result = _fit(pattern, telemetry=str(blocked / "runs"))
-    finally:
-        blocked.chmod(0o700)
+            result = _fit(pattern, telemetry=telemetry)
 
     assert result.status == "converged"
     assert result.statistics.rwp < 0.2
