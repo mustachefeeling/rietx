@@ -266,7 +266,7 @@ the two sibling data files for the same reason.
       FullProf's own symbol for its apparent strain and stays.
 - [x] `voigt.py:40`: name the returned HWHM so a caller cannot read it as the
       FWHM its inputs are.
-- [ ] Tests: the locals bound at `test_dispersion.py:109` and `:215`, the
+- [x] Tests: the locals bound at `test_dispersion.py:109` and `:215`, the
       three other test files named under § Sites, and a bit-identity check that a
       converged fit on a structural standard returns the same parameters before
       and after. Plot obs/calc/diff to `tests/output/` and look at it.

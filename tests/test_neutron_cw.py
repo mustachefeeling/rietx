@@ -143,10 +143,10 @@ def test_neutron_amplitude_is_q_independent_and_xray_is_not():
     An X-ray form factor falls off with Q because the electron cloud has
     spatial extent; a nucleus is a point scatterer, so b does not.
     """
-    k = np.linspace(0.05, 0.45, 12)                # sin(theta)/lambda
-    f_xray = f0("Al", k)
+    stol = np.linspace(0.05, 0.45, 12)             # s = sin(theta)/lambda
+    f_xray = f0("Al", stol)
     assert f_xray[0] > 1.5 * f_xray[-1]            # real falloff across the range
-    # b is one number; the module returns it without a k argument at all
+    # b is one number; the module returns it without an s argument at all
     from rietx.crystallography.neutron import b_coh
     assert b_coh("Al") == pytest.approx(3.449, abs=5e-4)
 

@@ -4,7 +4,7 @@
 neutral element when an ion is absent from the Waasmaier-Kirfel table.  The
 fallback is deliberate — refusing would break files that currently refine —
 but it used to be silent: nothing recorded that the model's scattering power
-was not the one the species label claimed, and ``f0(Q=0)`` is the electron
+was not the one the species label claimed, and ``f0(stol=0)`` is the electron
 count, so the substitution is a physically wrong occupancy hiding behind an
 Rwp the substitution barely moves (the model simply rescales).
 

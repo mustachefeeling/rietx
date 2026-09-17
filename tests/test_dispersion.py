@@ -106,7 +106,7 @@ def _brute_f2(phase: Phase, cell6, h) -> float:
     subsets, and multiplies a genuinely complex scattering factor.
     """
     sg = get_spacegroup(phase.space_group)
-    k = 1.0 / (2.0 * float(d_spacings(np.array([h]), *cell6)[0]))
+    stol = 1.0 / (2.0 * float(d_spacings(np.array([h]), *cell6)[0]))
     total = 0.0 + 0.0j
     for atom in phase.atoms:
         x0 = np.array([atom.x.value, atom.y.value, atom.z.value])
@@ -119,9 +119,9 @@ def _brute_f2(phase: Phase, cell6, h) -> float:
                    for q in images):
                 continue
             images.append(p)
-        f = complex(float(f0(atom.species, np.array([k]))[0]), 0.0)
+        f = complex(float(f0(atom.species, np.array([stol]))[0]), 0.0)
         f += CU_KA1[atom.species]
-        dw = math.exp(-atom.biso.value * k * k)
+        dw = math.exp(-atom.biso.value * stol * stol)
         for p in images:
             total += atom.occ.value * f * dw * np.exp(2j * np.pi * float(np.dot(h, p)))
     return float((total * total.conjugate()).real)
@@ -212,7 +212,7 @@ def test_zero_f_double_prime_leaves_only_the_real_shift():
     for i, h in enumerate(hkl):
         f = 0j
         sg = get_spacegroup(phase.space_group)
-        k = 1.0 / (2.0 * float(d_spacings(np.array([h]), *ZINCITE_CELL)[0]))
+        stol = 1.0 / (2.0 * float(d_spacings(np.array([h]), *ZINCITE_CELL)[0]))
         for atom in phase.atoms:
             x0 = np.array([atom.x.value, atom.y.value, atom.z.value])
             seen: list[np.ndarray] = []
@@ -224,8 +224,8 @@ def test_zero_f_double_prime_leaves_only_the_real_shift():
                        for q in seen):
                     continue
                 seen.append(p)
-            fj = float(f0(atom.species, np.array([k]))[0]) + real_only[atom.species].real
-            dw = math.exp(-atom.biso.value * k * k)
+            fj = float(f0(atom.species, np.array([stol]))[0]) + real_only[atom.species].real
+            dw = math.exp(-atom.biso.value * stol * stol)
             f += sum(atom.occ.value * fj * dw * np.exp(2j * np.pi * float(np.dot(h, p)))
                      for p in seen)
         assert got[i] == pytest.approx(abs(f) ** 2, rel=1e-12)
