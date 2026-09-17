@@ -6,8 +6,8 @@
 ```{math}
 :label: int-species
 
-f(k, \lambda) \;=\; f_0(k) + f'(\lambda) + i\, f''(\lambda),
-\qquad k = \frac{\sin\theta}{\lambda}\ [\text{Å}^{-1}].
+f(s, \lambda) \;=\; f_0(s) + f'(\lambda) + i\, f''(\lambda),
+\qquad s = \frac{\sin\theta}{\lambda} = \frac{1}{2d}\ [\text{Å}^{-1}].
 ```
 
 {source}`rietx.crystallography.dispersion`
@@ -25,8 +25,8 @@ $f_0$ uses the five-Gaussian parameterisation of Waasmaier & Kirfel
 ```{math}
 :label: int-f0
 
-f_0(k) \;=\; \sum_{i=1}^{5} a_i\, e^{-b_i k^2} + c,
-\qquad \text{valid for } k \le 6\ \text{Å}^{-1}.
+f_0(s) \;=\; \sum_{i=1}^{5} a_i\, e^{-b_i s^2} + c,
+\qquad \text{valid for } s \le 6\ \text{Å}^{-1}.
 ```
 
 {source}`rietx.crystallography.scattering.f0`
@@ -61,13 +61,13 @@ species:
 :label: int-b
 
 b \;=\; b_{\mathrm{coh}}\ [\text{fm}],
-\qquad \frac{\partial b}{\partial k} = 0.
+\qquad \frac{\partial b}{\partial s} = 0.
 ```
 
 {source}`rietx.crystallography.neutron.b_coh`
 
 The derivative is the content of the equation. An X-ray form factor falls off
-with $k$ because the electron cloud has spatial extent comparable to $1/k$; a
+with $s$ because the electron cloud has spatial extent comparable to $1/s$; a
 nucleus is a point scatterer on this scale, so the bound coherent scattering
 length carries no angular dependence at all. There is no five-Gaussian
 expansion, no $f'/f''$, and $b$ is real for every nuclide this table covers.
@@ -112,7 +112,7 @@ manual, and an unpolarised X-ray beam sits at $K = 0.5$.
 ```{math}
 :label: int-F
 
-F(hkl) \;=\; \sum_j \mathrm{occ}_j\, f_j(k)
+F(hkl) \;=\; \sum_j \mathrm{occ}_j\, f_j(s)
 \sum_m T_{jm}(\mathbf{h})\,
 e^{2\pi i\, \mathbf{h}\cdot(R_m \mathbf{x}_j + \mathbf{t}_m)},
 ```
@@ -129,7 +129,7 @@ $\pm\mathbf{h}$ always merge into one orbit.
 
 ## Debye-Waller factors and ADP representations
 
-Isotropic sites take $T = \exp(-B_j k^2)$ with $B_{\mathrm{iso}} = 8\pi^2
+Isotropic sites take $T = \exp(-B_j s^2)$ with $B_{\mathrm{iso}} = 8\pi^2
 U_{\mathrm{iso}}$ (Å²) {cite}`itc-c`, identical for every image, so it
 factors out of the orbit sum. Anisotropic sites do not factor:
 

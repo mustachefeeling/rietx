@@ -244,13 +244,13 @@ the two sibling data files for the same reason.
       (`qpa.py:388`, `:495`), both already passing `[z.zmv for z in zmvs]`, and
       five in `tests/test_qpa.py` (112, 120, 127, 134, 474), all positional —
       so nothing breaks, but `:474`'s local is itself named `k`.
-- [ ] `manual.md:163` becomes **two** rows, because the table is keyed
+- [x] `manual.md:163` becomes **two** rows, because the table is keyed
       `| quantity | unit |` and 1/d² is Å⁻²:
 
       | a reciprocal length | Å⁻¹: `s = sinθ/λ = 1/2d`, `|d*| = 1/d = 2s`, and `Q = 4π sinθ/λ` |
       | a reciprocal length squared | Å⁻²: `Q = 1/d²`, the indexing chapters' `Q` and the `ObservedPeak.q` field |
 
-- [ ] `intensities.md` equations to `s`; `CLAUDE.md:486`, plus a conventions
+- [x] `intensities.md` equations to `s`; `CLAUDE.md:486`, plus a conventions
       clause recording the maths/identifier split with its reason.
 - [ ] `docs/skill/rietx/references/diagnostics.md:36`, then re-sync the two
       committed copies with `rietx skill --install . --copy`.

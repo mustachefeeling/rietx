@@ -494,7 +494,13 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
 - Schemas: `extra="forbid"`, `ser_json_inf_nan="strings"` (±inf bounds must survive JSON
   round-trip — tested).
 - Angles in degrees throughout; Caglioti U,V,W in deg²(2θ); Biso in Å² (= 8π²·Uiso); wavelengths
-  in Å; k = sinθ/λ.
+  in Å; s = sinθ/λ = 1/(2d).
+- **sinθ/λ is `s` in maths and `stol` in python** (WP-1436). Neither half is a style choice. `s`
+  is the paper's letter and the IUCr core dictionary's normative one, while `s` as an identifier
+  is already taken in `structure_factor.d_f2_d_uaniso`, so python follows cctbx. It was `k` until
+  v1.4, copied from the DABAX file's editorial preamble rather than from the paper that file
+  reproduces. `k` is the wavevector to every reader outside the package, and the propagation
+  vector to the magnetic track landing inside `crystallography/`.
 - **Hot-path code must not put a frozen numpy constant on the left of a python operator against a
   θ-derived value**: `ndarray * tensor` raises on the torch backend, and `tensor * ndarray` routes
   through numpy's deprecated `__array_wrap__`, then fails under a functorch transform. Route it

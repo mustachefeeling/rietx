@@ -311,7 +311,19 @@ SIZE_CAPS: dict[str, int | None] = {
     # cap and the two sets of lines do not sum — 1309's σ-is-a-function-of-the-
     # declared-scale clause landed while 1438's three were open. Per this
     # file's own rule, the number is the *merged* file's size.
-    "CLAUDE.md": 907,
+    # 907 -> 914 (WP-1436): one standing rule for the symbol sinθ/λ carries,
+    # which is `s` in maths and `stol` in python.  It governs work well outside
+    # its own WP, which is protocol rule 4's test: five queued magnetic WPs
+    # (1326-1329, 1418) will write `k` for the propagation vector inside the
+    # very subpackage where it used to mean this, and a later session reading
+    # `scattering.py` beside the DABAX file it parses would otherwise restore
+    # the file's spelling as the more authoritative one.  The split itself is
+    # the part a reader cannot re-derive: `s` is unavailable as an identifier
+    # because `structure_factor.d_f2_d_uaniso` already binds it, so the two
+    # halves look arbitrary until the reason is written down.  Raised rather
+    # than shaved, per the failure message's own instruction.  Landed at 913;
+    # the headroom is +1.
+    "CLAUDE.md": 914,
     # 672 -> 676 (WP-1102): the Current focus rewrite at 1102's close names the
     # milestone's one break and what makes 1103 the seam's proving case.
     # 676 -> 682 (WP-1407): a new Unscheduled group, "The formats a lab still
