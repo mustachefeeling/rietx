@@ -1,9 +1,10 @@
 # WP-1436 — `k` is the wavevector everywhere else
 
 Milestone: unscheduled · Status: 🔄 2026-09-17 — claimed by @yue-here
-Depends on: 1437 (both edit `docs/manual/intensities.md`, 1437 at line 104 and
-this WP at its equations; rebase onto it. No line of `help.py` writes sinθ/λ,
-so this WP never opens that file)
+Depends on: 1437, **merged 2026-09-17** (PR #371). This branch is cut from
+`main` above it, so the rebase is done and its edit to `docs/manual/intensities.md`
+is in the tree. No line of `help.py` writes sinθ/λ, and none of the names renamed
+here appears there either (checked 2026-09-17), so this WP never opens that file.
 
 ## Goal
 
@@ -17,6 +18,12 @@ field. No computed number moves.
 A comment on the project's LinkedIn post objected that "k should equal to
 2/lambda \* sin(theta)". That quantity is the reciprocal lattice vector length
 `1/d`. They were decoding a symbol that normally means the wavevector.
+
+This is not only a readability question. The same collision reached a number a
+user can act on: [1437](1437-a-formula-the-code-does-not-compute.md) measured
+`help.py`'s Lp against the Lp the code computes and found them 0.508× apart at
+2θ = 90° for K = 0.99, with the ratio varying across the range, because the help
+text's `K` was bound to a different quantity from the code's.
 
 ### Where our `k` came from
 
@@ -107,8 +114,8 @@ Six further findings are in scope here. Bare file names below resolve to
 | `k` | `qpa.py:168` | per-phase Z·M·V | Hill & Howard give the product no letter, and `K` in QPA means O'Connor & Raven's calibration constant, whose method `qpa.py:22` fences to v2. Both callers already pass `[z.zmv for z in zmvs]` |
 | `Q` | `manual.md:163` against `schemas/indexing.py:537` | 4π sinθ/λ against 1/d² | The notation table contradicts the package's own public `ObservedPeak.q` (`schemas/indexing.py:576`) |
 | `1/d` | missing from `manual.md:163` | the third reciprocal length | It is what half the manual calls `Q`, and it is what the comment named. `forward-model.md:50` and `peak-positions.md:125` both spell out "sinθ/λ = 1/2d" to defuse the same confusion |
-| "F20" | `fom.py:47`, `:581` | user-facing diagnostic prose | Claims Smith & Snyder define F₂₀ on the first twenty. **Settled against the paper**, below |
-| `β` | `microstructure.md:34` | FWHM in radians | Langford & Wilson write `β` for the *integral breadth* and `2w` for the FWHM. **Settled against the paper**, below |
+| "F20" | `fom.py:47`, `:583` | user-facing diagnostic prose | Claims Smith & Snyder define F₂₀ on the first twenty. **Settled against the paper**, below |
+| `β` | `microstructure.md` 29, 34, 50 | FWHM in radians | Langford & Wilson write `β` for the *integral breadth* and `2w` for the FWHM. **Settled against the paper**, below |
 | `gamma` | `voigt.py:40` | returns a HWHM from inputs named `gamma_g`/`gamma_l`, which are FWHMs | The docstring says so, the names do not |
 
 ### How the papers were searched, because they are OCR
@@ -150,7 +157,7 @@ not write that it does.
 `f_n` at `fom.py:372` is correct: the right formula, the right citation, `n` a
 parameter, and `n_lines`/`n_possible` returned, which is exactly the paper's
 recommended reporting format. What is wrong is the comment at `fom.py:47` and
-the message it feeds at `:581`, which present N = 20 as the paper's definition.
+the message it feeds at `:583`, which present N = 20 as the paper's definition.
 N = 20 is in fact this package's own choice, aliased to
 `PEAK_MIN_USABLE_LINES` so the scoring precondition cannot drift from the
 figures it scores (`fom.py:48-51`). That reason is good and the value stays.
@@ -162,8 +169,8 @@ list gives `2w` for "Full width at half maximum intensity (half-width)" and
 `β` for "Integral breadth", and the text defines the integral breadth as "the
 total area under the diffraction maximum divided by the peak intensity".
 
-So `microstructure.md:34` does borrow their `β` for the quantity they call
-`2w`. The scope is the manual alone. `caglioti.py:88-97` is already exemplary:
+So `microstructure.md` does borrow their `β` for the quantity they call
+`2w`, at lines 29, 34 and 50. The scope is the manual alone. `caglioti.py:88-97` is already exemplary:
 it labels `SCHERRER_K` "Scherrer constant for a **FWHM**", cites Langford &
 Wilson, and quotes 0.89 for the FWHM of a sphere against 1.0747 for its
 integral breadth. The code therefore pairs the right constant with the right
@@ -180,7 +187,8 @@ Renaming a subset leaves a `NameError` that the suite catches and the rename
 pass should not have written.
 
 Equations and prose: `docs/manual/intensities.md` lines 9, 10, 28, 29, 64, 70,
-111, 128; `docs/manual/manual.md:163`; `CLAUDE.md:486`;
+115, 132 (the last two moved down four by 1437's neutron paragraph);
+`docs/manual/manual.md:163`; `CLAUDE.md:497`;
 `docs/skill/rietx/references/diagnostics.md:36` plus its two committed copies
 under `.agents/skills/` and `.claude/skills/`.
 
@@ -195,7 +203,8 @@ lines 109, 122, 124, 215, 227, 228.
 Three more tests bind a local `k` for sinθ/λ and hand it to `f0`
 positionally, so the rename cannot break them and the goal's "`stol` in
 python" still reaches them: `tests/test_crystallography.py` lines 126, 127,
-151, 153 and 154; `tests/test_neutron_cw.py` lines 146 and 147. And
+151, 153 and 154; `tests/test_neutron_cw.py` lines 146, 147 and the comment at
+149. And
 `tests/test_species_fallback.py:7` writes the same quantity as `f0(Q=0)`, a
 third letter for it in the tree, which becomes `f0(s=0)` in that docstring.
 
@@ -203,36 +212,6 @@ third letter for it in the tree, which becomes `f0(s=0)` in that docstring.
 `tests/api_surface.py:189` declares `rietx.crystallography` internal by
 sentence, so the rename trips no partition test and needs no compatibility
 entry. Every call site passes the argument positionally.
-
-### Inherited
-
-**From [1437](1437-a-formula-the-code-does-not-compute.md), closed 2026-09-17.**
-That WP was the expensive end of this audit and is now done, so this one is
-unblocked. Three things it learned change the work here.
-
-- **`docs/manual/intensities.md` has already been edited**, at the neutron
-  paragraph (was line 104). 1437 rebases under this WP's plan, so re-read that
-  paragraph before touching the chapter. The edit fixed a *third* live site of
-  the `K` collision: the chapter said "an unpolarised neutron beam sets
-  $K = 1$", where its own `K` is the σ-polarised fraction and unpolarised is
-  0.5. The paragraph now states the real reason, quoting `NeutronSource`'s
-  docstring, and says explicitly that $K = 1$ is not the unpolarised value.
-- **The collision reached a user-facing number, not only notation.** 1437's
-  measurement: the help text's Lp against the computed Lp differs by 0.508× at
-  2θ = 90° for K = 0.99, and the ratio varies with angle. Worth quoting in this
-  WP's own motivation — a symbol bound to the wrong quantity is not a
-  readability question here.
-- **A rule this WP can lean on rather than restate**: `help.py`'s module
-  docstring now carries "a description that states a formula or a threshold
-  names where the real one lives", and the numeric half is enforced by
-  `tests/test_help.py::test_quoted_thresholds_are_the_codes_own`. A rename under
-  this WP that moves a computing function must therefore also move the entry
-  naming it; grep `help.py` for the old dotted name.
-
-One caution on this WP's own § The rest of the audit: 1437 found that entry
-line numbers in the parent audit were off by 9-114 lines in six places, the
-files themselves untouched, so the audit's anchors were approximate from the
-start. Re-grep rather than trusting a line number.
 
 ### Fences
 
@@ -275,13 +254,16 @@ the two sibling data files for the same reason.
       clause recording the maths/identifier split with its reason.
 - [ ] `docs/skill/rietx/references/diagnostics.md:36`, then re-sync the two
       committed copies with `rietx skill --install . --copy`.
-- [ ] `fom.py:47` and `:581`: say F_N at N = 20, name `PEAK_MIN_USABLE_LINES`
+- [ ] `fom.py:47` and `:583`: say F_N at N = 20, name `PEAK_MIN_USABLE_LINES`
       as the reason for the twenty, and record that Smith & Snyder recommend
       N = 30. Keep the value; change only the attribution.
-- [ ] `microstructure.md:34`: stop calling the FWHM `β`, which is Langford &
+- [ ] `microstructure.md`: stop calling the FWHM `β`, which is Langford &
       Wilson's integral breadth. Their FWHM symbol is `2w`. The manual's own
       notation table already forbids the integral breadth as a width measure
-      (`manual.md:160`), so this row contradicts it.
+      (`manual.md:160`), so this row contradicts it. **Three sites, not one**
+      (re-grepped 2026-09-17): the Scherrer equation at line 29, the sentence
+      binding it at 34, and the ΔQ equation at 50. Line 140's `β*` is
+      FullProf's own symbol for its apparent strain and stays.
 - [ ] `voigt.py:40`: name the returned HWHM so a caller cannot read it as the
       FWHM its inputs are.
 - [ ] Tests: the locals bound at `test_dispersion.py:109` and `:215`, the
