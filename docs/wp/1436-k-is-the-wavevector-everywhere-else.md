@@ -233,7 +233,7 @@ the two sibling data files for the same reason.
 
 ## Tasks
 
-- [ ] `scattering.py`: `k` → `stol` in identifiers and docstrings, `s` in the
+- [x] `scattering.py`: `k` → `stol` in identifiers and docstrings, `s` in the
       rendered equation. Includes the `f0` signature and the `f0(element, k=0)`
       prose at line 96.
 - [ ] `structure_factor.py` and `dispersion.py`: the same pass, module

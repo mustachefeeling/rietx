@@ -1,13 +1,21 @@
 """X-ray atomic form factors.
 
-f0(k) is the 5-Gaussian parameterisation of Waasmaier & Kirfel (1995),
+f0(s) is the 5-Gaussian parameterisation of Waasmaier & Kirfel (1995),
 Acta Cryst. A51, 416-431:
 
-    f0(k) = Σ_{i=1..5} a_i · exp(−b_i k²) + c,     k = sin(θ)/λ  [Å⁻¹]
+    f0(s) = Σ_{i=1..5} a_i · exp(−b_i s²) + c,     s = sin(θ)/λ  [Å⁻¹]
 
-valid for k ≤ 6 Å⁻¹ — a wider range than the older 4-Gaussian Cromer-Mann
+valid for s ≤ 6 Å⁻¹ — a wider range than the older 4-Gaussian Cromer-Mann
 form.  Coefficients are read from the DABAX file ``f0_WaasKirf.dat`` (ESRF
 DABAX collection; see ATTRIBUTION.md).
+
+The symbol is ``s`` in the equation and ``stol`` in python, following the
+paper and cctbx respectively.  The DABAX file's own preamble writes ``k`` for
+this quantity, above the line where Waasmaier & Kirfel's text begins, and the
+package copied it from there for its first five versions; the authors write
+``s``, as does the IUCr core dictionary's ``_refln.sin_theta_over_lambda``.
+``k`` is the wavevector everywhere else, and the magnetic propagation vector
+inside this subpackage (WP-1436).
 
 This module is the **angle-dependent, wavelength-independent** half of the
 scattering factor.  The anomalous corrections f′ + i·f″ are angle-independent
@@ -93,7 +101,7 @@ class SpeciesFallback:
     ``true_electrons`` is Z minus the signed formal charge — the ion's own
     electron count, derived rather than tabulated so nothing here duplicates
     a second copy of periodic-table data.  ``returned_electrons`` is what the
-    fallback actually supplies: ``f0(element, k=0)`` of the neutral atom the
+    fallback actually supplies: ``f0(element, stol=0)`` of the neutral atom the
     substitution used, which is *approximately* Z (the Gaussian fit reproduces
     the sum rule to a few parts in 10⁴, not exactly — ``f0("Y", 0) ==
     38.980795``, not ``39``) and is read off the same table `f0` reads rather
@@ -110,7 +118,7 @@ class SpeciesFallback:
     @property
     def delta_frac(self) -> float | None:
         """Fractional error the substitution puts on the scattering factor
-        f (not |f|²) at k = 0.
+        f (not |f|²) at s = 0.
 
         ``None`` when ``true_electrons`` is itself zero -- a bare proton
         (``H+``/``H1+``) or ``He2+``, where the formal charge equals Z.  The
@@ -160,10 +168,10 @@ def detect_fallback(species: str) -> SpeciesFallback | None:
                            returned_electrons=returned_electrons)
 
 
-def f0(species: str, k: np.ndarray) -> np.ndarray:
-    """Elastic form factor at k = sin(θ)/λ (Å⁻¹).
+def f0(species: str, stol: np.ndarray) -> np.ndarray:
+    """Elastic form factor at ``stol`` = s = sin(θ)/λ (Å⁻¹).
 
-    Waasmaier & Kirfel (1995) Eq. (1): f0(k) = Σ a_i exp(−b_i k²) + c.
+    Waasmaier & Kirfel (1995) Eq. (1): f0(s) = Σ a_i exp(−b_i s²) + c.
     """
     xp = get_backend()
     coeffs = _load_table()[normalize_species(species)]
@@ -172,6 +180,6 @@ def f0(species: str, k: np.ndarray) -> np.ndarray:
     # lifted, not left as a numpy view: b sits on the *left* of the broadcast
     # product below, which torch will not accept against a traced operand
     b = xp.asarray(coeffs[6:11], dtype=np.float64)
-    k2 = xp.asarray(k, dtype=np.float64) ** 2
-    # b ⊗ k² as a broadcast product (np.outer cannot take a traced operand)
-    return xp.einsum("i,in->n", a, xp.exp(-(b[:, None] * k2[None, :]))) + c
+    s2 = xp.asarray(stol, dtype=np.float64) ** 2
+    # b ⊗ s² as a broadcast product (np.outer cannot take a traced operand)
+    return xp.einsum("i,in->n", a, xp.exp(-(b[:, None] * s2[None, :]))) + c
