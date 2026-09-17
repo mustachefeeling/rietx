@@ -1,6 +1,6 @@
 # WP-1438 — the questions the watcher track left
 
-Milestone: unscheduled · Status: 🔄 2026-09-17 — the six open questions, answered and landing
+Milestone: unscheduled · Status: ✅ 2026-09-17 — twelve questions answered over two rounds; the pages hold a narrow window, a reload and a theme their reader can reach
 Depends on: 1429 (the tokens), 1427 (the console walk), 1425 (the seams), 1413 (the cadence), 1428 soft (the width it moved)
 
 ## Goal
@@ -193,6 +193,13 @@ it was answered.
 - [x] The GUI's title bar wraps rather than forcing a 618 px document.
 - [x] `CLAUDE.md` takes the three clauses that govern what comes after them;
       the cap moves in the commit that says so.
+- [x] `multi.py` keeps its own tick builder and owes the same pairing, which
+      it did not have: one walk yields both lists now.
+- [x] `node --check` for `compare_app.py`'s quoted page, the one WP-1430 did
+      not reach and this WP edited.
+- [x] The manual's screenshots, regenerated for the accent ink.
+- [x] The two seam-floor tests read the pane's box off the page rather than
+      adding the 1 px that only an overlay scrollbar leaves.
 
 ## Acceptance
 
@@ -388,6 +395,87 @@ design question — nine panels, a 3D viewer and a tab strip, against the
 watcher's two panes — which the maintainer's comment was not about.
 
 ## Handover log
+
+### 2026-09-17 (2nd session) — six more comments, and the pages answer them
+
+Somebody watching a fit can now do three things they could not this morning.
+They can put the window on half a screen, or turn it sideways, and still read
+both the run list and the picture — before, at a phone's width the list took
+its full declared width and the picture was given nothing at all. They can
+make the page dark without opening the GUI, which matters because the person
+this page exists for drives their fit from a script and never opens the GUI at
+all. And they can point at a reflection tick and be told which reflection it
+is, on the watcher, in the GUI and in `rietx compare` alike, where before two
+of the three told them only the angle the axis under the tick already shows.
+Three smaller things went with them: a run that offers no `open` button says
+why, the console comes back with the rest of the page instead of a beat after
+it, and the GUI's title bar stops forcing a document wider than the window.
+
+The round also found two defects nobody reported. Every filled control in the
+GUI inked white on the accent, which on the dark theme is a contrast ratio of
+2.22 — below the accessibility floor at any text size, and it had been there
+since the dark theme shipped. And a joint fit's tick rows would have been the
+one surface still unable to name a reflection, because `multi.py` keeps its
+own tick builder and it had not been taught. Both are fixed.
+
+**Done.** The panes stack below 859 px and the list seam keeps a size per
+arrangement; below 563 px the table sheds the stage and the start time rather
+than the run name. The empty `gui` cell carries its reason, and carries none
+on a watcher that cannot open anything. `readPage` takes the page's constants
+off the poll every payload already carries, which deletes the boot's second
+walk, and a run named in the URL has its log fetched beside that walk instead
+of behind it, with the two readers of one tail serialised.
+`viz/theme.set_theme_choice` joins `theme_choice`, `POST /api/theme` is the
+seam, and the control is the GUI's `.segmented` three drawing its glyphs and
+sentences from the module. `tick_hkl` rides beside `ticks` on
+`RefinementResult` and `HistogramResult`, `hkl` beside `two_theta` in the
+snapshot, built in all three places the positions are built and carried
+through the same filter, sort and cap.
+
+**Measured.** All on `[dev]` + playwright, macOS arm64, Python 3.12.
+
+| | |
+|---|---|
+| fast selection | **5330 passed, 132 skipped, 0 failed** at load 2.3 |
+| against this WP's first round | +29 exactly (5301/132 on the merged tree) |
+| `tests/test_watch_browser.py` alone | 47 passed |
+| vitest / `node --test` | 593 / 48 |
+| svelte-check | 381 files, 0 errors |
+
+The numbers behind the decisions: 420 px gave the list its declared 578 px,
+the run pane 0 px and the document 1283 px of scroll; 859 px is where the
+list's 71ch floor, its border, the grip and the run pane's 340 px of picture
+stop fitting together; the console filled at 248 ms against a list drawn at
+107, and now all three panes land in one frame at 123; white on the dark
+accent is 2.22:1 against `--panel`'s 7.51; the hkl costs 1.4 kB against a
+335 kB snapshot.
+
+**Gotchas.** Two reflections land at the same 2θ to every decimal the
+snapshot keeps — (3 2 2) and (4 1 0) both at 23.70007 — so a tick position is
+not a key into `tick_hkl`, and a hover names whichever of the coincident
+marks plotly picks. Grouping them would move the tick count, which Layer 0's
+`Region.n_reflections` reads, so it was left and written down. Under
+`table-layout: fixed`, `display:none` on a cell shifts every later cell one
+column left into the colgroup and `visibility:collapse` on a `<col>` takes
+the flexible column with it; only zeroing the column works, and the first two
+fail *silently*. And a browser test may not hard-code a dimension the
+platform's own chrome contributes to: two seam tests encoded the pane's box
+as `+ 1`, which is only true where the scrollbar is an overlay, and macOS
+picks that from whether a mouse is attached.
+
+**Deliberately not done.** The GUI's split does not stack. Its title bar
+overflow is fixed and it stays legible to about 600 px, but at 420 px the
+plot is 98 px wide. Below that it is nine panels, a 3D viewer and a tab strip
+against the watcher's two panes — a different design question, and not the
+one that was asked. The control *registers* are also still declared twice,
+`app.css` and `watch.css`; what crosses that line is colour values, and the
+option not taken is recorded in Findings.
+
+**Next:** the WP is closed and the track with it. The decision waiting is
+not this WP's — **25 WPs have closed since v1.4.0 shipped on 2026-09-13 and
+no milestone is open**, with `pyproject.version` still reading `1.4.0`. That
+is what "finalise" meant when this session opened, and it wants a maintainer's
+call before any more WPs land under no milestone.
 
 ### 2026-09-17 — created, and the six answers with the practice each follows
 

@@ -26,10 +26,15 @@ whole-suite run launched mid-edit and therefore repeated):
 **Rung 3 is exclusive across sessions**, because several share this machine (WP
 work and one `/pr-review`) and two suites at `-n auto` put twice the workers on
 the same cores. Not a timing question: § Budgets in tests has load turning a
-real-data row's *answer*. So look before starting one — `pgrep -f "[p]ytest"`,
-with `lsof -a -d cwd -p <pid>` for which tree and `ps -o etime= -p <pid>` for
-how long — and **observe rather than reserve**, since a lock adds a release to
-forget and a stale window to wait out while `pgrep` cannot go stale. **Found
+real-data row's *answer*. So look before starting one — `ps aux | grep -c
+'[p]ython -m pytest'`, with `lsof -a -d cwd -p <pid>` for which tree and
+`ps -o etime= -p <pid>` for how long — and **observe rather than reserve**,
+since a lock adds a release to forget and a stale window to wait out while a
+process list cannot go stale. **`ps`, not `pgrep -f`**: measured 2026-09-15,
+`pgrep -f pytest` exited 1 against a live `pytest -n 4` that `pgrep python`
+and `ps` both saw, and it is not stable between sessions — a check that
+silently finds nothing returns a false all-clear every time, which is worse
+than no check. **Found
 one: wait or defer, and never measure anyway** — the count would not be
 quotable (§ Quoting numbers). Checked in `/pr-review` step 9 and `/wp-handover`
 steps 6 and 9; rungs 1-2 skip it, being cheap to repeat.

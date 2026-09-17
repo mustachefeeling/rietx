@@ -53,6 +53,22 @@ app) allowed to push, which interacts with the protection rules only the
 maintainer can edit. The WP's deliverable therefore includes a short written
 instruction for the by-hand half, not an automation of it.
 
+### Inherited
+
+**From WP-1438 (2026-09-17).** The dist went stale twice in one session and
+the gate caught it both times, which is a cost this WP has not counted.
+`build-info.json`'s `source_hash` covers **all 74 source files under
+`gui/src`, tests included** — so editing a `.test.ts` and not rebuilding
+fails `test_gui_dist.py`, although no shipped byte moved. Whatever this WP
+puts on main has to decide whether a test-only edit is a reason to rebuild
+and commit a bundle; if the post-merge rebuild is unconditional it will
+produce commits that change nothing a user installs.
+
+Second, smaller: the screenshots in `docs/manual/using/screenshots/` are not
+reproducible byte for byte — the console pane in frame shows wall-clock
+times, so regenerating moves sixteen of the eighteen files whatever changed.
+Anything that regenerates committed artefacts on main inherits that churn.
+
 ## Non-goals
 
 - **Not the `.gitattributes` interim** — merged (issue #163); it stays until

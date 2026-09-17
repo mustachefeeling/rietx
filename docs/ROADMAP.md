@@ -99,13 +99,12 @@ the same scans would make Stoe writable.
 closed on four of six; its other two, each filed with a fix its measurements
 rule out, carry on as [1434](wp/1434-the-bound-test-asks-the-wrong-question.md) and [1435](wp/1435-a-hold-the-caller-declares.md).
 
-**The live-watcher track is closed**, seventeen rungs, ending with a reader
-opening a frozen copy of a running fit's project in the GUI from the run list
-([1428](wp/1428-open-in-the-gui-without-touching-the-fit.md)).
-[1438](wp/1438-the-questions-the-track-left.md) answered the twelve questions
-it handed the maintainer, in two rounds — one phase palette across all three
-surfaces, and the pages made to hold a narrow window, a reload and a theme
-their reader can reach.
+**The live-watcher track is closed**, eighteen rungs
+([1401](wp/1401-a-window-into-a-run.md) … [1438](wp/1438-the-questions-the-track-left.md)),
+and nothing replaces it in flight. **No milestone is open**: v1.4.0 shipped
+2026-09-13 and 25 WPs have closed since, with `pyproject.version` still
+reading `1.4.0`. Opening v1.5 is the next decision, and it is the
+maintainer's — every WP that lands before it lands under no milestone.
 
 **Queued, unscheduled** ([§ Unscheduled](#unscheduled)): the 2026-09-01
 triage's 1309–1322 plus 1323 and 1325; the 2026-09-03 triage's 1332–1341; the
@@ -651,7 +650,7 @@ carries is whether 1327's non-goal becomes a sequencing statement.
 #### A window into a run — the live-watcher track
 
 Seventeen rungs, 2026-09-13 to 2026-09-17. Closed: 1428 was the last of the
-track proper and 1438 answered the six questions it handed the maintainer.
+track proper and 1438 answered the twelve it handed the maintainer.
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
@@ -671,7 +670,7 @@ track proper and 1438 answered the six questions it handed the maintainer.
 | [1429](wp/1429-one-palette-and-one-theme-for-three-pages.md) | The GUI's tokens and the GUI's theme, on the two python pages | ✅ 2026-09-16 | 1430 (1426 soft) |
 | [1427](wp/1427-what-a-poll-costs.md) | What a poll costs | ✅ 2026-09-17 | 1430 (1426 soft) |
 | [1428](wp/1428-open-in-the-gui-without-touching-the-fit.md) | Open in the GUI, without touching the fit | ✅ 2026-09-17 | 1405, 1401 (1430 soft) |
-| [1438](wp/1438-the-questions-the-track-left.md) | The questions the track left | 🔄 2026-09-17 | 1429, 1427, 1425, 1413 (1428 soft) |
+| [1438](wp/1438-the-questions-the-track-left.md) | The questions the track left | ✅ 2026-09-17 | 1429, 1427, 1425, 1413 (1428 soft) |
 
 ### v2+ — fenced
 

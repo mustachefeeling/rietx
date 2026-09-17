@@ -361,7 +361,14 @@ SIZE_CAPS: dict[str, int | None] = {
     # governs work well outside the WP that measured it: three queued WPs edit
     # that page, and `compare_app.py` and the GUI both draw with plotly too.
     # Landed at 282, headroom +1, per this file's docstring.
-    "tests/CLAUDE.md": 283,
+    # 283 -> 288 (WP-1438): the mid-suite check was `pgrep -f "[p]ytest"`,
+    # and `pgrep -f` was measured exiting 1 against a live `pytest -n 4` that
+    # `pgrep python` and `ps` both saw — and behaving differently in two
+    # sessions the same day. A check that silently finds nothing returns a
+    # false all-clear every time, so the rule names `ps aux | grep` and says
+    # why, which is the clause that stops the next reader putting `pgrep`
+    # back.
+    "tests/CLAUDE.md": 288,
     "src/rietx/indexing/CLAUDE.md": 300,
     # 300 -> 350 (WP-1407): four per-format rows, and three standing rules the
     # Philips √ encoding taught — that a format may encode its counts rather
