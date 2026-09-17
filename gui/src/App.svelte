@@ -1287,9 +1287,14 @@
 
   .controls {
     display: flex;
+    /* The header wraps and this did not, so it was one unbreakable 604 px
+       line: measured at a 420 px window, the document scrolled to 618 px
+       whatever the window was under that (WP-1438). `0 1 auto` lets it give
+       ground before it overflows, and then it wraps within itself. */
+    flex-wrap: wrap;
     align-items: center;
     gap: 8px;
-    flex: 0 0 auto;
+    flex: 0 1 auto;
   }
 
   .pill[data-state="running"] {

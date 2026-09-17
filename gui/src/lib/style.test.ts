@@ -185,3 +185,24 @@ describe("`.small` and `.tiny` are gone", () => {
     expect(uses).toEqual([]);
   });
 });
+
+
+describe("the title bar gives ground before it overflows", () => {
+  it("wraps its controls, as the header around them already does", () => {
+    // Measured at a 420 px window (WP-1438): the document scrolled to 618 px,
+    // and to 618 at every window under that, because `.controls` was one
+    // unbreakable 604 px flex line inside a header that wraps. `flex: 0 0
+    // auto` on top of that told it never to give ground.
+    //
+    // A regex over the source, like everything else here: what would catch
+    // this properly is a browser measuring the document against the window,
+    // and the GUI has no such harness. This is the declaration whose absence
+    // was the defect.
+    const source = read("App.svelte");
+    const start = source.indexOf("\n  .controls {");
+    expect(start).toBeGreaterThan(-1);
+    const rule = source.slice(start, source.indexOf("}", start));
+    expect(rule).toMatch(/flex-wrap:\s*wrap/);
+    expect(rule).not.toMatch(/flex:\s*0 0 /);
+  });
+});

@@ -296,7 +296,18 @@ SIZE_CAPS: dict[str, int | None] = {
     # WP landed reach no rule outside their own subtree. Measured on the merged
     # file, per the paragraph above: this branch and 1309's both raised the cap
     # from 871 and the two sets of lines do not sum.
-    "CLAUDE.md": 883,
+    # 883 -> 906 (WP-1438, the maintainer's second round on the same track):
+    # three clauses that govern anything added after them rather than
+    # recording what this WP did. A pane stacking when it cannot meet its
+    # floor beside its neighbour, with the breakpoint living once because
+    # spelled twice it is two layouts disagreeing; the theme's writer widened
+    # from the GUI alone to every page that shows it, since a page the GUI's
+    # user never opens could read the choice and not make it; and a tick's
+    # Miller index built where the positions are, which governs any second
+    # fact anyone pairs with a tick. The other three answers — the empty cell
+    # saying why it is empty, the boot's request waterfall, the header's
+    # unbreakable line — are findings and stayed in the WP file.
+    "CLAUDE.md": 906,
     # 672 -> 676 (WP-1102): the Current focus rewrite at 1102's close names the
     # milestone's one break and what makes 1103 the seam's proving case.
     # 676 -> 682 (WP-1407): a new Unscheduled group, "The formats a lab still

@@ -170,6 +170,30 @@ against room — and it is fixed here.
 - [x] `docs/ROADMAP.md` § Current focus loses the six questions; the cadence
       answer is recorded where 1413's measurement lives.
 
+### A second round, 2026-09-17
+
+Six more comments from the maintainer on the same pages, each measured before
+it was answered.
+
+- [x] The narrow window: `#main` stacks below the width where the two panes
+      cannot both meet their floors, the breakpoint lives once in the
+      stylesheet, and the list seam keeps a size per arrangement.
+- [x] The list sheds the stage and the start time before it sheds the run
+      name, by zeroing the `<col>` rather than hiding the cells.
+- [x] The empty `gui` cell says why it is empty, and says nothing per row on a
+      watcher that cannot perform the verb at all.
+- [x] The console comes back with the rest of the page: the boot's two walks
+      become one and a pinned run's log is asked for beside it, with the two
+      readers of one tail serialised.
+- [x] The theme is settable from the watcher, through one writer beside the
+      reader in `viz/theme.py`, with the GUI's own glyphs and sentences and a
+      meta-test holding the two equal.
+- [x] A tick names its reflection, on all three pages, off a `tick_hkl`
+      companion built where the positions are.
+- [x] The GUI's title bar wraps rather than forcing a 618 px document.
+- [x] `CLAUDE.md` takes the three clauses that govern what comes after them;
+      the cap moves in the commit that says so.
+
 ## Acceptance
 
 ```sh
@@ -232,6 +256,91 @@ ink: `ReadoutInk` names a `--plot-*` role and a phase colour is not one, so the
 strip would need a second way to say a colour. And the run list at full width
 stretches the run column across the window, which is what the command exists
 for — a long label is why a reader opens it.
+
+**2026-09-17 — the second round, six comments and what each measured.**
+
+*The narrow window.* At 420 px the list kept its declared `80ch` = 578 px, the
+run pane came out **0 px wide**, and the document scrolled to 1283 px. The
+seam could not have helped: 71ch of columns measured 513 px at this font, plus
+the pane's 1 px border, the grip's 5 and the 340 px of picture the run pane
+keeps — 859 px, below which the two panes cannot both meet their floors
+however the seam is dragged. So that is the breakpoint, computed from floors
+already declared rather than chosen. It lives once, as `--stacked`, because a
+number in a media query and the same number in javascript are two layouts
+disagreeing about which one the page is in.
+
+*Two sizes for one seam.* Chrome DevTools keeps a separate setting per
+orientation and this now does too: a px width is not a px height, so one
+stored number would hand the reader a pane they never asked for the moment the
+window turns. `stackedSize` is on the list seam only — the other two never
+stack, and a field nothing reads is a declared name with no writer.
+
+*The table at phone width.* Stacked at 500 px every name in the list read
+`5…`: the six declared columns are 66ch = 477 px and the run column is what is
+left. Below 563 px — the six plus twelve for a name — the stage and the start
+time go, those being the two the page answers elsewhere. **Two mechanisms were
+tried and measured before the third was used.** `display:none` on the cells
+shifts every later cell one place left into the colgroup: Rwp inherited the
+zeroed width while the launch button took GoF's 9ch, and the table still had
+the right number of visible cells throughout, which is why the browser test
+asserts per column and not a count. `visibility:collapse` on the `<col>` is
+the standards answer and collapsed the *flexible* run column along with the
+two asked for. What works is zeroing the column and taking the cell's padding
+off it, which keeps the cell count equal to the col count.
+
+*Why some runs have no `open`.* They are outside a `.rex` project, so
+`project_of` is `None` and there is nothing for the GUI to copy. The row was
+correct and said nothing, which reads as a control that failed — WP-1076's
+rule from the page's side. The shape of the answer is decided by the
+`--read-only` case: there the column is empty for *every* run, so a reason
+attached to one row would be a false claim about that row, and the cell says
+nothing at all.
+
+*The console flicker.* Measured across a reload with a run pinned: the list
+and the picture were drawn at **107 ms** with the console still empty, and it
+filled at **248 ms**. The log's fetch was third in a chain of three, and two
+of those three were the same request — the boot asked `api/runs` for the
+page's constants and the first poll asked again, about 85 ms later, for the
+runs it had discarded. Reading the constants off the poll and asking for a
+pinned run's log beside the walk puts all three panes in one frame at 123 ms.
+Two readers of one tail then became possible and are serialised, because both
+would take the same `tail.offset` and append the same lines twice.
+
+*Dark mode was not broken.* `~/.rietx/settings.json` held `"theme": "light"`
+and the watcher obeyed it correctly. What was missing was any way to change
+it from the page: WP-1429 made the GUI the one writer, which leaves the choice
+unreachable for exactly the person `rietx watch` exists for. A user-level
+theme is settable from whichever window you are in — VS Code, Grafana and
+Jupyter all work that way — so the rule is now one home for the fact and every
+page that shows it may set it. It is not under `--read-only`, which fences the
+run.
+
+*A contrast defect, found by a guard.* `color:#fff` on the new control's
+active segment was caught by `test_no_colour_literal_is_left_in_the_page`.
+White on the dark theme's accent measures **2.22:1**, under WCAG AA at any
+size; `var(--panel)` is white on light and near-black on dark and measures
+6.44 and 7.51. `app.css` carried the literal in three places and had the same
+defect on every filled control. The guard the watcher has and the GUI does not
+is what found it, which is the answer to "can the two share their styles":
+they already share every colour *value*, and it was the sharing that surfaced
+this.
+
+*The tick hovers.* Distinct reflections land at the same 2θ to every decimal
+the snapshot keeps — (3 2 2) and (4 1 0) both at 23.70007 on the module's own
+fixture — so a position is not a key into the index mapping, and the hover
+box names whichever of the coincident marks plotly picks. Recorded rather
+than worked around: grouping them would change the tick count, which Layer 0's
+`Region.n_reflections` reads. Cost of carrying the indices: 1.4 kB against a
+335 kB snapshot on the NAC demo, 0.4 %.
+
+*The GUI's own narrow window.* Measured for the same comment: at 420 px the
+document scrolled to **618 px**, and to 618 at every window below that,
+because the header wraps and `.controls` inside it was one unbreakable 604 px
+flex line pinned `flex: 0 0 auto`. Fixed. **Deliberately not generalised:**
+the GUI's split does not stack, so at 420 px the plot is 98 px wide. It wraps
+and stays legible down to about 600 px, and below that it is a different
+design question — nine panels, a 3D viewer and a tab strip, against the
+watcher's two panes — which the maintainer's comment was not about.
 
 ## Handover log
 
