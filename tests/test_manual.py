@@ -199,6 +199,12 @@ def test_no_unsubstituted_substitution_survives_the_build(built_manual):
 
 #: One `<a class="sidebar-brand" href="…">` on a built page.
 SIDEBAR_BRAND = re.compile(r'<a class="sidebar-brand"[^>]*\shref="([^"]*)"')
+
+#: The release line beneath it, which is the way back to the manual's own
+#: front page.  The href is relative, so it is `../manual.html` a directory
+#: down and `#` on the front page itself, which is sphinx's `pathto` answering
+#: for the current document.
+SIDEBAR_RELEASE = re.compile(r'<a class="sidebar-release"[^>]*\shref="([^"]*)"')
 #: Every drawn shape in an SVG: the `d` of a path, and a rect's four corners.
 SVG_SHAPES = re.compile(r'<(?:path\s+d|rect\s+x)="[^"]*"[^>]*>')
 
@@ -241,7 +247,7 @@ def test_the_brand_mark_is_the_favicon(built_manual):
 
 @pytest.mark.xdist_group("manual-build")
 def test_the_brand_links_to_the_landing_page(built_manual):
-    """Every page's top-left brand goes to the site root, not to the manual.
+    """Every page's brand goes to the site root and its release line to the manual.
 
     Furo writes `href="{{ pathto(master_doc) }}"` in its own
     `sidebar/brand.html` and offers no theme option that reaches it, so
@@ -257,6 +263,10 @@ def test_the_brand_links_to_the_landing_page(built_manual):
     a page that lost it lost it alone.  The mark and the wordmark come with it
     because the same upgrade would drop those too, and a link with no brand on
     it is not what this WP shipped.
+
+    The release line underneath is the other half of the same fork: `root_doc`
+    is in no toctree, so furo's sidebar never lists the manual's front page and
+    that line is the only link to it on any chapter.
     """
     from rietx._about import DIST_NAME, DOCS_URL
 
@@ -277,6 +287,12 @@ def test_the_brand_links_to_the_landing_page(built_manual):
             wrong.append(f"{page.name}: the brand carries no mark")
         elif f'<span class="sidebar-brand-text">{DIST_NAME}</span>' not in text:
             wrong.append(f"{page.name}: the brand carries no wordmark")
+        else:
+            depth = len(page.relative_to(out).parts) - 1
+            want = ["#"] if page == out / "manual.html" else ["../" * depth + "manual.html"]
+            if SIDEBAR_RELEASE.findall(text) != want:
+                wrong.append(
+                    f"{page.name}: release line {SIDEBAR_RELEASE.findall(text)} (want {want})")
     assert not wrong, (
         f"{len(wrong)} of {len(pages)} built pages have the wrong brand — has furo's "
         f"sidebar/brand.html moved under the fork in docs/manual/_templates/?\n"
