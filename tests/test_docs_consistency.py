@@ -271,7 +271,14 @@ SIZE_CAPS: dict[str, int | None] = {
     # that measured them: the first any future viewer pane, the second any
     # route that wants an `ETag` or a comparison, the GUI's included. The
     # numbers that *dismissed* a candidate stayed in the WP file, per rule 4.
-    "CLAUDE.md": 866,
+    # 866 -> 871 (WP-1428): the watcher's "one verb" clause was false once it
+    # had two, and the second one's rule is that it opens a *copy* — there
+    # being no read-only way to open a project at all. Beside it, the one
+    # authority for which project a run sits in: two live layouts, three
+    # readers that had open-coded one each, and a GUI command that was `None`
+    # for every run a project records. The torn-copy measurement that sized
+    # the risk stayed in the WP file, per rule 4.
+    "CLAUDE.md": 871,
     # 672 -> 676 (WP-1102): the Current focus rewrite at 1102's close names the
     # milestone's one break and what makes 1103 the seam's proving case.
     # 676 -> 682 (WP-1407): a new Unscheduled group, "The formats a lab still

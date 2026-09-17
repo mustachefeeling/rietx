@@ -684,9 +684,10 @@ def test_a_drag_stops_at_the_floor_the_columns_set(browser, tmp_path):
         page.close()
 
     assert not errors, errors
-    # 63ch of columns plus the pane's own 1 px border, the basis being
-    # border-box; the assertion that matters is the next one
-    assert floored["list"] == pytest.approx(63 * 7.225 + 1, abs=2)
+    # 71ch of columns plus the pane's own 1 px border, the basis being
+    # border-box; the assertion that matters is the next one. 63ch until
+    # WP-1428 gave the list the launch button's 8ch column.
+    assert floored["list"] == pytest.approx(71 * 7.225 + 1, abs=2)
     assert floored["list"] == floored["valuenow"]
     assert head[0] >= head[1], head
 
@@ -759,9 +760,9 @@ def test_the_grips_carry_the_aria_splitter_keyboard(browser, tmp_path):
     # End and Home are the seam's stops, and they are the clamp's own numbers
     assert end["list"] == end["valuemax"]
     assert home["list"] < end["list"]
-    # 58ch of declared columns plus 5ch for the run column's own heading, at
-    # 1ch = 7.225 on this page
-    assert home["list"] == pytest.approx(63 * 7.225, abs=2)
+    # 66ch of declared columns plus 5ch for the run column's own heading, at
+    # 1ch = 7.225 on this page (58 + 5 until WP-1428's launch column)
+    assert home["list"] == pytest.approx(71 * 7.225, abs=2)
     assert collapsed == "closed"
     assert restored == "open"
 
@@ -1332,6 +1333,114 @@ OVERFLOW = """() => {
   return out;
 }"""
 
+def _open_list(browser, base: str):
+    """The page, waiting on the run list rather than on a plot.
+
+    :func:`_open` waits for plotly's ``_fullLayout``, which a run with no
+    snapshot never grows. These tests are about the list, and want runs that
+    are an event log and nothing else.
+    """
+    page = browser.new_page(viewport={"width": 1400, "height": 900})
+    errors: list[str] = []
+    page.on("pageerror", lambda e: errors.append(str(e)))
+    page.goto(base, wait_until="networkidle")
+    page.wait_for_selector("tr.run", timeout=15000)
+    page.wait_for_timeout(400)
+    return page, errors
+
+
+def _bare_run(directory: Path, t: float = 1.0) -> Path:
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / runs.EVENTS_FILE).write_text(
+        json.dumps({"record": "event", "v": "2", "t": t, "kind": "fit_start",
+                    "data": {}}) + "\n", encoding="utf-8")
+    return directory
+
+
+def test_the_launch_button_is_drawn_only_for_a_run_in_a_project(browser,
+                                                                tmp_path):
+    """One row has a project behind it and the other does not (WP-1428).
+
+    A bare ``fit()`` records under the runs directory with nothing to copy, so
+    its row offers no button. The button is in the list rather than the status
+    strip because the strip drops its flexible slot below 990 px of run panel
+    and an ordinary window is under that (WP-1424), which is how the GUI
+    command the page already had came to be invisible.
+    """
+    _bare_run(tmp_path / "loose")
+    _bare_run(tmp_path / "sample.rex" / "live" / "20260917-120000-1234", t=2.0)
+
+    with _served(tmp_path) as base:
+        page, errors = _open_list(browser, base)
+        seen = page.evaluate(
+            "() => [...document.querySelectorAll('tr.run')].map(tr => ["
+            "  tr.children[1].textContent.trim().split(' ')[0],"
+            "  !tr.querySelector('td.gui button').hidden])")
+        page.close()
+    assert not errors, errors
+    # the names carry a `· legacy` tail, these runs having no `meta.json`;
+    # the first word is the label and the second value is the whole claim
+    assert dict(seen) == {"sample.rex": True, "loose": False}
+
+
+def test_read_only_draws_no_launch_button(browser, tmp_path):
+    """The page cannot be the check, and it is not the only answer either.
+
+    A button that only ever 403s is a worse answer than no button, which is
+    what the stop button already does under the same flag.
+    """
+    _bare_run(tmp_path / "sample.rex" / "live" / "20260917-120000-1234")
+    with _served(tmp_path, allow_cancel=False, allow_gui=False) as base:
+        page, errors = _open_list(browser, base)
+        shown = page.evaluate(
+            "() => !document.querySelector('td.gui button').hidden")
+        page.close()
+    assert not errors, errors
+    assert shown is False
+
+
+def test_clicking_launch_selects_the_run_and_says_what_it_is_doing(browser,
+                                                                   tmp_path):
+    """The click's two visible effects, with the route faked at the network.
+
+    A notice belongs to one run and ``drawRun`` drops one that is not the run
+    on screen, so a launch from a row the reader is not looking at would report
+    neither its progress nor its refusal. Selecting the run is what gives the
+    notice somewhere to appear, and this is what keeps the two together.
+
+    ``window.open`` is stubbed: a real one is a second browser window in the
+    middle of a test, and what is measured here is the page. The launch itself
+    is ``test_a_real_gui_boots_on_a_scratch_copy_and_the_project_is_untouched``
+    in ``test_watch_app.py``.
+    """
+    for i in range(3):
+        _bare_run(tmp_path / f"sample{i}.rex" / "live" / f"2026091{i}-120000-1",
+                  t=1.0 + i)
+
+    with _served(tmp_path) as base:
+        page, errors = _open_list(browser, base)
+        page.route("**/api/run/*/gui", lambda route: route.fulfill(
+            status=200, content_type="application/json",
+            body=json.dumps({"url": "http://127.0.0.1:65000/"})))
+        page.evaluate("() => { window.open = (u) => { window.__opened = u; }; }")
+        # the *last* row, which is not the one the page opened on
+        rows = page.locator("tr.run")
+        last = rows.nth(rows.count() - 1)
+        wanted = last.get_attribute("data-id")
+        last.locator("td.gui button").click()
+        page.wait_for_timeout(1200)
+        after = page.evaluate(
+            "() => ({hash: location.hash,"
+            " notice: document.getElementById('s-notice').textContent,"
+            " opened: window.__opened || null})")
+        page.close()
+
+    assert not errors, errors
+    assert after["hash"] == f"#/run/{wanted}"
+    assert "65000" in after["notice"], after["notice"]
+    assert after["opened"] == "http://127.0.0.1:65000/"
+
+
 #: Which cells must fit and which may elide, by what fills them. A cell the
 #: page fills itself — a state word from a closed vocabulary, a number it
 #: formats, a clock time — has a worst case the CSS can be sized for, and a
@@ -1344,7 +1453,7 @@ OVERFLOW = """() => {
 #: The two halves are a *partition*, and a cell in neither fails below rather
 #: than being quietly waved through: a column or slot added without a decision
 #: about which kind it is would otherwise be tested by nothing.
-BOUNDED = ("state", "Rwp", "GoF", "started")
+BOUNDED = ("state", "Rwp", "GoF", "started", "gui")
 ELIDED = ("run", "stage")
 BOUNDED_SLOTS = {"slot:s-state", "slot:s-rwp", "slot:s-gof", "slot:s-free",
                  "slot:s-notice", "slot:stop"}
@@ -1550,7 +1659,7 @@ def test_the_status_line_drops_slots_it_cannot_fit(browser, tmp_path):
         assert slots["s-stage"].startswith("stage 3/4 preferred"), (width, slots)
     # the GUI command is the whole of the flexible slot now, the path having
     # moved to the label's tooltip and the point count onto the picture
-    assert seen[1600]["s-where"] == "rietx gui sample.rex"
+    assert seen[1600]["s-where"] == "rietx gui --scratch sample.rex"
     assert "pts drawn" not in (seen[1600]["s-where"] or "")
     # and it is the first thing to go
     assert seen[1400]["s-where"] is None

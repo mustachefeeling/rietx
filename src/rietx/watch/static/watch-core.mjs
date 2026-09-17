@@ -283,7 +283,7 @@ export function coalesce(work) {
 //
 // A seam's `size` is the px size of the pane the grip sizes, and `null` means
 // *no choice made* — which is not the same as a number, because the CSS
-// defaults (`72ch`, `30%`) are font- and window-relative and a px default
+// defaults (`80ch`, `30%`) are font- and window-relative and a px default
 // would freeze them. `open` is the collapse.
 
 //: The stored state of a page nobody has dragged.
