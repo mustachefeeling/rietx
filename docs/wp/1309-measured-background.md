@@ -123,15 +123,11 @@ project bit-identical.
 - [x] σ propagation through `interpolate_fixed`; `background/select.py` made
       aware of the fixed direction (trap 4).
 - [x] A `rietx compare` row for the new correction.
-- [ ] **Deferred, waiting on the file** (2026-09-17): vendor the 11-BM
-      empty-Kapton blank (run 4736) with a provenance row in
-      `tests/data/README.md`, and check the fit against it. The beamline's
-      standards wiki still lists the scan and every `/data/` link on it 404s
-      since the site moved to Drupal, which is where `11BM_Si640c.xy` came
-      from too; that one was recovered through the Internet Archive, and
-      archive.org is refused at TLS from this network. The maintainer will
-      supply the file. Until it lands the fixture is a synthetic blank, which
-      exercises every trap above and corroborates no number of the issue's.
+- [x] **The real blank** (arrived 2026-09-17, supplied by the maintainer after
+      the beamline's `/data/` links 404'd and archive.org stayed refused at TLS):
+      `tests/data/11BM_Kapton.xy`, committed byte-for-byte with a provenance row
+      that verifies it is run 4736 rather than trusting the filename, plus six
+      arms in `test_acceptance_si640c.py` and their validation-matrix rows.
 - [x] Manual: the blank section in `using/data.md` grows the scale, the
       correlated-series sentence, and the angle-dependence caveat; skill row
       if a new diagnostic code lands. No new code landed —
@@ -162,6 +158,66 @@ s = 0.85, with Rwp below the 0.07770 the held-at-1.0 curve gives.
 The shipping PR carries `Closes #171`.
 
 ## Findings
+
+**The file is run 4736, and it says so in five numbers** (2026-09-17). The
+header fields match what this directory recorded from the real file on
+2026-08-26, which is necessary and not sufficient — a header is text. So the
+out-of-package fit recorded beside them was rerun on the committed bytes (numpy
+Chebyshev, scipy least-squares, the file's own σ, 1.997-49.996°): χ²ᵣ 1.1251
+against the recorded 1.125, position 4.2416(111)° against 4.2417(111)°, FWHM
+6.1529(228)° against 6.153(23)°, the peak-free Chebyshev-3's 5.3255 against
+5.33, and fourteen polynomial terms to match the six-parameter fit. Five numbers
+from one file, none of them in its header.
+
+**The issue's *shape* reproduces; its held-at-1.0 Rwp does not** (2026-09-17).
+The base arm matches to five digits (Chebyshev-3, 0.119977 / GoF 1.9695, against
+the issue's 0.11998 / 1.9695), so the protocol is the issue's protocol. The
+blank arms do not: the issue measured 0.07770 held at 1.0, and this tree gives
+0.079220 without the blank's esds in the weight and 0.074012 with them. The
+issue's implementation is not in the tree, so the gap between its held arm and
+the no-σ one is not attributable here. What does reproduce is what the issue
+was arguing: the minimum is **interior** at 0.85, and unity costs 2.5 % of Rwp
+where the issue measured 2.2 %. The acceptance bar is met on the number as
+written too, the free arm landing at 0.073749 and 0.077309 in the two weightings
+against a bar of 0.07770.
+
+**The refined scale is 0.8374(142)**, with 0.85 nine-tenths of an esd away and
+unity eleven and a half. The synthetic fixture predicted the direction: a noisy
+blank biases its own scale low by regression dilution, and this blank's σ/I runs
+8-17 % over the range. What the fixture could not show is that the bias is small
+enough to leave the answer quotable on a real pair.
+
+**A declared curve beats a fitted one, at three parameters fewer.** On one
+common weight: 0.119977 for the bare polynomial, 0.082503 for the polynomial
+plus a three-parameter hump, 0.079311 for the polynomial plus the declared blank
+with nothing freed at all. Measuring the container beats modelling it, which is
+the case for scanning a blank and had never been made here on real data.
+
+**σ is a function of the declared scale, so an Rwp column is not a ranking**
+(2026-09-17, the finding this WP did not expect). `fixed_sigma` enters the
+weight as σ² + s²·σ_f², frozen at the stage's own scale — so the *same residual*
+reads 0.074012 against its own σ and 0.079311 against the specimen's, 7.2 % of
+the number being weighting rather than fit. Down a scan of scales it displaces
+the apparent minimum: σ-weighted it sits at s = 0.90, common-weighted at 0.85,
+where the refined scale is. Every cross-arm comparison in the new tests goes
+through one σ because of this, and it is the reason the package's "never an Rwp
+comparison as evidence" rule has teeth for this correction in particular.
+
+**A free polynomial eats the scale on real data too.** 0.8374(142) on three
+Chebyshev terms, 0.6935(246) on six: 5.1 combined esds apart, away from the
+hand-set minimum, while Rwp on one weight *prefers* the six-term arm (0.076382
+against 0.077328). The synthetic row (0.8315 on two terms, 0.6479 on six) is
+now corroborated on data nobody built, and the sting is new — the better Rwp
+belongs to the arm whose scale is further from the measurement.
+
+**One constant scale does not flatten the halo window** (2026-09-17). The mean
+weighted residual over 4-6° 2θ is −0.47 with the scale held at 1.0, +0.20 with
+it freed, and +0.43 with six polynomial terms and the scale freed. The scale
+moves the calculated curve *through* the halo rather than onto it. This is the
+Context's recorded physics gap, visible for the first time, but the measurement
+does not separate it from the polynomial's own stiffness and the finding is
+written not to claim that it does. `tests/output/si640c_blank_held_halo.png`
+shows the held arm riding above the data across the whole feature.
 
 **The row is raw, and normalising it would buy nothing** (2026-09-17). Trap 3
 asked for a normalised row on conditioning grounds, which would make the
