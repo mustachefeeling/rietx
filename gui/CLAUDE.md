@@ -872,6 +872,14 @@ every trace drops to `hoverinfo: "none"` (the library's gate is `!== "skip"`, so
 the point-finding and the spike survive a trace that draws no label), and a
 strip of the plot's control rows says what the box said plus the three things
 it could not — the candidate's `hkl`, which emission line that line is, and d.
+**Every trace, and none may opt out** (WP-1438): `hovermode: "x"` adds an
+`axistext` of plotly's own carrying the 2θ the moment one trace has a label, so
+the tick rows' `hovertemplate` put two overlapping boxes on every tick, the
+second printing the number the first had. A new fact about a mark goes in the
+strip; `App.test.ts` holds every drawn trace to `none`/`skip` with no template.
+So **one reflection has one spelling on all three browser surfaces** —
+`peaks.ts:formatHkl` here, `watch-core.mjs:hklLabel` in the wheel — held equal
+by `plot.test.ts`, since neither can import the other.
 **The strip's shape follows the payload, the tab and the curve toggles — never
 the pointer**: one row per *drawn* curve, so `data only` empties it to the
 points, while everything that varies under one pointer sweep keeps its slot and

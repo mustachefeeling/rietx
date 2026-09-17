@@ -1721,6 +1721,41 @@ describe("disclosure and the command palette", () => {
     expect(last.traces.find((t: any) => t.name === "Δ/σ").yaxis).toBe("y2");
   });
 
+  it("draws no hover label on any trace, which is what keeps the box gone", async () => {
+    // WP-1213 deleted this plot's hover box on a report that it covered the
+    // data, and the condition it left behind is a property of *every* trace:
+    // plotly's gate is `hoverinfo !== "skip"`, so `"none"` keeps the point
+    // finding and the spike while drawing nothing.
+    //
+    // It is one property because `hovermode: "x"` draws a second box of
+    // plotly's own — an `axistext` carrying the 2θ — the moment any one
+    // trace has a label to show. WP-1438 gave the tick rows a
+    // `hovertemplate` and got both: measured in Chrome on the NAC example,
+    // boxes at [328, 556] and [297, 598], overlapping, the second printing
+    // the number the first had just printed. Which reflection a tick is
+    // lives in the strip below the plot instead.
+    const drawn: any[] = [];
+    vi.stubGlobal("Plotly", {
+      react: async (_n: any, traces: any[], layout: any) => drawn.push({ traces, layout }),
+      purge: () => {},
+    });
+    const stub = server({ ...boot(), ...FITTED, ...TWO_PHASE_WINDOW });
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+
+    const last = drawn.at(-1)!;
+    expect(last.layout.hovermode).toBe("x");
+    expect(last.traces.length).toBeGreaterThan(0);
+    for (const trace of last.traces) {
+      expect(trace.hovertemplate, trace.name).toBeUndefined();
+      expect(trace.customdata, trace.name).toBeUndefined();
+      expect(["none", "skip"], trace.name).toContain(trace.hoverinfo);
+    }
+    // and the tick rows in particular, since they are the ones that had one
+    expect(last.traces.filter((t: any) => t.yaxis === "y3").length).toBe(2);
+  });
+
   it("drops a curve the user switched off, without asking the server again", async () => {
     // The background trace was already unconditional, so the reported
     // "toggle the background on" is a missing *control*, not a missing trace.

@@ -39,7 +39,6 @@
     nearestIndex,
     noAxes,
     normalizeRegion,
-    hklLabel,
     phaseInk,
     pinPatch,
     readout,
@@ -495,24 +494,18 @@
         // and drew in that, which is the defect this was meant to remove. The
         // watcher's page has always set `color`; that is why it looked right.
         const ink = phaseInk(colors, row, phases.length);
-        // Which reflection, under the pointer (WP-1438).  It was `hoverinfo:
-        // "none"` — a row of marks a reader could point at and learn nothing
-        // from.  `customdata` rather than a built `text` array: plotly holds
-        // it per point through its own hover lookup, so a row of a thousand
-        // strings is built once a paint for a box that shows one of them.
-        //
-        // A result that predates this — one reopened from a project's
-        // history — carries positions and no indices, and then the row keeps
-        // the silence it had rather than hovering the word `undefined`.
-        const hkl = (w.tick_hkl ?? {})[phase] as number[][] | undefined;
-        const paired = Array.isArray(hkl) && hkl.length === ticks.length;
+        // `hoverinfo: "none"` like every other trace here, and which
+        // reflection a tick is goes in the strip below instead (WP-1438,
+        // repairing itself). A `hovertemplate` on this one row put **two**
+        // boxes over every tick: its own, and plotly's `axistext`, which
+        // `hovermode: "x"` draws as soon as some trace has a label to show.
+        // The second printed the 2θ the first had just printed, overlapping
+        // it — measured in Chrome on the NAC example at [328, 556] and
+        // [297, 598]. WP-1213 deleted this plot's box on a report that it
+        // covered the data, and every trace at `hoverinfo: "none"` is the
+        // condition that keeps plotly from drawing either half of one.
         traces.push({ x: ticks, y: ticks.map(() => y), yaxis: "y3",
-          name: phase, mode: "markers", type: "scattergl",
-          ...(paired
-            ? { customdata: hkl!.map(hklLabel),
-                hovertemplate: `${phase}<br>%{customdata}<br>` +
-                               `%{x:.4f}\u00b0<extra></extra>` }
-            : { hoverinfo: "none" as const }),
+          name: phase, mode: "markers", type: "scattergl", hoverinfo: "none",
           marker: { symbol: "line-ns-open", size: 8, color: ink,
                     line: { width: 1, color: ink } } });
       });
@@ -1293,7 +1286,9 @@
         <span class="val mono tabular">{reading.d}</span>
       </span>
       {#each reading.rows as row (row.id)}
-        <span class="field" class:wide={row.id === "peaks" || row.id === "candidate"}>
+        <span class="field"
+          class:wide={row.id === "peaks" || row.id === "candidate"
+                      || row.id.startsWith("ticks:")}>
           <!-- the mark's own ink, so the strip says which curve is which twice
                over: `ReadoutInk` is `curveColors`' key set, and a key is the
                `--plot-*` token's suffix by construction (WP-1210's rule — a
@@ -1523,8 +1518,19 @@
     min-width: 8ch;
   }
 
-  /* the two fields that carry a sentence rather than a number: a picked line
-     with its esd and relative intensity, and a candidate's hkl with its λ */
+  /* the fields that carry a sentence rather than a number: a picked line with
+     its esd and relative intensity, a candidate's hkl with its λ, and a
+     phase's nearest reflection with the offset to it (WP-1438).
+
+     22ch has to be a *bound* to be a floor at all: content wider than its
+     floor grows the field, the strip rewraps mid-sweep, and that is the
+     jitter this min-width exists to stop.  The widest an index gets is set by
+     d*max = 2 sinθ/λ, so a 10 Å cell at 150° 2θ on Cu Kα reaches 12 —
+     `(−12 −4 −10)` is 12 characters, a signed offset up to 99° is 9, and the
+     space between them makes 22.  Measured on the NAC example over 2–24° the
+     index runs 7–8 characters, so the floor is what is drawn.  Past the bound
+     the field still grows, which is only where it already did: a phase whose
+     nearest line is a hundred degrees away. */
   .readout .field.wide .val {
     min-width: 22ch;
   }

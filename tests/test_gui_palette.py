@@ -456,28 +456,38 @@ def test_a_tick_trace_colours_its_marker_and_not_only_its_line():
         "both the marker and its line take the phase ink")
 
 
-def test_the_gui_tick_trace_names_the_reflection_under_the_pointer():
+def test_the_gui_names_the_reflection_in_the_strip_and_not_in_a_box():
     """The companion to the colour guard above, and the same kind of guard.
 
-    The trace was `hoverinfo: "none"` — a row of marks a reader could point
-    at and be told nothing by.  Asserted on the source because what this owns
-    is the *wiring*: `plot.test.ts` owns the label and
+    What this owns is the *wiring*: `plot.test.ts` owns the row's text and
     `tests/test_gui_server.py` owns the payload, and nothing between them
-    would notice the trace ceasing to read either.
+    would notice the readout ceasing to read `tick_hkl` at all.
+
+    Both halves, because the answer moved between two files.  A
+    `hovertemplate` on the tick trace draws two boxes rather than one —
+    plotly adds its own `axistext` under `hovermode: "x"` — and this plot's
+    box was deleted on a report that it covered the data (WP-1213), so the
+    reflection goes in the strip under the plot.  `App.test.ts` holds every
+    *drawn* trace to that; this holds the source the build is made from.
     """
-    source = (Path(__file__).resolve().parents[1] / "gui" / "src" / "panels"
-              / "Plot.svelte").read_text(encoding="utf-8")
+    gui = Path(__file__).resolve().parents[1] / "gui" / "src"
+    source = (gui / "panels" / "Plot.svelte").read_text(encoding="utf-8")
     start = source.index('yaxis: "y3"')
     trace = source[start:source.index("});", start)]
-    assert "customdata" in trace, (
-        "the tick trace carries no per-point data: there is nothing for a "
-        "hover template to name")
-    assert "hklLabel" in trace, "the label is not the shared one"
-    assert "hovertemplate" in trace and "%{customdata}" in trace
+    assert 'hoverinfo: "none"' in trace, "the tick trace draws a hover label"
+    assert "hovertemplate" not in trace and "customdata" not in trace, (
+        "a label on this trace is two boxes, not one: plotly draws an "
+        "`axistext` beside it carrying the 2theta the template prints")
+
+    readout = (gui / "lib" / "plot.ts").read_text(encoding="utf-8")
+    start = readout.index("for (const [phase, ticks] of")
+    row = readout[start:readout.index("\n  }", start)]
+    assert "tick_hkl" in row, "the strip's tick row reads no indices"
+    assert "formatHkl" in row, "the label is not the shared one"
     # and the fallback, for a result reopened from a history that predates it
-    assert 'hoverinfo: "none"' in trace, (
-        "a result carrying no indices must keep its silence rather than "
-        "hovering the word undefined")
+    assert "?.[j]" in row and "length === 3" in row, (
+        "a result carrying no indices must keep the row it had rather than "
+        "printing the word undefined")
 
 
 @pytest.mark.parametrize("theme", ["light", "dark"])

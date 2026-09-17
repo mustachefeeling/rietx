@@ -446,11 +446,14 @@ def test_a_tick_says_which_reflection_it_is(browser, tmp_path):
     for row in rows:
         assert row["custom"], row
         assert len(row["custom"]) == row["n"], row
-        # three integers, space separated, minus in front of the digit
+        # three integers in parentheses, space separated, with the minus in
+        # front of the digit and spelled U+2212 — `formatHkl`'s own output,
+        # which `gui/src/lib/plot.test.ts` holds this equal to
         for label in row["custom"]:
-            parts = label.split(" ")
+            assert label.startswith("(") and label.endswith(")"), label
+            parts = label[1:-1].split(" ")
             assert len(parts) == 3, label
-            assert all(part.lstrip("-").isdigit() for part in parts), label
+            assert all(part.lstrip("−").isdigit() for part in parts), label
         assert "%{customdata}" in (row["template"] or ""), row
         # and the 2θ is still there, because it is the other half of the answer
         assert "%{x" in row["template"], row
