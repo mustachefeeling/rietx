@@ -168,6 +168,34 @@ def berar_lelann_factor(delta: np.ndarray) -> float:
     return max(float(np.sqrt((run_sums @ run_sums) / chi2)), 1.0)
 
 
+def _structural_targets(free_paths: list[str]) -> list[tuple[int, str]]:
+    """The columns an absorption screen asks about: (index, path) pairs.
+
+    **Anchored at ``phases.``, never left as a bare suffix.**  The screen asks
+    what a *structural* parameter — a phase scale, a displacement parameter, an
+    occupancy — loses to a block that is not structural, so a path outside the
+    structure answers a different question or none.  A suffix alone was true
+    only while ``phases.i.scale`` was the one path ending in ``.scale``, and it
+    has stopped being: ``instrument.background.scale`` (WP-1309) is a *member of
+    the background block*, so screening it against that block projects a column
+    onto a span that contains it and reports R² = 1.00 about every fit that
+    frees it.  ``mode_fixed_path`` anchored the same test for the same reason
+    one release earlier (WP-1119, ``vars.scale``).
+
+    One function rather than the two copies this replaced, because the two
+    screens are the same question asked of different blocks, and a target list
+    that drifts between them is a difference nobody declared.
+
+    What it deliberately does not reach: a caller's own variable
+    (``vars.scale``), whose column is structural or not depending on what it
+    ties to, which this function cannot see.  Screening it on its spelling is
+    what went wrong above.
+    """
+    return [(k, p) for k, p in enumerate(free_paths)
+            if p.startswith("phases.")
+            and (p.endswith((".biso", ".scale", ".occ")) or ".adp." in p)]
+
+
 def background_absorption(jac: np.ndarray, free_paths: list[str],
                           peak_prefixes: frozenset[str]) -> dict[str, float]:
     """How much of each structural parameter the background could reproduce.
@@ -222,9 +250,7 @@ def background_absorption(jac: np.ndarray, free_paths: list[str],
           if (p.startswith("instrument.background.")
               or (p.startswith("instrument.extra_components.")
                   and not p.startswith(tuple(peak_prefixes))))]
-    targets = [(k, p) for k, p in enumerate(free_paths)
-               if p.endswith((".biso", ".scale", ".occ")) or ".adp." in p]
-    return block_projection_r2(jac, bg, targets)
+    return block_projection_r2(jac, bg, _structural_targets(free_paths))
 
 
 def _span_basis(jac: np.ndarray, cols: list[int]) -> np.ndarray:
@@ -307,9 +333,7 @@ def extra_peak_absorption(jac: np.ndarray, free_paths: list[str],
              if p.startswith(tuple(peak_prefixes))] if peak_prefixes else []
     if not block:
         return {}
-    targets = [(k, p) for k, p in enumerate(free_paths)
-               if p.endswith((".biso", ".scale", ".occ")) or ".adp." in p]
-    return block_projection_r2(jac, block, targets)
+    return block_projection_r2(jac, block, _structural_targets(free_paths))
 
 
 def block_projection_r2(jac: np.ndarray, block: list[int],

@@ -26,6 +26,7 @@
   "instrument_fields:wavelength",
   "parameters:instrument.background.air",
   "parameters:instrument.background.c*",
+  "parameters:instrument.background.scale",
   "parameters:instrument.extra_components.*.area",
   "parameters:instrument.extra_components.*.center",
   "parameters:instrument.extra_components.*.eta",

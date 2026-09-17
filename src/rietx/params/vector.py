@@ -39,7 +39,7 @@ from ..schemas.common import Parameter
 from ..schemas.instrument import (
     CAPILLARY_OFFSETS,
     COMPONENT_FIELDS,
-    BackgroundChebyshev,
+    BackgroundFixedPlusChebyshev,
     BackgroundPSpline,
     Instrument,
 )
@@ -146,13 +146,22 @@ def check_wavelength_freedom(free_wavelengths: list[str], n_wavelengths: int,
 
 
 def background_parameters(bkg) -> list[tuple[str, Parameter]]:
-    """(sub-path, Parameter) pairs for any background model, in design order."""
+    """(sub-path, Parameter) pairs for any background model, in design order.
+
+    Design order is what the name says: ``compile_model`` builds the linear
+    block's rows in this order, so ``scale`` comes after the Chebyshev
+    coefficients here because its row is appended after theirs — the
+    ``air`` term's arrangement one member over, and for the same reason.
+    """
     if isinstance(bkg, BackgroundPSpline):
         out = [(f"c{n}", p) for n, p in enumerate(bkg.coefficients)]
         out.append(("air", bkg.air_scatter))
         return out
-    cheb = bkg.coefficients if isinstance(bkg, BackgroundChebyshev) else bkg.chebyshev.coefficients
-    return [(f"c{n}", p) for n, p in enumerate(cheb)]
+    if isinstance(bkg, BackgroundFixedPlusChebyshev):
+        out = [(f"c{n}", p) for n, p in enumerate(bkg.chebyshev.coefficients)]
+        out.append(("scale", bkg.scale))
+        return out
+    return [(f"c{n}", p) for n, p in enumerate(bkg.coefficients)]
 
 
 def extra_component_parameters(components) -> list[tuple[str, Parameter]]:

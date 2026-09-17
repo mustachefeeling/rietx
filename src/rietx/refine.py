@@ -142,11 +142,14 @@ def mode_fixed_path(path: str, mode: Mode) -> bool:
     """
     if mode not in ("lebail", "pawley"):
         return False
-    # The scale test is anchored at ``phases.``, not left as a bare suffix: the
-    # only path that ends in ``.scale`` is a phase's, and since WP-1119 a
-    # caller's own ``add_variable("scale", …)`` produces ``vars.scale``, which
-    # the suffix alone force-fixed — a variable held in Le Bail and Pawley for
-    # spelling its name like a phase parameter.
+    # The scale test is anchored at ``phases.``, not left as a bare suffix.
+    # Since WP-1119 a caller's own ``add_variable("scale", …)`` produces
+    # ``vars.scale``, which the suffix alone force-fixed — a variable held in
+    # Le Bail and Pawley for spelling its name like a phase parameter — and
+    # since WP-1309 ``instrument.background.scale`` is the second such path.
+    # That one must stay free here: a measured background is scaled against the
+    # data, and Le Bail extracts intensities rather than absorbing a background
+    # level.
     return (".atoms." in path
             or (path.startswith("phases.") and path.endswith(".scale"))
             or ".source.lines." in path)

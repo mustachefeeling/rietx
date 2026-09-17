@@ -2717,6 +2717,13 @@ def _compile_extra_peaks(instrument, tt: np.ndarray, lams: list[float]
     return tuple(out)
 
 
+#: The measured-background scale's dot-path, spelled once.  ``compile_model``
+#: tests it against ``moving_paths`` and appends its design row under the same
+#: name ``params.vector.background_parameters`` registers, so the row and the
+#: table entry cannot drift apart.
+SCALE_PATH = "instrument.background.scale"
+
+
 def compile_model(structure: Structure, instrument: Instrument, pattern: PatternData,
                   *, mode: Mode = "rietveld",
                   two_theta_limits: tuple[float, float] | None = None,
@@ -2965,8 +2972,45 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
         n_cheb = len(bkg.chebyshev.coefficients)
         bkg_paths = tuple(f"instrument.background.c{n}" for n in range(n_cheb))
         design = chebyshev_design_matrix(tt, n_cheb, tt_min, tt_max)
-        fixed = interpolate_fixed(tt, np.asarray(bkg.fixed_two_theta),
-                                  np.asarray(bkg.fixed_intensity))
+        curve = interpolate_fixed(tt, np.asarray(bkg.fixed_two_theta),
+                                   np.asarray(bkg.fixed_intensity))
+        # The curve is carried one of two ways, and never both — a double count
+        # is absorbed by the refined scale as s_true − 1, leaves Rwp
+        # bit-for-bit unchanged, and is wrong only in the number the caller
+        # asked for (WP-1309, issue #171 note 1).
+        #
+        # A scale the stage can move is a *row*: the model is linear in it, so
+        # the row is its exact Jacobian column and ``_make_jacobian``'s
+        # background branch picks it up by being in ``bkg_paths`` — which is
+        # also what keeps a background-only stage from rebuilding the profile
+        # derivative bases every iteration.  A scale that cannot move is folded
+        # into the frozen curve instead, where 1.0 is exactly the identity and
+        # every number a project produced before this field existed is
+        # reproduced bit for bit.
+        #
+        # ``moving_paths`` is the authority for "can this move", never
+        # ``free_paths``: a tie can move it without it being a column.  The
+        # no-claim case takes the *row* — read here off ``gate_off_states``,
+        # since ``moving_paths`` has been an empty set since the normalisation
+        # above — because a fold is a freeze, and a freeze taken on an unasked
+        # question would hand a caller who had freed the scale a flat column
+        # and a parameter that cannot move.  Every other gate in this function
+        # falls the other way for the same reason: theirs is a cost, this one
+        # would be a wrong number.
+        if not gate_off_states or SCALE_PATH in moving_paths:
+            bkg_paths = bkg_paths + (SCALE_PATH,)
+            design = np.vstack([design, curve[None, :]])
+        else:
+            fixed = float(bkg.scale.value) * curve
+        if bkg.fixed_sigma is not None:
+            # The curve's own counting statistics, at the scale the stage
+            # compiled at: σ² = σ_y² + s²·σ_f² (schemas.instrument's docstring
+            # has the two caveats).  Frozen per stage like every other discrete
+            # choice, so a stage that moves s re-weights at the next compile.
+            sig_f = interpolate_fixed(tt, np.asarray(bkg.fixed_two_theta),
+                                      np.asarray(bkg.fixed_sigma))
+            s = float(bkg.scale.value)
+            sigma = np.sqrt(sigma * sigma + (s * sig_f) ** 2)
     elif isinstance(bkg, BackgroundPSpline):
         n_coef = len(bkg.coefficients)
         bkg_paths = tuple(f"instrument.background.c{n}" for n in range(n_coef)) \
