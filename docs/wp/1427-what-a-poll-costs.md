@@ -1,6 +1,6 @@
 # WP-1427 — what a poll costs
 
-Milestone: unscheduled · Status: 🔄 2026-09-17 — claimed by @yue-here
+Milestone: unscheduled · Status: ✅ 2026-09-17 — the poll is measured; the walk is 1.7× and the console no longer freezes the page
 Depends on: 1430 (the page as files); 1426 soft (both rewrite `drawRun`)
 
 ## Goal
@@ -81,7 +81,7 @@ Browser, per poll:
    measurement puts the cost in the HTTP round trip and not in the walk, and
    say so either way.
 
-### What the five WPs before this one left on the poll path
+### What the five WPs before this one left on the poll path (consumed 2026-09-17)
 
 All measured or read off the tree on 2026-09-17, in this worktree, `[dev]`
 plus playwright, darwin/arm64. The mailbox they arrived in is consumed here.
@@ -136,21 +136,6 @@ else. The DOM half is `.mjs` because `node --check` reads a `.js` as CommonJS.
 Node cases live in `tests/watch_core.test.mjs` and are invoked from
 `tests/test_watch_app.py::test_the_pure_half_of_the_page_is_unit_tested`.
 `tests/test_watch_browser.py` is the bar: if it moves, the page moved.
-
-### Filed here, for the maintainer, and not this WP's to fix
-
-**The GUI's reflection tick rows take plotly's colorway, which is indexed by
-position in the trace array.** The GUI's background trace is conditional on
-there being a background and toggleable by the reader (`Plot.svelte`,
-`shows(hidden, "bkg")`), so hiding the background moves every phase's tick
-colour one step along the colorway, on a click. Measured on the watcher, which
-briefly had the same shape: `phase 0` went `#d62728` → `#9467bd`, and `#d62728`
-sits **0.043** from `--plot-calc` in OKLab on the light theme, against the 0.13
-floor `tests/test_gui_palette.py` holds every other plot colour to. The watcher
-keeps explicit colours because of it (`PALETTES["dark"]`, guarded in
-`test_watch_browser.py`). The fix needs a categorical palette the GUI does not
-own. It is filed here because this is the WP with the instrument (WP-1429).
-
 
 ## Findings
 
