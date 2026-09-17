@@ -1,7 +1,9 @@
 # WP-1436 — `k` is the wavevector everywhere else
 
 Milestone: unscheduled · Status: ⬜
-Depends on: 1437 (both touch `help.py` and the manual; rebase onto it)
+Depends on: 1437 (both edit `docs/manual/intensities.md`, 1437 at line 104 and
+this WP at its equations; rebase onto it. No line of `help.py` writes sinθ/λ,
+so this WP never opens that file)
 
 ## Goal
 
@@ -69,10 +71,13 @@ Fetch the dictionary with `gh api`, since `iucr.org` 403s to curl and WebFetch:
 
 ### Why the identifier and the symbol differ
 
-`s` is already bound in both target modules. `scattering.py:66` and `:142` bind
-`s = species.strip()`; `structure_factor.py:436` binds
-`s = xp.asarray(astar, ...)`. A bare `s` would shadow live variables in the two
-files being changed.
+`s` is already bound in both target modules, in one of them in the same scope.
+`structure_factor.py:436` binds `s = xp.asarray(astar, ...)` two lines below
+the `k` at `:434`, inside `d_f2_d_uaniso`, so a bare `s` there would shadow a
+live variable. `scattering.py:66` and `:142` bind `s = species.strip()` in
+`normalize_species` and `detect_fallback`, other functions than `f0`, so in
+that file the cost is one letter meaning two things in one module rather than
+a shadowed name.
 
 So `s` in maths, where scope does not exist and the paper's letter is right,
 and `stol` in python, following cctbx. Record that split in `CLAUDE.md`, or a
@@ -93,7 +98,9 @@ against the source each module cites. The package is well sourced.
 `optimize/statistics.py` and `model/corrections.py` are exemplary, and the
 Caglioti X/Y fork is handled correctly at `caglioti.py:18`.
 
-Five further findings are in scope here:
+Six further findings are in scope here. Bare file names below resolve to
+`src/rietx/optimize/qpa.py`, `src/rietx/indexing/fom.py` and
+`src/rietx/model/profiles/{voigt,caglioti}.py`:
 
 | Symbol | Anchor | Quantity | Why |
 |---|---|---|---|
@@ -165,11 +172,12 @@ breadth measure, and no computed size is wrong.
 ### Sites for the rename
 
 These lists are complete as of 2026-09-17, scanned for the bare token `k`
-rather than read off. **A binding and its uses move together**: in
-`structure_factor.py` the assignment at 335 is consumed at 337, 373 at 381 and
-434 at 443, and in `tests/test_dispersion.py` the local at 109 is consumed at
-122 and 124. Renaming a subset leaves a `NameError` that the suite catches and
-the rename pass should not have written.
+rather than read off, in the three modules and every test that calls `f0`.
+**A binding and its uses move together**: in `structure_factor.py` the
+assignment at 335 is consumed at 337, 373 at 381 and 434 at 443, and in
+`tests/test_dispersion.py` the local at 109 is consumed at 122 and 124.
+Renaming a subset leaves a `NameError` that the suite catches and the rename
+pass should not have written.
 
 Equations and prose: `docs/manual/intensities.md` lines 9, 10, 28, 29, 64, 70,
 111, 128; `docs/manual/manual.md:163`; `CLAUDE.md:486`;
@@ -183,6 +191,13 @@ Identifiers and docstrings: `crystallography/scattering.py` lines 3, 6, 8, 96,
 the `_orbit_terms` / `_structure_factors_ab` signatures and 293, 337, 381, 443
 their call sites; `crystallography/dispersion.py:5`; `tests/test_dispersion.py`
 lines 109, 122, 124, 215, 227, 228.
+
+Three more tests bind a local `k` for sinθ/λ and hand it to `f0`
+positionally, so the rename cannot break them and the goal's "`stol` in
+python" still reaches them: `tests/test_crystallography.py` lines 126, 127,
+151, 153 and 154; `tests/test_neutron_cw.py` lines 146 and 147. And
+`tests/test_species_fallback.py:7` writes the same quantity as `f0(Q=0)`, a
+third letter for it in the tree, which becomes `f0(s=0)` in that docstring.
 
 `f0(species, k)` at `scattering.py:163` is **internal**:
 `tests/api_surface.py:189` declares `rietx.crystallography` internal by
@@ -239,7 +254,8 @@ the two sibling data files for the same reason.
       (`manual.md:160`), so this row contradicts it.
 - [ ] `voigt.py:40`: name the returned HWHM so a caller cannot read it as the
       FWHM its inputs are.
-- [ ] Tests: `test_dispersion.py:122`'s local, and a bit-identity check that a
+- [ ] Tests: the locals bound at `test_dispersion.py:109` and `:215`, the
+      three other test files named under § Sites, and a bit-identity check that a
       converged fit on a structural standard returns the same parameters before
       and after. Plot obs/calc/diff to `tests/output/` and look at it.
 - [ ] Skill: the `diagnostics.md` row above is the change. The body needs
@@ -333,8 +349,10 @@ file was touched, so every acceptance number below is still unmeasured.
 
 *Measured.* Eight sources surveyed for the sinθ/λ symbol, five in the `s`
 family. About 100 physics symbols audited across seven subpackages plus the
-manual and `help.py`. Four differ from their cited source; sixteen letters are
-ambiguous and almost all defensibly so. `s` is unavailable as a python
+manual and `help.py`. Beside sinθ/λ, six further findings are tabled under
+§ The rest of the audit, three of them a symbol drifted from the paper its
+module cites (`k`, F₂₀, `β`); sixteen letters are ambiguous and almost all
+defensibly so. `s` is unavailable as a python
 identifier in both target modules, which is why the split is `s` in maths and
 `stol` in code. The `help.py` polarisation defect that became 1437 diverges
 from the code by up to **2.0×** in Lp, measured by running both forms; a first
@@ -365,8 +383,20 @@ also opened as `wp1434-…` and renamed at handover, because until then it was
 telling every other session that WP-1434 was claimed.
 
 *Next.* Land [1437](1437-a-formula-the-code-does-not-compute.md) first, since
-both touch `help.py` and the manual and 1437 fixes a wrong number a user can
-act on. Then rebase this branch onto it and work the task list top down. The
+both edit `intensities.md` and 1437 fixes a wrong number a user can act on. Then rebase this branch onto it and work the task list top down. The
 first task decides the rest: once `scattering.py` is renamed, tasks 2 to 5 are
 mechanical, and tasks 6 to 8 are independent of all of them and could be taken
 by anyone in any order.
+
+### 2026-09-17 — a second reading of the two files, before merge
+
+Every anchor in this file and in 1437 was re-resolved against the tree by a
+fresh session. The physics and the numbers held: the Lp table reproduces to
+three decimals, the twenty `k` anchors in the three modules are exact, lower
+case `s` is free in the manual's maths because the phase scale is `S_p`, and
+`crystallography/magnetic/` writes `k` today only as a loop index. Six things
+did not hold and are fixed in place: the site list stopped at the four files
+while three other tests bind the same local; the shadowing reason was true in
+one module and not the other; one path in 1437 lacked its `src/rietx/` prefix;
+four anchors were off by one or two lines; "five" headed a six-row table; and
+the dependency on 1437 named `help.py`, which this WP never opens.

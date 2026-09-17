@@ -23,8 +23,8 @@ to the code. One of them is wrong.
 
 | | `help.py` says | the package computes |
 |---|---|---|
-| the Lp factor | `(1 + K·cos²2θ)/(1 + K)` (`help.py:207`) | `K + (1 − K)·cos²2θ` (`corrections.py:24`) |
-| monochromated | "`cos²2θ_M` for a monochromated one" (`help.py:210`) | `K = 1/(1 + cos²2θ_m)` (`schemas/instrument.py:1764`, code at `:1787`) |
+| the Lp factor | `(1 + K·cos²2θ)/(1 + K)` (`help.py:209`) | `K + (1 − K)·cos²2θ` (`corrections.py:24`) |
+| monochromated | "`cos²2θ_M` for a monochromated one" (`help.py:211`) | `K = 1/(1 + cos²2θ_m)` (`schemas/instrument.py:1765`, code at `:1787`) |
 
 Measured 2026-09-17 by running both forms through `lorentz_polarization`. The
 ratio of the help-text Lp to the computed Lp:
@@ -54,7 +54,7 @@ of the same story WP-1436 covers.
 
 ### Reach
 
-Three surfaces carry it: `GET /api/help` in the GUI (`gui/server.py:197`),
+Three surfaces carry it: `GET /api/help` in the GUI (`src/rietx/gui/server.py:197`),
 the generated glossary (`docs/manual/conf.py:271`, body at
 `docs/manual/_generated/glossary-body.md`), and `rietx.help` imported directly.
 
@@ -94,7 +94,7 @@ which is why this class was unguarded.
 ## Non-goals
 
 - The `k` = sinθ/λ rename and the notation table. That is WP-1436, which
-  rebases onto this one.
+  rebases onto this one because both edit `docs/manual/intensities.md`.
 - Deriving descriptions from the code generally. Prose is authored on purpose,
   and a templating layer over 116 entries would cost more than it saves. The
   answer here is one audit plus a pin on the numbers.
