@@ -5,7 +5,7 @@
 // in `watch-core.mjs`, where the suite can call them.
 import {LAYOUT_DEFAULT, ago, axisOf, clampSize, clock, coalesce, deltaTitle,
         dragged, esc, guiReason, nextLayout, num, parseLayout, pct, rangesOf,
-        rowName,
+        rowName, sizeField,
         paletteFrom, phaseInk, runLabel, runTitle,
         withAlpha} from './watch-core.mjs';
 
@@ -37,7 +37,7 @@ let plotlyPromise = null;
 // string; a file cannot carry one, and a literal here would be a second
 // authority for a fact `_about.py` already owns.
 let DIST = '';              // the distribution name
-// The theme *choice* the GUI stored, as it was last applied here (WP-1429).
+// The theme *choice* stored in `settings.json`, as it was last applied here.
 // The page never writes it: the GUI owns the setting, this page follows it,
 // and `null` is "nothing applied yet" rather than a choice.
 let THEME = null;
@@ -98,9 +98,10 @@ function makeRow(run) {
   const tr = document.createElement('tr');
   tr.className = 'run';
   tr.dataset.id = run.run_id;
-  tr.innerHTML = '<td><span class="state"></span></td><td></td><td></td>' +
+  tr.innerHTML = '<td><span class="state"></span></td><td></td>' +
+    '<td class="c-stage"></td>' +
     '<td class="num"></td><td class="num"></td>' +
-    '<td class="muted"><time></time></td>' +
+    '<td class="muted c-started"><time></time></td>' +
     '<td class="gui"><button hidden>open</button>' +
     '<span class="why muted" hidden>\u2014</span></td>';
   tr.onclick = () => { location.hash = '#/run/' + run.run_id; };
@@ -302,6 +303,9 @@ function applyTheme(choice) {
   const root = document.documentElement;
   if (choice === 'light' || choice === 'dark') root.dataset.theme = choice;
   else delete root.dataset.theme;
+  for (const button of document.querySelectorAll('#theme button')) {
+    button.setAttribute('aria-pressed', String(button.dataset.choice === choice));
+  }
   return true;
 }
 
@@ -688,7 +692,24 @@ function trimConsole(pane) {
   }
 }
 
-async function pumpEvents(id) {
+// The log is read by one fetch at a time and a second ask *waits* rather
+// than racing: two in flight would take the same `tail.offset` and append
+// the same lines twice. Nothing could race before WP-1438, `refreshing`
+// being one poll at a time; the boot asking for a pinned run's log before
+// the walk is what made two possible.
+let pumping = Promise.resolve();
+function pumpEvents(id) {
+  const next = pumping.then(() => pumpTail(id), () => pumpTail(id));
+  // the chain never latches on a rejection, so one failed poll does not stop
+  // the log for the life of the page
+  pumping = next.catch(() => {});
+  return next;
+}
+
+async function pumpTail(id) {
+  // re-asked on the way in as well as after the fetch: a queued pump for a
+  // run the reader has already left should not spend the round trip
+  if (tail.id !== id || currentId() !== id) return;
   // `limit` is the pane's own length. Without it a reader clicking a job that
   // has been running a few minutes gets every event of it in one response:
   // 60 000 lines parsed and built into `<div>`s to keep the last 2000, which
@@ -775,6 +796,18 @@ const SEAMS = {
     // rather than added as a constant: at the floor the run column came out
     // 35 px against the 36 its heading inks, one pixel of border.
     chrome: el => el.offsetWidth - el.clientWidth,
+    // The same seam under the stylesheet's `--stacked` (WP-1438). Every
+    // number is a different number, which is the whole reason this is a
+    // second entry and not a flag: the floor is a heading and two rows
+    // (26.5 + 2×27, measured) rather than 71 columns, and what the pane next
+    // door keeps is the picture's declared 180 px min-height plus the
+    // console's own 51 px floor plus the strip and the console's grip, not
+    // 340 px of plot width.
+    stacked: {
+      grow: 'down', prop: '--list-h', min: 82, keep: 265, minCh: undefined,
+      of: el => el.getBoundingClientRect().height,
+      chrome: el => el.offsetHeight - el.clientHeight,
+    },
   },
   // The log. Three lines of 13 px plus the pane's 12 px of padding, against
   // `#picture`'s own declared `min-height`, which is this page's existing
@@ -788,6 +821,25 @@ const SEAMS = {
 
 //: An arrow key moves the seam by this much, Shift by ten times it.
 const STEP = 16;
+
+// Are the two panes stacked? The breakpoint is the stylesheet's and is asked
+// for rather than repeated here (WP-1438): `watch.css` sets `--stacked` in a
+// media query, so the number lives once and the page reads the *answer*.
+// Nothing caches it — a window is resized between one draw and the next, and
+// `applyLayout` already runs on every resize.
+function isStacked() {
+  return getComputedStyle(document.documentElement)
+    .getPropertyValue('--stacked').trim() === '1';
+}
+
+// A seam as it is right now. Only the list has a second arrangement, and
+// merging is right rather than branching at each use: everything the wide
+// seam declares that the stacked one does not — the pane, the grip, the
+// element it measures — is true of both.
+function seamOf(which) {
+  const seam = SEAMS[which];
+  return (seam.stacked && isStacked()) ? {...seam, ...seam.stacked} : seam;
+}
 
 let layout = LAYOUT_DEFAULT;
 
@@ -851,8 +903,11 @@ function floorOf(seam) {
 // against. Read off the page, so the grip's own 5 px are already out of it.
 function extentOf(which) {
   if (which === 'list') {
-    return $('main').getBoundingClientRect().width
-           - $('grip-list').getBoundingClientRect().width;
+    const main = $('main').getBoundingClientRect();
+    const grip = $('grip-list').getBoundingClientRect();
+    // the grip's own 5 px come out of whichever extent the panes share, and
+    // which that is is the arrangement's answer, not this function's
+    return isStacked() ? main.height - grip.height : main.width - grip.width;
   }
   return $('run').getBoundingClientRect().height
          - $('strip').getBoundingClientRect().height
@@ -878,10 +933,10 @@ const resizePlot = coalesce(() => {
 // extent it happened in, and nothing clamps a size that outlives its window,
 // so this runs at *render* and not only at the end of a drag.
 function sizeOf(which) {
-  const state = layout[which];
-  if (state.size === null) return null;
-  const seam = SEAMS[which];
-  return clampSize(state.size, floorOf(seam), seam.keep, extentOf(which));
+  const stored = layout[which][sizeField(which, isStacked())];
+  if (stored === null || stored === undefined) return null;
+  const seam = seamOf(which);
+  return clampSize(stored, floorOf(seam), seam.keep, extentOf(which));
 }
 
 function applyLayout() {
@@ -891,12 +946,15 @@ function applyLayout() {
   if (toggle) toggle.setAttribute('aria-pressed', String(!layout.run.open));
   $('run').dataset.console = layout.console.open ? 'open' : 'closed';
   for (const which of Object.keys(SEAMS)) {
-    const seam = SEAMS[which];
+    const seam = seamOf(which);
     const size = sizeOf(which);
     if (size === null) document.body.style.removeProperty(seam.prop);
     else document.body.style.setProperty(seam.prop, size + 'px');
     const grip = $(seam.grip);
     grip.classList.toggle('closed', !layout[which].open);
+    // a separator says which way it moves, and stacking turns this one
+    grip.setAttribute('aria-orientation',
+                      axisOf(seam.grow) === 'x' ? 'vertical' : 'horizontal');
     const floor = floorOf(seam);
     const ceiling = Math.max(floor, extentOf(which) - seam.keep);
     // the ARIA window splitter's numbers. A collapsed pane sits at its own
@@ -911,7 +969,8 @@ function applyLayout() {
 }
 
 function setSize(which, size, {store = true} = {}) {
-  layout = nextLayout(layout, which, {size: Math.round(size), open: true});
+  layout = nextLayout(layout, which, {
+    [sizeField(which, isStacked())]: Math.round(size), open: true});
   if (store) storeLayout();
   applyLayout();
 }
@@ -931,15 +990,19 @@ function toggleSeam(which) {
 }
 
 function armGrip(which) {
-  const seam = SEAMS[which];
-  const grip = $(seam.grip);
-  const pane = $(seam.pane);
-  const horizontal = axisOf(seam.grow) === 'x';
+  const grip = $(SEAMS[which].grip);
+  const pane = $(SEAMS[which].pane);
+  // read at the event and never held: the list's seam turns when the window
+  // does, and a grip armed once at boot would keep dragging along the axis
+  // the page was in then (WP-1438)
+  const across = () => axisOf(seamOf(which).grow) === 'x';
 
   grip.addEventListener('pointerdown', ev => {
     if (ev.button !== 0) return;
     if (!layout[which].open) return;     // collapsed: the verb is the toggle
     ev.preventDefault();
+    const seam = seamOf(which);
+    const horizontal = across();
     const from = horizontal ? ev.clientX : ev.clientY;
     const start = seam.of(pane);
     grip.setPointerCapture(ev.pointerId);
@@ -974,6 +1037,8 @@ function armGrip(which) {
   grip.addEventListener('keydown', ev => {
     if (ev.key === 'Enter') { ev.preventDefault(); toggleSeam(which); return; }
     if (!layout[which].open) return;
+    const seam = seamOf(which);
+    const horizontal = across();
     const back = horizontal ? 'ArrowLeft' : 'ArrowUp';
     const forward = horizontal ? 'ArrowRight' : 'ArrowDown';
     const extent = extentOf(which);
@@ -1014,8 +1079,64 @@ function readPage(payload) {
   if (!DIST) {
     DIST = payload.page.dist;
     setText($('empty-suffix'), payload.page.suffix);
+    buildThemeControl(payload.page.themes);
+    // read here rather than in a fetch of their own (WP-1438). The boot used
+    // to ask `api/runs` for these and the first poll asked again, the same
+    // request twice about 85 ms apart, with the log's fetch queued behind
+    // both. They are read once because none of them can move while the page
+    // is open; the theme below is read every poll because it can.
+    SINGLE = payload.single_run_id;
+    CAN_CANCEL = payload.can_cancel === true;
+    CAN_OPEN_GUI = payload.can_open_gui === true;
+    if (SINGLE) document.body.dataset.single = '';
   }
   return applyTheme(payload.page.theme);
+}
+
+// The control, drawn from the server's list rather than from three literals
+// here (WP-1438). The glyphs and the sentences are `viz/theme.py`'s and the
+// GUI's alike, so the two pages a reader has open say the same thing.
+//
+// Built once, on the first payload that carries them: they cannot move while
+// the page is open, and a control rebuilt per poll would drop the focus of
+// anyone operating it from the keyboard.
+function buildThemeControl(themes) {
+  const bar = $('theme');
+  if (!bar || !Array.isArray(themes) || !themes.length) return;
+  for (const entry of themes) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.dataset.choice = entry.choice;
+    button.textContent = entry.glyph;
+    button.setAttribute('aria-label', entry.choice);
+    button.setAttribute('aria-pressed', 'false');
+    button.title = entry.title;
+    button.addEventListener('click', () => chooseTheme(entry.choice));
+    bar.appendChild(button);
+  }
+}
+
+// The choice is applied here and *then* stored, which is the GUI's order and
+// for its reason: a theme that waited on a round trip flickers, and one that
+// snapped back on a failure would be the page arguing with the reader. A
+// refusal is left to the next poll, which reads the stored choice and is the
+// authority either way.
+async function chooseTheme(choice) {
+  if (applyTheme(choice) && shell.kind === 'json') {
+    // the picture is the one thing on this page a stylesheet does not reach,
+    // so a theme that moved is a canvas to repaint. Outstanding, then asked
+    // for: `refresh` is the one caller of `drawRun`, and a second one here
+    // would be a second answer to what is on screen.
+    shell.mtime = null;
+    refresh();
+  }
+  try {
+    await fetch('api/theme', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({theme: choice}),
+    });
+  } catch (err) {}
 }
 
 let refreshing = false;
@@ -1088,12 +1209,21 @@ $('stop').onclick = () => {
 };
 
 (async () => {
-  const meta = await (await fetch('api/runs', {cache: 'no-store'})).json();
-  SINGLE = meta.single_run_id;
-  CAN_CANCEL = meta.can_cancel === true;
-  CAN_OPEN_GUI = meta.can_open_gui === true;
-  readPage(meta);
-  if (SINGLE) document.body.dataset.single = '';
+  // The log does not queue behind the walk. A run named in the URL is known
+  // before anything is fetched, so its tail is asked for here, in parallel
+  // with the poll — measured on a reload, the console filled 141 ms after
+  // the list it belongs beside, and the reader saw the page come back
+  // without its log and then the log arrive (WP-1438).
+  //
+  // A *named* run only. With no run in the URL the page does not yet know
+  // which log it wants: `newest` is what the walk is for.
+  const pinned = currentId();
+  if (pinned) {
+    resetTail(pinned);
+    // floating on purpose — the walk behind it draws the same run, and its
+    // own `pumpEvents` waits on this one and reports whatever it did not
+    pumpEvents(pinned).catch(() => {});
+  }
   layout = readLayout();
   armGrip('list');
   armGrip('console');
@@ -1101,5 +1231,8 @@ $('stop').onclick = () => {
   $('toggle-run').addEventListener('click', () => toggleSeam('run'));
   applyLayout();
   await refresh();
+  // `data-single` arrives with the walk now, and it is a layout the page has
+  // already applied once
+  applyLayout();
   schedule();
 })();

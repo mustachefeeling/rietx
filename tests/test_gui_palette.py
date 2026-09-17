@@ -36,7 +36,10 @@ import pytest
 
 from rietx.gui.structure3d import MIN_SEPARATION, _oklab, _oklab_distance, _oklab_hex
 from rietx.viz.plots import PALETTES
-from rietx.viz.theme import PHASE_COLOURS, PHASE_TOKENS, TOKENS, tokens_css
+from rietx.viz.theme import (
+    PHASE_COLOURS, PHASE_TOKENS, THEME_CHOICES, THEME_GLYPHS, THEME_TITLES,
+    TOKENS, tokens_css,
+)
 
 ROOT = Path(__file__).resolve().parent.parent
 TOKENS_CSS = ROOT / "gui" / "src" / "tokens.css"
@@ -458,3 +461,75 @@ def test_the_single_phase_neutral_is_not_a_member_of_the_set(theme):
     it would change colour with the theme.
     """
     assert PALETTES[theme]["tick"] not in PHASE_COLOURS
+
+
+# ----------------------------------------------------------------------
+# the theme control, on two pages (WP-1438)
+# ----------------------------------------------------------------------
+APP_SVELTE = Path(__file__).resolve().parents[1] / "gui" / "src" / "App.svelte"
+
+
+def _declared(source: str, name: str) -> dict[str, str]:
+    """The `Record<ThemeChoice, string>` literal `name` holds, as a dict.
+
+    Parsed rather than imported: `gui/src` is a build input the wheel does not
+    ship, so there is no importing it from here — the same reason
+    `tokens.css` is generated and byte-compared rather than read.
+    """
+    start = source.index(f"const {name}")
+    body = source[source.index("{", start) + 1:source.index("}", start)]
+    return {m.group(1): m.group(2) for m in
+            re.finditer(r'(\w+)\s*:\s*"((?:[^"\\]|\\.)*)"', body)}
+
+
+def test_the_watcher_and_the_gui_offer_the_same_three_themes():
+    """One set of values for three surfaces is WP-1429's rule, and a glyph is
+    a value (WP-1438).
+
+    The watcher draws its control from `viz/theme.py` over the wire. The GUI
+    cannot import that module, so this holds its literals equal to it
+    instead — an edit on either side fails until the other follows, which is
+    exactly what `tokens.css` is held to.
+    """
+    source = APP_SVELTE.read_text(encoding="utf-8")
+    glyphs = _declared(source, "GLYPH")
+    titles = _declared(source, "THEME_TITLE")
+    assert glyphs == THEME_GLYPHS
+    assert titles == THEME_TITLES
+    assert set(THEME_GLYPHS) == set(THEME_TITLES) == set(THEME_CHOICES)
+
+
+@pytest.mark.parametrize("theme", ["light", "dark"])
+def test_nothing_writes_white_on_the_accent(theme):
+    """Measured: on the dark theme the accent is a light blue, and white on it
+    is **2.22:1** — under WCAG AA at any size.  `--panel` is white on the
+    light theme and near-black on the dark one, so one token is the legible
+    ink on both fills: 6.44 and 7.51.
+
+    The literal was in `app.css` in three places and was on its way into the
+    watcher's own control when that page's no-colour-literals guard caught it
+    (`test_no_colour_literal_is_left_in_the_page`).  This is that guard for
+    the stylesheet which has none, stated as the measurement rather than as a
+    ban on a string.
+    """
+    def luminance(value: str) -> float:
+        parts = [int(value[i:i + 2], 16) / 255 for i in (1, 3, 5)]
+        lin = [c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+               for c in parts]
+        return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2]
+
+    def contrast(a: str, b: str) -> float:
+        la, lb = luminance(a), luminance(b)
+        return (max(la, lb) + 0.05) / (min(la, lb) + 0.05)
+
+    accent = TOKENS[theme]["--accent"]
+    panel = TOKENS[theme]["--panel"]
+    assert contrast(accent, panel) >= 4.5, (
+        f"{theme}: --panel on --accent is {contrast(accent, panel):.2f}:1")
+    # and the two stylesheets do not reach for white instead
+    css = (Path(__file__).resolve().parents[1] / "gui" / "src" / "app.css"
+           ).read_text(encoding="utf-8")
+    for block in ("button {", "button.on {", ".segmented button.on {"):
+        start = css.index("\n" + block)
+        rule = css[start:css.index("}", start)]
+        assert "#fff" not in rule, f"{block} still inks white on the accent"

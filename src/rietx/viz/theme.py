@@ -58,6 +58,21 @@ from .._about import STATE_DIR_ENV, STATE_DIR_NAME
 #: decided wants it to stay decided through that switch.
 THEME_CHOICES = ("system", "light", "dark")
 
+#: The glyph each choice wears, and what it promises.  Here rather than in
+#: each page for the reason the colours are (WP-1429): three surfaces, one
+#: set of values.  The GUI cannot import them — `gui/src` is a build input the
+#: wheel does not ship — so `tests/test_gui_palette.py` holds `App.svelte`
+#: equal to these instead, the same way it holds `tokens.css` equal to the
+#: emitter.
+THEME_GLYPHS: dict[str, str] = {
+    "system": "\u25d0", "light": "\u2600", "dark": "\u263e",
+}
+THEME_TITLES: dict[str, str] = {
+    "system": "follow the system, and keep following it when it changes",
+    "light": "light, whatever the system does",
+    "dark": "dark, whatever the system does",
+}
+
 #: What a choice resolves to.  ``system`` resolves in the *browser*, through the
 #: ``prefers-color-scheme`` block :func:`tokens_css` emits — no server can see
 #: the machine the page is open on, and a server that guessed would be a second
@@ -337,14 +352,11 @@ def state_dir(override: str | Path | None = None) -> Path:
 def theme_choice() -> str:
     """The theme the person chose, from ``settings.json``; ``system`` by default.
 
-    Read-only, and that is the rule rather than an omission: the GUI writes the
-    choice (``session.settings_patch``) and the two Python pages read it.  One
-    writer per fact.  Anything unreadable, missing or hand-mangled is
-    ``"system"``, never an error — the same grammar
-    :meth:`~rietx.gui.session.Session.settings` uses, and for the same reason:
-    no setting here is worth refusing to start over.
+    Anything unreadable, missing or hand-mangled is ``"system"``, never an
+    error — the same grammar :meth:`~rietx.gui.session.Session.settings` uses,
+    and for the same reason: no setting here is worth refusing to start over.
 
-    No directory argument: both callers want the person's, and a parameter
+    No directory argument: every caller wants the person's, and a parameter
     nothing passes is a claim with no writer.  A caller that one day wants to
     ask about some other directory adds it then.
     """
@@ -357,6 +369,62 @@ def theme_choice() -> str:
         # a page draws in the default theme there, rather than not at all
         return "system"
     return value if value in THEME_CHOICES else "system"
+
+
+def set_theme_choice(value: str) -> str:
+    """Store the person's theme choice, and answer with what is now stored.
+
+    **One home for the fact, and every page that shows it may set it**
+    (WP-1438, widening WP-1429).  That WP made the GUI the sole writer because
+    it was the only surface with a settings screen, and the consequence was
+    measured here: ``settings.json`` held ``light`` on a dark machine, and a
+    person running a fit from a script and watching it in a browser had no way
+    to change it without opening an application they were not using.  A
+    user-level theme is settable from whichever window you are in — VS Code,
+    Grafana and Jupyter all work that way — and what must not be duplicated is
+    the *fact*, which still lives in one file and is still read through one
+    function.
+
+    Anything not in :data:`THEME_CHOICES` is refused with ``ValueError``,
+    unlike the read above.  A read is repairing somebody's file and a write is
+    performing somebody's verb: a request to be a theme that does not exist
+    has no honest interpretation, and storing it would leave the file saying
+    something every reader turns back into ``system``.
+
+    The rest of ``settings.json`` is preserved, including keys this module
+    knows nothing about — the recent list is in there.  A file that cannot be
+    read is *replaced*, on the same grounds :func:`theme_choice` returns
+    ``system`` for one: the alternative is refusing to record a preference
+    because of an unrelated corruption.
+
+    An open GUI does not repaint on this.  It reads the choice at boot and
+    polls only a run's events, so a change made here reaches it when it is
+    reloaded, where a change made *there* reaches an open watcher on the poll
+    it already makes.  Said rather than fixed: adding a settings poll to the
+    GUI to close a direction nobody has asked for is scaffolding.
+    """
+    if value not in THEME_CHOICES:
+        raise ValueError(
+            f"{value!r} is not a theme; expected one of "
+            + ", ".join(repr(c) for c in THEME_CHOICES))
+    directory = state_dir()
+    path = directory / "settings.json"
+    try:
+        stored = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(stored, dict):
+            stored = {}
+    except (OSError, ValueError):
+        stored = {}
+    ui = stored.get("ui")
+    stored["ui"] = {**ui, "theme": value} if isinstance(ui, dict) \
+        else {"theme": value}
+    directory.mkdir(parents=True, exist_ok=True)
+    # written whole and moved into place: a reader of this file is a page
+    # being drawn, and a half-written settings file would draw as `system`
+    temporary = path.with_name(path.name + ".tmp")
+    temporary.write_text(json.dumps(stored, indent=2) + "\n", encoding="utf-8")
+    temporary.replace(path)
+    return value
 
 
 if __name__ == "__main__":  # pragma: no cover - the regeneration command

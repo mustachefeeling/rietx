@@ -17,7 +17,7 @@ import {
   LADDER, LAYOUT_DEFAULT, ago, axisOf, clampSize, clock, coalesce, deltaTitle,
   dragged, esc, extent, finiteOf, guiReason, nextLayout, num, parseLayout,
   pct, rangesOf,
-  paletteFrom, phaseInk, rowName, runLabel, runTitle, withAlpha,
+  paletteFrom, phaseInk, rowName, runLabel, runTitle, sizeField, withAlpha,
 } from '../src/rietx/watch/static/watch-core.mjs';
 
 // A pattern the page would draw: 1000 points, and a residual the caller
@@ -270,7 +270,7 @@ test('a size of null is not a size, and neither is a number that is not one',
 
 test('a layout naming one seam leaves the other at its default', () => {
   const got = parseLayout('{"console":{"size":120,"open":false}}');
-  assert.deepEqual(got.list, {size: null, open: true});
+  assert.deepEqual(got.list, {size: null, stackedSize: null, open: true});
   assert.deepEqual(got.console, {size: 120, open: false});
 });
 
@@ -317,7 +317,8 @@ test('nextLayout leaves the layout it was handed alone', () => {
   const before = parseLayout(null);
   const after = nextLayout(before, 'list', {size: 500, open: false});
   assert.deepEqual(before, LAYOUT_DEFAULT);
-  assert.deepEqual(after.list, {size: 500, open: false});
+  assert.deepEqual(after.list,
+                   {size: 500, stackedSize: null, open: false});
   assert.deepEqual(after.console, {size: null, open: true});
   assert.notEqual(after.console, before.console);
 });
@@ -542,4 +543,44 @@ test('a watcher that cannot open one at all says nothing per row', () => {
 test('a row the walk has not filled in yet is not an explanation', () => {
   assert.ok(guiReason(undefined, true));
   assert.equal(guiReason(undefined, false), null);
+});
+
+
+// -------------------------------------------- two arrangements, two sizes
+
+test('the list keeps a size per arrangement and one collapse', () => {
+  assert.equal(sizeField('list', false), 'size');
+  assert.equal(sizeField('list', true), 'stackedSize');
+  // nothing else stacks, so nothing else has a second number
+  assert.equal(sizeField('console', true), 'size');
+  assert.equal(sizeField('run', true), 'size');
+});
+
+test('a stored stacked height rides beside the width, not over it', () => {
+  const layout = parseLayout(JSON.stringify(
+    {list: {size: 420, stackedSize: 260, open: true}}));
+  assert.equal(layout.list.size, 420);
+  assert.equal(layout.list.stackedSize, 260);
+  const next = nextLayout(layout, 'list', {stackedSize: 300});
+  assert.equal(next.list.stackedSize, 300);
+  assert.equal(next.list.size, 420, 'the width was not touched');
+});
+
+test('only the list carries the second field at all', () => {
+  const layout = parseLayout('{}');
+  assert.equal(layout.list.stackedSize, null);
+  // a field nothing reads is a declared name with no writer, so the seams
+  // that never stack do not have one
+  assert.ok(!('stackedSize' in layout.console));
+  assert.ok(!('stackedSize' in layout.run));
+  assert.ok(!('stackedSize' in LAYOUT_DEFAULT.console));
+});
+
+test('a stacked size is a number or it is nothing, like the other one', () => {
+  for (const bad of ['260', 0, -5, NaN, null, undefined, {}]) {
+    const layout = parseLayout(JSON.stringify(
+      {list: {size: 420, stackedSize: bad}}));
+    assert.equal(layout.list.stackedSize, null, String(bad));
+    assert.equal(layout.list.size, 420, String(bad));
+  }
 });

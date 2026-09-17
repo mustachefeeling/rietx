@@ -327,7 +327,7 @@ export function coalesce(work) {
 //: only `open` moves (WP-1438). It is here rather than in a second key for
 //: the reason the two seams are — one stored object, one reader, one shape.
 export const LAYOUT_DEFAULT = Object.freeze({
-  list: Object.freeze({size: null, open: true}),
+  list: Object.freeze({size: null, stackedSize: null, open: true}),
   console: Object.freeze({size: null, open: true}),
   run: Object.freeze({size: null, open: true}),
 });
@@ -335,10 +335,26 @@ export const LAYOUT_DEFAULT = Object.freeze({
 // A size is a number or it is nothing. `Number('420')` is 420, and this is
 // the page's own JSON, so a string here is corruption rather than a value in
 // another spelling.
-function seam(saved) {
-  const size = saved ? saved.size : null;
-  const ok = typeof size === 'number' && Number.isFinite(size) && size > 0;
-  return {size: ok ? size : null, open: !(saved && saved.open === false)};
+function size(saved, key) {
+  const value = saved ? saved[key] : null;
+  const ok = typeof value === 'number' && Number.isFinite(value) && value > 0;
+  return ok ? value : null;
+}
+
+// `stacks` is the list and only the list, which is the one pane that changes
+// what its size *means* when the window turns (WP-1438). It keeps a second
+// number rather than reinterpreting the first: a px width is not a px height,
+// so one number for both arrangements hands the reader a pane they never
+// asked for the moment the window narrows. Chrome DevTools keeps a setting
+// per orientation for the same reason.
+//
+// The other two have no key rather than a null one — a field nothing ever
+// reads is a declared name with no writer (WP-1076).
+function seam(saved, {stacks = false} = {}) {
+  const out = {size: size(saved, 'size'),
+               open: !(saved && saved.open === false)};
+  if (stacks) out.stackedSize = size(saved, 'stackedSize');
+  return out;
 }
 
 // Two defaults in one expression, as `parsePanels` had: an absent key and a
@@ -356,8 +372,8 @@ export function parseLayout(raw, legacy) {
   } catch (err) {
     saved = {};
   }
-  const out = {list: seam(saved.list), console: seam(saved.console),
-               run: seam(saved.run)};
+  const out = {list: seam(saved.list, {stacks: true}),
+               console: seam(saved.console), run: seam(saved.run)};
   if (!saved.list && legacy) {
     try {
       const old = JSON.parse(legacy || '{}') || {};
@@ -366,6 +382,13 @@ export function parseLayout(raw, legacy) {
     } catch (err) {}
   }
   return out;
+}
+
+// Which field of a seam holds the size that is in force. The collapse is one
+// fact about the list whichever way the panes sit, so it is not keyed; the
+// size is two.
+export function sizeField(which, isStacked) {
+  return (which === 'list' && isStacked) ? 'stackedSize' : 'size';
 }
 
 // A new layout, never the one passed in — `nextPanels`' rule, and for the

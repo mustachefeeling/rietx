@@ -131,7 +131,13 @@ def _page_constants() -> dict:
     tick rows in the dark set.
     """
     return {"suffix": PROJECT_SUFFIX, "dist": DIST_NAME,
-            "theme": theme_mod.theme_choice()}
+            "theme": theme_mod.theme_choice(),
+            # the three the page draws its control from, so the glyph and the
+            # sentence under the pointer are the GUI's and not a second copy
+            "themes": [{"choice": choice,
+                        "glyph": theme_mod.THEME_GLYPHS[choice],
+                        "title": theme_mod.THEME_TITLES[choice]}
+                       for choice in theme_mod.THEME_CHOICES]}
 
 
 #: How long a walk's result stands before the next request pays for another.
@@ -480,8 +486,8 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
         super().do_GET()
 
     def do_POST(self):  # noqa: N802 - http.server API
-        """The two verbs: ``/api/run/<id>/cancel`` (WP-1405) and
-        ``/api/run/<id>/gui`` (WP-1428).
+        """The three verbs: ``/api/run/<id>/cancel`` (WP-1405),
+        ``/api/run/<id>/gui`` (WP-1428) and ``/api/theme`` (WP-1438).
 
         POST and never GET. A GET that cancels is one prefetching browser, one
         link preview or one crawler away from stopping somebody's overnight
@@ -506,9 +512,10 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
             length = int(self.headers.get("Content-Length") or 0)
         except ValueError:
             length = 0
+        body = b""
         if length > 0:
             capped = min(length, 1 << 16)
-            self.rfile.read(capped)
+            body = self.rfile.read(capped)
             if capped < length:
                 # the cap stops a declared gigabyte becoming this process's
                 # memory, and then the connection has to go: the rest of that
@@ -531,7 +538,47 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
             if parts[3] == "gui":
                 self._open_gui(parts[2])
                 return
+        if parts == ["api", "theme"]:
+            self._set_theme(body)
+            return
         self._json({"error": "no such route"}, status=404)
+
+    def _set_theme(self, body: bytes) -> None:
+        """Store the theme this page is already drawn in (WP-1438).
+
+        **Not under** ``allow_cancel``/``allow_gui``. Those two fence the
+        *run* — an exception raised in somebody's fit, a process started on
+        this machine — and ``--read-only`` is a promise about the directory
+        being watched, which is what its own message says: "no stop button, no
+        GUI launch". A theme is a fact about the reader and the room they are
+        in, it is stored in the reader's own state directory, and a page that
+        could not be made legible by the person reading it would be a strange
+        thing to call read-only.
+
+        The refusal is :func:`~rietx.viz.theme.set_theme_choice`'s, reported
+        as a 400 rather than swallowed: a page asking to be a theme that does
+        not exist is a bug in the page, and answering 200 to it would hide
+        that behind a theme that silently stayed put.
+        """
+        try:
+            payload = json.loads(body.decode("utf-8") or "{}")
+            choice = payload["theme"]
+        except (UnicodeDecodeError, ValueError, KeyError, TypeError):
+            self._json({"error": "expected a JSON body naming a theme"},
+                       status=400)
+            return
+        try:
+            stored = theme_mod.set_theme_choice(choice)
+        except ValueError as error:
+            self._json({"error": str(error)}, status=400)
+            return
+        except OSError as error:
+            # the state directory is somebody else's filesystem, and a theme
+            # is not worth a traceback in a served page's log
+            self._json({"error": f"the choice could not be stored: {error}"},
+                       status=500)
+            return
+        self._json({"theme": stored})
 
     def _cancel(self, run_id: str) -> None:
         """Ask one run to stop, or say why not.

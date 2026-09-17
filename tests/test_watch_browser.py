@@ -275,6 +275,104 @@ def test_a_theme_changed_in_the_gui_reaches_an_open_page(browser, tmp_path,
     assert _rgb(after["calc"]) == _rgb(TOKENS["light"]["--plot-calc"])
 
 
+def test_the_reader_can_choose_a_theme_here_and_it_is_stored(browser,
+                                                             tmp_path,
+                                                             monkeypatch):
+    """WP-1429 made the GUI the one writer, and the person this page exists
+    for never opens it (WP-1438).
+
+    Measured on this machine: ``settings.json`` held ``light``, the watcher
+    obeyed it correctly, and there was nothing on the page that could change
+    it. The click is the whole verb — the chrome, the canvas and the file.
+    """
+    from rietx.viz import theme as theme_mod
+
+    state = tmp_path / "state"
+    state.mkdir()
+    monkeypatch.setenv(STATE_DIR_ENV, str(state))
+    (state / "settings.json").write_text(
+        json.dumps({"recent": ["/keep.rex"], "ui": {"theme": "light"}}),
+        encoding="utf-8")
+    watched = _make_tree(tmp_path, n_done=2)
+    with _served(tmp_path) as base:
+        run_id = next(r.run_id for r in runs.discover(tmp_path)
+                      if r.path == watched)
+        page, errors = _open(browser, base, run_id)
+        offered = page.evaluate(
+            "() => [...document.querySelectorAll('#theme button')].map("
+            "  b => [b.dataset.choice, b.textContent,"
+            "        b.getAttribute('aria-pressed')])")
+        page.click("#theme button[data-choice='dark']")
+        page.wait_for_timeout(600)
+        after = page.evaluate(THEME_STATE)
+        pressed = page.evaluate(
+            "() => [...document.querySelectorAll('#theme button')]"
+            ".filter(b => b.getAttribute('aria-pressed') === 'true')"
+            ".map(b => b.dataset.choice)")
+        page.close()
+    assert not errors, errors
+
+    # the three, in the module's order, wearing the module's glyphs
+    assert [c for c, _, _ in offered] == list(theme_mod.THEME_CHOICES)
+    assert [g for _, g, _ in offered] == [theme_mod.THEME_GLYPHS[c]
+                                          for c in theme_mod.THEME_CHOICES]
+    assert [c for c, _, on in offered if on == "true"] == ["light"]
+
+    # the chrome, and the canvas, which is the half a stylesheet cannot reach
+    assert after["stamped"] == "dark"
+    assert _rgb(after["page"]) == _rgb(TOKENS["dark"]["--bg"])
+    assert _rgb(after["calc"]) == _rgb(TOKENS["dark"]["--plot-calc"])
+    assert pressed == ["dark"]
+
+    # and the file, with the rest of it intact
+    assert theme_mod.theme_choice() == "dark"
+    stored = json.loads((state / "settings.json").read_text(encoding="utf-8"))
+    assert stored == {"recent": ["/keep.rex"], "ui": {"theme": "dark"}}
+
+
+def test_choosing_system_hands_the_question_back_to_the_browser(browser,
+                                                                tmp_path,
+                                                                monkeypatch):
+    """"Follow the system" is a choice, not the absence of one (WP-1029).
+
+    It stores ``system`` and takes the explicit stamp *off* the root, so the
+    ``prefers-color-scheme`` block in ``tokens.css`` answers — which no server
+    can do, not being able to see the machine the page is open on.
+    """
+    from rietx.viz import theme as theme_mod
+
+    state = tmp_path / "state"
+    state.mkdir()
+    monkeypatch.setenv(STATE_DIR_ENV, str(state))
+    (state / "settings.json").write_text(
+        json.dumps({"ui": {"theme": "light"}}), encoding="utf-8")
+    watched = _make_tree(tmp_path, n_done=2)
+    with _served(tmp_path) as base:
+        run_id = next(r.run_id for r in runs.discover(tmp_path)
+                      if r.path == watched)
+        page = browser.new_page(viewport={"width": 1400, "height": 900},
+                                color_scheme="dark")
+        errors: list[str] = []
+        page.on("pageerror", lambda e: errors.append(str(e)))
+        page.goto(f"{base}/#/run/{run_id}", wait_until="networkidle")
+        page.wait_for_function("() => document.getElementById('plot') && "
+                               "document.getElementById('plot')._fullLayout",
+                               timeout=15000)
+        page.wait_for_timeout(500)
+        light = page.evaluate(THEME_STATE)
+        page.click("#theme button[data-choice='system']")
+        page.wait_for_timeout(600)
+        followed = page.evaluate(THEME_STATE)
+        page.close()
+    assert not errors, errors
+    assert light["stamped"] == "light"
+    assert _rgb(light["page"]) == _rgb(TOKENS["light"]["--bg"])
+    # no stamp, and the browser's own dark answers
+    assert followed["stamped"] is None
+    assert _rgb(followed["page"]) == _rgb(TOKENS["dark"]["--bg"])
+    assert theme_mod.theme_choice() == "system"
+
+
 TICK_COLOURS = """() => {
   const d = document.getElementById('plot')._fullData;
   return Object.fromEntries(d.filter(t => t.name.startsWith('hkl:'))
@@ -662,6 +760,156 @@ def test_a_drag_moves_the_seam_and_the_picture_follows_it(browser, tmp_path):
     # ...and the stored size is still the reader's, so the wide window gives it
     # back rather than keeping what a narrow one could afford
     assert back["list"] == pytest.approx(reloaded["list"], abs=2)
+
+
+STACK = """() => {
+  const r = el => { const b = el.getBoundingClientRect();
+                    return [Math.round(b.width), Math.round(b.height)]; };
+  const grip = document.getElementById('grip-list');
+  const body = document.body;
+  return {
+    stacked: getComputedStyle(document.documentElement)
+      .getPropertyValue('--stacked').trim(),
+    flow: getComputedStyle(document.getElementById('main')).flexDirection,
+    runs: r(document.getElementById('runs')),
+    run: r(document.getElementById('run')),
+    grip: r(grip),
+    orientation: grip.getAttribute('aria-orientation'),
+    cursor: getComputedStyle(grip).cursor,
+    overflow: [document.documentElement.scrollWidth,
+               document.documentElement.clientWidth],
+    listVar: body.style.getPropertyValue('--list'),
+    listHVar: body.style.getPropertyValue('--list-h'),
+    stored: JSON.parse(localStorage.getItem('rietx-watch-layout') || '{}'),
+  };
+}"""
+
+
+def test_a_window_too_narrow_for_two_panes_stacks_them(browser, tmp_path):
+    """Measured at 420 px before this: the list kept its declared 80ch =
+    578 px, the run pane came out **0 px wide**, and the document scrolled to
+    1283 px against a 420 px window (WP-1438).
+
+    The seam could not have saved it. 71ch of columns is 513 px at this font,
+    plus the pane's 1 px border, the grip's 5 and the 340 px of picture the
+    run pane keeps — 859 px, below which the two panes cannot both meet their
+    floors however the seam is dragged. So below it they stack, and the same
+    seam sizes the list's height instead of its width.
+    """
+    watched = _make_tree(tmp_path, n_done=6)
+    with _served(tmp_path) as base:
+        run_id = next(r.run_id for r in runs.discover(tmp_path)
+                      if r.path == watched)
+        page, errors = _open(browser, base, run_id)
+        wide = page.evaluate(STACK)
+        page.set_viewport_size({"width": 500, "height": 900})
+        page.wait_for_timeout(700)
+        narrow = page.evaluate(STACK)
+        page.set_viewport_size({"width": 1400, "height": 900})
+        page.wait_for_timeout(700)
+        back = page.evaluate(STACK)
+        page.close()
+    assert not errors, errors
+
+    assert wide["stacked"] == "0" and wide["flow"] == "row"
+    assert narrow["stacked"] == "1" and narrow["flow"] == "column"
+    # both panes get the whole width, and neither is nothing
+    assert narrow["runs"][0] == 500 and narrow["run"][0] == 500
+    assert narrow["runs"][1] > 80 and narrow["run"][1] > 200
+    # the defect itself: no horizontal scroll at any width
+    assert narrow["overflow"][0] == narrow["overflow"][1] == 500
+    # the separator turned with the panes
+    assert narrow["orientation"] == "horizontal"
+    assert narrow["cursor"] == "row-resize"
+    assert narrow["grip"][0] == 500
+    # and the arrangement is not a one-way door
+    assert back["stacked"] == "0" and back["flow"] == "row"
+    assert back["orientation"] == "vertical"
+
+
+def test_a_seam_dragged_stacked_does_not_move_the_wide_one(browser, tmp_path):
+    """A px width is not a px height, so the two arrangements store two
+    numbers (WP-1438; Chrome DevTools keeps a setting per orientation for the
+    same reason). One number for both would hand the reader a pane they never
+    asked for the moment the window turns.
+    """
+    watched = _make_tree(tmp_path, n_done=6)
+    with _served(tmp_path) as base:
+        run_id = next(r.run_id for r in runs.discover(tmp_path)
+                      if r.path == watched)
+        page, errors = _open(browser, base, run_id)
+        _drag(page, "#grip-list", -120, 0)          # a width, side by side
+        wide = page.evaluate(STACK)
+
+        page.set_viewport_size({"width": 500, "height": 900})
+        page.wait_for_timeout(700)
+        _drag(page, "#grip-list", 0, 90)            # a height, stacked
+        stacked = page.evaluate(STACK)
+
+        page.set_viewport_size({"width": 1400, "height": 900})
+        page.wait_for_timeout(700)
+        back = page.evaluate(STACK)
+        page.close()
+    assert not errors, errors
+
+    chosen_width = wide["runs"][0]
+    assert chosen_width < 560, "the wide drag did not narrow the list"
+    chosen_height = stacked["runs"][1]
+    assert chosen_height > 200, "the stacked drag did not grow the list"
+    # two fields, and the stacked drag left the first alone
+    assert stacked["stored"]["list"]["size"] == wide["stored"]["list"]["size"]
+    assert stacked["stored"]["list"]["stackedSize"] is not None
+    assert stacked["stored"]["list"]["stackedSize"] != \
+        stacked["stored"]["list"]["size"]
+    # and coming back is the width that was chosen, not the height
+    assert back["runs"][0] == chosen_width
+
+
+def test_a_phone_width_list_sheds_columns_before_it_sheds_the_name(browser,
+                                                                   tmp_path):
+    """Stacked at 500 px every name read `5…` (WP-1438).
+
+    The six declared columns are 66ch = 477 px at this font and the run
+    column is what is left, so the one thing a reader picks a run by is the
+    one thing the table drops. Below 563 px the stage and the start time go
+    instead — the two the page answers elsewhere, the strip naming the stage
+    and the list's own order carrying the time.
+
+    The assertion is per column and not a count, because the mechanism that
+    fails here fails *silently*: `display:none` on the cells shifts every
+    later one a place left into the colgroup, so Rwp inherited the zeroed
+    width while the launch button took GoF's 9ch and the table still had the
+    right number of visible cells.
+    """
+    watched = _make_tree(tmp_path, n_done=6)
+    with _served(tmp_path) as base:
+        run_id = next(r.run_id for r in runs.discover(tmp_path)
+                      if r.path == watched)
+        page, errors = _open(browser, base, run_id)
+        page.set_viewport_size({"width": 380, "height": 900})
+        page.wait_for_timeout(700)
+        cells = page.evaluate(
+            "() => [...document.querySelectorAll('#rows tr')][0]"
+            ".querySelectorAll('td')"
+            " && [...[...document.querySelectorAll('#rows tr')][0].cells]"
+            ".map(td => [td.textContent.trim(),"
+            "            Math.round(td.getBoundingClientRect().width)])")
+        page.close()
+    assert not errors, errors
+
+    widths = [w for _, w in cells]
+    text = [t for t, _ in cells]
+    # state, run, (stage), Rwp, GoF, (started), gui — seven cells, two at zero
+    assert len(cells) == 7, cells
+    assert widths[2] == 0 and widths[5] == 0, cells
+    for i in (0, 1, 3, 4, 6):
+        assert widths[i] > 20, (i, cells)
+    # the values are still in their own columns: Rwp is a percentage and GoF
+    # is not, which is what the shift got wrong
+    assert text[3].endswith("%"), cells
+    assert text[4] and not text[4].endswith("%"), cells
+    # and the name has room to be a name
+    assert widths[1] > 60, cells
 
 
 def test_a_drag_stops_at_the_floor_the_columns_set(browser, tmp_path):
@@ -1123,6 +1371,96 @@ SPANS = """() => {
 #: anything in between is this machine having a bad day and anything above it
 #: is the cap gone.
 LONG_TASK_CEILING_MS = 300
+
+
+def _boot_traffic(browser, url: str):
+    """Load `url` and return the ordered network log of the boot.
+
+    Each entry is ``("req"|"res", path)`` in the order the browser issued or
+    received it, which is what these two tests are about: not how long the
+    boot took on this machine, but what waited for what.
+    """
+    page = browser.new_page(viewport={"width": 1400, "height": 900})
+    errors: list[str] = []
+    traffic: list[tuple[str, str]] = []
+    page.on("pageerror", lambda e: errors.append(str(e)))
+    page.on("request", lambda r: traffic.append(("req", r.url.split("/", 3)[-1])))
+    page.on("response", lambda r: traffic.append(("res", r.url.split("/", 3)[-1])))
+    page.goto(url, wait_until="networkidle")
+    page.wait_for_timeout(300)
+    return page, errors, traffic
+
+
+def test_the_log_is_asked_for_before_the_walk_answers(browser, tmp_path):
+    """The console comes back with the page, not a beat after it (WP-1438).
+
+    Measured on a reload with a run pinned: the list and the picture were
+    drawn at 107 ms with the console still empty, and it filled at 248 ms —
+    the log's fetch was third in a chain of three, behind a boot walk and
+    then the first poll's walk. A run named in the URL is known before
+    anything is fetched, so its log is asked for beside the walk instead.
+
+    Asserted as an ordering rather than a duration: a threshold in
+    milliseconds would be a measurement of the machine.
+    """
+    watched = _make_tree(tmp_path, n_done=3)
+    with _served(tmp_path) as base:
+        page, errors, traffic = _boot_traffic(
+            browser, f"{base}/#/run/{runs.read_run(watched).run_id}")
+        page.close()
+    assert not errors, errors
+    events_req = next(i for i, (kind, path) in enumerate(traffic)
+                      if kind == "req" and "/events" in path)
+    runs_res = next(i for i, (kind, path) in enumerate(traffic)
+                    if kind == "res" and path.endswith("api/runs"))
+    assert events_req < runs_res, (
+        "the log waited for the walk to answer:\n"
+        + "\n".join(f"  {k} {v}" for k, v in traffic))
+
+
+def test_the_boot_walks_the_directory_once(browser, tmp_path):
+    """The page's constants rode on a fetch of their own, and needed none.
+
+    `api/runs` carries `single_run_id`, `can_cancel` and `can_open_gui` on
+    every poll, so asking for them separately was the same request twice
+    about 85 ms apart — with the log queued behind both.
+    """
+    watched = _make_tree(tmp_path, n_done=3)
+    with _served(tmp_path) as base:
+        page, errors, traffic = _boot_traffic(
+            browser, f"{base}/#/run/{runs.read_run(watched).run_id}")
+        page.close()
+    assert not errors, errors
+    walks = [path for kind, path in traffic
+             if kind == "req" and path.endswith("api/runs")]
+    assert len(walks) == 1, walks
+
+
+def test_two_readers_of_one_log_do_not_append_it_twice(browser, tmp_path):
+    """The boot's fetch and the walk's fetch are the same tail (WP-1438).
+
+    Both take `tail.offset`, so two in flight would append the same lines
+    twice and the reader would meet a doubled log. They are serialised, and
+    the second finds the offset the first moved.
+    """
+    watched = tmp_path / "run"
+    watched.mkdir()
+    lines = [json.dumps({"record": "event", "v": "2", "t": 1.0 + i,
+                         "kind": "iteration", "data": {"i": i}})
+             for i in range(60)]
+    (watched / runs.EVENTS_FILE).write_text("\n".join(lines) + "\n",
+                                            encoding="utf-8")
+    with _served(tmp_path) as base:
+        page, errors = _open_list(browser, base)
+        page.wait_for_timeout(1500)     # a poll beyond the boot
+        drawn = page.evaluate(
+            "() => [...document.querySelectorAll('#console .line')]"
+            ".filter(el => !el.classList.contains('gap'))"
+            ".map(el => el.textContent)")
+        page.close()
+    assert not errors, errors
+    assert len(drawn) == 60, len(drawn)
+    assert len(set(drawn)) == 60, "a line was appended twice"
 
 
 def test_opening_a_long_log_does_not_freeze_the_page(browser, tmp_path):

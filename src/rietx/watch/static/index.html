@@ -9,6 +9,7 @@
   <span id="root"></span>
   <button id="toggle-run" aria-pressed="false"
           title="hide the run, and give the list the window">full list</button>
+  <div id="theme" class="segmented" role="group" aria-label="theme"></div>
 </div>
 <div id="main">
   <aside id="runs">
@@ -17,8 +18,10 @@
       <col class="c-gof"><col class="c-started"><col class="c-gui">
     </colgroup><thead><tr>
       <th scope="col">state</th><th scope="col">run</th>
-      <th scope="col">stage</th><th scope="col" class="num">Rwp</th>
-      <th scope="col" class="num">GoF</th><th scope="col">started</th>
+      <th scope="col" class="c-stage">stage</th>
+      <th scope="col" class="num">Rwp</th>
+      <th scope="col" class="num">GoF</th>
+      <th scope="col" class="c-started">started</th>
       <th scope="col">gui</th>
     </tr></thead><tbody id="rows"></tbody></table>
     <div id="empty" hidden>No runs under this directory. A run is a directory

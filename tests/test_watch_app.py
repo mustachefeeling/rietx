@@ -66,6 +66,19 @@ def _post(url: str, headers: dict | None = None):
         return err.code, json.loads(err.read().decode("utf-8"))
 
 
+def _post_json(url: str, payload):
+    """POST a JSON body, and give back ``(status, answer)`` either way."""
+    body = json.dumps(payload).encode("utf-8")
+    request = urllib.request.Request(
+        url, method="POST", data=body,
+        headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(request, timeout=5) as response:
+            return response.status, json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as err:
+        return err.code, json.loads(err.read().decode("utf-8"))
+
+
 def _event_line(kind: str, t: float = 1.0, **data) -> str:
     return json.dumps({"record": "event", "v": "2", "t": t, "kind": kind,
                        "data": data}) + "\n"
@@ -1080,12 +1093,18 @@ def test_the_payload_carries_what_the_page_cannot_know(tmp_path, monkeypatch):
     both themes, so a light page drew its tick rows in the dark set.
     """
     from rietx._about import DIST_NAME, PROJECT_SUFFIX
+    from rietx.viz import theme as theme_mod
 
     monkeypatch.setenv(STATE_DIR_ENV, str(tmp_path / "state"))
     with _served(tmp_path) as base:
         page = _json(base + "/api/runs")["page"]
-    assert page == {"suffix": PROJECT_SUFFIX, "dist": DIST_NAME,
-                    "theme": "system"}
+    assert page == {
+        "suffix": PROJECT_SUFFIX, "dist": DIST_NAME, "theme": "system",
+        # the control's three, glyph and sentence, so the page draws the
+        # GUI's and not a second copy of them (WP-1438)
+        "themes": [{"choice": c, "glyph": theme_mod.THEME_GLYPHS[c],
+                    "title": theme_mod.THEME_TITLES[c]}
+                   for c in theme_mod.THEME_CHOICES]}
     # and no token survived the move into the files
     for name in watch.STATIC_FILES:
         text = (watch.STATIC_DIR / name).read_text(encoding="utf-8")
@@ -1376,3 +1395,106 @@ def test_the_two_local_servers_allow_the_same_hosts():
     from rietx.gui import server as gui_server
 
     assert watch._ALLOWED_HOSTS == gui_server._ALLOWED_HOSTS
+
+
+# ----------------------------------------------------------------------
+# the theme is settable from here too (WP-1438)
+# ----------------------------------------------------------------------
+def test_a_choice_is_stored_and_read_back_through_one_function(monkeypatch,
+                                                               tmp_path):
+    """WP-1429 made the GUI the one writer, and the consequence was measured
+    on this machine: ``settings.json`` held ``light``, and a person running a
+    fit from a script and watching it here had no way to change it without
+    opening an application they were not using.
+    """
+    from rietx.viz import theme as theme_mod
+
+    monkeypatch.setenv(STATE_DIR_ENV, str(tmp_path / "state"))
+    assert theme_mod.theme_choice() == "system"
+    for choice in theme_mod.THEME_CHOICES:
+        assert theme_mod.set_theme_choice(choice) == choice
+        assert theme_mod.theme_choice() == choice
+
+
+def test_a_theme_that_does_not_exist_is_refused_rather_than_stored(monkeypatch,
+                                                                   tmp_path):
+    """A read repairs somebody's file; a write performs somebody's verb.
+
+    Storing it would leave ``settings.json`` saying something every reader
+    turns back into ``system``.
+    """
+    from rietx.viz import theme as theme_mod
+
+    monkeypatch.setenv(STATE_DIR_ENV, str(tmp_path / "state"))
+    theme_mod.set_theme_choice("dark")
+    with pytest.raises(ValueError, match="not a theme"):
+        theme_mod.set_theme_choice("neon")
+    assert theme_mod.theme_choice() == "dark"
+
+
+def test_the_rest_of_the_settings_file_survives_a_theme(monkeypatch, tmp_path):
+    """The recent list is in there, and this module knows nothing about it."""
+    from rietx.viz import theme as theme_mod
+
+    state = tmp_path / "state"
+    state.mkdir()
+    monkeypatch.setenv(STATE_DIR_ENV, str(state))
+    (state / "settings.json").write_text(json.dumps(
+        {"recent": ["/a.rex", "/b.rex"],
+         "ui": {"theme": "light", "simple": True}}), encoding="utf-8")
+    theme_mod.set_theme_choice("dark")
+    stored = json.loads((state / "settings.json").read_text(encoding="utf-8"))
+    assert stored == {"recent": ["/a.rex", "/b.rex"],
+                      "ui": {"theme": "dark", "simple": True}}
+
+
+def test_an_unreadable_settings_file_is_replaced_rather_than_fatal(monkeypatch,
+                                                                   tmp_path):
+    """The grounds :func:`theme_choice` answers ``system`` for one, the other
+    way round: refusing to record a preference because of an unrelated
+    corruption is the worse failure.
+    """
+    from rietx.viz import theme as theme_mod
+
+    state = tmp_path / "state"
+    state.mkdir()
+    monkeypatch.setenv(STATE_DIR_ENV, str(state))
+    (state / "settings.json").write_text("{not json", encoding="utf-8")
+    assert theme_mod.set_theme_choice("dark") == "dark"
+    assert theme_mod.theme_choice() == "dark"
+
+
+def test_the_route_stores_a_theme_and_says_what_it_stored(monkeypatch,
+                                                          tmp_path):
+    from rietx.viz import theme as theme_mod
+
+    monkeypatch.setenv(STATE_DIR_ENV, str(tmp_path / "state"))
+    with _served(tmp_path) as base:
+        status, answer = _post_json(base + "/api/theme", {"theme": "dark"})
+    assert (status, answer) == (200, {"theme": "dark"})
+    assert theme_mod.theme_choice() == "dark"
+
+
+def test_the_route_refuses_a_theme_that_is_not_one(monkeypatch, tmp_path):
+    monkeypatch.setenv(STATE_DIR_ENV, str(tmp_path / "state"))
+    with _served(tmp_path) as base:
+        bad, answer = _post_json(base + "/api/theme", {"theme": "neon"})
+        empty = _post_json(base + "/api/theme", {})[0]
+    assert bad == 400 and "not a theme" in answer["error"]
+    assert empty == 400
+
+
+def test_read_only_still_lets_the_reader_choose_a_theme(monkeypatch, tmp_path):
+    """``--read-only`` fences the *run*: no stop button, no GUI launch, which
+    is what its own message says. A theme is a fact about the reader and the
+    room they are in, it is stored in the reader's own state directory, and a
+    page that could not be made legible by the person reading it would be a
+    strange thing to call read-only.
+    """
+    from rietx.viz import theme as theme_mod
+
+    monkeypatch.setenv(STATE_DIR_ENV, str(tmp_path / "state"))
+    with _served(tmp_path, allow_cancel=False, allow_gui=False) as base:
+        status, answer = _post_json(base + "/api/theme", {"theme": "dark"})
+    assert (status, answer) == (200, {"theme": "dark"})
+    assert theme_mod.theme_choice() == "dark"
