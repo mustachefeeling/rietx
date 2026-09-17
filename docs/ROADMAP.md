@@ -652,7 +652,7 @@ carries is whether 1327's non-goal becomes a sequencing statement.
 #### A window into a run — the live-watcher track
 
 Seventeen rungs, 2026-09-13 to 2026-09-17. Closed: 1428 was the last of the
-track proper and 1436 answered the six questions it handed the maintainer.
+track proper and 1438 answered the six questions it handed the maintainer.
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|

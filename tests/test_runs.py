@@ -591,7 +591,10 @@ def test_a_cold_open_starts_at_the_end_of_a_long_log(tmp_path):
 
     assert [e["data"]["i"] for e in cold.events] == list(range(4990, 5000))
     assert cold.offset == whole.offset == log.stat().st_size
-    assert 0 < cold.skipped_bytes < cold.offset
+    # the whole file bar the window it read, and not — as a first draft of this
+    # had it — the length of the partial line the seek landed in
+    assert cold.skipped_bytes > log.stat().st_size - 4096 - 200
+    assert cold.skipped_bytes < log.stat().st_size
     # the seek lands mid-line and that line is dropped, never half-parsed
     assert cold.bad_lines == 0
 

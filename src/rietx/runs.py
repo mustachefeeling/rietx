@@ -898,6 +898,7 @@ def tail_events(path: str | Path, offset: int = 0, *, inode: int | None = None,
     if inode is not None and inode != stat.st_ino:
         reset = True                      # replaced under us
     start = 0 if reset else max(0, int(offset))
+    asked = start
     if from_end:
         start = max(0, stat.st_size - max_bytes)
 
@@ -909,7 +910,6 @@ def tail_events(path: str | Path, offset: int = 0, *, inode: int | None = None,
         return EventTail([], offset, stat.st_ino, reset=reset,
                          size=stat.st_size)
 
-    asked = start
     if from_end and start:
         # seeking lands mid-line, and half an event is not an event. The
         # trailing fragment is carried forward by the offset below; this one

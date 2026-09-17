@@ -347,6 +347,16 @@ const COLORS = ["#1f5fa8","#c23b22","#2e8b57","#8a5cc4","#c98a17","#0f8f9c",
 // read at use, not held: a token is whatever the root element says it is now
 const tok = (name) => getComputedStyle(document.documentElement)
   .getPropertyValue(name).trim();
+// One colour per phase, the same four the GUI, `rietx watch` and every figure
+// draw a tick row in (WP-1438, `viz/theme.py`). They used to be an offset into
+// COLORS above — a *variant's* colour lent to a phase, so the row a phase owned
+// moved when a variant was ticked. A single phase takes the observed neutral,
+// colour being for telling rows apart.
+const phaseInk = (i, count) => {
+  if (count <= 1) return tok('--plot-obs');
+  const phase = [0, 1, 2, 3].map(n => tok('--phase-' + n)).filter(Boolean);
+  return phase.length ? phase[i % phase.length] : tok('--plot-obs');
+};
 let CATALOG = null, RECORDS = {}, POLL = null;
 
 const $ = (id) => document.getElementById(id);
@@ -516,7 +526,7 @@ function draw() {
       fit.push({x: anyRec.ticks[phase], y: anyRec.ticks[phase].map(() => y),
                 type: 'scattergl', mode: 'markers', name: phase,
                 marker: {symbol: 'line-ns-open', size: 7, line: {width: 1},
-                         color: COLORS[(i + 4) % COLORS.length]},
+                         color: phaseInk(i, phases.length)},
                 hovertemplate: phase + ' %{x:.3f}°<extra></extra>'});
     });
   }
