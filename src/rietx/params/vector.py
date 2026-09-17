@@ -297,8 +297,8 @@ CELL_MIN_LENGTH_A = 1.5
 #: ends up walking it can be the one with the real, undiminished scale — its
 #: own modelled contribution never drops below
 #: :data:`~rietx.model.forward.PHASE_SUPPORT_SIGMA`, so neither the window
-#: nor the hold ever applies to it.  Measured (the SFO production run,
-#: 2026-09-17): a synthetic two-phase LaB6 pattern, one copy at full scale
+#: nor the hold ever applies to it.  Measured (a multi-phase in-situ
+#: series, 2026-09-17): a synthetic two-phase LaB6 pattern, one copy at full scale
 #: and a second at a 2 % trace with the *same* starting cell, freeing scale
 #: and cell together in one stage — the fully-supported phase's own cell
 #: (not the trace phase's) ran 4.1566 -> 3803 Å in twenty TRF iterations of
