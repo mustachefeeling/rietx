@@ -103,13 +103,13 @@ which is why this class was unguarded.
 
 ## Tasks
 
-- [ ] Correct `help.py:205-217` (`instrument.polarization`): the factor becomes
+- [x] Correct `help.py:205-217` (`instrument.polarization`): the factor becomes
       `K + (1 − K)·cos²2θ`, the monochromator prescription becomes
       `K = 1/(1 + cos²2θ_m)` quoting 0.556 for graphite (002) at Cu. Reuse the
       wording already correct at `schemas/instrument.py:1762-1766` and
       `docs/manual/corrections.md:30`.
-- [ ] Correct `help.py:1342-1352` (`monochromator_two_theta`), same root cause.
-- [ ] `docs/manual/intensities.md:104` — the third site of the same `K`
+- [x] Correct `help.py:1342-1352` (`monochromator_two_theta`), same root cause.
+- [x] `docs/manual/intensities.md:104` — the third site of the same `K`
       confusion. It says "an unpolarised neutron beam sets $K = 1$", where
       `corrections.py:17` defines K as the σ-polarised *fraction* with K = 0.5
       unpolarised. The arithmetic is right, since K = 1 gives the bare Lorentz
@@ -123,7 +123,7 @@ which is why this class was unguarded.
       finding.
 - [ ] Pin the three numeric thresholds against their live constants, as a
       fourth `*_are_the_schemas_own` member in `tests/test_help.py`.
-- [ ] A review rule in `help.py`'s module docstring: a description that states
+- [x] A review rule in `help.py`'s module docstring: a description that states
       a formula or a threshold names where the real one lives.
 - [ ] Check whether the agent skill restates the polarisation factor; re-sync
       the two committed copies with `rietx skill --install . --copy` if it does.
