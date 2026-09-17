@@ -177,6 +177,11 @@ _INHERITED_PRUNE_EPOCH = "2026-07-31"
 #                                                          nothing else. The sentence naming them in § What
 #                                                          fires replaced one 1310 already had, so the
 #                                                          narrative paid for itself; landed 719, no headroom
+#   2026-09-17  docs/ROADMAP.md               719 -> 722  for WP-1436 and WP-1437, opened by the notation
+#                                                          audit a LinkedIn comment started: two index rows
+#                                                          under § The repo's own process, no narrative at
+#                                                          all, since both WP files carry their own. Landed
+#                                                          720, +2 headroom
 SIZE_CAPS: dict[str, int | None] = {
     # 739 -> 755 (WP-1102): two standing rules for the component seam — that an
     # additive non-Bragg term is a union *member* and not a new field, and that
@@ -273,13 +278,25 @@ SIZE_CAPS: dict[str, int | None] = {
     # readers that had open-coded one each, and a GUI command that was `None`
     # for every run a project records. The torn-copy measurement that sized
     # the risk stayed in the WP file, per rule 4.
-    # 871 -> 874 (WP-1438): the per-stage charge clause gains its *answer*.
+    # 871 -> 882 (WP-1309, merged beside 1428 rather than after it): two more
+    # standing rules, neither of them about measured backgrounds. An absorption
+    # screen anchors its targets at `phases.`, because a parameter of the block
+    # it screens against is *in* the span and scores R² = 1.00 about itself,
+    # which governs any future member of either block. And a parameter family
+    # has a second consumer that no pytest sees, the GUI's per-family print
+    # format, which governs every parameter anyone adds. Both branches raised
+    # this cap from 866 at once, so the number here is the *merged* file's size
+    # plus headroom rather than either branch's arithmetic — which is the same
+    # rule `tests/CLAUDE.md` states for test counts across a merge.
+    # 882 -> 883 (WP-1438): the per-stage charge clause gains its *answer*.
     # WP-1413 measured the number and left the cadence to the maintainer, so
-    # the clause named a cost with no decision beside it; three lines say the
-    # decision, why a ratio is the wrong test on a sub-second fit, and what a
-    # throttle would be if the number ever moved. The other five answers this
-    # WP landed reach no rule outside their own subtree.
-    "CLAUDE.md": 874,
+    # the clause named a cost with no decision beside it; the lines added say
+    # the decision, why a ratio is the wrong test on a sub-second fit, and what
+    # a throttle would be if the number ever moved. The other five answers this
+    # WP landed reach no rule outside their own subtree. Measured on the merged
+    # file, per the paragraph above: this branch and 1309's both raised the cap
+    # from 871 and the two sets of lines do not sum.
+    "CLAUDE.md": 883,
     # 672 -> 676 (WP-1102): the Current focus rewrite at 1102's close names the
     # milestone's one break and what makes 1103 the seam's proving case.
     # 676 -> 682 (WP-1407): a new Unscheduled group, "The formats a lab still
@@ -314,11 +331,12 @@ SIZE_CAPS: dict[str, int | None] = {
     # Current focus naming #101 as closed, which is what a successor reads to
     # know the writers are all that is left of 1118.  Nothing is demotable, so
     # the cap moves rather than the fact.  Landed at 711, headroom +1.
-    # 719 -> 720 (WP-1438): one index row, for the WP that answered the six
-    # questions the watcher track left.  Current focus paid for itself — the
-    # list of open questions became the list of answers in the same eight
-    # lines — so the whole move is the row.
-    "docs/ROADMAP.md": 720,
+    # 719 -> 722 (WP-1438 over 1309's rows): one index row for the WP
+    # that answered the six questions the watcher track left.  Current focus
+    # paid for itself — the list of open questions became the list of answers
+    # in the same eight lines — so this branch's whole move is the row, and
+    # the number is the merged file's.
+    "docs/ROADMAP.md": 722,
     # 1036 -> 1053 (WP-1429): where the GUI's colour values live, now that
     # they are Python and this workspace's `tokens.css` is generated from
     # them. It governs work outside the WP that measured it — an edit to a

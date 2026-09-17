@@ -32,13 +32,70 @@ def chebyshev_background(two_theta: np.ndarray, coefficients: np.ndarray,
     return np.asarray(coefficients, dtype=np.float64) @ T
 
 
+#: How far past the ends of a fixed curve a fitted channel may sit before
+#: :func:`interpolate_fixed` refuses, as a multiple of the curve's own median
+#: step.  One step, because that is the width of the disagreement two scans of
+#: the same range can have and still be the same range: a blank ending at
+#: 49.995° under a specimen ending at 49.996° is a grid offset, and a blank
+#: ending at 50° under a specimen ending at 70° is twenty degrees of invention.
+#: Inside the slack the end value is carried, which is what ``np.interp`` did
+#: everywhere before WP-1309.
+FIXED_RANGE_SLACK_STEPS = 1.0
+
+
 def interpolate_fixed(two_theta: np.ndarray, fixed_tt: np.ndarray,
                       fixed_y: np.ndarray) -> np.ndarray:
-    """Fixed estimated background sampled onto the pattern grid (held, never
-    subtracted — it is added inside the model so weights stay correct)."""
-    return np.interp(np.asarray(two_theta, dtype=np.float64),
-                     np.asarray(fixed_tt, dtype=np.float64),
-                     np.asarray(fixed_y, dtype=np.float64))
+    """Fixed background curve sampled onto the pattern grid (held, never
+    subtracted — it is added inside the model so weights stay correct).
+
+    **A channel the curve does not cover is refused, not invented.**  Bare
+    ``np.interp`` clamps to the end values with no warning, so a blank measured
+    over 0.5-50° under a specimen scanned to 70° contributes a flat twenty
+    degrees of somebody else's counts and nothing says so.  The refusal is the
+    ``schemas.project.check_interval`` precedent: a range that does not cover
+    the question asked of it is the caller's to fix, by cropping the fit range
+    or by measuring a longer blank.  :data:`FIXED_RANGE_SLACK_STEPS` is the
+    tolerance, and it exists because two scans of the same nominal range
+    disagree at their ends by about one step.
+
+    Two shapes of curve are refused before the range is even asked about,
+    because for them ``ft[0]`` and ``ft[-1]`` are not the range and the guard
+    above would pass while ``np.interp`` clamped anyway.  A curve of fewer than
+    two points has no range at all: ``np.interp`` carries its single value flat
+    across the whole pattern, which is the clamp this function exists to
+    refuse.  An unsorted curve has a range its endpoints do not name, and
+    ``np.interp`` reads every channel off whichever neighbours happen to
+    bracket it in array order.  Equal abscissae are allowed — a repeated point
+    is a tie ``np.interp`` resolves, not a wrong range.
+    """
+    tt = np.asarray(two_theta, dtype=np.float64)
+    ft = np.asarray(fixed_tt, dtype=np.float64)
+    fy = np.asarray(fixed_y, dtype=np.float64)
+    if len(ft) < 2:
+        raise ValueError(
+            f"the fixed background curve has {len(ft)} point(s), so it has no "
+            "2θ range to interpolate over and every fitted channel would take "
+            "the same value; supply a curve that covers the fit")
+    if bool(np.any(np.diff(ft) < 0.0)):
+        raise ValueError(
+            "the fixed background curve's 2θ values decrease somewhere, so its "
+            "first and last points are not its range and each channel would be "
+            "read off whichever neighbours bracket it in array order; sort the "
+            "curve by 2θ")
+    if len(tt):
+        slack = FIXED_RANGE_SLACK_STEPS * float(np.median(np.diff(ft)))
+        lo, hi = float(ft[0]) - slack, float(ft[-1]) + slack
+        tt_lo, tt_hi = float(tt.min()), float(tt.max())
+        ends = ([] if tt_lo >= lo else ["below"]) + ([] if tt_hi <= hi else ["above"])
+        if ends:
+            raise ValueError(
+                f"the fixed background curve covers {ft[0]:.4f}-{ft[-1]:.4f}° "
+                f"2θ and the fit covers {tt_lo:.4f}-{tt_hi:.4f}°: "
+                f"{' and '.join(ends)} its range there is nothing to "
+                "interpolate, and carrying the end value would add counts the "
+                "curve never measured. Crop the fit range (two_theta_min/"
+                "two_theta_max) or supply a curve that covers it")
+    return np.interp(tt, ft, fy)
 
 
 def bspline_design_matrix(two_theta: np.ndarray, breakpoints: np.ndarray

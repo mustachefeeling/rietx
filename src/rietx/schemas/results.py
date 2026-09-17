@@ -1132,10 +1132,14 @@ class RefinementResult(Base):
         branches a modern result never takes.
 
         Normally this is a plain lookup rather than a computation, and that is
-        the point: ``CompiledModel.sigma`` *is* :meth:`PatternData.sig`, and
+        the point: ``CompiledModel.sigma`` is what the stage weighted by, and
         ``refine`` stores it here verbatim, so the esd-column/Poisson choice was
-        already made once at stage compile.  Two conditioning steps remain, both
-        for callers that are about to divide:
+        already made once at stage compile.  That is :meth:`PatternData.sig` for
+        every model but one — a background holding a measured curve with
+        ``fixed_sigma`` adds the curve's own counting statistics at compile
+        (σ² = σ_y² + s²·σ_f², WP-1309), so σ here is wider than the pattern's
+        own and is still the one a caller must divide by.  Two conditioning
+        steps remain, both for callers that are about to divide:
 
         * results recorded before v0.2 carry no σ at all, and get the same
           Poisson ``√max(y,1)`` fallback the fit itself would have used

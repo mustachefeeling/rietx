@@ -51,6 +51,7 @@ from rietx.params.vector import ParameterTable
 from rietx.schemas.common import Parameter
 from rietx.schemas.indexing import IndexingControls, ObservedPeak, PeakFlag
 from rietx.schemas.instrument import (
+    BackgroundFixedPlusChebyshev,
     BackgroundPSpline,
     EmissionLine,
     Geometry,
@@ -135,6 +136,11 @@ def _variant_models() -> list[tuple[Structure, Instrument]]:
     members are present rather than either, because ``fwhm`` is the one field
     name they share and its entry has to answer for both.
 
+    The third instrument is the ``fixed_plus_chebyshev`` member, which is here
+    for one path: its ``scale`` (WP-1309).  The other two members' coefficients
+    spell ``c*`` the same way, so before the scale existed this member declared
+    no family of its own and the corpus could not lose anything by omitting it.
+
     Every ``Parameter`` here sits at its schema default **except** the peak's
     ``center``, which has no usable default: finite bounds are what size its
     frozen window, so :class:`PeakComponent` refuses one without them.  The
@@ -161,6 +167,11 @@ def _variant_models() -> list[tuple[Structure, Instrument]]:
             geometry=Geometry(kind="bragg_brentano",
                               goniometer_radius_mm=217.5,
                               surface_roughness=RoughnessPitschke()))),
+        (structure, Instrument(
+            source=Source(lines=[EmissionLine(wavelength=1.540598)]),
+            background=BackgroundFixedPlusChebyshev(
+                fixed_two_theta=[10.0, 20.0, 30.0],
+                fixed_intensity=[120.0, 100.0, 95.0]))),
     ]
 
 
@@ -419,7 +430,9 @@ def test_the_plan_arm_is_plan_info_projected_not_restated():
 # ------------------------------------------------------ the schema-backed fields
 #: The three places a table path is not the schema's own field path: the source
 #: block's polarization flattens onto the instrument, a background coefficient
-#: is indexed as ``cN``, and an ADP component loses its ``aniso`` block.  Named
+#: is indexed as ``cN`` — from ``coefficients`` or from the fixed member's
+#: nested ``chebyshev.coefficients``, which is one design row either way — and
+#: an ADP component loses its ``aniso`` block.  Named
 #: rather than skipped, and :func:`_schema_parameters` asserts the map is
 #: exhaustive, so a fourth renaming fails here instead of quietly dropping a
 #: parameter out of the unit and default checks.  That guard has already earned
@@ -428,7 +441,7 @@ _PATH_RENAMES = {
     "instrument.source.polarization": "instrument.polarization",
     "instrument.background.air_scatter": "instrument.background.air",
 }
-_COEFFICIENT = re.compile(r"^instrument\.background\.coefficients\.(\d+)$")
+_COEFFICIENT = re.compile(r"^instrument\.background\.(?:chebyshev\.)?coefficients\.(\d+)$")
 _ANISO = re.compile(r"^(phases\.\d+\.atoms\.\d+)\.aniso\.(u\d\d)$")
 
 

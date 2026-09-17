@@ -461,6 +461,28 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
                 "order of the observed background counts",
         anchor="background.html#choosing-the-flexibility",
     ),
+    "instrument.background.scale": HelpEntry(
+        title="Measured-background scale",
+        description=(
+            "Multiplies the fixed curve the `fixed_plus_chebyshev` background "
+            "holds, y_bkg = Σ c_n T_n(x) + s·f(2θ). It is TOPAS's "
+            "`bkg_file(\"f.xy\", @, s)` against its `bkg_file(\"f.xy\")`, and "
+            "the number is comparable to TOPAS's digit for digit because it "
+            "scales the curve as stored. Hold it at 1 for an estimated "
+            "baseline, which has no scale to get wrong. Free it for a measured "
+            "blank, which is never on the specimen's scale: the two scans "
+            "differ in monitor normalisation and counting time, and the "
+            "specimen attenuates the container's own scattering. The "
+            "polynomial on top cannot do this job, because it is additive and "
+            "the error is multiplicative. Free it against a low-order "
+            "polynomial only, and read `HIGH_CORRELATION` against c0 as the "
+            "expected report rather than as a failure."
+        ),
+        unit=None, default="1.0",
+        typical="1 for an estimated baseline; within a few tens of a percent "
+                "of 1 for a measured blank",
+        anchor="background.html#a-measured-background",
+    ),
     "instrument.background.air": HelpEntry(
         title="Air-scatter term",
         description=(

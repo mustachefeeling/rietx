@@ -17,9 +17,17 @@ fixed estimated baseline.  Both use the same two ingredients:
   direction).
 
 The selected order is the BIC minimiser among the scanned candidates.
+
+A declared fixed curve (a measured blank, an estimated baseline) is passed to
+:func:`select_chebyshev_order` as ``fixed``, because the order worth choosing is
+the order of the *remainder*.  :func:`select_arpls_lambda` takes no such
+argument on purpose: it chooses how stiffly to **estimate** a baseline, which is
+the question somebody with a measured one has already answered.
 """
 
 from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 import numpy as np
 from pydantic import Field
@@ -27,7 +35,10 @@ from pydantic import Field
 from ..schemas.common import Base
 from ..schemas.pattern import PatternData
 from .estimators import arpls
-from .models import chebyshev_design_matrix
+from .models import chebyshev_design_matrix, interpolate_fixed
+
+if TYPE_CHECKING:  # a declared curve the chosen order sits on top of
+    from ..schemas.instrument import BackgroundFixedPlusChebyshev
 
 
 class CandidateScore(Base):
@@ -63,8 +74,38 @@ def _durbin_watson(r: np.ndarray) -> float:
 
 def select_chebyshev_order(data: PatternData, *, max_order: int = 16,
                            dw_stop: float = 1.8,
-                           baseline_lambda: float = 1e7) -> BackgroundSelection:
-    """Pick the Chebyshev background order by masked-channel BIC + DW stop."""
+                           baseline_lambda: float = 1e7,
+                           fixed: "BackgroundFixedPlusChebyshev | None" = None
+                           ) -> BackgroundSelection:
+    """Pick the Chebyshev background order by masked-channel BIC + DW stop.
+
+    ``fixed`` is a declared measured or estimated curve the polynomial sits on
+    top of, and it changes the question: the order being chosen is the order of
+    what the curve does **not** describe.  Without it the scan measures the
+    curve's own shape as though the polynomial had to reproduce it, and picks
+    the flexibility to do so — which is the opposite of why anybody measured a
+    blank (WP-1309, issue #171 note 4).
+
+    How it enters follows the fit rather than approximating it.  A **held**
+    scale is a known additive curve, so it comes off the data and costs no
+    parameter.  A **free** scale is one more direction, so it joins the design
+    and counts in the BIC's k — leaving it out of k would credit the fit with a
+    degree of freedom it spent, and the two are not the same scan.
+
+    **Read the scan within one setting of ``fixed``, never across two.**  A held
+    scale changes the response variable, so its RSS carries the curve's own
+    counting noise and its BIC cannot be compared with a scan that kept y whole.
+    What is comparable is the *order*, and the order is the point: measured on
+    the synthetic fixture of ``tests/test_background_measured.py``, a blind scan
+    runs to 12 terms chasing a halo, while the same pattern with the curve held
+    at its true scale selects **2** and gets worse with every term after.
+
+    A free scale with a high ``max_order`` is the case to be careful with, and
+    the care is a low ``max_order`` rather than a guard.  The polynomial and the
+    curve are not orthogonal, so given enough terms the scan will dial the
+    measured curve away and describe the same shape itself — BIC prefers it, and
+    the scale that comes back is then a number about the polynomial.
+    """
     mask = data.in_range_mask()
     tt, y, sigma = data.tt()[mask], data.y()[mask], data.sig()[mask]
     keep = peak_mask(tt, y, sigma, baseline_lambda=baseline_lambda)
@@ -73,16 +114,27 @@ def select_chebyshev_order(data: PatternData, *, max_order: int = 16,
     if m < max_order * 4:
         raise ValueError(f"only {m} background channels — pattern is nearly all peak")
 
+    curve = free_scale = None
+    if fixed is not None:
+        curve = interpolate_fixed(tt_m, np.asarray(fixed.fixed_two_theta),
+                                  np.asarray(fixed.fixed_intensity))
+        free_scale = bool(fixed.scale.vary)
+        if not free_scale:
+            y_m = y_m - float(fixed.scale.value) * curve
+
     design_full = chebyshev_design_matrix(tt_m, max_order, float(tt[0]), float(tt[-1]))
     w = 1.0 / s_m
     scores: list[CandidateScore] = []
     stopped = False
     for n in range(2, max_order + 1):
-        A = (design_full[:n] * w).T
+        rows = design_full[:n]
+        if free_scale:
+            rows = np.vstack([rows, curve[None, :]])
+        A = (rows * w).T
         coef, *_ = np.linalg.lstsq(A, y_m * w, rcond=None)
         r = y_m * w - A @ coef
         scores.append(CandidateScore(
-            complexity=float(n), bic=_bic(float(r @ r), m, n),
+            complexity=float(n), bic=_bic(float(r @ r), m, len(rows)),
             durbin_watson=_durbin_watson(r)))
         if scores[-1].durbin_watson >= dw_stop:
             stopped = True

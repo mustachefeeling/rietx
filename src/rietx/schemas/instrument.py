@@ -14,11 +14,14 @@ symmetric-transmission absorption factor).
 from __future__ import annotations
 
 import math
-from typing import Any, ClassVar, Literal
+from typing import TYPE_CHECKING, Any, ClassVar, Literal
 
 from pydantic import Field, field_validator, model_validator
 
 from .common import Base, Parameter
+
+if TYPE_CHECKING:  # the blank a measured background is built from
+    from .pattern import PatternData
 
 #: Å.  Strictly positive floor for a wavelength :class:`Parameter`.  λ reaches
 #: the model only through sin θ = λ/2d, so λ ≤ 0 puts every reflection at
@@ -1006,23 +1009,134 @@ class BackgroundPSpline(Base):
 
 
 class BackgroundFixedPlusChebyshev(Base):
-    """A fixed estimated curve (never subtracted; held additively) plus a
-    small refinable Chebyshev correction on top.
+    """A fixed curve (never subtracted; held additively) plus a small refinable
+    Chebyshev correction on top, and a scale on the curve itself.
 
-    The fixed curve typically comes from :func:`rietx.background.estimate`
-    (arPLS/SNIP).  Holding it inside the model keeps Poisson weights correct.
+    The curve is either an estimate — :func:`rietx.background.estimate`, arPLS
+    or SNIP — or a **measurement**: an empty vanadium can, a blank capillary, a
+    matrix-only scan, an empty furnace.  Holding it inside the model keeps the
+    Poisson weights correct where subtracting it would not.
+
+    ``scale`` is the multiplier the measured case needs, and it is TOPAS's
+    ``bkg_file("f.xy", @, s)`` against its ``bkg_file("f.xy")`` (Coelho,
+    *TOPAS-Academic Technical Reference*, v8).  The default is 1.0 held, which
+    is the second form, and it is what every project did before WP-1309.  A
+    blank is never on the specimen's scale: the two scans differ in monitor
+    normalisation and counting time, and the specimen attenuates the
+    container's own scattering.  The Chebyshev riding on top cannot absorb
+    that, because it is **additive** and the error is multiplicative — it can
+    move the level and never rescale the shape.  Quantitative phase analysis is
+    the workflow least tolerant of the difference, since what a wrong
+    background level biases is the phase scales and hence the weight fractions,
+    while Rwp improves.
+
+    The scale multiplies the curve **as stored**, so it reads as a physical
+    multiplier of :attr:`fixed_intensity` and is comparable to a TOPAS
+    ``bkg_file`` scale digit for digit.
+
+    ``fixed_sigma`` is the curve's own counting statistics, and what it buys is
+    that a short blank scan is honestly worse than a long one: the channel
+    weight becomes σ² + s²·σ_f² rather than σ² alone
+    (:func:`rietx.model.forward.compile_model`).  Two caveats, neither of them
+    solved by the field.  Interpolating a noisy curve onto the pattern grid
+    correlates neighbouring channels' errors, so the propagated σ is a lower
+    bound unless the curve is smoothed first, and smoothing is a modelling
+    choice that belongs in the record rather than in a sampler.  And one blank
+    reused across a series has fully correlated error rather than error that
+    averages down, so a refined scale that *trends* along a ramp is partly an
+    artefact of the single measurement.
+
+    **The physics a scalar cannot carry.**  The container's scattering reaches
+    the detector *through* the specimen in the sample run and through nothing
+    in the blank run, so the exact multiplier is angle-dependent — of the order
+    of the specimen transmission :mod:`rietx.model.absorption` already computes
+    for cylinders.  A constant scale is the leading-order correction, and it is
+    correct per pattern rather than as one constant across a temperature or
+    atmosphere series.
+
+    ``fixed_source`` names where the curve came from, and is what separates a
+    measurement from an estimate for anything reading the model back: the CIF
+    export says "measured" only when it is set.
     """
 
     kind: Literal["fixed_plus_chebyshev"] = "fixed_plus_chebyshev"
     fixed_two_theta: list[float]
     fixed_intensity: list[float]
+    #: The curve's own esds, channel for channel, or ``None`` for a curve with
+    #: no statistics to propagate (every estimator's output, and a blank whose
+    #: file carried no esd column).  ``None`` is no claim made rather than a
+    #: claim of no error, which is why it is not a list of zeros.
+    fixed_sigma: list[float] | None = None
+    #: Where the curve came from, free text — a file name, a run number, an
+    #: estimator and its λ.  Provenance is a claim, and a background asserting
+    #: it is a measurement without naming the measurement is worse than a
+    #: polynomial, which at least does not pretend to be evidence.
+    fixed_source: str | None = None
+    #: The multiplier on the stored curve.  Fixed at 1.0 by default, so a model
+    #: that declares nothing behaves exactly as it did before this field
+    #: existed.  ``min=0.0`` with a softplus is safe here because zero **is**
+    #: the off state — the model is linear in this parameter and divides by
+    #: nothing (root CLAUDE.md § Invariants, the ``MARCH_R_MIN`` rule read the
+    #: other way).  It keeps the curve from being subtracted by a solver that
+    #: found a negative multiplier cheaper than the physics.  It is **not** a
+    #: bound anything reports: ``params.transforms.internal_bounds`` maps a
+    #: softplus lower limit of 0.0 to −∞, so a scale driven to zero is a
+    #: vanishing gradient rather than a ``BOUND_HIT``.  What makes a
+    #: double-counted curve visible is the refined scale itself, which lands a
+    #: whole unit from where the caller declared it.
+    scale: Parameter = Field(
+        default_factory=lambda: Parameter(value=1.0, min=0.0, transform="softplus")
+    )
     chebyshev: BackgroundChebyshev = Field(default_factory=lambda: BackgroundChebyshev())
 
     @model_validator(mode="after")
     def _lengths(self) -> "BackgroundFixedPlusChebyshev":
         if len(self.fixed_two_theta) != len(self.fixed_intensity):
             raise ValueError("fixed background arrays differ in length")
+        if self.fixed_sigma is not None:
+            if len(self.fixed_sigma) != len(self.fixed_intensity):
+                raise ValueError(
+                    f"fixed_sigma has {len(self.fixed_sigma)} points and the "
+                    f"curve has {len(self.fixed_intensity)}")
+            if any(s < 0.0 for s in self.fixed_sigma):
+                raise ValueError("fixed_sigma must be non-negative")
         return self
+
+    @classmethod
+    def from_pattern(cls, blank: "PatternData", *, n_terms: int = 4,
+                     vary_scale: bool = False, scale: float = 1.0,
+                     source: str | None = None
+                     ) -> "BackgroundFixedPlusChebyshev":
+        """Build the model from a measured blank, esds and all.
+
+        ``read_pattern`` is therefore the route in, and every format it opens
+        is a background format for free.  The blank's own esds are carried when
+        it has them — ``PatternData.sig()`` is not used, because its Poisson
+        fallback would invent statistics for a curve that has none, and that is
+        the difference this field exists to record.
+
+        ``vary_scale`` is the caller's declared act.  It is ``False`` by
+        default for the reason the field is: a declared measured background
+        starts where the code stood before it could refine one.
+
+        The blank's own ``excluded_regions`` are honoured, so a channel
+        somebody marked bad in the blank does not become background: the curve
+        skips it and the interpolation bridges the gap.  A region at either end
+        shortens the curve, which is then a fit range it no longer covers and a
+        refusal rather than a flat extrapolation.
+        """
+        keep = blank.in_range_mask()
+        return cls(
+            fixed_two_theta=[float(v) for v in blank.tt()[keep]],
+            fixed_intensity=[float(v) for v in blank.y()[keep]],
+            fixed_sigma=(None if blank.sigma is None else
+                         [float(v) for v, k in zip(blank.sigma, keep, strict=True)
+                          if k]),
+            fixed_source=source,
+            scale=Parameter(value=scale, vary=vary_scale, min=0.0,
+                            transform="softplus"),
+            chebyshev=BackgroundChebyshev.with_terms(n_terms, vary=True),
+        )
 
 
 Background = BackgroundChebyshev | BackgroundFixedPlusChebyshev | BackgroundPSpline

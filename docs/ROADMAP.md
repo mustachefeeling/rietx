@@ -479,7 +479,7 @@ with a refinable scale and its own esds (1309, issue #171).
 | WP | Title | Status | Depends on |
 |---|---|---|---|
 | [1130](wp/1130-background-reference.md) | The fit has no reference: a background level it cannot argue with | 🛑 2026-09-04 | — |
-| [1309](wp/1309-measured-background.md) | A measured background: the container exists, the scale and the esds do not | ⬜ | — |
+| [1309](wp/1309-measured-background.md) | A measured background: the container exists, the scale and the esds do not | 🔄 2026-09-17 | — |
 
 #### The specimen is not an angle, and the neutron follow-through
 
@@ -614,6 +614,8 @@ that travels with it (1340); and the report a joint fit has never had (1341).
 | [1411](wp/1411-a-manual-that-links-home.md) | A manual that links home: the landing copy, and the brand on furo's sidebar | ✅ 2026-09-14 | — |
 | [1412](wp/1412-the-theme-nobody-chose.md) | The theme nobody chose | ✅ 2026-09-14 | 1411 |
 | [1422](wp/1422-the-wp-two-sessions-picked.md) | The WP two sessions picked | ✅ 2026-09-15 | 1061, 1410 |
+| [1436](wp/1436-k-is-the-wavevector-everywhere-else.md) | `k` is the wavevector everywhere else | ⬜ | 1437 |
+| [1437](wp/1437-a-formula-the-code-does-not-compute.md) | A formula the code does not compute | ⬜ | — |
 
 #### Candidates — named on a use case, not yet on a measurement
 
