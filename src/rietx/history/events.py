@@ -136,7 +136,10 @@ class EventStream:
     def __init__(self, path: str | Path | None = None, callback=None):
         self.path = Path(path) if path is not None else None
         self.callback = callback
-        self._fh = open(self.path, "a", encoding="utf-8") if self.path else None
+        # ``newline="\n"``: JSONL, so the line ending is the format's and
+        # not the platform's (WP-1439).
+        self._fh = (open(self.path, "a", encoding="utf-8", newline="\n")
+                    if self.path else None)
         self.n_written = 0
 
     def emit(self, kind: str, **data: Any) -> None:
@@ -203,7 +206,10 @@ def progress_writer(sink) -> Any:
     stream's own ``close``.
     """
     owns_fh = not hasattr(sink, "write")
-    fh = open(sink, "a", encoding="utf-8") if owns_fh else sink
+    # ``newline="\n"``: JSONL again (WP-1439).  A caller who passed their
+    # own stream owns its newline translation, as they own its encoding.
+    fh = (open(sink, "a", encoding="utf-8", newline="\n")
+          if owns_fh else sink)
     #: the *first* stage_start seen for a name, not the most recent — a
     #: WP-1301 phase release emits a second stage_start before re-solving,
     #: and the elapsed time a caller reads on the stage_end wants the whole

@@ -54,7 +54,7 @@ def append_record(path: str | Path, record: HistoryRecord) -> None:
     """Append one record.  Creates the file (and parents) if absent."""
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
-    with p.open("a", encoding="utf-8") as fh, _locked(fh):
+    with p.open("a", encoding="utf-8", newline="\n") as fh, _locked(fh):
         fh.write(record.model_dump_json())
         fh.write("\n")
         fh.flush()
@@ -64,7 +64,7 @@ def write_records(path: str | Path, records: list[HistoryRecord]) -> None:
     """Rewrite the whole file (used by ``RefinementTree.save``)."""
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
-    with p.open("w", encoding="utf-8") as fh, _locked(fh):
+    with p.open("w", encoding="utf-8", newline="\n") as fh, _locked(fh):
         for record in records:
             fh.write(record.model_dump_json())
             fh.write("\n")

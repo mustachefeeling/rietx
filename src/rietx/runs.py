@@ -1259,7 +1259,10 @@ class RunRecorder(EventStream):
         try:
             self.dir.mkdir(parents=True, exist_ok=True)
             self.path = self.dir / EVENTS_FILE
-            self._fh = open(self.path, "a", encoding="utf-8")
+            # ``newline="\n"``: this is JSONL, so the line ending is the
+            # format's and not the platform's (WP-1439).
+            self._fh = open(self.path, "a", encoding="utf-8",
+                            newline="\n")
             self._take_lock()
             self._clear_stale_cancel()
             self._write_meta(label, command)
