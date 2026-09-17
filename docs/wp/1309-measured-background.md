@@ -1,6 +1,6 @@
 # WP-1309 — a measured background: the container exists, the scale and the esds do not
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-09-17 — claimed by @yue-here
 Depends on: —
 
 ## Goal
