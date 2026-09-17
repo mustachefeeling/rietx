@@ -82,6 +82,16 @@ through nothing in the blank run, so the correct multiplier is angle-dependent
 `model/absorption.py`); a constant scale is leading-order. State it in the
 docstring.
 
+**A series refines one scale per pattern** (issue #171, 2026-09-16, after this
+WP was written). The blank is scanned at one temperature and one atmosphere,
+and the container's thermal diffuse scattering, the gas and the specimen's
+attenuation of both all move along a ramp. So the blank's *shape* is right only
+at the condition it was measured. A `Parameter` on the kind is already per
+pattern, since each pattern carries its own models, and its warm start chains
+like the phase scales do. Two things follow and neither is new schema: the
+sequential trajectory quotes `s` beside the Chebyshev coefficients, and the
+low-order polynomial on top is where the residual shape drift belongs.
+
 **Schema lean, decided by the first task:** extend
 `BackgroundFixedPlusChebyshev` with `scale` (a `Parameter`, default fixed
 at 1 — bit-identical to today) and `fixed_sigma`, rather than adding a fourth
@@ -109,9 +119,16 @@ project bit-identical.
       (trap 2's test: the double-count is loud, never silent).
 - [ ] σ propagation through `interpolate_fixed`; `background/select.py` made
       aware of the fixed direction (trap 4).
-- [ ] Vendor the Si640c blank with a provenance row in
-      `tests/data/README.md` (terms checked per file, as ever); a
-      `rietx compare` row for the new correction.
+- [ ] A `rietx compare` row for the new correction.
+- [ ] **Deferred, waiting on the file** (2026-09-17): vendor the 11-BM
+      empty-Kapton blank (run 4736) with a provenance row in
+      `tests/data/README.md`, and check the fit against it. The beamline's
+      standards wiki still lists the scan and every `/data/` link on it 404s
+      since the site moved to Drupal, which is where `11BM_Si640c.xy` came
+      from too; that one was recovered through the Internet Archive, and
+      archive.org is refused at TLS from this network. The maintainer will
+      supply the file. Until it lands the fixture is a synthetic blank, which
+      exercises every trap above and corroborates no number of the issue's.
 - [ ] Manual: the blank section in `using/data.md` grows the scale, the
       correlated-series sentence, and the angle-dependence caveat; skill row
       if a new diagnostic code lands.
@@ -127,9 +144,12 @@ project bit-identical.
 ```
 
 The bar: with `scale` fixed at 1 every existing number is bit-identical;
-freeing it on the Si640c blank fixture lands the interior minimum (s ≈ 0.85,
-Rwp below the fixed-scale fit) with an esd; the double-count configuration
-fails loudly; the compare panel localises where the correction acted.
+freeing it on the synthetic blank recovers the scale the fixture was built with,
+with an esd; the double-count configuration fails loudly; the compare panel
+localises where the correction acted. **The issue's own number is the deferred
+half**: freeing the scale on the real run-4736 blank under
+`test_acceptance_si640c.py`'s protocol must land the interior minimum near
+s = 0.85, with Rwp below the 0.07770 the held-at-1.0 curve gives.
 
 The shipping PR carries `Closes #171`.
 
