@@ -1352,6 +1352,68 @@ The single-histogram refinable wavelength, on NIST SRM 640c silicon at APS 11-BM
 
 **Diagnostics:** `HIGH_CORRELATION` asserted *absent*, `HUMP_TOO_NARROW` asserted *absent*
 
+#### `test_a_measured_blank_beats_the_polynomial_and_the_fitted_hump`
+
+`own_result` `ceiling` · dataset `si640c`
+
+**Claims:** a background shape somebody measured with the sample out, declared and not fitted, beats both the polynomial that cannot describe it and the three-parameter hump that can -- which is the case for scanning a blank at all
+
+**Referenced to:** this package's own three arms under the one protocol (Chebyshev-3, Chebyshev-3 + one hump, Chebyshev-3 + the declared blank), scored on ONE weight -- the specimen's own sigma -- because a measured background's esds move the weight and an Rwp column across arms that declare different curves is not otherwise a ranking
+
+**Measured:** Rwp 0.119977 (bare polynomial) -> 0.082503 (fitted hump, three free parameters) -> 0.079311 (declared blank, none), all under the specimen's sigma; zero HIGH_CORRELATION
+
+**Diagnostics:** `HIGH_CORRELATION` asserted *absent*
+
+#### `test_the_refined_scale_rejects_the_only_value_the_code_could_express`
+
+`own_result` · dataset `si640c`
+
+**Claims:** the fraction of the blank that reached the specimen scan is a measurement, and it is not 1.0 -- the value this package could express before the scale field existed
+
+**Referenced to:** issue #171's hand-set scan of the same two files, rerun as this module's `blank_scan` fixture: the refined scale is checked against the minimum a caller had to find by hand.  Not an external number -- the monitor normalisation and the specimen's attenuation of the container are not separately known here, and the WP records the angle-dependence a constant scale cannot carry
+
+**Measured:** scale 0.8374(142): the hand-set minimum 0.85 is 0.9 esd away and unity 11.5 esd; Rwp falls 0.074012 -> 0.073749 under its own sigma and 0.079311 -> 0.077328 under the specimen's.  Biased low as the synthetic fixture predicted (regression dilution, this blank's sigma/I is 8-17 %)
+
+#### `test_the_hand_set_scan_puts_the_minimum_where_the_scale_landed`
+
+`own_result` · dataset `si640c`
+
+**Claims:** the minimum in the scale is *interior*, so an additive polynomial cannot reach it however many terms it is given -- the whole reason a measured curve needs a multiplier
+
+**Referenced to:** issue #171's own experiment, rerun in the issue's own weighting (the blank's esd column dropped, since it measured this before `fixed_sigma` existed) at three hand-set scales
+
+**Measured:** Rwp 0.077949 / 0.077315 / 0.079220 at s = 0.75 / 0.85 / 1.00; unity costs 2.5 % of Rwp where the issue measured 2.2 %, and the refined scale lands inside the bracket
+
+#### `test_a_longer_polynomial_eats_the_measured_scale`
+
+`characterisation` `own_result` · dataset `si640c`
+
+**Claims:** an additive polynomial and a multiplicative scale share the background's level, so a longer polynomial walks the measured scale away while Rwp improves -- a lower Rwp does not make a scale more nearly measured
+
+**Referenced to:** this module's two free-scale arms, three Chebyshev terms against six, scored on one common weight.  The same walk was measured on a synthetic blank in test_background_measured.py (0.8315 on two terms to 0.6479 on six); this row is that mechanism on data nobody built
+
+**Measured:** scale 0.8374(142) on three terms, 0.6935(246) on six -- 5.1 combined esds apart and away from the hand-set minimum -- while Rwp under one weight *prefers* the six-term arm (0.076382 against 0.077328)
+
+#### `test_the_blank_widens_the_weight_it_is_judged_by`
+
+`characterisation` · dataset `si640c`
+
+**Claims:** a measured background carries counting statistics, they enter the weight as sigma^2 + s^2 sigma_f^2, and Rwp is therefore a function of the declared scale -- so a column of Rwp down a scan of scales is not a ranking and every comparison needs one common sigma
+
+**Referenced to:** one arm's own residual under two weights -- its own sigma and the specimen's alone -- so nothing about the fit changes between the two numbers
+
+**Measured:** the held arm reads 0.074012 against its own sigma and 0.079311 against the specimen's, 7.2 % of the number being weighting rather than fit; down the scan the sigma-weighted minimum sits at s = 0.90 where the common-weight minimum is at 0.85, which is where the refined scale is
+
+#### `test_the_blank_arms_render`
+
+`ceiling` · dataset `si640c`
+
+**Claims:** both blank arms render, including a window framed below the (111) so the halo is the only thing in the picture -- a correction that acts on 5 % of the range can be looked at rather than only summarised
+
+**Referenced to:** existence, not a number -- a ceiling row
+
+**Measured:** four PNGs to tests/output/si640c_blank_{held,free}[_halo].png
+
 #### `test_the_fit_renders`
 
 `ceiling` · dataset `si640c`

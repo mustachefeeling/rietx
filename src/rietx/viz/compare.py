@@ -586,6 +586,12 @@ def _with_fixed_curve_scale(inputs: StandardInputs) -> None:
     ``background.peak_mask`` already quotes) and the comparison is about the
     *scale*, not about the curve.
 
+    One pair in the repository does have both halves, and it is not a standard
+    here: ``11BM_Si640c.xy`` with ``11BM_Kapton.xy``, the same capillary scanned
+    empty.  `tests/test_acceptance_si640c.py`'s blank arms are where that pair
+    is refined, and they are what this variant's mechanism looks like on a
+    measured curve.
+
     The expectation was s ≈ 1, on the grounds that an estimated baseline is on
     the pattern's own scale by construction.  Measured on the NAC standard it is
     **0.850(67)**, with Rwp 0.09317 → 0.08603: a stiff arPLS baseline sits some

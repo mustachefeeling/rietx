@@ -92,9 +92,10 @@ placement, link resolution, and the size caps on this file and CLAUDE.md.
 2026-09-13 ([record](milestones/v1.4.md), [notes](releases/1.4.0.md));
 `pyproject.version` is `1.4.0`, the last shipped. **One cheap unowned ask**
 survives from 1407: Stoe `.raw` files paired with the WinXPOW ASCII export of
-the same scans would make Stoe writable.
+the same scans would make Stoe writable. A second: no `rietx compare`
+standard ships its own blank, and Si640c with 1309's `11BM_Kapton.xy` does.
 
-**Nothing is in flight.** The `.inp` grammar 1118 refuses is
+**Nothing is in flight.** 1309 closed on the 11-BM blank it waited for, now vendored. The `.inp` grammar 1118 refuses is
 [1433](wp/1433-the-inp-grammar-still-refused.md), blocked on nothing. 1310
 closed on four of six; its other two, each filed with a fix its measurements
 rule out, carry on as [1434](wp/1434-the-bound-test-asks-the-wrong-question.md) and [1435](wp/1435-a-hold-the-caller-declares.md).
@@ -102,14 +103,12 @@ rule out, carry on as [1434](wp/1434-the-bound-test-asks-the-wrong-question.md) 
 **The live-watcher track is closed**, sixteen rungs,
 [1428](wp/1428-open-in-the-gui-without-touching-the-fit.md) last: a reader opens
 a frozen copy of a running fit's project in the GUI from the run list. **Six
-questions are the maintainer's**, none now held by a WP: the GUI's reflection
-ticks take plotly's colorway, so toggling the background recolours every phase
-(1429, filed by 1427); the snapshot cadence (1413, 50 ms against 17.7); 1425's
-two, one being the list width 1428 moved to 80ch; 1429's two, cosmetic; and
-1427's, whether a cold open seeks to a long log's tail.
+questions are the maintainer's**, none held by a WP: the tick colorway (1429,
+filed by 1427), the snapshot cadence (1413, 50 ms against 17.7), 1425's two,
+1429's two, and 1427's cold-open seek.
 
 **Queued, unscheduled** ([§ Unscheduled](#unscheduled)): the 2026-09-01
-triage's 1309–1322 plus 1323 and 1325; the 2026-09-03 triage's 1332–1341; the
+triage's 1311–1322 plus 1323 and 1325; the 2026-09-03 triage's 1332–1341; the
 magnetic track (1326–1329, 1343, and 1418 behind them); the older 1133. The
 **2026-09-15 triage** adds 1414–1421, eight WPs for ten issues, and folds the
 other eleven into 1310, 1311, 1312, 1326–1328, 1333, 1338 and 1343.
@@ -479,7 +478,7 @@ with a refinable scale and its own esds (1309, issue #171).
 | WP | Title | Status | Depends on |
 |---|---|---|---|
 | [1130](wp/1130-background-reference.md) | The fit has no reference: a background level it cannot argue with | 🛑 2026-09-04 | — |
-| [1309](wp/1309-measured-background.md) | A measured background: the container exists, the scale and the esds do not | 🔄 2026-09-17 | — |
+| [1309](wp/1309-measured-background.md) | A measured background: the container exists, the scale and the esds do not | ✅ 2026-09-17 | — |
 
 #### The specimen is not an angle, and the neutron follow-through
 
