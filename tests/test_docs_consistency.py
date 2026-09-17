@@ -307,7 +307,11 @@ SIZE_CAPS: dict[str, int | None] = {
     # fact anyone pairs with a tick. The other three answers — the empty cell
     # saying why it is empty, the boot's request waterfall, the header's
     # unbreakable line — are findings and stayed in the WP file.
-    "CLAUDE.md": 906,
+    # 906 -> 907 on the merge (WP-1438 + 1309): both branches raised this
+    # cap and the two sets of lines do not sum — 1309's σ-is-a-function-of-the-
+    # declared-scale clause landed while 1438's three were open. Per this
+    # file's own rule, the number is the *merged* file's size.
+    "CLAUDE.md": 907,
     # 672 -> 676 (WP-1102): the Current focus rewrite at 1102's close names the
     # milestone's one break and what makes 1103 the seam's proving case.
     # 676 -> 682 (WP-1407): a new Unscheduled group, "The formats a lab still

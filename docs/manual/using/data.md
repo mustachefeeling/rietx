@@ -722,13 +722,32 @@ recovers 0.8378(42) and six recover 0.6479(182), while Rwp falls monotonically
 from 0.07634 to 0.07299 across that row. `HIGH_CORRELATION` against `c0` fires
 at the flexible end and is the correct report rather than a fit failure.
 
+Measured data behaves the same way. `tests/data/11BM_Kapton.xy` is an empty
+Kapton capillary scanned at APS 11-BM in February 2010, and
+`tests/data/11BM_Si640c.xy` is NIST SRM 640c silicon in that capillary from the
+same beamtime. Against three Chebyshev terms the scale refines to 0.8374(142).
+Against six it walks to 0.6935(246), and Rwp prefers that arm, 0.076382 against
+0.077328 on one weight. The scale it prefers is the one that disagrees with a
+hand-set scan of the same two files, which put the minimum at 0.85. A lower Rwp
+does not make a scale more nearly measured.
+
+Declaring the curve buys more than fitting a shape for it. On that pair a
+3-term Chebyshev alone gives Rwp 0.119977. Adding one fitted background peak
+costs three free parameters and gives 0.082503. Declaring the blank at scale 1.0
+costs none and gives 0.079311.
+
 `select_chebyshev_order(data, fixed=bkg)` picks the order for what the curve
 does not describe. On a synthetic pattern whose halo a polynomial has to chase,
 the blind scan runs to 12 terms and the same scan with the curve held selects 2.
 
 `BackgroundFixedPlusChebyshev.fixed_sigma` carries the blank's own counting
 statistics, and the channel weight becomes σ² + s²·σ_f² rather than σ² alone.
-That is what makes a short blank scan worse than a long one.
+That is what makes a short blank scan worse than a long one. The weight then
+depends on the scale, so Rwp is not comparable between two fits that declare
+different ones. The 11-BM arm held at 1.0 reads 0.074012 against its own σ and
+0.079311 against the specimen's σ alone. Score a scan of scales under one σ, or
+the minimum moves: under each fit's own σ it sits at 0.90, and under one common
+σ at 0.85, where the refined scale is.
 `BackgroundFixedPlusChebyshev.fixed_source` records where the curve came from,
 free text, and it is what separates a measurement from an estimate for anything
 reading the model back.
@@ -750,6 +769,12 @@ reaches the detector through the specimen in the sample scan and through nothing
 in the blank scan, so the exact multiplier is angle-dependent and follows the
 specimen transmission. Refine a scale per pattern rather than one constant
 across a temperature or atmosphere series.
+
+The 11-BM pair shows what that leaves behind. The mean weighted residual over
+4–6° 2θ is −0.47 with the scale held at 1.0 and +0.20 with it freed, and six
+polynomial terms leave +0.43. A constant scale moves the halo window through
+the data rather than onto it. How much of the remainder is the angular term and
+how much is the polynomial's own stiffness is not separated by that measurement.
 
 A fitted channel the curve does not cover is refused, naming both ranges. Crop
 the fit with `two_theta_min` and `two_theta_max`, or supply a curve that covers
@@ -888,10 +913,11 @@ this fit can.
 
 The blank. 11-BM's published standards listing carries run 4736 from the same
 February 2010 beamtime, header `Chemical formula = empty Kapton capillary
-(Kapton)`, which is the container with no sample in it. Fitted independently of
-this package (numpy Chebyshev, scipy least-squares, the file's own σ) over the
-same 1.997–49.996° range, a 3-term Chebyshev plus one Gaussian reaches
-χ²ᵣ = 1.125 on 48 000 channels at position 4.2417(111)°, FWHM 6.153(23)°.
+(Kapton)`, which is the container with no sample in it. It is
+`tests/data/11BM_Kapton.xy`. Fitted independently of this package (numpy
+Chebyshev, scipy least-squares, the file's own σ) over the same 1.997–49.996°
+range, a 3-term Chebyshev plus one Gaussian reaches χ²ᵣ = 1.125 on 48 000
+channels at position 4.2417(111)°, FWHM 6.153(23)°.
 Chebyshev-3 alone reaches only 5.33, and it takes fourteen polynomial terms,
 eleven more than the Gaussian's three, for a peak-free polynomial to match those
 six parameters. Two codes, two scans, one feature, agreeing on position to 0.06°

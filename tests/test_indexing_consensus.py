@@ -729,6 +729,7 @@ def test_the_evidence_view_is_a_projection_with_caveat_kinds():
     assert IndexingEvidence.model_validate_json(ev.model_dump_json()) == ev
 
 
+@pytest.mark.slow
 def test_a_restricted_search_is_not_a_verdict_about_the_specimen():
     """A search over three systems says nothing about the other four.
 
@@ -742,8 +743,14 @@ def test_a_restricted_search_is_not_a_verdict_about_the_specimen():
     """
     peaks = _peak_list((7.0, 8.0, 9.0, 90.0, 90.0, 90.0), "P m m m",
                        two_theta_max=45.0)
+    # 900 s is a runaway guard, not a timer, sized the way
+    # test_indexing_engines.BUDGET_SECONDS was on 2026-07-30 and for the same
+    # reason.  The row below needs the orthorhombic search to *find* the cell,
+    # so a budget the machine can miss turns that into an assertion about load:
+    # 60 s serial against the old 180 s is a 3x margin, and under -n auto this
+    # row was measured at 129-169 s, up to 94 % of its own guard.
     common = dict(min_d_axis=2.0, max_d_axis=12.0, max_volume=1500.0,
-                  budget_seconds=180.0, shift_allowance_deg=1e-9)
+                  budget_seconds=900.0, shift_allowance_deg=1e-9)
 
     restricted = index_pattern(
         peaks, spec=SearchSpec(systems=("cubic", "tetragonal", "hexagonal"),

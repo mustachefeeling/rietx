@@ -93,6 +93,7 @@ import math
 from pathlib import Path
 from typing import NamedTuple
 
+import numpy as np
 import pytest
 
 import rietx as rx
@@ -100,6 +101,7 @@ from rietx.schemas.common import Parameter as P
 from rietx.schemas.instrument import (
     HUMP_FWHM_MIN,
     BackgroundChebyshev,
+    BackgroundFixedPlusChebyshev,
     BackgroundPSpline,
     HumpComponent,
 )
@@ -108,6 +110,10 @@ from rietx.schemas.structure import Atom, Cell, Phase, Structure
 DATA = Path(__file__).parent / "data"
 OUT = Path(__file__).parent / "output"
 PATTERN = DATA / "11BM_Si640c.xy"
+#: The same capillary with the specimen taken out: 11-BM run 4736, 11 Feb 2010,
+#: the container this pattern's low-angle hump belongs to.  Provenance and the
+#: out-of-package fit that identifies it: `tests/data/README.md`.
+BLANK = DATA / "11BM_Kapton.xy"
 
 #: The header's ``Calibrated wavelength`` — the value λ is seeded at and refines
 #: away from.  The whole measurement is how far this was wrong for this scan.
@@ -515,7 +521,9 @@ class _ChebFit(NamedTuple):
     values: dict  # instrument.profile.{u,v,w,x,y}, converged
 
 
-def _fit_chebyshev(nterm: int, *, with_peak: bool) -> _ChebFit:
+def _fit_chebyshev(nterm: int, *, with_peak: bool = False,
+                   blank_scale: float | None = None, free_scale: bool = False,
+                   blank_sigma: bool = True) -> _ChebFit:
     """The ``full`` protocol with a Chebyshev background, optionally + one peak.
 
     The peak is freed twice: once immediately after ``scale_bkg``, so the rest
@@ -524,9 +532,27 @@ def _fit_chebyshev(nterm: int, *, with_peak: bool) -> _ChebFit:
     a peak polished alone against a stale polynomial is not converged.  Seeded
     at 5.0° — the envelope maximum, i.e. where the *blank* says the halo is —
     and not at the value it converges to.
+
+    ``blank_scale`` replaces the bare polynomial with the **measured** blank
+    (run 4736) plus the same polynomial, held at that scale or — with
+    ``free_scale`` — refined from it.  ``blank_sigma=False`` drops the blank's
+    own esd column, which is issue #171's weighting: it measured this scan
+    before ``fixed_sigma`` existed, so its Rwp column and this package's are not
+    the same statistic (:func:`test_the_blank_widens_the_weight_it_is_judged_by`).
     """
     ins = _instrument(FULL_LIMITS)
-    ins.background = BackgroundChebyshev.with_terms(nterm)
+    bkg_paths = ["instrument.background.c*"]
+    if blank_scale is None:
+        ins.background = BackgroundChebyshev.with_terms(nterm)
+    else:
+        blank = rx.read_pattern(BLANK)
+        if not blank_sigma:
+            blank = blank.model_copy(update={"sigma": None})
+        ins.background = BackgroundFixedPlusChebyshev.from_pattern(
+            blank, n_terms=nterm, vary_scale=free_scale, scale=blank_scale,
+            source="APS 11-BM run 4736, empty Kapton capillary")
+        if free_scale:
+            bkg_paths.append("instrument.background.scale")
     if with_peak:
         ins.extra_components = [HumpComponent(
             label="Kapton halo",
@@ -535,8 +561,7 @@ def _fit_chebyshev(nterm: int, *, with_peak: bool) -> _ChebFit:
             fwhm=P(value=2.0, min=HUMP_FWHM_MIN, unit="deg",
                    transform="softplus"))]
 
-    stages = [rx.Stage("scale_bkg", ["phases.*.scale",
-                                     "instrument.background.c*"])]
+    stages = [rx.Stage("scale_bkg", ["phases.*.scale", *bkg_paths])]
     if with_peak:
         stages.append(rx.Stage("extra_components",
                                ["instrument.extra_components.*"]))
@@ -717,3 +742,294 @@ def test_the_chebyshev6_arm_relaxes_the_peak_onto_the_envelope(
     # still a background width, and still identifiable
     assert not [d for d in cheb6_peak.result.diagnostics
                 if d.code in ("HUMP_TOO_NARROW", "HIGH_CORRELATION")]
+
+
+# ------------------------------------------------- the measured blank (1309) ---
+# The section above fits the container's halo with three free parameters.  This
+# one *measures* it: the same capillary, the same beamtime, the specimen taken
+# out.  WP-1309 built the machinery on a synthetic fixture because run 4736 was
+# not fetchable; it arrived on 2026-09-17, and this is where issue #171's own
+# numbers are finally checked against a refinement rather than corroborated by
+# construction.
+#
+# The blank is a *declared* curve, so the arms differ in what they declare and
+# not in how many parameters they fit: `blank_held` declares it whole (the only
+# thing pre-1309 code could express), `blank_free` declares its shape and
+# refines the one multiplier that says how much of it reached this scan.
+
+#: Measured here on the committed blank, `[dev]` venv, darwin (WP-1309).
+#: Bands below are ±0.002 in Rwp, as `MANUAL_RWP`'s are.
+BLANK_RWP = {"held": 0.074012, "free": 0.073749}
+#: Issue #171's hand-set scan found its interior minimum at s ≈ 0.85.  This is
+#: what the refined scale is measured against, and it is the *reason* the field
+#: exists: 1.0 was the only value the code could express.
+S_ISSUE = 0.85
+
+
+def _rwp_under(res, sigma) -> float:
+    """``res``'s own residual, weighted by somebody else's σ.
+
+    Rwp is a weighted sum, and a measured background with esds moves the weight
+    (σ² = σ_y² + s²·σ_f²).  So two arms that declare different scales are not
+    scored on the same statistic, and comparing them means picking one σ and
+    using it for both — here the specimen's own, which is what every arm above
+    this section is already weighted by.
+
+    The length check is the point of failure this is worth guarding: two arms
+    fitted over different channels would broadcast rather than raise, and the
+    number that came out would look like a comparison.
+    """
+    w = 1.0 / np.asarray(sigma) ** 2
+    y, y_calc = np.asarray(res.y_obs), np.asarray(res.y_calc)
+    assert w.shape == y.shape, (
+        f"σ covers {w.size} channels and this residual {y.size} — the two arms "
+        "are not fitted over the same channels, so neither is a common weight")
+    return float(np.sqrt((w * (y - y_calc) ** 2).sum() / (w * y * y).sum()))
+
+
+def _require_the_pair() -> None:
+    """Both halves or nothing: a blank arm needs the specimen *and* the blank."""
+    for path in (PATTERN, BLANK):
+        if not path.exists():
+            pytest.skip(f"{path.name} not present")
+
+
+@pytest.fixture(scope="module")
+def blank_held():
+    """The blank declared whole — scale 1.0, nothing refined about it."""
+    _require_the_pair()
+    return _fit_chebyshev(3, blank_scale=1.0)
+
+
+@pytest.fixture(scope="module")
+def blank_free():
+    """The same curve with its multiplier refined: one parameter, seeded at the
+    value the held arm is stuck with."""
+    _require_the_pair()
+    return _fit_chebyshev(3, blank_scale=1.0, free_scale=True)
+
+
+@pytest.fixture(scope="module")
+def blank_free_cheb6():
+    """The same, on six Chebyshev terms — the arm that shows what a flexible
+    polynomial does to a measured scale."""
+    _require_the_pair()
+    return _fit_chebyshev(6, blank_scale=1.0, free_scale=True)
+
+
+@pytest.fixture(scope="module")
+def blank_scan():
+    """Three hand-set scales in **issue #171's** weighting — the blank's esd
+    column dropped, because the issue measured its scan before `fixed_sigma`
+    existed and its Rwp column is therefore not this package's."""
+    _require_the_pair()
+    return {s: _fit_chebyshev(3, blank_scale=s, blank_sigma=False)
+            for s in (0.75, S_ISSUE, 1.00)}
+
+
+def test_a_measured_blank_beats_the_polynomial_and_the_fitted_hump(
+        cheb3, cheb3_peak, blank_held):
+    """The case for measuring a blank at all, on one common weight.
+
+    ``blank_held`` refines **nothing** about the background beyond the same
+    three Chebyshev terms the other two arms carry: the container's shape is
+    declared, not fitted.  It still beats both — the bare polynomial by a third,
+    and the three-parameter hump of the section above.  Three numbers somebody
+    measured with the sample out beat three numbers this fit invented.
+
+    Scored under the specimen's own σ for all three arms, because the blank's
+    esds move the weight and `test_the_blank_widens_the_weight_it_is_judged_by`
+    is where that is measured.  This test applies the rule that one states.
+    """
+    sigma_y = cheb3.result.sigma
+    declared = _rwp_under(blank_held.result, sigma_y)
+    fitted = cheb3_peak.result.statistics.rwp
+    plain = cheb3.result.statistics.rwp
+
+    assert blank_held.result.status == "converged"
+    assert declared < fitted, (
+        f"the declared curve ({declared:.6f}) no longer beats the fitted hump "
+        f"({fitted:.6f})")
+    assert plain - declared > 0.03, (
+        f"the declared curve bought only {plain - declared:.5f} in Rwp")
+    # and it is free of the identifiability cost a flexible background carries
+    assert not [d for d in blank_held.result.diagnostics
+                if d.code == "HIGH_CORRELATION"]
+
+
+def test_the_refined_scale_rejects_the_only_value_the_code_could_express(
+        cheb3, blank_held, blank_free):
+    """WP-1309's headline, and the one number issue #171 asked for.
+
+    The blank was scanned on a different monitor normalisation, and the specimen
+    absorbs what the container scatters, so the fraction of the blank that
+    reached run 4918 is not 1.0 — and 1.0 was the only value this package could
+    express before the ``scale`` field existed.  Freed, it comes back at
+    0.8374(142): issue #171's hand-set interior minimum of ≈ 0.85 sits inside
+    one esd, and unity is rejected at more than ten.
+
+    The synthetic fixture in `test_background_measured.py` recovered 0.8315(58)
+    against a truth of 0.85 and named the mechanism — a noisy blank biases its
+    own scale low, by regression dilution.  This blank's σ/I runs 8-17 % over
+    the range, so the same bias is expected here and the band is set for it
+    rather than centred on 0.85.
+    """
+    row = blank_free.result.parameter("instrument.background.scale")
+    assert row.stderr is not None, "the refined scale came back with no esd"
+    assert 0.78 < row.value < 0.90, f"scale {row.value:.4f}"
+    assert abs(row.value - S_ISSUE) < 2.0 * row.stderr, (
+        f"scale {row.value:.4f}({row.stderr:.4f}) is more than 2 esd from the "
+        f"issue's hand-set minimum {S_ISSUE}")
+    assert (1.0 - row.value) / row.stderr > 5.0, (
+        f"unity is only {(1.0 - row.value) / row.stderr:.1f} esd away — this "
+        f"fit no longer distinguishes the measured scale from the declared one")
+
+    # The acceptance bar: Rwp falls, and not because the weight moved.  The
+    # second row is the one that carries the claim — the first compares each
+    # arm under *its own* σ, which is two weights and therefore the comparison
+    # `test_the_blank_widens_the_weight_it_is_judged_by` says is not a ranking.
+    # It is here as a regression pin on the two recorded numbers, not as
+    # evidence.  The common weight is the specimen's own σ, the same one every
+    # other cross-arm comparison in this section uses, so the pair asserted
+    # here is the pair the validation matrix records (0.079311 → 0.077328).
+    sigma_y = cheb3.result.sigma
+    for label, (free, held) in (
+            ("each arm's own σ", (blank_free.result.statistics.rwp,
+                                  blank_held.result.statistics.rwp)),
+            ("the specimen's σ", (_rwp_under(blank_free.result, sigma_y),
+                                  _rwp_under(blank_held.result, sigma_y)))):
+        assert free < held, f"freeing the scale raised Rwp under {label}"
+    for name, fit in (("held", blank_held), ("free", blank_free)):
+        assert abs(fit.result.statistics.rwp - BLANK_RWP[name]) < 0.002, (
+            f"{name} Rwp {fit.result.statistics.rwp:.6f}, measured "
+            f"{BLANK_RWP[name]:.6f}")
+
+
+def test_the_hand_set_scan_puts_the_minimum_where_the_scale_landed(
+        blank_scan, blank_free):
+    """Issue #171's own experiment, rerun: the minimum is **interior**.
+
+    The issue hand-set the scale because nothing could refine it, and found Rwp
+    falling to s ≈ 0.85 and rising again by 1.0 — 2.2 % of Rwp between the two.
+    Here the same scan, in the issue's weighting, gives 0.077949 / 0.077315 /
+    0.079220 at 0.75 / 0.85 / 1.00: the minimum is interior, 2.5 % below unity,
+    and it is where the refined scale independently landed.
+
+    That is the whole argument for a refinable scale over a higher-order
+    polynomial.  The polynomial is additive, so it can move the level of a fixed
+    curve and never rescale its shape, and a scan like this is what a caller had
+    to do by hand instead.
+    """
+    rwp = {s: fit.result.statistics.rwp for s, fit in blank_scan.items()}
+    assert all(fit.result.status == "converged" for fit in blank_scan.values())
+    assert rwp[S_ISSUE] < rwp[0.75], f"0.75 ({rwp[0.75]:.6f}) beat the minimum"
+    assert rwp[S_ISSUE] < rwp[1.00], (
+        f"unity ({rwp[1.00]:.6f}) beat s = {S_ISSUE} ({rwp[S_ISSUE]:.6f}) — the "
+        f"minimum is no longer interior, which is the issue's whole finding")
+    assert (rwp[1.00] - rwp[S_ISSUE]) / rwp[S_ISSUE] > 0.015, (
+        "unity now costs less than 1.5 % of Rwp; the issue measured 2.2 %")
+    # and the refined scale agrees with the scan it replaces
+    s_free = blank_free.result.parameter("instrument.background.scale").value
+    assert 0.75 < s_free < 1.00, "the refined scale left the scan's bracket"
+
+
+def test_a_longer_polynomial_eats_the_measured_scale(
+        cheb3, blank_free, blank_free_cheb6):
+    """The identifiability warning, on real data and with Rwp on the wrong side.
+
+    `test_background_measured.py` measured this on a synthetic blank: freeing
+    more Chebyshev terms walks the recovered scale away from the truth (0.8315
+    on two terms down to 0.6479 on six) while Rwp *improves* the whole way.  The
+    polynomial is additive and the curve is a shape, so what the two share is
+    the background's level, and the longer polynomial takes it.
+
+    Here, on run 4736: 0.8374(142) on three terms and 0.6935(246) on six — the
+    same walk, on data nobody constructed.  And the sting is which arm Rwp
+    prefers.  Scored on one common weight the six-term arm is the *better* fit
+    (0.076382 against 0.077328) while its scale is the one that disagrees with
+    issue #171's hand-set minimum.  A lower Rwp does not make a scale more
+    nearly measured, which is why the docs' rule is what it is: if the scale is
+    a number you intend to quote, keep the polynomial as low-order as the fit
+    tolerates.
+    """
+    s3 = blank_free.result.parameter("instrument.background.scale")
+    s6 = blank_free_cheb6.result.parameter("instrument.background.scale")
+    assert s3.stderr is not None and s6.stderr is not None, (
+        "a free scale came back with no esd, so the two arms cannot be "
+        "separated in esd units")
+    assert s6.value < s3.value, "the longer polynomial no longer eats the scale"
+    assert (s3.value - s6.value) / math.hypot(s3.stderr, s6.stderr) > 3.0, (
+        f"the walk {s3.value:.4f} → {s6.value:.4f} is inside the esds, so this "
+        f"test no longer distinguishes the two arms")
+    assert abs(s6.value - S_ISSUE) > abs(s3.value - S_ISSUE), (
+        "six terms moved the scale toward the hand-set minimum, not away")
+
+    # and Rwp, on one weight, prefers the arm whose scale moved away
+    sigma_y = cheb3.result.sigma
+    assert (_rwp_under(blank_free_cheb6.result, sigma_y)
+            < _rwp_under(blank_free.result, sigma_y)), (
+        "Rwp no longer prefers the six-term arm — the warning this test carries "
+        "rests on it doing so")
+
+
+def test_the_blank_widens_the_weight_it_is_judged_by(cheb3, blank_held):
+    """σ² = σ_y² + s²·σ_f², and what follows for reading Rwp.
+
+    A measured background carries counting statistics of its own, and they enter
+    the weight every renderer and every statistic divides by.  Two consequences
+    reach anyone comparing arms, and neither is visible in an Rwp column.
+
+    The weight is *looser*: this blank's own σ inflates the specimen's by up to
+    ~14 % at the low-angle end where the container dominates.  So the same
+    residual scores better — ``blank_held`` reads 0.074012 against its own σ and
+    0.079311 against the specimen's alone, and 7 % of that number is weighting
+    rather than fit.
+
+    And the weight depends on **s**, so an Rwp column down a scan of scales is
+    not a ranking: the σ-weighted minimum of the scan sits at 0.90 where the
+    common-weight minimum is at 0.85, which is where the refined scale is.  This
+    is why every cross-arm comparison in this section goes through
+    :func:`_rwp_under`, and why the package's own rule — a correction ships with
+    a record field, never an Rwp comparison as its evidence — has teeth here.
+    """
+    sigma_y = np.asarray(cheb3.result.sigma)
+    sigma_b = np.asarray(blank_held.result.sigma)
+    assert sigma_b.shape == sigma_y.shape
+    assert np.all(sigma_b >= sigma_y - 1e-12), (
+        "a measured background's esds made the weight tighter, not looser")
+    assert sigma_b.max() / sigma_y.max() > 1.0, "σ did not widen at all"
+
+    own = blank_held.result.statistics.rwp
+    common = _rwp_under(blank_held.result, sigma_y)
+    assert common > own, (
+        "the widened weight no longer flatters Rwp, so the caveat this test "
+        "carries has changed shape")
+    assert (common - own) / own > 0.03, (
+        f"weighting accounts for only {(common - own) / own:.1%} of Rwp here")
+
+
+def test_the_blank_arms_render(blank_held, blank_free):
+    """obs/calc/diff for both arms, plus the window the scale acts in.
+
+    The rule the whole suite runs on (`tests/CLAUDE.md`): Rwp hides a locally
+    bad fit, and this correction is local by construction — it is the container
+    halo that a 3-term polynomial rides over.  The zoom stops at **7°, below the
+    (111)**, and that is the whole reason it is readable: include one Bragg
+    reflection and it takes the entire y-scale, which is what the module's other
+    zoom records learning.  Framed here, the halo is the only thing in the
+    picture and the held arm's calculated curve can be *seen* above the data.
+    """
+    from rietx.viz.plots import plot_result
+    OUT.mkdir(exist_ok=True)
+
+    written = []
+    for fit, name in ((blank_held, "si640c_blank_held"),
+                      (blank_free, "si640c_blank_free")):
+        full_page = OUT / f"{name}.png"
+        fit.result.plot(path=str(full_page))
+        zoom = OUT / f"{name}_halo.png"
+        plot_result(fit.result, path=str(zoom), two_theta_range=(2.0, 7.0))
+        written += [full_page, zoom]
+
+    assert all(p.exists() for p in written), (
+        f"missing: {[p.name for p in written if not p.exists()]}")

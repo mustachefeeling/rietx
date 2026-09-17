@@ -463,6 +463,20 @@ platform's own chrome contributes to: two seam tests encoded the pane's box
 as `+ 1`, which is only true where the scrollbar is an overlay, and macOS
 picks that from whether a mouse is attached.
 
+**The review pass** (`/code-review high --fix`) found five and I took all
+five. The one that mattered: the run pane's collapse could leave a
+*single-run* page unrecoverable — the collapse means "give the list the
+window", the stylesheet already hides the list and the undo button under
+`data-single`, and the layout key is per origin rather than per directory, so
+the choice carried in from another directory on the same host and port. Then
+`from_end` seeking behind a caller's offset on a short log; the theme route
+letting `Path.home()`'s `RuntimeError` escape `do_POST`; and a docstring
+naming `recent.json`'s contents as its own. The fifth it declined as dist
+churn — `--plot-candidate`'s note claiming the tick colour is "not a value
+this file could quote", which this WP made false — and it is taken here
+anyway, the rebuild being due regardless and a note that lies about the file
+it sits in being worse than the churn.
+
 **Deliberately not done.** The GUI's split does not stack. Its title bar
 overflow is fixed and it stays legible to about 600 px, but at 420 px the
 plot is 98 px wide. Below that it is nine panels, a 3D viewer and a tab strip

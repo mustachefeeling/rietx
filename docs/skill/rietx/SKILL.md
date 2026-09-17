@@ -81,7 +81,10 @@ is `BackgroundFixedPlusChebyshev.from_pattern(blank)`, which carries its esds;
 free `…background.scale` against a **low-order** polynomial, because the blank is
 never on the specimen's scale and enough Chebyshev terms describe the curve
 themselves (0.85 truth recovered as 0.838 on 1 term, 0.648 on 6, Rwp falling
-throughout). `HIGH_CORRELATION` against `c0` there is the correct report.
+throughout). `HIGH_CORRELATION` against `c0` there is the correct report. Judge
+the scale by **its own esd**, never by Rwp: the blank's esds enter the weight as
+σ² + s²·σ_f², so two fits declaring different scales are not scored on one
+statistic.
 
 ---
 
