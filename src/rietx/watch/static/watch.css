@@ -31,14 +31,14 @@ button:hover { background:color-mix(in srgb, var(--accent) 12%, var(--panel)); }
 #main { flex:1 1 auto; display:flex; min-height:0; }
 /* The list is one panel and the run the other, and the seam between them is
    the reader's to drag (WP-1425). `--list` is what the grip writes, in px;
-   unset it and the declared `72ch` holds, which is why a page nobody has
+   unset it and the declared `80ch` holds, which is why a page nobody has
    dragged stores no number — a px default would freeze a width that is
    font-relative on purpose. */
 /* border-box, because the grip measures the pane's rect and writes its flex
    basis: a content-box basis is short by the 1 px border, so every arrow key
    would have moved the seam 15 px and reported 16. The log's padding is 12 of
    them. */
-#runs { flex:0 0 var(--list, 72ch); overflow:auto; scrollbar-gutter:stable;
+#runs { flex:0 0 var(--list, 80ch); overflow:auto; scrollbar-gutter:stable;
         border-right:1px solid var(--line); box-sizing:border-box; }
 #run { flex:1 1 auto; min-width:0; display:flex; flex-direction:column; }
 body[data-list="closed"] #runs,
@@ -75,6 +75,10 @@ table { border-collapse:collapse; width:100%; table-layout:fixed; }
    instead. */
 col.c-state { width:13ch; } col.c-stage { width:15ch; }
 col.c-rwp { width:10ch; } col.c-gof { width:9ch; } col.c-started { width:11ch; }
+/* the launch button's column (WP-1428), sized by the rule above: the worst
+   content is the word `open` in the button's 11 px, plus the button's own
+   border and padding, plus the cell's 14 px. */
+col.c-gui { width:8ch; }
 th { text-align:left; color:var(--muted); font-weight:normal; padding:6px 7px;
      border-bottom:1px solid var(--line); position:sticky; top:0;
      background:var(--bg); overflow:hidden; text-overflow:ellipsis;
@@ -84,6 +88,12 @@ th { text-align:left; color:var(--muted); font-weight:normal; padding:6px 7px;
 td { padding:6px 7px; white-space:nowrap;
      border-bottom:1px solid color-mix(in srgb, var(--line) 45%, transparent);
      overflow:hidden; text-overflow:ellipsis; }
+/* The launch button (WP-1428). Smaller than the strip's stop, because a row is
+   29 px and there is one of these per run: it is an offer rather than a thing
+   the eye should land on first. */
+td.gui { padding:2px 7px; text-align:right; }
+td.gui button { padding:1px 7px; font-size:11px; color:var(--muted); }
+td.gui button:hover { color:var(--fg); }
 tr.run { cursor:pointer; }
 tr.run:hover { background:color-mix(in srgb, var(--fg) 6%, transparent); }
 tr.run.selected { background:color-mix(in srgb, var(--accent) 16%, transparent); }
