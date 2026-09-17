@@ -651,8 +651,10 @@ carries is whether 1327's non-goal becomes a sequencing statement.
 
 #### A window into a run — the live-watcher track
 
-Seventeen rungs, 2026-09-13 to 2026-09-17. Closed: 1428 was the last of the
-track proper and 1438 answered the twelve it handed the maintainer.
+Eighteen rungs, 2026-09-13 to 2026-09-17. Closed: 1428 was the last of the
+track proper and 1438 answered the twelve it handed the maintainer. 1439 is
+the bill: the track was written on POSIX, and the Windows nightly went red the
+day after v1.4 was tagged.
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
@@ -673,6 +675,7 @@ track proper and 1438 answered the twelve it handed the maintainer.
 | [1427](wp/1427-what-a-poll-costs.md) | What a poll costs | ✅ 2026-09-17 | 1430 (1426 soft) |
 | [1428](wp/1428-open-in-the-gui-without-touching-the-fit.md) | Open in the GUI, without touching the fit | ✅ 2026-09-17 | 1405, 1401 (1430 soft) |
 | [1438](wp/1438-the-questions-the-track-left.md) | The questions the track left | ✅ 2026-09-17 | 1429, 1427, 1425, 1413 (1428 soft) |
+| [1439](wp/1439-windows-red-since-every-fit-records-itself.md) | Windows, red since every fit started recording itself | 🔄 2026-09-17 | — (1403, 1404 turned it red) |
 
 ### v2+ — fenced
 
