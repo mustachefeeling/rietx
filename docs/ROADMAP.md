@@ -89,12 +89,13 @@ placement, link resolution, and the size caps on this file and CLAUDE.md.
 ## Current focus
 
 **v1.5 — a window into a run, opened 2026-09-18**
-([§ v1.5](#v15--a-window-into-a-run), [record](milestones/v1.5.md)):
-[1440](wp/1440-ship-v1-5.md) opens the milestone over the 26 WPs that landed
-without one and writes its notes from the tag range. It is opened 496 commits
-behind its own work, so no acceptance row was written at the open and the
-record says what that costs. **Before the tag**: `RELEASING.md` steps 3-7, and
-step 4 wants the Windows nightly green on a `main` commit.
+([§ v1.5](#v15--a-window-into-a-run), [record](milestones/v1.5.md),
+[notes](releases/1.5.0.md)): 26 WPs and 496 commits, landed and now documented
+by [1440](wp/1440-ship-v1-5.md). **The tree is ready and the rest is the
+maintainer's**: the Windows nightly green on a `main` commit (`RELEASING.md`
+step 4, the first scheduled run that can give one is 2026-09-18), then
+`pyproject.version` to `1.5.0` with `SKILL.md` and both copies following it,
+then steps 3-7.
 
 **Nothing else is in flight.** 1436 closed the symbol audit 1437 opened and
 freed `k` for the **magnetic track** (1326-1329, 1418), the largest queued
@@ -512,7 +513,7 @@ one the code computes; 1440 is the milestone itself.
 | [1422](wp/1422-the-wp-two-sessions-picked.md) | The WP two sessions picked | ✅ 2026-09-15 | 1061, 1410 |
 | [1436](wp/1436-k-is-the-wavevector-everywhere-else.md) | `k` is the wavevector everywhere else | ✅ 2026-09-17 | 1437 |
 | [1437](wp/1437-a-formula-the-code-does-not-compute.md) | A formula the code does not compute | ✅ 2026-09-17 | — |
-| [1440](wp/1440-ship-v1-5.md) | Open v1.5 over the body that landed without it, and ship it | 🔄 2026-09-18 | 1439 |
+| [1440](wp/1440-ship-v1-5.md) | Open v1.5 over the body that landed without it, and ship it | ✅ 2026-09-18 | 1439 |
 
 ### Unscheduled
 

@@ -15,6 +15,22 @@ shipping PR closes **#209 and #204**.
 
 ## Context
 
+### Inherited
+
+**From WP-1440 (the v1.5 notes audit, 2026-09-18).** PR #289 proposed physical
+bounds on `Cell`'s six parameters and the bounds half was **withdrawn** before
+merge, while its degenerate-metric guard shipped. The stated reason is this
+WP's own subject matter: `params/vector.py`'s cell-window machinery
+(`cell_window`, `freeze_cell_windows`, `_tie_windows`, `ParameterTable.bounds`)
+and the TOPAS reader's limit handling both read an infinite stored bound as
+"no claim made", so backfilling defaults broke that contract — measured as
+`test_absent_phase` ×3, `test_params` ×2, `test_projects_topas`, and the
+lab6/CBN correlation acceptance test, whose degenerate fit walked differently.
+"Where a physical box for the cell should live" was left open for the
+maintainer. Audit it here before repairing any other declared bound: the same
+infinite-bound-means-no-claim reading may govern more fields than `Cell`.
+
+
 From issues #204 and #209 (the maintainer's follow-up filed from PR #206's
 review), 2026-09-01 benchmarking campaign.
 
