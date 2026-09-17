@@ -116,9 +116,10 @@ project bit-identical.
       replacing the silent clamp. Also `fixed_source` (the Goal's provenance),
       `from_pattern` (the issue's "no route in"), and the theory section the
       help anchor points at.
-- [ ] The `bkg_design` row: normalised, s ≥ 0, registered in `bkg_paths`; the
-      unconditional `fixed_background` term cleared when the row is active
-      (trap 2's test: the double-count is loud, never silent).
+- [x] The `bkg_design` row: **raw, not normalised** (measured, below), s ≥ 0,
+      registered in `bkg_paths`; the unconditional `fixed_background` term
+      cleared when the row is active (trap 2's test: the double-count is loud,
+      never silent).
 - [ ] σ propagation through `interpolate_fixed`; `background/select.py` made
       aware of the fixed direction (trap 4).
 - [ ] A `rietx compare` row for the new correction.
@@ -154,6 +155,55 @@ half**: freeing the scale on the real run-4736 blank under
 s = 0.85, with Rwp below the 0.07770 the held-at-1.0 curve gives.
 
 The shipping PR carries `Closes #171`.
+
+## Findings
+
+**The row is raw, and normalising it would buy nothing** (2026-09-17). Trap 3
+asked for a normalised row on conditioning grounds, which would make the
+reported scale a stated convention rather than a physical multiplier of the
+stored curve. Measured instead, on the synthetic fixture, sweeping the container
+level over three decades:
+
+| background level | column-norm spread | s (truth 0.85) | esd | max shift/esd | status |
+|---|---|---|---|---|---|
+| ×1 | 627 | 0.8315 | 0.0058 | 4.7e-3 | converged |
+| ×10 | 6.3e3 | 0.8481 | 0.0019 | 9.3e-3 | converged |
+| ×100 | 6.3e4 | 0.8499 | 0.0006 | 1.7e-7 | converged |
+| ×1000 | 6.3e5 | 0.8500 | 0.0002 | 1.3e-5 | converged |
+
+Every one converges, and the recovered scale gets *better* with level rather
+than worse. The feared 1e9 spread does not appear on a real background level,
+and the scale stays comparable to a TOPAS `bkg_file` scale digit for digit.
+
+**A noisy blank biases its own scale low.** The row above is also the mechanism:
+regression dilution, the attenuation of a coefficient whose regressor carries
+measurement error. The blank's counting noise falls relative to its shape as the
+level rises, and the bias falls with it (−1.4 % at ×1, −0.0 % at ×1000). The
+σ² = σ_y² + s²σ_f² term widens the esd and does not remove the bias, which is
+why smoothing the blank is a modelling choice worth recording rather than a
+refinement the package should make for anyone.
+
+**A free polynomial eats the scale while Rwp improves** (truth 0.85, one term to
+six): 0.8378(42), 0.8315(58), 0.8057(91), 0.7130(154), 0.6479(182), with Rwp
+falling monotonically 0.07634 → 0.07299. The issue's identifiability warning,
+measured. `HIGH_CORRELATION` fires only at six terms (ρ(c0, s) = −0.993);
+below that the correlation is real and under the threshold, so the rule is the
+docs' and not a guard's.
+
+**The member had no test at all before this WP.** Nothing in the suite built a
+`BackgroundFixedPlusChebyshev`, which is why `interpolate_fixed`'s silent clamp
+survived, and why "bit-identical to today" is pinned structurally here rather
+than by a golden.
+
+**A defect this WP made, and its sibling.** `background_absorption` selected its
+screen targets by suffix, so `instrument.background.scale` was screened against
+the background block it belongs to: R² = 1.00 by construction, and
+`BACKGROUND_ABSORPTION` firing on every fit that freed the scale.
+`extra_peak_absorption` carried a copy of the same line. Both now call one
+`_structural_targets`, anchored at `phases.` the way `mode_fixed_path` was
+anchored for `vars.scale` (WP-1119). Not generalised: a caller's own variable is
+still screened on its spelling, because this function cannot see what a variable
+reaches.
 
 ## References
 
