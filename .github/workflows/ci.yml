@@ -34,7 +34,11 @@ name: CI
 # not one of the defaults, and `gh pr ready` is now what fires the gating run.
 # Off a pull request `github.event.pull_request.draft` is null, which the
 # expression language coerces to 0 and compares equal to false, so push and
-# workflow_dispatch still run in full.
+# workflow_dispatch still run in full.  Measured on the PR that landed this
+# (#364): a draft run is lint plus two skipped jobs, and a skipped matrix does
+# not expand — it reports once, under the literal name `fast py${{
+# matrix.python }}`.  So the four per-version contexts exist only from the
+# ready_for_review run onwards, which is the run that gates the merge anyway.
 #
 # The full suite (slow real-data acceptance included), macOS, Windows and
 # torch run in nightly.yml.
