@@ -237,16 +237,48 @@ Afterwards the run reads `cancelled`, and its `status.json` carries
 `cancelled_by`. That field is the only place the two are told apart. The
 exception does not distinguish them, and neither does the fit.
 
-`--read-only` serves the same pages without the button:
+`--read-only` serves the same pages without either button:
 
 ```console
 $ rietx watch --read-only
 rietx watch: 3 run(s) under /Users/yue/work/demo
              http://127.0.0.1:8899/  (Ctrl-C to stop)
-             read-only: no stop button
+             read-only: no stop button, no GUI launch
 ```
 
-The page draws no button, and the route refuses with 403.
+The page draws no button, and both routes refuse with 403.
+
+### Opening a copy in the GUI
+
+Every run inside a `.rex` project has an **open** button in the run list. It
+starts a second process, `rietx gui --scratch`, on a throwaway copy of that
+project and opens it in a new tab. The button is in the list rather than the
+status strip because the strip drops its flexible slot on a narrow window.
+
+**The copy is frozen at the click.** It holds the model, the parameters and the
+history as they stood at that moment, and it never gains the next stage. The
+watcher is the live view; the copy is for what the watcher has no room for, the
+parameter table, the report, the 3D structure, and branching a strategy from the
+head the fit had reached.
+
+**The project the fit is writing is not touched.** A project cannot be opened
+read-only: `Project.open` appends an annotation before you have clicked
+anything, and every action after that appends more. Opening the live project
+would put a second appender on a `history.jsonl` the fit is still growing. So
+the button copies first and opens the copy, and the copy's own directory is
+where everything you then do lands.
+
+The copy is a temp directory and nothing removes it. That is deliberate — the
+point of looking is usually to keep what you found — and it is the operating
+system's to reap.
+
+A run recorded by a bare `fit()` has no project to copy, so its row offers no
+button and the route answers 409. The strip shows the equivalent command for
+anyone who would rather type it:
+
+```console
+rietx gui --scratch campaign/sample.rex
+```
 
 The stop route also checks `Origin` and `Referer`, the way the GUI's writing
 routes do. A cross-origin POST needs no preflight, so without that check any
@@ -272,7 +304,7 @@ one writer per fact, and the GUI is it. With nothing stored the choice is
 
 ### The JSON underneath
 
-Seven routes carry everything the page shows, and you can read any of them
+Eight routes carry everything the page shows, and you can read any of them
 directly:
 
 | Route | Returns |
@@ -283,20 +315,23 @@ directly:
 | `/api/run/<id>/snapshot` | the stage's curves, ticks and statistics as JSON |
 | `/api/run/<id>/legacy` | a `fit.html` written before 1.4, served as it stands |
 | `POST /api/run/<id>/cancel` | asks that run to stop; 403 under `--read-only` |
+| `POST /api/run/<id>/gui` | opens a copy of that run's project in the GUI; 403 under `--read-only` |
 | `/plotly.js` | plotly out of the installed package, so the page works offline |
 
 These are provisional by declaration, like the GUI's ([](compatibility.md)). A
 route may be added, renamed or split in any release.
 
-Stopping is the watcher's only verb. Everything else reads. It never opens a
-project and never builds a refinement, so you can start and stop the watcher
-while a refinement runs. The stop writes a request file into a run directory the
-scan already found, and the fit's own token is what acts on it. No model is
-edited from here and no project is touched.
+The watcher has two verbs and everything else reads. It never opens a project
+and never builds a refinement, so you can start and stop the watcher while a
+refinement runs. The stop writes a request file into a run directory the scan
+already found, and the fit's own token is what acts on it. The GUI launch copies
+a project and starts a second process on the copy. No model is edited from here,
+and neither verb writes into the project a fit is using.
 
 The contrast worth knowing is `Project.open`, which writes an annotation into a
-project before you have clicked anything. Looking at a project without changing
-it is `rietx gui --scratch`. Looking at a run needs nothing.
+project before you have clicked anything. That is why the button opens a copy.
+Looking at a project without changing it is `rietx gui --scratch`. Looking at a
+run needs nothing.
 
 ## `rietx html`: a saved result as a page
 
@@ -384,6 +419,11 @@ rietx gui — http://127.0.0.1:8731/
 
 The copy is byte-for-byte, so it opens exactly as the original does. Nothing
 deletes it: the point of a scratch run is usually to look at what happened.
+
+This is also what `rietx watch`'s **open** button runs, with `--no-open` and
+`--machine` so the watcher can read the port and open the tab itself. A project
+under a running fit is safe to open this way, and only this way: the copy is
+frozen at the moment of the copy and the fit carries on writing the original.
 
 The GUI needs the `gui` extra ([](install.md)), which is plotly only: the built
 front end is committed inside the package, so installing it never needs node.
