@@ -349,9 +349,9 @@ $$2w \cos\theta = \frac{K\lambda}{L} + 4\varepsilon \sin\theta$$
 is a straight line in sinθ whose intercept gives the size L and whose slope
 gives the strain ε. $2w$ here is this manual's own notation for a FWHM, set in
 {doc}`../microstructure`, and not a claim about Williamson and Hall's symbols.
-What matters is the breadth measure rather than the letter: `ObservedPeak.fwhm`
-is a FWHM and goes with $K = 0.89$, while an integral breadth in its place needs
-$K = 1.0747$ and gives a different number out.
+What matters is the breadth measure rather than the letter. `ObservedPeak.fwhm`
+is a FWHM, so $K$ has to be a FWHM constant. The four lines below use 0.9, and
+the note on conventions under them says what an integral breadth takes instead.
 
 ```python
 import tempfile

@@ -286,20 +286,30 @@ Recorded here so a later session knows these were seen and left:
   signatures spell the physics (`x_size`, `y_strain`, `along_mm`, `axial_sl`),
   so the ambiguous letters live only in docstring equations that define them.
   Renaming them would break the "physics not letters" rule it is meant to serve.
-- **`Λ(hkl)`** at `stephens.py:20`. Package-local: FullProf writes `D_ST`
-  (verified against its manual), Stephens and GSAS-II write Γ_S. It is defined
-  by equation (2) at its point of use and never ambiguous inside the package.
-- **`U*`** at `adp.py:14`. cctbx's letter, where the cited IUCr nomenclature
-  report (Trueblood 1996) writes `β^ij`. Naming drift, definition exact.
+- **`Λ(hkl)`** at `stephens.py:20`. Package-local, defined by equation (2) at
+  its point of use and never ambiguous inside the package. FullProf writes
+  `D_ST`, verified 2026-09-17 against its manual, which uses it as a FWHM term.
+  That Stephens and GSAS-II write `Γ_S` is **unverified**: Stephens 1999 is not
+  in the local corpus.
+- **`U*`** at `adp.py:14`. cctbx's letter, and the definition at that line is
+  exact. That the cited IUCr nomenclature report (Trueblood 1996) writes `β^ij`
+  instead is **unverified**: the report is not in the local corpus. The
+  docstring attributes its nomenclature to that report, so if the report does
+  not use `U*` the parenthetical is a symbol borrowed under someone else's
+  citation. That is the defect fixed at `using/indexing.md:352` on 2026-09-17.
+  Deciding it needs the paper.
 - **`caglioti.apparent_size(..., k=SCHERRER_K)`** at `caglioti.py:136` and
   `:165`. A bare `k`, but it is the Scherrer constant rather than sinθ/λ, and
   `SCHERRER_K` carries the name at every call site that names it. Two sites do
   pass it by keyword — `tests/test_profile_size.py:157` and `:158` — so a later
-  session that reopens this decision has those to change as well.
+  session that reopens this decision has those to change as well. Anchors and
+  both keyword sites re-checked 2026-09-17.
 - **`stephens.py`'s missing √(8 ln 2)** against FullProf's `D²_ST`. Checked and
   cleared: `stephens.py:24-27` declares the omission, and `:39-40` warns "Never
   transfer a literature S_HKL without checking numerically". The house
-  convention rule working.
+  convention rule working. Corroborated 2026-09-17 by FullProf's own
+  `FWHM (L-strain) = (X + z DST) tan(theta)`, which uses `DST` as a FWHM term
+  rather than a standard deviation.
 
 ## Acceptance
 
@@ -340,6 +350,51 @@ every labelled equation has one.
   for the `K`-factor the letter is reserved for.
 
 ## Handover log
+
+### 2026-09-17 (3rd session, continued) — the inherited clears, re-verified
+
+The maintainer asked whether any other symbol could be wrong. The five claims
+this file had recorded as seen and left were re-read, against the tree and
+against the papers. One was wrong, and it was this session's own. The
+Williamson-Hall section of the indexing chapter had been given a Scherrer K of
+0.89, twenty lines above code that uses 0.9 and forty above a note that says
+the pair is 0.9 and 1. A reader who followed the prose would recompute the
+printed 1355 Å as 1340 Å. The other four clears hold, and two of them are now
+verified against a source instead of asserted. What a successor has is a
+not-generalised list that says which of its clears rest on a paper nobody here
+has read.
+
+*Done.* One correction to `docs/manual/using/indexing.md`. The sentence that
+de-attributes `2w` no longer restates the K convention. The chapter's own
+conventions note already owns that, states it correctly, and agrees with the
+code in the snippet. The `### Deliberately not generalised` list now separates
+its verified clears from its unverified ones.
+
+*Measured.* FullProf's manual writes `D_ST` and `D²_ST` and uses both as FWHM
+quantities, in `FWHM (L-strain) = (X + z DST) tan(theta)`. So `stephens.py`'s
+missing √(8 ln 2) is corroborated by the code it is compared against, rather
+than only declared. The `caglioti.py` anchors and both
+`tests/test_profile_size.py` keyword sites resolve. `T` collides — the
+Debye-Waller factor at `adp.py:10`, the absorption path length at
+`absorption.py:10` — and `M` collides three ways: Stephens' 1/d², the
+multiplicity of `corrections.md:259`, the molar mass of `qpa.py:16`. Each is
+defined where it is used, so that clear holds as written. The manual builds
+clean under `-W`. `test_manual.py`, `test_manual_api.py` and
+`test_docs_consistency.py`: 60 passed, worktree `.venv`, `[dev]`,
+darwin/arm64. No test was added and no computed number can move, this being
+prose.
+
+*Gotchas.* Two claims in the not-generalised list are about papers **not in
+the local corpus**. Trueblood 1996 is cited by four secondary sources there
+and is not itself present; Stephens 1999 is known only through the FullProf
+manual. Both claims came from the audit that wrongly cleared `caglioti.py`,
+so neither should be read as checked. They are now marked unverified rather
+than edited, because changing `adp.py` on a guess would manufacture the
+defect it is meant to prevent.
+
+*Next.* Nothing blocking, and the branch is ready to merge. Two clears close
+in one reading each if the maintainer can supply Trueblood et al. 1996 (Acta
+Cryst. A52, 770) and Stephens 1999 (J. Appl. Cryst. 32, 281).
 
 ### 2026-09-17 (3rd session) — the rename, and a misattribution in nine places
 
