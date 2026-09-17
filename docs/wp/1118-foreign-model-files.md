@@ -1,6 +1,6 @@
 # WP-1118 — foreign model files: read a refinement in, write one back
 
-Milestone: unscheduled · Status: ✅ 2026-09-16 — all four foreign formats read
+Milestone: v1.5 · Status: ✅ 2026-09-16 — all four foreign formats read
 and write. TOPAS `.inp` (PR #98), FullProf `.pcr` (#111), GSAS `.EXP` + `.PRM`
 (#248, #103) and GSAS-II `.gpx` behind a restricted unpickler (#234), each with
 a writer that is the inverse of its own reader and round-trips through it;

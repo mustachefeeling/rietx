@@ -88,12 +88,13 @@ placement, link resolution, and the size caps on this file and CLAUDE.md.
 
 ## Current focus
 
-**No milestone is open.** [v1.4](#v14--free-standing-peaks) shipped 2026-09-13
-([record](milestones/v1.4.md), [notes](releases/1.4.0.md)); `pyproject.version`
-is `1.4.0`. Opening v1.5 is the maintainer's decision and nothing blocks it:
-[1439](wp/1439-windows-red-since-every-fit-records-itself.md) put the Windows
-nightly green, `RELEASING.md` step 4's pre-upload gate. **492 commits and 29
-WPs have landed since the tag**, the largest unreleased body this repo holds.
+**v1.5 — a window into a run, opened 2026-09-18**
+([§ v1.5](#v15--a-window-into-a-run), [record](milestones/v1.5.md)):
+[1440](wp/1440-ship-v1-5.md) opens the milestone over the 26 WPs that landed
+without one and writes its notes from the tag range. It is opened 496 commits
+behind its own work, so no acceptance row was written at the open and the
+record says what that costs. **Before the tag**: `RELEASING.md` steps 3-7, and
+step 4 wants the Windows nightly green on a `main` commit.
 
 **Nothing else is in flight.** 1436 closed the symbol audit 1437 opened and
 freed `k` for the **magnetic track** (1326-1329, 1418), the largest queued
@@ -134,6 +135,7 @@ second opinion covers (golden only, no `jacfwd` row — 1119 § Gotchas).
 | v1.2 | The GUI for a crystallographer: house style, one help mechanism, onboarding, the panels a first-time user meets | ✅ **shipped 2026-08-28** ([record](milestones/v1.2.md)) | all six rows met on the release tree: one token layer and nine control registers with no size at a call site; one help mechanism over a 119-entry corpus crossed against the live vocabularies both ways, its 47 remaining authored titles a per-file budget that fails both ways; a project created from a blank state four ways in a real browser (a shipped example, browse, a typed cell, no structure at all); zero axis movement on hover, tab change and a whole exclude drag, 4 → 1 reacts per drag; refine flags, typed coordinates and a saved instrument profile in the Model panel; and the manual guarded by two partitions (77 routes, nine panels), 18 generated screenshots and a generated glossary — suite counts in the record's ship appendix |
 | v1.3 | Agents and programs: the termination view, the hold, the skill, the interchange format | ✅ **shipped 2026-08-30** ([record](milestones/v1.3.md), [notes](releases/1.3.0.md)) | six rows written at ship rather than at the open, and recorded as the weaker evidence that is: one integration surface, the python API, `rietx.agent` deleted on **zero** traced calls across four rounds; a result answering "done or not, and why" in one call, its diagnostics 35.2 → 3.5 kB from dedup and cap alone; an unsupported phase **held** rather than bounded (13 sub-onset ramp patterns: a cell 14.9 Å from truth free, 0.163 Å bounded by hand, **not reported** here); the protocol a 31 968 B skill read whole with a derived gate that found **four** undocumented entry points on its first run; the PowderLine recipe at **11-93 ppm** from TOPAS on all five free cell parameters; and the block measured — round 1.1, eight cells, $38.39, **seven of eight** stopping on a criterion this package states against **zero** in the 86-run baseline — suite counts in the record's ship appendix |
 | v1.4 | Free-standing peaks: fit_peaks + the extra-components seam | ✅ **shipped 2026-09-13** ([record](milestones/v1.4.md), [notes](releases/1.4.0.md)) | seventeen rows, **every one written before the work rather than at the ship** — 1101's five at the open, 1102's and 1103's sharpened by the sessions that had read them — and all seventeen met on the release tree (record § Appendix). The measured half: `fit_peaks` answers a named position that fits nothing and flags the unnamed neighbour beside one; the union's second member costs no new field and its landing is read from data, not from a class name; and the operando case is reported against its own alternative rather than flattered — declaring two injected holder lines recovers the SRM 660c cell to −1.0 ppm where ignoring them costs +7.6 ppm and inflates the cell esd 7.5×, while **excluding** the regions recovers it too, to +0.6 ppm, for 4.8 % of the channels |
+| v1.5 | A window into a run: the live watcher, foreign model files, a measured background | 🔄 **opened 2026-09-18** ([record](milestones/v1.5.md)) | nine rows, **none of them written at the open**, because the milestone was opened 496 commits behind its own work — the record says plainly that this is weaker evidence than v1.3's at-ship rows and reads as an inventory. The measured half: the live view at 180-329 kB a stage against the replaced page's 4.51-6.03 MB; a default-on recorder costing 1.03-1.28×, which **fails** its own 1.05× gate on two cases of three and was kept anyway with the reason recorded; a console that froze the main thread for 997 ms on a 60 000-event run, capped at the route; four foreign formats read and written; and `help.py`'s Lp corrected from 0.508× of the one the code computes |
 | v2+ | FPA (with the peaks buffer), neutron TOF, texture, modulated structures, PDF, MCP server — [§ v2+](#v2--fenced) | ⬜ fenced | — |
 
 ## Work packages
@@ -442,26 +444,93 @@ rather than the three the record scoped.
 | [1102](wp/1102-component-seam-humps.md) | The additive component seam + broad humps | ✅ 2026-09-13 | — |
 | [1103](wp/1103-peak-components.md) | Sharp extra peaks: the second component member | ✅ 2026-09-13 | 1102 (the seam) |
 
+### v1.5 — a window into a run
+
+Twenty-six WPs with commits in `v1.4.0..main`, every one opened unscheduled and
+merged before the milestone was; the [record](milestones/v1.5.md) says what
+opening it late costs. 1408-1410 closed on 2026-09-14 *before* the tag was cut
+at 16:13 and shipped in 1.4.0, so they stay in § Unscheduled with the rows that
+are still open.
+
+#### The live-watcher track
+
+Eighteen rungs answering a question the package could not answer before: what
+is my fit doing right now. 1428 was the last of the track proper, 1438 answered
+the twelve questions it handed the maintainer, and 1439 is the bill for writing
+the track on POSIX.
+
+| WP | Title | Status | Depends on |
+|---|---|---|---|
+| [1401](wp/1401-a-window-into-a-run.md) | A window into a run: find the runs that already exist | ✅ 2026-09-14 | — |
+| [1402](wp/1402-the-picture-costs-megabytes.md) | The live picture costs megabytes a stage, and the fit pays it | ✅ 2026-09-15 | 1401 |
+| [1403](wp/1403-a-run-nobody-asked-to-record.md) | A run nobody asked to record | ✅ 2026-09-15 | 1401, 1402 |
+| [1404](wp/1404-what-recording-every-fit-costs.md) | What recording every fit costs | ✅ 2026-09-15 | 1403 (1401 baseline) |
+| [1405](wp/1405-the-human-stops-the-run.md) | The human stops the run | ✅ 2026-09-15 | 1403 (1401 soft) |
+| [1406](wp/1406-say-that-the-fit-writes-to-disk.md) | Say that the fit writes to disk | ✅ 2026-09-15 | 1403, 1405 (1402 soft) |
+| [1413](wp/1413-the-snapshot-is-what-recording-costs.md) | The snapshot is what recording costs | ✅ 2026-09-15 | 1404, 1402 |
+| [1423](wp/1423-a-page-that-holds-still.md) | A page that holds still | ✅ 2026-09-16 | 1405, 1402 |
+| [1430](wp/1430-the-page-is-a-file.md) | The page is a file | ✅ 2026-09-16 | 1423 |
+| [1426](wp/1426-still-under-resize-and-across-a-stage.md) | Still under resize, and across a stage | ✅ 2026-09-16 | 1430, 1423 |
+| [1424](wp/1424-a-row-that-names-its-run.md) | A row that tells its run apart, and a number that fits its slot | ✅ 2026-09-16 | 1430 (1423 soft) |
+| [1431](wp/1431-a-caller-names-its-run.md) | A caller names its run | ✅ 2026-09-16 | 1424 |
+| [1425](wp/1425-the-panels-are-the-readers-to-size.md) | The panels are the reader's to size | ✅ 2026-09-16 | 1430, 1426 |
+| [1429](wp/1429-one-palette-and-one-theme-for-three-pages.md) | The GUI's tokens and the GUI's theme, on the two python pages | ✅ 2026-09-16 | 1430 (1426 soft) |
+| [1427](wp/1427-what-a-poll-costs.md) | What a poll costs | ✅ 2026-09-17 | 1430 (1426 soft) |
+| [1428](wp/1428-open-in-the-gui-without-touching-the-fit.md) | Open in the GUI, without touching the fit | ✅ 2026-09-17 | 1405, 1401 (1430 soft) |
+| [1438](wp/1438-the-questions-the-track-left.md) | The questions the track left | ✅ 2026-09-17 | 1429, 1427, 1425, 1413 (1428 soft) |
+| [1439](wp/1439-windows-red-since-every-fit-records-itself.md) | Windows, red since every fit started recording itself | ✅ 2026-09-17 | — (1403, 1404 turned it red) |
+
+#### Coming from another code
+
+The largest single WP in the range at 83 commits; the grammar its reader still
+refuses is 1433, unscheduled.
+
+| WP | Title | Status | Depends on |
+|---|---|---|---|
+| [1118](wp/1118-foreign-model-files.md) | Foreign model files: read a refinement in, write one back | ✅ 2026-09-16 | — |
+
+#### The fit has no reference
+
+The blank the beamline scanned, with a refinable scale and its own esds
+(issue #171); its sibling 1130 stays 🛑 in § Unscheduled.
+
+| WP | Title | Status | Depends on |
+|---|---|---|---|
+| [1309](wp/1309-measured-background.md) | A measured background: the container exists, the scale and the esds do not | ✅ 2026-09-17 | — |
+
+#### What the package says about itself
+
+Corrections to what the package says of itself, the titles below saying which.
+The symbol audit (1436, 1437) found `help.py` printing an Lp 0.508× from the
+one the code computes; 1440 is the milestone itself.
+
+| WP | Title | Status | Depends on |
+|---|---|---|---|
+| [1310](wp/1310-report-repeats-itself.md) | The report repeats itself: stage dedup, the declared wavelength, the empty column | ✅ 2026-09-16 | — |
+| [1411](wp/1411-a-manual-that-links-home.md) | A manual that links home: the landing copy, and the brand on furo's sidebar | ✅ 2026-09-14 | — |
+| [1412](wp/1412-the-theme-nobody-chose.md) | The theme nobody chose | ✅ 2026-09-14 | 1411 |
+| [1422](wp/1422-the-wp-two-sessions-picked.md) | The WP two sessions picked | ✅ 2026-09-15 | 1061, 1410 |
+| [1436](wp/1436-k-is-the-wavevector-everywhere-else.md) | `k` is the wavevector everywhere else | ✅ 2026-09-17 | 1437 |
+| [1437](wp/1437-a-formula-the-code-does-not-compute.md) | A formula the code does not compute | ✅ 2026-09-17 | — |
+| [1440](wp/1440-ship-v1-5.md) | Open v1.5 over the body that landed without it, and ship it | 🔄 2026-09-18 | 1439 |
+
 ### Unscheduled
 
 Opened by evidence — an issue, an agent round, a measurement — and owned by no
 milestone yet. Grouped by what the evidence says; each WP file carries it in
 full, with the issues it closes. Most of the 13xx rows come from the
-2026-09-01 issue triage (PRs #205, #213) and the day after; 1118, 1119, 1130
-and 1133 are older; 1413–1420 are the 2026-09-15 triage's.
+2026-09-01 issue triage (PRs #205, #213) and the day after; 1119, 1130 and
+1133 are older; 1414–1420 are the 2026-09-15 triage's.
 
 #### Coming from another code
 
-A TOPAS/GSAS/FullProf/Jana control file read in and written back, refine
-flags included — all six agents of 1110's round named hand-transcribing a
-`.inp` as the hardest part of the work. 1119 is the named variable such a
-file's equations refer to, and closed 2026-09-04; issue **#212**'s cross-phase
-linear restraint is its first concrete ask, **has no WP and needs one cut** —
-seam written out in [1325](wp/1325-parametric-series.md)'s `### Inherited`.
+What 1118 read and wrote (§ v1.5), continued. 1119 is the named variable such
+a file's equations refer to; issue **#212**'s cross-phase linear restraint is
+its first concrete ask, **has no WP and needs one cut** — seam written out in
+[1325](wp/1325-parametric-series.md)'s `### Inherited`.
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
-| [1118](wp/1118-foreign-model-files.md) | Foreign model files: read a refinement in, write one back | ✅ 2026-09-16 | — |
 | [1119](wp/1119-named-variables.md) | Named variables and equations: a `prm` of one's own | ✅ 2026-09-04 | — |
 | [1314](wp/1314-mfile-reader.md) | A Jana2020 project reader: .m50/.m40/.m41 | ⬜ | 1118 |
 | [1319](wp/1319-structure-interchange.md) | Structure interchange: checkCIF conformance and a bare XYZ importer | ⬜ | — |
@@ -469,14 +538,12 @@ seam written out in [1325](wp/1325-parametric-series.md)'s `### Inherited`.
 
 #### The fit has no reference
 
-A background the fit cannot argue with: a quantity derived sharing no
-assumption with the fit (1130), and the blank the beamline scanned, entering
-with a refinable scale and its own esds (1309, issue #171).
+A quantity derived sharing no assumption with the fit. 1309 shipped the other
+half in § v1.5; 1130's own trigger stopped reproducing.
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
 | [1130](wp/1130-background-reference.md) | The fit has no reference: a background level it cannot argue with | 🛑 2026-09-04 | — |
-| [1309](wp/1309-measured-background.md) | A measured background: the container exists, the scale and the esds do not | ✅ 2026-09-17 | — |
 
 #### The specimen is not an angle, and the neutron follow-through
 
@@ -498,25 +565,14 @@ for one specimen), and every converged fit reports a coherent domain size and a
 #### What fires, and what stays silent
 
 Each row is a silent wrong answer, the class the repo's rules are strictest
-about: a parameter that walks unflagged (1311), a confident fraction the
-pattern cannot fix (1320), a bound persisted as absent (1321), an alternation
-with no stop rule (1323), a freeze reading parameter *names* that a phase
-driven through a tie walks past (1342). The
-orbit that was not a multiplicity (1324) is closed; 1320 restates what it
-measured. The 2026-09-03 triage adds three: a 2θ axis read 100× wrong from a
-commented header (1332), a fit that says `converged` while its own diagnostics
-say otherwise (1336), and two paths failing in a raw traceback where the
-package promised an authored refusal (1337). The 2026-09-15 triage adds
-four: a reported Rwp the returned model does not give back (1421), a
-`turn_on` path that reached nothing (1414), a σ column smaller than √y
-feeding two diagnostics that assumed Poisson (1415), and ΔBIC on a raw
-channel count (1417). The 2026-09-16 review of #286 and #293 adds one of
-1342's kind: a tie onto a coordinate DOF, re-applied per write-through (1432).
-1310 closed on four of six; the bound test (1434) and the hold (1435) carry on.
+about; the titles below say which. Three triages feed it (2026-09-01, -03,
+-15) plus the 2026-09-16 review of #286 and #293, which cut 1432 of 1342's
+kind. The orbit that was not a multiplicity (1324) is closed and 1320 restates
+what it measured. 1310 closed on four of six in § v1.5; the bound test (1434)
+and the hold (1435) carry on.
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
-| [1310](wp/1310-report-repeats-itself.md) | The report repeats itself: stage dedup, the declared wavelength, the empty column | ✅ 2026-09-16 | — |
 | [1311](wp/1311-walking-parameter-bounds.md) | Bounds and flags for the remaining walking parameters | ⬜ | — (1310 soft) |
 | [1320](wp/1320-qpa-multimodal-fraction.md) | A phase fraction the pattern cannot fix | ⬜ | — (1310 soft) |
 | [1321](wp/1321-persisted-bounds-repair.md) | The bounds a Parameter field declared: repair and audit | ⬜ | — (PR #206 first) |
@@ -608,11 +664,6 @@ that travels with it (1340); and the report a joint fit has never had (1341).
 | [1408](wp/1408-the-manual-reads-like-a-manual.md) | The theory manual reads like a manual | ✅ 2026-09-14 | — |
 | [1409](wp/1409-part-one-reads-like-a-manual.md) | Part 1 reads like a manual | ✅ 2026-09-14 | 1408 |
 | [1410](wp/1410-worktree-gate-scope.md) | The worktree gate guards this checkout, not every repository | ✅ 2026-09-14 | — |
-| [1411](wp/1411-a-manual-that-links-home.md) | A manual that links home: the landing copy, and the brand on furo's sidebar | ✅ 2026-09-14 | — |
-| [1412](wp/1412-the-theme-nobody-chose.md) | The theme nobody chose | ✅ 2026-09-14 | 1411 |
-| [1422](wp/1422-the-wp-two-sessions-picked.md) | The WP two sessions picked | ✅ 2026-09-15 | 1061, 1410 |
-| [1436](wp/1436-k-is-the-wavevector-everywhere-else.md) | `k` is the wavevector everywhere else | ✅ 2026-09-17 | 1437 |
-| [1437](wp/1437-a-formula-the-code-does-not-compute.md) | A formula the code does not compute | ✅ 2026-09-17 | — |
 
 #### Candidates — named on a use case, not yet on a measurement
 
@@ -645,34 +696,6 @@ carries is whether 1327's non-goal becomes a sequencing statement.
 | [1329](wp/1329-moment-in-a-series.md) | The moment in a series: the onset, the hold, the trajectory | ⬜ | 1327 (1326 soft) |
 | [1343](wp/1343-the-moment-pays-for-the-width.md) | The magnetic peaks are broader, and the moment pays for it | ⬜ | 1327 (1326 soft) |
 | [1418](wp/1418-the-magnetic-structure-is-determined.md) | The magnetic structure is determined, not only stated | ⬜ | 1327 (1326 soft) |
-
-#### A window into a run — the live-watcher track
-
-Eighteen rungs, 2026-09-13 to 2026-09-17. Closed: 1428 was the last of the
-track proper and 1438 answered the twelve it handed the maintainer. 1439 is
-the bill: the track was written on POSIX, and the Windows nightly went red the
-day after v1.4 was tagged.
-
-| WP | Title | Status | Depends on |
-|---|---|---|---|
-| [1401](wp/1401-a-window-into-a-run.md) | A window into a run: find the runs that already exist | ✅ 2026-09-14 | — |
-| [1402](wp/1402-the-picture-costs-megabytes.md) | The live picture costs megabytes a stage, and the fit pays it | ✅ 2026-09-15 | 1401 |
-| [1403](wp/1403-a-run-nobody-asked-to-record.md) | A run nobody asked to record | ✅ 2026-09-15 | 1401, 1402 |
-| [1404](wp/1404-what-recording-every-fit-costs.md) | What recording every fit costs | ✅ 2026-09-15 | 1403 (1401 baseline) |
-| [1405](wp/1405-the-human-stops-the-run.md) | The human stops the run | ✅ 2026-09-15 | 1403 (1401 soft) |
-| [1406](wp/1406-say-that-the-fit-writes-to-disk.md) | Say that the fit writes to disk | ✅ 2026-09-15 | 1403, 1405 (1402 soft) |
-| [1413](wp/1413-the-snapshot-is-what-recording-costs.md) | The snapshot is what recording costs | ✅ 2026-09-15 | 1404, 1402 |
-| [1423](wp/1423-a-page-that-holds-still.md) | A page that holds still | ✅ 2026-09-16 | 1405, 1402 |
-| [1430](wp/1430-the-page-is-a-file.md) | The page is a file | ✅ 2026-09-16 | 1423 |
-| [1426](wp/1426-still-under-resize-and-across-a-stage.md) | Still under resize, and across a stage | ✅ 2026-09-16 | 1430, 1423 |
-| [1424](wp/1424-a-row-that-names-its-run.md) | A row that tells its run apart, and a number that fits its slot | ✅ 2026-09-16 | 1430 (1423 soft) |
-| [1431](wp/1431-a-caller-names-its-run.md) | A caller names its run | ✅ 2026-09-16 | 1424 |
-| [1425](wp/1425-the-panels-are-the-readers-to-size.md) | The panels are the reader's to size | ✅ 2026-09-16 | 1430, 1426 |
-| [1429](wp/1429-one-palette-and-one-theme-for-three-pages.md) | The GUI's tokens and the GUI's theme, on the two python pages | ✅ 2026-09-16 | 1430 (1426 soft) |
-| [1427](wp/1427-what-a-poll-costs.md) | What a poll costs | ✅ 2026-09-17 | 1430 (1426 soft) |
-| [1428](wp/1428-open-in-the-gui-without-touching-the-fit.md) | Open in the GUI, without touching the fit | ✅ 2026-09-17 | 1405, 1401 (1430 soft) |
-| [1438](wp/1438-the-questions-the-track-left.md) | The questions the track left | ✅ 2026-09-17 | 1429, 1427, 1425, 1413 (1428 soft) |
-| [1439](wp/1439-windows-red-since-every-fit-records-itself.md) | Windows, red since every fit started recording itself | ✅ 2026-09-17 | — (1403, 1404 turned it red) |
 
 ### v2+ — fenced
 

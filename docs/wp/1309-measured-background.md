@@ -1,6 +1,6 @@
 # WP-1309 — a measured background: the container exists, the scale and the esds do not
 
-Milestone: unscheduled · Status: ✅ 2026-09-17 — the real blank is committed and the scale is measured against it
+Milestone: v1.5 · Status: ✅ 2026-09-17 — the real blank is committed and the scale is measured against it
 Depends on: —
 
 ## Goal

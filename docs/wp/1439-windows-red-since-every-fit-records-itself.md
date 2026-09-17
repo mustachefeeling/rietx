@@ -1,6 +1,6 @@
 # WP-1439 — Windows, red since every fit started recording itself
 
-Milestone: unscheduled · Status: ✅ 2026-09-17 — Windows green on the reviewed tree, 0 failed; the pre-upload gate is clear
+Milestone: v1.5 · Status: ✅ 2026-09-17 — Windows green on the reviewed tree, 0 failed; the pre-upload gate is clear
 Depends on: — (1403, 1404 are what turned it red)
 
 ## Goal

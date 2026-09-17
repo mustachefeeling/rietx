@@ -1,6 +1,6 @@
 # WP-1404 — what recording every fit costs
 
-Milestone: unscheduled · Status: ✅ 2026-09-15 — the default-on recorder costs 1.03-1.28×, fails the 1.05× gate on two cases of three, and 84-96 % of it is the per-stage snapshot rather than the event stream the WP was written about; recording stays on and WP-1413 cuts the snapshot
+Milestone: v1.5 · Status: ✅ 2026-09-15 — the default-on recorder costs 1.03-1.28×, fails the 1.05× gate on two cases of three, and 84-96 % of it is the per-stage snapshot rather than the event stream the WP was written about; recording stays on and WP-1413 cuts the snapshot
 Depends on: 1403 (the layer being measured); 1401 (its baseline)
 
 ## Goal

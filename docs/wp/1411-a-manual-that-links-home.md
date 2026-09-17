@@ -1,6 +1,6 @@
 # WP-1411 — a manual that links home
 
-Milestone: unscheduled · Status: ✅ 2026-09-14 — landing copy published, and
+Milestone: v1.5 · Status: ✅ 2026-09-14 — landing copy published, and
 every manual page carries a brand linked to rietx.org
 Depends on: —
 

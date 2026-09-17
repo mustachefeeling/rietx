@@ -1,6 +1,6 @@
 # WP-1310 — the report repeats itself: stage dedup, the declared wavelength, the empty column
 
-Milestone: unscheduled · Status: ✅ 2026-09-16 — four of six landed; the bound test is 1434 and the caller's hold is 1435
+Milestone: v1.5 · Status: ✅ 2026-09-16 — four of six landed; the bound test is 1434 and the caller's hold is 1435
 Depends on: —
 
 ## Goal

@@ -1,6 +1,6 @@
 # WP-1438 — the questions the watcher track left
 
-Milestone: unscheduled · Status: ✅ 2026-09-17 — twelve questions answered over two rounds; the pages hold a narrow window, a reload and a theme their reader can reach
+Milestone: v1.5 · Status: ✅ 2026-09-17 — twelve questions answered over two rounds; the pages hold a narrow window, a reload and a theme their reader can reach
 Depends on: 1429 (the tokens), 1427 (the console walk), 1425 (the seams), 1413 (the cadence), 1428 soft (the width it moved)
 
 ## Goal

@@ -1,6 +1,6 @@
 # WP-1425 — the panels are the reader's to size
 
-Milestone: unscheduled · Status: ✅ 2026-09-16 — both seams are splitters, the two toggles are gone, and the plot is told when its width moves
+Milestone: v1.5 · Status: ✅ 2026-09-16 — both seams are splitters, the two toggles are gone, and the plot is told when its width moves
 Depends on: 1430 (the page as files, so the port below is importable), 1426 (the legend must hold still under resize before a splitter makes resize continuous)
 
 ## Goal
