@@ -122,6 +122,19 @@ k ≠ 0 commensurate candidates, k to confirm from the tutorial pages before
 either is named; `Magnetic-V` (Mn₃O₄, POWGEN) is TOF and stays fenced.
 MAGNDATA magCIF entries serve the round-trip and span tests with no pattern.
 
+### Inherited
+
+- **2026-09-17, from [1436](1436-k-is-the-wavevector-everywhere-else.md): `k`
+  is spent on sinθ/λ inside `crystallography/` today, and this WP wants it for
+  the propagation vector.** `scattering.py`, `structure_factor.py` and
+  `dispersion.py` all write `k` for sinθ/λ, in the same subpackage
+  `crystallography/magnetic/` lives in. 1436 renames that one to `stol` in
+  python and `s` in equations, following the IUCr CIF core dictionary and
+  Waasmaier & Kirfel. **After 1436 lands, `k` is free for the propagation
+  vector and needs no qualifier here.** Before it lands, spell the propagation
+  vector out in any new identifier rather than adding a second bare `k` to
+  `crystallography/`. The same note is in 1326, 1327, 1328 and 1329.
+
 ## Non-goals
 
 - Modulated and incommensurate structures (superspace): issue #258 holds the

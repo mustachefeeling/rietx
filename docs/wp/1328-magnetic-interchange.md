@@ -128,6 +128,17 @@ is still named in the result.
   of PR #290's twenty published structures are evaluated in a setting the
   BNS standard reaches only through it.
 
+- **2026-09-17, from [1436](1436-k-is-the-wavevector-everywhere-else.md): `k`
+  is spent on sinθ/λ inside `crystallography/` today, and this WP wants it for
+  the propagation vector.** `scattering.py`, `structure_factor.py` and
+  `dispersion.py` all write `k` for sinθ/λ, in the same subpackage
+  `crystallography/magnetic/` lives in. 1436 renames that one to `stol` in
+  python and `s` in equations, following the IUCr CIF core dictionary and
+  Waasmaier & Kirfel. **After 1436 lands, `k` is free for the propagation
+  vector and needs no qualifier here.** Before it lands, spell the propagation
+  vector out in any new identifier rather than adding a second bare `k` to
+  `crystallography/`. The same note is in 1326, 1327, 1329 and 1418.
+
 ## Non-goals
 
 - The model itself, its physics, its DOFs: 1327.
