@@ -248,6 +248,40 @@ can read.
   command: the built glossary HTML, and `GET /api/help` off a server on port
   8749. Both carry the corrected text, and neither wrong form (`(1 +
   K·cos²2θ)/(1 + K)`, `cos²2θ_M`) survives anywhere in either payload.
+- Re-measured after the review pass landed its fixes: **5312 / 133 again**, on
+  a branch `git fetch origin main` showed was not behind, so this is the tree
+  that merges.
+
+**The review pass changed five things, two of them in this WP's own guard.**
+`/code-review high --fix`, all five accepted, nothing declined.
+
+- The new review rule cited `test_size_and_strain_thresholds_are_the_code's_own`,
+  which does not exist. A rule whose entire mechanism is "a reader can reach the
+  real authority by grep" shipped with a reference that finds nothing. This is
+  the WP's own failure mode, one rank in.
+- **The guard's substring test was unanchored.** A sentence drifting from
+  "5 nm" to "15 nm" still *contains* "5 nm", so it passed on exactly the drift
+  its docstring claims to catch. Now a digit-boundary lookbehind, re-verified
+  both ways: "below 15 nm" no longer matches "5 nm", "at 12 nm" no longer
+  matches "2 nm", "past 11.5 deg" no longer matches "1.5 deg".
+- The `typical` band written for `instrument.polarization`, 0.51-0.56, covered
+  three of the six anodes the package ships. Through
+  `Instrument.bragg_brentano` with graphite (002): Ag 0.507, Mo 0.511, Cu 0.556,
+  Co 0.576, Fe 0.590, Cr 0.630. A Cr-anode user would have read a correct K as
+  out of range, in the one field whose stated job is a sanity-check range.
+  Widened to 0.51-0.63 with the span named; `monochromator_two_theta` likewise
+  (2θ_m 9.6-39.9°).
+- "Declared and never refined" was a structural claim the code does not make.
+  `ParameterTable._add` force-fixes the path only when the source is not
+  `xray_cw`, so `set_vary` frees it on an X-ray source and nothing objects. Now
+  "declared rather than refined, and no plan frees it", checked against all
+  seven `PLAN_PRESETS` — no glob in any of them reaches the path — with the
+  force-fix stated where it is true, on the neutron source.
+- Flagged and deliberately skipped, by the review and on review: the V entry
+  writes the Gaussian law instrument-only, without the `gauss_size` term
+  `gaussian_fwhm` also carries. The adjacent `instrument.profile.u` entry has
+  spelled it that way since before this diff, so changing one would split the
+  pair. Worth a future entry-pair fix, not this one.
 
 **The audit — 41 entries, the deliverable.** The WP sized the class at 15
 equation-bearing descriptions. That is the count of written *equations*; the
