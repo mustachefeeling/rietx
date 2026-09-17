@@ -276,7 +276,9 @@ the two sibling data files for the same reason.
 
 ### Deliberately not generalised
 
-Recorded here so a later session knows these were seen and left:
+Recorded here so a later session knows these were seen and left. Three of
+them were reopened on 2026-09-17 once the papers arrived, and the entries
+keep what was first believed beside what the papers said:
 
 - **Sixteen letters carry two or more physics meanings** and almost every
   meaning is source-correct. `T` is both ITC's Debye-Waller factor and ITC's
@@ -286,18 +288,25 @@ Recorded here so a later session knows these were seen and left:
   signatures spell the physics (`x_size`, `y_strain`, `along_mm`, `axial_sl`),
   so the ambiguous letters live only in docstring equations that define them.
   Renaming them would break the "physics not letters" rule it is meant to serve.
-- **`Λ(hkl)`** at `stephens.py:20`. Package-local, defined by equation (2) at
-  its point of use and never ambiguous inside the package. FullProf writes
-  `D_ST`, verified 2026-09-17 against its manual, which uses it as a FWHM term.
-  That Stephens and GSAS-II write `Γ_S` is **unverified**: Stephens 1999 is not
-  in the local corpus.
-- **`U*`** at `adp.py:14`. cctbx's letter, and the definition at that line is
-  exact. That the cited IUCr nomenclature report (Trueblood 1996) writes `β^ij`
-  instead is **unverified**: the report is not in the local corpus. The
-  docstring attributes its nomenclature to that report, so if the report does
-  not use `U*` the parenthetical is a symbol borrowed under someone else's
-  citation. That is the defect fixed at `using/indexing.md:352` on 2026-09-17.
-  Deciding it needs the paper.
+- **`Λ(hkl)`** at `stephens.py:20`. **Reopened and fixed 2026-09-17**, once
+  the maintainer supplied the paper. Stephens writes `Γ_A`, not the `Γ_S` this
+  file first recorded, and his `Γ_A` carries the tanθ where `Λ` is the
+  coefficient alone. FullProf writes `D_ST`, verified against its manual.
+  `stephens.py` and `microstructure.md` now say all three and claim none of
+  them is another's symbol.
+- **`U*`** at `adp.py:16`. **Reopened and fixed 2026-09-17.** The IUCr
+  nomenclature report recommends `U^ij` or `β^ij` and uses neither `U*` nor
+  anything like it; its dimensionless parameter is `β^ij = 2π²·U*_ij`, its
+  equations (21) and (22). `adp.py` and `intensities.md` had both attributed
+  their three-name scheme to that report. They now name the report as the
+  authority for the *definitions*, say what its own letters are, and say that
+  `U*` is the International Tables' and cctbx's.
+- **`stephens.py`'s Laue-class dimensions**. Not on the original list; found
+  in the same reading. The docstring said the derived dimensions "reproduce
+  Stephens' Table 1", but that table is by **crystal system** and has no row
+  for 4/m or for -3, so five of the eleven had no counterpart in it. The six
+  that can be compared agree. Corrected to claim the comparison it can make
+  and to own the rest as this module's derivation.
 - **`caglioti.apparent_size(..., k=SCHERRER_K)`** at `caglioti.py:136` and
   `:165`. A bare `k`, but it is the Scherrer constant rather than sinθ/λ, and
   `SCHERRER_K` carries the name at every call site that names it. Two sites do
@@ -305,11 +314,13 @@ Recorded here so a later session knows these were seen and left:
   session that reopens this decision has those to change as well. Anchors and
   both keyword sites re-checked 2026-09-17.
 - **`stephens.py`'s missing √(8 ln 2)** against FullProf's `D²_ST`. Checked and
-  cleared: `stephens.py:24-27` declares the omission, and `:39-40` warns "Never
-  transfer a literature S_HKL without checking numerically". The house
-  convention rule working. Corroborated 2026-09-17 by FullProf's own
-  `FWHM (L-strain) = (X + z DST) tan(theta)`, which uses `DST` as a FWHM term
-  rather than a standard deviation.
+  cleared: `stephens.py:30-36` declares the omission, and `:48-49` warns "Never
+  transfer a literature S_HKL without checking numerically". **Reopened and
+  fixed 2026-09-17.** The physics was right and the attribution was not: the
+  docstring called it "the practical convention of the implementing codes",
+  when the bracketed note under Stephens' own equation (4) says the √(8 ln 2)
+  "has been incorporated into the definition of S_HKL". It is the paper's
+  convention, which is a stronger claim than the one the module was making.
 
 ## Acceptance
 
@@ -350,6 +361,53 @@ every labelled equation has one.
   for the `K`-factor the letter is reserved for.
 
 ## Handover log
+
+### 2026-09-17 (3rd session, continued) — the two papers, and what they overturned
+
+The maintainer supplied Stephens 1999 and the Trueblood 1996 nomenclature
+report, the two sources the entry below had to leave unverified. Neither
+settled the way this file predicted. Both clears were wrong, one of them in
+the direction that matters: `stephens.py` credited its missing √(8 ln 2) to
+"the practical convention of the implementing codes", when Stephens states it
+himself in a bracketed note under his own equation (4). The module was
+following its cited paper exactly and describing itself as following folklore.
+A reader checking the module against the paper would have found the module
+right and its own account of itself wrong, which is the worst way to be
+correct. The physics did not move and no computed number can.
+
+*Done.* Four corrections across two surfaces, because each claim had a code
+site and a manual site. `stephens.py` and `microstructure.md`: the √(8 ln 2)
+is Stephens' own convention, and the quantity this package calls `Λ` is his
+`Γ_A` and FullProf's `D_ST`, with none of the three claimed to be another's
+symbol. `adp.py` and `intensities.md`: the report recommends `U^ij` or
+`β^ij`, its dimensionless parameter is `β^ij = 2π²·U*_ij`, and `U*` is the
+International Tables' and cctbx's letter rather than the report's. A fifth
+correction was found in the same reading and is not from the original list:
+the derived Laue-class dimensions were said to "reproduce Stephens' Table 1",
+which is by crystal system and has no row for 4/m or for -3.
+
+*Measured.* Stephens' equation (4) is `Γ_A = [σ²(M_hkl)]^{1/2} tanθ / M_hkl`,
+which is this package's (2) once `M = 1/d²` is substituted, so the algebra was
+already right. His Table 1 gives cubic 2, tetragonal 4, orthorhombic 6,
+monoclinic 9, hexagonal and trigonal-P 3, triclinic 15; all six agree with the
+derivation. Trueblood equations (21), (22) and (25) give `β^jl =
+2π²⟨Δx^j Δx^l⟩` and `U^jl = β^jl/(2π² a^j a^l)`, and recommendation 3 names
+`U^ij` and `β^ij` as the two forms to report. Manual builds clean under `-W`.
+`test_manual.py`, `test_manual_api.py`, `test_docs_consistency.py` and
+`test_stephens.py`: 162 passed. Fast selection re-run on the final tree.
+Worktree `.venv`, `[dev]`, darwin/arm64. Every change is a docstring or prose,
+so no number can move and none did.
+
+*Gotchas.* The lesson is about the shape of the clears rather than their
+content. Both were reached by checking that the *implementation* matched the
+*downstream codes*, which it did, and neither went to the paper. A clear that
+compares two derived things can be true and still leave the citation wrong.
+The audit's original spelling `Γ_S` was also simply wrong, and nothing in the
+tree would ever have contradicted it, because no test reads a docstring.
+
+*Next.* The not-generalised list is now empty of unverified paper claims. Two
+items remain and both are design decisions rather than attributions: the
+sixteen ambiguous letters, and `caglioti.apparent_size`'s bare `k`.
 
 ### 2026-09-17 (3rd session, continued) — the inherited clears, re-verified
 

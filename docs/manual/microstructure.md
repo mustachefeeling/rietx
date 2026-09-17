@@ -185,7 +185,10 @@ uses is
 {source}`rietx.crystallography.stephens.strain_width_deg`
 
 added to the Lorentzian FWHM as $\Lambda(hkl)\cdot\tan\theta$. It is the first
-width in the model to depend on $hkl$.
+width in the model to depend on $hkl$. Stephens writes this quantity
+$\Gamma_A(hkl)$, with the $\tan\theta$ inside it. $\Lambda$ is this manual's
+letter for the coefficient alone, because $\Gamma$ is already the FWHM in
+{ref}`ch-profiles`. FullProf calls the same thing $D_{ST}$.
 
 ```{warning}
 Three independent labelling conventions sit behind these $S_{HKL}$, and getting
@@ -194,7 +197,11 @@ without them and the width law is wrong while the fit still refines.
 
 1. $\sqrt{\sum S\cdot\text{monomial}}\cdot d^2\cdot 10^{-6}$ is the FWHM of the
    $\Delta M/M = 2\Delta d/d$ distribution, and not its standard deviation. No
-   $\sqrt{8\ln 2}$ appears anywhere.
+   $\sqrt{8\ln 2}$ appears anywhere. That is Stephens' own convention rather
+   than a later simplification: the note under his equation (4) says the
+   $\sqrt{8\ln 2}$ between the r.m.s. and the FWHM has been folded into the
+   definition of $S_{HKL}$. A published set that did not fold it in differs by
+   that one constant on every coefficient.
 2. The coefficients are carried in 10⁻¹² Å⁻⁴ rather than physical Å⁻⁴. That
    choice is numerical: the shared finite-difference step is absolute below 1,
    so a coefficient at its physical ~10⁻⁸ Å⁻⁴ magnitude would be differenced

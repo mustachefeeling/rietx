@@ -145,13 +145,19 @@ T_{jm}(\mathbf{h}) \;=\;
 {source}`rietx.crystallography.structure_factor`
 
 Three representations of the same tensor appear in the literature, named
-explicitly here per the IUCr nomenclature report {cite}`trueblood1996`:
+explicitly here so that "U" cannot mean whichever one the reader had in mind.
+The IUCr nomenclature report {cite}`trueblood1996` is the authority for the
+definitions. Its own recommendation is to report $U^{ij}$ or $\beta^{ij}$, and
+$U^*$ is not one of its symbols:
 
 - $U^{ij}$ (Å²), the CIF `_atom_site_aniso_U_ij` convention, defined by
   $T(\mathbf{h}) = \exp(-2\pi^2 \sum_{ij} U^{ij} h_i h_j a^*_i a^*_j)$. This is
   the stored form, so what goes into a CIF is what came out of one.
 - $U^*$ (dimensionless), $U^*_{ij} = U^{ij} a^*_i a^*_j$, the mean-square
-  displacement tensor in fractional coordinates. $U^*$ transforms as
+  displacement tensor in fractional coordinates. The report's dimensionless
+  parameter is $\beta^{ij} = 2\pi^2 U^*_{ij}$, so $U^*$ is the letter of the
+  International Tables and of cctbx rather than the report's own. The $2\pi^2$
+  is the whole difference. $U^*$ transforms as
   $U^* \to R\,U^* R^\top$, so evaluating the image atom's factor at
   $\mathbf{h}$ is identically the parent's at $R^\top\mathbf{h}$, the
   reciprocal-space action again. The structure factor uses this form, and the
