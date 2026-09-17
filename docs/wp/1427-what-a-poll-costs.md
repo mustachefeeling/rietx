@@ -311,11 +311,30 @@ machine's; the `Server-Timing` numbers come from a python test and run in CI.
   35 ms median render, on a case that no longer makes a long task, at the cost
   of the only thing in a one-log series that says which pattern a line is from.
 
+  **The review pass earned its place, on the change I was most pleased with.**
+  `/code-review high --fix` found that the `ETag` had broken the selected-row
+  highlight: the `selected` class was set only in `fillRow`, which is reached
+  only from `patchList`, which the 304 branch skips. A click changes nothing on
+  disk, so the poll *after* a click is exactly the poll that 304s — on a
+  directory of finished runs the highlight would have stayed on the row the
+  reader had just left, for ever. It has an authority of its own now
+  (`markSelected`), called from both branches, and a browser test that was made
+  to fail against the old script first. Two more were taken: the tag was
+  committed before the payload was applied, so a truncated body would have
+  pinned the page to a list it never drew; and the manual's route table still
+  described the events route as `?offset=` alone. One finding was raised and
+  **declined on inspection, correctly**: the 304 carries `Content-Length: 0`,
+  which RFC 7230 allows only when it equals the 200 body's length. This server
+  is HTTP/1.0 (`http.server`'s default, which `watch/` does not override), so
+  the connection closes after every response and no client in the path can
+  misread it.
+
   **Counts**, this worktree, `[dev]` **plus playwright** (installed for this
   session; without it every browser test self-skips), darwin/arm64. Acceptance
-  115 → 135 passed, +20, which is exactly the tests added: 7 in
-  `test_runs.py`, 10 in `test_watch_app.py`, 3 in `test_watch_browser.py`. Fast
-  selection 5235 passed, 132 skipped in 142 s. `ruff` clean over src, tests and
+  115 → 136 passed, +21, which is exactly the tests added: 7 in
+  `test_runs.py`, 10 in `test_watch_app.py`, 4 in `test_watch_browser.py` (3
+  mine, 1 the review's). Fast selection 5235 passed, 132 skipped in 142 s,
+  measured before the review's test landed. `ruff` clean over src, tests and
   examples. Wall clock is quoted as a range throughout because two runs of one
   benchmark on this machine move further than most of these changes did.
 
