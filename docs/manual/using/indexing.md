@@ -432,12 +432,13 @@ triclinic, and every system is supported.
 
 Whether a list can be searched and whether it can be scored are different
 questions, and conflating them once refused a pattern this package indexes
-perfectly. Below twenty usable lines the classical figures are
-undefined. De Wolff's M₂₀ is defined on twenty {eq}`idx-m20`; Smith & Snyder
-define F_N for general N and recommend thirty {eq}`idx-fn`, so the twenty this
-package scores it at is its own choice, tied to the same precondition. The search still runs over the supported
-systems, ranks on the reduced panel, and names each missing figure with its
-reason in `DataQualityReport.fom_undefined`. What that costs is the grade: a
+perfectly. Below twenty usable lines the classical figures are not
+reported. De Wolff's M₂₀ is defined on twenty {eq}`idx-m20`, so below that it
+does not exist. Smith & Snyder define F_N for general N and recommend thirty
+{eq}`idx-fn`, so the twenty this package scores it at is its own choice, tied
+to the same precondition rather than to their paper. The search still runs over
+the supported systems, ranks on the reduced panel, and names each missing
+figure with its reason in `DataQualityReport.fom_undefined`. What that costs is the grade: a
 short list can never reach `high`.
 
 `DataQualityReport.volume_envelope` is Smith's (1977) bound on the cell volume

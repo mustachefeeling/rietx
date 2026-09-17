@@ -12,7 +12,7 @@ are read on the peak list, not on a `RefinementResult`.
 
 | Code | What it means you must not do |
 |---|---|
-| `PEAK_LIST_TOO_SHORT` | Read the answer as *scored*. Below 20 usable lines the classical figures (M₂₀, F₂₀, Smith's envelope) are undefined, so the search still runs — over the systems the line count supports — but ranks on the reduced panel, and nothing in the answer is comparable to a published threshold. (Before WP-1043 this code refused the search outright; that conflated scoring with searching, and it refused fluorite's 18 clean lines that all three engines index at −5 ppm) |
+| `PEAK_LIST_TOO_SHORT` | Read the answer as *scored*. Below 20 usable lines the classical figures (M₂₀, F_N, Smith's envelope) are not scored, so the search still runs — over the systems the line count supports — but ranks on the reduced panel, and nothing in the answer is comparable to a published threshold. (Before WP-1043 this code refused the search outright; that conflated scoring with searching, and it refused fluorite's 18 clean lines that all three engines index at −5 ppm) |
 | `INDEX_DATA_INSUFFICIENT` | Spend a search budget. The gate has already decided the data cannot support a search *in any system*, and it names which of the two reasons applies (lines per metric degree of freedom, or σ(Q)/Q) |
 | `INDEX_PANEL_REDUCED` | Treat an absent figure as zero, or compute your own M on fewer lines and quote it as M₂₀. Each absent member is named with its reason on `quality.fom_undefined`; the members that remain rank every candidate alike, so the *order* means what it always does — the `fom_panel_reduced` caveat (capping) is what says the scoring does not |
 | `PEAK_SIGMA_ASSUMED` | Quote a precision, or weight lines by 1/σ² as if that meant something — every σ in the list is the same assumed constant. Re-pick from the pattern if you have it. **You may still index it**: an assumed σ is not grounds for refusing, so the σ(Q)/Q abstention below does not run on such a list (it would be quoting a precision this package invented) |
@@ -351,10 +351,10 @@ the `fom_panel_reduced` caveat (capping) holds every below-twenty-line
 candidate at `medium`. The reasoning read: the certified cell at rank 1 at
 −18 ppm, found by every engine that ran, Le Bail-validated `converged`, four
 systems searched to completion, and the *only* caveat on it is the reduced
-panel — M₂₀/F₂₀ absent for cause, the coverage and reversed members all
+panel — M₂₀/F_N absent for cause, the coverage and reversed members all
 ranked. A consumer that can weigh that is entitled to adopt the cell with its
 eyes open; before WP-1043 the same list was refused outright — the old gate
-conflated scoring (twenty lines, where M₂₀/F₂₀ are *defined*) with searching
+conflated scoring (twenty lines, where M₂₀ is *defined* and F_N is scored) with searching
 (`MIN_LINES_PER_DOF` per system: seventeen lines are seventeen-fold
 over-determined for a cubic metric), and neither consumer got anything.
 

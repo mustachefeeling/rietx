@@ -6,9 +6,8 @@ where the inner sum runs over a per-atom subset of symmetry operations chosen
 once per refinement stage so that special-position images are not double
 counted (the *operation subset* is frozen — a discrete object — while the
 positions it produces remain smooth functions of the refined coordinates),
-f_j is the Waasmaier-Kirfel form factor with s = sin(θ)/λ = 1/(2d), and T
-is the
-Debye-Waller factor (International Tables C).  Intensities use |F|² with the
+f_j is the Waasmaier-Kirfel form factor with s = sin(θ)/λ = 1/(2d), and T is
+the Debye-Waller factor (International Tables C).  Intensities use |F|² with the
 reflection multiplicity applied separately (Rietveld, 1969, J. Appl. Cryst.
 2, 65).
 

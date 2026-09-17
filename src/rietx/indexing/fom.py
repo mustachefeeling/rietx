@@ -43,7 +43,7 @@ from ..schemas.indexing import (
 #: doublet — so 3σ really is a 99.7 % window rather than a knob.  It is the one
 #: number the whole panel shares, and every FoM reports which one it used.
 MATCH_SIGMA = 3.0
-#: Lines the classical figures of merit are defined on.  De Wolff's M₂₀ is
+#: Lines the classical figures of merit are scored on.  De Wolff's M₂₀ is
 #: defined on the first twenty and Smith's volume envelope is quoted at N = 20.
 #: Smith & Snyder's F_N is *not*: they define it for general N (their eq 1) and
 #: recommend N = 30, or the last line where a pattern has fewer.  Their worked

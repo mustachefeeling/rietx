@@ -842,10 +842,10 @@ PIPELINE = (
      "autopicking mistakes.</b>"),
     ("2. Refuse lists that cannot support an answer",
      "<code>indexing/quality.py</code>",
-     "M₂₀, F₂₀ and Smith's volume envelope are all <i>defined</i> on twenty "
-     "lines, so below that the package would be reporting figures of merit "
-     "outside their own definitions. Fluorite abstains here, before any engine "
-     "starts, on 18 usable lines."),
+     "M₂₀ and Smith's volume envelope are <i>defined</i> on twenty lines, and "
+     "F_N is scored on the same twenty here, so below that the package would "
+     "be reporting figures of merit outside the list they are about. Fluorite "
+     "abstains here, before any engine starts, on 18 usable lines."),
     ("3. Measure the 2θ shift, before searching",
      "<code>indexing/pairs.py</code>",
      "Harmonic reflection pairs — planes that are integer multiples — give one "

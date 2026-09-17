@@ -30,8 +30,8 @@ not transferable between instruments, while the crystallite size it implies is
 *constant* in Q:
 
     Q = 4π·sinθ/λ,  so  dQ/d(2θ) = 2π·cosθ/λ,  and with
-    β(2θ) = K·λ/(L·cosθ)                                     [Scherrer, rad]
-    ΔQ = (2π·cosθ/λ)·β = 2π·K/L                               [Å⁻¹]     (3)
+    2w(2θ) = K·λ/(L·cosθ)                                    [Scherrer, rad]
+    ΔQ = (2π·cosθ/λ)·2w = 2π·K/L                              [Å⁻¹]     (3)
 
 independent of both λ and θ.  Hence :func:`apparent_size`, and the exact
 consequence that makes it cheap: because the size law *is* 1/cosθ, the cosθ of
@@ -136,10 +136,12 @@ def apparent_size(fwhm_deg: float, two_theta_deg: float, wavelength_a: float,
                   k: float = SCHERRER_K) -> float:
     """Scherrer crystallite size, Å, from a FWHM at one angle.
 
-    ``L = K·λ / (β·cosθ)`` with β the FWHM in radians of 2θ (Scherrer, 1918;
-    the K convention is :data:`SCHERRER_K`'s).  Equivalently ``L = 2π·K/ΔQ``
-    with ΔQ from :func:`delta_q_fwhm` — the module docstring's (3), and the
-    reason this is the instrument-independent way to read a width.
+    ``L = K·λ / (2w·cosθ)`` with 2w the FWHM in radians of 2θ (Scherrer, 1918;
+    the K convention is :data:`SCHERRER_K`'s, and 2w rather than β is Langford &
+    Wilson's symbol for a FWHM — their β is the integral breadth).
+    Equivalently ``L = 2π·K/ΔQ`` with ΔQ from :func:`delta_q_fwhm` — the
+    module docstring's (3), and the reason this is the instrument-independent
+    way to read a width.
 
     This is the **whole** width, so the size it returns is a lower bound on the
     crystallite size unless the instrumental contribution has already been

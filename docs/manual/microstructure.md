@@ -34,7 +34,9 @@ L \;=\; \frac{K\lambda}{2w\,\cos\theta} \qquad [\text{Å}],
 with $2w$ the FWHM in radians of $2\theta$, which is Langford and Wilson's
 symbol for it {cite}`langford1978`. Their $\beta$ is the *integral breadth*, the
 peak area divided by the peak height, and the notation table of
-{doc}`manual` rules that out as a width measure here. $K$ depends on the
+{doc}`manual` rules that out as a width measure here. The lower-case $2w$ is a
+width in radians and has nothing to do with the Caglioti $W$ of
+{eq}`prof-caglioti-g`, which is a variance in deg². $K$ depends on the
 crystallite shape and on which of the two breadths is used: 0.89 for the FWHM of
 a sphere against 1.0747 for its integral breadth. An apparent size
 is therefore an order-of-magnitude statement rather than a quotable two-figure
