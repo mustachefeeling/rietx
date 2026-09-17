@@ -1,6 +1,6 @@
 # WP-1439 — Windows, red since every fit started recording itself
 
-Milestone: unscheduled · Status: ✅ 2026-09-17 — Windows green again, 0 failed; the pre-upload gate is clear
+Milestone: unscheduled · Status: 🔄 2026-09-17 — review replaced the Windows pid probe; re-dispatched to verify
 Depends on: — (1403, 1404 are what turned it red)
 
 ## Goal
@@ -140,11 +140,27 @@ one written anywhere else.
 A fifth defect surfaced only once the first fix let the module collect, and it
 is the largest of them. `liveness_of` answers by the first rung that fires,
 and Windows has no `flock`, so its lock rungs never fire and the pid fallback
-is the only rung it has. That rung was mute: `os.kill` on Windows is
-`OpenProcess`, which fails `ERROR_INVALID_PARAMETER` for a pid no process has
-instead of raising `ProcessLookupError`. Read as "cannot say", it meant every
-run in `rietx watch` on Windows showed `unknown`. It now reads that one
-winerror as "gone".
+is the only rung it has. That rung was mute: `os.kill` raised a bare `OSError`
+there rather than `ProcessLookupError`, and read as "cannot say" it meant every
+run in `rietx watch` on Windows showed `unknown`.
+
+**Corrected in review, same day.** The first fix read
+`ERROR_INVALID_PARAMETER` as "no such process", on the premise that `os.kill`
+on Windows is `OpenProcess`. It is not, for this signal: `0` **is**
+`signal.CTRL_C_EVENT`, so the call goes to `GenerateConsoleCtrlEvent`, which
+fails that same winerror for every pid that is not a console process group —
+alive and dead alike — and, for one that is, delivers a Ctrl+C to the fit the
+reader came to look at. So the rung would have answered `abandoned` about
+running fits, and `os.kill` is not a call a reader may make there at all. The
+probe on Windows is now `OpenProcess` + `GetExitCodeProcess` through `ctypes`
+(`runs._pid_alive_windows`), which is the question that was meant and the one
+`psutil` asks. Every unexpected failure stays `None`.
+
+The test that was supposed to hold this asserted `!= "unknown"` about our own
+pid, which a confidently wrong `abandoned` also satisfies; it now asserts
+`_pid_alive(os.getpid()) is True`, on every platform. **The Windows half is
+unverified**: it wants a nightly dispatch before the pre-upload gate is called
+clear again.
 
 **Done.**
 

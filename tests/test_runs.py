@@ -347,13 +347,17 @@ def test_a_foreign_host_reads_unknown(tmp_path):
 
 
 def test_our_own_host_is_not_foreign(tmp_path):
-    # this process, because the pid rung only has to *answer* here and our own
-    # pid is alive on every platform (pid 1 is init on POSIX and nothing at
-    # all on Windows, which is the whole reason this used to need a skip)
+    # this process, because our own pid is alive on every platform (pid 1 is
+    # init on POSIX and nothing at all on Windows, which is the whole reason
+    # this used to need a skip) -- and `running` rather than `!= "unknown"`,
+    # since a rung answering `abandoned` about a process that is running this
+    # assertion passes the weaker test (WP-1439)
     _write_run(tmp_path / "r", events=_event_line("fit_start"),
                status={"state": "running", "pid": os.getpid(),
                        "host": socket.gethostname()})
-    assert runs.liveness_of(_one(tmp_path)).state != "unknown"
+    live = runs.liveness_of(_one(tmp_path))
+    assert live.state == "running"
+    assert str(os.getpid()) in live.evidence
 
 
 def test_a_status_with_no_state_reads_unknown_not_running(tmp_path):
@@ -469,23 +473,27 @@ def test_a_state_from_a_newer_writer_costs_the_state_and_not_the_row(tmp_path):
     assert runs.liveness_of(run).state == "abandoned"
 
 
-def test_a_pid_windows_says_is_gone_reads_gone(monkeypatch):
-    """The Windows half of the pid rung, provoked where it can be (WP-1439).
+def test_the_pid_rung_answers_about_this_very_process():
+    """The contract, on whatever platform is running this (WP-1439).
 
-    ``os.kill`` there is ``OpenProcess``, which fails
-    ``ERROR_INVALID_PARAMETER`` for a pid no process has rather than raising
-    ``ProcessLookupError``. Read as "cannot say", it left the rung mute on the
-    one platform that has no lock rung above it.
+    It is the assertion that catches a probe answering a *different* question.
+    ``os.kill(pid, 0)`` is not a liveness probe on Windows -- ``0`` is
+    ``signal.CTRL_C_EVENT`` there, and a live process that is not a console
+    process group fails it ``ERROR_INVALID_PARAMETER`` -- so reading that
+    winerror as "gone" makes this very process read gone. Asserting
+    ``!= "unknown"`` one rung up cannot see that; asserting ``True`` here can.
     """
-    def _no_such_process(pid, sig):
-        exc = OSError(22, "The parameter is incorrect")
-        exc.winerror = runs._WINDOWS_NO_SUCH_PID
-        raise exc
-
-    monkeypatch.setattr(runs.os, "kill", _no_such_process)
-    assert runs._pid_alive(999_999) is False
+    assert runs._pid_alive(os.getpid()) is True
 
 
+@pytest.mark.skipif(os.name != "nt", reason="the OpenProcess probe")
+def test_the_windows_probe_separates_a_live_pid_from_a_gone_one():
+    """Both ends of the rung Windows has instead of ``kill``."""
+    assert runs._pid_alive_windows(os.getpid()) is True
+    assert runs._pid_alive_windows(999_999) is False
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Windows does not go through kill")
 def test_an_unreadable_pid_error_still_declines_to_guess(monkeypatch):
     """Everything else stays ``None``: a wrong guess here is a confident
     wrong singleton about somebody's running fit."""

@@ -741,9 +741,67 @@ def _probe_lock(path: Path) -> Literal["held", "free", "unavailable"]:
         fh.close()
 
 
-#: ``ERROR_INVALID_PARAMETER``. What Windows returns for a pid no process has,
-#: which is the answer POSIX spells ``ProcessLookupError``.
+#: ``ERROR_INVALID_PARAMETER``, what ``OpenProcess`` returns for a pid no
+#: process has, which is the answer POSIX spells ``ProcessLookupError``.
 _WINDOWS_NO_SUCH_PID = 87
+#: ``ERROR_ACCESS_DENIED``: a process that exists and is somebody else's.
+_WINDOWS_ACCESS_DENIED = 5
+#: ``PROCESS_QUERY_LIMITED_INFORMATION``, the least a handle can ask for and
+#: still open against a process this user does not own.
+_WINDOWS_QUERY_LIMITED = 0x1000
+#: The exit code ``GetExitCodeProcess`` reports for a process still running.
+#: A process that really exited *with* 259 reads alive, which is the documented
+#: ambiguity of this API and costs one heartbeat of staleness, never a wrong
+#: ``abandoned``.
+_WINDOWS_STILL_ACTIVE = 259
+
+
+def _pid_alive_windows(pid: int) -> bool | None:
+    """The pid rung where there is no ``kill`` (WP-1439).
+
+    ``os.kill(pid, 0)`` does not ask this question on Windows. ``0`` **is**
+    ``signal.CTRL_C_EVENT`` there, so the call goes to
+    ``GenerateConsoleCtrlEvent``, which delivers a Ctrl+C to a console process
+    group -- a reader interrupting the very fit it came to look at -- and
+    otherwise fails ``ERROR_INVALID_PARAMETER`` for every pid that is not one
+    of those groups, alive and dead alike. Reading that one winerror as "gone"
+    therefore reports a running fit as ``abandoned``.
+
+    ``OpenProcess`` is the question, and a handle plus ``GetExitCodeProcess``
+    is the answer; it is what ``psutil`` asks. Every unexpected failure is
+    ``None``, so the rung declines rather than guessing, exactly as the POSIX
+    half does.
+    """
+    import ctypes
+    try:
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        open_process = kernel32.OpenProcess
+        # a handle is a pointer: the default ``c_int`` restype truncates it on
+        # 64-bit, and a truncated handle is both a wrong answer and a leak
+        open_process.restype = ctypes.c_void_p
+        open_process.argtypes = [ctypes.c_ulong, ctypes.c_int, ctypes.c_ulong]
+        handle = open_process(_WINDOWS_QUERY_LIMITED, 0, pid)
+        if not handle:
+            err = ctypes.get_last_error()
+            if err == _WINDOWS_NO_SUCH_PID:
+                return False
+            if err == _WINDOWS_ACCESS_DENIED:
+                return True      # exists, owned by somebody else
+            return None
+        try:
+            get_exit_code = kernel32.GetExitCodeProcess
+            get_exit_code.argtypes = [ctypes.c_void_p,
+                                      ctypes.POINTER(ctypes.c_ulong)]
+            code = ctypes.c_ulong()
+            if not get_exit_code(handle, ctypes.byref(code)):
+                return None
+            return code.value == _WINDOWS_STILL_ACTIVE
+        finally:
+            close_handle = kernel32.CloseHandle
+            close_handle.argtypes = [ctypes.c_void_p]
+            close_handle(handle)
+    except (OSError, AttributeError, ValueError):
+        return None
 
 
 def _pid_alive(pid: int) -> bool | None:
@@ -754,22 +812,15 @@ def _pid_alive(pid: int) -> bool | None:
     """
     if pid <= 0:
         return None
+    if os.name == "nt":      # pragma: no cover - POSIX
+        return _pid_alive_windows(pid)
     try:
         os.kill(pid, 0)
     except ProcessLookupError:
         return False
     except PermissionError:
         return True      # exists, owned by somebody else
-    except OSError as exc:
-        # Windows says "no such process" as a bare ``OSError``: ``os.kill`` is
-        # ``OpenProcess`` there and it fails ``ERROR_INVALID_PARAMETER`` (87)
-        # rather than setting an errno ``ProcessLookupError`` would see. Read
-        # as ``None`` this made the pid rung answer nothing on the one platform
-        # where it is the *only* rung -- no ``flock``, so the lock rungs above
-        # never fire -- and every run in ``rietx watch`` read ``unknown``
-        # (WP-1439).
-        if getattr(exc, "winerror", None) == _WINDOWS_NO_SUCH_PID:
-            return False
+    except OSError:
         return None
     return True
 

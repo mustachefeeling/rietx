@@ -84,8 +84,18 @@ _POSIX_ONLY = {"fcntl", "termios", "pwd", "grp", "pty", "tty", "resource",
 
 #: Handlers that let a missing module through.  A bare ``except`` counts: it is
 #: broader than it should be and it still degrades the import to a skip.
-_CATCHES_MISSING = {"ImportError", "ModuleNotFoundError", "OSError",
+#: ``OSError`` is deliberately *not* here, tempting as it looks beside the
+#: file-I/O rules above: ``ImportError`` descends from ``Exception`` and not
+#: from ``OSError``, so ``except OSError`` around an import catches nothing and
+#: the module still dies on collection.
+_CATCHES_MISSING = {"ImportError", "ModuleNotFoundError",
                     "Exception", "BaseException"}
+
+#: The characters a mode string is made of.  A mode is short and spelled from
+#: these; a *filename* literal in the same call is neither, which is how
+#: ``open("tests/data/cell.dat", "r")`` came to look like a write (its ``a``)
+#: and ``open("refs.bib", "w")`` like binary (its ``b``).
+_MODE_CHARS = set("rwaxbt+U")
 
 
 def _python_files() -> list[Path]:
@@ -95,16 +105,28 @@ def _python_files() -> list[Path]:
     return out
 
 
+def _mode_strings(call: ast.Call) -> list[str]:
+    """The mode literals of one open call, and nothing else it was passed.
+
+    The mode sits first in ``p.open("a")`` and second in ``open(p, "a")``, so
+    both positions are read -- and then filtered to what a mode can actually
+    be spelled with.  Taking every string argument instead reads the
+    *filename* as a mode, in both directions: ``open("tests/data/cell.dat",
+    "r")`` becomes a write on its ``a`` and ``open("refs.bib", "w")`` becomes
+    binary on its ``b``, which exempts a real write handle from both of the
+    rules below (WP-1439).
+    """
+    found = [a.value for a in call.args[:2]
+             if isinstance(a, ast.Constant) and isinstance(a.value, str)]
+    found += [kw.value.value for kw in call.keywords
+              if kw.arg == "mode" and isinstance(kw.value, ast.Constant)
+              and isinstance(kw.value.value, str)]
+    return [m for m in found if m and len(m) <= 3 and set(m) <= _MODE_CHARS]
+
+
 def _is_binary_mode(call: ast.Call) -> bool:
     """True when a mode argument selects binary, where encoding is illegal."""
-    for arg in call.args[:2]:
-        if isinstance(arg, ast.Constant) and isinstance(arg.value, str) and "b" in arg.value:
-            return True
-    for kw in call.keywords:
-        if kw.arg == "mode" and isinstance(kw.value, ast.Constant):
-            if isinstance(kw.value.value, str) and "b" in kw.value.value:
-                return True
-    return False
+    return any("b" in mode for mode in _mode_strings(call))
 
 
 def _text_io_calls(tree: ast.AST, source: str) -> list[tuple[ast.Call, str]]:
@@ -196,8 +218,7 @@ def test_csv_writers_open_with_newline_suppressed():
             if not writes:
                 continue
             # only writers matter; a read cannot double a line ending
-            modes = [a.value for a in call.args
-                     if isinstance(a, ast.Constant) and isinstance(a.value, str)]
+            modes = _mode_strings(call)
             if call.func.attr == "open" and not any("w" in m or "a" in m for m in modes):
                 continue
             if not any(kw.arg == "newline" for kw in call.keywords):
@@ -291,12 +312,7 @@ def test_every_write_handle_names_its_newline():
                     else call.func.id)
             if name != "open":
                 continue
-            modes = [a.value for a in call.args
-                     if isinstance(a, ast.Constant) and isinstance(a.value, str)]
-            modes += [kw.value.value for kw in call.keywords
-                      if kw.arg == "mode" and isinstance(kw.value, ast.Constant)
-                      and isinstance(kw.value.value, str)]
-            if not any(c in m for m in modes for c in "wax"):
+            if not any(c in m for m in _mode_strings(call) for c in "wax"):
                 continue
             if not any(kw.arg == "newline" for kw in call.keywords):
                 offenders.append(f"{path.relative_to(ROOT)}:{call.lineno}")
@@ -321,6 +337,29 @@ def test_the_guards_can_actually_fail(snippet, guard, tmp_path):
     calls = _text_io_calls(tree, snippet)
     assert calls, "the walker found no text I/O in a snippet that is all text I/O"
     assert not any(kw.arg == guard for call, _ in calls for kw in call.keywords)
+
+
+def test_the_newline_guard_reads_the_mode_and_not_the_filename():
+    """A write is named by a mode, and a filename carrying one of its letters
+    is not one.  Both directions were wrong before WP-1439's review: a read of
+    ``cell.dat`` was a write on its ``a``, and a write to ``refs.bib`` was
+    binary on its ``b``, which exempted it from every rule in this file."""
+    read = ast.parse('open("tests/data/cell.dat", "r", encoding="utf-8")')
+    write = ast.parse('open("refs.bib", "w", encoding="utf-8")')
+    assert _mode_strings(read.body[0].value) == ["r"]
+    assert _mode_strings(write.body[0].value) == ["w"]
+    assert not _is_binary_mode(write.body[0].value)
+
+
+def test_the_posix_import_guard_reads_what_the_handler_catches():
+    """``except OSError`` is not a guard.  ``ImportError`` does not descend
+    from it, so the module still fails to collect on a platform without
+    ``fcntl`` -- which is the failure this rule exists to prevent."""
+    caught = ast.parse("try:\n    import fcntl\nexcept ImportError:\n    pass\n")
+    missed = ast.parse("try:\n    import fcntl\nexcept OSError:\n    pass\n")
+    assert _guarded_import_lines(caught) == {2}
+    assert _guarded_import_lines(missed) == set()
+    assert not issubclass(ImportError, OSError)
 
 
 def test_webbrowser_open_is_not_mistaken_for_file_io():
