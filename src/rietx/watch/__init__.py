@@ -635,6 +635,18 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
         pass
 
 
+def _gui_argv(project: Path) -> list[str]:
+    """The command a launch runs, as its own function so a test can replace it.
+
+    What :func:`_launch_gui` does with the pipe is the part that has been wrong
+    twice, and standing a script in for the GUI is the only way to drive the
+    cases that matter: a warning arriving before the boot line, a child that
+    says why it failed, and a child that never speaks at all.
+    """
+    return [sys.executable, "-m", f"{__package__.split('.')[0]}.cli", "gui",
+            "--scratch", str(project), "--no-open", "--machine"]
+
+
 def _launch_gui(project: Path) -> dict:
     """Spawn ``rietx gui --scratch`` on ``project`` and read where it landed.
 
@@ -647,9 +659,13 @@ def _launch_gui(project: Path) -> dict:
     the reader is watching with. A bare ``rietx`` is whatever is first on
     ``PATH``, which in a worktree is routinely another checkout's.
 
-    ``--machine`` is the flag that prints one JSON line first, and it exists
-    for this caller. ``--no-open`` because the page opens the tab, having asked
-    for the launch. No ``--port``: ``gui.server.build_server`` already falls
+    ``--machine`` is the flag that prints the JSON boot line, and it exists
+    for this caller. It is not necessarily the *first* line on this pipe:
+    ``stderr`` is merged in, so the read below looks for the line carrying a
+    ``url`` rather than trusting the one that arrives first.
+
+    ``--no-open`` because the page opens the tab, having asked for the launch.
+    No ``--port``: ``gui.server.build_server`` already falls
     back to an ephemeral port when the default is busy, so a second window
     needs nothing from here, and three launches on one project were measured
     landing on 8731, 63972 and 63973.
@@ -659,8 +675,7 @@ def _launch_gui(project: Path) -> dict:
     is the intent, the same way a scratch copy outlives its GUI.
     """
     proc = subprocess.Popen(
-        [sys.executable, "-m", f"{__package__.split('.')[0]}.cli", "gui",
-         "--scratch", str(project), "--no-open", "--machine"],
+        _gui_argv(project),
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
         start_new_session=True)
     _SPAWNED.append(proc)
@@ -668,34 +683,74 @@ def _launch_gui(project: Path) -> dict:
     # The read is on a thread with a deadline. `readline` on a pipe has no
     # timeout, and a GUI that never printed would hold this request thread for
     # the life of the server.
-    got: list[str] = []
+    #
+    # It reads *lines*, not one line, for two reasons. `stderr` is merged into
+    # this pipe, so whatever the interpreter says before `serve` prints — a
+    # warning, a `-W` setting's output, a dependency's deprecation — would
+    # otherwise be read as the boot line and a GUI that is serving reported as
+    # a failure. And nothing else ever drains this pipe: a child that fills its
+    # 64 kB buffer blocks in `write` for good, so the thread keeps reading to
+    # EOF after the boot line has been found.
+    boot: list[dict] = []
+    said: list[str] = []
+    booted = threading.Event()
 
     def _read() -> None:
         try:
-            got.append(proc.stdout.readline())
+            while True:
+                line = proc.stdout.readline()
+                if not line:
+                    break
+                line = line.strip()
+                if not line or boot:
+                    continue
+                try:
+                    parsed = json.loads(line)
+                except ValueError:
+                    said.append(line)
+                    continue
+                # `url` is what makes it the boot line, rather than some other
+                # JSON the child happened to print
+                if isinstance(parsed, dict) and parsed.get("url"):
+                    boot.append(parsed)
+                    booted.set()
+                else:
+                    said.append(line)
         except (OSError, ValueError):               # pragma: no cover - race
-            got.append("")
+            pass
+        finally:
+            booted.set()          # EOF is an answer too: it will never boot
 
     reader = threading.Thread(target=_read, daemon=True)
     reader.start()
-    reader.join(GUI_BOOT_TIMEOUT)
-    if not got:
+    booted.wait(GUI_BOOT_TIMEOUT)
+    if boot:
+        found = boot[0]
+        return {"url": found.get("url"), "port": found.get("port"),
+                "project": found.get("project"), "pid": found.get("pid"),
+                "scratch_of": found.get("scratch_of")}
+
+    # No boot line, so this process is not going to serve anything. It is
+    # killed rather than left: `start_new_session` means a stray one outlives
+    # the watcher, holding a port and a scratch copy nobody can find.
+    exited = proc.poll() is not None
+    if not exited:
         proc.kill()
-        return {"error": f"the {DIST_NAME} GUI did not report a port within "
-                         f"{GUI_BOOT_TIMEOUT:.0f} s"}
-    line = got[0].strip()
     try:
-        boot = json.loads(line)
-    except ValueError:
+        proc.wait(timeout=5)
+    except subprocess.TimeoutExpired:               # pragma: no cover - race
+        pass
+    if said:
         # `gui.server.main` prints `rietx gui: <why>` and exits 2 when the
         # project will not open — a torn copy among them (WP-1428). That
         # sentence is the useful half of the answer, so it is passed through
-        # rather than replaced with a status code.
-        return {"error": line or f"the {DIST_NAME} GUI exited without saying "
-                                 f"why"}
-    return {"url": boot.get("url"), "port": boot.get("port"),
-            "project": boot.get("project"), "pid": boot.get("pid"),
-            "scratch_of": boot.get("scratch_of")}
+        # rather than replaced with a status code. The *last* line, because a
+        # traceback's last line is its exception.
+        return {"error": said[-1]}
+    if exited:
+        return {"error": f"the {DIST_NAME} GUI exited without saying why"}
+    return {"error": f"the {DIST_NAME} GUI did not report a port within "
+                     f"{GUI_BOOT_TIMEOUT:.0f} s"}
 
 
 def serve(directory: str | Path | None = None, *, port: int = 8899,
@@ -741,8 +796,13 @@ def serve(directory: str | Path | None = None, *, port: int = 8899,
     found = index.runs()
     print(f"rietx watch: {len(found)} run(s) under {directory}")
     print(f"             {url}  (Ctrl-C to stop)")
-    if not allow_cancel:
-        print("             read-only: no stop button, no GUI launch")
+    # Read off both flags, because they are two. `--read-only` clears the pair
+    # and this line then reads as it always did; a caller that declines one of
+    # them gets a banner that is true rather than one that names the other.
+    withheld = ([] if allow_cancel else ["no stop button"]) + \
+               ([] if allow_gui else ["no GUI launch"])
+    if withheld:
+        print("             read-only: " + ", ".join(withheld))
     if open_browser:
         import webbrowser
 

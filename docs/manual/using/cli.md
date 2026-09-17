@@ -274,13 +274,15 @@ The copy is a temp directory and nothing removes it. That is deliberate, the
 point of looking being usually to keep what you found, and the directory is the
 operating system's to reap.
 
-A run recorded by a bare `fit()` has no project to copy. Its row offers no
-button, and the route answers 409. The strip shows the equivalent command for
-anyone who would rather type it:
+For a run that has a project, the status strip also carries the command the
+button runs, for anyone who would rather type it:
 
 ```console
 rietx gui --scratch campaign/sample.rex
 ```
+
+A run recorded by a bare `fit()` has no project to copy. Its row offers no
+button, its strip carries no command, and the route answers 409.
 
 The stop route also checks `Origin` and `Referer`, the way the GUI's writing
 routes do. A cross-origin POST needs no preflight, so without that check any

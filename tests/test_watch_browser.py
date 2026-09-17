@@ -1333,18 +1333,6 @@ OVERFLOW = """() => {
   return out;
 }"""
 
-#: Which cells must fit and which may elide, by what fills them. A cell the
-#: page fills itself — a state word from a closed vocabulary, a number it
-#: formats, a clock time — has a worst case the CSS can be sized for, and a
-#: reader who cannot see all of it has simply been shown the wrong number. A
-#: cell holding a name somebody else chose has no worst case: a stage is the
-#: plan author's string (`preferred_orientation` is 21 characters), a label
-#: and a path are the caller's. Those may be cut, and what is asserted of them
-#: is that the whole string is in a `title` where the reader can still reach
-#: it.
-#: The two halves are a *partition*, and a cell in neither fails below rather
-#: than being quietly waved through: a column or slot added without a decision
-#: about which kind it is would otherwise be tested by nothing.
 def _open_list(browser, base: str):
     """The page, waiting on the run list rather than on a plot.
 
@@ -1453,6 +1441,18 @@ def test_clicking_launch_selects_the_run_and_says_what_it_is_doing(browser,
     assert after["opened"] == "http://127.0.0.1:65000/"
 
 
+#: Which cells must fit and which may elide, by what fills them. A cell the
+#: page fills itself — a state word from a closed vocabulary, a number it
+#: formats, a clock time — has a worst case the CSS can be sized for, and a
+#: reader who cannot see all of it has simply been shown the wrong number. A
+#: cell holding a name somebody else chose has no worst case: a stage is the
+#: plan author's string (`preferred_orientation` is 21 characters), a label
+#: and a path are the caller's. Those may be cut, and what is asserted of them
+#: is that the whole string is in a `title` where the reader can still reach
+#: it.
+#: The two halves are a *partition*, and a cell in neither fails below rather
+#: than being quietly waved through: a column or slot added without a decision
+#: about which kind it is would otherwise be tested by nothing.
 BOUNDED = ("state", "Rwp", "GoF", "started", "gui")
 ELIDED = ("run", "stage")
 BOUNDED_SLOTS = {"slot:s-state", "slot:s-rwp", "slot:s-gof", "slot:s-free",

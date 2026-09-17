@@ -949,6 +949,83 @@ def test_a_real_gui_boots_on_a_scratch_copy_and_the_project_is_untouched(
     assert hashlib.sha256(log.read_bytes()).hexdigest() == before
 
 
+# ----------------------------------------------------------------------
+# what the launch does with the pipe (WP-1428)
+#
+# `stderr` is merged into the pipe the boot line arrives on, and nothing else
+# ever drains it. Both halves of that have been wrong once, so these stand a
+# script in for the GUI and drive the three cases a real one cannot be made to
+# produce on demand.
+
+def _launch_with(monkeypatch, script: Path, project: Path) -> dict:
+    monkeypatch.setattr(watch, "_gui_argv",
+                        lambda _project: [sys.executable, str(script)])
+    return watch._launch_gui(project)
+
+
+def test_a_warning_before_the_boot_line_is_not_read_as_a_failure(tmp_path,
+                                                                 monkeypatch):
+    """A reader that takes the first line and trusts it gets this wrong.
+
+    Whatever the interpreter says before ``serve`` prints — a dependency's
+    deprecation warning, anything a site hook emits — arrives on this pipe
+    first. The GUI would be serving and the page would report a failure.
+    """
+    script = tmp_path / "noisy.py"
+    script.write_text(
+        "import json, sys, time\n"
+        "print('DeprecationWarning: something', file=sys.stderr, flush=True)\n"
+        "print('and a second line', file=sys.stderr, flush=True)\n"
+        "print(json.dumps({'url': 'http://127.0.0.1:65001/', 'port': 65001,"
+        " 'project': '/tmp/copy', 'pid': 1, 'scratch_of': '/tmp/src'}),"
+        " flush=True)\n"
+        "time.sleep(30)\n", encoding="utf-8")
+    boot = _launch_with(monkeypatch, script, tmp_path)
+    try:
+        assert boot.get("url") == "http://127.0.0.1:65001/", boot
+        assert boot["port"] == 65001
+    finally:
+        watch._SPAWNED[-1].kill()
+
+
+def test_a_gui_that_says_why_it_failed_has_that_passed_through(tmp_path,
+                                                               monkeypatch):
+    """``gui.server.main`` prints ``rietx gui: <why>`` and exits 2.
+
+    Those refusal messages name seven different remedies between them, so the
+    sentence is the useful half of the answer. The *last* line, because a
+    traceback's last line is its exception.
+    """
+    script = tmp_path / "failing.py"
+    script.write_text(
+        "import sys\n"
+        "print('Traceback (most recent call last):', file=sys.stderr,"
+        " flush=True)\n"
+        "print('  File \"x.py\", line 1', file=sys.stderr, flush=True)\n"
+        "print('rietx gui: not a project directory: /nope', flush=True)\n"
+        "raise SystemExit(2)\n", encoding="utf-8")
+    boot = _launch_with(monkeypatch, script, tmp_path)
+    assert "not a project directory" in boot["error"], boot
+    assert "url" not in boot
+
+
+def test_a_gui_that_never_reports_a_port_is_killed_rather_than_left(
+        tmp_path, monkeypatch):
+    """``start_new_session`` means a stray one outlives the watcher.
+
+    It would hold a port and a scratch copy nobody can find, so the timeout
+    reaps it rather than returning and forgetting it.
+    """
+    script = tmp_path / "silent.py"
+    script.write_text("import time\ntime.sleep(120)\n", encoding="utf-8")
+    monkeypatch.setattr(watch, "GUI_BOOT_TIMEOUT", 1.0)
+    before = list(watch._SPAWNED)
+    boot = _launch_with(monkeypatch, script, tmp_path)
+    assert "did not report a port" in boot["error"], boot
+    (proc,) = [p for p in watch._SPAWNED if p not in before]
+    assert proc.poll() is not None, "the silent GUI was left running"
+
+
 def test_the_closed_dialog_is_not_a_sheet_over_the_page():
     """An id selector outranks the browser's own ``[hidden] {display:none}``.
 

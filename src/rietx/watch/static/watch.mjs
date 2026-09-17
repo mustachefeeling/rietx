@@ -554,38 +554,60 @@ function openConfirm(run) {
   box.hidden = false;
 }
 
+// The runs a launch is outstanding for. A second click while the first is in
+// flight is a second GUI, a second scratch copy and a second port, and a
+// python interpreter takes long enough to start that the second click is the
+// ordinary thing to do rather than the careless one.
+const launching = new Set();
+
 // The launch takes about a second, most of it a python interpreter starting
 // (WP-1428 measured 0.58-0.89 s). So the notice goes up first: without it the
-// click looks like it did nothing, and the second click is a second GUI.
+// click looks like it did nothing.
 async function openGui(id) {
+  if (launching.has(id)) return;
+  launching.add(id);
   // Select the run first. A notice belongs to one run and `drawRun` drops one
   // that is not the run on screen, so a launch from a row the reader is not
   // looking at would report neither its progress nor its refusal.
   if (currentId() !== id) location.hash = '#/run/' + id;
-  notice = {id: id, kind: 'gui',
-            text: 'opening a copy in the ' + DIST + ' GUI …',
-            stop: false, expires: Date.now() + 90000};
-  refresh();
-  let payload = null, ok = false;
   try {
-    const r = await fetch(`api/run/${id}/gui`, {method: 'POST'});
-    ok = r.ok;
-    payload = await r.json();
-  } catch (err) {
-    payload = {error: String(err)};
+    setNotice({id: id, kind: 'gui',
+               text: 'opening a copy in the ' + DIST + ' GUI …',
+               stop: false, expires: Date.now() + 90000});
+    let payload = null, ok = false;
+    try {
+      const r = await fetch(`api/run/${id}/gui`, {method: 'POST'});
+      ok = r.ok;
+      payload = await r.json();
+    } catch (err) {
+      payload = {error: String(err)};
+    }
+    if (ok && payload && payload.url) {
+      // a new tab, and the url stays in the strip: a popup blocker eats this
+      // silently, and a reader with no tab and no url has nothing to go on
+      window.open(payload.url, '_blank', 'noopener');
+      setNotice({id: id, kind: 'gui',
+                 text: 'a frozen copy is open at ' + payload.url,
+                 stop: false, expires: Date.now() + 20000});
+    } else {
+      setNotice({id: id, kind: 'gui',
+                 text: (payload && payload.error) || 'the GUI was refused',
+                 stop: false, expires: Date.now() + 8000});
+    }
+  } finally {
+    launching.delete(id);
   }
-  if (ok && payload && payload.url) {
-    // a new tab, and the url stays in the strip: a popup blocker eats this
-    // silently, and a reader with no tab and no url has nothing to go on
-    window.open(payload.url, '_blank', 'noopener');
-    notice = {id: id, kind: 'gui',
-              text: 'a frozen copy is open at ' + payload.url,
-              stop: false, expires: Date.now() + 20000};
-  } else {
-    notice = {id: id, kind: 'gui',
-              text: (payload && payload.error) || 'the GUI was refused',
-              stop: false, expires: Date.now() + 8000};
-  }
+}
+
+// A notice is drawn now, not on the next poll. `refresh` returns without doing
+// anything while a poll is already in flight, so a notice that only asked for
+// one could sit unseen for the length of that poll — which is exactly the wait
+// it exists to explain. The poll is still asked for, because a notice is not
+// the only thing that moved.
+function setNotice(next) {
+  notice = next;
+  const run = rows.get(currentId());
+  if (run) fillStrip(run);
   refresh();
 }
 
