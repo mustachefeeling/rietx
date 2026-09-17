@@ -620,13 +620,12 @@ async function stopRun(id) {
   } catch (err) {
     payload = {error: String(err)};
   }
-  notice = ok
+  setNotice(ok
     ? {id: id, kind: 'stop', text: 'stopping at the next evaluation …',
        stop: true, expires: Infinity}
     : {id: id, kind: 'stop',
        text: (payload && payload.error) || 'the stop was refused',
-       stop: false, expires: Date.now() + 8000};
-  refresh();
+       stop: false, expires: Date.now() + 8000});
 }
 
 // The class on the one element in the console that is not a line of the log.
