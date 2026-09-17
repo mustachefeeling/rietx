@@ -204,6 +204,36 @@ third letter for it in the tree, which becomes `f0(s=0)` in that docstring.
 sentence, so the rename trips no partition test and needs no compatibility
 entry. Every call site passes the argument positionally.
 
+### Inherited
+
+**From [1437](1437-a-formula-the-code-does-not-compute.md), closed 2026-09-17.**
+That WP was the expensive end of this audit and is now done, so this one is
+unblocked. Three things it learned change the work here.
+
+- **`docs/manual/intensities.md` has already been edited**, at the neutron
+  paragraph (was line 104). 1437 rebases under this WP's plan, so re-read that
+  paragraph before touching the chapter. The edit fixed a *third* live site of
+  the `K` collision: the chapter said "an unpolarised neutron beam sets
+  $K = 1$", where its own `K` is the σ-polarised fraction and unpolarised is
+  0.5. The paragraph now states the real reason, quoting `NeutronSource`'s
+  docstring, and says explicitly that $K = 1$ is not the unpolarised value.
+- **The collision reached a user-facing number, not only notation.** 1437's
+  measurement: the help text's Lp against the computed Lp differs by 0.508× at
+  2θ = 90° for K = 0.99, and the ratio varies with angle. Worth quoting in this
+  WP's own motivation — a symbol bound to the wrong quantity is not a
+  readability question here.
+- **A rule this WP can lean on rather than restate**: `help.py`'s module
+  docstring now carries "a description that states a formula or a threshold
+  names where the real one lives", and the numeric half is enforced by
+  `tests/test_help.py::test_quoted_thresholds_are_the_codes_own`. A rename under
+  this WP that moves a computing function must therefore also move the entry
+  naming it; grep `help.py` for the old dotted name.
+
+One caution on this WP's own § The rest of the audit: 1437 found that entry
+line numbers in the parent audit were off by 9-114 lines in six places, the
+files themselves untouched, so the audit's anchors were approximate from the
+start. Re-grep rather than trusting a line number.
+
 ### Fences
 
 `src/rietx/data/f0_WaasKirf.dat` is vendored third-party data, parsed

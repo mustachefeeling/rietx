@@ -614,7 +614,7 @@ that travels with it (1340); and the report a joint fit has never had (1341).
 | [1412](wp/1412-the-theme-nobody-chose.md) | The theme nobody chose | ✅ 2026-09-14 | 1411 |
 | [1422](wp/1422-the-wp-two-sessions-picked.md) | The WP two sessions picked | ✅ 2026-09-15 | 1061, 1410 |
 | [1436](wp/1436-k-is-the-wavevector-everywhere-else.md) | `k` is the wavevector everywhere else | ⬜ | 1437 |
-| [1437](wp/1437-a-formula-the-code-does-not-compute.md) | A formula the code does not compute | 🔄 2026-09-17 | — |
+| [1437](wp/1437-a-formula-the-code-does-not-compute.md) | A formula the code does not compute | ✅ 2026-09-17 | — |
 
 #### Candidates — named on a use case, not yet on a measurement
 
