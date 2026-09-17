@@ -106,6 +106,14 @@ which is why this class was unguarded.
       wording already correct at `schemas/instrument.py:1762-1766` and
       `docs/manual/corrections.md:30`.
 - [ ] Correct `help.py:1320-1330` (`monochromator_two_theta`), same root cause.
+- [ ] `docs/manual/intensities.md:104` — the third site of the same `K`
+      confusion. It says "an unpolarised neutron beam sets $K = 1$", where
+      `corrections.py:17` defines K as the σ-polarised *fraction* with K = 0.5
+      unpolarised. The arithmetic is right, since K = 1 gives the bare Lorentz
+      factor a neutron pattern wants, but the word is attached to the wrong
+      value and the same chapter's `corr-lp` defines K the other way. The skill
+      is clean here: `diagnostics-gsas.md:61` states the value without
+      labelling it.
 - [ ] Audit the remaining fourteen equation-bearing descriptions against the
       code each describes. Record every one in the handover, checked or
       corrected. **This is the deliverable**; the two fixes above are its first

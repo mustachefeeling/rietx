@@ -307,12 +307,20 @@ docstring cites, the IUCr's own dictionary writes `s` in a normative method
 expression, and the letter is scheduled to collide with the magnetic
 propagation vector inside `crystallography/`.
 
+*Done.* **No task on this checklist landed, by design.** The session bought the
+audit that makes the checklist executable, and wrote it down. What exists now
+is this file, [1437](1437-a-formula-the-code-does-not-compute.md) and their two
+ROADMAP rows. No source file was touched, so every acceptance number below is
+still unmeasured.
+
 *Measured.* Eight sources surveyed for the sinθ/λ symbol, five in the `s`
 family. About 100 physics symbols audited across seven subpackages plus the
 manual and `help.py`. Four differ from their cited source; sixteen letters are
 ambiguous and almost all defensibly so. `s` is unavailable as a python
 identifier in both target modules, which is why the split is `s` in maths and
-`stol` in code.
+`stol` in code. The `help.py` polarisation defect that became 1437 diverges
+from the code by up to **2.0×** in Lp, measured by running both forms; a first
+pass that read them instead reported half that.
 
 *Settled the same day.* The maintainer supplied the three papers the audit had
 fenced out. All three confirm the finding and each narrows the work, because in
@@ -328,10 +336,19 @@ matter. "Smith & Snyder's reporting instance is F30" is wrong: the string F30
 is absent from the paper and their worked example is F₂₀. And the
 `qpa.weight_fractions` `k` is the per-phase ZMV, never a calibration constant.
 
+The corpus is OCR and two of this session's searches were invalid, both
+returning a clean false zero. § *How the papers were searched* above carries
+the two rules; read it before re-checking any claim here.
+
 The main checkout was two sessions stale when this WP was numbered, so it was
 first written as 1434 and renumbered after `EnterWorktree` showed 1434 and 1435
-already on `main`. Re-read the WP directory from the worktree.
+already on `main`. Re-read the WP directory from the worktree. The branch was
+also opened as `wp1434-…` and renamed at handover, because until then it was
+telling every other session that WP-1434 was claimed.
 
 *Next.* Land [1437](1437-a-formula-the-code-does-not-compute.md) first, since
-both touch `help.py` and the manual, then rebase this branch onto it and work
-the task list top down.
+both touch `help.py` and the manual and 1437 fixes a wrong number a user can
+act on. Then rebase this branch onto it and work the task list top down. The
+first task decides the rest: once `scattering.py` is renamed, tasks 2 to 5 are
+mechanical, and tasks 6 to 8 are independent of all of them and could be taken
+by anyone in any order.

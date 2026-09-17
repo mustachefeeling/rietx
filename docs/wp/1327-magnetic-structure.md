@@ -235,6 +235,20 @@ rule above applies to the form factors.
   has to learn the second file (1338's gates). `DISTORTION_MODE_UNSUPPORTED`
   (1419) stays a § 7 row.
 
+### Inherited
+
+From **WP-1436** (2026-09-17): `k` is currently spent on sinθ/λ in
+`crystallography/scattering.py`, `structure_factor.py` and `dispersion.py`,
+inside the same subpackage `crystallography/magnetic/` lives in. This WP and
+1326, 1328, 1329 and 1418 all write `k` for the propagation vector, which is
+that field's standard symbol, so the two would collide the moment either lands.
+
+WP-1436 renames the scattering one to `stol` in python and `s` in equations,
+following the IUCr CIF core dictionary and Waasmaier & Kirfel. **After 1436
+lands, `k` is free for the propagation vector and needs no qualifier here.**
+Before it lands, spell the propagation vector explicitly in any new identifier
+rather than adding a second bare `k` to `crystallography/`.
+
 ## Non-goals
 
 - Determining a magnetic structure: representation analysis, k-SUBGROUPSMAG,
