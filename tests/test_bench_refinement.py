@@ -283,7 +283,11 @@ def test_the_counting_handle_counts_writes_and_flushes(bench, tmp_path):
     bytes and the flush cadence are read rather than re-derived."""
     account = bench._Account()
     target = tmp_path / "events.jsonl"
-    with target.open("w", encoding="utf-8") as fh:
+    # the recorder opens its log this way, and this handle stands in for
+    # it: without the pin, text mode makes `st_size` two bytes larger
+    # than the count on Windows and the identity below is not the
+    # handle's fault (WP-1439)
+    with target.open("w", encoding="utf-8", newline="\n") as fh:
         handle = bench._CountingHandle(fh, account)
         handle.write('{"kind": "eval"}\n')
         handle.write('{"kind": "stage_end"}\n')

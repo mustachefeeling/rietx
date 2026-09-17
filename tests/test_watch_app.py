@@ -188,7 +188,11 @@ def test_a_nested_project_command_names_the_path_not_the_name(tmp_path):
               events=_event_line("fit_start"))
     with _served(tmp_path) as base:
         (row,) = _json(base + "/api/runs")["runs"]
-    assert row["gui_command"] == "rietx gui --scratch campaign/sample.rex"
+    # the separator is the platform's, and that is the point of the docstring
+    # above: `campaign\sample.rex` is what a reader on Windows pastes into
+    # their own shell, and `os.path.relpath` already hands them that (WP-1439).
+    nested = os.path.join("campaign", "sample.rex")
+    assert row["gui_command"] == f"rietx gui --scratch {nested}"
 
 
 def test_a_plain_run_offers_no_gui_command(tmp_path):
@@ -285,7 +289,8 @@ def test_events_tail_is_incremental(tmp_path):
         assert again["events"] == []
         assert again["offset"] == first["offset"]
 
-        with open(directory / runs.EVENTS_FILE, "a", encoding="utf-8") as fh:
+        with open(directory / runs.EVENTS_FILE, "a", encoding="utf-8",
+                  newline="\n") as fh:
             fh.write(_event_line("stage_start", stage="cell"))
         more = _json(f"{stem}?offset={first['offset']}&inode={first['inode']}")
         assert [e["kind"] for e in more["events"]] == ["stage_start"]

@@ -22,6 +22,24 @@ row.  That was the seventh failure, and a real one: ``write_qpa_table``
 produced corrupt CSV on Windows while its sibling ``write_reflection_table``,
 which already opened with ``newline=""``, did not.
 
+**A POSIX-only import is guarded or it is a collection error.**  WP-1439: the
+run-recording track put a bare ``import fcntl`` at the top of
+``tests/test_runs.py``, so on Windows that module did not import and its 51
+cases went unrun behind a single ``error`` line.  The package had guarded the
+same import at all three of its own sites, which is exactly why nothing looked
+wrong.  A guarded import degrades to a skip; an unguarded one takes the file.
+
+**A write handle names its newline.**  WP-1439 again, and the CSV rule one
+case over.  ``csv.writer`` emits its own ``\r\n`` and so wants ``newline=""``;
+a JSONL writer emits its own ``\n`` and wants ``newline="\n"``.  Left to text
+mode, every JSONL file this package writes is CRLF on Windows and LF
+everywhere else — the same events at a different size and a different
+checksum, which is what ``history.jsonl`` being part of a ``.rex`` project
+makes a contract question rather than a cosmetic one.  The rule is on
+``open`` and not on ``write_text``: a handle is what lines are written
+through, while ``write_text`` puts a whole document down in one call.  Seven
+sites in the tree, all of them JSONL but the lock file.
+
 The guards parse rather than grep because the calls that matter span lines —
 the multi-line ``write_text(json.dumps({...}), encoding="utf-8")`` in
 ``viz/live.py`` is invisible to a line-based search, which is how one site
@@ -57,6 +75,28 @@ _TEXT_IO = {"read_text", "write_text", "open"}
 #: reader names its archive handle ``zip_*``.
 _NOT_FILE_IO = ("webbrowser", "urllib", "request", "Project", "zip")
 
+#: Standard-library modules that exist on POSIX and not on Windows.  ``fcntl``
+#: is the only one this package reaches for; the rest are here because the next
+#: one reached for will come from this list, and a name costs nothing until
+#: somebody imports it.
+_POSIX_ONLY = {"fcntl", "termios", "pwd", "grp", "pty", "tty", "resource",
+               "syslog", "posix", "crypt", "spwd", "nis"}
+
+#: Handlers that let a missing module through.  A bare ``except`` counts: it is
+#: broader than it should be and it still degrades the import to a skip.
+#: ``OSError`` is deliberately *not* here, tempting as it looks beside the
+#: file-I/O rules above: ``ImportError`` descends from ``Exception`` and not
+#: from ``OSError``, so ``except OSError`` around an import catches nothing and
+#: the module still dies on collection.
+_CATCHES_MISSING = {"ImportError", "ModuleNotFoundError",
+                    "Exception", "BaseException"}
+
+#: The characters a mode string is made of.  A mode is short and spelled from
+#: these; a *filename* literal in the same call is neither, which is how
+#: ``open("tests/data/cell.dat", "r")`` came to look like a write (its ``a``)
+#: and ``open("refs.bib", "w")`` like binary (its ``b``).
+_MODE_CHARS = set("rwaxbt+U")
+
 
 def _python_files() -> list[Path]:
     out: list[Path] = []
@@ -65,16 +105,28 @@ def _python_files() -> list[Path]:
     return out
 
 
+def _mode_strings(call: ast.Call) -> list[str]:
+    """The mode literals of one open call, and nothing else it was passed.
+
+    The mode sits first in ``p.open("a")`` and second in ``open(p, "a")``, so
+    both positions are read -- and then filtered to what a mode can actually
+    be spelled with.  Taking every string argument instead reads the
+    *filename* as a mode, in both directions: ``open("tests/data/cell.dat",
+    "r")`` becomes a write on its ``a`` and ``open("refs.bib", "w")`` becomes
+    binary on its ``b``, which exempts a real write handle from both of the
+    rules below (WP-1439).
+    """
+    found = [a.value for a in call.args[:2]
+             if isinstance(a, ast.Constant) and isinstance(a.value, str)]
+    found += [kw.value.value for kw in call.keywords
+              if kw.arg == "mode" and isinstance(kw.value, ast.Constant)
+              and isinstance(kw.value.value, str)]
+    return [m for m in found if m and len(m) <= 3 and set(m) <= _MODE_CHARS]
+
+
 def _is_binary_mode(call: ast.Call) -> bool:
     """True when a mode argument selects binary, where encoding is illegal."""
-    for arg in call.args[:2]:
-        if isinstance(arg, ast.Constant) and isinstance(arg.value, str) and "b" in arg.value:
-            return True
-    for kw in call.keywords:
-        if kw.arg == "mode" and isinstance(kw.value, ast.Constant):
-            if isinstance(kw.value.value, str) and "b" in kw.value.value:
-                return True
-    return False
+    return any("b" in mode for mode in _mode_strings(call))
 
 
 def _text_io_calls(tree: ast.AST, source: str) -> list[tuple[ast.Call, str]]:
@@ -166,8 +218,7 @@ def test_csv_writers_open_with_newline_suppressed():
             if not writes:
                 continue
             # only writers matter; a read cannot double a line ending
-            modes = [a.value for a in call.args
-                     if isinstance(a, ast.Constant) and isinstance(a.value, str)]
+            modes = _mode_strings(call)
             if call.func.attr == "open" and not any("w" in m or "a" in m for m in modes):
                 continue
             if not any(kw.arg == "newline" for kw in call.keywords):
@@ -175,6 +226,99 @@ def test_csv_writers_open_with_newline_suppressed():
     assert not offenders, (
         "a module that builds CSV with csv.writer opens a file without newline=\"\":\n  "
         + "\n  ".join(offenders))
+
+
+def _catches_a_missing_module(handler: ast.ExceptHandler) -> bool:
+    """True when this ``except`` clause lets an absent module through."""
+    if handler.type is None:
+        return True
+    clauses = (handler.type.elts if isinstance(handler.type, ast.Tuple)
+               else [handler.type])
+    names = []
+    for node in clauses:
+        if isinstance(node, ast.Name):
+            names.append(node.id)
+        elif isinstance(node, ast.Attribute):
+            names.append(node.attr)
+    return any(name in _CATCHES_MISSING for name in names)
+
+
+def _guarded_import_lines(tree: ast.AST) -> set[int]:
+    """Line numbers of every import sitting inside a try that catches."""
+    guarded: set[int] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Try):
+            continue
+        if not any(_catches_a_missing_module(h) for h in node.handlers):
+            continue
+        for child in node.body:
+            for inner in ast.walk(child):
+                if isinstance(inner, (ast.Import, ast.ImportFrom)):
+                    guarded.add(inner.lineno)
+    return guarded
+
+
+def _imported_roots(node: ast.AST) -> list[str]:
+    """The top-level module names one import statement brings in."""
+    if isinstance(node, ast.Import):
+        return [alias.name.split(".")[0] for alias in node.names]
+    if isinstance(node, ast.ImportFrom) and node.level == 0:
+        return [(node.module or "").split(".")[0]]
+    return []
+
+
+def test_posix_only_imports_are_guarded():
+    """A module Windows does not ship is imported inside a try, or not at all.
+
+    Unguarded it is not one failure but the whole file: pytest reports a
+    collection error and every case in it silently stops being evidence.  That
+    is how ``tests/test_runs.py`` went unrun on Windows for three nights while
+    the package's own three ``fcntl`` sites were guarded correctly.
+    """
+    offenders = []
+    for path in _python_files():
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        guarded = _guarded_import_lines(tree)
+        for node in ast.walk(tree):
+            roots = set(_imported_roots(node)) & _POSIX_ONLY
+            if not roots or node.lineno in guarded:
+                continue
+            names = ", ".join(sorted(roots))
+            offenders.append(f"{path.relative_to(ROOT)}:{node.lineno} ({names})")
+    assert not offenders, (
+        "a POSIX-only import outside a try/except that catches it -- on "
+        "Windows this is a collection error, not a skip:\n  "
+        + "\n  ".join(offenders))
+
+
+def test_every_write_handle_names_its_newline():
+    """Whoever opens a handle for writing decides whose line ending it uses.
+
+    ``newline="\\n"`` for a machine format this package reads back (all the
+    JSONL), ``newline=""`` for anything going through ``csv.writer``, and an
+    explicit ``newline=None`` for prose a person opens in an editor, where the
+    platform's ending is the right one.  The point is that the decision is
+    visible: left out it is the platform's by default, and a JSONL file then
+    changes size and checksum depending on who ran the fit.
+
+    ``write_text`` is deliberately out of scope -- it puts a whole document
+    down in one call, where a handle is the thing lines go through.
+    """
+    offenders = []
+    for path in _python_files():
+        source = path.read_text(encoding="utf-8")
+        for call, _ in _text_io_calls(ast.parse(source), source):
+            name = (call.func.attr if isinstance(call.func, ast.Attribute)
+                    else call.func.id)
+            if name != "open":
+                continue
+            if not any(c in m for m in _mode_strings(call) for c in "wax"):
+                continue
+            if not any(kw.arg == "newline" for kw in call.keywords):
+                offenders.append(f"{path.relative_to(ROOT)}:{call.lineno}")
+    assert not offenders, (
+        "a handle opened for writing without newline=, so its line ending is "
+        "the platform's:\n  " + "\n  ".join(offenders))
 
 
 @pytest.mark.parametrize("snippet, guard", [
@@ -193,6 +337,29 @@ def test_the_guards_can_actually_fail(snippet, guard, tmp_path):
     calls = _text_io_calls(tree, snippet)
     assert calls, "the walker found no text I/O in a snippet that is all text I/O"
     assert not any(kw.arg == guard for call, _ in calls for kw in call.keywords)
+
+
+def test_the_newline_guard_reads_the_mode_and_not_the_filename():
+    """A write is named by a mode, and a filename carrying one of its letters
+    is not one.  Both directions were wrong before WP-1439's review: a read of
+    ``cell.dat`` was a write on its ``a``, and a write to ``refs.bib`` was
+    binary on its ``b``, which exempted it from every rule in this file."""
+    read = ast.parse('open("tests/data/cell.dat", "r", encoding="utf-8")')
+    write = ast.parse('open("refs.bib", "w", encoding="utf-8")')
+    assert _mode_strings(read.body[0].value) == ["r"]
+    assert _mode_strings(write.body[0].value) == ["w"]
+    assert not _is_binary_mode(write.body[0].value)
+
+
+def test_the_posix_import_guard_reads_what_the_handler_catches():
+    """``except OSError`` is not a guard.  ``ImportError`` does not descend
+    from it, so the module still fails to collect on a platform without
+    ``fcntl`` -- which is the failure this rule exists to prevent."""
+    caught = ast.parse("try:\n    import fcntl\nexcept ImportError:\n    pass\n")
+    missed = ast.parse("try:\n    import fcntl\nexcept OSError:\n    pass\n")
+    assert _guarded_import_lines(caught) == {2}
+    assert _guarded_import_lines(missed) == set()
+    assert not issubclass(ImportError, OSError)
 
 
 def test_webbrowser_open_is_not_mistaken_for_file_io():

@@ -88,22 +88,19 @@ placement, link resolution, and the size caps on this file and CLAUDE.md.
 
 ## Current focus
 
-**No milestone is open.** [v1.4](#v14--free-standing-peaks) shipped
-2026-09-13 ([record](milestones/v1.4.md), [notes](releases/1.4.0.md));
-`pyproject.version` is `1.4.0`, the last shipped. Opening v1.5 is the next
-decision and it is the maintainer's; every WP landing before it lands under
-no milestone.
+**No milestone is open.** [v1.4](#v14--free-standing-peaks) shipped 2026-09-13
+([record](milestones/v1.4.md), [notes](releases/1.4.0.md)); `pyproject.version`
+is `1.4.0`. Opening v1.5 is the maintainer's decision and nothing blocks it:
+[1439](wp/1439-windows-red-since-every-fit-records-itself.md) put the Windows
+nightly green, `RELEASING.md` step 4's pre-upload gate. **492 commits and 29
+WPs have landed since the tag**, the largest unreleased body this repo holds.
 
-**Nothing is in flight.** [1436](wp/1436-k-is-the-wavevector-everywhere-else.md)
-closed the symbol audit 1437 opened: sinθ/λ is `s` in equations and `stol` in
-python, every refined number bit-identical, and `k` is now free for the
-**magnetic track** (1326-1329, 1418), whose inherited note it turned from a
-warning into a licence. That track is the largest queued block with a
-discharged blocker. Also unblocked and blocked on nothing: the `.inp` grammar
-1118 refuses, [1433](wp/1433-the-inp-grammar-still-refused.md); and 1310's
-other two, [1434](wp/1434-the-bound-test-asks-the-wrong-question.md) and
-[1435](wp/1435-a-hold-the-caller-declares.md), each filed with a fix its own
-measurements rule out.
+**Nothing else is in flight.** 1436 closed the symbol audit 1437 opened and
+freed `k` for the **magnetic track** (1326-1329, 1418), the largest queued
+block with a discharged blocker. Also unblocked: the `.inp` grammar 1118
+refuses, [1433](wp/1433-the-inp-grammar-still-refused.md), and 1310's
+[1434](wp/1434-the-bound-test-asks-the-wrong-question.md) and
+[1435](wp/1435-a-hold-the-caller-declares.md).
 
 **Two cheap unowned asks** survive, both in 1407: Stoe `.raw` files paired with
 their WinXPOW ASCII export, and a blank for a `rietx compare` standard.
@@ -651,8 +648,10 @@ carries is whether 1327's non-goal becomes a sequencing statement.
 
 #### A window into a run — the live-watcher track
 
-Seventeen rungs, 2026-09-13 to 2026-09-17. Closed: 1428 was the last of the
-track proper and 1438 answered the twelve it handed the maintainer.
+Eighteen rungs, 2026-09-13 to 2026-09-17. Closed: 1428 was the last of the
+track proper and 1438 answered the twelve it handed the maintainer. 1439 is
+the bill: the track was written on POSIX, and the Windows nightly went red the
+day after v1.4 was tagged.
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
@@ -673,6 +672,7 @@ track proper and 1438 answered the twelve it handed the maintainer.
 | [1427](wp/1427-what-a-poll-costs.md) | What a poll costs | ✅ 2026-09-17 | 1430 (1426 soft) |
 | [1428](wp/1428-open-in-the-gui-without-touching-the-fit.md) | Open in the GUI, without touching the fit | ✅ 2026-09-17 | 1405, 1401 (1430 soft) |
 | [1438](wp/1438-the-questions-the-track-left.md) | The questions the track left | ✅ 2026-09-17 | 1429, 1427, 1425, 1413 (1428 soft) |
+| [1439](wp/1439-windows-red-since-every-fit-records-itself.md) | Windows, red since every fit started recording itself | ✅ 2026-09-17 | — (1403, 1404 turned it red) |
 
 ### v2+ — fenced
 

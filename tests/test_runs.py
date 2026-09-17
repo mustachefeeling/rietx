@@ -9,9 +9,9 @@ a format a writer really produces rather than one this file invented.
 
 from __future__ import annotations
 
-import fcntl
 import io
 import json
+import os
 import shutil
 import socket
 import threading
@@ -21,11 +21,29 @@ import pytest
 
 from rietx import runs
 
+try:
+    import fcntl
+except ImportError:                     # pragma: no cover - Windows
+    fcntl = None                        # type: ignore[assignment]
+
+#: The liveness cases whose assertion is about the **lock**, and so are the
+#: platform's to skip rather than this module's to lose.  ``liveness_of``
+#: answers by the first rung that fires, and without ``flock`` ``_probe_lock``
+#: returns ``"unavailable"`` for every run -- a documented third answer, not a
+#: failure -- so the two lock rungs never fire and their evidence strings are
+#: unreachable.  The **pid** rung below them is not on this list: it is the
+#: only rung Windows has, and since WP-1439 it answers there.
+posix_liveness = pytest.mark.skipif(
+    fcntl is None, reason="liveness_of's lock rungs need flock")
+
 
 def _write_run(directory: Path, *, events: str = "", status: dict | None = None,
                meta: dict | None = None, lock: bool = False) -> Path:
     directory.mkdir(parents=True, exist_ok=True)
-    (directory / runs.EVENTS_FILE).write_text(events, encoding="utf-8")
+    # the recorder writes JSONL with a pinned newline, and a fixture
+    # standing in for it writes the same bytes (WP-1439)
+    (directory / runs.EVENTS_FILE).write_text(events, encoding="utf-8",
+                                              newline="\n")
     if status is not None:
         (directory / runs.STATUS_FILE).write_text(json.dumps(status),
                                                   encoding="utf-8")
@@ -226,7 +244,8 @@ def test_the_cache_notices_every_file_a_row_is_built_from(tmp_path):
     assert after.has_snapshot is True
 
     # and the log growing is a row change too: `size_bytes` is off its stat
-    with open(d / runs.EVENTS_FILE, "a", encoding="utf-8") as fh:
+    with open(d / runs.EVENTS_FILE, "a", encoding="utf-8",
+              newline="\n") as fh:
         fh.write(_event_line("fit_end"))
     (grown,) = runs.discover(tmp_path, cache=cache)
     assert grown.size_bytes > after.size_bytes
@@ -282,6 +301,7 @@ def _one(tmp_path) -> runs.Run:
     return runs.discover(tmp_path)[0]
 
 
+@posix_liveness
 def test_a_held_lock_reads_running(tmp_path):
     directory = _write_run(tmp_path / "r", events=_event_line("fit_start"),
                            status={"state": "running", "pid": 1}, lock=True)
@@ -294,6 +314,7 @@ def test_a_held_lock_reads_running(tmp_path):
         handle.close()
 
 
+@posix_liveness
 def test_a_released_lock_under_a_running_status_reads_abandoned(tmp_path):
     """A third answer, not a rounding of the other two."""
     _write_run(tmp_path / "r", events=_event_line("fit_start"),
@@ -326,10 +347,17 @@ def test_a_foreign_host_reads_unknown(tmp_path):
 
 
 def test_our_own_host_is_not_foreign(tmp_path):
+    # this process, because our own pid is alive on every platform (pid 1 is
+    # init on POSIX and nothing at all on Windows, which is the whole reason
+    # this used to need a skip) -- and `running` rather than `!= "unknown"`,
+    # since a rung answering `abandoned` about a process that is running this
+    # assertion passes the weaker test (WP-1439)
     _write_run(tmp_path / "r", events=_event_line("fit_start"),
-               status={"state": "running", "pid": 1,
+               status={"state": "running", "pid": os.getpid(),
                        "host": socket.gethostname()})
-    assert runs.liveness_of(_one(tmp_path)).state != "unknown"
+    live = runs.liveness_of(_one(tmp_path))
+    assert live.state == "running"
+    assert str(os.getpid()) in live.evidence
 
 
 def test_a_status_with_no_state_reads_unknown_not_running(tmp_path):
@@ -354,6 +382,7 @@ def test_a_missing_lock_file_is_not_a_free_lock(tmp_path):
     assert "999999" in live.evidence       # the pid fallback, not the lock
 
 
+@posix_liveness
 def test_the_heartbeat_is_reported_and_never_decides(tmp_path):
     """An alive process is evidence; a clock is not."""
     directory = _write_run(tmp_path / "r", events=_event_line("fit_start"),
@@ -377,6 +406,7 @@ def test_a_legacy_run_reads_unknown_and_says_so(tmp_path):
     assert "legacy" in live.evidence
 
 
+@posix_liveness
 def test_two_readers_do_not_see_each_other(tmp_path):
     """The probe is shared, so one reader is never the other's live writer.
 
@@ -411,6 +441,7 @@ def test_two_readers_do_not_see_each_other(tmp_path):
     assert seen == ["free"]                     # not "held": that is a reader
 
 
+@posix_liveness
 def test_a_lock_file_this_user_cannot_write_is_still_probed(tmp_path):
     """flock needs an open descriptor, not a writable one. Asking for write
     access loses the answer on a run owned by somebody else."""
@@ -442,6 +473,37 @@ def test_a_state_from_a_newer_writer_costs_the_state_and_not_the_row(tmp_path):
     assert runs.liveness_of(run).state == "abandoned"
 
 
+def test_the_pid_rung_answers_about_this_very_process():
+    """The contract, on whatever platform is running this (WP-1439).
+
+    It is the assertion that catches a probe answering a *different* question.
+    ``os.kill(pid, 0)`` is not a liveness probe on Windows -- ``0`` is
+    ``signal.CTRL_C_EVENT`` there, and a live process that is not a console
+    process group fails it ``ERROR_INVALID_PARAMETER`` -- so reading that
+    winerror as "gone" makes this very process read gone. Asserting
+    ``!= "unknown"`` one rung up cannot see that; asserting ``True`` here can.
+    """
+    assert runs._pid_alive(os.getpid()) is True
+
+
+@pytest.mark.skipif(os.name != "nt", reason="the OpenProcess probe")
+def test_the_windows_probe_separates_a_live_pid_from_a_gone_one():
+    """Both ends of the rung Windows has instead of ``kill``."""
+    assert runs._pid_alive_windows(os.getpid()) is True
+    assert runs._pid_alive_windows(999_999) is False
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Windows does not go through kill")
+def test_an_unreadable_pid_error_still_declines_to_guess(monkeypatch):
+    """Everything else stays ``None``: a wrong guess here is a confident
+    wrong singleton about somebody's running fit."""
+    def _something_else(pid, sig):
+        raise OSError(5, "I/O error")
+
+    monkeypatch.setattr(runs.os, "kill", _something_else)
+    assert runs._pid_alive(999_999) is None
+
+
 # ----------------------------------------------------------------------
 # tailing
 # ----------------------------------------------------------------------
@@ -458,7 +520,7 @@ def test_tail_reads_from_an_offset(tmp_path):
     second = runs.tail_events(log, first.offset, inode=first.inode)
     assert second.events == [] and second.offset == first.offset
 
-    with open(log, "a", encoding="utf-8") as fh:
+    with open(log, "a", encoding="utf-8", newline="\n") as fh:
         fh.write(_event_line("fit_end"))
     third = runs.tail_events(log, second.offset, inode=second.inode)
     assert [e["kind"] for e in third.events] == ["fit_end"]
@@ -468,7 +530,8 @@ def test_a_torn_last_line_is_carried_forward_unparsed(tmp_path):
     """A writer flushes per event, but a flush is not an atomic write."""
     log = tmp_path / runs.EVENTS_FILE
     whole = _event_line("fit_start")
-    log.write_text(whole + '{"record":"event","kind":"sta', encoding="utf-8")
+    log.write_text(whole + '{"record":"event","kind":"sta', encoding="utf-8",
+                   newline="\n")
 
     tail = runs.tail_events(log)
     assert [e["kind"] for e in tail.events] == ["fit_start"]
@@ -476,7 +539,8 @@ def test_a_torn_last_line_is_carried_forward_unparsed(tmp_path):
     assert tail.bad_lines == 0               # a fragment is not a bad line
 
     # completing the line delivers it whole, exactly once
-    log.write_text(whole + _event_line("stage_start"), encoding="utf-8")
+    log.write_text(whole + _event_line("stage_start"), encoding="utf-8",
+                   newline="\n")
     rest = runs.tail_events(log, tail.offset, inode=tail.inode)
     assert [e["kind"] for e in rest.events] == ["stage_start"]
 
@@ -599,7 +663,7 @@ def test_a_cold_open_starts_at_the_end_of_a_long_log(tmp_path):
     assert cold.bad_lines == 0
 
     # ...and the poll after it is an ordinary one that sees only what arrived
-    with log.open("a", encoding="utf-8") as fh:
+    with log.open("a", encoding="utf-8", newline="\n") as fh:
         fh.write(json.dumps({"record": "event", "v": "2", "t": 9.0,
                              "kind": "fit_end", "data": {}}) + "\n")
     after = runs.tail_events(log, cold.offset)
