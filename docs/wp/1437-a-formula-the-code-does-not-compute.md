@@ -24,7 +24,7 @@ to the code. One of them is wrong.
 | | `help.py` says | the package computes |
 |---|---|---|
 | the Lp factor | `(1 + K·cos²2θ)/(1 + K)` (`help.py:209`) | `K + (1 − K)·cos²2θ` (`corrections.py:24`) |
-| monochromated | "`cos²2θ_M` for a monochromated one" (`help.py:211`) | `K = 1/(1 + cos²2θ_m)` (`schemas/instrument.py:1765`, code at `:1787`) |
+| monochromated | "`cos²2θ_M` for a monochromated one" (`help.py:211`) | `K = 1/(1 + cos²2θ_m)` (`schemas/instrument.py:1879`, code at `:1901`) |
 
 Measured 2026-09-17 by running both forms through `lorentz_polarization`. The
 ratio of the help-text Lp to the computed Lp:
@@ -50,7 +50,7 @@ binds that letter to the package's own `K`, a different quantity. This is a
 symbol collision that reached a user-facing number, so it is the expensive end
 of the same story WP-1436 covers.
 
-`help.py:1324` repeats the second error for `monochromator_two_theta`.
+`help.py:1346` repeats the second error for `monochromator_two_theta`.
 
 ### Reach
 
@@ -71,9 +71,9 @@ and a sentence quoting a fourth constant would not appear here.
 
 | description says | live constant |
 |---|---|
-| "2 nm" (`help.py:637`, `:674`) | `SIZE_CAP_MIN_SIZE_A = 20.0`, `params/vector.py:626` |
-| "5 nm" (`help.py:640`) | `SIZE_FLAG_SIZE_A = 50.0`, `refine.py:4856` |
-| "1.5 deg" (`help.py:659`) | `STRAIN_FLAG_WIDTH = 1.5`, `refine.py:4754` |
+| "2 nm" (`help.py:659`, `:696`) | `SIZE_CAP_MIN_SIZE_A = 20.0`, `params/vector.py:635` |
+| "5 nm" (`help.py:662`) | `SIZE_FLAG_SIZE_A = 50.0`, `refine.py:4875` |
+| "1.5 deg" (`help.py:681`) | `STRAIN_FLAG_WIDTH = 1.5`, `refine.py:4773` |
 
 The manual injects these as MyST substitutions from the live package.
 `help.py` imports nothing but `dataclasses` and `fnmatch`, so it has no such
@@ -84,11 +84,11 @@ mechanism and gains none here.
 `tests/test_help.py` already owns this shape of check, and a new one is a
 sibling rather than an invention:
 
-- `test_units_are_the_schemas_own` (`:477`)
-- `test_defaults_are_the_schemas_own` (`:511`)
-- `test_search_control_defaults_are_the_schemas_own` (`:380`)
+- `test_units_are_the_schemas_own` (`:490`)
+- `test_defaults_are_the_schemas_own` (`:524`)
+- `test_search_control_defaults_are_the_schemas_own` (`:391`)
 
-`test_every_entry_has_a_title_and_a_description` (`:620`) checks presence only,
+`test_every_entry_has_a_title_and_a_description` (`:633`) checks presence only,
 which is why this class was unguarded.
 
 ## Non-goals
@@ -108,7 +108,7 @@ which is why this class was unguarded.
       `K = 1/(1 + cos²2θ_m)` quoting 0.556 for graphite (002) at Cu. Reuse the
       wording already correct at `schemas/instrument.py:1762-1766` and
       `docs/manual/corrections.md:30`.
-- [ ] Correct `help.py:1320-1330` (`monochromator_two_theta`), same root cause.
+- [ ] Correct `help.py:1342-1352` (`monochromator_two_theta`), same root cause.
 - [ ] `docs/manual/intensities.md:104` — the third site of the same `K`
       confusion. It says "an unpolarised neutron beam sets $K = 1$", where
       `corrections.py:17` defines K as the σ-polarised *fraction* with K = 0.5
@@ -152,10 +152,22 @@ is exercised by the command above: `GET /api/help` from a running
   monochromator polarisation factor. Both already cited at
   `schemas/instrument.py:1765`.
 - The correct forms in-tree: `model/corrections.py:11-19`,
-  `schemas/instrument.py:1762-1766`, `docs/manual/corrections.md:26-30`.
+  `schemas/instrument.py:1875-1880`, `docs/manual/corrections.md:26-30`.
 
 ## Handover log
 
+- **2026-09-17 (arrival)** — every anchor in this file re-checked against the
+  tree before starting (`/wp-start` step 5). Content and physics all held; six
+  line numbers did not: `schemas/instrument.py`'s docstring formula and code
+  (cited 1765/1787, actually 1879/1901 — a consistent 114-line offset, the
+  file itself untouched since WP-1309, so the audit's own count was off from
+  the start rather than drifted), the `monochromator_two_theta` HelpEntry
+  (cited 1320-1330/1324, actually 1342-1352/1346), the three threshold
+  citations in `help.py`/`params/vector.py`/`refine.py`, and all four
+  `test_help.py` anchors (each off by 9-22 lines, file-by-file consistent).
+  `docs/manual/intensities.md:104` and the two `help.py:205-217` /
+  `corrections.py:24` anchors were exact. Corrected in place above; no claim
+  changed, only where to find it.
 - **2026-09-17** — created, out of the notation audit that also opened
   [1436](1436-k-is-the-wavevector-everywhere-else.md). A comment on a LinkedIn
   post about the package questioned one symbol; auditing the tree for its
