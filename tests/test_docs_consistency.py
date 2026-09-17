@@ -384,7 +384,14 @@ SIZE_CAPS: dict[str, int | None] = {
     # false all-clear every time, so the rule names `ps aux | grep` and says
     # why, which is the clause that stops the next reader putting `pgrep`
     # back.
-    "tests/CLAUDE.md": 288,
+    # 288 -> 296 (WP-1439): one standing rule for reading the CI matrix --
+    # that a pass count cannot show a module that never ran, and the total is
+    # what does.  It governs work outside the WP that measured it: anyone
+    # quoting a count off any platform in this matrix, which is protocol rule
+    # 4's test.  Raised rather than shaved, per the failure message's own
+    # instruction not to delete facts to fit.  Landed at 295; the +1 is
+    # headroom, per this file's docstring.
+    "tests/CLAUDE.md": 296,
     "src/rietx/indexing/CLAUDE.md": 300,
     # 300 -> 350 (WP-1407): four per-format rows, and three standing rules the
     # Philips √ encoding taught — that a format may encode its counts rather

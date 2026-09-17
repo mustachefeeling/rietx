@@ -1,6 +1,6 @@
 # WP-1439 — Windows, red since every fit started recording itself
 
-Milestone: unscheduled · Status: 🔄 2026-09-17 — claimed by @yue-here
+Milestone: unscheduled · Status: ✅ 2026-09-17 — Windows green again, 0 failed; the pre-upload gate is clear
 Depends on: — (1403, 1404 are what turned it red)
 
 ## Goal
@@ -124,5 +124,94 @@ that reason:
 - Failing run: `gh run view 35211225530` (2026-09-17).
 
 ## Handover log
+
+### 2026-09-17 — the track's Windows bill, and the one real defect under it
+
+The Windows nightly is green again, so a release can be cut. It had been red
+for three nights, since the day after `v1.4.0` was tagged, and
+`docs/RELEASING.md` step 4 makes that job the pre-upload gate for any version
+repeating the OS classifier's claim. The cause was the run-recording track
+landing in the four days after the tag. Three of the four failures were the
+tests' own POSIX assumptions. The fourth was the package: every JSONL file it
+writes carried the platform's line ending, so a `history.jsonl` written on
+Windows held the same events at a different size and a different checksum from
+one written anywhere else.
+
+A fifth defect surfaced only once the first fix let the module collect, and it
+is the largest of them. `liveness_of` answers by the first rung that fires,
+and Windows has no `flock`, so its lock rungs never fire and the pid fallback
+is the only rung it has. That rung was mute: `os.kill` on Windows is
+`OpenProcess`, which fails `ERROR_INVALID_PARAMETER` for a pid no process has
+instead of raising `ProcessLookupError`. Read as "cannot say", it meant every
+run in `rietx watch` on Windows showed `unknown`. It now reads that one
+winerror as "gone".
+
+**Done.**
+
+- `tests/test_runs.py` guards its `fcntl` import the way the package always
+  has. Unguarded it was a collection error, so all 51 cases in that file went
+  unrun behind one `error` line.
+- Five cases whose assertion is about the lock skip without `flock`. The two
+  about the pid rung do not, because that rung now answers on Windows.
+- The unwritable-root case is parametrised over two provocations. `chmod` is
+  what WP-1403 measured and stays where it reproduces that; a run root whose
+  parent is a regular file defeats `new_run_dir`'s opening `mkdir` on every
+  platform, so Windows covers the boundary instead of skipping it.
+- Every JSONL writer pins `newline="\n"`: four sites in `runs.py`,
+  `history/events.py` and `history/store.py`, plus seven fixture handles in
+  the suite. Readers need no migration, since a text-mode read translates
+  `\r\n` back.
+- `gui_command` is unchanged and its test now compares against
+  `os.path.join`. A backslash is what a reader on Windows pastes into their
+  own shell, which is that test's own stated point.
+- `tests/test_portability.py` grew the two rules that would have caught this,
+  and `tests/CLAUDE.md` grew the one no test can hold.
+
+**Measured.** All counts `[dev]`, and the platform is named because that is
+the whole subject here.
+
+| Round | Windows |
+|---|---|
+| Before, run 35211225530 | 3 failed, 5187 passed, 146 skipped, 1 error |
+| After round one, 35273799888 | 2 failed, 5292 passed, 154 skipped |
+| After round two, 35275114425 | **0 failed**, 5298 passed, 152 skipped, 491 s |
+
+Local fast selection, macOS arm64: 5317 passed, 133 skipped, 1:21. The
+baseline for this branch was 5445 cases and the tree now holds 5450, +5 for
+exactly the five added: one telemetry parametrisation, two `_pid_alive`
+cases, two guards. macOS and torch green on the same nightly run.
+
+**Gotchas for whoever is next in here.**
+
+- **The nightly is the loop, not the last check.** Each fix made the next
+  failure visible, and there was no way to see the second pair until the first
+  landed. Two dispatches at about nine minutes each cost less than any amount
+  of reasoning about what Windows does.
+- **A meta-path import blocker does not reach xdist workers.** Blocking
+  `fcntl` under `-n auto` proved nothing, and the first sweep that claimed
+  nothing else wanted `fcntl` was worthless. Serially it is real, and slow.
+- **`-q` on top of `addopts`' own is `-qq`**, which prints no summary at all.
+  It cost a 25-minute serial run its counts. The rule is already in
+  `tests/CLAUDE.md`; this is the second time it has been paid.
+- **Windows liveness now rests entirely on the pid rung**, which its own
+  docstring calls subject to pid reuse. A held `run.lock` is what makes
+  `abandoned` distinguishable from `done` without a heartbeat contract, and
+  Windows has no equivalent until somebody writes one over `msvcrt.locking`.
+  That is a real feature and it was fenced out of this WP deliberately.
+
+**Deliberately not generalised.** The newline guard sits on `open` and not on
+`write_text`, and the decision was measured rather than assumed. Gating
+`write_text` the way the CSV rule gates, on the module naming `jsonl`, flags
+125 sites. Reading every `write_text` in `src/` by hand found no real defect
+among them: they write JSON documents, an empty file, a `.gitignore`, and
+`summary.txt`, which is prose where the platform's ending is the right one.
+
+**Next.** Opening v1.5 is the decision this unblocks, and it is the
+maintainer's. 492 commits and 29 WPs have landed under no milestone since the
+tag, which is the largest unreleased body this repo has held. If it opens, two
+things follow from this WP: the release notes owe a line saying Windows works
+again, and the record owes no entry, since a bug fix is neither a break nor an
+addition under protocol rule 6. A Windows `run.lock` over `msvcrt.locking` is
+the one candidate WP this session leaves behind.
 
 - **2026-09-17** — created.

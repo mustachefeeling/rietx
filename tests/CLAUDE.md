@@ -211,6 +211,13 @@ and never a silent cap.
 - **Quote the extras with any count**: installing `[jax,torch]` converts
   most skips into passes, so a bare "N tests" figure means nothing without
   the venv it was measured in.
+- **A pass count cannot show a module that never ran.** A collection error is
+  one `error` line beside five thousand passes, and every case in that file
+  stops being evidence without one of them going red — `tests/test_runs.py`
+  was unrun on Windows for three nights that way (WP-1439). What shows it is
+  the **total**: passed+skipped agreed across platforms at 5450 once the
+  import was guarded, and was 51 short of it before. Compare totals across the
+  matrix, never pass counts, which move for every legitimate skip.
 - **A test that pins a number declares which *path* produced it**, not only
   which settings — the dispersion rule (root CLAUDE.md) one rank wider, because
   WP-1115 added a second default that changes arithmetic. The compiled kernel
