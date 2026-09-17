@@ -1,6 +1,6 @@
 # WP-1309 — a measured background: the container exists, the scale and the esds do not
 
-Milestone: unscheduled · Status: 🔄 2026-09-17 — claimed by @yue-here; the real blank has arrived and is the one task left
+Milestone: unscheduled · Status: ✅ 2026-09-17 — the real blank is committed and the scale is measured against it
 Depends on: —
 
 ## Goal
@@ -318,6 +318,119 @@ reaches.
   (`optimize.statistics.background_absorption`).
 
 ## Handover log
+
+### 2026-09-17 (2nd session) — the blank arrives, and the scale becomes a measurement
+
+The number issue #171 asked for is measured rather than asserted. An empty
+Kapton capillary, scanned at 11-BM in February 2010, arrived from the maintainer
+and is now in the repository, so the fraction of that container's scattering
+which reached the silicon scan beside it could be refined instead of hand-set.
+It is 0.8374(142). The hand-set scan put the minimum at 0.85 and this lands
+within one esd of it, while unity is eleven esds away, and unity was the only
+value this package could express before the scale existed. The feature itself
+did not change today. What changed is that it has been checked against the pair
+it was built for, and that one habit for reading its output turned out to be
+unsafe.
+
+**Done.** `tests/data/11BM_Kapton.xy` is committed byte-for-byte as supplied,
+with a provenance row that does not take the filename's word for it. Six arms
+went into `test_acceptance_si640c.py`, which is where this pattern's protocol
+already lives and where the background-peak worked example is already
+executable, with their six validation-matrix rows and a regenerated
+`docs/VALIDATION.md`. The manual's measured-blank chapter takes the real numbers
+beside its synthetic ones, its stated angular limit takes a residual, the skill
+takes how to judge the scale, and the root rulebook takes why.
+
+**Measured** (this worktree's own venv, `[dev]` only, darwin, on current main
+merged into the branch).
+
+- *The file is run 4736, and five numbers say so.* The header matches what this
+  directory recorded from the real file on 2026-08-26, which is text and proves
+  nothing. So the out-of-package fit recorded beside it was rerun on the
+  committed bytes: χ²ᵣ 1.1251 against the recorded 1.125, position 4.2416(111)°
+  against 4.2417(111)°, FWHM 6.1529(228)° against 6.153(23)°, the peak-free
+  Chebyshev-3's 5.3255 against 5.33, and fourteen polynomial terms to match the
+  six-parameter fit.
+- *The scale is 0.8374(142)*, with Rwp falling 0.074012 → 0.073749 under its own
+  σ and 0.079311 → 0.077328 under the specimen's. The synthetic fixture
+  predicted the direction of the small bias, regression dilution on a blank
+  whose σ/I runs 8-17 % here.
+- *A declared curve beats a fitted one at three parameters fewer.* On one common
+  weight: 0.119977 for the bare polynomial, 0.082503 for the polynomial plus a
+  three-parameter hump, 0.079311 for the polynomial plus the declared blank with
+  nothing freed.
+- *The issue's shape reproduces and its held-at-1.0 Rwp does not.* The base arm
+  matches to five digits (0.119977 / GoF 1.9695 against 0.11998 / 1.9695), so
+  the protocol is the issue's. Its blank arm reads 0.07770 where this tree gives
+  0.079220 without the blank's esds and 0.074012 with them. The issue's
+  implementation is not in the tree, so that gap is not attributable here. What
+  reproduces is the argument: an interior minimum at 0.85, with unity costing
+  2.5 % of Rwp where the issue measured 2.2 %.
+- *A free polynomial eats the scale on real data too*: 0.8374(142) on three
+  Chebyshev terms and 0.6935(246) on six, 5.1 combined esds apart and away from
+  the hand-set minimum, while Rwp on one weight prefers the six-term arm
+  (0.076382 against 0.077328).
+- *One constant scale does not flatten the halo window.* The mean weighted
+  residual over 4-6° 2θ is −0.47 held at 1.0, +0.20 freed, and +0.43 with six
+  polynomial terms. The Context's recorded physics gap is visible for the first
+  time, and this measurement does not separate it from the polynomial's own
+  stiffness.
+
+**Gotchas.**
+
+- *σ is a function of the declared scale, so an Rwp column is not a ranking.*
+  This is the one the WP did not anticipate. `fixed_sigma` enters the weight as
+  σ² + s²·σ_f², so the same residual reads 0.074012 against its own σ and
+  0.079311 against the specimen's, 7.2 % of the number being weighting. Down a
+  scan of scales it displaces the apparent minimum from 0.85 to 0.90. Every
+  cross-arm comparison in the new tests therefore goes through one σ, and the
+  rule went one rank up into both rulebooks.
+- *The zoom that shows this correction has to stop below the (111).* Framed at
+  2-12° the first reflection takes the whole y-scale and the halo is invisible,
+  which is the lesson this module's other zoom already records. At 2-7° the held
+  arm can be seen riding above the data across the feature.
+- *Six new tests and the fast selection does not move.* All six are `slow`, so
+  the fast count is main's count.
+
+**The review pass** (`/code-review high --fix`) found five and all five were
+applied, none declined. One was a defect rather than a tidy-up: the headline
+test's "common σ" branch weighted the free arm by the *widened* σ instead of the
+specimen's own, so the pair it asserted was not the pair `docs/VALIDATION.md`
+records, and the fix makes it exactly 0.079311 → 0.077328. Its sibling branch
+compares each arm under its own σ, which is the thing this section establishes
+is not a ranking, so it is relabelled as a regression pin rather than evidence.
+The other four are a discarded polynomial background on every blank arm, a
+`TypeError` where an assertion belonged, an unguarded broadcast in `_rwp_under`,
+and a skip guard repeated four times. The pass also measured a claim this
+session had argued: adding a final joint polish stage moves the headline scale
+by nothing and Rwp by 3e-6, because staging is cumulative and the scale keeps
+refining through the last stage already.
+
+**Counts.** Fast selection **5282 passed, 133 skipped** in 2:41, full suite
+**5460 passed, 142 skipped** in 33:53, both on current main merged into the
+branch. Another session was running short selections on this machine
+throughout, so the counts are quotable and the wall clock is not. The fast delta
+from this WP is **zero by construction**, confirmed by collection: all 18 tests
+in the module deselect under `-m "not slow"`. Across the merge the fast count
+moved 5283 → 5282, which is main's own change marking one indexing row slow.
+The full selection's +48 over the previous session's 5412 is six from this WP
+and the rest from four merges of main in between; no baseline was re-measured,
+per the ladder. The review's fixes landed *after* those runs and touch one slow
+test module only, changing assertions inside existing tests rather than their
+number, so the counts stand and that module was re-run green (18 passed) on the
+fixed tree. `ruff` clean.
+
+**Next.** The WP closes here, so these are for whoever wants them rather than
+for a successor on 1309.
+
+1. `rietx compare` has no standard that ships with its own blank, and the
+   repository now holds one pair that does. Adding Si640c as a compare standard
+   would put the measured-curve mechanism in front of a user instead of the
+   arPLS stand-in. That is a new standard and a new fixture row, so it was left
+   out of this WP rather than folded in.
+2. The halo-window residual is the recorded angular gap and the polynomial's
+   stiffness together, unseparated. Separating them needs a transmission-weighted
+   curve rather than a constant, and nobody has asked for that correction.
 
 ### 2026-09-17 — the scale a blank always needs
 
