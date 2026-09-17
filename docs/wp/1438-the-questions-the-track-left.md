@@ -356,6 +356,28 @@ than worked around: grouping them would change the tick count, which Layer 0's
 `Region.n_reflections` reads. Cost of carrying the indices: 1.4 kB against a
 335 kB snapshot on the NAC demo, 0.4 %.
 
+*A layout constant that was a fact about the mouse.* Two seam tests went red
+on a quiet machine after passing on the same machine an hour earlier, with
+nothing in between touching `#runs`. The list's floor had gone from 514 px to
+529. The difference is the pane's own box, `offsetWidth - clientWidth`: 1 px
+of border, and 15 more when `scrollbar-gutter: stable` reserves a *classic*
+scrollbar instead of an overlay one. macOS chooses between the two by itself —
+its default setting is "automatically based on mouse or trackpad" — so the
+constant those tests encoded was a fact about what was plugged into the
+machine.
+
+`watch.css` already states the rule and the page already obeys it: the floor
+is 71 columns **plus whatever box the pane carries**, "measured rather than
+added as a constant" (`SEAMS.list.chrome`). The tests asserted the number
+instead of the rule, which is the same class as quoting a wall clock. They
+read the box off the page they are asserting about now, so they are right in
+either environment rather than right on one machine — and the font metric they
+do still assume, 1ch = 7.225, is asserted explicitly so a font change fails
+where it is legible rather than as a wrong pane width.
+
+Worth carrying beyond this WP: a browser test may not hard-code a dimension
+that the platform's own chrome contributes to.
+
 *The GUI's own narrow window.* Measured for the same comment: at 420 px the
 document scrolled to **618 px**, and to 618 at every window below that,
 because the header wraps and `.controls` inside it was one unbreakable 604 px

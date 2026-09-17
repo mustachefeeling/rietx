@@ -730,6 +730,26 @@ def _pinned(browser, base: str, run_id: str):
     return page, errors
 
 
+#: The list pane's floor, read off the page it is drawn on.
+#:
+#: `watch.css` states the rule and the page obeys it: 71ch of declared columns
+#: plus whatever box the pane carries, *measured* rather than added as a
+#: constant. These tests used to add 1 for the border and nothing for a
+#: scrollbar, which is true only where the scrollbar is an overlay — and macOS
+#: decides that from whether a mouse is attached (measured both ways on one
+#: machine within an hour, 1 px and 16). So the bar is the rule, not a number.
+LIST_FLOOR = """() => {
+  const runs = document.getElementById('runs');
+  const probe = document.createElement('span');
+  probe.style.cssText = 'position:absolute;visibility:hidden;width:10ch';
+  document.body.appendChild(probe);
+  const ch = probe.getBoundingClientRect().width / 10;
+  probe.remove();
+  return {ch: ch, chrome: runs.offsetWidth - runs.clientWidth,
+          floor: Math.round(71 * ch) + (runs.offsetWidth - runs.clientWidth)};
+}"""
+
+
 def _drag(page, selector: str, dx: int, dy: int) -> None:
     """Drag a grip by (dx, dy), in steps, the way a pointer arrives."""
     box = page.locator(selector).bounding_box()
@@ -1006,6 +1026,7 @@ def test_a_drag_stops_at_the_floor_the_columns_set(browser, tmp_path):
         page, errors = _open(browser, base, run_id)
         _drag(page, "#grip-list", -400, 0)       # far past the floor
         floored = page.evaluate(SEAM)
+        floor = page.evaluate(LIST_FLOOR)
         # the run column still has room for its own heading, which is what the
         # floor is for
         head = page.evaluate(
@@ -1015,10 +1036,12 @@ def test_a_drag_stops_at_the_floor_the_columns_set(browser, tmp_path):
         page.close()
 
     assert not errors, errors
-    # 71ch of columns plus the pane's own 1 px border, the basis being
-    # border-box; the assertion that matters is the next one. 63ch until
-    # WP-1428 gave the list the launch button's 8ch column.
-    assert floored["list"] == pytest.approx(71 * 7.225 + 1, abs=2)
+    # 71ch of columns plus the pane's own box, the basis being border-box;
+    # the assertion that matters is the next one. 63ch until WP-1428 gave the
+    # list the launch button's 8ch column. The box is read off the page and
+    # not added as a constant, for the reason `LIST_FLOOR` carries.
+    assert floored["list"] == pytest.approx(floor["floor"], abs=2)
+    assert floor["ch"] == pytest.approx(7.225, abs=0.05), floor
     assert floored["list"] == floored["valuenow"]
     assert head[0] >= head[1], head
 
@@ -1076,6 +1099,7 @@ def test_the_grips_carry_the_aria_splitter_keyboard(browser, tmp_path):
         page.keyboard.press("Home")
         page.wait_for_timeout(300)
         home = page.evaluate(SEAM)
+        floor = page.evaluate(LIST_FLOOR)
         # Enter collapses, and the pane it collapses is the one it sizes
         page.keyboard.press("Enter")
         page.wait_for_timeout(300)
@@ -1091,9 +1115,10 @@ def test_the_grips_carry_the_aria_splitter_keyboard(browser, tmp_path):
     # End and Home are the seam's stops, and they are the clamp's own numbers
     assert end["list"] == end["valuemax"]
     assert home["list"] < end["list"]
-    # 66ch of declared columns plus 5ch for the run column's own heading, at
-    # 1ch = 7.225 on this page (58 + 5 until WP-1428's launch column)
-    assert home["list"] == pytest.approx(71 * 7.225, abs=2)
+    # 66ch of declared columns plus 5ch for the run column's own heading, and
+    # the pane's own box on top — read off the page rather than added as a
+    # constant (`LIST_FLOOR`). 58 + 5 until WP-1428's launch column.
+    assert home["list"] == pytest.approx(floor["floor"], abs=2)
     assert collapsed == "closed"
     assert restored == "open"
 
