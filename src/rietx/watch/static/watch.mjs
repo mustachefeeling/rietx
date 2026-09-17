@@ -10,6 +10,7 @@ import {LAYOUT_DEFAULT, ago, axisOf, clampSize, clock, coalesce, deltaTitle,
 const $ = id => document.getElementById(id);
 let SINGLE = null;          // set when the served directory is itself a run
 let CAN_CANCEL = false;     // false under --read-only: no button is drawn
+let CAN_OPEN_GUI = false;   // the same, for the launch verb (WP-1428)
 // what the strip says after a stop was asked for, or after one was refused.
 // A fit does not stop the instant the button is clicked — a cadence plus the
 // residual evaluation in flight, which on a large pattern is the larger term —
@@ -101,8 +102,17 @@ function makeRow(run) {
   tr.dataset.id = run.run_id;
   tr.innerHTML = '<td><span class="state"></span></td><td></td><td></td>' +
     '<td class="num"></td><td class="num"></td>' +
-    '<td class="muted"><time></time></td>';
+    '<td class="muted"><time></time></td>' +
+    '<td class="gui"><button hidden>open</button></td>';
   tr.onclick = () => { location.hash = '#/run/' + run.run_id; };
+  // The button is inside the row, and the row navigates on click. The handler
+  // stops that one rather than adding to it, because `openGui` selects the run
+  // itself and for a reason: its notice has nowhere to appear otherwise. One
+  // place decides, and it is the one that knows why.
+  tr.lastElementChild.firstElementChild.onclick = ev => {
+    ev.stopPropagation();
+    openGui(run.run_id);
+  };
   return tr;
 }
 
@@ -120,6 +130,16 @@ function fillRow(tr, run) {
   setAttr(td[2], 'title', st.stage || null);
   setText(td[3], pct(st.rwp, 2));
   setText(td[4], num(st.gof, 2));
+  // Drawn for a run that is inside a project, which is what `gui_command`
+  // being non-null means, and only where this watcher performs the verb at
+  // all. A run recorded by a bare `fit()` has no project to copy (WP-1428).
+  const gui = td[6].firstElementChild;
+  gui.hidden = !(CAN_OPEN_GUI && run.gui_command);
+  setAttr(gui, 'title', run.gui_command
+    ? 'Open a copy of this project in the ' + DIST + ' GUI. The copy is '
+      + 'frozen at the click and does not follow the fit, and the project '
+      + 'this run is writing is not touched.'
+    : null);
   const when = td[5].firstElementChild;
   setText(when, clock(run.created));
   setAttr(when, 'datetime', run.created
@@ -450,7 +470,11 @@ function fillStrip(run) {
   // to stop, and 'unknown' covers both another host and a writer that keeps
   // no lock, where a request would sit in the directory doing nothing. The
   // route refuses the same set, so this is the courtesy and not the check.
-  $('stop').hidden = !(CAN_CANCEL && !notice
+  // Hidden while the *stop* flow has something to say — a request in flight,
+  // or a refusal still on screen. Not for every notice: the GUI launch puts
+  // one up for as long as a python interpreter takes to start (WP-1428), and
+  // it has nothing to do with whether this fit can still be stopped.
+  $('stop').hidden = !(CAN_CANCEL && !(notice && notice.kind === 'stop')
                        && run.liveness.state === 'running');
 }
 
@@ -530,6 +554,41 @@ function openConfirm(run) {
   box.hidden = false;
 }
 
+// The launch takes about a second, most of it a python interpreter starting
+// (WP-1428 measured 0.58-0.89 s). So the notice goes up first: without it the
+// click looks like it did nothing, and the second click is a second GUI.
+async function openGui(id) {
+  // Select the run first. A notice belongs to one run and `drawRun` drops one
+  // that is not the run on screen, so a launch from a row the reader is not
+  // looking at would report neither its progress nor its refusal.
+  if (currentId() !== id) location.hash = '#/run/' + id;
+  notice = {id: id, kind: 'gui',
+            text: 'opening a copy in the ' + DIST + ' GUI …',
+            stop: false, expires: Date.now() + 90000};
+  refresh();
+  let payload = null, ok = false;
+  try {
+    const r = await fetch(`api/run/${id}/gui`, {method: 'POST'});
+    ok = r.ok;
+    payload = await r.json();
+  } catch (err) {
+    payload = {error: String(err)};
+  }
+  if (ok && payload && payload.url) {
+    // a new tab, and the url stays in the strip: a popup blocker eats this
+    // silently, and a reader with no tab and no url has nothing to go on
+    window.open(payload.url, '_blank', 'noopener');
+    notice = {id: id, kind: 'gui',
+              text: 'a frozen copy is open at ' + payload.url,
+              stop: false, expires: Date.now() + 20000};
+  } else {
+    notice = {id: id, kind: 'gui',
+              text: (payload && payload.error) || 'the GUI was refused',
+              stop: false, expires: Date.now() + 8000};
+  }
+  refresh();
+}
+
 async function stopRun(id) {
   let payload = null, ok = false;
   try {
@@ -540,9 +599,10 @@ async function stopRun(id) {
     payload = {error: String(err)};
   }
   notice = ok
-    ? {id: id, text: 'stopping at the next evaluation …', stop: true,
-       expires: Infinity}
-    : {id: id, text: (payload && payload.error) || 'the stop was refused',
+    ? {id: id, kind: 'stop', text: 'stopping at the next evaluation …',
+       stop: true, expires: Infinity}
+    : {id: id, kind: 'stop',
+       text: (payload && payload.error) || 'the stop was refused',
        stop: false, expires: Date.now() + 8000};
   refresh();
 }
@@ -634,15 +694,20 @@ async function pumpEvents(id) {
 // here was measured on this page rather than chosen, and each is quoted
 // beside the constant it set.
 const SEAMS = {
-  // The list. Its five declared columns are 58ch, and that is exactly the
-  // table's whole min-content (measured 419 px at 1ch = 7.225). The run
-  // column takes the remainder, so it absorbs every narrowing on its own and
-  // reaches 0 px at 56ch with the table overflowing the panel. `run` as a
-  // heading inks 36 px, so 58 + 5 is the width below which a column cannot
-  // show its own name. In `ch`, because the columns it is made of are.
+  // The list. Its six declared columns are 66ch, and that is exactly the
+  // table's whole min-content. The run column takes the remainder, so it
+  // absorbs every narrowing on its own and reaches 0 px with the table
+  // overflowing the panel. `run` as a heading inks 36 px, so 66 + 5 is the
+  // width below which a column cannot show its own name. In `ch`, because the
+  // columns it is made of are.
+  //
+  // It was 58 + 5 until WP-1428 gave the list a seventh column, the 8ch the
+  // launch button needs. That column is the whole of the 8ch difference, and
+  // the default width went 72ch → 80ch with it so the run names keep the room
+  // they had.
   list: {
     pane: 'runs', grip: 'grip-list', grow: 'right', prop: '--list',
-    minCh: 63,
+    minCh: 71,
     // What the run pane keeps. A horizontal legend wraps *inside* the paper
     // (WP-1426), so a narrow pane loses picture instead of gaining height:
     // measured at 1400x900, the legend holds three rows down to a 340 px
@@ -751,7 +816,7 @@ const resizePlot = coalesce(() => {
 });
 
 // A size for the pane, or `null` for "no choice made" — which leaves the
-// stylesheet's own `72ch`/`30%` in force rather than freezing a px number
+// stylesheet's own `80ch`/`30%` in force rather than freezing a px number
 // over a size that is font- and window-relative on purpose.
 //
 // A stored size is not a settled size (WP-1029): a drag clamps against the
@@ -963,6 +1028,7 @@ $('stop').onclick = () => {
   const meta = await (await fetch('api/runs', {cache: 'no-store'})).json();
   SINGLE = meta.single_run_id;
   CAN_CANCEL = meta.can_cancel === true;
+  CAN_OPEN_GUI = meta.can_open_gui === true;
   readPage(meta);
   if (SINGLE) document.body.dataset.single = '';
   layout = readLayout();
