@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import io
 import json
+import os
 import shutil
 import socket
 import threading
@@ -25,24 +26,24 @@ try:
 except ImportError:                     # pragma: no cover - Windows
     fcntl = None                        # type: ignore[assignment]
 
-#: The liveness cases that read a POSIX answer, and so are the platform's to
-#: skip rather than this module's to lose.  ``liveness_of`` reaches its verdict
-#: by the first rung that answers, and on Windows the last three do not: there
-#: is no ``flock``, so ``_probe_lock`` returns ``"unavailable"`` for every run
-#: (a documented third answer, not a failure), and ``os.kill(pid, 0)`` raises a
-#: bare ``OSError`` for a pid that is not running rather than
-#: ``ProcessLookupError``, so ``_pid_alive`` answers ``None``.  Every
-#: non-terminal fixture below therefore reads ``unknown`` there, by the rung
-#: the module docstring calls the fallback.  The rest of this file is fixture
-#: directories read off disk and is not platform business.
+#: The liveness cases whose assertion is about the **lock**, and so are the
+#: platform's to skip rather than this module's to lose.  ``liveness_of``
+#: answers by the first rung that fires, and without ``flock`` ``_probe_lock``
+#: returns ``"unavailable"`` for every run -- a documented third answer, not a
+#: failure -- so the two lock rungs never fire and their evidence strings are
+#: unreachable.  The **pid** rung below them is not on this list: it is the
+#: only rung Windows has, and since WP-1439 it answers there.
 posix_liveness = pytest.mark.skipif(
-    fcntl is None, reason="liveness_of's lock and pid rungs are POSIX-only")
+    fcntl is None, reason="liveness_of's lock rungs need flock")
 
 
 def _write_run(directory: Path, *, events: str = "", status: dict | None = None,
                meta: dict | None = None, lock: bool = False) -> Path:
     directory.mkdir(parents=True, exist_ok=True)
-    (directory / runs.EVENTS_FILE).write_text(events, encoding="utf-8")
+    # the recorder writes JSONL with a pinned newline, and a fixture
+    # standing in for it writes the same bytes (WP-1439)
+    (directory / runs.EVENTS_FILE).write_text(events, encoding="utf-8",
+                                              newline="\n")
     if status is not None:
         (directory / runs.STATUS_FILE).write_text(json.dumps(status),
                                                   encoding="utf-8")
@@ -345,10 +346,12 @@ def test_a_foreign_host_reads_unknown(tmp_path):
     assert "another host" in live.evidence
 
 
-@posix_liveness
 def test_our_own_host_is_not_foreign(tmp_path):
+    # this process, because the pid rung only has to *answer* here and our own
+    # pid is alive on every platform (pid 1 is init on POSIX and nothing at
+    # all on Windows, which is the whole reason this used to need a skip)
     _write_run(tmp_path / "r", events=_event_line("fit_start"),
-               status={"state": "running", "pid": 1,
+               status={"state": "running", "pid": os.getpid(),
                        "host": socket.gethostname()})
     assert runs.liveness_of(_one(tmp_path)).state != "unknown"
 
@@ -365,7 +368,6 @@ def test_a_status_with_no_state_reads_unknown_not_running(tmp_path):
     assert runs.liveness_of(run).state == "unknown"
 
 
-@posix_liveness
 def test_a_missing_lock_file_is_not_a_free_lock(tmp_path):
     """No lock file means no writer ever made the claim; a free lock file means
     a writer made it and is gone."""
@@ -467,6 +469,33 @@ def test_a_state_from_a_newer_writer_costs_the_state_and_not_the_row(tmp_path):
     assert runs.liveness_of(run).state == "abandoned"
 
 
+def test_a_pid_windows_says_is_gone_reads_gone(monkeypatch):
+    """The Windows half of the pid rung, provoked where it can be (WP-1439).
+
+    ``os.kill`` there is ``OpenProcess``, which fails
+    ``ERROR_INVALID_PARAMETER`` for a pid no process has rather than raising
+    ``ProcessLookupError``. Read as "cannot say", it left the rung mute on the
+    one platform that has no lock rung above it.
+    """
+    def _no_such_process(pid, sig):
+        exc = OSError(22, "The parameter is incorrect")
+        exc.winerror = runs._WINDOWS_NO_SUCH_PID
+        raise exc
+
+    monkeypatch.setattr(runs.os, "kill", _no_such_process)
+    assert runs._pid_alive(999_999) is False
+
+
+def test_an_unreadable_pid_error_still_declines_to_guess(monkeypatch):
+    """Everything else stays ``None``: a wrong guess here is a confident
+    wrong singleton about somebody's running fit."""
+    def _something_else(pid, sig):
+        raise OSError(5, "I/O error")
+
+    monkeypatch.setattr(runs.os, "kill", _something_else)
+    assert runs._pid_alive(999_999) is None
+
+
 # ----------------------------------------------------------------------
 # tailing
 # ----------------------------------------------------------------------
@@ -493,7 +522,8 @@ def test_a_torn_last_line_is_carried_forward_unparsed(tmp_path):
     """A writer flushes per event, but a flush is not an atomic write."""
     log = tmp_path / runs.EVENTS_FILE
     whole = _event_line("fit_start")
-    log.write_text(whole + '{"record":"event","kind":"sta', encoding="utf-8")
+    log.write_text(whole + '{"record":"event","kind":"sta', encoding="utf-8",
+                   newline="\n")
 
     tail = runs.tail_events(log)
     assert [e["kind"] for e in tail.events] == ["fit_start"]
@@ -501,7 +531,8 @@ def test_a_torn_last_line_is_carried_forward_unparsed(tmp_path):
     assert tail.bad_lines == 0               # a fragment is not a bad line
 
     # completing the line delivers it whole, exactly once
-    log.write_text(whole + _event_line("stage_start"), encoding="utf-8")
+    log.write_text(whole + _event_line("stage_start"), encoding="utf-8",
+                   newline="\n")
     rest = runs.tail_events(log, tail.offset, inode=tail.inode)
     assert [e["kind"] for e in rest.events] == ["stage_start"]
 

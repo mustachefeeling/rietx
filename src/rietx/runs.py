@@ -741,6 +741,11 @@ def _probe_lock(path: Path) -> Literal["held", "free", "unavailable"]:
         fh.close()
 
 
+#: ``ERROR_INVALID_PARAMETER``. What Windows returns for a pid no process has,
+#: which is the answer POSIX spells ``ProcessLookupError``.
+_WINDOWS_NO_SUCH_PID = 87
+
+
 def _pid_alive(pid: int) -> bool | None:
     """``None`` where the question cannot be answered rather than a guess.
 
@@ -755,7 +760,16 @@ def _pid_alive(pid: int) -> bool | None:
         return False
     except PermissionError:
         return True      # exists, owned by somebody else
-    except OSError:
+    except OSError as exc:
+        # Windows says "no such process" as a bare ``OSError``: ``os.kill`` is
+        # ``OpenProcess`` there and it fails ``ERROR_INVALID_PARAMETER`` (87)
+        # rather than setting an errno ``ProcessLookupError`` would see. Read
+        # as ``None`` this made the pid rung answer nothing on the one platform
+        # where it is the *only* rung -- no ``flock``, so the lock rungs above
+        # never fire -- and every run in ``rietx watch`` read ``unknown``
+        # (WP-1439).
+        if getattr(exc, "winerror", None) == _WINDOWS_NO_SUCH_PID:
+            return False
         return None
     return True
 
