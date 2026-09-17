@@ -141,6 +141,32 @@ def test_joint_recovers_shared_cell(two_patterns):
     assert "histogram_weights" in result.provenance.notes
 
 
+def test_every_histograms_ticks_name_their_reflections(two_patterns):
+    """`multi.py` keeps its own tick builder, so it owes the same pairing.
+
+    CLAUDE.md names this exact shape — a second builder of anything is the
+    miss — and the failure it prevents is the one surface where pointing at a
+    tick tells the reader nothing (WP-1438).
+    """
+    structure, instruments = perturbed_inputs()
+    ref = MultiHistogramRefinement(structure, instruments)
+    result = ref.fit(two_patterns, plan="mccusker_default")
+
+    for h, hist in enumerate(result.histograms):
+        assert hist.ticks, f"hist {h} has no ticks"
+        assert set(hist.tick_hkl) <= set(hist.ticks), h
+        for phase, positions in hist.ticks.items():
+            if phase not in hist.tick_hkl:
+                continue        # the declared-peak key has no Miller index
+            assert len(hist.tick_hkl[phase]) == len(positions), (h, phase)
+            assert all(len(k) == 3 for k in hist.tick_hkl[phase]), (h, phase)
+            assert positions == sorted(positions), (h, phase)
+    # the two histograms see the same phase and so name the same reflections,
+    # each at its own wavelength's angles
+    first, second = result.histograms
+    assert set(first.tick_hkl) == set(second.tick_hkl)
+
+
 def test_bad_histogram_shows_in_its_own_rwp(two_patterns):
     # corrupt the second pattern with a large unmodelled impurity peak: the
     # shared model can still fit histogram 0, so a pooled Rwp would understate

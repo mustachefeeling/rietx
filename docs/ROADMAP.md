@@ -99,14 +99,13 @@ the same scans would make Stoe writable.
 closed on four of six; its other two, each filed with a fix its measurements
 rule out, carry on as [1434](wp/1434-the-bound-test-asks-the-wrong-question.md) and [1435](wp/1435-a-hold-the-caller-declares.md).
 
-**The live-watcher track is closed**, seventeen rungs. A reader opens a frozen
-copy of a running fit's project in the GUI from the run list
-([1428](wp/1428-open-in-the-gui-without-touching-the-fit.md)), and the six
-questions it handed the maintainer were answered and landed in
-[1438](wp/1438-the-questions-the-track-left.md): one phase palette for all
-three surfaces, `abandoned` out of the warning hue, the snapshot cadence kept
-and its exception written down, the run pane's collapse restored as a command,
-80ch, and a cold open that lands at the log's tail.
+**The live-watcher track is closed**, seventeen rungs, ending with a reader
+opening a frozen copy of a running fit's project in the GUI from the run list
+([1428](wp/1428-open-in-the-gui-without-touching-the-fit.md)).
+[1438](wp/1438-the-questions-the-track-left.md) answered the twelve questions
+it handed the maintainer, in two rounds — one phase palette across all three
+surfaces, and the pages made to hold a narrow window, a reload and a theme
+their reader can reach.
 
 **Queued, unscheduled** ([§ Unscheduled](#unscheduled)): the 2026-09-01
 triage's 1309–1322 plus 1323 and 1325; the 2026-09-03 triage's 1332–1341; the

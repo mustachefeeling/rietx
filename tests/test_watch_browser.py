@@ -1208,6 +1208,14 @@ def test_the_legend_is_a_dimension_the_page_fixes(browser, tmp_path):
     resize moves everything by design, so the bar is not a layout shift of
     zero; it is that the legend's box relative to the plot area is the same at
     every width, which is what "a dimension the page fixes" means.
+
+    The widths are all **side by side** since WP-1438: below 859 px the two
+    panes stack, and then the picture is shorter because the list took the top
+    of the window, which is a pane changing and not a legend growing. Measured
+    at the seam, the stacked page is the *easier* case — at 858 px the pane
+    goes 277 px wide to 858 and the legend drops from four rows back to one.
+    So the claim is checked where it is a claim: 1400 → 860, where the legend
+    wraps 29 px to 105 and the plot area holds 510 either way.
     """
     _make_tree(tmp_path, n_done=2)
     seen = {}
@@ -1215,10 +1223,16 @@ def test_the_legend_is_a_dimension_the_page_fixes(browser, tmp_path):
         run_id = next(r.run_id for r in runs.discover(tmp_path)
                       if r.path.name == "watched")
         page, errors = _pinned(browser, base, run_id)
-        for width in (1400, 1000, 700):
+        for width in (1400, 1000, 860):
             page.set_viewport_size({"width": width, "height": 900})
             page.wait_for_timeout(800)
             seen[width] = page.evaluate(PLOT_GEOMETRY)
+        # and once past the seam, where the height moves for a reason that is
+        # not this one. The top margin is still the declared 8: what stacking
+        # changes is the pane, never what the legend takes out of it.
+        page.set_viewport_size({"width": 700, "height": 900})
+        page.wait_for_timeout(800)
+        stacked = page.evaluate(PLOT_GEOMETRY)
         page.close()
 
     assert not errors, errors
@@ -1228,7 +1242,11 @@ def test_the_legend_is_a_dimension_the_page_fixes(browser, tmp_path):
     assert set(tops.values()) == {8}, tops
     assert len(set(heights.values())) == 1, heights
     # and the legend's top edge is the plot area's, at every width
-    assert {w: g["rel"][1] for w, g in seen.items()} == {1400: 0, 1000: 0, 700: 0}
+    assert {w: g["rel"][1] for w, g in seen.items()} == {1400: 0, 1000: 0, 860: 0}
+    # stacked: a shorter pane, the same top margin, the same legend rule
+    assert stacked["area"][1] == 8, stacked
+    assert stacked["area"][3] < heights[860], (stacked, heights)
+    assert stacked["rel"][1] == 0, stacked
     # its left edge too, wherever the panel is wide enough to hold it. At the
     # narrowest the legend is wider than the plot area (125 px against 102, the
     # grip WP-1425 put in the row having taken 5 of them) and plotly keeps it
