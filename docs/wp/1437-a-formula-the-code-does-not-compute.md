@@ -121,11 +121,13 @@ which is why this class was unguarded.
       code each describes. Record every one in the handover, checked or
       corrected. **This is the deliverable**; the two fixes above are its first
       finding.
-      *Done 2026-09-17, over a wider class than the WP sized: 41 checkable
-      claims rather than 15, because a shape claim ("shifts as sin 2θ") and an
-      identity claim ("r = 1 is exactly no correction") are as checkable as a
-      formula and drift the same way. The full table is in the handover entry.
-      It found a **third** defect, `instrument.profile.v`, corrected below.*
+      *Done 2026-09-17, over a wider class than the WP sized: **41 entries**
+      carrying a checkable claim, not 15. A shape claim ("shifts as sin 2θ"),
+      an identity claim ("r = 1 is exactly no correction") and a frozen
+      constant ("3.5 FWHM") are each as checkable as a formula and drift the
+      same way, so restricting the audit to written equations would have
+      missed the third defect. Three entries were wrong; the other 38 held.
+      The full table is in the handover entry.*
 - [x] Pin the three numeric thresholds against their live constants, as a
       fourth `*_are_the_schemas_own` member in `tests/test_help.py`.
 - [x] A review rule in `help.py`'s module docstring: a description that states
