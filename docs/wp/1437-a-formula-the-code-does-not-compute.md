@@ -121,7 +121,7 @@ which is why this class was unguarded.
       code each describes. Record every one in the handover, checked or
       corrected. **This is the deliverable**; the two fixes above are its first
       finding.
-- [ ] Pin the three numeric thresholds against their live constants, as a
+- [x] Pin the three numeric thresholds against their live constants, as a
       fourth `*_are_the_schemas_own` member in `tests/test_help.py`.
 - [x] A review rule in `help.py`'s module docstring: a description that states
       a formula or a threshold names where the real one lives.

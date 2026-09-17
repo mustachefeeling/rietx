@@ -12,8 +12,11 @@ description is a claim about a name, and a claim nothing checks rots silently.
 ``features["indexing"]`` spent its whole life ``False`` for exactly this reason.
 
 Two fields are checked against the schemas rather than read: ``unit`` and
-``default``.  Nothing else in the corpus has an authority in the code, and
-``typical`` deliberately has none.
+``default``.  A third check reaches into ``description``, which is authored
+prose and has no authority in general — but where a sentence quotes a
+*threshold* the code owns, that number does
+(:func:`test_quoted_thresholds_are_the_codes_own`, WP-1437).  ``typical``
+deliberately has none.
 """
 
 from __future__ import annotations
@@ -47,7 +50,8 @@ from rietx.help import (
     plan_help,
 )
 from rietx.io.formats.base import READER_OPTIONS
-from rietx.params.vector import ParameterTable
+from rietx.params.vector import SIZE_CAP_MIN_SIZE_A, ParameterTable
+from rietx.refine import SIZE_FLAG_SIZE_A, STRAIN_FLAG_WIDTH
 from rietx.schemas.common import Parameter
 from rietx.schemas.indexing import IndexingControls, ObservedPeak, PeakFlag
 from rietx.schemas.instrument import (
@@ -543,6 +547,59 @@ def test_defaults_are_the_schemas_own():
     assert not wrong, (
         "entries whose default disagrees with the schema "
         f"(path, entry, schema): {wrong}")
+
+
+#: Thresholds a ``description`` quotes in words, each beside the live constant
+#: the sentence is a copy of: ``(help path, constant, value the sentence must
+#: spell, the spelling)``.  WP-1437 found the polarisation *formula* in this
+#: corpus disagreeing with the code by up to 2x, undetected because prose has no
+#: authority; a formula cannot be pinned this way and is a review rule in
+#: ``help.py``'s module docstring instead, but a number can be and is.
+#:
+#: The converters are the units the sentence chose, not the code's: a crystallite
+#: floor is stored in Å and read by people in nm.  Retuning a constant therefore
+#: fails here until the sentence is rewritten, which is the whole point.
+_QUOTED_THRESHOLDS = (
+    ("phases.0.lor_size", "SIZE_CAP_MIN_SIZE_A", SIZE_CAP_MIN_SIZE_A / 10.0, "2 nm"),
+    ("phases.0.gauss_size", "SIZE_CAP_MIN_SIZE_A", SIZE_CAP_MIN_SIZE_A / 10.0, "2 nm"),
+    ("phases.0.lor_size", "SIZE_FLAG_SIZE_A", SIZE_FLAG_SIZE_A / 10.0, "5 nm"),
+    ("phases.0.lor_strain", "STRAIN_FLAG_WIDTH", STRAIN_FLAG_WIDTH, "1.5 deg"),
+)
+
+
+def test_quoted_thresholds_are_the_codes_own():
+    """A number a description states in words is the live constant's, in words.
+
+    The fourth ``*_are_the_schemas_own`` member, and the one that reaches into
+    authored prose.  ``unit`` and ``default`` are pinned because they *are* the
+    schema's; these are pinned because a reader acts on them exactly as if they
+    were, and nothing else would notice a retune.
+
+    Two directions, as everywhere in this file.  The sentence must spell the
+    constant, so retuning ``SIZE_CAP_MIN_SIZE_A`` to 30 Å fails until the
+    description says 3 nm.  And the spelling must be *derived* from the constant
+    rather than asserted flat, so a row whose converter is wrong fails here
+    rather than certifying its own arithmetic.
+    """
+    stale = []
+    for path, const_name, value, spelling in _QUOTED_THRESHOLDS:
+        assert spelling == _spell(value, spelling), (
+            f"{const_name} is {value:g} in the sentence's units, which spells "
+            f"{_spell(value, spelling)!r}, but the row claims {spelling!r}")
+        entry = rx.help_for(path)
+        assert entry is not None, f"{path} has no entry"
+        if spelling not in entry.description:
+            stale.append((path, const_name, spelling))
+    assert not stale, (
+        "descriptions that no longer quote the constant they describe "
+        f"(path, constant, expected spelling): {stale}. Either the sentence was "
+        "rewritten away from the constant, or the constant was retuned and this "
+        "row's converter followed it while the sentence did not")
+
+
+def _spell(value: float, like: str) -> str:
+    """``value`` in the spelling ``like`` uses, so a row cannot assert itself."""
+    return f"{value:g} {like.split(' ', 1)[1]}"
 
 
 def test_a_parameter_with_no_default_says_so_rather_than_guessing():
