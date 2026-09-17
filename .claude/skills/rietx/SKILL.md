@@ -76,7 +76,12 @@ Preconditions, all of which must hold before `fit()` is meaningful:
 counting-statistics weights and can make intensities negative. Hold an estimated
 background *additively* (`BackgroundFixedPlusChebyshev`) or co-refine it under a
 smoothness penalty (`BackgroundPSpline`). `rx.auto_background(data)` does the
-right thing.
+right thing. A **measured blank** (empty can, blank capillary, matrix-only scan)
+is `BackgroundFixedPlusChebyshev.from_pattern(blank)`, which carries its esds;
+free `…background.scale` against a **low-order** polynomial, because the blank is
+never on the specimen's scale and enough Chebyshev terms describe the curve
+themselves (0.85 truth recovered as 0.838 on 1 term, 0.648 on 6, Rwp falling
+throughout). `HIGH_CORRELATION` against `c0` there is the correct report.
 
 ---
 

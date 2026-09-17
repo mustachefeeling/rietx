@@ -132,9 +132,12 @@ project bit-identical.
       archive.org is refused at TLS from this network. The maintainer will
       supply the file. Until it lands the fixture is a synthetic blank, which
       exercises every trap above and corroborates no number of the issue's.
-- [ ] Manual: the blank section in `using/data.md` grows the scale, the
+- [x] Manual: the blank section in `using/data.md` grows the scale, the
       correlated-series sentence, and the angle-dependence caveat; skill row
-      if a new diagnostic code lands.
+      if a new diagnostic code lands. No new code landed —
+      `HIGH_CORRELATION` is the channel and it already had one — so the skill
+      takes the *correction's* rule instead, in §1 beside the never-subtract
+      clause.
 - [ ] Tests for each trap above + the blank-fixture refinement, obs/calc/diff
       PNGs to `tests/output/`.
 

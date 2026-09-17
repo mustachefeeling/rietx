@@ -649,12 +649,14 @@ weight, and `BackgroundPSpline.air_scatter` scales an additive 1/2θ term for th
 low-angle air rise. `BackgroundPSpline.for_range` builds uniform knots over a 2θ
 range.
 
-`BackgroundFixedPlusChebyshev` holds a fixed estimated curve additively and
-refines a polynomial on top of it: `BackgroundFixedPlusChebyshev.fixed_two_theta`
-and `BackgroundFixedPlusChebyshev.fixed_intensity` are the curve, and
-`BackgroundFixedPlusChebyshev.chebyshev` the refinable part. Use it when you
-have a measured blank or an estimated baseline, since holding a curve additively
-keeps the counting statistics intact where subtracting it would not.
+`BackgroundFixedPlusChebyshev` holds a fixed curve additively and refines a
+polynomial on top of it. `BackgroundFixedPlusChebyshev.fixed_two_theta` and
+`BackgroundFixedPlusChebyshev.fixed_intensity` are the curve,
+`BackgroundFixedPlusChebyshev.chebyshev` the refinable part, and
+`BackgroundFixedPlusChebyshev.scale` a multiplier on the curve itself. Use it
+when you have a measured blank or an estimated baseline, since holding a curve
+additively keeps the counting statistics intact where subtracting it would not.
+[](#a-measured-blank) covers the blank.
 
 ```python
 from rietx import PatternData
@@ -680,6 +682,81 @@ A background flexible enough to imitate the peaks is a correctness problem
 rather than a cosmetic one. It biases displacement parameters up and scales
 down, and Rwp improves while it happens. That is measured once per fit and
 reported; [](results.md) has the table.
+
+(a-measured-blank)=
+### A measured blank
+
+`BackgroundFixedPlusChebyshev.from_pattern` builds the model from a scan of
+everything the specimen is not: an empty vanadium can, a blank capillary, a
+matrix-only scan, an empty furnace. `read_pattern` is the route in, so every
+format it opens is also a background format.
+
+```python
+import numpy as np
+
+from rietx import PatternData
+from rietx.schemas.instrument import BackgroundFixedPlusChebyshev
+
+tt = np.arange(5.0, 60.0, 0.05)
+counts = 140.0 + 420.0 * np.exp(-0.5 * ((tt - 21.0) / 6.5) ** 2)
+blank = PatternData(two_theta=tt.tolist(), intensity=counts.tolist(),
+                    sigma=np.sqrt(counts).tolist())
+
+bkg = BackgroundFixedPlusChebyshev.from_pattern(
+    blank, n_terms=3, vary_scale=True, source="empty capillary, run 4736")
+assert bkg.scale.value == 1.0 and bkg.scale.vary
+assert bkg.fixed_sigma is not None
+assert bkg.fixed_source == "empty capillary, run 4736"
+```
+
+`BackgroundFixedPlusChebyshev.scale` is fixed at 1.0 unless you free it, which
+is TOPAS's `bkg_file("f.xy")` against its `bkg_file("f.xy", @, s)`. A blank is
+never on the specimen's scale, because the two scans differ in monitor
+normalisation and counting time and because the specimen attenuates the
+container's own scattering. The polynomial on top cannot absorb that: it is
+additive, so it moves the level and never rescales the shape.
+
+Free the scale against a low-order polynomial, and read it as a measurement only
+there. On a synthetic blank built at a true scale of 0.85, one Chebyshev term
+recovers 0.8378(42) and six recover 0.6479(182), while Rwp falls monotonically
+from 0.07634 to 0.07299 across that row. `HIGH_CORRELATION` against `c0` fires
+at the flexible end and is the correct report rather than a fit failure.
+
+`BackgroundFixedPlusChebyshev.fixed_sigma` carries the blank's own counting
+statistics, and the channel weight becomes σ² + s²·σ_f² rather than σ² alone.
+That is what makes a short blank scan worse than a long one.
+`BackgroundFixedPlusChebyshev.fixed_source` records where the curve came from,
+free text, and it is what separates a measurement from an estimate for anything
+reading the model back.
+
+Three limits stand outside all of this.
+
+Interpolating a noisy curve onto the pattern grid correlates neighbouring
+channels' errors, so the propagated σ is a lower bound unless the blank is
+smoothed first. Smoothing is a modelling choice, so record it rather than
+expecting the package to apply it.
+
+One blank reused across a series carries error that is fully correlated rather
+than error that averages down. A refined scale that trends along a ramp is
+therefore partly an artefact of the single measurement, and the blank's shape is
+right only at the condition it was scanned.
+
+A single scale is the leading-order correction. The container's scattering
+reaches the detector through the specimen in the sample scan and through nothing
+in the blank scan, so the exact multiplier is angle-dependent and follows the
+specimen transmission. Refine a scale per pattern rather than one constant
+across a temperature or atmosphere series.
+
+A fitted channel the curve does not cover is refused, naming both ranges. Crop
+the fit with `two_theta_min` and `two_theta_max`, or supply a curve that covers
+the scan. The end value used to be carried outward silently.
+
+```{warning}
+Every plan preset frees `instrument.background.*`, which now reaches the scale.
+A project that held a fixed curve therefore refines one more parameter under the
+same plan than it did before the scale existed. Free
+`instrument.background.c*` instead to keep the curve at the value you set.
+```
 
 (background-peaks)=
 ### Explicit humps
