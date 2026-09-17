@@ -276,8 +276,8 @@ def test_fixed_curve_scale_variant_covers_the_range_it_will_be_asked_about():
     (WP-1309).  A variant that made ``compile_model`` raise would be a row
     nobody could run.
 
-    The scale is what the row is for: free, seeded at one, bounded at zero so a
-    double-counted curve walks into a bound instead of reporting s − 1.
+    The scale is what the row is for: free, seeded at one, floored at zero so a
+    double-counted curve cannot reach the s − 1 that would hide it.
     """
     if not (DATA_DIR / "11BM_NAC.fxye").exists():
         pytest.skip("11-BM NAC dataset not present")

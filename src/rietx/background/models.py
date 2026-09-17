@@ -57,11 +57,32 @@ def interpolate_fixed(two_theta: np.ndarray, fixed_tt: np.ndarray,
     or by measuring a longer blank.  :data:`FIXED_RANGE_SLACK_STEPS` is the
     tolerance, and it exists because two scans of the same nominal range
     disagree at their ends by about one step.
+
+    Two shapes of curve are refused before the range is even asked about,
+    because for them ``ft[0]`` and ``ft[-1]`` are not the range and the guard
+    above would pass while ``np.interp`` clamped anyway.  A curve of fewer than
+    two points has no range at all: ``np.interp`` carries its single value flat
+    across the whole pattern, which is the clamp this function exists to
+    refuse.  An unsorted curve has a range its endpoints do not name, and
+    ``np.interp`` reads every channel off whichever neighbours happen to
+    bracket it in array order.  Equal abscissae are allowed — a repeated point
+    is a tie ``np.interp`` resolves, not a wrong range.
     """
     tt = np.asarray(two_theta, dtype=np.float64)
     ft = np.asarray(fixed_tt, dtype=np.float64)
     fy = np.asarray(fixed_y, dtype=np.float64)
-    if len(tt) and len(ft) > 1:
+    if len(ft) < 2:
+        raise ValueError(
+            f"the fixed background curve has {len(ft)} point(s), so it has no "
+            "2θ range to interpolate over and every fitted channel would take "
+            "the same value; supply a curve that covers the fit")
+    if bool(np.any(np.diff(ft) < 0.0)):
+        raise ValueError(
+            "the fixed background curve's 2θ values decrease somewhere, so its "
+            "first and last points are not its range and each channel would be "
+            "read off whichever neighbours bracket it in array order; sort the "
+            "curve by 2θ")
+    if len(tt):
         slack = FIXED_RANGE_SLACK_STEPS * float(np.median(np.diff(ft)))
         lo, hi = float(ft[0]) - slack, float(ft[-1]) + slack
         tt_lo, tt_hi = float(tt.min()), float(tt.max())

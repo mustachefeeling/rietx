@@ -1077,8 +1077,13 @@ class BackgroundFixedPlusChebyshev(Base):
     #: existed.  ``min=0.0`` with a softplus is safe here because zero **is**
     #: the off state — the model is linear in this parameter and divides by
     #: nothing (root CLAUDE.md § Invariants, the ``MARCH_R_MIN`` rule read the
-    #: other way) — and it is what turns a double-counted curve from a silent
-    #: wrong scale into a fit that walks into its own bound.
+    #: other way).  It keeps the curve from being subtracted by a solver that
+    #: found a negative multiplier cheaper than the physics.  It is **not** a
+    #: bound anything reports: ``params.transforms.internal_bounds`` maps a
+    #: softplus lower limit of 0.0 to −∞, so a scale driven to zero is a
+    #: vanishing gradient rather than a ``BOUND_HIT``.  What makes a
+    #: double-counted curve visible is the refined scale itself, which lands a
+    #: whole unit from where the caller declared it.
     scale: Parameter = Field(
         default_factory=lambda: Parameter(value=1.0, min=0.0, transform="softplus")
     )

@@ -304,14 +304,20 @@ def test_no_claim_about_what_moves_gives_the_curve_a_row():
     assert model.fixed_background is None
 
 
-def test_a_double_counted_curve_walks_into_its_bound_instead_of_lying():
+def test_a_double_counted_curve_asks_for_a_scale_the_parameter_may_not_hold():
     """The trap, built by hand because the code can no longer build it.
 
     With the curve carried twice the fit still has one right answer for the
     *pattern*: drive the refined scale to ``s_true − 1``.  Here that is −0.15,
-    the bound at zero refuses it, and the fit ends against the bound with its
-    background too high.  That is the whole argument for ``min=0``: the wrong
-    answer is loud rather than silent.
+    which ``min=0`` puts outside the parameter's range, so the fit cannot reach
+    it and ends with its background too high.  That is the whole argument for
+    ``min=0``: the wrong answer is loud rather than silent.
+
+    Loud in the **value**, not in a ``BOUND_HIT``.
+    ``params.transforms.internal_bounds`` maps a softplus lower limit of 0.0 to
+    −∞, so ``strategy.staged.bound_findings`` has no finite bound to test and a
+    scale driven to zero reports as a vanishing gradient rather than as a
+    parameter against a bound.
     """
     import dataclasses
 
