@@ -393,9 +393,8 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   already made: `CompiledModel` stores `pattern.sig()` — widened once at compile by a measured
   background's own counting statistics, σ² + s²·σ_f², and by nothing else (WP-1309) — and `refine`
   copies it to `result.sigma` verbatim, so a result's σ is a *lookup*, never a re-derivation
-  (WP-1029). That widening makes **σ a function of the declared scale**, so an Rwp column down a
-  scan of scales ranks nothing until one σ is chosen for every arm in it — 7.2 % of one arm's Rwp
-  on the 11-BM blank is weighting, and the minimum sits at a different scale either way (WP-1309).
+  (WP-1029). σ is therefore **a function of the declared scale**, so an Rwp column down a scan of
+  scales ranks nothing until one σ is chosen for all of it (7.2 % of one arm's is weighting; 1309).
   **`weighted` is
   `DataRef.has_sigma`** (σ *measured*, not σ *present* — what `textdoc` renders as "σ from
   file"); `delta` is always Δ/σ, because Δ/σ is what the fit minimised either way, and the flag
