@@ -99,10 +99,17 @@ tr.run:hover { background:color-mix(in srgb, var(--fg) 6%, transparent); }
 tr.run.selected { background:color-mix(in srgb, var(--accent) 16%, transparent); }
 .state { padding:1px 7px; border-radius:9px; font-size:11px; }
 /* Six states out of the GUI's five tones, each a wash of its own ink: running
-   is `--ok`, done `--accent`, failed `--bad`, cancelled `--warn`. Abandoned
-   shares the warning hue with cancelled because it is the same kind of fact —
-   a run that stopped without an answer — and is stepped towards `--muted`,
-   nobody having asked for it. Unknown is the absence of a tone. */
+   is `--ok`, done `--accent`, failed `--bad`, cancelled `--warn`.
+
+   Abandoned used to share the warning hue with cancelled at a weaker wash,
+   12 % against 18 %, which made the two one pill with two words in it. They
+   are not one kind of fact (WP-1436): cancelled is somebody's decision and
+   keeps the warning tone, while abandoned is a writer that died without a last
+   word — which is what `unknown` says too, so it takes the same neutral. That
+   is the convention every CI dashboard already follows, hue for an outcome the
+   run reported and grey for one it did not. The two neutrals differ in wash,
+   not in hue, because the difference between them is how the question failed:
+   this host could not find the writer, or could not ask. */
 .running   { background:color-mix(in srgb, var(--ok) 18%, transparent);
              color:var(--ok); }
 .done      { background:color-mix(in srgb, var(--accent) 18%, transparent);
@@ -111,8 +118,8 @@ tr.run.selected { background:color-mix(in srgb, var(--accent) 16%, transparent);
              color:var(--bad); }
 .cancelled { background:color-mix(in srgb, var(--warn) 18%, transparent);
              color:var(--warn); }
-.abandoned { background:color-mix(in srgb, var(--warn) 12%, transparent);
-             color:color-mix(in srgb, var(--warn) 70%, var(--muted)); }
+.abandoned { background:color-mix(in srgb, var(--muted) 22%, transparent);
+             color:var(--muted); }
 .unknown   { background:color-mix(in srgb, var(--muted) 15%, transparent);
              color:var(--muted); }
 .num { text-align:right; font-variant-numeric: tabular-nums; }

@@ -201,7 +201,9 @@ the kernel releases however that process dies, `kill -9` included.
 
 `abandoned` is a third answer and not a rounding of the other two. It is what a
 killed process leaves behind, and it is the state you are looking for when a run
-has stopped moving.
+has stopped moving. It is drawn in the neutral the list gives `unknown` rather
+than in the colour it gives `cancelled`: colour here means the run reported its
+own last word, and these two are the states where nothing did.
 
 `unknown` arises three ways: the run was written on another host, so its pid
 names one of our processes and not the writer's; the lock is free and no state
