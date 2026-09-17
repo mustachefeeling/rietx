@@ -1,6 +1,6 @@
 # WP-1428 — open in the GUI, without touching the fit
 
-Milestone: unscheduled · Status: 🔄 2026-09-17 — claimed by @yue-here
+Milestone: unscheduled · Status: ✅ 2026-09-17 — launch, in the run list; the track's last rung
 Depends on: 1405 (the one verb and its gate), 1401 (the decision this revisits); 1430 soft
 
 ## Goal
@@ -287,6 +287,129 @@ copy. The handover states the torn-tail rate.
 - `gui/server.py:scratch_copy`, `main` (`--scratch`, `--json`).
 
 ## Handover log
+
+### 2026-09-17 — the watcher opens a copy, and the row that could never offer one
+
+A person watching a refinement can now open that project in the GUI from the
+run list, in one click, without the running fit noticing. What opens is a copy
+taken at the click. It carries the model, the parameters and the history as
+they stood at that moment and never gains the next stage, so it is where to
+read the parameter table, the report and the structure while the fit carries on
+writing the original. It has to be a copy because a project cannot be opened
+read-only at all: opening one appends to its history before anybody has clicked
+anything, and two appenders on one log is what separate run directories exist
+to avoid.
+
+The WP expected the hard part to be a torn copy. It was not. That came out at
+about one click in a million, with copying again as the repair. The real defect
+was next door: the GUI command the page had offered since WP-1401 was `None`
+for **every run a project actually records**, so there was nothing for a button
+to key on, and the test covering it passed because its fixture built a layout
+no recorder produces.
+
+**Done**
+- `POST /api/run/<id>/gui` spawns `rietx gui --scratch <project> --no-open
+  --machine`, reads the boot line and answers with its url. Gated as stop is:
+  `_origin_ok`, 403 under `--read-only`, 404 for an unknown id, 409 for a run
+  with no project. `sys.executable -m rietx.cli`, so a watcher in a worktree
+  launches that worktree's package rather than whatever is first on `PATH`;
+  `start_new_session`, so Ctrl-C in the watcher's terminal does not reach it.
+- `runs.project_of` is the one authority for which project a run sits in and
+  knows both layouts. `_label_for` and `RunRecorder._default_label` had one
+  branch each and now call it.
+- The button is a seventh column in the run list, one per row, drawn only where
+  `gui_command` is non-null and `can_open_gui` is true.
+- `gui_command` carries `--scratch`, which the manual had already been telling
+  people to type.
+- `cli.md` gains § Opening a copy in the GUI; the route table and the "only
+  verb" paragraph follow it. Root CLAUDE.md's "the reader has one verb" clause
+  is rewritten, since this WP made it false.
+
+**Measured** (macOS darwin 25.5.0, arm64, `[dev]` + playwright)
+- The torn-tail window is one threshold and it is python's 8192 B write buffer.
+  A record that fits lands in one `write(2)`; one that does not is flushed in
+  pieces. Eight records of a `mccusker_default` fit: rietveld 142-8068 B, 0
+  over; lebail 142-8573 B, 1 over; pawley 142-8963 B, 3 over.
+- Polling raw bytes against a hammer: **34 of 258 107 samples (0.013 %)** held
+  a partial last line on the pawley seed, **0 of 260 107** on the rietveld one.
+  About 0.24 us of torn state per append at 562 appends/s.
+- A copy does reproduce one when it exists (written deliberately rather than
+  raced for), and `read_records` and `Project.open` both refuse it by name.
+  Copying again opens.
+- No copy caught one by racing: 0 of 14 088 under the hammer, 0 of 2 767 in a
+  shorter run, 0 of 200 under a real fit. The duty cycle predicts ~1.8 in
+  14 088, so that is an upper bound rather than a floor.
+- A real pawley fit: 6.0 history appends at 3.7/s, a 48 kB log, `scratch_copy`
+  at 1.1 ms. Scaling the window by that rate puts a click at ~10^-6, and at
+  zero for a rietveld project.
+- Three GUIs launched in turn: **0.58-0.89 s** from `Popen` to the boot line,
+  ports 8731 / 63972 / 63973 — `build_server` falls back by itself — and the
+  source `history.jsonl` byte-identical after all three.
+- **5247 passed, 132 skipped** in the fast selection, on the rebased tree
+  before the review pass. The WP's own acceptance command is **257 passed**
+  after it, the slow real-spawn test included.
+  The browser suite was skipping entirely before this session, playwright not
+  being a dependency and this worktree's venv not having had it, so the fast
+  count is **not** comparable to one taken without it. That is 26 more tests
+  than the branch started with: 12 python for the route and the two layouts, 3
+  browser for the button, 3 for the launch's pipe, and 8 the review pass
+  prompted or that the gate table needed.
+- **The full selection did not run.** Nothing here can move a refinement
+  number, so CLAUDE.md's rule does not call for it, and
+  `wp1309-measured-background` was mid-full-suite at handover, so a count taken
+  anyway would not have been this tree's.
+
+**Gotchas**
+- The column costs **8ch**, out of the run column, which is the flexible one.
+  `SEAMS.list.minCh` goes 63 to 71 and the default list width 72ch to 80ch so
+  run names keep the room they had. Three browser tests carried those constants
+  and moved with them.
+- `openGui` selects the run it launches. A notice belongs to one run and
+  `drawRun` drops one that is not on screen, so a launch from an unselected row
+  would report neither its progress nor its refusal.
+- Notices carry a `kind` now. The stop button hides for the stop flow rather
+  than for any notice at all, or a 90 s launch notice hides it for its duration.
+- **`--machine`, not `--json`.** This file said `--json` in three places and no
+  such flag exists.
+- **The review pass (`/code-review high --fix`) found seven, all real, none
+  declined.** Two were serious and both were in the launch's reader. It took
+  one line off a pipe that has `stderr` merged into it, so a warning printed
+  before `serve` would have been read as the boot line and a GUI that was
+  serving reported as a failure; and it stopped reading there, while nothing
+  else drains that pipe, so a child filling its 64 kB buffer would block in
+  `write` for good. The failure paths also returned without reaping, and
+  `start_new_session` means a stray GUI outlives the watcher holding a port and
+  a scratch copy nobody can find.
+  - A third was on the page and is the one worth carrying: `openGui` put its
+    notice up through `refresh`, **which returns without doing anything while a
+    poll is already in flight**. So a click during a poll showed nothing, and a
+    second click is the ordinary response to that — two GUIs, two scratch
+    copies, two ports. There is a `launching` set now, and `setNotice` paints
+    rather than asking for a poll. `stopRun` had the same defect for the same
+    reason and now goes through it too.
+  - Three smaller: the read-only banner read one flag though the handler
+    carries two; the manual said a bare `fit()` run's strip shows the
+    equivalent command, wrong twice over since `gui_command` is `None` there
+    and the example path is a project's; and the new browser helpers had been
+    inserted between the partition's `#:` rationale and the constant it
+    explains.
+  - The review left no tests, so three were added for the reader plus the
+    `_gui_argv` seam they need to stand a script in for the GUI. Checked
+    against the pre-review reader: all three fail on it. The failure-message
+    one only discriminates once its stand-in grew a traceback, the last-line
+    rule being invisible when the reason is also the first line.
+- **One browser test flaked once** under the other session's full suite
+  (`test_a_drag_moves_the_seam_and_the_picture_follows_it`), and passed alone
+  and on a clean re-run of all 30. A layout measurement under CPU contention,
+  not a defect — but it is the shape to suspect first if it recurs.
+
+**Next**
+1. Three questions are the maintainer's and now have no WP holding them, every
+   rung of the track being closed: the GUI's reflection ticks taking plotly's
+   colorway (filed here by 1427 by way of 1429), the snapshot cadence 1413 left
+   over WP-1404's gate, and the run-list default width this WP moved from 72ch
+   to 80ch without settling.
+2. Nothing else in the live-watcher track is open. 1428 was its last rung.
 
 - **2026-09-16** — created, from the maintainer's ask after the demo job;
   revised the same day: the Goal says the copy is frozen, the stale-head

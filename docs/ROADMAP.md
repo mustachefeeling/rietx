@@ -99,13 +99,14 @@ the same scans would make Stoe writable.
 closed on four of six; its other two, each filed with a fix its measurements
 rule out, carry on as [1434](wp/1434-the-bound-test-asks-the-wrong-question.md) and [1435](wp/1435-a-hold-the-caller-declares.md).
 
-**Ready to pick up:** the **live-watcher track**, one rung left.
-[1427](wp/1427-what-a-poll-costs.md) closed 2026-09-17: the poll is measured,
-the walk is 1.7×, and opening a long log no longer freezes the page. Next is
-[1428](wp/1428-open-in-the-gui-without-touching-the-fit.md) (§ A window into a
-run). **Seven questions are the maintainer's**: 1428's; the snapshot cadence
-(1413, 50 ms against 17.7); 1425's two; 1429's two, cosmetic; and 1427's,
-whether a cold open should seek to a long log's tail.
+**The live-watcher track is closed**, sixteen rungs,
+[1428](wp/1428-open-in-the-gui-without-touching-the-fit.md) last: a reader opens
+a frozen copy of a running fit's project in the GUI from the run list. **Six
+questions are the maintainer's**, none now held by a WP: the GUI's reflection
+ticks take plotly's colorway, so toggling the background recolours every phase
+(1429, filed by 1427); the snapshot cadence (1413, 50 ms against 17.7); 1425's
+two, one being the list width 1428 moved to 80ch; 1429's two, cosmetic; and
+1427's, whether a cold open seeks to a long log's tail.
 
 **Queued, unscheduled** ([§ Unscheduled](#unscheduled)): the 2026-09-01
 triage's 1309–1322 plus 1323 and 1325; the 2026-09-03 triage's 1332–1341; the
@@ -648,8 +649,8 @@ carries is whether 1327's non-goal becomes a sequencing statement.
 
 #### A window into a run — the live-watcher track
 
-Eleven rungs shipped 2026-09-13 to 2026-09-16, 1424 last. Five are left, in
-order: 1431, 1425, 1429, 1427, 1428 (a decision).
+Sixteen rungs, 2026-09-13 to 2026-09-17, 1428 last. Closed; its open
+questions are Current focus's.
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
@@ -668,7 +669,7 @@ order: 1431, 1425, 1429, 1427, 1428 (a decision).
 | [1425](wp/1425-the-panels-are-the-readers-to-size.md) | The panels are the reader's to size | ✅ 2026-09-16 | 1430, 1426 |
 | [1429](wp/1429-one-palette-and-one-theme-for-three-pages.md) | The GUI's tokens and the GUI's theme, on the two python pages | ✅ 2026-09-16 | 1430 (1426 soft) |
 | [1427](wp/1427-what-a-poll-costs.md) | What a poll costs | ✅ 2026-09-17 | 1430 (1426 soft) |
-| [1428](wp/1428-open-in-the-gui-without-touching-the-fit.md) | Open in the GUI, without touching the fit | 🔄 2026-09-17 | 1405, 1401 (1430 soft) |
+| [1428](wp/1428-open-in-the-gui-without-touching-the-fit.md) | Open in the GUI, without touching the fit | ✅ 2026-09-17 | 1405, 1401 (1430 soft) |
 
 ### v2+ — fenced
 
