@@ -1113,12 +1113,20 @@ class BackgroundFixedPlusChebyshev(Base):
         ``vary_scale`` is the caller's declared act.  It is ``False`` by
         default for the reason the field is: a declared measured background
         starts where the code stood before it could refine one.
+
+        The blank's own ``excluded_regions`` are honoured, so a channel
+        somebody marked bad in the blank does not become background: the curve
+        skips it and the interpolation bridges the gap.  A region at either end
+        shortens the curve, which is then a fit range it no longer covers and a
+        refusal rather than a flat extrapolation.
         """
+        keep = blank.in_range_mask()
         return cls(
-            fixed_two_theta=[float(v) for v in blank.tt()],
-            fixed_intensity=[float(v) for v in blank.y()],
-            fixed_sigma=(None if blank.sigma is None
-                         else [float(v) for v in blank.sigma]),
+            fixed_two_theta=[float(v) for v in blank.tt()[keep]],
+            fixed_intensity=[float(v) for v in blank.y()[keep]],
+            fixed_sigma=(None if blank.sigma is None else
+                         [float(v) for v, k in zip(blank.sigma, keep, strict=True)
+                          if k]),
             fixed_source=source,
             scale=Parameter(value=scale, vary=vary_scale, min=0.0,
                             transform="softplus"),

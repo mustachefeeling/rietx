@@ -170,6 +170,27 @@ def test_from_pattern_carries_the_esds_it_has_and_invents_none():
     assert BackgroundFixedPlusChebyshev.from_pattern(uncounted).fixed_sigma is None
 
 
+def test_a_region_excluded_in_the_blank_does_not_become_background():
+    """A channel somebody marked bad in the blank is not a background level.
+
+    The curve skips it and the interpolation bridges the gap, which is the
+    honest reading of an exclusion: "I do not know what the container did here",
+    rather than "the container did this".
+    """
+    blank = PatternData(two_theta=[1.0, 2.0, 3.0, 4.0],
+                        intensity=[10.0, 11.0, 900.0, 13.0],
+                        sigma=[1.0, 1.1, 30.0, 1.3],
+                        excluded_regions=[(2.5, 3.5)])
+    bkg = BackgroundFixedPlusChebyshev.from_pattern(blank)
+    assert bkg.fixed_two_theta == [1.0, 2.0, 4.0]
+    assert bkg.fixed_intensity == [10.0, 11.0, 13.0]
+    assert bkg.fixed_sigma == [1.0, 1.1, 1.3]
+    # and the gap is bridged rather than left as a spike
+    assert interpolate_fixed(np.array([3.0]),
+                             np.asarray(bkg.fixed_two_theta),
+                             np.asarray(bkg.fixed_intensity))[0] == 12.0
+
+
 def test_a_sigma_that_does_not_match_the_curve_is_refused():
     with pytest.raises(ValidationError, match="fixed_sigma has 2 points"):
         BackgroundFixedPlusChebyshev(fixed_two_theta=[10.0], fixed_intensity=[1.0],
