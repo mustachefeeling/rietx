@@ -130,12 +130,46 @@ three.
 
 The launch form is what the ask means by a feature. It costs a second verb in
 an app whose strength ROADMAP § A window into a run states as having none,
-and a process the watcher spawns but does not own. The recommendation is the
-launch form, on three conditions: the scratch copy is the only thing it can
-open, the copy's consistency is measured and handled before the button
-exists, and the button's label says the copy is frozen. **The maintainer
-decides**, in this file, before the verb is written, and the decision weighs
-whether a frozen copy is worth a verb at all.
+and a process the watcher spawns but does not own.
+
+### The decision, 2026-09-17
+
+**Launch, with the button in the run list.** Taken by the maintainer on the
+measurements above, which settle the safety precondition: the copy's failure
+mode is about one click in a million and is repaired by copying again, so
+nothing here needed the `read_records` change the WP had held in reserve.
+
+The button is in the **run list** rather than the status strip. The strip's
+flexible slot is the first thing it drops, at 990 px of run panel against 882
+at 1400x900 with the list open (WP-1424), so the GUI command the page already
+had was invisible on an ordinary window. A real affordance in that slot would
+have inherited exactly that.
+
+### What the measurement turned up
+
+Not a torn tail. **`gui_command` was `None` for every run a project had
+actually recorded**, so there was nothing on the page for a button to key on.
+
+Three places open-coded which project a run belongs to and two implemented
+different halves of it. A recorder writes `<name>.rex/live/<run id>`; a caller
+pointing `LiveSession` at a live directory writes `<name>.rex/live` itself.
+`runs._label_for` matched the second, `RunRecorder._default_label` the first,
+and the watcher's `_row` the second — and every fixture in
+`tests/test_watch_app.py` built the second, so the row builder's own test
+passed on a layout no recorder produces.
+
+`runs.project_of` is now the one authority and knows both. This is the class
+WP-1076 named from the other side: a claim with no writer fails no test, and
+here the writer and the test agreed with each other while both disagreed with
+the recorder.
+
+### What the column cost
+
+8ch, out of the run column, which is the flexible one. The list's drag floor is
+declared (`SEAMS.list.minCh`) and goes 63ch → 71ch; the default list width goes
+72ch → 80ch so the run names keep the room they had. **The 72ch default was
+already one of 1425's open maintainer questions**, and this moves it without
+settling it.
 
 ### What a run without a project gets
 
@@ -217,21 +251,23 @@ this WP was being built, and are folded in below.
 
 - [x] Measure the torn-tail rate of `scratch_copy` under a fit (200 copies at
       random moments), and record it here with the choice it forces
-- [ ] The decision: copy-the-command or launch, written into this file by the
-      maintainer with the date
-- [ ] Either way: `gui_command` carries `--scratch`, and the strip gets a
-      copy button beside it, labelled as a copy at the click
-- [ ] If launch: the route, gated as stop is (`_origin_ok`, `--read-only`,
-      project runs only), spawning with `--json` and returning the url; the
-      page opens it in a new tab and shows the url in the strip until the tab
-      is open
-- [ ] Tests: the gate (same table as `test_only_a_run_being_written_here_is_
-      stoppable`), the original project's bytes unchanged across an open
-      (sha256 of `history.jsonl` before and after), the fit's run still
-      writing afterwards; a browser test clicks the button
-- [ ] Manual: `cli.md` § `rietx watch` and § `rietx gui` say what the button
-      opens, that it is a copy, and that the copy does not follow the fit
-- [ ] Skill: none. An agent driving rietx does not open a GUI.
+- [x] The decision: **launch**, taken by the maintainer 2026-09-17 on the
+      measurements above, with the button **in the run list** rather than the
+      status strip
+- [x] `gui_command` carries `--scratch` — and it is now non-null for the runs
+      a project actually records, which it was not (see § What the measurement
+      turned up)
+- [x] The route, gated as stop is (`_origin_ok`, `--read-only`, project runs
+      only), spawning with `--machine` and returning the url; the page opens it
+      in a new tab and the strip carries the url
+- [x] Tests: the gate (read-only 403, unknown id 404, no project 409,
+      cross-origin 403, GET 404), a real spawn whose boot line names the copy
+      and leaves the source `history.jsonl` byte-identical, and three browser
+      tests — the button's presence per row, its absence under `--read-only`,
+      and a click that selects the run and reports the url
+- [x] Manual: `cli.md` § `rietx watch` gains § Opening a copy in the GUI, and
+      § `rietx gui` names the watcher as `--machine`'s caller
+- [x] Skill: none. An agent driving rietx does not open a GUI.
 
 ## Acceptance
 
