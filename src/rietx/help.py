@@ -39,9 +39,8 @@ angle*, so no phase scale absorbs it and it biases ADPs and phase fractions.
 The naming is the whole guard: a reader who can reach the computing function
 can check it, and a session renaming that function finds the entry by grep.
 A threshold goes further and is **pinned** — see
-``test_size_and_strain_thresholds_are_the_code's_own`` in ``tests/test_help.py``
-— because a number has a live constant to be held against where a sentence does
-not.
+``test_quoted_thresholds_are_the_codes_own`` in ``tests/test_help.py`` — because
+a number has a live constant to be held against where a sentence does not.
 
 ``typical`` is the one field with no live authority.  It is a range a reader can
 sanity-check their own number against, sourced from McCusker et al. (1999)
@@ -225,17 +224,18 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
             "numerator is K + (1 − K)·cos²2θ. "
             "`model.corrections.lorentz_polarization` is what computes it. K "
             "is the fraction of the beam polarised perpendicular to the "
-            "diffraction plane. Beam optics fix it, so it is declared and "
-            "never refined. An unpolarised laboratory source gives 0.5. A "
-            "diffracted-beam monochromator gives 1/(1 + cos²2θ_m), which is "
-            "0.556 for graphite (002) at Cu Kα. The APS 11-BM "
+            "diffraction plane. Beam optics fix it, so it is declared rather "
+            "than refined, and no plan frees it. An unpolarised laboratory "
+            "source gives 0.5. A diffracted-beam monochromator gives "
+            "1/(1 + cos²2θ_m), which is 0.556 for graphite (002) at Cu Kα and "
+            "0.630 for the same crystal at Cr Kα. The APS 11-BM "
             "instrument-parameter files carry 0.99. A constant-wavelength "
             "neutron source pins K = 1, where the numerator is identically 1 "
-            "and the factor is the bare Lorentz."
+            "and the factor is the bare Lorentz, and force-fixes the entry."
         ),
         unit=None, default="0.5",
-        typical="0.5 unmonochromated lab; 0.51-0.56 monochromated lab; "
-                "0.9-1.0 synchrotron",
+        typical="0.5 unmonochromated lab; 0.51-0.63 monochromated lab "
+                "(graphite 002, Ag Kα to Cr Kα); 0.9-1.0 synchrotron",
         anchor="corrections.html#lorentz-polarisation",
     ),
     "instrument.source.lines.*.wavelength": HelpEntry(
@@ -1379,7 +1379,8 @@ INSTRUMENT_FIELD_HELP: dict[str, HelpEntry] = {
             "compute it for the anode in use."
         ),
         unit="deg",
-        typical="26.6° for graphite (002) at Cu Kα; 12.1° at Mo Kα",
+        typical="26.6° for graphite (002) at Cu Kα; 9.6-39.9° for the same "
+                "crystal from Ag Kα to Cr Kα",
         anchor="corrections.html#lorentz-polarisation",
     ),
     "ka2_ratio": HelpEntry(

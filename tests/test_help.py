@@ -570,8 +570,10 @@ _QUOTED_THRESHOLDS = (
 def test_quoted_thresholds_are_the_codes_own():
     """A number a description states in words is the live constant's, in words.
 
-    The fourth ``*_are_the_schemas_own`` member, and the one that reaches into
-    authored prose.  ``unit`` and ``default`` are pinned because they *are* the
+    The fourth member of the ``*_are_the_…_own`` family, and the one that
+    reaches into authored prose — named for the *code* rather than the schemas
+    because a threshold is a module constant and not a field.
+    ``unit`` and ``default`` are pinned because they *are* the
     schema's; these are pinned because a reader acts on them exactly as if they
     were, and nothing else would notice a retune.
 
@@ -588,7 +590,10 @@ def test_quoted_thresholds_are_the_codes_own():
             f"{_spell(value, spelling)!r}, but the row claims {spelling!r}")
         entry = rx.help_for(path)
         assert entry is not None, f"{path} has no entry"
-        if spelling not in entry.description:
+        # Anchored, not ``in``: a sentence drifting from "5 nm" to "15 nm" still
+        # *contains* "5 nm", so a bare substring test passes on exactly the
+        # drift this guard exists to catch.
+        if not re.search(rf"(?<![\d.]){re.escape(spelling)}", entry.description):
             stale.append((path, const_name, spelling))
     assert not stale, (
         "descriptions that no longer quote the constant they describe "
