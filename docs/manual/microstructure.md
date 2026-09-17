@@ -26,14 +26,17 @@ breadth as an apparent size,
 ```{math}
 :label: ms-scherrer
 
-L \;=\; \frac{K\lambda}{\beta\,\cos\theta} \qquad [\text{Å}],
+L \;=\; \frac{K\lambda}{2w\,\cos\theta} \qquad [\text{Å}],
 ```
 
 {source}`rietx.model.profiles.caglioti.apparent_size`
 
-with $\beta$ the FWHM in radians of $2\theta$. $K$ depends on the crystallite
-shape and on which measure of breadth is used: 0.89 for the FWHM of a sphere
-against 1.0747 for its integral breadth {cite}`langford1978`. An apparent size
+with $2w$ the FWHM in radians of $2\theta$, which is Langford and Wilson's
+symbol for it {cite}`langford1978`. Their $\beta$ is the *integral breadth*, the
+peak area divided by the peak height, and the notation table of
+{doc}`manual` rules that out as a width measure here. $K$ depends on the
+crystallite shape and on which of the two breadths is used: 0.89 for the FWHM of
+a sphere against 1.0747 for its integral breadth. An apparent size
 is therefore an order-of-magnitude statement rather than a quotable two-figure
 one. It is also a lower bound unless the instrument and strain contributions
 have been taken out first, since Scherrer attributes every degree it is handed
@@ -47,7 +50,7 @@ $dQ/d(2\theta) = 2\pi\cos\theta/\lambda$, and the $\cos\theta$ of
 ```{math}
 :label: ms-delta-q
 
-\Delta Q \;=\; \frac{2\pi\cos\theta}{\lambda}\,\beta \;=\; \frac{2\pi K}{L}
+\Delta Q \;=\; \frac{2\pi\cos\theta}{\lambda}\,(2w) \;=\; \frac{2\pi K}{L}
 \qquad [\text{Å}^{-1}],
 ```
 

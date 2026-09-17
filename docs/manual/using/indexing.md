@@ -344,10 +344,12 @@ anyway. Williamson and Hall (1953) separate size from strain by
 their different angular dependence: size broadening goes as 1/cosθ, strain as
 tanθ, so
 
-$$\beta \cos\theta = \frac{K\lambda}{L} + 4\varepsilon \sin\theta$$
+$$2w \cos\theta = \frac{K\lambda}{L} + 4\varepsilon \sin\theta$$
 
 is a straight line in sinθ whose intercept gives the size L and whose slope
-gives the strain ε.
+gives the strain ε. $2w$ is the FWHM, the width `ObservedPeak.fwhm` carries and
+the one $K = 0.89$ goes with; an integral breadth in its place needs $K =
+1.0747$ and a different number out.
 
 ```python
 import tempfile
@@ -364,8 +366,8 @@ peaks = rx.fit_peaks(data, ins, [28.094, 34.087, 39.985, 48.226,
                                  49.521, 50.711, 51.522])
 
 theta = np.radians(np.array([p.two_theta for p in peaks.peaks]) / 2.0)
-beta = np.radians(np.array([p.fwhm for p in peaks.peaks]))
-slope, intercept = np.polyfit(np.sin(theta), beta * np.cos(theta), 1)
+fwhm = np.radians(np.array([p.fwhm for p in peaks.peaks]))
+slope, intercept = np.polyfit(np.sin(theta), fwhm * np.cos(theta), 1)
 
 print(f"intercept Kλ/L = {intercept:.3e}  →  L = {0.9 * peaks.wavelength / intercept:.0f} Å")
 print(f"slope       4ε = {slope:.3e}  →  ε = {100 * slope / 4:.3f} %")

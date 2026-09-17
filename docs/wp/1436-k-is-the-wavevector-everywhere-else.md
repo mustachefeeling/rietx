@@ -257,14 +257,14 @@ the two sibling data files for the same reason.
 - [x] `fom.py:47` and `:583`: say F_N at N = 20, name `PEAK_MIN_USABLE_LINES`
       as the reason for the twenty, and record that Smith & Snyder recommend
       N = 30. Keep the value; change only the attribution.
-- [ ] `microstructure.md`: stop calling the FWHM `β`, which is Langford &
+- [x] `microstructure.md`: stop calling the FWHM `β`, which is Langford &
       Wilson's integral breadth. Their FWHM symbol is `2w`. The manual's own
       notation table already forbids the integral breadth as a width measure
       (`manual.md:160`), so this row contradicts it. **Three sites, not one**
       (re-grepped 2026-09-17): the Scherrer equation at line 29, the sentence
       binding it at 34, and the ΔQ equation at 50. Line 140's `β*` is
       FullProf's own symbol for its apparent strain and stays.
-- [ ] `voigt.py:40`: name the returned HWHM so a caller cannot read it as the
+- [x] `voigt.py:40`: name the returned HWHM so a caller cannot read it as the
       FWHM its inputs are.
 - [ ] Tests: the locals bound at `test_dispersion.py:109` and `:215`, the
       three other test files named under § Sites, and a bit-identity check that a
