@@ -325,6 +325,29 @@ is what found it, which is the answer to "can the two share their styles":
 they already share every colour *value*, and it was the sharing that surfaced
 this.
 
+*How far the two pages share their styling, asked and answered.* Every
+colour **value** is already shared and has been since WP-1429: `viz/theme.py`
+owns them, both Python servers render `/tokens.css` from it, `gui/src/tokens.css`
+is generated and committed, and a test holds the two byte for byte. The
+watcher's stylesheet declares **no** colour literal at all, which its own
+guard enforces — and that is what caught the contrast defect above, in a rule
+copied from the GUI. So the answer to "will a change be consistent to both" is
+yes for colour, demonstrated rather than asserted: an edit to `theme.py` moves
+both pages and an edit to either stylesheet's copy fails.
+
+Not shared, and a decision rather than an omission: the **control registers**.
+`app.css` declares what a button, a chip, a tab and a `.segmented` group look
+like — sizes, padding, radii — and `watch.css` declares its own. The new theme
+control repeats `.segmented`'s four rules rather than importing them. Two
+reasons. What can cross that line is a *value*: `gui/src` is a build input the
+wheel does not ship, so anything the watcher needs has to live in Python, and
+a stylesheet of layout rules living in `viz/theme.py` would make `app.css`
+generated — a much larger change than the six rules it would save. And the
+GUI's compiled stylesheet *is* in the wheel, so the watcher could link it, but
+that is hundreds of rules of panel layout for four. The option is recorded
+here rather than taken: if a third page ever wants the registers, the move is
+to generate them the way the tokens are generated, not to link a built asset.
+
 *The tick hovers.* Distinct reflections land at the same 2θ to every decimal
 the snapshot keeps — (3 2 2) and (4 1 0) both at 23.70007 on the module's own
 fixture — so a position is not a key into the index mapping, and the hover

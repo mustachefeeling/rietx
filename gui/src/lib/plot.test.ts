@@ -938,8 +938,17 @@ describe("hklLabel", () => {
     // exists to stop, one rank over. The watcher's copy is a `.mjs` in the
     // wheel and this one is TypeScript in a build input, so neither can
     // import the other — the guard is this table, run against both.
-    const core = await import(
-      "../../../src/rietx/watch/static/watch-core.mjs");
+    // The specifier is a variable, so TypeScript does not try to resolve a
+    // declaration file for a plain `.mjs` in the wheel's tree — there is
+    // none to find, and a suppression comment would be this repo's first.
+    // resolved against this file rather than the vite root, which is `gui/`
+    // and has no view of the wheel's tree
+    const where = new URL(
+      "../../../src/rietx/watch/static/watch-core.mjs",
+      import.meta.url).href;
+    const core = (await import(/* @vite-ignore */ where)) as {
+      hklLabel: (hkl: unknown) => string;
+    };
     for (const [hkl, want] of CASES) {
       expect(core.hklLabel(hkl)).toBe(want);
       expect(core.hklLabel(hkl)).toBe(hklLabel(hkl));
