@@ -22,6 +22,24 @@ row.  That was the seventh failure, and a real one: ``write_qpa_table``
 produced corrupt CSV on Windows while its sibling ``write_reflection_table``,
 which already opened with ``newline=""``, did not.
 
+**A POSIX-only import is guarded or it is a collection error.**  WP-1439: the
+run-recording track put a bare ``import fcntl`` at the top of
+``tests/test_runs.py``, so on Windows that module did not import and its 51
+cases went unrun behind a single ``error`` line.  The package had guarded the
+same import at all three of its own sites, which is exactly why nothing looked
+wrong.  A guarded import degrades to a skip; an unguarded one takes the file.
+
+**A write handle names its newline.**  WP-1439 again, and the CSV rule one
+case over.  ``csv.writer`` emits its own ``\r\n`` and so wants ``newline=""``;
+a JSONL writer emits its own ``\n`` and wants ``newline="\n"``.  Left to text
+mode, every JSONL file this package writes is CRLF on Windows and LF
+everywhere else — the same events at a different size and a different
+checksum, which is what ``history.jsonl`` being part of a ``.rex`` project
+makes a contract question rather than a cosmetic one.  The rule is on
+``open`` and not on ``write_text``: a handle is what lines are written
+through, while ``write_text`` puts a whole document down in one call.  Seven
+sites in the tree, all of them JSONL but the lock file.
+
 The guards parse rather than grep because the calls that matter span lines —
 the multi-line ``write_text(json.dumps({...}), encoding="utf-8")`` in
 ``viz/live.py`` is invisible to a line-based search, which is how one site
@@ -56,6 +74,18 @@ _TEXT_IO = {"read_text", "write_text", "open"}
 #: fails this test until someone adds the row — and the ``zip`` entry is why a
 #: reader names its archive handle ``zip_*``.
 _NOT_FILE_IO = ("webbrowser", "urllib", "request", "Project", "zip")
+
+#: Standard-library modules that exist on POSIX and not on Windows.  ``fcntl``
+#: is the only one this package reaches for; the rest are here because the next
+#: one reached for will come from this list, and a name costs nothing until
+#: somebody imports it.
+_POSIX_ONLY = {"fcntl", "termios", "pwd", "grp", "pty", "tty", "resource",
+               "syslog", "posix", "crypt", "spwd", "nis"}
+
+#: Handlers that let a missing module through.  A bare ``except`` counts: it is
+#: broader than it should be and it still degrades the import to a skip.
+_CATCHES_MISSING = {"ImportError", "ModuleNotFoundError", "OSError",
+                    "Exception", "BaseException"}
 
 
 def _python_files() -> list[Path]:
@@ -175,6 +205,104 @@ def test_csv_writers_open_with_newline_suppressed():
     assert not offenders, (
         "a module that builds CSV with csv.writer opens a file without newline=\"\":\n  "
         + "\n  ".join(offenders))
+
+
+def _catches_a_missing_module(handler: ast.ExceptHandler) -> bool:
+    """True when this ``except`` clause lets an absent module through."""
+    if handler.type is None:
+        return True
+    clauses = (handler.type.elts if isinstance(handler.type, ast.Tuple)
+               else [handler.type])
+    names = []
+    for node in clauses:
+        if isinstance(node, ast.Name):
+            names.append(node.id)
+        elif isinstance(node, ast.Attribute):
+            names.append(node.attr)
+    return any(name in _CATCHES_MISSING for name in names)
+
+
+def _guarded_import_lines(tree: ast.AST) -> set[int]:
+    """Line numbers of every import sitting inside a try that catches."""
+    guarded: set[int] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Try):
+            continue
+        if not any(_catches_a_missing_module(h) for h in node.handlers):
+            continue
+        for child in node.body:
+            for inner in ast.walk(child):
+                if isinstance(inner, (ast.Import, ast.ImportFrom)):
+                    guarded.add(inner.lineno)
+    return guarded
+
+
+def _imported_roots(node: ast.AST) -> list[str]:
+    """The top-level module names one import statement brings in."""
+    if isinstance(node, ast.Import):
+        return [alias.name.split(".")[0] for alias in node.names]
+    if isinstance(node, ast.ImportFrom) and node.level == 0:
+        return [(node.module or "").split(".")[0]]
+    return []
+
+
+def test_posix_only_imports_are_guarded():
+    """A module Windows does not ship is imported inside a try, or not at all.
+
+    Unguarded it is not one failure but the whole file: pytest reports a
+    collection error and every case in it silently stops being evidence.  That
+    is how ``tests/test_runs.py`` went unrun on Windows for three nights while
+    the package's own three ``fcntl`` sites were guarded correctly.
+    """
+    offenders = []
+    for path in _python_files():
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        guarded = _guarded_import_lines(tree)
+        for node in ast.walk(tree):
+            roots = set(_imported_roots(node)) & _POSIX_ONLY
+            if not roots or node.lineno in guarded:
+                continue
+            names = ", ".join(sorted(roots))
+            offenders.append(f"{path.relative_to(ROOT)}:{node.lineno} ({names})")
+    assert not offenders, (
+        "a POSIX-only import outside a try/except that catches it -- on "
+        "Windows this is a collection error, not a skip:\n  "
+        + "\n  ".join(offenders))
+
+
+def test_every_write_handle_names_its_newline():
+    """Whoever opens a handle for writing decides whose line ending it uses.
+
+    ``newline="\\n"`` for a machine format this package reads back (all the
+    JSONL), ``newline=""`` for anything going through ``csv.writer``, and an
+    explicit ``newline=None`` for prose a person opens in an editor, where the
+    platform's ending is the right one.  The point is that the decision is
+    visible: left out it is the platform's by default, and a JSONL file then
+    changes size and checksum depending on who ran the fit.
+
+    ``write_text`` is deliberately out of scope -- it puts a whole document
+    down in one call, where a handle is the thing lines go through.
+    """
+    offenders = []
+    for path in _python_files():
+        source = path.read_text(encoding="utf-8")
+        for call, _ in _text_io_calls(ast.parse(source), source):
+            name = (call.func.attr if isinstance(call.func, ast.Attribute)
+                    else call.func.id)
+            if name != "open":
+                continue
+            modes = [a.value for a in call.args
+                     if isinstance(a, ast.Constant) and isinstance(a.value, str)]
+            modes += [kw.value.value for kw in call.keywords
+                      if kw.arg == "mode" and isinstance(kw.value, ast.Constant)
+                      and isinstance(kw.value.value, str)]
+            if not any(c in m for m in modes for c in "wax"):
+                continue
+            if not any(kw.arg == "newline" for kw in call.keywords):
+                offenders.append(f"{path.relative_to(ROOT)}:{call.lineno}")
+    assert not offenders, (
+        "a handle opened for writing without newline=, so its line ending is "
+        "the platform's:\n  " + "\n  ".join(offenders))
 
 
 @pytest.mark.parametrize("snippet, guard", [

@@ -243,7 +243,8 @@ def test_the_cache_notices_every_file_a_row_is_built_from(tmp_path):
     assert after.has_snapshot is True
 
     # and the log growing is a row change too: `size_bytes` is off its stat
-    with open(d / runs.EVENTS_FILE, "a", encoding="utf-8") as fh:
+    with open(d / runs.EVENTS_FILE, "a", encoding="utf-8",
+              newline="\n") as fh:
         fh.write(_event_line("fit_end"))
     (grown,) = runs.discover(tmp_path, cache=cache)
     assert grown.size_bytes > after.size_bytes
@@ -482,7 +483,7 @@ def test_tail_reads_from_an_offset(tmp_path):
     second = runs.tail_events(log, first.offset, inode=first.inode)
     assert second.events == [] and second.offset == first.offset
 
-    with open(log, "a", encoding="utf-8") as fh:
+    with open(log, "a", encoding="utf-8", newline="\n") as fh:
         fh.write(_event_line("fit_end"))
     third = runs.tail_events(log, second.offset, inode=second.inode)
     assert [e["kind"] for e in third.events] == ["fit_end"]
@@ -623,7 +624,7 @@ def test_a_cold_open_starts_at_the_end_of_a_long_log(tmp_path):
     assert cold.bad_lines == 0
 
     # ...and the poll after it is an ordinary one that sees only what arrived
-    with log.open("a", encoding="utf-8") as fh:
+    with log.open("a", encoding="utf-8", newline="\n") as fh:
         fh.write(json.dumps({"record": "event", "v": "2", "t": 9.0,
                              "kind": "fit_end", "data": {}}) + "\n")
     after = runs.tail_events(log, cold.offset)

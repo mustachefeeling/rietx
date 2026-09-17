@@ -1305,7 +1305,8 @@ class RunRecorder(EventStream):
             import fcntl
         except ImportError:      # pragma: no cover - Windows
             return
-        fh = open(self.dir / LOCK_FILE, "w", encoding="utf-8")
+        fh = open(self.dir / LOCK_FILE, "w", encoding="utf-8",
+                  newline="\n")
         try:
             fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
         except OSError:

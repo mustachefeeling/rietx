@@ -331,7 +331,7 @@ def run_episode(episode_dir: Path) -> dict:
             "response": trim_response(response),
         }
 
-    with log_path.open("a", encoding="utf-8") as fh:
+    with log_path.open("a", encoding="utf-8", newline="\n") as fh:
         fh.write(json.dumps(record) + "\n")
     return record["response"]
 

@@ -289,7 +289,8 @@ def test_events_tail_is_incremental(tmp_path):
         assert again["events"] == []
         assert again["offset"] == first["offset"]
 
-        with open(directory / runs.EVENTS_FILE, "a", encoding="utf-8") as fh:
+        with open(directory / runs.EVENTS_FILE, "a", encoding="utf-8",
+                  newline="\n") as fh:
             fh.write(_event_line("stage_start", stage="cell"))
         more = _json(f"{stem}?offset={first['offset']}&inode={first['inode']}")
         assert [e["kind"] for e in more["events"]] == ["stage_start"]
