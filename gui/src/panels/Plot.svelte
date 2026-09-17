@@ -487,10 +487,17 @@
         if (!shows(hidden, `ticks:${phase}`)) return;
         const ticks = (w.ticks ?? {})[phase] as number[];
         const y = band!.rows[row];
+        // `marker.color`, not `marker.line.color`: an open symbol looks as
+        // though its ink is the line's, and under `scattergl` it is not —
+        // measured in Chrome, a tick trace given only `marker.line.color` kept
+        // `marker.color` from plotly's colorway (`#9467bd` for the first row)
+        // and drew in that, which is the defect this was meant to remove. The
+        // watcher's page has always set `color`; that is why it looked right.
+        const ink = phaseInk(colors, row, phases.length);
         traces.push({ x: ticks, y: ticks.map(() => y), yaxis: "y3",
           name: phase, mode: "markers", type: "scattergl", hoverinfo: "none",
-          marker: { symbol: "line-ns-open", size: 8,
-                    line: { width: 1, color: phaseInk(colors, row, phases.length) } } });
+          marker: { symbol: "line-ns-open", size: 8, color: ink,
+                    line: { width: 1, color: ink } } });
       });
     }
     traces.push(...peakTraces(w, colors));

@@ -145,29 +145,29 @@ against room — and it is fixed here.
 
 ## Tasks
 
-- [ ] `viz/theme.py` owns the phase palette: the four Okabe-Ito colours, one
+- [x] `viz/theme.py` owns the phase palette: the four Okabe-Ito colours, one
       list for both themes, the order rule and the measured numbers in the
       note. `viz/plots.PALETTES` reads it rather than declaring its own, and
       `tokens.css` carries `--phase-0…3`.
-- [ ] The GUI's tick traces take the phase colour by phase index, sampled per
+- [x] The GUI's tick traces take the phase colour by phase index, sampled per
       paint like every other colour, and a single-phase pattern takes the
       neutral (`--plot-obs`'s tone, the house rule).
-- [ ] The watch page's `ticks` come from the same authority and follow the
+- [x] The watch page's `ticks` come from the same authority and follow the
       theme, rather than sending the dark list to a light page.
-- [ ] `tests/test_gui_palette.py` holds the phase set to its own floors —
+- [x] `tests/test_gui_palette.py` holds the phase set to its own floors —
       pairwise, against the curve roles, against the page — and names the
       weakest link as a number, so a retune cannot quietly make it worse.
-- [ ] `abandoned` takes the neutral tone; the CSS note says why the two are not
+- [x] `abandoned` takes the neutral tone; the CSS note says why the two are not
       one fact; `test_watch_app`/vitest pin the class.
-- [ ] Regenerate the manual's committed figures and the GUI dist; every
+- [x] Regenerate the manual's committed figures and the GUI dist; every
       surface drawing a phase colour is the new list.
-- [ ] Restore the run-pane toggle: the control, its keyboard path, the browser
+- [x] Restore the run-pane toggle: the control, its keyboard path, the browser
       test that it collapses and restores, and the chapter sentence.
-- [ ] A cold open seeks to the tail: the route takes the end of the log, the
+- [x] A cold open seeks to the tail: the route takes the end of the log, the
       client's `offset` means what it already meant, and the manual says a page
       opens at the newest event.
-- [ ] The legend/caption collision at narrow widths, measured before and after.
-- [ ] `docs/ROADMAP.md` § Current focus loses the six questions; the cadence
+- [x] The legend/caption collision at narrow widths, measured before and after.
+- [x] `docs/ROADMAP.md` § Current focus loses the six questions; the cadence
       answer is recorded where 1413's measurement lives.
 
 ## Acceptance
@@ -183,7 +183,55 @@ themes, and the run list showing the five liveness words.
 
 ## Findings
 
-*(written as the work lands)*
+**2026-09-17 — the palette, measured twice.** The first search scored a
+candidate against the four curve roles and the page of both themes, and found
+bluish green, reddish purple, sky blue and yellow with a weakest link of 0.130.
+The palette test written from the same decision scored it against everything
+`CURVES` holds — the peak layer's two and the candidate overlay — and failed at
+0.064: `#009e73` against the light theme's `--plot-candidate` `#1a8f45`. Adding
+the figure palette's roles found a second near-miss, the ±3σ band. The set did
+not change, because it is still the best of the thirty-five four-subsets on its
+weakest link, but the *number* did and so did the claim in the module note.
+
+What the same widened scoring says about what shipped is sharper than anything
+the WP predicted: the tab10 light list is **0.009** from the figures' own ±3σ
+band. `#2ca02c` and `#2a9d2a` are one colour, and a two-phase figure drew a
+phase's tick row in the band's green for as long as both have existed.
+
+**2026-09-17 — the caption and the legend.** Anchoring both at the paper's top
+put them in one corner, and the legend is the one that grows: a second row
+arrives when the window narrows *or* when a stage frees the background. The
+caption is one line of fixed length, so it is the one that moves. Made to fail
+first, on the old placement: red at 1180 and 900 px, green at 1500, which is
+where the legend still fits one row.
+
+**2026-09-17 — a flag that only the client may set.** `end=1` is the cold
+open's, and the route infers nothing from `offset=0`: a reader tailing a run
+from its start sends exactly that, so a route that seeked on it would make two
+different requests indistinguishable. The same rule caught the field beside it
+— `skipped_bytes`, not `start`: an ordinary poll of a long log also begins far
+into the file, so an absolute start would have made every later poll claim
+there was more above.
+
+**2026-09-17 — the pane's note may not count what it did not read.** A cold
+open's `skipped` is the count of what the *window* held and dropped, which on
+the fixture was 46 210 against a log of 60 000: a number smaller than the truth,
+printed as the truth. It says the fact without the figure when it has seeked,
+and keeps the exact count when the read covered the whole log.
+
+**2026-09-17 — what the numbers dismissed.** Sky blue against the dark
+difference curve (0.078) and bluish green against the light candidate overlay
+(0.0637) are both under the floor and both stay: a tick sits in a row of its
+own, so hue is a second encoding there and the floor is what a mark drawn over
+the data is held to. The alternative subset that scores 0.001 better puts its
+collision on the calculated curve, which shares the screen with a tick row
+always, while the candidate overlay is the indexing tab's.
+
+Two things this WP did **not** do. The readout strip still gives a phase row no
+ink: `ReadoutInk` names a `--plot-*` role and a phase colour is not one, so the
+strip would need a second way to say a colour. And the run list at full width
+stretches the run column across the window, which is what the command exists
+for — a long label is why a reader opens it.
 
 ## Handover log
 

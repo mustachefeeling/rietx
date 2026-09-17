@@ -41,6 +41,7 @@ from rietx.viz.theme import PHASE_COLOURS, PHASE_TOKENS, TOKENS, tokens_css
 ROOT = Path(__file__).resolve().parent.parent
 TOKENS_CSS = ROOT / "gui" / "src" / "tokens.css"
 PLOT_TS = ROOT / "gui" / "src" / "lib" / "plot.ts"
+PLOT_SVELTE = ROOT / "gui" / "src" / "panels" / "Plot.svelte"
 
 #: The colours a *curve* is drawn in — the set a reader has to tell apart.
 #:
@@ -417,6 +418,34 @@ def test_one_list_serves_every_surface():
     for theme in ("light", "dark"):
         assert PALETTES[theme]["phase"] == list(PHASE_COLOURS)
     assert list(PHASE_TOKENS.values()) == list(PHASE_COLOURS)
+
+
+def test_a_tick_trace_colours_its_marker_and_not_only_its_line():
+    """Where the ink of an open GL marker comes from, found by looking.
+
+    The tick rows are `line-ns-open` on a `scattergl` trace, so a reader would
+    expect `marker.line.color` to be the stroke — and it is *declared* there,
+    while plotly resolves `marker.color` from its colorway and draws that.
+    Measured in Chrome on a two-phase fit: `gd.data` said `#009e73`, the picture
+    was `#9467bd`, and `gd._fullData` named both. The trace therefore carries
+    the colour on the marker as well, which is what `rietx watch` always did
+    and why its page looked right while this one did not (WP-1436).
+
+    A source assertion because the GUI has no browser suite — its pictures are
+    judged by looking (`docs/manual/make_screenshots.py`) — and because the
+    thing to pin is the *shape* of the trace rather than a colour a palette
+    test already owns.
+    """
+    source = PLOT_SVELTE.read_text(encoding="utf-8")
+    start = source.index('yaxis: "y3"')
+    trace = source[start:source.index("});", start)]
+    assert "symbol: \"line-ns-open\"" in trace, "not the tick trace any more"
+    assert "color: ink" in trace, (
+        "the tick trace sets no marker colour: plotly will assign one from its "
+        "colorway by position in the trace array")
+    marker = trace[trace.index("marker:"):]
+    assert marker.count("color: ink") == 2, (
+        "both the marker and its line take the phase ink")
 
 
 @pytest.mark.parametrize("theme", ["light", "dark"])
