@@ -333,10 +333,14 @@ machine's; the `Server-Timing` numbers come from a python test and run in CI.
   session; without it every browser test self-skips), darwin/arm64. Acceptance
   115 → 136 passed, +21, which is exactly the tests added: 7 in
   `test_runs.py`, 10 in `test_watch_app.py`, 4 in `test_watch_browser.py` (3
-  mine, 1 the review's). Fast selection 5235 passed, 132 skipped in 142 s,
-  measured before the review's test landed. `ruff` clean over src, tests and
-  examples. Wall clock is quoted as a range throughout because two runs of one
-  benchmark on this machine move further than most of these changes did.
+  mine, 1 the review's). Fast selection 5236 passed, 132 skipped in 4:21, and
+  the **full** suite 5406 passed, 141 skipped in 24:12 — both on the final
+  tree, which is also the merged tree, the branch having never fallen behind
+  `origin/main`. The full selection ran because `runs.py` is imported by every
+  fit's telemetry, so a change there could in principle have moved a measured
+  number; none did. No new skip. `ruff` clean over src, tests and examples.
+  Wall clock is quoted as a range throughout because two runs of one benchmark
+  on this machine move further than most of these changes did.
 
   **The mailbox was consumed and one number in it had already gone stale.**
   WP-1429's note said the poll's constant block was 49 B; it is 137 B, the
