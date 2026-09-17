@@ -260,7 +260,13 @@ SIZE_CAPS: dict[str, int | None] = {
     # 841 -> 853 (WP-1429): one standing rule for the colour values the three
     # browser surfaces share, which governs `watch/`, `compare_app.py` and
     # `gui/` at once and so belongs to none of their rulebooks. Landed at 852.
-    "CLAUDE.md": 853,
+    # 853 -> 866 (WP-1427): one standing rule for a polled view — that a pane
+    # names its own cap on the route it reads, and that a row carrying a clock
+    # can never be told it has not changed. Both govern work outside the WP
+    # that measured them: the first any future viewer pane, the second any
+    # route that wants an `ETag` or a comparison, the GUI's included. The
+    # numbers that *dismissed* a candidate stayed in the WP file, per rule 4.
+    "CLAUDE.md": 866,
     # 672 -> 676 (WP-1102): the Current focus rewrite at 1102's close names the
     # milestone's one break and what makes 1103 the seam's proving case.
     # 676 -> 682 (WP-1407): a new Unscheduled group, "The formats a lab still
