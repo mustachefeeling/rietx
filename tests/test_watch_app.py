@@ -15,6 +15,7 @@ import json
 import os
 import re
 import shutil
+import signal
 import socket
 import subprocess
 import sys
@@ -28,15 +29,17 @@ from pathlib import Path
 
 import pytest
 
+import rietx as rx
 from rietx import runs, watch
 from rietx._about import STATE_DIR_ENV
 from rietx.watch import main, serve
 
 
 @contextmanager
-def _served(directory: Path, *, allow_cancel: bool = True):
+def _served(directory: Path, *, allow_cancel: bool = True,
+            allow_gui: bool = True):
     server = serve(directory, port=0, block=False,   # port 0 → ephemeral
-                   allow_cancel=allow_cancel)
+                   allow_cancel=allow_cancel, allow_gui=allow_gui)
     try:
         yield f"http://127.0.0.1:{server.server_address[1]}"
     finally:
@@ -180,6 +183,26 @@ def test_a_plain_run_offers_no_gui_command(tmp_path):
     with _served(tmp_path) as base:
         (row,) = _json(base + "/api/runs")["runs"]
     assert row["gui_command"] is None
+
+
+def test_a_recorded_project_run_carries_the_gui_command_too(tmp_path):
+    """The layout a real project writes, which is not the one above (WP-1428).
+
+    ``Project.fit`` records one run *per fit*, at ``<name>.rex/live/<run id>``.
+    The shape above — the run directory being ``live`` itself — is what a
+    caller pointing ``LiveSession`` at a project's live directory leaves, and
+    what every fixture in this file had been building.
+
+    So the row builder's own test was passing on a layout no recorder produces,
+    and the GUI command was ``None`` for every run a project had actually
+    recorded. Both layouts are current and :func:`rietx.runs.project_of` is the
+    one place that knows them; this is the half that had no writer.
+    """
+    _make_run(tmp_path / "sample.rex" / "live" / "20260917-120000-1234",
+              events=_event_line("fit_start"))
+    with _served(tmp_path) as base:
+        (row,) = _json(base + "/api/runs")["runs"]
+    assert row["gui_command"] == "rietx gui --scratch sample.rex"
 
 
 def test_a_directory_that_is_a_run_opens_straight_onto_it(tmp_path):
@@ -371,18 +394,20 @@ def test_the_directory_argument_is_optional(monkeypatch, tmp_path):
     """No argument scans the working directory."""
     seen = {}
 
-    def fake_serve(directory, *, port, open_browser, allow_cancel):
-        seen.update(directory=directory, port=port, allow_cancel=allow_cancel)
+    def fake_serve(directory, *, port, open_browser, allow_cancel, allow_gui):
+        seen.update(directory=directory, port=port, allow_cancel=allow_cancel,
+                    allow_gui=allow_gui)
 
     monkeypatch.setattr("rietx.watch.serve", fake_serve)
     main([])
     assert seen["directory"] is None and seen["port"] == 8899
-    # stopping ships on, and `--read-only` is how a reader declines it (WP-1405)
-    assert seen["allow_cancel"] is True
+    # both verbs ship on, and `--read-only` is how a reader declines them
+    # (WP-1405 for stop, WP-1428 for the GUI launch)
+    assert seen["allow_cancel"] is True and seen["allow_gui"] is True
     main(["somewhere", "--port", "1234"])
     assert seen["directory"] == "somewhere" and seen["port"] == 1234
     main(["--read-only"])
-    assert seen["allow_cancel"] is False
+    assert seen["allow_cancel"] is False and seen["allow_gui"] is False
 
 
 def test_the_module_is_still_runnable_with_dash_m():
@@ -735,6 +760,193 @@ def test_a_run_that_stopped_recording_is_refused_by_name(tmp_path):
 
     assert status == 409 and "stopped recording" in payload["error"]
     assert not (run_dir / runs.CANCEL_FILE).exists()
+
+
+# ----------------------------------------------------------------------
+# the second verb: open a copy in the GUI (WP-1428)
+
+def _project_run(root: Path, name: str = "sample") -> Path:
+    """A run in the layout a project records: ``<name>.rex/live/<run id>``."""
+    return _make_run(root / f"{name}.rex" / "live" / "20260917-120000-1234",
+                     events=_event_line("fit_start"))
+
+
+def test_only_a_run_inside_a_project_can_be_opened(tmp_path):
+    """A bare ``fit()`` has no project to copy, and the snapshot is a picture.
+
+    Building a project out of one is not a thing, so the route says so rather
+    than inventing a directory.
+    """
+    _make_run(tmp_path / "loose", events=_event_line("fit_start"))
+    with _served(tmp_path) as base:
+        (row,) = _json(base + "/api/runs")["runs"]
+        status, payload = _post(f"{base}/api/run/{row['run_id']}/gui")
+    assert status == 409
+    assert "not inside a project" in payload["error"]
+
+
+def test_read_only_refuses_the_gui_launch_and_says_so_in_the_run_list(tmp_path):
+    """Both halves, for the same reason the stop button has both.
+
+    A button that only ever 403s is a worse answer than no button, and the page
+    cannot be the check.
+    """
+    _project_run(tmp_path)
+    with _served(tmp_path, allow_cancel=False, allow_gui=False) as base:
+        payload = _json(base + "/api/runs")
+        status, body = _post(
+            f"{base}/api/run/{payload['runs'][0]['run_id']}/gui")
+    assert payload["can_open_gui"] is False
+    assert status == 403 and "read-only" in body["error"]
+    with _served(tmp_path) as base:
+        assert _json(base + "/api/runs")["can_open_gui"] is True
+
+
+def test_an_unknown_id_cannot_name_a_project_to_open(tmp_path):
+    """The id is looked up in what the walk offered, never decoded into a path.
+
+    The same property the cancel route has, asserted for the verb that spawns a
+    process rather than writing a file — where a path built from the request
+    would be a directory this server never chose to serve.
+    """
+    _project_run(tmp_path)
+    outside = tmp_path.parent / "outside.rex"
+    (outside / "live").mkdir(parents=True, exist_ok=True)
+    with _served(tmp_path) as base:
+        for bogus in ("deadbeef", "../../etc", "..%2f..%2fetc",
+                      urllib.parse.quote(str(outside), safe="")):
+            status, _ = _post(f"{base}/api/run/{bogus}/gui")
+            assert status == 404, bogus
+
+
+def test_the_gui_verb_is_post_only(tmp_path):
+    """A GET that spawned a process would be one prefetch per run in the list."""
+    _project_run(tmp_path)
+    with _served(tmp_path) as base:
+        (row,) = _json(base + "/api/runs")["runs"]
+        try:
+            _get(f"{base}/api/run/{row['run_id']}/gui")
+            status = 200
+        except urllib.error.HTTPError as err:
+            status = err.code
+    assert status == 404
+
+
+def test_a_cross_origin_post_cannot_launch_a_gui(tmp_path):
+    """``_origin_ok`` guards both verbs, and it is checked before the route."""
+    _project_run(tmp_path)
+    with _served(tmp_path) as base:
+        (row,) = _json(base + "/api/runs")["runs"]
+        status, payload = _post(f"{base}/api/run/{row['run_id']}/gui",
+                                {"Host": "evil.example"})
+    assert status == 403, payload
+
+
+def test_the_launch_opens_a_copy_and_leaves_the_project_alone(tmp_path,
+                                                              monkeypatch):
+    """The acceptance, with the spawn faked so no GUI is started.
+
+    What is asserted is the shape of the command and that the *source* project
+    is what is handed to it. ``--scratch`` is the whole safety argument, so its
+    absence is the failure this catches; the real spawn is
+    ``test_a_real_gui_boots_on_a_scratch_copy`` below.
+    """
+    run_dir = _project_run(tmp_path)
+    project = run_dir.parent.parent
+    seen = {}
+
+    def fake_launch(path):
+        seen["project"] = path
+        return {"url": "http://127.0.0.1:65000/", "port": 65000,
+                "project": "/tmp/scratch/sample.rex", "pid": 4321,
+                "scratch_of": str(path)}
+
+    monkeypatch.setattr("rietx.watch._launch_gui", fake_launch)
+    with _served(tmp_path) as base:
+        (row,) = _json(base + "/api/runs")["runs"]
+        status, payload = _post(f"{base}/api/run/{row['run_id']}/gui")
+
+    assert status == 200, payload
+    assert seen["project"] == project
+    assert payload["url"] == "http://127.0.0.1:65000/"
+    assert payload["run_id"] == row["run_id"]
+    # the row's command and the route open the same thing, by the same flag
+    assert row["gui_command"] == "rietx gui --scratch sample.rex"
+
+
+def test_a_gui_that_will_not_boot_reports_why_it_would_not(tmp_path,
+                                                           monkeypatch):
+    """``gui.server.main`` prints ``rietx gui: <why>`` and exits 2.
+
+    That sentence names seven different remedies between them, so it is passed
+    through rather than replaced by a status code alone.
+    """
+    _project_run(tmp_path)
+    monkeypatch.setattr(
+        "rietx.watch._launch_gui",
+        lambda path: {"error": "rietx gui: not a project directory"})
+    with _served(tmp_path) as base:
+        (row,) = _json(base + "/api/runs")["runs"]
+        status, payload = _post(f"{base}/api/run/{row['run_id']}/gui")
+    assert status == 502
+    assert "not a project directory" in payload["error"]
+
+
+@pytest.mark.slow
+def test_a_real_gui_boots_on_a_scratch_copy_and_the_project_is_untouched(
+        tmp_path):
+    """The acceptance (WP-1428), with a real project and a real spawn.
+
+    Everything above fakes :func:`~rietx.watch._launch_gui`, so nothing above
+    would notice the flag going missing from the command line, the boot line
+    changing shape, or the copy being made of the wrong directory. This starts
+    the process.
+
+    Three things are asserted and each was a way this could be wrong. The boot
+    line names a ``project`` that is **not** the source, which is the copy
+    doing its job. The source's ``history.jsonl`` is byte-identical afterwards,
+    which is the promise the button makes. And the url serves, so the port in
+    the boot line is the port the GUI is on rather than the one it asked for.
+    """
+    import hashlib
+
+    from tests.test_project import _write_xye
+    from tests.test_refine_synthetic import perturbed_models, synthesize
+
+    structure, instrument = perturbed_models()
+    pattern = _write_xye(tmp_path / "s.xye", synthesize())
+    project = rx.Project.create(tmp_path / "sample.rex", pattern=pattern,
+                                structure=structure, instrument=instrument)
+    log = project.path / "history.jsonl"
+    before = hashlib.sha256(log.read_bytes()).hexdigest()
+    _make_run(project.live_dir / "20260917-120000-1234",
+              events=_event_line("fit_start"))
+
+    with _served(tmp_path) as base:
+        (row,) = _json(base + "/api/runs")["runs"]
+        status, boot = _post(f"{base}/api/run/{row['run_id']}/gui")
+
+    assert status == 200, boot
+    try:
+        assert boot["url"].startswith("http://127.0.0.1:")
+        # the copy, and not the directory the reader is watching
+        assert Path(boot["project"]) != project.path
+        assert Path(boot["project"]).name == project.path.name
+        assert Path(boot["scratch_of"]) == project.path
+        # The copy carries the source's history and then grows: `Project.open`
+        # appends a head annotation before any verb runs, which is the whole
+        # reason a copy has to exist. That the extra bytes are *here* and not
+        # in the source is the feature, asserted rather than described.
+        copied = (Path(boot["project"]) / "history.jsonl").read_bytes()
+        assert copied.startswith(log.read_bytes())
+        assert len(copied) > len(log.read_bytes())
+        served = urllib.request.urlopen(boot["url"], timeout=20).read()
+        assert served
+    finally:
+        os.kill(boot["pid"], signal.SIGTERM)
+
+    # the whole point: the fit's project is what it was
+    assert hashlib.sha256(log.read_bytes()).hexdigest() == before
 
 
 def test_the_closed_dialog_is_not_a_sheet_over_the_page():

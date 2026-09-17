@@ -18,14 +18,19 @@ half that touches no DOM and the suite runs it through ``node --test``;
 ``watch.mjs`` owns the document. What the page cannot know about this build
 travels on the first ``/api/runs`` (:func:`_page_constants`).
 
-**The watcher has one verb, and it is stop** (WP-1405). Everything else reads:
-it opens no project, constructs no refinement, and offers the GUI as a command
-to copy rather than a thing it launches. Stopping is the exception because it
-is the one thing a reader cannot do from the other side, and it stays honest by
-being the *only* one — ``POST /api/run/<id>/cancel`` writes
-:data:`~rietx.runs.CANCEL_FILE` into a directory the walk already offered, and
-the fit's own token is what acts on it. ``--read-only`` serves without it, for
-a reader who is not the person who should be stopping things.
+**The watcher has two verbs** (WP-1405, WP-1428). Everything else reads: it
+opens no project and constructs no refinement. ``POST /api/run/<id>/cancel``
+writes :data:`~rietx.runs.CANCEL_FILE` into a directory the walk already
+offered, and the fit's own token is what acts on it. ``POST
+/api/run/<id>/gui`` spawns a GUI on a throwaway copy of the run's project.
+``--read-only`` serves without either, for a reader who is not the person who
+should be stopping things.
+
+**Neither verb touches the project the fit is writing.** Stopping writes into
+the *run* directory. The GUI launch copies the project first and opens the
+copy, because there is no read-only way to open one and two appenders on one
+``history.jsonl`` is the interleaving WP-1403 separated the run directories to
+avoid. The copy is frozen at the click and never follows the fit.
 
 **A click here raises in another process.** That is the sharpest fact in this
 module: a fit that did not ask to be cancellable is cancellable, and a script
@@ -50,13 +55,15 @@ import hashlib
 import http.server
 import json
 import os
+import subprocess
+import sys
 import threading
 import time
 import urllib.parse
 from pathlib import Path
 
 from .. import runs as runs_mod
-from .._about import DIST_NAME, LIVE_DIR_NAME, PROJECT_SUFFIX
+from .._about import DIST_NAME, PROJECT_SUFFIX
 from ..viz import theme as theme_mod
 from ..viz.plotlyjs import CONTENT_TYPE as PLOTLY_CONTENT_TYPE
 from ..viz.plotlyjs import plotly_js
@@ -85,6 +92,20 @@ STATIC_FILES = {
     "watch.mjs": "text/javascript; charset=utf-8",
     "watch-core.mjs": "text/javascript; charset=utf-8",
 }
+
+#: How long the GUI launch waits for the spawned process to name its port
+#: (WP-1428). Three launches on a 48 kB project took 0.58-0.89 s, of which the
+#: copy is 1.1 ms and the rest is the interpreter; the ceiling is for a project
+#: whose pattern file is large enough that ``copytree`` is the term that
+#: matters. An unbounded wait would hold a request thread for the life of the
+#: server every time a spawn went wrong.
+GUI_BOOT_TIMEOUT = 60.0
+
+#: Every GUI this watcher spawned. Held only so the :class:`subprocess.Popen`
+#: is not collected, which would close the pipe under a child that is still
+#: running. Nothing reaps them: a spawned GUI outlives the watcher on purpose
+#: (``start_new_session``), the same way a scratch copy outlives its GUI.
+_SPAWNED: list[subprocess.Popen] = []
 
 
 def _page_constants() -> dict:
@@ -174,11 +195,17 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
     """
 
     def __init__(self, *args, scan_root: Path, index: _RunIndex,
-                 allow_cancel: bool = True, **kwargs):
+                 allow_cancel: bool = True, allow_gui: bool = True, **kwargs):
         # set before super().__init__, which handles the request inline
         self.scan_root = scan_root
         self.index = index
         self.allow_cancel = allow_cancel
+        # A second flag rather than a second reading of the first, because the
+        # two verbs are not the same act: one raises in somebody else's fit,
+        # the other starts a window onto a copy. `--read-only` clears both
+        # today, which is what a reader who should not be stopping things
+        # wants, and the names stay true if that ever stops being one flag.
+        self.allow_gui = allow_gui
         self._marks: list[tuple[str, float]] = []
         super().__init__(*args, **kwargs)
 
@@ -314,12 +341,12 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
             row["snapshot_mtime"] = (run.path / name).stat().st_mtime
         except OSError:
             row["snapshot_mtime"] = None
-        # a command a human can copy, not a verb this app performs: launching
-        # the GUI is a process boundary and stays one (WP-1401 § the decision)
-        project = run.path.parent
+        # the command a reader would type, beside the button that saves them
+        # typing it. Non-null is also the page's test for whether this run can
+        # be opened at all, so it is one question asked once.
+        project = runs_mod.project_of(run.path)
         row["gui_command"] = None
-        if (run.path.name == LIVE_DIR_NAME
-                and project.name.endswith(PROJECT_SUFFIX)):
+        if project is not None:
             # the path as typed from where the scan started, not the bare name:
             # a project one directory down is not `rietx gui sample.rex` from
             # here
@@ -376,6 +403,11 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
                         # refuses anyway, and a button that only ever 403s
                         # would be a worse answer than no button
                         "can_cancel": self.allow_cancel,
+                        # the same courtesy for the other verb. Whether a
+                        # *given* run can be opened is `gui_command` on its own
+                        # row, which is non-null exactly for a run in a
+                        # project's live directory (WP-1428).
+                        "can_open_gui": self.allow_gui,
                         # read once, at boot, and 299 B of every poll after
                         # that — 1 % of a 41-run answer, whose rows are 735 B
                         # each. A route of its own would save that and make a
@@ -443,11 +475,15 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
         super().do_GET()
 
     def do_POST(self):  # noqa: N802 - http.server API
-        """The one verb (WP-1405): ``/api/run/<id>/cancel``.
+        """The two verbs: ``/api/run/<id>/cancel`` (WP-1405) and
+        ``/api/run/<id>/gui`` (WP-1428).
 
         POST and never GET. A GET that cancels is one prefetching browser, one
         link preview or one crawler away from stopping somebody's overnight
         refinement, and the static fallback below serves GET to a whole tree.
+        The GUI verb takes the same door for the weaker version of the same
+        reason: it starts a process, and a prefetch that started one per run in
+        the list would be a surprise of its own.
 
         ``SimpleHTTPRequestHandler`` has no ``do_POST`` at all, so defining one
         means every other POST is answered here rather than by a 501 from the
@@ -483,9 +519,13 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
 
         parts = [p for p in urllib.parse.urlparse(self.path).path.split("/")
                  if p]
-        if len(parts) == 4 and parts[:2] == ["api", "run"] and parts[3] == "cancel":
-            self._cancel(parts[2])
-            return
+        if len(parts) == 4 and parts[:2] == ["api", "run"]:
+            if parts[3] == "cancel":
+                self._cancel(parts[2])
+                return
+            if parts[3] == "gui":
+                self._open_gui(parts[2])
+                return
         self._json({"error": "no such route"}, status=404)
 
     def _cancel(self, run_id: str) -> None:
@@ -533,20 +573,142 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
             return
         self._json({"requested": True, "run_id": run_id, "state": live.state})
 
+    def _open_gui(self, run_id: str) -> None:
+        """Start a GUI on a throwaway copy of this run's project (WP-1428).
+
+        A **copy**, and never the project itself. There is no read-only way to
+        open one: ``Project.open`` appends a head annotation before any verb
+        runs, every verb after that appends more, and the fit is appending to
+        the same ``history.jsonl`` at every stage. Two appenders on one log is
+        the interleaving WP-1403 separated the run directories to avoid, and
+        this log has no such separation. So the copy is the whole safety
+        argument, and ``--scratch`` is not a convenience here.
+
+        The copy is frozen at the click. It cannot follow the fit — the GUI's
+        live panel reads an in-process ring, which is why ``rietx watch``
+        exists — so what it is for is the parameter table, the report, the 3D
+        structure, and branching a strategy from the head the fit had reached.
+        The button and the manual say so in those words.
+
+        Whether a copy can tear was measured (WP-1428): the window is one flush
+        of a record too large for python's 8192 B write buffer, about 0.24 µs
+        per append, and at a real fit's rate a click meets it about once in a
+        million. It is *not* handled here. ``rietx gui --scratch`` makes the
+        copy in the spawned process, and a failure comes back as its boot
+        line's error, which is the reader's cue to click again — the second
+        copy is measured to open.
+
+        The id is looked up in what the walk offered (:meth:`_find`), so this
+        route inherits the property the cancel route does rather than restating
+        it: a request can only ever name a directory this server chose to
+        serve.
+        """
+        if not self.allow_gui:
+            self._json({"error": "this watcher is serving read-only"},
+                       status=403)
+            return
+        run = self._find(run_id)
+        if run is None:
+            self._json({"error": "no such run"}, status=404)
+            return
+        project = runs_mod.project_of(run.path)
+        if project is None:
+            # a bare `fit()` records under the runs directory and has no
+            # project to copy. Building one from the run's snapshot is not a
+            # thing: the snapshot is a picture.
+            self._json({"error": "this run is not inside a project, so there "
+                                 "is nothing to open"}, status=409)
+            return
+        try:
+            boot = _launch_gui(project)
+        except OSError as exc:
+            self._json({"error": f"could not start the {DIST_NAME} GUI: "
+                                 f"{exc}"}, status=500)
+            return
+        if "error" in boot:
+            self._json(boot, status=502)
+            return
+        boot["run_id"] = run_id
+        self._json(boot)
+
     def log_message(self, *args):  # quiet: polling floods the terminal
         pass
 
 
+def _launch_gui(project: Path) -> dict:
+    """Spawn ``rietx gui --scratch`` on ``project`` and read where it landed.
+
+    Returns the boot line's fields, or a dict with ``error`` when the GUI said
+    why it could not start. Raises :class:`OSError` only when the spawn itself
+    failed.
+
+    ``sys.executable -m rietx.cli`` rather than the ``rietx`` console script:
+    the watcher is running in *some* interpreter, and that one has the package
+    the reader is watching with. A bare ``rietx`` is whatever is first on
+    ``PATH``, which in a worktree is routinely another checkout's.
+
+    ``--machine`` is the flag that prints one JSON line first, and it exists
+    for this caller. ``--no-open`` because the page opens the tab, having asked
+    for the launch. No ``--port``: ``gui.server.build_server`` already falls
+    back to an ephemeral port when the default is busy, so a second window
+    needs nothing from here, and three launches on one project were measured
+    landing on 8731, 63972 and 63973.
+
+    ``start_new_session`` puts the GUI in its own session, so Ctrl-C in the
+    watcher's terminal does not reach it. A spawned GUI outliving the watcher
+    is the intent, the same way a scratch copy outlives its GUI.
+    """
+    proc = subprocess.Popen(
+        [sys.executable, "-m", f"{__package__.split('.')[0]}.cli", "gui",
+         "--scratch", str(project), "--no-open", "--machine"],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+        start_new_session=True)
+    _SPAWNED.append(proc)
+
+    # The read is on a thread with a deadline. `readline` on a pipe has no
+    # timeout, and a GUI that never printed would hold this request thread for
+    # the life of the server.
+    got: list[str] = []
+
+    def _read() -> None:
+        try:
+            got.append(proc.stdout.readline())
+        except (OSError, ValueError):               # pragma: no cover - race
+            got.append("")
+
+    reader = threading.Thread(target=_read, daemon=True)
+    reader.start()
+    reader.join(GUI_BOOT_TIMEOUT)
+    if not got:
+        proc.kill()
+        return {"error": f"the {DIST_NAME} GUI did not report a port within "
+                         f"{GUI_BOOT_TIMEOUT:.0f} s"}
+    line = got[0].strip()
+    try:
+        boot = json.loads(line)
+    except ValueError:
+        # `gui.server.main` prints `rietx gui: <why>` and exits 2 when the
+        # project will not open — a torn copy among them (WP-1428). That
+        # sentence is the useful half of the answer, so it is passed through
+        # rather than replaced with a status code.
+        return {"error": line or f"the {DIST_NAME} GUI exited without saying "
+                                 f"why"}
+    return {"url": boot.get("url"), "port": boot.get("port"),
+            "project": boot.get("project"), "pid": boot.get("pid"),
+            "scratch_of": boot.get("scratch_of")}
+
+
 def serve(directory: str | Path | None = None, *, port: int = 8899,
           open_browser: bool = False, block: bool = True,
-          allow_cancel: bool = True):
+          allow_cancel: bool = True, allow_gui: bool = True):
     """Serve the runs under ``directory`` (default: the working directory).
 
     Returns the server when ``block=False``. A directory that is itself a run
     is served as one and the page opens straight onto it.
 
     ``allow_cancel=False`` serves without the stop verb, and the page draws no
-    button (``--read-only``).
+    button (``--read-only``). ``allow_gui=False`` does the same for the GUI
+    launch (WP-1428); ``--read-only`` clears both.
 
     **Stopping is on by default, and that was the decision** (WP-1405). The
     argument for the other way is real: a click here raises in a process the
@@ -572,14 +734,15 @@ def serve(directory: str | Path | None = None, *, port: int = 8899,
     index = _RunIndex(directory)
     handler = functools.partial(_Handler, directory=str(directory),
                                 scan_root=directory, index=index,
-                                allow_cancel=allow_cancel)
+                                allow_cancel=allow_cancel,
+                                allow_gui=allow_gui)
     server = http.server.ThreadingHTTPServer(("127.0.0.1", port), handler)
     url = f"http://127.0.0.1:{server.server_address[1]}/"
     found = index.runs()
     print(f"rietx watch: {len(found)} run(s) under {directory}")
     print(f"             {url}  (Ctrl-C to stop)")
     if not allow_cancel:
-        print("             read-only: no stop button")
+        print("             read-only: no stop button, no GUI launch")
     if open_browser:
         import webbrowser
 
@@ -610,9 +773,9 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--port", type=int, default=8899)
     parser.add_argument("--open", action="store_true", help="open a browser")
     parser.add_argument("--read-only", action="store_true",
-                        help="serve without the stop button: the page offers "
-                             "no way to cancel a running fit, and the route "
-                             "refuses")
+                        help="serve without the two verbs: the page offers no "
+                             "way to cancel a running fit and no way to open "
+                             "one in the GUI, and both routes refuse")
     args = parser.parse_args(argv)
     serve(args.directory, port=args.port, open_browser=args.open,
-          allow_cancel=not args.read_only)
+          allow_cancel=not args.read_only, allow_gui=not args.read_only)
