@@ -254,7 +254,7 @@ the two sibling data files for the same reason.
       clause recording the maths/identifier split with its reason.
 - [x] `docs/skill/rietx/references/diagnostics.md:36`, then re-sync the two
       committed copies with `rietx skill --install . --copy`.
-- [ ] `fom.py:47` and `:583`: say F_N at N = 20, name `PEAK_MIN_USABLE_LINES`
+- [x] `fom.py:47` and `:583`: say F_N at N = 20, name `PEAK_MIN_USABLE_LINES`
       as the reason for the twenty, and record that Smith & Snyder recommend
       N = 30. Keep the value; change only the attribution.
 - [ ] `microstructure.md`: stop calling the FWHM `β`, which is Langford &

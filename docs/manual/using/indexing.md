@@ -430,9 +430,10 @@ triclinic, and every system is supported.
 
 Whether a list can be searched and whether it can be scored are different
 questions, and conflating them once refused a pattern this package indexes
-perfectly. Below twenty usable lines the classical figures are undefined, since
-de Wolff's M₂₀ and Smith & Snyder's F₂₀ are defined on twenty lines
-{eq}`idx-m20` and {eq}`idx-fn`. The search still runs over the supported
+perfectly. Below twenty usable lines the classical figures are
+undefined. De Wolff's M₂₀ is defined on twenty {eq}`idx-m20`; Smith & Snyder
+define F_N for general N and recommend thirty {eq}`idx-fn`, so the twenty this
+package scores it at is its own choice, tied to the same precondition. The search still runs over the supported
 systems, ranks on the reduced panel, and names each missing figure with its
 reason in `DataQualityReport.fom_undefined`. What that costs is the grade: a
 short list can never reach `high`.

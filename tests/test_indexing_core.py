@@ -781,8 +781,11 @@ def test_the_figures_of_merit_tolerate_what_the_search_tolerated():
 
 
 def test_fom_n_is_twenty_lines():
-    """M₂₀ and F₂₀ are defined on twenty lines; a longer list must not silently
-    change the figure's meaning."""
+    """Both figures are scored on twenty lines; a longer list must not silently
+    change the figure's meaning.
+
+    Twenty is de Wolff's definition for M₂₀ and this package's own choice for
+    F_N, which Smith & Snyder define for general N (WP-1436)."""
     q, q_esd, tt, esd_tt, cell = _panel_inputs("triclinic")
     assert len(q) > FOM_N
     _hkl, q_pred = predicted_lines(cell, "triclinic", "P", LAM, 90.0)

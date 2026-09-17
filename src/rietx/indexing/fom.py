@@ -43,12 +43,16 @@ from ..schemas.indexing import (
 #: doublet — so 3σ really is a 99.7 % window rather than a knob.  It is the one
 #: number the whole panel shares, and every FoM reports which one it used.
 MATCH_SIGMA = 3.0
-#: Lines the classical figures of merit are defined on.  Not a round number: both
-#: de Wolff's M₂₀ and Smith & Snyder's F₂₀ are defined on the first twenty, and
-#: Smith's volume envelope is quoted at N = 20.  The *same* twenty as
+#: Lines the classical figures of merit are defined on.  De Wolff's M₂₀ is
+#: defined on the first twenty and Smith's volume envelope is quoted at N = 20.
+#: Smith & Snyder's F_N is *not*: they define it for general N (their eq 1) and
+#: recommend N = 30, or the last line where a pattern has fewer.  Their worked
+#: example happens to be F₂₀, because that pattern reported twenty lines, and
+#: the string "F30" appears nowhere in the paper.  So the twenty here is this
+#: package's own choice, aliased to
 #: :data:`~rietx.schemas.indexing.PEAK_MIN_USABLE_LINES` — an alias, not a
 #: second bar, so the scoring precondition cannot drift from the figures it is
-#: about (WP-1043).
+#: about (WP-1043).  The value stays; only the attribution was wrong (WP-1436).
 FOM_N = PEAK_MIN_USABLE_LINES
 
 
@@ -578,8 +582,9 @@ def panel_undefined(n_usable: int) -> dict[str, str]:
     return {
         "m20": (f"{n_usable} usable lines, below the {FOM_N} de Wolff's M20 "
                 "is defined on (de Wolff 1968)"),
-        "f_n": (f"{n_usable} usable lines, below the {FOM_N} Smith & Snyder's "
-                "F20 is defined on (Smith & Snyder 1979)"),
+        "f_n": (f"{n_usable} usable lines, below the {FOM_N} this package "
+                "scores F_N at (Smith & Snyder 1979 define F_N for general N "
+                "and recommend 30)"),
     }
 
 
