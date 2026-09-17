@@ -1,6 +1,6 @@
 # WP-1427 — what a poll costs
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: ✅ 2026-09-17 — the poll is measured; the walk is 1.7× and the console no longer freezes the page
 Depends on: 1430 (the page as files); 1426 soft (both rewrite `drawRun`)
 
 ## Goal
@@ -81,106 +81,136 @@ Browser, per poll:
    measurement puts the cost in the HTTP round trip and not in the walk, and
    say so either way.
 
-### Inherited
+### What the five WPs before this one left on the poll path (consumed 2026-09-17)
 
-- **2026-09-16, from [1429](1429-one-palette-and-one-theme-for-three-pages.md):
-  the poll's payload changed under this WP, in both directions.** Measured on
-  this machine, `[dev]`, darwin/arm64.
-  - The `page` block shrank **262 B → 49 B** per poll. The dark palette left it
-    — the page reads its colours off its own root element now — and the theme
-    *choice* took its place. So 1430's "299 B of every poll" is stale and the
-    row cost it was compared against (735 B each) is unchanged.
-  - Every `/api/runs` now reads `state_dir/settings.json`, because the theme is
-    the one thing on the page a person changes while it is open. **16.8 µs**
-    with the file present, 4.6 µs without, against a 1.2 s poll. It is
-    uncached on purpose; if this WP's instrument says the read is worth
-    caching, the cache has to expire faster than a person notices a theme
-    switch not arriving.
-  - A new route, `/tokens.css`, is **43.6 µs** and 4972 B, rendered per request
-    and fetched once per page load rather than per poll. It carries
-    `Cache-Control: no-store` from `_send`, like every other route this server
-    answers, so a reload pays for it again.
-  - A theme change clears `shell.mtime`, which forces one extra snapshot fetch
-    and redraw on the poll that carries it. Once per switch, so it is not a
-    steady-state cost, but a benchmark that flips the theme will see it. It is
-    gated on `shell.kind === 'json'`: a legacy run's picture is an iframe, and
-    re-pointing it would refetch the 4.51-6.03 MB page WP-1402 measured.
+All measured or read off the tree on 2026-09-17, in this worktree, `[dev]`
+plus playwright, darwin/arm64. The mailbox they arrived in is consumed here.
 
-- **2026-09-16, from [1429](1429-one-palette-and-one-theme-for-three-pages.md):
-  a defect on the page this WP measures, found in its browser and not fixed
-  here.** The GUI's reflection tick rows carry no explicit colour, so they take
-  plotly's colorway — which is indexed by **position in the trace array**, and
-  the GUI's background trace is both conditional on there being a background
-  *and* toggleable by the reader (`Plot.svelte`, `shows(hidden, "bkg")`). So
-  hiding the background moves every phase's tick colour one step along the
-  colorway, on a click. Measured on the watcher, which briefly had the same
-  shape: `phase 0` went `#d62728` → `#9467bd`, and `#d62728` is **0.043** from
-  `--plot-calc` in OKLab on the light theme, against the 0.13 floor
-  `tests/test_gui_palette.py` holds every other plot colour to. The watcher
-  keeps explicit colours because of it (`PALETTES["dark"]`, with a guard in
-  `test_watch_browser.py`); the GUI still has it. The fix needs a **categorical
-  palette** the GUI does not own, which is the maintainer's question rather than
-  either WP's — it is filed here because this is the WP with the instrument.
+**The payload's constant block is 137 B, not the 49 B its note claimed.**
+WP-1429 wrote that number when the dark palette left `_page_constants` and the
+theme choice took its place. The reflection tick colours went back in the same
+WP's review pass (`d5529c6c`), so the block carries `suffix`, `dist`, `theme`
+and `ticks` today. WP-1430's "299 B of every poll" is stale in the other
+direction. Either way it is one part in 220 of a 41-run answer, whose rows are
+735 B each, so a boot-only route for it buys nothing this WP would report.
 
+**Every `/api/runs` reads `state_dir/settings.json`.** The theme is the one
+thing on the page a person changes while it is open, so the read is uncached on
+purpose: 16.8 µs with the file present, 4.6 µs without, against a 1.2 s poll
+(WP-1429). A cache here has to expire faster than a person notices a theme
+switch not arriving.
 
-- **2026-09-16, from [1424](1424-a-row-that-names-its-run.md): a row does more
-  per poll than it did when this WP was written.**
-  - `fillRow` now writes three `title` attributes and a `<time>` element's
-    `datetime` and `title` per row, on top of the six cells. Every one goes
-    through `setAttr`/`setText`, which compare before assigning, so a poll that
-    changes nothing still writes nothing — but the *comparison* count per row
-    is up, and `runTitle` builds a four-line string per row per poll.
-  - If this WP measures a per-row cost, measure it against a list of 40, and
-    note that `runTitle` is a pure function of the run object: it is the
-    obvious thing to memoise by `run_id` if the number matters. Nothing
-    suggests it does yet; nothing has measured it either.
-  - `drawSnapshot` gained one plotly annotation in the layout. It is
-    paper-anchored with `automargin` off, so it costs no relayout.
+**`/tokens.css` is 43.6 µs and 4972 B, once per page load.** It carries
+`no-store` from `_send`, as every route here does, so a reload pays again. It
+is off the poll path.
 
-- **2026-09-16, from [1426](1426-still-under-resize-and-across-a-stage.md):
-  1426 landed first, so this WP is the one that rebases.** Both were declared
-  to rewrite `drawRun` and they did not collide, but three shapes moved:
-  - `buildShell` is gone, split into **`buildPicture`** (the shell, the plotly
-    purge, the `full` class) and **`resetTail`** (the console and the tail
-    offset). `drawRun` calls `resetTail` on a *run* change and `buildPicture`
-    on a run-or-kind change. A poll-cost change that skips work must keep those
-    two triggers apart: merging them back is the defect 1426 removed.
-  - `patchList` opens by taking a scroll anchor and closes by applying it. A
-    patch made cheaper must still run both ends, or the list shifts under the
-    reader again.
-  - `rangesOf` in `watch-core.mjs` cuts by count rather than by quantile now.
-    It sorts the residual on every draw, which is the one O(n log n) step in
-    the draw path and a candidate if the poll's cost is in the page rather than
-    on the wire. 4000 points is the decimated ceiling.
+**A theme change clears `shell.mtime`.** That forces one extra snapshot fetch
+and redraw on the poll carrying it, once per switch. A benchmark that flips the
+theme sees it; a steady-state one does not. It is gated on
+`shell.kind === 'json'`, because re-pointing a legacy run's iframe would
+refetch the 4.51-6.03 MB page WP-1402 measured.
 
-- **2026-09-16, from [1430](1430-the-page-is-a-file.md): the page is files, and
-  three of its names are not the ones 1430's plan said.** `watch.py` is the
-  package `watch/`, and the page is `watch/static/`: `index.html`, `watch.css`,
-  `watch.mjs` (the document) and `watch-core.mjs` (everything that touches no
-  DOM). `rietx.watch` imports unchanged. What to carry:
-  - **The DOM half is `.mjs`, not `.js`.** `node --check` reads a `.js` as
-    CommonJS, where the `import` of `watch-core.mjs` is a syntax error. A
-    browser cares about `type="module"` and the content type, never the
-    extension.
-  - **Node cases live in `tests/watch_core.test.mjs`**, not beside the module:
-    hatchling ships everything under `src/rietx`. They are invoked from
-    `tests/test_watch_app.py::test_the_pure_half_of_the_page_is_unit_tested`
-    (15 cases today), which passes `--test-reporter=tap` because node picks its
-    reporter by whether stdout is a terminal.
-  - **`@SUFFIX@`, `@DIST@` and `@HUE@` are gone.** A file cannot carry a token,
-    so the three ride on `/api/runs` as `payload.page.{suffix,dist,palette}`,
-    read at boot into the module-level `HUE` and `DIST`. That is 299 B of every
-    poll, against rows of 735 B each.
-  - **A new file under `static/` needs a row in `watch.STATIC_FILES`** and
-    nothing else — the route, the content type and the `.gitignore` guard all
-    read that dict. `*.html` in `.gitignore` swallowed `index.html` on the way
-    in, the sixth committed file that one rule has taken.
-  - The poll payload grew a constant: `page` is 299 B of every `/api/runs`,
-    measured against 735 B a row on a 41-run tree (30 431 B in all). It is one
-    key and one function (`watch._page_constants`), so moving it to a
-    boot-only route is a small edit if the measurement says to.
-  - `tests/test_watch_browser.py` took no diff and stays the bar: if it
-    moves, the page moved.
+**A row does more per poll than this WP's context said.** `fillRow` writes
+three `title` attributes and a `<time>`'s `datetime` and `title` on top of the
+six cells (WP-1424). Every one goes through `setAttr`/`setText`, which compare
+before assigning, so an unchanged poll still writes nothing to the DOM. The
+comparison count is up, and `runTitle` builds a four-line string per row per
+poll. It is a pure function of the run object, so memoising it by `run_id` is
+the obvious move if the number says so. `drawSnapshot` also gained one
+paper-anchored annotation, which takes no relayout.
+
+**Three shapes moved under WP-1426, and two of them are traps for this WP.**
+`buildShell` split into `buildPicture` (the shell, the plotly purge, the `full`
+class) and `resetTail` (the console and the tail offset); `drawRun` calls
+`resetTail` on a run change and `buildPicture` on a run-or-kind change, and
+merging the two triggers back together is the defect 1426 removed. `patchList`
+opens by taking a scroll anchor and closes by applying it, and a cheaper patch
+must still run both ends. `rangesOf` in `watch-core.mjs` cuts by count rather
+than by quantile, sorting the residual on every draw: the one O(n log n) step
+in the draw path, over a decimated ceiling of 4000 points.
+
+**The page is four files under `watch/static/`** (WP-1430): `index.html`,
+`watch.css`, `watch.mjs` and `watch-core.mjs`, the last being everything that
+touches no DOM. A new file needs a row in `watch.STATIC_FILES` and nothing
+else. The DOM half is `.mjs` because `node --check` reads a `.js` as CommonJS.
+Node cases live in `tests/watch_core.test.mjs` and are invoked from
+`tests/test_watch_app.py::test_the_pure_half_of_the_page_is_unit_tested`.
+`tests/test_watch_browser.py` is the bar: if it moves, the page moved.
+
+## Findings
+
+Every number below is this machine's, darwin/arm64, `[dev]` plus playwright,
+chromium 1223, at the page's own 1.2 s cadence. Two benchmarks of the same
+thing on this machine differ by more than most of these changes do, so every
+comparison is **interleaved in one process** rather than run before and after.
+
+**The poll's cost was the walk, and the walk was two JSON parses per run.**
+Server-Timing on `/api/runs`, 200 synthetic runs, ten polls: `walk`
+27.8-49.2 ms, `rows` 2.1-3.3, `serialize` 0.8-1.8, payload 230 kB. Inside the
+walk, on the same root: `read_run` 10.4-12.0 ms of a 12.5-25.1 ms `discover`,
+and of that `read_run`, 6.4-6.7 ms is the two `read_text` calls and 0.7 ms more
+is the two `model_validate_json`. `liveness_of` is 0.14-0.25 ms for all 200,
+and `as_dict` 0.39-0.53. The candidates about `liveness_of` and the payload's
+`page` block were reading the wrong end of it.
+
+**The browser was never the problem.** An idle poll on that root spent
+0.50-0.90 ms parsing and 1.80-3.20 ms patching, and drew nothing. A NAC stage
+redraw — 8331 of 59 498 points, 1486 ticks, a 384 kB snapshot — is
+`snap:net` 0.8-1.3, `snap:parse` 0.9-1.0 and `snap:react` 9.3-15.0 ms, with
+**no long task** in six stage boundaries. `rangesOf`'s sort over 4000 points,
+which WP-1426 flagged as the one O(n log n) step, is inside that 9.3-15.0.
+
+**The one thing that froze the page was the console, and it was not a rate.**
+A real NAC fit emits 56 events a second (68 a poll) and a cheap silicon fit on
+1000 points emits 391 (469 a poll). Neither hurts. What hurts is **opening** a
+run whose log is already long, because `resetTail` asks from offset 0: at
+60 000 events the page parsed all of them and built 60 000 `<div>`s to keep
+2000, for `tail:render` 997 ms, `tail:net` 101 ms and **three long tasks of
+997, 974 and 168 ms**. A cheap fit writes that log in about two and a half
+minutes.
+
+### What was landed, and what it moved
+
+| | before | after |
+|---|---|---|
+| `walk`, 200 runs | 27.8-49.2 ms (median 34.7) | 15.6-23.1 (median 20.7) |
+| `walk`, 500 runs (`MAX_RUNS`) | 47.4-70.1 (median 59.7) | 24.1-41.7 (median 35.7) |
+| `runs:parse` + `runs:patch`, idle | 2.3-4.1 ms | absent (304) |
+| payload, idle poll | 230 kB | 0 |
+| `tail:render`, opening 40 000 events | 997 ms | 31.0 |
+| long tasks, opening 40 000 events | 3 | 0 |
+| `tail:render`, 5000 events a poll | 84.3-140.7 (median 138.5) | 28.9-37.3 (median 32.5) |
+| long tasks, 5000 events a poll | 8 | 0 |
+
+### What was dismissed, and by what
+
+**gzip on the snapshot loses by 27×.** Loopback here moves 3365 MB/s, so the
+384 kB NAC snapshot crosses it in 0.11 ms. Compressing it costs 1.92-2.03 ms
+at level 1 to save 0.07 ms of transfer, 15.7-16.1 ms at level 6, 54.3-56.2 at
+level 9 — and the client then pays 17.0-17.2 ms to decompress. There is no
+setting at which this is not a loss.
+
+**Server-sent events would move the walk, not remove it.** The measurement puts
+the poll's time in the walk and not in the round trip: `runs:net` is unmoved at
+27.95 / 28.35 / 27.60 ms median across three interleaved arms with and without
+the conditional request, while the body went from 222 kB to nothing. The
+stdlib has no file watcher, so an SSE server would poll the disk on the same
+cadence, in a thread, for as long as a tab is held — and it would lose the
+thing the poll gets for free, that `document.hidden` stops it and a minimised
+tab costs the fit nothing.
+
+**The per-line `series_*` stamp stays.** Dropping it is a real number and a
+small one: on a fit emitting 5000 events a poll, `tail:render` 31.3-39.3
+(median 35.0) becomes 22.7-32.7 (median 27.5), and the pane's HTML 413 866
+chars becomes 271 866. Neither arm makes a long task. Against that, `attach`
+records **once per job** and a series hands each pattern a fresh
+`_SeriesStream` around one stream (`runs.recorder_of`), so a sixty-pattern
+series is one log and the stamp is the only thing on a line saying which
+pattern wrote it. 7.5 ms of median render is not worth that.
+
+**`patchList`'s quadratic `querySelector` was not touched**, as the non-goals
+said. At 200 rows the whole patch is 1.8-3.2 ms, and on an idle poll it now
+does not run at all.
 
 ## Non-goals
 
@@ -196,21 +226,24 @@ Browser, per poll:
 
 ## Tasks
 
-- [ ] `Server-Timing` on the three routes and `performance.measure` marks on
+- [x] `Server-Timing` on the three routes and `performance.measure` marks on
       the page, read by the browser harness; the before numbers on the three
       roots in the handover
-- [ ] The read cache in `_RunIndex`, with `test_runs.py`'s two-files budget
+- [x] The read cache in `_RunIndex`, with `test_runs.py`'s two-files budget
       restated as two files per *changed* run, if the walk is where the time
       is
-- [ ] `ETag`/`If-None-Match` on `api/runs`; the page skips patching on a 304
-- [ ] The console's per-poll cap and the stamp keys dropped from the line
-- [ ] gzip on the snapshot, kept or dropped on its own measurement
-- [ ] The SSE question answered from the numbers, in the handover, with no
-      code unless it wins
-- [ ] Tests: the 304 path, the cache invalidating on a status write, and a
+- [x] `ETag`/`If-None-Match` on `api/runs`; the page skips patching on a 304
+- [x] The console's per-poll cap. The **stamp keys stay**, measured: dropping
+      them is 7.5 ms of a 35 ms median render on the worst case that exists,
+      which no longer makes a long task, and they are the only thing in a
+      series log saying which pattern a line belongs to (§ Findings)
+- [x] gzip on the snapshot: **dropped**, losing by 27× at its cheapest setting
+- [x] The SSE question answered from the numbers, in the handover, with no
+      code unless it wins — it did not win
+- [x] Tests: the 304 path, the cache invalidating on a status write, and a
       budget on the idle poll as a runaway guard (root CLAUDE.md § Testing:
       a budget is never a timer)
-- [ ] Skill: none. The page is a human's.
+- [x] Skill: none. The page is a human's.
 
 ## Acceptance
 
@@ -233,6 +266,99 @@ machine's; the `Server-Timing` numbers come from a python test and run in CI.
   snapshot costs the fit), WP-1423 (the poll cycle as it stands).
 
 ## Handover log
+
+- **2026-09-17** — **the poll is measured, and the one thing that froze the
+  page was not on anyone's candidate list.** The WP guessed that the walk's two
+  JSON parses per run were the cost and that the rest were padding. The walk
+  half was right and is now 1.7× faster. The half nobody had is the console:
+  clicking a job that had been running a couple of minutes delivered its whole
+  log on one poll, and the page spent a second building sixty thousand `<div>`s
+  to keep two thousand of them. That is the change a reader will feel. The rest
+  is a page that now does nothing at all on a poll where nothing changed.
+
+  **The instrument first**, because none of the above was knowable without it.
+  `Server-Timing` on every route this page uses (`walk`, `rows`, `serialize`,
+  `tail`, `read`), which a browser shows in its network panel and a python test
+  reads off the response with no profiler. `performance.measure` spans on the
+  page (`runs:`/`snap:`/`tail:` × net/parse/work), cleared every 400 spans so a
+  tab left open overnight does not grow a timeline. The long-task observer is
+  the *harness's* and not the page's: an observer nobody reads is telemetry on
+  somebody's overnight tab. § Findings has every before number, on three roots
+  — 16 runs, 200 runs, and one drawing 11-BM NAC at 8331 of 59 498 points.
+
+  **Three changes landed, each with the number it moved** (§ Findings has the
+  table). A caller-owned read cache in `read_run`/`discover`, keyed on inode,
+  size and nanosecond mtime of the three files a row reflects plus its two
+  snapshot flags: the walk goes 34.7 → 20.7 ms median on 200 runs and
+  59.7 → 35.7 at the `MAX_RUNS` ceiling of 500. An `ETag` on `/api/runs`, which
+  takes an idle poll's parse and patch to absent and its payload to nothing.
+  And the console cap, which is the one that mattered: `tail:render` 997 → 31.0
+  ms on a 40 000-event open, and three long tasks to none.
+
+  **The `ETag` needed a field removed before it could ever match.** Every row
+  carried `liveness.heartbeat_age`, which is `now - heartbeat`, so every idle
+  answer differed from the last one and no digest of the body could agree with
+  itself. Nothing read it — not this page, not the GUI — and the heartbeat it
+  derives from is in the row's `status` already. This is WP-1076's rule from
+  the other side: a declared name with no *reader* costs nothing visible until
+  something downstream depends on the payload being stable.
+
+  **Two candidates were dismissed by measurement and one by judgement.** gzip
+  on the snapshot loses by 27× at its cheapest setting, this machine's loopback
+  moving 3365 MB/s. SSE would move the walk into a thread rather than remove
+  it, the stdlib having no file watcher, and would lose the property that a
+  hidden tab stops polling. The per-line `series_*` stamp would buy 7.5 ms of a
+  35 ms median render, on a case that no longer makes a long task, at the cost
+  of the only thing in a one-log series that says which pattern a line is from.
+
+  **The review pass earned its place, on the change I was most pleased with.**
+  `/code-review high --fix` found that the `ETag` had broken the selected-row
+  highlight: the `selected` class was set only in `fillRow`, which is reached
+  only from `patchList`, which the 304 branch skips. A click changes nothing on
+  disk, so the poll *after* a click is exactly the poll that 304s — on a
+  directory of finished runs the highlight would have stayed on the row the
+  reader had just left, for ever. It has an authority of its own now
+  (`markSelected`), called from both branches, and a browser test that was made
+  to fail against the old script first. Two more were taken: the tag was
+  committed before the payload was applied, so a truncated body would have
+  pinned the page to a list it never drew; and the manual's route table still
+  described the events route as `?offset=` alone. One finding was raised and
+  **declined on inspection, correctly**: the 304 carries `Content-Length: 0`,
+  which RFC 7230 allows only when it equals the 200 body's length. This server
+  is HTTP/1.0 (`http.server`'s default, which `watch/` does not override), so
+  the connection closes after every response and no client in the path can
+  misread it.
+
+  **Counts**, this worktree, `[dev]` **plus playwright** (installed for this
+  session; without it every browser test self-skips), darwin/arm64. Acceptance
+  115 → 136 passed, +21, which is exactly the tests added: 7 in
+  `test_runs.py`, 10 in `test_watch_app.py`, 4 in `test_watch_browser.py` (3
+  mine, 1 the review's). Fast selection 5236 passed, 132 skipped in 4:21, and
+  the **full** suite 5406 passed, 141 skipped in 24:12 — both on the final
+  tree, which is also the merged tree, the branch having never fallen behind
+  `origin/main`. The full selection ran because `runs.py` is imported by every
+  fit's telemetry, so a change there could in principle have moved a measured
+  number; none did. No new skip. `ruff` clean over src, tests and examples.
+  Wall clock is quoted as a range throughout because two runs of one benchmark
+  on this machine move further than most of these changes did.
+
+  **The mailbox was consumed and one number in it had already gone stale.**
+  WP-1429's note said the poll's constant block was 49 B; it is 137 B, the
+  reflection tick colours having gone back into `_page_constants` in that WP's
+  own review pass (`d5529c6c`). Either way it is one part in 220 of a 200-run
+  answer, so 1430's "move it to a boot-only route" buys nothing worth
+  reporting. The rest of the mailbox was true and is folded into Context.
+
+  **Next.** 1428 is the remaining rung of the watcher track. Two things this WP
+  found and did not fix are the maintainer's: the GUI's tick rows still take
+  plotly's colorway and change colour when the background is toggled (inherited
+  from 1429, and it needs a categorical palette the GUI does not own); and a
+  reader opening a run with a very long log now walks forward through it in
+  4 MB chunks, so they see events from several minutes ago for a few seconds
+  before reaching the tail. The freeze is gone either way. Seeking to the end
+  of the log on a cold open would fix the staleness and would change what
+  `offset` means, which is a route decision rather than a performance one.
+
 
 - **2026-09-16** — created, from the maintainer's asks after the demo job;
   revised the same day: the padded candidates moved to the non-goals, and the

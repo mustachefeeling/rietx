@@ -554,6 +554,19 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   measured before it was spent; that docstring holds the numbers). **Who asked is a fact
   about the record** (`RunStatus.cancelled_by`) and never about the exception — downstream, a
   human's stop and the caller's own `token.cancel()` are one cooperative read.
+- **A poll asks for what the reader can hold, and a row carrying a clock can never be
+  told it has not changed** (WP-1427). Two rules from measuring one page. The console is a
+  tail over a pane of `MAX_LINES`, so the **page** names that cap on the route (`limit`) and
+  `runs.tail_events` drops the oldest of the slice *before parsing* — uncapped, opening a run
+  whose log already held 60 000 events built that many `<div>`s to keep 2000, 997 ms of
+  frozen main thread and three long tasks. And `/api/runs` carries an `ETag`, which could
+  never have matched while every row carried `liveness.heartbeat_age` = `now - heartbeat`: a
+  field computed from the clock makes every idle answer a different one, and nothing read it
+  (WP-1076's rule from the reader's side). Behind both, the walk is cached per run on the
+  files a row reflects (`read_run(cache=)`), 1.7× at 200 runs and at the 500 of `MAX_RUNS`.
+  **What the numbers dismissed stays in the WP**, and two of them are the reflex: gzip on the
+  snapshot loses by 27× against a 3365 MB/s loopback, and SSE moves the walk into a thread
+  rather than removing it, the stdlib having no file watcher.
 - **A page that is javascript is a *file*: `node --check`ed, its DOM-free half run by `node
   --test`** (WP-1430; `src/rietx/watch/static/` + `tests/watch_core.test.mjs`, both run from
   `tests/test_watch_app.py`). Quoted inside python it is unlinted and unimportable, and one

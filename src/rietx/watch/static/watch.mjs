@@ -17,7 +17,7 @@ let CAN_CANCEL = false;     // false under --read-only: no button is drawn
 // the click
 let notice = null;
 let timer = null;
-let tail = {offset: 0, inode: null, id: null};
+let tail = {offset: 0, inode: null, id: null, skipped: 0};
 // what the run panel was built for: the run, which kind of picture it has
 // ('json', a legacy 'html' page, or 'none'), and which write we have drawn
 let shell = {id: null, kind: null, mtime: null};
@@ -42,13 +42,39 @@ let TICKS = null;
 // The page never writes it: the GUI owns the setting, this page follows it,
 // and `null` is "nothing applied yet" rather than a choice.
 let THEME = null;
-// the console is a tail and not an archive; the log on disk is the archive
+// the console is a tail and not an archive; the log on disk is the archive.
+// It is also what the route is asked to cap at (`pumpEvents`): the pane's
+// length is the one authority for how many lines are worth sending, and a
+// second copy of the number in python would be a second answer to that.
 const MAX_LINES = 2000;
 //: WP-1423's `{runs, run}`, read once at boot and then removed: the shape
 //: WP-1425 stores is not that one, so it takes a name of its own rather than
 //: a version field.
 const PANELS_KEY = 'rietx-watch-panels';
 const LAYOUT_KEY = 'rietx-watch-layout';
+
+// ------------------------------------------------------------- stopwatch
+// What one poll costs, on the page's own timeline (WP-1427).
+//
+// `performance.measure` with an explicit start is the browser's documented way
+// to name a span, it costs about a microsecond, and it lands in the profiler's
+// User Timing track where a human debugging a slow poll would already be
+// looking. The suite reads the same entries through `getEntriesByType`, which
+// is why the names are stable strings: `net` is the wire, `parse` is JSON, and
+// everything after those two is this page's own work.
+//
+// The timeline is cleared every `MARK_CAP` spans. Nothing else here clears it,
+// and a page left open overnight would otherwise grow one entry per span per
+// poll for as long as the fit runs. About a minute of history is what a reader
+// or a test ever asks for.
+const MARK_CAP = 400;
+let marks = 0;
+function since(name, t0) {
+  try {
+    performance.measure(name, {start: t0});
+    if (++marks > MARK_CAP) { performance.clearMeasures(); marks = 0; }
+  } catch { /* no timeline here, and the page is no worse for it */ }
+}
 
 // text is written only when it changed: assigning the same string still
 // replaces the node, and a replaced node is a layout
@@ -101,7 +127,18 @@ function fillRow(tr, run) {
   setAttr(when, 'title', run.created
     ? new Date(run.created * 1000).toLocaleString() + ' · ' + ago(run.created)
     : null);
-  tr.classList.toggle('selected', run.run_id === currentId());
+}
+
+// The highlight is the one thing on the list that follows the *URL* rather
+// than the files, so it has one authority of its own and `patchList` is not
+// it. A click changes nothing on disk, so the poll after it is a 304 and the
+// patch never runs — in a directory of finished runs nothing would move the
+// highlight off the row the reader just left, ever.
+function markSelected() {
+  const id = currentId();
+  for (const tr of $('rows').children) {
+    tr.classList.toggle('selected', tr.dataset.id === id);
+  }
 }
 
 // Patched, never rebuilt: a row is keyed by its run id and moved into the
@@ -145,6 +182,7 @@ function patchList(runs) {
     fillRow(tr, run);
   });
   $('empty').hidden = runs.length > 0;
+  markSelected();
   // a row the walk dropped cannot say where it went, and the reader has lost
   // that place whatever we do
   if (anchor && anchor.isConnected && anchor.offsetTop !== was) {
@@ -188,7 +226,7 @@ function buildPicture(run, kind) {
 // to read was dropped at the bottom. The other reset is the route's, in
 // `pumpEvents`, where a log that is a different file says so.
 function resetTail(id) {
-  tail = {offset: 0, inode: null, id: id};
+  tail = {offset: 0, inode: null, id: id, skipped: 0};
   $('console').textContent = '';
 }
 
@@ -299,9 +337,13 @@ async function drawSnapshot(id) {
   }
   let snap;
   try {
+    const t0 = performance.now();
     const r = await fetch(`api/run/${id}/snapshot`, {cache: 'no-store'});
     if (!r.ok) return false;
+    since('snap:net', t0);
+    const t1 = performance.now();
     snap = await r.json();
+    since('snap:parse', t1);
   } catch (err) {
     return false;                      // the console tail is not the plot's
   }
@@ -311,6 +353,7 @@ async function drawSnapshot(id) {
   // react, never newPlot: it keeps the reader's zoom across a stage, which is
   // the whole reason the picture stopped being a page that reloads
   const hue = hues();
+  const drawn = performance.now();
   plotly.react(div, snapshotTraces(snap, hue), {
     margin: {l: 58, r: 14, t: 8, b: 56},   // room for the 2θ title
     // expectation 1 under a correct model, so the residual reads on an
@@ -364,6 +407,7 @@ async function drawSnapshot(id) {
     // opening a different run starts fresh
     uirevision: id,
   }, {displaylogo: false, responsive: true});
+  since('snap:react', drawn);
   setText($('s-where'), whereOf(rows.get(id)));
   setAttr($('s-where'), 'title', whereOf(rows.get(id)) || null);
   return true;
@@ -503,22 +547,67 @@ async function stopRun(id) {
   refresh();
 }
 
+// The class on the one element in the console that is not a line of the log.
+const GAP = 'gap';
+
+// A note about the pane rather than a line in it, so it does not count against
+// the pane's length and is never what the trim cuts. Cumulative, because two
+// capped polls skipped two batches and the reader wants the total.
+function noteGap(pane) {
+  if (!tail.skipped) return;
+  const text = `… ${tail.skipped.toLocaleString()} earlier lines are in the `
+    + `log and not in this pane`;
+  const first = pane.firstElementChild;
+  if (first && first.classList.contains(GAP)) { setText(first, text); return; }
+  const note = document.createElement('div');
+  note.className = `line muted ${GAP}`;
+  note.textContent = text;
+  pane.insertBefore(note, first);
+}
+
+// One removal at a time is right for a poll's worth of arrivals and wrong for
+// a pane being replaced wholesale, which is what a capped batch is.
+function trimConsole(pane) {
+  const gap = pane.firstElementChild?.classList.contains(GAP) ? 1 : 0;
+  const cap = MAX_LINES + gap;
+  if (pane.childElementCount - cap > MAX_LINES / 2) {
+    const keep = [...pane.children].slice(-MAX_LINES);
+    pane.replaceChildren(...(gap ? [pane.firstElementChild, ...keep] : keep));
+    return;
+  }
+  while (pane.childElementCount > cap) {
+    (gap ? pane.children[1] : pane.firstElementChild).remove();
+  }
+}
+
 async function pumpEvents(id) {
-  const q = new URLSearchParams({offset: tail.offset});
+  // `limit` is the pane's own length. Without it a reader clicking a job that
+  // has been running a few minutes gets every event of it in one response:
+  // 60 000 lines parsed and built into `<div>`s to keep the last 2000, which
+  // was 997 ms of frozen main thread and three long tasks (WP-1427). The
+  // server drops the oldest of the slice and says how many in `skipped`.
+  const q = new URLSearchParams({offset: tail.offset, limit: MAX_LINES});
   if (tail.inode !== null) q.set('inode', tail.inode);
+  const t0 = performance.now();
   const r = await fetch(`api/run/${id}/events?` + q, {cache: 'no-store'});
   if (!r.ok) return;
+  since('tail:net', t0);
+  const t1 = performance.now();
   const payload = await r.json();
+  since('tail:parse', t1);
   // an in-flight tail of the run we just left must not renumber this one
   if (tail.id !== id || currentId() !== id) return;
   const pane = $('console');
-  if (payload.reset) pane.textContent = '';   // a different log; do not renumber
+  // a different log; do not renumber, and do not carry its gap over
+  if (payload.reset) { pane.textContent = ''; tail.skipped = 0; }
   tail.offset = payload.offset;
   tail.inode = payload.inode;
+  tail.skipped += payload.skipped || 0;
   if (!payload.events.length) return;
   // the tail follows the log only while the reader is at its end; a reader
   // who scrolled up to read is left where they are
   const atBottom = pane.scrollTop + pane.clientHeight >= pane.scrollHeight - 30;
+  const t2 = performance.now();
   const html = payload.events.map(e => {
     const t = new Date(e.t * 1000).toLocaleTimeString();
     const data = Object.entries(e.data || {}).map(([k, v]) =>
@@ -532,8 +621,10 @@ async function pumpEvents(id) {
   // there, so a fit emitting an event per residual evaluation would pay for
   // its whole history on every poll
   pane.insertAdjacentHTML('beforeend', html);
-  while (pane.childElementCount > MAX_LINES) pane.firstElementChild.remove();
+  trimConsole(pane);
+  noteGap(pane);
   if (atBottom) pane.scrollTop = pane.scrollHeight;
+  since('tail:render', t2);
 }
 
 // ------------------------------------------------------------- splitters
@@ -800,13 +891,37 @@ function readPage(payload) {
 }
 
 let refreshing = false;
+// What the last `/api/runs` answered with, sent back on the next one. A poll
+// where nothing changed is then two header lines instead of the whole list
+// (WP-1427): 229 kB a poll on a batch of 200 finished runs, which is what a
+// tab left open overnight spends on a directory nobody is writing to.
+let etag = null;
 async function refresh() {
   if (refreshing) return;              // a slow poll is not two polls
   refreshing = true;
   try {
-    const r = await fetch('api/runs', {cache: 'no-store'});
+    const t0 = performance.now();
+    const r = await fetch('api/runs', {
+      cache: 'no-store',
+      headers: etag ? {'If-None-Match': etag} : {},
+    });
+    // 304: the list is the one already on the page, so there is nothing to
+    // parse and nothing to patch. The run panel still gets its poll, because
+    // a snapshot and a log move without the list moving, and the highlight
+    // still gets its own, because the reader's click moved the URL and not
+    // the files.
+    if (r.status === 304) {
+      since('runs:net', t0);
+      markSelected();
+      const id = currentId();
+      if (id) await drawRun(id);
+      return;
+    }
     if (!r.ok) return;
+    since('runs:net', t0);
+    const t1 = performance.now();
     const payload = await r.json();
+    since('runs:parse', t1);
     // a theme that moved repaints the canvas, which CSS cannot do for it:
     // the picture is the one thing on this page a stylesheet does not reach.
     // The snapshot only: a legacy run's picture is a self-contained page that
@@ -816,7 +931,14 @@ async function refresh() {
     setText($('root'), 'scanned ' + payload.root);
     rows = new Map(payload.runs.map(run => [run.run_id, run]));
     newest = payload.runs.length ? payload.runs[0].run_id : null;
+    const t2 = performance.now();
     patchList(payload.runs);
+    since('runs:patch', t2);
+    // the tag is committed once the list it describes is on the page. Set
+    // before the parse, a truncated body or a patch that threw would leave
+    // every later poll answered 304 against a list the page never drew, and
+    // nothing on disk could ever shake it loose again.
+    etag = r.headers.get('ETag');
     const id = currentId();
     if (id) await drawRun(id); else clearStrip();
   } finally {

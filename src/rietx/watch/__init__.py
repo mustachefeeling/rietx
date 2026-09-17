@@ -46,6 +46,7 @@ and the viewer in another::
 from __future__ import annotations
 
 import functools
+import hashlib
 import http.server
 import json
 import os
@@ -147,12 +148,19 @@ class _RunIndex:
         self._lock = threading.Lock()
         self._runs: list | None = None
         self._at = 0.0
+        # Runs already read, keyed on what their files say about themselves
+        # (WP-1427). The TTL above bounds how often the tree is *walked*; this
+        # bounds what each walk re-reads, which is the larger half: on 500
+        # finished runs the two sidecar reads and their two parses were 21.8 ms
+        # of a 34.7 ms walk, once a second, about nothing. `discover` prunes it
+        # to what the walk found, so a run that goes away leaves no entry.
+        self._cache: dict = {}
 
     def runs(self) -> list:
         with self._lock:
             now = time.monotonic()
             if self._runs is None or now - self._at >= self.ttl:
-                self._runs = runs_mod.discover(self.root)
+                self._runs = runs_mod.discover(self.root, cache=self._cache)
                 self._at = now
             return self._runs
 
@@ -171,15 +179,64 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
         self.scan_root = scan_root
         self.index = index
         self.allow_cancel = allow_cancel
+        self._marks: list[tuple[str, float]] = []
         super().__init__(*args, **kwargs)
 
-    def _send(self, body: bytes, content_type: str, status: int = 200) -> None:
+    def _timed(self, name: str, call):
+        """Run ``call``, and remember what it cost this request.
+
+        The marks go out as ``Server-Timing``, which is the documented header
+        for exactly this (MDN). A browser shows it in the network panel beside
+        the request it belongs to, and a python test reads it off the response
+        with no profiler and no clock of its own. That second reader is why the
+        phases are named for what they do rather than for the function that
+        does it: ``walk`` stays ``walk`` when :class:`_RunIndex` changes shape.
+        """
+        started = time.perf_counter()
+        try:
+            return call()
+        finally:
+            self._marks.append((name, (time.perf_counter() - started) * 1e3))
+
+    def _send(self, body: bytes, content_type: str, status: int = 200,
+              etag: str | None = None) -> None:
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
+        if etag is not None:
+            self.send_header("ETag", etag)
+        if self._marks:
+            self.send_header("Server-Timing", ", ".join(
+                f"{name};dur={ms:.3f}" for name, ms in self._marks))
         self.end_headers()
         self.wfile.write(body)
+
+    def _json_or_304(self, payload) -> None:
+        """``/api/runs``'s answer, or the two header lines saying it has not
+        moved (WP-1427).
+
+        The ``ETag`` is a digest of the body, so the walk and the rows are paid
+        for either way: what a 304 saves is the wire and the page's own parse
+        and patch, once a second for as long as a tab is open. On a batch of
+        200 finished runs that is 229 kB a poll, which is 6.6 GB over an
+        overnight watch.
+
+        The header is read here rather than left to the browser because
+        ``no-store`` is right for this route and forbids the browser keeping
+        the copy it would revalidate. Reading it ourselves also lets the page
+        see the 304 and skip patching, which a transparent revalidation would
+        not: fetch would hand it the stored body and the page would do the work
+        again.
+        """
+        body = self._timed(
+            "serialize", lambda: json.dumps(payload).encode("utf-8"))
+        etag = f'"{hashlib.sha256(body).hexdigest()[:32]}"'
+        if self.headers.get("If-None-Match") == etag:
+            self._send(b"", "application/json; charset=utf-8", status=304,
+                       etag=etag)
+            return
+        self._send(body, "application/json; charset=utf-8", etag=etag)
 
     def _static(self, name: str) -> None:
         """One of the page's own files, out of the installed package.
@@ -192,9 +249,13 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
         """
         self._send((STATIC_DIR / name).read_bytes(), STATIC_FILES[name])
 
-    def _json(self, payload, status: int = 200) -> None:
-        self._send(json.dumps(payload).encode("utf-8"),
-                   "application/json; charset=utf-8", status)
+    def _json(self, payload, status: int = 200, *, etag: bool = False) -> None:
+        if etag:
+            self._json_or_304(payload)
+            return
+        body = self._timed(
+            "serialize", lambda: json.dumps(payload).encode("utf-8"))
+        self._send(body, "application/json; charset=utf-8", status)
 
     def _origin_ok(self) -> bool:
         """Whether a write may be honoured — ``gui/server.py``'s check, here.
@@ -216,8 +277,14 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
         host = (self.headers.get("Host") or "").rsplit(":", 1)[0]
         return host in _ALLOWED_HOSTS
 
+    def handle_one_request(self):  # noqa: D102 - http.server API
+        # A keep-alive connection serves many requests through one handler
+        # object, and the header is a fact about one of them.
+        self._marks = []
+        super().handle_one_request()
+
     def _runs(self) -> list:
-        return self.index.runs()
+        return self._timed("walk", self.index.runs)
 
     def _find(self, run_id: str):
         """An id is looked up in what the walk offered, never decoded into a
@@ -231,8 +298,13 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
     def _row(self, run) -> dict:
         live = runs_mod.liveness_of(run)
         row = run.as_dict()
-        row["liveness"] = {"state": live.state, "evidence": live.evidence,
-                           "heartbeat_age": live.heartbeat_age}
+        # `heartbeat_age` is not here, and its absence is the point (WP-1427).
+        # It is `now - status.heartbeat`, so it moved on every poll and made
+        # every idle answer a different one — which is the whole of what an
+        # `ETag` on this route has to decide. Nothing read it: not this page,
+        # not the GUI. The heartbeat it derives from is in `status` already,
+        # and a client wanting an age can subtract.
+        row["liveness"] = {"state": live.state, "evidence": live.evidence}
         # the picture is rewritten per stage, so the page needs to know when to
         # redraw rather than sit on the one it opened with.  The mtime is of
         # whichever file this run actually has: a legacy run's is its page's.
@@ -304,7 +376,9 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
                         # each. A route of its own would save that and make a
                         # second authority for what this server is.
                         "page": _page_constants(),
-                        "runs": [self._row(r) for r in found]})
+                        "runs": self._timed(
+                            "rows", lambda: [self._row(r) for r in found])},
+                       etag=True)
             return
 
         parts = [p for p in path.split("/") if p]
@@ -323,12 +397,23 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
                         return int(query.get(name, [""])[0])
                     except (TypeError, ValueError):
                         return None
-                tail = runs_mod.tail_events(
+
+                def _limit():
+                    value = _int("limit")
+                    return value if value is not None and value > 0 else None
+                # the cap is the page's, passed in rather than known here:
+                # `MAX_LINES` lives in `watch.mjs` beside the pane it bounds,
+                # and a second copy of it in python is a second authority for
+                # how many lines a console keeps. An absent or junk `limit` is
+                # no cap, which is what this route did before WP-1427.
+                tail = self._timed("tail", lambda: runs_mod.tail_events(
                     run.path / runs_mod.EVENTS_FILE,
-                    _int("offset") or 0, inode=_int("inode"))
+                    _int("offset") or 0, inode=_int("inode"),
+                    max_events=_limit()))
                 self._json({"events": tail.events, "offset": tail.offset,
                             "inode": tail.inode, "reset": tail.reset,
-                            "bad_lines": tail.bad_lines, "size": tail.size})
+                            "bad_lines": tail.bad_lines, "size": tail.size,
+                            "skipped": tail.skipped})
                 return
             if rest in ("snapshot", "legacy"):
                 # served as bytes, never parsed here: the reader constructs
@@ -339,7 +424,8 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
                 kind = ("application/json; charset=utf-8" if rest == "snapshot"
                         else "text/html; charset=utf-8")
                 try:
-                    body = (run.path / name).read_bytes()
+                    body = self._timed("read",
+                                       (run.path / name).read_bytes)
                 except OSError:
                     self._send(b"no snapshot yet", "text/plain; charset=utf-8",
                                status=404)

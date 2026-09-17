@@ -97,6 +97,43 @@ snapshot is not a thing; the snapshot is a picture.
 
 ### Inherited
 
+- **2026-09-17, from [1427](1427-what-a-poll-costs.md): the watcher's routes
+  gained two things a GUI-launching WP should know, and left one open
+  question.** All measured on this machine, `[dev]` plus playwright,
+  darwin/arm64.
+  - **`/api/runs` now answers 304 to a conditional request**, so a client that
+    polls it must send `If-None-Match` and read the status. A 304 carries the
+    tag and no body. `liveness.heartbeat_age` left the row to make that
+    possible: it was `now - heartbeat`, nothing read it, and the heartbeat it
+    came from is in the row's `status`.
+  - **The events route takes a `limit`** and reports what it dropped in
+    `skipped`. The page passes its own `MAX_LINES`, so the pane's length is the
+    one authority for how many lines are worth sending. Absent or junk is no
+    cap, which is what the route did before.
+  - **Open, and the maintainer's**: a reader opening a run with a very long log
+    walks forward through it in 4 MB chunks, so they see events from several
+    minutes ago for a few seconds before reaching the tail. The freeze is gone
+    either way (997 ms → 31 ms on a 40 000-event open). Seeking to the end on a
+    cold open would fix the staleness and would change what `offset` means,
+    which is a route decision rather than a performance one.
+
+- **2026-09-17, from [1427](1427-what-a-poll-costs.md), by way of
+  [1429](1429-one-palette-and-one-theme-for-three-pages.md): a GUI defect
+  neither WP fixed, filed here because this is the WP that opens a GUI.** The
+  GUI's reflection tick rows carry no explicit colour, so they take plotly's
+  colorway — which is indexed by **position in the trace array**, and the GUI's
+  background trace is both conditional on there being a background *and*
+  toggleable by the reader (`Plot.svelte`, `shows(hidden, "bkg")`). Hiding the
+  background therefore moves every phase's tick colour one step along the
+  colorway, on a click. Measured on the watcher, which briefly had the same
+  shape: `phase 0` went `#d62728` → `#9467bd`, and `#d62728` sits **0.043**
+  from `--plot-calc` in OKLab on the light theme, against the 0.13 floor
+  `tests/test_gui_palette.py` holds every other plot colour to. The watcher
+  keeps explicit colours because of it (`PALETTES["dark"]`, guarded in
+  `test_watch_browser.py`). The fix needs a **categorical palette the GUI does
+  not own**, which is the maintainer's question rather than any WP's.
+
+
 - **2026-09-16, from [1429](1429-one-palette-and-one-theme-for-three-pages.md):
   a GUI opened from the watcher now matches the page it was opened from.**
   Both read the theme out of `state_dir/settings.json` and draw from the same

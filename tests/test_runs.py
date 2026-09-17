@@ -12,6 +12,7 @@ from __future__ import annotations
 import fcntl
 import io
 import json
+import shutil
 import socket
 import threading
 from pathlib import Path
@@ -167,6 +168,91 @@ def test_discover_opens_exactly_two_files_per_run(tmp_path, monkeypatch):
     assert len(opened) == 6, opened
     assert all(Path(p).name in (runs.META_FILE, runs.STATUS_FILE)
                for p in opened), opened
+
+
+def test_a_cached_walk_opens_two_files_per_changed_run(tmp_path, monkeypatch):
+    """The budget above, once a viewer is polling (WP-1427).
+
+    A walk re-reads what it read a second ago, so the cache turns an unchanged
+    run into the stats it was going to do anyway. The budget it replaces the
+    old one with is per *changed* run, and a run nothing touched is zero files.
+    """
+    for i in range(3):
+        _write_run(tmp_path / f"r{i}", events=_event_line("fit_start"),
+                   status={"stage": "cell"})
+
+    opened: list[str] = []
+    real_open = io.open
+
+    def counting_open(file, *args, **kwargs):
+        opened.append(str(file))
+        return real_open(file, *args, **kwargs)
+
+    cache: dict = {}
+    runs.discover(tmp_path, cache=cache)              # warm, uncounted
+
+    monkeypatch.setattr(io, "open", counting_open)
+    monkeypatch.setattr("builtins.open", counting_open)
+    again = runs.discover(tmp_path, cache=cache)
+    assert len(again) == 3
+    assert opened == [], opened
+
+    # one run writes its status, as a live fit does every cadence
+    (tmp_path / "r1" / runs.STATUS_FILE).write_text(
+        json.dumps({"stage": "biso", "rwp": 0.2}), encoding="utf-8")
+    opened.clear()
+    moved = runs.discover(tmp_path, cache=cache)
+    assert len(opened) == 2, opened
+    assert {Path(p).parent.name for p in opened} == {"r1"}
+    assert next(r.status.stage for r in moved if r.path.name == "r1") == "biso"
+
+
+def test_the_cache_notices_every_file_a_row_is_built_from(tmp_path):
+    """A cached row cannot outlive a write to anything it reflects.
+
+    Three files and two flags go into a row, so all five are in the key. The
+    snapshot flag is the one a reader would miss: a run gains its picture at
+    its first stage boundary, and a row that still said ``has_snapshot: false``
+    would leave the page drawing nothing for as long as the fit ran.
+    """
+    d = _write_run(tmp_path / "r", events=_event_line("fit_start"),
+                   status={"stage": "cell"})
+    cache: dict = {}
+    (before,) = runs.discover(tmp_path, cache=cache)
+    assert before.has_snapshot is False
+
+    (d / runs.SNAPSHOT_FILE).write_text("{}", encoding="utf-8")
+    (after,) = runs.discover(tmp_path, cache=cache)
+    assert after.has_snapshot is True
+
+    # and the log growing is a row change too: `size_bytes` is off its stat
+    with open(d / runs.EVENTS_FILE, "a", encoding="utf-8") as fh:
+        fh.write(_event_line("fit_end"))
+    (grown,) = runs.discover(tmp_path, cache=cache)
+    assert grown.size_bytes > after.size_bytes
+
+
+def test_the_cache_is_pruned_to_what_the_walk_found(tmp_path):
+    """A viewer polls a directory where runs come and go, for days."""
+    for name in ("a", "b"):
+        _write_run(tmp_path / name, events=_event_line("fit_start"))
+    cache: dict = {}
+    runs.discover(tmp_path, cache=cache)
+    assert len(cache) == 2
+
+    shutil.rmtree(tmp_path / "b")
+    runs.discover(tmp_path, cache=cache)
+    assert {p.name for p in cache} == {"a"}
+
+
+def test_a_walk_with_no_cache_is_what_it_always_was(tmp_path):
+    """The default is no cache, and the answer is the same either way."""
+    for i in range(3):
+        _write_run(tmp_path / f"r{i}", events=_event_line("fit_start"),
+                   status={"stage": "cell"})
+    plain = runs.discover(tmp_path)
+    cached = runs.discover(tmp_path, cache={})
+    assert [r.as_dict() for r in plain] == [r.as_dict() for r in cached]
 
 
 def test_a_broken_sidecar_costs_progress_not_the_run(tmp_path):
@@ -432,6 +518,54 @@ def test_a_replaced_log_resets_the_cursor(tmp_path):
     second = runs.tail_events(log, first.offset, inode=first.inode)
     assert second.reset is True
     assert len(second.events) == 2
+
+
+def test_a_capped_tail_keeps_the_newest_and_counts_what_it_dropped(tmp_path):
+    """``max_events`` is a tailing viewer's cap, and it is honest about it.
+
+    The pane it exists for holds a fixed number of lines, so every event before
+    those is work with no reader. Dropping them *before* the JSON parse is
+    where the saving is (WP-1427).
+    """
+    log = tmp_path / "events.jsonl"
+    log.write_text("".join(
+        json.dumps({"record": "event", "v": "2", "t": float(i),
+                    "kind": "eval", "data": {"i": i}}) + "\n"
+        for i in range(500)), encoding="utf-8")
+
+    whole = runs.tail_events(log)
+    capped = runs.tail_events(log, max_events=10)
+
+    assert len(whole.events) == 500 and whole.skipped == 0
+    assert len(capped.events) == 10
+    assert capped.skipped == 490
+    assert [e["data"]["i"] for e in capped.events] == list(range(490, 500))
+    # the offset walks over everything read, or the next poll re-reads the
+    # events this one deliberately dropped, forever
+    assert capped.offset == whole.offset
+
+
+def test_an_uncapped_tail_is_what_it_always_was(tmp_path):
+    """The default is no cap. A library function that dropped events unasked
+    would be deciding what somebody else's log says."""
+    log = tmp_path / "events.jsonl"
+    log.write_text("".join(
+        json.dumps({"record": "event", "v": "2", "t": float(i),
+                    "kind": "eval", "data": {}}) + "\n"
+        for i in range(50)), encoding="utf-8")
+    tail = runs.tail_events(log)
+    assert len(tail.events) == 50
+    assert tail.skipped == 0
+
+
+def test_a_cap_larger_than_the_log_drops_nothing(tmp_path):
+    log = tmp_path / "events.jsonl"
+    log.write_text(json.dumps({"record": "event", "v": "2", "t": 1.0,
+                               "kind": "fit_start", "data": {}}) + "\n",
+                   encoding="utf-8")
+    tail = runs.tail_events(log, max_events=2000)
+    assert len(tail.events) == 1
+    assert tail.skipped == 0
 
 
 def test_tailing_a_missing_log_is_empty_not_an_error(tmp_path):

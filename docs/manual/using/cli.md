@@ -279,7 +279,7 @@ directly:
 |---|---|
 | `/api/runs` | every run under the scanned root, with its liveness |
 | `/api/run/<id>` | one run's row |
-| `/api/run/<id>/events?offset=` | events from a byte offset, with the next offset |
+| `/api/run/<id>/events?offset=&limit=` | events from a byte offset, with the next offset; `limit` keeps the newest that many and counts the rest in `skipped` |
 | `/api/run/<id>/snapshot` | the stage's curves, ticks and statistics as JSON |
 | `/api/run/<id>/legacy` | a `fit.html` written before 1.4, served as it stands |
 | `POST /api/run/<id>/cancel` | asks that run to stop; 403 under `--read-only` |

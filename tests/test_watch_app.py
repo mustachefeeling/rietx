@@ -10,6 +10,7 @@ it — the script for anything in the script, the stylesheet for a rule.
 
 from __future__ import annotations
 
+import http.client
 import json
 import os
 import re
@@ -18,6 +19,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -867,6 +869,176 @@ def test_no_colour_literal_is_left_in_the_page(tmp_path):
         text = (watch.STATIC_DIR / name).read_text(encoding="utf-8")
         found = set(literal.findall(text))
         assert found <= allowed, f"{name} still declares {sorted(found - allowed)}"
+
+
+# ----------------------------------------------------------------------
+# what a poll costs (WP-1427)
+# ----------------------------------------------------------------------
+def test_the_tail_route_caps_at_the_limit_the_page_asks_for(tmp_path):
+    """The console is a tail over a pane of fixed length, so the page names
+    the cap and the route honours it.
+
+    Without it, clicking a job that has been running a few minutes delivers
+    every event of it in one response: 60 000 lines parsed and built into
+    ``<div>``s to keep 2000 of them.
+    """
+    events = "".join(_event_line("eval", t=float(i), i=i) for i in range(300))
+    _make_run(tmp_path / "r", events=events)
+    with _served(tmp_path) as base:
+        (row,) = _json(base + "/api/runs")["runs"]
+        url = f"{base}/api/run/{row['run_id']}/events?offset=0"
+        capped = _json(url + "&limit=25")
+        whole = _json(url)
+
+    assert len(capped["events"]) == 25
+    assert capped["skipped"] == 275
+    assert [e["data"]["i"] for e in capped["events"]] == list(range(275, 300))
+    # the offset is the same either way, so a capped poll still reaches the end
+    assert capped["offset"] == whole["offset"]
+    assert len(whole["events"]) == 300 and whole["skipped"] == 0
+
+
+@pytest.mark.parametrize("query", ["", "&limit=0", "&limit=-5", "&limit=lots"])
+def test_an_absent_or_junk_limit_is_no_cap(tmp_path, query):
+    """What this route did before WP-1427, for anything that is not a count."""
+    events = "".join(_event_line("eval", t=float(i), i=i) for i in range(40))
+    _make_run(tmp_path / "r", events=events)
+    with _served(tmp_path) as base:
+        (row,) = _json(base + "/api/runs")["runs"]
+        tail = _json(f"{base}/api/run/{row['run_id']}/events?offset=0{query}")
+    assert len(tail["events"]) == 40
+    assert tail["skipped"] == 0
+
+
+
+def _server_timing(url: str) -> dict:
+    """The response's ``Server-Timing`` marks, as ``{phase: milliseconds}``."""
+    with urllib.request.urlopen(url, timeout=5) as response:
+        raw = response.headers.get("Server-Timing") or ""
+    out = {}
+    for part in raw.split(","):
+        name, _, dur = part.strip().partition(";dur=")
+        if name:
+            out[name] = float(dur)
+    return out
+
+
+def test_every_route_on_the_poll_says_what_it_cost(tmp_path):
+    """``Server-Timing``, which is the documented header for exactly this.
+
+    A browser shows it beside the request in the network panel, and this test
+    reads the same numbers with no profiler. The phases are named for what they
+    do rather than for the function doing it, so a rewrite of :class:`_RunIndex`
+    keeps ``walk`` meaning the walk.
+    """
+    _make_run(tmp_path / "r", events=_event_line("fit_start"), snapshot=True)
+    with _served(tmp_path) as base:
+        (row,) = _json(base + "/api/runs")["runs"]
+        run_id = row["run_id"]
+        listing = _server_timing(base + "/api/runs")
+        events = _server_timing(f"{base}/api/run/{run_id}/events?offset=0")
+        snapshot = _server_timing(f"{base}/api/run/{run_id}/snapshot")
+
+    assert set(listing) == {"walk", "rows", "serialize"}
+    assert set(events) == {"walk", "tail", "serialize"}
+    assert set(snapshot) == {"walk", "read"}
+    # a mark is a duration and not a clock: negative or absent is a bug in the
+    # instrument, and this is the only assertion worth making about the value
+    assert all(v >= 0.0 for marks in (listing, events, snapshot)
+               for v in marks.values())
+
+
+def test_a_marks_header_is_about_one_request_and_not_the_connection(tmp_path):
+    """Keep-alive serves many requests through one handler object.
+
+    The marks list is built per request and must be cleared per request, or the
+    second response on a connection carries the first one's numbers as well as
+    its own — a header that grows for as long as the browser holds the socket.
+    """
+    _make_run(tmp_path / "r", events=_event_line("fit_start"))
+    with _served(tmp_path) as base:
+        host, port = urllib.parse.urlsplit(base).netloc.split(":")
+        conn = http.client.HTTPConnection(host, int(port), timeout=5)
+        try:
+            seen = []
+            for _ in range(3):
+                conn.request("GET", "/api/runs")
+                response = conn.getresponse()
+                response.read()
+                seen.append(response.headers.get("Server-Timing") or "")
+        finally:
+            conn.close()
+    for header in seen:
+        assert [p.split(";")[0].strip() for p in header.split(",")] == [
+            "walk", "rows", "serialize"]
+
+
+def _conditional(base: str, etag: str | None = None):
+    """``GET /api/runs``, optionally conditional. Returns status, body, ETag."""
+    headers = {"If-None-Match": etag} if etag else {}
+    request = urllib.request.Request(base + "/api/runs", headers=headers)
+    try:
+        with urllib.request.urlopen(request, timeout=5) as response:
+            return response.status, response.read(), response.headers.get("ETag")
+    except urllib.error.HTTPError as err:
+        return err.code, err.read(), err.headers.get("ETag")
+
+
+def test_a_poll_where_nothing_changed_is_two_header_lines(tmp_path):
+    """``ETag``/``If-None-Match``, which is the documented mechanism.
+
+    The walk and the rows are paid for either way — the digest is of the body,
+    so the body has to exist. What a 304 saves is the wire and the page's own
+    parse and patch, which measured 3.1 ms of main thread and 222 kB an idle
+    poll on 200 runs, once a second for as long as a tab is open (WP-1427).
+    """
+    _make_run(tmp_path / "r", events=_event_line("fit_start"),
+              status={"state": "done", "stage": "cell", "rwp": 0.1})
+    with _served(tmp_path) as base:
+        status, body, etag = _conditional(base)
+        assert status == 200 and etag
+        again, empty, same = _conditional(base, etag)
+
+    assert again == 304
+    assert empty == b""
+    assert same == etag
+
+
+def test_a_run_that_moved_invalidates_the_tag(tmp_path):
+    """A 304 must mean *this list*, not *a list*."""
+    run = _make_run(tmp_path / "r", events=_event_line("fit_start"),
+                    status={"state": "running", "stage": "cell", "rwp": 0.4})
+    with _served(tmp_path) as base:
+        _, _, etag = _conditional(base)
+        assert _conditional(base, etag)[0] == 304
+
+        (run / runs.STATUS_FILE).write_text(
+            json.dumps({"state": "running", "stage": "biso", "rwp": 0.2}),
+            encoding="utf-8")
+        # past the index TTL, which is what bounds how soon a write is seen;
+        # the tag is about the payload and the TTL is about the walk
+        time.sleep(watch.INDEX_TTL_SECONDS + 0.05)
+        status, body, moved = _conditional(base, etag)
+
+    assert status == 200
+    assert moved != etag
+    assert json.loads(body)["runs"][0]["status"]["stage"] == "biso"
+
+
+def test_a_row_carries_no_clock_of_its_own(tmp_path):
+    """``heartbeat_age`` is ``now - heartbeat``, so it moved on every poll and
+    made every idle answer a different one — which is the whole of what the
+    tag above has to decide. Nothing read it (WP-1427). The heartbeat it came
+    from is in ``status`` already, so nothing was lost.
+    """
+    _make_run(tmp_path / "r", events=_event_line("fit_start"),
+              status={"state": "running", "pid": os.getpid(),
+                      "host": socket.gethostname(), "heartbeat": 1.0})
+    with _served(tmp_path) as base:
+        (row,) = _json(base + "/api/runs")["runs"]
+
+    assert set(row["liveness"]) == {"state", "evidence"}
+    assert row["status"]["heartbeat"] == 1.0
 
 
 def test_the_two_local_servers_allow_the_same_hosts():
