@@ -341,7 +341,7 @@ every labelled equation has one.
 
 ## Handover log
 
-### 2026-09-17 (3rd session) — the rename, and the five sentences that were not the paper's
+### 2026-09-17 (3rd session) — the rename, and a misattribution in nine places
 
 The package no longer writes `k` for sinθ/λ. That quantity is `s` in every
 equation and `stol` in every identifier, which is what Waasmaier & Kirfel and
@@ -350,9 +350,11 @@ wavevector everyone outside this package means by it and for the magnetic
 propagation vector the queued magnetic track needs inside `crystallography/`
 itself. Nothing computed moved, and that is pinned rather than asserted. The
 second half of the work was smaller in the diff and larger in what it corrects:
-five sentences across the tree attributed a definition, a threshold or a symbol
-to a paper that does not contain it, and each one is now either the paper's or
-plainly labelled as this package's own choice.
+sentences across the tree attributed a definition, a threshold or a symbol to a
+paper that does not contain it, and each one is now either the paper's or
+plainly labelled as this package's own choice. The F_N one alone had **nine
+live sites in eight files**, and it took four rounds to find them all — which is
+the finding, not an aside.
 
 *Done.* All eleven checklist items, twelve commits. `scattering.py`,
 `structure_factor.py` and `dispersion.py` take the split; the three
@@ -399,6 +401,25 @@ pass fixed a lead-sentence-refuted-by-its-own-body shape in `fom.py` and left th
 identical shape standing in `using/indexing.md`. Counts were unchanged by all of
 it, which is why the full selection was re-run: the fixes landed after the first
 full run, and that run no longer described the tree that merges.
+
+*The count, and how it was finally closed.* Four rounds each found more,
+which is what an incomplete search looks like from the inside: the session found
+four sites, the review pass four more, verifying the review two more, and a
+**systematic sweep** — one regex per defect class over all 854 tracked text
+files, printing every hit for adjudication rather than counting them — found the
+ninth. That last one was the worst of them: `tests/validation_matrix.py` is the
+data *and* the renderer for `docs/VALIDATION.md`, so the false claim was in a
+shipped document, in capitals, and no grep of `src/` or `docs/` would have
+reached the source. Regenerate with `.venv/bin/python -m tests.validation_matrix`.
+**The lesson is procedural**: grepping for the wording you just fixed finds the
+copies that share your phrasing, never the ones that say the same thing
+differently. Sweep by defect class, over every tracked file, and read the hits.
+
+*Deliberately not generalised.* `gui/src/lib/peaks.test.ts` uses `"F20"` as a
+fixture label, but the backend emits `name="f_n"` and that test exercises a
+generic column mapper with arbitrary names, so it asserts nothing about a paper.
+The WP files and the v1.0 milestone record that carry the old wording are dated
+records of what was believed at the time and are left as written.
 
 *Declined, with the reason.* A meta-test for `help.py`'s third rule, that a
 description stating a formula names where the real one lives. Pinning it needs
