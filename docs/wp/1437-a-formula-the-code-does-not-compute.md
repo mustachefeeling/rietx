@@ -64,7 +64,10 @@ Parsed 2026-09-17: **116** `description=` blocks, of which **15** carry an
 equation and **6** carry a number with a unit. The defect above is one of the
 15. The other fourteen have never been checked against their code.
 
-The six numeric ones currently agree, so they carry drift risk only:
+Those six sentences quote **three** live constants between them, and all three
+currently agree, so they carry drift risk only. Re-derive the six from
+`help.py` before pinning: the count below is of constants, not of sentences,
+and a sentence quoting a fourth constant would not appear here.
 
 | description says | live constant |
 |---|---|

@@ -98,7 +98,7 @@ Five further findings are in scope here:
 | Symbol | Anchor | Quantity | Why |
 |---|---|---|---|
 | `k` | `qpa.py:168` | per-phase Z·M·V | Hill & Howard give the product no letter, and `K` in QPA means O'Connor & Raven's calibration constant, whose method `qpa.py:22` fences to v2. Both callers already pass `[z.zmv for z in zmvs]` |
-| `Q` | `manual.md:163` against `schemas/indexing.py:537` | 4π sinθ/λ against 1/d² | The notation table contradicts the package's own public `PeakLine.q` |
+| `Q` | `manual.md:163` against `schemas/indexing.py:537` | 4π sinθ/λ against 1/d² | The notation table contradicts the package's own public `ObservedPeak.q` (`schemas/indexing.py:576`) |
 | `1/d` | missing from `manual.md:163` | the third reciprocal length | It is what half the manual calls `Q`, and it is what the comment named. `forward-model.md:50` and `peak-positions.md:125` both spell out "sinθ/λ = 1/2d" to defuse the same confusion |
 | "F20" | `fom.py:47`, `:581` | user-facing diagnostic prose | Claims Smith & Snyder define F₂₀ on the first twenty. **Settled against the paper**, below |
 | `β` | `microstructure.md:34` | FWHM in radians | Langford & Wilson write `β` for the *integral breadth* and `2w` for the FWHM. **Settled against the paper**, below |
@@ -120,8 +120,8 @@ Two rules for anyone re-checking this work:
   zero. `re.sub(r"\s+", "", text)` first, then match.
 - **A zero hit on a number the code cites is a search bug until proven
   otherwise.** Searching raw text for `1.0747` returns nothing; flattened it is
-  there, in the Sphere row, and `0.8859` beside it. Both are what
-  `caglioti.py:93` quotes.
+  there, in the Sphere row, and `0.8859` beside it. `caglioti.py:94-95` quotes
+  that pair as 0.89 against 1.0747, the first rounded.
 
 Every conclusion below rests on running prose, never on a table or an equation
 image.
@@ -164,14 +164,25 @@ breadth measure, and no computed size is wrong.
 
 ### Sites for the rename
 
-Equations and prose: `docs/manual/intensities.md` lines 9, 10, 28, 29, 128;
-`docs/manual/manual.md:163`; `CLAUDE.md:486`;
+These lists are complete as of 2026-09-17, scanned for the bare token `k`
+rather than read off. **A binding and its uses move together**: in
+`structure_factor.py` the assignment at 335 is consumed at 337, 373 at 381 and
+434 at 443, and in `tests/test_dispersion.py` the local at 109 is consumed at
+122 and 124. Renaming a subset leaves a `NameError` that the suite catches and
+the rename pass should not have written.
+
+Equations and prose: `docs/manual/intensities.md` lines 9, 10, 28, 29, 64, 70,
+111, 128; `docs/manual/manual.md:163`; `CLAUDE.md:486`;
 `docs/skill/rietx/references/diagnostics.md:36` plus its two committed copies
 under `.agents/skills/` and `.claude/skills/`.
 
 Identifiers and docstrings: `crystallography/scattering.py` lines 3, 6, 8, 96,
-163, 164, 166, 176; `crystallography/structure_factor.py` lines 9, 36, 256,
-335, 373, 434; `crystallography/dispersion.py:5`; `tests/test_dispersion.py:122`.
+113, 163, 164, 166, 175, 176, 177 (175 and 177 are `k2`, the squared local);
+`crystallography/structure_factor.py` lines 3, 9, 15, 36, 89, 91, 228, 256,
+260, 265, 267, 276, 286, 293, 335, 337, 373, 381, 434, 443 — 228 and 286 are
+the `_orbit_terms` / `_structure_factors_ab` signatures and 293, 337, 381, 443
+their call sites; `crystallography/dispersion.py:5`; `tests/test_dispersion.py`
+lines 109, 122, 124, 215, 227, 228.
 
 `f0(species, k)` at `scattering.py:163` is **internal**:
 `tests/api_surface.py:189` declares `rietx.crystallography` internal by
@@ -204,13 +215,16 @@ the two sibling data files for the same reason.
 - [ ] `structure_factor.py` and `dispersion.py`: the same pass, module
       docstrings included. Each `k = 1.0 / (2.0 * d)` site gains the `1/(2d)`
       gloss line 335 already has.
-- [ ] `qpa.weight_fractions(k, ...)` → `zmv`. Two call sites, both already
-      passing `.zmv`.
+- [ ] `qpa.weight_fractions(k, ...)` → `zmv`, body and docstring included
+      (`qpa.py:168`, `:171`, `:184`, `:186`, `:197`). Two callers in `src`
+      (`qpa.py:388`, `:495`), both already passing `[z.zmv for z in zmvs]`, and
+      five in `tests/test_qpa.py` (112, 120, 127, 134, 474), all positional —
+      so nothing breaks, but `:474`'s local is itself named `k`.
 - [ ] `manual.md:163` becomes **two** rows, because the table is keyed
       `| quantity | unit |` and 1/d² is Å⁻²:
 
       | a reciprocal length | Å⁻¹: `s = sinθ/λ = 1/2d`, `|d*| = 1/d = 2s`, and `Q = 4π sinθ/λ` |
-      | a reciprocal length squared | Å⁻²: `Q = 1/d²`, the indexing chapters' `Q` and the `PeakLine.q` field |
+      | a reciprocal length squared | Å⁻²: `Q = 1/d²`, the indexing chapters' `Q` and the `ObservedPeak.q` field |
 
 - [ ] `intensities.md` equations to `s`; `CLAUDE.md:486`, plus a conventions
       clause recording the maths/identifier split with its reason.
@@ -250,12 +264,14 @@ Recorded here so a later session knows these were seen and left:
 - **`U*`** at `adp.py:14`. cctbx's letter, where the cited IUCr nomenclature
   report (Trueblood 1996) writes `β^ij`. Naming drift, definition exact.
 - **`caglioti.apparent_size(..., k=SCHERRER_K)`** at `caglioti.py:136` and
-  `:165`. A bare `k`, but every call site is positional and `SCHERRER_K`
-  carries the name.
+  `:165`. A bare `k`, but it is the Scherrer constant rather than sinθ/λ, and
+  `SCHERRER_K` carries the name at every call site that names it. Two sites do
+  pass it by keyword — `tests/test_profile_size.py:157` and `:158` — so a later
+  session that reopens this decision has those to change as well.
 - **`stephens.py`'s missing √(8 ln 2)** against FullProf's `D²_ST`. Checked and
-  cleared: `stephens.py:24-26` declares the omission and warns "Never transfer
-  a literature S_HKL without checking numerically". The house convention rule
-  working.
+  cleared: `stephens.py:24-27` declares the omission, and `:39-40` warns "Never
+  transfer a literature S_HKL without checking numerically". The house
+  convention rule working.
 
 ## Acceptance
 
@@ -309,9 +325,11 @@ propagation vector inside `crystallography/`.
 
 *Done.* **No task on this checklist landed, by design.** The session bought the
 audit that makes the checklist executable, and wrote it down. What exists now
-is this file, [1437](1437-a-formula-the-code-does-not-compute.md) and their two
-ROADMAP rows. No source file was touched, so every acceptance number below is
-still unmeasured.
+is this file, [1437](1437-a-formula-the-code-does-not-compute.md), their two
+ROADMAP rows, and the forward reference in the `### Inherited` of all five
+magnetic WPs (1326, 1327, 1328, 1329, 1418) — 1326 above all, since it is the
+first rung and the one that introduces `Phase.propagation_vector`. No source
+file was touched, so every acceptance number below is still unmeasured.
 
 *Measured.* Eight sources surveyed for the sinθ/λ symbol, five in the `s`
 family. About 100 physics symbols audited across seven subpackages plus the
