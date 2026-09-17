@@ -90,10 +90,10 @@ placement, link resolution, and the size caps on this file and CLAUDE.md.
 
 **No milestone is open.** [v1.4](#v14--free-standing-peaks) shipped 2026-09-13
 ([record](milestones/v1.4.md), [notes](releases/1.4.0.md)); `pyproject.version`
-is `1.4.0`. Opening v1.5 waits on
-[1439](wp/1439-windows-red-since-every-fit-records-itself.md), repairing the
-Windows nightly that `RELEASING.md` step 4 gates on. **492 commits and 29 WPs
-have landed since the tag**, the largest unreleased body this repo has held.
+is `1.4.0`. Opening v1.5 is the maintainer's decision and nothing blocks it:
+[1439](wp/1439-windows-red-since-every-fit-records-itself.md) put the Windows
+nightly green, `RELEASING.md` step 4's pre-upload gate. **492 commits and 29
+WPs have landed since the tag**, the largest unreleased body this repo holds.
 
 **Nothing else is in flight.** 1436 closed the symbol audit 1437 opened and
 freed `k` for the **magnetic track** (1326-1329, 1418), the largest queued
@@ -672,7 +672,7 @@ day after v1.4 was tagged.
 | [1427](wp/1427-what-a-poll-costs.md) | What a poll costs | ✅ 2026-09-17 | 1430 (1426 soft) |
 | [1428](wp/1428-open-in-the-gui-without-touching-the-fit.md) | Open in the GUI, without touching the fit | ✅ 2026-09-17 | 1405, 1401 (1430 soft) |
 | [1438](wp/1438-the-questions-the-track-left.md) | The questions the track left | ✅ 2026-09-17 | 1429, 1427, 1425, 1413 (1428 soft) |
-| [1439](wp/1439-windows-red-since-every-fit-records-itself.md) | Windows, red since every fit started recording itself | 🔄 2026-09-17 | — (1403, 1404 turned it red) |
+| [1439](wp/1439-windows-red-since-every-fit-records-itself.md) | Windows, red since every fit started recording itself | ✅ 2026-09-17 | — (1403, 1404 turned it red) |
 
 ### v2+ — fenced
 

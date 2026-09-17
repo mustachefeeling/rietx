@@ -1,6 +1,6 @@
 # WP-1439 — Windows, red since every fit started recording itself
 
-Milestone: unscheduled · Status: 🔄 2026-09-17 — review replaced the Windows pid probe; re-dispatched to verify
+Milestone: unscheduled · Status: ✅ 2026-09-17 — Windows green on the reviewed tree, 0 failed; the pre-upload gate is clear
 Depends on: — (1403, 1404 are what turned it red)
 
 ## Goal
@@ -158,9 +158,10 @@ probe on Windows is now `OpenProcess` + `GetExitCodeProcess` through `ctypes`
 
 The test that was supposed to hold this asserted `!= "unknown"` about our own
 pid, which a confidently wrong `abandoned` also satisfies; it now asserts
-`_pid_alive(os.getpid()) is True`, on every platform. **The Windows half is
-unverified**: it wants a nightly dispatch before the pre-upload gate is called
-clear again.
+`_pid_alive(os.getpid()) is True`, on every platform, and a Windows-only case
+exercises both ends of the new probe. **Verified**: run 35277708496, job
+105392198673, 5300 passed, 153 skipped, 0 failed. That run is the first in
+which the pid rung was actually put a question it could fail.
 
 **Done.**
 
@@ -190,12 +191,16 @@ the whole subject here.
 |---|---|
 | Before, run 35211225530 | 3 failed, 5187 passed, 146 skipped, 1 error |
 | After round one, 35273799888 | 2 failed, 5292 passed, 154 skipped |
-| After round two, 35275114425 | **0 failed**, 5298 passed, 152 skipped, 491 s |
+| After round two, 35275114425 | 0 failed, 5298 passed, 152 skipped, 491 s |
+| After review, 35277708496 | **0 failed**, 5300 passed, 153 skipped, 367 s |
 
-Local fast selection, macOS arm64: 5317 passed, 133 skipped, 1:21. The
-baseline for this branch was 5445 cases and the tree now holds 5450, +5 for
-exactly the five added: one telemetry parametrisation, two `_pid_alive`
-cases, two guards. macOS and torch green on the same nightly run.
+Local fast selection, macOS arm64: 5319 passed, 134 skipped, 1:22. The
+baseline for this branch was 5445 cases and the tree holds 5453, +8 for
+exactly the eight added: one telemetry parametrisation, three pid cases and
+four guard cases. A ninth was added mid-session and replaced by the review,
+so it nets to nothing. Round two's totals agreed across platforms at
+5450 and the reviewed tree's agree at 5453, which is the check that Windows
+is skipping cases rather than losing them.
 
 **Gotchas for whoever is next in here.**
 
