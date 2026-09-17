@@ -252,7 +252,7 @@ the two sibling data files for the same reason.
 
 - [x] `intensities.md` equations to `s`; `CLAUDE.md:486`, plus a conventions
       clause recording the maths/identifier split with its reason.
-- [ ] `docs/skill/rietx/references/diagnostics.md:36`, then re-sync the two
+- [x] `docs/skill/rietx/references/diagnostics.md:36`, then re-sync the two
       committed copies with `rietx skill --install . --copy`.
 - [ ] `fom.py:47` and `:583`: say F_N at N = 20, name `PEAK_MIN_USABLE_LINES`
       as the reason for the twenty, and record that Smith & Snyder recommend
@@ -270,7 +270,7 @@ the two sibling data files for the same reason.
       three other test files named under § Sites, and a bit-identity check that a
       converged fit on a structural standard returns the same parameters before
       and after. Plot obs/calc/diff to `tests/output/` and look at it.
-- [ ] Skill: the `diagnostics.md` row above is the change. The body needs
+- [x] Skill: the `diagnostics.md` row above is the change. The body needs
       nothing, since an agent driving rietx never types this symbol: it appears
       in no parameter path, no diagnostic code and no result field.
 
