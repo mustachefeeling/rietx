@@ -100,8 +100,12 @@ Everything downstream of the amplitude is unchanged. {eq}`int-F` takes $b$ where
 it took $f$, the Debye-Waller factors of {eq}`int-dw-aniso` are properties of
 the displacement and not of the probe, and {eq}`int-friedel` is trivially
 satisfied because $B \equiv 0$ when the amplitude is real. The
-Lorentz-polarisation factor {eq}`corr-lp` reduces to the bare Lorentz factor,
-since an unpolarised neutron beam sets $K = 1$.
+Lorentz-polarisation factor {eq}`corr-lp` reduces to the bare Lorentz factor.
+Neutrons are not polarised by the monochromator the way the Thomson cross
+section polarises X-rays, so there is no polarisation term to carry, and
+$K = 1$ makes the numerator of {eq}`corr-lp` identically 1. That is not the
+unpolarised value. $K$ is the $\sigma$-polarised fraction everywhere in this
+manual, and an unpolarised X-ray beam sits at $K = 0.5$.
 
 ## The structure factor
 

@@ -8,8 +8,8 @@ TypeScript corpora, and no description of ``instrument.profile.w`` anywhere in
 the tree.  The corpus lives here so the GUI, the CLI and the manual read the
 same sentence.
 
-Two rules govern what may be written down here, both of them the root CLAUDE.md's
-"a derived flag rots silently" one rank over.
+Three rules govern what may be written down here, the first two of them the root
+CLAUDE.md's "a derived flag rots silently" one rank over.
 
 **A fact the package already computes is never restated.**  ``unit`` and
 ``default`` are pinned to the live :class:`~rietx.schemas.common.Parameter` by
@@ -26,6 +26,21 @@ closed and derivable (``PeakFlag``, the ``PEAK_*`` diagnostic codes,
 fails coverage the day it lands.  That is why the arms are
 keyed by name and the parameter families by glob rather than being one flat dict:
 each key set has a different authority to be checked against.
+
+**A description that states a formula or a threshold names where the real one
+lives.**  ``description`` is authored, so a formula in one is a *copy* with
+nothing holding it to the code, and the copy drifts silently because no test
+reads prose.  WP-1437 measured what that costs: this module told users the
+Lorentz-polarisation factor was ``(1 + K·cos²2θ)/(1 + K)`` while
+:func:`~rietx.model.corrections.lorentz_polarization` computed
+``K + (1 − K)·cos²2θ``, which at the K = 0.99 the same entry quoted for 11-BM
+is a factor of 0.508 at 2θ = 90° and 0.878 at 30°.  The ratio *varies with
+angle*, so no phase scale absorbs it and it biases ADPs and phase fractions.
+The naming is the whole guard: a reader who can reach the computing function
+can check it, and a session renaming that function finds the entry by grep.
+A threshold goes further and is **pinned** — see
+``test_quoted_thresholds_are_the_codes_own`` in ``tests/test_help.py`` — because
+a number has a live constant to be held against where a sentence does not.
 
 ``typical`` is the one field with no live authority.  It is a range a reader can
 sanity-check their own number against, sourced from McCusker et al. (1999)
@@ -205,14 +220,22 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
     "instrument.polarization": HelpEntry(
         title="Polarization factor",
         description=(
-            "The K of the Lorentz-polarisation correction, "
-            "(1 + K·cos²2θ)/(1 + K). Fixed by the beam optics, so it is "
-            "declared and not refined: 0.5 for an unpolarised laboratory "
-            "source, cos²2θ_M for a monochromated one, and 0.99 in the APS "
-            "11-BM instrument-parameter files."
+            "The K of the Lorentz-polarisation correction, whose polarisation "
+            "numerator is K + (1 − K)·cos²2θ. "
+            "`model.corrections.lorentz_polarization` is what computes it. K "
+            "is the fraction of the beam polarised perpendicular to the "
+            "diffraction plane. Beam optics fix it, so it is declared rather "
+            "than refined, and no plan frees it. An unpolarised laboratory "
+            "source gives 0.5. A diffracted-beam monochromator gives "
+            "1/(1 + cos²2θ_m), which is 0.556 for graphite (002) at Cu Kα and "
+            "0.630 for the same crystal at Cr Kα. The APS 11-BM "
+            "instrument-parameter files carry 0.99. A constant-wavelength "
+            "neutron source pins K = 1, where the numerator is identically 1 "
+            "and the factor is the bare Lorentz, and force-fixes the entry."
         ),
         unit=None, default="0.5",
-        typical="0.5 unmonochromated lab; 0.9-1.0 synchrotron",
+        typical="0.5 unmonochromated lab; 0.51-0.63 monochromated lab "
+                "(graphite 002, Ag Kα to Cr Kα); 0.9-1.0 synchrotron",
         anchor="corrections.html#lorentz-polarisation",
     ),
     "instrument.source.lines.*.wavelength": HelpEntry(
@@ -397,10 +420,15 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
     "instrument.profile.v": HelpEntry(
         title="Caglioti V",
         description=(
-            "The tanθ term of the Gaussian variance. It is the only Caglioti "
-            "term allowed to be negative, and the minimum of the width curve "
-            "sits where it cancels against U. Nothing in the specimen "
-            "contributes to it, so it is purely instrumental."
+            "The tanθ term of the Gaussian variance Γ_G² = U·tan²θ + V·tanθ "
+            "+ W, which `model.profiles.caglioti.gaussian_fwhm` computes. It "
+            "is the Caglioti term that usually goes negative, and it carries "
+            "much the widest negative range. It is not the only one that may: "
+            "U's default bound admits a small negative value too, while W, X "
+            "and Y are softplus-floored at zero and cannot go negative at "
+            "all. The width curve's minimum sits at tanθ = −V/(2U). Nothing "
+            "in the specimen reaches V, so it is purely instrumental, and a "
+            "phase's `gauss_strain` adds to U instead."
         ),
         unit="deg² 2θ", default="0.0",
         typical="−0.05 to 0",
@@ -1342,12 +1370,17 @@ INSTRUMENT_FIELD_HELP: dict[str, HelpEntry] = {
     "monochromator_two_theta": HelpEntry(
         title="Monochromator 2θ",
         description=(
-            "The take-off angle of a diffracted-beam monochromator crystal, "
-            "which fixes the polarisation factor as cos²2θ_M. Leave it empty "
-            "if there is no monochromator."
+            "The take-off angle of a diffracted-beam monochromator crystal. "
+            "It fixes the polarisation factor K at 1/(1 + cos²2θ_m), which is "
+            "0.556 for graphite (002) at Cu Kα. `Instrument.bragg_brentano` "
+            "is what does that conversion. Leave it empty if there is no "
+            "monochromator, which leaves the unpolarised K = 0.5. The 26.6° "
+            "is a Cu number rather than a property of the graphite, so "
+            "compute it for the anode in use."
         ),
         unit="deg",
-        typical="26.6° for graphite (002) at Cu Kα",
+        typical="26.6° for graphite (002) at Cu Kα; 9.6-39.9° for the same "
+                "crystal from Ag Kα to Cr Kα",
         anchor="corrections.html#lorentz-polarisation",
     ),
     "ka2_ratio": HelpEntry(
