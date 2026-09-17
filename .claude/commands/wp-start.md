@@ -108,8 +108,10 @@ Run the session-start ritual. The SessionStart hook's report
 
    **It is a draft of the real PR, never a second one.** `/wp-handover` step 11
    edits this same PR and marks it ready, so claiming early costs nothing at the
-   end and the work is reviewable from the first commit. Skip it only for a
-   session that will not commit — say so in a line if you do.
+   end and the work is reviewable from the first commit. Nor does it cost
+   anything in CI: a draft PR runs ruff alone (~40 s), and the matrix waits for
+   `gh pr ready` at the handover. Skip it only for a session that will not
+   commit — say so in a line if you do.
 
    **Everyone does this, not only contributors.** A maintainer working locally
    is exactly as invisible to a contributor as the reverse, and a one-sided

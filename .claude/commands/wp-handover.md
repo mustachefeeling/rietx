@@ -158,7 +158,9 @@ steps below run unchanged.
       duplicated. `/wp-start` step 4b opens one as a **draft** to claim the WP,
       so the usual case here is editing that draft and marking it ready
       (`gh pr ready`) — a claim PR left in draft reads as work still in flight
-      and goes on holding the WP.
+      and goes on holding the WP. **`gh pr ready` is also what starts the
+      gating run**: a draft PR runs ruff alone, so the fast matrix reports only
+      once the PR is ready, and step 12 has nothing to watch until it is.
     - Title mirrors the lead commit: `WP-NNNN: <what landed>`.
     - Body is the handover entry **rewritten for a reviewer**, not pasted:
       what landed and why, what it measured (with the venv **and** platform,

@@ -413,15 +413,43 @@ def _read_json(path: Path, model):
         return None
 
 
+def project_of(run_dir: str | Path) -> Path | None:
+    """The project directory this run is recorded inside, or ``None``.
+
+    **Two layouts, and both are current** (WP-1428). A recorder writes a run
+    per fit at ``<name>.rex/live/<run id>``, which is what ``Project.fit``
+    produces. A caller who points ``LiveSession`` straight at a project's live
+    directory writes into ``<name>.rex/live`` itself, which is the pre-WP-1403
+    shape and still what a hand-built directory looks like.
+
+    One function because three callers had open-coded one branch each and two
+    of them had picked different branches: :func:`_label_for` matched the
+    second layout, :meth:`RunRecorder._default_label` the first, and the
+    watcher's row builder the second — so the GUI command it offers was
+    ``None`` for every run a real project had recorded.
+    """
+    run_dir = Path(run_dir)
+    parent = run_dir.parent
+    # `<name>.rex/live` — the run directory *is* the project's live directory
+    if run_dir.name == LIVE_DIR_NAME and parent.name.endswith(PROJECT_SUFFIX):
+        return parent
+    # `<name>.rex/live/<run id>` — one run among the several a project recorded
+    if (parent.name == LIVE_DIR_NAME
+            and parent.parent.name.endswith(PROJECT_SUFFIX)):
+        return parent.parent
+    return None
+
+
 def _label_for(run_dir: Path, root: Path) -> str:
     """A human's name for the run.
 
-    A GUI project's log lives at ``<name>.rex/live``, where "live" names every
-    project's and so names none of them. The project directory is the label
-    there.
+    A GUI project's log lives under ``<name>.rex/live``, where "live" names
+    every project's and so names none of them. The project directory is the
+    label there.
     """
-    if run_dir.parent.name.endswith(PROJECT_SUFFIX):
-        return run_dir.parent.name
+    project = project_of(run_dir)
+    if project is not None:
+        return project.name
     try:
         rel = run_dir.relative_to(root)
     except ValueError:
@@ -1249,11 +1277,8 @@ class RunRecorder(EventStream):
         for a legacy directory, applied by the writer that now supplies the
         label ``_label_for`` used to have to infer.
         """
-        parent = self.dir.parent
-        if (parent.name == LIVE_DIR_NAME
-                and parent.parent.name.endswith(PROJECT_SUFFIX)):
-            return parent.parent.name
-        return Path.cwd().name
+        project = project_of(self.dir)
+        return project.name if project is not None else Path.cwd().name
 
     def _write_meta(self, label: str | None, command: str | None) -> None:
         payload = {

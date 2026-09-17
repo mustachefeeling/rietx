@@ -553,7 +553,13 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   guards before any `rmtree`, two re-asked at the call rather than trusted from the scan: a
   run-id name, a direct child of the root the recorder itself chose, and a `meta.json`
   carrying `RECORD_TAG` — which a legacy directory has not got, and so is never pruned.
-- **The reader has one verb and it is stop** (WP-1405). `runs.CANCEL_FILE` is the whole
+- **The reader has two verbs and neither touches the project a fit is writing** (WP-1405
+  stop, WP-1428 GUI). Stop writes into the *run* directory; the GUI verb spawns
+  `rietx gui --scratch` on a **copy**, there being no read-only way to open a project, and
+  `--read-only` clears both. **Which project a run is in is `runs.project_of`** — two live
+  layouts, `<name>.rex/live/<run id>` and `<name>.rex/live` itself, and three readers had
+  open-coded one each until one offered a GUI command `None` for every recorded run.
+- **Stop's seam**: `runs.CANCEL_FILE` is the whole
   cross-process seam, a **request rather than a flag**: an unknown word in it is declined
   into `RunStatus.declined`, because an old recorder meeting a newer watcher's `pause` must
   not stop the fit. The probe hangs on the **unthinned evaluation boundary**, through the
