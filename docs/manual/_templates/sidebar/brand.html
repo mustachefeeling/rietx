@@ -44,6 +44,15 @@
     a hardcoded spelling of the brand here would be invisible to every test in
     the suite (`_about.py`'s docstring), so the rule is all that catches it.
 
+  The release line is a second, sibling anchor, and it is the way back to the
+  manual's own front page. The two lines then name their own destinations: the
+  wordmark is the project, `<release> · manual` is `manual.html`. Before this
+  the brand was one link to the landing page and a reader inside a chapter had
+  no way back to the manual's front page at all, since `root_doc` is in no
+  toctree and furo's sidebar therefore never lists it. Sibling rather than
+  nested because HTML has no nested `<a>`, and the outer href is what
+  `tests/test_manual.py` pins on every page.
+
   `release` is Sphinx's own context variable, so the version line quotes the
   live version rather than a typed one. `docstitle` is deliberately not
   rendered: it reads "rietx 1.4.0 — manual" and would repeat the wordmark.
@@ -56,5 +65,5 @@
     <svg class="rietx-mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M2 26 C7 26 9 23 11.5 3.5 C14 23 16 26 21 26 Z"/><path d="M17 26 C20 26 21.5 24 23 13 C24.5 24 26 26 29 26 Z"/><rect x="1.5" y="25.5" width="29" height="3" rx="1.5"/></svg>
   </span>
   <span class="sidebar-brand-text">{{ rietx_name }}</span>
-  <span class="sidebar-release">{{ release }} · manual</span>
 </a>
+<a class="sidebar-release" href="{{ pathto(master_doc) }}">{{ release }} · manual</a>
