@@ -160,7 +160,8 @@ radians, `[barn]`, `[fm]`), or stated in the sentence beside it.
 | a peak width | deg 2θ, as FWHM (never a standard deviation, never an integral breadth) |
 | a Gaussian width *coefficient* | deg² 2θ, because it is a variance |
 | a length | Å: cell edges, d-spacings, wavelengths, crystallite sizes |
-| a reciprocal length | Å⁻¹: $k = \sin\theta/\lambda$ and $Q = 4\pi\sin\theta/\lambda$ |
+| a reciprocal length | Å⁻¹: $s = \sin\theta/\lambda = 1/(2d)$, the reciprocal lattice vector length $1/d = 2s$, and the scattering-chapter $Q = 4\pi\sin\theta/\lambda$ |
+| a reciprocal length squared | Å⁻²: the indexing-chapter $Q = 1/d^2$, which is the `ObservedPeak.q` field. $Q$ is the one symbol this manual uses for two quantities, so read it from the chapter and never across chapters |
 | a displacement parameter | Å², with $B_{\mathrm{iso}} = 8\pi^2 U_{\mathrm{iso}}$ |
 | an observed or calculated intensity | counts |
 | a reflection intensity | counts·deg 2θ, an area, because every profile here is normalised to unit area |

@@ -44,11 +44,19 @@ def fwhm_to_voigt_params(gamma_g: np.ndarray, gamma_l: np.ndarray
     The Voigt analogue of ``pseudovoigt.tch_gamma_eta`` — it consumes the exact
     same Gaussian/Lorentzian FWHMs, so a phase's size/strain split and the
     instrument U,V,W,X,Y feed both shapes identically.
+
+    **Both widths change measure across this call, and only one changes name.**
+    The arguments are *full* widths at half maximum, the package's width
+    convention everywhere; the second return is the Lorentzian *half* width, as
+    the Voigt form of the module docstring requires.  So ``gamma_l`` and the
+    returned γ differ by a factor of two while sharing a letter, which is why
+    the local below is spelled out.  A caller reading the return as a FWHM gets
+    a peak half the width it asked for.
     """
     xp = get_backend()
     sigma = xp.asarray(gamma_g, dtype=np.float64) / GAUSS_FWHM_TO_SIGMA
-    gamma = xp.asarray(gamma_l, dtype=np.float64) / 2.0
-    return sigma, gamma
+    gamma_hwhm = xp.asarray(gamma_l, dtype=np.float64) / 2.0
+    return sigma, gamma_hwhm
 
 
 def voigt(x: np.ndarray, sigma: np.ndarray, gamma: np.ndarray) -> np.ndarray:

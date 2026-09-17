@@ -123,8 +123,8 @@ def test_f0_at_zero_equals_electron_count():
 
 
 def test_f0_monotone_decrease():
-    k = np.linspace(0.0, 1.2, 50)
-    vals = f0("Si", k)
+    stol = np.linspace(0.0, 1.2, 50)
+    vals = f0("Si", stol)
     assert np.all(np.diff(vals) < 0)
 
 
@@ -148,10 +148,10 @@ def _reference_f2_full_cell(phase, hkl, d):
             p = (r @ xyz + t) % 1.0
             if not any(np.all(np.minimum(np.abs(p - q), 1 - np.abs(p - q)) < 1e-4) for q in images):
                 images.append(p)
-        k = 1.0 / (2.0 * d)
+        stol = 1.0 / (2.0 * d)
         for p in images:
-            F += (atom.occ.value * f0(atom.species, k)
-                  * np.exp(-atom.biso.value * k * k)
+            F += (atom.occ.value * f0(atom.species, stol)
+                  * np.exp(-atom.biso.value * stol * stol)
                   * np.exp(2j * np.pi * (hkl @ p)))
     return (F * F.conj()).real
 

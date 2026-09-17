@@ -344,10 +344,14 @@ anyway. Williamson and Hall (1953) separate size from strain by
 their different angular dependence: size broadening goes as 1/cosθ, strain as
 tanθ, so
 
-$$\beta \cos\theta = \frac{K\lambda}{L} + 4\varepsilon \sin\theta$$
+$$2w \cos\theta = \frac{K\lambda}{L} + 4\varepsilon \sin\theta$$
 
 is a straight line in sinθ whose intercept gives the size L and whose slope
-gives the strain ε.
+gives the strain ε. $2w$ here is this manual's own notation for a FWHM, set in
+{doc}`../microstructure`, and not a claim about Williamson and Hall's symbols.
+What matters is the breadth measure rather than the letter. `ObservedPeak.fwhm`
+is a FWHM, so $K$ has to be a FWHM constant. The four lines below use 0.9, and
+the note on conventions under them says what an integral breadth takes instead.
 
 ```python
 import tempfile
@@ -364,8 +368,8 @@ peaks = rx.fit_peaks(data, ins, [28.094, 34.087, 39.985, 48.226,
                                  49.521, 50.711, 51.522])
 
 theta = np.radians(np.array([p.two_theta for p in peaks.peaks]) / 2.0)
-beta = np.radians(np.array([p.fwhm for p in peaks.peaks]))
-slope, intercept = np.polyfit(np.sin(theta), beta * np.cos(theta), 1)
+fwhm = np.radians(np.array([p.fwhm for p in peaks.peaks]))
+slope, intercept = np.polyfit(np.sin(theta), fwhm * np.cos(theta), 1)
 
 print(f"intercept Kλ/L = {intercept:.3e}  →  L = {0.9 * peaks.wavelength / intercept:.0f} Å")
 print(f"slope       4ε = {slope:.3e}  →  ε = {100 * slope / 4:.3f} %")
@@ -430,11 +434,13 @@ triclinic, and every system is supported.
 
 Whether a list can be searched and whether it can be scored are different
 questions, and conflating them once refused a pattern this package indexes
-perfectly. Below twenty usable lines the classical figures are undefined, since
-de Wolff's M₂₀ and Smith & Snyder's F₂₀ are defined on twenty lines
-{eq}`idx-m20` and {eq}`idx-fn`. The search still runs over the supported
-systems, ranks on the reduced panel, and names each missing figure with its
-reason in `DataQualityReport.fom_undefined`. What that costs is the grade: a
+perfectly. Below twenty usable lines the classical figures are not
+reported. De Wolff's M₂₀ is defined on twenty {eq}`idx-m20`, so below that it
+does not exist. Smith & Snyder define F_N for general N and recommend thirty
+{eq}`idx-fn`, so the twenty this package scores it at is its own choice, tied
+to the same precondition rather than to their paper. The search still runs over
+the supported systems, ranks on the reduced panel, and names each missing
+figure with its reason in `DataQualityReport.fom_undefined`. What that costs is the grade: a
 short list can never reach `high`.
 
 `DataQualityReport.volume_envelope` is Smith's (1977) bound on the cell volume

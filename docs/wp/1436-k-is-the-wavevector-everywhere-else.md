@@ -1,9 +1,10 @@
 # WP-1436 — `k` is the wavevector everywhere else
 
-Milestone: unscheduled · Status: ⬜
-Depends on: 1437 (both edit `docs/manual/intensities.md`, 1437 at line 104 and
-this WP at its equations; rebase onto it. No line of `help.py` writes sinθ/λ,
-so this WP never opens that file)
+Milestone: unscheduled · Status: ✅ 2026-09-17 — every symbol renamed, every refined number bit-identical
+Depends on: 1437, **merged 2026-09-17** (PR #371). This branch is cut from
+`main` above it, so the rebase is done and its edit to `docs/manual/intensities.md`
+is in the tree. No line of `help.py` writes sinθ/λ, and none of the names renamed
+here appears there either (checked 2026-09-17), so this WP never opens that file.
 
 ## Goal
 
@@ -17,6 +18,12 @@ field. No computed number moves.
 A comment on the project's LinkedIn post objected that "k should equal to
 2/lambda \* sin(theta)". That quantity is the reciprocal lattice vector length
 `1/d`. They were decoding a symbol that normally means the wavevector.
+
+This is not only a readability question. The same collision reached a number a
+user can act on: [1437](1437-a-formula-the-code-does-not-compute.md) measured
+`help.py`'s Lp against the Lp the code computes and found them 0.508× apart at
+2θ = 90° for K = 0.99, with the ratio varying across the range, because the help
+text's `K` was bound to a different quantity from the code's.
 
 ### Where our `k` came from
 
@@ -107,8 +114,8 @@ Six further findings are in scope here. Bare file names below resolve to
 | `k` | `qpa.py:168` | per-phase Z·M·V | Hill & Howard give the product no letter, and `K` in QPA means O'Connor & Raven's calibration constant, whose method `qpa.py:22` fences to v2. Both callers already pass `[z.zmv for z in zmvs]` |
 | `Q` | `manual.md:163` against `schemas/indexing.py:537` | 4π sinθ/λ against 1/d² | The notation table contradicts the package's own public `ObservedPeak.q` (`schemas/indexing.py:576`) |
 | `1/d` | missing from `manual.md:163` | the third reciprocal length | It is what half the manual calls `Q`, and it is what the comment named. `forward-model.md:50` and `peak-positions.md:125` both spell out "sinθ/λ = 1/2d" to defuse the same confusion |
-| "F20" | `fom.py:47`, `:581` | user-facing diagnostic prose | Claims Smith & Snyder define F₂₀ on the first twenty. **Settled against the paper**, below |
-| `β` | `microstructure.md:34` | FWHM in radians | Langford & Wilson write `β` for the *integral breadth* and `2w` for the FWHM. **Settled against the paper**, below |
+| "F20" | `fom.py:47`, `:583` | user-facing diagnostic prose | Claims Smith & Snyder define F₂₀ on the first twenty. **Settled against the paper**, below |
+| `β` | `microstructure.md` 29, 34, 50 | FWHM in radians | Langford & Wilson write `β` for the *integral breadth* and `2w` for the FWHM. **Settled against the paper**, below |
 | `gamma` | `voigt.py:40` | returns a HWHM from inputs named `gamma_g`/`gamma_l`, which are FWHMs | The docstring says so, the names do not |
 
 ### How the papers were searched, because they are OCR
@@ -150,7 +157,7 @@ not write that it does.
 `f_n` at `fom.py:372` is correct: the right formula, the right citation, `n` a
 parameter, and `n_lines`/`n_possible` returned, which is exactly the paper's
 recommended reporting format. What is wrong is the comment at `fom.py:47` and
-the message it feeds at `:581`, which present N = 20 as the paper's definition.
+the message it feeds at `:583`, which present N = 20 as the paper's definition.
 N = 20 is in fact this package's own choice, aliased to
 `PEAK_MIN_USABLE_LINES` so the scoring precondition cannot drift from the
 figures it scores (`fom.py:48-51`). That reason is good and the value stays.
@@ -162,8 +169,8 @@ list gives `2w` for "Full width at half maximum intensity (half-width)" and
 `β` for "Integral breadth", and the text defines the integral breadth as "the
 total area under the diffraction maximum divided by the peak intensity".
 
-So `microstructure.md:34` does borrow their `β` for the quantity they call
-`2w`. The scope is the manual alone. `caglioti.py:88-97` is already exemplary:
+So `microstructure.md` does borrow their `β` for the quantity they call
+`2w`, at lines 29, 34 and 50. The scope is the manual alone. `caglioti.py:88-97` is already exemplary:
 it labels `SCHERRER_K` "Scherrer constant for a **FWHM**", cites Langford &
 Wilson, and quotes 0.89 for the FWHM of a sphere against 1.0747 for its
 integral breadth. The code therefore pairs the right constant with the right
@@ -180,7 +187,8 @@ Renaming a subset leaves a `NameError` that the suite catches and the rename
 pass should not have written.
 
 Equations and prose: `docs/manual/intensities.md` lines 9, 10, 28, 29, 64, 70,
-111, 128; `docs/manual/manual.md:163`; `CLAUDE.md:486`;
+115, 132 (the last two moved down four by 1437's neutron paragraph);
+`docs/manual/manual.md:163`; `CLAUDE.md:497`;
 `docs/skill/rietx/references/diagnostics.md:36` plus its two committed copies
 under `.agents/skills/` and `.claude/skills/`.
 
@@ -195,7 +203,8 @@ lines 109, 122, 124, 215, 227, 228.
 Three more tests bind a local `k` for sinθ/λ and hand it to `f0`
 positionally, so the rename cannot break them and the goal's "`stol` in
 python" still reaches them: `tests/test_crystallography.py` lines 126, 127,
-151, 153 and 154; `tests/test_neutron_cw.py` lines 146 and 147. And
+151, 153 and 154; `tests/test_neutron_cw.py` lines 146, 147 and the comment at
+149. And
 `tests/test_species_fallback.py:7` writes the same quantity as `f0(Q=0)`, a
 third letter for it in the tree, which becomes `f0(s=0)` in that docstring.
 
@@ -203,36 +212,6 @@ third letter for it in the tree, which becomes `f0(s=0)` in that docstring.
 `tests/api_surface.py:189` declares `rietx.crystallography` internal by
 sentence, so the rename trips no partition test and needs no compatibility
 entry. Every call site passes the argument positionally.
-
-### Inherited
-
-**From [1437](1437-a-formula-the-code-does-not-compute.md), closed 2026-09-17.**
-That WP was the expensive end of this audit and is now done, so this one is
-unblocked. Three things it learned change the work here.
-
-- **`docs/manual/intensities.md` has already been edited**, at the neutron
-  paragraph (was line 104). 1437 rebases under this WP's plan, so re-read that
-  paragraph before touching the chapter. The edit fixed a *third* live site of
-  the `K` collision: the chapter said "an unpolarised neutron beam sets
-  $K = 1$", where its own `K` is the σ-polarised fraction and unpolarised is
-  0.5. The paragraph now states the real reason, quoting `NeutronSource`'s
-  docstring, and says explicitly that $K = 1$ is not the unpolarised value.
-- **The collision reached a user-facing number, not only notation.** 1437's
-  measurement: the help text's Lp against the computed Lp differs by 0.508× at
-  2θ = 90° for K = 0.99, and the ratio varies with angle. Worth quoting in this
-  WP's own motivation — a symbol bound to the wrong quantity is not a
-  readability question here.
-- **A rule this WP can lean on rather than restate**: `help.py`'s module
-  docstring now carries "a description that states a formula or a threshold
-  names where the real one lives", and the numeric half is enforced by
-  `tests/test_help.py::test_quoted_thresholds_are_the_codes_own`. A rename under
-  this WP that moves a computing function must therefore also move the entry
-  naming it; grep `help.py` for the old dotted name.
-
-One caution on this WP's own § The rest of the audit: 1437 found that entry
-line numbers in the parent audit were off by 9-114 lines in six places, the
-files themselves untouched, so the audit's anchors were approximate from the
-start. Re-grep rather than trusting a line number.
 
 ### Fences
 
@@ -254,47 +233,52 @@ the two sibling data files for the same reason.
 
 ## Tasks
 
-- [ ] `scattering.py`: `k` → `stol` in identifiers and docstrings, `s` in the
+- [x] `scattering.py`: `k` → `stol` in identifiers and docstrings, `s` in the
       rendered equation. Includes the `f0` signature and the `f0(element, k=0)`
       prose at line 96.
-- [ ] `structure_factor.py` and `dispersion.py`: the same pass, module
+- [x] `structure_factor.py` and `dispersion.py`: the same pass, module
       docstrings included. Each `k = 1.0 / (2.0 * d)` site gains the `1/(2d)`
       gloss line 335 already has.
-- [ ] `qpa.weight_fractions(k, ...)` → `zmv`, body and docstring included
+- [x] `qpa.weight_fractions(k, ...)` → `zmv`, body and docstring included
       (`qpa.py:168`, `:171`, `:184`, `:186`, `:197`). Two callers in `src`
       (`qpa.py:388`, `:495`), both already passing `[z.zmv for z in zmvs]`, and
       five in `tests/test_qpa.py` (112, 120, 127, 134, 474), all positional —
       so nothing breaks, but `:474`'s local is itself named `k`.
-- [ ] `manual.md:163` becomes **two** rows, because the table is keyed
+- [x] `manual.md:163` becomes **two** rows, because the table is keyed
       `| quantity | unit |` and 1/d² is Å⁻²:
 
       | a reciprocal length | Å⁻¹: `s = sinθ/λ = 1/2d`, `|d*| = 1/d = 2s`, and `Q = 4π sinθ/λ` |
       | a reciprocal length squared | Å⁻²: `Q = 1/d²`, the indexing chapters' `Q` and the `ObservedPeak.q` field |
 
-- [ ] `intensities.md` equations to `s`; `CLAUDE.md:486`, plus a conventions
+- [x] `intensities.md` equations to `s`; `CLAUDE.md:486`, plus a conventions
       clause recording the maths/identifier split with its reason.
-- [ ] `docs/skill/rietx/references/diagnostics.md:36`, then re-sync the two
+- [x] `docs/skill/rietx/references/diagnostics.md:36`, then re-sync the two
       committed copies with `rietx skill --install . --copy`.
-- [ ] `fom.py:47` and `:581`: say F_N at N = 20, name `PEAK_MIN_USABLE_LINES`
+- [x] `fom.py:47` and `:583`: say F_N at N = 20, name `PEAK_MIN_USABLE_LINES`
       as the reason for the twenty, and record that Smith & Snyder recommend
       N = 30. Keep the value; change only the attribution.
-- [ ] `microstructure.md:34`: stop calling the FWHM `β`, which is Langford &
+- [x] `microstructure.md`: stop calling the FWHM `β`, which is Langford &
       Wilson's integral breadth. Their FWHM symbol is `2w`. The manual's own
       notation table already forbids the integral breadth as a width measure
-      (`manual.md:160`), so this row contradicts it.
-- [ ] `voigt.py:40`: name the returned HWHM so a caller cannot read it as the
+      (`manual.md:160`), so this row contradicts it. **Three sites, not one**
+      (re-grepped 2026-09-17): the Scherrer equation at line 29, the sentence
+      binding it at 34, and the ΔQ equation at 50. Line 140's `β*` is
+      FullProf's own symbol for its apparent strain and stays.
+- [x] `voigt.py:40`: name the returned HWHM so a caller cannot read it as the
       FWHM its inputs are.
-- [ ] Tests: the locals bound at `test_dispersion.py:109` and `:215`, the
+- [x] Tests: the locals bound at `test_dispersion.py:109` and `:215`, the
       three other test files named under § Sites, and a bit-identity check that a
       converged fit on a structural standard returns the same parameters before
       and after. Plot obs/calc/diff to `tests/output/` and look at it.
-- [ ] Skill: the `diagnostics.md` row above is the change. The body needs
+- [x] Skill: the `diagnostics.md` row above is the change. The body needs
       nothing, since an agent driving rietx never types this symbol: it appears
       in no parameter path, no diagnostic code and no result field.
 
 ### Deliberately not generalised
 
-Recorded here so a later session knows these were seen and left:
+Recorded here so a later session knows these were seen and left. Three of
+them were reopened on 2026-09-17 once the papers arrived, and the entries
+keep what was first believed beside what the papers said:
 
 - **Sixteen letters carry two or more physics meanings** and almost every
   meaning is source-correct. `T` is both ITC's Debye-Waller factor and ITC's
@@ -304,20 +288,39 @@ Recorded here so a later session knows these were seen and left:
   signatures spell the physics (`x_size`, `y_strain`, `along_mm`, `axial_sl`),
   so the ambiguous letters live only in docstring equations that define them.
   Renaming them would break the "physics not letters" rule it is meant to serve.
-- **`Λ(hkl)`** at `stephens.py:20`. Package-local: FullProf writes `D_ST`
-  (verified against its manual), Stephens and GSAS-II write Γ_S. It is defined
-  by equation (2) at its point of use and never ambiguous inside the package.
-- **`U*`** at `adp.py:14`. cctbx's letter, where the cited IUCr nomenclature
-  report (Trueblood 1996) writes `β^ij`. Naming drift, definition exact.
+- **`Λ(hkl)`** at `stephens.py:20`. **Reopened and fixed 2026-09-17**, once
+  the maintainer supplied the paper. Stephens writes `Γ_A`, not the `Γ_S` this
+  file first recorded, and his `Γ_A` carries the tanθ where `Λ` is the
+  coefficient alone. FullProf writes `D_ST`, verified against its manual.
+  `stephens.py` and `microstructure.md` now say all three and claim none of
+  them is another's symbol.
+- **`U*`** at `adp.py:16`. **Reopened and fixed 2026-09-17.** The IUCr
+  nomenclature report recommends `U^ij` or `β^ij` and uses neither `U*` nor
+  anything like it; its dimensionless parameter is `β^ij = 2π²·U*_ij`, its
+  equations (21) and (22). `adp.py` and `intensities.md` had both attributed
+  their three-name scheme to that report. They now name the report as the
+  authority for the *definitions*, say what its own letters are, and say that
+  `U*` is the International Tables' and cctbx's.
+- **`stephens.py`'s Laue-class dimensions**. Not on the original list; found
+  in the same reading. The docstring said the derived dimensions "reproduce
+  Stephens' Table 1", but that table is by **crystal system** and has no row
+  for 4/m or for -3, so five of the eleven had no counterpart in it. The six
+  that can be compared agree. Corrected to claim the comparison it can make
+  and to own the rest as this module's derivation.
 - **`caglioti.apparent_size(..., k=SCHERRER_K)`** at `caglioti.py:136` and
   `:165`. A bare `k`, but it is the Scherrer constant rather than sinθ/λ, and
   `SCHERRER_K` carries the name at every call site that names it. Two sites do
   pass it by keyword — `tests/test_profile_size.py:157` and `:158` — so a later
-  session that reopens this decision has those to change as well.
+  session that reopens this decision has those to change as well. Anchors and
+  both keyword sites re-checked 2026-09-17.
 - **`stephens.py`'s missing √(8 ln 2)** against FullProf's `D²_ST`. Checked and
-  cleared: `stephens.py:24-27` declares the omission, and `:39-40` warns "Never
-  transfer a literature S_HKL without checking numerically". The house
-  convention rule working.
+  cleared: `stephens.py:30-36` declares the omission, and `:48-49` warns "Never
+  transfer a literature S_HKL without checking numerically". **Reopened and
+  fixed 2026-09-17.** The physics was right and the attribution was not: the
+  docstring called it "the practical convention of the implementing codes",
+  when the bracketed note under Stephens' own equation (4) says the √(8 ln 2)
+  "has been incorporated into the definition of S_HKL". It is the paper's
+  convention, which is a stronger claim than the one the module was making.
 
 ## Acceptance
 
@@ -358,6 +361,200 @@ every labelled equation has one.
   for the `K`-factor the letter is reserved for.
 
 ## Handover log
+
+### 2026-09-17 (3rd session, continued) — the two papers, and what they overturned
+
+The maintainer supplied Stephens 1999 and the Trueblood 1996 nomenclature
+report, the two sources the entry below had to leave unverified. Neither
+settled the way this file predicted. Both clears were wrong, one of them in
+the direction that matters: `stephens.py` credited its missing √(8 ln 2) to
+"the practical convention of the implementing codes", when Stephens states it
+himself in a bracketed note under his own equation (4). The module was
+following its cited paper exactly and describing itself as following folklore.
+A reader checking the module against the paper would have found the module
+right and its own account of itself wrong, which is the worst way to be
+correct. The physics did not move and no computed number can.
+
+*Done.* Four corrections across two surfaces, because each claim had a code
+site and a manual site. `stephens.py` and `microstructure.md`: the √(8 ln 2)
+is Stephens' own convention, and the quantity this package calls `Λ` is his
+`Γ_A` and FullProf's `D_ST`, with none of the three claimed to be another's
+symbol. `adp.py` and `intensities.md`: the report recommends `U^ij` or
+`β^ij`, its dimensionless parameter is `β^ij = 2π²·U*_ij`, and `U*` is the
+International Tables' and cctbx's letter rather than the report's. A fifth
+correction was found in the same reading and is not from the original list:
+the derived Laue-class dimensions were said to "reproduce Stephens' Table 1",
+which is by crystal system and has no row for 4/m or for -3.
+
+*Measured.* Stephens' equation (4) is `Γ_A = [σ²(M_hkl)]^{1/2} tanθ / M_hkl`,
+which is this package's (2) once `M = 1/d²` is substituted, so the algebra was
+already right. His Table 1 gives cubic 2, tetragonal 4, orthorhombic 6,
+monoclinic 9, hexagonal and trigonal-P 3, triclinic 15; all six agree with the
+derivation. Trueblood equations (21), (22) and (25) give `β^jl =
+2π²⟨Δx^j Δx^l⟩` and `U^jl = β^jl/(2π² a^j a^l)`, and recommendation 3 names
+`U^ij` and `β^ij` as the two forms to report. Manual builds clean under `-W`.
+`test_manual.py`, `test_manual_api.py`, `test_docs_consistency.py` and
+`test_stephens.py`: 162 passed. Fast selection re-run on the final tree.
+Worktree `.venv`, `[dev]`, darwin/arm64. Every change is a docstring or prose,
+so no number can move and none did.
+
+*Gotchas.* The lesson is about the shape of the clears rather than their
+content. Both were reached by checking that the *implementation* matched the
+*downstream codes*, which it did, and neither went to the paper. A clear that
+compares two derived things can be true and still leave the citation wrong.
+The audit's original spelling `Γ_S` was also simply wrong, and nothing in the
+tree would ever have contradicted it, because no test reads a docstring.
+
+*Next.* The not-generalised list is now empty of unverified paper claims. Two
+items remain and both are design decisions rather than attributions: the
+sixteen ambiguous letters, and `caglioti.apparent_size`'s bare `k`.
+
+### 2026-09-17 (3rd session, continued) — the inherited clears, re-verified
+
+The maintainer asked whether any other symbol could be wrong. The five claims
+this file had recorded as seen and left were re-read, against the tree and
+against the papers. One was wrong, and it was this session's own. The
+Williamson-Hall section of the indexing chapter had been given a Scherrer K of
+0.89, twenty lines above code that uses 0.9 and forty above a note that says
+the pair is 0.9 and 1. A reader who followed the prose would recompute the
+printed 1355 Å as 1340 Å. The other four clears hold, and two of them are now
+verified against a source instead of asserted. What a successor has is a
+not-generalised list that says which of its clears rest on a paper nobody here
+has read.
+
+*Done.* One correction to `docs/manual/using/indexing.md`. The sentence that
+de-attributes `2w` no longer restates the K convention. The chapter's own
+conventions note already owns that, states it correctly, and agrees with the
+code in the snippet. The `### Deliberately not generalised` list now separates
+its verified clears from its unverified ones.
+
+*Measured.* FullProf's manual writes `D_ST` and `D²_ST` and uses both as FWHM
+quantities, in `FWHM (L-strain) = (X + z DST) tan(theta)`. So `stephens.py`'s
+missing √(8 ln 2) is corroborated by the code it is compared against, rather
+than only declared. The `caglioti.py` anchors and both
+`tests/test_profile_size.py` keyword sites resolve. `T` collides — the
+Debye-Waller factor at `adp.py:10`, the absorption path length at
+`absorption.py:10` — and `M` collides three ways: Stephens' 1/d², the
+multiplicity of `corrections.md:259`, the molar mass of `qpa.py:16`. Each is
+defined where it is used, so that clear holds as written. The manual builds
+clean under `-W`. `test_manual.py`, `test_manual_api.py` and
+`test_docs_consistency.py`: 60 passed, worktree `.venv`, `[dev]`,
+darwin/arm64. No test was added and no computed number can move, this being
+prose.
+
+*Gotchas.* Two claims in the not-generalised list are about papers **not in
+the local corpus**. Trueblood 1996 is cited by four secondary sources there
+and is not itself present; Stephens 1999 is known only through the FullProf
+manual. Both claims came from the audit that wrongly cleared `caglioti.py`,
+so neither should be read as checked. They are now marked unverified rather
+than edited, because changing `adp.py` on a guess would manufacture the
+defect it is meant to prevent.
+
+*Next.* Nothing blocking, and the branch is ready to merge. Two clears close
+in one reading each if the maintainer can supply Trueblood et al. 1996 (Acta
+Cryst. A52, 770) and Stephens 1999 (J. Appl. Cryst. 32, 281).
+
+### 2026-09-17 (3rd session) — the rename, and a misattribution in nine places
+
+The package no longer writes `k` for sinθ/λ. That quantity is `s` in every
+equation and `stol` in every identifier, which is what Waasmaier & Kirfel and
+the IUCr core dictionary call it, and the letter it vacated is now free for the
+wavevector everyone outside this package means by it and for the magnetic
+propagation vector the queued magnetic track needs inside `crystallography/`
+itself. Nothing computed moved, and that is pinned rather than asserted. The
+second half of the work was smaller in the diff and larger in what it corrects:
+sentences across the tree attributed a definition, a threshold or a symbol to a
+paper that does not contain it, and each one is now either the paper's or
+plainly labelled as this package's own choice. The F_N one alone had **nine
+live sites in eight files**, and it took four rounds to find them all — which is
+the finding, not an aside.
+
+*Done.* All eleven checklist items, twelve commits. `scattering.py`,
+`structure_factor.py` and `dispersion.py` take the split; the three
+`1/(2d)` bindings each carry the gloss one of them had. `qpa.weight_fractions`
+takes `zmv`, and the module's v2 fence now names O'Connor & Raven, whose
+calibration constant is what `K` means in that field. The manual's notation
+table became two rows, one per unit, and the Å⁻¹ row names `1/d` — the quantity
+the LinkedIn comment was actually reaching for and the one the table had left
+out. `fom.py` stops calling N = 20 Smith & Snyder's definition. The
+microstructure chapter stops calling a FWHM `β`. `fwhm_to_voigt_params` says
+that it returns a half width from full widths. Root CLAUDE.md carries the
+maths/identifier split as a standing rule.
+
+*Measured.* Bit-identity is the acceptance and it holds: the NAC + CaF₂
+two-phase Rietveld of `examples/nac_11bm.py`, which reaches `f0`, the structure
+factor, dispersion and the QPA weight fractions, gives the same 44 refined
+parameters, both statistics blocks, `y_calc`, the residual norm and both weight
+fractions before and after, as hex floats, and the two obs/calc/diff PNGs are
+byte-identical. Two pre-rename runs were diffed first, so the comparison has a
+control and is not just two numbers agreeing. One tier is the right amount of
+evidence: the compiled kernels are profile arithmetic and call neither `f0` nor
+`structure_factors_squared`, so the renamed code sits on the path both tiers
+share. Fast selection 5312 passed, 133 skipped in 85.6 s; full selection 5491
+passed, 142 skipped in 26:44 — worktree `.venv`, `[dev]` only (no jax, no
+torch), darwin/arm64, machine otherwise idle, on a tree `main` had not moved
+under, so these are the merged tree's counts. No test was added or removed, so
+no count should have moved and none did. `CLAUDE.md` 907 → 914 lines, landed at
+913, raised rather than shaved with its reason in `SIZE_CAPS`. A tree-wide
+sweep of 764 tracked files found no line left pairing a bare `k` with sinθ/λ
+outside the WP files that record the old state.
+
+*The review pass.* `/code-review high --fix` returned eight findings and fixed
+seven; the declined one is named below. Four were the same defect this session
+had fixed in two places and stopped: the F_N misattribution also sat in the
+`PEAK_LIST_TOO_SHORT` message a user reads, in the docstring of
+`PEAK_MIN_USABLE_LINES` — which `fom.FOM_N` aliases, so the alias and its source
+had come to contradict each other — and in the indexing skill reference in three
+places across two committed copies. The fifth was `caglioti.py`, which this WP's
+own audit had recorded as already exemplary: the constants were right, the
+module docstring equation and `apparent_size`'s docstring were not, so the `β`
+finding never was manual-only. Verifying that work turned up two more sites (the
+indexing gallery's rendered scoreboard, a test docstring) and one case where the
+pass fixed a lead-sentence-refuted-by-its-own-body shape in `fom.py` and left the
+identical shape standing in `using/indexing.md`. Counts were unchanged by all of
+it, which is why the full selection was re-run: the fixes landed after the first
+full run, and that run no longer described the tree that merges.
+
+*The count, and how it was finally closed.* Four rounds each found more,
+which is what an incomplete search looks like from the inside: the session found
+four sites, the review pass four more, verifying the review two more, and a
+**systematic sweep** — one regex per defect class over all 854 tracked text
+files, printing every hit for adjudication rather than counting them — found the
+ninth. That last one was the worst of them: `tests/validation_matrix.py` is the
+data *and* the renderer for `docs/VALIDATION.md`, so the false claim was in a
+shipped document, in capitals, and no grep of `src/` or `docs/` would have
+reached the source. Regenerate with `.venv/bin/python -m tests.validation_matrix`.
+**The lesson is procedural**: grepping for the wording you just fixed finds the
+copies that share your phrasing, never the ones that say the same thing
+differently. Sweep by defect class, over every tracked file, and read the hits.
+
+*Deliberately not generalised.* `gui/src/lib/peaks.test.ts` uses `"F20"` as a
+fixture label, but the backend emits `name="f_n"` and that test exercises a
+generic column mapper with arbitrary names, so it asserts nothing about a paper.
+The WP files and the v1.0 milestone record that carry the old wording are dated
+records of what was believed at the time and are left as written.
+
+*Declined, with the reason.* A meta-test for `help.py`'s third rule, that a
+description stating a formula names where the real one lives. Pinning it needs
+machinery to classify eighteen distinct backticked token shapes in the corpus
+rather than a correction, and that docstring names grep as its guard. It is a
+real gap of the `features["indexing"]` kind and belongs to whoever reopens
+`help.py`, not to a rename.
+
+*Gotchas.* Three worth carrying. A `|` inside `$…$` in a markdown table is the
+column separator, so `$|\mathbf{d}^*|$` rendered a literal dollar sign while
+`sphinx -W` stayed clean; `test_manual.py`'s scan of the **built HTML** is what
+caught it, which is the rule that file already states. A `str.replace` anchored
+on an eight-space line also matches inside a twelve-space one, so an
+indentation-sensitive rename must anchor on the newline. And the WP's own audit
+was wrong about `caglioti.py` in the direction that costs least to check and most
+to trust: it looked at the constants and concluded the file was clean.
+
+*Next.* Nothing here. The five magnetic WPs (1326, 1327, 1328, 1329, 1418) have
+had their `### Inherited` rewritten from a warning into a licence: name the
+propagation vector `k` and add no qualifier. 1326 is the rung that introduces
+`Phase.propagation_vector` and so is the first to benefit.
+
 
 ### 2026-09-17 (2nd session) — a second reading of the two files, before merge
 

@@ -467,11 +467,11 @@ def test_two_phase_synthetic_qpa():
     # independent propagation from σ(S) alone — the two scales correlate through
     # the shared intensity/background, so the two must differ here.
     fitted = ref.fitted_structure
-    k = np.array([phase_zmv(p.space_group, p.cell.lengths_angles(), _atoms(p)).zmv
-                  for p in fitted.phases])
+    zmv = np.array([phase_zmv(p.space_group, p.cell.lengths_angles(), _atoms(p)).zmv
+                    for p in fitted.phases])
     scales = np.array([result.parameter(f"phases.{i}.scale").value for i in range(2)])
     sig_s = np.array([result.parameter(f"phases.{i}.scale").stderr for i in range(2)])
-    _, sigma_indep, _ = weight_fractions(k, scales, np.diag(sig_s ** 2))
+    _, sigma_indep, _ = weight_fractions(zmv, scales, np.diag(sig_s ** 2))
     sigma_wired = np.array([r.weight_fraction_stderr for r in result.qpa.phases])
     assert not np.allclose(sigma_wired, sigma_indep, rtol=1e-3)
 

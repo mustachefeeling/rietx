@@ -172,8 +172,11 @@ PEAK_ASYMMETRY_MIN_SIGMA = 4.0
 # ----------------------------------------------------------------------
 #: Usable lines below which the list cannot be **scored** — the bar for the
 #: figures of merit only, never for the search (WP-1043).  Twenty is not a round
-#: number: de Wolff's M₂₀ and Smith & Snyder's F₂₀ are both defined on the first
-#: twenty lines, and Smith's (1977) volume envelope is quoted at N = 20.  It is
+#: number: de Wolff's M₂₀ is defined on the first twenty lines and Smith's (1977)
+#: volume envelope is quoted at N = 20.  Smith & Snyder define F_N for general N
+#: and recommend N = 30, so the twenty this package scores it at is its own
+#: choice, tied here so the precondition cannot drift from the figures
+#: (``fom.FOM_N`` aliases this constant).  It is
 #: **not** a precondition for searching — a search needs enough lines to
 #: over-determine the metric, which is :data:`MIN_LINES_PER_DOF`'s per-system
 #: question (18 lines against cubic's one free parameter is eighteen-fold

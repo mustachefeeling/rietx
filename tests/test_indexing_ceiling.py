@@ -42,7 +42,7 @@ pytestmark = pytest.mark.xdist_group("indexing-ceiling")
 def cubic_peaks():
     """Exact cubic positions, declared σ — 30 usable lines, enough for the
     quality gate (``synthetic_peaks``'s default 90° range yields 19, one short
-    of the 20 the figures of merit are defined on)."""
+    of the 20 the figures of merit are scored on)."""
     peaks, cell = synthetic_peaks("cubic", two_theta_max=150.0)
     assert len(peaks.usable()) >= 20
     return peaks, cell

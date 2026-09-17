@@ -90,28 +90,29 @@ placement, link resolution, and the size caps on this file and CLAUDE.md.
 
 **No milestone is open.** [v1.4](#v14--free-standing-peaks) shipped
 2026-09-13 ([record](milestones/v1.4.md), [notes](releases/1.4.0.md));
-`pyproject.version` is `1.4.0`, the last shipped. **One cheap unowned ask**
-survives from 1407: Stoe `.raw` files paired with the WinXPOW ASCII export of
-the same scans would make Stoe writable. A second: no `rietx compare`
-standard ships its own blank, and Si640c with 1309's `11BM_Kapton.xy` does.
+`pyproject.version` is `1.4.0`, the last shipped. Opening v1.5 is the next
+decision and it is the maintainer's; every WP landing before it lands under
+no milestone.
 
-**Nothing is in flight.** 1309 closed on the 11-BM blank it waited for, now vendored. The `.inp` grammar 1118 refuses is
-[1433](wp/1433-the-inp-grammar-still-refused.md), blocked on nothing. 1310
-closed on four of six; its other two, each filed with a fix its measurements
-rule out, carry on as [1434](wp/1434-the-bound-test-asks-the-wrong-question.md) and [1435](wp/1435-a-hold-the-caller-declares.md).
+**Nothing is in flight.** [1436](wp/1436-k-is-the-wavevector-everywhere-else.md)
+closed the symbol audit 1437 opened: sinθ/λ is `s` in equations and `stol` in
+python, every refined number bit-identical, and `k` is now free for the
+**magnetic track** (1326-1329, 1418), whose inherited note it turned from a
+warning into a licence. That track is the largest queued block with a
+discharged blocker. Also unblocked and blocked on nothing: the `.inp` grammar
+1118 refuses, [1433](wp/1433-the-inp-grammar-still-refused.md); and 1310's
+other two, [1434](wp/1434-the-bound-test-asks-the-wrong-question.md) and
+[1435](wp/1435-a-hold-the-caller-declares.md), each filed with a fix its own
+measurements rule out.
 
-**The live-watcher track is closed**, eighteen rungs
-([1401](wp/1401-a-window-into-a-run.md) … [1438](wp/1438-the-questions-the-track-left.md)),
-and nothing replaces it in flight. **No milestone is open**: v1.4.0 shipped
-2026-09-13 and 25 WPs have closed since, with `pyproject.version` still
-reading `1.4.0`. Opening v1.5 is the next decision, and it is the
-maintainer's — every WP that lands before it lands under no milestone.
+**Two cheap unowned asks** survive, both in 1407: Stoe `.raw` files paired with
+their WinXPOW ASCII export, and a blank for a `rietx compare` standard.
 
 **Queued, unscheduled** ([§ Unscheduled](#unscheduled)): the 2026-09-01
-triage's 1311–1322 plus 1323 and 1325; the 2026-09-03 triage's 1332–1341; the
-magnetic track (1326–1329, 1343, and 1418 behind them); the older 1133. The
-**2026-09-15 triage** adds 1414–1421, eight WPs for ten issues, and folds the
-other eleven into 1310, 1311, 1312, 1326–1328, 1333, 1338 and 1343.
+triage's 1311-1322 plus 1323 and 1325; the 2026-09-03 triage's 1332-1341; the
+magnetic track (1326-1329, 1343, and 1418 behind them); the older 1133. The
+**2026-09-15 triage** adds 1414-1421, eight WPs for ten issues, and folds the
+other eleven into 1310, 1311, 1312, 1326-1328, 1333, 1338 and 1343.
 
 **Parked, blocking nothing:** the 1.0.0-notes promises (`.rex` zip transport,
 `excluded_regions` honoured by `replay` — 1003 § B); the indexing narrowing and
@@ -613,7 +614,7 @@ that travels with it (1340); and the report a joint fit has never had (1341).
 | [1411](wp/1411-a-manual-that-links-home.md) | A manual that links home: the landing copy, and the brand on furo's sidebar | ✅ 2026-09-14 | — |
 | [1412](wp/1412-the-theme-nobody-chose.md) | The theme nobody chose | ✅ 2026-09-14 | 1411 |
 | [1422](wp/1422-the-wp-two-sessions-picked.md) | The WP two sessions picked | ✅ 2026-09-15 | 1061, 1410 |
-| [1436](wp/1436-k-is-the-wavevector-everywhere-else.md) | `k` is the wavevector everywhere else | ⬜ | 1437 |
+| [1436](wp/1436-k-is-the-wavevector-everywhere-else.md) | `k` is the wavevector everywhere else | ✅ 2026-09-17 | 1437 |
 | [1437](wp/1437-a-formula-the-code-does-not-compute.md) | A formula the code does not compute | ✅ 2026-09-17 | — |
 
 #### Candidates — named on a use case, not yet on a measurement

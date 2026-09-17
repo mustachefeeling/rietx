@@ -1696,7 +1696,8 @@ CLAIMS: tuple[Claim, ...] = (
         "certified cell ranked first",
         reference="CaF2 is Fm-3m with a = 5.4631 A, and over 5-150 deg Cu Ka "
                   "that lattice yields fewer than twenty usable lines.  "
-                  "Twenty is where M20 and F20 are DEFINED -- a scoring bar, "
+                  "Twenty is where M20 is DEFINED and where this package "
+                  "scores F_N -- a scoring bar, "
                   "not a searching one (WP-1043): seventeen lines are "
                   "seventeen-fold over-determined for a cubic metric, and the "
                   "pre-1043 gate's abstention here refused a question the "

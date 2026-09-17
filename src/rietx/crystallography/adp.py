@@ -2,8 +2,10 @@
 
 Three representations of the same physical tensor appear in the literature;
 this module names them explicitly rather than letting "U" mean whichever one
-the caller had in mind (nomenclature per Trueblood, Bürgi, Burzlaff, Dunitz,
-Gramaccioli, Schulz, Shmueli & Abrahams, 1996, Acta Cryst. A52, 770):
+the caller had in mind.  The IUCr nomenclature report (Trueblood, Bürgi,
+Burzlaff, Dunitz, Gramaccioli, Schulz, Shmueli & Abrahams, 1996, Acta Cryst.
+A52, 770) is the authority for the definitions below.  Its own recommendation
+is to report **U^ij** or **β^ij**, and ``U*`` is not one of its symbols:
 
 * **U^ij** (Å²) — the CIF ``_atom_site_aniso_U_ij`` convention, defined by
 
@@ -17,7 +19,10 @@ Gramaccioli, Schulz, Shmueli & Abrahams, 1996, Acta Cryst. A52, 770):
   under a symmetry rotation R acting on fractional coordinates — and hence why
   evaluating the *image* atom's factor at h is identical to evaluating the
   parent's at Rᵀh (the reciprocal-space action; see ``symmetry.py``).  This is
-  the form the structure factor uses.
+  the form the structure factor uses.  The report's own dimensionless
+  parameter is β^ij = 2π²·U*_ij, its equations (21) and (22), so ``U*`` is the
+  International Tables' and cctbx's letter and the 2π² is the whole
+  difference.
 * **U_cart** (Å²) — U_cart = M·U*·Mᵀ with M the direct lattice vectors as
   columns of a Cartesian frame.  Its eigenvalues are the mean-square
   displacements (Å²) along the principal axes of the displacement ellipsoid

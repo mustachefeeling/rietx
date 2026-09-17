@@ -1092,7 +1092,7 @@ The only externally *graded* feature in the package. Bergmann et al. (2004) publ
 
 **Claims:** a pattern with too few lines to score is searched anyway, over the systems its line count supports, and reported unscored with the certified cell ranked first
 
-**Referenced to:** CaF2 is Fm-3m with a = 5.4631 A, and over 5-150 deg Cu Ka that lattice yields fewer than twenty usable lines.  Twenty is where M20 and F20 are DEFINED -- a scoring bar, not a searching one (WP-1043): seventeen lines are seventeen-fold over-determined for a cubic metric, and the pre-1043 gate's abstention here refused a question the engines answer at -5 ppm each when asked directly.  High symmetry makes a pattern easy to index right up until it makes it too sparse to SCORE -- no longer too sparse to search
+**Referenced to:** CaF2 is Fm-3m with a = 5.4631 A, and over 5-150 deg Cu Ka that lattice yields fewer than twenty usable lines.  Twenty is where M20 is DEFINED and where this package scores F_N -- a scoring bar, not a searching one (WP-1043): seventeen lines are seventeen-fold over-determined for a cubic metric, and the pre-1043 gate's abstention here refused a question the engines answer at -5 ppm each when asked directly.  High symmetry makes a pattern easy to index right up until it makes it too sparse to SCORE -- no longer too sparse to search
 
 **Measured:** 17 usable; supports_indexing True with m20/f_n absent for cause; four systems searched to completion; 12 candidates, certified cell first at -18 ppm, caveats exactly [fom_panel_reduced] so the grade holds at medium and best_or_none() still refuses -- the capping caveat is what keeps a 17-line high unreachable
 

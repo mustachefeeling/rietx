@@ -70,8 +70,8 @@ def peak_diagnostics(peaks: PeakList, detection: Detection | None = None,
         out.append(Diagnostic(
             level="warning", code="PEAK_LIST_TOO_SHORT",
             message=(f"{len(usable)} usable lines; the classical figures of "
-                     f"merit (M20, F20) and Smith's volume envelope are "
-                     f"defined on {PEAK_MIN_USABLE_LINES}, so this list can be "
+                     "merit (M20, F_N) and Smith's volume envelope are scored "
+                     f"on {PEAK_MIN_USABLE_LINES}, so this list can be "
                      "searched but not scored (WP-1043)"),
             where=[f"2θ {peaks.two_theta_min:.2f}-{peaks.two_theta_max:.2f}°"],
             suggestion=("the search runs over the systems the line count "

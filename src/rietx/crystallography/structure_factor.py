@@ -1,18 +1,18 @@
 """Kinematic structure factors for powder reflections.
 
-F(hkl) = Σ_j occ_j · f_j(k) · Σ_m T_jm(h) · exp(2πi h·(R_m x_j + t_m))
+F(hkl) = Σ_j occ_j · f_j(s) · Σ_m T_jm(h) · exp(2πi h·(R_m x_j + t_m))
 
 where the inner sum runs over a per-atom subset of symmetry operations chosen
 once per refinement stage so that special-position images are not double
 counted (the *operation subset* is frozen — a discrete object — while the
 positions it produces remain smooth functions of the refined coordinates),
-f_j is the Waasmaier-Kirfel form factor with k = sin(θ)/λ, and T is the
-Debye-Waller factor (International Tables C).  Intensities use |F|² with the
+f_j is the Waasmaier-Kirfel form factor with s = sin(θ)/λ = 1/(2d), and T is
+the Debye-Waller factor (International Tables C).  Intensities use |F|² with the
 reflection multiplicity applied separately (Rietveld, 1969, J. Appl. Cryst.
 2, 65).
 
 **Anomalous scattering and the powder average.**  With dispersion the species
-factor is complex, f = f₀(k) + f′(λ) + i·f″(λ), and Friedel's law dies in a
+factor is complex, f = f₀(s) + f′(λ) + i·f″(λ), and Friedel's law dies in a
 non-centrosymmetric group: |F(h)|² ≠ |F(−h)|².  A powder cannot resolve the
 pair — d(h) = d(−h), they land in one peak — and ``symmetry.generate_reflections``
 accordingly merges ±h into a single orbit and keeps one representative.  So
@@ -33,7 +33,7 @@ recovers |F|², so a structure without a dispersion block is bit-identical to
 the non-anomalous model.  Conventions and the tabulation: ``crystallography.
 dispersion``.
 
-**Isotropic** sites take T = exp(−B_j k²), identical for every image, so it
+**Isotropic** sites take T = exp(−B_j s²), identical for every image, so it
 factors out of the orbit sum.  **Anisotropic** sites (an ``AnisoU`` block on
 the atom) take
 
@@ -86,9 +86,9 @@ class PhaseSites:
 
     ``b_coh[j]`` is the atom's **bound coherent neutron scattering length** in
     fm, and its presence is what makes this a neutron phase: set, the amplitude
-    is that constant; ``None``, it is the X-ray form factor f₀(species, k).
+    is that constant; ``None``, it is the X-ray form factor f₀(species, stol).
     It is frozen on the strongest grounds of the three — a nucleus is a point
-    scatterer on this scale, so b has no k dependence *at all*, which is why one
+    scatterer on this scale, so b has no s dependence *at all*, which is why one
     number per atom suffices where f₀ needs a five-Gaussian expansion evaluated
     per reflection.  Mutually exclusive with ``f_anom``: f′/f″ is an X-ray
     core-level effect, and the two amplitudes are not even in the same units
@@ -225,7 +225,7 @@ def _aniso_dw(hkl: np.ndarray, rot: np.ndarray, u6, astar: np.ndarray) -> np.nda
     return xp.exp(-2.0 * xp.pi ** 2 * xp.einsum("mnc,cd,mnd->mn", q, ustar, q))
 
 
-def _orbit_terms(hkl, k, sites, xyz, occ, biso, uaniso, astar, j):
+def _orbit_terms(hkl, stol, sites, xyz, occ, biso, uaniso, astar, j):
     """Per-atom pieces of F: ``(amp_a, amp_b, phase (m,N), dw (m,N) | None)``.
 
     ``amp_a`` is the real prefactor occ·(f₀ + f′) that multiplies the orbit sum
@@ -253,18 +253,18 @@ def _orbit_terms(hkl, k, sites, xyz, occ, biso, uaniso, astar, j):
     phase = xp.exp(2.0j * xp.pi * (positions @ hkl.T))  # (m, N)
     fa = None if sites.f_anom is None else sites.f_anom[j]
     if sites.b_coh is None:
-        f = f0(sites.species[j], k)
+        f = f0(sites.species[j], stol)
         if fa is not None:
             f = f + float(fa.real)
     else:
-        # A nucleus is a point scatterer on this scale, so b has no k
+        # A nucleus is a point scatterer on this scale, so b has no s
         # dependence.  Broadcast to (N,) anyway rather than passing a scalar:
         # the anisotropic branch below builds ``amp_b`` with ``full_like(f, …)``
         # and the derivative kernels index amplitudes as ``amp[:, None]``, so
         # every amplitude in this module is reflection-shaped by contract.
-        # ``full_like(k, …)`` also keeps the constant off the left of a python
-        # operator against a θ-derived value (see backend/api.py).
-        f = xp.full_like(k, float(sites.b_coh[j]))
+        # ``full_like(stol, …)`` also keeps the constant off the left of a
+        # python operator against a θ-derived value (see backend/api.py).
+        f = xp.full_like(stol, float(sites.b_coh[j]))
     if sites.aniso[j]:
         dw = _aniso_dw(hkl, rot, uaniso[j], astar)
         # broadcast to (N,) like every other amplitude: f″ is reflection-
@@ -273,7 +273,7 @@ def _orbit_terms(hkl, k, sites, xyz, occ, biso, uaniso, astar, j):
         # both amplitudes as ``amp[:, None]``
         amp_b = None if fa is None else xp.full_like(f, occ[j] * float(fa.imag))
         return occ[j] * f, amp_b, phase, dw
-    dw = xp.exp(-biso[j] * k * k)  # exp(−B (sinθ/λ)²)
+    dw = xp.exp(-biso[j] * stol * stol)  # exp(−B (sinθ/λ)²)
     amp_b = None if fa is None else occ[j] * float(fa.imag) * dw
     return occ[j] * f * dw, amp_b, phase, None
 
@@ -283,14 +283,14 @@ def _orbit_sum(phase: np.ndarray, dw: np.ndarray | None) -> np.ndarray:
     return phase.sum(axis=0) if dw is None else (phase * dw).sum(axis=0)
 
 
-def _structure_factors_ab(h, k, sites, xyz, occ, biso, uaniso, astar):
+def _structure_factors_ab(h, stol, sites, xyz, occ, biso, uaniso, astar):
     """(A, B) of the module docstring; ``B`` is ``None`` without dispersion."""
     xp = get_backend()
     A = xp.zeros(len(h), dtype=np.complex128)
     B = None if sites.f_anom is None else xp.zeros(len(h), dtype=np.complex128)
     for j in range(sites.n_asym):
         amp_a, amp_b, phase, dw = _orbit_terms(
-            h, k, sites, xyz, occ, biso, uaniso, astar, j)
+            h, stol, sites, xyz, occ, biso, uaniso, astar, j)
         orbit = _orbit_sum(phase, dw)
         A = A + amp_a * orbit
         if B is not None:
@@ -332,9 +332,9 @@ def structure_factors_squared(
         rather than something frozen into ``sites``).
     """
     xp = get_backend()
-    k = 1.0 / (2.0 * xp.asarray(d, dtype=np.float64))  # sinθ/λ = 1/(2d)
+    stol = 1.0 / (2.0 * xp.asarray(d, dtype=np.float64))  # s = sinθ/λ = 1/(2d)
     h = xp.asarray(hkl, dtype=np.float64)
-    A, B = _structure_factors_ab(h, k, sites, xyz, occ, biso, uaniso, astar)
+    A, B = _structure_factors_ab(h, stol, sites, xyz, occ, biso, uaniso, astar)
     return _abs2(A) if B is None else _abs2(A) + _abs2(B)
 
 
@@ -370,7 +370,7 @@ def d_f2_d_xyz(
     not a second expansion.
     """
     xp = get_backend()
-    k = 1.0 / (2.0 * xp.asarray(d, dtype=np.float64))
+    stol = 1.0 / (2.0 * xp.asarray(d, dtype=np.float64))  # s = sinθ/λ = 1/(2d)
     h = xp.asarray(hkl, dtype=np.float64)
     A = xp.zeros(len(h), dtype=np.complex128)
     B = None if sites.f_anom is None else xp.zeros(len(h), dtype=np.complex128)
@@ -378,7 +378,7 @@ def d_f2_d_xyz(
     dB = None if B is None else xp.zeros((len(h), 3), dtype=np.complex128)
     for jj in range(sites.n_asym):
         amp_a, amp_b, phase, dw = _orbit_terms(
-            h, k, sites, xyz, occ, biso, uaniso, astar, jj)
+            h, stol, sites, xyz, occ, biso, uaniso, astar, jj)
         orbit = _orbit_sum(phase, dw)
         A = A + amp_a * orbit
         if B is not None:
@@ -431,7 +431,7 @@ def d_f2_d_uaniso(
     residual itself) — so the in-place per-component buffer writes are fine.
     """
     xp = get_backend()
-    k = 1.0 / (2.0 * xp.asarray(d, dtype=np.float64))
+    stol = 1.0 / (2.0 * xp.asarray(d, dtype=np.float64))  # s = sinθ/λ = 1/(2d)
     h = xp.asarray(hkl, dtype=np.float64)
     s = xp.asarray(astar, dtype=np.float64)
     A = xp.zeros(len(h), dtype=np.complex128)
@@ -440,7 +440,7 @@ def d_f2_d_uaniso(
     dB = None if B is None else np.zeros((len(h), 6), dtype=np.complex128)
     for jj in range(sites.n_asym):
         amp_a, amp_b, phase, dw = _orbit_terms(
-            h, k, sites, xyz, occ, biso, uaniso, astar, jj)
+            h, stol, sites, xyz, occ, biso, uaniso, astar, jj)
         orbit = _orbit_sum(phase, dw)
         A = A + amp_a * orbit
         if B is not None:

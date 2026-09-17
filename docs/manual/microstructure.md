@@ -26,14 +26,19 @@ breadth as an apparent size,
 ```{math}
 :label: ms-scherrer
 
-L \;=\; \frac{K\lambda}{\beta\,\cos\theta} \qquad [\text{Å}],
+L \;=\; \frac{K\lambda}{2w\,\cos\theta} \qquad [\text{Å}],
 ```
 
 {source}`rietx.model.profiles.caglioti.apparent_size`
 
-with $\beta$ the FWHM in radians of $2\theta$. $K$ depends on the crystallite
-shape and on which measure of breadth is used: 0.89 for the FWHM of a sphere
-against 1.0747 for its integral breadth {cite}`langford1978`. An apparent size
+with $2w$ the FWHM in radians of $2\theta$, which is Langford and Wilson's
+symbol for it {cite}`langford1978`. Their $\beta$ is the *integral breadth*, the
+peak area divided by the peak height, and the notation table of
+{doc}`manual` rules that out as a width measure here. The lower-case $2w$ is a
+width in radians and has nothing to do with the Caglioti $W$ of
+{eq}`prof-caglioti-g`, which is a variance in deg². $K$ depends on the
+crystallite shape and on which of the two breadths is used: 0.89 for the FWHM of
+a sphere against 1.0747 for its integral breadth. An apparent size
 is therefore an order-of-magnitude statement rather than a quotable two-figure
 one. It is also a lower bound unless the instrument and strain contributions
 have been taken out first, since Scherrer attributes every degree it is handed
@@ -47,7 +52,7 @@ $dQ/d(2\theta) = 2\pi\cos\theta/\lambda$, and the $\cos\theta$ of
 ```{math}
 :label: ms-delta-q
 
-\Delta Q \;=\; \frac{2\pi\cos\theta}{\lambda}\,\beta \;=\; \frac{2\pi K}{L}
+\Delta Q \;=\; \frac{2\pi\cos\theta}{\lambda}\,(2w) \;=\; \frac{2\pi K}{L}
 \qquad [\text{Å}^{-1}],
 ```
 
@@ -180,7 +185,10 @@ uses is
 {source}`rietx.crystallography.stephens.strain_width_deg`
 
 added to the Lorentzian FWHM as $\Lambda(hkl)\cdot\tan\theta$. It is the first
-width in the model to depend on $hkl$.
+width in the model to depend on $hkl$. Stephens writes this quantity
+$\Gamma_A(hkl)$, with the $\tan\theta$ inside it. $\Lambda$ is this manual's
+letter for the coefficient alone, because $\Gamma$ is already the FWHM in
+{ref}`ch-profiles`. FullProf calls the same thing $D_{ST}$.
 
 ```{warning}
 Three independent labelling conventions sit behind these $S_{HKL}$, and getting
@@ -189,7 +197,11 @@ without them and the width law is wrong while the fit still refines.
 
 1. $\sqrt{\sum S\cdot\text{monomial}}\cdot d^2\cdot 10^{-6}$ is the FWHM of the
    $\Delta M/M = 2\Delta d/d$ distribution, and not its standard deviation. No
-   $\sqrt{8\ln 2}$ appears anywhere.
+   $\sqrt{8\ln 2}$ appears anywhere. That is Stephens' own convention rather
+   than a later simplification: the note under his equation (4) says the
+   $\sqrt{8\ln 2}$ between the r.m.s. and the FWHM has been folded into the
+   definition of $S_{HKL}$. A published set that did not fold it in differs by
+   that one constant on every coefficient.
 2. The coefficients are carried in 10⁻¹² Å⁻⁴ rather than physical Å⁻⁴. That
    choice is numerical: the shared finite-difference step is absolute below 1,
    so a coefficient at its physical ~10⁻⁸ Å⁻⁴ magnitude would be differenced

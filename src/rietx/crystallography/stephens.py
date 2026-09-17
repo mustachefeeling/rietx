@@ -19,12 +19,21 @@ the deg-2θ FWHM units the Lorentzian strain term already uses is
 
     Λ(hkl) = (180/π)·10⁻⁶·d²_hkl·√(Σ_HKL S_HKL h^H k^K l^L)          [deg]  (2)
 
+Stephens writes this quantity ``Γ_A(hkl)``, in his equation (4), with the tanθ
+inside it.  ``Λ`` is this package's letter for the tanθ *coefficient* alone,
+because ``Γ`` is already the FWHM throughout ``model/profiles/``.  FullProf
+calls the same thing ``D_ST``.  None of the three is claimed to be another's
+symbol.
+
 Conventions (documented by physics, per the CLAUDE.md rule — codes differ)
 -------------------------------------------------------------------------
 * ``√(Σ S·monomial)·d²·10⁻⁶`` is the **FWHM** of the ΔM/M = 2·Δd/d
   distribution, *not* its standard deviation: no √(8 ln 2) appears anywhere.
-  This is the practical convention of the implementing codes; the difference
-  is one constant rescaling of every S_HKL.
+  **That is Stephens' own convention, not a later simplification by the
+  implementing codes**: the bracketed note under his equation (4) says the
+  √(8 ln 2) between the r.m.s. and the FWHM of a Gaussian "has been
+  incorporated into the definition of S_HKL".  A published set that did not
+  fold it in differs by that one constant on every coefficient.
 * S_HKL are carried **in units of 10⁻¹² Å⁻⁴** — the 10⁻¹² of (1) and the 10⁻⁶
   of (2) are one convention seen twice.  It makes the isotropic limit read
   directly in ppm (:func:`isotropic_coefficients`) and it is *load-bearing
@@ -50,8 +59,14 @@ so it shares that module's exact-rational nullspace kernel and needs no
 per-Laue-class lookup table.  Degree 4 is inversion-even, so the point group
 and its Laue class give the same subspace and no Laue classification is needed.
 
-The derived dimensions reproduce Stephens' Table 1: m-3m 2, 6/mmm and 6/m 3,
--3m1 and -31m 4, -3 5, 4/mmm 4, 4/m 5, mmm 6, 2/m 9, -1 15.
+The derived dimensions are m-3m 2, 6/mmm and 6/m 3, -3m1 and -31m 4, -3 5,
+4/mmm 4, 4/m 5, mmm 6, 2/m 9, -1 15.  Stephens' Table 1 is by **crystal
+system** rather than by Laue class, so it has no row for 4/m or for -3 and
+gives the higher-symmetry member of each pair.  Where the two can be compared
+they agree: cubic 2, tetragonal 4, orthorhombic 6, monoclinic 9, hexagonal and
+trigonal-P 3, triclinic 15.  The finer classes are this module's own
+derivation, which is the point of deriving them from the operators rather than
+tabulating them.
 """
 
 from __future__ import annotations
