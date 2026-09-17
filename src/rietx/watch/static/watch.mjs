@@ -4,8 +4,10 @@
 // cannot collide with plotly's. The functions that touch no DOM are next door
 // in `watch-core.mjs`, where the suite can call them.
 import {LAYOUT_DEFAULT, ago, axisOf, clampSize, clock, coalesce, deltaTitle,
-        dragged, esc, nextLayout, num, parseLayout, pct, rangesOf, rowName,
-        paletteFrom, runLabel, runTitle, withAlpha} from './watch-core.mjs';
+        dragged, esc, guiReason, hklLabel, nextLayout, num, parseLayout, pct,
+        rangesOf, rowName, sizeField,
+        paletteFrom, phaseInk, runLabel, runTitle,
+        withAlpha} from './watch-core.mjs';
 
 const $ = id => document.getElementById(id);
 let SINGLE = null;          // set when the served directory is itself a run
@@ -18,7 +20,8 @@ let CAN_OPEN_GUI = false;   // the same, for the launch verb (WP-1428)
 // the click
 let notice = null;
 let timer = null;
-let tail = {offset: 0, inode: null, id: null, skipped: 0};
+let tail = {offset: 0, inode: null, id: null, skipped: 0, cold: true,
+            above: false};
 // what the run panel was built for: the run, which kind of picture it has
 // ('json', a legacy 'html' page, or 'none'), and which write we have drawn
 let shell = {id: null, kind: null, mtime: null};
@@ -34,12 +37,7 @@ let plotlyPromise = null;
 // string; a file cannot carry one, and a literal here would be a second
 // authority for a fact `_about.py` already owns.
 let DIST = '';              // the distribution name
-// The reflection rows' colours, the one categorical set on this page and the
-// one thing here that is still the *figure* palette's (`_page_constants` says
-// why). Theme-blind on purpose: a mid-tone list that reads on either ground
-// beats a set that changes under the reader at a stage boundary.
-let TICKS = null;
-// The theme *choice* the GUI stored, as it was last applied here (WP-1429).
+// The theme *choice* stored in `settings.json`, as it was last applied here.
 // The page never writes it: the GUI owns the setting, this page follows it,
 // and `null` is "nothing applied yet" rather than a choice.
 let THEME = null;
@@ -100,10 +98,12 @@ function makeRow(run) {
   const tr = document.createElement('tr');
   tr.className = 'run';
   tr.dataset.id = run.run_id;
-  tr.innerHTML = '<td><span class="state"></span></td><td></td><td></td>' +
+  tr.innerHTML = '<td><span class="state"></span></td><td></td>' +
+    '<td class="c-stage"></td>' +
     '<td class="num"></td><td class="num"></td>' +
-    '<td class="muted"><time></time></td>' +
-    '<td class="gui"><button hidden>open</button></td>';
+    '<td class="muted c-started"><time></time></td>' +
+    '<td class="gui"><button hidden>open</button>' +
+    '<span class="why muted" hidden>\u2014</span></td>';
   tr.onclick = () => { location.hash = '#/run/' + run.run_id; };
   // The button is inside the row, and the row navigates on click. The handler
   // stops that one rather than adding to it, because `openGui` selects the run
@@ -140,6 +140,11 @@ function fillRow(tr, run) {
       + 'frozen at the click and does not follow the fit, and the project '
       + 'this run is writing is not touched.'
     : null);
+  // and where there is no button, why there is none
+  const why = guiReason(run, CAN_OPEN_GUI);
+  const dash = td[6].lastElementChild;
+  dash.hidden = !why;
+  setAttr(dash, 'title', why);
   const when = td[5].firstElementChild;
   setText(when, clock(run.created));
   setAttr(when, 'datetime', run.created
@@ -246,7 +251,13 @@ function buildPicture(run, kind) {
 // to read was dropped at the bottom. The other reset is the route's, in
 // `pumpEvents`, where a log that is a different file says so.
 function resetTail(id) {
-  tail = {offset: 0, inode: null, id: id, skipped: 0};
+  // `cold` is the *first* ask for this run's log, which the route answers from
+  // the end of the file rather than from the start (WP-1438). A log viewer
+  // opens at the newest line — `kubectl logs --tail`, `less +G` — and this one
+  // used to walk forward 4 MB a poll, so opening a job that had been running a
+  // while showed events minutes old until the walk caught up.
+  tail = {offset: 0, inode: null, id: id, skipped: 0, cold: true,
+          above: false};
   $('console').textContent = '';
 }
 
@@ -292,6 +303,9 @@ function applyTheme(choice) {
   const root = document.documentElement;
   if (choice === 'light' || choice === 'dark') root.dataset.theme = choice;
   else delete root.dataset.theme;
+  for (const button of document.querySelectorAll('#theme button')) {
+    button.setAttribute('aria-pressed', String(button.dataset.choice === choice));
+  }
   return true;
 }
 
@@ -322,15 +336,29 @@ function snapshotTraces(snap, hue) {
     const row = snap.ticks[name];
     // one row has nothing to be told apart from, so colour stays for when
     // there are several
-    const colour = names.length === 1 ? TICKS.one
-                                      : TICKS.phase[i % TICKS.phase.length];
+    const colour = phaseInk(hue, i, names.length);
     // the cap is in the legend, because a silent cap reads as coverage
     const label = row.n_total > row.two_theta.length
       ? `hkl: ${name} (${row.two_theta.length} of ${row.n_total})`
       : `hkl: ${name}`;
+    // Which reflection, under the pointer (WP-1438). It was the 2θ alone,
+    // which is the one thing the axis under it already says. `customdata`
+    // and not a built `text` array: plotly keeps it per point through its
+    // own hover lookup, and a row of 2000 strings is built once a draw for a
+    // box that shows one of them.
+    //
+    // A row whose snapshot predates this — `rietx watch` opens directories
+    // somebody else wrote — has no `hkl`, and then the trace keeps the 2θ it
+    // always had rather than hovering the word `undefined`.
+    const hkl = Array.isArray(row.hkl) && row.hkl.length === row.two_theta.length
+      ? row.two_theta.map((_, k) => hklLabel(row.hkl[k])) : null;
     traces.push({
       x: row.two_theta, y: row.two_theta.map(() => -i), name: label,
-      mode: 'markers', type: 'scattergl', yaxis: 'y3', hoverinfo: 'x',
+      mode: 'markers', type: 'scattergl', yaxis: 'y3',
+      ...(hkl
+        ? {customdata: hkl,
+           hovertemplate: '%{customdata}<br>%{x:.4f}\u00b0<extra></extra>'}
+        : {hoverinfo: 'x'}),
       marker: {symbol: 'line-ns-open', size: 7, color: colour},
     });
   });
@@ -345,8 +373,8 @@ function snapshotTraces(snap, hue) {
 async function drawSnapshot(id) {
   // a poll can reach here before the first `api/runs` has answered, and an
   // undrawn write is what `false` already means: the next poll draws it,
-  // rather than this one throwing on a colour that is not in yet
-  if (!TICKS) return false;
+  // rather than this one drawing a page whose constants are not in yet
+  if (!DIST) return false;
   const plotly = await ensurePlotly();
   const div = $('plot');
   if (!div || currentId() !== id) return true;
@@ -412,14 +440,23 @@ async function drawSnapshot(id) {
     // tallest peak behind them.
     legend: {orientation: 'h', y: 1, yanchor: 'top', x: 0, xanchor: 'left',
              bgcolor: withAlpha(hue.ground, 0.72)},
-    // How much of the pattern is on screen, in the corner of the picture it
-    // is a fact about. It shared the strip's one flexible slot with the path
-    // until WP-1424, where the two of them were 1127 px of sentence in a
+    // How much of the pattern is on screen, under the axis it is a fact about
+    // and beside its title. It shared the strip's one flexible slot with the
+    // path until WP-1424, where the two of them were 1127 px of sentence in a
     // track squeezed to nothing. A paper-anchored annotation takes no margin
     // — `automargin` is off by default — so this does not move the picture,
     // which the legend did before WP-1426 and is what those tests watch.
-    annotations: [{xref: 'paper', yref: 'paper', x: 1, y: 1,
-                   xanchor: 'right', yanchor: 'top', showarrow: false,
+    //
+    // It sat at the paper's top right until WP-1438, which is the corner the
+    // legend's *first row* ends in: measured at 1180 px on a two-phase fit,
+    // the row wrapped and `Δ/σ` was drawn under the caption. Two marks in one
+    // place is the class WP-1424 named — measure ink against room — and the
+    // room up there belongs to the legend, which grows with the model while
+    // this is one line of fixed length. The bottom margin is 56 px for a
+    // centred axis title, and the right of it is empty at every width.
+    annotations: [{xref: 'paper', yref: 'paper', x: 1, y: 0,
+                   xanchor: 'right', yanchor: 'top', yshift: -34,
+                   showarrow: false,
                    text: `${snap.n_drawn} of ${snap.n_points} pts drawn`,
                    font: {size: 10, color: hue.fg},
                    bgcolor: withAlpha(hue.ground, 0.72)}],
@@ -634,10 +671,19 @@ const GAP = 'gap';
 // A note about the pane rather than a line in it, so it does not count against
 // the pane's length and is never what the trim cuts. Cumulative, because two
 // capped polls skipped two batches and the reader wants the total.
+//
+// Two shapes, and which one is a question about what the page can count. A
+// poll that read the whole log and dropped the oldest of it knows exactly how
+// many. A *cold open* seeked to the end instead (WP-1438), so lines above the
+// seek were never read: the count it does have is of the window alone and
+// would be a number smaller than the truth, stated as the truth. It says the
+// fact without the figure instead.
 function noteGap(pane) {
-  if (!tail.skipped) return;
-  const text = `… ${tail.skipped.toLocaleString()} earlier lines are in the `
-    + `log and not in this pane`;
+  if (!tail.skipped && !tail.above) return;
+  const text = tail.above
+    ? '… earlier lines are in the log and not in this pane'
+    : `… ${tail.skipped.toLocaleString()} earlier lines are in the `
+      + `log and not in this pane`;
   const first = pane.firstElementChild;
   if (first && first.classList.contains(GAP)) { setText(first, text); return; }
   const note = document.createElement('div');
@@ -661,7 +707,24 @@ function trimConsole(pane) {
   }
 }
 
-async function pumpEvents(id) {
+// The log is read by one fetch at a time and a second ask *waits* rather
+// than racing: two in flight would take the same `tail.offset` and append
+// the same lines twice. Nothing could race before WP-1438, `refreshing`
+// being one poll at a time; the boot asking for a pinned run's log before
+// the walk is what made two possible.
+let pumping = Promise.resolve();
+function pumpEvents(id) {
+  const next = pumping.then(() => pumpTail(id), () => pumpTail(id));
+  // the chain never latches on a rejection, so one failed poll does not stop
+  // the log for the life of the page
+  pumping = next.catch(() => {});
+  return next;
+}
+
+async function pumpTail(id) {
+  // re-asked on the way in as well as after the fetch: a queued pump for a
+  // run the reader has already left should not spend the round trip
+  if (tail.id !== id || currentId() !== id) return;
   // `limit` is the pane's own length. Without it a reader clicking a job that
   // has been running a few minutes gets every event of it in one response:
   // 60 000 lines parsed and built into `<div>`s to keep the last 2000, which
@@ -669,6 +732,7 @@ async function pumpEvents(id) {
   // server drops the oldest of the slice and says how many in `skipped`.
   const q = new URLSearchParams({offset: tail.offset, limit: MAX_LINES});
   if (tail.inode !== null) q.set('inode', tail.inode);
+  if (tail.cold) q.set('end', '1');
   const t0 = performance.now();
   const r = await fetch(`api/run/${id}/events?` + q, {cache: 'no-store'});
   if (!r.ok) return;
@@ -680,9 +744,15 @@ async function pumpEvents(id) {
   if (tail.id !== id || currentId() !== id) return;
   const pane = $('console');
   // a different log; do not renumber, and do not carry its gap over
-  if (payload.reset) { pane.textContent = ''; tail.skipped = 0; }
+  if (payload.reset) {
+    pane.textContent = '';
+    tail.skipped = 0;
+    tail.above = false;
+  }
   tail.offset = payload.offset;
   tail.inode = payload.inode;
+  tail.cold = false;          // one seek a run, and the rest are ordinary polls
+  if (payload.skipped_bytes > 0) tail.above = true;
   tail.skipped += payload.skipped || 0;
   if (!payload.events.length) return;
   // the tail follows the log only while the reader is at its end; a reader
@@ -741,6 +811,18 @@ const SEAMS = {
     // rather than added as a constant: at the floor the run column came out
     // 35 px against the 36 its heading inks, one pixel of border.
     chrome: el => el.offsetWidth - el.clientWidth,
+    // The same seam under the stylesheet's `--stacked` (WP-1438). Every
+    // number is a different number, which is the whole reason this is a
+    // second entry and not a flag: the floor is a heading and two rows
+    // (26.5 + 2×27, measured) rather than 71 columns, and what the pane next
+    // door keeps is the picture's declared 180 px min-height plus the
+    // console's own 51 px floor plus the strip and the console's grip, not
+    // 340 px of plot width.
+    stacked: {
+      grow: 'down', prop: '--list-h', min: 82, keep: 265, minCh: undefined,
+      of: el => el.getBoundingClientRect().height,
+      chrome: el => el.offsetHeight - el.clientHeight,
+    },
   },
   // The log. Three lines of 13 px plus the pane's 12 px of padding, against
   // `#picture`'s own declared `min-height`, which is this page's existing
@@ -754,6 +836,25 @@ const SEAMS = {
 
 //: An arrow key moves the seam by this much, Shift by ten times it.
 const STEP = 16;
+
+// Are the two panes stacked? The breakpoint is the stylesheet's and is asked
+// for rather than repeated here (WP-1438): `watch.css` sets `--stacked` in a
+// media query, so the number lives once and the page reads the *answer*.
+// Nothing caches it — a window is resized between one draw and the next, and
+// `applyLayout` already runs on every resize.
+function isStacked() {
+  return getComputedStyle(document.documentElement)
+    .getPropertyValue('--stacked').trim() === '1';
+}
+
+// A seam as it is right now. Only the list has a second arrangement, and
+// merging is right rather than branching at each use: everything the wide
+// seam declares that the stacked one does not — the pane, the grip, the
+// element it measures — is true of both.
+function seamOf(which) {
+  const seam = SEAMS[which];
+  return (seam.stacked && isStacked()) ? {...seam, ...seam.stacked} : seam;
+}
 
 let layout = LAYOUT_DEFAULT;
 
@@ -817,8 +918,11 @@ function floorOf(seam) {
 // against. Read off the page, so the grip's own 5 px are already out of it.
 function extentOf(which) {
   if (which === 'list') {
-    return $('main').getBoundingClientRect().width
-           - $('grip-list').getBoundingClientRect().width;
+    const main = $('main').getBoundingClientRect();
+    const grip = $('grip-list').getBoundingClientRect();
+    // the grip's own 5 px come out of whichever extent the panes share, and
+    // which that is is the arrangement's answer, not this function's
+    return isStacked() ? main.height - grip.height : main.width - grip.width;
   }
   return $('run').getBoundingClientRect().height
          - $('strip').getBoundingClientRect().height
@@ -844,22 +948,36 @@ const resizePlot = coalesce(() => {
 // extent it happened in, and nothing clamps a size that outlives its window,
 // so this runs at *render* and not only at the end of a drag.
 function sizeOf(which) {
-  const state = layout[which];
-  if (state.size === null) return null;
-  const seam = SEAMS[which];
-  return clampSize(state.size, floorOf(seam), seam.keep, extentOf(which));
+  const stored = layout[which][sizeField(which, isStacked())];
+  if (stored === null || stored === undefined) return null;
+  const seam = seamOf(which);
+  return clampSize(stored, floorOf(seam), seam.keep, extentOf(which));
 }
 
 function applyLayout() {
   document.body.dataset.list = layout.list.open ? 'open' : 'closed';
+  // The collapse is "give the list the window", so it means nothing where
+  // there is no list: under `data-single` the stylesheet already hides `#runs`
+  // *and* the button that would undo this, so a stored `false` carried in from
+  // another directory on the same origin drew a page with nothing on it and no
+  // control to bring anything back. The choice is kept, not cleared — a reader
+  // who collapsed the run pane on a directory of runs still finds it collapsed
+  // when they go back to one.
+  const runOpen = layout.run.open || Boolean(SINGLE);
+  document.body.dataset.run = runOpen ? 'open' : 'closed';
+  const toggle = $('toggle-run');
+  if (toggle) toggle.setAttribute('aria-pressed', String(!runOpen));
   $('run').dataset.console = layout.console.open ? 'open' : 'closed';
   for (const which of Object.keys(SEAMS)) {
-    const seam = SEAMS[which];
+    const seam = seamOf(which);
     const size = sizeOf(which);
     if (size === null) document.body.style.removeProperty(seam.prop);
     else document.body.style.setProperty(seam.prop, size + 'px');
     const grip = $(seam.grip);
     grip.classList.toggle('closed', !layout[which].open);
+    // a separator says which way it moves, and stacking turns this one
+    grip.setAttribute('aria-orientation',
+                      axisOf(seam.grow) === 'x' ? 'vertical' : 'horizontal');
     const floor = floorOf(seam);
     const ceiling = Math.max(floor, extentOf(which) - seam.keep);
     // the ARIA window splitter's numbers. A collapsed pane sits at its own
@@ -874,13 +992,20 @@ function applyLayout() {
 }
 
 function setSize(which, size, {store = true} = {}) {
-  layout = nextLayout(layout, which, {size: Math.round(size), open: true});
+  layout = nextLayout(layout, which, {
+    [sizeField(which, isStacked())]: Math.round(size), open: true});
   if (store) storeLayout();
   applyLayout();
 }
 
 // Collapse and restore. The pane comes back at the size it had, and at the
 // declared default when it never had one.
+//
+// `run` travels through here too and is not a seam: the button beside the
+// title is its whole control, because no grip sizes the run pane and a
+// splitter's collapse belongs to the pane its grip sizes (WP-1425). What
+// WP-1438 restored is the *command* — a collapsible pane that can only be
+// collapsed by a gesture on a focused 5 px separator is one nobody finds.
 function toggleSeam(which) {
   layout = nextLayout(layout, which, {open: !layout[which].open});
   storeLayout();
@@ -888,15 +1013,19 @@ function toggleSeam(which) {
 }
 
 function armGrip(which) {
-  const seam = SEAMS[which];
-  const grip = $(seam.grip);
-  const pane = $(seam.pane);
-  const horizontal = axisOf(seam.grow) === 'x';
+  const grip = $(SEAMS[which].grip);
+  const pane = $(SEAMS[which].pane);
+  // read at the event and never held: the list's seam turns when the window
+  // does, and a grip armed once at boot would keep dragging along the axis
+  // the page was in then (WP-1438)
+  const across = () => axisOf(seamOf(which).grow) === 'x';
 
   grip.addEventListener('pointerdown', ev => {
     if (ev.button !== 0) return;
     if (!layout[which].open) return;     // collapsed: the verb is the toggle
     ev.preventDefault();
+    const seam = seamOf(which);
+    const horizontal = across();
     const from = horizontal ? ev.clientX : ev.clientY;
     const start = seam.of(pane);
     grip.setPointerCapture(ev.pointerId);
@@ -931,6 +1060,8 @@ function armGrip(which) {
   grip.addEventListener('keydown', ev => {
     if (ev.key === 'Enter') { ev.preventDefault(); toggleSeam(which); return; }
     if (!layout[which].open) return;
+    const seam = seamOf(which);
+    const horizontal = across();
     const back = horizontal ? 'ArrowLeft' : 'ArrowUp';
     const forward = horizontal ? 'ArrowRight' : 'ArrowDown';
     const extent = extentOf(which);
@@ -970,10 +1101,65 @@ function readPage(payload) {
   if (!payload.page) return false;
   if (!DIST) {
     DIST = payload.page.dist;
-    TICKS = payload.page.ticks;
     setText($('empty-suffix'), payload.page.suffix);
+    buildThemeControl(payload.page.themes);
+    // read here rather than in a fetch of their own (WP-1438). The boot used
+    // to ask `api/runs` for these and the first poll asked again, the same
+    // request twice about 85 ms apart, with the log's fetch queued behind
+    // both. They are read once because none of them can move while the page
+    // is open; the theme below is read every poll because it can.
+    SINGLE = payload.single_run_id;
+    CAN_CANCEL = payload.can_cancel === true;
+    CAN_OPEN_GUI = payload.can_open_gui === true;
+    if (SINGLE) document.body.dataset.single = '';
   }
   return applyTheme(payload.page.theme);
+}
+
+// The control, drawn from the server's list rather than from three literals
+// here (WP-1438). The glyphs and the sentences are `viz/theme.py`'s and the
+// GUI's alike, so the two pages a reader has open say the same thing.
+//
+// Built once, on the first payload that carries them: they cannot move while
+// the page is open, and a control rebuilt per poll would drop the focus of
+// anyone operating it from the keyboard.
+function buildThemeControl(themes) {
+  const bar = $('theme');
+  if (!bar || !Array.isArray(themes) || !themes.length) return;
+  for (const entry of themes) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.dataset.choice = entry.choice;
+    button.textContent = entry.glyph;
+    button.setAttribute('aria-label', entry.choice);
+    button.setAttribute('aria-pressed', 'false');
+    button.title = entry.title;
+    button.addEventListener('click', () => chooseTheme(entry.choice));
+    bar.appendChild(button);
+  }
+}
+
+// The choice is applied here and *then* stored, which is the GUI's order and
+// for its reason: a theme that waited on a round trip flickers, and one that
+// snapped back on a failure would be the page arguing with the reader. A
+// refusal is left to the next poll, which reads the stored choice and is the
+// authority either way.
+async function chooseTheme(choice) {
+  if (applyTheme(choice) && shell.kind === 'json') {
+    // the picture is the one thing on this page a stylesheet does not reach,
+    // so a theme that moved is a canvas to repaint. Outstanding, then asked
+    // for: `refresh` is the one caller of `drawRun`, and a second one here
+    // would be a second answer to what is on screen.
+    shell.mtime = null;
+    refresh();
+  }
+  try {
+    await fetch('api/theme', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({theme: choice}),
+    });
+  } catch (err) {}
 }
 
 let refreshing = false;
@@ -1046,16 +1232,30 @@ $('stop').onclick = () => {
 };
 
 (async () => {
-  const meta = await (await fetch('api/runs', {cache: 'no-store'})).json();
-  SINGLE = meta.single_run_id;
-  CAN_CANCEL = meta.can_cancel === true;
-  CAN_OPEN_GUI = meta.can_open_gui === true;
-  readPage(meta);
-  if (SINGLE) document.body.dataset.single = '';
+  // The log does not queue behind the walk. A run named in the URL is known
+  // before anything is fetched, so its tail is asked for here, in parallel
+  // with the poll — measured on a reload, the console filled 141 ms after
+  // the list it belongs beside, and the reader saw the page come back
+  // without its log and then the log arrive (WP-1438).
+  //
+  // A *named* run only. With no run in the URL the page does not yet know
+  // which log it wants: `newest` is what the walk is for.
+  const pinned = currentId();
+  if (pinned) {
+    resetTail(pinned);
+    // floating on purpose — the walk behind it draws the same run, and its
+    // own `pumpEvents` waits on this one and reports whatever it did not
+    pumpEvents(pinned).catch(() => {});
+  }
   layout = readLayout();
   armGrip('list');
   armGrip('console');
+  // the run pane's collapse is a button, not a grip: nothing sizes that pane
+  $('toggle-run').addEventListener('click', () => toggleSeam('run'));
   applyLayout();
   await refresh();
+  // `data-single` arrives with the walk now, and it is a layout the page has
+  // already applied once
+  applyLayout();
   schedule();
 })();

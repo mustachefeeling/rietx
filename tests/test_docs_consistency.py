@@ -288,7 +288,30 @@ SIZE_CAPS: dict[str, int | None] = {
     # this cap from 866 at once, so the number here is the *merged* file's size
     # plus headroom rather than either branch's arithmetic — which is the same
     # rule `tests/CLAUDE.md` states for test counts across a merge.
-    "CLAUDE.md": 882,
+    # 882 -> 883 (WP-1438): the per-stage charge clause gains its *answer*.
+    # WP-1413 measured the number and left the cadence to the maintainer, so
+    # the clause named a cost with no decision beside it; the lines added say
+    # the decision, why a ratio is the wrong test on a sub-second fit, and what
+    # a throttle would be if the number ever moved. The other five answers this
+    # WP landed reach no rule outside their own subtree. Measured on the merged
+    # file, per the paragraph above: this branch and 1309's both raised the cap
+    # from 871 and the two sets of lines do not sum.
+    # 883 -> 906 (WP-1438, the maintainer's second round on the same track):
+    # three clauses that govern anything added after them rather than
+    # recording what this WP did. A pane stacking when it cannot meet its
+    # floor beside its neighbour, with the breakpoint living once because
+    # spelled twice it is two layouts disagreeing; the theme's writer widened
+    # from the GUI alone to every page that shows it, since a page the GUI's
+    # user never opens could read the choice and not make it; and a tick's
+    # Miller index built where the positions are, which governs any second
+    # fact anyone pairs with a tick. The other three answers — the empty cell
+    # saying why it is empty, the boot's request waterfall, the header's
+    # unbreakable line — are findings and stayed in the WP file.
+    # 906 -> 907 on the merge (WP-1438 + 1309): both branches raised this
+    # cap and the two sets of lines do not sum — 1309's σ-is-a-function-of-the-
+    # declared-scale clause landed while 1438's three were open. Per this
+    # file's own rule, the number is the *merged* file's size.
+    "CLAUDE.md": 907,
     # 672 -> 676 (WP-1102): the Current focus rewrite at 1102's close names the
     # milestone's one break and what makes 1103 the seam's proving case.
     # 676 -> 682 (WP-1407): a new Unscheduled group, "The formats a lab still
@@ -323,6 +346,11 @@ SIZE_CAPS: dict[str, int | None] = {
     # Current focus naming #101 as closed, which is what a successor reads to
     # know the writers are all that is left of 1118.  Nothing is demotable, so
     # the cap moves rather than the fact.  Landed at 711, headroom +1.
+    # 719 -> 722 (WP-1438 over 1309's rows): one index row for the WP
+    # that answered the six questions the watcher track left.  Current focus
+    # paid for itself — the list of open questions became the list of answers
+    # in the same eight lines — so this branch's whole move is the row, and
+    # the number is the merged file's.
     "docs/ROADMAP.md": 722,
     # 1036 -> 1053 (WP-1429): where the GUI's colour values live, now that
     # they are Python and this workspace's `tokens.css` is generated from
@@ -337,7 +365,14 @@ SIZE_CAPS: dict[str, int | None] = {
     # governs work well outside the WP that measured it: three queued WPs edit
     # that page, and `compare_app.py` and the GUI both draw with plotly too.
     # Landed at 282, headroom +1, per this file's docstring.
-    "tests/CLAUDE.md": 283,
+    # 283 -> 288 (WP-1438): the mid-suite check was `pgrep -f "[p]ytest"`,
+    # and `pgrep -f` was measured exiting 1 against a live `pytest -n 4` that
+    # `pgrep python` and `ps` both saw — and behaving differently in two
+    # sessions the same day. A check that silently finds nothing returns a
+    # false all-clear every time, so the rule names `ps aux | grep` and says
+    # why, which is the clause that stops the next reader putting `pgrep`
+    # back.
+    "tests/CLAUDE.md": 288,
     "src/rietx/indexing/CLAUDE.md": 300,
     # 300 -> 350 (WP-1407): four per-format rows, and three standing rules the
     # Philips √ encoding taught — that a format may encode its counts rather

@@ -655,3 +655,45 @@ def test_compare_runs_a_real_standard():
     assert biso_o(disp) > 0.3                        # …until dispersion is on
     assert "DISPERSION_NEGLECTED" in {d["code"] for d in base.diagnostics}
     assert "DISPERSION_NEGLECTED" not in {d["code"] for d in disp.diagnostics}
+
+
+# ----------------------------------------------------------------------
+# the page is a string, so nothing lints it (WP-1438)
+# ----------------------------------------------------------------------
+def test_the_compare_pages_javascript_parses():
+    """`compare_app.py` is the page WP-1430 did not move out of python.
+
+    That WP exists because a stray escape in a quoted page cost the watcher a
+    whole page while every test stayed green (WP-1402), and the fix was to
+    make the page a *file* — `node --check`ed, its DOM-free half run by `node
+    --test`. This one is still a string, so it gets the cheaper half of that
+    treatment rather than none: the script block is extracted and parsed.
+
+    Skipped where node is absent, like the rest of the javascript gates: a
+    contributor without it is not the audience for this check, and a hard
+    failure would make `pytest` need a toolchain the package does not.
+    """
+    import shutil
+    import subprocess
+    import tempfile
+    from pathlib import Path
+
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("node is not installed")
+
+    source = (Path(compare_app.__file__)).read_text(encoding="utf-8")
+    blocks = re.findall(r"<script>(.*?)</script>", source, re.S)
+    assert blocks, "no script block in the page — has it moved to a file?"
+    for index, body in enumerate(blocks):
+        with tempfile.NamedTemporaryFile("w", suffix=".mjs", delete=False,
+                                         encoding="utf-8") as handle:
+            handle.write(body)
+            path = handle.name
+        try:
+            done = subprocess.run([node, "--check", path],
+                                  capture_output=True, text=True)
+        finally:
+            Path(path).unlink(missing_ok=True)
+        assert done.returncode == 0, (
+            f"script block {index} does not parse:\n{done.stderr}")

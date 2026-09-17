@@ -66,6 +66,19 @@ def _post(url: str, headers: dict | None = None):
         return err.code, json.loads(err.read().decode("utf-8"))
 
 
+def _post_json(url: str, payload):
+    """POST a JSON body, and give back ``(status, answer)`` either way."""
+    body = json.dumps(payload).encode("utf-8")
+    request = urllib.request.Request(
+        url, method="POST", data=body,
+        headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(request, timeout=5) as response:
+            return response.status, json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as err:
+        return err.code, json.loads(err.read().decode("utf-8"))
+
+
 def _event_line(kind: str, t: float = 1.0, **data) -> str:
     return json.dumps({"record": "event", "v": "2", "t": t, "kind": kind,
                        "data": data}) + "\n"
@@ -1072,23 +1085,26 @@ def test_the_payload_carries_what_the_page_cannot_know(tmp_path, monkeypatch):
     ``.rex`` here would be a second answer, and the literal would read as
     working right up until somebody looked at it.
 
-    Every *curve* colour left in WP-1429: those are custom properties the page
-    reads off its own root element now, and what rides here in their place is
-    the theme *choice*, the one thing here a person changes while the page is
-    open. The reflection rows did not leave, because a categorical set is the
-    one palette the GUI has none of to lend — `_page_constants` holds the
-    measurement that decided it.
+    Every *curve* colour left in WP-1429 and the reflection rows' followed in
+    WP-1438: all of them are custom properties the page reads off its own root
+    element, and what rides here in their place is the theme *choice*, the one
+    thing here a person changes while the page is open. A colour that stayed
+    would be the one this payload was worst at: it carried a single list for
+    both themes, so a light page drew its tick rows in the dark set.
     """
     from rietx._about import DIST_NAME, PROJECT_SUFFIX
-    from rietx.viz.plots import PALETTES
+    from rietx.viz import theme as theme_mod
 
     monkeypatch.setenv(STATE_DIR_ENV, str(tmp_path / "state"))
     with _served(tmp_path) as base:
         page = _json(base + "/api/runs")["page"]
-    assert page == {"suffix": PROJECT_SUFFIX, "dist": DIST_NAME,
-                    "theme": "system",
-                    "ticks": {"one": PALETTES["dark"]["tick"],
-                              "phase": PALETTES["dark"]["phase"]}}
+    assert page == {
+        "suffix": PROJECT_SUFFIX, "dist": DIST_NAME, "theme": "system",
+        # the control's three, glyph and sentence, so the page draws the
+        # GUI's and not a second copy of them (WP-1438)
+        "themes": [{"choice": c, "glyph": theme_mod.THEME_GLYPHS[c],
+                    "title": theme_mod.THEME_TITLES[c]}
+                   for c in theme_mod.THEME_CHOICES]}
     # and no token survived the move into the files
     for name in watch.STATIC_FILES:
         text = (watch.STATIC_DIR / name).read_text(encoding="utf-8")
@@ -1198,6 +1214,43 @@ def test_an_absent_or_junk_limit_is_no_cap(tmp_path, query):
     assert len(tail["events"]) == 40
     assert tail["skipped"] == 0
 
+
+
+def test_a_cold_open_asks_for_the_end_and_gets_it(tmp_path):
+    """`end=1` is the client saying "this is my first ask" (WP-1438).
+
+    The route infers nothing: `offset=0` without it still reads from the start,
+    because a reader tailing a run from its beginning is asking for exactly
+    that and a route that guessed would make the two requests the same one.
+
+    The log has to be bigger than one read window or there is nothing to seek
+    over — `tail_events`' window is 4 MiB and the route does not parameterise
+    it, so the fixture is ~4.5 MB of it. The window itself is varied where it
+    can be, in `test_runs.py`.
+    """
+    events = "".join(_event_line("eval", t=float(i), i=i) for i in range(60000))
+    assert len(events.encode()) > (4 << 20), "the fixture fits in one window"
+    _make_run(tmp_path / "r", events=events)
+    with _served(tmp_path) as base:
+        (row,) = _json(base + "/api/runs")["runs"]
+        stem = f"{base}/api/run/{row['run_id']}/events"
+        cold = _json(f"{stem}?offset=0&limit=20&end=1")
+        warm = _json(f"{stem}?offset=0&limit=20")
+        after = _json(f"{stem}?offset={cold['offset']}&limit=20")
+
+    # the newest twenty, and the offset is the whole file, so the poll after
+    # the cold one is an ordinary one that has nothing to catch up on
+    assert [e["data"]["i"] for e in cold["events"]] == list(range(59980, 60000))
+    assert cold["offset"] == cold["size"]
+    assert after["events"] == []
+    # ...and it says there is more above without counting what it did not read
+    assert cold["skipped_bytes"] > 0
+
+    # the same request without the word starts at the beginning, as it always
+    # did: one window of the log, whose newest twenty are nowhere near the end
+    assert warm["skipped_bytes"] == 0
+    assert warm["events"][-1]["data"]["i"] < 59980
+    assert warm["offset"] < warm["size"]
 
 
 def _server_timing(url: str) -> dict:
@@ -1342,3 +1395,110 @@ def test_the_two_local_servers_allow_the_same_hosts():
     from rietx.gui import server as gui_server
 
     assert watch._ALLOWED_HOSTS == gui_server._ALLOWED_HOSTS
+
+
+# ----------------------------------------------------------------------
+# the theme is settable from here too (WP-1438)
+# ----------------------------------------------------------------------
+def test_a_choice_is_stored_and_read_back_through_one_function(monkeypatch,
+                                                               tmp_path):
+    """WP-1429 made the GUI the one writer, and the consequence was measured
+    on this machine: ``settings.json`` held ``light``, and a person running a
+    fit from a script and watching it here had no way to change it without
+    opening an application they were not using.
+    """
+    from rietx.viz import theme as theme_mod
+
+    monkeypatch.setenv(STATE_DIR_ENV, str(tmp_path / "state"))
+    assert theme_mod.theme_choice() == "system"
+    for choice in theme_mod.THEME_CHOICES:
+        assert theme_mod.set_theme_choice(choice) == choice
+        assert theme_mod.theme_choice() == choice
+
+
+def test_a_theme_that_does_not_exist_is_refused_rather_than_stored(monkeypatch,
+                                                                   tmp_path):
+    """A read repairs somebody's file; a write performs somebody's verb.
+
+    Storing it would leave ``settings.json`` saying something every reader
+    turns back into ``system``.
+    """
+    from rietx.viz import theme as theme_mod
+
+    monkeypatch.setenv(STATE_DIR_ENV, str(tmp_path / "state"))
+    theme_mod.set_theme_choice("dark")
+    with pytest.raises(ValueError, match="not a theme"):
+        theme_mod.set_theme_choice("neon")
+    assert theme_mod.theme_choice() == "dark"
+
+
+def test_the_rest_of_the_settings_file_survives_a_theme(monkeypatch, tmp_path):
+    """`ui` is an open dict and the file may carry keys beside it.
+
+    This module knows about one key of one of them, so everything else in the
+    file is somebody else's and comes back byte for byte.
+    """
+    from rietx.viz import theme as theme_mod
+
+    state = tmp_path / "state"
+    state.mkdir()
+    monkeypatch.setenv(STATE_DIR_ENV, str(state))
+    (state / "settings.json").write_text(json.dumps(
+        {"recent": ["/a.rex", "/b.rex"],
+         "ui": {"theme": "light", "simple": True}}), encoding="utf-8")
+    theme_mod.set_theme_choice("dark")
+    stored = json.loads((state / "settings.json").read_text(encoding="utf-8"))
+    assert stored == {"recent": ["/a.rex", "/b.rex"],
+                      "ui": {"theme": "dark", "simple": True}}
+
+
+def test_an_unreadable_settings_file_is_replaced_rather_than_fatal(monkeypatch,
+                                                                   tmp_path):
+    """The grounds :func:`theme_choice` answers ``system`` for one, the other
+    way round: refusing to record a preference because of an unrelated
+    corruption is the worse failure.
+    """
+    from rietx.viz import theme as theme_mod
+
+    state = tmp_path / "state"
+    state.mkdir()
+    monkeypatch.setenv(STATE_DIR_ENV, str(state))
+    (state / "settings.json").write_text("{not json", encoding="utf-8")
+    assert theme_mod.set_theme_choice("dark") == "dark"
+    assert theme_mod.theme_choice() == "dark"
+
+
+def test_the_route_stores_a_theme_and_says_what_it_stored(monkeypatch,
+                                                          tmp_path):
+    from rietx.viz import theme as theme_mod
+
+    monkeypatch.setenv(STATE_DIR_ENV, str(tmp_path / "state"))
+    with _served(tmp_path) as base:
+        status, answer = _post_json(base + "/api/theme", {"theme": "dark"})
+    assert (status, answer) == (200, {"theme": "dark"})
+    assert theme_mod.theme_choice() == "dark"
+
+
+def test_the_route_refuses_a_theme_that_is_not_one(monkeypatch, tmp_path):
+    monkeypatch.setenv(STATE_DIR_ENV, str(tmp_path / "state"))
+    with _served(tmp_path) as base:
+        bad, answer = _post_json(base + "/api/theme", {"theme": "neon"})
+        empty = _post_json(base + "/api/theme", {})[0]
+    assert bad == 400 and "not a theme" in answer["error"]
+    assert empty == 400
+
+
+def test_read_only_still_lets_the_reader_choose_a_theme(monkeypatch, tmp_path):
+    """``--read-only`` fences the *run*: no stop button, no GUI launch, which
+    is what its own message says. A theme is a fact about the reader and the
+    room they are in, it is stored in the reader's own state directory, and a
+    page that could not be made legible by the person reading it would be a
+    strange thing to call read-only.
+    """
+    from rietx.viz import theme as theme_mod
+
+    monkeypatch.setenv(STATE_DIR_ENV, str(tmp_path / "state"))
+    with _served(tmp_path, allow_cancel=False, allow_gui=False) as base:
+        status, answer = _post_json(base + "/api/theme", {"theme": "dark"})
+    assert (status, answer) == (200, {"theme": "dark"})
+    assert theme_mod.theme_choice() == "dark"

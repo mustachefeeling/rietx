@@ -2472,9 +2472,21 @@ def test_result_carries_no_curves_and_the_window_serves_them(fitted):
     # ticks are clipped to the window, and every emission line is in them
     assert all(lo <= t <= hi for ticks in zoom["ticks"].values() for t in ticks)
     assert zoom["ticks"]
+    # and the Miller indices were cut by the *same* pass (WP-1438): a second
+    # filter on the same predicate is the shape that drifts, and the reader
+    # would have no way to tell which of the two had gone wrong
+    assert zoom["tick_hkl"] and set(zoom["tick_hkl"]) <= set(zoom["ticks"])
+    for phase, hkl in zoom["tick_hkl"].items():
+        assert len(hkl) == len(zoom["ticks"][phase]), phase
+        assert all(len(h) == 3 for h in hkl), phase
+    # the window really did cut something, so the pairing is being tested
+    whole = client.get("/api/result/window")[1]
+    assert any(len(whole["tick_hkl"][p]) > len(hkl)
+               for p, hkl in zoom["tick_hkl"].items())
 
     empty = client.get("/api/result/window?lo=200&hi=210")[1]
     assert empty["n_returned"] == 0 and empty["two_theta"] == []
+    assert empty["ticks"] == {} and empty["tick_hkl"] == {}
 
 
 def test_the_result_says_when_a_fit_is_past_the_point_of_being_a_fit(fitted):

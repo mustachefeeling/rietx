@@ -59,6 +59,7 @@ import numpy as np
 
 from .._about import DIST_NAME
 from ..schemas.results import RefinementResult
+from .theme import PHASE_COLOURS
 
 #: One type size for the whole figure, in points, sized for the ~7.6 in wide
 #: panel :func:`plot_result` builds by default (a report column or a screen).
@@ -93,6 +94,14 @@ Y_SCALES = ("linear", "sqrt", "log", "asinh")
 #: than a third grey: it is a component of the calculated curve, so the hue
 #: says what it is, and the grey it would otherwise share with the residual is
 #: too faint to carry its own gutter label on a white page.
+#:
+#: ``phase`` is the one entry that is **not** chosen per ground, and not chosen
+#: here at all: it is :data:`~rietx.viz.theme.PHASE_COLOURS`, which the GUI and
+#: ``rietx watch`` draw a tick row in too (WP-1438).  A role colour answers
+#: "what kind of thing is this", so it follows the page it is drawn on; a
+#: categorical colour answers "which one of them", so it follows the phase and
+#: nothing else.  ``tick`` — the *single*-phase row — stays a role and stays
+#: per ground.
 PALETTES = {
     # `ground` is the page the figure sits on.  Dark's is the manual's and the
     # landing page's warm panel, which is what `_ground_rc` paints; light's is
@@ -101,12 +110,12 @@ PALETTES = {
     "light": {"obs": "#1a1a1a", "calc": "#ff7f0e", "bkg": "#b5793a",
               "diff": "#737373", "zero": "#c9c9c9", "band": "#2a9d2a",
               "tick": "#1a1a1a", "ground": "#ffffff",
-              "phase": ["#1f77b4", "#d62728", "#2ca02c", "#9467bd"]},
+              "phase": list(PHASE_COLOURS)},
     "dark": {"obs": "#d2c9bd", "calc": "#ff9d4d", "bkg": "#c99a6a",
              "diff": "#8f8f8f", "zero": "#4a4a4a", "band": "#4fd44f",
              "tick": "#d2c9bd", "fg": "#f1ece5", "rule": "#d2c9bd",
              "ground": "#1d1813",
-             "phase": ["#6fb1ff", "#ff7b7b", "#6ede8a", "#c9a6ff"]},
+             "phase": list(PHASE_COLOURS)},
 }
 
 

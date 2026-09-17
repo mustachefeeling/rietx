@@ -29,6 +29,18 @@ Three conventions this file must not get wrong, each with a WP behind it:
 * **A tick cap is reported, never silent** — ``n_total`` rides beside every
   capped list, the way ``MAX_CANDIDATE_TICKS`` does it in ``gui/session.py``,
   because a silent cap reads as coverage.
+
+**One is written every stage, and that is a decision rather than the absence of
+one** (WP-1438, answering the question WP-1413 left the maintainer). Measured
+there: 8.30 / 6.54 / 10.56 ms a stage on ``nac`` / ``cpd-2`` / ``trigger``, so
+50 / 59 / 84 ms of a whole fit and 1.233× / 1.049× / 1.031× of its wall clock.
+Only ``nac`` is over the 5 % budget and it is a 0.354 s fit, where the whole
+charge is 50 ms — a *ratio* is the wrong test on a fit that short, because what
+a person could notice is the absolute number, and thinning would cost the live
+view its redraws on precisely the fits somebody is watching. If that number
+ever moves, the throttle is by **time** and never by count, which is what a
+logger does when it needs one (TensorBoard's ``flush_secs``): a stage boundary
+is the natural thing to write on, and how often it comes is the fit's business.
 """
 
 from __future__ import annotations
@@ -118,6 +130,12 @@ def stage_ticks(model, values: dict, *,
     rewritten: a second way of placing one would be a second answer to where a
     peak is. Only the filtering and sorting changed, from a python generator
     over every position to numpy.
+
+    ``hkl`` rides beside ``two_theta``, index for index (WP-1438), and is
+    carried through the *same* filter, sort and thinning rather than
+    recomputed against them — a tick and its Miller index that were derived
+    separately could come apart, and the reader would never know which of the
+    two was lying.
     """
     ticks: dict[str, dict] = {}
     for ip, cp in enumerate(model.phases):
@@ -127,21 +145,29 @@ def stage_ticks(model, values: dict, *,
                 + values["instrument.zero_shift"]
                 for lam in model.line_wavelengths]
         pos = np.concatenate(rows) if rows else np.zeros(0)
+        # one reflection list per emission line, in the same order each time,
+        # so the index list is that list tiled: a Kα2 image is the same hkl
+        hkl = (np.tile(cp.reflections.hkl, (len(rows), 1)) if rows
+               else np.zeros((0, 3), dtype=np.int64))
         # filtered and sorted in numpy, not in a generator: the cap below
         # exists because a large cell over a wide range reaches a hundred
         # thousand positions, and walking those in python is the cost this
         # module was written to stop paying
-        pos = np.sort(pos[np.isfinite(pos)])
+        keep = np.isfinite(pos)
+        pos, hkl = pos[keep], hkl[keep]
+        order = np.argsort(pos, kind="stable")
+        pos, hkl = pos[order], hkl[order]
         n_total = int(pos.size)
         if n_total > max_per_phase:
             # evenly through the sorted list, so the cap thins the pattern
             # rather than truncating it at some 2θ the reader never chose
             idx = np.unique(np.linspace(0, n_total - 1, max_per_phase)
                             .round().astype(np.int64))
-            pos = pos[idx]
+            pos, hkl = pos[idx], hkl[idx]
         ticks[f"phase {ip}"] = {
             # at most ``max_per_phase`` of them reach python
             "two_theta": [round(float(p), TWO_THETA_DECIMALS) for p in pos],
+            "hkl": [[int(h), int(k), int(el)] for h, k, el in hkl],
             "n_total": n_total,
         }
     return ticks
@@ -167,7 +193,9 @@ def build_snapshot(model, table, outcome, stage_name: str, *,
     ``y_calc``                 ``model.evaluate`` at the decoded θ;
     ``y_bkg``                  ``model.background`` at the same θ;
     ``delta``                  Δ divided by ``CompiledModel.sigma``;
-    ``ticks``                  :func:`stage_ticks`;
+    ``ticks``                  :func:`stage_ticks`, whose rows carry
+                               ``two_theta``, the matching ``hkl`` and the
+                               uncapped ``n_total``;
     ``n_points``/``n_drawn``   the mask's count and the decimation's.
     """
     from ..optimize.statistics import compute_statistics

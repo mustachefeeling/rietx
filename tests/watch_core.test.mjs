@@ -15,8 +15,9 @@ import {test} from 'node:test';
 
 import {
   LADDER, LAYOUT_DEFAULT, ago, axisOf, clampSize, clock, coalesce, deltaTitle,
-  dragged, esc, extent, finiteOf, nextLayout, num, parseLayout, pct, rangesOf,
-  paletteFrom, rowName, runLabel, runTitle, withAlpha,
+  dragged, esc, extent, finiteOf, guiReason, hklLabel, nextLayout, num,
+  parseLayout, pct, rangesOf,
+  paletteFrom, phaseInk, rowName, runLabel, runTitle, sizeField, withAlpha,
 } from '../src/rietx/watch/static/watch-core.mjs';
 
 // A pattern the page would draw: 1000 points, and a residual the caller
@@ -269,7 +270,7 @@ test('a size of null is not a size, and neither is a number that is not one',
 
 test('a layout naming one seam leaves the other at its default', () => {
   const got = parseLayout('{"console":{"size":120,"open":false}}');
-  assert.deepEqual(got.list, {size: null, open: true});
+  assert.deepEqual(got.list, {size: null, stackedSize: null, open: true});
   assert.deepEqual(got.console, {size: 120, open: false});
 });
 
@@ -281,11 +282,12 @@ test('only an explicit false closes a pane', () => {
   assert.equal(parseLayout('{"list":{"open":false}}').list.open, false);
 });
 
-test('the old panel key gives up its one bit and nothing else', () => {
-  // WP-1423 stored `{runs, run}`. The run pane is not collapsible any more,
-  // so `runs` is the only half with a home here.
+test('the old panel key gives up both its bits and nothing else', () => {
+  // WP-1423 stored `{runs, run}`. Both halves have a home again since
+  // WP-1438 gave the run pane a collapse of its own.
   assert.equal(parseLayout(null, '{"runs":false,"run":true}').list.open, false);
   assert.equal(parseLayout(null, '{"runs":true,"run":false}').list.open, true);
+  assert.equal(parseLayout(null, '{"runs":true,"run":false}').run.open, false);
   assert.deepEqual(parseLayout(null, '{"runs":false}').console,
                    {size: null, open: true});
   // ...and it is only consulted when this page has stored nothing itself
@@ -295,13 +297,28 @@ test('the old panel key gives up its one bit and nothing else', () => {
   assert.deepEqual(parseLayout(null, '{oh no'), LAYOUT_DEFAULT);
 });
 
+test('the run pane is a collapse and never a size', () => {
+  // no grip sizes it, so `size` has nothing to hold and only `open` moves
+  // (WP-1438). It rides in the same stored object as the two seams because
+  // one reader reading one shape is the point of that object.
+  assert.deepEqual(parseLayout('{"run":{"open":false}}').run,
+                   {size: null, open: false});
+  assert.equal(parseLayout('{"run":{"open":false}}').list.open, true);
+  assert.equal(parseLayout(null).run.open, true);
+  const next = nextLayout(parseLayout(null), 'run', {open: false});
+  assert.equal(next.run.open, false);
+  assert.equal(next.list.open, true);
+  assert.equal(next.console.open, true);
+});
+
 test('nextLayout leaves the layout it was handed alone', () => {
   // `nextPanels`' rule, and for the same reason: the caller reads its own copy
   // back out of storage next time
   const before = parseLayout(null);
   const after = nextLayout(before, 'list', {size: 500, open: false});
   assert.deepEqual(before, LAYOUT_DEFAULT);
-  assert.deepEqual(after.list, {size: 500, open: false});
+  assert.deepEqual(after.list,
+                   {size: 500, stackedSize: null, open: false});
   assert.deepEqual(after.console, {size: null, open: true});
   assert.notEqual(after.console, before.console);
 });
@@ -325,12 +342,42 @@ test('every plot colour comes from the property that owns it', () => {
     '--plot-obs': '#8a8a8a', '--plot-calc': '#c23b22', '--plot-bkg': '#6b7280',
     '--plot-diff': '#1f5fa8', '--plot-zero': '#88888888', '--line': '#dcdcd6',
     '--fg': '#1b1b1b', '--bg': '#fbfbfa', '--ok': '#2e8b57',
+    '--phase-0': '#009e73', '--phase-1': '#cc79a7', '--phase-2': '#56b4e9',
+    '--phase-3': '#f0e442',
   };
   assert.deepEqual(paletteFrom(name => declared[name]), {
     obs: '#8a8a8a', calc: '#c23b22', bkg: '#6b7280', diff: '#1f5fa8',
     zero: '#88888888', grid: '#dcdcd6', fg: '#1b1b1b', ground: '#fbfbfa',
     band: '#2e8b57',
+    phase: ['#009e73', '#cc79a7', '#56b4e9', '#f0e442'],
   });
+});
+
+// ------------------------------------------------------------- phaseInk
+// WP-1438: the tick rows' colours stopped riding on the poll's payload, which
+// sent one list whatever the theme. They are `--phase-N` now, and which row
+// takes which is the GUI's rule ported, `gui/src/lib/plot.ts:phaseInk`.
+
+test('a phase keeps its colour whatever else is drawn', () => {
+  const hue = { obs: '#8a8a8a', phase: ['#009e73', '#cc79a7', '#56b4e9'] };
+  assert.equal(phaseInk(hue, 0, 3), '#009e73');
+  assert.equal(phaseInk(hue, 1, 3), '#cc79a7');
+  assert.equal(phaseInk(hue, 2, 3), '#56b4e9');
+  // past the last it cycles rather than handing back undefined
+  assert.equal(phaseInk(hue, 3, 4), '#009e73');
+});
+
+test('one row has nothing to be told apart from, so it takes the neutral', () => {
+  const hue = { obs: '#8a8a8a', phase: ['#009e73', '#cc79a7'] };
+  assert.equal(phaseInk(hue, 0, 1), '#8a8a8a');
+});
+
+test('an unstyled page still draws its ticks in something', () => {
+  // `paletteFrom` drops empty properties, so a page with no stylesheet has no
+  // phase list at all — and a tick row with no colour is a row plotly colours
+  // by trace order, which is the defect this replaced
+  const hue = { obs: '', phase: [] };
+  assert.equal(phaseInk(hue, 2, 4), '');
 });
 
 test('a browser hands back a leading space, and it is not part of the colour',
@@ -467,4 +514,94 @@ test('coalesce is re-armed after a throw, so one failure is not a latch', () => 
   assert.throws(ask, /first one fails/);
   ask();
   assert.equal(n, 2);
+});
+
+
+// ------------------------------------------------------- the gui column
+// A run outside a project gets no launch button, and until WP-1438 got
+// nothing else either: the cell was blank, which reads as a control that
+// broke rather than one this run has no use for.
+
+test('a run inside a project is offered the verb and explains nothing', () => {
+  assert.equal(guiReason({gui_command: 'rietx gui x.rex --scratch'}, true),
+               null);
+});
+
+test('a run outside a project says that is why there is no button', () => {
+  const why = guiReason({gui_command: null}, true);
+  assert.ok(why && /project/i.test(why),
+            'the reason names the project that is missing');
+});
+
+test('a watcher that cannot open one at all says nothing per row', () => {
+  // the column is empty for every run, so a reason attached to one run would
+  // be telling the reader something about that run which is not true of it
+  assert.equal(guiReason({gui_command: null}, false), null);
+  assert.equal(guiReason({gui_command: 'rietx gui x.rex'}, false), null);
+});
+
+test('a row the walk has not filled in yet is not an explanation', () => {
+  assert.ok(guiReason(undefined, true));
+  assert.equal(guiReason(undefined, false), null);
+});
+
+
+// -------------------------------------------- two arrangements, two sizes
+
+test('the list keeps a size per arrangement and one collapse', () => {
+  assert.equal(sizeField('list', false), 'size');
+  assert.equal(sizeField('list', true), 'stackedSize');
+  // nothing else stacks, so nothing else has a second number
+  assert.equal(sizeField('console', true), 'size');
+  assert.equal(sizeField('run', true), 'size');
+});
+
+test('a stored stacked height rides beside the width, not over it', () => {
+  const layout = parseLayout(JSON.stringify(
+    {list: {size: 420, stackedSize: 260, open: true}}));
+  assert.equal(layout.list.size, 420);
+  assert.equal(layout.list.stackedSize, 260);
+  const next = nextLayout(layout, 'list', {stackedSize: 300});
+  assert.equal(next.list.stackedSize, 300);
+  assert.equal(next.list.size, 420, 'the width was not touched');
+});
+
+test('only the list carries the second field at all', () => {
+  const layout = parseLayout('{}');
+  assert.equal(layout.list.stackedSize, null);
+  // a field nothing reads is a declared name with no writer, so the seams
+  // that never stack do not have one
+  assert.ok(!('stackedSize' in layout.console));
+  assert.ok(!('stackedSize' in layout.run));
+  assert.ok(!('stackedSize' in LAYOUT_DEFAULT.console));
+});
+
+test('a stacked size is a number or it is nothing, like the other one', () => {
+  for (const bad of ['260', 0, -5, NaN, null, undefined, {}]) {
+    const layout = parseLayout(JSON.stringify(
+      {list: {size: 420, stackedSize: bad}}));
+    assert.equal(layout.list.stackedSize, null, String(bad));
+    assert.equal(layout.list.size, 420, String(bad));
+  }
+});
+
+
+// ------------------------------------------------- which reflection a tick is
+
+test('a Miller index reads as a reader writes one', () => {
+  assert.equal(hklLabel([1, 1, 0]), '1 1 0');
+  assert.equal(hklLabel([0, 0, 2]), '0 0 2');
+  // the minus in front of the digit, not over it: an overbar needs a
+  // combining mark per digit and a hover box is not where to find out
+  // whether the reader's font has one
+  assert.equal(hklLabel([1, 0, -1]), '1 0 -1');
+  assert.equal(hklLabel([-12, 4, -10]), '-12 4 -10');
+});
+
+test('anything that is not three numbers is no label at all', () => {
+  // a snapshot written before this carries no `hkl`, and the trace falls
+  // back to the 2θ it always had rather than hovering a blank
+  for (const bad of [undefined, null, [], [1, 1], [1, 1, 0, 2], 'abc', 7]) {
+    assert.equal(hklLabel(bad), '', JSON.stringify(bad));
+  }
 });

@@ -841,11 +841,19 @@ class EventTail:
     #: call parsed: bytes beyond ``max_bytes`` are not read, and their events
     #: are not guessed at.
     skipped: int = 0
+    #: Bytes between where the caller asked to read and where this read began,
+    #: which is ``0`` for every ordinary call and the seek distance under
+    #: ``from_end``. It is how a client says "there is more log above this"
+    #: without a count of *lines*: the events in those bytes were never read,
+    #: so counting them would mean reading the file to say how much of it went
+    #: unread (WP-1438). It is deliberately not the absolute start, which an
+    #: ordinary poll of a long log also has and which says nothing.
+    skipped_bytes: int = 0
 
 
 def tail_events(path: str | Path, offset: int = 0, *, inode: int | None = None,
-                max_bytes: int = 4 << 20,
-                max_events: int | None = None) -> EventTail:
+                max_bytes: int = 4 << 20, max_events: int | None = None,
+                from_end: bool = False) -> EventTail:
     """Read an event log from a byte offset, carrying a torn line forward.
 
     A trailing fragment is left **unparsed** and the returned offset stops
@@ -866,6 +874,20 @@ def tail_events(path: str | Path, offset: int = 0, *, inode: int | None = None,
     is a tail over a pane of a fixed number of lines, and where without it a
     single poll built 60 000 ``<div>``s to keep 2000 of them (997 ms on the
     main thread, WP-1427).
+
+    ``from_end`` starts at the **end** of the log rather than at ``offset``,
+    which is what a reader opening a run that has been going for a while wants
+    and what every log viewer does (``kubectl logs --tail``, ``less +G``,
+    CloudWatch's live tail).  Without it a cold open walks forward one
+    ``max_bytes`` a poll: measured on a 7.35 MB log, the first line painted at
+    0.64 s showed events 42 s old and the tail arrived at 1.99 s, and a log
+    grows 1.8-4.5 MB a minute of series fitting, so an hour-long job is 27 to
+    67 polls of walking (WP-1438).  It reads the last ``max_bytes`` and drops
+    the partial line it lands in, so the events are whole and the returned
+    offset is the end — the next poll continues from there as any other would.
+    It never seeks *behind* ``offset``: a log shorter than ``max_bytes`` is
+    read from where the caller already is, so the flag can only ever skip
+    forward and never resend.
     """
     path = Path(path)
     try:
@@ -879,6 +901,12 @@ def tail_events(path: str | Path, offset: int = 0, *, inode: int | None = None,
     if inode is not None and inode != stat.st_ino:
         reset = True                      # replaced under us
     start = 0 if reset else max(0, int(offset))
+    asked = start
+    if from_end:
+        # never *behind* what was asked for: a short log seeks nowhere, and a
+        # seek that went back past the caller's offset would resend events it
+        # already has and report a negative `skipped_bytes`
+        start = max(start, stat.st_size - max_bytes)
 
     try:
         with open(path, "rb") as fh:
@@ -888,10 +916,24 @@ def tail_events(path: str | Path, offset: int = 0, *, inode: int | None = None,
         return EventTail([], offset, stat.st_ino, reset=reset,
                          size=stat.st_size)
 
+    if start > asked:
+        # the seek landed mid-line, and half an event is not an event. The
+        # trailing fragment is carried forward by the offset below; this one
+        # belongs to a line whose start is behind us and is dropped. Only
+        # where the seek actually moved: `asked` is a line boundary a previous
+        # read handed back, so dropping a line there would drop a whole event.
+        head = chunk.find(b"\n")
+        if head == -1:
+            return EventTail([], stat.st_size, stat.st_ino, reset=reset,
+                             size=stat.st_size,
+                             skipped_bytes=stat.st_size - asked)
+        start, chunk = start + head + 1, chunk[head + 1:]
+
     cut = chunk.rfind(b"\n")
     if cut == -1:
         # nothing complete yet; hold the offset where it was
-        return EventTail([], start, stat.st_ino, reset=reset, size=stat.st_size)
+        return EventTail([], start, stat.st_ino, reset=reset,
+                         size=stat.st_size, skipped_bytes=start - asked)
     complete, _fragment = chunk[:cut + 1], chunk[cut + 1:]
 
     lines = [raw for raw in complete.split(b"\n") if raw.strip()]
@@ -910,7 +952,8 @@ def tail_events(path: str | Path, offset: int = 0, *, inode: int | None = None,
         except (ValueError, UnicodeDecodeError):
             bad += 1
     return EventTail(events, start + cut + 1, stat.st_ino, reset=reset,
-                     bad_lines=bad, size=stat.st_size, skipped=skipped)
+                     bad_lines=bad, size=stat.st_size, skipped=skipped,
+                     skipped_bytes=start - asked)
 
 
 def request_cancel(run_dir: str | Path, *, who: str) -> Path:

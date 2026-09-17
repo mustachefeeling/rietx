@@ -343,15 +343,33 @@ class MultiHistogramRefinement:
         return self.result_
 
     # ------------------------------------------------------------------
-    def _ticks(self, model, structure, values) -> dict[str, list[float]]:
+    def _ticks(self, model, structure, values
+               ) -> tuple[dict[str, list[float]], dict[str, list[list[int]]]]:
+        """Positions per phase, and which reflection each of them is.
+
+        Both, from one walk.  This is the second builder CLAUDE.md warns
+        about — ``refine._build_result`` has the other — and a joint fit whose
+        ticks carried no Miller indices would be the one surface where
+        pointing at a tick told the reader nothing (WP-1438).
+        """
         ticks: dict[str, list[float]] = {}
+        tick_hkl: dict[str, list[list[int]]] = {}
         for ip, cp in enumerate(model.phases):
             name = structure.phases[ip].name
             cell = tuple(values[f"phases.{ip}.cell.{k}"] for k in _CELL_KEYS)
             rows = [cp.reflections.two_theta(cell, lam) + values["instrument.zero_shift"]
                     for lam in model.line_wavelengths]
             pos = np.concatenate(rows) if rows else np.array([])
-            ticks[name] = sorted(float(p) for p in pos if np.isfinite(p))
+            # one reflection list per emission line, in the same order each
+            # time, so the index list is that list tiled
+            hkl = (np.tile(cp.reflections.hkl, (len(rows), 1)) if rows
+                   else np.zeros((0, 3), dtype=np.int64))
+            keep = np.isfinite(pos)
+            pos, hkl = pos[keep], hkl[keep]
+            order = np.argsort(pos, kind="stable")
+            ticks[name] = [float(v) for v in pos[order]]
+            tick_hkl[name] = [[int(h), int(k), int(el)]
+                              for h, k, el in hkl[order]]
         # Declared sharp peaks are ticks here too (WP-1103, the member
         # contract's clause 2).  A joint fit's Layer 0 reads *this* list, so
         # without the row every declared peak comes back as an unindexed
@@ -361,8 +379,10 @@ class MultiHistogramRefinement:
         # loop, so the two surfaces cannot drift.
         extra = model.extra_peak_tick_positions(values)
         if extra:
+            # no `tick_hkl` row: a peak declared by centre has no Miller
+            # index, and an empty list would claim it had none of its own
             ticks[EXTRA_TICK_KEY] = extra
-        return ticks
+        return ticks, tick_hkl
 
     def _build_result(self, models, outcome, weights, correlation_guard,
                       stage_results) -> RefinementResult:
@@ -476,7 +496,9 @@ class MultiHistogramRefinement:
                 two_theta=model.tt.tolist(), y_obs=model.y_obs.tolist(),
                 y_calc=y_calc.tolist(), y_background=y_bkg.tolist(),
                 sigma=model.sigma.tolist(),
-                ticks=self._ticks(model, struct, values), qpa=qpa,
+                **dict(zip(("ticks", "tick_hkl"),
+                           self._ticks(model, struct, values))),
+                qpa=qpa,
                 # per histogram, like the QPA and the absorption record above:
                 # the partition is of *this* pattern's counts, so a joint fit
                 # has one structure R per histogram, not a pooled one

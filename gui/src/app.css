@@ -119,7 +119,13 @@ button {
   border-radius: var(--r-control);
   border: 1px solid var(--accent);
   background: var(--accent);
-  color: #fff;
+  /* Not white (WP-1438). The accent is a dark blue on the light theme and a
+     *light* blue on the dark one, where white measures 2.22:1 against it —
+     under WCAG AA at any size. `--panel` is white on light and near-black on
+     dark, so one token is the legible ink on both fills: 6.44:1 and 7.51:1.
+     Found by the watcher's own no-colour-literals guard, which this
+     stylesheet has no equivalent of. */
+  color: var(--panel);
   cursor: pointer;
 }
 
@@ -142,7 +148,7 @@ button.ghost:hover:not(:disabled),
 button.on {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--panel);      /* the primary's ink, and for its reason */
   font-weight: 600;
 }
 
@@ -203,7 +209,7 @@ button:disabled {
 
 .segmented button.on {
   background: var(--accent);
-  color: #fff;
+  color: var(--panel);
 }
 
 /* One choice among N *panels*.  A tab is not a segmented option: it names

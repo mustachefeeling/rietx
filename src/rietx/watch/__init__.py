@@ -67,7 +67,6 @@ from .._about import DIST_NAME, PROJECT_SUFFIX
 from ..viz import theme as theme_mod
 from ..viz.plotlyjs import CONTENT_TYPE as PLOTLY_CONTENT_TYPE
 from ..viz.plotlyjs import plotly_js
-from ..viz.plots import PALETTES
 
 #: What a missing plotly says, in the pane the plot would have filled. Each
 #: page that serves plotly owns its own fallback (``viz/plotlyjs.py``), and
@@ -123,20 +122,22 @@ def _page_constants() -> dict:
     WP — those are custom properties the page reads off its own root element,
     so one stylesheet answers for all three surfaces.
 
-    ``ticks`` did not, and the reason is the one WP-1429 could not settle. A
-    reflection row per phase is a **categorical** set, and the GUI has none to
-    lend: its `--plot-*` tokens each name one role, and its own tick rows take
-    plotly's colorway, which is indexed by position in the trace array — so
-    the row a phase owns changes colour at the stage that frees the background
-    (measured, and `#d62728` at 0.043 from `--plot-calc` on the light theme,
-    a third of the distance the curve colours themselves are held apart by). This page keeps the phase list it has always used,
-    :data:`~rietx.viz.plots.PALETTES`, until somebody decides what a shared
-    categorical palette should be.
+    ``ticks`` rode here too until WP-1438 and no longer does.  The question
+    that kept it was what a shared *categorical* palette should be, the
+    `--plot-*` tokens each naming one role; the answer is four Okabe-Ito
+    colours in `--phase-0…3`, which this page now reads off its root element
+    like every other colour.  The payload could not have answered it well in
+    any case: it sent one list whatever the theme, so a light page drew its
+    tick rows in the dark set.
     """
     return {"suffix": PROJECT_SUFFIX, "dist": DIST_NAME,
             "theme": theme_mod.theme_choice(),
-            "ticks": {"one": PALETTES["dark"]["tick"],
-                      "phase": PALETTES["dark"]["phase"]}}
+            # the three the page draws its control from, so the glyph and the
+            # sentence under the pointer are the GUI's and not a second copy
+            "themes": [{"choice": choice,
+                        "glyph": theme_mod.THEME_GLYPHS[choice],
+                        "title": theme_mod.THEME_TITLES[choice]}
+                       for choice in theme_mod.THEME_CHOICES]}
 
 
 #: How long a walk's result stands before the next request pays for another.
@@ -443,14 +444,24 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
                 # and a second copy of it in python is a second authority for
                 # how many lines a console keeps. An absent or junk `limit` is
                 # no cap, which is what this route did before WP-1427.
+                #
+                # `end=1` is a *cold open*, and it is the client's to ask for
+                # rather than this route's to infer (WP-1438): `offset=0` on a
+                # run being tailed from its start is a legitimate request, and
+                # a route that quietly seeked instead would make the two
+                # indistinguishable. What it changes is where the read starts,
+                # never what an offset means — the answer carries the offset
+                # it reached, and the next poll is an ordinary one.
+                from_end = (query.get("end", [""])[0] or "") == "1"
                 tail = self._timed("tail", lambda: runs_mod.tail_events(
                     run.path / runs_mod.EVENTS_FILE,
                     _int("offset") or 0, inode=_int("inode"),
-                    max_events=_limit()))
+                    max_events=_limit(), from_end=from_end))
                 self._json({"events": tail.events, "offset": tail.offset,
                             "inode": tail.inode, "reset": tail.reset,
                             "bad_lines": tail.bad_lines, "size": tail.size,
-                            "skipped": tail.skipped})
+                            "skipped": tail.skipped,
+                            "skipped_bytes": tail.skipped_bytes})
                 return
             if rest in ("snapshot", "legacy"):
                 # served as bytes, never parsed here: the reader constructs
@@ -475,8 +486,8 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
         super().do_GET()
 
     def do_POST(self):  # noqa: N802 - http.server API
-        """The two verbs: ``/api/run/<id>/cancel`` (WP-1405) and
-        ``/api/run/<id>/gui`` (WP-1428).
+        """The three verbs: ``/api/run/<id>/cancel`` (WP-1405),
+        ``/api/run/<id>/gui`` (WP-1428) and ``/api/theme`` (WP-1438).
 
         POST and never GET. A GET that cancels is one prefetching browser, one
         link preview or one crawler away from stopping somebody's overnight
@@ -501,9 +512,10 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
             length = int(self.headers.get("Content-Length") or 0)
         except ValueError:
             length = 0
+        body = b""
         if length > 0:
             capped = min(length, 1 << 16)
-            self.rfile.read(capped)
+            body = self.rfile.read(capped)
             if capped < length:
                 # the cap stops a declared gigabyte becoming this process's
                 # memory, and then the connection has to go: the rest of that
@@ -526,7 +538,50 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
             if parts[3] == "gui":
                 self._open_gui(parts[2])
                 return
+        if parts == ["api", "theme"]:
+            self._set_theme(body)
+            return
         self._json({"error": "no such route"}, status=404)
+
+    def _set_theme(self, body: bytes) -> None:
+        """Store the theme this page is already drawn in (WP-1438).
+
+        **Not under** ``allow_cancel``/``allow_gui``. Those two fence the
+        *run* — an exception raised in somebody's fit, a process started on
+        this machine — and ``--read-only`` is a promise about the directory
+        being watched, which is what its own message says: "no stop button, no
+        GUI launch". A theme is a fact about the reader and the room they are
+        in, it is stored in the reader's own state directory, and a page that
+        could not be made legible by the person reading it would be a strange
+        thing to call read-only.
+
+        The refusal is :func:`~rietx.viz.theme.set_theme_choice`'s, reported
+        as a 400 rather than swallowed: a page asking to be a theme that does
+        not exist is a bug in the page, and answering 200 to it would hide
+        that behind a theme that silently stayed put.
+        """
+        try:
+            payload = json.loads(body.decode("utf-8") or "{}")
+            choice = payload["theme"]
+        except (UnicodeDecodeError, ValueError, KeyError, TypeError):
+            self._json({"error": "expected a JSON body naming a theme"},
+                       status=400)
+            return
+        try:
+            stored = theme_mod.set_theme_choice(choice)
+        except ValueError as error:
+            self._json({"error": str(error)}, status=400)
+            return
+        except (OSError, RuntimeError) as error:
+            # the state directory is somebody else's filesystem, and a theme
+            # is not worth a traceback in a served page's log. `RuntimeError`
+            # is `Path.home()` on a machine with no home to find, which is the
+            # one `theme_choice` answers `system` for: the read repairs it and
+            # the write has to say it could not.
+            self._json({"error": f"the choice could not be stored: {error}"},
+                       status=500)
+            return
+        self._json({"theme": stored})
 
     def _cancel(self, run_id: str) -> None:
         """Ask one run to stop, or say why not.

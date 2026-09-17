@@ -33,6 +33,17 @@ calculated pattern really does have a peak at each Kα₂ position, and a tick l
 that omitted them would make the report flag every Kα₂ peak as an unindexed
 impurity, which it once did.
 
+`RefinementResult.tick_hkl` says which reflection each of those ticks is, as
+`[h, k, l]`, paired with `ticks` by index. One reflection appears once per
+emission line, so a peak and its Kα₂ image carry the same Miller index. The
+three browser pages hover it over a tick. A phase is absent from the mapping
+rather than empty when there is nothing to say, which is the case for the
+reserved key declared peaks go under: a peak given by centre has no Miller
+index, and an empty list there would claim it had none of its own.
+
+Two reflections can land at the same 2θ to every decimal, so a position is not
+a key into this mapping. Pair them by index or not at all.
+
 `Refinement.predict` evaluates y_calc at the parameters as they stand. Given a
 grid (a `PatternData`, or an array of 2θ values) it compiles a fresh model on it,
 so it will extrapolate beyond the fitted range or resample inside it. With

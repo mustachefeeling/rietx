@@ -78,7 +78,8 @@ class _State:
                           "durbin_watson": None, "esd_inflation": None,
                           "two_theta": [], "y_obs": [], "y_calc": [],
                           "y_background": [], "delta": [], "cumulative_chi2": [],
-                          "ticks": {}, "diagnostics": [], "parameters": []}
+                          "ticks": {}, "tick_hkl": {},
+                          "diagnostics": [], "parameters": []}
             with self.lock:
                 self.records[key] = record
             done = record.get("error") or (
@@ -347,6 +348,16 @@ const COLORS = ["#1f5fa8","#c23b22","#2e8b57","#8a5cc4","#c98a17","#0f8f9c",
 // read at use, not held: a token is whatever the root element says it is now
 const tok = (name) => getComputedStyle(document.documentElement)
   .getPropertyValue(name).trim();
+// One colour per phase, the same four the GUI, `rietx watch` and every figure
+// draw a tick row in (WP-1438, `viz/theme.py`). They used to be an offset into
+// COLORS above — a *variant's* colour lent to a phase, so the row a phase owned
+// moved when a variant was ticked. A single phase takes the observed neutral,
+// colour being for telling rows apart.
+const phaseInk = (i, count) => {
+  if (count <= 1) return tok('--plot-obs');
+  const phase = [0, 1, 2, 3].map(n => tok('--phase-' + n)).filter(Boolean);
+  return phase.length ? phase[i % phase.length] : tok('--plot-obs');
+};
 let CATALOG = null, RECORDS = {}, POLL = null;
 
 const $ = (id) => document.getElementById(id);
@@ -513,11 +524,18 @@ function draw() {
     const phases = Object.keys(anyRec.ticks || {});
     phases.forEach((phase, i) => {
       const y = lo - span * (0.06 + 0.045 * i);
-      fit.push({x: anyRec.ticks[phase], y: anyRec.ticks[phase].map(() => y),
+      const row = anyRec.ticks[phase];
+      // which reflection, under the pointer (WP-1438) — the same box the
+      // GUI and `rietx watch` draw, off the same `tick_hkl` companion
+      const hkl = (anyRec.tick_hkl || {})[phase];
+      const paired = Array.isArray(hkl) && hkl.length === row.length;
+      fit.push({x: row, y: row.map(() => y),
                 type: 'scattergl', mode: 'markers', name: phase,
                 marker: {symbol: 'line-ns-open', size: 7, line: {width: 1},
-                         color: COLORS[(i + 4) % COLORS.length]},
-                hovertemplate: phase + ' %{x:.3f}°<extra></extra>'});
+                         color: phaseInk(i, phases.length)},
+                ...(paired ? {customdata: hkl.map(v => v.join(' '))} : {}),
+                hovertemplate: phase + (paired ? '<br>%{customdata}' : '')
+                  + '<br>%{x:.3f}°<extra></extra>'});
     });
   }
   Plotly.react('plot-fit', fit, LAYOUT('', 'intensity'), {responsive: true});

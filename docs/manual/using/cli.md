@@ -139,6 +139,11 @@ its five declared columns need plus room for the run column's own heading, 63
 characters in all. The run panel keeps 340 px, below which the plot's legend
 wraps to six rows and covers the top quarter of the picture.
 
+`full list`, beside the title, hides the run panel altogether and gives the
+list the window. It is a button rather than a third seam because no seam sizes
+that panel, and dragging the list to its stop is a different thing: that leaves
+the run panel at the 340 px above. The choice persists like the two sizes do.
+
 The list has six columns. `state` is the liveness word below. `run` is what the
 run is called: for a series member the pattern it fitted, otherwise the label.
 The label is the word the caller passed as `label=`, and failing that the
@@ -153,6 +158,11 @@ An unnamed batch launched from one directory gives every run the same label, so
 the second it started is what tells its rows apart. That is a fact about the
 record rather than about the fit. Pass `label=` to the verb that starts the fit
 and the row carries the work instead ([](refining.md)).
+
+Opening a run puts you at the newest line of its log, not at its first. A job
+that has been running for a while has a log of some megabytes, and the console
+reads the end of it and says that earlier lines are above; it does not say how
+many, having not read them. From there it follows the log as it always did.
 
 The page holds still while the fit moves. The plot redraws in place as the fit
 writes each stage. Its 2θ and intensity axes are set by the pattern, so they
@@ -201,7 +211,9 @@ the kernel releases however that process dies, `kill -9` included.
 
 `abandoned` is a third answer and not a rounding of the other two. It is what a
 killed process leaves behind, and it is the state you are looking for when a run
-has stopped moving.
+has stopped moving. It is drawn in the neutral the list gives `unknown` rather
+than in the colour it gives `cancelled`: colour here means the run reported its
+own last word, and these two are the states where nothing did.
 
 `unknown` arises three ways: the run was written on another host, so its pid
 names one of our processes and not the writer's; the lock is free and no state
@@ -246,7 +258,30 @@ rietx watch: 3 run(s) under /Users/yue/work/demo
              read-only: no stop button, no GUI launch
 ```
 
-The page draws no button, and both routes refuse with 403.
+The page draws no button, and both routes refuse with 403. The theme control
+stays, because what `--read-only` fences is the run: a page that could not be
+made legible by the person reading it would be a strange thing to call
+read-only.
+
+### What the page does about its window
+
+Light or dark is one choice for the whole of rietx, kept beside your recent
+projects rather than in any project. The three buttons in the title bar are the
+GUI's, and they write the same setting: follow the system, light, or dark. A
+change made here reaches an open watcher on the poll it already makes, and an
+open GUI when it is reloaded.
+
+Below about 860 pixels the run list and the run stack instead of sitting side by
+side, and the seam between them becomes a horizontal one. That is the width at
+which the list's narrowest useful columns and the picture's own floor stop both
+fitting. The seam remembers a width and a height separately, so turning the
+window does not hand you a pane you never asked for. Narrower still, the list
+drops the stage and the start time: the strip above the picture names the stage,
+and the list is ordered by the time.
+
+Pointing at a tick names the reflection. It gives the Miller index, `2 1 1`,
+and the angle under it. A run recorded before 1.5 has positions and no Miller
+indices, and its ticks keep the angle alone.
 
 ### Opening a copy in the GUI
 
@@ -320,12 +355,14 @@ directly:
 | `/api/run/<id>/legacy` | a `fit.html` written before 1.4, served as it stands |
 | `POST /api/run/<id>/cancel` | asks that run to stop; 403 under `--read-only` |
 | `POST /api/run/<id>/gui` | opens a copy of that run's project in the GUI; 403 under `--read-only` |
+| `POST /api/theme` | stores the theme; not under `--read-only`, which fences the run |
+| `/tokens.css` | the colour tokens the GUI is drawn from, so both pages agree |
 | `/plotly.js` | plotly out of the installed package, so the page works offline |
 
 These are provisional by declaration, like the GUI's ([](compatibility.md)). A
 route may be added, renamed or split in any release.
 
-The watcher has two verbs and everything else reads. It never opens a project
+The watcher has three verbs and everything else reads. It never opens a project
 and never builds a refinement, so you can start and stop the watcher while a
 refinement runs. The stop writes a request file into a run directory the scan
 already found, and the fit's own token is what acts on it. The GUI launch copies

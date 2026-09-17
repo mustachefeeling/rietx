@@ -186,7 +186,22 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 #: without a stored field is that every plan preset frees
 #: ``instrument.background.*``, which now reaches the scale; the v1.4 record's
 #: break list has that half.
-SCHEMA_VERSION = "0.21"
+#: 0.21 → 0.22 (WP-1438): ``RefinementResult.tick_hkl`` and
+#: ``HistogramResult.tick_hkl`` — which reflection each entry of ``ticks`` is,
+#: as the orbit representative ``h k l``, paired with the positions by index.
+#: Additive and defaulted to ``{}``, and the same rule as 0.19 → 0.20: a new
+#: field on a result a consumer enumerates bumps the version whether or not any
+#: stored document changes meaning.  **None does** — a result written before
+#: this opens with the mapping empty, which is the honest empty state rather
+#: than a claim, and the three pages that draw ticks fall back to hovering the
+#: 2θ they always did.
+#: The field is a *companion*, not a change of shape: ``ticks`` keeps its
+#: ``dict[str, list[float]]``, because its four readers want positions and none
+#: of them wants this.  A phase is **absent** from ``tick_hkl`` rather than
+#: empty where there is nothing to say, which is the case for the reserved
+#: declared-peaks key: a peak given by centre has no Miller index, and ``[]``
+#: there would claim it had none of its own.
+SCHEMA_VERSION = "0.22"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
 

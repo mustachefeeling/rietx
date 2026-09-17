@@ -19,12 +19,18 @@ generated and committed, and ``tests/test_gui_palette.py`` holds the two equal
 byte for byte — an edit on either side fails until the other follows.
 
 **What is not here.**  Everything in ``app.css`` that is not a colour: the type
-and space scales, the radii, the control registers.  And
-:data:`~rietx.viz.plots.PALETTES`, which is the *figure* palette — chosen so a
-figure sits on the manual's and the landing page's warm dark panel rather than
-as a brighter card on it, and a figure for print has different needs from a
-live page.  Changing it would regenerate every committed manual figure pair for
-a consistency nobody asked about.
+and space scales, the radii, the control registers.  And the *role* half of
+:data:`~rietx.viz.plots.PALETTES`, the figure palette — chosen so a figure sits
+on the manual's and the landing page's warm dark panel rather than as a
+brighter card on it, and a figure for print has different needs from a live
+page.
+
+**One thing crossed that line** (WP-1438): :data:`PHASE_COLOURS`, which the
+figures import from here.  A role colour follows the page it is drawn on, so it
+belongs to the surface; a categorical colour follows the phase, so it belongs to
+one list or a phase is three different colours in three pictures of the same
+refinement.  The cost was foreseen and paid — every committed manual figure pair
+with more than one phase was regenerated in that WP.
 
 **The extra roles a page needs are derived, never declared.**  The watcher wants
 a row hover, a selected row, a focus ring, four grip states and six state pills,
@@ -51,6 +57,21 @@ from .._about import STATE_DIR_ENV, STATE_DIR_NAME
 #: that switches at dusk wants the app to switch with it, and a user who has
 #: decided wants it to stay decided through that switch.
 THEME_CHOICES = ("system", "light", "dark")
+
+#: The glyph each choice wears, and what it promises.  Here rather than in
+#: each page for the reason the colours are (WP-1429): three surfaces, one
+#: set of values.  The GUI cannot import them — `gui/src` is a build input the
+#: wheel does not ship — so `tests/test_gui_palette.py` holds `App.svelte`
+#: equal to these instead, the same way it holds `tokens.css` equal to the
+#: emitter.
+THEME_GLYPHS: dict[str, str] = {
+    "system": "\u25d0", "light": "\u2600", "dark": "\u263e",
+}
+THEME_TITLES: dict[str, str] = {
+    "system": "follow the system, and keep following it when it changes",
+    "light": "light, whatever the system does",
+    "dark": "dark, whatever the system does",
+}
 
 #: What a choice resolves to.  ``system`` resolves in the *browser*, through the
 #: ``prefers-color-scheme`` block :func:`tokens_css` emits — no server can see
@@ -107,6 +128,51 @@ TOKENS: dict[str, dict[str, str]] = {
     },
 }
 
+#: One colour per phase, shared by all three surfaces and by the figures
+#: (WP-1438).  Theme-independent on purpose: a phase that changed colour when
+#: the reader switched themes would be a second fact about the same row.
+#:
+#: **Okabe-Ito** (Okabe & Ito 2002; Wong, *Nature Methods* **8**, 441, 2011),
+#: which is the categorical standard a scientific figure reaches for, and four
+#: of its eight, because the Rietveld plot has already spent the rest.  Measured
+#: in OKLab against every curve role and page of both themes on both surfaces:
+#: blue lands 0.053 from the difference curve, orange 0.061 from the figures'
+#: calculated curve, vermillion 0.065 from the app's.  What is left is bluish
+#: green, reddish purple, sky blue and yellow.  Black is not a member: it is the
+#: *single-phase* row's neutral, which is
+#: :data:`~rietx.viz.plots.PALETTES`'s ``tick`` and follows the theme.
+#:
+#: **No four of the eight clear the 0.13 floor against everything**, and they do
+#: not have to.  A tick sits in a row of its own below the data, so its identity
+#: is carried by position as well as by hue, and the floor is what a mark drawn
+#: *over* the data is held to.  What the set is chosen for is the weakest link,
+#: which is 0.0637 here — bluish green against the light theme's candidate
+#: overlay, a mark from the indexing tab.  Spending vermillion instead would buy
+#: 0.001 and put the collision on the *calculated curve*, which is on screen
+#: whenever a tick row is.
+#:
+#: **The order is the page's, not the palette's.**  Which four is the curve
+#: measurement's answer; the order is contrast against the page — bluish green
+#: 0.390, reddish purple 0.330, sky blue 0.280, yellow 0.191 — because a tick
+#: that collides with a curve is still in its own row and a tick nobody can see
+#: against the page is not saved by anything.  Four is the ceiling rather than a
+#: shortage: past four, rows want labels.
+#:
+#: What it replaced scored worse on both counts it is held to
+#: (``tests/test_gui_palette.py``): the tab10 light list came **0.009** from the
+#: figures' own ±3σ band — `#2ca02c` against `#2a9d2a`, two greens that are one
+#: colour — the dark list 0.052 from the candidate overlay, and the dark list's
+#: closest pair was 0.113, under the floor it asks of everything else.  This set
+#: is 0.0637 and 0.184.
+PHASE_COLOURS: tuple[str, ...] = ("#009e73", "#cc79a7", "#56b4e9", "#f0e442")
+
+#: :data:`PHASE_COLOURS` as custom properties.  They are declared once, in
+#: ``:root``, rather than in each theme block, because they do not vary with the
+#: theme — the dark blocks override what changes and nothing else.
+PHASE_TOKENS: dict[str, str] = {
+    f"--phase-{index}": colour for index, colour in enumerate(PHASE_COLOURS)
+}
+
 #: The reasoning, keyed by the token each note precedes.  It travels with the
 #: values because a palette is a set of decisions and a bare hex is none of
 #: them — the notes came out of ``app.css`` with WP-1429 and are emitted into
@@ -131,9 +197,10 @@ free hue space is this magenta and green alone: violet lands 0.10-0.12 from
 the last of the free hue space the note above measured, spent rather than
 borrowed.  It could not take the peak layer's: these two layers are up at the
 same time, on the same tab, and the whole question the picture answers is which
-of the picked lines a cell accounts for.  Nor the model's tick colour, which is
-plotly's own per-phase cycle and is therefore not a value this file could
-quote.""",
+of the picked lines a cell accounts for.  Nor the model's tick colour, which
+was plotly's own per-phase cycle when this was written and is `--phase-N` in
+this file since WP-1438 — measured against it at 0.0637 in OKLab, the weakest
+link that palette is chosen for and the reason its order is what it is.""",
     "--plot-mask": """What is *not* being fitted (WP-1033): a wash,
 deliberately not a sixth curve colour.  It marks absence from the residual
 rather than a quantity, so it carries no hue anything else could be confused
@@ -189,6 +256,17 @@ def _declarations(theme: str, *, notes: bool) -> list[str]:
     return out
 
 
+def _phase_declarations() -> list[str]:
+    """The phase palette, declared once because it does not follow the theme."""
+    note = ("One colour per phase, both themes: four of Okabe-Ito's eight. "
+            "Orange, vermillion and blue are out because the calculated and "
+            "difference curves have spent them, and black is the single-phase "
+            "row's neutral rather than a member. `viz/theme.py` carries the "
+            "measurement and the order.")
+    return [_wrap_comment(note)] + [f"  {token}: {value};"
+                                    for token, value in PHASE_TOKENS.items()]
+
+
 def _wrap_comment(text: str, width: int = 76) -> str:
     """A CSS comment wrapped at `width`, indented two spaces and continued four."""
     words, lines, line = text.split(), [], "  /* "
@@ -215,7 +293,7 @@ def tokens_css() -> str:
     if set(TOKENS["light"]) != set(TOKENS["dark"]):
         raise ValueError("the two themes declare different tokens: "
                          f"{sorted(set(TOKENS['light']) ^ set(TOKENS['dark']))}")
-    light = "\n".join(_declarations("light", notes=True))
+    light = "\n".join(_declarations("light", notes=True) + _phase_declarations())
     dark = "\n".join(_declarations("dark", notes=False))
     dark_indented = "\n".join("  " + line if line.strip() else line
                               for line in dark.splitlines())
@@ -275,14 +353,11 @@ def state_dir(override: str | Path | None = None) -> Path:
 def theme_choice() -> str:
     """The theme the person chose, from ``settings.json``; ``system`` by default.
 
-    Read-only, and that is the rule rather than an omission: the GUI writes the
-    choice (``session.settings_patch``) and the two Python pages read it.  One
-    writer per fact.  Anything unreadable, missing or hand-mangled is
-    ``"system"``, never an error — the same grammar
-    :meth:`~rietx.gui.session.Session.settings` uses, and for the same reason:
-    no setting here is worth refusing to start over.
+    Anything unreadable, missing or hand-mangled is ``"system"``, never an
+    error — the same grammar :meth:`~rietx.gui.session.Session.settings` uses,
+    and for the same reason: no setting here is worth refusing to start over.
 
-    No directory argument: both callers want the person's, and a parameter
+    No directory argument: every caller wants the person's, and a parameter
     nothing passes is a claim with no writer.  A caller that one day wants to
     ask about some other directory adds it then.
     """
@@ -295,6 +370,63 @@ def theme_choice() -> str:
         # a page draws in the default theme there, rather than not at all
         return "system"
     return value if value in THEME_CHOICES else "system"
+
+
+def set_theme_choice(value: str) -> str:
+    """Store the person's theme choice, and answer with what is now stored.
+
+    **One home for the fact, and every page that shows it may set it**
+    (WP-1438, widening WP-1429).  That WP made the GUI the sole writer because
+    it was the only surface with a settings screen, and the consequence was
+    measured here: ``settings.json`` held ``light`` on a dark machine, and a
+    person running a fit from a script and watching it in a browser had no way
+    to change it without opening an application they were not using.  A
+    user-level theme is settable from whichever window you are in — VS Code,
+    Grafana and Jupyter all work that way — and what must not be duplicated is
+    the *fact*, which still lives in one file and is still read through one
+    function.
+
+    Anything not in :data:`THEME_CHOICES` is refused with ``ValueError``,
+    unlike the read above.  A read is repairing somebody's file and a write is
+    performing somebody's verb: a request to be a theme that does not exist
+    has no honest interpretation, and storing it would leave the file saying
+    something every reader turns back into ``system``.
+
+    The rest of ``settings.json`` is preserved, including keys this module
+    knows nothing about: ``ui`` is an open dict the GUI's frontend owns, and
+    this write touches one key of it.  A file that cannot be
+    read is *replaced*, on the same grounds :func:`theme_choice` returns
+    ``system`` for one: the alternative is refusing to record a preference
+    because of an unrelated corruption.
+
+    An open GUI does not repaint on this.  It reads the choice at boot and
+    polls only a run's events, so a change made here reaches it when it is
+    reloaded, where a change made *there* reaches an open watcher on the poll
+    it already makes.  Said rather than fixed: adding a settings poll to the
+    GUI to close a direction nobody has asked for is scaffolding.
+    """
+    if value not in THEME_CHOICES:
+        raise ValueError(
+            f"{value!r} is not a theme; expected one of "
+            + ", ".join(repr(c) for c in THEME_CHOICES))
+    directory = state_dir()
+    path = directory / "settings.json"
+    try:
+        stored = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(stored, dict):
+            stored = {}
+    except (OSError, ValueError):
+        stored = {}
+    ui = stored.get("ui")
+    stored["ui"] = {**ui, "theme": value} if isinstance(ui, dict) \
+        else {"theme": value}
+    directory.mkdir(parents=True, exist_ok=True)
+    # written whole and moved into place: a reader of this file is a page
+    # being drawn, and a half-written settings file would draw as `system`
+    temporary = path.with_name(path.name + ".tmp")
+    temporary.write_text(json.dumps(stored, indent=2) + "\n", encoding="utf-8")
+    temporary.replace(path)
+    return value
 
 
 if __name__ == "__main__":  # pragma: no cover - the regeneration command

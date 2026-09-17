@@ -909,6 +909,9 @@ class RunRecord:
     #: client can re-reference to any variant without a server round trip
     cumulative_chi2: list[float]
     ticks: dict[str, list[float]] = field(default_factory=dict)
+    #: which reflection each tick is, index for index (WP-1438); a phase whose
+    #: result carried no indices is absent rather than empty
+    tick_hkl: dict[str, list[list[int]]] = field(default_factory=dict)
     diagnostics: list[dict] = field(default_factory=list)
     parameters: list[dict] = field(default_factory=list)
     error: str | None = None
@@ -997,6 +1000,7 @@ def run(standard_key: str, variant_key: str, *,
         y_background=y_bkg[idx].tolist(),
         delta=delta[idx].tolist(), cumulative_chi2=cumulative[idx].tolist(),
         ticks={k: v for k, v in result.ticks.items()},
+        tick_hkl={k: v for k, v in result.tick_hkl.items()},
         diagnostics=[{"level": d.level, "code": d.code, "where": list(d.where),
                       "message": d.message, "suggestion": d.suggestion or ""}
                      for d in result.diagnostics],

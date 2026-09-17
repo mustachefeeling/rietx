@@ -24,11 +24,50 @@ a:hover { text-decoration:underline; }
        height:29px; white-space:nowrap; }
 #root { color:var(--muted); flex:1 1 auto; min-width:0; overflow:hidden;
         text-overflow:ellipsis; }
+/* The theme control (WP-1438). The GUI's `.segmented` register, because it is
+   the same control doing the same job and a reader has both open: one border
+   round the group, no border between the members, and the chosen one filled
+   with the accent. `app.css` is where those four rules are written; they are
+   repeated here rather than shared because what crosses that line is colour
+   *values*, and a control register is layout.
+
+   Why the watcher writes a setting at all: WP-1429 made the GUI the one
+   writer and left the choice unreachable for the person this page was built
+   for — a fit driven from a script, watched in a browser, with the GUI never
+   opened. `viz/theme.set_theme_choice` has the rest. */
+#theme { flex:0 0 auto; display:flex; border:1px solid var(--line);
+         border-radius:4px; overflow:hidden; }
+#theme button { border:0; border-radius:0; background:transparent;
+                color:var(--muted); font-size:12px; padding:1px 7px;
+                line-height:1.5; }
+#theme button:hover { color:var(--fg);
+                background:color-mix(in srgb, var(--accent) 12%, var(--panel)); }
+/* `--panel` and not white: on the dark theme the accent is a light blue and
+   white on it measures 2.22:1, under WCAG AA for text of any size. The panel
+   colour is near-black there and white on light, so one token is the right
+   ink in both — 6.44:1 and 7.51:1. The GUI's `.segmented button.on` had the
+   literal and inherited the same defect; it was fixed with this (WP-1438). */
+#theme button[aria-pressed="true"] { background:var(--accent);
+                                     color:var(--panel); }
+#theme button[aria-pressed="true"]:hover { background:var(--accent); }
+#toggle-run { flex:0 0 auto; font-size:11px; padding:1px 8px;
+              color:var(--muted); }
+#toggle-run:hover { color:var(--fg); }
+#toggle-run[aria-pressed="true"] { color:var(--fg);
+              background:color-mix(in srgb, var(--accent) 16%, var(--panel)); }
+body[data-single] #toggle-run { display:none; }
 button { font: inherit; color:var(--fg); background:var(--panel); cursor:pointer;
          border:1px solid var(--line); border-radius:4px; padding:2px 9px; }
 /* the GUI's one hover, over this page's filled button rather than its ghost */
 button:hover { background:color-mix(in srgb, var(--accent) 12%, var(--panel)); }
 #main { flex:1 1 auto; display:flex; min-height:0; }
+/* Is the window too narrow to hold the two panes side by side? The number is
+   here and javascript asks whether it is met rather than repeating it
+   (WP-1438): the seam's arithmetic, the grip's axis and which stored size is
+   in force all follow from this flag, and a breakpoint spelled twice is two
+   layouts disagreeing about which one the page is in. */
+:root { --stacked: 0; }
+@media (max-width: 858px) { :root { --stacked: 1; } }
 /* The list is one panel and the run the other, and the seam between them is
    the reader's to drag (WP-1425). `--list` is what the grip writes, in px;
    unset it and the declared `80ch` holds, which is why a page nobody has
@@ -43,9 +82,45 @@ button:hover { background:color-mix(in srgb, var(--accent) 12%, var(--panel)); }
 #run { flex:1 1 auto; min-width:0; display:flex; flex-direction:column; }
 body[data-list="closed"] #runs,
 body[data-single] #runs, body[data-single] #grip-list { display:none; }
+/* The run pane hidden, which is the list given the whole window (WP-1438).
+   The grip goes with it: a separator between one pane and nothing is a control
+   that cannot do anything, and the list takes the space rather than keeping
+   its declared width beside an empty half. */
+body[data-run="closed"] #run, body[data-run="closed"] #grip-list
+     { display:none; }
+body[data-run="closed"] #runs { flex:1 1 auto; border-right:0; }
+/* Stacked, which is the same two panes and the same seam turned through a
+   right angle (WP-1438). 859 px is where side by side stops being possible:
+   the list's 71ch floor measured 513 px at this font, its own border 1, the
+   grip 5, and the run pane keeps 340 for the picture. Below it the old page
+   gave the list its declared 578 px and the run pane whatever was left, which
+   at 420 px was nothing at all and 863 px of horizontal document scroll.
+
+   The list takes the top because it is what the reader picks from, and its
+   height is a *second* stored number rather than the width reinterpreted: a
+   px width is not a px height, and a seam dragged in one arrangement says
+   nothing about the other. `38vh` is the declared default for the same reason
+   `80ch` is the other one — window-relative, so a px default would freeze it.
+
+   The collapse is one fact either way. `full list` still hides the run pane
+   and the list still hides itself, and neither rule below cares which way the
+   panes sit. */
+@media (max-width: 858px) {
+  #main { flex-direction:column; }
+  #runs { flex:0 0 var(--list-h, 38vh); border-right:0;
+          border-bottom:1px solid var(--line); }
+  #run { min-height:0; }
+  /* the id outranks `.grip.v`, which is the class the markup carries and the
+     arrangement this page is usually in */
+  #grip-list { cursor:row-resize; }
+  body[data-run="closed"] #runs { flex:1 1 auto; border-bottom:0; }
+}
 /* The grip flows inline, taking its 5 px out of the row: an absolute grip
-   inside `overflow: auto` scrolls away from the edge it marks (WP-1029). It
-   is the whole control now — the two toggle buttons it replaced are gone. */
+   inside `overflow: auto` scrolls away from the edge it marks (WP-1029). It is
+   the whole control for the *width*; what the button beside the title does is
+   the collapse that no grip can reach, the run pane not being the pane either
+   grip sizes (WP-1425's rule, and WP-1438's exception to what followed from
+   it: a collapsible pane carries a named command, not only a gesture). */
 /* Four states and one hue: the accent, at four strengths over the panel the
    grip sits in. It is the only control on this page with more than two, and
    `:focus-visible` is load-bearing rather than cosmetic — the grip is
@@ -79,6 +154,32 @@ col.c-rwp { width:10ch; } col.c-gof { width:9ch; } col.c-started { width:11ch; }
    content is the word `open` in the button's 11 px, plus the button's own
    border and padding, plus the cell's 14 px. */
 col.c-gui { width:8ch; }
+/* Narrower than the columns themselves, and then the table sheds two of them
+   rather than the name (WP-1438). The six declared widths are 66ch = 477 px
+   at this font and the run column is whatever is left, so at 500 px it came
+   out 22 px and every name in the list read `5…`. 563 px is 78ch, which is
+   the six plus twelve for a name — about what `20260917-083300-41505 ·
+   legacy` needs before the ellipsis starts costing something.
+
+   These two and not another two: the stage and the start time are the ones
+   the page answers elsewhere. The strip above the picture names the stage of
+   the run that is open, and the list is *ordered* by the start time, so the
+   order is carrying it. State, Rwp and GoF are what a reader compares rows
+   on, and the name and the launch button are what a row is for.
+
+   Hidden by zeroing the column and taking the cell's padding off it, never
+   by `display:none` on the cells — measured, that shifts every later cell
+   one place left into the colgroup and Rwp inherited the zero while the
+   launch button took GoF's 9ch. `visibility:collapse` on the `<col>` is the
+   standards answer and is worse here: Chrome collapsed the *flexible* run
+   column to nothing along with the two asked for. A 0 px cell under the
+   table's own `overflow:hidden` inks nothing, and not even an ellipsis,
+   there being no room to draw one in. */
+@media (max-width: 562px) {
+  col.c-stage, col.c-started { width:0; }
+  th.c-stage, td.c-stage, th.c-started, td.c-started
+    { padding:0; border-left:0; border-right:0; }
+}
 th { text-align:left; color:var(--muted); font-weight:normal; padding:6px 7px;
      border-bottom:1px solid var(--line); position:sticky; top:0;
      background:var(--bg); overflow:hidden; text-overflow:ellipsis;
@@ -94,15 +195,26 @@ td { padding:6px 7px; white-space:nowrap;
 td.gui { padding:2px 7px; text-align:right; }
 td.gui button { padding:1px 7px; font-size:11px; color:var(--muted); }
 td.gui button:hover { color:var(--fg); }
+/* the em dash a run with no project gets instead of the button, which carries
+   the reason as its title — `help` rather than `default`, so a pointer says
+   there is something to read */
+td.gui .why { cursor:help; }
 tr.run { cursor:pointer; }
 tr.run:hover { background:color-mix(in srgb, var(--fg) 6%, transparent); }
 tr.run.selected { background:color-mix(in srgb, var(--accent) 16%, transparent); }
 .state { padding:1px 7px; border-radius:9px; font-size:11px; }
 /* Six states out of the GUI's five tones, each a wash of its own ink: running
-   is `--ok`, done `--accent`, failed `--bad`, cancelled `--warn`. Abandoned
-   shares the warning hue with cancelled because it is the same kind of fact —
-   a run that stopped without an answer — and is stepped towards `--muted`,
-   nobody having asked for it. Unknown is the absence of a tone. */
+   is `--ok`, done `--accent`, failed `--bad`, cancelled `--warn`.
+
+   Abandoned used to share the warning hue with cancelled at a weaker wash,
+   12 % against 18 %, which made the two one pill with two words in it. They
+   are not one kind of fact (WP-1438): cancelled is somebody's decision and
+   keeps the warning tone, while abandoned is a writer that died without a last
+   word — which is what `unknown` says too, so it takes the same neutral. That
+   is the convention every CI dashboard already follows, hue for an outcome the
+   run reported and grey for one it did not. The two neutrals differ in wash,
+   not in hue, because the difference between them is how the question failed:
+   this host could not find the writer, or could not ask. */
 .running   { background:color-mix(in srgb, var(--ok) 18%, transparent);
              color:var(--ok); }
 .done      { background:color-mix(in srgb, var(--accent) 18%, transparent);
@@ -111,8 +223,8 @@ tr.run.selected { background:color-mix(in srgb, var(--accent) 16%, transparent);
              color:var(--bad); }
 .cancelled { background:color-mix(in srgb, var(--warn) 18%, transparent);
              color:var(--warn); }
-.abandoned { background:color-mix(in srgb, var(--warn) 12%, transparent);
-             color:color-mix(in srgb, var(--warn) 70%, var(--muted)); }
+.abandoned { background:color-mix(in srgb, var(--muted) 22%, transparent);
+             color:var(--muted); }
 .unknown   { background:color-mix(in srgb, var(--muted) 15%, transparent);
              color:var(--muted); }
 .num { text-align:right; font-variant-numeric: tabular-nums; }

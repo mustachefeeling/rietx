@@ -1600,10 +1600,16 @@ def test_a_joint_fit_writes_the_same_reserved_key_as_a_single_one():
                           moving_paths=set(table.moving_paths))
     values = table.decode(table.x0())
 
-    ticks = MultiHistogramRefinement._ticks(None, model, structure, values)
+    ticks, tick_hkl = MultiHistogramRefinement._ticks(
+        None, model, structure, values)
     assert EXTRA_TICK_KEY in ticks
     assert ticks[EXTRA_TICK_KEY] == model.extra_peak_tick_positions(values)
     assert "LaB6" in ticks
+    # a peak declared by centre has no Miller index, so it gets no row at all
+    # rather than an empty one, which would claim it had none of its own
+    # (WP-1438). The phase beside it does, one per tick.
+    assert EXTRA_TICK_KEY not in tick_hkl
+    assert len(tick_hkl["LaB6"]) == len(ticks["LaB6"])
 
     # and nothing appears for a model that declares no peak
     plain = _instrument()
@@ -1611,7 +1617,7 @@ def test_a_joint_fit_writes_the_same_reserved_key_as_a_single_one():
     plain_model = compile_model(structure, plain, data, mode="rietveld",
                                 moving_paths=set(plain_table.moving_paths))
     assert EXTRA_TICK_KEY not in MultiHistogramRefinement._ticks(
-        None, plain_model, structure, plain_table.decode(plain_table.x0()))
+        None, plain_model, structure, plain_table.decode(plain_table.x0()))[0]
 
 
 def test_a_phase_named_like_the_reserved_key_is_refused():

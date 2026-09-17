@@ -35,11 +35,21 @@ from pathlib import Path
 import pytest
 
 from rietx.gui.structure3d import MIN_SEPARATION, _oklab, _oklab_distance, _oklab_hex
-from rietx.viz.theme import TOKENS, tokens_css
+from rietx.viz.plots import PALETTES
+from rietx.viz.theme import (
+    PHASE_COLOURS,
+    PHASE_TOKENS,
+    THEME_CHOICES,
+    THEME_GLYPHS,
+    THEME_TITLES,
+    TOKENS,
+    tokens_css,
+)
 
 ROOT = Path(__file__).resolve().parent.parent
 TOKENS_CSS = ROOT / "gui" / "src" / "tokens.css"
 PLOT_TS = ROOT / "gui" / "src" / "lib" / "plot.ts"
+PLOT_SVELTE = ROOT / "gui" / "src" / "panels" / "Plot.svelte"
 
 #: The colours a *curve* is drawn in — the set a reader has to tell apart.
 #:
@@ -145,8 +155,12 @@ def test_every_block_of_the_stylesheet_carries_the_whole_palette(name):
     css = tokens_css()
     blocks = [":root {"] if name == "light" else [
         ':root:not([data-theme="light"])', ':root[data-theme="dark"]']
+    # the phase palette does not follow the theme, so it is declared once, in
+    # `:root` with the light set, and the dark blocks override what changes
+    # and nothing else (WP-1438)
+    expected = dict(TOKENS[name], **PHASE_TOKENS) if name == "light" else TOKENS[name]
     for block in blocks:
-        assert _block(block, css) == TOKENS[name], f"{block} is short"
+        assert _block(block, css) == expected, f"{block} is short"
 
 
 def test_the_typescript_fallbacks_are_the_light_tokens():
@@ -158,13 +172,19 @@ def test_the_typescript_fallbacks_are_the_light_tokens():
     literal is what a missing property falls back *to*, and generating a `.ts`
     twin of `tokens.css` would be a second generated file for ten values.  So
     the copy stays and is pinned instead.
+
+    The phase palette's four are the exception that says what the rule is
+    about (WP-1438): they do not follow the theme, so *their* fallback is not
+    "the light value" — it is the value, and a page with no stylesheet draws a
+    phase in the colour every other surface draws it in.
     """
     source = PLOT_TS.read_text(encoding="utf-8")
     fallbacks = dict(re.findall(r'pick\("(--[\w-]+)",\s*"(#[0-9a-fA-F]{6,8})"\)',
                                 source))
     assert fallbacks, "no `pick(token, fallback)` calls found in plot.ts"
-    light = TOKENS["light"]
-    assert fallbacks == {key: light[key] for key in fallbacks}
+    expected = dict(TOKENS["light"], **PHASE_TOKENS)
+    assert fallbacks == {key: expected[key] for key in fallbacks}
+    assert set(PHASE_TOKENS) <= set(fallbacks), "the phase tokens are not read"
 
 
 @pytest.mark.parametrize("theme", ["light", "dark"])
@@ -293,3 +313,252 @@ def test_every_lane_reads_against_the_panel_it_is_drawn_on(themes, theme):
     for index, lane in enumerate(_lanes(theme)):
         gap = _oklab_distance(lane, surface)
         assert gap >= 0.30, f"{theme}: lane {index} is {gap:.3f} from the panel"
+
+
+# ----------------------------------------------------------------------
+# WP-1438 — the phase palette, which is categorical rather than a role
+# ----------------------------------------------------------------------
+
+#: How close a phase colour comes to a *curve* colour, on the worst of the four
+#: surfaces (two themes × the tokens and the figure palette).
+#:
+#: It is under :data:`MIN_SEPARATION` and that is the decision rather than an
+#: oversight: a tick sits in a row of its own below the data, so its identity is
+#: carried by position as well as by hue, and the floor is what a mark drawn
+#: *over* the data is held to.  No four of Okabe-Ito's eight clear 0.13 against
+#: everything, so what the set is chosen for is this number (measured 0.0637, and
+#: the constant is the floor it may not fall below) and what it is for is the
+#: other direction — it may not get worse.  The two lists this one
+#: replaced scored **0.009** (tab10's green against the figures' own ±3σ band,
+#: which is the same colour) and 0.052.
+PHASE_CURVE_WEAKEST = 0.063
+
+#: The roles a tick is drawn near on the figure surface, whose curve colours are
+#: not the tokens' (matplotlib orange against the GUI's red, and a green band).
+FIGURE_ROLES = ("obs", "calc", "bkg", "diff", "band")
+
+
+def _phase_distances() -> list[tuple[float, str]]:
+    """Every phase colour against every curve role, on every surface."""
+    out = []
+    for index, colour in enumerate(PHASE_COLOURS):
+        lab = _oklab(colour)
+        for theme in ("light", "dark"):
+            for token in CURVES:
+                out.append((_oklab_distance(lab, _oklab(TOKENS[theme][token])),
+                            f"phase {index} {colour} vs {theme} {token}"))
+            for role in FIGURE_ROLES:
+                out.append((_oklab_distance(lab, _oklab(PALETTES[theme][role])),
+                            f"phase {index} {colour} vs {theme} figure {role}"))
+    return sorted(out)
+
+
+def test_two_phases_are_never_one_colour():
+    """The floor applies here in full: two tick rows are two of the same mark.
+
+    This is what the shipped dark list failed — `#6fb1ff` and `#c9a6ff` were
+    0.113 apart while every other pair in the app was held to 0.13.
+    """
+    for i, one in enumerate(PHASE_COLOURS):
+        for j, two in enumerate(PHASE_COLOURS[i + 1:], start=i + 1):
+            gap = _oklab_distance(_oklab(one), _oklab(two))
+            assert gap >= MIN_SEPARATION, (
+                f"phases {i} and {j} ({one}, {two}) are {gap:.3f} apart")
+
+
+@pytest.mark.parametrize("theme", ["light", "dark"])
+def test_every_phase_reads_against_every_page_it_is_drawn_on(theme):
+    """Four surfaces, and the figure's warm ground is not the app's `--bg`.
+
+    Yellow is the member this is for: it is the safest of the four against the
+    curves and the weakest against a white page, which is why it is spent last.
+    """
+    for index, colour in enumerate(PHASE_COLOURS):
+        lab = _oklab(colour)
+        for name, page in (("--bg", TOKENS[theme]["--bg"]),
+                           ("--panel", TOKENS[theme]["--panel"]),
+                           ("figure ground", PALETTES[theme]["ground"])):
+            gap = _oklab_distance(lab, _oklab(page))
+            assert gap >= MIN_SEPARATION, (
+                f"{theme}: phase {index} {colour} is {gap:.3f} from {name}")
+
+
+def test_no_phase_colour_comes_closer_to_a_curve_than_the_recorded_number():
+    """The one distance below the floor, pinned so it can only improve.
+
+    Named rather than exempted quietly, the way `GRANDFATHERED` names its two
+    pairs: the nearest neighbour is sky blue against the dark difference curve,
+    and a retune that brought a phase closer to a curve than this would be
+    undoing what the set was chosen for.
+    """
+    worst, where = _phase_distances()[0]
+    assert worst >= PHASE_CURVE_WEAKEST, f"{where} is {worst:.3f}"
+
+
+def test_the_order_spends_the_most_legible_first():
+    """Which four is the curve measurement's answer; the order is the page's.
+
+    A tick that collides with a curve is still in a row of its own; a tick
+    nobody can see against the page is not saved by anything.  So the set is
+    ordered by its worst contrast against a page, and a reordering that put a
+    weaker colour in the slot every two-phase pattern uses fails here.
+    """
+    def page_gap(colour: str) -> float:
+        lab = _oklab(colour)
+        return min(_oklab_distance(lab, _oklab(page))
+                   for theme in ("light", "dark")
+                   for page in (TOKENS[theme]["--bg"], TOKENS[theme]["--panel"],
+                                PALETTES[theme]["ground"]))
+
+    gaps = [page_gap(colour) for colour in PHASE_COLOURS]
+    assert gaps == sorted(gaps, reverse=True), (
+        "the phase order is not by page contrast: "
+        + ", ".join(f"{c} {g:.3f}" for c, g in zip(PHASE_COLOURS, gaps)))
+
+
+def test_one_list_serves_every_surface():
+    """The figure palette's phase entry is this module's list, not a copy.
+
+    Both themes, because a phase's colour is a fact about the phase: the same
+    refinement drawn in the GUI, in `rietx watch` and in the manual's figure
+    names its phases the same way or the three pictures are not of one fit.
+    """
+    for theme in ("light", "dark"):
+        assert PALETTES[theme]["phase"] == list(PHASE_COLOURS)
+    assert list(PHASE_TOKENS.values()) == list(PHASE_COLOURS)
+
+
+def test_a_tick_trace_colours_its_marker_and_not_only_its_line():
+    """Where the ink of an open GL marker comes from, found by looking.
+
+    The tick rows are `line-ns-open` on a `scattergl` trace, so a reader would
+    expect `marker.line.color` to be the stroke — and it is *declared* there,
+    while plotly resolves `marker.color` from its colorway and draws that.
+    Measured in Chrome on a two-phase fit: `gd.data` said `#009e73`, the picture
+    was `#9467bd`, and `gd._fullData` named both. The trace therefore carries
+    the colour on the marker as well, which is what `rietx watch` always did
+    and why its page looked right while this one did not (WP-1438).
+
+    A source assertion because the GUI has no browser suite — its pictures are
+    judged by looking (`docs/manual/make_screenshots.py`) — and because the
+    thing to pin is the *shape* of the trace rather than a colour a palette
+    test already owns.
+    """
+    source = PLOT_SVELTE.read_text(encoding="utf-8")
+    start = source.index('yaxis: "y3"')
+    trace = source[start:source.index("});", start)]
+    assert "symbol: \"line-ns-open\"" in trace, "not the tick trace any more"
+    assert "color: ink" in trace, (
+        "the tick trace sets no marker colour: plotly will assign one from its "
+        "colorway by position in the trace array")
+    marker = trace[trace.index("marker:"):]
+    assert marker.count("color: ink") == 2, (
+        "both the marker and its line take the phase ink")
+
+
+def test_the_gui_tick_trace_names_the_reflection_under_the_pointer():
+    """The companion to the colour guard above, and the same kind of guard.
+
+    The trace was `hoverinfo: "none"` — a row of marks a reader could point
+    at and be told nothing by.  Asserted on the source because what this owns
+    is the *wiring*: `plot.test.ts` owns the label and
+    `tests/test_gui_server.py` owns the payload, and nothing between them
+    would notice the trace ceasing to read either.
+    """
+    source = (Path(__file__).resolve().parents[1] / "gui" / "src" / "panels"
+              / "Plot.svelte").read_text(encoding="utf-8")
+    start = source.index('yaxis: "y3"')
+    trace = source[start:source.index("});", start)]
+    assert "customdata" in trace, (
+        "the tick trace carries no per-point data: there is nothing for a "
+        "hover template to name")
+    assert "hklLabel" in trace, "the label is not the shared one"
+    assert "hovertemplate" in trace and "%{customdata}" in trace
+    # and the fallback, for a result reopened from a history that predates it
+    assert 'hoverinfo: "none"' in trace, (
+        "a result carrying no indices must keep its silence rather than "
+        "hovering the word undefined")
+
+
+@pytest.mark.parametrize("theme", ["light", "dark"])
+def test_the_single_phase_neutral_is_not_a_member_of_the_set(theme):
+    """A single row takes the neutral, which follows the theme and is a role.
+
+    Okabe-Ito's eighth colour is black, and it is exactly what a light page's
+    single-phase row draws in — but as `tick`, the role, which is the warm
+    off-white on a dark ground.  A member of a categorical set cannot do that:
+    it would change colour with the theme.
+    """
+    assert PALETTES[theme]["tick"] not in PHASE_COLOURS
+
+
+# ----------------------------------------------------------------------
+# the theme control, on two pages (WP-1438)
+# ----------------------------------------------------------------------
+APP_SVELTE = Path(__file__).resolve().parents[1] / "gui" / "src" / "App.svelte"
+
+
+def _declared(source: str, name: str) -> dict[str, str]:
+    """The `Record<ThemeChoice, string>` literal `name` holds, as a dict.
+
+    Parsed rather than imported: `gui/src` is a build input the wheel does not
+    ship, so there is no importing it from here — the same reason
+    `tokens.css` is generated and byte-compared rather than read.
+    """
+    start = source.index(f"const {name}")
+    body = source[source.index("{", start) + 1:source.index("}", start)]
+    return {m.group(1): m.group(2) for m in
+            re.finditer(r'(\w+)\s*:\s*"((?:[^"\\]|\\.)*)"', body)}
+
+
+def test_the_watcher_and_the_gui_offer_the_same_three_themes():
+    """One set of values for three surfaces is WP-1429's rule, and a glyph is
+    a value (WP-1438).
+
+    The watcher draws its control from `viz/theme.py` over the wire. The GUI
+    cannot import that module, so this holds its literals equal to it
+    instead — an edit on either side fails until the other follows, which is
+    exactly what `tokens.css` is held to.
+    """
+    source = APP_SVELTE.read_text(encoding="utf-8")
+    glyphs = _declared(source, "GLYPH")
+    titles = _declared(source, "THEME_TITLE")
+    assert glyphs == THEME_GLYPHS
+    assert titles == THEME_TITLES
+    assert set(THEME_GLYPHS) == set(THEME_TITLES) == set(THEME_CHOICES)
+
+
+@pytest.mark.parametrize("theme", ["light", "dark"])
+def test_nothing_writes_white_on_the_accent(theme):
+    """Measured: on the dark theme the accent is a light blue, and white on it
+    is **2.22:1** — under WCAG AA at any size.  `--panel` is white on the
+    light theme and near-black on the dark one, so one token is the legible
+    ink on both fills: 6.44 and 7.51.
+
+    The literal was in `app.css` in three places and was on its way into the
+    watcher's own control when that page's no-colour-literals guard caught it
+    (`test_no_colour_literal_is_left_in_the_page`).  This is that guard for
+    the stylesheet which has none, stated as the measurement rather than as a
+    ban on a string.
+    """
+    def luminance(value: str) -> float:
+        parts = [int(value[i:i + 2], 16) / 255 for i in (1, 3, 5)]
+        lin = [c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+               for c in parts]
+        return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2]
+
+    def contrast(a: str, b: str) -> float:
+        la, lb = luminance(a), luminance(b)
+        return (max(la, lb) + 0.05) / (min(la, lb) + 0.05)
+
+    accent = TOKENS[theme]["--accent"]
+    panel = TOKENS[theme]["--panel"]
+    assert contrast(accent, panel) >= 4.5, (
+        f"{theme}: --panel on --accent is {contrast(accent, panel):.2f}:1")
+    # and the two stylesheets do not reach for white instead
+    css = (Path(__file__).resolve().parents[1] / "gui" / "src" / "app.css"
+           ).read_text(encoding="utf-8")
+    for block in ("button {", "button.on {", ".segmented button.on {"):
+        start = css.index("\n" + block)
+        rule = css[start:css.index("}", start)]
+        assert "#fff" not in rule, f"{block} still inks white on the accent"

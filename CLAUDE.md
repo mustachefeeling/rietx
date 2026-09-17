@@ -525,6 +525,9 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   `rietx html` still writes one on demand — what stopped is producing it unasked.
 - **A per-stage charge is judged on the shortest fit, never the typical one** (WP-1413): it is
   near-constant, so `nac` at 0.354 s spends 50 ms on six snapshots against a 17.7 ms budget.
+  **That one is paid** (WP-1438): a ratio is the wrong test where the absolute charge is 50 ms,
+  and thinning would cost the live view its redraws on the fits somebody is watching. A
+  throttle, if the number ever moves, is by time and never by count.
 - **Every fit records itself, and telemetry never breaks a fit** (WP-1403). `runs.py` holds
   both halves of one contract: the reader `rietx watch` is built on, and `RunRecorder`, which
   writes the `meta.json`/`run.lock`/`status.json` it looks for. `runs.attach` hangs the
@@ -596,6 +599,19 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   content is short by its padding and elides, and an ellipsis is what fitting and not fitting
   look the same amount of. Measure ink against room, never `scrollWidth`, which is
   `clientWidth` wherever overflow is visible.
+- **A pane that cannot meet its floor beside its neighbour stacks, and the breakpoint is the
+  stylesheet's** (WP-1438). `rietx watch` gave the list its declared `80ch` and the run pane
+  whatever was left, which at 420 px was nothing and 863 px of horizontal document scroll. The
+  width where side by side stops being *possible* is computable from the floors already
+  declared — the list's 71ch, the 340 px of picture the run pane keeps, the grip — so it is
+  measured, not chosen. It lives once, as a `--stacked` custom property a media query sets, and
+  the page asks whether it is met; spelled twice it is two layouts disagreeing about which one
+  the page is in. A seam that turns keeps a **size per arrangement**: a px width is not a px
+  height, and one number hands the reader a pane they never asked for. A table sheds the
+  columns the page answers elsewhere before it sheds the one the row is *for*, by zeroing the
+  `<col>` — never `display:none` on the cells, which shifts every later cell a place left into
+  the colgroup, and never `visibility:collapse`, which took the flexible column with it (both
+  measured).
 - **Three browser surfaces, one set of colour values, and they are Python** (WP-1429,
   `viz/theme.py`). The GUI, `rietx watch` and `rietx compare` each answered "which colour is
   the calculated curve" for itself, on two different darks. The values cannot live in
@@ -603,10 +619,13 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   Python servers render a `/tokens.css` route, `gui/src/tokens.css` is **generated and
   committed** and a test holds it equal to the emitter. A page's extra roles — a hover, a
   focus ring, a state pill — are `color-mix` over the nine chrome tokens, never a token of
-  their own: one the GUI never reads is a declared name with no writer. The **theme** is the
-  GUI's to write and everyone else's to read (`state_dir/settings.json`), and a change reaches
-  an open page on the poll it already makes. The **figure** palette (`viz/plots.PALETTES`) is
-  not in this story and stays where it is.
+  their own: one the GUI never reads is a declared name with no writer. The **theme** has one
+  home and every page that shows it may set it (`state_dir/settings.json`, through
+  `theme.theme_choice`/`set_theme_choice`; WP-1438 widened 1429's GUI-only writer, which left
+  the choice unreachable for a fit driven from a script and watched in a browser). A change
+  reaches an open watcher on the poll it already makes and an open GUI on its next load. The
+  glyphs and titles are the module's too, `App.svelte` held equal to it by meta-test. The
+  **figure** palette (`viz/plots.PALETTES`) is not in this story and stays where it is.
 - **Two things are written once and consumed everywhere; never restate either.** (1) The residual
   **row layout** `[data | background-penalty | Pawley-restraint | soft-restraint]` lives in
   `model/rows.py` (`BLOCK_ORDER`, `layout()`, `assemble()`) — the numpy residual, the numpy
@@ -728,7 +747,13 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   angles).
 - `RefinementResult.ticks` carries **every emission line's** positions, not just the primary —
   otherwise Layer 0 flags each Kα2 peak as an unindexed impurity (a real bug, caught by the
-  misfit-injection suite).
+  misfit-injection suite). **Which reflection each tick is rides beside it, built where the
+  positions are** (WP-1438): `tick_hkl` and `stage_ticks`' `hkl` are pinned to their positions
+  by index and carried through the same filter, sort and cap, because a second derivation of
+  the pairing could come apart with nothing able to say which half was lying. `ticks` keeps its
+  shape — four readers want a list of positions and none of them wants this. Two reflections
+  land at the same 2θ to every decimal, so a **position is not a key**: pair by index or not at
+  all.
 - Tests, timing, budgets, CI, and what each key dataset can prove: `tests/CLAUDE.md` (loads under
   `tests/`; provenance and every reference value in `tests/data/README.md`); headline rules in
   Commands above.

@@ -43,7 +43,27 @@ export function paletteFrom(read) {
     obs: pick('--plot-obs'), calc: pick('--plot-calc'), bkg: pick('--plot-bkg'),
     diff: pick('--plot-diff'), zero: pick('--plot-zero'), grid: pick('--line'),
     fg: pick('--fg'), ground: pick('--bg'), band: pick('--ok'),
+    // One colour per phase, from the stylesheet like everything else here
+    // (WP-1438). They used to ride on the poll's own payload, which meant the
+    // page drew a *light* pattern's tick rows in the dark theme's list — the
+    // server sent one list for both. These four do not follow the theme at
+    // all, so there is no list to choose and no reason to send one.
+    phase: [pick('--phase-0'), pick('--phase-1'),
+            pick('--phase-2'), pick('--phase-3')].filter(Boolean),
   };
+}
+
+/**
+ * The ink a phase's tick row is drawn in — the GUI's `phaseInk`, ported.
+ *
+ * A single phase takes the observed curve's neutral rather than the first
+ * phase colour: colour is for telling rows apart, and one row has nothing to
+ * be told apart from. Past the fourth the palette cycles, four being where
+ * rows stop being nameable by colour.
+ */
+export function phaseInk(hue, index, count) {
+  if (count <= 1 || !hue.phase.length) return hue.obs;
+  return hue.phase[index % hue.phase.length];
 }
 
 // One palette colour at an opacity, so a ground can sit over a curve without
@@ -140,6 +160,30 @@ export function rowName(run) {
 // is the second it started), the command line that launched it, and where
 // that was run. A reader scanning identical rows hovers one of them, and this
 // is the answer.
+// Why a run offers no GUI command, or `null` when it offers one — and `null`
+// too when *no* run does, because then the reason is not about this run.
+//
+// A cell that is simply empty is an answer the reader has to guess at
+// (WP-1076's rule from the page's side): a run recorded by a bare `fit()`
+// sits in the list beside one a project recorded, and the difference between
+// them showed only as a missing button.
+export function guiReason(run, canOpen) {
+  if (!canOpen) return null;
+  if (run && run.gui_command) return null;
+  return 'No project to open. This run was recorded outside a .rex project, '
+    + 'so there is no project directory for the GUI to copy. A fit records '
+    + 'into a project when it is run through one.';
+}
+
+// A Miller index as a reader writes one: `1 0 -1`, with the minus in front
+// of the digit rather than the crystallographer's overbar, because a bar
+// needs a combining mark per digit and a hover box is not the place to
+// discover whether the reader's font has one.
+export function hklLabel(hkl) {
+  if (!Array.isArray(hkl) || hkl.length !== 3) return '';
+  return hkl.map(v => String(v)).join(' ');
+}
+
 export function runTitle(run) {
   const meta = run.meta || {};
   const stamp = String(run.path).split('/').pop();
@@ -277,9 +321,9 @@ export function coalesce(work) {
 }
 
 // ---------------------------------------------------------------- layout
-// What the reader chose about the two seams, and the rule that moves it.
-// `watch.mjs` owns the storage, the document and the pointer; what is here is
-// the reading and the arithmetic.
+// What the reader chose about the two seams and the run pane, and the rule
+// that moves it. `watch.mjs` owns the storage, the document and the pointer;
+// what is here is the reading and the arithmetic.
 //
 // A seam's `size` is the px size of the pane the grip sizes, and `null` means
 // *no choice made* — which is not the same as a number, because the CSS
@@ -287,27 +331,49 @@ export function coalesce(work) {
 // would freeze them. `open` is the collapse.
 
 //: The stored state of a page nobody has dragged.
+//:
+//: `run` is not a seam: no grip sizes it, so its `size` is always null and
+//: only `open` moves (WP-1438). It is here rather than in a second key for
+//: the reason the two seams are — one stored object, one reader, one shape.
 export const LAYOUT_DEFAULT = Object.freeze({
-  list: Object.freeze({size: null, open: true}),
+  list: Object.freeze({size: null, stackedSize: null, open: true}),
   console: Object.freeze({size: null, open: true}),
+  run: Object.freeze({size: null, open: true}),
 });
 
 // A size is a number or it is nothing. `Number('420')` is 420, and this is
 // the page's own JSON, so a string here is corruption rather than a value in
 // another spelling.
-function seam(saved) {
-  const size = saved ? saved.size : null;
-  const ok = typeof size === 'number' && Number.isFinite(size) && size > 0;
-  return {size: ok ? size : null, open: !(saved && saved.open === false)};
+function size(saved, key) {
+  const value = saved ? saved[key] : null;
+  const ok = typeof value === 'number' && Number.isFinite(value) && value > 0;
+  return ok ? value : null;
+}
+
+// `stacks` is the list and only the list, which is the one pane that changes
+// what its size *means* when the window turns (WP-1438). It keeps a second
+// number rather than reinterpreting the first: a px width is not a px height,
+// so one number for both arrangements hands the reader a pane they never
+// asked for the moment the window narrows. Chrome DevTools keeps a setting
+// per orientation for the same reason.
+//
+// The other two have no key rather than a null one — a field nothing ever
+// reads is a declared name with no writer (WP-1076).
+function seam(saved, {stacks = false} = {}) {
+  const out = {size: size(saved, 'size'),
+               open: !(saved && saved.open === false)};
+  if (stacks) out.stackedSize = size(saved, 'stackedSize');
+  return out;
 }
 
 // Two defaults in one expression, as `parsePanels` had: an absent key and a
-// key holding anything unreadable both mean two open panes at their declared
-// sizes, and a stored state naming only one seam leaves the other alone.
+// key holding anything unreadable both mean open panes at their declared
+// sizes, and a stored state naming only one of them leaves the others alone.
 //
-// `legacy` is WP-1423's `{runs, run}` under the old key. Only `runs` has a
-// home here — the run pane is no longer collapsible — so that is the one bit
-// carried over, and the caller drops the old key once it has.
+// `legacy` is WP-1423's `{runs, run}` under the old key, and both halves have
+// a home again now that the run pane collapses (WP-1438). It is consulted only
+// when this page has stored nothing itself, and the caller drops the old key
+// once it has.
 export function parseLayout(raw, legacy) {
   let saved = {};
   try {
@@ -315,14 +381,23 @@ export function parseLayout(raw, legacy) {
   } catch (err) {
     saved = {};
   }
-  const out = {list: seam(saved.list), console: seam(saved.console)};
+  const out = {list: seam(saved.list, {stacks: true}),
+               console: seam(saved.console), run: seam(saved.run)};
   if (!saved.list && legacy) {
     try {
       const old = JSON.parse(legacy || '{}') || {};
       if (old.runs === false) out.list.open = false;
+      if (old.run === false) out.run.open = false;
     } catch (err) {}
   }
   return out;
+}
+
+// Which field of a seam holds the size that is in force. The collapse is one
+// fact about the list whichever way the panes sit, so it is not keyed; the
+// size is two.
+export function sizeField(which, isStacked) {
+  return (which === 'list' && isStacked) ? 'stackedSize' : 'size';
 }
 
 // A new layout, never the one passed in — `nextPanels`' rule, and for the
@@ -330,7 +405,8 @@ export function parseLayout(raw, legacy) {
 // and a reducer that mutates its argument is one refactor away from
 // disagreeing with what was stored.
 export function nextLayout(layout, which, patch) {
-  const next = {list: {...layout.list}, console: {...layout.console}};
+  const next = {list: {...layout.list}, console: {...layout.console},
+                run: {...layout.run}};
   next[which] = {...next[which], ...patch};
   return next;
 }
