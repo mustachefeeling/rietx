@@ -209,6 +209,27 @@ def _unservable(series: "SeriesResult", path: str) -> str:
                f" — no phase in this series carries a {prefix!r} curve at all"))
 
 
+class SeriesFailure(Base):
+    """One pattern the chain could not fit at all — an uncaught exception out
+    of :meth:`~rietx.refine.Refinement.fit`, not a converged-but-bad result
+    (that is ``SeriesEntry.status == "diverged"``, a different thing: a
+    fit that ran to completion and landed somewhere the reseed fence
+    rejected).  This is the fit never finishing — ``LinAlgError: SVD did not
+    converge``, and anything else a solver can raise on a genuinely
+    near-singular Jacobian.
+
+    ``index``/``label`` place it in the series exactly as
+    :class:`SeriesEntry` does; ``exception`` is ``repr(exc)`` (the type and
+    message, never the traceback — this is a summary field like the rest of
+    this module, not a debugging dump) captured where ``SequentialRefinement``
+    caught it.
+    """
+
+    index: int
+    label: str
+    exception: str
+
+
 class SeriesResult(Base):
     """The result of a sequential refinement over an ordered set of patterns.
 
@@ -234,6 +255,20 @@ class SeriesResult(Base):
     #: returns.
     backward: "SeriesResult | None" = None
     diagnostics: list[Diagnostic] = Field(default_factory=list)
+    #: every pattern ``on_error`` did not let crash the whole chain — see
+    #: :class:`SeriesFailure`.  Empty under the default ``on_error="raise"``
+    #: policy on any chain that never failed, which is every chain this
+    #: package's own suite runs; on a chain that *did* fail under
+    #: ``on_error="raise"`` this is still populated (attached to the raised
+    #: exception too — ``SequentialRefinement.fit`` never returns in that
+    #: case, so the only way to read a partial ``SeriesResult`` back is off
+    #: ``SequentialRefinement.results_``/``.failures_`` or the exception).
+    failures: list[SeriesFailure] = Field(default_factory=list)
+    #: ``len(failures)``, carried as its own field because a consumer
+    #: checking "did every pattern fit" wants a number, not a list to count —
+    #: the same reason ``StageResult.n_degenerate_cell_probes`` sits beside a
+    #: guard that could otherwise only be read by counting diagnostics.
+    n_failed: int = 0
     provenance: Provenance | None = None
 
     def __len__(self) -> int:
