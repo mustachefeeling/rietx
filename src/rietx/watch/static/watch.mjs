@@ -127,7 +127,18 @@ function fillRow(tr, run) {
   setAttr(when, 'title', run.created
     ? new Date(run.created * 1000).toLocaleString() + ' · ' + ago(run.created)
     : null);
-  tr.classList.toggle('selected', run.run_id === currentId());
+}
+
+// The highlight is the one thing on the list that follows the *URL* rather
+// than the files, so it has one authority of its own and `patchList` is not
+// it. A click changes nothing on disk, so the poll after it is a 304 and the
+// patch never runs — in a directory of finished runs nothing would move the
+// highlight off the row the reader just left, ever.
+function markSelected() {
+  const id = currentId();
+  for (const tr of $('rows').children) {
+    tr.classList.toggle('selected', tr.dataset.id === id);
+  }
 }
 
 // Patched, never rebuilt: a row is keyed by its run id and moved into the
@@ -171,6 +182,7 @@ function patchList(runs) {
     fillRow(tr, run);
   });
   $('empty').hidden = runs.length > 0;
+  markSelected();
   // a row the walk dropped cannot say where it went, and the reader has lost
   // that place whatever we do
   if (anchor && anchor.isConnected && anchor.offsetTop !== was) {
@@ -895,15 +907,17 @@ async function refresh() {
     });
     // 304: the list is the one already on the page, so there is nothing to
     // parse and nothing to patch. The run panel still gets its poll, because
-    // a snapshot and a log move without the list moving.
+    // a snapshot and a log move without the list moving, and the highlight
+    // still gets its own, because the reader's click moved the URL and not
+    // the files.
     if (r.status === 304) {
       since('runs:net', t0);
+      markSelected();
       const id = currentId();
       if (id) await drawRun(id);
       return;
     }
     if (!r.ok) return;
-    etag = r.headers.get('ETag');
     since('runs:net', t0);
     const t1 = performance.now();
     const payload = await r.json();
@@ -920,6 +934,11 @@ async function refresh() {
     const t2 = performance.now();
     patchList(payload.runs);
     since('runs:patch', t2);
+    // the tag is committed once the list it describes is on the page. Set
+    // before the parse, a truncated body or a patch that threw would leave
+    // every later poll answered 304 against a list the page never drew, and
+    // nothing on disk could ever shake it loose again.
+    etag = r.headers.get('ETag');
     const id = currentId();
     if (id) await drawRun(id); else clearStrip();
   } finally {

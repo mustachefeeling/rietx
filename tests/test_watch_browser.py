@@ -1222,6 +1222,36 @@ def test_a_run_that_moves_still_reaches_the_list(browser, tmp_path):
     assert "runs:patch" in seen["spans"], sorted(seen["spans"])
 
 
+def test_a_click_moves_the_highlight_on_a_poll_that_did_not_move(browser,
+                                                                 tmp_path):
+    """The highlight follows the URL, and the URL moves without the list.
+
+    A directory of finished runs answers every poll with a 304, which is what
+    the tag is for. `patchList` was the one place the `selected` class was set,
+    so a click there left the highlight on the row the reader had just come
+    from, for as long as nothing on disk changed — which, on a directory
+    nobody is writing to, is forever.
+    """
+    _make_tree(tmp_path, n_done=4)
+    with _served(tmp_path) as base:
+        found = {r.path.name: r.run_id for r in runs.discover(tmp_path)}
+        page, errors = _open(browser, base, found["watched"])
+        page.evaluate("() => performance.clearMeasures()")
+        page.click(f'tr[data-id="{found["old-02"]}"]')
+        page.wait_for_timeout(int(3.0 * POLL * 1000))
+        seen = page.evaluate(SPANS)
+        selected = page.evaluate(
+            "() => [...document.querySelectorAll('tr.run.selected')]"
+            ".map(tr => tr.dataset.id)")
+        page.close()
+
+    assert not errors, errors
+    # nothing was written, so the polls after the click were all 304s: this is
+    # the case the highlight has to survive
+    assert "runs:patch" not in seen["spans"], sorted(seen["spans"])
+    assert selected == [found["old-02"]], selected
+
+
 def test_the_console_is_re_tailed_when_the_run_changes(browser, tmp_path):
     """The other half of the rule above: a reset still happens when it should.
 
