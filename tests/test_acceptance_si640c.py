@@ -541,9 +541,10 @@ def _fit_chebyshev(nterm: int, *, with_peak: bool = False,
     the same statistic (:func:`test_the_blank_widens_the_weight_it_is_judged_by`).
     """
     ins = _instrument(FULL_LIMITS)
-    ins.background = BackgroundChebyshev.with_terms(nterm)
     bkg_paths = ["instrument.background.c*"]
-    if blank_scale is not None:
+    if blank_scale is None:
+        ins.background = BackgroundChebyshev.with_terms(nterm)
+    else:
         blank = rx.read_pattern(BLANK)
         if not blank_sigma:
             blank = blank.model_copy(update={"sigma": None})
@@ -773,18 +774,30 @@ def _rwp_under(res, sigma) -> float:
     scored on the same statistic, and comparing them means picking one σ and
     using it for both — here the specimen's own, which is what every arm above
     this section is already weighted by.
+
+    The length check is the point of failure this is worth guarding: two arms
+    fitted over different channels would broadcast rather than raise, and the
+    number that came out would look like a comparison.
     """
     w = 1.0 / np.asarray(sigma) ** 2
     y, y_calc = np.asarray(res.y_obs), np.asarray(res.y_calc)
+    assert w.shape == y.shape, (
+        f"σ covers {w.size} channels and this residual {y.size} — the two arms "
+        "are not fitted over the same channels, so neither is a common weight")
     return float(np.sqrt((w * (y - y_calc) ** 2).sum() / (w * y * y).sum()))
+
+
+def _require_the_pair() -> None:
+    """Both halves or nothing: a blank arm needs the specimen *and* the blank."""
+    for path in (PATTERN, BLANK):
+        if not path.exists():
+            pytest.skip(f"{path.name} not present")
 
 
 @pytest.fixture(scope="module")
 def blank_held():
     """The blank declared whole — scale 1.0, nothing refined about it."""
-    for path in (PATTERN, BLANK):
-        if not path.exists():
-            pytest.skip(f"{path.name} not present")
+    _require_the_pair()
     return _fit_chebyshev(3, blank_scale=1.0)
 
 
@@ -792,9 +805,7 @@ def blank_held():
 def blank_free():
     """The same curve with its multiplier refined: one parameter, seeded at the
     value the held arm is stuck with."""
-    for path in (PATTERN, BLANK):
-        if not path.exists():
-            pytest.skip(f"{path.name} not present")
+    _require_the_pair()
     return _fit_chebyshev(3, blank_scale=1.0, free_scale=True)
 
 
@@ -802,9 +813,7 @@ def blank_free():
 def blank_free_cheb6():
     """The same, on six Chebyshev terms — the arm that shows what a flexible
     polynomial does to a measured scale."""
-    for path in (PATTERN, BLANK):
-        if not path.exists():
-            pytest.skip(f"{path.name} not present")
+    _require_the_pair()
     return _fit_chebyshev(6, blank_scale=1.0, free_scale=True)
 
 
@@ -813,9 +822,7 @@ def blank_scan():
     """Three hand-set scales in **issue #171's** weighting — the blank's esd
     column dropped, because the issue measured its scan before `fixed_sigma`
     existed and its Rwp column is therefore not this package's."""
-    for path in (PATTERN, BLANK):
-        if not path.exists():
-            pytest.skip(f"{path.name} not present")
+    _require_the_pair()
     return {s: _fit_chebyshev(3, blank_scale=s, blank_sigma=False)
             for s in (0.75, S_ISSUE, 1.00)}
 
@@ -851,7 +858,7 @@ def test_a_measured_blank_beats_the_polynomial_and_the_fitted_hump(
 
 
 def test_the_refined_scale_rejects_the_only_value_the_code_could_express(
-        blank_held, blank_free):
+        cheb3, blank_held, blank_free):
     """WP-1309's headline, and the one number issue #171 asked for.
 
     The blank was scanned on a different monitor normalisation, and the specimen
@@ -877,13 +884,20 @@ def test_the_refined_scale_rejects_the_only_value_the_code_could_express(
         f"unity is only {(1.0 - row.value) / row.stderr:.1f} esd away — this "
         f"fit no longer distinguishes the measured scale from the declared one")
 
-    # the acceptance bar: Rwp falls, and not because the weight moved
-    for label, rwp in (("its own σ", (blank_free.result.statistics.rwp,
-                                      blank_held.result.statistics.rwp)),
-                       ("a common σ", (_rwp_under(blank_free.result,
-                                                  blank_held.result.sigma),
-                                       blank_held.result.statistics.rwp))):
-        free, held = rwp
+    # The acceptance bar: Rwp falls, and not because the weight moved.  The
+    # second row is the one that carries the claim — the first compares each
+    # arm under *its own* σ, which is two weights and therefore the comparison
+    # `test_the_blank_widens_the_weight_it_is_judged_by` says is not a ranking.
+    # It is here as a regression pin on the two recorded numbers, not as
+    # evidence.  The common weight is the specimen's own σ, the same one every
+    # other cross-arm comparison in this section uses, so the pair asserted
+    # here is the pair the validation matrix records (0.079311 → 0.077328).
+    sigma_y = cheb3.result.sigma
+    for label, (free, held) in (
+            ("each arm's own σ", (blank_free.result.statistics.rwp,
+                                  blank_held.result.statistics.rwp)),
+            ("the specimen's σ", (_rwp_under(blank_free.result, sigma_y),
+                                  _rwp_under(blank_held.result, sigma_y)))):
         assert free < held, f"freeing the scale raised Rwp under {label}"
     for name, fit in (("held", blank_held), ("free", blank_free)):
         assert abs(fit.result.statistics.rwp - BLANK_RWP[name]) < 0.002, (
@@ -940,7 +954,9 @@ def test_a_longer_polynomial_eats_the_measured_scale(
     """
     s3 = blank_free.result.parameter("instrument.background.scale")
     s6 = blank_free_cheb6.result.parameter("instrument.background.scale")
-    assert s6.stderr is not None
+    assert s3.stderr is not None and s6.stderr is not None, (
+        "a free scale came back with no esd, so the two arms cannot be "
+        "separated in esd units")
     assert s6.value < s3.value, "the longer polynomial no longer eats the scale"
     assert (s3.value - s6.value) / math.hypot(s3.stderr, s6.stderr) > 3.0, (
         f"the walk {s3.value:.4f} → {s6.value:.4f} is inside the esds, so this "
