@@ -2973,7 +2973,7 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
         bkg_paths = tuple(f"instrument.background.c{n}" for n in range(n_cheb))
         design = chebyshev_design_matrix(tt, n_cheb, tt_min, tt_max)
         curve = interpolate_fixed(tt, np.asarray(bkg.fixed_two_theta),
-                                  np.asarray(bkg.fixed_intensity))
+                                   np.asarray(bkg.fixed_intensity))
         # The curve is carried one of two ways, and never both — a double count
         # is absorbed by the refined scale as s_true − 1, leaves Rwp
         # bit-for-bit unchanged, and is wrong only in the number the caller

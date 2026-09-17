@@ -722,6 +722,10 @@ recovers 0.8378(42) and six recover 0.6479(182), while Rwp falls monotonically
 from 0.07634 to 0.07299 across that row. `HIGH_CORRELATION` against `c0` fires
 at the flexible end and is the correct report rather than a fit failure.
 
+`select_chebyshev_order(data, fixed=bkg)` picks the order for what the curve
+does not describe. On a synthetic pattern whose halo a polynomial has to chase,
+the blind scan runs to 12 terms and the same scan with the curve held selects 2.
+
 `BackgroundFixedPlusChebyshev.fixed_sigma` carries the blank's own counting
 statistics, and the channel weight becomes σ² + s²·σ_f² rather than σ² alone.
 That is what makes a short blank scan worse than a long one.

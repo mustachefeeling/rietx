@@ -333,6 +333,7 @@ export type Format = number | "exp";
 export const PLACES: Readonly<Record<string, Format>> = {
   "instrument.background.air": 3,
   "instrument.background.c*": 3,
+  "instrument.background.scale": 4,
   "instrument.extra_components.*.area": 3,
   "instrument.extra_components.*.center": 4,
   "instrument.extra_components.*.eta": 4,
