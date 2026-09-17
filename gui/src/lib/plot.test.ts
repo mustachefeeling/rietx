@@ -21,6 +21,7 @@ import {
   nearestIndex,
   noAxes,
   normalizeRegion,
+  phaseInk,
   pinPatch,
   readout,
   residual,
@@ -136,6 +137,50 @@ describe("the curve colours (WP-1029 q)", () => {
     // a page with no stylesheet still draws the layer in its own colours
     expect(curveColors(() => "").peak).toBe("#8c257e");
     expect(curveColors(() => "").peakfit).toBe("#c158b0");
+  });
+
+  it("reads the phase palette, whose fallbacks are the values (WP-1436)", () => {
+    // these four do not follow the theme — a phase that changed colour with
+    // the page would be a second fact about one row — so unlike every other
+    // entry here the fallback is not "the light value", it is the value.
+    const set: Record<string, string> = { "--phase-1": "#123456" };
+    expect(curveColors((name) => set[name] ?? "").phase[1]).toBe("#123456");
+    expect(curveColors(() => "").phase).toEqual(
+      ["#009e73", "#cc79a7", "#56b4e9", "#f0e442"]);
+  });
+});
+
+describe("the ink a phase's tick row takes (WP-1436)", () => {
+  const COLORS = { obs: "#8a8a8a",
+                   phase: ["#009e73", "#cc79a7", "#56b4e9", "#f0e442"] };
+
+  it("gives each phase its own colour, keyed by the phase", () => {
+    expect(phaseInk(COLORS, 0, 3)).toBe("#009e73");
+    expect(phaseInk(COLORS, 1, 3)).toBe("#cc79a7");
+    expect(phaseInk(COLORS, 2, 3)).toBe("#56b4e9");
+  });
+
+  it("gives a single phase the neutral instead of the first colour", () => {
+    // colour is for telling rows apart, and one row has nothing to be told
+    // apart from — the house figure rule, which `viz/plots.py` has always
+    // followed and this page did not until now
+    expect(phaseInk(COLORS, 0, 1)).toBe(COLORS.obs);
+    expect(phaseInk(COLORS, 0, 0)).toBe(COLORS.obs);
+  });
+
+  it("cycles past the fourth phase rather than running out", () => {
+    // four is where the rows stop being nameable by colour; a fifth is told
+    // apart by its gutter label, and it still has to be drawn in something
+    expect(phaseInk(COLORS, 4, 5)).toBe("#009e73");
+    expect(phaseInk(COLORS, 7, 8)).toBe("#f0e442");
+  });
+
+  it("does not depend on how many traces were drawn before it", () => {
+    // the defect this replaced: the tick traces carried no colour, so plotly
+    // assigned from its cycle by position in the trace array, and every trace
+    // ahead of them is conditional — freeing the background moved every row
+    expect(phaseInk(COLORS, 1, 2)).toBe(phaseInk(COLORS, 1, 2));
+    expect(phaseInk(COLORS, 1, 2)).not.toBe(phaseInk(COLORS, 0, 2));
   });
 });
 
@@ -692,8 +737,9 @@ describe("the readout strip (WP-1213)", () => {
     const inks = Object.fromEntries(
       readout(FITTED, 2, { kind: "weighted" })!.rows.map((r) => [r.id, r.ink]));
     expect(inks).toMatchObject({ obs: "obs", calc: "calc", bkg: "bkg", diff: "diff" });
-    // a phase's tick row has no ink: the ticks are one colour per phase from
-    // plotly's own cycle, and naming one here would be a second palette
+    // a phase's tick row still carries no ink, and the reason changed with
+    // WP-1436: the row *has* a colour now, `--phase-N`, but `ink` names a
+    // `--plot-*` role and a phase colour is not one of them
     expect(inks["ticks:NAC"]).toBeUndefined();
   });
 

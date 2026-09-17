@@ -72,6 +72,15 @@
      `--panel` and has to read there. */
   --lane-l: 0.58;
   --lane-c: 0.15;
+  /* One colour per phase, both themes: four of Okabe-Ito's eight. Orange,
+     vermillion and blue are out because the calculated and difference
+     curves have spent them, and black is the single-phase row's neutral
+     rather than a member. `viz/theme.py` carries the measurement and the
+     order. */
+  --phase-0: #009e73;
+  --phase-1: #cc79a7;
+  --phase-2: #56b4e9;
+  --phase-3: #f0e442;
 }
 
 @media (prefers-color-scheme: dark) {

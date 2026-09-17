@@ -5,7 +5,8 @@
 // in `watch-core.mjs`, where the suite can call them.
 import {LAYOUT_DEFAULT, ago, axisOf, clampSize, clock, coalesce, deltaTitle,
         dragged, esc, nextLayout, num, parseLayout, pct, rangesOf, rowName,
-        paletteFrom, runLabel, runTitle, withAlpha} from './watch-core.mjs';
+        paletteFrom, phaseInk, runLabel, runTitle,
+        withAlpha} from './watch-core.mjs';
 
 const $ = id => document.getElementById(id);
 let SINGLE = null;          // set when the served directory is itself a run
@@ -34,11 +35,6 @@ let plotlyPromise = null;
 // string; a file cannot carry one, and a literal here would be a second
 // authority for a fact `_about.py` already owns.
 let DIST = '';              // the distribution name
-// The reflection rows' colours, the one categorical set on this page and the
-// one thing here that is still the *figure* palette's (`_page_constants` says
-// why). Theme-blind on purpose: a mid-tone list that reads on either ground
-// beats a set that changes under the reader at a stage boundary.
-let TICKS = null;
 // The theme *choice* the GUI stored, as it was last applied here (WP-1429).
 // The page never writes it: the GUI owns the setting, this page follows it,
 // and `null` is "nothing applied yet" rather than a choice.
@@ -322,8 +318,7 @@ function snapshotTraces(snap, hue) {
     const row = snap.ticks[name];
     // one row has nothing to be told apart from, so colour stays for when
     // there are several
-    const colour = names.length === 1 ? TICKS.one
-                                      : TICKS.phase[i % TICKS.phase.length];
+    const colour = phaseInk(hue, i, names.length);
     // the cap is in the legend, because a silent cap reads as coverage
     const label = row.n_total > row.two_theta.length
       ? `hkl: ${name} (${row.two_theta.length} of ${row.n_total})`
@@ -345,8 +340,8 @@ function snapshotTraces(snap, hue) {
 async function drawSnapshot(id) {
   // a poll can reach here before the first `api/runs` has answered, and an
   // undrawn write is what `false` already means: the next poll draws it,
-  // rather than this one throwing on a colour that is not in yet
-  if (!TICKS) return false;
+  // rather than this one drawing a page whose constants are not in yet
+  if (!DIST) return false;
   const plotly = await ensurePlotly();
   const div = $('plot');
   if (!div || currentId() !== id) return true;
@@ -970,7 +965,6 @@ function readPage(payload) {
   if (!payload.page) return false;
   if (!DIST) {
     DIST = payload.page.dist;
-    TICKS = payload.page.ticks;
     setText($('empty-suffix'), payload.page.suffix);
   }
   return applyTheme(payload.page.theme);

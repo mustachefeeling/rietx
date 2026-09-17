@@ -16,7 +16,7 @@ import {test} from 'node:test';
 import {
   LADDER, LAYOUT_DEFAULT, ago, axisOf, clampSize, clock, coalesce, deltaTitle,
   dragged, esc, extent, finiteOf, nextLayout, num, parseLayout, pct, rangesOf,
-  paletteFrom, rowName, runLabel, runTitle, withAlpha,
+  paletteFrom, phaseInk, rowName, runLabel, runTitle, withAlpha,
 } from '../src/rietx/watch/static/watch-core.mjs';
 
 // A pattern the page would draw: 1000 points, and a residual the caller
@@ -325,12 +325,42 @@ test('every plot colour comes from the property that owns it', () => {
     '--plot-obs': '#8a8a8a', '--plot-calc': '#c23b22', '--plot-bkg': '#6b7280',
     '--plot-diff': '#1f5fa8', '--plot-zero': '#88888888', '--line': '#dcdcd6',
     '--fg': '#1b1b1b', '--bg': '#fbfbfa', '--ok': '#2e8b57',
+    '--phase-0': '#009e73', '--phase-1': '#cc79a7', '--phase-2': '#56b4e9',
+    '--phase-3': '#f0e442',
   };
   assert.deepEqual(paletteFrom(name => declared[name]), {
     obs: '#8a8a8a', calc: '#c23b22', bkg: '#6b7280', diff: '#1f5fa8',
     zero: '#88888888', grid: '#dcdcd6', fg: '#1b1b1b', ground: '#fbfbfa',
     band: '#2e8b57',
+    phase: ['#009e73', '#cc79a7', '#56b4e9', '#f0e442'],
   });
+});
+
+// ------------------------------------------------------------- phaseInk
+// WP-1436: the tick rows' colours stopped riding on the poll's payload, which
+// sent one list whatever the theme. They are `--phase-N` now, and which row
+// takes which is the GUI's rule ported, `gui/src/lib/plot.ts:phaseInk`.
+
+test('a phase keeps its colour whatever else is drawn', () => {
+  const hue = { obs: '#8a8a8a', phase: ['#009e73', '#cc79a7', '#56b4e9'] };
+  assert.equal(phaseInk(hue, 0, 3), '#009e73');
+  assert.equal(phaseInk(hue, 1, 3), '#cc79a7');
+  assert.equal(phaseInk(hue, 2, 3), '#56b4e9');
+  // past the last it cycles rather than handing back undefined
+  assert.equal(phaseInk(hue, 3, 4), '#009e73');
+});
+
+test('one row has nothing to be told apart from, so it takes the neutral', () => {
+  const hue = { obs: '#8a8a8a', phase: ['#009e73', '#cc79a7'] };
+  assert.equal(phaseInk(hue, 0, 1), '#8a8a8a');
+});
+
+test('an unstyled page still draws its ticks in something', () => {
+  // `paletteFrom` drops empty properties, so a page with no stylesheet has no
+  // phase list at all — and a tick row with no colour is a row plotly colours
+  // by trace order, which is the defect this replaced
+  const hue = { obs: '', phase: [] };
+  assert.equal(phaseInk(hue, 2, 4), '');
 });
 
 test('a browser hands back a leading space, and it is not part of the colour',

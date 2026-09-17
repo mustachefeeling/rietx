@@ -19,12 +19,18 @@ generated and committed, and ``tests/test_gui_palette.py`` holds the two equal
 byte for byte — an edit on either side fails until the other follows.
 
 **What is not here.**  Everything in ``app.css`` that is not a colour: the type
-and space scales, the radii, the control registers.  And
-:data:`~rietx.viz.plots.PALETTES`, which is the *figure* palette — chosen so a
-figure sits on the manual's and the landing page's warm dark panel rather than
-as a brighter card on it, and a figure for print has different needs from a
-live page.  Changing it would regenerate every committed manual figure pair for
-a consistency nobody asked about.
+and space scales, the radii, the control registers.  And the *role* half of
+:data:`~rietx.viz.plots.PALETTES`, the figure palette — chosen so a figure sits
+on the manual's and the landing page's warm dark panel rather than as a
+brighter card on it, and a figure for print has different needs from a live
+page.
+
+**One thing crossed that line** (WP-1436): :data:`PHASE_COLOURS`, which the
+figures import from here.  A role colour follows the page it is drawn on, so it
+belongs to the surface; a categorical colour follows the phase, so it belongs to
+one list or a phase is three different colours in three pictures of the same
+refinement.  The cost was foreseen and paid — every committed manual figure pair
+with more than one phase was regenerated in that WP.
 
 **The extra roles a page needs are derived, never declared.**  The watcher wants
 a row hover, a selected row, a focus ring, four grip states and six state pills,
@@ -105,6 +111,51 @@ TOKENS: dict[str, dict[str, str]] = {
         "--lane-l": "0.72",
         "--lane-c": "0.15",
     },
+}
+
+#: One colour per phase, shared by all three surfaces and by the figures
+#: (WP-1436).  Theme-independent on purpose: a phase that changed colour when
+#: the reader switched themes would be a second fact about the same row.
+#:
+#: **Okabe-Ito** (Okabe & Ito 2002; Wong, *Nature Methods* **8**, 441, 2011),
+#: which is the categorical standard a scientific figure reaches for, and four
+#: of its eight, because the Rietveld plot has already spent the rest.  Measured
+#: in OKLab against every curve role and page of both themes on both surfaces:
+#: blue lands 0.053 from the difference curve, orange 0.061 from the figures'
+#: calculated curve, vermillion 0.065 from the app's.  What is left is bluish
+#: green, reddish purple, sky blue and yellow.  Black is not a member: it is the
+#: *single-phase* row's neutral, which is
+#: :data:`~rietx.viz.plots.PALETTES`'s ``tick`` and follows the theme.
+#:
+#: **No four of the eight clear the 0.13 floor against everything**, and they do
+#: not have to.  A tick sits in a row of its own below the data, so its identity
+#: is carried by position as well as by hue, and the floor is what a mark drawn
+#: *over* the data is held to.  What the set is chosen for is the weakest link,
+#: which is 0.0637 here — bluish green against the light theme's candidate
+#: overlay, a mark from the indexing tab.  Spending vermillion instead would buy
+#: 0.001 and put the collision on the *calculated curve*, which is on screen
+#: whenever a tick row is.
+#:
+#: **The order is the page's, not the palette's.**  Which four is the curve
+#: measurement's answer; the order is contrast against the page — bluish green
+#: 0.390, reddish purple 0.330, sky blue 0.280, yellow 0.191 — because a tick
+#: that collides with a curve is still in its own row and a tick nobody can see
+#: against the page is not saved by anything.  Four is the ceiling rather than a
+#: shortage: past four, rows want labels.
+#:
+#: What it replaced scored worse on both counts it is held to
+#: (``tests/test_gui_palette.py``): the tab10 light list came **0.009** from the
+#: figures' own ±3σ band — `#2ca02c` against `#2a9d2a`, two greens that are one
+#: colour — the dark list 0.052 from the candidate overlay, and the dark list's
+#: closest pair was 0.113, under the floor it asks of everything else.  This set
+#: is 0.0637 and 0.184.
+PHASE_COLOURS: tuple[str, ...] = ("#009e73", "#cc79a7", "#56b4e9", "#f0e442")
+
+#: :data:`PHASE_COLOURS` as custom properties.  They are declared once, in
+#: ``:root``, rather than in each theme block, because they do not vary with the
+#: theme — the dark blocks override what changes and nothing else.
+PHASE_TOKENS: dict[str, str] = {
+    f"--phase-{index}": colour for index, colour in enumerate(PHASE_COLOURS)
 }
 
 #: The reasoning, keyed by the token each note precedes.  It travels with the
@@ -189,6 +240,17 @@ def _declarations(theme: str, *, notes: bool) -> list[str]:
     return out
 
 
+def _phase_declarations() -> list[str]:
+    """The phase palette, declared once because it does not follow the theme."""
+    note = ("One colour per phase, both themes: four of Okabe-Ito's eight. "
+            "Orange, vermillion and blue are out because the calculated and "
+            "difference curves have spent them, and black is the single-phase "
+            "row's neutral rather than a member. `viz/theme.py` carries the "
+            "measurement and the order.")
+    return [_wrap_comment(note)] + [f"  {token}: {value};"
+                                    for token, value in PHASE_TOKENS.items()]
+
+
 def _wrap_comment(text: str, width: int = 76) -> str:
     """A CSS comment wrapped at `width`, indented two spaces and continued four."""
     words, lines, line = text.split(), [], "  /* "
@@ -215,7 +277,7 @@ def tokens_css() -> str:
     if set(TOKENS["light"]) != set(TOKENS["dark"]):
         raise ValueError("the two themes declare different tokens: "
                          f"{sorted(set(TOKENS['light']) ^ set(TOKENS['dark']))}")
-    light = "\n".join(_declarations("light", notes=True))
+    light = "\n".join(_declarations("light", notes=True) + _phase_declarations())
     dark = "\n".join(_declarations("dark", notes=False))
     dark_indented = "\n".join("  " + line if line.strip() else line
                               for line in dark.splitlines())

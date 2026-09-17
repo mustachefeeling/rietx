@@ -67,7 +67,6 @@ from .._about import DIST_NAME, PROJECT_SUFFIX
 from ..viz import theme as theme_mod
 from ..viz.plotlyjs import CONTENT_TYPE as PLOTLY_CONTENT_TYPE
 from ..viz.plotlyjs import plotly_js
-from ..viz.plots import PALETTES
 
 #: What a missing plotly says, in the pane the plot would have filled. Each
 #: page that serves plotly owns its own fallback (``viz/plotlyjs.py``), and
@@ -123,20 +122,16 @@ def _page_constants() -> dict:
     WP — those are custom properties the page reads off its own root element,
     so one stylesheet answers for all three surfaces.
 
-    ``ticks`` did not, and the reason is the one WP-1429 could not settle. A
-    reflection row per phase is a **categorical** set, and the GUI has none to
-    lend: its `--plot-*` tokens each name one role, and its own tick rows take
-    plotly's colorway, which is indexed by position in the trace array — so
-    the row a phase owns changes colour at the stage that frees the background
-    (measured, and `#d62728` at 0.043 from `--plot-calc` on the light theme,
-    a third of the distance the curve colours themselves are held apart by). This page keeps the phase list it has always used,
-    :data:`~rietx.viz.plots.PALETTES`, until somebody decides what a shared
-    categorical palette should be.
+    ``ticks`` rode here too until WP-1436 and no longer does.  The question
+    that kept it was what a shared *categorical* palette should be, the
+    `--plot-*` tokens each naming one role; the answer is four Okabe-Ito
+    colours in `--phase-0…3`, which this page now reads off its root element
+    like every other colour.  The payload could not have answered it well in
+    any case: it sent one list whatever the theme, so a light page drew its
+    tick rows in the dark set.
     """
     return {"suffix": PROJECT_SUFFIX, "dist": DIST_NAME,
-            "theme": theme_mod.theme_choice(),
-            "ticks": {"one": PALETTES["dark"]["tick"],
-                      "phase": PALETTES["dark"]["phase"]}}
+            "theme": theme_mod.theme_choice()}
 
 
 #: How long a walk's result stands before the next request pays for another.

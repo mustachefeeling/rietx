@@ -39,6 +39,7 @@
     nearestIndex,
     noAxes,
     normalizeRegion,
+    phaseInk,
     pinPatch,
     readout,
     residual,
@@ -488,7 +489,8 @@
         const y = band!.rows[row];
         traces.push({ x: ticks, y: ticks.map(() => y), yaxis: "y3",
           name: phase, mode: "markers", type: "scattergl", hoverinfo: "none",
-          marker: { symbol: "line-ns-open", size: 8, line: { width: 1 } } });
+          marker: { symbol: "line-ns-open", size: 8,
+                    line: { width: 1, color: phaseInk(colors, row, phases.length) } } });
       });
     }
     traces.push(...peakTraces(w, colors));

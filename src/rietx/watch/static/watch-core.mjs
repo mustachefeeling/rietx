@@ -43,7 +43,27 @@ export function paletteFrom(read) {
     obs: pick('--plot-obs'), calc: pick('--plot-calc'), bkg: pick('--plot-bkg'),
     diff: pick('--plot-diff'), zero: pick('--plot-zero'), grid: pick('--line'),
     fg: pick('--fg'), ground: pick('--bg'), band: pick('--ok'),
+    // One colour per phase, from the stylesheet like everything else here
+    // (WP-1436). They used to ride on the poll's own payload, which meant the
+    // page drew a *light* pattern's tick rows in the dark theme's list — the
+    // server sent one list for both. These four do not follow the theme at
+    // all, so there is no list to choose and no reason to send one.
+    phase: [pick('--phase-0'), pick('--phase-1'),
+            pick('--phase-2'), pick('--phase-3')].filter(Boolean),
   };
+}
+
+/**
+ * The ink a phase's tick row is drawn in — the GUI's `phaseInk`, ported.
+ *
+ * A single phase takes the observed curve's neutral rather than the first
+ * phase colour: colour is for telling rows apart, and one row has nothing to
+ * be told apart from. Past the fourth the palette cycles, four being where
+ * rows stop being nameable by colour.
+ */
+export function phaseInk(hue, index, count) {
+  if (count <= 1 || !hue.phase.length) return hue.obs;
+  return hue.phase[index % hue.phase.length];
 }
 
 // One palette colour at an opacity, so a ground can sit over a curve without

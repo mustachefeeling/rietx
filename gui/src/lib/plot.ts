@@ -38,6 +38,7 @@ export type Scale = "linear" | "sqrt" | "log";
 export function curveColors(read: (name: string) => string): {
   obs: string; calc: string; bkg: string; diff: string; zero: string;
   mask: string; edge: string; peak: string; peakfit: string; candidate: string;
+  phase: string[];
 } {
   const pick = (name: string, fallback: string) => read(name).trim() || fallback;
   return {
@@ -67,7 +68,33 @@ export function curveColors(read: (name: string) => string): {
     // off-screen — a fit range shows only its edges once you zoom inside it.
     mask: pick("--plot-mask", "#1b1b1b14"),
     edge: pick("--muted", "#6b6b66"),
+    // One colour per phase, keyed by the phase and not by the trace (WP-1436).
+    // Before this the tick traces carried no colour at all, so plotly assigned
+    // from its own cycle by position in the trace array — and every trace ahead
+    // of them is conditional, so a phase's row changed colour when the stage
+    // freed the background, when a reader toggled a curve off in the legend,
+    // and on a pattern with an excluded region. `viz/theme.py` says which four
+    // and why; these do not vary with the theme, so the fallbacks are the
+    // values rather than a second light palette.
+    phase: [pick("--phase-0", "#009e73"), pick("--phase-1", "#cc79a7"),
+            pick("--phase-2", "#56b4e9"), pick("--phase-3", "#f0e442")],
   };
+}
+
+/**
+ * The ink a phase's tick row is drawn in, by its position in the phase list.
+ *
+ * A *single* phase takes the observed curve's neutral instead of the first
+ * phase colour: colour is for telling rows apart, and one row has nothing to be
+ * told apart from (the house figure rule, which `viz/plots.py` has always
+ * followed and this page did not). Past the fourth phase the palette cycles —
+ * four is the ceiling because the rows stop being nameable by colour, and a
+ * fifth row is told apart by its gutter label.
+ */
+export function phaseInk(colors: { obs: string; phase: string[] },
+                         index: number, count: number): string {
+  if (count <= 1) return colors.obs;
+  return colors.phase[index % colors.phase.length];
 }
 
 /**
