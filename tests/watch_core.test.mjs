@@ -15,7 +15,8 @@ import {test} from 'node:test';
 
 import {
   LADDER, LAYOUT_DEFAULT, ago, axisOf, clampSize, clock, coalesce, deltaTitle,
-  dragged, esc, extent, finiteOf, nextLayout, num, parseLayout, pct, rangesOf,
+  dragged, esc, extent, finiteOf, guiReason, nextLayout, num, parseLayout,
+  pct, rangesOf,
   paletteFrom, phaseInk, rowName, runLabel, runTitle, withAlpha,
 } from '../src/rietx/watch/static/watch-core.mjs';
 
@@ -512,4 +513,33 @@ test('coalesce is re-armed after a throw, so one failure is not a latch', () => 
   assert.throws(ask, /first one fails/);
   ask();
   assert.equal(n, 2);
+});
+
+
+// ------------------------------------------------------- the gui column
+// A run outside a project gets no launch button, and until WP-1438 got
+// nothing else either: the cell was blank, which reads as a control that
+// broke rather than one this run has no use for.
+
+test('a run inside a project is offered the verb and explains nothing', () => {
+  assert.equal(guiReason({gui_command: 'rietx gui x.rex --scratch'}, true),
+               null);
+});
+
+test('a run outside a project says that is why there is no button', () => {
+  const why = guiReason({gui_command: null}, true);
+  assert.ok(why && /project/i.test(why),
+            'the reason names the project that is missing');
+});
+
+test('a watcher that cannot open one at all says nothing per row', () => {
+  // the column is empty for every run, so a reason attached to one run would
+  // be telling the reader something about that run which is not true of it
+  assert.equal(guiReason({gui_command: null}, false), null);
+  assert.equal(guiReason({gui_command: 'rietx gui x.rex'}, false), null);
+});
+
+test('a row the walk has not filled in yet is not an explanation', () => {
+  assert.ok(guiReason(undefined, true));
+  assert.equal(guiReason(undefined, false), null);
 });

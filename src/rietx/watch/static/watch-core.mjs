@@ -160,6 +160,21 @@ export function rowName(run) {
 // is the second it started), the command line that launched it, and where
 // that was run. A reader scanning identical rows hovers one of them, and this
 // is the answer.
+// Why a run offers no GUI command, or `null` when it offers one — and `null`
+// too when *no* run does, because then the reason is not about this run.
+//
+// A cell that is simply empty is an answer the reader has to guess at
+// (WP-1076's rule from the page's side): a run recorded by a bare `fit()`
+// sits in the list beside one a project recorded, and the difference between
+// them showed only as a missing button.
+export function guiReason(run, canOpen) {
+  if (!canOpen) return null;
+  if (run && run.gui_command) return null;
+  return 'No project to open. This run was recorded outside a .rex project, '
+    + 'so there is no project directory for the GUI to copy. A fit records '
+    + 'into a project when it is run through one.';
+}
+
 export function runTitle(run) {
   const meta = run.meta || {};
   const stamp = String(run.path).split('/').pop();

@@ -110,6 +110,10 @@ td { padding:6px 7px; white-space:nowrap;
 td.gui { padding:2px 7px; text-align:right; }
 td.gui button { padding:1px 7px; font-size:11px; color:var(--muted); }
 td.gui button:hover { color:var(--fg); }
+/* the em dash a run with no project gets instead of the button, which carries
+   the reason as its title — `help` rather than `default`, so a pointer says
+   there is something to read */
+td.gui .why { cursor:help; }
 tr.run { cursor:pointer; }
 tr.run:hover { background:color-mix(in srgb, var(--fg) 6%, transparent); }
 tr.run.selected { background:color-mix(in srgb, var(--accent) 16%, transparent); }

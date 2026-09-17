@@ -4,7 +4,8 @@
 // cannot collide with plotly's. The functions that touch no DOM are next door
 // in `watch-core.mjs`, where the suite can call them.
 import {LAYOUT_DEFAULT, ago, axisOf, clampSize, clock, coalesce, deltaTitle,
-        dragged, esc, nextLayout, num, parseLayout, pct, rangesOf, rowName,
+        dragged, esc, guiReason, nextLayout, num, parseLayout, pct, rangesOf,
+        rowName,
         paletteFrom, phaseInk, runLabel, runTitle,
         withAlpha} from './watch-core.mjs';
 
@@ -100,7 +101,8 @@ function makeRow(run) {
   tr.innerHTML = '<td><span class="state"></span></td><td></td><td></td>' +
     '<td class="num"></td><td class="num"></td>' +
     '<td class="muted"><time></time></td>' +
-    '<td class="gui"><button hidden>open</button></td>';
+    '<td class="gui"><button hidden>open</button>' +
+    '<span class="why muted" hidden>\u2014</span></td>';
   tr.onclick = () => { location.hash = '#/run/' + run.run_id; };
   // The button is inside the row, and the row navigates on click. The handler
   // stops that one rather than adding to it, because `openGui` selects the run
@@ -137,6 +139,11 @@ function fillRow(tr, run) {
       + 'frozen at the click and does not follow the fit, and the project '
       + 'this run is writing is not touched.'
     : null);
+  // and where there is no button, why there is none
+  const why = guiReason(run, CAN_OPEN_GUI);
+  const dash = td[6].lastElementChild;
+  dash.hidden = !why;
+  setAttr(dash, 'title', why);
   const when = td[5].firstElementChild;
   setText(when, clock(run.created));
   setAttr(when, 'datetime', run.created

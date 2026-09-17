@@ -1388,6 +1388,53 @@ def test_the_launch_button_is_drawn_only_for_a_run_in_a_project(browser,
     assert dict(seen) == {"sample.rex": True, "loose": False}
 
 
+def test_the_row_with_no_button_says_why_it_has_none(browser, tmp_path):
+    """An empty cell is an answer the reader has to guess at (WP-1438).
+
+    The two shapes sat side by side in the list with the difference between
+    them showing only as a missing control, which reads as a control that
+    failed. The run that cannot be opened gets an em dash carrying the
+    reason, and the run that can gets the button and no dash.
+    """
+    _bare_run(tmp_path / "loose")
+    _bare_run(tmp_path / "sample.rex" / "live" / "20260917-120000-1234", t=2.0)
+
+    with _served(tmp_path) as base:
+        page, errors = _open_list(browser, base)
+        seen = page.evaluate(
+            "() => [...document.querySelectorAll('tr.run')].map(tr => ["
+            "  tr.children[1].textContent.trim().split(' ')[0], {"
+            "    button: !tr.querySelector('td.gui button').hidden,"
+            "    dash: !tr.querySelector('td.gui .why').hidden,"
+            "    why: tr.querySelector('td.gui .why').getAttribute('title')}])")
+        page.close()
+    assert not errors, errors
+    cells = dict(seen)
+    assert cells["sample.rex"]["button"] is True
+    assert cells["sample.rex"]["dash"] is False
+    assert cells["loose"]["button"] is False
+    assert cells["loose"]["dash"] is True
+    assert "project" in (cells["loose"]["why"] or "").lower()
+
+
+def test_a_read_only_watcher_explains_nothing_per_row(browser, tmp_path):
+    """The column is empty for every run, so the reason is not about a run.
+
+    Saying "no project to open" on a row whose project is right there would
+    be a false claim about that run; the reason is the whole page's.
+    """
+    _bare_run(tmp_path / "loose")
+    _bare_run(tmp_path / "sample.rex" / "live" / "20260917-120000-1234", t=2.0)
+    with _served(tmp_path, allow_cancel=False, allow_gui=False) as base:
+        page, errors = _open_list(browser, base)
+        shown = page.evaluate(
+            "() => [...document.querySelectorAll('td.gui .why')]"
+            ".some(el => !el.hidden)")
+        page.close()
+    assert not errors, errors
+    assert shown is False
+
+
 def test_read_only_draws_no_launch_button(browser, tmp_path):
     """The page cannot be the check, and it is not the only answer either.
 
