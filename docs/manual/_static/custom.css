@@ -97,17 +97,35 @@ body[data-theme="dark"] {
   color: var(--color-sidebar-brand-text);
 }
 
-/* The release sits on its own row under the wordmark, which is what the
- * `flex-basis` does: the mark and the word share the first row, and this
- * takes the whole of the second.  It replaces furo's `docstitle`, which reads
- * "rietx <release> — manual" and would print the wordmark twice. */
-.sidebar-brand .sidebar-release {
-  flex-basis: 100%;
-  margin-top: 0.15rem;
-  padding-left: 2.05rem;
+/* The release sits on its own row under the wordmark, and it is a link of its
+ * own, to the manual's front page.  So the brand's box stops at the wordmark
+ * and this anchor carries the padding that used to be the brand's bottom, in
+ * furo's own spacing variables plus the 2.05rem that aligns it under the word
+ * rather than under the mark.  It replaces furo's `docstitle`, which reads
+ * "rietx <release> — manual" and would print the wordmark twice.
+ *
+ * The underline is permanent and in the border colour: the line has to read as
+ * clickable while the brand above it is the louder of the two. */
+.sidebar-brand {
+  padding-bottom: 0;
+}
+
+.sidebar-release {
+  display: block;
+  padding: 0.15rem var(--sidebar-item-spacing-horizontal)
+    var(--sidebar-item-spacing-vertical);
+  padding-left: calc(var(--sidebar-item-spacing-horizontal) + 2.05rem);
   font-size: 0.8rem;
   font-variant-numeric: tabular-nums;
   color: var(--color-foreground-secondary);
+  text-decoration: underline;
+  text-decoration-color: var(--color-foreground-border);
+  text-underline-offset: 0.15em;
+}
+
+.sidebar-release:hover {
+  color: var(--color-brand-content);
+  text-decoration-color: currentColor;
 }
 
 /* Mermaid's dark theme draws edge labels as light text on a light chip, which
