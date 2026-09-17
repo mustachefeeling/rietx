@@ -441,6 +441,27 @@ def test_two_scans_of_one_range_still_agree():
     assert FIXED_RANGE_SLACK_STEPS == 1.0
 
 
+def test_a_curve_with_no_range_is_refused_rather_than_carried_flat():
+    """The range guard reads ``ft[0]`` and ``ft[-1]``, and a one-point curve has
+    neither: ``np.interp`` would carry its single value across every fitted
+    channel, which is the clamp the guard exists to refuse."""
+    for n in (0, 1):
+        with pytest.raises(ValueError, match="point"):
+            interpolate_fixed(np.arange(10.0, 20.0, 0.1),
+                              np.full(n, 12.0), np.full(n, 100.0))
+
+
+def test_an_unsorted_curve_is_refused_because_its_ends_are_not_its_range():
+    """Same rule from the other side.  ``np.interp`` requires an increasing
+    abscissa; given a decreasing one it reads each channel off whichever
+    neighbours bracket it in array order, and the two endpoints the guard
+    compares against are not the curve's range at all."""
+    curve_tt = np.arange(50.0, 10.0, -0.01)
+    with pytest.raises(ValueError, match="decrease"):
+        interpolate_fixed(np.arange(20.0, 30.0, 0.02), curve_tt,
+                          np.full_like(curve_tt, 100.0))
+
+
 def test_the_refusal_names_both_ranges():
     """A refusal a caller cannot act on is an assertion, so the message carries
     the two intervals and the two ways out."""
