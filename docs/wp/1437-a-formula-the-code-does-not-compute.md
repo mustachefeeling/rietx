@@ -117,19 +117,42 @@ which is why this class was unguarded.
       value and the same chapter's `corr-lp` defines K the other way. The skill
       is clean here: `diagnostics-gsas.md:61` states the value without
       labelling it.
-- [ ] Audit the remaining fourteen equation-bearing descriptions against the
+- [x] Audit the remaining fourteen equation-bearing descriptions against the
       code each describes. Record every one in the handover, checked or
       corrected. **This is the deliverable**; the two fixes above are its first
       finding.
+      *Done 2026-09-17, over a wider class than the WP sized: 41 checkable
+      claims rather than 15, because a shape claim ("shifts as sin 2θ") and an
+      identity claim ("r = 1 is exactly no correction") are as checkable as a
+      formula and drift the same way. The full table is in the handover entry.
+      It found a **third** defect, `instrument.profile.v`, corrected below.*
 - [x] Pin the three numeric thresholds against their live constants, as a
       fourth `*_are_the_schemas_own` member in `tests/test_help.py`.
 - [x] A review rule in `help.py`'s module docstring: a description that states
       a formula or a threshold names where the real one lives.
-- [ ] Check whether the agent skill restates the polarisation factor; re-sync
+- [x] Check whether the agent skill restates the polarisation factor; re-sync
       the two committed copies with `rietx skill --install . --copy` if it does.
-- [ ] Skill: a row only if the skill carries the wrong formula. An agent
+      *It does not, so no re-sync. The skill's only Lp-adjacent statement is
+      `diagnostics-gsas.md:61`, "`NeutronSource` pins K = 1", which agrees with
+      `schemas/instrument.py:277`. Its other `K` (`judging.md:338-341`) is the
+      **Scherrer** constant, named as such in the preceding sentence and
+      correct at 0.9 (`profiles/caglioti.SCHERRER_K`).*
+- [x] Skill: a row only if the skill carries the wrong formula. An agent
       driving rietx reads `polarization` as a value to set, not a formula to
-      evaluate, so the body needs nothing.
+      evaluate, so the body needs nothing. *No row added.*
+
+### Found by the audit, beyond the WP's two
+
+- [x] `help.py:420-430` (`instrument.profile.v`) made two wrong claims. "The
+      only Caglioti term allowed to be negative" — `ProfileTCHZ.u`'s default
+      `min` is −0.05, so U may go negative too; only W, X and Y are
+      softplus-floored at zero. And "the minimum of the width curve sits where
+      it cancels against U" — the minimum is at tanθ = −V/(2U), where the V
+      term is −2× the U term rather than cancelling it (measured: numeric
+      argmin at tanθ = 0.750000 against the predicted 0.750000, rel. 2.4e-7,
+      on U = 0.02, V = −0.03, W = 0.05, chosen so V² − 4UW < 0 keeps the
+      variance off `_MIN_GAMMA_G2`). Both corrected, and the entry now names
+      `gaussian_fwhm` under the new review rule.
 
 ## Acceptance
 

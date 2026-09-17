@@ -420,10 +420,15 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
     "instrument.profile.v": HelpEntry(
         title="Caglioti V",
         description=(
-            "The tanθ term of the Gaussian variance. It is the only Caglioti "
-            "term allowed to be negative, and the minimum of the width curve "
-            "sits where it cancels against U. Nothing in the specimen "
-            "contributes to it, so it is purely instrumental."
+            "The tanθ term of the Gaussian variance Γ_G² = U·tan²θ + V·tanθ "
+            "+ W, which `model.profiles.caglioti.gaussian_fwhm` computes. It "
+            "is the Caglioti term that usually goes negative, and it carries "
+            "much the widest negative range. It is not the only one that may: "
+            "U's default bound admits a small negative value too, while W, X "
+            "and Y are softplus-floored at zero and cannot go negative at "
+            "all. The width curve's minimum sits at tanθ = −V/(2U). Nothing "
+            "in the specimen reaches V, so it is purely instrumental, and a "
+            "phase's `gauss_strain` adds to U instead."
         ),
         unit="deg² 2θ", default="0.0",
         typical="−0.05 to 0",
