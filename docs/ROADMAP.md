@@ -103,7 +103,7 @@ rule out, carry on as [1434](wp/1434-the-bound-test-asks-the-wrong-question.md) 
 copy of a running fit's project in the GUI from the run list
 ([1428](wp/1428-open-in-the-gui-without-touching-the-fit.md)), and the six
 questions it handed the maintainer were answered and landed in
-[1436](wp/1436-the-questions-the-track-left.md): one phase palette for all
+[1438](wp/1438-the-questions-the-track-left.md): one phase palette for all
 three surfaces, `abandoned` out of the warning hue, the snapshot cadence kept
 and its exception written down, the run pane's collapse restored as a command,
 80ch, and a cold open that lands at the log's tail.
@@ -670,7 +670,7 @@ track proper and 1436 answered the six questions it handed the maintainer.
 | [1429](wp/1429-one-palette-and-one-theme-for-three-pages.md) | The GUI's tokens and the GUI's theme, on the two python pages | ✅ 2026-09-16 | 1430 (1426 soft) |
 | [1427](wp/1427-what-a-poll-costs.md) | What a poll costs | ✅ 2026-09-17 | 1430 (1426 soft) |
 | [1428](wp/1428-open-in-the-gui-without-touching-the-fit.md) | Open in the GUI, without touching the fit | ✅ 2026-09-17 | 1405, 1401 (1430 soft) |
-| [1436](wp/1436-the-questions-the-track-left.md) | The questions the track left | 🔄 2026-09-17 | 1429, 1427, 1425, 1413 (1428 soft) |
+| [1438](wp/1438-the-questions-the-track-left.md) | The questions the track left | 🔄 2026-09-17 | 1429, 1427, 1425, 1413 (1428 soft) |
 
 ### v2+ — fenced
 

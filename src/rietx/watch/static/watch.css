@@ -49,7 +49,7 @@ button:hover { background:color-mix(in srgb, var(--accent) 12%, var(--panel)); }
 #run { flex:1 1 auto; min-width:0; display:flex; flex-direction:column; }
 body[data-list="closed"] #runs,
 body[data-single] #runs, body[data-single] #grip-list { display:none; }
-/* The run pane hidden, which is the list given the whole window (WP-1436).
+/* The run pane hidden, which is the list given the whole window (WP-1438).
    The grip goes with it: a separator between one pane and nothing is a control
    that cannot do anything, and the list takes the space rather than keeping
    its declared width beside an empty half. */
@@ -60,7 +60,7 @@ body[data-run="closed"] #runs { flex:1 1 auto; border-right:0; }
    inside `overflow: auto` scrolls away from the edge it marks (WP-1029). It is
    the whole control for the *width*; what the button beside the title does is
    the collapse that no grip can reach, the run pane not being the pane either
-   grip sizes (WP-1425's rule, and WP-1436's exception to what followed from
+   grip sizes (WP-1425's rule, and WP-1438's exception to what followed from
    it: a collapsible pane carries a named command, not only a gesture). */
 /* Four states and one hue: the accent, at four strengths over the panel the
    grip sits in. It is the only control on this page with more than two, and
@@ -119,7 +119,7 @@ tr.run.selected { background:color-mix(in srgb, var(--accent) 16%, transparent);
 
    Abandoned used to share the warning hue with cancelled at a weaker wash,
    12 % against 18 %, which made the two one pill with two words in it. They
-   are not one kind of fact (WP-1436): cancelled is somebody's decision and
+   are not one kind of fact (WP-1438): cancelled is somebody's decision and
    keeps the warning tone, while abandoned is a writer that died without a last
    word — which is what `unknown` says too, so it takes the same neutral. That
    is the convention every CI dashboard already follows, hue for an outcome the

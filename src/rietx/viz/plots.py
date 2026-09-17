@@ -97,7 +97,7 @@ Y_SCALES = ("linear", "sqrt", "log", "asinh")
 #:
 #: ``phase`` is the one entry that is **not** chosen per ground, and not chosen
 #: here at all: it is :data:`~rietx.viz.theme.PHASE_COLOURS`, which the GUI and
-#: ``rietx watch`` draw a tick row in too (WP-1436).  A role colour answers
+#: ``rietx watch`` draw a tick row in too (WP-1438).  A role colour answers
 #: "what kind of thing is this", so it follows the page it is drawn on; a
 #: categorical colour answers "which one of them", so it follows the phase and
 #: nothing else.  ``tick`` — the *single*-phase row — stays a role and stays

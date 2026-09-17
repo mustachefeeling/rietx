@@ -244,7 +244,7 @@ function buildPicture(run, kind) {
 // `pumpEvents`, where a log that is a different file says so.
 function resetTail(id) {
   // `cold` is the *first* ask for this run's log, which the route answers from
-  // the end of the file rather than from the start (WP-1436). A log viewer
+  // the end of the file rather than from the start (WP-1438). A log viewer
   // opens at the newest line — `kubectl logs --tail`, `less +G` — and this one
   // used to walk forward 4 MB a poll, so opening a job that had been running a
   // while showed events minutes old until the walk caught up.
@@ -421,7 +421,7 @@ async function drawSnapshot(id) {
     // — `automargin` is off by default — so this does not move the picture,
     // which the legend did before WP-1426 and is what those tests watch.
     //
-    // It sat at the paper's top right until WP-1436, which is the corner the
+    // It sat at the paper's top right until WP-1438, which is the corner the
     // legend's *first row* ends in: measured at 1180 px on a two-phase fit,
     // the row wrapped and `Δ/σ` was drawn under the caption. Two marks in one
     // place is the class WP-1424 named — measure ink against room — and the
@@ -648,7 +648,7 @@ const GAP = 'gap';
 //
 // Two shapes, and which one is a question about what the page can count. A
 // poll that read the whole log and dropped the oldest of it knows exactly how
-// many. A *cold open* seeked to the end instead (WP-1436), so lines above the
+// many. A *cold open* seeked to the end instead (WP-1438), so lines above the
 // seek were never read: the count it does have is of the window alone and
 // would be a number smaller than the truth, stated as the truth. It says the
 // fact without the figure instead.
@@ -915,7 +915,7 @@ function setSize(which, size, {store = true} = {}) {
 // `run` travels through here too and is not a seam: the button beside the
 // title is its whole control, because no grip sizes the run pane and a
 // splitter's collapse belongs to the pane its grip sizes (WP-1425). What
-// WP-1436 restored is the *command* — a collapsible pane that can only be
+// WP-1438 restored is the *command* — a collapsible pane that can only be
 // collapsed by a gesture on a focused 5 px separator is one nobody finds.
 function toggleSeam(which) {
   layout = nextLayout(layout, which, {open: !layout[which].open});

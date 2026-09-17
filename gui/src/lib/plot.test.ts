@@ -139,7 +139,7 @@ describe("the curve colours (WP-1029 q)", () => {
     expect(curveColors(() => "").peakfit).toBe("#c158b0");
   });
 
-  it("reads the phase palette, whose fallbacks are the values (WP-1436)", () => {
+  it("reads the phase palette, whose fallbacks are the values (WP-1438)", () => {
     // these four do not follow the theme — a phase that changed colour with
     // the page would be a second fact about one row — so unlike every other
     // entry here the fallback is not "the light value", it is the value.
@@ -150,7 +150,7 @@ describe("the curve colours (WP-1029 q)", () => {
   });
 });
 
-describe("the ink a phase's tick row takes (WP-1436)", () => {
+describe("the ink a phase's tick row takes (WP-1438)", () => {
   const COLORS = { obs: "#8a8a8a",
                    phase: ["#009e73", "#cc79a7", "#56b4e9", "#f0e442"] };
 
@@ -738,7 +738,7 @@ describe("the readout strip (WP-1213)", () => {
       readout(FITTED, 2, { kind: "weighted" })!.rows.map((r) => [r.id, r.ink]));
     expect(inks).toMatchObject({ obs: "obs", calc: "calc", bkg: "bkg", diff: "diff" });
     // a phase's tick row still carries no ink, and the reason changed with
-    // WP-1436: the row *has* a colour now, `--phase-N`, but `ink` names a
+    // WP-1438: the row *has* a colour now, `--phase-N`, but `ink` names a
     // `--plot-*` role and a phase colour is not one of them
     expect(inks["ticks:NAC"]).toBeUndefined();
   });

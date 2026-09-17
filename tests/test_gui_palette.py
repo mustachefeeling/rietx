@@ -149,7 +149,7 @@ def test_every_block_of_the_stylesheet_carries_the_whole_palette(name):
         ':root:not([data-theme="light"])', ':root[data-theme="dark"]']
     # the phase palette does not follow the theme, so it is declared once, in
     # `:root` with the light set, and the dark blocks override what changes
-    # and nothing else (WP-1436)
+    # and nothing else (WP-1438)
     expected = dict(TOKENS[name], **PHASE_TOKENS) if name == "light" else TOKENS[name]
     for block in blocks:
         assert _block(block, css) == expected, f"{block} is short"
@@ -166,7 +166,7 @@ def test_the_typescript_fallbacks_are_the_light_tokens():
     the copy stays and is pinned instead.
 
     The phase palette's four are the exception that says what the rule is
-    about (WP-1436): they do not follow the theme, so *their* fallback is not
+    about (WP-1438): they do not follow the theme, so *their* fallback is not
     "the light value" — it is the value, and a page with no stylesheet draws a
     phase in the colour every other surface draws it in.
     """
@@ -308,7 +308,7 @@ def test_every_lane_reads_against_the_panel_it_is_drawn_on(themes, theme):
 
 
 # ----------------------------------------------------------------------
-# WP-1436 — the phase palette, which is categorical rather than a role
+# WP-1438 — the phase palette, which is categorical rather than a role
 # ----------------------------------------------------------------------
 
 #: How close a phase colour comes to a *curve* colour, on the worst of the four
@@ -429,7 +429,7 @@ def test_a_tick_trace_colours_its_marker_and_not_only_its_line():
     Measured in Chrome on a two-phase fit: `gd.data` said `#009e73`, the picture
     was `#9467bd`, and `gd._fullData` named both. The trace therefore carries
     the colour on the marker as well, which is what `rietx watch` always did
-    and why its page looked right while this one did not (WP-1436).
+    and why its page looked right while this one did not (WP-1438).
 
     A source assertion because the GUI has no browser suite — its pictures are
     judged by looking (`docs/manual/make_screenshots.py`) — and because the

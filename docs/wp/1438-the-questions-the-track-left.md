@@ -1,4 +1,4 @@
-# WP-1436 — the questions the watcher track left
+# WP-1438 — the questions the watcher track left
 
 Milestone: unscheduled · Status: 🔄 2026-09-17 — the six open questions, answered and landing
 Depends on: 1429 (the tokens), 1427 (the console walk), 1425 (the seams), 1413 (the cadence), 1428 soft (the width it moved)

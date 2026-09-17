@@ -122,7 +122,7 @@ def _page_constants() -> dict:
     WP — those are custom properties the page reads off its own root element,
     so one stylesheet answers for all three surfaces.
 
-    ``ticks`` rode here too until WP-1436 and no longer does.  The question
+    ``ticks`` rode here too until WP-1438 and no longer does.  The question
     that kept it was what a shared *categorical* palette should be, the
     `--plot-*` tokens each naming one role; the answer is four Okabe-Ito
     colours in `--phase-0…3`, which this page now reads off its root element
@@ -440,7 +440,7 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
                 # no cap, which is what this route did before WP-1427.
                 #
                 # `end=1` is a *cold open*, and it is the client's to ask for
-                # rather than this route's to infer (WP-1436): `offset=0` on a
+                # rather than this route's to infer (WP-1438): `offset=0` on a
                 # run being tailed from its start is a legitimate request, and
                 # a route that quietly seeked instead would make the two
                 # indistinguishable. What it changes is where the read starts,

@@ -68,7 +68,7 @@ export function curveColors(read: (name: string) => string): {
     // off-screen — a fit range shows only its edges once you zoom inside it.
     mask: pick("--plot-mask", "#1b1b1b14"),
     edge: pick("--muted", "#6b6b66"),
-    // One colour per phase, keyed by the phase and not by the trace (WP-1436).
+    // One colour per phase, keyed by the phase and not by the trace (WP-1438).
     // Before this the tick traces carried no colour at all, so plotly assigned
     // from its own cycle by position in the trace array — and every trace ahead
     // of them is conditional, so a phase's row changed colour when the stage

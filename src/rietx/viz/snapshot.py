@@ -31,7 +31,7 @@ Three conventions this file must not get wrong, each with a WP behind it:
   because a silent cap reads as coverage.
 
 **One is written every stage, and that is a decision rather than the absence of
-one** (WP-1436, answering the question WP-1413 left the maintainer). Measured
+one** (WP-1438, answering the question WP-1413 left the maintainer). Measured
 there: 8.30 / 6.54 / 10.56 ms a stage on ``nac`` / ``cpd-2`` / ``trigger``, so
 50 / 59 / 84 ms of a whole fit and 1.233× / 1.049× / 1.031× of its wall clock.
 Only ``nac`` is over the 5 % budget and it is a 0.354 s fit, where the whole

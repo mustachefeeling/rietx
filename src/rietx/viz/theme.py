@@ -25,7 +25,7 @@ on the manual's and the landing page's warm dark panel rather than as a
 brighter card on it, and a figure for print has different needs from a live
 page.
 
-**One thing crossed that line** (WP-1436): :data:`PHASE_COLOURS`, which the
+**One thing crossed that line** (WP-1438): :data:`PHASE_COLOURS`, which the
 figures import from here.  A role colour follows the page it is drawn on, so it
 belongs to the surface; a categorical colour follows the phase, so it belongs to
 one list or a phase is three different colours in three pictures of the same
@@ -114,7 +114,7 @@ TOKENS: dict[str, dict[str, str]] = {
 }
 
 #: One colour per phase, shared by all three surfaces and by the figures
-#: (WP-1436).  Theme-independent on purpose: a phase that changed colour when
+#: (WP-1438).  Theme-independent on purpose: a phase that changed colour when
 #: the reader switched themes would be a second fact about the same row.
 #:
 #: **Okabe-Ito** (Okabe & Ito 2002; Wong, *Nature Methods* **8**, 441, 2011),

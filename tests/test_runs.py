@@ -571,7 +571,7 @@ def test_a_cap_larger_than_the_log_drops_nothing(tmp_path):
 def test_a_cold_open_starts_at_the_end_of_a_long_log(tmp_path):
     """``from_end`` is what a log viewer does, and what this one did not.
 
-    Measured before it (WP-1436): on a 7.35 MB log the page painted its first
+    Measured before it (WP-1438): on a 7.35 MB log the page painted its first
     line at 0.64 s showing events 42 s old and reached the tail at 1.99 s,
     because it walked forward one 4 MiB chunk a poll. A log grows 1.8-4.5 MB a
     minute of series fitting, so an hour-long job is 27 to 67 polls of that.

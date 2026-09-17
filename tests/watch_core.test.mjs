@@ -283,7 +283,7 @@ test('only an explicit false closes a pane', () => {
 
 test('the old panel key gives up both its bits and nothing else', () => {
   // WP-1423 stored `{runs, run}`. Both halves have a home again since
-  // WP-1436 gave the run pane a collapse of its own.
+  // WP-1438 gave the run pane a collapse of its own.
   assert.equal(parseLayout(null, '{"runs":false,"run":true}').list.open, false);
   assert.equal(parseLayout(null, '{"runs":true,"run":false}').list.open, true);
   assert.equal(parseLayout(null, '{"runs":true,"run":false}').run.open, false);
@@ -298,7 +298,7 @@ test('the old panel key gives up both its bits and nothing else', () => {
 
 test('the run pane is a collapse and never a size', () => {
   // no grip sizes it, so `size` has nothing to hold and only `open` moves
-  // (WP-1436). It rides in the same stored object as the two seams because
+  // (WP-1438). It rides in the same stored object as the two seams because
   // one reader reading one shape is the point of that object.
   assert.deepEqual(parseLayout('{"run":{"open":false}}').run,
                    {size: null, open: false});
@@ -352,7 +352,7 @@ test('every plot colour comes from the property that owns it', () => {
 });
 
 // ------------------------------------------------------------- phaseInk
-// WP-1436: the tick rows' colours stopped riding on the poll's payload, which
+// WP-1438: the tick rows' colours stopped riding on the poll's payload, which
 // sent one list whatever the theme. They are `--phase-N` now, and which row
 // takes which is the GUI's rule ported, `gui/src/lib/plot.ts:phaseInk`.
 

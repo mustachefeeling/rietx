@@ -846,7 +846,7 @@ class EventTail:
     #: ``from_end``. It is how a client says "there is more log above this"
     #: without a count of *lines*: the events in those bytes were never read,
     #: so counting them would mean reading the file to say how much of it went
-    #: unread (WP-1436). It is deliberately not the absolute start, which an
+    #: unread (WP-1438). It is deliberately not the absolute start, which an
     #: ordinary poll of a long log also has and which says nothing.
     skipped_bytes: int = 0
 
@@ -882,7 +882,7 @@ def tail_events(path: str | Path, offset: int = 0, *, inode: int | None = None,
     ``max_bytes`` a poll: measured on a 7.35 MB log, the first line painted at
     0.64 s showed events 42 s old and the tail arrived at 1.99 s, and a log
     grows 1.8-4.5 MB a minute of series fitting, so an hour-long job is 27 to
-    67 polls of walking (WP-1436).  It reads the last ``max_bytes`` and drops
+    67 polls of walking (WP-1438).  It reads the last ``max_bytes`` and drops
     the partial line it lands in, so the events are whole and the returned
     offset is the end — the next poll continues from there as any other would.
     """

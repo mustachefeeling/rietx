@@ -44,7 +44,7 @@ export function paletteFrom(read) {
     diff: pick('--plot-diff'), zero: pick('--plot-zero'), grid: pick('--line'),
     fg: pick('--fg'), ground: pick('--bg'), band: pick('--ok'),
     // One colour per phase, from the stylesheet like everything else here
-    // (WP-1436). They used to ride on the poll's own payload, which meant the
+    // (WP-1438). They used to ride on the poll's own payload, which meant the
     // page drew a *light* pattern's tick rows in the dark theme's list — the
     // server sent one list for both. These four do not follow the theme at
     // all, so there is no list to choose and no reason to send one.
@@ -309,7 +309,7 @@ export function coalesce(work) {
 //: The stored state of a page nobody has dragged.
 //:
 //: `run` is not a seam: no grip sizes it, so its `size` is always null and
-//: only `open` moves (WP-1436). It is here rather than in a second key for
+//: only `open` moves (WP-1438). It is here rather than in a second key for
 //: the reason the two seams are — one stored object, one reader, one shape.
 export const LAYOUT_DEFAULT = Object.freeze({
   list: Object.freeze({size: null, open: true}),
@@ -331,7 +331,7 @@ function seam(saved) {
 // sizes, and a stored state naming only one of them leaves the others alone.
 //
 // `legacy` is WP-1423's `{runs, run}` under the old key, and both halves have
-// a home again now that the run pane collapses (WP-1436). It is consulted only
+// a home again now that the run pane collapses (WP-1438). It is consulted only
 // when this page has stored nothing itself, and the caller drops the old key
 // once it has.
 export function parseLayout(raw, legacy) {

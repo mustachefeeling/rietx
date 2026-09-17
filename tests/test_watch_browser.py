@@ -382,7 +382,7 @@ def test_a_grip_collapses_its_pane_and_the_other_takes_the_room(browser, tmp_pat
     survives a reload — which is the whole of what `toggle-runs` did, minus a
     control.
 
-    `toggle-run` is the other one and it came back in WP-1436, for the pane no
+    `toggle-run` is the other one and it came back in WP-1438, for the pane no
     grip sizes — so this page carries it and the grips still answer for
     themselves, which is what the rest of this test measures.
     """
@@ -393,7 +393,7 @@ def test_a_grip_collapses_its_pane_and_the_other_takes_the_room(browser, tmp_pat
         page, errors = _open(browser, base, run_id)
         assert page.query_selector("#toggle-runs") is None
         assert page.query_selector("#toggle-run") is not None, (
-            "the run pane's own command (WP-1436)")
+            "the run pane's own command (WP-1438)")
         both = page.evaluate(GEOMETRY)
 
         page.dblclick("#grip-list")
@@ -1682,7 +1682,7 @@ def test_the_status_line_drops_slots_it_cannot_fit(browser, tmp_path):
 
 
 # ----------------------------------------------------------------------
-# the run pane's collapse (WP-1436)
+# the run pane's collapse (WP-1438)
 # ----------------------------------------------------------------------
 def test_the_toggle_hides_the_run_and_gives_the_list_the_window(browser,
                                                                 tmp_path):
@@ -1749,7 +1749,7 @@ def test_the_toggle_hides_the_run_and_gives_the_list_the_window(browser,
 def test_a_cold_open_shows_the_newest_line_first(browser, tmp_path):
     """What a reader opening a long-running job sees in their first paint.
 
-    Measured before this (WP-1436), on the 7.35 MB log of a 32-pattern series:
+    Measured before this (WP-1438), on the 7.35 MB log of a 32-pattern series:
     the first line painted at 0.64 s carried events 42 s old, and the tail
     arrived at 1.99 s after a second 4 MiB chunk. The page asks for the end
     now and paints it at 0.69 s.
@@ -1810,7 +1810,7 @@ def test_the_point_count_is_never_drawn_over_the_legend(browser, tmp_path,
     The caption sat at the paper's top right, which is where the legend's
     first row ends. Measured at 1180 px on a two-phase fit, the row wrapped and
     `Δ/σ` was drawn under `901 of 901 pts drawn`, each legible and the pair not
-    (WP-1436). Two marks in one place, and the room up there belongs to the
+    (WP-1438). Two marks in one place, and the room up there belongs to the
     legend: it grows with the model, while the caption is one line of a fixed
     length.
     """

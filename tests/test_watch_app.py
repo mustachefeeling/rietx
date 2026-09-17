@@ -1073,7 +1073,7 @@ def test_the_payload_carries_what_the_page_cannot_know(tmp_path, monkeypatch):
     working right up until somebody looked at it.
 
     Every *curve* colour left in WP-1429 and the reflection rows' followed in
-    WP-1436: all of them are custom properties the page reads off its own root
+    WP-1438: all of them are custom properties the page reads off its own root
     element, and what rides here in their place is the theme *choice*, the one
     thing here a person changes while the page is open. A colour that stayed
     would be the one this payload was worst at: it carried a single list for
@@ -1198,7 +1198,7 @@ def test_an_absent_or_junk_limit_is_no_cap(tmp_path, query):
 
 
 def test_a_cold_open_asks_for_the_end_and_gets_it(tmp_path):
-    """`end=1` is the client saying "this is my first ask" (WP-1436).
+    """`end=1` is the client saying "this is my first ask" (WP-1438).
 
     The route infers nothing: `offset=0` without it still reads from the start,
     because a reader tailing a run from its beginning is asking for exactly
