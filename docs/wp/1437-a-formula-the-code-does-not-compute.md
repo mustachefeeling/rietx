@@ -1,6 +1,6 @@
 # WP-1437 — a formula the code does not compute
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-09-17 — claimed by @yue-here
 Depends on: —
 
 ## Goal
