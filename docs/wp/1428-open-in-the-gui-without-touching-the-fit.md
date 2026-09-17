@@ -97,6 +97,15 @@ snapshot is not a thing; the snapshot is a picture.
 
 ### Inherited
 
+- **2026-09-17, from [1309](1309-measured-background.md): main now carries a
+  rebuilt GUI dist.** A new parameter family (`instrument.background.scale`)
+  needed a row in `gui/src/lib/history.ts`'s `PLACES`, so
+  `src/rietx/gui/static/assets/app.js` and its `build-info.json` are rebuilt on
+  main. A branch that also rebuilds the bundle conflicts in a *built artefact*,
+  which is not a file to resolve by hand: rebase, rerun
+  `npm --prefix gui ci && npm --prefix gui run build`, and commit the fresh
+  pair. Nothing else in that WP is affected.
+
 - **2026-09-17, from [1427](1427-what-a-poll-costs.md): the watcher's routes
   gained two things a GUI-launching WP should know, and left one open
   question.** All measured on this machine, `[dev]` plus playwright,

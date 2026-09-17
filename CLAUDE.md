@@ -401,7 +401,11 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   Measure it **once**, as the block projection R² of a structural Jacobian column onto the
   background column span (`optimize.statistics.background_absorption`; pairwise ρ misses it), and
   carry the whole table to `FitReport.background` — whose other half, a too-stiff background,
-  Layer 0's peak-cluster regions are blind to (WP-1055).
+  Layer 0's peak-cluster regions are blind to (WP-1055). **The screen's targets are anchored at
+  `phases.`, never on a `.scale` suffix**: a background parameter is *in* the span it would be
+  projected onto, so a free measured-background scale scored R² = 1.00 about itself and fired the
+  guard on every fit until WP-1309. `optimize.statistics._structural_targets` is the one list both
+  screens read.
 - **Reciprocal-space symmetry action is Rᵀ** (transposed rotation) — matters for non-cubic
   orbit/multiplicity counting (`symmetry.py` comment). **This is about hkl; applying it to a
   *tensor* is the opposite mistake**: a quantity contracting with h twice (G\*, or the U\* form of
@@ -477,7 +481,10 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   `help_key`, the family glob, never the entry: an entry describes a *family*, so inlining one
   repeats a paragraph once per atom (3.4× the `/api/params` payload).
   `docs/manual/using/glossary.md` is generated from it in `conf.py`, and every `anchor` is checked
-  against the built HTML, not the sources.
+  against the built HTML, not the sources. **A family has a second consumer and only node sees
+  it**: `gui/src/lib/history.ts`'s `PLACES` declares a print format per family and its vitest holds
+  the table equal to the live vocabulary (`gui/CLAUDE.md`), so adding one means
+  `npm --prefix gui test` and a rebuilt dist (WP-1309).
 - Parameter paths are dot-separated, glob-matched with fnmatch in stage plans
   (`"phases.*.cell.*"`). No brackets in paths (fnmatch treats `[..]` as a class).
 - Schemas: `extra="forbid"`, `ser_json_inf_nan="strings"` (±inf bounds must survive JSON

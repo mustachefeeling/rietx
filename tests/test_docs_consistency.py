@@ -266,7 +266,14 @@ SIZE_CAPS: dict[str, int | None] = {
     # that measured them: the first any future viewer pane, the second any
     # route that wants an `ETag` or a comparison, the GUI's included. The
     # numbers that *dismissed* a candidate stayed in the WP file, per rule 4.
-    "CLAUDE.md": 866,
+    # 866 -> 874 (WP-1309): two standing rules a measured background surfaced,
+    # neither of them about measured backgrounds. An absorption screen anchors
+    # its targets at `phases.`, because a parameter of the block it screens
+    # against is *in* the span and scores R² = 1.00 about itself — which governs
+    # any future member of either block. And a parameter family has a second
+    # consumer that no pytest sees, the GUI's per-family print format, which
+    # governs every parameter anyone adds. The measurements stayed in the WP.
+    "CLAUDE.md": 874,
     # 672 -> 676 (WP-1102): the Current focus rewrite at 1102's close names the
     # milestone's one break and what makes 1103 the seam's proving case.
     # 676 -> 682 (WP-1407): a new Unscheduled group, "The formats a lab still
