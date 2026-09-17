@@ -390,8 +390,10 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   options, how to add a format: `src/rietx/io/CLAUDE.md`.
 - **Every weighted residual in the package divides by `RefinementResult.sig()`** — every renderer
   and both GUI windows — a peer of `PatternData.sig()`, where the esd-column/Poisson choice was
-  already made: `CompiledModel` stores `pattern.sig()`, `refine` copies it to `result.sigma`
-  verbatim, so a result's σ is a *lookup*, never a re-derivation (WP-1029). **`weighted` is
+  already made: `CompiledModel` stores `pattern.sig()` — widened once at compile by a measured
+  background's own counting statistics, σ² + s²·σ_f², and by nothing else (WP-1309) — and `refine`
+  copies it to `result.sigma` verbatim, so a result's σ is a *lookup*, never a re-derivation
+  (WP-1029). **`weighted` is
   `DataRef.has_sigma`** (σ *measured*, not σ *present* — what `textdoc` renders as "σ from
   file"); `delta` is always Δ/σ, because Δ/σ is what the fit minimised either way, and the flag
   changes only the axis title. A test that recomputes a residual cannot catch this class of bug:
