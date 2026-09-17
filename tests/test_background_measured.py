@@ -17,11 +17,14 @@ can be wrong in a way nothing else would notice:
 * and a curve that does not cover the pattern was extrapolated by ``np.interp``
   silently, which is counts nobody measured.
 
-The fixture is **synthetic** (2026-09-17).  The 11-BM empty-Kapton blank the
-issue measured against is not fetchable — the beamline's standards links 404
-since its site migration and archive.org is refused from this network — so the
-numbers here corroborate the machinery and none of issue #171's.  What the real
-blank is for is written in the WP's acceptance section.
+The fixture here is **synthetic**, and deliberately so: it is built at a known
+scale, so it can ask whether the machinery recovers a number rather than whether
+a number is plausible.  The **real** blank arrived on 2026-09-17 and is
+`tests/data/11BM_Kapton.xy`; issue #171's own measurements are checked against
+it in `test_acceptance_si640c.py`'s blank arms, which is also where the
+synthetic findings below are corroborated on data nobody built — the recovered
+scale is biased low by the same regression dilution, and a longer polynomial
+eats it the same way.
 """
 
 from __future__ import annotations
