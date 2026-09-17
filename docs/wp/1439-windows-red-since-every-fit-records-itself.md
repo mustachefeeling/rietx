@@ -77,8 +77,8 @@ platform, and it is a real filesystem failure rather than a simulated one.
 - [x] Every JSONL writer opens with `newline="\n"` (four sites in three modules, not the two this WP was filed for), so a run log and a `history.jsonl` are the same bytes on every platform
 - [x] `tests/test_watch_app.py` compares `gui_command` against the platform's separator
 - [x] `tests/test_portability.py` grows the two rules that would have caught this: no unguarded POSIX-only import, and a line-oriented writer names its newline
-- [ ] Nightly dispatched on this branch, Windows job green, counts quoted with venv and platform
-- [ ] Skill: none — this WP changes no surface an agent driving rietx touches, and the newline fix is invisible to a reader of either format
+- [x] Nightly dispatched on this branch, Windows job green, counts quoted with venv and platform
+- [x] Skill: none — this WP changes no surface an agent driving rietx touches, and the newline fix is invisible to a reader of either format
 
 ## Acceptance
 
@@ -90,6 +90,22 @@ by hand. It runs the fast suite, ~6 min.
 gh workflow run nightly.yml --ref wp1439-windows-red-since-every-fit-records-itself
 gh run list --workflow nightly.yml --limit 3     # `gh pr checks` reads a dead run as pending
 ```
+
+**Met.** Run `35275114425`, job `105383742008`: **5298 passed, 152 skipped,
+0 failed** in 491 s, Windows, `[dev]`. macOS green on the same run.
+
+Two rounds, because the first fix made the second failure visible. The
+nightly is the loop, not a last check:
+
+| Round | Windows result |
+|---|---|
+| Before (run 35211225530) | 3 failed, 5187 passed, 146 skipped, **1 error** — `test_runs.py` unrun |
+| After round one (35273799888) | 2 failed, 5292 passed, 154 skipped |
+| After round two (35275114425) | **0 failed**, 5298 passed, 152 skipped |
+
+Local, macOS arm64, `[dev]`: 5317 passed, 133 skipped. The totals agree
+across platforms — 5298 + 152 = 5317 + 133 = 5450 — which is the check that
+Windows is skipping and not losing cases.
 
 Locally, the half of the story a POSIX machine can see is `fcntl` going
 missing. `tests/` is run with the import blocked, and nothing may fail for
