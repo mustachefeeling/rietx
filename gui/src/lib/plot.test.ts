@@ -12,7 +12,6 @@ import {
   formatRegion,
   forget,
   heldRanges,
-  hklLabel,
   hoverLabel,
   isDataOnly,
   maskShapes,
@@ -35,6 +34,7 @@ import {
   userRanges,
   type Window,
 } from "./plot";
+import { formatHkl } from "./peaks";
 
 const WEIGHTED: Window = {
   two_theta: [1, 2, 3],
@@ -666,6 +666,12 @@ describe("the readout strip (WP-1213)", () => {
     y_background: [3, 4, 5],
     ticks: { NAC: [1.002, 2.5], CaF2: [2.9] },
   };
+  // the same payload with the `tick_hkl` companion the route serves beside
+  // `ticks`, pinned to it index for index
+  const INDEXED = {
+    ...FITTED,
+    tick_hkl: { NAC: [[1, 1, 0], [2, 0, 0]], CaF2: [[2, -2, 0]] },
+  };
   const PEAKS = [
     { index: 0, two_theta: 2.0004, two_theta_esd: 0.0003, d: 4.4, intensity: 50,
       fwhm: 0.1, group: 0, n_in_group: 1, chi2_red: 1, flags: [],
@@ -749,6 +755,28 @@ describe("the readout strip (WP-1213)", () => {
     expect(value(out, "ticks:NAC")).toBe("+0.0020°");
     expect(value(out, "ticks:CaF2")).toBe("+1.9000°");
     expect(value(readout(FITTED, 3, { kind: "weighted" }), "ticks:CaF2")).toBe("-0.1000°");
+  });
+
+  it("names the reflection it is the offset to (WP-1438)", () => {
+    // pinned to the position by index, and spelled as the candidate row two
+    // rows down spells one — this is the answer the hover box was briefly
+    // asked for, and it is here because WP-1213's box is gone
+    const out = readout(INDEXED, 1, { kind: "weighted" })!;
+    expect(value(out, "ticks:NAC")).toBe("(1 1 0) +0.0020°");
+    expect(value(out, "ticks:CaF2")).toBe("(2 −2 0) +1.9000°");
+  });
+
+  it("keeps the offset alone where a result carries no indices", () => {
+    // a project written before the indices were carried reopens with the
+    // positions and not them, and a row that gained `undefined` would be
+    // worse than one that gained nothing
+    expect(value(readout(FITTED, 1, { kind: "weighted" }), "ticks:NAC"))
+      .toBe("+0.0020°");
+    // and so does a phase the companion happens not to cover
+    const half = { ...FITTED, tick_hkl: { NAC: [[1, 1, 0], [2, 0, 0]] } };
+    const out = readout(half as typeof FITTED, 1, { kind: "weighted" })!;
+    expect(value(out, "ticks:NAC")).toBe("(1 1 0) +0.0020°");
+    expect(value(out, "ticks:CaF2")).toBe("+1.9000°");
   });
 
   it("prints a picked line as the peak table prints it (WP-1209)", () => {
@@ -913,31 +941,22 @@ describe("the readout strip (WP-1213)", () => {
 // ----------------------------------------------------------------------
 // which reflection a tick is (WP-1438)
 // ----------------------------------------------------------------------
-describe("hklLabel", () => {
+describe("the watcher's hkl label", () => {
   const CASES: [number[], string][] = [
-    [[1, 1, 0], "1 1 0"],
-    [[0, 0, 2], "0 0 2"],
-    [[1, 0, -1], "1 0 -1"],
-    [[-12, 4, -10], "-12 4 -10"],
+    [[1, 1, 0], "(1 1 0)"],
+    [[0, 0, 2], "(0 0 2)"],
+    [[1, 0, -1], "(1 0 \u22121)"],
+    [[-12, 4, -10], "(\u221212 4 \u221210)"],
   ];
 
-  it("reads as a reader writes one", () => {
-    for (const [hkl, want] of CASES) expect(hklLabel(hkl)).toBe(want);
-  });
-
-  it("is nothing at all for anything that is not three numbers", () => {
-    // a result reopened from a project's history carries positions and no
-    // indices, and then the row keeps its silence rather than hovering a blank
-    for (const bad of [undefined, null, [], [1, 1], [1, 1, 0, 2]]) {
-      expect(hklLabel(bad as unknown as number[])).toBe("");
-    }
-  });
-
-  it("agrees with the watcher's own, case for case", async () => {
+  it("is `formatHkl`, case for case", async () => {
     // Two pages showing one reflection two ways is the shape `viz/theme.py`
-    // exists to stop, one rank over. The watcher's copy is a `.mjs` in the
-    // wheel and this one is TypeScript in a build input, so neither can
-    // import the other — the guard is this table, run against both.
+    // exists to stop, one rank over: this app writes an index through
+    // `formatHkl` — the peaks table, the strip's candidate row, the strip's
+    // tick rows — and `rietx watch` writes the same index into a hover box.
+    // The watcher's copy is a `.mjs` in the wheel and this one is TypeScript
+    // in a build input, so neither can import the other, and the guard is
+    // this table run against both.
     // The specifier is a variable, so TypeScript does not try to resolve a
     // declaration file for a plain `.mjs` in the wheel's tree — there is
     // none to find, and a suppression comment would be this repo's first.
@@ -951,10 +970,11 @@ describe("hklLabel", () => {
     };
     for (const [hkl, want] of CASES) {
       expect(core.hklLabel(hkl)).toBe(want);
-      expect(core.hklLabel(hkl)).toBe(hklLabel(hkl));
+      expect(core.hklLabel(hkl)).toBe(formatHkl(hkl));
     }
-    for (const bad of [undefined, null, [], [1, 1]]) {
-      expect(core.hklLabel(bad)).toBe(hklLabel(bad as unknown as number[]));
-    }
+    // and its own guard, which `formatHkl` does not need: the watcher reads
+    // a snapshot somebody else wrote, while every caller here holds a row
+    // the route built (`watch_core.test.mjs` owns the rest of that case)
+    expect(core.hklLabel([1, 1])).toBe("");
   });
 });

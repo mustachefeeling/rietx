@@ -589,13 +589,14 @@ test('a stacked size is a number or it is nothing, like the other one', () => {
 // ------------------------------------------------- which reflection a tick is
 
 test('a Miller index reads as a reader writes one', () => {
-  assert.equal(hklLabel([1, 1, 0]), '1 1 0');
-  assert.equal(hklLabel([0, 0, 2]), '0 0 2');
+  assert.equal(hklLabel([1, 1, 0]), '(1 1 0)');
+  assert.equal(hklLabel([0, 0, 2]), '(0 0 2)');
   // the minus in front of the digit, not over it: an overbar needs a
   // combining mark per digit and a hover box is not where to find out
-  // whether the reader's font has one
-  assert.equal(hklLabel([1, 0, -1]), '1 0 -1');
-  assert.equal(hklLabel([-12, 4, -10]), '-12 4 -10');
+  // whether the reader's font has one. U+2212, which is what the GUI's
+  // `formatHkl` writes and what `plot.test.ts` holds this equal to.
+  assert.equal(hklLabel([1, 0, -1]), '(1 0 \u22121)');
+  assert.equal(hklLabel([-12, 4, -10]), '(\u221212 4 \u221210)');
 });
 
 test('anything that is not three numbers is no label at all', () => {

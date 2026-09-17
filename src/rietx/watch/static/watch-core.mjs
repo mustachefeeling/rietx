@@ -175,13 +175,23 @@ export function guiReason(run, canOpen) {
     + 'into a project when it is run through one.';
 }
 
-// A Miller index as a reader writes one: `1 0 -1`, with the minus in front
-// of the digit rather than the crystallographer's overbar, because a bar
-// needs a combining mark per digit and a hover box is not the place to
-// discover whether the reader's font has one.
+// A Miller index as a reader writes one: `(1 0 −1)`.
+//
+// Spaced, because `(10-4)` is what `join('')` makes of `[1, 0, -4]` and a
+// two-digit index makes it worse. The minus goes in front of the digit
+// rather than over it: the crystallographer's overbar needs a combining
+// mark per digit, and a hover box is not the place to find out whether the
+// reader's font has one. It is U+2212, which is the minus the rest of this
+// page's prose uses.
+//
+// The twin of `gui/src/lib/peaks.ts`'s `formatHkl`, and `plot.test.ts`
+// holds the two equal over a table of cases. Neither can import the other
+// — this file ships in the wheel and `gui/src` is a build input that does
+// not — so the guard is that table, run against both. Two pages showing
+// one reflection two ways is the shape `viz/theme.py` exists to stop.
 export function hklLabel(hkl) {
   if (!Array.isArray(hkl) || hkl.length !== 3) return '';
-  return hkl.map(v => String(v)).join(' ');
+  return `(${hkl.map(v => (v < 0 ? `−${Math.abs(v)}` : String(v))).join(' ')})`;
 }
 
 export function runTitle(run) {

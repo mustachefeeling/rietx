@@ -529,11 +529,13 @@ function draw() {
       // GUI and `rietx watch` draw, off the same `tick_hkl` companion
       const hkl = (anyRec.tick_hkl || {})[phase];
       const paired = Array.isArray(hkl) && hkl.length === row.length;
+      const label = v => '(' + v.map(
+        n => (n < 0 ? '\u2212' + Math.abs(n) : String(n))).join(' ') + ')';
       fit.push({x: row, y: row.map(() => y),
                 type: 'scattergl', mode: 'markers', name: phase,
                 marker: {symbol: 'line-ns-open', size: 7, line: {width: 1},
                          color: phaseInk(i, phases.length)},
-                ...(paired ? {customdata: hkl.map(v => v.join(' '))} : {}),
+                ...(paired ? {customdata: hkl.map(label)} : {}),
                 hovertemplate: phase + (paired ? '<br>%{customdata}' : '')
                   + '<br>%{x:.3f}°<extra></extra>'});
     });

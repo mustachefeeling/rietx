@@ -82,22 +82,6 @@ export function curveColors(read: (name: string) => string): {
 }
 
 /**
- * A Miller index as a reader writes one: `1 0 -1`.
- *
- * The minus goes in front of the digit rather than over it.  The
- * crystallographer's overbar needs a combining mark per digit, and a hover box
- * is not the place to find out whether the reader's font has one.
- *
- * The twin of `watch-core.mjs`'s, and `plot.test.ts` holds the two equal over
- * a table of cases: two pages showing one reflection two ways is the shape
- * `viz/theme.py` exists to stop.
- */
-export function hklLabel(hkl: number[]): string {
-  if (!Array.isArray(hkl) || hkl.length !== 3) return "";
-  return hkl.map((v) => String(v)).join(" ");
-}
-
-/**
  * The ink a phase's tick row is drawn in, by its position in the phase list.
  *
  * A *single* phase takes the observed curve's neutral instead of the first
@@ -957,7 +941,12 @@ function offset(delta: number): string {
  * says where the pointer is, without a field that changes width to say it.
  */
 export function readout(
-  w: (Window & { raw?: boolean; ticks?: Record<string, number[]> }) | null,
+  w: (Window & {
+    raw?: boolean;
+    ticks?: Record<string, number[]>;
+    /** which reflection each entry of `ticks` is, pinned to it by index */
+    tick_hkl?: Record<string, number[][]>;
+  }) | null,
   x: number | null,
   inputs: ReadoutInputs,
 ): Readout | null {
@@ -1025,14 +1014,25 @@ export function readout(
     }
   }
 
-  // the nearest tick per phase, as an offset: the position is this readout's
-  // own 2θ plus it, and an offset is the number that says "there is a
-  // reflection right here" without arithmetic
+  // The nearest tick per phase, as a reflection and an offset: the position is
+  // this readout's own 2θ plus the offset, and an offset is the number that
+  // says "there is a reflection right here" without arithmetic.
+  //
+  // The index is `tick_hkl`'s (WP-1438), which the route cuts to the window in
+  // the same pass as the positions and hands back pinned to them by index —
+  // two reflections land at the same 2θ to every decimal, so there is no
+  // other way to pair them. It goes here rather than in a hover box for the
+  // reason the box went (WP-1213), and it is spelled as the candidate row two
+  // rows down spells one. A result reopened from a project written before the
+  // indices were carried has the positions and not them, and then the row says
+  // what it always said.
   for (const [phase, ticks] of Object.entries(w.ticks ?? {})) {
     if (!shows(hidden, `ticks:${phase}`)) continue;
     const j = at == null ? -1 : nearestIndex(ticks, at);
+    const hkl = j < 0 ? undefined : (w.tick_hkl ?? {})[phase]?.[j];
+    const near = j < 0 ? EMPTY : offset(ticks[j] - at!);
     rows.push({ id: `ticks:${phase}`, label: phase,
-      value: j < 0 ? EMPTY : offset(ticks[j] - at!) });
+      value: hkl?.length === 3 ? `${formatHkl(hkl)} ${near}` : near });
   }
 
   // The picked line under the pointer, printed as the panel's table prints it —
