@@ -58,18 +58,6 @@ the warn-once path. That is what makes the telemetry test portable without
 `chmod`: a run root whose parent is a *file* fails to `mkdir` on every
 platform, and it is a real filesystem failure rather than a simulated one.
 
-### Verification
-
-There is no Windows machine here and no Windows job on the per-push gate, so
-this WP is verified by dispatching the nightly on its own branch:
-
-```sh
-gh workflow run nightly.yml --ref wp1439-windows-red-since-every-fit-records-itself
-gh run list --workflow nightly.yml --limit 3     # never `gh pr checks`
-```
-
-The `windows` job is the fast suite, ~6 min.
-
 ## Non-goals
 
 - **Making Windows a supported development platform.** The claim is that the
@@ -84,10 +72,41 @@ The `windows` job is the fast suite, ~6 min.
 
 ## Tasks
 
-- [ ] `tests/test_runs.py` imports `fcntl` the way the package does, and the cases that need a real lock skip on a platform without one
+- [x] `tests/test_runs.py` imports `fcntl` the way the package does, and the cases that need a real lock skip on a platform without one
 - [ ] `tests/test_telemetry.py`'s unwritable-root case is provoked portably; the `chmod` provocation stays where it reproduces the measured failure
 - [ ] The two JSONL writers open with `newline="\n"`, so a run log and a `history.jsonl` are the same bytes on every platform
 - [ ] `tests/test_watch_app.py` compares `gui_command` against the platform's separator
 - [ ] `tests/test_portability.py` grows the two rules that would have caught this: no unguarded POSIX-only import, and a line-oriented writer names its newline
 - [ ] Nightly dispatched on this branch, Windows job green, counts quoted with venv and platform
 - [ ] Skill: none — this WP changes no surface an agent driving rietx touches, and the newline fix is invisible to a reader of either format
+
+## Acceptance
+
+There is no Windows machine here and no Windows job on the per-push gate, so
+the criterion is the nightly's `windows` job green on this branch, dispatched
+by hand. It runs the fast suite, ~6 min.
+
+```sh
+gh workflow run nightly.yml --ref wp1439-windows-red-since-every-fit-records-itself
+gh run list --workflow nightly.yml --limit 3     # `gh pr checks` reads a dead run as pending
+```
+
+Locally, the half of the story a POSIX machine can see is `fcntl` going
+missing. `tests/` is run with the import blocked, and nothing may fail for
+that reason:
+
+```sh
+.venv/bin/python -m pytest tests/test_portability.py tests/test_runs.py tests/test_telemetry.py -q
+.venv/bin/python -m ruff check src tests examples
+```
+
+## References
+
+- WP-1002 built `tests/test_portability.py` and measured the seven original
+  Windows failures (six `charmap` decodes, one `\r\r\n` CSV).
+- `docs/RELEASING.md` step 4 — the Windows nightly as the pre-upload gate.
+- Failing run: `gh run view 35211225530` (2026-09-17).
+
+## Handover log
+
+- **2026-09-17** — created.

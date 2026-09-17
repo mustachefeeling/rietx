@@ -9,7 +9,6 @@ a format a writer really produces rather than one this file invented.
 
 from __future__ import annotations
 
-import fcntl
 import io
 import json
 import shutil
@@ -20,6 +19,24 @@ from pathlib import Path
 import pytest
 
 from rietx import runs
+
+try:
+    import fcntl
+except ImportError:                     # pragma: no cover - Windows
+    fcntl = None                        # type: ignore[assignment]
+
+#: The liveness cases that read a POSIX answer, and so are the platform's to
+#: skip rather than this module's to lose.  ``liveness_of`` reaches its verdict
+#: by the first rung that answers, and on Windows the last three do not: there
+#: is no ``flock``, so ``_probe_lock`` returns ``"unavailable"`` for every run
+#: (a documented third answer, not a failure), and ``os.kill(pid, 0)`` raises a
+#: bare ``OSError`` for a pid that is not running rather than
+#: ``ProcessLookupError``, so ``_pid_alive`` answers ``None``.  Every
+#: non-terminal fixture below therefore reads ``unknown`` there, by the rung
+#: the module docstring calls the fallback.  The rest of this file is fixture
+#: directories read off disk and is not platform business.
+posix_liveness = pytest.mark.skipif(
+    fcntl is None, reason="liveness_of's lock and pid rungs are POSIX-only")
 
 
 def _write_run(directory: Path, *, events: str = "", status: dict | None = None,
@@ -282,6 +299,7 @@ def _one(tmp_path) -> runs.Run:
     return runs.discover(tmp_path)[0]
 
 
+@posix_liveness
 def test_a_held_lock_reads_running(tmp_path):
     directory = _write_run(tmp_path / "r", events=_event_line("fit_start"),
                            status={"state": "running", "pid": 1}, lock=True)
@@ -294,6 +312,7 @@ def test_a_held_lock_reads_running(tmp_path):
         handle.close()
 
 
+@posix_liveness
 def test_a_released_lock_under_a_running_status_reads_abandoned(tmp_path):
     """A third answer, not a rounding of the other two."""
     _write_run(tmp_path / "r", events=_event_line("fit_start"),
@@ -325,6 +344,7 @@ def test_a_foreign_host_reads_unknown(tmp_path):
     assert "another host" in live.evidence
 
 
+@posix_liveness
 def test_our_own_host_is_not_foreign(tmp_path):
     _write_run(tmp_path / "r", events=_event_line("fit_start"),
                status={"state": "running", "pid": 1,
@@ -344,6 +364,7 @@ def test_a_status_with_no_state_reads_unknown_not_running(tmp_path):
     assert runs.liveness_of(run).state == "unknown"
 
 
+@posix_liveness
 def test_a_missing_lock_file_is_not_a_free_lock(tmp_path):
     """No lock file means no writer ever made the claim; a free lock file means
     a writer made it and is gone."""
@@ -354,6 +375,7 @@ def test_a_missing_lock_file_is_not_a_free_lock(tmp_path):
     assert "999999" in live.evidence       # the pid fallback, not the lock
 
 
+@posix_liveness
 def test_the_heartbeat_is_reported_and_never_decides(tmp_path):
     """An alive process is evidence; a clock is not."""
     directory = _write_run(tmp_path / "r", events=_event_line("fit_start"),
@@ -377,6 +399,7 @@ def test_a_legacy_run_reads_unknown_and_says_so(tmp_path):
     assert "legacy" in live.evidence
 
 
+@posix_liveness
 def test_two_readers_do_not_see_each_other(tmp_path):
     """The probe is shared, so one reader is never the other's live writer.
 
@@ -411,6 +434,7 @@ def test_two_readers_do_not_see_each_other(tmp_path):
     assert seen == ["free"]                     # not "held": that is a reader
 
 
+@posix_liveness
 def test_a_lock_file_this_user_cannot_write_is_still_probed(tmp_path):
     """flock needs an open descriptor, not a writable one. Asking for write
     access loses the answer on a run owned by somebody else."""

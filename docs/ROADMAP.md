@@ -88,22 +88,19 @@ placement, link resolution, and the size caps on this file and CLAUDE.md.
 
 ## Current focus
 
-**No milestone is open.** [v1.4](#v14--free-standing-peaks) shipped
-2026-09-13 ([record](milestones/v1.4.md), [notes](releases/1.4.0.md));
-`pyproject.version` is `1.4.0`, the last shipped. Opening v1.5 is the next
-decision and it is the maintainer's; every WP landing before it lands under
-no milestone.
+**No milestone is open.** [v1.4](#v14--free-standing-peaks) shipped 2026-09-13
+([record](milestones/v1.4.md), [notes](releases/1.4.0.md)); `pyproject.version`
+is `1.4.0`. Opening v1.5 is the maintainer's decision, and
+[1439](wp/1439-windows-red-since-every-fit-records-itself.md) gates it: the
+Windows nightly has been red since 2026-09-15, the day after the tag, and
+`RELEASING.md` step 4 makes that job the pre-upload gate.
 
-**Nothing is in flight.** [1436](wp/1436-k-is-the-wavevector-everywhere-else.md)
-closed the symbol audit 1437 opened: sinθ/λ is `s` in equations and `stol` in
-python, every refined number bit-identical, and `k` is now free for the
-**magnetic track** (1326-1329, 1418), whose inherited note it turned from a
-warning into a licence. That track is the largest queued block with a
-discharged blocker. Also unblocked and blocked on nothing: the `.inp` grammar
-1118 refuses, [1433](wp/1433-the-inp-grammar-still-refused.md); and 1310's
-other two, [1434](wp/1434-the-bound-test-asks-the-wrong-question.md) and
-[1435](wp/1435-a-hold-the-caller-declares.md), each filed with a fix its own
-measurements rule out.
+**Nothing else is in flight.** 1436 closed the symbol audit 1437 opened and
+freed `k` for the **magnetic track** (1326-1329, 1418), the largest queued
+block with a discharged blocker. Also unblocked: the `.inp` grammar 1118
+refuses, [1433](wp/1433-the-inp-grammar-still-refused.md), and 1310's
+[1434](wp/1434-the-bound-test-asks-the-wrong-question.md) and
+[1435](wp/1435-a-hold-the-caller-declares.md).
 
 **Two cheap unowned asks** survive, both in 1407: Stoe `.raw` files paired with
 their WinXPOW ASCII export, and a blank for a `rietx compare` standard.
