@@ -239,7 +239,7 @@ the two sibling data files for the same reason.
 - [x] `structure_factor.py` and `dispersion.py`: the same pass, module
       docstrings included. Each `k = 1.0 / (2.0 * d)` site gains the `1/(2d)`
       gloss line 335 already has.
-- [ ] `qpa.weight_fractions(k, ...)` → `zmv`, body and docstring included
+- [x] `qpa.weight_fractions(k, ...)` → `zmv`, body and docstring included
       (`qpa.py:168`, `:171`, `:184`, `:186`, `:197`). Two callers in `src`
       (`qpa.py:388`, `:495`), both already passing `[z.zmv for z in zmvs]`, and
       five in `tests/test_qpa.py` (112, 120, 127, 134, 474), all positional —

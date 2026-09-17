@@ -19,7 +19,10 @@ never depends on it (weight fractions use Z·M·V directly).
 
 Scope: these are fractions of the **modelled crystalline** content.  An
 unmodelled amorphous fraction or a missing phase still makes them sum to 1.
-Internal-standard / amorphous quantification is fenced to v2.
+Internal-standard / amorphous quantification is fenced to v2 — that is
+O'Connor & Raven (1988), Powder Diffr. 3, 2, whose calibration constant
+is what ``K`` means in this field, which is why nothing here spells a
+Z·M·V with that letter.
 """
 
 from __future__ import annotations
@@ -165,14 +168,18 @@ def phase_zmv(space_group: str, cell: tuple[float, float, float, float, float, f
                z=z_units, molar_mass=molar_mass, element_counts=element_counts)
 
 
-def weight_fractions(k, scales, scale_cov=None):
+def weight_fractions(zmv, scales, scale_cov=None):
     """Weight fractions and their esds from refined scales.
 
-    ``k`` is the per-phase Z·M·V, ``scales`` the refined phase scales; W_p =
-    S_p·k_p / Σ_q S_q·k_q.  When ``scale_cov`` (the physical covariance of the
-    scales, in phase order) is given, propagate it through the ratio:
+    ``zmv`` is the per-phase Z·M·V, ``scales`` the refined phase scales; W_p =
+    S_p·ZMV_p / Σ_q S_q·ZMV_q.  Hill & Howard (1987) give the product no
+    letter of its own, and ``K`` in quantitative phase analysis is O'Connor &
+    Raven's calibration constant, whose method this module fences to v2 (see
+    the module docstring) — so the argument is spelled out.  When
+    ``scale_cov`` (the physical covariance of the scales, in phase order) is
+    given, propagate it through the ratio:
 
-        ∂W_p/∂S_j = (k_p·δ_pj − W_p·k_j) / D,   D = Σ_q S_q·k_q
+        ∂W_p/∂S_j = (ZMV_p·δ_pj − W_p·ZMV_j) / D,   D = Σ_q S_q·ZMV_q
         Cov(W) = J · Cov(S) · Jᵀ
 
     Returns ``(W, sigma_corr, sigma_indep)`` where ``sigma_indep`` uses only
@@ -181,9 +188,9 @@ def weight_fractions(k, scales, scale_cov=None):
     are ``None`` when ``scale_cov`` is ``None`` or carries no variance (no scale
     was freed) — an all-zero block is absence of information, not σ(W) = 0.
     """
-    k = np.asarray(k, dtype=np.float64)
+    zmv = np.asarray(zmv, dtype=np.float64)
     scales = np.asarray(scales, dtype=np.float64)
-    a = scales * k
+    a = scales * zmv
     total = a.sum()
     if total <= 0.0:
         raise ValueError("phase scales give a non-positive scaled total "
@@ -194,7 +201,7 @@ def weight_fractions(k, scales, scale_cov=None):
     cov = np.asarray(scale_cov, dtype=np.float64)
     if not np.any(cov):
         return w, None, None
-    jac = (np.diag(k) - np.outer(w, k)) / total
+    jac = (np.diag(zmv) - np.outer(w, zmv)) / total
     cov_w = jac @ cov @ jac.T
     sigma_corr = np.sqrt(np.maximum(np.diag(cov_w), 0.0))
     cov_w_indep = jac @ np.diag(np.diag(cov)) @ jac.T
