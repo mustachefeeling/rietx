@@ -15,8 +15,8 @@ import {test} from 'node:test';
 
 import {
   LADDER, LAYOUT_DEFAULT, ago, axisOf, clampSize, clock, coalesce, deltaTitle,
-  dragged, esc, extent, finiteOf, guiReason, nextLayout, num, parseLayout,
-  pct, rangesOf,
+  dragged, esc, extent, finiteOf, guiReason, hklLabel, nextLayout, num,
+  parseLayout, pct, rangesOf,
   paletteFrom, phaseInk, rowName, runLabel, runTitle, sizeField, withAlpha,
 } from '../src/rietx/watch/static/watch-core.mjs';
 
@@ -582,5 +582,26 @@ test('a stacked size is a number or it is nothing, like the other one', () => {
       {list: {size: 420, stackedSize: bad}}));
     assert.equal(layout.list.stackedSize, null, String(bad));
     assert.equal(layout.list.size, 420, String(bad));
+  }
+});
+
+
+// ------------------------------------------------- which reflection a tick is
+
+test('a Miller index reads as a reader writes one', () => {
+  assert.equal(hklLabel([1, 1, 0]), '1 1 0');
+  assert.equal(hklLabel([0, 0, 2]), '0 0 2');
+  // the minus in front of the digit, not over it: an overbar needs a
+  // combining mark per digit and a hover box is not where to find out
+  // whether the reader's font has one
+  assert.equal(hklLabel([1, 0, -1]), '1 0 -1');
+  assert.equal(hklLabel([-12, 4, -10]), '-12 4 -10');
+});
+
+test('anything that is not three numbers is no label at all', () => {
+  // a snapshot written before this carries no `hkl`, and the trace falls
+  // back to the 2θ it always had rather than hovering a blank
+  for (const bad of [undefined, null, [], [1, 1], [1, 1, 0, 2], 'abc', 7]) {
+    assert.equal(hklLabel(bad), '', JSON.stringify(bad));
   }
 });

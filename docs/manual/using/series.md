@@ -735,6 +735,7 @@ An empty list means an ordinary single-histogram fit.
 | `HistogramResult.two_theta`, `HistogramResult.y_obs`, `HistogramResult.y_calc`, `HistogramResult.y_background` | its curves |
 | `HistogramResult.sigma` | its per-point σ |
 | `HistogramResult.ticks` | its reflection positions, by phase |
+| `HistogramResult.tick_hkl` | which reflection each of those is, paired by index |
 | `HistogramResult.qpa` | its phase quantities |
 | `HistogramResult.restraints` | the restraint report for that histogram |
 | `HistogramResult.phase_agreement` | its R_B and R_F, per phase |

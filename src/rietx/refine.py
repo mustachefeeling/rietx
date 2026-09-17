@@ -3254,7 +3254,13 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
     # The calculated pattern really does have a peak at each Kα2 position, and
     # a tick list that omitted them would make the FitReport flag every Kα2
     # peak as an unindexed impurity.
+    #
+    # `tick_hkl` is built here and not anywhere downstream, because a second
+    # answer to *where* a tick goes is the thing this must not become: the
+    # index is carried through the same sort the positions are, so a tick and
+    # its Miller index cannot come apart (WP-1438).
     ticks = {}
+    tick_hkl = {}
     for ip, cp in enumerate(model.phases):
         name = structure.phases[ip].name
         cell = tuple(values[f"phases.{ip}.cell.{k}"]
@@ -3262,7 +3268,16 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
         rows = [cp.reflections.two_theta(cell, lam) + values["instrument.zero_shift"]
                 for lam in model.line_wavelengths]
         pos = np.concatenate(rows) if rows else np.array([])
-        ticks[name] = sorted(float(p) for p in pos if np.isfinite(p))
+        # one reflection list per emission line, in the same order each time,
+        # so the index list is that list tiled — the Kα2 image of a peak is
+        # the same hkl and says so
+        hkl = (np.tile(cp.reflections.hkl, (len(rows), 1)) if rows
+               else np.zeros((0, 3), dtype=np.int64))
+        keep = np.isfinite(pos)
+        pos, hkl = pos[keep], hkl[keep]
+        order = np.argsort(pos, kind="stable")
+        ticks[name] = [float(v) for v in pos[order]]
+        tick_hkl[name] = [[int(h), int(k), int(el)] for h, k, el in hkl[order]]
 
     # Declared sharp peaks are ticks too, under one reserved key.  This is the
     # whole of the member contract's clause 2 for `PeakComponent`: a hump joins
@@ -3466,7 +3481,8 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
         two_theta=model.tt.tolist(), y_obs=model.y_obs.tolist(),
         y_calc=y_calc.tolist(), y_background=y_bkg.tolist(),
         sigma=model.sigma.tolist(),
-        ticks=ticks, qpa=qpa, restraints=restraints_report, geometry=geometry,
+        ticks=ticks, tick_hkl=tick_hkl,
+        qpa=qpa, restraints=restraints_report, geometry=geometry,
         microstructure=microstructure,
         phase_agreement=_phase_agreement(model, values, structure),
         data_support=support,

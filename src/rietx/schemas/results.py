@@ -836,6 +836,21 @@ class HistogramResult(Base):
     y_background: list[float] = Field(default_factory=list)
     sigma: list[float] = Field(default_factory=list)
     ticks: dict[str, list[float]] = Field(default_factory=dict)
+    #: Which reflection each of those ticks is, index for index, as the orbit
+    #: representative ``h k l`` (WP-1438).  A **companion**, not a change of
+    #: shape: :attr:`ticks` has four readers that want a list of positions and
+    #: none of them wants this, so the pairing is by index and
+    #: ``tests/test_ticks.py`` pins the two lengths equal per phase.
+    #:
+    #: Absent for a phase's key rather than empty when there is nothing to
+    #: say, which is the case the reserved declared-peaks key is in: a peak
+    #: somebody declared by centre has no Miller index, and ``[]`` there would
+    #: claim it had none *of its own*.
+    #:
+    #: Every emission line's tick is here, so one representative appears once
+    #: per line — the same reflection, imaged twice, which is what the reader
+    #: hovering a Kα2 tick wants to be told.
+    tick_hkl: dict[str, list[list[int]]] = Field(default_factory=dict)
     qpa: "QuantitativePhaseAnalysis | None" = None
     restraints: "RestraintReport | None" = None
     #: this histogram's own R_Bragg/R_F — the partition is of *these* counts
@@ -994,6 +1009,21 @@ class RefinementResult(Base):
     sigma: list[float] = Field(default_factory=list)
     # per-phase reflection tick positions (deg 2θ)
     ticks: dict[str, list[float]] = Field(default_factory=dict)
+    #: Which reflection each of those ticks is, index for index, as the orbit
+    #: representative ``h k l`` (WP-1438).  A **companion**, not a change of
+    #: shape: :attr:`ticks` has four readers that want a list of positions and
+    #: none of them wants this, so the pairing is by index and
+    #: ``tests/test_ticks.py`` pins the two lengths equal per phase.
+    #:
+    #: Absent for a phase's key rather than empty when there is nothing to
+    #: say, which is the case the reserved declared-peaks key is in: a peak
+    #: somebody declared by centre has no Miller index, and ``[]`` there would
+    #: claim it had none *of its own*.
+    #:
+    #: Every emission line's tick is here, so one representative appears once
+    #: per line — the same reflection, imaged twice, which is what the reader
+    #: hovering a Kα2 tick wants to be told.
+    tick_hkl: dict[str, list[list[int]]] = Field(default_factory=dict)
 
     # Quantitative phase analysis (weight fractions); computed for Rietveld
     # fits, None for Le Bail (its scales are degenerate).

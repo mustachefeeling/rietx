@@ -4,8 +4,8 @@
 // cannot collide with plotly's. The functions that touch no DOM are next door
 // in `watch-core.mjs`, where the suite can call them.
 import {LAYOUT_DEFAULT, ago, axisOf, clampSize, clock, coalesce, deltaTitle,
-        dragged, esc, guiReason, nextLayout, num, parseLayout, pct, rangesOf,
-        rowName, sizeField,
+        dragged, esc, guiReason, hklLabel, nextLayout, num, parseLayout, pct,
+        rangesOf, rowName, sizeField,
         paletteFrom, phaseInk, runLabel, runTitle,
         withAlpha} from './watch-core.mjs';
 
@@ -341,9 +341,24 @@ function snapshotTraces(snap, hue) {
     const label = row.n_total > row.two_theta.length
       ? `hkl: ${name} (${row.two_theta.length} of ${row.n_total})`
       : `hkl: ${name}`;
+    // Which reflection, under the pointer (WP-1438). It was the 2θ alone,
+    // which is the one thing the axis under it already says. `customdata`
+    // and not a built `text` array: plotly keeps it per point through its
+    // own hover lookup, and a row of 2000 strings is built once a draw for a
+    // box that shows one of them.
+    //
+    // A row whose snapshot predates this — `rietx watch` opens directories
+    // somebody else wrote — has no `hkl`, and then the trace keeps the 2θ it
+    // always had rather than hovering the word `undefined`.
+    const hkl = Array.isArray(row.hkl) && row.hkl.length === row.two_theta.length
+      ? row.two_theta.map((_, k) => hklLabel(row.hkl[k])) : null;
     traces.push({
       x: row.two_theta, y: row.two_theta.map(() => -i), name: label,
-      mode: 'markers', type: 'scattergl', yaxis: 'y3', hoverinfo: 'x',
+      mode: 'markers', type: 'scattergl', yaxis: 'y3',
+      ...(hkl
+        ? {customdata: hkl,
+           hovertemplate: '%{customdata}<br>%{x:.4f}\u00b0<extra></extra>'}
+        : {hoverinfo: 'x'}),
       marker: {symbol: 'line-ns-open', size: 7, color: colour},
     });
   });

@@ -3015,7 +3015,8 @@ def curve_window(res, lo: float | None, hi: float | None, max_points: int, *,
     if not mask.any():
         return {"two_theta": [], "y_obs": [], "y_calc": [], "y_background": [],
                 "delta": [], "delta_raw": [], "cumulative_chi2": [],
-                "weighted": weighted, "ticks": {}, "n_total": 0,
+                "weighted": weighted, "ticks": {}, "tick_hkl": {},
+                "n_total": 0,
                 "n_returned": 0, "max_points": max_points}
     y_obs = np.asarray(res.y_obs)[mask]
     y_calc = np.asarray(res.y_calc)[mask]
@@ -3044,11 +3045,37 @@ def curve_window(res, lo: float | None, hi: float | None, max_points: int, *,
         "weighted": weighted,
         # every emission line's ticks, not just the primary — Layer 0 flags
         # each Kα2 peak as an impurity otherwise (CLAUDE.md)
-        "ticks": {phase: [t for t in ticks if window[0] <= t <= window[1]]
-                  for phase, ticks in res.ticks.items()},
+        #
+        # The window filter runs **once** and both lists take its answer
+        # (WP-1438). Filtering them separately, on the same predicate, is the
+        # shape that drifts: a tick and the Miller index under the pointer
+        # would be two derivations of one fact, and nothing here could tell
+        # which of the two had gone wrong.
+        **_windowed_ticks(res, window),
         "window": list(window), "n_total": int(mask.sum()),
         "n_returned": len(idx), "max_points": max_points,
     }
+
+
+def _windowed_ticks(res, window) -> dict:
+    """``ticks`` and ``tick_hkl``, cut to the window by one pass.
+
+    ``tick_hkl`` is a companion pinned by index (``RefinementResult``), so the
+    cut is made once and applied to both.  A result built before WP-1438 — one
+    reopened from a project's history — carries positions and no indices, and
+    then the row is simply absent rather than a list of blanks: the page falls
+    back to hovering the 2θ it always had.
+    """
+    ticks: dict[str, list[float]] = {}
+    hkl: dict[str, list[list[int]]] = {}
+    for phase, row in res.ticks.items():
+        indices = res.tick_hkl.get(phase)
+        paired = indices is not None and len(indices) == len(row)
+        kept = [i for i, t in enumerate(row) if window[0] <= t <= window[1]]
+        ticks[phase] = [row[i] for i in kept]
+        if paired:
+            hkl[phase] = [indices[i] for i in kept]
+    return {"ticks": ticks, "tick_hkl": hkl}
 
 
 def tree_payload(tree) -> dict:

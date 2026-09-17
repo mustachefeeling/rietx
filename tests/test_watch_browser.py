@@ -99,8 +99,14 @@ def _snapshot(stage: str, *, scale: float, noise: float, bkg: bool = True) -> di
     return {"schema": 1, "stage": stage, "weighted": False, "n_points": N,
             "n_drawn": N, "two_theta": tt, "y_obs": obs, "y_calc": calc,
             "y_bkg": [50.0 if bkg else 0.0] * N, "delta": delta,
-            "ticks": {"phase 0": {"two_theta": [25.0, 44.0], "n_total": 2},
-                      "phase 1": {"two_theta": [63.0], "n_total": 1}},
+            # `hkl` rides beside `two_theta`, index for index (WP-1438);
+            # `-1` because a negative index is how the label is told apart
+            # from a run of digits, and this fixture is where that is drawn
+            "ticks": {"phase 0": {"two_theta": [25.0, 44.0],
+                                  "hkl": [[1, 1, 0], [2, 0, -1]],
+                                  "n_total": 2},
+                      "phase 1": {"two_theta": [63.0],
+                                  "hkl": [[0, 0, 2]], "n_total": 1}},
             "statistics": {"rwp": 0.3 if scale < 1 else 0.05, "gof": 2.0,
                            "chi2": 4.0, "rp": 0.2, "n_free": 5}}
 
@@ -412,6 +418,78 @@ def test_a_stage_that_frees_the_background_leaves_the_tick_colours_alone(
     assert errors == []
     assert set(before) == {"hkl: phase 0", "hkl: phase 1"}
     assert before == after, "a stage boundary moved a phase's tick colour"
+
+
+def test_a_tick_says_which_reflection_it_is(browser, tmp_path):
+    """It hovered the 2θ alone, which the axis under it already says
+    (WP-1438).
+
+    Read off `_fullData` rather than off a screenshot: what a `hovertemplate`
+    resolves to is plotly's business, and what this owns is that the row
+    carries its own indices and points the template at them.
+    """
+    watched = _make_tree(tmp_path, n_done=2)
+    with _served(tmp_path) as base:
+        run_id = next(r.run_id for r in runs.discover(tmp_path)
+                      if r.path == watched)
+        page, errors = _open(browser, base, run_id)
+        rows = page.evaluate(
+            "() => document.getElementById('plot')._fullData"
+            ".filter(t => t.name.startsWith('hkl:'))"
+            ".map(t => ({name: t.name, n: t.x.length,"
+            "            custom: t.customdata ? t.customdata.slice(0, 3) : null,"
+            "            template: t.hovertemplate || null,"
+            "            info: t.hoverinfo}))")
+        page.close()
+    assert not errors, errors
+    assert rows, "no tick rows drawn"
+    for row in rows:
+        assert row["custom"], row
+        assert len(row["custom"]) == row["n"], row
+        # three integers, space separated, minus in front of the digit
+        for label in row["custom"]:
+            parts = label.split(" ")
+            assert len(parts) == 3, label
+            assert all(part.lstrip("-").isdigit() for part in parts), label
+        assert "%{customdata}" in (row["template"] or ""), row
+        # and the 2θ is still there, because it is the other half of the answer
+        assert "%{x" in row["template"], row
+
+
+def test_a_snapshot_with_no_indices_keeps_the_hover_it_had(browser, tmp_path):
+    """`rietx watch` opens directories somebody else wrote, including ones
+    written before this (WP-1438).
+
+    The fallback is the 2θ the row always hovered, never a box reading
+    `undefined`: a page that gets worse on an older file is worse than one
+    that simply gains nothing.
+    """
+    watched = _make_tree(tmp_path, n_done=2)
+    snapshot = json.loads(
+        (watched / runs.SNAPSHOT_FILE).read_text(encoding="utf-8"))
+    for row in snapshot["ticks"].values():
+        row.pop("hkl", None)
+    (watched / runs.SNAPSHOT_FILE).write_text(json.dumps(snapshot),
+                                              encoding="utf-8")
+    with _served(tmp_path) as base:
+        run_id = next(r.run_id for r in runs.discover(tmp_path)
+                      if r.path == watched)
+        page, errors = _open(browser, base, run_id)
+        rows = page.evaluate(
+            "() => document.getElementById('plot')._fullData"
+            ".filter(t => t.name.startsWith('hkl:'))"
+            ".map(t => ({custom: t.customdata ?? null,"
+            "            template: t.hovertemplate ?? null,"
+            "            info: t.hoverinfo}))")
+        page.close()
+    assert not errors, errors
+    assert rows, "no tick rows drawn"
+    for row in rows:
+        # plotly normalises an absent template to the empty string rather
+        # than leaving the key off, so the claim is that it is not set
+        assert not row["custom"], row
+        assert not row["template"], row
+        assert row["info"] == "x", row
 
 
 def test_a_stage_changes_the_text_and_nothing_else(browser, tmp_path):

@@ -173,6 +173,98 @@ def test_a_tick_cap_is_reported_not_silent(last_stage):
 
 
 # ----------------------------------------------------------------------
+# which reflection a tick is (WP-1438)
+# ----------------------------------------------------------------------
+def test_a_tick_carries_the_reflection_it_came_from(last_stage):
+    """The pairing is by index, so what is asserted is that it survives the
+    three places a *second* derivation of it would drift: the finite filter,
+    the sort, and the cap.
+    """
+    model, table, outcome, _name = last_stage
+    values = table.decode(outcome.theta)
+    ticks = snap.stage_ticks(model, values)
+    assert ticks, "no phases"
+    for name, row in ticks.items():
+        assert len(row["hkl"]) == len(row["two_theta"]), name
+        assert all(len(h) == 3 for h in row["hkl"]), name
+        assert all(isinstance(v, int) for h in row["hkl"] for v in h), name
+        # 000 is not a reflection and `generate_reflections` drops it
+        assert [0, 0, 0] not in row["hkl"], name
+        # the positions stay sorted, and the indices rode that sort
+        assert row["two_theta"] == sorted(row["two_theta"]), name
+
+
+def test_the_same_reflection_is_named_at_each_emission_line():
+    """A Kα2 tick is the same hkl imaged at a second wavelength, and the hover
+    says so rather than leaving the reader to wonder what the second mark is.
+
+    A Kα1/Kα2 instrument on purpose: the module's own fixture has one line,
+    so on it this claim is trivially true and would not fail if the tiling
+    were wrong.
+    """
+    from rietx.model.forward import compile_model
+    from rietx.params.vector import ParameterTable
+
+    structure, _ins = perturbed_models()
+    ins = rx.Instrument.bragg_brentano(radiation="CuKa")
+    assert len(ins.source.lines) == 2, "fixture is not a doublet"
+    # compiled rather than fitted: `stage_ticks` takes a frozen model and its
+    # values, and a fit would only be a slower way to reach the same pair
+    model = compile_model(structure, ins, synthesize(), mode="rietveld")
+    table = ParameterTable(structure, ins)
+    values = table.decode(table.x0())
+
+    row = snap.stage_ticks(model, values)["phase 0"]
+    assert row["two_theta"], "no reflections in range"
+    seen: dict[tuple, int] = {}
+    for hkl in row["hkl"]:
+        seen[tuple(hkl)] = seen.get(tuple(hkl), 0) + 1
+    assert set(seen.values()) == {len(model.line_wavelengths)}, \
+        sorted(seen.items())[:5]
+
+
+def test_a_capped_row_thins_both_lists_together(last_stage):
+    """A tick that survives the thinning keeps its own index, not its
+    neighbour's.
+    """
+    model, table, outcome, _name = last_stage
+    values = table.decode(outcome.theta)
+    full = snap.stage_ticks(model, values)["phase 0"]
+    thin = snap.stage_ticks(model, values, max_per_phase=7)["phase 0"]
+    assert full["n_total"] > 7, "fixture is too small to cap"
+    assert len(thin["hkl"]) == len(thin["two_theta"]) <= 7
+    # a *set* of pairs and not a lookup by position: two reflections of
+    # different hkl land at the same 2θ to every decimal the snapshot keeps
+    # (measured here, (3 2 2) and (4 1 0) both at 23.70007), so position is
+    # not a key. What the thinning must not do is invent a pairing.
+    pairs = {(round(t, 4), tuple(h))
+             for t, h in zip(full["two_theta"], full["hkl"])}
+    for position, hkl in zip(thin["two_theta"], thin["hkl"]):
+        assert (round(position, 4), tuple(hkl)) in pairs, (position, hkl)
+
+
+def test_the_result_pairs_them_too_and_by_the_same_rule(synthetic_pattern):
+    """`RefinementResult.tick_hkl` is the companion the GUI and `rietx
+    compare` read; the snapshot is the watcher's.  Both are built where the
+    positions are, because a second answer to *where* a tick goes is what
+    this must not become.
+    """
+    structure, ins = perturbed_models()
+    result = rx.Refinement(structure, ins, history=False).fit(
+        synthetic_pattern)
+    assert result.tick_hkl, "no indices on the result"
+    assert set(result.tick_hkl) <= set(result.ticks)
+    for name, positions in result.ticks.items():
+        if name not in result.tick_hkl:
+            continue          # the reserved declared-peaks key has no hkl
+        assert len(result.tick_hkl[name]) == len(positions), name
+        assert positions == sorted(positions), name
+    # and it survives the JSON round trip every result is held to
+    again = type(result).model_validate_json(result.model_dump_json())
+    assert again.tick_hkl == result.tick_hkl
+
+
+# ----------------------------------------------------------------------
 # what the payload says about itself
 # ----------------------------------------------------------------------
 def test_weighted_reports_whether_sigma_was_measured(synthetic_pattern):

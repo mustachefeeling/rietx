@@ -258,7 +258,30 @@ rietx watch: 3 run(s) under /Users/yue/work/demo
              read-only: no stop button, no GUI launch
 ```
 
-The page draws no button, and both routes refuse with 403.
+The page draws no button, and both routes refuse with 403. The theme control
+stays, because what `--read-only` fences is the run: a page that could not be
+made legible by the person reading it would be a strange thing to call
+read-only.
+
+### What the page does about its window
+
+Light or dark is one choice for the whole of rietx, kept beside your recent
+projects rather than in any project. The three buttons in the title bar are the
+GUI's, and they write the same setting: follow the system, light, or dark. A
+change made here reaches an open watcher on the poll it already makes, and an
+open GUI when it is reloaded.
+
+Below about 860 pixels the run list and the run stack instead of sitting side by
+side, and the seam between them becomes a horizontal one. That is the width at
+which the list's narrowest useful columns and the picture's own floor stop both
+fitting. The seam remembers a width and a height separately, so turning the
+window does not hand you a pane you never asked for. Narrower still, the list
+drops the stage and the start time: the strip above the picture names the stage,
+and the list is ordered by the time.
+
+Pointing at a tick names the reflection. It gives the Miller index, `2 1 1`,
+and the angle under it. A run recorded before 1.5 has positions and no Miller
+indices, and its ticks keep the angle alone.
 
 ### Opening a copy in the GUI
 
@@ -332,12 +355,14 @@ directly:
 | `/api/run/<id>/legacy` | a `fit.html` written before 1.4, served as it stands |
 | `POST /api/run/<id>/cancel` | asks that run to stop; 403 under `--read-only` |
 | `POST /api/run/<id>/gui` | opens a copy of that run's project in the GUI; 403 under `--read-only` |
+| `POST /api/theme` | stores the theme; not under `--read-only`, which fences the run |
+| `/tokens.css` | the colour tokens the GUI is drawn from, so both pages agree |
 | `/plotly.js` | plotly out of the installed package, so the page works offline |
 
 These are provisional by declaration, like the GUI's ([](compatibility.md)). A
 route may be added, renamed or split in any release.
 
-The watcher has two verbs and everything else reads. It never opens a project
+The watcher has three verbs and everything else reads. It never opens a project
 and never builds a refinement, so you can start and stop the watcher while a
 refinement runs. The stop writes a request file into a run directory the scan
 already found, and the fit's own token is what acts on it. The GUI launch copies

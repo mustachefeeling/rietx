@@ -82,6 +82,22 @@ export function curveColors(read: (name: string) => string): {
 }
 
 /**
+ * A Miller index as a reader writes one: `1 0 -1`.
+ *
+ * The minus goes in front of the digit rather than over it.  The
+ * crystallographer's overbar needs a combining mark per digit, and a hover box
+ * is not the place to find out whether the reader's font has one.
+ *
+ * The twin of `watch-core.mjs`'s, and `plot.test.ts` holds the two equal over
+ * a table of cases: two pages showing one reflection two ways is the shape
+ * `viz/theme.py` exists to stop.
+ */
+export function hklLabel(hkl: number[]): string {
+  if (!Array.isArray(hkl) || hkl.length !== 3) return "";
+  return hkl.map((v) => String(v)).join(" ");
+}
+
+/**
  * The ink a phase's tick row is drawn in, by its position in the phase list.
  *
  * A *single* phase takes the observed curve's neutral instead of the first

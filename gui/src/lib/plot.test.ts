@@ -12,6 +12,7 @@ import {
   formatRegion,
   forget,
   heldRanges,
+  hklLabel,
   hoverLabel,
   isDataOnly,
   maskShapes,
@@ -905,5 +906,46 @@ describe("the readout strip (WP-1213)", () => {
     expect(resting.d).toBe("—");
     // a non-finite x is the same answer, not a crash and not a null strip
     expect(readout(FITTED, NaN, { kind: "weighted" })!.position).toBe("—");
+  });
+});
+
+
+// ----------------------------------------------------------------------
+// which reflection a tick is (WP-1438)
+// ----------------------------------------------------------------------
+describe("hklLabel", () => {
+  const CASES: [number[], string][] = [
+    [[1, 1, 0], "1 1 0"],
+    [[0, 0, 2], "0 0 2"],
+    [[1, 0, -1], "1 0 -1"],
+    [[-12, 4, -10], "-12 4 -10"],
+  ];
+
+  it("reads as a reader writes one", () => {
+    for (const [hkl, want] of CASES) expect(hklLabel(hkl)).toBe(want);
+  });
+
+  it("is nothing at all for anything that is not three numbers", () => {
+    // a result reopened from a project's history carries positions and no
+    // indices, and then the row keeps its silence rather than hovering a blank
+    for (const bad of [undefined, null, [], [1, 1], [1, 1, 0, 2]]) {
+      expect(hklLabel(bad as unknown as number[])).toBe("");
+    }
+  });
+
+  it("agrees with the watcher's own, case for case", async () => {
+    // Two pages showing one reflection two ways is the shape `viz/theme.py`
+    // exists to stop, one rank over. The watcher's copy is a `.mjs` in the
+    // wheel and this one is TypeScript in a build input, so neither can
+    // import the other — the guard is this table, run against both.
+    const core = await import(
+      "../../../src/rietx/watch/static/watch-core.mjs");
+    for (const [hkl, want] of CASES) {
+      expect(core.hklLabel(hkl)).toBe(want);
+      expect(core.hklLabel(hkl)).toBe(hklLabel(hkl));
+    }
+    for (const bad of [undefined, null, [], [1, 1]]) {
+      expect(core.hklLabel(bad)).toBe(hklLabel(bad as unknown as number[]));
+    }
   });
 });

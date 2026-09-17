@@ -175,6 +175,15 @@ export function guiReason(run, canOpen) {
     + 'into a project when it is run through one.';
 }
 
+// A Miller index as a reader writes one: `1 0 -1`, with the minus in front
+// of the digit rather than the crystallographer's overbar, because a bar
+// needs a combining mark per digit and a hover box is not the place to
+// discover whether the reader's font has one.
+export function hklLabel(hkl) {
+  if (!Array.isArray(hkl) || hkl.length !== 3) return '';
+  return hkl.map(v => String(v)).join(' ');
+}
+
 export function runTitle(run) {
   const meta = run.meta || {};
   const stamp = String(run.path).split('/').pop();

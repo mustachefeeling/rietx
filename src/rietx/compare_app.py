@@ -78,7 +78,8 @@ class _State:
                           "durbin_watson": None, "esd_inflation": None,
                           "two_theta": [], "y_obs": [], "y_calc": [],
                           "y_background": [], "delta": [], "cumulative_chi2": [],
-                          "ticks": {}, "diagnostics": [], "parameters": []}
+                          "ticks": {}, "tick_hkl": {},
+                          "diagnostics": [], "parameters": []}
             with self.lock:
                 self.records[key] = record
             done = record.get("error") or (
@@ -523,11 +524,18 @@ function draw() {
     const phases = Object.keys(anyRec.ticks || {});
     phases.forEach((phase, i) => {
       const y = lo - span * (0.06 + 0.045 * i);
-      fit.push({x: anyRec.ticks[phase], y: anyRec.ticks[phase].map(() => y),
+      const row = anyRec.ticks[phase];
+      // which reflection, under the pointer (WP-1438) — the same box the
+      // GUI and `rietx watch` draw, off the same `tick_hkl` companion
+      const hkl = (anyRec.tick_hkl || {})[phase];
+      const paired = Array.isArray(hkl) && hkl.length === row.length;
+      fit.push({x: row, y: row.map(() => y),
                 type: 'scattergl', mode: 'markers', name: phase,
                 marker: {symbol: 'line-ns-open', size: 7, line: {width: 1},
                          color: phaseInk(i, phases.length)},
-                hovertemplate: phase + ' %{x:.3f}°<extra></extra>'});
+                ...(paired ? {customdata: hkl.map(v => v.join(' '))} : {}),
+                hovertemplate: phase + (paired ? '<br>%{customdata}' : '')
+                  + '<br>%{x:.3f}°<extra></extra>'});
     });
   }
   Plotly.react('plot-fit', fit, LAYOUT('', 'intensity'), {responsive: true});

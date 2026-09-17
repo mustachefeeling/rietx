@@ -37,8 +37,13 @@ import pytest
 from rietx.gui.structure3d import MIN_SEPARATION, _oklab, _oklab_distance, _oklab_hex
 from rietx.viz.plots import PALETTES
 from rietx.viz.theme import (
-    PHASE_COLOURS, PHASE_TOKENS, THEME_CHOICES, THEME_GLYPHS, THEME_TITLES,
-    TOKENS, tokens_css,
+    PHASE_COLOURS,
+    PHASE_TOKENS,
+    THEME_CHOICES,
+    THEME_GLYPHS,
+    THEME_TITLES,
+    TOKENS,
+    tokens_css,
 )
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -449,6 +454,30 @@ def test_a_tick_trace_colours_its_marker_and_not_only_its_line():
     marker = trace[trace.index("marker:"):]
     assert marker.count("color: ink") == 2, (
         "both the marker and its line take the phase ink")
+
+
+def test_the_gui_tick_trace_names_the_reflection_under_the_pointer():
+    """The companion to the colour guard above, and the same kind of guard.
+
+    The trace was `hoverinfo: "none"` — a row of marks a reader could point
+    at and be told nothing by.  Asserted on the source because what this owns
+    is the *wiring*: `plot.test.ts` owns the label and
+    `tests/test_gui_server.py` owns the payload, and nothing between them
+    would notice the trace ceasing to read either.
+    """
+    source = (Path(__file__).resolve().parents[1] / "gui" / "src" / "panels"
+              / "Plot.svelte").read_text(encoding="utf-8")
+    start = source.index('yaxis: "y3"')
+    trace = source[start:source.index("});", start)]
+    assert "customdata" in trace, (
+        "the tick trace carries no per-point data: there is nothing for a "
+        "hover template to name")
+    assert "hklLabel" in trace, "the label is not the shared one"
+    assert "hovertemplate" in trace and "%{customdata}" in trace
+    # and the fallback, for a result reopened from a history that predates it
+    assert 'hoverinfo: "none"' in trace, (
+        "a result carrying no indices must keep its silence rather than "
+        "hovering the word undefined")
 
 
 @pytest.mark.parametrize("theme", ["light", "dark"])
