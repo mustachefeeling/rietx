@@ -2251,6 +2251,54 @@ def test_the_toggle_hides_the_run_and_gives_the_list_the_window(browser,
     assert run_kept >= 300, run_kept
 
 
+def test_the_run_pane_cannot_be_collapsed_where_there_is_no_list(browser,
+                                                                 tmp_path):
+    """A single-run directory has no list to give the window to.
+
+    The collapse is stored per origin rather than per directory, so a reader
+    who clicked ``full list`` on a directory of runs carries that choice into
+    ``rietx watch <one-run>`` served from the same host and port. There the
+    stylesheet already hides ``#runs``, ``#grip-list`` *and* the button that
+    would undo it, so the stored ``false`` drew a title bar over nothing with
+    no control anywhere on the page to bring the run back.
+
+    The choice is kept rather than cleared: it is about the directory of runs
+    and applies again the moment there is one.
+    """
+    _bare_run(tmp_path)
+
+    with _served(tmp_path) as base:
+        page = browser.new_page(viewport={"width": 1400, "height": 900})
+        errors: list[str] = []
+        page.on("pageerror", lambda e: errors.append(str(e)))
+        page.add_init_script(
+            "try { localStorage.setItem('rietx-watch-layout',"
+            " JSON.stringify({run: {size: null, open: false}})); } catch (e) {}")
+        page.goto(base, wait_until="networkidle")
+        page.wait_for_timeout(700)
+        seen = page.evaluate("""() => {
+          const up = id => {
+            const el = document.getElementById(id);
+            return !!(el && el.offsetParent !== null);
+          };
+          return {single: 'single' in document.body.dataset,
+                  run: document.body.dataset.run,
+                  showsRun: up('run'), showsList: up('runs'),
+                  showsToggle: up('toggle-run'),
+                  stored: JSON.parse(
+                    localStorage.getItem('rietx-watch-layout') || '{}')};
+        }""")
+        page.close()
+
+    assert not errors, errors
+    assert seen["single"], "this fixture is not the single-run page"
+    assert seen["showsRun"], "the page drew nothing the reader could look at"
+    assert seen["run"] == "open"
+    # the two halves of why it was unrecoverable, kept as the record of it
+    assert not seen["showsList"] and not seen["showsToggle"]
+    # and the preference itself is untouched, for the next directory of runs
+    assert seen["stored"]["run"]["open"] is False
+
 
 def test_a_cold_open_shows_the_newest_line_first(browser, tmp_path):
     """What a reader opening a long-running job sees in their first paint.

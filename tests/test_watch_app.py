@@ -1433,7 +1433,11 @@ def test_a_theme_that_does_not_exist_is_refused_rather_than_stored(monkeypatch,
 
 
 def test_the_rest_of_the_settings_file_survives_a_theme(monkeypatch, tmp_path):
-    """The recent list is in there, and this module knows nothing about it."""
+    """`ui` is an open dict and the file may carry keys beside it.
+
+    This module knows about one key of one of them, so everything else in the
+    file is somebody else's and comes back byte for byte.
+    """
     from rietx.viz import theme as theme_mod
 
     state = tmp_path / "state"

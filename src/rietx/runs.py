@@ -885,6 +885,9 @@ def tail_events(path: str | Path, offset: int = 0, *, inode: int | None = None,
     67 polls of walking (WP-1438).  It reads the last ``max_bytes`` and drops
     the partial line it lands in, so the events are whole and the returned
     offset is the end — the next poll continues from there as any other would.
+    It never seeks *behind* ``offset``: a log shorter than ``max_bytes`` is
+    read from where the caller already is, so the flag can only ever skip
+    forward and never resend.
     """
     path = Path(path)
     try:
@@ -900,7 +903,10 @@ def tail_events(path: str | Path, offset: int = 0, *, inode: int | None = None,
     start = 0 if reset else max(0, int(offset))
     asked = start
     if from_end:
-        start = max(0, stat.st_size - max_bytes)
+        # never *behind* what was asked for: a short log seeks nowhere, and a
+        # seek that went back past the caller's offset would resend events it
+        # already has and report a negative `skipped_bytes`
+        start = max(start, stat.st_size - max_bytes)
 
     try:
         with open(path, "rb") as fh:
@@ -910,10 +916,12 @@ def tail_events(path: str | Path, offset: int = 0, *, inode: int | None = None,
         return EventTail([], offset, stat.st_ino, reset=reset,
                          size=stat.st_size)
 
-    if from_end and start:
-        # seeking lands mid-line, and half an event is not an event. The
+    if start > asked:
+        # the seek landed mid-line, and half an event is not an event. The
         # trailing fragment is carried forward by the offset below; this one
-        # belongs to a line whose start is behind us and is dropped.
+        # belongs to a line whose start is behind us and is dropped. Only
+        # where the seek actually moved: `asked` is a line boundary a previous
+        # read handed back, so dropping a line there would drop a whole event.
         head = chunk.find(b"\n")
         if head == -1:
             return EventTail([], stat.st_size, stat.st_ino, reset=reset,

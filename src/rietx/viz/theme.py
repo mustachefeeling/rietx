@@ -197,9 +197,10 @@ free hue space is this magenta and green alone: violet lands 0.10-0.12 from
 the last of the free hue space the note above measured, spent rather than
 borrowed.  It could not take the peak layer's: these two layers are up at the
 same time, on the same tab, and the whole question the picture answers is which
-of the picked lines a cell accounts for.  Nor the model's tick colour, which is
-plotly's own per-phase cycle and is therefore not a value this file could
-quote.""",
+of the picked lines a cell accounts for.  Nor the model's tick colour, which
+was plotly's own per-phase cycle when this was written and is `--phase-N` in
+this file since WP-1438 — measured against it at 0.0637 in OKLab, the weakest
+link that palette is chosen for and the reason its order is what it is.""",
     "--plot-mask": """What is *not* being fitted (WP-1033): a wash,
 deliberately not a sixth curve colour.  It marks absence from the residual
 rather than a quantity, so it carries no hue anything else could be confused
@@ -392,7 +393,8 @@ def set_theme_choice(value: str) -> str:
     something every reader turns back into ``system``.
 
     The rest of ``settings.json`` is preserved, including keys this module
-    knows nothing about — the recent list is in there.  A file that cannot be
+    knows nothing about: ``ui`` is an open dict the GUI's frontend owns, and
+    this write touches one key of it.  A file that cannot be
     read is *replaced*, on the same grounds :func:`theme_choice` returns
     ``system`` for one: the alternative is refusing to record a preference
     because of an unrelated corruption.

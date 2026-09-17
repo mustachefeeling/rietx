@@ -53,8 +53,10 @@
      could not take the peak layer's: these two layers are up at the same
      time, on the same tab, and the whole question the picture answers is
      which of the picked lines a cell accounts for. Nor the model's tick
-     colour, which is plotly's own per-phase cycle and is therefore not a
-     value this file could quote. */
+     colour, which was plotly's own per-phase cycle when this was written
+     and is `--phase-N` in this file since WP-1438 — measured against it at
+     0.0637 in OKLab, the weakest link that palette is chosen for and the
+     reason its order is what it is. */
   --plot-candidate: #1a8f45;
   /* What is *not* being fitted (WP-1033): a wash, deliberately not a sixth
      curve colour. It marks absence from the residual rather than a

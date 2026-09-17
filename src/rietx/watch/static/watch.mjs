@@ -956,9 +956,17 @@ function sizeOf(which) {
 
 function applyLayout() {
   document.body.dataset.list = layout.list.open ? 'open' : 'closed';
-  document.body.dataset.run = layout.run.open ? 'open' : 'closed';
+  // The collapse is "give the list the window", so it means nothing where
+  // there is no list: under `data-single` the stylesheet already hides `#runs`
+  // *and* the button that would undo this, so a stored `false` carried in from
+  // another directory on the same origin drew a page with nothing on it and no
+  // control to bring anything back. The choice is kept, not cleared — a reader
+  // who collapsed the run pane on a directory of runs still finds it collapsed
+  // when they go back to one.
+  const runOpen = layout.run.open || Boolean(SINGLE);
+  document.body.dataset.run = runOpen ? 'open' : 'closed';
   const toggle = $('toggle-run');
-  if (toggle) toggle.setAttribute('aria-pressed', String(!layout.run.open));
+  if (toggle) toggle.setAttribute('aria-pressed', String(!runOpen));
   $('run').dataset.console = layout.console.open ? 'open' : 'closed';
   for (const which of Object.keys(SEAMS)) {
     const seam = seamOf(which);

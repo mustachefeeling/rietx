@@ -572,9 +572,12 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
         except ValueError as error:
             self._json({"error": str(error)}, status=400)
             return
-        except OSError as error:
+        except (OSError, RuntimeError) as error:
             # the state directory is somebody else's filesystem, and a theme
-            # is not worth a traceback in a served page's log
+            # is not worth a traceback in a served page's log. `RuntimeError`
+            # is `Path.home()` on a machine with no home to find, which is the
+            # one `theme_choice` answers `system` for: the read repairs it and
+            # the write has to say it could not.
             self._json({"error": f"the choice could not be stored: {error}"},
                        status=500)
             return
