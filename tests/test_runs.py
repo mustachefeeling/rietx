@@ -568,6 +568,71 @@ def test_a_cap_larger_than_the_log_drops_nothing(tmp_path):
     assert tail.skipped == 0
 
 
+def test_a_cold_open_starts_at_the_end_of_a_long_log(tmp_path):
+    """``from_end`` is what a log viewer does, and what this one did not.
+
+    Measured before it (WP-1436): on a 7.35 MB log the page painted its first
+    line at 0.64 s showing events 42 s old and reached the tail at 1.99 s,
+    because it walked forward one 4 MiB chunk a poll. A log grows 1.8-4.5 MB a
+    minute of series fitting, so an hour-long job is 27 to 67 polls of that.
+
+    Three properties, and the second is the one a seek can get wrong: the
+    events are whole, the offset is the end of the file so the next poll is an
+    ordinary one, and ``start`` says the read began past the beginning.
+    """
+    log = tmp_path / "events.jsonl"
+    log.write_text("".join(
+        json.dumps({"record": "event", "v": "2", "t": float(i),
+                    "kind": "eval", "data": {"i": i}}) + "\n"
+        for i in range(5000)), encoding="utf-8")
+
+    whole = runs.tail_events(log)
+    cold = runs.tail_events(log, max_bytes=4096, from_end=True, max_events=10)
+
+    assert [e["data"]["i"] for e in cold.events] == list(range(4990, 5000))
+    assert cold.offset == whole.offset == log.stat().st_size
+    assert 0 < cold.skipped_bytes < cold.offset
+    # the seek lands mid-line and that line is dropped, never half-parsed
+    assert cold.bad_lines == 0
+
+    # ...and the poll after it is an ordinary one that sees only what arrived
+    with log.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps({"record": "event", "v": "2", "t": 9.0,
+                             "kind": "fit_end", "data": {}}) + "\n")
+    after = runs.tail_events(log, cold.offset)
+    assert [e["kind"] for e in after.events] == ["fit_end"]
+    # an ordinary poll of a long log skipped nothing, however far in it began
+    assert after.skipped_bytes == 0
+
+
+def test_a_cold_open_of_a_short_log_reads_all_of_it(tmp_path):
+    """Nothing is skipped when there is nothing above: a log inside the window
+    is read whole, and ``start`` stays 0, which is how the page knows not to
+    say there is more."""
+    log = tmp_path / "events.jsonl"
+    log.write_text("".join(
+        json.dumps({"record": "event", "v": "2", "t": float(i),
+                    "kind": "eval", "data": {"i": i}}) + "\n"
+        for i in range(3)), encoding="utf-8")
+    cold = runs.tail_events(log, from_end=True)
+    assert [e["data"]["i"] for e in cold.events] == [0, 1, 2]
+    assert cold.skipped_bytes == 0
+
+
+def test_an_ordinary_tail_never_seeks(tmp_path):
+    """The default is unchanged, and it has to be: `offset=0` on a run being
+    read from its start is a legitimate request, and a reader of a *finished*
+    run wants the whole log."""
+    log = tmp_path / "events.jsonl"
+    log.write_text("".join(
+        json.dumps({"record": "event", "v": "2", "t": float(i),
+                    "kind": "eval", "data": {"i": i}}) + "\n"
+        for i in range(400)), encoding="utf-8")
+    tail = runs.tail_events(log, max_bytes=4096)
+    assert tail.events[0]["data"]["i"] == 0
+    assert tail.skipped_bytes == 0
+
+
 def test_tailing_a_missing_log_is_empty_not_an_error(tmp_path):
     tail = runs.tail_events(tmp_path / "nope.jsonl", 0)
     assert tail.events == [] and tail.reset is False

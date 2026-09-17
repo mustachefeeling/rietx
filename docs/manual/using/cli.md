@@ -159,6 +159,11 @@ the second it started is what tells its rows apart. That is a fact about the
 record rather than about the fit. Pass `label=` to the verb that starts the fit
 and the row carries the work instead ([](refining.md)).
 
+Opening a run puts you at the newest line of its log, not at its first. A job
+that has been running for a while has a log of some megabytes, and the console
+reads the end of it and says that earlier lines are above; it does not say how
+many, having not read them. From there it follows the log as it always did.
+
 The page holds still while the fit moves. The plot redraws in place as the fit
 writes each stage. Its 2θ and intensity axes are set by the pattern, so they
 change only when the data does, and a zoom survives a stage. The Δ/σ axis is

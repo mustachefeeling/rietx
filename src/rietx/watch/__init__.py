@@ -438,14 +438,24 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
                 # and a second copy of it in python is a second authority for
                 # how many lines a console keeps. An absent or junk `limit` is
                 # no cap, which is what this route did before WP-1427.
+                #
+                # `end=1` is a *cold open*, and it is the client's to ask for
+                # rather than this route's to infer (WP-1436): `offset=0` on a
+                # run being tailed from its start is a legitimate request, and
+                # a route that quietly seeked instead would make the two
+                # indistinguishable. What it changes is where the read starts,
+                # never what an offset means — the answer carries the offset
+                # it reached, and the next poll is an ordinary one.
+                from_end = (query.get("end", [""])[0] or "") == "1"
                 tail = self._timed("tail", lambda: runs_mod.tail_events(
                     run.path / runs_mod.EVENTS_FILE,
                     _int("offset") or 0, inode=_int("inode"),
-                    max_events=_limit()))
+                    max_events=_limit(), from_end=from_end))
                 self._json({"events": tail.events, "offset": tail.offset,
                             "inode": tail.inode, "reset": tail.reset,
                             "bad_lines": tail.bad_lines, "size": tail.size,
-                            "skipped": tail.skipped})
+                            "skipped": tail.skipped,
+                            "skipped_bytes": tail.skipped_bytes})
                 return
             if rest in ("snapshot", "legacy"):
                 # served as bytes, never parsed here: the reader constructs

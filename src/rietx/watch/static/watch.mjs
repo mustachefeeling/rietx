@@ -19,7 +19,8 @@ let CAN_OPEN_GUI = false;   // the same, for the launch verb (WP-1428)
 // the click
 let notice = null;
 let timer = null;
-let tail = {offset: 0, inode: null, id: null, skipped: 0};
+let tail = {offset: 0, inode: null, id: null, skipped: 0, cold: true,
+            above: false};
 // what the run panel was built for: the run, which kind of picture it has
 // ('json', a legacy 'html' page, or 'none'), and which write we have drawn
 let shell = {id: null, kind: null, mtime: null};
@@ -242,7 +243,13 @@ function buildPicture(run, kind) {
 // to read was dropped at the bottom. The other reset is the route's, in
 // `pumpEvents`, where a log that is a different file says so.
 function resetTail(id) {
-  tail = {offset: 0, inode: null, id: id, skipped: 0};
+  // `cold` is the *first* ask for this run's log, which the route answers from
+  // the end of the file rather than from the start (WP-1436). A log viewer
+  // opens at the newest line — `kubectl logs --tail`, `less +G` — and this one
+  // used to walk forward 4 MB a poll, so opening a job that had been running a
+  // while showed events minutes old until the walk caught up.
+  tail = {offset: 0, inode: null, id: id, skipped: 0, cold: true,
+          above: false};
   $('console').textContent = '';
 }
 
@@ -629,10 +636,19 @@ const GAP = 'gap';
 // A note about the pane rather than a line in it, so it does not count against
 // the pane's length and is never what the trim cuts. Cumulative, because two
 // capped polls skipped two batches and the reader wants the total.
+//
+// Two shapes, and which one is a question about what the page can count. A
+// poll that read the whole log and dropped the oldest of it knows exactly how
+// many. A *cold open* seeked to the end instead (WP-1436), so lines above the
+// seek were never read: the count it does have is of the window alone and
+// would be a number smaller than the truth, stated as the truth. It says the
+// fact without the figure instead.
 function noteGap(pane) {
-  if (!tail.skipped) return;
-  const text = `… ${tail.skipped.toLocaleString()} earlier lines are in the `
-    + `log and not in this pane`;
+  if (!tail.skipped && !tail.above) return;
+  const text = tail.above
+    ? '… earlier lines are in the log and not in this pane'
+    : `… ${tail.skipped.toLocaleString()} earlier lines are in the `
+      + `log and not in this pane`;
   const first = pane.firstElementChild;
   if (first && first.classList.contains(GAP)) { setText(first, text); return; }
   const note = document.createElement('div');
@@ -664,6 +680,7 @@ async function pumpEvents(id) {
   // server drops the oldest of the slice and says how many in `skipped`.
   const q = new URLSearchParams({offset: tail.offset, limit: MAX_LINES});
   if (tail.inode !== null) q.set('inode', tail.inode);
+  if (tail.cold) q.set('end', '1');
   const t0 = performance.now();
   const r = await fetch(`api/run/${id}/events?` + q, {cache: 'no-store'});
   if (!r.ok) return;
@@ -675,9 +692,15 @@ async function pumpEvents(id) {
   if (tail.id !== id || currentId() !== id) return;
   const pane = $('console');
   // a different log; do not renumber, and do not carry its gap over
-  if (payload.reset) { pane.textContent = ''; tail.skipped = 0; }
+  if (payload.reset) {
+    pane.textContent = '';
+    tail.skipped = 0;
+    tail.above = false;
+  }
   tail.offset = payload.offset;
   tail.inode = payload.inode;
+  tail.cold = false;          // one seek a run, and the rest are ordinary polls
+  if (payload.skipped_bytes > 0) tail.above = true;
   tail.skipped += payload.skipped || 0;
   if (!payload.events.length) return;
   // the tail follows the log only while the reader is at its end; a reader

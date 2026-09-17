@@ -1738,3 +1738,51 @@ def test_the_toggle_hides_the_run_and_gives_the_list_the_window(browser,
     # pane's 340 px floor beside it
     assert collapsed > dragged_wide > before, (before, dragged_wide, collapsed)
     assert run_kept >= 300, run_kept
+
+
+
+def test_a_cold_open_shows_the_newest_line_first(browser, tmp_path):
+    """What a reader opening a long-running job sees in their first paint.
+
+    Measured before this (WP-1436), on the 7.35 MB log of a 32-pattern series:
+    the first line painted at 0.64 s carried events 42 s old, and the tail
+    arrived at 1.99 s after a second 4 MiB chunk. The page asks for the end
+    now and paints it at 0.69 s.
+
+    The log here is bigger than one read window on purpose — under it there is
+    nothing to seek over and the test would pass without the feature.
+    """
+    d = tmp_path / "long-run"
+    d.mkdir()
+    lines = [json.dumps({"record": "event", "v": "2", "t": 1e9 + i,
+                         "kind": "eval", "data": {"i": i}}) + "\n"
+             for i in range(60000)]
+    (d / runs.EVENTS_FILE).write_text("".join(lines), encoding="utf-8")
+    assert sum(len(line.encode()) for line in lines) > (4 << 20)
+    (d / runs.STATUS_FILE).write_text(
+        json.dumps({"state": "done", "stage": "biso", "rwp": 0.1}),
+        encoding="utf-8")
+
+    last = "() => document.getElementById('console').lastElementChild.textContent"
+    top = "() => document.getElementById('console').firstElementChild.textContent"
+    with _served(tmp_path) as base:
+        run_id = next(r.run_id for r in runs.discover(tmp_path))
+        page = browser.new_page(viewport={"width": 1400, "height": 900})
+        errors: list[str] = []
+        page.on("pageerror", lambda e: errors.append(str(e)))
+        page.goto(f"{base}/#/run/{run_id}", wait_until="networkidle")
+        page.wait_for_selector("#console div", timeout=15000)
+        painted = page.evaluate(last)
+        gap = page.evaluate(top)
+        page.wait_for_timeout(int(2.0 * POLL * 1000))
+        settled = page.evaluate(last)
+        page.close()
+
+    assert not errors, errors
+    # the newest event of the log, in the first paint rather than after a walk
+    assert "i=59999" in painted, painted
+    assert "i=59999" in settled, settled
+    # and the pane says there is more above it, without claiming a count it
+    # would have had to read the whole file to know
+    assert "earlier lines are in the log" in gap, gap
+    assert re.search(r"\d", gap.split("earlier")[0]) is None, gap

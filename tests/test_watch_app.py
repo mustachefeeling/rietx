@@ -1197,6 +1197,43 @@ def test_an_absent_or_junk_limit_is_no_cap(tmp_path, query):
 
 
 
+def test_a_cold_open_asks_for_the_end_and_gets_it(tmp_path):
+    """`end=1` is the client saying "this is my first ask" (WP-1436).
+
+    The route infers nothing: `offset=0` without it still reads from the start,
+    because a reader tailing a run from its beginning is asking for exactly
+    that and a route that guessed would make the two requests the same one.
+
+    The log has to be bigger than one read window or there is nothing to seek
+    over — `tail_events`' window is 4 MiB and the route does not parameterise
+    it, so the fixture is ~4.5 MB of it. The window itself is varied where it
+    can be, in `test_runs.py`.
+    """
+    events = "".join(_event_line("eval", t=float(i), i=i) for i in range(60000))
+    assert len(events.encode()) > (4 << 20), "the fixture fits in one window"
+    _make_run(tmp_path / "r", events=events)
+    with _served(tmp_path) as base:
+        (row,) = _json(base + "/api/runs")["runs"]
+        stem = f"{base}/api/run/{row['run_id']}/events"
+        cold = _json(f"{stem}?offset=0&limit=20&end=1")
+        warm = _json(f"{stem}?offset=0&limit=20")
+        after = _json(f"{stem}?offset={cold['offset']}&limit=20")
+
+    # the newest twenty, and the offset is the whole file, so the poll after
+    # the cold one is an ordinary one that has nothing to catch up on
+    assert [e["data"]["i"] for e in cold["events"]] == list(range(59980, 60000))
+    assert cold["offset"] == cold["size"]
+    assert after["events"] == []
+    # ...and it says there is more above without counting what it did not read
+    assert cold["skipped_bytes"] > 0
+
+    # the same request without the word starts at the beginning, as it always
+    # did: one window of the log, whose newest twenty are nowhere near the end
+    assert warm["skipped_bytes"] == 0
+    assert warm["events"][-1]["data"]["i"] < 59980
+    assert warm["offset"] < warm["size"]
+
+
 def _server_timing(url: str) -> dict:
     """The response's ``Server-Timing`` marks, as ``{phase: milliseconds}``."""
     with urllib.request.urlopen(url, timeout=5) as response:
