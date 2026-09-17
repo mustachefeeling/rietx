@@ -176,7 +176,17 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 #: ``CELL_DEGENERATE_PROBE`` diagnostic: the guard already contained the
 #: excursion before it reached the caller, so however often an underdetermined
 #: cell stage reaches this, nothing about the reported values is in question.
-SCHEMA_VERSION = "0.20"
+#: 0.20 → 0.21 (WP-1309): ``BackgroundFixedPlusChebyshev`` grew ``scale`` (the
+#: multiplier TOPAS's ``bkg_file("f.xy", @, s)`` has), ``fixed_sigma`` (the
+#: curve's own counting statistics) and ``fixed_source`` (where the curve came
+#: from).  Three new fields on a union member a consumer enumerates, so the same
+#: rule as 0.19 → 0.20.  **No document changes meaning**: all three default to
+#: the state the member was in — a scale of 1.0 held, no esds, no provenance —
+#: so a stored instrument opens and refines exactly as it did.  What does change
+#: without a stored field is that every plan preset frees
+#: ``instrument.background.*``, which now reaches the scale; the v1.4 record's
+#: break list has that half.
+SCHEMA_VERSION = "0.21"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
 

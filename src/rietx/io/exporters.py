@@ -279,7 +279,16 @@ def _background_description(instrument: Instrument) -> str:
     if isinstance(bkg, BackgroundChebyshev):
         base = f"shifted-Chebyshev polynomial, {len(bkg.coefficients)} terms"
     elif isinstance(bkg, BackgroundFixedPlusChebyshev):
-        base = (f"fixed estimated curve + shifted-Chebyshev, "
+        # The curve is an estimate or a measurement, and only the model can say
+        # which: ``fixed_source`` is the claim, so the word "measured" appears
+        # here exactly when somebody named the measurement (WP-1309).  Saying
+        # "estimated" of a blank capillary scan would put an assertion nobody
+        # made into a file other people read.
+        curve = (f"measured curve ({bkg.fixed_source})" if bkg.fixed_source
+                 else "fixed estimated curve")
+        scale = ("refined scale" if bkg.scale.vary
+                 else f"scale held at {bkg.scale.value:.6g}")
+        base = (f"{curve}, {scale} + shifted-Chebyshev, "
                 f"{len(bkg.chebyshev.coefficients)} terms")
     elif isinstance(bkg, BackgroundPSpline):
         base = (f"penalized cubic P-spline, {len(bkg.breakpoints)} knots, "
