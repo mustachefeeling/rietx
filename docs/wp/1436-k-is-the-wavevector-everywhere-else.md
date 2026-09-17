@@ -236,7 +236,7 @@ the two sibling data files for the same reason.
 - [x] `scattering.py`: `k` → `stol` in identifiers and docstrings, `s` in the
       rendered equation. Includes the `f0` signature and the `f0(element, k=0)`
       prose at line 96.
-- [ ] `structure_factor.py` and `dispersion.py`: the same pass, module
+- [x] `structure_factor.py` and `dispersion.py`: the same pass, module
       docstrings included. Each `k = 1.0 / (2.0 * d)` site gains the `1/(2d)`
       gloss line 335 already has.
 - [ ] `qpa.weight_fractions(k, ...)` → `zmv`, body and docstring included

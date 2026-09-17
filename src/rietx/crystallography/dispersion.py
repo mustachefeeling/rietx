@@ -2,7 +2,7 @@
 
 The atomic scattering factor at a wavelength near an absorption edge is
 
-    f(k, λ) = f₀(k) + f′(λ) + i·f″(λ)
+    f(s, λ) = f₀(s) + f′(λ) + i·f″(λ)
 
 with f₀ the elastic form factor of ``scattering.py``.  f′ and f″ (the real and
 imaginary *dispersion corrections*, in electrons) depend on the photon energy
