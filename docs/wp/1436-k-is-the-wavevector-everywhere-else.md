@@ -1,6 +1,6 @@
 # WP-1436 — `k` is the wavevector everywhere else
 
-Milestone: unscheduled · Status: 🔄 2026-09-17 — claimed by @yue-here
+Milestone: unscheduled · Status: ✅ 2026-09-17 — every symbol renamed, every refined number bit-identical
 Depends on: 1437, **merged 2026-09-17** (PR #371). This branch is cut from
 `main` above it, so the rebase is done and its edit to `docs/manual/intensities.md`
 is in the tree. No line of `help.py` writes sinθ/λ, and none of the names renamed
@@ -340,6 +340,87 @@ every labelled equation has one.
   for the `K`-factor the letter is reserved for.
 
 ## Handover log
+
+### 2026-09-17 (3rd session) — the rename, and the five sentences that were not the paper's
+
+The package no longer writes `k` for sinθ/λ. That quantity is `s` in every
+equation and `stol` in every identifier, which is what Waasmaier & Kirfel and
+the IUCr core dictionary call it, and the letter it vacated is now free for the
+wavevector everyone outside this package means by it and for the magnetic
+propagation vector the queued magnetic track needs inside `crystallography/`
+itself. Nothing computed moved, and that is pinned rather than asserted. The
+second half of the work was smaller in the diff and larger in what it corrects:
+five sentences across the tree attributed a definition, a threshold or a symbol
+to a paper that does not contain it, and each one is now either the paper's or
+plainly labelled as this package's own choice.
+
+*Done.* All eleven checklist items, twelve commits. `scattering.py`,
+`structure_factor.py` and `dispersion.py` take the split; the three
+`1/(2d)` bindings each carry the gloss one of them had. `qpa.weight_fractions`
+takes `zmv`, and the module's v2 fence now names O'Connor & Raven, whose
+calibration constant is what `K` means in that field. The manual's notation
+table became two rows, one per unit, and the Å⁻¹ row names `1/d` — the quantity
+the LinkedIn comment was actually reaching for and the one the table had left
+out. `fom.py` stops calling N = 20 Smith & Snyder's definition. The
+microstructure chapter stops calling a FWHM `β`. `fwhm_to_voigt_params` says
+that it returns a half width from full widths. Root CLAUDE.md carries the
+maths/identifier split as a standing rule.
+
+*Measured.* Bit-identity is the acceptance and it holds: the NAC + CaF₂
+two-phase Rietveld of `examples/nac_11bm.py`, which reaches `f0`, the structure
+factor, dispersion and the QPA weight fractions, gives the same 44 refined
+parameters, both statistics blocks, `y_calc`, the residual norm and both weight
+fractions before and after, as hex floats, and the two obs/calc/diff PNGs are
+byte-identical. Two pre-rename runs were diffed first, so the comparison has a
+control and is not just two numbers agreeing. One tier is the right amount of
+evidence: the compiled kernels are profile arithmetic and call neither `f0` nor
+`structure_factors_squared`, so the renamed code sits on the path both tiers
+share. Fast selection 5312 passed, 133 skipped in 85.6 s; full selection 5491
+passed, 142 skipped in 26:44 — worktree `.venv`, `[dev]` only (no jax, no
+torch), darwin/arm64, machine otherwise idle, on a tree `main` had not moved
+under, so these are the merged tree's counts. No test was added or removed, so
+no count should have moved and none did. `CLAUDE.md` 907 → 914 lines, landed at
+913, raised rather than shaved with its reason in `SIZE_CAPS`. A tree-wide
+sweep of 764 tracked files found no line left pairing a bare `k` with sinθ/λ
+outside the WP files that record the old state.
+
+*The review pass.* `/code-review high --fix` returned eight findings and fixed
+seven; the declined one is named below. Four were the same defect this session
+had fixed in two places and stopped: the F_N misattribution also sat in the
+`PEAK_LIST_TOO_SHORT` message a user reads, in the docstring of
+`PEAK_MIN_USABLE_LINES` — which `fom.FOM_N` aliases, so the alias and its source
+had come to contradict each other — and in the indexing skill reference in three
+places across two committed copies. The fifth was `caglioti.py`, which this WP's
+own audit had recorded as already exemplary: the constants were right, the
+module docstring equation and `apparent_size`'s docstring were not, so the `β`
+finding never was manual-only. Verifying that work turned up two more sites (the
+indexing gallery's rendered scoreboard, a test docstring) and one case where the
+pass fixed a lead-sentence-refuted-by-its-own-body shape in `fom.py` and left the
+identical shape standing in `using/indexing.md`. Counts were unchanged by all of
+it, which is why the full selection was re-run: the fixes landed after the first
+full run, and that run no longer described the tree that merges.
+
+*Declined, with the reason.* A meta-test for `help.py`'s third rule, that a
+description stating a formula names where the real one lives. Pinning it needs
+machinery to classify eighteen distinct backticked token shapes in the corpus
+rather than a correction, and that docstring names grep as its guard. It is a
+real gap of the `features["indexing"]` kind and belongs to whoever reopens
+`help.py`, not to a rename.
+
+*Gotchas.* Three worth carrying. A `|` inside `$…$` in a markdown table is the
+column separator, so `$|\mathbf{d}^*|$` rendered a literal dollar sign while
+`sphinx -W` stayed clean; `test_manual.py`'s scan of the **built HTML** is what
+caught it, which is the rule that file already states. A `str.replace` anchored
+on an eight-space line also matches inside a twelve-space one, so an
+indentation-sensitive rename must anchor on the newline. And the WP's own audit
+was wrong about `caglioti.py` in the direction that costs least to check and most
+to trust: it looked at the constants and concluded the file was clean.
+
+*Next.* Nothing here. The five magnetic WPs (1326, 1327, 1328, 1329, 1418) have
+had their `### Inherited` rewritten from a warning into a licence: name the
+propagation vector `k` and add no qualifier. 1326 is the rung that introduces
+`Phase.propagation_vector` and so is the first to benefit.
+
 
 ### 2026-09-17 (2nd session) — a second reading of the two files, before merge
 
