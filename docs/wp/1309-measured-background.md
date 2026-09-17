@@ -111,9 +111,11 @@ project bit-identical.
 
 ## Tasks
 
-- [ ] Schema: `scale` + `fixed_sigma` on `BackgroundFixedPlusChebyshev`,
+- [x] Schema: `scale` + `fixed_sigma` on `BackgroundFixedPlusChebyshev`,
       defaults bit-identical to today; `help.py` entries; out-of-range refusal
-      replacing the silent clamp.
+      replacing the silent clamp. Also `fixed_source` (the Goal's provenance),
+      `from_pattern` (the issue's "no route in"), and the theory section the
+      help anchor points at.
 - [ ] The `bkg_design` row: normalised, s ≥ 0, registered in `bkg_paths`; the
       unconditional `fixed_background` term cleared when the row is active
       (trap 2's test: the double-count is loud, never silent).

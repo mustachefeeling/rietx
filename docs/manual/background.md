@@ -24,6 +24,66 @@ $J^\top J$, so the covariance is regularised, and they are excluded from
 $R_{wp}$ and the serial-correlation statistics. They are soft observations
 rather than data.
 
+(a-measured-background)=
+## A measured background
+
+The fixed curve can be a measurement rather than an estimate. An empty vanadium
+can, a blank capillary, a matrix-only scan and an empty furnace are all scans of
+everything the specimen is not. Such a curve enters as $f$, sampled onto the
+pattern grid, with one refinable multiplier on it:
+
+```{math}
+:label: bg-measured
+
+y_{\mathrm{bkg}}(2\theta) \;=\; \sum_n c_n T_n(x) \;+\; s\, f(2\theta).
+```
+
+{source}`rietx.model.forward.CompiledModel.background`
+
+Both forms are TOPAS's `bkg_file` {cite}`coelho2018topas`, which takes the scale
+as an argument or leaves it at one.
+
+A blank is never on the specimen's scale. The two scans differ in monitor
+normalisation and in counting time, and the specimen attenuates the container's
+own scattering. The polynomial on top cannot repair that. It is additive, so it
+moves the level and never rescales the shape, while the error in a fixed curve
+is multiplicative. Quantitative phase analysis is the workflow least tolerant of
+the difference, because what a wrong background level biases is the phase scales
+and hence the weight fractions, while $R_{wp}$ improves.
+
+The model is linear in $s$, so its Jacobian column is the sampled curve itself
+and it joins the background's linear block. It is also largely parallel to the
+constant Chebyshev term wherever the curve is not strongly featured. Large esds
+on $s$ and on $c_0$ are then the correct report, and `HIGH_CORRELATION` is where
+that surfaces.
+
+The curve's own counting statistics, where it has them, enter the channel
+weight:
+
+```{math}
+:label: bg-measured-weight
+
+\sigma_i^2 \;=\; \sigma_{y,i}^2 \;+\; s^2\, \sigma_{f,i}^2 .
+```
+
+{source}`rietx.model.forward.compile_model`
+
+That is what makes a short blank scan honestly worse than a long one. The $s$ in
+it is the value the stage compiled at, frozen for the stage like every other
+discrete choice. Two limits stand outside the formula. Interpolating a noisy
+curve onto the pattern grid correlates neighbouring channels' errors, so the
+propagated $\sigma$ is a lower bound unless the curve is smoothed first, and
+smoothing is a modelling choice that belongs in the record. One blank reused
+across a series carries error that is fully correlated rather than error that
+averages down, so a refined scale that trends along a ramp is partly an artefact
+of the single measurement.
+
+A scalar is the leading-order correction rather than the exact one. The
+container's scattering reaches the detector through the specimen in the sample
+scan and through nothing in the blank scan, so the exact multiplier follows the
+specimen transmission of {eq}`corr-rouse`. A single scale is therefore right per
+pattern, and not as one constant across a temperature or atmosphere series.
+
 (explicit-humps)=
 ## Explicit humps
 
