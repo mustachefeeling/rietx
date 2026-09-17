@@ -104,6 +104,28 @@ Five further findings are in scope here:
 | `β` | `microstructure.md:34` | FWHM in radians | Langford & Wilson write `β` for the *integral breadth* and `2w` for the FWHM. **Settled against the paper**, below |
 | `gamma` | `voigt.py:40` | returns a HWHM from inputs named `gamma_g`/`gamma_l`, which are FWHMs | The docstring says so, the names do not |
 
+### How the papers were searched, because they are OCR
+
+The local corpus is OCR'd from PDFs and the damage is heavy in **tables and
+maths**, light in **running prose**. Measured on these three: 422
+`digit-hyphen-digit` runs in Langford & Wilson, because the journal sets
+decimals as a middle dot and `0·8340` comes out `0-8340`; 45 places where the
+digit 0 became the letter C; LaTeX scrambled past parsing. Smith & Snyder gives
+`|Δ2θ|` as `| A 2 \theta |` and the page range `60-65` as `6065`.
+
+Two rules for anyone re-checking this work:
+
+- **Flatten whitespace before matching.** Subscripts are set as `F _ { 2 0 }`,
+  so a pattern anchored on `F_` matches nothing and returns a clean, false
+  zero. `re.sub(r"\s+", "", text)` first, then match.
+- **A zero hit on a number the code cites is a search bug until proven
+  otherwise.** Searching raw text for `1.0747` returns nothing; flattened it is
+  there, in the Sphere row, and `0.8859` beside it. Both are what
+  `caglioti.py:93` quotes.
+
+Every conclusion below rests on running prose, never on a table or an equation
+image.
+
 ### Two findings settled against the papers (2026-09-17)
 
 Both were opened as an agent's reading and closed by reading the source. In
