@@ -1674,3 +1674,67 @@ def test_the_status_line_drops_slots_it_cannot_fit(browser, tmp_path):
     # a window size that had none of them
     assert wide["s-label"] == "sample.rex"
     assert wide["s-series"] == "pattern 5/8 cpd-1e forward"
+
+
+# ----------------------------------------------------------------------
+# the run pane's collapse (WP-1436)
+# ----------------------------------------------------------------------
+def test_the_toggle_hides_the_run_and_gives_the_list_the_window(browser,
+                                                                tmp_path):
+    """WP-1425 removed this and left the question to the maintainer.
+
+    Its argument stands — a splitter's collapse belongs to the pane its grip
+    sizes, and neither grip sizes the run pane — so what comes back is a
+    *command* rather than a third grip. Practice is why: VS Code has ⌘B as
+    well as a draggable sash, because a gesture on a focused 5 px separator is
+    not a control anybody finds.
+
+    What the End key does instead is measured here beside it: it drives the
+    list to its stop, which leaves the run pane at its own minimum rather than
+    at nothing, so the two gestures are not two ways to the same state.
+    """
+    _bare_run(tmp_path / "20260101-000001-00001")
+
+    with _served(tmp_path) as base:
+        page, errors = _open_list(browser, base)
+        width = "() => document.getElementById('runs').getBoundingClientRect().width"
+        shown = "(id) => document.getElementById(id).offsetParent !== null"
+        before = page.evaluate(width)
+
+        page.click("#toggle-run")
+        page.wait_for_timeout(300)
+        collapsed = page.evaluate(width)
+        assert page.evaluate(shown, "run") is False, "the run pane is still up"
+        assert page.evaluate(shown, "grip-list") is False, (
+            "the grip still sizes a pane that is not there")
+        assert page.get_attribute("#toggle-run", "aria-pressed") == "true"
+
+        # it survives a reload, like every other layout choice on this page
+        page.reload(wait_until="networkidle")
+        page.wait_for_selector("tr.run", timeout=15000)
+        page.wait_for_timeout(300)
+        assert page.evaluate(shown, "run") is False, "the choice did not persist"
+        assert page.get_attribute("#toggle-run", "aria-pressed") == "true"
+
+        page.click("#toggle-run")
+        page.wait_for_timeout(300)
+        restored = page.evaluate(width)
+        assert page.evaluate(shown, "run") is True
+        assert page.get_attribute("#toggle-run", "aria-pressed") == "false"
+
+        # and the other gesture: End on the list grip is not this state
+        page.focus("#grip-list")
+        page.keyboard.press("End")
+        page.wait_for_timeout(300)
+        dragged_wide = page.evaluate(width)
+        run_kept = page.evaluate(
+            "() => document.getElementById('run').getBoundingClientRect().width")
+        page.close()
+
+    assert not errors, errors
+    assert collapsed > before, (before, collapsed)
+    assert restored == before, (before, restored)
+    # the whole window minus the border, against a list that keeps the run
+    # pane's 340 px floor beside it
+    assert collapsed > dragged_wide > before, (before, dragged_wide, collapsed)
+    assert run_kept >= 300, run_kept

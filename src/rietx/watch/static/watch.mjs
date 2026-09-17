@@ -847,6 +847,9 @@ function sizeOf(which) {
 
 function applyLayout() {
   document.body.dataset.list = layout.list.open ? 'open' : 'closed';
+  document.body.dataset.run = layout.run.open ? 'open' : 'closed';
+  const toggle = $('toggle-run');
+  if (toggle) toggle.setAttribute('aria-pressed', String(!layout.run.open));
   $('run').dataset.console = layout.console.open ? 'open' : 'closed';
   for (const which of Object.keys(SEAMS)) {
     const seam = SEAMS[which];
@@ -876,6 +879,12 @@ function setSize(which, size, {store = true} = {}) {
 
 // Collapse and restore. The pane comes back at the size it had, and at the
 // declared default when it never had one.
+//
+// `run` travels through here too and is not a seam: the button beside the
+// title is its whole control, because no grip sizes the run pane and a
+// splitter's collapse belongs to the pane its grip sizes (WP-1425). What
+// WP-1436 restored is the *command* — a collapsible pane that can only be
+// collapsed by a gesture on a focused 5 px separator is one nobody finds.
 function toggleSeam(which) {
   layout = nextLayout(layout, which, {open: !layout[which].open});
   storeLayout();
@@ -1049,6 +1058,8 @@ $('stop').onclick = () => {
   layout = readLayout();
   armGrip('list');
   armGrip('console');
+  // the run pane's collapse is a button, not a grip: nothing sizes that pane
+  $('toggle-run').addEventListener('click', () => toggleSeam('run'));
   applyLayout();
   await refresh();
   schedule();

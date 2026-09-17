@@ -281,11 +281,12 @@ test('only an explicit false closes a pane', () => {
   assert.equal(parseLayout('{"list":{"open":false}}').list.open, false);
 });
 
-test('the old panel key gives up its one bit and nothing else', () => {
-  // WP-1423 stored `{runs, run}`. The run pane is not collapsible any more,
-  // so `runs` is the only half with a home here.
+test('the old panel key gives up both its bits and nothing else', () => {
+  // WP-1423 stored `{runs, run}`. Both halves have a home again since
+  // WP-1436 gave the run pane a collapse of its own.
   assert.equal(parseLayout(null, '{"runs":false,"run":true}').list.open, false);
   assert.equal(parseLayout(null, '{"runs":true,"run":false}').list.open, true);
+  assert.equal(parseLayout(null, '{"runs":true,"run":false}').run.open, false);
   assert.deepEqual(parseLayout(null, '{"runs":false}').console,
                    {size: null, open: true});
   // ...and it is only consulted when this page has stored nothing itself
@@ -293,6 +294,20 @@ test('the old panel key gives up its one bit and nothing else', () => {
                true);
   // an unreadable old key is no worse than an absent one
   assert.deepEqual(parseLayout(null, '{oh no'), LAYOUT_DEFAULT);
+});
+
+test('the run pane is a collapse and never a size', () => {
+  // no grip sizes it, so `size` has nothing to hold and only `open` moves
+  // (WP-1436). It rides in the same stored object as the two seams because
+  // one reader reading one shape is the point of that object.
+  assert.deepEqual(parseLayout('{"run":{"open":false}}').run,
+                   {size: null, open: false});
+  assert.equal(parseLayout('{"run":{"open":false}}').list.open, true);
+  assert.equal(parseLayout(null).run.open, true);
+  const next = nextLayout(parseLayout(null), 'run', {open: false});
+  assert.equal(next.run.open, false);
+  assert.equal(next.list.open, true);
+  assert.equal(next.console.open, true);
 });
 
 test('nextLayout leaves the layout it was handed alone', () => {

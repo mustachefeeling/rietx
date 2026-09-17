@@ -139,6 +139,11 @@ its five declared columns need plus room for the run column's own heading, 63
 characters in all. The run panel keeps 340 px, below which the plot's legend
 wraps to six rows and covers the top quarter of the picture.
 
+`full list`, beside the title, hides the run panel altogether and gives the
+list the window. It is a button rather than a third seam because no seam sizes
+that panel, and dragging the list to its stop is a different thing: that leaves
+the run panel at the 340 px above. The choice persists like the two sizes do.
+
 The list has six columns. `state` is the liveness word below. `run` is what the
 run is called: for a series member the pattern it fitted, otherwise the label.
 The label is the word the caller passed as `label=`, and failing that the

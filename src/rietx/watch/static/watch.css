@@ -24,6 +24,12 @@ a:hover { text-decoration:underline; }
        height:29px; white-space:nowrap; }
 #root { color:var(--muted); flex:1 1 auto; min-width:0; overflow:hidden;
         text-overflow:ellipsis; }
+#toggle-run { flex:0 0 auto; font-size:11px; padding:1px 8px;
+              color:var(--muted); }
+#toggle-run:hover { color:var(--fg); }
+#toggle-run[aria-pressed="true"] { color:var(--fg);
+              background:color-mix(in srgb, var(--accent) 16%, var(--panel)); }
+body[data-single] #toggle-run { display:none; }
 button { font: inherit; color:var(--fg); background:var(--panel); cursor:pointer;
          border:1px solid var(--line); border-radius:4px; padding:2px 9px; }
 /* the GUI's one hover, over this page's filled button rather than its ghost */
@@ -43,9 +49,19 @@ button:hover { background:color-mix(in srgb, var(--accent) 12%, var(--panel)); }
 #run { flex:1 1 auto; min-width:0; display:flex; flex-direction:column; }
 body[data-list="closed"] #runs,
 body[data-single] #runs, body[data-single] #grip-list { display:none; }
+/* The run pane hidden, which is the list given the whole window (WP-1436).
+   The grip goes with it: a separator between one pane and nothing is a control
+   that cannot do anything, and the list takes the space rather than keeping
+   its declared width beside an empty half. */
+body[data-run="closed"] #run, body[data-run="closed"] #grip-list
+     { display:none; }
+body[data-run="closed"] #runs { flex:1 1 auto; border-right:0; }
 /* The grip flows inline, taking its 5 px out of the row: an absolute grip
-   inside `overflow: auto` scrolls away from the edge it marks (WP-1029). It
-   is the whole control now — the two toggle buttons it replaced are gone. */
+   inside `overflow: auto` scrolls away from the edge it marks (WP-1029). It is
+   the whole control for the *width*; what the button beside the title does is
+   the collapse that no grip can reach, the run pane not being the pane either
+   grip sizes (WP-1425's rule, and WP-1436's exception to what followed from
+   it: a collapsible pane carries a named command, not only a gesture). */
 /* Four states and one hue: the accent, at four strengths over the panel the
    grip sits in. It is the only control on this page with more than two, and
    `:focus-visible` is load-bearing rather than cosmetic — the grip is

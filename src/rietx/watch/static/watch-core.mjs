@@ -297,9 +297,9 @@ export function coalesce(work) {
 }
 
 // ---------------------------------------------------------------- layout
-// What the reader chose about the two seams, and the rule that moves it.
-// `watch.mjs` owns the storage, the document and the pointer; what is here is
-// the reading and the arithmetic.
+// What the reader chose about the two seams and the run pane, and the rule
+// that moves it. `watch.mjs` owns the storage, the document and the pointer;
+// what is here is the reading and the arithmetic.
 //
 // A seam's `size` is the px size of the pane the grip sizes, and `null` means
 // *no choice made* — which is not the same as a number, because the CSS
@@ -307,9 +307,14 @@ export function coalesce(work) {
 // would freeze them. `open` is the collapse.
 
 //: The stored state of a page nobody has dragged.
+//:
+//: `run` is not a seam: no grip sizes it, so its `size` is always null and
+//: only `open` moves (WP-1436). It is here rather than in a second key for
+//: the reason the two seams are — one stored object, one reader, one shape.
 export const LAYOUT_DEFAULT = Object.freeze({
   list: Object.freeze({size: null, open: true}),
   console: Object.freeze({size: null, open: true}),
+  run: Object.freeze({size: null, open: true}),
 });
 
 // A size is a number or it is nothing. `Number('420')` is 420, and this is
@@ -322,12 +327,13 @@ function seam(saved) {
 }
 
 // Two defaults in one expression, as `parsePanels` had: an absent key and a
-// key holding anything unreadable both mean two open panes at their declared
-// sizes, and a stored state naming only one seam leaves the other alone.
+// key holding anything unreadable both mean open panes at their declared
+// sizes, and a stored state naming only one of them leaves the others alone.
 //
-// `legacy` is WP-1423's `{runs, run}` under the old key. Only `runs` has a
-// home here — the run pane is no longer collapsible — so that is the one bit
-// carried over, and the caller drops the old key once it has.
+// `legacy` is WP-1423's `{runs, run}` under the old key, and both halves have
+// a home again now that the run pane collapses (WP-1436). It is consulted only
+// when this page has stored nothing itself, and the caller drops the old key
+// once it has.
 export function parseLayout(raw, legacy) {
   let saved = {};
   try {
@@ -335,11 +341,13 @@ export function parseLayout(raw, legacy) {
   } catch (err) {
     saved = {};
   }
-  const out = {list: seam(saved.list), console: seam(saved.console)};
+  const out = {list: seam(saved.list), console: seam(saved.console),
+               run: seam(saved.run)};
   if (!saved.list && legacy) {
     try {
       const old = JSON.parse(legacy || '{}') || {};
       if (old.runs === false) out.list.open = false;
+      if (old.run === false) out.run.open = false;
     } catch (err) {}
   }
   return out;
@@ -350,7 +358,8 @@ export function parseLayout(raw, legacy) {
 // and a reducer that mutates its argument is one refactor away from
 // disagreeing with what was stored.
 export function nextLayout(layout, which, patch) {
-  const next = {list: {...layout.list}, console: {...layout.console}};
+  const next = {list: {...layout.list}, console: {...layout.console},
+                run: {...layout.run}};
   next[which] = {...next[which], ...patch};
   return next;
 }
