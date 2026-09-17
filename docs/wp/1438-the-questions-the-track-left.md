@@ -436,11 +436,17 @@ through the same filter, sort and cap.
 
 | | |
 |---|---|
-| fast selection | **5330 passed, 132 skipped, 0 failed** at load 2.3 |
-| against this WP's first round | +29 exactly (5301/132 on the merged tree) |
+| fast selection, **current main merged in** | **5359 passed, 132 skipped, 0 failed** in 106 s, nothing else on the machine (load 2.3 at the start) |
+| the bare branch, before that merge | 5330 / 132, which is +29 over this WP's first round — exactly the 28 test functions added, one of them parametrised twice, with no new skip |
 | `tests/test_watch_browser.py` alone | 47 passed |
 | vitest / `node --test` | 593 / 48 |
 | svelte-check | 381 files, 0 errors |
+
+The merged figure is the one to carry: `origin/main` moved 20 commits under
+this branch while the session ran, two of them re-marking test rows `slow`, so
+the branch's own counts and main's do not sum and only the merged tree was
+ever tested as a whole. Branch protection is `strict: false`, so nothing else
+would have.
 
 The numbers behind the decisions: 420 px gave the list its declared 578 px,
 the run pane 0 px and the document 1283 px of scroll; 859 px is where the
