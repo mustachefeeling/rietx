@@ -406,19 +406,23 @@ session had argued: adding a final joint polish stage moves the headline scale
 by nothing and Rwp by 3e-6, because staging is cumulative and the scale keeps
 refining through the last stage already.
 
-**Counts.** Fast selection **5282 passed, 133 skipped** in 2:41, full suite
-**5460 passed, 142 skipped** in 33:53, both on current main merged into the
-branch. Another session was running short selections on this machine
-throughout, so the counts are quotable and the wall clock is not. The fast delta
-from this WP is **zero by construction**, confirmed by collection: all 18 tests
-in the module deselect under `-m "not slow"`. Across the merge the fast count
-moved 5283 → 5282, which is main's own change marking one indexing row slow.
-The full selection's +48 over the previous session's 5412 is six from this WP
-and the rest from four merges of main in between; no baseline was re-measured,
-per the ladder. The review's fixes landed *after* those runs and touch one slow
-test module only, changing assertions inside existing tests rather than their
-number, so the counts stand and that module was re-run green (18 passed) on the
-fixed tree. `ruff` clean.
+**Counts.** Final tree, current main merged in, machine free for both runs:
+fast selection **5281 passed, 133 skipped** in 1:16, full suite **5460 passed,
+142 skipped** in 24:40.
+
+The fast delta from this WP is **zero by construction**, confirmed by
+collection: all 18 tests in the module deselect under `-m "not slow"`. Its
+number moved anyway, twice, and both are main's: 5283 → 5282 → 5281 across two
+merges, each marking one row slow. The full count is **5460 both times it was
+measured**, before and after the second merge, because a `slow` mark moves a
+test between selections without adding one. Its +48 over the previous session's
+5412 is six from this WP and the rest from five merges of main in between; no
+baseline was re-measured, per the ladder.
+
+Two wall clocks for the same selection are the reason that rule exists: the
+full suite read 33:53 with another session running short selections beside it
+and 24:40 alone, on trees differing by one `slow` mark. Quote the counts.
+`ruff` clean.
 
 **Next.** The WP closes here, so these are for whoever wants them rather than
 for a successor on 1309.
