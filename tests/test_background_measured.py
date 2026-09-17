@@ -33,6 +33,7 @@ import pytest
 from pydantic import ValidationError
 
 import rietx as rx
+from rietx.background import select_chebyshev_order
 from rietx.background.models import FIXED_RANGE_SLACK_STEPS, interpolate_fixed
 from rietx.model.forward import SCALE_PATH, compile_model
 from rietx.optimize.least_squares import _make_jacobian
@@ -534,6 +535,61 @@ def test_a_preset_plan_frees_the_scale():
     assert SCALE_PATH not in table.free_paths
     table.set_vary(["instrument.background.*"], True)
     assert SCALE_PATH in table.free_paths
+
+
+@pytest.mark.xdist_group("measured-background")
+def test_the_order_scan_chooses_for_the_remainder():
+    """Trap 4: the scan had no notion of a declared curve, so it measured the
+    curve's own shape as flexibility the polynomial needed.
+
+    Measured here: blind it runs to 12 terms chasing the halo, and with the
+    curve held at its true scale it selects 2 and gets worse with every term
+    after — the curve is worth ten polynomial terms, which is the whole reason
+    somebody measured a blank.
+    """
+    data, blank, structure, ins = synthetic_blank_case()
+    held = _with_blank(ins, blank, vary_scale=False, scale=S_TRUE).background
+
+    blind = select_chebyshev_order(data, max_order=12)
+    informed = select_chebyshev_order(data, max_order=12, fixed=held)
+    assert blind.selected == 12
+    assert informed.selected == 2
+    # and the scan is monotone upward after its minimum, which is what says the
+    # remainder has no structure left for a polynomial to take
+    bics = [s.bic for s in informed.scores]
+    assert bics == sorted(bics)
+
+
+def test_a_free_scale_costs_a_parameter_in_the_scan():
+    """The scale is a fitted direction, so the BIC must be charged for it.
+
+    Left out of k the scan would credit the fit with a degree of freedom it
+    spent, which is the same double count trap 1 is about, one statistic over.
+    """
+    from rietx.background import peak_mask
+    from rietx.background.models import chebyshev_design_matrix
+    from rietx.background.select import _bic
+
+    data, blank, structure, ins = synthetic_blank_case()
+    freed = _with_blank(ins, blank, vary_scale=True).background
+    scan = select_chebyshev_order(data, max_order=4, fixed=freed)
+
+    mask = data.in_range_mask()
+    tt, y, sigma = data.tt()[mask], data.y()[mask], data.sig()[mask]
+    keep = peak_mask(tt, y, sigma)
+    tt_m, y_m, s_m = tt[keep], y[keep], sigma[keep]
+    m = len(tt_m)
+    curve = interpolate_fixed(tt_m, np.asarray(freed.fixed_two_theta),
+                              np.asarray(freed.fixed_intensity))
+    n = int(scan.scores[0].complexity)
+    rows = np.vstack([chebyshev_design_matrix(tt_m, n, float(tt[0]), float(tt[-1])),
+                      curve[None, :]])
+    w = 1.0 / s_m
+    A = (rows * w).T
+    coef, *_ = np.linalg.lstsq(A, y_m * w, rcond=None)
+    r = y_m * w - A @ coef
+    assert scan.scores[0].bic == pytest.approx(_bic(float(r @ r), m, n + 1))
+    assert scan.scores[0].bic != pytest.approx(_bic(float(r @ r), m, n))
 
 
 def test_a_stage_spec_reaches_the_scale_by_name():

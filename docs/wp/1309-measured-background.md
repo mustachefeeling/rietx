@@ -120,7 +120,7 @@ project bit-identical.
       registered in `bkg_paths`; the unconditional `fixed_background` term
       cleared when the row is active (trap 2's test: the double-count is loud,
       never silent).
-- [ ] σ propagation through `interpolate_fixed`; `background/select.py` made
+- [x] σ propagation through `interpolate_fixed`; `background/select.py` made
       aware of the fixed direction (trap 4).
 - [ ] A `rietx compare` row for the new correction.
 - [ ] **Deferred, waiting on the file** (2026-09-17): vendor the 11-BM
@@ -189,6 +189,17 @@ falling monotonically 0.07634 → 0.07299. The issue's identifiability warning,
 measured. `HIGH_CORRELATION` fires only at six terms (ρ(c0, s) = −0.993);
 below that the correlation is real and under the threshold, so the rule is the
 docs' and not a guard's.
+
+**The order scan was measuring the curve's own shape** (trap 4). Blind, it runs
+to 12 terms on the fixture chasing the halo; with the curve held at its true
+scale it selects **2** and its BIC rises with every term after. The declared
+curve is worth ten polynomial terms, which is the whole reason anybody measures
+a blank. Two rules came out of the measurement and are in the docstring. A held
+scale changes the response variable, so BIC is comparable *within* a setting of
+`fixed` and never across two. And a free scale with a high `max_order` is the
+case to be careful with: given enough terms the scan dials the measured curve
+away and describes the shape itself, which is the identifiability warning
+arriving from the selection side.
 
 **The member had no test at all before this WP.** Nothing in the suite built a
 `BackgroundFixedPlusChebyshev`, which is why `interpolate_fixed`'s silent clamp
