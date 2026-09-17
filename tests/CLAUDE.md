@@ -256,7 +256,8 @@ and never a silent cap.
 CI runs the same commands (`.github/`). Per push and per PR (`ci.yml`, the
 branch-protection required checks): ruff + the fast suite across 3.11–3.14
 plus a `[dev,jax]` fast job, Linux, **no path filter** — a filtered job is a
-required check that never reports on a docs-only PR. Nightly
+required check that never reports on a docs-only PR. **A draft PR runs ruff
+alone**, the matrix waiting for `gh pr ready` (`ci.yml`'s header). Nightly
 (`nightly.yml`): the full suite `[dev,jax]` on Linux, the Windows fast suite
 (the OS classifier's backing and the release pre-upload gate), macOS fast +
 the informational goldens step (the guard in `test_backend_shim.py` is the

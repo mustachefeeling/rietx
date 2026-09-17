@@ -519,8 +519,12 @@ is not a comparison.
 by WP-1060; un-shaped at WP-1003's visibility flip). Per push and per PR
 (`ci.yml`, the branch-protection required checks): ruff plus the fast suite
 across 3.11–3.14 and a `[dev,jax]` fast job, Linux, no path filter — a
-filtered job is a required check that never reports on a docs-only PR.
-Nightly (`nightly.yml`): the whole suite including `slow` acceptance under
+filtered job is a required check that never reports on a docs-only PR. A
+**draft** PR runs ruff alone (the draft guard, `ci.yml`'s header): the claim
+ritual opens a draft PR on a WP branch's first commit, so before it the whole
+matrix fired on every intermediate push, 41 of the 71 runs over 30 WP branches
+in the ritual's first two days and 12 of them over the claim commit's markdown
+edit alone. Nightly (`nightly.yml`): the whole suite including `slow` acceptance under
 `[dev,jax]` on Linux, the Windows fast suite backing the OS classifier row,
 macOS fast plus the informational goldens step, and the `[torch]` agreement
 rows.

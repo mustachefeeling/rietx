@@ -7,9 +7,10 @@ name: CI
 # of the shaped version and its measured arithmetic is in git, and the story
 # in docs/wp/1003-api-freeze-pypi.md.
 #
-# What runs per push and per PR, all in parallel:
+# What runs per push, and per PR once it is out of draft, all in parallel:
 #
-#   lint                          ruff over src/tests/examples
+#   lint                          ruff over src/tests/examples; the one job a
+#                                 draft PR runs too (~40 s)
 #   fast py3.11 .. py3.14         the "not slow" suite across the support
 #                                 window (3.14 is claimed in the classifiers,
 #                                 so it gates like the rest)
@@ -20,6 +21,25 @@ name: CI
 # No paths-ignore: these jobs are branch-protection required checks, and a
 # path filter would leave a docs-only PR with required checks that never
 # report.  The docs-consistency test rides inside the fast suite.
+#
+# The draft guard is that same question answered the other way round.  A job
+# skipped by a conditional reports success to branch protection, while a
+# workflow skipped by a filter never reports at all (GitHub, "Troubleshooting
+# required status checks"), so what a path filter may not do a job-level `if`
+# may.  A WP branch is claimed with a draft PR on its first commit and readied
+# by /wp-handover, so until this the whole matrix fired on every intermediate
+# push: 71 runs over 30 WP branches in the claim ritual's first two days, 41 of
+# them before the handover, 12 on the claim commit alone — 72 job-minutes over
+# a markdown edit.  `ready_for_review` is in the trigger types because it is
+# not one of the defaults, and `gh pr ready` is now what fires the gating run.
+# Off a pull request `github.event.pull_request.draft` is null, which the
+# expression language coerces to 0 and compares equal to false, so push and
+# workflow_dispatch still run in full.  Measured on the PR that landed this
+# (#364): a draft run is lint plus two skipped jobs, and a skipped matrix does
+# not expand — it reports once, under the literal name `fast py${{
+# matrix.python }}`.  So the four per-version contexts exist only from the
+# ready_for_review run onwards, which is the run that gates the merge anyway.
+#
 # The full suite (slow real-data acceptance included), macOS, Windows and
 # torch run in nightly.yml.
 
@@ -27,6 +47,7 @@ on:
   push:
     branches: [main]
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
 
 concurrency:
@@ -52,6 +73,7 @@ jobs:
 
   fast:
     name: fast py${{ matrix.python }}
+    if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
@@ -76,6 +98,7 @@ jobs:
 
   fast-jax:
     name: fast jax
+    if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
