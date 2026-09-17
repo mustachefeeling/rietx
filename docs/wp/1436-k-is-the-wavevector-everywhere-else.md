@@ -1,6 +1,6 @@
 # WP-1436 — `k` is the wavevector everywhere else
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-09-17 — claimed by @yue-here
 Depends on: 1437 (both edit `docs/manual/intensities.md`, 1437 at line 104 and
 this WP at its equations; rebase onto it. No line of `help.py` writes sinθ/λ,
 so this WP never opens that file)
