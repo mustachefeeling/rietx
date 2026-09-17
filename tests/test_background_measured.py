@@ -192,6 +192,24 @@ def test_the_scale_is_registered_where_the_write_back_reads_it():
     assert ins.background.scale.value == pytest.approx(0.7)
 
 
+def test_the_cif_says_measured_only_when_somebody_named_the_measurement():
+    """The exported description is a claim, so it follows ``fixed_source``.
+
+    Before WP-1309 it read "fixed estimated curve" whatever the curve was, which
+    described a blank capillary scan as an estimator's output.
+    """
+    from rietx.io.exporters import _background_description
+
+    _d, _s, ins, _t, _m = _state(vary_scale=True)
+    assert "measured curve" in _background_description(ins)
+    assert "refined scale" in _background_description(ins)
+
+    ins.background.fixed_source = None
+    ins.background.scale.vary = False
+    text = _background_description(ins)
+    assert "fixed estimated curve" in text and "scale held at 1" in text
+
+
 def test_le_bail_leaves_this_scale_free():
     """``mode_fixed_path`` force-fixes a *phase* scale, and this is not one.
 
@@ -535,6 +553,32 @@ def test_a_preset_plan_frees_the_scale():
     assert SCALE_PATH not in table.free_paths
     table.set_vary(["instrument.background.*"], True)
     assert SCALE_PATH in table.free_paths
+
+
+@pytest.mark.xdist_group("measured-background")
+def test_a_series_refines_one_scale_per_pattern_and_quotes_its_trajectory():
+    """Issue #171, 2026-09-16: in a furnace run the blank is scanned cold and
+    reused hot, so the scale is a per-pattern quantity.
+
+    Nothing new was needed for that — a ``Parameter`` on the kind is per pattern
+    because each pattern carries its own models, the warm start chains it like
+    any other value, and ``SeriesResult.trajectory`` is generic over the paths a
+    fit determined.  The test is here because "nothing was needed" is a claim
+    about three mechanisms, and a trajectory that quietly lacked the scale would
+    look exactly like a series where it never moved.
+    """
+    data, blank, structure, ins = synthetic_blank_case()
+    hotter, _b2, _s2, _i2 = synthetic_blank_case(s_true=0.65, seed=9)
+    ins = _with_blank(ins, blank, vary_scale=True, n_terms=2)
+
+    series = rx.refine_sequential([data, hotter], structure, ins,
+                                  x=[300.0, 500.0], plan=_bkg_only_plan(),
+                                  telemetry=False)
+    traj = series.trajectory(SCALE_PATH)
+    assert SCALE_PATH in series.paths()
+    assert len(traj.value) == 2
+    assert traj.value[0] > traj.value[1]
+    assert all(e is not None for e in traj.stderr)
 
 
 @pytest.mark.xdist_group("measured-background")

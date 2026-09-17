@@ -138,8 +138,10 @@ project bit-identical.
       `HIGH_CORRELATION` is the channel and it already had one — so the skill
       takes the *correction's* rule instead, in §1 beside the never-subtract
       clause.
-- [ ] Tests for each trap above + the blank-fixture refinement, obs/calc/diff
-      PNGs to `tests/output/`.
+- [x] Tests for each trap above + the blank-fixture refinement, obs/calc/diff
+      PNGs to `tests/output/`. Also the CIF description, which called a blank
+      scan an estimator's output, and the per-pattern scale a series was
+      already capable of.
 
 ## Acceptance
 
@@ -212,6 +214,14 @@ with Rwp 0.09317 → 0.08603 and `HIGH_CORRELATION` firing against c0: a stiff
 arPLS baseline sits ~15 % high in level over a peaky range, and the scale is the
 only parameter that can say so, because the polynomial is additive. The blurb
 now says what was measured rather than what was predicted.
+
+**A series needed no code, and the claim is now tested.** Issue #171's
+2026-09-16 note asks for a per-pattern scale, a warm start that chains it and a
+trajectory that quotes it. All three already hold: a `Parameter` on the kind is
+per pattern because each pattern carries its own models, the warm start copies
+values, and `SeriesResult.trajectory` is generic over the paths a fit
+determined. "Nothing was needed" is a claim about three mechanisms, so the test
+is there.
 
 **The member had no test at all before this WP.** Nothing in the suite built a
 `BackgroundFixedPlusChebyshev`, which is why `interpolate_fixed`'s silent clamp
