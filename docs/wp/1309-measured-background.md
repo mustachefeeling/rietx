@@ -1,6 +1,6 @@
 # WP-1309 — a measured background: the container exists, the scale and the esds do not
 
-Milestone: unscheduled · Status: 🔄 2026-09-17 — the feature is complete; the real-blank check is the one task left
+Milestone: unscheduled · Status: 🔄 2026-09-17 — claimed by @yue-here; the real blank has arrived and is the one task left
 Depends on: —
 
 ## Goal
