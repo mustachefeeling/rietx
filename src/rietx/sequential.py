@@ -535,6 +535,14 @@ def _carry_variables(ref: Refinement, previous: dict[str, float],
     until the carried value falls outside them raises here, naming the path and
     the bounds, because a starting point the bounded solver cannot use is the
     caller's to fix and not this function's to clamp.
+
+    One refusal is *not* the caller's, and is why the tied variables are
+    dropped rather than offered: a variable may itself be tied to others
+    (``tie("vars.total", {"vars.a": 1.0, "vars.b": 1.0})``, the multi-source
+    form the manual documents), and ``set_values`` refuses a tied path by
+    design.  Carrying one is meaningless anyway — it follows its sources, which
+    are carried — so excluding it is the same decision ``_carry_into`` makes
+    when it resolves the ties rather than writing through them.
     """
     if not previous:
         return
@@ -542,9 +550,10 @@ def _carry_variables(ref: Refinement, previous: dict[str, float],
     for name, value in previous.items():
         path = f"{VAR_PREFIX}{name}"
         # a name the hook did not declare on *this* pattern has nothing to be
-        # carried into, and ``set_values`` would refuse the whole dict for it
-        if name in ref._variables and any(
-                fnmatch.fnmatchcase(path, g) for g in carry):
+        # carried into, and ``set_values`` would refuse the whole dict for it;
+        # a variable the hook tied to others follows them and is refused too
+        if (name in ref._variables and path not in ref._ties
+                and any(fnmatch.fnmatchcase(path, g) for g in carry)):
             values[path] = value
     if values:
         ref.set_values(values)
@@ -1073,8 +1082,8 @@ class SequentialRefinement:
             if entry.status != "diverged":
                 previous = models[k]
                 previous_hkl = _extract_reflections(best_ref._model)
-                previous_vars = {n: p.value
-                                 for n, p in best_ref._variables.items()}
+                previous_vars = {name: prm.value
+                                 for name, prm in best_ref._variables.items()}
                 previous_tag = (entry.tree_id, entry.node_id)
                 if entry.statistics is not None:
                     accepted_rwp.append(entry.statistics.rwp)
@@ -1169,12 +1178,12 @@ class SequentialRefinement:
         determine the path (a held phase, a stage that returned nothing for
         it): a ratio needs both ends, and an absent one is not a zero.
 
-        ``prepare`` and ``constrain`` are threaded through for the same reason the
-    plan and the models are: a cold refit that dropped the caller's own
-    constraints would be a different model, and the ratio it reports compares
-    the step against a fit nobody asked for.
+        ``prepare`` and ``constrain`` are threaded through for the same reason
+        the plan and the models are: a cold refit that dropped the caller's own
+        constraints would be a different model, and the ratio it reports
+        compares the step against a fit nobody asked for.
 
-    ``cancel`` is the chain's own token, threaded through because these are
+        ``cancel`` is the chain's own token, threaded through because these are
         ordinary fits and up to ``2s`` of them: a caller who can stop the walk
         must be able to stop the check.  A cancel here leaves every diagnostic
         it had not reached exactly as the walk wrote it — ``value`` absent, the

@@ -390,6 +390,41 @@ def test_a_named_variable_warm_starts_under_the_carry_globs(thermal_patterns):
     assert started["narrow"] == [0.4, 0.4, 0.4]
 
 
+def test_a_variable_tied_to_others_is_carried_by_its_sources(thermal_patterns):
+    """The multi-source form the manual documents, driven from a chain.
+
+    ``set_values`` refuses a tied path — setting its sources is what the caller
+    meant — so a variable the hook ties to others must not be offered to the
+    carry: pattern 1 fitted and pattern 2 raised. It follows its sources, and
+    those are carried, so dropping it moves no starting point.
+    """
+    started: list[tuple[float, float]] = []
+
+    def constrain(index, ref):
+        ref.add_variable("B_base", 0.4, min=0.0, max=5.0)
+        ref.add_variable("B_extra", 0.1, min=0.0, max=5.0)
+        ref.add_variable("B_total", 0.5, min=0.0, max=10.0)
+        ref.tie("vars.B_total", {"vars.B_base": 1.0, "vars.B_extra": 1.0})
+        ref.tie_equal(["phases.0.atoms.*.biso"], source="vars.B_total")
+        inner = ref.fit
+
+        def fit(*args, **kwargs):     # after the carry, which runs on return
+            started.append((ref._variables["B_base"].value,
+                            ref._variables["B_total"].value))
+            return inner(*args, **kwargs)
+
+        ref.fit = fit
+
+    series = refine_sequential(thermal_patterns[:2], *_start_models(),
+                               plan=_TIED, constrain=constrain)
+    assert len(series) == 2
+    fitted = {p.path: p.value for p in series[0].parameters}
+    # the sources crossed the boundary, and the tied variable followed them
+    # there rather than being offered to ``set_values`` and refused
+    assert started[1][0] == fitted["vars.B_base"]
+    assert started[1][1] == pytest.approx(started[1][0] + fitted["vars.B_extra"])
+
+
 def test_a_quarantined_pattern_seeds_no_variable_either(thermal_patterns):
     """The warm start of a variable is the chain's rule, not the caller's.
 
