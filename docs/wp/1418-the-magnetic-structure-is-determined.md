@@ -1,6 +1,6 @@
 # WP-1418 — the magnetic structure is determined, not only stated
 
-Milestone: unscheduled · Status: ⬜
+Milestone: v1.6 · Status: ⬜
 Depends on: PR #290's `crystallography.magnetic` (landed 2026-09-10);
 1326 (the k candidates) for the k-search rung; 1327 (the moment, the hold)
 for the determination verb. The irrep and isotropy rungs depend on nothing
@@ -124,6 +124,22 @@ MAGNDATA magCIF entries serve the round-trip and span tests with no pattern.
 
 ### Inherited
 
+- **2026-09-18 — this WP is v1.6's first, and M-6 and M-7 are its first PRs.**
+  The milestone opened today ([record](../milestones/v1.6.md)) over the seven
+  magnetic WPs. The order was set on #286: M-6 (irreps, spgrep as a test oracle
+  only) and M-7 (isotropy subgroups → operator lists, powder-equivalence
+  classes) go first, on the reading that neither touches the forward model and
+  both exist on the `mustachefeeling` fork with green suites; M-9 lands with
+  this WP rather than with 1327; 1419 is a PR of its own. Two housekeeping
+  clauses came with it. **The `SCHEMA_VERSION` ladder starts above `main`'s
+  own** — check what `schemas/common.py` holds when the first PR is cut, rather
+  than reusing a number reserved weeks earlier. And **every magnetic row in the
+  agent skill goes in `references/magnetic.md`, diagnostic codes included**;
+  the caps are checked on the merge result, so the whole set is measured once
+  before the first PR rather than discovered at the sixth merge. `main`'s
+  headroom today, after the `diagnostics-gsas.md` split landed:
+  `diagnostics.md` 29 942 B of 36 000, `SKILL.md` 32 864 B of 33 000 — 136 B,
+  so the body takes nothing, which is what the routing row rule already says.
 - **2026-09-17, from [1436](1436-k-is-the-wavevector-everywhere-else.md):
   `k` is free for the propagation vector.** The earlier note here warned that
   `scattering.py`, `structure_factor.py` and `dispersion.py` all spent `k` on

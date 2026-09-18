@@ -1,6 +1,6 @@
 # WP-1419 — a child structure refined on its mode amplitudes
 
-Milestone: unscheduled · Status: ⬜
+Milestone: v1.6 · Status: ⬜
 Depends on: 1418 (the mode vectors: irreps, projection, isotropy subgroups);
 1327 soft (the operator-list phase both would share)
 
@@ -159,6 +159,65 @@ the span* of the derived subspace, never that the dimension is right, since
 the transposed rotation set is a group too and passes any dimension count.
 
 ### Inherited
+
+**2026-09-18 — the four rulings #286 asked for before the PRs are cut**, made
+on `main` at `84eddb17` against a fork integration branch measured at
+`b130bfd4`. Every number below is `main`'s own; the fork's were not reproduced.
+
+- **Milestone: v1.6, opened today.** The seven magnetic WPs are § v1.6 and
+  their `Milestone:` lines say so. The order stands as set on 2026-09-16:
+  1418's M-6 and M-7 first, then 1327's verb with M-9, then this WP alone. The
+  record's § Acceptance carries two rows belonging to this WP — the two lists,
+  and the absolute amplitude with its seed — written at the open so they can
+  fail.
+- **The TOF rungs are not in it, and they are not in the chain.** `main`'s
+  v2+ fence holds neutron TOF behind issue #193, which its own reporter filed
+  that way, and 1418's § Non-goals already excludes it. A fence moves by a
+  recorded decision, the way magnetic structures left it on 2026-09-02, and
+  not by an implementation existing. So the integration branch's TOF half is
+  split back out before any PR is cut. Three of #286's four questions are
+  consequences of it being merged in and lapse with the split: the
+  `read_gsas2_instprm` collision, `src/rietx/io/CLAUDE.md`'s 58 lines of TOF
+  rules, and where the TOF evidence lives.
+- **`references/api.md` is split, not re-capped.** `API_INDEX_MAX_BYTES` is
+  39 000 against a **40 kB** physical wall — Bash truncates above it to a 2 kB
+  preview, which is the whole derivation — so a raise buys a few hundred bytes
+  in front of a bar that cannot move. On `main` today the file is 36 280 B, up
+  191 B since `b130bfd4`, so the chain's +3 374 B lands at roughly 39 650 B and
+  654 B over. The seam is measured and it is § In (8 840 B) plus § Out
+  (2 379 B), 31 % of the file and the two sections every reader and writer
+  since WP-1118 has grown: `references/api-io.md` leaves `api.md` near 25 kB
+  with 14 kB of room. It costs nothing in routing, because `SKILL.md`'s table
+  already routes two of its three `api.md` rows to `§ In` and `§ Out` by name;
+  those cells get shorter. The generator's `SECTIONS` table and `test_skill.py`'s
+  `API_INDEX` single-file assumption are the two edits. Not the chain's to
+  carry: it lands as a maintainer commit and the PRs rebase onto it.
+- **`src/rietx/io/CLAUDE.md` gets a cap bump, not a second file.** A second
+  always-loaded file under `io/` auto-loads only with a subtree, and the TOF
+  readers sit beside the CW ones rather than under one, so the file would be
+  loaded by nothing. `main` is at 484 lines against 485, so *any* io rule needs
+  a bump — 1328's magCIF reader included, and that one is in this milestone.
+  The bump is ordinary: make it in the commit that says so, with its paragraph
+  in `docs/milestones/process.md` § The caps diary, as this session's own
+  ROADMAP bump did.
+- **Measured evidence does not go in a shipped milestone record.** Protocol
+  rule 4 sends counts and timings to the WP handover entry; rule 5's milestone
+  destination is the **in-flight** record's narrative, and § "Additions this
+  milestone makes" is for release notes. v1.4 is shipped. So the Δd/d numbers,
+  the GSAS-I PRCF1 corroboration and the Mantid GEM bin-width check belong to
+  the TOF WP, which does not exist because TOF is fenced — they stay on the
+  fork until it does.
+- **`read_gsas2_instprm`, for when the fence moves: one reader on `Type`.**
+  `.instprm` is one suffix under one program, and the file states which
+  quantity it holds. `io/instrument_profile.py` already reads `Type`, already
+  keys `CW_TYPES`/`HISTOGRAM_TYPES` as shared data, and already refuses a
+  flight-time bank *by name* saying it "puts a different quantity on the x axis
+  than PatternData holds". That refusal is the branch. A `_tof` suffix makes
+  the caller choose from a suffix that is identical either way, which is the
+  one thing § Dispatch says this subtree never does. If the two halves return
+  different types the dispatch moves one level up and the answer discriminates
+  on `kind`, never on shape (WP-1110); if a TOF profile and source can be union
+  members, there is one return type and no question.
 
 From the 2026-09-16 `/pr-review` round on issues #286 and #293, measured on
 `main` at `f1d89cb0` and posted to both threads. Nothing here was measured on
