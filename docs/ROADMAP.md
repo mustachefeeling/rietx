@@ -611,6 +611,7 @@ the chain says nothing (issue #267).
 | [1334](wp/1334-the-stage-that-ran-out-of-budget.md) | The stage that ran out of budget | ⬜ | — |
 | [1335](wp/1335-the-report-costs-more-than-the-fit.md) | The report costs more than the fit | ⬜ | — |
 | [1420](wp/1420-a-held-phase-re-enters-or-says-it-cannot.md) | A held phase re-enters, or the chain says it cannot | ⬜ | — (1333, 1342, 1419 soft) |
+| [1441](wp/1441-a-constraint-the-series-can-declare.md) | A constraint the series can declare | 🔄 2026-09-18 | — (1070, 1119 are the halves) |
 
 #### One file, many patterns
 
