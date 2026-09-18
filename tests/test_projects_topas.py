@@ -608,18 +608,18 @@ LATTICE_MACROS = [
     # name on one is not the refine flag — only its write-back tick is.
     ("Cubic(=a1;:  5.43416_0.00012)",                            # archive file 9:139
      (5.43416,) * 3 + (90.0,) * 3, None),
-    ("Cubic(aLP  11.210591`)",                                   # archive file 10:69
-     (11.210591,) * 3 + (90.0,) * 3, True),
+    ("Cubic(aLP  11.000000`)",                                   # archive file 10:69
+     (11.000000,) * 3 + (90.0,) * 3, True),
     # a = b, c, and γ = 90 — TOPAS writes the two independent lengths in order.
-    ("Tetragonal(@  4.594290`, @  2.958587`)",                   # archive file 11:38
-     (4.594290, 4.594290, 2.958587, 90.0, 90.0, 90.0), True),
+    ("Tetragonal(@  4.500000`, @  2.900000`)",                   # archive file 11:38
+     (4.500000, 4.500000, 2.900000, 90.0, 90.0, 90.0), True),
     # a = b, c, and γ = **120**.
-    ("Hexagonal(@  3.613074`, @  12.037126`)",                   # archive file 12:87
-     (3.613074, 3.613074, 12.037126, 90.0, 90.0, 120.0), True),
-    ("Trigonal(  12.695126,   37.972985)",                       # archive file 18:90
-     (12.695126, 12.695126, 37.972985, 90.0, 90.0, 120.0), None),
-    ("Trigonal(@  12.68790`_0.00010,  @  37.94996`_0.00056)",    # archive file 32:51
-     (12.68790, 12.68790, 37.94996, 90.0, 90.0, 120.0), True),
+    ("Hexagonal(@  3.500000`, @  12.000000`)",                   # archive file 12:87
+     (3.500000, 3.500000, 12.000000, 90.0, 90.0, 120.0), True),
+    ("Trigonal(  12.500000,   37.500000)",                       # archive file 18:90
+     (12.500000, 12.500000, 37.500000, 90.0, 90.0, 120.0), None),
+    ("Trigonal(@  12.50000`_0.00010,  @  37.50000`_0.00056)",    # archive file 32:51
+     (12.50000, 12.50000, 37.50000, 90.0, 90.0, 120.0), True),
 ]
 
 
@@ -767,7 +767,7 @@ def test_a_lattice_macro_beside_an_explicit_cell_is_not_needed(tmp_path):
                'a 7.018696\nb 6.520921\nc 13.019527\nal 90\nbe 93.32175\nga 90\n'
                'site Al1 x 0.70588 y 0.32198 z 0.89924 occ Al+3 1.\n'
                'hkl_Is\nphase_name "hexagonal from Dicvol"\n'
-               'Hexagonal(@  3.613074`, @  12.037126`)\nspace_group "P-6m2"\n')
+               'Hexagonal(@  3.500000`, @  12.000000`)\nspace_group "P-6m2"\n')
     phase = read_topas_inp(inp).phases[0]
     assert phase.cell["a"] == pytest.approx(7.018696)
     assert phase.cell["c"] == pytest.approx(13.019527)
@@ -1942,41 +1942,41 @@ def test_a_partial_tensor_with_a_missing_diagonal_is_refused(tmp_path):
 # The archive's live anisotropic spelling is the six-slot positional
 # `ADPs { u11 u22 u33 u12 u13 u23 }` brace block (6 files), not the named
 # form. The slot order is archive-evidenced: `archive file 2:187` names its
-# slots `Ho1_u11 … Ho1_u23` in exactly that order, and `archive file 3:73`
-# names slots 1, 2, 3 and 6 `u11Se`/`u22Se`/`u33Se`/`u23Se` with the two zeros
+# slots `A1_u11 … A1_u23` in exactly that order, and `archive file 3:73`
+# names slots 1, 2, 3 and 6 `u11A`/`u22A`/`u33A`/`u23A` with the two zeros
 # in the u12/u13 positions. Each fixture below is a real file's spelling.
 
 def test_the_positional_adps_brace_block_reads_in_slot_order(tmp_path):
     """`archive file 2`'s spelling: named slots, each with a `min … max=…;`
     window (inert on AnisoU, skipped) and `_LIMIT_*` annotations."""
-    inp = _inp(tmp_path, "gd12.inp",
+    inp = _inp(tmp_path, "named_adps.inp",
                'str\nphase_name "P"\nspace_group "P1"\na 5.0\n'
-               'site Ho1 x 0.28707 y 0.18406 z 0 occ Gd 1.0 ADPs { '
-               'Ho1_u11  0.02159` min 0.0001 max=0.1; '
-               'Ho1_u22  0.00709` min 0.0001 max=0.1; '
-               'Ho1_u33  0.00830` min 0.0001 max=0.1; '
-               'Ho1_u12  0.00343`_LIMIT_MIN_0.0001 min 0.0001 max=0.1; '
-               'Ho1_u13  0.01501` min 0.0001 max=0.1; '
-               'Ho1_u23  0.00112`_LIMIT_MIN_0.0001 min 0.0001 max=0.1; }\n')
+               'site A1 x 0.21111 y 0.18888 z 0 occ Na 1.0 ADPs { '
+               'A1_u11  0.02000` min 0.0001 max=0.1; '
+               'A1_u22  0.00700` min 0.0001 max=0.1; '
+               'A1_u33  0.00800` min 0.0001 max=0.1; '
+               'A1_u12  0.00300`_LIMIT_MIN_0.0001 min 0.0001 max=0.1; '
+               'A1_u13  0.01500` min 0.0001 max=0.1; '
+               'A1_u23  0.00100`_LIMIT_MIN_0.0001 min 0.0001 max=0.1; }\n')
     site = read_topas_inp(inp).phases[0].sites[0]
-    assert site.adps == pytest.approx({"u11": 0.02159, "u22": 0.00709,
-                                       "u33": 0.00830, "u12": 0.00343,
-                                       "u13": 0.01501, "u23": 0.00112})
+    assert site.adps == pytest.approx({"u11": 0.02000, "u22": 0.00700,
+                                       "u33": 0.00800, "u12": 0.00300,
+                                       "u13": 0.01500, "u23": 0.00100})
     assert site.vary["u11"] is True          # the write-back backtick
 
 
 def test_a_positional_slot_carries_its_own_flag_and_evaluated_tail(tmp_path):
-    """`archive file 3`'s second spelling: `=u11Se;: 0.00737` evaluated
+    """`archive file 3`'s second spelling: `=u11A;: 0.00600` evaluated
     tails, bare `0 0` for the u12/u13 slots, and a named sixth slot."""
-    inp = _inp(tmp_path, "sxc.inp",
+    inp = _inp(tmp_path, "tailed_adps.inp",
                'str\nphase_name "P"\nspace_group "P1"\na 5.0\n'
-               'site Se2 x 0.25 y 0.59643 z 0.25 occ Se 1 ADPs { '
-               '=u11Se;:  0.00737`_0.00040 =u22Se;:  0.00000`_0.00035 '
-               '=u33Se;:  0.00200`_0.00035 0 0 u23Se -0.00151`_0.00059 }\n')
+               'site A2 x 0.25 y 0.55555 z 0.25 occ Na 1 ADPs { '
+               '=u11A;:  0.00600`_0.00040 =u22A;:  0.00000`_0.00035 '
+               '=u33A;:  0.00200`_0.00035 0 0 u23A -0.00150`_0.00059 }\n')
     site = read_topas_inp(inp).phases[0].sites[0]
-    assert site.adps == pytest.approx({"u11": 0.00737, "u22": 0.0,
+    assert site.adps == pytest.approx({"u11": 0.00600, "u22": 0.0,
                                        "u33": 0.002, "u12": 0.0,
-                                       "u13": 0.0, "u23": -0.00151})
+                                       "u13": 0.0, "u23": -0.00150})
 
 
 def test_an_adps_slot_this_reader_cannot_resolve_refuses(tmp_path):
@@ -1986,7 +1986,7 @@ def test_an_adps_slot_this_reader_cannot_resolve_refuses(tmp_path):
     inp = _inp(tmp_path, "tied_adps.inp",
                'str\nphase_name "P"\nspace_group "P1"\na 5.0\n'
                'site O1 x 0.5 y 0 z 0 occ O-2 1 ADPs { '
-               'o1_u11  0.01835`_0.00053 = Get(u33); o1_u33  0.06084`_0.00046 '
+               'o1_u11  0.01800`_0.00053 = Get(u33); o1_u33  0.06000`_0.00046 '
                '= 0; = 0; = 0; }\n')
     with pytest.raises(TopasInpError) as exc:
         read_topas_inp(inp)
