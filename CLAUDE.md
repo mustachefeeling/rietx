@@ -478,7 +478,11 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   papers only. **Data carries its own fence, per file**: a PyPI upload publishes harder than a
   repository does, so a file entering the *wheel* (`src/rietx/data/`) states its status where it
   ships — `qarr/*.prn` have none, which is why the four round-robin standards cannot be example
-  projects however small (WP-1204).
+  projects however small (WP-1204). **A private corpus is cited by number, never by name**
+  (2026-09-18 audit): nothing lacking a peer-reviewed citation is public, so TOPAS's and FullProf's
+  corpora are `archive file N`/`corpus file N`, private `yue-here/rietx-corpus-map` holds the map,
+  and a fixture carries synthetic numbers at the file's own column widths. A public teaching
+  download keeps its name; a physics citation keeps its measurement and drops only the specimen.
 
 ## Conventions
 
