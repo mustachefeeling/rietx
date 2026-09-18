@@ -262,6 +262,26 @@ The shipping PR carries `Closes #211`.
   `gui/CLAUDE.md` is line-neutral instead, its four lines over being
   narrative this entry owes.
 
+  **The review pass** (`/code-review high --fix`) found five and four were
+  taken. Two matter beyond this diff. The refusal I wrote gave **false
+  advice**: `hold("phases.*.cell.*")` marks the symmetry-tied and locked rows
+  too, so `set_vary("phases.0.cell.b", True)` told the caller to `unhold` a
+  row `unhold` cannot free, and it now filters to where the hold is the
+  reason that bites — the same filter `blocked_by_hold` uses. And `hold`/
+  `unhold` had **no row in the generated api index**, which every session
+  about to call rietx loads whole, so an agent would read `set_vary(path,
+  False)` there and walk into #211; the gate that should have caught it
+  covers module-level functions in `rx.__all__` only and cannot see a
+  `Refinement` method. Also: `set_held` was quadratic per table build
+  (1.13 → 2.10 ms on the 41-entry synthetic under `hold("*")`, now 1.15), and
+  two dead local `fnmatch` imports went. **Declined the fifth**, and it is
+  worth knowing: `unhold`'s "comes back fixed" is untrue when the recorded
+  free set ends up empty, because `_free_paths` cannot tell "none recorded"
+  from "recorded empty" and `_working_table` then falls back to the models'
+  own flags. The fix is a sentinel or a `vary` write-back, both behaviour
+  changes outside this diff, and plain `set_vary` has the same quirk on
+  `main`.
+
   **Next.** Nothing here. The forward work is filed: WP-1414 (a `turn_on`
   that reached nothing) inherits the channel, the per-fit deduplication and
   the reason a `vary`-keyed report cannot be built; WP-1420 (a held phase
