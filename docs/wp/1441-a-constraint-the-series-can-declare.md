@@ -90,7 +90,7 @@ table is not re-applied by a later write-through.
 - [x] Tests: the tie holds on every pattern; the variable warm-starts and a narrow
       `carry` excludes it; the ladder's rungs and the verify refit see the hook; a
       hook that raises is the caller's error, not a swallowed one
-- [ ] Manual Part 1 (`docs/manual/using/series.md`) and the `parameters`/constraints
+- [x] Manual Part 1 (`docs/manual/using/series.md`) and the `parameters`/constraints
       chapter cross-reference, whichever owns the tie verbs
 - [ ] Skill: a row in the series reference (`references/9b-*`), since a tie on a
       series is a task-shape rule and not a rule for every fit
