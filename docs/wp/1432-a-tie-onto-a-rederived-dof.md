@@ -1,6 +1,6 @@
 # WP-1432 — a tie onto a coordinate DOF, re-applied once per write
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-09-19 — claimed by @yue-here
 Depends on: — (1119 soft — it is that WP's surface this breaks)
 
 ## Goal
