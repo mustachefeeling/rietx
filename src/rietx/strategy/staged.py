@@ -1584,5 +1584,5 @@ def check_guards(table, outcome, threshold: float,
     report.at_bounds = bound_findings(
         table.bounds(), free, outcome.theta,
         cos=getattr(outcome, "residual_cosine", None),
-        esd=outcome.stderr_internal)
+        esd=getattr(outcome, "stderr_internal", None))
     return report
