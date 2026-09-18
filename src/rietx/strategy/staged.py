@@ -1071,7 +1071,7 @@ FLAT_DIRECTION_RHO = 1.0 - 5e-4
 LINDEMANN_RHO = 0.105
 
 
-def biso_melting_bound(volume_a3: float, n_atoms: int) -> float:
+def biso_melting_bound(volume_a3: float, n_atoms: float) -> float:
     """Isotropic B at which an atom in this cell reaches the Lindemann bound.
 
     Three equations from Gilvarry (1956), and no fourth.  Eq (1) writes the
@@ -1139,7 +1139,9 @@ def check_biso_plausible(table, model) -> list[GuardFinding]:
     a number no stage can move.
 
     Needs the compiled model for the site multiplicities, so it returns ``[]``
-    without one — the ``check_stephens_positive`` convention.
+    without one — the ``check_stephens_positive`` convention.  The atom count
+    those multiplicities feed is weighted by occupancy, since the bound is per
+    atom rather than per site.
     """
     from ..crystallography.lattice import cell_volume
 
@@ -1154,9 +1156,16 @@ def check_biso_plausible(table, model) -> list[GuardFinding]:
                 values[f"{base}.cell.a"], values[f"{base}.cell.b"],
                 values[f"{base}.cell.c"], values[f"{base}.cell.alpha"],
                 values[f"{base}.cell.beta"], values[f"{base}.cell.gamma"])
-        except KeyError:  # no cell in this table
+        except KeyError:  # defensive: every phase carries all six cell entries
             continue
-        n_atoms = sum(len(rot) for rot, _tran in cp.sites.ops)
+        # occupancy-weighted, because the bound divides the cell volume by the
+        # number of *atoms* in it and not by the number of sites.  A site at
+        # occ = 0.25 — a cavity cation, a disordered water — puts a quarter of
+        # an atom in the cell, and counting it whole shrinks v and so the
+        # bound, which is the one direction this guard must not err in (its
+        # whole design is the loosest criterion the source quotes).
+        n_atoms = sum(values.get(f"{base}.atoms.{j}.occ", 1.0) * len(rot)
+                      for j, (rot, _tran) in enumerate(cp.sites.ops))
         bound = biso_melting_bound(volume, n_atoms)
         for j, is_aniso in enumerate(cp.sites.aniso):
             if is_aniso:
@@ -1228,8 +1237,8 @@ def check_resolution_positive(table, model) -> list[GuardFinding]:
         u = values["instrument.profile.u"]
         v = values["instrument.profile.v"]
         w = values["instrument.profile.w"]
-    except KeyError:  # no TCHZ block in this table (a Voigt-only instrument)
-        return []
+    except KeyError:  # defensive: ParameterTable always adds the five profile
+        return []     # entries, so nothing in-tree reaches this
 
     tan = np.tan(np.radians(0.5 * tt))
     g2 = u * tan * tan + v * tan + w

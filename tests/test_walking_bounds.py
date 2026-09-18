@@ -396,3 +396,46 @@ def test_the_two_codes_do_not_evict_each_other_in_the_dedup():
     }
     codes = sorted(d.code for d in _dedup_high_correlations(hits))
     assert codes == ["FLAT_DIRECTION", "HIGH_CORRELATION"]
+
+
+def test_each_pair_keyed_code_is_capped_on_its_own_budget():
+    """Finding 9 of this WP's review pass: FLAT_DIRECTION bypassed the cap.
+
+    Every flat pair emits both codes at |ρ| ≈ 1, so a shared budget would have
+    them evict each other on a key that cannot separate them. Separate budgets
+    mean each list is bounded and neither decides the other's contents.
+    """
+    from rietx.schemas.results import (
+        HIGH_CORRELATION_MAX,
+        Diagnostic,
+        _cap_high_correlation,
+    )
+
+    n = HIGH_CORRELATION_MAX + 4
+    rows = []
+    for i in range(n):
+        pair = [f"a.{i}", f"b.{i}"]
+        rows.append(Diagnostic(level="warning", code="HIGH_CORRELATION",
+                               message=f"hc{i}", where=pair, value=-1.0))
+        rows.append(Diagnostic(level="warning", code="FLAT_DIRECTION",
+                               message=f"fd{i}", where=pair, value=-1.0))
+
+    capped = _cap_high_correlation(rows)
+    codes = [d.code for d in capped]
+    assert codes.count("HIGH_CORRELATION") == HIGH_CORRELATION_MAX
+    assert codes.count("FLAT_DIRECTION") == HIGH_CORRELATION_MAX
+    assert codes.count("HIGH_CORRELATION_OMITTED") == 1
+    assert codes.count("FLAT_DIRECTION_OMITTED") == 1
+
+    omitted = {d.code: d.value for d in capped if d.code.endswith("_OMITTED")}
+    assert omitted["HIGH_CORRELATION_OMITTED"] == pytest.approx(4.0)
+    assert omitted["FLAT_DIRECTION_OMITTED"] == pytest.approx(4.0)
+
+
+def test_the_cap_leaves_a_short_list_alone():
+    """Below the budget nothing is rewritten, and no OMITTED row appears."""
+    from rietx.schemas.results import Diagnostic, _cap_high_correlation
+
+    rows = [Diagnostic(level="warning", code="FLAT_DIRECTION",
+                       message="fd", where=["a", "b"], value=-1.0)]
+    assert _cap_high_correlation(rows) == rows

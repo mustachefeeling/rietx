@@ -2100,6 +2100,15 @@ class Refinement:
         against a truth of 4.15660, and the warning survived.  It cost two
         rounds of misdirected analysis on a real capillary fit.
 
+        ``RESOLUTION_NOT_POSITIVE`` and ``BISO_UNUSUALLY_LARGE`` (WP-1311) are
+        re-taken the same way.  Each reads one number off the values its stage
+        landed on, so both make the same kind of claim a bound hit does.  A
+        plan whose later stages repair the resolution otherwise reports an
+        earlier stage's collapse on an answer that is physical: measured on
+        ``make_lab6`` from a schema-legal U, V, W with the quadratic negative
+        across the scan, the five-stage ``mccusker_default`` converges at
+        min Γ_G² = +0.084 deg² and carried four copies of the warning.
+
         The final guard is therefore the only one that speaks here, which is
         also what makes WP-1076's set-equality true rather than nearly true:
         ``RefinedParameter.at_bound`` has always been projected from
@@ -2128,7 +2137,7 @@ class Refinement:
                     # key of the pair alone would let one evict the other
                     correlation_hits.setdefault(
                         (d.code, frozenset(d.where)), []).append((stage.name, d))
-                elif d.code == "BOUND_HIT":
+                elif d.code in _REVISABLE_CODES:
                     continue          # re-taken on the converged vector below
                 else:
                     diagnostics.append(d)
@@ -2160,11 +2169,11 @@ class Refinement:
                     # schedule), because a cherry-pick re-runs what happened
                     ftol=ftol, window_slack_deg=stage.window_slack_deg,
                 ), model, table, outcome, stage_diagnostics)
-        # the converged vector's own bound findings, and nothing earlier: the
-        # same ``guard`` object ``_build_result`` projects ``at_bound`` from
+        # the converged vector's own findings, and nothing earlier: the same
+        # ``guard`` object ``_build_result`` projects ``at_bound`` from
         if guard is not None:
             diagnostics.extend(d for d in _guard_diagnostics(guard)
-                               if d.code == "BOUND_HIT")
+                               if d.code in _REVISABLE_CODES)
         diagnostics.extend(_dedup_high_correlations(correlation_hits))
         return model, outcome, guard, stage_results, diagnostics
 
@@ -2705,6 +2714,17 @@ class Refinement:
 # ----------------------------------------------------------------------
 # module-level helpers
 # ----------------------------------------------------------------------
+#: Guard codes that are **discarded per stage and re-taken on the converged
+#: vector** rather than accumulated (WP-1310 for the first, WP-1311 for the
+#: other two).  Each reads a number straight off the values a stage landed on,
+#: so it describes a *vector* and not a run: a plan exists to let an early
+#: stage absorb an error a later one corrects, and an intermediate state's
+#: finding on the final result is a claim about a fit that no longer holds.
+#: Every stage's own copy stays on its ``StageReport`` and its history node.
+_REVISABLE_CODES = ("BOUND_HIT", "RESOLUTION_NOT_POSITIVE",
+                    "BISO_UNUSUALLY_LARGE")
+
+
 def _guard_diagnostics(guard) -> list[Diagnostic]:
     """Guard findings as diagnostics — one prose message per :class:`GuardFinding`.
 
@@ -2769,7 +2789,9 @@ def _guard_diagnostics(guard) -> list[Diagnostic]:
                     "rank of the data rather than a strong correlation: one "
                     "direction of the two is not measured at all, and each "
                     "esd is conditional on the other parameter being right",
-            suggestion="do not quote both. Fix one at an independently known "
+            suggestion="quote neither as measured from this fit — one is "
+                       "as unmeasured as the other and the report cannot say "
+                       "which. Fix one at an independently known "
                        "value and refine the other, or free them in "
                        "different stages, and say in the result which one was "
                        "held. Widening the fitted range or adding a second "
@@ -2864,7 +2886,7 @@ def _guard_diagnostics(guard) -> list[Diagnostic]:
 
 
 def _dedup_high_correlations(
-    hits: dict[frozenset, list[tuple[str, Diagnostic]]],
+    hits: dict[tuple[str, frozenset], list[tuple[str, Diagnostic]]],
 ) -> list[Diagnostic]:
     """One ``HIGH_CORRELATION`` (and one ``FLAT_DIRECTION``) per pair.
 
@@ -2880,7 +2902,11 @@ def _dedup_high_correlations(
     apart without re-running the fit.
     """
     out = []
-    for (_code, pair), stage_hits in hits.items():
+    # ``.values()``, never an unpack of the key: a two-element ``frozenset``
+    # unpacks into ``(code, pair)`` without complaint, so a caller still
+    # passing the pre-WP-1311 key shape would be served silently rather than
+    # raising.  Nothing here reads the key — the paths come off ``worst``.
+    for stage_hits in hits.values():
         stage_names = list(dict.fromkeys(name for name, _ in stage_hits))
         worst = max(stage_hits, key=lambda sd: abs(sd[1].value))[1]
         message = worst.message if len(stage_names) == 1 else (

@@ -893,35 +893,59 @@ def _stage_lines(stages: list[StageResult], max_shift_over_esd: float | None) ->
 HIGH_CORRELATION_MAX = 10
 
 
-def _cap_high_correlation(diagnostics: list[Diagnostic]) -> list[Diagnostic]:
-    """Bound ``HIGH_CORRELATION`` at :data:`HIGH_CORRELATION_MAX`, worst first,
-    for **rendering only** — see that constant's docstring for why this must
-    never be applied to a stored diagnostics list.
+#: The pair-keyed codes :func:`_cap_high_correlation` bounds, each as
+#: ``(code, its omitted-count code, what one row is called)``.
+#:
+#: **Each gets its own budget of** :data:`HIGH_CORRELATION_MAX`, never a shared
+#: one.  A flat direction emits a ``FLAT_DIRECTION`` *and* the
+#: ``HIGH_CORRELATION`` it sharpens (WP-1311), and both carry |ρ| ≈ 1, so one
+#: budget would make them compete for the same ten slots on a key that cannot
+#: separate them — which of the two survives would then be decided by sort
+#: stability rather than by anything about the fit.
+_CAPPED_PAIR_CODES = (
+    ("HIGH_CORRELATION", "HIGH_CORRELATION_OMITTED", "correlated pair"),
+    ("FLAT_DIRECTION", "FLAT_DIRECTION_OMITTED", "flat direction"),
+)
 
-    Every other code passes through untouched and in place; the correlation
-    entries are pulled out, ordered by |ρ|, truncated, and the survivors
-    appended where the last one used to sit.
-    """
-    is_hc = [d.code == "HIGH_CORRELATION" for d in diagnostics]
-    if sum(is_hc) <= HIGH_CORRELATION_MAX:
+
+def _cap_one_code(diagnostics: list[Diagnostic], code: str, omitted_code: str,
+                  noun: str) -> list[Diagnostic]:
+    """One code's rows bounded at :data:`HIGH_CORRELATION_MAX`, worst |ρ| first."""
+    is_hit = [d.code == code for d in diagnostics]
+    if sum(is_hit) <= HIGH_CORRELATION_MAX:
         return diagnostics
-    correlated = sorted((d for d, hc in zip(diagnostics, is_hc) if hc),
-                        key=lambda d: abs(d.value) if d.value is not None else 0.0,
-                        reverse=True)
-    kept, omitted = correlated[:HIGH_CORRELATION_MAX], correlated[HIGH_CORRELATION_MAX:]
-    out = [d for d, hc in zip(diagnostics, is_hc) if not hc]
-    last_hc = max(i for i, hc in enumerate(is_hc) if hc)
-    insert_at = sum(not hc for hc in is_hc[:last_hc + 1])
+    hits = sorted((d for d, hit in zip(diagnostics, is_hit) if hit),
+                  key=lambda d: abs(d.value) if d.value is not None else 0.0,
+                  reverse=True)
+    kept, omitted = hits[:HIGH_CORRELATION_MAX], hits[HIGH_CORRELATION_MAX:]
+    out = [d for d, hit in zip(diagnostics, is_hit) if not hit]
+    last_hit = max(i for i, hit in enumerate(is_hit) if hit)
+    insert_at = sum(not hit for hit in is_hit[:last_hit + 1])
     out[insert_at:insert_at] = [*kept, Diagnostic(
-        level="info", code="HIGH_CORRELATION_OMITTED", where=[],
+        level="info", code=omitted_code, where=[],
         value=float(len(omitted)),
-        message=f"{len(omitted)} more correlated pair(s) below the "
+        message=f"{len(omitted)} more {noun}(s) below the "
                 f"{HIGH_CORRELATION_MAX} shown here, weaker than all of them",
         suggestion="result.identifiability carries the full correlation "
                    "matrix and top_correlations list — nothing here was "
                    "dropped from the fit, only from this message",
     )]
     return out
+
+
+def _cap_high_correlation(diagnostics: list[Diagnostic]) -> list[Diagnostic]:
+    """Bound each pair-keyed code at :data:`HIGH_CORRELATION_MAX`, worst first,
+    for **rendering only** — see that constant's docstring for why this must
+    never be applied to a stored diagnostics list.
+
+    Every other code passes through untouched and in place; a bounded code's
+    entries are pulled out, ordered by |ρ|, truncated, and the survivors
+    appended where the last one used to sit.  Which codes, and why each has its
+    own budget: :data:`_CAPPED_PAIR_CODES`.
+    """
+    for code, omitted_code, noun in _CAPPED_PAIR_CODES:
+        diagnostics = _cap_one_code(diagnostics, code, omitted_code, noun)
+    return diagnostics
 
 
 #: What ``summary(deliverable=…)`` accepts, on a result and on a series alike
