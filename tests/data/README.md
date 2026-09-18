@@ -1039,7 +1039,10 @@ research inputs under no uniform, redistributable licence — a format's *facts*
 may be read from them (that reasoning is in `ATTRIBUTION.md`), the bytes may not
 be shipped. `tests/test_projects_topas.py` synthesizes every fixture inline, and
 this section records what the real files established, since that is then the only
-place the reader's design is checkable.
+place the reader's design is checkable. The files are the maintainer's
+unpublished research data, so each is cited here and in the reader as
+`archive file N`. The map from number to file is in the private
+`yue-here/rietx-corpus-map`.
 
 Reader outcome over the 606-file catalogue (`read_topas_inp` then
 `projects.topas.to_structure`,
@@ -1088,7 +1091,10 @@ archive, and **none is vendored**, for the same reason and under the same
 `ATTRIBUTION.md` reasoning — they are a collaborator's and an owner's working
 research inputs under no uniform, redistributable licence. A format's *facts*
 may be read from them; the bytes may not be shipped.
-`tests/test_projects_fullprof.py` synthesizes every fixture inline. This section
+`tests/test_projects_fullprof.py` synthesizes every fixture inline, with
+synthetic values rather than the files' own. The six are cited as
+`corpus file 1` to `6`, and the map from number to file is in the private
+`yue-here/rietx-corpus-map`. This section
 is therefore the only place the real-file evidence is checkable, which is what
 `io/CLAUDE.md` § Adding a format, step 1 requires of a format with no vendorable
 file.

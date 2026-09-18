@@ -16,7 +16,8 @@ alternative is hunting CIFs that may not match what was actually fitted.
 written from archive files, which finds the bugs one lab's dialect happens to
 contain and does not terminate. The archive is the maintainer's own unpublished
 research data, so its files are cited as **archive file 1** onwards and the map
-from number to file is not public. The model below is derived from TOPAS Academic's
+from number to file is not public; the maintainer holds it in the private
+repository ``yue-here/rietx-corpus-map``. The model below is derived from TOPAS Academic's
 own *Technical Reference* instead, and the archive is used to corroborate and to
 prioritise. Where the two disagreed, the reference won and the code moved.
 

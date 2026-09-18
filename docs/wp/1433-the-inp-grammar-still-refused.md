@@ -164,7 +164,7 @@ and is not committed either.
 ```
 
 The bar is files rather than tests. The `STR(...)` files build the phases they
-state, and `archive file 21` reads from the workshop archive as it
+state, and `d8_01612_vt_reel_02.inp` reads from the workshop archive as it
 ships, at the model WP-1130 got from its stripped scratchpad copy.
 
 ## References

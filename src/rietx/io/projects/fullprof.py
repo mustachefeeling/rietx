@@ -7,7 +7,8 @@ FullProf code was read, no source file was consulted, and every layout fact
 below is quoted in a comment from a real file at a real line so that the
 evidence for it is checkable. The corpus is the maintainer's own unpublished
 research data, so the files are cited as **corpus file 1** to **6** and the map
-from number to file is not public. Where a real file is the *only* evidence for a block's position,
+from number to file is not public; the maintainer holds it in the private
+repository ``yue-here/rietx-corpus-map``. Where a real file is the *only* evidence for a block's position,
 that is said, and where there is no evidence at all the construct is **refused
 by name** rather than parsed on a guess.
 

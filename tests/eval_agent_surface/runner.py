@@ -203,8 +203,10 @@ def check_episode_inputs(episode: str, zrm: Path | None) -> None:
     if zrm is None:
         raise SystemExit(
             "E-ZRM needs --zrm DIR holding d8_01612.raw and "
-            "d8_01612_vt_reel_02.inp; the files are a third party's and are "
-            "not committed (PROTOCOL.md § The episodes)")
+            "d8_01612_vt_reel_02.inp. They are a third party's, so they are "
+            "not committed, but they are a public download: the Durham TOPAS "
+            "workshop dataset zrmo2o8_vt.zip, whose URL is in PROTOCOL.md "
+            "§ The episodes.")
     for name in ZRM_FILES:
         if not (zrm / name).is_file():
             raise SystemExit(f"missing {zrm / name}")
