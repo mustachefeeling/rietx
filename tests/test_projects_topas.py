@@ -227,9 +227,9 @@ SITE_LINES = [
     # the species as a number picked up the word "beq" and raised ValueError
     ("site A1 x 0.5 y 0. z 0.5 occ Sr+2 beq 0.7650`",
      (0.5, 0.0, 0.5), 1.0, 0.7650),
-    # a partial occupancy with a flag and a name
-    ("site A1 x 0.5 y 0.5 z 0.5 occ La+3 !LSF_occ_La 0.6 vcocc beq bval1 2.02",
-     (0.5, 0.5, 0.5), 0.6, 2.02),
+    # a partial occupancy with a flag and a name, carrying `vcocc`
+    ("site A1 x 0.5 y 0.5 z 0.5 occ Na+1 !occ_A1 0.5 vcocc beq bval1 1.5",
+     (0.5, 0.5, 0.5), 0.5, 1.5),
 ]
 
 
@@ -296,7 +296,7 @@ def test_a_token_with_no_number_never_escapes_as_a_bare_valueerror(tmp_path):
     """Root CLAUDE.md: a reader raises naming the file, never its parser's
     exception. Three archive files reached ``ValueError('beq')`` this way."""
     inp = _inp(tmp_path, "s.inp", 'str\nphase_name "P"\nspace_group "P1"\na 5.0\n'
-                   'site A1 x 0 y 0 z 0 occ La+3 !LSF_cubic_occ_La beq b 0.5\n')
+                   'site A1 x 0 y 0 z 0 occ Na+1 !occ_A1 beq b 0.5\n')
     model = read_topas_inp(inp)          # must not raise ValueError
     assert model.phases[0].sites[0].occupancy == pytest.approx(1.0)
 
@@ -895,7 +895,7 @@ def test_a_write_back_backtick_after_an_evaluated_tail_is_read_as_refined(tmp_pa
     ("occ Ca+2 !n 0.6", False),
     ("occ Ca !n 0.6", False),        # uncharged but *named*: also lost
     ("occ Si !ph1_Si 0.8000", False),        # SiGe_LiCl-KCl_grey_PVII.inp
-    ("occ La+3 !LSF_occ_La 0.6 vcocc", False),   # lasf_longruns_riet_07.inp
+    ("occ Na+1 !occ_A1 0.5 vcocc", False),   # named and flagged, plus `vcocc`
     ("occ Na+1 1", None),            # the file says nothing
 ])
 def test_an_occupancys_flag_is_read_whatever_the_species(occ, expected):
@@ -1980,10 +1980,10 @@ def test_a_positional_slot_carries_its_own_flag_and_evaluated_tail(tmp_path):
 
 
 def test_an_adps_slot_this_reader_cannot_resolve_refuses(tmp_path):
-    """`lasf_longruns_riet_07.inp`'s spelling ties slots with `= Get(u33);`, a
+    """One archive spelling ties `ADPs` slots with `= Get(u33);`, a
     TOPAS function this reader does not have — a stated slot it cannot resolve,
     refused by finding 4's rule rather than substituted."""
-    inp = _inp(tmp_path, "lasf.inp",
+    inp = _inp(tmp_path, "tied_adps.inp",
                'str\nphase_name "P"\nspace_group "P1"\na 5.0\n'
                'site O1 x 0.5 y 0 z 0 occ O-2 1 ADPs { '
                'o1_u11  0.01835`_0.00053 = Get(u33); o1_u33  0.06084`_0.00046 '
@@ -2074,21 +2074,22 @@ def test_strip_comments_apostrophe_delimiters_are_not_block_comments():
 
 
 def test_the_apostrophe_block_comment_idiom_keeps_the_phase_active(tmp_path):
-    """Built from a minimal reproduction of `TOF neutron input LSF.inp` (ORNL
-    NOMAD), where `'/*` and `'*/` enable one of three refinements. `strip_comments`
-    removed `/* */` first and deleted the active phase; the fix reads it."""
+    """Built from a minimal reproduction of the archive idiom, where `'/*` and
+    `'*/` hold three refinements in one input and enable one of them.
+    `strip_comments` removed `/* */` first and deleted the active phase; the fix
+    reads it."""
     inp = _inp(tmp_path, "idiom.inp",
                "' a header\n"
                "/* la 1 lo 0.7093 */\n"          # a real block comment: dead
                "'/*\n"
-               'str\nphase_name "LSF rhombohedral"\nspace_group "R-3cH"\n'
-               'a 5.537319`\nb 5.537319`\nc 13.561602`\nal 90 be 90 ga 120\n'
-               'site La1 x 0 y 0 z 0.25 occ La+3 .6 beq bl 1.14\n'
+               'str\nphase_name "trigonal phase"\nspace_group "R-3cH"\n'
+               'a 5.0`\nb 5.0`\nc 13.0`\nal 90 be 90 ga 120\n'
+               'site A1 x 0 y 0 z 0.25 occ Na+1 .5 beq bl 1.0\n'
                "'*/\n")
     model = read_topas_inp(inp)
-    assert [p.name for p in model.phases] == ["LSF rhombohedral"]
+    assert [p.name for p in model.phases] == ["trigonal phase"]
     assert model.wavelength is None          # the real /* */ block was stripped
-    assert model.phases[0].cell["c"] == pytest.approx(13.561602)
+    assert model.phases[0].cell["c"] == pytest.approx(13.0)
 
 
 # ============================================================= round-four review

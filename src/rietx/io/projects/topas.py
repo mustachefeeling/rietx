@@ -361,8 +361,8 @@ def strip_comments(text: str) -> str:
     The block and line comments are stripped in **one pass**, not block-first,
     because the two interact: the ``'/*`` idiom comments out the block-comment
     *delimiter itself*, so the phase between a ``'/*`` and a ``'*/`` is **live**
-    (real, measured — ``TOF neutron input LSF.inp`` in the ORNL NOMAD archive
-    uses it to enable one of three refinements). Stripping ``/* */`` first with
+    (real, measured — an archive file uses it to hold three refinements in one
+    input and enable one of them). Stripping ``/* */`` first with
     a regex read the ``/*`` in ``'/*`` as opening a block and deleted that live
     phase. So a ``/*`` or ``*/`` preceded on its line by an unquoted ``'`` is
     itself comment text and opens/closes nothing: the ``'`` line comment is
