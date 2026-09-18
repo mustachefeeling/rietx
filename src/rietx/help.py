@@ -797,7 +797,10 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
             "too-flexible background biases first. A negative B is "
             "unphysical and the bound is at 0; a refined B above about 5 Å² "
             "for a heavy atom usually means an absorption or background error "
-            "rather than a real displacement."
+            "rather than a real displacement. The schema also caps it at "
+            "25 Å², which is this package's own default and not what other "
+            "Rietveld codes do: pass your own Parameter with a wider max to "
+            "refine a specimen that runs hotter than that."
         ),
         unit="Å²", default="0.5",
         typical="0.2-2 Å² for an inorganic framework at room temperature",
