@@ -39,8 +39,10 @@ import numpy as np
 import pytest
 
 import rietx as rx
+import rietx.strategy.magnetic as _magnetic_module
 from rietx.crystallography.magnetic.form_factor import assumed_lande_g
 from rietx.crystallography.magnetic.isotropy import candidates
+from rietx.crystallography.magnetic.moments import SEED_TILT, tilted_seed, warm_seed
 from rietx.crystallography.symmetry import (
     refuse_an_unnamed_parent,
     resolve_group,
@@ -50,9 +52,13 @@ from rietx.schemas.common import Parameter
 from rietx.schemas.structure import Atom, Cell, MagneticSymmetry, Moment, Phase
 from rietx.strategy.magnetic import (
     SOLVE_TIE_DELTA_BIC,
+    MagneticSolution,
     MagneticTrial,
     MomentRow,
+    _descend,
+    _maximal_subgroups,
     _rank,
+    _tie_lattice_lines,
     magnetic_channels,
     r_magnetic,
 )
@@ -1010,3 +1016,345 @@ def test_an_unnamed_parent_also_threads_through_the_k_nonzero_supercell_route():
     assert solution.k == ("0", "0", "1/2")
     assert solution.verdict == "solved", solution.reason
     assert solution.best.bns_number == truth.bns_number
+
+
+# =========================================================================
+# WP-1418: the two negative-margin sweep entries (stage (a)); a kernel/
+# general-direction candidate's seed (stage (b)); the descent audit after
+# selection (stage (c)); the group-subgroup lattice among near-ties (d).
+# =========================================================================
+
+def _solution(trials, tied, verdict, why, tie_width=SOLVE_TIE_DELTA_BIC):
+    """The minimum ``MagneticSolution`` a ``_rank`` output needs to exercise
+    ``.margin``/``__str__`` without running the whole ``solve_magnetic`` chain."""
+    return MagneticSolution(
+        verdict=verdict, reason=why, criterion="test", phase="p",
+        space_group="P 1", k=("0", "0", "0"), k_route="given by the caller",
+        k_reason="test", k_candidates=(), sites=("Mn1",),
+        n_residual_peaks=0, n_on_nuclear_lines=0,
+        n_on_forbidden_lattice_points=0, n_unexplained=0,
+        trials=trials, tied=tied, tie_width=tie_width, d_min=1.5,
+        nuclear_rwp=None, nuclear_gof=None, nuclear_r_magnetic=None,
+        n_magnetic_channels=0)
+
+
+# ------------------------------------------------------- stage (a): margin --
+
+def test_margin_is_the_true_gap_between_two_eligible_classes():
+    winner = _trial(0, delta_bic=200.0, r_mag=0.1, free=2, bns="1.1")
+    runner_up = _trial(1, delta_bic=140.0, r_mag=0.2, free=1, bns="1.2")
+    ordered, tied, verdict, why = _rank((winner, runner_up), SOLVE_TIE_DELTA_BIC, 0.02)
+    assert _solution(ordered, tied, verdict, why).margin == pytest.approx(60.0)
+
+
+def test_margin_is_none_not_negative_when_the_second_row_is_disqualified():
+    """The mechanism behind the two negative-margin sweep entries, ``0.37``
+    and ``0.710`` (``checks/MAGNDATA_SWEEP_STAGE3_20260918.md``).
+    ``MagneticSolution.trials`` is eligible classes (best ΔBIC first) **then**
+    the disqualified ``rest``, each sorted by its own raw ΔBIC — so an
+    unsupported model that happens to fit the noise better than the true
+    winner (a real possibility: BIC alone does not know the null test
+    disqualified it) sorts second and carries a *higher* raw ΔBIC.  A naive
+    ``trials[0].delta_bic - trials[1].delta_bic`` diff against it is negative;
+    ``_rank`` never considered that class a competitor in the first place, and
+    ``.margin`` says so by returning ``None``, never a negative number.
+    """
+    winner = _trial(0, delta_bic=225.0, r_mag=0.1, free=8, bns="5.13")
+    disqualified = _trial(1, delta_bic=533.0, r_mag=0.1, free=8, bns="5.15",
+                          supported=False)
+    ordered, tied, verdict, why = _rank((winner, disqualified),
+                                        SOLVE_TIE_DELTA_BIC, 0.02)
+    assert verdict == "solved"
+    assert ordered[0].bns_number == "5.13"
+    assert ordered[1].bns_number == "5.15"
+    naive_margin = ordered[0].delta_bic - ordered[1].delta_bic
+    assert naive_margin < 0.0, "this is the bug's own shape, reproduced"
+    assert _solution(ordered, tied, verdict, why).margin is None
+
+
+def test_margin_is_none_on_an_abstention():
+    tied_trials = (_trial(0, delta_bic=10.0, r_mag=0.1, free=1, bns="1.1"),
+                  _trial(1, delta_bic=9.0, r_mag=0.1, free=1, bns="1.2"))
+    ordered, tied, verdict, why = _rank(tied_trials, SOLVE_TIE_DELTA_BIC, 0.02)
+    assert verdict == "abstained"
+    assert _solution(ordered, tied, verdict, why).margin is None
+
+
+# ------------------------------------------------- stage (b): the seed tilt --
+
+def test_a_rank_one_basis_seed_is_untouched_by_the_tilt():
+    """Negative control: a single-copy, one-amplitude basis (the ordinary
+    case, every site this workflow refined before WP-1418) is bit-identical
+    to the pre-fix seed, whatever the tilt."""
+    basis = [[1, 0, 0]]
+    cell = (4.0, 4.0, 4.2, 90.0, 90.0, 90.0)
+    old = tilted_seed(basis, cell, 3.0, tilt=0.0)
+    new = tilted_seed(basis, cell, 3.0, tilt=SEED_TILT)
+    assert np.allclose(old, new)
+    assert np.allclose(new, [3.0, 0.0, 0.0])
+
+
+def test_a_rank_two_basis_seed_moves_every_row_and_keeps_the_modulus():
+    """The bug's own shape: tilt = 0 places nothing at all on the second row
+    — the angle DOF then starts at exactly the value of pointing along the
+    first, WP-1418's stationary-point mechanism.  ``SEED_TILT`` does not, and
+    the modulus is exactly what was asked for either way (the frame is
+    metric-orthonormal by construction, so a unit-Euclidean-norm coefficient
+    vector gives a unit modulus automatically)."""
+    basis = [[1, 0, 0], [0, 1, 0]]
+    cell = (4.0, 4.0, 4.2, 90.0, 90.0, 90.0)
+    old = tilted_seed(basis, cell, 3.0, tilt=0.0)
+    new = tilted_seed(basis, cell, 3.0, tilt=SEED_TILT)
+    assert old[1] == pytest.approx(0.0, abs=1e-12)
+    assert abs(new[1]) > 1e-3
+    assert np.linalg.norm(old) == pytest.approx(3.0)
+    assert np.linalg.norm(new) == pytest.approx(3.0)
+
+
+def test_warm_seed_keeps_the_preferred_direction_and_tilts_the_rest():
+    """``warm_seed`` (stage (c)'s own seed): anchored on a caller-given
+    direction rather than the basis's own row 0, for warm-starting a subgroup
+    refit from a supergroup's converged moment."""
+    basis = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+    cell = (5.0, 5.0, 5.0, 90.0, 90.0, 90.0)
+    preferred = (0.0, 4.0, 0.0)
+    seed = warm_seed(basis, cell, preferred)
+    assert np.linalg.norm(seed) == pytest.approx(4.0)
+    cos_to_preferred = float(np.dot(seed, preferred) / (4.0 * 4.0))
+    assert cos_to_preferred > 0.97        # mostly along the preferred direction
+    assert seed[0] != 0.0 and seed[2] != 0.0    # the other two rows still tilted
+
+
+def test_warm_seed_falls_back_to_the_ordinary_seed_at_zero_preferred():
+    """An atom whose winner moment was itself ~zero has nothing to anchor
+    on; it still gets a real (nonzero) seed rather than staying at zero."""
+    basis = [[1, 0, 0], [0, 1, 0]]
+    cell = (5.0, 5.0, 5.0, 90.0, 90.0, 90.0)
+    seed = warm_seed(basis, cell, (0.0, 0.0, 0.0))
+    assert np.linalg.norm(seed) > 0.0
+
+
+@pytest.mark.slow
+def test_the_pre_fix_seed_leaves_a_general_direction_stuck_at_its_special_case(
+       monkeypatch):
+    """WP-1418 stage (b), the mechanism verified end to end, not only inside
+    ``tilted_seed`` itself.  P4/mmm's own S10 irrep at (0,0,0) gives a genuine
+    general direction ("(a,b)", BNS 10.46, rank 2 at this atom) whose
+    stabiliser is a real operator-list subgroup of the special direction's
+    ("(a)", BNS 47.252, rank 1) — verified directly, not asserted.  Refit from
+    a pattern simulated at a genuinely general moment (both components
+    nonzero, neither along a symmetry axis), the pre-fix seed (tilt = 0,
+    monkeypatched) never moves the second component off exactly zero; the fix
+    does.
+
+    **What this test does not claim.**  It does not claim the fit reaches a
+    lower χ² with the fix — measured directly, Rwp is bit-identical either
+    way (to 1e-6): the equivalence machinery already merges 47.252/65.486/
+    10.46 into one powder-equivalence class
+    (``analyse(candidates("P 4/m m m", (0,0,0), (0,0,0)))``, smallest first)
+    before ``solve_magnetic`` ever refines the general one on its own — the
+    same residual symmetry that pins the second DOF at zero is what makes the
+    direction powder-degenerate, so failing to explore it costs nothing here.
+    Flagged in the report rather than overclaimed: this session did not find
+    a case where the fix changes a ranking outcome, only where it changes
+    what the *reported direction* honestly says.
+    """
+    instrument = neutron()
+    general = candidate_named("P 4/m m m", (0.0, 0.0, 0.0), (0, 0, 0), "10.46")
+    special = candidate_named("P 4/m m m", (0.0, 0.0, 0.0), (0, 0, 0), "47.252")
+    ops_g, _ = general.group.xyz_strings()
+    ops_s, _ = special.group.xyz_strings()
+    assert set(ops_g) < set(ops_s), "10.46 must be a genuine subgroup of 47.252"
+    truth_xyz = tuple(float(v) for v in general.moments([2.4, 0.9])[0])
+    data = simulate(stated(tetragonal, general, truth_xyz), instrument, seed=20260918)
+    magnetic = [(0, "Mn1", "Mn3+")]
+    plan = rx.RefinementPlan(stages=[rx.Stage(
+        "moment", ["phases.*.atoms.*.moment.dof*", "phases.*.scale",
+                  "instrument.background.c*"])])
+
+    def refit(tilt):
+        monkeypatch.setattr(_magnetic_module, "SOLVE_SEED_TILT", tilt)
+        child = _magnetic_module._state_k0(tetragonal(), general, magnetic,
+                                          _magnetic_module.SOLVE_SEED_MU_B, {})
+        structure = rx.Structure(phases=[child])
+        return _magnetic_module._fit(structure, instrument, data, plan)
+
+    ref_stuck, stuck = refit(0.0)
+    ref_fixed, fixed = refit(SEED_TILT)
+    assert ref_stuck.fitted_structure.phases[0].atoms[0].moment.crystalaxis_y.value \
+        == pytest.approx(0.0, abs=1e-9)
+    assert abs(ref_fixed.fitted_structure.phases[0].atoms[0].moment
+              .crystalaxis_y.value) > 1e-3
+    assert stuck.statistics.rwp == pytest.approx(fixed.statistics.rwp, abs=1e-6)
+
+
+# --------------------------------------------- stage (c): the descent audit --
+
+def test_maximal_subgroups_finds_a_genuine_operator_list_subgroup():
+    cs = candidates("P 4/m m m", (0.0, 0.0, 0.0), (0, 0, 0))
+    by_bns = {c.bns_number: c for c in cs}
+    winner = by_bns["47.252"]
+    classes = [((c.label,), c, "Mn1") for c in
+              (by_bns["65.486"], by_bns["10.46"], by_bns["123.345"])]
+    found = _maximal_subgroups(winner, classes)
+    assert [c.bns_number for _i, _m, c, _s in found] == ["10.46"]
+
+
+def test_maximal_subgroups_drops_one_nested_inside_another_found_one():
+    """A genuine three-level chain (F m -3 m at (0,0,0), S4's own directions):
+    the fully general direction (BNS 2.4) is a subgroup of one of the two
+    ``12.62`` domains (verified directly), which is itself a subgroup of the
+    winner (71.536) — ``2.4`` must not be reported, since refitting it would
+    only repeat what the larger ``12.62`` subgroup already tests.  The other
+    ``12.62`` domain is *not* a subgroup of this particular winner (a
+    different domain of the same label, verified directly) and must not be
+    reported either — ``_maximal_subgroups`` only ever returns genuine
+    subgroups, whatever else shares a class's bare label.
+    """
+    cs = candidates("F m -3 m", (0.0, 0.0, 0.0), (0, 0, 0))
+    winner = next(c for c in cs if c.bns_number == "71.536")
+    twelves = [c for c in cs if c.bns_number == "12.62"]
+    general = next(c for c in cs if c.bns_number == "2.4")
+    ops_g, _ = general.group.xyz_strings()
+    ops_t0, _ = twelves[0].group.xyz_strings()
+    ops_t1, _ = twelves[1].group.xyz_strings()
+    ops_w, _ = winner.group.xyz_strings()
+    assert set(ops_g) < set(ops_t0), "2.4 must nest inside twelves[0]"
+    assert set(ops_t0) < set(ops_w), "twelves[0] must be a genuine subgroup of the winner"
+    assert not set(ops_t1) < set(ops_w), "twelves[1] must not be"
+    classes = [((c.label,), c, "site") for c in (*twelves, general)]
+    found = _maximal_subgroups(winner, classes)
+    assert len(found) == 1
+    assert found[0][2] is twelves[0]
+
+
+@pytest.mark.slow
+def test_descend_reports_a_subgroup_and_does_not_let_it_win_on_noise():
+    """The negative control the brief itself names: a pattern simulated from
+    the *true* special direction (BNS 71.536, F m -3 m at (0,0,0)) must not
+    have its subgroup (BNS 12.62, one extra free amplitude) beat it beyond
+    the tie width once refit from the winner's own solution — the extra
+    freedom has nothing real to buy on this data."""
+    instrument = neutron()
+    cs = candidates("F m -3 m", (0.0, 0.0, 0.0), (0, 0, 0))
+    winner_candidate = next(c for c in cs if c.bns_number == "71.536")
+    sub_candidate = next(c for c in cs if c.bns_number == "12.62")
+
+    def cubic(moment=None, magnetic=None) -> Phase:
+        return Phase(
+            name="cubic", space_group="F m -3 m", cell=_cell(4.0, 4.0, 4.0),
+            atoms=[_atom("Mn1", "Mn", (0.0, 0.0, 0.0), moment=moment),
+                   _atom("O1", "O", (0.25, 0.25, 0.25), biso=0.6)],
+            magnetic_symmetry=magnetic)
+
+    magnetic = [(0, "Mn1", "Mn3+")]
+    plan = rx.RefinementPlan(stages=[rx.Stage(
+        "moment", ["phases.*.atoms.*.moment.dof*", "phases.*.scale",
+                  "instrument.background.c*"])])
+    truth_xyz = tuple(float(v) for v in winner_candidate.moments([3.0])[0])
+    data = simulate(stated(cubic, winner_candidate, truth_xyz), instrument,
+                    seed=20260918)
+
+    child = _magnetic_module._state_k0(cubic(), winner_candidate, magnetic,
+                                      _magnetic_module.SOLVE_SEED_MU_B, {})
+    winner_ref, winner_result = _magnetic_module._fit(
+        rx.Structure(phases=[child]), instrument, data, plan)
+    winner_trial = MagneticTrial(
+        class_index=0, representative=winner_candidate.label,
+        members=(winner_candidate.label,), site="Mn1",
+        irrep=winner_candidate.irrep_label,
+        direction=winner_candidate.direction.label,
+        bns_number=winner_candidate.bns_number, uni_number=None, msg_type=1,
+        free_amplitudes=winner_candidate.free_amplitudes,
+        determinable_amplitudes=1, status="refined",
+        rwp=float(winner_result.statistics.rwp),
+        gof=float(winner_result.statistics.gof), delta_bic=999.0,
+        r_magnetic=None, n_moment_parameters=1,
+        n_free_parameters=int(winner_result.statistics.n_free_parameters),
+        _structure=winner_ref.fitted_structure, _result=winner_result)
+    classes = [((sub_candidate.label,), sub_candidate, "Mn1")]
+
+    audits, note, diagnostics = _descend(
+        cubic(), winner_trial, winner_candidate, classes, magnetic, {},
+        plan, instrument, data, None, SOLVE_TIE_DELTA_BIC, True)
+
+    assert len(audits) == 1, audits
+    assert audits[0].bns_number == "12.62"
+    assert audits[0].status == "refined", audits[0].refusal
+    assert audits[0].delta_bic_over_winner is not None
+    assert audits[0].delta_bic_over_winner <= SOLVE_TIE_DELTA_BIC
+    assert ("no subgroup beats the winner" in note
+           or "no subgroup supported" in note), note
+    assert diagnostics == ()
+
+
+def test_descend_is_not_attempted_off_k_equals_zero():
+    audits, note, diagnostics = _descend(
+        None, None, None, [], [], {}, None, None, None, None,
+        SOLVE_TIE_DELTA_BIC, False)
+    assert audits == ()
+    assert "only a k = 0 statement is warm-started" in note
+    assert diagnostics == ()
+
+
+# --------------------------------------- stage (d): the tie-width lattice ---
+
+def _cubic_phase(moment=None, magnetic=None) -> Phase:
+    return Phase(
+        name="cubic", space_group="F m -3 m", cell=_cell(4.0, 4.0, 4.0),
+        atoms=[_atom("Mn1", "Mn", (0.0, 0.0, 0.0), moment=moment),
+               _atom("O1", "O", (0.25, 0.25, 0.25), biso=0.6)],
+        magnetic_symmetry=magnetic)
+
+
+def _trial_with_structure(index, candidate, free=1):
+    ops, cent = candidate.group.xyz_strings()
+    moment_xyz = tuple(float(v) for v in
+                       candidate.moments([1.0] * candidate.free_amplitudes)[0])
+    phase = _cubic_phase(moment=Moment.from_values(moment_xyz, "Mn3+"),
+                         magnetic=MagneticSymmetry(operations=list(ops),
+                                                   centerings=list(cent)))
+    structure = rx.Structure(phases=[phase])
+    return MagneticTrial(
+        class_index=index, representative=f"S{index}(a)",
+        members=(f"{candidate.bns_number} S{index}(a)",), site="Mn1",
+        irrep=f"S{index}", direction="(a)", bns_number=candidate.bns_number,
+        uni_number=None, msg_type=1, free_amplitudes=free,
+        determinable_amplitudes=1, status="refined",
+        rwp=0.1, gof=1.0, delta_bic=100.0, r_magnetic=0.1,
+        n_moment_parameters=free, n_free_parameters=free + 5,
+        moments=(MomentRow(label="Mn1", ion="Mn3+", magnitude=3.0, esd=0.1,
+                           crystalaxis=moment_xyz, supported=True),),
+        _structure=structure)
+
+
+def test_tie_lattice_lines_names_a_subgroup_and_an_unrelated_pair():
+    """Data only, per the brief: no new ranking rule, just which tied class
+    is a subgroup of which, read off the operator lists the trials
+    themselves already carry (``trial._structure``)."""
+    cs = candidates("F m -3 m", (0.0, 0.0, 0.0), (0, 0, 0))
+    top = next(c for c in cs if c.bns_number == "71.536")
+    sub = next(c for c in cs if c.bns_number == "12.62")
+    other = next(c for c in cs if c.bns_number == "166.101")
+    t0 = _trial_with_structure(0, top, free=1)
+    t1 = _trial_with_structure(1, sub, free=2)
+    t2 = _trial_with_structure(2, other, free=1)
+
+    lines = _tie_lattice_lines((t0, t1, t2), (0, 1, 2))
+
+    subgroup_lines = [line for line in lines if "subgroup of class 0" in line and "class 1" in line]
+    assert subgroup_lines, lines
+    unrelated_lines = [line for line in lines if "class 2" in line and "unrelated" in line]
+    assert unrelated_lines, lines
+
+
+def test_the_tie_lattice_appears_in_str_only_for_a_genuine_tie():
+    cs = candidates("F m -3 m", (0.0, 0.0, 0.0), (0, 0, 0))
+    top = next(c for c in cs if c.bns_number == "71.536")
+    sub = next(c for c in cs if c.bns_number == "12.62")
+    t0 = _trial_with_structure(0, top, free=1)
+    t1 = _trial_with_structure(1, sub, free=2)
+    tied_solution = _solution((t0, t1), (0, 1), "abstained", "tied for test")
+    assert "descent among the tied classes" in str(tied_solution)
+    solved_solution = _solution((t0,), (0,), "solved", "solo for test")
+    assert "descent among the tied classes" not in str(solved_solution)

@@ -99,6 +99,7 @@ from pathlib import Path
 import numpy as np
 
 from ..crystallography.magnetic import isotropy as _isotropy
+from ..crystallography.magnetic import moments as _moments
 from ..crystallography.magnetic.form_factor import (
     assumed_lande_g,
     magnetic_ions,
@@ -106,7 +107,7 @@ from ..crystallography.magnetic.form_factor import (
     resolve_assumed_ion,
 )
 from ..crystallography.magnetic.isotropy import MagneticCandidate, analyse
-from ..crystallography.magnetic.moments import moment_frame
+from ..crystallography.magnetic.moments import tilted_seed, warm_seed
 from ..crystallography.magnetic.supercell import (
     anti_translation_residual,
     anti_translation_ties,
@@ -174,9 +175,17 @@ SOLVE_D_MIN = 1.5
 #: Seed modulus, μ_B, for a trial refinement's moment.  A seed, not a claim:
 #: WP-1327 measured that four in-plane seeds on Cr₂WO₆ reach the same answer,
 #: and the direction of the seed is always **inside the candidate's own allowed
-#: subspace** (``moment_frame``'s first row), which is the one thing a seed
-#: here must not get wrong.
+#: subspace** (:func:`~rietx.crystallography.magnetic.moments.tilted_seed`,
+#: mostly along the allowed basis's first row and, since WP-1418 stage (b),
+#: with a small nonzero component on every other row too when the basis has
+#: more than one — see :data:`~rietx.crystallography.magnetic.moments.
+#: SEED_TILT`), which is the one thing a seed here must not get wrong.
 SOLVE_SEED_MU_B = 2.0
+
+#: Alias of :data:`~rietx.crystallography.magnetic.moments.SEED_TILT`, kept
+#: here under the name this module's own docstrings and tests already use;
+#: see that constant's docstring for the mechanism and :func:`_seed`.
+SOLVE_SEED_TILT = _moments.SEED_TILT
 
 #: The stage list a trial refines under on a **constant-wavelength** histogram,
 #: unless a caller supplies a plan.  Moment + scale + background first — the
@@ -416,6 +425,34 @@ class KTrialSummary:
 
 
 @dataclass(frozen=True)
+class SubgroupAudit:
+    """One maximal magnetic subgroup of the winner, refit and compared.
+
+    WP-1418 stage (c): after :func:`_rank` picks a winner, the descent audit
+    looks one step down its own group-subgroup lattice — among the classes
+    already enumerated *at the winner's own k*, whichever have a magnetic
+    group that is a genuine operator-list subgroup of the winner's, keeping
+    only the maximal ones (:func:`_maximal_subgroups`) — and refits each from
+    the winner's own converged solution plus a symmetry-breaking perturbation
+    on the newly-freed DOFs (:func:`~rietx.crystallography.magnetic.moments.
+    warm_seed`), never from zero (the same stationary-point reason
+    :data:`~rietx.crystallography.magnetic.moments.SEED_TILT` exists for).
+
+    ``delta_bic_over_winner`` is :func:`~rietx.report.layer2.delta_bic` with
+    the **winner** as the restricted model, so a positive number favours the
+    subgroup; ``None`` when the subgroup refused (``status="refused"``,
+    ``refusal`` says why) rather than being ranked and losing.
+    """
+
+    bns_number: str
+    label: str
+    n_moment_parameters: int
+    delta_bic_over_winner: float | None
+    status: str
+    refusal: str | None = None
+
+
+@dataclass(frozen=True)
 class MagneticSolution:
     """The ranked list, the criterion, and the verdict or the abstention.
 
@@ -474,6 +511,18 @@ class MagneticSolution:
     #: — separate from :attr:`caveats`, which stays plain sentences, because a
     #: caller filtering by code should not have to parse one.
     diagnostics: tuple[Diagnostic, ...] = ()
+    #: WP-1418 stage (c): the winner's own maximal magnetic subgroups (at its
+    #: own k, among the classes already enumerated), each refit from the
+    #: winner's converged solution and compared by ΔBIC — see
+    #: :class:`SubgroupAudit`.  Empty when the k was not zero (not
+    #: warm-started today) or the winner had no such subgroup among the
+    #: classes already tried; :attr:`subgroup_note` says which.
+    subgroup_audit: tuple[SubgroupAudit, ...] = ()
+    #: one sentence: "no subgroup supported at ΔBIC < *width*", the beaten
+    #: subgroup's own name and margin, or why the audit was not attempted —
+    #: always set on a solved verdict, empty on an abstention (there is no
+    #: winner to descend from).
+    subgroup_note: str = ""
     #: the instrument the trials were refined with; the magCIF writer's only
     #: use for it, and never part of the answer
     _instrument: object | None = field(default=None, repr=False, compare=False)
@@ -482,6 +531,41 @@ class MagneticSolution:
     def best(self) -> MagneticTrial | None:
         """The winning class, or ``None`` — an abstention has no winner."""
         return self.trials[0] if self.verdict == "solved" and self.trials else None
+
+    @property
+    def margin(self) -> float | None:
+        """The winner's ΔBIC over the best *other eligible* class, or ``None``.
+
+        ``None`` when there is no winner (an abstention) or no second
+        eligible class to compare against — never a negative number, because
+        an eligible class can only ever lose to a class with a **higher**
+        ΔBIC, and a higher-ΔBIC class is, by :func:`_rank`'s own key, the
+        winner instead.
+
+        **Why this exists** (WP-1418 stage (a), measured on two MAGNDATA
+        sweep entries, ``0.37`` and ``0.710``): a caller diffing
+        ``trials[0].delta_bic - trials[1].delta_bic`` naively is comparing
+        the winner to whichever class :func:`_rank` printed *second*, and
+        that is only the true runner-up when it is itself eligible.
+        :attr:`MagneticSolution.trials` is ``eligible`` (sorted best first)
+        **then** ``rest`` — every refused, unsupported or non-improving
+        class, each sorted by its own raw ΔBIC — so whenever the winner has
+        no eligible rival, ``trials[1]`` is drawn from ``rest`` and can carry
+        a ΔBIC *higher* than the winner's: an unsupported model's fit can
+        happen to reach a lower χ² by chance (WP-1327's null test judges
+        each moment, not the model's ΔBIC), and BIC alone does not know that
+        the null test disqualified it.  Diffing against it produces a
+        negative number that reads as a ranking failure; it is a reporting
+        artifact of picking the wrong rival, not a defect in :func:`_rank`,
+        which never considered that class a competitor in the first place.
+        """
+        if self.verdict != "solved" or not self.trials:
+            return None
+        eligible = sorted(_eligible_trials(self.trials),
+                          key=lambda t: t.delta_bic, reverse=True)
+        if len(eligible) < 2:
+            return None
+        return eligible[0].delta_bic - eligible[1].delta_bic
 
     def __str__(self) -> str:
         head = [
@@ -543,6 +627,14 @@ class MagneticSolution:
                 line += (f", R_mag {self.nuclear_r_magnetic:.3f} over "
                          f"{self.n_magnetic_channels} channels")
             rows.append(line)
+        if len(self.tied) > 1:
+            rows.append("")
+            rows.append("  descent among the tied classes (operator-list "
+                       "containment, not the DOF-count proxy):")
+            rows.extend(f"  {line}" for line in _tie_lattice_lines(
+                self.trials, self.tied))
+        if self.subgroup_note:
+            rows.append(f"  subgroup descent: {self.subgroup_note}")
         for note in self.caveats:
             rows.append(f"  ! {note}")
         return "\n".join(head + rows)
@@ -867,16 +959,35 @@ def _k_from_the_report(evidence, top_k: int):
 def _seed(group, position, cell, magnitude):
     """A seed moment inside the candidate's own allowed subspace, or ``None``.
 
-    ``moment_frame``'s first row is a unit vector of the subspace under the
-    crystal-axis cosine metric, so ``magnitude`` is the modulus in μ_B and not
-    a component.  Seeding outside the family would state a structure the
-    candidate forbids and let the first stage walk back into it, which is a
-    fit of a different model than the one the row is labelled with.
+    ``moment_frame``'s rows are an orthonormal basis of the subspace under the
+    crystal-axis cosine metric, so a unit-coefficient combination of them has
+    modulus 1 and ``magnitude`` is the modulus in μ_B, not a component.
+    Seeding outside the family would state a structure the candidate forbids
+    and let the first stage walk back into it, which is a fit of a different
+    model than the one the row is labelled with — so every coefficient below
+    is a combination of the candidate's *own* rows, never a component stated
+    directly.
+
+    **Every row beyond the first gets a small, deterministic, nonzero
+    coefficient** (:data:`SOLVE_SEED_TILT`), not zero.  A basis of rank 1 (the
+    ordinary case: one copy, one free real amplitude) is unaffected — there is
+    only one row, and the prior behaviour (the whole magnitude on it) is
+    exact.  A basis of rank ≥ 2 (a multi-copy irrep merged across sites, or a
+    genuinely general/kernel direction, both real and enumerated by
+    :func:`~rietx.crystallography.magnetic.isotropy.candidates`) used to place
+    the whole magnitude on row 0 alone and leave every other DOF starting at
+    the exact point of pointing along it — :data:`SOLVE_SEED_TILT`'s own
+    docstring names why that is not simply "a smaller seed" but a stationary
+    one for several of these groups.  Normalised so the combined vector still
+    has modulus exactly ``magnitude``, since the rows are metric-orthonormal
+    and a coefficient vector of unit Euclidean norm therefore gives a unit
+    modulus automatically.
     """
     basis = group.allowed_moment_basis(position)
     if len(basis) == 0:
         return None
-    return tuple(float(v) for v in magnitude * moment_frame(basis, cell)[0])
+    return tuple(float(v) for v in tilted_seed(basis, cell, magnitude,
+                                               tilt=SOLVE_SEED_TILT))
 
 
 def _state_k0(parent_phase, candidate: MagneticCandidate, magnetic, magnitude,
@@ -908,6 +1019,207 @@ def _state_k0(parent_phase, candidate: MagneticCandidate, magnetic, magnitude,
             if candidate.identification else None,
             og_number=candidate.identification.og_number
             if candidate.identification else None)})
+
+
+def _state_k0_warm(parent_phase, candidate: MagneticCandidate, magnetic,
+                   winner_structure, g_map=None):
+    """Like :func:`_state_k0`, seeded from ``winner_structure``'s own
+    converged moments rather than a flat magnitude (WP-1418 stage (c)).
+
+    ``candidate`` is a subgroup of the winner by construction here
+    (:func:`_maximal_subgroups` only ever returns one), so the winner's own
+    moment at each atom already lies inside ``candidate``'s larger allowed
+    span exactly and :func:`~rietx.crystallography.magnetic.moments.
+    warm_seed` keeps it, tilting only the genuinely new DOFs off zero.
+    """
+    ops, cent = candidate.group.xyz_strings()
+    cell = parent_phase.cell.lengths_angles()
+    atoms = list(parent_phase.atoms)
+    g_map = g_map or {}
+    winner_moments = {a.label: a.moment.values()
+                      for a in winner_structure.phases[0].atoms
+                      if a.moment is not None}
+    placed = 0
+    for j, label, ion in magnetic:
+        atom = atoms[j]
+        basis = candidate.group.allowed_moment_basis(
+            (atom.x.value, atom.y.value, atom.z.value))
+        if len(basis) == 0:
+            continue
+        preferred = winner_moments.get(label, (0.0, 0.0, 0.0))
+        seed = warm_seed(basis, cell, preferred)
+        atoms[j] = atom.model_copy(update={
+            "moment": Moment.from_values(seed, ion, g=g_map.get(label), vary=True)})
+        placed += 1
+    if not placed:
+        return None
+    return parent_phase.model_copy(update={
+        "atoms": atoms,
+        "magnetic_symmetry": MagneticSymmetry(
+            operations=list(ops), centerings=list(cent),
+            bns_number=candidate.identification.bns_number
+            if candidate.identification else None,
+            uni_number=candidate.identification.uni_number
+            if candidate.identification else None,
+            og_number=candidate.identification.og_number
+            if candidate.identification else None)})
+
+
+def _operator_set(group) -> frozenset:
+    """A magnetic group's own operator list, as a hashable set of magCIF xyz
+    strings — the same representation :func:`_merge_classes` already uses to
+    test two candidates' groups for equality, reused here to test one for
+    *containment* in another (WP-1418 stage (c)/(d))."""
+    ops, cent = group.xyz_strings()
+    return frozenset(ops) | frozenset(cent)
+
+
+def _maximal_subgroups(winner_candidate: MagneticCandidate, classes):
+    """Every *other* class at the winner's own k whose magnetic group is a
+    genuine operator-list subgroup of the winner's, keeping only the maximal
+    ones (WP-1418 stage (c)).
+
+    "Maximal" is with respect to the other subgroups found here, not to every
+    conceivable subgroup of the winner: one properly contained in another
+    found subgroup is dropped, because refitting it would only ever repeat
+    what the larger one already tests.
+    """
+    winner_ops = _operator_set(winner_candidate.group)
+    found = []
+    for index, (members, candidate, site_label) in enumerate(classes):
+        if candidate is winner_candidate:
+            continue
+        ops = _operator_set(candidate.group)
+        if ops < winner_ops:
+            found.append((index, members, candidate, site_label, ops))
+    maximal = []
+    for i, row in enumerate(found):
+        if any(j != i and row[4] < found[j][4] for j in range(len(found))):
+            continue
+        maximal.append(row[:4])
+    return maximal
+
+
+def _descend(parent, winner_trial: "MagneticTrial",
+            winner_candidate: MagneticCandidate, classes, magnetic, g_map,
+            plan, instrument, data, limits, tie_width: float, zero: bool
+            ) -> tuple[tuple["SubgroupAudit", ...], str, tuple[Diagnostic, ...]]:
+    """WP-1418 stage (c): one step down the winner's own group-subgroup
+    lattice, refit from its solution, reported against it by ΔBIC.
+
+    Only a k = 0 statement is warm-started today — a k != 0 supercell's
+    child cell can differ in atom count between two candidates, and matching
+    them up is future work, flagged rather than attempted.
+    """
+    from ..report.layer2 import delta_bic
+
+    if not zero:
+        return (), ("descent audit not attempted: only a k = 0 statement is "
+                    "warm-started from the winner today (WP-1418 stage (c))"), ()
+    maximal = _maximal_subgroups(winner_candidate, classes)
+    if not maximal:
+        return (), (f"no subgroup supported at ΔBIC < {tie_width:.1f} (none "
+                    f"of the classes already enumerated at this k is a "
+                    f"genuine operator-list subgroup of the winner)"), ()
+    owners = [label for _j, label, _i in magnetic]
+    chi2_winner = _chi2_absolute(winner_trial._result.statistics)
+    n_points = int(winner_trial._result.statistics.n_points)
+    audits: list[SubgroupAudit] = []
+    beat: list[tuple[float, MagneticCandidate]] = []
+    for _index, _members, candidate, _site_label in maximal:
+        try:
+            child = _state_k0_warm(parent, candidate, magnetic,
+                                   winner_trial._structure, g_map)
+            if child is None:
+                audits.append(SubgroupAudit(
+                    bns_number=candidate.bns_number, label=candidate.label,
+                    n_moment_parameters=0, delta_bic_over_winner=None,
+                    status="refused",
+                    refusal="forbids a moment on every named site"))
+                continue
+            child_structure = Structure(phases=[child])
+            (_start, ref, result), _n_starts, _n_minima = _best_start(
+                _starts(child_structure, instrument, data, plan, True,
+                       owners, limits))
+        except Exception as exc:      # noqa: BLE001 - reported, never swallowed
+            audits.append(SubgroupAudit(
+                bns_number=candidate.bns_number, label=candidate.label,
+                n_moment_parameters=0, delta_bic_over_winner=None,
+                status="refused", refusal=f"{type(exc).__name__}: {exc}"))
+            continue
+        _moments, n_moment, _pair = _moment_rows(ref, result, ref.fitted_structure)
+        chi2_sub = _chi2_absolute(result.statistics)
+        margin = delta_bic(chi2_winner, chi2_sub, n_points,
+                           n_moment - winner_trial.n_moment_parameters)
+        audits.append(SubgroupAudit(
+            bns_number=candidate.bns_number, label=candidate.label,
+            n_moment_parameters=n_moment, delta_bic_over_winner=margin,
+            status="refined"))
+        if margin > tie_width:
+            beat.append((margin, candidate))
+    if beat:
+        beat.sort(key=lambda row: -row[0])
+        margin, candidate = beat[0]
+        diagnostics = (Diagnostic(
+            level="warning", code="MAGNETIC_SUBGROUP_PREFERRED",
+            message=(f"the descent audit found {candidate.label} "
+                     f"({candidate.bns_number}), a subgroup of the winner "
+                     f"{winner_trial.label} ({winner_trial.bns_number}), "
+                     f"beats it by {margin:.1f} BIC (tie width "
+                     f"{tie_width:.1f}) once refit from the winner's own "
+                     f"converged solution -- the ranking above never "
+                     f"considered it a competitor and the data prefers it; "
+                     f"re-rank by hand"),
+            value=margin),)
+        note = (f"MAGNETIC_SUBGROUP_PREFERRED: {candidate.label} "
+                f"({candidate.bns_number}) beats the winner by {margin:.1f} BIC")
+        return tuple(audits), note, diagnostics
+    refined_margins = [a.delta_bic_over_winner for a in audits
+                       if a.delta_bic_over_winner is not None]
+    best = max(refined_margins) if refined_margins else None
+    note = (f"no subgroup supported at ΔBIC < {tie_width:.1f}" if best is None
+            else f"no subgroup beats the winner beyond the tie width of "
+                 f"{tie_width:.1f} (best {best:.1f})")
+    return tuple(audits), note, ()
+
+
+def _tie_lattice_lines(trials, tied) -> list[str]:
+    """WP-1418 stage (d): which tied class is a subgroup of which, by the
+    operator lists the trials themselves already carry — data only, never a
+    new ranking rule.  ``tied`` is :attr:`MagneticSolution.tied`.
+    """
+    by_index = {t.class_index: t for t in trials}
+    rows = [by_index[i] for i in tied if i in by_index]
+    groups: dict[int, frozenset] = {}
+    for t in rows:
+        if t._structure is None:
+            continue
+        msym = t._structure.phases[0].magnetic_symmetry
+        if msym is None:
+            continue
+        groups[t.class_index] = frozenset(msym.operations) | frozenset(msym.centerings)
+    lines = []
+    for a_i, a in enumerate(rows):
+        for b in rows[a_i + 1:]:
+            ga, gb = groups.get(a.class_index), groups.get(b.class_index)
+            if ga is None or gb is None:
+                lines.append(f"class {a.class_index} ({a.label}), class "
+                            f"{b.class_index} ({b.label}): not comparable "
+                            f"(no stored operator list)")
+            elif ga == gb:
+                lines.append(f"class {a.class_index} ({a.label}) = class "
+                            f"{b.class_index} ({b.label}): the same magnetic "
+                            f"group")
+            elif ga < gb:
+                lines.append(f"class {a.class_index} ({a.label}) is a "
+                            f"subgroup of class {b.class_index} ({b.label})")
+            elif gb < ga:
+                lines.append(f"class {b.class_index} ({b.label}) is a "
+                            f"subgroup of class {a.class_index} ({a.label})")
+            else:
+                lines.append(f"class {a.class_index} ({a.label}), class "
+                            f"{b.class_index} ({b.label}): unrelated")
+    return lines
 
 
 def _supercell(parent, candidate, *, species, ions, magnitude, nuclear_group,
@@ -1182,6 +1494,23 @@ def _within_k_offset_margin(satellite_score: dict, reference_k, candidate_k,
             and abs(cand.worst_offset_deg - ref.worst_offset_deg) <= margin)
 
 
+def _eligible_trials(trials) -> list["MagneticTrial"]:
+    """Every trial ``_rank`` would let compete for the win: refined, a
+    supported moment, ΔBIC > 0.
+
+    The one definition of "eligible" in this module — :func:`_rank`,
+    :func:`_best_eligible_delta_bic` and :attr:`MagneticSolution.margin` all
+    call this rather than repeating the three-clause filter, because the
+    three had drifted apart once already (WP-1418 stage (a)): a caller
+    reading ``trials[1]`` as "the runner-up" without checking eligibility can
+    land on a *disqualified* trial whose raw ΔBIC is not penalised by
+    whatever excluded it and can exceed the true winner's — see
+    :attr:`MagneticSolution.margin`'s docstring for the measured case.
+    """
+    return [t for t in trials if t.status == "refined" and t.supported
+           and t.delta_bic is not None and t.delta_bic > 0.0]
+
+
 def _best_eligible_delta_bic(trials) -> float | None:
     """The best ΔBIC among one k's eligible trials, or ``None``.
 
@@ -1189,9 +1518,7 @@ def _best_eligible_delta_bic(trials) -> float | None:
     ΔBIC > 0) so a k with no eligible class here is exactly a k ``_rank``
     itself would report as having no winner.
     """
-    eligible = [t.delta_bic for t in trials
-               if t.status == "refined" and t.supported
-               and t.delta_bic is not None and t.delta_bic > 0.0]
+    eligible = [t.delta_bic for t in _eligible_trials(trials)]
     return max(eligible) if eligible else None
 
 
@@ -1285,9 +1612,7 @@ def _rank(trials: list[MagneticTrial], tie_width: float, tie_r: float):
                 t.r_magnetic if t.r_magnetic is not None else math.inf,
                 parsimony(t), t.bns_number)
 
-    eligible = [t for t in trials
-                if t.status == "refined" and t.supported
-                and t.delta_bic is not None and t.delta_bic > 0.0]
+    eligible = _eligible_trials(trials)
     chosen = {id(t) for t in eligible}
     rest = [t for t in trials if id(t) not in chosen]
     eligible.sort(key=key)
@@ -1837,6 +2162,28 @@ def solve_magnetic(refinement, data, *, phase: int = 0,
     caveats.extend(k_caveats)
 
     ordered, tied, verdict, why = _rank(trials, tie_width, tie_r)
+
+    # WP-1418 stage (c): after the winner is chosen, look one step down its
+    # own group-subgroup lattice among the classes already enumerated at its
+    # own k, and say plainly whether the ranking above missed a subgroup the
+    # data actually prefers.
+    subgroup_audit: tuple[SubgroupAudit, ...] = ()
+    subgroup_note = ""
+    descent_diagnostics: tuple[Diagnostic, ...] = ()
+    if verdict == "solved" and ordered:
+        winner_trial = ordered[0]
+        winner_classes = next(
+            (classes_i for k_try, _sets_i, classes_i in enumerated
+             if k_try == kk), None)
+        if (winner_classes is not None
+                and 0 <= winner_trial.class_index < len(winner_classes)):
+            winner_candidate = winner_classes[winner_trial.class_index][1]
+            zero = all(c == 0 for c in kk)
+            subgroup_audit, subgroup_note, descent_diagnostics = _descend(
+                parent, winner_trial, winner_candidate, winner_classes,
+                magnetic, g_map, plan, instrument, data, limits, tie_width,
+                zero)
+
     reference = next(iter(references.values()), None)
     caveats.append(
         "ΔBIC's N is the raw channel count, not an effective number of "
@@ -1859,7 +2206,8 @@ def solve_magnetic(refinement, data, *, phase: int = 0,
         n_magnetic_channels=int(mask.sum()), caveats=tuple(caveats),
         k_trials=k_trial_rows,
         diagnostics=k_diagnostics + tuple(pair_diagnostics)
-                   + tuple(ion_g_diagnostics),
+                   + tuple(ion_g_diagnostics) + descent_diagnostics,
+        subgroup_audit=subgroup_audit, subgroup_note=subgroup_note,
         _instrument=instrument)
     if cif_dir is not None:
         solution.write_magcifs(cif_dir)
