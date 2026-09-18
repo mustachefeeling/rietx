@@ -305,6 +305,32 @@ before each run).
 - **`check_guards` reads both new fields with `getattr`.** Several suites hand
   it a `SimpleNamespace` outcome, as they already did for the truncation count.
 
+**Review.** `/code-review high --fix`, six findings, all accepted and none
+declined.
+
+- **One was a real gap in this branch.** `bound_findings` applied the esd
+  window whenever `esd` was supplied, `cos=None` included, so a caller passing
+  only `esd` got a threshold about 1e8× looser with no binding test at all.
+  That is the opposite of what the docstring promises the fallback does. No
+  package path reaches it, since `LSQOutcome` writes `stderr_internal` only
+  where it writes `residual_cosine`, but a shim would land there. The window
+  now requires `cos`.
+- **One was a comment that inverted its own reasoning.** Descending by raising
+  θ is g < 0, and the sign test wants g > 0 at a lower limit. The code was
+  right under KKT; the comment would have talked a maintainer into flipping it
+  and silencing every lower-bound hit.
+- **Four were surfaces still describing the old flag**, and the first of them
+  matters most: `RefinedParameter.at_bound`'s docstring is the API-level
+  authority a caller actually reads, and this session had updated the skill
+  and the release note while leaving it saying "at a bound". Also the
+  quickstart transcript, three comments claiming `BOUND_HIT_RTOL` is the one
+  place the question is answered, and the caps-diary row's placement and its
+  missing `process.md` paragraph.
+- **Skipped, and left as a doc task**: `docs/manual/using/quickstart.md:84` is
+  stale independently of this branch. It shows `rietx 1.3.0`, a `biso` stage
+  the current default plan does not run, and Rwp 0.0933 where a fresh
+  `rx.refine` gives 0.1338, with the prose below quoting those numbers.
+
 **Next.** [1435](1435-a-hold-the-caller-declares.md), the other half WP-1310
 left and the one Current focus pairs with this. It is independent of anything
 here, and WP-1070 is the shape it copies. [1311](1311-walking-parameter-bounds.md)
