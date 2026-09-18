@@ -54,18 +54,18 @@ from rietx.schemas.instrument import NeutronSource
 # --------------------------------------------------------------- the fixtures
 #
 # One header, three phase blocks and a trailing range line, assembled per test.
-# Every line is quoted from `crwo6002_momcomp.pcr` (the Cr2WO6 + Cr2O3 + magnetic
-# neutron CW refinement) unless the comment says otherwise, with the background
+# Every line is quoted from `corpus file 2` (a three-phase magnetic neutron CW
+# refinement) unless the comment says otherwise, with the background
 # cut from 51 points to 2 and the excluded regions from 2 to 1 so the fixture
 # stays readable. The `!` header comments are kept verbatim *because they are
 # what a real file has* — nothing here reads them, which is trap 2.
 
-#: crwo6002_momcomp.pcr:1-14, :16-18 (two of 51 background points), :69-70 (one
+#: corpus file 2:1-14, :16-18 (two of 51 background points), :69-70 (one
 #: of two excluded regions), :74 and :76-77.
 _HEADER = """\
 COMM 60 K
 ! Current global Chi2 (Bragg contrib.) =      5.144
-! Files => DAT-file: CrWO6002.dat,  PCR-file: crwo6002_momcomp
+! Files => DAT-file: sample.dat,  PCR-file: another
 !Job Npr Nph Nba Nex Nsc Nor Dum Iwg Ilo Ias Res Ste Nre Cry Uni Cor Opt Aut
    {job}   7   {nph}   2   1   0   0   0   0   0   0   0   0   0   0   0   0   0   0
 !
@@ -91,7 +91,7 @@ COMM 60 K
  -0.03994  601.0  0.00000    0.0  0.00000    0.0 2.370100    0.00   0
 """
 
-#: crwo6002_momcomp.pcr:88-95 — the four trirutile sites, each a value line and
+#: corpus file 2:88-95 — the four trirutile sites, each a value line and
 #: a codeword line, with the `#color cyan` annotation the real file carries.
 _CR2WO6_SITES = """\
 Cr     CR      0.00000  0.00000  0.33312  0.21358   0.50000   0   0   0    1  #color cyan
@@ -103,7 +103,7 @@ O1     O       0.30156  0.30156  0.00000  0.24694   0.50000   0   0   0    1  #c
 O2     O       0.30294  0.30294  0.34087  0.18463   1.00000   0   0   0    1  #color cyan
                   0.00     0.00     0.00     0.00      0.00"""
 
-#: crwo6002_momcomp.pcr:96-108. The cell codewords `51 51 61` are the tetragonal
+#: corpus file 2:96-108. The cell codewords `51 51 61` are the tetragonal
 #: tie: a and b are driven by parameter 5, c by parameter 6.
 _PROFILE = """\
 !-------> Profile Parameters for Pattern #  1
@@ -123,7 +123,7 @@ _PROFILE = """\
 _CR2WO6_CELL = "   4.580088   4.580088   8.847341  90.000000  90.000000  90.000000"
 _CR2WO6_CELL_CODES = "   51.00000   51.00000   61.00000    0.00000    0.00000    0.00000"
 
-#: crwo6002_momcomp.pcr:78-84, :86-87.
+#: corpus file 2:78-84, :86-87.
 _PHASE_TEMPLATE = """\
 !-------------------------------------------------------------------------------
 !  Data for PHASE number:   {labelled}  ==> Current R_Bragg for Pattern#  1:     {r_bragg}
@@ -141,8 +141,8 @@ _PHASE_TEMPLATE = """\
 _NUCLEAR_ATOM_HEADER = (
     "!Atom   Typ       X        Y        Z     Biso       Occ     In Fin N_t Spc /Codes")
 
-#: crwo6002_momcomp.pcr:157-158 for `Isy = -1` (Rx/Ry/Rz then Ix/Iy/Iz) and
-#: crwo6002_G5_nc.pcr:166-167 for `Isy = -2` (C1..C3 then C4..C9). Same columns,
+#: corpus file 2:157-158 for `Isy = -1` (Rx/Ry/Rz then Ix/Iy/Iz) and
+#: corpus file 1:166-167 for `Isy = -2` (C1..C3 then C4..C9). Same columns,
 #: different physical meaning — which is why nothing here reads the header.
 _MAGNETIC_ATOM_HEADER = (
     "!Atom   Typ  Mag Vek    X      Y      Z       Biso    Occ      Rx      Ry      Rz\n"
@@ -169,7 +169,7 @@ def _phase(*, name="Cr2wO6", nat=4, jbt=0, isy=0, irf=0, dis=0, strn=0, furth=0,
                                 cell_codes=cell_codes))
 
 
-#: crwo6002_momcomp.pcr:145-155, cut from four SYMM/MSYM pairs to two.
+#: corpus file 2:145-155, cut from four SYMM/MSYM pairs to two.
 _ISY_MINUS_1_SYMMETRY = """\
 !Nsym Cen Laue MagMat
    2   1   1   1
@@ -181,7 +181,7 @@ MSYM -u,-v, w,0.000
 !
 """
 
-#: crwo6002_momcomp.pcr:159-162 — one magnetic site, four lines. The `11.00`
+#: corpus file 2:159-162 — one magnetic site, four lines. The `11.00`
 #: codeword on Ry is parameter 1: the ordered moment.
 _ISY_MINUS_1_ATOM = """\
 CR     MCR3  1  0  0.00000 0.00000 0.33311 0.21358  1.00000   0.000   3.741   0.000
@@ -189,7 +189,7 @@ CR     MCR3  1  0  0.00000 0.00000 0.33311 0.21358  1.00000   0.000   3.741   0.
      0.000   0.000   0.000   0.000   0.000   0.000  0.00000
       0.00    0.00    0.00    0.00    0.00    0.00     0.00"""
 
-#: crwo6002_G5_nc.pcr:145-164, cut from three SYMM blocks to two. Ireps = -2, so
+#: corpus file 1:145-164, cut from three SYMM blocks to two. Ireps = -2, so
 #: each SYMM carries **two** BASR/BASI pairs, and N_Bas = 4 makes each of them
 #: 3 x 4 = 12 numbers. Both counts are the invariant this fixture exists for.
 _ISY_MINUS_2_SYMMETRY = """\
@@ -211,7 +211,7 @@ BASI     0     0     0     0     0     0     0     0     0     0     0     0
 !
 """
 
-#: crwo6002_G5_nc.pcr:168-175 — two Cr sublattices whose C2 coefficients carry
+#: corpus file 1:168-175 — two Cr sublattices whose C2 coefficients carry
 #: `11.00` and `-11.00`: one refined parameter, opposite signs, the
 #: antiferromagnetic constraint. Note also the `.00000` spelling with no leading
 #: zero, which is how that file writes every coordinate.
@@ -225,7 +225,7 @@ _ISY_MINUS_2_ATOMS = """\
    0.050   0.000   0.000   0.000   0.000   0.000   .00000
     0.00    0.00    0.00    0.00    0.00    0.00    0.00"""
 
-#: crwo6002_momcomp.pcr:176-177.
+#: corpus file 2:176-177.
 _RANGE = """\
 !  2Th1/TOF1    2Th2/TOF2  Pattern # 1
        9.000     157.000       1
@@ -243,7 +243,7 @@ def _pcr(directory: Path, name: str, *phases: str, job: int = 1,
 
 
 def _magnetic_isy1(**kw) -> str:
-    """The ``Isy = -1`` magnetic phase of ``crwo6002_momcomp.pcr``."""
+    """The ``Isy = -1`` magnetic phase of ``corpus file 2``."""
     return _phase(**{"name": "Cr2wO6", "nat": 1, "jbt": 1, "isy": -1,
                      "sg": "P -1", "symmetry": _ISY_MINUS_1_SYMMETRY,
                      "atoms": _ISY_MINUS_1_ATOM, "labelled": 3,
@@ -251,7 +251,7 @@ def _magnetic_isy1(**kw) -> str:
 
 
 def _magnetic_isy2(**kw) -> str:
-    """The ``Isy = -2`` magnetic phase of ``crwo6002_G5_nc.pcr``."""
+    """The ``Isy = -2`` magnetic phase of ``corpus file 1``."""
     return _phase(**{"name": "Magnetic Phase", "nat": 2, "jbt": 1, "isy": -2,
                      "sg": "P -1", "symmetry": _ISY_MINUS_2_SYMMETRY,
                      "atoms": _ISY_MINUS_2_ATOMS, "labelled": 1,
@@ -263,22 +263,22 @@ def _magnetic_isy2(**kw) -> str:
 
 @pytest.mark.parametrize("codeword, number, multiplier, provenance", [
     # Every row is a codeword copied out of a real file at the named line.
-    (601.0, 60, 1.0, "crwo6002_momcomp.pcr:77 — the zero shift"),
-    (71.00000, 7, 1.0, "crwo6002_momcomp.pcr:99 — a phase scale"),
-    (51.00000, 5, 1.0, "crwo6002_momcomp.pcr:105 — the tetragonal a = b"),
-    (61.00000, 6, 1.0, "crwo6002_momcomp.pcr:105 — the tetragonal c"),
-    (11.00, 1, 1.0, "crwo6002_momcomp.pcr:160 — an ordered moment"),
-    (-11.00, 1, -1.0, "crwo6002_G5_nc.pcr:173 — the *other* sublattice"),
-    (611.00, 61, 1.0, "crwo6002_momcomp.pcr:175 — an asymmetry term"),
-    (121.00, 12, 1.0, "yag_xpress_072_new.pcr:101 — a TOF Dtt2 shift"),
-    (651.000, 65, 1.0, "crwo6002_BV2andBV4.pcr:102 — the stale-count case"),
+    (601.0, 60, 1.0, "corpus file 2:77 — the zero shift"),
+    (71.00000, 7, 1.0, "corpus file 2:99 — a phase scale"),
+    (51.00000, 5, 1.0, "corpus file 2:105 — the tetragonal a = b"),
+    (61.00000, 6, 1.0, "corpus file 2:105 — the tetragonal c"),
+    (11.00, 1, 1.0, "corpus file 2:160 — an ordered moment"),
+    (-11.00, 1, -1.0, "corpus file 1:173 — the *other* sublattice"),
+    (611.00, 61, 1.0, "corpus file 2:175 — an asymmetry term"),
+    (121.00, 12, 1.0, "corpus file 5:101 — a TOF Dtt2 shift"),
+    (651.000, 65, 1.0, "corpus file 3:102 — the stale-count case"),
 ])
 def test_a_codeword_carries_the_parameter_and_the_sign(
         codeword, number, multiplier, provenance):
     """``10 x parameter + multiplier``, signed — two facts in one number.
 
     The sign is not decoration: ``11.00`` and ``-11.00`` on the two Cr
-    sublattices of ``crwo6002_G5_nc.pcr`` are *one* refined moment entered with
+    sublattices of ``corpus file 1`` are *one* refined moment entered with
     opposite signs, which is the antiferromagnetic constraint. A reader that
     recorded only "this was refined" would return two independent moments and
     lose the physics the file was written to express.
@@ -315,7 +315,7 @@ def test_the_refine_flag_is_a_tri_state(tmp_path):
     line — and is never a stand-in for ``False``, because a lost tri-state reads
     as "held", which is a confident wrong protocol.
     """
-    # crwo6002_momcomp.pcr:104-105: a and c refined (51/61), the angles held.
+    # corpus file 2:104-105: a and c refined (51/61), the angles held.
     # The codeword line here is cut short after three fields on purpose.
     pcr = _pcr(tmp_path, "tri.pcr",
                _phase(cell_codes="   51.00000   51.00000   61.00000"))
@@ -331,7 +331,7 @@ def test_a_shared_codeword_is_the_symmetry_tie(tmp_path):
     """``51.00000 51.00000 61.00000`` on a/b/c is how a ``.pcr`` writes
     a = b: one parameter number on two columns.
 
-    Quoted from ``crwo6002_momcomp.pcr``:105. This is the fact a reader that
+    Quoted from ``corpus file 2``:105. This is the fact a reader that
     stored only a bool would drop, and it is checkable against rietx's own
     derived tie — ``phases.0.cell.b`` is symmetry-tied to ``a`` for P 4₂/mnm, so
     the file and the package agree without either being told.
@@ -347,16 +347,16 @@ def test_a_shared_codeword_is_the_symmetry_tie(tmp_path):
 
 
 @pytest.mark.parametrize("written, expected, provenance", [
-    ("CR", "Cr", "crwo6002_momcomp.pcr:88"),
-    ("W", "W", "crwo6002_momcomp.pcr:90"),
-    ("O", "O", "crwo6002_momcomp.pcr:92"),
-    ("Co", "Co", "300q-1p5K_1.pcr:72 — already IUCr order, left alone"),
-    ("AL", "Al", "yag_xpress_072_new.pcr:191"),
-    ("Y", "Y", "yag_xpress_072_new.pcr:187"),
+    ("CR", "Cr", "corpus file 2:88"),
+    ("W", "W", "corpus file 2:90"),
+    ("O", "O", "corpus file 2:92"),
+    ("Co", "Co", "corpus file 4:72 — already IUCr order, left alone"),
+    ("AL", "Al", "corpus file 5:191"),
+    ("Y", "Y", "corpus file 5:187"),
     # A magnetic form-factor label is a table name, not an element: rietx has
     # no counterpart, so it is returned verbatim rather than mangled into `Mc`.
-    ("MCR3", "MCR3", "crwo6002_momcomp.pcr:159"),
-    ("MCO3", "MCO3", "300q-1p5K_1.pcr:112"),
+    ("MCR3", "MCR3", "corpus file 2:159"),
+    ("MCO3", "MCO3", "corpus file 4:112"),
     # Charge, in either order, out in IUCr order — the same output convention
     # `projects/topas.py` uses, so the two readers hand back one spelling.
     ("CA+2", "Ca2+", "generalisation; no corpus file writes a charge"),
@@ -367,14 +367,14 @@ def test_species_are_normalised_to_iucr_order(written, expected, provenance):
 
 
 @pytest.mark.parametrize("written, expected, provenance", [
-    ("P 42/m n m", "P 42/m n m", "crwo6002_momcomp.pcr:86 — already lower case"),
-    ("R -3 c", "R -3 c", "crwo6002_momcomp.pcr:117"),
-    ("P -1", "P -1", "crwo6002_momcomp.pcr:144"),
+    ("P 42/m n m", "P 42/m n m", "corpus file 2:86 — already lower case"),
+    ("R -3 c", "R -3 c", "corpus file 2:117"),
+    ("P -1", "P -1", "corpus file 2:144"),
     # Upper case, and an origin choice gemmi resolves the *other* way from a
     # bare symbol: `F d -3 m` alone is choice 1, and the corpus's spinel is on
     # choice 2 (Co at 1/8,1/8,1/8 and 1/2,1/2,1/2).
-    ("F D -3 M", "F d -3 m:2", "300q-1p5K_1.pcr:68"),
-    ("I A -3 D", "I a -3 d", "yag_xpress_072_new.pcr:184 — one origin only"),
+    ("F D -3 M", "F d -3 m:2", "corpus file 4:68"),
+    ("I A -3 D", "I a -3 d", "corpus file 5:184 — one origin only"),
 ])
 def test_the_symbol_is_case_normalised_and_the_origin_chosen(
         written, expected, provenance):
@@ -394,14 +394,14 @@ def test_the_symbol_is_case_normalised_and_the_origin_chosen(
     # A `!` opens a comment *inline* as well as at column 1, which is what makes
     # the refined-parameter count readable at all.
     ("      61    !Number of refined parameters", "61",
-     "crwo6002_momcomp.pcr:74"),
+     "corpus file 2:74"),
     ("!Nat Dis Ang Pr1 Pr2 Pr3 Jbt Irf Isy Str Furth       ATZ    Nvk Npr More",
-     "", "crwo6002_momcomp.pcr:83 — a header line is a comment"),
+     "", "corpus file 2:83 — a header line is a comment"),
     ("P 42/m n m               <--Space group symbol", "P 42/m n m",
-     "crwo6002_momcomp.pcr:86"),
+     "corpus file 2:86"),
     ("Cr     CR      0.00000  0.00000  0.33312  0.21358   0.50000   0   0   0    1  #color cyan",
      "Cr     CR      0.00000  0.00000  0.33312  0.21358   0.50000   0   0   0    1",
-     "crwo6002_momcomp.pcr:88"),
+     "corpus file 2:88"),
 ])
 def test_a_comment_is_cut_wherever_it_opens(raw, kept, provenance):
     assert _strip(raw) == kept, provenance
@@ -526,7 +526,7 @@ def test_a_basis_line_whose_keyword_is_wrong_is_refused(tmp_path):
 
 
 def test_the_phase_number_comment_is_not_the_phase_index(tmp_path):
-    """Trap 1: ``crwo6002_G5_nc.pcr``'s **third** phase block is labelled
+    """Trap 1: ``corpus file 1``'s **third** phase block is labelled
     ``!  Data for PHASE number:   1``.
 
     So phases are parsed positionally against ``Nph`` and the comment's index is
@@ -571,7 +571,7 @@ def test_a_nuclear_phases_angle_restraints_are_refused(tmp_path):
 
 
 def test_the_stale_lambda_slot_is_not_the_wavelength(tmp_path):
-    """Trap 3: ``crwo6002_momcomp.pcr`` carries ``2.370100`` in the refinable-λ
+    """Trap 3: ``corpus file 2`` carries ``2.370100`` in the refinable-λ
     slot while the refinement's λ is the ``2.077100`` of the Lambda1 line.
 
     Its codeword is ``0.00``, so FullProf never used it — but a reader that took
@@ -586,7 +586,7 @@ def test_the_stale_lambda_slot_is_not_the_wavelength(tmp_path):
 
 
 def test_the_declared_refined_parameter_count_is_reported_not_trusted(tmp_path):
-    """Trap 4: ``crwo6002_BV2andBV4.pcr`` declares 64 refined parameters and
+    """Trap 4: ``corpus file 3`` declares 64 refined parameters and
     carries a codeword for parameter 65.
 
     Both numbers are reported and neither is corrected into the other, because
@@ -625,7 +625,7 @@ def test_a_magnetic_phase_is_read_in_full_not_dropped(tmp_path):
 
 def test_two_sublattices_share_one_parameter_with_opposite_signs(tmp_path):
     """``11.00`` and ``-11.00`` on the two Cr sites of
-    ``crwo6002_G5_nc.pcr``:169/:173.
+    ``corpus file 1``:169/:173.
 
     This is the whole argument for decoding the codeword rather than reducing it
     to a bool: the file states *one* refined moment applied with opposite sign to
@@ -684,11 +684,11 @@ def test_a_file_of_nothing_but_magnetic_phases_refuses_either_way(tmp_path):
 
 
 @pytest.mark.parametrize("magnetic, block, expected, declared", [
-    # crwo6002_momcomp_softconstrained.pcr:176-177 — keyed by `CR`, and that
+    # corpus file 6:176-177 — keyed by `CR`, and that
     # file's magnetic phase (Isy -1) has exactly one atom, labelled `CR`.
     (_magnetic_isy1, "! Soft moment constraints:\nCR   2.900 0.02000\n",
      [("CR", 2.900, 0.02)], 1),
-    # crwo6002_G5_nc.pcr:189-191 — keyed by `1C`/`2C`, and that file's magnetic
+    # corpus file 1:189-191 — keyed by `1C`/`2C`, and that file's magnetic
     # phase (Isy -2) has two atoms, labelled `1CR` and `2CR`. One production,
     # not two: both keys are the label truncated to the field's width.
     (_magnetic_isy2, "! Soft moment constraints\n1C  2.90 0.02\n2C  2.90 0.02\n",
@@ -701,7 +701,7 @@ def test_soft_moment_constraints_read_in_both_spellings(
     Reading the second as a *site index* also fits those two lines and would
     then read ``CR`` as a label — two productions where one explains both. The
     prefix reading is recorded, the raw key kept beside it, and the declared
-    ``Mom`` is reported rather than enforced: ``crwo6002_G5_nc.pcr`` declares
+    ``Mom`` is reported rather than enforced: ``corpus file 1`` declares
     ``Mom = 1`` and writes **two** constraints, and which of the two numbers is
     wrong is not something the file says.
     """
@@ -724,7 +724,7 @@ def test_the_propagation_vectors_are_read(tmp_path):
     """``Nvk`` k-vectors, each a value line and a codeword line, after the
     phase's Pref/Asy block.
 
-    Quoted from ``300q-1p5K_1.pcr``:129-131, which is the **only** file that
+    Quoted from ``corpus file 4``:129-131, which is the **only** file that
     evidences the position — and whose phase happens to be the last, so the
     position rests on one observation and the reader's docstring says so. Note
     the trailing words: FullProf writes ``Propagation Vector  1`` after the
@@ -749,7 +749,7 @@ def test_a_tof_job_is_refused_naming_the_job_and_why(tmp_path):
 
     rietx models constant-wavelength diffraction only, so this is refused where
     it is declared rather than read into a model whose numbers mean something
-    else. (``yag_xpress_072_new.pcr`` is the real one; it is additionally
+    else. (``corpus file 5`` is the real one; it is additionally
     NPATT 6 and is refused a line earlier.)
     """
     pcr = _pcr(tmp_path, "tof.pcr", _phase(), job=-1)
@@ -761,7 +761,7 @@ def test_a_tof_job_is_refused_naming_the_job_and_why(tmp_path):
 
 
 def test_a_multi_pattern_file_is_refused_naming_the_pattern_count(tmp_path):
-    """``yag_xpress_072_new.pcr``:3 — ``NPATT 6``, six GEM detector banks.
+    """``corpus file 5``:3 — ``NPATT 6``, six GEM detector banks.
 
     A different layout throughout: per-pattern control lines (which shed ``Nph``,
     it moving to a line of its own — the ``!Job Npr Nba Nex`` header variant),
@@ -787,7 +787,7 @@ def test_a_multi_pattern_file_is_refused_naming_the_pattern_count(tmp_path):
 
 
 @pytest.mark.parametrize("nba, why", [
-    # yag_xpress_072_new.pcr has Nba 0 and writes six polynomial coefficients
+    # corpus file 5 has Nba 0 and writes six polynomial coefficients
     # per pattern — but only in the multi-pattern layout, so where the
     # coefficient line sits in a *single*-pattern file is unevidenced.
     (0, "a polynomial background"),
@@ -820,7 +820,7 @@ def test_a_layout_changing_control_flag_is_refused_by_name(
     forbids outright. ``Iwg``, ``Ilo``, ``Ias``, ``Npr`` and ``Aut`` are
     deliberately *not* in this list — they change weighting, the profile function
     or FullProf's own parameter numbering, and move no line.
-    ``300q-1p5K_1.pcr`` has ``Aut 1`` and must still read.
+    ``corpus file 4`` has ``Aut 1`` and must still read.
     """
     pcr = _pcr(tmp_path, "flag.pcr", _phase())
     lines = pcr.read_text(encoding="utf-8").split("\n")
@@ -913,7 +913,7 @@ def test_a_phase_reading_its_reflections_from_a_file_is_refused(tmp_path):
 
 def test_an_unknown_n_t_is_refused_naming_the_atom(tmp_path):
     """``N_t`` decides how many lines a site occupies — 0 adds none, 2 adds an
-    anisotropic β line and its codewords (``yag_xpress_072_new.pcr``:187-190).
+    anisotropic β line and its codewords (``corpus file 5``:187-190).
     Anything else and the reader does not know where the next atom starts."""
     odd = _CR2WO6_SITES.replace("   0   0   0    1  #color cyan",
                                 "   0   0   5    1  #color cyan", 1)
@@ -988,7 +988,7 @@ def test_to_structure_builds_and_carries_the_refine_flags(tmp_path):
     free and which were held, and that is the part a person cannot reconstruct
     from a CIF plus a pattern. Here the cell's a and c were refined (codewords
     51/61) and every coordinate and displacement parameter held (0.00) — which
-    is what the ``crwo6002_momcomp.pcr`` refinement actually did.
+    is what the ``corpus file 2`` refinement actually did.
     """
     pcr = _pcr(tmp_path, "build.pcr", _phase())
     (phase,) = to_structure(read_fullprof_pcr(pcr)).phases
@@ -1035,7 +1035,7 @@ def test_to_structure_reports_a_species_rewrite_through_diagnostics(
 
 
 def test_a_refined_coordinate_reaches_the_structure_as_refined(tmp_path):
-    """``crwo6002_BV2andBV4.pcr``:88-95 refines Cr's z, O1's x/y and O2's x/y/z
+    """``corpus file 3``:88-95 refines Cr's z, O1's x/y and O2's x/y/z
     (codewords 551, 561, 571, 581) and holds W's — which is what makes this a
     tri-state test rather than a value test."""
     refined = (
@@ -1134,7 +1134,7 @@ def test_a_phase_with_no_sites_is_refused_rather_than_dropped(tmp_path):
 
 
 def test_a_negative_biso_is_refused_naming_the_atom(tmp_path):
-    """``300q-1p5K_1.pcr``:70 refined O1 to Biso = −0.67266 Å², a real FullProf
+    """``corpus file 4``:70 refined O1 to Biso = −0.67266 Å², a real FullProf
     outcome — the column absorbs absorption and normalisation error.
 
     rietx bounds ``biso`` at zero, and clamping −0.67 to 0 changes every high-Q
@@ -1154,7 +1154,7 @@ def test_a_negative_biso_is_refused_naming_the_atom(tmp_path):
 
 def test_an_anisotropic_beta_block_is_read_and_refused(tmp_path):
     """``N_t = 2`` adds a β line and its codewords
-    (``yag_xpress_072_new.pcr``:187-190), which is read — so the line accounting
+    (``corpus file 5``:187-190), which is read — so the line accounting
     stays exact — and refused at build.
 
     Converting FullProf's β_ij to rietx's U^ij needs a convention no file here
@@ -1184,7 +1184,7 @@ def test_the_converged_agreement_factors_are_recovered(tmp_path):
 
     FullProf rewrites the χ² and per-phase R_Bragg comments on every cycle, so
     they are the converged numbers and not a seed. The values are
-    ``crwo6002_momcomp.pcr``'s own: χ² 5.144, R_Bragg 1.79 / 41.28 / 9.46 — and
+    ``corpus file 2``'s own: χ² 5.144, R_Bragg 1.79 / 41.28 / 9.46 — and
     the 41.28 is worth keeping visible, because a reader that reported only χ²
     would make that phase look fitted.
     """
@@ -1208,9 +1208,9 @@ def test_the_converged_agreement_factors_are_recovered(tmp_path):
 
 
 def test_the_data_file_reference_is_reported_not_chased(tmp_path):
-    """``300q-1p5K_1.pcr``:3 names ``RT-1_5K_1.dat`` while the pattern beside it
-    on disk is ``300q-1p5K_1.dat``, and ``crwo6002_G5_nc.pcr``:3 names another
-    refinement's ``.pcr``.
+    """A header comment names a data file that is not the one beside it on
+    disk, and in a second corpus file the ``PCR-file:`` name is another
+    refinement's.
 
     So the reference is recorded and never resolved: a reader that went looking
     would either fail on a file that is not missing or find the wrong one, and
@@ -1218,9 +1218,9 @@ def test_the_data_file_reference_is_reported_not_chased(tmp_path):
     """
     pcr = _pcr(tmp_path, "ref.pcr", _phase())
     model = read_fullprof_pcr(pcr)
-    assert model.data_file == "CrWO6002.dat"
-    assert model.pcr_name == "crwo6002_momcomp"
-    assert not (tmp_path / "CrWO6002.dat").exists()   # and nothing went looking
+    assert model.data_file == "sample.dat"
+    assert model.pcr_name == "another"
+    assert not (tmp_path / "sample.dat").exists()   # and nothing went looking
 
 
 def test_the_excluded_regions_and_fitted_range_are_read(tmp_path):
@@ -1228,7 +1228,7 @@ def test_the_excluded_regions_and_fitted_range_are_read(tmp_path):
     the document because they are in neither the pattern file nor the model
     state. A ``.pcr`` is where a FullProf refinement records them, so mirroring
     its protocol means reading both the excluded list and the range that was
-    actually fitted (``crwo6002_momcomp.pcr``:70-71 and :177)."""
+    actually fitted (``corpus file 2``:70-71 and :177)."""
     model = read_fullprof_pcr(_pcr(tmp_path, "excl.pcr", _phase()))
     assert model.excluded_regions == [(0.0, 9.0)]
     assert model.fitted_range == (9.0, 157.0, 1.0)
@@ -1291,7 +1291,7 @@ def _rewrite_trailing_selector(text: str, header: str, value: str) -> str:
     """Rewrite the trailing model selector on the data line after ``header``.
 
     Edits a *quoted* line rather than inventing one: the Strain-Model and
-    Size-Model selectors are the last token of ``crwo6002_momcomp.pcr``:98 and
+    Size-Model selectors are the last token of ``corpus file 2``:98 and
     :101, and only that token is replaced.
     """
     lines = text.split("\n")
@@ -1306,7 +1306,7 @@ def _rewrite_trailing_selector(text: str, header: str, value: str) -> str:
 
 # Finding 1 — the tri-state must not collapse into False.
 #
-# `crwo6002_momcomp.pcr`:88-89 with its codeword line cut from five columns to
+# `corpus file 2`:88-89 with its codeword line cut from five columns to
 # three. FullProf always writes the slot, so this shape is a *damaged* file, not
 # one that says "held" — which is the whole distinction `Value.vary is None`
 # exists to keep, and the module docstring's "never collapses an absent column
@@ -1378,11 +1378,11 @@ def test_a_schema_refusal_on_an_atom_is_converted_naming_the_file(tmp_path):
 # Finding 3 — a tie rietx cannot express is refused, not silently loosened.
 #
 # Built, not quoted: **no corpus file ties two nuclear atoms**. All five readable
-# real files tie only one site's own coordinates (`300q-1p5K_1.pcr`'s O1 x=y=z on
-# parameter 41; `crwo6002_BV2andBV4.pcr`'s O1 and O2 x=y on 56 and 57), and rietx
+# real files tie only one site's own coordinates (`corpus file 4`'s O1 x=y=z on
+# parameter 41; `corpus file 3`'s O1 and O2 x=y on 56 and 57), and rietx
 # reproduces every one of those through its site-symmetry DOFs — verified against
 # the real files, which is why they must *not* refuse. The codeword `81.00` below
-# is quoted from crwo6002_momcomp.pcr:108 (an Asy1 codeword); putting it on two
+# is quoted from corpus file 2:108 (an Asy1 codeword); putting it on two
 # atoms' Biso is this test's construction.
 _SHARED_BISO_SITES = """\
 Cr     CR      0.00000  0.00000  0.33312  0.21358   0.50000   0   0   0    1
@@ -1589,7 +1589,7 @@ def test_the_six_real_files_contain_no_cross_atom_tie(tmp_path):
 def test_a_sites_own_coordinate_tie_is_carried_by_symmetry_not_refused(tmp_path):
     """The corpus's real ties must **not** refuse — rietx already reproduces them.
 
-    ``crwo6002_BV2andBV4.pcr`` ties O1's x to its y with parameter 56, on
+    ``corpus file 3`` ties O1's x to its y with parameter 56, on
     ``P 42/m n m``'s 4f site. ``ParameterTable._collect_atom_coords`` gives that
     site one ``dof.0`` and writes x and y as affine rows onto it, so the
     constraint is already one free parameter. Refusing it would be a false alarm
@@ -1615,15 +1615,15 @@ def test_a_sites_own_coordinate_tie_is_carried_by_symmetry_not_refused(tmp_path)
 # above does not reach. Whether rietx reproduces it turns on the space group,
 # not on a site's DOFs, so the same `51 51 61` codewords are carried under a
 # tetragonal symbol and dropped under an orthorhombic or triclinic one. The
-# corpus has only the tetragonal (`crwo6002_*`, param 5) and cubic
-# (`300q-1p5K_1`, param 40) cases, both carried, so the dropped case is driven
+# corpus has only the tetragonal (corpus files 1-3 and 6, param 5) and cubic
+# (`corpus file 4`, param 40) cases, both carried, so the dropped case is driven
 # synthetically the way the reviewer drove it.
 
 
 def test_a_tetragonal_cell_tie_is_carried_by_symmetry_not_reported(tmp_path):
     """`51 51 61` under `P 42/m n m` is `a = b`, which the setting ties itself.
 
-    This is the corpus's own case (`crwo6002_momcomp.pcr`:105) and it must stay
+    This is the corpus's own case (`corpus file 2`:105) and it must stay
     silent: rietx's metric already holds `b = a` under a tetragonal setting, so
     the built cell has exactly the two free lengths the file refined and there is
     nothing dropped. The default fixture carries these codewords, so this pins
@@ -1701,7 +1701,7 @@ def test_a_cubic_cell_tie_is_carried_including_the_edge_named_only_transitively(
         tmp_path):
     """`a = b = c` (parameter 40) under a cubic setting, the corpus's other case.
 
-    `300q-1p5K_1.pcr` ties all three lengths to one parameter on `F d -3 m:2`.
+    `corpus file 4` ties all three lengths to one parameter on `F d -3 m:2`.
     The cubic constraint table names `b -> a` and `c -> a` but not `c -> b`, so
     the check must follow ties to their root to see that `c` shares `a`'s root.
     All three land carried, and nothing is reported.
@@ -1759,7 +1759,7 @@ def test_a_non_integer_phase_control_field_is_refused_not_truncated(tmp_path):
 
     The line as a whole cannot go through ``_Cursor.ints``: ``Pr1 Pr2 Pr3`` are
     ``0.0 0.0 1.0`` and ``ATZ`` is ``963.500`` on this very line
-    (crwo6002_momcomp.pcr:84) and ``154213.406`` in 300q-1p5K_1.pcr:66, so
+    (corpus file 2:84) and ``154213.406`` in corpus file 4:66, so
     requiring the whole line to be integral would refuse every real file. The
     eleven counts and selectors get the guard field by field instead.
     """
@@ -1805,26 +1805,25 @@ def test_an_integer_model_selector_still_reads(tmp_path):
 # Finding 6 — an R lattice on rhombohedral axes.
 #
 # Synthetic, and it has to be: **every R phase in the corpus is on hexagonal
-# axes** (`crwo6002_momcomp.pcr`:104's Cr2O3 cell, 4.95420 4.95420 13.42130
-# 90 90 120). The cell below is that same real cell transformed to the
-# rhombohedral setting of the same lattice —
-# a_rh = sqrt(a^2/3 + c^2/9) = 5.30999 and
-# sin(alpha/2) = 3 / (2*sqrt(3 + (c/a)^2)) => alpha = 55.61448 — so it describes
-# a real Cr2O3, arrived at by arithmetic on a quoted line rather than invented.
+# axes**. The hexagonal cell below is synthetic, and the rhombohedral one is
+# that same lattice transformed to rhombohedral axes —
+# a_rh = sqrt(a^2/3 + c^2/9) = 5.206833 and
+# sin(alpha/2) = 3 / (2*sqrt(3 + (c/a)^2)) => alpha = 57.388870 — so the pair
+# describes one lattice in two settings, which is what the test needs.
 # This closes a gap; it is not a wrong answer any file here produced.
-_CR2O3_RHOMBOHEDRAL_CELL = (
-    "   5.309990   5.309990   5.309990  55.614480  55.614480  55.614480")
-_CR2O3_HEXAGONAL_CELL = (
-    "   4.954200   4.954200  13.421300  90.000000  90.000000 120.000000")
+_R_PHASE_RHOMBOHEDRAL_CELL = (
+    "   5.206833   5.206833   5.206833  57.388870  57.388870  57.388870")
+_R_PHASE_HEXAGONAL_CELL = (
+    "   5.000000   5.000000  13.000000  90.000000  90.000000 120.000000")
 
 
 @pytest.mark.parametrize("cell, expected, why", [
-    ({"a": 5.30999, "b": 5.30999, "c": 5.30999,
-      "alpha": 55.61448, "beta": 55.61448, "gamma": 55.61448},
+    ({"a": 5.206833, "b": 5.206833, "c": 5.206833,
+      "alpha": 57.38887, "beta": 57.38887, "gamma": 57.38887},
      "R -3 c:R", "a = b = c with alpha = beta = gamma is rhombohedral axes"),
-    ({"a": 4.95420, "b": 4.95420, "c": 13.42130,
+    ({"a": 5.0, "b": 5.0, "c": 13.0,
       "alpha": 90.0, "beta": 90.0, "gamma": 120.0},
-     "R -3 c", "the corpus's own Cr2O3 is hexagonal and must stay bare"),
+     "R -3 c", "the corpus's own R phase is hexagonal and must stay bare"),
 ])
 def test_the_r_setting_is_picked_from_the_cell(cell, expected, why):
     """Root CLAUDE.md's invariant: ``read_small_structure`` picks R from the cell.
@@ -1845,7 +1844,7 @@ def test_without_a_cell_the_bare_r_symbol_is_unchanged():
 def test_a_rhombohedral_cell_selects_the_r_setting_end_to_end(tmp_path):
     """The cell line sits *after* the atoms, so the symbol is re-derived there."""
     pcr = _pcr(tmp_path, "rhombo.pcr",
-               _phase(sg="R -3 c", cell=_CR2O3_RHOMBOHEDRAL_CELL,
+               _phase(sg="R -3 c", cell=_R_PHASE_RHOMBOHEDRAL_CELL,
                       cell_codes=_CR2WO6_CELL_CODES))
     phase = read_fullprof_pcr(pcr).phases[0]
     assert phase.space_group_raw == "R -3 c"
@@ -1855,7 +1854,7 @@ def test_a_rhombohedral_cell_selects_the_r_setting_end_to_end(tmp_path):
 def test_a_hexagonal_r_cell_is_left_on_the_default_setting(tmp_path):
     """The corpus's real R phase, pinned: it must keep reading as before."""
     pcr = _pcr(tmp_path, "hex.pcr",
-               _phase(sg="R -3 c", cell=_CR2O3_HEXAGONAL_CELL,
+               _phase(sg="R -3 c", cell=_R_PHASE_HEXAGONAL_CELL,
                       cell_codes=_CR2WO6_CELL_CODES))
     assert read_fullprof_pcr(pcr).phases[0].space_group == "R -3 c"
 
@@ -1869,7 +1868,7 @@ def test_the_origin_choice_repair_is_reported_as_a_diagnostic(tmp_path):
     repair on a value that reaches the ``Structure`` is reported the way the
     species rewrite is, on the same channel.
 
-    ``F D -3 M`` is quoted from ``300q-1p5K_1.pcr``:68.
+    ``F D -3 M`` is quoted from ``corpus file 4``:68.
     """
     # A one-site cubic phase: Co3O4's 8a site alone, so the symbol resolves and
     # the occupancy ratio is trivially self-consistent.
