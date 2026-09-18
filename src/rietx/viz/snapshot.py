@@ -137,13 +137,24 @@ def stage_ticks(model, values: dict, *,
     separately could come apart, and the reader would never know which of the
     two was lying.
     """
+    # On the model's own axis, the same branch ``_build_result`` takes: a
+    # bank has one "line" and it is not an emission line, its positions come
+    # from the four-term calibration, and there is no degree zero-shift to
+    # add (moved here from ``viz/live.py`` when WP-1402 centralised snapshot
+    # building — the model-axis branch is T-1/T-1c's, not new).
+    model_axis = getattr(model, "axis", "two_theta")
     ticks: dict[str, dict] = {}
     for ip, cp in enumerate(model.phases):
         cell = tuple(values[f"phases.{ip}.cell.{k}"]
                      for k in ("a", "b", "c", "alpha", "beta", "gamma"))
-        rows = [cp.reflections.two_theta(cell, lam)
-                + values["instrument.zero_shift"]
-                for lam in model.line_wavelengths]
+        if model_axis == "tof":
+            from ..crystallography.lattice import d_spacings
+            rows = [model.positions(
+                d_spacings(cp.reflections.hkl, *cell), values)]
+        else:
+            rows = [cp.reflections.two_theta(cell, lam)
+                    + values["instrument.zero_shift"]
+                    for lam in model.line_wavelengths]
         pos = np.concatenate(rows) if rows else np.zeros(0)
         # one reflection list per emission line, in the same order each time,
         # so the index list is that list tiled: a Kα2 image is the same hkl
@@ -201,7 +212,11 @@ def build_snapshot(model, table, outcome, stage_name: str, *,
     from ..optimize.statistics import compute_statistics
 
     values = table.decode(outcome.theta)
-    tt = np.asarray(model.tt, dtype=np.float64)
+    # ``.grid`` rather than ``.tt``: the axis-blind accessor both
+    # ``CompiledModel`` and ``CompiledTOFModel`` carry, so a flight-time
+    # snapshot's payload holds microseconds under this same key rather than
+    # raising on a constant-wavelength-only attribute (T-1/T-1c).
+    tt = np.asarray(model.grid, dtype=np.float64)
     y_obs = np.asarray(model.y_obs, dtype=np.float64)
     y_calc = np.asarray(model.evaluate(values), dtype=np.float64)
     y_bkg = np.asarray(model.background(values), dtype=np.float64)
@@ -225,7 +240,9 @@ def build_snapshot(model, table, outcome, stage_name: str, *,
         "schema": SCHEMA_VERSION,
         "written": time.time(),
         "stage": stage_name,
-        "weighted": model.sigma_measured,
+        # ``CompiledTOFModel`` carries no ``sigma_measured`` (T-1/T-1c never
+        # extended this field there); ``None`` is honest rather than a guess.
+        "weighted": getattr(model, "sigma_measured", None),
         "statistics": {
             "rwp": float(stats.rwp), "gof": float(stats.gof),
             "chi2": float(stats.chi2), "rp": float(stats.rp),

@@ -40,7 +40,7 @@ from scipy.ndimage import median_filter
 from scipy.signal import find_peaks, peak_widths
 
 from ..schemas.common import Base
-from ..schemas.pattern import PatternData
+from ..schemas.pattern import PatternData, require_two_theta
 from .models import chebyshev_design_matrix
 
 #: Kβ1,3 wavelengths (Å) per anode, for contamination checks only — Kβ is never
@@ -877,7 +877,15 @@ def counting_coverage(
 
 def diagnose(data: PatternData, *, wavelength: float | None = None,
              baseline_lambda: float | None = None) -> PatternDiagnostics:
-    """Compute :class:`PatternDiagnostics` for a raw pattern."""
+    """Compute :class:`PatternDiagnostics` for a raw pattern.
+
+    2θ only.  Every number below is an angle or is derived through one — the
+    amorphous-hump position, the air-scatter gain, the signal cutoffs are all
+    quoted in degrees, and :class:`PatternDiagnostics` has ``two_theta_min`` /
+    ``two_theta_max`` fields to put them in.  So a TOF pattern is refused here
+    rather than silently relabelled.
+    """
+    require_two_theta(data, "background.diagnose()")
     from .select import select_arpls_lambda
 
     mask = data.in_range_mask()

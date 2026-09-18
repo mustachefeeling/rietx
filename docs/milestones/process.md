@@ -830,3 +830,24 @@ rule, the 19-key `.udf` vocabulary — is `tests/data/README.md` § Philips,
 and which source each fact came from is `ATTRIBUTION.md`.  The blocks were
 cut by roughly a third before the cap was touched, per this comment's own
 instruction; 344 landed against the 350.
+
+350 -> 485 for WP-1118's GSAS-II pair and the four `.prm`/PRCF rules
+before it (2026-09-16): recorded in `tests/test_docs_consistency.py`'s own
+row block, which carries the per-step reasoning.
+
+485 -> 545 for the neutron time-of-flight readers (2026-09-18): a bank
+turns two of this subtree's standing rules from one case into two, and both
+are what a cap is for.  The **axis** is a second declared quantity — a
+flight time in µs beside 2θ in degrees — so the declare-never-infer rule
+gains the bintypes that state one, the refusals for the bintypes that state
+something else, and the measured reason a `RALF`/`SLOG` axis is read only
+from a written x column.  The **ordinate** gains the same treatment, because
+whether a channel holds counts or counts per µs is a declaration no value
+can settle and the wrong answer is paid for by a displacement parameter.
+Beside them, `instrument_tof.py` is a reader whose product is an *instrument*
+and not a pattern, which is a third kind of reader in this subtree and the
+distinction the next one will otherwise get wrong.  The operating detail went
+down a rank as this comment requires — the PRCF layout, the bintype table and
+every refusal's wording are `io/instrument_tof.py`'s and
+`io/formats/gsas.py`'s module docstrings, and the measured file counts are
+`tests/data/README.md`.  542 landed against the 545.

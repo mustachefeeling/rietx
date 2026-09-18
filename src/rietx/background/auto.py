@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from ..schemas.common import Parameter
 from ..schemas.instrument import Background, BackgroundChebyshev, BackgroundPSpline
-from ..schemas.pattern import PatternData
+from ..schemas.pattern import PatternData, require_two_theta
 from .diagnostics import PatternDiagnostics, diagnose
 from .select import select_chebyshev_order
 
@@ -36,6 +36,7 @@ def auto_background(data: PatternData, *, kind: str = "pspline",
     diagnostic trigger.  ``kind="chebyshev"``: order from masked-channel
     BIC + Durbin-Watson stop.
     """
+    require_two_theta(data, "auto_background()")
     diag = diagnostics or diagnose(data, wavelength=wavelength)
     if kind == "chebyshev":
         sel = select_chebyshev_order(data)

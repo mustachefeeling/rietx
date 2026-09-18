@@ -39,6 +39,19 @@ from .io.instrument_profile import (
     write_gsas2_instprm,
     write_gsas_prm,
 )
+from .io.instrument_tof import read_gsas2_instprm as read_gsas2_instprm_tof
+
+# NOTE (dry-run merge, 2026-09-17): both branches independently added a
+# ``read_gsas2_instprm`` — main's (above, ``io.instrument_profile``) reads a
+# constant-wavelength ``.instprm`` bank and refuses a time-of-flight one by
+# name; the fork's (``io.instrument_tof``) is the time-of-flight twin main's
+# docstring says is refused.  Same name, disjoint ``Type`` domains, so they
+# cannot both be the bare top-level symbol.  Re-exported here under a
+# disambiguated name pending a maintainer decision (see the dry-run report):
+# every fork doc/skill reference to ``rx.read_gsas2_instprm`` meaning the TOF
+# reader is now stale and needs the same rename, which this dry run did not
+# do in full — see "Decisions needed".
+from .io.instrument_tof import read_gsas_tof_iparm
 from .io.projects import (
     ProjectFormat,
     ProjectModel,
@@ -179,7 +192,9 @@ __all__ = [
     "pick_peaks",
     "identify_project_format",
     "read_gsas2_instprm",
+    "read_gsas2_instprm_tof",
     "read_gsas_prm",
+    "read_gsas_tof_iparm",
     "read_pattern",
     "read_pdcif",
     "read_fullprof_pcr",

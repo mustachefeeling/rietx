@@ -75,10 +75,29 @@ def _longest_wavelength(instrument: Instrument) -> float | None:
     **Longest** for the reason that function gives: every size surface in the
     package attributes a coefficient to the longest line, so a Kα2 offset can
     never move an attribution on its own.
+
+    ``None`` on a ``neutron_tof`` bank, which has no ``lines`` field at all: a
+    white beam is a continuum and λ is a property of the channel, so "this
+    source states no wavelength" is the true answer rather than a skipped one —
+    exactly what the compiled model's empty ``line_wavelengths`` says one rank
+    down.  Read through ``getattr`` for that reason and not as a defensive
+    default: the alternative is an ``AttributeError`` for a field the schema
+    deliberately does not have, raised from inside the sharing map.
     """
-    lams = [line.wavelength.value for line in instrument.source.lines
+    lams = [line.wavelength.value
+            for line in getattr(instrument.source, "lines", ())
             if line.wavelength.value > 0.0]
     return max(lams) if lams else None
+
+
+def _is_tof_instrument(instrument: Instrument) -> bool:
+    """Whether this histogram is a time-of-flight bank.
+
+    Asked of the *instrument* here, where nothing is compiled yet — the sharing
+    map has to answer before ``compile_tof_model`` exists to be asked.  The
+    compiled-model spelling is :func:`rietx.refine._is_tof`.
+    """
+    return getattr(instrument.source, "kind", None) == "neutron_tof"
 
 
 def size_value_scales(structure: Structure, instruments: list[Instrument],
@@ -104,21 +123,71 @@ def size_value_scales(structure: Structure, instruments: list[Instrument],
     there is nothing to normalise; a source with **no declared line**, where
     there is no λ to normalise by; and equal wavelengths, where every factor is
     exactly 1.0 — which is every joint fit that existed before this change.
+
+    **A time-of-flight bank takes a factor too, and it is a change of unit
+    rather than of wavelength** (T-3c).  It contributes no λ to the span — a
+    white beam has none, and ``_longest_wavelength`` returns ``None`` there —
+    but since T-3c its forward branch *does* read the two size terms, in the
+    only units a bank can hold a specimen size in: ``lor_size`` is K/L in Å⁻¹
+    and ``gauss_size`` its square in Å⁻², the d-space form
+    (:func:`~rietx.model.profiles.caglioti.apparent_size_from_d_size_coefficient`).
+    A degree is not a unit a bank can express a size in, because
+    (180/π)·K·λ/L needs a λ and there is none to pick — so the map from the
+    shared column to a bank's copy is ``(π/180)/λ_ref`` per power, which is the
+    *same* statement the constant-wavelength factors make: one crystallite,
+    each histogram's own units.
+
+    Three cases give empty maps, and each is the honest answer rather than a
+    fallback: **one** histogram, where there is nothing to normalise; a
+    constant-wavelength source with **no declared line**, where there is no λ
+    to normalise by; and a set of histograms that is entirely banks, where
+    every copy is already in Å⁻¹ and the factors are exactly 1.0.  Two equal
+    wavelengths and no bank also give factors of exactly 1.0 — which is every
+    joint fit that existed before WP-1131 — and stay empty for that reason.
+
+    **A mixed fit whose constant-wavelength source declares no wavelength is
+    refused by name**, not left empty: the two arms would then hold one shared
+    column in two units and the fit would report a crystallite that is neither.
+    Refused only when a size term is actually non-zero, because a size at
+    rietx's zero default is the same number in both units and the fit is
+    entitled to proceed.
     """
-    lams = [_longest_wavelength(ins) for ins in instruments]
-    if len(lams) < 2 or any(lam is None for lam in lams):
+    lams = [None if _is_tof_instrument(ins) else _longest_wavelength(ins)
+            for ins in instruments]
+    cw = [lam for ins, lam in zip(instruments, lams, strict=True)
+          if not _is_tof_instrument(ins)]
+    banks = [ins for ins in instruments if _is_tof_instrument(ins)]
+    if any(lam is None for lam in cw):
+        if banks and any(getattr(ph, term).value != 0.0
+                         for ph in structure.phases
+                         for term in SIZE_LAMBDA_POWER):
+            raise ValueError(
+                "size_value_scales(): this joint refinement mixes a "
+                "time-of-flight bank with a constant-wavelength histogram "
+                "whose source declares no wavelength, and a phase carries a "
+                "non-zero sample size. The two arms store that size in "
+                "different units — deg 2θ on the scan, K/L in Å⁻¹ on the bank "
+                "— and the conversion between them is exactly one wavelength, "
+                "so without one the shared column is a crystallite in neither. "
+                "Declare the constant-wavelength source's emission line.")
         return [{} for _ in instruments]
-    ref = lams[0]
+    if not cw or (len(cw) < 2 and not banks):
+        return [{} for _ in instruments]
+    ref = cw[0]
+    #: deg 2θ at λ_ref → Å⁻¹, the one power of the conversion; the size terms
+    #: take it to their own power exactly as they take the wavelength ratio.
+    to_d_space = math.radians(1.0) / ref
     scales: list[dict[str, float]] = []
     for lam in lams:
-        ratio = lam / ref
         one: dict[str, float] = {}
-        if ratio != 1.0:
+        # ``lam is None`` ⇒ a bank: the unit factor, not a wavelength ratio
+        base = to_d_space if lam is None else lam / ref
+        if base != 1.0:
             for ip in range(len(structure.phases)):
                 for term, power in SIZE_LAMBDA_POWER.items():
                     path = f"phases.{ip}.{term}"
                     if sharing.is_shared(path):
-                        one[path] = ratio ** power
+                        one[path] = base ** power
         scales.append(one)
     return scales
 
@@ -249,6 +318,37 @@ class MultiParameterTable:
         identical across histograms — same structure copy, same globs), then
         each histogram's per-histogram free columns in turn.  ``_col_map[h][c]``
         is the combined index of histogram ``h``'s c-th free column.
+
+        **The one excused disagreement is a path a histogram's forward branch
+        cannot read at all** — a ``locked`` entry, which
+        :meth:`ParameterTable.set_vary` refuses to free by design (WP-1073).  A
+        time-of-flight bank force-fixes ``phases.*.preferred_orientation.r``
+        and ``phases.*.microstrain.dof.*``; they are
+        *shared* paths, so a mixed CW/TOF fit whose plan frees any of them would
+        otherwise be refused for a disagreement neither histogram chose.  The
+        joint semantics of the excuse are the right ones and not a weakening:
+        the column exists, the histograms that can express it contribute
+        Jacobian rows to it, and the bank contributes none — which is exactly
+        "this width was measured from the constant-wavelength data".  What must
+        not happen is that it pass *silently*, and it does not:
+        :attr:`shared_missing` records it and ``multi._shared_coverage_
+        diagnostics`` turns it into a reported finding.
+
+        **The four sample widths left that list in T-3c** and are the reason
+        the excuse was written: they were the shared paths a mixed fit most
+        wanted, and a bank now carries all four.  What is left on it is the two
+        constructs whose *form* differs on a bank rather than their units —
+        March-Dollase averages over an orbit at the measured angle, and the
+        Stephens Λ(hkl) is a width in deg 2θ — so the excuse is now reached
+        only by a plan that frees one of those, which is rarer and is a real
+        abstention rather than a unit problem.
+
+        A pure constant-wavelength joint fit cannot reach the excuse.  The only
+        instrument-dependent force-fix on a *shared* (structural) path is the
+        ``neutron_tof`` one above; every other lock — a symmetry-fixed cell
+        angle, a Stephens-owned ``lor_strain`` — is decided by the structure,
+        and every histogram holds a copy of the same structure.  So the refusal
+        below still fires on exactly the cases it fired on before.
         """
         shared_order: list[str] = []
         shared_seen: set[str] = set()
@@ -265,14 +365,22 @@ class MultiParameterTable:
                 else:
                     per_hist_paths[h].append(p)
             shared_sets.append(sset)
+        #: Shared free paths some histogram cannot carry, and which — the
+        #: excuse above, made visible.  Empty on every fit that predates it.
+        self.shared_missing: dict[str, list[int]] = {}
         for h, sset in enumerate(shared_sets):
             if sset != shared_seen:
+                locked = {e.path for e in self.tables[h].entries if e.locked}
                 missing = sorted(shared_seen - sset)
                 extra = sorted(sset - shared_seen)
-                raise ValueError(
-                    f"histogram {h} disagrees on the shared free set "
-                    f"(missing {missing[:3]}, extra {extra[:3]}); shared "
-                    "parameters must be freed identically in every histogram")
+                unexcused = [p for p in missing if p not in locked]
+                if unexcused or extra:
+                    raise ValueError(
+                        f"histogram {h} disagrees on the shared free set "
+                        f"(missing {unexcused[:3]}, extra {extra[:3]}); shared "
+                        "parameters must be freed identically in every histogram")
+                for p in missing:
+                    self.shared_missing.setdefault(p, []).append(h)
 
         shared_index = {p: k for k, p in enumerate(shared_order)}
         combined_paths = list(shared_order)

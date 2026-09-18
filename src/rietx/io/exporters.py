@@ -251,6 +251,25 @@ def write_qpa_table(qpa: QuantitativePhaseAnalysis, path: str | Path, *,
 
 
 def _profile_description(instrument: Instrument) -> str:
+    """The peak-shape model as a CIF phrase — **per source arm**.
+
+    A time-of-flight bank shares no width law with the constant-wavelength
+    model: its shape is the back-to-back exponential pair and every
+    coefficient is a polynomial in d, so quoting Caglioti terms for it would
+    describe a model that did not run (and, this arm force-fixing them, would
+    quote five zeros as if they had been refined).
+    """
+    if instrument.source.kind == "neutron_tof":
+        p = instrument.source.profile_tof
+        kind = ("back-to-back exponentials (x) pseudo-Voigt, GSAS TOF type 3"
+                if any(getattr(p, g).value for g in ("gam0", "gam1", "gam2"))
+                else "back-to-back exponentials (x) Gaussian, GSAS TOF type 1")
+        return (f"{kind}; alpha = {p.alpha0.value:.6g} + "
+                f"{p.alpha1.value:.6g}/d us^-1; beta = {p.beta0.value:.6g} + "
+                f"{p.beta1.value:.6g}/d^4 us^-1; sigma^2 = {p.sig0.value:.6g} + "
+                f"{p.sig1.value:.6g} d^2 + {p.sig2.value:.6g} d^4 us^2; "
+                f"gamma = {p.gam0.value:.6g} + {p.gam1.value:.6g} d + "
+                f"{p.gam2.value:.6g} d^2 us")
     prof = instrument.profile
     return ("TCHZ pseudo-Voigt (Thompson-Cox-Hastings) with Finger-Cox-Jephcoat "
             "axial divergence; Caglioti Gaussian U,V,W = "
@@ -305,8 +324,26 @@ def _background_description(instrument: Instrument) -> str:
 def _write_refinement_metadata(block, result: RefinementResult,
                                instrument: Instrument) -> None:
     st = result.statistics
-    lam = instrument.source.primary_wavelength
-    block.set_pair("_diffrn_radiation_wavelength", _g(lam))
+    # A white beam states no wavelength — λ is a property of the channel — so
+    # the tag is **omitted** rather than filled with a number nobody measured.
+    # What plays its part is the bank calibration, and that goes out under its
+    # own pdCIF tags below rather than as a fake λ.
+    if instrument.source.kind == "neutron_tof":
+        # One free-text item rather than a set of typed ones: the bank angle
+        # and the four constants have no pdCIF tags this repository has
+        # *checked* against the dictionary, and CLAUDE.md's rule for a foreign
+        # format is that a tag is measured against that format's own reference
+        # output and never adopted from prose.  ``_pd_calibration_special_details``
+        # is the item that exists for exactly this — a calibration a reader has
+        # to be told about in words.
+        src = instrument.source
+        block.set_pair("_pd_calibration_special_details", gemmi.cif.quote(
+            f"time-of-flight bank at 2theta = {src.two_theta_bank_deg:.4g} deg; "
+            f"TOF/us = {src.difc.value:.8g} d + {src.difa.value:.6g} d^2 + "
+            f"{src.tzero.value:.6g} + {src.difb.value:.6g}/d, d in Angstrom"))
+    else:
+        block.set_pair("_diffrn_radiation_wavelength",
+                       _g(instrument.source.primary_wavelength))
     # R-factors (Toby 2006); pdCIF profile-fit tags so a powder reader picks
     # them up, and the plain _refine_ls tags for the rest.
     block.set_pair("_pd_proc_ls_prof_wR_factor", _g(st.rwp))
@@ -440,7 +477,18 @@ def _write_geometry_loops(block, geometry: GeometryTable | None, ip: int,
 
 
 def _write_pattern_loop(block, result: RefinementResult) -> None:
-    """The observed/calculated pattern as a pdCIF loop ``read_pdcif`` reads."""
+    """The observed/calculated pattern as a pdCIF loop ``read_pdcif`` reads.
+
+    **Omitted on a time-of-flight fit**, whose ``two_theta`` is ``None``: every
+    tag written below is an angular one (``_pd_proc_2theta_corrected``), and
+    pdCIF's flight-time column is a different tag
+    (``_pd_meas_time_of_flight``) with its own calibration items beside it.
+    Writing microseconds under the angular tag would produce a file that reads
+    back as a scan nobody measured, so the loop is left out and the rest of the
+    document — cell, coordinates, agreement indices, geometry — is written as
+    usual.  A flight-time pattern loop is a later rung of the time-of-flight
+    track (yue-here/rietx issue #193).
+    """
     tt = result.two_theta
     if not tt:
         return

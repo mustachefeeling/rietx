@@ -576,6 +576,98 @@ per-pattern empirical extractions rather than shared quantities, so a
 multi-histogram fit of them would be independent single fits, which misses the
 joint-residual point of the module.
 
+(several-detector-banks)=
+### Several detector banks of one sample
+
+A time-of-flight experiment is not several experiments. It is several detector
+banks of one sample: each has its own DIFC/DIFA/TZERO/DIFB, its own scattering
+angle, its own resolution and incident spectrum and its own channel width, and
+they all see one structure. That is a joint fit, and it is what this entry point
+is for.
+
+Pass the banks as patterns and their `neutron_tof` instruments in the same
+order, exactly as for a constant-wavelength pair:
+
+<!-- api-doc: no-exec — a joint three-bank refinement, tens of seconds of solver time -->
+```python
+joint = rx.MultiHistogramRefinement(structure, [bank_2, bank_3, bank_4])
+result = joint.fit([pattern_2, pattern_3, pattern_4],
+                   two_theta_limits=[(8000.0, 45000.0)] * 3)
+```
+
+Each histogram is compiled against whichever forward model its own pair
+names, so a list may mix them: a bank beside a constant-wavelength histogram of
+the same specimen is admissible, and is the case Von Dreele's combined
+X-ray/neutron paper {cite}`vondreele1997` is about, one axis further out. What
+is refused is a *crossed* pair (a flight-time pattern against a
+constant-wavelength source, or the reverse), and the message names which
+histogram of how many.
+
+`two_theta_limits` keeps its name and is the window on each histogram's own
+axis: degrees on a constant-wavelength scan, microseconds on a bank. Pass one
+window per histogram when they do not share an axis; a single `(lo, hi)` pair
+over a mixed list is refused rather than broadcast, because 10–90 µs is below
+every channel a bank has.
+
+Everything a bank owns stays per-histogram: its calibration
+(`instrument.source.difc`, `.difa`, `.tzero`, `.difb`), its `ProfileTOF`
+coefficients, its incident spectrum, its background, its scale, and the
+intensity basis its pattern declared. The structure is shared. Two consequences
+are worth knowing:
+
+* The specimen's size and microstrain are shared; the unit they are held in
+  is not. `phases.*.lor_size`, `gauss_size`, `lor_strain` and `gauss_strain`
+  are the phase's own broadening, and a bank reads all four: a crystallite
+  broadens its peaks by ΔT = DIFC·(K/L)·d² and a microstrain by ΔT = DIFC·ε·d,
+  which is the same pair of physical quantities the constant-wavelength arm
+  writes as Caglioti coefficients. So a joint fit refines one crystallite
+  size and one microstrain across a scan and a bank, which is the whole
+  point of fitting them together.
+
+  What differs between the arms is the unit of the *size* pair, and only the
+  size pair. A microstrain coefficient is λ-free (the same number of degrees
+  on every instrument), so it is literally one number in both histograms. A
+  size coefficient is (180/π)·K·λ/L and is a length only through a wavelength,
+  which a white beam does not have; on a `neutron_tof` histogram `lor_size`
+  therefore holds K/L in Å⁻¹ and `gauss_size` its square in Å⁻². rietx
+  converts between the two units for you (the same λ-normalisation that turns a
+  shared size column into one crystallite across wavelengths,
+  `SIZE_NORMALISED_ACROSS_WAVELENGTHS`, [](../microstructure.md)); a bank
+  neither widens the λ span nor takes a wavelength ratio from it, but it does
+  take that change of unit. Read a bank's size as a size, off
+  `result.microstructure` (which reports L in Å and Δd/d on either arm), not off
+  the coefficient.
+
+  Two things a bank still cannot express, and which do fire
+  `SHARED_PARAMETER_NOT_IN_EVERY_HISTOGRAM` if a plan frees them:
+  `phases.*.preferred_orientation.r` and the Stephens `phases.*.microstrain.*`,
+  both having a different *form* on a bank rather than a different unit, and
+  neither is written yet.
+
+  rietx's defaults are zero on all four, which is the physical statement "an
+  infinite, strain-free crystal" and is deliberately not GSAS-II's non-zero
+  tutorial defaults (Size 1 µm, Mustrain 1000). Seed them if you mean them.
+* The per-histogram Rwp spread is the thing to read, more here than
+  anywhere. Banks at different angles have different resolutions and different
+  d ranges, so their Rwp values are not expected to agree, but a bank that has
+  drifted out of calibration shows as *its own* Rwp, which a pooled number
+  would hide.
+
+No extra weight is owed for the intensity basis. A Mantid `"counts"` bank
+holds the neutrons each channel counted; a `"density"` one holds that number
+already divided by the channel width. `PatternData.sigma` travels with
+`PatternData.intensity` either way, and the channel-width factor is applied to
+the *calculated* Bragg sum exactly when the pattern declares `"counts"`, so
+both sides of the weighted residual are in the same units within each histogram
+whichever the file used. Leave `weights` at unity unless you mean to say that a
+histogram should count for more or less than its own counting statistics say.
+
+`result.for_histogram(h)` gives each bank back in single-histogram shape with
+`axis == "tof"` and its flight time on `RefinementResult.tof`; the 2θ-only
+sections of a report say, per histogram, that they did not run. Plotting one
+takes the axis by name (`result.for_histogram(h).plot(x_axis="tof")`), because
+the default coordinate is 2θ and a flight time refuses to be drawn as one.
+
 ### Which parameters are shared
 
 `SharingMap` decides. The default rule is instrument against sample: a path is
@@ -765,9 +857,11 @@ An empty list means an ordinary single-histogram fit.
 | `HistogramResult.label` | that histogram's name |
 | `HistogramResult.weight` | the inter-histogram relative weight applied to its residual block |
 | `HistogramResult.statistics` | its own agreement indices |
-| `HistogramResult.two_theta`, `HistogramResult.y_obs`, `HistogramResult.y_calc`, `HistogramResult.y_background` | its curves |
+| `HistogramResult.two_theta`, `HistogramResult.tof` | its abscissa, degrees or microseconds, at most one set |
+| `HistogramResult.axis`, `HistogramResult.axis_unit`, `HistogramResult.x` | which of the two it is, its unit, and the array itself |
+| `HistogramResult.y_obs`, `HistogramResult.y_calc`, `HistogramResult.y_background` | its curves |
 | `HistogramResult.sigma` | its per-point σ |
-| `HistogramResult.ticks` | its reflection positions, by phase |
+| `HistogramResult.ticks` | its reflection positions, by phase, on its own axis |
 | `HistogramResult.tick_hkl` | which reflection each of those is, paired by index |
 | `HistogramResult.qpa` | its phase quantities |
 | `HistogramResult.restraints` | the restraint report for that histogram |

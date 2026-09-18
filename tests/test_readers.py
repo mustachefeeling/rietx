@@ -736,21 +736,24 @@ _ESD_PAIRS = [(10.0, 3.2), (100.0, 20.0), (105.0, 10.2),
 
 
 @pytest.mark.parametrize("bintype", [
-    "RALF", "SLOG", "LOG6", "TIME_MAP",     # flight time
+    "LOG6",                                 # a flight time on a clock with no table
     "COND", "CONQ", "LPSD", "EDS",          # d-spacing, Q, detector position, energy
 ])
-def test_a_non_two_theta_bintype_is_refused_by_name(tmp_path, bintype):
-    """`CONS`/`CONST` is the only bintype whose x axis is an angle.
+def test_a_bintype_whose_axis_has_nowhere_to_go_is_refused_by_name(tmp_path, bintype):
+    """`PatternData` holds a 2θ and a flight time; these are neither.
 
-    Read as FXYE — which is what a non-``CONS`` bank was forced into — the file's
-    own x column comes back divided by 100 and labelled degrees: a TOF range of
-    1000–10000 µs presents as a perfectly plausible 10–100° scan.  So this is the
-    axis policy's *recognisably something else* row reached through the bintype,
-    and the refusal names the file, the bintype and what its axis actually holds.
+    Read as FXYE — which is what a non-``CONS`` bank was once forced into — the
+    file's own x column comes back divided by 100 and labelled degrees, so a
+    d-spacing or a Q presents as a perfectly plausible scan.  This is the axis
+    policy's *recognisably something else* row reached through the bintype, and
+    the refusal names the file, the bintype and what its axis actually holds.
 
     `COND` and `CONQ` are in the list on purpose: they share three characters
     with `CONS` and are different axes, so they are what a prefix match would
-    have swallowed.
+    have swallowed.  `LOG6` is here rather than beside the two TOF bintypes read
+    below because its step table is the Los Alamos Model 6 clock's and is not in
+    the data file at all — the axis is a flight time and is still not
+    establishable.
     """
     tof = [1000.0 + 250.0 * i for i in range(37)]
     rows = [(t, 500.0, 22.4) for t in tof]
@@ -762,6 +765,31 @@ def test_a_non_two_theta_bintype_is_refused_by_name(tmp_path, bintype):
 
     # the same bytes with the one bintype that *is* established parse, so the
     # refusal above is the bintype's doing and not a broken fixture
+    ok = write_gsas(tmp_path / "cons.gsa", bintype="CONS", flag="FXYE",
+                    body=gsas_fxye_rows(rows), nchan=len(rows))
+    assert rx.read_pattern(ok).two_theta[0] == pytest.approx(10.0)
+
+
+@pytest.mark.parametrize("bintype", ["RALF", "SLOG", "TIME_MAP"])
+def test_a_tof_bintype_with_its_own_x_column_reads_as_microseconds(tmp_path, bintype):
+    """The other half of the same decision, since T-1 gave the axis somewhere to go.
+
+    **The bintype decides the fold**, which is the whole point: these are the
+    identical bytes the ``CONS`` control below reads as centidegrees, and the
+    manual's own words for an FXYE x column are "centidegrees for CW data or
+    microseconds for TOF data".  GSAS-II divides by 100 either way, which is why
+    it was never a source to copy here.
+    """
+    tof = [1000.0 + 250.0 * i for i in range(37)]
+    rows = [(t, 500.0, 22.4) for t in tof]
+    p = write_gsas(tmp_path / f"{bintype.lower()}_fxye.gsa", bintype=bintype,
+                   flag="FXYE", body=gsas_fxye_rows(rows), nchan=len(rows))
+    data = rx.read_pattern(p)
+    assert data.axis == "tof"
+    assert data.two_theta is None
+    assert data.tof[0] == pytest.approx(1000.0)
+    assert data.tof[-1] == pytest.approx(tof[-1])
+
     ok = write_gsas(tmp_path / "cons.gsa", bintype="CONS", flag="FXYE",
                     body=gsas_fxye_rows(rows), nchan=len(rows))
     assert rx.read_pattern(ok).two_theta[0] == pytest.approx(10.0)

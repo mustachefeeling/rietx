@@ -410,6 +410,23 @@ _RADIATION_NOTES: dict[str, tuple[str, str]] = {
                 "the electron density, so f falls off with Q"),
     "neutron_cw": ("Constant-wavelength neutron",
                    "the nucleus, a point scatterer, so b is independent of Q"),
+    # Refined on this tree, and the note has to say so: it said "read-only"
+    # while the constant-wavelength forward model was the only one, and the
+    # time-of-flight arm (``model/forward_tof.py``) is now the sibling module.
+    # A client reading this line is deciding whether to hand the build a bank.
+    "neutron_tof": ("Neutron time-of-flight",
+                    "the nucleus, as for CW neutron — but the bank sees the "
+                    "whole moderator spectrum and separates reflections by "
+                    "arrival time, so the abscissa is a flight time in µs and "
+                    "the forward model is the flight-time one: positions from "
+                    "the bank's DIFC/DIFA/TZERO/DIFB, a back-to-back "
+                    "exponential profile, the bank's own d⁴·sinθ Lorentz "
+                    "factor, the incident spectrum and the channel width per "
+                    "channel. Rietveld refinement against a structure, the "
+                    "phase's own size and "
+                    "microstrain, and several banks (or a bank beside a scan) "
+                    "as one joint residual; Le Bail and Pawley extraction on a "
+                    "bank are not written"),
 }
 
 
@@ -462,8 +479,14 @@ def _radiation(cls: type) -> RadiationCapability:
         # dispersion channel flips its own flag
         anomalous_dispersion="dispersion" in cls.model_fields,
         # a declared spectrum *or* a harmonic declaration lifts the cap: a
-        # single-wavelength source that can carry λ/n is not a one-line source
-        max_emission_lines=None if (lines_field is not None or harmonics) else 1,
+        # single-wavelength source that can carry λ/n is not a one-line source.
+        # So does a *continuum*: a white beam has no line list to declare and
+        # would otherwise report 1 — "the spectrum is one wavelength and can be
+        # nothing else" — which is the one statement a derived predicate must
+        # not make about a time-of-flight bank.
+        max_emission_lines=None if (lines_field is not None or harmonics
+                                    or getattr(cls, "continuous_spectrum",
+                                               False)) else 1,
         polarization_refinable="polarization" in cls.model_fields,
         harmonic_contamination=harmonics,
     )

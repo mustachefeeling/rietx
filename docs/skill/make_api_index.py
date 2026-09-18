@@ -137,8 +137,15 @@ SECTIONS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
         "imports: `rx.write_gsas2_phase_cif` for the phases and "
         "`rx.write_gsas2_instprm` for the machine. That CIF states the setting "
         "three ways, because GSAS-II reads a bare `F d -3 m` as origin choice 2 "
-        "where gemmi reads choice 1 (Measured: WP-1118).",
+        "where gemmi reads choice 1 (Measured: WP-1118). "
+        "**A neutron time-of-flight bank** needs its own calibration too: "
+        "`rx.read_gsas_tof_iparm` reads a GSAS-I `.iparm`/`.prm` "
+        "(`HTYPE PNTR`) into one frozen `Instrument` per bank, "
+        "`rx.read_gsas2_instprm_tof` its GSAS-II `.instprm` (`Type:PNT`) "
+        "twin — disambiguated from `rx.read_gsas2_instprm` above since a "
+        "`.instprm` may declare either axis.",
         ("rx.read_pattern", "rx.read_pdcif", "rx.read_recipe",
+         "rx.read_gsas_tof_iparm", "rx.read_gsas2_instprm_tof",
          "rx.read_gsas_prm", "rx.write_gsas_prm", "rx.read_project_model",
          "rx.identify_project_format", "rx.read_topas_inp", "rx.write_topas_inp",
          "rx.read_fullprof_pcr", "rx.write_fullprof_pcr",
@@ -147,6 +154,7 @@ SECTIONS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
          "rx.read_gsas2_instprm", "rx.write_gsas2_instprm",
          "rx.Structure.from_cif",
          "rx.Instrument.bragg_brentano", "rx.Instrument.debye_scherrer",
+         "rx.Instrument.tof_neutron_bank",
          "rx.estimate_mu_r", "rx.auto_background", "rx.diagnose",
          "rx.load_instrument_profile", "rx.save_instrument_profile",
          "rx.capabilities", "rx.help_for"),

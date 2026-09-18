@@ -80,6 +80,41 @@ Every emission line diffracts at its own Bragg angle. Differentiating
 The splitting grows with $\tan\theta$, so a Kα₂ line is not a fixed $2\theta$
 offset from Kα₁.
 
+(sec-tof-positions)=
+### Time of flight
+
+A time-of-flight neutron bank does not scan an angle at all. It sits at one
+fixed scattering angle $2\theta_{\text{bank}}$, sees the whole moderator
+spectrum, and separates reflections by the time each neutron takes to fly from
+moderator to detector. Bragg's law still holds channel by channel (a neutron
+arriving at time $T$ had wavelength $\lambda = 2 d \sin\theta_{\text{bank}}$),
+but the *position* of a reflection is a flight time, and the map from $d$ to
+$T$ is a calibration of the instrument rather than a consequence of one number
+{cite}`larson2004`:
+
+```{math}
+:label: pos-tof
+
+T(d) \;=\; \mathrm{DIFC}\, d \;+\; \mathrm{DIFA}\, d^{2}
+        \;+\; \mathrm{TZERO} \;+\; \frac{\mathrm{DIFB}}{d}.
+```
+
+{source}`rietx.model.profiles.tof.tof_from_d`
+
+$\mathrm{DIFC}$ (µs Å⁻¹) is the geometric term, $252.777 \, L \, 2
+\sin\theta_{\text{bank}}$ for a total flight path $L$ in metres;
+$\mathrm{DIFA}$ (µs Å⁻²) is a small empirical curvature absorbing
+sample-position and detector-depth effects; $\mathrm{TZERO}$ (µs) is the
+electronic time offset. The fourth term is GSAS-II's `difB` (µs Å), absent
+from the GSAS manual's relation and zero in most projects, carried because a
+reader built to the three-term form would drop a non-zero one *silently*.
+
+The wavelength–cell degeneracy below reappears here as
+$\mathrm{DIFC}$ against the cell: $T \propto \mathrm{DIFC}\, d$ fixes only
+the product, so a standard refinement holds the cell at its certified value and
+frees $\mathrm{DIFC}$, and a sample refinement does the reverse. Freeing both
+on one bank is the same flat direction with different letters.
+
 (sec-harmonics)=
 ### Monochromator harmonics
 

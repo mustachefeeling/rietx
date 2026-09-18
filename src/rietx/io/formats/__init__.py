@@ -50,7 +50,7 @@ from .brml import BRML, read_brml
 from .bruker_raw import BRUKER_RAW, read_bruker_raw
 from .chi import CHI, read_chi
 from .dif import DIF, read_dif
-from .gsas import GSAS, read_gsas
+from .gsas import GSAS, GSASBank, gsas_banks, read_gsas
 from .pdcif import PDCIF, read_pdcif
 from .peaklist import PEAK_LIST, read_peaklist
 from .philips_rd import PHILIPS_RD, read_philips_rd
@@ -90,6 +90,7 @@ __all__ = [
     "METADATA_KEYS",
     "PATTERN_FORMATS",
     "READER_OPTIONS",
+    "GSASBank",
     "Head",
     "PatternFormat",
     "ReaderOption",
@@ -97,6 +98,7 @@ __all__ = [
     "ascending",
     "check_axis",
     "decode",
+    "gsas_banks",
     "head",
     "looks_binary",
     "metadata",

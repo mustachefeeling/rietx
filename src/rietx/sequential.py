@@ -125,7 +125,7 @@ from .report.schemas import THRESHOLDS_VERSION
 from .schemas.common import Diagnostic, Mode, Provenance
 from .schemas.history import ReflectionState
 from .schemas.instrument import Instrument
-from .schemas.pattern import PatternData
+from .schemas.pattern import PatternData, require_two_theta
 from .schemas.results import RefinementResult
 from .schemas.sequential import SeriesEntry, SeriesResult
 from .schemas.structure import Structure
@@ -663,7 +663,10 @@ class SequentialRefinement:
         ----------
         patterns:
             The series, in order.  Each keeps its own σ (file esds when
-            present, Poisson fallback); patterns are never pooled.
+            present, Poisson fallback); patterns are never pooled.  Every one
+            must be in 2θ: an in-situ TOF reel is refused by pattern index,
+            since a mixed reel would otherwise fail at whichever rung reached
+            the trigonometry first.
         x, x_label:
             The series coordinate (temperature, time, pressure …) and its name.
             Without one the pattern index is the axis, and ``x_label`` says so.
@@ -820,6 +823,12 @@ class SequentialRefinement:
         patterns = list(patterns)
         if not patterns:
             raise ValueError("a sequential refinement needs at least one pattern")
+        # Same reasoning one line up, for the axis: the whole reel is checked
+        # before the first fit, and the refusal names the pattern's place in
+        # the series rather than leaving the caller to find which one it was.
+        for i, pat in enumerate(patterns):
+            require_two_theta(pat, f"refine_sequential(), pattern {i} of "
+                                   f"{len(patterns)}", instrument=self.instrument)
         if refit not in REFIT_MODES:
             raise ValueError(f"refit must be one of {REFIT_MODES}")
         if direction not in DIRECTIONS:

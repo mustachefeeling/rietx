@@ -148,6 +148,97 @@ def test_write_html_self_contained(tmp_path, synthetic_pattern):
     assert ("Δ/σ" in weighted_html) or ("\\u0394" in weighted_html)
 
 
+def _bare_tof_bank_result(tof, y_obs, y_calc, **kw):
+    """A minimal single-bank TOF ``RefinementResult`` — no fit, just curves.
+
+    The ``tests.test_tof_refine._bare_result`` pattern, extended with the
+    arrays :func:`~rietx.viz.html.write_html` actually draws: a curve-less
+    result exercises ``axis``, but a plot needs points on it.
+    """
+    from rietx.schemas.common import Provenance
+    from rietx.schemas.results import RefinementResult, Statistics
+
+    return RefinementResult(
+        status="converged", mode="rietveld", parameters=[],
+        statistics=Statistics(rwp=0.05, rp=0.04, rexp=0.045, gof=1.1, chi2=1.2,
+                              n_points=len(tof), n_free_parameters=3),
+        provenance=Provenance(package_version="test", created_utc="now"),
+        tof=list(tof), y_obs=list(y_obs), y_calc=list(y_calc), **kw)
+
+
+def _two_bank_tof_result():
+    """A hand-built two-histogram TOF ``RefinementResult`` (T-1c/housekeeping).
+
+    Stands in for a real joint bank fit: two banks, each with its own flight
+    times and no ``two_theta`` anywhere, which is exactly the shape
+    ``rietx.viz.html.write_html`` used to crash on
+    (``TypeError: len() of unsized object``, from handing
+    ``np.asarray(result.two_theta)`` — ``None`` on a TOF result — to
+    ``_minmax_decimate``) because it read ``result.two_theta`` unconditionally
+    instead of ``result.x()``.
+    """
+    from rietx.schemas.results import HistogramResult, Statistics
+
+    def bank(lo, n):
+        tof = np.linspace(lo, lo + n * 10.0, n)
+        y_calc = 100.0 + 60.0 * np.exp(-((tof - tof.mean()) ** 2) / 4000.0)
+        rng = np.random.default_rng(int(lo))
+        y_obs = y_calc + rng.normal(0, 4, tof.size)
+        stats = Statistics(rwp=0.05, rp=0.04, rexp=0.045, gof=1.1, chi2=1.2,
+                           n_points=n, n_free_parameters=3)
+        return tof, y_obs, y_calc, stats
+
+    tof0, y_obs0, y_calc0, stats0 = bank(12000.0, 60)
+    tof1, y_obs1, y_calc1, stats1 = bank(15000.0, 40)
+    histograms = [
+        HistogramResult(label="bank0", statistics=stats0, tof=list(tof0),
+                        y_obs=list(y_obs0), y_calc=list(y_calc0),
+                        ticks={"phase 0": [float(tof0[10]), float(tof0[30])]}),
+        HistogramResult(label="bank1", statistics=stats1, tof=list(tof1),
+                        y_obs=list(y_obs1), y_calc=list(y_calc1),
+                        ticks={"phase 0": [float(tof1[5]), float(tof1[20])]}),
+    ]
+    # the top-level mirror is histogram 0's, per ``RefinementResult.histograms``
+    result = _bare_tof_bank_result(tof0, y_obs0, y_calc0, histograms=histograms,
+                                   ticks=histograms[0].ticks)
+    return result
+
+
+def test_for_histogram_carries_the_tof_axis():
+    """``for_histogram`` must not drop the TOF abscissa (housekeeping Task B)."""
+    result = _two_bank_tof_result()
+    assert result.axis == "tof"
+    for h in range(2):
+        view = result.for_histogram(h)
+        assert view.axis == "tof"
+        assert view.two_theta is None
+        assert view.tof == result.histograms[h].tof
+
+
+def test_write_html_draws_a_tof_bank(tmp_path):
+    """``write_html`` on a TOF histogram: no ``TypeError``, and an honest axis.
+
+    Before the fix, ``write_html`` handed ``np.asarray(result.two_theta)`` —
+    ``None`` on every TOF result — straight to ``figure_from_arrays``, which
+    called ``len()`` on it inside ``_minmax_decimate`` and raised
+    ``TypeError: len() of unsized object``.  Measured on a real two-bank
+    joint fit with no ``two_theta`` anywhere; this fixture reproduces the same
+    shape without depending on that file.
+    """
+    from rietx.viz.html import write_html
+
+    result = _two_bank_tof_result()
+    for h in range(2):
+        out = tmp_path / f"bank{h}.html"
+        write_html(result.for_histogram(h), str(out))
+        assert out.exists() and out.stat().st_size > 1_000_000
+        html = out.read_text(encoding="utf-8")
+        # "time of flight (µs)", not "2θ (deg)" — plotly escapes the µ
+        assert "time of flight" in html
+        assert ("\\u03bc" in html) or ("µ" in html)
+        assert "2\\u03b8" not in html and "2θ" not in html
+
+
 def test_figure_from_arrays_weighted_and_raw():
     from rietx.viz.html import figure_from_arrays
 
@@ -334,8 +425,19 @@ def test_q_and_d_axes_are_the_same_pattern_in_another_coordinate(
 
     with pytest.raises(ValueError, match="wavelength"):
         result.plot(x_axis="q")
-    with pytest.raises(ValueError, match="x_axis must be one of"):
+    # **A deliberate contract change (T-1c).**  ``"tof"`` used to be refused as
+    # a name the vocabulary did not have; it is now a real member of
+    # ``X_AXES``, and what refuses it here is the *result* — this one's
+    # abscissa is 2θ, so the flight-time coordinate is not one it can be drawn
+    # against.  The refusal is stronger than the old one: it names the axis
+    # this result has, not just the set of legal spellings.
+    from rietx.viz.plots import X_AXES
+
+    assert "tof" in X_AXES
+    with pytest.raises(ValueError, match="abscissa is 2θ in degrees"):
         result.plot(x_axis="tof", wavelength=lam)
+    with pytest.raises(ValueError, match="x_axis must be one of"):
+        result.plot(x_axis="d-spacing", wavelength=lam)
 
 
 def test_curve_names_are_a_block_bottom_aligned_with_their_data(

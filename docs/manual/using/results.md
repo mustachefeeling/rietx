@@ -15,6 +15,44 @@ the structure" {cite}`mccusker1999`. Rwp is half of the first.
 Where a section here names a formula, Part 2 carries it as a numbered equation
 and this chapter links to it.
 
+(which-axis-a-result-holds)=
+
+## Which axis the result holds
+
+A result carries the abscissa the fit ran on, and says which one it is: the
+same pair of fields `PatternData` carries, for the same reason ([](data.md)):
+degrees and microseconds are related by a per-bank calibration a *result* does
+not hold, so nothing may convert between them behind a reader's back.
+
+| Member | Holds |
+|---|---|
+| `RefinementResult.two_theta` | 2θ in degrees, on a constant-wavelength fit; `None` otherwise |
+| `RefinementResult.tof` | neutron flight time in microseconds, on a time-of-flight bank; `None` otherwise |
+| `RefinementResult.axis` | `"two_theta"`, `"tof"`, or `None`, the discriminator |
+| `RefinementResult.axis_unit` | the unit that axis is measured in, for a label or a message |
+| `RefinementResult.x` | whichever abscissa is set, as a float64 numpy view |
+
+At most one of the two is set, and both is refused. Unlike a pattern, a
+result may have *neither*: a result built without curves (read back as a
+summary, or assembled by hand from parameters and statistics) carries no
+abscissa at all, and `RefinementResult.axis` answers `None` there rather than
+naming an axis nobody measured. So the three answers are "degrees",
+"microseconds" and "no curve", and a consumer that only works in one of them
+tests `axis` and never the values.
+
+`RefinementResult.ticks` is on the result's own axis too: degrees where
+`two_theta` is set, microseconds where `tof` is. A tick list is a set of
+positions on the curve beside it, never a second quantity to convert.
+
+`RefinementResult.x` is what axis-blind code wants: plotting, windowing,
+counting channels. Code that does *arithmetic* on the abscissa should branch on
+`axis` first, so that a path which can only do trigonometry refuses a flight
+time instead of returning a plausible wrong answer.
+
+`HistogramResult` carries the same five members, per histogram
+([](series.md)), so a joint fit over banks of different kinds reports each
+one's own axis rather than the first one's.
+
 ## Fit statistics
 
 `RefinementResult.statistics` is a `Statistics` object. The definitions follow

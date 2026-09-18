@@ -526,7 +526,14 @@ SIZE_CAPS: dict[str, int | None] = {
     # 473 -> 485 (WP-1118, 2026-09-16): the GSAS-II pair added the one rule a
     # writer cannot derive from the four before it — two programs reading one
     # string opposite ways, so the fact goes in the channel the target reads.
-    "src/rietx/io/CLAUDE.md": 485,
+    # 485 -> 545 (the time-of-flight cut, 2026-09-18): a bank makes the axis
+    # and the ordinate two *declared* quantities rather than one assumed one,
+    # so the declare-never-infer rule gains a second axis case and an
+    # intensity-basis case, and `instrument_tof.py` is a reader whose product
+    # is a calibration and not a pattern -- the distinction the next such
+    # reader will otherwise get wrong. Landed at 542. The long form is in the
+    # module docstrings: `io/instrument_tof.py` and `io/formats/gsas.py`.
+    "src/rietx/io/CLAUDE.md": 545,
 }
 CURRENT_FOCUS_CAP: int | None = 60  # lines within ROADMAP's Current focus (WP-1031 landed at 33; the 1060 rewrite at 44)
 # Words, because a line cap alone was met by nine 1000-character paragraphs

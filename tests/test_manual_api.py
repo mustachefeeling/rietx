@@ -224,14 +224,20 @@ def _fully_declared() -> tuple[object, object]:
 
 
 def _parameter_paths() -> set[str]:
-    """Every dot-path three representative models put on the table.
+    """Every dot-path four representative models put on the table.
 
     LaB6 (cubic, tied cell, locked special positions), rutile with free
-    coordinates — which is what puts `…atoms.*.dof.*` paths in reach — and the
-    fully-declared LaB6 above for the optional correction blocks.
+    coordinates — which is what puts `…atoms.*.dof.*` paths in reach — the
+    fully-declared LaB6 above for the optional correction blocks, and a
+    ``neutron_tof`` bank, whose calibration and ``ProfileTOF`` coefficients
+    (``instrument.source.difc``, ``instrument.source.profile_tof.gam0`` …)
+    exist on no constant-wavelength table and are named in Part 1 wherever it
+    describes a flight-time fit.
     """
     plain = Instrument.debye_scherrer(wavelength=0.4139)
-    models = [(make_lab6(), plain), (make_rutile(vary_coords=True), plain), _fully_declared()]
+    bank = Instrument.tof_neutron_bank(difc=12000.0, two_theta_bank_deg=90.0)
+    models = [(make_lab6(), plain), (make_rutile(vary_coords=True), plain),
+              _fully_declared(), (make_lab6(), bank)]
     paths: set[str] = set()
     for structure, instrument in models:
         paths.update(entry.path for entry in ParameterTable(structure, instrument).entries)

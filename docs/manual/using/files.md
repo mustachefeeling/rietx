@@ -86,8 +86,93 @@ withholds σ and says so with `PATTERN_INTENSITY_SCALED`, because the Poisson
 fallback is wrong by √t on a rate.
 
 The scanned axis is never assumed. Most vendor files are not powder scans at
-all, so a file whose axis is something other than 2θ is refused by name, and an
-axis the reader cannot identify says so.
+all, so a file whose axis is something other than 2θ or a neutron flight time is
+refused by name, and an axis the reader cannot identify says so.
+
+(reading-a-time-of-flight-bank)=
+### Reading a time-of-flight bank
+
+Two of the readers produce a time-of-flight pattern (`PatternData.tof` in
+microseconds instead of `PatternData.two_theta` in degrees), and both do it
+because the file stated the unit, never because the numbers looked like one.
+
+| file | what makes it a flight time |
+|---|---|
+| GSAS bank, `TIME_MAP` bintype | the bintype. Its steps are tabulated in a separate `TIME_MAP` record (triples of (first channel, flight time, step) in clock ticks), so the axis is exact and every record layout (`STD`, `ESD`, `FXYE`) is read |
+| GSAS bank, `RALF` or `SLOG` bintype | the bintype, and an `FXYE` record layout, which writes its own x column. This is what Mantid's `SaveGSS` emits (its default format is `RALF`). Under `ESD` or `STD` the axis would have to be integrated from the four bank coefficients and the bank is refused by name instead: the manual says a `RALF` step "varies (irregularly) in pseudoconstant Δt/t steps", and reconstructing a real ISIS GEM bank's axis from its own coefficients reproduces that bank's explicit column only to ~9 × 10⁻³ µs, a near miss, which is the one error shape nothing downstream can see |
+| `.xy` / `.xye` with a Mantid header | the line `' The X-axis unit is: Time-of-flight`. A *stated unit* only: "tof" also turns up in file names and provenance comments, and flipping a pattern's abscissa on a substring would change what every number in the file means on the strength of a coincidence. A file that mentions a flight time and states no unit is read as 2θ and says so (`PATTERN_X_AXIS_ASSUMED`) |
+
+The same header line is how a `dSpacing`, `MomentumTransfer` or `Wavelength`
+export is refused by name rather than read as an angle.
+
+And the ordinate has the same rule. GSAS writes the intensity relation as
+$I_o = I'_o/(W\cdot I_i)$, where $I'_o$ is "the number of counts observed in a
+channel of width $W$": a calculated Bragg sum is an intensity *density*, so a
+histogram whose channels hold counts owes it a factor of $W$ and one already
+divided by $W$ does not. On a flight-time bank $W$ is not a constant (an
+ISIS GEM `RALF` bank is Δt/t = 0.004 throughout, so $W$ rises in proportion to
+the flight time across the whole window), so the difference is a *slope in
+flight time*, not a scale, and a fit that gets it
+wrong pays for it in the displacement parameters rather than in the phase
+scale. `PatternData.intensity_basis` is `"counts"`, `"density"` or `None`, and
+a reader sets it only where the file declares it:
+
+| file | what it declares |
+|---|---|
+| GSAS bank whose header says `with Y multiplied by the bin widths` | `"counts"`. Mantid's `SaveGSS` writes that line when, and only when, its `MultiplyByBinWidth` option was on, and that option defaults to on |
+| GSAS bank of `STD` or `ESD` records | `"counts"`. Neither layout can express a density: an `STD` record is a repeat count and a six-character integer |
+| GSAS bank of `TIME_MAP` bintype | `"counts"`. A tabulated acquisition-clock map, which is not a form Mantid writes |
+| `.xy` / `.xye` stating a y-axis unit per unit of flight time | `"density"` |
+| `.xy` / `.xye` stating any other count-like y-axis unit | `"counts"` |
+| anything else | `None`, and on a flight-time pattern a `PATTERN_INTENSITY_BASIS_UNKNOWN` naming both answers |
+
+A Mantid header is by itself no evidence of a density: a POWGEN `.xye`
+states `Counts per microAmp.hour`, which is a count normalised by an integrated
+proton charge, a scalar, and exactly degenerate with the phase scale. Only a
+per-µs unit is a division by the channel's own width. `None` is left `None`:
+the fit then proceeds as a density, which is what every flight-time fit did
+before the field existed, and says so with `TOF_INTENSITY_BASIS_ASSUMED`.
+
+One file, one quantity. A GSAS file holding both a `CONS` bank and a
+`TIME_MAP` bank is refused naming both axes: this reader returns the first
+bank, and which one that was would otherwise decide what the pattern's abscissa
+*means*.
+
+The calibration is not in the data file. A GSAS `BANK` record carries
+binning constants and nothing else, so a TOF pattern without its
+instrument-parameter file is an axis in microseconds with no way back to a
+d-spacing. `read_gsas_tof_iparm` reads a GSAS-I `.iparm`/`.prm` (`HTYPE PNTR`)
+and returns one frozen `Instrument` per bank, keyed by bank number;
+`read_gsas2_instprm_tof` reads a GSAS-II `.instprm` (`Type:PNT`) and returns one, the flight-time twin of `read_gsas2_instprm`, disambiguated by name since a `.instprm` may declare either axis.
+
+<!-- api-doc: no-exec — it reads instrument files the user supplies -->
+```python
+import rietx as rx
+
+banks = rx.read_gsas_tof_iparm("npdf_TL-displex_7245.iparm")   # {1: Instrument, ...}
+bank = rx.read_gsas2_instprm_tof("Bank 2.instprm")              # one Instrument
+d = bank.source.d_from_tof(pattern.tof_us())
+```
+
+Both come back with every parameter `vary=False`, for the reason
+`load_instrument_profile` does: an instrument-parameter file is a beamline
+calibration refined against a standard, and freeing DIFC beside a free cell
+re-opens the same flat direction a free wavelength does.
+
+The GSAS-I reader reads one `PRCF` profile layout (type 1 written with
+eight coefficients, which is what every real type-1 block declares against the
+manual's twelve) and says so with a `GSAS_IPARM_PROFILE_READ` diagnostic that
+names the layout as *corroborated rather than documented*: the order was
+established from the physics it produces and from GSAS-II's own reader, not
+transcribed from a specification. Every other type is declined, with a
+`GSAS_IPARM_PROFILE_DECLINED` diagnostic naming the type and the coefficient
+count, because each GSAS time-of-flight profile function has its own
+independently-defined layout and reading one off another's description would be
+a guess. Declining is a diagnostic rather than a refusal because a declined
+profile leaves `ProfileTOF` at its all-zero state, which the flight-time
+compiler refuses by name (so it can stop a fit and never mislead one), while
+the calibration, which is what the caller came for, was read. A GSAS-II
+`.instprm` names each coefficient, so its profile *is* read.
 
 Weights follow from all this. The package uses the file's esd column when the
 file has one, and Poisson σ = √max(y, 1) only as the fallback. It never

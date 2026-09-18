@@ -22,6 +22,7 @@ from . import runs
 from ._about import DIST_NAME
 from .backend.api import backend_dtype_note
 from .background.diagnostics import STEPS_PER_FWHM_MIN, sampling_steps_per_fwhm
+from .crystallography.lattice import d_spacings
 from .help import help_key_for
 from .history.events import _attach_progress, as_event_stream
 from .history.store import fingerprint
@@ -40,10 +41,12 @@ from .model.forward import (
     Mode,
     compile_model,
 )
+from .model.forward_tof import CompiledTOFModel, compile_tof_model
 from .model.geometry import geometry_table
 from .model.microstructure import microstructure_table
 from .model.profiles.caglioti import (
     SCHERRER_K,
+    apparent_size_from_d_size_coefficient,
     apparent_size_from_size_coefficient,
     gaussian_fwhm,
     lorentzian_fwhm,
@@ -75,12 +78,20 @@ from .params.vector import (
     _is_wavelength,
     is_variable_path,
 )
-from .report.schemas import THRESHOLDS_VERSION, FitReport, StageReport
+from .report.schemas import (
+    THRESHOLDS_VERSION,
+    FitReport,
+    StageReport,
+)
 from .schemas.common import Diagnostic, Parameter, Provenance
 from .schemas.history import NodeAction, NodeMetrics, RefinementState, ReflectionState
 from .schemas.instrument import CAPILLARY_OFFSETS, Instrument
 from .schemas.params import ParameterRow, TieSpec
-from .schemas.pattern import PatternData
+from .schemas.pattern import (
+    TOF_NOT_EVALUATED,
+    PatternData,
+    require_matched_axis,
+)
 from .schemas.results import (
     DELIVERABLES,
     AbsorptionCorrection,
@@ -211,7 +222,110 @@ def _tie_terms(source: "str | dict[str, float] | Sequence[tuple[str, float]]",
     return [(path, scale * coeff) for path, coeff in seen.items()]
 
 
-def _unsupported_phase_paths(model: CompiledModel, table: ParameterTable,
+#: A compiled model of either arm.  Used in annotations wherever a function
+#: does not care which — which, after this rung, is nearly all of ``refine.py``:
+#: the diagnostics that *do* care say so by branching on ``model.axis`` and
+#: returning a diagnostic that names what did not run.
+AnyCompiledModel = CompiledModel | CompiledTOFModel
+
+def _tof_skip(code: str, what: str, why: str,
+              where: list[str] | None = None) -> Diagnostic:
+    """One "this did not run, and here is why" diagnostic, at info level.
+
+    Info rather than warning: nothing is wrong with the fit — a bank simply has
+    no 2θ aberration to attribute, no scalar wavelength to build a Scherrer
+    size from, and no per-reflection profile partition yet.  Saying so is the
+    point.  A silent ``return []`` here would be indistinguishable from the
+    check running and passing, which is the failure mode
+    ``CAPILLARY_OFFSET_UNAVAILABLE`` exists to prevent one arm over: a held
+    aberration reads as a measured zero, and an unrun check reads as a clean
+    one.
+    """
+    return Diagnostic(
+        level="info", code=code, where=list(where or []),
+        message=f"{what} is {TOF_NOT_EVALUATED}: {why}",
+        suggestion=("the flight-time arm's own diagnostics are the ones to "
+                    "read — Rwp, chi-squared, the per-stage records and the "
+                    "refined calibration; this line says the check did not run "
+                    "rather than that it ran and found nothing"))
+
+
+def _tof_background_peak_diagnostics(model) -> list[Diagnostic]:
+    """The hump-width guard, and that it did not run on a bank.
+
+    ``strategy.staged.check_hump_width`` compares a declared hump's FWHM
+    against the *instrument* resolution at its position, and both halves are
+    deg 2θ on this package's constant-wavelength arm.  A bank has no Caglioti
+    term to evaluate and its hump is in microseconds, so the guard abstains
+    there — and an abstention nobody reports is indistinguishable from a guard
+    that ran and found nothing, which is the whole reason :func:`_tof_skip`
+    exists.
+
+    Silent unless there is something to say: no declared hump, or a
+    constant-wavelength histogram, where the guard did run.
+    """
+    if not _is_tof(model) or not getattr(model, "component_paths", ()):
+        return []
+    return [_tof_skip(
+        "BACKGROUND_PEAK_WIDTH_UNAVAILABLE",
+        "the hump-width guard",
+        "it asks whether a declared hump is narrower than a real reflection "
+        "can be at its position, and the resolution it compares against is the "
+        "Caglioti FWHM in deg 2θ; this bank's resolution is "
+        "instrument.source.profile_tof's sigma(d) and gamma(d) and its hump is "
+        "in microseconds, so the two have no common unit",
+        [paths[2] for paths in model.component_paths])]
+
+
+def _is_tof(model) -> bool:
+    """Whether a compiled model's grid is a flight time.
+
+    Asked of the *model*, never of the instrument or the pattern: by the time a
+    diagnostic runs, the compiled model is the authority on which forward
+    branch produced the numbers it is about.  ``getattr`` with the
+    constant-wavelength default so a stand-in in a test needs no field.
+    """
+    return getattr(model, "axis", "two_theta") == "tof"
+
+
+def _compile_for(structure: Structure, instrument: Instrument,
+                 data: PatternData, *, mode: Mode = "rietveld",
+                 limits: tuple[float, float] | None = None,
+                 moving_paths: set[str] | None = None,
+                 restraint_weight_scale: float = 1.0,
+                 window_slack: float | None = None) -> AnyCompiledModel:
+    """Compile against whichever forward model this **pair** names.
+
+    The one routing point, so the four call sites in this module read alike and
+    a fifth cannot pick differently.  The rule is the pair, not either half: a
+    time-of-flight pattern *or* a ``neutron_tof`` source goes to
+    :func:`~rietx.model.forward_tof.compile_tof_model`, which refuses both
+    mismatched pairs by name at its own door; everything else goes to
+    :func:`~rietx.model.forward.compile_model`, whose ``require_two_theta``
+    call refuses a flight time there.  So each compiler states its own refusal
+    and this function states none — the alternative, a third message here,
+    would be a second authority on the same fact.
+
+    ``limits`` and ``window_slack`` are **on the pattern's own axis**: degrees
+    on a constant-wavelength scan, microseconds on a bank.  They are spelled
+    without a unit here for that reason; the public keyword a caller writes is
+    still ``two_theta_limits`` (see :meth:`Refinement.fit`), which is a name
+    this rung deliberately does not rename.
+    """
+    if data.axis == "tof" or instrument.source.kind == "neutron_tof":
+        return compile_tof_model(
+            structure, instrument, data, mode=mode, tof_limits=limits,
+            moving_paths=moving_paths,
+            restraint_weight_scale=restraint_weight_scale,
+            window_slack_us=window_slack)
+    return compile_model(
+        structure, instrument, data, mode=mode, two_theta_limits=limits,
+        moving_paths=moving_paths,
+        restraint_weight_scale=restraint_weight_scale,
+        window_slack_deg=window_slack)
+
+
+def _unsupported_phase_paths(model: AnyCompiledModel, table: ParameterTable,
                              support: np.ndarray | None = None) -> list[str]:
     """The free structural paths of every phase the data cannot see.
 
@@ -374,6 +488,14 @@ class Refinement:
         if solver not in SOLVERS:
             raise ValueError(f"unknown solver {solver!r}; "
                              f"available: {', '.join(SOLVERS)}")
+        # No axis fence here.  It used to be one — the parameter table this
+        # constructor builds reached for a wavelength a bank does not carry, so
+        # a ``neutron_tof`` instrument had to be refused where it stood or the
+        # failure was an AttributeError about a missing attribute.  The table
+        # now registers the bank's calibration instead (``params.vector``), so
+        # a Refinement over a bank is a legitimate object; what the *pattern*
+        # is is not known until ``fit``, and that is where the matched-pair
+        # check belongs (:func:`~rietx.schemas.pattern.require_matched_axis`).
         self._backend = backend
         self._solver = solver
         self.structure = structure.model_copy(deep=True)
@@ -417,6 +539,19 @@ class Refinement:
 
         # carried across calls so a checkout can be continued
         self._mode: Mode = "rietveld"
+        #: The fit window, **on the pattern's own abscissa** — degrees on a
+        #: constant-wavelength scan, *microseconds* on a time-of-flight bank.
+        #: The name says 2θ and, since T-1c, that is true of one of the two
+        #: arms rather than of both.
+        #:
+        #: It is kept anyway, deliberately: ``two_theta_limits`` is a public
+        #: keyword on :meth:`fit`, :meth:`run_stage` and :meth:`suggest`, is
+        #: persisted as a ``RefinementState`` field, and reaches ``project.py``,
+        #: ``sequential.py``, ``multi.py`` and ``gui/session.py``.  Renaming it
+        #: is a public-API deprecation with a state migration, and mixing one
+        #: into the change that routes a forward model would make two things
+        #: reviewable as one.  It is written down here instead, and as a note
+        #: in this rung's report.
         self._two_theta_limits: tuple[float, float] | None = None
         self._free_paths: list[str] = []
         #: paths the *last* stage held because the data could not see their
@@ -1385,9 +1520,9 @@ class Refinement:
             structure = self.structure.model_copy(deep=True)
             instrument = self.instrument.model_copy(deep=True)
             table.apply_to_models(structure, instrument)
-            model = compile_model(structure, instrument, data, mode=mode,
-                                  two_theta_limits=limits,
-                                  moving_paths=set(table.moving_paths))
+            model = _compile_for(structure, instrument, data, mode=mode,
+                                 limits=limits,
+                                 moving_paths=set(table.moving_paths))
             carried = False
             if (self._model is not None and mode in ("lebail", "pawley")
                     and self._model.mode == mode):
@@ -1674,9 +1809,9 @@ class Refinement:
         # set lets the compiler allocate FCJ nodes for axial parameters
         # that are about to refine from zero
         self._write_back(table)
-        new_model = compile_model(
+        new_model = _compile_for(
             self.structure, self.instrument, data, mode=mode,
-            two_theta_limits=two_theta_limits,
+            limits=two_theta_limits,
             moving_paths=set(table.moving_paths),
             # eq (7)'s c_w for this stage: frozen onto the model here, with the
             # hkl list and the windows, because a schedule reweights the
@@ -1685,7 +1820,7 @@ class Refinement:
             # the stage's declared window capture slack (WP-1112): the same
             # frozen-at-compile shape as c_w, and None for every plan that
             # does not state one
-            window_slack_deg=stage.window_slack_deg)
+            window_slack=stage.window_slack_deg)
         carried = False
         if model is not None and mode in ("lebail", "pawley") and model.mode == mode:
             _carry_lebail(model, new_model)
@@ -1931,6 +2066,13 @@ class Refinement:
                 f"({', '.join(sorted(PLAN_PRESETS))}) or list at least one "
                 "stage.")
 
+        # The pair, not the pattern: this verb serves both arms and refuses the
+        # two crossed ones.  Checked here rather than left to the compiler
+        # below — which refuses them too — so that a caller who mixed up two
+        # instruments does not watch a history tree open and a ``fit_start``
+        # event go out before the run says no.
+        require_matched_axis(data, "Refinement.fit()",
+                             instrument=self.instrument)
         self._mode = mode
         self._two_theta_limits = two_theta_limits
         self._free_paths = []
@@ -1967,7 +2109,7 @@ class Refinement:
             if stream is not None:
                 stream.emit("fit_start", mode=mode,
                             stages=[s.name for s in plan.stages],
-                            n_points=len(data.two_theta))
+                            n_points=len(data.x()))
 
             # Stages are cumulative *within the plan*, and the plan drives the whole
             # turn-on sequence: `restore=False` holds everything first, so a fit
@@ -2120,7 +2262,9 @@ class Refinement:
                     stage, data, mode, table, model, two_theta_limits,
                     plan.correlation_guard, events=stream, cancel=cancel,
                     stage_index=k, n_stages=len(plan.stages), ftol=ftol)
-            stage_diagnostics = _guard_diagnostics(guard)
+            stage_diagnostics = (
+                _stage_freed_nothing_diagnostics(stage.name, stage.turn_on, freed)
+                + _guard_diagnostics(guard))
             for d in stage_diagnostics:
                 if d.code == "HIGH_CORRELATION":
                     correlation_hits.setdefault(frozenset(d.where), []).append(
@@ -2264,7 +2408,8 @@ class Refinement:
                     # way out — or was cancelled, which reaches here with no
                     # ``fit_end`` to say so — recorded itself ``done``.
                     stream.close()  # we created it from a path/callable
-            diagnostics = _guard_diagnostics(guard)
+            diagnostics = _stage_freed_nothing_diagnostics(
+                stage.name, stage.turn_on, freed) + _guard_diagnostics(guard)
             if mode == "pawley":
                 diagnostics.extend(_pawley_unresolved_diagnostics(model, self.structure))
             diagnostics.extend(_constraint_diagnostics(stage.name, outcome))
@@ -2345,6 +2490,13 @@ class Refinement:
         grid the last fit ran on, which is the one form that needs a fit to
         have happened: nothing else supplies a grid.
 
+        **The bare array is read on the instrument's own axis.**  The parameter
+        keeps its 2θ name, and against a ``neutron_tof`` instrument the numbers
+        in it are flight times in microseconds — the axis is a property of the
+        instrument here, because a bare array declares nothing.  Passing a
+        :class:`~rietx.PatternData` is the unambiguous form: it carries its own
+        axis, and a pair whose two halves disagree is refused by name.
+
         **It does not require a fit** (WP-1110 item 6).  Until then it did, and
         the refusal was ``RuntimeError: call fit() first`` on both forms, which
         is why an agent wanting y_calc at known parameters to redraw a figure
@@ -2378,17 +2530,26 @@ class Refinement:
                     "stands: ref.predict(data).")
             return self._model.evaluate(table.decode(table.x0()))
         if isinstance(two_theta, PatternData):
-            two_theta = two_theta.two_theta
+            require_matched_axis(two_theta, "Refinement.predict()",
+                                 instrument=self.instrument)
+            two_theta = two_theta.x()
         tt = np.asarray(two_theta, dtype=np.float64)
-        grid = PatternData(two_theta=tt.tolist(), intensity=[0.0] * len(tt))
+        # A bare array carries no axis, so the instrument decides which field
+        # it lands in — the dummy grid must be a *time-of-flight* pattern for a
+        # bank, or the compile refuses its own instrument.
+        tof_grid = self.instrument.source.kind == "neutron_tof"
+        grid = PatternData(
+            two_theta=None if tof_grid else tt.tolist(),
+            tof=tt.tolist() if tof_grid else None,
+            intensity=[0.0] * len(tt))
         mode = self._mode
         if mode in ("lebail", "pawley") and self._model is None:
             raise RuntimeError(
                 f"{mode} intensities are extracted by a fit, not computed from "
                 "the structure, so there is nothing to evaluate before one has "
                 "run. Fit first, or predict in rietveld mode.")
-        model = compile_model(self.structure, self.instrument, grid,
-                              mode=mode, moving_paths=set(table.moving_paths))
+        model = _compile_for(self.structure, self.instrument, grid,
+                             mode=mode, moving_paths=set(table.moving_paths))
         if mode in ("lebail", "pawley"):
             _carry_lebail(self._model, model)
         return model.evaluate(table.decode(table.x0()))
@@ -2507,9 +2668,12 @@ class Refinement:
         to still be holding.  One Jacobian build, no solve.
         """
         model = self._model
-        data = PatternData(two_theta=model.tt.tolist(),
-                           intensity=model.y_obs.tolist(),
-                           sigma=model.sigma.tolist())
+        # rebuilt on the model's own axis — ``grid`` is ``tt`` on the
+        # constant-wavelength arm and the flight times on a bank
+        data = PatternData(
+            two_theta=None if _is_tof(model) else model.grid.tolist(),
+            tof=model.grid.tolist() if _is_tof(model) else None,
+            intensity=model.y_obs.tolist(), sigma=model.sigma.tolist())
         s = self.suggest(data)
         if not s.groups:
             return (f"  next: nothing to free — no held parameter clears the "
@@ -2844,6 +3008,75 @@ def _dedup_high_correlations(
     return out
 
 
+def _stage_freed_nothing_diagnostics(
+        stage_name: str, turn_on: list[str], freed: list[str], *,
+        n_histograms: int = 1) -> list[Diagnostic]:
+    """``STAGE_FREED_NOTHING`` — a stage whose free list matched no row.
+
+    ``set_vary`` **returns what it matched**, and nothing in ``Stage`` or
+    ``RefinementResult`` surfaced that: a stage that freed nothing solved the
+    same problem the stage before it did and still reported ``converged``.
+
+    **Measured, and it cost a whole refinement.**  On a joint fit of four
+    time-of-flight banks and one constant-wavelength histogram, a profile stage
+    written with the natural ``instrument.profile.*`` globs freed **four** rows
+    — all of them the one CW histogram's ``u``/``v``/``w``/``x`` — and none on
+    any bank, because a bank's peak shape lives at
+    ``instrument.source.profile_tof.*``.  Every stage reported ``converged``,
+    the joint Rwp came back 0.11486 with the whole flight-time profile still at
+    its seed, and nothing in the result said so; the same fit with the right
+    globs gives 0.06630.  So the diagnostic is **per histogram** and names the
+    histogram's index: a stage that frees rows on some histograms and none on
+    others is the shape that hides, and a joint count of 4 hides it.
+
+    **Per stage, never per glob**, which is the narrowing issue #265 argues
+    for one rank over: a *glob* matching nothing is normal — ``lab_sample_refine``
+    ships ``phases.*.microstrain.dof.*``, which correctly matches nothing on a
+    phase with no Stephens block — and a typo is indistinguishable from it.  A
+    whole stage matching nothing is not normal: it did no work.  ``info``
+    because there is a legitimate case (a preset stage for a correction this
+    model does not declare — ``roughness`` on a neutron instrument), and the
+    honest report of that case is still "this stage freed nothing".
+
+    ``freed`` is the joint table's scoped spelling on a joint fit
+    (``hist.1.instrument.profile.u``; a *shared* path arrives bare), so a
+    shared hit counts for every histogram and a scoped one for its own.
+    """
+    if n_histograms <= 1:
+        if freed:
+            return []
+        empty = [None]
+    else:
+        shared = any(not p.startswith("hist.") for p in freed)
+        if shared:
+            return []
+        touched = {p.split(".", 2)[1] for p in freed if p.startswith("hist.")}
+        empty = [h for h in range(n_histograms) if str(h) not in touched]
+    out = []
+    for h in empty:
+        where = list(turn_on) if h is None else [f"hist.{h}"] + list(turn_on)
+        scope = "" if h is None else f", histogram {h} of {n_histograms},"
+        out.append(Diagnostic(
+            level="info", code="STAGE_FREED_NOTHING",
+            message=(f"stage {stage_name!r}{scope} freed no parameter at all: "
+                     f"its free list {list(turn_on)} matched no row of the "
+                     f"parameter table"
+                     + ("" if h is None else
+                        " for this histogram") +
+                     ". The stage still ran, and it solved the same problem "
+                     "the stage before it did"),
+            where=where,
+            suggestion=(
+                "check the paths against Refinement.parameters() — a "
+                "time-of-flight bank's peak shape is at "
+                "instrument.source.profile_tof.*, not instrument.profile.*, "
+                "and a plan written for the constant-wavelength arm frees "
+                "nothing on a bank. If the stage is a preset's and this model "
+                "declares no such correction, nothing is wrong and the stage "
+                "did nothing")))
+    return out
+
+
 def _constraint_diagnostics(stage_name: str, outcome) -> list[Diagnostic]:
     """`CONSTRAINT_ACTIVE` when the answer-producing stage pressed a constraint.
 
@@ -2959,6 +3192,14 @@ def _resolve_specimen_absorption(structure: Structure,
     outcomes.
     """
     geom = instrument.geometry
+    if instrument.source.kind == "neutron_tof":
+        # Nothing to fill in: this arm has no scalar µR to write, and it does
+        # not need one — ``compile_tof_model`` computes µ(λ) from the same
+        # composition and the same ``capillary_radius_mm``/``packing_fraction``
+        # this function would have used, and applies it per reflection.
+        # Returning the estimator's "skipped" reason here would report a
+        # correction as unavailable while it was running.
+        return "given", None
     if geom.kind == "debye_scherrer":
         if geom.capillary_radius_mm is None or geom.mu_r is not None:
             return "given", None
@@ -3003,10 +3244,137 @@ def _resolve_specimen_absorption(structure: Structure,
 FLAT_PLATE_BIAS_MIN = 0.05
 
 
+def _tof_absorption_diagnostics(model) -> list[Diagnostic]:
+    """What the flight-time specimen absorption did, and over what µR range.
+
+    :func:`_absorption_record` returns ``None`` on this arm and always will:
+    :class:`~rietx.schemas.results.AbsorptionCorrection` carries **one** µR and
+    **one** wavelength, and a bank has neither.  Without these two lines the
+    correction would be applied and the result would say nothing at all about
+    it, which is the one outcome worse than not applying it.
+
+    Two diagnostics, and the split matters.  The info line always fires when
+    the correction ran, because a µR of 0.02 is worth knowing about too — it is
+    the evidence that the number was *computed* rather than defaulted.  The
+    warning fires only past the Rouse domain, at the same threshold and with
+    the same code the constant-wavelength path uses, so a reader who knows one
+    knows the other.  What is new is the *pair*: µ rises with λ, so a specimen
+    can sit inside the domain at the short-wavelength end of a bank and outside
+    it at the long one, and only two numbers can say so.
+    """
+    span = getattr(model, "mu_r_range", None)
+    if span is None:
+        return []
+    lo, hi = span
+    where = ["instrument.geometry.capillary_radius_mm"]
+    out = [Diagnostic(
+        level="info", code="SPECIMEN_ABSORPTION_TOF", where=where,
+        message=(f"specimen absorption was applied per reflection at its own "
+                 f"wavelength: µR runs {lo:.3f} to {hi:.3f} across the fitted "
+                 f"window, computed from the refined composition and the "
+                 f"declared capillary radius (mu = sum n_i [sigma_abs_i "
+                 f"lambda/1.798 + sigma_coh_i + sigma_inc_i]/V, Sears 1992). "
+                 f"It is not a refinable parameter here and must not become "
+                 f"one — GSAS's own warning is that the correction is "
+                 f"indistinguishable from thermal motion"),
+        suggestion=("nothing to do; quote a displacement parameter from this "
+                    "fit knowing the correction was in the model, and check "
+                    "geometry.capillary_radius_mm and packing_fraction against "
+                    "the specimen if it matters at this size"))]
+    if hi > CYLINDER_MU_R_MAX:
+        out.append(Diagnostic(
+            level="warning", code="ABSORPTION_MU_R_OUT_OF_RANGE", where=where,
+            message=(f"µR reaches {hi:.2f} at the long-wavelength end of this "
+                     f"bank, outside the Rouse et al. (1970) fit's range "
+                     f"(µR <= {CYLINDER_MU_R_MAX:g}); the transmission factor "
+                     f"is an extrapolation there. On a flight-time bank this "
+                     f"can be true at one end and false at the other — µ "
+                     f"follows the 1/v law, and here it is {lo:.2f} at the "
+                     f"short-wavelength end"),
+            suggestion=("dilute the specimen or use a narrower capillary; "
+                        "shortening the fitted window at the long-flight-time "
+                        "end also brings the correction back inside its "
+                        "domain, at the cost of the reflections there")))
+    return out
+
+
+def _tof_intensity_basis_diagnostics(model) -> list[Diagnostic]:
+    """What the flight-time model did about GSAS's channel width W.
+
+    Three states and three different things to say, which is why this is a
+    function and not a boolean:
+
+    * ``"counts"`` — the calculated Bragg sum was multiplied by W, measured
+      from the pattern's own abscissa.  An **info** line, and it always fires,
+      for :func:`_tof_absorption_diagnostics`'s reason: nothing else in the
+      result would say that a factor with a shape in flight time was in the
+      model, and the number it moves most is a displacement parameter.
+    * ``"density"`` — the caller declared the histogram already divided, so
+      nothing was applied.  Silent: a declared state that produced the
+      declared behaviour is not news.
+    * ``None`` — nothing established it, and the model **proceeded as a
+      density**.  A warning, and it names the field and both values, because
+      the only thing wrong with this state is that nobody has said which of
+      two answers is right.
+    """
+    basis = getattr(model, "intensity_basis", "density")
+    if basis == "density":
+        return []
+    where = ["intensity_basis"]
+    if basis == "counts":
+        w = model.channel_width_factor()
+        lo, hi = (float(w[0]), float(w[-1])) if w is not None else (0.0, 0.0)
+        return [Diagnostic(
+            level="info", code="TOF_CHANNEL_WIDTH_APPLIED", where=where,
+            message=(f"this histogram declares intensity_basis='counts', so "
+                     f"the calculated Bragg sum was multiplied by the channel "
+                     f"width W(T) — GSAS's I_o = I'_o/(W·I_i) (LAUR 86-748, "
+                     f"Technical Manual p. 127). W was measured from the "
+                     f"pattern's own abscissa and runs {lo:.3f} to {hi:.3f} µs "
+                     f"across the fitted window, a factor of "
+                     f"{(hi / lo if lo > 0 else float('nan')):.2f}. It is a "
+                     f"slope in flight time and not a scale, so leaving it out "
+                     f"would have been paid for by the displacement "
+                     f"parameters rather than by the phase scale"),
+            suggestion=("nothing to do; if this bank's export already divided "
+                        "by the bin width, say so with "
+                        "intensity_basis='density' — applying W twice biases "
+                        "Biso the other way by the same amount"))]
+    return [Diagnostic(
+        level="warning", code="TOF_INTENSITY_BASIS_ASSUMED", where=where,
+        message=("nothing established whether one channel of this histogram "
+                 "holds the counts it recorded or those counts already divided "
+                 "by the channel width, so pattern.intensity_basis is None and "
+                 "this fit proceeded as 'density' — no channel-width factor, "
+                 "which is what every flight-time fit before this option did. "
+                 "If the histogram is in counts (Mantid's SaveGSS multiplies Y "
+                 "by the bin widths by default), the missing factor of W(T) is "
+                 "a smooth rise across the bank and a refined Biso is what "
+                 "absorbs it: an ISIS GEM bank of a YAG standard read the two "
+                 "ways gave Biso 1.93 against 0.38 and Rwp 0.101 against "
+                 "0.056"),
+        suggestion=("set pattern.intensity_basis to 'counts' or 'density' from "
+                    "how the bank was reduced. The readers set it themselves "
+                    "where the file declares it — a GSAS STD/ESD layout or "
+                    "TIME_MAP bintype, a SaveGSS header stating the bin-width "
+                    "multiplication, or a stated .xye Y-axis unit"))]
+
+
 def _absorption_record(model: CompiledModel, source: str, skipped: str | None,
                        values: dict[str, float] | None = None):
-    """The :class:`AbsorptionCorrection` record, or None when nothing applies."""
-    if model.mode != "rietveld":
+    """The :class:`AbsorptionCorrection` record, or None when nothing applies.
+
+    ``None`` on a time-of-flight bank **even when the correction ran**, and the
+    reason is this container rather than the physics: it carries one ``mu_r``
+    at one ``wavelength``, and a bank has neither — µ follows the 1/v law, so
+    µR is a function of λ and λ is a property of the channel.  Since T-3 the
+    Rouse cylinder factor *is* applied there, per reflection, and what says so
+    is :func:`_tof_absorption_diagnostics`, which reports µR at both ends of
+    the fitted window.  Filling this record with a µR at some chosen reference
+    wavelength would be the defaulted-answer shape: a number that reads as a
+    measurement of the histogram and is true of one channel of it.
+    """
+    if model.mode != "rietveld" or _is_tof(model):
         return None
     lam = model.line_wavelengths[0] if model.line_wavelengths else model.wavelength
     if model.geometry_kind == "debye_scherrer":
@@ -3057,7 +3425,11 @@ def _reflection_positions(model: CompiledModel,
         [np.asarray(model.phase_peaks(ip, values)[0][0], dtype=np.float64)
          for ip in range(len(model.phases))])
     positions = positions[np.isfinite(positions)]
-    return positions[(positions >= model.tt_min) & (positions <= model.tt_max)]
+    # ``x_min``/``x_max`` rather than ``tt_min``/``tt_max``: slot 0 of
+    # ``phase_peaks`` is the position on whichever axis the model holds, so the
+    # clip has to be on that axis too.  On the constant-wavelength model the
+    # two pairs are the same floats.
+    return positions[(positions >= model.x_min) & (positions <= model.x_max)]
 
 
 def _capillary_offset_diagnostics(model: CompiledModel,
@@ -3105,6 +3477,14 @@ def _capillary_offset_diagnostics(model: CompiledModel,
     than the verdict for exactly that reason — the protocol row (§7) carries the
     clause on how to read it on a calibrated instrument.
     """
+    if _is_tof(model):
+        return [_tof_skip(
+            "CAPILLARY_OFFSET_UNAVAILABLE", "the eq (4) specimen-offset check",
+            "eq (4) is a shift in deg 2θ and this histogram's abscissa is a "
+            "flight time; a bank's position calibration is DIFC/DIFA/TZERO/"
+            "DIFB, and it is measured against a standard rather than flagged "
+            "here",
+            ["instrument.source.difc"])]
     if model.geometry_kind != "debye_scherrer":
         return []
     # Read the gate off the table rather than re-deriving it from the geometry.
@@ -3199,7 +3579,7 @@ def _phase_agreement(model: CompiledModel, values: dict[str, float],
     :meth:`~rietx.model.forward.CompiledModel.structure_intensity_partition`
     refuses rather than returning a circular number.
     """
-    if model.mode != "rietveld" or not model.phases:
+    if model.mode != "rietveld" or not model.phases or _is_tof(model):
         return []
     rows = []
     for ip, (i_obs, i_calc) in enumerate(
@@ -3212,7 +3592,8 @@ def _phase_agreement(model: CompiledModel, values: dict[str, float],
 
 
 
-def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray, *,
+def _build_result(model: AnyCompiledModel, table: ParameterTable,
+                  theta: np.ndarray, *,
                   mode: Mode, status: str, stage_results: list[StageResult],
                   diagnostics: list[Diagnostic], structure: Structure,
                   stderr_internal=None, correlation=None,
@@ -3259,18 +3640,33 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
     # answer to *where* a tick goes is the thing this must not become: the
     # index is carried through the same sort the positions are, so a tick and
     # its Miller index cannot come apart (WP-1438).
+    #
+    # A bank has one "line" and it is not an emission line: every reflection
+    # arrives at the same angle and is separated by flight time, so the
+    # positions come from the four-term calibration and there is no zero shift
+    # to add (that field is a 2θ offset in degrees and is force-fixed here).
+    # The ticks land on the result's own abscissa either way, which is what
+    # ``RefinementResult.ticks`` now states.
+    tof = _is_tof(model)
     ticks = {}
     tick_hkl = {}
     for ip, cp in enumerate(model.phases):
         name = structure.phases[ip].name
         cell = tuple(values[f"phases.{ip}.cell.{k}"]
                      for k in ("a", "b", "c", "alpha", "beta", "gamma"))
-        rows = [cp.reflections.two_theta(cell, lam) + values["instrument.zero_shift"]
-                for lam in model.line_wavelengths]
+        if tof:
+            rows = [np.asarray(model.positions(
+                d_spacings(cp.reflections.hkl, *cell), values),
+                dtype=np.float64)]
+        else:
+            rows = [cp.reflections.two_theta(cell, lam)
+                    + values["instrument.zero_shift"]
+                    for lam in model.line_wavelengths]
         pos = np.concatenate(rows) if rows else np.array([])
         # one reflection list per emission line, in the same order each time,
         # so the index list is that list tiled — the Kα2 image of a peak is
-        # the same hkl and says so
+        # the same hkl and says so.  A bank has a single row, so the tiling is
+        # the identity there.
         hkl = (np.tile(cp.reflections.hkl, (len(rows), 1)) if rows
                else np.zeros((0, 3), dtype=np.int64))
         keep = np.isfinite(pos)
@@ -3367,9 +3763,12 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
     # ``stderr_phys`` rather than a second ``stderr_physical`` call: with a
     # correlation matrix that build is a dense n x n, which a Pawley table
     # makes large, and the two calls would return the same dict.
+    # ``tof=``: on a bank the size pair is stored in the d-space units a white
+    # beam can express a specimen size in (T-3c), so the block reads L with no
+    # wavelength rather than abstaining on a coefficient it could not invert.
     microstructure = microstructure_table(
         structure, values, wavelength=_longest_line_wavelength(model),
-        esds=stderr_phys)
+        esds=stderr_phys, tof=_is_tof(model))
 
     # Specimen absorption: report what was applied and, crucially, the Biso
     # bias it removed — for a capillary Rwp is provably unchanged by it, so
@@ -3377,11 +3776,19 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
     absorption = _absorption_record(model, mu_r_source, mu_r_skipped, values)
     if absorption is not None:
         diagnostics = diagnostics + _absorption_diagnostics(absorption)
+    diagnostics = diagnostics + _tof_absorption_diagnostics(model)
+
+    # The other half of GSAS's I_o = I'_o/(W·I_i): whether the channel width
+    # was applied, and — the case that matters — whether nobody said.
+    diagnostics = diagnostics + _tof_intensity_basis_diagnostics(model)
 
     # The position aberration this geometry has and could not express, for the
     # same reason as above: nothing else in the result says it was unavailable
     # rather than measured at zero.
     diagnostics = diagnostics + _capillary_offset_diagnostics(model, table)
+
+    # The background-peak width guard, and — on a bank — that it abstained.
+    diagnostics = diagnostics + _tof_background_peak_diagnostics(model)
 
     # Surface-roughness regime fences (WP-0502): whether the fitted range can
     # see the correction at all, and whether it left its derivation's domain.
@@ -3412,7 +3819,7 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
     # the record quote one measurement.
     diagnostics = diagnostics + _phase_support_diagnostics(
         model.phase_support(values), model.phase_line_counts(),
-        (model.tt_min, model.tt_max), list(table.free_paths), structure,
+        _range_text(model), list(table.free_paths), structure,
         stage_results)
 
     # A strain broader than solved refinements normally use — a flag to check,
@@ -3441,9 +3848,14 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
     # The region below the first reflection (Q3): read off the fit's own
     # residual, never the background-envelope proxy above — same ``ticks``
     # this function already built, so the two cannot disagree about where
-    # the first reflection sits.
-    diagnostics = diagnostics + _low_angle_diagnostics(
-        model, values, y_calc, stats, ticks)
+    # the first reflection sits.  CW-only (dry-run merge finding, 2026-09-17):
+    # it reads the Caglioti U/V/W + Lorentzian X/Y instrument profile, which a
+    # TOF bank does not carry in this form (``instrument.source.profile_tof``
+    # is a different law entirely) — silently abstain there rather than raise,
+    # the same convention every other axis-aware diagnostic here follows.
+    if not _is_tof(model):
+        diagnostics = diagnostics + _low_angle_diagnostics(
+            model, values, y_calc, stats, ticks)
 
     # What a declared sharp peak did, once the fit has an answer about it
     # (WP-1103).  Built after ``ticks`` because "is this component sitting on a
@@ -3478,7 +3890,15 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
                               backend=backend, dtype=backend_dtype_note(backend),
                               solver=solver,
                               report_thresholds_version=THRESHOLDS_VERSION),
-        two_theta=model.tt.tolist(), y_obs=model.y_obs.tolist(),
+        # **The fit's own abscissa, and only ever the one it ran on.**  A
+        # microsecond must never reach a member called ``two_theta``: that is
+        # the whole content of the T-1 fence one rank down, and this is the one
+        # place in the package that could break it, being the only writer of
+        # the field on a single-histogram fit.  Written as a matched pair —
+        # one of the two is the grid and the other is ``None``.
+        two_theta=None if _is_tof(model) else model.grid.tolist(),
+        tof=model.grid.tolist() if _is_tof(model) else None,
+        y_obs=model.y_obs.tolist(),
         y_calc=y_calc.tolist(), y_background=y_bkg.tolist(),
         sigma=model.sigma.tolist(),
         ticks=ticks, tick_hkl=tick_hkl,
@@ -3863,7 +4283,7 @@ def _species_fallback_diagnostics(structure: Structure,
     """
     from .crystallography.scattering import detect_fallback
 
-    if instrument.source.kind == "neutron_cw":
+    if instrument.source.kind in ("neutron_cw", "neutron_tof"):
         return []
     # {raw species label -> (SpeciesFallback, [atom paths])}; grouped by the
     # label as written so two different ions of the same element (Fe2+ *and*
@@ -4125,8 +4545,17 @@ def _declared_wavelengths(instrument: Instrument) -> list[float]:
     inherits the reference rather than re-snapshotting it, because it is built
     from an instrument already carrying a refined λ.  The joint path
     (``multi.py``) snapshots the same list at construction for the same reason.
+
+    **Empty on a white beam**, which is the true answer rather than a skipped
+    one: a ``neutron_tof`` bank declares no wavelength at all — λ is a property
+    of the channel there — so there is no declared value for a refined one to
+    be measured against, and ``WAVELENGTH_CALIBRATION`` has nothing to say.
+    The flight-time quantity that plays λ's part is the bank calibration, and
+    what it is measured against is a certified cell, which is the standard
+    refinement rather than a diagnostic.
     """
-    return [p.value for p in instrument.source.wavelength_parameters]
+    return [p.value
+            for p in getattr(instrument.source, "wavelength_parameters", ())]
 
 
 #: a soft restraint is flagged in tension when its computed value sits more
@@ -4371,7 +4800,7 @@ def _data_support_diagnostics(support, model: CompiledModel) -> list[Diagnostic]
         ))
 
     steps, n_measured = sampling_steps_per_fwhm(
-        model.tt, model.y_obs, model.sigma)
+        model.grid, model.y_obs, model.sigma)
     if steps is not None and steps < STEPS_PER_FWHM_MIN:
         out.append(Diagnostic(
             level="warning", code="PATTERN_UNDERSAMPLED",
@@ -4633,9 +5062,26 @@ def _held_by_phase(stage_results: list[StageResult], n_phases: int
     return paths, [list(s) for s in stages]
 
 
+def _range_text(model) -> str:
+    """The fitted range of one compiled model, **in its own unit**.
+
+    Its one consumer is :func:`_phase_support_diagnostics`, whose ``no_lines``
+    message quotes it.  A formatted string rather than a pair of floats,
+    because the unit is a property of the model and the two callers cannot both
+    be handed one: the joint path fits several histograms whose ranges may be
+    in different units altogether, and its own answer is several of these
+    joined.  The constant-wavelength spelling is byte-identical to the one this
+    replaced.
+    """
+    lo, hi = model.x_min, model.x_max
+    if getattr(model, "axis", "two_theta") == "two_theta":
+        return f"{lo:.4g}-{hi:.4g}°"
+    return f"{lo:.4g}-{hi:.4g} µs"
+
+
 def _phase_support_diagnostics(support_by_phase: np.ndarray,
                                line_counts: np.ndarray,
-                               tt_range: tuple[float, float],
+                               range_text: str,
                                free_paths: list[str],
                                structure: Structure,
                                stage_results: list[StageResult] | None = None,
@@ -4700,7 +5146,7 @@ def _phase_support_diagnostics(support_by_phase: np.ndarray,
         name = structure.phases[ip].name
         if no_lines:
             cause = (f"no reflection of phase {ip} ({name}) lies in the fitted "
-                     f"range {tt_range[0]:.4g}-{tt_range[1]:.4g}°, so nothing "
+                     f"range {range_text}, so nothing "
                      f"about it is measurable here")
         else:
             cause = (f"phase {ip} ({name}) contributes at most {support:.2g}σ of "
@@ -4802,6 +5248,15 @@ def _strain_flag_diagnostics(model: CompiledModel, values: dict[str, float],
     column — so this cannot contradict it: a locked term keeps whatever value
     it was given, and the block's own Λ(hkl) is not an entry with a width.
     """
+    # **Runs on both arms** since T-3c, and the threshold is one number for
+    # both because the quantity is: ``lor_strain`` is a tanθ coefficient in
+    # deg 2θ on a scan and the *same* coefficient on a bank, which reads it as
+    # Δd/d = radians(c)/2 (``model.forward_tof.sample_broadening_terms``) — the
+    # λ-free half of WP-1131's asymmetry.  The corpus behind the threshold is
+    # constant-wavelength TOPAS, but what it measures is a fractional spread in
+    # d, so it transfers; the size twin below is the one that had to change its
+    # arithmetic.  Until T-3c a bank abstained here, and the reason it gave —
+    # that the terms are force-fixed on this arm — stopped being true.
     out: list[Diagnostic] = []
     for ip in range(len(model.phases)):
         name = structure.phases[ip].name
@@ -4908,8 +5363,14 @@ def _size_flag_diagnostics(model: CompiledModel, values: dict[str, float],
     this tier's empty state differs from the bound's; that function's docstring
     is where the difference is argued.
     """
-    lam = _longest_line_wavelength(model)
-    if lam is None:
+    # **Runs on both arms** since T-3c.  On a bank the stored coefficient is
+    # already the d-space one, K/L in Å⁻¹, so the size reads with no λ at all
+    # and the flag's threshold — a length in Å — is the same number; the
+    # abstention this replaced said a Scherrer size needs a λ, which is true of
+    # the *angular* coefficient and not of the specimen.
+    tof = _is_tof(model)
+    lam = None if tof else _longest_line_wavelength(model)
+    if lam is None and not tof:
         return []
     out: list[Diagnostic] = []
     floor_nm = SIZE_FLAG_SIZE_A / 10.0
@@ -4920,17 +5381,22 @@ def _size_flag_diagnostics(model: CompiledModel, values: dict[str, float],
                 ("gauss_size", _sqrt_or_none(values.get(f"phases.{ip}.gauss_size")))):
             if coeff is None or not coeff > 0.0:
                 continue
-            size_a = apparent_size_from_size_coefficient(coeff, lam, SCHERRER_K)
+            size_a = (apparent_size_from_d_size_coefficient(coeff, SCHERRER_K)
+                      if tof
+                      else apparent_size_from_size_coefficient(coeff, lam,
+                                                               SCHERRER_K))
             if not size_a < SIZE_FLAG_SIZE_A:
                 continue
             size_nm = size_a / 10.0
+            read_at = "d-space coefficient" if tof else f"λ={lam:.4g} Å"
             path = f"phases.{ip}.{term}"
             out.append(Diagnostic(
                 level="warning", code="SIZE_UNUSUALLY_SMALL",
                 where=[path], value=float(size_nm),
                 message=(f"phase {ip} ({name}) refined {term} to an apparent "
                          f"crystallite size of {size_nm:.3g} nm "
-                         f"(Scherrer K={SCHERRER_K}, λ={lam:.4g} Å), below the "
+                         f"(Scherrer K={SCHERRER_K}, "
+                         f"{read_at}), below the "
                          f"{floor_nm:.0f} nm that solved refinements stay above "
                          f"— of 606 TOPAS refinements in our archive the "
                          f"smallest well-determined crystallite is ≈ 33 nm, and "
@@ -4979,7 +5445,7 @@ def _roughness_regime_diagnostics(model: CompiledModel,
     intensity.  Reported rather than clamped, because clamping would put a kink
     in the residual (the frozen-per-stage smoothness invariant).
     """
-    if model.roughness is None or not len(model.tt):
+    if model.roughness is None or not model.n_points:
         return []
     import numpy as np
 
@@ -5080,7 +5546,7 @@ def replay(tree: RefinementTree, node_id: str, data: PatternData) -> RefinementR
     node = tree[node_id]
     expected = tree.header.data_fingerprint
     if expected:
-        actual = fingerprint(data.two_theta, data.intensity)
+        actual = fingerprint(data.x(), data.intensity)
         if actual != expected:
             raise ValueError(
                 f"pattern does not match this history: fingerprint {actual[:8]} "
@@ -5111,9 +5577,9 @@ def replay(tree: RefinementTree, node_id: str, data: PatternData) -> RefinementR
     for path in state.free_paths:
         table.set_vary([path], True)
 
-    model = compile_model(structure, instrument, data, mode=state.mode,
-                          two_theta_limits=state.two_theta_limits,
-                          moving_paths=set(table.moving_paths))
+    model = _compile_for(structure, instrument, data, mode=state.mode,
+                         limits=state.two_theta_limits,
+                         moving_paths=set(table.moving_paths))
     if state.mode in ("lebail", "pawley"):
         _restore_lebail(state.reflections, model)
 

@@ -201,7 +201,155 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 #: empty where there is nothing to say, which is the case for the reserved
 #: declared-peaks key: a peak given by centre has no Miller index, and ``[]``
 #: there would claim it had none of its own.
-SCHEMA_VERSION = "0.22"
+#: 0.22 → 0.23 (T-1, issue #193): the **time-of-flight abscissa**, five
+#: observable changes landing together because they are one feature — the
+#: 0.6 → 0.7 CW-neutron entry above is the precedent, and this is its
+#: time-of-flight twin.
+#: (a) ``PatternData.tof`` added (a flight time in µs, strictly increasing) and
+#: ``PatternData.two_theta`` becomes optional, with a validator requiring
+#: **exactly one** of the two.  Every serialized pattern carries the new key,
+#: and a consumer reading ``two_theta`` unconditionally now has a ``None`` case
+#: it has never seen.  ``PatternData.axis`` is the discriminator, read off which
+#: field is set; ``x()`` is the axis-blind view, ``tt()`` **raises** on a TOF
+#: pattern where it used to be total, and ``tof_us()`` is its twin.
+#: (b) ``TOFSource`` added as a third arm of the ``Instrument.source``
+#: discriminated union (``kind="neutron_tof"``), carrying ``difc``/``difa``/
+#: ``tzero``/``difb``, the bank's fixed ``two_theta_bank_deg`` and optional
+#: ``l1_m``/``l2_m`` — so a consumer that switched exhaustively on ``kind`` has
+#: a second new case, and ``Capabilities.radiations`` grows a third entry.
+#: (c) ``ProfileTOF`` added, on ``TOFSource.profile_tof``: the GSAS type-3
+#: back-to-back-exponential coefficients (``alpha0``…``gam2``), every one a
+#: polynomial in **d** rather than in an angle.  Stored, never evaluated — the
+#: forward model is constant-wavelength and every public entry refuses a TOF
+#: pattern (``schemas.pattern.require_two_theta``) — so it exists to make
+#: reading a calibration lossless rather than to change a number.
+#: (d) ``PatternData.crop``/``in_range_mask``/``excluded_regions`` are now on
+#: the axis *as measured*, so their bounds are µs on a TOF pattern.  No CW
+#: pattern's behaviour changes: measured bit-identical over all 93 fixtures
+#: under ``tests/data``.
+#: (e) new ``Diagnostic`` codes ``GSAS_IPARM_PROFILE_DECLINED``,
+#: ``GSAS_IPARM_FIELD_DROPPED`` and ``GSAS2_INSTPRM_FIELD_DROPPED``, from the
+#: two instrument-parameter readers in ``io/instrument_tof.py``.
+#: 0.23 → 0.24 (T-1c, issue #193): the **result's** abscissa — the twin of
+#: 0.22 → 0.23 one rank down, and four observable changes listed together
+#: because they are one feature, exactly as that entry lists five.
+#: (a) ``RefinementResult.tof`` and ``HistogramResult.tof`` added (a flight
+#: time in µs) and ``two_theta`` on both becomes optional, defaulting to
+#: ``None`` rather than to ``[]``.  **A consumer reading ``result.two_theta``
+#: unconditionally now has a ``None`` case it has never seen** — and it is not
+#: only the time-of-flight case: a result built without curves used to report
+#: an empty list, which reads as "measured nothing on an angular axis", and
+#: now reports ``None``, which is "carries no curve".  That is the WP-1076
+#: honest-empty-state rule; the empty list was the defaulted answer.
+#: (b) A validator refuses a result carrying **both** abscissae — a claim that
+#: somebody converted between them through a per-bank calibration the
+#: container does not hold.
+#: (c) ``RefinementResult.axis`` / ``.axis_unit`` / ``.x()`` added, mirroring
+#: ``PatternData``'s, with the one documented difference that ``axis`` has a
+#: third answer ``None`` for a curve-less result.  Present on
+#: ``HistogramResult`` too.
+#: (d) ``ticks`` is now stated to be on the result's **own** abscissa — µs on a
+#: time-of-flight fit.  No constant-wavelength number moves: the values are the
+#: same degrees they always were, and only the field's declared contract grew a
+#: second case.
+#: 0.24 → 0.25 (T-3, issue #193): what varies with **wavelength inside one
+#: time-of-flight histogram** — the incident spectrum the file declares, and
+#: the specimen absorption and extinction that follow λ across a bank.  One
+#: bump, three observable changes, because they are one feature: each is a
+#: correction whose constant-wavelength form takes a scalar λ and whose
+#: flight-time form takes λ per reflection or per channel.
+#: (a) ``TOFSource.incident_spectrum`` added, an ``IncidentSpectrum`` carrying
+#: the GSAS ``ITYP`` function number, its ``ICOFF`` coefficients as
+#: ``Parameter``\ s (fixed by default, with the file's ``IECOF`` esds in their
+#: ``stderr``) and the fitted flight-time window.  **It defaults to ``ITYP 0``,
+#: which is exactly no spectrum**, so every bank built before this version is
+#: unchanged — the compiled model multiplies by nothing rather than by an array
+#: of ones.  What changes for a consumer is that
+#: ``read_gsas_tof_iparm`` no longer drops ``ITYP``/``ICOFF``/``IECOF``: a
+#: LANSCE-style file that declares a spectrum now produces an instrument that
+#: *applies* it, and the three records leave the
+#: ``GSAS_IPARM_FIELD_DROPPED`` diagnostic (``IECOR`` stays dropped, and the
+#: reader says why).
+#: (b) ``phases.*.extinction`` and specimen absorption are **no longer refused
+#: on a time-of-flight bank**.  Sabine extinction is evaluated per reflection at
+#: λ_hkl = 2·d·sin θ_bank, and the Rouse cylinder factor at a µR that follows
+#: the 1/v law across the bank; a table built from a TOF instrument therefore
+#: stops force-fixing ``phases.*.extinction``, which is an observable change to
+#: ``ParameterTable`` on that arm.  ``Geometry.mu_r`` and ``mu_t`` stay refused
+#: there, and now for a sharper reason than "not implemented": a scalar µR is a
+#: claim at one wavelength and a bank has many, so the correction is driven by
+#: ``capillary_radius_mm`` and the composition instead.
+#: (c) no constant-wavelength number moves.  The X-ray and CW-neutron paths do
+#: not reach any of it; measured bit-identical on the shipped 11-BM Si SRM 640c
+#: acceptance refinement, values, esds, statistics and curves.
+#: 0.25 → 0.26 (T-3b, issue #193): the **intensity basis** — whether a stored
+#: channel holds the counts it recorded or those counts already divided by the
+#: channel's own width.  ``PatternData.intensity_basis`` is added, a
+#: ``Literal["counts", "density"] | None`` defaulting to ``None`` ("the file
+#: did not say"), so every serialized pattern carries one more key and a
+#: consumer switching on it has a three-valued field rather than a boolean.
+#: It is the other half of GSAS's I_o = I'_o/(W·I_i), whose I_i half landed in
+#: 0.24 → 0.25: on a time-of-flight bank a ``"counts"`` pattern now has its
+#: calculated Bragg sum multiplied by the channel width W measured from the
+#: pattern's own abscissa, a ``"density"`` pattern by nothing, and ``None``
+#: proceeds as a density — the behaviour every build before this one had —
+#: while saying so.  The readers set it only where the file *declares* it (a
+#: GSAS ``STD``/``ESD`` layout or a ``TIME_MAP`` bintype; a Mantid ``SaveGSS``
+#: header stating the bin-width multiplication; a stated ``.xye`` Y-axis
+#: unit), never from the values.  **No constant-wavelength number moves**: the
+#: field is read by the flight-time forward model and by nothing else.
+#: 0.26 → 0.27 (T-3c, issue #193): **no field is added or removed** — this
+#: entry records an observable change to ``ParameterTable`` and to the forward
+#: model on the time-of-flight arm, the same kind of change 0.24 → 0.25 (b)
+#: recorded for ``phases.*.extinction``.
+#: (a) a phase's four sample-broadening widths (``lor_size``, ``gauss_size``,
+#: ``lor_strain``, ``gauss_strain``) are **no longer force-fixed on a
+#: neutron_tof table**: a crystallite size and a microstrain broaden a bank's
+#: peaks by ΔT = DIFC·(K/L)·d² and ΔT = DIFC·ε·d, which
+#: ``model.forward_tof`` now adds into γ and σ² before the TCH mixing.
+#: (b) **the size pair changes unit on that arm, and only there**: a size
+#: coefficient is (180/π)·K·λ/L and a white beam states no λ, so a bank holds
+#: ``lor_size`` as K/L in Å⁻¹ and ``gauss_size`` as its square in Å⁻².  The
+#: strain pair is λ-free and keeps its deg-2θ meaning on both arms.
+#: ``params.multi.size_value_scales`` converts between the two units in a mixed
+#: fit — the WP-1131 map that already existed to put one specimen's size into
+#: each histogram's own units — and **refuses by name** a mixed fit whose
+#: constant-wavelength source declares no wavelength while a size is non-zero.
+#: (c) the microstructure block and the two tier-2 size/strain flags stop
+#: abstaining on a bank: L in Å and Δd/d are axis-free, so all four rows read.
+#: (d) **no constant-wavelength number moves, and no number moves on a bank
+#: whose phases declare no sample broadening**: every added term is an exact
+#: ±0 at rietx's zero defaults, which are a physical statement — an infinite,
+#: strain-free crystal — and are deliberately *not* GSAS-II's non-zero ones.
+#: 0.27 → 0.28 (T-1d, issue #193): ``ProfileTOF.sig0``/``sig1``/``sig2`` gain
+#: ``min = 0.0`` and the **softplus** transform.  No field is added; what
+#: changes is what a serialized ``ProfileTOF`` says about those three
+#: (``"min": 0.0``, ``"transform": "softplus"`` where a document written before
+#: this carries ``-Infinity`` and ``"identity"``), and what a **stored
+#: negative** one does: it now fails validation, where before it loaded and was
+#: refused later by ``compile_tof_model``.  A GSAS-II ``.instprm`` carrying one
+#: is refused **by name** by the reader rather than by pydantic
+#: (``io.instrument_tof``), since a reader owes a message naming the file.
+#: Why a floor at all, and why it is not a claim about the physics:
+#: σ²(d) ≥ 0 is a *cone* coupling all three coefficients, which a box cannot
+#: express, and both ways of living with the compiler's cone refusal were
+#: measured to fail — a free ``sig2`` walked to −6.095 on a 7.7 Å bank and
+#: killed a joint fit at compile time mid-plan, while the same parameter bounded
+#: at zero under the identity transform sat on a dead gradient and froze its
+#: whole stage (every TOF coefficient back at its seed, ``converged``, joint Rwp
+#: 0.06630 → 0.12266).  Softplus escapes both: the value cannot go negative and
+#: ``internal_bounds`` maps a zero lower bound to −∞, so there is no active
+#: bound to sit on, and ``Stage(seed=…)`` — which reaches softplus entries only
+#: — can now lift the coefficient off the floor.  **No number moves**: zero
+#: stays the default and a held value decodes through ``d`` rather than through
+#: the transform.  Beside it, ``compile_tof_model`` gains the Lorentzian twin of
+#: the σ² check — γ(d) = gam0 + gam1·d + gam2·d² must be non-negative over the
+#: fitted d range, refused by name — because a real bank converged at
+#: ``gam1 = −5.749`` with nothing refusing or warning.  γ's three coefficients
+#: keep their signs: a negative γ₁ beside positive γ₀ and γ₂ is how a
+#: resolution function narrows and broadens again, so it is the *polynomial*
+#: that is checked and not the coefficients.
+SCHEMA_VERSION = "0.28"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
 

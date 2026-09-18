@@ -39,9 +39,11 @@ from ..schemas.common import Parameter
 from ..schemas.instrument import (
     CAPILLARY_OFFSETS,
     COMPONENT_FIELDS,
+    TOF_CONSTANTS,
     BackgroundFixedPlusChebyshev,
     BackgroundPSpline,
     Instrument,
+    ProfileTOF,
 )
 from ..schemas.structure import Structure
 from .transforms import dphys_dinternal, internal_bounds, to_internal, to_physical
@@ -188,6 +190,59 @@ def extra_component_parameters(components) -> list[tuple[str, Parameter]]:
     return [(f"{i}.{name}", getattr(comp, name))
             for i, comp in enumerate(components)
             for name in COMPONENT_FIELDS[comp.kind]]
+
+
+def tof_source_parameters(source) -> list[tuple[str, Parameter]]:
+    """(sub-path, Parameter) pairs for a ``neutron_tof`` bank, or [].
+
+    The third member of the :func:`roughness_parameters` /
+    :func:`extra_component_parameters` family, and here for exactly their
+    reason: the collector and :meth:`ParameterTable.apply_to_models` must walk
+    one list, or a refined DIFC is written into θ, solved for, and then
+    silently dropped at the next stage's recompile — the half-wired-parameter
+    failure this module's docstring names.  It bit the ``neutron_cw``
+    wavelength once already (see the ``wavelength_parameters`` comment in
+    ``apply_to_models``), and a calibration constant fails the same way while
+    looking perfectly refined in the result.
+
+    Fourteen pairs: :data:`~rietx.schemas.instrument.TOF_CONSTANTS` under
+    ``instrument.source.`` (``difc``, ``difa``, ``tzero``, ``difb``, the
+    four-term flight-time relation), then :class:`ProfileTOF`'s ten
+    coefficients under ``instrument.source.profile_tof.``.  Both name lists are
+    **read off their own authority** — the constants tuple the schema validator
+    uses, and the pydantic field order of ``ProfileTOF`` — rather than typed
+    here, so a coefficient added to the container reaches the table without a
+    second edit.
+
+    ``[]`` for every constant-wavelength source, so a table built from one is
+    byte-for-byte the pre-time-of-flight table.
+    """
+    if getattr(source, "kind", None) != "neutron_tof":
+        return []
+    return ([(name, getattr(source, name)) for name in TOF_CONSTANTS]
+            + [(f"profile_tof.{name}", getattr(source.profile_tof, name))
+               for name in ProfileTOF.model_fields]
+            + incident_spectrum_parameters(source.incident_spectrum))
+
+
+def incident_spectrum_parameters(spectrum) -> list[tuple[str, Parameter]]:
+    """(sub-path, Parameter) pairs for the incident spectrum, or [].
+
+    **Numbered from 1, as the manual numbers them.**  GSAS calls the
+    coefficients P₁…P_N (Larson & Von Dreele, 2004, LAUR 86-748, GSAS Technical
+    Manual p. 128-129) and the file writes them in that order, so the path is
+    ``…incident_spectrum.p1``.  The background's ``c0`` one loop down is 0-based
+    because its T₀ genuinely is the zeroth Chebyshev term; here a 0-based path
+    would put an off-by-one between a parameter's name and the manual a reader
+    is holding, which is the kind of translation that gets done wrong once and
+    then trusted.
+
+    ``[]`` when the bank declares ``ITYP 0`` — no coefficients, no rows — which
+    is the default and therefore what every bank built before this feature
+    produces: a table over such an instrument is byte-for-byte the one it was.
+    """
+    return [(f"incident_spectrum.p{i}", p)
+            for i, p in enumerate(spectrum.coefficients, start=1)]
 
 
 def roughness_parameters(rough) -> list[tuple[str, Parameter]]:
@@ -735,6 +790,116 @@ def size_cap(tt_min: float, tt_max: float, wavelength_a: float,
     return min(physics, rng)
 
 
+#: (π/360), the one factor between a stored strain **coefficient** and the
+#: Δd/d it means.  A deliberate second spelling of
+#: :func:`~rietx.model.profiles.caglioti.microstrain_width`'s constant, for
+#: :data:`_SIZE_CAP_SCHERRER_K`'s reason — this module stays free of a
+#: ``params`` → ``model`` import — and held to it by an equality pin rather
+#: than by this comment (``tests/test_strain_cap.py``).  The physics: the
+#: Stokes-Wilson broadening is Δ2θ = 2·(Δd/d)·tanθ in *radians*, so a
+#: coefficient c in degrees carries Δd/d = (π/180)·c/2.
+_STRAIN_COEFFICIENT_TO_DD = math.pi / 360.0
+
+
+def tof_strain_cap(tof_min: float, tof_max: float, difc: float,
+                   d_max: float) -> float:
+    """:func:`strain_cap` on a **bank**: the widest ``lor_strain`` its own
+    fitted range can express.
+
+    The flight-time twin of the rule one function up, and the same rule: a
+    line whose width exceeds the interval it was measured over carries no
+    information the fit could have got from the data.  What differs is the
+    arithmetic, because a bank's strain broadening is a flight time and not an
+    angle (:func:`~rietx.model.profiles.tof.tof_sample_gamma`):
+
+        ΔT_strain(d) = DIFC·ε·d,   ε = Δd/d as a FWHM
+
+    which is largest at the **longest** fitted d, exactly as the angular
+    ``tanθ`` term is largest at the highest θ.  Holding that contribution to
+    :data:`STRAIN_CAP_RANGE_FRACTION` of the fitted flight-time extent,
+
+        DIFC·ε·d_max ≤ f·(T_max − T_min)
+
+    and converting ε back to the stored degree coefficient
+    (:data:`_STRAIN_COEFFICIENT_TO_DD`) gives what this returns.  With
+    DIFA = DIFB = ZERO = 0 the bound reads exactly as the brief states it —
+    T = DIFC·d makes it ε ≤ f·(d_max − d_min)/d_max, **the fitted d range's own
+    fractional width** — and taking it off the flight-time window rather than
+    off that identity is what keeps it right on a bank whose DIFA is not zero.
+
+    Same three properties as the angular cap, and they are what make it
+    landable: dimensional and self-scaling (no magic constant enters);
+    generous by construction (a GEM bank at DIFC = 2822 µs/Å over
+    3500-22 000 µs, i.e. d = 1.24-7.79 Å, caps ε at 0.841 — **84 % Δd/d**,
+    against the ~10⁻³ a real specimen shows and the ~10⁻² a badly defective
+    one does); and **armed only on a
+    term that has already reached it** (:func:`strain_cap_hi`), so a fit inside
+    the range the data can express gets no bound at all and is bit-identical to
+    an uncapped build.
+
+    Returns ``inf`` when the range cannot state a bound — a degenerate window,
+    a non-positive DIFC or d_max — because "no claim" is the honest output.
+    """
+    span = tof_max - tof_min
+    if not (span > 0.0 and difc > 0.0 and d_max > 0.0):
+        return math.inf
+    dd = STRAIN_CAP_RANGE_FRACTION * span / (difc * d_max)
+    return dd / _STRAIN_COEFFICIENT_TO_DD
+
+
+def tof_size_cap(tof_min: float, tof_max: float, difc: float, d_max: float,
+                 *, k: float = _SIZE_CAP_SCHERRER_K,
+                 min_size_a: float = SIZE_CAP_MIN_SIZE_A) -> float:
+    """:func:`size_cap` on a **bank**: the widest ``lor_size`` allowed, in Å⁻¹.
+
+    The flight-time twin, and the *same two clauses* — the tighter of a
+    crystallite floor and the fitted-range backstop — with both arithmetics
+    changed by the one fact that makes this rung necessary: on a
+    ``neutron_tof`` table ``lor_size`` holds **K/L in Å⁻¹**, not a width in
+    degrees (T-3c; ``model.forward_tof.sample_broadening_terms``).
+
+    **The crystallite floor needs no wavelength here**, which is the whole
+    difference from the angular form.  There a floor ``L ≥ min_size_a`` is a
+    ceiling ``(180/π)·k·λ/min_size_a`` on the coefficient and λ is what a white
+    beam has not got; here the coefficient *is* K/L, so
+
+        ``lor_size`` ≤ k / min_size_a            [the crystallite floor]
+
+    — 0.045 Å⁻¹ at 2 nm, and the same 2 nm the angular cap uses
+    (:data:`SIZE_CAP_MIN_SIZE_A`, a runaway fence a couple of unit cells below
+    anything the archive contains, never a claim about how small a crystallite
+    may be).
+
+    **The backstop is the strain rule with d² for d**, because a size
+    broadening is ΔT = DIFC·(K/L)·d² and that is largest at the longest fitted
+    d (:func:`tof_strain_cap` for the flight-time-extent argument):
+
+        DIFC·(K/L)·d_max² ≤ f·(T_max − T_min)    [the range backstop]
+
+    with f = :data:`SIZE_CAP_RANGE_FRACTION`.  Which of the two binds is a
+    measurement rather than a guess, and on a real bank it is the floor: a
+    POWGEN bank at DIFC = 22 587 µs/Å over 1900-16 660 µs (d = 0.084-0.74 Å)
+    gives a backstop of 1.20 Å⁻¹ against the floor's 0.045, and a long-d GEM
+    bank at DIFC = 2822 over 3500-22 000 µs (d = 1.24-7.79 Å) gives 0.108 —
+    still the floor.  The backstop therefore catches the degenerate case (a
+    narrow window at long d), exactly as the angular one catches 1/cosθ near
+    2θ = 180°.
+
+    The Gaussian term takes the square of whichever width binds, and the cap is
+    armed only where the coefficient has already reached it — both
+    :func:`size_cap_hi`, unchanged: it is a statement about the *stored* pair
+    and knows nothing about which arm computed the width.
+    """
+    floor = math.inf
+    if k > 0.0 and min_size_a > 0.0:
+        floor = k / min_size_a
+    span = tof_max - tof_min
+    rng = math.inf
+    if span > 0.0 and difc > 0.0 and d_max > 0.0:
+        rng = SIZE_CAP_RANGE_FRACTION * span / (difc * d_max * d_max)
+    return min(floor, rng)
+
+
 def size_cap_hi(name: str, value: float, hi: float, cap: float) -> float:
     """The upper bound one size term takes this stage — ``hi`` unless capped.
 
@@ -866,6 +1031,18 @@ class ParameterTable:
         ))
 
     def _collect(self, structure: Structure, instrument: Instrument) -> None:
+        # **What a time-of-flight bank cannot use, it force-fixes** (WP-1073).
+        # The TOF forward branch (``model.forward_tof``) shares the reflection
+        # list, |F|², the cell and the background with the constant-wavelength
+        # one and shares no *instrument* width and no *position offset* with
+        # it: the resolution is ``ProfileTOF``'s polynomials in d, and the
+        # flight time comes from DIFC/DIFA/TZERO/DIFB.  So the Caglioti terms,
+        # the degree ``zero_shift`` and the 2θ aberrations
+        # are parameters that branch never reads, and the rule for those is
+        # force-fixed rather than merely unfree — a free entry there is a dead
+        # column, one the solver moves and the model ignores, and ``set_vary``
+        # would hand it out to any glob without objecting.
+        tof = instrument.source.kind == "neutron_tof"
         for ip, phase in enumerate(structure.phases):
             sg = get_spacegroup(phase.space_group)
             # The cell ties come from the *setting*, not from the crystal system
@@ -886,10 +1063,44 @@ class ParameterTable:
                 else:
                     self._add(f"{base}.cell.{name}", p)
             self._add(f"{base}.scale", phase.scale)
+            # **Extinction is refinable on both arms.**  It was force-fixed on
+            # the time-of-flight arm until T-3, because ``compile_tof_model``
+            # refused a declared one; Sabine's variable x carries λ only as
+            # (λ/V)², so the constant-wavelength function takes an array of
+            # per-reflection wavelengths unchanged and there is nothing left to
+            # refuse.  March-Dollase below is the case that still is: it
+            # averages over a reflection's symmetry orbit at the *measured*
+            # angle, and on a bank every reflection shares one angle, so the
+            # correction has a different form here rather than a different
+            # value.  A parameter the forward branch refuses is force-fixed
+            # rather than merely unfree (WP-1073) — and with a second
+            # consequence that made it visible: ``Refinement.suggest`` probes
+            # every held-but-*refinable* row by seeding it off its softplus
+            # floor, so a merely unfree one is seeded to a non-zero value and
+            # the probe's own recompile is refused mid-``summary()``.
             self._add(f"{base}.extinction", phase.extinction)
             if phase.preferred_orientation is not None:
                 self._add(f"{base}.preferred_orientation.r",
-                          phase.preferred_orientation.r)
+                          phase.preferred_orientation.r, force_fixed=tof)
+            # **The four sample widths are refinable on both arms** (T-3c).
+            # They were force-fixed on the flight-time arm until then, and the
+            # reason given was that the branch could not use them; it can.  A
+            # crystallite size and a microstrain broaden every peak of a phase
+            # on a bank exactly as they do on a scan — ΔT = DIFC·(K/L)·d² and
+            # ΔT = DIFC·ε·d (``model.profiles.tof.tof_sample_width``) — and
+            # they are properties of the *specimen*, so they are the columns a
+            # joint constant-wavelength + time-of-flight fit shares.  What
+            # differs between the arms is only the **unit** the size pair is
+            # stored in, and only the size pair: a strain coefficient is
+            # λ-free and means the same number of degrees everywhere, while a
+            # size coefficient is (180/π)·K·λ/L and is a length only through a
+            # wavelength, which a white beam does not have.  So on a
+            # ``neutron_tof`` table ``lor_size`` holds K/L in Å⁻¹ and
+            # ``gauss_size`` its square in Å⁻²
+            # (``model.forward_tof.sample_broadening_terms``), and
+            # ``params.multi.size_value_scales`` — the WP-1131 map that already
+            # exists to put one specimen's size into each histogram's own units
+            # — carries a mixed fit between the two.
             self._add(f"{base}.lor_size", phase.lor_size)
             # a Stephens block owns the tanθ Lorentzian channel outright: its
             # isotropic direction is the same column, so lor_strain is locked
@@ -898,16 +1109,22 @@ class ParameterTable:
                       force_fixed=phase.microstrain is not None)
             self._add(f"{base}.gauss_size", phase.gauss_size)
             self._add(f"{base}.gauss_strain", phase.gauss_strain)
-            self._collect_microstrain(base, sg, phase)
+            self._collect_microstrain(base, sg, phase, tof=tof)
             for j, atom in enumerate(phase.atoms):
                 self._collect_atom_coords(f"{base}.atoms.{j}", sg, atom)
                 self._add(f"{base}.atoms.{j}.occ", atom.occ)
                 self._collect_atom_adps(f"{base}.atoms.{j}", sg, atom)
 
-        self._add("instrument.zero_shift", instrument.zero_shift)
+        # A 2θ offset in degrees.  ``TOFSource.tzero`` is the flight-time
+        # quantity that plays its part, and it is a *different* parameter in a
+        # different unit — which is why the field is spelled Mantid's ``TZERO``
+        # and not GSAS's ``ZERO`` (see ``TOFSource.tzero``).
+        self._add("instrument.zero_shift", instrument.zero_shift,
+                  force_fixed=tof)
         self._collect_instrument(instrument)
 
-    def _collect_microstrain(self, base: str, sg, phase) -> None:
+    def _collect_microstrain(self, base: str, sg, phase, *,
+                             tof: bool = False) -> None:
         """Stephens S_HKL enter θ through Laue-symmetry-allowed patterns.
 
         The rank-4 twin of :meth:`_collect_atom_adps`: the phase contributes
@@ -969,15 +1186,21 @@ class ParameterTable:
                     path=f"{base}.microstrain.{name}", value=0.0, vary=False,
                     lo=p.min, hi=p.max, transform=p.transform, locked=True))
         for k, path in enumerate(dof_paths):
-            self.entries.append(Entry(path=path, value=float(coef[k]), vary=want_vary,
-                                      lo=-np.inf, hi=np.inf, transform="identity"))
+            # ``locked`` on a time-of-flight bank: ``strain_width_deg`` returns
+            # a width in deg 2θ, which is not a microsecond, so
+            # ``compile_tof_model`` refuses a declared block outright — the DOF
+            # rows exist for the paths' sake and cannot be freed (WP-1073).
+            self.entries.append(Entry(path=path, value=float(coef[k]),
+                                      vary=want_vary and not tof,
+                                      lo=-np.inf, hi=np.inf,
+                                      transform="identity", locked=tof))
         # S scales as microstrain², so one unit-ppm projection serves any seed
         unit, *_ = np.linalg.lstsq(
             basis.T.astype(np.float64),
             isotropic_coefficients(phase.cell.lengths_angles(), 1.0), rcond=None)
         self._strain_unit[base] = unit
 
-    def _collect_atom_coords(self, base: str, sg, atom) -> None:
+    def _collect_atom_coords(self, base: str, sg, atom, *, modes=()) -> None:
         """Coordinates enter θ through site-symmetry displacement DOFs.
 
         Each site contributes ``…dof.k`` parameters — one per site-symmetry-
@@ -1070,9 +1293,93 @@ class ParameterTable:
         # Force-fixed rather than merely unfree, the WP-1073 rule — a parameter
         # the forward branch cannot legitimately use must be locked, or
         # ``set_vary`` frees it and nothing objects.
+        tof = instrument.source.kind == "neutron_tof"
         self._add("instrument.polarization", instrument.source.polarization,
                   force_fixed=instrument.source.kind != "xray_cw")
-        for il, line in enumerate(instrument.source.lines):
+        if tof:
+            # A white beam is a continuum, so there is no line list and no
+            # wavelength to register: ``TOFSource`` carries neither ``lines``
+            # nor ``wavelength_parameters``, and the two loops below would
+            # raise ``AttributeError`` on it.  What it carries instead is the
+            # bank's calibration and its d-polynomial profile, and those go in
+            # here — **fixed by default**, because a DIFC read from a `.iparm`
+            # is a calibration refined against a standard and freeing it beside
+            # a free cell is the flight-time spelling of the λ-vs-cell
+            # degeneracy the wavelength comment below describes.  Not
+            # force-fixed: freeing one constant against a *held* certified cell
+            # is exactly how a bank is calibrated, so "can never legitimately
+            # move" would be false — the same distinction line 0's wavelength
+            # draws.
+            for sub, cp in tof_source_parameters(instrument.source):
+                self._add(f"instrument.source.{sub}", cp)
+        else:
+            self._collect_cw_source(instrument.source)
+        geom = instrument.geometry
+        for name in ("sample_displacement", "sample_transparency",
+                     "axial_sl", "axial_hl"):
+            self._add(f"instrument.geometry.{name}", getattr(geom, name),
+                      force_fixed=(tof or (geom.kind != "bragg_brentano"
+                                           and name.startswith("sample_"))))
+        for name in CAPILLARY_OFFSETS:
+            offset = getattr(geom, name)
+            # eq (4) divides by R.  Geometry's validator refuses a *stored*
+            # free offset without one, but ``vary`` set after construction
+            # re-runs no validator, and this is the last gate before a solve —
+            # so refuse here too, naming the field rather than quietly holding
+            # the parameter (a held aberration reads as "measured zero").
+            if tof and offset.vary:
+                raise ValueError(
+                    f"instrument.geometry.{name} cannot vary on a neutron_tof "
+                    f"bank: eq (4) is Δ2θ = (−a·sin2θ + b·cos2θ)/R, a shift in "
+                    f"degrees 2θ, and this histogram's abscissa is a flight "
+                    f"time in microseconds. A bank's position calibration is "
+                    f"instrument.source.difc/difa/tzero/difb")
+            usable = bool(not tof and geom.kind == "debye_scherrer"
+                          and geom.goniometer_radius_mm)
+            if offset.vary and not usable:
+                raise ValueError(
+                    f"instrument.geometry.{name} cannot vary without "
+                    f"goniometer_radius_mm: eq (4) is "
+                    f"Δ2θ = (−a·sin2θ + b·cos2θ)/R and R is unset")
+            # force-fixed rather than merely unfree when R is missing, because
+            # ``_position_shift_deg`` skips the term without one: a free entry
+            # there would be a dead column — a parameter the solver moves and
+            # the model does not read.
+            self._add(f"instrument.geometry.{name}", offset,
+                      force_fixed=not usable)
+        # surface roughness is opt-in, so it is *skipped* when absent rather
+        # than added locked: a table built from an instrument without the block
+        # is byte-for-byte the pre-WP-0502 table.  No geometry gate needed —
+        # Geometry's validator already refuses the block on non-flat specimens.
+        for sub, cp in roughness_parameters(geom.surface_roughness):
+            self._add(f"instrument.geometry.surface_roughness.{sub}", cp)
+        # Caglioti is a polynomial in tan θ and a TOF bank's widths are
+        # polynomials in d (``instrument.source.profile_tof.*``, registered
+        # above): not a different value for the same quantity, a different
+        # width law, so these five are locked rather than left free to be
+        # refined into nothing.
+        for name in ("u", "v", "w", "x", "y"):
+            self._add(f"instrument.profile.{name}",
+                      getattr(instrument.profile, name), force_fixed=tof)
+        for sub, cp in background_parameters(instrument.background):
+            self._add(f"instrument.background.{sub}", cp)
+        # Additive broad peaks: skipped when none is declared rather than added
+        # locked, the surface-roughness idiom one loop up.  No gate — a peak
+        # composes with every background model and every geometry, which is the
+        # whole reason it lives beside ``background`` rather than inside its
+        # union.
+        for sub, cp in extra_component_parameters(instrument.extra_components):
+            self._add(f"instrument.extra_components.{sub}", cp)
+
+    def _collect_cw_source(self, source) -> None:
+        """The emission lines and their wavelengths — constant-wavelength only.
+
+        Split out of :meth:`_collect_instrument` unchanged when the
+        time-of-flight arm landed: a white beam has neither list, and the
+        reasoning below is entirely about a *line*, which is what makes the
+        split the honest one rather than an ``if`` inside each loop.
+        """
+        for il, line in enumerate(source.lines):
             # line 0 defines the intensity scale: its weight is degenerate with
             # the phase scale factors, so it is always held fixed
             self._add(f"instrument.source.lines.{il}.weight", line.weight,
@@ -1096,7 +1403,7 @@ class ParameterTable:
         # fourth held-reason, and what stops a glob freeing it by accident.  And
         # a *declared* ``vary=True`` there is refused by name rather than
         # quietly swallowed, because it is a claim the caller made.
-        wl_params = list(instrument.source.wavelength_parameters)
+        wl_params = list(source.wavelength_parameters)
         # No single-histogram check here: ``_rebuild`` runs at the end of
         # ``__init__`` and at every stage boundary, and it is the only place
         # that sees both free sets at once.  Checking here as well would be a
@@ -1113,49 +1420,12 @@ class ParameterTable:
             # physical constant, not a calibration target.
             self._add(f"instrument.source.lines.{il}.wavelength", wl,
                       force_fixed=il > 0)
-        geom = instrument.geometry
-        for name in ("sample_displacement", "sample_transparency",
-                     "axial_sl", "axial_hl"):
-            self._add(f"instrument.geometry.{name}", getattr(geom, name),
-                      force_fixed=(geom.kind != "bragg_brentano"
-                                   and name.startswith("sample_")))
-        for name in CAPILLARY_OFFSETS:
-            offset = getattr(geom, name)
-            # eq (4) divides by R.  Geometry's validator refuses a *stored*
-            # free offset without one, but ``vary`` set after construction
-            # re-runs no validator, and this is the last gate before a solve —
-            # so refuse here too, naming the field rather than quietly holding
-            # the parameter (a held aberration reads as "measured zero").
-            usable = bool(geom.kind == "debye_scherrer"
-                          and geom.goniometer_radius_mm)
-            if offset.vary and not usable:
-                raise ValueError(
-                    f"instrument.geometry.{name} cannot vary without "
-                    f"goniometer_radius_mm: eq (4) is "
-                    f"Δ2θ = (−a·sin2θ + b·cos2θ)/R and R is unset")
-            # force-fixed rather than merely unfree when R is missing, because
-            # ``_position_shift_deg`` skips the term without one: a free entry
-            # there would be a dead column — a parameter the solver moves and
-            # the model does not read.
-            self._add(f"instrument.geometry.{name}", offset,
-                      force_fixed=not usable)
-        # surface roughness is opt-in, so it is *skipped* when absent rather
-        # than added locked: a table built from an instrument without the block
-        # is byte-for-byte the pre-WP-0502 table.  No geometry gate needed —
-        # Geometry's validator already refuses the block on non-flat specimens.
-        for sub, cp in roughness_parameters(geom.surface_roughness):
-            self._add(f"instrument.geometry.surface_roughness.{sub}", cp)
-        for name in ("u", "v", "w", "x", "y"):
-            self._add(f"instrument.profile.{name}", getattr(instrument.profile, name))
-        for sub, cp in background_parameters(instrument.background):
-            self._add(f"instrument.background.{sub}", cp)
-        # Additive broad peaks: skipped when none is declared rather than added
-        # locked, the surface-roughness idiom one loop up.  No gate — a peak
-        # composes with every background model and every geometry, which is the
-        # whole reason it lives beside ``background`` rather than inside its
-        # union.
-        for sub, cp in extra_component_parameters(instrument.extra_components):
-            self._add(f"instrument.extra_components.{sub}", cp)
+        # geometry, profile and background parameters are collected once, in
+        # ``_collect_instrument`` above (which dispatches to this method only
+        # for the emission-line block), not duplicated here — the T-1/T-1c TOF
+        # refactor merged the constant-wavelength and time-of-flight geometry
+        # paths into one tof-aware pass so the two forward arms cannot drift
+        # about which fields they force-fix.
 
     # -- the affine constraint block -----------------------------------
     def _flatten(self, tie: AffineTie, _seen: tuple[str, ...] = ()
@@ -1978,15 +2248,28 @@ class ParameterTable:
                         put(getattr(atom.aniso, name), f"{base}.atoms.{j}.{name}")
         put(instrument.zero_shift, "instrument.zero_shift")
         put(instrument.source.polarization, "instrument.polarization")
-        for il, line in enumerate(instrument.source.lines):
-            put(line.weight, f"instrument.source.lines.{il}.weight")
-        # …and the wavelength through ``wavelength_parameters``, never through
-        # ``lines``: a neutron source's ``lines`` is a *property* that builds a
-        # fresh EmissionLine per access, so a write there lands on a throwaway
-        # and the refined λ is silently lost at the next recompile — exactly the
-        # half-wired-parameter failure this file's docstring warns about.
-        for il, wl in enumerate(instrument.source.wavelength_parameters):
-            put(wl, f"instrument.source.lines.{il}.wavelength")
+        # The mirror of ``_collect_instrument``'s source branch, and it has to
+        # be a branch here for the same reason it is one there: a ``TOFSource``
+        # has no ``lines`` and no ``wavelength_parameters``, and a bank's
+        # refinable quantities are its calibration and its d-polynomial
+        # profile.  ``tof_source_parameters`` is the one list both walk, so a
+        # constant registered above cannot go unwritten here — which is how a
+        # refined DIFC would come back in ``result.parameters``, carrying an
+        # esd, and then vanish at the next stage's recompile.
+        tof_pairs = tof_source_parameters(instrument.source)
+        for sub, cp in tof_pairs:
+            put(cp, f"instrument.source.{sub}")
+        if not tof_pairs:
+            for il, line in enumerate(instrument.source.lines):
+                put(line.weight, f"instrument.source.lines.{il}.weight")
+            # …and the wavelength through ``wavelength_parameters``, never
+            # through ``lines``: a neutron source's ``lines`` is a *property*
+            # that builds a fresh EmissionLine per access, so a write there
+            # lands on a throwaway and the refined λ is silently lost at the
+            # next recompile — exactly the half-wired-parameter failure this
+            # file's docstring warns about.
+            for il, wl in enumerate(instrument.source.wavelength_parameters):
+                put(wl, f"instrument.source.lines.{il}.wavelength")
         for name in ("sample_displacement", "sample_transparency",
                      "axial_sl", "axial_hl", *CAPILLARY_OFFSETS):
             put(getattr(instrument.geometry, name), f"instrument.geometry.{name}")

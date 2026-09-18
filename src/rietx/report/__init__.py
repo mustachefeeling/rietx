@@ -9,6 +9,7 @@ and the pinned thresholds, and docs/DESIGN.md for the design rationale.
 
 from __future__ import annotations
 
+from ..schemas.pattern import TOF_NOT_EVALUATED
 from ..schemas.results import RefinementResult
 from .apply import RECIPES, Recipe, describe_action, recipe, stage_for
 from .background import assess_background
@@ -231,6 +232,30 @@ def build_report(result: RefinementResult, *, model=None, values=None,
     if clause is not None:
         report.summary += "; " + clause
     if model is None or values is None:
+        return report
+    if result.axis == "tof":
+        # **Layer 1 and Layer 2 do not run on a flight-time fit, and the
+        # report says so rather than returning an empty action list.**  Three
+        # independent reasons, each fatal on its own, and none of them is that
+        # the physics is missing:
+        #
+        # * Layer 1 attributes a region's misfit against six regression
+        #   *templates in 2θ* (``layer1.py``'s ``theta = radians(two_theta/2)``
+        #   and the sinθ/tanθ/cosθ shapes built from it).  A flight time has no
+        #   such expansion — the flight-time forms of those aberrations are
+        #   different functions, not the same ones read on another axis.
+        # * It builds them from ``model.derivative_bases``, which a bank
+        #   refuses by name: its Jacobian is finite-difference.
+        # * It has no regions to attribute anyway — Layer 0 abstained above.
+        #
+        # Layer 2's actions are projections of Layer 1's evidence, so they go
+        # with it; ``POSITION_TEMPLATES`` would raise on this arm's
+        # ``geometry_kind`` in any case, which is T-1b's D1 working exactly as
+        # it was built to.  The texture and strain sections are Layer-1-adjacent
+        # and equally 2θ-shaped, and ``compile_tof_model`` refuses a declared
+        # texture or Stephens block outright, so there is nothing for them to
+        # find either.
+        report.summary += "; Layer 1 and Layer 2 are " + TOF_NOT_EVALUATED
         return report
 
     attributions = attribute_regions(model, values, report.regions)

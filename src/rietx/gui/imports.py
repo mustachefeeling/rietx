@@ -254,6 +254,7 @@ def preview_pattern(upload: Upload, *, reader_options: dict[str, Any] | None = N
     import numpy as np
 
     from ..io.readers import identify_format, read_pattern, reader_options_for
+    from ..schemas.pattern import require_two_theta
     from ..viz.compare import decimation_index
 
     try:
@@ -272,7 +273,11 @@ def preview_pattern(upload: Upload, *, reader_options: dict[str, Any] | None = N
             f"{upload.filename} looks like {fmt.title} but could not be read: "
             f"{type(exc).__name__}: {scrub(str(exc), upload)}") from None
 
-    tt = np.asarray(data.two_theta, dtype=float)
+    try:
+        require_two_theta(data, f"{upload.filename}")
+    except ValueError as exc:
+        raise UploadRefused(scrub(str(exc), upload)) from None
+    tt = data.tt()
     y = np.asarray(data.intensity, dtype=float)
     if tt.size < 2:
         raise UploadRefused(

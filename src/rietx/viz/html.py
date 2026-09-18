@@ -44,7 +44,7 @@ def _minmax_decimate(tt: np.ndarray, ys: list[np.ndarray], max_points: int
 def figure_from_arrays(tt: np.ndarray, y_obs: np.ndarray, y_calc: np.ndarray,
                        y_bkg: np.ndarray | None, ticks: dict[str, list[float]],
                        *, sigma: np.ndarray | None = None, title: str = "",
-                       max_points: int = 200_000):
+                       max_points: int = 200_000, axis: str = "two_theta"):
     """Build the plotly Figure (shared by the file writer and the live view).
 
     With ``sigma`` the difference is drawn weighted (Δ/σ) in its own lower
@@ -64,6 +64,12 @@ def figure_from_arrays(tt: np.ndarray, y_obs: np.ndarray, y_calc: np.ndarray,
     The layout is the viewer's own — the legend stays, because in an interactive
     figure it is a control (click a name to hide its trace) rather than a colour
     key the eye has to look up.
+
+    ``axis`` names what ``tt`` actually is — ``"two_theta"`` (degrees) or
+    ``"tof"`` (a time-of-flight bank, microseconds) — so the x-axis title
+    follows the data instead of being spelled once in degrees, which is what
+    :func:`write_html` used to do and which prints a flat lie on a TOF bank
+    (see :func:`rietx.schemas.results._axis_of`).
     """
     try:
         import plotly.graph_objects as go
@@ -73,6 +79,10 @@ def figure_from_arrays(tt: np.ndarray, y_obs: np.ndarray, y_calc: np.ndarray,
 
     from .plots import PALETTES
     from .theme import with_alpha
+
+    if axis not in ("two_theta", "tof"):
+        raise ValueError(f"axis must be 'two_theta' or 'tof', not {axis!r}")
+    x_label = "time of flight (" + chr(956) + "s)" if axis == "tof" else "2" + chr(952) + " (deg)"
 
     hue = PALETTES["light"]
     weighted = sigma is not None
@@ -157,11 +167,11 @@ def figure_from_arrays(tt: np.ndarray, y_obs: np.ndarray, y_calc: np.ndarray,
         margin={"l": 60, "r": 20, "t": 60, "b": 50},
     )
     if weighted:
-        fig.update_xaxes(title_text="2θ (deg)", row=2, col=1)
+        fig.update_xaxes(title_text=x_label, row=2, col=1)
         fig.update_yaxes(title_text="intensity", row=1, col=1)
         fig.update_yaxes(title_text="Δ/σ", row=2, col=1)
     else:
-        fig.update_layout(xaxis_title="2θ (deg)", yaxis_title="intensity")
+        fig.update_layout(xaxis_title=x_label, yaxis_title="intensity")
     return fig
 
 
@@ -180,11 +190,11 @@ def write_html(result: RefinementResult, path: str, *,
     y_obs = np.asarray(result.y_obs)
     sigma = result.sig() if weighted else None
     fig = figure_from_arrays(
-        np.asarray(result.two_theta), y_obs,
+        result.x(), y_obs,
         np.asarray(result.y_calc),
         np.asarray(result.y_background) if result.y_background else None,
         result.ticks, sigma=sigma,
         title=f"{result.mode}  Rwp={s.rwp:.4f}  GoF={s.gof:.2f}",
-        max_points=max_points)
+        max_points=max_points, axis=result.axis or "two_theta")
     fig.write_html(path, include_plotlyjs=include_plotlyjs,
                    full_html=True, config={"displaylogo": False})

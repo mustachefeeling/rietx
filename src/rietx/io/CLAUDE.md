@@ -191,9 +191,24 @@ non-2θ scan parses perfectly and refines to a confidently wrong cell, so all
 three formats that state an axis use the same three-way policy:
 
 - recognisably 2θ → read, silently;
+- recognisably a **neutron flight time in µs** → read as a TOF pattern
+  (`PatternData.tof`), silently — since T-1 that is the second quantity the
+  container holds;
 - recognisably something else → **raise**, naming what the file actually holds
   (a q or d axis, a rocking curve, a pole-figure ring);
 - unrecognisable → read as 2θ **and say so** (`PATTERN_X_AXIS_ASSUMED`).
+
+**The second row is declared, never inferred** (no *value* can decide it: a GSAS
+**bintype** or a stated `xy` unit comment settles it, a bare mention with no
+unit takes the fourth row — measured: docs/milestones/v1.4.md § Additions this
+milestone makes). `base.pattern_data(..., axis=...)` is the only way one is
+declared (default `"two_theta"`); `gsas` refuses a file whose banks are not
+all one axis kind. **A bank is a detector and picking one is the caller's**
+(T-1d): `read_gsas(path, bank=n)` selects by the file's own `BANK` number, and
+several banks with no `bank=` are refused by name — the multi-bank CW file's
+own silent-selection failure, one format over. `gsas_banks(path)` lists a bank
+it cannot open rather than failing the listing; not `scan=`, since a bank is a
+detector, not a range of one experiment.
 
 **A format stating no axis at all is a fourth case and emits nothing** (WP-1407,
 `.udf`, following `.xy`): the policy is for formats that *have* a field to
@@ -215,6 +230,20 @@ One code rather than four because
 the operator's answer is identical in every case, and four near-duplicate rows
 in the agent skill was the smell (factored WP-1047 at the fourth consumer,
 which is where the previous session said the trigger was).
+
+## The intensity basis is never inferred
+
+The ordinate's twin of § The axis is never trusted (T-3b): GSAS's
+**I_o = I'_o/(W·I_i)** (LAUR 86-748 p. 127) makes a calculated Bragg sum a
+*density*, so raw counts owe a factor of the channel width W — constant on a
+2θ scan (folds into the phase scale) but a **slope in flight time** on a
+TOF bank (measured: docs/milestones/v1.4.md § Additions this milestone
+makes). `PatternData.intensity_basis` (`"counts"`/`"density"`/`None`) is set
+**only from a declaration** — a Mantid bin-width header, a GSAS raw-histogram
+form, or a stated y-axis unit — never inferred from the values;
+`PATTERN_INTENSITY_BASIS_UNKNOWN` fires on an undeclared flight-time pattern.
+W itself is measured from the pattern's own abscissa (`numpy.gradient`), never
+read from the file or instrument.
 
 ## Metadata
 
@@ -255,11 +284,11 @@ a convention, which is the one repair a reader may never make.
 | `uxd` | first non-`;` line begins `_FILEVERSION` | marker suffix + `_STEPTIME` | multi-range; the header snapshot must be taken when the **marker opens** the block, not at close — keys persist across ranges, so otherwise a 2 s range's σ comes from a 20 s one |
 | `xrdml` | the document's first element is `<xrdMeasurements>` | one composition, `y = c·s` | multi-scan; the namespace is **versioned** (1.6 and 2.1 both current), so nothing matches on it and every lookup is by local name |
 | `pdcif` | `.cif` suffix, through gemmi | the file's esd or weight column | `block` selects; a `_meas` and a `_calc` block are different patterns |
-| `gsas` | `^BANK \d+` in the first 4 kB, or one bounded read further when a `TIME_MAP` token sits in that window | ESD/FXYE column, else Poisson | disjoint from `bruker_raw`'s magic by construction, so the `.raw` collision resolves either way. **A `TIME_MAP` step table can push the first bank past the 4 kB sniff window** (real: `vnb5053.dat` from the GSAS distribution's examples, first bank at byte 6068 behind a 71-row `(10I8)` table) — so the sniff missed it and it fell to `xy`, refused there with the wrong cause (a 2θ direction, from records read as columns). The `TIME_MAP` token is GSAS-shaped evidence and lands in the window, so a file showing it earns one more bounded read (64 kB) to look past the table — the `.chi` count-check discipline (§ Dispatch), never a widened window for every file; a table larger than that stays unsniffed, the same tradeoff the 4 kB bound itself makes. **The bank record makes two independent declarations and they are read as two**: the *bintype* governs how the x axis is computed, the *type flag* governs how one data record is laid out, and nothing couples them. Only `CONS`/`CONST` is read — one rule under two vendor spellings (a start angle and a step, in centidegrees), the manual's token being `CONS`, and the rule the centidegree fold rests on. **Every other bintype is refused by name, each saying what its axis actually holds**, and the reason is *scope, not evidence*: none of the manual's other eight is 2θ — a flight time (`RALF`, `SLOG`, `LOG6`, `TIME_MAP`), a d-spacing (`COND`), a Q (`CONQ`), a detector position (`LPSD`), a photon energy (`EDS`) — and `PatternData` holds 2θ, so supporting any of them is a schema change before it is a parser change. This is § The axis is never trusted's *recognisably something else* row, reached through the bintype instead of an axis label. Matched **exactly, never by prefix**: `COND` and `CONQ` share three characters with `CONS`. **The bintype is read from a loose header match** (bank number, channel and record counts, bintype) taken *before* the strict record parse, because the coefficient count differs per bintype — a `CONS` bank writes a start and a step, a `TIME_MAP` bank a lone map number — so matching with the strict CONS record first skipped a real one-coefficient `TIME_MAP` bank and reported it a *missing* BANK record, the by-name refusal never reached (the ≥2-coefficient `RALF`/`SLOG`/`CONQ` banks matched the strict record and were named all along; `TIME_MAP` was the one that slipped, and it is also the one whose step table triggers the sniff-window miss above). Letting the bintype decide the layout was the wrong-answer path: a non-`CONS` bank was *forced* to FXYE behind a divisible-by-three test on its value count, so a `RALF` bank of ESD pairs read as three-column x/y/esd whenever its pair count was a multiple of three, and a `RALF`/`SLOG` FXYE bank had its microseconds divided by 100 and called degrees — an ISIS PEARL file came back as a plausible 2528-point 15.00–194.88° scan. **GSAS-II has that second bug too** (`G2pwd_fxye` divides by 100 with no bintype branch anywhere), so it is not a source to copy here. On the flag side, **`STD`/`ESD`/`FXYE` are the layouts read and every other flag is refused by name**, `ALT` and `FXY` included: `STD` is also what a bank stating *no* flag means — four obtainable real files write it that way — and that default is why an unrecognised flag was silent, an `ALT` or `FXY` bank falling through to counts-only with its own x column entering the intensity array while an axis was synthesized from `c1`/`c2`, the result tagged `gsas-alt` with the flag used as a label rather than a decision. Here the reason really *is* the fixture: every obtainable `ALT` file is also a `RALF` bank (refused one decision earlier, so it cannot exercise an ALT reader at all) and no `FXY` file was found anywhere, and for ALT the manual's Fortran format and GSAS-II's scale factors disagree by 100× on x and 10× on y/esd, so neither source is safe alone. The flag is matched as a **keyword**, because it is the record's last field and a bank writing an odd number of coefficients leaves one *in* the flag's position (`BANK 1 4 4 CONST 1000 20 0` was read as flag `0` and tagged `gsas-0`); a number there is absence, not a flag, so that file still reads as STD. **The three layouts that are read also differ in whether a field has a position or only a separator, and that too is behaviour, not style**: an `ESD` bank is read *positionally* — ten 8-character fields to an 80-column record — because a value that fills its field leaves no separating space and fuses with its neighbour, which real 11-BM patterns do at 100 000 counts and dim siblings never do. `FXYE`/`FXY` are free-format and stay whitespace-split (`mg090.fxye`'s tokens are 9–10 characters wide, so slicing would destroy it); `STD`'s field is a 2-character repeat count plus a 6-character value, so its values cannot reach the field's edge and fusion is structurally impossible there. Widths and the fusion measurements: `tests/data/README.md` § GSAS ESD |
+| `gsas` | `^BANK \d+` in the first 4 kB, or one bounded read further when a `TIME_MAP` token sits in that window | ESD/FXYE column, else Poisson | disjoint from `bruker_raw`'s magic by construction, so the `.raw` collision resolves either way. **A `TIME_MAP` step table can push the first bank past the 4 kB sniff window** (real: `vnb5053.dat` from the GSAS distribution's examples, first bank at byte 6068 behind a 71-row `(10I8)` table) — so the sniff missed it and it fell to `xy`, refused there with the wrong cause (a 2θ direction, from records read as columns). The `TIME_MAP` token is GSAS-shaped evidence and lands in the window, so a file showing it earns one more bounded read (64 kB) to look past the table — the `.chi` count-check discipline (§ Dispatch), never a widened window for every file; a table larger than that stays unsniffed, the same tradeoff the 4 kB bound itself makes. **The bank record makes two independent declarations and they are read as two**: the *bintype* governs how the x axis is computed, the *type flag* governs how one data record is laid out, and nothing couples them. Only `CONS`/`CONST` is read — one rule under two vendor spellings (a start angle and a step, in centidegrees), the manual's token being `CONS`, and the rule the centidegree fold rests on. **Three more bintypes are read as flight times and the remaining five are refused by name, each saying what its axis actually holds.** `TIME_MAP`, `RALF` and `SLOG` land on `PatternData.tof` in µs; `COND` (a d-spacing), `CONQ` (a Q), `LPSD` (a detector position), `EDS` (a photon energy) and `LOG6` (a flight time on a Model 6 clock whose step table is not in the data file) have nowhere to go, so supporting any of them is still a schema change before it is a parser change. This is § The axis is never trusted's second and third rows, both reached through the bintype instead of an axis label. **A TOF axis is read only where the file states it exactly**, which the bintype alone does not settle: `TIME_MAP` *tabulates* its steps in a separate record — triples of (first channel, flight time, step) in clock ticks, then a terminator the reader checks against the bank's declared channel count — so it is exact in every record layout; `RALF`/`SLOG` state *binning constants*, so they are read from an `FXYE` record (which writes its own x column, and is what Mantid's `SaveGSS` emits by default) and refused under `ESD`/`STD`, where the axis would have to be integrated. That refusal is measured, not asserted: the manual says a `RALF` step "varies (**irregularly**) in pseudoconstant Δt/t steps", and rebuilding a real ISIS GEM bank's axis from its own coefficients (start 35328/32 = 1104 µs, Δt/t = 0.004) reproduces that bank's explicit column only to ~9 × 10⁻³ µs — 8 × 10⁻⁶ of the flight time, a **near miss**, which is the one error shape nothing downstream can see. A `#` in column 1 inside a bank body is a comment and is skipped, not a terminator: Mantid writes one between banks (`# Total flight path 18.7634m, tth 18.059deg, DIFC 1488.76`), and every layout read here is positional or free-format numeric, so a data record can never begin with one. Matched **exactly, never by prefix**: `COND` and `CONQ` share three characters with `CONS`. **The bintype is read from a loose header match** (bank number, channel and record counts, bintype) taken *before* the strict record parse, because the coefficient count differs per bintype — a `CONS` bank writes a start and a step, a `TIME_MAP` bank a lone map number — so matching with the strict CONS record first skipped a real one-coefficient `TIME_MAP` bank and reported it a *missing* BANK record, the by-name refusal never reached (the ≥2-coefficient `RALF`/`SLOG`/`CONQ` banks matched the strict record and were named all along; `TIME_MAP` was the one that slipped, and it is also the one whose step table triggers the sniff-window miss above). Letting the bintype decide the layout was the wrong-answer path: a non-`CONS` bank was *forced* to FXYE behind a divisible-by-three test on its value count, so a `RALF` bank of ESD pairs read as three-column x/y/esd whenever its pair count was a multiple of three, and a `RALF`/`SLOG` FXYE bank had its microseconds divided by 100 and called degrees — an ISIS PEARL file came back as a plausible 2528-point 15.00–194.88° scan. **GSAS-II has that second bug too** (`G2pwd_fxye` divides by 100 with no bintype branch anywhere), so it is not a source to copy here. On the flag side, **`STD`/`ESD`/`FXYE` are the layouts read and every other flag is refused by name**, `ALT` and `FXY` included: `STD` is also what a bank stating *no* flag means — four obtainable real files write it that way — and that default is why an unrecognised flag was silent, an `ALT` or `FXY` bank falling through to counts-only with its own x column entering the intensity array while an axis was synthesized from `c1`/`c2`, the result tagged `gsas-alt` with the flag used as a label rather than a decision. Here the reason really *is* the fixture: every obtainable `ALT` file is also a `RALF` bank (refused one decision earlier, so it cannot exercise an ALT reader at all) and no `FXY` file was found anywhere, and for ALT the manual's Fortran format and GSAS-II's scale factors disagree by 100× on x and 10× on y/esd, so neither source is safe alone. The flag is matched as a **keyword**, because it is the record's last field and a bank writing an odd number of coefficients leaves one *in* the flag's position (`BANK 1 4 4 CONST 1000 20 0` was read as flag `0` and tagged `gsas-0`); a number there is absence, not a flag, so that file still reads as STD. **The three layouts that are read also differ in whether a field has a position or only a separator, and that too is behaviour, not style**: an `ESD` bank is read *positionally* — ten 8-character fields to an 80-column record — because a value that fills its field leaves no separating space and fuses with its neighbour, which real 11-BM patterns do at 100 000 counts and dim siblings never do. `FXYE`/`FXY` are free-format and stay whitespace-split (`mg090.fxye`'s tokens are 9–10 characters wide, so slicing would destroy it); `STD`'s field is a 2-character repeat count plus a 6-character value, so its values cannot reach the field's edge and fusion is structurally impossible there. Widths and the fusion measurements: `tests/data/README.md` § GSAS ESD |
 | `chi` | four-line header whose declared count matches the rows | third column when written | the count gate is the one O(N) sniff |
 | `dif_peaklist` | `.dif` **and** peak-list content | — | refused; matched on evidence not suffix, so a real profile misnamed `.dif` still reaches `xy` |
 | `peak_list` | the `.pks` (Stoe) or `.udi` (PANalytical) suffix, **unless** the file reads as a plain two-column profile | — | refused; matched on the *name*, because no sample of either format could be obtained — and the message says so rather than implying a content test. The negative gate keeps `.dif`'s escape |
-| `xy` | text, not binary — **last of the readers** | third column when written | a NUL in the first 4 kB is refused by name unless behind a BOM: ASCII-range UTF-16LE is valid UTF-8 with interleaved NULs, and Windows vendor software exports it |
+| `xy` | text, not binary — **last of the readers** | third column when written | a NUL in the first 4 kB is refused by name unless behind a BOM: ASCII-range UTF-16LE is valid UTF-8 with interleaved NULs, and Windows vendor software exports it. **A comment stating the x-axis unit is read** (Mantid's `' The X-axis unit is: Time-of-flight` → a TOF pattern; `dSpacing`, `MomentumTransfer`, `Wavelength`, `Energy` → refused by name; anything else stated → `PATTERN_X_AXIS_ASSUMED` quoting it). The pattern requires the word `axis` or `unit` and an `x` starting a word, so a comment that merely ends in a colon (`# Max: 90`) does not read as a stated unit of "90" |
 | `raw_unclaimed` | a binary `.raw` every reader above declined — **last of everything**, so it can shadow nothing | — | refused, **claiming nothing**: it names the six vendors who write `.raw`, says this build reads Bruker v3/v4 and Philips PC-APD, and picks none. This is where a Stoe reader hangs if files ever arrive — the cheap ask is a few `.raw` files paired with the WinXPOW ASCII export of the *same* scans, which is an exact oracle |
 
 ## `recipe.py` — a whole refinement, and **not** a pattern format
@@ -425,6 +454,35 @@ same reason. Six rules the pattern readers do not need:
   since a reader and a fit are reporting one fact. The next reader answers which
   of the two it is before it is written; `.m50` states operators
   ([1314](../../../docs/wp/1314-mfile-reader.md)).
+
+## `instrument_tof.py` — a calibration, not a model and not a pattern
+
+Neither a `PatternFormat` (returns an `Instrument`, no pattern) nor a project
+reader (no model). `instrument_profile.py` is its native sibling and shares
+its contract: **every parameter comes back `vary=False`**, because freeing
+DIFC beside a free cell reopens the flat direction a free wavelength does one
+axis over (measured: docs/milestones/v1.4.md § Additions this milestone
+makes).
+
+- **The calibration is never in the data file** — no DIFC in any GSAS
+  bintype — so a pattern out of `formats/gsas.py` reads in microseconds with
+  no way back to a d-spacing until one of these readers runs.
+- **Records are read by column, not by regex**: GSAS's `INS` record is a
+  Fortran fixed format whose name field's blanks carry meaning, so a header
+  is found structurally, never from its values.
+- **One instrument per bank, returned as a dict** — TOF's several banks are
+  what the instrument *is* (unlike the CW `read_gsas_prm`, which refuses a
+  multi-bank file), so picking one would be the silent-selection failure.
+- **One GSAS-I `PRCF` layout is read; every other is declined with a
+  diagnostic, never refused** (T-1d, `_PRCF1_LAYOUT`, type 1 with 8
+  coefficients) — reading another's layout by position would be a guess.
+  Declining reports rather than raises: a declined profile leaves
+  `ProfileTOF` all-zero, which `compile_tof_model` refuses by name, so it can
+  stop a fit but never mislead one. A GSAS-II `.instprm` names every key, so
+  its profile *is* read.
+- **`difB` is read because dropping it is silent** — GSAS-II evaluates a
+  fourth term the manual and Mantid do not document, so an undocumented
+  reader moves every peak of a project that sets it.
 
 ## Project writers
 

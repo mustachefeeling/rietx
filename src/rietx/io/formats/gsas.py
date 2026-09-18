@@ -19,21 +19,62 @@ was *forced* into the FXYE branch behind a divisible-by-three check on its value
 count, which a ``RALF`` bank carrying ESD data passes whenever its pair count is
 a multiple of three.
 
-**``CONS``/``CONST`` is the only bintype whose x axis is 2θ, so it is the only
-one read; every other one is refused by name.**  The two spellings are one rule
-— a start angle and a step, both in centidegrees — and that rule is what the
-centidegree fold below rests on.  The manual's other eight put something else
-entirely on the x axis: a flight time (``RALF``, ``SLOG``, ``LOG6``,
-``TIME_MAP``), a d-spacing (``COND``), a Q (``CONQ``), a detector position
-(``LPSD``) or a photon energy (``EDS``).  Refusing them is the third row of the
-axis policy (``io/CLAUDE.md`` § The axis is never trusted) reached through the
-bintype instead of through an axis label — *recognisably something else, so raise
-naming what the file actually holds* — and it is a matter of **scope** rather
-than of evidence: ``PatternData`` carries 2θ, so supporting any of these is a
-schema change before it is a parser change.
+**The bintype decides which quantity the x axis holds, and this reader now has
+two places to put one.**  ``CONS``/``CONST`` is 2θ — the two spellings are one
+rule, a start angle and a step both in centidegrees, and that rule is what the
+centidegree fold below rests on.  ``TIME_MAP``, ``RALF`` and ``SLOG`` are
+neutron flight times in microseconds and land on ``PatternData.tof``.  The
+manual's remaining five put something this package still has nowhere to keep:
+another flight time on a clock whose table this reader cannot build (``LOG6``),
+a d-spacing (``COND``), a Q (``CONQ``), a detector position (``LPSD``) or a
+photon energy (``EDS``), and each is refused by name saying what its axis
+actually holds — the third row of the axis policy (``io/CLAUDE.md`` § The axis
+is never trusted) reached through the bintype instead of through an axis label.
+
+**A bank is a detector, so which bank is a choice and it is the caller's.**
+``read_gsas(path, bank=n)`` selects the record whose own ``BANK`` line declares
+*n* — the number a GSAS instrument-parameter file's per-bank ``INS`` records use
+too, never a position in the file — and a file holding **several** banks with no
+``bank`` is refused naming them.  Returning the first was harmless only while
+every readable bank was one 2θ scan of one specimen; a six-bank Mantid
+``SaveGSS`` file, which is the ordinary ISIS GEM export, is six detectors with
+six scattering angles and six DIFCs, and answering with bank 1 is the silent
+selection ``instrument_profile.read_gsas_prm`` refuses a multi-bank file to
+avoid.  Measured: a whole real refinement was worked around by splitting such a
+file into six single-bank files by hand.  :func:`gsas_banks` is what makes the
+choice offerable, and a single-bank file needs no ``bank`` and is unchanged.
+
+**The bintype also decides the fold, which is the trap this format sets.**  The
+manual says an FXYE x column is *"centidegrees for CW data or microseconds for
+TOF data"* — one column, two units, and nothing in the numbers to tell them
+apart: a TOF range of 1000-10000 µs read as centidegrees is a flawless-looking
+10-100° scan.  **The reference implementation has the bug**: GSAS-II's
+``G2pwd_fxye`` divides by 100 unconditionally, with no bintype branch anywhere
+in the module.  So "implement it the way GSAS-II does" was never available, and
+the fold is taken off the bintype here, once, beside the axis decision itself.
 
 The match is **exact and never a prefix**, because ``COND`` and ``CONQ`` share
 three characters with ``CONS`` and are two of the axes this refuses.
+
+**A time-of-flight axis is read only where the file states it exactly**, which
+is not the same as every TOF bank:
+
+- **``TIME_MAP``** tabulates its steps in a separate record — triples of
+  (first channel, flight time, step) in clock units, then a terminator — so the
+  axis is a table lookup and is exact.  Read in all three record layouts.
+  Measured against a real LANSCE NPDF bank (Si standard, 4 banks × 6537
+  channels): the 240-triple map reproduces the declared channel count exactly
+  and its d-spacings match Si to 7 × 10⁻⁴ rms.
+- **``RALF``/``SLOG``** carry *binning constants*, not a table, and are read
+  only from an **FXYE** record — the layout that writes its own x column, which
+  is what Mantid's ``SaveGSS`` (whose default format is ``RALF``) actually
+  writes.  Under ``ESD``/``STD`` the axis would have to be synthesized from the
+  four coefficients, and that is refused rather than approximated: the manual
+  itself says a ``RALF`` step "varies (irregularly) in pseudoconstant Δt/t
+  steps", and reconstructing an ISIS GEM bank's axis from its own coefficients
+  (start 35328/32 = 1104 µs, Δt/t = 0.004) reproduces the file's explicit
+  column only to ~9 × 10⁻³ µs — a **near miss**, which is the one error shape
+  a synthesized axis must not have, since nothing downstream can see it.
 
 Real files are not scarce, which is why none of this is hypothetical: GSAS-II's
 own tutorial data ships ``SLOG`` and ``RALF`` banks, and on the code this
@@ -85,12 +126,13 @@ full-width value can fuse with its neighbour:
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
 
 from ...schemas.common import Diagnostic
-from ...schemas.pattern import PatternData
+from ...schemas.pattern import AxisKind, IntensityBasis, PatternData
 from .base import PatternFormat, ascending, head, pattern_data
 
 #: The bintypes read: a start angle and a step, both in centidegrees.  The
@@ -100,35 +142,54 @@ from .base import PatternFormat, ascending, head, pattern_data
 #: and are different axes, so a prefix test would swallow them.
 _ANGLE_BINTYPES = frozenset({"CONS", "CONST"})
 
-#: Every other bintype the manual defines, and what each one actually puts on the
-#: x axis.  None is 2θ, which is the whole reason they are refused: they are out
-#: of **scope** for a package whose ``PatternData`` carries 2θ, not short of
-#: evidence — real files are abundant (§ the module docstring).  Sources for the
-#: descriptions, since a wrong one in a refusal is still a wrong statement: the
-#: bintype list and each definition are the GSAS manual's (LAUR 86-748,
-#: §"Powder data file formats"), corroborated by real bank records where one was
-#: obtainable.  ``SLOG``'s third coefficient is 4e-4 … 3e-3 across four
+#: The bintypes whose x axis is a **neutron flight time in microseconds**, and
+#: what each one's binning is.  Each description says how the axis is
+#: established, because that is what decides whether it can be read at all:
+#: ``TIME_MAP`` tabulates it, the other two state constants a reader would have
+#: to integrate.  ``SLOG``'s third coefficient is 4e-4 … 3e-3 across four
 #: independent files and the channel ratio matches it, so it really is Δt/t and
 #: not Δt.  ``RALF`` is deliberately *not* called log-step: it is constant-width
 #: at short flight times and only pseudo-Δt/t beyond a coefficient that says
-#: where.  A ``TIME_MAP`` bank carries a map *number* where the others carry
-#: coefficients (``BANK 1 7550 755 TIME_MAP 1 STD``), so its steps are tabulated
-#: elsewhere in the file.  And ``EDS`` is energy-dispersive, not time-of-flight,
-#: which is why this is one table of eight rather than a "TOF" set.
-_NON_ANGLE_BINTYPES = {
-    "COND": "a constant-Δd binning, so its x axis is a d-spacing",
-    "CONQ": "a constant-ΔQ binning, so its x axis is a Q",
-    "EDS": "an energy-dispersive binning, so its x axis is a photon energy",
-    "LOG6": "a logarithmic time-of-flight binning for the Los Alamos Model 6 "
-            "clock, so its x axis is a flight time",
-    "LPSD": "a linear position-sensitive-detector binning, so its x axis is a "
-            "detector position",
+#: where — the ISIS GEM bank measured here (``BANK 1 797 797 RALF 35328 141
+#: 35328 0.00400 FXYE``) puts that coefficient at the *start*, so that bank is
+#: log-stepped throughout.  A ``TIME_MAP`` bank carries a map *number* where the
+#: others carry coefficients (``BANK 1 6537 1308 TIME_MAP 1 ESD``), so its steps
+#: are tabulated elsewhere in the file.
+_TOF_BINTYPES = {
     "RALF": "a time-of-flight binning (constant step at short flight times, "
             "pseudo-constant Δt/t beyond), so its x axis is a flight time",
     "SLOG": "a constant-Δt/t (log-step) time-of-flight binning, so its x axis "
             "is a flight time",
     "TIME_MAP": "a time-of-flight binning whose step table is a separate "
                 "TIME_MAP record elsewhere in the file",
+}
+
+#: Of those, the ones whose steps are **tabulated** rather than merely
+#: parameterised, and which can therefore be read in any record layout.  A
+#: ``TIME_MAP`` bank is the LANSCE/HIPD/NPDF way of writing one; the others are
+#: what Mantid writes, and Mantid writes them with their own x column.
+_TABULATED_TOF_BINTYPES = frozenset({"TIME_MAP"})
+
+#: The bintypes still refused, and what each one actually puts on the x axis.
+#: None is a 2θ and none is a flight time this reader can establish, which is
+#: the whole reason they are refused — a matter of **scope** (``LOG6``'s Model 6
+#: clock table is not in the manual's data file at all; ``COND``/``CONQ``/
+#: ``LPSD``/``EDS`` are quantities ``PatternData`` has no field for) rather than
+#: of evidence.  Sources for the descriptions, since a wrong one in a refusal is
+#: still a wrong statement: the bintype list and each definition are the GSAS
+#: manual's (LAUR 86-748, §"Powder data file formats"), corroborated by real
+#: bank records where one was obtainable.  And ``EDS`` is energy-dispersive, not
+#: time-of-flight, which is why this is one table of five rather than a "TOF"
+#: set.
+_NON_ANGLE_BINTYPES = {
+    "COND": "a constant-Δd binning, so its x axis is a d-spacing",
+    "CONQ": "a constant-ΔQ binning, so its x axis is a Q",
+    "EDS": "an energy-dispersive binning, so its x axis is a photon energy",
+    "LOG6": "a logarithmic time-of-flight binning for the Los Alamos Model 6 "
+            "clock, so its x axis is a flight time on a clock whose step table "
+            "this reader cannot build",
+    "LPSD": "a linear position-sensitive-detector binning, so its x axis is a "
+            "detector position",
 }
 
 #: The record layouts read.  A bank that states **no** flag is legal and means
@@ -155,6 +216,25 @@ _UNIMPLEMENTED_FLAGS = {
     "FXY": "an x and intensity pair with no esd",
 }
 
+
+#: Mantid's ``SaveGSS`` writes this sentence into its header **when, and only
+#: when, it multiplied Y by the bin widths** — its ``MultiplyByBinWidth``
+#: option, whose default is TRUE.  So on a file carrying it the ordinate is a
+#: count per channel and the flight-time forward model owes it a factor of W
+#: (``schemas.pattern.PatternData.intensity_basis``).  It is a **declaration**
+#: in ``io/CLAUDE.md``'s first sense — a statement in the writer's own header
+#: that cannot disagree with itself — and it was checked anyway, against the
+#: one file that has a twin: an ISIS GEM ``.gss`` carrying the line and its
+#: ``_tof.xye`` export of the same bank differ by exactly that bank's channel
+#: width (Δt/t = 0.004; the first channel's 1.01737949 against 0.23038662 at
+#: T = 1106.1995 µs is a ratio of 4.416 against a width of 4.425 µs).
+#:
+#: **Its absence says nothing**, and is not read as one.  A GSAS file written
+#: by anything but Mantid has no such header at all, and no obtainable file
+#: was written by ``SaveGSS`` with the option off, so "Mantid header, no such
+#: line" has never been seen and is left undetermined rather than guessed.
+_MANTID_BIN_WIDTH_RE = re.compile(
+    r"^#.*\bY\s+multiplied\s+by\s+the\s+bin\s+widths?", re.M | re.I)
 
 _SNIFF_BANK_RE = re.compile(r"^BANK\s+\d+", re.M)
 _SNIFF_TIME_MAP_RE = re.compile(r"^TIME_MAP", re.M)
@@ -187,93 +267,290 @@ def looks_gsas(p: Path) -> bool:
     return False
 
 
-def read_gsas(path: str | Path, *,
-              diagnostics: list[Diagnostic] | None = None) -> PatternData:
-    """GSAS raw powder data, a CONS/CONST bank in its STD, ESD or FXYE flavour.
+#: The bank record's own header, matched loosely — bank number, channel count,
+#: record count, bintype.  That prefix is common to every bintype while the
+#: coefficients that follow are not: a ``CONS`` bank writes a start angle and a
+#: step, but a ``TIME_MAP`` bank writes a lone map number.  The strict ``CONS``
+#: parse in :func:`read_gsas` needs two coefficients, so matching *first* with
+#: it would skip a ``TIME_MAP`` bank entirely and report a missing ``BANK``
+#: record — the wrong cause — for a file that plainly has one.  So the axis
+#: decision is taken off the header, before the layout.
+_BANK_HEAD_RE = re.compile(r"^BANK\s+(\d+)\s+(\d+)\s+(\d+)\s+(\w+)")
 
-    The bintype and the type flag are two independent decisions and are taken
-    as two: ``_check_bintype`` settles the x axis, the flag the record layout.
+#: The strict ``CONS`` record: the same header, then the start angle and step.
+#: The flag is a keyword and must begin with a letter — it is the *last* field,
+#: after up to four bintype coefficients, so a record writing an odd number of
+#: them leaves a coefficient where the flag would be, and ``\w*`` captured that
+#: digit as a flag (``BANK 1 4 4 CONST 1000 20 0`` tagged its pattern
+#: ``gsas-0``).  A number there is absence, not a flag.
+_BANK_RE = re.compile(
+    r"^BANK\s+(\d+)\s+(\d+)\s+(\d+)\s+(\w+)\s+([\d.Ee+-]+)\s+([\d.Ee+-]+)"
+    r"(?:\s+([\d.Ee+-]+)\s+([\d.Ee+-]+))?\s*([A-Za-z]\w*)?")
+
+
+@dataclass(frozen=True)
+class GSASBank:
+    """One ``BANK`` record of a GSAS file, as a picker sees it.
+
+    The bank counterpart of :class:`~rietx.io.formats.base.ScanInfo`, and
+    deliberately **not** that class: a vendor file's scans are ranges of one
+    experiment on one instrument, while a GSAS file's banks are *different
+    detectors* — their own scattering angle, their own DIFC, their own
+    resolution — which is why they are selected with ``bank=`` rather than
+    ``scan=`` and enumerated by this function rather than by
+    :func:`rietx.io.readers.list_scans`.
+
+    :attr:`x_range` is the quantity the bank's own bintype puts on the
+    abscissa, and :attr:`axis` is what says which: degrees for a ``CONS``
+    bank, microseconds for a flight-time one.  A single number carrying two
+    units is what the centidegree fold already made this format's trap, so the
+    range is never quoted without the axis beside it.  ``None`` means this
+    bank could not be read at all, and :attr:`refused` then carries the
+    reader's own sentence saying why (a ``RALF`` bank of ``ESD`` records, an
+    ``ALT`` layout) — reported rather than raised, because enumerating a file
+    must not fail on account of one bank a caller may not have wanted.
+    """
+
+    number: int
+    bintype: str
+    #: the record layout as declared, ``"STD"`` for a bank stating no flag
+    type_flag: str
+    n_channels: int
+    axis: AxisKind
+    x_range: tuple[float, float] | None
+    refused: str | None = None
+
+
+def _bank_records(lines: list[str]) -> list[tuple[int, str, "re.Match[str]"]]:
+    """Every ``BANK`` record as ``(line index, the record, its header match)``."""
+    out = []
+    for i, line in enumerate(lines):
+        m = _BANK_HEAD_RE.match(line)
+        if m:
+            out.append((i, line, m))
+    return out
+
+
+def gsas_banks(path: str | Path) -> list[GSASBank]:
+    """What there is to choose between in a GSAS file that holds several banks.
+
+    The companion to :func:`read_gsas`'s ``bank=``, and it exists for the
+    reason :func:`rietx.io.readers.list_scans` does: a choice cannot honestly
+    be offered without saying what the alternatives are.  A six-bank Mantid
+    ``SaveGSS`` export — the ordinary ISIS GEM file — is six measurements at
+    six scattering angles, and "bank 3" is not a number a caller can guess.
+
+    One :class:`GSASBank` per record, in file order, including the banks this
+    reader cannot open: a bank whose axis is not establishable comes back with
+    ``x_range=None`` and its own refusal in ``refused`` rather than raising,
+    since a file's *listing* must not fail on account of a bank nobody asked
+    for.  Every readable bank's range is read through :func:`read_gsas`
+    itself, so there is no second spelling of the axis arithmetic to drift
+    from the first.
     """
     p = Path(path)
     lines = p.read_text(encoding="utf-8", errors="ignore").splitlines()
-    # The bank record is found and its *bintype* read from a loose header match
-    # — bank number, channel count, record count, bintype — because that prefix
-    # is common to every bintype while the coefficients that follow are not: a
-    # CONS bank writes a start angle and a step, but a TIME_MAP bank writes a
-    # lone map number.  The strict CONS parse below needs two coefficients, so
-    # matching *first* with it would skip a TIME_MAP bank entirely and report a
-    # missing BANK record — the wrong cause again — for a file that plainly has
-    # one.  So the axis decision is taken off the header, before the layout.
-    bank_head_re = re.compile(r"^BANK\s+(\d+)\s+(\d+)\s+(\d+)\s+(\w+)")
-    bank_re = re.compile(
-        r"^BANK\s+(\d+)\s+(\d+)\s+(\d+)\s+(\w+)\s+([\d.Ee+-]+)\s+([\d.Ee+-]+)"
-        # the flag is a keyword and must begin with a letter: it is the *last*
-        # field, after up to four bintype coefficients, so a record writing an
-        # odd number of them leaves a coefficient where the flag would be, and
-        # ``\w*`` captured that digit as a flag (``BANK 1 4 4 CONST 1000 20 0``
-        # tagged its pattern ``gsas-0``).  A number here is absence, not a flag.
-        r"(?:\s+([\d.Ee+-]+)\s+([\d.Ee+-]+))?\s*([A-Za-z]\w*)?")
-    head_m = None
-    bank_line = None
-    data_start = None
-    for i, line in enumerate(lines):
-        m = bank_head_re.match(line)
-        if m:
-            head_m = m
-            bank_line = line
-            data_start = i + 1
-            break
-    if head_m is None:
+    records = _bank_records(lines)
+    if not records:
         raise ValueError(f"no BANK record found in {p}")
+    out: list[GSASBank] = []
+    for i, (_, bank_line, head_m) in enumerate(records):
+        bintype = head_m.group(4).upper()
+        tail = bank_line.split()[5:]
+        token = next((t for t in tail if t[:1].isalpha()), None)
+        flag = (token or "STD").upper()
+        axis: AxisKind = "two_theta" if bintype in _ANGLE_BINTYPES else "tof"
+        x_range: tuple[float, float] | None = None
+        refused: str | None = None
+        try:
+            data = _read_bank(p, lines, records, i, None)
+        except ValueError as exc:
+            refused = str(exc)
+        else:
+            x = data.tof if data.axis == "tof" else data.two_theta
+            x_range = (float(x[0]), float(x[-1])) if x else None
+        out.append(GSASBank(number=int(head_m.group(1)), bintype=bintype,
+                            type_flag=flag, n_channels=int(head_m.group(2)),
+                            axis=axis, x_range=x_range, refused=refused))
+    return out
 
+
+def read_gsas(path: str | Path, *, bank: int | None = None,
+              diagnostics: list[Diagnostic] | None = None) -> PatternData:
+    """GSAS raw powder data — a 2θ or a time-of-flight bank, STD/ESD/FXYE.
+
+    The bintype and the type flag are two independent decisions and are taken
+    as two: ``_check_bintype`` settles which *quantity* the x axis holds, the
+    flag settles how one record is laid out, and only their **combination**
+    settles whether the axis can be built (§ the module docstring: a ``RALF``
+    bank states its binning where a ``TIME_MAP`` bank tabulates it).
+
+    ``bank`` selects one record **by the number the record itself declares**,
+    not by position, because that is the number every other file of the
+    experiment uses — a GSAS instrument-parameter file's ``INS  3ICONS`` and
+    :func:`rietx.io.instrument_tof.read_gsas_tof_iparm`'s ``{3: Instrument}``
+    both mean the bank the data file writes as ``BANK 3``.
+
+    **A file holding several banks and no ``bank=`` is refused**, naming the
+    banks it holds.  This reader returned the first one for its whole life,
+    which was a harmless simplification only while every readable bank was
+    2θ: a six-bank Mantid ``SaveGSS`` file — the ordinary ISIS GEM export — is
+    six *different detectors*, and answering with bank 1 is the silent
+    selection :func:`rietx.io.instrument_profile.read_gsas_prm` refuses a
+    multi-bank file to avoid.  Measured: a whole real refinement was worked
+    around by splitting such a file into six single-bank files by hand.  A
+    single-bank file needs no ``bank=`` and is unchanged, which is every
+    pattern this package ships and every constant-wavelength file it has been
+    measured on; :func:`gsas_banks` is what says what a multi-bank file holds.
+
+    Mixed-axis files stay refused whatever ``bank`` says
+    (:func:`_one_axis_per_file`): which bank was asked for cannot make a file
+    that disagrees with itself about its own abscissa agree.
+    """
+    p = Path(path)
+    lines = p.read_text(encoding="utf-8", errors="ignore").splitlines()
+    records = _bank_records(lines)
+    if not records:
+        raise ValueError(f"no BANK record found in {p}")
+    # ... refused across the whole file *before* a bank is chosen, because
+    # reading one bank of a mixed file would answer a question the caller did
+    # not ask (§ ``_one_axis_per_file``).
+    _one_axis_per_file(lines, _BANK_HEAD_RE, p)
+    return _read_bank(p, lines, records, _select_bank(p, records, bank),
+                      diagnostics)
+
+
+def _select_bank(p: Path, records: list[tuple[int, str, "re.Match[str]"]],
+                 bank: int | None) -> int:
+    """Which record :func:`read_gsas` reads — the index into ``records``.
+
+    Three answers, and the middle one is the whole point of the argument: one
+    bank needs no choice, a named bank is looked up by its **declared**
+    number, and several banks with nothing named is refused rather than
+    answered by write order.
+    """
+    numbers = [int(m.group(1)) for _, _, m in records]
+    if bank is None:
+        if len(records) == 1:
+            return 0
+        described = ", ".join(str(n) for n in numbers)
+        raise ValueError(
+            f"{p.name}: this GSAS file holds {len(records)} banks ({described}) "
+            f"and none was named. A bank is a detector — its own scattering "
+            f"angle, its own calibration, its own resolution — so which one is "
+            f"'the pattern' is a choice, and returning the first would make it "
+            f"silently. Pass bank=<n> (the number the BANK record declares), "
+            f"or call rietx.io.formats.gsas.gsas_banks(path) to see what each "
+            f"one is.")
+    if bank not in numbers:
+        described = ", ".join(str(n) for n in numbers)
+        raise ValueError(
+            f"{p.name}: no BANK {bank} in this file — it holds bank(s) "
+            f"{described}. The number is the one the BANK record declares, "
+            f"which is also what a GSAS instrument-parameter file's per-bank "
+            f"INS records use, not a position in the file.")
+    if numbers.count(bank) > 1:
+        raise ValueError(
+            f"{p.name}: this file declares BANK {bank} "
+            f"{numbers.count(bank)} times. Which of them bank={bank} means is "
+            f"not established by the file, and picking the first would decide "
+            f"it by write order.")
+    return numbers.index(bank)
+
+
+def _read_bank(p: Path, lines: list[str],
+               records: list[tuple[int, str, "re.Match[str]"]], which: int,
+               diagnostics: list[Diagnostic] | None) -> PatternData:
+    """One selected ``BANK`` record's rows as a :class:`PatternData`.
+
+    Everything :func:`read_gsas` did before it could be asked for a bank
+    other than the first: the two independent declarations, the axis decision
+    only their pair can take, and the layout parse.  Split out so
+    :func:`gsas_banks` reads a bank's range through this one authority rather
+    than a second spelling of it.
+    """
+    start_line, bank_line, head_m = records[which]
+    data_start = start_line + 1
     nchan = int(head_m.group(2))
-    # decision one: how the x axis is computed.  Refused before the data is
+    bintype = head_m.group(4).upper()
+    # decision one: which quantity the x axis holds.  Refused before the data is
     # parsed, since a bintype nobody can read is not made readable by its rows —
     # and refused off the header, so a bintype whose coefficient count is not the
     # CONS two (TIME_MAP writes one) is named for what it is rather than lost as
     # an unparseable record.
-    _check_bintype(head_m.group(4).upper(), p)
-    # only CONS/CONST reaches here; now the strict start-angle-and-step layout
-    bank = bank_re.match(bank_line)
-    if bank is None:
-        raise ValueError(
-            f"{p.name}: this is a CONS/CONST bank but its record could not be "
-            f"read for a start angle and step — {bank_line.strip()!r}")
-    c1, c2 = float(bank.group(5)), float(bank.group(6))
-    # decision two, and independent of the first: how one record is laid out
-    type_flag = _type_flag(bank.group(9), p)
+    _check_bintype(bintype, p)
+    axis: AxisKind = "two_theta" if bintype in _ANGLE_BINTYPES else "tof"
+    # decision two, and independent of the first: how one record is laid out.
+    # Read two ways, because the *coefficients* differ per bintype and the
+    # strict CONS regex is a statement about CONS records only: it wants two
+    # numeric coefficients, a TIME_MAP bank writes a lone map number, and its
+    # ``[\d.Ee+-]+`` coefficient class would happily swallow the ``E`` of an
+    # ``ESD`` flag standing where the second coefficient should be.
+    c1 = c2 = 0.0
+    if axis == "two_theta":
+        bank = _BANK_RE.match(bank_line)
+        if bank is None:
+            raise ValueError(
+                f"{p.name}: this is a CONS/CONST bank but its record could not "
+                f"be read for a start angle and step — {bank_line.strip()!r}")
+        c1, c2 = float(bank.group(5)), float(bank.group(6))
+        type_flag = _type_flag(bank.group(9), p)
+    else:
+        # The flag is the record's last field and the only one that begins with
+        # a letter, whatever the coefficient count before it — which is the
+        # same rule the CONS regex spells positionally.
+        tail = bank_line.split()[5:]
+        type_flag = _type_flag(
+            next((t for t in tail if t[:1].isalpha()), None), p)
+    # decision three, and the one only the *pair* can take: whether the axis is
+    # establishable at all.
+    if axis == "tof":
+        _check_tof_axis_is_establishable(bintype, type_flag, p)
 
     body: list[str] = []
     for line in lines[data_start:]:
         if line.startswith("BANK"):
             break
+        # A ``#`` in column 1 is a comment, not a datum, and Mantid's SaveGSS
+        # writes one *between* banks — an ISIS GEM file puts "# Total flight
+        # path 18.7634m, tth 18.059deg, DIFC 1488.76" and "# Data for spectrum
+        # :0" after each bank's last row.  Skipped rather than terminating the
+        # body, because the row after it is still this bank's neighbour's, and
+        # skipped in column 1 only: every layout read here is either positional
+        # (ESD, STD) or free-format numeric (FXYE), so a data record can never
+        # begin with one.
+        if line.startswith("#"):
+            continue
         body.append(line)
 
     # An ESD bank is positional and is read as such (§ ``_esd_fields``); FXYE
     # and STD are free-format and split on whitespace.  Each flavour tokenises
     # its own body, so the ESD path — the big one — never pays for the ~99 000
     # throwaway tokens a whole-body split would build for a branch it never
-    # takes.  ``_check_bintype`` above has already refused every non-2θ
-    # bintype, so a bank reaching here is CONS/CONST and only the flag decides.
+    # takes.
     if type_flag == "FXYE":
-        # FXYE: explicit x column (centidegrees), then y, esd
+        # FXYE: explicit x column, then y, esd.  **The bintype decides the
+        # unit** — the manual says this column is "centidegrees for CW data or
+        # microseconds for TOF data", and nothing in the numbers distinguishes
+        # them, so the fold is taken off the axis decision and never off the
+        # values.  This is the line GSAS-II's G2pwd_fxye gets wrong.
         values = _floats([t for line in body for t in line.split()], p, type_flag)
         arr = _reshape(values, 3, p, type_flag)
-        tt = arr[:, 0] / 100.0  # centidegrees → degrees
+        x = arr[:, 0] / 100.0 if axis == "two_theta" else arr[:, 0]
         y = arr[:, 1]
         sig = arr[:, 2]
     elif type_flag == "ESD":
         arr = _reshape(_esd_fields(body, p), 2, p, type_flag)
-        tt = (c1 + c2 * np.arange(len(arr))) / 100.0
+        x = _synth_axis(axis, bintype, lines, bank_line, c1, c2, len(arr), p)
         y, sig = arr[:, 0], arr[:, 1]
     else:  # STD: counts only, Poisson esd
         values = _floats([t for line in body for t in line.split()], p, type_flag)
         y = np.array(values, dtype=np.float64)[:nchan]
-        tt = (c1 + c2 * np.arange(len(y))) / 100.0
+        x = _synth_axis(axis, bintype, lines, bank_line, c1, c2, len(y), p)
         sig = None
 
-    n = min(len(tt), nchan) if type_flag != "FXYE" else len(tt)
-    tt, y = tt[:n], y[:n]
+    n = min(len(x), nchan) if type_flag != "FXYE" else len(x)
+    x, y = x[:n], y[:n]
     sigma = None
     if sig is not None:
         sig = sig[:n]
@@ -281,39 +558,324 @@ def read_gsas(path: str | Path, *,
     # drop zero-esd leading/trailing channels (detector gaps)
     if sigma is not None:
         good = np.asarray(sigma) > 0
-        tt, y = tt[good], y[good]
+        x, y = x[good], y[good]
         sigma = np.asarray(sigma)[good].tolist()
-    tt, y, sig = ascending(tt, y, sigma, path=p, fmt=GSAS, diagnostics=diagnostics)
-    return pattern_data(p, tt, y, sig, source_file=p.name,
-                   format=f"gsas-{type_flag.lower()}")
+    x, y, sig = ascending(x, y, sigma, path=p, fmt=GSAS, axis=axis,
+                          diagnostics=diagnostics)
+    basis = _intensity_basis(lines[:data_start], bintype, type_flag)
+    if basis is None and axis == "tof":
+        _no_basis_diagnostic(p, bintype, type_flag, diagnostics)
+    return pattern_data(p, x, y, sig, axis=axis, intensity_basis=basis,
+                   source_file=p.name, format=f"gsas-{type_flag.lower()}")
+
+
+def _intensity_basis(header: list[str], bintype: str,
+                     type_flag: str) -> IntensityBasis | None:
+    """What one channel of this bank **holds**, from what the file declares.
+
+    Three declarations, and nothing else — no test on the values, for the
+    reason ``io/CLAUDE.md`` § The intensity basis is never inferred gives: a
+    count per channel and a count per microsecond are both plausible positive
+    reals and differ by a factor this reader would then be inventing.
+
+    * a ``SaveGSS`` header stating the bin-width multiplication
+      (:data:`_MANTID_BIN_WIDTH_RE`) — Mantid's own words for what it did;
+    * an ``STD`` or ``ESD`` record layout.  Both are raw-histogram layouts: an
+      ``STD`` record is a repeat count and an integer count in six characters
+      (``(10(I2,F6.0))``), which cannot express a density, and every
+      obtainable ``ESD`` file is a data-acquisition histogram whose esd column
+      is √y channel by channel.  Neither layout has a writer that divides by a
+      width;
+    * a ``TIME_MAP`` bintype, which is a *tabulated channel map* — the form a
+      data-acquisition clock writes and the one Mantid does not write at all.
+
+    Everything else is ``None``: a bare ``RALF``/``SLOG`` FXYE bank with no
+    Mantid header states neither, and the two answers differ by a factor of
+    W(T) that runs 4-22 µs across a real bank, so guessing is the one thing
+    this cannot do.
+    """
+    if any(_MANTID_BIN_WIDTH_RE.match(line) for line in header):
+        return "counts"
+    if type_flag in ("STD", "ESD") or bintype in _TABULATED_TOF_BINTYPES:
+        return "counts"
+    return None
+
+
+def _no_basis_diagnostic(p: Path, bintype: str, type_flag: str,
+                         diagnostics: list[Diagnostic] | None) -> None:
+    """Say that the ordinate's basis is undetermined, and name both answers.
+
+    Only on a flight-time bank, because only there does the answer change a
+    number: a constant-wavelength step is constant (or nearly so) and folds
+    into the phase scale, so a diagnostic on that arm would be one nobody can
+    act on and nobody needs to.
+    """
+    if diagnostics is None:
+        return
+    diagnostics.append(Diagnostic(
+        level="warning", code="PATTERN_INTENSITY_BASIS_UNKNOWN",
+        where=["intensity_basis"],
+        message=(f"{p.name}: this is a GSAS {bintype} bank of {type_flag} "
+                 f"records and nothing in it says whether one channel holds "
+                 f"the counts it recorded ('counts') or those counts already "
+                 f"divided by the channel width ('density'). Mantid's SaveGSS "
+                 f"multiplies Y by the bin widths by default and writes a "
+                 f"header line saying so; this file has no such line and no "
+                 f"raw-histogram layout either. The two differ by W(T), which "
+                 f"runs a factor of five across a real bank, so it is not a "
+                 f"scale a refinement absorbs — it is a slope in flight time, "
+                 f"and a displacement parameter is what pays for it"),
+        suggestion=("set pattern.intensity_basis to 'counts' or to 'density' "
+                    "from how the bank was reduced — 'counts' if the export "
+                    "multiplied by the bin width, 'density' if it did not; "
+                    "left unset, the flight-time model proceeds as 'density', "
+                    "which is what every fit before this option did")))
+
+
+def _synth_axis(axis: AxisKind, bintype: str, lines: list[str], bank_line: str,
+                c1: float, c2: float, n: int, p: Path) -> np.ndarray:
+    """The abscissa for a record layout that does not carry its own x column.
+
+    Two arithmetics, one per axis, and both are the bank record's own
+    declaration rather than anything read off the data: a ``CONS`` start angle
+    and step in centidegrees, or a ``TIME_MAP``'s tabulated step table.  Only
+    those two reach here — ``_check_tof_axis_is_establishable`` has already
+    refused a ``RALF``/``SLOG`` bank whose axis would have to be integrated
+    from four coefficients.
+    """
+    if axis == "two_theta":
+        return (c1 + c2 * np.arange(n)) / 100.0
+    return _time_map_axis(lines, bank_line, n, p)
+
+
+#: A ``TIME_MAP`` record's own header: the map number, how many values the
+#: table holds, how many records they occupy, the token again, and the **clock
+#: width in nanoseconds**.  Read from the header rather than assumed, because
+#: it is the whole conversion to microseconds and it is per file: LANSCE NPDF
+#: writes ``TIME_MAP 1 721 73 TIME_MAP 100``, i.e. a 100 ns clock, and its
+#: first channel's 20000 ticks are 2000 µs.
+_TIME_MAP_RE = re.compile(
+    r"^TIME_MAP\s+(\d+)\s+(\d+)\s+(\d+)\s+TIME_MAP\s+([\d.Ee+-]+)")
+
+#: Width of one field of a ``TIME_MAP`` table record, in characters.  The table
+#: is written ``(10I8)`` — ten 8-character integers to an 80-column record, the
+#: same Fortran discipline (and the same field width) as an ESD data record, and
+#: measured on the LANSCE NPDF file: 73 records, 721 values, the last record
+#: short.
+TIME_MAP_FIELD_CHARS = 8
+
+
+def _time_map_axis(lines: list[str], bank_line: str, n: int,
+                   p: Path) -> np.ndarray:
+    """A ``TIME_MAP`` bank's flight times in µs, from its tabulated step table.
+
+    The table is a list of **triples** — (first channel, flight time, step),
+    all in clock ticks — followed by one terminating flight time, and it says
+    that from ``channel`` onwards each channel's *start* is ``step`` ticks
+    after the one before it.  Between triples the step changes; within one it
+    does not.  Reading it is therefore a piecewise-linear lookup and the axis
+    is **exact**, which is why this bintype is read in every record layout
+    while ``RALF``/``SLOG`` are not.
+
+    Measured on LANSCE NPDF run 7245 (Si standard, 4 banks): 240 triples, first
+    triple ``(1, 20000, 10)`` and last ``(6530, 498043, 249)``, terminator
+    499786 — which is exactly the start the last triple extrapolates for channel
+    6537, the bank's declared channel count.  That agreement is asserted below
+    rather than assumed: it is the one internal check the format offers, and a
+    map read one field out of step would still produce a plausible axis.
+
+    The value returned is the **bin centre**, ``start + step/2``, because that
+    is where the counts in a channel are attributed and it is what the
+    ``RALF``/``SLOG`` FXYE columns hold (measured: an ISIS GEM bank's first
+    channel spans 1104.000-1108.416 µs and its FXYE x is 1106.1995).
+    """
+    want = _map_number(bank_line)
+    for i, line in enumerate(lines):
+        m = _TIME_MAP_RE.match(line)
+        if m and int(m.group(1)) == want:
+            nval, nrec, clock_ns = int(m.group(2)), int(m.group(3)), float(m.group(4))
+            break
+    else:
+        seen = sorted({int(m.group(1)) for m in
+                       (_TIME_MAP_RE.match(x) for x in lines) if m})
+        held = ("the file holds maps " + ", ".join(map(str, seen)) if seen
+                else "the file holds no TIME_MAP record at all")
+        raise ValueError(
+            f"{p.name}: this bank's record names TIME_MAP {want}, and no "
+            f"TIME_MAP record with that number is in the file ({held}). A "
+            f"TIME_MAP bank's x axis is the map and nothing else, so there is "
+            f"no axis to read.")
+    values: list[int] = []
+    for raw in lines[i + 1:i + 1 + nrec]:
+        line = raw.rstrip()
+        for start in range(0, len(line), TIME_MAP_FIELD_CHARS):
+            field = line[start:start + TIME_MAP_FIELD_CHARS].strip()
+            if field:
+                try:
+                    values.append(int(field))
+                except ValueError:
+                    raise ValueError(
+                        f"{p.name}: the TIME_MAP {want} table holds {field!r} "
+                        f"where a clock tick was expected — the table is not "
+                        f"the {TIME_MAP_FIELD_CHARS}-character integer format "
+                        f"a TIME_MAP record is written in") from None
+    if len(values) != nval or nval % 3 != 1:
+        raise ValueError(
+            f"{p.name}: the TIME_MAP {want} record declares {nval} values in "
+            f"{nrec} records and {len(values)} were read; a map is triples of "
+            f"(first channel, flight time, step) plus one terminating flight "
+            f"time, so its count is 3k + 1. The table is truncated or its "
+            f"header disagrees with it.")
+    table = np.asarray(values[:-1], dtype=np.int64).reshape(-1, 3)
+    terminator = values[-1]
+
+    start = np.zeros(n, dtype=np.float64)
+    step = np.zeros(n, dtype=np.float64)
+    for j, (c0, t0, dt) in enumerate(table):
+        c1 = int(table[j + 1][0]) if j + 1 < len(table) else n + 1
+        idx = np.arange(int(c0), min(c1, n + 1))
+        if idx.size:
+            start[idx - 1] = t0 + (idx - int(c0)) * dt
+            step[idx - 1] = dt
+    if start[0] == 0.0 and step[0] == 0.0:
+        raise ValueError(
+            f"{p.name}: the TIME_MAP {want} table does not cover channel 1 — "
+            f"its first triple starts at channel {int(table[0][0])}, so the "
+            f"bank's opening channels have no flight time at all")
+    last = table[-1]
+    extrapolated = int(last[1]) + (n - int(last[0])) * int(last[2])
+    if terminator not in (extrapolated, extrapolated + int(last[2])):
+        raise ValueError(
+            f"{p.name}: the TIME_MAP {want} table terminates at {terminator} "
+            f"clock ticks, and its last triple {tuple(int(v) for v in last)} "
+            f"puts channel {n} at {extrapolated}. The map and the bank's "
+            f"channel count disagree, so the flight time of every channel "
+            f"after the last triple would be a guess.")
+    return (start + 0.5 * step) * clock_ns / 1000.0
+
+
+def _map_number(bank_line: str) -> int:
+    """The TIME_MAP number a bank record points at — its first coefficient."""
+    fields = bank_line.split()
+    try:
+        return int(fields[5])
+    except (IndexError, ValueError):
+        return 1
+
+
+def _one_axis_per_file(lines: list[str], bank_head_re, p: Path) -> None:
+    """Refuse a file whose banks are not all on the same **kind** of axis.
+
+    A file holding a CONS bank and a TIME_MAP bank would come back with the
+    *quantity* on its abscissa decided by whichever was written first, so the
+    whole file is scanned (the lines are already in memory) and a mixed file is
+    refused naming both axes.
+
+    **Taken before a bank is chosen, and ``bank=`` cannot weaken it.**  The
+    two refusals answer different questions and only one of them a caller can
+    settle: which bank is *the pattern* is a choice (:func:`_select_bank`), and
+    what the pattern's abscissa *means* is not — a file that disagrees with
+    itself about that is wrong whichever bank is asked for.
+    """
+    kinds: dict[str, list[str]] = {}
+    for line in lines:
+        m = bank_head_re.match(line)
+        if not m:
+            continue
+        bintype = m.group(4).upper()
+        if bintype in _ANGLE_BINTYPES:
+            kinds.setdefault("2θ in degrees", []).append(bintype)
+        elif bintype in _TOF_BINTYPES:
+            kinds.setdefault("a flight time in microseconds", []).append(bintype)
+    if len(kinds) > 1:
+        described = "; ".join(
+            f"{', '.join(sorted(set(v)))} → {k}" for k, v in sorted(kinds.items()))
+        raise ValueError(
+            f"{p.name}: this file's banks are not all on the same quantity "
+            f"({described}). This reader returns one bank, and which one it "
+            f"returned would decide what the x axis of the pattern *means* — "
+            f"so the file is refused rather than answered by write order. Split "
+            f"it, or export the bank you want on its own.")
+
+
+#: The bintypes read, for a message that has to list them.
+_READ_BINTYPES = sorted(_ANGLE_BINTYPES | set(_TOF_BINTYPES))
 
 
 def _check_bintype(bintype: str, p: Path) -> None:
-    """Pass a ``CONS``/``CONST`` bank; refuse any other bintype **by name**.
+    """Pass a bintype whose axis this package can hold; refuse the rest **by name**.
 
     This is the x-axis decision and nothing else — the type flag is read
     separately, because a bank's binning says nothing about how its records are
     packed.  Conflating the two is what let a ``RALF`` bank holding ESD pairs be
     read as three-column FXYE whenever its pair count divided by three.
+
+    Two quantities now pass: an angle (``CONS``/``CONST``) and a neutron flight
+    time (``TIME_MAP``/``RALF``/``SLOG``).  Whether the flight time can actually
+    be *built* is a separate question, taken once the record layout is known —
+    :func:`_check_tof_axis_is_establishable`.
     """
-    if bintype in _ANGLE_BINTYPES:
+    if bintype in _ANGLE_BINTYPES or bintype in _TOF_BINTYPES:
         return
     what = _NON_ANGLE_BINTYPES.get(bintype)
     if what is not None:
         raise ValueError(
-            f"{p.name}: this is a GSAS {bintype} bank — {what}, not a 2θ.  "
-            f"CONS/CONST (a constant 2θ step) is the only bintype read, because "
-            f"it is the only one whose axis is an angle: this package holds 2θ "
-            f"patterns, so there is nowhere for that quantity to go, and "
-            f"reading it as an angle anyway is a plausible wrong answer rather "
-            f"than a near miss.  Convert the pattern to 2θ first.")
+            f"{p.name}: this is a GSAS {bintype} bank — {what}, so it is "
+            f"neither a 2θ nor a TOF.  The bintypes read are "
+            f"{', '.join(_READ_BINTYPES)} — an angle in centidegrees or a "
+            f"neutron flight time in microseconds, the two quantities "
+            f"PatternData can hold.  There is nowhere for this one to go, and "
+            f"reading it as either of them anyway is a plausible wrong answer "
+            f"rather than a near miss.  Convert the pattern first.")
     raise ValueError(
         f"{p.name}: unrecognised GSAS bintype {bintype!r} in the bank record — "
-        f"only CONS/CONST (a constant 2θ step) is read.  The manual's other "
-        f"bintypes ({', '.join(sorted(_NON_ANGLE_BINTYPES))}) are recognised "
-        f"and refused, each naming what its x axis holds; this is not one of "
-        f"those either, so what this file's x axis means is not established at "
-        f"all.")
+        f"the bintypes read are {', '.join(_READ_BINTYPES)} (a 2θ in "
+        f"centidegrees, or a flight time in microseconds).  The manual's others "
+        f"({', '.join(sorted(_NON_ANGLE_BINTYPES))}) are recognised and "
+        f"refused, each naming what its x axis holds; this is not one of those "
+        f"either, so what this file's x axis means is not established at all.")
+
+
+def _check_tof_axis_is_establishable(bintype: str, type_flag: str,
+                                     p: Path) -> None:
+    """Refuse a TOF bank whose axis would have to be *approximated*.
+
+    The decision only the bintype **and** the record layout can take together.
+    An FXYE record carries its own x column, so any TOF bintype is exact under
+    it.  A ``TIME_MAP`` bank tabulates its steps, so it is exact under any
+    layout.  What is left — a ``RALF`` or ``SLOG`` bank of ESD pairs or bare
+    counts — would need the axis integrated from the four bank coefficients,
+    and neither can be done exactly:
+
+    * ``RALF``'s own manual entry says the step "varies (**irregularly**) in
+      pseudoconstant Δt/t steps" beyond its third coefficient, i.e. the
+      coefficients describe the binning rather than define it.  Measured: an
+      ISIS GEM bank's coefficients (start 35328/32 = 1104 µs, first width
+      141/32 = 4.40625 µs, log part from 1104 µs, Δt/t = 0.004) reproduce that
+      same bank's explicit FXYE column only to ~9 × 10⁻³ µs — 8 × 10⁻⁶ of the
+      flight time, so every peak would land a fraction of a channel off with
+      nothing downstream able to see it.
+    * ``SLOG``'s Δt/t binning *is* exact arithmetic, and no file writing it
+      under ESD or STD was obtainable — the same reason ``ALT`` and ``FXY`` are
+      named and declined (§ the module docstring).  A record layout is exactly
+      the kind of fact a fixture is for.
+
+    So both are refused *for this layout only*, naming the layout that works,
+    which is also the one their writer actually emits: Mantid's ``SaveGSS``
+    defaults to ``RALF`` with ``DataFormat=FXYE``.
+    """
+    if type_flag == "FXYE" or bintype in _TABULATED_TOF_BINTYPES:
+        return
+    raise ValueError(
+        f"{p.name}: this is a GSAS {bintype} bank of {type_flag} records — "
+        f"{_TOF_BINTYPES[bintype]}, which is read, but only from a layout that "
+        f"states the flight times.  An {type_flag} record carries no x column, "
+        f"so the axis would have to be rebuilt from the bank's four binning "
+        f"coefficients, and for {bintype} that is an approximation rather than "
+        f"a reconstruction — a peak a fraction of a channel out of place, which "
+        f"nothing downstream can detect.  Re-export the bank as FXYE (Mantid's "
+        f"SaveGSS writes that by default), or as TIME_MAP, whose step table is "
+        f"exact.")
 
 
 def _type_flag(token: str | None, p: Path) -> str:
@@ -454,13 +1016,15 @@ GSAS = PatternFormat(
     sniff="a BANK record in the first 4 kB — by content, not by suffix — or, "
           "when a TIME_MAP step table (which is what pushes the first bank past "
           "that window) leaves its token there, one more bounded read further "
-          "in. Only a CONS/CONST (constant 2θ step) bank holding STD, ESD or "
-          "FXYE records is then read, and every time-of-flight bintype "
-          "(TIME_MAP included) and every other type flag (ALT, FXY) is named "
-          "and refused",
+          "in. A CONS/CONST bank is a 2θ in centidegrees and a TIME_MAP, RALF "
+          "or SLOG bank a flight time in microseconds; the remaining five "
+          "bintypes (COND, CONQ, EDS, LOG6, LPSD) and every type flag but STD, "
+          "ESD and FXYE (ALT, FXY) are named and refused. A file holding "
+          "several banks needs bank=<n>",
     sigma=("the third column (FXYE) or second (ESD); an STD bank — which is "
            "also what a bank stating no type flag is — carries counts only and "
            "takes the Poisson fallback"),
     matches=looks_gsas,
     read=read_gsas,
+    options=("bank",),
 )

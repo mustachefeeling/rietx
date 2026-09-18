@@ -19,7 +19,7 @@ import numpy as np
 from pydantic import ValidationError as PydanticValidationError
 
 from ...schemas.common import Diagnostic
-from ...schemas.pattern import PatternData
+from ...schemas.pattern import AxisKind, IntensityBasis, PatternData
 
 
 @dataclass(frozen=True)
@@ -140,6 +140,14 @@ class ReaderOption:
 #: A meta-test pins it equal to the union of every ``PatternFormat.options``, so
 #: neither half can grow an entry the other does not know about.
 READER_OPTIONS: dict[str, ReaderOption] = {
+    "bank": ReaderOption(
+        name="bank", kind="int",
+        help="which detector bank to read, by the number the file's own BANK "
+             "record declares — a GSAS file commonly holds several, and a "
+             "time-of-flight diffractometer *is* several (ISIS GEM writes "
+             "six). Not a scan: banks are different detectors, each with its "
+             "own scattering angle and calibration, so a file holding more "
+             "than one is refused until one is named"),
     "block": ReaderOption(
         name="block", kind="str",
         help="the data block to read, by substring match on its name — a pdCIF "
@@ -309,11 +317,12 @@ class Head:
     bom: bool
 
 
-def ascending(two_theta: Any, intensity: Any, sigma: Any = None, *,
+def ascending(x: Any, intensity: Any, sigma: Any = None, *,
               path: str | Path, fmt: PatternFormat | None = None,
+              axis: AxisKind = "two_theta",
               diagnostics: list[Diagnostic] | None = None,
               ) -> tuple[np.ndarray, np.ndarray, np.ndarray | None]:
-    """``PatternData``'s strictly-increasing 2θ, or a refusal — never a guess.
+    """``PatternData``'s strictly-increasing abscissa, or a refusal — never a guess.
 
     Several formats store a scan measured high→low, and the root CLAUDE.md rule
     fixes what to do about it: a silent correction is a reader's to make, and
@@ -341,11 +350,20 @@ def ascending(two_theta: Any, intensity: Any, sigma: Any = None, *,
     The non-monotone refusal names the ``scan`` option **only for a format that
     has one**, which is why it takes ``fmt``: telling someone to select a scan
     in a file that cannot hold several is a wrong instruction, not a vague one.
+
+    ``axis`` is the quantity being ordered, and is only ever used to *name* it:
+    every rule above is about the order of a column and holds identically for a
+    flight time, but a refusal saying "2θ does not run in one direction" about a
+    time-of-flight bank would be a wrong statement in the one place a reader
+    gets to explain itself.  ``"two_theta"`` is the default, so every CW message
+    is the sentence it always was.
     """
-    tt = np.asarray(two_theta, dtype=np.float64)
+    tt = np.asarray(x, dtype=np.float64)
     y = np.asarray(intensity, dtype=np.float64)
     sig = None if sigma is None else np.asarray(sigma, dtype=np.float64)
     name = Path(path).name
+    label = "2θ" if axis == "two_theta" else "the flight time"
+    unit = "°" if axis == "two_theta" else " µs"
 
     step = np.diff(tt)
     # ``<= 0`` with at least one strict descent, so that a descending scan which
@@ -370,8 +388,8 @@ def ascending(two_theta: Any, intensity: Any, sigma: Any = None, *,
             if differing.size:
                 i = int(differing[0])
                 raise ValueError(
-                    f"{name}: 2θ = {tt[i]:.6g}° appears twice with different "
-                    f"intensities ({y[i]:.6g} and {y[i + 1]:.6g}), and "
+                    f"{name}: {label} = {tt[i]:.6g}{unit} appears twice with "
+                    f"different intensities ({y[i]:.6g} and {y[i + 1]:.6g}), and "
                     f"{differing.size} such point(s) in all. Averaging them "
                     "would invent a datum and dropping one would pick a "
                     "measurement arbitrarily, so neither is the reader's to do")
@@ -390,8 +408,8 @@ def ascending(two_theta: Any, intensity: Any, sigma: Any = None, *,
             extra = (" — if these are separate ranges, name one with scan="
                      if fmt is not None and "scan" in fmt.options else "")
             raise ValueError(
-                f"{name}: 2θ does not run in one direction — it goes "
-                f"{tt[i]:.6g}° → {tt[i + 1]:.6g}° at point {i}. Concatenating, "
+                f"{name}: {label} does not run in one direction — it goes "
+                f"{tt[i]:.6g}{unit} → {tt[i + 1]:.6g}{unit} at point {i}. Concatenating, "
                 "sorting or separating such ranges are three different "
                 f"measurements and choosing between them is yours{extra}")
 
@@ -446,9 +464,22 @@ def check_axis(stated: str, *, path: str | Path, field: str, two_theta: bool,
     return stated or None
 
 
-def pattern_data(path: str | Path, two_theta: Any, intensity: Any,
-            sigma: Any = None, **meta: object) -> PatternData:
+def pattern_data(path: str | Path, x: Any, intensity: Any,
+            sigma: Any = None, *, axis: AxisKind = "two_theta",
+            intensity_basis: IntensityBasis | None = None,
+            **meta: object) -> PatternData:
     """The :class:`PatternData` a reader returns — schema refusals included.
+
+    ``axis`` says which abscissa ``x`` is, and is the *only* way a reader
+    declares one: the values themselves never decide, because an ascending
+    column of flight times is indistinguishable from an ascending column of
+    degrees (``io/CLAUDE.md`` § The axis is never trusted).  Defaults to
+    ``"two_theta"``, so every existing reader keeps the axis it always had.
+
+    ``intensity_basis`` is the same shape of statement about the *ordinate*
+    (``io/CLAUDE.md`` § The intensity basis is never inferred) and follows the
+    same rule: a reader passes it only where the file declares it, and
+    ``None`` — the default — is "not established", never "density".
 
     Constructing the model is a **parser boundary like any other**, and the last
     one every reader crosses.  ``PatternData``'s own validators are right to
@@ -463,10 +494,13 @@ def pattern_data(path: str | Path, two_theta: Any, intensity: Any,
     the filename — in its report.  Adding one more metadata key pushed the name
     past the echo's truncation and the invariant failed, having never held.
     """
+    values = np.asarray(x, dtype=np.float64).tolist()
     try:
         return PatternData(
-            two_theta=np.asarray(two_theta, dtype=np.float64).tolist(),
+            two_theta=values if axis == "two_theta" else None,
+            tof=values if axis == "tof" else None,
             intensity=np.asarray(intensity, dtype=np.float64).tolist(),
+            intensity_basis=intensity_basis,
             sigma=None if sigma is None else np.asarray(sigma,
                                                         dtype=np.float64).tolist(),
             metadata=metadata(**meta))

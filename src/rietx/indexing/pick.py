@@ -34,7 +34,7 @@ from ..schemas.indexing import (
     q_of_two_theta,
 )
 from ..schemas.instrument import Instrument
-from ..schemas.pattern import PatternData
+from ..schemas.pattern import PatternData, require_two_theta
 from ..strategy.staged import BOUND_HIT_RTOL
 from .diagnostics import peak_diagnostics
 from .peakfit import GroupFit, fit_group, fit_group_at, reseed_candidate
@@ -77,6 +77,7 @@ def pick_peaks_with_state(data: PatternData, instrument: Instrument, *,
     refits a single group when a human corrects it, both of which want the frozen
     windows and the fitted width pairs rather than the flattened list.
     """
+    require_two_theta(data, "pick_peaks()", instrument=instrument)
     det = detect_peaks(data, instrument, two_theta_range=two_theta_range,
                        shoulders=shoulders)
     lam0 = instrument.source.lines[0].wavelength.value
