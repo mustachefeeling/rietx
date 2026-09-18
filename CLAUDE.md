@@ -358,6 +358,14 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   member each need their writer named at review. Where the fact already has a computing authority
   the second surface is a *projection* of it: `staged.bound_findings` is one bound test feeding
   both the `BOUND_HIT` diagnostics and `at_bound`, pinned **set-equal** rather than re-derived.
+  **That test asks whether the limit *carried load*, never whether the value is near one**
+  (WP-1434): TRF keeps its iterates strictly feasible, so a distance measures when the solver
+  stopped, and it went silent on nine of 32 binding cases. It is a conjunction — within a
+  hundredth of an esd of the limit *and* the residual not orthogonal to that column
+  (`LSQOutcome.residual_cosine`, zero on every free column at a stationary point by the normal
+  equations) — because the angle cannot separate a stage that stopped early en route and the
+  distance cannot separate a free optimum that lands nearby. Neither threshold is tunable by
+  eye; both docstrings carry the window they were measured into.
   Where it has none the honest empty state is `None`, which cannot regress into a lie the way a
   defaulted `False` can. All nine of 1076's surfaced while writing a manual chapter over the type,
   never by reading the code. **A message that names its discriminator makes the same claim**, one

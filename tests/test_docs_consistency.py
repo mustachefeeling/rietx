@@ -66,6 +66,7 @@ _INHERITED_PRUNE_EPOCH = "2026-07-31"
 #     src/rietx/io/CLAUDE.md        294 -> 300  for WP-1118
 #   2026-08-14  CLAUDE.md                     600 -> 620  for WP-1067
 #   2026-08-14  CLAUDE.md                     620 -> 625  for WP-1068
+#   2026-09-18  CLAUDE.md                     929 -> 938  for WP-1434
 #   2026-08-15  CLAUDE.md                     625 -> 644  for WP-1070
 #   2026-08-15  CLAUDE.md                     648 -> 656  for WP-1071
 #   2026-08-15  CLAUDE.md                     656 -> 670  for WP-1072
@@ -361,7 +362,7 @@ SIZE_CAPS: dict[str, int | None] = {
     # after magnetic (TOF, texture, PDF), which is protocol rule 4's test, and
     # the measurement behind it is the reader's context rather than a byte
     # count.  Landed 925, +4 headroom.
-    "CLAUDE.md": 929,
+    "CLAUDE.md": 938,
     # 672 -> 676 (WP-1102): the Current focus rewrite at 1102's close names the
     # milestone's one break and what makes 1103 the seam's proving case.
     # 676 -> 682 (WP-1407): a new Unscheduled group, "The formats a lab still
