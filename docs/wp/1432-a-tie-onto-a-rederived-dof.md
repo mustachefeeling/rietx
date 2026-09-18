@@ -126,7 +126,7 @@ and what the manual documents, for a defect that lives in the tie path.
       amplitude both times, and the structure does not move between them.
 - [x] `tests/test_named_variables.py` grows the DOF case it never had, with the
       declared-order asymmetry as a regression case.
-- [ ] `tests/test_sequential.py::test_a_named_variable_warm_starts_under_the_carry_globs`
+- [x] `tests/test_sequential.py::test_a_named_variable_warm_starts_under_the_carry_globs`
       stays green: it is the second fixture over the repaired path, and it
       asserts on the value a fit *starts* from rather than the one it ends at.
 - [x] Manual: `using/model.md` says a coordinate DOF is a displacement from the
