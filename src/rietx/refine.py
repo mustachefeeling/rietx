@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+import fnmatch
 import math
 import warnings
 from collections.abc import Sequence
@@ -162,10 +163,16 @@ class _StageHold:
     Carried out of ``_run_stage`` rather than read back off the table, because
     by then the release has already put the freed paths back and the table can
     no longer tell the two apart.
+
+    ``blocked_by_hold`` rides here for delivery rather than for that reason
+    (WP-1435).  It is the caller's declaration, decided before the solve and
+    unchanged by it, and it travels this way because the two ``StageResult``
+    call sites already unpack this object.
     """
 
     held: list[str]
     released: list[str]
+    blocked_by_hold: list[str] = dataclasses.field(default_factory=list)
 
 
 def _tie_terms(source: "str | dict[str, float] | Sequence[tuple[str, float]]",
@@ -444,6 +451,20 @@ class Refinement:
         #: what ``TieSpec.user`` is answered from, so a row names whose tie is
         #: *in force* on it rather than whose was asked for
         self._applied_ties: set[str] = set()
+        #: caller-declared holds (WP-1435), the paths that do not move whatever
+        #: a plan asks for.  The one authority, on ``_ties``' model and for its
+        #: reason: ``vary`` cannot carry the declaration, because a plan
+        #: *replaces* the vary flags rather than continuing them (WP-1208), so
+        #: a pinned certified cell was refined anyway and the model went on
+        #: reading ``vary=False`` (issue #211).
+        #:
+        #: Distinct from :attr:`_held` above, which is WP-1301's and nearly
+        #: shares this name.  That one is the *package's* reading of what this
+        #: stage's data can see, and it is lifted at the start of the next
+        #: stage.  This one is the *caller's* declaration, and only ``unhold``
+        #: lifts it.  They never overlap: ``_hold_unsupported_phases`` holds
+        #: free paths, and a path in here is never free.
+        self._user_holds: set[str] = set()
         #: what :meth:`fit` last ran, for :meth:`summary` alone — nothing
         #: computes from these, only prints them back (WP-1302)
         self._last_plan: RefinementPlan | None = None
@@ -532,6 +553,7 @@ class Refinement:
             ties={p: s.model_copy(deep=True) for p, s in self._ties.items()},
             variables={n: v.model_copy(deep=True)
                        for n, v in self._variables.items()},
+            holds=sorted(self._user_holds),
         )
 
     def _record(self, tree: RefinementTree, action: NodeAction, model: CompiledModel,
@@ -578,6 +600,10 @@ class Refinement:
         self._ties = {p: s.model_copy(deep=True) for p, s in node.state.ties.items()}
         self._variables = {n: v.model_copy(deep=True)
                            for n, v in node.state.variables.items()}
+        # unlike ``_held`` above, a user hold is restored: it is a declaration
+        # the node recorded, and a checkout that dropped it would hand back a
+        # state whose pin had quietly expired (WP-1435)
+        self._user_holds = set(node.state.holds)
         self._pending_reflections = [r.model_copy(deep=True) for r in node.state.reflections]
         self._head_id = node.id
         self._invalidate_fit()
@@ -595,6 +621,10 @@ class Refinement:
         ref._ties = {p: s.model_copy(deep=True) for p, s in self._ties.items()}
         ref._variables = {n: v.model_copy(deep=True)
                           for n, v in self._variables.items()}
+        # a rival strategy inherits the caller's declarations, as it inherits
+        # the ties: a branch is a second working tree, and a hold the branch
+        # dropped would make the two rivals answer different questions
+        ref._user_holds = set(self._user_holds)
         ref._head_id = self._head_id
         ref._pending_reflections = [r.model_copy(deep=True) for r in self._pending_reflections]
         # The branch is built from ``self.instrument``, which carries the last
@@ -661,6 +691,15 @@ class Refinement:
         self._declare_variables(table)
         applied = self._apply_ties(table)
         self._ties = {p: s for p, s in self._ties.items() if p in applied}
+        # The holds are reconciled here too, and the outcome is the opposite
+        # one: a tie that stopped applying is *dropped*, because the model it
+        # described is gone and a stale affine relation would silently
+        # reimpose itself.  A hold that stopped applying is **kept**.  It
+        # forbids rather than describes, so there is nothing in it to go
+        # stale, and dropping it at an edit would be the one way a
+        # declaration could lapse without anybody saying so.  The warning
+        # ``_apply_holds`` gives is the saying-so.
+        self._apply_holds(table)
         if structure is not None:
             self.structure = structure.model_copy(deep=True)
         if instrument is not None:
@@ -698,6 +737,7 @@ class Refinement:
         table = ParameterTable(self.structure, self.instrument)
         self._declare_variables(table)
         self._apply_ties(table)
+        self._apply_holds(table)
         return table
 
     def parameters(self, *, mode: Mode | None = None) -> list[ParameterRow]:
@@ -732,6 +772,7 @@ class Refinement:
                 tie=(TieSpec._from_tie(e.tie, user=e.path in self._applied_ties)
                      if e.tie is not None else None),
                 locked=e.locked,
+                held=e.held,
                 esd=esd.get(e.path),
                 mode_fixed=mode_fixed_path(e.path, mode),
                 needs_held_cell=e.path in blocked,
@@ -760,6 +801,20 @@ class Refinement:
         """
         globs = [path_globs] if isinstance(path_globs, str) else list(path_globs)
         table = self._working_table()
+        if vary:
+            # A literal path is a claim about one parameter, and a held one
+            # contradicts a declaration this same caller made, so it is
+            # refused with the verb that resolves it.  A *pattern* is a sweep
+            # and its held rows are skipped in silence — the treatment a
+            # symmetry-fixed cell angle gets, for the reason
+            # ``ParameterTable.set_vary`` gives: turning a broad glob into an
+            # error is worse than declining one row of it.
+            blocked = [g for g in globs
+                       if not any(ch in g for ch in "*?[") and g in self._user_holds]
+            if blocked:
+                raise ValueError(
+                    f"{blocked[0]!r} is held by this refinement and cannot be "
+                    "freed; unhold it first if you mean to refine it")
         hits = table.set_vary(globs, vary)
         # A carried hold (WP-1301) is lifted at the start of the next stage, so
         # a path the caller has just declared on must leave it: otherwise the
@@ -943,6 +998,37 @@ class Refinement:
                 f"were dropped: {'; '.join(dropped)}. Symmetry outranks a user "
                 "tie.", UserWarning, stacklevel=3)
         return self._applied_ties
+
+    def _apply_holds(self, table: ParameterTable) -> None:
+        """Re-declare this refinement's holds on a freshly built table.
+
+        The counterpart of :meth:`_apply_ties`, and it runs **after** it, for
+        one reason: :meth:`ParameterTable.set_held` forces ``vary=False``, and
+        a path the space group has since tied is left alone by ``set_tie``
+        anyway, so the order only decides which reason a row reports first.
+
+        Every path in the register is marked, whether or not something else
+        already held it.  A hold on a locked or tied row changes nothing and
+        is not an error: the caller held a glob, the space group had taken
+        some of the rows, and ``held_because`` reports the structural reason
+        first because that is the one ``unhold`` cannot lift.
+
+        A path that has **vanished** is the case worth a word, and it is the
+        one :meth:`_apply_ties` warns about too.  The register keeps it, since
+        a removed phase can come back through a checkout and the caller's
+        declaration about it has not been withdrawn.  What is said out loud is
+        that the hold is not in force on *this* model, because a promise
+        nobody can keep is exactly what this WP exists to stop being silent.
+        """
+        if not self._user_holds:
+            return
+        missing = sorted(p for p in self._user_holds if not table.set_held(p, True))
+        if missing:
+            warnings.warn(
+                f"{len(missing)} held path(s) are not in this model and so hold "
+                f"nothing here: {missing[:5]}{'…' if len(missing) > 5 else ''}. "
+                "The declaration is kept, in case a checkout restores them.",
+                UserWarning, stacklevel=3)
 
     def _tie_entry(self, table: ParameterTable, path: str, *, role: str):
         """The entry ``path`` names, refusing with the reason a tie cannot use it.
@@ -1239,6 +1325,122 @@ class Refinement:
                 table.set_tie(path, None)
         self._commit_tie_edit(table, ties={}, untied=hits)
         return hits
+
+    # ------------------------------------------------------------------
+    # caller-declared holds (WP-1435)
+    # ------------------------------------------------------------------
+    def hold(self, path_globs: list[str] | str) -> list[str]:
+        """Declare that these parameters do not move, whatever a plan asks.
+
+        Dot-path globs with fnmatch semantics, exactly as :meth:`set_vary` and
+        a stage's ``turn_on`` (``"phases.*.cell.*"``).  Returns the paths
+        actually held, sorted, and records a ``set_hold`` history node.
+
+        **This is not ``set_vary(paths, False)``.**  A plan *replaces* the
+        vary flags rather than continuing them (WP-1208), so a stage whose
+        ``turn_on`` matches a pinned path frees it and refines it.  Before
+        this verb existed there was no way to say otherwise: the value moved
+        while the model still read ``vary=False``, and nothing reported which
+        declaration had won (issue #211).  A hold outranks the glob, and a
+        stage that matched one records it on ``StageResult.blocked_by_hold``
+        and raises ``HOLD_BLOCKED_PLAN``.
+
+        The case it is for is calibrate-on-a-certified-standard.  Holding the
+        certificate's cell is what decorrelates the zero, the displacement and
+        the profile terms, so a plan that frees that cell leaves a calibration
+        that is worthless and looks clean::
+
+            ref.hold("phases.0.cell.*")
+            ref.fit(data, plan="lab_calibrate")
+
+        Structurally fixed rows are marked and say so with their own reason
+        first, because ``unhold`` cannot lift a space group.  A held parameter
+        stops being free at once, since a declaration that took effect only at
+        the next stage would be honoured by everything except the solve
+        already running.
+
+        A series declares its holds through the per-pattern ``constrain``
+        hook, the way it declares its ties: a hold lives on the
+        ``Refinement``, and ``refine_sequential`` builds one of those per
+        pattern (WP-1441).
+        """
+        globs = [path_globs] if isinstance(path_globs, str) else list(path_globs)
+        table = self._working_table()
+        known = {e.path for e in table.entries}
+        for glob in globs:
+            if any(ch in glob for ch in "*?[") or glob in known:
+                continue
+            raise ValueError(f"unknown parameter path: {glob!r}")
+        import fnmatch
+
+        hits = sorted(p for p in known
+                      if any(fnmatch.fnmatchcase(p, g) for g in globs))
+        new = [p for p in hits if p not in self._user_holds]
+        if not new:
+            return []
+        self._user_holds.update(new)
+        for path in new:
+            table.set_held(path, True)
+        self._commit_hold_edit(table, held=new, unheld=[])
+        return new
+
+    def unhold(self, path_globs: list[str] | str) -> list[str]:
+        """Take back a hold.  Returns the paths released, sorted.
+
+        Globs match against the **declared** holds only, so a sweep such as
+        ``unhold("phases.0.cell.*")`` releases what this refinement held and
+        cannot reach anything the space group fixed.  A literal path that is
+        not held is refused with the reason, exactly as :meth:`untie` refuses
+        one that is not tied: that call meant one parameter, and a silent
+        no-op would read as success.
+
+        A released parameter comes back **fixed** at its current value, never
+        free.  Withdrawing a declaration that something must not move is not a
+        decision to move it, and :meth:`set_vary` is where that decision is
+        spelled.
+        """
+        globs = [path_globs] if isinstance(path_globs, str) else list(path_globs)
+        import fnmatch
+
+        hits = sorted(p for p in self._user_holds
+                      if any(fnmatch.fnmatchcase(p, g) for g in globs))
+        literals = [g for g in globs
+                    if not any(ch in g for ch in "*?[") and g not in hits]
+        if literals:
+            known = {e.path for e in self._working_table().entries}
+            glob = literals[0]
+            raise ValueError(
+                f"{glob!r} is not held by this refinement" if glob in known
+                else f"unknown parameter path: {glob!r}")
+        if not hits:
+            return []
+        # the register first, so the table this rebuilds comes back without
+        # them: ``_working_table`` re-applies whatever ``_user_holds`` holds
+        self._user_holds.difference_update(hits)
+        self._commit_hold_edit(self._working_table(), held=[], unheld=hits)
+        return hits
+
+    def _commit_hold_edit(self, table: ParameterTable, *,
+                          held: list[str], unheld: list[str]) -> None:
+        """Land a hold edit: the free set follows, a node is added.
+
+        No ``_write_back`` and no ``refresh_ties``, unlike
+        :meth:`_commit_tie_edit`: a hold moves no value, so there is nothing
+        for a dependent to follow and nothing new to write into the models.
+        The free set can move — holding a free parameter fixes it — so it is
+        re-read here, and that is also why the fit is invalidated: an esd
+        measured with the parameter free no longer describes this state.
+        """
+        self._free_paths = list(table.free_paths)
+        self._invalidate_fit()
+        if self.history is None:
+            return
+        node = self.history.add(
+            parents=[self._head_id] if self._head_id else [],
+            action=NodeAction(kind="set_hold", held=list(held),
+                              unheld=list(unheld)),
+            state=self.snapshot())
+        self._head_id = node.id
 
     def _declare_ties(self, spec: "dict[str, tuple[list[tuple[str, float]], float]]"
                       ) -> list[str]:
@@ -1560,9 +1762,14 @@ class Refinement:
         # before the free set, not after: a tied entry never matches set_vary,
         # so restoring first would report every tied path as "no longer exists"
         self._apply_ties(table)
+        # and before it for the same reason: a held entry does not match
+        # set_vary either, so a hold declared over a path that was free at the
+        # time would otherwise be reported as a vanished parameter
+        self._apply_holds(table)
         if restore and self._free_paths:
             missing = [p for p in self._free_paths
-                       if p not in self._ties and not table.set_vary([p], True)]
+                       if p not in self._ties and p not in self._user_holds
+                       and not table.set_vary([p], True)]
             if missing:
                 # set_vary reports no hits for a path that no longer exists
                 # (e.g. a phase was removed); dropping it silently would lose
@@ -1644,6 +1851,15 @@ class Refinement:
         frozen here and never move until the next stage.
         """
         freed = table.set_vary(stage.turn_on, True)
+        # What the glob matched and the hold refused (WP-1435).  Read off the
+        # table rather than re-globbing the register, so it names the paths
+        # that are held *on this model* and cannot disagree with what
+        # ``set_vary`` just did.  A stage that frees nothing held records an
+        # empty list, which is every stage of every fit that declares no hold.
+        blocked_by_hold = sorted(
+            e.path for e in table.entries
+            if e.held and e.tie is None and not e.locked
+            and any(fnmatch.fnmatchcase(e.path, g) for g in stage.turn_on))
         if self._held:
             # lift the previous stage's hold before this one decides its own:
             # a phase invisible then may be plain now, and a cumulative plan
@@ -1847,8 +2063,9 @@ class Refinement:
                         cost_initial=outcome.cost_initial,
                         cost_final=outcome.cost_final, rwp=stage_rwp,
                         held=list(held), released=list(released))
-        return model, outcome, guard, freed, _StageHold(held=list(held),
-                                                        released=list(released))
+        return model, outcome, guard, freed, _StageHold(
+            held=list(held), released=list(released),
+            blocked_by_hold=blocked_by_hold)
 
     def fit(self, data: PatternData, *, mode: Mode = "rietveld",
             plan: RefinementPlan | str = "mccusker_default",
@@ -2021,6 +2238,7 @@ class Refinement:
             diagnostics.extend(_constraint_diagnostics(plan.stages[-1].name, outcome))
             diagnostics.extend(_degenerate_cell_diagnostics(
                 [(sr.name, sr.n_degenerate_cell_probes) for sr in stage_results]))
+            diagnostics.extend(_hold_diagnostics(stage_results))
 
             self.result_ = _build_result(
                 model, table, outcome.theta, mode=mode, status=outcome.status,
@@ -2150,6 +2368,7 @@ class Refinement:
                 n_constraint_truncations=outcome.n_constraint_truncations,
                 n_degenerate_cell_probes=outcome.n_degenerate_cell_probes,
                 ftol=ftol, held=hold.held, released=hold.released,
+                blocked_by_hold=hold.blocked_by_hold,
             ))
             if stage_reports:
                 self.stage_reports_.append(self._stage_report(
@@ -2295,7 +2514,12 @@ class Refinement:
                 freed=freed,
                 n_constraint_truncations=outcome.n_constraint_truncations,
                 n_degenerate_cell_probes=outcome.n_degenerate_cell_probes,
-                ftol=stage.ftol, held=hold.held, released=hold.released)
+                ftol=stage.ftol, held=hold.held, released=hold.released,
+                blocked_by_hold=hold.blocked_by_hold)
+            # after the StageResult rather than beside the other two extends
+            # above, because this one reads the record it has just built; and
+            # before the node, so the node carries what the result carries
+            diagnostics.extend(_hold_diagnostics([stage_result]))
 
             # before the node is recorded, which is where `_run_plan` writes it
             # too; the two call sites must not disagree about when a stage's
@@ -3008,6 +3232,60 @@ def _degenerate_cell_diagnostics(rows: list[tuple[str, int]]) -> list[Diagnostic
                  "out rather than crashing (issue #283) — the reported "
                  "values were never a degenerate point"),
         where=where, value=float(total),
+    )]
+
+
+def _hold_diagnostics(stage_results: list[StageResult]) -> list[Diagnostic]:
+    """``HOLD_BLOCKED_PLAN`` — which declaration won, and over what.
+
+    A stage's ``turn_on`` glob and a caller's ``Refinement.hold`` can name the
+    same parameter, and one of them has to lose.  The hold wins, and the point
+    of this WP is that the loss is said out loud (issue #211).  Before it, the
+    glob won and nothing reported it: a certified cell pinned for a
+    calibration was refined anyway, ``RefinementResult.parameters`` said
+    ``vary=True``, and the model it was fitted from went on saying ``False``.
+
+    ``info``, for the reason :func:`_degenerate_cell_diagnostics` is: the run
+    did exactly what the caller declared, so nothing about the reported values
+    is in question.  It fires anyway, because a plan quietly doing less than
+    it says is the half a caller cannot see. Reading it as a fault of the plan
+    is wrong — a preset frees the cell because most fits want that, and a hold
+    is how one fit says it does not.
+
+    Keyed on the *paths*, one diagnostic for the fit rather than one per
+    stage: a cumulative plan names the same glob in several stages and a
+    per-stage code would print the same sentence four times.  ``where`` is
+    the union, and the message names the stages so a caller can still see
+    which ones asked.
+
+    This is the discriminator WP-1310 could not build.  ``vary=False`` is the
+    default rather than a decision, so "declared fixed and freed by a plan"
+    named 8 of 16 paths on an ordinary LaB6 fit; a hold is only ever
+    deliberate, so the set here is the caller's own declarations and nothing
+    else.
+    """
+    by_path: dict[str, list[str]] = {}
+    for sr in stage_results:
+        for path in sr.blocked_by_hold:
+            by_path.setdefault(path, []).append(sr.name)
+    if not by_path:
+        return []
+    where = sorted(by_path)
+    stages = sorted({n for names in by_path.values() for n in names})
+    n = len(where)
+    return [Diagnostic(
+        level="info", code="HOLD_BLOCKED_PLAN",
+        message=(f"{n} held parameter{'' if n == 1 else 's'} "
+                 f"{'was' if n == 1 else 'were'} matched by the turn_on glob "
+                 f"of stage{'' if len(stages) == 1 else 's'} "
+                 f"{', '.join(repr(s) for s in stages)} and stayed fixed: "
+                 f"{', '.join(where[:5])}{'…' if n > 5 else ''}. The hold you "
+                 "declared outranks the plan's glob"),
+        where=where, value=float(n),
+        suggestion=("this is the hold working. If you meant the plan to "
+                    "refine these, unhold() them first; if you meant them "
+                    "held, the plan is doing less than its name suggests and "
+                    "a narrower one would say so"),
     )]
 
 

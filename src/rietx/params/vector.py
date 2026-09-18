@@ -245,6 +245,16 @@ class Entry:
     transform: str
     tie: AffineTie | None = None  # affine dependence on other entries
     locked: bool = False  # structurally fixed: set_vary may never free it
+    #: the caller declared this parameter does not move (WP-1435).  Written by
+    #: ``Refinement._apply_holds`` from its own register on every build, for
+    #: the reason a user tie is: a hold is not a property of the models, and
+    #: nothing the table derives from a structure could rebuild it.
+    #:
+    #: Read by :meth:`set_vary` alongside ``locked``, which is the whole
+    #: mechanism.  The two differ in who said so and in what can undo it: a
+    #: locked entry is the space group's and no caller may free it, a held one
+    #: is the caller's own and ``Refinement.unhold`` takes it back.
+    held: bool = False
 
 
 #: Path prefix of a caller's own named variable (WP-1119).  A variable is a
@@ -1393,6 +1403,33 @@ class ParameterTable:
             e.vary = False
         self._rebuild()
 
+    def set_held(self, path: str, held: bool) -> bool:
+        """Mark an entry as the caller's declared hold.  Returns whether it exists.
+
+        Holding forces ``vary=False``, for the reason tying does: the caller
+        has said this parameter does not move, and leaving it free would mean
+        the very next solve moved it.  A locked or tied entry is marked anyway
+        and the mark changes nothing about it, so a hold declared over a broad
+        glob does not have to know which rows the space group had already
+        taken; ``ParameterRow.held_because`` reports the structural reason
+        first, because that is the one a caller cannot lift.
+
+        Unlike :meth:`set_tie` this returns rather than raising on an unknown
+        path.  The register is re-applied on every build, and a path can
+        vanish between two of them (a phase removed by ``edit``), which is
+        ``Refinement._apply_holds``' warning to give rather than this
+        method's crash.
+        """
+        i = self._paths.get(path)
+        if i is None:
+            return False
+        e = self.entries[i]
+        e.held = held
+        if held:
+            e.vary = False
+        self._rebuild()
+        return True
+
     def refresh_ties(self) -> None:
         """Recompute every tied entry's value from its sources.
 
@@ -1420,6 +1457,15 @@ class ParameterTable:
         Tied and locked entries never match: symmetry-fixed cell angles and
         the line-0 emission weight cannot be freed even by a broad glob such
         as ``phases.*.cell.*``.
+
+        Nor does a **held** entry, the caller's own declaration that this
+        parameter does not move (WP-1435).  It is skipped here rather than
+        checked by each caller because a stage's ``turn_on`` arrives through
+        this method, and a hold that only ``Refinement.set_vary`` honoured
+        would be silently overridden by every plan.  Whether a caller is told
+        about the skip is that caller's question: a plan records it on
+        ``StageResult.blocked_by_hold``, and ``Refinement.set_vary`` refuses a
+        literal path outright.
         """
         import fnmatch
 
@@ -1436,7 +1482,7 @@ class ParameterTable:
         hits = []
         for e in self.entries:
             if any(fnmatch.fnmatchcase(e.path, g) for g in path_globs):
-                if e.tie is None and not e.locked:
+                if e.tie is None and not e.locked and not (vary and e.held):
                     # Asked per row rather than once before the loop.  Computed
                     # once, the contract was order-dependent: two calls freeing
                     # the cell then λ skipped λ, while ONE call carrying both

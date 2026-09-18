@@ -210,7 +210,14 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 #: exist yet, never a claim that every pattern fit — the default policy is
 #: still ``on_error="raise"``, unchanged behaviour, so no existing chain's
 #: reported entries move.
-SCHEMA_VERSION = "0.23"
+#: 0.23 → 0.24 (issue #211): ``StageResult.blocked_by_hold`` — the paths a
+#: stage's ``turn_on`` matched and a caller's ``Refinement.hold`` kept fixed,
+#: and ``RefinementState.holds``/``NodeAction.held``/``.unheld``, the register
+#: a checkout restores it from.  Additive and defaulted to ``[]``, the same
+#: rule as 0.19 → 0.20: a stored result from before this opens with nothing
+#: blocked, which is true of it — no hold could be declared, so no plan's glob
+#: was ever refused.
+SCHEMA_VERSION = "0.24"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
 

@@ -815,6 +815,20 @@ class StageResult(Base):
     #: :attr:`held`; the cost of both solves is in :attr:`n_iterations`, and
     #: :attr:`cost_initial` is still the cost the stage started at.
     released: list[str] = Field(default_factory=list)
+    #: paths this stage's ``turn_on`` matched and did **not** free, because
+    #: the caller had declared a hold on them (WP-1435,
+    #: ``Refinement.hold``).  The record of which declaration won: a plan's
+    #: glob loses to a hold, and before this the glob won in silence while
+    #: the model still read ``vary=False``.
+    #:
+    #: Disjoint from :attr:`freed` (a blocked path never entered it) and from
+    #: :attr:`held`, which is WP-1301's separate thing — a *stage's* reading
+    #: of what the data can see, decided per stage and lifted at the next.
+    #: This one is the caller's, and it persists until ``unhold``.
+    #:
+    #: Empty on every fit where no hold was declared, which is every fit that
+    #: predates this field.  It feeds ``HOLD_BLOCKED_PLAN``.
+    blocked_by_hold: list[str] = Field(default_factory=list)
 
 
 class HistogramResult(Base):
