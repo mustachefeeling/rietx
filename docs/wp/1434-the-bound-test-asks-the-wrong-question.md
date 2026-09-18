@@ -124,23 +124,44 @@ test through a signature change and not through new plumbing.
 
 ## Tasks
 
-- [ ] Capture the gradient and the optimality measure on `LSQOutcome`
+- [x] Capture the gradient and the optimality measure on `LSQOutcome`
       (`optimize/least_squares.py:174`), from the `OptimizeResult` both drivers
       already produce. A declared field needs its writer named at review
       (WP-1076), so the `lm` path either fills it or the field admits that it
       cannot; `LMOutcome` (`optimize/lm.py:205`) carries `fun` and `jac`, so
       the `lm` half is computable rather than absent.
-- [ ] `bound_findings` takes the conjunction: within a *loose* distance of the
+      **Landed as one field, `LSQOutcome.residual_cosine`**, and the choice is
+      measured rather than inherited: `gₖ/(‖J:,ₖ‖·‖r‖)`, the cosine of the
+      angle between the residual and each Jacobian column. The normal
+      equations force that to zero on every free column at an unconstrained
+      optimum, so a column that keeps an angle is held by something, and at a
+      limit that something is the limit. It is dimensionless, so it compares
+      across parameters whose units do not, and it has one definition under
+      both drivers — unlike scipy's `optimality`, which is Coleman-Li-scaled
+      and which `lm` does not produce.
+- [x] `bound_findings` takes the conjunction: within a *loose* distance of the
       limit **and** the gradient still pushing into it, normalised by the
       optimality measure. State the two thresholds with the measurement that
       set them, and keep `BOUND_HIT_RTOL`'s role explicit (it becomes the
       loose half, so its value moves and its meaning changes).
-- [ ] The finding carries its evidence, as `CONSTRAINT_ACTIVE` does: the
+      `BOUND_HIT_ESD_FRAC = 1e-2` is the loose half, measured in the
+      parameter's own esd; `BOUND_HIT_COS_MIN = 1e-4` the binding half, plus
+      the sign. `BOUND_HIT_RTOL` keeps its value and becomes the **fallback**
+      distance test, taken per column when no solve stands behind the call or
+      when an esd is unavailable, which reproduces the pre-1434 answer.
+- [x] The finding carries its evidence, as `CONSTRAINT_ACTIVE` does: the
       gradient and how far from the limit, so a reader can judge without
       re-running. `GuardFinding.at_bound` currently carries `value=None`.
-- [ ] Re-measure issue #273's 24 cases on FAP and Si SRM 640c, and the four
+      It now carries ρ there, with the rendered clause on a new `detail` field
+      that only the `BOUND_HIT` diagnostic reads. `str(finding)` is untouched,
+      which is what the byte-for-byte pin is about.
+- [x] Re-measure issue #273's 24 cases on FAP and Si SRM 640c, and the four
       rows in the table above. The bar is every genuinely-binding case firing
       at every `ftol`, and the interior optimum silent at every `ftol`.
+      **Met.** 32 cases on FAP and Si SRM 640c with `ftol` swept 1e-9 … 1e-3:
+      nine silent before, none after. On the `make_lab6` sweep both binding
+      rows fire at every `ftol`, the early-stopped row stays silent and the
+      interior optimum stays silent at every `ftol`. Numbers in the handover.
 - [ ] Check what moves on the acceptance suites. A test that changes which
       diagnostics fire is the point; one that changes a *value* is a bug.
 - [ ] Tests: the `ftol` sweep as a fixture, a binding bound and an interior

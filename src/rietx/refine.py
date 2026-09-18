@@ -2759,7 +2759,7 @@ def _guard_diagnostics(guard) -> list[Diagnostic]:
         out.append(Diagnostic(
             level="warning", code="BOUND_HIT", where=list(finding.paths),
             value=finding.value,
-            message=f"{path} refined to its bound",
+            message=f"{path} refined to its bound{finding.detail}",
             suggestion="widen the bound or fix the parameter",
         ))
     for finding in guard.nonpositive_adps:

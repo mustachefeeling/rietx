@@ -89,8 +89,13 @@ def test_a_parameter_still_at_its_bound_at_convergence_reports(data):
 
     assert zero.value == pytest.approx(ZERO_BOUND, abs=1e-12)
     assert zero.at_bound is True
-    assert [d.message for d in _codes(result, "BOUND_HIT")] == [
-        f"{ZERO} refined to its bound"]
+    (hit,) = _codes(result, "BOUND_HIT")
+    # the sentence is unchanged; WP-1434 appends the evidence for it
+    assert hit.message.startswith(f"{ZERO} refined to its bound (\u03c1=")
+    assert "esd from the limit" in hit.message
+    # at an upper limit the solver would still be raising the value, so the
+    # residual keeps a negative angle with that column
+    assert hit.value < 0.0
 
 
 def test_a_bound_the_next_stage_resolves_is_not_reported(data):
