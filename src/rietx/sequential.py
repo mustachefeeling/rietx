@@ -102,7 +102,7 @@ import fnmatch
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 
@@ -127,7 +127,7 @@ from .schemas.history import ReflectionState
 from .schemas.instrument import Instrument
 from .schemas.pattern import PatternData
 from .schemas.results import RefinementResult
-from .schemas.sequential import SeriesEntry, SeriesResult
+from .schemas.sequential import SeriesEntry, SeriesFailure, SeriesResult
 from .schemas.structure import Structure
 from .strategy.staged import RefinementPlan, Stage, resolve_plan
 
@@ -230,6 +230,27 @@ _LEVEL_RANK = {"info": 0, "warning": 1, "error": 2}
 #: authority — the ``capabilities()`` rule at a smaller scale.
 REFIT_MODES = ("single", "stages")
 DIRECTIONS = ("forward", "backward", "both")
+
+#: How ``SequentialRefinement.fit`` reacts to a pattern whose fit does not
+#: return at all — an uncaught exception (``LinAlgError: SVD did not
+#: converge`` on a near-degenerate warm-carried block is the one this was
+#: written from) out of ``Refinement.fit``, not a fit that converged
+#: somewhere the reseed fence rejected (that is ``SeriesEntry.status ==
+#: "diverged"``, already handled by the quarantine below and needing no new
+#: policy).  ``"raise"`` is the default and keeps every existing caller's
+#: behaviour: the whole chain still ends in an exception, the same as before
+#: this policy existed, except that the partial results are no longer lost —
+#: see ``SequentialRefinement.results_``/``.failures_`` and the exception's
+#: own ``series_results``/``series_failures`` attributes.  ``"skip"`` drops
+#: the pattern (recorded in ``SeriesResult.failures``) and fits its successor
+#: **cold** — no warm start at all, since a pattern whose fit did not
+#: complete is not evidence the *next* one's warm state is trustworthy
+#: either.  ``"carry"`` also drops the pattern but fits its successor warm
+#: from the **last good** state, exactly like the WP-1051 quarantine already
+#: does for a diverged fit — appropriate when the failure is understood to be
+#: pattern-specific (a genuinely near-singular parameterisation at this one
+#: composition/temperature) rather than a sign the warm state itself is bad.
+ON_ERROR_POLICIES = ("raise", "skip", "carry")
 
 #: The escalation ladder in order, as names (WP-1051).  ``"warm"`` is the
 #: collapsed warm refit, ``"warm_staged"`` the full staged plan from the warm
@@ -635,6 +656,11 @@ class SequentialRefinement:
         self.backward_: SeriesResult | None = None
         self._structures: list[Structure] = []
         self._instruments: list[Instrument] = []
+        #: every pattern ``on_error`` caught rather than letting crash the
+        #: chain, populated whether ``fit`` returns normally or raises (see
+        #: ``ON_ERROR_POLICIES``) — read this after catching an exception
+        #: from ``fit()`` under the default ``on_error="raise"`` policy.
+        self.failures_: list[SeriesFailure] = []
 
     # ------------------------------------------------------------------
     def fit(self, patterns: Sequence[PatternData], *,
@@ -654,6 +680,7 @@ class SequentialRefinement:
                               None] | None = None,
             constrain: Callable[[int, Refinement], None] | None = None,
             on_result: Callable[[int, RefinementResult], None] | None = None,
+            on_error: Literal["raise", "skip", "carry"] = "raise",
             events=None, cancel=None, progress=None, telemetry=None,
             label: str | None = None,
             ) -> SeriesResult:
@@ -789,6 +816,23 @@ class SequentialRefinement:
             parameter, under the same `carry` globs — ``vars.B_site`` is an
             ordinary dot-path — so a variable declared here warm-starts from
             the last accepted pattern rather than from its declaration.
+        on_error:
+            What one pattern's uncaught exception does to the rest of the
+            chain — see :data:`ON_ERROR_POLICIES` for what each of the three
+            means and why "skip" and "carry" differ in what the *next*
+            pattern warm-starts from.  This is about a fit that never
+            returns (``numpy.linalg.LinAlgError: SVD did not converge`` on a
+            near-singular warm-carried block is the case this was written
+            from), not one that converges somewhere the reseed fence
+            rejects — that is ``"diverged"`` and the WP-1051 quarantine
+            already carries it through with no policy needed.  Every policy
+            records the failure on ``SeriesResult.failures`` (and this
+            instance's ``.failures_``); only ``"raise"`` — the default, and
+            what every caller before this parameter existed saw — still ends
+            the chain in an exception, though the partial results are no
+            longer lost with it (``.results_``/``.trees_`` are populated
+            before the re-raise, and the exception itself carries
+            ``series_results``/``series_failures``).
         events, cancel:
             What they mean on :meth:`Refinement.fit`, per pattern: every event a
             pattern's fit emits is forwarded with its place in the series stamped
@@ -824,6 +868,8 @@ class SequentialRefinement:
             raise ValueError(f"refit must be one of {REFIT_MODES}")
         if direction not in DIRECTIONS:
             raise ValueError(f"direction must be one of {DIRECTIONS}")
+        if on_error not in ON_ERROR_POLICIES:
+            raise ValueError(f"on_error must be one of {ON_ERROR_POLICIES}")
         if x is not None and len(x) != len(patterns):
             raise ValueError(f"x has {len(x)} entries for {len(patterns)} patterns")
         names = _labels_for(patterns, labels)
@@ -864,7 +910,7 @@ class SequentialRefinement:
                 patterns, names, xs, order, mode, base_plan, ladder,
                 two_theta_limits, reseed, reseed_factor, prepare, constrain,
                 on_result, stream, cancel, direction, x_label,
-                first_rung_factor, verify_discontinuities, recorder)
+                first_rung_factor, verify_discontinuities, recorder, on_error)
         except BaseException:
             if recorder is not None:
                 recorder.close("failed")
@@ -876,7 +922,7 @@ class SequentialRefinement:
     def _run(self, patterns, names, xs, order, mode, base_plan, ladder,
              two_theta_limits, reseed, reseed_factor, prepare, constrain,
              on_result, stream, cancel, direction, x_label, first_rung_factor,
-             verify_discontinuities, recorder):
+             verify_discontinuities, recorder, on_error: str = "raise"):
         """The chain, split out of :meth:`fit` so the recorder has one exit.
 
         Exactly :meth:`fit`'s body from the first ``_chain`` call onwards, moved
@@ -884,21 +930,23 @@ class SequentialRefinement:
         the run, and wrapping the body in place would have re-indented all of it
         for nothing.
         """
-        entries, results, trees, models = self._chain(
+        entries, results, trees, models, failures = self._chain(
             order, patterns, names, xs, mode, base_plan, ladder,
             two_theta_limits, reseed, reseed_factor, prepare, constrain,
             on_result, stream=stream, cancel=cancel,
             pass_name="backward" if direction == "backward" else "forward",
-            first_rung_factor=first_rung_factor)
+            first_rung_factor=first_rung_factor, on_error=on_error)
 
         diagnostics = [d for e in entries
                        for d in _reseed_diagnostics(e) + _unrecovered_diagnostics(e)]
+        diagnostics += [_series_pattern_failed_diagnostic(f) for f in failures]
         cancelled = cancel is not None and bool(cancel)
         if cancelled:
             diagnostics.append(_cancelled_diagnostic(len(entries), len(patterns)))
         series = SeriesResult(
             mode=mode, entries=entries, x_label=x_label,
             direction=direction,  # type: ignore[arg-type]
+            failures=failures, n_failed=len(failures),
             provenance=Provenance(package_version=_VERSION, created_utc=_utcnow(),
                                   backend=self._backend, solver=self._solver,
                                   dtype=backend_dtype_note(self._backend),
@@ -923,7 +971,8 @@ class SequentialRefinement:
                 ladder, two_theta_limits, reseed, reseed_factor, prepare,
                 constrain, None, history_suffix=".backward",
                 stream=stream, cancel=cancel,
-                pass_name="backward", first_rung_factor=first_rung_factor)
+                pass_name="backward", first_rung_factor=first_rung_factor,
+                on_error=on_error)
             back = SeriesResult(mode=mode, entries=back_entries, x_label=x_label,
                                 direction="backward")
             if cancel is not None and bool(cancel):
@@ -943,6 +992,7 @@ class SequentialRefinement:
         self.trees_ = trees
         self._structures = [s for s, _ in models]
         self._instruments = [i for _, i in models]
+        self.failures_ = failures
         self.result_ = series
         if recorder is not None:
             # a series has no single ``RefinementResult``; its termination view
@@ -957,7 +1007,8 @@ class SequentialRefinement:
                on_result, history_suffix: str = "",
                stream: EventStream | None = None,
                cancel=None, pass_name: str = "forward",
-               first_rung_factor: float | None = None):
+               first_rung_factor: float | None = None,
+               on_error: str = "raise"):
         """Walk ``order``, warm-starting each fit from the previous accepted one.
 
         Returns entries in **series** order regardless of the walk direction, so
@@ -974,11 +1025,24 @@ class SequentialRefinement:
         :meth:`Refinement.fit` has already abandoned the stage — while a cancel
         on a later rung keeps the best complete attempt, because a rung that
         never finished cannot be evidence against the one that did.
+
+        A pattern whose fit raises anything else — never returns at all,
+        rather than converging somewhere the reseed fence rejects — is
+        ``on_error``'s to decide (:data:`ON_ERROR_POLICIES`).  Every rung of
+        that one pattern is abandoned together (the escalation ladder exists
+        to retry a *converged-but-bad* attempt, not a solver that never
+        returned one), and under ``"raise"`` this method writes the partial
+        ``entries``/``results``/``trees``/``models``/``failures`` straight onto
+        ``self`` — the same attributes :meth:`_run` would otherwise set on a
+        normal return — before re-raising, because a caller catching the
+        exception has no other way to reach state a method that never
+        returned did not hand back.
         """
         entries: dict[int, SeriesEntry] = {}
         results: dict[int, RefinementResult] = {}
         trees: dict[int, RefinementTree | None] = {}
         models: dict[int, tuple[Structure, Instrument]] = {}
+        failures: dict[int, SeriesFailure] = {}
         previous: tuple[Structure, Instrument] | None = None
         previous_hkl: list = []
         #: the last accepted pattern's named-variable values, by bare name.
@@ -1016,6 +1080,7 @@ class SequentialRefinement:
             iterations = 0
             bound_hit = False
             cancelled = False
+            pattern_failed = False
 
             for rung, rung_plan, rung_warm in attempts:
                 # the fence is asked about the *best* attempt, not the last one:
@@ -1045,6 +1110,33 @@ class SequentialRefinement:
                 except RefinementCancelled:
                     cancelled = True
                     break
+                except Exception as exc:
+                    # Never returned at all — a different failure from
+                    # "diverged" (which is a *result*, handled by the
+                    # quarantine below with no policy needed).  Every rung of
+                    # this pattern is abandoned together: the ladder retries a
+                    # converged-but-bad attempt, and there is no such attempt
+                    # here to prefer over another.
+                    failure = SeriesFailure(index=k, label=names[k],
+                                            exception=repr(exc))
+                    if on_error == "raise":
+                        keys = sorted(entries)
+                        # Written directly onto ``self`` — the same
+                        # attributes ``_run`` sets on a normal return — because
+                        # this method is about to raise rather than return,
+                        # and a caller catching the exception has no other way
+                        # to reach what already converged.
+                        self.results_ = [results[i] for i in keys]
+                        self.trees_ = [trees[i] for i in keys]
+                        self._structures = [models[i][0] for i in keys]
+                        self._instruments = [models[i][1] for i in keys]
+                        self.failures_ = list(failures.values()) + [failure]
+                        exc.series_results = self.results_
+                        exc.series_failures = self.failures_
+                        raise
+                    failures[k] = failure
+                    pattern_failed = True
+                    break
                 spent = sum(s.n_iterations for s in result.stages)
                 truncated = (not tried and budget is not None
                              and result.status == "max_iter")
@@ -1056,6 +1148,20 @@ class SequentialRefinement:
                 if _prefer(result, truncated, best, best_truncated):
                     best, best_ref, best_rung = result, ref, rung
                     best_truncated = truncated
+
+            if pattern_failed:
+                if on_error == "skip":
+                    # No warm start at all for the next pattern: a fit that
+                    # never returned is not evidence the *next* one's warm
+                    # state is trustworthy either.
+                    previous = None
+                    previous_hkl = []
+                    previous_tag = (None, None)
+                # "carry" leaves ``previous``/``previous_hkl``/``previous_tag``
+                # exactly as they were — the next pattern warm-starts from the
+                # last good state, precisely the WP-1051 quarantine's own
+                # treatment of a diverged fit.
+                continue
 
             if best is None:      # cancelled on the first attempt: no half-fits
                 break
@@ -1104,7 +1210,8 @@ class SequentialRefinement:
 
         keys = sorted(entries)
         return ([entries[k] for k in keys], [results[k] for k in keys],
-                [trees[k] for k in keys], [models[k] for k in keys])
+                [trees[k] for k in keys], [models[k] for k in keys],
+                [failures[k] for k in sorted(failures)])
 
     def _fit_one(self, data: PatternData, label: str,
                  previous: tuple[Structure, Instrument] | None,
@@ -1396,6 +1503,29 @@ def _cancelled_diagnostic(n_done: int, n_total: int, *,
                     "own, but the trajectory is truncated, not finished: "
                     "re-run the series to extend it, and do not read the last "
                     "point as the end of the ramp"),
+    )
+
+
+def _series_pattern_failed_diagnostic(failure: "SeriesFailure") -> Diagnostic:
+    """``SERIES_PATTERN_FAILED`` — a pattern whose fit never returned.
+
+    One per :class:`SeriesFailure`, named the same way ``_cancelled_diagnostic``
+    is: without this a gap in the trajectory left by ``on_error="skip"``/
+    ``"carry"`` reads as a pattern nobody asked to fit, rather than one that
+    could not be.
+    """
+    return Diagnostic(
+        level="warning", code="SERIES_PATTERN_FAILED",
+        where=[f"entries[{failure.index}]"], value=None,
+        message=(f"pattern {failure.index} ({failure.label}) raised "
+                 f"{failure.exception} and was never fitted; it carries no "
+                 "entry in this series"),
+        suggestion=("this pattern is missing from the trajectory, not a zero "
+                    "or a held value on it: a genuinely near-singular "
+                    "parameterisation at this composition/temperature is the "
+                    "usual cause on a warm-carried chain — try refitting it "
+                    "cold and on its own, or excluding the warm-carried block "
+                    "that made it singular for this one pattern"),
     )
 
 

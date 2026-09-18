@@ -201,7 +201,16 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 #: empty where there is nothing to say, which is the case for the reserved
 #: declared-peaks key: a peak given by centre has no Miller index, and ``[]``
 #: there would claim it had none of its own.
-SCHEMA_VERSION = "0.22"
+#: 0.22 → 0.23 (issue #375): ``SeriesResult.failures``
+#: (``list[SeriesFailure]``) and ``.n_failed`` — a pattern
+#: ``SequentialRefinement.fit``'s new ``on_error`` policy caught rather than
+#: letting crash the whole chain.  Additive and defaulted to ``[]``/``0``, the
+#: same rule as 0.19 → 0.20: a stored series from before this opens with no
+#: failures recorded, which is the honest statement that this field did not
+#: exist yet, never a claim that every pattern fit — the default policy is
+#: still ``on_error="raise"``, unchanged behaviour, so no existing chain's
+#: reported entries move.
+SCHEMA_VERSION = "0.23"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
 
