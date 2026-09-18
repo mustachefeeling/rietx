@@ -82,6 +82,15 @@ Some constraints that shape (1) and (3):
   report has to have an answer for, even if that answer is "report it per
   histogram".
 
+### Inherited
+
+- **From WP-1434, 2026-09-18: `bound_findings` grew two keyword arguments,
+  and `multi.py` already passes both.** It takes `cos=outcome.residual_cosine`
+  and `esd=outcome.stderr_internal`, so the joint path inherits the new
+  conjunction with no work here. The Context claim that the guard path is
+  already multi-histogram-aware still holds and is now carrying more; the
+  call has moved off `multi.py:477`.
+
 ## Non-goals
 
 - Making the joint fit itself do more physics. This is reporting and

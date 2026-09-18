@@ -674,6 +674,13 @@ class GuardFinding:
     value: float | None
     #: rendered form, identical to the pre-v1.0 list entry
     message: str
+    #: a clause a *diagnostic* appends to its own sentence, already rendered.
+    #: Written only by :meth:`at_bound` and read only where ``BOUND_HIT``
+    #: builds its ``Diagnostic`` (WP-1434 gives that finding evidence to
+    #: carry; WP-1076 wants both ends of a new field named).  It is
+    #: deliberately not part of :meth:`__str__`, which is the pre-v1.0 text
+    #: byte for byte and is what the other diagnostics are built from.
+    detail: str = ""
 
     def __str__(self) -> str:
         return self.message
@@ -685,8 +692,19 @@ class GuardFinding:
                    f"{a} ~ {b} (ρ={rho:+.3f})")
 
     @classmethod
-    def at_bound(cls, path: str) -> "GuardFinding":
-        return cls("BOUND_HIT", (path,), None, path)
+    def at_bound(cls, path: str, cos: float | None = None,
+                 gap_over_esd: float | None = None) -> "GuardFinding":
+        """``cos`` is the evidence that the limit carried load, not that the
+        value sits near one — see :func:`bound_findings`.  Both are ``None``
+        on the fallback path, where no solve stood behind the test, and the
+        finding then renders exactly as it did before WP-1434.
+        """
+        if cos is None:
+            return cls("BOUND_HIT", (path,), None, path)
+        gap = ("" if gap_over_esd is None
+               else f", {gap_over_esd:.1e} esd from the limit")
+        return cls("BOUND_HIT", (path,), float(cos), path,
+                   detail=f" (ρ={cos:+.3f}{gap})")
 
     @classmethod
     def background_absorption(cls, path: str, r2: float) -> "GuardFinding":
@@ -1373,9 +1391,34 @@ def check_resolution_positive(table, model) -> list[GuardFinding]:
 #: the *other* bound was.
 BOUND_HIT_RTOL = 1e-10
 
+#: the **loose** half of WP-1434's conjunction: how close to its limit a value
+#: must sit, as a fraction of that parameter's own esd.  A distance is
+#: meaningless on its own — TRF keeps its iterates strictly feasible, so where
+#: a boundary solution lands is a function of when the solver stopped — but it
+#: is what separates a bound that is carrying load from a stage that simply
+#: stopped early while still heading towards one, which the gradient cannot do
+#: (both push outward).  Measured: over 32 genuinely-binding cases on FAP and
+#: Si SRM 640c, with ``ftol`` swept 1e-9 … 1e-3, the largest gap was 7.7e-4
+#: esd; the early-stopped row of the WP's ``make_lab6`` sweep sits at 2.36 esd
+#: and a free optimum at 2.4e+3.  1e-2 is inside that window with 13x margin
+#: below and 236x above, and it reads as the physical statement it is: the
+#: limit and the value are the same number to a hundredth of an esd.
+BOUND_HIT_ESD_FRAC = 1e-2
 
-def bound_findings(bounds, free: list[str], theta) -> list[GuardFinding]:
-    """Free paths sitting on a bound — **the one place this test happens**.
+#: the **binding** half: how far the residual must be from orthogonal to a
+#: column before the limit holding it is called active
+#: (:attr:`~rietx.optimize.least_squares.LSQOutcome.residual_cosine`).  The
+#: sign alone does not discriminate, because at a free optimum the gradient is
+#: small and its direction arbitrary — measured, "pushes outward" reads true
+#: there too.  Measured: 1.5e-2 … 2.1e-1 over the 32 binding cases against
+#: 5.0e-10 at a free optimum, so 1e-4 sits 145x below the weakest binding case
+#: and 2e+5 above the free one.
+BOUND_HIT_COS_MIN = 1e-4
+
+
+def bound_findings(bounds, free: list[str], theta, *,
+                   cos=None, esd=None) -> list[GuardFinding]:
+    """Free paths whose bound **carried load** — the one place this happens.
 
     ``bounds`` is the ``(lo, hi)`` pair from a
     :class:`~rietx.params.vector.ParameterTable` or a
@@ -1393,11 +1436,42 @@ def bound_findings(bounds, free: list[str], theta) -> list[GuardFinding]:
     never seen here, so a consumer must report it as unmeasured rather than as
     not-at-a-bound; that is what the flag's third state is for.
 
-    The test is scipy's own (see :data:`BOUND_HIT_RTOL`), including the clause
-    that makes a bound active only when it is the **nearer** of the two: on a
-    narrow interval both thresholds can cover the whole span, and without it
-    which bound gets reported is decided by the order the branches are written
-    in rather than by where the value sits.
+    **The question is "did the limit change the answer", never "is the value
+    near the limit"** (WP-1434, issue #273).  TRF keeps its iterates strictly
+    feasible, so how close a boundary solution lands is a function of the
+    stage's ``ftol``: on the issue's own fixtures nine of 32 genuinely-binding
+    cases ended 1e-10 to 1.6e-6 inside their limit, ``converged``, with
+    ordinary esds and no flag.  No tolerance fixes that, because the distance
+    it would have to admit is four orders wide across one set of fixtures.
+
+    So the test is a **conjunction**, and each half covers what the other
+    cannot.  *Near the limit*, measured in the parameter's own esd
+    (:data:`BOUND_HIT_ESD_FRAC`) — this is what keeps a stage that stopped
+    early while still travelling towards a bound from being reported as
+    having reached one.  *And still pushed into it*: the residual is not
+    orthogonal to that column (:data:`BOUND_HIT_COS_MIN`) and the sign says
+    the solver would leave the feasible set if it could.  At an unconstrained
+    stationary point the normal equations force orthogonality on every free
+    column, so a column that keeps an angle is being held by something, and at
+    a limit that something is the limit (Nocedal & Wright, *Numerical
+    Optimization* 2nd ed. ch. 12, 16 — an active set is identified by the
+    multiplier, never by proximity).
+
+    ``cos`` is
+    :attr:`~rietx.optimize.least_squares.LSQOutcome.residual_cosine` and
+    ``esd`` its ``stderr_internal``, both in the same column order as
+    ``free``.  **Both are optional and the fallback is the pre-WP-1434 test**,
+    a bare distance against :data:`BOUND_HIT_RTOL`: a caller with no solve
+    behind it (or a stage whose covariance was not computed) still gets an
+    answer, and the same answer it used to get.  A non-finite or non-positive
+    esd falls back per column, which is what a direction the data cannot
+    measure has (``ParameterTable.unmeasured_rows``); its cosine is ~0, so the
+    conjunction declines it either way.
+
+    Either path keeps the clause making a bound active only when it is the
+    **nearer** of the two: on a narrow interval both thresholds can cover the
+    whole span, and without it which bound gets reported is decided by the
+    order the branches are written in rather than by where the value sits.
     """
     import numpy as np
 
@@ -1406,11 +1480,35 @@ def bound_findings(bounds, free: list[str], theta) -> list[GuardFinding]:
     for k, path in enumerate(free):
         t = theta[k]
         below, above = t - lo[k], hi[k] - t
-        tol_lo = BOUND_HIT_RTOL * max(1.0, abs(lo[k])) if np.isfinite(lo[k]) else None
-        tol_hi = BOUND_HIT_RTOL * max(1.0, abs(hi[k])) if np.isfinite(hi[k]) else None
-        if ((tol_lo is not None and below <= min(above, tol_lo))
-                or (tol_hi is not None and above <= min(below, tol_hi))):
+        # the nearer limit is the only candidate; ``None`` where it is infinite
+        if below <= above:
+            gap, limit, sign = below, lo[k], +1.0
+        else:
+            gap, limit, sign = above, hi[k], -1.0
+        if not np.isfinite(limit):
+            continue
+
+        e = None if esd is None else esd[k]
+        # the esd window is the *loose* half and is only ever evaluated as
+        # half of the conjunction: without ``cos`` there is nothing to pair it
+        # with, so the fallback is the pre-WP-1434 distance, exactly as this
+        # docstring promises.  Widening the window without the binding test
+        # would report every column within a hundredth of an esd of a limit.
+        if cos is not None and e is not None and np.isfinite(e) and e > 0.0:
+            near, scaled = gap <= BOUND_HIT_ESD_FRAC * e, gap / e
+        else:
+            near, scaled = gap <= BOUND_HIT_RTOL * max(1.0, abs(limit)), None
+        if not near:
+            continue
+
+        if cos is None:
             out.append(GuardFinding.at_bound(path))
+            continue
+        c = float(cos[k])
+        # ``sign`` is +1 at a lower limit, where a solver still pressing
+        # outward would be *lowering* θ, i.e. g > 0; −1 at an upper one
+        if sign * c > 0.0 and abs(c) >= BOUND_HIT_COS_MIN:
+            out.append(GuardFinding.at_bound(path, c, scaled))
     return out
 
 
@@ -1488,5 +1586,8 @@ def check_guards(table, outcome, threshold: float,
                 report.roughness_correlations.append(
                     GuardFinding.roughness_absorption(path, r2))
 
-    report.at_bounds = bound_findings(table.bounds(), free, outcome.theta)
+    report.at_bounds = bound_findings(
+        table.bounds(), free, outcome.theta,
+        cos=getattr(outcome, "residual_cosine", None),
+        esd=getattr(outcome, "stderr_internal", None))
     return report

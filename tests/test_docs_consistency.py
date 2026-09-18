@@ -198,6 +198,10 @@ _INHERITED_PRUNE_EPOCH = "2026-07-31"
 #                                                          a WP file the contributor does not read.
 #                                                          Paid for in Current focus and § Unscheduled.
 #                                                          Landed 778, +6 headroom
+#   2026-09-18  CLAUDE.md                     929 -> 938  for WP-1434: the bound test's new question,
+#                                                          which no consumer of BOUND_HIT or at_bound
+#                                                          can re-derive from the code it reads.
+#                                                          Landed 937, +1 headroom
 SIZE_CAPS: dict[str, int | None] = {
     # 739 -> 755 (WP-1102): two standing rules for the component seam — that an
     # additive non-Bragg term is a union *member* and not a new field, and that
@@ -361,7 +365,16 @@ SIZE_CAPS: dict[str, int | None] = {
     # after magnetic (TOF, texture, PDF), which is protocol rule 4's test, and
     # the measurement behind it is the reader's context rather than a byte
     # count.  Landed 925, +4 headroom.
-    "CLAUDE.md": 929,
+    # 929 -> 938 (WP-1434, 2026-09-18): the bound test asks whether the limit
+    # carried load, never whether the value is near one, and it is a
+    # conjunction because each half covers what the other cannot.  It governs
+    # every consumer of `BOUND_HIT` and `at_bound` and every future bound, so
+    # it cannot go down a rank into the WP: a session reading the flag has no
+    # way to re-derive the change from a `False` it disagrees with.  The
+    # thresholds, their measured windows and the two rejected fixes stayed in
+    # the WP and in the two constants' own docstrings.  Landed 937, +1
+    # headroom.
+    "CLAUDE.md": 938,
     # 672 -> 676 (WP-1102): the Current focus rewrite at 1102's close names the
     # milestone's one break and what makes 1103 the seam's proving case.
     # 676 -> 682 (WP-1407): a new Unscheduled group, "The formats a lab still

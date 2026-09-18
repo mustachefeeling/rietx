@@ -30,6 +30,13 @@ class RefinedParameter(Base):
     nothing wrote it, so every row of every result asserted "not at a bound"
     about a parameter no code had looked at.
 
+    **``True`` says the limit carried load, not that the value is near one**
+    (WP-1434).  The row must sit within a hundredth of its own esd of the
+    limit *and* the residual must still push it out of the allowed range, so a
+    value resting on a limit the fit is not pressing reads ``False`` and there
+    is nothing there to widen.  ``BOUND_HIT``'s ``Diagnostic.value`` carries
+    the evidence, signed; this flag is the bit.
+
     **The source is the guard, never a local recomputation.**  The one place
     the bound test happens is :func:`rietx.strategy.staged.bound_findings`,
     whose findings become the ``BOUND_HIT`` diagnostics; this flag is a

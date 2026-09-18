@@ -225,6 +225,50 @@ class LSQOutcome:
     #: ``StageResult.n_degenerate_cell_probes``, carried by
     #: ``SCHEMA_VERSION`` 0.19 → 0.20 (see ``schemas/common.py``).
     n_degenerate_cell_probes: int = 0
+    #: cos of the angle between the residual and each Jacobian **column**,
+    #: ``gₖ / (‖J:,ₖ‖·‖r‖)`` with ``g = Jᵀr`` the gradient of ½‖r‖²; signed,
+    #: in [−1, 1], **table columns only**, so it indexes like :attr:`theta`.
+    #: The rows are the whole augmented system (data, background penalty and
+    #: restraints alike), because the cost the driver minimised is the one
+    #: whose stationarity is being read.
+    #:
+    #: WP-1434 is the consumer, and the quantity is chosen rather than
+    #: inherited.  At an *unconstrained* stationary point the normal equations
+    #: put ``Jᵀr = 0``, so every free column is orthogonal to the residual and
+    #: every entry here is 0.  A column that is **not** orthogonal is being
+    #: held by something other than optimality, and for a column sitting at a
+    #: declared limit that something is the limit: the sign says which way the
+    #: solver would still move it, and the magnitude says how hard.  Distance
+    #: to the limit cannot say this, because TRF keeps its iterates strictly
+    #: feasible and where a boundary solution lands is a function of when the
+    #: solver stopped (issue #273).  Measured on the WP's fixtures: 1.5e−2 to
+    #: 2.1e−1 over 32 genuinely-binding cases against 5.0e−10 at a free
+    #: optimum, seven orders where the distance gives none.
+    #:
+    #: Dimensionless by construction, so it is comparable across parameters
+    #: whose units are not, and it is the same definition under both drivers
+    #: rather than scipy's ``optimality``, which is Coleman-Li-scaled and
+    #: which the ``lm`` driver does not produce at all.  Both drivers fill it
+    #: from the ``jac``/``fun`` pair they each already return (WP-1076: a
+    #: declared field names its writer); ``None`` only where :attr:`jac` is,
+    #: at the zero-parameter early return.  See Nocedal & Wright, *Numerical
+    #: Optimization* 2nd ed. ch. 12 and 16: an active set is identified by the
+    #: multiplier, never by proximity.
+    residual_cosine: np.ndarray | None = None
+
+
+def _residual_cosine(jac, fun) -> np.ndarray | None:
+    """``gₖ / (‖J:,ₖ‖·‖r‖)`` per column — see :attr:`LSQOutcome.residual_cosine`.
+
+    A zero column, or a residual that has reached exactly zero, leaves its
+    entry at 0.0 rather than dividing: there is no angle to report, and 0 is
+    the value that reads as "this column is not being held".
+    """
+    if jac is None:
+        return None
+    j, f = np.asarray(jac), np.asarray(fun)
+    denom = np.linalg.norm(j, axis=0) * np.linalg.norm(f)
+    return np.divide(j.T @ f, denom, out=np.zeros(j.shape[1]), where=denom > 0)
 
 
 def _lebail_snapshot(model: CompiledModel) -> list[np.ndarray] | None:
@@ -1330,8 +1374,14 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
         # residual eval is not guaranteed to sit exactly at the solution)
         model.set_pawley_intensities(res.x[n_table:])
     jac_table = np.asarray(res.jac)[:, :n_table] if res.jac is not None else None
+    # off the *full* augmented Jacobian, then sliced to the table columns: the
+    # aux block's own angles belong with the Pawley intensities, not here
+    cos_table = _residual_cosine(res.jac, res.fun)
+    if cos_table is not None:
+        cos_table = cos_table[:n_table]
     return LSQOutcome(res.x[:n_table], cost0, float(res.cost), int(res.nfev), status,
                       jac_table, stderr, corr, n_aux=n_aux, solver=solver,
+                      residual_cosine=cos_table,
                       n_constraint_truncations=n_truncated,
                       max_shift_over_esd=_final_shift_over_esd(
                           table, tracker.step(), stderr_full, corr, n_table),
@@ -1490,8 +1540,11 @@ def run_multi_least_squares(models: list[CompiledModel],
         stderr, corr = covariance_estimates(res.jac, res.fun, len(res.x),
                                             n_data=n_data_total)
     jac_data = np.asarray(res.jac)[:n_data_total] if res.jac is not None else None
+    # ``jac_data`` drops the penalty and restraint *rows*; the angle keeps
+    # them, being read off the cost the driver actually minimised
     return LSQOutcome(res.x, cost0, float(res.cost), int(res.nfev), status,
                       jac_data, stderr, corr, solver=solver,
+                      residual_cosine=_residual_cosine(res.jac, res.fun),
                       termination=termination,
                       n_degenerate_cell_probes=cell_guard.n_degenerate)
 

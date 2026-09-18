@@ -96,6 +96,17 @@ on its stated licence (root CLAUDE.md: data carries its own fence, per file);
 `tests/data/README.md` records the answer. A synthetic pattern with two dead
 channels and a σ column at 0.3·√y reproduces both defects without it.
 
+### Inherited
+
+- **From WP-1434, 2026-09-18: the bound test is now scaled by each
+  parameter's own esd, so a misdeclared σ moves it.** `BOUND_HIT`'s loose half
+  asks whether the value sits within a hundredth of an esd of its limit, and
+  esds scale with σ. A σ column smaller than √y shrinks every esd and tightens
+  this test by the same factor, which makes `BOUND_HIT` a third diagnostic
+  this WP's fixture perturbs rather than a bystander. The `BOUND_HIT ×14`
+  count in § Context was measured under the old distance test and needs
+  re-measuring.
+
 ## Non-goals
 
 - Replacing the file's σ with √y anywhere. The issues are explicit that the

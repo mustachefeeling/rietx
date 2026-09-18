@@ -515,7 +515,9 @@ class MultiHistogramRefinement:
 
         # one bound test, two consumers: the rows' at_bound flag and the
         # BOUND_HIT diagnostics (WP-1076)
-        at_bounds = bound_findings(mt.bounds(), mt.free_paths, outcome.theta)
+        at_bounds = bound_findings(
+            mt.bounds(), mt.free_paths, outcome.theta,
+            cos=outcome.residual_cosine, esd=outcome.stderr_internal)
         # Histogram 0's physical esds, built once in the loop above and read by
         # two consumers (WP-1131): the shared rows of ``_parameters``, and the
         # microstructure block, which reads histogram 0 because its value scale

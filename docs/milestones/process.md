@@ -361,6 +361,20 @@ mechanism went down a rank as this rule requires: the gate is a glob over
 generated index are different objects is `make_api_index.py`'s docstring.
 Landed 925, +4 headroom.
 
+929 -> 938 for WP-1434 (2026-09-18): the bound test asks whether the limit
+carried load, never whether the value stopped near one.  The clause runs to
+eight lines because the shape is the content: it is a conjunction, and each half
+covers exactly what the other cannot, so a reader given one half alone would
+weaken it back to the test that went silent on nine of 32 binding cases.  It
+governs every consumer of `BOUND_HIT` and `at_bound`, and every bound anyone
+adds after it, which is protocol rule 4's test — and a session reading a
+`False` it disagrees with has no way to re-derive the change from the code in
+front of it.  The operating detail went down a rank as this rule requires: the
+two thresholds carry the windows they were measured into in their own
+docstrings, the sweep and the two fixes the issue proposed and measurement
+ruled out are in the WP, and the user-facing sentence is the 1.5.1 release
+note.  Landed 937, +1 headroom.
+
 ### `docs/ROADMAP.md`
 
 400 -> 416 for the agentic-report planning session (2026-08-18): four
