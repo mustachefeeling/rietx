@@ -5509,6 +5509,13 @@ def replay(tree: RefinementTree, node_id: str, data: PatternData) -> RefinementR
         table.set_tie(path, AffineTie(
             terms=tuple((p, float(c)) for p, c in spec.terms),
             const=float(spec.const)))
+    # and the anchors, for ``_apply_ties``' reason (WP-1432): this table is
+    # built from the node's *own* structure, whose coordinates already carry
+    # whatever the recorded tie displaced them by.  Un-rebased, replay
+    # answered for a model one displacement further on than the node it was
+    # asked about — 0.2174 against the recorded 0.2084 — and nothing in the
+    # answer said so.
+    table.rebase_anchored_dofs(state.ties)
     table.refresh_ties()
     for path in state.free_paths:
         table.set_vary([path], True)

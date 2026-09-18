@@ -813,3 +813,33 @@ def test_an_antiphase_pair_ends_symmetric_whichever_was_declared_first(pattern):
 
     _, reversed_pair = antiphase_arm(ANTIPHASE[::-1], pattern)
     assert reversed_pair == pytest.approx((up, down), abs=1e-12)
+
+
+def test_replaying_a_node_rebases_the_anchor_the_same_way(ref, pattern):
+    """The sibling: ``replay`` is the second place a table meets a user tie.
+
+    It builds a table from the node's own structure, re-declares the recorded
+    variables and ties on it, and is otherwise ``_prepare_table`` one rank out
+    — so it inherited the defect whole. A replayed node came back with the
+    displacement applied twice, which is the worst place for it: replay exists
+    to say what a recorded state *was*, and nothing else in the answer says the
+    model it measured is not the model on file.
+    """
+    plan = rx.RefinementPlan(stages=[
+        rx.Stage("displacement", ["vars.*"], max_iter=40)])
+    ref.add_variable("A", 0.01, min=-0.5, max=0.5)
+    ref.tie(B_DOF, "vars.A")
+    result = ref.fit(pattern, plan=plan)
+
+    replayed = rx.replay(ref.history, result.node_id, pattern)
+    rows = {p.path: p.value for p in replayed.parameters}
+    # the node's own coordinate, not one displacement further on: 0.2084 here,
+    # against the 0.2174 the un-rebased build answered with
+    assert rows[B_X] == pytest.approx(
+        ref.fitted_structure.phases[0].atoms[1].x.value, abs=1e-12)
+    assert rows[B_X] == pytest.approx(B_X0 + rows["vars.A"], abs=1e-12)
+    # and the statistics stand, which is what replay is asked for.  Marginal
+    # differences are expected of it (``NodeMetrics``); a whole displacement
+    # is not.
+    assert replayed.statistics.rwp == pytest.approx(result.statistics.rwp,
+                                                    rel=1e-6)
