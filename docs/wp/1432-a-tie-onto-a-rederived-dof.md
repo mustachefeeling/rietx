@@ -122,9 +122,9 @@ and what the manual documents, for a defect that lives in the tie path.
       the DOF-source control, so the class is pinned before the fix moves.
 - [x] The fix, in the `_apply_ties`/`__init__` seam; a tied coordinate DOF keeps
       its meaning across rebuilds.
-- [ ] The second shape: `fit()` twice on one `Refinement` reports the same
+- [x] The second shape: `fit()` twice on one `Refinement` reports the same
       amplitude both times, and the structure does not move between them.
-- [ ] `tests/test_named_variables.py` grows the DOF case it never had, with the
+- [x] `tests/test_named_variables.py` grows the DOF case it never had, with the
       declared-order asymmetry as a regression case.
 - [ ] `tests/test_sequential.py::test_a_named_variable_warm_starts_under_the_carry_globs`
       stays green: it is the second fixture over the repaired path, and it

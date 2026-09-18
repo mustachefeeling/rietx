@@ -640,14 +640,22 @@ def ref_aniso():
     return rx.Refinement(structure, ins)
 
 
-@pytest.fixture
-def ref_two_sites():
+#: Where the second B site is stored, so a displacement off it is readable.
+B2_X0 = 0.30
+
+
+def two_site_refinement() -> rx.Refinement:
     """A second 6f B site, so one coordinate DOF can follow another."""
     structure, ins = perturbed_models()
     structure.phases[0].atoms.append(
-        rx.Atom(label="B2", species="B", x=Parameter(value=0.30),
+        rx.Atom(label="B2", species="B", x=Parameter(value=B2_X0),
                 y=Parameter(value=0.5), z=Parameter(value=0.5)))
     return rx.Refinement(structure, ins)
+
+
+@pytest.fixture
+def ref_two_sites():
+    return two_site_refinement()
 
 
 def values(ref) -> dict[str, float]:
@@ -720,3 +728,88 @@ def test_a_coordinate_dof_following_another_is_the_control(ref_two_sites):
         rows = values(ref_two_sites)
         for path in (B_X, B_DOF, "phases.0.atoms.2.x", "phases.0.atoms.2.dof.0"):
             assert rows[path] == before[path]
+
+
+def test_a_second_fit_reports_what_the_first_one_did(ref, pattern):
+    """The quiet half of WP-1432, and the one a caller reads as a number.
+
+    Fitting twice rebuilds the table between the two solves, so the defect ran
+    once in the middle: the refined displacement had migrated into the base
+    coordinate, the second fit found it already there, and the variable that
+    named it came back at zero at an identical Rwp. The quantity a caller asked
+    for was still in the structure and no longer in the answer.
+    """
+    plan = rx.RefinementPlan(stages=[
+        rx.Stage("displacement", ["vars.*"], max_iter=40)])
+    ref.add_variable("A", 0.01, min=-0.5, max=0.5)
+    ref.tie(B_DOF, "vars.A")
+
+    first = ref.fit(pattern, plan=plan)
+    _plot(first, "dof_first_fit")
+    a1 = ref._variables["A"].value
+    x1 = ref.fitted_structure.phases[0].atoms[1].x.value
+
+    second = ref.fit(pattern, plan=plan)
+    _plot(second, "dof_second_fit")
+    a2 = ref._variables["A"].value
+    x2 = ref.fitted_structure.phases[0].atoms[1].x.value
+
+    # the same answer, and the structure still standing where the first fit
+    # left it — the two are one claim, since the defect moved them apart
+    assert a2 == pytest.approx(a1, abs=1e-6)
+    assert x2 == pytest.approx(x1, abs=1e-6)
+    assert x2 == pytest.approx(B_X0 + a2, abs=1e-9)
+    assert second.statistics.rwp == pytest.approx(first.statistics.rwp, rel=1e-3)
+
+
+#: The antiphase pair: one variable, two sites, opposite signs.
+ANTIPHASE = ((B_DOF, 1.0), ("phases.0.atoms.2.dof.0", -1.0))
+
+#: What the pair is seeded at, and therefore what each site's displacement must
+#: read the moment both ties are declared.
+SEED = 0.005
+
+
+def antiphase_arm(order, pattern=None):
+    """Declare the pair in ``order`` on a *fresh* refinement, optionally fitting.
+
+    Fresh per arm on purpose: reusing one refinement would start the second arm
+    wherever the first one finished, and two arms that begin at different
+    points can only be compared to a solver tolerance.
+    """
+    ref = two_site_refinement()
+    ref.add_variable("A", SEED, min=-0.2, max=0.2)
+    for path, scale in order:
+        ref.tie(path, "vars.A", scale=scale)
+    result = None if pattern is None else ref.fit(
+        pattern, plan=rx.RefinementPlan(stages=[
+            rx.Stage("displacement", ["vars.*"], max_iter=40)]))
+    atoms = (ref.structure if result is None else ref.fitted_structure
+             ).phases[0].atoms
+    return result, (atoms[1].x.value - B_X0, atoms[2].x.value - B2_X0)
+
+
+def test_an_antiphase_pair_ends_symmetric_whichever_was_declared_first(pattern):
+    """The regression case, because it is how the defect first showed.
+
+    Two sites tied to one variable with opposite signs are a constraint that
+    they move *together*, in antiphase. Declared in order, each target used to
+    collect a different number of applications — the first one more than the
+    second, since declaring the second rebuilt the table and re-applied the
+    first — so the pair came back at +0.02251 and −0.01751 about their anchors.
+    A constraint meant to couple two atoms had moved them differently, and the
+    order it was written in was the whole reason.
+    """
+    # the declaration alone, where the arithmetic is exact: one application
+    # each, whichever was declared first
+    for order in (ANTIPHASE, ANTIPHASE[::-1]):
+        _, (up, down) = antiphase_arm(order)
+        assert (up, down) == pytest.approx((SEED, -SEED), abs=1e-12)
+
+    # and through a fit, where the pair must still be one quantity
+    result, (up, down) = antiphase_arm(ANTIPHASE, pattern)
+    _plot(result, "dof_antiphase")
+    assert up == pytest.approx(-down, abs=1e-12)
+
+    _, reversed_pair = antiphase_arm(ANTIPHASE[::-1], pattern)
+    assert reversed_pair == pytest.approx((up, down), abs=1e-12)
