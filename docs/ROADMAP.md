@@ -96,13 +96,12 @@ and the record says what opening one 496 commits late cost. Until one opens,
 work lands in [§ v1.5.x](#v15x--after-the-ship), staged in
 [releases/1.5.1.md](releases/1.5.1.md) the day it lands.
 
-**In flight**: [1441](wp/1441-a-constraint-the-series-can-declare.md), the
-series' side of the tie verbs (issue #376).
-
-**Nothing else.** 1436 closed the symbol audit 1437 opened and
-freed `k` for the **magnetic track** (1326-1329, 1418), the largest queued
-block with a discharged blocker. Also unblocked: the `.inp` grammar 1118
-refuses, [1433](wp/1433-the-inp-grammar-still-refused.md), and 1310's
+**Nothing is in flight.** [1441](wp/1441-a-constraint-the-series-can-declare.md)
+was the first v1.5.x row; 1432 and 1342 carry what it learned. 1436 closed the
+symbol audit 1437 opened and freed `k` for the **magnetic track** (1326-1329,
+1418), the largest queued block with a discharged blocker. Also unblocked: the
+`.inp` grammar 1118 refuses,
+[1433](wp/1433-the-inp-grammar-still-refused.md), and 1310's
 [1434](wp/1434-the-bound-test-asks-the-wrong-question.md) and
 [1435](wp/1435-a-hold-the-caller-declares.md).
 
@@ -527,7 +526,7 @@ the next minor if one opens first.
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
-| [1441](wp/1441-a-constraint-the-series-can-declare.md) | A constraint the series can declare | 🔄 2026-09-18 | — (1070, 1119 are the halves) |
+| [1441](wp/1441-a-constraint-the-series-can-declare.md) | A constraint the series can declare | ✅ 2026-09-18 | — (1070, 1119 are the halves) |
 
 ### Unscheduled
 
