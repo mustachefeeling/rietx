@@ -643,7 +643,7 @@ and the hold (1435) carry on.
 | [1417](wp/1417-delta-bic-at-powder-channel-counts.md) | ΔBIC at powder channel counts | ⬜ | — (1339 soft) |
 | [1421](wp/1421-the-result-reproduces-its-own-number.md) | The result reproduces its own number | ⬜ | — (1310 soft) |
 | [1432](wp/1432-a-tie-onto-a-rederived-dof.md) | A tie onto a coordinate DOF, re-applied once per write | ⬜ | — (1119 soft) |
-| [1434](wp/1434-the-bound-test-asks-the-wrong-question.md) | The bound test asks whether the value is near its limit, never whether the limit was binding | ⬜ | — |
+| [1434](wp/1434-the-bound-test-asks-the-wrong-question.md) | The bound test asks whether the value is near its limit, never whether the limit was binding | 🔄 2026-09-18 | — |
 | [1435](wp/1435-a-hold-the-caller-declares.md) | A hold the caller declares, which a plan may not quietly override | ⬜ | — (1070 is the shape) |
 
 #### A long run is not one fit

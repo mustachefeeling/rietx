@@ -1,6 +1,6 @@
 # WP-1434 — the bound test asks whether the value is near its limit, never whether the limit was binding
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-09-18 — claimed by @yue-here
 Depends on: — (1310 landed the vector half; this is the tolerance half)
 
 ## Goal
