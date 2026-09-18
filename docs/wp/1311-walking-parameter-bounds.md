@@ -33,6 +33,17 @@ measurement is [1073](1073-capillary-displacement.md)'s: on 11-BM the
 zero/displacement pair is a degeneracy the fit rides to a bound **while Rwp
 improves** and the cell moves 1117 ppm.
 
+**Superseded in part, 2026-09-18.** A bound is already there, and it is flat.
+`Geometry.sample_displacement` has declared `min=-1.0, max=1.0, unit="mm"`
+since v0.2 (`473cc5a7`), and `capillary_offset_along_beam` and
+`capillary_offset_across_beam` the same since
+[1073](1073-capillary-displacement.md) (`b819b3bd`). So this item is not
+arming a bound. It is deciding whether ±1 mm is the right number and whether
+it should scale at all. The field the WP called `Geometry.radius` is
+`goniometer_radius_mm`, and it is `float | None = None`, so a geometry-scaled
+bound has nothing to scale by on an instrument that never declared one. The
+flat fallback is part of this item.
+
 **Item 2 — Biso, high side, a flag and never a cap.**
 `BISO_UNUSUALLY_LARGE` at a corpus-calibrated threshold (~25–30 Å²) — furnace
 data legitimately runs 8–15 Å², so a cap would break real use. The low side
@@ -40,6 +51,18 @@ needs nothing (readers refuse negative B; the transform floors at zero). The
 motivating case: a wrong polarization constant once moved a refined Biso by
 12σ while Rwp barely moved — magnitude-implausibility was the only visible
 symptom.
+
+**Superseded in part, 2026-09-18.** A cap is already there, at 25 Å², which is
+the bottom of the range this item wanted for a *flag*. `Atom.biso`'s
+`default_factory` has carried `min=0.0, max=25.0` since v0.1 (`f51e8e67`), and
+PR #206 (`ce538dd3`, 2026-09-01) made those bounds bind a caller-supplied
+`Parameter` too. The cap was escapable before that date and is universal
+after it. A Biso that wants 30 Å² is now clamped at 25 and speaks as a
+`BOUND_HIT`, in the vocabulary of a parameter that met a limit rather than one
+whose value is implausible. So the item is a decision before it is a flag:
+whether 25 stays, and what the flag says if it does. `help.py`'s entry quotes a
+typical 0.2–2 Å², warns above about 5 Å² for a heavy atom, and names no
+ceiling.
 
 **Item 3 — resolution positivity, a guard and not per-parameter bounds.**
 U, V, W legitimately go negative individually; the constraint is coupled
@@ -70,61 +93,32 @@ an assumed number must never look like a measured one). A parameter the
 caller bounded keeps the caller's bound. New codes get skill rows and
 `help.py`/manual coverage per the standing gates.
 
-### Inherited
+**What item 1 reports through, today and next** (folded from § Inherited,
+WP-1310, 2026-09-16). Bound findings are no longer accumulated per stage. They
+are re-taken from the final guard, so a bound an early stage pressed and a
+later one resolved is silent, and `RefinedParameter.at_bound` and the
+`BOUND_HIT` diagnostics are set-equal off one test in
+`strategy.staged.bound_findings` (`tests/test_bound_hit_at_convergence.py`).
+The pending half changes how the reports read. That test asks how near θ is to
+the limit, and the distance is a function of the stage's `ftol`. A parameter
+1.2e-10 from its bound goes unreported at `ftol` 1e-4, while a binding bound
+and an interior optimum differ in gradient by eleven orders.
+[1434](1434-the-bound-test-asks-the-wrong-question.md) carries the measurement
+and the redesign, and is still ⬜. A threshold survey here should not assume the
+current distance test is what will read it.
 
-- **From WP-1310, 2026-09-16: the `BOUND_HIT` machinery item 1 reports
-  through has changed once and is about to change again.** Landed: the
-  findings are no longer accumulated per stage, they are re-taken from the
-  final guard, so a bound an early stage pressed and a later one resolved is
-  silent and `RefinedParameter.at_bound` and the diagnostics are now
-  set-equal (`tests/test_bound_hit_at_convergence.py`). That is what item 1's
-  displacement bound will report through. Pending, and it affects how the
-  reports read: the *test* asks how near θ is to the limit, which is a
-  function of the stage's `ftol`, so a parameter 1.2e-10 from its bound goes
-  unreported at `ftol` 1e-4 while a binding bound and an interior optimum
-  differ in gradient by eleven orders. [1434](1434-the-bound-test-asks-the-wrong-question.md)
-  carries the measurement and the redesign. Item 1 can land first; its
-  threshold survey should not assume the current distance test is what will
-  read it.
+**A softplus floor is never a bound hit** (folded from § Inherited, the
+2026-09-01 triage, issue #204's checked sub-finding).
+`internal_bounds(0.0, inf, "softplus")` maps to `(-inf, inf)` in
+`params/transforms.py`, so `BOUND_HIT` cannot report "scale went to zero".
+That is intended, because the transform enforces positivity and leaves no
+bound to hit. It is item 5's business: a scale sitting on its softplus floor
+is visible as a flat direction and in no other way.
 
-- **From the 2026-09-01 triage's second batch (issues #204/#209,
-  PR #206)**: item 2's premise "the low side needs nothing (readers refuse
-  negative B; the transform floors at zero)" holds only once PR #206 lands
-  — before it, a caller-supplied `Parameter` silently dropped `Atom.biso`'s
-  declared bounds and a refined Biso reached −165 Å² at unchanged Rwp
-  (#204). The persisted-document repair and the wider `default_factory`
-  audit are [1321](1321-persisted-bounds-repair.md)'s, not this WP's.
-- **From the same batch**: `internal_bounds(0.0, inf, "softplus")` maps to
-  `(-inf, inf)`, so `BOUND_HIT` can never report "scale went to zero"
-  (#204's checked sub-finding; intended — the transform enforces
-  positivity, so there is no bound to hit). Relevant to item 5: a scale at
-  its softplus floor is visible only as a flat direction, never as a bound
-  hit.
-
-- **2026-09-15, from the issue triage (issue #283, PR #289): `Cell`'s six
-  parameters declare no bounds at all, and the guard half is in flight.**
-  `schemas/structure.py::Cell` holds six bare `Parameter`s (min −inf, max
-  +inf, identity), while `Atom.occ`, `Atom.biso` and `ProfileTCHZ.u`/`v`
-  declare physical bounds. Not #204's mechanism: there is nothing to
-  discard. On a featureless pattern the `profile_only` preset's cell stage
-  probes α = β = γ = 180° 3 430 times, and `d_spacings` answers each with
-  NaN and a bare `RuntimeWarning`; 445 probes on a 2 %-off start that never
-  moved (`converged`, Rwp 1.01, possibly 1336's shape). The returned cell is
-  correct in every case. PR #289 (open) ships the *guard* half:
-  `DegenerateCellError` by name from `d_spacings`, a `_DegenerateCellGuard`
-  in `least_squares` penalising the trial instead of crashing,
-  `StageResult.n_degenerate_cell_probes` and a `CELL_DEGENERATE_PROBE` info
-  diagnostic. The *bounds* half is this WP's: lengths with a real floor
-  above zero and angles in (0, 180), in the idiom `Atom.occ` uses. Two rules
-  from root CLAUDE.md apply. A length's identity is not zero, so this is an
-  identity transform with a floor and never `softplus, min=0` (the
-  `MARCH_R_MIN` lesson). A bound on an angle the setting fixes is harmless,
-  because that entry is locked. `params.vector.cell_window` narrows a held
-  phase's walk and is suppressed by a caller's own bound, so a declared
-  bound changes nothing there. Cells already persisted unbounded are 1321's.
-  Decision for the maintainer: whether the bound and #289's penalty both
-  land. The bound stops the probes; the guard reports whatever a tie or a
-  window still reaches.
+**Task 1's corpus is outside this repo.** The 606-refinement TOPAS archive is
+private and not redistributable (WP-1118 §), and 1130 and 1131 calibrated
+their thresholds on it. No path to it is recorded in the repo, so the survey
+cannot start until someone says where it lives.
 
 ## Non-goals
 
@@ -141,10 +135,15 @@ caller bounded keeps the caller's bound. New codes get skill rows and
 
 - [ ] Corpus surveys: displacement magnitudes across the 606-`.inp` archive
       and a Biso high-tail estimate; the two defaults recorded with their
-      evidence.
-- [ ] Displacement soft bound scaled by `Geometry.radius`, armed on contact,
-      through `BOUND_HIT`; caller's bound outranks.
-- [ ] `BISO_UNUSUALLY_LARGE` flag; low side untouched.
+      evidence. **Blocked** on being told where the archive is (§ Context).
+- [ ] Decide what the two bounds that already exist should be: the ±1 mm on
+      `sample_displacement` and the two capillary offsets, and the 25 Å² on
+      `Atom.biso`. Keep, move or scale, each with its evidence.
+- [ ] Displacement bound scaled by `goniometer_radius_mm` where the instrument
+      declares one, with the flat fallback where it does not, through
+      `BOUND_HIT`; caller's bound outranks.
+- [ ] `BISO_UNUSUALLY_LARGE` flag, sited against whatever the 25 Å² cap
+      becomes; low side untouched, PR #206 having landed it.
 - [ ] Resolution-positivity guard (Γ² > 0 in-range, naming the θ), plus the
       #102 width-implausibility diagnostic beside it.
 - [ ] Flat-direction report: |ρ| at 1.000 within tolerance emitted as its own
