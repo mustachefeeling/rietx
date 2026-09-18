@@ -104,7 +104,8 @@ No pattern exists on which the same declaration would quietly take.
       globs, `vars.<name>` matched as the ordinary dot-path it is
 - [x] Tests: the tie holds on every pattern; the variable warm-starts and a narrow
       `carry` excludes it; the ladder's rungs and the verify refit see the hook; a
-      hook that raises is the caller's error, not a swallowed one
+      hook that raises is the caller's error, not a swallowed one; a *tied*
+      variable is carried by its sources (the review pass's find)
 - [x] Manual Part 1 (`docs/manual/using/series.md`) and the `parameters`/constraints
       chapter cross-reference, whichever owns the tie verbs
 - [x] Skill: a row in the series reference (`references/9b-*`), since a tie on a
@@ -164,9 +165,24 @@ next pattern from a fit that failed.
   the variable refresh and the models agree with θ at the next compile. It
   records no node, the pattern's tree not existing until its `fit` fingerprints
   the data.
-- Seven tests, the manual (`series.md` § Declaring a constraint on every
+- Eight tests, the manual (`series.md` § Declaring a constraint on every
   pattern, plus a pointer from `constraints.md`), a §9b skill row, and one
   standing rule in the root CLAUDE.md.
+
+**What the review pass changed.** `/code-review high --fix` found one real
+defect and two cosmetic ones, all three mine, and nothing was declined. The real
+one is the same class as the defect this WP is about, reintroduced inside the
+fix for it: `_carry_variables` filtered on *declared on this pattern* and not on
+*tied on this pattern*, so a variable the hook tied to others — the multi-source
+form `concepts.md` documents — fitted pattern 1 and raised on pattern 2,
+`set_values` refusing a tied path by design and taking the whole series down.
+Verified here rather than taken on report: `_ties` is keyed by the tied path,
+the refusal names both sources, and setting a source makes the total follow
+(0.7 + 0.1 = 0.8), so a tied variable is carried *by* its sources and dropping
+it moves no starting point. The two cosmetic ones: the docstring paragraphs
+added to `_verify_discontinuities` were indented 4 against the surrounding 8,
+which makes the rest of that docstring a block quote once the common indent is
+stripped; and a comprehension shadowed the series length `n`.
 
 **Measured** (`.venv` `[dev]`, macOS arm64, Python 3.12; three synthetic LaB6
 patterns from `_simulate` unless said otherwise).
@@ -186,12 +202,13 @@ patterns from `_simulate` unless said otherwise).
   on a fit that did not converge says nothing about ties — that is why the plan
   in the tests is not `_CHEAP`. PNGs and low-angle zooms in `tests/output/`,
   inspected: flat difference curve, peaks matched in position and height.
-- Counts. Fast selection 5319 → 5326 passed, 134 skipped unchanged: exactly the
-  seven tests added, no new skip. Full suite green on the code-final tree,
-  5505 passed / 143 skipped / 0 failed in 23:57 — quoted as an absolute, since
-  no local full baseline was taken before the change; the delta is the fast
-  selection's. Commits after that run were docs plus one cap constant, all
-  covered by the fast selection, which was re-run green on the final tree.
+- Counts, on the final tree, `origin/main` not having moved from `13bce502`
+  since the branch was cut — so this branch *is* the merged tree and the one
+  case where branch-green and merged-green are the same object. Fast selection
+  5319 → 5327 passed, 134 skipped unchanged: exactly the eight tests added,
+  no new skip. Full suite 5506 passed / 143 skipped / 0 failed in 26:38,
+  against 5505 / 143 on the same tree before the review's fix landed — +1,
+  which is its test and nothing else.
 - Caps raised rather than shaved, each with its reasoning in
   `tests/test_docs_consistency.py`: CLAUDE.md 914 → 923 (landed 922),
   ROADMAP 748 → 762 (landed 760, for the new `### v1.5.x` section).
