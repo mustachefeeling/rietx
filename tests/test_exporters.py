@@ -22,6 +22,7 @@ from rietx import (
     write_qpa_table,
     write_reflection_table,
 )
+from rietx.crystallography.lattice import d_spacings
 from rietx.io.exporters import ReflectionRow, qpa_table_csv
 from rietx.model.forward import compile_model
 from rietx.params.vector import ParameterTable
@@ -146,12 +147,114 @@ def test_write_reflection_table_csv_round_trips(tmp_path):
     text = out.read_text(encoding="utf-8").splitlines()
     header = text[0].split(",")
     assert header[:6] == ["phase", "line", "wavelength", "h", "k", "l"]
+    assert header[-1] == "component"
     assert len(text) - 1 == len(rows)                # one data row per reflection row
+    for line in text[1:]:
+        assert line.split(",")[-1] == "total"        # no magnetic width here
 
     # a .tsv suffix switches the delimiter
     out_tsv = tmp_path / "refl.tsv"
     write_reflection_table(rows, out_tsv)
     assert "\t" in out_tsv.read_text(encoding="utf-8").splitlines()[0]
+
+
+# ----------------------------------------------------------------------
+# reflection table -- the magnetic component split (WP-1343 bugfix,
+# checks/BUG_REFLECTION_TABLE_COMPONENT.md)
+# ----------------------------------------------------------------------
+
+
+def _mnf2_rows(**kw):
+    """Compile an MnF2 model through the WP-1343 fixture and export its
+    reflection table alongside the model/values, for the tests below."""
+    from tests.test_magnetic_width import _mnf2, _state
+
+    ph = _mnf2(**kw)
+    model, _table, values = _state(ph, moving=None)
+    structure = Structure(phases=[ph])
+    rows = reflection_table(model, values, structure)
+    return model, values, rows
+
+
+def test_reflection_table_width_off_matches_the_unsplit_computation():
+    """(c) Regression: a phase whose magnetic width is off still gets exactly
+    one "total" row per (line, reflection), numerically identical to calling
+    the model's own primitives directly -- the code path this bugfix must
+    leave untouched.
+    """
+    model, values, rows = _mnf2_rows()                # both widths at 0
+    assert not model.mag_split(0)
+    assert rows
+    assert {r.component for r in rows} == {"total"}
+
+    cp = model.phases[0]
+    cell = tuple(values[f"phases.0.cell.{k}"]
+                for k in ("a", "b", "c", "alpha", "beta", "gamma"))
+    d = d_spacings(cp.reflections.index, *cell)
+    f2 = model._nuclear_f2(0, d, values, cell)
+    peaks = model.phase_peaks(0, values)
+    expect = []
+    for il, (pos, _g, _e, intensity) in enumerate(peaks):
+        for j in range(len(cp.reflections.hkl)):
+            if not np.isfinite(pos[j]):
+                continue
+            expect.append((il, int(cp.reflections.hkl[j][0]),
+                          int(cp.reflections.hkl[j][1]),
+                          int(cp.reflections.hkl[j][2]),
+                          float(f2[j]), float(intensity[j])))
+    got = [(r.line, r.h, r.k, r.l, r.f_squared, r.intensity) for r in rows]
+    assert got == expect
+
+
+def test_reflection_table_nuclear_plus_magnetic_equals_width_off_intensity():
+    """(a) With `magnetic_lor_strain` non-zero, sum(nuclear + magnetic) per
+    (line, reflection) equals the width-off export's `intensity` to 1e-9
+    relative -- the components are separable by construction (phase_peaks'
+    own docstring claim, exercised directly in
+    test_magnetic_width.test_the_two_components_sum_to_the_unsplit_intensity).
+    """
+    split_model, _sv, split_rows = _mnf2_rows(strain=0.15)
+    plain_model, _pv, plain_rows = _mnf2_rows()
+    assert split_model.mag_split(0)
+    assert not plain_model.mag_split(0)
+    assert {r.component for r in split_rows} == {"nuclear", "magnetic"}
+
+    plain_by_key = {(r.line, r.h, r.k, r.l): r.intensity for r in plain_rows}
+    summed: dict[tuple, float] = {}
+    for r in split_rows:
+        key = (r.line, r.h, r.k, r.l)
+        summed[key] = summed.get(key, 0.0) + r.intensity
+    assert set(summed) == set(plain_by_key)
+    for key, total in summed.items():
+        assert total == pytest.approx(plain_by_key[key], rel=1e-9), key
+
+
+def test_reflection_table_pure_magnetic_row_carries_finite_intensity():
+    """(b) A magnetic-only reflection (WP-1343's own classifier) exports a
+    `component="magnetic"` row with finite, non-zero intensity -- the bug's
+    own failure mode was every such row reading intensity ~= 0.
+    """
+    from rietx.report.magnetic import _classified_reflections
+
+    model, values, rows = _mnf2_rows(strain=0.15)
+    assert model.mag_split(0)
+
+    _ip, mag_rows, _nuc_rows, _pos, _fwhm = next(iter(
+        _classified_reflections(model, values)))
+    assert len(mag_rows)
+    hkl = model.phases[0].reflections.hkl[mag_rows[0]]
+    key = tuple(int(x) for x in hkl)
+
+    magnetic_row = next(r for r in rows if r.component == "magnetic"
+                        and r.line == 0 and (r.h, r.k, r.l) == key)
+    assert np.isfinite(magnetic_row.intensity)
+    assert magnetic_row.intensity > 0.0
+
+    # the nuclear row for the same reflection carries (near) zero intensity --
+    # the deliberate "no nuclear structure factor here" reading, not the bug
+    nuclear_row = next(r for r in rows if r.component == "nuclear"
+                       and r.line == 0 and (r.h, r.k, r.l) == key)
+    assert nuclear_row.intensity == pytest.approx(0.0, abs=1e-8)
 
 
 # ----------------------------------------------------------------------

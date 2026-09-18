@@ -524,6 +524,133 @@ def test_an_exact_angle_is_neither_touched_nor_reported(tmp_path):
     assert diags == []
 
 
+def test_a_metric_constrained_group_skips_the_angle_correction_and_reports_it():
+    """D3, synthetic toy parent (no MAGNDATA content). A group whose
+    invariant subspace ``cell_constraints`` can only state as
+    :class:`~rietx.crystallography.symmetry.MetricConstraints` -- the
+    doubled/centred child WP-1419 found, and exactly the shape
+    ``resolve_nuclear_symmetry`` produces for a MAGNDATA setting mismatch,
+    written back with an explicit operation list and re-read -- used to
+    crash ``_correct_symmetry_angles`` with ``AttributeError:
+    'MetricConstraints' object has no attribute 'fixed_angles'``: the same
+    call site every CIF read reaches, so this broke the write-read round
+    trip of *every* bracketed "[unnamed in this cell]" phase whose group
+    needs it (measured: 41/540 loaded MAGNDATA entries, e.g.
+    'R -3 c:H [unnamed in this cell]').
+
+    The fix skips the per-angle correction for a MetricConstraints group (it
+    has no ``fixed_angles`` to correct against -- the metric relation is
+    already the authority) and reports, at info level, an angle that sits
+    near a right angle or 60/120 degrees without being corrected, since that
+    is the only shape an ordinary per-angle reading could ever have wanted
+    to snap.
+    """
+    from rietx.crystallography.cif import _correct_symmetry_angles
+    from rietx.crystallography.magnetic import supercell as sc
+    from rietx.crystallography.symmetry import (
+        MetricConstraints,
+        cell_constraints,
+        resolve_group,
+    )
+
+    # the toy two-site Pnma parent from test_child_group_two_lists.py,
+    # invented for that suite and reused verbatim here: doubling it at
+    # k=(0,1/2,1/2), irrep S1, direction "(rank 1)#2" is WP-1419's own
+    # measured MetricConstraints case (dimension 4, a length-times-cosine
+    # relation no fixed-angle dict can state)
+    parent = Phase(
+        name="parent", space_group="P n m a",
+        cell=Cell(a=Parameter(value=5.4), b=Parameter(value=7.6),
+                 c=Parameter(value=5.3), alpha=Parameter(value=90.0),
+                 beta=Parameter(value=90.0), gamma=Parameter(value=90.0)),
+        atoms=[Atom(label="Ti", species="Ti", x=Parameter(value=0.1),
+                    y=Parameter(value=0.25), z=Parameter(value=0.3),
+                    biso=Parameter(value=0.6)),
+               Atom(label="O", species="O", x=Parameter(value=0.42),
+                    y=Parameter(value=0.25), z=Parameter(value=0.11),
+                    biso=Parameter(value=0.8))],
+        scale=Parameter(value=0.02))
+    statement = sc.displacive_statement(parent, ("0", "1/2", "1/2"),
+                                        irrep="S1", direction="(rank 1)#2")
+    group = resolve_group(statement.phase.space_group,
+                          statement.phase.symmetry_operations)
+    constraints = cell_constraints(group)
+    assert isinstance(constraints, MetricConstraints), (
+        "fixture must reproduce the metric-fallback shape this test guards")
+
+    _, _, _, alpha, beta, gamma = statement.phase.cell.lengths_angles()
+    angles = {"alpha": alpha, "beta": beta, "gamma": gamma}
+
+    # no crash (this raised AttributeError before the fix), and the cell
+    # already lies on the manifold -- nothing to report
+    diags: list = []
+    out = _correct_symmetry_angles(group, angles, "synthetic.cif", diags)
+    assert out == angles
+    assert diags == []
+
+    # perturbed within the correction band: an ordinary per-angle reading
+    # would have wanted to snap this to a right angle, and that is reported
+    # -- but the value is left exactly as given, since the metric
+    # constraints, not a per-angle model, are the authority here
+    perturbed = dict(angles, gamma=angles["gamma"] + 0.01)
+    diags2: list = []
+    out2 = _correct_symmetry_angles(group, perturbed, "synthetic.cif", diags2)
+    assert out2 == perturbed  # unchanged: no per-angle correction applied
+    assert [d.code for d in diags2] == ["CIF_CELL_ANGLE_METRIC_CONSTRAINED"]
+    assert diags2[0].where == ["phases.0.cell.gamma"]
+    assert "90.0" in diags2[0].message and "+0.01" in diags2[0].message
+
+    # negative control, already exercised above: alpha is a genuine
+    # structural angle (34.9 degrees, nowhere near a right angle or 60/120)
+    # and drew no diagnostic in the unperturbed ``diags`` check -- it is not
+    # "near a nice value gone slightly off", it is the real,
+    # correctly-unconstrained oblique angle of this child cell
+    assert abs(angles["alpha"] - 90.0) > 1.0
+
+
+def test_a_metric_constrained_phase_round_trips_through_write_and_read(tmp_path):
+    """D3, end-to-end: the same MetricConstraints shape reached through
+    ``structure_to_cif`` -> ``structure_from_cif`` rather than by calling
+    ``_correct_symmetry_angles`` directly. Before the fix this crashed at
+    read with the identical ``AttributeError`` the unit-level test pins
+    (verified directly: reverting the fix reproduces it on this exact
+    script); the practical consequence the sweep named was that
+    ``write_refinement_cif`` after a fit on a MAGNDATA-origin-mismatched
+    phase could never be read back. The round trip must be the identity:
+    same bracketed label, same cell, unchanged.
+    """
+    from rietx.crystallography.cif import structure_to_cif
+    from rietx.crystallography.magnetic import supercell as sc
+
+    parent = Phase(
+        name="parent", space_group="P n m a",
+        cell=Cell(a=Parameter(value=5.4), b=Parameter(value=7.6),
+                 c=Parameter(value=5.3), alpha=Parameter(value=90.0),
+                 beta=Parameter(value=90.0), gamma=Parameter(value=90.0)),
+        atoms=[Atom(label="Ti", species="Ti", x=Parameter(value=0.1),
+                    y=Parameter(value=0.25), z=Parameter(value=0.3),
+                    biso=Parameter(value=0.6)),
+               Atom(label="O", species="O", x=Parameter(value=0.42),
+                    y=Parameter(value=0.25), z=Parameter(value=0.11),
+                    biso=Parameter(value=0.8))],
+        scale=Parameter(value=0.02))
+    statement = sc.displacive_statement(parent, ("0", "1/2", "1/2"),
+                                        irrep="S1", direction="(rank 1)#2")
+    phase = statement.phase
+    assert "[unnamed" in phase.space_group  # the bracketed-label precondition
+    structure = Structure(phases=[phase])
+    out = tmp_path / "one.cif"
+    structure_to_cif(structure, str(out))
+    second = Structure.from_cif(str(out))  # this raised AttributeError before the fix
+    assert second.phases[0].space_group == phase.space_group
+    before = phase.cell.lengths_angles()
+    after = second.phases[0].cell.lengths_angles()
+    # CIF quotes to 6 decimals, so "identity" means round-trip-stable at that
+    # precision, not bit-identical to the in-memory value (the file's own
+    # convention: see test_the_round_trip_is_bit_identical_on_every_stored_field)
+    assert np.max(np.abs(np.array(before) - np.array(after))) < 2e-6
+
+
 def test_the_correction_band_separates_a_report_from_a_mis_declaration():
     from rietx.crystallography.cif import CIF_ANGLE_CORRECT_MAX_DEG
     from rietx.crystallography.symmetry import SYMMETRY_ANGLE_TOL_DEG

@@ -70,6 +70,8 @@ from rietx.schemas.plan import StageSpec
 from rietx.schemas.structure import (
     Atom,
     Cell,
+    MagneticSymmetry,
+    Moment,
     Phase,
     PreferredOrientation,
     StephensStrain,
@@ -176,7 +178,80 @@ def _variant_models() -> list[tuple[Structure, Instrument]]:
             background=BackgroundFixedPlusChebyshev(
                 fixed_two_theta=[10.0, 20.0, 30.0],
                 fixed_intensity=[120.0, 100.0, 95.0]))),
+        # A moment block: it needs its own phase, because the default model's
+        # Mg carries an ``aniso`` and a site may not have both, and because a
+        # moment needs a magnetic space group on the phase beside it.  Every
+        # ``Parameter`` here sits at its schema default — the components are
+        # the default zeros and the block is not free, which is a legal state
+        # (a record, not a dead parameter) and the one that keeps
+        # ``test_defaults_are_the_schemas_own`` reading defaults off this
+        # table like every other model here.  The instrument is the X-ray one
+        # every other model here uses: the moment DOFs come off the
+        # *structure*, and a neutron source renames ``instrument.source.*``
+        # paths this file's coverage tests enumerate separately.
+        (Structure(phases=[Phase(
+            name="MnF2", space_group="P 42/m n m",
+            cell=Cell(a=Parameter(value=4.8734), b=Parameter(value=4.8734),
+                      c=Parameter(value=3.3099), alpha=Parameter(value=90.0),
+                      beta=Parameter(value=90.0), gamma=Parameter(value=90.0)),
+            atoms=[
+                Atom(label="Mn", species="Mn", x=Parameter(value=0.0),
+                     y=Parameter(value=0.0), z=Parameter(value=0.0),
+                     moment=Moment(ion="Mn2+")),
+                Atom(label="F", species="F", x=Parameter(value=0.305),
+                     y=Parameter(value=0.305), z=Parameter(value=0.0)),
+            ],
+            magnetic_symmetry=MagneticSymmetry.model_validate("136.499"),
+        )]),
+         Instrument(source=Source(lines=[EmissionLine(wavelength=1.540598)]))),
+        # A phase carrying a displacive distortion mode (M-1), because a mode
+        # amplitude is a live parameter family no other model in this file
+        # produces — and one whose default has to sit at the schema's for
+        # ``test_defaults_are_the_schemas_own`` to read it here.  The mode is
+        # built rather than hand-written, so the vectors are the ones the
+        # isotropy machinery actually makes and the family glob is checked
+        # against the path a real ``displacive_statement`` produces.
+        (rx.Structure(phases=[_distortion_phase()]),
+         Instrument(source=Source(lines=[EmissionLine(wavelength=1.540598)]))),
     ]
+
+
+def _distortion_phase():
+    """A small Pnma parent restated with its k = (½,0,0) displacive modes.
+
+    The Ti sits on the 4c mirror rather than at the origin, and the k and the
+    direction are the ones they are, because two upstream fences narrow the
+    small cases sharply and neither is something a caller can fix:
+    ``candidates(kind="displacive", verify=True)`` **raises** for a site on
+    the inversion centre of Pnma at k = (0,0,½) (the ``S2(rank 1)#2``
+    candidate's configurations leave the allowed subspace of its own group),
+    and ``magnetic_supercell``'s symbol check refuses the ``S1`` directions
+    here, whose isotropy subgroup is a P2₁ no Hermann-Mauguin symbol
+    reproduces in the doubled cell.  ``S2(rank 1)#2`` gives P 1 2₁/m 1 in
+    2a, b, c with four child atoms and four modes: the smallest case the
+    builder can be checked on.
+
+    Built through :func:`rietx.crystallography.magnetic.supercell.displacive_statement`
+    rather than hand-written, so the mode vectors, the child symbol and the
+    held child cell are the ones the machinery makes; a hand-written block
+    could describe a path shape the builder never produces, which is the hole
+    the preferred-orientation model was in before it was added above.  Every
+    ``Parameter`` on the returned phase sits at its schema default, the
+    amplitude included, so this model feeds :func:`_schema_parameters` on the
+    same terms as every other.
+    """
+    from rietx.crystallography.magnetic.supercell import displacive_statement
+
+    parent = Phase(
+        name="parent", space_group="P n m a",
+        cell=Cell(a=Parameter(value=5.4), b=Parameter(value=7.6),
+                  c=Parameter(value=5.3), alpha=Parameter(value=90.0),
+                  beta=Parameter(value=90.0), gamma=Parameter(value=90.0)),
+        atoms=[Atom(label="Ti", species="Ti", x=Parameter(value=0.1),
+                    y=Parameter(value=0.25), z=Parameter(value=0.3))])
+    statement = displacive_statement(parent, ("1/2", "0", "0"),
+                                     irrep="S2", direction="(rank 1)#2")
+    return statement.phase
 
 
 def _all_models() -> list[tuple[Structure, Instrument]]:

@@ -493,6 +493,27 @@
    "matches": [
     11
    ]
+  },
+  {
+   "pattern": "phases.*.atoms.*.moment.dof*",
+   "matches": []
+  },
+  {
+   "pattern": "instrument.background.c*",
+   "matches": [
+    38,
+    39,
+    40,
+    70
+   ]
+  },
+  {
+   "pattern": "phases.*.magnetic_lor_size",
+   "matches": []
+  },
+  {
+   "pattern": "phases.*.magnetic_lor_strain",
+   "matches": []
   }
  ]
 }

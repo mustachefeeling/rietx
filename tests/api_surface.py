@@ -158,6 +158,12 @@ PROVISIONAL_MODULES: dict[str, str] = {
         "candidate, its figures of merit, the caveats and the evidence "
         "projection are the shape of a search that is still changing."
     ),
+    "rietx.strategy.magnetic": (
+        "magnetic structure determination (solve_magnetic and the "
+        "MagneticSolution it returns): the chain is settled and the ranking "
+        "criterion is not, and the rungs still to come change what a trial "
+        "refines and add a branch this release abstains on."
+    ),
     "rietx.io.projects": (
         "the foreign-refinement readers and the registry over them "
         "(read_project_model, read_topas_inp, read_fullprof_pcr, and the "

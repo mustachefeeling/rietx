@@ -1,0 +1,196 @@
+"""Q5: a powder-degenerate moment pair folds into one quadrature number.
+
+Synthetic construction (not from ``isotropy.analyse``, whose own
+``determinable_amplitudes`` is measured *per site* in this codebase, see the
+report's note on this test's scope): two Mn atoms **coincident** in position
+(same phase for every reflection) with their moments fixed along orthogonal
+crystal axes and only the modulus DOF freed on each.  The powder-averaged
+magnetic intensity of a fixed vector moment depends on |M|^2 alone regardless
+of its direction, so M = m1*x + m2*y gives |M|^2 = m1^2 + m2^2 exactly (an
+orthogonal sum, Pythagorean) with no cross term -- the quadrature invariant
+Q5's formula assumes, engineered rather than found, because a real two-site
+isotropy candidate with this exact shape was not located in the time
+available (flagged in the report).
+"""
+
+from __future__ import annotations
+
+import math
+
+import numpy as np
+import pytest
+
+import rietx as rx
+from rietx.report.magnetic import _pair_degenerate_moments, moment_pair_diagnostics
+from rietx.report.schemas import MOMENT_PAIR_RHO_MIN, MomentEvidence
+from rietx.schemas.common import Parameter
+from rietx.schemas.results import CorrelationPair
+from rietx.schemas.structure import Atom, Cell, MagneticSymmetry, Moment, Phase
+
+LAMBDA_CW = 2.4
+GRID = np.arange(8.0, 130.0, 0.05)
+TRUE_M1, TRUE_M2 = 2.0, 1.5
+TRUE_QUADRATURE = math.sqrt(TRUE_M1 ** 2 + TRUE_M2 ** 2)
+
+
+def _cell(a, b, c):
+    return Cell(a=Parameter(value=a), b=Parameter(value=b), c=Parameter(value=c),
+                alpha=Parameter(value=90.0), beta=Parameter(value=90.0),
+                gamma=Parameter(value=90.0))
+
+
+def degenerate_pair_phase(m1: float, m2: float) -> Phase:
+    """Two coincident Mn atoms, moments along orthogonal axes."""
+    return Phase(
+        name="pair", space_group="P 1", cell=_cell(5.0, 5.0, 5.0),
+        atoms=[Atom(label="Mn1", species="Mn", x=Parameter(value=0.0),
+                    y=Parameter(value=0.0), z=Parameter(value=0.5),
+                    biso=Parameter(value=0.4),
+                    moment=Moment.from_values((m1, 0.0, 0.0), "Mn3+")),
+               Atom(label="Mn2", species="Mn", x=Parameter(value=0.0),
+                    y=Parameter(value=0.0), z=Parameter(value=0.5),
+                    biso=Parameter(value=0.4),
+                    moment=Moment.from_values((0.0, m2, 0.0), "Mn3+")),
+               Atom(label="O1", species="O", x=Parameter(value=0.5),
+                    y=Parameter(value=0.5), z=Parameter(value=0.5),
+                    biso=Parameter(value=0.6))],
+        magnetic_symmetry=MagneticSymmetry(operations=["x,y,z,+1"]))
+
+
+def neutron():
+    return rx.Instrument.constant_wavelength_neutron(LAMBDA_CW, fwhm_deg=0.35)
+
+
+def simulate(phase, instrument, *, background=40.0, seed=20260909):
+    ref = rx.Refinement(rx.Structure(phases=[phase]), instrument)
+    y = np.asarray(ref.predict(GRID)) + background
+    rng = np.random.default_rng(seed)
+    y = y + rng.normal(scale=np.sqrt(np.maximum(y, 1.0)))
+    return rx.PatternData(two_theta=GRID.tolist(), intensity=y.tolist())
+
+
+PLAN = rx.RefinementPlan(stages=[
+    rx.Stage("scale", ["phases.*.scale", "instrument.background.c*"]),
+    # only the modulus DOFs -- the two fixed, orthogonal directions stay held
+    rx.Stage("moment", ["phases.*.atoms.*.moment.dof0"])])
+
+
+@pytest.fixture(scope="module")
+def degenerate_pattern():
+    truth = degenerate_pair_phase(TRUE_M1, TRUE_M2)
+    return simulate(truth, neutron())
+
+
+def _fit_from(m1_start, m2_start, data):
+    structure = rx.Structure(phases=[degenerate_pair_phase(m1_start, m2_start)])
+    ref = rx.Refinement(structure, neutron())
+    ref.fit(data, plan=PLAN)
+    return ref, ref.result_
+
+
+@pytest.mark.slow
+def test_two_starting_splits_report_the_same_quadrature_number(degenerate_pattern):
+    """A 50/50-ish split and a lopsided split of the same total: both must
+    converge to (near enough) the true total modulus and, more to Q5's
+    point, both must report the *same* quadrature number within 1 sigma via
+    the pairing mechanism, even though m1 and m2 themselves may differ
+    between the two runs (the flat direction the pairing exists for)."""
+    ref_a, result_a = _fit_from(1.75, 1.75, degenerate_pattern)
+    ref_b, result_b = _fit_from(2.4, 0.3, degenerate_pattern)
+
+    for ref, result, tag in ((ref_a, result_a, "a"), (ref_b, result_b, "b")):
+        assert result.status == "converged", (tag, result.status)
+        assert result.identifiability is not None, tag
+        rhos = {frozenset([c.path_a, c.path_b]): c.rho
+               for c in result.identifiability.top_correlations}
+        pair_key = frozenset(["phases.0.atoms.0.moment.dof0",
+                              "phases.0.atoms.1.moment.dof0"])
+        assert pair_key in rhos, (tag, rhos)
+        assert abs(rhos[pair_key]) >= MOMENT_PAIR_RHO_MIN, (tag, rhos[pair_key])
+
+    from rietx.params.vector import ParameterTable
+    from rietx.report.magnetic import analyse_moments
+
+    def quadrature_of(ref, result):
+        table = ParameterTable(ref.structure, ref.instrument)
+        values = table.decode(table.x0())
+        rows = analyse_moments(
+            ref._model, values, ref.structure,
+            esd={p.path: p.stderr for p in result.parameters
+                if p.stderr is not None},
+            correlations=result.identifiability.top_correlations)
+        paired = [r for r in rows if r.paired_with]
+        assert len(paired) == 2, rows
+        return paired[0]
+
+    row_a = quadrature_of(ref_a, result_a)
+    row_b = quadrature_of(ref_b, result_b)
+
+    assert row_a.paired_magnitude is not None and row_a.paired_magnitude_esd
+    assert row_b.paired_magnitude is not None and row_b.paired_magnitude_esd
+    assert row_a.paired_magnitude == pytest.approx(TRUE_QUADRATURE, abs=0.3)
+    combined_sigma = math.sqrt(row_a.paired_magnitude_esd ** 2
+                               + row_b.paired_magnitude_esd ** 2)
+    assert abs(row_a.paired_magnitude - row_b.paired_magnitude) <= combined_sigma, (
+        row_a.paired_magnitude, row_a.paired_magnitude_esd,
+        row_b.paired_magnitude, row_b.paired_magnitude_esd)
+
+
+def test_pair_degenerate_moments_quadrature_and_esd_are_correct():
+    """Direct check of the arithmetic against hand computation: with a known
+    rho, sqrt(m_a^2+m_b^2) and its covariance-propagated esd match a
+    from-scratch formula."""
+    a = MomentEvidence(phase="p", atom="Mn1", ion="Mn3+",
+                       path="phases.0.atoms.0.moment.dof0",
+                       magnitude=3.0, magnitude_esd=0.2,
+                       crystalaxis=[3.0, 0.0, 0.0], approximation="MHO3")
+    b = MomentEvidence(phase="p", atom="Mn2", ion="Mn3+",
+                       path="phases.0.atoms.1.moment.dof0",
+                       magnitude=4.0, magnitude_esd=0.3,
+                       crystalaxis=[0.0, 4.0, 0.0], approximation="MHO3")
+    rho = 0.97
+    corr = [CorrelationPair(path_a=a.path, path_b=b.path, rho=rho)]
+
+    out = _pair_degenerate_moments([a, b], corr)
+    ra, rb = out
+    m = math.sqrt(3.0 ** 2 + 4.0 ** 2)
+    cov_ab = rho * 0.2 * 0.3
+    var = ((3.0 / m) ** 2 * 0.2 ** 2 + (4.0 / m) ** 2 * 0.3 ** 2
+          + 2.0 * (3.0 / m) * (4.0 / m) * cov_ab)
+    esd = math.sqrt(var)
+
+    assert ra.paired_with == [b.path]
+    assert rb.paired_with == [a.path]
+    assert ra.paired_magnitude == pytest.approx(m)
+    assert rb.paired_magnitude == pytest.approx(m)
+    assert ra.paired_magnitude_esd == pytest.approx(esd)
+    assert rb.paired_magnitude_esd == pytest.approx(esd)
+    assert "not separately determined" in ra.note
+    assert "MOMENT_PAIR_DEGENERATE" in ra.note
+
+    diags = moment_pair_diagnostics(out)
+    assert len(diags) == 1
+    assert diags[0].code == "MOMENT_PAIR_DEGENERATE"
+    assert diags[0].value == pytest.approx(m)
+    assert set(diags[0].where) == {a.path, b.path}
+
+
+def test_below_the_rho_bar_nothing_is_paired():
+    a = MomentEvidence(phase="p", atom="Mn1", ion="Mn3+", path="a.dof0",
+                       magnitude=3.0, magnitude_esd=0.2,
+                       crystalaxis=[3.0, 0.0, 0.0], approximation="MHO3")
+    b = MomentEvidence(phase="p", atom="Mn2", ion="Mn3+", path="b.dof0",
+                       magnitude=4.0, magnitude_esd=0.3,
+                       crystalaxis=[0.0, 4.0, 0.0], approximation="MHO3")
+    corr = [CorrelationPair(path_a="a.dof0", path_b="b.dof0", rho=0.5)]
+    out = _pair_degenerate_moments([a, b], corr)
+    assert out[0].paired_with == [] and out[1].paired_with == []
+    assert not moment_pair_diagnostics(out)
+
+
+def test_no_correlations_leaves_rows_unpaired():
+    from rietx.report.magnetic import analyse_moments
+    # analyse_moments itself, with correlations=None (the default) and no
+    # compiled model, must not call the pairing step at all -- the honest
+    # empty-for-cause state, unaffected by Q5
+    assert analyse_moments(None, {}) == []
