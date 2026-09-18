@@ -63,10 +63,18 @@ from ..crystallography.lattice import (
     reciprocal_metric_tensor,
     two_theta_deg,
 )
+from ..crystallography.magnetic.scattering import (
+    MagneticSites,
+    compile_magnetic_sites,
+    magnetic_f2,
+    magnetic_reflections,
+    merge_magnetic,
+)
 from ..crystallography.neutron import b_coh as neutron_b_coh
 from ..crystallography.neutron import (
     normalize_species as neutron_normalize_species,
 )
+from ..crystallography.satellites import merge_satellites, satellite_reflections
 from ..crystallography.scattering import normalize_species
 from ..crystallography.stephens import S_NAMES, monomial_matrix, strain_width_deg
 from ..crystallography.structure_factor import (
@@ -80,6 +88,7 @@ from ..crystallography.symmetry import (
     ReflectionSet,
     generate_reflections,
     reflection_orbits,
+    resolve_group,
 )
 from ..schemas.common import Mode
 from ..schemas.instrument import (
@@ -175,8 +184,8 @@ WINDOW_MIN_DEG = 0.3
 _GAUSS_TAIL_C = 2.0 * np.sqrt(np.log(2.0))
 
 
-def window_fwhm_mult(eta: np.ndarray) -> np.ndarray:
-    """k(η): FWHM multiples holding all but ``WINDOW_AREA_TOL`` of the area.
+def window_fwhm_mult(eta: np.ndarray, tol: float | None = None) -> np.ndarray:
+    """k(η): FWHM multiples holding all but ``tol`` of the area.
 
     The two-sided discarded area of the unit pseudo-Voigt outside ±k·Γ is
 
@@ -187,11 +196,14 @@ def window_fwhm_mult(eta: np.ndarray) -> np.ndarray:
     vectorised bisection to machine-level precision; the Lorentzian term
     dominates for any η ≳ tol, giving k ≈ η/(π·tol) — the fat tail is the
     price of a Lorentzian mix and is why the criterion must know η.
+
+    ``tol`` defaults to :data:`WINDOW_AREA_TOL`.  D is the
+    *two-sided* discard, so a caller wanting a per-side fraction f passes 2f.
     """
     from scipy.special import erfc
 
     eta = np.clip(np.asarray(eta, dtype=np.float64), 0.0, 1.0)
-    tol = WINDOW_AREA_TOL
+    tol = WINDOW_AREA_TOL if tol is None else float(tol)
 
     def discard(k):
         with np.errstate(divide="ignore"):
@@ -212,6 +224,18 @@ def window_fwhm_mult(eta: np.ndarray) -> np.ndarray:
 #: finite-difference Jacobian sees a live parameter instead of a frozen
 #: zero-node profile
 AXIAL_SIZING_FLOOR = 0.02
+
+#: WP-1343.  When a magnetic broadening term is about to be *refined* from
+#: zero, the magnetic component's windows and FCJ node counts are sized as if
+#: it were at least this wide (deg 2θ).  The exact twin of
+#: :data:`AXIAL_SIZING_FLOOR`, and for the same reason: a component sized from
+#: a value the stage is about to move off would be drawn on windows that clip
+#: its own broadened tails, and the finite-difference column would then read
+#: the clipping rather than the width.  0.1 deg is about a 100 nm magnetic
+#: domain at a 2.4 A cold-neutron wavelength — the order the term is for —
+#: and, like the axial floor, it costs only window width: the *value* drawn is
+#: always the refined one.
+MAGNETIC_SIZING_FLOOR = 0.1
 
 #: Distinct keys :meth:`CompiledModel._memo` holds per slot.  Two, because a
 #: Jacobian column alternates between the expansion point and one perturbed
@@ -565,6 +589,70 @@ class CompiledPhase:
     # the hot loop exactly as it was; numpy path only, for the reason the FCJ
     # memo is numpy-only.
     scalar_cache: dict[str, tuple] | None = None
+    # WP-1326.  ``satellites`` is the second ReflectionSet, frozen at stage
+    # compile beside the nuclear one, kept whole so a caller can ask what was
+    # generated and from which k; ``reflections`` above is the **merge** of the
+    # two, because every consumer downstream — the frozen windows, the FCJ node
+    # counts, the Le Bail partition, the Pawley block, the tick list, the
+    # observation count — is written over "the phase's reflections" and a
+    # satellite is one of those.  ``nuclear_mask`` is (N,) 1.0/0.0 over the
+    # merged list and is what makes a Rietveld stage contribute exactly zero at
+    # a satellite (``_nuclear_f2``).  Both ``None`` for a phase with no
+    # propagation vector, which is what keeps that phase bit-identical.
+    satellites: ReflectionSet | None = None
+    nuclear_mask: np.ndarray | None = None
+    # WP-1327.  ``magnetic`` is the frozen per-atom magnetic data — the axial
+    # matrices ε·det(R)·R on the *nuclear* operation subset, the form-factor
+    # ion and g, the moment frame — and ``None`` for every phase without a
+    # moment, which is what keeps that phase bit-identical.  The three
+    # ``mag_*`` arrays are the frozen Laue orbit of every reflection
+    # (``preferred_orientation.orbit_layout``, the same flattened shape the
+    # March-Dollase correction averages over): |F_⊥|² is *not* constant over
+    # that orbit, because the moment direction breaks the Laue symmetry, so
+    # the magnetic intensity is its **average** and not one representative's
+    # value times a multiplicity.
+    #
+    # ``nuclear_mask`` above is also set for a magnetic phase, and for a
+    # different reason than a satellite: a k = 0 magnetic space group puts
+    # intensity on the reciprocal-lattice points the parent's glide and screw
+    # operations forbid, those rows are added to the reflection list
+    # (``magnetic_reflections``), and the nuclear structure factor there is
+    # identically zero by the absence condition — so the mask is exact
+    # arithmetic rather than a tolerance.
+    magnetic: MagneticSites | None = None
+    mag_members: np.ndarray | None = None   # (M_total, 3) int
+    mag_seg: np.ndarray | None = None       # (M_total,) int → reflection index
+    mag_counts: np.ndarray | None = None    # (N,) int orbit sizes
+    # WP-1343.  The **second frozen family**: the windows, FCJ node counts and
+    # batch layout of the *magnetic* component, sized from the widths this
+    # stage can reach with ``magnetic_lor_size``/``magnetic_lor_strain`` added
+    # in.  A broader component needs its own window range and its own node
+    # count, and both are frozen per stage exactly as the nuclear ones are.
+    #
+    # ``None`` is the **off state, and it is a structural skip rather than two
+    # floats agreeing**: with both magnetic width terms at zero and no path
+    # this stage can move them off it, the two components have identical
+    # widths, so no second family is built, ``phase_peaks`` reads
+    # ``_total_f2`` and the phase reaches the same arithmetic in the same
+    # order as it did before this WP.  That is what makes bit-identity at the
+    # default a property of the code path.
+    #
+    # ``skip_extinction`` is the precedent, with one deliberate difference.
+    # That gate needs ``gate_off_states`` (``moving_paths is not None``)
+    # because its off state is "don't skip", so a caller that makes no claim
+    # is safe by default.  Here the off state is *this* skip, so requiring a
+    # claim would build the second family for every plot, replay and public
+    # ``compile_model`` call and split a draw that need not be split —
+    # numerically equal but not bit-identical, since (a+b)·Ω and a·Ω + b·Ω are
+    # not the same doubles.  So the gate reads the two **values** plus
+    # ``moving_paths`` when it is given, and the hazard that creates — a
+    # caller freeing a magnetic width against a model compiled with no claim,
+    # whose column would then be identically zero — is closed loudly one rank
+    # up, in ``optimize.least_squares.run_least_squares``, rather than left to
+    # be discovered.
+    win_mag: np.ndarray | None = None       # (n_lines, N, 2) int
+    fcj_n_mag: np.ndarray | None = None     # (n_lines, N) int
+    batch_mag: BatchLayout | None = None
 
 
 @dataclass
@@ -956,9 +1044,36 @@ class CompiledModel:
         return tuple(key)
 
     def _width_block(self, ip: int, values: dict[str, float],
-                     tt_bragg_lines: list, aniso):
-        """The (w₁, w₂) pair of every emission line, at the current widths."""
+                     tt_bragg_lines: list, aniso, *, magnetic: bool = False):
+        """The (w₁, w₂) pair of every emission line, at the current widths.
+
+        ``magnetic=True`` returns the **magnetic component's** pair (WP-1343):
+        the same two laws with ``magnetic_lor_size`` added to the 1/cosθ
+        coefficient and ``magnetic_lor_strain`` to the tanθ one.  That is the
+        package's own composition law and not a second one — Lorentzian FWHMs
+        add under convolution (root ``CLAUDE.md``), so "convolved with the
+        extra magnetic width" *is* the sum of the coefficients fed to the same
+        :func:`~rietx.model.profiles.caglioti.lorentzian_fwhm`.  The width
+        block gains a second output, not a second law, and no convolution
+        machinery is involved.
+
+        The Gaussian pair is untouched: WP-1343 declines the Gaussian partners
+        until a dataset measurably needs them (magnetic coherence-length
+        broadening is Lorentzian in shape), and a declared field nothing frees
+        is WP-1076's trap.
+
+        The default branch is written out separately rather than adding an
+        ``+ 0.0``, so that a phase with no magnetic component reaches the same
+        expression it always did.
+        """
         out = []
+        if magnetic:
+            x_l = (values["instrument.profile.x"]
+                   + values[f"phases.{ip}.lor_size"]
+                   + values[f"phases.{ip}.magnetic_lor_size"])
+            y_l = (values["instrument.profile.y"]
+                   + values[f"phases.{ip}.lor_strain"]
+                   + values[f"phases.{ip}.magnetic_lor_strain"])
         for tt_bragg in tt_bragg_lines:
             theta = 0.5 * tt_bragg  # Bragg angle drives the widths
             gam_g = gaussian_fwhm(theta, values["instrument.profile.u"],
@@ -966,11 +1081,14 @@ class CompiledModel:
                                   values["instrument.profile.w"],
                                   values[f"phases.{ip}.gauss_size"],
                                   values[f"phases.{ip}.gauss_strain"])
-            gam_l = lorentzian_fwhm(
-                theta,
-                values["instrument.profile.x"] + values[f"phases.{ip}.lor_size"],
-                values["instrument.profile.y"] + values[f"phases.{ip}.lor_strain"],
-                aniso)
+            if magnetic:
+                gam_l = lorentzian_fwhm(theta, x_l, y_l, aniso)
+            else:
+                gam_l = lorentzian_fwhm(
+                    theta,
+                    values["instrument.profile.x"] + values[f"phases.{ip}.lor_size"],
+                    values["instrument.profile.y"] + values[f"phases.{ip}.lor_strain"],
+                    aniso)
             out.append(self._peak_widths(gam_g, gam_l))
         return out
 
@@ -1010,7 +1128,7 @@ class CompiledModel:
         per-line angles are where λ enters the model at all, which is why a free
         λ moves every peak of its histogram and nothing else does.
         """
-        d = d_spacings(cp.reflections.hkl, *cell)
+        d = d_spacings(cp.reflections.index, *cell)
         return d, [two_theta_deg(d, lam) for lam in lams]
 
     def _memo(self, cp: "CompiledPhase", slot: str, key_fn, build):
@@ -1111,6 +1229,16 @@ class CompiledModel:
             out.append(float(values[base + "biso"]))
             if cp.sites.any_aniso:
                 out.extend(float(values.get(base + u, 0.0)) for u in U_NAMES)
+            # The moment DOFs belong in this key, and leaving them out is the
+            # silent-short-column failure of WP-1070 rather than a slow path:
+            # ``_peak_chain_column`` perturbs one θ and re-runs ``phase_peaks``,
+            # so a stale |F|² memo would hand the perturbed call the
+            # unperturbed intensity and the moment's Jacobian column would come
+            # back identically **zero** — a moment that cannot refine, with no
+            # error anywhere.
+            if cp.magnetic is not None:
+                out.extend(float(values[f"{base}moment.dof{k}"])
+                           for k in range(cp.magnetic.n_dofs(j)))
         return tuple(out)
 
     def _site_values(self, ip: int, values: dict[str, float], cell: tuple
@@ -1135,6 +1263,93 @@ class CompiledModel:
         uaniso = xp.stack([xp.stack([values.get(f"phases.{ip}.atoms.{j}.{u}", 0.0)
                                      for u in U_NAMES]) for j in range(n)])
         return xyz, occ, biso, uaniso, reciprocal_axis_lengths(*cell)
+
+    def _nuclear_mask(self, ip: int):
+        """(N,) 1.0 on a nuclear row, 0.0 on a satellite — or ``None``.
+
+        ``None`` is the phase with no propagation vector, and it is not the
+        same as an array of ones: the multiply never happens, so a phase that
+        declares no k reaches the same arithmetic in the same order and every
+        number it produces is bit-identical to what it produced before
+        WP-1326 existed.
+
+        Lifted onto the backend, never left as a frozen numpy constant beside
+        a θ-derived value (root ``CLAUDE.md``: ``ndarray * tensor`` raises on
+        torch and ``tensor * ndarray`` goes through a deprecated path), so the
+        traced backends see an ``xp`` array exactly as they do for the
+        multiplicity.
+        """
+        cp = self.phases[ip]
+        if cp.nuclear_mask is None:
+            return None
+        return get_backend().asarray(cp.nuclear_mask, dtype=np.float64)
+
+    def _nuclear_f2(self, ip: int, d, values: dict[str, float], cell: tuple):
+        """⟨|F|²⟩ with a satellite's row set to exactly zero (WP-1326).
+
+        **A satellite is a position, not a structure factor.**  This rung
+        carries no moment, no magnetic form factor and no magnetic symmetry,
+        so the nuclear model has nothing to say about the intensity at
+        Q = H ± k — and the honest value is zero, not the parent reflection's
+        |F|² evaluated at a d it does not have.  A Rietveld stage therefore
+        contributes nothing there and the peak is drawn by whatever a Le Bail
+        or Pawley stage extracted, which is the whole shape of the hypothesis
+        test.
+
+        The structure-factor call is made with the **parent** integer hkl —
+        the op subsets frozen on ``cp.sites`` are indexed by nothing else —
+        and the result is masked, rather than the reflection list being split
+        in two: one array per quantity is what every consumer downstream was
+        written over.
+        """
+        cp = self.phases[ip]
+        f2 = structure_factors_squared(
+            cp.reflections.hkl, d, cp.sites,
+            *self._site_values(ip, values, cell))
+        nuc = self._nuclear_mask(ip)
+        return f2 if nuc is None else f2 * nuc
+
+    def _moment_dofs(self, ip: int, values: dict[str, float]) -> list:
+        """Each atom's moment DOF vector, decoded — empty where there is none."""
+        cp = self.phases[ip]
+        return [np.array([values[f"phases.{ip}.atoms.{j}.moment.dof{k}"]
+                          for k in range(cp.magnetic.n_dofs(j))],
+                         dtype=np.float64)
+                for j in range(cp.sites.n_asym)]
+
+    def _magnetic_f2(self, ip: int, d, values: dict[str, float], cell: tuple):
+        """p²·⟨|F_⊥|²⟩ in fm², or ``None`` when this phase has no moment.
+
+        Added to ⟨|F_N|²⟩ rather than carried beside it, because both are in
+        fm² and the phase's **one** scale multiplies both — a separate magnetic
+        scale is the easiest route to a plausible fit and a wrong moment, and
+        WP-1327 declines to offer one.  The heavy lifting is in
+        ``crystallography.magnetic.scattering``; what belongs here is the
+        dispatch and the frozen orbit layout.
+        """
+        cp = self.phases[ip]
+        if cp.magnetic is None:
+            return None
+        xyz, occ, biso, _u, _a = self._site_values(ip, values, cell)
+        s = 1.0 / (2.0 * np.asarray(d, dtype=np.float64))
+        return magnetic_f2(cp.mag_members, cp.mag_seg, cp.mag_counts, s,
+                           cp.magnetic, cell, xyz, occ, biso,
+                           self._moment_dofs(ip, values))
+
+    def _total_f2(self, ip: int, d, values: dict[str, float], cell: tuple):
+        """⟨|F_N|²⟩ + p²⟨|F_⊥|²⟩ — the nuclear and magnetic terms, one scale.
+
+        The addition happens **only** where a magnetic term exists, so a phase
+        with no moment reaches the same arithmetic in the same order and every
+        number it produces is bit-identical to what it produced before this WP.
+        Secondary extinction reads this total, which is the physical reading:
+        the attenuation is of the reflection, and the reflection is whatever
+        the crystal actually diffracts.  It changes nothing at the default
+        ``extinction = 0``, where Sabine's E is exactly 1.
+        """
+        f2 = self._nuclear_f2(ip, d, values, cell)
+        mag = self._magnetic_f2(ip, d, values, cell)
+        return f2 if mag is None else f2 + mag
 
     def _po_factors(self, ip: int, values: dict[str, float], cell: tuple
                     ) -> np.ndarray | None:
@@ -1267,10 +1482,45 @@ class CompiledModel:
             return voigt_basis(x, w1, w2)
         return pseudo_voigt_basis(x, w1, w2)
 
+    def mag_split(self, ip: int) -> bool:
+        """Whether phase ip draws its magnetic component separately (WP-1343).
+
+        The one reader of the second frozen family's existence, so that the
+        forward, the derivative bases, the column builders and the solver's
+        refusal cannot disagree about which draw this stage is doing.  False
+        is the off state and the pre-WP-1343 code path.
+        """
+        return self.phases[ip].batch_mag is not None
+
     def phase_peaks(self, ip: int, values: dict[str, float],
-                    hkl_intensity: np.ndarray | None = None
+                    hkl_intensity: np.ndarray | None = None,
+                    *, component: int = 0
                     ) -> list[tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]]:
         """Per-line (positions, w₁, w₂, intensities) for phase ip.
+
+        ``component`` selects which contribution's peaks are wanted, and it
+        exists only for a phase whose second frozen family was built
+        (:meth:`mag_split`); ``0`` is every caller that predates WP-1343 and
+        the only value a non-magnetic phase accepts.
+
+        * ``0`` — the nuclear component.  On a phase with no second family
+          this is the **whole** intensity, ⟨|F_N|²⟩ + p²⟨|F_⊥|²⟩ through
+          :meth:`_total_f2`, exactly as WP-1327 left it; where the family
+          exists it is ⟨|F_N|²⟩ alone.
+        * ``1`` — the magnetic component, p²⟨|F_⊥|²⟩ drawn on its own
+          (generally broader) frozen windows.
+
+        **Every factor after the structure factor multiplies both**, and that
+        is the whole of what "separable" buys: the March-Dollase multiplier,
+        the line weight, Lp, Sabine extinction, specimen absorption, surface
+        roughness and the off-the-sphere mask are all functions of (line,
+        reflection) and of nothing about *which* contribution they scale, so
+        the split is a second pass through this method rather than a second
+        correction chain.  Extinction is the one that needs saying: its
+        attenuation is of the reflection, so both components read the
+        **total** |F|² there — the same physical statement
+        :meth:`_total_f2`'s docstring makes, and a no-op at the default
+        ``extinction = 0``, where the chain is skipped outright.
 
         Returns one (pos, w₁, w₂, intensity) tuple per emission line; arrays run
         over the frozen reflection list.  The two width slots are shape-specific
@@ -1291,6 +1541,12 @@ class CompiledModel:
         """
         xp = get_backend()
         cp = self.phases[ip]
+        if component and cp.batch_mag is None:
+            raise ValueError(
+                f"phase_peaks(component={component}) on phase {ip}, whose "
+                f"second frozen family was not built: this stage's magnetic "
+                f"broadening is at its off state, so there is one component "
+                f"and component 0 is the whole of it (WP-1343)")
         cell = tuple(values[f"phases.{ip}.cell.{k}"] for k in ("a", "b", "c", "alpha", "beta", "gamma"))
         # the cell block: d, and with it every per-line Bragg angle.  Memoised
         # together because they share one input and are always wanted together
@@ -1342,11 +1598,32 @@ class CompiledModel:
             # refused on a dispersive source rather than sharing one f_anom
             # across a factor-of-two wavelength gap
             # (``schemas.instrument.check_harmonics``).
-            f2 = self._memo(
-                cp, "f2", lambda: (cell_key(), self._atom_key(ip, values)),
-                lambda: structure_factors_squared(
-                    cp.reflections.hkl, d, cp.sites,
-                    *self._site_values(ip, values, cell)))
+            def f2_key():
+                return (cell_key(), self._atom_key(ip, values))
+
+            if cp.batch_mag is None:
+                f2 = self._memo(
+                    cp, "f2", f2_key,
+                    lambda: self._total_f2(ip, d, values, cell))
+                # the extinction variable reads the same array it always did
+                f2_ext = f2
+            else:
+                # WP-1343: the two contributions as two arrays, one ``base``
+                # each.  Both memo slots are live whichever component is being
+                # built — the Jacobian's peak chain re-runs this method once
+                # per column at a θ where most blocks did not move — and the
+                # magnetic one is asked for here only when extinction is
+                # actually evaluated.
+                f2_nuc = self._memo(
+                    cp, "f2", f2_key,
+                    lambda: self._nuclear_f2(ip, d, values, cell))
+                f2_m = None
+                if component or not cp.skip_extinction:
+                    f2_m = self._memo(
+                        cp, "f2mag", f2_key,
+                        lambda: self._magnetic_f2(ip, d, values, cell))
+                f2 = f2_nuc if component == 0 else f2_m
+                f2_ext = f2_nuc if cp.skip_extinction else f2_nuc + f2_m
             # multiplicity lifted onto the backend: a frozen numpy factor in a
             # product with traced values (backend/api.py)
             mult = xp.asarray(cp.reflections.multiplicity, dtype=np.float64)
@@ -1403,9 +1680,18 @@ class CompiledModel:
                     float(values[f"phases.{ip}.lor_size"]),
                     float(values[f"phases.{ip}.lor_strain"]))
 
-        widths = self._memo(cp, "widths", width_key,
-                            lambda: self._width_block(ip, values, tt_bragg_lines,
-                                                      aniso))
+        if component == 0:
+            widths = self._memo(cp, "widths", width_key,
+                                lambda: self._width_block(ip, values,
+                                                          tt_bragg_lines, aniso))
+        else:
+            widths = self._memo(
+                cp, "widths_mag",
+                lambda: (width_key(),
+                         float(values[f"phases.{ip}.magnetic_lor_size"]),
+                         float(values[f"phases.{ip}.magnetic_lor_strain"])),
+                lambda: self._width_block(ip, values, tt_bragg_lines, aniso,
+                                          magnetic=True))
         if self.mode in ("lebail", "pawley"):
             lp_lines = absorb_lines = None
         else:
@@ -1433,7 +1719,7 @@ class CompiledModel:
                 intensity = base * w_line * lp_lines[il]
                 if not cp.skip_extinction:
                     intensity = intensity * sabine_extinction(
-                        f2, lam, vol, tt_bragg, ext)
+                        f2_ext, lam, vol, tt_bragg, ext)
                 # specimen absorption, model/absorption.py: cylinder, finite
                 # flat reflection or flat transmission by geometry.  The
                 # geometry test is a compile-time structural branch, permitted
@@ -1463,7 +1749,8 @@ class CompiledModel:
     def _reflection_profile(self, cp: CompiledPhase, il: int, k: int,
                             pos_k: float, gamma_k: float, eta_k: float,
                             sl: float, hl: float,
-                            grid: np.ndarray | None = None) -> np.ndarray | None:
+                            grid: np.ndarray | None = None, *,
+                            component: int = 0) -> np.ndarray | None:
         """Unit-area profile of one (line, reflection) on its frozen window.
 
         Returns ``None`` only for the frozen empty window (``i1 <= i0``, a
@@ -1480,19 +1767,26 @@ class CompiledModel:
         difference between one host→device copy and thousands.  ``None`` keeps
         the numpy buffer, which is what ``asarray`` would hand back anyway.
         """
-        i0, i1 = cp.win[il, k]
+        # WP-1343: ``component`` picks the frozen family — the magnetic
+        # component's windows and node counts are its own (wider) ones, and
+        # its FCJ memo slots are a separate ``variant`` because the memo keys
+        # on (2θ, S/L, H/L) and *not* on the node count, which differs.
+        win = cp.win if component == 0 else cp.win_mag
+        fcj = cp.fcj_n if component == 0 else cp.fcj_n_mag
+        i0, i1 = win[il, k]
         if i1 <= i0:
             return None
         xp = get_backend()
         finite = xp.isfinite(pos_k)
         pos_safe = xp.where(finite, pos_k, 0.0)
         x = (self.tt if grid is None else grid)[i0:i1]
-        n_fcj = int(cp.fcj_n[il, k])
+        n_fcj = int(fcj[il, k])
         if n_fcj == 0:  # frozen node count — structural
             return xp.where(finite, self._profile(x - pos_safe, gamma_k, eta_k), 0.0)
         # FCJ images computed at the apparent position: the ≤0.1° detector
         # shifts change the aberration geometry negligibly (≪ node spacing)
-        phi, omega = _cached_fcj_nodes(cp, il, k, 0, pos_safe, sl, hl, n_fcj)
+        phi, omega = _cached_fcj_nodes(cp, il, k, component, pos_safe, sl, hl,
+                                       n_fcj)
         prof = omega @ self._profile(x[None, :] - phi[:, None], gamma_k, eta_k)
         return xp.where(finite, prof, 0.0)
 
@@ -1578,15 +1872,24 @@ class CompiledModel:
         and the intensity is *not*, so a NaN intensity still reaches the
         pattern, in both paths and at the same points.
         """
-        lay = self.phases[ip].batch
-        peaks = self.phase_peaks(ip, values, hkl_intensity)
-        pos = lay.gather(peaks, 0)
-        omega = self._omega_batch(
-            lay, pos, lay.gather(peaks, 1), lay.gather(peaks, 2),
-            np.isfinite(pos), values["instrument.geometry.axial_sl"],
-            values["instrument.geometry.axial_hl"], compiled.SPELL_FORWARD)
-        return accumulate_planes(
-            len(self.tt), [(lay, [(lay.gather(peaks, 3), omega)])])
+        cp = self.phases[ip]
+        sl = values["instrument.geometry.axial_sl"]
+        hl = values["instrument.geometry.axial_hl"]
+        parts = []
+        # WP-1343: one part per component.  With no second family this list
+        # has exactly one entry and the call is the one that was here before,
+        # so the accumulation order and every double are unchanged.
+        for component, lay in ((0, cp.batch), (1, cp.batch_mag)):
+            if lay is None:
+                continue
+            peaks = self.phase_peaks(ip, values, hkl_intensity,
+                                     component=component)
+            pos = lay.gather(peaks, 0)
+            omega = self._omega_batch(
+                lay, pos, lay.gather(peaks, 1), lay.gather(peaks, 2),
+                np.isfinite(pos), sl, hl, compiled.SPELL_FORWARD)
+            parts.append((lay, [(lay.gather(peaks, 3), omega)]))
+        return accumulate_planes(len(self.tt), parts)
 
     def _phase_component_scalar(self, ip: int, values: dict[str, float],
                                 hkl_intensity: np.ndarray | None = None
@@ -1599,15 +1902,23 @@ class CompiledModel:
         cp = self.phases[ip]
         sl = values["instrument.geometry.axial_sl"]
         hl = values["instrument.geometry.axial_hl"]
-        peaks = self.phase_peaks(ip, values, hkl_intensity)
-        for il, (pos, gamma, eta, intensity) in enumerate(peaks):
-            for k in range(len(pos)):
-                prof = self._reflection_profile(cp, il, k, pos[k], gamma[k],
-                                                eta[k], sl, hl, grid)
-                if prof is None:
-                    continue
-                i0, i1 = int(cp.win[il, k, 0]), int(cp.win[il, k, 1])
-                y = xp.window_add(y, i0, i1, intensity[k] * prof)
+        # WP-1343: the components in the same order the batched path scatters
+        # them, so the two paths stay each other's oracle.
+        for component in (0, 1):
+            if component and cp.batch_mag is None:
+                continue
+            win = cp.win if component == 0 else cp.win_mag
+            peaks = self.phase_peaks(ip, values, hkl_intensity,
+                                     component=component)
+            for il, (pos, gamma, eta, intensity) in enumerate(peaks):
+                for k in range(len(pos)):
+                    prof = self._reflection_profile(cp, il, k, pos[k], gamma[k],
+                                                    eta[k], sl, hl, grid,
+                                                    component=component)
+                    if prof is None:
+                        continue
+                    i0, i1 = int(win[il, k, 0]), int(win[il, k, 1])
+                    y = xp.window_add(y, i0, i1, intensity[k] * prof)
         return y
 
     def bragg_component(self, values: dict[str, float],
@@ -1713,18 +2024,42 @@ class CompiledModel:
         """
         return self._structural_intensity_grad(ip, j, coeffs, values, d_f2_d_uaniso)
 
+    def structural_grad_supported(self, ip: int) -> bool:
+        """Whether the analytic coordinate/ADP columns are exact for this phase.
+
+        **False when the phase carries a moment**, and this is a declared
+        exclusion rather than an omission (the WP-1070 rule: an unstated
+        exclusion is the column-comes-back-*wrong* class of bug).  A moment
+        sits on the same coordinate and takes the same Debye-Waller factor as
+        the nucleus, so ∂I/∂x has a magnetic term too, and
+        ``structure_factor.d_f2_d_xyz`` computes only the nuclear one.  Rather
+        than write a second analytic kernel for it, the dispatch drops such a
+        phase to ``_peak_chain_column``, which re-runs ``phase_peaks`` at the
+        perturbed θ and is therefore exact for whatever the intensity contains.
+        The cost is one extra residual-shaped evaluation per structural column
+        of a magnetic phase.
+        """
+        return self.phases[ip].magnetic is None
+
     def _structural_intensity_grad(self, ip: int, j: int, coeffs: np.ndarray,
                                    values: dict[str, float], kernel
                                    ) -> list[np.ndarray] | None:
-        if self.mode != "rietveld":
+        if self.mode != "rietveld" or not self.structural_grad_supported(ip):
             return None
         cp = self.phases[ip]
         cell = tuple(values[f"phases.{ip}.cell.{k}"]
                      for k in ("a", "b", "c", "alpha", "beta", "gamma"))
-        d = d_spacings(cp.reflections.hkl, *cell)
+        d = d_spacings(cp.reflections.index, *cell)
         xyz, occ, biso, uaniso, astar = self._site_values(ip, values, cell)
         df2 = kernel(cp.reflections.hkl, d, cp.sites, xyz, occ, biso, j, uaniso, astar
                      ) @ np.asarray(coeffs, dtype=np.float64)
+        # a satellite has no nuclear structure factor, so it has no derivative
+        # of one either — the same mask ``_nuclear_f2`` applies to the forward
+        # model, applied here so the analytic column and the residual cannot
+        # disagree about a row the forward model puts at exactly zero
+        nuc = self._nuclear_mask(ip)
+        if nuc is not None:
+            df2 = df2 * nuc
         d_base = values[f"phases.{ip}.scale"] * cp.reflections.multiplicity * df2
         # March-Dollase P multiplies the intensity and does not depend on the
         # coordinates/ADPs, so a structural move chains through it unchanged —
@@ -1742,8 +2077,9 @@ class CompiledModel:
         # explicitly; the scale/occ/biso/cell/extinction columns pick it up
         # from the FD-of-phase_peaks chain.
         ext = values[f"phases.{ip}.extinction"]
-        f2 = structure_factors_squared(cp.reflections.hkl, d, cp.sites,
-                                       xyz, occ, biso, uaniso, astar)
+        # the extinction variable x is built from the whole reflection, so the
+        # magnetic term belongs in it exactly as it does in ``phase_peaks``
+        f2 = self._total_f2(ip, d, values, cell)
         vol = cell_volume(*cell)
         out = []
         # λ read through ``line_lambdas``, never off the frozen tuple: a joint
@@ -1786,10 +2122,10 @@ class CompiledModel:
             return None
         cell = tuple(values[f"phases.{ip}.cell.{k}"]
                      for k in ("a", "b", "c", "alpha", "beta", "gamma"))
-        d = d_spacings(cp.reflections.hkl, *cell)
-        xyz, occ, biso, uaniso, astar = self._site_values(ip, values, cell)
-        f2 = structure_factors_squared(cp.reflections.hkl, d, cp.sites,
-                                       xyz, occ, biso, uaniso, astar)
+        d = d_spacings(cp.reflections.index, *cell)
+        # preferred orientation multiplies the whole reflection's intensity, so
+        # the derivative carries the magnetic term with it
+        f2 = self._total_f2(ip, d, values, cell)
         gstar = reciprocal_metric_tensor(*cell)
         r = values[f"phases.{ip}.preferred_orientation.r"]
         _P, dP = march_dollase_and_dr(cp.po_members, cp.po_seg, cp.po_counts,
@@ -1976,14 +2312,35 @@ class CompiledModel:
         # d_sl/d_hl exist only while the parameterisation is smooth there; at
         # either aperture ≤ 0 the axial columns fall back to FD (``axial_ok``)
         build_axial = axial_derivs and sl > 0.0 and hl > 0.0
-        peaks_all: list[list[tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]]] = []
-        planes_all: list[PhasePlanes] = []
+        n_ph = len(self.phases)
+        peaks_all: list = [None] * n_ph
+        planes_all: list = [None] * n_ph
+        # WP-1343: the magnetic component's own planes, ``None`` per phase
+        # whose second family was not built — which is every phase of every
+        # fit at the default, so the lists below are the ones that were here.
+        peaks_mag: list = [None] * n_ph
+        planes_mag: list = [None] * n_ph
         axial_ok = True
+        jobs = []
         for ip, cp in enumerate(self.phases):
+            jobs.append((ip, cp, 0, cp.batch))
+            if cp.batch_mag is not None:
+                jobs.append((ip, cp, 1, cp.batch_mag))
+        for ip, cp, component, lay in jobs:
             peaks = self.phase_peaks(
-                ip, values, None if intensities is None else intensities[ip])
-            peaks_all.append(peaks)
-            lay = cp.batch
+                ip, values, None if intensities is None else intensities[ip],
+                component=component)
+            if component:
+                peaks_mag[ip] = peaks
+            else:
+                peaks_all[ip] = peaks
+
+            def _store(pp, _ip=ip, _component=component):
+                if _component:
+                    planes_mag[_ip] = pp
+                else:
+                    planes_all[_ip] = pp
+
             n_rows, w_max = len(lay.i0), lay.w_max
             pos = lay.gather(peaks, 0)
             w1 = lay.gather(peaks, 1)
@@ -1999,7 +2356,7 @@ class CompiledModel:
                 # own spelling, which the forward's is deliberately not
                 omega = self._omega_batch(lay, pos, w1, w2, finite, sl, hl,
                                           compiled.SPELL_BASIS)
-                planes_all.append(PhasePlanes(
+                _store(PhasePlanes(
                     layout=lay, finite=finite, pos=pos, w1=w1, w2=w2,
                     inten=inten, omega=omega, d_pos=None, d_gamma=None,
                     d_eta=None, d_sl=None, d_hl=None))
@@ -2082,12 +2439,13 @@ class CompiledModel:
                 np.multiply(pl, lay.mask, out=pl)
                 if not finite.all():
                     pl[~finite] = 0.0
-            planes_all.append(PhasePlanes(
+            _store(PhasePlanes(
                 layout=lay, finite=finite, pos=pos, w1=w1, w2=w2, inten=inten,
                 omega=omega, d_pos=d_pos, d_gamma=d_gamma, d_eta=d_eta,
                 d_sl=d_sl, d_hl=d_hl))
         return DerivativeBases(planes=planes_all, peaks=peaks_all,
-                               axial_ok=axial_ok)
+                               axial_ok=axial_ok, planes_mag=planes_mag,
+                               peaks_mag=peaks_mag)
 
     # ------------------------------------------------------------------
     def lebail_update(self, values: dict[str, float], n_cycles: int = 1) -> None:
@@ -2251,54 +2609,73 @@ class CompiledModel:
         # pass 1 — every phase's profiles and the *total* Bragg curve they are
         # shares of.  Per-phase denominators would issue the same counts once
         # per overlapping phase (lebail_update's docstring has the measurement).
-        all_peaks, all_profs = [], []
+        #
+        # WP-1343 bugfix: a phase whose magnetic width is active
+        # (``mag_split``) draws its nuclear and magnetic contributions on two
+        # separate frozen families (checks/BUG_REFLECTION_TABLE_COMPONENT.md).
+        # ``I_calc`` below is already the **total** ⟨|F_N|²⟩ + p²⟨|F_⊥|²⟩,
+        # through ``_total_f2`` — so the profile-weighted W_k/O_k sums built
+        # here from ``phase_peaks`` must be the same total, one component's
+        # entries per pass, or a magnetically-allowed-only reflection (whose
+        # nuclear structure factor is exactly zero by construction) draws a
+        # ``w_calc`` of exactly 0 and its ratio comes back NaN — the reflection
+        # table's own failure, one caller over.  Mirrors the per-reflection
+        # loop in ``_phase_component_scalar``, the oracle every batched path
+        # is measured against, including its window choice per component.
+        all_entries: list[list[tuple[int, list, list[list[np.ndarray | None]]]]] = []
         y_bragg = np.zeros(len(self.tt), dtype=np.float64)
         for ip, cp in enumerate(self.phases):
-            peaks = self.phase_peaks(ip, values)
-            profs: list[list[np.ndarray | None]] = []
-            for il, (pos, gamma, eta, intensity) in enumerate(peaks):
-                row: list[np.ndarray | None] = []
-                for k in range(len(cp.reflections)):
-                    om = self._reflection_profile(cp, il, k, pos[k], gamma[k],
-                                                  eta[k], sl, hl)
-                    row.append(om)
-                    if om is not None:
-                        i0, i1 = int(cp.win[il, k, 0]), int(cp.win[il, k, 1])
-                        y_bragg[i0:i1] += intensity[k] * om
-                profs.append(row)
-            all_peaks.append(peaks)
-            all_profs.append(profs)
+            entries: list[tuple[int, list, list[list[np.ndarray | None]]]] = []
+            for component in (0, 1):
+                if component and cp.batch_mag is None:
+                    continue
+                win = cp.win if component == 0 else cp.win_mag
+                peaks = self.phase_peaks(ip, values, component=component)
+                profs: list[list[np.ndarray | None]] = []
+                for il, (pos, gamma, eta, intensity) in enumerate(peaks):
+                    row: list[np.ndarray | None] = []
+                    for k in range(len(cp.reflections)):
+                        om = self._reflection_profile(cp, il, k, pos[k], gamma[k],
+                                                      eta[k], sl, hl,
+                                                      component=component)
+                        row.append(om)
+                        if om is not None:
+                            i0, i1 = int(win[il, k, 0]), int(win[il, k, 1])
+                            y_bragg[i0:i1] += intensity[k] * om
+                    profs.append(row)
+                entries.append((component, peaks, profs))
+            all_entries.append(entries)
 
         out: list[tuple[np.ndarray, np.ndarray]] = []
         for ip, cp in enumerate(self.phases):
-            peaks, profs = all_peaks[ip], all_profs[ip]
             n = len(cp.reflections)
             w_calc = np.zeros(n)
             o_obs = np.zeros(n)
-            for k in range(n):
-                for il in range(len(self.line_wavelengths)):
-                    om = profs[il][k]
-                    if om is None:
-                        continue
-                    i0, i1 = int(cp.win[il, k, 0]), int(cp.win[il, k, 1])
-                    contrib = float(peaks[il][3][k]) * np.asarray(om)
-                    w_calc[k] += float(contrib.sum())
-                    denom = y_bragg[i0:i1]
-                    good = denom > 1e-12
-                    if not np.any(good):
-                        continue
-                    o_obs[k] += float(
-                        (contrib[good] / denom[good] * net[i0:i1][good]).sum())
+            for component, peaks, profs in all_entries[ip]:
+                win = cp.win if component == 0 else cp.win_mag
+                for k in range(n):
+                    for il in range(len(self.line_wavelengths)):
+                        om = profs[il][k]
+                        if om is None:
+                            continue
+                        i0, i1 = int(win[il, k, 0]), int(win[il, k, 1])
+                        contrib = float(peaks[il][3][k]) * np.asarray(om)
+                        w_calc[k] += float(contrib.sum())
+                        denom = y_bragg[i0:i1]
+                        good = denom > 1e-12
+                        if not np.any(good):
+                            continue
+                        o_obs[k] += float(
+                            (contrib[good] / denom[good] * net[i0:i1][good]).sum())
             # I_calc as the paper defines it: multiplicity × |F|², with the
             # scale and every angle-dependent correction left out (they are in
             # the ratio above, on both sides).  Recomputed rather than unpicked
             # from phase_peaks' product, which folds preferred orientation in.
             cell = tuple(values[f"phases.{ip}.cell.{key}"]
                          for key in ("a", "b", "c", "alpha", "beta", "gamma"))
-            d = d_spacings(cp.reflections.hkl, *cell)
-            f2 = np.asarray(structure_factors_squared(
-                cp.reflections.hkl, d, cp.sites,
-                *self._site_values(ip, values, cell)), dtype=np.float64)
+            d = d_spacings(cp.reflections.index, *cell)
+            f2 = np.asarray(self._total_f2(ip, d, values, cell),
+                            dtype=np.float64)
             i_calc = np.asarray(cp.reflections.multiplicity,
                                 dtype=np.float64) * f2
             live = w_calc > 0.0
@@ -2485,7 +2862,31 @@ class DerivativeBases:
     planes: list[PhasePlanes]
     peaks: list[list[tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]]]
     axial_ok: bool
+    #: WP-1343.  Per phase, the **magnetic** component's planes and peaks, or
+    #: ``None`` where the second frozen family was not built (the off state,
+    #: and every fit before this WP).  A second list rather than a longer
+    #: ``planes``, because ``planes[ip]`` is indexed by phase by five column
+    #: builders and by the Pawley block; :meth:`components` is what a builder
+    #: iterates so that none of them can silently cover one component only.
+    planes_mag: list = field(default_factory=list)
+    peaks_mag: list = field(default_factory=list)
     _entries: list[list[tuple]] | None = field(default=None, repr=False)
+
+    def components(self, ip: int) -> list[PhasePlanes]:
+        """Phase ip's planes, one per drawn component (WP-1343).
+
+        One entry — the nuclear planes — for every phase of every fit at the
+        default, so a caller that loops over this is the caller that read
+        ``planes[ip]``; two where the magnetic component is drawn on its own
+        frozen family.
+        """
+        mag = self.planes_mag[ip] if ip < len(self.planes_mag) else None
+        return [self.planes[ip]] if mag is None else [self.planes[ip], mag]
+
+    def component_peaks(self, ip: int) -> list:
+        """The same for the peak tuples, in the same order."""
+        mag = self.peaks_mag[ip] if ip < len(self.peaks_mag) else None
+        return [self.peaks[ip]] if mag is None else [self.peaks[ip], mag]
 
     @property
     def entries(self) -> list[list[tuple]]:
@@ -2650,6 +3051,44 @@ def _reraise_species_fault(phase, disp, lams, exc, *, neutron=False):
                 raise exc
     _walk(normalize_species)
     raise exc
+
+
+# ----------------------------------------------------------------------
+def magnetic_wanted(phase, source) -> bool:
+    """Whether this phase's moment contributes to *this* histogram (WP-1327).
+
+    **The magnetic term enters a neutron histogram and nothing else.**  A
+    neutron sees the
+    magnetization density through its own moment; an X-ray of a laboratory or
+    ordinary synchrotron experiment does not, to many orders of magnitude, so
+    on an X-ray histogram of a joint fit the term is identically zero — and it
+    is not *computed* and then found to be zero, it is never built, so the
+    phase's X-ray arithmetic is untouched.  A moment refined against X-ray data
+    alone therefore has no gradient anywhere, which is exactly the state the
+    hold rule reports as unobserved rather than fitting.
+
+    Any other radiation is refused **by name** rather than silently treated as
+    one of the two.  This function is the one authority on that dispatch, so a
+    second forward arm asks it rather than re-testing ``source.kind``.
+    """
+    if phase.magnetic_symmetry is None or not any(
+            a.moment is not None for a in phase.atoms):
+        return False
+    kind = getattr(source, "kind", None)
+    if kind == "neutron_cw":
+        return True
+    if kind == "xray_cw":
+        return False
+    raise ValueError(
+        f"phase {phase.name!r} carries a magnetic moment and the source is "
+        f"{kind!r}. The magnetic structure factor is a **neutron** term: it is "
+        f"the neutron's own moment coupling to the magnetization density, and "
+        f"an X-ray of a laboratory or ordinary synchrotron experiment does not "
+        f"see it to many orders of magnitude. This package computes it for "
+        f"neutron_cw, returns False for xray_cw, and refuses "
+        f"any other source by name rather than guessing which of the two it "
+        f"resembles. Refine the moment against a neutron histogram, or drop "
+        f"the moment to fit the nuclear structure against this source")
 
 
 
@@ -2855,9 +3294,45 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
     restraint_items: list = []
     for ip, phase in enumerate(structure.phases):
         cell = phase.cell.lengths_angles()
-        refl = generate_reflections(phase.space_group, cell, lam_gen,
+        # The phase's own operation list when it carries one (Q-17): a child
+        # cell whose glide translation is a quarter has no Hermann-Mauguin
+        # symbol, and its absences, multiplicities and Laue orbits all have to
+        # come from the operations rather than from the label.  ``None`` is
+        # exactly the old path, so every other phase enumerates the identical
+        # list in the identical order.
+        group = resolve_group(phase.space_group, phase.symmetry_operations)
+        refl = generate_reflections(group, cell, lam_gen,
                                     two_theta_max=hi_eff, two_theta_min=gen_min)
+        # WP-1326: a declared propagation vector adds the satellites at
+        # Q = H ± k as a second ReflectionSet, frozen here with the nuclear one
+        # and merged into a single list (see ``CompiledPhase.satellites``).
+        # The generation runs over the reciprocal *lattice* and applies no
+        # glide/screw absence — those are conditions on the nuclear structure
+        # factor, which a satellite does not have.
+        satellites = None
+        if phase.propagation_vector is not None:
+            satellites = satellite_reflections(
+                group, cell, lam_gen, hi_eff,
+                phase.propagation_vector, two_theta_min=gen_min)
+            refl = merge_satellites(refl, satellites)
+        # WP-1327: a magnetic space group generally drops the parent's glide
+        # and screw operations, so a k = 0 magnetic structure puts intensity
+        # on reciprocal-lattice points the nuclear structure factor forbids —
+        # Cr₂WO₆'s (0 0 1) and (1 0 2), its two strongest 4 K peaks, are both
+        # there.  Those rows are not in the nuclear list at all, so they are
+        # generated and merged, with a mask that keeps the nuclear term at
+        # exactly zero on them (which is the absence condition, not a
+        # tolerance).  Only for a phase that declares a moment; every other
+        # phase enumerates the list it always did.
+        magnetic_mask = None
+        if magnetic_wanted(phase, instrument.source):
+            extra = magnetic_reflections(group, cell, lam_gen,
+                                         hi_eff, two_theta_min=gen_min)
+            refl, magnetic_mask = merge_magnetic(refl, extra)
         f_anom = None
+        # The source decides the radiation, exactly as it decides f_anom: a
+        # neutron source resolves bound coherent scattering lengths instead of
+        # X-ray form factors, and the two are mutually exclusive.
         # The source decides the radiation, exactly as it decides f_anom: a
         # neutron source resolves bound coherent scattering lengths instead of
         # X-ray form factors, and the two are mutually exclusive.
@@ -2883,50 +3358,124 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
         # 30·FWHM margin absorbs the growth a stage can produce from there.
         strain_monomials = aniso_est = None
         if phase.microstrain is not None:
-            strain_monomials = monomial_matrix(refl.hkl)
+            strain_monomials = monomial_matrix(refl.index)
             aniso_est = strain_width_deg(
                 strain_monomials, np.array(phase.microstrain.values()),
-                d_spacings(refl.hkl, *cell))
-        for il, lam in enumerate(lams):
-            tt_bragg = refl.two_theta(cell, lam)
-            theta = 0.5 * tt_bragg
-            pos = tt_bragg + _shift_est(theta, tt_bragg)
-            g_est = gaussian_fwhm(theta, instrument.profile.u.value,
-                                  instrument.profile.v.value, instrument.profile.w.value,
-                                  phase.gauss_size.value, phase.gauss_strain.value)
-            l_est = lorentzian_fwhm(theta,
-                                    instrument.profile.x.value + phase.lor_size.value,
-                                    instrument.profile.y.value + phase.lor_strain.value,
-                                    0.0 if aniso_est is None else aniso_est)
-            # TCHZ combined (Γ, η) is a compile-time proxy for window sizing
-            # and FCJ node counts under *both* shapes: it tracks the true
-            # Voigt FWHM to ~1 % (that is what the TCH quintic is fit to),
-            # far inside the area criterion's own resolution.
-            gamma_est, eta_est = tch_gamma_eta(g_est, l_est)
-            if il == 0:  # primary line drives Pawley overlap grouping
-                tt_primary, fwhm_primary = pos.copy(), gamma_est.copy()
-            slack = (WINDOW_MIN_DEG if window_slack_deg is None
-                     else window_slack_deg)
-            half = window_fwhm_mult(eta_est) * gamma_est + slack
-            if fcj_on:
-                half = half + fcj_extent_deg(pos, sl_eff, hl_eff)
-            valid = np.isfinite(pos)
-            pos_v = np.where(valid, pos, 0.0)
-            half_v = np.where(valid, half, 0.0)
-            i0 = np.searchsorted(tt, pos_v - half_v, side="left")
-            i1 = np.searchsorted(tt, pos_v + half_v, side="right")
-            i0[~valid] = 0
-            i1[~valid] = 0
-            win[il, :, 0], win[il, :, 1] = i0, i1
-            if fcj_on:
-                for k in range(n):
-                    if valid[k] and i1[k] > i0[k]:
-                        fcj_n[il, k] = fcj_node_count(float(pos[k]), float(gamma_est[k]),
-                                                      sl_eff, hl_eff)
+                d_spacings(refl.index, *cell))
+        # WP-1343.  Whether this phase's **magnetic** component is drawn on
+        # its own frozen family, decided here and read everywhere else
+        # through ``CompiledModel.mag_split``.  Sized from ``moving_paths`` —
+        # never ``free_paths`` — which is the rule root ``CLAUDE.md`` states
+        # for FCJ node sizing and the one ``skip_extinction`` is gated on: a
+        # tied parameter is not a column of θ and still moves.
+        #
+        # The off state (both values exactly zero and no path this stage can
+        # move off it) builds nothing, so ``_total_f2`` is drawn once and the
+        # phase's arithmetic is bit-for-bit what WP-1327 left.  Unlike
+        # ``skip_extinction`` this does **not** require ``gate_off_states``:
+        # there the off state is "evaluate anyway", so a caller making no
+        # claim is safe by default, while here it is "split the draw", which a
+        # plot or a replay would then do for no reason and at a cost of the
+        # last two digits.  The hazard that reading is exposed to — freeing a
+        # magnetic width against a compile that made no claim — is refused by
+        # name in ``run_least_squares`` instead.
+        mag_split = (magnetic_mask is not None and mode == "rietveld"
+                     and (phase.magnetic_lor_size.value != 0.0
+                          or phase.magnetic_lor_strain.value != 0.0
+                          or f"phases.{ip}.magnetic_lor_size" in moving_paths
+                          or f"phases.{ip}.magnetic_lor_strain" in moving_paths))
+        win_mag = fcj_n_mag = None
+        if mag_split:
+            win_mag = np.zeros((n_lines, n, 2), dtype=np.int64)
+            fcj_n_mag = np.zeros((n_lines, n), dtype=np.int64)
+
+        def _size_family(win, fcj_n, extra_size: float, extra_strain: float,
+                         *, primary: bool):
+            """Fill one component's frozen windows and FCJ node counts.
+
+            ``extra_size``/``extra_strain`` are the magnetic pair, both zero
+            for the nuclear component — and the zero case is a **branch**
+            rather than an ``+ 0.0``, so that the nuclear family is sized by
+            the same expression it always was.
+            """
+            nonlocal tt_primary, fwhm_primary
+            for il, lam in enumerate(lams):
+                tt_bragg = refl.two_theta(cell, lam)
+                theta = 0.5 * tt_bragg
+                pos = tt_bragg + _shift_est(theta, tt_bragg)
+                g_est = gaussian_fwhm(theta, instrument.profile.u.value,
+                                      instrument.profile.v.value, instrument.profile.w.value,
+                                      phase.gauss_size.value, phase.gauss_strain.value)
+                x_l = instrument.profile.x.value + phase.lor_size.value
+                y_l = instrument.profile.y.value + phase.lor_strain.value
+                if extra_size or extra_strain:
+                    x_l = x_l + extra_size
+                    y_l = y_l + extra_strain
+                l_est = lorentzian_fwhm(theta, x_l, y_l,
+                                        0.0 if aniso_est is None else aniso_est)
+                # TCHZ combined (Γ, η) is a compile-time proxy for window sizing
+                # and FCJ node counts under *both* shapes: it tracks the true
+                # Voigt FWHM to ~1 % (that is what the TCH quintic is fit to),
+                # far inside the area criterion's own resolution.
+                gamma_est, eta_est = tch_gamma_eta(g_est, l_est)
+                if primary and il == 0:  # primary line drives Pawley overlap grouping
+                    tt_primary, fwhm_primary = pos.copy(), gamma_est.copy()
+                slack = (WINDOW_MIN_DEG if window_slack_deg is None
+                         else window_slack_deg)
+                half = window_fwhm_mult(eta_est) * gamma_est + slack
+                if fcj_on:
+                    half = half + fcj_extent_deg(pos, sl_eff, hl_eff)
+                valid = np.isfinite(pos)
+                pos_v = np.where(valid, pos, 0.0)
+                half_v = np.where(valid, half, 0.0)
+                i0 = np.searchsorted(tt, pos_v - half_v, side="left")
+                i1 = np.searchsorted(tt, pos_v + half_v, side="right")
+                i0[~valid] = 0
+                i1[~valid] = 0
+                win[il, :, 0], win[il, :, 1] = i0, i1
+                if fcj_on:
+                    for k in range(n):
+                        if valid[k] and i1[k] > i0[k]:
+                            fcj_n[il, k] = fcj_node_count(float(pos[k]), float(gamma_est[k]),
+                                                          sl_eff, hl_eff)
+
+        _size_family(win, fcj_n, 0.0, 0.0, primary=True)
+        if mag_split:
+            # The widths the stage can *reach*, not the ones it starts at: a
+            # magnetic width seeded at zero and freed this stage would
+            # otherwise be drawn on the nuclear component's windows and
+            # clipped by them, which is the FCJ-node-sizing failure one
+            # correction over.  ``MAGNETIC_SIZING_FLOOR`` is the same kind of
+            # number ``AXIAL_SIZING_FLOOR`` is and is applied the same way.
+            floor = (MAGNETIC_SIZING_FLOOR
+                     if f"phases.{ip}.magnetic_lor_size" in moving_paths
+                     else 0.0)
+            floor_e = (MAGNETIC_SIZING_FLOOR
+                       if f"phases.{ip}.magnetic_lor_strain" in moving_paths
+                       else 0.0)
+            _size_family(win_mag, fcj_n_mag,
+                         max(phase.magnetic_lor_size.value, floor),
+                         max(phase.magnetic_lor_strain.value, floor_e),
+                         primary=False)
 
         cp = CompiledPhase(reflections=refl, sites=sites, win=win, fcj_n=fcj_n,
-                           strain_monomials=strain_monomials)
+                           strain_monomials=strain_monomials,
+                           satellites=satellites,
+                           win_mag=win_mag, fcj_n_mag=fcj_n_mag)
+        if satellites is not None:
+            cp.nuclear_mask = (~refl.is_satellite).astype(np.float64)
+        if magnetic_mask is not None:
+            cp.nuclear_mask = magnetic_mask
+            cp.magnetic = compile_magnetic_sites(phase, sites.ops)
+            # the Laue orbit of every reflection, frozen here: |F_⊥|² varies
+            # over it, so the magnetic intensity is the orbit *average*.  The
+            # same layout the March-Dollase correction uses, built from the
+            # same ``reflection_orbits``.
+            cp.mag_members, cp.mag_seg, cp.mag_counts = orbit_layout(
+                reflection_orbits(group, refl.hkl))
         cp.batch = _batch_layout(win, fcj_n, tt)
+        if mag_split:
+            cp.batch_mag = _batch_layout(win_mag, fcj_n_mag, tt)
         # the off-state gate (see the field): ext is exactly its identity and
         # nothing this stage moves can take it off there
         cp.skip_extinction = (gate_off_states
@@ -2935,7 +3484,8 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
         # WP-0605 task 0: the FCJ node memo needs no free-path analysis —
         # correctness rests on input equality alone — so it is allocated
         # whenever any peak has quadrature nodes at all.
-        if fcj_on and fcj_n.any():
+        if fcj_on and (fcj_n.any()
+                       or (fcj_n_mag is not None and fcj_n_mag.any())):
             cp.fcj_cache = {}
         # the scalar-chain memo needs no free-path analysis either, for the
         # same reason: correctness rests on input equality alone
@@ -2949,7 +3499,7 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
         # and Pawley intensities are empirical and would absorb it.  Freeze the
         # symmetry orbit of each reflection here; the angles follow the cell.
         if mode == "rietveld" and phase.preferred_orientation is not None and n:
-            orbits = reflection_orbits(phase.space_group, refl.hkl)
+            orbits = reflection_orbits(group, refl.hkl)
             cp.po_axis = np.array(phase.preferred_orientation.axis, dtype=np.int64)
             cp.po_members, cp.po_seg, cp.po_counts = orbit_layout(orbits)
         # Soft restraints are a structural correction (bond/angle geometry, or a

@@ -56,12 +56,15 @@ import numpy as np
 
 from ..crystallography.adp import U_NAMES, cartesian_basis
 from ..crystallography.symmetry import (
+    MetricConstraints,
     cell_constraints,
     check_cell_angles,
     expand_positions,
     free_cell_names,
     get_spacegroup,
+    resolve_group,
     rotation_matrices,
+    split_group_label,
 )
 from ..crystallography.wyckoff import adp_basis, coordinate_basis, stabilizer_rotations
 from ..params.vector import ParameterTable
@@ -202,7 +205,10 @@ def site_rows(structure: Structure) -> list[dict]:
     rows: list[dict] = []
     for i, phase in enumerate(structure.phases):
         try:
-            sg = get_spacegroup(phase.space_group)
+            # the phase's own operation list when it carries one (Q-17), so a
+            # child cell no symbol names still gets its constraint bases
+            sg = resolve_group(phase.space_group, phase.symmetry_operations)
+            sg.xhm()
         except (ValueError, RuntimeError) as exc:
             rows.append({"path": f"phases.{i}", "error": str(exc)})
             continue
@@ -297,7 +303,8 @@ def position_values(structure: Structure, path: str, xyz) -> dict:
             f"{path}: a position is three finite numbers, not {list(xyz)!r}")
 
     current = np.array([atom.x.value, atom.y.value, atom.z.value])
-    rots = stabilizer_rotations(get_spacegroup(phase.space_group), current)
+    rots = stabilizer_rotations(
+        resolve_group(phase.space_group, phase.symmetry_operations), current)
     basis = coordinate_basis(rots)  # rows are the allowed directions, (k, 3)
     delta = target - current
     if len(basis) == 0:
@@ -346,9 +353,16 @@ def held_causes(structure: Structure, rows: list[dict] | None = None,
     causes: dict[str, str] = {}
     for i, phase in enumerate(structure.phases):
         try:
-            sg = get_spacegroup(phase.space_group)
+            sg = resolve_group(phase.space_group, phase.symmetry_operations)
             cons = cell_constraints(sg)
         except (ValueError, RuntimeError):
+            continue
+        # Q-17d: a phase refined on its metric coordinates has no per-name
+        # tie/fixed-angle to report through this dict-shaped view — its cell
+        # rows are silent here rather than crashing on the missing attribute,
+        # the same "stay silent" rule this function already applies to a
+        # locked row symmetry is not responsible for.
+        if isinstance(cons, MetricConstraints):
             continue
         where = setting_phrase(sg)
         for name, source in cons.ties.items():
@@ -582,7 +596,8 @@ def _refusals(candidate: Structure, instrument, phase: int) -> list[dict]:
     """
     block = candidate.phases[phase]
     try:
-        check_cell_angles(get_spacegroup(block.space_group),
+        check_cell_angles(resolve_group(block.space_group,
+                                        block.symmetry_operations),
                           {n: getattr(block.cell, n).value
                            for n in ("alpha", "beta", "gamma")})
     except ValueError as exc:
@@ -816,17 +831,43 @@ def _free_path_notes(current: Structure, candidate: Structure, phase: int,
 
 
 def _orbits(structure: Structure, phase: int) -> list[np.ndarray]:
-    """Each asymmetric-unit atom's symmetry orbit, or ``[]`` if the symbol fails.
+    """Each asymmetric-unit atom's symmetry orbit.
 
     The expensive part of the preview — 0.4-1.3 ms an atom, measured — so it is
     computed once and handed to both readers (the collision check and the
     multiplicity half of the site diff) rather than twice.
+
+    **M3 item 5b / small-fixes-20260917 item 2.** This used to catch
+    ``get_spacegroup``'s ``ValueError``/``RuntimeError`` on a bracketed
+    (unnamed) label and return ``[]`` — the audit's only *silent* wrong
+    answer: an orbit-free atom list reads as "no collisions, multiplicity 1
+    everywhere" to both of ``_orbits``' callers, not as "this phase's group
+    could not be read." Refused by name instead, in the same shape
+    :func:`~rietx.crystallography.symmetry.refuse_an_unnamed_parent` raises
+    in (naming the phase and the label) but not by calling it directly: that
+    function's message is about a k-vector's small representations needing
+    the space-group *number*, which is not why this fails — ``expand_positions``
+    only ever needs a group of operations, and would resolve one from
+    ``block.symmetry_operations`` just as ``resolve_group`` does elsewhere,
+    except that this reader is specifically handed the *label* and asked to
+    resolve it as a symbol, and a label is not one (:func:`~rietx.
+    crystallography.symmetry.split_group_label`, the same primitive
+    ``refuse_an_unnamed_parent`` is built from).
     """
     block = structure.phases[phase]
-    try:
-        sg = get_spacegroup(block.space_group)
-    except (ValueError, RuntimeError):
-        return []
+    bracket = split_group_label(str(block.space_group))
+    if bracket is not None:
+        closest, note = bracket
+        raise ValueError(
+            f"_orbits(): phase {block.name!r} states its symmetry as the "
+            f"*label* {block.space_group!r} — no Hermann-Mauguin symbol "
+            f"generates its group in its cell ({note}), so "
+            f"{closest or 'the leading symbol'} names only the closest type. "
+            f"Orbit expansion for the collision check and the site diff needs "
+            f"a symbol this reader can resolve directly; state the phase in a "
+            f"setting a symbol generates, or compare it against another "
+            f"phase in that same setting")
+    sg = get_spacegroup(block.space_group)
     return [np.asarray(expand_positions(sg, np.array(
         [a.x.value, a.y.value, a.z.value])), dtype=float) for a in block.atoms]
 

@@ -972,6 +972,100 @@ def _agreement_line(stats: Statistics) -> str:
     return line
 
 
+class DistortionTotal(Base):
+    r"""AMPLIMODES' per-irrep amplitude A_τ, and what it is the verdict on (M-3).
+
+    An irrep fixes a mode only up to a basis, and an order-parameter direction
+    carrying several free amplitudes has no canonical one: the
+    orthogonalisation of Perez-Mato, Orobengoa & Aroyo (2010), *Acta Cryst.*
+    A**66**, 558, eq (4) is free across irreps and across parent orbits, so any
+    rotation of the amplitudes within one component describes the same
+    structure.  The individual A_{τ,m} therefore mean nothing on their own, and
+    their eq (6)–(7) combination
+
+    .. math:: A_\tau = \Bigl(\sum_m A_{\tau,m}^2\Bigr)^{1/2},
+              \qquad a_{\tau,m} = A_{\tau,m} / A_\tau
+
+    is the quantity that does: A_τ is invariant under every orthogonal change
+    of basis inside the component, and the unit direction {a_{τ,m}} says where
+    in the basis the order parameter points, relative to *that* basis.
+
+    **This is the row a support verdict belongs on**, and it reframes a measured
+    result rather than restating one: Ba₂FeSbSe₅'s S4(a,b) refined 22
+    amplitudes of which "0 of 22" were individually above 2σ, which sounds like
+    a rejection and is instead a statement about the basis somebody chose.
+
+    ``amplitude_esd`` is propagated through the **block** covariance,
+    σ²(A_τ) = aᵀ·Cov(A)·a, in the J·Cov·Jᵀ pattern
+    :func:`~rietx.optimize.qpa.weight_fractions` established and
+    :mod:`rietx.model.geometry` follows — McCusker *et al.* (1999),
+    *J. Appl. Cryst.* **32**, 36, § 10: "the whole correlation matrix, not just
+    the diagonal elements".  ``amplitude_esd_independent`` is the same number
+    off the diagonal alone, carried beside it so the difference § 10 warns
+    about is visible rather than asserted, and it is the **only** one available
+    on a result that stored no covariance (a loaded or replayed fit), where
+    ``amplitude_esd`` is ``None``.
+
+    **The degenerate case is every A_{τ,m} exactly zero.**  A_τ = 0, the unit
+    direction is undefined (0/0), and A_τ = ‖A‖ is not differentiable at the
+    origin, so no esd can be propagated through it at all.  The row then
+    carries ``amplitude = 0.0``, an empty ``unit_direction``, no esd, and a
+    ``note`` saying so — the component states the parent, which is not a
+    measurement of a distortion.
+    """
+
+    phase: str
+    #: the small-irrep label, as ``DistortionMode.irrep_label`` spells it
+    irrep_label: str
+    #: the order-parameter direction, as ``DistortionMode.direction`` spells it
+    direction: str
+    #: the parent propagation vector, as three rational strings
+    k: list[str]
+    #: ``DistortionMode.name`` for every mode of this component, in the phase's
+    #: own list order — the order ``unit_direction`` is written in
+    modes: list[str] = Field(default_factory=list)
+    #: the dot-paths of those amplitudes, same order
+    paths: list[str] = Field(default_factory=list)
+    #: A_τ = (Σ_m A²_{τ,m})^½, in the amplitude's unit (Å for a
+    #: ``displacive_statement`` block).  Non-negative by construction, and with
+    #: no sign to state: the sign lives on the components.
+    amplitude: float = 0.0
+    #: σ(A_τ) through the block covariance, or ``None`` where none was measured
+    #: (a held component, a stage that returned no covariance, a loaded result,
+    #: or A_τ = 0 where the derivative does not exist)
+    amplitude_esd: float | None = None
+    #: σ(A_τ) from the covariance **diagonal** only — the independent
+    #: approximation, quoted beside the correlated one so the difference is
+    #: visible.  Available whenever per-mode esds are
+    amplitude_esd_independent: float | None = None
+    #: {a_{τ,m}}: the unit direction in the component's own basis, same order
+    #: as ``modes``, **in the sign convention**: the primary component is
+    #: positive, so this is the refined direction times :attr:`domain_sign`.
+    #: Empty when A_τ = 0, where it is undefined.
+    unit_direction: list[float] = Field(default_factory=list)
+    #: The component's **primary mode**: the one carrying the largest |A_{τ,m}|,
+    #: ties broken by the phase's own list order.  The mode whose sign the
+    #: convention fixes positive, and the one a reader should quote if they
+    #: quote a single amplitude at all.  Empty when A_τ = 0.
+    primary_mode: str = ""
+    #: +1 when the refined amplitudes already satisfy the convention (the
+    #: primary mode came back positive), −1 when the whole vector had to be
+    #: negated to reach it — which is to say the fit landed in the other
+    #: antiphase domain, an identical structure by every observable.
+    #: Multiplying ``unit_direction`` by this recovers the refined signs, so
+    #: the convention loses nothing and this row is never a second authority
+    #: on ``RefinementResult.parameters``.  0 when A_τ = 0.
+    domain_sign: int = 0
+    #: Å moved by the furthest atom at unit amplitude, the largest over the
+    #: component's modes — 1.0 for a block the builder normalised
+    max_displacement_a: float = 0.0
+    #: how many free amplitudes the component carries
+    n_modes: int = 0
+    #: the verdict, and the one ``DISTORTION_MODE_UNSUPPORTED`` is gated on:
+    #: A_τ above ``DISTORTION_SUPPORT_SIGMA`` × its own esd
+    supported: bool = True
+    note: str = ""
+
 #: What :attr:`RefinementResult.n_extra_components` was called in v1.2, kept as
 #: the one spelling of the legacy name the way
 #: ``schemas.instrument._LEGACY_COMPONENT_FIELD`` is for the field it renames.
@@ -1052,6 +1146,13 @@ class RefinementResult(Base):
     # fighting the data even while Rwp looks good.
     restraints: RestraintReport | None = None
 
+    # The distortion arm's verdict layer (M-3) — see :class:`DistortionTotal`.
+    # A carrier for the reason ``geometry`` and ``microstructure`` are: sigma(A_tau)
+    # is propagated through the **block** covariance read off the final
+    # Jacobian, which is never serialized, so it is measured at fit close or
+    # lost.  A loaded or replayed result keeps what was stored and nothing
+    # downstream recomputes a diagonal-only number and calls it the answer.
+    distortion_totals: list[DistortionTotal] = Field(default_factory=list)
     # Bonding geometry with esds propagated through the full covariance
     # (WP-1072) — see :class:`GeometryTable`.  Rietveld-only, and None when the
     # result did not come from a fit that had a compiled model to search.

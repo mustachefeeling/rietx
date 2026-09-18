@@ -23,6 +23,7 @@ from pydantic import Field
 from ..schemas.common import Base
 from ..schemas.results import (
     CorrelationPair,
+    DistortionTotal,
     GeometryTable,
     PhaseMicrostructure,
     RestraintReport,
@@ -185,7 +186,138 @@ from ..strategy.staged import BACKGROUND_ABSORPTION_GUARD
 #   the Layer-1 branch and left None on the abstained one.  Additive and
 #   defaulted, and no gate moved; it bumps because it is a new field on the
 #   report a consumer enumerates, exactly as 1.3 and 1.4 did.
-THRESHOLDS_VERSION = "1.5"
+# 1.5 → 1.6 (WP-1326): ``FitReport.satellites`` — the satellite arm of the
+#   unexplained-intensity report: for each phase, the enumerated candidate
+#   propagation vectors ranked by how many unexplained peaks fall inside the
+#   report's own validity radius of a satellite at G ± k, plus the two
+#   sentences the arm must always be able to say (the k = 0 ambiguity, and
+#   that a satellite on an X-ray histogram is a superstructure reflection and
+#   not magnetism) — plus the k = 0 signature stated *positively*, a residual
+#   peak on a reciprocal-lattice point the nuclear structure factor forbids.  Additive and defaulted to an empty list, which is the
+#   honest empty state — a report built with no compiled model measured
+#   nothing.  **No new threshold**: the match radius is the existing
+#   ``VALIDITY_RADIUS_FWHM``, deliberately, so the arm cannot be tuned
+#   independently of the layer whose peaks it is reading.  It bumps because it
+#   is a new field on the report a consumer enumerates, exactly as 1.3-1.5 did.
+# 1.6 → 1.7 (WP-1327): ``FitReport.magnetic`` — one row per magnetic site of
+#   the compiled model: the refined |m| with the magnitude the crystal-axis
+#   components imply beside it (the cosine metric, so they agree on an oblique
+#   cell only if the conversion is right), the dipole approximation in force
+#   per ion, the direction DOFs the powder average could not determine, and
+#   whether the modulus is above its floor at all.  Additive and defaulted to
+#   an empty list, which is the honest empty state — no compiled model, no
+#   moment declared, or an X-ray histogram where the term is identically zero.
+#   **No new threshold in the report**: "supported" is
+#   ``schemas.structure.MOMENT_FLOOR_MU_B``, the same floor the hold rule uses,
+#   so the report and the refinement cannot disagree about it.  It bumps
+#   because it is a new field a consumer enumerates, exactly as 1.3-1.6 did.
+# 1.7 → 1.8 (WP-1343): the ``MAGNETIC_WIDTH_UNMODELLED`` gate — the first
+#   diagnostic in this family with thresholds of its own, so this is a real
+#   bump and not an additive-field one.  Four numbers, and the reason each is
+#   here rather than reused: :data:`MAGNETIC_WIDTH_TAIL_FWHM` (the outer edge
+#   of the tail ring; the *inner* edge is the existing
+#   ``VALIDITY_RADIUS_FWHM``, reused deliberately so the arm cannot be tuned
+#   independently of the layer whose peaks it reads),
+#   :data:`MAGNETIC_WIDTH_PURITY` (how magnetic a reflection may be and still
+#   serve as the nuclear control), :data:`MAGNETIC_WIDTH_SIGMA` (how many
+#   times its own measured noise the differential split must exceed) and
+#   :data:`MAGNETIC_WIDTH_MIN_REFLECTIONS` (how many magnetic-only reflections
+#   the statistic needs before it says anything).  No existing threshold, gate
+#   or emission condition moved, and no field was added to any report schema.
+# 1.8 → 1.9 (WP-1343 follow-up): ``MAGNETIC_WIDTH_MOVED_MOMENT`` — one
+#   threshold, :data:`MAGNETIC_WIDTH_MOMENT_SHIFT_SIGMA`, and it is **not**
+#   ``MOMENT_SUPPORT_SIGMA`` re-used, deliberately: this gate is about a
+#   *shift*, not about support.  A width the identifiability arm calls
+#   unmeasured (|value| < 3 esd) can still be strongly correlated with the
+#   moment, and the case that forced it is real — on Ba₂FeSbSe₅ at 1.5 K the
+#   term comes back 0.375 ± 0.283 (1.33 esd, so "unmeasured") while releasing
+#   it moves the tied moment 3.908 → 4.087, which is 1.40 of the off-state
+#   fit's own esd.  Reading only the support ratio there would license
+#   dropping the term, and dropping it puts the moment back 0.18 μ_B low.  No
+#   existing threshold, gate or emission condition moved, and no report field
+#   was added; ``MAGNETIC_WIDTH_UNMEASURED``'s *wording* changes when the new
+#   code fires beside it.
+# 1.9 → 1.10 (M-3, WP-1419 § Inherited's fourth finding): the gate of
+#   ``DISTORTION_MODE_UNSUPPORTED`` **moves from the individual amplitude to
+#   the order parameter**.  No threshold changed — it is still
+#   :data:`DISTORTION_SUPPORT_SIGMA` = 2 — but the quantity compared against it
+#   is now AMPLIMODES' A_τ = (Σ_m A²_{τ,m})^½ over the modes of one
+#   (k, irrep, direction) component, with its esd through the block covariance,
+#   and the emission is one row per component rather than one per mode.  The
+#   old reading was basis-dependent: an irrep fixes its modes only up to an
+#   orthogonal basis of the direction (Perez-Mato, Orobengoa & Aroyo 2010,
+#   eq 4), so rotating the basis moved the verdict without moving the
+#   structure, and Ba₂FeSbSe₅'s "0 of 22 individually supported" is that
+#   artefact rather than a measurement.  **A consumer sees this**: a fit whose
+#   order parameter is supported but whose basis puts the amplitude in one
+#   component used to raise one warning per other mode and now raises none,
+#   and ``Diagnostic.where`` now lists a component's whole path set.  One field
+#   added, ``FitReport.distortion_totals``
+#   (:class:`~rietx.schemas.results.DistortionTotal` rows), defaulted to empty;
+#   ``FitReport.distortion`` is unchanged in shape and meaning and is now the
+#   information layer beneath the verdict.  Riding with it, M-3 item 4: every
+#   printed amplitude now carries :data:`DISTORTION_SIGN_CONVENTION` verbatim —
+#   the ``note`` of every ``DistortionEvidence`` and ``DistortionTotal`` row and
+#   the ``DISTORTION_MODE_UNSUPPORTED`` message — which changes the *text* a
+#   consumer reads on rows whose numbers did not move.
+THRESHOLDS_VERSION = "1.10"
+
+#: WP-1343 follow-up.  How far the moment must move when a magnetic width is
+#: released before the release is called a *measurement of the correlation*,
+#: in units of the tighter of the two fits' own esds.
+#:
+#: **1.0, and the unit is the point.**  The question this answers is not "is
+#: the width significant" — that is ``MOMENT_SUPPORT_SIGMA``'s question one
+#: parameter over — but "did holding the width at zero bias the number a
+#: reader would have quoted".  So the bar is one error bar: a shift the
+#: off-state fit's own uncertainty does not cover is a shift that fit got
+#: wrong by more than it claimed.
+#:
+#: The denominator is ``min(esd_off_state, esd_released)`` and that choice is
+#: measured rather than tidy.  Against the *released* esd alone the
+#: Ba₂FeSbSe₅ case reads 0.179/0.18 = **0.994** and would miss the bar by
+#: 0.6 %, while against the off-state esd it reads 0.179/0.128 = **1.40**.
+#: The off-state number is the one that would have been published, so its
+#: error bar is the honest yardstick; taking the *minimum* keeps that without
+#: making the answer depend on which of the two fits happened to be looser.
+MAGNETIC_WIDTH_MOMENT_SHIFT_SIGMA = 1.0
+
+#: WP-1343 — the ``MAGNETIC_WIDTH_UNMODELLED`` family.  The statistic is the
+#: centre-versus-tails sign split of the *weighted* residual at a phase's
+#: magnetic-only reflections **minus** the same split at its nuclear-only
+#: ones, and these four numbers are its whole tuning surface.
+#:
+#: The tail ring runs from ``VALIDITY_RADIUS_FWHM`` (0.4 FWHM: the report's own
+#: linearisation radius, where a peak's misfit stops being a shift and starts
+#: being a shape) out to this multiple of the drawn FWHM.  2.0 because a
+#: Lorentzian's half-area sits inside ±0.5 FWHM and the excess of a
+#: *broader* observed peak is concentrated between 0.4 and 2 FWHM — further
+#: out the ring is background and dilutes the mean it contributes to.
+MAGNETIC_WIDTH_TAIL_FWHM = 2.0
+#: How far from pure a reflection may be and still serve as one of the two
+#: sets: the *nuclear* control needs a magnetic fraction
+#: p²⟨|F_⊥|²⟩/(⟨|F_N|²⟩ + p²⟨|F_⊥|²⟩) at or below this, the *magnetic* set one
+#: at or above 1 − this.  On a k = 0 structure most nuclear reflections carry
+#: some magnetic intensity, and a half-magnetic reflection belongs to neither
+#: set: putting it in the control would subtract part of the very signal being
+#: looked for.  Both sides read the fraction rather than
+#: ``CompiledPhase.nuclear_mask``, which marks only the rows a k = 0 magnetic
+#: group's absences added — on a k ≠ 0 supercell the strongest magnetic
+#: reflections are in the child's own list with the mask at 1.0 and ⟨|F_N|²⟩
+#: exactly zero (measured: 12 such rows against 3 masked ones on a Pnma →
+#: P2₁/m ``2a,b,a+c`` cell).
+MAGNETIC_WIDTH_PURITY = 0.05
+#: How many times its own noise the differential split must exceed before the
+#: diagnostic fires.  3.0 is this package's standing significance bar
+#: (``MIN_COEF_SIGNIFICANCE`` one layer over) and the noise is *measured* —
+#: the pooled scatter of the channels actually read — so a fit with GoF 3 is
+#: judged against its own residual rather than an assumed unit variance.
+MAGNETIC_WIDTH_SIGMA = 3.0
+#: Magnetic-only reflections needed before the statistic is quoted at all.
+#: Two, because one reflection's centre-vs-tails split is one number with no
+#: internal check and any local misfit — an unmodelled impurity line, a
+#: mis-placed background hump — would produce it.
+MAGNETIC_WIDTH_MIN_REFLECTIONS = 2
 
 #: linearisation is only meaningful for peak shifts well inside the peak; past
 #: this fraction of FWHM the answer is "re-detect the peak", not "shift it"
@@ -459,6 +591,109 @@ class UnmatchedPeak(Base):
     two_theta: float
     height_over_sigma: float
     kind: str  # "unmatched_obs" (no calc tick nearby) | "unmatched_calc"
+
+
+class SatelliteCandidate(Base):
+    """One candidate propagation vector, scored against the unexplained peaks.
+
+    ``matched`` is how many of the report's unexplained observed peaks fall
+    within :data:`VALIDITY_RADIUS_FWHM` of a satellite position generated from
+    this k — the *report's own* radius, not a second one, so the arm cannot be
+    tuned independently of the layer whose peaks it reads.
+
+    **This is a ranking and never a singleton** (the indexing rule, root
+    ``CLAUDE.md``): the whole list is published in order, and a k at the top of
+    it is a hypothesis worth testing rather than an answer.  ``matched`` is a
+    count of *positions*, which is the only thing this rung measures — no
+    intensity is computed anywhere, because computing one would need a moment.
+
+    ``cdml`` is the CDML k-label a user would cross-check against MAGNDATA or
+    ISODISTORT, and is ``None`` until those tables are sourced
+    (``crystallography.satellites.cdml_label``); ``vector`` — the plain
+    spelling — is always there.
+    """
+
+    k: list[str]                 # three exact rationals, e.g. ["0", "0", "1/2"]
+    name: str                    # positional, deterministic within a generator
+    vector: str                  # "(0, 0, 1/2)"
+    cdml: str | None = None
+    #: how many satellite positions this k puts inside the fitted range
+    n_satellites: int = 0
+    #: arms of the star of k — how many distinct directions the powder averages
+    star_size: int = 1
+    #: False when 2k is a reciprocal-lattice vector, i.e. −k ≡ k (the FullProf
+    #: manual's ±k rule, which is centring-aware)
+    minus_k_distinct: bool = True
+    matched: int = 0
+    #: ``matched`` over the number of unexplained peaks; 0.0 when there are none
+    matched_fraction: float = 0.0
+    #: the largest |Δ2θ| among the matched peaks, in degrees; None when none
+    #: matched
+    worst_offset_deg: float | None = None
+
+
+class SatelliteEvidence(Base):
+    """Does the unexplained intensity index as satellites of a small set of k?
+
+    The arm WP-1326 adds to the unexplained-intensity report, and the whole of
+    what this rung can say: **a satellite is a position**.  No moment, no
+    magnetic form factor and no magnetic symmetry enters, which is exactly why
+    a user can run it before deciding whether the hypothesis is worth the model.
+
+    Two statements it must always be able to make, because both are cases where
+    the ranking below means nothing:
+
+    * ``excess_on_nuclear_lines`` — the residual peaks sit *on* calculated
+      reflections.  With k = 0 the satellites coincide with the nuclear lines,
+      so a Le Bail extraction absorbs the magnetic intensity into the nuclear
+      intensities: a k = 0 structure and a nuclear misfit look alike here and
+      this route cannot separate them.  What does is a pattern of the same
+      specimen above its ordering temperature (WP-1329 makes that a series).
+    * ``excess_on_absent_lattice_lines`` — they sit on reciprocal-lattice
+      points the nuclear structure factor forbids.  That is **not** an
+      ambiguity: no nuclear model can put intensity at a systematic absence,
+      right or wrong, and a magnetic space group generally does not carry the
+      parent's glide and screw operations, so this is the k = 0 signature
+      stated positively.  Measured on the Cr₂WO₆ 4 K pattern, whose two
+      strongest residual peaks are the absent (0 0 1) and (1 0 2).
+    * ``radiation`` — on an X-ray histogram a satellite is a **superstructure**
+      reflection, not magnetism.  The positions are the same and the inference
+      is not.
+
+    ``candidates`` is empty when there was nothing to score, and that is not a
+    result about the specimen.  A good pattern can also score nothing because
+    the candidate set is *enumerated*: an incommensurate k is outside it by
+    construction, and so is every commensurate k the generator does not list.
+    """
+
+    phase_index: int
+    #: ``"neutron"`` or ``"xray"`` — read off the compiled phase's amplitude
+    #: (a bound coherent scattering length means neutrons), never assumed
+    radiation: str
+    #: positive residual peaks the arm sorted, before any of them was scored
+    n_residual_peaks: int = 0
+    #: peaks at neither of the two below — the ones the ranking was scored
+    #: against, because they are the only ones that need a satellite
+    n_unexplained: int = 0
+    #: positive residual peaks that sit on a **calculated reflection** — a
+    #: nuclear misfit, or a k = 0 structure, and this route cannot tell them
+    #: apart
+    excess_on_nuclear_lines: int = 0
+    #: positive residual peaks that sit on a **reciprocal-lattice point the
+    #: nuclear structure factor forbids**.  The sharp k = 0 signature and a
+    #: positive result: a magnetic space group generally drops the parent's
+    #: glide and screw operations, so a k = 0 structure puts intensity where no
+    #: nuclear model — right or wrong — can put any.
+    excess_on_absent_lattice_lines: int = 0
+    #: the k this phase already declares, if any; the arm still scores, because
+    #: "does another k explain the rest" is a question a declared one does not
+    #: answer
+    declared_k: list[str] | None = None
+    #: which generator produced the candidate set (issue #257 A1)
+    generator: str = ""
+    candidates: list[SatelliteCandidate] = Field(default_factory=list)
+    #: the sentences above, rendered — always non-empty
+    note: str = ""
 
 
 class BackgroundEvidence(Base):
@@ -1072,6 +1307,205 @@ class StageReport(Base):
     worst_absorption_path: str | None = None
 
 
+#: How many of its own esds a moment must be before the report calls it
+#: supported (WP-1327).  Three, and the choice is measured rather than
+#: conventional: the Cr₂WO₆ tutorial data gives |m|/σ = 0.17 at 150 K, above
+#: the ordering temperature, and 44 at 4 K, so anything from 1 to 20 separates
+#: them and 3 is the middle of the usable range on a log scale.  rietx's esds
+#: are Bérar-Lelann-inflated, which makes this test *conservative* — the
+#: factor is reported as ``Statistics.esd_inflation`` for a reader who wants
+#: to divide it back out.
+MOMENT_SUPPORT_SIGMA = 3.0
+
+#: |rho| above which two magnetic sites' modulus DOFs (``moment.dof0``) are
+#: read as a powder-degenerate pair (Q4/Q5 follow-up to WP-1327) rather than
+#: two independently measured moduli.  0.95 is Prince's "worthwhile"
+#: correlation bar (*Mathematical Techniques* 3rd ed. ch. 8, already quoted
+#: beside :class:`~rietx.schemas.results.SoftMode`) — at or above it the two
+#: parameters are, for practical purposes, one direction of the least-squares
+#: problem, which is exactly ``isotropy.determinable_amplitudes``'s pre-fit
+#: SVD-rank deficiency read off the *actual fitted* covariance instead: a
+#: rank of 1 where 2 amplitudes were free is |rho| -> 1 between them, not a
+#: separate criterion.
+MOMENT_PAIR_RHO_MIN = 0.95
+
+
+class MomentEvidence(Base):
+    """What the fit measured of one site's magnetic moment (WP-1327).
+
+    ``magnitude`` is the refined modulus DOF — the parameter that carries the
+    esd, which is read from ``RefinementResult.parameters`` at
+    ``phases.i.atoms.j.moment.dof0`` rather than duplicated here (WP-1076: one
+    writer per number).  ``magnitude_from_components`` is |m| recomputed from
+    the crystal-axis components with the magCIF *cosine* metric; the two agree
+    to roundoff when the conversion is right and disagree by up to 41 % on a
+    hexagonal cell when someone reaches for the Euclidean norm, which is why
+    both are here.
+
+    ``unmeasured_directions`` names the DOFs the powder average could not
+    determine — ``"polar"``, ``"azimuth"`` — and they are *held*, so they carry
+    no esd at all.
+
+    ``supported`` is the WP's null test, and it is a **ratio, not a floor**.
+    Measured on the Cr₂WO₆ tutorial data: refined against the 150 K pattern,
+    above the ordering temperature, the modulus does not go to zero — it lands
+    at 0.067 μ_B with an esd of 0.395, six times larger.  An absolute floor
+    calls that supported; the honest reading is that the moment is not
+    distinguishable from none, and the number that says so is |m|/σ.  So
+    ``supported`` is False whenever the modulus is below
+    :data:`~rietx.schemas.structure.MOMENT_FLOOR_MU_B` **or** below
+    :data:`MOMENT_SUPPORT_SIGMA` times its own esd.  At 4 K the same model
+    gives 2.010 ± 0.046 — a ratio of 44 — and the answer flips.
+    """
+
+    phase: str
+    atom: str
+    #: the magnetic form-factor key, e.g. ``"Cr3+"`` — not ``Atom.species``
+    ion: str
+    #: The dot-path of the **modulus** DOF this row is about —
+    #: ``phases.i.atoms.j.moment.dof0``.  ``phase`` and ``atom`` are *labels*,
+    #: chosen for a reader, and two phases may legitimately carry the same
+    #: atom label; the path is the key, and it is the one thing a caller needs
+    #: to reach the same number in ``RefinementResult.parameters`` or to seed
+    #: it on the next pattern of a series (WP-1329's carry rule).  Empty only
+    #: on a row built before this field existed.
+    path: str = ""
+    magnitude: float
+    #: the modulus's esd, **copied** from ``RefinementResult.parameters`` and
+    #: never recomputed here; ``None`` when the block did not refine.  It is
+    #: carried because ``supported`` is a ratio and the reader needs both
+    #: halves of it, and it is Bérar-Lelann-inflated like every other esd this
+    #: package quotes (``Statistics.esd_inflation`` divides the factor back
+    #: out).
+    magnitude_esd: float | None = None
+    magnitude_from_components: float = 0.0
+    crystalaxis: list[float]
+    #: the dipole approximation in force for this ion, named
+    approximation: str
+    #: every direction DOF the site symmetry leaves free, in DOF order
+    free_directions: list[str] = Field(default_factory=list)
+    #: those of them the powder average does not determine
+    unmeasured_directions: list[str] = Field(default_factory=list)
+    #: paths of the other ``MomentEvidence`` rows this modulus is powder-
+    #: degenerate with (Q5) -- empty for an ordinary, separately determined
+    #: row.  ``magnitude``/``magnitude_esd`` above stay this row's own refined
+    #: DOF and its esd (still what a magCIF writes per atom); the number the
+    #: powder actually measures for the pair is :attr:`paired_magnitude`.
+    paired_with: list[str] = Field(default_factory=list)
+    #: the powder-determinable combination this row belongs to when
+    #: :attr:`paired_with` is non-empty: the quadrature sum sqrt(Sigma m^2)
+    #: over the paired rows, with its esd propagated from their *measured*
+    #: covariance (``rho x sigma_i x sigma_j``, not the independent
+    #: approximation) -- ``MOMENT_PAIR_DEGENERATE`` names this pair.  ``None``
+    #: for an ordinary row.
+    paired_magnitude: float | None = None
+    paired_magnitude_esd: float | None = None
+    supported: bool = True
+    note: str = ""
+
+
+#: How many of its own esds a distortion-mode amplitude must be before the
+#: report calls it supported, and what ``DISTORTION_MODE_UNSUPPORTED`` fires
+#: below.  **Two, not the moment's three**, and the difference is the brief's
+#: (M-1) and is defensible for one reason: a mode amplitude is a *declared*
+#: hypothesis with one degree of freedom, tested against a parent that already
+#: fits, so the question asked of it is "did this one parameter earn its
+#: place", which is the 2σ question and the same threshold ΔBIC is read
+#: alongside.  A moment's three is a floor on a quantity that also carries
+#: undetermined directions.
+DISTORTION_SUPPORT_SIGMA = 2.0
+
+#: The sentence every printed distortion amplitude carries, verbatim.  One
+#: string rather than a phrasing per printer, so a reader meets the same words
+#: on a report row, a diagnostic and a docstring, and a test can grep for it.
+#:
+#: **The convention, and why this one.**  A zone-boundary displacive mode
+#: contributes to a superstructure reflection through a structure factor odd in
+#: its amplitude and the intensity is |F|², so sending the *whole* amplitude
+#: vector to −A gives the identical powder pattern: the parent translation the
+#: k-doubling lost maps the structure onto its other antiphase domain and flips
+#: the primary mode's sign alone (Perez-Mato, Orobengoa & Aroyo 2010,
+#: *Acta Cryst.* A**66**, 558, § 7).  Measured: two runs of one toy seeded at
+#: ±0.005 converged to ∓0.01251 with Rwp agreeing to fifteen digits.
+#:
+#: So the overall sign is a **domain label** — but the *relative* signs inside a
+#: component are not, and they are what says whether two sublattices move
+#: together or against each other.  Dropping every sign in favour of |A| would
+#: throw that away, so this package keeps the signs and fixes the gauge instead:
+#: the component's **primary mode** — the one with the largest |A| — is stated
+#: positive, and every other amplitude's sign is read relative to it.
+#: ``DistortionTotal.domain_sign`` records which way the refined vector had to
+#: be turned to satisfy that, so nothing is lost and no printed number is a
+#: second authority on the refined one.
+DISTORTION_SIGN_CONVENTION = (
+    "the sign of an amplitude is a domain convention, not a measurement: the "
+    "primary mode of each component is stated positive and every other sign is "
+    "relative to it (Perez-Mato, Orobengoa & Aroyo 2010 § 7)")
+
+
+class DistortionEvidence(Base):
+    """What the fit measured of one displacive mode amplitude (M-1).
+
+    ``amplitude`` is the refined value in Å and ``amplitude_esd`` its esd,
+    **copied** from ``RefinementResult.parameters`` at :attr:`path` rather than
+    recomputed (one writer per number).  ``max_displacement_a`` is how far unit
+    amplitude moves the furthest atom of this mode, in Å — 1.0 for a mode built
+    by
+    :func:`~rietx.crystallography.magnetic.supercell.displacive_statement`,
+    which is what makes the amplitude an ångström; any other value says the
+    block was normalised elsewhere, and then ``amplitude`` is in *those* units
+    and ``amplitude × max_displacement_a`` is the ångströms.  Both are here for
+    the reason ``MomentEvidence`` carries |m| twice.
+
+    ``amplitude`` is reported **signed as refined and read as |A|**: a
+    zone-boundary displacive mode enters a superstructure structure factor odd
+    in A and the intensity is |F|², so A and −A are the same pattern and the
+    sign is whichever side of zero the optimiser started on.
+
+    ``supported`` is a ratio, not a floor, for the reason
+    :class:`MomentEvidence`'s is: |F|² is even in A, so a mode the data cannot
+    see is a flat direction and the fit leaves the amplitude wherever it was
+    seeded — a small number with a large esd, not a zero.
+    """
+
+    phase: str
+    #: :attr:`~rietx.schemas.structure.DistortionMode.name`
+    mode: str
+    #: the dot-path of the amplitude —
+    #: ``phases.i.distortion_modes.n.amplitude``.  The key a caller reaches the
+    #: same number by in ``RefinementResult.parameters`` or
+    #: ``SeriesResult.trajectory``.
+    path: str
+    irrep_label: str
+    direction: str
+    #: the parent propagation vector, as three rational strings
+    k: list[str]
+    #: the parent site label the mode's orbit came from, empty where the mode
+    #: spans several
+    parent_site: str = ""
+    amplitude: float
+    amplitude_esd: float | None = None
+    #: Å moved by the furthest atom at unit amplitude — 1.0 by the builder's
+    #: normalisation convention
+    max_displacement_a: float = 0.0
+    #: |A| × ``max_displacement_a``: the largest atomic displacement this mode
+    #: currently states, in Å.  Derived, and here because it is the number a
+    #: crystallographer judges plausibility with — 2.8 Å is not a distortion.
+    displacement_a: float = 0.0
+    #: how many atoms of the phase this mode moves at all
+    n_atoms_moved: int = 0
+    #: whether **this component of the basis** is above its own 2σ.  Kept, and
+    #: no longer the verdict (M-3): the individual A_{τ,m} are basis-dependent,
+    #: so "is this one component supported" is a question the arbitrary
+    #: orthogonalisation chose rather than one the data answers.  The verdict
+    #: is :attr:`DistortionTotal.supported` on the row above, and
+    #: ``DISTORTION_MODE_UNSUPPORTED`` is gated there.  This field stays
+    #: because the per-component reading is still *information* — it is what
+    #: says a basis is badly conditioned for this data.
+    supported: bool = True
+    note: str = ""
+
+
 # ----------------------------------------------------------------------
 class FitReport(Base):
     """All three layers.  Layer 1/2 fields stay empty when not computed."""
@@ -1085,6 +1519,33 @@ class FitReport(Base):
     regions: list[Region] = Field(default_factory=list)
     n_regions_total: int = 0
     unmatched: list[UnmatchedPeak] = Field(default_factory=list)
+    #: the satellite arm (WP-1326): per phase, whether the unexplained
+    #: intensity indexes as satellites of an enumerated candidate set of
+    #: propagation vectors.  Empty when no compiled model was supplied — the
+    #: arm needs the cell, the symmetry and the radiation — which is absence
+    #: for cause and never "no candidate scored".
+    satellites: list[SatelliteEvidence] = Field(default_factory=list)
+    #: the moment arm (WP-1327): one row per magnetic site, with the magnitude
+    #: the fit measured, the dipole approximation in force, the direction the
+    #: powder average could not determine, and whether the modulus is above
+    #: its floor at all.  Empty when no compiled model was supplied, when no
+    #: phase declares a moment, or on an X-ray histogram — absence for cause
+    #: in all three, never "no moment was found".
+    magnetic: list[MomentEvidence] = Field(default_factory=list)
+    #: the distortion arm (M-1): one row per declared displacive mode, with the
+    #: amplitude the fit measured, its esd, the largest atomic displacement it
+    #: states in Å, and whether the amplitude is above 2σ at all.  Empty when
+    #: no phase declares a mode — absence for cause, never "no distortion was
+    #: found": a mode is a *declared* hypothesis and this arm reports on the
+    #: ones that were declared.
+    distortion: list[DistortionEvidence] = Field(default_factory=list)
+    #: the distortion arm's **verdict** layer (M-3): one row per
+    #: (k, irrep, direction) component, carrying AMPLIMODES' basis-independent
+    #: A_τ with its esd through the block covariance, and the unit direction
+    #: the arbitrary basis puts the order parameter along.  ``distortion``
+    #: above is the per-mode information beneath it.  Empty exactly when
+    #: ``distortion`` is — absence for cause, never "no distortion was found".
+    distortion_totals: list[DistortionTotal] = Field(default_factory=list)
     #: structural-vs-profile triage (Layer-0 in trustworthiness, though it
     #: needs the compiled model to run).  Absent for cause: None when the fit
     #: is already Le Bail/Pawley (the mode *is* an intensity-free description,

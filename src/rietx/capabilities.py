@@ -503,6 +503,12 @@ _SURFACE_FLAGS: dict[str, str] = {
     # open", and a recipe is a whole refinement rather than a pattern, so it
     # is a *feature* of the build and not a pattern format.
     "powderline_recipe": "read_recipe",
+    # magnetic structure *determination* (M-9), which ``magnetic_moments``
+    # does not answer: that flag says a stated moment model is expressible and
+    # refinable, this one says the package will go from a nuclear fit with
+    # unexplained intensity to a ranked list of candidate structures on its
+    # own.  A client offering "solve" as a button needs the second.
+    "magnetic_determination": "solve_magnetic",
     # foreign refinement files (WP-1118).  The flag reports the *front door*,
     # not a format: which formats there are is ``project_formats``, and a build
     # that grows one should not need this flag edited.
@@ -526,7 +532,7 @@ def _features() -> dict[str, bool]:
     from .model import compiled
     from .refine import Refinement
     from .schemas.instrument import Geometry, Instrument, Source
-    from .schemas.structure import Atom, Phase
+    from .schemas.structure import Atom, Phase, Structure
 
     return {
         # corrections and model extensions, asked of the schemas
@@ -535,6 +541,26 @@ def _features() -> dict[str, bool]:
         "stephens_strain": "microstrain" in Phase.model_fields,
         "secondary_extinction": "extinction" in Phase.model_fields,
         "restraints": "restraints" in Phase.model_fields,
+        # a commensurate propagation vector, hence satellites at G ± k
+        # (WP-1326).  Derived from the field, so it flips on its own
+        # exactly as the rest of this arm does.
+        "satellites": "propagation_vector" in Phase.model_fields,
+        # a magnetic moment on a site under a magnetic space group, refined
+        # against a neutron histogram (WP-1327).  Derived from the fields, like
+        # every flag here: the two together are what makes a moment model
+        # expressible at all, and either alone is not.  Which *radiations* carry
+        # the term is ``forward.magnetic_wanted``'s answer and is reported per
+        # source kind in the radiation arm above rather than as a second flag
+        # here.
+        "magnetic_moments": ("magnetic_symmetry" in Phase.model_fields
+                             and "moment" in Atom.model_fields),
+        # whether a magCIF reads and writes — the interchange half (WP-1328),
+        # which `magnetic_moments` does not answer: a build could carry the
+        # model and not the format.  Derived from the reader's own signature
+        # rather than from a module's existence, so it flips if the arm is
+        # removed and not merely if a file is renamed.
+        "magnetic_interchange": "moment_ions" in inspect.signature(
+            Structure.from_cif).parameters,
         "surface_roughness": "surface_roughness" in Geometry.model_fields,
         "capillary_absorption": "mu_r" in Geometry.model_fields,
         "flat_plate_absorption": "mu_t" in Geometry.model_fields,

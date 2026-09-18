@@ -20,7 +20,9 @@ approximate — thing to enumerate here.
 from __future__ import annotations
 
 import functools
+import re
 from dataclasses import dataclass, field
+from fractions import Fraction
 
 import gemmi
 import numpy as np
@@ -53,6 +55,288 @@ def get_spacegroup(symbol: str) -> gemmi.SpaceGroup:
     if sg is None:
         raise ValueError(f"unknown space group symbol: {symbol!r}")
     return sg
+
+
+# ---------------------------------------------------------------------------
+# a group given by its operations rather than by a symbol
+# ---------------------------------------------------------------------------
+#: The bracketed-label form.  A ``Phase.space_group`` ending in ``[...]`` is a
+#: **label**, not a resolvable symbol: it says "no Hermann-Mauguin symbol names
+#: this group in this cell", and the group itself is then
+#: ``Phase.symmetry_operations``.  The text before the bracket is the closest
+#: standard *type* (what spglib identifies the operation list as, which is a
+#: statement about the type and not about the setting) and the text inside says
+#: why the symbol is not enough — usually the cell.
+_LABEL = re.compile(r"^(?P<symbol>.*?)\s*\[(?P<note>[^\]]+)\]$")
+
+
+def split_group_label(text: str) -> tuple[str, str] | None:
+    """``("P m 1 1", "unnamed in 2a,b,a+c")`` for a bracketed label, else ``None``.
+
+    The one authority for the bracket convention, so the schema validator, the
+    supercell builder and the CIF writer cannot spell it three ways.
+    """
+    m = _LABEL.match(str(text).strip())
+    if m is None:
+        return None
+    return m.group("symbol").strip(), m.group("note").strip()
+
+
+def refuse_an_unnamed_parent(phase, caller: str, *, path: str = "space_group"
+                             ) -> None:
+    """Refuse to derive a child from a parent whose group only a list names.
+
+    The bracketed label is a *label* (:func:`split_group_label`), and gemmi
+    raises on it — "the bracket fails loudly, which is the safety property
+    working" (WP-1419 § Inherited).  But loudly is not the same as *usefully*:
+    on the path this guards, the caller got
+    ``ValueError: unknown space group symbol: 'Pm [unnamed in 2a,b,a+c]'``
+    from four frames down, with no phase named, no mention of the bracket
+    convention and nothing to do about it.
+
+    **Why this is a refusal and not a pass-through.**  Every other consumer of
+    a phase's symmetry resolves it with :func:`resolve_group` and works from
+    the operation list.  The derivations this guards cannot: the small
+    representations of a k-vector come from tables keyed on the *space-group
+    number* (:mod:`rietx.crystallography.magnetic.irreps`), and a group stated
+    only as an operation list in a non-standard cell has no number.  So there
+    is no operation list to fall back on here, and the honest answer is to say
+    which phase, which label, and that the parent of a mode or supercell
+    statement has to be a structure a symbol names.
+
+    ``caller`` is the public function's own name, so the message says where the
+    refusal came from rather than where it was implemented (WP-1103's
+    third-member rule: the exporters and the derivations refuse rather than
+    hand on a symbol they cannot honour).
+    """
+    label = getattr(phase, "space_group", "")
+    bracket = split_group_label(str(label))
+    if bracket is None:
+        return
+    closest, note = bracket
+    raise ValueError(
+        f"{caller}: the parent phase {getattr(phase, 'name', '?')!r} states "
+        f"its symmetry as the *label* {label!r} — no Hermann-Mauguin symbol "
+        f"generates its group in its cell ({note}), so the group is its "
+        f"symmetry_operations list and {closest or 'the leading symbol'} names "
+        f"only the closest type. This derivation needs a named parent: the "
+        f"small representations of a k-vector come from tables keyed on the "
+        f"space-group number, and an operation list in a non-standard cell has "
+        f"no number to key on. Derive the child from the original named parent "
+        f"with the composed transform, or restate this phase in a setting a "
+        f"symbol generates, rather than from a child that is itself unnamed "
+        f"(phases.*.{path})")
+
+
+def unnamed_label(closest: str | None, note: str) -> str:
+    """The bracketed label for a group no symbol reproduces in its cell."""
+    head = (closest or "").strip()
+    return f"{head} [{note}]" if head else f"[{note}]"
+
+
+@functools.lru_cache(maxsize=256)
+def _op_list_from_xyz(xyz: tuple[str, ...]) -> tuple[gemmi.Op, ...]:
+    """The operations of an explicit ``x,y,z`` list, **in the given order**.
+
+    Order is load-bearing and gemmi's ``GroupOps`` does not preserve it: built
+    from a flat 192-operation list it re-splits the group into 48 coset
+    representatives times 4 centrings and picks *different* representatives
+    (measured on ``F d -3 m:2``: the 18th operation comes back as ``y,z,x``
+    where the table has ``y,z+1/2,x+1/2``, the same operation times a
+    centring), so the product it iterates is a permutation of what went in.
+    Orbit images are listed in operation order and
+    ``structure_factor.select_orbit_ops`` freezes that order onto the compiled
+    model, so a permutation reorders the structure-factor sum and changes the
+    last bits of every intensity.  Keeping the caller's order is what makes a
+    phase carrying the operation list of a *named* group predict bit-identically
+    to the same phase carrying only the symbol.
+    """
+    if not xyz:
+        raise ValueError("symmetry_operations: the list is empty; a group has "
+                         "at least the identity in it")
+    try:
+        return tuple(gemmi.Op(str(s)) for s in xyz)
+    except (RuntimeError, ValueError) as exc:
+        raise ValueError(
+            f"symmetry_operations: {exc} — an operation is an 'x,y,z'-style "
+            f"triplet such as 'x,y,z' or '-x+1/2,y,z+1/4'") from exc
+
+
+@functools.lru_cache(maxsize=256)
+def _ops_from_xyz(xyz: tuple[str, ...]) -> gemmi.GroupOps:
+    """gemmi's group object for an explicit list — for absences and epsilon.
+
+    The *set* is what a systematic-absence or epsilon-factor test reads, so the
+    reordering :func:`_op_list_from_xyz` warns about is harmless here; anything
+    that reads the operations one by one must use that function instead.
+    """
+    return gemmi.GroupOps(list(_op_list_from_xyz(xyz)))
+
+
+@functools.lru_cache(maxsize=256)
+def _closest_type(xyz: tuple[str, ...]) -> gemmi.SpaceGroup | None:
+    """The tabulated group with this operation list's rotations and centring.
+
+    gemmi's ``derive_symmorphic`` drops every operation's translation part but
+    keeps the centring, so what comes back has the **same point group and the
+    same lattice** as the given list and differs from it only in the screw and
+    glide translations — the very things a doubled cell turns into quarters.
+    Every symmorphic group is tabulated, so this resolves for any operation
+    list that is a space group at all, and it is what makes the metric
+    constraints of an unnamed group knowable: ``cell_constraints`` reads only
+    the crystal system, the ``R``-axes extension and the monoclinic unique
+    axis, and all three are properties of the point group and the lattice.
+
+    **Two tries, and the second is the one the real cases need.**  A child
+    group carries the *parent's* lattice translation — the nuclear structure is
+    still periodic on it; only the magnetic or displacive order is not — and a
+    half translation along one axis is no tabulated Bravais centring, so gemmi
+    reads it as a centring it cannot name and the symmorphic lookup returns
+    nothing.  Measured on Ba₂FeSbSe₅'s S3(a,b) child in 2a,b,a+c: the
+    operations are {x,y,z; x+½,y,z; x,−y+½,z; x+½,−y+½,z}, the symmorphic
+    derivation keeps the (½,0,0) "centring", and ``find_spacegroup_by_ops``
+    gives ``None``.  Dropping to the bare **point group on a P lattice** then
+    resolves it as ``P 1 m 1`` — monoclinic, unique axis b, which is what the
+    child cell is.  That second try is safe for the three keys
+    :func:`cell_constraints` reads: a centring changes neither the crystal
+    system nor the monoclinic unique axis, and the one setting where the
+    lattice *is* load-bearing — trigonal on rhombohedral axes, ``ext == "R"`` —
+    is named by the **first** try, because an R centring is tabulated.
+
+    ``None`` only when even the point group does not resolve, which means the
+    list is not a crystallographic group in this setting — a caller error
+    rather than a naming problem.
+    """
+    ops = _ops_from_xyz(xyz)
+    found = gemmi.find_spacegroup_by_ops(ops.derive_symmorphic())
+    if found is not None:
+        return found
+    seen: dict[tuple[int, ...], gemmi.Op] = {}
+    for op in ops:
+        bare = gemmi.Op("x,y,z")
+        bare.rot = [list(row) for row in op.rot]
+        bare.tran = [0, 0, 0]
+        seen.setdefault(tuple(v for row in op.rot for v in row), bare)
+    return gemmi.find_spacegroup_by_ops(gemmi.GroupOps(list(seen.values())))
+
+
+@dataclass(frozen=True)
+class OperatorGroup:
+    """A space group stated as its operation list, under a label.
+
+    **Why this exists.**  A parent operation whose translation along a doubled
+    axis is a half becomes a *quarter* in the child cell, and no Hermann-Mauguin
+    symbol in any tabulated setting has a quarter in its operation list.  Such a
+    group is a perfectly good space group of that cell — it has orbits, site
+    multiplicities and systematic absences like any other — and the only thing
+    it lacks is a name.  Before this class the package could only store a
+    symbol, so the honest answer was a refusal
+    (``magnetic.supercell.resolve_child_group``, which now states it); with it the
+    answer is the operation list plus a label that says the symbol does not
+    generate it.
+
+    ``label`` is what :attr:`~rietx.schemas.structure.Phase.space_group` holds —
+    the bracketed form :func:`unnamed_label` builds.  ``xyz`` is the operation
+    list, in the caller's order, because a CIF symmetry code is an index into a
+    listed order and the order therefore has to survive a round trip.
+
+    The gemmi-shaped surface (:meth:`operations`, :meth:`xhm`, :attr:`hm`,
+    :attr:`ext`, :meth:`crystal_system_str`, :meth:`monoclinic_unique_axis`) is
+    what every consumer in this package already asks a ``gemmi.SpaceGroup``
+    for, so :func:`resolve_group` can hand either object to any of them.  The
+    four *naming* members delegate to :attr:`closest_type` and the reason they
+    may is the one :func:`_closest_type` states: the symmorphic derivation has
+    this list's point group and lattice exactly.
+    """
+
+    label: str
+    xyz: tuple[str, ...]
+
+    def operations(self) -> gemmi.GroupOps:
+        return _ops_from_xyz(self.xyz)
+
+    def xhm(self) -> str:
+        return self.label
+
+    @property
+    def closest_type(self) -> gemmi.SpaceGroup:
+        """The symmorphic group with the same point group and lattice."""
+        found = _closest_type(self.xyz)
+        if found is None:
+            raise ValueError(
+                f"the operation list of {self.label!r} ({len(self.xyz)} "
+                f"operations) has no symmorphic space group in gemmi's table, "
+                f"so it is not a crystallographic group in this setting and "
+                f"neither its crystal system nor its cell constraints are "
+                f"defined. Check the list: {', '.join(self.xyz[:4])}...")
+        return found
+
+    @property
+    def hm(self) -> str:
+        return self.closest_type.hm
+
+    @property
+    def ext(self) -> str:
+        return self.closest_type.ext
+
+    @property
+    def number(self) -> int:
+        """The *closest type's* IT number — a type, never this group's name."""
+        return int(self.closest_type.number)
+
+    def crystal_system_str(self) -> str:
+        return self.closest_type.crystal_system_str()
+
+    def monoclinic_unique_axis(self) -> str:
+        return self.closest_type.monoclinic_unique_axis()
+
+    def is_centrosymmetric(self) -> bool:
+        return bool(self.operations().is_centrosymmetric())
+
+    def centring_type(self) -> str:
+        return str(self.operations().find_centering())
+
+
+def resolve_group(space_group: str,
+                  operations=None) -> gemmi.SpaceGroup | OperatorGroup:
+    """The group a phase means: its operation list when it carries one.
+
+    **The one place the choice is made.**  Every consumer of a phase's symmetry
+    — orbit expansion, site multiplicity, systematic absences, reflection
+    generation and multiplicity, the structure factor's frozen operation
+    subsets, the Wyckoff constraint bases, the cell ties, the bond/angle symop
+    table, ZMV, the CIF writer — calls this rather than
+    :func:`get_spacegroup`, so a phase whose group has no symbol reaches all of
+    them with the same operations and none of them can silently fall back on
+    the label.
+
+    ``operations`` ``None`` (every phase written before this field existed) is
+    exactly the old path: ``get_spacegroup(space_group)``, same object, same
+    cache, same numbers.
+    """
+    if operations is None:
+        return get_spacegroup(space_group)
+    return OperatorGroup(label=str(space_group),
+                         xyz=tuple(str(s) for s in operations))
+
+
+def as_group(spec) -> gemmi.SpaceGroup | OperatorGroup:
+    """A symbol string, or a group object, as a group object.
+
+    The adapter that lets the symbol-taking functions in this module
+    (:func:`generate_reflections`, :func:`reflection_orbits`) also take what
+    :func:`resolve_group` returns, without every call site branching.
+    """
+    if isinstance(spec, str):
+        return get_spacegroup(spec)
+    return spec
+
+
+def group_key(sg) -> tuple[str, tuple[str, ...]]:
+    """A hashable identity for a group, for the operation-array cache."""
+    if isinstance(sg, OperatorGroup):
+        return ("ops", sg.xyz)
+    return ("hm", (sg.xhm(),))
 
 
 @functools.lru_cache(maxsize=1)
@@ -214,13 +498,440 @@ class CellConstraints:
     fixed_angles: dict[str, float]
 
 
-def cell_constraints(sg: gemmi.SpaceGroup) -> CellConstraints:
+@dataclass(frozen=True)
+class MetricConstraints:
+    """The ``m`` metric coordinates of a rotation set's invariant subspace,
+    for a child whose constraints :class:`CellConstraints` cannot state.
+
+    Every symmetry constraint on a cell is linear in the direct metric
+    ``G`` (the six Voigt components ``G11, G22, G33, G12, G13, G23`` =
+    ``a², b², c², a·b·cosγ, a·c·cosβ, b·c·cosα`` — see :func:`metric_voigt`).
+    :class:`CellConstraints` states that linear subspace in the two
+    coordinates a crystallographer writes it in (a tie, a fixed angle), and
+    that is exactly right whenever the subspace happens to be spanned by
+    axis-aligned basis vectors of that form.  It is not always: Q-17b found a
+    doubled, centred child (Ba₂FeSbSe₅'s S1(rank 1)#2 at k=(0,½,½) is the
+    measured case — :func:`cell_constraints_from_rotations`'s own module
+    docstring) whose subspace needs a relation of the form *length² = length
+    × length × cosine* — linear in ``G``, not expressible as a tie or a fixed
+    angle in ``(a, b, c, α, β, γ)``.
+
+    ``basis`` is that subspace's own basis instead: ``m`` rows of 6 Voigt
+    components each (:data:`CELL_NAMES`' G-order), exact ``Fraction``s
+    because the nullspace algebra that derives it
+    (:func:`~rietx.crystallography.wyckoff.adp_basis`) works over the
+    integers.  ``G = Σᵢ gᵢ · basis[i]`` for any point of the subspace, and
+    ``(a, b, c, α, β, γ)`` follow from ``G`` by :func:`cell_from_metric_voigt`
+    — a fixed, cell-independent fact about the rotation set, carrying no
+    particular cell's numbers.  A phase's *initial* ``gᵢ`` are a separate,
+    per-cell quantity (:func:`metric_coordinates`), computed from whatever
+    cell the phase actually starts at (:func:`~rietx.crystallography.
+    magnetic.supercell._child_cell_parameters`'s numeric transform of the
+    parent), not carried here.
+
+    ``relation`` is the text of the mismatch :func:`cell_constraints_from_rotations`
+    found between the two-dictionary read-off and the true subspace — the
+    same text :class:`~rietx.crystallography.magnetic.supercell.ChildGroup`'s
+    ``CHILD_GROUP_UNNAMED`` diagnostic now names as the relation that forced
+    the metric form.
+    """
+
+    basis: tuple[tuple[Fraction, ...], ...]
+    m: int
+    relation: str
+
+
+#: Voigt-order column of the direct metric G that carries each cell angle —
+#: G12 is a·b·cos(γ), G13 is a·c·cos(β), G23 is b·c·cos(α), matching the
+#: convention ``wyckoff._VOIGT`` and ``indexing.qspace._AF_INDEX`` already use.
+_ANGLE_VOIGT_COL = {"gamma": 3, "beta": 4, "alpha": 5}
+
+#: Which two length indices (0=a, 1=b, 2=c) each angle relates.
+_ANGLE_AXES = {"alpha": (1, 2), "beta": (0, 2), "gamma": (0, 1)}
+
+_LENGTH_NAMES = ("a", "b", "c")
+
+#: Cosines a crystallographic rotation can force exactly, mapped to the degree
+#: value stored verbatim (no ``arccos`` round-off) so a derived
+#: :class:`CellConstraints` compares equal to a tabulated one built from the
+#: same literal 90.0/120.0.  ±1 (0°/180°) cannot occur for a positive-definite
+#: metric and is listed only so the lookup never falls through to ``arccos``
+#: on it by accident.
+_NICE_COSINES = {Fraction(0): 90.0, Fraction(-1, 2): 120.0, Fraction(1, 2): 60.0}
+
+
+def _metric_basis(rotations) -> np.ndarray:
+    """The (m, 6) integer basis of the direct metric's invariant subspace.
+
+    ``adp_basis`` solves ``A(R)[U] = R·U·Rᵀ = U`` for *untransposed* ``R``,
+    which is the right equation for a reciprocal-space tensor (``G*`` or an
+    ADP — see the module docstring and ``indexing.qspace.metric_basis``, both
+    of which pass rotations straight through).  The **direct** metric G obeys
+    a different equation: a rotation R acting on fractional coordinates as
+    x′ = R·x is a crystallographic symmetry exactly when the induced Cartesian
+    map is orthogonal, i.e. (A·R·A⁻¹)ᵀ(A·R·A⁻¹) = I for the basis matrix A
+    with AᵀA = G, which reduces to **Rᵀ·G·R = G**.  That is ``A(Rᵀ)[G] = G``,
+    so passing the *transposed* rotations into ``adp_basis`` reuses its
+    nullspace algebra unchanged and derives the direct-metric subspace instead
+    of the reciprocal one.
+
+    **Getting this backwards is invisible in the dimension**, exactly the trap
+    CLAUDE.md names one rank up: the transposed set is a group too, so a
+    degrees-of-freedom count passes either way.  Measured while writing this
+    on ``P 6/m m m``: the wrong convention (untransposed R) gives a hexagonal
+    basis with G12 = +G11/2, i.e. cos γ = +½ = 60°, where the tabulated
+    setting fixes γ at 120° — caught only by comparing the derived
+    :class:`CellConstraints` against the lookup's over all nine settings
+    (``tests/test_metric_from_rotations.py``), not by any dimension check.
+    """
+    from .wyckoff import adp_basis  # lazy: wyckoff imports this module
+
+    rots = [np.asarray(r, dtype=np.int64) for r in rotations]
+    basis = adp_basis([r.T for r in rots])
+    if basis.shape[0] == 0:
+        raise ValueError(
+            "the rotation set has no invariant metric at all (empty nullspace"
+            " of Rᵀ·G·R = G) — it is not the rotation part of a "
+            "crystallographic group")
+    return basis
+
+
+def _columns_equal(cols, i, j) -> bool:
+    return bool(np.array_equal(cols[i], cols[j]))
+
+
+def _column_zero(cols, i) -> bool:
+    return not bool(np.any(cols[i]))
+
+
+def _column_ratio(cols, i, j) -> Fraction | None:
+    """Exact ``k`` with ``cols[i] == k * cols[j]`` identically, else ``None``.
+
+    Checked by cross-multiplication (``cols[i][m]*cols[j][n] ==
+    cols[i][n]*cols[j][m]``) rather than division, so an all-zero ``cols[j]``
+    or a row where both are zero never raises or divides by zero — it is
+    exactly the "no constant ratio" case the caller already handles as
+    ``None``.
+    """
+    ci, cj = cols[i], cols[j]
+    nz = np.nonzero(cj)[0]
+    if len(nz) == 0:
+        return None
+    k = Fraction(int(ci[nz[0]]), int(cj[nz[0]]))
+    for m in range(len(ci)):
+        if int(ci[m]) * int(cj[nz[0]]) != int(ci[nz[0]]) * int(cj[m]):
+            return None
+    return k
+
+
+def cell_constraints_from_rotations(rotations) -> CellConstraints | MetricConstraints:
+    """:class:`CellConstraints` derived straight from a rotation set.
+
+    **What "derived" means here.**  The invariant subspace of the direct
+    metric under ``Rᵀ·G·R = G`` (:func:`_metric_columns`) is a *linear*
+    property of the rotation set — true of every point in the subspace, not
+    of one sampled metric — so a relation among its six Voigt components that
+    holds for every basis row holds for every crystallographically compatible
+    cell, and is read off directly rather than sampled:
+
+    * two lengths tie (``"b" → "a"``) when their diagonal columns
+      (G11, G22, G33) are identical vectors over every basis row;
+    * an angle is fixed at 90° when its off-diagonal column is the zero
+      vector — the rotation forces that dot product to vanish regardless of
+      the free parameters;
+    * an angle is fixed at another value only when its two axes are
+      *already* tied and its column is a constant rational multiple of
+      theirs (:func:`_column_ratio`) — 120°/60° are the only such cases a
+      crystallographic rotation produces (:data:`_NICE_COSINES`); anything
+      else is computed by ``arccos`` and still stored, since
+      :class:`CellConstraints` holds any float;
+    * two angles tie to each other (rhombohedral's β → α, γ → α) when their
+      columns are identical and not both zero — checked only once their
+      length ties make the two dot products comparable at all.
+
+    This is exactly the algebra :func:`cell_constraints` already encodes by a
+    lookup table for the nine tabulated settings (monoclinic's three axes,
+    trigonal's two axis choices, ...); here it comes from the operation list
+    instead of a symbol, which is what lets it answer for a child cell no
+    Hermann-Mauguin symbol names (Q-17b; the reduced cells of Q-17's 29-row
+    k-sweep).  Cross-checked equal to the lookup on all nine settings plus the
+    R-centred trigonal one, and used as the sole authority when no tabulated
+    setting shares the list's point group and lattice at all
+    (:func:`cell_constraints`).
+
+    **Q-17d: a mismatch is no longer necessarily a refusal.**  When the
+    ``ties``/``fixed_angles`` read off the columns do not, on verification,
+    reproduce the actual invariant subspace — a case the two-dictionary form
+    cannot express, ``CellConstraints(ties={}, fixed_angles={})`` for
+    Ba₂FeSbSe₅'s S1(rank 1)#2 at k=(0,½,½), whose true subspace has dimension
+    4 against 6 free names — this returns a :class:`MetricConstraints` (the
+    subspace's own basis) instead of raising.  ``ParameterTable`` refines the
+    ``m`` coordinates of that basis directly (Q-17d) rather than the six cell
+    parameters, which is what lets a child needing this route build and refine
+    at all.  Not observed to trigger on any of the nine tabulated settings,
+    the R-centred trigonal one, or any of the 39 unnamed candidates of Q-17's
+    all-space-group sweep (Q-17c's basis choice already resolved all 39 to a
+    tie/fixed-angle pair) — the trigger measured for this rung is a real
+    structure outside that sweep, Ba₂FeSbSe₅'s S1(rank 1)#2 at k=(0,½,½)
+    (``checks/TA0B_LAST_DIRECTION.md``), whose doubled-and-centred child cell
+    needs the length-times-cosine relation neither route above states.
+    """
+    basis = _metric_basis(rotations)
+    cols = [basis[:, k] for k in range(6)]
+
+    parent = [0, 1, 2]
+
+    def find(x: int) -> int:
+        while parent[x] != x:
+            x = parent[x]
+        return x
+
+    for i, j in ((0, 1), (0, 2), (1, 2)):
+        if _columns_equal(cols, i, j):
+            ri, rj = find(i), find(j)
+            if ri != rj:
+                parent[max(ri, rj)] = min(ri, rj)
+    roots = [find(i) for i in range(3)]
+    ties: dict[str, str] = {_LENGTH_NAMES[i]: _LENGTH_NAMES[roots[i]]
+                            for i in range(1, 3) if roots[i] != i}
+
+    fixed_angles: dict[str, float] = {}
+    resolved: set[str] = set()
+    for name, col in _ANGLE_VOIGT_COL.items():
+        if _column_zero(cols, col):
+            fixed_angles[name] = 90.0
+            resolved.add(name)
+            continue
+        i, j = _ANGLE_AXES[name]
+        if roots[i] != roots[j]:
+            continue
+        k = _column_ratio(cols, col, i)
+        if k is None:
+            k = _column_ratio(cols, col, j)
+        if k is not None:
+            fixed_angles[name] = _NICE_COSINES.get(
+                k, float(np.degrees(np.arccos(np.clip(float(k), -1.0, 1.0)))))
+            resolved.add(name)
+
+    #: canonical root order for an angle-to-angle tie — alpha before beta
+    #: before gamma, matching the rhombohedral lookup's beta→alpha, gamma→alpha
+    order = ("alpha", "beta", "gamma")
+    for a_name, b_name in (("beta", "alpha"), ("gamma", "alpha"), ("gamma", "beta")):
+        if a_name in resolved or b_name in resolved:
+            continue
+        ca, cb = _ANGLE_VOIGT_COL[a_name], _ANGLE_VOIGT_COL[b_name]
+        if _columns_equal(cols, ca, cb) and not _column_zero(cols, ca):
+            first, second = sorted((a_name, b_name), key=order.index)
+            ties[second] = first
+            resolved.add(second)
+
+    try:
+        _verify_constraints_span(ties, fixed_angles, basis)
+    except ValueError as exc:
+        return _metric_constraints_from_basis(basis, str(exc))
+    return CellConstraints(ties, fixed_angles)
+
+
+def _metric_constraints_from_basis(basis: np.ndarray, relation: str) -> MetricConstraints:
+    """:class:`MetricConstraints` for the exact-integer ``(m, 6)`` ``basis``.
+
+    Only :func:`cell_constraints_from_rotations` calls this — after its own
+    ``ties``/``fixed_angles`` read-off has already failed
+    :func:`_verify_constraints_span`, so ``relation`` is always that failure's
+    own message, which is what lets ``CHILD_GROUP_UNNAMED`` (Q-17d) name the
+    relation that forced the metric form without re-deriving it.
+    """
+    rows = tuple(tuple(Fraction(int(v)) for v in row) for row in basis)
+    return MetricConstraints(basis=rows, m=basis.shape[0], relation=relation)
+
+
+#: Two rationally-independent generic cells, used only to verify that a
+#: derived (ties, fixed_angles) pair reproduces the *actual* invariant
+#: subspace rather than a plausible-looking guess at it (below).  Values are
+#: arbitrary but hold no accidental extra relation (no two lengths equal, no
+#: angle at 90/120/60 unless a constraint puts it there).
+_GENERIC_TRIALS = ((5.13, 7.71, 11.29, 83.0, 71.0, 97.0),
+                   (13.37, 6.09, 17.83, 68.0, 113.0, 79.0))
+
+
+def _verify_constraints_span(ties: dict[str, str], fixed_angles: dict[str, float],
+                             basis: np.ndarray) -> None:
+    """Raise unless ``(ties, fixed_angles)`` describes exactly ``basis``'s span.
+
+    **Why a derivation needs its own check.**  :func:`cell_constraints_from_rotations`
+    reads ties and fixed angles off pairwise column relations, which is exactly
+    the algebra a real crystallographic rotation set produces — but a
+    read-off is a claim, not a proof, and the analogous DOF-only check is the
+    trap CLAUDE.md already names (:class:`CellConstraints`'s docstring): two
+    *wrong* subspaces of the same dimension pass a count. So this asserts the
+    stronger thing directly: for two rationally-independent generic cells
+    (:data:`_GENERIC_TRIALS`) built from the claimed free parameters via the
+    claimed ties and fixed angles, the resulting direct-metric Voigt vector
+    must lie in ``basis``'s row span (checked as a least-squares residual,
+    since ``basis`` is exact-integer but the trial cell is not).  A relation the
+    read-off missed changes the *dimension* the free names imply, which the
+    first check below already catches; a relation it read off wrong moves the
+    trial vector out of the span, which the second catches.
+    """
+    determined = set(ties) | set(fixed_angles)
+    free_names = [n for n in CELL_NAMES if n not in determined]
+    if len(free_names) != basis.shape[0]:
+        raise ValueError(
+            f"derived CellConstraints(ties={ties!r}, "
+            f"fixed_angles={fixed_angles!r}) leaves {len(free_names)} cell "
+            f"parameter(s) free ({', '.join(free_names)}), but the rotation "
+            f"set's invariant metric subspace has dimension {basis.shape[0]} "
+            f"— the read-off missed a relation, so CellConstraints cannot "
+            f"express this rotation set as written")
+    for trial in _GENERIC_TRIALS:
+        # every name starts at its trial value; ties/fixed_angles then override
+        # the determined ones, leaving the free names exactly the trial's own
+        values = dict(zip(CELL_NAMES, trial))
+        for name, source in ties.items():
+            values[name] = values[source]
+        values.update(fixed_angles)
+        a, b, c = values["a"], values["b"], values["c"]
+        al, be, ga = (np.radians(values[n]) for n in ("alpha", "beta", "gamma"))
+        vec = np.array([a * a, b * b, c * c,
+                        a * b * np.cos(ga), a * c * np.cos(be),
+                        b * c * np.cos(al)])
+        basis_f = basis.astype(np.float64)
+        coeffs, _residuals, _rank, _sv = np.linalg.lstsq(basis_f.T, vec, rcond=None)
+        fit = basis_f.T @ coeffs
+        if not np.allclose(fit, vec, atol=1e-6, rtol=1e-6):
+            raise ValueError(
+                f"derived CellConstraints(ties={ties!r}, "
+                f"fixed_angles={fixed_angles!r}) does not reproduce the "
+                f"rotation set's invariant metric on the generic cell "
+                f"{trial!r} (residual {np.max(np.abs(fit - vec)):.3g}), so "
+                f"CellConstraints cannot express this rotation set as "
+                f"written — extend it rather than widen a tolerance")
+
+
+def metric_voigt(cell: tuple[float, float, float, float, float, float]
+                 ) -> np.ndarray:
+    """``(a, b, c, α, β, γ)`` as the direct metric's Voigt vector.
+
+    ``(G11, G22, G33, G12, G13, G23) = (a², b², c², a·b·cosγ, a·c·cosβ,
+    b·c·cosα)`` — the same order and convention :data:`_ANGLE_VOIGT_COL` and
+    :func:`_verify_constraints_span`'s trial check already use, factored out
+    here so :func:`metric_coordinates` and every future caller share it
+    rather than re-deriving the six products.
+    """
+    a, b, c, alpha, beta, gamma = cell
+    al, be, ga = np.radians(alpha), np.radians(beta), np.radians(gamma)
+    return np.array([a * a, b * b, c * c,
+                     a * b * np.cos(ga), a * c * np.cos(be), b * c * np.cos(al)])
+
+
+def cell_from_metric_voigt(g: np.ndarray
+                           ) -> tuple[float, float, float, float, float, float]:
+    """The inverse of :func:`metric_voigt`: ``(a, b, c, α, β, γ)`` from ``G``.
+
+    Exact wherever ``G`` is itself an exact direct metric (positive-definite,
+    ``|cos| ≤ 1``): ``a, b, c`` are the diagonal square roots and each angle
+    is an ``arccos`` of the corresponding off-diagonal entry over the two
+    lengths it relates.  ``np.clip`` only guards the ``|cos| > 1`` a metric
+    cannot produce but floating-point roundoff can graze exactly at the
+    boundary (γ = 90° or 120° computed through a chain of trig calls) — not a
+    tolerance on the physics, which :func:`_verify_constraints_span` already
+    checked once, at the rotation-set level, before any particular ``g`` was
+    chosen.
+    """
+    g11, g22, g33, g12, g13, g23 = (float(v) for v in g)
+    a, b, c = np.sqrt(g11), np.sqrt(g22), np.sqrt(g33)
+    cos_g, cos_b, cos_a = g12 / (a * b), g13 / (a * c), g23 / (b * c)
+    alpha = float(np.degrees(np.arccos(np.clip(cos_a, -1.0, 1.0))))
+    beta = float(np.degrees(np.arccos(np.clip(cos_b, -1.0, 1.0))))
+    gamma = float(np.degrees(np.arccos(np.clip(cos_g, -1.0, 1.0))))
+    return (float(a), float(b), float(c), alpha, beta, gamma)
+
+
+def metric_coordinates(constraints: MetricConstraints,
+                       cell: tuple[float, float, float, float, float, float]
+                       ) -> np.ndarray:
+    """The ``gᵢ`` (length ``constraints.m``) whose ``Σ gᵢ·basis[i]`` best
+    matches ``cell``'s own metric.
+
+    The one place this rung needs a least-squares projection rather than an
+    exact read-off: ``constraints.basis`` is a cell-independent fact about the
+    rotation set, so *a* cell's coordinates in it are a per-cell question —
+    asked exactly once, of the parent-derived numeric child cell
+    (``crystallography.magnetic.supercell._child_cell_parameters``), to seed
+    the refinement's starting point.  ``cell`` is assumed already compatible
+    with the subspace (built from the same transform the rotation set came
+    from), so the residual is round-off, not a check — the check that matters
+    (does this rotation set's subspace admit *some* metric) already ran, in
+    :func:`_verify_constraints_span`, before ``constraints`` existed.
+    """
+    basis_f = np.array([[float(v) for v in row] for row in constraints.basis],
+                       dtype=np.float64)
+    vec = metric_voigt(cell)
+    coeffs, *_ = np.linalg.lstsq(basis_f.T, vec, rcond=None)
+    return coeffs
+
+
+def cell_from_metric_coordinates(constraints: MetricConstraints, g: np.ndarray
+                                 ) -> tuple[float, float, float, float, float, float]:
+    """``(a, b, c, α, β, γ)`` for the point ``g`` of ``constraints``'s subspace.
+
+    ``cell_from_metric_voigt(g @ basis)`` — the forward half of the map
+    :func:`metric_coordinates` inverts, and the one ``ParameterTable.decode``
+    calls on every free-vector evaluation (Q-17d), since ``G = Σ gᵢ·basis[i]``
+    is exact matrix multiplication (no least-squares here: ``basis`` is fixed
+    and ``g`` is exactly the point being asked about, not a target being
+    approximated).
+    """
+    basis_f = np.array([[float(v) for v in row] for row in constraints.basis],
+                       dtype=np.float64)
+    vec = np.asarray(g, dtype=np.float64) @ basis_f
+    return cell_from_metric_voigt(vec)
+
+
+def cell_constraints(sg) -> CellConstraints | MetricConstraints:
     """Cell ties and symmetry-fixed angles for one space-group **setting**.
 
     Raises ``ValueError`` naming the symbol and the setting if the group is one
     this package cannot serve.  See :class:`CellConstraints` for why the crystal
     system alone is the wrong key.
+
+    ``sg`` is a ``gemmi.SpaceGroup`` or an :class:`OperatorGroup`.  For the
+    second, when a tabulated group shares the list's point group and lattice
+    (:attr:`~OperatorGroup.closest_type` resolves), that lookup is still the
+    authority — it also carries the monoclinic unique-axis convention a bare
+    rotation set does not name — but :func:`cell_constraints_from_rotations`
+    is computed too and checked against it: **on disagreement this refuses by
+    name rather than picking one** (Q-17b's D4).  A tabulated type resolving
+    at all means the two-dictionary form is expressible (that is what a
+    tabulated setting *is*), so a :class:`MetricConstraints` coming back here
+    is itself the disagreement — the two are never compared field-by-field,
+    only for equality, which is why this branch does not need to know
+    :class:`MetricConstraints`'s shape.  When no tabulated group resolves at
+    all, the derived constraints (of either class) are the sole authority,
+    which is what lets a child cell in a non-conventional setting build
+    instead of refusing at this function (Q-17b; :func:`~.magnetic.supercell._unnamed_child`)
+    — and, when that derivation itself needs a :class:`MetricConstraints`,
+    what lets it refine on metric coordinates instead of refusing too (Q-17d).
     """
+    if isinstance(sg, OperatorGroup):
+        derived = cell_constraints_from_rotations(rotation_matrices(sg))
+        found = _closest_type(sg.xyz)
+        if found is None:
+            return derived
+        looked_up = cell_constraints(found)
+        if looked_up != derived:
+            derived_text = (f"ties={derived.ties!r} fixed_angles={derived.fixed_angles!r}"
+                            if isinstance(derived, CellConstraints)
+                            else f"MetricConstraints(m={derived.m}, relation={derived.relation!r})")
+            raise ValueError(
+                f"{sg.label!r}: the metric constraints derived from its "
+                f"{len(sg.xyz)}-operation list disagree with those of "
+                f"{found.xhm()!r}, the tabulated setting sharing its point "
+                f"group and lattice — derived {derived_text}, tabulated "
+                f"ties={looked_up.ties!r} fixed_angles={looked_up.fixed_angles!r}. "
+                f"One of the two is wrong; refusing rather than choosing "
+                f"(Q-17b's D4).")
+        return looked_up
     system = sg.crystal_system_str()
     right = {"alpha": 90.0, "beta": 90.0, "gamma": 90.0}
     if system == "cubic":
@@ -273,8 +984,17 @@ def check_cell_angles(sg: gemmi.SpaceGroup,
     The table is rebuilt at every stage boundary and on every ``set_vary`` /
     ``set_values``, but the answer here is the same at each rebuild — a
     refinement that starts can never fail this mid-flight.
+
+    **A no-op for a phase carrying** :class:`MetricConstraints` (Q-17d): there
+    is no separate "fixed angle" to check an angle's *stored* value against —
+    the angle is a derived function of the ``g`` coordinates, computed fresh
+    from whichever ``g`` the solver is at, so it cannot disagree with a stored
+    number the way a name-and-lookup fixed angle can.
     """
-    for name, target in cell_constraints(sg).fixed_angles.items():
+    constraints = cell_constraints(sg)
+    if isinstance(constraints, MetricConstraints):
+        return
+    for name, target in constraints.fixed_angles.items():
         value = angles[name]
         if abs(value - target) > SYMMETRY_ANGLE_TOL_DEG:
             raise ValueError(
@@ -347,17 +1067,16 @@ def complete_cell(sg: gemmi.SpaceGroup,
     return {name: cell[name] for name in CELL_NAMES}
 
 
-def rotation_matrices(sg: gemmi.SpaceGroup) -> np.ndarray:
+def rotation_matrices(sg) -> np.ndarray:
     """Integer rotation parts of all symmetry operations, shape (M, 3, 3).
 
-    gemmi stores rotations scaled by Op.DEN (=24).
+    gemmi stores rotations scaled by Op.DEN (=24).  ``sg`` is a
+    ``gemmi.SpaceGroup`` or an :class:`OperatorGroup`; the rows come from
+    :func:`_group_arrays`, so they are in the same order as the orbit images
+    and, for a tabulated symbol, element for element what this function
+    returned before it took either.
     """
-    ops = sg.operations()
-    mats = []
-    for op in ops:
-        r = np.array(op.rot, dtype=np.float64) / gemmi.Op.DEN
-        mats.append(r)
-    return np.array(mats)
+    return np.array(_group_arrays(group_key(sg))[1])
 
 
 #: Default tolerance, in fractional coordinates, for "this operation fixes this
@@ -397,7 +1116,8 @@ def _op_arrays(op: gemmi.Op) -> tuple[np.ndarray, np.ndarray]:
 
 
 @functools.lru_cache(maxsize=64)
-def _group_arrays(xhm: str) -> tuple[tuple[gemmi.Op, ...], np.ndarray, np.ndarray]:
+def _group_arrays(key: tuple[str, tuple[str, ...]]
+                  ) -> tuple[tuple[gemmi.Op, ...], np.ndarray, np.ndarray]:
     """Operations of one group with their (R, t) already in float64.
 
     Rebuilding them per call is what :func:`site_orbit` spent most of its time
@@ -405,8 +1125,14 @@ def _group_arrays(xhm: str) -> tuple[tuple[gemmi.Op, ...], np.ndarray, np.ndarra
     costs 0.78 ms a walk, so a 48-site cubic phase paid 0.76 s every time
     ``snap_diagnostics`` ran.  The arrays are exactly what :func:`_op_arrays`
     returns and are never written to, so the cache changes no number.
+
+    ``key`` is :func:`group_key`'s: the xhm symbol for a tabulated group and
+    the explicit operation list for an :class:`OperatorGroup`, so the two
+    cannot collide and a phase carrying its own list is cached like any other.
     """
-    ops = tuple(get_spacegroup(xhm).operations())
+    kind, payload = key
+    ops = (_op_list_from_xyz(payload) if kind == "ops"
+           else tuple(get_spacegroup(payload[0]).operations()))
     pairs = [_op_arrays(op) for op in ops]
     rot = np.array([r for r, _ in pairs], dtype=np.float64)
     tran = np.array([t for _, t in pairs], dtype=np.float64)
@@ -505,7 +1231,7 @@ def site_orbit(sg: gemmi.SpaceGroup, xyz: np.ndarray, *,
     exactly why the guard is kept: it is the invariant, and an invariant nobody
     can currently break is the one worth asserting.
     """
-    ops, all_rot, all_tran = _group_arrays(sg.xhm())
+    ops, all_rot, all_tran = _group_arrays(group_key(sg))
     order = len(ops)
     x = np.asarray(xyz, dtype=np.float64).reshape(3)
 
@@ -781,24 +1507,68 @@ class ReflectionSet:
 
     Attributes
     ----------
-    hkl : (N, 3) int array — one representative per orbit.
+    hkl : (N, 3) int array — one representative per orbit.  For a satellite row
+        (WP-1326) this is the **parent** reciprocal-lattice vector H, and the
+        scattering vector the peak sits at is :attr:`index`, H + m·k.
     multiplicity : (N,) int — orbit size under the Laue group (Friedel incl.).
-    d : (N,) float — d-spacings at the cell used for generation (refresh with
-        :meth:`update_positions` when the cell moves during refinement).
+    d : (N,) float — d-spacings at the cell used for generation.
+    satellite_order : (N,) int or None — the m of Q = H + m·k, 0 on a nuclear
+        row.  ``None`` — every purely nuclear set — is not the same as an
+        all-zero array: it is what makes :attr:`index` return ``hkl`` itself,
+        so a phase without a propagation vector reaches every consumer with
+        the identical array object it always did.
+    propagation_vector : (3,) float or None — k in fractional coordinates of
+        the conventional reciprocal cell, carried beside the orders so
+        :attr:`index` can be rebuilt from what is stored.
     """
 
     hkl: np.ndarray
     multiplicity: np.ndarray
     d: np.ndarray
     spacegroup: str = ""
+    #: The explicit ``x,y,z`` list when :attr:`spacegroup` is a *label* rather
+    #: than a symbol (:class:`OperatorGroup`), else ``None`` — so a consumer
+    #: that needs the group again (``report.strain``'s Stephens basis) can
+    #: rebuild it with :func:`resolve_group` instead of re-resolving a label
+    #: that names no tabulated group.  ``None`` for every set generated before
+    #: this field existed, which is every set from a symbol.
+    operations: tuple[str, ...] | None = None
     extra: dict = field(default_factory=dict)
+    satellite_order: np.ndarray | None = None
+    propagation_vector: tuple[float, float, float] | None = None
 
     def __len__(self) -> int:
         return len(self.hkl)
 
+    @property
+    def index(self) -> np.ndarray:
+        """(N, 3) — the reciprocal-space index each row's peak sits at.
+
+        ``hkl`` for a nuclear row, H + m·k for a satellite; the array is
+        integer when nothing in the set is a satellite and float otherwise.
+        **Everything that computes a position, a d-spacing or a width reads
+        this**, and everything that identifies a reflection — the structure
+        factor's op subsets, the March-Dollase orbit, a stored per-hkl
+        intensity — reads ``hkl`` and ``satellite_order`` instead.  The split
+        is what keeps a satellite an integer object in the record while its
+        peak sits at a rational index (WP-1326).
+        """
+        if self.satellite_order is None:
+            return self.hkl
+        k = np.asarray(self.propagation_vector, dtype=np.float64)
+        return (self.hkl.astype(np.float64)
+                + self.satellite_order[:, None].astype(np.float64) * k)
+
+    @property
+    def is_satellite(self) -> np.ndarray:
+        """(N,) bool — which rows are satellites; all-False when none are."""
+        if self.satellite_order is None:
+            return np.zeros(len(self.hkl), dtype=bool)
+        return self.satellite_order != 0
+
     def two_theta(self, cell: tuple[float, float, float, float, float, float],
                   wavelength: float) -> np.ndarray:
-        d = d_spacings(self.hkl, *cell)
+        d = d_spacings(self.index, *cell)
         return two_theta_deg(d, wavelength)
 
 
@@ -812,7 +1582,7 @@ def reflection_orbits(sg_symbol: str, hkl_reps: np.ndarray) -> list[np.ndarray]:
     ``generate_reflections``); this is the frozen discrete object the
     March-Dollase correction averages over, computed once per stage.
     """
-    rots = rotation_matrices(get_spacegroup(sg_symbol))
+    rots = rotation_matrices(as_group(sg_symbol))
     rot_int = np.rint(np.transpose(rots, (0, 2, 1))).astype(np.int64)
     orbits: list[np.ndarray] = []
     for h in np.asarray(hkl_reps, dtype=np.int64):
@@ -827,15 +1597,28 @@ def generate_reflections(sg_symbol: str,
                          cell: tuple[float, float, float, float, float, float],
                          wavelength: float,
                          two_theta_max: float,
-                         two_theta_min: float = 0.0) -> ReflectionSet:
+                         two_theta_min: float = 0.0,
+                         *, apply_absences: bool = True) -> ReflectionSet:
     """Enumerate the symmetry-unique, absence-allowed reflections in range.
 
     Strategy: enumerate all integer hkl in the sphere d ≥ d_min =
     λ/(2 sin(θ_max)), drop systematic absences (gemmi), group the survivors
     into Laue-group orbits (including Friedel mates), and keep one
     representative per orbit with its orbit size as the multiplicity.
+
+    ``apply_absences=False`` keeps the systematically absent orbits, which is
+    the reciprocal *lattice* (centring still applied — that is a condition on
+    the lattice, not on the structure factor) with the parent's Laue
+    multiplicities.  Its one caller is
+    ``crystallography.magnetic.scattering.magnetic_reflections``: a k = 0
+    magnetic space group generally drops the parent's glide and screw
+    operations, so it puts intensity exactly on the reflections a glide or
+    screw absence removes, and those rows have to exist for the peak to be
+    computed at all (WP-1327; WP-1326 measured it on Cr₂WO₆).  **The default is
+    unchanged**, so every existing caller enumerates the same list in the same
+    order and every number it produces is bit-identical.
     """
-    sg = get_spacegroup(sg_symbol)
+    sg = as_group(sg_symbol)
     ops = sg.operations()
 
     d_min = wavelength / (2.0 * np.sin(np.radians(two_theta_max / 2.0)))
@@ -875,11 +1658,13 @@ def generate_reflections(sg_symbol: str,
     hkl, d = hkl[keep], d[keep]
 
     # systematic absences via gemmi GroupOps (vectorised where available)
-    try:
-        absent = np.asarray(ops.systematic_absences(hkl), dtype=bool)
-    except (AttributeError, TypeError):
-        absent = np.array([ops.is_systematically_absent(list(map(int, h))) for h in hkl])
-    hkl, d = hkl[~absent], d[~absent]
+    if apply_absences:
+        try:
+            absent = np.asarray(ops.systematic_absences(hkl), dtype=bool)
+        except (AttributeError, TypeError):
+            absent = np.array(
+                [ops.is_systematically_absent(list(map(int, h))) for h in hkl])
+        hkl, d = hkl[~absent], d[~absent]
 
     # Laue-group orbits.  A real-space operation x' = Rx + t acts on Miller
     # indices (column form) as h' = Rᵀ h; the orbit therefore uses the
@@ -941,4 +1726,6 @@ def generate_reflections(sg_symbol: str,
     d_reps = d_spacings(reps, *cell)
     sort = np.argsort(-d_reps)  # ascending 2θ = descending d
     return ReflectionSet(hkl=reps[sort], multiplicity=mult[sort], d=d_reps[sort],
-                         spacegroup=sg.xhm())
+                         spacegroup=sg.xhm(),
+                         operations=(sg.xyz if isinstance(sg, OperatorGroup)
+                                     else None))

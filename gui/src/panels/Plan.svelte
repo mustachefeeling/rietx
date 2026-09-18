@@ -85,6 +85,7 @@
     max_iter: "iter",
     lebail_cycles: "lebail",
     strain_seed: "strain",
+    distortion_seed: "distort",
     restraint_weight_scale: "restraint",
     window_slack_deg: "slack",
   };

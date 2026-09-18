@@ -88,6 +88,12 @@ class StageSpec(Base):
     strain_seed: float = Field(0.0, description=(
         "microstrain (ppm) to seed an all-zero Stephens block onto the "
         "isotropic ray (exploding-gradient pathology — the opposite fix)"))
+    distortion_seed: float = Field(0.0, description=(
+        "amplitude (Å) to seed an all-zero distortion-mode block off the "
+        "parent before this stage frees it (stationary-point pathology: "
+        "|F|² is even in the amplitude vector, so every column vanishes at "
+        "A = 0 at once).  Signed: the sign is a domain label, not a "
+        "measurement"))
     restraint_weight_scale: float = Field(1.0, ge=0.0, description=(
         "c_w of McCusker eq (7), S = S_y + c_w·S_G: this stage's weight on the "
         "geometric restraints against the diffraction data; high early, "
@@ -112,6 +118,7 @@ class StageSpec(Base):
                    max_iter=stage.max_iter, ftol=stage.ftol,
                    lebail_cycles=stage.lebail_cycles,
                    seed=stage.seed, strain_seed=stage.strain_seed,
+                   distortion_seed=stage.distortion_seed,
                    restraint_weight_scale=stage.restraint_weight_scale,
                    window_slack_deg=stage.window_slack_deg)
 
@@ -122,6 +129,7 @@ class StageSpec(Base):
                      max_iter=self.max_iter, ftol=self.ftol,
                      lebail_cycles=self.lebail_cycles,
                      seed=self.seed, strain_seed=self.strain_seed,
+                     distortion_seed=self.distortion_seed,
                      restraint_weight_scale=self.restraint_weight_scale,
                      window_slack_deg=self.window_slack_deg)
 

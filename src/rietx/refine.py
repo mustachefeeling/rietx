@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 import math
+import re
 import warnings
 from collections.abc import Sequence
 from contextlib import contextmanager
@@ -75,12 +76,22 @@ from .params.vector import (
     _is_wavelength,
     is_variable_path,
 )
-from .report.schemas import THRESHOLDS_VERSION, FitReport, StageReport
+from .report.distortion import analyse_distortion_totals
+from .report.magnetic import magnetic_width_findings
+from .report.schemas import (
+    DISTORTION_SIGN_CONVENTION,
+    MAGNETIC_WIDTH_MOMENT_SHIFT_SIGMA,
+    THRESHOLDS_VERSION,
+    FitReport,
+    StageReport,
+)
 from .schemas.common import Diagnostic, Parameter, Provenance
 from .schemas.history import NodeAction, NodeMetrics, RefinementState, ReflectionState
 from .schemas.instrument import CAPILLARY_OFFSETS, Instrument
 from .schemas.params import ParameterRow, TieSpec
-from .schemas.pattern import PatternData
+from .schemas.pattern import (
+    PatternData,
+)
 from .schemas.results import (
     DELIVERABLES,
     AbsorptionCorrection,
@@ -150,7 +161,13 @@ def mode_fixed_path(path: str, mode: Mode) -> bool:
     # That one must stay free here: a measured background is scaled against the
     # data, and Le Bail extracts intensities rather than absorbing a background
     # level.
+    # ``.distortion_modes.`` is a structural family too, and it is named
+    # explicitly because its path does *not* contain ``.atoms.``: a mode
+    # amplitude drives every atom's x/y/z by affine tie, so against extracted
+    # intensities it is exactly as unrefinable as the coordinates it moves —
+    # and a merely-unfree column there is the dead column WP-1073 force-fixes.
     return (".atoms." in path
+            or ".distortion_modes." in path
             or (path.startswith("phases.") and path.endswith(".scale"))
             or ".source.lines." in path)
 
@@ -211,6 +228,10 @@ def _tie_terms(source: "str | dict[str, float] | Sequence[tuple[str, float]]",
     return [(path, scale * coeff) for path, coeff in seen.items()]
 
 
+#: ``phases.i.atoms.j.moment.dof<k>`` — the moment block's own DOF paths.
+_MOMENT_DOF = re.compile(r"^phases\.\d+\.atoms\.\d+\.moment\.dof\d+$")
+
+
 def _unsupported_phase_paths(model: CompiledModel, table: ParameterTable,
                              support: np.ndarray | None = None) -> list[str]:
     """The free structural paths of every phase the data cannot see.
@@ -246,6 +267,125 @@ def _unsupported_phase_paths(model: CompiledModel, table: ParameterTable,
     prefixes = tuple(f"phases.{ip}." for ip in sorted(absent))
     return [p for p in table.free_paths
             if p.startswith(prefixes) and not p.endswith(".scale")]
+
+
+#: A moment direction whose calculated-pattern response is this far below the
+#: modulus's measures nothing, and is held (WP-1327).
+#:
+#: **Measured, not chosen.**  On the cubic collinear test structure — where the
+#: orbit-averaged intensity is provably independent of the moment direction —
+#: the two angle DOFs respond at ~1e-15 of the modulus's response for the
+#: finite rotation below, which is roundoff.  On Cr₂WO₆ at 4 K under BNS
+#: 58.395, where the in-plane angle *is* determined, the same probe reads
+#: ~1e0.  Fifteen orders of magnitude separate the two, so the floor sits in
+#: the middle of the gap rather than at the edge of either.
+#:
+#: This exists because the package's other "measured nothing" mechanism
+#: (:meth:`ParameterTable.unmeasured_free`, through
+#: ``optimize.statistics.normal_covariance``) fires only on a column with **no
+#: gradient at all** — ``d > 0.0`` — and an analytically flat direction is not
+#: bitwise flat.  Widening that test to a relative one would change the esd of
+#: every fit in the package; holding the moment block's own flat directions
+#: changes nothing outside it.
+MOMENT_DIRECTION_SUPPORT = 1e-6
+
+#: **A finite rotation, and that is the whole point.**  0.1 rad ≈ 5.7°.
+#:
+#: A derivative-scale step (1e-6) does not answer the question this probe is
+#: asking.  The intensity as a function of a moment's azimuth is *stationary*
+#: at every direction the symmetry fixes, so its first derivative vanishes
+#: there even when the angle is perfectly well determined — measured on
+#: Cr₂WO₆ at 4 K, where a 1e-6 step reads 5e-7 of the modulus's response with
+#: the moment along **a** and 1e0 with it at 45° to a.  A first-derivative
+#: probe would have held a determined direction sitting at its own optimum and
+#: reported it as something the powder could not see, which is the one thing
+#: this rung must not do.  A finite rotation reads the *curvature* as well, so
+#: "flat here" and "flat everywhere" stop looking alike.
+#:
+#: The modulus is probed by the displacement the same rotation produces —
+#: μ → μ + 0.1·|μ| — so the ratio is "does moving the moment sideways matter,
+#: compared to moving it lengthwise by as much".
+MOMENT_PROBE_ANGLE_RAD = 0.1
+
+#: Purity cut (issue #278) deciding which of a magnetic phase's reflections
+#: draw on the nuclear tick row and which on its own "(magnetic)" row, by the
+#: magnetic fraction p²⟨|F_⊥|²⟩ / (⟨|F_N|²⟩ + p²⟨|F_⊥|²⟩): a reflection at or
+#: above ``1 - MAGNETIC_TICK_PURITY`` is magnetic, at or below it is nuclear,
+#: and one in between draws on **neither** row rather than picking a side
+#: arbitrarily.  ``CompiledPhase.nuclear_mask`` alone is not enough: it is
+#: exact for a k = 0 magnetic space group's own absences, but on a k != 0
+#: supercell the strongest magnetic reflections sit in the child group's own
+#: reflection list with the mask at 1.0 and an identically-zero ⟨|F_N|²⟩ (the
+#: nuclear atoms still carry the parent's translation) — a classifier reading
+#: the mask alone would draw those on the nuclear row.
+#:
+#: **This is this branch's own copy of a constant already merged upstream**
+#: (WP-1343's ``MAGNETIC_WIDTH_PURITY``, ``report/schemas.py`` on
+#: ``origin/main``): ``magnetic-small-fixes`` branches off ``distortion-modes``
+#: (e7696f5c), which predates that merge and does not have it. Same value,
+#: same formula, so the two are drop-in duplicates of each other and this one
+#: should be deleted in favour of importing ``MAGNETIC_WIDTH_PURITY`` the
+#: next time the branches meet — flagged rather than silently diverging.
+MAGNETIC_TICK_PURITY = 0.05
+
+
+def _flat_moment_paths(model: CompiledModel, table: ParameterTable,
+                       candidates: list[str] | None = None) -> list[str]:
+    """Moment **direction** DOFs the calculated pattern does not respond to.
+
+    The rule WP-1327 takes from WP-1301, one object down: a direction the data
+    cannot see is a flat direction, and holding it is cheaper and truer than
+    letting it wander into a number with an esd.  What a powder cannot see of
+    a moment is Shirane's (1959) result — a cubic collinear structure's
+    direction entirely, a uniaxial one's azimuth — and it is *measured* here
+    rather than derived from the symmetry, so a structure the classification
+    does not anticipate is handled by the same rule.
+
+    **The modulus is never held.**  It is the one direction that is not flat,
+    and it is how a moment legitimately climbs out of the noise — exactly the
+    argument that keeps a phase's own ``scale`` out of
+    :func:`_unsupported_phase_paths`.  A modulus sitting at its floor makes
+    every direction flat (|F_m|² ∝ m²), so the probe holds them all without
+    needing a special case for it; what the *report* says about the modulus
+    there is ``MomentEvidence.supported``.
+
+    ``candidates`` defaults to the free paths.  Passing a held list asks the
+    opposite question — which of these could now move — because the probe
+    perturbs the decoded value dict directly rather than θ, and a moment DOF
+    has no tie, so a held path is perturbable exactly as a free one is.
+    """
+    paths = [p for p in (table.free_paths if candidates is None else candidates)
+             if _MOMENT_DOF.match(p) and not p.endswith(".dof0")]
+    if not paths:
+        return []
+    values = table.decode(table.x0())
+    y0 = np.asarray(model.evaluate(values), dtype=np.float64)
+
+    def response(path: str, step: float) -> float:
+        v = dict(values)
+        v[path] = values[path] + step
+        return float(np.linalg.norm(
+            np.asarray(model.evaluate(v), dtype=np.float64) - y0))
+
+    flat: list[str] = []
+    for path in paths:
+        modulus = path.rsplit(".dof", 1)[0] + ".dof0"
+        mu = abs(values[modulus])
+        # the same tip displacement both ways: a rotation by δφ moves the
+        # moment by |μ|·δφ, so the modulus is probed by exactly that much
+        scale = response(modulus, MOMENT_PROBE_ANGLE_RAD * max(mu, 1e-6))
+        if scale <= 0.0 or response(path, MOMENT_PROBE_ANGLE_RAD) <= (
+                MOMENT_DIRECTION_SUPPORT * scale):
+            flat.append(path)
+    return flat
+
+
+def _hold_flat_moments(model: CompiledModel, table: ParameterTable) -> list[str]:
+    """Apply :func:`_flat_moment_paths` to the table; returns what it held."""
+    held = _flat_moment_paths(model, table)
+    if held:
+        table.set_vary(held, False)
+    return held
 
 
 def _hold_unsupported_phases(model: CompiledModel,
@@ -1545,6 +1685,7 @@ class Refinement:
                       max_iter=node.action.max_iter or 100,
                       lebail_cycles=node.action.lebail_cycles or 3,
                       seed=node.action.seed, strain_seed=node.action.strain_seed,
+                      distortion_seed=node.action.distortion_seed,
                       restraint_weight_scale=node.action.restraint_weight_scale,
                       ftol=node.action.ftol,
                       window_slack_deg=node.action.window_slack_deg)
@@ -1643,6 +1784,17 @@ class Refinement:
         the hkl list, symmetry-op subsets, FCJ node counts and windows are
         frozen here and never move until the next stage.
         """
+        if stage.distortion_seed:
+            # **Before the freeing**, unlike the two seeds below, and the order
+            # is forced rather than chosen: an all-zero amplitude block with a
+            # free amplitude in it is refused by name at the rebuild inside
+            # ``set_vary`` itself (``_check_distortion_degeneracy``), because
+            # |F|² is even in the whole amplitude vector and every column
+            # vanishes at the origin together.  A seed applied to the paths
+            # ``set_vary`` returned would therefore never be reached.  The
+            # globs are the stage's own, matched the way ``set_vary`` matches
+            # them.
+            table.seed_distortion(stage.turn_on, stage.distortion_seed)
         freed = table.set_vary(stage.turn_on, True)
         if self._held:
             # lift the previous stage's hold before this one decides its own:
@@ -1722,7 +1874,14 @@ class Refinement:
         # did.  Derived rather than patched, because a collapse and a release
         # can happen in the same stage.
         declared_freed = list(freed)
-        held = _hold_unsupported_phases(model, table)
+        # Two holds, and they answer different questions of the same stage: a
+        # phase the data cannot see at all (WP-1301), and a moment *direction*
+        # the powder average cannot determine (WP-1327).  Both are flat
+        # directions, both are taken after the compile at the values the stage
+        # starts from, and both go into ``StageResult.held`` so the report can
+        # say which and why.
+        held = _hold_unsupported_phases(model, table) + _hold_flat_moments(
+            model, table)
         if held:
             held_set = set(held)
             freed = [p for p in declared_freed if p not in held_set]
@@ -1764,10 +1923,23 @@ class Refinement:
         # one measurement, two questions — the release and the collapse are
         # complementary readings of the same ``phase_support`` vector
         support = model.phase_support(table.decode(table.x0()))
-        released = _released_phases(model, table, held, support) if held else []
+        # the moment holds are asked of the answer separately: they are about a
+        # direction rather than a phase, so ``_released_phases``'s prefix test
+        # would release them for the wrong reason — a phase rising above the
+        # noise says nothing about whether its moment direction became
+        # determinable
+        moment_held = [p for p in held if _MOMENT_DOF.match(p)]
+        phase_held = [p for p in held if p not in set(moment_held)]
+        released = (_released_phases(model, table, phase_held, support)
+                    if phase_held else [])
+        if moment_held:
+            still_flat = set(_flat_moment_paths(model, table, moment_held))
+            released = released + [p for p in moment_held if p not in still_flat]
         # the same question the hold asked, asked again of the answer: what is
-        # free now and belongs to a phase the data cannot see
-        collapsed = _unsupported_phase_paths(model, table, support)
+        # free now and belongs to a phase the data cannot see, and what moment
+        # direction went flat while the stage ran
+        collapsed = (_unsupported_phase_paths(model, table, support)
+                     + _flat_moment_paths(model, table))
         if released or collapsed:
             if collapsed:
                 # Restore before holding: those values moved in a direction the
@@ -1991,7 +2163,14 @@ class Refinement:
                 + _dispersion_diagnostics(self.structure, self.instrument)
                 + _resonant_absorber_diagnostics(self.structure,
                                                  self.instrument)
-                + _species_fallback_diagnostics(self.structure, self.instrument))
+                + _species_fallback_diagnostics(self.structure, self.instrument)
+                # WP-1343: the one check in the package that reads a *plan*
+                # rather than a solved state, and it is here because that is
+                # the only place it can be true to its own claim — the
+                # confound it names is created by the stage list itself, so
+                # the report has to arrive before the first stage runs rather
+                # than after the answer it spoiled.
+                + _stage_order_diagnostics(plan, table))
             stage_results: list[StageResult] = []
             self.stage_reports_ = []
             outcome = None
@@ -2113,6 +2292,13 @@ class Refinement:
         model = outcome = guard = None
         ftols = plan.stage_ftols()
         correlation_hits: dict[frozenset, list[tuple[str, Diagnostic]]] = {}
+        #: the moment's rung at the last stage that moved it with every
+        #: magnetic width still at its off state (WP-1343 follow-up)
+        moment_off_state: dict[str, tuple[float, float | None]] = {}
+        #: (stage name, moment rung, width values) of the last stage that had a
+        #: magnetic width free — the released state the off state is compared
+        #: against, once, after the loop
+        moment_released: tuple | None = None
         for k, (stage, ftol) in enumerate(zip(plan.stages, ftols, strict=True),
                                           start=1):
             with self._abandon_on_cancel(cancel, stage.name, stage_results, stream):
@@ -2120,7 +2306,34 @@ class Refinement:
                     stage, data, mode, table, model, two_theta_limits,
                     plan.correlation_guard, events=stream, cancel=cancel,
                     stage_index=k, n_stages=len(plan.stages), ftol=ftol)
-            stage_diagnostics = _guard_diagnostics(guard)
+            # WP-1343 follow-up: the moment's rung at this boundary, and the
+            # shift the moment took when the widths were released.  Gated on
+            # what the stage actually freed, so an ordinary fit never pays for
+            # the physical-esd build ``_moment_rung`` needs.
+            width_paths = [q for q in freed if _MAGNETIC_WIDTH_DOF.match(q)]
+            if width_paths or any(_MOMENT_DOF.match(q) for q in freed):
+                rung = _moment_rung(table, outcome)
+                if width_paths:
+                    esds = (table.stderr_physical(
+                        outcome.theta, outcome.stderr_internal,
+                        outcome.correlation)
+                        if outcome.stderr_internal is not None else {})
+                    vals = table.decode(outcome.theta)
+                    # the *last* stage that had a width free is the released
+                    # state: one row per moment path in the result, not one
+                    # per (path, stage) — the shape ``_dedup_high_correlations``
+                    # exists to stop one rank over
+                    moment_released = (stage.name, rung, {
+                        q: (float(vals[q]), esds.get(q)) for q in width_paths})
+                elif rung:
+                    # the off state: a stage that moved the moment while no
+                    # magnetic width could move at all.  The *first* such rung
+                    # is the reference, because it is the number a reader who
+                    # stopped at the prescribed step 1 would have quoted.
+                    moment_off_state = moment_off_state or rung
+            stage_diagnostics = (
+                _stage_freed_nothing_diagnostics(stage.name, stage.turn_on, freed)
+                + _guard_diagnostics(guard))
             for d in stage_diagnostics:
                 if d.code == "HIGH_CORRELATION":
                     correlation_hits.setdefault(frozenset(d.where), []).append(
@@ -2151,6 +2364,7 @@ class Refinement:
                     kind="stage", name=stage.name, turn_on=list(stage.turn_on),
                     max_iter=stage.max_iter, lebail_cycles=stage.lebail_cycles,
                     seed=stage.seed, strain_seed=stage.strain_seed,
+                    distortion_seed=stage.distortion_seed,
                     restraint_weight_scale=stage.restraint_weight_scale,
                     # the tolerance this stage *ran* at, not the one it declared
                     # (Stage.ftol is None for every stage taking the plan's
@@ -2163,6 +2377,10 @@ class Refinement:
             diagnostics.extend(d for d in _guard_diagnostics(guard)
                                if d.code == "BOUND_HIT")
         diagnostics.extend(_dedup_high_correlations(correlation_hits))
+        if moment_off_state and moment_released is not None:
+            name, rung, widths = moment_released
+            diagnostics.extend(_moved_moment_diagnostics(
+                name, moment_off_state, rung, widths))
         return model, outcome, guard, stage_results, diagnostics
 
     def _stage_report(self, name, plan, data, mode, table, model, outcome,
@@ -2196,6 +2414,7 @@ class Refinement:
             max_shift_over_esd=outcome.max_shift_over_esd)
         report = build_report(result, model=model,
                               values=table.decode(outcome.theta), plan=plan,
+                              structure=self.structure,
                               free_paths=list(table.free_paths))
         return report.for_stage(name)
 
@@ -2246,6 +2465,13 @@ class Refinement:
             # Copied, never aliased (see fit's call site) — the snapshot stays the
             # construction fact whatever a reader does with the list it is handed.
             declared_wavelengths = list(self._declared_wavelengths)
+            # WP-1343: asked here, before the solve, for the reason ``fit`` asks
+            # it before its first stage — a single stage freeing a magnetic
+            # width beside a cold moment is the same confound, and this is the
+            # entry point a caller reaches for when they are driving the order
+            # by hand.
+            order = _stage_order_diagnostics(
+                RefinementPlan(stages=[stage]), table)
             try:
                 with self._abandon_on_cancel(cancel, stage.name, [], stream):
                     model, outcome, guard, freed, hold = self._run_stage(
@@ -2264,7 +2490,8 @@ class Refinement:
                     # way out — or was cancelled, which reaches here with no
                     # ``fit_end`` to say so — recorded itself ``done``.
                     stream.close()  # we created it from a path/callable
-            diagnostics = _guard_diagnostics(guard)
+            diagnostics = order + _stage_freed_nothing_diagnostics(
+                stage.name, stage.turn_on, freed) + _guard_diagnostics(guard)
             if mode == "pawley":
                 diagnostics.extend(_pawley_unresolved_diagnostics(model, self.structure))
             diagnostics.extend(_constraint_diagnostics(stage.name, outcome))
@@ -2298,6 +2525,7 @@ class Refinement:
                     kind="stage", name=stage.name, turn_on=list(stage.turn_on),
                     max_iter=stage.max_iter, lebail_cycles=stage.lebail_cycles,
                     seed=stage.seed, strain_seed=stage.strain_seed,
+                    distortion_seed=stage.distortion_seed,
                     restraint_weight_scale=stage.restraint_weight_scale,
                     ftol=stage.ftol, window_slack_deg=stage.window_slack_deg,
                 ), model, table, outcome, diagnostics)
@@ -2339,8 +2567,8 @@ class Refinement:
     def predict(self, two_theta=None) -> np.ndarray:
         """y_calc at the current parameters — **the evaluate-only path**.
 
-        With a grid — an array of 2θ values, or a
-        :class:`~rietx.PatternData` whose 2θ column is used — this compiles a
+        With a grid — an array of abscissa values, or a
+        :class:`~rietx.PatternData` whose abscissa is used — this compiles a
         fresh model on it and evaluates.  With no argument it evaluates on the
         grid the last fit ran on, which is the one form that needs a fit to
         have happened: nothing else supplies a grid.
@@ -2410,6 +2638,7 @@ class Refinement:
         table = ParameterTable(self.structure, self.instrument)
         return build_report(self.result_, model=self._model,
                             values=table.decode(table.x0()), plan=plan,
+                            structure=self.structure, held=list(self._held),
                             free_paths=list(self._free_paths), **kw)
 
     def summary(self, *, deliverable: str | None = None, plot: str | None = None,
@@ -2507,9 +2736,9 @@ class Refinement:
         to still be holding.  One Jacobian build, no solve.
         """
         model = self._model
-        data = PatternData(two_theta=model.tt.tolist(),
-                           intensity=model.y_obs.tolist(),
-                           sigma=model.sigma.tolist())
+        data = PatternData(
+            two_theta=model.tt.tolist(),
+            intensity=model.y_obs.tolist(), sigma=model.sigma.tolist())
         s = self.suggest(data)
         if not s.groups:
             return (f"  next: nothing to free — no held parameter clears the "
@@ -2841,6 +3070,247 @@ def _dedup_high_correlations(
             level=worst.level, code=worst.code, message=message,
             where=list(worst.where), value=worst.value, suggestion=worst.suggestion))
     out.sort(key=lambda d: abs(d.value) if d.value is not None else 0.0, reverse=True)
+    return out
+
+
+_MAGNETIC_WIDTH_DOF = re.compile(
+    r"^phases\.(\d+)\.magnetic_lor_(?:size|strain)$")
+
+
+def _stage_order_diagnostics(plan, table) -> list[Diagnostic]:
+    """``STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT`` — the ordering rule, checked
+    against the plan **before the first stage runs** (WP-1343).
+
+    A magnetic width and the moment it belongs to both lower the calculated
+    peak's *height*: |F_m|² ∝ m² takes it down by shrinking the moment, and an
+    extra Lorentzian width takes it down by spreading the same area.  Freed
+    together from a cold start they trade against each other and the plan
+    converges on whichever pair the first step happened to like — the same
+    degeneracy the package already stages around for nuclear size/strain
+    against scale, and the discipline ``mccusker_structural`` encodes.
+
+    The order the package prescribes is **moment first with the widths held at
+    zero, then the widths with the moment held, then both together**
+    (``strategy.magnetic.MAGNETIC_WIDTH_STAGE_PATHS`` is that order as a stage
+    list, and ``RefinementPlan.magnetic_width`` builds it).
+
+    What is reported is precisely a stage that frees a magnetic width **in the
+    same stage in which a moment DOF of the same phase is first freed**.
+    Staging is cumulative, so a width freed after the moment's own stage does
+    not appear here — that is the prescribed order — and a width freed beside
+    a moment that has already converged is the third step, which is fine.  The
+    globs are expanded against the table's real paths rather than matched as
+    text, so a plan written with ``phases.*.…`` is read exactly as the stage
+    runner will read it.
+
+    ``warning`` rather than ``error``: the plan is a caller's to write, the fit
+    will run, and what this owes them is the name of the confound and the
+    order that avoids it — not a refusal.
+    """
+    import fnmatch
+
+    out: list[Diagnostic] = []
+    seen: set[str] = set()
+    for stage in plan.stages:
+        # the stage runner's own matching rule, read off the table's entries:
+        # ``fnmatchcase`` on the dot path, with tied and locked rows skipped
+        # exactly as ``ParameterTable.set_vary`` skips them, so this cannot
+        # report a stage that will in fact free nothing
+        freed = [e.path for e in table.entries
+                 if e.tie is None and not e.locked
+                 and any(fnmatch.fnmatchcase(e.path, g) for g in stage.turn_on)]
+        new = [p for p in freed if p not in seen]
+        seen.update(freed)
+        widths = {m.group(1): p for p in new
+                  if (m := _MAGNETIC_WIDTH_DOF.match(p))}
+        moments = {p.split(".")[1] for p in new if _MOMENT_DOF.match(p)}
+        for ip in sorted(set(widths) & moments):
+            out.append(Diagnostic(
+                level="warning", code="STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT",
+                where=[widths[ip], f"phases.{ip}.atoms.*.moment.dof*"],
+                message=(
+                    f"stage {stage.name!r} frees phase {ip}'s magnetic "
+                    f"broadening in the same stage that first frees its "
+                    f"moment. Both lower the calculated magnetic peak's "
+                    f"height — the moment because p^2|F_perp|^2 goes as m^2, "
+                    f"the width because it spreads the same integrated area — "
+                    f"so from a cold start they trade against each other and "
+                    f"the answer is whichever pair the first step happened to "
+                    f"like. Neither number that comes back is a measurement "
+                    f"of its own quantity"),
+                suggestion=(
+                    "use the three-step order: the moment with the widths "
+                    "held at zero, then the widths with the moment held, then "
+                    "both together — plan=\"magnetic_width\", or "
+                    "strategy.magnetic.MAGNETIC_WIDTH_STAGE_PATHS as stages")))
+    return out
+
+
+def _moment_rung(table, outcome) -> dict[str, tuple[float, float | None]]:
+    """Every moment **modulus** at this stage boundary: path → (|m|, esd).
+
+    WP-1343 follow-up.  The trajectory is where a released width's evidence
+    lives (WP-1058, and WP-1073's rule that a correction's evidence is a rung
+    rather than the endpoint), and the modulus is the only moment quantity
+    with an esd — the crystal-axis components are derived and carry none
+    (WP-1327).  ``abs`` because the modulus DOF is signed and its sign is a
+    domain choice the powder cannot see.
+
+    ``stderr_physical`` is asked for **only** on a stage that touched a moment
+    or a magnetic width, which is why this costs an ordinary fit nothing: with
+    a correlation matrix that call builds a dense n x n, and a Pawley table
+    would make it large.
+    """
+    values = table.decode(outcome.theta)
+    # **Tied followers are excluded.**  The child asymmetric unit of a k != 0
+    # supercell lists each orbit twice (the anti-translation pair), and a
+    # caller tying two orbits equal — the published constraint on Ba2FeSbSe5 —
+    # makes three of four modulus rows followers of one master.  All four
+    # carry the same value and the same esd, so keeping them would repeat one
+    # measurement four times in the diagnostics list; the untied row *is* the
+    # measurement, which is the same reading ``stderr_physical`` takes when it
+    # reports a tie's esd as its source's.
+    paths = [e.path for e in table.entries
+             if _MOMENT_DOF.match(e.path) and e.path.endswith(".dof0")
+             and e.tie is None]
+    if not paths:
+        return {}
+    esds: dict[str, float] = {}
+    if outcome.stderr_internal is not None:
+        esds = table.stderr_physical(outcome.theta, outcome.stderr_internal,
+                                     outcome.correlation)
+    return {q: (abs(float(values[q])), esds.get(q)) for q in paths}
+
+
+def _moved_moment_diagnostics(stage_name: str, off_state: dict, released: dict,
+                              widths: dict) -> list[Diagnostic]:
+    """``MAGNETIC_WIDTH_MOVED_MOMENT`` — the preset already holds the answer.
+
+    WP-1343's thesis is that **the moment pays for a missing width**, and the
+    three-step order measures exactly that twice: step 1 fits the moment with
+    the widths at their off state, step 3 fits it with them free.  The shift
+    between those two rungs is the measurement, and it is a different question
+    from whether the width is significant — which is why
+    ``MAGNETIC_WIDTH_UNMEASURED`` can be right and misleading at the same
+    time.
+
+    The case that forced this into existence is real. On Ba₂FeSbSe₅ at 1.5 K
+    (k = (½,0,½), axial divergence free, child cell and Biso held) the strain
+    term comes back **0.375 ± 0.283** — 1.33 esd, so "unmeasured" — while
+    releasing it moves the tied moment **3.908 ± 0.128 → 4.087 ± 0.18**, and
+    the Q-profile minimum from 5.60 to 5.75 with the paper's 5.84 inside its
+    own 1σ. Reading the support ratio alone there licenses dropping the term,
+    and dropping it puts the moment 0.18 μ_B low again.
+
+    The shift is quoted in units of ``min(esd_off, esd_released)`` — see
+    :data:`~rietx.report.schemas.MAGNETIC_WIDTH_MOMENT_SHIFT_SIGMA` for why
+    the tighter of the two is the yardstick and what the other choice
+    measured.
+    """
+    out: list[Diagnostic] = []
+    for path, (m1, e1) in sorted(off_state.items()):
+        if path not in released:
+            continue
+        m3, e3 = released[path]
+        bars = [e for e in (e1, e3) if e is not None and e > 0.0]
+        if not bars:
+            continue
+        z = abs(m3 - m1) / min(bars)
+        if z <= MAGNETIC_WIDTH_MOMENT_SHIFT_SIGMA:
+            continue
+        wtxt = ", ".join(
+            f"{q} = {v:.4g}" + ("" if e is None else f" +- {e:.4g}")
+            for q, (v, e) in sorted(widths.items()))
+        out.append(Diagnostic(
+            level="warning", code="MAGNETIC_WIDTH_MOVED_MOMENT",
+            where=[path, *sorted(widths)], value=float(z),
+            message=(
+                f"releasing this phase's magnetic broadening moved the moment: "
+                f"|m| = {m1:.4g}"
+                + ("" if e1 is None else f" +- {e1:.4g}")
+                + f" with the widths held at zero, {m3:.4g}"
+                + ("" if e3 is None else f" +- {e3:.4g}")
+                + f" with them free in stage {stage_name!r} — a shift of "
+                f"{z:.2f}x the tighter of the two esds. The widths are "
+                f"{wtxt}. **This is the measurement, and it is not the same "
+                f"question as whether the width is significant.** A width "
+                f"whose esd exceeds its value can still be strongly "
+                f"correlated with the moment, and a shift this size says it "
+                f"is: the term is correlated with the moment, not absent. So "
+                f"do not read MAGNETIC_WIDTH_UNMEASURED here as licence to "
+                f"drop it — holding it at zero puts the moment back where "
+                f"stage 1 had it, which is the bias WP-1343 exists to stop. "
+                f"Quote the released moment, and quote the width as bounded "
+                f"rather than measured"),
+            suggestion=(
+                "quote |m| from the stage that freed the widths, and report "
+                "the width as an upper bound (value + esd) rather than a "
+                "coherence length; a pattern carrying magnetic-only "
+                "reflections is what would separate the two")))
+    return out
+
+
+def _stage_freed_nothing_diagnostics(
+        stage_name: str, turn_on: list[str], freed: list[str], *,
+        n_histograms: int = 1) -> list[Diagnostic]:
+    """``STAGE_FREED_NOTHING`` — a stage whose free list matched no row.
+
+    ``set_vary`` **returns what it matched**, and nothing in ``Stage`` or
+    ``RefinementResult`` surfaced that: a stage that freed nothing solved the
+    same problem the stage before it did and still reported ``converged``.
+
+    **Measured, and it cost a whole refinement.**  On a five-histogram joint
+    fit, a profile stage's globs matched four rows on one histogram and none at
+    all on the other four, whose peak shape is registered under a different
+    path.  Every stage reported ``converged`` with those four histograms' whole
+    profile still at its seed, and nothing in the result said so.  So the
+    diagnostic is **per histogram** and names the histogram's index: a stage
+    that frees rows on some histograms and none on others is the shape that
+    hides, and a joint count of 4 hides it.
+
+    **Per stage, never per glob**, which is the narrowing issue #265 argues
+    for one rank over: a *glob* matching nothing is normal — ``lab_sample_refine``
+    ships ``phases.*.microstrain.dof.*``, which correctly matches nothing on a
+    phase with no Stephens block — and a typo is indistinguishable from it.  A
+    whole stage matching nothing is not normal: it did no work.  ``info``
+    because there is a legitimate case (a preset stage for a correction this
+    model does not declare — ``roughness`` on a neutron instrument), and the
+    honest report of that case is still "this stage freed nothing".
+
+    ``freed`` is the joint table's scoped spelling on a joint fit
+    (``hist.1.instrument.profile.u``; a *shared* path arrives bare), so a
+    shared hit counts for every histogram and a scoped one for its own.
+    """
+    if n_histograms <= 1:
+        if freed:
+            return []
+        empty = [None]
+    else:
+        shared = any(not p.startswith("hist.") for p in freed)
+        if shared:
+            return []
+        touched = {p.split(".", 2)[1] for p in freed if p.startswith("hist.")}
+        empty = [h for h in range(n_histograms) if str(h) not in touched]
+    out = []
+    for h in empty:
+        where = list(turn_on) if h is None else [f"hist.{h}"] + list(turn_on)
+        scope = "" if h is None else f", histogram {h} of {n_histograms},"
+        out.append(Diagnostic(
+            level="info", code="STAGE_FREED_NOTHING",
+            message=(f"stage {stage_name!r}{scope} freed no parameter at all: "
+                     f"its free list {list(turn_on)} matched no row of the "
+                     f"parameter table"
+                     + ("" if h is None else
+                        " for this histogram") +
+                     ". The stage still ran, and it solved the same problem "
+                     "the stage before it did"),
+            where=where,
+            suggestion=(
+                "check the paths against Refinement.parameters() — a glob "
+                "written for one histogram's parameterisation can match no row "
+                "at all on another. If the stage is a preset's and this model "
+                "declares no such correction, nothing is wrong and the stage "
+                "did nothing")))
     return out
 
 
@@ -3212,7 +3682,8 @@ def _phase_agreement(model: CompiledModel, values: dict[str, float],
 
 
 
-def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray, *,
+def _build_result(model: CompiledModel, table: ParameterTable,
+                  theta: np.ndarray, *,
                   mode: Mode, status: str, stage_results: list[StageResult],
                   diagnostics: list[Diagnostic], structure: Structure,
                   stderr_internal=None, correlation=None,
@@ -3265,19 +3736,48 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
         name = structure.phases[ip].name
         cell = tuple(values[f"phases.{ip}.cell.{k}"]
                      for k in ("a", "b", "c", "alpha", "beta", "gamma"))
-        rows = [cp.reflections.two_theta(cell, lam) + values["instrument.zero_shift"]
+        rows = [cp.reflections.two_theta(cell, lam)
+                + values["instrument.zero_shift"]
                 for lam in model.line_wavelengths]
         pos = np.concatenate(rows) if rows else np.array([])
         # one reflection list per emission line, in the same order each time,
         # so the index list is that list tiled — the Kα2 image of a peak is
-        # the same hkl and says so
+        # the same hkl and says so.
         hkl = (np.tile(cp.reflections.hkl, (len(rows), 1)) if rows
                else np.zeros((0, 3), dtype=np.int64))
         keep = np.isfinite(pos)
-        pos, hkl = pos[keep], hkl[keep]
-        order = np.argsort(pos, kind="stable")
-        ticks[name] = [float(v) for v in pos[order]]
-        tick_hkl[name] = [[int(h), int(k), int(el)] for h, k, el in hkl[order]]
+        if cp.magnetic is not None:
+            # issue #278: a magnetic phase's reflections are drawn as their
+            # own tick row, as a second phase would be -- split by the same
+            # purity cut WP-1343 defines upstream (MAGNETIC_TICK_PURITY,
+            # this branch's own copy: see its docstring for why the mask on
+            # ``CompiledPhase`` is not enough on a k != 0 supercell).  One
+            # fraction per *reflection*, tiled across ``rows`` (one row per
+            # emission line, each already ``cp.reflections``-ordered) before
+            # the positions are concatenated and sorted.
+            # ``tick_hkl`` is carried through the same mask and the same sort
+            # as the positions, so a split row keeps its Miller indices.
+            d = np.asarray(cp.reflections.d, dtype=np.float64)
+            f_nuc = np.asarray(model._nuclear_f2(ip, d, values, cell),
+                               dtype=np.float64)
+            f_mag = np.asarray(model._magnetic_f2(ip, d, values, cell),
+                               dtype=np.float64)
+            total = f_nuc + f_mag
+            with np.errstate(invalid="ignore", divide="ignore"):
+                frac = np.where(total > 0.0, f_mag / total, 0.0)
+            mag_hkl = frac >= 1.0 - MAGNETIC_TICK_PURITY
+            mag_row = (np.concatenate([mag_hkl for _ in rows])
+                       if rows else np.zeros(0, dtype=bool))
+            rows_out = ((name, keep & ~mag_row),
+                        (f"{name} (magnetic)", keep & mag_row))
+        else:
+            rows_out = ((name, keep),)
+        for key, sel in rows_out:
+            pos_k, hkl_k = pos[sel], hkl[sel]
+            order = np.argsort(pos_k, kind="stable")
+            ticks[key] = [float(v) for v in pos_k[order]]
+            tick_hkl[key] = [[int(h), int(k), int(el)]
+                             for h, k, el in hkl_k[order]]
 
     # Declared sharp peaks are ticks too, under one reserved key.  This is the
     # whole of the member contract's clause 2 for `PeakComponent`: a hump joins
@@ -3360,6 +3860,20 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
                               stderr_internal=stderr_internal,
                               correlation=correlation)
 
+    # The distortion arm's verdict layer (M-3): AMPLIMODES' per-irrep A_τ with
+    # its esd through the **block** covariance of that component's amplitudes,
+    # aᵀ·Cov·a with a the unit direction.  Built here for geometry's reason —
+    # ``ParameterTable.physical_covariance`` reads the final Jacobian, which is
+    # never serialized, and ``Refinement.report`` builds a *fresh* table with no
+    # covariance at all.  The per-mode ``DistortionEvidence`` rows are computed
+    # in the report, off the esd map alone, because a diagonal esd is all they
+    # need; A_τ is the one that would be wrong from a diagonal.
+    distortion_totals = analyse_distortion_totals(
+        structure, values,
+        esd={p: v for p, v in (stderr_phys or {}).items()},
+        covariance=_distortion_covariance_blocks(
+            structure, table, theta, stderr_internal, correlation))
+
     # The widths read as a coherent domain size and a Δd/d (WP-1131), built
     # here for geometry's reason — the esds come off the same final Jacobian —
     # and through the same λ selector the size bound and the size flag use, so
@@ -3370,6 +3884,21 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
     microstructure = microstructure_table(
         structure, values, wavelength=_longest_line_wavelength(model),
         esds=stderr_phys)
+
+    # WP-1343: whether the magnetic peaks are broader than the profile drew
+    # them, read off the converged residual's *shape* rather than from any
+    # observed-width measurement (there is none in this package).  Silent on
+    # a stage that freed the term — there the trajectory is the evidence.
+    #
+    # ``moved``: the width paths a MAGNETIC_WIDTH_MOVED_MOMENT rung already
+    # named, read off the accumulated list rather than recomputed — one writer
+    # per measurement (WP-1076), and it is what stops the support row being
+    # worded as licence to drop a term that is carrying the answer.
+    diagnostics = diagnostics + magnetic_width_findings(
+        model, values, esds=stderr_phys, free=table.free_paths,
+        moved={q for d in diagnostics
+               if d.code == "MAGNETIC_WIDTH_MOVED_MOMENT"
+               for q in d.where if "magnetic_lor" in q})
 
     # Specimen absorption: report what was applied and, crucially, the Biso
     # bias it removed — for a capillary Rwp is provably unchanged by it, so
@@ -3414,6 +3943,14 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
         model.phase_support(values), model.phase_line_counts(),
         (model.tt_min, model.tt_max), list(table.free_paths), structure,
         stage_results)
+
+    # A displacive mode amplitude the data cannot see (M-1).  The mode twin of
+    # the moment's ``supported`` reading, and it is a Diagnostic rather than
+    # only a report row for the reason ``PHASE_UNCONSTRAINED`` is: |F|² is even
+    # in A, so an unsupported mode is a *flat* direction and the fit reports
+    # ``converged`` with whatever the amplitude was seeded at still in it.
+    diagnostics = diagnostics + _distortion_mode_diagnostics(
+        structure, distortion_totals, list(table.free_paths))
 
     # A strain broader than solved refinements normally use — a flag to check,
     # not a bound (the bound is params.vector.strain_cap, one tier up).
@@ -3478,11 +4015,13 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
                               backend=backend, dtype=backend_dtype_note(backend),
                               solver=solver,
                               report_thresholds_version=THRESHOLDS_VERSION),
-        two_theta=model.tt.tolist(), y_obs=model.y_obs.tolist(),
+        two_theta=model.tt.tolist(),
+        y_obs=model.y_obs.tolist(),
         y_calc=y_calc.tolist(), y_background=y_bkg.tolist(),
         sigma=model.sigma.tolist(),
         ticks=ticks, tick_hkl=tick_hkl,
         qpa=qpa, restraints=restraints_report, geometry=geometry,
+        distortion_totals=distortion_totals,
         microstructure=microstructure,
         phase_agreement=_phase_agreement(model, values, structure),
         data_support=support,
@@ -3517,9 +4056,17 @@ def _extract_reflections(model: CompiledModel | None) -> list[ReflectionState]:
     for ip, cp in enumerate(model.phases):
         if cp.hkl_intensity is None:
             continue
+        order = cp.reflections.satellite_order
         state = ReflectionState(
             phase_index=ip,
             hkl=[[int(v) for v in h] for h in cp.reflections.hkl],
+            # WP-1326: the parent H alone does not identify a row — a phase
+            # with a propagation vector has up to two satellites sharing one
+            # H — so the key a checkout matches on is (H, m).  ``None`` for a
+            # phase with no k keeps the stored document byte for byte what it
+            # was, which is what makes the version bump additive.
+            satellite_order=(None if order is None
+                             else [int(v) for v in order]),
             intensity=[float(v) for v in cp.hkl_intensity],
             kind="pawley_refined" if is_pawley else "lebail_extracted",
             varied=is_pawley,
@@ -3531,32 +4078,52 @@ def _extract_reflections(model: CompiledModel | None) -> list[ReflectionState]:
     return out
 
 
+def _reflection_keys(hkl, order) -> list[tuple]:
+    """(h, k, l, m) per row — the key a Le Bail intensity is matched on.
+
+    ``m`` is the satellite order (WP-1326) and is 0 on every nuclear row, so a
+    phase with no propagation vector produces exactly the keys the three-index
+    form did with one constant appended, and matching is unchanged.  With a
+    propagation vector the parent H alone is ambiguous: H + k and H − k are
+    two reflections at two positions carrying two intensities.
+    """
+    if order is None:
+        return [(int(h[0]), int(h[1]), int(h[2]), 0) for h in hkl]
+    return [(int(h[0]), int(h[1]), int(h[2]), int(m))
+            for h, m in zip(hkl, order, strict=True)]
+
+
 def _scatter_lebail(lookup: dict[tuple, float], cp_new) -> None:
-    """Write intensities into a freshly compiled phase, matching by hkl."""
+    """Write intensities into a freshly compiled phase, matching by (hkl, m)."""
     if cp_new.hkl_intensity is None:
         return
-    for i, h in enumerate(map(tuple, cp_new.reflections.hkl)):
-        value = lookup.get(h)
+    keys = _reflection_keys(cp_new.reflections.hkl,
+                            cp_new.reflections.satellite_order)
+    for i, key in enumerate(keys):
+        value = lookup.get(key)
         if value is not None:
             cp_new.hkl_intensity[i] = value
 
 
 def _carry_lebail(old: CompiledModel, new: CompiledModel) -> None:
-    """Carry per-hkl intensities across a stage recompile (match by hkl)."""
+    """Carry per-hkl intensities across a stage recompile (match by (hkl, m))."""
     for cp_old, cp_new in zip(old.phases, new.phases, strict=True):
         if cp_old.hkl_intensity is None:
             continue
-        lookup = {tuple(h): float(cp_old.hkl_intensity[i])
-                  for i, h in enumerate(map(tuple, cp_old.reflections.hkl))}
+        keys = _reflection_keys(cp_old.reflections.hkl,
+                                cp_old.reflections.satellite_order)
+        lookup = {key: float(cp_old.hkl_intensity[i])
+                  for i, key in enumerate(keys)}
         _scatter_lebail(lookup, cp_new)
 
 
 def _restore_lebail(states: list[ReflectionState], model: CompiledModel) -> None:
-    """Re-seed per-hkl intensities from a checkpoint (match by hkl)."""
+    """Re-seed per-hkl intensities from a checkpoint (match by (hkl, m))."""
     for state in states:
         if not 0 <= state.phase_index < len(model.phases):
             continue
-        lookup = {tuple(h): state.intensity[i] for i, h in enumerate(state.hkl)}
+        keys = _reflection_keys(state.hkl, state.satellite_order)
+        lookup = {key: state.intensity[i] for i, key in enumerate(keys)}
         _scatter_lebail(lookup, model.phases[state.phase_index])
 
 
@@ -3651,21 +4218,30 @@ def _symmetry_silence_diagnostics(structure: Structure,
     ``:R`` changes the operators themselves, not only the origin.
     """
     from .crystallography.symmetry import (
-        get_spacegroup,
+        resolve_group,
         setting_diagnostics,
         snap_diagnostics,
+        split_group_label,
     )
 
     structural = mode == "rietveld"
     out: list[Diagnostic] = []
     for i, phase in enumerate(structure.phases):
-        sg = get_spacegroup(phase.space_group)
+        sg = resolve_group(phase.space_group, phase.symmetry_operations)
         if structural:
             out.extend(snap_diagnostics(
                 sg,
                 [(a.label, (a.x.value, a.y.value, a.z.value)) for a in phase.atoms],
                 source=f"phase {phase.name!r}", prefix=f"phases.{i}"))
 
+        # **A label is not a symbol.**  The setting-assumed warning asks which
+        # of a *symbol's* tabulated settings gemmi picked; a phase carrying its
+        # own operation list has no ambiguity to warn about — the operations
+        # say which setting it is in — and the bracketed label names a type
+        # rather than a setting, so resolving it here would compare the cell
+        # contents of settings the phase never claimed to be in.
+        if split_group_label(phase.space_group) is not None:
+            continue
         # ``mode`` decides whether the atoms may be asked for a composition:
         # outside rietveld they are a scaffold and ``C8`` from a dummy carbon is
         # a fiction.  The setting is reported either way.
@@ -4126,7 +4702,8 @@ def _declared_wavelengths(instrument: Instrument) -> list[float]:
     from an instrument already carrying a refined λ.  The joint path
     (``multi.py``) snapshots the same list at construction for the same reason.
     """
-    return [p.value for p in instrument.source.wavelength_parameters]
+    return [p.value
+            for p in getattr(instrument.source, "wavelength_parameters", ())]
 
 
 #: a soft restraint is flagged in tension when its computed value sits more
@@ -4633,6 +5210,120 @@ def _held_by_phase(stage_results: list[StageResult], n_phases: int
     return paths, [list(s) for s in stages]
 
 
+def _distortion_covariance_blocks(structure, table, theta, stderr_internal,
+                                  correlation):
+    """``{(phase index, component index): Cov(A)}`` for every declared component.
+
+    The block ``analyse_distortion_totals`` needs to propagate σ(A_τ) the way
+    McCusker *et al.* (1999), *J. Appl. Cryst.* **32**, 36, § 10 asks —
+    "the whole correlation matrix, not just the diagonal elements" — rather
+    than from the per-mode esds, which would be the independent approximation
+    for a set of parameters that are collinear by construction (a full mode
+    basis of one direction is exactly the set the 65 K acceptance found
+    "0 of 22 individually supported").
+
+    ``None`` when no covariance was measured, which is the block-level absence
+    the analysis already takes; an unmeasured *row* inside a measured block is
+    left alone rather than refused, unlike QPA's, because A_τ is a plain
+    Euclidean norm — one unmeasured amplitude costs that amplitude's
+    contribution to the variance and nothing else, where a weight fraction
+    normalises by a sum and one unmeasured term makes every fraction
+    unquotable.
+    """
+    if structure is None or stderr_internal is None:
+        return None
+    out: dict[tuple[int, int], np.ndarray] = {}
+    for ip, phase in enumerate(structure.phases):
+        modes = list(getattr(phase, "distortion_modes", ()) or ())
+        if not modes:
+            continue
+        by_name = {m.name: n for n, m in enumerate(modes)}
+        for ic, component in enumerate(phase.distortion_components):
+            paths = [f"phases.{ip}.distortion_modes.{by_name[m.name]}.amplitude"
+                     for m in component.modes]
+            if any(q not in table._paths for q in paths):
+                continue
+            out[(ip, ic)] = table.physical_covariance(
+                theta, stderr_internal, correlation, paths)
+    return out or None
+
+
+def _distortion_mode_diagnostics(structure: Structure, totals, free_paths
+                                 ) -> list[Diagnostic]:
+    """``DISTORTION_MODE_UNSUPPORTED`` — an order parameter inside its own 2σ.
+
+    **Gated on A_τ, not on the individual amplitudes (M-3).**  An irrep fixes
+    its modes only up to an orthogonal basis of the order-parameter direction,
+    so "is this one amplitude above 2σ" is a question the arbitrary
+    orthogonalisation chose and not one the data answers: a rotation of the
+    basis moves the answer without moving the structure.  AMPLIMODES'
+    A_τ = (Σ_m A²_{τ,m})^½ (Perez-Mato, Orobengoa & Aroyo 2010, *Acta Cryst.*
+    A**66**, 558, eq 6–7) is invariant under that rotation, and its esd is
+    propagated through the **block** covariance of the component's amplitudes,
+    so the ratio this fires on is a property of the fit rather than of the
+    basis.  The per-mode rows on ``FitReport.distortion`` stay beneath it as
+    information — they are what says a basis is badly conditioned for this
+    data — and Ba₂FeSbSe₅'s "0 of 22 individually supported" is exactly the
+    reading this replaces.
+
+    The reading, and why it is not "a small distortion".  A zone-boundary
+    displacive mode contributes to a superstructure reflection with a
+    structure factor **odd** in its amplitude, so the intensity is even in A
+    and χ² is stationary at A = 0: the Jacobian column vanishes there, and an
+    order parameter the pattern cannot see is a flat direction rather than a
+    steep one with a small answer.  The fit then reports ``converged``, leaves
+    the amplitudes near wherever they were seeded, and hands back numbers.
+    This names that state, at the same ratio the report's ``supported`` field
+    uses (``report.schemas.DISTORTION_SUPPORT_SIGMA``, 2 — one declared order
+    parameter tested against a parent that already fits).
+
+    Fires only on a component **at least one of whose amplitudes was free** in
+    the answer-producing stage and which measured an esd: a held component is a
+    statement the caller made, and calling it unsupported would be a warning
+    about numbers nobody refined.  The suggestion is the model-selection
+    question rather than a tolerance, because that is the half a caller can act
+    on: one order parameter either pays for itself in ΔBIC against the parent
+    or it does not.
+    """
+    if structure is None or not totals:
+        return []
+    free = set(free_paths)
+    out: list[Diagnostic] = []
+    by_name = {p.name: ip for ip, p in enumerate(structure.phases)}
+    for row in totals:
+        if row.supported or not any(q in free for q in row.paths):
+            continue
+        sigma = (row.amplitude_esd if row.amplitude_esd is not None
+                 else row.amplitude_esd_independent)
+        if sigma is None or not sigma > 0.0:
+            continue
+        ip = by_name.get(row.phase, 0)
+        out.append(Diagnostic(
+            level="warning", code="DISTORTION_MODE_UNSUPPORTED",
+            where=list(row.paths), value=row.amplitude,
+            message=(
+                f"the order parameter {row.irrep_label}{row.direction} of "
+                f"phase {ip} ({row.phase}) has A_τ = {row.amplitude:.3g} over "
+                f"{row.n_modes} mode(s), only {row.amplitude / sigma:.2g}× its "
+                f"own esd of {sigma:.3g} — a largest atomic displacement of "
+                f"{row.amplitude * row.max_displacement_a:.3g} Å. |F|² is even "
+                f"in the amplitude vector, so this is a flat direction of the "
+                f"least-squares problem, not a small distortion the fit "
+                f"measured. A_τ is the basis-independent total and the "
+                f"individual amplitudes beneath it are not, so neither their "
+                f"values nor their signs settle this — "
+                f"{DISTORTION_SIGN_CONVENTION}"),
+            suggestion=(
+                "read the order parameter as unsupported: the pattern does "
+                "not distinguish this superstructure from the parent. Compare "
+                "ΔBIC against the parent phase rather than Rwp, and if the "
+                "distortion is the hypothesis under test, check that the "
+                "reflections it would create lie inside the fitted range at "
+                "all"),
+        ))
+    return out
+
+
 def _phase_support_diagnostics(support_by_phase: np.ndarray,
                                line_counts: np.ndarray,
                                tt_range: tuple[float, float],
@@ -4920,17 +5611,20 @@ def _size_flag_diagnostics(model: CompiledModel, values: dict[str, float],
                 ("gauss_size", _sqrt_or_none(values.get(f"phases.{ip}.gauss_size")))):
             if coeff is None or not coeff > 0.0:
                 continue
-            size_a = apparent_size_from_size_coefficient(coeff, lam, SCHERRER_K)
+            size_a = apparent_size_from_size_coefficient(coeff, lam,
+                                                        SCHERRER_K)
             if not size_a < SIZE_FLAG_SIZE_A:
                 continue
             size_nm = size_a / 10.0
+            read_at = f"λ={lam:.4g} Å"
             path = f"phases.{ip}.{term}"
             out.append(Diagnostic(
                 level="warning", code="SIZE_UNUSUALLY_SMALL",
                 where=[path], value=float(size_nm),
                 message=(f"phase {ip} ({name}) refined {term} to an apparent "
                          f"crystallite size of {size_nm:.3g} nm "
-                         f"(Scherrer K={SCHERRER_K}, λ={lam:.4g} Å), below the "
+                         f"(Scherrer K={SCHERRER_K}, "
+                         f"{read_at}), below the "
                          f"{floor_nm:.0f} nm that solved refinements stay above "
                          f"— of 606 TOPAS refinements in our archive the "
                          f"smallest well-determined crystallite is ≈ 33 nm, and "

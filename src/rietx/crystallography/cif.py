@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import math
 import re
+from pathlib import Path
 
 import gemmi
 
 from ..schemas.common import Diagnostic, Parameter
 from ..schemas.structure import AnisoU, Atom, Cell, Phase, Structure
+from . import magcif
 from .adp import U_NAMES, u_equivalent
 from .symmetry import snap_diagnostics
 
@@ -36,6 +38,14 @@ def _strip_su(value: str) -> float:
 #: is the caller's to make.
 CIF_ANGLE_CORRECT_MAX_DEG = 0.1
 
+#: D7: above this (μ_B, on any moment component) a file's stated moments are
+#: not actually invariant under the magnetic group the same file states —
+#: see the ``CIF_MAGNETIC_ANTI_TRANSLATION_RESIDUAL`` diagnostic below for the
+#: mechanism.  Sized well above float round-trip noise (parsed su/CIF-decimal
+#: rounding is of order 1e-5 mu_B at worst) and far below any plausible
+#: transcription slip, so this fires only on a real inconsistency.
+CIF_ANTI_TRANSLATION_RESIDUAL_TOL_MU_B = 1e-6
+
 #: the grammar both form-factor lookups parse: an element symbol plus an
 #: optional *trailing* charge (``Cl1-``) — see ``scattering.normalize_species``
 #: and ``dispersion.normalize_element``, which share it deliberately
@@ -60,11 +70,56 @@ def _correct_symmetry_angles(sg, angles: dict[str, float], path: str,
     larger one is left exactly as written, so it still raises where it always
     did: past that size the symbol and the angle contradict each other, and
     which of the two is wrong is not a reader's call.
+
+    ``cell_constraints(sg)`` returns :class:`~.symmetry.MetricConstraints`
+    rather than :class:`~.symmetry.CellConstraints` for a group whose
+    invariant subspace is not expressible as ties and fixed angles at all —
+    which, per :func:`~.symmetry.cell_constraints`'s own docstring, only
+    happens when *no* tabulated type shares this group's point group and
+    lattice (a resolving type would make the two-dictionary form the
+    authority, or raise on disagreement — never return this).  WP-1328 Bug
+    B's ``resolve_nuclear_symmetry`` produces exactly this shape for a
+    MAGNDATA setting mismatch, written back with an explicit operation list
+    and re-read.  There is no ``fixed_angles`` dict to correct against in
+    that case — the metric constraints already state the true angle
+    relations as a linear subspace, and forcing this file's angles onto a
+    per-angle model the rotations do not actually obey would silently
+    disagree with it — so this function skips the correction outright rather
+    than raising ``AttributeError``.  What is still worth reporting: since no
+    tabulated type resolves here at all, there is no specific target to
+    compare against, but an angle sitting near one of the only values any
+    ordinary reading ever snaps to (a right angle, or hexagonal's 120°/60°)
+    is exactly the shape a per-angle correction would have wanted — reported
+    once, at info level, so the deviation is not silently lost.
     """
-    from .symmetry import SYMMETRY_ANGLE_TOL_DEG, cell_constraints
+    from .symmetry import SYMMETRY_ANGLE_TOL_DEG, CellConstraints, cell_constraints
 
     out = dict(angles)
-    for name, target in cell_constraints(sg).fixed_angles.items():
+    constraints = cell_constraints(sg)
+    if not isinstance(constraints, CellConstraints):
+        if diagnostics is not None:
+            for name, value in out.items():
+                nearest = min((90.0, 120.0, 60.0), key=lambda t: abs(value - t))
+                delta = value - nearest
+                if SYMMETRY_ANGLE_TOL_DEG < abs(delta) <= CIF_ANGLE_CORRECT_MAX_DEG:
+                    diagnostics.append(Diagnostic(
+                        level="info", code="CIF_CELL_ANGLE_METRIC_CONSTRAINED",
+                        where=[f"phases.0.cell.{name}"],
+                        message=(
+                            f"{path} stores {name} = {value}°, {delta:+.6g}° "
+                            f"off {nearest}°; this group's metric constraints "
+                            f"({constraints.relation}) are a linear subspace "
+                            f"with no fixed-angle dict to correct against — no "
+                            f"tabulated type shares its point group and "
+                            f"lattice, so no per-angle target exists and no "
+                            f"correction was applied. The metric constraints "
+                            f"are the authority for this group's cell."),
+                        suggestion="read as information about this specific "
+                                   "setting, not as noise: no value was "
+                                   "changed",
+                    ))
+        return out
+    for name, target in constraints.fixed_angles.items():
         delta = out[name] - target
         if abs(delta) <= SYMMETRY_ANGLE_TOL_DEG:
             continue
@@ -164,8 +219,99 @@ def species_spelling_hint(species: str) -> str:
     return f"; the charge is written after the digits, so {candidate}"
 
 
+def _gemmi_or_value_error(call, path: str, what: str):
+    """Run a gemmi call, converting **any** exception into a named ``ValueError``.
+
+    `io/CLAUDE.md`'s rule for every reader in this package: it raises
+    ``ValueError``/``OSError`` and **names the file**, never its parser's
+    exception. gemmi's small-structure reader breaks that on a file that is not
+    a CIF at all — an empty or truncated one raises a bare
+    ``IndexError('vector')`` from the C++ side, which is a traceback on an API
+    caller and a 500 on the GUI's upload route rather than "this file could not
+    be read".
+
+    Found by WP-1328's truncation arm in ``tests/test_readers_robust.py``,
+    which until then covered the *pattern* readers only — so the structure
+    reader had never been handed a file cut mid-token. Pre-existing: measured
+    identically on the parent commit, on a plain nuclear CIF, so it is nothing
+    the magnetic arm introduced.
+    """
+    try:
+        return call()
+    except (ValueError, OSError) as exc:
+        raise type(exc)(f"{path}: {what}: {exc}") from exc
+    except Exception as exc:                        # noqa: BLE001 - the point
+        raise ValueError(
+            f"{path}: {what}: {type(exc).__name__}: {exc} — this file does not "
+            f"read as a CIF (an empty, truncated or non-CIF file reaches here)"
+        ) from exc
+
+
+def _magnetic_content(text: str) -> bool:
+    """Whether a CIF's text states a magnetic construct of any kind.
+
+    The gate on the magnetic arm of :func:`structure_from_cif`, and a
+    deliberately *textual* test: it decides whether this file is one the
+    magnetic vocabulary applies to at all, so a nuclear CIF takes exactly the
+    path it always did — including a displacively modulated one, whose average
+    structure this reader has always returned and which is WP-1319's to fence,
+    not this rung's.
+    """
+    if re.search(r"(?m)^\s*_atom_site_moment[._]", text):
+        return True
+    if re.search(r"(?m)^\s*_space_group_(?:symop_)?magn[._]", text):
+        return True
+    return bool(re.search(r"(?m)^\s*_space_group\.magn_", text))
+
+
+def _explicit_operation_list(text: str, path: str):
+    """``(label, operations)`` when the file states a group no symbol names.
+
+    **Only a bracketed label takes this path**, and the fence is deliberate.
+    An ordinary ``_space_group_symop_operation_xyz`` loop is common — most
+    structure CIFs carry one beside their H-M symbol — and for those two the
+    symbol is the group and gemmi's small-structure reader already resolves it;
+    taking the loop instead would change how every such file is read, on a
+    branch whose subject is the files where the symbol *cannot* be the group.
+    So the trigger is the bracket this package writes
+    (:func:`~rietx.crystallography.symmetry.unnamed_label`), which says in the
+    file itself that the H-M string is the closest type and not the symmetry.
+
+    Returns ``(None, None)`` for every other file, which is every file written
+    before this rung.
+    """
+    from .symmetry import split_group_label
+
+    if not re.search(r"(?m)^\s*_space_group_symop[._]operation_xyz", text):
+        return None, None
+    block = _gemmi_or_value_error(
+        lambda: gemmi.cif.read(path).sole_block(), path,
+        "states a symmetry operation loop and has no single data block")
+    label = (block.find_value("_space_group_name_H-M_alt")
+             or block.find_value("_symmetry_space_group_name_H-M")
+             or block.find_value("_space_group_name_H-M_full") or "")
+    label = str(label).strip().strip("'\"")
+    if split_group_label(label) is None:
+        return None, None
+    triplets = [str(row.str(0)).strip()
+                for row in block.find(["_space_group_symop_operation_xyz"])]
+    if not triplets:
+        triplets = [str(row.str(0)).strip()
+                    for row in block.find(["_space_group_symop.operation_xyz"])]
+    if not triplets:
+        raise ValueError(
+            f"{path} labels its space group {label!r} — the bracketed form "
+            f"that says no Hermann-Mauguin symbol generates this group — and "
+            f"its _space_group_symop_operation_xyz loop reads empty. The "
+            f"operation list is the whole of the symmetry for such a file, so "
+            f"there is nothing to build the phase from.")
+    return label, triplets
+
+
 def structure_from_cif(path: str, *, phase_name: str | None = None,
                        aniso: bool = False,
+                       moment_ions: dict[str, str] | None = None,
+                       moment_g: dict[str, float] | None = None,
                        diagnostics: list[Diagnostic] | None = None) -> Structure:
     """Read the first data block of a CIF into a single-phase :class:`Structure`.
 
@@ -187,23 +333,102 @@ def structure_from_cif(path: str, *, phase_name: str | None = None,
     record what changed: each distinct rewritten form appends one
     ``CIF_SPECIES_NORMALISED`` diagnostic naming the substitution, with
     ``where`` carrying every affected atom path.
+
+    **A magCIF** — a file carrying ``_space_group_symop_magn_operation.xyz``
+    and an ``_atom_site_moment`` loop, which is what MAGNDATA, ISODISTORT and
+    k-SUBGROUPSMAG emit — arrives as WP-1327's model: the operator list with
+    its time-reversal signs on ``Phase.magnetic_symmetry``, the moments in
+    crystal-axis components on the sites they name, the parent k as the record
+    ``MagneticSymmetry.propagation_vector_parent``, and the BNS/OG symbol as
+    metadata.  The nuclear space group comes from
+    ``_parent_space_group.name_H-M_alt``, because a magCIF has no ordinary
+    ``_space_group_name_H-M_alt`` at all and gemmi therefore resolves no space
+    group for one.  Two magnetic constructs are **refused by name** rather than
+    half-read: a modulated structure (any ``_atom_site_moment_Fourier`` or
+    special-function loop) and a structure stated in a *supercell* of its
+    parent (the generic commensurate k ≠ 0 record) — see
+    :mod:`rietx.crystallography.magcif`, which owns the vocabulary and both
+    refusals.
+
+    ``moment_ions`` and ``moment_g`` state, per site label, the two quantities
+    no magnetic dictionary carries: the ion whose form factor the moment
+    scatters with (``{"Mn1": "Mn3+"}``) and the Landé g a 4f moment needs.
+    Where ``moment_ions`` says nothing the site's own type symbol is used and a
+    ``CIF_MAGNETIC_ION_UNCHARGED`` diagnostic reports it, because MAGNDATA
+    writes a bare ``Mn`` for a site that is chemically Mn³⁺ and the two form
+    factors differ.
     """
-    small = gemmi.read_small_structure(path)
+    small = _gemmi_or_value_error(
+        lambda: gemmi.read_small_structure(path), path,
+        "could not be read as a small-molecule CIF")
     if not small.sites:
         raise ValueError(f"no atom sites found in {path}")
+    text = Path(path).read_text(encoding="utf-8", errors="replace")
 
+    # The magnetic arm's two refusals run **before** anything is built and
+    # whether or not the file also states an ordinary space group: a magCIF
+    # from ISODISTORT can carry both, and a refusal that fires only on the
+    # branch where the nuclear symbol is missing is a construct dropped
+    # exactly where the file was most complete.
+    block = None
+    magnetic_symmetry = None
+    if _magnetic_content(text):
+        block = _gemmi_or_value_error(
+            lambda: gemmi.cif.read(path).sole_block(), path,
+            "states a magnetic construct and has no single data block")
+        magcif.refuse_modulation(text, path)
+        magcif.refuse_a_magnetic_supercell(block, text, path)
+        magnetic_symmetry = magcif.read_magnetic_symmetry(block, text, path)
+
+    label, explicit = _explicit_operation_list(text, path)
     sg = small.spacegroup
-    if sg is None:
-        # fall back on the raw H-M string in the file
-        doc = gemmi.cif.read(path)
-        block = doc.sole_block()
-        hm = (block.find_value("_symmetry_space_group_name_H-M")
-              or block.find_value("_space_group_name_H-M_alt"))
+    space_group_label: str | None = None
+    if explicit is not None:
+        from .symmetry import resolve_group
+
+        sg = resolve_group(label, explicit)
+    elif sg is None:
+        # fall back on the raw H-M string in the file, then on the magCIF
+        # parent symbol: a magCIF states no ordinary H-M symbol at all — the
+        # magnetic block replaces it — so gemmi resolves no space group for
+        # one, and the *nuclear* group is the parent's.  The magnetic operator
+        # list cannot supply it: a type-III group is an index-2 subgroup of the
+        # parent, so the nuclear symmetry is strictly higher than the
+        # operators state.
+        doc_block = block if block is not None else _gemmi_or_value_error(
+            lambda: gemmi.cif.read(path).sole_block(), path,
+            "has no single data block to read a space group from")
+        hm = (doc_block.find_value("_symmetry_space_group_name_H-M")
+              or doc_block.find_value("_space_group_name_H-M_alt")
+              or (magcif.parent_space_group(doc_block) if block is not None
+                  else None))
+        if hm is None and block is not None:
+            raise magcif.MagCifError(
+                f"{path} states a magnetic structure and no space group this "
+                f"reader can resolve: neither an ordinary "
+                f"_space_group_name_H-M_alt nor the magCIF "
+                f"_parent_space_group.name_H-M_alt. The magnetic operator list "
+                f"alone cannot supply it — a type-III magnetic group is an "
+                f"index-2 subgroup of the parent, so the nuclear symmetry is "
+                f"strictly *higher* than the operators state, and a phase "
+                f"built from them would carry the wrong absences and the wrong "
+                f"site multiplicities.")
         if hm is None:
             raise ValueError(f"CIF {path} has no resolvable space group")
-        sg = gemmi.find_spacegroup_by_name(hm.strip("'\""))
-        if sg is None:
-            raise ValueError(f"unrecognised space group {hm!r} in {path}")
+        if block is not None and magnetic_symmetry is not None:
+            # The nuclear group of a magCIF is derived from the file's own
+            # magnetic operators (time reversal dropped), never from the H-M
+            # symbol alone: gemmi's tabulated operator set for a symbol can
+            # sit at a different origin than the setting this file's cell,
+            # coordinates and moments are actually stated in (measured on
+            # Ima2/space group 46). The symbol is kept only as the phase's
+            # label and a cross-check (magcif.resolve_nuclear_symmetry).
+            sg, space_group_label, explicit = magcif.resolve_nuclear_symmetry(
+                hm, magnetic_symmetry, path, diagnostics=diagnostics)
+        else:
+            sg = gemmi.find_spacegroup_by_name(hm.strip("'\""))
+            if sg is None:
+                raise ValueError(f"unrecognised space group {hm!r} in {path}")
 
     cell = small.cell
     atoms: list[Atom] = []
@@ -250,9 +475,81 @@ def structure_from_cif(path: str, *, phase_name: str | None = None,
     angles = {"alpha": cell.alpha, "beta": cell.beta, "gamma": cell.gamma}
     angles = _correct_symmetry_angles(sg, angles, path, diagnostics)
 
+    if block is not None:
+        cell6 = (cell.a, cell.b, cell.c,
+                 angles["alpha"], angles["beta"], angles["gamma"])
+        written_ions, written_g = magcif.read_private_moment_items(block)
+        ions = {**written_ions, **(moment_ions or {})}
+        g_factors = {**written_g, **(moment_g or {})}
+        moments = magcif.read_moments(block, cell6, path, ions=ions,
+                                      g_factors=g_factors)
+        by_label = {a.label: (j, a) for j, a in enumerate(atoms)}
+        unmatched = sorted(set(moments) - set(by_label))
+        if unmatched:
+            raise magcif.MagCifError(
+                f"{path}: the _atom_site_moment loop names "
+                f"{', '.join(repr(u) for u in unmatched)}, which is not an "
+                f"_atom_site_label in this block "
+                f"({', '.join(repr(k) for k in by_label)}). A moment whose "
+                f"site cannot be found is refused rather than dropped — it is "
+                f"the whole magnetic contribution of that site.")
+        if moments and magnetic_symmetry is None:
+            raise magcif.MagCifError(
+                f"{path} states moments on "
+                f"{', '.join(repr(k) for k in moments)} and no "
+                f"_space_group_symop_magn_operation.xyz loop. A moment is only "
+                f"meaningful under a magnetic space group — it is what gives "
+                f"the moment an allowed subspace and an orbit — so the "
+                f"operator list is not optional here.")
+        from .magnetic import form_factor
+
+        assumed_ions: dict[str, tuple[str, str]] = {}
+        assumed_g: dict[str, float] = {}
+        for label, (moment, _row) in moments.items():
+            j, atom = by_label[label]
+            # The ion is the one quantity a magCIF cannot state (there is no
+            # such item in ``cif_mag.dic``), so it falls back on the site's own
+            # type symbol and ``magnetic_diagnostics`` reports that it did. A
+            # bare element symbol this table cannot resolve *neutrally* -- every
+            # lanthanide/actinide it carries only ionic <j0> curves for -- gets
+            # one further fallback: the element's majority oxidation state that
+            # is magnetic (WP-1327 D1; issue-magnetic-form-factor option (b)),
+            # reported as MAGNETIC_ION_ASSUMED rather than
+            # CIF_MAGNETIC_ION_UNCHARGED, since it is a stronger substitution
+            # than the neutral-atom one.
+            ion = moment.ion or atom.species
+            g = moment.g
+            if not moment.ion and not form_factor.has_ion(ion):
+                assumed = form_factor.resolve_assumed_ion(ion)
+                if assumed is not None:
+                    assumed_ions[label] = assumed
+                    ion = assumed[0]
+                    # g is the second quantity magCIF cannot state, and the
+                    # same reasoning applies one step further: an ion this
+                    # module *assumed* (never one a caller stated) that turns
+                    # out to need an explicit g (every lanthanide/actinide
+                    # here does) gets its free-ion Hund's-rule g_J defaulted
+                    # too, rather than refusing on a quantity the file could
+                    # never have carried either way (WP-1327 D-lande-g).
+                    if g is None and form_factor.needs_explicit_g(ion):
+                        default_g = form_factor.assumed_lande_g(ion)
+                        if default_g is not None:
+                            assumed_g[label] = default_g
+                            g = default_g
+            atoms[j] = atom.model_copy(update={
+                "moment": moment.model_copy(update={"ion": ion, "g": g})})
+        if diagnostics is not None and magnetic_symmetry is not None:
+            diagnostics.extend(magcif.magnetic_diagnostics(
+                path, {k: (atoms[by_label[k][0]].moment, row)
+                       for k, (_m, row) in moments.items()},
+                magnetic_symmetry,
+                {a.label: (j, a) for j, a in enumerate(atoms)}, cell6,
+                assumed_ions=assumed_ions, assumed_g=assumed_g))
+
     phase = Phase(
         name=phase_name or (small.name or "phase_1"),
-        space_group=sg.xhm(),
+        space_group=space_group_label if space_group_label is not None else sg.xhm(),
+        symmetry_operations=explicit,
         cell=Cell(
             # bounds deliberately left open: a cell length's default window
             # is anchored per stage on the value that stage starts from
@@ -267,7 +564,40 @@ def structure_from_cif(path: str, *, phase_name: str | None = None,
             gamma=Parameter(value=angles["gamma"]),
         ),
         atoms=atoms,
+        magnetic_symmetry=magnetic_symmetry,
     )
+    if diagnostics is not None and magnetic_symmetry is not None and any(
+            a.moment is not None for a in atoms):
+        # D7: every moment is checked against *its own* site's allowed
+        # subspace at read time (magcif's symmform/span validation above),
+        # but never against the moments of the *other* sites its own
+        # magnetic group relates it to — so a file can pass every per-site
+        # check and still state a moment set that is not actually invariant
+        # under the group it also states.  This is a read, not a fit, so
+        # nothing here is fixed; it is only made visible.
+        from .magnetic.supercell import anti_translation_residual
+
+        residual = anti_translation_residual(phase)
+        if residual > CIF_ANTI_TRANSLATION_RESIDUAL_TOL_MU_B:
+            diagnostics.append(Diagnostic(
+                level="warning", code="CIF_MAGNETIC_ANTI_TRANSLATION_RESIDUAL",
+                where=["phases.0.atoms"],
+                value=residual,
+                message=(
+                    f"{path}: this file's stated moments are not invariant "
+                    f"under its own stated magnetic group — the worst "
+                    f"disagreement between a site's moment and the image "
+                    f"another operation of the group carries onto it (or its "
+                    f"symmetry-equivalent site) is {residual:.4g} mu_B, well "
+                    f"past round-off. The reader validated each site's "
+                    f"moment against its own site-symmetry subspace, but "
+                    f"never checked the whole moment set against the group's "
+                    f"other operations and centerings, so this passed every "
+                    f"per-site check."),
+                suggestion="not corrected: choosing which of the two "
+                           "disagreeing statements is right is not a "
+                           "reader's call. Read as a fact about this file, "
+                           "not a fact this package can act on"))
     return Structure(phases=[phase])
 
 
@@ -313,7 +643,9 @@ def _fmt(p: Parameter, decimals: int) -> str:
     return format_su(p.value, p.stderr, decimals=decimals)
 
 
-def write_structure_block(block, phase: Phase) -> None:
+def write_structure_block(block, phase: Phase, *,
+                          moment_magnitude_esds: dict[str, float] | None = None,
+                          ) -> None:
     """Write one phase's cell, sites and ADP loops into a gemmi CIF ``block``.
 
     Anisotropic sites get an ``_atom_site_aniso_*`` loop in the CIF U^ij
@@ -334,6 +666,23 @@ def write_structure_block(block, phase: Phase) -> None:
     for name in ("alpha", "beta", "gamma"):
         block.set_pair(f"_cell_angle_{name}", _fmt(getattr(c, name), 4))
     block.set_pair("_symmetry_space_group_name_H-M", gemmi.cif.quote(phase.space_group))
+    if phase.symmetry_operations is not None:
+        # **The operation loop is the group when the symbol is only a label**
+        # (Q-17).  ``_space_group_symop_operation_xyz`` is coreCIF's own way of
+        # stating a symmetry that a symbol does not name, and it is what a
+        # reader of a child cell whose glide translation is a quarter has to be
+        # given: the H-M string beside it is the closest *type* in brackets and
+        # generates a different group.  ``_space_group_name_H-M_alt`` carries
+        # the label as well as the legacy ``_symmetry_`` item above, because
+        # ``_alt`` is the item the core dictionary defines as a *non-standard*
+        # or descriptive setting name — which is exactly what a bracketed label
+        # is — while the plain ``_space_group_name_H-M_full`` is reserved for a
+        # symbol from the tables.
+        block.set_pair("_space_group_name_H-M_alt",
+                       gemmi.cif.quote(phase.space_group))
+        symop = block.init_loop("_space_group_symop_", ["id", "operation_xyz"])
+        for idx, triplet in enumerate(phase.symmetry_operations):
+            symop.add_row([str(idx + 1), gemmi.cif.quote(triplet)])
     loop = block.init_loop("_atom_site_", [
         "label", "type_symbol", "fract_x", "fract_y", "fract_z",
         "occupancy", "B_iso_or_equiv", "adp_type",
@@ -357,6 +706,15 @@ def write_structure_block(block, phase: Phase) -> None:
         for a in aniso:
             uloop.add_row([a.label] + [_fmt(getattr(a.aniso, n), 5)
                                        for n in U_NAMES])
+    # The magnetic half, when the phase carries one: the operator and centring
+    # loops, the BNS/OG metadata, the parent k, and the moments with their esds
+    # (``crystallography.magcif``).  Nothing at all is written for a phase with
+    # no ``magnetic_symmetry``, so every file this writer produced before this
+    # rung is byte-identical — the one property a writer change inside a
+    # function shared by ``structure_to_cif`` and the refinement exporter has
+    # to have.
+    magcif.write_magnetic_block(block, phase,
+                                magnitude_esds=moment_magnitude_esds)
 
 
 def structure_to_cif(structure: Structure, path: str) -> None:

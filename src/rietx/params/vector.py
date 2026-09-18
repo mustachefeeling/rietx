@@ -26,12 +26,21 @@ import numpy as np
 from pydantic import ValidationError
 from scipy import sparse
 
+from ..backend import get_backend
 from ..crystallography.adp import U_NAMES
+from ..crystallography.magnetic.moments import (
+    dofs_from_moment,
+    moment_frame,
+    moment_from_dofs,
+)
 from ..crystallography.stephens import S_NAMES, isotropic_coefficients, strain_basis
 from ..crystallography.symmetry import (
+    MetricConstraints,
     cell_constraints,
+    cell_from_metric_coordinates,
     check_cell_angles,
-    get_spacegroup,
+    metric_coordinates,
+    resolve_group,
     rotation_matrices,
 )
 from ..crystallography.wyckoff import adp_basis, coordinate_basis, stabilizer_rotations
@@ -43,7 +52,7 @@ from ..schemas.instrument import (
     BackgroundPSpline,
     Instrument,
 )
-from ..schemas.structure import Structure
+from ..schemas.structure import MOMENT_COMPONENTS, Structure
 from .transforms import dphys_dinternal, internal_bounds, to_internal, to_physical
 
 #: Dot-path suffix of a source line's wavelength row.  One authority for the
@@ -109,10 +118,7 @@ def check_wavelength_freedom(free_wavelengths: list[str], n_wavelengths: int,
     own surface spells them; ``n_wavelengths`` is how many wavelength rows the
     whole problem has and ``n_histograms`` how many patterns it stacks.
 
-    **Scope: constant-wavelength only.**  The same fence generalises verbatim to
-    a time-of-flight multi-bank fit, where each bank carries its own DIFC
-    calibration and exactly one of them must be held to pin the cell; nothing
-    here implements TOF.
+    **Scope: constant-wavelength only.**
     """
     if not free_wavelengths:
         return
@@ -735,6 +741,17 @@ def size_cap(tt_min: float, tt_max: float, wavelength_a: float,
     return min(physics, rng)
 
 
+#: (π/360), the one factor between a stored strain **coefficient** and the
+#: Δd/d it means.  A deliberate second spelling of
+#: :func:`~rietx.model.profiles.caglioti.microstrain_width`'s constant, for
+#: :data:`_SIZE_CAP_SCHERRER_K`'s reason — this module stays free of a
+#: ``params`` → ``model`` import — and held to it by an equality pin rather
+#: than by this comment (``tests/test_strain_cap.py``).  The physics: the
+#: Stokes-Wilson broadening is Δ2θ = 2·(Δd/d)·tanθ in *radians*, so a
+#: coefficient c in degrees carries Δd/d = (π/180)·c/2.
+_STRAIN_COEFFICIENT_TO_DD = math.pi / 360.0
+
+
 def size_cap_hi(name: str, value: float, hi: float, cap: float) -> float:
     """The upper bound one size term takes this stage — ``hi`` unless capped.
 
@@ -853,6 +870,27 @@ class ParameterTable:
         #: table's arithmetic is untouched: the rebuild writes the literal 1.0
         #: it always wrote, and ``x0``/``bounds`` skip the lookup's branch.
         self._value_scale: dict[str, float] = {}
+        #: atom base path (``phases.0.atoms.2``) → the orthonormal frame of
+        #: that site's allowed moment subspace, in crystal-axis rows.  Frozen
+        #: here from the stage's declared cell and read by
+        #: :meth:`_refresh_moment_components`; the forward model builds the
+        #: *same* frame from the *same* cell through the one function that
+        #: makes it, so there is exactly one frame per site per stage.
+        self._moment_frames: dict[str, np.ndarray] = {}
+        #: phase base path → {amplitude path: the atom indices that mode
+        #: moves}.  Read by :meth:`_check_distortion_degeneracy`; empty for
+        #: every phase declaring no mode, which is why a table without one
+        #: does exactly the arithmetic it always did.
+        self._mode_atoms: dict[str, dict[str, frozenset[int]]] = {}
+        #: phase base path → (its :class:`~rietx.crystallography.symmetry.
+        #: MetricConstraints`, its ``…cell.metric.g<k>`` paths in index order).
+        #: Set by :meth:`_collect_metric_cell` for a phase whose cell
+        #: ``CellConstraints`` cannot state (Q-17d); read by :meth:`decode`
+        #: (the g → cell map, on every free-vector evaluation) and
+        #: :meth:`stderr_physical` (the propagated cell esds, since the map is
+        #: not affine and carries no ``C`` row of its own).  Empty for every
+        #: phase this rung does not touch.
+        self._metric_phases: dict[str, tuple[MetricConstraints, tuple[str, ...]]] = {}
         self._collect(structure, instrument)
         self._rebuild()
 
@@ -867,7 +905,7 @@ class ParameterTable:
 
     def _collect(self, structure: Structure, instrument: Instrument) -> None:
         for ip, phase in enumerate(structure.phases):
-            sg = get_spacegroup(phase.space_group)
+            sg = resolve_group(phase.space_group, phase.symmetry_operations)
             # The cell ties come from the *setting*, not from the crystal system
             # alone: a c-unique monoclinic symbol fixes β, not γ, and an R group
             # on rhombohedral axes ties c←a and α=β=γ rather than leaving c free
@@ -876,15 +914,45 @@ class ParameterTable:
             check_cell_angles(sg, {name: getattr(phase.cell, name).value
                                    for name in ("alpha", "beta", "gamma")})
             base = f"phases.{ip}"
-            for name in _CELL_NAMES:
-                p: Parameter = getattr(phase.cell, name)
-                if name in constraints.ties:
-                    self._add(f"{base}.cell.{name}", p, tie=AffineTie.identity(
-                        f"{base}.cell.{constraints.ties[name]}"))
-                elif name in constraints.fixed_angles:
-                    self._add(f"{base}.cell.{name}", p, force_fixed=True)
+            # **A phase carrying distortion modes has no free cell**, and the
+            # rows are *locked* rather than merely unfree, which is the
+            # WP-1073 rule for a parameter that cannot be refined at all: a
+            # mode's vectors are stated in the child cell of a parent + k
+            # transform, whose parameters are non-linear functions of the
+            # parent's (c′ = √(a²+c²), β′ = f(a, c) for 2a, b, a+c), so no
+            # affine tie can hold the relation and a freed child cell walks
+            # away from the parent metric with nothing to say so.  Locked
+            # means a broad ``phases.*.cell.*`` glob skips them, exactly as it
+            # skips a symmetry-fixed angle; a *declared* ``vary=True`` is a
+            # claim rather than a sweep and is refused loudly one level up, in
+            # ``Phase._distortion_modes_are_refinable``.
+            held_cell = bool(getattr(phase, "distortion_modes", ()))
+            if isinstance(constraints, MetricConstraints):
+                # **held_cell wins outright, unchanged.**  A distortion-mode
+                # phase's cell is not independently refinable at all — M1's
+                # rule, untouched by Q-17d — so there is nothing for the g
+                # coordinates to do beyond letting the phase *build*, which
+                # ``cell_constraints``'s own fallback already handles before
+                # this table ever sees it.  Locking here is bit-identical to
+                # the pre-Q-17d ``held_cell`` branch below, just reached by a
+                # different ``constraints`` type.
+                if held_cell:
+                    for name in _CELL_NAMES:
+                        self._add(f"{base}.cell.{name}",
+                                  getattr(phase.cell, name), force_fixed=True)
                 else:
-                    self._add(f"{base}.cell.{name}", p)
+                    self._collect_metric_cell(base, phase, constraints)
+            else:
+                for name in _CELL_NAMES:
+                    p: Parameter = getattr(phase.cell, name)
+                    if name in constraints.ties:
+                        self._add(f"{base}.cell.{name}", p, force_fixed=held_cell,
+                                  tie=AffineTie.identity(
+                                      f"{base}.cell.{constraints.ties[name]}"))
+                    elif name in constraints.fixed_angles or held_cell:
+                        self._add(f"{base}.cell.{name}", p, force_fixed=True)
+                    else:
+                        self._add(f"{base}.cell.{name}", p)
             self._add(f"{base}.scale", phase.scale)
             self._add(f"{base}.extinction", phase.extinction)
             if phase.preferred_orientation is not None:
@@ -898,14 +966,196 @@ class ParameterTable:
                       force_fixed=phase.microstrain is not None)
             self._add(f"{base}.gauss_size", phase.gauss_size)
             self._add(f"{base}.gauss_strain", phase.gauss_strain)
+            # **The magnetic pair exists only on a phase that has a magnetic
+            # component to broaden** (WP-1343).  Registering them on every
+            # phase would put two rows in every table in the package for a
+            # term whose forward model is `None` there — the declared-name
+            # trap — so a phase with no ``magnetic_symmetry`` carries neither
+            # path at all and no stage can free what it does not have.  The
+            # schema refuses a non-zero *value* there for the same reason,
+            # which is the half a table cannot state.
+            if phase.magnetic_symmetry is not None:
+                self._add(f"{base}.magnetic_lor_size", phase.magnetic_lor_size)
+                self._add(f"{base}.magnetic_lor_strain",
+                          phase.magnetic_lor_strain)
             self._collect_microstrain(base, sg, phase)
+            modes = self._collect_distortion_modes(base, phase)
             for j, atom in enumerate(phase.atoms):
-                self._collect_atom_coords(f"{base}.atoms.{j}", sg, atom)
+                self._collect_atom_coords(
+                    f"{base}.atoms.{j}", sg, atom,
+                    modes=[(path, m.vectors[j], m.amplitude.value)
+                           for path, m in modes])
                 self._add(f"{base}.atoms.{j}.occ", atom.occ)
                 self._collect_atom_adps(f"{base}.atoms.{j}", sg, atom)
+                self._collect_atom_moment(f"{base}.atoms.{j}", phase, atom)
 
         self._add("instrument.zero_shift", instrument.zero_shift)
         self._collect_instrument(instrument)
+
+    def _collect_distortion_modes(self, base: str, phase
+                                  ) -> list[tuple[str, object]]:
+        """One amplitude per declared mode, and the (path, mode) pairs to tie.
+
+        A mode amplitude is a **synthetic entry like a Wyckoff DOF** and it
+        reaches the forward model the same way: every atom's x, y, z row gains
+        an affine term A_ν·e_νj, so ``values["phases.i.atoms.j.x"]`` is
+        already the displaced coordinate and nothing downstream of the table
+        needs to know a mode exists.  That is the whole engine hook, and it is
+        exact rather than approximate because x = x⁰ + Σ A_ν e_νj is affine and
+        the constraint block is affine (``_rebuild``).
+
+        **The anchor is the base structure, recovered rather than stored.**
+        ``apply_to_models`` writes the *displaced* coordinate back into
+        ``Atom.x`` — it must, or a CIF of the refined structure would carry the
+        parent's positions — so the undistorted base is
+        ``atom.x − Σ_ν A_ν⁰ e_νj`` with A⁰ the amplitude the model came in
+        with, and the tie constant is that base.  At A = A⁰ the row equals the
+        model value exactly, so a recompile is a fixed point and a mode is
+        never applied twice.  A Wyckoff DOF needs none of this because it is
+        reset to zero at every collect; an amplitude is a *reported* quantity
+        that a sequential run warm-starts, so it cannot be.
+        """
+        modes = list(getattr(phase, "distortion_modes", ()) or ())
+        out: list[tuple[str, object]] = []
+        for n, mode in enumerate(modes):
+            path = f"{base}.distortion_modes.{n}.amplitude"
+            self._add(path, mode.amplitude)
+            out.append((path, mode))
+        if modes:
+            self._mode_atoms[base] = {
+                path: frozenset(j for j, v in enumerate(mode.vectors)
+                                if any(c != 0.0 for c in v))
+                for path, mode in out}
+        return out
+
+    def _collect_metric_cell(self, base: str, phase,
+                             constraints: MetricConstraints) -> None:
+        """A cell refined on the ``m`` metric coordinates of its subspace (Q-17d).
+
+        Mirrors :meth:`_collect_atom_moment`'s non-affine pattern, the one
+        other place a parameterisation is not affine in the free vector: the
+        six ``Parameter``s ``a, b, c, alpha, beta, gamma`` are **locked** — a
+        record, carried for globs, exporters and write-back, exactly as the
+        moment block's ``crystalaxis_*`` components are — and the freedom
+        lives entirely in ``…cell.metric.g<k>``, unbounded and
+        identity-transform like every other DOF here.  :meth:`decode`
+        overwrites the six locked values from the current ``g`` on every
+        free-vector evaluation (not the affine constraint block, which cannot
+        carry a nonlinear map), which is what a phase whose cell
+        ``CellConstraints`` cannot state needs to be refinable at all.
+
+        **Bounds.**  :func:`cell_window` bounds ``phases.i.cell.{a,b,c,alpha,
+        beta,gamma}`` by path; a ``…cell.metric.g<k>`` path does not match
+        (:func:`_cell_parameter_name`), so these entries fall through
+        unwindowed rather than raising — the brief's own fallback for "the
+        window cannot be expressed in g". No runaway guard exists for them
+        yet; a bad ``g`` still shows up as a degenerate cell at
+        :func:`~rietx.crystallography.cif`'s own check, one stage later than
+        for an ordinary cell.
+
+        **Backend.** :mod:`rietx.backend.traced` has no twin for this map (it
+        reimplements ``decode``'s *affine* block only, ``xp``-parameterised,
+        for jax/torch's analytic Jacobian — see its own guard for the
+        magnetic structure factor, the one other quantity it already refuses
+        to trace).  Silently tracing this cell would hold it at its initial
+        value for the whole solve rather than raising, so this refuses by
+        name instead, the same choice :mod:`rietx.backend.traced` already
+        made for a moment.
+        """
+        backend = get_backend()
+        if backend.name != "numpy":
+            raise ValueError(
+                f"{base}: this phase's cell is refined on "
+                f"{constraints.m} metric coordinate(s) rather than a, b, c, "
+                f"alpha, beta, gamma directly (Q-17d) — the g → cell map has "
+                f"no traced twin in rietx.backend.traced, so the "
+                f"{backend.name!r} backend's analytic Jacobian would hold "
+                f"this cell at its initial value for the whole solve without "
+                f"raising. Use the numpy backend "
+                f"(rietx.backend.set_backend('numpy')) for this phase — its "
+                f"finite-difference Jacobian calls ParameterTable.decode "
+                f"fresh at every trial point and needs no twin.")
+        cell = phase.cell.lengths_angles()
+        g0 = metric_coordinates(constraints, cell)
+        want_vary = any(getattr(phase.cell, n).vary for n in _CELL_NAMES)
+        for name in _CELL_NAMES:
+            self._add(f"{base}.cell.{name}", getattr(phase.cell, name),
+                      force_fixed=True)
+        g_paths = tuple(f"{base}.cell.metric.g{k}" for k in range(constraints.m))
+        for path, value in zip(g_paths, g0, strict=True):
+            self.entries.append(Entry(
+                path=path, value=float(value), vary=want_vary,
+                lo=-np.inf, hi=np.inf, transform="identity"))
+        self._metric_phases[base] = (constraints, g_paths)
+
+    def _check_distortion_degeneracy(self) -> None:
+        """Refuse a free amplitude whose every atom also has free coordinates.
+
+        The mode column is Σ_j Σ_c e_jc ∂/∂x_jc and each atom's free Wyckoff
+        DOFs span that atom's whole allowed displacement subspace — which the
+        mode vector lies in by construction (``_collect_atom_coords`` checks
+        it).  So the amplitude is in the span of the freed DOF columns exactly
+        when every atom the mode moves has free coordinates, and the pair is
+        then **exactly** degenerate: not correlated, not ill-conditioned, but a
+        rank-deficient Jacobian, which is the state ``_one_strain_model``
+        refuses for a Stephens block beside ``lor_strain`` and for the same
+        reason.  One amplitude *instead of* the coordinates is the whole point
+        of the parameterisation.
+
+        Checked in :meth:`_rebuild` rather than at collect, so it catches a
+        free set restored by ``Refinement._prepare_table`` as well as a
+        declared one.
+        """
+        if not self._mode_atoms:
+            return
+        free = {e.path for e in self.entries if e.vary and e.tie is None}
+        by_path = {e.path: e for e in self.entries}
+        for base, per_mode in self._mode_atoms.items():
+            # **The origin is flat for every mode at once.**  Sending the whole
+            # amplitude vector to −A maps the child onto its image under the
+            # translation the k-doubling lost, so |F|² is even in it and χ² is
+            # stationary at A = 0: with every mode of the phase at zero, every
+            # column vanishes together and no amplitude can move.  Refused
+            # here as well as in ``Phase._distortion_modes_are_refinable``
+            # because a stage frees by *glob*, which never passes through the
+            # schema — and a dead column handed to a glob is the failure
+            # WP-1073 force-fixes elsewhere.  The test is the vector and not
+            # one amplitude: with one mode displaced, the others' columns are
+            # first order in the cross term and refine perfectly well.
+            freed = sorted(p for p in per_mode if p in free)
+            if freed and not any(by_path[p].value != 0.0 for p in per_mode):
+                raise ValueError(
+                    f"{len(freed)} distortion-mode amplitude(s) of {base} are "
+                    f"free ({', '.join(freed[:3])}"
+                    f"{'…' if len(freed) > 3 else ''}) and every mode of the "
+                    f"phase is at exactly zero. |F|² is an even function of "
+                    f"the whole amplitude vector, so the origin is a "
+                    f"stationary point of χ² and every column vanishes there "
+                    f"at once. Seed the block off zero before freeing any: "
+                    f"Stage(distortion_seed=...) does it inside a staged plan "
+                    f"(strategy.staged.DISTORTION_SEED_A is the recommended "
+                    f"value), and crystallography.magnetic.supercell."
+                    f"seed_distortion_amplitudes does it on the phase itself, "
+                    f"moving the coordinates with it")
+            for path, atoms in per_mode.items():
+                if path not in free or not atoms:
+                    continue
+                loose = sorted(
+                    j for j in atoms
+                    if any(e.path.startswith(f"{base}.atoms.{j}.dof.")
+                           and e.vary and e.tie is None for e in self.entries))
+                if len(loose) == len(atoms):
+                    raise ValueError(
+                        f"{path} is free and so are the coordinate degrees of "
+                        f"freedom of every atom it moves "
+                        f"(atoms {loose[:6]}{'…' if len(loose) > 6 else ''}). "
+                        f"A mode vector lies in the span of its atoms' allowed "
+                        f"displacement directions, so the amplitude column is "
+                        f"a linear combination of theirs and the two are "
+                        f"exactly degenerate — a rank-deficient Jacobian, not "
+                        f"a correlation. Refine the amplitude *instead of* the "
+                        f"coordinates: hold phases.*.atoms.*.dof.*")
+
 
     def _collect_microstrain(self, base: str, sg, phase) -> None:
         """Stephens S_HKL enter θ through Laue-symmetry-allowed patterns.
@@ -969,15 +1219,17 @@ class ParameterTable:
                     path=f"{base}.microstrain.{name}", value=0.0, vary=False,
                     lo=p.min, hi=p.max, transform=p.transform, locked=True))
         for k, path in enumerate(dof_paths):
-            self.entries.append(Entry(path=path, value=float(coef[k]), vary=want_vary,
-                                      lo=-np.inf, hi=np.inf, transform="identity"))
+            self.entries.append(Entry(path=path, value=float(coef[k]),
+                                      vary=want_vary,
+                                      lo=-np.inf, hi=np.inf,
+                                      transform="identity"))
         # S scales as microstrain², so one unit-ppm projection serves any seed
         unit, *_ = np.linalg.lstsq(
             basis.T.astype(np.float64),
             isotropic_coefficients(phase.cell.lengths_angles(), 1.0), rcond=None)
         self._strain_unit[base] = unit
 
-    def _collect_atom_coords(self, base: str, sg, atom) -> None:
+    def _collect_atom_coords(self, base: str, sg, atom, *, modes=()) -> None:
         """Coordinates enter θ through site-symmetry displacement DOFs.
 
         Each site contributes ``…dof.k`` parameters — one per site-symmetry-
@@ -989,6 +1241,13 @@ class ParameterTable:
         site's DOFs — per-axis intent does not map onto rows such as [1,1,0].
         DOFs are unbounded displacements; bounds declared on x/y/z do not
         constrain them.
+
+        ``modes`` is the phase's distortion modes as
+        ``(amplitude path, this atom's mode vector, the amplitude the model
+        came in with)`` — see :meth:`_collect_distortion_modes`.  Each adds one
+        more affine term to the same three rows, and the constant becomes the
+        *base* coordinate (the model's value with the incoming amplitudes taken
+        back out) so that the row reproduces the model exactly at A = A⁰.
         """
         xyz = np.array([atom.x.value, atom.y.value, atom.z.value])
         basis = coordinate_basis(stabilizer_rotations(sg, xyz))
@@ -997,18 +1256,64 @@ class ParameterTable:
             raise ValueError(
                 f"{base} sits on a fully fixed special position; its site "
                 "symmetry allows no positional freedom — set vary=False")
+        for path, vector, _a0 in modes:
+            self._check_mode_vector_is_allowed(base, path, basis, vector)
         dof_paths = [f"{base}.dof.{k}" for k in range(len(basis))]
         for c_idx, c in enumerate(("x", "y", "z")):
             p: Parameter = getattr(atom, c)
             terms = tuple((dof_paths[k], float(basis[k][c_idx]))
                           for k in range(len(basis)) if basis[k][c_idx] != 0)
-            if terms:
-                self._add(f"{base}.{c}", p, tie=AffineTie(terms=terms, const=p.value))
+            mode_terms = tuple((path, float(vector[c_idx]))
+                               for path, vector, _a0 in modes
+                               if float(vector[c_idx]) != 0.0)
+            const = p.value - sum(float(a0) * float(vector[c_idx])
+                                  for _path, vector, a0 in modes)
+            if terms or mode_terms:
+                self._add(f"{base}.{c}", p,
+                          tie=AffineTie(terms=terms + mode_terms, const=const))
             else:
                 self._add(f"{base}.{c}", p, force_fixed=True)
         for path in dof_paths:
             self.entries.append(Entry(path=path, value=0.0, vary=want_vary,
                                       lo=-np.inf, hi=np.inf, transform="identity"))
+
+    @staticmethod
+    def _check_mode_vector_is_allowed(base: str, path: str, basis, vector
+                                      ) -> None:
+        """Refuse a mode vector outside the site's allowed displacement subspace.
+
+        The nuclear structure factor sums over each site's symmetry orbit with
+        the operation subsets frozen at compile
+        (``crystallography.structure_factor``), so a displacement that leaves
+        the site's allowed subspace moves the representative somewhere its
+        frozen images are no longer its images — |F_N|² is then computed for a
+        structure that does not exist, and nothing raises.  The same span test
+        ``Phase._moments_are_stateable`` makes for a moment, against the
+        *coordinate* basis (``crystallography.wyckoff.coordinate_basis``)
+        because a displacement is a polar vector.
+        """
+        v = np.asarray(vector, dtype=np.float64)
+        if not np.any(v):
+            return
+        rows = np.asarray(basis, dtype=np.float64).reshape(len(basis), 3)
+        if len(rows) == 0:
+            residual = v
+        else:
+            coef, *_ = np.linalg.lstsq(rows.T, v, rcond=None)
+            residual = rows.T @ coef - v
+        scale = max(float(np.abs(v).max()), 1e-12)
+        if float(np.abs(residual).max()) > 1e-8 * scale:
+            allowed = ("no displacement at all — the site symmetry fixes it"
+                       if len(rows) == 0 else
+                       f"only {rows.tolist()} (fractional directions)")
+            raise ValueError(
+                f"{path} moves {base} by {v.tolist()}, which its site symmetry "
+                f"does not allow: it allows {allowed}. A displacement outside "
+                f"the allowed subspace is not a starting guess to be "
+                f"symmetrised — the frozen orbit the structure factor sums "
+                f"over would no longer be the orbit of the moved atom, and "
+                f"|F_N|² would be computed for a structure that does not exist")
+
 
     def _collect_atom_adps(self, base: str, sg, atom) -> None:
         """Displacement parameters: ``biso``, or aniso U^ij through DOFs.
@@ -1060,6 +1365,77 @@ class ParameterTable:
                                       lo=-np.inf, hi=np.inf, transform="identity"))
         self._add(f"{base}.biso", atom.biso, force_fixed=True)
 
+    def _collect_atom_moment(self, base: str, phase, atom) -> None:
+        """A moment enters θ as a modulus and the angles the site leaves free.
+
+        The **one** parameterisation in the package that is not affine, and the
+        reason is in ``crystallography.magnetic.moments``: a direction a powder
+        average cannot determine has to be a *column* for
+        :meth:`unmeasured_rows` to name it, and neither the components nor
+        their coefficients on the allowed basis is one.  So the three
+        ``crystalaxis_*`` components are **locked** entries — a record, carried
+        for globs, exporters and write-back — and the freedom lives entirely in
+        ``…moment.dof<k>``, whose value is the modulus in μ_B and then one or
+        two angles in radians.
+
+        The consequence of the non-affine map, stated so nobody looks for it:
+        a component has no ``C`` row, so it has no esd.  The esd of this block
+        is the modulus's, which is the quantity the data measures; an esd on a
+        direction that a powder cannot determine would be a number about
+        nothing, and where the powder *can* determine it the angle DOF carries
+        it.
+
+        A site whose symmetry allows no moment contributes no DOFs, so a
+        ``vary`` request on it is impossible rather than silently dead — the
+        schema has already refused the declaration itself.
+        """
+        moment = getattr(atom, "moment", None)
+        if moment is None:
+            return
+        group = phase.magnetic_symmetry.group()
+        cell = phase.cell.lengths_angles()
+        xyz = (atom.x.value, atom.y.value, atom.z.value)
+        frame = moment_frame(group.allowed_moment_basis(xyz), cell)
+        self._moment_frames[base] = frame
+        seed = dofs_from_moment(frame, cell, moment.values())
+        want_vary = moment.vary
+        for name in MOMENT_COMPONENTS:
+            self._add(f"{base}.moment.{name}", getattr(moment, name),
+                      force_fixed=True)
+        # Unbounded and identity-transform, like every other DOF here: the
+        # modulus is *signed* on a one-dimensional subspace (the only way two
+        # independent sites can be stated antiparallel along one axis), and on
+        # a larger one the antipode is an angle away.  |μ| is the magnitude,
+        # and the floor that decides support is on |μ|, not a bound.
+        for k, value in enumerate(seed):
+            self.entries.append(Entry(
+                path=f"{base}.moment.dof{k}", value=float(value),
+                vary=want_vary, lo=-np.inf, hi=np.inf, transform="identity"))
+
+    def _refresh_moment_components(self) -> None:
+        """Write every moment block's components back from its DOFs.
+
+        Called from :meth:`commit` and from :meth:`apply_to_models`, and from
+        nowhere in the residual: the map is not affine, so it cannot ride in
+        the constraint block with the ADP and coordinate rows, and running it
+        per residual evaluation would put a trigonometric call on the hot path
+        for a quantity only the *report* reads.  The forward model computes the
+        components it needs from the DOFs directly, through the same frame.
+        """
+        if not self._moment_frames:
+            return
+        by_path = {e.path: e for e in self.entries}
+        for base, frame in self._moment_frames.items():
+            dofs = [by_path[f"{base}.moment.dof{k}"].value
+                    for k in range(len(frame))]
+            components = moment_from_dofs(frame, dofs)
+            for name, value in zip(MOMENT_COMPONENTS, components, strict=True):
+                by_path[f"{base}.moment.{name}"].value = float(value)
+
+    def moment_frames(self) -> dict[str, np.ndarray]:
+        """The frozen per-site frames, for a caller that has to reproduce them."""
+        return dict(self._moment_frames)
+
     def _collect_instrument(self, instrument: Instrument) -> None:
         # K is a fact about the radiation, not about this instrument, wherever
         # the radiation pins it.  A neutron beam is not polarised the way the
@@ -1072,47 +1448,7 @@ class ParameterTable:
         # ``set_vary`` frees it and nothing objects.
         self._add("instrument.polarization", instrument.source.polarization,
                   force_fixed=instrument.source.kind != "xray_cw")
-        for il, line in enumerate(instrument.source.lines):
-            # line 0 defines the intensity scale: its weight is degenerate with
-            # the phase scale factors, so it is always held fixed
-            self._add(f"instrument.source.lines.{il}.weight", line.weight,
-                      force_fixed=(il == 0))
-        # The wavelength, and the mirror image of the weight rule above it.  A
-        # line weight's scale lives inside this source, so **line 0** is the one
-        # that must be held; a wavelength's scale lives in the *cell*, which may
-        # be shared across histograms this table cannot see, so line 0 is the
-        # one that may be *free* — and only when somebody else is counting.
-        #
-        # Two locks and one refusal, in the shape ``CAPILLARY_OFFSETS`` uses
-        # just below.  Lines 1+ are force-fixed unconditionally: within one
-        # source the lines' wavelength *ratio* is atomic physics (the NIST
-        # column in ``schemas.instrument._KA_DOUBLETS`` is quoted for exactly
-        # this reason, ~20 ppm), so a free secondary line is a second flat
-        # direction beside the first — the WP-1073 rule that a parameter which
-        # cannot legitimately move is force-fixed rather than merely unfree.  In
-        # a single-histogram table *every* line is force-fixed, because there λ
-        # is exactly degenerate with the cell whatever the data; that is what
-        # lets ``ParameterRow.held_because`` tell the truth about it without a
-        # fourth held-reason, and what stops a glob freeing it by accident.  And
-        # a *declared* ``vary=True`` there is refused by name rather than
-        # quietly swallowed, because it is a claim the caller made.
-        wl_params = list(instrument.source.wavelength_parameters)
-        # No single-histogram check here: ``_rebuild`` runs at the end of
-        # ``__init__`` and at every stage boundary, and it is the only place
-        # that sees both free sets at once.  Checking here as well would be a
-        # second authority for one fact, and the weaker of the two — it cannot
-        # see a cell freed by a later stage.
-        for il, wl in enumerate(wl_params):
-            # Line 0 is NOT force-fixed even in a single-histogram table.  A
-            # free λ there is admissible whenever the *cell* is held — which is
-            # what a certified standard is for — so "can never legitimately
-            # move", which is what force_fixed asserts, would be false.  The
-            # λ-versus-cell condition is dynamic (stages call ``set_vary``), so
-            # it is enforced in ``_rebuild`` where the free set is known rather
-            # than frozen here.  Line > 0 keeps it: a Kα2 wavelength is a
-            # physical constant, not a calibration target.
-            self._add(f"instrument.source.lines.{il}.wavelength", wl,
-                      force_fixed=il > 0)
+        self._collect_cw_source(instrument.source)
         geom = instrument.geometry
         for name in ("sample_displacement", "sample_transparency",
                      "axial_sl", "axial_hl"):
@@ -1146,7 +1482,8 @@ class ParameterTable:
         for sub, cp in roughness_parameters(geom.surface_roughness):
             self._add(f"instrument.geometry.surface_roughness.{sub}", cp)
         for name in ("u", "v", "w", "x", "y"):
-            self._add(f"instrument.profile.{name}", getattr(instrument.profile, name))
+            self._add(f"instrument.profile.{name}",
+                      getattr(instrument.profile, name))
         for sub, cp in background_parameters(instrument.background):
             self._add(f"instrument.background.{sub}", cp)
         # Additive broad peaks: skipped when none is declared rather than added
@@ -1156,6 +1493,59 @@ class ParameterTable:
         # union.
         for sub, cp in extra_component_parameters(instrument.extra_components):
             self._add(f"instrument.extra_components.{sub}", cp)
+
+    def _collect_cw_source(self, source) -> None:
+        """The emission lines and their wavelengths — constant-wavelength only.
+
+        Split out of :meth:`_collect_instrument` unchanged: the reasoning
+        below is entirely about a *line*, which is what makes the split the
+        honest one rather than an ``if`` inside each loop.
+        """
+        for il, line in enumerate(source.lines):
+            # line 0 defines the intensity scale: its weight is degenerate with
+            # the phase scale factors, so it is always held fixed
+            self._add(f"instrument.source.lines.{il}.weight", line.weight,
+                      force_fixed=(il == 0))
+        # The wavelength, and the mirror image of the weight rule above it.  A
+        # line weight's scale lives inside this source, so **line 0** is the one
+        # that must be held; a wavelength's scale lives in the *cell*, which may
+        # be shared across histograms this table cannot see, so line 0 is the
+        # one that may be *free* — and only when somebody else is counting.
+        #
+        # Two locks and one refusal, in the shape ``CAPILLARY_OFFSETS`` uses
+        # just below.  Lines 1+ are force-fixed unconditionally: within one
+        # source the lines' wavelength *ratio* is atomic physics (the NIST
+        # column in ``schemas.instrument._KA_DOUBLETS`` is quoted for exactly
+        # this reason, ~20 ppm), so a free secondary line is a second flat
+        # direction beside the first — the WP-1073 rule that a parameter which
+        # cannot legitimately move is force-fixed rather than merely unfree.  In
+        # a single-histogram table *every* line is force-fixed, because there λ
+        # is exactly degenerate with the cell whatever the data; that is what
+        # lets ``ParameterRow.held_because`` tell the truth about it without a
+        # fourth held-reason, and what stops a glob freeing it by accident.  And
+        # a *declared* ``vary=True`` there is refused by name rather than
+        # quietly swallowed, because it is a claim the caller made.
+        wl_params = list(source.wavelength_parameters)
+        # No single-histogram check here: ``_rebuild`` runs at the end of
+        # ``__init__`` and at every stage boundary, and it is the only place
+        # that sees both free sets at once.  Checking here as well would be a
+        # second authority for one fact, and the weaker of the two — it cannot
+        # see a cell freed by a later stage.
+        for il, wl in enumerate(wl_params):
+            # Line 0 is NOT force-fixed even in a single-histogram table.  A
+            # free λ there is admissible whenever the *cell* is held — which is
+            # what a certified standard is for — so "can never legitimately
+            # move", which is what force_fixed asserts, would be false.  The
+            # λ-versus-cell condition is dynamic (stages call ``set_vary``), so
+            # it is enforced in ``_rebuild`` where the free set is known rather
+            # than frozen here.  Line > 0 keeps it: a Kα2 wavelength is a
+            # physical constant, not a calibration target.
+            self._add(f"instrument.source.lines.{il}.wavelength", wl,
+                      force_fixed=il > 0)
+        # geometry, profile and background parameters are collected once, in
+        # ``_collect_instrument`` above (which dispatches to this method only
+        # for the emission-line block), not duplicated here, so the two cannot
+        # drift about which fields they force-fix.
 
     # -- the affine constraint block -----------------------------------
     def _flatten(self, tie: AffineTie, _seen: tuple[str, ...] = ()
@@ -1220,6 +1610,7 @@ class ParameterTable:
         self._C = sparse.csr_matrix((c_vals, (c_rows, c_cols)), shape=(n, m))
         self._d = d
         self._tie_windows = self._derive_tie_windows(tied, d)
+        self._check_distortion_degeneracy()
 
     def _derive_tie_windows(self, tied: list[tuple[int, list[tuple[int, float]]]],
                             d: np.ndarray) -> dict[int, tuple[float, float]]:
@@ -1548,6 +1939,88 @@ class ParameterTable:
             self._rebuild()
         return seeded
 
+    def seed_distortion(self, path_globs: list[str], amplitude: float
+                        ) -> list[str]:
+        """Move an all-zero distortion-mode block off the parent, coordinates and all.
+
+        The third of this table's three seeds, and the third distinct pathology
+        at zero.  :meth:`seed_softplus` fixes a *dead internal* gradient
+        (dp/du → 0 through the transform) and reaches softplus entries only;
+        :meth:`seed_stephens` fixes an *exploding* one (Λ ∝ √Σ) on
+        identity-transform DOFs.  A mode amplitude is identity-transform like a
+        Stephens coefficient, but its gradient at zero is exactly **zero** —
+        and for every mode of the phase at once.  The parent translation the
+        k-doubling lost carries the mode field e_ν to −e_ν, so the child at −A
+        is the child at +A in its other antiphase domain, |F|² is an even
+        function of the whole amplitude vector, and the origin is a *stationary
+        point* of χ² rather than a starting one (WP-1419 § Inherited; measured
+        on a P1 toy as χ²(A) even to 2.3e-15 and dχ²/du = 0.0 at u = 0 against
+        −1.61e7 at u = 0.005).
+
+        **Called before the freeing, not after it**, which is the one place
+        this differs in shape from :meth:`seed_stephens`.  An all-zero block
+        with a free amplitude in it is refused by name at the next
+        :meth:`_rebuild` (:meth:`_check_distortion_degeneracy`), so a seed
+        applied the way ``strain_seed`` is — to the paths ``set_vary``
+        returned — would never be reached: the refusal fires inside
+        ``set_vary`` itself.  ``path_globs`` is therefore the stage's own
+        ``turn_on`` list rather than its freed paths, matched with the same
+        ``fnmatch`` semantics :meth:`set_vary` uses.
+
+        **The whole block or none of it.**  Only a phase whose *every* declared
+        amplitude is exactly zero is touched — ``seed_stephens``' rule, for
+        ``seed_stephens``' reason: a block with one amplitude already off zero
+        has a live gradient on all of them (the evenness is a property of the
+        vector, not of one component), so the seed has nothing to fix and
+        overwriting a warm start would lose a refined number.
+
+        ``amplitude`` is in the mode's own unit — ångströms of the
+        furthest-moved atom for a block
+        :func:`~rietx.crystallography.magnetic.supercell.displacive_statement`
+        built.  It is **signed**: a single amplitude's sign is a domain label
+        rather than a measurement (Perez-Mato, Orobengoa & Aroyo 2010,
+        *Acta Cryst.* A**66**, 558, § 7), so a negative seed starts the fit in
+        the other antiphase domain and is accepted; only ``0.0`` means "no
+        seed".  Returns the paths actually seeded.
+
+        Seeding here moves the coordinates with the amplitude, because the
+        coordinate rows are affine in it and the base was anchored at collect
+        (:meth:`_collect_atom_coords`) — which is what
+        :func:`~rietx.crystallography.magnetic.supercell.seed_distortion_amplitudes`
+        has to do by hand on a *phase*, where the base would otherwise be
+        re-derived from the moved coordinates and cancel the seed exactly.
+        """
+        import fnmatch
+
+        if amplitude == 0.0 or not self._mode_atoms:
+            return []
+        seeded: list[str] = []
+        for base, per_mode in self._mode_atoms.items():
+            block = [self._paths[p] for p in per_mode if p in self._paths]
+            if not block or any(self.entries[i].value != 0.0 for i in block):
+                continue
+            for i in block:
+                e = self.entries[i]
+                if e.locked or e.tie is not None:
+                    continue
+                if not any(fnmatch.fnmatchcase(e.path, g) for g in path_globs):
+                    continue
+                if not (e.lo <= float(amplitude) <= e.hi):
+                    raise ValueError(
+                        f"distortion_seed={amplitude} lies outside the bounds "
+                        f"[{e.lo}, {e.hi}] of {e.path}. The seed is in the "
+                        f"mode's own unit (ångströms of the furthest-moved "
+                        f"atom for a displacive_statement block), and "
+                        f"DISTORTION_AMPLITUDE_MAX_A caps it at half an "
+                        f"ångström because a larger displacement is a "
+                        f"different structure rather than a distortion of "
+                        f"this one")
+                e.value = float(amplitude)
+                seeded.append(e.path)
+        if seeded:
+            self._rebuild()
+        return seeded
+
     # -- optimiser interface -------------------------------------------
     @property
     def free_paths(self) -> list[str]:
@@ -1754,18 +2227,42 @@ class ParameterTable:
         return np.asarray(lo), np.asarray(hi)
 
     def decode(self, theta: np.ndarray) -> dict[str, float]:
-        """Internal free vector → full physical value dict, via C·p_free + d."""
+        """Internal free vector → full physical value dict, via C·p_free + d.
+
+        **Then the one non-affine overwrite** (Q-17d): for every phase in
+        :attr:`_metric_phases`, the six ``…cell.{a,b,c,alpha,beta,gamma}``
+        entries above are locked placeholders (:meth:`_collect_metric_cell`)
+        — this replaces them with :func:`~rietx.crystallography.symmetry.
+        cell_from_metric_coordinates` of the phase's current ``g`` (read from
+        the same ``p`` this method just built), so every consumer of this
+        dict's cell paths (``model.geometry``, ``model.forward``, the
+        restraint Jacobian, …) sees the derived cell without needing to know
+        one exists.  Called on every free-vector evaluation, which is what
+        lets a finite-difference Jacobian column differentiate through the
+        map with no extra code — the map itself is exact matrix multiplication
+        plus ``sqrt``/``arccos``, not a fit, so this costs one small matmul
+        per metric-constrained phase, not a solve.
+        """
         p_free = np.array([to_physical(float(t), self.entries[i].transform)
                            for t, i in zip(theta, self._free_idx, strict=True)],
                           dtype=np.float64)
         p = self._C @ p_free + self._d if len(p_free) else self._d
-        return {e.path: float(p[i]) for i, e in enumerate(self.entries)}
+        values = {e.path: float(p[i]) for i, e in enumerate(self.entries)}
+        for base, (constraints, g_paths) in self._metric_phases.items():
+            g = np.array([values[path] for path in g_paths])
+            cell = cell_from_metric_coordinates(constraints, g)
+            for name, value in zip(_CELL_NAMES, cell, strict=True):
+                values[f"{base}.cell.{name}"] = value
+        return values
 
     def commit(self, theta: np.ndarray) -> None:
         """Write refined values back into the table (used between stages)."""
         values = self.decode(theta)
         for e in self.entries:
             e.value = values[e.path]
+        # the moment components are locked entries fed by a *non-affine* map,
+        # so the constraint block cannot carry them and they are derived here
+        self._refresh_moment_components()
         self._rebuild()  # held-source contributions to d follow the new values
 
     def stderr_physical(self, theta: np.ndarray, stderr_internal: np.ndarray,
@@ -1799,8 +2296,69 @@ class ParameterTable:
         var = np.maximum(var, 0.0)
         touched = np.diff(self._C.indptr) > 0  # rows with any free source
         blind = self.unmeasured_rows(theta, stderr_internal)
-        return {e.path: float(np.sqrt(var[i]))
-                for i, e in enumerate(self.entries) if touched[i] and not blind[i]}
+        out = {e.path: float(np.sqrt(var[i]))
+              for i, e in enumerate(self.entries) if touched[i] and not blind[i]}
+        # Q-17d: a metric-constrained phase's six cell rows carry no ``C``
+        # row at all (the g → cell map is not affine), so the loop above
+        # reports nothing for them — ``touched`` is False for a locked entry
+        # regardless of whether its value is derived or merely held.
+        out.update(self._metric_cell_stderr(theta, stderr_internal, correlation))
+        return out
+
+    def _metric_cell_stderr(self, theta: np.ndarray, stderr_internal: np.ndarray,
+                            correlation: np.ndarray | None) -> dict[str, float]:
+        """Propagated esds of the six cell values of every metric-constrained phase.
+
+        The one block :meth:`stderr_physical` cannot reach on its own,
+        for the same reason :meth:`decode` needs its own overwrite: the map
+        ``g → (a, b, c, α, β, γ)`` is not affine, so it carries no ``C`` row
+        to propagate through. What it *can* reuse is :meth:`physical_covariance`
+        over the ``g`` paths themselves — those rows are ordinary free/tied
+        entries, exactly as affine as any DOF — and then chain-rule through a
+        finite-difference Jacobian of the map at the solution ``g`` (the
+        brief's "finite differences are fine first"; the map itself has a
+        closed analytic Jacobian, but a second one buys nothing this rung
+        needs and one Jacobian style is one thing to keep synchronised with
+        :func:`~rietx.crystallography.symmetry.cell_from_metric_coordinates`
+        instead of two).
+
+        **WP-1110 item 14 one rank up.**  A ``g`` the data measured nothing in
+        makes the corresponding cell esds infinite, which is the true answer
+        and not a number to report — those cell names are left out of the
+        returned dict entirely, the same "absent, not a large number" rule
+        :meth:`stderr_physical` already applies to its own rows.
+        """
+        out: dict[str, float] = {}
+        for base, (constraints, g_paths) in self._metric_phases.items():
+            g_rows = np.array([self._paths[p] for p in g_paths])
+            cov_g = self.physical_covariance(theta, stderr_internal, correlation,
+                                             list(g_paths))
+            values = self.decode(theta)
+            g0 = np.array([values[p] for p in g_paths])
+            cell0 = np.array(cell_from_metric_coordinates(constraints, g0))
+            m = len(g_paths)
+            jac = np.zeros((6, m))
+            for k in range(m):
+                h = 1e-6 * max(1.0, abs(float(g0[k])))
+                gp = g0.copy()
+                gp[k] += h
+                jac[:, k] = (np.array(cell_from_metric_coordinates(constraints, gp))
+                            - cell0) / h
+            var_cell = np.maximum(np.diag(jac @ cov_g @ jac.T), 0.0)
+            # a g the data measured nothing in comes back from _cov_free with
+            # its variance *zeroed* (not infinite — WP-1110 item 14's own
+            # "absent, not a large number" rule is applied by the caller, not
+            # baked into the covariance), so the finite check above cannot see
+            # it; ask which g rows are unmeasured directly and drop any cell
+            # name whose Jacobian row actually draws on one.
+            blind_g = self.unmeasured_rows(theta, stderr_internal, rows=g_rows)
+            for i, name in enumerate(_CELL_NAMES):
+                if not np.isfinite(var_cell[i]):
+                    continue
+                if np.any(blind_g & (jac[i] != 0.0)):
+                    continue
+                out[f"{base}.cell.{name}"] = float(np.sqrt(var_cell[i]))
+        return out
 
     def _phys_sigma_free(self, theta: np.ndarray, stderr_internal: np.ndarray
                          ) -> np.ndarray:
@@ -1910,6 +2468,7 @@ class ParameterTable:
         esd from an earlier stage can never survive.  That is what lets the
         CIF exporter write standard uncertainties.
         """
+        self._refresh_moment_components()
         values = {e.path: e.value for e in self.entries}
         #: Every (parameter, path) the walk below reaches, written only once the
         #: walk is complete.  **The write is all-or-nothing**: the bound refusal
@@ -1965,9 +2524,20 @@ class ParameterTable:
             put(phase.lor_strain, f"{base}.lor_strain")
             put(phase.gauss_size, f"{base}.gauss_size")
             put(phase.gauss_strain, f"{base}.gauss_strain")
+            if phase.magnetic_symmetry is not None:
+                put(phase.magnetic_lor_size, f"{base}.magnetic_lor_size")
+                put(phase.magnetic_lor_strain, f"{base}.magnetic_lor_strain")
             if phase.microstrain is not None:
                 for name in S_NAMES:
                     put(getattr(phase.microstrain, name), f"{base}.microstrain.{name}")
+            # the amplitudes.  Written back for the reason a named variable is
+            # (``Refinement._write_back``) and a Wyckoff DOF is not: the DOF is
+            # rebuilt from the coordinates it wrote, while an amplitude is the
+            # *reported* quantity — drop it here and the next table build
+            # re-anchors the base on the displaced coordinates with A back at
+            # its incoming value, which silently doubles the distortion.
+            for n, mode in enumerate(getattr(phase, "distortion_modes", ()) or ()):
+                put(mode.amplitude, f"{base}.distortion_modes.{n}.amplitude")
             for j, atom in enumerate(phase.atoms):
                 # coordinates too — without this, refined positions vanish at
                 # the next stage's recompile (models feed compile_phase_sites)
@@ -1976,6 +2546,13 @@ class ParameterTable:
                 if atom.aniso is not None:
                     for name in U_NAMES:
                         put(getattr(atom.aniso, name), f"{base}.atoms.{j}.{name}")
+                if atom.moment is not None:
+                    # derived from the DOFs above, never refined directly; the
+                    # esd map has no entry for them, so ``stderr`` is cleared
+                    # rather than left holding a previous stage's number
+                    for name in MOMENT_COMPONENTS:
+                        put(getattr(atom.moment, name),
+                            f"{base}.atoms.{j}.moment.{name}")
         put(instrument.zero_shift, "instrument.zero_shift")
         put(instrument.source.polarization, "instrument.polarization")
         for il, line in enumerate(instrument.source.lines):
@@ -1983,8 +2560,8 @@ class ParameterTable:
         # …and the wavelength through ``wavelength_parameters``, never through
         # ``lines``: a neutron source's ``lines`` is a *property* that builds a
         # fresh EmissionLine per access, so a write there lands on a throwaway
-        # and the refined λ is silently lost at the next recompile — exactly the
-        # half-wired-parameter failure this file's docstring warns about.
+        # and the refined λ is silently lost at the next recompile — exactly
+        # the half-wired-parameter failure this file's docstring warns about.
         for il, wl in enumerate(instrument.source.wavelength_parameters):
             put(wl, f"instrument.source.lines.{il}.wavelength")
         for name in ("sample_displacement", "sample_transparency",

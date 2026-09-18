@@ -75,6 +75,7 @@ from .schemas import (
     AnisoU,
     Atom,
     Cell,
+    DistortionMode,
     Instrument,
     Parameter,
     PatternData,
@@ -95,9 +96,22 @@ from .schemas.indexing import (
 from .schemas.params import ParameterRow, TieSpec
 from .schemas.plan import PlanSpec, StageSpec
 from .schemas.project import DataRef, ProjectDoc
-from .schemas.sequential import SeriesEntry, SeriesResult, Trajectory
+from .schemas.sequential import (
+    DistortionTrajectory,
+    MagneticOnset,
+    MagneticTrajectory,
+    SeriesEntry,
+    SeriesResult,
+    Trajectory,
+)
 from .schemas.suggest import CandidateGroup, ParameterCandidate, SuggestionResult
 from .sequential import SequentialRefinement, refine_sequential
+from .strategy.magnetic import (
+    MagneticSolution,
+    MagneticTrial,
+    MomentRow,
+    solve_magnetic,
+)
 from .strategy.staged import (
     PLAN_INFO,
     PLAN_PRESETS,
@@ -110,6 +124,7 @@ from .strategy.staged import (
 __all__ = [
     "__version__",
     "AnisoU",
+    "DistortionMode",
     "Atom",
     "CancelToken",
     "CandidateGroup",
@@ -130,6 +145,12 @@ __all__ = [
     "PLAN_INFO",
     "PLAN_PRESETS",
     "LeBailValidation",
+    "MagneticOnset",
+    "MagneticSolution",
+    "DistortionTrajectory",
+    "MagneticTrajectory",
+    "MagneticTrial",
+    "MomentRow",
     "Parameter",
     "ParameterCandidate",
     "ParameterRow",
@@ -194,6 +215,7 @@ __all__ = [
     "refine_multi",
     "replay",
     "save_instrument_profile",
+    "solve_magnetic",
     "write_qpa_table",
     "estimate_mu_r",
     "write_recipe_tables",

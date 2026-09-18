@@ -22,10 +22,19 @@ from .results import (
     StageResult,
     Statistics,
 )
-from .structure import AnisoU, Atom, Cell, Phase, PreferredOrientation, Structure
+from .structure import (
+    AnisoU,
+    Atom,
+    Cell,
+    DistortionMode,
+    Phase,
+    PreferredOrientation,
+    Structure,
+)
 
 __all__ = [
     "AnisoU",
+    "DistortionMode",
     "Atom",
     "Background",
     "BackgroundChebyshev",

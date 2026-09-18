@@ -16,8 +16,9 @@ from __future__ import annotations
 
 import math
 from collections.abc import Sequence
+from dataclasses import dataclass
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from .common import Base, Parameter
 
@@ -36,6 +37,19 @@ _SOFTPLUS_FLOOR = 1e-12
 #: → 13.2 % (WP-1028 §(e)).
 MARCH_R_MIN = 0.15
 MARCH_R_MAX = 6.0
+
+def _op_key(op) -> tuple[tuple[int, ...], tuple[int, ...]]:
+    """One symmetry operation as an exact hashable key, modulo a lattice shift.
+
+    gemmi stores both parts scaled by ``Op.DEN`` (24), so the rotation is an
+    exact integer 3×3 and the translation an exact integer triple; reducing the
+    translation modulo ``DEN`` is what makes ``x,y,z`` and ``x+1,y,z`` the same
+    operation, which they are.  Used to compare operation lists and to test
+    closure under composition without ever comparing floats.
+    """
+    return (tuple(int(v) for row in op.rot for v in row),
+            tuple(int(v) % op.DEN for v in op.tran))
+
 
 #: Species of the mandatory dummy atom a Le Bail-only phase carries
 #: (:func:`lebail_scaffold`).  Carbon because its K edge (284 eV) is nowhere near
@@ -274,6 +288,82 @@ class StephensStrain(Base):
             isotropic_coefficients(cell.lengths_angles(), microstrain), vary=vary)
 
 
+#: A moment this small is *at the floor*: the direction of a moment of this
+#: length is not a fact about the sample, and |F_m|² ∝ m² makes its Jacobian
+#: column vanish with it.  A moment block whose modulus sits here is held and
+#: reported unsupported (WP-1327, the shape WP-1301 uses for a phase the data
+#: cannot see).  0.001 μ_B is three orders below the smallest ordered moment a
+#: powder measurement resolves and two below the esd of a good one, so it is a
+#: floor rather than a threshold anyone could argue about.
+MOMENT_FLOOR_MU_B = 1e-3
+
+
+class Moment(Base):
+    """A magnetic moment on a site, in crystal-axis components (μ_B).
+
+    The components are the magCIF ``_atom_site_moment.crystalaxis_*``
+    convention (COMCIFS ``magnetic_dic``): "a right-handed basis of **unit
+    vectors** parallel to the unit-cell basis vectors".  That basis is oblique
+    whenever the cell is, so |m| is √(mᵀ·G·m) with G the unit-vector metric and
+    **not** √(Σmᵢ²) — on hexagonal axes the moment (1, 1, 0) is 1 μ_B, not √2
+    (``crystallography.magnetic.operators.moment_magnitude``).
+
+    **The components are not the refined parameters.**  A moment refines
+    through ``phases.i.atoms.j.moment.dof<k>`` — a modulus and, where the site
+    symmetry allows a direction to move at all, one or two angles inside the
+    allowed subspace — because a direction a powder average cannot determine
+    has to be a *column* something can name (Shirane, 1959; WP-1327).  These
+    three are written back from those DOFs at the end of a stage, carry
+    ``vary`` as the *intent* that frees the DOFs, and their ``stderr`` stays
+    ``None``: the esd of this block lives on the modulus, which is the quantity
+    the data measures.
+
+    ``ion`` is the magnetic form-factor key — ``"Cr3+"``, ``"Ho3+"`` — and is
+    **not** ``Atom.species``: the nuclear scattering length is keyed by
+    nuclide and the form factor by oxidation state, and an ion the table does
+    not carry is refused by name rather than mapped to a neighbour.  ``g`` is
+    the Landé factor; ``None`` means the spin-only 2 for a 3d/4d ion and is
+    **refused** for a 4f/5f one, where the ⟨j₂⟩ term does not vanish
+    (``crystallography.magnetic.form_factor``).
+    """
+
+    crystalaxis_x: Parameter = Field(
+        default_factory=lambda: Parameter(value=0.0, unit="mu_B"))
+    crystalaxis_y: Parameter = Field(
+        default_factory=lambda: Parameter(value=0.0, unit="mu_B"))
+    crystalaxis_z: Parameter = Field(
+        default_factory=lambda: Parameter(value=0.0, unit="mu_B"))
+    ion: str
+    g: float | None = None
+
+    def values(self) -> tuple[float, float, float]:
+        """The three crystal-axis components, in the CIF tag order."""
+        return (self.crystalaxis_x.value, self.crystalaxis_y.value,
+                self.crystalaxis_z.value)
+
+    @property
+    def vary(self) -> bool:
+        """Whether any component asks for the block to refine."""
+        return any(getattr(self, n).vary for n in MOMENT_COMPONENTS)
+
+    @classmethod
+    def from_values(cls, components, ion: str, *, g: float | None = None,
+                    vary: bool = False) -> "Moment":
+        """A block from three crystal-axis components in μ_B."""
+        mx, my, mz = (float(c) for c in components)
+        return cls(
+            crystalaxis_x=Parameter(value=mx, vary=vary, unit="mu_B"),
+            crystalaxis_y=Parameter(value=my, vary=vary, unit="mu_B"),
+            crystalaxis_z=Parameter(value=mz, vary=vary, unit="mu_B"),
+            ion=ion, g=g)
+
+
+#: The three component field names, in the magCIF tag order.  Named once
+#: because the parameter table, the write-back and the exporters all walk them
+#: and a fourth spelling of the same list is a fourth place to forget one.
+MOMENT_COMPONENTS = ("crystalaxis_x", "crystalaxis_y", "crystalaxis_z")
+
+
 class Atom(Base):
     """One site in the asymmetric unit.
 
@@ -301,6 +391,14 @@ class Atom(Base):
     occ: Parameter = Field(default_factory=lambda: Parameter(value=1.0, min=0.0, max=1.5))
     biso: Parameter = Field(default_factory=lambda: Parameter(value=0.5, min=0.0, max=25.0, unit="A^2"))
     aniso: AnisoU | None = None
+    # Optional magnetic moment, opt-in per atom exactly as ``aniso`` is
+    # (WP-1327).  ``None`` — the default — is exactly off: a phase whose atoms
+    # declare none compiles, refines and reports as it did before this field
+    # existed.  A moment needs ``Phase.magnetic_symmetry`` beside it, because
+    # without an operator list there is no allowed subspace to refine in and
+    # no way to propagate the moment over the site's orbit; that is checked on
+    # the phase, which is the object that carries both.
+    moment: Moment | None = None
 
     @model_validator(mode="before")
     @classmethod
@@ -507,11 +605,365 @@ class ValueRestraint(Base):
 Restraint = BondRestraint | AngleRestraint | ValueRestraint
 
 
+#: Field names on :class:`Phase` that constitute a **moment model** — a
+#: magnetic space group with moments on the sites, which WP-1327 adds.  Empty
+#: today and deliberately declared rather than implied: the two descriptions of
+class MagneticSymmetry(Base):
+    """A magnetic (Shubnikov) space group as the two magCIF loops that state it.
+
+    ``operations`` is ``_space_group_symop_magn_operation.xyz`` — xyz strings
+    each carrying a time-reversal sign, ``"-x,-y,z,-1"`` — and ``centerings``
+    is ``_space_group_symop_magn_centering.xyz``, the (anti)centring
+    translations with the identity in it.  **This is the stored form**: no
+    Shubnikov symbol is resolved by rietx, because no dependency here parses
+    one and every route a user has to a magnetic structure (MAGNDATA,
+    ISODISTORT, k-SUBGROUPSMAG, a magCIF from any of them) already emits the
+    operator list.
+
+    ``bns_number`` and ``symbol`` are **metadata**, carried through and never
+    used to derive anything — the operators are the model
+    (``planning`` D-4).  A UNI/BNS/OG *number* is nonetheless accepted as an
+    alternative **input**: pass an ``int`` or a number string in place of the
+    block and it is resolved through spglib's database by
+    ``crystallography.magnetic.operators.magnetic_group`` (issue #257 A4),
+    which fills all four fields.  What is stored is still the operator list.
+
+    A commensurate k ≠ 0 structure is stated in its **magnetic supercell**
+    with the parent's k recorded in ``propagation_vector_parent``: that is what
+    magCIF itself does, and it is what lets one reflection list and one scale
+    serve the nuclear and the magnetic contribution.  It is a *record*, not a
+    ``Phase.propagation_vector`` — declaring both of those on one phase is
+    refused (WP-1326).
+    """
+
+    operations: list[str]
+    centerings: list[str] = Field(default_factory=lambda: ["x,y,z,+1"])
+    bns_number: str | None = None
+    og_number: str | None = None
+    uni_number: int | None = None
+    symbol: str | None = None
+    setting: str | None = None
+    #: k of the parent cell this supercell was built from, as three rational
+    #: strings — a record of provenance for the report, never used to generate
+    #: a reflection (the supercell's own reflections are the satellites).
+    propagation_vector_parent: tuple[str, str, str] | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _accept_a_number(cls, value):
+        """A UNI/BNS/OG number in place of the block resolves to one (A4).
+
+        ``magnetic_symmetry=136`` (UNI), ``"136.499"`` (BNS) or
+        ``"136.7.1159"`` (OG) all become the same operator list with the
+        database's own metadata attached, which is the input a user who has a
+        *number* rather than a magCIF actually has.  Anything else is passed
+        through to normal validation.
+        """
+        if isinstance(value, (int, str)) and not isinstance(value, bool):
+            from ..crystallography.magnetic.operators import magnetic_group
+
+            group = magnetic_group(value)
+            ops, cent = group.xyz_strings()
+            return {
+                "operations": list(ops), "centerings": list(cent),
+                "bns_number": group.bns_number, "og_number": group.og_number,
+                "uni_number": group.uni_number, "setting": group.setting,
+            }
+        return value
+
+    @model_validator(mode="after")
+    def _is_a_group(self) -> "MagneticSymmetry":
+        """Refuse a list that is not closed, or has no identity (M-5's guard).
+
+        Parsing here rather than at compile is the opposite of the choice
+        ``Atom.species`` makes, and deliberately so: an operator list is *not*
+        a crystallography question the schema cannot answer — closure is
+        arithmetic on the strings themselves, it needs no cell, no atoms and no
+        wavelength, and a list that is not a group is not a magnetic space
+        group under any later interpretation.  The cost is one import.
+        """
+        from ..crystallography.magnetic.operators import MagneticGroup
+
+        if not self.operations:
+            raise ValueError(
+                "magnetic_symmetry.operations is empty; a magnetic space "
+                "group is stated by its operator list and the identity "
+                "'x,y,z,+1' is the least of it")
+        try:
+            MagneticGroup.from_xyz(self.operations, self.centerings)
+        except ValueError as exc:
+            raise ValueError(f"magnetic_symmetry: {exc}") from exc
+        return self
+
+    def group(self):
+        """The :class:`~rietx.crystallography.magnetic.operators.MagneticGroup`."""
+        from ..crystallography.magnetic.operators import MagneticGroup
+
+        return MagneticGroup.from_xyz(
+            self.operations, self.centerings,
+            setting=self.setting or "as given", uni_number=self.uni_number,
+            bns_number=self.bns_number, og_number=self.og_number)
+
+
+#: a commensurate magnetic structure must not both sit on one phase (WP-1326
+#: § Prior art), and the refusal that enforces it
+#: (:func:`refuse_moment_model_with_k`) was written and tested before the
+#: field existed, so that adding it was one line here rather than a rule
+#: someone had to remember.  WP-1327 added ``magnetic_symmetry`` and the
+#: refusal went live unchanged.  ``Atom.moment`` is not listed and does not
+#: need to be: a moment without a magnetic symmetry is refused on its own
+#: (:meth:`Phase._moments_are_stateable`), so a phase carrying any moment
+#: carries this field too.
+MOMENT_MODEL_FIELDS: tuple[str, ...] = ("magnetic_symmetry",)
+
+
+def refuse_moment_model_with_k(phase_name: str, present: Sequence[str]) -> None:
+    """Raise when a phase declares both a propagation vector and a moment model.
+
+    ``present`` is the moment-model fields the phase actually carries.  A
+    commensurate magnetic structure can be described either by a propagation
+    vector on the nuclear cell (this rung's hypothesis tool, no moments) or by
+    a magnetic space group with moments in the magnetic supercell (WP-1327,
+    the shape GSAS-II uses).  Both on one phase is not a richer model: it is
+    the same physics stated twice with nothing to reconcile the two, so it is
+    refused rather than silently letting one win.
+    """
+    if present:
+        raise ValueError(
+            f"phase {phase_name!r} declares a propagation vector and a moment "
+            f"model ({', '.join(sorted(present))}) at once. A commensurate "
+            "magnetic structure is described either by k on the nuclear cell "
+            "— satellites, no moments, the hypothesis test — or by a magnetic "
+            "space group with moments; the two say the same thing and nothing "
+            "reconciles them. Drop propagation_vector to refine the moments, "
+            "or drop the moment model to test the k")
+
+
+#: Largest atomic displacement (Å) a distortion-mode amplitude may reach.  Not
+#: a refinement bound in the tuning sense: a mode amplitude is a *symmetry-
+#: adapted* coordinate shift on top of a parent structure that already fits,
+#: and half an ångström is already a different structure rather than a
+#: distortion of this one.  Measured on the case that motivated the bound: the
+#: 84-free-coordinate P2₁/m child of Ba₂FeSbSe₅ moved one Fe by 2.8 Å at 3.2σ
+#: and reported ``converged`` (measured, arm C) — a box that
+#: cannot reach 2.8 Å is what turns that into a ``BOUND_HIT`` a reader sees.
+DISTORTION_AMPLITUDE_MAX_A = 0.5
+
+
+class DistortionMode(Base):
+    r"""One symmetry-adapted displacive mode of a phase, with its amplitude.
+
+    The child coordinates of a superstructure are the parent-derived base plus
+    a sum over modes,
+
+    .. math:: x_j = x_j^{0} + \sum_\nu A_\nu\,e_{\nu j},
+
+    with one refinable :attr:`amplitude` per mode and ``vectors`` = e_ν, one
+    three-vector per atom of the phase.  This is the parent + irrep +
+    direction → structure parameterisation of Campbell et al. (2006),
+    *J. Appl. Cryst.* **39**, 607, restated as a refinable block: the mode
+    vectors come from
+    :func:`~rietx.crystallography.magnetic.isotropy.candidates` with
+    ``kind="displacive"`` and the amplitude is what the fit moves.
+
+    **Why one amplitude rather than free coordinates.**  A child cell holds
+    |det P| times the parent's content and its asymmetric unit is that much
+    larger, so freeing its coordinates buys tens of parameters that between
+    them can manufacture superstructure intensity out of nothing.  Measured on
+    Ba₂FeSbSe₅ at 100 K: 90 added free coordinates bought ΔBIC −444 and a
+    coordinate shift of 2.8 Å.  One amplitude per mode is the same physics
+    with the symmetry left in.
+
+    ``vectors`` are **fractional components of this phase's own cell**, in the
+    same basis as :attr:`Atom.x`/``y``/``z`` — a displacement transforms
+    contravariantly, like a position, and the isotropy module already carries
+    its patterns into the child cell.  The amplitude's unit is therefore Å only
+    when the vectors are normalised so that the largest Cartesian displacement
+    per unit amplitude is exactly 1 Å, which is what
+    :func:`~rietx.crystallography.magnetic.supercell.displacive_statement`
+    does and what :meth:`unit_displacement_a` measures for a block that came
+    from anywhere else.  The report prints both, so an unnormalised block is
+    visible rather than quietly rescaled.
+
+    **The overall sign of a component's amplitudes is a domain convention.**
+    A displacive mode at a zone-boundary k contributes to a superstructure
+    reflection through a structure factor that is odd in A, and the intensity
+    is |F|², so sending the *whole* amplitude vector to −A gives the identical
+    pattern: the parent translation the k-doubling lost carries the structure
+    to its other antiphase domain (Perez-Mato, Orobengoa & Aroyo 2010,
+    *Acta Cryst.* A**66**, 558, § 7).  The same evenness makes ``A = 0`` a
+    stationary point of χ² and a free amplitude at exactly zero a dead column
+    (:meth:`Phase._distortion_modes_are_refinable`), which is what
+    ``Stage.distortion_seed`` exists for.
+
+    The *relative* signs inside a component **are** measured — they say whether
+    two sublattices move together or against each other — so this package keeps
+    every sign and fixes the gauge instead: the report states the component's
+    primary mode positive and reads the rest relative to it
+    (``report.schemas.DISTORTION_SIGN_CONVENTION``, and
+    ``DistortionTotal.domain_sign`` records which way the refined vector was
+    turned).  A refined amplitude on its own is read as |A|.
+    """
+
+    #: The mode's name, unique within the phase, and what the report and the
+    #: ``DISTORTION_MODE_UNSUPPORTED`` diagnostic call it.  Required rather
+    #: than derived from the irrep and direction, because a direction with
+    #: several free amplitudes produces several modes with the same label and
+    #: a reader needs to tell them apart.
+    name: str
+    #: The small-irrep label the mode belongs to (``"S2"``), as
+    #: :attr:`~rietx.crystallography.magnetic.isotropy.MagneticCandidate.irrep_label`
+    #: spells it.
+    irrep_label: str
+    #: The order-parameter direction, as
+    #: :attr:`~rietx.crystallography.magnetic.isotropy.OrderParameterDirection.label`
+    #: spells it (``"(a,b)"``).
+    direction: str
+    #: The parent propagation vector the mode belongs to, as three rational
+    #: strings in the parent's reciprocal basis — the same storage
+    #: :attr:`Phase.propagation_vector` uses, and exact for the same reason.
+    k: tuple[str, str, str]
+    #: The parent site label the mode's orbit came from, or ``None`` for a mode
+    #: that spans several.  Metadata: nothing derives from it.
+    parent_site: str | None = None
+    amplitude: Parameter = Field(
+        default_factory=lambda: Parameter(
+            value=0.0, vary=False,
+            min=-DISTORTION_AMPLITUDE_MAX_A, max=DISTORTION_AMPLITUDE_MAX_A,
+            unit="A"))
+    #: e_ν: one fractional three-vector per atom of the phase, in phase atom
+    #: order.  The count is checked against the atom list by
+    #: :meth:`Phase._distortion_vectors_match_the_atoms` — here there is no
+    #: atom list to check against.
+    vectors: list[tuple[float, float, float]]
+
+    @field_validator("k", mode="before")
+    @classmethod
+    def _canonical_k(cls, value):
+        from ..crystallography.satellites import as_propagation_vector
+
+        return tuple(str(c) for c in as_propagation_vector(value))
+
+    @model_validator(mode="after")
+    def _vectors_are_a_displacement(self) -> "DistortionMode":
+        """Refuse an empty, non-finite or identically zero mode.
+
+        All three are the same failure — a block that declares a refinable
+        amplitude and moves nothing — and it is silent: the amplitude gets a
+        Jacobian column of exact zeros, the solver leaves it wherever it
+        started, and the fit reports ``converged`` with a number in it.
+        """
+        if not self.vectors:
+            raise ValueError(
+                f"distortion mode {self.name!r} carries no mode vectors; it "
+                f"needs one three-vector per atom of the phase")
+        flat = [c for v in self.vectors for c in v]
+        if not all(math.isfinite(c) for c in flat):
+            raise ValueError(
+                f"distortion mode {self.name!r} has a non-finite mode vector "
+                f"component")
+        if not any(c != 0.0 for c in flat):
+            raise ValueError(
+                f"distortion mode {self.name!r} is identically zero, so its "
+                f"amplitude moves no atom and its Jacobian column is exactly "
+                f"zero whatever the data says. A mode with nothing in it is "
+                f"not a mode with a small amplitude")
+        return self
+
+    def unit_displacement_a(self, cell: "Cell | Sequence[float]") -> float:
+        """max_j ‖L·e_j‖ in Å — how far unit amplitude moves the furthest atom.
+
+        The amplitude is in Å exactly when this is 1.0.  ``cell`` is a
+        :class:`Cell` or the six ``a, b, c, α, β, γ`` numbers; the Cartesian
+        basis is ``crystallography.adp.cartesian_basis``, the same one the
+        moment conversions use, so one convention answers both.
+        """
+        from ..crystallography.adp import cartesian_basis
+
+        six = (cell.lengths_angles() if isinstance(cell, Cell)
+               else tuple(float(v) for v in cell))
+        basis = cartesian_basis(*six)          # columns are a, b, c in Å
+        worst = 0.0
+        for v in self.vectors:
+            x = [sum(basis[i][j] * v[j] for j in range(3)) for i in range(3)]
+            worst = max(worst, math.sqrt(sum(c * c for c in x)))
+        return worst
+
+
+@dataclass(frozen=True)
+class DistortionComponent:
+    """One (k, irrep, direction) order parameter's modes, grouped (M2).
+
+    :attr:`Phase.distortion_modes` is a flat list — a :class:`DistortionMode`
+    already carries its own :attr:`~DistortionMode.k`,
+    :attr:`~DistortionMode.irrep_label` and :attr:`~DistortionMode.direction`,
+    so nothing about the *storage* had to change for a phase to carry several
+    order parameters at once (one k with two irreps — the common-subgroup
+    child of a second small representation, M2 form (a) — or, for a caller
+    who built the modes by hand, several k's sharing one atom list).  What was
+    missing was a **view**: a reader wanting "the modes of S3 apart from
+    S2's" had to filter the flat list itself.  ``Phase.distortion_components``
+    is that view, computed rather than stored, so it costs no schema field
+    and no migration — every phase written before this existed groups its
+    (necessarily single) component correctly and every new one does too.
+
+    ``modes`` keeps the phase's own list order.  Component order is first-seen
+    order over ``distortion_modes``, which is deterministic and needs no sort
+    key of its own.
+    """
+
+    k: tuple[str, str, str]
+    irrep_label: str
+    direction: str
+    modes: tuple["DistortionMode", ...]
+
+    @property
+    def amplitudes(self) -> tuple[float, ...]:
+        """The component's own amplitudes, one per mode, current values."""
+        return tuple(m.amplitude.value for m in self.modes)
+
+
 class Phase(Base):
     """A crystalline phase: symmetry, cell, atoms, scale, sample broadening."""
 
     name: str
     space_group: str  # Hermann-Mauguin symbol or number-as-string, resolved via gemmi
+    # The phase's symmetry operations as ``x,y,z`` triplets, when the phase
+    # carries them explicitly instead of leaving them to be resolved from
+    # ``space_group``.  ``None`` — the default, and every phase written before
+    # this field existed — is exactly the old behaviour: gemmi resolves the
+    # symbol and every consumer reads the operations from it.
+    #
+    # **Why a phase may need to carry them.**  A parent operation whose
+    # translation along a doubled axis is a half becomes a *quarter* in the
+    # child cell, and no Hermann-Mauguin symbol in any tabulated setting has a
+    # quarter in its operation list.  The child group is a perfectly good space
+    # group of that cell — orbits, site multiplicities and systematic absences
+    # all defined — and the only thing it lacks is a name.  Before this field
+    # the only honest answer was a refusal
+    # (``crystallography.magnetic.supercell``); with it the answer is the list.
+    #
+    # **The rule for ``space_group`` beside it**, and it is a rule about
+    # *labels*.  When the list is present ``space_group`` is a label, and one
+    # of two kinds:
+    #
+    # * **bracketed** — ``"P m 1 1 [unnamed in 2a,b,a+c]"``.  The bracket is
+    #   the marker that says "this symbol does not generate this group": the
+    #   text before it is the closest standard *type* and no agreement with the
+    #   list is claimed or checked.  A bracketed label **requires** the list
+    #   (there would otherwise be nothing to fall back on), and the list is
+    #   then the whole of the phase's symmetry.
+    # * **a plain symbol** — the list must then be *exactly* the operations
+    #   that symbol generates, and a disagreement is refused rather than
+    #   resolved in either direction.  A redundant-but-verified list is what
+    #   lets a caller state a group two ways and be told when the two are not
+    #   the same group; silently preferring one of them is how a fit ends up
+    #   with the wrong absences under a right-looking symbol.
+    #
+    # Stored canonically (gemmi's own triplet spelling, duplicates dropped) so
+    # a JSON round trip is bit-identical, and **in the caller's order**,
+    # because a CIF symmetry code is an index into a listed order.
+    symmetry_operations: list[str] | None = None
     cell: Cell
     atoms: list[Atom]
     scale: Parameter = Field(
@@ -536,10 +988,48 @@ class Phase(Base):
     # Sample contribution to Lorentzian width (deg 2θ units, see profiles.caglioti):
     # size term varies as 1/cosθ (Scherrer), strain term as tanθ.  Lorentzian
     # FWHMs add under convolution, so these stack on the instrument X, Y.
+    #
     lor_size: Parameter = Field(
         default_factory=lambda: Parameter(value=0.0, min=0.0, unit="deg", transform="softplus")
     )
     lor_strain: Parameter = Field(
+        default_factory=lambda: Parameter(value=0.0, min=0.0, unit="deg", transform="softplus")
+    )
+    # WP-1343.  The **magnetic** component's own extra Lorentzian broadening,
+    # in the same deg-2θ units and under the same two laws as the pair above:
+    # ``magnetic_lor_size`` as 1/cosθ (Scherrer, with the magnetic coherence
+    # length in place of the crystallite size) and ``magnetic_lor_strain`` as
+    # tanθ (a magnetic order parameter that varies across the specimen).
+    #
+    # They enter *only* the magnetic part of the intensity, added to the
+    # nuclear widths under the package's own composition law (Lorentzian FWHMs
+    # add): the magnetic component is drawn at
+    # ``x + lor_size + magnetic_lor_size`` and ``y + lor_strain +
+    # magnetic_lor_strain`` while the nuclear one keeps the widths it had.
+    # That is the physics of an order that is coherent over a shorter length
+    # than the crystallite — antiphase and domain-wall boundaries, an
+    # incompletely grown order parameter near T_N — and it is what stops the
+    # fit paying for a too-narrow calculated magnetic peak the only other way
+    # it can: |F_m|² ∝ m², so shrinking the moment matches the broad peak's
+    # *height* and the moment comes back low by the ratio of the two widths.
+    #
+    # Zero **is** the off state (no extra magnetic broadening) and is the
+    # default, and the forward model divides by neither, so ``min = 0.0``
+    # under softplus is safe by root CLAUDE.md's rule.  The conversion to a
+    # coherence length does divide, and ``model.microstructure`` already
+    # answers a zero coefficient with no value at all rather than an infinite
+    # length — ``lor_size``'s existing ``unavailable="at_zero"`` case.
+    #
+    # **Refused on a phase with no moment block**: a width on a component that
+    # does not exist is a declared name nothing writes (WP-1076's trap).  The
+    # refusal is of a *non-zero* value, because the zero default is carried by
+    # every phase; and ``ParameterTable`` registers the two paths only where
+    # ``magnetic_symmetry`` is declared, so on every other phase they cannot
+    # be freed either.
+    magnetic_lor_size: Parameter = Field(
+        default_factory=lambda: Parameter(value=0.0, min=0.0, unit="deg", transform="softplus")
+    )
+    magnetic_lor_strain: Parameter = Field(
         default_factory=lambda: Parameter(value=0.0, min=0.0, unit="deg", transform="softplus")
     )
     # Sample contribution to Gaussian *variance* (deg² 2θ; variances add under
@@ -570,6 +1060,39 @@ class Phase(Base):
     # a particle-size analysis; leave None (the default) for no correction.
     # Not a Parameter on purpose: it must never enter the least-squares fit.
     particle_radius_um: float | None = Field(default=None, gt=0.0)
+    # Commensurate propagation vector k, in fractional coordinates of the
+    # *conventional* reciprocal cell — the basis a CIF, a Bilbao page and
+    # ``_parent_propagation_vector`` all speak.  Declaring one adds satellite
+    # reflections at Q = H ± k to the phase's frozen reflection list
+    # (``crystallography/satellites.py``): Le Bail and Pawley extract intensity
+    # on them and a Rietveld stage contributes exactly zero there, so a user
+    # with unindexed low-angle intensity in a neutron pattern can test the
+    # magnetic hypothesis **without stating a single moment** (WP-1326).
+    #
+    # Stored as three rational *strings* (``"0"``, ``"1/2"``, ``"1/3"``), not
+    # floats, and that is the point: k is exact, the ± k equivalence test and
+    # the satellite enumeration are integer arithmetic, and a float would put a
+    # tolerance where none belongs.  Any spelling a caller finds natural — an
+    # int, a ``Fraction``, ``"1/2"``, or a float that *is* a small rational —
+    # arrives through the validator below and is stored canonically, so a JSON
+    # round-trip is bit-identical.  ``None`` (the default) is exactly off: a
+    # phase declaring none compiles to the reflection list it always did.
+    propagation_vector: tuple[str, str, str] | None = None
+    # The phase's magnetic space group, as the magCIF operator and centring
+    # loops (WP-1327).  ``None`` — the default — is exactly off, and it is the
+    # only state in which an atom of this phase may carry no ``moment``:
+    # declaring one is what gives a moment an allowed subspace to refine in
+    # and an orbit to be propagated over.  Refused beside
+    # ``propagation_vector`` (:data:`MOMENT_MODEL_FIELDS`): a commensurate
+    # magnetic structure is described *either* by k on the nuclear cell with
+    # no moments, *or* by a magnetic space group with moments in the magnetic
+    # supercell, and both at once is the same physics stated twice.
+    #
+    # A UNI/BNS/OG number is accepted here in place of the block and resolved
+    # through spglib (issue #257 A4); what is stored is always the operator
+    # list, because that is the object the refinement uses and the symbol is
+    # metadata.
+    magnetic_symmetry: MagneticSymmetry | None = None
     # Soft observational restraints (bond lengths, bond angles, value targets).
     # Empty default ⇒ exactly off: a phase declaring none is bit-identical to
     # one without the field.  Each contributes a √weight·(computed − target)/σ
@@ -577,6 +1100,435 @@ class Phase(Base):
     # from Rwp/Durbin-Watson/Bérar-Lelann.  Rietveld-mode only (Le Bail/Pawley
     # do not compute structural coordinates for a bond/angle to differentiate).
     restraints: list[Restraint] = Field(default_factory=list)
+    # Symmetry-adapted displacive modes of a superstructure: the child
+    # coordinates are the parent-derived base plus Σ A_ν e_ν, one refinable
+    # amplitude per mode (:class:`DistortionMode`).  Empty ⇒ exactly off, and
+    # every atom of a phase declaring none reaches the same arithmetic in the
+    # same order, so its pattern is bit-identical to what it was before this
+    # field existed.  A declared mode at A = 0 is the same statement: the
+    # coordinate rows the parameter table builds carry a zero contribution,
+    # and ``tests/test_distortion_modes.py`` pins the equality on ``predict()``.
+    #
+    # Refused beside ``propagation_vector`` for the reason a moment model is
+    # (:func:`refuse_moment_model_with_k`): a distortion mode *is* the
+    # superstructure, stated as displacements in the child cell, and a k on the
+    # same phase asks for satellites of it — the same physics twice with
+    # nothing to reconcile the two.
+    distortion_modes: list[DistortionMode] = Field(default_factory=list)
+
+    @property
+    def distortion_components(self) -> tuple[DistortionComponent, ...]:
+        """:attr:`distortion_modes` grouped by (k, irrep_label, direction).
+
+        See :class:`DistortionComponent`.  A single-component phase — every
+        one M1's ``displacive_statement`` built — groups into exactly one
+        entry, so this is bit-identical in effect to reading the flat list for
+        every phase that predates M2.
+        """
+        order: list[tuple[tuple[str, str, str], str, str]] = []
+        groups: dict[tuple[tuple[str, str, str], str, str], list[DistortionMode]] = {}
+        for m in self.distortion_modes:
+            key = (m.k, m.irrep_label, m.direction)
+            if key not in groups:
+                groups[key] = []
+                order.append(key)
+            groups[key].append(m)
+        return tuple(
+            DistortionComponent(k=k, irrep_label=irrep, direction=direction,
+                                modes=tuple(groups[(k, irrep, direction)]))
+            for k, irrep, direction in order)
+
+    @field_validator("symmetry_operations", mode="before")
+    @classmethod
+    def _canonical_operations(cls, value):
+        """Normalise the operation list to gemmi's own triplet spelling.
+
+        ``"-X+1/2, Y, Z+1/4"`` and ``"-x+1/2,y,z+1/4"`` are the same operation
+        and must store as the same string, or two callers who wrote the same
+        group differently store different documents and a JSON round trip is
+        not bit-identical.  Duplicates are dropped (a list built by composing
+        generators repeats the identity) and the caller's order is kept, for
+        the reason the field comment gives.  Whether the list is a *group* —
+        and whether it agrees with the symbol — needs the symbol and is
+        checked in :meth:`_operations_are_a_group` below.
+        """
+        if value is None:
+            return None
+        import gemmi
+
+        if isinstance(value, str):
+            raise ValueError(
+                f"symmetry_operations must be a list of 'x,y,z' triplets, not "
+                f"the single string {value!r}")
+        out: list[str] = []
+        for entry in value:
+            try:
+                op = gemmi.Op(str(entry).strip())
+                # **The translation is wrapped into [0,1).**  ``x+3/2,y,z`` and
+                # ``x+1/2,y,z`` are the same operation and must store as the
+                # same string; gemmi's ``triplet()`` prints what it was given.
+                # gemmi's own tabulated operations already lie in the window,
+                # so this touches nothing when the list came from a symbol —
+                # which is what keeps the bit-identity property.
+                op.tran = [int(v) % op.DEN for v in op.tran]
+                triplet = op.triplet()
+            except (RuntimeError, ValueError) as exc:
+                raise ValueError(
+                    f"symmetry_operations: {entry!r} is not an 'x,y,z'-style "
+                    f"symmetry operation ({exc}). One operation per entry, as "
+                    f"in 'x,y,z' or '-x+1/2,y,z+1/4'") from exc
+            if triplet not in out:
+                out.append(triplet)
+        if not out:
+            raise ValueError(
+                "symmetry_operations is an empty list. A group has at least "
+                "the identity in it; leave the field None to resolve the "
+                "operations from space_group instead")
+        return out
+
+    @model_validator(mode="after")
+    def _operations_are_a_group(self) -> "Phase":
+        """Refuse a list that is not a group, and one that fights its symbol.
+
+        Three refusals, and each of them is a fit that would otherwise run and
+        be wrong:
+
+        1. **Not a group** — a list missing the identity, or not closed under
+           composition, has no orbits worth the name: the structure-factor sum
+           would run over a partial orbit and every |F|² would be wrong by a
+           factor nobody could see. Checked by composing every pair and asking
+           whether the product is in the list, modulo a lattice translation.
+        2. **A plain symbol that does not generate the list.** The phase then
+           states its symmetry twice and the two statements disagree; which of
+           them the absences and the site multiplicities should come from is
+           not this schema's call. Bracket the label to say the symbol is only
+           the closest type (:func:`~rietx.crystallography.symmetry.unnamed_label`).
+        3. **A bracketed label with no list.** The bracket *is* the claim that
+           the symbol does not name the group, so without the list there is
+           nothing left to be the group.
+        """
+        from ..crystallography.symmetry import split_group_label
+
+        bracket = split_group_label(self.space_group)
+        if self.symmetry_operations is None:
+            if bracket is not None:
+                raise ValueError(
+                    f"phase {self.name!r} names space group "
+                    f"{self.space_group!r}, whose bracketed form says no "
+                    f"Hermann-Mauguin symbol generates this group in this "
+                    f"cell — and declares no symmetry_operations, so nothing "
+                    f"is left to be the group. State the operation list, or "
+                    f"drop the bracket and name a symbol that does generate "
+                    f"the symmetry")
+            return self
+        import gemmi
+
+        ops = [gemmi.Op(s) for s in self.symmetry_operations]
+        listed = {_op_key(op) for op in ops}
+        if _op_key(gemmi.Op("x,y,z")) not in listed:
+            raise ValueError(
+                f"phase {self.name!r}: symmetry_operations has "
+                f"{len(ops)} operation(s) and the identity 'x,y,z' is not one "
+                f"of them, so the list is not a group and the atoms listed are "
+                f"not in their own orbits")
+        for a in ops:
+            for b in ops:
+                if _op_key(a * b) not in listed:
+                    raise ValueError(
+                        f"phase {self.name!r}: symmetry_operations is not "
+                        f"closed under composition — {a.triplet()!r} times "
+                        f"{b.triplet()!r} is {(a * b).triplet()!r}, which is "
+                        f"not in the list (modulo a lattice translation). A "
+                        f"partial operation list gives partial site orbits, "
+                        f"so |F|² would be wrong by a factor with nothing to "
+                        f"show it")
+        if bracket is not None:
+            return self
+        from ..crystallography.symmetry import get_spacegroup
+
+        try:
+            symbol_ops = {_op_key(op)
+                          for op in get_spacegroup(self.space_group).operations()}
+        except ValueError as exc:
+            raise ValueError(
+                f"phase {self.name!r}: space_group {self.space_group!r} is "
+                f"neither a symbol this package resolves nor a bracketed "
+                f"label ({exc}). A phase carrying symmetry_operations still "
+                f"needs a label: the symbol the list agrees with, or the "
+                f"closest type in brackets") from exc
+        if symbol_ops != listed:
+            missing = len(symbol_ops - listed)
+            extra = len(listed - symbol_ops)
+            raise ValueError(
+                f"phase {self.name!r} declares {len(listed)} "
+                f"symmetry_operations and the space group "
+                f"{self.space_group!r}, which generates {len(symbol_ops)} — "
+                f"and they are not the same group: {missing} of the "
+                f"symbol's operations are missing from the list and {extra} "
+                f"of the list's are not in the symbol"
+                f". The site orbits and the systematic absences would differ "
+                f"between the two, so this is refused rather than resolved. "
+                f"If the symbol is only the closest *type* — which is what a "
+                f"doubled cell does to a glide, turning its half into a "
+                f"quarter no symbol carries — say so by bracketing the label, "
+                f"as in '{self.space_group} [unnamed in this cell]'")
+        return self
+
+    @field_validator("propagation_vector", mode="before")
+    @classmethod
+    def _canonical_k(cls, value):
+        """Normalise any accepted spelling of k to three rational strings.
+
+        Validation of what the *vector* means — commensurate, and not a
+        reciprocal-lattice vector of this phase's symmetry — needs the space
+        group and therefore happens in :meth:`_k_is_usable` below.  This step
+        only fixes the storage: ``Fraction``s, ints, ``"1/2"`` strings and
+        floats that are exactly a small rational all become the same three
+        strings, so two callers who spelled the same vector differently store
+        the same document.
+        """
+        if value is None:
+            return None
+        from ..crystallography.satellites import as_propagation_vector
+
+        return tuple(str(c) for c in as_propagation_vector(value))
+
+    @model_validator(mode="after")
+    def _k_is_usable(self) -> "Phase":
+        """Refuse a k this phase's symmetry cannot carry, and a moment model.
+
+        Two refusals, and neither can be made by the field validator above.
+        **k = 0** — a k that is a reciprocal-lattice vector of *this* group,
+        which is a centring-aware test — would put every satellite on a
+        nuclear line and duplicate the reflection list exactly; the message
+        (``crystallography.satellites.check_propagation_vector``) says what to
+        do instead.  And a **moment model declared beside k**: the two
+        descriptions of a commensurate magnetic structure — a propagation
+        vector on the nuclear cell, and a magnetic space group with moments —
+        must not both be declared on one phase, because they say the same
+        thing twice and nothing reconciles them.  WP-1327 adds the second, and
+        :func:`refuse_moment_model_with_k` is the refusal it will trip;
+        :data:`MOMENT_MODEL_FIELDS` is empty until then, so the loop is a
+        declared hook rather than dead code.
+        """
+        if self.propagation_vector is None:
+            return self
+        from ..crystallography.satellites import check_propagation_vector
+        from ..crystallography.symmetry import resolve_group
+
+        try:
+            check_propagation_vector(
+                resolve_group(self.space_group, self.symmetry_operations),
+                self.propagation_vector)
+        except ValueError as exc:
+            raise ValueError(f"phase {self.name!r}: {exc}") from exc
+        refuse_moment_model_with_k(
+            self.name, [f for f in MOMENT_MODEL_FIELDS
+                        if getattr(self, f, None) is not None])
+        if self.distortion_modes:
+            raise ValueError(
+                f"phase {self.name!r} declares a propagation vector "
+                f"{self.propagation_vector!r} and "
+                f"{len(self.distortion_modes)} distortion mode(s) at once. A "
+                f"displacive mode *is* the superstructure, stated as "
+                f"displacements in the child cell of that k; declaring k as "
+                f"well asks the same phase for satellites of it, which is the "
+                f"same intensity placed twice. Drop the propagation vector to "
+                f"refine the modes, or drop the modes to test the k")
+        return self
+
+    @model_validator(mode="after")
+    def _moments_are_stateable(self) -> "Phase":
+        """Refuse a moment the stated magnetic symmetry cannot carry.
+
+        Five refusals, all of them arithmetic on what this object already
+        holds — no cell, no wavelength, no data — which is why they are here
+        and not at compile (the opposite of ``Atom.species``, whose answer
+        needs a scattering table).
+
+        1. A moment with no ``magnetic_symmetry``: there is no allowed
+           subspace to refine in and no orbit to propagate over.
+        2. A moment **outside** the site's allowed subspace.  The subspace is
+           ∩ ker(ε·det(R)·R − I) over the site's magnetic stabiliser
+           (``crystallography.magnetic.operators.allowed_moment_basis``), and
+           the test is :func:`~rietx.crystallography.magnetic.operators.in_span`
+           — a *span* test, never a dimension count, because the transposed
+           action is a group too and gives the same dimension in every crystal
+           system (measured: R and Rᵀ differ only inside space groups
+           149-194).
+        3. A moment on an **anisotropic** site.  The magnetic orbit sum needs
+           the per-image Debye-Waller factor at each Laue-orbit member, which
+           is a shape this rung does not build; refused by name rather than
+           quietly evaluated with the isotropic factor.
+        4. A moment **free at exactly zero**.  |F_m|² ∝ m², so the Jacobian
+           column vanishes there and the parameter is dead — the same trap
+           :meth:`StephensStrain` refuses for the all-zero S block, and the
+           same fix: start from a physical estimate.
+        5. An ``ion`` the form-factor table does not carry, or a 4f/5f ion
+           with no ``g``.
+        """
+        moments = [(j, a) for j, a in enumerate(self.atoms) if a.moment is not None]
+        if not moments:
+            return self
+        if self.magnetic_symmetry is None:
+            labels = ", ".join(repr(a.label) for _, a in moments)
+            raise ValueError(
+                f"phase {self.name!r}: {labels} carr{'ies' if len(moments) == 1 else 'y'} "
+                f"a moment but the phase declares no magnetic_symmetry. A "
+                f"moment is only meaningful under a magnetic space group: it "
+                f"is the operator list that says which directions the site "
+                f"allows and how the moment propagates over the orbit. State "
+                f"it as the magCIF operator loop, or as a UNI/BNS/OG number")
+        from ..crystallography.magnetic.form_factor import coefficients, resolve_g
+        from ..crystallography.magnetic.operators import in_span
+
+        group = self.magnetic_symmetry.group()
+        for j, atom in moments:
+            where = f"phase {self.name!r} atom {j} ({atom.label!r})"
+            if atom.aniso is not None:
+                raise ValueError(
+                    f"{where} carries both an anisotropic displacement block "
+                    f"and a moment. The magnetic orbit sum would need the "
+                    f"per-image U^ij at every Laue-orbit member, which this "
+                    f"version does not build; refine the site with biso while "
+                    f"a moment is on it")
+            m = atom.moment.values()
+            xyz = (atom.x.value, atom.y.value, atom.z.value)
+            basis = group.allowed_moment_basis(xyz)
+            if not in_span(basis, m):
+                allowed = ("no moment at all — the site symmetry forbids one"
+                           if len(basis) == 0 else
+                           f"only {[list(map(int, r)) for r in basis]} "
+                           f"(crystal-axis directions)")
+                raise ValueError(
+                    f"{where}: the moment {list(m)} μ_B is not compatible with "
+                    f"the magnetic symmetry, which allows {allowed} on this "
+                    f"site. A moment outside the allowed subspace is not a "
+                    f"starting guess to be symmetrised: it says the structure "
+                    f"and the group disagree")
+            if atom.moment.vary and not any(m):
+                raise ValueError(
+                    f"{where}: the moment is free and exactly zero. |F_m|² is "
+                    f"proportional to m², so its Jacobian column vanishes at "
+                    f"the origin and the parameter cannot move — seed a "
+                    f"physical estimate (1-5 μ_B for a 3d ion) instead")
+            try:
+                coefficients(atom.moment.ion)
+            except KeyError as exc:
+                # pydantic wraps a ValueError into its own report and lets a
+                # KeyError through raw, which would reach a caller as an
+                # unhandled exception with no path in it
+                raise ValueError(f"{where}: {exc.args[0]}") from exc
+            try:
+                resolve_g(atom.moment.ion, atom.moment.g)
+            except ValueError as exc:
+                raise ValueError(f"{where}: {exc}") from exc
+        return self
+
+    @model_validator(mode="after")
+    def _distortion_vectors_match_the_atoms(self) -> "Phase":
+        """One mode vector per atom, and names that tell two modes apart.
+
+        The count is the check a :class:`DistortionMode` cannot make on its
+        own, and getting it wrong is silent in the direction that matters: a
+        short list would leave the last atoms undisplaced while the amplitude
+        refined, so the fit would report a distortion of a structure it never
+        applied it to.
+        """
+        if not self.distortion_modes:
+            return self
+        n = len(self.atoms)
+        seen: set[str] = set()
+        for m in self.distortion_modes:
+            if len(m.vectors) != n:
+                raise ValueError(
+                    f"phase {self.name!r} distortion mode {m.name!r} carries "
+                    f"{len(m.vectors)} mode vectors but the phase has {n} "
+                    f"atom(s); a displacive mode states one three-vector per "
+                    f"atom of the phase, in atom order")
+            if m.name in seen:
+                raise ValueError(
+                    f"phase {self.name!r} declares two distortion modes named "
+                    f"{m.name!r}; the name is what the parameter path, the "
+                    f"report row and the diagnostic identify a mode by, so it "
+                    f"has to be unique within the phase")
+            seen.add(m.name)
+        return self
+
+    @model_validator(mode="after")
+    def _distortion_modes_are_refinable(self) -> "Phase":
+        """Two refusals a mode-carrying phase makes about what may be free.
+
+        1. **A free amplitude on a phase whose modes are all at zero.**
+           Sending every amplitude to −A maps the child structure onto its
+           own image under the translation the k-doubling lost, so |F|² is
+           an *even* function of the whole amplitude vector and χ² is
+           stationary at the origin: at A = 0 every mode's Jacobian column
+           vanishes at once and no amplitude can move.  The same trap
+           :meth:`_moments_are_stateable` refuses for a moment, and the same
+           fix — seed a physical estimate (a few hundredths of an Å for a
+           displacive superstructure) with
+           :func:`~rietx.crystallography.magnetic.supercell.seed_distortion_amplitudes`,
+           which moves the coordinates with it.
+
+           **The condition is the whole vector, not one amplitude**, and that
+           is measured rather than cautious: with one mode already at 0.12 Å,
+           the other seven amplitudes of a Pnma child refined from exactly
+           zero to 1e-4 with esds of 2-9e-4 and came back correctly
+           unsupported.  Their columns are non-zero because the *cross* term
+           with the displaced structure is first order — the evenness is a
+           statement about A → −A of every mode together.  Refusing each
+           amplitude at zero would have refused that fit, which is the
+           negative control a mode test needs.
+
+        2. **A free cell parameter beside a mode.**  A mode's vectors are
+           stated in the child cell, and a child cell is the parent's carried
+           through the transform P: its parameters are *non-linear* functions
+           of the parent's, so no affine tie can state the relation and
+           freeing them lets the child metric leave the parent's.  Measured on
+           Ba₂FeSbSe₅: the child cell 2a, b, a+c has four monoclinic
+           parameters determined by the parent's three orthorhombic ones, and
+           refining them freely broke the exact powder degeneracy of the two
+           Fe orbits and produced a wrong answer that reported ``converged``.
+           Refine the *parent* cell and rebuild the child.  The parameter
+           table locks these rows as well, so a broad glob skips them
+           (``params.vector.ParameterTable._collect``); this is the loud half,
+           for a caller who declared it rather than swept for it.
+        """
+        if not self.distortion_modes:
+            return self
+        free = [m.name for m in self.distortion_modes if m.amplitude.vary]
+        if free and not any(m.amplitude.value != 0.0
+                            for m in self.distortion_modes):
+            raise ValueError(
+                f"phase {self.name!r} frees {len(free)} distortion-mode "
+                f"amplitude(s) ({', '.join(free[:4])}"
+                f"{'…' if len(free) > 4 else ''}) and every mode of the phase "
+                f"is at exactly zero. Sending every amplitude to −A maps the "
+                f"child onto its own image under the translation the "
+                f"k-doubling lost, so |F|² is an even function of the whole "
+                f"amplitude vector: at the origin every Jacobian column "
+                f"vanishes at once and no amplitude can move. Seed the block "
+                f"off zero first: seed_distortion_amplitudes moves the "
+                f"coordinates with the amplitude on the phase itself, and "
+                f"Stage(distortion_seed=...) does it inside a staged plan "
+                f"that frees the amplitudes by glob "
+                f"(strategy.staged.DISTORTION_SEED_A is the recommended "
+                f"value, 0.02 Å). Read the refined values as |A|")
+        free_cell = [n for n in ("a", "b", "c", "alpha", "beta", "gamma")
+                     if getattr(self.cell, n).vary]
+        if free_cell:
+            raise ValueError(
+                f"phase {self.name!r} carries {len(self.distortion_modes)} "
+                f"distortion mode(s) and frees its cell "
+                f"({', '.join(free_cell)}). A mode is stated in the child cell "
+                f"of a parent + k transform, and the child's cell parameters "
+                f"are non-linear functions of the parent's — c' = √(a²+c²) and "
+                f"β' = f(a, c) for 2a, b, a+c — so no tie can hold the "
+                f"relation and a free child cell leaves the parent's metric "
+                f"with nothing to say so. Refine the parent cell and rebuild "
+                f"the child statement")
+        return self
 
     @model_validator(mode="after")
     def _nonempty(self) -> "Phase":
@@ -592,6 +1544,38 @@ class Phase(Base):
                 "isotropic direction is the same residual column as "
                 "lor_strain; refining both is exactly degenerate.  Set "
                 "lor_strain.vary=False and refine the S_HKL patterns instead")
+        return self
+
+    @model_validator(mode="after")
+    def _magnetic_width_needs_a_moment(self) -> "Phase":
+        """A magnetic broadening term on a phase with no magnetic component.
+
+        WP-1343.  The two widths multiply the magnetic part of the intensity
+        and nothing else, so on a phase that declares no ``magnetic_symmetry``
+        there is no component for them to broaden and any value they carry is
+        a number that reaches no residual row.  Refused by name here rather
+        than ignored in the forward model, which is the WP-1076 rule: a
+        declared field nothing writes fails no test.
+
+        Only a **non-zero** value is refused — zero is the off state and every
+        phase in the package carries it by default — and only the value,
+        because ``vary`` is not reachable: ``ParameterTable`` registers the two
+        paths only for a phase with a moment block.
+        """
+        if self.magnetic_symmetry is not None:
+            return self
+        for name in ("magnetic_lor_size", "magnetic_lor_strain"):
+            p = getattr(self, name)
+            if p.value != 0.0 or p.vary:
+                raise ValueError(
+                    f"phase {self.name!r} sets {name} = {p.value:g}"
+                    f"{' (vary=True)' if p.vary else ''} but declares no "
+                    f"magnetic_symmetry. That term broadens the **magnetic** "
+                    f"component of the intensity and nothing else, so with no "
+                    f"magnetic structure there is no component for it to "
+                    f"broaden and the number would reach no residual row. "
+                    f"Declare the magnetic space group and a moment, or leave "
+                    f"{name} at its zero default (which is exactly off)")
         return self
 
     @model_validator(mode="after")
@@ -646,11 +1630,24 @@ class Structure(Base):
 
     @classmethod
     def from_cif(cls, path: str, *, phase_name: str | None = None,
-                 aniso: bool = False, diagnostics: list | None = None,
+                 aniso: bool = False,
+                 moment_ions: dict[str, str] | None = None,
+                 moment_g: dict[str, float] | None = None,
+                 diagnostics: list | None = None,
                  ) -> "Structure":
+        """Read a CIF, or a **magCIF**, into a :class:`Structure`.
+
+        ``moment_ions`` and ``moment_g`` state, per site label, the two
+        quantities the magnetic dictionary has no item for: the ion whose form
+        factor a moment scatters with (``{"Mn1": "Mn3+"}``) and the Landé g a
+        4f moment needs.  Forwarded, not interpreted — see
+        ``crystallography.cif.structure_from_cif`` for the whole of the read
+        and for the two magnetic constructs it refuses by name (WP-1328).
+        """
         from ..crystallography.cif import structure_from_cif
 
         return structure_from_cif(path, phase_name=phase_name, aniso=aniso,
+                                  moment_ions=moment_ions, moment_g=moment_g,
                                   diagnostics=diagnostics)
 
     def to_cif(self, path: str) -> None:

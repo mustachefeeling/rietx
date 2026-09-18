@@ -122,6 +122,7 @@ UNIT_DISPLAY: dict[str, str] = {
     "counts": "counts",
     "counts*deg": "counts·deg 2θ",
     "1e-12 A^-4": "10⁻¹² Å⁻⁴",
+    "mu_B": "μ_B",
 }
 
 
@@ -743,6 +744,55 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         typical="0-0.05 deg²",
         anchor="microstructure.html#isotropic-size-and-strain",
     ),
+    "phases.*.magnetic_lor_size": HelpEntry(
+        title="Magnetic Lorentzian size broadening",
+        description=(
+            "Extra 1/cosθ Lorentzian FWHM applied to the **magnetic** part of "
+            "this phase's intensity and to nothing else, so the magnetic peaks "
+            "can be broader than the nuclear ones. It is Scherrer broadening "
+            "with the magnetic coherence length in place of the crystallite "
+            "size: antiphase and domain-wall boundaries, an incompletely grown "
+            "order parameter near T_N, and disorder that couples to the "
+            "exchange all cut the magnetic coherence below the structural one. "
+            "Zero is exactly off. Refine it **after** the moment and hold the "
+            "moment while it settles: both lower the calculated peak height, "
+            "so freed together from a cold start they trade against each "
+            "other and STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT says so. "
+            "Read MAGNETIC_WIDTH_MOVED_MOMENT before dropping the term: a "
+            "width whose esd exceeds its value can still be correlated with "
+            "the moment, and if releasing it moved the moment by more than "
+            "the moment's own error bar then holding it at zero biases the "
+            "moment rather than simplifying the model. "
+            "Only identifiable where the magnetic/nuclear intensity ratio "
+            "differs across reflections — a k ≠ 0 structure with "
+            "magnetic-only satellites measures it, a k = 0 collinear one "
+            "generally cannot, and then it comes back with no esd rather than "
+            "a small one. Exists only on a phase that declares "
+            "magnetic_symmetry."
+        ),
+        unit="deg 2θ", default="0.0",
+        typical="0-0.3 deg; 0.1 deg is roughly a 100 nm magnetic domain at 2.4 Å",
+        anchor="microstructure.html#isotropic-size-and-strain",
+    ),
+    "phases.*.magnetic_lor_strain": HelpEntry(
+        title="Magnetic Lorentzian strain broadening",
+        description=(
+            "Extra tanθ Lorentzian FWHM applied to the **magnetic** part of "
+            "this phase's intensity alone — the strain partner of "
+            "magnetic_lor_size, and what a magnetic order parameter that "
+            "varies across the specimen produces. Zero is exactly off. The "
+            "same turn-on order and the same identifiability limits apply: "
+            "moment first, then this, then both, and it is measurable only "
+            "where some reflection is more magnetic than another. On a real "
+            "k != 0 dataset it can be this term rather than the size one that "
+            "carries the effect, which is why the magnetic_width plan frees "
+            "both and lets the report say which was measured. Exists only "
+            "on a phase that declares magnetic_symmetry."
+        ),
+        unit="deg 2θ", default="0.0",
+        typical="0-0.3 deg",
+        anchor="microstructure.html#isotropic-size-and-strain",
+    ),
     "phases.*.preferred_orientation.r": HelpEntry(
         title="March coefficient",
         description=(
@@ -773,6 +823,43 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         ),
         unit=None, default=None,
         typical="0 to 1, in the same units as the coordinate it drives",
+        anchor="parameterisation.html#site-symmetry-degrees-of-freedom",
+    ),
+    "phases.*.distortion_modes.*.amplitude": HelpEntry(
+        title="Distortion-mode amplitude",
+        description=(
+            "The amplitude of one symmetry-adapted displacive mode of a "
+            "superstructure, in ångström: the child coordinates are the "
+            "parent-derived base plus the sum over modes of A·e, so this is "
+            "the one parameter that carries a whole sublattice's worth of "
+            "displacement. It is what a superstructure should be refined with "
+            "instead of the child cell's free coordinates — those buy tens of "
+            "parameters that between them manufacture superstructure "
+            "intensity out of nothing. The convention is that unit amplitude "
+            "moves the furthest atom of the mode by exactly 1 Å. Two things "
+            "it cannot do. The overall **sign** of a component\u2019s amplitudes "
+            "is a domain convention rather than a measurement: negating the "
+            "whole amplitude vector gives the other antiphase domain and the "
+            "identical powder pattern (|F|\u00b2 is even in it), so the report "
+            "states the component\u2019s primary mode positive and reads every "
+            "other sign relative to it (Perez-Mato, Orobengoa & Aroyo 2010 "
+            "\u00a7 7); the relative signs inside a component *are* measured. "
+            "And no amplitude can refine while **every** mode of the phase "
+            "sits at zero, since the same evenness makes \u03c7\u00b2 stationary at "
+            "the origin. Seed the block off zero with `Stage(distortion_seed="
+            "...)` inside a plan, or with "
+            "`crystallography.magnetic.supercell.seed_distortion_amplitudes` "
+            "on the phase, which moves the coordinates with it. "
+            "`DISTORTION_MODE_UNSUPPORTED` "
+            "names an order parameter whose A_tau is inside its own 2\u03c3, "
+            "which is a flat direction and not a small distortion. Free it "
+            "with the "
+            "`phases.*.distortion_modes.*.amplitude` glob, with the child "
+            "cell and the child displacement parameters held."
+        ),
+        unit="Å", default="0.0",
+        typical="0.01 to 0.2 Å for a displacive superstructure; the bound is "
+                "±0.5 Å, above which it is a different structure",
         anchor="parameterisation.html#site-symmetry-degrees-of-freedom",
     ),
     "phases.*.atoms.*.occ": HelpEntry(
@@ -826,6 +913,41 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         unit="Å²", default=None,
         typical="0.005-0.05 Å²",
         anchor="intensities.html#debye-waller-factors-and-adp-representations",
+    ),
+    "phases.*.atoms.*.moment.crystalaxis_*": HelpEntry(
+        title="Magnetic moment component",
+        description=(
+            "One crystal-axis component of this site's magnetic moment, in "
+            "the magCIF `_atom_site_moment.crystalaxis_*` convention — a "
+            "right-handed basis of **unit vectors** along the cell edges, so "
+            "on hexagonal axes the moment (1, 1, 0) is 1 μ_B and not √2. "
+            "These are **derived**, not refined: the moment enters the fit as "
+            "`phases.*.atoms.*.moment.dof*`, a modulus and the angles the "
+            "site symmetry leaves free, and these three are written back from "
+            "those at the end of a stage. They carry no esd; the magnitude's "
+            "is on the modulus DOF."
+        ),
+        unit="μ_B", default=None,
+        typical="1-5 μ_B for a 3d ion, up to 10 for a rare earth",
+        anchor="intensities.html#the-magnetic-structure-factor",
+    ),
+    "phases.*.atoms.*.moment.dof*": HelpEntry(
+        title="Magnetic moment degree of freedom",
+        description=(
+            "`dof0` is the moment's modulus in μ_B — the number a fit "
+            "measures, and the one that carries the esd. Any further entries "
+            "are angles in radians inside the subspace the site's magnetic "
+            "symmetry allows: one on a two-dimensional subspace, two on a "
+            "three-dimensional one. A powder average determines |m| and, on a "
+            "uniaxial structure, the angle to the unique axis — no more, so "
+            "the directions it cannot determine are **held** and named in "
+            "`StageResult.held` rather than returned as small numbers. "
+            "Seeding the modulus at exactly zero is refused: |F_m|² is "
+            "proportional to m², so the column is dead there."
+        ),
+        unit=None, default=None,
+        typical="1-5 μ_B for the modulus; the angles are unbounded radians",
+        anchor="parameterisation.html#moment-degrees-of-freedom",
     ),
     "phases.*.microstrain.s*": _STEPHENS_S,
     "phases.*.microstrain.dof.*": HelpEntry(
@@ -1254,6 +1376,27 @@ STAGE_FIELD_HELP: dict[str, HelpEntry] = {
         unit="ppm", default="0.0",
         typical="100-1000 ppm where a stage frees an anisotropic strain block",
         anchor="microstructure.html#the-positivity-cone-the-seed-and-the-guard",
+    ),
+    "distortion_seed": HelpEntry(
+        title="Distortion-mode amplitude seed",
+        description=(
+            "Amplitude in angstrom used to move an all-zero distortion-mode "
+            "block off the parent before a stage frees it. The third "
+            "pathology at zero, and the only one that is exactly flat: the "
+            "parent translation the k-doubling lost carries the mode field to "
+            "its negative, so |F|^2 is an even function of the whole "
+            "amplitude vector and every column vanishes at A = 0 together. "
+            "A = 0 is a local maximum of fit quality along every mode at "
+            "once, not a starting point, so a stage entered at the parent "
+            "without this seed is refused rather than run. `seed` cannot "
+            "serve (softplus entries only; an amplitude is signed and "
+            "identity-transform) and neither can `strain_seed` (an exploding "
+            "gradient, the opposite problem). Signed: the sign of a single "
+            "amplitude is a domain label rather than a measurement, so a "
+            "negative seed simply starts in the other antiphase domain."
+        ),
+        unit="A", default="0.0",
+        typical="0.02 A where a stage frees a distortion-mode block from the parent",
     ),
     "restraint_weight_scale": HelpEntry(
         title="Restraint weight",

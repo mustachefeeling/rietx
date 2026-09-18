@@ -65,6 +65,7 @@ import numpy as np
 
 from ..crystallography.lattice import d_spacings
 from ..crystallography.stephens import monomial_matrix, stephens_basis
+from ..crystallography.symmetry import resolve_group
 from ..model.forward import CompiledModel
 from .schemas import (
     STRAIN_MAX_GRAM_CONDITION,
@@ -105,7 +106,7 @@ def _components(model: CompiledModel, values: dict[str, float], ip: int
     cp = model.phases[ip]
     cell = tuple(values[f"phases.{ip}.cell.{k}"]
                  for k in ("a", "b", "c", "alpha", "beta", "gamma"))
-    d = np.asarray(d_spacings(cp.reflections.hkl, *cell), dtype=np.float64)
+    d = np.asarray(d_spacings(cp.reflections.index, *cell), dtype=np.float64)
     aniso = np.asarray(model.strain_width(ip, values, d)) \
         if cp.strain_monomials is not None else np.zeros(len(d))
     # the whole tanθ coefficient, isotropic part included: a Stephens block
@@ -278,7 +279,9 @@ def analyse_strain(model: CompiledModel, values: dict[str, float], *,
                 * max(float(np.sqrt(weight.max(initial=0.0))), 1e-300)) \
             & np.isfinite(tan_theta[0]) & (tan_theta[0] > 0.0)
         n_used = int(live.sum())
-        basis = stephens_basis(cp.reflections.spacegroup).astype(np.float64)
+        basis = stephens_basis(resolve_group(
+            cp.reflections.spacegroup,
+            cp.reflections.operations)).astype(np.float64)
         if n_used < max(STRAIN_MIN_REFLECTIONS, len(basis) + 1):
             out.append(StrainAnalysis(phase_index=ip, n_reflections_used=n_used,
                                       n_patterns=len(basis)))
@@ -290,7 +293,7 @@ def analyse_strain(model: CompiledModel, values: dict[str, float], *,
         # width, not about anisotropy.
         target = np.maximum(current + d_lambda, 0.0)
 
-        mono = monomial_matrix(cp.reflections.hkl)
+        mono = monomial_matrix(cp.reflections.index)
         templates = (mono @ basis.T)[live]
         scale = (_C * d[live] ** 2) ** 2          # y = Λ²/scale
         y = target[live] ** 2 / scale

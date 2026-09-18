@@ -9,9 +9,12 @@ and the pinned thresholds, and docs/DESIGN.md for the design rationale.
 
 from __future__ import annotations
 
+import numpy as np
+
 from ..schemas.results import RefinementResult
 from .apply import RECIPES, Recipe, describe_action, recipe, stage_for
 from .background import assess_background
+from .distortion import analyse_distortion_modes, analyse_distortion_totals
 from .identifiability import (
     assess_identifiability,
     identifiability_clause,
@@ -21,6 +24,7 @@ from .layer0 import (
     background_clause,
     build_layer0,
     lebail_gap,
+    residual_peak_indices,
     too_flexible,
     too_stiff,
 )
@@ -47,6 +51,8 @@ from .layer2 import (
     suggest_actions,
     texture_actions,
 )
+from .magnetic import analyse_moments
+from .satellites import analyse_satellites
 from .schemas import (
     LEBAIL_GAP_NOTABLE,
     RIVAL_DECISIVE_MIN_CHI2_RATIO,
@@ -54,6 +60,7 @@ from .schemas import (
     TRAJECTORY_MAX_ACTIONS,
     BackgroundEvidence,
     BasisCoefficient,
+    DistortionEvidence,
     ExchangeFinding,
     FitReport,
     GateFailure,
@@ -63,6 +70,8 @@ from .schemas import (
     RegionAttribution,
     RivalComparison,
     RivalFit,
+    SatelliteCandidate,
+    SatelliteEvidence,
     StageReport,
     StrainAnalysis,
     SuggestedAction,
@@ -82,6 +91,7 @@ __all__ = [
     "TRAJECTORY_MAX_ACTIONS",
     "BackgroundEvidence",
     "BasisCoefficient",
+    "DistortionEvidence",
     "ExchangeFinding",
     "FitReport",
     "GateFailure",
@@ -92,6 +102,8 @@ __all__ = [
     "RegionAttribution",
     "RivalComparison",
     "RivalFit",
+    "SatelliteCandidate",
+    "SatelliteEvidence",
     "StageReport",
     "StrainAnalysis",
     "SuggestedAction",
@@ -101,6 +113,10 @@ __all__ = [
     "UnmatchedPeak",
     "VerificationOutcome",
     "abstention_flavour",
+    "analyse_distortion_modes",
+    "analyse_distortion_totals",
+    "analyse_moments",
+    "analyse_satellites",
     "analyse_strain",
     "analyse_texture",
     "analyse_trends",
@@ -128,6 +144,7 @@ __all__ = [
     "predict_then_verify",
     "recipe",
     "reindex_action",
+    "residual_peak_indices",
     "resolution_limited_action",
     "stage_for",
     "suggest_actions",
@@ -172,8 +189,15 @@ def _attach_separability(report: FitReport) -> None:
         block.size_strain_collinearity = width.max_template_collinearity
 
 
+def _resid_norm(result: RefinementResult) -> np.ndarray:
+    """(y_obs − y_calc)/σ on the fitted grid — Layer 0's own residual."""
+    return ((np.asarray(result.y_obs) - np.asarray(result.y_calc))
+            / result.sig())
+
+
 def build_report(result: RefinementResult, *, model=None, values=None,
                  plan=None, free_paths: list[str] | None = None,
+                 structure=None, held: list[str] | None = None,
                  top_n: int = 15, match_tol_deg: float = 0.08,
                  min_peak_sigma: float = 5.0) -> FitReport:
     """Build the report, going as deep as the inputs allow.
@@ -190,6 +214,12 @@ def build_report(result: RefinementResult, *, model=None, values=None,
     plan, free_paths:
         Used by the Layer-2 strategy veto: actions the plan already performs,
         or parameters already free, are marked inactive.
+    structure:
+        The :class:`~rietx.schemas.structure.Structure` the model was compiled
+        from.  Optional, and it buys exactly one thing: the satellite arm
+        (WP-1326) reports which propagation vector each phase already
+        *declares*, which the compiled model does not carry.  Everything else
+        the arm needs is on the model.
     """
     report = build_layer0(result, top_n=top_n, match_tol_deg=match_tol_deg,
                           min_peak_sigma=min_peak_sigma)
@@ -230,9 +260,57 @@ def build_report(result: RefinementResult, *, model=None, values=None,
     result.statistics.identifiability_clause = clause
     if clause is not None:
         report.summary += "; " + clause
+    # The distortion arm (M-1) is computed **above** the model gate as well as
+    # above the axis one, and for a stronger reason than the moment arm's: an
+    # amplitude, its esd and the Cartesian displacement it states are functions
+    # of the declared modes, the phase cell and the parameter rows, so this arm
+    # needs no compiled model at all.  Reporting on a declared hypothesis is
+    # not optional on the shape of the histogram or on whether a model was
+    # handed in — a fit that refined an amplitude and then declined to print it
+    # is the silent drop the whole arm is written against.
+    distortion_esd = {p.path: p.stderr for p in result.parameters
+                      if p.stderr is not None}
+    report.distortion = analyse_distortion_modes(
+        structure, values, esd=distortion_esd)
+    # The verdict layer (M-3) is **copied**, not recomputed, whenever the fit
+    # measured it: sigma(A_tau) needs the block covariance, which is read off the
+    # final Jacobian and never serialized, so recomputing it here would quietly
+    # substitute the independent approximation for the correlated number —
+    # exactly the difference McCusker et al. (1999) §10 warns about, and
+    # exactly what ``geometry`` is a carrier to avoid.  Recomputed only when
+    # the result carries none (a replay, an evaluate-only call, a report built
+    # off a structure alone), and then the row's own ``note`` says the esd is
+    # the independent one.
+    report.distortion_totals = (
+        list(result.distortion_totals) if result.distortion_totals
+        else analyse_distortion_totals(structure, values, esd=distortion_esd))
     if model is None or values is None:
         return report
-
+    # The moment arm (WP-1327) is computed **above** the Layer-1 gate, because
+    # it is axis-free in the strong sense: every number in a
+    # :class:`~rietx.report.schemas.MomentEvidence` row — the modulus, its esd,
+    # the crystal-axis components, the form-factor approximation, the free and
+    # unmeasured directions — is a function of the moment DOFs, the cell and
+    # the magnetic operator list, and not one of them is a function of the
+    # abscissa.  No field of the row names an angle.  It needs no regions, no
+    # regression template and no analytic derivative bases, so it speaks
+    # wherever Layer 1 abstains: a moment is the *deliverable* of a magnetic
+    # refinement rather than a diagnostic that something is wrong, and a fit
+    # that measured one and then declined to print it would be the silent drop
+    # this whole arm is written against.  ``held`` is the stage's own hold
+    # list, so "unmeasured" here is the refinement's answer rather than a
+    # second opinion about it.
+    report.magnetic = analyse_moments(
+        model, values, structure, held=held,
+        # the esds the fit measured, copied rather than recomputed (WP-1076:
+        # one writer per number) — ``supported`` is a ratio against them
+        esd={p.path: p.stderr for p in result.parameters
+             if p.stderr is not None},
+        # Q5: the fit's own worst-|rho| list, the one place the covariance
+        # survives past fit time — folds a powder-degenerate moment pair into
+        # one quadrature number instead of two independently-quoted moduli.
+        correlations=(result.identifiability.top_correlations
+                     if result.identifiability is not None else None))
     attributions = attribute_regions(model, values, report.regions)
     report.attribution = attributions
     # March-Dollase texture and Stephens anisotropic strain are computed before
@@ -241,6 +319,25 @@ def build_report(result: RefinementResult, *, model=None, values=None,
     # of Layer 1 abstains.
     report.texture = analyse_texture(model, values)
     report.strain = analyse_strain(model, values)
+    # The satellite arm (WP-1326) is computed here, on the same terms and for
+    # the same reason as texture and strain: intensity the model puts nowhere
+    # is a *cause* of an immature fit, so the arm must still speak when the
+    # rest of Layer 1 abstains — and "might this be magnetic?" is precisely
+    # the question a reader asks of a neutron pattern with unindexed low-angle
+    # peaks.  It is model-free in the same sense they are: positions only.
+    sat_ticks = np.asarray([t for positions in result.ticks.values()
+                            for t in positions], dtype=np.float64)
+    # every positive residual peak, not Layer 0's ``unmatched_obs`` subset: the
+    # arm sorts them itself so one radius decides both the tick test and the
+    # satellite test (``report/satellites.py``'s docstring has the measurement)
+    tt_res = np.asarray(result.two_theta)
+    residual_peaks = tt_res[residual_peak_indices(
+        _resid_norm(result), min_peak_sigma=min_peak_sigma)]
+    report.satellites = analyse_satellites(
+        model, values, residual_two_theta=residual_peaks, ticks=sat_ticks,
+        structure=structure)
+    # The moment arm (WP-1327) has already run, above the Layer-1 gate — see
+    # the comment there for why it does not belong here.
     # The Le Bail gap is measured, never linearised, so it too speaks on both
     # branches (None outside Rietveld mode — absent for cause).  The summary
     # quotes it only when notable: a converged fit reads ratio ≲ 1 and saying

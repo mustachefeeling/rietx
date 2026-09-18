@@ -77,7 +77,7 @@ import numpy as np
 
 from ..backend import get_backend
 from .lattice import reciprocal_metric_tensor
-from .symmetry import get_spacegroup, rotation_matrices
+from .symmetry import as_group, rotation_matrices
 
 # The exact-rational nullspace is the same kernel the rank-2 ADP basis uses;
 # importing it keeps the two constructions from drifting apart.
@@ -152,9 +152,16 @@ def strain_basis(rotations) -> np.ndarray:
     return _nullspace_int(rows, len(S_EXPONENTS))
 
 
-def stephens_basis(space_group: str) -> np.ndarray:
-    """:func:`strain_basis` for a space-group symbol gemmi resolves."""
-    return strain_basis(rotation_matrices(get_spacegroup(space_group)))
+def stephens_basis(space_group) -> np.ndarray:
+    """:func:`strain_basis` for a symbol gemmi resolves, or a group object.
+
+    The basis depends on the *rotations* only, so an
+    :class:`~rietx.crystallography.symmetry.OperatorGroup` gives the same
+    answer its closest type would: a screw or glide translation turning into a
+    quarter in a doubled cell changes no rotation and therefore no anisotropic
+    strain constraint.
+    """
+    return strain_basis(rotation_matrices(as_group(space_group)))
 
 
 # ----------------------------------------------------------------------

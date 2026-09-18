@@ -201,7 +201,126 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 #: empty where there is nothing to say, which is the case for the reserved
 #: declared-peaks key: a peak given by centre has no Miller index, and ``[]``
 #: there would claim it had none of its own.
-SCHEMA_VERSION = "0.22"
+#: 0.22 → 0.23 (WP-1326): ``Phase.propagation_vector`` — a commensurate k on
+#: the nuclear cell, which adds satellites at Q = H ± k to the phase's frozen
+#: reflection list — and ``ReflectionState.satellite_order``, the m that makes
+#: (H, m) the key a Le Bail/Pawley intensity is restored on.  Both additive and
+#: both defaulted to ``None``, which is the honest empty state *and* the
+#: bit-identical one: a phase that declares no k serializes exactly as before
+#: apart from the new null, and its reflection list, its intensities and every
+#: number the fit produces are unchanged.
+#: **This entry was written as 0.16 → 0.19 and renumbered here**, twice: once
+#: when a concurrently-developed branch claimed the same literal (the plan's
+#: rule is that both branches claim it, so the merge conflicts loudly rather
+#: than silently taking one side), and again when this chain was cut against
+#: main as it shipped, whose own ladder had reached 0.22 meanwhile.  Nothing
+#: about what the fields *are* changed; only where they sit in the sequence.
+#: 0.23 → 0.24 (WP-1327): ``Atom.moment`` (crystal-axis components in μ_B, the
+#: magCIF ``_atom_site_moment.crystalaxis_*`` convention, with the ion and the
+#: Landé g the dipole form factor needs) and ``Phase.magnetic_symmetry`` (the
+#: magCIF operator and centring loops with their time-reversal signs, the
+#: BNS/OG symbol as metadata).  Both additive and both defaulted to ``None``,
+#: which is the honest empty state and the bit-identical one — a phase that
+#: declares neither serializes and refines exactly as before.
+#: 0.24 → 0.25 (WP-1329): the moment along a series.  Two additive fields on
+#: stored result schemas, both defaulted, so every document written before this
+#: version reloads unchanged and no number any fit produces moves:
+#: (a) ``SeriesEntry.magnetic`` — WP-1327's ``MomentEvidence`` rows per pattern
+#: of a sequential refinement.  Before it, a magnetic series handed back a
+#: signed ``phases.i.atoms.j.moment.dof0`` row in ``parameters`` and *none* of
+#: the evidence that stops it being misread: ``supported``, the esd the ratio
+#: is against, the direction the powder could not determine, the dipole
+#: approximation in force.  Written by ``sequential._chain`` from the same
+#: ``report.magnetic.analyse_moments`` a single-pattern report uses.
+#: (b) ``MomentEvidence.path`` — the modulus dot-path the row is about, so a
+#: caller can reach the same parameter in ``RefinementResult.parameters`` and
+#: the series can reseed it, without matching on a display label.
+#: Empty and absent for cause on every non-magnetic fit, which is the
+#: bit-identical case: a phase that declares no moment serialises exactly as
+#: before apart from one empty list.  ``MagneticTrajectory``/``MagneticOnset``
+#: are *derived* views over these two and are stored nowhere.
+#: 0.25 → 0.26 (M-1, distortion modes): three additive fields a consumer
+#: notices, listed together because they are one feature.
+#: **This entry was written as pending renumbering.** WP-1343 claimed 0.26 on
+#: another branch of this fork at the same time, and the plan's rule for two
+#: branches that both move a versioned literal is to claim the *same* one so
+#: the merge conflicts loudly rather than silently taking one side — a
+#: literal that merges clean is the failure mode that rule avoids.  Both
+#: claimed 0.26, the merge conflicted as intended, and the integration rung
+#: put this entry first and moved WP-1343 after it.
+#: (a) ``Phase.distortion_modes`` — a list of ``DistortionMode`` blocks
+#: (``irrep_label``, ``direction``, ``k``, per-atom mode vectors and a
+#: refinable ``amplitude`` in Å), empty by default.  Every phase written
+#: before validates unchanged and an empty list is exactly off: the parameter
+#: table builds the coordinate rows it always built, so ``predict()`` is
+#: bit-identical.  What a consumer notices is a new key in every serialized
+#: phase, a new parameter family ``phases.*.distortion_modes.*.amplitude`` in
+#: the table, and — the set of legal documents *shrinking* for once — that a
+#: phase carrying a mode may not free its cell or its
+#: ``propagation_vector``.
+#: (b) ``FitReport.distortion`` and ``SeriesEntry.distortion`` —
+#: ``DistortionEvidence`` rows, the amplitude with its esd, the largest atomic
+#: displacement it states in Å, and ``supported``.  Additive and defaulted to
+#: empty, which is the honest empty state (no phase declared a mode) rather
+#: than "no distortion was found".
+#: (c) the ``DISTORTION_MODE_UNSUPPORTED`` diagnostic code, and
+#: ``DistortionTrajectory`` as a second ``Trajectory`` subclass beside
+#: ``MagneticTrajectory``.
+#: (d) ``Phase.symmetry_operations`` — folded into this same bump, added
+#: on the same ladder (Q-17).  The phase's symmetry operations as ``x,y,z``
+#: triplets, ``None`` by default and ``None`` exactly off: every phase written
+#: before validates unchanged and its consumers resolve the operations from
+#: ``space_group`` as they always did, so ``predict()`` is bit-identical.
+#: What a consumer notices is a new key in every serialized phase, that
+#: ``space_group`` may now be a *label* rather than a symbol (the bracketed
+#: form ``"P m 1 1 [unnamed in 2a,b,a+c]"``, for a group no Hermann-Mauguin
+#: symbol generates in its cell), and — the legal set shrinking again — that a
+#: bracketed label without the list, and a plain symbol that does not
+#: generate the list, are both refused.  The CIF writer gains
+#: ``_space_group_symop_operation_xyz`` and ``_space_group_name_H-M_alt`` for
+#: such a phase, and the reader round-trips them.
+#: 0.26 → 0.27 (WP-1343): ``Phase.magnetic_lor_size`` and
+#: ``Phase.magnetic_lor_strain`` — the magnetic component's own extra
+#: Lorentzian size and strain broadening (deg 2θ, ``min = 0.0``, softplus,
+#: default 0.0, refused non-zero on a phase with no ``magnetic_symmetry``);
+#: both are exactly off at that default, so every document written before this
+#: version reloads unchanged and no number any fit produces moves.
+#: 0.27 → 0.28 (M2): ``Phase.distortion_components`` — a read-only grouped
+#: view over the already-list-valued ``distortion_modes``, one entry per
+#: distinct (k, irrep_label, direction) the phase's modes carry, which is what
+#: a multi-component displacive statement (a phase whose modes span two order
+#: parameters at one k, or a family the caller built by hand) reports itself
+#: through.  Not a stored field: it is computed from data the schema already
+#: holds, so every document written before this version reloads unchanged and
+#: no number any fit produces moves; a consumer only notices the new property.
+#: 0.28 → 0.29 (M-3, WP-1419 § Inherited's seed rule): ``StageSpec.
+#: distortion_seed`` and ``StageAction.distortion_seed`` — the displacive
+#: amplitude (Å, signed) a stage puts an all-zero distortion-mode block on
+#: before freeing it, mirroring ``strain_seed``'s shape for the third and last
+#: pathology at zero (an exactly vanishing gradient, for every mode of the
+#: phase at once, because |F|² is even in the whole amplitude vector).  Both
+#: are additive with default ``0.0``, which is exactly off: a plan or a history
+#: written before this version reloads with no seed and runs the arithmetic it
+#: always ran, so no number any fit produces moves.  What a consumer notices is
+#: one new key in a serialized plan and in every stage node, and
+#: ``NodeAction.api_call`` printing ``distortion_seed=`` on a stage that used
+#: one.  **Written as pending renumbering**, by the rule the M-1 entry above
+#: records: if another branch of this fork claims the same literal at the same
+#: time, both claim it so the merge conflicts loudly rather than silently
+#: taking one side, and the integration rung renumbers.
+#: 0.29 → 0.30 (M-3, WP-1419 § Inherited's A_τ): ``RefinementResult.
+#: distortion_totals`` and the :class:`~rietx.schemas.results.DistortionTotal`
+#: it holds — one row per (k, irrep, direction) component of a mode-carrying
+#: phase, with AMPLIMODES' basis-independent A_τ, its esd through the block
+#: covariance, the unit direction {a_τ,m} in the sign convention, the
+#: component's ``primary_mode`` and the ``domain_sign`` that recovers the
+#: refined signs from it.  Additive and defaulted to
+#: empty, so every document written before this version reloads unchanged; a
+#: consumer notices a new key on a serialized result, and — this one is not
+#: additive — that ``DISTORTION_MODE_UNSUPPORTED`` now fires per component
+#: rather than per mode (``report.schemas.THRESHOLDS_VERSION`` 1.9 → 1.10 says
+#: what moved and why).  **Written as pending renumbering**, same rule.
+SCHEMA_VERSION = "0.30"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
 

@@ -35,7 +35,7 @@ import numpy as np
 
 from ..crystallography.cif import format_su, write_structure_block
 from ..crystallography.lattice import d_spacings
-from ..crystallography.structure_factor import structure_factors_squared
+from ..crystallography.symmetry import resolve_group
 from ..model.components import COMPONENT_AGGREGATE
 from ..model.forward import CompiledModel
 from ..model.geometry import symmetry_operations
@@ -100,11 +100,25 @@ class ReflectionRow:
     multiplicity: int
     f_squared: float | None
     intensity: float
+    #: m of Q = H + m·k for a satellite of a phase carrying a propagation
+    #: vector (WP-1326); 0 on every nuclear reflection, which is every row of
+    #: a phase that declares no k.  ``h``/``k``/``l`` stay the **parent**
+    #: reciprocal-lattice vector, so a satellite row is read as H and m
+    #: together — the (3+1)-index spelling — and ``d`` is the satellite's own.
+    satellite_order: int = 0
+    #: which contribution this row carries: ``"total"`` for a phase whose
+    #: magnetic width is at its off state (:meth:`CompiledModel.mag_split`
+    #: false — every phase before WP-1343, and every non-magnetic one since),
+    #: or ``"nuclear"``/``"magnetic"`` where the second frozen family is
+    #: built, one row of each per (line, reflection) rather than one row
+    #: silently carrying the nuclear share alone (WP-1343 bugfix).
+    component: str = "total"
 
 
 REFLECTION_COLUMNS = (
     "phase", "line", "wavelength", "h", "k", "l", "d",
-    "two_theta", "multiplicity", "f_squared", "intensity",
+    "two_theta", "multiplicity", "f_squared", "intensity", "satellite_order",
+    "component",
 )
 
 
@@ -117,6 +131,15 @@ def reflection_table(model: CompiledModel, values: dict[str, float],
     parameter dict (see :meth:`rietx.Refinement.reflection_table`, which wires
     this up).  Reflections whose 2θ is non-physical at a given line's wavelength
     (``sinθ > 1``) are dropped for that line only.
+
+    A phase whose magnetic width is active (:meth:`CompiledModel.mag_split`,
+    WP-1343) draws its nuclear and magnetic contributions on two separate
+    frozen families with, in general, different widths — so this emits one
+    row of each, labelled by :attr:`ReflectionRow.component`, rather than a
+    single row that used to read only the nuclear share (the bugfix this
+    docstring accompanies: `checks/BUG_REFLECTION_TABLE_COMPONENT.md`).  A
+    phase with no second family — every phase before WP-1343 — still gets
+    exactly one ``"total"`` row per (line, reflection), unchanged.
     """
     rows: list[ReflectionRow] = []
     for ip, cp in enumerate(model.phases):
@@ -124,26 +147,48 @@ def reflection_table(model: CompiledModel, values: dict[str, float],
         cell = _cell(values, ip)
         hkl = cp.reflections.hkl
         mult = cp.reflections.multiplicity
-        d = d_spacings(hkl, *cell)
-        if model.mode == "rietveld":
-            f2 = structure_factors_squared(hkl, d, cp.sites,
-                                           *model._site_values(ip, values, cell))
-        else:  # Le Bail / Pawley: intensity is extracted/refined, not from |F|²
-            f2 = None
-        peaks = model.phase_peaks(ip, values)
-        for il, (pos, _gamma, _eta, intensity) in enumerate(peaks):
-            lam = float(model.line_wavelengths[il])
-            for j in range(len(hkl)):
-                if not np.isfinite(pos[j]):
-                    continue
-                rows.append(ReflectionRow(
-                    phase=name, line=il, wavelength=lam,
-                    h=int(hkl[j][0]), k=int(hkl[j][1]), l=int(hkl[j][2]),
-                    d=float(d[j]), two_theta=float(pos[j]),
-                    multiplicity=int(mult[j]),
-                    f_squared=None if f2 is None else float(f2[j]),
-                    intensity=float(intensity[j]),
-                ))
+        # the parent H labels the row; the *position* is the satellite index
+        # H + m·k (WP-1326), which is what the d-spacing and every angle below
+        # must be computed from
+        order = cp.reflections.satellite_order
+        d = d_spacings(cp.reflections.index, *cell)
+
+        def _emit(peaks, f2, component: str) -> None:
+            for il, (pos, _gamma, _eta, intensity) in enumerate(peaks):
+                lam = float(model.line_wavelengths[il])
+                for j in range(len(hkl)):
+                    if not np.isfinite(pos[j]):
+                        continue
+                    rows.append(ReflectionRow(
+                        phase=name, line=il, wavelength=lam,
+                        h=int(hkl[j][0]), k=int(hkl[j][1]), l=int(hkl[j][2]),
+                        d=float(d[j]), two_theta=float(pos[j]),
+                        multiplicity=int(mult[j]),
+                        f_squared=None if f2 is None else float(f2[j]),
+                        intensity=float(intensity[j]),
+                        satellite_order=0 if order is None else int(order[j]),
+                        component=component,
+                    ))
+
+        if model.mag_split(ip):
+            # WP-1343: two frozen families, one ``base`` each — the same
+            # split ``phase_peaks`` itself draws (component 0 = nuclear
+            # alone, component 1 = magnetic alone); a single default-argument
+            # call here is exactly the bug, silently keeping the nuclear share
+            # only.
+            f2_nuc = model._nuclear_f2(ip, d, values, cell)
+            f2_mag = model._magnetic_f2(ip, d, values, cell)
+            _emit(model.phase_peaks(ip, values, component=0), f2_nuc, "nuclear")
+            _emit(model.phase_peaks(ip, values, component=1), f2_mag, "magnetic")
+        else:
+            if model.mode == "rietveld":
+                # a satellite carries no nuclear structure factor, and this is
+                # the same masked quantity the forward model folded into the
+                # intensity
+                f2 = model._nuclear_f2(ip, d, values, cell)
+            else:  # Le Bail / Pawley: intensity is extracted/refined, not from |F|²
+                f2 = None
+            _emit(model.phase_peaks(ip, values), f2, "total")
     return rows
 
 
@@ -161,6 +206,7 @@ def write_reflection_table(rows: list[ReflectionRow], path: str | Path, *,
                 r.phase, r.line, _g(r.wavelength), r.h, r.k, r.l, _g(r.d),
                 _g(r.two_theta), r.multiplicity,
                 "" if r.f_squared is None else _g(r.f_squared), _g(r.intensity),
+                r.satellite_order, r.component,
             ])
 
 
@@ -251,6 +297,7 @@ def write_qpa_table(qpa: QuantitativePhaseAnalysis, path: str | Path, *,
 
 
 def _profile_description(instrument: Instrument) -> str:
+    """The peak-shape model as a CIF phrase."""
     prof = instrument.profile
     return ("TCHZ pseudo-Voigt (Thompson-Cox-Hastings) with Finger-Cox-Jephcoat "
             "axial divergence; Caglioti Gaussian U,V,W = "
@@ -305,8 +352,8 @@ def _background_description(instrument: Instrument) -> str:
 def _write_refinement_metadata(block, result: RefinementResult,
                                instrument: Instrument) -> None:
     st = result.statistics
-    lam = instrument.source.primary_wavelength
-    block.set_pair("_diffrn_radiation_wavelength", _g(lam))
+    block.set_pair("_diffrn_radiation_wavelength",
+                   _g(instrument.source.primary_wavelength))
     # R-factors (Toby 2006); pdCIF profile-fit tags so a powder reader picks
     # them up, and the plain _refine_ls tags for the rest.
     block.set_pair("_pd_proc_ls_prof_wR_factor", _g(st.rwp))
@@ -461,6 +508,36 @@ def _write_pattern_loop(block, result: RefinementResult) -> None:
         ])
 
 
+def _moment_esds(result: RefinementResult, ip: int,
+                 phase) -> dict[str, float]:
+    """A refined moment's esd, per site label, for the magCIF ``magnitude_su``.
+
+    A moment's uncertainty lives on the **modulus** DOF and nowhere else
+    (WP-1327): the three crystal-axis components are written back from the DOFs
+    at the end of a stage and their ``stderr`` stays ``None``, because the
+    quantity the powder measures is |m| and a direction the powder cannot
+    determine is *held* rather than given a small esd.  So the number that
+    belongs in ``_atom_site_moment.magnitude_su`` is the esd of
+    ``phases.i.atoms.j.moment.dof0``, read from
+    :attr:`~rietx.schemas.results.RefinementResult.parameters` — the one writer
+    (WP-1076), never recomputed here.
+
+    A site whose moment did not refine is simply absent, and the writer puts a
+    CIF ``.`` there rather than a zero.
+    """
+    esds: dict[str, float] = {}
+    if not getattr(phase, "magnetic_symmetry", None):
+        return esds
+    by_path = {p.path: p for p in result.parameters}
+    for j, atom in enumerate(phase.atoms):
+        if atom.moment is None:
+            continue
+        row = by_path.get(f"phases.{ip}.atoms.{j}.moment.dof0")
+        if row is not None and row.stderr is not None:
+            esds[atom.label] = float(row.stderr)
+    return esds
+
+
 def refinement_cif_doc(result: RefinementResult, structure: Structure,
                        instrument: Instrument) -> gemmi.cif.Document:
     """Build the refinement CIF as a gemmi document (see :func:`write_refinement_cif`)."""
@@ -470,7 +547,8 @@ def refinement_cif_doc(result: RefinementResult, structure: Structure,
     agreement = {row.name: row for row in result.phase_agreement}
     for ip, phase in enumerate(structure.phases):
         block = doc.add_new_block(re.sub(r"\W+", "_", phase.name) or f"phase_{ip}")
-        write_structure_block(block, phase)
+        write_structure_block(block, phase,
+                              moment_magnitude_esds=_moment_esds(result, ip, phase))
         # Structure-sensitive R factors, on the phase's *own* block: both tags
         # are core-dictionary `_refine_ls` items, whose scope is the structure
         # in the block, not the pattern.  So a multi-phase export gives each
@@ -480,7 +558,9 @@ def refinement_cif_doc(result: RefinementResult, structure: Structure,
         # factors are: the labels a _geom_ loop names are that block's
         # _atom_site labels, and a code is resolved against that block's symop
         # loop.  Nothing is written when the fit produced no table.
-        _write_geometry_loops(block, result.geometry, ip, phase.space_group)
+        _write_geometry_loops(
+            block, result.geometry, ip,
+            resolve_group(phase.space_group, phase.symmetry_operations))
         if ip == 0:
             # refinement scalars + the pattern loop live on the first block, so
             # a single-phase export is one self-contained block that both

@@ -57,7 +57,25 @@ def _unscoped(path: str) -> str:
 #: extinction, texture, cell, coordinates, ADPs — is λ-free and stays shared as
 #: it always was, which is what makes the strain control of WP-1131 § Finding 2
 #: bit-identical across this change.
-SIZE_LAMBDA_POWER = {"lor_size": 1.0, "gauss_size": 2.0}
+#: ``magnetic_lor_size`` (WP-1343) joins in that one line and carries λ¹ for
+#: exactly the reason ``lor_size`` does: it is the same Scherrer coefficient
+#: (180/π)·K·λ/L with the *magnetic coherence length* in place of the
+#: crystallite size, so one magnetic domain needs coefficients in the ratio
+#: λ₂/λ₁ across two histograms.  Its strain partner is λ-free and is absent
+#: here, as both nuclear strain terms are.
+SIZE_LAMBDA_POWER = {"lor_size": 1.0, "gauss_size": 2.0,
+                     "magnetic_lor_size": 1.0}
+
+#: Size terms that a phase carries only when it declares a magnetic structure:
+#: ``ParameterTable`` registers them nowhere else, so a sharing factor for one
+#: of these on a non-magnetic phase would be a conversion for a column no
+#: table holds.  The guard below reads this rather than the term's spelling.
+MAGNETIC_SIZE_TERMS = frozenset({"magnetic_lor_size"})
+
+
+def _phase_carries(phase, term: str) -> bool:
+    """Whether ``phase`` has the size term ``term`` at all (WP-1343)."""
+    return term not in MAGNETIC_SIZE_TERMS or phase.magnetic_symmetry is not None
 
 
 def _longest_wavelength(instrument: Instrument) -> float | None:
@@ -114,8 +132,10 @@ def size_value_scales(structure: Structure, instruments: list[Instrument],
         ratio = lam / ref
         one: dict[str, float] = {}
         if ratio != 1.0:
-            for ip in range(len(structure.phases)):
+            for ip, ph in enumerate(structure.phases):
                 for term, power in SIZE_LAMBDA_POWER.items():
+                    if not _phase_carries(ph, term):
+                        continue
                     path = f"phases.{ip}.{term}"
                     if sharing.is_shared(path):
                         one[path] = ratio ** power

@@ -23,6 +23,7 @@ from typing import ClassVar, Literal
 
 from pydantic import Field
 
+from ..report.schemas import DistortionEvidence, MomentEvidence
 from .common import Base, Diagnostic, Mode, Provenance
 from .results import (
     DELIVERABLES,
@@ -86,6 +87,49 @@ class SeriesEntry(Base):
     #: Pawley the intensities are parameters, so I(obs) would be compared against
     #: itself.
     phase_agreement: list[PhaseAgreement] = Field(default_factory=list)
+    #: The moment arm (WP-1327) for **this pattern**, one row per magnetic
+    #: site, written by :func:`rietx.sequential._entry_from_result` from the
+    #: same :func:`rietx.report.magnetic.analyse_moments` every single-pattern
+    #: report uses — never a second reading of it (WP-1076).
+    #:
+    #: **It is here because a series without it is a trap** (WP-1329).  A
+    #: sequential magnetic refinement warm-starts the moment like any other
+    #: parameter and hands back a signed ``phases.i.atoms.j.moment.dof0`` row
+    #: in :attr:`parameters`; every piece of evidence that stops that number
+    #: being misread — ``supported``, the esd the ratio is taken against, the
+    #: direction the powder average could not determine, the dipole
+    #: approximation in force — lived only on ``Refinement.report().magnetic``,
+    #: which a series never built.  Measured on the ten-pattern Co₃O₄ quench
+    #: series at 1.5 K: ten converged fits, ten ``dof0`` values, and no way to
+    #: tell a supported 2.5 μ_B from an unsupported 0.9, so "|m| against T"
+    #: plotted from ``dof0`` would have drawn an unsupported moment as a small
+    #: one.  That is the whole reason the field exists.
+    #:
+    #: Empty for the three reasons ``FitReport.magnetic`` is empty — no phase
+    #: declares a moment, no compiled model reached the writer, or the
+    #: histogram carries no magnetic term at all — and never "no moment was
+    #: found".
+    magnetic: list[MomentEvidence] = Field(default_factory=list)
+    #: The distortion arm (M-1) for **this pattern**, one row per declared
+    #: displacive mode, written by :func:`rietx.sequential._entry_from_result`
+    #: from the same :func:`rietx.report.distortion.analyse_distortion_modes`
+    #: every single-pattern report uses — never a second reading of it.
+    #:
+    #: Here for the reason :attr:`magnetic` is (WP-1329), and the trap is the
+    #: same shape: a sequential run warm-starts an amplitude like any other
+    #: parameter and hands back a signed
+    #: ``phases.i.distortion_modes.n.amplitude`` row in :attr:`parameters`.
+    #: |F|² is even in A, so an amplitude the pattern cannot see is a *flat*
+    #: direction and comes back near where it was seeded — which, plotted as
+    #: A(T) from :attr:`parameters` alone, draws an unsupported amplitude as a
+    #: small one and an order parameter that was never there as a smooth
+    #: curve.  ``supported`` and the esd the ratio is taken against are what
+    #: stop that, and they lived only on ``FitReport.distortion``, which a
+    #: series never built.
+    #:
+    #: Empty for exactly one reason — no phase declares a mode — and never "no
+    #: distortion was found".
+    distortion: list[DistortionEvidence] = Field(default_factory=list)
     diagnostics: list[Diagnostic] = Field(default_factory=list)
 
     #: Total least-squares iterations over **every attempt** on this pattern,
@@ -141,6 +185,49 @@ class SeriesEntry(Base):
                 return p.stderr
         return None
 
+    def distortion_mode(self, mode: str | None = None
+                        ) -> DistortionEvidence | None:
+        """This pattern's row for one displacive mode, or ``None``.
+
+        ``mode`` is the mode name or its amplitude dot-path; ``None`` takes the
+        only row and refuses when there is more than one, for the reason
+        :meth:`moment` does — "the amplitude" is not a well-defined quantity on
+        a structure carrying thirty-two modes, and silently taking the first is
+        how a one-mode answer gets quoted off a many-mode fit.
+        """
+        if mode is None:
+            if len(self.distortion) > 1:
+                raise ValueError(
+                    f"this entry carries {len(self.distortion)} distortion "
+                    f"modes ({', '.join(e.mode for e in self.distortion)}); "
+                    f"name one by its name or its amplitude path")
+            return self.distortion[0] if self.distortion else None
+        for e in self.distortion:
+            if mode in (e.mode, e.path):
+                return e
+        return None
+
+    def moment(self, site: str | None = None) -> MomentEvidence | None:
+        """This pattern's moment row for ``site``, or ``None``.
+
+        ``site`` is the modulus dot-path (``MomentEvidence.path``) or the atom
+        label; ``None`` takes the only row and refuses when there is more than
+        one, because "the moment" is not a well-defined quantity on a structure
+        with two magnetic sites and silently picking the first is how a
+        two-sublattice answer gets quoted as a one-sublattice one.
+        """
+        if site is None:
+            if len(self.magnetic) > 1:
+                raise ValueError(
+                    f"this entry carries {len(self.magnetic)} magnetic sites "
+                    f"({', '.join(e.atom for e in self.magnetic)}); name one "
+                    f"by its path or label")
+            return self.magnetic[0] if self.magnetic else None
+        for e in self.magnetic:
+            if site in (e.path, e.atom):
+                return e
+        return None
+
 
 class Trajectory(Base):
     """One parameter's path across the series, with its per-point esds.
@@ -180,6 +267,300 @@ class Trajectory(Base):
                 np.asarray(self.value, dtype=float),
                 np.asarray([np.nan if s is None else s for s in self.stderr],
                            dtype=float))
+
+
+class MagneticOnset(Base):
+    """Where along the series axis the moment stops being supported (WP-1329).
+
+    **It is a bracket, not a fitted number.**  What the series measures on each
+    pattern is a verdict — the modulus is above
+    :data:`~rietx.report.schemas.MOMENT_SUPPORT_SIGMA` of its own esd, or it is
+    not — so what the series can say about the onset is that it lies between
+    the last pattern that supported a moment and the first that did not.
+    :attr:`x` is the midpoint of that pair and :attr:`x_esd` **half its width**,
+    which is the honest uncertainty of a bracket and is set by the *spacing of
+    the measurements*: a ramp with 50 K steps cannot locate T_N to better than
+    ±25 K however good each fit is.  Quoting it as a critical temperature with
+    a fitted esd would be a claim about a curve nothing here fits — the
+    parametric form of m(T) is WP-1325's question and this WP's explicit
+    non-goal.
+
+    :attr:`monotone` is the check that makes the bracket meaningful.  A series
+    whose ``supported`` flags switch more than once along the axis has no single
+    boundary, and then :attr:`x` is ``None`` and :attr:`boundaries` lists every
+    switch: an interleaved verdict is a result about the fits (a warm start
+    carrying a stale moment, a pattern the ladder rescued) and averaging it into
+    one temperature would hide exactly that.
+    """
+
+    #: the modulus DOF the onset is about
+    path: str = ""
+    #: the site's atom label, for a plot title
+    atom: str = ""
+    #: midpoint of the bracket; ``None`` when there is no single boundary in
+    #: the window (every pattern supported, none supported, or not monotone)
+    x: float | None = None
+    #: half the bracket's width — the measurement spacing, not a fit's esd
+    x_esd: float | None = None
+    #: ``[x_last_supported, x_first_unsupported]`` ordered along the axis
+    bracket: list[float] = Field(default_factory=list)
+    #: the two patterns' labels, in the same order as :attr:`bracket`
+    bracket_labels: list[str] = Field(default_factory=list)
+    #: ``"falls"``: supported at low x and not at high x — the ordinary
+    #: temperature ramp.  ``"rises"``: the reverse.  ``"none"``: no boundary.
+    sense: Literal["falls", "rises", "none"] = "none"
+    #: False when the ``supported`` flags switch more than once along the axis
+    monotone: bool = True
+    #: every ``(x_low, x_high)`` pair across which the verdict switches
+    boundaries: list[list[float]] = Field(default_factory=list)
+    n_supported: int = 0
+    n_held: int = 0
+    #: how many patterns of the window came back other than ``"converged"``
+    n_unconverged: int = 0
+    #: **Whether neither pattern of the bracket owes its verdict to a fit that
+    #: stopped early**, and it is the field that decides whether the bracket
+    #: may be quoted at all.  ``supported`` is a ratio |m|/σ against *that*
+    #: pattern's own covariance, so a fit cut short at its iteration cap can
+    #: hand back a verdict about an intermediate state.
+    #:
+    #: **The test is asymmetric, and the asymmetry is measured rather than
+    #: assumed.**  Only an unconverged fit reporting *supported* is suspect:
+    #:
+    #: * A modulus **descending to nothing does not terminate.**  |F_m|² ∝ m²,
+    #:   so the column vanishes with the moment and the flat direction WP-1327
+    #:   holds for the *angles* opens up for the modulus itself once there is
+    #:   no moment left.  Measured on a synthetic ramp: the first pattern above
+    #:   the transition, warm-started from 2.27 μ_B, spent **3247** iterations
+    #:   against a 400-iteration cap and came back ``"max_iter"`` at
+    #:   3.5 × 10⁻⁶ μ_B.  That truncation is a property of the answer, not a
+    #:   doubt about it, and refusing the bracket for it would refuse every
+    #:   ordering transition there is.
+    #: * A modulus **climbing out of the floor terminates at once.**  Same
+    #:   data, moment seeded *at* the floor against a pattern carrying a real
+    #:   4.5 μ_B: ``max_iter=1`` already reaches 2.94 ± 0.62 and ``supported``,
+    #:   ``max_iter=3`` reaches 4.499 ± 0.003.  So a truncated fit cannot
+    #:   manufacture "unsupported" the way it can manufacture "supported".
+    #: * And the failure this catches is real: with ``max_iter=1`` on every
+    #:   stage, the modulus above the transition came back at 0.58 μ_B and
+    #:   **supported**, moving the onset from 40 ± 30 to a confident, wrong
+    #:   85 ± 5 — while neither the reseed fence nor the floor carry fired,
+    #:   because Rwp was fine and no pattern ever came back unsupported.
+    bracket_verdicts_final: bool = True
+    note: str = ""
+
+    def __str__(self) -> str:
+        if self.x is None:
+            return f"onset: not located — {self.note}"
+        return (f"onset: {self.x:g} ± {self.x_esd:g} (bracket "
+                f"{self.bracket[0]:g} … {self.bracket[1]:g}, {self.sense}), "
+                f"{self.n_supported} supported / {self.n_held} held"
+                + ("" if self.bracket_verdicts_final else
+                   " — NOT QUOTABLE: a bracket pattern's supported verdict "
+                   "came from a fit that stopped early"))
+
+
+class MagneticTrajectory(Trajectory):
+    """|m| against the series axis, with the held patterns marked as held.
+
+    A :class:`Trajectory` — so it plots, exports and pairs with a cell edge
+    through exactly the same code — with the one column a moment trajectory
+    cannot do without: :attr:`supported`, per point.
+
+    **The held points keep their value and lose their esd**, and both halves of
+    that are deliberate (WP-1329's acceptance).  The value is what the fit
+    landed on and it is the numerator of the ratio that called the point
+    unsupported, so deleting it would delete the evidence; the esd is withheld
+    because an error bar on a number the data does not support reads as a
+    small measured moment, which is the single misreading this whole arm
+    exists to prevent.  ``arrays()`` therefore hands a plotter NaN there, and
+    an errorbar draws nothing.
+
+    A held point is **not zero**.  ``value`` is the modulus the fit reached —
+    0.067 μ_B against an esd of 0.395 on the Cr₂WO₆ 150 K pattern — and
+    plotting it as zero would claim a measurement of zero that no fit made.
+    """
+
+    #: per point, whether that pattern's modulus cleared
+    #: :data:`~rietx.report.schemas.MOMENT_SUPPORT_SIGMA` of its own esd
+    supported: list[bool] = Field(default_factory=list)
+    #: per point, that pattern's fit status — carried because ``supported`` is
+    #: a ratio against a covariance and a fit that stopped at its cap does not
+    #: have one worth taking a ratio against.  See
+    #: :attr:`MagneticOnset.bracket_verdicts_final`.
+    status: list[str] = Field(default_factory=list)
+    #: the site's atom label and form-factor ion, for a title and a caption
+    atom: str = ""
+    ion: str = ""
+    #: the onset read off :attr:`supported`, never off :attr:`value`
+    onset: MagneticOnset | None = None
+
+    @property
+    def held(self) -> list[bool]:
+        """The complement of :attr:`supported`, spelled the way the WP does."""
+        return [not s for s in self.supported]
+
+    def __str__(self) -> str:
+        head = (f"MagneticTrajectory {self.atom or self.path} "
+                f"({len(self.value)} pattern(s), {self.x_label})")
+        rows = []
+        for xv, v, sd, ok, st, lab in zip(self.x, self.value, self.stderr,
+                                          self.supported, self.status,
+                                          self.labels, strict=True):
+            esd = "held" if sd is None else f"± {sd:.4g}"
+            rows.append(f"  x={xv:g} |m|={v:.4g} {esd} "
+                        f"{'released' if ok else 'HELD'}"
+                        f"{'' if st == 'converged' else f' [{st}]'}  {lab}")
+        if self.onset is not None:
+            rows.append(f"  {self.onset}")
+        return "\n".join([head, *rows])
+
+
+class DistortionTrajectory(Trajectory):
+    """A displacive mode amplitude against the series axis (M-1).
+
+    The displacive twin of :class:`MagneticTrajectory`, and it inherits both
+    halves of that class's rule for the same reason: **a point the data does
+    not support keeps its value and loses its esd**.  |F|² is even in A, so an
+    amplitude the pattern cannot see is a flat direction and the warm-started
+    chain hands it forward smoothly — plotted with an error bar it reads as a
+    small measured distortion, which is exactly the misreading A(T) is prone
+    to (a superstructure that "onsets" wherever the seed was).
+
+    ``value`` is the **signed** amplitude as refined and ``magnitude`` is |A|:
+    the sign is not measurable from a powder pattern, so a raw A(T) column can
+    change sign between neighbouring patterns with no physics in it at all.
+    Plot :attr:`magnitude`.
+
+    The amplitudes are ordinary parameter rows, so
+    :meth:`SeriesResult.trajectory` reaches the same numbers by dot-path — and
+    that is why ``distortion.`` is **not** in
+    :attr:`SeriesResult._TRAJECTORY_PREFIXES`: unlike a moment modulus, which
+    is derived from the DOFs, an amplitude has a path of its own and needs no
+    display namespace.  What this class adds is the per-point support verdict,
+    which the parameter row does not carry.
+    """
+
+    #: :attr:`~rietx.schemas.structure.DistortionMode.name`
+    mode: str = ""
+    irrep_label: str = ""
+    direction: str = ""
+    #: |A| per point — the signed :attr:`value` with the unmeasurable sign
+    #: taken out
+    magnitude: list[float] = Field(default_factory=list)
+    #: |A| × the mode's unit displacement: the largest atomic displacement the
+    #: mode states at that pattern, in Å
+    displacement_a: list[float] = Field(default_factory=list)
+    #: per point, whether |A| cleared
+    #: :data:`~rietx.report.schemas.DISTORTION_SUPPORT_SIGMA` of its own esd
+    supported: list[bool] = Field(default_factory=list)
+    #: per point, that pattern's fit status — carried for
+    #: :attr:`MagneticTrajectory.status`'s reason
+    status: list[str] = Field(default_factory=list)
+
+    @property
+    def held(self) -> list[bool]:
+        return [not s for s in self.supported]
+
+    def __str__(self) -> str:
+        head = (f"DistortionTrajectory {self.mode or self.path} "
+                f"({len(self.value)} pattern(s), {self.x_label})")
+        rows = []
+        for xv, m, dsp, sd, ok, st, lab in zip(
+                self.x, self.magnitude, self.displacement_a, self.stderr,
+                self.supported, self.status, self.labels, strict=True):
+            esd = "held" if sd is None else f"± {sd:.4g}"
+            rows.append(f"  x={xv:g} |A|={m:.4g} {esd} A  "
+                        f"(max displacement {dsp:.4g} A) "
+                        f"{'supported' if ok else 'UNSUPPORTED'}"
+                        f"{'' if st == 'converged' else f' [{st}]'}  {lab}")
+        return "\n".join([head, *rows])
+
+
+def locate_onset(traj: MagneticTrajectory) -> MagneticOnset:
+    """The onset of a moment along one trajectory, read off ``supported``.
+
+    The one authority for turning a column of per-pattern verdicts into a
+    bracket, and it reads **only** :attr:`MagneticTrajectory.supported` — never
+    :attr:`~MagneticTrajectory.value`.  That is the WP's rule and it is not a
+    stylistic one: a warm-started chain produces a smooth |m| column straight
+    through the transition (measured — the Co₃O₄ chain's neighbours differ by
+    0.01-0.16 μ_B where the independent fits struggled), so an onset read off
+    the values is a reading of the chain and an onset read off the verdicts is
+    a reading of the data.
+
+    Ordering is by the **axis**, not by the walk: a chain refined from high
+    temperature down still reports its onset on the temperature axis, so the
+    number is comparable between a warming and a cooling pass.  Ties in x keep
+    series order.
+    """
+    status = list(traj.status) or ["converged"] * len(traj.supported)
+    onset = MagneticOnset(
+        path=traj.path, atom=traj.atom,
+        n_supported=sum(traj.supported),
+        n_held=sum(not s for s in traj.supported),
+        n_unconverged=sum(1 for s in status if s != "converged"))
+    n = len(traj.supported)
+    if n == 0:
+        onset.note = ("no pattern of the series carries a moment row: no "
+                      "phase declared one, or no magnetic term was computed")
+        return onset
+    order = sorted(range(n), key=lambda i: (traj.x[i], i))
+    xs = [traj.x[i] for i in order]
+    ok = [traj.supported[i] for i in order]
+    labels = [traj.labels[i] for i in order]
+    states = [status[i] for i in order]
+    if all(ok):
+        onset.note = (
+            f"every one of the {n} pattern(s) supports a moment: the onset is "
+            f"outside the measured window, above x = {max(xs):g}")
+        return onset
+    if not any(ok):
+        onset.note = (
+            f"not one of the {n} pattern(s) supports a moment, so there is no "
+            f"onset to locate — the moment is unsupported across the whole "
+            f"window, which is a result about the window and not about the "
+            f"specimen")
+        return onset
+    switches = [i for i in range(n - 1) if ok[i] != ok[i + 1]]
+    onset.boundaries = [[xs[i], xs[i + 1]] for i in switches]
+    if len(switches) > 1:
+        onset.monotone = False
+        onset.note = (
+            f"the supported/held verdict switches {len(switches)} times along "
+            f"the axis ({', '.join(f'{a:g}–{b:g}' for a, b in onset.boundaries)}"
+            f"), so the series has no single onset. An interleaved verdict is a "
+            f"statement about the fits — a warm start carrying a stale moment, "
+            f"a pattern the ladder rescued cold, a specimen that changed — and "
+            f"the bracket a monotone series would give is withheld rather than "
+            f"averaged over them")
+        return onset
+    i = switches[0]
+    onset.bracket = [xs[i], xs[i + 1]]
+    onset.bracket_labels = [labels[i], labels[i + 1]]
+    onset.sense = "falls" if ok[i] else "rises"
+    onset.x = 0.5 * (xs[i] + xs[i + 1])
+    onset.x_esd = 0.5 * abs(xs[i + 1] - xs[i])
+    released, held = ((labels[i], labels[i + 1]) if ok[i]
+                      else (labels[i + 1], labels[i]))
+    # the asymmetric test the field documents: a *supported* verdict from a
+    # fit that stopped early is the one that can be an artefact of the stop
+    onset.bracket_verdicts_final = not any(
+        ok[j] and states[j] != "converged" for j in (i, i + 1))
+    onset.note = (
+        f"the moment is supported on {released} and not on {held}, so the "
+        f"onset lies between x = {xs[i]:g} and {xs[i + 1]:g}. The ± is half "
+        f"that gap — the spacing of the measurements — and not a fitted esd: "
+        f"nothing here fits a form for |m|(x), which is WP-1325's question")
+    if not onset.bracket_verdicts_final:
+        bad = [labels[j] for j in (i, i + 1)
+               if ok[j] and states[j] != "converged"]
+        onset.note += (
+            f". Do not quote it: {' and '.join(bad)} reports a *supported* "
+            f"moment from a fit that stopped early, and 'supported' is |m| "
+            f"against that pattern's own esd — a modulus that has not "
+            f"finished falling is exactly how a moment above the transition "
+            f"survives as a small confident number")
+    return onset
 
 
 def _unservable(series: "SeriesResult", path: str) -> str:
@@ -375,13 +756,134 @@ class SeriesResult(Base):
             traj.positions.append(i)
         return traj
 
+    # -- the moment arm (WP-1329) --------------------------------------
+    def magnetic_sites(self) -> list[str]:
+        """Modulus dot-paths carrying a moment row, in first-seen order.
+
+        The peer of :meth:`agreement_phases`: a site that appears on one
+        pattern of the series appears here, so a chain where the moment block
+        was added part-way through still names it.
+        """
+        out: list[str] = []
+        for e in self.entries:
+            for row in e.magnetic:
+                if row.path not in out:
+                    out.append(row.path)
+        return out
+
+    def magnetic_trajectory(self, site: str | None = None
+                            ) -> "MagneticTrajectory":
+        """|m| against the series axis for one magnetic site (WP-1329).
+
+        ``site`` is the modulus dot-path or the atom label; ``None`` takes the
+        only site and refuses when the structure carries more than one, for
+        :meth:`SeriesEntry.moment`'s reason.
+
+        The **esd is withheld on every unsupported point** and the point is
+        still plotted, which is the shape the WP asks for: a held pattern is a
+        measurement that came back "not distinguishable from none", and it is
+        neither a gap in the ramp nor a zero with an error bar.  The magnitude
+        and its esd both come from that pattern's own
+        :class:`~rietx.report.schemas.MomentEvidence` — this method copies,
+        never recomputes, and in particular never re-decides ``supported``.
+
+        Patterns with no row for the site are skipped rather than filled, for
+        :meth:`trajectory`'s reason.
+        """
+        sites = self.magnetic_sites()
+        if site is None:
+            if len(sites) > 1:
+                raise ValueError(
+                    f"this series carries {len(sites)} magnetic sites "
+                    f"({', '.join(sites)}); name one by its path or label")
+            site = sites[0] if sites else ""
+        traj = MagneticTrajectory(path=site, x_label=self.x_label)
+        for e, xv in zip(self.entries, self.x, strict=True):
+            row = e.moment(site) if site else None
+            if row is None:
+                continue
+            traj.path = row.path or site
+            traj.atom, traj.ion = row.atom, row.ion
+            traj.x.append(xv)
+            traj.value.append(float(row.magnitude))
+            traj.stderr.append(None if not row.supported
+                               else row.magnitude_esd)
+            traj.supported.append(bool(row.supported))
+            traj.status.append(e.status)
+            traj.labels.append(e.label)
+        traj.onset = locate_onset(traj)
+        return traj
+
+    def distortion_modes(self) -> list[str]:
+        """Amplitude dot-paths carrying a distortion row, in first-seen order.
+
+        The peer of :meth:`magnetic_sites`: a mode that appears on one pattern
+        appears here, so a chain where the modes were declared part-way
+        through still names them.
+        """
+        out: list[str] = []
+        for e in self.entries:
+            for row in e.distortion:
+                if row.path not in out:
+                    out.append(row.path)
+        return out
+
+    def distortion_trajectory(self, mode: str | None = None
+                              ) -> "DistortionTrajectory":
+        """A(T) for one displacive mode, with the unsupported points marked.
+
+        ``mode`` is the mode name or its amplitude dot-path; ``None`` takes the
+        only mode and refuses when the series carries more than one, for
+        :meth:`SeriesEntry.distortion_mode`'s reason.
+
+        Every number is copied from that pattern's own
+        :class:`~rietx.report.schemas.DistortionEvidence` — this method never
+        recomputes one and in particular never re-decides ``supported``.  The
+        esd is withheld on an unsupported point and the value kept, which is
+        :class:`MagneticTrajectory`'s rule and is here for the same reason.
+
+        No ``onset``: :func:`locate_onset` reads a *moment*'s brackets and
+        names them ``MagneticOnset``, and a structural transition read off the
+        same column would be that schema saying something it does not mean.
+        The support column is here, so a caller who wants the bracket can take
+        it; inventing a second onset type on this rung would be a number
+        nobody measured against a T_s.
+        """
+        modes = self.distortion_modes()
+        if mode is None:
+            if len(modes) > 1:
+                raise ValueError(
+                    f"this series carries {len(modes)} distortion modes "
+                    f"({', '.join(modes[:6])}{'…' if len(modes) > 6 else ''}); "
+                    f"name one by its name or its amplitude path")
+            mode = modes[0] if modes else ""
+        traj = DistortionTrajectory(path=mode, x_label=self.x_label)
+        for e, xv in zip(self.entries, self.x, strict=True):
+            row = e.distortion_mode(mode) if mode else None
+            if row is None:
+                continue
+            traj.path = row.path or mode
+            traj.mode, traj.irrep_label = row.mode, row.irrep_label
+            traj.direction = row.direction
+            traj.x.append(xv)
+            traj.value.append(float(row.amplitude))
+            traj.magnitude.append(abs(float(row.amplitude)))
+            traj.displacement_a.append(float(row.displacement_a))
+            traj.stderr.append(None if not row.supported
+                               else row.amplitude_esd)
+            traj.supported.append(bool(row.supported))
+            traj.status.append(e.status)
+            traj.labels.append(e.label)
+        return traj
+
+
     #: Prefixes :meth:`resolve_trajectory` dispatches on, longest first so a
     #: future dotted sub-namespace like ``qpa.sub.`` could not be swallowed by
     #: ``qpa.``.  The trailing dot already rules out an underscore sibling like
     #: ``qpa_x.`` — it never starts with ``qpa.`` — so the ordering guards a
     #: nested namespace, not that.
     _TRAJECTORY_PREFIXES: ClassVar[tuple[str, ...]] = (
-        "r_bragg.", "r_f.", "qpa.")
+        "r_bragg.", "r_f.", "qpa.", "magnetic.")
 
     #: Prefixes whose trajectories carry no esd **by construction**, as
     #: distinct from one whose esd a given fit happened not to estimate
@@ -413,6 +915,11 @@ class SeriesResult(Base):
                 name = path[len(prefix):]
                 if prefix == "qpa.":
                     return self.qpa_trajectory(name)
+                if prefix == "magnetic.":
+                    # ``"magnetic."`` alone names the only site, which is what
+                    # a one-sublattice structure has and what a plot of it
+                    # should not have to spell out
+                    return self.magnetic_trajectory(name or None)
                 return self.agreement_trajectory(name,
                                                  metric=prefix.rstrip("."))
         return self.trajectory(path)

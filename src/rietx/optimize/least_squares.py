@@ -407,32 +407,40 @@ def _peak_chain_column(model: CompiledModel, table: ParameterTable,
 
     parts = []
     for ip in affected:
-        peaks_p = model.phase_peaks(
-            ip, values_p, None if intensities is None else intensities[ip])
-        pp = bases.planes[ip]
-        lay = pp.layout
-        if not len(lay.i0):
-            continue
-        pos1 = lay.gather(peaks_p, 0)
-        w1p = lay.gather(peaks_p, 1)
-        w2p = lay.gather(peaks_p, 2)
-        int1 = lay.gather(peaks_p, 3)
-        pair = pp.finite & np.isfinite(pos1)
-        with np.errstate(invalid="ignore"):
-            d_i = np.where(pair, (int1 - pp.inten) / h, 0.0)
-            c_p = np.where(pair, pp.inten * ((pos1 - pp.pos) / h), 0.0)
-            c_g = np.where(pair, pp.inten * ((w1p - pp.w1) / h), 0.0)
-            c_e = np.where(pair, pp.inten * ((w2p - pp.w2) / h), 0.0)
-        terms = []
-        if np.any(d_i != 0.0):
-            terms.append((d_i, pp.omega))
-        for coef, plane, what in ((c_p, pp.d_pos, "position"),
-                                  (c_g, pp.d_gamma, "width"),
-                                  (c_e, pp.d_eta, "mixing")):
-            if np.any(coef != 0.0):
-                _require_basis(plane, path, what)
-                terms.append((coef, plane))
-        parts.append((lay, terms))
+        # WP-1343: one pass per drawn component.  ``components`` hands back
+        # one entry for every phase of every fit at the default, so this loop
+        # is the single ``bases.planes[ip]`` read it replaces; where a phase
+        # draws its magnetic contribution on its own frozen family the second
+        # pass carries the **magnetic width columns** — they move w₁ on that
+        # component and nothing at all on the nuclear one, which is exactly
+        # the separability the term needs to be identifiable.
+        for component, pp in enumerate(bases.components(ip)):
+            peaks_p = model.phase_peaks(
+                ip, values_p, None if intensities is None else intensities[ip],
+                component=component)
+            lay = pp.layout
+            if not len(lay.i0):
+                continue
+            pos1 = lay.gather(peaks_p, 0)
+            w1p = lay.gather(peaks_p, 1)
+            w2p = lay.gather(peaks_p, 2)
+            int1 = lay.gather(peaks_p, 3)
+            pair = pp.finite & np.isfinite(pos1)
+            with np.errstate(invalid="ignore"):
+                d_i = np.where(pair, (int1 - pp.inten) / h, 0.0)
+                c_p = np.where(pair, pp.inten * ((pos1 - pp.pos) / h), 0.0)
+                c_g = np.where(pair, pp.inten * ((w1p - pp.w1) / h), 0.0)
+                c_e = np.where(pair, pp.inten * ((w2p - pp.w2) / h), 0.0)
+            terms = []
+            if np.any(d_i != 0.0):
+                terms.append((d_i, pp.omega))
+            for coef, plane, what in ((c_p, pp.d_pos, "position"),
+                                      (c_g, pp.d_gamma, "width"),
+                                      (c_e, pp.d_eta, "mixing")):
+                if np.any(coef != 0.0):
+                    _require_basis(plane, path, what)
+                    terms.append((coef, plane))
+            parts.append((lay, terms))
     return _accumulate(len(model.tt), parts)
 
 
@@ -487,6 +495,13 @@ def _po_column(model: CompiledModel, bases: DerivativeBases,
     dint = model.po_intensity_grad(ip, values)
     if dint is None:
         return np.zeros(len(model.tt))
+    # WP-1343: P is a per-(line, reflection) multiplier of the intensity and
+    # is applied to **both** components identically (``phase_peaks``), so
+    # ∂intensity/∂r is P's derivative times each component's own base.  The
+    # analytic branch therefore covers only the split-free case, where
+    # ``components`` has one entry; a magnetic phase with texture falls to the
+    # whole-model FD column (declared in ``_make_jacobian``'s dispatch), which
+    # is exact because it decodes through C like the residual.
     pp = bases.planes[ip]
     coef = np.where(pp.finite, _gather_per_line(pp.layout, dint), 0.0)
     terms = [(coef, pp.omega)] if np.any(coef != 0.0) else []
@@ -521,10 +536,15 @@ def _scale_column(model: CompiledModel, bases: DerivativeBases,
     stays correct there.
     """
     scale = values[f"phases.{ip}.scale"]
-    pp = bases.planes[ip]
-    coef = np.where(pp.finite, pp.inten / scale, 0.0)
-    terms = [(coef, pp.omega)] if np.any(coef != 0.0) else []
-    return _accumulate(len(model.tt), [(pp.layout, terms)])
+    # WP-1343: the scale enters *each* component's ``base`` exactly once and
+    # multiplies both, so both parts are its own contribution over the scale.
+    # One part for every phase of every fit at the default.
+    parts = []
+    for pp in bases.components(ip):
+        coef = np.where(pp.finite, pp.inten / scale, 0.0)
+        parts.append((pp.layout,
+                      [(coef, pp.omega)] if np.any(coef != 0.0) else []))
+    return _accumulate(len(model.tt), parts)
 
 
 def _axial_column(model: CompiledModel, bases: DerivativeBases,
@@ -535,7 +555,10 @@ def _axial_column(model: CompiledModel, bases: DerivativeBases,
     the loop over FCJ rows with ±0 additions interleaved — bitwise neutral.
     """
     parts = []
-    for pp in bases.planes:
+    # WP-1343: the magnetic component's planes join the loop where they exist;
+    # ``planes_mag`` is empty of them for every fit at the default, so the
+    # iteration is the one over ``bases.planes`` it replaces.
+    for pp in [*bases.planes, *(q for q in bases.planes_mag if q is not None)]:
         plane = pp.d_sl if which == 8 else pp.d_hl
         if plane is None:
             continue
@@ -774,6 +797,7 @@ def _make_jacobian(model: CompiledModel, table: ParameterTable):
                 else:
                     fd_cols.append(c)
             elif ((dof := _STRUCTURAL_PATH.match(path)) and model.mode == "rietveld"
+                    and model.structural_grad_supported(int(dof.group(1)))
                     and _within_atom(extra, dof.group(1), dof.group(2))):
                 rows, grad = (("x", "y", "z"), model.coordinate_intensity_grad) \
                     if dof.group(3) == "dof" else (U_NAMES, model.adp_intensity_grad)
@@ -781,7 +805,8 @@ def _make_jacobian(model: CompiledModel, table: ParameterTable):
                     model, table, get_bases(), values, c,
                     int(dof.group(1)), int(dof.group(2)), rows, grad)
             elif ((po := _PO_PATH.match(path)) and model.mode == "rietveld"
-                    and not extra):
+                    and not extra
+                    and not model.mag_split(int(po.group(1)))):
                 J[:n_data, c] = -sqrt_w * dpdu_of(c, theta_t) * _po_column(
                     model, get_bases(), values, int(po.group(1)))
             elif ((sc := _SCALE_PATH.match(path)) and model.mode == "rietveld"
@@ -1202,6 +1227,48 @@ def _freeze_cell_windows_multi(models: list[CompiledModel],
     mtable.refresh_bounds()
 
 
+_MAGNETIC_WIDTH_PATH = re.compile(
+    r"^phases\.(\d+)\.magnetic_lor_(size|strain)$")
+
+
+def _check_magnetic_width_compiled(model: CompiledModel,
+                                   table: ParameterTable) -> None:
+    """Refuse a free magnetic width the compiled model cannot see (WP-1343).
+
+    ``compile_model`` builds a phase's **second frozen family** — the magnetic
+    component's own windows and FCJ node counts — only where that component's
+    widths can differ from the nuclear ones this stage: either a value is
+    already non-zero, or ``moving_paths`` says the stage can move one.  A
+    caller who compiled with no claim at all (``moving_paths=None``: the
+    public ``compile_model``, a plot, a replay) and then frees a magnetic
+    width against that model would get a column that is **identically zero**,
+    because the value is not read on the unsplit path — the silent
+    short-column failure WP-1070 filed, one correction over.
+
+    So it is refused here, by name, with the fix in the message.  Asked of
+    ``moving_paths`` rather than ``free_paths``, for the reason
+    ``compile_model`` sizes from it: a tie moves a parameter that is not a
+    column of θ.  The alternative — building the family whenever no claim was
+    made — would split the draw for every plot and replay of a magnetic phase
+    and cost the last two digits of a converged fit, since (a + b)·Ω and
+    a·Ω + b·Ω are not the same doubles.
+    """
+    for path in table.moving_paths:
+        m = _MAGNETIC_WIDTH_PATH.match(path)
+        if m is None:
+            continue
+        ip = int(m.group(1))
+        if ip < len(model.phases) and not model.mag_split(ip):
+            raise ValueError(
+                f"{path} can move in this stage, but the model was compiled "
+                f"without the magnetic component's own frozen windows, so the "
+                f"parameter reaches no residual row and its Jacobian column "
+                f"would be identically zero. Recompile with the stage's claim "
+                f"— compile_model(..., moving_paths=set(table.moving_paths)) "
+                f"— which is what fit() and every staged plan already pass, "
+                f"or seed the term off zero before compiling")
+
+
 def run_least_squares(model: CompiledModel, table: ParameterTable,
                       *, max_iter: int = 100, ftol: float = 1e-9,
                       compute_uncertainties: bool = True,
@@ -1220,6 +1287,7 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
     # different stages, and rather than in ``_rebuild`` because a diagnostic
     # probe frees parameters without intending to fit them.
     table.check_wavelength_against_cell()
+    _check_magnetic_width_compiled(model, table)
     _freeze_cell_windows(model, table)
     _freeze_strain_cap(model, table)
     _freeze_size_cap(model, table)

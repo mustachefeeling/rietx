@@ -29,6 +29,36 @@ from ..schemas.plan import INTERMEDIATE_FTOL, PlanSpec
 _ADP_COMPONENT = re.compile(r"^(phases\.\d+\.atoms\.\d+)\.u(11|22|33|12|13|23)$")
 _U_ORDER = {"11": 0, "22": 1, "33": 2, "12": 3, "13": 4, "23": 5}
 
+#: The recommended :attr:`Stage.distortion_seed`, in ångströms of the
+#: furthest-moved atom.  Not a floor and not a tuning constant: it is the value
+#: three bounds leave, and each is measured.
+#:
+#: *Above the finite difference.*  An amplitude reaches
+#: ``optimize.least_squares._peak_chain_column``, which builds its column with a
+#: one-sided step of ``1e-6·max(1, |θ|)``.  At A = 0 that column is not exactly
+#: zero but ``½·χ²''(0)·h`` — the curvature times the step, an artefact of the
+#: differencing rather than a gradient, and the only reason a solver started at
+#: the parent moves at all (an exact analytic column would be identically
+#: zero).  A seed has to be far enough out that the genuine first-order term
+#: dominates it.  Measured on the P1 toy: ‖∂y/∂A‖ is 2.28 at A = 0 against
+#: 9.10e+04 at A = 0.02 Å, a factor 4.0e+04, and linear in A from 1e-4 upward,
+#: which is what a first-order term looks like.
+#:
+#: *Below the distortion.*  ``DISTORTION_AMPLITUDE_MAX_A`` is 0.5 Å, the point
+#: at which a displacement stops being a distortion of the parent and becomes a
+#: different structure.  0.02 Å is 4 % of it, so the seed cannot start the fit
+#: in the region the bound exists to keep it out of.
+#:
+#: *Small enough not to decide the answer.*  A seed is a starting point, and the
+#: acceptance for it is that a stage entered at A = 0 reaches the planted
+#: amplitude from either sign and from a seed 2.5× larger.  Measured on the same
+#: toy against a planted 0.16 Å: ±0.02 and ±0.05 all four converge to
+#: |A| = 0.160324 ± 0.000238 (1.4σ from the truth) with Rwp agreeing to fifteen
+#: significant digits.  The sign of the answer follows the sign of the seed,
+#: which is the domain convention of :attr:`Stage.distortion_seed` and not a
+#: measurement.
+DISTORTION_SEED_A = 0.02
+
 #: The displacement-parameter stage frees whichever representation each site
 #: actually uses.  Both globs are always safe: an isotropic site has no
 #: ``adp.k`` entries, and an anisotropic one has its ``biso`` locked, so
@@ -138,6 +168,39 @@ class Stage:
     #: identity-transform, and their pathology at zero is the *exploding*
     #: gradient of √Σ rather than the softplus's dead one.  0 = no seed.
     strain_seed: float = 0.0
+    #: displacive-mode amplitude (Å) to put an **all-zero** distortion block on
+    #: before this stage frees it.  ``0.0`` = no seed, and then a stage freeing
+    #: an all-zero block is refused by name
+    #: (``params.vector._check_distortion_degeneracy``) rather than run.
+    #:
+    #: Neither :attr:`seed` nor :attr:`strain_seed` can serve, and the reason is
+    #: the third distinct pathology at zero in this package.  :attr:`seed`
+    #: reaches softplus entries only and an amplitude is **signed**, so it is
+    #: identity-transform; :attr:`strain_seed` fixes an *exploding* gradient
+    #: (Λ ∝ √Σ) on the microstrain DOFs.  An amplitude's is neither: the
+    #: gradient at zero is exactly **zero**, for every mode of the phase at
+    #: once.  The lost parent translation carries the mode field e_ν to −e_ν,
+    #: so the child at −A is the child at +A in its other antiphase domain and
+    #: |F|² — hence χ² — is an even function of the whole amplitude vector.  Its
+    #: derivative at the origin vanishes, and A = 0 is a local *maximum* of fit
+    #: quality along every mode simultaneously rather than a starting point.
+    #: Measured on a P1 toy (a = b = 4 Å, c = 8 Å, an antiphase Sr pair at ¼ and
+    #: ¾): χ²(A) even to 2.3e-15 over |A| ≤ 0.32 Å, dχ²/du = 0.0 at u = 0
+    #: against −1.61e7 at u = 0.005.
+    #:
+    #: **The unit is the amplitude's own**, i.e. ångströms of the
+    #: furthest-moved atom for a block
+    #: :func:`~rietx.crystallography.magnetic.supercell.displacive_statement`
+    #: built (its modes are normalised so unit amplitude moves the furthest
+    #: atom by exactly 1 Å; ``DistortionMode.unit_displacement_a`` measures it
+    #: back for a block from anywhere else).  :data:`DISTORTION_SEED_A` is the
+    #: recommended value and says why.
+    #:
+    #: **Signed, deliberately.**  A single amplitude's sign is a domain label
+    #: rather than a measurement (Perez-Mato, Orobengoa & Aroyo 2010, § 7), so
+    #: a negative seed is accepted and simply starts the fit in the other
+    #: antiphase domain; only ``0.0`` means "no seed".
+    distortion_seed: float = 0.0
     #: c_w of McCusker eq (7), S = S_y + c_w·S_G: how heavily this stage weights
     #: the geometric 'observations' (every soft restraint the phases declare)
     #: against the diffraction data.  The paper's prescription is a *schedule* —
@@ -421,6 +484,47 @@ class RefinementPlan:
         ])
 
     @classmethod
+    def magnetic_width(cls) -> "RefinementPlan":
+        """The three-step order for a **magnetic** broadening term (WP-1343).
+
+        The moment with the widths held at zero, then the width with the
+        moment held, then both together.  The stage list itself is
+        ``strategy.magnetic.MAGNETIC_WIDTH_STAGE_PATHS`` — one authority, so
+        this preset and the ``STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT`` check
+        that reports a plan violating the order cannot describe different
+        orders.
+
+        Continues from a converged nuclear fit rather than replacing one: it
+        frees no cell, no coordinate and no instrument width, because the
+        confound this order exists to avoid is between the moment and the
+        magnetic width and adding a third competitor for the same peak height
+        would not be staging.
+
+        Steps 2 and 3 free **both** width terms — see
+        ``MAGNETIC_WIDTH_STAGE_PATHS`` for the three datasets that decided it
+        and for what freeing both costs.
+        """
+        from .magnetic import (
+            MAGNETIC_WIDTH_SEED_DEG,
+            MAGNETIC_WIDTH_STAGE_PATHS,
+        )
+        names = ("moment", "magnetic_width", "moment_and_width")
+        # Step 2 seeds the width off its exact-zero softplus floor, for the
+        # reason the extinction stage seeds 1e-3: the map's slope at p = 0 is
+        # zero, so a term freed from its default has a dead column and TRF
+        # never moves it.  Step 1 must NOT seed it — that stage's whole job is
+        # the moment with the widths at the off state, where the second frozen
+        # family is not even built — and step 3 need not, because step 2 has
+        # already lifted it; seeding there would also reach a *moment* modulus
+        # sitting below the seed, which is a different parameter's floor and
+        # not this stage's business.
+        seeds = (0.0, MAGNETIC_WIDTH_SEED_DEG, 0.0)
+        return cls(stages=[Stage(name, list(paths), seed=seed)
+                           for name, paths, seed
+                           in zip(names, MAGNETIC_WIDTH_STAGE_PATHS, seeds,
+                                  strict=True)])
+
+    @classmethod
     def pawley_default(cls) -> "RefinementPlan":
         """Pawley whole-pattern plan: cell + profile, same order as
         :meth:`profile_only`.  The per-hkl intensities are *not* named globs —
@@ -485,6 +589,7 @@ PLAN_PRESETS = {
         "lab_sample_refine": RefinementPlan.lab_sample_refine,
         "profile_only": RefinementPlan.profile_only,
         "pawley_default": RefinementPlan.pawley_default,
+        "magnetic_width": RefinementPlan.magnetic_width,
     }.items()
 }
 
@@ -636,6 +741,26 @@ PLAN_INFO: dict[str, PlanInfo] = {
             "Extracted intensities that need uncertainties — feeding structure "
             "solution or a peak-shape study. Read PAWLEY_OVERLAP_UNRESOLVED "
             "before using an intensity from an overlapped group."),
+    ),
+    "magnetic_width": PlanInfo(
+        title="Magnetic broadening (three steps)",
+        description=(
+            "The turn-on order for a phase whose magnetic peaks are broader "
+            "than its nuclear ones: the moment with the magnetic width held "
+            "at zero, then the width with the moment held, then both "
+            "together. Frees nothing else — the confound it stages around is "
+            "between those two alone, since both lower the calculated "
+            "magnetic peak's height."),
+        modes=("rietveld",),
+        when_to_use=(
+            "After a magnetic structure has converged and "
+            "MAGNETIC_WIDTH_UNMODELLED says its magnetic reflections are "
+            "fitted too narrow. It frees both width terms, because which of "
+            "the two carries the effect is a property of the dataset; expect "
+            "the other one back unmeasured, and expect the last stage to "
+            "report max_iter when it is, since a dead direction is what the "
+            "solver walks. Read MAGNETIC_WIDTH_MOVED_MOMENT before dropping "
+            "an 'unmeasured' term: the shift it names is the measurement."),
     ),
 }
 

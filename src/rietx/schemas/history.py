@@ -88,6 +88,7 @@ class NodeAction(Base):
     lebail_cycles: int = 3
     seed: float = 0.0
     strain_seed: float = 0.0
+    distortion_seed: float = 0.0
     restraint_weight_scale: float = 1.0
     ftol: float | None = None
     window_slack_deg: float | None = None
@@ -116,6 +117,7 @@ class NodeAction(Base):
                 f", {n}={v!r}" for n, v, off in
                 (("seed", self.seed, 0.0),
                  ("strain_seed", self.strain_seed, 0.0),
+                 ("distortion_seed", self.distortion_seed, 0.0),
                  ("restraint_weight_scale", self.restraint_weight_scale, 1.0),
                  ("ftol", self.ftol, None),
                  ("window_slack_deg", self.window_slack_deg, None))
@@ -196,6 +198,12 @@ class ReflectionState(Base):
 
     phase_index: int
     hkl: list[list[int]] = Field(default_factory=list)  # (N, 3)
+    #: m of Q = H + m·k per row, for a phase carrying a propagation vector
+    #: (WP-1326).  ``None`` — every phase that declares no k — is not the same
+    #: as a list of zeros: it is what keeps a document written by a fit without
+    #: satellites byte for byte what it was, and ``hkl`` alone is then a
+    #: complete key.  With a k it is not: H + k and H − k share one H.
+    satellite_order: list[int] | None = None
     intensity: list[float] = Field(default_factory=list)  # (N,)
     kind: Literal["lebail_extracted", "pawley_refined"] = "lebail_extracted"
     stderr: list[float] | None = None  # Pawley has esds; Le Bail does not
