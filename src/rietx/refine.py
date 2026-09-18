@@ -2112,7 +2112,8 @@ class Refinement:
         """
         model = outcome = guard = None
         ftols = plan.stage_ftols()
-        correlation_hits: dict[frozenset, list[tuple[str, Diagnostic]]] = {}
+        correlation_hits: dict[tuple[str, frozenset],
+                              list[tuple[str, Diagnostic]]] = {}
         for k, (stage, ftol) in enumerate(zip(plan.stages, ftols, strict=True),
                                           start=1):
             with self._abandon_on_cancel(cancel, stage.name, stage_results, stream):
@@ -2122,9 +2123,11 @@ class Refinement:
                     stage_index=k, n_stages=len(plan.stages), ftol=ftol)
             stage_diagnostics = _guard_diagnostics(guard)
             for d in stage_diagnostics:
-                if d.code == "HIGH_CORRELATION":
-                    correlation_hits.setdefault(frozenset(d.where), []).append(
-                        (stage.name, d))
+                if d.code in ("HIGH_CORRELATION", "FLAT_DIRECTION"):
+                    # keyed by code *and* pair: a flat pair fires both, and a
+                    # key of the pair alone would let one evict the other
+                    correlation_hits.setdefault(
+                        (d.code, frozenset(d.where)), []).append((stage.name, d))
                 elif d.code == "BOUND_HIT":
                     continue          # re-taken on the converged vector below
                 else:
@@ -2757,6 +2760,21 @@ def _guard_diagnostics(guard) -> list[Diagnostic]:
                        "higher-symmetry Laue class has fewer), or extend the "
                        "fit range; do not report the S_HKL as measured",
         ))
+    for finding in guard.flat_directions:
+        msg = str(finding)
+        out.append(Diagnostic(
+            level="warning", code="FLAT_DIRECTION",
+            where=list(finding.paths), value=finding.value,
+            message=f"{msg} — at this |ρ| the pair is a statement about the "
+                    "rank of the data rather than a strong correlation: one "
+                    "direction of the two is not measured at all, and each "
+                    "esd is conditional on the other parameter being right",
+            suggestion="do not quote both. Fix one at an independently known "
+                       "value and refine the other, or free them in "
+                       "different stages, and say in the result which one was "
+                       "held. Widening the fitted range or adding a second "
+                       "histogram is what actually separates them",
+        ))
     for finding in guard.large_biso:
         msg = str(finding)
         out.append(Diagnostic(
@@ -2848,12 +2866,13 @@ def _guard_diagnostics(guard) -> list[Diagnostic]:
 def _dedup_high_correlations(
     hits: dict[frozenset, list[tuple[str, Diagnostic]]],
 ) -> list[Diagnostic]:
-    """One ``HIGH_CORRELATION`` per pair across a whole plan.
+    """One ``HIGH_CORRELATION`` (and one ``FLAT_DIRECTION``) per pair.
 
     A pair that stays correlated fires on every stage that re-measures the
     Jacobian after it becomes free, so ``hits`` — built by the caller as it
     walks the stage loop — routinely holds several entries under one
-    ``frozenset(where)`` key.  Keeps the worst |ρ| (correlation only ever
+    key.  A flat pair produces one of each code and they are keyed apart, so
+    neither evicts the other.  Keeps the worst |ρ| (correlation only ever
     strengthens or weakens; the largest magnitude is the most informative
     one to show) and names every stage the pair was flagged in, because
     "still correlated at the last stage" and "correlated once, early, and
@@ -2861,7 +2880,7 @@ def _dedup_high_correlations(
     apart without re-running the fit.
     """
     out = []
-    for pair, stage_hits in hits.items():
+    for (_code, pair), stage_hits in hits.items():
         stage_names = list(dict.fromkeys(name for name, _ in stage_hits))
         worst = max(stage_hits, key=lambda sd: abs(sd[1].value))[1]
         message = worst.message if len(stage_names) == 1 else (

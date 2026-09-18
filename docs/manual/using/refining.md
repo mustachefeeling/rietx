@@ -554,6 +554,7 @@ once:
 | `GuardFinding.nonpositive_adp` | an anisotropic displacement tensor is not positive definite |
 | `GuardFinding.nonpositive_strain` | a Stephens block gives a negative σ²(M) for some reflection |
 | `GuardFinding.narrow_hump` | a declared hump has narrowed towards the instrumental resolution, where it is a reflection rather than a background feature |
+| `GuardFinding.flat_direction` | a correlated pair reaches |ρ| = 1.000 to the precision the message prints, so the data does not separate them at all |
 | `GuardFinding.large_biso` | an isotropic displacement parameter is past the Lindemann melting bound computed from its own phase's cell |
 | `GuardFinding.nonpositive_resolution` | the Caglioti quadratic Γ_G² = U·tan²θ + V·tanθ + W goes below zero somewhere in the fitted range, where the forward model clamps Γ_G to a floor rather than raising |
 

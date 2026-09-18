@@ -148,8 +148,9 @@ cannot start until someone says where it lives.
 - [x] Resolution-positivity guard (Γ² > 0 in-range, naming the θ) —
       `RESOLUTION_NOT_POSITIVE`, 2026-09-18. The #102 width-implausibility
       diagnostic beside it is still open.
-- [ ] Flat-direction report: |ρ| at 1.000 within tolerance emitted as its own
-      finding, set-consistent with `unmeasured_rows`/esd handling.
+- [x] Flat-direction report, 2026-09-18 — `FLAT_DIRECTION` beside the pair's
+      `HIGH_CORRELATION` rather than instead of it; the bar is the three
+      decimals the message prints, so no constant is tuned.
 - [ ] Tests per item + skill rows + `help.py`/manual entries + obs/calc/diff
       PNGs to `tests/output/` for any fixture refinement.
 

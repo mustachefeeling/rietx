@@ -710,6 +710,11 @@ class GuardFinding:
                    f"worst σ²(M) {worst:+.2e} at {hkl})")
 
     @classmethod
+    def flat_direction(cls, a: str, b: str, rho: float) -> "GuardFinding":
+        return cls("FLAT_DIRECTION", (a, b), float(rho),
+                   f"{a} ~ {b} (ρ={rho:+.3f}; the data does not separate them)")
+
+    @classmethod
     def large_biso(cls, path: str, biso: float, b_melt: float) -> "GuardFinding":
         return cls("BISO_UNUSUALLY_LARGE", (path,), float(biso),
                    f"{path} (B = {biso:.2f} Å², {biso / b_melt:.1f}× the "
@@ -742,9 +747,10 @@ class GuardReport:
     The six *finding* field names from v0.2 are unchanged; what they hold is
     findings rather than strings.  ``str(finding)`` is the old entry, so a
     consumer that only ever printed them needs no change.
-    ``nonpositive_resolution`` and ``large_biso`` are the seventh and eighth,
-    added by WP-1311; their writers are :func:`check_resolution_positive` and
-    :func:`check_biso_plausible`.
+    ``nonpositive_resolution``, ``large_biso`` and ``flat_directions`` are the
+    seventh, eighth and ninth, added by WP-1311; their writers are
+    :func:`check_resolution_positive`, :func:`check_biso_plausible` and the
+    correlation loop in :func:`check_guards`.
 
     ``measured_background_absorption`` is the one field that is **not**
     findings, and it is here rather than beside them so that the number a
@@ -784,6 +790,10 @@ class GuardReport:
     # isotropic displacement parameters past the Lindemann melting bound for
     # their own cell (see check_biso_plausible)
     large_biso: list[GuardFinding] = field(default_factory=list)
+    # pairs whose |ρ| is 1.000 to the precision the report states it in — a
+    # rank statement about the data, reported beside the correlation rather
+    # than instead of it (see FLAT_DIRECTION_RHO)
+    flat_directions: list[GuardFinding] = field(default_factory=list)
     # two-way surface-roughness degeneracy (WP-0502): either roughness is not
     # identifiable from this data, or a displacement parameter is now hiding
     # in it.  Same block-R² statistic as background_correlations.
@@ -1035,6 +1045,19 @@ def check_stephens_positive(table, model) -> list[GuardFinding]:
             out.append(GuardFinding.nonpositive_strain(
                 base, int(bad.sum()), len(sigma2), float(sigma2[k]), hkl))
     return out
+
+
+#: |ρ| at or above which a correlated pair is reported as a **flat direction**
+#: as well as a high correlation (WP-1311, issue #106).
+#:
+#: Derived from the report rather than chosen.  ``GuardFinding.correlation``
+#: renders ρ to three decimals, so 0.9995 and 1.0 are the same number as far as
+#: anything downstream can see, and 1 − 5e-4 is exactly the half-width of that
+#: rounding.  The claim the finding makes is therefore one the report can
+#: actually support: "ρ is 1.000 to the precision this message states it in".
+#: A tighter bar would assert a distinction the message cannot print, a looser
+#: one would call a genuine 0.997 degenerate.
+FLAT_DIRECTION_RHO = 1.0 - 5e-4
 
 
 #: Lindemann critical ratio ρ = √⟨u²⟩ / r, the fraction of the nearest-neighbour
@@ -1313,6 +1336,17 @@ def check_guards(table, outcome, threshold: float,
                 if abs(corr[i, j]) > threshold:
                     report.high_correlations.append(
                         GuardFinding.correlation(free[i], free[j], corr[i, j]))
+                    # |ρ| = 1.000 is a rank statement, not a strong
+                    # correlation, and saying so in the same vocabulary as
+                    # ρ = 0.96 undersells it.  Reported *beside* the
+                    # correlation rather than instead of it: the
+                    # SEQUENTIAL_PERSISTENT_FINDING precedent, where the
+                    # sharper finding rides alongside the ones it sharpens,
+                    # so no existing consumer loses a row it counts on.
+                    if abs(corr[i, j]) >= FLAT_DIRECTION_RHO:
+                        report.flat_directions.append(
+                            GuardFinding.flat_direction(
+                                free[i], free[j], corr[i, j]))
         # measured once (WP-1056): the same matrix the loop above thresholds
         report.measured_top_correlations = top_correlations(corr, free)
 

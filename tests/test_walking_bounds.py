@@ -24,6 +24,7 @@ from rietx.params.vector import ParameterTable
 from rietx.schemas.instrument import Instrument
 from rietx.schemas.pattern import PatternData
 from rietx.strategy.staged import (
+    FLAT_DIRECTION_RHO,
     LINDEMANN_RHO,
     RESOLUTION_CONE_TOL,
     biso_melting_bound,
@@ -295,3 +296,103 @@ def test_the_biso_finding_reaches_the_diagnostics():
     assert diags[0].level == "warning"
     assert diags[0].where == ["phases.0.atoms.0.biso"]
     assert diags[0].value == pytest.approx(50.0)
+
+
+# ----------------------------------------------------------------------
+# item 5 — |ρ| = 1.000 is a rank statement, not a strong correlation
+# ----------------------------------------------------------------------
+def _guard_with(rho: float, threshold: float = 0.98):
+    """A GuardReport from a real table whose first two free columns correlate."""
+    from types import SimpleNamespace
+
+    from rietx.strategy.staged import check_guards
+
+    table = _state()[0]
+    table.set_vary(["phases.0.cell.*", "phases.0.scale",
+                    "instrument.zero_shift"], True)
+    free = list(table.free_paths)
+    assert len(free) >= 2, free
+    corr = np.eye(len(free))
+    corr[0, 1] = corr[1, 0] = rho
+    outcome = SimpleNamespace(correlation=corr, jac=None, theta=table.x0())
+    return check_guards(table, outcome, threshold, model=None), free[:2]
+
+
+def test_the_threshold_is_the_precision_the_message_prints():
+    """Not a chosen number: ρ is rendered to three decimals, so the bar is the
+    half-width of that rounding and the claim is one the message can support.
+    """
+    assert FLAT_DIRECTION_RHO == 1.0 - 5e-4
+
+    from rietx.strategy.staged import GuardFinding
+
+    rendered = str(GuardFinding.correlation("a", "b", FLAT_DIRECTION_RHO))
+    assert "ρ=+1.000" in rendered, "the bar and the format have drifted apart"
+    just_under = str(GuardFinding.correlation("a", "b", FLAT_DIRECTION_RHO - 1e-4))
+    assert "ρ=+0.999" in just_under
+
+
+def test_a_strong_correlation_is_not_a_flat_direction():
+    """ρ = 0.99 is what HIGH_CORRELATION is for, and nothing more is claimed."""
+    report, _free = _guard_with(0.99)
+    assert [f.code for f in report.high_correlations] == ["HIGH_CORRELATION"]
+    assert report.flat_directions == []
+
+
+def test_a_flat_direction_is_reported_beside_its_correlation():
+    """Beside, never instead: the SEQUENTIAL_PERSISTENT_FINDING precedent.
+
+    Replacing the row would silence a HIGH_CORRELATION that existing consumers
+    count, so the sharper finding rides alongside the one it sharpens.
+    """
+    report, free = _guard_with(-1.0)
+    assert [f.code for f in report.high_correlations] == ["HIGH_CORRELATION"]
+    assert [f.code for f in report.flat_directions] == ["FLAT_DIRECTION"]
+
+    flat = report.flat_directions[0]
+    assert flat.paths == (free[0], free[1])
+    assert flat.value == pytest.approx(-1.0)
+    assert "does not separate them" in str(flat)
+
+
+def test_the_sign_is_kept_because_a_domain_label_is_not_a_magnitude():
+    """ρ = −1.000 and ρ = +1.000 are the same rank statement, and the sign
+    still says which way the two move together. It is reported, not discarded.
+    """
+    minus = _guard_with(-1.0)[0].flat_directions[0]
+    plus = _guard_with(1.0)[0].flat_directions[0]
+    assert minus.value < 0 < plus.value
+    assert "-1.000" in str(minus) or "−1.000" in str(minus)
+
+
+def test_the_flat_finding_reaches_the_diagnostics():
+    from rietx.refine import _guard_diagnostics
+
+    report, free = _guard_with(-1.0)
+    diags = [d for d in _guard_diagnostics(report) if d.code == "FLAT_DIRECTION"]
+    assert len(diags) == 1
+    assert diags[0].level == "warning"
+    assert diags[0].where == [free[0], free[1]]
+    assert "rank of the data" in diags[0].message
+
+
+def test_the_two_codes_do_not_evict_each_other_in_the_dedup():
+    """Both are keyed by pair; before WP-1311 the key was the pair alone.
+
+    A flat pair produces one of each, so a pair-only key would have dropped
+    whichever arrived second and the loss would be silent.
+    """
+    from rietx.refine import _dedup_high_correlations
+    from rietx.schemas.results import Diagnostic
+
+    where = ["instrument.profile.axial_sl", "instrument.profile.axial_hl"]
+    hits = {
+        ("HIGH_CORRELATION", frozenset(where)): [
+            ("widths", Diagnostic(level="warning", code="HIGH_CORRELATION",
+                                  message="hi", where=where, value=-1.0))],
+        ("FLAT_DIRECTION", frozenset(where)): [
+            ("widths", Diagnostic(level="warning", code="FLAT_DIRECTION",
+                                  message="flat", where=where, value=-1.0))],
+    }
+    codes = sorted(d.code for d in _dedup_high_correlations(hits))
+    assert codes == ["FLAT_DIRECTION", "HIGH_CORRELATION"]
