@@ -120,6 +120,63 @@ private and not redistributable (WP-1118 §), and 1130 and 1131 calibrated
 their thresholds on it. No path to it is recorded in the repo, so the survey
 cannot start until someone says where it lives.
 
+## Findings
+
+**2026-09-18 — the two open items, measured.** Both thresholds are now
+answerable, and neither number was invented. What stopped each is stated with
+it.
+
+**Item 1: the ±1 mm bound is loose, and its angular licence is not constant.**
+A specimen displacement `s` shifts peaks by Δ2θ = −(2s/R)·cosθ, so a bound
+fixed in mm buys a different angular licence on every goniometer. At the
+declared ±1 mm, against a typical lab resolution function (u = 0.02,
+v = −0.012, w = 0.008):
+
+| R (mm) | 20° | 40° | 60° | 90° | 120° |
+|---|---|---|---|---|---|
+| 100 | 1.129° | 1.077° | 0.992° | 0.810° | 0.573° |
+| 200 | 0.564° | 0.538° | 0.496° | 0.405° | 0.286° |
+| 300 | 0.376° | 0.359° | 0.331° | 0.270° | 0.191° |
+
+As a multiple of the local FWHM that is 14.0× at 20° on a 100 mm goniometer,
+7.0× on a 200 mm one, and 0.9× at 120° on a 300 mm one. So the bound permits a
+displacement worth several line widths everywhere, and the spread across
+ordinary radii is 3.0×. Scaling it by `goniometer_radius_mm` fixes the spread
+and not the magnitude.
+
+**What stopped it**: both fixes change a schema default that has stood since
+v0.2 (`473cc5a7`), which is a user-facing break. The maintainer's ruling on the
+same question for `Atom.biso`'s ceiling, taken this session, was keep it and
+document it. Applying that precedent here is the cheap answer and it is the
+maintainer's to give. `goniometer_radius_mm` is also `float | None`, so a
+scaled bound needs the flat fallback decided at the same time.
+
+**Item 4 (#102): the ceiling permits a resolution two orders past the
+instrument.** `profile.u` and `profile.w` cap at 1.0 deg², and at that ceiling
+the instrumental FWHM is 1.000° flat across a 15–110° scan. Measured against
+the instruments that take the data:
+
+| instrument | median instrumental FWHM | ceiling / it |
+|---|---|---|
+| typical lab Bragg-Brentano | 0.090° | 11.1× |
+| typical synchrotron | 0.005° | 194.3× |
+| rietx's own default (w = 1e-3) | 0.032° | 31.6× |
+
+That is the issue's complaint quantified: a fit can converge into a resolution
+function eleven to nearly two hundred times worse than the goniometer that
+measured the pattern, and nothing is raised.
+
+**What stopped it**: the two instrument classes separate by a factor of 18, so
+a single absolute threshold would be wrong for one of them, exactly as item 2's
+was before it was computed per phase. The relative anchors available are the
+fitted span (the ceiling is 1.05 % of it, a lab instrument 0.095 %, a
+synchrotron 0.005 %) and the spacing of the lines the function has to resolve.
+Neither is quoted from a source, and the corpus route closed when the archive
+survey was dropped. Item 2's threshold landed only because Gilvarry (1956)
+supplied the physics; nothing equivalent was found for an instrument
+resolution ceiling. A successor should either find that source or take the
+maintainer's decision on which relative anchor to use.
+
 ## Non-goals
 
 - **Not width caps** — #144's, already landed with its size extension.
