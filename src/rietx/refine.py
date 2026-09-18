@@ -4347,8 +4347,9 @@ def _extra_peak_diagnostics(model: CompiledModel, values: dict,
     item 13, one rank down, and the position it reports is a walk rather than a
     measurement.  Said in the vocabulary the peak list already chose for this
     fact (``no_intensity`` in ``PEAK_UNUSABLE_FLAGS``) rather than in a second
-    one, and tested with ``BOUND_HIT_RTOL``, which is the one place "is this
-    parameter at its bound" is answered.
+    one, and tested with ``BOUND_HIT_RTOL``, the distance half of the
+    refinement's own bound test (``staged.bound_findings``, a conjunction
+    since WP-1434) rather than a second constant.
 
     This is the honest evidence for "the peak was not needed", and it is not an
     Rwp comparison — which the package forbids as a correction's evidence for
@@ -4388,8 +4389,9 @@ def _extra_peak_diagnostics(model: CompiledModel, values: dict,
         entry = (table.entries[table._paths[area_path]]
                  if area_path in table._paths else None)
         lo = entry.lo if entry is not None else 0.0
-        # ``BOUND_HIT_RTOL`` is scipy's own test and the one place "is this
-        # parameter at its bound" is answered.  The ``<= 0`` clause beside it
+        # ``BOUND_HIT_RTOL`` is scipy's own test, imported rather than
+        # restated so this and ``BOUND_HIT`` cannot drift apart on what
+        # counts as *at* a limit.  The ``<= 0`` clause beside it
         # is not a second test of the same thing: softplus underflows to
         # *exactly* zero well before the internal coordinate reaches any
         # bound, so an area can be off at its identity without ever being

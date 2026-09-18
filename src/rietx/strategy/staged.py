@@ -1489,7 +1489,12 @@ def bound_findings(bounds, free: list[str], theta, *,
             continue
 
         e = None if esd is None else esd[k]
-        if e is not None and np.isfinite(e) and e > 0.0:
+        # the esd window is the *loose* half and is only ever evaluated as
+        # half of the conjunction: without ``cos`` there is nothing to pair it
+        # with, so the fallback is the pre-WP-1434 distance, exactly as this
+        # docstring promises.  Widening the window without the binding test
+        # would report every column within a hundredth of an esd of a limit.
+        if cos is not None and e is not None and np.isfinite(e) and e > 0.0:
             near, scaled = gap <= BOUND_HIT_ESD_FRAC * e, gap / e
         else:
             near, scaled = gap <= BOUND_HIT_RTOL * max(1.0, abs(limit)), None
@@ -1500,8 +1505,8 @@ def bound_findings(bounds, free: list[str], theta, *,
             out.append(GuardFinding.at_bound(path))
             continue
         c = float(cos[k])
-        # ``sign`` is +1 at a lower limit, where the solver would still be
-        # descending by *raising* θ, i.e. g > 0; −1 at an upper one
+        # ``sign`` is +1 at a lower limit, where a solver still pressing
+        # outward would be *lowering* θ, i.e. g > 0; −1 at an upper one
         if sign * c > 0.0 and abs(c) >= BOUND_HIT_COS_MIN:
             out.append(GuardFinding.at_bound(path, c, scaled))
     return out
