@@ -35,6 +35,32 @@ $U, V, W$ are the instrument resolution function {cite}`caglioti1958`. The
 sample adds a Gaussian microstrain term $U_s\tan^2\theta$ and a Gaussian size
 term $P/\cos^2\theta$ {cite}`larson2004,thompson1987`.
 
+$\Gamma_G^2$ is a variance, so the physical constraint is on the sum and not on
+its coefficients:
+
+```{math}
+:label: prof-caglioti-positive
+
+\Gamma_G^2(\theta) \;>\; 0
+\qquad \text{for every } \theta \text{ in the fitted range}
+```
+
+{source}`rietx.strategy.staged.check_resolution_positive`
+
+Each coefficient separately may be negative. A negative $V$ is the ordinary
+sign of a focusing geometry, and the schema bounds allow it. What the sum
+cannot do is go below zero where a peak is being fitted, because the width
+there would be the square root of a negative variance.
+
+Nothing raises when it does. `gaussian_fwhm` clamps $\Gamma_G^2$ to a small
+floor to keep the root real, so the model reports a resolution some four orders
+finer than any goniometer and the fit goes on converging. The condition above
+is therefore checked as a guard rather than enforced as a bound, and a fit that
+trips it reports `RESOLUTION_NOT_POSITIVE`. Read that as "these resolution
+parameters are not quotable", the same reading
+`STEPHENS_STRAIN_NOT_POSITIVE` has and for the same reason: a variance left its
+physical set, and the widths built on it are not measurements.
+
 ```{math}
 :label: prof-caglioti-l
 

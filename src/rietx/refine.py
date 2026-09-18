@@ -2757,6 +2757,23 @@ def _guard_diagnostics(guard) -> list[Diagnostic]:
                        "higher-symmetry Laue class has fewer), or extend the "
                        "fit range; do not report the S_HKL as measured",
         ))
+    for finding in guard.nonpositive_resolution:
+        msg = str(finding)
+        out.append(Diagnostic(
+            level="warning", code="RESOLUTION_NOT_POSITIVE",
+            where=list(finding.paths), value=finding.value,
+            message=f"{msg} goes negative inside the fitted range — Γ_G² is a "
+                    "variance, so this is not a narrow instrument but U, V, W "
+                    "outside the physical set, and the forward model clamps "
+                    "Γ_G to a 1e-4° floor there rather than raising",
+            suggestion="the resolution parameters are not quotable and "
+                       "anything judged against them is unsafe: refit the "
+                       "resolution on a standard with its certified cell held "
+                       "fixed (lab_calibrate), or hold a loaded instrument "
+                       "profile rather than refining U, V and W on this "
+                       "pattern; do not report the widths or the "
+                       "microstructure derived from them",
+        ))
     for finding in guard.narrow_humps:
         msg = str(finding)
         out.append(Diagnostic(

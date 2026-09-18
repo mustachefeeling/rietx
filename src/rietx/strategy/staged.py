@@ -667,8 +667,9 @@ class GuardFinding:
 
     code: str
     paths: tuple[str, ...]
-    #: the headline number — ρ, block R², a min eigenvalue, the worst σ²(M).
-    #: ``None`` where the finding has no number (a parameter at its bound).
+    #: the headline number — ρ, block R², a min eigenvalue, the worst σ²(M),
+    #: the worst Γ_G².  ``None`` where the finding has no number (a parameter
+    #: at its bound).
     value: float | None
     #: rendered form, identical to the pre-v1.0 list entry
     message: str
@@ -709,6 +710,17 @@ class GuardFinding:
                    f"worst σ²(M) {worst:+.2e} at {hkl})")
 
     @classmethod
+    def nonpositive_resolution(cls, n_bad: int, n_total: int, worst: float,
+                               two_theta: float) -> "GuardFinding":
+        return cls("RESOLUTION_NOT_POSITIVE",
+                   ("instrument.profile.u", "instrument.profile.v",
+                    "instrument.profile.w"),
+                   float(worst),
+                   f"the Caglioti resolution function ({n_bad} of {n_total} "
+                   f"fitted points, worst Γ_G² {worst:+.2e} deg² at "
+                   f"{two_theta:.3f}° 2θ)")
+
+    @classmethod
     def narrow_hump(cls, path: str, fwhm: float, gamma_inst: float,
                                position: float) -> "GuardFinding":
         ratio = fwhm / gamma_inst if gamma_inst > 0.0 else float("inf")
@@ -721,9 +733,11 @@ class GuardFinding:
 class GuardReport:
     """The guards a stage tripped, grouped by kind — see :class:`GuardFinding`.
 
-    The six *finding* field names are unchanged from v0.2; what they hold is
+    The six *finding* field names from v0.2 are unchanged; what they hold is
     findings rather than strings.  ``str(finding)`` is the old entry, so a
     consumer that only ever printed them needs no change.
+    ``nonpositive_resolution`` is the seventh, added by WP-1311, and its
+    writer is :func:`check_resolution_positive`.
 
     ``measured_background_absorption`` is the one field that is **not**
     findings, and it is here rather than beside them so that the number a
@@ -756,6 +770,10 @@ class GuardReport:
     nonpositive_adps: list[GuardFinding] = field(default_factory=list)
     # phases whose Stephens strain coefficients have left the physical cone
     nonpositive_strain: list[GuardFinding] = field(default_factory=list)
+    # the instrument resolution function dipping below zero somewhere in the
+    # fitted range — a variance the forward model then clamps to a floor
+    # (see check_resolution_positive)
+    nonpositive_resolution: list[GuardFinding] = field(default_factory=list)
     # two-way surface-roughness degeneracy (WP-0502): either roughness is not
     # identifiable from this data, or a displacement parameter is now hiding
     # in it.  Same block-R² statistic as background_correlations.
@@ -1009,6 +1027,80 @@ def check_stephens_positive(table, model) -> list[GuardFinding]:
     return out
 
 
+#: relative tolerance below which a Γ_G² counts as *on* zero rather than below
+#: it (WP-1311) — the :data:`STEPHENS_CONE_TOL` situation one seam over, and
+#: resolved the same way.  Zero is inside the physical set: U = V = W = 0 is an
+#: instrument with no Gaussian broadening at all, which is the state every
+#: profile starts from before a resolution stage frees anything.  Relative to
+#: the largest |Γ_G²| over the same fitted range, because the quadratic is
+#: evaluated here and inside ``gaussian_fwhm`` in different association orders
+#: and the two disagree in the last bits.
+RESOLUTION_CONE_TOL = 1e-9
+
+
+def check_resolution_positive(table, model) -> list[GuardFinding]:
+    """The Caglioti resolution function dipping below zero in the fitted range.
+
+    Γ_G² = U·tan²θ + V·tanθ + W is a **variance**, so the physical constraint
+    is on the quadratic as a whole and not on its three coefficients: U, V and
+    W each legitimately go negative on real instruments (Caglioti et al., 1958;
+    a negative V is the usual sign of a focusing geometry), and the schema
+    bounds allow that.  What cannot happen is the sum going negative somewhere
+    a peak is actually being fitted.
+
+    When it does, nothing raises.  ``gaussian_fwhm`` clamps Γ_G² to
+    ``caglioti._MIN_GAMMA_G2`` (≈ (1e-4°)²) to keep its √ real, so the forward
+    model reports a resolution four orders finer than any real goniometer and
+    the fit carries on converging.  ``check_hump_width`` already meets the
+    consequence and abstains rather than endorsing a peak it cannot judge; its
+    docstring says the instrument being unphysical there "is a separate, more
+    fundamental defect and not this guard's to name".  This is the guard that
+    names it.
+
+    Measured on the motivating configuration (WP-1311, from PR #115's review):
+    schema-legal U = 0.05, V = −0.5, W = 0.001 puts the two roots of the
+    quadratic at 0.229° and 168.577° 2θ, so Γ_G² is negative across **every**
+    point of an ordinary scan and Γ_G is reported as the 1e-4° floor
+    throughout — not, as the issue had it, only at the high-angle end.
+
+    Tested over the frozen fitted axis rather than over all θ: a dip outside
+    the measured range is unobservable, and flagging it would be a claim the
+    data cannot support (the ``check_stephens_positive`` convention).  Needs
+    the compiled model for that axis, so it returns ``[]`` without one.
+
+    The **instrument** quadratic alone, with no phase size or strain term, for
+    the reason ``CompiledModel.instrument_fwhm_deg`` gives: the question is
+    about the goniometer, and its answer must not depend on which phase one
+    happens to ask about.  A sample term large enough to lift the total back
+    over zero does not make U, V, W quotable.  Read a firing as "this
+    resolution function is not quotable", never as a verdict on the sample.
+    """
+    import numpy as np
+
+    if model is None:
+        return []
+    tt = np.asarray(model.tt, dtype=np.float64)
+    if tt.size == 0:
+        return []
+    values = {e.path: e.value for e in table.entries}
+    try:
+        u = values["instrument.profile.u"]
+        v = values["instrument.profile.v"]
+        w = values["instrument.profile.w"]
+    except KeyError:  # no TCHZ block in this table (a Voigt-only instrument)
+        return []
+
+    tan = np.tan(np.radians(0.5 * tt))
+    g2 = u * tan * tan + v * tan + w
+    scale = max(float(np.max(np.abs(g2))), 1.0)
+    bad = g2 < -RESOLUTION_CONE_TOL * scale
+    if not bad.any():
+        return []
+    k = int(np.argmin(g2))
+    return [GuardFinding.nonpositive_resolution(
+        int(bad.sum()), int(g2.size), float(g2[k]), float(tt[k]))]
+
+
 #: a free column counts as "on its bound" within this fraction of **the closest
 #: bound's own magnitude**, floored at 1 — scipy's ``rtol`` from
 #: ``optimize._lsq.common.find_active_constraints``, which is the test TRF
@@ -1072,8 +1164,8 @@ def check_guards(table, outcome, threshold: float,
                  background_threshold: float = BACKGROUND_ABSORPTION_GUARD,
                  roughness_threshold: float = ROUGHNESS_ABSORPTION_GUARD,
                  model=None, scan_exchangeability: bool = False) -> GuardReport:
-    """Correlation, bound, background/roughness-absorption, ADP- and
-    strain-shape guards.
+    """Correlation, bound, background/roughness-absorption, ADP-, strain- and
+    resolution-shape guards.
 
     ``scan_exchangeability`` additionally runs the WP-1056 held-parameter
     scan (one extra evaluate-only Jacobian), which only the answer-producing
@@ -1091,6 +1183,7 @@ def check_guards(table, outcome, threshold: float,
     report = GuardReport()
     report.nonpositive_adps = check_adp_positive_definite(table)
     report.nonpositive_strain = check_stephens_positive(table, model)
+    report.nonpositive_resolution = check_resolution_positive(table, model)
     report.narrow_humps = check_hump_width(table, model)
     free = table.free_paths
 

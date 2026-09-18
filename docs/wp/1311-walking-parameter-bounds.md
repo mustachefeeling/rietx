@@ -144,8 +144,9 @@ cannot start until someone says where it lives.
       `BOUND_HIT`; caller's bound outranks.
 - [ ] `BISO_UNUSUALLY_LARGE` flag, sited against whatever the 25 Å² cap
       becomes; low side untouched, PR #206 having landed it.
-- [ ] Resolution-positivity guard (Γ² > 0 in-range, naming the θ), plus the
-      #102 width-implausibility diagnostic beside it.
+- [x] Resolution-positivity guard (Γ² > 0 in-range, naming the θ) —
+      `RESOLUTION_NOT_POSITIVE`, 2026-09-18. The #102 width-implausibility
+      diagnostic beside it is still open.
 - [ ] Flat-direction report: |ρ| at 1.000 within tolerance emitted as its own
       finding, set-consistent with `unmeasured_rows`/esd handling.
 - [ ] Tests per item + skill rows + `help.py`/manual entries + obs/calc/diff
