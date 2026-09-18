@@ -162,8 +162,14 @@ test through a signature change and not through new plumbing.
       nine silent before, none after. On the `make_lab6` sweep both binding
       rows fire at every `ftol`, the early-stopped row stays silent and the
       interior optimum stays silent at every `ftol`. Numbers in the handover.
-- [ ] Check what moves on the acceptance suites. A test that changes which
+- [x] Check what moves on the acceptance suites. A test that changes which
       diagnostics fire is the point; one that changes a *value* is a bug.
+      **Nothing moved.** All fifteen acceptance modules: 150 passed, one
+      failed, and the failure is the NAC termination-view golden carrying the
+      new evidence clause — one line of it, the view's structure untouched.
+      Regenerated as that test's docstring prescribes. No value, cell, esd or
+      Rwp row moved anywhere, and NAC's own `BOUND_HIT` still fires, so it was
+      a bound that carried load rather than a false positive this removed.
 - [x] Tests: the `ftol` sweep as a fixture, a binding bound and an interior
       optimum side by side, and the early-stopped row asserting it does **not**
       become a `BOUND_HIT`. Plus obs/calc/diff PNGs to `tests/output/`.
