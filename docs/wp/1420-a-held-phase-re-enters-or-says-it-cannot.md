@@ -120,6 +120,26 @@ died reading as passed); this one is a pattern that converged to the wrong
 basin reading as right. 1342 is the hold's blind tie, the freeze one rank
 down.
 
+### Inherited
+
+**From WP-1435 (closed 2026-09-18), which put a second hold on the same
+object.** There are now two holds on a `Refinement` and they mean opposite
+things, so name them carefully in anything this WP writes.
+
+- `Refinement._held` is WP-1301's and this WP's subject: the *package's*
+  reading of what one stage's data can see, lifted at the start of the next
+  stage, recorded on `StageResult.held`/`.released`.
+- `Refinement._user_holds` is the *caller's* declaration that a parameter
+  does not move whatever a plan asks, lifted only by `unhold`, carried on
+  `RefinementState.holds` and recorded on `StageResult.blocked_by_hold`.
+  It was deliberately **not** named `_holds`, which would have sat one letter
+  from `_held` in the same method bodies meaning the reverse.
+
+They never overlap today, and the reason is worth keeping true: WP-1301's
+`_hold_unsupported_phases` only holds paths that are *free*, and a
+user-held path is never free. A re-entry mechanism that lifts a hold has to
+respect that split, because lifting a user hold is not this WP's to do.
+
 ## Non-goals
 
 - Per-iteration re-anchoring (1301's stated non-goal).

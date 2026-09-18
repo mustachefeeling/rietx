@@ -1,6 +1,6 @@
 # WP-1435 — a hold the caller declares, which a plan may not quietly override
 
-Milestone: unscheduled · Status: 🔄 2026-09-18 — claimed by @yue-here
+Milestone: v1.5.x · Status: ✅ 2026-09-18 — shipped, `hold`/`unhold` and HOLD_BLOCKED_PLAN
 Depends on: — (WP-1070 is the shape to copy, already shipped)
 
 ## Goal
@@ -179,6 +179,95 @@ The shipping PR carries `Closes #211`.
   GPL: concepts only.
 
 ## Handover log
+
+- **2026-09-18** — **closed.** You can now tell a refinement that a parameter
+  must not move and have it mean something. Before this, marking a parameter
+  fixed was a suggestion that any plan overrode in silence. The plan freed it,
+  refined it, and left the model you handed in still saying the parameter was
+  fixed, so the model and the result contradicted each other and nothing
+  reported it. That is the failure mode of calibrating against a certified
+  standard, where holding the certificate's cell is the entire reason the
+  calibration decorrelates. The cost is one verb to learn and one diagnostic
+  to read. What it rules out is the thing the issue originally asked for: no
+  diagnostic keyed on the `vary` flag can do this job, because that flag is a
+  default rather than a decision on 38 of 46 parameters.
+
+  **Done.** `Refinement.hold`/`unhold` on WP-1070's model, with
+  `_user_holds` the one authority and `set_hold` history nodes.
+  Enforcement is `Entry.held`, read by `ParameterTable.set_vary` beside
+  `locked` — in the table rather than at the call sites, which is what makes
+  a stage's `turn_on` honour it. `RefinementState.holds` carries the register
+  through a checkout, a branch and a `.rex` reopen.
+  `ParameterRow.held`/`held_because` is the fifth held-reason (the WP said
+  fourth; `needs_held_cell` has been the fourth since WP-1134).
+  `StageResult.blocked_by_hold` plus `HOLD_BLOCKED_PLAN` say which
+  declaration won. Reached the GUI (a pin glyph), the `.rxt` document (a
+  `held` annotation), the manual (`concepts.md` § holding-a-parameter, plus
+  `model.md`, `history.md`, `series.md`, `constraints.md`), and the skill
+  (`surprises.md` 8.25, the `HOLD_BLOCKED_PLAN` row). `SCHEMA_VERSION`
+  0.23 → 0.24.
+
+  **Measured** (`[dev]` only, no jax/torch, macOS arm64, machine otherwise
+  idle). The premise re-verified on arrival at `78cf0945`, then the fix, on
+  11-BM SRM 660a over 2-30° 2θ under `mccusker_default`, cell declared at the
+  SRM certificate's 4.1569162 Å:
+
+  | | cell `a` | from certificate | zero shift | Rwp |
+  |---|---|---|---|---|
+  | pinned `vary=False` | 4.156826 | −21.7 ppm | −0.000226 | 0.089875 |
+  | held | 4.1569162 | exact | +0.000070 | 0.096942 |
+
+  **The pinned fit has the better Rwp.** That is why this was invisible for
+  as long as it was, and it is the reason an Rwp comparison could never have
+  been this change's evidence (root CLAUDE.md's rule, from the other side).
+  The zero shift is the rest of the story: freed, the cell takes 296 µ° of
+  zero with it, which is exactly the decorrelation `lab_calibrate` exists to
+  buy. The 41-of-42 count from 1310 re-measures as 38 of 46 under an 8-term
+  Chebyshev background; the plans free 16-20 paths of which 8-12 are already
+  declared fixed, so the discriminator argument holds under both
+  measurements. Fast suite 5401 passed / 134 skipped, full suite 5580 / 143
+  in 23:05, both on the final tree, run alone. +18 tests exactly, and
+  passed+skipped moved by 18 in the fast selection with no new skip.
+
+  **Gotchas, and four of them were not the hold.** Adding a refusal to
+  `set_vary` broke three callers that had been written when it could not
+  refuse, and each failed differently. `optimize/identifiability.py` asked
+  for its requested candidates back rather than the ones `set_vary` took, so
+  the first declined row was an `IndexError`; the durable fix is to read the
+  **return**, which also covers the free-cell wavelength rule that could
+  already decline one. The GUI's `PATCH /api/params` ran its vary loop
+  unguarded, where `set_values` beside it was wrapped, so the first refusal
+  would have been a 500. `textdoc._FLAG_WORDS` did not know the word, so the
+  `.rxt` rendered `held` and its own parser dropped the row — the module's
+  docstring warns about exactly that class and its round-trip test missed it,
+  because no fixture declares a hold. And
+  `test_the_client_draws_a_mark_for_every_reason_a_row_can_be_held` promised
+  in its name to check the client and only checked Python: the tripwire
+  tripped, and had the author stopped at updating the expected set, the GUI
+  would have shipped blind. It now reads `lib/table.ts`.
+
+  Two absences stated rather than fixed. A joint fit reaches no user
+  declaration at all — `MultiHistogramRefinement` has no `_ties`,
+  `_variables` or `_user_holds` — which is pre-existing and true of WP-1070's
+  ties as much as of this, so it is recorded here and not quietly widened. A
+  hold on a path an `edit` removed is **kept** and warned about, the opposite
+  of a tie, which is dropped: a tie describes and can go stale, a hold
+  forbids and cannot.
+
+  Two caps moved, each in the commit that needed it and each with its reason
+  in the table. `REFERENCE_MAX_BYTES` 36 000 → 36 600: `diagnostics.md` had
+  9 bytes of headroom and every engine code owes it a row, so the two tests
+  were in tension. Its comment says the next addition splits the file rather
+  than moving this again. Root `CLAUDE.md` 938 → 954 for the rule itself.
+  `gui/CLAUDE.md` is line-neutral instead, its four lines over being
+  narrative this entry owes.
+
+  **Next.** Nothing here. The forward work is filed: WP-1414 (a `turn_on`
+  that reached nothing) inherits the channel, the per-fit deduplication and
+  the reason a `vary`-keyed report cannot be built; WP-1420 (a held phase
+  re-enters) inherits the `_held` / `_user_holds` split by name. The
+  joint-fit absence above is nobody's WP yet and is worth one if user
+  constraints are ever wanted there.
 
 - **2026-09-16** — created by WP-1310's session, which reproduced issue #211
   and measured its proposed fix into a dead end. The issue asks for a
