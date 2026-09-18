@@ -728,7 +728,16 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   `phases.i.atoms.j.dof.k` (one per allowed direction from `crystallography/wyckoff.py`) and
   affine-ties x/y/z to them; free them with the `phases.*.atoms.*.dof.*` glob (the
   `mccusker_structural` plan does). Fully fixed special positions get locked coords — `vary=True`
-  there raises.
+  there raises. **A coordinate DOF is *relative*, so the invariant is that a rebuild reproduces
+  the coordinate** (WP-1432, #293): the row is x = x_stored + Σ Bₖθₖ with the DOF rederived to
+  zero, so a tie onto one from a source that does not reset — a named variable, re-declared from
+  its register — anchored on a coordinate that had already absorbed the displacement and added it
+  again, once per table build, silently (0.2093 → 0.2493 over four writes while `vars.A` read
+  0.01 throughout). `ParameterTable.rebase_anchored_dofs` takes that contribution back out of the
+  anchor, and **which entries are anchored is data built where the anchor is**, never a name read
+  at a call site — ADP and Stephens DOFs spell their paths the same way and are absolute. The tie
+  register has two consumers, `Refinement._apply_ties` and `replay` (which carried the defect
+  alone for a build off the node's own structure), so **a third consumer of `_ties` calls it too**.
 - **Anisotropic ADPs are opt-in per atom** (`Atom.aniso`, CIF U^ij in Å²), refining the same way:
   `phases.i.atoms.j.adp.k` patterns from `wyckoff.adp_basis`, freed by the
   `phases.*.atoms.*.adp.*` glob every displacement stage carries alongside `…biso`. Unlike
