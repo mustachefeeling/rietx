@@ -24,7 +24,10 @@ from rietx.params.vector import ParameterTable
 from rietx.schemas.instrument import Instrument
 from rietx.schemas.pattern import PatternData
 from rietx.strategy.staged import (
+    LINDEMANN_RHO,
     RESOLUTION_CONE_TOL,
+    biso_melting_bound,
+    check_biso_plausible,
     check_hump_width,
     check_resolution_positive,
 )
@@ -195,3 +198,100 @@ def test_the_finding_reaches_the_diagnostics_with_its_three_paths():
                               "instrument.profile.w"]
     assert diags[0].value == pytest.approx(
         report.nonpositive_resolution[0].value)
+
+
+# ----------------------------------------------------------------------
+# item 2 — a large B is evidence about the model, so it is flagged not capped
+# ----------------------------------------------------------------------
+def test_the_bound_is_the_papers_arithmetic():
+    """B_melt = 8π²ρ²(√2·v)^(2/3), Gilvarry (1956) eqs (1), (8) and (9).
+
+    Written out here independently of the implementation, because the whole
+    value of a quoted threshold is that it is the source's number and not a
+    number that happens to look like it.
+    """
+    volume, n_atoms = 255.0, 30          # corundum, 8.50 Å³ per atom
+    v = volume / n_atoms
+    expected = 8.0 * np.pi ** 2 * LINDEMANN_RHO ** 2 * (np.sqrt(2.0) * v) ** (2 / 3)
+
+    assert biso_melting_bound(volume, n_atoms) == pytest.approx(expected)
+    assert biso_melting_bound(volume, n_atoms) == pytest.approx(4.57, abs=0.01)
+
+
+def test_the_bound_moves_with_packing_so_no_constant_would_do():
+    """A fixed threshold would be wrong at one end of the ordinary range.
+
+    Over 8.5–22.4 Å³ per atom — corundum to NaCl, both perfectly ordinary —
+    the bound moves by nearly a factor of two, which is why the guard computes
+    it per phase instead of declaring a number.
+    """
+    corundum = biso_melting_bound(255.0, 30)
+    nacl = biso_melting_bound(5.6402 ** 3, 8)
+    assert corundum == pytest.approx(4.57, abs=0.01)
+    assert nacl == pytest.approx(8.72, abs=0.01)
+    assert nacl / corundum > 1.8
+
+
+def test_a_degenerate_cell_gets_no_opinion():
+    """No volume, no length scale, no claim — never a finding by accident."""
+    assert biso_melting_bound(0.0, 5) == float("inf")
+    assert biso_melting_bound(100.0, 0) == float("inf")
+
+
+def test_an_ordinary_biso_is_silent_and_a_molten_one_is_reported():
+    table, model = _state()
+    bound = biso_melting_bound(4.1566 ** 3, 7)
+
+    # the fixture's own starting B, an ordinary 0.5 Å²
+    assert check_biso_plausible(table, model) == []
+
+    path = "phases.0.atoms.0.biso"
+    table.entries[table._paths[path]].value = 1.5 * bound
+    findings = check_biso_plausible(table, model)
+    assert [f.code for f in findings] == ["BISO_UNUSUALLY_LARGE"]
+    assert findings[0].paths == (path,)
+    assert findings[0].value == pytest.approx(1.5 * bound)
+    assert "1.5× the" in str(findings[0])
+    assert "Lindemann" in str(findings[0])
+
+
+def test_the_25_a2_schema_ceiling_is_far_above_melting():
+    """Why this guard exists at all, stated as a test.
+
+    ``Atom.biso`` caps at 25 Å², and on every ordinary structure that ceiling
+    is several times the bound below which the solid is still a solid. The cap
+    therefore bounds nothing physical, and removing the guard would leave the
+    whole 5–25 Å² range unremarked.
+    """
+    from rietx.schemas.common import Parameter
+    from rietx.schemas.structure import Atom
+
+    zero = Parameter(value=0.0)
+    ceiling = Atom(label="X", species="Si", x=zero, y=zero, z=zero).biso.max
+    assert ceiling == 25.0
+    for volume, n_atoms in ((255.0, 30), (4.1566 ** 3, 7), (5.6402 ** 3, 8)):
+        assert biso_melting_bound(volume, n_atoms) < 0.4 * ceiling
+
+
+def test_the_biso_guard_is_silent_without_a_model():
+    """The ``check_stephens_positive`` convention, again: no model, no claim."""
+    table, _model = _state()
+    table.entries[table._paths["phases.0.atoms.0.biso"]].value = 50.0
+    assert check_biso_plausible(table, None) == []
+
+
+def test_the_biso_finding_reaches_the_diagnostics():
+    from rietx.refine import _guard_diagnostics
+    from rietx.strategy.staged import GuardReport
+
+    table, model = _state()
+    table.entries[table._paths["phases.0.atoms.0.biso"]].value = 50.0
+    report = GuardReport()
+    report.large_biso = check_biso_plausible(table, model)
+
+    diags = [d for d in _guard_diagnostics(report)
+             if d.code == "BISO_UNUSUALLY_LARGE"]
+    assert len(diags) == 1
+    assert diags[0].level == "warning"
+    assert diags[0].where == ["phases.0.atoms.0.biso"]
+    assert diags[0].value == pytest.approx(50.0)

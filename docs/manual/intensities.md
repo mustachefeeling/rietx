@@ -144,6 +144,50 @@ T_{jm}(\mathbf{h}) \;=\;
 
 {source}`rietx.crystallography.structure_factor`
 
+(sec-biso-melting-bound)=
+### How large a $B$ can be
+
+$B$ has no upper bound in the least-squares problem, and a wrong model drives
+it up rather than down: a spurious atom's displacement parameter "will rise to
+a very large value, indicating that it should be removed from the model"
+{cite}`watkin2008`. So the magnitude is evidence, and the round robin asks for
+it to be reported rather than clamped {cite}`madsen2001`.
+
+The scale it is judged against comes from melting. Reformulating Lindemann's
+criterion on the Debye-Waller theory, a solid melts when the root-mean-square
+vibration amplitude reaches a critical fraction $\\rho$ of the nearest-neighbour
+distance $r$, so $\\langle u^2\\rangle = \\rho^2 r^2$ at fusion
+{cite}`gilvarry1956`. That paper's $\\langle u^2\\rangle$ is the amplitude normal
+to the reflecting plane, which is $U_{\\mathrm{iso}}$ exactly, so no convention
+is converted here. Taking $r$ from the volume $v$ per atom by
+$v = r^3/\\sqrt{2}$:
+
+```{math}
+:label: int-biso-melt
+
+B_{\\mathrm{melt}} \\;=\\; 8\\pi^2 \\rho^2 \\bigl(\\sqrt{2}\\,v\\bigr)^{2/3}
+\\qquad [\\text{\\AA}^2]
+```
+
+{source}`rietx.strategy.staged.biso_melting_bound`
+
+The volume relation is stated for close-packed lattices, with that paper's own
+licence to use it more widely: the variation of $v/r^3$ from the close-packed
+value for other lattice types is "too small to consider here".
+
+$\\rho$ is taken as the loosest of the four ratios that paper quotes, so a
+report is past every criterion in it rather than past one reading. On ordinary
+inorganic solids the bound is then a few Å²: corundum 4.6, LaB₆ 5.2,
+fluorapatite 5.9, Si 8.1, NaCl 8.7, across 8.5–22.4 Å³ per atom.
+
+It is a guard and never a bound, for a reason the source states itself. The
+theory is restricted to isotropic monatomic solids and "is not directly
+applicable to elements with complex lattices", where $\\rho$ may depend on
+lattice type. A cap resting on that extrapolation would refuse fits the source
+cannot speak about. A genuinely mobile site can also sit above the bound
+honestly, a cavity cation or a superionic sublattice being the usual cases. A
+fit past it reports `BISO_UNUSUALLY_LARGE`.
+
 Three representations of the same tensor appear in the literature, named
 explicitly here so that "U" cannot mean whichever one the reader had in mind.
 The IUCr nomenclature report {cite}`trueblood1996` is the authority for the

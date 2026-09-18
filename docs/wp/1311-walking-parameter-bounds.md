@@ -142,8 +142,9 @@ cannot start until someone says where it lives.
 - [ ] Displacement bound scaled by `goniometer_radius_mm` where the instrument
       declares one, with the flat fallback where it does not, through
       `BOUND_HIT`; caller's bound outranks.
-- [ ] `BISO_UNUSUALLY_LARGE` flag, sited against whatever the 25 Å² cap
-      becomes; low side untouched, PR #206 having landed it.
+- [x] `BISO_UNUSUALLY_LARGE` flag, 2026-09-18 — threshold computed per phase
+      from Gilvarry (1956), not a constant; the 25 Å² cap kept and documented
+      as the package's own; low side untouched, PR #206 having landed it.
 - [x] Resolution-positivity guard (Γ² > 0 in-range, naming the θ) —
       `RESOLUTION_NOT_POSITIVE`, 2026-09-18. The #102 width-implausibility
       diagnostic beside it is still open.

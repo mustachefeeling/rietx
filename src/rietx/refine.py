@@ -2757,6 +2757,22 @@ def _guard_diagnostics(guard) -> list[Diagnostic]:
                        "higher-symmetry Laue class has fewer), or extend the "
                        "fit range; do not report the S_HKL as measured",
         ))
+    for finding in guard.large_biso:
+        msg = str(finding)
+        out.append(Diagnostic(
+            level="warning", code="BISO_UNUSUALLY_LARGE",
+            where=list(finding.paths), value=finding.value,
+            message=f"{msg} — at that amplitude an atom in a cell this "
+                    "dense would have melted, so the number is evidence "
+                    "about the model rather than a displacement",
+            suggestion="a large B is what a wrong model does: check the "
+                       "species and occupancy on that site, the absorption "
+                       "correction and the background flexibility before "
+                       "reading it as motion. If the site is genuinely "
+                       "mobile (a cavity cation, a superionic sublattice) "
+                       "the number may be real, and saying so is part of "
+                       "quoting it",
+        ))
     for finding in guard.nonpositive_resolution:
         msg = str(finding)
         out.append(Diagnostic(
