@@ -164,14 +164,22 @@ test through a signature change and not through new plumbing.
       interior optimum stays silent at every `ftol`. Numbers in the handover.
 - [ ] Check what moves on the acceptance suites. A test that changes which
       diagnostics fire is the point; one that changes a *value* is a bug.
-- [ ] Tests: the `ftol` sweep as a fixture, a binding bound and an interior
+- [x] Tests: the `ftol` sweep as a fixture, a binding bound and an interior
       optimum side by side, and the early-stopped row asserting it does **not**
       become a `BOUND_HIT`. Plus obs/calc/diff PNGs to `tests/output/`.
-- [ ] Skill: the `BOUND_HIT` row in the diagnostics table says what the flag
+      Thirteen rows in `test_bound_hit_at_convergence.py`, two of them unit
+      rows on `bound_findings` that need no fit. The early-stopped row asserts
+      the **angle** as well as the silence, because a row that passed for the
+      wrong reason would look identical.
+- [x] Skill: the `BOUND_HIT` row in the diagnostics table says what the flag
       now means and what its evidence fields carry. It currently tells an
       agent to widen the bound or fix the parameter, which stays right, but
       the reading "this bound carried load" is new and is the part an agent
-      acts on.
+      acts on. Landed, including the *silence*: a parameter near a limit with
+      no row is one the limit is not holding, so widening it buys nothing.
+      **`diagnostics.md` now sits 9 bytes under its 36 000-byte cap**, and it
+      had 615 bytes of headroom before this row. The next session adding a
+      code here pays for it with a cut or splits the file.
 
 ## Acceptance
 
