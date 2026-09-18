@@ -1,6 +1,6 @@
 # WP-1435 — a hold the caller declares, which a plan may not quietly override
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-09-18 — claimed by @yue-here
 Depends on: — (WP-1070 is the shape to copy, already shipped)
 
 ## Goal
