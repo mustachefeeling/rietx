@@ -330,7 +330,19 @@ SIZE_CAPS: dict[str, int | None] = {
     # halves look arbitrary until the reason is written down.  Raised rather
     # than shaved, per the failure message's own instruction.  Landed at 913;
     # the headroom is +1.
-    "CLAUDE.md": 914,
+    # 914 -> 923 (WP-1441): one standing rule about the pattern boundary, for
+    # the shape issue #376 turned out to be.  `RefinementState` names eight
+    # facts and the chain had a channel for six; the two it had none for are
+    # the two that live on the `Refinement` rather than in the models, and
+    # neither failed a test, because an absent channel raises nothing.  The
+    # clause governs the ninth fact rather than recording the two: it says
+    # where to look (not in the models → no channel), and it says why the two
+    # halves are spelled differently, which is the part a reader cannot
+    # re-derive — a tie is a verb call against a live table, so it is
+    # re-declared per pattern, while a variable's value is a number and is
+    # carried.  The measurements (the iteration counts, the Rwp the plan
+    # reaches) stayed in the WP file.
+    "CLAUDE.md": 923,
     # 672 -> 676 (WP-1102): the Current focus rewrite at 1102's close names the
     # milestone's one break and what makes 1103 the seam's proving case.
     # 676 -> 682 (WP-1407): a new Unscheduled group, "The formats a lab still
@@ -378,7 +390,17 @@ SIZE_CAPS: dict[str, int | None] = {
     # narrative this branch added is paid for in § Unscheduled, where the
     # prose describing the departed rows was cut to match.  Landed 745, +3
     # headroom for what the notes audit may still have to cut.
-    "docs/ROADMAP.md": 748,
+    # 748 -> 762 (WP-1441): § v1.5.x, the road for work landing while no
+    # milestone is open.  One `###`, a five-line blurb, a table header and one
+    # row, against the diary's standing rule that a cap grows with the row
+    # count: the row moved out of § Unscheduled, so the growth is the section
+    # itself.  It is structure that outlives this WP — every WP landing before
+    # v1.6 opens files here — and the blurb is the part that cannot be demoted,
+    # since it says where the notes are staged and what the 1.0.x road's ending
+    # was.  Paid for in Current focus, where v1.5's summary was cut to the
+    # record that already carries it (496 commits, the cost of opening late).
+    # Landed 760, +2 headroom.
+    "docs/ROADMAP.md": 762,
     # 1036 -> 1053 (WP-1429): where the GUI's colour values live, now that
     # they are Python and this workspace's `tokens.css` is generated from
     # them. It governs work outside the WP that measured it — an edit to a

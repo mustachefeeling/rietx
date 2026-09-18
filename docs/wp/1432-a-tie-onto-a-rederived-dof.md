@@ -89,6 +89,30 @@ A third option, making coordinate DOFs absolute like ADP and Stephens ones, is
 out of scope here: it changes what `set_values` on a DOF means for every caller
 and what the manual documents, for a defect that lives in the tie path.
 
+### Inherited
+
+**From WP-1441 (2026-09-18), issue #376.** A series can now declare ties, and
+that adds a caller to both seams this WP names.
+
+`SequentialRefinement.fit` takes a `constrain=(index, ref)` hook, called on each
+pattern's fresh `Refinement` before its fit, and it is now the documented place
+to declare a tie across a chain. Two consequences here. The chain itself is
+*clear* of this defect by construction — one declaration per pattern against a
+table built moments earlier, with no write-through verb between the tie and the
+solve — so a fix here must not assume a tie has been re-applied at least once.
+And a caller's hook may legitimately `set_values` after tying, which is 1432's
+trigger with the series' own multiplier on it: a 68-pattern ramp applies it 68
+times rather than once.
+
+`sequential._carry_variables` is a **new `set_values` caller**, on a
+`Refinement` whose history tree does not exist yet. It writes a carried
+variable's value after the hook has declared the variable and its ties, so it
+runs the `refresh_ties` / `_write_back` path this WP is repairing, on exactly
+the variable-drives-a-tie shape 1432 measured. Whatever the fix does to that
+path, `tests/test_sequential.py::test_a_named_variable_warm_starts_under_the_carry_globs`
+is a second fixture over it, and it asserts on the value a fit *starts* from
+rather than the one it ends at.
+
 ## Non-goals
 
 - Distortion-mode amplitudes. WP-1419 consumes this fix and does not contain it;

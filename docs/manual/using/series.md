@@ -109,6 +109,7 @@ recorded instead as annotation notes on each tree's root node. The default is
 | `reseed`, `reseed_factor` | the fence that rejects a bad warm start, and how far above the median Rwp it fires |
 | `first_rung_factor` | how much the first rung may spend before the ladder gives up on it, as a multiple of the most expensive first rung this chain has converged. `None` removes the bound |
 | `prepare` | `(index, data, structure, instrument) -> None`, called on the warmed models before each fit |
+| `constrain` | `(index, ref) -> None`, called on each pattern's `Refinement` before its fit, where a tie or a named variable is declared |
 | `on_result` | `(index, result) -> None`, called with each pattern's full result as it finishes |
 | `events`, `cancel` | as on `Refinement.fit`, per pattern |
 
@@ -137,6 +138,38 @@ re-estimated from this pattern rather than either carried or left at its initial
 value. Excluding the phase scales from `carry` on that round-robin series would
 only fall back to the first mixture's guess, which is not the same thing as
 estimating them afresh.
+
+### Declaring a constraint on every pattern
+
+A tie and a named variable ([](constraints.md)) live on the `Refinement` and in
+no model, so no `carry` glob reaches them and `prepare` runs before that
+`Refinement` exists. `constrain` is where they go:
+
+<!-- api-doc: no-exec — runs the chain above -->
+```python
+def constrain(index, ref):
+    ref.add_variable("B_site", 0.5, min=0.0, max=5.0)
+    ref.tie_equal(["phases.0.atoms.0.biso", "phases.0.atoms.1.biso"],
+                  source="vars.B_site")
+
+result = series.fit(patterns, constrain=constrain)
+```
+
+Each pattern has its own parameter table, and `tie_equal` resolves its globs
+against the live one. Re-declaring per pattern is what makes the constraint
+mean the same thing on all of them. The hook therefore runs once per *fit*, and
+a pattern can be fitted several times: every rung of the escalation ladder gets
+it, and so does the cold refit `verify_discontinuities` performs. A raise inside
+it ends the series, as a raise in `prepare` does.
+
+`vars.B_site` is an ordinary dot-path, so `carry` governs it like any other
+parameter, and the variable warm-starts from the last accepted pattern. On a
+seven-pattern synthetic whose tied `biso` walks from 0.4 to 3.4 Å² that saves
+about 5 % of the chain's iterations, 176 against 186, and moves no fitted value
+beyond the fourth decimal. Keep it for the declaration: a caller who writes
+`carry=["phases.*.cell.*", "vars.*"]` gets what that glob says, and only the
+chain knows which pattern was *accepted*, so a quarantined one seeds no
+successor here either.
 
 ## What comes back
 
