@@ -427,6 +427,22 @@ def test_a_quarantined_pattern_seeds_no_variable_either(thermal_patterns):
     assert started == [(0, 0.4), (1, p000), (1, p000), (1, 0.4), (2, p000)]
 
 
+def test_symmetry_outranks_a_constrain_tie_on_every_pattern(thermal_patterns):
+    """Issue #376's open question: a user tie naming a symmetry-tied path.
+
+    The hook runs against the pattern's *own* table, and every table rederives
+    the symmetry ties from the space group, so the refusal is the one a single
+    ``Refinement`` gives and it happens before the first fit. There is no
+    pattern on which the same declaration would quietly take.
+    """
+    def tie_onto_symmetry(index, ref):
+        ref.tie("phases.0.cell.b", "phases.0.cell.c")   # cubic: b already ← a
+
+    with pytest.raises(ValueError, match="symmetry outranks a user tie"):
+        refine_sequential(thermal_patterns[:2], *_start_models(),
+                          plan=_CHEAP, constrain=tie_onto_symmetry)
+
+
 def test_a_raise_in_constrain_is_the_callers_error(thermal_patterns):
     """The hook is the caller's code and runs outside every guard.
 

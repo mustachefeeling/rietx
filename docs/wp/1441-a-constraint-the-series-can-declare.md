@@ -78,6 +78,16 @@ table is not re-applied by a later write-through.
   copies `_ties` from pattern n−1 to pattern n, and the issue's "direction 1" (a
   `ties=` constructor argument) is not taken.
 - `multi.py`'s joint residual, which has its own table and is not a chain.
+  `MultiHistogramRefinement` declares no tie verbs at all; what a joint fit shares
+  is `sharing=`, a different mechanism rather than a second instance of this gap.
+
+**The issue's open question, answered.** "Whether a symmetry tie would interact
+with a hypothetical user-tie mechanism": it does not, and the refusal is the
+single-`Refinement` one. Every `ParameterTable` rederives the symmetry ties from
+the space group before the hook sees it, so `ref.tie("phases.0.cell.b", ...)` on
+cubic LaB6 raises `'phases.0.cell.b' already follows 'phases.0.cell.a'
+(symmetry); symmetry outranks a user tie` on the first pattern, before any fit.
+No pattern exists on which the same declaration would quietly take.
 
 ## Tasks
 
