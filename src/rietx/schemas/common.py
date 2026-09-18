@@ -201,7 +201,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 #: empty where there is nothing to say, which is the case for the reserved
 #: declared-peaks key: a peak given by centre has no Miller index, and ``[]``
 #: there would claim it had none of its own.
-#: 0.22 → 0.23 (WP-1440): ``SeriesResult.failures``
+#: 0.22 → 0.23 (issue #375): ``SeriesResult.failures``
 #: (``list[SeriesFailure]``) and ``.n_failed`` — a pattern
 #: ``SequentialRefinement.fit``'s new ``on_error`` policy caught rather than
 #: letting crash the whole chain.  Additive and defaulted to ``[]``/``0``, the
