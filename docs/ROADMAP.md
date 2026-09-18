@@ -112,7 +112,7 @@ refuses, [1433](wp/1433-the-inp-grammar-still-refused.md), and 1310's
 their WinXPOW ASCII export, and a blank for a `rietx compare` standard.
 
 **Queued, unscheduled** ([§ Unscheduled](#unscheduled)): the 2026-09-01
-triage's 1311-1322 plus 1323 and 1325; the 2026-09-03 triage's 1332-1341; the
+triage's 1312-1322 plus 1323 and 1325; the 2026-09-03 triage's 1332-1341; the
 older 1133; the **2026-09-15 triage**'s 1414-1421, less the two now in v1.6.
 
 **Parked, blocking nothing:** the 1.0.0-notes promises (`.rex` zip transport,
@@ -528,6 +528,7 @@ the next minor if one opens first.
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
+| [1311](wp/1311-walking-parameter-bounds.md) | Bounds and flags for the remaining walking parameters | ✅ 2026-09-18 | — |
 | [1441](wp/1441-a-constraint-the-series-can-declare.md) | A constraint the series can declare | ✅ 2026-09-18 | — (1070, 1119 are the halves) |
 
 ### v1.6 — the magnetic structure
@@ -628,7 +629,6 @@ and the hold (1435) carry on.
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
-| [1311](wp/1311-walking-parameter-bounds.md) | Bounds and flags for the remaining walking parameters | ⬜ | — (1310 soft) |
 | [1320](wp/1320-qpa-multimodal-fraction.md) | A phase fraction the pattern cannot fix | ⬜ | — (1310 soft) |
 | [1321](wp/1321-persisted-bounds-repair.md) | The bounds a Parameter field declared: repair and audit | ⬜ | — (PR #206 first) |
 | [1323](wp/1323-lebail-stop-rule.md) | The Le Bail alternation has a stop rule, and a scope | ⬜ | — |

@@ -2100,6 +2100,17 @@ class Refinement:
         against a truth of 4.15660, and the warning survived.  It cost two
         rounds of misdirected analysis on a real capillary fit.
 
+        ``RESOLUTION_NOT_POSITIVE``, ``BISO_UNUSUALLY_LARGE`` and
+        ``RESOLUTION_UNCONSTRAINED`` (WP-1311) are re-taken the same way.  Each
+        reads one number off the values its stage landed on, so all three make
+        the same kind of claim a bound hit does (``_REVISABLE_CODES`` carries
+        the extra clause the third one needs, its free set being cumulative).  A
+        plan whose later stages repair the resolution otherwise reports an
+        earlier stage's collapse on an answer that is physical: measured on
+        ``make_lab6`` from a schema-legal U, V, W with the quadratic negative
+        across the scan, the five-stage ``mccusker_default`` converges at
+        min Γ_G² = +0.084 deg² and carried four copies of the warning.
+
         The final guard is therefore the only one that speaks here, which is
         also what makes WP-1076's set-equality true rather than nearly true:
         ``RefinedParameter.at_bound`` has always been projected from
@@ -2112,7 +2123,8 @@ class Refinement:
         """
         model = outcome = guard = None
         ftols = plan.stage_ftols()
-        correlation_hits: dict[frozenset, list[tuple[str, Diagnostic]]] = {}
+        correlation_hits: dict[tuple[str, frozenset],
+                              list[tuple[str, Diagnostic]]] = {}
         for k, (stage, ftol) in enumerate(zip(plan.stages, ftols, strict=True),
                                           start=1):
             with self._abandon_on_cancel(cancel, stage.name, stage_results, stream):
@@ -2122,10 +2134,12 @@ class Refinement:
                     stage_index=k, n_stages=len(plan.stages), ftol=ftol)
             stage_diagnostics = _guard_diagnostics(guard)
             for d in stage_diagnostics:
-                if d.code == "HIGH_CORRELATION":
-                    correlation_hits.setdefault(frozenset(d.where), []).append(
-                        (stage.name, d))
-                elif d.code == "BOUND_HIT":
+                if d.code in ("HIGH_CORRELATION", "FLAT_DIRECTION"):
+                    # keyed by code *and* pair: a flat pair fires both, and a
+                    # key of the pair alone would let one evict the other
+                    correlation_hits.setdefault(
+                        (d.code, frozenset(d.where)), []).append((stage.name, d))
+                elif d.code in _REVISABLE_CODES:
                     continue          # re-taken on the converged vector below
                 else:
                     diagnostics.append(d)
@@ -2157,11 +2171,11 @@ class Refinement:
                     # schedule), because a cherry-pick re-runs what happened
                     ftol=ftol, window_slack_deg=stage.window_slack_deg,
                 ), model, table, outcome, stage_diagnostics)
-        # the converged vector's own bound findings, and nothing earlier: the
-        # same ``guard`` object ``_build_result`` projects ``at_bound`` from
+        # the converged vector's own findings, and nothing earlier: the same
+        # ``guard`` object ``_build_result`` projects ``at_bound`` from
         if guard is not None:
             diagnostics.extend(d for d in _guard_diagnostics(guard)
-                               if d.code == "BOUND_HIT")
+                               if d.code in _REVISABLE_CODES)
         diagnostics.extend(_dedup_high_correlations(correlation_hits))
         return model, outcome, guard, stage_results, diagnostics
 
@@ -2702,6 +2716,26 @@ class Refinement:
 # ----------------------------------------------------------------------
 # module-level helpers
 # ----------------------------------------------------------------------
+#: Guard codes that are **discarded per stage and re-taken on the converged
+#: vector** rather than accumulated (WP-1310 for the first, WP-1311 for the
+#: other three).  Each reads a number straight off the values a stage landed
+#: on, so it describes a *vector* and not a run: a plan exists to let an early
+#: stage absorb an error a later one corrects, and an intermediate state's
+#: finding on the final result is a claim about a fit that no longer holds.
+#: Every stage's own copy stays on its ``StageReport`` and its history node.
+#:
+#: ``RESOLUTION_UNCONSTRAINED`` belongs here on a second fact and not only on
+#: that one: it also reads *which* terms the stage freed, and staging is
+#: **cumulative** (``Refinement`` § stages), so a plan that frees U, V, W once
+#: still has them free at the last stage and the final guard re-takes the
+#: finding.  A plan that turned them back off would drop it, which is the
+#: intended reading — held at instrumental values is the remedy the paper
+#: prescribes, not the fault.
+_REVISABLE_CODES = ("BOUND_HIT", "RESOLUTION_NOT_POSITIVE",
+                    "RESOLUTION_UNCONSTRAINED",
+                    "BISO_UNUSUALLY_LARGE")
+
+
 def _guard_diagnostics(guard) -> list[Diagnostic]:
     """Guard findings as diagnostics — one prose message per :class:`GuardFinding`.
 
@@ -2756,6 +2790,73 @@ def _guard_diagnostics(guard) -> list[Diagnostic]:
                        "(StephensStrain.isotropic), refine fewer patterns (a "
                        "higher-symmetry Laue class has fewer), or extend the "
                        "fit range; do not report the S_HKL as measured",
+        ))
+    for finding in guard.unsupported_resolution:
+        msg = str(finding)
+        out.append(Diagnostic(
+            level="warning", code="RESOLUTION_UNCONSTRAINED",
+            where=list(finding.paths), value=finding.value,
+            message=f"{msg} — on a pattern of this character the Gaussian "
+                    "resolution terms are not determined by the data, so what "
+                    "they converged to is a fitted artefact rather than a "
+                    "measurement of the instrument",
+            suggestion="measure the instrument instead of refining it here: "
+                       "lab_calibrate on a standard with its certified cell "
+                       "held fixed, save_instrument_profile, then "
+                       "load_instrument_profile before this fit, which holds "
+                       "U, V and W at the instrumental values. Do not quote "
+                       "the widths, and treat any crystallite size or strain "
+                       "read off this profile as unmeasured",
+        ))
+    for finding in guard.flat_directions:
+        msg = str(finding)
+        out.append(Diagnostic(
+            level="warning", code="FLAT_DIRECTION",
+            where=list(finding.paths), value=finding.value,
+            message=f"{msg} — at this |ρ| the pair is a statement about the "
+                    "rank of the data rather than a strong correlation: one "
+                    "direction of the two is not measured at all, and each "
+                    "esd is conditional on the other parameter being right",
+            suggestion="quote neither as measured from this fit — one is "
+                       "as unmeasured as the other and the report cannot say "
+                       "which. Fix one at an independently known "
+                       "value and refine the other, or free them in "
+                       "different stages, and say in the result which one was "
+                       "held. Widening the fitted range or adding a second "
+                       "histogram is what actually separates them",
+        ))
+    for finding in guard.large_biso:
+        msg = str(finding)
+        out.append(Diagnostic(
+            level="warning", code="BISO_UNUSUALLY_LARGE",
+            where=list(finding.paths), value=finding.value,
+            message=f"{msg} — at that amplitude an atom in a cell this "
+                    "dense would have melted, so the number is evidence "
+                    "about the model rather than a displacement",
+            suggestion="a large B is what a wrong model does: check the "
+                       "species and occupancy on that site, the absorption "
+                       "correction and the background flexibility before "
+                       "reading it as motion. If the site is genuinely "
+                       "mobile (a cavity cation, a superionic sublattice) "
+                       "the number may be real, and saying so is part of "
+                       "quoting it",
+        ))
+    for finding in guard.nonpositive_resolution:
+        msg = str(finding)
+        out.append(Diagnostic(
+            level="warning", code="RESOLUTION_NOT_POSITIVE",
+            where=list(finding.paths), value=finding.value,
+            message=f"{msg} goes negative inside the fitted range — Γ_G² is a "
+                    "variance, so this is not a narrow instrument but U, V, W "
+                    "outside the physical set, and the forward model clamps "
+                    "Γ_G to a 1e-4° floor there rather than raising",
+            suggestion="the resolution parameters are not quotable and "
+                       "anything judged against them is unsafe: refit the "
+                       "resolution on a standard with its certified cell held "
+                       "fixed (lab_calibrate), or hold a loaded instrument "
+                       "profile rather than refining U, V and W on this "
+                       "pattern; do not report the widths or the "
+                       "microstructure derived from them",
         ))
     for finding in guard.narrow_humps:
         msg = str(finding)
@@ -2813,14 +2914,15 @@ def _guard_diagnostics(guard) -> list[Diagnostic]:
 
 
 def _dedup_high_correlations(
-    hits: dict[frozenset, list[tuple[str, Diagnostic]]],
+    hits: dict[tuple[str, frozenset], list[tuple[str, Diagnostic]]],
 ) -> list[Diagnostic]:
-    """One ``HIGH_CORRELATION`` per pair across a whole plan.
+    """One ``HIGH_CORRELATION`` (and one ``FLAT_DIRECTION``) per pair.
 
     A pair that stays correlated fires on every stage that re-measures the
     Jacobian after it becomes free, so ``hits`` — built by the caller as it
     walks the stage loop — routinely holds several entries under one
-    ``frozenset(where)`` key.  Keeps the worst |ρ| (correlation only ever
+    key.  A flat pair produces one of each code and they are keyed apart, so
+    neither evicts the other.  Keeps the worst |ρ| (correlation only ever
     strengthens or weakens; the largest magnitude is the most informative
     one to show) and names every stage the pair was flagged in, because
     "still correlated at the last stage" and "correlated once, early, and
@@ -2828,7 +2930,11 @@ def _dedup_high_correlations(
     apart without re-running the fit.
     """
     out = []
-    for pair, stage_hits in hits.items():
+    # ``.values()``, never an unpack of the key: a two-element ``frozenset``
+    # unpacks into ``(code, pair)`` without complaint, so a caller still
+    # passing the pre-WP-1311 key shape would be served silently rather than
+    # raising.  Nothing here reads the key — the paths come off ``worst``.
+    for stage_hits in hits.values():
         stage_names = list(dict.fromkeys(name for name, _ in stage_hits))
         worst = max(stage_hits, key=lambda sd: abs(sd[1].value))[1]
         message = worst.message if len(stage_names) == 1 else (

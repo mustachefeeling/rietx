@@ -554,9 +554,14 @@ once:
 | `GuardFinding.nonpositive_adp` | an anisotropic displacement tensor is not positive definite |
 | `GuardFinding.nonpositive_strain` | a Stephens block gives a negative σ²(M) for some reflection |
 | `GuardFinding.narrow_hump` | a declared hump has narrowed towards the instrumental resolution, where it is a reflection rather than a background feature |
+| `GuardFinding.unsupported_resolution` | the Gaussian resolution terms were refined on a pattern whose peaks are predominantly Lorentzian, where the data does not determine them |
+| `GuardFinding.flat_direction` | a correlated pair reaches \|ρ\| = 1.000 to the precision the message prints, so the data does not separate them at all |
+| `GuardFinding.large_biso` | an isotropic displacement parameter is past the Lindemann melting bound computed from its own phase's cell |
+| `GuardFinding.nonpositive_resolution` | the Caglioti quadratic Γ_G² = U·tan²θ + V·tanθ + W goes below zero somewhere in the fitted range, where the forward model clamps Γ_G to a floor rather than raising |
 
 `GuardFinding.value` is the headline number for the kind: the correlation
-coefficient, the block R², the minimum eigenvalue, the worst σ²(M). It is
+coefficient, the block R², the minimum eigenvalue, the worst σ²(M), the
+worst Γ_G². It is
 `None` for `GuardFinding.at_bound`, which has no number to report.
 
 `code` is an open vocabulary of strings and deliberately not a closed type. It
