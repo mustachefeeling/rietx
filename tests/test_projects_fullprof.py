@@ -149,7 +149,7 @@ _MAGNETIC_ATOM_HEADER = (
     "!     Ix     Iy     Iz    beta11  beta22  beta33    MagPh")
 
 
-def _phase(*, name="Cr2wO6", nat=4, jbt=0, isy=0, irf=0, dis=0, strn=0, furth=0,
+def _phase(*, name="Trirutile", nat=4, jbt=0, isy=0, irf=0, dis=0, strn=0, furth=0,
            nvk=0, more=0, third_value=0, sg="P 42/m n m", symmetry="",
            atoms=_PHASE_SITES, atom_header=None, cell=_PHASE_CELL,
            cell_codes=_PHASE_CELL_CODES, scale="5.0000",
@@ -244,7 +244,7 @@ def _pcr(directory: Path, name: str, *phases: str, job: int = 1,
 
 def _magnetic_isy1(**kw) -> str:
     """The ``Isy = -1`` magnetic phase of ``corpus file 2``."""
-    return _phase(**{"name": "Cr2wO6", "nat": 1, "jbt": 1, "isy": -1,
+    return _phase(**{"name": "Trirutile", "nat": 1, "jbt": 1, "isy": -1,
                      "sg": "P -1", "symmetry": _ISY_MINUS_1_SYMMETRY,
                      "atoms": _ISY_MINUS_1_ATOM, "labelled": 3,
                      "r_bragg": "9.46", **kw})
@@ -613,8 +613,8 @@ def test_a_magnetic_phase_is_read_in_full_not_dropped(tmp_path):
     """
     pcr = _pcr(tmp_path, "mag.pcr", _phase(), _magnetic_isy1(), _magnetic_isy2())
     model = read_fullprof_pcr(pcr)
-    assert [p.name for p in model.nuclear_phases] == ["Cr2wO6"]
-    assert [p.name for p in model.magnetic_phases] == ["Cr2wO6", "Magnetic Phase"]
+    assert [p.name for p in model.nuclear_phases] == ["Trirutile"]
+    assert [p.name for p in model.magnetic_phases] == ["Trirutile", "Magnetic Phase"]
     (moment,) = model.magnetic_phases[0].atoms
     assert moment.species_raw == "MCR3"
     assert moment.values["m2"].value == pytest.approx(3.741)      # Ry
@@ -659,7 +659,7 @@ def test_to_structure_refuses_a_magnetic_phase_naming_it(tmp_path):
     message = str(exc.value)
     assert "refuse.pcr" in message
     assert "1 of 2 phases are magnetic" in message
-    assert "Cr2wO6" in message and "Isy -1" in message
+    assert "Trirutile" in message and "Isy -1" in message
     assert "nuclear_only=True" in message       # the refusal names the way out
 
 
@@ -670,7 +670,7 @@ def test_nuclear_only_makes_the_omission_the_callers(tmp_path):
     pcr = _pcr(tmp_path, "nuclearonly.pcr", _phase(), _magnetic_isy1())
     model = read_fullprof_pcr(pcr)
     structure = to_structure(model, nuclear_only=True)
-    assert [p.name for p in structure.phases] == ["Cr2wO6"]
+    assert [p.name for p in structure.phases] == ["Trirutile"]
     assert len(model.magnetic_phases) == 1      # not lost, just not built
 
 
@@ -992,7 +992,7 @@ def test_to_structure_builds_and_carries_the_refine_flags(tmp_path):
     """
     pcr = _pcr(tmp_path, "build.pcr", _phase())
     (phase,) = to_structure(read_fullprof_pcr(pcr)).phases
-    assert phase.name == "Cr2wO6"
+    assert phase.name == "Trirutile"
     assert phase.space_group == "P 42/m n m"
     assert phase.cell.a.value == pytest.approx(5.000000)
     assert phase.cell.c.value == pytest.approx(9.000000)

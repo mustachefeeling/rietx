@@ -245,9 +245,9 @@ def test_every_real_site_spelling_reads(tmp_path, line, xyz, occ, beq):
 def test_an_equation_referencing_another_parameter_resolves(tmp_path):
     """``y = ph1_O1_x;`` is how a tetragonal oxygen says y is tied to x.
 
-    Refusing it cost 14 archive files, the tier-1 Cr2WO6 references among them.
+    Refusing it cost 14 archive files, the tier-1 references among them.
     """
-    inp = _inp(tmp_path, "s.inp", 'str\nphase_name "Cr2WO6"\nspace_group "P42/mnm"\na 4.58\n'
+    inp = _inp(tmp_path, "s.inp", 'str\nphase_name "Trirutile"\nspace_group "P42/mnm"\na 4.58\n'
                    'site O1 x ph1_O1_x 0.29935` y = ph1_O1_x; z 0 occ O-2 1. '
                    'beq ph1_beq_o1 0.34174`\n')
     (site,) = read_topas_inp(inp).phases[0].sites

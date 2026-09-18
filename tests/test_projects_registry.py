@@ -263,11 +263,11 @@ def test_read_project_model_tags_the_answer_with_its_format(tmp_path):
     model = read_project_model(_pcr(tmp_path, "refined.pcr", _phase()))
     assert model.format.name == "fullprof_pcr"
     assert model.path.name == "refined.pcr"
-    assert model.stated.phases and model.stated.phases[0].name == "Cr2wO6"
+    assert model.stated.phases and model.stated.phases[0].name == "Trirutile"
     # `reports_at="build"`, so the repairs reach the list handed to to_structure
     diagnostics: list = []
     structure = model.to_structure(diagnostics=diagnostics)
-    assert [p.name for p in structure.phases] == ["Cr2wO6"]
+    assert [p.name for p in structure.phases] == ["Trirutile"]
     # the file's own refine flags crossed, decoded out of the codewords — the
     # half nobody can reconstruct from a CIF plus a pattern
     assert structure.phases[0].scale.vary is True

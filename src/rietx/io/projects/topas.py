@@ -1191,7 +1191,7 @@ def refined(name: str, text: str) -> bool | None:
 #: The keywords this reader reads a value for, and therefore the only places a
 #: **name slot** can sit. ``x ph1_O1_x 0.29935`` declares ``ph1_O1_x``, which
 #: ``y = ph1_O1_x;`` two tokens later references; refusing that cost 14 of the
-#: 606 archive files, the tier-1 Cr2WO6 references among them. ``prm`` and
+#: 606 archive files, the tier-1 references among them. ``prm`` and
 #: ``local`` are TOPAS's explicit declarations.
 #:
 #: The *keyword* slot is never a declaration, and that is the whole narrowing:
@@ -1221,7 +1221,7 @@ def symbol_table(text: str) -> dict[str, float]:
 
     Needed because a coordinate equation routinely *references another
     parameter* rather than being self-contained: ``y = ph1_O1_x;`` is how a
-    tetragonal Cr2WO6 oxygen says y is tied to x. Refusing those cost 14 of the
+    tetragonal oxygen site says y is tied to x. Refusing those cost 14 of the
     606 archive files, so the reference is resolved instead — and an
     unresolvable one still returns None and still raises, because inventing a
     coordinate is the one outcome worse than refusing to read the file.

@@ -177,7 +177,7 @@ def test_untabulated_species_raises_rather_than_returning_nan():
 def test_table_covers_the_acceptance_datasets():
     """Every species in the CW-neutron acceptance set resolves.
 
-    Al2O3 (BT-1 SRM 1976a), Cr2WO6 (BT-1), PbPdO2 (BT-1), ZrW2O8 (APDW),
+    Al2O3 (BT-1 SRM 1976a), two further BT-1 oxides, ZrW2O8 (APDW),
     Ba2FeSbSe5 (LLB G4.1).
     """
     for species in ("Al", "O", "Cr", "W", "Pb", "Pd", "Zr", "Ba", "Fe", "Sb", "Se"):
