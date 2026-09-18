@@ -1,6 +1,6 @@
 # WP-1311 — bounds and flags for the remaining walking parameters
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-09-18 — claimed by @yue-here
 Depends on: — (1310 soft: how findings arrive on the result affects how these read)
 
 ## Goal

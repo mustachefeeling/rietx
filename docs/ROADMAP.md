@@ -628,7 +628,7 @@ and the hold (1435) carry on.
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
-| [1311](wp/1311-walking-parameter-bounds.md) | Bounds and flags for the remaining walking parameters | ⬜ | — (1310 soft) |
+| [1311](wp/1311-walking-parameter-bounds.md) | Bounds and flags for the remaining walking parameters | 🔄 2026-09-18 | — (1310 soft) |
 | [1320](wp/1320-qpa-multimodal-fraction.md) | A phase fraction the pattern cannot fix | ⬜ | — (1310 soft) |
 | [1321](wp/1321-persisted-bounds-repair.md) | The bounds a Parameter field declared: repair and audit | ⬜ | — (PR #206 first) |
 | [1323](wp/1323-lebail-stop-rule.md) | The Le Bail alternation has a stop rule, and a scope | ⬜ | — |
