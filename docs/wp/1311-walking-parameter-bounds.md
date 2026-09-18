@@ -1,6 +1,7 @@
 # WP-1311 — bounds and flags for the remaining walking parameters
 
-Milestone: unscheduled · Status: 🔄 2026-09-18 — claimed by @yue-here
+Milestone: unscheduled · Status: 🔄 2026-09-18 — items 2, 3 and 5 landed;
+1 and 4 measured and waiting on one maintainer decision each
 Depends on: — (1310 soft: how findings arrive on the result affects how these read)
 
 ## Goal
@@ -190,12 +191,17 @@ maintainer's decision on which relative anchor to use.
 
 ## Tasks
 
-- [ ] Corpus surveys: displacement magnitudes across the 606-`.inp` archive
-      and a Biso high-tail estimate; the two defaults recorded with their
-      evidence. **Blocked** on being told where the archive is (§ Context).
-- [ ] Decide what the two bounds that already exist should be: the ±1 mm on
-      `sample_displacement` and the two capillary offsets, and the 25 Å² on
-      `Atom.biso`. Keep, move or scale, each with its evidence.
+- [x] ~~Corpus surveys across the 606-`.inp` archive~~ — **dropped
+      2026-09-18 by maintainer decision**: physics-quoted numbers instead,
+      labelled as such (the `INDEX_SHIFT_ALLOWANCE` precedent). Item 2's
+      threshold came from Gilvarry (1956) and needed no corpus at all.
+- [x] The 25 Å² on `Atom.biso`: **kept and documented** 2026-09-18, on
+      measured prior art (FullProf and TOPAS make limits opt-in per parameter;
+      neither default-caps a displacement parameter). `help.py` and the `Atom`
+      validator docstring now both say the ceiling is this package's own and
+      name the escape.
+- [ ] The ±1 mm on `sample_displacement` and the two capillary offsets: the
+      same decision, still open. § Findings has the measurement.
 - [ ] Displacement bound scaled by `goniometer_radius_mm` where the instrument
       declares one, with the flat fallback where it does not, through
       `BOUND_HIT`; caller's bound outranks.
@@ -208,8 +214,10 @@ maintainer's decision on which relative anchor to use.
 - [x] Flat-direction report, 2026-09-18 — `FLAT_DIRECTION` beside the pair's
       `HIGH_CORRELATION` rather than instead of it; the bar is the three
       decimals the message prints, so no constant is tuned.
-- [ ] Tests per item + skill rows + `help.py`/manual entries + obs/calc/diff
-      PNGs to `tests/output/` for any fixture refinement.
+- [x] Tests, skill rows and manual entries **for items 2, 3 and 5**
+      (`tests/test_walking_bounds.py`, 21 cases). Items 1 and 4 owe theirs.
+      No obs/calc/diff PNGs: nothing here runs a fixture refinement, the
+      guards being tested on compiled models rather than on converged fits.
 
 ## Acceptance
 
@@ -236,6 +244,92 @@ The shipping PR carries `Closes #150`, `Closes #102` (#106 closes with
   caller outranks).
 
 ## Handover log
+
+### 2026-09-18 — three of the five, and two premises that did not survive
+
+Three of this WP's five walking parameters now speak when they misbehave, and
+none of the three thresholds is a number somebody chose. A refinement whose
+resolution function has left the physical set says so instead of silently
+reporting a resolution four orders finer than any goniometer. A displacement
+parameter past the point where its own crystal would have melted is flagged
+against a bound computed from that crystal's packing. And a pair the data
+cannot separate at all is now reported as the rank statement it is rather than
+in the same words as an ordinary strong correlation.
+
+The cost was two of this WP's own premises. Item 2 was written as "a flag and
+never a cap" against a 25 Å² cap that already existed and, once measured,
+bounds nothing physical. The WP's uncited claim that furnace data legitimately
+runs 8–15 Å² is above the melting bound for any ordinary structure. Both are
+corrected in place.
+
+**Done.**
+
+- **Item 3, `RESOLUTION_NOT_POSITIVE`.** Γ_G² is a variance, the constraint is
+  on the quadratic rather than on U, V and W separately, and nothing checked
+  it. `check_hump_width` already met the consequence and abstains, its
+  docstring saying the unphysical instrument "is a separate, more fundamental
+  defect and not this guard's to name"; this names it.
+- **Item 2, `BISO_UNUSUALLY_LARGE`.** Threshold computed per phase from its
+  own cell, `B_melt = 8π²ρ²(√2·v)^(2/3)`, three equations from Gilvarry (1956)
+  and no fourth. A flag and not a cap because the IUCr round robin asks for
+  exactly that warning by name and because Watkin (2008) explains why the
+  number is evidence about the model.
+- **Item 2's cap decision.** 25 Å² kept and documented rather than widened.
+- **Item 5, `FLAT_DIRECTION`.** Beside the pair's `HIGH_CORRELATION`, never
+  instead of it.
+
+**Measured.**
+
+- Fast selection **5342 passed, 134 skipped**, against **5327 / 134** with
+  `--ignore=tests/test_walking_bounds.py`. The delta is exactly the 21 cases
+  added, all passes, no new skip. Full selection **5527 passed, 143 skipped**
+  in 29:38. Both `[dev]`, macOS arm64, machine otherwise idle (`ps` checked
+  before each). None of the three new diagnostics fires on any acceptance
+  fixture.
+- `B_melt` at the loosest ratio the source quotes: corundum 4.57, LaB₆ 5.18,
+  fluorapatite 5.89, Si 8.09, NaCl 8.72 Å², over 8.5–22.4 Å³ per atom.
+  Inverted, 25 Å² needs 109–338 Å³ per atom, five to twenty times any ordinary
+  packing.
+- Item 3's motivating configuration is worse than this WP described it. The
+  quadratic's roots fall at 0.229° and 168.577° 2θ, so Γ_G² is negative at
+  **every** point of an ordinary scan and Γ_G is the 1e-4° floor throughout,
+  not only at 157°.
+- Items 1 and 4 are measured in § Findings above, with what stopped each.
+
+**Gotchas.**
+
+- **Three of this WP's premises were stale on arrival** and the prune commit
+  corrects them: `sample_displacement` and the two capillary offsets are
+  already bounded at ±1 mm; `Atom.biso` already caps at 25 Å²; and the #283
+  note assigning this WP the `Cell`-bounds half of PR #289 is dead, that half
+  having landed as `178e6017` and then been removed by `0ae0e063`, with
+  `Cell`'s docstring now recording the unbounded state as deliberate.
+- **`Geometry.radius` does not exist.** The field is `goniometer_radius_mm`,
+  and it is `float | None`, so any geometry-scaled bound needs its flat
+  fallback decided at the same time.
+- **The cross-stage diagnostic dedup was keyed on the pair alone.** A flat pair
+  produces both a `HIGH_CORRELATION` and a `FLAT_DIRECTION`, so one would have
+  evicted the other silently. The key is now `(code, pair)`.
+- **Two test names collided** and ruff caught it, not pytest. The count looked
+  right while one case was silently replacing another.
+- **Verify a page number, do not soften it.** Three bib entries were added
+  without DOIs; the manual's own gate refused them and sent me to Crossref,
+  which confirmed the two page numbers I had removed for being unverifiable
+  from the OCR. Gilvarry is Phys. Rev. **102**, 308–316.
+
+**Next**, in order. Both remaining items are blocked on the same kind of
+decision and neither is blocked on work.
+
+1. **Item 1 needs the maintainer's ruling**, and it is the ruling already given
+   for `Atom.biso` this session: the ±1 mm bound has stood since v0.2, so
+   changing or scaling it is a user-facing break. Keep-and-document is the
+   consistent answer and costs one commit. § Findings has the numbers.
+2. **Item 4 needs a source or a decision.** Its two instrument classes separate
+   by 18×, so one absolute threshold is wrong for one of them, and the two
+   relative anchors available (the fitted span, the spacing of the lines the
+   function must resolve) are not quoted from anything. Find the source, or
+   take the decision on which anchor to use.
+3. Then the WP closes, carrying `Closes #150` and `Closes #102`.
 
 - **2026-09-01** — created, from issues #150/#102/#106 (2026-09-01 triage).
   Settled: five items, flags-not-caps everywhere the physics says so; first
