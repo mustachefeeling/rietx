@@ -345,6 +345,22 @@ html_extra_path puts pages Sphinx never rendered into the build output, which
 a guard walking that output must exclude rather than widen itself around
 (one already had to).  Landed at the cap.
 
+923 -> 929 for the magnetic index split (2026-09-18): one clause saying a task
+shape's **entry points** render to a generated `api-<shape>.md` rather than
+into the everyday `api.md`.  The sentence beside it already sent a shape's
+authored rules to `references/<shape>.md` and said nothing about the generated
+names, which is the half a contributor adding a verb actually touches — so a
+reader following CLAUDE.md alone would put a magnetic verb into the file every
+session about to call rietx loads whole, and every session that will never
+refine a magnetic structure would pay for it.  The reason is the reader's
+context and the byte cap follows from it, which is why this is stated where
+the admission rule is and not only in the test.  It governs every technique
+after magnetic — TOF, texture, PDF — which is protocol rule 4's test.  The
+mechanism went down a rank as this rule requires: the gate is a glob over
+`api*.md` in `tests/test_skill.py`, and why an authored reference and a
+generated index are different objects is `make_api_index.py`'s docstring.
+Landed 925, +4 headroom.
+
 ### `docs/ROADMAP.md`
 
 400 -> 416 for the agentic-report planning session (2026-08-18): four

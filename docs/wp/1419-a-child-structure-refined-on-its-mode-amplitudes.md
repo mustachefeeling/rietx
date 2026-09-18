@@ -186,7 +186,28 @@ on `main` at `84eddb17` against a fork integration branch measured at
   ask returned on 2026-09-18 is that the TOF half be pushed as its own branch
   with the rungs it reaches named, and the milestone decision is then taken on
   the code.
-- **`references/api.md` is split, not re-capped.** `API_INDEX_MAX_BYTES` is
+- **2026-09-18, second ruling: magnetic entry points do not enter `api.md`.**
+  This supersedes the § In / § Out split below, which is parked rather than
+  done. The maintainer's call is that magnetic refinement is uncommon enough
+  that its names must not sit in the file every session about to call rietx
+  loads whole. So a magnetic verb renders to a generated
+  `references/api-magnetic.md`, `api.md` stays the everyday index, and
+  `tests/test_skill.py`'s coverage gate now reads the union of `api*.md` — a
+  glob, so the PR that creates the technique index has no list to remember to
+  edit. Two things this is **not**. It is not the authored
+  `references/magnetic.md` the 2026-09-16 ruling assigned the heuristics and
+  diagnostic rows; that file stays, and only the generated index is pinned
+  byte for byte against `make_api_index.py`. And it is not a byte-cap fix that
+  happens to help the reader, but the reverse: the cap follows from the
+  context cost. The rule is in root CLAUDE.md § skill, the generator's
+  docstring and the gate's comment. **It also removes the cap pressure this WP
+  inherited**: `api.md` is 36 280 B of 39 000 on `main`, the chain's ~3 374 B
+  of new names is magnetic and TOF, and with magnetic rendering elsewhere and
+  TOF fenced, `api.md` grows by roughly nothing. Estimated rather than
+  measured, the integration branch not being visible from here.
+- **`references/api.md` is split, not re-capped.** *(Parked 2026-09-18 by the
+  ruling above. Kept because `api.md` will outgrow the wall again on its own,
+  and this is where the seam was measured.)* `API_INDEX_MAX_BYTES` is
   39 000 against a **40 kB** physical wall — Bash truncates above it to a 2 kB
   preview, which is the whole derivation — so a raise buys a few hundred bytes
   in front of a bar that cannot move. On `main` today the file is 36 280 B, up

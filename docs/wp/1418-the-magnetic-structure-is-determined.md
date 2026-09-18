@@ -140,6 +140,16 @@ MAGNDATA magCIF entries serve the round-trip and span tests with no pattern.
   headroom today, after the `diagnostics-gsas.md` split landed:
   `diagnostics.md` 29 942 B of 36 000, `SKILL.md` 32 864 B of 33 000 — 136 B,
   so the body takes nothing, which is what the routing row rule already says.
+  **Added 2026-09-18: the same holds for the entry points.** A magnetic verb
+  renders to a generated `references/api-magnetic.md` and never into `api.md`,
+  which every session about to call rietx loads whole, so a name only a
+  magnetic refinement reaches costs every other session nothing. That file is
+  the *generated* index and is distinct from the authored
+  `references/magnetic.md` above; only the generated one is pinned byte for
+  byte against `make_api_index.py`. `tests/test_skill.py`'s coverage gate
+  reads the union of `api*.md`, so M-9's verb is documented by appearing in
+  the magnetic index and nothing has to be added to a list. Root CLAUDE.md
+  § skill carries the rule.
 - **2026-09-17, from [1436](1436-k-is-the-wavevector-everywhere-else.md):
   `k` is free for the propagation vector.** The earlier note here warned that
   `scattering.py`, `structure_factor.py` and `dispersion.py` all spent `k` on

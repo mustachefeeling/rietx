@@ -840,7 +840,10 @@ Planning docs are split so a session loads only what it needs; do not read all:
   takes only what holds for **every** fit; a rule for a task *shape* (a series, a batch, a magnetic
   phase) lives in one `references/` file per shape, numbered under the body section it specialises
   (`9b` series, `9c` batch), reached by a routing row keyed by the situation and never the feature,
-  citing the body by § rather than restating it. A reference written from runs tags every row
+  citing the body by § rather than restating it. **Its entry points render to a generated
+  `api-<shape>.md`, never into `api.md`**, which every session about to call rietx loads whole, so a
+  verb only that shape reaches costs every other session nothing (the gate reads the union of
+  `api*.md`; `make_api_index.py`'s docstring). A reference written from runs tags every row
   `(Measured: …)` or `(Hypothesis: …)`; `tests/test_skill.py` pins the header every reference opens
   with and those tags. A routing row is paid for by a cut in the body, whose cap moves only in a
   commit that says so. A diagnostic code or a correction adds its row; `rietx skill --install .

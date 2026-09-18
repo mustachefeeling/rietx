@@ -25,6 +25,19 @@ So a rename fails ``tests/test_skill.py`` (the name no longer resolves), a
 changed default or a new keyword changes the rendered file (the test compares
 bytes and says to regenerate), and nothing can be quoted from memory.
 
+**`api.md` is the everyday index, and a technique gets one of its own.**
+A session that is about to call rietx loads this file, so every name in it is
+a cost that session pays whether or not it will ever make the call.  A
+technique most fits never use — magnetic refinement is the first — therefore
+renders to `api-<technique>.md` beside this file rather than into it, and is
+loaded only by a session doing that technique.  `tests/test_skill.py`'s
+coverage gate reads the union of `api*.md`, so a verb's door is signed
+wherever its own sessions are routed; the glob means the PR that creates a
+technique index has no list to remember to edit.  This is about the reader's
+context rather than the byte cap, and the authored heuristics for the same
+technique live in `references/<technique>.md` under the shape rule (root
+CLAUDE.md § skill), which is an authored file and not a generated one.
+
 **Rendering is deliberately its own.**  ``str(inspect.signature(f))`` quotes
 every annotation under ``from __future__ import annotations`` and pydantic's
 evaluated annotations print differently across Python versions
