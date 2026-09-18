@@ -23,6 +23,7 @@ from rietx.params.vector import ParameterTable
 from rietx.schemas.common import Parameter
 from rietx.schemas.instrument import BackgroundChebyshev
 from rietx.schemas.pattern import PatternData
+from rietx.schemas.structure import AnisoU
 from tests.test_refine_synthetic import (
     TRUE_A,
     TRUE_BKG,
@@ -613,3 +614,109 @@ def test_a_tie_holds_its_source_where_the_dependents_ceiling_is(four_site_patter
     with pytest.raises(ValueError, match=r"phases\.0\.atoms\.1\.biso=0\.33.*"
                                          r"0\.5\u00b7phases\.0\.atoms\.0\.biso"):
         run(window=False)
+
+
+# ------------------------------------------ a tie onto a coordinate DOF (1432)
+#: LaB6's B site is 6f — one site-symmetry-allowed direction, so one DOF — and
+#: ``perturbed_models`` stores its x there.  The anchor is what every assertion
+#: below is written against: the coordinate the tie was declared over.
+B_X = "phases.0.atoms.1.x"
+B_DOF = "phases.0.atoms.1.dof.0"
+B_X0 = 0.1993
+
+#: Ten write-throughs, which is WP-1432's acceptance.  The defect added the
+#: source's whole value at each one, so ten of them moved a coordinate by ten
+#: times what the caller declared.
+WRITE_THROUGHS = 10
+
+
+@pytest.fixture
+def ref_aniso():
+    """The same refinement with an anisotropic B site, for the ADP control."""
+    structure, ins = perturbed_models()
+    atom = structure.phases[0].atoms[1]
+    atom.biso.vary = False
+    atom.aniso = AnisoU.from_values([0.01, 0.01, 0.01, 0.0, 0.0, 0.0])
+    return rx.Refinement(structure, ins)
+
+
+@pytest.fixture
+def ref_two_sites():
+    """A second 6f B site, so one coordinate DOF can follow another."""
+    structure, ins = perturbed_models()
+    structure.phases[0].atoms.append(
+        rx.Atom(label="B2", species="B", x=Parameter(value=0.30),
+                y=Parameter(value=0.5), z=Parameter(value=0.5)))
+    return rx.Refinement(structure, ins)
+
+
+def values(ref) -> dict[str, float]:
+    return {r.path: r.value for r in ref.parameters()}
+
+
+def write_through(ref) -> None:
+    """A verb that rebuilds the table and writes the models back.
+
+    Unrelated to the tie on purpose: ``phases.0.scale`` shares nothing with a
+    coordinate, so anything that moves is the rebuild and not the write.
+    """
+    ref.set_values({"phases.0.scale": 0.02})
+
+
+def test_a_variable_driving_a_coordinate_dof_survives_ten_write_throughs(ref):
+    """The defect WP-1432 names, and the one a caller cannot see happening.
+
+    A coordinate DOF is a *displacement from the stored coordinate*, so every
+    table build anchors ``x`` at what the model holds and rederives the DOF to
+    zero.  A variable is the opposite — re-declared from the register at the
+    value it holds — so the two together made each rebuild add the variable's
+    whole value to a coordinate that had already absorbed it.  The tie means
+    one displacement, not one per verb.
+    """
+    ref.add_variable("A", 0.01, min=-0.5, max=0.5)
+    ref.tie(B_DOF, "vars.A")
+    # the tie takes its implied value immediately, which is the one application
+    assert values(ref)[B_X] == pytest.approx(B_X0 + 0.01)
+
+    for _ in range(WRITE_THROUGHS):
+        write_through(ref)
+        rows = values(ref)
+        assert rows["vars.A"] == 0.01                  # the source never moved
+        assert rows[B_DOF] == pytest.approx(0.01)      # the DOF *is* the variable
+        assert rows[B_X] == pytest.approx(B_X0 + 0.01)
+
+
+def test_an_adp_dof_under_the_same_tie_is_the_control(ref_aniso):
+    """The first control, and it is what bounds the class.
+
+    An ADP DOF is **absolute** — ``adp_basis`` spans the whole allowed
+    subspace, so the entry carries U itself rather than a displacement, and its
+    dependents' ``AffineTie`` has no ``const`` to accumulate into.  Tied to the
+    same kind of source it held its value before the repair, which is what says
+    the defect is the coordinate anchor and not the tie machinery.
+    """
+    adp = next(r.path for r in ref_aniso.parameters() if ".adp." in r.path)
+    ref_aniso.add_variable("A", 0.02, min=0.0, max=0.5)
+    ref_aniso.tie(adp, "vars.A")
+
+    for _ in range(WRITE_THROUGHS):
+        write_through(ref_aniso)
+        assert values(ref_aniso)[adp] == pytest.approx(0.02)
+
+
+def test_a_coordinate_dof_following_another_is_the_control(ref_two_sites):
+    """The second control: both ends reset together, so nothing accumulates.
+
+    The source is rederived to zero on every build exactly as the target is, so
+    the implied displacement is zero at each one and both coordinates keep the
+    values the model stores.  This is the arm that stays bit-identical through
+    the repair — the fix is about a source that does *not* reset.
+    """
+    ref_two_sites.tie("phases.0.atoms.2.dof.0", B_DOF)
+    before = values(ref_two_sites)
+
+    for _ in range(WRITE_THROUGHS):
+        write_through(ref_two_sites)
+        rows = values(ref_two_sites)
+        for path in (B_X, B_DOF, "phases.0.atoms.2.x", "phases.0.atoms.2.dof.0"):
+            assert rows[path] == before[path]

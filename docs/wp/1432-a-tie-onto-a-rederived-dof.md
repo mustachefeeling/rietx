@@ -118,7 +118,7 @@ and what the manual documents, for a defect that lives in the tie path.
 
 ## Tasks
 
-- [ ] A failing test first: the four-write table above, plus the ADP control and
+- [x] A failing test first: the four-write table above, plus the ADP control and
       the DOF-source control, so the class is pinned before the fix moves.
 - [ ] The fix, in the `_apply_ties`/`__init__` seam; a tied coordinate DOF keeps
       its meaning across rebuilds.
