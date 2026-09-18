@@ -1,7 +1,7 @@
 # WP-1311 — bounds and flags for the remaining walking parameters
 
-Milestone: unscheduled · Status: 🔄 2026-09-18 — items 2, 3 and 5 landed;
-1 and 4 measured and waiting on one maintainer decision each
+Milestone: v1.5.x · Status: ✅ 2026-09-18 — all five items; three new diagnostics,
+and the two existing bounds kept and documented on the maintainer's ruling
 Depends on: — (1310 soft: how findings arrive on the result affects how these read)
 
 ## Goal
@@ -254,16 +254,20 @@ The shipping PR carries `Closes #150`, `Closes #102` (#106 closes with
 
 ## Handover log
 
-### 2026-09-18 — three of the five, and two premises that did not survive
+### 2026-09-18 — closed: all five, and two premises that did not survive
 
-Three of this WP's five walking parameters now speak when they misbehave, and
-none of the three thresholds is a number somebody chose. A refinement whose
-resolution function has left the physical set says so instead of silently
-reporting a resolution four orders finer than any goniometer. A displacement
-parameter past the point where its own crystal would have melted is flagged
-against a bound computed from that crystal's packing. And a pair the data
-cannot separate at all is now reported as the rank statement it is rather than
-in the same words as an ordinary strong correlation.
+All five of this WP's walking parameters are answered, and not one threshold
+is a number somebody chose. A refinement whose resolution function has left the
+physical set says so instead of silently reporting a resolution four orders
+finer than any goniometer. A displacement parameter past the point where its
+own crystal would have melted is flagged against a bound computed from that
+crystal's packing. A pair the data cannot separate at all is reported as the
+rank statement it is rather than in the same words as an ordinary strong
+correlation. And the profile-width ceiling issue #102 complained about is
+answered the way the guidelines answer it, by reporting that the Gaussian
+resolution terms were refined on data that cannot determine them, with no test
+on width at all. The two bounds that turned out to exist already are kept and
+documented rather than changed, on the maintainer's ruling.
 
 The cost was two of this WP's own premises. Item 2 was written as "a flag and
 never a cap" against a 25 Å² cap that already existed and, once measured,
@@ -286,15 +290,27 @@ corrected in place.
 - **Item 2's cap decision.** 25 Å² kept and documented rather than widened.
 - **Item 5, `FLAT_DIRECTION`.** Beside the pair's `HIGH_CORRELATION`, never
   instead of it.
+- **Item 1's bound decision.** The ±1 mm on `sample_displacement` and the two
+  capillary offsets kept and documented, the maintainer applying the same
+  ruling as for `Atom.biso`.
+- **Item 4, `RESOLUTION_UNCONSTRAINED`.** The one guard here with no constant
+  at all. McCusker § Synchrotron names the failure and prescribes
+  constrain-or-hold rather than a size limit, and its next paragraph rules a
+  size limit out by having U, V and W "easily determined" on CW neutron data.
+  So the guard asks about *character*: a pattern is predominantly Lorentzian
+  where Γ_L exceeds Γ_G, and predominantly so where that holds at more than
+  half the fitted points. Two comparisons, no tunable. It reads `moving_paths`,
+  so a tie cannot buy silence.
 
 **Measured.**
 
-- Fast selection **5342 passed, 134 skipped**, against **5327 / 134** with
-  `--ignore=tests/test_walking_bounds.py`. The delta is exactly the 21 cases
-  added, all passes, no new skip. Full selection **5527 passed, 143 skipped**
-  in 29:38. Both `[dev]`, macOS arm64, machine otherwise idle (`ps` checked
-  before each). None of the three new diagnostics fires on any acceptance
-  fixture.
+- Fast selection **5359 passed, 134 skipped** at close, against **5327 / 134**
+  measured with `--ignore=tests/test_walking_bounds.py` before any of this
+  landed. The delta is 32: the 31 cases in the new module plus the one
+  meta-test the second review pass added to `test_capabilities.py`. All are
+  passes and there is no new skip. `[dev]`, macOS arm64, machine otherwise
+  idle (`ps` checked before each run). None of the four new diagnostics fires
+  on any acceptance fixture.
 - `B_melt` at the loosest ratio the source quotes: corundum 4.57, LaB₆ 5.18,
   fluorapatite 5.89, Si 8.09, NaCl 8.72 Å², over 8.5–22.4 Å³ per atom.
   Inverted, 25 Å² needs 109–338 Å³ per atom, five to twenty times any ordinary
@@ -353,19 +369,16 @@ row beside it, because a shared budget would have the two evict each other at
 |ρ| ≈ 1 on a key that cannot separate them, leaving sort stability to decide
 which survived. `_CAPPED_PAIR_CODES` is the table both read.
 
-**Next**, in order. Both remaining items are blocked on the same kind of
-decision and neither is blocked on work.
+**Next.** Nothing on this WP. It closes here, and its pull request carries
+the two issues.
 
-1. **Item 1 needs the maintainer's ruling**, and it is the ruling already given
-   for `Atom.biso` this session: the ±1 mm bound has stood since v0.2, so
-   changing or scaling it is a user-facing break. Keep-and-document is the
-   consistent answer and costs one commit. § Findings has the numbers.
-2. **Item 4 needs a source or a decision.** Its two instrument classes separate
-   by 18×, so one absolute threshold is wrong for one of them, and the two
-   relative anchors available (the fitted span, the spacing of the lines the
-   function must resolve) are not quoted from anything. Find the source, or
-   take the decision on which anchor to use.
-3. Then the WP closes, carrying `Closes #150` and `Closes #102`.
+One thing is left deliberately and belongs to whoever picks it up. The second
+review pass asked whether the other three guards should read `moving_paths`
+too. Item 4's does, because a tied U really is being refined. The other three
+read *values* rather than freedom, so the question does not arise for them in
+the same form, and it was not widened on that reasoning rather than measured.
+A session that finds a tie changing what one of them should say has a real
+finding; nothing here says there is one.
 
 - **2026-09-01** — created, from issues #150/#102/#106 (2026-09-01 triage).
   Settled: five items, flags-not-caps everywhere the physics says so; first
