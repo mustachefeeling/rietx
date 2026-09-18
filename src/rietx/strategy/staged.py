@@ -203,9 +203,10 @@ _ROUGHNESS_STAGE = (
 #: displacement parameters and the scale, so the hump should already be
 #: described when ``biso`` opens — which puts this stage before
 #: ``coordinates``.  Stated as an ordering argument rather than as a measured
-#: effect on purpose: on the BT-1 Cr₂WO₆ case
+#: effect on purpose: on the BT-1 neutron case
 #: (:class:`~rietx.schemas.instrument.HumpComponent` has the table) declaring
-#: the peak did **not** move Biso(Cr) back to a physical value, and the stage
+#: the peak did **not** move that phase's first Biso back to a physical value,
+#: and the stage
 #: sits here because this is the order that gives it the chance, not because
 #: the chance was measured to be taken.
 #:

@@ -3175,7 +3175,7 @@ def _capillary_offset_diagnostics(model: CompiledModel,
     eq 4), and eq (4) divides by the goniometer radius — so without one they are
     force-fixed at zero, correctly, because there is nothing to divide by.  What
     is not correct is leaving that quiet: **a held aberration reads as a measured
-    zero** (WP-1073), and this one is not small.  Measured on a BT-1 Cr2WO6
+    zero** (WP-1073), and this one is not small.  Measured on a BT-1 neutron
     refinement where TOPAS refined a specimen displacement of 0.0975 and this
     package could not express one: both cell axes came back low by 143 ppm
     *together*, so c/a agreed with TOPAS to 3.4 ppm while neither axis did.  A

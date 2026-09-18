@@ -130,7 +130,7 @@ COVERAGE_SMOOTH_DEG = 1.0
 
 #: How many times the plateau's variance-per-count a smoothed channel must carry
 #: before it counts as thinly covered.  Set from the gap between the two things
-#: it has to separate, on ``Al2O3023.xye`` (NIST BT-1, 3.00-166.25° at 0.05°,
+#: it has to separate, on a NIST BT-1 pattern (3.00-166.25° at 0.05°,
 #: 3266 points, σ from the file): the smoothed ratio *drifts* over 1.11-1.37
 #: through 149-161°, then **steps** to 2.25 in a single channel at 161.30° and
 #: holds it to the end of the scan.  1.5 sits between the two with ≈1.4× margin
@@ -301,7 +301,7 @@ class CoverageRegion(Base):
     plateau is measured in the middle.
 
     ``inflation`` is a **median** over the region, so it summarises rather than
-    resolves: a region can hold finer steps of its own (on ``Al2O3023.xye`` the
+    resolves: a region can hold finer steps of its own (on that same pattern the
     low-angle region runs ≈5× below 8°, ≈2.2× from 8-11°, ≈4× over 11.3-13°, then
     ≈2.2× tapering to 1× by ≈55°), and the levels are not even monotonic in 2θ.
     """
@@ -774,14 +774,14 @@ def counting_coverage(
     **What a region means.** On an instrument with a bank of detectors on a
     circle, the number contributing to a given 2θ falls off at both ends of the
     range, and v ∝ 1/n_eff counts them.  Measured on two NIST BT-1
-    constant-wavelength neutron patterns (``Al2O3023.xye`` and ``CrWO6003.xye``,
-    3.00-166.25° at 0.05°, 3266 points, σ from the file, plateau v = 0.837 and
-    0.826): both show the same ladder — ≈5× below ≈8°, ≈2.2-2.6× from 8° to
+    constant-wavelength neutron patterns (3.00-166.25° at 0.05°, 3266 points,
+    σ from the file, plateau v = 0.837 and 0.826): both show the same ladder —
+    ≈5× below ≈8°, ≈2.2-2.6× from 8° to
     ≈15°, tapering to 1× by ≈55°, 1× through the middle, and a step back to
     ≈2.2× within one channel at 161.30°, held to the end of the scan.  The levels
     are *quantised* because detectors are integers, which is what makes a step
     a step rather than a gradual falloff, and they are not monotonic in 2θ
-    (Al2O3023 sits at ≈4× over 11.3-13.0°, between two ≈2.2× stretches).
+    (one of them sits at ≈4× over 11.3-13.0°, between two ≈2.2× stretches).
     Neither pattern's plateau contains a region at all.
 
     **Where it fires on the bundled patterns**, and why a detector-count reading
