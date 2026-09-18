@@ -111,7 +111,7 @@ kind of statement.
 
 ## Tasks
 
-- [ ] `Refinement._user_holds` as the one authority, on `_ties`' model, with
+- [x] `Refinement._user_holds` as the one authority, on `_ties`' model, with
       `hold`/`unhold` verbs taking the same globs `set_vary` does and
       auto-committing nodes. A held path refuses an edit that would free it
       and names the hold, as a tied path refuses and names its sources.
@@ -120,31 +120,36 @@ kind of statement.
       letter apart in the same method bodies meaning opposite things. One is
       the caller's declaration and persists; the other is one stage's reading
       of what the data can see.
-- [ ] Precedence in the one place that applies it, never at the call sites:
+- [x] Precedence in the one place that applies it, never at the call sites:
       `locked`/`mode_fixed` outranks a hold, a hold outranks a stage's
       `turn_on`. A model edit can make a held path locked after the fact, so
       the check is re-asked where it is applied (WP-1070's lesson).
-- [ ] `RefinementState.holds` so a checkout restores them, and the project
+- [x] `RefinementState.holds` so a checkout restores them, and the project
       document carries them. A hold that does not survive reopening a `.rex`
       is worse than none, because it is a promise that lapses silently.
-- [ ] `ParameterRow.held_because` gains the hold as a **fifth** reason, and
+- [x] `ParameterRow.held_because` gains the hold as a **fifth** reason, and
       `parameters()` reports it. The WP was written saying fourth, counting the
       three of the class docstring; `needs_held_cell` is the fourth and has been
       since WP-1134. Still one member rather than a new channel.
-- [ ] A plan that matched a held path reports it: `StageResult` records what
+- [x] A plan that matched a held path reports it: `StageResult` records what
       the glob would have freed, and one diagnostic names the paths. This is
       now a real signal because the set is the caller's own declarations
       rather than every default.
-- [ ] Tests: the calibrate-on-a-standard case end to end, asserting the cell
+- [x] Tests: the calibrate-on-a-standard case end to end, asserting the cell
       does not move and the report names the plan's attempt; a checkout
       restoring holds; the precedence pairs; and the refusals. Plus
       obs/calc/diff PNGs to `tests/output/`.
-- [ ] Manual: `using/` gains the hold beside the user constraints, and the
+- [x] Manual: `using/` gains the hold beside the user constraints, and the
       calibration chapter says plainly that holding a certified cell is what a
       hold is for.
-- [ ] Skill: a body rule, since it holds for every fit — a caller who needs a
-      parameter to stay put says so with a hold, because a plan's glob
-      outranks `vary=False`.
+- [x] Skill: the rule that a plan's glob outranks `vary=False`, landed in
+      `references/surprises.md` as 8.25 rather than in the body this WP
+      asked for. The body never mentions `set_vary`, `turn_on` or a plan's
+      globs at all, so stating the rule there meant introducing the whole
+      mechanism into a file with 131 B of headroom, and surprises.md is
+      where a measured result that contradicts an intuition already lives.
+      Plus the `HOLD_BLOCKED_PLAN` row every engine code owes
+      `references/diagnostics.md`.
 
 ## Acceptance
 
