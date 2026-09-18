@@ -877,13 +877,13 @@ of overlap, never proof of a clash** — one issue is cited by five WPs here —
 `EnterWorktree` never refuses on it. And it needs the network, so it lives in `/wp-start` and **never
 in the SessionStart hook**, which stays stdlib-only, offline-safe and 0.25 s.
 
-Shipped: **v0.1 … v1.3**, one record each in `docs/milestones/`; ROADMAP's table carries the
+Shipped: **v0.1 … v1.4**, one record each in `docs/milestones/`; ROADMAP's table carries the
 acceptance one-liners, restated in neither place. Since WP-1117 the compatibility promise
 (`docs/manual/using/compatibility.md`) is a **preview**: anything may change in any release,
 versions bumping per observable change. **1.0.2 was written and never published**, folded into v1.1
 (2026-08-23), so 1.0.1 is what anyone upgrades *from* and `docs/releases/1.0.2.md` describes a
 release that never existed. `pyproject.version` tracks the milestone in flight, or the **last
-shipped when none is** — `1.3.0` today, v1.4 not yet open. It is the string every
+shipped when none is** — `1.5.0.dev0` today, with v1.5 open. It is the string every
 `RefinementResult.provenance` and history node stamps; a new milestone opens at `1.x.0.dev0`.
 
 **Indexing.** Full dossier `src/rietx/indexing/CLAUDE.md` (auto-loads when a session works there);

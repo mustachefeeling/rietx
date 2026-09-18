@@ -1,6 +1,6 @@
 # WP-1428 — open in the GUI, without touching the fit
 
-Milestone: unscheduled · Status: ✅ 2026-09-17 — launch, in the run list; the track's last rung
+Milestone: v1.5 · Status: ✅ 2026-09-17 — launch, in the run list; the track's last rung
 Depends on: 1405 (the one verb and its gate), 1401 (the decision this revisits); 1430 soft
 
 ## Goal

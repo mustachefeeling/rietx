@@ -1,6 +1,6 @@
 # WP-1401 — a window into a run: find the runs that already exist
 
-Milestone: unscheduled · Status: ✅ 2026-09-14 — `rietx watch` lists every run
+Milestone: v1.5 · Status: ✅ 2026-09-14 — `rietx watch` lists every run
 under a directory, reading only what today's code already writes; the baseline
 says the event stream costs 1-3 % and the per-stage picture up to 49 %
 Depends on: — (first rung of the live-watcher track; 1402, 1403 and 1405 all

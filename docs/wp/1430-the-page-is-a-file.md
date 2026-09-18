@@ -1,6 +1,6 @@
 # WP-1430 — the page is a file
 
-Milestone: unscheduled · Status: ✅ 2026-09-16 — the page is four files in `watch/static/`, its DOM-free half has 15 node cases, and the browser test took no diff
+Milestone: v1.5 · Status: ✅ 2026-09-16 — the page is four files in `watch/static/`, its DOM-free half has 15 node cases, and the browser test took no diff
 Depends on: 1423 (the page as it stands)
 
 ## Goal

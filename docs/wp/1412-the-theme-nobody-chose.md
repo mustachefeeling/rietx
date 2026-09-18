@@ -1,6 +1,6 @@
 # WP-1412 — the theme nobody chose
 
-Milestone: unscheduled · Status: ✅ 2026-09-14
+Milestone: v1.5 · Status: ✅ 2026-09-14
 Depends on: 1411
 
 ## Goal

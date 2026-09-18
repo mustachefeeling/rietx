@@ -1,6 +1,6 @@
 # WP-1405 — the human stops the run
 
-Milestone: unscheduled · Status: ✅ 2026-09-15 — a human watching a run can stop it, through the token the fit already had; stopping ships enabled with `--read-only` to decline, and WP-1406's owed skill sentence and manual rows are written
+Milestone: v1.5 · Status: ✅ 2026-09-15 — a human watching a run can stop it, through the token the fit already had; stopping ships enabled with `--read-only` to decline, and WP-1406's owed skill sentence and manual rows are written
 Depends on: 1403 (the recorder that polls); 1401 (the page the button is on)
 
 ## Goal

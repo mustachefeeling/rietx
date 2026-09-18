@@ -1,6 +1,6 @@
 # WP-1429 — the GUI's tokens and the GUI's theme, on the two python pages
 
-Milestone: unscheduled · Status: ✅ 2026-09-16 — one token module, both Python pages on the GUI's colours and its theme, and the watcher has a light theme
+Milestone: v1.5 · Status: ✅ 2026-09-16 — one token module, both Python pages on the GUI's colours and its theme, and the watcher has a light theme
 Depends on: 1430 (the watch page as files); 1426 soft (the browser harness)
 
 ## Goal

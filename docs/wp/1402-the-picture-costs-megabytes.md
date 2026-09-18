@@ -1,6 +1,6 @@
 # WP-1402 — the live picture costs megabytes a stage, and the fit pays it
 
-Milestone: unscheduled · Status: ✅ 2026-09-15 — the live picture is numbers; 180-329 kB a stage against 4.51-6.03 MB, and the fit's share 1.03-1.28x against 1.04-1.49x
+Milestone: v1.5 · Status: ✅ 2026-09-15 — the live picture is numbers; 180-329 kB a stage against 4.51-6.03 MB, and the fit's share 1.03-1.28x against 1.04-1.49x
 Depends on: 1401 (the reader that displays what this writes)
 
 ## Goal

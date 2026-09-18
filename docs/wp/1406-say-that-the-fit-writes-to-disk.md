@@ -1,6 +1,6 @@
 # WP-1406 — say that the fit writes to disk
 
-Milestone: unscheduled · Status: ✅ 2026-09-15 — the manual, the skill and two rulebooks say a fit writes to disk; the body sentence moved to 1405, which is the WP that makes it true
+Milestone: v1.5 · Status: ✅ 2026-09-15 — the manual, the skill and two rulebooks say a fit writes to disk; the body sentence moved to 1405, which is the WP that makes it true
 Depends on: 1403 (the behaviour being documented); 1405 (the sentence the skill
 body carries); 1402 (the break being recorded)
 

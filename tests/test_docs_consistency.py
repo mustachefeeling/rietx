@@ -182,6 +182,13 @@ _INHERITED_PRUNE_EPOCH = "2026-07-31"
 #                                                          under § The repo's own process, no narrative at
 #                                                          all, since both WP files carry their own. Landed
 #                                                          720, +2 headroom
+#   2026-09-18  docs/ROADMAP.md               722 -> 748  for WP-1440, opening § v1.5 over 26 rows that
+#                                                          were already in the file. The whole move is
+#                                                          structure: one ###, five ####, five table
+#                                                          headers, one new row for 1440 itself. Every
+#                                                          line of new narrative was paid for by a cut in
+#                                                          § Unscheduled, whose prose described the rows
+#                                                          that left. Landed 745, +3 headroom
 SIZE_CAPS: dict[str, int | None] = {
     # 739 -> 755 (WP-1102): two standing rules for the component seam — that an
     # additive non-Bragg term is a union *member* and not a new field, and that
@@ -363,7 +370,15 @@ SIZE_CAPS: dict[str, int | None] = {
     # paid for itself — the list of open questions became the list of answers
     # in the same eight lines — so this branch's whole move is the row, and
     # the number is the merged file's.
-    "docs/ROADMAP.md": 722,
+    # 722 -> 748 (WP-1440): § v1.5 opened over 26 rows the file already
+    # carried, so the move is structure and not content — one `###`, five
+    # `####`, five table headers and 1440's own row come to exactly the 23
+    # lines the file grew by.  The diary's standing rule is that a cap grows
+    # with the row count and with nothing else, a row being no narrative; the
+    # narrative this branch added is paid for in § Unscheduled, where the
+    # prose describing the departed rows was cut to match.  Landed 745, +3
+    # headroom for what the notes audit may still have to cut.
+    "docs/ROADMAP.md": 748,
     # 1036 -> 1053 (WP-1429): where the GUI's colour values live, now that
     # they are Python and this workspace's `tokens.css` is generated from
     # them. It governs work outside the WP that measured it — an edit to a

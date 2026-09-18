@@ -1,6 +1,6 @@
 # WP-1403 — a run nobody asked to record
 
-Milestone: unscheduled · Status: ✅ 2026-09-15 — every fit records itself;
+Milestone: v1.5 · Status: ✅ 2026-09-15 — every fit records itself;
 not user-shippable until WP-1406 writes the prose
 Depends on: 1401 (the reader, and the baseline measurement that gates this);
 1402 (the snapshot this writes)
