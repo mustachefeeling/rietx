@@ -558,6 +558,13 @@ def test_the_reasons_a_caller_cannot_lift_outrank_a_hold(ref):
     assert rows["phases.0.cell.b"].held_because.startswith("tied:")
     assert rows["phases.0.cell.alpha"].held_because.startswith("structurally fixed")
     assert rows[CELL].held_because.startswith("held by this refinement")
+    # …and the refusal reads the table too, so it never gives advice that
+    # would not work: `unhold` gives a tied or locked row back no freer than
+    # it was, so those keep set_vary's older answer of declining in silence
+    assert ref.set_vary("phases.0.cell.b", True) == []
+    assert ref.set_vary("phases.0.cell.alpha", True) == []
+    with pytest.raises(ValueError, match="held by this refinement"):
+        ref.set_vary(CELL, True)
 
 
 def test_set_vary_refuses_a_held_path_and_sweeps_past_it(ref):

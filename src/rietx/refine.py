@@ -809,8 +809,19 @@ class Refinement:
             # symmetry-fixed cell angle gets, for the reason
             # ``ParameterTable.set_vary`` gives: turning a broad glob into an
             # error is worse than declining one row of it.
+            #
+            # Only where the hold is the reason that *bites*, which is the
+            # filter ``StageResult.blocked_by_hold`` uses and the order
+            # ``ParameterRow.held_because`` reports in.  A broad
+            # ``hold("phases.*.cell.*")`` marks the symmetry-tied and locked
+            # rows too, and on those the message below would be false advice:
+            # ``unhold`` gives them back no freer than they were, so they keep
+            # ``set_vary``'s older answer of declining in silence.
+            by_path = {e.path: e for e in table.entries}
             blocked = [g for g in globs
-                       if not any(ch in g for ch in "*?[") and g in self._user_holds]
+                       if not any(ch in g for ch in "*?[") and g in self._user_holds
+                       and g in by_path and by_path[g].tie is None
+                       and not by_path[g].locked]
             if blocked:
                 raise ValueError(
                     f"{blocked[0]!r} is held by this refinement and cannot be "
@@ -1022,7 +1033,8 @@ class Refinement:
         """
         if not self._user_holds:
             return
-        missing = sorted(p for p in self._user_holds if not table.set_held(p, True))
+        marked = set(table.set_held(self._user_holds, True))
+        missing = sorted(self._user_holds - marked)
         if missing:
             warnings.warn(
                 f"{len(missing)} held path(s) are not in this model and so hold "
@@ -1374,16 +1386,13 @@ class Refinement:
             if any(ch in glob for ch in "*?[") or glob in known:
                 continue
             raise ValueError(f"unknown parameter path: {glob!r}")
-        import fnmatch
-
         hits = sorted(p for p in known
                       if any(fnmatch.fnmatchcase(p, g) for g in globs))
         new = [p for p in hits if p not in self._user_holds]
         if not new:
             return []
         self._user_holds.update(new)
-        for path in new:
-            table.set_held(path, True)
+        table.set_held(new, True)
         self._commit_hold_edit(table, held=new, unheld=[])
         return new
 
@@ -1403,8 +1412,6 @@ class Refinement:
         spelled.
         """
         globs = [path_globs] if isinstance(path_globs, str) else list(path_globs)
-        import fnmatch
-
         hits = sorted(p for p in self._user_holds
                       if any(fnmatch.fnmatchcase(p, g) for g in globs))
         literals = [g for g in globs

@@ -94,7 +94,7 @@ Every refinable quantity is a `rx.Parameter` (`value`, `vary`, bounds), addresse
 
 ## Refining
 
-`rx.Refinement` is the stateful entry point and `rx.refine` the one-shot function form. Plans are named in `rx.PLAN_INFO` or built as a `rx.RefinementPlan` of `rx.Stage`s; `ref.parameters()` lists every entry, fixed, locked and tied included, and the editing verbs auto-commit a history node each.
+`rx.Refinement` is the stateful entry point and `rx.refine` the one-shot function form. Plans are named in `rx.PLAN_INFO` or built as a `rx.RefinementPlan` of `rx.Stage`s; `ref.parameters()` lists every entry, fixed, locked and tied included, and the editing verbs auto-commit a history node each. **`vary=False` is not a pin**: a plan replaces the vary flags rather than continuing them, so a stage's `turn_on` glob frees whatever it matches. Say it with `ref.hold(globs)`, which outranks the glob, survives a save and reopen, and makes the stage report what it could not free (§8.25, §7 `HOLD_BLOCKED_PLAN`).
 
 - `rx.Refinement(structure: Structure, instrument: Instrument, *, backend: str = 'numpy', solver: str = 'trf', history: bool | str | Path | RefinementTree = True)` — Refine `structure` + `instrument` against a powder pattern.
 - `rx.Refinement.fit(data: PatternData, *, mode: Mode = 'rietveld', plan: RefinementPlan | str = 'mccusker_default', two_theta_limits: tuple[float, float] | None = None, events=None, cancel=None, telemetry=None, label: str | None = None, stage_reports: bool = False, progress=None) -> RefinementResult` — Run a staged refinement.
@@ -111,6 +111,8 @@ Every refinable quantity is a `rx.Parameter` (`value`, `vary`, bounds), addresse
 - `rx.Refinement.untie(paths: list[str] | str) -> list[str]` — Release user ties, recording a `set_tie` node.
 - `rx.Refinement.add_variable(name: str, value: float, *, vary: bool = False, min: float = -inf, max: float = inf, transform: str = 'identity', unit: str | None = None) -> str` — Declare a named variable other parameters can follow.
 - `rx.Refinement.remove_variable(name: str) -> str` — Delete a named variable, refusing while anything follows it.
+- `rx.Refinement.hold(path_globs: list[str] | str) -> list[str]` — Declare that these parameters do not move, whatever a plan asks.
+- `rx.Refinement.unhold(path_globs: list[str] | str) -> list[str]` — Take back a hold.
 - `rx.Refinement.edit(*, structure: Structure | None = None, instrument: Instrument | None = None, label: str = '') -> str | None` — Record a change to the model itself — adding an impurity phase, raising the background order, swapping the geometry.
 - `rx.refine(data: PatternData, structure: Structure, instrument: Instrument, *, mode: Mode = 'rietveld', plan: RefinementPlan | str = 'mccusker_default', two_theta_limits: tuple[float, float] | None = None, backend: str = 'numpy', solver: str = 'trf', history: bool | str | Path | RefinementTree = False, events=None, cancel=None, telemetry=None, label: str | None = None) -> RefinementResult` — One-shot functional API: `refine(data, structure, instrument)`.
 - `rx.RefinementPlan`
