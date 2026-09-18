@@ -87,7 +87,7 @@ table is not re-applied by a later write-through.
       so a verify refit carries the same constraints the chain did
 - [x] Named-variable values cross the pattern boundary under the existing `carry`
       globs, `vars.<name>` matched as the ordinary dot-path it is
-- [ ] Tests: the tie holds on every pattern; the variable warm-starts and a narrow
+- [x] Tests: the tie holds on every pattern; the variable warm-starts and a narrow
       `carry` excludes it; the ladder's rungs and the verify refit see the hook; a
       hook that raises is the caller's error, not a swallowed one
 - [ ] Manual Part 1 (`docs/manual/using/series.md`) and the `parameters`/constraints
@@ -98,7 +98,7 @@ table is not re-applied by a later write-through.
 ## Acceptance
 
 ```sh
-.venv/bin/python -m pytest tests/test_sequential.py tests/test_named_variables.py tests/test_constraints.py -q
+.venv/bin/python -m pytest tests/test_sequential.py tests/test_named_variables.py tests/test_params_surface.py -q
 .venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"
 .venv/bin/python -m ruff check src tests examples
 .venv/bin/python -m sphinx -W -q -b html docs/manual docs/manual/_build/html

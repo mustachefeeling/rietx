@@ -284,6 +284,164 @@ def test_carry_globs_move_only_matching_paths():
     assert cell.c.value == pytest.approx(cell.a.value)
 
 
+# -- user constraints across the chain (WP-1441, issue #376) --------------
+
+#: the default plan plus the displacement parameters the constraint tests tie
+#: together and the variable driving them.  ``_CHEAP`` cannot serve — a
+#: constraint nothing refines is one no assertion can see — and the
+#: displacement stage alone cannot either: on this series it leaves Rwp at
+#: 0.985 against 0.041 here, and a tie measured on a fit that did not converge
+#: says nothing about ties.
+_TIED = staged.RefinementPlan(stages=[
+    *staged.RefinementPlan.mccusker_default().stages,
+    staged.Stage("biso", ["phases.*.atoms.*.biso", "vars.*"])])
+
+
+def _tie_the_two_biso(index, ref):
+    """The issue's own constraint: both sites' Biso are one parameter."""
+    ref.add_variable("B_all", 0.4, min=0.0, max=5.0)
+    ref.tie_equal(["phases.0.atoms.*.biso"], source="vars.B_all")
+
+
+def test_a_tie_declared_in_constrain_holds_on_every_pattern(thermal_patterns):
+    """Issue #376: the tie that held pattern 1 together holds pattern 2.
+
+    Before the ``constrain`` hook there was no object to declare it on — a
+    tie lives on ``Refinement._ties`` and in no model, so ``carry`` could not
+    reach it and ``prepare`` ran one line before the ``Refinement`` existed.
+    Asserted as *equality of the tied pair*, not as the presence of a tie: the
+    pair coming back equal on every pattern is the whole content of the ask.
+    """
+    from pathlib import Path
+
+    from rietx.viz.plots import plot_result
+
+    runner = SequentialRefinement(*_start_models())
+    series = runner.fit(thermal_patterns[:3], plan=_TIED,
+                        constrain=_tie_the_two_biso)
+    assert len(series) == 3
+    for entry in series.entries:
+        values = {p.path: p.value for p in entry.parameters}
+        assert values["phases.0.atoms.0.biso"] == values["phases.0.atoms.1.biso"]
+        # and both are the variable driving them, not merely each other
+        assert values["vars.B_all"] == values["phases.0.atoms.0.biso"]
+
+    # obs/calc/diff PNGs to tests/output/ (gitignored), full range and a
+    # low-angle zoom — house convention, and a tied fit is exactly the kind
+    # whose Rwp can stay respectable while a region goes wrong
+    out = Path(__file__).parent / "output"
+    out.mkdir(exist_ok=True)
+    for k, result in enumerate(runner.results_):
+        plot_result(result, path=str(out / f"sequential_tied_biso_p{k}.png"))
+        plot_result(result, path=str(out / f"sequential_tied_biso_p{k}_zoom.png"),
+                    two_theta_range=(3.0, 10.0))
+
+
+def test_an_untied_series_leaves_the_same_pair_free_and_unequal(thermal_patterns):
+    """The control the test above needs: without the hook they diverge.
+
+    Same patterns, same plan, no ``constrain`` — so an equality that the tied
+    run reports is the tie's doing and not the data's.
+    """
+    series = refine_sequential(thermal_patterns[:3], *_start_models(),
+                               plan=_TIED)
+    for entry in series.entries:
+        values = {p.path: p.value for p in entry.parameters}
+        assert values["phases.0.atoms.0.biso"] != values["phases.0.atoms.1.biso"]
+        assert "vars.B_all" not in values
+
+
+def test_a_named_variable_warm_starts_under_the_carry_globs(thermal_patterns):
+    """``vars.<name>`` is an ordinary dot-path, so ``carry`` governs it.
+
+    A variable lives on the register and in no model, so ``_carry_into`` — which
+    reads a ``ParameterTable`` built from the previous fitted pair — cannot see
+    one, and ``carry=["*"]`` would be a claim nothing kept (WP-1076's shape).
+    Observed at the *start* of each fit rather than at its end, because what
+    the carry moves is a starting point; the answers agree either way.
+    """
+    started: dict[str, list[float]] = {}
+
+    def declare(index, ref, key):
+        _tie_the_two_biso(index, ref)
+        inner = ref.fit
+
+        def fit(*args, **kwargs):     # after the carry, which runs on return
+            started.setdefault(key, []).append(ref._variables["B_all"].value)
+            return inner(*args, **kwargs)
+
+        ref.fit = fit
+
+    wide = refine_sequential(
+        thermal_patterns[:3], *_start_models(), plan=_TIED,
+        constrain=lambda i, r: declare(i, r, "wide"))
+    refine_sequential(
+        thermal_patterns[:3], *_start_models(), plan=_TIED,
+        carry=["phases.*", "instrument.*"],
+        constrain=lambda i, r: declare(i, r, "narrow"))
+
+    fitted = [{p.path: p.value for p in e.parameters}["vars.B_all"]
+              for e in wide.entries]
+    # pattern 1 has nothing to warm from; 2 and 3 start where their
+    # predecessor finished
+    assert started["wide"] == [0.4] + fitted[:2]
+    # a glob that does not match ``vars.*`` leaves every pattern at the
+    # declaration, which is what "restarts from the initial models" means here
+    assert started["narrow"] == [0.4, 0.4, 0.4]
+
+
+def test_a_quarantined_pattern_seeds_no_variable_either(thermal_patterns):
+    """The warm start of a variable is the chain's rule, not the caller's.
+
+    A caller could warm-start a variable by hand inside ``constrain`` — they
+    hold the previous result — but only the chain knows which pattern was
+    *accepted*: a diverged one is stepped over (WP-1051), and a hand-rolled
+    warm start would seed the next pattern from the fit that failed. So the
+    carry reads the same ``previous`` the models do, and this pins it: p001 is
+    dictated to diverge on every rung, and p002 starts where p000 finished.
+    """
+    started: list[tuple[int, float]] = []
+
+    def declare(index, ref):
+        _tie_the_two_biso(index, ref)
+        inner = ref.fit
+
+        def fit(*args, **kwargs):     # after the carry, which runs on return
+            started.append((index, ref._variables["B_all"].value))
+            return inner(*args, **kwargs)
+
+        ref.fit = fit
+
+    runner = _dictate(SequentialRefinement(*_start_models()),
+                      {"p000": [("converged", 0.10)],
+                       "p001": [("diverged", 0.001)],
+                       "p002": [("converged", 0.10)]})
+    series = runner.fit(thermal_patterns[:3], plan=_TIED, reseed_factor=1.0,
+                        constrain=declare)
+    assert series[1].status == "diverged"
+
+    p000 = {p.path: p.value for p in series[0].parameters}["vars.B_all"]
+    assert p000 != 0.4                      # it moved, or this asserts nothing
+    # p000 declares; p001 climbs the whole ladder from p000, its cold rung
+    # warming from nothing at all; p002 warms from p000 and not from p001
+    assert started == [(0, 0.4), (1, p000), (1, p000), (1, 0.4), (2, p000)]
+
+
+def test_a_raise_in_constrain_is_the_callers_error(thermal_patterns):
+    """The hook is the caller's code and runs outside every guard.
+
+    ``prepare``'s rule, and for its reason: a constraint that did not happen is
+    not a series to report on, so it ends the run rather than being folded into
+    a diagnostic.
+    """
+    def boom(index, ref):
+        raise KeyError("the caller's own mistake")
+
+    with pytest.raises(KeyError, match="the caller's own mistake"):
+        refine_sequential(thermal_patterns[:2], *_start_models(),
+                          plan=_CHEAP, constrain=boom)
+
+
 def test_collapse_unions_the_plans_turn_on_globs():
     plan = rx.RefinementPlan.mccusker_structural()
     single = _collapse(plan)
@@ -887,6 +1045,7 @@ class _StubColdFits(SequentialRefinement):
         super().__init__(*_start_models())
         self._values = values
         self.refits: list[str] = []
+        self.hooks: list[object] = []
 
     def _fit_one(self, data, label, previous, previous_hkl, plan, mode,
                  two_theta_limits, position, previous_tag, prepare, constrain,
@@ -895,6 +1054,7 @@ class _StubColdFits(SequentialRefinement):
         assert previous is None and previous_hkl == []   # cold, by construction
         assert history_suffix == ".verify"
         self.refits.append(label)
+        self.hooks.append(constrain)
         return None, _fake_result(0.1, parameters=[
             RefinedParameter(path=p, value=v)
             for p, v in self._values[label].items()])
@@ -956,6 +1116,22 @@ def test_verification_says_so_when_a_cold_fit_determines_nothing():
                                    "rietveld", _CHEAP, None, None, None)
     assert steps[0].diagnostic.value is None
     assert "could not be re-measured" in steps[0].diagnostic.message
+
+
+def test_verification_refits_carry_the_callers_constraints():
+    """The cold refit gets ``constrain``, as it gets the plan and the models.
+
+    A verification fit that dropped the caller's own ties would be a different
+    model, and the ratio it reports would be comparing the step against a fit
+    nobody asked for (WP-1441).
+    """
+    runner = _StubColdFits({"p2": {"phases.0.cell.a": 4.0},
+                            "p3": {"phases.0.cell.a": 4.002}})
+    steps = [_flagged("phases.0.cell.a", 2e-3)]
+    runner._verify_discontinuities(steps, [None] * 6, [f"p{i}" for i in range(6)],
+                                   "rietveld", _CHEAP, None, None,
+                                   _tie_the_two_biso)
+    assert runner.hooks == [_tie_the_two_biso, _tie_the_two_biso]
 
 
 def _synthetic_series(path: str, values, stderr) -> SeriesResult:
