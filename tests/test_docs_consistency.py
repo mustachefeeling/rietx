@@ -351,7 +351,17 @@ SIZE_CAPS: dict[str, int | None] = {
     # re-declared per pattern, while a variable's value is a number and is
     # carried.  The measurements (the iteration counts, the Rwp the plan
     # reaches) stayed in the WP file.
-    "CLAUDE.md": 923,
+    # 923 -> 929 (the magnetic index split, 2026-09-18): one clause saying a
+    # task shape's entry points render to a generated `api-<shape>.md` rather
+    # than into the everyday `api.md`.  The existing sentence beside it covered
+    # the *authored* half of a shape's documentation and was silent on the
+    # generated half, which is the half a contributor adding a verb touches, so
+    # a reader following CLAUDE.md alone would put a magnetic verb where every
+    # session that will never call it pays for it.  It governs every technique
+    # after magnetic (TOF, texture, PDF), which is protocol rule 4's test, and
+    # the measurement behind it is the reader's context rather than a byte
+    # count.  Landed 925, +4 headroom.
+    "CLAUDE.md": 929,
     # 672 -> 676 (WP-1102): the Current focus rewrite at 1102's close names the
     # milestone's one break and what makes 1103 the seam's proving case.
     # 676 -> 682 (WP-1407): a new Unscheduled group, "The formats a lab still

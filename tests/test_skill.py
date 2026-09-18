@@ -51,6 +51,14 @@ SKILL = SKILL_DIR / "SKILL.md"
 REFERENCE_DIR = SKILL_DIR / "references"
 REFERENCES = sorted(REFERENCE_DIR.glob("*.md"))
 API_INDEX = REFERENCE_DIR / "api.md"
+#: The generated indexes, `api.md` and any `api-<technique>.md` beside it.
+#: `api.md` is the everyday one and a technique index is loaded only by a
+#: session doing that technique, which is the whole point of the split: a
+#: name nobody outside magnetic refinement will ever call costs every other
+#: session nothing.  The glob is deliberate — a technique index is *created*
+#: by the work that needs it, so this set must not be a list that the
+#: creating PR has to remember to edit.
+API_INDEXES = sorted(REFERENCE_DIR.glob("api*.md"))
 
 #: A skill body is read whole on activation; the Read tool returned 66 kB on
 #: the document this replaced, so the body is capped at half of it.
@@ -118,7 +126,7 @@ def test_the_body_is_within_its_caps():
 
 @pytest.mark.parametrize("path", REFERENCES, ids=lambda p: p.name)
 def test_every_reference_file_is_within_its_cap(path: Path):
-    generated = path == API_INDEX
+    generated = path in API_INDEXES
     cap = API_INDEX_MAX_BYTES if generated else REFERENCE_MAX_BYTES
     size = len(path.read_bytes())
     assert size <= cap, (
@@ -572,14 +580,25 @@ def test_the_api_index_resolves_through_a_field_hop():
 # TOPAS `.inp` beside the data it describes, parsed it by hand and never
 # called it (WP-1307 round 1.1; `tests/eval_agent_surface/PROTOCOL.md`).
 #
-# **Documented means named in `references/api.md`**, not merely somewhere in
+# **Documented means named in a generated api index**, not merely somewhere in
 # the tree.  `read_recipe` was in `references/diagnostics.md` the whole time,
 # inside a `RECIPE_*` row that cannot fire until the door has already been
-# used, so a tree-wide test would have called that coverage.  `api.md` is the
+# used, so a tree-wide test would have called that coverage.  An index is the
 # file the routing table names for *"you are about to call rietx: entry
 # points"*, and it is generated, so this gate lands on `make_api_index.py`'s
 # SECTIONS selection — the thing WP-1306 had no reason to touch when it added
 # the `RECIPE_*` rows and shipped the diagnostics without the door.
+#
+# **A technique nobody's everyday fit uses gets an index of its own**
+# (`api-<technique>.md`), and `api.md` stays the everyday one.  The reason is
+# the reader's context and not the byte cap: `api.md` is loaded by every
+# session that is about to call rietx, so a name only a magnetic refinement
+# will ever reach is a cost paid by every session that will never reach it.
+# The cap follows from that rather than causing it.  The authored heuristics
+# for the same technique stay in their own `references/<technique>.md` under
+# the shape rule (root CLAUDE.md § skill) — an authored file and a generated
+# index are different objects, and only the generated one is pinned byte for
+# byte against `make_api_index.py`.
 #
 # Deliberately NOT covered, recorded so a later session reads it as a gap and
 # not as a decision: alternative constructors (`Instrument.
@@ -597,8 +616,14 @@ API_INDEX_ENTRY = re.compile(r"^- `rx\.([A-Za-z_][A-Za-z0-9_]*)", re.M)
 
 
 def _documented_verbs() -> set[str]:
-    """Names the api index gives an entry row of its own."""
-    return set(API_INDEX_ENTRY.findall(API_INDEX.read_text(encoding="utf-8")))
+    """Names an api index gives an entry row of its own.
+
+    The union over `api.md` and every `api-<technique>.md`.  A verb's door is
+    signed wherever a session that would call it is routed, and a technique's
+    session is routed to the technique's index.
+    """
+    return {name for path in API_INDEXES
+            for name in API_INDEX_ENTRY.findall(path.read_text(encoding="utf-8"))}
 
 
 #: A verb the skill deliberately does not carry, and why.  Each entry is a
