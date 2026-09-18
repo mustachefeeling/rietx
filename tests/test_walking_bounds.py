@@ -25,12 +25,14 @@ from rietx.schemas.instrument import Instrument
 from rietx.schemas.pattern import PatternData
 from rietx.strategy.staged import (
     FLAT_DIRECTION_RHO,
+    GAUSSIAN_RESOLUTION_PATHS,
     LINDEMANN_RHO,
     RESOLUTION_CONE_TOL,
     biso_melting_bound,
     check_biso_plausible,
     check_hump_width,
     check_resolution_positive,
+    check_resolution_supported,
 )
 from tests.test_schemas import make_lab6
 
@@ -439,3 +441,118 @@ def test_the_cap_leaves_a_short_list_alone():
     rows = [Diagnostic(level="warning", code="FLAT_DIRECTION",
                        message="fd", where=["a", "b"], value=-1.0)]
     assert _cap_high_correlation(rows) == rows
+
+
+# ----------------------------------------------------------------------
+# item 4 (#102) — U, V, W refined on data that does not determine them
+# ----------------------------------------------------------------------
+def _resolution_state(*, u, v, w, x, y, free=True):
+    """A compiled model at a given resolution, with U, V, W freed or held."""
+    table, model = _state(u=u, v=v, w=w)
+    table.entries[table._paths["instrument.profile.x"]].value = x
+    table.entries[table._paths["instrument.profile.y"]].value = y
+    if free:
+        table.set_vary(list(GAUSSIAN_RESOLUTION_PATHS), True)
+    return table, model
+
+
+#: a high-resolution synchrotron line: narrow, and Lorentzian-dominated, which
+#: is the character McCusker's § Synchrotron warns about by name.
+SYNCHROTRON = dict(u=1e-4, v=-5e-5, w=2e-5, x=8e-3, y=2e-3)
+
+#: a constant-wavelength neutron instrument: broad and Gaussian-dominated,
+#: where the same paper says U, V and W "are easily determined".
+CW_NEUTRON = dict(u=0.15, v=-0.20, w=0.12, x=1e-4, y=1e-4)
+
+
+def test_the_synchrotron_case_the_paper_names_is_reported():
+    table, model = _resolution_state(**SYNCHROTRON)
+    findings = check_resolution_supported(table, model)
+
+    assert [f.code for f in findings] == ["RESOLUTION_UNCONSTRAINED"]
+    finding = findings[0]
+    assert finding.paths == GAUSSIAN_RESOLUTION_PATHS
+    assert 0.0 < finding.value < 0.5, "the Gaussian should carry the minority"
+    assert "predominantly Lorentzian" in str(finding)
+    assert "U, V, W" in str(finding)
+
+
+def test_a_neutron_instrument_is_silent():
+    """The other half of the same paragraph, and the reason there is no
+    threshold on width here: on a CW neutron instrument the profile is
+    Gaussian-dominated and the same three parameters are well determined, so
+    a size test would have to be wrong for one technique or the other.
+    """
+    table, model = _resolution_state(**CW_NEUTRON)
+    assert check_resolution_supported(table, model) == []
+
+
+def test_holding_the_profile_is_the_remedy_not_the_fault():
+    """The paper's own prescription is to fix them at the instrumental values.
+
+    Firing on a held profile would flag the remedy, which is the failure mode
+    WP-1073 hit when a geometry-blind map suggested a force-fixed parameter.
+    """
+    table, model = _resolution_state(**SYNCHROTRON, free=False)
+    assert not any(p in set(table.free_paths) for p in GAUSSIAN_RESOLUTION_PATHS)
+    assert check_resolution_supported(table, model) == []
+
+
+def test_freeing_one_of_the_three_names_that_one():
+    table, model = _resolution_state(**SYNCHROTRON, free=False)
+    table.set_vary(["instrument.profile.w"], True)
+    findings = check_resolution_supported(table, model)
+    assert findings[0].paths == ("instrument.profile.w",)
+    assert str(findings[0]).startswith("W refined on")
+
+
+def test_the_guard_is_silent_without_a_model_or_a_free_term():
+    table, model = _resolution_state(**SYNCHROTRON)
+    assert check_resolution_supported(table, None) == []
+
+    held, model_held = _resolution_state(**SYNCHROTRON, free=False)
+    assert check_resolution_supported(held, model_held) == []
+
+
+def test_the_verdict_tracks_the_majority_across_the_boundary():
+    """"Predominantly" is a comparison, so the guard must agree with the
+    majority it claims to be reading, on both sides of the crossing.
+
+    Asserted against an independent count rather than against the guard's own
+    source: a test that reads the implementation cannot fail when the
+    implementation is wrong (tests/CLAUDE.md, the guards that go quiet).
+    """
+    from rietx.model.profiles.caglioti import gaussian_fwhm, lorentzian_fwhm
+
+    seen = set()
+    for x in (1e-4, 1e-3, 8e-3, 2e-2, 5e-2, 0.08, 0.12, 0.2, 0.4):
+        table, model = _resolution_state(u=0.02, v=-0.012, w=0.008,
+                                         x=x, y=0.0)
+        theta = 0.5 * model.tt
+        g = np.asarray(gaussian_fwhm(theta, 0.02, -0.012, 0.008))
+        lo = np.asarray(lorentzian_fwhm(theta, x, 0.0))
+        majority_lorentzian = int((lo > g).sum()) * 2 > model.tt.size
+
+        fired = bool(check_resolution_supported(table, model))
+        assert fired == majority_lorentzian, (
+            f"x={x}: guard said {fired}, the count says {majority_lorentzian}")
+        seen.add(majority_lorentzian)
+
+    assert seen == {True, False}, "the sweep never crossed the boundary"
+
+
+def test_the_finding_reaches_the_diagnostics_naming_the_remedy():
+    from rietx.refine import _guard_diagnostics
+    from rietx.strategy.staged import GuardReport
+
+    table, model = _resolution_state(**SYNCHROTRON)
+    report = GuardReport()
+    report.unsupported_resolution = check_resolution_supported(table, model)
+
+    diags = [d for d in _guard_diagnostics(report)
+             if d.code == "RESOLUTION_UNCONSTRAINED"]
+    assert len(diags) == 1
+    assert diags[0].where == list(GAUSSIAN_RESOLUTION_PATHS)
+    # the remedy the paper prescribes, named as the workflow that implements it
+    assert "lab_calibrate" in diags[0].suggestion
+    assert "load_instrument_profile" in diags[0].suggestion

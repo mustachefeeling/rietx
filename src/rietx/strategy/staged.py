@@ -710,6 +710,15 @@ class GuardFinding:
                    f"worst σ²(M) {worst:+.2e} at {hkl})")
 
     @classmethod
+    def unsupported_resolution(cls, freed: tuple[str, ...], share: float,
+                               n_lorentzian: int, n_total: int) -> "GuardFinding":
+        names = ", ".join(path.rsplit(".", 1)[1].upper() for path in freed)
+        return cls("RESOLUTION_UNCONSTRAINED", freed, float(share),
+                   f"{names} refined on a predominantly Lorentzian pattern "
+                   f"(Γ_L exceeds Γ_G at {n_lorentzian} of {n_total} fitted "
+                   f"points; the Gaussian carries {share:.0%} of the width)")
+
+    @classmethod
     def flat_direction(cls, a: str, b: str, rho: float) -> "GuardFinding":
         return cls("FLAT_DIRECTION", (a, b), float(rho),
                    f"{a} ~ {b} (ρ={rho:+.3f}; the data does not separate them)")
@@ -747,10 +756,11 @@ class GuardReport:
     The six *finding* field names from v0.2 are unchanged; what they hold is
     findings rather than strings.  ``str(finding)`` is the old entry, so a
     consumer that only ever printed them needs no change.
-    ``nonpositive_resolution``, ``large_biso`` and ``flat_directions`` are the
-    seventh, eighth and ninth, added by WP-1311; their writers are
-    :func:`check_resolution_positive`, :func:`check_biso_plausible` and the
-    correlation loop in :func:`check_guards`.
+    ``nonpositive_resolution``, ``large_biso``, ``unsupported_resolution`` and
+    ``flat_directions`` are the seventh to tenth, added by WP-1311; their
+    writers are :func:`check_resolution_positive`, :func:`check_biso_plausible`,
+    :func:`check_resolution_supported` and the correlation loop in
+    :func:`check_guards`.
 
     ``measured_background_absorption`` is the one field that is **not**
     findings, and it is here rather than beside them so that the number a
@@ -790,6 +800,10 @@ class GuardReport:
     # isotropic displacement parameters past the Lindemann melting bound for
     # their own cell (see check_biso_plausible)
     large_biso: list[GuardFinding] = field(default_factory=list)
+    # the Gaussian resolution terms refined on a pattern whose peaks are
+    # predominantly Lorentzian, where they are not determined
+    # (see check_resolution_supported)
+    unsupported_resolution: list[GuardFinding] = field(default_factory=list)
     # pairs whose |ρ| is 1.000 to the precision the report states it in — a
     # rank statement about the data, reported beside the correlation rather
     # than instead of it (see FLAT_DIRECTION_RHO)
@@ -1045,6 +1059,76 @@ def check_stephens_positive(table, model) -> list[GuardFinding]:
             out.append(GuardFinding.nonpositive_strain(
                 base, int(bad.sum()), len(sigma2), float(sigma2[k]), hkl))
     return out
+
+
+#: The three Gaussian resolution terms, in the order a message names them.
+#: Data rather than three literals, because the guard below, its message and
+#: its test all have to mean the same three.
+GAUSSIAN_RESOLUTION_PATHS = ("instrument.profile.u", "instrument.profile.v",
+                             "instrument.profile.w")
+
+
+def check_resolution_supported(table, model) -> list[GuardFinding]:
+    """U, V, W refined on a pattern whose peaks are predominantly Lorentzian.
+
+    McCusker et al. (1999, J. Appl. Cryst. 32, 36) § Synchrotron states both
+    the failure and its remedy: "because of the predominantly Lorentzian
+    character of high-resolution data, refinement of the Lorentzian half-width
+    parameters X and Y is usually straightforward, but unconstrained refinement
+    of the Gaussian parameters U, V and W may lead to nonphysical results, or
+    at worst, complete failure of the refinement.  In such cases, some kind of
+    constraint function should be applied, or the parameters fixed at the
+    instrumental values."
+
+    So the question this asks is **not how wide the widths are**.  A size test
+    would need a number, and the same paper rules one out in the next
+    paragraph: for constant-wavelength neutron data the instrument dominates
+    the profile and "U, V and W are easily determined by Rietveld refinement",
+    so one threshold would have to be wrong for one technique or the other.
+    What the paper makes testable is *character*, and "predominantly" is a
+    comparison rather than a constant: the pattern is predominantly Lorentzian
+    where Γ_L exceeds Γ_G, and predominantly so where that holds at more than
+    half the fitted points.  No free constant enters, which is why this guard
+    has no tunable of its own.
+
+    Fires only on terms this table actually **frees**.  Held at a measured
+    instrumental profile they are exactly what the paper prescribes, so
+    reporting them would flag the remedy as the fault.
+
+    The instrument terms alone, no phase size or strain, for the reason
+    ``CompiledModel.instrument_fwhm_deg`` gives.  Needs the compiled model for
+    the fitted axis, so it returns ``[]`` without one.
+    """
+    import numpy as np
+
+    from ..model.profiles.caglioti import gaussian_fwhm, lorentzian_fwhm
+
+    if model is None:
+        return []
+    freed = tuple(p for p in GAUSSIAN_RESOLUTION_PATHS
+                  if p in set(table.free_paths))
+    if not freed:
+        return []
+    tt = np.asarray(model.tt, dtype=np.float64)
+    if tt.size == 0:
+        return []
+    values = {e.path: e.value for e in table.entries}
+    try:
+        theta = 0.5 * tt
+        g = np.asarray(gaussian_fwhm(theta, values["instrument.profile.u"],
+                                     values["instrument.profile.v"],
+                                     values["instrument.profile.w"]))
+        lo = np.asarray(lorentzian_fwhm(theta, values["instrument.profile.x"],
+                                        values["instrument.profile.y"]))
+    except KeyError:
+        return []
+
+    lorentzian = lo > g
+    if lorentzian.sum() * 2 <= tt.size:      # not predominantly, so no claim
+        return []
+    share = float(np.median(g / (g + lo))) if np.all(g + lo > 0.0) else 0.0
+    return [GuardFinding.unsupported_resolution(
+        freed, share, int(lorentzian.sum()), int(tt.size))]
 
 
 #: |ρ| at or above which a correlated pair is reported as a **flat direction**
@@ -1335,6 +1419,7 @@ def check_guards(table, outcome, threshold: float,
     report.nonpositive_strain = check_stephens_positive(table, model)
     report.nonpositive_resolution = check_resolution_positive(table, model)
     report.large_biso = check_biso_plausible(table, model)
+    report.unsupported_resolution = check_resolution_supported(table, model)
     report.narrow_humps = check_hump_width(table, model)
     free = table.free_paths
 

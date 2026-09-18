@@ -2722,6 +2722,7 @@ class Refinement:
 #: finding on the final result is a claim about a fit that no longer holds.
 #: Every stage's own copy stays on its ``StageReport`` and its history node.
 _REVISABLE_CODES = ("BOUND_HIT", "RESOLUTION_NOT_POSITIVE",
+                    "RESOLUTION_UNCONSTRAINED",
                     "BISO_UNUSUALLY_LARGE")
 
 
@@ -2779,6 +2780,23 @@ def _guard_diagnostics(guard) -> list[Diagnostic]:
                        "(StephensStrain.isotropic), refine fewer patterns (a "
                        "higher-symmetry Laue class has fewer), or extend the "
                        "fit range; do not report the S_HKL as measured",
+        ))
+    for finding in guard.unsupported_resolution:
+        msg = str(finding)
+        out.append(Diagnostic(
+            level="warning", code="RESOLUTION_UNCONSTRAINED",
+            where=list(finding.paths), value=finding.value,
+            message=f"{msg} — on a pattern of this character the Gaussian "
+                    "resolution terms are not determined by the data, so what "
+                    "they converged to is a fitted artefact rather than a "
+                    "measurement of the instrument",
+            suggestion="measure the instrument instead of refining it here: "
+                       "lab_calibrate on a standard with its certified cell "
+                       "held fixed, save_instrument_profile, then "
+                       "load_instrument_profile before this fit, which holds "
+                       "U, V and W at the instrumental values. Do not quote "
+                       "the widths, and treat any crystallite size or strain "
+                       "read off this profile as unmeasured",
         ))
     for finding in guard.flat_directions:
         msg = str(finding)

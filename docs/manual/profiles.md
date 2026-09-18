@@ -83,6 +83,32 @@ the $\theta$-law, never the letter.
 crystallite size, and says why $U$ and $W$ have no size to read. Anisotropic
 (hkl-dependent) sample broadening is in {ref}`ch-microstructure`.
 
+(sec-resolution-determined)=
+### When $U$, $V$ and $W$ are determined at all
+
+The two laws above are fitted together, so how well each is determined depends
+on how much of the peak it carries. On high-resolution data the peaks are
+predominantly Lorentzian, and there the Gaussian parameters are poorly
+constrained: "unconstrained refinement of the Gaussian parameters $U$, $V$ and
+$W$ may lead to nonphysical results, or at worst, complete failure of the
+refinement" {cite}`mccusker1999`. The same source gives the remedy, and it is
+not a limit on the width. Apply a constraint, or hold the parameters at the
+instrumental values.
+
+The converse holds for constant-wavelength neutron data, where the instrument
+dominates the profile and the same three parameters are, in that paper's
+words, easily determined by refinement. So the question is about the character
+of the pattern rather than the size of the widths, and any single bound on
+width would have to be wrong for one technique or the other.
+
+rietx therefore reports rather than bounds. A fit that frees $U$, $V$ or $W$ on
+a pattern where $\Gamma_L$ exceeds $\Gamma_G$ at more than half the fitted
+points gets a `RESOLUTION_UNCONSTRAINED` diagnostic. "Predominantly" is a
+comparison between two computed widths, so no calibrated constant enters. The
+workflow that implements the paper's remedy is in Part 1: calibrate on a
+standard with its certified cell held fixed, save the profile, and load it
+before the sample fit.
+
 (sec-strain-cap)=
 ## The strain width bound
 

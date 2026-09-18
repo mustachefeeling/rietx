@@ -213,8 +213,13 @@ maintainer's decision on which relative anchor to use.
       from Gilvarry (1956), not a constant; the 25 Å² cap kept and documented
       as the package's own; low side untouched, PR #206 having landed it.
 - [x] Resolution-positivity guard (Γ² > 0 in-range, naming the θ) —
-      `RESOLUTION_NOT_POSITIVE`, 2026-09-18. The #102 width-implausibility
-      diagnostic beside it is still open.
+      `RESOLUTION_NOT_POSITIVE`, 2026-09-18.
+- [x] The #102 diagnostic beside it, 2026-09-18 — `RESOLUTION_UNCONSTRAINED`,
+      and **not** a width-implausibility test: McCusker § Synchrotron names the
+      failure and prescribes constrain-or-hold rather than a size limit, and
+      its next paragraph rules a size limit out by having U, V and W "easily
+      determined" on CW neutron data. Fires on character instead, which is a
+      comparison and carries no constant.
 - [x] Flat-direction report, 2026-09-18 — `FLAT_DIRECTION` beside the pair's
       `HIGH_CORRELATION` rather than instead of it; the bar is the three
       decimals the message prints, so no constant is tuned.
