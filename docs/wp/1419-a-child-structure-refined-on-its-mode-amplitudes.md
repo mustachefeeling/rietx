@@ -384,6 +384,69 @@ every shipped fixture are bit-identical.
 
 ## Handover log
 
+### 2026-09-18 — the four rulings, and the fence that was built through (reconstructed post hoc)
+
+Reconstructed from `dd86b9d6` and `34776095`. The session that made them left
+no entry, so what follows is what the two diffs show and nothing more.
+
+The magnetic milestone opened over this WP and six others, and the four
+decisions the contributor asked for before cutting per-WP pull requests were
+taken. The one that reaches beyond the chain is about neutron time-of-flight.
+The contributor's integration branch carries a working TOF implementation, and
+this project fences TOF at v2+ behind issue #193. The fence held, so the TOF
+half splits back out before any pull request is cut. Whether it should go on
+holding is now a live question. It has been built through, and the ask returned
+is that the TOF branch be pushed on its own so the decision can be taken on the
+code.
+
+**Done.** This WP and 1418 both moved from `unscheduled` to `Milestone: v1.6`,
+and ROADMAP's v1.6 section carries their rows. The four rulings went into
+§ Inherited here. 1418 got its own note under protocol step 5, carrying the
+milestone's order and two housekeeping clauses: the `SCHEMA_VERSION` ladder is
+read off `schemas/common.py` when the first PR is cut, and every magnetic skill
+row goes in `references/magnetic.md`. ROADMAP's v2+ fence line was rewritten to
+say TOF has been built through.
+
+Nine minutes separate the two commits and they disagree. The first ruling as
+first written read as a refusal, and `34776095` replaced it. The split stands
+because two halves cannot ride into review in one chain and only the magnetic
+half has a milestone. #193 then becomes the next fence decision to take. Read
+the second version, and ROADMAP's § v2+ line with it.
+
+**Measured**, on `main` at `84eddb17` against the fork's integration branch at
+`b130bfd4`. The fork's own numbers were not reproduced here.
+
+- `references/api.md` is 36 280 B, up 191 B since `b130bfd4`. The chain adds
+  3 374 B, landing near 39 650 B against an `API_INDEX_MAX_BYTES` of 39 000.
+  That is 654 B over. The cap sits under a 40 kB physical wall, because Bash
+  truncates a larger file to a 2 kB preview, so raising it buys a few hundred
+  bytes. § In is 8 840 B and § Out 2 379 B, together 31 % of the file. Moving
+  both into `references/api-io.md` leaves `api.md` near 25 kB.
+- `src/rietx/io/CLAUDE.md` is 484 lines against a 485 cap, so any io rule now
+  needs a bump. 1328's magCIF reader is in this milestone and needs one.
+- Skill headroom, recorded in 1418's note: `diagnostics.md` 29 942 B of 36 000,
+  and `SKILL.md` 32 864 B of 33 000. The body has 136 B left. That is the
+  arithmetic behind sending every magnetic row to a reference file.
+
+**Gotchas.**
+
+- `dd86b9d6`'s subject is `WP-1418, WP-1419:`, and `session_start.py` anchors
+  on `^WP-(\d{4}):`. A comma after the first number matches nothing, so the
+  scan attributes that commit to neither WP. This WP was flagged only by the
+  later single-prefix commit, and 1418's half of the same work stayed invisible
+  to the scan. Three commits in the whole history carry a dual prefix.
+- Both commits are docs-only, so the scan's *order* rule could not fire on
+  them. The *date* rule caught the miss. That is the case it exists for.
+
+**Next.** Nothing here starts this WP, and it is third in the milestone's
+order: 1418's M-6 and M-7 go first, then 1327's verb. The session that does
+pick it up prunes § Inherited into Context and Tasks. That mailbox now holds
+two rounds, the 2026-09-16 review's five findings and these rulings. The
+`references/api.md` split is not this WP's to carry. It lands as a maintainer
+commit that the contributor's pull requests rebase onto, and it touches the
+generator's `SECTIONS` table and `test_skill.py`'s single-file assumption for
+`API_INDEX`.
+
 - **2026-09-16** — a `/pr-review` round answered #286's three
   decide-with-the-maintainer items and #293's three questions, and posted both
   to their threads. The decisions are in § Inherited above, along with five
