@@ -145,7 +145,22 @@ def moment_frame(basis, cell) -> np.ndarray:
 #: than the whole vector, and with the same fix: move it off the stationary
 #: point before the stage that frees it.  Small and nonzero, never tuned
 #: toward an answer.
-SEED_TILT = 0.15
+#:
+#: **Measured, not guessed** (WP-1418 stage (e), 2026-09-18): a 20-entry
+#: exact-recovery control set was re-run once with this at 0.15 and once at
+#: 0.02, everything else held fixed (same tree, same simulated noise). At
+#: 0.15, two entries (bns 185.200, bns 4.12; MAGNDATA #0.655, #1.227)
+#: regressed from an exact recovery to, respectively, a different class and a
+#: total abstention — the same optimiser that a rank-1 flat seed reliably
+#: converges reached a worse local minimum once nudged off it. At 0.02
+#: (still strictly nonzero, so the stationary point is broken exactly the
+#: same way in every unit test of :func:`tilted_seed` itself) both entries
+#: recover exactly, identically to the untouched pre-fix code. 0.15 was the
+#: number this stage started with by analogy to ``distortion_seed``'s own
+#: docstring examples, not measured against this workflow's own multi-start
+#: sweep before being shipped as a default — the mistake this note exists to
+#: name for whoever tunes it next.
+SEED_TILT = 0.02
 
 
 def tilted_seed(basis, cell, magnitude: float, *, tilt: float = SEED_TILT
