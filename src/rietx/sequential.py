@@ -787,13 +787,15 @@ class SequentialRefinement:
                     ref.tie_equal(["phases.0.atoms.0.biso",
                                    "phases.0.atoms.1.biso"],
                                   source="vars.B_site")
+                    ref.hold("phases.0.cell.*")   # WP-1435, the third
 
                 series.fit(patterns, plan=plan, constrain=constrain)
 
-            A tie and a named variable are the two facts of a refinement that
-            live in no model — ``Refinement._ties`` and ``._variables`` are the
-            one authority for each — so `carry`, which moves values between
-            ``Structure``/``Instrument`` pairs, cannot reach either, and
+            A tie, a named variable and a **hold** are the three facts of a
+            refinement that live in no model — ``Refinement._ties``,
+            ``._variables`` and ``._user_holds`` are the one authority for
+            each — so `carry`, which moves values between
+            ``Structure``/``Instrument`` pairs, cannot reach any of them, and
             `prepare` runs one line before the ``Refinement`` exists.  Without
             this hook there is no object to declare a constraint on for any
             pattern after the first.
