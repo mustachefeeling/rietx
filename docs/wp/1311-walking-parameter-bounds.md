@@ -317,6 +317,33 @@ corrected in place.
   which confirmed the two page numbers I had removed for being unverifiable
   from the OCR. Gilvarry is Phys. Rev. **102**, 308–316.
 
+**The review pass found nine, and all nine were accepted** (`/code-review
+high --fix`). Two were defects in the new guards. Every new diagnostic fell
+into the per-stage `else` arm, so two of the three accumulated once per stage
+and described intermediate vectors, which is verbatim the WP-1310 `BOUND_HIT`
+failure the docstring directly above them describes; `_REVISABLE_CODES` now
+covers all three, and a five-stage probe on a genuinely unphysical resolution
+reports once rather than five times. And `biso_melting_bound` counted orbit
+sites rather than atoms, so a partially occupied structure overcounted and the
+bound moved in the one direction a guard built on the loosest published ratio
+must not.
+
+Three more were a rendering class no test in this repo sees. The Part 2
+section's LaTeX escapes were doubled, because the text was lifted out of a
+patch script as raw source rather than as an evaluated string, so the page
+emitted literal `\\mathrm` and `\\pi` and {eq}`int-biso-melt` rendered as
+garbage while `-W` and `test_manual.py` both stayed green. That is this repo's
+own "a green build is not a rendered page" rule catching the session that
+wrote it. Two table rows carried an unescaped `|ρ|`, which truncates the cell.
+
+The ninth was left as a design call and answered in the same round:
+`FLAT_DIRECTION` bypassed `HIGH_CORRELATION_MAX`, so a fit with many
+degenerate pairs printed ten capped correlation rows and an unbounded list of
+flat ones. Each code now has **its own** budget with a `FLAT_DIRECTION_OMITTED`
+row beside it, because a shared budget would have the two evict each other at
+|ρ| ≈ 1 on a key that cannot separate them, leaving sort stability to decide
+which survived. `_CAPPED_PAIR_CODES` is the table both read.
+
 **Next**, in order. Both remaining items are blocked on the same kind of
 decision and neither is blocked on work.
 
