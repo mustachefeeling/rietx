@@ -129,11 +129,13 @@ and what the manual documents, for a defect that lives in the tie path.
 - [ ] `tests/test_sequential.py::test_a_named_variable_warm_starts_under_the_carry_globs`
       stays green: it is the second fixture over the repaired path, and it
       asserts on the value a fit *starts* from rather than the one it ends at.
-- [ ] Manual: `using/model.md` says a coordinate DOF is a displacement from the
+- [x] Manual: `using/model.md` says a coordinate DOF is a displacement from the
       stored coordinate. Say what that means for a tie onto one.
-- [ ] Skill: none, unless the fix changes what an agent should write — a tie
-      onto a DOF is the documented way to constrain coordinates, so if the
-      spelling changes, `references/` gains the row (root CLAUDE.md § skill).
+- [x] Skill: none. The spelling is unchanged, and the one the skill already
+      teaches (`tie_equal` on the `dof.k` paths of a coordinate group,
+      `references/diagnostics-projects.md`) is DOF-to-DOF — the control arm,
+      clean before the repair. Reaching the defect needed a source that does
+      not reset, which no shipped guidance asks for.
 
 ## Acceptance
 
