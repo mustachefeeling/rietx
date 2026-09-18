@@ -18,9 +18,16 @@ A constraint does not have to name a model parameter as its master.
 parameters to follow, and for the multi-source form of `Refinement.tie` that
 lets one such variable be written in terms of others.
 
-Both verbs act on one `Refinement`, and a series builds a fresh one per pattern.
-Declare them in `SequentialRefinement.fit`'s `constrain` hook to have them hold
-across a chain ([](series.md)).
+A hold does neither. It leaves the parameter where it is and refuses to let a
+plan free it, which `vary=False` on its own cannot do.
+{ref}`holding-a-parameter` is the reference for `Refinement.hold` and
+`Refinement.unhold`, and for the record a blocked stage leaves. Use it when a
+value comes from outside the fit and has to survive whatever plan you run, a
+certified cell on a calibration standard being the case it was built for.
+
+All three verbs act on one `Refinement`, and a series builds a fresh one per
+pattern. Declare them in `SequentialRefinement.fit`'s `constrain` hook to have
+them hold across a chain ([](series.md)).
 
 The parameter paths both take, and the one grammatical trap in them, are in
 [](model.md). The symmetry constraints you never declare (a cell edge following

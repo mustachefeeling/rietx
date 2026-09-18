@@ -3,8 +3,9 @@
    * The parameter table: every row the θ vector has, grouped, filtered, editable.
    *
    * Three rules come from the API rather than from taste.  A row that cannot be
-   * freed has **no vary checkbox at all** — the four reasons are distinct
-   * (`locked`, `tied`, `mode_fixed`, `needs_held_cell`) and `held_because` is
+   * freed has **no vary checkbox at all** — the five reasons are distinct
+   * (`locked`, `tied`, `mode_fixed`, `held`, `needs_held_cell`) and
+   * `held_because` is
    * the tooltip, already written server-side, so nothing here re-derives why
    * (WP-1004).  A bulk
    * free/fix sends the **glob**, because `set_vary` takes one and records one

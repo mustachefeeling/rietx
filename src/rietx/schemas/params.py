@@ -10,7 +10,7 @@ parameter table (WP-1011), a text document (WP-1009).
 Unlike :class:`~rietx.schemas.results.RefinedParameter`, which reports what a
 fit *refined*, a row exists for **every** entry — fixed, locked and tied ones
 included.  A caller deciding what to free next has to see the whole table,
-including the parts it may not touch and why it may not.  Three separate
+including the parts it may not touch and why it may not.  Five separate
 reasons make a row un-refinable and they are distinguishable on purpose:
 
 * ``locked`` — structurally fixed, ``set_vary`` can never free it (a
@@ -20,10 +20,15 @@ reasons make a row un-refinable and they are distinguishable on purpose:
   sources (``b`` in a tetragonal cell, an atom coordinate behind its Wyckoff
   DOFs);
 * ``mode_fixed`` — refinable in principle, but force-fixed by the intensity
-  mode currently in force.
+  mode currently in force;
+* ``held`` — the caller declared it does not move, with ``Refinement.hold``
+  (WP-1435).  The only one a caller both created and can lift;
+* ``needs_held_cell`` — a wavelength this histogram's free cell makes
+  degenerate.  The only *dynamic* one: another parameter's state decides it.
 
-:attr:`ParameterRow.refinable` is the single predicate over the three, so a
-front end has one rule to grey a row by rather than three it could get wrong.
+:attr:`ParameterRow.refinable` is the single predicate over the five, so a
+front end has one rule to grey a row by rather than five it could get wrong.
+:attr:`ParameterRow.held_because` orders them by what the caller can do.
 """
 
 from __future__ import annotations
@@ -115,6 +120,17 @@ class ParameterRow(Base):
     transform: TransformKind = "identity"
     tie: TieSpec | None = None
     locked: bool = False
+    #: The caller declared that this parameter does not move (WP-1435),
+    #: through ``Refinement.hold``.  An ``Entry`` field rather than one of the
+    #: extras below, because a hold behaves exactly as ``locked`` does inside
+    #: ``ParameterTable.set_vary`` and the table has to carry it to enforce it.
+    #:
+    #: It is the one held-reason a caller can lift, with ``unhold``.  That is
+    #: also what it is *for*: a stage's ``turn_on`` glob frees whatever it
+    #: matches, so ``vary=False`` alone survives no plan, and before this a
+    #: certified cell pinned for a calibration was refined anyway while the
+    #: model still read ``vary=False``.
+    held: bool = False
     esd: float | None = None
     mode_fixed: bool = False
     #: A wavelength that cannot be freed **right now** because this histogram's
@@ -141,17 +157,27 @@ class ParameterRow(Base):
     def refinable(self) -> bool:
         """Whether ``set_vary`` could free this row in the current mode."""
         return (not self.locked and self.tie is None and not self.mode_fixed
-                and not self.needs_held_cell)
+                and not self.held and not self.needs_held_cell)
 
     @property
     def held_because(self) -> str:
-        """Why this row cannot be freed, or ``""`` when it can be."""
+        """Why this row cannot be freed, or ``""`` when it can be.
+
+        Ordered by what a caller can do about it.  The three structural
+        reasons come first, because no verb lifts them.  A hold comes next,
+        being the caller's own and liftable with ``unhold``; it is reported
+        after ``mode_fixed`` so that a Le Bail phase's held atom names the
+        mode, which is the reason that would still hold if the hold went.
+        """
         if self.locked:
             return "structurally fixed by symmetry or by the model"
         if self.tie is not None:
             return f"tied: = {self.tie.describe()}"
         if self.mode_fixed:
             return "force-fixed by the intensity mode (lebail/pawley)"
+        if self.held:
+            return ("held by this refinement: declared with hold(), so no "
+                    "stage's turn_on frees it until unhold()")
         if self.needs_held_cell:
             return ("a free wavelength needs this histogram's cell held: "
                     "d = lambda/(2 sin theta) fixes only the product")

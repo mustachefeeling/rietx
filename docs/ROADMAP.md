@@ -102,11 +102,12 @@ two-lists decision it carries gets waved through in a diff about something
 else. **Neutron TOF is not in this milestone** — it stays at [§ v2+](#v2--fenced)
 behind issue #193, and the fork's chain carries it merged in.
 
-**Also unblocked**, landing in [§ v1.5.x](#v15x--after-the-ship) and staged in
-[releases/1.5.1.md](releases/1.5.1.md) the day it lands: the `.inp` grammar 1118
-refuses, [1433](wp/1433-the-inp-grammar-still-refused.md), and 1310's
-[1435](wp/1435-a-hold-the-caller-declares.md); its sibling
-[1434](wp/1434-the-bound-test-asks-the-wrong-question.md) closed 2026-09-18.
+**1310's last two closed 2026-09-18**, both in [§ v1.5.x](#v15x--after-the-ship)
+and staged in [releases/1.5.1.md](releases/1.5.1.md):
+[1434](wp/1434-the-bound-test-asks-the-wrong-question.md) and
+[1435](wp/1435-a-hold-the-caller-declares.md), which gives a caller a hold a
+plan may not override. **Also unblocked**, same landing: the `.inp` grammar 1118
+refuses, [1433](wp/1433-the-inp-grammar-still-refused.md).
 
 **Two cheap unowned asks** survive, both in 1407: Stoe `.raw` files paired with
 their WinXPOW ASCII export, and a blank for a `rietx compare` standard.
@@ -530,6 +531,7 @@ the next minor if one opens first.
 |---|---|---|---|
 | [1311](wp/1311-walking-parameter-bounds.md) | Bounds and flags for the remaining walking parameters | ✅ 2026-09-18 | — |
 | [1441](wp/1441-a-constraint-the-series-can-declare.md) | A constraint the series can declare | ✅ 2026-09-18 | — (1070, 1119 are the halves) |
+| [1435](wp/1435-a-hold-the-caller-declares.md) | A hold the caller declares, which a plan may not quietly override | ✅ 2026-09-18 | — (1070 is the shape) |
 
 ### v1.6 — the magnetic structure
 
@@ -624,9 +626,10 @@ Each row is a silent wrong answer, the class the repo's rules are strictest
 about; the titles below say which. Three triages feed it (2026-09-01, -03,
 -15) plus the 2026-09-16 review of #286 and #293, which cut 1432 of 1342's
 kind. The orbit that was not a multiplicity (1324) is closed and 1320 restates
-what it measured. 1310 closed on four of six in § v1.5; **1434 closed
-2026-09-18**, the flag now asking whether the limit carried load rather than
-whether the value stopped near one, and the hold (1435) carries on.
+what it measured. 1310 closed on four of six in § v1.5, and both of the two it
+could not answer closed 2026-09-18: **1434**, the bound flag now asking whether
+the limit carried load rather than whether the value stopped near one, and
+**1435**, where a caller's hold outranks a plan's glob and the plan says so.
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
@@ -645,7 +648,6 @@ whether the value stopped near one, and the hold (1435) carries on.
 | [1421](wp/1421-the-result-reproduces-its-own-number.md) | The result reproduces its own number | ⬜ | — (1310 soft) |
 | [1432](wp/1432-a-tie-onto-a-rederived-dof.md) | A tie onto a coordinate DOF, re-applied once per write | ⬜ | — (1119 soft) |
 | [1434](wp/1434-the-bound-test-asks-the-wrong-question.md) | The bound test asks whether the value is near its limit, never whether the limit was binding | ✅ 2026-09-18 | — |
-| [1435](wp/1435-a-hold-the-caller-declares.md) | A hold the caller declares, which a plan may not quietly override | ⬜ | — (1070 is the shape) |
 
 #### A long run is not one fit
 

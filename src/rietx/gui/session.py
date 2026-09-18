@@ -873,7 +873,15 @@ class GuiSession:
                 raise GuiError(str(exc), where=sorted(values)) from None
             changed["values"] = sorted(values)
         for glob, flag in vary.items():
-            changed["vary"][glob] = p.refinement.set_vary(glob, bool(flag))
+            try:
+                changed["vary"][glob] = p.refinement.set_vary(glob, bool(flag))
+            except ValueError as exc:
+                # ``set_vary`` could not refuse anything until WP-1435 gave a
+                # caller's hold precedence over a named path, so this branch
+                # ran bare and the first refusal would have been a 500.  Same
+                # treatment as ``set_values`` above: the sentence names the
+                # verb that resolves it, so it travels intact.
+                raise GuiError(str(exc), where=[glob]) from None
         return {"changed": changed, **self.params()}
 
     # ------------------------------------------------------------------

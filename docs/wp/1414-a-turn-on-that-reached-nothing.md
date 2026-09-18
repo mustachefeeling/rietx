@@ -80,6 +80,35 @@ The neighbour in 1310 (#211, a `turn_on` glob overriding an explicit
 `vary=False`) is the same seam read the other way. Land them together if
 1310 has not.
 
+### Inherited
+
+**From WP-1435 (closed 2026-09-18), which built one case of this WP's
+channel.** A `turn_on` now has a *fourth* reason to free nothing, beside a
+locked row, a tied row and the free-cell wavelength rule: a caller's
+`Refinement.hold`. That case is already reported, so build the rest beside it
+rather than over it.
+
+- `StageResult.blocked_by_hold` is the per-stage record of paths a glob
+  matched and could not free, and `HOLD_BLOCKED_PLAN` (info, one per fit,
+  `where` = the union, the message naming the stages) is its diagnostic.
+  Deduplicating per fit rather than per stage was deliberate: a cumulative
+  plan names the same glob in several stages, and per-stage rows print the
+  same sentence four times.
+- **A `vary`-keyed version of this report cannot be built**, which is the
+  finding that sent 1435 to a hold in the first place. `vary=False` is the
+  default rather than a decision: measured 2026-09-18 on the shipped LaB6
+  with an 8-term Chebyshev background, 38 of 46 entries are declared fixed
+  and the shipped plans free 8-12 of those. Any signal keyed on "the caller
+  had it fixed" names most of the table. A hold is only ever deliberate,
+  which is what makes its report readable.
+- The reasons a row cannot be freed are now **five**, and
+  `ParameterRow.refinable`/`held_because` is still the one predicate over
+  them. Read the reason off the row rather than re-deriving it — WP-1435
+  found `optimize/identifiability.py` re-deriving it and indexing by a
+  candidate `set_vary` had declined, which was an unhandled `ValueError`.
+  The durable fix there is to use `set_vary`'s **return**, never the list it
+  was offered, and that applies to anything this WP writes.
+
 ## Non-goals
 
 - The glob-skips-rather-than-raises trade-off in `set_vary`'s docstring.

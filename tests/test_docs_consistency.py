@@ -374,7 +374,13 @@ SIZE_CAPS: dict[str, int | None] = {
     # thresholds, their measured windows and the two rejected fixes stayed in
     # the WP and in the two constants' own docstrings.  Landed 937, +1
     # headroom.
-    "CLAUDE.md": 938,
+    # 938 -> 954 (WP-1435): a caller's hold, and the reason it had to be a
+    # mechanism rather than a message — `vary=False` does not survive a plan,
+    # so every session that writes a plan, a calibration or a `set_vary` call
+    # site needs the rule, not just the one that built it. It also states the
+    # two things that bite a caller who does not know it exists: `set_vary`
+    # can refuse now, and `_user_holds` is not WP-1301's `_held`.
+    "CLAUDE.md": 954,
     # 672 -> 676 (WP-1102): the Current focus rewrite at 1102's close names the
     # milestone's one break and what makes 1103 the seam's proving case.
     # 676 -> 682 (WP-1407): a new Unscheduled group, "The formats a lab still

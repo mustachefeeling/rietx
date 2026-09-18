@@ -146,6 +146,22 @@ user's); `RefinementState.ties` is why a checkout restores the parameter *count*
 outranks a user tie, enforced in `_apply_ties` and not only in the verbs' refusals — a model
 edit can make an already-tied path symmetry-tied after the fact.
 
+**A hold** (WP-1435, #211) is that construction over `vary` rather than over ties, and it
+exists because **`vary=False` does not keep a parameter fixed**: a plan *replaces* the vary
+flags (WP-1208), so any stage whose `turn_on` matches frees it — a certified cell pinned for
+`lab_calibrate` refined 185 ppm while the model still read `False` and nothing said so.
+`hold`/`unhold` (`set_hold` nodes), `Refinement._user_holds` the authority,
+`RefinementState.holds` why a checkout restores it, and `Entry.held` read by
+`ParameterTable.set_vary` beside `locked` — **in the table, never at the call sites**, or
+only the callers that remembered would honour it. Precedence: locked/`mode_fixed` outrank a
+hold, a hold outranks a glob, and `held_because` reports them in that order because only the
+middle one `unhold` can lift. A blocked glob is **reported**, not silent
+(`StageResult.blocked_by_hold`, `HOLD_BLOCKED_PLAN`) — and that report is keyed on the hold
+because it cannot be keyed on `vary`, which 38 of 46 LaB6 entries carry by default. Two
+consequences for a new caller: `set_vary` **can now refuse**, so read its return rather than
+the list you offered it; and `_user_holds` is not `_held`, which is WP-1301's stage-scoped
+reading of what the data can see.
+
 **Plans.** Exactly **one** `StageSpec`/`PlanSpec`, in `schemas/plan.py`; `schemas/history.py`
 and `agent.py` re-export. `PLAN_INFO` (`strategy/staged.py`) carries
 title/description/modes/when-to-use per preset, in bijection with `PLAN_PRESETS` by meta-test.

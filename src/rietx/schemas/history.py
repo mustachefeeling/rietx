@@ -45,7 +45,7 @@ from .structure import Structure
 #: inside itself, and the refreshed values ride on the ``"stage"`` node's
 #: ``ReflectionState``, so a node of that kind had nothing left to record.
 NodeKind = Literal["root", "stage", "set_vary", "set_value", "set_tie",
-                   "set_variable", "edit_model", "merge"]
+                   "set_variable", "set_hold", "edit_model", "merge"]
 
 
 class NodeAction(Base):
@@ -77,6 +77,8 @@ class NodeAction(Base):
     state it left: the whole tie register lives on
     :attr:`RefinementState.ties`, which is what a checkout restores — exactly as
     ``turn_on`` describes a ``set_vary`` whose result is read off ``free_paths``.
+    ``held``/``unheld`` (WP-1435) are ``"set_hold"``'s, on that same pattern,
+    against :attr:`RefinementState.holds`.
     """
 
     kind: NodeKind
@@ -100,6 +102,15 @@ class NodeAction(Base):
     #: ``Refinement.add_variable``/``remove_variable`` take.
     variables: dict[str, Parameter] = Field(default_factory=dict)
     removed_variables: list[str] = Field(default_factory=list)
+    #: ``"set_hold"``'s own arguments (WP-1435), by the same rule as
+    #: ``ties``/``untied``: the paths this action held and released, with the
+    #: whole register on :attr:`RefinementState.holds`, which is what a
+    #: checkout restores.  Resolved paths rather than the globs the caller
+    #: typed, because that is what ``Refinement.hold`` matched and returned,
+    #: and a log replaying the glob against a later model would hold a
+    #: different set.
+    held: list[str] = Field(default_factory=list)
+    unheld: list[str] = Field(default_factory=list)
 
     def api_call(self) -> str:
         """The equivalent public-API call, so a log doubles as a session script.
@@ -172,6 +183,13 @@ class NodeAction(Base):
             for name in self.removed_variables:
                 parts.append(f"ref.remove_variable({name!r})")
             return "; ".join(parts)
+        if self.kind == "set_hold":
+            parts = []
+            if self.held:
+                parts.append(f"ref.hold({self.held!r})")
+            if self.unheld:
+                parts.append(f"ref.unhold({self.unheld!r})")
+            return "; ".join(parts)
         if self.kind == "merge":
             return f"ref.merge(...)  # {self.name}"
         return f"# model edited: {self.name or 'structure/instrument replaced'}"
@@ -228,6 +246,13 @@ class RefinementState(Base):
     # carry it would restore a state whose ties reference a parameter that no
     # longer exists.
     variables: dict[str, Parameter] = Field(default_factory=dict)
+    # Caller-declared holds (WP-1435), the paths a plan's ``turn_on`` may not
+    # free.  Carried for the reason ``ties`` is: a hold is not a property of
+    # the models, ``vary`` cannot express it (a plan replaces the vary flags),
+    # and a node that did not carry it would restore a state where the
+    # declaration had silently lapsed.  A hold that does not survive reopening
+    # a ``.rex`` is worse than no hold, being a promise that expires quietly.
+    holds: list[str] = Field(default_factory=list)
 
 
 class NodeMetrics(Base):

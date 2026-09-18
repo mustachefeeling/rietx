@@ -337,6 +337,47 @@ def test_a_tie_declared_in_constrain_holds_on_every_pattern(thermal_patterns):
                     two_theta_range=(3.0, 10.0))
 
 
+def test_a_hold_declared_in_constrain_reaches_every_pattern(thermal_patterns):
+    """The third fact that lives in no model (WP-1435), through #376's hook.
+
+    A hold is neither a value nor a relation, so ``carry`` cannot move it and
+    ``prepare`` runs before the ``Refinement`` exists — the same absence a
+    tie had, and it inherits the same answer rather than a new channel.
+
+    Asserted on the trajectory as well as the values, because that is what a
+    series consumer reads: a held path is not a measurement of any pattern,
+    so it has no trajectory to plot.
+    """
+    from pathlib import Path
+
+    from rietx.viz.plots import plot_result
+
+    def hold_the_cell(index, ref):
+        ref.hold("phases.0.cell.*")
+
+    runner = SequentialRefinement(*_start_models())
+    declared = runner.structure.phases[0].cell.a.value
+    series = runner.fit(thermal_patterns[:3], plan=_TIED,
+                        constrain=hold_the_cell)
+
+    assert len(series) == 3
+    for entry in series.entries:
+        paths = {p.path for p in entry.parameters}
+        assert "phases.0.cell.a" not in paths, "a held value is not a measurement"
+        assert any(d.code == "HOLD_BLOCKED_PLAN" for d in entry.diagnostics)
+    assert series.trajectory("phases.0.cell.a").value == []
+
+    for structure in runner.fitted_structures:
+        assert structure.phases[0].cell.a.value == declared
+
+    out = Path(__file__).parent / "output"
+    out.mkdir(exist_ok=True)
+    for k, result in enumerate(runner.results_):
+        plot_result(result, path=str(out / f"sequential_held_cell_p{k}.png"))
+        plot_result(result, path=str(out / f"sequential_held_cell_p{k}_zoom.png"),
+                    two_theta_range=(3.0, 10.0))
+
+
 def test_an_untied_series_leaves_the_same_pair_free_and_unequal(thermal_patterns):
     """The control the test above needs: without the hook they diverge.
 
