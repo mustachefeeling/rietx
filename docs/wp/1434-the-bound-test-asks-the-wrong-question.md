@@ -276,7 +276,10 @@ before each run).
   `BOUND_HIT` still fires, so it was a bound carrying load rather than a false
   positive this removed.
 - **Counts.** Fast selection **5383 passed, 134 skipped** (~1:26); full suite
-  **5562 passed, 143 skipped** (24:34), on current `origin/main` merged in.
+  **5562 passed, 143 skipped** (23:46-24:34 over two runs, machine otherwise
+  idle). `origin/main` had not moved from where this branch was cut, so this
+  tree *is* the merged tree. The full suite was run twice, before and after
+  the review pass, and the counts are identical, so its fixes moved no number.
   One test module changed, 4 → 17 collected, so this WP adds **13, all
   passes, no new skip**. WP-1311's 5359/134 predates #386, #387 and 1441
   merging, so the rest of the difference is main's and not this WP's.
