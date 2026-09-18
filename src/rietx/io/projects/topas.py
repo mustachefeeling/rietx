@@ -14,7 +14,9 @@ alternative is hunting CIFs that may not match what was actually fitted.
 
 **The format, as this reader understands it.** Five rounds of this reader were
 written from archive files, which finds the bugs one lab's dialect happens to
-contain and does not terminate. The model below is derived from TOPAS Academic's
+contain and does not terminate. The archive is the maintainer's own unpublished
+research data, so its files are cited as **archive file 1** onwards and the map
+from number to file is not public. The model below is derived from TOPAS Academic's
 own *Technical Reference* instead, and the archive is used to corroborate and to
 prioritise. Where the two disagreed, the reference won and the code moved.
 
@@ -640,7 +642,8 @@ def refuse_moved_attachment(active: str, path) -> None:
     belongs to that ``str``"), and three verbs suspend it.
 
     ``for`` is the one the archive uses, and it is not decoration: the
-    ``WISH_*`` series and ``wo3_t0000_04.inp`` declare a **whole phase** —
+    The ``archive file 27`` series and ``archive file 1`` declare a **whole
+    phase** —
     ``phase_name``, ``space_group``, all six cell edges, every ``site`` line —
     inside ``for xdds { for strs 1 to 1 { … } }``. ``_BLOCK`` looks for ``str``
     at the start of a line and ``for strs`` is not that, so such a phase is
@@ -1014,8 +1017,8 @@ _ADPS_KW = re.compile(r"\badps\b", re.I)
 #: ``ADPs { u11 u22 u33 u12 u13 u23 }``, each slot any spelling of the one
 #: grammar (named, flagged, equation, evaluated tail). The slot order is an
 #: archive-evidenced **specification fact** (`io/CLAUDE.md`'s rule 2):
-#: `Gd12Co5Bi.inp:187` names its slots ``Ho1_u11 … Ho1_u23`` in exactly that
-#: order, and `SXC223C_seed_01.inp:73` names slots 1, 2, 3 and 6
+#: `archive file 2:187` names its slots ``Ho1_u11 … Ho1_u23`` in exactly that
+#: order, and `archive file 3:73` names slots 1, 2, 3 and 6
 #: ``u11Se``/``u22Se``/``u33Se``/``u23Se`` with the two zeros in the
 #: ``u12``/``u13`` positions.
 _ADPS_BRACE = re.compile(r"\badps\b\s*\{([^}]*)\}", re.I)
@@ -1361,7 +1364,7 @@ _UNDEFINED_CELL_MACROS = ("Orthorhombic", "Monoclinic", "Triclinic")
 #: What **ends** a ``str`` block. A `.inp` has no closing brace, so a phase's
 #: text runs to the next block opener — and splitting on ``str`` alone made a
 #: trailing ``hkl_Is``/``xo_Is`` Pawley block part of the phase above it, so
-#: `_read` swept the neighbour's numbers: `W02_DR_11bmb_3858_pawley_Nb2O5.inp`
+#: `_read` swept the neighbour's numbers: `archive file 4`
 #: gave tungsten b = 3.814 and c = 19.299 off the Nb2O5 ``load hkl_m_d_th2 I``
 #: table (a d-spacing column, read as a cell edge), and a `scale` or a
 #: `weight_percent` the ``str`` block itself omits is still read off the block
@@ -1833,7 +1836,7 @@ def read_topas_inp(path: str | Path, *,
 
     # `Tr_wp` hangs off **both** `Ttop` and `Txdd`, and `xdd` is an array, so a
     # multi-dataset file states one r_wp per dataset *and* the run's own. The
-    # first match is therefore not "the" r_wp: `001_Pawley_unitcell.inp` states
+    # first match is therefore not "the" r_wp: `archive file 5` states
     # 4.408 above its `xdd` and 14.188 inside it, and 81 of the 606 archive
     # files state more than one. What the grammar does settle is *which* one is
     # the file's: the one at top level, above every block opener. Where there is
@@ -1928,7 +1931,7 @@ def read_topas_inp(path: str | Path, *,
                 f"group {mag.group(1)!r} has no counterpart in rietx; reading this "
                 f"phase would return a nuclear-only model that looks complete")
         if not (name and sg):
-            # Recorded rather than passed over in silence: `simulate_Nb_Cu.inp`
+            # Recorded rather than passed over in silence: `archive file 6`
             # has a `str` block stating a cell and two sites and no
             # `phase_name`, and it used to arrive named "CaO" with scale 1.0 —
             # both read off the `hkl_Is` block below it. Naming it is the

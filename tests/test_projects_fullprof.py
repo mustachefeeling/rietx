@@ -93,14 +93,14 @@ COMM 60 K
 
 #: corpus file 2:88-95 — the four trirutile sites, each a value line and
 #: a codeword line, with the `#color cyan` annotation the real file carries.
-_CR2WO6_SITES = """\
-Cr     CR      0.00000  0.00000  0.33312  0.21358   0.50000   0   0   0    1  #color cyan
+_PHASE_SITES = """\
+Cr     CR      0.00000  0.00000  0.31111  0.21111   0.50000   0   0   0    1  #color cyan
                   0.00     0.00     0.00     0.00      0.00
-W      W       0.00000  0.00000  0.00000  0.22402   0.25000   0   0   0    1  #color cyan
+W      W       0.00000  0.00000  0.00000  0.22222   0.25000   0   0   0    1  #color cyan
                   0.00     0.00     0.00     0.00      0.00
-O1     O       0.30156  0.30156  0.00000  0.24694   0.50000   0   0   0    1  #color cyan
+O1     O       0.33333  0.33333  0.00000  0.24444   0.50000   0   0   0    1  #color cyan
                   0.00     0.00     0.00     0.00      0.00
-O2     O       0.30294  0.30294  0.34087  0.18463   1.00000   0   0   0    1  #color cyan
+O2     O       0.35555  0.35555  0.36666  0.17777   1.00000   0   0   0    1  #color cyan
                   0.00     0.00     0.00     0.00      0.00"""
 
 #: corpus file 2:96-108. The cell codewords `51 51 61` are the tetragonal
@@ -111,17 +111,17 @@ _PROFILE = """\
   {scale}       0.00000   0.00000   0.00000   0.00000   0.00000       0
     {scale_code}     0.000     0.000     0.000     0.000     0.000
 !       U         V          W           X          Y        GauSiz   LorSiz Size-Model
-   0.413324  -0.214088   0.112683   0.000000   0.000000   0.000000   0.000000    0
+   0.400000  -0.200000   0.100000   0.000000   0.000000   0.000000   0.000000    0
      21.000     31.000     41.000      0.000      0.000      0.000      0.000
 !     a          b         c        alpha      beta       gamma      #Cell Info
 {cell}
 {cell_codes}
 !  Pref1    Pref2      Asy1     Asy2     Asy3     Asy4      S_L      D_L
-  0.00000  0.00000  0.02734  0.00000  0.00000  0.00000  0.03000  0.03000
+  0.00000  0.00000  0.02000  0.00000  0.00000  0.00000  0.03000  0.03000
      0.00     0.00    81.00     0.00     0.00     0.00     0.00     0.00"""
 
-_CR2WO6_CELL = "   4.580088   4.580088   8.847341  90.000000  90.000000  90.000000"
-_CR2WO6_CELL_CODES = "   51.00000   51.00000   61.00000    0.00000    0.00000    0.00000"
+_PHASE_CELL = "   5.000000   5.000000   9.000000  90.000000  90.000000  90.000000"
+_PHASE_CELL_CODES = "   51.00000   51.00000   61.00000    0.00000    0.00000    0.00000"
 
 #: corpus file 2:78-84, :86-87.
 _PHASE_TEMPLATE = """\
@@ -151,8 +151,8 @@ _MAGNETIC_ATOM_HEADER = (
 
 def _phase(*, name="Cr2wO6", nat=4, jbt=0, isy=0, irf=0, dis=0, strn=0, furth=0,
            nvk=0, more=0, third_value=0, sg="P 42/m n m", symmetry="",
-           atoms=_CR2WO6_SITES, atom_header=None, cell=_CR2WO6_CELL,
-           cell_codes=_CR2WO6_CELL_CODES, scale="6.4296",
+           atoms=_PHASE_SITES, atom_header=None, cell=_PHASE_CELL,
+           cell_codes=_PHASE_CELL_CODES, scale="5.0000",
            scale_code="71.00000", labelled=1, r_bragg="1.79") -> str:
     """One phase block. ``third_value`` is the ``Ang``/``Mom`` column (trap 2)."""
     magnetic = jbt == 1
@@ -184,7 +184,7 @@ MSYM -u,-v, w,0.000
 #: corpus file 2:159-162 — one magnetic site, four lines. The `11.00`
 #: codeword on Ry is parameter 1: the ordered moment.
 _ISY_MINUS_1_ATOM = """\
-CR     MCR3  1  0  0.00000 0.00000 0.33311 0.21358  1.00000   0.000   3.741   0.000
+CR     MCR3  1  0  0.00000 0.00000 0.33311 0.21111  1.00000   0.000   3.741   0.000
                       0.00    0.00    0.00    0.00     0.00    0.00   11.00    0.00
      0.000   0.000   0.000   0.000   0.000   0.000  0.00000
       0.00    0.00    0.00    0.00    0.00    0.00     0.00"""
@@ -399,8 +399,8 @@ def test_the_symbol_is_case_normalised_and_the_origin_chosen(
      "", "corpus file 2:83 — a header line is a comment"),
     ("P 42/m n m               <--Space group symbol", "P 42/m n m",
      "corpus file 2:86"),
-    ("Cr     CR      0.00000  0.00000  0.33312  0.21358   0.50000   0   0   0    1  #color cyan",
-     "Cr     CR      0.00000  0.00000  0.33312  0.21358   0.50000   0   0   0    1",
+    ("Cr     CR      0.00000  0.00000  0.31111  0.21111   0.50000   0   0   0    1  #color cyan",
+     "Cr     CR      0.00000  0.00000  0.31111  0.21111   0.50000   0   0   0    1",
      "corpus file 2:88"),
 ])
 def test_a_comment_is_cut_wherever_it_opens(raw, kept, provenance):
@@ -444,9 +444,9 @@ def test_a_declared_atom_count_the_phase_cannot_satisfy_is_refused(tmp_path):
 
 
 @pytest.mark.parametrize("corrupt, expected", [
-    ("0.30294  0.30294  0.34087  0.18463   1.0x000", "'occ'"),
-    ("0.30294  0.30294  0.34087  0.1x463   1.00000", "'biso'"),
-    ("0.30294  0.3x294  0.34087  0.18463   1.00000", "'y'"),
+    ("0.35555  0.35555  0.36666  0.17777   1.0x000", "'occ'"),
+    ("0.35555  0.35555  0.36666  0.1x463   1.00000", "'biso'"),
+    ("0.35555  0.3x294  0.36666  0.17777   1.00000", "'y'"),
 ])
 def test_an_unreadable_stated_site_value_is_refused_naming_the_column(
         tmp_path, corrupt, expected):
@@ -460,8 +460,8 @@ def test_an_unreadable_stated_site_value_is_refused_naming_the_column(
     ``y`` in turn; the refusal names each, and the absent case (a short codeword
     column, tri-state ``None``) is the pair tested separately above.
     """
-    atoms = _CR2WO6_SITES.replace(
-        "0.30294  0.30294  0.34087  0.18463   1.00000", corrupt, 1)
+    atoms = _PHASE_SITES.replace(
+        "0.35555  0.35555  0.36666  0.17777   1.00000", corrupt, 1)
     pcr = _pcr(tmp_path, "badval.pcr", _phase(atoms=atoms))
     with pytest.raises(FullProfPcrError) as exc:
         read_fullprof_pcr(pcr)
@@ -915,7 +915,7 @@ def test_an_unknown_n_t_is_refused_naming_the_atom(tmp_path):
     """``N_t`` decides how many lines a site occupies — 0 adds none, 2 adds an
     anisotropic β line and its codewords (``corpus file 5``:187-190).
     Anything else and the reader does not know where the next atom starts."""
-    odd = _CR2WO6_SITES.replace("   0   0   0    1  #color cyan",
+    odd = _PHASE_SITES.replace("   0   0   0    1  #color cyan",
                                 "   0   0   5    1  #color cyan", 1)
     pcr = _pcr(tmp_path, "nt.pcr", _phase(atoms=odd))
     with pytest.raises(FullProfPcrError) as exc:
@@ -952,7 +952,7 @@ def test_a_byte_order_mark_is_decoded_not_read_as_utf8(tmp_path, codec):
     model = read_fullprof_pcr(path)
     assert model.title == "60 K"
     assert model.chi2 == pytest.approx(5.144)
-    assert model.phases[0].cell["a"].value == pytest.approx(4.580088)
+    assert model.phases[0].cell["a"].value == pytest.approx(5.000000)
 
 
 @pytest.mark.parametrize("codec", ["utf-16-le", "utf-16-be"])
@@ -994,16 +994,16 @@ def test_to_structure_builds_and_carries_the_refine_flags(tmp_path):
     (phase,) = to_structure(read_fullprof_pcr(pcr)).phases
     assert phase.name == "Cr2wO6"
     assert phase.space_group == "P 42/m n m"
-    assert phase.cell.a.value == pytest.approx(4.580088)
-    assert phase.cell.c.value == pytest.approx(8.847341)
+    assert phase.cell.a.value == pytest.approx(5.000000)
+    assert phase.cell.c.value == pytest.approx(9.000000)
     assert phase.cell.a.vary is True and phase.cell.c.vary is True
     assert phase.cell.alpha.vary is False
     assert [a.label for a in phase.atoms] == ["Cr", "W", "O1", "O2"]
     assert [a.species for a in phase.atoms] == ["Cr", "W", "O", "O"]
-    assert phase.atoms[3].z.value == pytest.approx(0.34087)
-    assert phase.atoms[0].biso.value == pytest.approx(0.21358)
+    assert phase.atoms[3].z.value == pytest.approx(0.36666)
+    assert phase.atoms[0].biso.value == pytest.approx(0.21111)
     assert phase.atoms[0].biso.vary is False
-    assert phase.scale.value == pytest.approx(6.4296)
+    assert phase.scale.value == pytest.approx(5.0000)
     assert phase.scale.vary is True                    # codeword 71.00000
 
 
@@ -1041,9 +1041,9 @@ def test_a_refined_coordinate_reaches_the_structure_as_refined(tmp_path):
     refined = (
         "Cr     CR      0.00000  0.00000  0.33449  0.08537   0.50000   0   0   0    1\n"
         "                  0.00     0.00   551.00   591.00      0.00\n"
-        "W      W       0.00000  0.00000  0.00000  0.22402   0.25000   0   0   0    1\n"
+        "W      W       0.00000  0.00000  0.00000  0.22222   0.25000   0   0   0    1\n"
         "                  0.00     0.00     0.00     0.00      0.00\n"
-        "O1     O       0.29771  0.29771  0.00000  0.24694   0.50000   0   0   0    1\n"
+        "O1     O       0.29771  0.29771  0.00000  0.24444   0.50000   0   0   0    1\n"
         "                561.00   561.00     0.00     0.00      0.00\n"
         "O2     O       0.30498  0.30498  0.33853  0.23070   1.00000   0   0   0    1\n"
         "                571.00   571.00   581.00   621.00      0.00")
@@ -1106,8 +1106,8 @@ def test_an_occupancy_that_does_not_reduce_is_refused_naming_the_ratios(tmp_path
     multiplicities, the ratios stop agreeing, and the phase is refused rather
     than returned.
     """
-    partial = _CR2WO6_SITES.replace("0.33312  0.21358   0.50000",
-                                    "0.33312  0.21358   0.35000", 1)
+    partial = _PHASE_SITES.replace("0.31111  0.21111   0.50000",
+                                    "0.31111  0.21111   0.35000", 1)
     model = read_fullprof_pcr(_pcr(tmp_path, "partial.pcr",
                                    _phase(atoms=partial)))
     with pytest.raises(FullProfPcrError) as exc:
@@ -1142,14 +1142,14 @@ def test_a_negative_biso_is_refused_naming_the_atom(tmp_path):
     small deviation root CLAUDE.md licenses a reader to repair silently. So it is
     refused, and the file's own number stays readable on the model.
     """
-    negative = _CR2WO6_SITES.replace("0.33312  0.21358", "0.33312 -0.67266", 1)
+    negative = _PHASE_SITES.replace("0.31111  0.21111", "0.31111 -0.55555", 1)
     model = read_fullprof_pcr(_pcr(tmp_path, "negb.pcr",
                                    _phase(atoms=negative)))
-    assert model.phases[0].atoms[0].values["biso"].value == pytest.approx(-0.67266)
+    assert model.phases[0].atoms[0].values["biso"].value == pytest.approx(-0.55555)
     with pytest.raises(FullProfPcrError) as exc:
         to_structure(model)
     assert "negb.pcr" in str(exc.value)
-    assert "'Cr'" in str(exc.value) and "-0.67266" in str(exc.value)
+    assert "'Cr'" in str(exc.value) and "-0.55555" in str(exc.value)
 
 
 def test_an_anisotropic_beta_block_is_read_and_refused(tmp_path):
@@ -1191,7 +1191,7 @@ def test_the_converged_agreement_factors_are_recovered(tmp_path):
     pcr = _pcr(tmp_path, "fom.pcr", _phase(labelled=1, r_bragg="1.79"),
                _phase(name="Cr2O3", nat=2, labelled=2, r_bragg="41.28",
                       sg="R -3 c",
-                      atoms="Cr     CR      0.00000  0.00000  0.29899  0.21358   0.66667   0   0   0    1\n"
+                      atoms="Cr     CR      0.00000  0.00000  0.29899  0.21111   0.66667   0   0   0    1\n"
                             "                  0.00     0.00     0.00     0.00      0.00\n"
                             "O1     O       0.27011  0.00000  0.25000  0.25592   1.00000   0   0   0    1\n"
                             "                  0.00     0.00     0.00     0.00      0.00",
@@ -1312,13 +1312,13 @@ def _rewrite_trailing_selector(text: str, header: str, value: str) -> str:
 # exists to keep, and the module docstring's "never collapses an absent column
 # into False".
 _RAGGED_CODEWORD_SITES = """\
-Cr     CR      0.00000  0.00000  0.33312  0.21358   0.50000   0   0   0    1
+Cr     CR      0.00000  0.00000  0.31111  0.21111   0.50000   0   0   0    1
                   0.00     0.00     0.00
-W      W       0.00000  0.00000  0.00000  0.22402   0.25000   0   0   0    1
+W      W       0.00000  0.00000  0.00000  0.22222   0.25000   0   0   0    1
                   0.00     0.00     0.00     0.00      0.00
-O1     O       0.30156  0.30156  0.00000  0.24694   0.50000   0   0   0    1
+O1     O       0.33333  0.33333  0.00000  0.24444   0.50000   0   0   0    1
                   0.00     0.00     0.00     0.00      0.00
-O2     O       0.30294  0.30294  0.34087  0.18463   1.00000   0   0   0    1
+O2     O       0.35555  0.35555  0.36666  0.17777   1.00000   0   0   0    1
                   0.00     0.00     0.00     0.00      0.00"""
 
 
@@ -1368,7 +1368,7 @@ def test_a_schema_refusal_on_an_atom_is_converted_naming_the_file(tmp_path):
     so a Biso above that is refused by ``rx.Parameter`` itself. A *negative*
     Biso does not exercise this — it has its own explicit refusal further up.
     """
-    sites = _CR2WO6_SITES.replace("0.21358", "31.00000")
+    sites = _PHASE_SITES.replace("0.21111", "31.00000")
     pcr = _pcr(tmp_path, "hot.pcr", _phase(atoms=sites))
     with pytest.raises(FullProfPcrError) as excinfo:
         to_structure(read_fullprof_pcr(pcr))
@@ -1385,13 +1385,13 @@ def test_a_schema_refusal_on_an_atom_is_converted_naming_the_file(tmp_path):
 # is quoted from corpus file 2:108 (an Asy1 codeword); putting it on two
 # atoms' Biso is this test's construction.
 _SHARED_BISO_SITES = """\
-Cr     CR      0.00000  0.00000  0.33312  0.21358   0.50000   0   0   0    1
+Cr     CR      0.00000  0.00000  0.31111  0.21111   0.50000   0   0   0    1
                   0.00     0.00     0.00    81.00      0.00
-W      W       0.00000  0.00000  0.00000  0.21358   0.25000   0   0   0    1
+W      W       0.00000  0.00000  0.00000  0.21111   0.25000   0   0   0    1
                   0.00     0.00     0.00    81.00      0.00
-O1     O       0.30156  0.30156  0.00000  0.24694   0.50000   0   0   0    1
+O1     O       0.33333  0.33333  0.00000  0.24444   0.50000   0   0   0    1
                   0.00     0.00     0.00     0.00      0.00
-O2     O       0.30294  0.30294  0.34087  0.18463   1.00000   0   0   0    1
+O2     O       0.35555  0.35555  0.36666  0.17777   1.00000   0   0   0    1
                   0.00     0.00     0.00     0.00      0.00"""
 
 
@@ -1444,13 +1444,13 @@ def test_a_recoverable_cross_atom_tie_reports_rather_than_refusing(tmp_path):
 #: 0.25 -> 0.50 with it, because the site multiplicity doubles and
 #: `occupancy_factor` requires every site's `Occ x M_general/M_site` to agree.
 _SHARED_Z_SINGLE_DOF_SITES = """\
-Cr     CR      0.00000  0.00000  0.33312  0.21358   0.50000   0   0   0    1
+Cr     CR      0.00000  0.00000  0.31111  0.21111   0.50000   0   0   0    1
                   0.00     0.00    81.00     0.00      0.00
-W      W       0.00000  0.00000  0.10000  0.22402   0.50000   0   0   0    1
+W      W       0.00000  0.00000  0.10000  0.22222   0.50000   0   0   0    1
                   0.00     0.00    81.00     0.00      0.00
-O1     O       0.30156  0.30156  0.00000  0.24694   0.50000   0   0   0    1
+O1     O       0.33333  0.33333  0.00000  0.24444   0.50000   0   0   0    1
                   0.00     0.00     0.00     0.00      0.00
-O2     O       0.30294  0.30294  0.34087  0.18463   1.00000   0   0   0    1
+O2     O       0.35555  0.35555  0.36666  0.17777   1.00000   0   0   0    1
                   0.00     0.00     0.00     0.00      0.00"""
 
 
@@ -1519,10 +1519,10 @@ def test_an_ambiguous_cross_atom_tie_still_refuses(tmp_path):
     """
     sites = _SHARED_BISO_SITES.replace(
         "                  0.00     0.00     0.00    81.00      0.00\n"
-        "W      W       0.00000  0.00000  0.00000  0.21358   0.25000   0   0   0    1\n"
+        "W      W       0.00000  0.00000  0.00000  0.21111   0.25000   0   0   0    1\n"
         "                  0.00     0.00     0.00    81.00      0.00",
         "                 81.00     0.00     0.00     0.00      0.00\n"
-        "W      W       0.00000  0.00000  0.00000  0.21358   0.25000   0   0   0    1\n"
+        "W      W       0.00000  0.00000  0.00000  0.21111   0.25000   0   0   0    1\n"
         "                 81.00     0.00     0.00     0.00      0.00")
     assert sites != _SHARED_BISO_SITES, "the codeword lines were not rewritten"
     pcr = _pcr(tmp_path, "tiedxy.pcr", _phase(atoms=sites))
@@ -1543,10 +1543,10 @@ def test_dropping_an_ambiguous_tie_is_the_callers_declared_choice(tmp_path):
     """``drop_parameter_ties=True`` builds the refusing arm, and says so."""
     sites = _SHARED_BISO_SITES.replace(
         "                  0.00     0.00     0.00    81.00      0.00\n"
-        "W      W       0.00000  0.00000  0.00000  0.21358   0.25000   0   0   0    1\n"
+        "W      W       0.00000  0.00000  0.00000  0.21111   0.25000   0   0   0    1\n"
         "                  0.00     0.00     0.00    81.00      0.00",
         "                 81.00     0.00     0.00     0.00      0.00\n"
-        "W      W       0.00000  0.00000  0.00000  0.21358   0.25000   0   0   0    1\n"
+        "W      W       0.00000  0.00000  0.00000  0.21111   0.25000   0   0   0    1\n"
         "                 81.00     0.00     0.00     0.00      0.00")
     pcr = _pcr(tmp_path, "tiedxy.pcr", _phase(atoms=sites))
     diagnostics: list = []
@@ -1571,10 +1571,10 @@ def test_the_six_real_files_contain_no_cross_atom_tie(tmp_path):
     that fact: a phase built from single-atom ties alone has an empty
     recoverability map, because nothing was dropped.
     """
-    pcr = _pcr(tmp_path, "single.pcr", _phase(atoms=_CR2WO6_SITES.replace(
-        "O1     O       0.30156  0.30156  0.00000  0.24694   0.50000   0   0   0    1  #color cyan\n"
+    pcr = _pcr(tmp_path, "single.pcr", _phase(atoms=_PHASE_SITES.replace(
+        "O1     O       0.33333  0.33333  0.00000  0.24444   0.50000   0   0   0    1  #color cyan\n"
         "                  0.00     0.00     0.00     0.00      0.00",
-        "O1     O       0.30156  0.30156  0.00000  0.24694   0.50000   0   0   0    1  #color cyan\n"
+        "O1     O       0.33333  0.33333  0.00000  0.24444   0.50000   0   0   0    1  #color cyan\n"
         "                561.00   561.00     0.00     0.00      0.00")))
     model = read_fullprof_pcr(pcr)
     carried, dropped = nuclear_parameter_ties(model.phases[0])
@@ -1596,10 +1596,10 @@ def test_a_sites_own_coordinate_tie_is_carried_by_symmetry_not_refused(tmp_path)
     on a real file, which is why the check re-derives the site's DOF count
     instead of refusing every shared codeword.
     """
-    sites = _CR2WO6_SITES.replace(
-        "O1     O       0.30156  0.30156  0.00000  0.24694   0.50000   0   0   0    1  #color cyan\n"
+    sites = _PHASE_SITES.replace(
+        "O1     O       0.33333  0.33333  0.00000  0.24444   0.50000   0   0   0    1  #color cyan\n"
         "                  0.00     0.00     0.00     0.00      0.00",
-        "O1     O       0.30156  0.30156  0.00000  0.24694   0.50000   0   0   0    1  #color cyan\n"
+        "O1     O       0.33333  0.33333  0.00000  0.24444   0.50000   0   0   0    1  #color cyan\n"
         "                561.00   561.00     0.00     0.00      0.00")
     assert "561.00" in sites, "the O1 codeword line was not rewritten"
     pcr = _pcr(tmp_path, "wyckoff.pcr", _phase(atoms=sites))
@@ -1653,7 +1653,7 @@ def test_a_cell_tie_symmetry_does_not_hold_is_reported_not_dropped(tmp_path, sg)
     trivially self-consistent there, so what is under test is the cell tie and
     not the multiplicities.
     """
-    site = ("Cr     CR      0.00000  0.00000  0.33312  0.21358   0.50000"
+    site = ("Cr     CR      0.00000  0.00000  0.31111  0.21111   0.50000"
             "   0   0   0    1\n"
             "                  0.00     0.00     0.00     0.00      0.00")
     model = read_fullprof_pcr(
@@ -1845,7 +1845,7 @@ def test_a_rhombohedral_cell_selects_the_r_setting_end_to_end(tmp_path):
     """The cell line sits *after* the atoms, so the symbol is re-derived there."""
     pcr = _pcr(tmp_path, "rhombo.pcr",
                _phase(sg="R -3 c", cell=_R_PHASE_RHOMBOHEDRAL_CELL,
-                      cell_codes=_CR2WO6_CELL_CODES))
+                      cell_codes=_PHASE_CELL_CODES))
     phase = read_fullprof_pcr(pcr).phases[0]
     assert phase.space_group_raw == "R -3 c"
     assert phase.space_group == "R -3 c:R"
@@ -1855,7 +1855,7 @@ def test_a_hexagonal_r_cell_is_left_on_the_default_setting(tmp_path):
     """The corpus's real R phase, pinned: it must keep reading as before."""
     pcr = _pcr(tmp_path, "hex.pcr",
                _phase(sg="R -3 c", cell=_R_PHASE_HEXAGONAL_CELL,
-                      cell_codes=_CR2WO6_CELL_CODES))
+                      cell_codes=_PHASE_CELL_CODES))
     assert read_fullprof_pcr(pcr).phases[0].space_group == "R -3 c"
 
 
@@ -1878,7 +1878,7 @@ def test_the_origin_choice_repair_is_reported_as_a_diagnostic(tmp_path):
     cell = "   8.068200   8.068200   8.068200  90.000000  90.000000  90.000000"
     pcr = _pcr(tmp_path, "spinel.pcr",
                _phase(nat=1, sg="F D -3 M", atoms=sites, cell=cell,
-                      cell_codes=_CR2WO6_CELL_CODES))
+                      cell_codes=_PHASE_CELL_CODES))
     model = read_fullprof_pcr(pcr)
     assert model.phases[0].space_group == "F d -3 m:2"
     diagnostics: list = []
@@ -1917,7 +1917,7 @@ def test_a_single_site_phase_says_its_occupancy_check_did_not_discriminate(
     cell = "   8.068200   8.068200   8.068200  90.000000  90.000000  90.000000"
     pcr = _pcr(tmp_path, "one_site.pcr",
                _phase(nat=1, sg="F D -3 M", atoms=sites, cell=cell,
-                      cell_codes=_CR2WO6_CELL_CODES))
+                      cell_codes=_PHASE_CELL_CODES))
     diagnostics: list = []
     to_structure(read_fullprof_pcr(pcr), diagnostics=diagnostics)
     blind = [d for d in diagnostics if d.code == "FULLPROF_OCCUPANCY_UNCHECKED"]

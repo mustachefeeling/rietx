@@ -165,8 +165,7 @@ def test_unknown_wavelength_is_not_checked_rather_than_clean():
 # ----------------------------------------------------------------------
 #
 # The measure and its two constants were set from two NIST BT-1
-# constant-wavelength neutron patterns (``Al2O3023.xye``, ``CrWO6003.xye``:
-# 3.00-166.25° at 0.05°, 3266 points, σ from the file, plateau v = 0.837 and
+# constant-wavelength neutron patterns (3.00-166.25° at 0.05°, 3266 points, σ from the file, plateau v = 0.837 and
 # 0.826).  Both show the same ladder in σ²/max(y, 1) — ≈5× below 8°, ≈2.2-2.6×
 # out to ≈15°, tapering to 1× by ≈55°, then a step back to ≈2.2× inside one
 # channel at 161.30° — and neither pattern's plateau contains a region at all.

@@ -526,11 +526,11 @@ def test_a_phase_whose_sites_were_all_disabled_refuses_naming_the_phase(tmp_path
 # ------------------------------------------- one grammar, on the cell too
 
 #: The cell had its own regex once, and it admitted three of these six. The
-#: numbers are `parametric_04.inp`'s monoclinic `p21n` lattice parameter, which
+#: numbers are `archive file 7`'s monoclinic `p21n` lattice parameter, which
 #: that file writes as an equation with TOPAS's evaluated tail — measured: the
 #: three equation spellings left `a` out of `phase.cell`, so `to_structure`
 #: dropped the phase, and across the archive that lost **320 phases in 15
-#: files**, 107 patterns of `parametric_04.inp` among them.
+#: files**, 107 patterns of `archive file 7` among them.
 CELL_SPELLINGS = [
     ("a 7.301139", 7.301139, None),
     # a *name* is itself the refine flag — Technical Reference 2.1, "A parameter
@@ -598,27 +598,27 @@ LATTICE_MACROS = [
     ("Cubic_(lpa 4.15689)", (4.15689,) * 3 + (90.0,) * 3, True),
     # nameless: `\w*` in front of the value ate the integer part and gave
     # a = 0.15689, the same class as `weight_percent 11.596` → 0.596.
-    ("Cubic(10)", (10.0,) * 3 + (90.0,) * 3, None),              # rigidb.inp:37
+    ("Cubic(10)", (10.0,) * 3 + (90.0,) * 3, None),              # archive file 14:37
     ("Cubic_( 4.15689)", (4.15689,) * 3 + (90.0,) * 3, None),
     # flag with no name: the whole cell came back empty, so the phase vanished.
-    ("Cubic(@  4.15692`)", (4.15692,) * 3 + (90.0,) * 3, True),  # LaB6_Riet_TCHZ_01.inp:54
+    ("Cubic(@  4.15692`)", (4.15692,) * 3 + (90.0,) * 3, True),  # archive file 8:54
     ("Cubic_(!lpa 4.15689)", (4.15689,) * 3 + (90.0,) * 3, False),
     # TOPAS's own evaluated tail, inside the macro's parenthesis.
     # an *equation* is a constraint (2.4), not an independent parameter, so a
     # name on one is not the refine flag — only its write-back tick is.
-    ("Cubic(=a1;:  5.43416_0.00012)",                            # Si_in_cap_NOMAD_jue.inp:139
+    ("Cubic(=a1;:  5.43416_0.00012)",                            # archive file 9:139
      (5.43416,) * 3 + (90.0,) * 3, None),
-    ("Cubic(aLP  11.210591`)",                                   # i15-xpdf_…_pdfonly.inp:69
+    ("Cubic(aLP  11.210591`)",                                   # archive file 10:69
      (11.210591,) * 3 + (90.0,) * 3, True),
     # a = b, c, and γ = 90 — TOPAS writes the two independent lengths in order.
-    ("Tetragonal(@  4.594290`, @  2.958587`)",                   # d5_05005_pawley_01.inp:38
+    ("Tetragonal(@  4.594290`, @  2.958587`)",                   # archive file 11:38
      (4.594290, 4.594290, 2.958587, 90.0, 90.0, 90.0), True),
     # a = b, c, and γ = **120**.
-    ("Hexagonal(@  3.613074`, @  12.037126`)",                   # BL104_B_1.inp:87
+    ("Hexagonal(@  3.613074`, @  12.037126`)",                   # archive file 12:87
      (3.613074, 3.613074, 12.037126, 90.0, 90.0, 120.0), True),
-    ("Trigonal(  12.695126,   37.972985)",                       # AT027-23_…:90
+    ("Trigonal(  12.695126,   37.972985)",                       # archive file 18:90
      (12.695126, 12.695126, 37.972985, 90.0, 90.0, 120.0), None),
-    ("Trigonal(@  12.68790`_0.00010,  @  37.94996`_0.00056)",    # AT027-23_…_fin.inp:51
+    ("Trigonal(@  12.68790`_0.00010,  @  37.94996`_0.00056)",    # archive file 18:51
      (12.68790, 12.68790, 37.94996, 90.0, 90.0, 120.0), True),
 ]
 
@@ -655,7 +655,7 @@ def test_the_rhombohedral_macro_takes_an_edge_and_an_angle(tmp_path):
     back with a 55 Å edge and three right angles, which is not a cell any data
     would fit and is exactly the wrong-number-with-nothing-raised this reader
     exists to prevent. It appears in **no** archive file in live text — it is in
-    `D20.inp` only inside a `'` comment — so nothing here corroborates it and
+    `archive file 17` only inside a `'` comment — so nothing here corroborates it and
     nothing here contradicts it either; the citation is the whole evidence.
     """
     inp = _inp(tmp_path, "rhomb.inp",
@@ -894,7 +894,7 @@ def test_a_write_back_backtick_after_an_evaluated_tail_is_read_as_refined(tmp_pa
     ("occ Ca @ 0.6", True),          # uncharged — the one that worked, by luck
     ("occ Ca+2 !n 0.6", False),
     ("occ Ca !n 0.6", False),        # uncharged but *named*: also lost
-    ("occ Si !ph1_Si 0.8000", False),        # SiGe_LiCl-KCl_grey_PVII.inp
+    ("occ Si !ph1_Si 0.8000", False),        # archive file 13
     ("occ Na+1 !occ_A1 0.5 vcocc", False),   # named and flagged, plus `vcocc`
     ("occ Na+1 1", None),            # the file says nothing
 ])
@@ -1391,7 +1391,7 @@ def test_a_trailing_pawley_block_lends_the_phase_above_nothing(tmp_path):
     trailing `hkl_Is` belonged to the phase above it and `_read`/`_field` swept
     the whole thing — three of the neighbour's numbers, silently.
 
-    Measured on the real file: `W02_DR_11bmb_3858_pawley_Nb2O5.inp` gave
+    Measured on the real file: `archive file 4` gave
     tungsten b = 3.814 and c = 19.299 off the Nb2O5 block's
     `load hkl_m_d_th2 I` table, where 3.814 is a **d-spacing** column read as a
     cell edge. It is F1's failure mode moved from the cell regex to the block
@@ -1448,7 +1448,7 @@ def test_a_phase_after_a_pawley_block_is_still_read(tmp_path):
 
 
 def test_a_str_block_with_no_phase_name_is_recorded_not_passed_over(tmp_path):
-    """Measured, on `simulate_Nb_Cu.inp`: a `str` block stating a cell and two
+    """Measured, on `archive file 6`: a `str` block stating a cell and two
     sites and **no** `phase_name` used to arrive named "CaO" with scale 1.0 —
     both read off the `hkl_Is` block below it. That is finding 2 on a real file.
 
@@ -1488,8 +1488,8 @@ def test_a_phase_opening_with_the_STR_macro_is_refused_by_name(tmp_path):
     Such a file returned **zero** phases and `to_structure` then answered "A
     Pawley or indexing-only .inp is legal and has none" — a confident wrong
     diagnosis about a file that plainly contains `STR(`. Seven archive files
-    are affected (`rigidb.inp`, `split_fum.inp`, `SPODI.inp`, `D20.inp` and
-    three `AT027-23_*` variants), all of them returning no phase at all.
+    are affected (`archive file 14`, `archive file 15`, `archive file 16`, `archive file 17` and
+    three variants of archive file 18), all returning no phase at all.
     Expanding the macro can wait; answering wrongly about it cannot.
     """
     inp = _inp(tmp_path, "strmacro.inp",
@@ -1941,13 +1941,13 @@ def test_a_partial_tensor_with_a_missing_diagonal_is_refused(tmp_path):
 
 # The archive's live anisotropic spelling is the six-slot positional
 # `ADPs { u11 u22 u33 u12 u13 u23 }` brace block (6 files), not the named
-# form. The slot order is archive-evidenced: `Gd12Co5Bi.inp:187` names its
-# slots `Ho1_u11 … Ho1_u23` in exactly that order, and `SXC223C_seed_01.inp:73`
+# form. The slot order is archive-evidenced: `archive file 2:187` names its
+# slots `Ho1_u11 … Ho1_u23` in exactly that order, and `archive file 3:73`
 # names slots 1, 2, 3 and 6 `u11Se`/`u22Se`/`u33Se`/`u23Se` with the two zeros
 # in the u12/u13 positions. Each fixture below is a real file's spelling.
 
 def test_the_positional_adps_brace_block_reads_in_slot_order(tmp_path):
-    """`Gd12Co5Bi.inp`'s spelling: named slots, each with a `min … max=…;`
+    """`archive file 2`'s spelling: named slots, each with a `min … max=…;`
     window (inert on AnisoU, skipped) and `_LIMIT_*` annotations."""
     inp = _inp(tmp_path, "gd12.inp",
                'str\nphase_name "P"\nspace_group "P1"\na 5.0\n'
@@ -1966,7 +1966,7 @@ def test_the_positional_adps_brace_block_reads_in_slot_order(tmp_path):
 
 
 def test_a_positional_slot_carries_its_own_flag_and_evaluated_tail(tmp_path):
-    """`SXC223C_seed_01.inp`'s second spelling: `=u11Se;: 0.00737` evaluated
+    """`archive file 3`'s second spelling: `=u11Se;: 0.00737` evaluated
     tails, bare `0 0` for the u12/u13 slots, and a named sixth slot."""
     inp = _inp(tmp_path, "sxc.inp",
                'str\nphase_name "P"\nspace_group "P1"\na 5.0\n'
@@ -2462,7 +2462,7 @@ def test_a_dataset_that_holds_no_phase_is_named_not_silently_empty(tmp_path):
 def test_the_runs_own_r_wp_is_the_one_stated_at_top_level(tmp_path):
     """`Tr_wp` hangs off `Ttop` *and* `Txdd`, so a file states the run's own
     figure of merit and one per dataset. Measured on
-    `001_Pawley_unitcell.inp`: 4.408 above the `xdd`, 14.188 inside it. The
+    `archive file 5`: 4.408 above the `xdd`, 14.188 inside it. The
     first match is the run's only because of where it sits, not because it is
     first."""
     inp = _inp(tmp_path, "fom.inp",
@@ -2584,7 +2584,7 @@ def test_a_conditional_is_a_token_not_a_line(tmp_path):
 
 
 def test_a_conditional_inside_a_site_line_still_gates_it(tmp_path):
-    """`i15-xpdf_ee18630-1_v001_pdfonly.inp` gates a site's `beq` with an
+    """`archive file 10` gates a site's `beq` with an
     `#ifdef` written *inside the site line*. A line anchor cannot see it."""
     inp = _inp(tmp_path, "insite.inp",
                'str\nphase_name "P"\nspace_group "P1"\na 5.0\n'
@@ -2649,8 +2649,8 @@ def test_a_for_loop_over_content_this_reader_reads_is_refused(tmp_path):
 
     The block model — `_BLOCK` slicing between openers — *is* the assumption
     that a card belongs to the block it sits inside, and the reference licenses
-    it only in the absence of these verbs. The `WISH_*` series and
-    `wo3_t0000_04.inp` declare a whole phase inside
+    it only in the absence of these verbs. The ``archive file 27`` series and
+    `archive file 1` declare a whole phase inside
     `for xdds { for strs 1 to 1 { ... } }`: `for strs` is not a line-initial
     `str`, so the phase is invisible to the split, and where a real `str`
     exists elsewhere its cell and sites are swept into *that* one instead.
