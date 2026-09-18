@@ -1333,8 +1333,11 @@ class Refinement:
         """Declare that these parameters do not move, whatever a plan asks.
 
         Dot-path globs with fnmatch semantics, exactly as :meth:`set_vary` and
-        a stage's ``turn_on`` (``"phases.*.cell.*"``).  Returns the paths
-        actually held, sorted, and records a ``set_hold`` history node.
+        a stage's ``turn_on`` (``"phases.*.cell.*"``).  Returns the paths this
+        call **newly** held, sorted, and records a ``set_hold`` node carrying
+        them.  A second call over the same glob returns ``[]`` and records
+        nothing, having changed nothing; an unknown literal path raises, while
+        a pattern matching none is an empty sweep rather than an error.
 
         **This is not ``set_vary(paths, False)``.**  A plan *replaces* the
         vary flags rather than continuing them (WP-1208), so a stage whose
