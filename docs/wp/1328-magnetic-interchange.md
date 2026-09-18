@@ -1,6 +1,6 @@
 # WP-1328 — magnetic interchange: magCIF in and out, and the readers stop refusing
 
-Milestone: unscheduled · Status: ⬜
+Milestone: v1.6 · Status: ⬜
 Depends on: 1327 (the model the files describe); 1118 soft (the coverage
 registry the foreign readers report through)
 

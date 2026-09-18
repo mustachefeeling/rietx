@@ -1,6 +1,6 @@
 # WP-1326 — satellites at G ± k, with no moment model: is it magnetic?
 
-Milestone: unscheduled · Status: ⬜
+Milestone: v1.6 · Status: ⬜
 Depends on: — (first rung of the magnetic scattering track; 1327 builds on
 its reflection list)
 

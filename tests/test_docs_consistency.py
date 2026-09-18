@@ -189,6 +189,15 @@ _INHERITED_PRUNE_EPOCH = "2026-07-31"
 #                                                          line of new narrative was paid for by a cut in
 #                                                          § Unscheduled, whose prose described the rows
 #                                                          that left. Landed 745, +3 headroom
+#   2026-09-18  docs/ROADMAP.md               762 -> 784  for the v1.6 open over seven rows already in
+#                                                          the file. Structure again — one ###, one table
+#                                                          header — plus the two paragraphs that are the
+#                                                          open's own rulings: the PR order, and that
+#                                                          neutron TOF stays fenced. Both govern work
+#                                                          arriving from outside, so neither can live in
+#                                                          a WP file the contributor does not read.
+#                                                          Paid for in Current focus and § Unscheduled.
+#                                                          Landed 778, +6 headroom
 SIZE_CAPS: dict[str, int | None] = {
     # 739 -> 755 (WP-1102): two standing rules for the component seam — that an
     # additive non-Bragg term is a union *member* and not a new field, and that
@@ -400,7 +409,18 @@ SIZE_CAPS: dict[str, int | None] = {
     # was.  Paid for in Current focus, where v1.5's summary was cut to the
     # record that already carries it (496 commits, the cost of opening late).
     # Landed 760, +2 headroom.
-    "docs/ROADMAP.md": 762,
+    # 762 -> 784 (the v1.6 open, 2026-09-18): § v1.6 over the seven magnetic
+    # rows § Unscheduled already carried, so the structure — one `###`, one
+    # table header — is the diary's standing rule and costs two lines.  The
+    # rest is two paragraphs of ruling made at the open: the PR order inside
+    # the milestone, and that neutron TOF stays at the v2+ fence although a
+    # contributor's chain carries it merged into the magnetic one.  Neither
+    # demotes to a WP file, because the reader they are for is building
+    # against this index from outside the repository and reads no WP file
+    # until a PR is cut.  Paid for twice — Current focus lost a closed WP's
+    # narrative and the triage fold list, § Unscheduled lost the blurb
+    # describing the rows that left.  Landed 778, +6 headroom.
+    "docs/ROADMAP.md": 784,
     # 1036 -> 1053 (WP-1429): where the GUI's colour values live, now that
     # they are Python and this workspace's `tokens.css` is generated from
     # them. It governs work outside the WP that measured it — an edit to a
