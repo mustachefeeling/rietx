@@ -117,7 +117,16 @@ only shortens work already being discarded and accepted values stay bit-identica
 **margin**: win/lose rung gap ~6×. `events=`/`cancel=` are **per pattern** (WP-1016): `data`
 carries `series_index`/`…_label`/`…_n`/`…_pass` (+`…_rung`/`…_cold` on a *restart*), so no
 `EventKind` is new; a cancelled series **returns** what completed with `SEQUENTIAL_CANCELLED`
-(WP-1006's rule one rank up; `sequential.py` docstring).
+(WP-1006's rule one rank up; `sequential.py` docstring). **A `RefinementState` fact that is not
+in the models crosses no pattern boundary until someone builds it one** (WP-1441, #376): `carry`
+moves `Structure`/`Instrument` values and `prepare` runs a line before the per-pattern
+`Refinement` exists, so `_ties` and `_variables` reached pattern 1 and nothing after — an
+*absence*, never a drop, and a ninth such fact inherits it. The two halves differ: a tie is
+**re-declared** per pattern by `constrain=(index, ref)` and never carried, since `tie_equal`
+resolves globs against a live table and each pattern has its own — so the hook fires once per
+**fit**, ladder rungs and the `verify_discontinuities` refit included — while a variable's
+*value* is carried under the same globs (`vars.<name>` is an ordinary dot-path), **after** the
+hook, the only order in which the name exists.
 
 **Parameter surface** (WP-1004) — the table without running a fit.
 `Refinement.parameters() → list[ParameterRow]` lists *every* entry (fixed, locked, tied), esds
