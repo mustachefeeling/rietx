@@ -1091,8 +1091,8 @@ def read_fullprof_pcr(path: str | Path) -> FullProfModel:
     if nba < 2:
         raise FullProfPcrError(
             f"{path}: Nba = {nba}. Only an interpolated background of two or "
-            f"more points is evidenced here (51 points in corpus file 2, 32 "
-            f"in corpus file 4); Nba 0 or 1 selects a polynomial or a debye/"
+            f"more points is evidenced here (51 and 32 points, in two real "
+            f"files); Nba 0 or 1 selects a polynomial or a debye/"
             f"Fourier background whose coefficient line's *position* in the "
             f"single-pattern layout no file establishes, and a negative Nba "
             f"selects a background model this reader does not know.")
@@ -1175,7 +1175,7 @@ def read_fullprof_pcr(path: str | Path) -> FullProfModel:
                 f"attached by file order, so an unequal count would report an "
                 f"agreement factor against the wrong phase. The comment's own "
                 f"phase number is trap 1 and cannot be used to re-key them — the "
-                f"third block of corpus file 1 is labelled "
+                f"third block of one real file is labelled "
                 f"'PHASE number: 1'.")
         for phase, (labelled, r_bragg) in zip(model.phases, r_braggs,
                                               strict=True):
