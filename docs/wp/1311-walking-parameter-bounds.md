@@ -200,8 +200,12 @@ maintainer's decision on which relative anchor to use.
       neither default-caps a displacement parameter). `help.py` and the `Atom`
       validator docstring now both say the ceiling is this package's own and
       name the escape.
-- [ ] The ±1 mm on `sample_displacement` and the two capillary offsets: the
-      same decision, still open. § Findings has the measurement.
+- [x] The ±1 mm on `sample_displacement` and the two capillary offsets:
+      **kept and documented** 2026-09-18, the maintainer applying the same
+      ruling as for `Atom.biso`. The schema field and `help.py` now both say
+      it is a runaway guard rather than a physical limit, that it sits ~20×
+      above a carefully packed plate, and that its angular licence spreads
+      3.0× across ordinary goniometer radii.
 - [ ] Displacement bound scaled by `goniometer_radius_mm` where the instrument
       declares one, with the flat fallback where it does not, through
       `BOUND_HIT`; caller's bound outranks.

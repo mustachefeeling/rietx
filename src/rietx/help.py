@@ -275,7 +275,12 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
             "line by −2s·cosθ/R (McCusker eq 3), which is the largest "
             "systematic position error a laboratory pattern usually carries. "
             "The cosθ shape is close to the constant shape of `zero_shift`, "
-            "so freeing both on one pattern usually reports a correlation."
+            "so freeing both on one pattern usually reports a correlation. "
+            "The ±1 mm bound is a runaway guard rather than a physical "
+            "limit: it sits about twenty times above a carefully packed "
+            "plate, and because the shift goes as s/R the same bound "
+            "means three times more angle on a small goniometer than on "
+            "a large one. Declare a tighter bound if you know your mount."
         ),
         unit="mm", default="0.0",
         typical="|s| < 0.05 mm on a carefully packed flat plate",
