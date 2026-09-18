@@ -130,6 +130,93 @@ def moment_frame(basis, cell) -> np.ndarray:
     return np.asarray(rows, dtype=np.float64).reshape(len(b), 3)
 
 
+#: Fraction of the modulus placed on every :func:`moment_frame` row *beyond
+#: the first* by :func:`tilted_seed`.  Breaks a stationary point WP-1418
+#: stage (b) found on any candidate whose atom-level allowed-moment basis has
+#: rank ≥ 2 (a multi-copy irrep merged across sites, or a genuinely
+#: general/kernel order-parameter direction, both real and both enumerated by
+#: :func:`~rietx.crystallography.magnetic.isotropy.candidates`): seeding
+#: purely along row 0 starts every other DOF at exactly the point of pointing
+#: along it, and for several of these groups that point is a fixed point of a
+#: residual point-group element the candidate's own magnetic group still
+#: carries (one negating the other frame rows while fixing the first) — the
+#: identical shape ``Stage.distortion_seed`` exists for on a whole-vector
+#: A = 0 (|F|² even in the amplitude vector, WP-1419), here on one DOF rather
+#: than the whole vector, and with the same fix: move it off the stationary
+#: point before the stage that frees it.  Small and nonzero, never tuned
+#: toward an answer.
+SEED_TILT = 0.15
+
+
+def tilted_seed(basis, cell, magnitude: float, *, tilt: float = SEED_TILT
+               ) -> np.ndarray:
+    """A seed moment inside ``basis``'s span, of modulus ``magnitude``.
+
+    The whole magnitude on :func:`moment_frame`'s first row when the basis is
+    rank 1 (the ordinary case: one copy, one free real amplitude) — the prior,
+    exact behaviour, unaffected by ``tilt``.  A small nonzero coefficient
+    (``tilt``) on every row beyond the first when the basis has rank ≥ 2 (see
+    :data:`SEED_TILT`), so no DOF starts at a stationary point.  Normalised so
+    the combined vector still has modulus exactly ``magnitude``: the frame is
+    metric-orthonormal, so a coefficient vector of unit Euclidean norm gives a
+    unit modulus automatically.
+
+    Returns the ``(3,)`` crystal-axis vector; the caller decides what to do
+    with a rank-0 (empty) basis, since "no moment at all" and "seed nothing"
+    read differently at each of this function's two call sites.
+    """
+    frame = moment_frame(basis, cell)
+    n = frame.shape[0]
+    if n == 1:
+        coeffs = np.array([1.0])
+    else:
+        coeffs = np.concatenate([[1.0], np.full(n - 1, tilt)])
+        coeffs = coeffs / float(np.sqrt(np.sum(coeffs ** 2)))
+    return magnitude * (coeffs @ frame)
+
+
+def warm_seed(basis, cell, preferred, *, tilt: float = SEED_TILT) -> np.ndarray:
+    """Like :func:`tilted_seed`, anchored on ``preferred`` rather than row 0.
+
+    WP-1418 stage (c): the descent audit refits a candidate **subgroup** of
+    the winner from the winner's own converged moment, not from a flat seed
+    — the subgroup's allowed span is a superspace of the winner's own (fewer
+    symmetry constraints, by construction, since it is a subgroup), so
+    ``preferred`` (the winner's own crystal-axis moment at this atom)
+    already lies in ``basis``'s span exactly.  The seed keeps that direction
+    and gives every genuinely *new* direction the same small, deterministic,
+    nonzero tilt :func:`tilted_seed` gives every row beyond the first — the
+    identical stationary-point reason, just anchored where the fit already
+    is instead of at the basis's own first row.
+
+    ``preferred`` at (or extremely near) zero has no direction to anchor on
+    — the winner's own moment at this atom was itself unsupported or absent
+    — and falls back to :func:`tilted_seed`'s ordinary row-0 anchor at the
+    same modulus as every other new direction (``tilt`` of a unit vector, not
+    zero: an atom with nothing to warm-start from still needs a real seed).
+    """
+    g = unit_metric(cell)
+    pref = np.asarray(preferred, dtype=np.float64)
+    norm = float(np.sqrt(max(float(pref @ g @ pref), 0.0)))
+    b = np.asarray(basis, dtype=np.float64).reshape(-1, 3)
+    if norm <= 1e-9:
+        return tilted_seed(b, cell, tilt, tilt=tilt)
+    frame = [pref / norm]
+    for raw in b:
+        v = raw.copy()
+        for e in frame:
+            v = v - float(e @ g @ raw) * e
+        vn = float(np.sqrt(max(float(v @ g @ v), 0.0)))
+        if vn > 1e-9:
+            frame.append(v / vn)
+    stacked = np.asarray(frame, dtype=np.float64)
+    n = stacked.shape[0]
+    coeffs = (np.array([1.0]) if n == 1 else
+             np.concatenate([[1.0], np.full(n - 1, tilt)]))
+    coeffs = coeffs / float(np.sqrt(np.sum(coeffs ** 2)))
+    return norm * (coeffs @ stacked)
+
+
 def n_dofs(basis) -> int:
     """How many DOFs a site with this allowed basis contributes."""
     return len(np.asarray(basis, dtype=np.float64).reshape(-1, 3))

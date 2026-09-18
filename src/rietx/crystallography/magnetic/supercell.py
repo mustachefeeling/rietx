@@ -121,7 +121,7 @@ from ..symmetry import (
     unnamed_label,
 )
 from . import isotropy as _isotropy
-from .moments import moment_frame
+from .moments import tilted_seed
 from .operators import MagneticGroup, format_transform
 
 __all__ = [
@@ -1142,6 +1142,14 @@ def _seed_moments(group: MagneticGroup, positions, ions, magnitude: float):
     ``MagneticGroup.site_orbit``.  So the antiparallel pattern the anti-centring
     demands is the *stated* structure rather than something a fit has to find,
     and ``Phase._moments_are_stateable`` accepts it for the same reason.
+
+    The seed itself is :func:`~rietx.crystallography.magnetic.moments.
+    tilted_seed` (WP-1418 stage (b)) rather than the whole magnitude on the
+    allowed basis's first row alone: a rank ≥ 2 basis (a multi-copy irrep or a
+    general/kernel direction) used to leave every other DOF starting at a
+    stationary point of χ², the same shape ``Stage.distortion_seed`` exists
+    to fix for a whole amplitude vector at A = 0 — see that function's
+    docstring.
     """
     seeded: dict[int, np.ndarray] = {}
     for i, position in enumerate(positions):
@@ -1151,8 +1159,7 @@ def _seed_moments(group: MagneticGroup, positions, ions, magnitude: float):
         if len(basis) == 0:
             seeded[i] = np.zeros(3)
             continue
-        frame = moment_frame(basis, (1.0, 1.0, 1.0, 90.0, 90.0, 90.0))
-        seed = magnitude * np.asarray(frame[0], dtype=np.float64)
+        seed = tilted_seed(basis, (1.0, 1.0, 1.0, 90.0, 90.0, 90.0), magnitude)
         images, moments = group.site_orbit(position, seed)
         for image, moment in zip(images, moments):
             for n, q in enumerate(positions):
