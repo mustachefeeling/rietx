@@ -63,6 +63,19 @@ table has no method for it. Expect a small `ParameterTable` accessor
 (free column index → the set of entry paths its non-zero rows name) plus the
 two call sites, rather than a change in `optimize/`.
 
+### Inherited
+
+**From WP-1441 (2026-09-18), issue #376.** A user tie now reaches a series. Until
+this WP, a tie the freeze cannot see could only be declared on a single
+`Refinement`, so this defect cost one fit; `SequentialRefinement.fit`'s new
+`constrain=(index, ref)` hook re-declares it on every pattern, which multiplies
+the exposure by the length of the chain and puts it where nobody is watching an
+individual fit. A ramp is also where it would be hardest to read: a freeze that
+quietly holds a moving path would bend a whole trajectory rather than spoil one
+number, and `direction="both"` cannot separate that from a real one — it
+reproduces in both directions, because both directions carry the same tie.
+Worth a series fixture in this WP's tests, beside the single-fit one.
+
 ## Non-goals
 
 - The Jacobian's own gate. `_make_jacobian` already dispatches on reach, not
