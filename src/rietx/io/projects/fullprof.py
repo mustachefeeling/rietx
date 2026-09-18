@@ -8,8 +8,8 @@ below is quoted in a comment from a real file at a real line so that the
 evidence for it is checkable. The corpus is the maintainer's own unpublished
 research data, so the files are cited as **corpus file 1** to **6** and the map
 from number to file is not public; the maintainer holds it in the private
-repository ``yue-here/rietx-corpus-map``. Where a real file is the *only* evidence for a block's position,
-that is said, and where there is no evidence at all the construct is **refused
+repository ``yue-here/rietx-corpus-map``. Where a real file is the *only*
+evidence for a block's position, that is said, and where there is no evidence at all the construct is **refused
 by name** rather than parsed on a guess.
 
 Why the format is worth reading: a ``.pcr`` carries the whole solved model — the
@@ -80,9 +80,8 @@ The three design decisions, and why
    normalisation of that column is degenerate with the phase scale factor —
    doubling every ``Occ`` and halving ``Scale`` is the same pattern. So the
    quantity a file states is a set of site occupancies *up to one arbitrary
-   common factor*, and the corpus proves the factor is not conventional: the
-   Cr₂WO₆ and Cr₂O₃ files carry a factor of 2 where the Co₃O₄ and YAG files
-   carry 1. What is recoverable is the *ratio* between sites, so
+   common factor*, and the corpus proves the factor is not conventional: two
+   corpus files carry a factor of 2 where two others carry 1. What is recoverable is the *ratio* between sites, so
    :func:`to_structure` divides each ``Occ`` by its site multiplicity, and
    **requires the result to be the same for every atom in the phase** — which
    is the statement "this phase is fully occupied", the only case where the
@@ -485,8 +484,10 @@ class SoftMomentConstraint:
     * ``CR   1.000 0.01000`` (``corpus file 6``:177),
       whose phase's one atom is labelled ``CR``;
     * ``1C  1.00 0.01`` / ``2C  1.00 0.01`` (``corpus file 1``:190-191),
-      whose phase's two atoms are labelled ``1CR`` and ``2CR``. The distances
-      here stand in for the corpus values; the widths are the files' own.
+      whose phase's two atoms are labelled ``1CR`` and ``2CR``. The moment and
+      its σ stand in for the corpus numbers; the **spelling** of each — how many
+      digits, in how many columns — is the file's own, and it is the spelling
+      this production turns on.
 
     Reading the second as a *site index* also fits those two lines, and would
     then read ``CR`` as a label — two productions where one explains both. The
@@ -730,8 +731,9 @@ def normalize_space_group(symbol: str, cell: dict | None = None) -> str:
 
     **Origin choice.** FullProf writes no origin suffix at all, which is the
     TOPAS ``Pn-3mZ`` trap in a worse form: gemmi resolves a bare ``F d -3 m`` to
-    origin choice **1**, and the corpus's spinel is on choice 2 (Co at ⅛⅛⅛ and
-    ½½½, O at x,x,x — the standard Co₃O₄ description). Choice 2 is therefore
+    origin choice **1**, and the corpus's spinel is on choice 2 (the A cation at
+    ⅛⅛⅛ and ½½½, O at x,x,x — the standard spinel description). Choice 2 is
+    therefore
     preferred wherever the bare symbol lands on choice 1.
 
     **Rhombohedral axes.** An R-lattice symbol is likewise written bare, and
@@ -751,8 +753,8 @@ def normalize_space_group(symbol: str, cell: dict | None = None) -> str:
     the phase's cell line has been read, the cell block sitting *after* the
     atoms in a ``.pcr``.
 
-    Every corpus R phase is hexagonal (Cr₂O₃ at 4.95420, 4.95420, 13.42130, 90,
-    90, 120), so this case closes a gap rather than fixing a measured wrong
+    Every corpus R phase is hexagonal — two equal edges, a third that differs,
+    γ = 120° — so this case closes a gap rather than fixing a measured wrong
     answer, and it is stated as a gap.
 
     The case and origin preferences are *conventions*, so they are not left to
@@ -804,7 +806,8 @@ def _strip(raw: str) -> str:
       count readable *and* what makes the header lines disappear.
     * ``<--`` annotates the space-group line
       (``P 42/m n m               <--Space group symbol``).
-    * ``#`` annotates an atom line (``#color cyan`` on every Cr₂WO₆ site).
+    * ``#`` annotates an atom line (``#color cyan`` on every site of one
+      corpus file's phases).
 
     A line that is empty after the cut is a comment line and never reaches the
     walk. The risk this accepts is a phase *name* containing one of the three
@@ -1601,7 +1604,7 @@ def occupancy_factor(phase: FullProfPhase, where: str | None = None) -> float:
     over the general multiplicity, and the *absolute* normalisation of the
     column is degenerate with the phase scale — doubling every ``Occ`` and
     halving ``Scale`` is the same pattern, which is why the corpus carries a
-    factor of 2 on the Cr₂WO₆ files and 1 on the Co₃O₄ and YAG ones.
+    factor of 2 on two of its files and 1 on two others.
 
     So ``Occ_i × M_general / M_i`` is the site occupancy up to one unknown
     common factor. Where it is the *same* for every site the phase is fully

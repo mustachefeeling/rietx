@@ -774,8 +774,8 @@ def counting_coverage(
     **What a region means.** On an instrument with a bank of detectors on a
     circle, the number contributing to a given 2θ falls off at both ends of the
     range, and v ∝ 1/n_eff counts them.  Measured on two NIST BT-1
-    constant-wavelength neutron patterns (3.00-166.25° at 0.05°, 3266 points, σ from the file, plateau v = 0.837 and
-    0.826): both show the same ladder — ≈5× below ≈8°, ≈2.2-2.6× from 8° to
+    constant-wavelength neutron patterns (3.00-166.25° at 0.05°, 3266 points,
+    σ from the file, plateau v = 0.837 and 0.826): both show the same ladder — ≈5× below ≈8°, ≈2.2-2.6× from 8° to
     ≈15°, tapering to 1× by ≈55°, 1× through the middle, and a step back to
     ≈2.2× within one channel at 161.30°, held to the end of the scan.  The levels
     are *quantised* because detectors are integers, which is what makes a step

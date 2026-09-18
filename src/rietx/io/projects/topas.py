@@ -17,9 +17,9 @@ written from archive files, which finds the bugs one lab's dialect happens to
 contain and does not terminate. The archive is the maintainer's own unpublished
 research data, so its files are cited as **archive file 1** onwards and the map
 from number to file is not public; the maintainer holds it in the private
-repository ``yue-here/rietx-corpus-map``. The model below is derived from TOPAS Academic's
-own *Technical Reference* instead, and the archive is used to corroborate and to
-prioritise. Where the two disagreed, the reference won and the code moved.
+repository ``yue-here/rietx-corpus-map``. The model below is derived from TOPAS
+Academic's own *Technical Reference* instead, and the archive is used to
+corroborate and to prioritise. Where the two disagreed, the reference won and the code moved.
 
 1. **A lexer, then a pre-processor, then a grammar — in that order** (§1.2, §19).
    A line comment is ``'`` to end of line; a block comment is ``/* … */`` **and
@@ -643,8 +643,7 @@ def refuse_moved_attachment(active: str, path) -> None:
     belongs to that ``str``"), and three verbs suspend it.
 
     ``for`` is the one the archive uses, and it is not decoration: the
-    The ``archive file 27`` series and ``archive file 1`` declare a **whole
-    phase** —
+    ``archive file 27`` series and ``archive file 1`` declare a **whole phase** —
     ``phase_name``, ``space_group``, all six cell edges, every ``site`` line —
     inside ``for xdds { for strs 1 to 1 { … } }``. ``_BLOCK`` looks for ``str``
     at the start of a line and ``for strs`` is not that, so such a phase is

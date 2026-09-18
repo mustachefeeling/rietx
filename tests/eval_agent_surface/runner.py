@@ -206,7 +206,7 @@ def check_episode_inputs(episode: str, zrm: Path | None) -> None:
             "d8_01612_vt_reel_02.inp. They are a third party's, so they are "
             "not committed, but they are a public download: the Durham TOPAS "
             "workshop dataset zrmo2o8_vt.zip, whose URL is in PROTOCOL.md "
-            "§ The episodes.")
+            "§ The episode — E-ZRM, under Provenance.")
     for name in ZRM_FILES:
         if not (zrm / name).is_file():
             raise SystemExit(f"missing {zrm / name}")

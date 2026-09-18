@@ -184,7 +184,7 @@ MSYM -u,-v, w,0.000
 #: corpus file 2:159-162 — one magnetic site, four lines. The `11.00`
 #: codeword on Ry is parameter 1: the ordered moment.
 _ISY_MINUS_1_ATOM = """\
-CR     MCR3  1  0  0.00000 0.00000 0.33311 0.21111  1.00000   0.000   3.741   0.000
+CR     MCR3  1  0  0.00000 0.00000 0.31111 0.21111  1.00000   0.000   3.000   0.000
                       0.00    0.00    0.00    0.00     0.00    0.00   11.00    0.00
      0.000   0.000   0.000   0.000   0.000   0.000  0.00000
       0.00    0.00    0.00    0.00    0.00    0.00     0.00"""
@@ -216,11 +216,11 @@ BASI     0     0     0     0     0     0     0     0     0     0     0     0
 #: antiferromagnetic constraint. Note also the `.00000` spelling with no leading
 #: zero, which is how that file writes every coordinate.
 _ISY_MINUS_2_ATOMS = """\
-1CR  MCR3  1   0    .00000  .00000  .33312 .21358 1.00000   0.000   0.800   0.000
+1CR  MCR3  1   0    .00000  .00000  .31111 .21111 1.00000   0.000   0.800   0.000
                     0.00    0.00    0.00    0.00    0.00    0.00   11.00    0.00
    0.050   0.000   0.000   0.000   0.000   0.000   .00000
     0.00    0.00    0.00    0.00    0.00    0.00    0.00
-2CR  MCR3  2   0    .00000  .00000  .66688 .21358 1.00000   0.000  -0.800   0.000
+2CR  MCR3  2   0    .00000  .00000  .68889 .21111 1.00000   0.000  -0.800   0.000
                     0.00    0.00    0.00    0.00    0.00    0.00  -11.00    0.00
    0.050   0.000   0.000   0.000   0.000   0.000   .00000
     0.00    0.00    0.00    0.00    0.00    0.00    0.00"""
@@ -445,8 +445,8 @@ def test_a_declared_atom_count_the_phase_cannot_satisfy_is_refused(tmp_path):
 
 @pytest.mark.parametrize("corrupt, expected", [
     ("0.35555  0.35555  0.36666  0.17777   1.0x000", "'occ'"),
-    ("0.35555  0.35555  0.36666  0.1x463   1.00000", "'biso'"),
-    ("0.35555  0.3x294  0.36666  0.17777   1.00000", "'y'"),
+    ("0.35555  0.35555  0.36666  0.1x777   1.00000", "'biso'"),
+    ("0.35555  0.3x555  0.36666  0.17777   1.00000", "'y'"),
 ])
 def test_an_unreadable_stated_site_value_is_refused_naming_the_column(
         tmp_path, corrupt, expected):
@@ -534,7 +534,7 @@ def test_the_phase_number_comment_is_not_the_phase_index(tmp_path):
     phase's profile parameters onto the nuclear phase of the same number.
     """
     pcr = _pcr(tmp_path, "mislabelled.pcr", _phase(labelled=1),
-               _phase(name="Cr2O3", labelled=2), _magnetic_isy2(labelled=1))
+               _phase(name="Corundum-type", labelled=2), _magnetic_isy2(labelled=1))
     model = read_fullprof_pcr(pcr)
     assert [p.index for p in model.phases] == [1, 2, 3]
     assert [p.labelled_index for p in model.phases] == [1, 2, 1]   # the file lies
@@ -617,7 +617,7 @@ def test_a_magnetic_phase_is_read_in_full_not_dropped(tmp_path):
     assert [p.name for p in model.magnetic_phases] == ["Trirutile", "Magnetic Phase"]
     (moment,) = model.magnetic_phases[0].atoms
     assert moment.species_raw == "MCR3"
-    assert moment.values["m2"].value == pytest.approx(3.741)      # Ry
+    assert moment.values["m2"].value == pytest.approx(3.000)      # Ry
     assert moment.values["m2"].vary is True                       # codeword 11.00
     assert moment.values["m1"].vary is False                      # codeword 0.00
     assert moment.values["magph"].value == pytest.approx(0.0)
@@ -685,14 +685,15 @@ def test_a_file_of_nothing_but_magnetic_phases_refuses_either_way(tmp_path):
 
 @pytest.mark.parametrize("magnetic, block, expected, declared", [
     # corpus file 6:176-177 — keyed by `CR`, and that
-    # file's magnetic phase (Isy -1) has exactly one atom, labelled `CR`.
-    (_magnetic_isy1, "! Soft moment constraints:\nCR   2.900 0.02000\n",
-     [("CR", 2.900, 0.02)], 1),
+    # file's magnetic phase (Isy -1) has exactly one atom, labelled `CR`. The
+    # moment and its width stand in for the file's, at the file's own spelling.
+    (_magnetic_isy1, "! Soft moment constraints:\nCR   1.000 0.01000\n",
+     [("CR", 1.000, 0.01)], 1),
     # corpus file 1:189-191 — keyed by `1C`/`2C`, and that file's magnetic
     # phase (Isy -2) has two atoms, labelled `1CR` and `2CR`. One production,
     # not two: both keys are the label truncated to the field's width.
-    (_magnetic_isy2, "! Soft moment constraints\n1C  2.90 0.02\n2C  2.90 0.02\n",
-     [("1C", 2.90, 0.02), ("2C", 2.90, 0.02)], 1),
+    (_magnetic_isy2, "! Soft moment constraints\n1C  1.00 0.01\n2C  1.00 0.01\n",
+     [("1C", 1.00, 0.01), ("2C", 1.00, 0.01)], 1),
 ])
 def test_soft_moment_constraints_read_in_both_spellings(
         tmp_path, magnetic, block, expected, declared):
@@ -772,7 +773,7 @@ def test_a_multi_pattern_file_is_refused_naming_the_pattern_count(tmp_path):
     """
     path = tmp_path / "npatt.pcr"
     path.write_text(
-        "COMM  YAG express cycle 072\n"
+        "COMM  a six-bank joint refinement\n"
         "! Current global Chi2 (Bragg contrib.) =      11.28\n"
         "NPATT      6       1 1 1 1 1 1 <- Flags for patterns (1:refined, 0: excluded)\n"
         "W_PAT   0.167 0.167 0.167 0.167 0.167 0.167\n"
@@ -1083,9 +1084,9 @@ def test_the_occupancy_column_reduces_to_a_common_factor(tmp_path):
     between sites.
 
     Measured on the real files: ``Occ x M_general / M_site`` is **2.0** for every
-    site of both Cr₂WO₆ files' phases and **1.0** for Co₃O₄ and YAG. Two files,
-    two factors, same convention — which is the evidence that the factor is
-    arbitrary and that constancy is the only thing a reader may conclude from it.
+    site of two corpus files' phases and **1.0** for two others. Two factors,
+    same convention — which is the evidence that the factor is arbitrary and
+    that constancy is the only thing a reader may conclude from it.
     """
     model = read_fullprof_pcr(_pcr(tmp_path, "occ.pcr", _phase()))
     assert occupancy_factor(model.phases[0]) == pytest.approx(2.0, rel=1e-4)
@@ -1189,7 +1190,7 @@ def test_the_converged_agreement_factors_are_recovered(tmp_path):
     would make that phase look fitted.
     """
     pcr = _pcr(tmp_path, "fom.pcr", _phase(labelled=1, r_bragg="1.79"),
-               _phase(name="Cr2O3", nat=2, labelled=2, r_bragg="41.28",
+               _phase(name="Corundum-type", nat=2, labelled=2, r_bragg="41.28",
                       sg="R -3 c",
                       atoms="Cr     CR      0.00000  0.00000  0.29899  0.21111   0.66667   0   0   0    1\n"
                             "                  0.00     0.00     0.00     0.00      0.00\n"
@@ -1870,7 +1871,7 @@ def test_the_origin_choice_repair_is_reported_as_a_diagnostic(tmp_path):
 
     ``F D -3 M`` is quoted from ``corpus file 4``:68.
     """
-    # A one-site cubic phase: Co3O4's 8a site alone, so the symbol resolves and
+    # A one-site cubic phase: the spinel 8a site alone, so the symbol resolves and
     # the occupancy ratio is trivially self-consistent.
     sites = ("Co1    CO      0.12500  0.12500  0.12500  0.35000   0.12500"
              "   0   0   0    1\n"
@@ -2023,7 +2024,7 @@ def test_write_fullprof_pcr_round_trips_both_r_lattice_axis_choices(tmp_path, sy
                        beta=rx.Parameter(value=55.0), gamma=rx.Parameter(value=55.0))
     atom = rx.Atom(label="Cr1", species="Cr3+", x=rx.Parameter(value=0.35),
                    y=rx.Parameter(value=0.35), z=rx.Parameter(value=0.35))
-    structure = rx.Structure(phases=[rx.Phase(name="Cr2O3", space_group=symbol,
+    structure = rx.Structure(phases=[rx.Phase(name="Corundum-type", space_group=symbol,
                                               cell=cell, atoms=[atom])])
     out = tmp_path / "r.pcr"
     write_fullprof_pcr(structure, out)
