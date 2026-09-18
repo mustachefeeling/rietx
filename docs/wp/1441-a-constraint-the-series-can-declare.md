@@ -1,6 +1,6 @@
 # WP-1441 — a constraint the series can declare
 
-Milestone: unscheduled · Status: 🔄 2026-09-18 — claimed by @yue-here
+Milestone: v1.5.x · Status: 🔄 2026-09-18 — claimed by @yue-here
 Depends on: — (1070 declared the ties, 1119 the variables; this is the series' side of both)
 
 ## Goal

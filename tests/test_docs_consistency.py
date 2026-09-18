@@ -390,7 +390,17 @@ SIZE_CAPS: dict[str, int | None] = {
     # narrative this branch added is paid for in § Unscheduled, where the
     # prose describing the departed rows was cut to match.  Landed 745, +3
     # headroom for what the notes audit may still have to cut.
-    "docs/ROADMAP.md": 748,
+    # 748 -> 762 (WP-1441): § v1.5.x, the road for work landing while no
+    # milestone is open.  One `###`, a five-line blurb, a table header and one
+    # row, against the diary's standing rule that a cap grows with the row
+    # count: the row moved out of § Unscheduled, so the growth is the section
+    # itself.  It is structure that outlives this WP — every WP landing before
+    # v1.6 opens files here — and the blurb is the part that cannot be demoted,
+    # since it says where the notes are staged and what the 1.0.x road's ending
+    # was.  Paid for in Current focus, where v1.5's summary was cut to the
+    # record that already carries it (496 commits, the cost of opening late).
+    # Landed 760, +2 headroom.
+    "docs/ROADMAP.md": 762,
     # 1036 -> 1053 (WP-1429): where the GUI's colour values live, now that
     # they are Python and this workspace's `tokens.css` is generated from
     # them. It governs work outside the WP that measured it — an edit to a
