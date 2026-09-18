@@ -88,20 +88,23 @@ placement, link resolution, and the size caps on this file and CLAUDE.md.
 
 ## Current focus
 
-**No milestone is open.** [v1.5](#v15--a-window-into-a-run) shipped 2026-09-18
-([record](milestones/v1.5.md), [notes](releases/1.5.0.md)), tagged at
-`13bce502`, published and on PyPI, so `RELEASING.md` is walked to the end and
-`pyproject.version` is `1.5.0`. **Opening v1.6 is the maintainer's decision**,
-and the record says what opening one 496 commits late cost. Until one opens,
-work lands in [§ v1.5.x](#v15x--after-the-ship), staged in
-[releases/1.5.1.md](releases/1.5.1.md) the day it lands.
+**[v1.6 — the magnetic structure](#v16--the-magnetic-structure) opened
+2026-09-18** ([record](milestones/v1.6.md)), the day v1.5 shipped
+([record](milestones/v1.5.md), [notes](releases/1.5.0.md), tag `13bce502`, on
+PyPI); `pyproject.version` is `1.6.0.dev0`. Its acceptance rows are written at
+the open, which v1.5's could not be. Seven WPs — 1326-1329, 1343, 1418, 1419 —
+with a reference implementation on the `mustachefeeling` fork and the design
+settled in #256, #257, #277, #286 and #293.
 
-**Nothing is in flight.** [1441](wp/1441-a-constraint-the-series-can-declare.md)
-was the first v1.5.x row; 1432 and 1342 carry what it learned. 1436 closed the
-symbol audit 1437 opened and freed `k` for the **magnetic track** (1326-1329,
-1418), the largest queued block with a discharged blocker. Also unblocked: the
-`.inp` grammar 1118 refuses,
-[1433](wp/1433-the-inp-grammar-still-refused.md), and 1310's
+**Nothing is in flight.** The order is set: 1418's M-6 and M-7 first, having no
+forward-model contact, then 1327's verb, then 1419 as its own PR because the
+two-lists decision it carries gets waved through in a diff about something
+else. **Neutron TOF is not in this milestone** — it stays at [§ v2+](#v2--fenced)
+behind issue #193, and the fork's chain carries it merged in.
+
+**Also unblocked**, landing in [§ v1.5.x](#v15x--after-the-ship) and staged in
+[releases/1.5.1.md](releases/1.5.1.md) the day it lands: the `.inp` grammar 1118
+refuses, [1433](wp/1433-the-inp-grammar-still-refused.md), and 1310's
 [1434](wp/1434-the-bound-test-asks-the-wrong-question.md) and
 [1435](wp/1435-a-hold-the-caller-declares.md).
 
@@ -110,9 +113,7 @@ their WinXPOW ASCII export, and a blank for a `rietx compare` standard.
 
 **Queued, unscheduled** ([§ Unscheduled](#unscheduled)): the 2026-09-01
 triage's 1311-1322 plus 1323 and 1325; the 2026-09-03 triage's 1332-1341; the
-magnetic track (1326-1329, 1343, and 1418 behind them); the older 1133. The
-**2026-09-15 triage** adds 1414-1421, eight WPs for ten issues, and folds the
-other eleven into 1310, 1311, 1312, 1326-1328, 1333, 1338 and 1343.
+older 1133; the **2026-09-15 triage**'s 1414-1421, less the two now in v1.6.
 
 **Parked, blocking nothing:** the 1.0.0-notes promises (`.rex` zip transport,
 `excluded_regions` honoured by `replay` — 1003 § B); the indexing narrowing and
@@ -138,6 +139,7 @@ second opinion covers (golden only, no `jacfwd` row — 1119 § Gotchas).
 | v1.3 | Agents and programs: the termination view, the hold, the skill, the interchange format | ✅ **shipped 2026-08-30** ([record](milestones/v1.3.md), [notes](releases/1.3.0.md)) | six rows written at ship rather than at the open, and recorded as the weaker evidence that is: one integration surface, the python API, `rietx.agent` deleted on **zero** traced calls across four rounds; a result answering "done or not, and why" in one call, its diagnostics 35.2 → 3.5 kB from dedup and cap alone; an unsupported phase **held** rather than bounded (13 sub-onset ramp patterns: a cell 14.9 Å from truth free, 0.163 Å bounded by hand, **not reported** here); the protocol a 31 968 B skill read whole with a derived gate that found **four** undocumented entry points on its first run; the PowderLine recipe at **11-93 ppm** from TOPAS on all five free cell parameters; and the block measured — round 1.1, eight cells, $38.39, **seven of eight** stopping on a criterion this package states against **zero** in the 86-run baseline — suite counts in the record's ship appendix |
 | v1.4 | Free-standing peaks: fit_peaks + the extra-components seam | ✅ **shipped 2026-09-13** ([record](milestones/v1.4.md), [notes](releases/1.4.0.md)) | seventeen rows, **every one written before the work rather than at the ship** — 1101's five at the open, 1102's and 1103's sharpened by the sessions that had read them — and all seventeen met on the release tree (record § Appendix). The measured half: `fit_peaks` answers a named position that fits nothing and flags the unnamed neighbour beside one; the union's second member costs no new field and its landing is read from data, not from a class name; and the operando case is reported against its own alternative rather than flattered — declaring two injected holder lines recovers the SRM 660c cell to −1.0 ppm where ignoring them costs +7.6 ppm and inflates the cell esd 7.5×, while **excluding** the regions recovers it too, to +0.6 ppm, for 4.8 % of the channels |
 | v1.5 | A window into a run: the live watcher, foreign model files, a measured background | ✅ **shipped 2026-09-18** ([record](milestones/v1.5.md), [notes](releases/1.5.0.md)) | nine rows, **none of them written at the open**, because the milestone was opened 496 commits behind its own work — the record says plainly that this is weaker evidence than v1.3's at-ship rows and reads as an inventory. The measured half: the live view at 180-329 kB a stage against the replaced page's 4.51-6.03 MB; a default-on recorder costing 1.03-1.28×, which **fails** its own 1.05× gate on two cases of three and was kept anyway with the reason recorded; a console that froze the main thread for 997 ms on a 60 000-event run, capped at the route; four foreign formats read and written; and `help.py`'s Lp corrected from 0.508× of the one the code computes |
+| v1.6 | The magnetic structure: the satellite, the moment, the determination, the mode amplitude — [§ v1.6](#v16--the-magnetic-structure) | 🔄 **opened 2026-09-18** ([record](milestones/v1.6.md)) | eleven rows written at the open, the record's § Acceptance; the measured half is still to come |
 | v2+ | FPA (with the peaks buffer), neutron TOF, texture, modulated structures, PDF, MCP server — [§ v2+](#v2--fenced) | ⬜ fenced | — |
 
 ## Work packages
@@ -528,6 +530,45 @@ the next minor if one opens first.
 |---|---|---|---|
 | [1441](wp/1441-a-constraint-the-series-can-declare.md) | A constraint the series can declare | ✅ 2026-09-18 | — (1070, 1119 are the halves) |
 
+### v1.6 — the magnetic structure
+
+Seven rungs, opened 2026-09-18 ([record](milestones/v1.6.md)), out of
+§ Unscheduled where 1326–1329 sat from 2026-09-02 and out of the v2 fence
+before that. Three readers refuse a magnetic structure with one sentence, and
+the unexplained-intensity report names a magnetic contribution as a cause it
+cannot test; CW neutron shipped in 1134, so the fence's premise was gone. 1326
+needs no moment (a satellite is a position); 1327 takes the two decisions PR
+#221 left open and holds an unsupported moment at zero (1301's rule). 1343 is
+1327's price: no magnetic size term, so a broad magnetic peak is fitted by a
+low moment (#277). The operator layer landed from outside 2026-09-10 (PR #290,
+`crystallography.magnetic`, spglib's 1651 groups). 1419 alone is *nuclear*
+(#286, #293), sharing 1418's mode vectors and 1327's operator-list phase.
+
+**The order, set in #286 on 2026-09-16 and 2026-09-18.** 1418's M-6 and M-7
+first, having no forward-model contact; then 1327's verb, one PR; M-9 with
+1418; then 1419 alone, because the decision it carries — the full child group
+for reflection generation, multiplicity and the metric, the ε-reduced
+stabiliser only for orbit expansion of the mode field — gets decided properly
+in a PR that is about it and waved through in one that is not. Every magnetic
+row in the agent skill, diagnostic codes included, goes in
+`references/magnetic.md`, and the merge result of the whole set is measured
+once before the first PR is cut.
+
+**Neutron TOF is not here.** It stays fenced at [§ v2+](#v2--fenced) behind
+issue #193, which its own reporter filed that way. A fence moves by a recorded
+decision, the way magnetic structures left it on 2026-09-02, and not by work
+existing.
+
+| WP | Title | Status | Depends on |
+|---|---|---|---|
+| [1326](wp/1326-satellites-without-a-moment.md) | Satellites at G ± k, with no moment model: is it magnetic? | ⬜ | — |
+| [1327](wp/1327-magnetic-structure.md) | A magnetic structure: state it, refine it, report what the powder cannot see | ⬜ | 1326 |
+| [1328](wp/1328-magnetic-interchange.md) | Magnetic interchange: magCIF in and out, and the readers stop refusing | ⬜ | 1327 (1118 soft) |
+| [1329](wp/1329-moment-in-a-series.md) | The moment in a series: the onset, the hold, the trajectory | ⬜ | 1327 (1326 soft) |
+| [1343](wp/1343-the-moment-pays-for-the-width.md) | The magnetic peaks are broader, and the moment pays for it | ⬜ | 1327 (1326 soft) |
+| [1418](wp/1418-the-magnetic-structure-is-determined.md) | The magnetic structure is determined, not only stated | ⬜ | 1327 (1326 soft) |
+| [1419](wp/1419-a-child-structure-refined-on-its-mode-amplitudes.md) | A child structure refined on its mode amplitudes | ⬜ | 1418 (1327 soft) |
+
 ### Unscheduled
 
 Opened by evidence — an issue, an agent round, a measurement — and owned by no
@@ -684,32 +725,6 @@ that travels with it (1340); and the report a joint fit has never had (1341).
 | WP | Title | Status | Depends on |
 |---|---|---|---|
 | [1325](wp/1325-parametric-series.md) | Parametric series: a parameter as a function of the series axis | ⬜ | — (1119 soft) |
-| [1419](wp/1419-a-child-structure-refined-on-its-mode-amplitudes.md) | A child structure refined on its mode amplitudes | ⬜ | 1418 (1327 soft) |
-
-#### The magnetic scattering track — out of the v2 fence 2026-09-02
-
-Five rungs; 1326–1329 opened 2026-09-02 from the assessment of PR #221 (an
-outside proposal for one magnetic WP; declined as a PR, its evidence kept).
-Three readers refuse a magnetic structure with one sentence, and the
-unexplained-intensity report names a magnetic contribution as a cause it
-cannot test; CW neutron shipped in 1134, so the fence's premise is gone. 1326
-needs no moment (a satellite is a position); 1327 takes the two decisions the
-proposal left open and holds an unsupported moment at zero (1301's rule), on
-GSAS-II tutorial data the package already vendors from. 1343 is 1327's price:
-no magnetic size term, so a broad magnetic peak is fitted by a low moment
-(#277). The operator layer landed from outside 2026-09-10 (PR #290,
-`crystallography.magnetic`, spglib's 1651 groups). 1418 is the
-determination track issue #256 proposes behind 1327; the decision it
-carries is whether 1327's non-goal becomes a sequencing statement.
-
-| WP | Title | Status | Depends on |
-|---|---|---|---|
-| [1326](wp/1326-satellites-without-a-moment.md) | Satellites at G ± k, with no moment model: is it magnetic? | ⬜ | — |
-| [1327](wp/1327-magnetic-structure.md) | A magnetic structure: state it, refine it, report what the powder cannot see | ⬜ | 1326 |
-| [1328](wp/1328-magnetic-interchange.md) | Magnetic interchange: magCIF in and out, and the readers stop refusing | ⬜ | 1327 (1118 soft) |
-| [1329](wp/1329-moment-in-a-series.md) | The moment in a series: the onset, the hold, the trajectory | ⬜ | 1327 (1326 soft) |
-| [1343](wp/1343-the-moment-pays-for-the-width.md) | The magnetic peaks are broader, and the moment pays for it | ⬜ | 1327 (1326 soft) |
-| [1418](wp/1418-the-magnetic-structure-is-determined.md) | The magnetic structure is determined, not only stated | ⬜ | 1327 (1326 soft) |
 
 ### v2+ — fenced
 
@@ -722,7 +737,11 @@ scope creep. Each item names what fenced it.
   (Cheary-Coelho 1992) — **with** the peaks buffer, never before
   ([1122](wp/1122-compiled-peaks-buffer.md) measured shape reuse below
   break-even without one); neutron **TOF** (CW landed in 1134; issue #193; the
-  energy-dependent resonant absorption at S(Q), #113); spherical-harmonics
+  energy-dependent resonant absorption at S(Q), #113) — **a working
+  implementation exists on the `mustachefeeling` fork and is still fenced**,
+  because a fence moves by a recorded decision and not by work existing
+  (1419 § Inherited, 2026-09-18, holds the ruling and the `.instprm` reader
+  question that comes with it); spherical-harmonics
   texture (Von Dreele 1997; #131); Z-matrices and rigid bodies (#195);
   difference Fourier / maximum-entropy maps (McCusker §6; the partition input
   exists in `lebail_update`, the consumer is structure completion; #197);

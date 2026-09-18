@@ -480,6 +480,23 @@ here, being folded into WP-1118, WP-1310 and WP-1322's own files; Current focus
 paid for its new sentence by cutting four closed WPs' narratives back to their
 numbers, which their own files already carry (protocol rule 5).
 
+645 -> 762 in six bumps between 2026-09-13 and 2026-09-18, each one a row or
+a section and each recorded in `tests/test_docs_consistency.py`'s own ledger
+above `SIZE_CAPS`, which is the complete one; they were not copied here, and
+this paragraph is the note saying so rather than a reconstruction.
+
+762 -> 784 for the v1.6 open (2026-09-18): § v1.6 over the seven magnetic rows
+§ Unscheduled already carried.  The structure — one `###` and one table header
+— is the standing rule and costs two lines.  The rest is two paragraphs of
+ruling taken at the open, and they are the first entry in this diary that is
+not narrative *about* rows: the PR order inside the milestone, and that neutron
+TOF stays at the v2+ fence although a contributor's integration branch carries
+it merged into the magnetic chain.  Neither demotes to a WP file, because the
+reader they are written for is building against this index from outside the
+repository and reads no WP file until a PR is cut.  Paid for twice, in Current
+focus (a closed WP's narrative and the triage fold list) and in § Unscheduled
+(the blurb describing the rows that left).  Landed 778, +6 headroom.
+
 ### `gui/CLAUDE.md`
 
 580 -> 612 for WP-1201 (2026-08-25): the house style — one token layer
