@@ -63,12 +63,32 @@ plans all freeing the same variable from zero returned bit-identical values
 while the variable is nonzero, which is where `Refinement.fit` called twice
 lands, and where WP-1419's workflow lives.
 
+**Re-measured 2026-09-19** on `main` at `6593244e` (worktree venv `[dev]`,
+macOS arm64, Python 3.12), because WP-1435 edited both named seams in the three
+days between. All three rows stand, on LaB6's own B `x` DOF (base 0.1993)
+rather than the original `z`: the coordinate reads 0.2093, 0.2193, 0.2293,
+0.2393, 0.2493 across the declaration and four writes, the DOF reads 0.0 at
+every one of them, and `vars.A` reads 0.01 throughout. The ADP control holds at
+0.02 and the DOF-source control holds at its stored pair.
+
 **Why nothing caught it.** `tests/test_named_variables.py` has no DOF case at
 all, though `optimize/least_squares.py`'s `_column_identities` docstring is
 written around exactly this path ("a variable driving a Wyckoff DOF reaches
 `[…atoms.1.x, …atoms.1.dof.0]`"). The Jacobian dispatch that docstring governs
 is correct. What is wrong is upstream of it, in what the table holds by the time
 the column is built.
+
+**A series declares ties too** (WP-1441, 2026-09-18, issue #376), which adds a
+caller to both seams below and one constraint on the fix. `SequentialRefinement.fit`
+takes a `constrain=(index, ref)` hook called on each pattern's fresh `Refinement`,
+and it is the documented place to declare a tie across a chain. The chain is
+*clear* of this defect by construction, one declaration against a table built
+moments earlier, so **the fix must not assume a tie has been re-applied at least
+once**. A caller's hook may then `set_values` legitimately, which is this
+defect with the series' multiplier on it: a 68-pattern ramp applies it 68 times.
+`sequential._carry_variables` is a second such caller, writing a carried
+variable's value through `refresh_ties`/`_write_back` on a `Refinement` whose
+history tree does not exist yet.
 
 **Seams.** `refine.Refinement._apply_ties` and `_write_back`,
 `params.vector.ParameterTable.__init__` (the coordinate tie's `const`) and
@@ -89,30 +109,6 @@ A third option, making coordinate DOFs absolute like ADP and Stephens ones, is
 out of scope here: it changes what `set_values` on a DOF means for every caller
 and what the manual documents, for a defect that lives in the tie path.
 
-### Inherited
-
-**From WP-1441 (2026-09-18), issue #376.** A series can now declare ties, and
-that adds a caller to both seams this WP names.
-
-`SequentialRefinement.fit` takes a `constrain=(index, ref)` hook, called on each
-pattern's fresh `Refinement` before its fit, and it is now the documented place
-to declare a tie across a chain. Two consequences here. The chain itself is
-*clear* of this defect by construction — one declaration per pattern against a
-table built moments earlier, with no write-through verb between the tie and the
-solve — so a fix here must not assume a tie has been re-applied at least once.
-And a caller's hook may legitimately `set_values` after tying, which is 1432's
-trigger with the series' own multiplier on it: a 68-pattern ramp applies it 68
-times rather than once.
-
-`sequential._carry_variables` is a **new `set_values` caller**, on a
-`Refinement` whose history tree does not exist yet. It writes a carried
-variable's value after the hook has declared the variable and its ties, so it
-runs the `refresh_ties` / `_write_back` path this WP is repairing, on exactly
-the variable-drives-a-tie shape 1432 measured. Whatever the fix does to that
-path, `tests/test_sequential.py::test_a_named_variable_warm_starts_under_the_carry_globs`
-is a second fixture over it, and it asserts on the value a fit *starts* from
-rather than the one it ends at.
-
 ## Non-goals
 
 - Distortion-mode amplitudes. WP-1419 consumes this fix and does not contain it;
@@ -130,6 +126,9 @@ rather than the one it ends at.
       amplitude both times, and the structure does not move between them.
 - [ ] `tests/test_named_variables.py` grows the DOF case it never had, with the
       declared-order asymmetry as a regression case.
+- [ ] `tests/test_sequential.py::test_a_named_variable_warm_starts_under_the_carry_globs`
+      stays green: it is the second fixture over the repaired path, and it
+      asserts on the value a fit *starts* from rather than the one it ends at.
 - [ ] Manual: `using/model.md` says a coordinate DOF is a displacement from the
       stored coordinate. Say what that means for a tie onto one.
 - [ ] Skill: none, unless the fix changes what an agent should write — a tie
