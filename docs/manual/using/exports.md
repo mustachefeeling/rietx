@@ -129,6 +129,8 @@ the structure, for a caller that holds those instead of a `Refinement`.
 | `ReflectionRow.multiplicity` | the Laue-group multiplicity of the orbit |
 | `ReflectionRow.f_squared` | \|F\|², or `None` in Le Bail and Pawley mode |
 | `ReflectionRow.intensity` | the modelled integrated intensity of this row |
+| `ReflectionRow.satellite_order` | the m of Q = H + m·k, 0 on every nuclear reflection |
+| `ReflectionRow.component` | `"nuclear"`, `"magnetic"`, or `"total"` |
 
 Three of those need care.
 
@@ -143,6 +145,18 @@ Rietveld mode it is scale × multiplicity × \|F\|² × preferred orientation ×
 line weight × Lp × extinction × absorption × roughness. It is what the peak
 under the tick is made of.
 
+`ReflectionRow.satellite_order` is 0 for every row of a phase that declares no
+`Phase.propagation_vector`, which is every phase unless you asked for one. Where
+it is not, `ReflectionRow.h`, `ReflectionRow.k` and `ReflectionRow.l` stay the
+parent reciprocal-lattice vector H and the row is read as H and m together,
+the (3+1)-index spelling; `ReflectionRow.d` is the satellite's own d-spacing,
+not the parent's, and `ReflectionRow.f_squared` on such a row is exactly 0 in
+Rietveld mode because this rung computes no magnetic structure factor.
+
+`ReflectionRow.component` is `"total"` unless the phase's magnetic width is
+active, in which case each reflection gets one `"nuclear"` row and one
+`"magnetic"` row rather than a single row carrying the nuclear share alone.
+
 `ReflectionRow.f_squared` is `None` in Le Bail and Pawley mode, where the
 per-reflection intensity is extracted or refined rather than computed from the
 structure. With anomalous scattering on, which is the default, it is the
@@ -153,7 +167,12 @@ powder peak, and only the average is observable in a powder.
 ## Writing them out
 
 [](files.md) has the three writers that turn a result into a file, what each
-file contains, and why the CIF carries a symmetry-operation loop of its own.
+file contains, and why the CIF carries a symmetry-operation loop of its own, and,
+for a phase carrying a moment, the magCIF block the same writer adds:
+the operator and centring loops, the BNS metadata, and the refined moments with
+the modulus esd in `_atom_site_moment.magnitude_su`. A phase with no
+`Phase.magnetic_symmetry` gets none of it, so a nuclear export is byte for byte
+what it always was.
 `Refinement` carries the same three as methods on the refinement that produced
 the result, which saves passing the pieces back in: `Refinement.write_cif`,
 `Refinement.write_reflection_table` and `Refinement.write_qpa_table`. Each takes

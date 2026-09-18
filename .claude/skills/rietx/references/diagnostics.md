@@ -60,9 +60,11 @@ a separate vocabulary with no rows here, so a code met outside
 | `QPA_UNAVAILABLE` | Read `result.qpa is None` as "this specimen is single-phase" or as any statement about composition. The refined scales gave a non-positive Σ S·ZMV, so there are no fractions to renormalise — `where` names the scales that died. It is reported rather than raised on purpose: QPA is one field of a result, and raising took a whole 157-pattern sequential run down with one bad pattern |
 | `MODEL_FAR_FROM_DATA` | (error) Read `status`, the parameter values or their esds at all. Rwp is past the point where the model is no better than predicting zero everywhere, so this is a mismatch between model and data, not a converged refinement — and the solver may well say `converged`, because driving the phase scale to zero *is* a minimum once the cell is far enough off that every reflection sits outside its frozen evaluation window. The message quotes the share of above-background intensity the model actually accounts for (0.2 % on the reproduction); check the cell (~1 % precondition, §1), wavelength, zero shift and 2θ range, then re-index |
 | `STAGE_MAX_ITER` | Read the result's `status` as covering every stage — it is the *last* stage's, so a middle stage can stop on its iteration budget while the fit reports `converged`. The named stages did not converge; they ran out. Raising `max_iter` buys solver evaluations, not a different minimum — the stages that stall are the degenerate groups in §3 (measured: three identical mixtures, same models and parameter counts, 39 s / 858 s / 2838 s with no difference in the answer) |
+| `STAGE_FREED_NOTHING` | (info) Read a `converged` stage as one that did work: its free list matched **no row**, so it re-solved the previous stage's problem. Per *histogram* on a joint fit (`where` has the index) — a glob written for one histogram's parameterisation can match nothing on another. Per stage, never per glob, so a preset stage for a correction your model lacks fires this and did nothing |
 | `SPACE_GROUP_SETTING_ASSUMED` | (warning) Read the composition, ZMV or any weight fraction as the one you meant. The phase names a bare Hermann-Mauguin symbol the tables hold in more than one setting (40 of them — the `:1`/`:2` origin choices and the rhombohedral `:H`/`:R` axes), and gemmi resolved it to the first. The site multiplicities differ, so the choice changes how many atoms each site puts in the cell while leaving Rwp untouched: spinel's origin-2 coordinates under a bare `F d -3 m` give Mg2AlO4 where MgAl2O4 was meant. The message quotes the **cell contents each setting implies** — recognise yours and write it into the symbol (`"F d -3 m:2"`). Where the sites that swap carry one species the contents agree, so it quotes the **site multiplicities** instead: Mn3O4 under `I 41/a m d` is Mn12O16 either way and the wrong choice still moves half the intensity. A `:H`/`:R` pair gets alternatives and no composition: different axes. A symbol carrying its setting is silent; what each foreign format can say is in §7g and §7h |
 | `SITE_SNAPPED_TO_SPECIAL_POSITION` | (warning — on `result.diagnostics`, and on the reader's channel from `Structure.from_cif(..., diagnostics=[])`) Read the site's multiplicity as the general-position one. The named sites sit within 1e-4 (fractional) of a special position without being on it — what a file quoting five decimals produces — so their orbit was expanded *at* that position and their multiplicity is the special one, which is what the file's own `_atom_site_symmetry_multiplicity` and its stated density say. The stored coordinates are **not** rewritten and the fit is unaffected; what changes is how many atoms the site puts in the cell, hence ZMV and every weight fraction. The message names each site, its shift and its multiplicity. If they match the source's own multiplicities, nothing is wrong and the coordinates are merely rounded; if they disagree, the coordinates and the space group are telling you different things |
 | `CIF_CELL_ANGLE_CORRECTED` | (warning — from the reader, same channel as `CIF_SPECIES_NORMALISED`) Assume the cell is the file's. A symmetry-fixed angle disagreed with its space group by a *reportable* amount (up to 0.1°) and was read at the exact value, because `ParameterTable` refuses such a cell and has no channel to say why. The deviation is information: if it is real, the symmetry is lower than the symbol claims. A disagreement beyond 0.1° is **not** corrected — it still raises, because the symbol and the angle contradict each other and choosing between them is yours |
+| `CIF_CELL_ANGLE_METRIC_CONSTRAINED` | (info — same channel as `CIF_CELL_ANGLE_CORRECTED`) Assume a nearby-right-angle cell was silently snapped, or that no cell-angle check ran at all. The phase's group has no Hermann-Mauguin symbol sharing its point group and lattice (a bracketed `"[unnamed in ...]"` label, most often WP-1328's magCIF setting-mismatch escape hatch written back to CIF and re-read), so its cell constraints are a `MetricConstraints` linear subspace rather than a fixed-angle dict — there is nothing named `CIF_CELL_ANGLE_CORRECTED`'s way to correct against, and none was attempted. This fires only when an angle happens to sit near a right angle or 60°/120° without being exactly there, which is the only shape an *ordinary* per-angle reading would ever have wanted to snap; the metric constraints, not a per-angle model, are the authority for this group's cell |
 | `PATTERN_SCAN_REVERSED` | (info — from the pattern reader: pass `read_pattern(..., diagnostics=[])` to collect it) Assume the point order in the file is the point order you are fitting. The scan was stored high 2θ → low and was reversed, which is lossless — the same measurement written backwards — but it means an index into the file is not an index into the pattern |
 | `PATTERN_DUPLICATE_POINTS` | (info — from the reader) Quote the file's point count as the fitted channel count. One or more 2θ values appeared twice with the *same* intensity and the repeats were dropped. A repeat with a *different* intensity is not reported here: it raises, because averaging invents a datum and dropping picks one |
 | `PATTERN_MULTISCAN_DEFAULTED` | (warning — from the reader) Read the result as a fit to the file. The file holds several scans, none was named, and **scan 0** was read — a third of a measurement is a choice, and this one was made by default rather than by you. Pass `scan=` (or `list_scans(path)` first) before quoting anything |
@@ -73,7 +75,6 @@ a separate vocabulary with no rows here, so a code met outside
 | `BRML_ABSORBER_ENGAGED` | (info — from the reader) Nothing to the intensities; they are already right. A Bruker automatic absorber engaged over the points named, and the stored series is **already corrected** for it, so nothing was multiplied — but those points carry a factor fewer counts than their height suggests, and σ was derived as √(y/a)·a rather than √y. The third answer to one question: `RAS_ATTENUATOR_PRESENT` reports because no Rigaku file settles it, `XRDML_ATTENUATOR_APPLIED` multiplies because a real file shows the raw series dipping, and this one leaves the values alone because a real file shows them continuous |
 | `READER_OPTION_IGNORED` | (info — from the reader) Assume a reader option you passed took effect. This format does not take it, so the file was read as if it had not been given — normal when a form carries a value across a change of file, and a mistake when you named a `block` or a `scan` you meant to select. Check `identify_format` claimed the reader you expected |
 | `CIF_SPECIES_NORMALISED` | (info — from the reader: pass `Structure.from_cif(..., diagnostics=[])` to collect it; it is not on `result.diagnostics`) Assume the model's species are the file's literal type symbols. The reader rewrote a wild form — a site label in the type-symbol column (`O1`) or a sign-first charge (`O-2`) — onto the canonical grammar, keeping the ion when one was written; each message names its substitution and `where` lists the atoms it touched |
-
 The `TOPAS_*` and `FULLPROF_*` families are **not here**: they belong to
 `rietx.io.projects`, they fire at *import* rather than on a fit, and none of
 them ever reaches `result.diagnostics`. They have their own file —
@@ -82,14 +83,25 @@ the question they answer comes before a fit exists: *is the model I just
 imported the model that file describes?* Load that one if a TOPAS `.inp` or a
 FullProf `.pcr` import handed you a diagnostic.
 
-The `RECIPE_*` family is **not here** either: it belongs to the PowderLine
-recipe reader (`read_recipe`, `Recipe.diagnostics`) rather than
-`result.diagnostics`, and it answers a question the others do not: *how does
-the fit I am about to run differ from the one the recipe describes?* It has
-its own file too — §7g, [`references/diagnostics-projects.md`](diagnostics-projects.md)
-— since a PowderLine recipe is another program's file just as a TOPAS `.inp`
-or a FullProf `.pcr` is. Load that one if a PowderLine recipe handed you a
-diagnostic.
+The `RECIPE_*` family — the reader of the **PowderLine interchange format**
+(`read_recipe`, `Recipe.diagnostics`) — is **not here** either, and for the
+same reason: it fires at import and never reaches `result.diagnostics`, and it
+answers a question the others do not: *how does the fit I am about to run
+differ from the one the recipe describes?* It has its own file too — §7g,
+[`references/diagnostics-projects.md`](diagnostics-projects.md) — beside the
+TOPAS and FullProf families, since a PowderLine recipe is another program's
+file just as a TOPAS `.inp` or a FullProf `.pcr` is; its rows moved there
+when the magnetic-width rows needed the bytes here, and nothing was dropped.
+Load that file if a PowderLine recipe handed you a diagnostic.
+
+The magnetic and distortion-mode families — `CIF_MAGNETIC_*`, `MAGNETIC_WIDTH_*`,
+`STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT`, `TOPAS_MOMENT_*`,
+`FULLPROF_MAGNETIC_PHASE_OMITTED`, `K_VECTOR_UNSEPARATED`,
+`MOMENT_PAIR_DEGENERATE`, `SEQUENTIAL_MOMENT_*`, `DISTORTION_MODE_UNSUPPORTED`
+and `CHILD_GROUP_UNNAMED` — moved out in their turn, to §7i,
+[`references/magnetic.md`](magnetic.md) (issue #286): one family, one file,
+rather than the same order parameter answered in three places under three
+different channel conventions. Nothing was dropped, only consolidated.
 
 ```python
 codes = {d.code for d in result.diagnostics}

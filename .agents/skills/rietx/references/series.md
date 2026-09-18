@@ -187,6 +187,51 @@ What an operator must know, all measured:
   instrument)`, `series = sr.fit(patterns, ...)`, then
   `rx.build_report(sr.results_[i]).background.worst_absorption`.
 
+## A moment through an ordering transition
+
+A ramp through T_N is a series whose answer changes character part-way along,
+and `|F_m|² ∝ m²` means a moment the data cannot see is a *flat direction*, not
+a small number.  So each entry carries `SeriesEntry.magnetic` — WP-1327's
+`MomentEvidence` rows, `supported` included — and `series.magnetic_trajectory()`
+is |m| against the axis with **the esd withheld on every unsupported point**
+and the onset as a bracket on `MagneticOnset`.  Never build "|m| vs T" from the
+raw `phases.*.atoms.*.moment.dof0` rows in `entry.parameters`: that column is
+signed, carries no verdict, and a warm-started chain makes it smooth straight
+through the transition.
+
+Two codes — `SEQUENTIAL_MOMENT_HOLD` and `SEQUENTIAL_MOMENT_ONSET` — and
+`solve_magnetic`/`analyse_moments`'s own `K_VECTOR_UNSEPARATED` and
+`MOMENT_PAIR_DEGENERATE` fire on exactly this trajectory; their rows moved to
+§7i, [`references/magnetic.md`](magnetic.md) (issue #286), with the rest of
+the magnetic family rather than staying split off here on their own — load
+that file for what each one says you must not do.
+
+## A displacive superstructure through a structural transition
+
+The same shape one field across, and the same trap.  A distortion-mode
+amplitude enters a superstructure reflection with a structure factor **odd** in
+A, so `|F|²` is even in A and χ² is stationary at A = 0: an amplitude the
+pattern cannot see is a *flat direction*, and a warm-started chain hands it
+forward smoothly.  So each entry carries `SeriesEntry.distortion` — M-1's
+`DistortionEvidence` rows, `supported` included — and
+`series.distortion_trajectory("<mode name>")` is A against the axis with **the
+esd withheld on every unsupported point**.  Never build "A vs T" from the raw
+`phases.*.distortion_modes.*.amplitude` rows in `entry.parameters`: the sign of
+A is **not measurable at all** (A and −A give the identical powder pattern), so
+that column can change sign between neighbouring patterns with no physics in
+it; plot `DistortionTrajectory.magnitude`, or `displacement_a` for the largest
+atomic displacement in Å.
+
+There is deliberately **no onset row**.  `MagneticOnset` is a moment's bracket
+and `locate_onset` reads a moment's verdicts; a structural T_s read off the
+same column would be that schema saying something it does not mean.  The
+support column is there, so take the bracket yourself and say it is one.
+
+`DISTORTION_MODE_UNSUPPORTED` fires on exactly this trajectory, and
+`CHILD_GROUP_UNNAMED` on the same builders' returned statement; both rows
+moved to §7i, [`references/magnetic.md`](magnetic.md) (issue #286) beside the
+rest of the family — load that file for what each says you must not do.
+
 Driving one: **`fit()` is all-or-nothing, so wire `on_result=` before starting
 anything long.**  The per-pattern loop catches `RefinementCancelled` and nothing
 else and returns its `SeriesResult` only at the very end, so one exception

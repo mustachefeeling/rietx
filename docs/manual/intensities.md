@@ -52,6 +52,7 @@ correction that needs nothing but the species and the wavelength is a modelling
 statement, and the diagnostic records it as one.
 
 (int-neutron-b)=
+(sec-neutron-b)=
 ### The neutron scattering length
 
 For neutrons the whole of {eq}`int-species` collapses to one number per
@@ -212,6 +213,164 @@ exactly, over the same orbit sums, with no second orbit pass and no
 centro/non-centro case split. In a centrosymmetric group $A$ and $B$ share one
 common phase, so the cross term vanishes identically. $f'' = 0$ makes
 $B \equiv 0$ and recovers $|F|^2$ bit-identically, so a structure without a
-dispersion block is unchanged. Merging $\pm\mathbf{h}$ is exact with anomalous
-scattering and without it, for two different reasons. {eq}`int-friedel` is the
-one that keeps a single representative per Laue orbit correct to enumerate.
+dispersion block is unchanged. Merging $\pm\mathbf{h}$ is therefore exact
+with or without anomalous scattering, but for two different reasons, and
+{eq}`int-friedel` is what keeps one representative per Laue orbit the
+*correct* thing to enumerate, not an approximation.
+
+## The magnetic structure factor
+
+A neutron carries a moment, so it scatters from the *magnetization density* of
+an ordered structure as well as from its nuclei. For a reflection at
+$\mathbf{Q}$ under a magnetic space group whose operations carry a
+time-reversal sign $\varepsilon_s = \pm 1$,
+
+```{math}
+:label: int-Fmag
+
+\mathbf{F}_m(\mathbf{Q}) \;=\; p \sum_j \mathrm{occ}_j\, f_j(s)\, T_j
+\sum_s \varepsilon_s \det(R_s)\, R_s\, \mathbf{m}_j\,
+e^{2\pi i\, \mathbf{Q}\cdot(R_s \mathbf{x}_j + \mathbf{t}_s)},
+\qquad
+p = \frac{\gamma r_0}{2} = 2.695\ \mathrm{fm}\ \mu_B^{-1},
+```
+
+{source}`rietx.crystallography.magnetic.scattering`
+
+with $\mathbf{m}_j$ the site's moment in $\mu_B$ {cite}`rodriguezcarvajal1993`.
+Two things in that expression are not the nuclear ones. A moment is an axial
+vector, so an operation acts on it as $\varepsilon_s \det(R_s) R_s$, the
+rotation *untransposed*, times the determinant, times the time-reversal sign,
+where $\mathbf{h}$ transforms by $R^{\mathsf T}$ and a tensor by $R U
+R^{\mathsf T}$. And $p$ is in fm, the unit the bound coherent scattering
+lengths of {ref}`sec-neutron-b` are tabulated in, so $p\,\mathbf{m}$ and $b$
+are commensurable and one phase scale multiplies both contributions.
+
+Only the component of $\mathbf{F}_m$ perpendicular to $\mathbf{Q}$ scatters
+{cite}`halpern1939`:
+
+```{math}
+:label: int-Fperp
+
+I_{\mathrm{mag}} \;\propto\;
+|\mathbf{F}_m|^2 - |\hat{\mathbf{Q}}\cdot\mathbf{F}_m|^2 .
+```
+
+{source}`rietx.crystallography.magnetic.scattering`
+
+$\mathbf{F}_m$ is complex, so the subtracted term is the squared modulus of a
+complex projection and not the square of a real dot product. A moment parallel
+to $\mathbf{Q}$ contributes exactly nothing, which is why MnF₂'s $(0\,0\,1)$
+(a reciprocal-lattice point in range, with the moment along $\mathbf{c}$)
+carries no magnetic intensity at all.
+
+The powder average is over the Laue orbit, and that is not the nuclear
+case. $|F_\perp|^2$ is *not* constant over the orbit of $\mathbf{Q}$: the
+moment direction breaks the Laue symmetry, so "one representative times the
+multiplicity" (right for $|F_N|^2$, and exact there for the reason
+{eq}`int-friedel` gives) is wrong here. The model returns the average over
+the whole orbit, Friedel mates included. After that average a cubic collinear
+structure's intensity is independent of the moment direction and a uniaxial
+one measures only the angle to its unique axis {cite}`shirane1959`; those are
+*results* of the average rather than assumptions, and they are what makes a
+moment direction a flat direction of the least-squares problem
+({ref}`sec-moment-dofs`).
+
+### The magnetic component's own width
+
+Everything above adds $p^2\langle|F_\perp|^2\rangle$ to
+$\langle|F_N|^2\rangle$ and draws the sum once, which is right whenever the
+two contributions have the same profile. They need not. A crystallite's
+magnetic order need not be coherent across the whole crystallite: antiphase
+and domain-wall boundaries, an incompletely grown order parameter near $T_N$,
+and chemical disorder that couples to the exchange all cut the magnetic
+coherence length below the structural one while leaving the nuclear peaks
+untouched. The broadening that follows is Scherrer's, applied to the magnetic
+domain ($\approx K\lambda/(L_{\text{mag}}\cos\theta)$, the same
+$1/\cos\theta$ law {eq}`ms-scherrer` already reads), and a magnetic
+order parameter that varies across the specimen adds the $\tan\theta$ law
+instead.
+
+So a phase carries two more coefficients, `magnetic_lor_size` and
+`magnetic_lor_strain`, and the intensity is drawn as two components:
+
+```{math}
+:label: int-two-component
+
+y(2\theta) \;=\; \sum_k C_k \Big[
+  \langle|F_N|^2\rangle_k\,\Omega\big(2\theta - 2\theta_k;\,
+  \Gamma_k\big)
+  \;+\;
+  p^2\langle|F_\perp|^2\rangle_k\,\Omega\big(2\theta - 2\theta_k;\,
+  \Gamma^{\text{mag}}_k\big)\Big],
+```
+
+with one shared $C_k$ (the phase's single scale, the multiplicity, the
+line weight, the Lorentz-polarization factor, the March-Dollase multiplier,
+Sabine extinction, specimen absorption and surface roughness, every one of
+them a function of $(\text{line}, hkl)$ and of nothing about which
+contribution it scales) and one shared position $2\theta_k$. Only the width
+differs, and it differs by the composition law the package already uses:
+Lorentzian FWHMs add, so
+
+```{math}
+:label: int-two-component-width
+
+\Gamma^{\text{mag}}_L \;=\;
+\frac{X + \texttt{lor\_size} + \texttt{magnetic\_lor\_size}}
+      {\cos\theta}
+\;+\;
+\big(Y + \texttt{lor\_strain} + \texttt{magnetic\_lor\_strain}\big)
+\tan\theta .
+```
+
+There is no second scale and no second phase. That is the point: with a single
+scale a magnetic peak that is broader than the calculated one has exactly one
+way to reduce its residual, and it is to shrink the moment until the narrow
+calculated peak's *height* matches the broad observed peak's. Since
+$|F_m|^2 \propto m^2$, the moment then comes back low by about the ratio of
+the two widths, the fit converges, and nothing in the profile says so.
+{eq}`int-two-component` is what stops that; `MAGNETIC_WIDTH_UNMODELLED` is
+what says the term is needed while it is still held at zero, read off the
+centre-versus-tails sign structure of the residual at the magnetic-only
+reflections against the same statistic at the nuclear-only ones.
+
+Both coefficients default to exactly zero, which is the off state: the two
+components then have identical widths, the second draw is not built at all,
+and the arithmetic is {eq}`int-Fmag`'s single pass. They are only
+*identifiable* where the magnetic-to-nuclear intensity ratio differs across
+reflections, so a $\mathbf{k} \neq 0$ structure with magnetic-only
+satellites measures them and a $\mathbf{k} = 0$ collinear one generally
+cannot; the report says which happened rather than quoting a number for both
+({ref}`sec-magnetic-width`).
+
+{source}`rietx.model.forward` (`phase_peaks`, `_width_block`)
+
+### The dipole approximation
+
+```{math}
+:label: int-ff-dipole
+
+f(s) \;=\; \langle j_0\rangle(s) + \left(\frac{2}{g} - 1\right)
+\langle j_2\rangle(s),
+\qquad
+\langle j_0\rangle(s) = A e^{-a s^2} + B e^{-b s^2} + C e^{-c s^2} + D,
+```
+
+{source}`rietx.crystallography.magnetic.form_factor`
+
+with $s = \sin\theta/\lambda = 1/2d$ (the same argument $f_0$ and the
+Debye-Waller factor take) and $\langle j_n\rangle$ for $n \ge 2$ carrying an
+extra factor $s^2$ {cite}`brown2004`. That factor is why $\langle
+j_2\rangle(0) = 0$ and hence $f(0) = 1$ for every ion whatever $g$ is;
+dropping it multiplies a rare-earth form factor by roughly $1/s^2$ near the
+origin, which the scale absorbs while leaving the *shape* wrong.
+
+For a spin-only 3d ion $g = 2$, the coefficient $2/g - 1$ vanishes identically
+and $f = \langle j_0\rangle$. For a rare earth it does not: with
+$\langle L\rangle = (2-g)J$ and $\langle S\rangle = (g-1)J$ the normalised
+dipole amplitude is $[\langle j_0\rangle\,(L + 2S) + \langle j_2\rangle\,L] /
+(L + 2S) = \langle j_0\rangle + ((2-g)/g)\langle j_2\rangle$, which is
+{eq}`int-ff-dipole` and not its sign-flipped twin. The two agree only at
+$g = 2$, so a spin-only test cannot tell them apart. The output names which
+form was used per species, because a fit that does not say is not checkable.

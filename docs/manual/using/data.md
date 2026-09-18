@@ -126,7 +126,8 @@ and the rest describe what this specimen did to the peaks.
 | Field | Type | Default | Meaning |
 |---|---|---|---|
 | `Phase.name` | str | required | a label, and the key an export writes |
-| `Phase.space_group` | str | required | Hermann-Mauguin symbol or a number as a string, resolved by gemmi |
+| `Phase.space_group` | str | required | Hermann-Mauguin symbol or a number as a string, resolved by gemmi, or, beside `symmetry_operations`, a *label* |
+| `Phase.symmetry_operations` | list[str] or None | `None` | the phase's symmetry operations as `x,y,z` triplets, for a group no symbol names in this cell |
 | `Phase.cell` | `Cell` | required | lengths and angles |
 | `Phase.atoms` | list[`Atom`] | required | the asymmetric unit, at least one |
 | `Phase.scale` | `Parameter` | 1.0, fixed, softplus | this phase's contribution to the total intensity |
@@ -138,6 +139,8 @@ and the rest describe what this specimen did to the peaks.
 | `Phase.preferred_orientation` | `PreferredOrientation` or None | `None` | single-axis March-Dollase, {eq}`corr-md` |
 | `Phase.microstrain` | `StephensStrain` or None | `None` | anisotropic strain, width per hkl, {eq}`ms-sigma` |
 | `Phase.particle_radius_um` | float or None | `None` | Brindley microabsorption input, {eq}`corr-brindley`; a plain float, never refined |
+| `Phase.propagation_vector` | tuple of three rational strings, or None | `None` | commensurate k on the conventional reciprocal cell; adds satellites at Q = H ± k, {eq}`sat-position` |
+| `Phase.magnetic_symmetry` | `MagneticSymmetry` or None | `None` | the magnetic space group as its magCIF operator and centring loops, {eq}`int-Fmag`; refused beside `propagation_vector` |
 | `Phase.restraints` | list | `[]` | soft observational restraints, {eq}`par-restraint` |
 
 The four broadening terms are the sample half of the instrument ⊕ sample split.
@@ -154,6 +157,79 @@ coherent domain, which is smaller than and unrelated to the particle whose
 absorption path Brindley's correction integrates over, and conflating the two is
 a standing error. Supply it from a micrograph or a particle-size measurement, or
 leave it `None`.
+
+`symmetry_operations` is how a phase states a group that has no name in its
+cell, and the case is not exotic: a parent operation whose translation along a
+doubled axis is a half becomes a *quarter* in the child cell of a
+superstructure, and no Hermann-Mauguin symbol in any tabulated setting has a
+quarter in its operation list. The group is a perfectly good space group there:
+it has orbits, site multiplicities and systematic absences like any other, and
+the only thing it lacks is a symbol. Leave the field `None` (the default) and
+nothing changes: the operations are resolved from `space_group` exactly as they
+always were.
+
+When the list is present, `space_group` is a label, and the rule is about
+labels. A *bracketed* label (`"Pm [unnamed in 2a,b,a+c]"`) says that the
+symbol before the bracket is only the closest standard *type* and does not
+generate this group; it requires the list, and no agreement between the two is
+claimed or checked. A *plain* symbol beside a list must generate that list
+exactly, and a disagreement is refused rather than resolved in either
+direction: stating the symmetry two ways and being told when the two are not
+the same group is the point, and silently preferring one of them is how a fit
+ends up with the wrong absences under a right-looking symbol. A list that is
+not a group (no identity, or not closed under composition) is refused too.
+
+Everything downstream reads the operations: site orbits and multiplicities, the
+Wyckoff constraint bases, systematic absences, the reflection list and its Laue
+multiplicities, the structure factor's frozen operation subsets, the cell ties,
+the bond-and-angle symmetry codes, ZMV and the weight fractions. The cell's
+metric constraints are the one thing an operation list cannot state directly,
+and they come from the tabulated group whose point group and lattice match the
+list, which are this group's own, so they are exact rather than approximate.
+Two things such a phase does not get: a Wyckoff letter, and the
+`SPACE_GROUP_SETTING_ASSUMED` warning, both being properties of a tabulated
+setting. `crystallography.magnetic.supercell.magnetic_supercell` and
+`displacive_statement` build such a phase by themselves and say so with a
+`CHILD_GROUP_UNNAMED` diagnostic on the statement they return.
+
+A CIF export writes the list as `_space_group_symop_operation_xyz` with the
+label in `_space_group_name_H-M_alt`, and the reader takes that path back for a
+*bracketed* label only: an ordinary operation loop beside a real symbol is read
+as it always was, because for those two the symbol is the group.
+
+`propagation_vector` is the one field on a phase that adds reflections
+rather than changing what an existing one does. Declaring `("0", "0", "1/2")`
+puts a second reflection at Q = H ± k beside every H of the phase's reciprocal
+lattice; a Le Bail or Pawley stage then extracts intensity on those satellites
+and a Rietveld stage contributes exactly zero there, because this rung carries
+no moment and the nuclear model has nothing to say about the intensity of a
+magnetic satellite. That is the whole point: it lets you test whether unindexed
+intensity in a neutron pattern indexes as satellites of a k, without stating a
+single moment. [](refining.md) covers the report arm that ranks candidates for
+you.
+
+`magnetic_symmetry` and `Atom.moment` are the other half of the same question,
+and they are the *answer* rather than the test: k on the nuclear cell with no
+moment asks whether the extra intensity indexes as satellites, and a magnetic
+space group with moments on the sites states the structure that produces it. The
+two are refused on one phase together, because they are the same physics stated
+twice and nothing reconciles them. [](refining.md) has the blocks, what refines
+and what the report says; [](files.md) has how a magCIF gets one in and out.
+
+Three rules the field enforces rather than documents. Components are exact
+rationals, and any spelling (`"1/2"`, `Fraction(1, 2)`, `0.5`, `0`) is
+stored as the same canonical string, so a float that is not a rational of small
+denominator is refused by name: an incommensurate k is a superspace problem and
+is outside this rung. A k that is a reciprocal-lattice vector of this phase's
+symmetry (the test is centring-aware) is k = 0 and is refused, because every
+satellite would land on a nuclear line and the reflection list would be exactly
+duplicated. And `None` is exactly off: a phase that declares no k compiles to
+the reflection list it always had, and every number the fit produces is
+unchanged.
+
+On an X-ray histogram the same declaration means a superstructure
+reflection, not magnetism. The positions are identical; the inference is not,
+and nothing in the package can tell them apart for you.
 
 `Cell` holds six parameters and applies no symmetry itself.
 
@@ -184,6 +260,7 @@ the six values as a tuple.
 | `Atom.occ` | `Parameter` | 1.0, in [0, 1.5] | site occupancy |
 | `Atom.biso` | `Parameter` | 0.5 Å², in [0, 25] | isotropic displacement, B = 8π²·U |
 | `Atom.aniso` | `AnisoU` or None | `None` | anisotropic displacement, CIF U^ij, {eq}`int-dw-aniso` |
+| `Atom.moment` | `Moment` or None | `None` | a magnetic moment in crystal-axis components, μ_B, {eq}`int-Fmag`; needs `Phase.magnetic_symmetry` beside it |
 
 `species` is validated when the model compiles rather than when the object is
 built, so an unknown symbol fails with a crystallographic message instead of a

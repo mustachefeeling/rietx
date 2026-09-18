@@ -115,6 +115,18 @@ to move are declared rather than left to be inferred:
   (`Capabilities.indexing_thresholds_version`, and the engine and search-preset
   capability types), so a consumer that parses an answer sees a bump when the
   answer's shape or meaning moves.
+- Magnetic structure *determination* is provisional as a subsystem.
+  `solve_magnetic` and the answer it returns (`rietx.strategy.magnetic`:
+  `MagneticSolution`, `MagneticTrial`, `MomentRow`) are documented in
+  [](refining.md). The *chain* is settled (a propagation vector, candidate
+  models per k, one trial refinement per powder-equivalence class, a ranked
+  list with an abstention) and the criterion is not: it is a ΔBIC
+  ordering with a magnetic-only R and parsimony behind it, and the rungs still
+  to come change what a trial refines (mode amplitudes) and add a branch this
+  release abstains on (an incommensurate k). Expect the fields to grow and the
+  ranking to be restated; the operator list, the moments and the magCIF a
+  solution writes are the stable part and carry the promises their own
+  chapters make.
 - The run directory and the watcher's routes. Every fit writes a run directory
   ([](refining.md)) and `rietx watch` serves it over seven HTTP routes
   ([](cli.md)). Neither carries a version string, and the omission is a decision

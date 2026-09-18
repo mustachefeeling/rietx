@@ -198,6 +198,707 @@ attribute to the harmonic once everything else had its chance?". It is the only
 way to see a contamination whose peaks overlap the fundamental's too closely for
 a peak search to separate.
 
+## Is the unexplained intensity magnetic?
+
+The sentence above ("an unindexed impurity, a magnetic contribution, a
+background too stiff to follow") names magnetism as a cause of intensity the
+model puts nowhere. `FitReport.satellites` is how you test it, and it needs
+nothing you do not already have: a cell, a symmetry and a wavelength. A
+satellite is a position. No moment, no magnetic form factor and no magnetic
+symmetry enters, which is what makes this worth running *before* deciding
+whether a magnetic model is worth building.
+
+For each phase the arm sorts the positive residual peaks into the three places
+one can be, and only the third is scored:
+
+1. on a calculated line: a nuclear misfit, or a k = 0 structure whose
+   intensity coincides with the nuclear reflections. This route cannot tell
+   those apart;
+2. on a reciprocal-lattice point the nuclear structure factor forbids: the
+   k = 0 signature, and a *positive* result rather than an ambiguity, because
+   no nuclear model right or wrong can put intensity at a systematic absence;
+3. neither: the only peaks a satellite is needed to explain.
+
+For those it generates the satellite positions Q = H ± k for a small,
+enumerated set of candidate propagation vectors and counts how many land
+inside the report's own validity radius of one. It publishes the whole ranked
+list (never a singleton, the same rule indexing follows), because a k at the
+top of it is a hypothesis worth testing and not an answer.
+
+<!-- api-doc: no-exec — it needs a refinement that has run -->
+```python
+report = ref.report()
+arm = report.satellites[0]
+print(arm.note)
+for c in arm.candidates[:3]:
+    print(c.vector, c.matched, "of", arm.n_unexplained)
+```
+
+| Field | Is | Reads as |
+|---|---|---|
+| `SatelliteEvidence.phase_index` | which phase | position in `Structure.phases` |
+| `SatelliteEvidence.radiation` | `"neutron"` or `"xray"` | read off the phase's own scattering amplitude, never assumed |
+| `SatelliteEvidence.n_residual_peaks` | positive residual peaks before the sort | |
+| `SatelliteEvidence.n_unexplained` | peaks at neither of the next two, i.e. the ones the ranking was scored against | zero means nothing needed a satellite, which is not a result about the specimen |
+| `SatelliteEvidence.excess_on_nuclear_lines` | residual peaks that sit on a calculated reflection | a nuclear misfit or a k = 0 structure, and this route cannot separate them |
+| `SatelliteEvidence.excess_on_absent_lattice_lines` | residual peaks on a reciprocal-lattice point the structure factor forbids | the k = 0 signature stated positively (see below) |
+| `SatelliteEvidence.declared_k` | the k this phase already declares, or null | the arm still scores: "does another k explain the rest" is a question a declared one does not answer |
+| `SatelliteEvidence.generator` | which candidate set was used | the default is the zone-boundary set; a caller may supply another |
+| `SatelliteEvidence.candidates` | the ranked list, one `SatelliteCandidate` each | |
+| `SatelliteEvidence.note` | the sentences above, rendered | always non-empty |
+| `SatelliteCandidate.vector` | the plain spelling, `(0, 0, 1/2)` | what to type into `Phase.propagation_vector` |
+| `SatelliteCandidate.name` | a positional label, `k1`, `k2`, … | stable within one generator, and nothing else |
+| `SatelliteCandidate.cdml` | the CDML k-label | `None` today: those tables are a data source this package has not sourced, and a made-up label would look like CDML and disagree with it |
+| `SatelliteCandidate.k` | the three exact rationals | |
+| `SatelliteCandidate.matched`, `SatelliteCandidate.matched_fraction` | how many unexplained peaks this k accounts for | the ranking key |
+| `SatelliteCandidate.worst_offset_deg` | the largest Δ2θ among those | null when none matched |
+| `SatelliteCandidate.n_satellites` | satellite positions this k puts in range | a k that floods the pattern explains peaks by having a line everywhere |
+| `SatelliteCandidate.star_size` | arms of the star of k | |
+| `SatelliteCandidate.minus_k_distinct` | whether −k is a second vector | false when 2k is a reciprocal-lattice vector; the test respects centring, so on a C lattice (½ 0 0) is distinct from its negative and (0 0 ½) is not |
+
+## A moment, stated and refined
+
+When the answer to the previous section is "yes, and I know the structure",
+state it. A moment is a site attribute (`Atom.moment`, a `Moment` block)
+under a `MagneticSymmetry` declared on the phase as `Phase.magnetic_symmetry`. That shape is
+deliberate: `qpa.weight_fractions` reads species, occupancy and multiplicity
+and never sees a moment, so the classic trap of a separate magnetic phase
+doubling the specimen's mass is unreachable here, and the nuclear and magnetic
+contributions share the phase's one `Phase.scale`. A second magnetic scale is
+the easiest route to a plausible fit and a wrong moment; it is not offered.
+
+<!-- api-doc: no-exec — it needs a magnetic structure and a neutron pattern -->
+```python
+from rietx import Atom, Moment, Parameter, Phase
+
+mn = Atom(label="Mn", species="Mn",
+          x=Parameter(value=0.0), y=Parameter(value=0.0), z=Parameter(value=0.0),
+          moment=Moment.from_values((0.0, 0.0, 4.6), "Mn2+", vary=True))
+phase = Phase(name="MnF2", space_group="P 42/m n m", cell=cell,
+              atoms=[mn, f_site], magnetic_symmetry="136.499")
+```
+
+The symmetry is an operator list, and the number is a way of getting one.
+`MagneticSymmetry.operations` is the magCIF `_space_group_symop_magn_operation.xyz`
+loop (xyz strings each carrying a time-reversal sign, `"-x,-y,z,-1"`) and
+`MagneticSymmetry.centerings` the `_space_group_symop_magn_centering.xyz` loop.
+That list is the model. A UNI, BNS or OG number in its place, as above, is
+resolved through spglib's database and fills `MagneticSymmetry.bns_number`,
+`MagneticSymmetry.og_number`, `MagneticSymmetry.uni_number` and
+`MagneticSymmetry.setting` beside it; `MagneticSymmetry.symbol` and
+`MagneticSymmetry.propagation_vector_parent` are records you may set yourself.
+A Shubnikov *symbol* is not accepted: no dependency here parses one, and
+guessing is how a fit lands under the wrong group. `MagneticSymmetry.group`
+hands back the operator algebra if you want to inspect it.
+
+The components are stated, the modulus is refined. `Moment.crystalaxis_x`,
+`Moment.crystalaxis_y` and `Moment.crystalaxis_z` are the magCIF
+`_atom_site_moment.crystalaxis_*` convention: components along a right-handed
+basis of unit vectors parallel to the cell edges, in μ_B. That basis is
+oblique whenever the cell is, so on hexagonal axes the moment (1, 1, 0) is
+1 μ_B and not √2; `Moment.values` returns the three, and `Moment.vary` says
+whether the block asks to refine. What actually enters the least-squares
+problem is `phases.*.atoms.*.moment.dof*`: a modulus in μ_B, then one or two
+angles inside the subspace the site symmetry allows;
+{ref}`sec-moment-dofs` says why.
+
+`Moment.ion` is the magnetic form-factor key (`"Cr3+"`, `"Ho3+"`), and it is
+not `Atom.species`: the neutron scattering length is keyed by nuclide and
+the form factor by oxidation state. An ion the table does not carry is refused
+by name rather than mapped to a neighbour. `Moment.g` is the Landé factor;
+leave it `None` for a 3d or 4d ion, where the spin-only g = 2 makes the ⟨j₂⟩
+term of the dipole approximation vanish exactly, and set it for a 4f or 5f
+one, where it does not: an absent g there is refused rather than defaulted,
+because defaulting it silently drops a term worth tens of percent at high
+angle.
+
+Four declarations are refused where they are made, each because nothing later
+can rescue them: a moment with no `Phase.magnetic_symmetry` (there is no
+allowed subspace to refine in), a moment outside that subspace (the structure
+and the group disagree), a moment on a site that also carries `Atom.aniso`,
+and a moment that is free and exactly zero: |F_m|² is proportional to m²,
+so its Jacobian column vanishes at the origin and the parameter cannot move.
+Seed a physical estimate: 1-5 μ_B for a 3d ion.
+
+The term reaches a `neutron_cw` histogram and nothing else. On an X-ray
+histogram of a joint fit it is not computed at all, so the moment has no
+gradient anywhere and the report says it was never observed; any other
+radiation is refused by name.
+
+## What the fit says about the moment
+
+<!-- api-doc: no-exec — it needs a refinement that has run -->
+```python
+report = ref.report()
+row = report.magnetic[0]
+print(row.magnitude, row.approximation, row.unmeasured_directions)
+```
+
+| Field | Is | Reads as |
+|---|---|---|
+| `MomentEvidence.phase`, `MomentEvidence.atom` | which site | the names you gave them |
+| `MomentEvidence.ion` | the form-factor key in force | |
+| `MomentEvidence.magnitude` | the refined modulus, μ_B | its esd is on the `moment.dof0` row of `RefinementResult.parameters`: one writer per number |
+| `MomentEvidence.magnitude_esd` | that modulus's esd, μ_B | copied from the same row, never recomputed; Bérar-Lelann-inflated like every esd here |
+| `MomentEvidence.magnitude_from_components` | \|m\| recomputed from the components with the cosine metric | agrees with the line above to roundoff; disagreeing by 41 % on a hexagonal cell is what a Euclidean norm looks like |
+| `MomentEvidence.crystalaxis` | the three components the DOFs imply | derived, so they carry no esd |
+| `MomentEvidence.approximation` | which f(s) was used, named | ⟨j₀⟩ alone, or ⟨j₀⟩ + (2/g − 1)⟨j₂⟩ with g |
+| `MomentEvidence.free_directions` | every direction DOF the site symmetry leaves free | `"polar"`, `"azimuth"` |
+| `MomentEvidence.unmeasured_directions` | those of them the powder average did not determine | they are held, so they carry no esd at all |
+| `MomentEvidence.supported` | whether |m| is above its floor and above three of its own esds | false means the data does not support a moment here (not a small one) |
+| `MomentEvidence.note` | the sentence for whichever of those applies | |
+
+A direction a powder cannot see is held, not fitted. After the orbit
+average a cubic collinear structure's intensity does not depend on the moment
+direction at all, and a uniaxial one measures only the angle to its unique
+axis. Those are flat directions of the least-squares problem, and this rung
+takes the rule WP-1301 takes for a phase the data cannot see: hold them, name
+them in `StageResult.held`, and report what could not be measured rather than
+a number nobody measured.
+
+A moment the data does not support comes back unsupported, and the test is a
+ratio. Refine the same model against a pattern above the ordering
+temperature and the modulus goes to nothing, because |F_m|² ∝ m² and the only
+way to reduce χ² is to remove the magnetic intensity. On real data it does not
+land at exactly zero: on the Cr₂WO₆ tutorial pattern at 150 K it lands at
+0.067 μ_B with an esd of 0.395, six times larger. So `MomentEvidence.supported`
+is false when the modulus is below its floor or below three of its own
+esds, and the note quotes which. At 4 K the same model gives 2.010 ± 0.046, a
+ratio of 44, and the answer flips. That is the deliverable; a small moment with
+a small esd would not be.
+
+A peak on a forbidden lattice point is the k = 0 result, not an ambiguity.
+A magnetic space group generally does not carry the parent's glide and screw
+operations, so a k = 0 magnetic structure puts intensity at reciprocal-lattice
+points where the nuclear structure factor is identically zero. No nuclear model
+(right, wrong or badly refined) can put anything there, which makes
+`excess_on_absent_lattice_lines` a positive statement about the specimen rather
+than a caveat. Measured on the Cr₂WO₆ 4 K neutron pattern against a converged
+150 K nuclear model of the same phase: the four strongest residual peaks are
+the forbidden (0 0 1), (1 0 2) and two more, none of them carrying a tick, and
+the same arm on the 150 K pattern counts zero.
+
+Two cases where the ranking means nothing, and the arm says so.
+
+*The excess sits on nuclear lines.* With k = 0 the satellites coincide with the
+nuclear reflections, so a Le Bail extraction absorbs the magnetic intensity into
+the nuclear intensities: a k = 0 structure and a nuclear misfit look alike by
+this route, and no ranking can separate them. What does is a pattern of the
+same specimen above its ordering temperature. `excess_on_nuclear_lines` counts
+the residual peaks in that state; they are deliberately not scored.
+
+*The histogram is X-ray.* Intensity at G ± k is then a superstructure
+reflection. The positions are the same and the inference is not.
+
+A good pattern can also score nothing, and that is a property of the candidate
+set rather than of the data. The set is enumerated, not searched: the
+zone-boundary vectors {0, ½}³ minus the origin, plus (⅓ ⅓ 0) and (⅓ ⅓ ½) on a
+hexagonal or trigonal lattice, one representative per star. An incommensurate k
+is outside it by construction, and so is any commensurate k it does not list.
+
+Once a candidate looks worth testing, declare it (`Phase.propagation_vector`,
+[](data.md)) and refine in Le Bail or Pawley mode: the satellites become rows
+the extraction can put intensity on, and whether it does is the measurement.
+
+## A displacive superstructure, stated as mode amplitudes
+
+A superstructure at a zone-boundary k doubles (or quadruples) the cell, and
+the child's asymmetric unit is that much larger. Refining its coordinates
+freely is the trap: those parameters are not independent of each other, and
+between them they can manufacture superstructure intensity out of nothing.
+Measured on a Pnma selenide at 100 K, 90 added free child coordinates bought
+ΔBIC −444 (they cost 444 BIC and were still preferred by Rwp), and one atom
+moved 2.8 Å at 3.2σ while the fit reported `converged`.
+
+The alternative is to refine the amplitudes of the symmetry-adapted modes
+instead: child coordinates are the parent-derived base plus Σ A_ν e_ν, with one
+refinable amplitude per irrep mode. `Phase.distortion_modes` is a list of
+`DistortionMode` blocks (empty by default, and exactly off when empty): a phase
+declaring none reaches the same arithmetic it always did, and one whose modes
+are all at zero predicts the undistorted pattern bit for bit. The whole
+statement is built for you:
+
+<!-- api-doc: no-exec — it needs a parent phase that has been refined -->
+```python
+from rietx.crystallography.magnetic.supercell import (
+    displacive_statement, seed_distortion_amplitudes)
+
+statement = displacive_statement(parent, ("1/2", "0", "1/2"),
+                                 irrep="S2", direction="(a,b)")
+phase = seed_distortion_amplitudes(statement.phase, {"S2(a,b)-Fe1-0": 0.03})
+ref = rx.Refinement(rx.Structure(phases=[phase]), instrument)
+for target, source, scale, offset in statement.biso_ties:
+    ref.tie(target, source, scale=scale, offset=offset)
+```
+
+The mode vectors come from
+`rietx.crystallography.magnetic.isotropy.candidates` with
+`kind="displacive"`, which enumerates the order-parameter directions of the
+parent + k and, per direction, the family of displacement patterns its
+isotropy subgroup allows: the parent + irrep + direction → structure
+construction. `displacive_statement` refuses by name when a direction is not
+carried by *every* orbit of the parent, and quotes the directions that orbit
+does carry: a mode an orbit's representation does not contain does not exist,
+and giving it a zero field would state a rigid sublattice nobody claimed.
+
+| Field | Is | Reads as |
+|---|---|---|
+| `DistortionMode.name` | the mode's name, unique in the phase | what the report row and the diagnostic call it; a direction with several free amplitudes gives several modes and the name is what tells them apart |
+| `DistortionMode.irrep_label`, `DistortionMode.direction` | the small irrep and the order-parameter direction | `"S2"`, `"(a,b)"` |
+| `DistortionMode.k` | the parent propagation vector | three rational strings, exact, like `Phase.propagation_vector` |
+| `DistortionMode.parent_site` | the parent site label the orbit came from | metadata; nothing derives from it |
+| `DistortionMode.vectors` | e_ν: one fractional three-vector per atom of the phase | in the phase's own cell, in atom order |
+| `DistortionMode.amplitude` | the refinable A, in Å | the free column, at `phases.*.distortion_modes.*.amplitude`; ±0.5 Å bounds, held at 0 by default |
+| `DistortionMode.unit_displacement_a` | max‖L·e_ν‖ in Å, given a cell | 1.0 for a mode the builder made, which is what makes the amplitude an ångström |
+
+The amplitude is in ångström by a stated convention, because an irrep fixes
+a mode only up to a scale: the builder normalises each mode so unit amplitude
+moves the furthest atom of that mode by exactly 1 Å. So A = 0.05 means the
+furthest-moved atom moves 0.05 Å, and `DistortionMode.unit_displacement_a`
+measures the convention back for a block that came from anywhere else.
+
+Three things a mode statement will not let you do, each because nothing later
+can rescue it:
+
+- Free the child cell. Its parameters are non-linear functions of the
+  parent's (c′ = √(a²+c²) and β′ = f(a, c) for 2a, b, a+c), so no affine tie
+  can hold the relation, and a freed child cell walks away from the parent
+  metric with nothing to say so. The rows are *locked*, so a broad
+  `phases.*.cell.*` glob skips them, and a declared `vary=True` is refused.
+  Refine the parent cell and rebuild the statement.
+- Free an amplitude while every mode of the phase is at zero. Sending the
+  whole amplitude vector to −A maps the child onto its own image under the
+  translation the k-doubling lost, so |F|² is an *even* function of it and χ²
+  is stationary at the origin: every column vanishes there at once. Seed one
+  off zero with `seed_distortion_amplitudes`, which moves the amplitudes and
+  the coordinates together: setting an amplitude alone changes nothing at
+  all, because the base a mode is measured from is the stored coordinate with
+  the current amplitude taken back out.
+- Free an amplitude beside the coordinate DOFs of every atom it moves. A
+  mode vector lies in the span of its atoms' allowed displacement directions,
+  so the two are exactly degenerate: a rank-deficient Jacobian, not a
+  correlation. One amplitude *instead of* the coordinates is the point.
+
+And one thing to do rather than not do: tie the child's displacement
+parameters per parent site. `DisplaciveStatement.biso_ties` is that tie list,
+returned rather than applied because a tie is refinement state. On the same
+selenide, 28 free child Biso alone took Rwp from 0.118 to 0.076 with no
+superstructure and no moment anywhere in the model: they manufacture exactly
+the intensity the mode is being tested for.
+
+### More than one order parameter at once
+
+A phase's modes are not limited to one (k, irrep, direction): a superstructure
+whose 71.9° line does not fit under any single irrep at one k may need a
+second irrep at the *same* k (a common-subgroup child) sharing the child cell.
+`Phase.distortion_components` is a read-only view that groups
+`Phase.distortion_modes` back into its components, one entry per distinct
+(k, irrep_label, direction), computed rather than stored, so it costs no schema
+field and groups a single-component phase into exactly one entry:
+
+<!-- api-doc: no-exec — it needs a refinement that has run -->
+```python
+for component in phase.distortion_components:
+    print(component.irrep_label, component.direction, component.k,
+         len(component.modes))
+```
+
+`displacive_statement(parent, components=[(k, irrep, direction), …])` builds
+the common-subgroup child directly: the intersection of every named
+component's own isotropy subgroup, named the same way a single component's is
+(a Hermann-Mauguin symbol when one reproduces it, else the bracketed
+`Phase.symmetry_operations` label). One element behaves exactly like the
+single-component call. It refuses more than it builds, and by name: a
+zone-boundary little group is generally *grey* (the same spatial operation
+carries both little-group characters ε = ±1), and when the shared
+intersection is a strict subgroup of one component's own group, propagating
+that component's mode through the smaller group can flip its sign on some of
+its own atoms (measured, not hypothetical, on a real case). The builder
+checks for exactly this and refuses instead of shipping it; pass components
+whose own groups nest cleanly (or share nothing beyond the identity) instead.
+Several k's sharing the parent cell (the incommensurate/Fourier route) has
+no intensity path in this version; `fourier_statement` builds its schema and
+reflection list only (see its docstring for the boundary).
+
+## What the fit says about a mode amplitude
+
+`FitReport.distortion` carries one `DistortionEvidence` per declared mode. The
+arm needs no compiled model and no particular abscissa: every number in it is
+a function of the declared modes, the phase cell and the parameter rows.
+
+<!-- api-doc: no-exec — it needs a refinement that has run -->
+```python
+row = ref.report().distortion[0]
+print(row.mode, row.amplitude, row.amplitude_esd, row.supported)
+```
+
+| Field | Is | Reads as |
+|---|---|---|
+| `DistortionEvidence.phase`, `DistortionEvidence.mode` | which mode | the names you gave them |
+| `DistortionEvidence.path` | the amplitude's dot-path | the key that reaches the same number in `RefinementResult.parameters` or `SeriesResult.trajectory` |
+| `DistortionEvidence.irrep_label`, `DistortionEvidence.direction`, `DistortionEvidence.k`, `DistortionEvidence.parent_site` | the order parameter the mode belongs to | copied from the block |
+| `DistortionEvidence.amplitude` | the refined A, in Å | signed as refined, read as \|A\| (see below) |
+| `DistortionEvidence.amplitude_esd` | its esd | copied from `RefinementResult.parameters`, never recomputed; Bérar-Lelann-inflated like every esd here |
+| `DistortionEvidence.max_displacement_a` | Å moved by the furthest atom at unit amplitude | 1.0 by the builder's convention; anything else says the block was normalised elsewhere |
+| `DistortionEvidence.displacement_a` | \|A\| × the line above | the largest atomic displacement the mode currently states, the number a crystallographer judges plausibility with |
+| `DistortionEvidence.n_atoms_moved` | how many atoms of the phase the mode moves at all | |
+| `DistortionEvidence.supported` | whether \|A\| is above two of its own esds | information about the basis, not the verdict (see the next section) |
+| `DistortionEvidence.note` | the sentence for whichever of those applies | |
+
+(sec-distortion-totals)=
+## The verdict is the order parameter, not one amplitude
+
+An irrep fixes its modes only up to an orthogonal basis of the direction:
+AMPLIMODES (Perez-Mato, Orobengoa & Aroyo 2010, *Acta Cryst.* A66, 558)
+normalises each mode in absolute units (eq 3) *and* orthonormalises the basis
+(eq 4), and the second of those is free. So a single `DistortionEvidence`
+amplitude is a number about a basis somebody chose: rotate the basis and it
+moves, without the structure moving at all. What survives that rotation is
+their eq (6)–(7) total,
+
+$$A_\tau = \Bigl(\sum_m A_{\tau,m}^2\Bigr)^{1/2},\qquad
+  a_{\tau,m} = A_{\tau,m}/A_\tau$$
+
+and `FitReport.distortion_totals` carries one `DistortionTotal` per
+(k, irrep, direction) component with it.
+
+<!-- api-doc: no-exec — it needs a refinement that has run -->
+```python
+total = ref.report().distortion_totals[0]
+print(total.irrep_label, total.direction, total.amplitude, total.amplitude_esd,
+      total.supported, total.primary_mode, total.unit_direction)
+```
+
+| Field | Is | Reads as |
+|---|---|---|
+| `DistortionTotal.phase`, `DistortionTotal.irrep_label`, `DistortionTotal.direction`, `DistortionTotal.k` | which order parameter | |
+| `DistortionTotal.modes`, `DistortionTotal.paths`, `DistortionTotal.n_modes` | the component's modes, in the phase's own list order | `paths` are the keys that reach the same numbers in `RefinementResult.parameters` |
+| `DistortionTotal.amplitude` | A_τ, in Å | basis-independent, and non-negative by construction |
+| `DistortionTotal.amplitude_esd` | σ(A_τ) through the block covariance, aᵀ·Cov(A)·a | `None` on a held component, on a loaded or replayed result, and where A_τ = 0 |
+| `DistortionTotal.amplitude_esd_independent` | the same from the covariance diagonal alone | quoted beside it so the difference McCusker *et al.* § 10 warns about is visible; it is itself basis-dependent, and the block one is not |
+| `DistortionTotal.unit_direction` | {a_{τ,m}}, in the sign convention below | where in *this* basis the order parameter points; empty when A_τ = 0, where it is undefined |
+| `DistortionTotal.primary_mode` | the mode carrying the largest \|A\| | the one the sign convention fixes positive |
+| `DistortionTotal.domain_sign` | +1, or −1 when the whole vector was negated to reach the convention | multiply `unit_direction` by it to recover the refined signs |
+| `DistortionTotal.max_displacement_a` | Å moved by the furthest atom at unit amplitude | |
+| `DistortionTotal.supported` | whether A_τ is above two of its own esds | the verdict, and what `DISTORTION_MODE_UNSUPPORTED` fires on |
+| `DistortionTotal.note` | the sentence for whichever of those applies | |
+
+Every A_{τ,m} exactly zero is the one degenerate case: A_τ = 0, the unit
+direction is 0/0, and ‖A‖ has no derivative at the origin, so no esd can be
+propagated through it. The row says so and carries no esd rather than a zero.
+
+The sign of an amplitude is a domain convention, not a measurement. A
+zone-boundary displacive mode enters a superstructure reflection with a
+structure factor odd in A and the intensity is |F|², so negating the *whole*
+amplitude vector gives the identical pattern: the parent translation the
+k-doubling lost maps the structure onto its other antiphase domain. The
+*relative* signs inside a component are measured (they say whether two
+sublattices move together or against each other), so this package keeps every
+sign and fixes the gauge instead: the component's primary mode is stated
+positive and the rest are read relative to it, with `domain_sign` recording
+which way the refined vector was turned.
+
+An order parameter the data does not support comes back unsupported, and the
+test is a ratio. The same evenness that makes the origin a stationary point
+makes a distortion the pattern cannot see a *flat* direction, so the fit leaves
+the amplitudes near wherever they were seeded and reports `converged` with
+numbers in them. `DISTORTION_MODE_UNSUPPORTED` fires on a component with at
+least one free amplitude whose A_τ is inside two of its own esds (a held
+component is a statement you made, not a measurement to warn about), and its
+suggestion is the model-selection question, because that is the half you can
+act on: one order parameter either pays for itself in ΔBIC against the parent
+phase or it does not. Rwp improves for any added parameter.
+
+(sec-magnetic-width)=
+## When the magnetic peaks are broader than the nuclear ones
+
+The moment and the profile are not independent, and the way they are coupled is
+the reason this section exists. A phase's nuclear and magnetic contributions
+share one `Phase.scale` and one peak, so if the observed magnetic reflections
+are *broader* than the calculated ones the residual under them has exactly one
+route down: shrink the moment until the narrow calculated peak's height
+matches the broad observed peak's. |F_m|² ∝ m², so the moment comes back low by
+roughly the ratio of the two widths: the peak is in the right place with the
+right shape, χ² falls, the fit converges, and no number in the result says what
+happened.
+
+`Phase.magnetic_lor_size` and `Phase.magnetic_lor_strain` are the two terms
+that close it. Both are extra Lorentzian FWHM coefficients applied to the
+magnetic component alone (1/cosθ and tanθ, the same two laws
+`Phase.lor_size` and `Phase.lor_strain` carry), so the magnetic peak is drawn
+broader than its nuclear neighbour at the same position, with the same scale
+and every other correction unchanged. Physically the size term is Scherrer's
+with the *magnetic coherence length* in place of the crystallite size:
+antiphase and domain-wall boundaries, an incompletely grown order parameter
+near T_N and disorder that couples to the exchange all cut it below the
+structural one. Both default to exactly zero, which is off.
+
+The turn-on order is not optional. Both the moment and the width lower the
+calculated magnetic peak's height, so freed together from a cold start they
+trade against each other and the answer is whichever pair the first step
+happened to like. The order is the moment with the widths held at zero, then
+the widths with the moment held, then both together, and it ships as a plan:
+
+<!-- api-doc: no-exec — it needs a converged magnetic structure -->
+```python
+result = ref.fit(data, plan="magnetic_width")   # RefinementPlan.magnetic_width()
+```
+
+A stage list that frees a magnetic width in the same stage that first frees the
+moment is reported as `STAGE_FREES_MAGNETIC_WIDTH_WITH_MOMENT` before the
+first stage runs: the confound is made by the stage list, so a report after
+the answer it spoiled would be too late. The middle stage seeds the width off
+its exact-zero softplus floor, which it has to: the map's slope at zero is
+zero, so a term freed from its default has a dead column and never moves.
+Measured on a synthetic k ≠ 0 supercell, the term freed from 0.0 with no seed
+came back at 1e-12 with the moment still 14 % low.
+
+While the terms are held at zero, the report says whether they are needed.
+`MAGNETIC_WIDTH_UNMODELLED` reads the *shape* of the converged residual, not an
+observed width (there is no observed-peak-width measurement in this package). A
+calculated peak that is too narrow under a broad observed one leaves a residual
+that is negative at the centre and positive in both tails, and that
+centre-versus-tails split is compared against the same statistic at the
+phase's nuclear-only reflections. Differencing the two is what makes it safe:
+a wrong instrument profile, a wrong `lor_size` and a wrong background all move
+both sets together and cancel, so only a width belonging to the magnetic
+component survives. The message names the reflections it read and says which
+way the moment would move (up).
+
+Both terms are freed together, and which one carries the effect is a
+property of the dataset. Measured on three: the synthetic k ≠ 0 supercell
+below puts it all in the size term (0.245 ± 0.008 against a planted 0.25) with
+the strain term dead; Cr₂WO₆ at 4 K likewise (size 0.101 ± 0.035, strain
+0.010 ± 0.100); and Ba₂FeSbSe₅ at 1.5 K the other way round: the strain
+term takes 0.37 ± 0.28 and the size term goes to zero with no esd at all. A
+plan that froze one of the two would have been blind to whichever dataset it
+guessed wrong about. The cost of freeing both is reported rather than hidden:
+the live term's esd roughly doubles, because the two widths are collinear over
+one pattern's θ range, and the last stage can come back `max_iter` rather than
+`converged` when one of them is dead (a flat direction is what the solver
+walks). The answer does not move (measured: 0.2451 → 0.2449 with Rwp identical
+to five digits), and `MAGNETIC_WIDTH_UNMEASURED` names the dead term, so the
+status has its explanation in the same result. Loosening the last stage's
+`ftol` would buy the word "converged" and change nothing else on that dataset,
+and would move the last digits of every answer on one where both widths are
+live, so it is not done.
+
+And when the terms are freed, the report says whether the data could see
+them. They enter the magnetic component alone, so they are identifiable
+exactly to the extent that the magnetic-to-nuclear intensity ratio *differs
+across reflections*. Three regimes, and the report distinguishes them rather
+than returning a number for all three:
+
+* k ≠ 0. The magnetic supercell carries parent-forbidden reflections that
+  are magnetic-only, and those measure the width directly. Measured on a
+  synthetic Pnma → P2₁/m `2a,b,a+c` supercell: a planted 0.25° comes back
+  0.245 ± 0.008 with both moments inside 0.9σ, while the same pattern refined
+  with the term held returns them 3-4 esds low and fires the diagnostic. On
+  real data it can be *weakly* determined and still matter: see the
+  Ba₂FeSbSe₅ case above, where the term is 1.31 esd and carries 0.18 μ_B.
+* k = 0, every magnetic reflection also nuclear. Weakly determined at best.
+  Measured on the LaMnO₃ 50 K tutorial pattern: `magnetic_lor_size` 0.029 with
+  an esd of 0.061, an esd larger than the value, and Rwp unmoved in the
+  fourth digit. On Cr₂WO₆ at 4 K, which does carry magnetic-only reflections on
+  the parent's absences, it reaches 0.101 ± 0.035, still short of three esds.
+* Paramagnetic. No magnetic component, so the column is flat.
+
+An unmeasurable width comes back as `MAGNETIC_WIDTH_UNMEASURED`: |value| below
+three of its own esds, the same ratio `MomentEvidence.supported` uses for a
+moment. Note what it is *not*: an absent esd. `ParameterTable.unmeasured_rows`
+fires on an exactly zero column, and this column is not zero: the magnetic
+component really is broadened and the pattern really does change; what fails is
+the separation.
+
+And "unmeasured" is not the same statement as "droppable". The plan fits the
+moment twice (once at the off state in step 1, once with the widths free in
+step 3), and the difference between those two rungs is the measurement this
+whole term exists to make. `MAGNETIC_WIDTH_MOVED_MOMENT` fires when releasing
+the widths moved the moment by more than the moment's own error bar, and it can
+fire *beside* `MAGNETIC_WIDTH_UNMEASURED` on the same term: on Ba₂FeSbSe₅ at
+1.5 K the strain term is 0.370 ± 0.282 (1.31 esd, so unmeasured) while the tied
+moment goes 3.908 ± 0.128 → 4.085 ± 0.180, a shift of 1.39 of the tighter esd,
+and the Q-profile minimum moves 5.60 → 5.75 with the paper's 5.84 inside its
+own 1σ. Unmeasured there means correlated with the moment, not absent, and
+holding the term at zero puts the moment 0.18 μ_B low again. When both codes
+fire, quote the released moment and report the width as an upper bound
+(value + esd) rather than as a coherence length; the support row's own wording
+changes to say so.
+
+Two things this deliberately does not offer. There is no Gaussian partner
+(magnetic coherence broadening is Lorentzian in shape, and a field nothing frees
+is a claim nothing tests), and there is no magnetic lattice *offset*: magnetic
+peaks in the wrong place are a different freedom, and rietx answers that one
+with two nuclear phases.
+
+## Determining a magnetic structure: `solve_magnetic`
+
+The two sections above are the halves of a determination done by hand: the
+satellite arm says *whether* there is something magnetic and roughly where,
+and a stated `Phase.magnetic_symmetry` refines one model you already chose.
+`solve_magnetic` is the call that does the middle: enumerate the models, refine
+one per class the powder cannot separate, rank them by a criterion that is not
+Rwp, and abstain when the top ones tie.
+
+It is {ref}`provisional by declaration <provisional-by-declaration>`: the chain
+is settled and the ranking criterion is expected to move.
+
+<!-- api-doc: no-exec — it needs a converged neutron refinement -->
+```python
+import rietx as rx
+
+ref = rx.Refinement(nuclear, instrument)
+ref.fit(data, plan="mccusker_structural")
+
+solution = rx.solve_magnetic(ref, data, sites=["Mn1"], ion="Mn3+")
+print(solution)                       # the classic table
+if solution.verdict == "solved":
+    print(solution.best.bns_number, solution.best.moments[0].magnitude)
+solution.write_magcifs("candidates/")  # one magCIF per class, on request
+```
+
+What it does, in order.
+
+1. k: WP-1326's arm sorts the positive residual peaks. Peaks on a
+   reciprocal-lattice point the nuclear structure factor *forbids* are the
+   k = 0 signature and short-circuit everything else: they are never scored
+   against a candidate vector, because that excess is not evidence about a k.
+   Otherwise the unexplained peaks are scored against the enumerated candidate
+   set and the top vector is taken, with the rest kept in
+   `MagneticSolution.k_candidates` as the hypotheses this call did not test.
+   `MagneticSolution.k_route` records which of the routes it was. Pass `k=` to
+   state the vector instead when it is known from a single crystal.
+2. candidates: for each named site, every order-parameter direction of
+   every small irrep with a non-zero multiplicity, as a magnetic space group in
+   its own cell. A k ≠ 0 candidate is stated through its magnetic supercell,
+   with the anti-centring applied as a *constraint* on the moment DOFs and not
+   only as a seed; `MagneticTrial.anti_translation_drift` is how far the
+   refined structure travelled from the group it declares, and it should read
+   zero.
+3. one trial refinement per powder-equivalence class: never one per
+   candidate. The members of a class are models this pattern, to
+   `MagneticSolution.d_min`, cannot tell apart; refining each of them would
+   produce N copies of one answer and invite you to rank them. They are named
+   instead, in `MagneticTrial.members`, and the inability to separate them is
+   the finding.
+4. ranking: the answer is a `MagneticSolution`; its
+   `MagneticSolution.criterion` states the rule in full and the fields below
+   carry every number the rule reads.
+
+The criterion, and why not Rwp. A candidate with more free amplitudes
+always reaches a lower Rwp, so ordering by Rwp orders by freedom. The primary
+key is `MagneticTrial.delta_bic` against a nuclear reference refined under the
+*same* stage list minus the moment paths, so the only difference between the
+two models is the moment block and `n_added` is exactly
+`MagneticTrial.n_moment_parameters`. That is where parsimony enters: the
+`−n_added·ln N` term charges every extra amplitude, which is why a nested
+triple of groups reaching one profile comes out smallest-group-first. Behind it
+is `MagneticTrial.r_magnetic`, a profile R over only the channels the
+nuclear model puts nothing on, where 1 means "explains none of the intensity
+there" and 0 means "explains all of it", a number a whole-pattern Rwp,
+dominated by the nuclear lines, cannot give you. Behind that, parsimony as a
+literal tiebreak. A supported moment is a precondition, not a column: a trial
+whose every moment fails WP-1327's null test cannot win however good its ΔBIC,
+and when none of them has one the verdict is that there is nothing to solve.
+
+Several magnetic sites means several starts. A moment stage over more than
+one site is not convex, and the flat equal-magnitude seed can land in a minimum
+that is *provably* not the optimum: a three-amplitude fit reaching a worse Rwp
+than its own one-amplitude submodel, which cannot happen at a true minimum.
+Released from the one-site solution the same model reaches a better point, on a
+different site. That is fatal to a ranking and not merely to a fit: candidates
+compared at such points are compared at whatever minimum their seed fell into,
+so the ΔBIC ordering would measure the seed. Every class with more than one
+magnetic site is therefore refined from each one-site start (the other sites'
+moments absent, not small, because seeding them small does not escape)
+and then released, with the best converged minimum reported.
+`MagneticTrial.n_starts`, `MagneticTrial.n_minima` and `MagneticTrial.start`
+are that sweep made visible, and a multimodal class says so in
+`MagneticSolution.caveats`.
+
+A stage entry that frees nothing is reported. `Stage` accepts a free-list
+glob matching no parameter silently, and a term this histogram's forward model
+does not read returns the same Rwp to ten digits and the same parameter count
+either way. In a ranking that
+makes the compared models differ from the ones the plan describes, so
+`solve_magnetic` checks what the stages actually froze and puts any dead glob
+in the caveats. Its own defaults are axis-shaped and produce none.
+
+The abstention is a result. Classes whose ΔBIC lies within
+`MagneticSolution.tie_width` of the leader's are tied; `MagneticSolution.tied`
+names them and `MagneticSolution.verdict` reads `"abstained"`. The default
+width is 6.0, "strong" on the Kass & Raftery scale, the same bar peak fitting
+uses to keep an added component. So is the other abstention this workflow
+makes: a cubic collinear structure has one class and a modulus the data
+measures well, and a direction the powder average cannot determine at all,
+which comes back as a held DOF in `MomentRow.unmeasured_directions`. That is
+the answer, not a failure to find one.
+
+One refusal: a non-neutron histogram, by name. Everything else is reported.
+
+| Field | Is | Reads as |
+|---|---|---|
+| `MagneticSolution.verdict` | `"solved"`, `"abstained"` or `"nothing to solve"` | the third is an answer about the specimen |
+| `MagneticSolution.reason` | why, in a sentence | always non-empty |
+| `MagneticSolution.criterion` | the ranking rule, stated | the same string every run |
+| `MagneticSolution.best` | the winning `MagneticTrial`, or `None` | `None` for every verdict but `"solved"` (an abstention has no winner) |
+| `MagneticSolution.phase`, `MagneticSolution.space_group` | which phase was solved | |
+| `MagneticSolution.k` | the propagation vector used, as three rationals | `None` when the workflow abstained before choosing one |
+| `MagneticSolution.k_route` | how it was chosen | `"forbidden lattice points"`, `"satellite ranking"`, `"given by the caller"`, or the abstention's own name |
+| `MagneticSolution.k_reason` | why, in a sentence | separate from `MagneticSolution.reason`, which is the *verdict's* (a solved determination still has to say how it got its k) |
+| `MagneticSolution.k_candidates` | the ranked vectors, `(spelling, matched, satellites in range)` | empty when the arm did not run |
+| `MagneticSolution.sites` | the sites that were given a moment | |
+| `MagneticSolution.n_residual_peaks` | positive residual peaks of the nuclear fit | before any sorting |
+| `MagneticSolution.n_on_nuclear_lines` | those on a calculated reflection | a nuclear misfit or a k = 0 structure; deliberately not scored |
+| `MagneticSolution.n_on_forbidden_lattice_points` | those at a systematic absence | the k = 0 signature, stated positively |
+| `MagneticSolution.n_unexplained` | those at neither | the only ones a propagation vector is needed for |
+| `MagneticSolution.trials` | the ranked list, one `MagneticTrial` per class | published whole: refusals and unsupported models included |
+| `MagneticSolution.tied` | the class indices inside the tie width | one entry when the verdict is `"solved"` |
+| `MagneticSolution.tie_width` | the ΔBIC below which two classes are not ranked | 6.0 by default |
+| `MagneticSolution.d_min` | the d limit the equivalence classes are a statement about | a class is a claim about *a powder pattern to a limit* |
+| `MagneticSolution.nuclear_rwp`, `MagneticSolution.nuclear_gof` | the reference fit every ΔBIC is against | |
+| `MagneticSolution.nuclear_r_magnetic` | the reference's own magnetic-only R | ≈1 on a nuclear model that explains none of it: the scale every `MagneticTrial.r_magnetic` is read against |
+| `MagneticSolution.n_magnetic_channels` | how many channels that region has | zero makes `r_magnetic` `None`, not 0 |
+| `MagneticSolution.caveats` | what the run wants you to know | includes ΔBIC's raw-channel-count N |
+| `MagneticSolution.write_magcifs` | writes one magCIF per refined class and returns the paths | nothing is written unless you call it or pass `cif_dir=` |
+| `MagneticSolution.k_trials` | one `KTrialSummary` per propagation vector actually refined | length 1 unless a runner-up k was within the satellite step's own offset margin of the winner (`k_trials=` option, default 2) |
+| `MagneticSolution.diagnostics` | structured diagnostics beside `MagneticSolution.caveats` | `K_VECTOR_UNSEPARATED` (info) when the top two entries of `k_trials` are within `k_tie_width` (10.0 by default) BIC of each other |
+| `KTrialSummary.k` | the propagation vector this row is about | as three rationals |
+| `KTrialSummary.matched`, `KTrialSummary.worst_offset_deg` | the satellite step's own score for this k | `None` on a route with no such scoring (a given `k=`, or the k = 0 signature) |
+| `KTrialSummary.best_delta_bic` | the best eligible class's ΔBIC for this k | `None` if this k reached no eligible class |
+| `KTrialSummary.n_refined` | how many of this k's classes reached `"refined"` | |
+| `MagneticTrial.class_index` | which powder-equivalence class | stable within one run |
+| `MagneticTrial.representative` | the irrep and direction that was refined | the smallest family of the class |
+| `MagneticTrial.members` | every candidate in it | the models the powder cannot separate; more than one is the finding |
+| `MagneticTrial.site` | the site whose representation produced it | |
+| `MagneticTrial.irrep`, `MagneticTrial.direction` | the labels | e.g. `S2`, `(a)` |
+| `MagneticTrial.bns_number`, `MagneticTrial.uni_number`, `MagneticTrial.msg_type` | what spglib recognised the operator list as | `"unidentified"` and `None` are honest, not errors |
+| `MagneticTrial.free_amplitudes` | amplitudes the representative site's family has before any data is looked at | per site: on a parent with several magnetic sites this is not the model's parameter count, and the ranking's parsimony key reads `MagneticTrial.n_moment_parameters` instead |
+| `MagneticTrial.determinable_amplitudes` | how many of them a powder to `d_min` can determine | the deficit is the flat directions |
+| `MagneticTrial.status` | `"refined"` or `"refused"` | |
+| `MagneticTrial.refusal` | the message, when refused | e.g. a magnetic orbit that cannot cover the nuclear one |
+| `MagneticTrial.rwp`, `MagneticTrial.gof` | the trial's own agreement | context, never the ranking key |
+| `MagneticTrial.delta_bic` | the primary key | positive favours the magnetic model |
+| `MagneticTrial.r_magnetic` | the magnetic-only R | compare against `MagneticSolution.nuclear_r_magnetic` |
+| `MagneticTrial.n_moment_parameters` | moment DOFs left free, ΔBIC's `n_added` | |
+| `MagneticTrial.n_free_parameters` | the whole free count | |
+| `MagneticTrial.moments` | one `MomentRow` per site that carries one | |
+| `MagneticTrial.held` | the DOFs the stage held | a direction here was not measured |
+| `MagneticTrial.supported` | whether any site's moment survived the null test | false disqualifies the trial from winning |
+| `MagneticTrial.anti_translation_drift` | how far a supercell refinement left its own group, μ_B | zero is the pass; `None` for k = 0, where there is no anti-centring |
+| `MagneticTrial.n_starts` | how many seeds the moment stage was started from | one per magnetic site plus the flat one; 1 when the class has a single site |
+| `MagneticTrial.n_minima` | how many distinct minima those starts found | more than one is a fact about the candidate: its moment problem is multimodal and one seed would have reported another answer |
+| `MagneticTrial.start` | which start won, named | `"flat"` or `"<site> only, then released"` |
+| `MagneticTrial.label` | what the table prints | BNS plus irrep and direction |
+| `MomentRow.label`, `MomentRow.ion` | the site and its form-factor key | |
+| `MomentRow.magnitude`, `MomentRow.esd` | \|m\| in μ_B and the esd of the modulus | the components carry none by design |
+| `MomentRow.sigma` | \|m\| in units of its own esd | WP-1327's ratio; `None` without an esd |
+| `MomentRow.crystalaxis` | the three components the DOFs imply | |
+| `MomentRow.supported` | the null test's verdict for this site | |
+| `MomentRow.unmeasured_directions` | direction DOFs the powder average did not determine | non-empty is a result about the measurement |
+| `MomentRow.paired_with` | the other site's path this modulus is powder-degenerate with | non-empty when the fit's own correlation showed the two are not separately determined |
+| `MomentRow.paired_magnitude`, `MomentRow.paired_magnitude_esd` | the quadrature sum sqrt(sum m^2) over the pair and its esd from the measured covariance | this, not `MomentRow.magnitude`, is the number the powder measures for the pair; `None` when `paired_with` is empty |
+
 ## How hard each stage is converged
 
 `RefinementPlan.intermediate_ftol` is the termination tolerance every stage but
@@ -315,9 +1016,9 @@ gives it. Set it to say that one stage is different: an early stage whose seed
 the next one is unusually sensitive to, or a single-stage fit that has to
 converge as hard as an endpoint.
 
-`Stage.seed` and `Stage.strain_seed` both exist to lift a parameter off an
-exact zero that the solver cannot move away from. They are not interchangeable,
-because the two pathologies are opposite.
+`Stage.seed`, `Stage.strain_seed` and `Stage.distortion_seed` all exist to
+lift a parameter off an exact zero that the solver cannot move away from, and
+they are not interchangeable, because the three pathologies are different.
 
 - `Stage.seed` lifts any softplus-bounded parameter the stage frees to the given
   value. The softplus map's slope at zero is itself near zero, so a coefficient
@@ -327,8 +1028,20 @@ because the two pathologies are opposite.
   microstrain, in ppm of ΔM/M. Those coefficients are identity-transformed, so
   `Stage.seed` cannot reach them, and their problem at zero is the exploding
   gradient of a square root rather than a dead one.
+- `Stage.distortion_seed` moves an all-zero distortion-mode block off the
+  parent, in ångströms of the furthest-moved atom, before the stage frees
+  it. The gradient there is neither dead nor exploding but exactly zero,
+  and for every mode of the phase at once: the parent translation the
+  k-doubling lost carries the mode field to its negative, so |F|² is an even
+  function of the whole amplitude vector and the parent is a local *maximum* of
+  fit quality rather than a starting point. A stage that frees an all-zero
+  block without this is refused by name rather than run. The value is
+  signed (the overall sign of a component's amplitudes is a domain label),
+  so a negative seed simply starts in the other antiphase domain;
+  `rietx.strategy.staged.DISTORTION_SEED_A` is the recommended magnitude and
+  its comment gives the three measurements that fix it.
 
-Both default to `0.0`, meaning no seed.
+All three default to `0.0`, meaning no seed.
 
 `Stage.lebail_cycles` is the number of intensity-partitioning refreshes the
 stage performs, and it applies in Le Bail mode only.
@@ -383,7 +1096,8 @@ dataclasses have no `model_dump`, and asking one for it says which mirror
 to use. A `StageSpec` mirrors `Stage` field for field (`StageSpec.name`,
 `StageSpec.turn_on`, `StageSpec.max_iter`, `StageSpec.ftol`,
 `StageSpec.lebail_cycles`, `StageSpec.seed`, `StageSpec.strain_seed`,
-`StageSpec.restraint_weight_scale` and `StageSpec.window_slack_deg`), and
+`StageSpec.distortion_seed`, `StageSpec.restraint_weight_scale` and
+`StageSpec.window_slack_deg`), and
 `PlanSpec.correlation_guard` mirrors the plan's.
 
 What is stored is the expanded plan: every stage in full, because that is what

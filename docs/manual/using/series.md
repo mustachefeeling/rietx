@@ -368,13 +368,181 @@ an axis title for a series with no coordinate but would be the header's second
 
 `SeriesResult.plot` plots one or more trajectories against the series axis.
 
+### A moment through an ordering transition
+
+An ordering transition is the series a neutron user runs: one specimen through
+T_N, the moment growing from nothing. The magnetic model is stated once
+(`Atom.moment` and `Phase.magnetic_symmetry`, {doc}`data`) and the chain
+refines it on every pattern, but a moment is the one parameter whose *number*
+is not the answer. `|F_m|²` is proportional to `m²`, so a moment the data
+cannot see is a flat direction of the least-squares problem and the fit leaves
+it at nothing; the honest report of that is "the data does not support a moment
+here", never "0.02(1) μ_B".
+
+So each entry carries the evidence, not just the value. `SeriesEntry.magnetic`
+is one `MomentEvidence` row per magnetic site, the same rows a single-pattern
+`FitReport.magnetic` carries, and `SeriesEntry.moment` fetches one of them by
+its `MomentEvidence.path` (the modulus dot-path,
+`phases.*.atoms.*.moment.dof0`) or by its atom label. Naming nothing takes the
+only site and refuses when there are two, because "the moment" is not a
+well-defined quantity on a two-sublattice structure.
+
+`SeriesResult.magnetic_trajectory` is |m| against the axis for one site, and
+`SeriesResult.magnetic_sites` lists the sites that carry one. What comes back is
+a `MagneticTrajectory`, a `Trajectory`, so it exports and plots through
+exactly the same code, with one extra column and one derived answer:
+
+| Member | Holds |
+|---|---|
+| `MagneticTrajectory.x`, `MagneticTrajectory.x_label` | the axis and its name |
+| `MagneticTrajectory.value` | \|m\| in μ_B at each point, from that pattern's own fit |
+| `MagneticTrajectory.stderr` | its esd (`None` on every unsupported point) |
+| `MagneticTrajectory.supported` | per point, whether \|m\| cleared three of its own esds |
+| `MagneticTrajectory.held` | the complement, spelled the way the hold rule does |
+| `MagneticTrajectory.status` | that pattern's fit status, because `supported` is a ratio against a covariance |
+| `MagneticTrajectory.labels` | the pattern label at each point |
+| `MagneticTrajectory.atom`, `MagneticTrajectory.ion` | the site and its form-factor key |
+| `MagneticTrajectory.path` | the modulus dot-path |
+| `MagneticTrajectory.onset` | where the moment stops being supported, as a `MagneticOnset` |
+
+```{admonition} A held point keeps its value and loses its esd
+:class: important
+
+Both halves are deliberate. The value is the modulus the fit reached, and it is
+the numerator of the ratio that called the point unsupported — deleting it
+would delete the evidence, and replacing it with zero would claim a
+measurement of zero that no fit made. The esd is withheld because an error bar
+on a number the data does not support reads as a small *measured* moment,
+which is the single misreading this whole arm exists to prevent.
+`Trajectory.arrays` therefore hands a plotter NaN there and an errorbar draws
+nothing; `series.plot("magnetic.Mn")` draws those points hollow and shades the
+onset bracket.
+```
+
+The onset is read off the verdicts and never off the values. A warm-started
+chain produces a smooth |m| column straight through the transition (that is
+what a warm start is for), so a threshold on the numbers locates wherever the
+chain relaxed, while the first pattern whose block is *held* locates where the
+data stops carrying a moment.
+
+| Member | Holds |
+|---|---|
+| `MagneticOnset.x`, `MagneticOnset.x_esd` | the midpoint of the bracket and half its width |
+| `MagneticOnset.bracket`, `MagneticOnset.bracket_labels` | the last released pattern and the first held one |
+| `MagneticOnset.sense` | `"falls"` (supported at low x), `"rises"`, or `"none"` |
+| `MagneticOnset.monotone`, `MagneticOnset.boundaries` | whether there is one boundary, and every switch if not |
+| `MagneticOnset.n_supported`, `MagneticOnset.n_held`, `MagneticOnset.n_unconverged` | the counts over the window |
+| `MagneticOnset.bracket_verdicts_final` | whether either bracket pattern owes a *supported* verdict to a fit that stopped early |
+| `MagneticOnset.path`, `MagneticOnset.atom` | which site it is about |
+| `MagneticOnset.note` | the reading in words, including why it is not quotable when it is not |
+
+`MagneticOnset.x_esd` is the spacing of your measurements, not a fitted
+uncertainty: a ramp with 50 K steps cannot locate T_N better than ±25 K however
+good each fit is. Nothing here fits `m ∝ (1 − T/T_N)^β`: that form is
+nonlinear in its coefficients and is a different question; the trajectory is
+the deliverable and the exponent is yours to fit to it.
+
+Two diagnostics ride with it, and they are in the fences table below:
+`SEQUENTIAL_MOMENT_HOLD` counts the patterns whose moment came back
+unsupported, and `SEQUENTIAL_MOMENT_ONSET` gives the bracket.
+
+<!-- api-doc: no-exec — needs a magnetic model and a ramp through an ordering transition -->
+```python
+import rietx as rx
+
+series = rx.refine_sequential(patterns, magnetic_structure, instrument,
+                              plan=plan, x=temperatures, x_label="T (K)",
+                              direction="both")
+traj = series.magnetic_trajectory()          # the only site
+print(traj)                                  # |m| per pattern, held marked
+print(traj.onset)                            # the bracket and its ±
+series.plot("magnetic." + traj.atom, path="moment_vs_T.png")
+```
+
+What crosses a pattern boundary, for a moment. A modulus a pattern did not
+support is reseeded to its floor before it becomes the next pattern's starting
+point, rather than warm-started from the value before it. The pattern's own
+entry keeps what the fit reached; only the successor's starting point moves,
+the site's direction is preserved, and the modulus is never *fixed*: it has to
+stay free, because it is the one direction that is not flat and it is how a
+moment climbs back out on a cooling ramp.
+
+```{admonition} What that rule does not do
+:class: warning
+
+It cannot protect the first pattern *above* the transition, which is
+necessarily warm-started from a supported neighbour: whether that pattern comes
+back unsupported is a measurement, not a mechanism. Two things check it, and
+you have to ask for both. `direction="both"` refines the chain each way and
+`SEQUENTIAL_MOMENT_ONSET` then carries the other chain's bracket and says
+whether the two overlap — a moment carried across the transition by one chain's
+warm start and not the other's is exactly what a single pass cannot see. And
+`MagneticOnset.bracket_verdicts_final` catches the other half: a *supported*
+verdict from a fit that stopped at its iteration cap may just be a modulus that
+had not finished falling. Measured on a synthetic ramp starved to `max_iter=1`,
+the moment above the transition came back at 0.58 μ_B and supported, and the
+onset moved to a confident, wrong value — with Rwp fine and no other fence
+firing.
+```
+
+### A displacive superstructure through a structural transition
+
+The same shape one field across. A structural transition is a series through
+T_s with a superstructure growing from nothing, refined as mode amplitudes
+rather than as free child coordinates ({doc}`refining`), and the amplitude is
+the one parameter whose *number* is not the answer, for the twin of the
+moment's reason. A displacive mode enters a superstructure reflection with a
+structure factor odd in A, so |F|² is even in A and χ² is stationary at
+A = 0: an amplitude the pattern cannot see is a flat direction, and a
+warm-started chain hands it forward smoothly.
+
+So each entry carries the evidence. `SeriesEntry.distortion` is one
+`DistortionEvidence` row per declared mode (the same rows
+`FitReport.distortion` carries), and `SeriesEntry.distortion_mode` fetches one
+by its `DistortionEvidence.mode` name or by its amplitude dot-path. Naming
+nothing takes the only mode and refuses when there are several, for the
+reason `SeriesEntry.moment` does: a direction with thirty-two amplitudes has no
+single "the amplitude".
+
+`SeriesResult.distortion_trajectory` is A against the axis for one mode, and
+`SeriesResult.distortion_modes` lists the amplitude paths that carry a row.
+What comes back is a `DistortionTrajectory`, a `Trajectory`, so it exports and
+plots through the same code:
+
+| Member | Holds |
+|---|---|
+| `DistortionTrajectory.x`, `DistortionTrajectory.x_label` | the axis and its name |
+| `DistortionTrajectory.value` | A in Å at each point, signed as refined |
+| `DistortionTrajectory.magnitude` | \|A\| (plot this one, since the sign is not measurable) |
+| `DistortionTrajectory.displacement_a` | \|A\| × the mode's unit displacement: the largest atomic displacement it states, Å |
+| `DistortionTrajectory.stderr` | its esd (`None` on every unsupported point) |
+| `DistortionTrajectory.supported` | per point, whether \|A\| cleared two of its own esds |
+| `DistortionTrajectory.held` | the complement, spelled the way the hold rule does |
+| `DistortionTrajectory.status` | that pattern's fit status, because `supported` is a ratio against a covariance |
+| `DistortionTrajectory.labels` | the pattern label at each point |
+| `DistortionTrajectory.mode`, `DistortionTrajectory.irrep_label`, `DistortionTrajectory.direction` | which mode, and the order parameter it belongs to |
+| `DistortionTrajectory.path` | the amplitude dot-path |
+
+Never build "A vs T" from the raw `phases.*.distortion_modes.*.amplitude` rows
+in `SeriesEntry.parameters`: that column is signed and carries no verdict, so
+it can change sign between neighbouring patterns with no physics in it, and a
+flat amplitude carried forward by the warm start draws as a small measured one.
+
+There is deliberately no onset here. `MagneticOnset` is a moment's bracket
+and the function that reads one reads a moment's verdicts; a structural T_s
+reported through that schema would be it saying something it does not mean. The
+support column is there, so take the bracket yourself and say it is one. Note
+also that unlike a moment modulus (which is *derived* from the DOFs, and so
+needs the `magnetic.` display namespace), an amplitude has a parameter path of
+its own, so `SeriesResult.trajectory` already reaches the same numbers by path.
+
 ## The series fences
 
 A sequential fit is path-dependent by construction. Every pattern's answer
 depends on its neighbour's, so the method can imprint a trend the data do not
 carry: one bad pattern's error is inherited by all its successors, and the
-result is a smooth-looking curve. Five diagnostics fence that, and none of them
-alters a fitted value.
+result is a smooth-looking curve. Seven diagnostics fence that, and none of
+them alters a fitted value.
 
 | Code | Says |
 |---|---|
@@ -383,6 +551,8 @@ alters a fitted value.
 | `SEQUENTIAL_DISCONTINUITY` | a step much larger than the local trend: the science, or a chain failure, and the diagnostic says both |
 | `SEQUENTIAL_PATH_DEPENDENT` | with `direction="both"`, forward and backward disagree by more than their esds allow |
 | `SEQUENTIAL_PERSISTENT_FINDING` | one of the per-pattern codes fired in more than half the patterns, so it is about the model rather than about a pattern |
+| `SEQUENTIAL_MOMENT_HOLD` | on how many patterns the moment came back unsupported, and on which successors its modulus was therefore reseeded to its floor |
+| `SEQUENTIAL_MOMENT_ONSET` | where along the axis the moment stops being supported, as a bracket; under `direction="both"` it carries both chains' brackets and says whether they overlap |
 
 The last one exists because of an arithmetic problem the others do not have. A
 per-pattern diagnostic can only say "this pattern". In a run of 68 it therefore

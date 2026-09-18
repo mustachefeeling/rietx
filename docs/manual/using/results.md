@@ -176,6 +176,15 @@ Pawley mode, where the dummy atom the mode requires is not a structure to
 measure, and it is computed at the close of the fit rather than on demand: the
 covariance it needs is read off the final Jacobian, which is never stored.
 
+`RefinementResult.distortion_totals` is a carrier for the same reason and one
+object over: one `DistortionTotal` per (k, irrep, direction) component of every
+mode-carrying phase, with AMPLIMODES' per-irrep amplitude A_τ and its esd
+propagated through the block covariance of that component's amplitudes,
+which, like a bond distance's, has to be measured while the Jacobian is in hand
+or not at all. `FitReport.distortion_totals` carries the same rows, and
+{ref}`sec-distortion-totals` reads them field by field. Empty when no phase declares a mode, and carrying
+only the diagonal-derived esd on a result that stored no covariance.
+
 ## The size and the strain, in physical units
 
 A refined profile width is a number of degrees, and a number of degrees is not

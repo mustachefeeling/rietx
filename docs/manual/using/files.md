@@ -117,7 +117,13 @@ by a small amount is snapped to the symmetry value
 (`CIF_CELL_ANGLE_CORRECTED`): a β of 90.002(3) under `P m m m` is an
 experimenter quoting a refined number. Past that threshold the symbol and the
 angle contradict each other, one of the two is wrong, and choosing between them
-is yours: the value is left byte for byte and the read raises.
+is yours: the value is left byte for byte and the read raises. A group whose
+cell constraints are a metric subspace rather than a fixed-angle dict (no
+Hermann-Mauguin symbol shares its point group and lattice, which is the shape
+a bracketed magCIF phase carries once written back to CIF and re-read) has no
+per-angle correction attempted at all, and `CIF_CELL_ANGLE_METRIC_CONSTRAINED`
+says so when an angle sits near a right angle or 60°/120° without being
+snapped.
 
 A third note is a report rather than a repair. A site can sit within 1e-4 of a
 special position without being on it, as a file quoting five decimals often
@@ -157,6 +163,133 @@ spinel = rx.Phase(
 
 Naming the setting silences it. Files carry theirs, so a CIF or a TOPAS `.inp`
 never raises it.
+
+### A magnetic structure: reading and writing a magCIF
+
+A magnetic structure reaches you as a magCIF, and `Structure.from_cif` reads
+one. MAGNDATA, ISODISTORT, k-SUBGROUPSMAG and Bilbao's own tools all emit that
+form, and what it carries is exactly what the model stores: the operator list
+with its time-reversal signs, the moments in crystal-axis components, the parent
+propagation vector and the BNS symbol.
+
+<!-- api-doc: no-exec — it reads a magCIF the reader supplies -->
+```python
+notes = []
+structure = rx.Structure.from_cif("0.642.mcif", moment_ions={"Mn1": "Mn3+"},
+                                  diagnostics=notes)
+phase = structure.phases[0]
+print(phase.space_group, phase.magnetic_symmetry.bns_number)
+print(phase.atoms[1].moment.values(), phase.atoms[1].moment.ion)
+```
+
+Six things about that read are worth knowing before you trust the answer.
+
+The nuclear space group's label comes from `_parent_space_group.name_H-M_alt`
+(a magCIF states no ordinary `_space_group_name_H-M_alt` at all, since the
+magnetic block replaces it). The IUCr underscore screw-axis spelling
+(`P 2_1/c`) is normalised to the plain one gemmi's lookup table accepts (`P
+21/c`) before the symbol is resolved, and the file's own spelling stays
+unchanged in every diagnostic. Its operations are always derived from the
+file's own magnetic operators with time reversal dropped, never resolved from
+that symbol alone. gemmi's tabulated operator table for a Hermann-Mauguin
+symbol can sit at a different origin than a non-standard setting's own
+(measured on Ima2, space group 46), so a symbol lookup on its own would
+silently attach the wrong coordinate frame to a right-looking name. Where the
+two disagree, `Phase.space_group` carries the bracketed `"<symbol> [unnamed in
+this cell]"` form, `Phase.symmetry_operations` carries the derived list, and
+`CIF_MAGNETIC_NUCLEAR_SETTING` says so; where they agree the read is
+unchanged from a bare labelled phase. A `_parent_space_group.transform_Pp_abc`
+that is not the identity is a record of which setting the symbol was
+tabulated in, one every non-standard-setting MAGNDATA entry carries, and is
+not by itself a reason to refuse the file. What is refused is a genuine
+supercell, judged by the child transform's determinant and by k, never by the
+parent transform. A file with no space group this reader can resolve at all,
+neither an ordinary tag nor a magCIF parent symbol, is refused by name.
+
+The operators are stored verbatim, and `transform_BNS_Pp_abc` is not applied.
+A published structure is usually written in its own setting rather than the BNS
+standard one (Cr₂WO₆'s record carries `'b,-a,c;0,0,0'`), and that setting is
+the one its cell and coordinates are in. So the list is kept as written, the
+transform goes into `MagneticSymmetry.setting` as the record it is, and applying
+it would move the group away from the atoms beside it.
+`MagneticSymmetry.uni_number` is *derived* from the operators through spglib, so
+it is the same on both sides of a round trip.
+
+The parent k is a record, not a `Phase.propagation_vector`. It lands on
+`MagneticSymmetry.propagation_vector_parent`. The two fields are refused
+together on one phase for the reason [](refining.md) gives, and a magCIF states
+k as provenance.
+
+The magnetic ion is not in the file. The magnetic dictionary has no item for
+it, and MAGNDATA writes a bare `Mn` for a site that is chemically Mn³⁺, so
+without `moment_ions=` the *neutral atom's* ⟨j₀⟩ is used and
+`CIF_MAGNETIC_ION_UNCHARGED` says so. The two curves differ, and a moment
+refined under the wrong one absorbs the difference into its magnitude. A bare
+lanthanide or actinide symbol has no neutral-atom row at all, so there the
+fallback goes one step further, to the element's majority oxidation state
+that is *magnetic* (Ln³⁺, except Eu²⁺; U⁴⁺, Np⁴⁺, Pu³⁺), reporting
+`MAGNETIC_ION_ASSUMED` instead. `moment_g=` is the same shape for the Landé g
+a 4f moment needs. Where the ion itself was assumed this way, its free-ion
+Hund's-rule g_J is assumed too (magCIF has no item for g any more than it has
+one for the ion, so refusing on a quantity the file could never have carried
+either way would be the wrong-shaped fix), reporting `LANDE_G_ASSUMED`. An ion
+*stated* explicitly (`moment_ions=`) still needs `moment_g=` stated alongside
+it, unchanged: that gap is the caller's, unrelated to this default.
+
+All three moment forms are read. The dictionary defines the moment in
+crystal axes, in spherical coordinates and in Cartesian ones; a reader taking
+only the first would silently drop the other two. The spherical and Cartesian
+frames are the one where x ∥ a and z ∥ c*, which is the frame the ADP
+code already uses, so no second convention enters. Where a file states more than
+one form they must agree, and a file stating `_atom_site_moment.magnitude` has
+it cross-checked against the components under the cosine metric the
+dictionary defines: |m| = √(mᵀ·G·m) and not √(Σmᵢ²), which on hexagonal axes is
+29 % out and is the commonest way that line goes wrong. The check compares
+`|magnitude|` against the (always non-negative) derived norm, since a
+negative stated magnitude is a sign convention rather than a mismatch, at a
+tolerance drawn from the file's own stated precision (`magnitude_su`, an
+inline `value(su)`, or half the last printed digit when neither is given)
+rather than a fixed band, widened by each component's own imprecision
+propagated through the metric, since the derived norm is itself only as
+precise as the components it came from. A magnitude rounded to fewer
+figures than the components is read, not refused.
+
+A reader validates each site's moment against *that site's own*
+site-symmetry subspace. It never checks the image another operation of the
+stated magnetic group (a centring or an anti-translation included) carries
+onto a symmetry-equivalent site, so a file can pass every per-site check
+while stating a moment set the group it also states does not actually leave
+invariant. `CIF_MAGNETIC_ANTI_TRANSLATION_RESIDUAL` reports this above 1e-6
+μ_B, and nothing about the read is changed to fix it.
+
+Two constructs are refused by name rather than half-read. A modulated
+structure (any `_atom_site_moment_Fourier` loop, special function, cell wave
+vector or superspace group), because reading its k = 0 amplitude alone would
+return a collinear structure for a modulated one. And a structure stated in a
+supercell of its parent, which is the generic commensurate k ≠ 0 record: the
+asymmetric unit of the magnetic group in that cell splits one *nuclear* orbit
+into several sites carrying different moments, and the model stores one moment
+per nuclear site. Both refusals name what would be needed. The k ≠ 0 test
+reduces every component modulo 1 first, because a propagation vector is only
+ever meaningful modulo the reciprocal lattice: an all-integer k such as
+(1, 1, 1) is Γ identically and reads exactly like k = 0, never as a
+supercell.
+
+`Structure.to_cif` and `Refinement.write_cif` write the same form back. The
+operator and centring loops go out verbatim, the BNS/OG metadata and the parent
+k with them, and the moments in crystal-axis components with the dictionary's own
+`_su` items beside them, *not* in the `value(su)` notation every other number
+in the file uses, and for a measured reason: a refined moment's esd is routinely
+0.05-0.9 μ_B, so two significant figures of su would quote the value to one
+decimal and the number you refined would not come back. Two items have no
+magnetic-dictionary tag at all, the form-factor ion and the Landé g, so they go
+out under a namespaced `_rietx_atom_site_moment.` category; without them a round
+trip would lose which form factor the refinement used. A refinement CIF also
+carries `_atom_site_moment.magnitude_su`, the esd of the modulus, which is
+where a moment's uncertainty lives. `Refinement.report()` and
+`fit(stage_reports=True)` work on a bracketed `"[unnamed in this cell]"`
+phase once it has a genuine magnetic-only or satellite reflection to merge
+in, the same as on any other phase.
 
 ## Instrument profiles
 

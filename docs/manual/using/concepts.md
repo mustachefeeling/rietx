@@ -357,6 +357,7 @@ RefinementPlan.lab_calibrate()         # instrument calibration, certified cell 
 RefinementPlan.lab_sample_refine()     # sample against a frozen calibrated instrument
 RefinementPlan.profile_only()          # Le Bail
 RefinementPlan.pawley_default()        # Pawley
+RefinementPlan.magnetic_width()        # moment -> magnetic width -> both
 ```
 
 The two standard presets are one chain. `mccusker_default` stops after the

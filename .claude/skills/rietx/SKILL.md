@@ -39,7 +39,9 @@ restated here; a page named `x` below is `https://rietx.org/using/x.html`.
 |---|---|---|
 | you are about to call rietx: entry points, constructors, the four answer types and their fields, the report | [`references/api.md`](references/api.md) | `quickstart`, `model`, `refining`, `results`, `agents` |
 | you were handed another program's input file, not a pattern | [`references/api.md`](references/api.md) § In | `recipe`, `files` |
+| you are about to call rietx **for a magnetic structure**: that technique's own entry points and signatures | [`references/api-magnetic.md`](references/api-magnetic.md) | `refining` |
 | §7/§7g/§7h — a `Diagnostic` fired and you need its row: every engine code, a foreign project file's import-time codes, and what a file you wrote back could not carry | [`references/diagnostics.md`](references/diagnostics.md), [`references/diagnostics-projects.md`](references/diagnostics-projects.md), [`references/diagnostics-gsas.md`](references/diagnostics-gsas.md) | `results` |
+| §7i — a magnetic or distortion-mode `Diagnostic` fired: a magCIF/TOPAS/FullProf reader's own moment codes, a magnetic-width or moment-pair reading, a k-vector tie, a distortion-mode support code, or an unnamed child group | [`references/magnetic.md`](references/magnetic.md) | `results` |
 | §6 — something declined to answer: abstentions, caveats, gate failures, `best_or_none()` returning `None` | [`references/abstention.md`](references/abstention.md) | `report` |
 | §5 — you are about to quote a number: which field carries which fact, and read numbers rather than pixels | [`references/numbers.md`](references/numbers.md) | `report`, `results` |
 | §4/§4b — a judging or deliverable rule needs its measurement, before you override one | [`references/judging.md`](references/judging.md) | `report`, `qpa`, `constraints` |
