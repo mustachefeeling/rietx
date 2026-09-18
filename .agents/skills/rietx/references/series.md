@@ -72,6 +72,19 @@ What an operator must know, all measured:
   the median that decides every later trigger.  So a single failure cannot
   propagate down the chain or quietly raise the bar for the patterns after it —
   but it is still *reported*, and reading its parameters is on you.
+- **A tie or a named variable reaches a chain only through `constrain=`.**  The
+  chain builds its own `Refinement` per pattern, so a constraint you declare on
+  one you built yourself fits one pattern and nothing after it — there is no
+  `carry` glob for it either, since a tie lives in no model.  Pass
+  `constrain=lambda index, ref: ...` to `fit`/`refine_sequential` and call
+  `ref.add_variable(...)` / `ref.tie_equal(...)` inside it, against that
+  pattern's own table.  It fires once per **fit** and not once per pattern —
+  every escalation rung and the `verify_discontinuities` refit get it — so a
+  hook that counts its own calls counts fits.  The variable's *value* then
+  rides the `carry` globs like any other path (`vars.<name>`) and warm-starts
+  from the last **accepted** pattern, a quarantined one seeding no successor
+  here either.  *(Measured: WP-1441, issue #376 — before it, the tie holding
+  pattern 1 together left `ref._ties` empty on pattern 2.)*
 - **A sequential trajectory is path-dependent by construction**, so a smooth
   curve is exactly what a poisoned chain produces.  `direction="both"` runs the
   series each way and reports `SEQUENTIAL_PATH_DEPENDENT` per parameter.  For

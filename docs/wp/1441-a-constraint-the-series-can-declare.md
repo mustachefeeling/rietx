@@ -92,7 +92,7 @@ table is not re-applied by a later write-through.
       hook that raises is the caller's error, not a swallowed one
 - [x] Manual Part 1 (`docs/manual/using/series.md`) and the `parameters`/constraints
       chapter cross-reference, whichever owns the tie verbs
-- [ ] Skill: a row in the series reference (`references/9b-*`), since a tie on a
+- [x] Skill: a row in the series reference (`references/9b-*`), since a tie on a
       series is a task-shape rule and not a rule for every fit
 
 ## Acceptance
