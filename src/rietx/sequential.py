@@ -519,7 +519,7 @@ def _carry_variables(ref: Refinement, previous: dict[str, float],
     ``constrain`` hook declared it.  Left alone, a variable would be the one
     parameter ``carry=["*"]`` did not carry (WP-1441, issue #376).
 
-    Runs **after** the hook, and only it makes this order possible: the value
+    Runs **after** the hook, which is the only order available: the value
     cannot be written before the name exists.  ``carry`` is matched against
     ``vars.<name>``, the ordinary dot-path the table, ``set_vary`` and
     ``parameters()`` all know it by, so ``carry=["phases.*", "vars.*"]``
@@ -530,11 +530,15 @@ def _carry_variables(ref: Refinement, previous: dict[str, float],
     models through, so the stage that compiles next sees a structure agreeing
     with θ.  It records no node here — the pattern's history tree does not
     exist until its ``fit`` fingerprints the data — so the warm start stays a
-    starting point rather than an edit, exactly as ``_carry_into`` is.
+    starting point rather than an edit, exactly as ``_carry_into`` is.  Its
+    refusals come with it: a hook that narrows a variable's bounds per pattern
+    until the carried value falls outside them raises here, naming the path and
+    the bounds, because a starting point the bounded solver cannot use is the
+    caller's to fix and not this function's to clamp.
     """
     if not previous:
         return
-    values = {}
+    values: dict[str, float] = {}
     for name, value in previous.items():
         path = f"{VAR_PREFIX}{name}"
         # a name the hook did not declare on *this* pattern has nothing to be
@@ -908,8 +912,8 @@ class SequentialRefinement:
             back_entries, *_ = self._chain(
                 list(reversed(order)), patterns, names, xs, mode, base_plan,
                 ladder, two_theta_limits, reseed, reseed_factor, prepare,
-                constrain, None,
-                history_suffix=".backward", stream=stream, cancel=cancel,
+                constrain, None, history_suffix=".backward",
+                stream=stream, cancel=cancel,
                 pass_name="backward", first_rung_factor=first_rung_factor)
             back = SeriesResult(mode=mode, entries=back_entries, x_label=x_label,
                                 direction="backward")
@@ -941,8 +945,8 @@ class SequentialRefinement:
     # ------------------------------------------------------------------
     def _chain(self, order, patterns, names, xs, mode, base_plan, ladder,
                two_theta_limits, reseed, reseed_factor, prepare, constrain,
-               on_result,
-               history_suffix: str = "", stream: EventStream | None = None,
+               on_result, history_suffix: str = "",
+               stream: EventStream | None = None,
                cancel=None, pass_name: str = "forward",
                first_rung_factor: float | None = None):
         """Walk ``order``, warm-starting each fit from the previous accepted one.
