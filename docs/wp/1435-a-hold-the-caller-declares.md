@@ -54,6 +54,20 @@ default one in memory, and does **not** survive a JSON round trip — every
 field comes back set — so a project opened from disk would report every
 parameter as deliberately pinned, and that is the commonest path.
 
+**Re-checked 2026-09-18, on arrival.** The defect reproduces on
+`origin/main` `78cf0945`: the shipped LaB6 with all six cell parameters declared
+`vary=False`, fitted under `mccusker_default` over 2-30° 2θ, comes back with
+`cell.a` at 4.156826 against the declared 4.157597. That is 185 ppm, with
+`ref.structure.phases[0].cell.a.vary` still reading `False`, and
+`CAPILLARY_OFFSET_UNAVAILABLE` the only diagnostic raised.
+
+The 41-of-42 count re-measures as **38 of 46** under an 8-term Chebyshev
+background declared free, which is where the four extra entries and the seven
+extra declared-free ones come from. The plans free 16-20 paths and 8-12 of them
+are already declared fixed. The numbers move with the background declaration and
+the conclusion does not: a diagnostic keyed on `vary` still prints eight to
+twelve useless lines beside the one that matters, so the design stands.
+
 **So the missing thing is an authority, not a message.** A user's declaration
 has nowhere to live that a plan can read, which is exactly the problem WP-1070
 solved for *ties*: `Refinement._ties` is the one authority for which ties are
@@ -97,10 +111,15 @@ kind of statement.
 
 ## Tasks
 
-- [ ] `Refinement._holds` as the one authority, on `_ties`' model, with
+- [ ] `Refinement._user_holds` as the one authority, on `_ties`' model, with
       `hold`/`unhold` verbs taking the same globs `set_vary` does and
       auto-committing nodes. A held path refuses an edit that would free it
       and names the hold, as a tied path refuses and names its sources.
+      Named `_user_holds` rather than the `_holds` this WP asked for, because
+      WP-1301's stage hold is `Refinement._held` and the two would sit one
+      letter apart in the same method bodies meaning opposite things. One is
+      the caller's declaration and persists; the other is one stage's reading
+      of what the data can see.
 - [ ] Precedence in the one place that applies it, never at the call sites:
       `locked`/`mode_fixed` outranks a hold, a hold outranks a stage's
       `turn_on`. A model edit can make a held path locked after the fact, so
@@ -108,9 +127,10 @@ kind of statement.
 - [ ] `RefinementState.holds` so a checkout restores them, and the project
       document carries them. A hold that does not survive reopening a `.rex`
       is worse than none, because it is a promise that lapses silently.
-- [ ] `ParameterRow.held_because` gains the hold as a fourth reason, and
-      `parameters()` reports it. The row already names which of three reasons
-      holds a path, so this is one member, not a new channel.
+- [ ] `ParameterRow.held_because` gains the hold as a **fifth** reason, and
+      `parameters()` reports it. The WP was written saying fourth, counting the
+      three of the class docstring; `needs_held_cell` is the fourth and has been
+      since WP-1134. Still one member rather than a new channel.
 - [ ] A plan that matched a held path reports it: `StageResult` records what
       the glob would have freed, and one diagnostic names the paths. This is
       now a real signal because the set is the caller's own declarations
