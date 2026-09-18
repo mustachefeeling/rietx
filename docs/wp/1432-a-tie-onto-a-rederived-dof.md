@@ -120,7 +120,7 @@ and what the manual documents, for a defect that lives in the tie path.
 
 - [x] A failing test first: the four-write table above, plus the ADP control and
       the DOF-source control, so the class is pinned before the fix moves.
-- [ ] The fix, in the `_apply_ties`/`__init__` seam; a tied coordinate DOF keeps
+- [x] The fix, in the `_apply_ties`/`__init__` seam; a tied coordinate DOF keeps
       its meaning across rebuilds.
 - [ ] The second shape: `fit()` twice on one `Refinement` reports the same
       amplitude both times, and the structure does not move between them.

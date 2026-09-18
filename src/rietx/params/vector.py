@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import numpy as np
 from pydantic import ValidationError
@@ -858,6 +858,14 @@ class ParameterTable:
         #: the stage's size cap (a width, deg 2θ), or ``None`` for "no claim
         #: made" — see :meth:`freeze_size_cap`
         self._size_cap: float | None = None
+        #: displacement DOF path → the coordinate rows anchored on it, as
+        #: ``(path, coefficient)`` pairs.  Built where the anchor is built
+        #: (:meth:`_collect_atom_coords`) rather than read back off a name,
+        #: because "this entry is a displacement from a stored value" is a
+        #: fact about how the row was constructed and nothing in the row says
+        #: it — the ADP and Stephens DOFs spell their paths the same way and
+        #: are absolute.  :meth:`rebase_anchored_dofs` is the one consumer.
+        self._anchored_dofs: dict[str, tuple[tuple[str, float], ...]] = {}
         #: path → a fixed positive factor between this table's *physical* value
         #: and the number the free column carries — see :meth:`apply_value_scale`.
         #: Empty for every single-histogram table, which is why an unscaled
@@ -1017,9 +1025,12 @@ class ParameterTable:
                 self._add(f"{base}.{c}", p, tie=AffineTie(terms=terms, const=p.value))
             else:
                 self._add(f"{base}.{c}", p, force_fixed=True)
-        for path in dof_paths:
+        for k, path in enumerate(dof_paths):
             self.entries.append(Entry(path=path, value=0.0, vary=want_vary,
                                       lo=-np.inf, hi=np.inf, transform="identity"))
+            self._anchored_dofs[path] = tuple(
+                (f"{base}.{c}", float(basis[k][c_idx]))
+                for c_idx, c in enumerate(("x", "y", "z")) if basis[k][c_idx] != 0)
 
     def _collect_atom_adps(self, base: str, sg, atom) -> None:
         """Displacement parameters: ``biso``, or aniso U^ij through DOFs.
@@ -1459,9 +1470,61 @@ class ParameterTable:
         self._rebuild()
         for e in self.entries:
             if e.tie is not None:
-                terms, const = self._flatten(e.tie, (e.path,))
-                e.value = const + sum(c * self.entries[j].value for j, c in terms)
+                e.value = self._implied(e.tie, e.path)
         self._rebuild()  # held tied entries contribute to d through their values
+
+    def rebase_anchored_dofs(self, paths: Iterable[str]) -> list[str]:
+        """Take a user-tied displacement DOF back out of its coordinates' anchor.
+
+        A coordinate DOF is a displacement *from the stored coordinate*: the
+        row is ``x = x_stored + Σ Bₖ·θₖ`` and the DOF is rederived to zero on
+        every build, so a rebuild reproduces ``x`` exactly.  That holds only
+        while the DOF comes back at zero.  Tie one to a source that does
+        **not** reset — a named variable, re-declared from its register at the
+        value it holds — and the rebuild anchors at a coordinate that has
+        already absorbed the displacement and then adds it again, once per
+        table build, for as long as the tie is declared (WP-1432, issue #293).
+
+        So the anchor is corrected here, where the tie is known: ``x_stored``
+        less what the tie is about to contribute.  The rebuild then preserves
+        the coordinate, which is the invariant the free case already had, and
+        the DOF reads the displacement its tie says it is rather than zero.
+        The anchor stops moving after the first rebuild and the coordinate is
+        *derived* from the variable rather than accumulated, which is what
+        makes a second ``fit()`` report what the first one did.
+
+        Takes the paths just declared and returns the ones it rebased, so a
+        caller can say that it happened.  A DOF whose source is another
+        coordinate DOF contributes zero (both ends reset together) and is
+        rebased by exactly nothing — that arm stays bit-identical.  An ADP or
+        Stephens DOF is **absolute** and never appears in
+        :attr:`_anchored_dofs`, so it is not reachable from here at all.
+
+        Values are recomputed for the rows this touches rather than through
+        :meth:`refresh_ties`, which would recompute every tied entry in the
+        table for a repair that reaches two of them.
+        """
+        hits = [p for p in paths
+                if p in self._anchored_dofs and p in self._paths
+                and self.entries[self._paths[p]].tie is not None]
+        if not hits:
+            return []
+        for path in hits:
+            dof = self.entries[self._paths[path]]
+            dof.value = self._implied(dof.tie, path)
+            for coord, coeff in self._anchored_dofs[path]:
+                e = self.entries[self._paths[coord]]
+                if e.tie is None:   # symmetry took the row over; _apply_ties says so
+                    continue
+                e.tie = replace(e.tie, const=e.tie.const - coeff * dof.value)
+                e.value = self._implied(e.tie, coord)
+        self._rebuild()
+        return hits
+
+    def _implied(self, tie: AffineTie, path: str) -> float:
+        """The value a tie implies right now, chains flattened onto free rows."""
+        terms, const = self._flatten(tie, (path,))
+        return const + sum(c * self.entries[j].value for j, c in terms)
 
     # -- vary control (used by the staged strategy) --------------------
     def set_vary(self, path_globs: list[str], vary: bool) -> list[str]:

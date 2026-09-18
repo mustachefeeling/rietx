@@ -1003,6 +1003,12 @@ class Refinement:
                     terms=tuple((p, float(c)) for p, c in spec.terms),
                     const=float(spec.const)))
                 self._applied_ties.add(path)
+        # A displacement DOF's anchor is the coordinate the model stores, and
+        # that coordinate has already absorbed whatever the tie contributed at
+        # the last write-back.  Anchoring on it again adds the source's value a
+        # second time, once per table build (WP-1432), so the anchors are
+        # corrected here — on the fresh table, before anything reads it.
+        table.rebase_anchored_dofs(self._applied_ties)
         if dropped:
             warnings.warn(
                 f"{len(dropped)} user tie(s) no longer apply to this model and "
