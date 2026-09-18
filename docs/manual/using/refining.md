@@ -862,7 +862,14 @@ One refusal: a non-neutron histogram, by name. Everything else is reported.
 | `MagneticSolution.caveats` | what the run wants you to know | includes ΔBIC's raw-channel-count N |
 | `MagneticSolution.write_magcifs` | writes one magCIF per refined class and returns the paths | nothing is written unless you call it or pass `cif_dir=` |
 | `MagneticSolution.k_trials` | one `KTrialSummary` per propagation vector actually refined | length 1 unless a runner-up k was within the satellite step's own offset margin of the winner (`k_trials=` option, default 2) |
-| `MagneticSolution.diagnostics` | structured diagnostics beside `MagneticSolution.caveats` | `K_VECTOR_UNSEPARATED` (info) when the top two entries of `k_trials` are within `k_tie_width` (10.0 by default) BIC of each other |
+| `MagneticSolution.diagnostics` | structured diagnostics beside `MagneticSolution.caveats` | `K_VECTOR_UNSEPARATED` (info) and `MAGNETIC_SUBGROUP_PREFERRED` (warning) among them |
+| `MagneticSolution.margin` | the winner's ΔBIC over the best *other eligible* class | `None` on an abstention or when there is no second eligible class — never negative; diffing `trials[0]` against `trials[1]` by hand can be, when `trials[1]` is not itself eligible |
+| `MagneticSolution.subgroup_audit` | the winner's own maximal magnetic subgroups at its k, each refit from its solution and compared by ΔBIC — one `SubgroupAudit` per subgroup found | empty when the k was not zero (not warm-started yet) or none of the classes already enumerated is a genuine subgroup |
+| `MagneticSolution.subgroup_note` | one sentence: which subgroup beat the winner and by how much, that none did, or why the audit was not attempted | always set on a solved verdict |
+| `SubgroupAudit.bns_number`, `SubgroupAudit.label` | which subgroup this row is | |
+| `SubgroupAudit.n_moment_parameters` | its own moment DOF count | more than the winner's, since it is a subgroup |
+| `SubgroupAudit.delta_bic_over_winner` | ΔBIC with the *winner* as the restricted model | positive favours the subgroup; `None` when it refused |
+| `SubgroupAudit.status`, `SubgroupAudit.refusal` | `"refined"` or `"refused"`, and why | mirrors `MagneticTrial.status`/`.refusal` |
 | `KTrialSummary.k` | the propagation vector this row is about | as three rationals |
 | `KTrialSummary.matched`, `KTrialSummary.worst_offset_deg` | the satellite step's own score for this k | `None` on a route with no such scoring (a given `k=`, or the k = 0 signature) |
 | `KTrialSummary.best_delta_bic` | the best eligible class's ΔBIC for this k | `None` if this k reached no eligible class |
