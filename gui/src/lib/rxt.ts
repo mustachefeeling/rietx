@@ -27,7 +27,7 @@ export const KEYWORDS = ["rxt", "project", "pattern", "mode", "limits", "exclude
                          "instrument", "peaks"];
 
 /** Words that describe a parameter rather than annotate it. `textdoc._FLAG_WORDS`. */
-export const FLAGS = ["locked", "mode-fixed", "softplus", "logit"];
+export const FLAGS = ["locked", "mode-fixed", "held", "softplus", "logit"];
 
 /** The peaks block's flag column (WP-1027). Mirrors `textdoc._PEAK_FLAG_WORDS`,
  * which quotes the schema's closed `PeakFlag` vocabulary — a new flag word is a

@@ -2770,6 +2770,35 @@ def test_exports_land_in_the_project_and_cannot_escape_it(fitted, tmp_path):
     assert client.post("/api/export/nonsense")[0] == 404
 
 
+def test_patching_vary_on_a_held_path_is_a_refusal_rather_than_a_crash(
+        blank, tmp_path, pattern_file):
+    """``set_vary`` could refuse nothing until WP-1435, so this branch ran bare.
+
+    The first refusal it could raise would have left the route with an
+    unhandled ``ValueError``, which is a 500 on a request the caller got
+    wrong — and the message naming ``unhold`` would never have reached them.
+    A glob is a sweep and still succeeds, holding nothing back but the held
+    row, which is the same split ``Refinement.set_vary`` makes.
+    """
+    session, client = blank
+    project = _open(session, tmp_path / "heldroute.rex", pattern_file)
+    project.refinement.hold("phases.0.cell.a")
+
+    status, payload = client.patch("/api/params",
+                                   {"vary": {"phases.0.cell.a": True}})
+    assert status == 400, payload
+    assert "unhold" in payload["error"]["message"]
+    assert payload["error"]["where"] == ["phases.0.cell.a"]
+
+    status, payload = client.patch("/api/params",
+                                   {"vary": {"phases.*.cell.*": True}})
+    assert status == 200, payload
+    assert payload["changed"]["vary"]["phases.*.cell.*"] == []
+    row = next(r for r in payload["parameters"]
+                if r["path"] == "phases.0.cell.a")
+    assert row["held"] and not row["vary"]
+
+
 def test_the_client_draws_a_mark_for_every_reason_a_row_can_be_held():
     """`lib/table.ts:heldKind` has one state per reason, and this is the list.
 

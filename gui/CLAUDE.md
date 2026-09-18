@@ -158,7 +158,8 @@ and records **one** history node for it — a per-row multi-select would be N gl
 and N nodes — and `asGlob` wraps a bare word as `*word*` so the string previewed
 and the string sent are the same one. **A held row gets no vary checkbox at all**,
 with `held_because` as its tooltip and every reason it has drawn as its own
-mark (`mode_fixed` is not `locked`; there are four — WP-1214). **A typed number is compared to the *rendered*
+mark (`mode_fixed` is not `locked`; five — WP-1214, and WP-1435's `held`).
+**A typed number is compared to the *rendered*
 value**, WP-1009's rule reused, so a cell showing `4.1568(2)` cannot truncate a
 parameter on a click-in/click-out. And the client's matcher is a **preview only**
 — it is `fnmatch.fnmatchcase` ported, held to Python by a committed corpus
@@ -919,12 +920,14 @@ every value it shows, one `set_vary` node per path, in the *same* `PATCH
 /api/params` as the value edits and **before** the model patches — a whole-model
 PATCH carries whatever `vary` the model it was built from had, so a flag set
 after that read is reverted by it. **The held marks are one vocabulary and there
-are four**: `heldGlyph` is in `lib/table.ts` because two panels draw it, and the
+were four**: `heldGlyph` is in `lib/table.ts` because two panels draw it, and the
 fourth (`needs_held_cell`) had worn the mode-fixed mark since it arrived, the
 glyph being a ternary whose last arm caught everything — so an unknown reason
 still draws a mark, an empty box reading as a control that failed to render, and
-`test_gui_server.py` reads the fields `ParameterRow.refinable` tests so a fifth
-fails there first. **A field's parameter path is not always its model path
+`test_gui_server.py` reads the fields `ParameterRow.refinable` tests **and
+`lib/table.ts`'s own branches**, so a sixth fails on both sides (WP-1435: it
+checked only python, so the tripwire tripped and nothing else would have).
+**A field's parameter path is not always its model path
 prefixed** — `source.polarization` is `instrument.polarization` in θ — so
 `Field.param` carries it and `fieldParam` is what every lookup asks; unprefixed,
 that field rendered off the model, applied past `set_values`' bounds, and had no
