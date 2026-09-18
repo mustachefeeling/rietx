@@ -81,11 +81,11 @@ table is not re-applied by a later write-through.
 
 ## Tasks
 
-- [ ] `constrain` hook on `SequentialRefinement.fit`, `(index, ref) -> None`, called on
+- [x] `constrain` hook on `SequentialRefinement.fit`, `(index, ref) -> None`, called on
       each per-pattern `Refinement` after construction and before its fit; threaded
       through `_run`/`_chain`/`_fit_one` and through `_verify_discontinuities`' refit,
       so a verify refit carries the same constraints the chain did
-- [ ] Named-variable values cross the pattern boundary under the existing `carry`
+- [x] Named-variable values cross the pattern boundary under the existing `carry`
       globs, `vars.<name>` matched as the ordinary dot-path it is
 - [ ] Tests: the tie holds on every pattern; the variable warm-starts and a narrow
       `carry` excludes it; the ladder's rungs and the verify refit see the hook; a

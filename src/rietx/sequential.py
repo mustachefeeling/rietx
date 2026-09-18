@@ -112,7 +112,7 @@ from .history.events import EventStream, _attach_progress, as_event_stream
 from .history.tree import RefinementTree
 from .optimize.cancel import RefinementCancelled
 from .optimize.least_squares import NFEV_PER_ITERATION, SOLVERS
-from .params.vector import ParameterTable
+from .params.vector import VAR_PREFIX, ParameterTable
 from .refine import (
     _VERSION,
     Refinement,
@@ -506,6 +506,46 @@ def _carry_into(structure: Structure, instrument: Instrument,
     table.apply_to_models(structure, instrument)
 
 
+def _carry_variables(ref: Refinement, previous: dict[str, float],
+                     carry: Sequence[str]) -> None:
+    """Warm this pattern's named variables from the last accepted one.
+
+    :func:`_carry_into`'s other half, and it has to be a second function
+    because a variable is reachable by neither of that one's arguments: there
+    is no field of ``Structure`` or ``Instrument`` holding one, so the
+    ``ParameterTable`` built from a fitted pair has never heard of it.  The
+    register on the ``Refinement`` is the variable's only model (WP-1119), and
+    a fresh ``Refinement`` per pattern starts that register wherever the
+    ``constrain`` hook declared it.  Left alone, a variable would be the one
+    parameter ``carry=["*"]`` did not carry (WP-1441, issue #376).
+
+    Runs **after** the hook, and only it makes this order possible: the value
+    cannot be written before the name exists.  ``carry`` is matched against
+    ``vars.<name>``, the ordinary dot-path the table, ``set_vary`` and
+    ``parameters()`` all know it by, so ``carry=["phases.*", "vars.*"]``
+    reads the way it looks.
+
+    :meth:`~rietx.refine.Refinement.set_values` rather than a write to the
+    register: it refreshes the ties that follow the variable and writes the
+    models through, so the stage that compiles next sees a structure agreeing
+    with θ.  It records no node here — the pattern's history tree does not
+    exist until its ``fit`` fingerprints the data — so the warm start stays a
+    starting point rather than an edit, exactly as ``_carry_into`` is.
+    """
+    if not previous:
+        return
+    values = {}
+    for name, value in previous.items():
+        path = f"{VAR_PREFIX}{name}"
+        # a name the hook did not declare on *this* pattern has nothing to be
+        # carried into, and ``set_values`` would refuse the whole dict for it
+        if name in ref._variables and any(
+                fnmatch.fnmatchcase(path, g) for g in carry):
+            values[path] = value
+    if values:
+        ref.set_values(values)
+
+
 def _value_of(result: RefinementResult, path: str) -> float | None:
     """One path's fitted value on a result, or ``None`` where it has none.
 
@@ -599,6 +639,7 @@ class SequentialRefinement:
             verify_discontinuities: bool = False,
             prepare: Callable[[int, PatternData, Structure, Instrument],
                               None] | None = None,
+            constrain: Callable[[int, Refinement], None] | None = None,
             on_result: Callable[[int, RefinementResult], None] | None = None,
             events=None, cancel=None, progress=None, telemetry=None,
             label: str | None = None,
@@ -695,6 +736,46 @@ class SequentialRefinement:
             at its initial value — a phase scale on a series of different
             mixtures being the case that forced it.  Excluding scales from
             `carry` alone would only fall back to the first pattern's guess.
+        constrain:
+            ``(index, ref) -> None``, called on each pattern's
+            :class:`~rietx.refine.Refinement` once it is built and warmed,
+            just before its fit.  Where a user constraint is declared
+            (WP-1441, issue #376)::
+
+                def constrain(index, ref):
+                    ref.add_variable("B_site", 0.5, min=0.0, max=5.0)
+                    ref.tie_equal(["phases.0.atoms.0.biso",
+                                   "phases.0.atoms.1.biso"],
+                                  source="vars.B_site")
+
+                series.fit(patterns, plan=plan, constrain=constrain)
+
+            A tie and a named variable are the two facts of a refinement that
+            live in no model — ``Refinement._ties`` and ``._variables`` are the
+            one authority for each — so `carry`, which moves values between
+            ``Structure``/``Instrument`` pairs, cannot reach either, and
+            `prepare` runs one line before the ``Refinement`` exists.  Without
+            this hook there is no object to declare a constraint on for any
+            pattern after the first.
+
+            It is a hook rather than a list of ties because a tie is a verb
+            call against a live :class:`~rietx.params.vector.ParameterTable`:
+            :meth:`~rietx.refine.Refinement.tie_equal` resolves its globs there
+            and nominates the first match in table order as the source.  Each
+            pattern has its own table, so re-declaring against it is the only
+            spelling that means the same thing on every pattern.
+
+            Every rung of the ladder is a fresh ``Refinement`` and gets the
+            hook, as does the cold refit `verify_discontinuities` runs — a
+            verification fit that dropped the constraint would not be
+            comparing like with like.  The hook is the caller's code and runs
+            outside every guard, so a raise in it ends the series, the way a
+            raise in `prepare` does.
+
+            A variable's **value** is carried between patterns like any other
+            parameter, under the same `carry` globs — ``vars.B_site`` is an
+            ordinary dot-path — so a variable declared here warm-starts from
+            the last accepted pattern rather than from its declaration.
         events, cancel:
             What they mean on :meth:`Refinement.fit`, per pattern: every event a
             pattern's fit emits is forwarded with its place in the series stamped
@@ -768,9 +849,9 @@ class SequentialRefinement:
         try:
             return self._run(
                 patterns, names, xs, order, mode, base_plan, ladder,
-                two_theta_limits, reseed, reseed_factor, prepare, on_result,
-                stream, cancel, direction, x_label, first_rung_factor,
-                verify_discontinuities, recorder)
+                two_theta_limits, reseed, reseed_factor, prepare, constrain,
+                on_result, stream, cancel, direction, x_label,
+                first_rung_factor, verify_discontinuities, recorder)
         except BaseException:
             if recorder is not None:
                 recorder.close("failed")
@@ -780,8 +861,8 @@ class SequentialRefinement:
                 recorder.close()
 
     def _run(self, patterns, names, xs, order, mode, base_plan, ladder,
-             two_theta_limits, reseed, reseed_factor, prepare, on_result,
-             stream, cancel, direction, x_label, first_rung_factor,
+             two_theta_limits, reseed, reseed_factor, prepare, constrain,
+             on_result, stream, cancel, direction, x_label, first_rung_factor,
              verify_discontinuities, recorder):
         """The chain, split out of :meth:`fit` so the recorder has one exit.
 
@@ -792,8 +873,8 @@ class SequentialRefinement:
         """
         entries, results, trees, models = self._chain(
             order, patterns, names, xs, mode, base_plan, ladder,
-            two_theta_limits, reseed, reseed_factor, prepare, on_result,
-            stream=stream, cancel=cancel,
+            two_theta_limits, reseed, reseed_factor, prepare, constrain,
+            on_result, stream=stream, cancel=cancel,
             pass_name="backward" if direction == "backward" else "forward",
             first_rung_factor=first_rung_factor)
 
@@ -817,7 +898,7 @@ class SequentialRefinement:
         if verify_discontinuities and steps and not cancelled:
             self._verify_discontinuities(
                 steps, patterns, names, mode, base_plan, two_theta_limits,
-                prepare, stream=stream, cancel=cancel)
+                prepare, constrain, stream=stream, cancel=cancel)
         # what the per-pattern diagnostics could not say: "42 of 68" (WP-1110)
         diagnostics += _persistent_diagnostics(series)
 
@@ -827,7 +908,8 @@ class SequentialRefinement:
             back_entries, *_ = self._chain(
                 list(reversed(order)), patterns, names, xs, mode, base_plan,
                 ladder, two_theta_limits, reseed, reseed_factor, prepare,
-                None, history_suffix=".backward", stream=stream, cancel=cancel,
+                constrain, None,
+                history_suffix=".backward", stream=stream, cancel=cancel,
                 pass_name="backward", first_rung_factor=first_rung_factor)
             back = SeriesResult(mode=mode, entries=back_entries, x_label=x_label,
                                 direction="backward")
@@ -858,7 +940,8 @@ class SequentialRefinement:
 
     # ------------------------------------------------------------------
     def _chain(self, order, patterns, names, xs, mode, base_plan, ladder,
-               two_theta_limits, reseed, reseed_factor, prepare, on_result,
+               two_theta_limits, reseed, reseed_factor, prepare, constrain,
+               on_result,
                history_suffix: str = "", stream: EventStream | None = None,
                cancel=None, pass_name: str = "forward",
                first_rung_factor: float | None = None):
@@ -885,6 +968,13 @@ class SequentialRefinement:
         models: dict[int, tuple[Structure, Instrument]] = {}
         previous: tuple[Structure, Instrument] | None = None
         previous_hkl: list = []
+        #: the last accepted pattern's named-variable values, by bare name.
+        #: Beside ``previous_hkl`` and for its reason: a variable lives outside
+        #: the models, so ``_carry_into`` — which reads a ``ParameterTable``
+        #: built from a fitted ``Structure``/``Instrument`` pair — cannot see
+        #: one, and ``carry``'s default ``["*"]`` would be a claim nothing kept
+        #: (WP-1441).
+        previous_vars: dict[str, float] = {}
         previous_tag: tuple[str | None, str | None] = (None, None)
         accepted_rwp: list[float] = []
         # WP-1127's sample: what every first rung that was *kept without
@@ -932,8 +1022,10 @@ class SequentialRefinement:
                     ref, result = self._fit_one(
                         data, names[k], previous if rung_warm else None,
                         previous_hkl if rung_warm else [], rung_plan, mode,
-                        two_theta_limits, position, previous_tag, prepare, k,
+                        two_theta_limits, position, previous_tag, prepare,
+                        constrain, k,
                         history_suffix + ("" if not tried else f".{rung}"),
+                        previous_vars=previous_vars if rung_warm else {},
                         stream=stream, cancel=cancel,
                         stamp={**stamp,
                                **_rung_stamp(rung, escalation=bool(tried))})
@@ -977,6 +1069,8 @@ class SequentialRefinement:
             if entry.status != "diverged":
                 previous = models[k]
                 previous_hkl = _extract_reflections(best_ref._model)
+                previous_vars = {n: p.value
+                                 for n, p in best_ref._variables.items()}
                 previous_tag = (entry.tree_id, entry.node_id)
                 if entry.statistics is not None:
                     accepted_rwp.append(entry.statistics.rwp)
@@ -1004,7 +1098,8 @@ class SequentialRefinement:
                  previous_hkl: list[ReflectionState],
                  plan: RefinementPlan, mode: Mode, two_theta_limits,
                  position: int, previous_tag: tuple[str | None, str | None],
-                 prepare, index: int, history_suffix: str = "", *,
+                 prepare, constrain, index: int, history_suffix: str = "", *,
+                 previous_vars: dict[str, float] | None = None,
                  stream: EventStream | None = None,
                  stamp: dict | None = None, cancel=None):
         """One pattern: warm the models from ``previous``, then run ``plan``."""
@@ -1040,6 +1135,9 @@ class SequentialRefinement:
             # ReflectionState, matched by hkl at the first stage's compile.
             ref._pending_reflections = [r.model_copy(deep=True)
                                         for r in previous_hkl]
+        if constrain is not None:
+            constrain(index, ref)
+        _carry_variables(ref, previous_vars or {}, self.carry)
         result = ref.fit(data, mode=mode, plan=plan,
                          two_theta_limits=two_theta_limits,
                          events=(None if stream is None
@@ -1050,7 +1148,8 @@ class SequentialRefinement:
 
     def _verify_discontinuities(self, steps: list[_FlaggedStep], patterns,
                                 names, mode, base_plan, two_theta_limits,
-                                prepare, *, stream: EventStream | None = None,
+                                prepare, constrain, *,
+                                stream: EventStream | None = None,
                                 cancel=None) -> None:
         """Refit each flagged step's two patterns cold, and record the ratio.
 
@@ -1066,7 +1165,12 @@ class SequentialRefinement:
         determine the path (a held phase, a stage that returned nothing for
         it): a ratio needs both ends, and an absent one is not a zero.
 
-        ``cancel`` is the chain's own token, threaded through because these are
+        ``prepare`` and ``constrain`` are threaded through for the same reason the
+    plan and the models are: a cold refit that dropped the caller's own
+    constraints would be a different model, and the ratio it reports compares
+    the step against a fit nobody asked for.
+
+    ``cancel`` is the chain's own token, threaded through because these are
         ordinary fits and up to ``2s`` of them: a caller who can stop the walk
         must be able to stop the check.  A cancel here leaves every diagnostic
         it had not reached exactly as the walk wrote it — ``value`` absent, the
@@ -1080,8 +1184,8 @@ class SequentialRefinement:
             if k not in cold:
                 _ref, result = self._fit_one(
                     patterns[k], names[k], None, [], base_plan, mode,
-                    two_theta_limits, k, (None, None), prepare, k, ".verify",
-                    stream=stream, cancel=cancel,
+                    two_theta_limits, k, (None, None), prepare, constrain, k,
+                    ".verify", stream=stream, cancel=cancel,
                     stamp={"series_index": k, "series_label": names[k],
                            "series_n": len(patterns), "series_pass": "verify"})
                 cold[k] = result

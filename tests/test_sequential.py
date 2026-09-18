@@ -889,8 +889,9 @@ class _StubColdFits(SequentialRefinement):
         self.refits: list[str] = []
 
     def _fit_one(self, data, label, previous, previous_hkl, plan, mode,
-                 two_theta_limits, position, previous_tag, prepare, index,
-                 history_suffix="", *, stream=None, stamp=None, cancel=None):
+                 two_theta_limits, position, previous_tag, prepare, constrain,
+                 index, history_suffix="", *, previous_vars=None, stream=None,
+                 stamp=None, cancel=None):
         assert previous is None and previous_hkl == []   # cold, by construction
         assert history_suffix == ".verify"
         self.refits.append(label)
@@ -915,7 +916,7 @@ def test_verification_reports_a_chain_made_step_as_a_small_ratio():
                             "p3": {"phases.0.cell.a": 4.1567}})
     steps = [_flagged("phases.0.cell.a", 2e-3)]
     runner._verify_discontinuities(steps, [None] * 6, [f"p{i}" for i in range(6)],
-                                   "rietveld", _CHEAP, None, None)
+                                   "rietveld", _CHEAP, None, None, None)
     d = steps[0].diagnostic
     assert d.value == pytest.approx(0.05, rel=1e-6)
     assert "0.05× the chain's" in d.message
@@ -928,7 +929,7 @@ def test_verification_refits_each_pattern_once_for_all_its_flagged_paths():
                             "p3": {"phases.0.cell.a": 4.002, "phases.0.cell.b": 4.002}})
     steps = [_flagged("phases.0.cell.a", 2e-3), _flagged("phases.0.cell.b", 2e-3)]
     runner._verify_discontinuities(steps, [None] * 6, [f"p{i}" for i in range(6)],
-                                   "rietveld", _CHEAP, None, None)
+                                   "rietveld", _CHEAP, None, None, None)
     assert runner.refits == ["p2", "p3"]
     assert all(s.diagnostic.value == pytest.approx(1.0, rel=1e-6) for s in steps)
 
@@ -941,7 +942,7 @@ def test_verification_ratio_is_signed_so_the_other_way_is_not_a_reproduction():
                             "p3": {"phases.0.cell.a": 4.0}})
     steps = [_flagged("phases.0.cell.a", 2e-3)]
     runner._verify_discontinuities(steps, [None] * 6, [f"p{i}" for i in range(6)],
-                                   "rietveld", _CHEAP, None, None)
+                                   "rietveld", _CHEAP, None, None, None)
     assert steps[0].diagnostic.value == pytest.approx(-1.0, rel=1e-6)
     assert "-1.00× the chain's" in steps[0].diagnostic.message
 
@@ -952,7 +953,7 @@ def test_verification_says_so_when_a_cold_fit_determines_nothing():
     runner = _StubColdFits({"p2": {"phases.0.cell.a": 4.0}, "p3": {}})
     steps = [_flagged("phases.0.cell.a", 2e-3)]
     runner._verify_discontinuities(steps, [None] * 6, [f"p{i}" for i in range(6)],
-                                   "rietveld", _CHEAP, None, None)
+                                   "rietveld", _CHEAP, None, None, None)
     assert steps[0].diagnostic.value is None
     assert "could not be re-measured" in steps[0].diagnostic.message
 
