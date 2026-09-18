@@ -2782,13 +2782,23 @@ def test_the_client_draws_a_mark_for_every_reason_a_row_can_be_held():
     mark until a browser pass on the 11-BM example (WP-1214).
 
     Derived from ``refinable`` rather than listed, because ``refinable`` *is*
-    the definition of held: a fifth reason has to be written into it, and it
+    the definition of held: a sixth reason has to be written into it, and it
     fails here the moment it is.  The fields it reads, not the words its source
     contains — ``set_vary`` in a docstring is not a read of ``vary``, and
     ``locked`` contains ``lo``.
+
+    The second assertion is the one this test is named after, and it was
+    missing until WP-1435 added the fifth reason (a caller's ``hold``).  The
+    list above is a tripwire that asks a human to go and teach the client, and
+    a tripwire is only as good as the trip: it went off, and nothing would
+    have failed had the author stopped there and updated the list.  So the
+    client's own source is read here.  The two vocabularies share field names
+    one for one, ``row.<field>`` against ``self.<field>``, which is what makes
+    the comparison possible without running TypeScript.
     """
     import ast
     import inspect
+    import re
     import textwrap
 
     from rietx.schemas.params import ParameterRow
@@ -2797,7 +2807,16 @@ def test_the_client_draws_a_mark_for_every_reason_a_row_can_be_held():
     read = {node.attr for node in ast.walk(tree)
             if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name)
             and node.value.id == "self" and node.attr in ParameterRow.model_fields}
-    assert read == {"locked", "tie", "mode_fixed", "needs_held_cell"}
+    assert read == {"locked", "tie", "mode_fixed", "held", "needs_held_cell"}
+
+    source = (Path(__file__).parents[1] / "gui" / "src" / "lib"
+              / "table.ts").read_text(encoding="utf-8")
+    body = source.split("export function heldKind(")[1].split("\n}")[0]
+    drawn = set(re.findall(r"row\.(\w+)", body))
+    assert read <= drawn, (
+        f"held-reason(s) the client cannot draw: {sorted(read - drawn)} — "
+        "add a branch to lib/table.ts's heldKind and a glyph to heldGlyph, or "
+        "the row shows an empty box where its vary checkbox would be")
 
 
 def test_the_instrument_profile_saves_from_a_project_that_has_not_been_fitted(

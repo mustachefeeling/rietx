@@ -1,4 +1,4 @@
-# 8. Twenty-four things that will surprise you, all measured
+# 8. Twenty-five things that will surprise you, all measured
 
 Load it when something the fit did makes no sense. Every entry is a measured result that contradicts an intuition.
 
@@ -408,3 +408,19 @@ the component on the sample's own instrument after `load_instrument_profile`;
 nothing warns you.** Check `len(instrument.extra_components)` after the load if
 you are driving that workflow unattended.
 (Measured: WP-1103.)
+
+**8.25 `vary=False` does not keep a parameter fixed, because a plan replaces
+the vary flags rather than continuing them.** A stage's `turn_on` glob frees
+whatever it matches, so a cell you pinned is refined by any plan carrying
+`phases.*.cell.*` — measured on the shipped LaB6 over 2-30° 2θ: a cell declared
+at 4.157597 Å comes back at 4.156826 Å, 185 ppm away, while
+`structure.phases[0].cell.a.vary` still reads `False` and
+`result.parameters` says `True`. The model you handed in and the result
+contradict each other about the same parameter, and nothing fires.
+**Say it with `Refinement.hold(globs)` instead**, which outranks the glob,
+survives a save and reopen, and makes the stage report what it could not free
+(§7 `HOLD_BLOCKED_PLAN`). This is the failure mode of
+calibrate-on-a-certified-standard: holding the certificate's cell is what
+decorrelates zero, displacement and cell, so a plan that frees it leaves a
+calibration that is worthless and looks clean.
+(Measured: WP-1435, issue #211.)
