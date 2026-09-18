@@ -27,7 +27,7 @@ test now runs only on the **last** stage, so `RefinementPlan.intermediate_ftol`
 (1e-6) can no longer reach it and only a caller's own final `ftol` is left.
 
 **The defect that survives.** `bound_findings`
-(`strategy/staged.py:1031`) decides by distance: is θ within
+(`strategy/staged.py:1377`) decides by distance: is θ within
 `BOUND_HIT_RTOL = 1e-10` of the limit. TRF keeps its iterates strictly
 feasible, so how close a boundary solution lands is a function of when the
 solver stopped. Measured 2026-09-16 on `make_lab6` with a ±0.02° zero shift
@@ -66,7 +66,7 @@ at a genuine interior optimum, a separation of eleven orders where distance
 gives none.
 
 **The repo already answers this question correctly one door along.**
-`CONSTRAINT_ACTIVE` (`refine.py:2828`) fires "when the answer-producing stage
+`CONSTRAINT_ACTIVE` (`refine.py:2953`) fires "when the answer-producing stage
 **pressed** a constraint", counts truncations rather than distances, examines
 only the stage whose θ becomes the result, and is `info` rather than `warning`
 because landing on a constraint face is what a constrained driver is for. Its
@@ -95,12 +95,27 @@ gradient is large, because the stage stopped early en route. That is a
 `STAGE_MAX_ITER`-shaped statement and must not become a `BOUND_HIT`, so the
 test stays a conjunction — near the limit **and** still pushed into it.
 
+**Three corrections, 2026-09-18, checked against the tree on arrival.**
+`StageOutcome` is a name this WP and 1310 both use and no module defines. The
+carrier is `LSQOutcome` (`optimize/least_squares.py:174`), which `refine.py`
+reads and which already holds four WP-1076-shaped fields with named writers;
+`LMOutcome` (`optimize/lm.py:205`) is the `lm` driver's half. Nothing else in
+§ Context moved. The line numbers above are refreshed: WP-1311 landed on
+2026-09-18 and grew `staged.py` by about 350 lines. And `bound_findings` takes
+`(bounds, free, theta)` and no outcome, while its one caller `check_guards`
+(`staged.py:1491`) already has `outcome` in hand, so the gradient reaches the
+test through a signature change and not through new plumbing.
+
 ## Non-goals
 
 - **Not which parameters get bounds.** The geometry-scaled displacement
   bound, the Biso flag and the rest are
   [1311](1311-walking-parameter-bounds.md)'s, which reports through this
-  machinery and inherits whatever it decides.
+  machinery. It closed 2026-09-18 and decided to *keep* the bounds it found —
+  the ±1 mm on `sample_displacement`, the two capillary offsets and the 25 Å²
+  Biso cap — on the maintainer's ruling, so what this WP inherits is settled
+  rather than pending. Its four new diagnostics fire on no acceptance fixture,
+  which is the baseline the last task measures against.
 - **Not the softplus floor.** A softplus lower bound is −∞ internally so
   `BOUND_HIT` never fires from below on a scale or a width; 1311's Inherited
   records that as intended and it is not revisited here.
@@ -109,10 +124,12 @@ test stays a conjunction — near the limit **and** still pushed into it.
 
 ## Tasks
 
-- [ ] Capture the gradient and the optimality measure on `StageOutcome`, from
-      the `OptimizeResult` both drivers already produce. A declared field
-      needs its writer named at review (WP-1076), so the `lm` path either
-      fills it or the field admits that it cannot.
+- [ ] Capture the gradient and the optimality measure on `LSQOutcome`
+      (`optimize/least_squares.py:174`), from the `OptimizeResult` both drivers
+      already produce. A declared field needs its writer named at review
+      (WP-1076), so the `lm` path either fills it or the field admits that it
+      cannot; `LMOutcome` (`optimize/lm.py:205`) carries `fun` and `jac`, so
+      the `lm` half is computable rather than absent.
 - [ ] `bound_findings` takes the conjunction: within a *loose* distance of the
       limit **and** the gradient still pushing into it, normalised by the
       optimality measure. State the two thresholds with the measurement that
@@ -155,7 +172,7 @@ The shipping PR carries `Closes #273`.
 - [1310](1310-report-repeats-itself.md) § 6 — the measurement that ruled out
   both of the issue's fixes, and § 4 for the vector half already landed.
 - [1311](1311-walking-parameter-bounds.md) — reports through this machinery.
-- `refine.py:2828` `_constraint_diagnostics` — the design note: evidence from
+- `refine.py:2953` `_constraint_diagnostics` — the design note: evidence from
   the answer-producing stage, `info` not `warning`.
 - Coelho (2005), *J. Appl. Cryst.* **38**, 455 (in the local corpus).
 - Nocedal & Wright, *Numerical Optimization*, ch. 12, 16; Gill, Murray &
