@@ -170,15 +170,22 @@ on `main` at `84eddb17` against a fork integration branch measured at
   record's § Acceptance carries two rows belonging to this WP — the two lists,
   and the absolute amplitude with its seed — written at the open so they can
   fail.
-- **The TOF rungs are not in it, and they are not in the chain.** `main`'s
-  v2+ fence holds neutron TOF behind issue #193, which its own reporter filed
-  that way, and 1418's § Non-goals already excludes it. A fence moves by a
-  recorded decision, the way magnetic structures left it on 2026-09-02, and
-  not by an implementation existing. So the integration branch's TOF half is
-  split back out before any PR is cut. Three of #286's four questions are
-  consequences of it being merged in and lapse with the split: the
-  `read_gsas2_instprm` collision, `src/rietx/io/CLAUDE.md`'s 58 lines of TOF
-  rules, and where the TOF evidence lives.
+- **The TOF half splits out of the chain, and #193 is the next fence decision
+  rather than a refusal.** `main`'s v2+ fence holds neutron TOF behind #193,
+  and 1418's § Non-goals already excludes it, so the two halves cannot ride
+  into review in one chain. The magnetic half has a milestone and goes first.
+  Three of #286's four questions are consequences of the merge and lapse with
+  the split: the `read_gsas2_instprm` collision, `src/rietx/io/CLAUDE.md`'s 58
+  lines of TOF rules, and where the TOF evidence lives. **The fence has been
+  built through**, which is the case for reopening it: #193's public record
+  stops at a 2026-09-05 scoping comment saying "no code and no request for a
+  date", while the fork carries a working implementation reaching at least T-1
+  and T-2 (`CompiledTOFModel`, `io/instrument_tof.py`, measured Δd/d and a
+  GSAS-I PRCF1 corroboration). None of it is visible: the fork's public
+  branches carry no TOF branch and the integration branch was not pushed. The
+  ask returned on 2026-09-18 is that the TOF half be pushed as its own branch
+  with the rungs it reaches named, and the milestone decision is then taken on
+  the code.
 - **`references/api.md` is split, not re-capped.** `API_INDEX_MAX_BYTES` is
   39 000 against a **40 kB** physical wall — Bash truncates above it to a 2 kB
   preview, which is the whole derivation — so a raise buys a few hundred bytes

@@ -737,11 +737,11 @@ scope creep. Each item names what fenced it.
   (Cheary-Coelho 1992) — **with** the peaks buffer, never before
   ([1122](wp/1122-compiled-peaks-buffer.md) measured shape reuse below
   break-even without one); neutron **TOF** (CW landed in 1134; issue #193; the
-  energy-dependent resonant absorption at S(Q), #113) — **a working
-  implementation exists on the `mustachefeeling` fork and is still fenced**,
-  because a fence moves by a recorded decision and not by work existing
-  (1419 § Inherited, 2026-09-18, holds the ruling and the `.instprm` reader
-  question that comes with it); spherical-harmonics
+  energy-dependent resonant absorption at S(Q), #113) — **built through
+  rather than deferred**: a working implementation reaching at least T-1 and
+  T-2 exists unpushed on the `mustachefeeling` fork, so #193 is the next fence
+  decision to take, on the branch once it is visible (1419 § Inherited,
+  2026-09-18); spherical-harmonics
   texture (Von Dreele 1997; #131); Z-matrices and rigid bodies (#195);
   difference Fourier / maximum-entropy maps (McCusker §6; the partition input
   exists in `lebail_update`, the consumer is structure completion; #197);
