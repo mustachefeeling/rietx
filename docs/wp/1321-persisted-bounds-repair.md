@@ -31,6 +31,7 @@ shipping PR closes **#209 and #204**.
   which is the same question this WP asks about documents persisted *without*
   those bounds, and the same answer may not hold there, since a persisted
   unbounded `biso` is a repair rather than a break.
+
 **From WP-1440 (the v1.5 notes audit, 2026-09-18).** PR #289 proposed physical
 bounds on `Cell`'s six parameters and the bounds half was **withdrawn** before
 merge, while its degenerate-metric guard shipped. The stated reason is this

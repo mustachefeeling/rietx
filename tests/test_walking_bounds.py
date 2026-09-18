@@ -541,6 +541,30 @@ def test_the_verdict_tracks_the_majority_across_the_boundary():
     assert seen == {True, False}, "the sweep never crossed the boundary"
 
 
+def test_a_tied_term_cannot_buy_silence():
+    """``moving_paths``, never ``free_paths`` (root CLAUDE.md).
+
+    A tie carries its coefficient on the free column it follows, so a term
+    reaching the fit through one is refined on this pattern without ever being
+    a column of θ. It is exactly as undetermined as a free one, so asking which
+    entries are *columns* would let a tie hide the very case this guard is for.
+    """
+    table, model = _resolution_state(**SYNCHROTRON, free=False)
+    table.set_vary(["instrument.profile.v"], True)
+
+    # tie U to the free V: U is now not a column, but it moves
+    from rietx.params.vector import AffineTie
+
+    table.set_tie("instrument.profile.u",
+                  AffineTie(terms=(("instrument.profile.v", 1.0),), const=0.0))
+    assert "instrument.profile.u" not in set(table.free_paths)
+    assert "instrument.profile.u" in set(table.moving_paths)
+
+    findings = check_resolution_supported(table, model)
+    assert [f.code for f in findings] == ["RESOLUTION_UNCONSTRAINED"]
+    assert "instrument.profile.u" in findings[0].paths
+
+
 def test_the_finding_reaches_the_diagnostics_naming_the_remedy():
     from rietx.refine import _guard_diagnostics
     from rietx.strategy.staged import GuardReport

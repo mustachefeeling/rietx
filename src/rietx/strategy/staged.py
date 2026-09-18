@@ -757,7 +757,8 @@ class GuardReport:
     findings rather than strings.  ``str(finding)`` is the old entry, so a
     consumer that only ever printed them needs no change.
     ``nonpositive_resolution``, ``large_biso``, ``unsupported_resolution`` and
-    ``flat_directions`` are the seventh to tenth, added by WP-1311; their
+    ``flat_directions`` are the eighth to eleventh — ``narrow_humps`` (WP-1103)
+    is the seventh — added by WP-1311; their
     writers are :func:`check_resolution_positive`, :func:`check_biso_plausible`,
     :func:`check_resolution_supported` and the correlation loop in
     :func:`check_guards`.
@@ -835,9 +836,18 @@ class GuardReport:
     def findings(self) -> list[GuardFinding]:
         """Every finding, in the order the diagnostics are emitted in
         (``refine._guard_diagnostics``): narrow peaks come *before* the
-        background/roughness absorption findings, matching that loop order."""
+        background/roughness absorption findings, matching that loop order.
+
+        **Every** ``list[GuardFinding]`` field reaches this list, which
+        ``tests/test_capabilities.py`` holds true by ``dataclasses.fields``
+        rather than by a second hand-written order: a new field that a writer
+        fills and this method drops is invisible — the report carries it, the
+        diagnostics carry it, and only this projection is empty (WP-1076's
+        rule, since a declared name whose reader is missing fails no test)."""
         return [*self.high_correlations, *self.at_bounds, *self.nonpositive_adps,
-                *self.nonpositive_strain, *self.narrow_humps,
+                *self.nonpositive_strain, *self.unsupported_resolution,
+                *self.flat_directions, *self.large_biso,
+                *self.nonpositive_resolution, *self.narrow_humps,
                 *self.background_correlations, *self.roughness_correlations]
 
 
@@ -1091,9 +1101,18 @@ def check_resolution_supported(table, model) -> list[GuardFinding]:
     half the fitted points.  No free constant enters, which is why this guard
     has no tunable of its own.
 
-    Fires only on terms this table actually **frees**.  Held at a measured
+    Fires only on terms this table can actually **move**.  Held at a measured
     instrumental profile they are exactly what the paper prescribes, so
-    reporting them would flag the remedy as the fault.
+    reporting them would flag the remedy as the fault (the WP-1073 lesson: a
+    map that suggests a force-fixed parameter is reporting its own blindness).
+
+    ``moving_paths`` rather than ``free_paths``, which is the root CLAUDE.md
+    rule and not a detail here.  A tie carries its coefficient on the free
+    column it follows, so a ``U`` reaching the fit through
+    :meth:`~rietx.refine.Refinement.tie` is refined on this pattern without
+    ever being a column of θ.  It is exactly as undetermined as a free one and
+    exactly as unquotable, so asking which entries are *columns* would let a
+    tie buy silence.
 
     The instrument terms alone, no phase size or strain, for the reason
     ``CompiledModel.instrument_fwhm_deg`` gives.  Needs the compiled model for
@@ -1105,8 +1124,8 @@ def check_resolution_supported(table, model) -> list[GuardFinding]:
 
     if model is None:
         return []
-    freed = tuple(p for p in GAUSSIAN_RESOLUTION_PATHS
-                  if p in set(table.free_paths))
+    moving = set(table.moving_paths)
+    freed = tuple(p for p in GAUSSIAN_RESOLUTION_PATHS if p in moving)
     if not freed:
         return []
     tt = np.asarray(model.tt, dtype=np.float64)

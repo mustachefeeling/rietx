@@ -2100,9 +2100,11 @@ class Refinement:
         against a truth of 4.15660, and the warning survived.  It cost two
         rounds of misdirected analysis on a real capillary fit.
 
-        ``RESOLUTION_NOT_POSITIVE`` and ``BISO_UNUSUALLY_LARGE`` (WP-1311) are
-        re-taken the same way.  Each reads one number off the values its stage
-        landed on, so both make the same kind of claim a bound hit does.  A
+        ``RESOLUTION_NOT_POSITIVE``, ``BISO_UNUSUALLY_LARGE`` and
+        ``RESOLUTION_UNCONSTRAINED`` (WP-1311) are re-taken the same way.  Each
+        reads one number off the values its stage landed on, so all three make
+        the same kind of claim a bound hit does (``_REVISABLE_CODES`` carries
+        the extra clause the third one needs, its free set being cumulative).  A
         plan whose later stages repair the resolution otherwise reports an
         earlier stage's collapse on an answer that is physical: measured on
         ``make_lab6`` from a schema-legal U, V, W with the quadratic negative
@@ -2716,11 +2718,19 @@ class Refinement:
 # ----------------------------------------------------------------------
 #: Guard codes that are **discarded per stage and re-taken on the converged
 #: vector** rather than accumulated (WP-1310 for the first, WP-1311 for the
-#: other two).  Each reads a number straight off the values a stage landed on,
-#: so it describes a *vector* and not a run: a plan exists to let an early
+#: other three).  Each reads a number straight off the values a stage landed
+#: on, so it describes a *vector* and not a run: a plan exists to let an early
 #: stage absorb an error a later one corrects, and an intermediate state's
 #: finding on the final result is a claim about a fit that no longer holds.
 #: Every stage's own copy stays on its ``StageReport`` and its history node.
+#:
+#: ``RESOLUTION_UNCONSTRAINED`` belongs here on a second fact and not only on
+#: that one: it also reads *which* terms the stage freed, and staging is
+#: **cumulative** (``Refinement`` § stages), so a plan that frees U, V, W once
+#: still has them free at the last stage and the final guard re-takes the
+#: finding.  A plan that turned them back off would drop it, which is the
+#: intended reading — held at instrumental values is the remedy the paper
+#: prescribes, not the fault.
 _REVISABLE_CODES = ("BOUND_HIT", "RESOLUTION_NOT_POSITIVE",
                     "RESOLUTION_UNCONSTRAINED",
                     "BISO_UNUSUALLY_LARGE")
