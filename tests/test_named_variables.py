@@ -865,3 +865,91 @@ def test_rebasing_an_anchor_twice_does_nothing_the_second_time(ref):
     assert table.rebase_anchored_dofs([B_DOF]) == []
     assert table.rebase_anchored_dofs([B_DOF]) == []
     assert by_path[B_X].value == pytest.approx(B_X0 + 0.01)
+
+
+# ----------------------------------------------------------------------
+# WP-1342 — the Le Bail force-fix asks what a column moves
+# ----------------------------------------------------------------------
+# The phase freeze's sibling, found by asking which other decision in
+# ``refine.py`` reads a free path's name.  Against an intensity model there is
+# no |F|² to fit, so a structural parameter is not refinable at all; the drop
+# tested the free path's name, and a variable driving one slipped past it.
+def _lebail_plan(glob: str) -> rx.RefinementPlan:
+    return rx.RefinementPlan(stages=[
+        rx.Stage("bkg", ["instrument.background.*"]),
+        rx.Stage("displ", ["instrument.background.*", glob]),
+    ])
+
+
+def _lebail_fit(tied: bool):
+    ref = rx.Refinement(make_lab6(),
+                        rx.Instrument.debye_scherrer(wavelength=WAVELENGTH),
+                        history=False)
+    glob = "phases.*.atoms.*.biso"
+    if tied:
+        ref.add_variable("B", 0.7, min=0.0, max=25.0)
+        ref.tie("phases.0.atoms.0.biso", "vars.B")
+        glob = "vars.*"
+    result = ref.fit(synthesize(), mode="lebail", plan=_lebail_plan(glob),
+                     telemetry=False)
+    return ref, result
+
+
+def test_a_variable_driving_a_structural_path_is_force_fixed_in_lebail():
+    """The arm that failed: ``vars.B`` entered θ where its dependent could not.
+
+    Le Bail extracts the intensities, so an atom's ``biso`` changes nothing in
+    the calculated pattern — the column is dead, and before this it came back
+    with a value and an esd that read as measurements.
+    """
+    _, tied = _lebail_fit(tied=True)
+    _, plain = _lebail_fit(tied=False)
+
+    freed = {p for s in tied.stages for p in s.freed}
+    assert "vars.B" not in freed
+    assert freed == {p for s in plain.stages for p in s.freed}
+    # and the dead column is gone from the answer, not merely unreported
+    assert "vars.B" not in {p.path for p in tied.parameters}
+
+
+def test_the_force_fixed_column_costs_the_fit_nothing():
+    """Bit-identical to the untied fit, which is what "dead column" means."""
+    _, tied = _lebail_fit(tied=True)
+    _, plain = _lebail_fit(tied=False)
+    assert tied.statistics.rwp == plain.statistics.rwp
+
+
+def test_the_row_and_the_drop_agree_about_a_force_fixed_column():
+    """One test projected twice, never two opinions (WP-1076).
+
+    ``parameters()`` reports ``mode_fixed`` and ``_run_stage`` drops the freed
+    path; a row calling a column refinable that the next stage silently fixes
+    is the disagreement that rule exists to prevent.
+    """
+    ref, _ = _lebail_fit(tied=True)
+    rows = {r.path: r for r in ref.parameters(mode="lebail")}
+    assert rows["vars.B"].mode_fixed
+    assert not rows["vars.B"].refinable
+    # and in rietveld the same variable is an ordinary refinable parameter
+    assert not {r.path: r for r in ref.parameters(mode="rietveld")}[
+        "vars.B"].mode_fixed
+
+
+def test_a_column_driving_one_fixed_and_one_live_path_stays_free():
+    """All, never any — the flatness argument again.
+
+    A variable driving an atom's ``biso`` *and* the zero shift has gradient
+    through the zero shift, so fixing it would freeze a parameter Le Bail
+    refines perfectly well.
+    """
+    ref = rx.Refinement(make_lab6(),
+                        rx.Instrument.debye_scherrer(wavelength=WAVELENGTH),
+                        history=False)
+    ref.add_variable("M", 0.01, min=-1.0, max=1.0)
+    ref.tie("phases.0.atoms.0.biso", "vars.M", scale=10.0, offset=0.5)
+    ref.tie("instrument.zero_shift", "vars.M")
+
+    result = ref.fit(synthesize(), mode="lebail",
+                     plan=_lebail_plan("vars.*"), telemetry=False)
+    assert "vars.M" in {p for s in result.stages for p in s.freed}
+    assert "vars.M" in {p.path for p in result.parameters}

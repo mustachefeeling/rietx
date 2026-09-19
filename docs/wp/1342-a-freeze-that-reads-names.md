@@ -111,6 +111,46 @@ are absolute, so a name test would have reached the wrong rows there too. This
 WP asks the same question one seam over, and takes the same answer: the builder
 declares the fact, the consumer never guesses it.
 
+### The siblings, and the two left alone
+
+The defect is "a decision in `refine.py` that reads a free path's name", so the
+other decisions were asked the same question. Two more read names; two look
+like they do and are fine.
+
+**Fixed — the Le Bail / Pawley force-fix.** `mode_fixed_path`'s two drop sites
+tested the free path's name, so a `vars.B` driving an atom's `biso` was not
+force-fixed and entered θ as a column Le Bail has no |F|² to fit. Measured on
+LaB₆: freeing `vars.*` in `lebail` put `vars.B` in the freed set and moved
+`atoms[0].biso` 0.5 → 0.7, where freeing the `biso` glob itself freed nothing;
+the column carried a value and an esd that read as measurements. `refine.
+mode_fixed_column` is the same shape as `_only_moves`, and `parameters()`
+reports through it too, so the row and the drop cannot disagree (WP-1076).
+
+That second consumer is why `ParameterTable.entry_reach` exists beside
+`column_reach`: C has a column only for a *free* entry, and the drop **makes**
+the variable fixed, so a row asked afterwards had nothing to read and called
+the column refinable. `entry_reach` reads the declarations C is compiled from,
+and a test holds the two equal on every free path.
+
+**Left alone — the cell window** (`params.vector.cell_window`, applied in
+`ParameterTable.bounds` through `_cell_parameter_name`). It reads the free
+entry's own name and is genuinely blind to a tie: measured, a `vars.A` driving
+an unsupported phase's cell comes back `[-inf, inf]` where the untied path gets
+the TOPAS window. It is left that way because the hold now takes that column
+first — the window is the belt behind these braces, and `_freeze_cell_windows`
+runs inside `run_least_squares`, after `_run_stage` has held. What survives is
+the *shared* column, and there no window is the right answer for the same
+reason no hold is: bounding it would narrow a direction the data can see.
+
+**Left alone — the joint runner's own builder**
+(`multi._unsupported_paths_multi`). Identical shape, unreachable defect:
+`JointRefinement` takes a `Structure` and a list of `Instrument`s, never a
+`Refinement`, so it has no `add_variable`, no tie register and no
+`_apply_ties`. Only the *derived* ties exist in its sub-tables and those stay
+inside their own phase, which is the bit-identity this WP pins in
+`test_a_derived_tie_never_leaves_its_own_phase`. **Whoever gives the joint
+runner a tie verb converts that call site in the same change.**
+
 ## Non-goals
 
 - The Jacobian's own gate. `_make_jacobian` already dispatches on reach, not
@@ -130,7 +170,7 @@ declares the fact, the consumer never guesses it.
       with one phase below `PHASE_SUPPORT_SIGMA`, and write it in this file.
 - [x] `_unsupported_phase_paths` reads reach, and `PHASE_UNCONSTRAINED` /
       `StageResult.held` name a column that is not a phase path.
-- [ ] `mode_fixed_path`'s callers do the same for the Le Bail / Pawley
+- [x] `mode_fixed_path`'s callers do the same for the Le Bail / Pawley
       force-fix, or the WP records why the two cases differ.
 - [ ] Tests: a variable driving an unsupported phase's cell is held (the
       arm that fails today), the untied path stays bit-identical, a series

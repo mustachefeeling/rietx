@@ -156,6 +156,27 @@ def mode_fixed_path(path: str, mode: Mode) -> bool:
             or ".source.lines." in path)
 
 
+def mode_fixed_column(reached: list[str], mode: Mode) -> bool:
+    """Whether ``mode`` force-fixes every model path this column moves.
+
+    :func:`mode_fixed_path` one rank up, and the same repair
+    :func:`_only_moves` is for the phase freeze (WP-1342): the drop was a test
+    on the free path's **name**, so a caller's ``vars.B`` driving an atom's
+    ``biso`` was not force-fixed and entered θ as a column Le Bail has no |F|²
+    to fit — a dead direction carrying a value and an esd that read as
+    measurements.  Measured on LaB₆: freeing ``vars.*`` in ``lebail`` put
+    ``vars.B`` in the freed set and moved the atom's ``biso`` 0.5 → 0.7, where
+    freeing the ``biso`` glob itself freed nothing.
+
+    **All, never any**, for the flatness reason again: a column driving one
+    force-fixed path and one live parameter has gradient through the live one,
+    and fixing it would freeze that too.  Variables are dropped before the
+    test, being entries the forward model never reads.
+    """
+    moved = [p for p in reached if not is_variable_path(p)]
+    return bool(moved) and all(mode_fixed_path(p, mode) for p in moved)
+
+
 @dataclasses.dataclass(frozen=True)
 class _StageHold:
     """What one stage held, and what it let go again (WP-1301).
@@ -840,6 +861,13 @@ class Refinement:
         # state, so it is read here rather than stored on the entry.
         blocked = (table._wavelength_paths()
                    if table._cell_is_free() else frozenset())
+        # the same test the stage's drop applies, so the report and the drop
+        # cannot disagree about which columns this mode force-fixes (WP-1076's
+        # rule, WP-1342's question).  ``entry_reach`` rather than
+        # ``column_reach`` because this answers about every entry: the drop
+        # *makes* a variable fixed, and a row that then called it refinable
+        # would invite the caller to free what the next stage fixes again.
+        reach = table.entry_reach()
         rows = []
         for e in table.entries:
             rows.append(ParameterRow(
@@ -850,7 +878,9 @@ class Refinement:
                 locked=e.locked,
                 held=e.held,
                 esd=esd.get(e.path),
-                mode_fixed=mode_fixed_path(e.path, mode),
+                mode_fixed=(mode_fixed_column(reach[e.path], mode)
+                            if e.path in reach
+                            else mode_fixed_path(e.path, mode)),
                 needs_held_cell=e.path in blocked,
                 help_key=help_key_for(e.path),
             ))
@@ -1658,7 +1688,9 @@ class Refinement:
         table = self._working_table()
         # the free block must be the set a stage in `mode` would actually
         # leave free — mirror _run_stage's mode-fixed drop
-        for path in [p for p in table.free_paths if mode_fixed_path(p, mode)]:
+        reach = table.column_reach()
+        for path in [p for p in table.free_paths
+                     if mode_fixed_column(reach.get(p, [p]), mode)]:
             table.set_vary([path], False)
         free_before = set(table.free_paths)
 
@@ -1971,9 +2003,11 @@ class Refinement:
             # with the per-hkl intensities) or the line-intensity ratio (which
             # those intensities can absorb pairwise) against the intensity
             # model; drop them from the reported freed list too — it must
-            # describe the set actually left free
+            # describe the set actually left free.  By what the column *moves*
+            # since WP-1342, so a tie cannot carry one past the drop.
+            reach = table.column_reach()
             for path in list(freed):
-                if mode_fixed_path(path, mode):
+                if mode_fixed_column(reach.get(path, [path]), mode):
                     table.set_vary([path], False)
                     freed.remove(path)
 

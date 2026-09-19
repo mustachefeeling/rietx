@@ -474,6 +474,7 @@ for stage in result.stages:
 | `StageResult.n_constraint_truncations` | steps the bounded-LM driver shortened to stay inside a linear-inequality constraint |
 | `StageResult.n_degenerate_cell_probes` | trial cells this stage's residual refused as degenerate (zero or negative volume) rather than warning about and returning NaN |
 | `StageResult.held` | paths the plan freed that this stage held anyway, because the data could not see their phase |
+| `StageResult.held_reach` | per held path, the tied parameters it also stopped |
 | `StageResult.released` | the ones it held at the start and let go again, having seen the phase appear while it solved |
 
 `StageResult.freed` is the field to read when a stage did nothing: a glob that
@@ -490,6 +491,18 @@ which is how the phase can still appear. The values come back as the ones you
 handed in rather than as a walk, `PHASE_UNCONSTRAINED` names the phase and the
 stages that held it, and the parameters are absent from
 `RefinementResult.parameters` because nothing measured them.
+
+What the stage holds is a **column**, not a name. If you tied that cell to a
+variable of your own, the variable is what stops moving, and
+`StageResult.held` names it rather than the cell. `StageResult.held_reach`
+maps each held path to the tied parameters it was also driving, so a cubic
+`a` held on its own account lists the `b` and `c` that followed it, and a
+held `vars.A` lists the cell it drove. Together the two are every value the
+stage froze.
+
+A variable driving two phases is never held. It changes the pattern wherever
+either phase is visible, so it is not the flat direction a hold exists to
+remove, and holding it would freeze a cell the data can measure.
 
 A hold is decided per stage, at the values that stage starts from, so a phase
 that appears later refines normally from the stage where it appears. If it

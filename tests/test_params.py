@@ -603,3 +603,40 @@ def test_a_table_with_nothing_free_reaches_nothing():
     table.set_vary(["*"], False)
     assert table.free_paths == []
     assert table.column_reach() == {}
+
+
+def test_the_two_readings_agree_wherever_both_can_answer():
+    """One declaration read twice: off C, and off the ties C is compiled from.
+
+    ``entry_reach`` exists because C has no column for a fixed entry, so it is
+    the wider reading rather than a second opinion — and the way to keep it
+    that way is to hold the two equal everywhere C *can* answer.
+    """
+    table = make_table()
+    table.set_vary(["phases.0.cell.a", "instrument.zero_shift"], True)
+    table.add_parameter("synthetic.sum", 0.0)
+    table.set_tie("synthetic.sum",
+                  AffineTie(terms=(("phases.0.cell.a", 1.0),
+                                   ("instrument.zero_shift", 0.5))))
+    column, entry = table.column_reach(), table.entry_reach()
+    assert column
+    for path in table.free_paths:
+        assert column[path] == entry[path], path
+
+
+def test_entry_reach_answers_for_a_fixed_source_where_c_cannot():
+    """The case the wider reading exists for.
+
+    Fixing the source deletes its column, so ``column_reach`` stops having an
+    opinion — while the dependent is still tied to it, and a report about what
+    a mode would force-fix has to say so either way.
+    """
+    table = make_table()
+    table.set_vary(["*"], False)
+    table.add_parameter("synthetic.src", 0.0)
+    table.add_parameter("synthetic.dep", 0.0)
+    table.set_tie("synthetic.dep",
+                  AffineTie(terms=(("synthetic.src", 2.0),), const=0.0))
+    assert "synthetic.src" not in table.column_reach()
+    assert table.entry_reach()["synthetic.src"] == ["synthetic.src",
+                                                    "synthetic.dep"]

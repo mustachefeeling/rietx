@@ -1752,6 +1752,36 @@ class ParameterTable:
             out[path] = [self.entries[i].path for i in sorted(rows)]
         return out
 
+    def entry_reach(self) -> dict[str, list[str]]:
+        """The same question asked of **every** entry, free or not.
+
+        :meth:`column_reach` reads **C**, which has a column only for a free
+        entry — so it cannot answer for one that is fixed, and a consumer that
+        must give the same answer either way (a *report* about what a mode
+        would force-fix, say) has nothing to ask.  This reads the declarations
+        C is compiled from instead: each tied entry's flattened sources, which
+        ``_flatten`` has already resolved through chains, transposed.
+
+        **One declaration, two readings, and a test holds them equal** on every
+        free path — ``column_reach()[p] == entry_reach()[p]`` there — so this
+        is not a second opinion about the constraint block.  It is the wider
+        one: a fixed source's dependents are still its dependents, and C simply
+        has no room to say so.
+
+        Every entry is a key, including one nothing follows, whose value is
+        itself.  Ordered by entry for the same reason ``column_reach`` is.
+        """
+        deps: dict[int, set[int]] = {}
+        for i, e in enumerate(self.entries):
+            if e.tie is None:
+                continue
+            for j, coeff in self._flatten(e.tie, (e.path,))[0]:
+                if coeff != 0.0:
+                    deps.setdefault(j, set()).add(i)
+        return {e.path: [self.entries[k].path
+                         for k in sorted({i, *deps.get(i, ())})]
+                for i, e in enumerate(self.entries)}
+
     def x0(self) -> np.ndarray:
         return np.array([to_internal(self._unscaled(self.entries[i]),
                                      self.entries[i].transform)
