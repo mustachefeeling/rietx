@@ -91,10 +91,10 @@ placement, link resolution, and the size caps on this file and CLAUDE.md.
 **[v1.6 — the magnetic structure](#v16--the-magnetic-structure) opened
 2026-09-18** ([record](milestones/v1.6.md)), the day v1.5 shipped
 ([record](milestones/v1.5.md), [notes](releases/1.5.0.md), tag `13bce502`, on
-PyPI); `pyproject.version` is `1.6.0.dev0`. Its acceptance rows are written at
-the open, which v1.5's could not be. Seven WPs — 1326-1329, 1343, 1418, 1419 —
-with a reference implementation on the `mustachefeeling` fork and the design
-settled in #256, #257, #277, #286 and #293.
+PyPI); `pyproject.version` is `1.6.0.dev0`. Its acceptance rows were written
+at the open. Seven WPs — 1326-1329, 1343, 1418, 1419 — with a reference
+implementation on the `mustachefeeling` fork and the design settled in #256,
+#257, #277, #286 and #293.
 
 **Nothing is in flight.** The order is set: 1418's M-6 and M-7 first, having no
 forward-model contact, then 1327's verb, then 1419 as its own PR because the
@@ -102,27 +102,30 @@ two-lists decision it carries gets waved through in a diff about something
 else. **Neutron TOF is not in this milestone** — it stays at [§ v2+](#v2--fenced)
 behind issue #193, and the fork's chain carries it merged in.
 
-**1310's last two closed 2026-09-18**, both in [§ v1.5.x](#v15x--after-the-ship)
-and staged in [releases/1.5.1.md](releases/1.5.1.md):
-[1434](wp/1434-the-bound-test-asks-the-wrong-question.md) and
-[1435](wp/1435-a-hold-the-caller-declares.md), which gives a caller a hold a
-plan may not override. **Also unblocked**, same landing: the `.inp` grammar 1118
-refuses, [1433](wp/1433-the-inp-grammar-still-refused.md).
+**Three silent-answer fixes have landed since the ship**, staged in
+[releases/1.5.1.md](releases/1.5.1.md): 1310's last two on 2026-09-18
+([1434](wp/1434-the-bound-test-asks-the-wrong-question.md),
+[1435](wp/1435-a-hold-the-caller-declares.md), both in
+[§ v1.5.x](#v15x--after-the-ship)), and 2026-09-19's
+[1432](wp/1432-a-tie-onto-a-rederived-dof.md), where a tie onto a coordinate
+DOF stopped gaining its source's value per verb. That unblocks 1419's
+amplitudes. **Also unblocked**: the `.inp` grammar 1118 refuses,
+[1433](wp/1433-the-inp-grammar-still-refused.md).
 
-**Two cheap unowned asks** survive, both in 1407: Stoe `.raw` files paired with
-their WinXPOW ASCII export, and a blank for a `rietx compare` standard.
+**Two cheap unowned asks** survive, both in 1407: a Stoe `.raw` paired with its
+WinXPOW export, and a blank for a `rietx compare` standard.
 
 **Queued, unscheduled** ([§ Unscheduled](#unscheduled)): the 2026-09-01
-triage's 1312-1322 plus 1323 and 1325; the 2026-09-03 triage's 1332-1341; the
-older 1133; the **2026-09-15 triage**'s 1414-1421, less the two now in v1.6.
+triage's 1312-1322 plus 1323 and 1325; the 2026-09-03 triage's 1332-1341; 1133;
+the **2026-09-15 triage**'s 1414-1421, less the two in v1.6 and 1432.
 
 **Parked, blocking nothing:** the 1.0.0-notes promises (`.rex` zip transport,
 `excluded_regions` honoured by `replay` — 1003 § B); the indexing narrowing and
 the `grade` prior-counting change (1046 § 4); the model-cost estimate (1113
 § Findings); the two v1.1 speed fronts nobody owns (the per-reflection 19.4 %,
-1121; the `refit=` choice that discards half a trigger series' wall in ladder
-rungs, 1124); and `toy_roughness`, the one backend state whose Jacobian no
-second opinion covers (golden only, no `jacfwd` row — 1119 § Gotchas).
+1121; the `refit=` choice that discards half a trigger series' wall, 1124);
+and `toy_roughness`, the one backend state whose Jacobian no second opinion
+covers (1119 § Gotchas).
 
 ## Milestones
 
@@ -646,7 +649,7 @@ the limit carried load rather than whether the value stopped near one, and
 | [1415](wp/1415-a-sigma-column-smaller-than-root-y.md) | A σ column smaller than √y | ⬜ | — |
 | [1417](wp/1417-delta-bic-at-powder-channel-counts.md) | ΔBIC at powder channel counts | ⬜ | — (1339 soft) |
 | [1421](wp/1421-the-result-reproduces-its-own-number.md) | The result reproduces its own number | ⬜ | — (1310 soft) |
-| [1432](wp/1432-a-tie-onto-a-rederived-dof.md) | A tie onto a coordinate DOF, re-applied once per write | 🔄 2026-09-19 | — (1119 soft) |
+| [1432](wp/1432-a-tie-onto-a-rederived-dof.md) | A tie onto a coordinate DOF, re-applied once per write | ✅ 2026-09-19 | — (1119 soft) |
 | [1434](wp/1434-the-bound-test-asks-the-wrong-question.md) | The bound test asks whether the value is near its limit, never whether the limit was binding | ✅ 2026-09-18 | — |
 
 #### A long run is not one fit

@@ -1,6 +1,8 @@
 # WP-1432 — a tie onto a coordinate DOF, re-applied once per write
 
-Milestone: unscheduled · Status: 🔄 2026-09-19 — claimed by @yue-here
+Milestone: unscheduled · Status: ✅ 2026-09-19 — the anchor is corrected where
+the tie is known, so a rebuild reproduces the coordinate; `replay` carried the
+same defect alone and now rebases too
 Depends on: — (1119 soft — it is that WP's surface this breaks)
 
 ## Goal
@@ -157,6 +159,79 @@ reports what the first did.
 - `docs/manual/using/model.md` § the two tie populations.
 
 ## Handover log
+
+### 2026-09-19 — closed: the rebuild reproduces the coordinate, and replay does too
+
+A constraint declared on an atom's position now means the same thing however
+many times the refinement is touched afterwards. Every verb that wrote the
+models back used to add the constraint's whole value to the coordinate again,
+so a position drifted by one displacement per call while the variable naming it
+still read what was declared. A second `fit()` on the same `Refinement`
+reported that variable at zero with the structure carrying the displacement in
+full, at an identical Rwp. Replaying a recorded node had the same fault, and
+that is the worst place for it: replay exists to say what a recorded state was,
+so nothing downstream had any way to notice.
+
+**Done.** `ParameterTable.rebase_anchored_dofs` takes the tie's contribution
+back out of the coordinate's anchor on every build, so the rebuild reproduces
+the coordinate. That is the invariant the untied case always had. The DOF then
+reads the displacement its tie declares. Which entries are anchored
+is data built in `_collect_atom_coords` (`_anchored_dofs`), never a path prefix
+matched at the call site, because ADP and Stephens DOFs spell `…adp.k` and
+`…microstrain.dof.k` the same way and are absolute. `refresh_ties` and the
+rebase share one `_implied` helper. Two callers, because the tie register has
+exactly two consumers: `Refinement._apply_ties` and `replay`. The manual says
+what the anchor is; the root CLAUDE.md carries the invariant and the rule that
+a third consumer calls the rebase too.
+
+**The sibling, which the WP did not name.** `replay` builds its table from the
+node's own structure and re-declares the recorded ties on it, so it inherited
+the defect whole and was never covered by the single-`Refinement` reasoning.
+`multi.py` declares no user ties at all, so there is no third consumer to fix.
+
+**Measured**, worktree venv `[dev]`, macOS arm64, Python 3.12, alone on the
+machine, on `main` at `6593244e`:
+
+| | before | after |
+|---|---|---|
+| coordinate over four writes (`vars.A` = 0.01) | 0.2093 → 0.2493 | 0.2093 throughout |
+| the DOF those writes drove | 0.0 | 0.01 |
+| antiphase pair at declaration | 0.010 / −0.005 | 0.005 / −0.005 |
+| `replay` of a fitted node | x = 0.2174294764 | x = 0.2083647382 |
+| that node's Rwp | 10.711190685 | 10.708626649 |
+
+The anchor was re-measured at the start of this session before anything was
+built on it, since WP-1435 had edited both named seams in the three days since
+the WP was written. All three rows reproduced. The two controls held then and
+hold now: an ADP DOF under the same tie stays at 0.02, and a coordinate DOF
+following another coordinate DOF is bit-identical, both ends resetting together.
+
+Six tests. All six go red with the rebase disabled and both controls stay
+green, a check run on the broken code and not assumed from it. Fast selection
+5407 passed / 134 skipped in 84 s. Full selection 5586 passed / 143 skipped in
+22:26, and that is where the two `slow` bit-identity goldens run. They are
+pinned to darwin/arm64, so CI cannot see them. No local baseline exists for the +6 check, so it falls to CI:
+`main` at `6593244e` measured 5388 passed / 147 skipped on the Linux `[dev]`
+fast job, and this branch should read 5394 / 147, all six new and none of them
+a skip.
+
+**Gotchas.** The single application at declaration is deliberate, so the anchor
+settles one rebuild later and stays put from there. A new DOF family that is a
+displacement from a stored value must register itself in `_anchored_dofs`, and
+inherits nothing by spelling its paths like the existing ones. A source that
+resets contributes zero. The DOF-source arm is bit-identical for that reason,
+and the fix is invisible to every fit that declares no such tie.
+
+**Bookkeeping repaired alongside.** WP-1435's cap bump (938 → 954) existed only
+as a note at the cap, missing from the dated ledger in
+`tests/test_docs_consistency.py` and from the caps diary in
+`docs/milestones/process.md`. Both are reconstructed from that note and marked
+as written a day late.
+
+Next: nothing here. WP-1419 can consume the fix, and its `### Inherited` says
+so; WP-1421 has the replay instance recorded as one measured case of the class
+it is about; WP-1342 has `_anchored_dofs` as a precedent for the question it
+asks about a freeze.
 
 - **2026-09-16** — created from the `/pr-review` round on issues #286 and #293.
   The defect was found while checking whether WP-1419's distortion-mode
