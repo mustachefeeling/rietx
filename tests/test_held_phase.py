@@ -31,6 +31,7 @@ from rietx import Refinement
 from rietx.model.forward import PHASE_SUPPORT_SIGMA, compile_model
 from rietx.params.vector import ParameterTable
 from rietx.refine import _unsupported_phase_paths
+from rietx.schemas.plan import PlanSpec, StageSpec
 from tests.test_absent_phase import _absent_phase_inputs
 from tests.test_refine_synthetic import TRUE_A, synthesize
 from tests.test_schemas import make_lab6
@@ -929,3 +930,180 @@ def test_a_later_stage_re_decides_the_hold_rather_than_inheriting_it():
     assert "phases.1.cell.a" in {p.path for p in result.parameters}
     assert ref.structure.phases[1].cell.a.value == pytest.approx(
         RAMP_CAF2_A, rel=1e-3)
+
+
+# ----------------------------------------------------------------------
+# WP-1342 — the freeze asks what a column moves, not what it is called
+# ----------------------------------------------------------------------
+# The hold exists to remove a *flat direction*.  Flatness is a property of the
+# column, and until this WP the test for it was a property of the column's
+# **name**: ``_unsupported_phase_paths`` kept the free paths starting
+# ``phases.{ip}.``.  Drive the same cell through a named variable (WP-1119) and
+# the only free name is ``vars.A``, which matches nothing — so the freeze
+# reported that it had done its job, on a set it could not see into.
+def _tied_absent(source: float = 5.2) -> Refinement:
+    """The absent-phase fixture with phase 1's cell driven by ``vars.A``."""
+    structure, ins = _absent_phase_inputs()
+    ref = Refinement(structure, ins, history=False)
+    ref.add_variable("A", source, min=1.0, max=20.0)
+    ref.tie("phases.1.cell.a", "vars.A")
+    return ref
+
+
+def _cell_plan(cell_glob: str) -> PlanSpec:
+    """Two stages, so the cell stage starts from a fitted scale and background.
+
+    The plan frees the cell by the glob it is given, which is the whole
+    difference between the arms below: one names the parameter, the other
+    names the variable driving it.
+    """
+    return PlanSpec(stages=[
+        StageSpec(name="scale_bkg",
+                  turn_on=["phases.*.scale", "instrument.background.*"]),
+        StageSpec(name="cell",
+                  turn_on=["phases.*.scale", "instrument.background.*",
+                           cell_glob]),
+    ])
+
+
+def test_a_column_that_only_moves_an_unsupported_phase_is_held():
+    """The arm that failed before this WP: same freeze, same phase, one tie.
+
+    Measured on this fixture phase 1 contributes 0.0396σ, far under
+    ``PHASE_SUPPORT_SIGMA``, and its cell is exactly as flat driven through
+    ``vars.A`` as driven by its own column.  The hold must see it either way.
+    """
+    ref = _tied_absent()
+    pattern = synthesize()
+    model = compile_model(ref.structure, ref.instrument, pattern,
+                          mode="rietveld")
+    table = ref._prepare_table(restore=False)
+    table.set_vary(["vars.A", "phases.0.cell.a"], True)
+
+    support = model.phase_support(table.decode(table.x0()))
+    assert support[1] < PHASE_SUPPORT_SIGMA, "the fixture stopped being absent"
+    # the tied entry is not a column of θ and still moves while θ does
+    assert "phases.1.cell.a" not in table.free_paths
+    assert "phases.1.cell.a" in table.moving_paths
+
+    assert _unsupported_phase_paths(model, table) == ["vars.A"]
+
+
+def test_the_untied_answer_is_unchanged():
+    """The control, and the reason the change is safe: no tie, same answer.
+
+    Every free column reaches exactly itself when nothing is tied onto it, so
+    the reach test degenerates to the prefix test it replaced.
+    """
+    structure, ins = _absent_phase_inputs()
+    ref = Refinement(structure, ins, history=False)
+    pattern = synthesize()
+    model = compile_model(ref.structure, ref.instrument, pattern,
+                          mode="rietveld")
+    table = ParameterTable(ref.structure, ref.instrument)
+    table.set_vary(["phases.*.cell.a"], True)
+
+    assert _unsupported_phase_paths(model, table) == ["phases.1.cell.a"]
+
+
+def test_a_column_reaching_a_supported_phase_is_never_held():
+    """The several-phase decision, and the measurement behind it.
+
+    One variable driving both cells is **not** a flat direction: phase 0 gives
+    it real gradient, so holding it would freeze a direction the data can see.
+    Measured on this fixture, holding it leaves the present phase's cell at the
+    4.20 Å seed — 10 441 ppm from the truth, Rwp 0.9636 — against 4.154286 Å
+    and Rwp 0.8072 with the column free.  So the rule is *all*, never *any*:
+    hold the column only when everything it moves belongs to a phase the data
+    cannot see.
+    """
+    structure, ins = _absent_phase_inputs()
+    ref = Refinement(structure, ins, history=False)
+    ref.add_variable("A", 4.20, min=1.0, max=20.0)
+    ref.tie_equal(["phases.0.cell.a", "phases.1.cell.a"], source="vars.A")
+
+    pattern = synthesize()
+    model = compile_model(ref.structure, ref.instrument, pattern,
+                          mode="rietveld")
+    table = ref._prepare_table(restore=False)
+    table.set_vary(["vars.A"], True)
+
+    support = model.phase_support(table.decode(table.x0()))
+    assert support[0] >= PHASE_SUPPORT_SIGMA > support[1], "fixture moved"
+    assert _unsupported_phase_paths(model, table) == []
+
+
+def test_a_column_that_moves_the_phases_own_scale_is_never_held():
+    """The scale rule survives the rewrite, and falls out of it.
+
+    A phase reaches the pattern only through ``scale × |F|² × profile``, so the
+    scale is the one direction that is not flat when the phase is invisible.
+    Under the reach test that needs no special case: a column moving
+    ``phases.1.scale`` moves something the data can see.
+    """
+    structure, ins = _absent_phase_inputs()
+    ref = Refinement(structure, ins, history=False)
+    ref.add_variable("S", structure.phases[1].scale.value, min=0.0, max=1.0)
+    ref.tie("phases.1.scale", "vars.S")
+
+    pattern = synthesize()
+    model = compile_model(ref.structure, ref.instrument, pattern,
+                          mode="rietveld")
+    table = ref._prepare_table(restore=False)
+    table.set_vary(["vars.S"], True)
+    assert _unsupported_phase_paths(model, table) == []
+
+
+def test_the_absent_cell_stops_walking_through_its_tie():
+    """The fit-level cost, and what the record said about it.
+
+    Unheld, the variable walked the absent cell 5.2 → 9.8395 Å at a Rwp
+    identical to the held arm's to every figure — the flat direction costs
+    nothing to travel, which is why no Rwp comparison can find this.
+    ``StageResult.held`` was empty throughout.
+    """
+    ref = _tied_absent()
+    result = ref.fit(synthesize(), plan=_cell_plan("vars.*"), telemetry=False)
+
+    held = {p for stage in result.stages for p in stage.held}
+    assert "vars.A" in held, "the freeze still cannot see the tie"
+    assert ref.structure.phases[1].cell.a.value == 5.2
+    assert [r.value for r in ref.parameters() if r.path == "vars.A"] == [5.2]
+
+
+def test_the_record_and_the_diagnostic_name_the_phase_behind_the_column():
+    """A held column is not a phase path, and the report is about a phase.
+
+    ``StageResult.held`` records the column the verb acted on; ``held_reach``
+    records what that column also stopped, which is how ``PHASE_UNCONSTRAINED``
+    still finds the phase to talk about.  Without it the message would go
+    silent on exactly the fits this WP repairs.
+    """
+    ref = _tied_absent()
+    result = ref.fit(synthesize(), plan=_cell_plan("vars.*"), telemetry=False)
+
+    stage = next(s for s in result.stages if s.held)
+    assert stage.held == ["vars.A"]
+    assert stage.held_reach == {"vars.A": ["phases.1.cell.a"]}
+
+    fired = [d for d in result.diagnostics if d.code == "PHASE_UNCONSTRAINED"]
+    assert len(fired) == 1, [d.code for d in result.diagnostics]
+    assert "was held for" in fired[0].message
+    # both halves are named: the column a caller can unfreeze, and the
+    # parameter whose value is not a measurement
+    assert {"vars.A", "phases.1.cell.a"} <= set(fired[0].where)
+
+
+def test_held_reach_is_empty_when_no_held_column_drives_anything():
+    """WP-1076's honest empty state: written on every stage, never omitted.
+
+    An untied hold reaches only itself, and repeating the path as its own value
+    would say nothing — so the map carries the columns that drove something
+    else, and is empty on every fit that declared no tie.
+    """
+    structure, ins = _absent_phase_inputs()
+    ref = Refinement(structure, ins, history=False)
+    result = ref.fit(synthesize(), plan="mccusker_default", telemetry=False)
+    assert any(s.held for s in result.stages)
+    for stage in result.stages:
+        assert stage.held_reach == {}, stage.name
