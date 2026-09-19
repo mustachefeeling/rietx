@@ -866,6 +866,12 @@ class ParameterTable:
         #: it — the ADP and Stephens DOFs spell their paths the same way and
         #: are absolute.  :meth:`rebase_anchored_dofs` is the one consumer.
         self._anchored_dofs: dict[str, tuple[tuple[str, float], ...]] = {}
+        #: the anchored DOF paths :meth:`rebase_anchored_dofs` has already
+        #: taken out of their coordinates on *this* table.  The correction is
+        #: a subtraction from a stored constant, so it is not idempotent and a
+        #: second application walks the coordinate the other way — exactly the
+        #: defect it exists to end, mirrored.
+        self._rebased: set[str] = set()
         #: path → a fixed positive factor between this table's *physical* value
         #: and the number the free column carries — see :meth:`apply_value_scale`.
         #: Empty for every single-histogram table, which is why an unscaled
@@ -1503,9 +1509,21 @@ class ParameterTable:
         Values are recomputed for the rows this touches rather than through
         :meth:`refresh_ties`, which would recompute every tied entry in the
         table for a repair that reaches two of them.
+
+        **A path is rebased once per table, and the table is what remembers
+        it.**  The correction subtracts from a stored constant, so a second
+        application walks the coordinate the other way by the same amount.
+        That is the defect mirrored, and it is just as silent.  A repeat call
+        therefore skips what the first one did and rebases only what is new,
+        which lets a caller hand the whole register over after declaring one
+        more tie.  The guard is in the table rather than in a calling
+        convention, for the reason :attr:`Entry.held` is: a convention is
+        honoured only by the callers that remembered it, and the register
+        gains consumers.
         """
         hits = [p for p in paths
                 if p in self._anchored_dofs and p in self._paths
+                and p not in self._rebased
                 and self.entries[self._paths[p]].tie is not None]
         if not hits:
             return []
@@ -1518,6 +1536,7 @@ class ParameterTable:
                     continue
                 e.tie = replace(e.tie, const=e.tie.const - coeff * dof.value)
                 e.value = self._implied(e.tie, coord)
+        self._rebased.update(hits)
         self._rebuild()
         return hits
 

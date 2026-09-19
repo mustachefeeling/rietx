@@ -843,3 +843,25 @@ def test_replaying_a_node_rebases_the_anchor_the_same_way(ref, pattern):
     # is not.
     assert replayed.statistics.rwp == pytest.approx(result.statistics.rwp,
                                                     rel=1e-6)
+
+
+def test_rebasing_an_anchor_twice_does_nothing_the_second_time(ref):
+    """The repair's own mirror, and it would be as silent as the defect.
+
+    The correction subtracts the tie's contribution from a stored constant, so
+    a second application walks the coordinate *down* by that contribution
+    rather than leaving it alone.  Two callers rebase today and CLAUDE.md's
+    coordinate-DOF bullet asks a third to; one whose table came from
+    ``_working_table`` — already rebased — would have inverted the fix without
+    anything saying so.  The table remembers instead, so a caller may hand the
+    whole register over after declaring one more tie.
+    """
+    ref.add_variable("A", 0.01, min=-0.5, max=0.5)
+    ref.tie(B_DOF, "vars.A")
+    table = ref._working_table()
+    by_path = {e.path: e for e in table.entries}
+    assert by_path[B_X].value == pytest.approx(B_X0 + 0.01)
+
+    assert table.rebase_anchored_dofs([B_DOF]) == []
+    assert table.rebase_anchored_dofs([B_DOF]) == []
+    assert by_path[B_X].value == pytest.approx(B_X0 + 0.01)
