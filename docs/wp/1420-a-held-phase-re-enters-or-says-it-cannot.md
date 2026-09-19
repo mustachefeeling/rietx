@@ -122,6 +122,18 @@ down.
 
 ### Inherited
 
+**From WP-1342 (2026-09-19).** A held path is now a **column**, and it need
+not be a phase path at all: a caller's `vars.X` driving that cell is what the
+freeze stops, so `StageResult.held` can read `vars.caf2_a` where this WP
+expects `phases.1.cell.a`. Three consequences for the re-entry question.
+`_released_phases` is handed that column list, so whatever this WP builds on
+top of it inherits the same shape. The phase behind a held column is found
+through `StageResult.held_reach`, which maps each held column to the tied
+entries it also stopped — `_held_by_phase` is the worked example. And a column
+reaching a *supported* phase as well as an unsupported one is never held
+(`refine._only_moves`), so the "cannot get back in" case this WP is about
+cannot arise for a shared column; it is already free.
+
 **From WP-1435 (closed 2026-09-18), which put a second hold on the same
 object.** There are now two holds on a `Refinement` and they mean opposite
 things, so name them carefully in anything this WP writes.

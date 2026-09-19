@@ -1,6 +1,6 @@
 # WP-1342 — A structural freeze that reads names, and the tie it cannot see
 
-Milestone: unscheduled · Status: 🔄 2026-09-19 — claimed by @yue-here
+Milestone: unscheduled · Status: ✅ 2026-09-19 — every freeze that rested on a name now asks what the column moves
 Depends on: — (1119 found it; 1301 owns the freeze it disarms)
 
 ## Goal
@@ -221,6 +221,75 @@ stage and reported, and every fit with no user tie is bit-identical.
   verified where it is used.
 
 ## Handover log
+
+- **2026-09-19** — **Closed.** A refinement that constrains a parameter with a
+  tie of its own is now protected by the same per-stage freezes as one that
+  does not. Until today two of those freezes tested what a free parameter was
+  *called*, and a tie moves the freedom to a name they did not recognise, so
+  both reported that they had done their job on a set they could not see into.
+  The cost was a whole class of quiet wrong answer: on five patterns of a ramp
+  containing no fluorite at all, its cell came back spread over 0.296 Å with
+  every Rwp within 1e-5 of the correct run's, three of the five patterns
+  reporting nothing at all and no chain-level finding firing. What it rules
+  out is the reflex fix. Holding every column that touches an invisible phase
+  would freeze the cells of the phases that *are* there, measured at 10 441 ppm
+  from the truth against 1 ppm, so the rule is that a column is held only when
+  everything it moves is invisible. The package now has one accessor for "what
+  does this column move", and the four decisions that need it read it.
+
+  **Done.** `ParameterTable.column_reach` reads C column-wise, beside
+  `moving_paths`' row-wise read, and `entry_reach` answers the same question
+  for an entry that is not a column (C has none for a fixed entry, and the Le
+  Bail drop *makes* a variable fixed, so a row asked afterwards had nothing to
+  read). Four consumers converted: `_unsupported_phase_paths` through
+  `_only_moves`; the Le Bail/Pawley force-fix at both drop sites through
+  `mode_fixed_column`; `Refinement.parameters`' `mode_fixed`, so the report and
+  the drop cannot disagree; and the GUI's `/api/plan/resolve` panel, whose own
+  comment already claimed parity with the stage it previews. `StageResult`
+  gains `held_reach`, because `held` now names a column that need not be a
+  phase path and `PHASE_UNCONSTRAINED` still has to find the phase.
+
+  **Measured.** The decision, on the two-phase fixture under a converging plan:
+  holding a shared column left the visible phase's cell at its 4.20 Å seed,
+  +10 441 ppm, Rwp 0.9589, against 4.156594 Å at −1 ppm and Rwp 0.0416 free.
+  The single-fit walk through a tie, 5.2 → 3.35512 Å with the two fits agreeing
+  on Rwp to **1.7e-15** — the flat direction costs nothing at all to travel,
+  which is why no Rwp comparison could ever have found this. The chain, with
+  the name test restored: 5.30422, 5.38679, 5.57821, 5.39074, 5.59999 Å, two on
+  the caller's own bound. Le Bail: freeing `vars.*` put `vars.B` in the freed
+  set and moved an atom's `biso` 0.5 → 0.7 where freeing the `biso` glob freed
+  nothing; repaired, the fit is Rwp bit-identical to the untied one. Cost of
+  the new accessor on the report path, 110.6 µs against `parameters()`'s
+  12.62 ms, 0.9 % of the call it sits in.
+
+  Counts, this worktree's venv, `[dev]` only (jax and torch absent), numba
+  0.67.0, darwin, nothing else mid-suite, on **main merged into this branch**:
+  fast 5430 passed / 134 skipped in 1:17–1:22, moving 5542 → 5564 by exactly
+  the 22 non-slow tests of the 23 added, with the skip count unmoved. Full
+  5610 passed / 143 skipped in 23:01. ruff clean over src tests examples.
+
+  **Gotchas for anyone touching this seam.** A column's own entry is in its
+  own reach, so a variable fails a test about model paths on its own name
+  unless it is dropped first — `is_variable_path` is the one authority and now
+  carries three rules rather than two. `held_reach` must be read **before**
+  `set_vary` takes the column out of θ, which is why it travels on
+  `_StageHold` rather than being asked of the table afterwards, and why the
+  mid-stage collapse captures its own. And `PHASE_UNCONSTRAINED`'s `where`
+  deliberately carries the **columns** and not their reach: `sequential` keys
+  its persistent-finding aggregation on `where`, so the derived ties turned one
+  finding about a phase into three on the ramp's cubic CaF₂.
+
+  **Deliberately not generalised**, both recorded in § The siblings above with
+  their reasons. The cell window still reads the free entry's name and is
+  genuinely blind to a tie, left that way because the hold now takes that
+  column first and because for a *shared* column no window is the right answer;
+  and `multi.py` keeps its own identically-shaped builder, unreachable because
+  `JointRefinement` takes a `Structure` and never a `Refinement`, so it has no
+  tie register at all — **whoever gives the joint runner a tie verb converts
+  that call site in the same change**.
+
+  **Next**: nothing on this WP. The two notes above are the only live threads
+  it leaves, and both are conditional on work nobody has scheduled.
 
 - **2026-09-04** — created, from WP-1119's review pass. Not reproduced as a
   failing test yet: the reasoning is from the two call sites and C's

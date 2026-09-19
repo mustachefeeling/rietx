@@ -279,6 +279,16 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   reaches is verified where it is used** — `_peak_chain_column` checks the scalars it
   finite-differences anyway against the bases it was told to skip and raises naming the path, so
   a wrong claim costs work, never a short column (WP-1109).
+  **A freeze resting on *flatness* needs the other reading of C — which column moves it**
+  (WP-1342): `column_reach`, and `entry_reach` where the entry is not a column. Testing the free
+  path's **name** could not see a `vars.X` driving it, so the absent-phase hold and the Le
+  Bail/Pawley force-fix each reported success on a set they could not see into, silently and at
+  Rwp identical to 1.7e-15. Three rules for a new consumer. **All, never any** — one visible
+  phase gives a shared column real gradient, and holding it anyway cost 10 441 ppm on that
+  phase's cell. A **variable is dropped before the test**, the forward model never reading one
+  (`is_variable_path`, third rule); left in, every tied column fails on its own name. And the
+  record takes the **column** while its reach rides beside it (`StageResult.held_reach`), since
+  `where` keyed on the reach made one finding about a phase into one per tied cell parameter.
 - **A staged plan does not converge its intermediate stages; the one that does is the last**
   (WP-1123, flipping what 1113 measured). `RefinementPlan.intermediate_ftol` (1e-6 vs the
   solver's 1e-9) is the schedule; `stage_ftols()` the one authority applying it, since the plan
