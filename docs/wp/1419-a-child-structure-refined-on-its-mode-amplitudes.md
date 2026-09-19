@@ -160,6 +160,16 @@ the transposed rotation set is a group too and passes any dimension count.
 
 ### Inherited
 
+**From WP-1432 (2026-09-19) — the re-basing defect is fixed.** A tie
+whose target is a coordinate DOF now means the same thing after the tenth
+write-through verb as after the first, so an amplitude refined through one can
+be read back from the variable that names it. Three facts reach this WP. A
+second `fit()` on one `Refinement` reports what the first did, which is the
+shape a mode-amplitude session runs. `replay` carried the same defect alone and
+now rebases too, so a recorded node answers for the model it recorded. And the
+anchor settles one rebuild after the declaration and stays put, so a workflow
+may declare its ties once and go on editing.
+
 **2026-09-18 — the four rulings #286 asked for before the PRs are cut**, made
 on `main` at `84eddb17` against a fork integration branch measured at
 `b130bfd4`. Every number below is `main`'s own; the fork's were not reproduced.

@@ -65,6 +65,15 @@ two call sites, rather than a change in `optimize/`.
 
 ### Inherited
 
+**From WP-1432 (2026-09-19).** A repair in the neighbouring seam, and a
+precedent this WP can copy. `ParameterTable._anchored_dofs` records which
+entries are displacements from a stored value as **data built where the anchor
+is** (`_collect_atom_coords`), never a path prefix matched at the call site.
+ADP and Stephens DOFs spell `…adp.k` and `…microstrain.dof.k` the same way and
+are absolute, so a name test would have reached the wrong rows. That is this
+WP's own question one seam over, answered by having the builder declare the
+fact rather than the consumer guess it.
+
 **From WP-1441 (2026-09-18), issue #376.** A user tie now reaches a series. Until
 this WP, a tie the freeze cannot see could only be declared on a single
 `Refinement`, so this defect cost one fit; `SequentialRefinement.fit`'s new

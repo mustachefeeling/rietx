@@ -75,6 +75,20 @@ lands applies to the stage trajectory too.
 Le Bail and Pawley intensities are frozen per stage as well
 (`ReflectionState`). A fresh compile must carry them, never re-partition.
 
+### Inherited
+
+**From WP-1432 (2026-09-19).** One measured instance of this WP's
+class, found and fixed. `replay` rebuilt its table from the node's own
+structure and re-declared the recorded ties on it, and a user tie onto a
+coordinate DOF was applied a second time in doing so. A replayed node therefore
+answered for a model one displacement past the one recorded: x = 0.2174294764
+against the node's 0.2083647382, Rwp 10.711190685 against 10.708626649, with
+nothing in the answer saying which model it had measured. The repair is
+`ParameterTable.rebase_anchored_dofs`, called by both consumers of the tie
+register. The shape is worth carrying into this WP: what a state *records* and
+what rebuilding from that state *produces* are two objects, and only a test
+comparing them can say they agree.
+
 ## Non-goals
 
 - Window sizing (`WINDOW_AREA_TOL`, `WINDOW_MIN_DEG`) and the frozen-per-stage

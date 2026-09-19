@@ -176,6 +176,14 @@ a displacement from the stored coordinate {eq}`par-coord`. ADP and Stephens
 degrees of freedom are absolute instead, which enforces their site symmetry
 exactly.
 
+Tying a coordinate degree of freedom is how two atoms are constrained to move
+together. A coordinate itself refuses a user tie, since symmetry outranks one.
+The anchor is then the coordinate as it stood when the tie was declared.
+`phases.0.atoms.1.dof.0` reads the displacement its tie implies, and
+`phases.0.atoms.1.x` reads the sum of the two. That holds at every rebuild for
+as long as the tie is declared, so a second `Refinement.fit` reports the
+amplitude the first one did.
+
 ## What the optimiser actually varies
 
 `ParameterRow.value`, `lo` and `hi` are physical. The solver does not see them.

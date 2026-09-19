@@ -202,6 +202,13 @@ _INHERITED_PRUNE_EPOCH = "2026-07-31"
 #                                                          which no consumer of BOUND_HIT or at_bound
 #                                                          can re-derive from the code it reads.
 #                                                          Landed 937, +1 headroom
+#   2026-09-18  CLAUDE.md                     938 -> 954  for WP-1435: a hold the caller declares,
+#                                                          owed to every session that writes a plan
+#                                                          or a set_vary call site. Row written
+#                                                          2026-09-19, the session having left it
+#   2026-09-19  CLAUDE.md                     954 -> 963  for WP-1432: a coordinate DOF is relative,
+#                                                          so a rebuild must reproduce the
+#                                                          coordinate. Landed 962, +1 headroom
 SIZE_CAPS: dict[str, int | None] = {
     # 739 -> 755 (WP-1102): two standing rules for the component seam — that an
     # additive non-Bragg term is a union *member* and not a new field, and that
@@ -380,7 +387,16 @@ SIZE_CAPS: dict[str, int | None] = {
     # site needs the rule, not just the one that built it. It also states the
     # two things that bite a caller who does not know it exists: `set_vary`
     # can refuse now, and `_user_holds` is not WP-1301's `_held`.
-    "CLAUDE.md": 954,
+    # 954 -> 963 (WP-1432): a coordinate DOF is relative, and the invariant
+    # that keeps it honest is that a rebuild reproduces the coordinate. It
+    # belongs beside the DOF bullet it qualifies rather than a rank down,
+    # because the two facts a stranger needs are about *other* code: which
+    # entries are anchored is data built where the anchor is, so a new DOF
+    # family inherits nothing by spelling its paths the same way; and the tie
+    # register's consumers each call the rebase, so a third one written
+    # without the rule carries the defect `replay` carried alone. The
+    # measurement, the two controls and the rejected fixes stayed in the WP.
+    "CLAUDE.md": 963,
     # 672 -> 676 (WP-1102): the Current focus rewrite at 1102's close names the
     # milestone's one break and what makes 1103 the seam's proving case.
     # 676 -> 682 (WP-1407): a new Unscheduled group, "The formats a lab still

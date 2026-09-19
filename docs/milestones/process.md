@@ -375,6 +375,29 @@ docstrings, the sweep and the two fixes the issue proposed and measurement
 ruled out are in the WP, and the user-facing sentence is the 1.5.1 release
 note.  Landed 937, +1 headroom.
 
+938 -> 954 for WP-1435 (2026-09-18, recorded 2026-09-19): a hold the caller
+declares, and why it had to be a mechanism rather than a message.  `vary=False`
+does not survive a plan, so the rule is owed to every session that writes a
+plan, a calibration or a `set_vary` call site, not only to the one that built
+the verb.  The clause also states the two facts that bite a caller who does not
+know the verb exists: `set_vary` can refuse now, so read its return rather than
+the list you offered it, and `_user_holds` is not WP-1301's stage-scoped
+`_held`.  The precedence order, the blocked-glob report and the measured LaB6
+counts stayed in the WP.  The session landed the clause and its cap and left
+this paragraph and the ledger row unwritten; both are reconstructed here from
+the cap note it did write.
+
+954 -> 963 for WP-1432 (2026-09-19): a coordinate DOF is relative, and the
+invariant that keeps it honest is that a rebuild reproduces the coordinate.  It
+sits beside the DOF bullet it qualifies because the two facts a stranger needs
+are about *other* code.  Which entries are anchored is data built where the
+anchor is, so a new DOF family inherits nothing by spelling its paths the same
+way — ADP and Stephens DOFs already spell them identically and are absolute.
+And each consumer of the tie register calls the rebase, so a third one written
+without the rule carries the defect `replay` carried alone.  The measurement,
+the two controls that bound the class and the two rejected fixes stayed in the
+WP.  Landed 962, +1 headroom.
+
 ### `docs/ROADMAP.md`
 
 400 -> 416 for the agentic-report planning session (2026-08-18): four
