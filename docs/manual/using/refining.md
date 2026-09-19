@@ -492,17 +492,17 @@ handed in rather than as a walk, `PHASE_UNCONSTRAINED` names the phase and the
 stages that held it, and the parameters are absent from
 `RefinementResult.parameters` because nothing measured them.
 
-What the stage holds is a **column**, not a name. If you tied that cell to a
-variable of your own, the variable is what stops moving, and
-`StageResult.held` names it rather than the cell. `StageResult.held_reach`
-maps each held path to the tied parameters it was also driving, so a cubic
-`a` held on its own account lists the `b` and `c` that followed it, and a
-held `vars.A` lists the cell it drove. Together the two are every value the
-stage froze.
+A stage holds whichever parameter carries the freedom. Tie that cell to a
+variable of your own and the variable is what stops moving, so
+`StageResult.held` names `vars.A` where the cell would otherwise appear.
+`StageResult.held_reach` maps each held path to the tied parameters it was
+driving. A cubic `a` held on its own account lists the `b` and `c` that
+followed it. A held `vars.A` lists the cell it drove. The two fields together
+are every value the stage froze.
 
-A variable driving two phases is never held. It changes the pattern wherever
-either phase is visible, so it is not the flat direction a hold exists to
-remove, and holding it would freeze a cell the data can measure.
+A variable driving two phases is never held. It changes the calculated pattern
+wherever either phase is visible, so it is not the flat direction a hold exists
+to remove. Holding it would freeze a cell the data can measure.
 
 A hold is decided per stage, at the values that stage starts from, so a phase
 that appears later refines normally from the stage where it appears. If it

@@ -950,19 +950,27 @@ def _tied_absent(source: float = 5.2) -> Refinement:
     return ref
 
 
-def _cell_plan(cell_glob: str) -> PlanSpec:
-    """Two stages, so the cell stage starts from a fitted scale and background.
+#: Everything the cell stage below carries forward — staging is cumulative.
+_CELL_PLAN_BASE = ["phases.*.scale", "instrument.background.*",
+                   "instrument.profile.w", "instrument.zero_shift"]
 
-    The plan frees the cell by the glob it is given, which is the whole
-    difference between the arms below: one names the parameter, the other
-    names the variable driving it.
+
+def _cell_plan(*cell_globs: str) -> PlanSpec:
+    """Scale, background, profile, then the cell — a plan that converges.
+
+    Thick enough that the fits below are real ones (Rwp 0.0414, GoF 1.027,
+    the present phase's cell 1.4 ppm from the truth), because a comparison
+    between two badly-scaled fits is a comparison between two artefacts. The
+    cell stage frees whatever glob it is given, which is the whole difference
+    between the arms: one names the parameter, the other names the variable
+    driving it.
     """
     return PlanSpec(stages=[
         StageSpec(name="scale_bkg",
                   turn_on=["phases.*.scale", "instrument.background.*"]),
+        StageSpec(name="profile", turn_on=list(_CELL_PLAN_BASE)),
         StageSpec(name="cell",
-                  turn_on=["phases.*.scale", "instrument.background.*",
-                           cell_glob]),
+                  turn_on=[*_CELL_PLAN_BASE, *cell_globs]),
     ])
 
 
@@ -1012,10 +1020,10 @@ def test_a_column_reaching_a_supported_phase_is_never_held():
     One variable driving both cells is **not** a flat direction: phase 0 gives
     it real gradient, so holding it would freeze a direction the data can see.
     Measured on this fixture, holding it leaves the present phase's cell at the
-    4.20 Å seed — 10 441 ppm from the truth, Rwp 0.9636 — against 4.154286 Å
-    and Rwp 0.8072 with the column free.  So the rule is *all*, never *any*:
-    hold the column only when everything it moves belongs to a phase the data
-    cannot see.
+    4.20 Å seed — 10 441 ppm from the truth, Rwp 0.9589 — against 4.156594 Å at
+    −1 ppm and Rwp 0.0416 with the column free.  So the rule is *all*, never
+    *any*: hold the column only when everything it moves belongs to a phase the
+    data cannot see.
     """
     structure, ins = _absent_phase_inputs()
     ref = Refinement(structure, ins, history=False)
@@ -1057,9 +1065,9 @@ def test_a_column_that_moves_the_phases_own_scale_is_never_held():
 def test_the_absent_cell_stops_walking_through_its_tie():
     """The fit-level cost, and what the record said about it.
 
-    Unheld, the variable walked the absent cell 5.2 → 9.8395 Å at a Rwp
-    identical to the held arm's to every figure — the flat direction costs
-    nothing to travel, which is why no Rwp comparison can find this.
+    Unheld, the variable walked the absent cell 5.2 → 3.35512 Å while the two
+    fits agreed on Rwp to 1.7e-15 — the flat direction costs nothing at all to
+    travel, which is why no Rwp comparison can find this — and
     ``StageResult.held`` was empty throughout.
     """
     ref = _tied_absent()
@@ -1115,3 +1123,100 @@ def test_held_reach_carries_the_derived_ties_a_hold_also_stopped():
                                                     "phases.1.cell.c"]}
     for other in result.stages:
         assert set(other.held_reach) <= set(other.held), other.name
+
+
+def test_the_hold_reaches_every_pattern_of_a_chain():
+    """WP-1441's exposure: the tie is re-declared per pattern, so the miss was.
+
+    A tie could once be declared only on a single ``Refinement``, so a freeze
+    that could not see it cost one answer. ``constrain=(index, ref)`` puts the
+    declaration on every pattern of a chain, which multiplies the exposure by
+    the chain's length and hides it where nobody reads an individual fit.
+
+    There is no CaF₂ in any of these patterns, so the honest answer for its
+    cell is the 5.4631 Å the model was handed, on every one of them. Measured
+    with the name test restored, the same chain returns 5.30422, 5.38679,
+    5.57821, 5.39074 and 5.59999 Å — a 0.296 Å spread for a phase that is not
+    there, two of them on the caller's own bound — while every Rwp sits within
+    1e-5 of the held arm's, three of the five patterns report no diagnostic at
+    all, and the chain-level finding is absent. That walk is not monotone, so
+    it reads as a trajectory rather than as a fault, and ``direction="both"``
+    cannot separate it from a real one because both directions carry the tie.
+    """
+    import rietx as rx
+    from rietx.sequential import SequentialRefinement
+
+    # five, which is `MIN_POINTS_FOR_PERSISTENCE`: the chain-level sentence is
+    # half of what this arm is for, and below that the aggregation declines
+    temperatures = [25.0, 60.0, 95.0, 130.0, 165.0]
+    assert max(temperatures) < RAMP_T_TRANSITION, "these are the sub-onset ones"
+
+    def constrain(index, ref):
+        ref.add_variable("caf2_a", RAMP_CAF2_A, min=5.30, max=5.60)
+        ref.tie("phases.1.cell.a", "vars.caf2_a")
+
+    # the collapsed stage, plus the glob that frees the caller's own variable —
+    # without it the tie is declared and nothing ever frees what drives it
+    plan = rx.RefinementPlan(stages=[rx.Stage(
+        "all", ["phases.*.scale", "instrument.background.*", "phases.*.cell.*",
+                "instrument.profile.w", "instrument.profile.x", "vars.*"])])
+    runner = SequentialRefinement(_ramp_start(bounds=None),
+                                  _ramp_instrument(),
+                                  carry=["phases.0.*", "instrument.*"])
+    series = runner.fit(_ramp_patterns(temperatures), x=temperatures,
+                        labels=[f"{t:.0f}C" for t in temperatures],
+                        plan=plan, refit="single", constrain=constrain)
+
+    for entry, structure in zip(series.entries, runner.fitted_structures,
+                                strict=True):
+        # the value is the one handed in, on every pattern — not a walk that
+        # stopped somewhere, and not a number anybody may quote
+        assert structure.phases[1].cell.a.value == RAMP_CAF2_A, entry.label
+        assert "vars.caf2_a" not in {p.path for p in entry.parameters}
+        assert "PHASE_UNCONSTRAINED" in [d.code for d in entry.diagnostics]
+
+    # and the chain says the thing no per-pattern finding can
+    persistent = [d for d in series.diagnostics
+                  if d.code == "SEQUENTIAL_PERSISTENT_FINDING"]
+    assert len(persistent) == 1
+    assert persistent[0].where == ["vars.caf2_a"]
+    assert "5 of 5" in persistent[0].message
+
+
+@pytest.mark.slow
+def test_the_tied_hold_is_drawn_for_inspection():
+    """Rwp hides locally-bad fits; the picture is the check that does not.
+
+    Two panels of the same fixture, drawn from the same plan: the cell driven
+    by its own column, and driven through ``vars.A``. The held phase
+    contributes nothing to draw — that is what "held" means — so what these
+    show is that the phase which *is* there is fitted the same either way,
+    which is the claim a Rwp equality alone cannot make.
+    """
+    import matplotlib.pyplot as plt
+
+    from rietx.viz.plots import plot_result
+
+    OUT.mkdir(exist_ok=True)
+    structure, ins = _absent_phase_inputs()
+    plain = Refinement(structure, ins, history=False)
+    untied = plain.fit(synthesize(), plan=_cell_plan("phases.*.cell.a"),
+                       telemetry=False)
+    # the present phase's cell is freed by its own column in both arms, so the
+    # only difference between them is how the *absent* phase's cell is driven
+    tied = _tied_absent().fit(
+        synthesize(), plan=_cell_plan("vars.*", "phases.0.cell.a"),
+        telemetry=False)
+
+    for name, result in (("untied", untied), ("tied", tied)):
+        plot_result(result, path=str(OUT / f"held_phase_reach_{name}.png"))
+    plt.close("all")
+
+    assert (OUT / "held_phase_reach_untied.png").exists()
+    assert (OUT / "held_phase_reach_tied.png").exists()
+    # the phase that is there is fitted identically either way — bit-identical
+    # rather than close, which is the strongest form of "the repair costs the
+    # converged fit nothing"; the arms differ only in what each one held
+    assert tied.statistics.rwp == untied.statistics.rwp
+    assert {p for s in untied.stages for p in s.held} == {"phases.1.cell.a"}
+    assert {p for s in tied.stages for p in s.held} == {"vars.A"}

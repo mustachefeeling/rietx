@@ -298,7 +298,7 @@ def _only_moves(reached: list[str], prefixes: tuple[str, ...]) -> bool:
     so it is not a flat direction and holding it would freeze something the
     data can see: measured on the two-phase fixture, holding a shared column
     left the present phase's cell at its 4.20 Å seed — 10 441 ppm from the
-    truth, Rwp 0.9636 — against 4.154286 Å and Rwp 0.8072 with it free.
+    truth, Rwp 0.9589 — against 4.156594 Å at −1 ppm and Rwp 0.0416 free.
 
     The phase's own ``scale`` excludes a column the same way and for
     :func:`_unsupported_phase_paths`' reason: it is the one direction that is

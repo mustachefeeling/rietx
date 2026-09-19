@@ -75,8 +75,8 @@ one absent, both cells tied to `vars.A`), under the identical plan:
 
 | | present cell | from truth | Rwp |
 |---|---|---|---|
-| hold if **any** phase is unsupported | 4.200000 Å (the seed) | +10 441 ppm | 0.9636 |
-| hold only if **all** are | 4.154286 Å | −557 ppm | 0.8072 |
+| hold if **any** phase is unsupported | 4.200000 Å (the seed) | +10 441 ppm | 0.9589 |
+| hold only if **all** are | 4.156594 Å | −1 ppm | 0.0416 |
 
 Two consequences fell out rather than needing rules of their own. The phase's
 own `scale` excludes a column by the same test, because a column moving
@@ -172,12 +172,17 @@ runner a tie verb converts that call site in the same change.**
       `StageResult.held` name a column that is not a phase path.
 - [x] `mode_fixed_path`'s callers do the same for the Le Bail / Pawley
       force-fix, or the WP records why the two cases differ.
-- [ ] Tests: a variable driving an unsupported phase's cell is held (the
+- [x] Tests: a variable driving an unsupported phase's cell is held (the
       arm that fails today), the untied path stays bit-identical, a series
       fixture declaring the tie through `constrain=` beside the single-fit
       one, and the obs/calc/diff PNGs in `tests/output/`.
-- [ ] Skill: none expected — an agent driving rietx sees only that the hold
-      now fires. Confirm at handover, or add the row.
+- [x] Skill: one clause, in `references/abstention.md` rather than the
+      body. `PHASE_UNCONSTRAINED`'s row said "`where` lists its structural
+      parameters", which a held column need not be — so it now says the hold
+      acts on a column, names `held_reach` as the way back to the parameters,
+      and states that a variable driving two phases is never held. The body
+      needs nothing: rule 22 already says a held value is not a measurement,
+      whatever its path is called.
 
 ## Acceptance
 
