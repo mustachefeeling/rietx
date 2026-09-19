@@ -92,9 +92,8 @@ placement, link resolution, and the size caps on this file and CLAUDE.md.
 2026-09-18** ([record](milestones/v1.6.md)), the day v1.5 shipped
 ([record](milestones/v1.5.md), [notes](releases/1.5.0.md), tag `13bce502`, on
 PyPI); `pyproject.version` is `1.6.0.dev0`. Its acceptance rows were written
-at the open. Seven WPs — 1326-1329, 1343, 1418, 1419 — with a reference
-implementation on the `mustachefeeling` fork and the design settled in #256,
-#257, #277, #286 and #293.
+at the open. Seven WPs — 1326-1329, 1343, 1418, 1419 — over a reference
+implementation on the `mustachefeeling` fork.
 
 **Nothing is in flight.** The order is set: 1418's M-6 and M-7 first, having no
 forward-model contact, then 1327's verb, then 1419 as its own PR because the
@@ -102,21 +101,22 @@ two-lists decision it carries gets waved through in a diff about something
 else. **Neutron TOF is not in this milestone** — it stays at [§ v2+](#v2--fenced)
 behind issue #193, and the fork's chain carries it merged in.
 
-**Three silent-answer fixes have landed since the ship**, staged in
+**Four silent-answer fixes have landed since the ship**, staged in
 [releases/1.5.1.md](releases/1.5.1.md): 1310's last two on 2026-09-18
 ([1434](wp/1434-the-bound-test-asks-the-wrong-question.md),
 [1435](wp/1435-a-hold-the-caller-declares.md), both in
-[§ v1.5.x](#v15x--after-the-ship)), and 2026-09-19's
-[1432](wp/1432-a-tie-onto-a-rederived-dof.md), where a tie onto a coordinate
-DOF stopped gaining its source's value per verb. That unblocks 1419's
-amplitudes. **Also unblocked**: the `.inp` grammar 1118 refuses,
+[§ v1.5.x](#v15x--after-the-ship)), then on 2026-09-19
+[1432](wp/1432-a-tie-onto-a-rederived-dof.md) and
+[1342](wp/1342-a-freeze-that-reads-names.md), one user tie story from each end
+— what a tie accumulates, and what a freeze reading a *name* cannot see. 1432
+unblocks 1419's amplitudes; so is the `.inp` grammar 1118 refuses,
 [1433](wp/1433-the-inp-grammar-still-refused.md).
 
 **Two cheap unowned asks** survive, both in 1407: a Stoe `.raw` paired with its
 WinXPOW export, and a blank for a `rietx compare` standard.
 
 **Queued, unscheduled** ([§ Unscheduled](#unscheduled)): the 2026-09-01
-triage's 1312-1322 plus 1323 and 1325; the 2026-09-03 triage's 1332-1341; 1133;
+triage's 1312-1322 plus 1323 and 1325; the 2026-09-03 triage's 1332-1341 less 1342; 1133;
 the **2026-09-15 triage**'s 1414-1421, less the two in v1.6 and 1432.
 
 **Parked, blocking nothing:** the 1.0.0-notes promises (`.rex` zip transport,
