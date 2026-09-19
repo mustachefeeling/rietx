@@ -280,10 +280,15 @@ stage and reported, and every fit with no user tie is bit-identical.
   12.62 ms, 0.9 % of the call it sits in.
 
   Counts, this worktree's venv, `[dev]` only (jax and torch absent), numba
-  0.67.0, darwin, nothing else mid-suite, on **main merged into this branch**:
-  fast 5430 passed / 134 skipped in 1:17–1:22, moving 5542 → 5564 by exactly
-  the 22 non-slow tests of the 23 added, with the skip count unmoved. Full
-  5610 passed / 143 skipped in 23:01. ruff clean over src tests examples.
+  0.67.0, darwin/arm64, nothing else mid-suite. `origin/main` had not moved
+  since the branch point, so this **is** the merged tree rather than a proxy
+  for it. Fast 5433 passed / 134 skipped in 1:17–1:23, moving 5542 → 5567 by
+  exactly the 25 non-slow tests of the 26 added — 23 here and 3 from the review
+  pass — with the skip count unmoved at 134. Full 5613 passed / 143 skipped in
+  22:46, which is +3 on the same tree before the review, its three tests. ruff
+  clean over src tests examples. The full selection ran **twice**, both times
+  on a settled tree: the first run was launched and then edited under, which is
+  the mistake `tests/CLAUDE.md` names, and it was stopped rather than quoted.
 
   **Gotchas for anyone touching this seam.** A column's own entry is in its
   own reach, so a variable fails a test about model paths on its own name
