@@ -1,6 +1,6 @@
 # WP-1342 — A structural freeze that reads names, and the tie it cannot see
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-09-19 — claimed by @yue-here
 Depends on: — (1119 found it; 1301 owns the freeze it disarms)
 
 ## Goal

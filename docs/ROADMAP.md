@@ -643,7 +643,7 @@ the limit carried load rather than whether the value stopped near one, and
 | [1332](wp/1332-the-axis-a-reader-hands-back.md) | The axis a reader hands back | ⬜ | — |
 | [1336](wp/1336-the-fit-does-not-say-it-is-unusable.md) | The fit does not say it is unusable: the status channel and the width census | ⬜ | — (1310 soft) |
 | [1337](wp/1337-an-authored-refusal-not-a-traceback.md) | An authored refusal, not a raw traceback | ⬜ | — (1311, 1321 soft) |
-| [1342](wp/1342-a-freeze-that-reads-names.md) | A structural freeze that reads names, and the tie it cannot see | ⬜ | — (1301, 1119 soft) |
+| [1342](wp/1342-a-freeze-that-reads-names.md) | A structural freeze that reads names, and the tie it cannot see | 🔄 2026-09-19 | — (1301, 1119 soft) |
 | [1344](wp/1344-a-joint-fit-owes-each-histogram-its-diagnostics.md) | A joint fit owes each histogram the diagnostics its own radiation earns | ⬜ | — (1341 soft) |
 | [1414](wp/1414-a-turn-on-that-reached-nothing.md) | A `turn_on` that reached nothing says so | ⬜ | — (1341 soft) |
 | [1415](wp/1415-a-sigma-column-smaller-than-root-y.md) | A σ column smaller than √y | ⬜ | — |
