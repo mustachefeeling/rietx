@@ -206,14 +206,17 @@ the WP was written. All three rows reproduced. The two controls held then and
 hold now: an ADP DOF under the same tie stays at 0.02, and a coordinate DOF
 following another coordinate DOF is bit-identical, both ends resetting together.
 
-Six tests. All six go red with the rebase disabled and both controls stay
-green, a check run on the broken code and not assumed from it. Fast selection
-5407 passed / 134 skipped in 84 s. Full selection 5586 passed / 143 skipped in
-22:26, and that is where the two `slow` bit-identity goldens run. They are
-pinned to darwin/arm64, so CI cannot see them. No local baseline exists for the +6 check, so it falls to CI:
-`main` at `6593244e` measured 5388 passed / 147 skipped on the Linux `[dev]`
-fast job, and this branch should read 5394 / 147, all six new and none of them
-a skip.
+Seven tests, six of them written before the fix and one from the review pass.
+All seven go red with the rebase disabled and both controls stay green, a check
+run on the broken code and not assumed from it. Fast selection 5408 passed /
+134 skipped in 81 s. Full selection 5587 passed / 143 skipped in 23:09, and
+that is where the two `slow` bit-identity goldens run. They are pinned to
+darwin/arm64, so CI cannot see them. Both selections were measured twice, once
+before the review pass and once after, and each moved by exactly the one test
+it added: 5407 → 5408 fast, 5586 → 5587 full, no new skip either time. No local
+baseline exists for the +7 check, so that falls to CI: `main` at `6593244e`
+measured 5388 passed / 147 skipped on the Linux `[dev]` fast job, and this
+branch should read 5395 / 147.
 
 **Gotchas.** The single application at declaration is deliberate, so the anchor
 settles one rebuild later and stays put from there. A new DOF family that is a
@@ -221,6 +224,22 @@ displacement from a stored value must register itself in `_anchored_dofs`, and
 inherits nothing by spelling its paths like the existing ones. A source that
 resets contributes zero. The DOF-source arm is bit-identical for that reason,
 and the fix is invisible to every fit that declares no such tie.
+
+**The review pass** (`/code-review high --fix`) found four things and changed
+two. Accepted and fixed: the rebase subtracts from a stored constant, so
+calling it twice walks the coordinate the other way by the same amount, at
+0.2093, 0.1993, 0.1893 over three calls. That is this defect mirrored and just
+as silent, and CLAUDE.md had just asked a third consumer to call the method, so
+the table now records which paths it has rebased. Accepted as a documentation
+fix: the release note's "nothing else is affected" overstated it, since each
+`tie` declares a displacement from where the coordinate stands and `untie`
+leaves it there, so a toggle moves the structure by one displacement per cycle
+(verified here at 0.1993 → 0.2093 → 0.2193). Filed into WP-1333 rather than
+fixed: `sequential._carry_into` discards a carried coordinate, because it
+re-derives every tied entry from a destination anchor the carry never touched.
+Declined: `rebase_anchored_dofs` returns the paths it rebased and only a test
+reads that, which is WP-1076's shape, but dropping the return would leave the
+method's outcome unobservable to the caller CLAUDE.md invites.
 
 **Bookkeeping repaired alongside.** WP-1435's cap bump (938 → 954) existed only
 as a note at the cap, missing from the dated ledger in
@@ -231,7 +250,11 @@ as written a day late.
 Next: nothing here. WP-1419 can consume the fix, and its `### Inherited` says
 so; WP-1421 has the replay instance recorded as one measured case of the class
 it is about; WP-1342 has `_anchored_dofs` as a precedent for the question it
-asks about a freeze.
+asks about a freeze. The one open item is the series carry, parked in WP-1333's
+mailbox because no open WP owns `sequential._carry_into` and this session was
+not going to move series numbers at its handover. It deserves a row of its own
+in the silent-answer track, and the mailbox is a holding place rather than a
+home.
 
 - **2026-09-16** — created from the `/pr-review` round on issues #286 and #293.
   The defect was found while checking whether WP-1419's distortion-mode

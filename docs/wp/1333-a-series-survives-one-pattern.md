@@ -110,6 +110,30 @@ never collected. That is the shape the failed pattern should take.
 
 ### Inherited
 
+- **2026-09-19, from WP-1432's review pass: a refined atomic coordinate never
+  crosses a pattern boundary, and `carry=["*"]` says it does.** Verified in
+  this session against `sequential._carry_into`'s own code, not only from the
+  review's measurement of 0.2500 carried in and 0.1993 landing. The function
+  copies each carried value onto its entry, then re-derives every tied entry
+  through `decode`, which the comment beside it states plainly. A coordinate is
+  tied to its displacement DOF, the DOF is carried at 0.0 because a freshly
+  built source table rederives it there, and the anchor is the *destination*
+  structure's stored coordinate. So the carried coordinate is overwritten by
+  the pattern's own starting value. `phases.0.cell.a` carries correctly, which
+  is what says this is specific to the relative DOFs rather than to the carry.
+
+  It costs iterations rather than an answer, each pattern starting its
+  coordinates cold. Two things make it worth a row of its own rather than a
+  footnote. `direction="both"` path-dependence readings are measured off this
+  chain, and a parameter that never chains cannot be path-dependent, so the
+  check is quiet about it for a reason that is not the data's. And the fix is
+  not local: a `constrain` hook gives the right coordinate today *because* of
+  this, the anchor staying at the pattern's initial value, so carrying the
+  coordinate without also handling the hook's per-pattern re-declaration would
+  start the displacement accumulating across a chain. WP-1432 is the same
+  asymmetry one rank in, and its repair (`ParameterTable.rebase_anchored_dofs`)
+  is the shape a fix here would reuse.
+
 - **2026-09-15, from the issue triage (issue #269): a path the comparison
   could not reach reads exactly like one that agreed.** Since PR #264
   (2026-09-10) `SEQUENTIAL_PATH_DEPENDENT` is judged per pattern and only
