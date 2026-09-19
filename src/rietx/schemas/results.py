@@ -807,7 +807,26 @@ class StageResult(Base):
     #: on every fit with no unsupported phase, which is every fit that is
     #: working; the phase's own ``scale`` is never held, because that is how a
     #: phase legitimately climbs out of the noise.
+    #: Since WP-1342 these are **columns**, not names: a caller's ``vars.X``
+    #: driving that cell is what stopped moving, and a path under
+    #: ``phases.{ip}.`` need not appear here at all.  What each held column
+    #: also stopped is :attr:`held_reach`.
     held: list[str] = Field(default_factory=list)
+    #: per held column, the tied entries it also stopped — the other half of
+    #: :attr:`held`, and what lets a reader of this record find the *phase*
+    #: a held ``vars.X`` was about (WP-1342).  Carried beside ``held`` rather
+    #: than folded into it because the two are asked for by different
+    #: consumers: ``held`` is the set the verb passed to ``set_vary`` and the
+    #: set :attr:`freed` is made disjoint from, while this is the account
+    #: ``PHASE_UNCONSTRAINED`` is built from.
+    #:
+    #: **Only the columns that drove something else**, and every tie counts,
+    #: not only a caller's: holding a cubic ``a`` stops ``b`` and ``c`` with
+    #: it, and a reader should not have to know the crystal system to learn
+    #: that.  A column that moved nothing else is absent rather than mapped to
+    #: an empty list, so ``held`` and the values here together are every value
+    #: the stage froze.
+    held_reach: dict[str, list[str]] = Field(default_factory=dict)
     #: paths held at stage start and **released within the same stage**: the
     #: phase rose above support while the stage solved, so the hold was lifted
     #: and the stage solved a second time (once — never a third) with them

@@ -4125,3 +4125,32 @@ def test_the_wizard_creates_a_project_from_no_structure_at_all(blank, tmp_path,
     assert session.project.refinement.structure.phases == []
     # mode is not forced either way: with no phase there is nothing to govern
     assert doc["doc"]["mode"] == "rietveld"
+
+
+def test_plan_resolve_force_fixes_a_column_a_tie_drives(blank, tmp_path,
+                                                        pattern_file):
+    """The panel and the stage drop ask one question (WP-1342).
+
+    This route mirrors ``_run_stage``'s intensity-mode force-fix, and until
+    this WP both tested the free path's **name** — so a variable driving an
+    atom's ``biso`` was promised as freed here and dropped by the run. A panel
+    that offers a column the next run silently fixes is the disagreement
+    WP-1076's rule exists to prevent.
+    """
+    session, client = blank
+    _open(session, tmp_path / "tied.rex", pattern_file, mode="lebail")
+
+    ref = session.project.refinement
+    ref.add_variable("B", 0.7, min=0.0, max=25.0)
+    ref.tie("phases.0.atoms.0.biso", "vars.B")
+    assert client.put("/api/plan", {"plan": {"stages": [
+        {"name": "bkg", "turn_on": ["instrument.background.*"]},
+        {"name": "displ", "turn_on": ["instrument.background.*", "vars.*"]},
+    ]}})[0] == 200
+
+    stage = next(s for s in _ladder(client)["stages"] if s["name"] == "displ")
+    assert "vars.B" not in stage["frees"]
+    assert "vars.B" in {h["path"] for h in stage["held"]}
+    # and the row agrees with the panel, being the same test
+    rows = {r.path: r for r in ref.parameters(mode="lebail")}
+    assert rows["vars.B"].mode_fixed and not rows["vars.B"].refinable

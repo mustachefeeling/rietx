@@ -270,12 +270,19 @@ VAR_PREFIX = "vars."
 def is_variable_path(path: str) -> bool:
     """Is ``path`` a caller's named variable rather than a model parameter?
 
-    One predicate rather than a repeated ``startswith``, because two rules turn
-    on it and they must not drift: a tied source is accepted only where this is
-    true (a variable may follow other variables — TOPAS's ``prm B = 2 A`` — while
-    a tied *model* path keeps the refusal that steers a caller to what it
-    follows), and only a path answering true is written back to the variable
-    register instead of into the pydantic models.
+    One predicate rather than a repeated ``startswith``, because three rules
+    turn on it and they must not drift: a tied source is accepted only where
+    this is true (a variable may follow other variables — TOPAS's ``prm B =
+    2 A`` — while a tied *model* path keeps the refusal that steers a caller to
+    what it follows); only a path answering true is written back to the
+    variable register instead of into the pydantic models; and a freeze asking
+    what a column *moves* drops these before deciding, because the forward
+    model never reads one (``refine._only_moves``, WP-1342).
+
+    All three are the same fact — a variable is not a model parameter — and it
+    is a fact about the **namespace** rather than a guess from a name: the
+    model tree's only top-level segments are ``phases`` and ``instrument``, so
+    nothing it owns can answer true here.
     """
     return path.startswith(VAR_PREFIX)
 
@@ -1712,6 +1719,78 @@ class ParameterTable:
         """
         reach = np.asarray(abs(self._C).sum(axis=1)).ravel()
         return [e.path for i, e in enumerate(self.entries) if reach[i] > 0.0]
+
+    def column_reach(self) -> dict[str, list[str]]:
+        """Per free column, every entry path it moves — itself and its ties.
+
+        :attr:`moving_paths` answers "does this entry move"; this answers
+        "*which column* moves it", which is the question a freeze resting on
+        flatness has to ask.  A column is a flat direction only when everything
+        it reaches is flat, and the entry that is flat is rarely the one
+        carrying the freedom: since WP-1119 a caller's ``vars.X`` can drive a
+        phase's cell, and the only free *name* is then the variable's.
+
+        One column-wise read of the same **C** that :attr:`moving_paths` reads
+        row-wise and that ``optimize._column_extras`` reads for the Jacobian's
+        own reach gate — never a second derivation, which could disagree with
+        the matrix the residual is actually built from.  An explicitly stored
+        zero coefficient is not reach, matching ``moving_paths``' test rather
+        than the sparsity pattern, since a tie may flatten to a zero term.
+
+        **With no tie every column reaches exactly itself**, so a consumer
+        replacing a test on ``free_paths`` with a test on this is bit-identical
+        on every model that declared none — which is what made it safe to apply
+        unconditionally rather than behind a freeze.  Keyed and ordered by
+        :attr:`free_paths`; the values are in entry order, so neither answer
+        depends on how θ was assembled.
+        """
+        csc = self._C.tocsc()
+        out: dict[str, list[str]] = {}
+        for j, path in enumerate(self.free_paths):
+            sl = slice(csc.indptr[j], csc.indptr[j + 1])
+            rows = csc.indices[sl][csc.data[sl] != 0.0]
+            out[path] = [self.entries[i].path for i in sorted(rows)]
+        return out
+
+    def entry_reach(self) -> dict[str, list[str]]:
+        """The same question asked of **every** entry, free or not.
+
+        :meth:`column_reach` reads **C**, which has a column only for a free
+        entry — so it cannot answer for one that is fixed, and a consumer that
+        must give the same answer either way (a *report* about what a mode
+        would force-fix, say) has nothing to ask.  This reads the declarations
+        C is compiled from instead: each tied entry's flattened sources, which
+        ``_flatten`` has already resolved through chains, transposed.
+
+        **One declaration, two readings, and a test holds them equal** on every
+        free path — ``column_reach()[p] == entry_reach()[p]`` there — so this
+        is not a second opinion about the constraint block.  It is the wider
+        one: a fixed source's dependents are still its dependents, and C simply
+        has no room to say so.
+
+        Every entry is a key, including one nothing follows, whose value is
+        itself.  Ordered by entry for the same reason ``column_reach`` is.
+
+        A source's coefficients are **summed before the zero test**, because
+        ``_rebuild`` scatters them into one C entry and the sparse constructor
+        sums duplicates there too.  Per term, the two readings come apart:
+        ``dep = p - q`` with ``p`` and ``q`` both following one source is a
+        cancelled dependency C does not carry, and ``entry_reach`` called it
+        reach while ``moving_paths`` did not.
+        """
+        deps: dict[int, set[int]] = {}
+        for i, e in enumerate(self.entries):
+            if e.tie is None:
+                continue
+            summed: dict[int, float] = {}
+            for j, coeff in self._flatten(e.tie, (e.path,))[0]:
+                summed[j] = summed.get(j, 0.0) + coeff
+            for j, coeff in summed.items():
+                if coeff != 0.0:
+                    deps.setdefault(j, set()).add(i)
+        return {e.path: [self.entries[k].path
+                         for k in sorted({i, *deps.get(i, ())})]
+                for i, e in enumerate(self.entries)}
 
     def x0(self) -> np.ndarray:
         return np.array([to_internal(self._unscaled(self.entries[i]),
