@@ -517,3 +517,89 @@ def test_a_window_never_excludes_the_value_the_solver_starts_from():
     k = table.free_paths.index("synthetic.src")
     assert (lo[k], hi[k]) == (5.0, 11.0)      # widened down to x0, not [10, 11]
     assert lo[k] <= table.x0()[k] <= hi[k]    # what scipy actually checks
+
+
+# -- the reach of one column (WP-1342) ---------------------------------
+# ``moving_paths`` says whether an entry moves; a freeze resting on flatness
+# needs to know *which column* moves it, because the entry that is flat is
+# rarely the one carrying the freedom.
+
+
+def test_column_reach_is_keyed_and_ordered_by_free_paths():
+    table = make_table()
+    table.set_vary(["phases.0.cell.a", "instrument.zero_shift"], True)
+    assert list(table.column_reach()) == table.free_paths
+
+
+def test_an_untied_column_reaches_exactly_itself():
+    table = make_table()
+    table.set_vary(["*"], False)
+    table.set_vary(["instrument.zero_shift", "instrument.profile.w",
+                    "instrument.background.c0"], True)
+    assert table.column_reach() == {p: [p] for p in table.free_paths}
+
+
+def test_a_derived_tie_never_leaves_its_own_phase():
+    """The bit-identity that made the phase freeze safe to convert.
+
+    Every tie the package derives is a cell tie or a site-symmetry one, and
+    both stay inside the phase that owns them. So a test on ``free_paths``
+    filtered by ``phases.{ip}.`` and a test on this answer the same question on
+    every model that declared no tie of its **own** — which is every model
+    before WP-1070 gave a caller the verb.
+    """
+    table = make_table()
+    table.set_vary(["phases.*.*", "phases.*.atoms.*.*"], True)
+    for path, reached in table.column_reach().items():
+        if not path.startswith("phases."):
+            continue
+        prefix = ".".join(path.split(".")[:2]) + "."
+        assert all(p.startswith(prefix) for p in reached), path
+
+
+def test_a_derived_cell_tie_is_in_its_sources_reach():
+    """Cubic b and c follow a, so a's column moves three entries, not one."""
+    table = make_table()
+    table.set_vary(["phases.0.cell.a"], True)
+    assert table.column_reach()["phases.0.cell.a"] == [
+        "phases.0.cell.a", "phases.0.cell.b", "phases.0.cell.c"]
+
+
+def test_the_union_of_every_reach_is_moving_paths():
+    """One matrix, two readings, and they cannot come apart.
+
+    Row-wise C says which entries move; column-wise C says which column moves
+    each. A path in one and not the other would mean the table disagreed with
+    itself about its own constraint block.
+    """
+    table = make_table()
+    table.set_vary(["phases.0.cell.a", "instrument.zero_shift"], True)
+    table.add_parameter("synthetic.twice_zero", 0.0)
+    table.set_tie("synthetic.twice_zero",
+                  AffineTie(terms=(("instrument.zero_shift", 2.0),), const=0.0))
+    union = {p for paths in table.column_reach().values() for p in paths}
+    assert union == set(table.moving_paths)
+
+
+def test_a_zero_coefficient_is_not_reach():
+    """A flattened tie can carry a zero term, and zero moves nothing.
+
+    Matched to ``moving_paths``, which tests the coefficient rather than the
+    sparsity pattern — an explicitly stored zero is a term that cancelled, not
+    a dependency.
+    """
+    table = make_table()
+    table.set_vary(["phases.0.cell.a", "instrument.zero_shift"], True)
+    table.add_parameter("synthetic.dead", 0.0)
+    table.set_tie("synthetic.dead",
+                  AffineTie(terms=(("instrument.zero_shift", 0.0),), const=1.0))
+    assert "synthetic.dead" not in table.column_reach()["instrument.zero_shift"]
+    assert "synthetic.dead" not in table.moving_paths
+
+
+def test_a_table_with_nothing_free_reaches_nothing():
+    """The empty answer is empty, never a row of itself."""
+    table = make_table()
+    table.set_vary(["*"], False)
+    assert table.free_paths == []
+    assert table.column_reach() == {}

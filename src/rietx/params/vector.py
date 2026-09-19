@@ -1713,6 +1713,38 @@ class ParameterTable:
         reach = np.asarray(abs(self._C).sum(axis=1)).ravel()
         return [e.path for i, e in enumerate(self.entries) if reach[i] > 0.0]
 
+    def column_reach(self) -> dict[str, list[str]]:
+        """Per free column, every entry path it moves — itself and its ties.
+
+        :attr:`moving_paths` answers "does this entry move"; this answers
+        "*which column* moves it", which is the question a freeze resting on
+        flatness has to ask.  A column is a flat direction only when everything
+        it reaches is flat, and the entry that is flat is rarely the one
+        carrying the freedom: since WP-1119 a caller's ``vars.X`` can drive a
+        phase's cell, and the only free *name* is then the variable's.
+
+        One column-wise read of the same **C** that :attr:`moving_paths` reads
+        row-wise and that ``optimize._column_extras`` reads for the Jacobian's
+        own reach gate — never a second derivation, which could disagree with
+        the matrix the residual is actually built from.  An explicitly stored
+        zero coefficient is not reach, matching ``moving_paths``' test rather
+        than the sparsity pattern, since a tie may flatten to a zero term.
+
+        **With no tie every column reaches exactly itself**, so a consumer
+        replacing a test on ``free_paths`` with a test on this is bit-identical
+        on every model that declared none — which is what made it safe to apply
+        unconditionally rather than behind a freeze.  Keyed and ordered by
+        :attr:`free_paths`; the values are in entry order, so neither answer
+        depends on how θ was assembled.
+        """
+        csc = self._C.tocsc()
+        out: dict[str, list[str]] = {}
+        for j, path in enumerate(self.free_paths):
+            sl = slice(csc.indptr[j], csc.indptr[j + 1])
+            rows = csc.indices[sl][csc.data[sl] != 0.0]
+            out[path] = [self.entries[i].path for i in sorted(rows)]
+        return out
+
     def x0(self) -> np.ndarray:
         return np.array([to_internal(self._unscaled(self.entries[i]),
                                      self.entries[i].transform)
