@@ -160,7 +160,7 @@ the transposed rotation set is a group too and passes any dimension count.
 
 ### Inherited
 
-**From WP-1432 (2026-09-19), issue #293 — the re-basing defect is fixed.** A tie
+**From WP-1432 (2026-09-19) — the re-basing defect is fixed.** A tie
 whose target is a coordinate DOF now means the same thing after the tenth
 write-through verb as after the first, so an amplitude refined through one can
 be read back from the variable that names it. Three facts reach this WP. A

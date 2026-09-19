@@ -77,7 +77,7 @@ Le Bail and Pawley intensities are frozen per stage as well
 
 ### Inherited
 
-**From WP-1432 (2026-09-19), issue #293.** One measured instance of this WP's
+**From WP-1432 (2026-09-19).** One measured instance of this WP's
 class, found and fixed. `replay` rebuilt its table from the node's own
 structure and re-declared the recorded ties on it, and a user tie onto a
 coordinate DOF was applied a second time in doing so. A replayed node therefore

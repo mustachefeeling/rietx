@@ -729,7 +729,7 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   affine-ties x/y/z to them; free them with the `phases.*.atoms.*.dof.*` glob (the
   `mccusker_structural` plan does). Fully fixed special positions get locked coords — `vary=True`
   there raises. **A coordinate DOF is *relative*, so the invariant is that a rebuild reproduces
-  the coordinate** (WP-1432, #293): the row is x = x_stored + Σ Bₖθₖ with the DOF rederived to
+  the coordinate** (WP-1432): the row is x = x_stored + Σ Bₖθₖ with the DOF rederived to
   zero, so a tie onto one from a source that does not reset — a named variable, re-declared from
   its register — anchored on a coordinate that had already absorbed the displacement and added it
   again, once per table build, silently (0.2093 → 0.2493 over four writes while `vars.A` read
