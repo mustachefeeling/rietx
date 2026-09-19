@@ -1770,12 +1770,22 @@ class ParameterTable:
 
         Every entry is a key, including one nothing follows, whose value is
         itself.  Ordered by entry for the same reason ``column_reach`` is.
+
+        A source's coefficients are **summed before the zero test**, because
+        ``_rebuild`` scatters them into one C entry and the sparse constructor
+        sums duplicates there too.  Per term, the two readings come apart:
+        ``dep = p - q`` with ``p`` and ``q`` both following one source is a
+        cancelled dependency C does not carry, and ``entry_reach`` called it
+        reach while ``moving_paths`` did not.
         """
         deps: dict[int, set[int]] = {}
         for i, e in enumerate(self.entries):
             if e.tie is None:
                 continue
+            summed: dict[int, float] = {}
             for j, coeff in self._flatten(e.tie, (e.path,))[0]:
+                summed[j] = summed.get(j, 0.0) + coeff
+            for j, coeff in summed.items():
                 if coeff != 0.0:
                     deps.setdefault(j, set()).add(i)
         return {e.path: [self.entries[k].path

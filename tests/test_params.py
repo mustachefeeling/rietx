@@ -624,6 +624,34 @@ def test_the_two_readings_agree_wherever_both_can_answer():
         assert column[path] == entry[path], path
 
 
+def test_a_tie_that_cancels_is_reach_in_neither_reading():
+    """The zero-coefficient rule, one chain deeper.
+
+    ``dep = p - q`` where both follow the same source flattens to two terms
+    that cancel, and ``_rebuild`` sums them into one C entry of zero — so the
+    dependency does not exist. Read per term rather than per source,
+    ``entry_reach`` called it reach while ``column_reach`` and ``moving_paths``
+    did not, which is the two readings coming apart on the free path the test
+    above holds them equal on.
+    """
+    table = make_table()
+    table.set_vary(["*"], False)
+    table.set_vary(["instrument.zero_shift"], True)
+    for name in ("p", "q", "dep"):
+        table.add_parameter(f"synthetic.{name}", 0.0)
+    for name in ("p", "q"):
+        table.set_tie(f"synthetic.{name}",
+                      AffineTie(terms=(("instrument.zero_shift", 1.0),)))
+    table.set_tie("synthetic.dep",
+                  AffineTie(terms=(("synthetic.p", 1.0),
+                                   ("synthetic.q", -1.0))))
+    assert "synthetic.dep" not in table.moving_paths
+    assert ("synthetic.dep"
+            not in table.column_reach()["instrument.zero_shift"])
+    assert (table.entry_reach()["instrument.zero_shift"]
+            == table.column_reach()["instrument.zero_shift"])
+
+
 def test_entry_reach_answers_for_a_fixed_source_where_c_cannot():
     """The case the wider reading exists for.
 

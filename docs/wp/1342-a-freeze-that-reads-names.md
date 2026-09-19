@@ -140,6 +140,23 @@ exact. The panel would have promised a freed `vars.B` that the next run
 dropped, which is the disagreement WP-1076's rule is about, and no test covered
 it because the panel and the run were never compared on a tied column.
 
+**Missed, and caught by `/code-review high --fix`: `_released_phases`.** The
+audit above walked the *other* decisions in `refine.py` and never asked about
+the hold's own second half, which is the one place the conversion was
+obligatory rather than optional. A held `vars.X` names no phase, so the release
+test never matched it and the hold this WP made possible could not be lifted —
+a regression this WP created, since that column was not held at all before.
+Measured on the ramp's 700 °C pattern with the CaF₂ cell driven through a
+variable: held and never released, the cell at its 5.40 Å seed against
+5.463026 Å in the untied control, Rwp 0.193923 against 0.054961, and no
+diagnostic, the phase being supported by the end. Repaired, the tied arm is
+bit-identical to the control. The rule is **any, never all** — the mirror of
+`_only_moves`, since one phase appearing gives the column gradient again — and
+the reach it needs is the hold's own record, C having no column to ask once the
+hold has taken it. **The lesson for the next audit of this kind: convert the
+verb and its inverse together**, because a half-converted pair fails in the
+direction nothing was testing.
+
 **Left alone — `optimize.identifiability`**. It calls `mode_fixed_path` on
 candidates drawn from `EXCHANGE_CANDIDATE_GLOBS`, every entry of which is a
 literal model path, so a variable can never be a candidate and the predicate is
@@ -287,6 +304,21 @@ stage and reported, and every fit with no user tie is bit-identical.
   `JointRefinement` takes a `Structure` and never a `Refinement`, so it has no
   tie register at all — **whoever gives the joint runner a tie verb converts
   that call site in the same change**.
+
+  **The review pass earned its place and found a regression this WP created.**
+  `/code-review high --fix` returned four findings, all accepted, all applied.
+  The high one is `_released_phases`, the hold's own inverse, left on the name
+  test — so the new column-holds could never be lifted, measured at Rwp 0.193923
+  against the untied control's 0.054961 with the cell stuck at its seed, and
+  reproduced here independently before accepting the fix. Two were claims of
+  mine that were simply wrong: `_held_by_phase` stopped at the first phase a
+  held column named, and a column driving *two absent* phases is held, so the
+  second phase got no `PHASE_UNCONSTRAINED` at all — the "never held" sentence
+  was true only of a column reaching a **visible** phase, and it was repeated in
+  the manual and the skill row. The fourth: `entry_reach` tested each flattened
+  term where `_rebuild` sums a source's coefficients into one C entry, so a
+  cancelling `dep = p - q` broke the invariant holding the two readings equal.
+  Nothing was declined.
 
   **Next**: nothing on this WP. The two notes above are the only live threads
   it leaves, and both are conditional on work nobody has scheduled.

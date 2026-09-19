@@ -32,6 +32,7 @@ from rietx.model.forward import PHASE_SUPPORT_SIGMA, compile_model
 from rietx.params.vector import ParameterTable
 from rietx.refine import _unsupported_phase_paths
 from rietx.schemas.plan import PlanSpec, StageSpec
+from rietx.schemas.structure import Structure
 from tests.test_absent_phase import _absent_phase_inputs
 from tests.test_refine_synthetic import TRUE_A, synthesize
 from tests.test_schemas import make_lab6
@@ -1181,6 +1182,68 @@ def test_the_hold_reaches_every_pattern_of_a_chain():
     assert len(persistent) == 1
     assert persistent[0].where == ["vars.caf2_a"]
     assert "5 of 5" in persistent[0].message
+
+
+def test_a_held_column_is_released_when_its_phase_appears():
+    """The release is the hold's other half, and it reads names too.
+
+    ``released_fit``'s pattern, with the CaF₂ cell driven through a variable.
+    The stage starts with the phase invisible, so the column is held; the scale
+    climbs while the stage solves, and the hold must be lifted here rather than
+    one pattern later. The release test could only ever see ``phases.1.`` in
+    the held path's own name, so a held ``vars.caf2_a`` stayed held: measured,
+    the cell sat at its 5.40 Å seed against 5.463026 Å, and Rwp 0.1939 against
+    0.0550 — a hold this WP made possible and nothing could lift.
+    """
+    import rietx as rx
+
+    data = _ramp_patterns([700.0])[0]
+    ref = rx.Refinement(_ramp_start(caf2_a=5.40), _ramp_instrument(),
+                        history=False)
+    ref.add_variable("caf2_a", 5.40, min=5.0, max=6.0)
+    ref.tie("phases.1.cell.a", "vars.caf2_a")
+    plan = rx.RefinementPlan(stages=[rx.Stage(
+        "all", ["phases.*.scale", "instrument.background.*", "phases.*.cell.*",
+                "instrument.profile.w", "instrument.profile.x", "vars.*"])])
+    result = ref.fit(data, plan=plan, telemetry=False)
+
+    stage = result.stages[0]
+    assert stage.released == ["vars.caf2_a"]
+    assert stage.held == [], "the hold was lifted, so nothing stayed held"
+    a = ref.structure.phases[1].cell.a.value
+    assert a == pytest.approx(RAMP_CAF2_A, rel=1e-4), f"CaF2 a = {a}"
+    assert result.statistics.rwp < 0.06
+
+
+def test_a_column_held_for_two_absent_phases_is_reported_under_both():
+    """One column, two flat phases, and a warning owed about each of them.
+
+    ``_only_moves`` holds a column when *every* phase it moves is invisible,
+    which one variable driving two absent cells satisfies — so the column is
+    correctly held, and ``PHASE_UNCONSTRAINED`` is owed for both phases. Read
+    by stopping at the first phase the column's names mention, the second one
+    had nothing held, nothing free under its own prefix, and therefore no
+    finding at all.
+    """
+    import rietx as rx
+
+    structure, ins = _absent_phase_inputs()
+    second = structure.phases[1].model_copy(deep=True)
+    second.name = "absent2"
+    ref = rx.Refinement(
+        Structure(phases=[structure.phases[0], structure.phases[1], second]),
+        ins, history=False)
+    ref.add_variable("A", 5.2, min=1.0, max=20.0)
+    ref.tie_equal(["phases.1.cell.a", "phases.2.cell.a"], source="vars.A")
+    result = ref.fit(synthesize(), plan=_cell_plan("vars.*"), telemetry=False)
+
+    stage = next(s for s in result.stages if s.held)
+    assert stage.held == ["vars.A"]
+    fired = [d for d in result.diagnostics if d.code == "PHASE_UNCONSTRAINED"]
+    assert len(fired) == 2, [d.message for d in fired]
+    assert {d.message.split()[1] for d in fired} == {"1", "2"}
+    # the column, once per phase — never the six cell parameters it drove
+    assert all(d.where == ["vars.A"] for d in fired)
 
 
 @pytest.mark.slow

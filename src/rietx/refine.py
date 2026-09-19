@@ -362,14 +362,30 @@ def _hold_unsupported_phases(model: CompiledModel, table: ParameterTable
 
 
 def _released_phases(model: CompiledModel, table: ParameterTable,
-                     held: list[str],
-                     support: np.ndarray | None = None) -> list[str]:
-    """Of ``held``, the paths whose phase has risen above support since.
+                     held: list[str], support: np.ndarray | None = None,
+                     reach: dict[str, list[str]] | None = None) -> list[str]:
+    """Of ``held``, the columns whose phase has risen above support since.
 
     Measured at the values the solve *landed* on, against the same threshold
     the hold was taken at — a phase whose scale climbed while the stage ran is
     now one the data can see, and its parameters are measurable in this stage
     rather than the next one.
+
+    **Columns, never names**, the other half of :func:`_unsupported_phase_paths`
+    and the same repair: a held column may be a caller's ``vars.X``, whose own
+    name carries no phase, so the phase is looked for in what the column
+    *moved* as well.  ``reach`` is the hold's own record, read while the column
+    was still in θ (:func:`_reach_beyond_self`) — read again here it would be
+    empty, the column no longer being one.  Left out, the hold this WP made
+    possible could never be lifted: measured on the ramp's 700 °C pattern with
+    the CaF₂ cell driven through a variable, the stage held it and kept it, the
+    cell stayed at its 5.40 Å seed against 5.463026 Å released, and Rwp went
+    0.0550 → 0.1939 with no diagnostic saying why.
+
+    **Any, never all** — the mirror of :func:`_only_moves`' rule.  A column is
+    held only while every phase it moves is invisible, so one phase appearing
+    is enough to give it gradient again, and a direction the data can see must
+    not stay frozen.
     """
     if support is None:
         support = model.phase_support(table.decode(table.x0()))
@@ -377,7 +393,10 @@ def _released_phases(model: CompiledModel, table: ParameterTable,
     if not seen:
         return []
     prefixes = tuple(f"phases.{ip}." for ip in sorted(seen))
-    return [p for p in held if p.startswith(prefixes)]
+    reach = reach or {}
+    return [p for p in held
+            if any(name.startswith(prefixes)
+                   for name in (p, *reach.get(p, ())))]
 
 
 class NoPhasesError(ValueError):
@@ -2106,7 +2125,10 @@ class Refinement:
         # one measurement, two questions — the release and the collapse are
         # complementary readings of the same ``phase_support`` vector
         support = model.phase_support(table.decode(table.x0()))
-        released = _released_phases(model, table, held, support) if held else []
+        # the hold's reach travels with it: a held ``vars.X`` names no phase,
+        # and asking the table now would get nothing back (WP-1342)
+        released = (_released_phases(model, table, held, support, held_reach)
+                    if held else [])
         # the same question the hold asked, asked again of the answer: what is
         # free now and belongs to a phase the data cannot see
         collapsed = _unsupported_phase_paths(model, table, support)
@@ -5139,9 +5161,18 @@ def _held_by_phase(stage_results: list[StageResult], n_phases: int
 
     Since WP-1342 a held path need not name a phase at all: the freeze holds
     *columns*, and a caller's ``vars.X`` driving a cell is one.  So the phase is
-    looked for in what the column moved (``StageResult.held_reach``) when the
-    column's own name does not carry one.  A column moving two phases' paths is
-    never held (:func:`_only_moves`), so it cannot land in two buckets.
+    looked for in what the column moved (``StageResult.held_reach``) as well as
+    in its own name.
+
+    **Every phase the column reached, not the first one.**  A column is held
+    only while *every* phase it moves is invisible (:func:`_only_moves`), which
+    one driving two **absent** phases satisfies — so such a column belongs in
+    both buckets, and stopping at the first name that parses reported it under
+    the lower index alone.  The second phase then had nothing held, nothing
+    free under its own prefix, and so no ``PHASE_UNCONSTRAINED`` at all
+    (measured on a three-phase fixture with one ``vars.A`` driving both absent
+    cells: one finding, for phase 1).  The buckets are sets, so a path whose
+    name and whose reach both point at one phase still lands once.
 
     **What goes in the bucket is the column, never its reach.**  The bucket
     becomes ``PHASE_UNCONSTRAINED``'s ``where``, which ``sequential`` keys its
@@ -5154,7 +5185,7 @@ def _held_by_phase(stage_results: list[StageResult], n_phases: int
     stages: list[dict[str, None]] = [{} for _ in range(n_phases)]
     for sr in stage_results:
         for path in sr.held:
-            for name in [path, *sr.held_reach.get(path, [])]:
+            for name in (path, *sr.held_reach.get(path, ())):
                 parts = name.split(".")
                 try:
                     ip = int(parts[parts.index("phases") + 1])
@@ -5163,7 +5194,6 @@ def _held_by_phase(stage_results: list[StageResult], n_phases: int
                 if 0 <= ip < n_phases:
                     paths[ip].add(path)
                     stages[ip][sr.name] = None
-                break
     return paths, [list(s) for s in stages]
 
 

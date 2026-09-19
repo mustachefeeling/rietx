@@ -500,9 +500,10 @@ driving. A cubic `a` held on its own account lists the `b` and `c` that
 followed it. A held `vars.A` lists the cell it drove. The two fields together
 are every value the stage froze.
 
-A variable driving two phases is never held. It changes the calculated pattern
-wherever either phase is visible, so it is not the flat direction a hold exists
-to remove. Holding it would freeze a cell the data can measure.
+A variable driving two phases is held only while the data can see neither of
+them. One visible phase gives it gradient, so it is not the flat direction a
+hold exists to remove, and holding it would freeze a cell the data can measure.
+A phase appearing while the stage solves lifts the hold the same way.
 
 A hold is decided per stage, at the values that stage starts from, so a phase
 that appears later refines normally from the stage where it appears. If it
