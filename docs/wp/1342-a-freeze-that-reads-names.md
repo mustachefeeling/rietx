@@ -117,7 +117,7 @@ The defect is "a decision in `refine.py` that reads a free path's name", so the
 other decisions were asked the same question. Two more read names; two look
 like they do and are fine.
 
-**Fixed — the Le Bail / Pawley force-fix.** `mode_fixed_path`'s two drop sites
+**Fixed — the Le Bail / Pawley force-fix.** `mode_fixed_path`'s drop sites
 tested the free path's name, so a `vars.B` driving an atom's `biso` was not
 force-fixed and entered θ as a column Le Bail has no |F|² to fit. Measured on
 LaB₆: freeing `vars.*` in `lebail` put `vars.B` in the freed set and moved
@@ -131,6 +131,21 @@ That second consumer is why `ParameterTable.entry_reach` exists beside
 the variable fixed, so a row asked afterwards had nothing to read and called
 the column refinable. `entry_reach` reads the declarations C is compiled from,
 and a test holds the two equal on every free path.
+
+**Fixed — the GUI's plan panel** (`gui/session.py`, the `/api/plan/resolve`
+route). A third drop site, found by reading the remaining callers rather than
+by a failure, and the one whose comment already claimed parity: *"exactly what
+`_run_stage` does with a mode-fixed hit, and for its reason"*. It was no longer
+exact. The panel would have promised a freed `vars.B` that the next run
+dropped, which is the disagreement WP-1076's rule is about, and no test covered
+it because the panel and the run were never compared on a tied column.
+
+**Left alone — `optimize.identifiability`**. It calls `mode_fixed_path` on
+candidates drawn from `EXCHANGE_CANDIDATE_GLOBS`, every entry of which is a
+literal model path, so a variable can never be a candidate and the predicate is
+only ever asked about a model path. The tie/hold verbs' own refusal
+(`_tie_entry`, `role == "target"`) is the same case: it asks about the target,
+which is a model path by construction.
 
 **Left alone — the cell window** (`params.vector.cell_window`, applied in
 `ParameterTable.bounds` through `_cell_parameter_name`). It reads the free
