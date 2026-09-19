@@ -64,6 +64,35 @@ Whichever it is, `PHASE_UNCONSTRAINED` (which 1301 made say what was done)
 has to be able to name a variable rather than a phase path, and
 `StageResult.held` has to record a column that is not a phase's.
 
+**Decided 2026-09-19: the first, and it is the flatness argument rather than a
+preference.** The hold exists to remove a direction with no gradient. A column
+driving two phases' cells through one `vars.X` has real gradient wherever
+*either* phase is visible, so it is not flat, and holding it would freeze a
+direction the data can see.
+
+Measured on the two-phase fixture (`_absent_phase_inputs`, one LaB₆ present and
+one absent, both cells tied to `vars.A`), under the identical plan:
+
+| | present cell | from truth | Rwp |
+|---|---|---|---|
+| hold if **any** phase is unsupported | 4.200000 Å (the seed) | +10 441 ppm | 0.9636 |
+| hold only if **all** are | 4.154286 Å | −557 ppm | 0.8072 |
+
+Two consequences fell out rather than needing rules of their own. The phase's
+own `scale` excludes a column by the same test, because a column moving
+`phases.1.scale` moves something the data can see — so the "never hold the
+scale" clause needs no special case beyond naming it. And a **variable is
+dropped before the test**: the column's own entry is in its reach, the forward
+model never reads a `vars.X`, and left in, every tied column failed on its own
+name and nothing was ever held. `params.vector.is_variable_path` is the one
+authority for that distinction and now carries three rules rather than two.
+
+`where` keeps the **columns**, not their reach. `sequential` keys its
+persistent-finding aggregation on `where`, so adding the derived ties turns one
+finding about a phase into one per tied cell parameter — measured, 3 on the
+ramp's cubic CaF₂ for a single absent phase. The account of what else a hold
+stopped is `StageResult.held_reach`.
+
 ### The seam
 
 `moving_paths` answers "does this entry move", not "which column moves it",
@@ -94,12 +123,12 @@ declares the fact, the consumer never guesses it.
 
 ## Tasks
 
-- [ ] A `ParameterTable` accessor giving a free column's reach (the entry
+- [x] A `ParameterTable` accessor giving a free column's reach (the entry
       paths its non-zero C rows name), with the empty-C and no-tie cases
       pinned bit-identical to today's `free_paths` answer.
-- [ ] Take the several-phase decision above, measured on a two-phase fixture
+- [x] Take the several-phase decision above, measured on a two-phase fixture
       with one phase below `PHASE_SUPPORT_SIGMA`, and write it in this file.
-- [ ] `_unsupported_phase_paths` reads reach, and `PHASE_UNCONSTRAINED` /
+- [x] `_unsupported_phase_paths` reads reach, and `PHASE_UNCONSTRAINED` /
       `StageResult.held` name a column that is not a phase path.
 - [ ] `mode_fixed_path`'s callers do the same for the Le Bail / Pawley
       force-fix, or the WP records why the two cases differ.

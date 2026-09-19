@@ -172,6 +172,10 @@ class _StageHold:
 
     held: list[str]
     released: list[str]
+    #: what each held *column* also stopped (WP-1342), readable only while the
+    #: column is still in θ — so it travels with the rest rather than being
+    #: asked of the table afterwards, for this carrier's own reason.
+    reach: dict[str, list[str]] = dataclasses.field(default_factory=dict)
     blocked_by_hold: list[str] = dataclasses.field(default_factory=list)
 
 
@@ -220,7 +224,15 @@ def _tie_terms(source: "str | dict[str, float] | Sequence[tuple[str, float]]",
 
 def _unsupported_phase_paths(model: CompiledModel, table: ParameterTable,
                              support: np.ndarray | None = None) -> list[str]:
-    """The free structural paths of every phase the data cannot see.
+    """The free columns that move nothing but phases the data cannot see.
+
+    **Columns, never names** (WP-1342).  This filtered ``free_paths`` by
+    ``phases.{ip}.`` until a caller's ``vars.X`` could drive a phase's cell
+    (WP-1119), at which point the only free *name* was the variable's, the
+    prefix matched nothing, and the freeze reported that it had done its job on
+    a set it could not see into — the class this repo's rules are strictest
+    about.  ``ParameterTable.column_reach`` is the question restated as what a
+    column *moves*; :func:`_only_moves` is the decision over it.
 
     "Cannot see" is ``CompiledModel.phase_support`` below
     :data:`~rietx.model.forward.PHASE_SUPPORT_SIGMA` — the one authority, shared
@@ -251,17 +263,81 @@ def _unsupported_phase_paths(model: CompiledModel, table: ParameterTable,
     if not absent:
         return []
     prefixes = tuple(f"phases.{ip}." for ip in sorted(absent))
+    reach = table.column_reach()
     return [p for p in table.free_paths
-            if p.startswith(prefixes) and not p.endswith(".scale")]
+            if _only_moves(reach.get(p, [p]), prefixes)]
 
 
-def _hold_unsupported_phases(model: CompiledModel,
-                             table: ParameterTable) -> list[str]:
-    """Apply :func:`_unsupported_phase_paths` to the table; returns what it held."""
+def _only_moves(reached: list[str], prefixes: tuple[str, ...]) -> bool:
+    """Whether a column moves nothing but structural paths of these phases.
+
+    **The rule is "all", never "any"**, and it is the flatness argument rather
+    than a preference.  A column driving two phases' cells through one
+    ``vars.X`` (WP-1119) has real gradient wherever *either* phase is visible,
+    so it is not a flat direction and holding it would freeze something the
+    data can see: measured on the two-phase fixture, holding a shared column
+    left the present phase's cell at its 4.20 Å seed — 10 441 ppm from the
+    truth, Rwp 0.9636 — against 4.154286 Å and Rwp 0.8072 with it free.
+
+    The phase's own ``scale`` excludes a column the same way and for
+    :func:`_unsupported_phase_paths`' reason: it is the one direction that is
+    not flat, and the only way a phase climbs back out of the noise.  Under a
+    reach test that needs no special case beyond naming it — a column moving
+    ``phases.1.scale`` moves something the data can see, exactly as one moving
+    a supported phase's cell does.
+
+    **A variable is not a model parameter**, so it is dropped before the test
+    rather than answered about.  A column's own entry is in its reach, and a
+    caller's ``vars.X`` is an entry the forward model never reads — it reaches
+    the pattern only through what it drives, which is the whole point of the
+    namespace (:func:`~rietx.params.vector.is_variable_path`, the one authority
+    for that distinction).  Left in, every tied column failed the test on its
+    own name and nothing was ever held.
+
+    A column left with no model path at all is **not** held: it moves nothing
+    the data could see either way, so it is not a flat direction *of a phase*,
+    and ``all()`` over nothing would hold it on a vacuous truth.
+    """
+    moved = [p for p in reached if not is_variable_path(p)]
+    return bool(moved) and all(
+        p.startswith(prefixes) and not p.endswith(".scale") for p in moved)
+
+
+def _reach_beyond_self(table: ParameterTable,
+                       columns: list[str]) -> dict[str, list[str]]:
+    """Per column, the entries it moves other than itself (WP-1342).
+
+    The record half of a hold, and it must be read **before** ``set_vary``
+    takes the column out of θ: a held column is no longer a column, so its
+    reach is no longer a question the table can answer.
+
+    Columns reaching only themselves are left out rather than mapped to an
+    empty list, so the answer is the paths a reader could not have derived
+    from :attr:`~rietx.schemas.results.StageResult.held` alone.
+    """
+    if not columns:
+        return {}
+    reach = table.column_reach()
+    out = {}
+    for c in columns:
+        other = [p for p in reach.get(c, [c]) if p != c]
+        if other:
+            out[c] = other
+    return out
+
+
+def _hold_unsupported_phases(model: CompiledModel, table: ParameterTable
+                             ) -> tuple[list[str], dict[str, list[str]]]:
+    """Apply :func:`_unsupported_phase_paths`; returns what it held and its reach.
+
+    Both halves, because the reach is only readable while the columns are
+    still free — see :func:`_reach_beyond_self`.
+    """
     held = _unsupported_phase_paths(model, table)
+    reach = _reach_beyond_self(table, held)
     if held:
         table.set_vary(held, False)
-    return held
+    return held, reach
 
 
 def _released_phases(model: CompiledModel, table: ParameterTable,
@@ -1954,7 +2030,7 @@ class Refinement:
         # did.  Derived rather than patched, because a collapse and a release
         # can happen in the same stage.
         declared_freed = list(freed)
-        held = _hold_unsupported_phases(model, table)
+        held, held_reach = _hold_unsupported_phases(model, table)
         if held:
             held_set = set(held)
             freed = [p for p in declared_freed if p not in held_set]
@@ -2013,6 +2089,8 @@ class Refinement:
                 for path in collapsed:
                     by_path[path].value = start_values[path]
                 table.refresh_ties()  # dependents follow (b←a on a cubic cell)
+                # read while they are still columns, as at stage start
+                held_reach.update(_reach_beyond_self(table, collapsed))
                 table.set_vary(collapsed, False)
                 held = held + collapsed
             if released:
@@ -2022,6 +2100,8 @@ class Refinement:
             self._held = list(held)
             held_set = set(held)
             freed = [p for p in declared_freed if p not in held_set]
+            # a released column is not held, so its reach is not this record's
+            held_reach = {c: v for c, v in held_reach.items() if c in held_set}
             if events is not None:
                 # The resumed half gets its own ``stage_start``, because an
                 # ``eval``'s ``values`` are declared to align with
@@ -2081,6 +2161,7 @@ class Refinement:
                         held=list(held), released=list(released))
         return model, outcome, guard, freed, _StageHold(
             held=list(held), released=list(released),
+            reach={c: list(v) for c, v in held_reach.items()},
             blocked_by_hold=blocked_by_hold)
 
     def fit(self, data: PatternData, *, mode: Mode = "rietveld",
@@ -2384,6 +2465,7 @@ class Refinement:
                 n_constraint_truncations=outcome.n_constraint_truncations,
                 n_degenerate_cell_probes=outcome.n_degenerate_cell_probes,
                 ftol=ftol, held=hold.held, released=hold.released,
+                held_reach=hold.reach,
                 blocked_by_hold=hold.blocked_by_hold,
             ))
             if stage_reports:
@@ -2531,6 +2613,7 @@ class Refinement:
                 n_constraint_truncations=outcome.n_constraint_truncations,
                 n_degenerate_cell_probes=outcome.n_degenerate_cell_probes,
                 ftol=stage.ftol, held=hold.held, released=hold.released,
+                held_reach=hold.reach,
                 blocked_by_hold=hold.blocked_by_hold)
             # after the StageResult rather than beside the other two extends
             # above, because this one reads the record it has just built; and
@@ -5019,19 +5102,34 @@ def _held_by_phase(stage_results: list[StageResult], n_phases: int
     because the joint runner's records carry *scoped* paths whenever the
     sharing map makes a structural family per-histogram
     (``hist.0.phases.1.cell.a``), and position one is then the histogram.
+
+    Since WP-1342 a held path need not name a phase at all: the freeze holds
+    *columns*, and a caller's ``vars.X`` driving a cell is one.  So the phase is
+    looked for in what the column moved (``StageResult.held_reach``) when the
+    column's own name does not carry one.  A column moving two phases' paths is
+    never held (:func:`_only_moves`), so it cannot land in two buckets.
+
+    **What goes in the bucket is the column, never its reach.**  The bucket
+    becomes ``PHASE_UNCONSTRAINED``'s ``where``, which ``sequential`` keys its
+    persistent-finding aggregation on — so adding the derived ties would turn
+    one finding about a phase into one per tied cell parameter (measured: 3 on
+    the ramp's cubic CaF₂, for a single absent phase). The account of what else
+    a hold stopped is ``held_reach`` itself, on the record.
     """
     paths: list[set[str]] = [set() for _ in range(n_phases)]
     stages: list[dict[str, None]] = [{} for _ in range(n_phases)]
     for sr in stage_results:
         for path in sr.held:
-            parts = path.split(".")
-            try:
-                ip = int(parts[parts.index("phases") + 1])
-            except (IndexError, ValueError):
-                continue
-            if 0 <= ip < n_phases:
-                paths[ip].add(path)
-                stages[ip][sr.name] = None
+            for name in [path, *sr.held_reach.get(path, [])]:
+                parts = name.split(".")
+                try:
+                    ip = int(parts[parts.index("phases") + 1])
+                except (IndexError, ValueError):
+                    continue
+                if 0 <= ip < n_phases:
+                    paths[ip].add(path)
+                    stages[ip][sr.name] = None
+                break
     return paths, [list(s) for s in stages]
 
 

@@ -1084,26 +1084,34 @@ def test_the_record_and_the_diagnostic_name_the_phase_behind_the_column():
 
     stage = next(s for s in result.stages if s.held)
     assert stage.held == ["vars.A"]
-    assert stage.held_reach == {"vars.A": ["phases.1.cell.a"]}
+    assert stage.held_reach == {"vars.A": ["phases.1.cell.a", "phases.1.cell.b",
+                                           "phases.1.cell.c"]}
 
     fired = [d for d in result.diagnostics if d.code == "PHASE_UNCONSTRAINED"]
     assert len(fired) == 1, [d.code for d in result.diagnostics]
     assert "was held for" in fired[0].message
-    # both halves are named: the column a caller can unfreeze, and the
-    # parameter whose value is not a measurement
-    assert {"vars.A", "phases.1.cell.a"} <= set(fired[0].where)
+    # the column, because that is the declaration a caller can lift — and one
+    # finding about the phase, not one per parameter the column drove, because
+    # `where` is what the series keys its persistent-finding aggregation on
+    assert fired[0].where == ["vars.A"]
 
 
-def test_held_reach_is_empty_when_no_held_column_drives_anything():
-    """WP-1076's honest empty state: written on every stage, never omitted.
+def test_held_reach_carries_the_derived_ties_a_hold_also_stopped():
+    """It is about the column, not about the caller: symmetry ties count too.
 
-    An untied hold reaches only itself, and repeating the path as its own value
-    would say nothing — so the map carries the columns that drove something
-    else, and is empty on every fit that declared no tie.
+    Holding a cubic ``a`` stops ``b`` and ``c`` with it, and a reader of the
+    record should not have to know the crystal system to learn that. The map
+    is ``column_reach`` restricted to what was held, minus each column itself —
+    so a column that moved nothing else is absent rather than mapped to an
+    empty list, and the union with ``held`` is every value this stage froze.
     """
     structure, ins = _absent_phase_inputs()
     ref = Refinement(structure, ins, history=False)
     result = ref.fit(synthesize(), plan="mccusker_default", telemetry=False)
-    assert any(s.held for s in result.stages)
-    for stage in result.stages:
-        assert stage.held_reach == {}, stage.name
+
+    stage = next(s for s in result.stages if s.held)
+    assert stage.held == ["phases.1.cell.a"]
+    assert stage.held_reach == {"phases.1.cell.a": ["phases.1.cell.b",
+                                                    "phases.1.cell.c"]}
+    for other in result.stages:
+        assert set(other.held_reach) <= set(other.held), other.name

@@ -270,12 +270,19 @@ VAR_PREFIX = "vars."
 def is_variable_path(path: str) -> bool:
     """Is ``path`` a caller's named variable rather than a model parameter?
 
-    One predicate rather than a repeated ``startswith``, because two rules turn
-    on it and they must not drift: a tied source is accepted only where this is
-    true (a variable may follow other variables — TOPAS's ``prm B = 2 A`` — while
-    a tied *model* path keeps the refusal that steers a caller to what it
-    follows), and only a path answering true is written back to the variable
-    register instead of into the pydantic models.
+    One predicate rather than a repeated ``startswith``, because three rules
+    turn on it and they must not drift: a tied source is accepted only where
+    this is true (a variable may follow other variables — TOPAS's ``prm B =
+    2 A`` — while a tied *model* path keeps the refusal that steers a caller to
+    what it follows); only a path answering true is written back to the
+    variable register instead of into the pydantic models; and a freeze asking
+    what a column *moves* drops these before deciding, because the forward
+    model never reads one (``refine._only_moves``, WP-1342).
+
+    All three are the same fact — a variable is not a model parameter — and it
+    is a fact about the **namespace** rather than a guess from a name: the
+    model tree's only top-level segments are ``phases`` and ``instrument``, so
+    nothing it owns can answer true here.
     """
     return path.startswith(VAR_PREFIX)
 
