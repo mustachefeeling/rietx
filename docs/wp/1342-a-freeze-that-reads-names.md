@@ -39,6 +39,16 @@ Le Bail force-fix of atom coordinates has the same hole.
 ROADMAP is strictest about: the freeze reports that it did its job, on a set it
 could not see into.
 
+Since [1441](1441-a-constraint-the-series-can-declare.md) the exposure is a
+chain rather than a fit. A tie could once be declared only on a single
+`Refinement`, so this defect cost one answer; `SequentialRefinement.fit`'s
+`constrain=(index, ref)` hook re-declares it on every pattern, which multiplies
+the exposure by the length of the chain and puts it where nobody reads an
+individual fit. A ramp is also where it is hardest to see: a freeze that
+quietly holds a moving path bends a whole trajectory rather than spoiling one
+number, and `direction="both"` cannot separate that from a real one, because
+both directions carry the same tie.
+
 ### What makes it more than a prefix fix
 
 A column may reach several phases. `vars.X` driving `phases.0.cell.a` and
@@ -63,27 +73,14 @@ table has no method for it. Expect a small `ParameterTable` accessor
 (free column index → the set of entry paths its non-zero rows name) plus the
 two call sites, rather than a change in `optimize/`.
 
-### Inherited
-
-**From WP-1432 (2026-09-19).** A repair in the neighbouring seam, and a
-precedent this WP can copy. `ParameterTable._anchored_dofs` records which
+[1432](1432-a-tie-onto-a-rederived-dof.md) repaired the neighbouring seam and
+left a precedent worth copying. `ParameterTable._anchored_dofs` records which
 entries are displacements from a stored value as **data built where the anchor
 is** (`_collect_atom_coords`), never a path prefix matched at the call site.
 ADP and Stephens DOFs spell `…adp.k` and `…microstrain.dof.k` the same way and
-are absolute, so a name test would have reached the wrong rows. That is this
-WP's own question one seam over, answered by having the builder declare the
-fact rather than the consumer guess it.
-
-**From WP-1441 (2026-09-18), issue #376.** A user tie now reaches a series. Until
-this WP, a tie the freeze cannot see could only be declared on a single
-`Refinement`, so this defect cost one fit; `SequentialRefinement.fit`'s new
-`constrain=(index, ref)` hook re-declares it on every pattern, which multiplies
-the exposure by the length of the chain and puts it where nobody is watching an
-individual fit. A ramp is also where it would be hardest to read: a freeze that
-quietly holds a moving path would bend a whole trajectory rather than spoil one
-number, and `direction="both"` cannot separate that from a real one — it
-reproduces in both directions, because both directions carry the same tie.
-Worth a series fixture in this WP's tests, beside the single-fit one.
+are absolute, so a name test would have reached the wrong rows there too. This
+WP asks the same question one seam over, and takes the same answer: the builder
+declares the fact, the consumer never guesses it.
 
 ## Non-goals
 
@@ -107,8 +104,9 @@ Worth a series fixture in this WP's tests, beside the single-fit one.
 - [ ] `mode_fixed_path`'s callers do the same for the Le Bail / Pawley
       force-fix, or the WP records why the two cases differ.
 - [ ] Tests: a variable driving an unsupported phase's cell is held (the
-      arm that fails today), the untied path stays bit-identical, and the
-      obs/calc/diff PNGs in `tests/output/`.
+      arm that fails today), the untied path stays bit-identical, a series
+      fixture declaring the tie through `constrain=` beside the single-fit
+      one, and the obs/calc/diff PNGs in `tests/output/`.
 - [ ] Skill: none expected — an agent driving rietx sees only that the hold
       now fires. Confirm at handover, or add the row.
 
