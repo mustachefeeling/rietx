@@ -124,6 +124,42 @@ MAGNDATA magCIF entries serve the round-trip and span tests with no pattern.
 
 ### Inherited
 
+- **2026-09-21, from the issue triage: #384 and #390, both measured on the
+  fork against this WP's solver.** Checked against the tree at `4ee4e7f5`:
+  `solve_magnetic` is not on `main` yet, so neither can be reproduced here;
+  both are read as claims about the fork's `magnetic-v16` (aa665eaf) and
+  taken on at the PR. **#390** ran the determination verb blind over every
+  commensurate MAGNDATA entry with the published k: 70 % recover the
+  published group exactly, 88 % it or a supergroup. The supergroup cases
+  were *not* a missing kernel-subgroup candidate (checked: the published
+  class is enumerated, refined and loses); the real fault was a moment with
+  two or more free components seeded along its first basis row, a stationary
+  point of χ² where the residual point-group action fixes that row, fixed by
+  a deterministic 0.02 tilt (0.15 regressed two of twenty controls). After
+  it, six of nine supergroup winners remain across noise draws: the
+  secondary order parameter is unsupported at those statistics, a power
+  finding and not a ranking defect. Three pieces of machinery ride in the
+  series: `MagneticSolution.margin` (ΔBIC over the best *other eligible*
+  class, `None` on abstention, one eligibility helper), a **descent audit
+  after selection** (the winner's maximal same-k operator-list subgroups
+  refitted from its own solution, `MAGNETIC_SUBGROUP_PREFERRED` if one beats
+  it beyond the tie width; k ≠ 0 descents changing the atom count not yet
+  matched), and the group–subgroup lattice among tied classes in the
+  summary. Proposed acceptance wording, to take or leave: *a supergroup
+  winner is accompanied by the descent audit's statement of what ΔBIC its
+  maximal subgroups reached, and the report says the secondary order
+  parameter is unsupported rather than absent.* **#384** asks that the
+  candidate comparison reach where a person reads a fit afterwards: (1) a
+  structured `magnetic_candidates` section on the winner's `FitReport` (the
+  rows `str(solution)` prints, plus verdict, reason and tie diagnostics;
+  smallest, offered for this WP's PR series); (2) the tree records the
+  fan-out, one `stage` subtree per candidate class with the chosen class the
+  continuing branch, under a `select` kind carrying criterion and margin,
+  with `cherry_pick` able to replay a loser as the completeness check;
+  (3) the GUI tree greys rejected branches and shows the margin on hover.
+  (2) is a `NodeKind` addition and so a vocabulary member that needs its
+  writer named (root CLAUDE.md, WP-1076); (3) is `gui/`'s. Decisions taken
+  at the triage batch are appended below this entry, dated.
 - **2026-09-18 — this WP is v1.6's first, and M-6 and M-7 are its first PRs.**
   The milestone opened today ([record](../milestones/v1.6.md)) over the seven
   magnetic WPs. The order was set on #286: M-6 (irreps, spgrep as a test oracle
