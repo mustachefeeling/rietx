@@ -1,4 +1,4 @@
-# WP-1442 — A ghost search at chance
+# WP-1442 — a ghost search at chance: the Kβ flag fires where Kβ cannot exist
 
 Milestone: unscheduled · Status: ⬜
 Depends on: — (1415 soft)
@@ -30,9 +30,10 @@ and at W Lα1 (Bearden 1967), and flags any weaker line within
 every other. `PeakList.usable()` drops a flagged line, so `index_pattern` never
 sees it, and `PEAK_CONTAMINATION_LINE` reports the count. The anode is
 `identify_anode(wavelength)`, the nearest tabulated Kα1 within 0.01 Å, with no
-source kind consulted. The wavelengths are referenced (ATTRIBUTION.md); the
-matching rule and every threshold are v0.2's own, uncited, and unmeasured until
-now.
+source kind consulted. The wavelengths are referenced (ATTRIBUTION.md), and the
+0.15° floor is derived in `GHOST_TOL_DEG`'s docstring from the Kβ table's
+precision (Δ2θ ≈ 0.02° at 60°); the matching rule, the ratio window and the
+parent count are v0.2's own, uncited, and unmeasured until now.
 
 **It flags at the chance rate where Kβ cannot exist.** Every
 `tests/data/qarr/*.prn` and `nist_srm660c_100a.cif` was collected behind a
@@ -45,7 +46,8 @@ plus the rule, against a control in which the ghost wavelength is replaced by
 | 17 monochromated patterns, 1 295 fitted lines | 15 | 4 | 1.1 per pattern, mean |
 | per pattern | 0.9 | 0.2 | |
 
-All 19 lines were dropped from `usable()`. Their ratios run 0.008–0.32,
+Every flagged line was dropped from `usable()` (19 flags; two of the lines
+carry two flags each, see below, so fewer lines). Their ratios run 0.008–0.32,
 scattered like the control's.
 
 **The demo pattern.** Its xrdml declares a focusing mirror, no filter element,
@@ -126,8 +128,11 @@ is flagged once per parent, so a Kα1/Kα2 pair fitted as two lines flags it twi
 **What the source knows.** `Source` declares lines, polarisation, dispersion and
 harmonics; nothing says filter or monochromator.
 `Instrument.bragg_brentano(monochromator_two_theta=)` folds a diffracted-beam
-monochromator into the polarisation factor only. The xrdml reader sees the
-`<xRayMirror>`, `<monochromator>` and `<filter>` elements and keeps none.
+monochromator into the polarisation factor only. The xrdml reader
+(`_read_scan`) reads `anodeMaterial`, `usedWavelength` and `radius` under
+`<incidentBeamPath>` and never looks at `<xRayMirror>`, `<monochromator>` or
+`<filter>`; brml and rasx read no optics element either. Task 5 teaches each
+reader the paths before anything can be kept.
 
 **Where it is documented.** Part 1 `using/results.md` § "How finely the peaks
 were sampled" › "Everything else `diagnose` measures", with the warning box on
@@ -144,7 +149,9 @@ from the reading-data or refining chapters does not find it.
   Kα together.
 - Retuning `background_envelope` for `auto_background`'s shape questions, which
   it answers well; only what the census reads changes.
-- `_median_steps_per_fwhm`'s own peak selection: WP-1415.
+- `_median_steps_per_fwhm`'s thresholds (`STEPS_PER_FWHM_MIN`/`MAX`,
+  `SAMPLING_PROMINENCE_SIGMA`) and its σ side: WP-1415. Its peak *selection*
+  is shared, per task 3 and the note in 1415's Inherited.
 - A filter absorption-edge term in the background (Cline 2015): a correction,
   with its own WP if it is ever wanted.
 
@@ -184,7 +191,7 @@ from the reading-data or refining chapters does not find it.
 ## Acceptance
 
 ```sh
-.venv/bin/python -m pytest tests/test_background_auto.py tests/test_peak_picking.py tests/test_capabilities.py -q
+.venv/bin/python -m pytest tests/test_background_auto.py tests/test_peak_picking.py tests/test_capabilities.py
 .venv/bin/python -m pytest tests/test_acceptance_indexing.py   # usable() feeds every engine
 .venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"
 ```
@@ -228,6 +235,18 @@ the same-d parent position over a rolling 10th-percentile baseline.
 paid for by rewrapping one v1.3 paragraph at 81 columns, no words changed. The
 demo's data file is the user's, on GitHub, and is cited by URL rather than
 copied into `tests/data/`.
+
+*Review pass* (`/code-review high --fix`, one commit for its six fixes, all
+to this file): the xrdml reader reads no optics element at all, so task 5
+teaches the readers the paths first; "19 lines" was 19 flags on fewer lines;
+`-q` dropped from the acceptance command (`addopts` has one); the non-goal
+that fenced `_median_steps_per_fwhm`'s peak selection contradicted task 3 and
+now fences its thresholds and σ side only; the 0.15° floor is derived in its
+docstring and is no longer called unmeasured; the H1 carries the row's
+subtitle. Declined none. It skipped three as outside the diff: `identify_anode`
+takes the first match, not the nearest (unambiguous by construction); the
+`results.md` warning presents corundum's three flags as genuine (task 7);
+fourteen sibling WPs carry the same `-q`.
 
 *Not done, deliberately*: no skill row yet. An agent driving rietx today should
 read a per-line ghost flag as a coincidence until task 1 lands; that sentence
