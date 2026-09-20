@@ -529,6 +529,12 @@ pass found two changes that had shipped with no record entry behind them. The
 1.0.x road is the precedent, ending included: written as a patch, folded into
 the next minor if one opens first.
 
+Issue **#374** — a *supported* phase's cell walking to hundreds of Å inside one
+stage, along a direction it shares with a second free phase's cell and which
+`phase_support` cannot see — is in the contributor's PR #385, a post-solve
+clamp with a `CELL_RUNAWAY` diagnostic. Its review is `/pr-review`'s; no WP
+here, since 1110 and 1301, whose windows it sits beside, are closed.
+
 | WP | Title | Status | Depends on |
 |---|---|---|---|
 | [1311](wp/1311-walking-parameter-bounds.md) | Bounds and flags for the remaining walking parameters | ✅ 2026-09-18 | — |
@@ -704,6 +710,11 @@ aggregated after the fact (1322). The 2026-09-03 triage adds three: the
 localisation statistic `rietx compare` computes, over any two results on one
 pattern (1339); a mole fraction from the scale and the cell volume, on a basis
 that travels with it (1340); and the report a joint fit has never had (1341).
+The 2026-09-21 triage adds 1444, the pattern drawn before any model exists and
+a title on a figure (issues #394, #405). Issue **#343**, a third colour scheme
+(Solarized) over 1429's token module, is answered on its thread rather than
+filed: welcome as a PR carrying a measured token set that meets the one
+separability floor, and not scheduled here.
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
@@ -713,6 +724,7 @@ that travels with it (1340); and the report a joint fit has never had (1341).
 | [1339](wp/1339-where-the-improvement-lives.md) | Where the improvement lives | ⬜ | — |
 | [1340](wp/1340-qpa-on-a-molar-basis.md) | QPA on a molar basis, and the basis travels with the number | ⬜ | — (1320 soft) |
 | [1341](wp/1341-a-joint-fit-has-no-report.md) | A joint fit has no report | ⬜ | — (1312, 1335 soft) |
+| [1444](wp/1444-the-pattern-before-the-model.md) | The pattern before the model, and a title on the figure | ⬜ | — |
 
 #### The repo's own process
 
@@ -725,6 +737,7 @@ that travels with it (1340); and the report a joint fit has never had (1341).
 | [1408](wp/1408-the-manual-reads-like-a-manual.md) | The theory manual reads like a manual | ✅ 2026-09-14 | — |
 | [1409](wp/1409-part-one-reads-like-a-manual.md) | Part 1 reads like a manual | ✅ 2026-09-14 | 1408 |
 | [1410](wp/1410-worktree-gate-scope.md) | The worktree gate guards this checkout, not every repository | ✅ 2026-09-14 | — |
+| [1443](wp/1443-part-one-read-by-a-newcomer.md) | Part 1 read by a newcomer: eleven passages, one word, and the version the manual describes | ⬜ | — (1409 is the shape) |
 
 #### Candidates — named on a use case, not yet on a measurement
 
@@ -747,7 +760,10 @@ scope creep. Each item names what fenced it.
   rather than deferred**: a working implementation reaching at least T-1 and
   T-2 exists unpushed on the `mustachefeeling` fork, so #193 is the next fence
   decision to take, on the branch once it is visible (1419 § Inherited,
-  2026-09-18); spherical-harmonics
+  2026-09-18) — and issue #362 lists the constant-wavelength reads
+  (`CompiledModel.tt`, `line_wavelengths`, `sigma_measured`; `viz/snapshot.py`
+  and 23 more sites) a second compiled-model class meets, so the accessor seam
+  it proposes waits for that class rather than preceding it; spherical-harmonics
   texture (Von Dreele 1997; #131); Z-matrices and rigid bodies (#195);
   difference Fourier / maximum-entropy maps (McCusker §6; the partition input
   exists in `lebail_update`, the consumer is structure completion; #197);
@@ -771,6 +787,19 @@ scope creep. Each item names what fenced it.
   every scoreboard summary says "high-symmetry" out loud — and the
   SDPDRR-2/CONOGRAPH profile acquisitions; Boultif-Louër volume tightening
   (design in 1042 § Deferred).
+- **Estimation.** Posterior sampling after a converged fit (Fancher et al.
+  2016, *Sci. Rep.* 6, 31625; issue #355, whose thread carries a six-rung
+  decomposition B-1…B-6 measured at `6f4aa6b1`, gradient ≈ one forward
+  evaluation under jax). The gate is B-3's table — the posterior interval
+  against the Bérar-Lelann esd on the two vendored standards, both residual
+  models — and the track stops there if every ratio sits inside a band.
+- **Navigation.** From the QPA of a mixed-phase sample to the composition to
+  make next (PICIP, Ritchie et al. 2025, *J. Chem. Inf. Model.* 65, 13226;
+  issue #349, filed as v2+ by its author): a `rietx.navigate` subpackage on
+  `indexing`'s pattern, the GPL reference implementation a test oracle only.
+  Its three small asks — `PhaseQuantity.element_counts` exported, a
+  weight-fraction covariance, `FitReport.unidentified_phase` — sit in 1325
+  § Inherited beside #212, which wants the same field.
 - **I/O.** Rietica and XND readers (#196); an RMCProfile export and PDF /
   total-scattering analysis, X-ray and neutron (#192); VESTA import/export
   (#195).
