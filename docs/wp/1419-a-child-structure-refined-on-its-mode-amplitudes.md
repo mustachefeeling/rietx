@@ -160,6 +160,19 @@ the transposed rotation set is a group too and passes any dimension count.
 
 ### Inherited
 
+**2026-09-21, from the issue triage — #361's route (b) is a rung of this
+WP.** "A child structure refined on its mode amplitudes *and* its moments":
+in the displacive child the parent's k = (½,0,½) is k = 0 of the supercell,
+so a two-irrep moment superposition is one child irrep with two magnitudes,
+refined on 1327's k = 0 moment path over this WP's child. Three things it
+needs, measured missing on the fork: the displacive and magnetic builders
+sharing one asymmetric unit (the anti-translation exposed rather than
+absorbed as a centring), `candidates(kind="magnetic")` accepting an
+operator-list parent, and per-site moments with their determinability. The
+general primitive, a direct-sum moment basis over several irreps, is 1327's
+(its § Inherited, same date). Checked at `4ee4e7f5`: nothing of it is on
+`main`.
+
 **From WP-1432 (2026-09-19) — the re-basing defect is fixed.** A tie
 whose target is a coordinate DOF now means the same thing after the tenth
 write-through verb as after the first, so an amplitude refined through one can

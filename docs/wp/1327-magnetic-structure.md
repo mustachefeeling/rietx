@@ -139,6 +139,33 @@ rule above applies to the form factors.
 
 ### Inherited
 
+- **2026-09-21, from the issue triage: #361, a multi-irrep *moment*
+  statement has no primitive, and the intersection-group route is the wrong
+  shape for it.** Checked against the tree at `4ee4e7f5`: the fork's
+  `displacive_statement(components=…)` and `_sign_consistent_operations` are
+  not on `main`, so the numbers are the fork's (Ba₂FeSbSe₅, 1.5 K,
+  k = (½,0,½), 2026-09-17). Two b-axis irreps S2 and S3 each allow a dim-1
+  moment per Fe; their coloured groups' intersection allows dim 3, an
+  accidental lower group rather than the sum, and `magnetic_supercell` on it
+  refuses on orbit coverage (4 members, 1 in the child). The ask, on this
+  WP's `Atom.moment`: a `magnetic_supercell(components=[…])` (or
+  `moment_statement`) that builds the common child from whole orbits, gives
+  each magnetic atom the **direct sum** of the components' own per-site bases
+  (one amplitude per irrep direction, never the intersection group's span),
+  exposes the anti-translation so the magnetic child's asymmetric unit
+  matches the displacive builder's (28 against 56 atoms today, so a combined
+  displacive + moment model reaches 4 of 8 Fe), reports each component's
+  amplitude with its own esd and determinability, and refuses incommensurate
+  k by name (#258). The comment adds the cheaper route (b): in the distorted
+  child, the parent's k = (½,0,½) is k = 0 of the 2a, b, a+c cell and
+  S2 ⊕ S3 is one child irrep with two moment magnitudes, so a k = 0 moment
+  statement on 1419's child, distortion and moments refined together, needs
+  only the shared asymmetric unit, an operator-list parent for
+  `candidates(kind="magnetic")`, and per-site moments with their
+  determinability. Route (a) is this WP's primitive; (b) is a rung of 1419
+  (its § Inherited carries the pointer). The control that precedes either
+  on that dataset is 1343's anisotropic magnetic width (refined widths ≈ 1°
+  against a 0.5° cluster span).
 - **2026-09-02, from [1330](1330-skill-references-by-shape.md): a magnetic
   phase is a task *shape*, and the skill takes one reference file per
   shape.** What an agent must know to refine a moment model — the turn-on
