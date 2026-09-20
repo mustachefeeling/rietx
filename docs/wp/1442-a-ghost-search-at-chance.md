@@ -205,5 +205,36 @@ from the reading-data or refining chapters does not find it.
 
 ## Handover log
 
-- **2026-09-20** — created from the measurements above; nothing in the tree
-  changed.
+### 2026-09-20 — opened
+
+The Kβ and W Lα contamination flags cannot be trusted as they stand. On
+seventeen laboratory patterns collected behind a graphite monochromator, where
+neither line can reach the detector, the search flags lines at the same rate as
+a control fed a made-up wavelength, and each flag drops a real reflection from
+the list indexing runs on. A public demo notebook shows the same search
+returning thirty-four flags on a pattern whose strongest line has nothing at
+its Kβ position. The search does find a real leak when one is injected, and the
+one thing that tells the two apart is that a real leak has the same ratio at
+every strong line. Nothing in the code changed; this entry files the evidence
+and the fix.
+
+*Measured* (`.venv` `[dev]`, macOS, `origin/main` `b8df0a0e`): everything in
+§ Context. The scripts were ad hoc and are not committed; the control replaces
+`_KBETA["CuKa"]` and `_W_LA1` by 26 fake wavelengths from 0.84λ to 0.99λ and
+counts `kind == "kbeta"` flags, and the injection adds r × the net signal at
+the same-d parent position over a rolling 10th-percentile baseline.
+
+*Gotchas*: the roadmap sat exactly at its 784-line cap, so the row's line was
+paid for by rewrapping one v1.3 paragraph at 81 columns, no words changed. The
+demo's data file is the user's, on GitHub, and is cited by URL rather than
+copied into `tests/data/`.
+
+*Not done, deliberately*: no skill row yet. An agent driving rietx today should
+read a per-line ghost flag as a coincidence until task 1 lands; that sentence
+belongs in the skill with the joint finding, not ahead of it.
+
+Next: task 1 (the joint finding) first, since it alone would have turned the
+demo's 34 flags into none and decides the shape of every other task; then the
+census gate (task 3) together with WP-1415, so one peak selection serves both;
+the source gate (task 5) last, because it needs a schema decision.
+
