@@ -74,7 +74,11 @@ assumed.
   `FitReport.unidentified_phase` as a field (`present`, `n_foreign`,
   `n_shift_matched`, `strongest_two_theta`), which today a program recovers
   by parsing `layer0_actions` for `add_impurity_phase`. Checked at
-  `4ee4e7f5`: none of the three exists.
+  `4ee4e7f5`: none of the three exists. **Decided 2026-09-21** (posted on
+  #349): when `navigate` is cut it lives inside the package on `indexing`'s
+  pattern, and the nominal composition is an argument to
+  `sample_from_result`, never a field on a result, which records
+  measurements only.
 - **2026-09-04, from [1119](1119-named-variables.md): the soft dependency is
   discharged, and one piece of your scope is now unowned.** A named coefficient
   is a named variable and that object exists: `Refinement.add_variable(name,

@@ -158,8 +158,14 @@ MAGNDATA magCIF entries serve the round-trip and span tests with no pattern.
   with `cherry_pick` able to replay a loser as the completeness check;
   (3) the GUI tree greys rejected branches and shows the margin on hover.
   (2) is a `NodeKind` addition and so a vocabulary member that needs its
-  writer named (root CLAUDE.md, WP-1076); (3) is `gui/`'s. Decisions taken
-  at the triage batch are appended below this entry, dated.
+  writer named (root CLAUDE.md, WP-1076); (3) is `gui/`'s. **Decided
+  2026-09-21** (posted on both threads): #384 part 1, the `FitReport`
+  section, lands in this WP's PR series; parts 2 and 3 are a follow-up WP
+  after this one ships, since a `select` kind is a vocabulary member with a
+  writer to name and the GUI reads what the tree records. #390's acceptance
+  wording is taken as offered and is this WP's; the seed tilt's docstring
+  carries the two numbers that chose it (0.15 regressed two of twenty
+  controls, 0.02 none) and the control set.
 - **2026-09-18 — this WP is v1.6's first, and M-6 and M-7 are its first PRs.**
   The milestone opened today ([record](../milestones/v1.6.md)) over the seven
   magnetic WPs. The order was set on #286: M-6 (irreps, spgrep as a test oracle
