@@ -404,7 +404,13 @@ SIZE_CAPS: dict[str, int | None] = {
     # register's consumers each call the rebase, so a third one written
     # without the rule carries the defect `replay` carried alone. The
     # measurement, the two controls and the rejected fixes stayed in the WP.
-    "CLAUDE.md": 973,
+    # 973 -> 978 (/issue-review, 2026-09-21): one paragraph saying how an
+    # issue reaches the roadmap, beside the contributor paragraph whose
+    # PR -> issue -> WP chain it completes from the issue's end. A standing
+    # rule for anyone who files or folds a WP: the `#N` citation is the whole
+    # triage record, read by the command's table and by wp_claim.py alike.
+    # Landed 977, +1 headroom.
+    "CLAUDE.md": 978,
     # 672 -> 676 (WP-1102): the Current focus rewrite at 1102's close names the
     # milestone's one break and what makes 1103 the seam's proving case.
     # 676 -> 682 (WP-1407): a new Unscheduled group, "The formats a lab still

@@ -129,8 +129,12 @@ Run the session-start ritual. The SessionStart hook's report
    inherited had shipped entire in v1.2 — three of eleven tasks already done,
    one task changed shape, and a dependent WP's blocker discharged rather than
    delivered. Grep for the names a finding says are missing and
-   `git log --oneline -- <the file it says lacks them>` since the WP's date;
-   rewrite what has gone stale **in place** with a dated "superseded in part"
+   `git log --oneline -- <the file it says lacks them>` since the WP's date.
+   A WP `/issue-review` filed names the sha it checked the issue against in
+   its first handover bullet, so the range to read is `<that sha>..origin/main`
+   on the files the WP names, and the issue's thread may have moved since:
+   `gh issue view N --json comments` for anything newer than that bullet.
+   Rewrite what has gone stale **in place** with a dated "superseded in part"
    note and commit that prune first, because the successor reads the WP file
    and not your session. Then check whether any WP depending on this one is
    now unblocked — that goes in *its* `### Inherited` at handover (step 5 of
