@@ -98,6 +98,15 @@ channels and a σ column at 0.3·√y reproduces both defects without it.
 
 ### Inherited
 
+- **From WP-1442, 2026-09-20: the contamination census in the same function
+  counts noise for a second reason, and 1442 wants one peak selection for
+  both.** `diagnose` hands `_contamination_flags` a `find_peaks(net/σ,
+  height=5, distance=3)` census with no prominence, on the rolling
+  10th-percentile envelope, which sits under the data on a steep background.
+  On a 4–40° organic pattern with a Poisson σ that census found 292 peaks
+  against 23 from `_median_steps_per_fwhm`'s prominence-gated count. Whichever
+  WP lands first owns the selection and the other imports it; do not grow two.
+
 - **From WP-1434, 2026-09-18: the bound test is now scaled by each
   parameter's own esd, so a misdeclared σ moves it.** `BOUND_HIT`'s loose half
   asks whether the value sits within a hundredth of an esd of its limit, and
