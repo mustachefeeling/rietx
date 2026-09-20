@@ -936,6 +936,11 @@ of overlap, never proof of a clash** — one issue is cited by five WPs here —
 `EnterWorktree` never refuses on it. And it needs the network, so it lives in `/wp-start` and **never
 in the SessionStart hook**, which stays stdlib-only, offline-safe and 0.25 s.
 
+**An issue reaches the roadmap through `/issue-review`**, which tests each report against the tree
+before placing it (a close, a comment, a fold into a WP's `### Inherited`, a new WP, a fence, a
+milestone), docs-only, with every public act batched to the person. The `#N` a WP file cites is the
+whole triage record: the command's table reads it, and so does `wp_claim.py` above.
+
 Shipped: **v0.1 … v1.5**, one record each in `docs/milestones/`; ROADMAP's table carries the
 acceptance one-liners, restated in neither place. Since WP-1117 the compatibility promise
 (`docs/manual/using/compatibility.md`) is a **preview**: anything may change in any release,
