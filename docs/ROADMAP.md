@@ -420,10 +420,9 @@ the per-note assessment and the decisions are the
 ### v1.3 — agents and programs
 
 The agent-facing surface refactored against two measured runs, which said the
-only agents are shell-equipped sessions using the notebook API, and that none
-of six refining runs stopped on a package criterion. The baseline numbers are
-in [1307](wp/1307-recapture-round-1-1.md) and the
-[v1.3 record](milestones/v1.3.md).
+only agents are shell-equipped sessions using the notebook API, and that none of
+six refining runs stopped on a package criterion. The baseline numbers are in
+[1307](wp/1307-recapture-round-1-1.md) and the [v1.3 record](milestones/v1.3.md).
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
@@ -651,6 +650,7 @@ the limit carried load rather than whether the value stopped near one, and
 | [1421](wp/1421-the-result-reproduces-its-own-number.md) | The result reproduces its own number | ⬜ | — (1310 soft) |
 | [1432](wp/1432-a-tie-onto-a-rederived-dof.md) | A tie onto a coordinate DOF, re-applied once per write | ✅ 2026-09-19 | — (1119 soft) |
 | [1434](wp/1434-the-bound-test-asks-the-wrong-question.md) | The bound test asks whether the value is near its limit, never whether the limit was binding | ✅ 2026-09-18 | — |
+| [1442](wp/1442-a-ghost-search-at-chance.md) | A ghost search at chance: the Kβ flag fires where Kβ cannot exist | ⬜ | — (1415 soft) |
 
 #### A long run is not one fit
 
