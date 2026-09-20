@@ -106,6 +106,13 @@ steps below run unchanged.
    tree. It belongs *here*, ahead of Verify, because a fix is a code change:
    one landed after the suite ran, or after the PR was opened, leaves neither
    the quoted counts nor the review describing the tree that merges.
+
+   **A prose-only branch skips it**, saying so in one line. `/code-review`
+   hunts correctness bugs in code, and a branch that touched only `docs/`,
+   the `CLAUDE.md`s and the markdown under `.claude/` gives it nothing to
+   read. A `.py` anywhere, hooks and skill scripts included, is code. The
+   review a prose branch gets is step 6's checklist against what it
+   declared, and step 10's `test_docs_consistency.py`.
    - Each accepted fix lands as its own commit prefixed `WP-NNNN:` like any
      other work; one left uncommitted fails step 10's clean-tree check.
    - **A finding is advice, not a gate** — declining one is a line in the
