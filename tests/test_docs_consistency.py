@@ -479,7 +479,13 @@ SIZE_CAPS: dict[str, int | None] = {
     # until a PR is cut.  Paid for twice — Current focus lost a closed WP's
     # narrative and the triage fold list, § Unscheduled lost the blurb
     # describing the rows that left.  Landed 778, +6 headroom.
-    "docs/ROADMAP.md": 784,
+    # 784 -> 816 (/issue-review, 2026-09-21): two rows (1443, 1444), the two
+    # blurb sentences the rows need, one paragraph placing #374 in its PR
+    # under § v1.5.x (no open WP owns it), #362 on the TOF fence, and two
+    # v2+ bullets — Estimation (#355) and Navigation (#349) — each naming the
+    # gate that would reopen it.  Every finding stays in the WP files and on
+    # the threads.  Landed 813, +3 headroom.
+    "docs/ROADMAP.md": 816,
     # 1036 -> 1053 (WP-1429): where the GUI's colour values live, now that
     # they are Python and this workspace's `tokens.css` is generated from
     # them. It governs work outside the WP that measured it — an edit to a

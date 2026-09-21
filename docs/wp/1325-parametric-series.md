@@ -60,6 +60,25 @@ assumed.
 
 ### Inherited
 
+- **2026-09-21, from the issue triage: #349 wants the field #212 wants, and
+  three small exports come with it.** #349 (`rietx.navigate`, PICIP, fenced
+  at v2+ by its author) computes the knowns' element vector as
+  k_E ∝ Σ_p S_p·V_p·n_{E,p} — refined scale × cell volume × occupancy-weighted
+  element count per cell — which is `phase_zmv(...).element_counts`, the
+  quantity the #212 restraint row above already needs, and linear in the
+  scales so its covariance follows from the one `weight_fractions()` takes.
+  Whichever WP cuts the #212 row exports the three asks with it, since they
+  are the same seam: `PhaseQuantity.element_counts: dict[str, float]`
+  (computed, not exported; a `SCHEMA_VERSION` bump), a weight-fraction
+  covariance beside the existing `weight_fraction_stderr` diagonal, and
+  `FitReport.unidentified_phase` as a field (`present`, `n_foreign`,
+  `n_shift_matched`, `strongest_two_theta`), which today a program recovers
+  by parsing `layer0_actions` for `add_impurity_phase`. Checked at
+  `4ee4e7f5`: none of the three exists. **Decided 2026-09-21** (posted on
+  #349): when `navigate` is cut it lives inside the package on `indexing`'s
+  pattern, and the nominal composition is an argument to
+  `sample_from_result`, never a field on a result, which records
+  measurements only.
 - **2026-09-04, from [1119](1119-named-variables.md): the soft dependency is
   discharged, and one piece of your scope is now unowned.** A named coefficient
   is a named variable and that object exists: `Refinement.add_variable(name,
