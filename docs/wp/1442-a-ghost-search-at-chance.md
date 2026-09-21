@@ -206,7 +206,7 @@ from the reading-data or refining chapters does not find it.
       `help.py` entries. Skill: the `references/diagnostics-indexing.md` row
       says what the ratio means, and a `references/surprises.md` row that an
       unfiltered tube is 0.14, so a 0.3 "ghost" is a reflection.
-- [ ] Tests: the fake-λ control on the monochromated fixtures (0 flags), the
+- [x] Tests: the fake-λ control on the monochromated fixtures (0 flags), the
       injection ladder, the neutron and FAP cases; PNGs to `tests/output/`
       where a picture is the evidence.
 

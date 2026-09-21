@@ -22,6 +22,7 @@ from rietx.schemas.instrument import BackgroundChebyshev, BackgroundPSpline
 from tests.test_schemas import make_lab6
 
 WAVELENGTH = 1.5405929
+OUT = Path(__file__).parent / "output"
 
 
 # ----------------------------------------------------------------------
@@ -265,6 +266,278 @@ def test_tungsten_contamination_is_checked_off_cu():
     flags = diagnose(doped, wavelength=lam).contamination
     w = [f for f in flags if f.kind == "tungsten_la" and abs(f.two_theta - ghost) < 0.2]
     assert w, f"W Lα1 ghost at {ghost:.2f}° not flagged; got {flags}"
+
+
+# ----------------------------------------------------------------------
+# WP-1442: the ghost search against the patterns where it cannot be right
+# ----------------------------------------------------------------------
+def _monochromated():
+    """The round-robin pure phases, all behind a graphite monochromator.
+
+    ``tests/data/README.md`` records the optics: a diffracted-beam curved
+    graphite monochromator removes Kβ, and W Lα1 with it.  Neither line can
+    reach the detector on any of these, so every flag on them is a false one
+    and the true answer is known without a reference value.
+    """
+    from tests.test_acceptance_qpa_roundrobin import DATA as QARR
+
+    files = sorted(QARR.glob("*.prn"))
+    if not files:
+        pytest.skip("IUCr QPA round-robin dataset not present")
+    return files
+
+
+def _ghost_pool(data):
+    """What ``diagnose`` hands the contamination check, with its σ and net."""
+    from scipy.signal import find_peaks, peak_prominences
+
+    from rietx.background.diagnostics import (
+        GHOST_RATIO_RANGE,
+        SAMPLING_PROMINENCE_SIGMA,
+        background_envelope,
+    )
+
+    mask = data.in_range_mask()
+    tt, y, sigma = data.tt()[mask], data.y()[mask], data.sig()[mask]
+    net = y - background_envelope(tt, y)
+    pos = np.where(net > 0, net, 0.0)
+    bar = np.maximum(5.0 * sigma,
+                     GHOST_RATIO_RANGE[0] * float(np.percentile(pos, 99.9)))
+    cand, _ = find_peaks(pos, distance=3, height=bar)
+    keep = cand[peak_prominences(pos, cand)[0]
+                >= SAMPLING_PROMINENCE_SIGMA * sigma[cand]]
+    return tt, net, sigma, keep
+
+
+def test_no_ghost_is_found_where_no_ghost_can_exist():
+    """Every round-robin pattern, at its real wavelength, reports nothing.
+
+    Before WP-1442 this corpus carried 52 Kβ and 16 W Lα flags through
+    ``diagnose`` and 20 through the fitted list, each of which dropped a real
+    reflection from ``usable()``.
+    """
+    for path in _monochromated():
+        d = diagnose(rx.read_pattern(path), wavelength=1.54056)
+        assert d.contamination == [], f"{path.name}: {d.contamination}"
+
+
+def test_the_real_wavelength_beats_a_made_up_one():
+    """The control that gives the corpus above its teeth.
+
+    A screen that flags at the same rate whatever wavelength it is fed has
+    measured nothing.  Replacing Kβ by 26 values that cannot be an emission
+    line, the consensus count must stay under ``GHOST_MIN_PARENTS`` for all of
+    them — the margin, rather than the flag count, is what says the answer
+    above was not luck.  Measured: the chance consensus tops out at 4.
+    """
+    from rietx.background.diagnostics import (
+        GHOST_MATCH_K,
+        GHOST_MIN_PARENTS,
+        GHOST_TOL_DEG,
+        _ghost_candidates,
+        _ghost_consensus,
+    )
+
+    worst = 0
+    for path in _monochromated():
+        data = rx.read_pattern(path)
+        tt, net, sigma, keep = _ghost_pool(data)
+        lo, hi = float(tt[0]), float(tt[-1])
+        for fake in np.linspace(0.80, 0.995, 26) * WAVELENGTH:
+            cands, _ = _ghost_candidates(
+                tt[keep], net[keep], None, sigma[keep], fake / WAVELENGTH,
+                lo, hi, tol_deg=GHOST_TOL_DEG, k_sigma=GHOST_MATCH_K)
+            support = _ghost_consensus(cands)[0]
+            worst = max(worst, support)
+            assert support < GHOST_MIN_PARENTS, (
+                f"{path.name}: a made-up λ={fake:.4f} Å gathered {support} "
+                f"parents, at or over the bar of {GHOST_MIN_PARENTS}")
+    assert worst <= 4                       # the number the bar was set above
+
+
+@pytest.mark.parametrize("host", ["corundum.prn", "zincite.prn"])
+def test_an_injected_leak_comes_back_with_its_ratio(host):
+    """The other half: the screen still finds a leak that is really there.
+
+    A Kβ image of the whole pattern is added at 10 %, which is what a tube with
+    a failed filter does.  ``leak_ratio`` is the finding's, fitted across the
+    supporting parents, so it is the number that has to come back — the
+    per-line ``intensity_ratio`` of a weak line on a strong one's flank is
+    worth much less.  The two hosts are round-robin phases that carry no Kβ,
+    so the clean pattern is the same test's null.
+    """
+    from rietx.background.diagnostics import GHOST_MIN_PARENTS
+    from tests.test_acceptance_qpa_roundrobin import DATA as QARR
+
+    if not (QARR / host).exists():
+        pytest.skip("IUCr QPA round-robin dataset not present")
+    base = rx.read_pattern(QARR / host)
+    assert diagnose(base, wavelength=1.54056).contamination == []
+
+    doped, _ = _dope_ghost(base, 1.54056, 1.3922340, height=0.10)
+    flags = [f for f in diagnose(doped, wavelength=1.54056).contamination
+             if f.kind == "kbeta"]
+    assert flags, f"{host}: a 10 % Kβ leak was not found"
+    assert flags[0].n_parents >= GHOST_MIN_PARENTS
+    assert flags[0].leak_ratio == pytest.approx(0.10, rel=0.35)
+
+
+def test_a_line_with_no_position_is_neither_parent_nor_candidate():
+    """``FAP.XRA``'s degenerate fits, the fixture the esd cap was written for.
+
+    Two unresolved-shoulder fits at 64.330° come back with position esds of
+    1 961° and 11 390°, and a line with no intensity at 105.788° with 4.2e15°.
+    The matching window is ``max(floor, 3·√(σ_g² + σ_p²))``, so uncapped those
+    three matched every parent and supplied 32 of that pattern's 35 raw
+    matches.  An esd past :data:`GHOST_TOL_DEG` is not a loose position, it is
+    no position.
+    """
+    from rietx.background.diagnostics import (
+        GHOST_ESD_MAX_DEG,
+        contamination_flags_from_peaks,
+    )
+    from rietx.indexing.pick import pick_peaks
+
+    path = Path(__file__).parent / "data" / "FAP.XRA"
+    if not path.exists():
+        pytest.skip("FAP.XRA not present")
+    data = rx.read_pattern(path)
+    peaks = pick_peaks(data, rx.Instrument.bragg_brentano(radiation="CuKa"))
+    esd = np.array([p.two_theta_esd for p in peaks.peaks])
+    assert (esd > GHOST_ESD_MAX_DEG).sum() >= 3      # the fixture still bites
+
+    flags = contamination_flags_from_peaks(
+        np.array([p.two_theta for p in peaks.peaks]),
+        np.array([p.intensity for p in peaks.peaks]), esd, 1.54056,
+        tt_range=(float(data.two_theta[0]), float(data.two_theta[-1])))
+    assert flags == []
+    assert not [p for p in peaks.peaks
+                if {"ghost_kbeta", "ghost_tungsten"} & set(p.flags)]
+
+
+def test_the_ghost_screen_is_drawn_for_inspection():
+    """The picture the counts stand on, on a pattern with a known answer.
+
+    Corundum came behind a graphite monochromator, so every mark in the top
+    panel is a false one: those are the candidates the position and ratio
+    windows admit, which is one per flag under the pre-WP-1442 rule, and each
+    dropped a real reflection from ``usable()``.  The bottom panel is the same
+    pattern with a 10 % Kβ image of itself added, and the marks are the finding
+    the joint rule reports.  Rendered and looked at, not just written.
+    """
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    from rietx.background.diagnostics import (
+        GHOST_MATCH_K,
+        GHOST_TOL_DEG,
+        _ghost_candidates,
+        background_envelope,
+    )
+    from tests.test_acceptance_qpa_roundrobin import DATA as QARR
+
+    if not (QARR / "corundum.prn").exists():
+        pytest.skip("IUCr QPA round-robin dataset not present")
+    lam, lam_kb = 1.54056, 1.3922340
+    base = rx.read_pattern(QARR / "corundum.prn")
+    doped, _ = _dope_ghost(base, lam, lam_kb, height=0.10)
+
+    # the ungated census pool, which is what the rule saw before this WP
+    tt = base.tt()
+    y = base.y()
+    net = y - background_envelope(tt, y)
+    sigma = base.sig()
+    pos = np.where(net > 0, net, 0.0)
+    from scipy.signal import find_peaks
+    bar = np.maximum(5.0 * sigma, 0.005 * float(np.percentile(pos, 99.9)))
+    cand, _ = find_peaks(pos, distance=3, height=bar)
+    old, _ = _ghost_candidates(
+        tt[cand], net[cand], None, sigma[cand], lam_kb / lam,
+        float(tt[0]), float(tt[-1]),
+        tol_deg=GHOST_TOL_DEG, k_sigma=GHOST_MATCH_K)
+    old_tt = sorted(float(tt[cand][ig]) for _, ig, _ in old)
+    now = [f.two_theta for f in diagnose(doped, wavelength=lam).contamination
+           if f.kind == "kbeta"]
+
+    OUT.mkdir(exist_ok=True)
+    fig, axes = plt.subplots(2, 1, figsize=(6.9, 5.2), sharex=True, sharey=True)
+    hi = float(np.percentile(y, 99.98)) * 1.12
+    for ax, (label, marks, colour) in zip(axes, [
+            ("monochromated, no Kβ reaches the detector", old_tt, "#b2182b"),
+            ("the same pattern, 10 % Kβ leak added", now, "#2166ac")]):
+        ax.plot(tt, y, ".", ms=1.2, color="#222222", rasterized=True)
+        for m in marks:
+            ax.plot([m, m], [-0.085 * hi, -0.020 * hi], "-", lw=1.6,
+                    color=colour, solid_capstyle="round", clip_on=False)
+        ax.set_ylim(-0.10 * hi, hi)
+        ax.set_xlim(float(tt[0]), float(tt[-1]))
+        ax.spines[["top", "right"]].set_visible(False)
+        ax.text(1.012, 0.97, label, transform=ax.transAxes, va="top",
+                ha="left", fontsize=9, color=colour, wrap=True)
+        ax.text(1.012, 0.10, f"{len(marks)} marked", transform=ax.transAxes,
+                va="top", ha="left", fontsize=9, color=colour)
+    axes[0].set_ylabel("Intensity (counts)", fontsize=9)
+    axes[1].set_xlabel("2θ (°),  Cu Kα1 λ = 1.54056 Å", fontsize=9)
+    for ax in axes:
+        ax.tick_params(labelsize=9)
+    fig.subplots_adjust(right=0.63, hspace=0.12)
+    fig.savefig(OUT / "ghost_search_corundum.png", dpi=180,
+                bbox_inches="tight")
+    plt.close(fig)
+
+    assert (OUT / "ghost_search_corundum.png").exists()
+    assert old_tt, "the pre-WP-1442 rule flagged nothing here, so the top panel is empty"
+    assert now, "the injected leak was not found, so the bottom panel is empty"
+
+    # the control curve: what the same rule answers at wavelengths that cannot
+    # be an emission line.  A real answer has to stand clear of this.
+    from scipy.signal import peak_prominences
+
+    from rietx.background.diagnostics import (
+        GHOST_MIN_PARENTS,
+        SAMPLING_PROMINENCE_SIGMA,
+        _ghost_consensus,
+    )
+
+    gated = cand[peak_prominences(pos, cand)[0]
+                 >= SAMPLING_PROMINENCE_SIGMA * sigma[cand]]
+    lams = np.linspace(0.80, 0.995, 60) * lam
+
+    def support(sel, lam_g):
+        cs, _ = _ghost_candidates(
+            tt[sel], net[sel], None, sigma[sel], lam_g / lam,
+            float(tt[0]), float(tt[-1]),
+            tol_deg=GHOST_TOL_DEG, k_sigma=GHOST_MATCH_K)
+        return _ghost_consensus(cs)[0]
+
+    fig, ax = plt.subplots(figsize=(6.9, 3.0))
+    for sel, colour, label, marker in (
+            (cand, "#b2182b", "pool before the prominence gate", "o"),
+            (gated, "#2166ac", "pool as shipped", "s")):
+        ax.plot(lams, [support(sel, float(g)) for g in lams], marker, ms=3.4,
+                color=colour, alpha=0.85)
+        ax.plot([lam_kb], [support(sel, lam_kb)], marker, ms=8.5,
+                color=colour, markerfacecolor="white", markeredgewidth=1.6)
+        ax.text(1.012, {"o": 0.95, "s": 0.72}[marker], label,
+                transform=ax.transAxes, va="top", ha="left", fontsize=9,
+                color=colour)
+    ax.axhline(GHOST_MIN_PARENTS, color="#444444", lw=0.9, dashes=(4, 3))
+    ax.text(1.012, 0.40, f"bar, {GHOST_MIN_PARENTS} parents",
+            transform=ax.transAxes, va="top", ha="left", fontsize=9,
+            color="#444444")
+    ax.text(1.012, 0.20, "open marks: the real Kβ", transform=ax.transAxes,
+            va="top", ha="left", fontsize=9, color="#444444")
+    ax.set_xlabel("ghost wavelength (Å);  only 1.3922 Å is a real line",
+                  fontsize=9)
+    ax.set_ylabel("supporting parents", fontsize=9)
+    ax.set_ylim(-0.4, 8.6)
+    ax.spines[["top", "right"]].set_visible(False)
+    ax.tick_params(labelsize=9)
+    fig.subplots_adjust(right=0.62)
+    fig.savefig(OUT / "ghost_search_control.png", dpi=180, bbox_inches="tight")
+    plt.close(fig)
+    assert (OUT / "ghost_search_control.png").exists()
 
 
 def test_unknown_wavelength_is_not_checked_rather_than_clean():
