@@ -1,6 +1,6 @@
 # WP-1442 — a ghost search at chance: the Kβ flag fires where Kβ cannot exist
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-09-21 — claimed by @yue-here
 Depends on: — (1415 soft)
 
 ## Goal
