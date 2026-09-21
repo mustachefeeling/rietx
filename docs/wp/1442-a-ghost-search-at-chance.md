@@ -142,6 +142,34 @@ were sampled" › "Everything else `diagnose` measures", with the warning box on
 ("Subtract it"). Nothing in the theory part. A reader looking for `diagnose`
 from the reading-data or refining chapters does not find it.
 
+### Inherited
+
+- **From WP-1415, 2026-09-21: the shared peak selection landed, so import it
+  rather than growing a second.** 1415's note said whichever WP lands first
+  owns it; 1415 did. `diagnose`'s census (`background/diagnostics.py`, the
+  `find_peaks` call in `diagnose`) now takes a floor at
+  `SAMPLING_HEIGHT_FRACTION` × the 99.9th percentile of net beside its 5σ bar,
+  and still keeps **no** prominence bar, because a count wants every line the
+  pattern shows. That count went from 1558 on 11-BM NAC at the file's own σ
+  (9403 at a σ 3.46× smaller) to **96 at every σ scale**. On a synthetic
+  13-line pattern, 79 rising to 201, against 27 at every scale.
+- **The pool `_contamination_flags` searches is the same call read at a lower
+  floor**, `GHOST_RATIO_RANGE[0]` × the same 99.9th percentile, because the
+  census bar is six times the smallest ratio this check accepts and a 1 % Kβ
+  image of the strongest line was not a candidate under it (1415's review
+  pass). So the candidate count is between 96 and the old 1558, and it is
+  still σ-scale dependent only through the 5σ bar.
+- **Two consequences for 1442's own measurement.** The 292-against-23 count in
+  its § Context was taken before this and needs re-measuring: the gap it
+  described was partly the census counting the envelope's tracking error, and
+  that half is now gone. And the ghost search's chance rate is a function of
+  the candidate count, so a rate measured on 1558 candidates is not the rate on
+  the pool today — whatever remains after re-measuring is the real defect.
+- **A floor taken off the near-maximum cannot serve a ghost of a weak
+  parent.** At 1 % of the third strongest line the ghost sits under
+  `GHOST_RATIO_RANGE[0]` × the maximum and is never a candidate, which task 3
+  settles when it decides whether the check runs on a fitted list instead.
+
 ## Non-goals
 
 - Stripping Kβ, or modelling it as an emission line. `_RADIATIONS` fences it and

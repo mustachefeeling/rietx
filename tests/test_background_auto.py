@@ -109,6 +109,49 @@ def test_diagnostics_flag_kbeta_ghost():
     assert kb, f"Kβ ghost at {ghost:.2f}° not flagged; got {flags}"
 
 
+def test_a_ghost_is_found_down_to_the_ratio_window_the_check_accepts():
+    """The ghost the check exists for is the *small* one, and the census bar
+    is not the ghost bar.
+
+    A filtered tube leaks Kβ well under the 0.14 an unfiltered one carries,
+    and ``GHOST_RATIO_RANGE`` says so: a ghost is accepted from 0.005 of its
+    parent upwards.  ``diagnose``'s peak census takes a dynamic-range floor at
+    ``SAMPLING_HEIGHT_FRACTION`` = 0.03, six times higher, so reading that one
+    bar as the candidate bar deletes every ghost in the window the ratio test
+    declares.
+
+    The fixture is a well-counted pattern, because that is where the two bars
+    part: on a 200-count background 5σ is about 70 and the σ bar binds first,
+    while here it is 7 against a census floor of 2206.  What the candidate
+    floor buys is stated at the strongest parent, which is the line the floor
+    is a fraction of: its 1 % Kβ image is flagged, and under the census floor
+    it was not.  A 1 % ghost of a parent that is itself a small fraction of
+    the maximum is still out of reach, which is the limit of a floor taken off
+    the near-maximum and is WP-1442's to settle.
+    """
+    from rietx.background.diagnostics import (
+        GHOST_RATIO_RANGE,
+        SAMPLING_HEIGHT_FRACTION,
+    )
+
+    tt = np.arange(10.0, 90.0, 0.02)
+    y = np.full_like(tt, 200.0)
+    sg = 0.12 / 2.3548
+    for p, a in ((28.44, 100000.0), (47.30, 50000.0), (56.12, 30000.0)):
+        y = y + a * np.exp(-0.5 * ((tt - p) / sg) ** 2)
+    ghost = 2.0 * np.degrees(np.arcsin(
+        np.sin(np.radians(28.44 / 2.0)) * 1.3922340 / WAVELENGTH))
+    y = y + 1000.0 * np.exp(-0.5 * ((tt - ghost) / sg) ** 2)
+    y = np.random.default_rng(0).poisson(y).astype(float)
+    doped = rx.PatternData(two_theta=tt.tolist(), intensity=y.tolist())
+
+    flags = diagnose(doped, wavelength=WAVELENGTH).contamination
+    kb = [f for f in flags if f.kind == "kbeta" and abs(f.two_theta - ghost) < 0.05]
+    assert kb, f"1 % Kβ ghost at {ghost:.2f}° not flagged; got {flags}"
+    assert kb[0].intensity_ratio > GHOST_RATIO_RANGE[0]
+    assert kb[0].intensity_ratio < SAMPLING_HEIGHT_FRACTION  # the bar it clears
+
+
 @pytest.mark.parametrize("anode", ["CrKa", "FeKa", "CoKa", "CuKa", "MoKa", "AgKa"])
 def test_kbeta_check_follows_the_anode(anode):
     """The ghost sits at the *anode's* Kβ, so the check has to be per anode.

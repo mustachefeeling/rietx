@@ -82,12 +82,21 @@ SKILL_MAX_LINES = 500
 #: The two tests are in tension and one had to give, and deleting another
 #: code's measured guidance to fit a new one is the wrong direction.
 #:
-#: **The next addition to that file splits it rather than moving this again.**
-#: This cap is anchored on an external number rather than chosen, so the
-#: headroom against the 40 kB truncation is what is being spent: 3.4 kB left,
-#: against 4.0 kB before. ``diagnostics.md`` is the only file near the cap and
-#: it is §7 of the body, so the split is 7a/7b with a routing row, which is a
-#: change to how the skill routes and belongs in a commit about that.
+#: **That split happened** (WP-1415, 2026-09-21), so the cap has not moved
+#: again and this note records the seam rather than asking for one. The
+#: criterion was not size: the main table carries what a **fit** is likely to
+#: say, and a code conditional on a quirk of the file you read goes to a
+#: secondary doc. The eleven reader rows became §7i,
+#: ``references/diagnostics-reading.md``, taking ``diagnostics.md`` from
+#: 36 562 to 30 953 B. ``diagnostics-projects.md`` had recorded that those rows
+#: stay in §7 on a different criterion, and that paragraph was corrected in the
+#: same commit.
+#:
+#: So the next addition has room, and the rule for the one after it is the
+#: criterion above rather than a byte count: ask which file a reader meets the
+#: code in, and whether a fit is likely to say it. ``SKILL.md`` is now the
+#: tighter of the two (68 B under :data:`SKILL_MAX_BYTES`), and a routing row
+#: is what a new reference file costs there.
 REFERENCE_MAX_BYTES = 36_600
 #: `api.md` is **generated** from the installed package, so its size is a fact
 #: about the public API and not a thing an author chose.  The authored cap says

@@ -34,8 +34,9 @@ process list cannot go stale. **`ps`, not `pgrep -f`**: measured 2026-09-15,
 `pgrep -f pytest` exited 1 against a live `pytest -n 4` that `pgrep python`
 and `ps` both saw, and it is not stable between sessions — a check that
 silently finds nothing returns a false all-clear every time, which is worse
-than no check. **Found
-one: wait or defer, and never measure anyway** — the count would not be
+than no check. **Count trees, not lines**: `grep` reads the command line, so a
+background launch matches its own zsh wrapper too and `-c` says 1 on an idle
+machine. **Found one: wait or defer, and never measure anyway** — it would not be
 quotable (§ Quoting numbers). Checked in `/pr-review` step 9 and `/wp-handover`
 steps 6 and 9; rungs 1-2 skip it, being cheap to repeat.
 
