@@ -51,7 +51,45 @@ from .common import Base, Diagnostic, Provenance
 #: this string beside the spec as the stamp a run is reproducible from, and two
 #: runs with identical spec notes now answer differently.  A position-only list is
 #: unaffected: with no measured intensities the rule is exactly the old one.
-INDEXING_THRESHOLDS_VERSION = "1.3"
+#: 1.4 (WP-1442): ``PeakFlag`` gains ``position_unmeasured`` and
+#: ``PEAK_UNUSABLE_FLAGS`` gains it too — a component whose fitted position esd
+#: exceeds :data:`PEAK_POSITION_ESD_MAX_DEG`, i.e. the whole span a 2θ axis can
+#: have.  ``pick_peaks`` answers differently on any pattern carrying one.  The
+#: same WP made the Kβ / W Lα screen ``flag_ghosts`` runs **joint**
+#: (:data:`~rietx.background.diagnostics.GHOST_MIN_PARENTS`), which is the
+#: larger half of the move: 20 flags over the 17 bundled monochromated patterns
+#: became none, so a ``ghost_kbeta`` or ``ghost_tungsten`` flag — and the
+#: ``usable()`` list under it — is not comparable across the two versions.
+INDEXING_THRESHOLDS_VERSION = "1.4"
+
+#: Position esd, in ° 2θ, past which a fitted line locates nothing and is
+#: flagged ``position_unmeasured``.
+#:
+#: 2θ spans at most 180°, so an uncertainty of 180° admits every angle the axis
+#: has: the line is not a poorly-determined position, it is no position.  That
+#: matters because every consumer downstream matches on a ±kσ window, so such a
+#: line matches *whatever it is compared against* — on ``FAP.XRA`` an
+#: unresolved shoulder at 64.330° came back at **±1 961°**, 17 times the whole
+#: measured range of 115.04°, matched every strong reflection in the ghost
+#: screen, and moved the indexed cell 1 376 ppm off the certified one
+#: (WP-1442).
+#:
+#: It is the sibling of ``no_intensity`` (WP-1110 item 14) and catches what
+#: that one cannot: there the position stops being identifiable *because* the
+#: component refined to no intensity, and the intensity bound is what sees it.
+#: Here the component has real intensity and its position is still
+#: unidentifiable, so only the esd says so.
+#:
+#: **The bar is the axis, not the pattern**, and that is a deliberate
+#: weakening: a line uncertain by half of a 115° pattern still passes.  The
+#: corpus does not contain one — measured over 1 165 usable lines from 17
+#: bundled laboratory patterns, the largest position esd outside this case is
+#: **0.868°**, so the bar clears the next-worst line by 207× and drops exactly
+#: one line.  Making it span-relative is the change to consider if a line ever
+#: lands in between; it needs the pattern's range at
+#: :func:`rietx.indexing.pick.peaks_of_group`, which is public and called by the
+#: GUI editor, so it costs a signature rather than a constant.
+PEAK_POSITION_ESD_MAX_DEG = 180.0
 
 # ----------------------------------------------------------------------
 # Detection
@@ -428,6 +466,11 @@ PEAK_ASSUMED_ESD_DEG = 0.02
 #: judgement left for a consumer to make.  It stays in ``peaks`` for the same
 #: reason ``not_separable`` does — a report must be able to say why a line went,
 #: and a component a *human* placed is theirs to see and remove.
+#: ``position_unmeasured`` — the fitted position esd reached
+#: :data:`PEAK_POSITION_ESD_MAX_DEG`, so the line has no position at all.  Like
+#: ``no_intensity`` it **is** unusable rather than reported, because there is no
+#: judgement left for a consumer to make: a ±kσ window built from it admits the
+#: whole axis.  It stays in ``peaks`` for the same reason the other two do.
 #: ``unnamed_neighbour`` — only :func:`~rietx.indexing.fit_peaks` can raise it
 #: (WP-1101): detection saw a component inside this window that the caller's
 #: position list did not name, so the fit apportioned that intensity among the
@@ -453,6 +496,7 @@ PeakFlag = Literal[
     "kalpha2_residual",
     "no_intensity",
     "unnamed_neighbour",
+    "position_unmeasured",
 ]
 
 #: FWHM multiple within which a weak component may be read as a stronger
@@ -483,9 +527,13 @@ PEAK_AXIAL_TAIL_MAX_FWHM = 3.5
 #: to say why a line went, and the component genuinely improves the group's fit,
 #: so removing it from the *model* would bias the position of the line it sits
 #: on) while never being offered as evidence of a lattice.
+#: ``position_unmeasured`` is here on the same footing, and it is the one that
+#: shows why ``unresolved_shoulder``'s exemption needed a companion: "their σ
+#: already says so" holds while σ is finite and a consumer can act on it, and
+#: stops holding at ±1 961° (WP-1442).
 PEAK_UNUSABLE_FLAGS: frozenset[str] = frozenset(
     {"ghost_kbeta", "ghost_tungsten", "excluded", "fit_failed", "not_separable",
-     "no_intensity"})
+     "no_intensity", "position_unmeasured"})
 
 #: Standard deviations above χ²_red = 1 at which a group's fit is **refuted**, and
 #: therefore above which a ΔBIC verdict on adding one more component to it cannot

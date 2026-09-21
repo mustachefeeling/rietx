@@ -1367,23 +1367,29 @@ def test_a_centred_tetragonal_lattice_is_recovered_with_its_centring(zircon_inde
 @pytest.mark.xdist_group("indexing-acceptance-brucite")
 def test_the_supercells_that_used_to_outrank_brucite_now_sit_below_it(
         brucite_index):
-    """WP-1026's first recorded failure, re-measured — and it is no longer one.
+    """WP-1026's first recorded failure, and the panel member that answers it.
 
     That session found **every one of twelve candidates a supercell**, with
     c × 3.002 ranked first at ``predicted_seen_fraction`` = 0.333 (exactly ⅓, the
     signature) and the true cell in none of them.  The measurement was left as
     prose in three documents and never became a row, so it was never re-run
     across WP-1030's prunes, WP-1039's search-line ordering, WP-1040's third
-    engine or WP-1041's dedup key.  Re-measured here: **the truth is ranked
-    first**, and the c × 2 and c × 3 supercells are still found and sit below it.
+    engine or WP-1041's dedup key.
 
-    That is what a panel scored in both directions is supposed to do, and the
-    member that does it is visible in the numbers: the truth shows **0.86** of
-    its own predicted lines against the c × 2 cell's 0.43 and the c × 3 cell's
-    0.32 — very close to the 1/2 and 1/3 an exact supercell must give, which is
-    what makes it a signature rather than a threshold.  Forward coverage cannot
-    separate them at all: 31, 31 and 32 of 37 lines, i.e. the supercells index
-    *more*.
+    What this row asserts is that the truth is **found**, that the supercells
+    are found beside it, and that the reversed panel member separates them.  It
+    does *not* assert the ranking: since WP-1442 an a × 2 supercell ranks above
+    the truth here, and
+    ``test_brucites_truth_is_not_ranked_first`` below carries that as a strict
+    xfail so it cannot pass unnoticed.  **WP-1446 owns restoring it.**
+
+    The member that answers a supercell is visible in the numbers: the truth
+    shows **0.86** of its own predicted lines against the c × 2 cell's 0.43 and
+    the c × 3 cell's 0.32 — very close to the 1/2 and 1/3 an exact supercell
+    must give, which is what makes it a signature rather than a threshold.
+    Forward coverage cannot separate them at all: 31, 31 and 32 of 37 lines,
+    i.e. the supercells index *more*, and the a × 2 cell wins the rank on
+    exactly that one extra line.
 
     The cell recovered is the **specimen's**, not the mineral's: a = 3.1475
     against Zigan & Rothbauer's 3.142 is +1750 ppm, 30× the goniometer-radius
@@ -1397,10 +1403,15 @@ def test_the_supercells_that_used_to_outrank_brucite_now_sit_below_it(
     """
     res = brucite_index
     assert res.candidates
-    best = res.candidates[0]
+    best = _brucite_truth(res)
+    assert best is not None, (
+        "the certified cell is in no candidate at all, which is a harder "
+        "failure than the ranking one this row fences: "
+        + repr([tuple(round(x, 4) for x in c.cell[:3])
+                for c in res.candidates[:6]]))
 
     assert best.system in ("hexagonal", "trigonal") and best.centring == "P", (
-        f"ranked first: {best.system} {best.centring}")
+        f"the truth candidate: {best.system} {best.centring}")
     assert abs(best.cell[0] / A_BRUCITE - 1.0) < 3e-3, best.cell[0]
     assert abs(best.cell[2] / C_BRUCITE - 1.0) < 3e-3, best.cell[2]
     # the specimen really is off the literature cell, in the direction recorded
@@ -1425,6 +1436,48 @@ def test_the_supercells_that_used_to_outrank_brucite_now_sit_below_it(
 
     assert best.confidence == "low"
     assert res.best_or_none() is None
+
+
+def _brucite_truth(res):
+    """The certified brucite cell among the candidates, wherever it ranks."""
+    for c in res.candidates:
+        if (c.system in ("hexagonal", "trigonal") and c.centring == "P"
+                and abs(c.cell[0] / A_BRUCITE - 1.0) < 3e-3
+                and abs(c.cell[2] / C_BRUCITE - 1.0) < 3e-3):
+            return c
+    return None
+
+
+@pytest.mark.slow
+@pytest.mark.xdist_group("indexing-acceptance-brucite")
+@pytest.mark.xfail(strict=True, reason="WP-1446: an a × 2 supercell outranks "
+                                       "the truth on one extra indexed line")
+def test_brucites_truth_is_not_ranked_first(brucite_index):
+    """The rank the row above stopped asserting, carried where it cannot go quiet.
+
+    Measured 2026-09-22 (WP-1442): the first candidate is an a × 2 supercell at
+    a = 6.2950 against the certified 3.1475.  It predicts **90** reflections of
+    which 25 are present (0.28); the truth predicts 29 of which 25 are present
+    (0.86).  Both index the same 31 observed lines, and the supercell takes the
+    rank on one extra line of the fitted panel, 34 against 33.
+
+    WP-1442 did not cause this.  It stopped the Kβ/W Lα screen discarding two
+    real brucite lines as contamination on a specimen behind a graphite
+    monochromator, where neither line can reach the detector, and those two
+    discards were holding the supercell down.  Removing either one alone still
+    leaves the supercell first, so the margin is one line and always was.
+
+    ``strict=True`` deliberately: when WP-1446 makes the ranking read the
+    reversed panel member, this row goes **red**, and whoever is there restores
+    the assertion to the row above and deletes this one.
+    """
+    res = brucite_index
+    assert res.candidates
+    truth = _brucite_truth(res)
+    assert truth is not None
+    assert res.candidates[0] is truth, (
+        "ranked first: "
+        + repr(tuple(round(x, 4) for x in res.candidates[0].cell[:3])))
 
 
 @pytest.mark.slow

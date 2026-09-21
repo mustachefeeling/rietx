@@ -872,14 +872,30 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
 #: is ``PEAK_UNUSABLE_FLAGS``, which the peaks route serves beside the
 #: vocabulary rather than leaving a client to re-derive.
 PEAK_FLAG_HELP: dict[str, HelpEntry] = {
+    "position_unmeasured": HelpEntry(
+        title="Position never determined",
+        label="no position",
+        description=(
+            "The fit returned this line's position with an uncertainty of "
+            "180° or more, which is the whole span a 2θ axis has. It is not a "
+            "poorly-determined position, it is no position: any window built "
+            "from it matches whatever it is compared against. The line is "
+            "kept so a report can say why it went, and excluded from "
+            "everything that matches positions."
+        ),
+        anchor="peak-positions.html#wavelength-scales",
+    ),
     "ghost_kbeta": HelpEntry(
         title="Kβ contamination line",
         label="Kβ ghost",
         description=(
             "The line sits where the Kβ partner of a stronger reflection "
-            "would be. It is excluded rather than stripped: Rachinger "
-            "stripping redistributes the counting noise and biases what is "
-            "left. The line is unusable as evidence of a lattice."
+            "would be, and several other strong reflections carry one at the "
+            "same ratio. That agreement is the evidence: a single line at a "
+            "predicted position is a coincidence and is not flagged. It is "
+            "excluded rather than stripped, because Rachinger stripping "
+            "redistributes the counting noise and biases what is left. The "
+            "line is unusable as evidence of a lattice."
         ),
         anchor="peak-positions.html#wavelength-scales",
     ),
@@ -888,8 +904,8 @@ PEAK_FLAG_HELP: dict[str, HelpEntry] = {
         label="W ghost",
         description=(
             "The line sits at a tungsten L emission position, which an aged "
-            "tube with a contaminated anode produces. Excluded for the same "
-            "reason as a Kβ ghost, and unusable."
+            "tube with a contaminated anode produces. Flagged jointly and "
+            "excluded for the same reasons as a Kβ ghost, and unusable."
         ),
         anchor="peak-positions.html#wavelength-scales",
     ),
@@ -1139,9 +1155,15 @@ PEAK_DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
     "PEAK_CONTAMINATION_LINE": HelpEntry(
         title="Contamination lines excluded",
         description=(
-            "Lines were identified as Kβ or tungsten emission and excluded. "
-            "They are excluded and never stripped, because stripping "
-            "redistributes the counting noise."
+            "Several strong reflections carry a line at their Kβ or tungsten "
+            "position at one common ratio, so the beam is leaking that line "
+            "and those lines were excluded. The peak list carries the flag "
+            "and not the size of the leak. For that, run "
+            "`background.diagnose(data, wavelength=...)` and read "
+            "`ContaminationFlag.leak_ratio`: an unfiltered tube sits near "
+            "0.14, and a filter or monochromator only cuts it. They are "
+            "excluded and never stripped, because stripping redistributes "
+            "the counting noise."
         ),
         anchor="peak-positions.html#wavelength-scales",
     ),

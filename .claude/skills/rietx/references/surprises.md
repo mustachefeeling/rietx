@@ -1,4 +1,4 @@
-# 8. Twenty-six things that will surprise you, all measured
+# 8. Twenty-seven things that will surprise you, all measured
 
 Load it when something the fit did makes no sense. Every entry is a measured result that contradicts an intuition.
 
@@ -448,3 +448,24 @@ pattern's own dynamic range beside the σ floor now, and the median factor is
 1.000. A threshold in σ answers "is this significant". It answers nothing
 about whether a feature is real.
 (Measured: WP-1415, issues #274 and #275.)
+
+**8.27 A contamination flag on a single line is a coincidence, and until
+v1.6 the screen reported one per line.** Whether Kβ reaches the detector is a
+property of the optics, so a leak puts a line at the predicted position of
+*every* strong reflection, all at one ratio. Reading each match on its own
+cannot tell that from an accident of the pattern, and did not: over the
+seventeen bundled patterns — the sixteen IUCr round-robin phases and SRM
+660c — every one collected behind a graphite monochromator that removes both
+Kβ and W Lα, the old rule flagged 0.94 Kβ per
+pattern against a control fed made-up wavelengths that flagged 1.01. Each flag
+dropped a real reflection from `usable()`. The screen is now joint and those
+corpora report nothing, while a Kβ image injected at 10 % of its parent is
+found with its ratio on all six hosts tried. **Two consequences for an agent.**
+Read `ContaminationFlag.leak_ratio`, the ratio fitted across the supporting
+parents, rather than a single line's `intensity_ratio`. And read the detection
+floor honestly: a leak under about 10 % comes back as nothing, and how far
+under depends on how many peaks the pattern yields — zincite is caught at 1 %,
+magnetite at 22 usable peaks not until 10 %. So an empty `contamination` list
+means "no leak this rule can see" and never "the beam is clean". An unfiltered
+tube sits at 0.14 (Hölzer et al. 1997), which is the case worth catching.
+(Measured: WP-1442.)

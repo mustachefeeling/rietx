@@ -89,28 +89,29 @@ placement, link resolution, and the size caps on this file and CLAUDE.md.
 ## Current focus
 
 **[v1.6 — the magnetic structure](#v16--the-magnetic-structure) opened
-2026-09-18** ([record](milestones/v1.6.md)), the day v1.5 shipped
-([record](milestones/v1.5.md), [notes](releases/1.5.0.md), tag `13bce502`, on
-PyPI); `pyproject.version` is `1.6.0.dev0`. Its acceptance rows were written
-at the open. Seven WPs — 1326-1329, 1343, 1418, 1419 — over a reference
-implementation on the `mustachefeeling` fork.
+2026-09-18** ([record](milestones/v1.6.md)), the day v1.5 shipped;
+`pyproject.version` is `1.6.0.dev0` and the acceptance rows were written at the
+open. Seven WPs — 1326-1329, 1343, 1418, 1419 — over a reference implementation
+on the `mustachefeeling` fork.
 
 **Nothing is in flight.** The order is set: 1418's M-6 and M-7 first, having no
 forward-model contact, then 1327's verb, then 1419 as its own PR because the
 two-lists decision it carries gets waved through in a diff about something
-else. **Neutron TOF is not in this milestone** — it stays at [§ v2+](#v2--fenced)
-behind issue #193, and the fork's chain carries it merged in.
+else. **Neutron TOF stays at [§ v2+](#v2--fenced)** behind issue #193.
 
-**Four silent-answer fixes have landed since the ship**, staged in
-[releases/1.5.1.md](releases/1.5.1.md): 1310's last two on 2026-09-18
-([1434](wp/1434-the-bound-test-asks-the-wrong-question.md),
-[1435](wp/1435-a-hold-the-caller-declares.md), both in
-[§ v1.5.x](#v15x--after-the-ship)), then on 2026-09-19
-[1432](wp/1432-a-tie-onto-a-rederived-dof.md) and
-[1342](wp/1342-a-freeze-that-reads-names.md), one user tie story from each end
-— what a tie accumulates, and what a freeze reading a *name* cannot see. 1432
-unblocks 1419's amplitudes; so is the `.inp` grammar 1118 refuses,
+**Six silent-answer fixes have landed since the ship** (1434, 1435, 1432,
+1342, 1415, 1442), staged in [releases/1.5.1.md](releases/1.5.1.md), narrated
+in the [v1.6 record](milestones/v1.6.md). 1432 unblocks 1419's amplitudes; so
+is the `.inp` grammar 1118 refuses,
 [1433](wp/1433-the-inp-grammar-still-refused.md).
+
+**1442 filed four WPs, and
+[1446](wp/1446-a-supercell-that-outranks-the-truth.md) is first**: a brucite
+supercell outranks the truth while the panel holds the number refuting it, and
+`test_brucites_truth_is_not_ranked_first` is a strict xfail that goes **red**
+when it is fixed. Then [1445](wp/1445-the-optics-nobody-declared.md), needing a
+schema decision first; [1447](wp/1447-a-threshold-each-pattern-sets-for-itself.md)
+and [1448](wp/1448-a-number-somebody-chose.md) block nothing.
 
 **Two cheap unowned asks** survive, both in 1407: a Stoe `.raw` paired with its
 WinXPOW export, and a blank for a `rietx compare` standard.
@@ -656,7 +657,10 @@ the limit carried load rather than whether the value stopped near one, and
 | [1421](wp/1421-the-result-reproduces-its-own-number.md) | The result reproduces its own number | ⬜ | — (1310 soft) |
 | [1432](wp/1432-a-tie-onto-a-rederived-dof.md) | A tie onto a coordinate DOF, re-applied once per write | ✅ 2026-09-19 | — (1119 soft) |
 | [1434](wp/1434-the-bound-test-asks-the-wrong-question.md) | The bound test asks whether the value is near its limit, never whether the limit was binding | ✅ 2026-09-18 | — |
-| [1442](wp/1442-a-ghost-search-at-chance.md) | A ghost search at chance: the Kβ flag fires where Kβ cannot exist | ⬜ | — (1415 soft) |
+| [1442](wp/1442-a-ghost-search-at-chance.md) | A ghost search at chance: the Kβ flag fires where Kβ cannot exist | ✅ 2026-09-22 | — (1415 soft) |
+| [1445](wp/1445-the-optics-nobody-declared.md) | The optics nobody declared: a source that cannot emit the line | ⬜ | — (1442 soft) |
+| [1446](wp/1446-a-supercell-that-outranks-the-truth.md) | A supercell that outranks the truth, on evidence the panel already has | ⬜ | — (1442 soft) |
+| [1447](wp/1447-a-threshold-each-pattern-sets-for-itself.md) | A threshold each pattern sets for itself | ⬜ | — (1442 soft) |
 
 #### A long run is not one fit
 
@@ -738,6 +742,7 @@ separability floor, and not scheduled here.
 | [1409](wp/1409-part-one-reads-like-a-manual.md) | Part 1 reads like a manual | ✅ 2026-09-14 | 1408 |
 | [1410](wp/1410-worktree-gate-scope.md) | The worktree gate guards this checkout, not every repository | ✅ 2026-09-14 | — |
 | [1443](wp/1443-part-one-read-by-a-newcomer.md) | Part 1 read by a newcomer: eleven passages, one word, and the version the manual describes | ⬜ | — (1409 is the shape) |
+| [1448](wp/1448-a-number-somebody-chose.md) | A number somebody chose says so, and says where the argument is | ⬜ | — |
 
 #### Candidates — named on a use case, not yet on a measurement
 

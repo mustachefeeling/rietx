@@ -37,7 +37,7 @@ import warnings
 import numpy as np
 from pydantic import Field
 from scipy.ndimage import median_filter
-from scipy.signal import find_peaks, peak_widths
+from scipy.signal import find_peaks, peak_prominences, peak_widths
 
 from ..schemas.common import Base
 from ..schemas.pattern import PatternData
@@ -83,15 +83,138 @@ _ANODE_MATCH_TOL = 0.01
 GHOST_TOL_DEG = 0.15
 #: How many combined σ the observed ghost may sit from its predicted position.
 GHOST_MATCH_K = 3.0
-#: Ghost/parent intensity-ratio window.  Kβ is ≤ ~0.2 of Kα even unfiltered and
-#: W Lα weaker still, so anything above the upper bound is a reflection, not a
-#: ghost; the lower bound keeps noise-level coincidences out.  That lower bound
-#: is also the height floor :func:`diagnose` admits ghost *candidates* at,
-#: because a maximum smaller than it cannot pass this test against any parent.
-GHOST_RATIO_RANGE = (0.005, 0.6)
+#: Largest position esd, in ° 2θ, at which a fitted line still has a position
+#: this check can use.  A line past it is neither a parent nor a candidate.
+#:
+#: It **is** :data:`GHOST_TOL_DEG`, because that floor is the prediction's own
+#: error: once a fit knows less about where its line is than the prediction
+#: does, "matched loosely" has become "matched to whatever is nearby".  That is
+#: not a hypothetical.  Over the 1 108 fitted lines of the 17 monochromated
+#: fixtures the position esd is 0.005° at the median and 0.019° at p90, and the
+#: far tail is a cliff rather than a tail: past p99 it runs 10¹⁹ to 10⁵²
+#: degrees, a singular normal matrix on an unresolved shoulder or a line with no
+#: intensity.  On ``FAP.XRA`` two such fits at 64.330° carried 1 961° and
+#: 11 390°, matched every parent, and produced 32 of that pattern's 35 raw
+#: matches (WP-1442).
+#:
+#: The bar drops 22 of those 1 108 lines, 2.0 %, and with it caps the matching
+#: window at ``GHOST_MATCH_K·√2·GHOST_TOL_DEG`` = 0.636°.  The σ term is at or
+#: under the floor for 93.68 % of parent-line pairs anyway, so this costs
+#: almost nothing a well-fitted pattern was using.
+#:
+#: **It is not**
+#: :data:`~rietx.schemas.indexing.PEAK_POSITION_ESD_MAX_DEG`, which is 180° and
+#: takes a line out of ``PeakList.usable`` altogether.  The two ask different
+#: questions and the answers are properly different by three orders of
+#: magnitude: that one asks whether the line has a position *at all*, so its
+#: scale is the 2θ axis; this one asks whether the line can be matched against
+#: **a specific prediction**, so its scale is that prediction's own error,
+#: which is what :data:`GHOST_TOL_DEG` is.  A line can be far too vague to
+#: confirm a Kβ position and still be a perfectly good lattice line.
+GHOST_ESD_MAX_DEG = GHOST_TOL_DEG
+#: Ghost/parent intensity-ratio window.
+#:
+#: The ceiling is the physics.  Hölzer et al. (1997) Table VI gives the
+#: corrected Kβ1,3/Kα1,2 integrated-intensity ratio for the 3d anodes to better
+#: than 4 %: Cu 0.141, Cr 0.139-0.147, Mn 0.140, Fe 0.143-0.152, Co 0.137,
+#: Ni 0.147-0.150.  An *unfiltered* tube therefore sits near 0.15, and every
+#: filter and every monochromator only cuts it, so 0.25 clears the largest
+#: tabulated value by 1.6× and calls anything above a reflection.  W Lα1 comes
+#: off the filament rather than the target and is weaker still, so it shares the
+#: ceiling with room to spare.
+#:
+#: The 0.6 this shipped until WP-1442 admitted four times an unfiltered tube's
+#: leak, and the "≤ ~0.2" its docstring quoted had no source.  On the 17
+#: monochromated fixtures the ceiling change alone removed nothing, because the
+#: joint bar (:data:`GHOST_MIN_PARENTS`) had already silenced them; what it
+#: buys is that a *reported* leak_ratio is now one a tube could produce.
+#:
+#: **The ceiling is a cliff, not a taper**, and that part is measured: a Kβ
+#: image injected into ``corundum.prn`` is found with its ratio through 0.24
+#: (an injected 0.14 reads back 0.141) and returns **no flag at all** from
+#: 0.26 up, which is what a clean pattern returns.  A ratio past the ceiling is
+#: a reflection by construction, so that is the rule working; it is written down
+#: because the distance from an unfiltered tube's 0.14 to the edge is 1.8× and
+#: not obviously generous.
+#:
+#: **Whether the census path eats into that 1.8× is argued and not measured.**
+#: Hölzer's number is Kβ1,3 over the whole Kα1,2 doublet, which is what
+#: ``flag_ghosts`` divides by: :mod:`rietx.indexing.peakfit` models the emission
+#: set, so one ``ObservedPeak.intensity`` is the reflection's integral over
+#: every line.  :func:`diagnose` has no such model and divides by a *net height*
+#: at one channel, which above the doublet's resolving angle is Kα1 alone, about
+#: two thirds of the pair — so a real leak, which is one line, should read high
+#: there.  **This fixture cannot show it**: the injector adds a scaled copy of
+#: the whole pattern, Kα2 satellites included, so its ghost is a doublet image
+#: and the height ratio comes back faithful by construction.  Demonstrating it
+#: needs a leak synthesised from the emission model rather than from the
+#: pattern.  Retuning on it is WP-1447's; what a reader must not do is take the
+#: 1.6× as the census path's.
+#:
+#: The floor keeps noise-level coincidences out.  It is also the height floor
+#: :func:`diagnose` admits ghost *candidates* at, because a maximum smaller than
+#: it cannot pass this test against any parent.
+GHOST_RATIO_RANGE = (0.005, 0.25)
 #: How many of the strongest lines are searched for ghosts.  A ghost of a weak
 #: line is below noise by construction.
 GHOST_N_PARENTS = 8
+
+#: How many of those parents must carry a candidate at one common ratio before
+#: a contamination is reported at all.
+#:
+#: A leak is a property of the *beam*: whatever fraction of Kβ reaches the
+#: detector reaches it for every reflection, so a real one puts a line at the
+#: predicted position of every strong parent, all at the same ratio.  A
+#: coincidence puts one line somewhere.  Taking each match on its own could not
+#: tell those apart, and did not: on the 17 monochromated fixtures, where
+#: neither Kβ nor W Lα can reach the detector, the per-line rule flagged 0.94
+#: Kβ per pattern against a control fed 26 made-up wavelengths that flagged
+#: 1.01 (WP-1442).
+#:
+#: The bar is measured rather than chosen, against a control that asks the same
+#: question at wavelengths which are not an emission line of anything.  Over
+#: **2 656 draws** (16 round-robin patterns × 166 such wavelengths) the count
+#: reaches **4** and no more, and **0.000 %** reach 5; the real Kβ reaches 2 on
+#: the worst of those patterns.  A Kβ image injected into six of them scores at
+#: least 6 at r = 0.10 and at least 5 at r = 0.15, so 5 separates the two
+#: populations with a margin of one count on each side.
+#:
+#: **The control is only fair away from Kα1.** Above ≈0.98·λ(Kα1) the predicted
+#: companion lands on top of its own parent and matches the parent's own Kα2
+#: partner, which is self-matching rather than coincidence: measured, the
+#: control's mean jumps from 0.50 to 3.95 and its maximum from 4 to 8 inside
+#: that band alone.  The band is excluded, along with ±0.01 around the real Kβ
+#: and W Lα ratios, which sit at 0.904 and 0.958 and are well clear of it.  A
+#: first calibration that swept into the band reported a 1.3 % false rate and
+#: was wrong (WP-1442's handover has both runs).
+#:
+#: **The detection floor this buys is r ≈ 0.10**, not lower: over corundum,
+#: zincite, cpd-1e, brucite, zircon and magnetite the minimum score at r = 0.05
+#: is 2, and magnetite — 22 fitted lines — reaches only 2 there.  An unfiltered
+#: tube sits at 0.14 (Hölzer 1997 Table VI), which is the case worth catching.
+#: A *residual* leak past a working filter is below the floor and is reported
+#: as nothing, which is the honest answer at this evidence.
+#:
+#: The number is calibrated on Cu Kα laboratory data from one instrument class,
+#: because that is what the bundled corpus has an anode for.  A control run per
+#: pattern would remove that dependence and costs ~1.4 % of the peak fit it
+#: rides on; it is written up in WP-1447 rather than built, the fixed bar
+#: having measured at zero false findings here (decided 2026-09-22 with the
+#: maintainer).
+GHOST_MIN_PARENTS = 5
+
+#: How far two parents' ratios may differ and still be called one leak, as a
+#: factor.  The physical ratio is constant; what varies is the fitted intensity
+#: of a weak line sitting on a strong one's flank, which is tens of percent.
+#:
+#: Measured at 1.3, 1.5, 2.0 and 3.0 against the control
+#: :data:`GHOST_MIN_PARENTS` describes: the control's maximum is **4 at every
+#: one of them**, so widening costs no specificity at all, while an injected
+#: leak at r = 0.10 scores 5 at 1.3 and 1.5 against 6 at 2.0 and 3.0.  The
+#: tolerance buys detection for nothing.  2.0 is the widest at which "a common
+#: ratio" still means something, which is where it stops being a measurement
+#: and becomes a judgement (decided 2026-09-22; WP-1442).
+GHOST_RATIO_TOL = 2.0
 
 #: The sampling band of McCusker, Von Dreele, Cox, Louër & Scardi (1999) §2:
 #: "There should be at least five steps (but generally not more than ten)
@@ -292,12 +415,30 @@ _DEAD_REPAIR_PASSES = 6
 
 
 class ContaminationFlag(Base):
-    """A weak peak consistent with a known contamination line of a strong one."""
+    """One line of a contamination finding that is **joint across parents**.
+
+    A flag is never emitted on its own evidence.  The rule gathers candidates
+    for every one of the strongest parents, finds the ratio the most of them
+    agree on, and emits nothing at all unless :data:`GHOST_MIN_PARENTS` of them
+    do.  Each flag then names one ghost line of that finding, and carries the
+    finding's own numbers beside its own: ``leak_ratio`` is the ratio fitted
+    across the supporting parents, ``n_parents`` how many supported it, and
+    ``n_parents_searched`` how many were in range to be asked.
+
+    So ``intensity_ratio`` is this line's, and ``leak_ratio`` is the
+    pattern's.  A reader wanting to know whether the beam carries Kβ reads the
+    second.  The three finding-level fields repeat across every flag of one
+    finding, which is what lets a caller drop a line without losing the
+    evidence for it.
+    """
 
     kind: str                  # "kbeta" | "tungsten_la"
-    two_theta: float           # where the ghost sits
-    parent_two_theta: float    # the strong Kα parent reflection
-    intensity_ratio: float     # ghost/parent net height
+    two_theta: float           # where this ghost sits
+    parent_two_theta: float    # the strong Kα parent it is a ghost of
+    intensity_ratio: float     # this ghost/parent intensity
+    leak_ratio: float          # the ratio fitted across the supporting parents
+    n_parents: int             # parents supporting the finding
+    n_parents_searched: int    # parents whose ghost position was in range
 
 
 class SignalCutoff(Base):
@@ -1240,26 +1381,46 @@ def diagnose(data: PatternData, *, wavelength: float | None = None,
     # than one maximum — which is what :data:`SAMPLING_PROMINENCE_SIGMA` is
     # for, and what a *count* deliberately does not apply.  The defect fixed
     # here is the scale dependence, not the over-count.
-    # This is the pool ``_contamination_flags`` searches for ghosts among, so
-    # the ghost search inherits the selection rather than growing a second
-    # (WP-1442) — one ``find_peaks`` call, read at two floors off the same
-    # near-maximum.  The census bar cannot also be the ghost bar: a ghost is
-    # accepted down to ``GHOST_RATIO_RANGE[0]`` = 0.5 % of its parent, which is
-    # six times *under* the census floor, so a single 3 % bar deletes the Kβ
-    # and W Lα leaks this check exists to find (measured: four injected 1 %
-    # Kβ ghosts, all four flagged at the σ bar and none at the census floor).
-    # Below ``ghost_floor`` no candidate can pass the ratio test anyway, so it
-    # is the widest bar the ghost search has any use for.  The census is the
-    # subset above its own bar, which is the set a second ``find_peaks`` at
-    # that bar returns: ``distance`` keeps the tallest of a cluster, and a
-    # peak admitted by a *lower* floor can never displace a taller one
-    # (checked equal on every bundled fixture at σ ×1, ×0.289 and ×0.05).
+    # One ``find_peaks`` call serves the census and the ghost search, read at
+    # two floors off the same near-maximum, because the census bar cannot also
+    # be the ghost bar: a ghost is accepted down to ``GHOST_RATIO_RANGE[0]`` =
+    # 0.5 % of its parent, which is six times *under* the census floor, so a
+    # single 3 % bar deletes the Kβ and W Lα leaks this check exists to find
+    # (measured: four injected 1 % Kβ ghosts, all four flagged at the σ bar and
+    # none at the census floor).  Below ``ghost_bar`` no candidate can pass the
+    # ratio test anyway, so it is the widest bar the ghost search has any use
+    # for.  The census is the subset above its own bar, which is the set a
+    # second ``find_peaks`` at that bar returns: ``distance`` keeps the tallest
+    # of a cluster, and a peak admitted by a *lower* floor can never displace a
+    # taller one (checked equal on every bundled fixture at σ ×1, ×0.289 and
+    # ×0.05).
     pos_net = np.where(net > 0, net, 0.0)
     near_max = float(np.percentile(pos_net, 99.9))
     census_bar = np.maximum(5.0 * sigma, SAMPLING_HEIGHT_FRACTION * near_max)
     ghost_bar = np.maximum(5.0 * sigma, GHOST_RATIO_RANGE[0] * near_max)
     candidates, _ = find_peaks(pos_net, distance=3, height=ghost_bar)
     idx = candidates[pos_net[candidates] >= census_bar[candidates]]
+
+    # Where the two part is *prominence*, and they part because they are asked
+    # different questions (WP-1442).  A count wants every line the pattern
+    # shows, so the census keeps no prominence bar and says so above.  The
+    # ghost search asks whether several strong parents carry a line at one
+    # ratio, and the answer is decided by how many *coincidences* the pool can
+    # supply: on the demo notebook's Kapton-hump pattern the 291 candidates
+    # here let a made-up wavelength gather 6 supporting parents, and 5 of the
+    # 16 bundled fixtures did the same — over ``GHOST_MIN_PARENTS``, so the
+    # real wavelengths landing at 0-3 was luck rather than margin.  A genuine
+    # ghost on a background is a resolved maximum with full prominence above
+    # its flanking saddles; a ripple on a hump has none, which is the same
+    # separation :data:`SAMPLING_PROMINENCE_SIGMA` was added for one rank down.
+    # Gated, the chance consensus tops out at 4 over every fixture and the demo
+    # (means 1.3 → 0.25), while an injected leak at r ≥ 0.02 still gathers 5-8.
+    # Computed off the shared candidates rather than by a second ``find_peaks``,
+    # since a peak's prominence is a property of the signal and not of the
+    # selection it was found under.
+    prominence = peak_prominences(pos_net, candidates)[0]
+    ghost_idx = candidates[
+        prominence >= SAMPLING_PROMINENCE_SIGMA * sigma[candidates]]
 
     # nested envelope fits: cubic, then cubic + 1/(2θ) air-scatter column
     design = chebyshev_design_matrix(tt, 4, float(tt[0]), float(tt[-1]))
@@ -1273,8 +1434,8 @@ def diagnose(data: PatternData, *, wavelength: float | None = None,
     hump = float(np.sqrt(np.mean(r_air ** 2)) / max(med_env, 1e-12))
 
     flags: list[ContaminationFlag] = []
-    if wavelength is not None and len(candidates):
-        flags = _contamination_flags(tt, net, sigma, candidates, wavelength)
+    if wavelength is not None and len(ghost_idx):
+        flags = _contamination_flags(tt, net, sigma, ghost_idx, wavelength)
 
     lam = (select_arpls_lambda(data).selected if baseline_lambda is None
            else baseline_lambda)
@@ -1355,6 +1516,12 @@ def contamination_flags_from_peaks(
     but a raw channel-index census does.  ``intensity`` should be an
     *integrated* intensity where one exists; net height is a fallback that
     biases the ratio test by the ghost/parent width ratio.
+
+    The finding is **joint**: see :data:`GHOST_MIN_PARENTS` for why a single
+    match is no evidence and what the bar was measured against.  An empty list
+    therefore means "no leak this rule can see", which on a pattern with fewer
+    than :data:`GHOST_MIN_PARENTS` parents in range is a silence rather than a
+    clean bill, exactly as an unrecognised wavelength is.
     """
     anode = identify_anode(wavelength)
     if anode is None:
@@ -1365,35 +1532,124 @@ def contamination_flags_from_peaks(
         return []
     lo, hi = (float(tt.min()), float(tt.max())) if tt_range is None else tt_range
     esd = None if two_theta_esd is None else np.asarray(two_theta_esd, dtype=np.float64)
-    r_lo, r_hi = GHOST_RATIO_RANGE
-    strongest = np.argsort(inten)[::-1][:GHOST_N_PARENTS]
     flags: list[ContaminationFlag] = []
     for kind, lam_ghost in (("kbeta", _KBETA[anode]), ("tungsten_la", _W_LA1)):
-        ratio = lam_ghost / wavelength
-        for ip in strongest:
-            s = np.sin(np.radians(tt[ip] / 2.0)) * ratio
-            if s >= 1.0:
-                continue
-            tt_ghost = 2.0 * np.degrees(np.arcsin(s))
-            if not (lo <= tt_ghost <= hi):
-                continue
-            if esd is None:
-                window = np.full(len(tt), tol_deg)
-            else:
-                window = np.maximum(
-                    tol_deg, k_sigma * np.sqrt(esd ** 2 + esd[ip] ** 2))
-            near = np.flatnonzero(np.abs(tt - tt_ghost) < window)
-            for ig in near:
-                r = float(inten[ig] / max(inten[ip], 1e-12))
-                if not (r_lo < r < r_hi):
-                    continue
-                if (intensity_esd is not None
-                        and inten[ig] <= 5.0 * intensity_esd[ig]):
-                    continue
-                flags.append(ContaminationFlag(
-                    kind=kind, two_theta=float(tt[ig]),
-                    parent_two_theta=float(tt[ip]), intensity_ratio=r))
+        cands, n_searched = _ghost_candidates(
+            tt, inten, esd, intensity_esd, lam_ghost / wavelength, lo, hi,
+            tol_deg=tol_deg, k_sigma=k_sigma)
+        support, leak, chosen = _ghost_consensus(cands)
+        if support < GHOST_MIN_PARENTS:
+            continue
+        # One flag per ghost *line*.  The consensus is keyed on parents, and two
+        # of them can predict the same line: a Kα1/Kα2 pair fitted as two lines
+        # put their Kβ images 0.04° apart, inside any matching window, and the
+        # pre-WP-1442 rule flagged that line once per parent (cpd-1b 31.716°,
+        # cpd-4 33.737°).  The count of *parents* is the evidence and stays on
+        # every flag; the list is per line because ``usable()`` drops lines.
+        # Keep the entry whose ratio is nearest the finding's, so the flag a
+        # reader sees is the one the leak was fitted from.
+        per_line: dict[int, tuple[int, int, float]] = {}
+        for cand in chosen:
+            ig = cand[1]
+            if (ig not in per_line
+                    or abs(np.log(cand[2] / leak))
+                    < abs(np.log(per_line[ig][2] / leak))):
+                per_line[ig] = cand
+        for ip, ig, r in sorted(per_line.values(), key=lambda c: c[1]):
+            flags.append(ContaminationFlag(
+                kind=kind, two_theta=float(tt[ig]),
+                parent_two_theta=float(tt[ip]), intensity_ratio=r,
+                leak_ratio=leak, n_parents=support,
+                n_parents_searched=n_searched))
     return flags
+
+
+def _ghost_candidates(
+    tt: np.ndarray, inten: np.ndarray, esd: np.ndarray | None,
+    intensity_esd: np.ndarray | None, ratio: float, lo: float, hi: float,
+    *, tol_deg: float, k_sigma: float,
+) -> tuple[list[tuple[int, int, float]], int]:
+    """Every ``(parent, ghost, ratio)`` the position and ratio windows admit.
+
+    Returns them with the number of parents whose predicted ghost position fell
+    inside the pattern — the denominator the consensus count is read against,
+    and not the same as :data:`GHOST_N_PARENTS` on a pattern whose range cuts
+    some of the predictions off.
+
+    A line whose position esd exceeds :data:`GHOST_ESD_MAX_DEG` is dropped
+    before anything else, as a parent and as a candidate, so the ranking that
+    picks the parents is over lines that have a position at all.
+    """
+    r_lo, r_hi = GHOST_RATIO_RANGE
+    out: list[tuple[int, int, float]] = []
+    n_searched = 0
+    placed = (np.ones(len(tt), dtype=bool) if esd is None
+              else np.isfinite(esd) & (esd <= GHOST_ESD_MAX_DEG))
+    rank = np.argsort(np.where(placed, inten, -np.inf))[::-1][:GHOST_N_PARENTS]
+    for ip in rank:
+        if not placed[ip]:
+            continue
+        s = np.sin(np.radians(tt[ip] / 2.0)) * ratio
+        if s >= 1.0:
+            continue
+        tt_ghost = 2.0 * np.degrees(np.arcsin(s))
+        if not (lo <= tt_ghost <= hi):
+            continue
+        n_searched += 1
+        if esd is None:
+            window = np.full(len(tt), tol_deg)
+        else:
+            window = np.maximum(
+                tol_deg, k_sigma * np.sqrt(esd ** 2 + esd[ip] ** 2))
+        for ig in np.flatnonzero(placed & (np.abs(tt - tt_ghost) < window)):
+            r = float(inten[ig] / max(inten[ip], 1e-12))
+            if not (r_lo < r < r_hi):
+                continue
+            if (intensity_esd is not None
+                    and inten[ig] <= 5.0 * intensity_esd[ig]):
+                continue
+            out.append((int(ip), int(ig), r))
+    return out, n_searched
+
+
+def _ghost_consensus(
+    cands: list[tuple[int, int, float]],
+) -> tuple[int, float, list[tuple[int, int, float]]]:
+    """The ratio the most **distinct parents** support, within a factor.
+
+    Parents rather than ghost lines, because the question is how many
+    *independent* reflections agree, and one parent with several in-window
+    candidates would otherwise supply its own corroboration.
+
+    That is an argument rather than a measurement, and the measurement does not
+    decide it: against the control :data:`GHOST_MIN_PARENTS` describes, both
+    rules separate cleanly (parent-counted, control maximum 4 against an
+    injection minimum of 6 at r = 0.10; ghost-counted, 3 against 5).  An
+    earlier note here claimed the ghost-counted statistic overlapped its own
+    control; that was measured against a control contaminated near λ(Kα1) and
+    is withdrawn.  Parents are kept on the independence argument alone
+    (decided 2026-09-22; WP-1442).
+
+    The returned list holds one candidate per supporting parent, the one whose
+    ratio is nearest the consensus, so a caller emitting one flag per entry
+    cannot report the same parent twice.
+    """
+    best: tuple[int, float, list[tuple[int, int, float]]] = (0, 0.0, [])
+    for seed in cands:
+        lo, hi = seed[2] / GHOST_RATIO_TOL, seed[2] * GHOST_RATIO_TOL
+        keep = [c for c in cands if lo <= c[2] <= hi]
+        n = len({c[0] for c in keep})
+        if n <= best[0]:
+            continue
+        per: dict[int, tuple[int, int, float]] = {}
+        for c in keep:
+            if (c[0] not in per
+                    or abs(np.log(c[2] / seed[2]))
+                    < abs(np.log(per[c[0]][2] / seed[2]))):
+                per[c[0]] = c
+        chosen = sorted(per.values(), key=lambda c: c[1])
+        best = (n, float(np.median([c[2] for c in chosen])), chosen)
+    return best
 
 
 def _contamination_flags(tt: np.ndarray, net: np.ndarray, sigma: np.ndarray,

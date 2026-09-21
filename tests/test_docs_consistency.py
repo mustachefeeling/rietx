@@ -485,13 +485,13 @@ SIZE_CAPS: dict[str, int | None] = {
     # v2+ bullets — Estimation (#355) and Navigation (#349) — each naming the
     # gate that would reopen it.  Every finding stays in the WP files and on
     # the threads.  Landed 813, +3 headroom.
-    "docs/ROADMAP.md": 816,
+    "docs/ROADMAP.md": 818,   # +2: WP-1442 filed four siblings, 1445-1448
     # 1036 -> 1053 (WP-1429): where the GUI's colour values live, now that
     # they are Python and this workspace's `tokens.css` is generated from
     # them. It governs work outside the WP that measured it — an edit to a
     # token here is a rebuild, and an edit in the wrong file is a test
     # failure nobody can act on without the rule. Landed at 1045.
-    "gui/CLAUDE.md": 1053,
+    "gui/CLAUDE.md": 1056,   # +3: the node floor the dist build needs (WP-1442)
     # 275 -> 283 (WP-1426): a third way a guard goes quiet, and the only one of
     # the three that is about the instrument rather than the assertion — a
     # browser's layout-shift entry cannot see inside a plotly div, so a

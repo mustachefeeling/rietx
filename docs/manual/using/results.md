@@ -427,18 +427,33 @@ from.
 | `PatternDiagnostics.amorphous_hump_score` | RMS of the envelope residual after both the cubic and the 1/x term, over the median level | what is left is genuinely broad non-polynomial structure (amorphous content, capillary glass), and calls for a more flexible background |
 | `PatternDiagnostics.baseline_lambda` | the arPLS stiffness the whiteness rule picked for this pattern | |
 | `PatternDiagnostics.steps_per_fwhm`, `PatternDiagnostics.n_peaks_measured` | the sampling pair above | null when no peak was measurable |
-| `PatternDiagnostics.contamination` | Kβ and W Lα ghost candidates, each a `ContaminationFlag` | see the warning below |
+| `PatternDiagnostics.contamination` | the lines of a Kβ or W Lα contamination finding, each a `ContaminationFlag` | empty is the usual answer; see the warning below |
 | `PatternDiagnostics.coverage_plateau` | the bulk pattern's σ²/max(y, 1), median over the middle half of the range | 1.0 is pure Poisson counting; anything else says the file's σ is something else (merged detectors, a monitor normalisation). Null means σ was not measured, so nothing was checked |
 | `PatternDiagnostics.coverage_regions` | stretches whose σ carries more variance per count than that plateau, each a `CoverageRegion` | the pattern's statistical weight is not uniform across its range; see below |
 | `PatternDiagnostics.signal_cutoffs` | ends of the range where the level collapsed and stayed down, each a `SignalCutoff` | read this one first; see below |
 | `PatternDiagnostics.dead_channels` | short interior runs that measure nothing and outvote the pattern while doing it, each a `DeadChannelRun` | empty also means *not checkable*: the test needs the file's own σ. See below |
 
+A contamination is one finding, and each flag is one line of it. The first
+four fields are that line's, the last three the finding's, and the last three
+repeat across every flag of one finding.
+
 | Field | Is |
 |---|---|
-| `ContaminationFlag.kind` | which ghost line it is consistent with |
-| `ContaminationFlag.two_theta` | the weak peak's position |
-| `ContaminationFlag.parent_two_theta` | the strong peak it would be a ghost of |
-| `ContaminationFlag.intensity_ratio` | the weak peak's height over the parent's |
+| `ContaminationFlag.kind` | which ghost line the finding is of |
+| `ContaminationFlag.two_theta` | this weak peak's position |
+| `ContaminationFlag.parent_two_theta` | the strong peak it is a ghost of |
+| `ContaminationFlag.intensity_ratio` | this peak's intensity over that parent's |
+| `ContaminationFlag.leak_ratio` | the ratio fitted across every supporting parent |
+| `ContaminationFlag.n_parents` | strong parents that supported the finding |
+| `ContaminationFlag.n_parents_searched` | strong parents whose predicted ghost position fell inside the range |
+
+Whether Kβ reaches the detector is a property of the optics, so a leak puts a
+line at the predicted position of every strong reflection, all at one ratio.
+Reading each match on its own could not tell that apart from a coincidence, and
+a coincidence is much the commoner event: five of the eight strongest parents
+must now carry a candidate at a common ratio before anything is reported at
+all. Read `leak_ratio` to decide whether the beam is contaminated, and
+`intensity_ratio` only to see how one line contributed.
 
 :::{warning}
 An empty `PatternDiagnostics.contamination` means "nothing was flagged, or
@@ -447,8 +462,15 @@ nothing was checked". The Kβ position is anode-specific, so the screen needs
 Measured on the 11-BM pattern, `diagnose(data)` and
 `diagnose(data, wavelength=0.4139090)` both return an empty list: the first
 because nothing was asked, the second because a synchrotron wavelength has no
-anode. On the round-robin corundum pattern at Cu Kα the same call returns three
-flags, two Kβ ghosts and one tungsten Lα.
+anode.
+
+The joint bar costs sensitivity, deliberately. A Kβ image injected into six
+round-robin patterns is found on every one of them from about 10 % of its
+parent upwards. Below that it depends on how many peaks the pattern has:
+zincite is caught at 1 %, magnetite, which yields 22 usable peaks, not until
+10 %. An unfiltered tube sits at 14 % (Hölzer et al. 1997), which is the case
+the screen is for. A residual leak past a working filter is below the floor and
+comes back as nothing.
 :::
 
 ### The region below the first reflection
