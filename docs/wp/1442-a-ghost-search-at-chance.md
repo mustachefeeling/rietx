@@ -201,7 +201,7 @@ from the reading-data or refining chapters does not find it.
       or a `Geometry` one, filled by the xrdml/brml/rasx readers where the file
       says. The demo's optics are the worked case.
 - [x] One flag per ghost line, whatever the parents.
-- [ ] Manual: the `results.md` warning rewritten around the joint finding, a
+- [x] Manual: the `results.md` warning rewritten around the joint finding, a
       pointer to `diagnose` from the reading-data or refining chapter, the two
       `help.py` entries. Skill: the `references/diagnostics-indexing.md` row
       says what the ratio means, and a `references/surprises.md` row that an

@@ -877,9 +877,12 @@ PEAK_FLAG_HELP: dict[str, HelpEntry] = {
         label="Kβ ghost",
         description=(
             "The line sits where the Kβ partner of a stronger reflection "
-            "would be. It is excluded rather than stripped: Rachinger "
-            "stripping redistributes the counting noise and biases what is "
-            "left. The line is unusable as evidence of a lattice."
+            "would be, and several other strong reflections carry one at the "
+            "same ratio. That agreement is the evidence: a single line at a "
+            "predicted position is a coincidence and is not flagged. It is "
+            "excluded rather than stripped, because Rachinger stripping "
+            "redistributes the counting noise and biases what is left. The "
+            "line is unusable as evidence of a lattice."
         ),
         anchor="peak-positions.html#wavelength-scales",
     ),
@@ -888,8 +891,8 @@ PEAK_FLAG_HELP: dict[str, HelpEntry] = {
         label="W ghost",
         description=(
             "The line sits at a tungsten L emission position, which an aged "
-            "tube with a contaminated anode produces. Excluded for the same "
-            "reason as a Kβ ghost, and unusable."
+            "tube with a contaminated anode produces. Flagged jointly and "
+            "excluded for the same reasons as a Kβ ghost, and unusable."
         ),
         anchor="peak-positions.html#wavelength-scales",
     ),
@@ -1139,9 +1142,12 @@ PEAK_DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
     "PEAK_CONTAMINATION_LINE": HelpEntry(
         title="Contamination lines excluded",
         description=(
-            "Lines were identified as Kβ or tungsten emission and excluded. "
-            "They are excluded and never stripped, because stripping "
-            "redistributes the counting noise."
+            "Several strong reflections carry a line at their Kβ or tungsten "
+            "position at one common ratio, so the beam is leaking that line "
+            "and those lines were excluded. Read `leak_ratio` for how much: "
+            "an unfiltered tube sits near 0.14, and a filter or monochromator "
+            "only cuts it. They are excluded and never stripped, because "
+            "stripping redistributes the counting noise."
         ),
         anchor="peak-positions.html#wavelength-scales",
     ),
