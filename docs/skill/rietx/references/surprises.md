@@ -454,8 +454,9 @@ v1.6 the screen reported one per line.** Whether Kβ reaches the detector is a
 property of the optics, so a leak puts a line at the predicted position of
 *every* strong reflection, all at one ratio. Reading each match on its own
 cannot tell that from an accident of the pattern, and did not: over the
-seventeen round-robin patterns, every one collected behind a graphite
-monochromator that removes both Kβ and W Lα, the old rule flagged 0.94 Kβ per
+seventeen bundled patterns — the sixteen IUCr round-robin phases and SRM
+660c — every one collected behind a graphite monochromator that removes both
+Kβ and W Lα, the old rule flagged 0.94 Kβ per
 pattern against a control fed made-up wavelengths that flagged 1.01. Each flag
 dropped a real reflection from `usable()`. The screen is now joint and those
 corpora report nothing, while a Kβ image injected at 10 % of its parent is

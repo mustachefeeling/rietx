@@ -129,6 +129,28 @@ GHOST_ESD_MAX_DEG = GHOST_TOL_DEG
 #: joint bar (:data:`GHOST_MIN_PARENTS`) had already silenced them; what it
 #: buys is that a *reported* leak_ratio is now one a tube could produce.
 #:
+#: **The ceiling is a cliff, not a taper**, and that part is measured: a Kβ
+#: image injected into ``corundum.prn`` is found with its ratio through 0.24
+#: (an injected 0.14 reads back 0.141) and returns **no flag at all** from
+#: 0.26 up, which is what a clean pattern returns.  A ratio past the ceiling is
+#: a reflection by construction, so that is the rule working; it is written down
+#: because the distance from an unfiltered tube's 0.14 to the edge is 1.8× and
+#: not obviously generous.
+#:
+#: **Whether the census path eats into that 1.8× is argued and not measured.**
+#: Hölzer's number is Kβ1,3 over the whole Kα1,2 doublet, which is what
+#: ``flag_ghosts`` divides by: :mod:`rietx.indexing.peakfit` models the emission
+#: set, so one ``ObservedPeak.intensity`` is the reflection's integral over
+#: every line.  :func:`diagnose` has no such model and divides by a *net height*
+#: at one channel, which above the doublet's resolving angle is Kα1 alone, about
+#: two thirds of the pair — so a real leak, which is one line, should read high
+#: there.  **This fixture cannot show it**: the injector adds a scaled copy of
+#: the whole pattern, Kα2 satellites included, so its ghost is a doublet image
+#: and the height ratio comes back faithful by construction.  Demonstrating it
+#: needs a leak synthesised from the emission model rather than from the
+#: pattern.  Retuning on it is WP-1447's; what a reader must not do is take the
+#: 1.6× as the census path's.
+#:
 #: The floor keeps noise-level coincidences out.  It is also the height floor
 #: :func:`diagnose` admits ghost *candidates* at, because a maximum smaller than
 #: it cannot pass this test against any parent.

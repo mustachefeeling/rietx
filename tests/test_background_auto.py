@@ -312,9 +312,10 @@ def _ghost_pool(data):
 def test_no_ghost_is_found_where_no_ghost_can_exist():
     """Every round-robin pattern, at its real wavelength, reports nothing.
 
-    Before WP-1442 this corpus carried 52 Kβ and 16 W Lα flags through
-    ``diagnose`` and 20 through the fitted list, each of which dropped a real
-    reflection from ``usable()``.
+    Before WP-1442 the seventeen monochromated fixtures — these sixteen and
+    SRM 660c — carried 52 Kβ and 16 W Lα flags through ``diagnose`` and 20
+    through the fitted list, each of which dropped a real reflection from
+    ``usable()``.  This row walks the sixteen the round-robin ships.
     """
     for path in _monochromated():
         d = diagnose(rx.read_pattern(path), wavelength=1.54056)

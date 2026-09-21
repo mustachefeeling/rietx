@@ -54,7 +54,12 @@ from .common import Base, Diagnostic, Provenance
 #: 1.4 (WP-1442): ``PeakFlag`` gains ``position_unmeasured`` and
 #: ``PEAK_UNUSABLE_FLAGS`` gains it too — a component whose fitted position esd
 #: exceeds :data:`PEAK_POSITION_ESD_MAX_DEG`, i.e. the whole span a 2θ axis can
-#: have.  ``pick_peaks`` answers differently on any pattern carrying one.
+#: have.  ``pick_peaks`` answers differently on any pattern carrying one.  The
+#: same WP made the Kβ / W Lα screen ``flag_ghosts`` runs **joint**
+#: (:data:`~rietx.background.diagnostics.GHOST_MIN_PARENTS`), which is the
+#: larger half of the move: 20 flags over the 17 bundled monochromated patterns
+#: became none, so a ``ghost_kbeta`` or ``ghost_tungsten`` flag — and the
+#: ``usable()`` list under it — is not comparable across the two versions.
 INDEXING_THRESHOLDS_VERSION = "1.4"
 
 #: Position esd, in ° 2θ, past which a fitted line locates nothing and is
@@ -64,9 +69,10 @@ INDEXING_THRESHOLDS_VERSION = "1.4"
 #: has: the line is not a poorly-determined position, it is no position.  That
 #: matters because every consumer downstream matches on a ±kσ window, so such a
 #: line matches *whatever it is compared against* — on ``FAP.XRA`` an
-#: unresolved shoulder at 64.330° came back at **±1 694°**, 88 times the whole
-#: measured range, matched every strong reflection in the ghost screen, and
-#: moved the indexed cell 1 376 ppm off the certified one (WP-1442).
+#: unresolved shoulder at 64.330° came back at **±1 961°**, 17 times the whole
+#: measured range of 115.04°, matched every strong reflection in the ghost
+#: screen, and moved the indexed cell 1 376 ppm off the certified one
+#: (WP-1442).
 #:
 #: It is the sibling of ``no_intensity`` (WP-1110 item 14) and catches what
 #: that one cannot: there the position stops being identifiable *because* the
@@ -524,7 +530,7 @@ PEAK_AXIAL_TAIL_MAX_FWHM = 3.5
 #: ``position_unmeasured`` is here on the same footing, and it is the one that
 #: shows why ``unresolved_shoulder``'s exemption needed a companion: "their σ
 #: already says so" holds while σ is finite and a consumer can act on it, and
-#: stops holding at ±1 694° (WP-1442).
+#: stops holding at ±1 961° (WP-1442).
 PEAK_UNUSABLE_FLAGS: frozenset[str] = frozenset(
     {"ghost_kbeta", "ghost_tungsten", "excluded", "fit_failed", "not_separable",
      "no_intensity", "position_unmeasured"})

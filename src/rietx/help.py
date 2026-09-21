@@ -1157,10 +1157,13 @@ PEAK_DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
         description=(
             "Several strong reflections carry a line at their Kβ or tungsten "
             "position at one common ratio, so the beam is leaking that line "
-            "and those lines were excluded. Read `leak_ratio` for how much: "
-            "an unfiltered tube sits near 0.14, and a filter or monochromator "
-            "only cuts it. They are excluded and never stripped, because "
-            "stripping redistributes the counting noise."
+            "and those lines were excluded. The peak list carries the flag "
+            "and not the size of the leak. For that, run "
+            "`background.diagnose(data, wavelength=...)` and read "
+            "`ContaminationFlag.leak_ratio`: an unfiltered tube sits near "
+            "0.14, and a filter or monochromator only cuts it. They are "
+            "excluded and never stripped, because stripping redistributes "
+            "the counting noise."
         ),
         anchor="peak-positions.html#wavelength-scales",
     ),
