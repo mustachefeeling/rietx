@@ -37,18 +37,21 @@ parent count are v0.2's own, uncited, and unmeasured until now.
 
 **It flags at the chance rate where Kβ cannot exist.** Every
 `tests/data/qarr/*.prn` and `nist_srm660c_100a.cif` was collected behind a
-graphite diffracted-beam monochromator (`tests/data/README.md`). `pick_peaks`
-plus the rule, against a control in which the ghost wavelength is replaced by
-26 fake values from 0.84λ to 0.99λ:
+graphite diffracted-beam monochromator (`tests/data/README.md`). Both callers
+run against a control in which the ghost wavelength is replaced by 26 fake
+values from 0.84λ to 0.99λ, re-measured 2026-09-21 on `cb84295a` over those 17
+patterns (1 108 fitted lines, `Instrument.bragg_brentano(radiation="CuKa")`):
 
-| | Kβ flags | W Lα flags | fake-λ control, Kβ flags |
+| per pattern | Kβ flags | W Lα flags | fake-λ control |
 |---|---|---|---|
-| 17 monochromated patterns, 1 295 fitted lines | 15 | 4 | 1.1 per pattern, mean |
-| per pattern | 0.9 | 0.2 | |
+| fitted list (`pick_peaks` → `flag_ghosts`) | 0.94 | 0.24 | 1.01 Kβ, 0.95 W |
+| channel census (`diagnose`) | 3.06 | 0.94 | 2.56 Kβ |
 
-Every flagged line was dropped from `usable()` (19 flags; two of the lines
-carry two flags each, see below, so fewer lines). Their ratios run 0.008–0.32,
-scattered like the control's.
+The real wavelength buys nothing on either path. On the fitted list it scores
+*under* the control. Every flagged line is dropped from `usable()`; the fitted
+path's 16 raw Kβ flags mark 14 lines, because a ghost is flagged once per
+parent and the same line is reached by two of them. The flagged ratios run
+0.008–0.319 with a median of 0.054, scattered like the control's.
 
 **The demo pattern.** Its xrdml declares a focusing mirror, no filter element,
 and a PIXcel1D with a 25–80 % pulse-height window, so a small residual Kβ is
@@ -57,8 +60,13 @@ physically possible on that instrument. The data carry none:
 | | flags |
 |---|---|
 | `diagnose`, real wavelengths | 34 (20 Kβ, 14 W) |
-| fake-λ control on the same census | mean 19.5, max 34 |
-| `pick_peaks` fitted list | 7, all at 5.9–8.2° and all `position_at_bound` |
+| fake-λ control on the same census | mean 19.6, max 34 |
+| `pick_peaks` fitted list | 7 lines at 5.9–18.4°, six of them `position_at_bound` |
+
+Every one of those numbers is unchanged on `cb84295a`, after WP-1415 rebuilt
+the census (2026-09-21 re-measurement; the fitted list carries 12 marks over
+those 7 lines, and the flagged ratios run 0.028–0.595 with a median of
+0.161).
 
 The decisive number is the strongest line. A leak is one ratio across the
 pattern, and at 19.27° the predicted Kβ position holds 0.007 of the parent (net
@@ -77,18 +85,28 @@ about 1.3σ under the mean, on a steep curved background the window's percentile
 lands further under the level, and on the demo pattern the envelope sits under
 the data everywhere, so net/σ clears 5 across two thirds of the channels.
 
-| `PatternDiagnostics` field | value |
-|---|---|
-| `peak_fraction` | 0.67 |
-| `n_peaks` (this census) | 292 |
-| `n_peaks_measured` (`_median_steps_per_fwhm`, prominence-gated) | 23 |
+| `PatternDiagnostics` field | at the filing (`b8df0a0e`) | today (`cb84295a`) |
+|---|---|---|
+| `peak_fraction` | 0.67 | 0.67 |
+| `n_peaks` (this census) | 292 | 197 |
+| `n_peaks_measured` (`_median_steps_per_fwhm`, prominence-gated) | 23 | 21 |
+| contamination flags | 34 | 34 |
 
 The same function's sampling count already carries
 `prominence=SAMPLING_PROMINENCE_SIGMA`, added after the same failure on
 synthetic LaB6 (module docstring). The census feeding the contamination check
-never got it. WP-1415 is the sibling on the σ side (a σ smaller than √y
-inflates z the same way) and touches `_median_steps_per_fwhm`; the two must
-not each grow their own peak selection.
+never got it.
+
+**WP-1415 landed the shared selection and moved none of the flags.** It is
+this WP's sibling on the σ side, a σ smaller than √y inflating z the same way,
+and it closed 2026-09-21. `diagnose` now makes one `find_peaks` call and reads
+it at two floors off the same near-maximum: `SAMPLING_HEIGHT_FRACTION` × the
+99.9th percentile of net for the census, and `GHOST_RATIO_RANGE[0]` × the same
+percentile for the ghost candidates. That took the demo's census from 292 to
+197 and left its 34 flags exactly where they were, because the ghost search
+reads the **lower** of the two floors. So the pool this check searches is still
+the Kapton hump's noise maxima, and the census gate task 3 asks for cannot be
+the fix on its own.
 
 **The rule does find a real leak, and the ratio is what separates it.** A
 same-d Kβ image injected into corundum, zincite and cpd-1e (all Kβ-free) at
@@ -117,13 +135,15 @@ TOPAS models it as a declared emission-profile component, EVA and HighScore
 strip it with a ratio the user supplies. Whether Kβ is present is a property of
 the optics.
 
-**Two more paths to a false flag.** (1) `identify_anode` from the wavelength
-alone: the BT-1 neutron pattern `mg090.Cu311.gsas` at 1.5404 Å is "CuKa", and
-`diagnose` flags two ghosts on it. (2) The σ-widened window has no cap: on
-`FAP.XRA` two unresolved-shoulder fits carry position esds of 1587° and 9217°,
-matched every parent, and produced all 35 of that pattern's flags. Also, a ghost
-is flagged once per parent, so a Kα1/Kα2 pair fitted as two lines flags it twice
-(cpd-1b 31.716°, cpd-4 33.737°).
+**Two more paths to a false flag**, both re-measured on `cb84295a`.
+(1) `identify_anode` from the wavelength alone: the BT-1 neutron pattern
+`mg090.Cu311.gsas` at 1.5404 Å is "CuKa", and `diagnose` flags three ghosts on
+it (one Kβ, two W Lα). (2) The σ-widened window has no cap. On `FAP.XRA` the
+`not_separable` and `unresolved_shoulder` fits at 64.330° carry position esds
+of 1 961° and 11 390°, a `no_intensity` line at 105.788° carries 4.2e15°, and
+32 of that pattern's 35 raw flags come from a line whose own esd exceeds 1°.
+Also, a ghost is flagged once per parent, so a Kα1/Kα2 pair fitted as two
+lines flags it twice (cpd-1b 31.716°, cpd-4 33.737°).
 
 **What the source knows.** `Source` declares lines, polarisation, dispersion and
 harmonics; nothing says filter or monochromator.
@@ -141,34 +161,6 @@ were sampled" › "Everything else `diagnose` measures", with the warning box on
 `references/diagnostics-indexing.md` row for `PEAK_CONTAMINATION_LINE`
 ("Subtract it"). Nothing in the theory part. A reader looking for `diagnose`
 from the reading-data or refining chapters does not find it.
-
-### Inherited
-
-- **From WP-1415, 2026-09-21: the shared peak selection landed, so import it
-  rather than growing a second.** 1415's note said whichever WP lands first
-  owns it; 1415 did. `diagnose`'s census (`background/diagnostics.py`, the
-  `find_peaks` call in `diagnose`) now takes a floor at
-  `SAMPLING_HEIGHT_FRACTION` × the 99.9th percentile of net beside its 5σ bar,
-  and still keeps **no** prominence bar, because a count wants every line the
-  pattern shows. That count went from 1558 on 11-BM NAC at the file's own σ
-  (9403 at a σ 3.46× smaller) to **96 at every σ scale**. On a synthetic
-  13-line pattern, 79 rising to 201, against 27 at every scale.
-- **The pool `_contamination_flags` searches is the same call read at a lower
-  floor**, `GHOST_RATIO_RANGE[0]` × the same 99.9th percentile, because the
-  census bar is six times the smallest ratio this check accepts and a 1 % Kβ
-  image of the strongest line was not a candidate under it (1415's review
-  pass). So the candidate count is between 96 and the old 1558, and it is
-  still σ-scale dependent only through the 5σ bar.
-- **Two consequences for 1442's own measurement.** The 292-against-23 count in
-  its § Context was taken before this and needs re-measuring: the gap it
-  described was partly the census counting the envelope's tracking error, and
-  that half is now gone. And the ghost search's chance rate is a function of
-  the candidate count, so a rate measured on 1558 candidates is not the rate on
-  the pool today — whatever remains after re-measuring is the real defect.
-- **A floor taken off the near-maximum cannot serve a ghost of a weak
-  parent.** At 1 % of the third strongest line the ghost sits under
-  `GHOST_RATIO_RANGE[0]` × the maximum and is never a candidate, which task 3
-  settles when it decides whether the check runs on a fitted list instead.
 
 ## Non-goals
 
@@ -194,11 +186,13 @@ from the reading-data or refining chapters does not find it.
       flags; injections: r recovered.
 - [ ] `GHOST_RATIO_RANGE`'s ceiling from Hölzer Table VI with margin (about
       0.25), the docstring citing the table and the "≤ ~0.2" line gone.
-- [ ] The census `diagnose` hands the check gets the prominence gate
-      `_median_steps_per_fwhm` already has, or the check runs on a fitted list
-      only. `n_peaks` and `peak_density_per_deg` re-measured on the demo
-      pattern (from 292) and on every fixture, in the handover. One selection
-      serves this and WP-1415.
+- [ ] The pool the check searches is not a noise census. WP-1415 landed the
+      shared selection, so the open half is which floor the ghost search reads:
+      the prominence gate `_median_steps_per_fwhm` already has, or a fitted
+      list only. The census floor cannot serve it, because a 1 % ghost sits six
+      times under that bar. `n_peaks` and `peak_density_per_deg` re-measured on
+      the demo pattern (197 today, from 292) and on every fixture, in the
+      handover.
 - [ ] The σ-widened window is capped, and a line with a degenerate position
       esd is never a candidate. `FAP.XRA` is the fixture.
 - [ ] A source that cannot emit the line never runs the search: `neutron_cw`
