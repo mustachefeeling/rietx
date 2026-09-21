@@ -177,14 +177,14 @@ from the reading-data or refining chapters does not find it.
 
 ## Tasks
 
-- [ ] The finding is joint: candidates are gathered per parent and a
+- [x] The finding is joint: candidates are gathered per parent and a
       contamination is reported only when several in-range strong parents
       carry one at a common ratio. The spread bar and the parent count are
       measured on the injection ladder and the 17-pattern control above,
       numbers in the handover. `ContaminationFlag` carries the fitted ratio
       and the parents, and the per-line flags derive from it. Control: 0
       flags; injections: r recovered.
-- [ ] `GHOST_RATIO_RANGE`'s ceiling from Hölzer Table VI with margin (about
+- [x] `GHOST_RATIO_RANGE`'s ceiling from Hölzer Table VI with margin (about
       0.25), the docstring citing the table and the "≤ ~0.2" line gone.
 - [ ] The pool the check searches is not a noise census. WP-1415 landed the
       shared selection, so the open half is which floor the ghost search reads:
@@ -193,14 +193,14 @@ from the reading-data or refining chapters does not find it.
       times under that bar. `n_peaks` and `peak_density_per_deg` re-measured on
       the demo pattern (197 today, from 292) and on every fixture, in the
       handover.
-- [ ] The σ-widened window is capped, and a line with a degenerate position
+- [x] The σ-widened window is capped, and a line with a degenerate position
       esd is never a candidate. `FAP.XRA` is the fixture.
 - [ ] A source that cannot emit the line never runs the search: `neutron_cw`
       skips; for `xray_cw` a declared filter or monochromator narrows the
       ratio window or skips. Design call for the maintainer: a `Source` field
       or a `Geometry` one, filled by the xrdml/brml/rasx readers where the file
       says. The demo's optics are the worked case.
-- [ ] One flag per ghost line, whatever the parents.
+- [x] One flag per ghost line, whatever the parents.
 - [ ] Manual: the `results.md` warning rewritten around the joint finding, a
       pointer to `diagnose` from the reading-data or refining chapter, the two
       `help.py` entries. Skill: the `references/diagnostics-indexing.md` row

@@ -612,16 +612,21 @@ def test_contamination_line_is_flagged_not_subtracted():
     """
     instrument = _instrument()
     y_true, grid, truth = _forward(instrument)
-    # a Kβ ghost of the strongest line, at ~1/500 of it
+    # a Kβ *leak*: every line carries its image at 6 %, which is what a beam
+    # does.  Doping one line is a coincidence and since WP-1442 is not flagged.
+    lam = instrument.source.lines[0].wavelength.value
     lam_kb = 1.392234
+    y = y_true.copy()
+    for t in truth:
+        g = 2 * np.degrees(np.arcsin(
+            lam_kb / lam * np.sin(np.radians(0.5 * float(t)))))
+        fw = float(predicted_fwhm(np.array([g]), instrument)[0])
+        h = float(y_true[np.argmin(np.abs(grid - float(t)))])
+        y = y + 0.06 * h * np.exp(-0.5 * ((grid - g) / (fw / 2.355)) ** 2)
     parent = float(truth[np.argmax([y_true[np.argmin(np.abs(grid - t))]
                                     for t in truth])])
-    tt_ghost = 2 * np.degrees(np.arcsin(lam_kb / instrument.source.lines[0].wavelength.value
-                                        * np.sin(np.radians(0.5 * parent))))
-    fwhm = float(predicted_fwhm(np.array([tt_ghost]), instrument)[0])
-    peak_h = float(y_true[np.argmin(np.abs(grid - parent))])
-    y = y_true + 0.06 * peak_h * np.exp(
-        -0.5 * ((grid - tt_ghost) / (fwhm / 2.355)) ** 2)
+    tt_ghost = 2 * np.degrees(np.arcsin(
+        lam_kb / lam * np.sin(np.radians(0.5 * parent))))
 
     peaks = pick_peaks(_noisy(y, grid, 77), instrument)
     ghosts = [p for p in peaks.peaks if "ghost_kbeta" in p.flags]

@@ -28,10 +28,18 @@ WAVELENGTH = 1.5405929
 # helpers
 # ----------------------------------------------------------------------
 def _peaky_pattern(*, background, seed=5, lo=15.0, hi=110.0, step=0.02,
-                   structure=None, instrument=None):
-    """LaB6 pattern on a prescribed analytic background, Poisson-noised."""
+                   structure=None, instrument=None, scale=3e-4):
+    """LaB6 pattern on a prescribed analytic background, Poisson-noised.
+
+    ``scale`` is how well counted it is.  The default leaves the strongest line
+    a few hundred counts over the background, which is enough for every shape
+    question here and is **not** enough to read a contamination off: a leak is
+    reported jointly over several strong parents (WP-1442), and at this scale
+    only the top two parents' ghost images clear 5σ at all.  The ghost tests
+    therefore ask for 3e-3, where all eight do.
+    """
     structure = structure or make_lab6()
-    structure.phases[0].scale.value = 3e-4
+    structure.phases[0].scale.value = scale
     ins = instrument or rx.Instrument.bragg_brentano(monochromator_two_theta=26.6)
     ins.profile.w.value = 3e-3
     ins.profile.x.value = 5e-3
@@ -86,27 +94,87 @@ def test_diagnostics_detect_air_scatter_and_hump():
 
 
 def _dope_ghost(data, lam_parent, lam_ghost, *, height=0.12):
-    """Add a ghost of the strongest peak at a second wavelength's position."""
+    """Add the pattern's whole image at a second wavelength, at ``height``.
+
+    Every reflection gets one, because a leak is a property of the beam: the
+    same fraction of Kβ reaches the detector whichever plane diffracted it.
+    Doping the strongest line alone was what these tests used to do, and since
+    WP-1442 that is deliberately not evidence of a contamination — the rule
+    asks how many strong parents agree, and one cannot.  Returns the ghost
+    position of the strongest line, which is the one the assertions name.
+    """
     from scipy.signal import find_peaks
 
+    from rietx.background.diagnostics import background_envelope
+
+    tt = np.asarray(data.two_theta)
+    y = np.asarray(data.intensity, dtype=float)
+    net = np.maximum(y - background_envelope(tt, y), 0.0)
+    # the parent angle whose ghost images onto each channel
+    s = np.sin(np.radians(tt / 2.0)) * lam_parent / lam_ghost
+    ok = (s < 1.0)
+    parent_of = np.full_like(tt, np.nan, dtype=float)
+    parent_of[ok] = 2.0 * np.degrees(np.arcsin(s[ok]))
+    inside = ok & (parent_of >= tt[0]) & (parent_of <= tt[-1])
+    add = np.zeros_like(y)
+    add[inside] = height * np.interp(parent_of[inside], tt, net)
+
+    idx, _ = find_peaks(y, height=np.percentile(y, 99.5), distance=20)
+    parent = tt[idx[np.argmax(y[idx])]]
+    ghost = 2.0 * np.degrees(
+        np.arcsin(np.sin(np.radians(parent / 2.0)) * lam_ghost / lam_parent))
+    return (rx.PatternData(two_theta=tt.tolist(), intensity=(y + add).tolist()),
+            ghost)
+
+
+def test_one_stray_line_is_not_a_contamination():
+    """The regression this WP exists for: a single match is a coincidence.
+
+    Before WP-1442 each ghost match was its own finding, so any weak line that
+    happened to fall near one strong line's Kβ position was flagged and dropped
+    from ``usable()``.  On seventeen patterns collected behind a graphite
+    monochromator, where no Kβ can reach the detector, that fired at exactly
+    the rate a made-up wavelength did.
+    """
+    from scipy.signal import find_peaks
+
+    data = _peaky_pattern(background=_flat_bkg, scale=3e-3)
     tt = np.asarray(data.two_theta)
     y = np.asarray(data.intensity, dtype=float)
     idx, _ = find_peaks(y, height=np.percentile(y, 99.5), distance=20)
     parent = tt[idx[np.argmax(y[idx])]]
-    s = np.sin(np.radians(parent / 2.0)) * lam_ghost / lam_parent
-    ghost = 2.0 * np.degrees(np.arcsin(s))
-    y = y + height * y.max() * np.exp(-0.5 * ((tt - ghost) / 0.05) ** 2)
-    return rx.PatternData(two_theta=tt.tolist(), intensity=y.tolist()), ghost
+    ghost = 2.0 * np.degrees(np.arcsin(
+        np.sin(np.radians(parent / 2.0)) * 1.3922340 / WAVELENGTH))
+    y = y + 0.12 * y.max() * np.exp(-0.5 * ((tt - ghost) / 0.05) ** 2)
+    one = rx.PatternData(two_theta=tt.tolist(), intensity=y.tolist())
+
+    assert diagnose(one, wavelength=WAVELENGTH).contamination == []
+
+    # the same pattern with every line doped is a leak, and is reported
+    whole, _ = _dope_ghost(data, WAVELENGTH, 1.3922340)
+    assert diagnose(whole, wavelength=WAVELENGTH).contamination
 
 
 def test_diagnostics_flag_kbeta_ghost():
-    """Inject a Kβ ghost of the strongest LaB6 line and check it is flagged."""
-    data = _peaky_pattern(background=_flat_bkg)
-    doped, ghost = _dope_ghost(data, WAVELENGTH, 1.3922340)
+    """Inject a Kβ leak into LaB6 and check the finding, not just the flag."""
+    from rietx.background.diagnostics import GHOST_MIN_PARENTS
+
+    data = _peaky_pattern(background=_flat_bkg, scale=3e-3)
+    doped, ghost = _dope_ghost(data, WAVELENGTH, 1.3922340, height=0.12)
 
     flags = diagnose(doped, wavelength=WAVELENGTH).contamination
     kb = [f for f in flags if f.kind == "kbeta" and abs(f.two_theta - ghost) < 0.2]
     assert kb, f"Kβ ghost at {ghost:.2f}° not flagged; got {flags}"
+
+    # the finding is joint, and every flag of it carries the same evidence
+    all_kb = [f for f in flags if f.kind == "kbeta"]
+    assert kb[0].n_parents >= GHOST_MIN_PARENTS
+    assert kb[0].n_parents <= kb[0].n_parents_searched
+    assert len({f.leak_ratio for f in all_kb}) == 1
+    assert len({f.n_parents for f in all_kb}) == 1
+    assert kb[0].leak_ratio == pytest.approx(0.12, rel=0.5)
+    # one flag per ghost line, whatever the parents
+    assert len({round(f.two_theta, 6) for f in all_kb}) == len(all_kb)
 
 
 def test_a_ghost_is_found_down_to_the_ratio_window_the_check_accepts():
@@ -122,14 +190,13 @@ def test_a_ghost_is_found_down_to_the_ratio_window_the_check_accepts():
 
     The fixture is a well-counted pattern, because that is where the two bars
     part: on a 200-count background 5σ is about 70 and the σ bar binds first,
-    while here it is 7 against a census floor of 2206.  What the candidate
-    floor buys is stated at the strongest parent, which is the line the floor
-    is a fraction of: its 1 % Kβ image is flagged, and under the census floor
-    it was not.  A 1 % ghost of a parent that is itself a small fraction of
-    the maximum is still out of reach, which is the limit of a floor taken off
-    the near-maximum and is WP-1442's to settle.
+    while here it is 7 against a census floor of 2206.  It carries eight lines
+    rather than three, because since WP-1442 the finding is joint and three
+    parents cannot reach ``GHOST_MIN_PARENTS``.  Each is doped at 1 %, which is
+    what a filtered tube leaks.
     """
     from rietx.background.diagnostics import (
+        GHOST_MIN_PARENTS,
         GHOST_RATIO_RANGE,
         SAMPLING_HEIGHT_FRACTION,
     )
@@ -137,19 +204,27 @@ def test_a_ghost_is_found_down_to_the_ratio_window_the_check_accepts():
     tt = np.arange(10.0, 90.0, 0.02)
     y = np.full_like(tt, 200.0)
     sg = 0.12 / 2.3548
-    for p, a in ((28.44, 100000.0), (47.30, 50000.0), (56.12, 30000.0)):
+    lines = ((28.44, 100000.0), (33.00, 80000.0), (37.60, 65000.0),
+             (42.10, 58000.0), (47.30, 50000.0), (51.80, 40000.0),
+             (56.12, 30000.0), (62.40, 26000.0))
+    for p, a in lines:
         y = y + a * np.exp(-0.5 * ((tt - p) / sg) ** 2)
+    for p, a in lines:
+        g = 2.0 * np.degrees(np.arcsin(
+            np.sin(np.radians(p / 2.0)) * 1.3922340 / WAVELENGTH))
+        y = y + 0.01 * a * np.exp(-0.5 * ((tt - g) / sg) ** 2)
     ghost = 2.0 * np.degrees(np.arcsin(
         np.sin(np.radians(28.44 / 2.0)) * 1.3922340 / WAVELENGTH))
-    y = y + 1000.0 * np.exp(-0.5 * ((tt - ghost) / sg) ** 2)
     y = np.random.default_rng(0).poisson(y).astype(float)
     doped = rx.PatternData(two_theta=tt.tolist(), intensity=y.tolist())
 
     flags = diagnose(doped, wavelength=WAVELENGTH).contamination
     kb = [f for f in flags if f.kind == "kbeta" and abs(f.two_theta - ghost) < 0.05]
     assert kb, f"1 % Kβ ghost at {ghost:.2f}° not flagged; got {flags}"
+    assert kb[0].n_parents >= GHOST_MIN_PARENTS
     assert kb[0].intensity_ratio > GHOST_RATIO_RANGE[0]
     assert kb[0].intensity_ratio < SAMPLING_HEIGHT_FRACTION  # the bar it clears
+    assert kb[0].leak_ratio < SAMPLING_HEIGHT_FRACTION
 
 
 @pytest.mark.parametrize("anode", ["CrKa", "FeKa", "CoKa", "CuKa", "MoKa", "AgKa"])
@@ -163,7 +238,8 @@ def test_kbeta_check_follows_the_anode(anode):
 
     ins = rx.Instrument.bragg_brentano(radiation=anode)
     lam = ins.source.lines[0].wavelength.value
-    data = _peaky_pattern(background=_flat_bkg, instrument=ins, lo=5.0, hi=125.0)
+    data = _peaky_pattern(background=_flat_bkg, instrument=ins,
+                          lo=5.0, hi=125.0, scale=3e-3)
     doped, ghost = _dope_ghost(data, lam, _KBETA[anode])
 
     flags = diagnose(doped, wavelength=lam).contamination
@@ -182,7 +258,8 @@ def test_tungsten_contamination_is_checked_off_cu():
 
     ins = rx.Instrument.bragg_brentano(radiation="CoKa")
     lam = ins.source.lines[0].wavelength.value
-    data = _peaky_pattern(background=_flat_bkg, instrument=ins, lo=25.0, hi=125.0)
+    data = _peaky_pattern(background=_flat_bkg, instrument=ins,
+                          lo=25.0, hi=125.0, scale=3e-3)
     doped, ghost = _dope_ghost(data, lam, _W_LA1, height=0.05)
 
     flags = diagnose(doped, wavelength=lam).contamination
