@@ -85,7 +85,9 @@ GHOST_TOL_DEG = 0.15
 GHOST_MATCH_K = 3.0
 #: Ghost/parent intensity-ratio window.  Kβ is ≤ ~0.2 of Kα even unfiltered and
 #: W Lα weaker still, so anything above the upper bound is a reflection, not a
-#: ghost; the lower bound keeps noise-level coincidences out.
+#: ghost; the lower bound keeps noise-level coincidences out.  That lower bound
+#: is also the height floor :func:`diagnose` admits ghost *candidates* at,
+#: because a maximum smaller than it cannot pass this test against any parent.
 GHOST_RATIO_RANGE = (0.005, 0.6)
 #: How many of the strongest lines are searched for ghosts.  A ghost of a weak
 #: line is below noise by construction.
@@ -1043,6 +1045,29 @@ def dead_channels(
     return out
 
 
+#: Decimals both ``PATTERN_DEAD_CHANNELS`` messages quote an interval to.
+_DEAD_INTERVAL_DECIMALS = 3
+
+
+def _dead_interval(run: DeadChannelRun) -> tuple[float, float]:
+    """The interval to exclude for ``run``, at the precision it is printed at.
+
+    The bounds are **widened outward**, never rounded to nearest, and that is
+    the whole content.  ``PatternData.in_range_mask`` drops
+    ``lo <= 2θ <= hi`` against the stored doubles, so a bound printed to
+    :data:`_DEAD_INTERVAL_DECIMALS` and read back has to *contain* the run.
+    Nearest does not: a 0.1° grid built by accumulation puts the first dead
+    channel at 64.99999999999979, which prints as ``65.000``, and a caller
+    following the message verbatim leaves that very channel in the fit
+    (measured — one of the two channels of the D1B pair survived the
+    exclusion the finding asked for).  Widening costs at most one extra
+    channel a side, and a live channel beside a dead one is worth nothing.
+    """
+    scale = 10.0 ** _DEAD_INTERVAL_DECIMALS
+    return (float(np.floor(run.two_theta_min * scale) / scale),
+            float(np.ceil(run.two_theta_max * scale) / scale))
+
+
 def counting_coverage(
     two_theta: np.ndarray, y: np.ndarray, sigma: np.ndarray | None, *,
     threshold: float = COVERAGE_INFLATION_THRESHOLD,
@@ -1215,14 +1240,26 @@ def diagnose(data: PatternData, *, wavelength: float | None = None,
     # than one maximum — which is what :data:`SAMPLING_PROMINENCE_SIGMA` is
     # for, and what a *count* deliberately does not apply.  The defect fixed
     # here is the scale dependence, not the over-count.
-    # This is the count ``_contamination_flags`` searches for ghosts among, so
+    # This is the pool ``_contamination_flags`` searches for ghosts among, so
     # the ghost search inherits the selection rather than growing a second
-    # (WP-1442).
+    # (WP-1442) — one ``find_peaks`` call, read at two floors off the same
+    # near-maximum.  The census bar cannot also be the ghost bar: a ghost is
+    # accepted down to ``GHOST_RATIO_RANGE[0]`` = 0.5 % of its parent, which is
+    # six times *under* the census floor, so a single 3 % bar deletes the Kβ
+    # and W Lα leaks this check exists to find (measured: four injected 1 %
+    # Kβ ghosts, all four flagged at the σ bar and none at the census floor).
+    # Below ``ghost_floor`` no candidate can pass the ratio test anyway, so it
+    # is the widest bar the ghost search has any use for.  The census is the
+    # subset above its own bar, which is the set a second ``find_peaks`` at
+    # that bar returns: ``distance`` keeps the tallest of a cluster, and a
+    # peak admitted by a *lower* floor can never displace a taller one
+    # (checked equal on every bundled fixture at σ ×1, ×0.289 and ×0.05).
     pos_net = np.where(net > 0, net, 0.0)
-    idx, _ = find_peaks(
-        pos_net, distance=3,
-        height=np.maximum(5.0 * sigma, SAMPLING_HEIGHT_FRACTION
-                          * float(np.percentile(pos_net, 99.9))))
+    near_max = float(np.percentile(pos_net, 99.9))
+    census_bar = np.maximum(5.0 * sigma, SAMPLING_HEIGHT_FRACTION * near_max)
+    ghost_bar = np.maximum(5.0 * sigma, GHOST_RATIO_RANGE[0] * near_max)
+    candidates, _ = find_peaks(pos_net, distance=3, height=ghost_bar)
+    idx = candidates[pos_net[candidates] >= census_bar[candidates]]
 
     # nested envelope fits: cubic, then cubic + 1/(2θ) air-scatter column
     design = chebyshev_design_matrix(tt, 4, float(tt[0]), float(tt[-1]))
@@ -1236,8 +1273,8 @@ def diagnose(data: PatternData, *, wavelength: float | None = None,
     hump = float(np.sqrt(np.mean(r_air ** 2)) / max(med_env, 1e-12))
 
     flags: list[ContaminationFlag] = []
-    if wavelength is not None and len(idx):
-        flags = _contamination_flags(tt, net, sigma, idx, wavelength)
+    if wavelength is not None and len(candidates):
+        flags = _contamination_flags(tt, net, sigma, candidates, wavelength)
 
     lam = (select_arpls_lambda(data).selected if baseline_lambda is None
            else baseline_lambda)

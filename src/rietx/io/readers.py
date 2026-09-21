@@ -92,28 +92,28 @@ def _dead_channel_diagnostics(data: PatternData, name: str) -> list[Diagnostic]:
     """``PATTERN_DEAD_CHANNELS`` for a pattern just read — see
     :func:`~rietx.background.diagnostics.dead_channels`, which is the one
     authority and answers nothing without the file's own σ column."""
-    from ..background.diagnostics import dead_channels
+    from ..background.diagnostics import _dead_interval, dead_channels
 
     if data.sigma is None:
         return []
-    return [
-        Diagnostic(
+    out = []
+    for run in dead_channels(data.tt(), data.y(), data.sig()):
+        lo, hi = _dead_interval(run)
+        out.append(Diagnostic(
             level="warning", code="PATTERN_DEAD_CHANNELS",
             message=(
                 f"{name}: {run.n_channels} channel(s) at "
-                f"{run.two_theta_min:.3f}-{run.two_theta_max:.3f}° carry "
+                f"{lo:.3f}-{hi:.3f}° carry "
                 f"{run.level_fraction:.2%} of the local background with an esd "
                 f"that fell with them — about {run.weight_ratio:,.0f}× the "
                 "weight of a live channel there"),
-            where=[f"{run.two_theta_min:.3f}-{run.two_theta_max:.3f}"],
+            where=[f"{lo:.3f}-{hi:.3f}"],
             suggestion=(
                 "a dead or masked detector cell. Nothing was changed in the "
-                "pattern: exclude the interval "
-                f"({run.two_theta_min:.3f}, {run.two_theta_max:.3f}) before "
+                f"pattern: exclude the interval ({lo:.3f}, {hi:.3f}) before "
                 "fitting, or the background will be pulled down to meet it"),
-        )
-        for run in dead_channels(data.tt(), data.y(), data.sig())
-    ]
+        ))
+    return out
 
 
 def list_scans(path: str | Path) -> list[ScanInfo]:

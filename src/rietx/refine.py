@@ -24,6 +24,7 @@ from ._about import DIST_NAME
 from .backend.api import backend_dtype_note
 from .background.diagnostics import (
     STEPS_PER_FWHM_MIN,
+    _dead_interval,
     dead_channels,
     sampling_steps_per_fwhm,
 )
@@ -4939,23 +4940,24 @@ def _data_support_diagnostics(support, model: CompiledModel) -> list[Diagnostic]
     # from a channel that honestly counted zero.
     if model.sigma_measured:
         for run in dead_channels(model.tt, model.y_obs, model.sigma):
+            lo, hi = _dead_interval(run)
             out.append(Diagnostic(
                 level="warning", code="PATTERN_DEAD_CHANNELS",
                 message=(
                     f"{run.n_channels} channel(s) at "
-                    f"{run.two_theta_min:.3f}-{run.two_theta_max:.3f}° measure "
+                    f"{lo:.3f}-{hi:.3f}° measure "
                     f"{run.level_fraction:.2%} of the local background with an "
                     f"esd that fell with them, so each carries about "
                     f"{run.weight_ratio:,.0f}× the weight of a live channel "
                     "there"),
-                where=[f"{run.two_theta_min:.3f}-{run.two_theta_max:.3f}"],
+                where=[f"{lo:.3f}-{hi:.3f}"],
                 suggestion=(
                     "a dead or masked detector cell, not a feature of the "
                     "specimen: weights are 1/σ², so these channels pull the "
                     "background down to meet them and the symptoms surface "
                     "elsewhere — parameters at their bounds, a background "
                     "driven negative. Exclude the interval "
-                    f"({run.two_theta_min:.3f}, {run.two_theta_max:.3f}) and "
+                    f"({lo:.3f}, {hi:.3f}) and "
                     "refit. Nothing here excludes it for you"),
             ))
     return out

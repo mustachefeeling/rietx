@@ -797,3 +797,29 @@ def test_dead_channels_reach_the_reader_and_the_fit(tmp_path):
 
     assert cell_a(clean) == pytest.approx(TRUE_A, abs=1e-4)
     assert abs(cell_a(spoilt) - TRUE_A) > 10 * abs(cell_a(clean) - TRUE_A)
+
+
+def test_the_interval_the_finding_quotes_really_excludes_the_run():
+    """The message tells a caller to exclude ``(lo, hi)``, so ``(lo, hi)`` has
+    to contain the channels it names.
+
+    ``PatternData.in_range_mask`` compares the quoted bound against the stored
+    double, and a bound rounded to *nearest* three decimals can land inside
+    the run: a 0.1° grid built by accumulation puts a channel at
+    64.99999999999979, which prints as ``65.000``.  Following the message
+    verbatim then left that channel in the fit, which is the one outcome the
+    finding exists to prevent.
+    """
+    from rietx.io.readers import _dead_channel_diagnostics
+
+    data = _monitor_normalised(dead=(600, 601))
+    diags = _dead_channel_diagnostics(data, "synthetic")
+    assert len(diags) == 1
+    lo, hi = (float(v) for v in diags[0].where[0].split("-"))
+    assert f"({lo:.3f}, {hi:.3f})" in diags[0].suggestion
+
+    excluded = data.model_copy(update={"excluded_regions": [(lo, hi)]})
+    mask = excluded.in_range_mask()
+    assert not mask[600] and not mask[601]
+    # and it is not a wide cut: at most one live channel a side
+    assert int((~mask).sum()) <= 4

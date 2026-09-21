@@ -140,7 +140,10 @@ channels and a σ column at 0.3·√y reproduces both defects without it.
       too, so `_contamination_flags` and WP-1442 inherit it rather than
       growing a second. **Done**: the same floor under its height bar, no
       prominence bar (that census wants every line, which is why it is a
-      separate call). 1558 peaks on 11-BM NAC at honest σ became 96.
+      separate call). 1558 peaks on 11-BM NAC at honest σ became 96. The
+      ghost search reads that one call at `GHOST_RATIO_RANGE`'s own lower
+      bound, per the review pass below, because the census bar is six times
+      the smallest ratio the ratio test accepts.
       `peak_fraction` is the third σ-relative surface in that function and was
       deliberately **not** generalised — its definition is honestly σ-relative
       — so it is documented with its measured swing instead.
@@ -310,6 +313,29 @@ channels and a σ column at 0.3·√y reproduces both defects without it.
     68 B left, so the next body addition faces the same wall.
     `diagnostics-projects.md` recorded that those rows stay in §7, and that
     paragraph was corrected rather than left to contradict the tree.
+
+  *Review pass* (`/code-review --fix`, two fixes):
+  - **The census bar cannot also be the ghost bar.** The shared selection was
+    read as one threshold, and `_contamination_flags` searches whatever it
+    returns. A ghost is accepted from `GHOST_RATIO_RANGE[0]` = 0.005 of its
+    parent upwards, six times under `SAMPLING_HEIGHT_FRACTION`, so a 1 %
+    Kβ image of the strongest line stopped being a candidate at all: measured
+    on a well-counted synthetic, four injected at 1 % and four flagged at the
+    σ bar, none under the census floor. One `find_peaks` call still, read at
+    two floors off the same near-maximum: candidates at `GHOST_RATIO_RANGE[0]`,
+    below which nothing can pass the ratio test anyway, and the census as the
+    subset above its own bar. That subset equals a second `find_peaks` at the
+    census bar on every bundled fixture at σ ×1, ×0.289 and ×0.05, so
+    `n_peaks` is unchanged. A 1 % ghost of a parent that is itself a small
+    fraction of the maximum is still out of reach, and that is WP-1442's to
+    settle.
+  - **The interval the finding quotes has to contain the run.**
+    `in_range_mask` compares the quoted bound against the stored double, and
+    three decimals rounded to *nearest* can land inside the run: a 0.1° grid
+    built by accumulation puts a channel at 64.99999999999979, which prints as
+    `65.000`. Following the message verbatim left that channel in the fit.
+    `_dead_interval` widens the bounds outward instead, at most one channel a
+    side, and both messages quote it.
 
   **Next, in order.** (1) **The two open tasks are the contributor's**, by the
   maintainer's decision of 2026-09-21, and both are blocked on files this repo
