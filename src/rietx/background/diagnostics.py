@@ -101,6 +101,16 @@ GHOST_MATCH_K = 3.0
 #: window at ``GHOST_MATCH_K·√2·GHOST_TOL_DEG`` = 0.636°.  The σ term is at or
 #: under the floor for 93.68 % of parent-line pairs anyway, so this costs
 #: almost nothing a well-fitted pattern was using.
+#:
+#: **It is not**
+#: :data:`~rietx.schemas.indexing.PEAK_POSITION_ESD_MAX_DEG`, which is 180° and
+#: takes a line out of ``PeakList.usable`` altogether.  The two ask different
+#: questions and the answers are properly different by three orders of
+#: magnitude: that one asks whether the line has a position *at all*, so its
+#: scale is the 2θ axis; this one asks whether the line can be matched against
+#: **a specific prediction**, so its scale is that prediction's own error,
+#: which is what :data:`GHOST_TOL_DEG` is.  A line can be far too vague to
+#: confirm a Kβ position and still be a perfectly good lattice line.
 GHOST_ESD_MAX_DEG = GHOST_TOL_DEG
 #: Ghost/parent intensity-ratio window.
 #:

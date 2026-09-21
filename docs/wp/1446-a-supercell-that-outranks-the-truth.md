@@ -50,10 +50,12 @@ both restores the truth, and that run finds a different candidate set entirely
 (70 s against 245 s), so the counts are not comparable across it. The ranking is
 fragile at this dataset whatever the peak list.
 
-**Where to look.** `indexing/fom.py` and the ranking in `indexing/engines.py`;
-`IndexCandidate` carries `n_indexed`, `n_lines`, `chi2_red` and `volume` but the
-reverse-direction fraction is not among its fields, so the first question is
-where that number lives today and whether the ranking can see it at all.
+**Where to look, and the first task is already answered.** The number is
+*reachable*: `CellCandidate.fom_value("predicted_seen_fraction")` returns it,
+and `test_the_supercells_that_used_to_outrank_brucite_now_sit_below_it` asserts
+on it directly (`best.fom_value(...) > 1.5 * cell.fom_value(...)`). So this is
+not a missing measurement, it is a ranking that does not weigh one it holds.
+`indexing/fom.py` and the ordering in `indexing/engines.py`.
 
 ## Non-goals
 
@@ -67,16 +69,21 @@ where that number lives today and whether the ranking can see it at all.
 
 ## Tasks
 
-- [ ] Find where the reverse-direction fraction is computed, and whether the
-      ranking reads it. Record the answer here even if it is "it does".
+- [x] Find where the reverse-direction fraction is computed, and whether the
+      ranking reads it. **Answered while filing** (2026-09-22): it is on the
+      candidate as `fom_value("predicted_seen_fraction")` and an acceptance row
+      already asserts on it, so the ranking has it and does not weigh it.
 - [ ] Rank so that a candidate predicting reflections the pattern does not show
       cannot outrank one that does not, on the measured 0.86-against-0.28.
       Measured on brucite and on every other row of
       `tests/test_acceptance_indexing.py`, which is the only way to see what it
       costs elsewhere.
-- [ ] `test_the_supercells_that_used_to_outrank_brucite_now_sit_below_it` goes
-      green on its original assertion rather than on a re-measured one. If
-      WP-1442 had to weaken it in the meantime, restore it here and say so.
+- [ ] Restore the rank assertion. WP-1442 split the row: the original keeps
+      every physics assertion and locates the truth in the candidate list
+      rather than at index 0, and `test_brucites_truth_is_not_ranked_first`
+      carries the rank as `xfail(strict=True)`. **That row goes red the moment
+      this WP works**, which is the signal to fold the assertion back into the
+      row above and delete the fence.
 - [ ] The 2 × and 3 × supercells stay *in* the candidate list. They are real
       solutions of the metric and a reader should see them ranked, not hidden.
 - [ ] Whether the same fragility reaches the other round-robin rows, measured
