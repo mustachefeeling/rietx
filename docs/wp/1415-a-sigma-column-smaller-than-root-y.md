@@ -47,6 +47,20 @@ median over more peaks than a diffraction pattern can plausibly have. Either
 is decided by measuring both on this file and on the fixtures the suite
 already carries.
 
+**The same function counts noise for a second reason, and there is to be one
+selection (from WP-1442, 2026-09-20; verified on `4ee4e7f5`).** `diagnose`
+runs its own census at `diagnostics.py:902` — `find_peaks(net/σ, height=5,
+distance=3)`, no prominence — on the rolling 10th-percentile envelope, which
+sits under the data on a steep background. On a 4-40° organic pattern with a
+Poisson σ it found 292 peaks against 23 from `_median_steps_per_fwhm`'s
+prominence-gated count at line 503. That census feeds `_contamination_flags`,
+so WP-1442's Kβ ghost search inherits whatever this WP decides. 1442 is filed
+and unstarted, and its `Depends on` now reads `1415 soft`, so **this WP owns
+the selection and 1442 imports it.** The two callers want different things
+(a count wants every line, a width wants only resolved lines), which the
+docstring at line 491 already states; one selection means one place that
+decides what is a line at all, not one threshold for both uses.
+
 **#274 — two dead PSD cells inside the window, and nothing names them.**
 
 ```
@@ -74,6 +88,16 @@ Biso pin at zero. The fit emits `BACKGROUND_ABSORPTION` ×15, `BOUND_HIT` ×14,
 above). All symptoms. Fourteen parameters at bounds is the loudest thing a fit
 can say short of refusing, and none of the fourteen is the problem.
 
+**The `×14` is stale and this WP re-measures it (from WP-1434, 2026-09-18;
+`residual_cosine` verified present in `least_squares.py` and `staged.py`).**
+That count was taken under the old test, which asked whether a value stopped
+near its limit. The test now asks whether the limit carried load: within a
+hundredth of an *esd* of the limit **and** the residual not orthogonal to that
+column. Both halves move here. esds scale with σ, so a σ column 3.5× smaller
+than √y shrinks every esd and tightens the first half by the same factor,
+which makes `BOUND_HIT` a third diagnostic this WP's fixture perturbs rather
+than a bystander.
+
 What the package has: `signal_cutoffs` (same module) returns the leading
 cutoff only (`edge='low'`, 2.99°, 22 channels). The trailing two-channel
 dropout is below `CUTOFF_MIN_DEG = 1.0` and interior besides. Its own
@@ -96,26 +120,6 @@ on its stated licence (root CLAUDE.md: data carries its own fence, per file);
 `tests/data/README.md` records the answer. A synthetic pattern with two dead
 channels and a σ column at 0.3·√y reproduces both defects without it.
 
-### Inherited
-
-- **From WP-1442, 2026-09-20: the contamination census in the same function
-  counts noise for a second reason, and 1442 wants one peak selection for
-  both.** `diagnose` hands `_contamination_flags` a `find_peaks(net/σ,
-  height=5, distance=3)` census with no prominence, on the rolling
-  10th-percentile envelope, which sits under the data on a steep background.
-  On a 4–40° organic pattern with a Poisson σ that census found 292 peaks
-  against 23 from `_median_steps_per_fwhm`'s prominence-gated count. Whichever
-  WP lands first owns the selection and the other imports it; do not grow two.
-
-- **From WP-1434, 2026-09-18: the bound test is now scaled by each
-  parameter's own esd, so a misdeclared σ moves it.** `BOUND_HIT`'s loose half
-  asks whether the value sits within a hundredth of an esd of its limit, and
-  esds scale with σ. A σ column smaller than √y shrinks every esd and tightens
-  this test by the same factor, which makes `BOUND_HIT` a third diagnostic
-  this WP's fixture perturbs rather than a bystander. The `BOUND_HIT ×14`
-  count in § Context was measured under the old distance test and needs
-  re-measuring.
-
 ## Non-goals
 
 - Replacing the file's σ with √y anywhere. The issues are explicit that the
@@ -128,7 +132,11 @@ channels and a σ column at 0.3·√y reproduces both defects without it.
 - [ ] `_median_steps_per_fwhm` selects the peaks it measures on by intensity
       relative to the pattern's maximum (or caps the count it trusts); both
       candidates measured on the D1B file and every fixture in the suite,
-      the numbers in the handover, one chosen.
+      the numbers in the handover, one chosen. The chosen selection is the
+      one `diagnose`'s census at line 902 reads too, so `_contamination_flags`
+      and WP-1442 inherit it rather than growing a second.
+- [ ] Re-measure `BOUND_HIT` on the #274 fixture under WP-1434's test, and
+      correct the `×14` in § Context to what it is today.
 - [ ] A dead-channel census in `background/diagnostics.py`, reported at read
       and at compile with the channels and the interval; `GuardFinding`
       constructor and `help.py` entry.
@@ -156,6 +164,20 @@ channels and a σ column at 0.3·√y reproduces both defects without it.
   (`fitted_mask`), WP-1047 (a reader repairs only where it says so).
 
 ## Handover log
+
+- **2026-09-21** — claimed and pruned. Both `### Inherited` entries were still
+  true against `origin/main` `4ee4e7f5` and were folded into § Context rather
+  than deleted: 1442's second census verified at `diagnostics.py:902` (no
+  prominence, unchanged), 1434's bound test verified by `residual_cosine` in
+  `least_squares.py` and `staged.py`. 1442 is filed and unstarted, so 1415
+  lands first and owns the peak selection; a task now says so, and a second
+  task owes the re-measured `BOUND_HIT` count. Both issues' threads are
+  unchanged since 2026-09-07 (no comments, both open). Every symbol § Context
+  names still exists: `SAMPLING_PROMINENCE_SIGMA`, `_median_steps_per_fwhm`,
+  `sampling_steps_per_fwhm`, `signal_cutoffs` (still edge-only,
+  `min_deg=CUTOFF_MIN_DEG=1.0`), `STEPS_PER_FWHM_MIN`/`MAX`. Neither the D1B
+  nor the D20 file is in `tests/data/`, so where the measurements come from is
+  the first thing to settle.
 
 - **2026-09-15** — created, from the 2026-09-15 issue triage (issues #274,
   #275). Grouped because one σ column smaller than √y breaks both, and the
