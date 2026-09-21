@@ -1,6 +1,6 @@
 # WP-1442 — a ghost search at chance: the Kβ flag fires where Kβ cannot exist
 
-Milestone: unscheduled · Status: 🔄 2026-09-21 — claimed by @yue-here
+Milestone: unscheduled · Status: ✅ 2026-09-22 — the finding is joint; task 5 split to WP-1445, and the brucite ranking it unmasked to WP-1446
 Depends on: — (1415 soft)
 
 ## Goal
@@ -237,6 +237,103 @@ from the reading-data or refining chapters does not find it.
   envelope's edges), WP-1415 (the σ sibling).
 
 ## Handover log
+
+### 2026-09-22 — the finding is joint, and two guards were cancelling
+
+The Kβ and tungsten contamination flags can now be believed. Before this, the
+check reported a contamination whenever any one strong reflection had a weak
+line near its predicted position, and on seventeen patterns collected behind a
+graphite monochromator — where neither line can physically reach the detector —
+it did that at exactly the rate a made-up wavelength did. Every one of those
+flags threw a real reflection out of the list the indexing search runs on. The
+check now asks how many of the eight strongest reflections agree, and on one
+common ratio, so a coincidence is no longer evidence: the whole corpus goes
+silent while an injected leak comes back with the ratio it was given.
+
+Unmasking it cost two acceptance rows, which is the part worth knowing. Both
+had been green because the wrong screen was discarding lines that happened to
+be harmful for other reasons. One was a real bug and is fixed: the peak fitter
+can return a line whose position it never determined — ±1 961° on a 115° scan —
+and nothing downstream read that admission, so the fluorapatite cell came out
+1 376 ppm wrong. The other is not this WP's and is now **WP-1446**: on brucite
+the ranking puts a cell with one edge twice too long above the truth, on one
+extra indexed line, while holding the number that says it predicts ninety
+reflections where twenty-five are present.
+
+*Done*: all eight tasks. The finding is joint (`GHOST_MIN_PARENTS`,
+`GHOST_RATIO_TOL`, `_ghost_candidates`/`_ghost_consensus`, `ContaminationFlag`
+gaining `leak_ratio`/`n_parents`/`n_parents_searched`); the ratio ceiling is
+Hölzer Table VI with margin (0.6 → 0.25); the candidate pool takes the
+prominence gate the census declines; the σ-widened window is capped by
+`GHOST_ESD_MAX_DEG`; one flag per ghost line; manual, `help.py` and the skill
+say so. Task 5 split to **WP-1445** with the maintainer.
+
+*Measured* (`.venv` `[dev]` + numba, no jax/torch, macOS, alone on the machine
+except where said). Fast selection on the final tree, **5 475 passed, 135
+skipped, 0 failed in 1:33**; this session added **13 items** to it (8 in
+`test_background_auto.py`, one of them parametrised ×2, and 5 from one new
+`validation_matrix` Claim × its five parametrised readers) and **one slow
+xfail** — an xfail is not a pass, and it is the only new non-green state.
+Indexing acceptance alone on the same tree: **43 passed, 1 failed in 33:57**,
+against 2 failed before `position_unmeasured`; the brucite rows after the
+restructure, 1 passed 1 xfailed in 4:07. vitest 594 passed, svelte-check 381
+files 0 errors, both under node 22.
+
+The screen's own numbers, all against a control that asks the same question at
+wavelengths which are not an emission line of anything: 2 656 draws (16
+patterns × 166 wavelengths) reach **4** and no more, **0.000 %** reach 5, and
+the real Kβ reaches 2 on the worst pattern; an injected image scores ≥ 6 at
+r = 0.10 across six hosts and ≥ 5 at r = 0.15. Both callers go silent on every
+null: 17 patterns at real wavelengths 20 flags → 0, the census path 68 → 0, the
+demo notebook's pattern 34 → 0, `FAP.XRA` 35 raw → 0, the BT-1 neutron pattern
+3 → 0. `esd/FWHM` over 1 165 usable lines: p50 0.025, p95 0.17, p99 0.64, then
+one line at 1.8e4.
+
+*Gotchas*, and the first is the one to carry:
+
+- **The control is only fair away from Kα1.** Above ≈0.98·λ(Kα1) the predicted
+  companion lands on its own parent and matches the parent's own Kα2 partner.
+  That is self-matching: inside that band the control's mean rises 0.50 → 3.95
+  and its maximum 4 → 8. A re-measurement that swept to 0.997 reported a 1.3 %
+  false rate that does not exist, and I published that number before catching
+  it. Both real ratios sit at 0.904 and 0.958.
+- Two claims were withdrawn with it. The detection floor is **r = 0.10**, not
+  the 0.05 measured on three hosts — magnetite, at 22 usable lines, reaches
+  only 2 at 0.05. And `_ghost_consensus`'s justification for counting parents
+  rather than ghost lines was measured against the biased control; fairly
+  measured both rules separate, and parents are kept on the independence
+  argument alone, which the docstring now says is a decision.
+- **`preset="full"` is what the acceptance fixtures pass**, and the default
+  `quick` answers differently. A four-way brucite comparison under `quick`
+  ranked the truth first in every arm and disagreed with the suite completely.
+- The vitest toolchain needs **node ≥ 20.12** and this machine's default is
+  v20.11.1; `~/.nvm` has v22.15.0, and `npm ci` must be re-run under it
+  (gui/CLAUDE.md now carries the rule).
+- The paper corpus at `/Users/yue/zotero-linker` is **not on this machine**, so
+  Hölzer Table VI is used as this WP's filing recorded it rather than re-read.
+
+*Figures*, in `tests/output/` (gitignored), the first two drawn by
+`test_the_ghost_screen_is_drawn_for_inspection`: `ghost_search_corundum.png`
+and `ghost_search_control.png`. Three more were drawn from scratchpad scripts
+and are not committed — the corundum eight-arrow panel with its made-up-λ
+histogram, the brucite tick rows against the pattern (WP-1446's fastest
+evidence), and the control-fairness curve showing the near-unity wall
+(WP-1447's). Each is ~60 lines over `_ghost_candidates`/`_ghost_consensus` and
+`pick_peaks`; redraw rather than hunt for them.
+
+*Filed with the maintainer*, each carrying this session's measurements:
+**1445** the optics nobody declared (`monochromator_two_theta` is consumed into
+a polarisation factor and discarded, so seventeen fixtures cannot say what they
+sit behind); **1446** the supercell ranking, smaller than filed because
+`fom_value("predicted_seen_fraction")` already exposes the number;
+**1447** the self-calibrating threshold, measured and costed at 1.4 % of the
+peak fit and deliberately not built; **1448** decision provenance, the audit of
+what the repo records about where an idea came from.
+
+Next: nothing here. **WP-1446 first of the four**, because a red-when-fixed
+xfail is sitting on brucite and the number it needs is already on the
+candidate. Then 1445, which is the only one of the four that needs a schema
+decision before anything can be written.
 
 ### 2026-09-20 — opened
 

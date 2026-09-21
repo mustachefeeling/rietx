@@ -130,7 +130,10 @@ does, through `viz.compare.decimation_index`, and zoom refetches the window) and
 plotly is **not** vendored (injected at runtime from `/plotly.js`, so the app boots
 and says so when it is absent). `npm run build` needs `python3`, `vitest` needs
 `resolve.conditions: ["browser"]` or `mount()` comes from svelte's server build,
-and `@sveltejs/vite-plugin-svelte` must be v7 for Vite 8.
+`@sveltejs/vite-plugin-svelte` must be v7 for Vite 8, and the toolchain needs
+**node ≥ 20.12** — rolldown imports `styleText` from `node:util`, an older node
+fails at *import* naming neither node nor a version, and `npm ci` under it
+leaves a `node_modules` the newer one cannot use (WP-1442).
 
 **`lib/resize.ts`'s cases are copied out, and `gui/src` is hashed whole**
 (WP-1425). `rietx watch` cannot import TypeScript, so it ports
