@@ -1,6 +1,6 @@
 # WP-1415 — a σ column smaller than √y
 
-Milestone: unscheduled · Status: 🔄 2026-09-21 — claimed by @yue-here
+Milestone: unscheduled · Status: 🔄 2026-09-21 — five of seven tasks landed; the two that need the D1B and D20 files are the contributor's
 Depends on: —
 
 ## Goal
@@ -195,6 +195,132 @@ channels and a σ column at 0.3·√y reproduces both defects without it.
   (`fitted_mask`), WP-1047 (a reader repairs only where it says so).
 
 ## Handover log
+
+- **2026-09-21** (2nd session) — Two diagnostics that quietly assumed Poisson
+  counting statistics now hold up on a file whose errors are smaller than √y,
+  which is most constant-wavelength neutron data. Before this, such a file made
+  the package announce that the pattern had been collected too coarsely to
+  refine, and it did so on **every one of the 27 bundled test patterns** once
+  their declared errors were scaled down. The same defect made the peak census
+  count hundreds of noise ripples as reflections, which is the pool the Kβ
+  ghost search draws from. Separately, a dead detector channel is now named
+  where the cause is: two of them take a refinement from Rwp 0.0016 to 0.55 and
+  move the lattice parameter 342 ppm while the fit still reports that it
+  converged, and until now nothing in the output pointed at the channels. What
+  this cost is a structural change to the agent skill, and what it ruled out is
+  a fix built on the intensities alone: a dead channel and a channel that
+  honestly counted zero are the same two numbers without the file's own error
+  column, so the census declines rather than guessing when that column is
+  absent.
+
+  **The mechanism, which the WP had not named.** What the peak finder
+  thresholds in the background is not noise. It is the background envelope's
+  own tracking error, a fraction of the intensity that does not shrink when the
+  counting improves. A bar in σ therefore reads that error at 1/σ, so a file
+  whose σ is right and 3.46× smaller than √y sees it at 3.46× its honest
+  significance. This is why the defect could not be reproduced by scaling a
+  synthetic's noise and σ together: both scale, and the ratio is unchanged.
+  Holding the pattern fixed and moving only the *declared* σ is the
+  perturbation that shows it, and it is what a monitor normalisation does.
+
+  **Done.** (1) Both bars in `_median_steps_per_fwhm` take the larger of the σ
+  floor and `SAMPLING_HEIGHT_FRACTION` × the 99.9th percentile of net.
+  (2) `diagnose`'s census takes the same floor under its height bar and keeps
+  no prominence bar. (3) `dead_channels` / `DeadChannelRun` /
+  `PATTERN_DEAD_CHANNELS`, on `PatternDiagnostics`, on `read_pattern`'s
+  `diagnostics=` list and on `result.diagnostics`. (4) Thirteen tests in
+  `test_data_support.py`. (5) The skill rows, which needed §7i (below).
+
+  **Measured** (worktree `[dev]` venv, darwin/arm64, numpy only, no other suite
+  running). Fast selection **5460 passed, 135 skipped**; full selection
+  **5640 passed, 144 skipped in 26:05**, both on the final tree with
+  `origin/main` merged in. The delta is **+17 and all of them passes**: 13 in
+  `test_data_support.py` (25 → 38) and 4 parametrised skill tests that the new
+  reference file adds. No new skip.
+
+  - **σ-scale invariance, over the 27 bundled fixtures, scaling the declared σ
+    alone from ×1.0 to ×0.05.** Steps per FWHM moved by a median factor of
+    **5.45** and up to **78×** before; **1.000**, worst 1.037, after. Every
+    fixture read 1.5-2.5 steps per FWHM at the D1B ratio, i.e.
+    `PATTERN_UNDERSAMPLED` on all of them.
+  - **The constant is a selection width and not a floor**, and is documented as
+    one. Invariance is exact from 0.015 upward, so 0.03 carries 2× margin, but
+    the value decides how many lines the median covers and moves the answer up
+    to 18 % between 0.02 and 0.05. At honest σ the answer stays at a median
+    0.998 of today's, worst 0.678, and **no fixture crosses
+    `STEPS_PER_FWHM_MIN` in either direction**.
+  - **The anchor had to be the percentile.** One injected hot channel at 10× the
+    pattern maximum moves 16 of 26 fixtures by over 5 % on a `max` anchor, one
+    of them by 66 %; on the 99.9th percentile, 3 of 26 and none past 9 %.
+  - **The census**: 1558 "peaks" on 11-BM NAC at the file's own σ and 9403 at a
+    σ 3.46× smaller, against **96 at every scale**. On the synthetic, 79 rising
+    to 201, against 27 at every scale. 27 rather than 13 because a count keeps
+    no prominence bar; the defect fixed is the scale dependence.
+  - **The dead-channel gate is a floor.** All 248 level-only candidates over the
+    fixtures land between **0.94 and 3.00** on the weight ratio; the planted
+    #274 pair reads **2243**. The answer is identical anywhere from 3 to 1000,
+    and there are **zero false positives on all 27 fixtures**. Cost 24 ms at
+    132 992 points.
+  - **End to end**, two channels of 5750 on a synthetic LaB6 at a
+    monitor-normalised σ: Rwp **0.55345** against **0.00156** with them
+    excluded, a factor of 355, cell a 4.158024 against 4.156602 (truth
+    4.15660), **342 ppm apart, both fits reporting `converged`**.
+  - **The other candidate**, capping the trusted count, only bounds the damage:
+    σ-scale spread 1.11 against 1.000, and it fails outright on three fixtures.
+    Recorded and not taken.
+  - `/code-review high --fix`: see the line at the end of this entry.
+
+  **Gotchas for the successor.**
+
+  - **`background_envelope` goes negative near an edge when a dropout is
+    there.** It anchors a knot at each data edge and extrapolates linearly from
+    the two nearest (WP-1028), so a dropout drags those knots down. Measured on
+    a synthetic carrying #274's pair four channels from the top: the envelope
+    reads −4.6 where the background is 78, across the last 30 channels. That is
+    exactly where the issue's cells sit, so it was the case to get right rather
+    than a corner. `dead_channels` withholds the channels it is judging and
+    iterates to a fixed point; one pass leaves a long run's interior unflagged.
+  - **The damage is a function of the background level**, because the weight
+    ratio is (σ_local/σ_dead)² and σ_local goes as √background. The same dead
+    pair outvotes 3000 live channels on a neutron background of 35 000 counts
+    and **2.4** on this suite's default LaB6 at 40. The low-background case is
+    correctly silent, and a fixture that wants the pathology has to declare the
+    background (`DEAD_CHANNEL_BACKGROUND` in the test file).
+  - **A long *interior* dropout is owned by nobody.** `signal_cutoffs` reads
+    ends only, and `dead_channels` declines past `CUTOFF_MIN_DEG` because the
+    level cannot survive the run. The length test alone was not enough: it left
+    a 1.9° dropout reported as a spurious one-channel run, so a run is now
+    declined unless live channels bound it on both sides.
+  - **`peak_fraction` is the third σ-relative surface in `diagnose` and was
+    deliberately left alone.** It swings by a median factor of 2.92 and up to
+    9.57 over the same rescale, but its definition (channels more than 3σ above
+    the envelope) is honestly σ-relative, so redefining it would change a
+    shipped number's meaning. Its documentation now carries the measurement.
+  - **Two task clauses were wrong about the tree.** There is no `GuardFinding`
+    for this (guards are stage-level in `staged.py`; the peer is
+    `PATTERN_UNDERSAMPLED`, a plain `Diagnostic`), and `help.py` documents
+    parameter, flag and option *names*, never `PATTERN_*` codes.
+  - **The skill's §7 had 38 B of headroom**, and `tests/test_skill.py` carried a
+    note from WP-1435 saying the next addition splits the file rather than
+    moving the cap again. The maintainer's criterion decided the seam: the main
+    table carries what a fit is **likely** to say, and a code conditional on a
+    file quirk goes to a secondary doc. The eleven reader rows became §7i,
+    `references/diagnostics-reading.md`. `diagnostics.md` 36 562 → 30 953 B, its
+    most headroom this month; `SKILL.md` paid 63 B net for the routing and has
+    68 B left, so the next body addition faces the same wall.
+    `diagnostics-projects.md` recorded that those rows stay in §7, and that
+    paragraph was corrected rather than left to contradict the tree.
+
+  **Next, in order.** (1) **The two open tasks are the contributor's**, by the
+  maintainer's decision of 2026-09-21, and both are blocked on files this repo
+  does not have: whether `signal_cutoffs` should admit a short dropout at an
+  edge is conditional on the D1B and D20 files agreeing it is separable from a
+  cliff, and re-measuring `BOUND_HIT ×14` under WP-1434's test needs #274's own
+  model, since **no** `BOUND_HIT` fires on the synthetic at all. (2) WP-1442
+  should now import the selection rather than growing a second; its
+  `Depends on` already says `1415 soft`. (3) If the D1B file ever enters
+  `tests/data/`, the licence question in § Data is the gate, and the numbers in
+  § Context can then be reproduced rather than quoted.
 
 - **2026-09-21** — claimed and pruned. Both `### Inherited` entries were still
   true against `origin/main` `4ee4e7f5` and were folded into § Context rather

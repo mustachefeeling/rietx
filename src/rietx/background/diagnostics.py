@@ -140,9 +140,8 @@ SAMPLING_PROMINENCE_SIGMA = 5.0
 #: σ-scale invariance is exact from 0.015 upwards, so 0.03 carries 2× margin.
 #: Chosen with that margin and for leaving the shipped answer alone where σ is
 #: honest (median 0.998 of today's over the fixtures, worst 0.678, and **no**
-#: fixture crosses :data:`STEPS_PER_FWHM_MIN` in either direction).  A cut at a
-#: few per cent of the strongest line is what peak-search routines elsewhere
-#: use; the sweep is in WP-1415's handover.
+#: fixture crosses :data:`STEPS_PER_FWHM_MIN` in either direction).  The sweep
+#: is in WP-1415's handover.
 SAMPLING_HEIGHT_FRACTION = 0.03
 
 #: Median-filter width, in ° 2θ, applied to the variance-inflation ratio before
@@ -376,9 +375,9 @@ class DeadChannelRun(Base):
     with the same channels excluded, the Caglioti terms at their bounds and
     every Biso pinned at zero.  None of the fourteen bound hits is the problem,
     which is the whole reason this is reported where the cause is rather than
-    left to be read off the symptoms.  ``None`` when σ was not measured: the
-    Poisson fallback gives a dead channel σ = 1 by construction, so the ratio
-    would be reporting the fallback rather than the file.
+    left to be read off the symptoms.  It is **required**, not optional: the
+    census answers nothing without a measured σ, so there is no run whose
+    ratio is unknown.  An optional one would be a state with no writer.
     """
 
     two_theta_min: float
@@ -387,7 +386,7 @@ class DeadChannelRun(Base):
     #: the run's median intensity over the local background level
     level_fraction: float
     #: (local σ / the run's σ)² — how many live channels one of these outvotes
-    weight_ratio: float | None = None
+    weight_ratio: float
 
 
 class CoverageRegion(Base):

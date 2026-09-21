@@ -603,7 +603,7 @@ neighbours, and the background model is pulled down to meet it.
 | `DeadChannelRun.two_theta_min`, `DeadChannelRun.two_theta_max` | the interval you would exclude |
 | `DeadChannelRun.n_channels` | how many channels it spans |
 | `DeadChannelRun.level_fraction` | the run's median intensity over the local background level |
-| `DeadChannelRun.weight_ratio` | how many live channels one of these outvotes. Null when σ was not measured |
+| `DeadChannelRun.weight_ratio` | how many live channels one of these outvotes. Always present, because the census answers nothing without a measured σ |
 
 Measured on an ILL D1B constant-wavelength neutron scan of Co₃O₄ (λ = 2.52 Å),
 two cells read 3 and 5 counts at σ = 1.000 and 1.414, beside live channels at
