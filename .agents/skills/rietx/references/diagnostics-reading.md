@@ -5,24 +5,22 @@ Load it when you passed `diagnostics=[]` to `read_pattern` or `Structure.from_ci
 *A reference file of the `rietx` skill. The body it belongs to is [`SKILL.md`](../SKILL.md); section numbers are the ones the body cites.*
 
 These fire on **your own** data and structure files, at the read, and each one
-is conditional on a quirk that file happens to have. That is what separates
-them from §7 rather than the channel they arrive on: most of them also reach
+is conditional on a quirk that file happens to have. That separates them from
+§7, and the channel they arrive on does not: most of them also reach
 `result.diagnostics`, and several of §7's own rows are equally the reader's.
 They are here because of how often you will meet one. A vendor attenuator, a
 scan stored backwards, a dead detector cell: none of these is a thing a fit
 does, and a table an agent loads to look up what its fit just said should not
 be carrying eleven rows about file quirks it does not have.
 
-The rule they share is the readers' rule: a reader may repair a stranger's
-file only where it can say that it did, so every repair below is on this
-channel and none of them is silent. A reader that could not establish
-something **withholds** rather than guessing, which is why two of these rows
-are about a number you are not being given.
+They share the readers' rule. A reader may repair a stranger's file only where
+it can say that it did, so every repair below is on this channel and none of
+them is silent. A reader that cannot establish something **withholds** it, and
+two of these rows are about a number you are therefore not being given.
 
-Not here: another program's project or recipe file, which is §7g
-([`diagnostics-projects.md`](diagnostics-projects.md)), and what a file you
-*wrote* could not carry, which is §7h
-([`diagnostics-gsas.md`](diagnostics-gsas.md)).
+Two families sit elsewhere. Another program's project or recipe file is §7g,
+[`diagnostics-projects.md`](diagnostics-projects.md). What a file you *wrote*
+could not carry is §7h, [`diagnostics-gsas.md`](diagnostics-gsas.md).
 
 | Code | What it means you must not do |
 |---|---|

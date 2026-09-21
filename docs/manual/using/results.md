@@ -600,7 +600,7 @@ neighbours, and the background model is pulled down to meet it.
 
 | Field | Is |
 |---|---|
-| `DeadChannelRun.two_theta_min`, `DeadChannelRun.two_theta_max` | the interval, which is what you would exclude |
+| `DeadChannelRun.two_theta_min`, `DeadChannelRun.two_theta_max` | the interval you would exclude |
 | `DeadChannelRun.n_channels` | how many channels it spans |
 | `DeadChannelRun.level_fraction` | the run's median intensity over the local background level |
 | `DeadChannelRun.weight_ratio` | how many live channels one of these outvotes. Null when σ was not measured |
@@ -618,8 +618,8 @@ emits fourteen bound hits, a `BACKGROUND_ABSORPTION` for every phase and a
 This one needs the file's own σ column and answers nothing without it. Under
 the Poisson fallback σ = √max(y, 1) a dead cell and a channel that honestly
 counted zero are the same two numbers, so there is nothing to tell apart. An
-empty list on a pattern whose `coverage_plateau` is null means *not checked*,
-which is not the same as checked and clean.
+empty list on a pattern whose `coverage_plateau` is null means *not checked*.
+That is a different answer from checked and clean.
 
 Nothing is excluded for you, here or anywhere else: `excluded_regions` on the
 project is where a fit range is declared, and it is a protocol decision.

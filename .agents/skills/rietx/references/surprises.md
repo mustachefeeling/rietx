@@ -437,14 +437,14 @@ the same σ. Do not substitute √y, and do not read the number against the
 1.0-1.3 band that a σ = √y X-ray pattern earns.
 **What this does break is anything that put a bar in σ.** A peak finder's
 "5σ above background" is thresholding the background model's own tracking
-error, which is a fraction of the intensity and does not shrink when the
-counting improves — so on such a file it reads that error at 3.46× its honest
+error. That error is a fraction of the intensity and does not shrink when the
+counting improves. On such a file the finder reads it at 3.46× its honest
 significance. Measured over the 27 bundled pattern fixtures, by scaling the
 declared σ alone and leaving the data untouched: the sampling measurement
 behind §7 `PATTERN_UNDERSAMPLED` moved by a median factor of 5.45 and up to
 78×, and every fixture landed at 1.5-2.5 steps per FWHM at the D1B ratio, i.e.
 the warning fired on all of them. Both peak selections take a floor in the
 pattern's own dynamic range beside the σ floor now, and the median factor is
-1.000. The general form is worth carrying: a threshold in σ answers "is this
-significant", and it answers nothing about whether a feature is real.
+1.000. A threshold in σ answers "is this significant". It answers nothing
+about whether a feature is real.
 (Measured: WP-1415, issues #274 and #275.)
