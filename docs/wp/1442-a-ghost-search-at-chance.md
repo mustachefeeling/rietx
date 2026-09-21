@@ -312,6 +312,35 @@ one line at 1.8e4.
 - The paper corpus at `/Users/yue/zotero-linker` is **not on this machine**, so
   Hölzer Table VI is used as this WP's filing recorded it rather than re-read.
 
+*Review pass* (`/code-review high --fix`): six findings, five applied as
+written, one corrected after checking it, one declined. The applied four that
+matter: `PEAK_POSITION_ESD_MAX_DEG` quoted the FAP shoulder at ±1 694°, which
+is its esd under `qarr_instrument()` while both tests use
+`bragg_brentano(CuKa)` and get **1 961°** — and "88 times the range" was the
+±3σ window rather than the esd, so 17× is the number the sentence claims;
+`PEAK_CONTAMINATION_LINE`'s help entry and the skill row sent a reader to
+`leak_ratio`, which a `PeakList` does not carry, since `flag_ghosts` marks the
+line and discards the `ContaminationFlag`; the 1.4 version note named only
+`position_unmeasured` and not the joint screen, which also moves `usable()`;
+and "seventeen IUCr round-robin patterns" is sixteen, the seventeenth being
+`nist_srm660c_100a`.
+
+**The corrected one is the interesting one.** The review added a caveat saying
+the census path reads a leak *high*, because it divides by a net height that is
+Kα1 alone above the resolving angle while Hölzer's ratio is over the whole
+doublet. The physics is right and this fixture cannot show it: the injector
+adds a scaled copy of the whole pattern, Kα2 satellites included, so its ghost
+is a doublet image and the ratio comes back faithful — an injected 0.14 reads
+back 0.141. The docstring now separates the measured half (the ceiling is a
+cliff: found through 0.24, silent from **0.26**, sharper than the review's 0.30)
+from the argued half, and says a fixture able to show it needs a leak
+synthesised from the emission model rather than from the pattern. Declined: the
+figure test rebuilding the candidate pool instead of reusing `_ghost_pool`,
+which returns only the gated pool while the figure needs both. The real defect
+under that finding is worth carrying — both derive from *unmasked* arrays, so a
+pattern with an excluded region would draw a pool `diagnose` does not use, and
+no bundled fixture has one.
+
 *Figures*, in `tests/output/` (gitignored), the first two drawn by
 `test_the_ghost_screen_is_drawn_for_inspection`: `ghost_search_corundum.png`
 and `ghost_search_control.png`. Three more were drawn from scratchpad scripts
