@@ -415,6 +415,48 @@ def test_a_line_with_no_position_is_neither_parent_nor_candidate():
                 if {"ghost_kbeta", "ghost_tungsten"} & set(p.flags)]
 
 
+def test_a_line_with_no_position_never_reaches_a_consumer():
+    """The same three lines, one rank out: they leave ``usable()`` as well.
+
+    The ghost screen stopping at them is not enough.  Every consumer that
+    matches positions builds a ±kσ window, so a line whose σ spans the axis
+    matches whatever it is compared against — the one at 64.330° carries
+    ±1 961°, which is 17× the whole measured range, and while it was usable the
+    indexed apatite cell sat 1 376 ppm off the certified one.
+
+    ``unresolved_shoulder`` is deliberately *not* an unusable flag, on the
+    stated grounds that such a line is "still evidence, just less precise
+    evidence, and their σ already says so".  That holds while σ is finite and a
+    consumer can act on it.  This is the companion for when it is not.
+    """
+    from rietx.indexing.pick import pick_peaks
+    from rietx.schemas.indexing import (
+        PEAK_POSITION_ESD_MAX_DEG,
+        PEAK_UNUSABLE_FLAGS,
+    )
+
+    assert "position_unmeasured" in PEAK_UNUSABLE_FLAGS
+
+    path = Path(__file__).parent / "data" / "FAP.XRA"
+    if not path.exists():
+        pytest.skip("FAP.XRA not present")
+    data = rx.read_pattern(path)
+    peaks = pick_peaks(data, rx.Instrument.bragg_brentano(radiation="CuKa"))
+
+    flagged = [p for p in peaks.peaks if "position_unmeasured" in p.flags]
+    assert flagged, "the fixture no longer carries an unlocated line"
+    assert all(p.two_theta_esd >= PEAK_POSITION_ESD_MAX_DEG for p in flagged)
+    assert not [p for p in peaks.usable() if "position_unmeasured" in p.flags]
+
+    # and nothing merely *imprecise* was caught with them: the bar is the axis,
+    # not the peak's width, so a line uncertain by a degree still counts
+    kept = [p for p in peaks.usable() if p.two_theta_esd > p.fwhm]
+    assert kept, (
+        "every line whose esd exceeds its own width went, which is a wider "
+        "rule than this one and needs its own measurement")
+    assert max(p.two_theta_esd for p in kept) < 1.0
+
+
 def test_the_ghost_screen_is_drawn_for_inspection():
     """The picture the counts stand on, on a pattern with a known answer.
 

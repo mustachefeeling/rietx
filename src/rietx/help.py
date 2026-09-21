@@ -872,6 +872,19 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
 #: is ``PEAK_UNUSABLE_FLAGS``, which the peaks route serves beside the
 #: vocabulary rather than leaving a client to re-derive.
 PEAK_FLAG_HELP: dict[str, HelpEntry] = {
+    "position_unmeasured": HelpEntry(
+        title="Position never determined",
+        label="no position",
+        description=(
+            "The fit returned this line's position with an uncertainty of "
+            "180° or more, which is the whole span a 2θ axis has. It is not a "
+            "poorly-determined position, it is no position: any window built "
+            "from it matches whatever it is compared against. The line is "
+            "kept so a report can say why it went, and excluded from "
+            "everything that matches positions."
+        ),
+        anchor="peak-positions.html#wavelength-scales",
+    ),
     "ghost_kbeta": HelpEntry(
         title="Kβ contamination line",
         label="Kβ ghost",

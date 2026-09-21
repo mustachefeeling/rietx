@@ -873,11 +873,20 @@ def test_the_phantom_components_of_a_real_pattern_are_flagged_and_excluded():
     assert len(flagged) == 2, [(p.two_theta, p.intensity) for p in flagged]
     assert all(p.intensity < 1e-15 for p in flagged)
     assert not any("no_intensity" in p.flags for p in peaks.usable())
-    # they are the *only* thing this flag removed — 8 other components are
-    # already unusable here for reasons of their own (ghosts, not_separable)
+    # they are the *only* thing this flag removed — the other components that
+    # are unusable here are so for reasons of their own.  Both flags come off,
+    # because since WP-1442 these two carry ``position_unmeasured`` as well:
+    # their esds are 1e+49 and 1e+17 degrees, and a component that refined to
+    # no intensity has no identifiable position, which is the sentence
+    # ``no_intensity``'s own docstring already made.  The two screens agree
+    # here by construction and neither is redundant — WP-1442's apatite case is
+    # a component with real intensity and no position, which only the second
+    # one sees.
+    assert all("position_unmeasured" in p.flags for p in flagged)
     keeps_without_the_flag = [
         p for p in peaks.peaks
-        if not (set(p.flags) - {"no_intensity"}) & PEAK_UNUSABLE_FLAGS]
+        if not (set(p.flags) - {"no_intensity", "position_unmeasured"})
+        & PEAK_UNUSABLE_FLAGS]
     assert len(keeps_without_the_flag) == len(peaks.usable()) + 2
 
     # and the point of removing them: every line offered to an engine now has a
