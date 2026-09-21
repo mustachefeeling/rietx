@@ -7,12 +7,13 @@ Load it when you read another program's *project* file — a TOPAS `.inp` or a F
 These are the codes of `rietx.io.projects` — one module per foreign format,
 governed by WP-1118 — and of the PowderLine recipe reader. They are a different
 channel from every other family in §7, but not because none of them ever
-appears on `result.diagnostics` — that is equally true of
-`CIF_SPECIES_NORMALISED`, `CIF_CELL_ANGLE_CORRECTED` and every `PATTERN_*` row,
-all of which stay in §7. The criterion that does separate them is **whose file
-you are reading**: another program's project or recipe file — a TOPAS `.inp`,
+appears on `result.diagnostics`. The criterion that separates them is
+**whose file you are reading**: another program's project or recipe file — a TOPAS `.inp`,
 a FullProf `.pcr`, a PowderLine recipe — against your own data and structure
 files, which every fit reads whether or not another program was ever involved.
+Those own-file codes were in §7 when this was written and are now §7i,
+[`diagnostics-reading.md`](diagnostics-reading.md), moved on a second
+criterion rather than this one: how often you meet one (WP-1415).
 A project reader emits its codes at *import*, into a list you pass in
 (`read_topas_inp(..., diagnostics=[])`,
 `rietx.io.projects.fullprof.to_structure(..., diagnostics=[])`); the recipe

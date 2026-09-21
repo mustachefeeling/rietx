@@ -758,7 +758,7 @@ def test_dead_channels_reach_the_reader_and_the_fit(tmp_path):
     path = tmp_path / "lab6_monitor.xye"
     path.write_text("\n".join(
         f"{a:.4f} {b:.4f} {c:.4f}" for a, b, c
-        in zip(data.tt(), data.y(), data.sig())) + "\n")
+        in zip(data.tt(), data.y(), data.sig())) + "\n", encoding="utf-8")
 
     found: list[Diagnostic] = []
     reread = read_pattern(str(path), diagnostics=found)
