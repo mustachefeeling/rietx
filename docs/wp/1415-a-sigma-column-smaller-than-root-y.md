@@ -136,9 +136,14 @@ channels and a σ column at 0.3·√y reproduces both defects without it.
       anchored on the 99.9th percentile rather than `max`, at
       `SAMPLING_HEIGHT_FRACTION = 0.03`. The cap only bounds the damage
       (σ-scale spread 1.11 against 1.000).
-- [ ] The chosen selection is the one `diagnose`'s census at line 902 reads
+- [x] The chosen selection is the one `diagnose`'s census at line 902 reads
       too, so `_contamination_flags` and WP-1442 inherit it rather than
-      growing a second.
+      growing a second. **Done**: the same floor under its height bar, no
+      prominence bar (that census wants every line, which is why it is a
+      separate call). 1558 peaks on 11-BM NAC at honest σ became 96.
+      `peak_fraction` is the third σ-relative surface in that function and was
+      deliberately **not** generalised — its definition is honestly σ-relative
+      — so it is documented with its measured swing instead.
 - [ ] Re-measure `BOUND_HIT` on the #274 fixture under WP-1434's test, and
       correct the `×14` in § Context to what it is today.
 - [ ] A dead-channel census in `background/diagnostics.py`, reported at read

@@ -363,9 +363,20 @@ class PatternDiagnostics(Base):
     the range, ask again if you changed it.
 
     * ``peak_fraction`` — fraction of channels more than 3σ above the
-      envelope: how much of the pattern is peak rather than background.
+      envelope.  **Read it as the σ-relative statement it is, not as how much
+      of the pattern is peak**: the bar is in σ, so a file whose σ is right and
+      smaller than √y has genuinely more channels significantly above
+      background and this number rises without the pattern changing.  Measured
+      by rescaling the declared σ alone over the bundled fixtures, ×1.0 to
+      ×0.15: a median factor of 2.92 and up to 9.57 (WP-1415, which left the
+      definition alone rather than redefine a shipped number — the two measures
+      below were the ones making a claim about *lines*, and they no longer move
+      at all).
     * ``peak_density_per_deg`` — resolved-peak count per degree 2θ; dense
       patterns (≳2/deg) favour stiff baselines and low background order.
+      Its census takes :data:`SAMPLING_HEIGHT_FRACTION`'s floor, so it counts
+      lines rather than the envelope's tracking error and does not move with
+      the declared σ.
     * ``signal_to_background`` — near-maximum net signal (99.9th percentile)
       over the median background level.
     * ``air_scatter_gain`` — fraction of the cubic-fit residual variance of
@@ -951,7 +962,22 @@ def diagnose(data: PatternData, *, wavelength: float | None = None,
     med_env = float(np.median(env))
 
     peak_channels = net > 3.0 * sigma
-    idx, _ = find_peaks(np.where(net > 0, net, 0.0) / sigma, height=5.0, distance=3)
+    # The census wants every line the pattern shows, so it keeps no prominence
+    # bar — but its height bar takes the same dynamic-range floor the width
+    # measurement does (:data:`SAMPLING_HEIGHT_FRACTION`), and for the same
+    # reason: in σ alone it counted the envelope's tracking error as lines, and
+    # harder the better the counting statistics were.  Measured over the
+    # fixtures: 1558 "peaks" on 11-BM NAC at the file's own σ and 9403 at a
+    # σ 3.46× smaller, against 96 at every scale with the floor; on a synthetic
+    # 13-line pattern at the D1B ratio, 16 → 175 against 13 at every scale.
+    # This is the count ``_contamination_flags`` searches for ghosts among, so
+    # the ghost search inherits the selection rather than growing a second
+    # (WP-1442).
+    pos_net = np.where(net > 0, net, 0.0)
+    idx, _ = find_peaks(
+        pos_net, distance=3,
+        height=np.maximum(5.0 * sigma, SAMPLING_HEIGHT_FRACTION
+                          * float(np.percentile(pos_net, 99.9))))
 
     # nested envelope fits: cubic, then cubic + 1/(2θ) air-scatter column
     design = chebyshev_design_matrix(tt, 4, float(tt[0]), float(tt[-1]))
