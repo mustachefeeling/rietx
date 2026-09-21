@@ -485,7 +485,7 @@ SIZE_CAPS: dict[str, int | None] = {
     # v2+ bullets — Estimation (#355) and Navigation (#349) — each naming the
     # gate that would reopen it.  Every finding stays in the WP files and on
     # the threads.  Landed 813, +3 headroom.
-    "docs/ROADMAP.md": 816,
+    "docs/ROADMAP.md": 820,   # +4: WP-1442 filed four siblings, 1445-1448
     # 1036 -> 1053 (WP-1429): where the GUI's colour values live, now that
     # they are Python and this workspace's `tokens.css` is generated from
     # them. It governs work outside the WP that measured it — an edit to a

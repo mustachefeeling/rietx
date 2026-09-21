@@ -464,12 +464,13 @@ Measured on the 11-BM pattern, `diagnose(data)` and
 because nothing was asked, the second because a synchrotron wavelength has no
 anode.
 
-The joint bar costs sensitivity, deliberately. A Kβ image injected into the
-round-robin corundum, zincite and cpd-1e patterns is found from about 5 % of
-its parent upwards, and at 1 % on one host of the three. An unfiltered tube
-sits at 14 % (Hölzer et al. 1997), which is the case the screen is for. A
-residual leak past a working filter is below the floor and comes back as
-nothing.
+The joint bar costs sensitivity, deliberately. A Kβ image injected into six
+round-robin patterns is found on every one of them from about 10 % of its
+parent upwards. Below that it depends on how many peaks the pattern has:
+zincite is caught at 1 %, magnetite, which yields 22 usable peaks, not until
+10 %. An unfiltered tube sits at 14 % (Hölzer et al. 1997), which is the case
+the screen is for. A residual leak past a working filter is below the floor and
+comes back as nothing.
 :::
 
 ### The region below the first reflection

@@ -458,12 +458,13 @@ seventeen round-robin patterns, every one collected behind a graphite
 monochromator that removes both Kβ and W Lα, the old rule flagged 0.94 Kβ per
 pattern against a control fed made-up wavelengths that flagged 1.01. Each flag
 dropped a real reflection from `usable()`. The screen is now joint and those
-corpora report nothing, while a Kβ image injected at 5 % of its parent is found
-with its ratio. **Two consequences for an agent.** Read
-`ContaminationFlag.leak_ratio`, the ratio fitted across the supporting parents,
-rather than a single line's `intensity_ratio`. And read the detection floor
-honestly: a leak under about 5 % comes back as nothing, so an empty
-`contamination` list means "no leak this rule can see" and never "the beam is
-clean". An unfiltered tube sits at 0.14 (Hölzer et al. 1997), which is the case
-worth catching.
+corpora report nothing, while a Kβ image injected at 10 % of its parent is
+found with its ratio on all six hosts tried. **Two consequences for an agent.**
+Read `ContaminationFlag.leak_ratio`, the ratio fitted across the supporting
+parents, rather than a single line's `intensity_ratio`. And read the detection
+floor honestly: a leak under about 10 % comes back as nothing, and how far
+under depends on how many peaks the pattern yields — zincite is caught at 1 %,
+magnetite at 22 usable peaks not until 10 %. So an empty `contamination` list
+means "no leak this rule can see" and never "the beam is clean". An unfiltered
+tube sits at 0.14 (Hölzer et al. 1997), which is the case worth catching.
 (Measured: WP-1442.)

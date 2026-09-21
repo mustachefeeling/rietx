@@ -1,0 +1,131 @@
+# WP-1448 — a number somebody chose says so, and says where the argument is
+
+Milestone: unscheduled · Status: ⬜
+Depends on: —
+
+## Goal
+
+A value in this package declares which of three things it is: taken from a
+publication, measured here by a named run, or chosen by a person. The third
+kind carries a pointer to where the alternatives are written down.
+
+## Context
+
+Filed 2026-09-22 at the maintainer's ask, during WP-1442. The trigger was a
+question: the repo records literature provenance carefully, and for a decision
+reached in conversation there is no equivalent. The audit below is what exists
+today.
+
+**Literature provenance is solid and enforced.**
+
+- `ATTRIBUTION.md` records every source, its licence, and exactly what was used,
+  with the GPL fence stated per entry.
+- Root CLAUDE.md: "Every physics function cites its reference (author, year,
+  journal) in the docstring", and documents conventions by physics rather than
+  by letters.
+- `tests/test_manual.py` requires every displayed equation in the theory manual
+  to carry a `*Source:*` line whose symbol imports, so renaming a physics symbol
+  fails the build.
+
+**"How well do we know this" is enforced, but only in the agent skill.** Every
+row of a `references/` file must close with `*(Measured: …)*` or
+`*(Hypothesis: …)*`, and `tests/test_skill.py` rejects a tag that names nothing
+— added after `*(Measured: some runs I did)*` passed (issue #241). That test is
+the working model for anything proposed here.
+
+**Decisions have a format and no requirement.** `docs/DESIGN.md` § Locked
+decisions carries entries with dated `*Amendment (2026-07-24)*` and
+`*Measured (2026-07-27, WP-0408 landed)*` sub-bullets, including what was
+expected against what happened ("Apple-GPU acceleration did not materialise").
+That is the right shape. Nothing says which decisions must appear there, and no
+test reads it.
+
+**In the code the practice is ad hoc.** Fourteen places say some version of
+"this package's own", "had no source", "quoted, never tuned"
+(`optimize/statistics.py`'s McCusker bands, `io/formats/*.py`'s hand-written
+parsers, `help.py`'s 25 Å² default). Useful, unenforced, and not a vocabulary.
+
+**The gap, stated exactly.** For a constant in the code, nothing distinguishes:
+
+1. it comes from a paper — covered, cited, enforced;
+2. it was measured here, by a run somebody could repeat — covered by convention
+   and by the WP handover the code cites, not enforced;
+3. **somebody chose it**, and the argument for choosing it over the
+   alternatives happened in a conversation.
+
+The worked example is this WP's sibling. `GHOST_MIN_PARENTS = 5` reads like
+case 2, because the measurement that supports it is in its docstring. But the
+decision to use a fixed count *at all* — rather than a control run per pattern,
+which was measured, costed at 1.4 % of the peak fit, and rejected — was a
+conversation. Nothing in the tree says the alternative existed. WP-1447 now
+records it because the maintainer asked for it in the same breath, which is the
+point: it took an explicit ask.
+
+The same applies to `GHOST_RATIO_TOL = 2.0`, where the measurement says 1.3,
+1.5, 2.0 and 3.0 are equally specific and 2.0 was chosen because it is the
+widest at which "a common ratio" still means something. That last clause is a
+judgement wearing a measurement's clothes.
+
+**What is not the problem.** Handover logs are dated and detailed, and the code
+cites the WP number, so a determined reader can reconstruct most of it. The
+failure is that nothing *prompts* the record, so it happens when someone
+remembers, and the alternatives are the first thing lost.
+
+## Non-goals
+
+- A second citation system. Literature provenance works; this sits beside it.
+- Recording conversations. The artefact wanted is the decision and the
+  alternatives, not a transcript.
+- Blocking a commit on a missing tag for values that are plainly derived.
+
+## Tasks
+
+- [ ] The vocabulary: a third tag beside the skill's two, for a value chosen
+      rather than derived, naming the date, that it was a decision, and where
+      the alternatives are. Decide whether it reads in code comments, in the
+      WP, in DESIGN.md, or in more than one, and write the answer here.
+- [ ] Where the alternatives live. DESIGN.md § Locked decisions already has the
+      format and the dated-amendment habit; the question is whether a
+      WP-scoped decision belongs there or in the WP, and what the rule is.
+- [ ] The meta-test, modelled on `test_skill.py`'s: a tag that names nothing is
+      a failure. Decide what it can actually check — a date, a resolvable WP or
+      DESIGN.md anchor — and do not claim more.
+- [ ] A pass over the values that are case 3 today. Start from the fourteen
+      "this package's own" / "no source" sites and from any constant whose
+      docstring argues rather than measures.
+- [ ] Root CLAUDE.md § Conventions takes the rule, in the form it takes rules:
+      a few lines, evidence compressed, pointing here.
+
+## Acceptance
+
+```sh
+.venv/bin/python -m pytest tests/test_docs_consistency.py tests/test_skill.py
+.venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"
+```
+
+## References
+
+- `tests/test_skill.py` § the `*(Measured: …)*` tag and issue #241 — the
+  working precedent, including what a tag check can and cannot enforce.
+- `docs/DESIGN.md` § Locked decisions — the format, with WP-0408's amendment as
+  the best existing example.
+- WP-1442 and WP-1447 — the decisions that prompted this, and the only two
+  currently recorded to the standard proposed.
+
+## Handover log
+
+### 2026-09-22 — filed
+
+The repo is careful about where an idea came from when the idea came from a
+paper. It is careless when the idea came from a person. A constant that somebody
+chose looks exactly like a constant that was measured, because the measurement
+supporting the choice gets written into the docstring while the choice does
+not, and the alternatives that were rejected disappear with the session that
+rejected them.
+
+Nothing here is missing machinery so much as a prompt: `DESIGN.md` already has
+the right format and the agent skill already has an enforced epistemic tag. The
+work is deciding the vocabulary, deciding where a decision belongs, and making
+it fail when it is absent.
+
+Next: the vocabulary, since every other task depends on it.

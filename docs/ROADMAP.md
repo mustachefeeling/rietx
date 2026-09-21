@@ -657,6 +657,9 @@ the limit carried load rather than whether the value stopped near one, and
 | [1432](wp/1432-a-tie-onto-a-rederived-dof.md) | A tie onto a coordinate DOF, re-applied once per write | ✅ 2026-09-19 | — (1119 soft) |
 | [1434](wp/1434-the-bound-test-asks-the-wrong-question.md) | The bound test asks whether the value is near its limit, never whether the limit was binding | ✅ 2026-09-18 | — |
 | [1442](wp/1442-a-ghost-search-at-chance.md) | A ghost search at chance: the Kβ flag fires where Kβ cannot exist | 🔄 2026-09-21 | — (1415 soft) |
+| [1445](wp/1445-the-optics-nobody-declared.md) | The optics nobody declared: a source that cannot emit the line | ⬜ | — (1442 soft) |
+| [1446](wp/1446-a-supercell-that-outranks-the-truth.md) | A supercell that outranks the truth, on evidence the panel already has | ⬜ | — (1442 soft) |
+| [1447](wp/1447-a-threshold-each-pattern-sets-for-itself.md) | A threshold each pattern sets for itself | ⬜ | — (1442 soft) |
 
 #### A long run is not one fit
 
@@ -738,6 +741,7 @@ separability floor, and not scheduled here.
 | [1409](wp/1409-part-one-reads-like-a-manual.md) | Part 1 reads like a manual | ✅ 2026-09-14 | 1408 |
 | [1410](wp/1410-worktree-gate-scope.md) | The worktree gate guards this checkout, not every repository | ✅ 2026-09-14 | — |
 | [1443](wp/1443-part-one-read-by-a-newcomer.md) | Part 1 read by a newcomer: eleven passages, one word, and the version the manual describes | ⬜ | — (1409 is the shape) |
+| [1448](wp/1448-a-number-somebody-chose.md) | A number somebody chose says so, and says where the argument is | ⬜ | — |
 
 #### Candidates — named on a use case, not yet on a measurement
 

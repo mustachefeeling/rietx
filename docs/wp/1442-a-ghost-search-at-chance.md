@@ -195,11 +195,15 @@ from the reading-data or refining chapters does not find it.
       handover.
 - [x] The σ-widened window is capped, and a line with a degenerate position
       esd is never a candidate. `FAP.XRA` is the fixture.
-- [ ] A source that cannot emit the line never runs the search: `neutron_cw`
-      skips; for `xray_cw` a declared filter or monochromator narrows the
-      ratio window or skips. Design call for the maintainer: a `Source` field
-      or a `Geometry` one, filled by the xrdml/brml/rasx readers where the file
-      says. The demo's optics are the worked case.
+- [x] A source that cannot emit the line never runs the search — **split out
+      to [WP-1445](1445-the-optics-nobody-declared.md)** on 2026-09-22, with
+      the maintainer's decision. It needs a schema seam and three readers
+      taught new file paths, and the joint finding removed the wrong answer it
+      was filed against (the BT-1 neutron pattern, 3 flags → 0). The
+      measurements taken for it are in that file's § Context, including the one
+      that reframes it: `monochromator_two_theta` is consumed into a
+      polarisation factor and discarded, so seventeen fixtures that sit behind
+      a graphite monochromator cannot tell anyone.
 - [x] One flag per ghost line, whatever the parents.
 - [x] Manual: the `results.md` warning rewritten around the joint finding, a
       pointer to `diagnose` from the reading-data or refining chapter, the two

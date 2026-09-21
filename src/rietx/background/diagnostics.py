@@ -139,24 +139,49 @@ GHOST_N_PARENTS = 8
 #: Kβ per pattern against a control fed 26 made-up wavelengths that flagged
 #: 1.01 (WP-1442).
 #:
-#: The bar is measured rather than chosen.  Over 442 null draws (17 patterns ×
-#: 26 fake wavelengths) the consensus count reaches **4** and no more, while a
-#: Kβ image injected at r = 0.05 into corundum, zincite and cpd-1e reaches 5,
-#: 8 and 5.  So 5 is the first count the null never produced.  The detection
-#: floor that buys is r ≈ 0.05 with partial credit at 0.02 (two hosts of
-#: three); an unfiltered tube sits at 0.14 (Hölzer 1997 Table VI), which is
-#: the case worth catching.  A *residual* leak past a working filter is below
-#: this and is reported as nothing, which is the honest answer at this
-#: evidence.
+#: The bar is measured rather than chosen, against a control that asks the same
+#: question at wavelengths which are not an emission line of anything.  Over
+#: **2 656 draws** (16 round-robin patterns × 166 such wavelengths) the count
+#: reaches **4** and no more, and **0.000 %** reach 5; the real Kβ reaches 2 on
+#: the worst of those patterns.  A Kβ image injected into six of them scores at
+#: least 6 at r = 0.10 and at least 5 at r = 0.15, so 5 separates the two
+#: populations with a margin of one count on each side.
+#:
+#: **The control is only fair away from Kα1.** Above ≈0.98·λ(Kα1) the predicted
+#: companion lands on top of its own parent and matches the parent's own Kα2
+#: partner, which is self-matching rather than coincidence: measured, the
+#: control's mean jumps from 0.50 to 3.95 and its maximum from 4 to 8 inside
+#: that band alone.  The band is excluded, along with ±0.01 around the real Kβ
+#: and W Lα ratios, which sit at 0.904 and 0.958 and are well clear of it.  A
+#: first calibration that swept into the band reported a 1.3 % false rate and
+#: was wrong (WP-1442's handover has both runs).
+#:
+#: **The detection floor this buys is r ≈ 0.10**, not lower: over corundum,
+#: zincite, cpd-1e, brucite, zircon and magnetite the minimum score at r = 0.05
+#: is 2, and magnetite — 22 fitted lines — reaches only 2 there.  An unfiltered
+#: tube sits at 0.14 (Hölzer 1997 Table VI), which is the case worth catching.
+#: A *residual* leak past a working filter is below the floor and is reported
+#: as nothing, which is the honest answer at this evidence.
+#:
+#: The number is calibrated on Cu Kα laboratory data from one instrument class,
+#: because that is what the bundled corpus has an anode for.  A control run per
+#: pattern would remove that dependence and costs ~1.4 % of the peak fit it
+#: rides on; it is written up in WP-1447 rather than built, the fixed bar
+#: having measured at zero false findings here (decided 2026-09-22 with the
+#: maintainer).
 GHOST_MIN_PARENTS = 5
 
 #: How far two parents' ratios may differ and still be called one leak, as a
 #: factor.  The physical ratio is constant; what varies is the fitted intensity
 #: of a weak line sitting on a strong one's flank, which is tens of percent.
-#: Measured at 1.3, 1.5, 2.0 and 3.0: the null's maximum consensus count is 4
-#: at every one of them, so the tolerance buys detection without costing
-#: specificity, and 2.0 is the widest at which "a common ratio" still means
-#: something.
+#:
+#: Measured at 1.3, 1.5, 2.0 and 3.0 against the control
+#: :data:`GHOST_MIN_PARENTS` describes: the control's maximum is **4 at every
+#: one of them**, so widening costs no specificity at all, while an injected
+#: leak at r = 0.10 scores 5 at 1.3 and 1.5 against 6 at 2.0 and 3.0.  The
+#: tolerance buys detection for nothing.  2.0 is the widest at which "a common
+#: ratio" still means something, which is where it stops being a measurement
+#: and becomes a judgement (decided 2026-09-22; WP-1442).
 GHOST_RATIO_TOL = 2.0
 
 #: The sampling band of McCusker, Von Dreele, Cox, Louër & Scardi (1999) §2:
@@ -1561,12 +1586,17 @@ def _ghost_consensus(
     """The ratio the most **distinct parents** support, within a factor.
 
     Parents rather than ghost lines, because the question is how many
-    independent reflections agree.  Counting ghost lines instead lets one
-    parent with several in-window candidates supply its own corroboration, and
-    it does: measured over the same 442 null draws the ghost-counted statistic
-    reaches 5 where the parent-counted one reaches 4, while an injection at
-    r = 0.05 starts at 4 rather than 5 — the two overlap and the bar has
-    nowhere to sit (WP-1442).
+    *independent* reflections agree, and one parent with several in-window
+    candidates would otherwise supply its own corroboration.
+
+    That is an argument rather than a measurement, and the measurement does not
+    decide it: against the control :data:`GHOST_MIN_PARENTS` describes, both
+    rules separate cleanly (parent-counted, control maximum 4 against an
+    injection minimum of 6 at r = 0.10; ghost-counted, 3 against 5).  An
+    earlier note here claimed the ghost-counted statistic overlapped its own
+    control; that was measured against a control contaminated near λ(Kα1) and
+    is withdrawn.  Parents are kept on the independence argument alone
+    (decided 2026-09-22; WP-1442).
 
     The returned list holds one candidate per supporting parent, the one whose
     ratio is nearest the consensus, so a caller emitting one flag per entry

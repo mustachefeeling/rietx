@@ -193,7 +193,7 @@ Two related checks are model-free and run before any fit, and neither
 substitutes for this one. `diagnose(data)` asks whether several of the strongest
 reflections all carry a line at their Kβ or W Lα position at one common ratio,
 and returns `ContaminationFlag`s, needing no structure. It answers "is the beam
-leaking a known line?", and reports nothing below about 5 % of the parent. This
+leaking a known line?", and reports nothing below about 10 % of the parent. This
 one needs a converged model and answers "how much intensity did the model
 attribute to the harmonic once everything else had its chance?". It is the only
 way to see a contamination whose peaks overlap the fundamental's too closely for
