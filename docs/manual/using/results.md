@@ -431,6 +431,7 @@ from.
 | `PatternDiagnostics.coverage_plateau` | the bulk pattern's σ²/max(y, 1), median over the middle half of the range | 1.0 is pure Poisson counting; anything else says the file's σ is something else (merged detectors, a monitor normalisation). Null means σ was not measured, so nothing was checked |
 | `PatternDiagnostics.coverage_regions` | stretches whose σ carries more variance per count than that plateau, each a `CoverageRegion` | the pattern's statistical weight is not uniform across its range; see below |
 | `PatternDiagnostics.signal_cutoffs` | ends of the range where the level collapsed and stayed down, each a `SignalCutoff` | read this one first; see below |
+| `PatternDiagnostics.dead_channels` | short interior runs that measure nothing and outvote the pattern while doing it, each a `DeadChannelRun` | empty also means *not checkable*: the test needs the file's own σ. See below |
 
 | Field | Is |
 |---|---|
@@ -587,6 +588,41 @@ straight through both transitions, σ/y is 1/√y up to a constant. So the ratio
 is the number an experimenter reads. That σ²/y stays flat is also what separates
 this from `PatternDiagnostics.coverage_regions`: the file's σ there is honest,
 and those channels are empty rather than thinly covered.
+:::
+
+### A channel that measures nothing and outvotes the pattern
+
+`PatternDiagnostics.dead_channels` is the interior companion to the section
+above. A dead or masked detector cell, a gap between banks, a channel the
+electronics dropped: its intensity falls to nothing and its esd falls with it.
+Weights are 1/σ², so it does not merely contribute nothing. It outvotes its
+neighbours, and the background model is pulled down to meet it.
+
+| Field | Is |
+|---|---|
+| `DeadChannelRun.two_theta_min`, `DeadChannelRun.two_theta_max` | the interval, which is what you would exclude |
+| `DeadChannelRun.n_channels` | how many channels it spans |
+| `DeadChannelRun.level_fraction` | the run's median intensity over the local background level |
+| `DeadChannelRun.weight_ratio` | how many live channels one of these outvotes. Null when σ was not measured |
+
+Measured on an ILL D1B constant-wavelength neutron scan of Co₃O₄ (λ = 2.52 Å),
+two cells read 3 and 5 counts at σ = 1.000 and 1.414, beside live channels at
+36 503 and σ = 55.1. Each therefore carries about 3 000 times the weight of a
+live channel. Fitted with those two channels inside the range, a 12-term
+Chebyshev background is dragged through zero to reach them and Rwp comes back
+at 0.087; excluded, the same refinement gives 0.0074. The fit with them in
+emits fourteen bound hits, a `BACKGROUND_ABSORPTION` for every phase and a
+`DATA_SUPPORT_LOW`. None of those is the cause.
+
+:::{warning}
+This one needs the file's own σ column and answers nothing without it. Under
+the Poisson fallback σ = √max(y, 1) a dead cell and a channel that honestly
+counted zero are the same two numbers, so there is nothing to tell apart. An
+empty list on a pattern whose `coverage_plateau` is null means *not checked*,
+which is not the same as checked and clean.
+
+Nothing is excluded for you, here or anywhere else: `excluded_regions` on the
+project is where a fit range is declared, and it is a protocol decision.
 :::
 
 ## What the restraints did

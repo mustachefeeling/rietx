@@ -145,17 +145,39 @@ channels and a σ column at 0.3·√y reproduces both defects without it.
       deliberately **not** generalised — its definition is honestly σ-relative
       — so it is documented with its measured swing instead.
 - [ ] Re-measure `BOUND_HIT` on the #274 fixture under WP-1434's test, and
-      correct the `×14` in § Context to what it is today.
-- [ ] A dead-channel census in `background/diagnostics.py`, reported at read
+      correct the `×14` in § Context to what it is today. **Needs the real
+      file.** Measured 2026-09-21 on the synthetic that reproduces everything
+      else: the spoilt fit emits `PATTERN_DEAD_CHANNELS`,
+      `RESOLUTION_UNCONSTRAINED`, `RESOLUTION_NOT_POSITIVE` and
+      `PATTERN_UNDERSAMPLED`, and **no** `BOUND_HIT` at all — the bounds a
+      synthetic LaB6 declares are not the ones #274's model walked into, so
+      this one cannot be re-measured without the D1B file and its model.
+- [x] A dead-channel census in `background/diagnostics.py`, reported at read
       and at compile with the channels and the interval; `GuardFinding`
-      constructor and `help.py` entry.
+      constructor and `help.py` entry. **Done as `dead_channels` +
+      `DeadChannelRun` + `PATTERN_DEAD_CHANNELS`, on `PatternDiagnostics`, on
+      `read_pattern`'s `diagnostics=` list and on `result.diagnostics`.** The
+      last clause was wrong about the tree and is deliberately **not** done:
+      there is no `GuardFinding` here (guards are stage-level in `staged.py`;
+      the peer is `PATTERN_UNDERSAMPLED`, a plain `Diagnostic` in `refine.py`),
+      and `help.py` documents parameter, flag and option *names*, never
+      `PATTERN_*` codes, which live in the skill's `references/`.
 - [ ] `signal_cutoffs` admits a short dropout at an edge, if the D1B and D20
-      files agree it is separable from a cliff.
-- [ ] Tests: the synthetic pattern above for both defects; the APDW file if
+      files agree it is separable from a cliff. **Left for the contributor who
+      has those two files** (2026-09-21 decision): the task is conditional on
+      what they agree, and neither file is in the tree. `dead_channels`
+      declines an edge-touching run today and says so, so the gap is named
+      rather than silent.
+- [x] Tests: the synthetic pattern above for both defects; the APDW file if
       its licence admits it, else the numbers quoted here in the docstring.
-- [ ] Skill: a `references/diagnostics.md` row for the new code, and a
+      **Done on synthetics; no new data file entered `tests/data/`.**
+- [x] Skill: a `references/diagnostics.md` row for the new code, and a
       `references/surprises.md` row that a correct σ smaller than √y gives
-      GoF 5–10 on a good fit and must not be "fixed".
+      GoF 5–10 on a good fit and must not be "fixed". **The row would not fit
+      (§7 was 38 B under its cap), so the eleven reader rows became §7i,
+      `references/diagnostics-reading.md`, on the maintainer's criterion: the
+      main table carries what a fit is likely to say, and a code conditional on
+      a file quirk goes to a secondary doc.**
 
 ## Acceptance
 

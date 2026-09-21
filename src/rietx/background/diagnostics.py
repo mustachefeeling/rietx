@@ -240,6 +240,55 @@ CUTOFF_PLATEAU_DEG = 2.0
 #: fail in.
 CUTOFF_INTERIOR_FRACTION = 0.70
 
+#: How far below the local background level a channel must sit to be a
+#: candidate for *dead* rather than quiet (:func:`dead_channels`).  A detector
+#: cell that is not seeing anything reads a Poisson sample of nothing — single
+#: counts where its neighbours carry thousands — so the gap this straddles is
+#: orders of magnitude, not a factor of two.  It is only the first of two
+#: tests, and the weaker one: on the bundled fixtures it alone selects 248
+#: runs, every one of them a channel that legitimately counted zero, and
+#: :data:`DEAD_WEIGHT_RATIO_MIN` is what rejects all 248.  Swept 0.02 to 0.30
+#: against a synthetic carrying issue #274's pair: the run is found identically
+#: over the whole range, and no fixture survives the second test anywhere in
+#: it, so the value is set from the physics — a decade below the background —
+#: rather than from a boundary the data show.
+DEAD_LEVEL_FRACTION = 0.10
+
+#: How far a run must outvote its neighbours before it is reported — the
+#: second test, and the one that means something.  Weights are 1/σ², so the
+#: question a dead cell poses is not "is this channel low" but "does this
+#: channel outvote the pattern", and the two are answered by different columns.
+#: A channel that legitimately counted zero carries *less* weight than a live
+#: one, not more.  A dead cell's σ collapsed with its intensity, so it carries
+#: more, and the gap between the two is not a close call: measured over the
+#: bundled fixtures, all 248 of the level-only candidates land between **0.94
+#: and 3.00**, while a synthetic D1B carrying issue #274's own pair — y = 3
+#: and 5 at σ = 1.000 and 1.414, beside background at 39 066 and σ = 57.1 —
+#: reads **2243**.  100 sits between them with 33× margin below and 22× above,
+#: and the answer on both sets is identical anywhere from 3 to 1000, so this
+#: one *is* a floor rather than a tuning.
+DEAD_WEIGHT_RATIO_MIN = 100.0
+
+#: Width, in ° 2θ, of the median window that turns the background envelope into
+#: the *local level* a dead channel is judged against.  It is
+#: :func:`background_envelope`'s own window for the reason that function gives
+#: for it — wider than any Bragg FWHM — and the median is taken over the
+#: envelope rather than over the intensities so a peak cannot be the level its
+#: own flanks are compared with.  Three degrees is also comfortably wider than
+#: the longest run this function will report (:data:`CUTOFF_MIN_DEG`), which is
+#: what stops a dropout from dragging down the level that is meant to expose
+#: it: at 0.1° steps that is 10 channels inside a 30-channel median.
+DEAD_LEVEL_WINDOW_DEG = 3.0
+
+#: How many times :func:`dead_channels` re-derives which channels to withhold
+#: from its level estimate before taking the mask as settled.  Each pass walks
+#: the mask one median-window further into a long dropout, so the cap bounds a
+#: dropout this converges on at roughly that many windows; past it the run is
+#: declined by the length test anyway, which is the outcome the cap exists to
+#: reach *cleanly* rather than to avoid.  Not a tuning: on every fixture and
+#: every synthetic measured the mask settles on pass 2 or 3.
+_DEAD_REPAIR_PASSES = 6
+
 
 class ContaminationFlag(Base):
     """A weak peak consistent with a known contamination line of a strong one."""
@@ -299,6 +348,46 @@ class SignalCutoff(Base):
     floor_fraction: float           # the region's median level / the interior level
     n_channels: int                 # channels outside the boundary
     relative_error_ratio: float | None = None   # median σ/y there, over interior
+
+
+class DeadChannelRun(Base):
+    """A short run of channels the detector was not seeing the sample through.
+
+    A dead or masked PSD cell, a gap between detector banks, a channel the
+    electronics dropped.  Not a verdict and **applied nowhere**: this reports,
+    and which channels a run fits is ``project.fitted_mask``'s answer built
+    from the caller's ``excluded_regions`` (WP-1033).  What the finding owes a
+    caller is the interval to exclude, which is why the two 2θ bounds are the
+    first two fields.
+
+    It is :class:`SignalCutoff`'s interior peer and the two do not overlap by
+    construction: a collapse of :data:`CUTOFF_MIN_DEG` or longer is an
+    instrument that stopped and belongs to :func:`signal_cutoffs`, and anything
+    shorter is this — "a dip or a gap in the first channels", which is what
+    that function's own docstring calls the case it declines.
+
+    ``weight_ratio`` is why a two-channel dropout is worth a diagnostic at all,
+    and it is the number to lead with.  Weights are 1/σ², so a channel whose
+    intensity collapsed *and* whose σ collapsed with it does not merely
+    contribute nothing — it outvotes the pattern.  On the ILL D1B file of issue
+    #274 two cells at σ = 1.0 sit beside live channels at σ = 55.1, so each
+    carries the weight of about 3 000 live ones, and a 12-term Chebyshev
+    background is dragged through zero to reach them: Rwp 0.087 against 0.0074
+    with the same channels excluded, the Caglioti terms at their bounds and
+    every Biso pinned at zero.  None of the fourteen bound hits is the problem,
+    which is the whole reason this is reported where the cause is rather than
+    left to be read off the symptoms.  ``None`` when σ was not measured: the
+    Poisson fallback gives a dead channel σ = 1 by construction, so the ratio
+    would be reporting the fallback rather than the file.
+    """
+
+    two_theta_min: float
+    two_theta_max: float
+    n_channels: int
+    #: the run's median intensity over the local background level
+    level_fraction: float
+    #: (local σ / the run's σ)² — how many live channels one of these outvotes
+    weight_ratio: float | None = None
 
 
 class CoverageRegion(Base):
@@ -415,6 +504,12 @@ class PatternDiagnostics(Base):
       seeing the sample (:func:`signal_cutoffs`), each a :class:`SignalCutoff`.
       Empty means the pattern's own ends are at its own interior level, which
       is the ordinary case and the one every other field here assumes.
+    * ``dead_channels`` — short interior runs that measure nothing and outvote
+      the pattern while doing it (:func:`dead_channels`), each a
+      :class:`DeadChannelRun`.  Empty means none was found **or none could
+      be**: the test needs a measured σ, so a pattern under the Poisson
+      fallback answers empty for the second reason.  ``coverage_plateau``
+      ``None`` is how to tell the two apart.
     """
 
     n_points: int
@@ -434,6 +529,7 @@ class PatternDiagnostics(Base):
     coverage_plateau: float | None = None
     coverage_regions: list[CoverageRegion] = Field(default_factory=list)
     signal_cutoffs: list[SignalCutoff] = Field(default_factory=list)
+    dead_channels: list[DeadChannelRun] = Field(default_factory=list)
 
 
 def background_envelope(two_theta: np.ndarray, y: np.ndarray, *,
@@ -807,6 +903,147 @@ def signal_cutoffs(
             for edge in ("low", "high") if any(c.edge == edge for c in cutoffs)]
 
 
+def dead_channels(
+    two_theta: np.ndarray, y: np.ndarray, sigma: np.ndarray | None = None, *,
+    level_fraction: float = DEAD_LEVEL_FRACTION,
+    weight_ratio_min: float = DEAD_WEIGHT_RATIO_MIN,
+    window_deg: float = DEAD_LEVEL_WINDOW_DEG,
+    max_run_deg: float = CUTOFF_MIN_DEG,
+) -> list[DeadChannelRun]:
+    """Short runs inside the range that outvote the pattern while measuring
+    nothing — a dead detector cell, a masked channel, a gap between banks.
+
+    Model-free, like everything else here, and it **reports and applies
+    nothing**: the interval it names is the caller's to exclude, because
+    ``project.fitted_mask`` is the one authority on which channels a run fits
+    (WP-1033).
+
+    **It needs a measured σ and returns nothing without one**, which is the
+    load-bearing part rather than a limitation.  "This channel is low" does not
+    separate a dead cell from a channel that legitimately counted zero — both
+    are low, and the bundled fixtures carry 217 of the second kind.  What
+    separates them is the σ column: a channel that counted zero honestly
+    carries *less* weight than a live one, while a dead cell's error bar
+    collapsed along with its intensity and it carries thousands of times more.
+    Under the Poisson fallback σ = √max(y, 1) that distinction does not exist —
+    every low channel would look dead — so answering at all would be reporting
+    the fallback rather than the file, the same refusal
+    :func:`counting_coverage` makes and for the same reason.
+
+    Why the *level* is a median of the envelope rather than of the
+    intensities: the comparison a dead channel has to lose is against its own
+    background, and on any pattern with peaks a median of ``y`` over a window
+    centred on a strong line *is* that line, which would make the line's own
+    flanks read as dead.  :func:`background_envelope` is already the module's
+    peak-robust stand-in for the background, and a median over
+    :data:`DEAD_LEVEL_WINDOW_DEG` of it removes the local dip the dropout
+    itself puts in the envelope.
+
+    Why short interior runs only, and what that leaves uncovered.  At an
+    **end** of the range the subject is :func:`signal_cutoffs`, which declines
+    the short case in exactly these words ("a dip or a gap in the first
+    channels"), and closing that gap is the second half of issue #274 — not
+    done here, because it needs the two real files to say whether a short
+    dropout at an edge is separable from a cliff.  A run of
+    :data:`CUTOFF_MIN_DEG` or longer in the **middle** is declined too, and
+    that one is owned by nobody today: ``signal_cutoffs`` reads ends only.  It
+    is declined rather than answered because the level a long run is judged
+    against cannot survive it — a dropout wider than
+    :data:`DEAD_LEVEL_WINDOW_DEG` drags down the very estimate meant to expose
+    it, and the honest failure there is silence rather than the spurious
+    one-channel run the length test alone produced.
+    """
+    tt = np.asarray(two_theta, dtype=np.float64)
+    counts = np.asarray(y, dtype=np.float64)
+    if sigma is None or len(tt) < 3:
+        return []
+    sig = np.asarray(sigma, dtype=np.float64)
+    step = float(np.median(np.diff(tt)))
+    if not np.isfinite(step) or step <= 0:
+        return []
+
+    width = max(int(window_deg / step), 5)
+
+    # Two passes, because a level computed from the channels it is judging is
+    # not a level.  ``background_envelope`` anchors a knot at each data edge
+    # and extrapolates linearly from the two nearest (WP-1028), so a dropout
+    # near an end drags those knots down and the extrapolation carries the
+    # envelope *negative* — measured on a synthetic D1B with #274's own pair
+    # four channels from the top of the range: the envelope reads −4.6 where
+    # the background is 78, over the last 30 channels, and the run is missed.
+    # Which is the case the issue reports, so it is the case to get right.
+    # Pass 1 is a median of the intensities, which needs no knots and no
+    # extrapolation; it is not peak-robust, and does not need to be, because
+    # all it decides is which channels are withheld from pass 2.  It is run to
+    # a fixed point because one pass only reaches a run's outer channels once
+    # the run approaches the median's own window: the interior's window is
+    # itself all dropout, so the median there is dead and the channel is not
+    # flagged.  Iterating on the repaired series walks the mask inward until
+    # it stops growing — without it a 1.9° dropout left the level collapsed
+    # across its middle, which made every later test read the wrong number
+    # there rather than decline.
+    repaired = counts
+    suspect = np.zeros(len(counts), bool)
+    for _ in range(_DEAD_REPAIR_PASSES):
+        coarse = median_filter(repaired, size=width, mode="nearest")
+        with np.errstate(invalid="ignore"):
+            found = (coarse > 0) & (counts < level_fraction * coarse)
+        if found.all() or not found.any() or np.array_equal(found, suspect):
+            break
+        suspect = found
+        repaired = counts.copy()
+        repaired[suspect] = np.interp(
+            tt[suspect], tt[~suspect], counts[~suspect])
+    level = median_filter(background_envelope(tt, repaired), size=width,
+                          mode="nearest")
+    with np.errstate(invalid="ignore"):
+        low = (level > 0) & (counts < level_fraction * level)
+    if not low.any() or not (~low).any():
+        return []
+
+    out: list[DeadChannelRun] = []
+    for a, b in _runs(low):
+        if tt[b] - tt[a] >= max_run_deg:
+            continue                      # too long — see the docstring
+        # Bounded by live channels on both sides, at the level, or declined.
+        # This is what makes "interior" true by construction rather than by
+        # assertion, and it is also the guard on the level estimate itself: a
+        # run long enough to drag the level down is one whose own edge channel
+        # is the only one still reading below it, and a run touching an end of
+        # the range has no neighbour there to be bounded by.  Without it a
+        # 1.9° interior dropout came back as a spurious *one-channel* run
+        # rather than as nothing.
+        if a == 0 or b == len(tt) - 1:
+            continue
+        if not (counts[a - 1] >= level_fraction * level[a - 1]
+                and counts[b + 1] >= level_fraction * level[b + 1]):
+            continue
+        run_sigma = _finite_median(sig[a:b + 1])
+        if not run_sigma or run_sigma <= 0:
+            continue
+        # against the run's own neighbours, not the whole pattern: the pull a
+        # dead channel exerts is on the background *there*, and a median σ
+        # taken over the whole range would be a different instrument's answer
+        # on a pattern whose counting statistics vary along it.
+        near = np.zeros(len(tt), bool)
+        near[max(a - width, 0):b + 1 + width] = True
+        near &= ~low
+        live_sigma = _finite_median(sig[near]) if near.any() else None
+        if not live_sigma or live_sigma <= 0:
+            continue
+        ratio = float((live_sigma / run_sigma) ** 2)
+        if ratio < weight_ratio_min:
+            continue
+        here = _finite_median(level[a:b + 1])
+        frac = (float(np.median(counts[a:b + 1])) / here
+                if here and here > 0 else 0.0)
+        out.append(DeadChannelRun(
+            two_theta_min=float(tt[a]), two_theta_max=float(tt[b]),
+            n_channels=int(b - a + 1), level_fraction=float(frac),
+            weight_ratio=ratio))
+    return out
+
+
 def counting_coverage(
     two_theta: np.ndarray, y: np.ndarray, sigma: np.ndarray | None, *,
     threshold: float = COVERAGE_INFLATION_THRESHOLD,
@@ -956,6 +1193,10 @@ def diagnose(data: PatternData, *, wavelength: float | None = None,
     # *measured* — under the Poisson fallback that ratio is a function of the
     # level it was derived from and would say nothing.
     cutoffs = signal_cutoffs(tt, y, sigma if data.sigma is not None else None)
+    # the same σ-measured test, and for a sharper reason: without the file's
+    # own σ this one cannot separate a dead cell from a channel that counted
+    # zero at all, so it answers empty rather than guessing
+    dead = dead_channels(tt, y, sigma if data.sigma is not None else None)
 
     env = background_envelope(tt, y)
     net = y - env
@@ -969,7 +1210,12 @@ def diagnose(data: PatternData, *, wavelength: float | None = None,
     # harder the better the counting statistics were.  Measured over the
     # fixtures: 1558 "peaks" on 11-BM NAC at the file's own σ and 9403 at a
     # σ 3.46× smaller, against 96 at every scale with the floor; on a synthetic
-    # 13-line pattern at the D1B ratio, 16 → 175 against 13 at every scale.
+    # 13-line CW-neutron pattern, 79 rising to 201 over σ ×1.0 to ×0.05,
+    # against 27 at every one of them.  27 rather than 13 because this census
+    # keeps no prominence bar and a strong peak's own noisy top carries more
+    # than one maximum — which is what :data:`SAMPLING_PROMINENCE_SIGMA` is
+    # for, and what a *count* deliberately does not apply.  The defect fixed
+    # here is the scale dependence, not the over-count.
     # This is the count ``_contamination_flags`` searches for ghosts among, so
     # the ghost search inherits the selection rather than growing a second
     # (WP-1442).
@@ -1025,6 +1271,7 @@ def diagnose(data: PatternData, *, wavelength: float | None = None,
         coverage_plateau=plateau,
         coverage_regions=coverage,
         signal_cutoffs=cutoffs,
+        dead_channels=dead,
     )
 
 

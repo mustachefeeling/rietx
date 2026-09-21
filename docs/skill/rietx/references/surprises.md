@@ -1,4 +1,4 @@
-# 8. Twenty-five things that will surprise you, all measured
+# 8. Twenty-six things that will surprise you, all measured
 
 Load it when something the fit did makes no sense. Every entry is a measured result that contradicts an intuition.
 
@@ -424,3 +424,27 @@ calibrate-on-a-certified-standard: holding the certificate's cell is what
 decorrelates zero, displacement and cell, so a plan that frees it leaves a
 calibration that is worthless and looks clean.
 (Measured: WP-1435, issue #211.)
+
+**8.26 A goodness of fit of 5 to 10 on a visually excellent refinement is
+often correct, and "fixing" it means discarding the σ column the instrument
+earned.** Most constant-wavelength neutron data is monitor-normalised with the
+error propagated, so the file's σ is smaller than √y. On the ILL D1B pattern
+this comes from, the median σ/√y is 0.289: the data are 3.46× more precise
+than Poisson-of-y, GoF is the ratio of the residual to *that* σ, and a GoF
+near 1 there would mean the fit was reproducing counting noise it cannot see.
+Rwp is unaffected, because every weighted residual in the package divides by
+the same σ. Do not substitute √y, and do not read the number against the
+1.0-1.3 band that a σ = √y X-ray pattern earns.
+**What this does break is anything that put a bar in σ.** A peak finder's
+"5σ above background" is thresholding the background model's own tracking
+error, which is a fraction of the intensity and does not shrink when the
+counting improves — so on such a file it reads that error at 3.46× its honest
+significance. Measured over the 27 bundled pattern fixtures, by scaling the
+declared σ alone and leaving the data untouched: the sampling measurement
+behind §7 `PATTERN_UNDERSAMPLED` moved by a median factor of 5.45 and up to
+78×, and every fixture landed at 1.5-2.5 steps per FWHM at the D1B ratio, i.e.
+the warning fired on all of them. Both peak selections take a floor in the
+pattern's own dynamic range beside the σ floor now, and the median factor is
+1.000. The general form is worth carrying: a threshold in σ answers "is this
+significant", and it answers nothing about whether a feature is real.
+(Measured: WP-1415, issues #274 and #275.)

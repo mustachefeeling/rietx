@@ -22,7 +22,11 @@ if TYPE_CHECKING:
 from . import runs
 from ._about import DIST_NAME
 from .backend.api import backend_dtype_note
-from .background.diagnostics import STEPS_PER_FWHM_MIN, sampling_steps_per_fwhm
+from .background.diagnostics import (
+    STEPS_PER_FWHM_MIN,
+    dead_channels,
+    sampling_steps_per_fwhm,
+)
 from .help import help_key_for
 from .history.events import _attach_progress, as_event_stream
 from .history.store import fingerprint
@@ -4926,6 +4930,34 @@ def _data_support_diagnostics(support, model: CompiledModel) -> list[Diagnostic]
                         "Re-collect at a step size near FWHM/5 if the "
                         "intensities have to be quotable"),
         ))
+
+    # Reported on the fitted channels, because that is the question: a dead
+    # cell outside the fit range costs nothing and one inside it outvotes the
+    # pattern.  Gated on ``sigma_measured`` rather than on ``model.sigma``,
+    # which is already the Poisson fallback by the time it is an array
+    # (WP-1029) — and under that fallback the test cannot separate a dead cell
+    # from a channel that honestly counted zero.
+    if model.sigma_measured:
+        for run in dead_channels(model.tt, model.y_obs, model.sigma):
+            out.append(Diagnostic(
+                level="warning", code="PATTERN_DEAD_CHANNELS",
+                message=(
+                    f"{run.n_channels} channel(s) at "
+                    f"{run.two_theta_min:.3f}-{run.two_theta_max:.3f}° measure "
+                    f"{run.level_fraction:.2%} of the local background with an "
+                    f"esd that fell with them, so each carries about "
+                    f"{run.weight_ratio:,.0f}× the weight of a live channel "
+                    "there"),
+                where=[f"{run.two_theta_min:.3f}-{run.two_theta_max:.3f}"],
+                suggestion=(
+                    "a dead or masked detector cell, not a feature of the "
+                    "specimen: weights are 1/σ², so these channels pull the "
+                    "background down to meet them and the symptoms surface "
+                    "elsewhere — parameters at their bounds, a background "
+                    "driven negative. Exclude the interval "
+                    f"({run.two_theta_min:.3f}, {run.two_theta_max:.3f}) and "
+                    "refit. Nothing here excludes it for you"),
+            ))
     return out
 
 

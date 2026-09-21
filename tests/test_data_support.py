@@ -546,3 +546,254 @@ def test_the_glob_reaches_every_kind_of_atom_parameter():
                "instrument.background.c2", "instrument.zero_shift"]
     assert all(fnmatch.fnmatch(p, STRUCTURAL_PARAMETER_GLOB) for p in inside)
     assert not any(fnmatch.fnmatch(p, STRUCTURAL_PARAMETER_GLOB) for p in outside)
+
+
+# --------------------------------------------------------------------------
+# a sigma column smaller than root-y (WP-1415, issues #274 and #275)
+# --------------------------------------------------------------------------
+
+#: Monitor factor m of the synthetic below.  The declared intensity is m×raw
+#: and the declared σ is m×√raw, so σ/√y = √m — 0.289 at this value, which is
+#: the median the ILL D1B file of both issues carries.  The noise is drawn
+#: from the raw counts, so **σ is correct**; that is the whole point, and it
+#: is why neither issue asks for the σ column to be replaced.
+D1B_MONITOR = 0.0835
+
+
+def _monitor_normalised(monitor: float = D1B_MONITOR, *, seed: int = 0,
+                        dead: tuple[int, ...] = ()) -> PatternData:
+    """A CW-neutron-shaped pattern whose σ is right and smaller than √y.
+
+    A big flat incoherent background, as constant-wavelength neutron data has,
+    at the level issue #274's own table implies: the refinement with the dead
+    channels excluded puts the background near 35 000 at 128.6°, and the live
+    channel there reads σ = 55.145, with 0.289·√35158 = 54.2.
+
+    ``dead`` plants issue #274's own pair at those indices — y = 3 and 5 with
+    σ = 1.000 and 1.414, Poisson of nothing beside a background three decades
+    above.
+    """
+    tt = np.arange(5.0, 128.85, 0.1)
+    rng = np.random.default_rng(seed)
+    base = 35000.0 / monitor
+    raw = base * (1.0 + 0.25 * 60.0 / np.maximum(tt, 2.0)
+                  + 0.08 * np.exp(-0.5 * ((tt - 35.0) / 22.0) ** 2))
+    pos = np.linspace(13.0, 122.8, 13) + 1.6 * np.sin(np.arange(13) * 2.3)
+    amp = (1.2 * base) * np.array(
+        [1.0, .55, .30, .80, .18, .42, .09, .25, .13, .34, .07, .16, .05])
+    for p, a in zip(pos, amp):
+        raw = raw + a * np.exp(-0.5 * ((tt - p) / (1.1 / 2.3548)) ** 2)
+
+    counts = rng.poisson(np.maximum(raw, 1.0)).astype(float)
+    y = monitor * counts
+    sigma = monitor * np.sqrt(np.maximum(counts, 1.0))
+    for k, i in enumerate(dead):
+        y[i], sigma[i] = ((3.0, 1.0), (5.0, 1.414))[k % 2]
+    return PatternData(two_theta=tt.tolist(), intensity=y.tolist(),
+                       sigma=sigma.tolist())
+
+
+def test_the_sampling_answer_does_not_move_when_only_the_declared_sigma_does():
+    """The invariant the second floor buys, and the defect it closes.
+
+    Scaling σ alone leaves the pattern untouched, so any change in the answer
+    is the measurement reading the declared precision rather than the
+    experiment.  What the peak finder thresholds in the background is the
+    envelope's own tracking error, which is a fraction of the intensity and
+    does not shrink when the counting improves.
+    """
+    tt, y, sig = _arrays(_monitor_normalised())
+    answers = [sampling_steps_per_fwhm(tt, y, sig * s)
+               for s in (1.0, 0.5, 0.289, 0.15, 0.05)]
+    steps = [a[0] for a in answers]
+    assert all(s is not None for s in steps)
+    assert max(steps) / min(steps) == pytest.approx(1.0, abs=1e-9)
+    # and it is the right answer: 1.1° FWHM at 0.1° steps, by construction
+    assert steps[0] == pytest.approx(11.0, rel=0.05)
+    assert all(a[1] == 13 for a in answers)       # the 13 lines, at every scale
+
+
+def test_the_census_counts_the_same_lines_whatever_sigma_is_declared():
+    """``n_peaks`` is the count ``_contamination_flags`` searches for ghosts
+    among, so a census that counted noise made that search a lottery.
+
+    The bar under test is the scale dependence, not the over-count: this
+    census keeps no prominence bar, so a strong peak's own noisy top still
+    carries more than one maximum and 13 lines come back as 27.  That is what
+    a *count* is for, and what ``_median_steps_per_fwhm`` uses
+    ``SAMPLING_PROMINENCE_SIGMA`` to avoid.  What must not happen is the count
+    moving because the file declared a different σ.
+    """
+    from rietx.background.diagnostics import background_envelope, diagnose
+
+    data = _monitor_normalised()
+    tt, y, sig = _arrays(data)
+    net = np.where((y - background_envelope(tt, y)) > 0,
+                   y - background_envelope(tt, y), 0.0)
+    counts = []
+    for scale in (1.0, 0.5, 0.289, 0.15, 0.05):
+        from scipy.signal import find_peaks
+
+        from rietx.background.diagnostics import SAMPLING_HEIGHT_FRACTION
+        floor = SAMPLING_HEIGHT_FRACTION * float(np.percentile(net, 99.9))
+        idx, _ = find_peaks(net, distance=3,
+                            height=np.maximum(5.0 * sig * scale, floor))
+        counts.append(len(idx))
+    assert len(set(counts)) == 1
+    assert counts[0] < 3 * 13            # 27, against 79-201 before the floor
+
+    got = diagnose(data)
+    assert got.n_peaks == counts[0]
+    assert got.steps_per_fwhm == pytest.approx(11.0, rel=0.05)
+
+
+def test_a_dead_cell_is_named_with_its_interval_and_what_it_outvotes():
+    """Issue #274's pair, planted at its own numbers four channels from the
+    top of the range — the position that matters, because the envelope
+    extrapolates to the data edge and a dropout there drags it negative."""
+    from rietx.background.diagnostics import dead_channels
+
+    data = _monitor_normalised(dead=(1235, 1236))
+    tt, y, sig = _arrays(data)
+    runs = dead_channels(tt, y, sig)
+    assert len(runs) == 1
+    run = runs[0]
+    assert run.n_channels == 2
+    assert (run.two_theta_min, run.two_theta_max) == pytest.approx((128.5, 128.6))
+    assert run.level_fraction < 0.01
+    assert run.weight_ratio > 1000.0
+
+
+@pytest.mark.parametrize("at", [60, 600, 1235])
+def test_a_dead_cell_is_found_anywhere_in_the_range(at):
+    """Near either end and in the middle: the level a run is judged against
+    must not be one the run itself pulled down."""
+    from rietx.background.diagnostics import dead_channels
+
+    tt, y, sig = _arrays(_monitor_normalised(dead=(at, at + 1)))
+    runs = dead_channels(tt, y, sig)
+    assert len(runs) == 1 and runs[0].n_channels == 2
+
+
+def test_a_channel_that_honestly_counted_zero_is_not_a_dead_cell():
+    """The distinction the σ column makes, and the reason this measure
+    declines without one: a channel that counted nothing carries *less* weight
+    than a live one, while a dead cell's esd fell with its intensity."""
+    from rietx.background.diagnostics import dead_channels
+
+    tt = np.arange(5.0, 60.0, 0.02)
+    rng = np.random.default_rng(5)
+    counts = rng.poisson(np.full(tt.shape, 4.0)).astype(float)
+    sigma = np.sqrt(np.maximum(counts, 1.0))
+    assert (counts == 0).any()                      # the case under test
+    assert dead_channels(tt, counts, sigma) == []
+
+
+def test_without_a_measured_sigma_the_census_declines_rather_than_guesses():
+    """Under the Poisson fallback a dead cell and a zero count are the same
+    two numbers, so answering at all would be reporting the fallback."""
+    from rietx.background.diagnostics import dead_channels
+
+    tt, y, _ = _arrays(_monitor_normalised(dead=(600, 601)))
+    assert dead_channels(tt, y, None) == []
+
+
+@pytest.mark.parametrize(("n", "found"), [(2, 1), (10, 1), (11, 0), (20, 0)])
+def test_a_run_too_long_to_judge_is_declined_rather_than_fragmented(n, found):
+    """Past ``CUTOFF_MIN_DEG`` the level estimate cannot survive the run, and
+    the honest failure is silence.  The length test alone was not enough: it
+    left a 1.9° dropout reported as a spurious *one-channel* run, because the
+    collapsed level stopped the rest of it being flagged at all."""
+    from rietx.background.diagnostics import dead_channels
+
+    tt, y, sig = _arrays(_monitor_normalised(dead=tuple(range(600, 600 + n))))
+    assert len(dead_channels(tt, y, sig)) == found
+
+
+#: The synthetic LaB6's background, raised to the regime issue #274 reports.
+#: A dead cell's damage is (σ_local/σ_dead)², and σ_local goes as √background,
+#: so the *same* dead channel that outvotes 3000 live ones on a CW-neutron
+#: pattern at 35 000 counts outvotes 2.4 on this suite's default LaB6 at 40.
+#: Measured both ways; the low-background case is correctly silent, because
+#: there the channel is a mild pull rather than a catastrophe.
+DEAD_CHANNEL_BACKGROUND = [35000.0, -6.0, 1.5]
+
+
+def _lab6_monitor_normalised(*, dead: tuple[int, ...] = (), seed: int = 0):
+    """The suite's own LaB6 at a monitor-normalised σ, so the *fit* is real.
+
+    ``_monitor_normalised`` above is a D1B-shaped pattern with peaks at
+    arbitrary positions, which is all the model-free measures need.  A fit
+    needs a pattern its model can actually describe, or the dead channels are
+    not what the residual is made of.
+    """
+    structure, instrument = _lab6()
+    instrument.background = BackgroundChebyshev(
+        coefficients=[Parameter(value=v) for v in DEAD_CHANNEL_BACKGROUND])
+    tt = np.arange(5.0, 120.0, 0.02)
+    blank = PatternData(two_theta=tt.tolist(),
+                        intensity=np.zeros_like(tt).tolist())
+    model = compile_model(structure, instrument, blank, mode="rietveld")
+    table = ParameterTable(structure, instrument)
+    clean = model.evaluate(table.decode(table.x0()))
+
+    rng = np.random.default_rng(seed)
+    raw = rng.poisson(np.maximum(clean / D1B_MONITOR, 1.0)).astype(float)
+    y = D1B_MONITOR * raw
+    sigma = D1B_MONITOR * np.sqrt(np.maximum(raw, 1.0))
+    for k, i in enumerate(dead):
+        y[i], sigma[i] = ((3.0, 1.0), (5.0, 1.414))[k % 2]
+    return (PatternData(two_theta=model.tt.tolist(), intensity=y.tolist(),
+                        sigma=sigma.tolist()), structure, instrument)
+
+
+def test_dead_channels_reach_the_reader_and_the_fit(tmp_path):
+    """Both channels the finding travels on, and the reason for the first: a
+    dead cell reaches the person as parameters at their bounds several minutes
+    later, and none of those is the cause."""
+    from rietx.io.readers import read_pattern
+    from rietx.schemas.common import Diagnostic
+
+    data, _, _ = _lab6_monitor_normalised(dead=(2000, 2001))
+    path = tmp_path / "lab6_monitor.xye"
+    path.write_text("\n".join(
+        f"{a:.4f} {b:.4f} {c:.4f}" for a, b, c
+        in zip(data.tt(), data.y(), data.sig())) + "\n")
+
+    found: list[Diagnostic] = []
+    reread = read_pattern(str(path), diagnostics=found)
+    assert "PATTERN_DEAD_CHANNELS" in [d.code for d in found]
+    assert reread.sigma is not None               # nothing was repaired
+    assert reread.y()[2000] == pytest.approx(3.0)
+
+    _, structure, instrument = _lab6_monitor_normalised()
+    spoilt = Refinement(structure.model_copy(deep=True),
+                        instrument.model_copy(deep=True),
+                        history=False).fit(data, plan="mccusker_default")
+    _save(spoilt, "data_support_dead_channels.png")
+    assert "PATTERN_DEAD_CHANNELS" in {d.code for d in spoilt.diagnostics}
+
+    # the issue's own comparison: the same refinement with the two channels
+    # outside the range, which is what the finding asks the caller to do
+    clean_data = data.model_copy(update={"excluded_regions": [
+        (float(data.tt()[1999]), float(data.tt()[2002]))]})
+    clean = Refinement(structure.model_copy(deep=True),
+                       instrument.model_copy(deep=True),
+                       history=False).fit(clean_data, plan="mccusker_default")
+    _save(clean, "data_support_dead_channels_excluded.png")
+    assert "PATTERN_DEAD_CHANNELS" not in {d.code for d in clean.diagnostics}
+
+    # Two channels of 5750. Measured: Rwp 0.55345 against 0.00156, a factor of
+    # 355, and the cell 342 ppm apart — while **both** fits report
+    # ``converged``. That is what the code is for: the fit does not fail, it
+    # answers, and the answer is wrong.
+    assert spoilt.status == clean.status == "converged"
+    assert spoilt.statistics.rwp > 100 * clean.statistics.rwp
+    assert clean.statistics.gof == pytest.approx(1.0, abs=0.1)
+
+    def cell_a(result):
+        return next(p.value for p in result.parameters
+                    if p.path == "phases.0.cell.a")
+
+    assert cell_a(clean) == pytest.approx(TRUE_A, abs=1e-4)
+    assert abs(cell_a(spoilt) - TRUE_A) > 10 * abs(cell_a(clean) - TRUE_A)
