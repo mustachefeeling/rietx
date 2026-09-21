@@ -103,6 +103,7 @@
   "peak_flags:no_intensity",
   "peak_flags:not_separable",
   "peak_flags:position_at_bound",
+  "peak_flags:position_unmeasured",
   "peak_flags:sigma_assumed",
   "peak_flags:unnamed_neighbour",
   "peak_flags:unresolved_shoulder",

@@ -1008,7 +1008,17 @@ The only externally *graded* feature in the package. Bergmann et al. (2004) publ
 
 **Referenced to:** A literature cell for the mineral (Zigan & Rothbauer, P -3 m 1, a = 3.142, c = 4.766 A), never a certificate for this specimen -- whose a sits +1750 ppm from it, 30x the goniometer-radius floor.  So the bar is 3e-3 and asserts lattice type and centring, never a ppm figure.  WP-1026's measurement was taken before WP-1030's prunes, WP-1039's search-line ordering, WP-1040's third engine and WP-1041's dedup key, and was never a row, so it was never re-run
 
-**Measured:** truth ranked FIRST (was: every one of twelve candidates a supercell, c x 3.002 first, the truth in none of them).  a = 3.1475, c = 4.7698.  Forward coverage cannot separate them -- 31, 31 and 32 of 37 lines, the supercells indexing MORE -- while predicted_seen_fraction reads 0.86 against 0.43 and 0.32, near the exact 1/2 and 1/3 an exact supercell must give.  Still low on indexed_fraction_low (31/37) and predicted_but_absent (1 of 29, the 6_3 screw); best_or_none() returns None
+**Measured:** truth ranked FIRST (was: every one of twelve candidates a supercell, c x 3.002 first, the truth in none of them).  a = 3.1475, c = 4.7698.  Forward coverage cannot separate them -- 31, 31 and 32 of 37 lines, the supercells indexing MORE -- while predicted_seen_fraction reads 0.86 against 0.43 and 0.32, near the exact 1/2 and 1/3 an exact supercell must give.  Still low on indexed_fraction_low (31/37) and predicted_but_absent (1 of 29, the 6_3 screw); best_or_none() returns None.  RANK RE-MEASURED 2026-09-22 (WP-1442): this row no longer asserts the rank, only that the truth is found, the supercells are found beside it and the reversed member separates them by more than 1.5x
+
+#### `test_brucites_truth_is_not_ranked_first`
+
+`characterisation` · dataset `qarr`
+
+**Claims:** the rank the row above stopped asserting, carried as a strict xfail so that fixing it goes red rather than quiet
+
+**Referenced to:** No tolerance and no reference value: the assertion is an identity, that candidates[0] IS the certified-cell candidate the row above already located and checked against Zigan & Rothbauer at 3e-3.  There is nothing here to interpret a bar against, which is why it is an xfail rather than a loosened number -- a bar widened until a wrong answer fits is the failure this matrix exists to prevent
+
+**Measured:** FAILS: an a x 2 supercell at a = 6.2950 ranks first against the certified 3.1475.  It predicts 90 reflections of which 25 are present (0.28); the truth predicts 29 of which 25 are present (0.86); both index the same 31 observed lines and the supercell takes the rank on one extra line of the fitted panel, 34 against 33.  Unmasked rather than caused by WP-1442, which stopped the Kbeta screen discarding two real lines on a monochromated specimen; removing either alone still leaves the supercell first.  WP-1446 owns it, and strict=True turns this row red when it lands
 
 #### `test_magnetites_correct_cell_is_ranked_first_and_graded_below_its_rival`
 
