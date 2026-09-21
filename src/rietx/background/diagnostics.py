@@ -114,6 +114,37 @@ STEPS_PER_FWHM_MAX = 10.0
 #: WP-1071's handover, so the number is a floor and not a tuning.
 SAMPLING_PROMINENCE_SIGMA = 5.0
 
+#: The second floor under both sampling bars, as a fraction of the pattern's
+#: near-maximum net signal — the 99.9th percentile that
+#: :attr:`PatternDiagnostics.signal_to_background` already calls by that name,
+#: rather than ``max``, which is one channel and can be a cosmic ray.
+#:
+#: It is here because a bar in σ alone asks the wrong question of a pattern
+#: whose σ is *right* and smaller than √y.  What the peak finder thresholds is
+#: not noise: it is the envelope's own tracking error, which is a fraction of
+#: the intensity and does not shrink when the counting gets better.  So a file
+#: whose σ is 0.289·√y — most constant-wavelength neutron data, monitor
+#: normalised and propagated — measures that error at 3.46× its honest
+#: significance.  Measured on the 27 pattern fixtures the suite carries, by
+#: scaling the declared σ alone and leaving the data untouched: today's
+#: selection moves the answer by a median factor of **5.45** and up to 78×
+#: across σ ×1.0 → ×0.05, and every fixture lands at 1.5-2.5 steps per FWHM
+#: at the D1B ratio, i.e. ``PATTERN_UNDERSAMPLED`` on all of them.  With this
+#: floor the median factor is **1.000** (worst 1.037), because the binding bar
+#: is no longer in σ.
+#:
+#: **It is a selection width, not a floor**, and is quoted as one: the value
+#: decides how many lines the median covers, so unlike
+#: :data:`SAMPLING_PROMINENCE_SIGMA` the answer does move with it — up to 18 %
+#: between 0.02 and 0.05 on the fixtures.  What is flat is the thing it is for:
+#: σ-scale invariance is exact from 0.015 upwards, so 0.03 carries 2× margin.
+#: Chosen with that margin and for leaving the shipped answer alone where σ is
+#: honest (median 0.998 of today's over the fixtures, worst 0.678, and **no**
+#: fixture crosses :data:`STEPS_PER_FWHM_MIN` in either direction).  A cut at a
+#: few per cent of the strongest line is what peak-search routines elsewhere
+#: use; the sweep is in WP-1415's handover.
+SAMPLING_HEIGHT_FRACTION = 0.03
+
 #: Median-filter width, in ° 2θ, applied to the variance-inflation ratio before
 #: any region is cut out of it (:func:`counting_coverage`).  It is what makes the
 #: threshold below mean anything: measured on the two BT-1 patterns quoted there,
@@ -495,13 +526,34 @@ def _median_steps_per_fwhm(net: np.ndarray, sigma: np.ndarray
     hence :data:`SAMPLING_PROMINENCE_SIGMA`, without which the measurement
     reads the noise on a strong peak's own top.
 
+    **Both bars are the larger of a σ floor and a dynamic-range floor**
+    (:data:`SAMPLING_HEIGHT_FRACTION`), because the two floors answer different
+    questions and only one of them is σ's.  "Is this maximum significant" is
+    the σ question.  "Is it a line rather than the envelope failing to track
+    the background" is a question about the pattern's own scale, and asking it
+    in σ is what made the measurement a function of the declared σ rather than
+    of the experiment: on a file whose σ is right and 3.46× smaller than √y the
+    σ bar reads the envelope's tracking error as 5σ of significance.  With the
+    second floor the answer is invariant under a rescale of the declared σ,
+    measured on every fixture the suite carries (that constant's note).
+
     The median rather than the mean: one clipped width from a peak sitting on
     a neighbour's flank should not move the answer, and the guideline is about
     the pattern rather than about its worst line.
     """
-    z = np.where(net > 0, net, 0.0) / sigma
-    idx, _ = find_peaks(z, height=5.0, distance=3,
-                        prominence=SAMPLING_PROMINENCE_SIGMA)
+    pos = np.where(net > 0, net, 0.0)
+    if not len(pos):
+        return None, 0
+    # the same "near-maximum net signal" ``signal_to_background`` reports, and
+    # a percentile rather than ``max`` for the same reason: one hot channel
+    # would otherwise set what counts as a line (measured — anchoring on
+    # ``max`` lets a single injected spike move 16 of 26 fixtures by over 5 %,
+    # one of them by 66 %; on the percentile, 3 of 26 and none past 9 %).
+    floor = SAMPLING_HEIGHT_FRACTION * float(np.percentile(pos, 99.9))
+    idx, _ = find_peaks(pos, distance=3,
+                        height=np.maximum(5.0 * sigma, floor),
+                        prominence=np.maximum(
+                            SAMPLING_PROMINENCE_SIGMA * sigma, floor))
     if not len(idx):
         return None, 0
     with warnings.catch_warnings():

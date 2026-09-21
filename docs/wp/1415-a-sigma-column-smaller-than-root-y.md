@@ -129,12 +129,16 @@ channels and a σ column at 0.3·√y reproduces both defects without it.
 
 ## Tasks
 
-- [ ] `_median_steps_per_fwhm` selects the peaks it measures on by intensity
+- [x] `_median_steps_per_fwhm` selects the peaks it measures on by intensity
       relative to the pattern's maximum (or caps the count it trusts); both
       candidates measured on the D1B file and every fixture in the suite,
-      the numbers in the handover, one chosen. The chosen selection is the
-      one `diagnose`'s census at line 902 reads too, so `_contamination_flags`
-      and WP-1442 inherit it rather than growing a second.
+      the numbers in the handover, one chosen. **Done**: the relative floor,
+      anchored on the 99.9th percentile rather than `max`, at
+      `SAMPLING_HEIGHT_FRACTION = 0.03`. The cap only bounds the damage
+      (σ-scale spread 1.11 against 1.000).
+- [ ] The chosen selection is the one `diagnose`'s census at line 902 reads
+      too, so `_contamination_flags` and WP-1442 inherit it rather than
+      growing a second.
 - [ ] Re-measure `BOUND_HIT` on the #274 fixture under WP-1434's test, and
       correct the `×14` in § Context to what it is today.
 - [ ] A dead-channel census in `background/diagnostics.py`, reported at read
