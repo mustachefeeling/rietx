@@ -37,7 +37,7 @@ import warnings
 import numpy as np
 from pydantic import Field
 from scipy.ndimage import median_filter
-from scipy.signal import find_peaks, peak_widths
+from scipy.signal import find_peaks, peak_prominences, peak_widths
 
 from ..schemas.common import Base
 from ..schemas.pattern import PatternData
@@ -1324,26 +1324,46 @@ def diagnose(data: PatternData, *, wavelength: float | None = None,
     # than one maximum — which is what :data:`SAMPLING_PROMINENCE_SIGMA` is
     # for, and what a *count* deliberately does not apply.  The defect fixed
     # here is the scale dependence, not the over-count.
-    # This is the pool ``_contamination_flags`` searches for ghosts among, so
-    # the ghost search inherits the selection rather than growing a second
-    # (WP-1442) — one ``find_peaks`` call, read at two floors off the same
-    # near-maximum.  The census bar cannot also be the ghost bar: a ghost is
-    # accepted down to ``GHOST_RATIO_RANGE[0]`` = 0.5 % of its parent, which is
-    # six times *under* the census floor, so a single 3 % bar deletes the Kβ
-    # and W Lα leaks this check exists to find (measured: four injected 1 %
-    # Kβ ghosts, all four flagged at the σ bar and none at the census floor).
-    # Below ``ghost_floor`` no candidate can pass the ratio test anyway, so it
-    # is the widest bar the ghost search has any use for.  The census is the
-    # subset above its own bar, which is the set a second ``find_peaks`` at
-    # that bar returns: ``distance`` keeps the tallest of a cluster, and a
-    # peak admitted by a *lower* floor can never displace a taller one
-    # (checked equal on every bundled fixture at σ ×1, ×0.289 and ×0.05).
+    # One ``find_peaks`` call serves the census and the ghost search, read at
+    # two floors off the same near-maximum, because the census bar cannot also
+    # be the ghost bar: a ghost is accepted down to ``GHOST_RATIO_RANGE[0]`` =
+    # 0.5 % of its parent, which is six times *under* the census floor, so a
+    # single 3 % bar deletes the Kβ and W Lα leaks this check exists to find
+    # (measured: four injected 1 % Kβ ghosts, all four flagged at the σ bar and
+    # none at the census floor).  Below ``ghost_bar`` no candidate can pass the
+    # ratio test anyway, so it is the widest bar the ghost search has any use
+    # for.  The census is the subset above its own bar, which is the set a
+    # second ``find_peaks`` at that bar returns: ``distance`` keeps the tallest
+    # of a cluster, and a peak admitted by a *lower* floor can never displace a
+    # taller one (checked equal on every bundled fixture at σ ×1, ×0.289 and
+    # ×0.05).
     pos_net = np.where(net > 0, net, 0.0)
     near_max = float(np.percentile(pos_net, 99.9))
     census_bar = np.maximum(5.0 * sigma, SAMPLING_HEIGHT_FRACTION * near_max)
     ghost_bar = np.maximum(5.0 * sigma, GHOST_RATIO_RANGE[0] * near_max)
     candidates, _ = find_peaks(pos_net, distance=3, height=ghost_bar)
     idx = candidates[pos_net[candidates] >= census_bar[candidates]]
+
+    # Where the two part is *prominence*, and they part because they are asked
+    # different questions (WP-1442).  A count wants every line the pattern
+    # shows, so the census keeps no prominence bar and says so above.  The
+    # ghost search asks whether several strong parents carry a line at one
+    # ratio, and the answer is decided by how many *coincidences* the pool can
+    # supply: on the demo notebook's Kapton-hump pattern the 291 candidates
+    # here let a made-up wavelength gather 6 supporting parents, and 5 of the
+    # 16 bundled fixtures did the same — over ``GHOST_MIN_PARENTS``, so the
+    # real wavelengths landing at 0-3 was luck rather than margin.  A genuine
+    # ghost on a background is a resolved maximum with full prominence above
+    # its flanking saddles; a ripple on a hump has none, which is the same
+    # separation :data:`SAMPLING_PROMINENCE_SIGMA` was added for one rank down.
+    # Gated, the chance consensus tops out at 4 over every fixture and the demo
+    # (means 1.3 → 0.25), while an injected leak at r ≥ 0.02 still gathers 5-8.
+    # Computed off the shared candidates rather than by a second ``find_peaks``,
+    # since a peak's prominence is a property of the signal and not of the
+    # selection it was found under.
+    prominence = peak_prominences(pos_net, candidates)[0]
+    ghost_idx = candidates[
+        prominence >= SAMPLING_PROMINENCE_SIGMA * sigma[candidates]]
 
     # nested envelope fits: cubic, then cubic + 1/(2θ) air-scatter column
     design = chebyshev_design_matrix(tt, 4, float(tt[0]), float(tt[-1]))
@@ -1357,8 +1377,8 @@ def diagnose(data: PatternData, *, wavelength: float | None = None,
     hump = float(np.sqrt(np.mean(r_air ** 2)) / max(med_env, 1e-12))
 
     flags: list[ContaminationFlag] = []
-    if wavelength is not None and len(candidates):
-        flags = _contamination_flags(tt, net, sigma, candidates, wavelength)
+    if wavelength is not None and len(ghost_idx):
+        flags = _contamination_flags(tt, net, sigma, ghost_idx, wavelength)
 
     lam = (select_arpls_lambda(data).selected if baseline_lambda is None
            else baseline_lambda)

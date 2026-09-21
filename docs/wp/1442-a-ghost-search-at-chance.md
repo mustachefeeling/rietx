@@ -186,7 +186,7 @@ from the reading-data or refining chapters does not find it.
       flags; injections: r recovered.
 - [x] `GHOST_RATIO_RANGE`'s ceiling from Hölzer Table VI with margin (about
       0.25), the docstring citing the table and the "≤ ~0.2" line gone.
-- [ ] The pool the check searches is not a noise census. WP-1415 landed the
+- [x] The pool the check searches is not a noise census. WP-1415 landed the
       shared selection, so the open half is which floor the ghost search reads:
       the prominence gate `_median_steps_per_fwhm` already has, or a fitted
       list only. The census floor cannot serve it, because a 1 % ghost sits six
