@@ -1,6 +1,6 @@
 # WP-1415 — a σ column smaller than √y
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-09-21 — claimed by @yue-here
 Depends on: —
 
 ## Goal
