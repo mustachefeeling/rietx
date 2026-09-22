@@ -49,6 +49,32 @@ rung it would have escalated from is never recorded and the chain has no next
 move. That is the granularity defect in one sentence: the ladder's vocabulary
 has no member for "this rung raised".
 
+> **Superseded in part, 2026-09-22** (re-read at `16b72c3`). PR #386 (issue
+> #375, merged 2026-09-18) gave `SequentialRefinement.fit` an `on_error`
+> policy — `"raise"` (the default), `"skip"` (successor cold) and `"carry"`
+> (successor warm from the last accepted state) — recording a pattern that
+> raised as a `SeriesFailure` on `SeriesResult.failures`/`.n_failed` with a
+> `SERIES_PATTERN_FAILED` warning, and keeping partial results on `self` and
+> on the exception under `"raise"`. So "catches `RefinementCancelled` and
+> nothing else" is no longer true. **The sentence above still is**: the policy
+> abandons *every rung* of the failing pattern together, so the ladder still
+> has no member for "this rung raised". Measured on the same tree, three
+> defects the policy left: (1) `_fit_one` runs `prepare`/`constrain` inside
+> the guarded call, so under `"skip"`/`"carry"` a raise in the *caller's*
+> hook is swallowed per pattern, against the `constrain` docstring's "a raise
+> in it ends the series"; (2) under `"raise"`, a raise in the `direction=
+> "both"` backward pass overwrites `results_`/`trees_`/`failures_` with the
+> *backward* chain's partial state, losing the complete forward chain — issue
+> #224's series C exactly; (3) under `"skip"`/`"carry"` the backward pass's
+> failures are discarded (`back_entries, *_ = self._chain(...)`), so the
+> comparison runs on fewer patterns and nothing says so.
+>
+> And the #224 case needs the ladder, not the policy: the runaway cell is
+> produced by a pattern that **converges** and is accepted, so its successor
+> raises at compile (below) — and under `"carry"` every later successor
+> warm-starts from that same accepted state and raises too. Only a cold rung
+> escapes it, which is the ladder's third rung.
+
 **Check this before designing.** The reported cells are **negative**
 (−347.6, −3546.5, +616.0 Å). WP-1110's `cell_window` / `CELL_MIN_LENGTH_A` is
 deliberately applied only to phases the support test flags, so either the
@@ -109,53 +135,35 @@ The vocabulary for "this pattern's value is not a measurement" already exists:
 crossed out rather than dropping it, precisely so a gap does not read as data
 never collected. That is the shape the failed pattern should take.
 
-### Inherited
+**A refined atomic coordinate never crosses a pattern boundary, and
+`carry=["*"]` says it does** (folded 2026-09-22 from WP-1432's review pass,
+2026-09-19, verified then against `sequential._carry_into`: 0.2500 carried in,
+0.1993 landing). `_carry_into` copies each carried value, then re-derives every
+tied entry through `decode`; a coordinate is tied to its displacement DOF, the
+DOF is carried at 0.0 because a freshly built source table rederives it there,
+and the anchor is the *destination* structure's stored coordinate — so the
+carried coordinate is overwritten by the pattern's own start. `cell.a` carries
+correctly, which is what says this is the relative DOFs and not the carry. It
+costs iterations rather than an answer, but it also silences
+`SEQUENTIAL_PATH_DEPENDENT` for a reason that is not the data's (a parameter
+that never chains cannot be path-dependent), and the fix is not local: a
+`constrain` hook gives the right coordinate today *because* of this, so
+carrying it without handling the hook's re-declaration would start the
+displacement accumulating. `ParameterTable.rebase_anchored_dofs` (WP-1432) is
+the shape a fix reuses.
 
-- **2026-09-19, from WP-1432's review pass: a refined atomic coordinate never
-  crosses a pattern boundary, and `carry=["*"]` says it does.** Verified in
-  this session against `sequential._carry_into`'s own code, not only from the
-  review's measurement of 0.2500 carried in and 0.1993 landing. The function
-  copies each carried value onto its entry, then re-derives every tied entry
-  through `decode`, which the comment beside it states plainly. A coordinate is
-  tied to its displacement DOF, the DOF is carried at 0.0 because a freshly
-  built source table rederives it there, and the anchor is the *destination*
-  structure's stored coordinate. So the carried coordinate is overwritten by
-  the pattern's own starting value. `phases.0.cell.a` carries correctly, which
-  is what says this is specific to the relative DOFs rather than to the carry.
-
-  It costs iterations rather than an answer, each pattern starting its
-  coordinates cold. Two things make it worth a row of its own rather than a
-  footnote. `direction="both"` path-dependence readings are measured off this
-  chain, and a parameter that never chains cannot be path-dependent, so the
-  check is quiet about it for a reason that is not the data's. And the fix is
-  not local: a `constrain` hook gives the right coordinate today *because* of
-  this, the anchor staying at the pattern's initial value, so carrying the
-  coordinate without also handling the hook's per-pattern re-declaration would
-  start the displacement accumulating across a chain. WP-1432 is the same
-  asymmetry one rank in, and its repair (`ParameterTable.rebase_anchored_dofs`)
-  is the shape a fix here would reuse.
-
-- **2026-09-15, from the issue triage (issue #269): a path the comparison
-  could not reach reads exactly like one that agreed.** Since PR #264
-  (2026-09-10) `SEQUENTIAL_PATH_DEPENDENT` is judged per pattern and only
-  where both chains measured an esd for that pattern (`sequential.py`, the
-  `comparable` mask). Right, and the narrowing has no output. A path with
-  no comparable pattern is not judged, and what a caller sees is what an
-  agreed path shows: nothing. The motivating case is a cubic phase held for
-  part of a series, which emits tie rows for `cell.b`/`cell.c` in every
-  pattern while `cell.a` is absent where it was held, so a path held
-  throughout one direction falls out silently. The skill's `abstention.md`
-  row now says silence is not clearance, which an agent cannot act on
-  without re-deriving the trajectories. This is #224's shape (a check that
-  died reads as passed) with a different cause. The reporter's options: (1)
-  a list on `SeriesResult` of the paths the comparison could not reach,
-  with the reason; (2) an info diagnostic; (3) per-path counts of
-  comparable patterns. **Triage recommendation:** (1) with (3)'s count
-  folded in as a field, so a path is either listed with a reason or judged
-  on a stated number of patterns. It is a schema addition and a
-  `SCHEMA_VERSION` bump, the maintainer's to direct; the reporter offers the
-  PR once directed. Rule: absent rather than zero, and the absence visible
-  (1072, 1076).
+**A path the comparison could not reach reads exactly like one that agreed**
+(folded 2026-09-22 from the 2026-09-15 triage of issue #269). Since PR #264
+`SEQUENTIAL_PATH_DEPENDENT` is judged per pattern and only where both chains
+measured an esd (the `comparable` mask), and the narrowing has no output: a
+cubic phase held for part of a series emits `cell.b`/`cell.c` tie rows with no
+esd while `cell.a` is absent, so a path held throughout one direction falls out
+silently. The reporter's options: (1) a list on `SeriesResult` of the paths not
+reached, with the reason; (2) an info diagnostic; (3) per-path counts of
+comparable patterns. Triage recommended (1) with (3) folded in as a field — a
+schema addition and a `SCHEMA_VERSION` bump, the maintainer's to direct, and
+the reporter offers the PR once directed. Rule: absent rather than zero, and
+the absence visible (1072, 1076).
 
 ## Non-goals
 
@@ -178,14 +186,28 @@ never collected. That is the shape the failed pattern should take.
       failed eigensolve is not a failed fit.
 - [ ] A chain continues past a failed pattern: mark it, carry the last good
       warm state forward, report it as `SEQUENTIAL_UNRECOVERED`.
+      *Superseded in part 2026-09-22*: continuing and carrying exist since
+      PR #386 as the opt-in `on_error="carry"`, reported as
+      `SERIES_PATTERN_FAILED` (shipped vocabulary, kept). What remains:
+      (a) a rung that raises is a rung that lost, and the ladder escalates;
+      (b) the caller's `prepare`/`constrain` stay outside the guard; (c) the
+      backward pass keeps the forward state and records its own failures;
+      (d) the default — `"carry"`, this WP's goal, against #386's `"raise"`,
+      landed as its own commit so the maintainer can take it or leave it.
 - [ ] Record that the path-dependence comparison did not run — a distinct
       finding naming the pass that died and the pattern it died on, or a field
-      on the series result. Zero findings must mean *checked and clean*.
+      on the series result. Zero findings must mean *checked and clean*. The
+      #269 half (Context, above) rides the same finding: a path no pattern
+      could judge is named, in the diagnostic form (the reporter's option 2);
+      the field form stays the maintainer's to direct.
 - [ ] Say in the handover what a recovered chain is **not**: warm state is not
       recoverable from a `RefinementResult`, so a restart is a cold seam.
 - [ ] Tests: a chain with one deliberately poisoned pattern returns the rest
       flagged; a covariance failure yields `None` esds and a diagnostic; a
       series whose backward pass is cancelled reports the check as not run.
+- [ ] A refined coordinate crosses the pattern boundary (Context, folded from
+      WP-1432's review): through `rebase_anchored_dofs`, with the `constrain`
+      re-declaration handled — or its own WP if it outgrows this one.
 - [ ] Skill: `references/series.md` — the row saying that zero
       `SEQUENTIAL_PATH_DEPENDENT` findings is only a clean bill once the
       not-run signal exists, and the row on what survives a failed pattern.
