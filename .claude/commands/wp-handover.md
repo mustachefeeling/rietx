@@ -50,7 +50,12 @@ steps below run unchanged.
    row.
 5. **Push forward references**: anything learned that changes work in a WP
    that is not closed and not this one goes into *that* WP's `### Inherited`
-   section, naming this WP as the source.
+   section, naming this WP as the source. **Re-rate what this close moved**:
+   a WP whose last blocker was this one, or whose trigger this work mooted,
+   gets its `Priority:` line rewritten (tier, today's date, one clause naming
+   this WP; rubric in `docs/wp/TEMPLATE.md`) and its ROADMAP cell set to the
+   new tier. An unrated WP (`—`) stays unrated unless the move is the reason
+   to rate it.
 6. **Audit this session's CLAUDE.md edits** (root, `gui/`, `tests/`,
    `src/rietx/indexing/`): every added line must be a standing rule
    (protocol rule 4 — evidence compressed to a clause plus a pointer), never
