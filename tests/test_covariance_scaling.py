@@ -292,6 +292,26 @@ def test_a_fit_whose_covariance_raises_returns_its_values(monkeypatch,
                    for d in reference.diagnostics)
 
 
+def test_the_soft_mode_screen_does_not_re_raise_the_same_failure(
+        monkeypatch, _lab6_pattern):
+    """``check_guards``' soft-mode screen eigensolves the unit-column Gram,
+    which is the matrix the esd computation just failed on, so the #225 raise
+    came straight back one call later and discarded the fit anyway (found by
+    the WP-1333 review).  Where the covariance failed it is absorbed; where it
+    formed, the same raise stays loud."""
+    from rietx.optimize import identifiability, statistics
+
+    monkeypatch.setattr(statistics, "normal_covariance", _eigh_fails)
+    monkeypatch.setattr(identifiability, "soft_modes", _eigh_fails)
+    result = _fit(_lab6_pattern)
+    assert any(d.code == "COVARIANCE_UNAVAILABLE" for d in result.diagnostics)
+
+    monkeypatch.undo()
+    monkeypatch.setattr(identifiability, "soft_modes", _eigh_fails)
+    with pytest.raises(np.linalg.LinAlgError):
+        _fit(_lab6_pattern)
+
+
 def test_an_intermediate_failure_leaves_the_answer_its_esds(monkeypatch,
                                                            _lab6_pattern):
     """Only the first stage's eigensolve fails: the result keeps every esd."""

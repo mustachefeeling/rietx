@@ -1571,7 +1571,16 @@ def check_guards(table, outcome, threshold: float,
             outcome.jac, free, peak_prefixes)
         report.measured_extra_peak_absorption = extra_peak_absorption(
             outcome.jac, free, peak_prefixes)
-        report.measured_soft_modes = soft_modes(outcome.jac, free)
+        try:
+            report.measured_soft_modes = soft_modes(outcome.jac, free)
+        except np.linalg.LinAlgError:
+            # the unit-column Gram is the matrix the esd computation already
+            # failed to eigensolve (WP-1333, issue #225): the stage has said so
+            # through ``COVARIANCE_UNAVAILABLE``, and a second raise of the
+            # same failure here would discard the answer that guard kept.
+            # Anywhere the covariance *did* form, this stays loud.
+            if getattr(outcome, "covariance_error", None) is None:
+                raise
         if scan_exchangeability and model is not None:
             report.measured_exchangeability = exchangeability_scan(model, table)
         for path, r2 in sorted(report.measured_background_absorption.items(),

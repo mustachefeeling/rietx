@@ -3395,12 +3395,15 @@ def _covariance_diagnostics(stage_name: str, outcome, *,
                       "cause, so fixing or restraining the most correlated "
                       "block is the usual cure) and read the esds from that")
     else:
-        consequence = ("this intermediate stage's correlation guard did not "
-                       "run; the result's esds are the answer-producing "
+        consequence = ("this intermediate stage's guards ran without a "
+                       "covariance; the result's esds are the answer-producing "
                        "stage's, so this stage's failure is not why any of "
                        "them would be absent")
-        suggestion = ("a HIGH_CORRELATION finding this stage would have made "
-                      "is unknown rather than absent; nothing else is lost")
+        suggestion = ("whatever this stage's guards would have read off the "
+                      "covariance — a HIGH_CORRELATION or FLAT_DIRECTION "
+                      "finding, an esd-scaled bound test — is unknown rather "
+                      "than absent on its stage report and history node; the "
+                      "result's own findings are the last stage's")
     return [Diagnostic(
         level="warning", code="COVARIANCE_UNAVAILABLE", where=[stage_name],
         message=(f"stage {stage_name!r} returned ({outcome.status}), but its "

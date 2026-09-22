@@ -958,12 +958,27 @@ class SequentialRefinement:
         the run, and wrapping the body in place would have re-indented all of it
         for nothing.
         """
+        # this run's, or nothing: a chain that raises must not leave a previous
+        # fit's answer beside its own partial ``results_``
+        self.result_ = None
+        self.backward_ = None
         entries, results, trees, models, failures, _ = self._chain(
             order, patterns, names, xs, mode, base_plan, ladder,
             two_theta_limits, reseed, reseed_factor, prepare, constrain,
             on_result, stream=stream, cancel=cancel,
             pass_name="backward" if direction == "backward" else "forward",
             first_rung_factor=first_rung_factor, on_error=on_error)
+        # The reported chain is final here, so it is published *before* any
+        # pass that starts new fits — the discontinuity verification and the
+        # backward chain — since nothing either does can take it.  Issue
+        # #224's series C is the case — all 125 forward patterns in hand, and
+        # a raise in the backward pass that, under on_error="raise",
+        # overwrote these attributes with the backward chain's partial state.
+        self.results_ = results
+        self.trees_ = trees
+        self._structures = [s for s, _ in models]
+        self._instruments = [i for _, i in models]
+        self.failures_ = failures
 
         diagnostics = [d for e in entries
                        for d in _reseed_diagnostics(e) + _unrecovered_diagnostics(e)]
@@ -990,17 +1005,6 @@ class SequentialRefinement:
                 prepare, constrain, stream=stream, cancel=cancel)
         # what the per-pattern diagnostics could not say: "42 of 68" (WP-1110)
         diagnostics += _persistent_diagnostics(series)
-
-        # The reported chain is final here, so it is published *before* the
-        # verification pass: nothing the backward chain does can take it.
-        # Issue #224's series C is the case — all 125 forward patterns in
-        # hand, and a raise in the backward pass that, under on_error="raise",
-        # overwrote these attributes with the backward chain's partial state.
-        self.results_ = results
-        self.trees_ = trees
-        self._structures = [s for s, _ in models]
-        self._instruments = [i for _, i in models]
-        self.failures_ = failures
 
         if direction == "both" and cancelled:
             # a cancelled forward chain gets no verification pass: the
@@ -1982,8 +1986,9 @@ def _path_dependence_diagnostics(forward: SeriesResult,
         # the #269 silence; one neither chain measured anywhere (a tie row off
         # a source never freed, a coefficient on its floor) is not a
         # measurement in either, and its trajectory's absent esds already say so
-        measured = bool(np.isfinite(f.arrays()[2]).any()
-                        or np.isfinite(b.arrays()[2]).any())
+        _, vf_all, sf_all = f.arrays()
+        _, vb_all, sb_all = b.arrays()
+        measured = bool(np.isfinite(sf_all).any() or np.isfinite(sb_all).any())
         if not pairs:
             if measured:
                 unjudged.append(path)
@@ -1991,8 +1996,6 @@ def _path_dependence_diagnostics(forward: SeriesResult,
         fi = np.asarray([i for i, _ in pairs], dtype=int)
         bj = np.asarray([j for _, j in pairs], dtype=int)
         labels = [f.labels[i] for i in fi]
-        _, vf_all, sf_all = f.arrays()
-        _, vb_all, sb_all = b.arrays()
         vf, sf = vf_all[fi], sf_all[fi]
         vb, sb = vb_all[bj], sb_all[bj]
         # Judge a pattern only where *both* chains measured an esd.  A

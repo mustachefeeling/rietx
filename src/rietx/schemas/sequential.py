@@ -123,7 +123,8 @@ class SeriesEntry(Base):
     #: pattern that fitted first time, up to three when the ladder ran to the
     #: end.  It is what makes the escalation auditable — ``rung`` alone cannot
     #: say whether the winning attempt was the only one, and the cost in
-    #: ``n_iterations`` is the sum over exactly these.
+    #: ``n_iterations`` is the sum over exactly these less the ones in
+    #: :attr:`rungs_raised`, which report no count to charge.
     rungs_tried: list[str] = Field(default_factory=list)
     #: The rungs of :attr:`rungs_tried` whose fit **raised** rather than
     #: returned, each with ``repr(exc)`` (WP-1333).  A raised rung is a rung
