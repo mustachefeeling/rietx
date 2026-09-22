@@ -386,14 +386,17 @@ _ANGLE_MAX_DEG = 179.0
 def _cell_parameter_name(path: str, *, phases: set[int] | None) -> str | None:
     """``"phases.0.cell.a"`` → ``"a"`` when phase 0 is in ``phases``, else None.
 
-    ``phases=None`` means *any* phase — the unconditional safety fallback in
-    :meth:`ParameterTable.bounds` asks this of every free cell path regardless
-    of which phase it belongs to, where the support-based window asks it only
-    of the phases ``freeze_cell_windows`` declared.
+    ``phases=None`` means *any* phase — the sole caller asking that is
+    ``refine.clamp_cell_runaway``'s unconditional post-solve safety net,
+    applied to every free cell path regardless of which phase it belongs to.
+    (:meth:`ParameterTable.bounds` never passes ``None`` here: it calls this
+    with ``phases=windowed``, the support-based window's own set from
+    ``freeze_cell_windows``, which asks only of the phases that declared.)
 
     Read off the path rather than recorded on the :class:`Entry`, because the
     window is applied at the optimiser interface and the entries there arrive
-    from :meth:`ParameterTable.bounds` with nothing but their paths to go on.
+    from :meth:`ParameterTable.bounds` (or the safety net above) with nothing
+    but their paths to go on.
     """
     parts = path.split(".")
     if len(parts) == 4 and parts[0] == "phases" and parts[2] == "cell":

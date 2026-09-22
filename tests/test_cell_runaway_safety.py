@@ -314,6 +314,29 @@ def test_cell_runaway_is_reported_when_it_fires(degenerate_pair_fit):
     assert finding.value is not None and finding.value > 0.0
 
 
+def test_a_clamped_cells_stderr_is_withheld(degenerate_pair_fit):
+    """Review of #385 follow-up item 4: the clamped cell stays a free
+    column (``vary=True``, so it is not dropped from ``parameters`` the way
+    WP-1301's hold drops a path) but its pre-clamp covariance describes the
+    escaped value, not the window edge actually reported -- so its ``stderr``
+    is withheld rather than printed as if it measured the reported value.
+    ``at_bound`` is untouched: this is not one of the solver's own bounds."""
+    _, result = degenerate_pair_fit
+    fired = [d for d in result.diagnostics if d.code == "CELL_RUNAWAY"]
+    assert fired, "nothing fired -- this test needs the clamp to have run"
+    clamped_paths = {p for d in fired for p in d.where}
+    by_path = {p.path: p for p in result.parameters}
+    checked = 0
+    for path in clamped_paths:
+        row = by_path.get(path)
+        if row is None:
+            continue  # WP-1301 held (and dropped) this path after the clamp fired
+        assert row.stderr is None, f"{path}: stderr {row.stderr} not withheld"
+        assert row.vary is True  # still a free column, never dropped
+        checked += 1
+    assert checked, "every clamped path was held afterwards -- nothing exercised the withholding"
+
+
 def test_a_well_behaved_fit_never_fires_it():
     """The bit-identity claim, on a real fit rather than a unit call: a
     single genuine LaB6 phase, ``mccusker_default``, never comes near the

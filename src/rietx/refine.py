@@ -4430,12 +4430,29 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
     # so does every row when no guard ran at all (`replay`).
     tested = set(table.free_paths) if guard is not None else set()
     on_bound = {p for f in guard.at_bounds for p in f.paths} if guard is not None else set()
+    # A CELL_RUNAWAY finding's own message says the named cell's value is
+    # "not a measurement" — the pulled-back one because it is a window edge,
+    # not a fit; a merely-named (vars.X-driven, never clamped) one for the
+    # same reason the finding names it at all.  Review of #385 follow-up
+    # item 4: the row itself is still owed (a caller iterating `parameters`
+    # must still find the path — WP-1301's own hold sets `vary=False` and
+    # drops the row outright, which this cell never does, since it stays a
+    # free column the whole time), so the smallest change that keeps the
+    # claim honest is withholding its stderr rather than the row.  No new
+    # field: the CELL_RUNAWAY diagnostic already named the path, and that
+    # `where` entry *is* the flag — a caller cross-referencing diagnostics
+    # already has to, the same way `at_bound` is a projection of `BOUND_HIT`
+    # rather than a second source of truth.
+    cell_runaway_paths = {
+        p for d in diagnostics if d.code == "CELL_RUNAWAY" for p in d.where
+        if _cell_parameter_name(p, phases=None) is not None}
     params = []
     for e in table.entries:
         if e.vary or e.tie is not None:
             params.append(RefinedParameter(
                 path=e.path, value=e.value, vary=e.vary,
-                stderr=stderr_phys.get(e.path),
+                stderr=(None if e.path in cell_runaway_paths
+                       else stderr_phys.get(e.path)),
                 at_bound=(e.path in on_bound) if e.path in tested else None,
             ))
 
