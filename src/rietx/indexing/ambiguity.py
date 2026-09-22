@@ -348,7 +348,7 @@ def _derivative_transform(parent_cell: tuple[float, ...],
     a line-position test is not separable at this data's own precision while the
     lattice test is exact to the fitting difference.
 
-    The volume ratio prefilters the pair (:data:`DERIVATIVE_VOLUME_RTOL`) because
+    The volume ratio prefilters the pair (:data:`_DERIVATIVE_VOLUME_RTOL`) because
     ``det H`` **is** that ratio, so a pair whose volumes are not in integer
     proportion cannot be related by any H and needs no enumeration.
     """
