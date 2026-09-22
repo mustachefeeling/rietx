@@ -111,9 +111,11 @@ a file and held for the batch.
 - **Landed** → close, with a one-line comment naming the PR or commit.
   Batch.
 - **New WP** where the work has a shape of its own: `docs/wp/TEMPLATE.md`
-  whole, `Milestone: unscheduled`, a ROADMAP row under `### Unscheduled`
-  (the file's cap in `tests/test_docs_consistency.py` moves with a comment
-  saying why), the Skill task line, and a first handover bullet:
+  whole, `Milestone: unscheduled`, a `Priority:` line rated by the
+  template's rubric (the test refuses a new WP without one), a ROADMAP row
+  under `### Unscheduled` with the tier in its Priority cell (the file's cap
+  in `tests/test_docs_consistency.py` moves with a comment saying why), the
+  Skill task line, and a first handover bullet:
   `created, from the YYYY-MM-DD issue triage (issue #N). Checked against the
   tree at <sha>: …`. **Pick the number in the same breath as the file**:
   `git fetch origin main && git ls-tree --name-only origin/main docs/wp/ | tail -3`.
@@ -121,7 +123,9 @@ a file and held for the batch.
   a round filing several takes consecutive numbers, so re-check before each.
 - **Fold** into an open WP (⬜ or 🔄) as a dated entry in its
   `### Inherited`, the section other sessions write for the one that will
-  work it, with the check-against-the-tree line. Never into a closed WP: a
+  work it, with the check-against-the-tree line. A fold that moves the
+  WP's rubric row (a second reporter, a number now shown wrong) re-rates its
+  `Priority:` line and cell in the same edit. Never into a closed WP: a
   defect a ✅ WP's fix did not cover is a new WP or a landed close.
 - **Fence**: a `v2+` proposal is named by issue in ROADMAP § v2+, so the
   audit sees it, and the reporter is told. Batch.

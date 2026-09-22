@@ -42,6 +42,17 @@ _STATUS_RE = re.compile(
 # The prune rule lands with WP-1031; WPs closed after this date must have
 # consumed (deleted) their ### Inherited mailbox on the way out.
 _INHERITED_PRUNE_EPOCH = "2026-07-31"
+# The priority rubric (TEMPLATE.md) lands on this date; a WP whose earliest
+# handover entry is on or after it carries a `Priority:` line.  Older WPs are
+# unrated (`—` in ROADMAP), which the template says means unrated, never low.
+_PRIORITY_EPOCH = "2026-09-23"
+PRIORITIES = ("P1", "P2", "P3", "P4")
+_PRIORITY_RE = re.compile(
+    r"^Priority: (?P<tier>P[1-4]) (?P<date>\d{4}-\d{2}-\d{2}) — \S", re.M
+)
+# The date of a handover entry in either sanctioned form (bullet or heading);
+# the earliest one in a WP's log is the day the WP was opened.
+_ENTRY_DATE_RE = re.compile(r"^(?:- \*\*|#{3,4} )(\d{4}-\d{2}-\d{2})", re.M)
 
 # Always-loaded documents: measured size + headroom, pinned by the pass that
 # achieved it.  Raising a cap is a decision about every future session's fixed
@@ -486,7 +497,12 @@ SIZE_CAPS: dict[str, int | None] = {
     # v2+ bullets — Estimation (#355) and Navigation (#349) — each naming the
     # gate that would reopen it.  Every finding stays in the WP files and on
     # the threads.  Landed 813, +3 headroom.
-    "docs/ROADMAP.md": 818,   # +2: WP-1442 filed four siblings, 1445-1448
+    # 818 -> 828 (the priority column, 2026-09-23): one paragraph under
+    # § Work packages saying what the `Priority` column is and where its
+    # authority lives (the WP file's line, TEMPLATE.md's rubric).  The
+    # column itself costs no lines: eleven headers widened and sixty rows
+    # given a `—` cell, on the open sections only.  Landed 827, +1 headroom.
+    "docs/ROADMAP.md": 828,
     # 1036 -> 1053 (WP-1429): where the GUI's colour values live, now that
     # they are Python and this workspace's `tokens.css` is generated from
     # them. It governs work outside the WP that measured it — an edit to a
@@ -729,6 +745,99 @@ def test_roadmap_status_cell_is_a_glyph_and_a_date():
         assert _STATUS_CELL_RE.match(cell), (
             f"ROADMAP row {wp_id}: status cell {cell!r} is not '<glyph> <date>' "
             "— put the summary on the WP file's Status line"
+        )
+
+
+def _priority_of(path: Path) -> tuple[str, str] | None:
+    """(tier, date) from the WP file's `Priority:` line, or None when unrated."""
+    m = _PRIORITY_RE.search(path.read_text(encoding="utf-8"))
+    return (m.group("tier"), m.group("date")) if m else None
+
+
+def _priority_cells() -> dict[str, str | None]:
+    """WP id -> the row's Priority cell, or None where its table has no column.
+
+    A header line names its columns, and the rows under it (to the next
+    blank line) are read against that header, so the column may sit on the
+    open sections' tables only.
+    """
+    cells: dict[str, str | None] = {}
+    columns: list[str] = []
+    row_re = re.compile(r"^\| \[(\d{4})\]\(wp/")
+    for line in ROADMAP.read_text(encoding="utf-8").splitlines():
+        if line.startswith("| WP |"):
+            columns = [c.strip() for c in line.strip("|").split("|")]
+            continue
+        if not line.startswith("|"):
+            columns = []
+            continue
+        m = row_re.match(line)
+        if not m:
+            continue
+        row = [c.strip() for c in line.strip("|").split("|")]
+        if "Priority" in columns:
+            assert len(row) == len(columns), (
+                f"ROADMAP row {m.group(1)}: {len(row)} cells under a "
+                f"{len(columns)}-column header"
+            )
+            cells[m.group(1)] = row[columns.index("Priority")]
+        else:
+            cells[m.group(1)] = None
+    return cells
+
+
+def test_template_declares_the_priority_vocabulary():
+    """TEMPLATE.md carries the rubric; every tier this test accepts is in it."""
+    text = TEMPLATE.read_text(encoding="utf-8")
+    for tier in PRIORITIES:
+        assert re.search(rf"^  {tier}  ", text, re.M), (
+            f"TEMPLATE.md's rubric has no row for {tier}"
+        )
+    assert _PRIORITY_EPOCH in text, "TEMPLATE.md does not name the rubric's epoch"
+
+
+def test_every_wp_opened_since_the_rubric_carries_a_controlled_priority_line():
+    """A WP written on or after the rubric's date is rated at the write.
+
+    An older WP may stay unrated; one that is rated is held to the format
+    either way, because the ROADMAP cell is read off this line.
+    """
+    for path in _wp_files():
+        text = path.read_text(encoding="utf-8")
+        if "\nPriority:" in text:
+            assert _priority_of(path), (
+                f"{path.name}: Priority line is not 'Priority: P<n> YYYY-MM-DD — <why>'"
+            )
+            continue
+        log = text.split("## Handover log", 1)[-1]
+        dates = _ENTRY_DATE_RE.findall(log)
+        opened = min(dates) if dates else None
+        assert not (opened and opened >= _PRIORITY_EPOCH), (
+            f"{path.name}: opened {opened}, on or after the rubric's "
+            f"{_PRIORITY_EPOCH}, and carries no Priority line (TEMPLATE.md)"
+        )
+
+
+def test_roadmap_priority_cell_mirrors_the_wp_priority_line():
+    """The WP file's line is the authority; the index cell is its tier.
+
+    A rated WP whose row sits in a table without the column is a rating
+    nobody reading the index can see, so that fails too.
+    """
+    cells = _priority_cells()
+    for path in _wp_files():
+        wp_id = path.name[:4]
+        rated = _priority_of(path)
+        cell = cells[wp_id]
+        if cell is None:
+            assert rated is None, (
+                f"WP {wp_id}: file rates it {rated[0]} but its ROADMAP table has "
+                "no Priority column — add the column to that section's table"
+            )
+            continue
+        expected = rated[0] if rated else "—"
+        assert cell == expected, (
+            f"WP {wp_id}: ROADMAP Priority cell is {cell!r}, file says {expected!r}"
         )
 
 
