@@ -666,16 +666,27 @@ class SeriesResult(Base):
         # the confident wrong answer this row exists to avoid.
         interrupted = any(d.code == "SEQUENTIAL_CANCELLED"
                           for d in self.diagnostics)
+        # WP-1333's record of the comparison, which is the authority where it
+        # exists: ``warning`` is "did not run" and says why (a backward pass
+        # that *raised* is not a cancel, and the row must not call it one),
+        # ``info`` is "ran on less than the series".  A series stored before
+        # schema 0.25 carries neither, and the cancel test above still speaks.
+        incomplete = by_code.get("SEQUENTIAL_PATH_CHECK_INCOMPLETE", [])
+        not_run = [d for d in incomplete if d.level == "warning"]
+        partial = [d for d in incomplete if d.level != "warning"]
         if self.direction == "both" and self.backward is not None \
-                and not interrupted:
+                and not interrupted and not not_run:
             paths = ", ".join(p for d in depend for p in d.where) or "none"
             lines.append(f"    ordering artefact: measured both ways, "
                          f"{len(depend)} parameter(s) disagree ({paths})")
+            for d in partial:
+                lines.append(f"      but {d.message}")
         elif self.direction == "both":
-            lines.append("    ordering artefact: NOT measured — direction="
-                         "'both' was asked for but the chain was cancelled "
-                         "before the two directions could be compared, so an "
-                         "empty disagreement list is silence, not agreement")
+            why = (not_run[0].message if not_run else
+                   "direction='both' was asked for but the chain was "
+                   "cancelled before the two directions could be compared")
+            lines.append(f"    ordering artefact: NOT measured — {why}, so an "
+                         f"empty disagreement list is silence, not agreement")
         else:
             lines.append(f"    ordering artefact: NOT measured — this chain ran "
                          f"{self.direction} only, and direction='both' is the "

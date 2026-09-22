@@ -334,6 +334,28 @@ def test_series_deliverable_will_not_call_a_cancelled_both_run_measured():
     assert "NOT measured" in stopped.summary(deliverable="series")
 
 
+def test_series_deliverable_reads_the_comparisons_own_record():
+    """WP-1333: a backward pass that *raised* is not a cancel, and the row
+    quotes the record's reason rather than guessing one; a comparison that ran
+    on less than the series says so beside the count."""
+    raised = _series_result(direction="both", diagnostics=[rx.Diagnostic(
+        level="warning", code="SEQUENTIAL_PATH_CHECK_INCOMPLETE",
+        message="the forward/backward path-dependence comparison did not run: "
+                "the backward chain raised ValueError('x') on pattern 1 (p1)")])
+    text = raised.summary(deliverable="series")
+    assert "NOT measured" in text and "backward chain raised" in text
+    assert "cancelled" not in text
+
+    partial = _series_result(
+        direction="both", backward=_series_result(),
+        diagnostics=[rx.Diagnostic(
+            level="info", code="SEQUENTIAL_PATH_CHECK_INCOMPLETE", where=["p1"],
+            message="the path-dependence comparison ran on 2 of 3 patterns")])
+    text = partial.summary(deliverable="series")
+    assert "measured both ways" in text
+    assert "but the path-dependence comparison ran on 2 of 3 patterns" in text
+
+
 def test_series_deliverable_reads_a_steps_verification_state():
     unverified = _series_result(diagnostics=[rx.Diagnostic(
         level="info", code="SEQUENTIAL_DISCONTINUITY",
