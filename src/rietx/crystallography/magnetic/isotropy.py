@@ -1528,10 +1528,28 @@ def _domain_operations(candidate: MagneticCandidate,
 
 
 def _apply_domain(op: MagneticOperator, positions: np.ndarray,
-                  configurations: np.ndarray, *, tol: float = 1e-5):
-    """One domain's positions and moment patterns, reindexed onto the same atom order."""
+                  configurations: np.ndarray, *, kind: str = "magnetic",
+                  tol: float = 1e-5):
+    """One domain's positions and patterns, reindexed onto the same atom order.
+
+    ``kind`` decides the action, and the two are genuinely different matrices:
+    a moment is an **axial** vector and transforms by ε·det(R)·R (Halpern &
+    Johnson, 1939), a displacement is a **polar** one and transforms by plain
+    R — no determinant, and no time-reversal sign, because time reversal does
+    not move an atom.  They differ by det(R)·ε, so an improper operation is
+    exactly where using the wrong one is invisible in magnitude and wrong in
+    sign: on a displacive ``P n m a`` (0, 0, ½) candidate the inversion
+    ``-x,-y,-z,+1`` needs diag(−1, −1, −1) and the axial matrix gives
+    diag(+1, +1, +1), while the other domain operation ``-x,y+1/2,-z,+1`` is
+    unaffected — so the two images stopped carrying consistent relative signs
+    (Yue's review of #389 §3).  This is the physics
+    :func:`~.operators.allowed_displacement_basis` was added in this WP to get
+    right on the other half of the engine.
+    """
+    if kind not in ORDER_PARAMETER_KINDS:
+        raise ValueError(f"kind must be one of {ORDER_PARAMETER_KINDS}, got {kind!r}")
     moved = np.array([op.act_on_site(p) for p in positions])
-    action = op.moment_matrix().astype(np.float64)
+    action = (op.moment_matrix() if kind == "magnetic" else op.matrix).astype(np.float64)
     index = np.full(positions.shape[0], -1, dtype=int)
     for j in range(moved.shape[0]):
         delta = np.abs(positions - moved[j])
@@ -1562,7 +1580,27 @@ def structure_factors(candidate: MagneticCandidate, refl: ReflectionSet, *,
     quadratic form, so "absent for every amplitude" and "how many amplitudes a
     powder determines" are exact statements about a matrix rather than a
     conclusion drawn from random draws.
+
+    **Magnetic candidates only**, and a ``kind="displacive"`` one is refused by
+    name (Yue's review of #389 §3).  Every quantity here is magnetic neutron
+    intensity: the moments are taken to Cartesian μ_B, the perpendicular
+    projection is Halpern & Johnson's magnetic cross-section geometry, and a
+    magnetic form factor is the thing deliberately set to one.  A *displacement*
+    reaches a nuclear reflection through the scalar h·u, not through a
+    perpendicular-projected vector, so the whole expression — and with it
+    :func:`powder_intensities`, :func:`systematic_absences`,
+    :func:`determinable_amplitudes`, :func:`powder_equivalent` and
+    :func:`analyse`, which all route through here — would be a plausible number
+    that means nothing.  Displacive candidates exist for the control described
+    at :func:`candidates` and for WP-1327's displacive half to build on; the
+    intensity of one is that WP's to write.
     """
+    if candidate.kind != "magnetic":
+        raise ValueError(
+            f"structure_factors computes magnetic neutron intensity (M⊥, Halpern & "
+            f"Johnson 1939) and {candidate.label!r} is a {candidate.kind!r} candidate: "
+            f"a displacement reaches a reflection through h·u, not through a "
+            f"perpendicular-projected moment, so this number would be meaningless")
     lattice = refl.lattice
     if little is None:
         little = _irreps.little_group(candidate.space_group, candidate.k)
@@ -1572,7 +1610,8 @@ def structure_factors(candidate: MagneticCandidate, refl: ReflectionSet, *,
     unit = refl.q / np.linalg.norm(refl.q, axis=1)[:, None]
     out = np.zeros((len(ops), candidate.free_amplitudes, len(refl), 3), dtype=np.complex128)
     for o, op in enumerate(ops):
-        patterns = _apply_domain(op, candidate.positions, candidate.configurations)
+        patterns = _apply_domain(op, candidate.positions, candidate.configurations,
+                                 kind=candidate.kind)
         for p, pattern in enumerate(patterns):
             cartesian = moment_cartesian(pattern, lattice)
             total = phase @ cartesian                      # (n_hkl, 3)
@@ -1892,7 +1931,19 @@ def analyse(candidate_set: CandidateSet, *, d_min: float = 1.5,
     Returns a new :class:`CandidateSet` whose ``__str__`` prints the whole
     classic table.  The reflection list is the magnetic cell's own to ``d_min``,
     on the cell the set was built with.
+
+    Every column it fills is magnetic neutron intensity, so a
+    ``kind="displacive"`` set is refused by name rather than given plausible
+    numbers — see :func:`structure_factors`, which is where all three columns
+    are computed.
     """
+    if candidate_set.kind != "magnetic":
+        raise ValueError(
+            f"analyse fills in magnetic absences, determinable amplitudes and powder "
+            f"equivalence classes, and this is a {candidate_set.kind!r} candidate set "
+            f"for {candidate_set.site} of "
+            f"{getattr(candidate_set.space_group, 'xhm', lambda: candidate_set.space_group)()}"
+            f": see structure_factors, which every column goes through")
     refl = reflections(candidate_set.lattice, d_min)
     little = _irreps.little_group(candidate_set.space_group, candidate_set.k)
     determinable, absences = [], []

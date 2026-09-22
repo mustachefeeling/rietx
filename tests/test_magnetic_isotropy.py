@@ -988,6 +988,63 @@ def test_a_candidate_is_powder_equivalent_to_itself():
         assert isotropy.powder_equivalent(candidate, candidate, reflections)
 
 
+def test_a_domain_transforms_a_displacement_by_r_and_a_moment_by_the_axial_matrix():
+    """The two actions differ by det(R)·ε, and a domain must use the right one (#389 §3).
+
+    A moment is an **axial** vector — ε·det(R)·R, Halpern & Johnson (1939) — and
+    a displacement a **polar** one, plain R: no determinant, and no
+    time-reversal sign, because time reversal does not move an atom.
+    ``_apply_domain`` read ``moment_matrix()`` whatever ``candidate.kind``
+    said, so on a displacive ``P n m a`` (0, 0, ½) candidate the inversion
+    ``-x,-y,-z,+1`` acted as diag(+1, +1, +1) where a displacement needs
+    diag(−1, −1, −1), while the *proper* domain operation was unaffected — the
+    two images stopped carrying consistent relative signs, which is the whole
+    content of a domain average.
+
+    The assertion is exact rather than approximate: the two actions are the same
+    integer matrix times det(R)·ε, so the two images must be exactly that
+    multiple of each other, operation by operation, and the inversion is the one
+    where the factor is −1.
+    """
+    found = isotropy.candidates("P n m a", (0, 0, Fraction(1, 2)), GAMMA,
+                                kind="displacive")
+    candidate = found[1]
+    little = irreps.little_group(found.space_group, found.k)
+    domains = isotropy._domain_operations(candidate, little)
+    improper = [op for op in domains if op.determinant * op.time_reversal < 0]
+    assert improper, "this set is supposed to contain an improper domain operation"
+    for op in domains:
+        polar = isotropy._apply_domain(op, candidate.positions,
+                                       candidate.configurations, kind="displacive")
+        axial = isotropy._apply_domain(op, candidate.positions,
+                                       candidate.configurations, kind="magnetic")
+        factor = op.determinant * op.time_reversal
+        assert np.array_equal(axial, factor * polar), op.xyz()
+        if op.xyz() == "-x,-y,-z,+1":
+            assert np.array_equal(np.diag(op.matrix.astype(np.float64)),
+                                  [-1.0, -1.0, -1.0])
+            assert factor == -1
+
+
+def test_the_magnetic_intensity_entry_points_refuse_a_displacive_set_by_name():
+    """What ``analyse`` computes is magnetic, so it must not accept the other kind (#389 §3).
+
+    ``structure_factors`` takes the moments to Cartesian μ_B and applies
+    Halpern & Johnson's perpendicular projection; a displacement reaches a
+    nuclear reflection through the scalar h·u instead, so every column
+    ``analyse`` fills would be a plausible number that means nothing.  Before
+    this fix ``analyse()`` accepted a displacive set without a word and returned
+    a four-candidate table.
+    """
+    found = isotropy.candidates("P n m a", (0, 0, Fraction(1, 2)), GAMMA,
+                                kind="displacive")
+    reflections = isotropy.reflections(found.lattice, 2.0)
+    with pytest.raises(ValueError, match="displacive"):
+        isotropy.structure_factors(found[0], reflections)
+    with pytest.raises(ValueError, match="displacive"):
+        isotropy.analyse(found, d_min=2.0)
+
+
 def test_a_candidate_is_powder_equivalent_to_itself_at_a_coarse_d_min():
     """A coarse ``d_min`` must not make everything look separable (#389 §1).
 
