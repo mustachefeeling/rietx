@@ -108,9 +108,9 @@ W^{\nu}_{lm} \;=\; \frac{d_\nu}{|P_{\mathbf{k}}|}
 {source}`rietx.crystallography.magnetic.modes.basis_vectors`
 
 The construction is {cite}`izyumov1991`'s (his eqn (2.12), p. 19, and its
-$G_{\mathbf{k}}$ form (9.1), p. 67); the $d_\nu/|P_{\mathbf{k}}|$ prefactor is
+$G_{\mathbf{k}}$ form (9.1), p. 67). The $d_\nu/|P_{\mathbf{k}}|$ prefactor is
 the standard Wigner normalisation, written this way by Davies & Wills (2016,
-*arXiv*:1610.00472, eq. 6) — Izyumov's own two forms carry $1/n(G)$ and $1/N$
+*arXiv*:1610.00472, eq. 6); Izyumov's own two forms carry $1/n(G)$ and $1/N$
 with no $d_\nu$. It is the ordinary group-theoretic projection operator carried
 over unchanged, because the same factor system $\omega$ multiplies both
 $D_\nu$ and $\Gamma_{\mathrm{mag}}$ and cancels between them. $W^{\nu}_{11}$
@@ -270,9 +270,12 @@ classes of that relation rather than a ranked list of individually
 distinguishable candidates, so a refinement need only try one representative
 per class.
 
-Shirane's own example is mechanical here: for a collinear structure whose
-**configurational** symmetry — the symmetry of the signed moment arrangement,
-which Shirane distinguishes from the chemical one — is cubic, every direction
+Shirane's own example is mechanical here. His criterion is on the
+configurational symmetry (the symmetry of the signed moment arrangement, which
+he distinguishes from the chemical one; his MnO case is cubic in the chemical
+cell and rhombohedral in the configurational symmetry, and there the direction
+is measurable). For a collinear structure whose configurational symmetry is
+cubic, every direction
 of the order-parameter space gives the same powder intensity, and the
 [100], [110] and [111] isotropy subgroups of that irrep come out one
 equivalence class. Lowering the parent symmetry to tetragonal splits the
