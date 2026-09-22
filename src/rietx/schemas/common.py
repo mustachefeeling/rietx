@@ -217,7 +217,13 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 #: rule as 0.19 → 0.20: a stored result from before this opens with nothing
 #: blocked, which is true of it — no hold could be declared, so no plan's glob
 #: was ever refused.
-SCHEMA_VERSION = "0.24"
+#: 0.24 → 0.25 (WP-1333, issue #224): ``SeriesEntry.rungs_raised`` — the rungs
+#: of a pattern's escalation ladder whose fit raised rather than returned, now
+#: that a raised rung escalates like a diverged one instead of abandoning the
+#: pattern.  Additive and defaulted to ``{}``, the same rule as 0.19 → 0.20: a
+#: stored series from before this opens with no rung raised, which is true of
+#: it — a raise then ended the pattern, so no entry could carry one.
+SCHEMA_VERSION = "0.25"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
 

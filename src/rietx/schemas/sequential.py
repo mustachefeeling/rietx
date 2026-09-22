@@ -106,7 +106,9 @@ class SeriesEntry(Base):
     #: both set means a cold restart rescued the pattern, ``rwp_warm`` alone
     #: means the fence fired but a warm attempt was still the best of the
     #: ones tried — worth seeing, since it marks a pattern the series found
-    #: hard for a reason no restart could fix.
+    #: hard for a reason no restart could fix.  ``None`` when that first
+    #: attempt raised rather than returned: it reached no Rwp, and
+    #: :attr:`rungs_raised` says what it raised.
     rwp_warm: float | None = None
     #: Which attempt produced the values on this entry (WP-1051).  The chain
     #: escalates only on failure: ``"warm"`` is the collapsed warm refit
@@ -123,6 +125,18 @@ class SeriesEntry(Base):
     #: say whether the winning attempt was the only one, and the cost in
     #: ``n_iterations`` is the sum over exactly these.
     rungs_tried: list[str] = Field(default_factory=list)
+    #: The rungs of :attr:`rungs_tried` whose fit **raised** rather than
+    #: returned, each with ``repr(exc)`` (WP-1333).  A raised rung is a rung
+    #: that lost, and the ladder escalates past it exactly as past a diverged
+    #: one, so an entry exists only because a later rung returned; a pattern
+    #: on which every rung raised has no entry and is a
+    #: :class:`SeriesFailure` instead.  The case that made this a ladder
+    #: member rather than a failure is issue #224: a neighbour that converged
+    #: with a runaway cell hands it to every warm rung, the enumerator
+    #: refuses it at compile, and only the cold rung escapes.  Written by
+    #: ``SequentialRefinement._chain``; empty — which is true — wherever no
+    #: rung raised.
+    rungs_raised: dict[str, str] = Field(default_factory=dict)
 
     #: Where this pattern's own history lives (one tree per pattern — a tree is
     #: pinned to one pattern by its data fingerprint).

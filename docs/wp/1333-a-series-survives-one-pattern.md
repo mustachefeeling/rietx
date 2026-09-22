@@ -199,17 +199,29 @@ the absence visible (1072, 1076).
       backward pass keeps the forward state and records its own failures;
       (d) the default — `"carry"`, this WP's goal, against #386's `"raise"`,
       landed as its own commit so the maintainer can take it or leave it.
-- [ ] Record that the path-dependence comparison did not run — a distinct
+      *(a)-(c) landed 2026-09-22*: `SeriesEntry.rungs_raised` (schema
+      0.24 → 0.25), `_PatternRaised` around the fit alone, the forward chain
+      published before the backward pass, `result.backward.failures`.
+- [x] Record that the path-dependence comparison did not run — a distinct
       finding naming the pass that died and the pattern it died on, or a field
       on the series result. Zero findings must mean *checked and clean*. The
       #269 half (Context, above) rides the same finding: a path no pattern
       could judge is named, in the diagnostic form (the reporter's option 2);
-      the field form stays the maintainer's to direct.
+      the field form stays the maintainer's to direct. *Landed 2026-09-22* as
+      `SEQUENTIAL_PATH_CHECK_INCOMPLETE`: `warning` when the comparison did not
+      run (forward cancelled, backward cancelled, backward raised), `info`
+      when it ran on fewer patterns or paths. A path is named only if some
+      chain measured it and the two chains differ above the noise floor —
+      without both conditions it fired on every clean series (measured: a tie
+      row off a never-freed source and `profile.y` on its floor, on the
+      eight-pattern LaB6 fixture).
 - [ ] Say in the handover what a recovered chain is **not**: warm state is not
       recoverable from a `RefinementResult`, so a restart is a cold seam.
-- [ ] Tests: a chain with one deliberately poisoned pattern returns the rest
+- [x] Tests: a chain with one deliberately poisoned pattern returns the rest
       flagged; a covariance failure yields `None` esds and a diagnostic; a
       series whose backward pass is cancelled reports the check as not run.
+      *Landed 2026-09-22*: `tests/test_series_error_policy.py` (+9) and
+      `tests/test_covariance_scaling.py` (+4).
 - [ ] A refined coordinate crosses the pattern boundary (Context, folded from
       WP-1432's review): through `rebase_anchored_dofs`, with the `constrain`
       re-declaration handled — or its own WP if it outgrows this one.

@@ -15,5 +15,4 @@ SeriesFailure
 SeriesFailure.exception
 SeriesFailure.index
 SeriesFailure.label
-SeriesResult.failures
 SeriesResult.n_failed

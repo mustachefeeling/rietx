@@ -230,3 +230,191 @@ def test_a_chain_with_no_failures_is_unaffected_by_the_new_parameter(
 
 def test_on_error_policies_is_the_one_vocabulary_the_validator_uses():
     assert ON_ERROR_POLICIES == ("raise", "skip", "carry")
+
+
+# ----------------------------------------------------------------------
+# WP-1333: a rung that raises is a rung that lost
+# ----------------------------------------------------------------------
+def _poison(monkeypatch, target, *, fails):
+    """Patch ``Refinement.fit`` so fitting ``target`` raises on the calls
+    ``fails(n)`` selects, ``n`` counting that pattern's fits from 1 across
+    every rung and pass; every other fit runs for real."""
+    import rietx.refine  # noqa: F401  (see fail_on_pattern for why sys.modules)
+
+    refine_mod = sys.modules["rietx.refine"]
+    orig_fit = refine_mod.Refinement.fit
+    calls = {"n": 0}
+
+    def patched_fit(self, data, *args, **kwargs):
+        if data is target:
+            calls["n"] += 1
+            if fails(calls["n"]):
+                raise ValueError("refusing to enumerate reflections for cell "
+                                 "a=-347.644 (a stand-in for issue #224)")
+        return orig_fit(self, data, *args, **kwargs)
+
+    monkeypatch.setattr(refine_mod.Refinement, "fit", patched_fit)
+    return calls
+
+
+def test_a_raised_warm_rung_escalates_and_the_cold_rung_rescues_it(
+        eight_patterns, monkeypatch):
+    """Issue #224's shape: every *warm* rung inherits what broke it, and only
+    the cold rung starts somewhere else.  Before WP-1333 the whole pattern was
+    abandoned at the first raise, and under ``"carry"`` every successor then
+    warm-started from the same state and raised in turn."""
+    _poison(monkeypatch, eight_patterns[FAIL_INDEX], fails=lambda n: n <= 2)
+    series = _series()
+    result = series.fit(eight_patterns, on_error="raise")
+
+    assert len(result.entries) == N_PATTERNS
+    assert result.n_failed == 0
+    entry = next(e for e in result.entries if e.index == FAIL_INDEX)
+    assert entry.rung == "cold" and entry.reseeded
+    assert entry.rungs_tried == ["warm", "warm_staged", "cold"]
+    assert set(entry.rungs_raised) == {"warm", "warm_staged"}
+    assert "refusing to enumerate" in entry.rungs_raised["warm"]
+    # a warm attempt that raised reached no Rwp, and the record says so
+    assert entry.rwp_warm is None
+    reseed = [d for d in result.diagnostics if d.code == "SEQUENTIAL_RESEED"]
+    assert [d.where for d in reseed] == [[entry.label or str(FAIL_INDEX)]]
+    assert "raised ValueError" in reseed[0].message
+    # the rescued pattern seeds its successor like any accepted one
+    successor = next(e for e in result.entries if e.index == FAIL_INDEX + 1)
+    assert successor.rung == "warm" and not successor.rungs_raised
+
+
+def test_a_pattern_is_a_failure_only_when_every_rung_raised(
+        eight_patterns, fail_on_pattern):
+    series = _series()
+    result = series.fit(eight_patterns, on_error="carry")
+    assert result.n_failed == 1
+    fired = [d for d in result.diagnostics if d.code == "SERIES_PATTERN_FAILED"]
+    assert "on every rung the chain tried" in fired[0].message
+    # keyed on the label like every other per-pattern series diagnostic; it was
+    # ``entries[4]``, and ``entries`` omits the failed pattern
+    assert fired[0].where == [result.failures[0].label or str(FAIL_INDEX)]
+    # rungs that returned elsewhere recorded no raise
+    assert all(not e.rungs_raised for e in result.entries)
+
+
+def test_reseed_false_declines_the_escalation_a_raise_would_take(
+        eight_patterns, monkeypatch):
+    calls = _poison(monkeypatch, eight_patterns[FAIL_INDEX], fails=lambda n: n == 1)
+    series = _series()
+    result = series.fit(eight_patterns, on_error="carry", reseed=False)
+    assert calls["n"] == 1                 # one rung, no ladder
+    assert [f.index for f in result.failures] == [FAIL_INDEX]
+
+
+def test_a_raise_in_the_callers_hook_is_the_callers(eight_patterns):
+    """``constrain``/``prepare`` run outside the guard: the fit is the rung,
+    the hook is the caller's code, and a typo in it must not be swallowed
+    once per pattern into an empty series."""
+    def constrain(index, ref):
+        if index == FAIL_INDEX:
+            raise KeyError("a typo in the caller's hook")
+
+    series = _series()
+    with pytest.raises(KeyError, match="typo"):
+        series.fit(eight_patterns, on_error="carry", constrain=constrain)
+
+
+# ----------------------------------------------------------------------
+# WP-1333: the backward pass cannot take the forward chain with it, and an
+# unrun comparison is not a clean one
+# ----------------------------------------------------------------------
+def _fails_after_the_forward_pass(n: int) -> bool:
+    # the forward chain fits the target once (its warm rung returns); every
+    # fit of it after that is the backward chain's
+    return n > 1
+
+
+def test_a_backward_raise_keeps_the_complete_forward_chain(
+        eight_patterns, monkeypatch):
+    """Issue #224's series C: the forward chain whole, the backward chain dead.
+    Under ``"raise"`` that used to overwrite ``results_`` with the *backward*
+    chain's partial state; now the forward chain is published first and goes
+    out with the exception, and says the comparison never ran."""
+    _poison(monkeypatch, eight_patterns[FAIL_INDEX],
+            fails=_fails_after_the_forward_pass)
+    series = _series()
+    with pytest.raises(ValueError, match="refusing to enumerate") as excinfo:
+        series.fit(eight_patterns, direction="both", on_error="raise")
+
+    assert len(series.results_) == N_PATTERNS
+    assert series.failures_ == []
+    forward = series.result_
+    assert forward is excinfo.value.series_result
+    assert len(forward.entries) == N_PATTERNS
+    assert forward.backward is None and series.backward_ is None
+    not_run = [d for d in forward.diagnostics
+               if d.code == "SEQUENTIAL_PATH_CHECK_INCOMPLETE"]
+    assert len(not_run) == 1 and not_run[0].level == "warning"
+    assert "did not run: the backward chain raised" in not_run[0].message
+    assert f"on pattern {FAIL_INDEX}" in not_run[0].message
+    assert not any(d.code == "SEQUENTIAL_PATH_DEPENDENT"
+                   for d in forward.diagnostics)
+
+
+def test_a_backward_failure_is_recorded_and_narrows_the_comparison(
+        eight_patterns, monkeypatch):
+    """Under ``"carry"`` the backward chain's failures were discarded, so the
+    comparison ran on seven patterns and said nothing about the eighth."""
+    _poison(monkeypatch, eight_patterns[FAIL_INDEX],
+            fails=_fails_after_the_forward_pass)
+    series = _series()
+    result = series.fit(eight_patterns, direction="both", on_error="carry")
+
+    assert len(result.entries) == N_PATTERNS and result.n_failed == 0
+    assert [f.index for f in result.backward.failures] == [FAIL_INDEX]
+    assert result.backward.n_failed == 1
+    failed = [d for d in result.diagnostics if d.code == "SERIES_PATTERN_FAILED"]
+    assert len(failed) == 1 and "backward (verification) chain" in failed[0].message
+
+    label = result.backward.failures[0].label or str(FAIL_INDEX)
+    partial = [d for d in result.diagnostics
+               if d.code == "SEQUENTIAL_PATH_CHECK_INCOMPLETE"
+               and d.where == [label]]
+    assert len(partial) == 1 and partial[0].level == "info"
+    assert partial[0].value == N_PATTERNS - 1
+    assert f"ran on {N_PATTERNS - 1} of {N_PATTERNS} patterns" in partial[0].message
+    assert "not fitted in the backward chain" in partial[0].message
+
+
+def test_a_cancelled_backward_chain_reports_the_comparison_as_not_run(
+        eight_patterns):
+    from rietx.optimize.cancel import CancelToken
+
+    token = CancelToken()
+    stop_after = N_PATTERNS - 3            # the backward chain walks 7, 6, 5, …
+
+    def watch(event):
+        data = event["data"]
+        if (event["kind"] == "fit_end" and data.get("series_pass") == "backward"
+                and data.get("series_index") == stop_after):
+            token.cancel()
+
+    series = _series()
+    result = series.fit(eight_patterns, direction="both", events=watch,
+                        cancel=token)
+
+    assert len(result.entries) == N_PATTERNS
+    codes = [d.code for d in result.diagnostics]
+    assert "SEQUENTIAL_PATH_DEPENDENT" not in codes
+    not_run = [d for d in result.diagnostics
+               if d.code == "SEQUENTIAL_PATH_CHECK_INCOMPLETE"]
+    assert len(not_run) == 1 and not_run[0].level == "warning"
+    assert "backward chain was cancelled after 3 of 8 patterns" in not_run[0].message
+
+
+def test_a_clean_both_way_series_reports_the_check_as_run(eight_patterns):
+    """Zero findings means *checked and clean* only if nothing else fires on a
+    clean series — measured here, where a tie row off a never-freed source and
+    a coefficient on its floor were the two paths a naive "unjudged" list
+    named on every run."""
+    series = _series()
+    result = series.fit(eight_patterns, direction="both")
+    assert not any(d.code == "SEQUENTIAL_PATH_CHECK_INCOMPLETE"
+                   for d in result.diagnostics)
+    assert result.backward is not None and result.backward.n_failed == 0

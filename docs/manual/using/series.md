@@ -224,6 +224,7 @@ patterns in order.
 | `SeriesEntry.rwp_warm` | Rwp the first, warm attempt reached, set whenever the ladder escalated |
 | `SeriesEntry.rung` | which attempt produced these values: `"warm"`, `"warm_staged"` or `"cold"` |
 | `SeriesEntry.rungs_tried` | every rung attempted, in ladder order |
+| `SeriesEntry.rungs_raised` | the rungs among those whose fit raised rather than returned, each with `repr` of the exception |
 | `SeriesEntry.node_id`, `SeriesEntry.tree_id` | where this pattern's history lives |
 
 `SeriesEntry.value` and `SeriesEntry.stderr` look a path up in that entry's
@@ -380,7 +381,7 @@ an axis title for a series with no coordinate but would be the header's second
 A sequential fit is path-dependent by construction. Every pattern's answer
 depends on its neighbour's, so the method can imprint a trend the data do not
 carry: one bad pattern's error is inherited by all its successors, and the
-result is a smooth-looking curve. Five diagnostics fence that, and none of them
+result is a smooth-looking curve. Six diagnostics fence that, and none of them
 alters a fitted value.
 
 | Code | Says |
@@ -389,6 +390,7 @@ alters a fitted value.
 | `SEQUENTIAL_UNRECOVERED` | the pattern diverged and stayed diverged after every rung; it seeded no successor and joined no median |
 | `SEQUENTIAL_DISCONTINUITY` | a step much larger than the local trend: the science, or a chain failure, and the diagnostic says both |
 | `SEQUENTIAL_PATH_DEPENDENT` | with `direction="both"`, forward and backward disagree by more than their esds allow |
+| `SEQUENTIAL_PATH_CHECK_INCOMPLETE` | with `direction="both"`, the comparison did not run, or ran on fewer patterns or paths than the series has |
 | `SEQUENTIAL_PERSISTENT_FINDING` | one of the per-pattern codes fired in more than half the patterns, so it is about the model rather than about a pattern |
 
 The last one exists because of an arithmetic problem the others do not have. A
@@ -467,6 +469,18 @@ benchmark's ten-pattern series: 1603 solver evaluations without the bound and
 identical. On the eight-mixture round-robin series the two runs are identical to
 the evaluation. Set `first_rung_factor=None` to reproduce a pre-1.1 run exactly.
 
+A rung whose fit raises, rather than returning a result, has lost in the same
+sense as a diverged one, and the ladder escalates past it the same way.
+`SeriesEntry.rungs_raised` records what each such rung raised, and
+`SeriesEntry.rwp_warm` is `None` when the warm rung was one of them, since it
+reached no Rwp. The case that needs this is a neighbour that converged with a
+cell far outside the physical range. Every warm rung inherits that cell, and the
+reflection enumerator refuses it before the fit starts. The cold rung starts
+from the initial models and never sees it. Only a pattern on which every rung
+raised has no entry. It is recorded in `SeriesResult.failures` with a
+`SERIES_PATTERN_FAILED` warning, and what the chain does next is the `on_error`
+policy's choice.
+
 Quarantine is the other half, and it is about what the chain carries rather than
 what it reports. A fit still `"diverged"` after the last rung is neither a
 starting point nor a scale, so its successor warm-starts from the last accepted
@@ -509,6 +523,19 @@ messages compare against is `SeriesResult.backward`, the reverse chain's own
 `refine_sequential` can read the second trajectory and not only the verdict
 about it. Its own `backward` is `None`, which is one extra level rather than a
 cycle, and `SequentialRefinement.backward_` is the same object.
+
+Zero `SEQUENTIAL_PATH_DEPENDENT` findings is also what you get when the
+comparison never happened, so a comparison that did not run says so. When the
+forward chain was cancelled, the backward chain was cancelled, or the backward
+chain raised, `SEQUENTIAL_PATH_CHECK_INCOMPLETE` fires at `warning`, naming the
+chain and the pattern it stopped on. When it ran on less than the series, the
+same code fires at `info`. In that case `where` names the patterns one chain
+has no entry for, or the paths some chain measured that no pattern could judge,
+because no pattern has an esd for them in both chains. So zero findings with
+neither of these present means the comparison was made and found nothing. A
+backward chain's own failures are on `result.backward.failures`. Its raise
+under `on_error="raise"` no longer costs the forward chain, which is on
+`SequentialRefinement.result_` and on the exception as `series_result`.
 
 `SeriesResult.n_iterations` counts the chain the result reports, which under
 `direction="both"` is the forward one. It is not what the run cost:
