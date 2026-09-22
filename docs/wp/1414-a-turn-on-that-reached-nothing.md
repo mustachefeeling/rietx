@@ -1,6 +1,6 @@
 # WP-1414 — a `turn_on` that reached nothing says so
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-09-22 — claimed by @yue-here (cloud session)
 Depends on: — (1341 soft: the joint fit's report is where the per-histogram
 finding is rendered)
 Priority: P2 2026-09-23 — a stage that freed nothing converges anyway; the parameter table shows it held, nothing fires
