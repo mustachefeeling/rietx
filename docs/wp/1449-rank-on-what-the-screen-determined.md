@@ -35,6 +35,17 @@ extra; a share bound; a gain bounded by `n_unindexed`. The instrument is
 `ambiguity._refuted_supercell`, kept private and tested, unwired, with the
 numbers in its docstring.
 
+**Re-measure the table before quoting it.** The shares above were taken before
+WP-1446's review pass moved `_derivative_transform`'s enumeration into the
+child's frame. Until then the verdict turned on which axis setting the engine
+reported: measured on a doubled cubic cell, `(a, a, 2a)` was refuted while
+`(2a, a, a)` and `(a, 2a, a)` were cleared, because `same_lattice` compares
+reduced forms and the H it accepts need not map the child's own basis. The fix
+only makes the instrument find **more** related pairs, so the refutation is
+strengthened rather than weakened, and a pair cleared that way was a demotion
+that went uncounted. The individual shares belong to pairs found either way and
+should still hold. Nobody has re-run the wiring experiment to check.
+
 **Where the answer has to come from.** CLAUDE.md already states it from the
 other side — read a `predicted_but_absent` firing as "this cell predicts lines
 the pattern lacks" and never as "this cell is too big", because **only the

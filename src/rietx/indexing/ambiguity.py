@@ -335,9 +335,9 @@ _DERIVATIVE_VOLUME_RTOL = 1e-2
 
 
 def _derivative_transform(parent_cell: tuple[float, ...],
-                         child_cell: tuple[float, ...], *,
-                         max_index: int = MAX_AMBIGUITY_INDEX
-                         ) -> np.ndarray | None:
+                          child_cell: tuple[float, ...], *,
+                          max_index: int = MAX_AMBIGUITY_INDEX
+                          ) -> np.ndarray | None:
     """``H`` with ``child`` = the index-n superlattice ``H`` makes of ``parent``.
 
     ``None`` when no such H exists at or below ``max_index``.  The two cells are
@@ -351,6 +351,24 @@ def _derivative_transform(parent_cell: tuple[float, ...],
     The volume ratio prefilters the pair (:data:`_DERIVATIVE_VOLUME_RTOL`) because
     ``det H`` **is** that ratio, so a pair whose volumes are not in integer
     proportion cannot be related by any H and needs no enumeration.
+
+    **The enumeration runs in the child's frame, and that is not a detail.**
+    ``same_lattice`` compares *reduced* forms, so an H passing it says only that
+    ``lattice(H·parent)`` and ``lattice(child)`` are the same lattice — the
+    child's own fitted basis is then ``U·H·parent`` for some unimodular ``U``,
+    and ``H⁻¹`` applied to *that* basis gives ``H⁻¹UH·parent``, a lattice of the
+    parent's volume that need not be the parent's.  Since
+    :func:`_refuted_supercell` enumerates the parent's lines from exactly that
+    product, the test is run the way it is used: ``transform_cell(child, H⁻ᵀ)``
+    is required to reduce to the parent, and ``Hᵀ`` is returned.  The transposed
+    HNF set is the complete one for that direction (the row form is canonical
+    under *left* multiplication by a unimodular matrix, its transpose under
+    *right*), so nothing is lost by asking the question from this side.  Asked
+    from the parent's side instead, a child reported in a permuted setting —
+    ``(2a, a, a)`` for a doubled cubic cell rather than ``(a, a, 2a)`` — takes
+    the first H in the list and hands ``_refuted_supercell`` an ``(2a, a, a/2)``
+    lattice, whose extras are a different set; measured, the same supercell is
+    refuted in one setting and cleared in the other.
     """
     from ..crystallography.lattice import cell_volume
     from .qspace import af_from_cell
@@ -366,15 +384,17 @@ def _derivative_transform(parent_cell: tuple[float, ...],
         return None
     if abs(ratio - index) > _DERIVATIVE_VOLUME_RTOL * index:
         return None
-    af_child = af_from_cell(child_cell)
     for h in hnf_matrices(index):
+        ht = np.ascontiguousarray(h.T)
         try:
-            candidate = transform_cell(parent_cell, h)
-            equal, _chi2 = same_lattice(af_from_cell(candidate), af_child)
+            candidate = transform_cell(
+                child_cell, np.linalg.inv(np.asarray(ht, dtype=np.float64)))
+            equal, _chi2 = same_lattice(af_from_cell(candidate),
+                                        af_from_cell(parent_cell))
         except (ValueError, np.linalg.LinAlgError):
             continue
         if equal:
-            return h
+            return ht
     return None
 
 
@@ -436,18 +456,23 @@ def _refuted_supercell(parent_cell: tuple[float, ...], parent_system: str,
     H⁻¹)``, so every true coincidence is exact and :func:`_extra_mask`'s
     median-σ(Q) tolerance does the job it was written for; enumerating them from
     the parent's own fit instead leaves the two sets a median σ(Q) apart and the
-    extras uncountable.  The coverage self-check is not belt and braces: ``H``
-    relates two *metrics* and says nothing about centring, so the check asks the
-    child to actually predict the parent's lines and declines the pair when it
-    does not.  And a **true** superstructure is not refuted, its superlattice
-    reflections being present, so there are no absent extras to count.
+    extras uncountable.  ``H`` is sought in the child's frame for that reason
+    too — see :func:`_derivative_transform`, whose verdict would otherwise turn
+    on which setting the engine happened to report the child in.  The coverage
+    self-check is not belt and braces: ``H`` relates two *metrics* and says
+    nothing about centring, so the check asks the child to actually predict the
+    parent's lines and declines the pair when it does not.  And a **true**
+    superstructure is not refuted, its superlattice reflections being present,
+    so there are no absent extras to count.
     """
     h = _derivative_transform(parent_cell, child_cell, max_index=max_index)
     if h is None:
         return False
     obs = np.asarray(q_obs, dtype=np.float64)
     esd = np.asarray(q_esd, dtype=np.float64)
-    if not len(obs):
+    # extras_absent_in_range windows each extra on the σ of the observed line
+    # nearest it, so a σ per observation is the contract rather than a nicety
+    if not len(obs) or len(esd) != len(obs):
         return False
     try:
         parent_in_child = transform_cell(
@@ -462,9 +487,9 @@ def _refuted_supercell(parent_cell: tuple[float, ...], parent_system: str,
         return False
     if not len(q_parent) or not len(q_child):
         return False
-    tol = float(np.median(esd)) if len(esd) else 0.0
+    tol = float(np.median(esd))
     covered = np.min(np.abs(q_parent[:, None] - q_child[None, :]), axis=1)
-    if np.mean(covered <= max(tol, 1e-12)) < 1.0 - 1e-9:
+    if not np.all(covered <= max(tol, 1e-12)):
         return False
     extra = q_child[_extra_mask(q_child, q_parent, tol)]
     q_lo, q_hi = float(np.min(obs)), float(np.max(obs))

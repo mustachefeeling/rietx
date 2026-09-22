@@ -363,7 +363,7 @@ def test_the_pair_form_refutes_the_supercell_the_partner_form_refutes():
     assert ambiguity_partners(parent, "cubic", "P", q, esd, LAM, 90.0,
                               max_index=2) == []
     assert _refuted_supercell(parent, "cubic", "P", child, "triclinic", "P",
-                             q, esd, LAM, 90.0)
+                              q, esd, LAM, 90.0)
 
 
 def test_a_true_superstructure_is_not_refuted():
@@ -380,8 +380,33 @@ def test_a_true_superstructure_is_not_refuted():
     child = transform_cell(parent, np.diag([1, 1, 2]))
     q, esd = _lines(child, "triclinic", "P")     # the child's lines are there
 
-    assert not _refuted_supercell(parent, "cubic", "P", child, "triclinic", "P",
-                                 q, esd, LAM, 90.0)
+    assert not _refuted_supercell(parent, "cubic", "P", child, "triclinic",
+                                  "P", q, esd, LAM, 90.0)
+
+
+def test_the_pair_form_does_not_turn_on_the_setting_the_engine_reported():
+    """Two engines report the same doubled cubic lattice in different settings.
+
+    The verdict has to be the same one.  ``same_lattice`` compares *reduced*
+    forms, so an H found from the parent's side says nothing about the child's
+    own basis, and ``H`` inverted onto a permuted basis gives a lattice of the
+    parent's volume that is not the parent's — ``(2a, a, a/2)`` here, whose
+    extras are a different set.  Measured before the enumeration moved into the
+    child's frame, ``(a, a, 2a)`` was refuted and ``(2a, a, a)`` cleared.
+    """
+    parent = (4.1566,) * 3 + (90.0,) * 3
+    natural = transform_cell(parent, np.diag([1, 1, 2]))
+    permuted = (natural[2], natural[0], natural[1]) + (90.0,) * 3
+    q, esd = _lines(parent)                      # only the parent's lines exist
+
+    for child in (natural, permuted):
+        h = _derivative_transform(parent, child)
+        assert h is not None
+        recovered = transform_cell(
+            child, np.linalg.inv(np.asarray(h, dtype=float)))
+        assert np.allclose(recovered, parent)
+        assert _refuted_supercell(parent, "cubic", "P", child, "triclinic",
+                                  "P", q, esd, LAM, 90.0)
 
 
 def test_a_derivative_transform_is_found_by_the_lattice_and_not_by_the_lines():
