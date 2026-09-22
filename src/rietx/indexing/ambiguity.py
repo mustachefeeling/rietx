@@ -323,8 +323,130 @@ def _discriminating(hkl_extra: np.ndarray, q_extra: np.ndarray, q_lo: float,
             [float(v) for v in tt])
 
 
+#: How far two candidates' fitted volumes may sit from an exact integer ratio
+#: and still be tried as parent and derivative.  A **prefilter on a pair**, not a
+#: verdict: :func:`derivative_transform` decides, and it decides on
+#: :func:`~rietx.indexing.reduce.same_lattice`.  One per cent because the two
+#: cells are independent fits of the same lattice — measured on the round-robin
+#: brucite pattern (WP-1446), the a × 2 supercell's volume sits 6 ppm from 4×
+#: the truth's, so a per cent is four orders of slack on what it has to admit
+#: while still cutting the pair list from N² to the few that can be related.
+DERIVATIVE_VOLUME_RTOL = 1e-2
+
+
+def derivative_transform(parent_cell: tuple[float, ...],
+                         child_cell: tuple[float, ...], *,
+                         max_index: int = MAX_AMBIGUITY_INDEX
+                         ) -> np.ndarray | None:
+    """``H`` with ``child`` = the index-n superlattice ``H`` makes of ``parent``.
+
+    ``None`` when no such H exists at or below ``max_index``.  The two cells are
+    **independent fits**, so the comparison is
+    :func:`~rietx.indexing.reduce.same_lattice` on the reduced forms rather than
+    a band in Q — measured on brucite (WP-1446), the parent's predicted lines sit
+    a median 7.0e-5 in Q from the supercell's against a median σ(Q) of 6.8e-5, so
+    a line-position test is not separable at this data's own precision while the
+    lattice test is exact to the fitting difference.
+
+    The volume ratio prefilters the pair (:data:`DERIVATIVE_VOLUME_RTOL`) because
+    ``det H`` **is** that ratio, so a pair whose volumes are not in integer
+    proportion cannot be related by any H and needs no enumeration.
+    """
+    from ..crystallography.lattice import cell_volume
+    from .qspace import af_from_cell
+    from .reduce import same_lattice
+
+    v_parent = float(cell_volume(*parent_cell))
+    v_child = float(cell_volume(*child_cell))
+    if v_parent <= 0.0 or v_child <= 0.0:
+        return None
+    ratio = v_child / v_parent
+    index = int(round(ratio))
+    if index < 2 or index > max_index:
+        return None
+    if abs(ratio - index) > DERIVATIVE_VOLUME_RTOL * index:
+        return None
+    af_child = af_from_cell(child_cell)
+    for h in hnf_matrices(index):
+        try:
+            candidate = transform_cell(parent_cell, h)
+            equal, _chi2 = same_lattice(af_from_cell(candidate), af_child)
+        except (ValueError, np.linalg.LinAlgError):
+            continue
+        if equal:
+            return h
+    return None
+
+
+def refuted_supercell(parent_cell: tuple[float, ...], parent_system: str,
+                      parent_centring: str,
+                      child_cell: tuple[float, ...], child_system: str,
+                      child_centring: str,
+                      q_obs: np.ndarray, q_esd: np.ndarray, wavelength: float,
+                      two_theta_max: float, *,
+                      max_index: int = MAX_AMBIGUITY_INDEX,
+                      k_sigma: float = MATCH_SIGMA) -> bool:
+    """Do the data refute ``child`` as a mere supercell of ``parent``?
+
+    :func:`ambiguity_partners`' second test, asked of **two candidates already in
+    hand** rather than of an enumerated partner, and it is the same question with
+    the same answer: a derivative lattice needing a reflection the pattern
+    demonstrably lacks is excluded by the data, and the module docstring's "the
+    small cell is the answer and the supercell is not a rival hypothesis about
+    it" is why that is crystallography rather than parsimony.
+
+    The parent's lines are enumerated from the **child's own fitted metric**,
+    ``transform_cell(child, H⁻¹)``, so every true coincidence is exact and
+    :func:`_extra_mask`'s median-σ(Q) tolerance is doing the job it was written
+    for.  Enumerating them from the parent's own fit instead would leave the two
+    sets a median σ(Q) apart and the extras uncountable (WP-1446).
+
+    The coverage self-check is not belt and braces.  ``H`` relates two *metrics*
+    and says nothing about centring, so a pair it matches may still not stand in
+    the containment this function is about; the check asks the child to actually
+    predict the parent's lines and declines the pair when it does not, which is
+    CLAUDE.md's rule that a claim about what a name reaches is verified where it
+    is used.
+
+    A **true** superstructure is not refuted, and that is the test doing its job
+    rather than a gap in it: its superlattice reflections are present, so there
+    are no absent extras to count.  The weak case — superlattice intensity below
+    the picker's floor — is the blind spot the module docstring already states,
+    and it moves to the Le Bail validation rather than being lost.
+    """
+    h = derivative_transform(parent_cell, child_cell, max_index=max_index)
+    if h is None:
+        return False
+    obs = np.asarray(q_obs, dtype=np.float64)
+    esd = np.asarray(q_esd, dtype=np.float64)
+    if not len(obs):
+        return False
+    try:
+        parent_in_child = transform_cell(
+            child_cell, np.linalg.inv(np.asarray(h, dtype=np.float64)))
+        _hkl_p, q_parent = predicted_lines(parent_in_child, parent_system,
+                                           parent_centring, wavelength,
+                                           two_theta_max)
+        _hkl_c, q_child = predicted_lines(child_cell, child_system,
+                                          child_centring, wavelength,
+                                          two_theta_max)
+    except (ValueError, RuntimeError, np.linalg.LinAlgError):
+        return False
+    if not len(q_parent) or not len(q_child):
+        return False
+    tol = float(np.median(esd)) if len(esd) else 0.0
+    covered = np.min(np.abs(q_parent[:, None] - q_child[None, :]), axis=1)
+    if np.mean(covered <= max(tol, 1e-12)) < 1.0 - 1e-9:
+        return False
+    extra = q_child[_extra_mask(q_child, q_parent, tol)]
+    q_lo, q_hi = float(np.min(obs)), float(np.max(obs))
+    return bool(extras_absent_in_range(extra, obs, esd, q_lo, q_hi,
+                                       k_sigma=k_sigma))
+
+
 __all__ = ["AMBIGUITY_DISCREPANCY_SLACK", "AMBIGUITY_EXTEND_FACTOR",
-           "MAX_AMBIGUITY_INDEX",
+           "DERIVATIVE_VOLUME_RTOL", "MAX_AMBIGUITY_INDEX",
            "MAX_DISCRIMINATING", "ambiguity_partners", "derivative_cells",
-           "extras_absent_in_range",
-           "hnf_matrices", "reduce_cell", "transform_cell"]
+           "derivative_transform", "extras_absent_in_range",
+           "hnf_matrices", "reduce_cell", "refuted_supercell",
+           "transform_cell"]

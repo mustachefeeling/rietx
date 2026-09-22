@@ -31,6 +31,7 @@ from a trial cell goes through :func:`reflection_ceiling_ok` first.
 
 from __future__ import annotations
 
+import heapq
 import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
@@ -1280,7 +1281,105 @@ def rank_candidates(cands: Sequence[EngineCandidate], peaks: PeakList, *,
         scored = [c for _a, _s, _i, c in sorted(
             ((not corroborated(c), -float(s), i, c)
              for i, (s, c) in enumerate(zip(scores, scored))))]
+        scored = order_below_parents(scored, peaks, k_sigma=k_sigma)
     return (scored + unscored)[:max_candidates]
+
+
+def supercell_parents(cands: Sequence[EngineCandidate], peaks: PeakList, *,
+                      k_sigma: float = MATCH_SIGMA,
+                      ) -> dict[int, list[EngineCandidate]]:
+    """Which smaller candidates the data refute each candidate against.
+
+    ``{id(candidate): [parents]}``, a parent being a candidate of smaller volume
+    that this one is a supercell of *and* whose extra predictions the pattern
+    demonstrably lacks (:func:`~rietx.indexing.ambiguity.refuted_supercell`).
+
+    The pairs are walked smallest volume first and the walk stops at the first
+    parent per candidate only when nothing downstream needs the rest — it does,
+    so every edge is collected: the order this feeds
+    (:func:`order_below_parents`) has to put a supercell below **every** cell
+    refuting it, not merely below one of them.
+    """
+    from .ambiguity import refuted_supercell
+
+    prepared = []
+    for cand in cands:
+        q_obs, tt = scored_positions(peaks, cand.fit)
+        tt_max = float(np.max(tt)) if len(tt) else 90.0
+        prepared.append((cand, q_obs, tt_max))
+    prepared.sort(key=lambda row: row[0].volume)
+    q_esd = peaks.q_esd()
+    out: dict[int, list[EngineCandidate]] = {id(c): [] for c in cands}
+    for i, (child, q_obs, tt_max) in enumerate(prepared):
+        for parent, _q_p, _tt_p in prepared[:i]:
+            if parent.volume >= child.volume:
+                continue
+            if refuted_supercell(parent.cell, parent.system, parent.centring,
+                                 child.cell, child.system, child.centring,
+                                 q_obs, q_esd, peaks.wavelength, tt_max,
+                                 k_sigma=k_sigma):
+                out[id(child)].append(parent)
+    return out
+
+
+def order_below_parents(ranked: Sequence[EngineCandidate], peaks: PeakList, *,
+                        k_sigma: float = MATCH_SIGMA,
+                        ) -> list[EngineCandidate]:
+    """The panel's order, with no candidate above a cell that refutes it.
+
+    **A candidate predicting reflections the pattern does not show may not
+    outrank one that does not** (WP-1446).  Measured on the round-robin brucite
+    pattern, where the panel had the number and did not weigh it: an a × 2
+    supercell led the list at ``predicted_seen_fraction`` 0.318 — 88 predicted
+    lines, 59 of them extra to the truth's lattice and **58 of those absent
+    inside the measured range** — while the certified cell sat third at 0.862.
+    The supercell took the rank on one extra indexed line, 34 against 33.  This
+    is WP-1026's first recorded failure returning; it was masked until WP-1442
+    stopped a contamination screen discarding two real brucite lines.
+
+    **A pairwise constraint and deliberately not a tier.**  ``corroborated``
+    floors a whole class because the gate floors it too; there is no such
+    boundary here, and a tier measured worse than the defect: sinking all 46
+    refuted candidates below all 100 others put the truth first and pushed the
+    2 ×, 3 × and c × 2 supercells **out of the reported twelve** in favour of
+    cells at ``predicted_seen_fraction`` 0.14-0.24 that were nobody's
+    derivative.  Those supercells are real solutions of the metric and a reader
+    should see them ranked rather than hidden, so the rule says only what it can
+    defend: this cell goes below the one refuting it, and nowhere else.
+
+    Kahn's algorithm over the incoming order, which terminates because volume
+    increases strictly along every edge, so the relation is acyclic by
+    construction.  With no edges it is the identity, which is what keeps the
+    ordering the panel's on every pattern that has no derivative pair in its
+    list.
+    """
+    ranked = list(ranked)
+    if len(ranked) < 2:
+        return ranked
+    parents = supercell_parents(ranked, peaks, k_sigma=k_sigma)
+    if not any(parents.values()):
+        return ranked
+    position = {id(c): i for i, c in enumerate(ranked)}
+    by_id = {id(c): c for c in ranked}
+    children: dict[int, list[int]] = {id(c): [] for c in ranked}
+    indegree = {id(c): 0 for c in ranked}
+    for child in ranked:
+        for parent in parents[id(child)]:
+            children[id(parent)].append(id(child))
+            indegree[id(child)] += 1
+    heap = [(position[k], k) for k, n in indegree.items() if n == 0]
+    heapq.heapify(heap)
+    out: list[EngineCandidate] = []
+    while heap:
+        _pos, key = heapq.heappop(heap)
+        out.append(by_id[key])
+        for child_key in children[key]:
+            indegree[child_key] -= 1
+            if indegree[child_key] == 0:
+                heapq.heappush(heap, (position[child_key], child_key))
+    if len(out) != len(ranked):          # unreachable: the relation is acyclic
+        return ranked
+    return out
 
 
 def corroborated(cand: EngineCandidate) -> bool:
