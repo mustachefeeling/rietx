@@ -250,6 +250,98 @@ def test_every_row_carries_a_bound_answer_or_says_it_has_none(two_patterns):
     assert {"phases.0.cell.b", "phases.0.cell.c"} <= unmeasured
 
 
+def _hump_on_histogram_0():
+    """The joint inputs with a hump declared on histogram 0 only.
+
+    The one family on ``main`` that exists on one histogram and not the other
+    without being an emission line, so the nearest a constant-wavelength
+    fixture comes to issue #265's banks, whose profile rows went by other
+    names.
+    """
+    from rietx.schemas.instrument import HumpComponent
+
+    structure, instruments = perturbed_inputs()
+    instruments[0].extra_components = [HumpComponent(
+        label="hump",
+        position=Parameter(value=12.0, unit="deg", vary=False),
+        height=Parameter(value=20.0, min=0.0, unit="counts",
+                         transform="softplus", vary=False),
+        fwhm=Parameter(value=1.5, min=0.1, unit="deg",
+                       transform="softplus", vary=False))]
+    return structure, instruments
+
+
+def test_a_glob_that_reached_one_histogram_is_told_apart_from_the_rest():
+    """What ``unreached_histograms`` reports, and the three silences (WP-1414).
+
+    Reported: a glob that matched rows of one histogram and none of another.
+    Silent: a glob scoped to the histogram it reached (deliberate), a row
+    that exists on both and is force-fixed on both (reached, then declined),
+    and a glob matching nowhere (the single-histogram healthy case).
+    """
+    structure, instruments = _hump_on_histogram_0()
+    mt = MultiParameterTable(structure, instruments)
+    humps = "instrument.extra_components.*"
+
+    assert mt.unreached_histograms([humps]) == {1: [humps]}
+    assert mt.unreached_histograms(["phases.*.scale", humps]) == {}, (
+        "a glob that reaches histogram 1 elsewhere in the stage reaches it")
+    assert mt.unreached_histograms([f"hist.0.{humps}"]) == {}
+    assert mt.unreached_histograms(["hist.*.instrument.extra_components.*"]) == {
+        1: ["hist.*.instrument.extra_components.*"]}
+    assert mt.unreached_histograms(["instrument.geometry.sample_displacement"]) == {}
+    assert mt.unreached_histograms(["phases.*.microstrain.dof.*"]) == {}
+    assert mt.unreached_histograms(["instrument.profile.*"]) == {}
+
+    # known means a bare path of some histogram or a scoped one of a real one
+    assert mt.unknown_literals([
+        "hist.7.instrument.zero_shift", "hist.1.instrument.zero_shift",
+        "instrument.zero_shift", "instrument.zero", "hist.0.instrument.extra_components.0.fwhm",
+        "hist.1.instrument.extra_components.0.fwhm",
+    ]) == ["hist.7.instrument.zero_shift", "instrument.zero",
+           "hist.1.instrument.extra_components.0.fwhm"]
+
+
+def test_a_joint_plan_that_reaches_one_histogram_says_which_it_missed(two_patterns):
+    """Issue #265's comment, on the fixture ``main`` can build.
+
+    The fork's case was ``instrument.profile.*`` freeing the one
+    constant-wavelength histogram and none of the banks; the result said
+    ``converged`` and cost a refinement.  Here a stage's glob reaches a hump
+    declared on histogram 0 only, and the record and the diagnostic both
+    name histogram 1.  A literal no histogram has is the other finding, and
+    a joint fit reports it the way a single one does.
+    """
+    structure, instruments = _hump_on_histogram_0()
+    plan = RefinementPlan(stages=[
+        Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"],
+              max_iter=10),
+        Stage("humps", ["instrument.extra_components.*", "instrument.zero"],
+              max_iter=5),
+    ])
+    result = refine_multi(two_patterns, structure, instruments, plan=plan)
+
+    assert [s.unreached_histograms for s in result.stages] == [
+        {}, {1: ["instrument.extra_components.*"]}]
+    freed_nothing = [d for d in result.diagnostics
+                     if d.code == "STAGE_FREED_NOTHING"]
+    assert len(freed_nothing) == 1
+    d = freed_nothing[0]
+    assert d.level == "info" and d.value == 1.0
+    assert d.where == ["instrument.extra_components.*"]
+    assert "'humps'" in d.message and "histogram 1" in d.message
+
+    assert result.stages[1].unknown_paths == ["instrument.zero"]
+    unknown = [d for d in result.diagnostics if d.code == "STAGE_PATH_UNKNOWN"]
+    assert [u.where for u in unknown] == [["instrument.zero"]]
+    assert "did you mean 'instrument.zero_shift'" in unknown[0].message
+
+    # the record round-trips: histogram keys are ints in JSON's string keys
+    again = type(result).model_validate_json(result.model_dump_json())
+    assert again.stages[1].unreached_histograms == {
+        1: ["instrument.extra_components.*"]}
+
+
 def test_rietveld_only():
     structure, instruments = perturbed_inputs()
     ref = MultiHistogramRefinement(structure, instruments)

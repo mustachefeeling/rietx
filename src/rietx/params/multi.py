@@ -35,7 +35,12 @@ import numpy as np
 
 from ..schemas.instrument import Instrument
 from ..schemas.structure import Structure
-from .vector import ParameterTable, _is_wavelength, check_wavelength_freedom
+from .vector import (
+    ParameterTable,
+    _is_wavelength,
+    check_wavelength_freedom,
+    is_literal_path,
+)
 
 
 def _unscoped(path: str) -> str:
@@ -227,6 +232,76 @@ class MultiParameterTable:
                     freed.append(self._canonical(h, p))
         self._rebuild_columns()
         return freed
+
+    def _names(self, h: int) -> set[str]:
+        """Every name a glob can match in histogram ``h``: bare and scoped."""
+        names: set[str] = set()
+        for e in self.tables[h].entries:
+            names.add(e.path)
+            names.add(self._canonical(h, e.path))
+        return names
+
+    def unknown_literals(self, path_globs: list[str]) -> list[str]:
+        """The literal paths naming no entry in any histogram (WP-1414).
+
+        :meth:`ParameterTable.unknown_literals` across the stack, under this
+        table's matching rule: a literal is known when it is a bare path of
+        some histogram or a scoped one (``hist.1.instrument.zero_shift``), so
+        ``hist.7.…`` on a three-histogram fit is unknown however real its tail.
+        """
+        known: set[str] = set()
+        for h in range(self.n_histograms):
+            known |= self._names(h)
+        return [g for g in dict.fromkeys(path_globs)
+                if is_literal_path(g) and g not in known]
+
+    def unreached_histograms(self, path_globs: list[str]) -> dict[int, list[str]]:
+        """Histograms a stage's globs reached elsewhere and not here (WP-1414).
+
+        Maps each such histogram to the globs that did reach another one, in
+        plan order.  Histogram ``h`` is unreached when no glob *addressing* it
+        matched any of its rows, while one of those same globs matched a row
+        of another histogram.  Issue #265's joint fit is the case: ``instrument.profile.*``
+        freed four rows on the one constant-wavelength histogram and none on
+        any bank, and the result said ``converged``.
+
+        Three things keep this silent where silence is right. **Matched, not
+        freed**: a row that exists and is locked, tied or held was reached,
+        and the reason it stayed is ``ParameterRow.held_because``'s to give —
+        a capillary's force-fixed ``sample_displacement`` is not a miss. A
+        glob **scoped** to another histogram (``hist.0.…``) does not address
+        this one, so a plan that targets one histogram on purpose says
+        nothing about the rest. And a glob that matched **nowhere** is the
+        single-histogram case, silent for the reason
+        :func:`~rietx.params.vector.is_literal_path` gives.
+
+        What it cannot tell apart, and so reports: a component one histogram
+        declares and another does not (a hump, a surface roughness) is
+        reached on one side only by construction. That is a true statement
+        about the stage, at ``info``.
+        """
+        n = self.n_histograms
+        names = [self._names(h) for h in range(n)]
+
+        def addresses(g: str, h: int) -> bool:
+            if not g.startswith("hist."):
+                return True
+            seg = g.split(".", 2)[1]
+            return fnmatch.fnmatchcase(str(h), seg)
+
+        hit = {g: [any(fnmatch.fnmatchcase(p, g) for p in names[h])
+                   for h in range(n)]
+               for g in dict.fromkeys(path_globs)}
+        out: dict[int, list[str]] = {}
+        for h in range(n):
+            mine = [g for g in hit if addresses(g, h)]
+            if any(hit[g][h] for g in mine):
+                continue
+            elsewhere = [g for g in mine
+                         if any(hit[g][k] for k in range(n) if k != h)]
+            if elsewhere:
+                out[h] = elsewhere
+        return out
 
     def seed_softplus(self, scoped_paths: list[str], value: float) -> list[str]:
         """Lift softplus params off the zero floor (per histogram); see the

@@ -7,12 +7,13 @@ interface convention.  See ``ATTRIBUTION.md``.
 
 from __future__ import annotations
 
-import difflib
 import math
 from functools import lru_cache
 from typing import Annotated, ClassVar, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from .._nearmiss import did_you_mean
 
 #: Data-contract version of the pydantic schemas (``Capabilities.schema_version``).
 #: Any change a consumer could observe bumps the last component by one, and
@@ -217,7 +218,14 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 #: rule as 0.19 → 0.20: a stored result from before this opens with nothing
 #: blocked, which is true of it — no hold could be declared, so no plan's glob
 #: was ever refused.
-SCHEMA_VERSION = "0.24"
+#: 0.24 → 0.25 (WP-1414, issue #265): ``StageResult.unknown_paths`` — the
+#: literal ``turn_on`` paths naming no parameter of the model — and
+#: ``StageResult.unreached_histograms``, per histogram of a joint fit the globs
+#: that reached another histogram and none of its rows.  Additive and
+#: defaulted empty, the rule of 0.19 → 0.20.  A stored result from before this
+#: opens with nothing unknown and nothing unreached, which says the check did
+#: not exist, never that it passed.
+SCHEMA_VERSION = "0.25"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
 
@@ -294,7 +302,7 @@ class Base(BaseModel):
         mid-assignment — never a typo, so it gets its own message rather than
         the closest-match one, which would otherwise trivially "suggest"
         itself); then a nested block that carries this name; then the closest
-        own-field match (``difflib``, cutoff 0.6); then, for a small schema,
+        own-field match (:mod:`rietx._nearmiss`); then, for a small schema,
         every field name; otherwise the plain pydantic-shaped message
         untouched, so a caller matching on ``"no attribute 'x'"`` keeps
         working.
@@ -319,10 +327,9 @@ class Base(BaseModel):
                 + " or ".join(paths)
                 + ". The top level carries what this schema declares; a value "
                   "computed about it lives in the block that computed it.")
-        close = difflib.get_close_matches(
-            name, list(type(self).model_fields), n=3, cutoff=0.6)
-        if close:
-            raise AttributeError(f"{plain}; did you mean {', '.join(close)!r}?")
+        hint = did_you_mean(name, type(self).model_fields)
+        if hint:
+            raise AttributeError(f"{plain}; {hint}")
         fields = list(type(self).model_fields)
         if len(fields) <= type(self)._ATTR_HINT_FIELD_CAP:
             raise AttributeError(f"{plain}; its fields are {fields}")

@@ -107,13 +107,13 @@ beside it.
 
 ## Tasks
 
-- [ ] `set_vary` (single and multi) distinguishes a literal path from a glob
+- [x] `set_vary` (single and multi) distinguishes a literal path from a glob
       and returns, or exposes, the literals that matched no entry.
-- [ ] The stage runner emits the literal-path diagnostic with the nearest
+- [x] The stage runner emits the literal-path diagnostic with the nearest
       real path (one shared near-miss helper with `__getattr__`), and
       `STAGE_FREED_NOTHING` per histogram when a stage's whole free list
       matched zero rows there.
-- [ ] A `StageResult` field per finding, with the two diagnostics built from
+- [x] A `StageResult` field per finding, with the two diagnostics built from
       the records the way `HOLD_BLOCKED_PLAN` is, and a `SCHEMA_VERSION` bump.
       *Superseded in part, 2026-09-22:* this task read "`GuardFinding`
       constructors and `help.py` entries for both codes (`tests/test_help.py`
@@ -123,9 +123,9 @@ beside it.
       `help.py` carries `PEAK_*` codes only. An engine code is meta-tested by
       `test_docs_consistency.test_every_engine_diagnostic_code_has_a_protocol_row`
       against the skill's references, which the last task covers.
-- [ ] Tests: the four-row reproduction above as a parametrised test, and a
+- [x] Tests: the four-row reproduction above as a parametrised test, and a
       two-histogram fit whose plan reaches one histogram only.
-- [ ] Skill: a `references/diagnostics.md` row per code, and a
+- [x] Skill: a `references/diagnostics.md` row per code, and a
       `references/surprises.md` row that a glob matching nothing is normal
       and a literal matching nothing is a typo.
 

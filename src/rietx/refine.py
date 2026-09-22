@@ -21,6 +21,7 @@ if TYPE_CHECKING:
 
 from . import runs
 from ._about import DIST_NAME
+from ._nearmiss import did_you_mean
 from .backend.api import backend_dtype_note
 from .background.diagnostics import (
     STEPS_PER_FWHM_MIN,
@@ -79,6 +80,7 @@ from .params.vector import (
     AffineTie,
     ParameterTable,
     _is_wavelength,
+    is_literal_path,
     is_variable_path,
 )
 from .report.schemas import THRESHOLDS_VERSION, FitReport, StageReport
@@ -203,6 +205,10 @@ class _StageHold:
     #: asked of the table afterwards, for this carrier's own reason.
     reach: dict[str, list[str]] = dataclasses.field(default_factory=dict)
     blocked_by_hold: list[str] = dataclasses.field(default_factory=list)
+    #: the literal ``turn_on`` paths naming no entry (WP-1414), riding here
+    #: for ``blocked_by_hold``'s reason: decided before the solve, unchanged
+    #: by it, and delivered to the two ``StageResult`` call sites this way
+    unknown_paths: list[str] = dataclasses.field(default_factory=list)
 
 
 def _tie_terms(source: "str | dict[str, float] | Sequence[tuple[str, float]]",
@@ -949,7 +955,7 @@ class Refinement:
             # ``set_vary``'s older answer of declining in silence.
             by_path = {e.path: e for e in table.entries}
             blocked = [g for g in globs
-                       if not any(ch in g for ch in "*?[") and g in self._user_holds
+                       if is_literal_path(g) and g in self._user_holds
                        and g in by_path and by_path[g].tie is None
                        and not by_path[g].locked]
             if blocked:
@@ -1452,7 +1458,7 @@ class Refinement:
         table = self._working_table()
         known = {e.path: e for e in table.entries}
         for glob in globs:
-            if any(ch in glob for ch in "*?[") or glob in hits:
+            if not is_literal_path(glob) or glob in hits:
                 continue
             entry = known.get(glob)
             if entry is None:
@@ -1519,7 +1525,7 @@ class Refinement:
         table = self._working_table()
         known = {e.path for e in table.entries}
         for glob in globs:
-            if any(ch in glob for ch in "*?[") or glob in known:
+            if not is_literal_path(glob) or glob in known:
                 continue
             raise ValueError(f"unknown parameter path: {glob!r}")
         hits = sorted(p for p in known
@@ -1551,7 +1557,7 @@ class Refinement:
         hits = sorted(p for p in self._user_holds
                       if any(fnmatch.fnmatchcase(p, g) for g in globs))
         literals = [g for g in globs
-                    if not any(ch in g for ch in "*?[") and g not in hits]
+                    if is_literal_path(g) and g not in hits]
         if literals:
             known = {e.path for e in self._working_table().entries}
             glob = literals[0]
@@ -2008,6 +2014,13 @@ class Refinement:
             e.path for e in table.entries
             if e.held and e.tie is None and not e.locked
             and any(fnmatch.fnmatchcase(e.path, g) for g in stage.turn_on))
+        # What the stage asked for by name and the model does not have
+        # (WP-1414).  A literal only: a pattern matching nothing is how the
+        # shipped plans reach components a model may not declare, so it stays
+        # silent, while a literal names one parameter and missing it is a
+        # typo or a rename.  Recorded, never raised — one plan runs a whole
+        # series, and a path one pattern's model lacks must not end the chain.
+        unknown_paths = table.unknown_literals(stage.turn_on)
         if self._held:
             # lift the previous stage's hold before this one decides its own:
             # a phase invisible then may be plain now, and a cumulative plan
@@ -2102,6 +2115,9 @@ class Refinement:
                         # existing kind gaining a field is additive by the rule
                         # in history/events.py
                         held=list(held),
+                        # at stage start, where a watcher can see the typo
+                        # before the stage it emptied has spent its budget
+                        unknown_paths=list(unknown_paths),
                         n_points=len(model.tt),
                         index=stage_index, n_stages=n_stages)
         # ftol is passed only when there is one to pass, so a stage with no
@@ -2223,7 +2239,7 @@ class Refinement:
         return model, outcome, guard, freed, _StageHold(
             held=list(held), released=list(released),
             reach={c: list(v) for c, v in held_reach.items()},
-            blocked_by_hold=blocked_by_hold)
+            blocked_by_hold=blocked_by_hold, unknown_paths=unknown_paths)
 
     def fit(self, data: PatternData, *, mode: Mode = "rietveld",
             plan: RefinementPlan | str = "mccusker_default",
@@ -2397,6 +2413,8 @@ class Refinement:
             diagnostics.extend(_degenerate_cell_diagnostics(
                 [(sr.name, sr.n_degenerate_cell_probes) for sr in stage_results]))
             diagnostics.extend(_hold_diagnostics(stage_results))
+            diagnostics.extend(_unknown_path_diagnostics(
+                stage_results, [e.path for e in table.entries]))
 
             self.result_ = _build_result(
                 model, table, outcome.theta, mode=mode, status=outcome.status,
@@ -2528,6 +2546,7 @@ class Refinement:
                 ftol=ftol, held=hold.held, released=hold.released,
                 held_reach=hold.reach,
                 blocked_by_hold=hold.blocked_by_hold,
+                unknown_paths=hold.unknown_paths,
             ))
             if stage_reports:
                 self.stage_reports_.append(self._stage_report(
@@ -2675,11 +2694,14 @@ class Refinement:
                 n_degenerate_cell_probes=outcome.n_degenerate_cell_probes,
                 ftol=stage.ftol, held=hold.held, released=hold.released,
                 held_reach=hold.reach,
-                blocked_by_hold=hold.blocked_by_hold)
+                blocked_by_hold=hold.blocked_by_hold,
+                unknown_paths=hold.unknown_paths)
             # after the StageResult rather than beside the other two extends
             # above, because this one reads the record it has just built; and
             # before the node, so the node carries what the result carries
             diagnostics.extend(_hold_diagnostics([stage_result]))
+            diagnostics.extend(_unknown_path_diagnostics(
+                [stage_result], [e.path for e in table.entries]))
 
             # before the node is recorded, which is where `_run_plan` writes it
             # too; the two call sites must not disagree about when a stage's
@@ -3447,6 +3469,56 @@ def _hold_diagnostics(stage_results: list[StageResult]) -> list[Diagnostic]:
                     "held, the plan is doing less than its name suggests and "
                     "a narrower one would say so"),
     )]
+
+
+def _unknown_path_diagnostics(stage_results: list[StageResult],
+                              known: list[str]) -> list[Diagnostic]:
+    """``STAGE_PATH_UNKNOWN`` — a stage asked for a parameter by a name no row has.
+
+    Issue #265: ``turn_on=["instrument.source.wavelength"]`` freed nothing,
+    the stage converged, and nothing said so, because the table spells it
+    ``instrument.source.lines.0.wavelength``.  ``StageResult.freed`` was
+    empty, which is also what a healthy stage looks like when its pattern
+    reaches a component this model does not declare, so the record alone
+    could not tell the two apart.  A *literal* can: it names one parameter
+    (:func:`~rietx.params.vector.is_literal_path`), and a pattern matching
+    nothing stays silent for that reason.
+
+    ``warning``, where :func:`_hold_diagnostics` is ``info``: that one
+    reports the run doing what the caller declared, and this one the caller
+    being wrong about the model, so whatever the stage was meant to refine
+    was not refined.  Never raised, because one plan runs every pattern of a
+    series and a path one pattern's model lacks must not end the chain.
+
+    One diagnostic per **path**, for the reason the hold's is one per fit: a
+    cumulative plan repeats itself, and the message names the stages.
+    ``where`` is the missing path, so a client can put the cursor on the typo;
+    the nearest real path (:mod:`rietx._nearmiss`, the ``__getattr__`` helper)
+    rides in the message.  One suggestion rather than three, since on dot
+    paths the second and third are usually siblings of the first: for the
+    issue's typo they were ``lines.0.weight`` and ``profile.w``.
+    """
+    by_path: dict[str, list[str]] = {}
+    for sr in stage_results:
+        for path in sr.unknown_paths:
+            by_path.setdefault(path, []).append(sr.name)
+    out = []
+    for path, stages in by_path.items():
+        hint = did_you_mean(path, known, n=1)
+        which = (f"stage {stages[0]!r}" if len(stages) == 1 else
+                 f"stages {', '.join(repr(s) for s in stages)}")
+        out.append(Diagnostic(
+            level="warning", code="STAGE_PATH_UNKNOWN",
+            message=(f"{which} asked for {path}, which names no parameter of "
+                     "this model, so nothing was freed for it"
+                     + (f"; {hint}" if hint else "")),
+            where=[path],
+            suggestion=("a literal path names exactly one parameter: correct "
+                        "it (ref.parameters() lists every path this model "
+                        "has), or write a glob if the stage is meant to reach "
+                        "a component some models do not declare"),
+        ))
+    return out
 
 
 def _apply_esds(table: ParameterTable, result: RefinementResult,

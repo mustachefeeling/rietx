@@ -56,6 +56,7 @@ from .refine import (
     _resolve_specimen_absorption,
     _size_flag_diagnostics,
     _strain_flag_diagnostics,
+    _unknown_path_diagnostics,
     _utcnow,
     _wavelength_calibration_diagnostics,
 )
@@ -268,6 +269,11 @@ class MultiHistogramRefinement:
         carried_hold: list[str] = []
         for stage, ftol in zip(plan.stages, plan.stage_ftols(), strict=True):
             freed = self.mtable.set_vary(stage.turn_on, True)
+            # what the stage asked for and did not get (WP-1414): a literal
+            # no histogram has, and — the joint fit's own case — a histogram
+            # the stage's globs reached nothing of while reaching another's
+            unknown_paths = self.mtable.unknown_literals(stage.turn_on)
+            unreached = self.mtable.unreached_histograms(stage.turn_on)
             if carried_hold:
                 # lift the previous stage's hold before this one decides its
                 # own — the single-histogram runner's rule (``_run_stage``),
@@ -334,7 +340,8 @@ class MultiHistogramRefinement:
                 freed=freed,
                 n_constraint_truncations=outcome.n_constraint_truncations,
                 n_degenerate_cell_probes=outcome.n_degenerate_cell_probes,
-                ftol=ftol, held=held, released=released))
+                ftol=ftol, held=held, released=released,
+                unknown_paths=unknown_paths, unreached_histograms=unreached))
 
         assert models is not None and outcome is not None
         self._models = models
@@ -535,6 +542,14 @@ class MultiHistogramRefinement:
         # probe is a fact about the search and not about the final point.
         diagnostics = diagnostics + _degenerate_cell_diagnostics(
             [(sr.name, sr.n_degenerate_cell_probes) for sr in stage_results])
+        # What a stage asked for and did not get (WP-1414), read off the
+        # records.  The near-miss draws on both spellings a glob can match
+        # here, so a bare typo is answered bare and a scoped one scoped.
+        diagnostics = diagnostics + _unknown_path_diagnostics(
+            stage_results, sorted({name for h in range(n)
+                                   for name in mt._names(h)}))
+        diagnostics = diagnostics + _unreached_histogram_diagnostics(
+            stage_results, [h.label for h in histograms])
         # A phase the joint fit cannot see, and what the run did about it
         # (WP-1301).  Once for the fit rather than once per histogram, because
         # the statement is joint: the support is the phase's **strongest**
@@ -705,6 +720,57 @@ def _size_sharing_diagnostics(mtable) -> list[Diagnostic]:
                 "per histogram instead, say so: "
                 'SharingMap(per_histogram=["phases.*.lor_size", '
                 '"phases.*.gauss_size"])'),
+        ))
+    return out
+
+
+def _unreached_histogram_diagnostics(stage_results: list[StageResult],
+                                     labels: list[str]) -> list[Diagnostic]:
+    """``STAGE_FREED_NOTHING`` — a histogram a stage's globs passed over.
+
+    Issue #265's comment: on a joint fit, a plan written with
+    ``instrument.profile.*`` freed four rows on the one constant-wavelength
+    histogram and none on any bank, and the joint result said ``converged``
+    at Rwp 0.115 where globs naming the banks' own rows gave 0.066. Nothing a
+    single-histogram fit reports could have said it, because each bank's miss
+    is only a miss *beside* the histogram the same glob did reach.
+
+    ``info``, and read off ``StageResult.unreached_histograms``, which already
+    excludes the deliberate cases (a scoped glob, a declined row) and the
+    healthy one (a glob matching nowhere).  What remains can still be true and
+    intended — a hump declared on one histogram is reached on one side only —
+    so this states what the stage did and leaves the verdict to the caller.
+
+    One diagnostic per **histogram**, naming every stage that passed it over
+    and the globs that reached elsewhere, for :func:`_hold_diagnostics`'
+    reason: a cumulative plan says the same thing stage after stage. ``where``
+    is those globs, the thing a caller edits; ``value`` is the histogram's
+    index.
+    """
+    by_hist: dict[int, dict[str, list[str]]] = {}
+    for sr in stage_results:
+        for h, globs in sr.unreached_histograms.items():
+            by_hist.setdefault(h, {})[sr.name] = list(globs)
+    out: list[Diagnostic] = []
+    for h in sorted(by_hist):
+        stages = by_hist[h]
+        where = list(dict.fromkeys(g for globs in stages.values() for g in globs))
+        label = labels[h] if h < len(labels) else f"hist{h}"
+        names = ", ".join(repr(s) for s in stages)
+        out.append(Diagnostic(
+            level="info", code="STAGE_FREED_NOTHING",
+            where=where, value=float(h),
+            message=(f"stage{'' if len(stages) == 1 else 's'} {names} freed "
+                     f"nothing in histogram {h} ({label}): "
+                     f"{', '.join(where)} matched rows of another histogram "
+                     "and none of this one, so its instrument parameters for "
+                     "those stages kept their starting values"),
+            suggestion=("if this histogram declares no such component, "
+                        "nothing is wrong. Otherwise its parameters go by "
+                        "other names: list them with the joint table's "
+                        f"hist.{h}.* rows and add a glob that reaches them, or "
+                        "scope the stage (hist.<k>.…) if one histogram was "
+                        "the intent"),
         ))
     return out
 

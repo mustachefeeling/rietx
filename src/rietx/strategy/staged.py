@@ -12,11 +12,11 @@ invariant — they stay frozen *within* a stage).
 from __future__ import annotations
 
 import dataclasses
-import difflib
 import functools
 import re
 from dataclasses import dataclass, field
 
+from .._nearmiss import did_you_mean
 from ..schemas.common import Mode
 
 # INTERMEDIATE_FTOL is defined beside the mirror because the pydantic field
@@ -84,9 +84,9 @@ def _dataclass_attr_hint(cls: type, name: str) -> AttributeError:
     """
     fields = [f.name for f in dataclasses.fields(cls)]
     plain = f"{cls.__name__!r} object has no attribute {name!r}"
-    close = difflib.get_close_matches(name, fields, n=3, cutoff=0.6)
-    if close:
-        msg = f"{plain}; did you mean {', '.join(close)!r}?"
+    hint = did_you_mean(name, fields)
+    if hint:
+        msg = f"{plain}; {hint}"
     elif len(fields) <= 12:
         msg = f"{plain}; its fields are {fields}"
     else:

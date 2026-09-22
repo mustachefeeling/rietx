@@ -848,6 +848,30 @@ class StageResult(Base):
     #: Empty on every fit where no hold was declared, which is every fit that
     #: predates this field.  It feeds ``HOLD_BLOCKED_PLAN``.
     blocked_by_hold: list[str] = Field(default_factory=list)
+    #: the **literal** paths in this stage's ``turn_on`` that name no parameter
+    #: of the model, in plan order (WP-1414, issue #265).  A literal is a
+    #: ``turn_on`` entry with no ``*``, ``?`` or ``[``: it names one parameter,
+    #: so missing it is a typo or a renamed path, and whatever the stage was
+    #: meant to refine was not.  A *pattern* that matched nothing is not here,
+    #: because that is how the shipped plans reach components a model may not
+    #: declare; nor is a row that exists and was declined (locked, tied or
+    #: held), which :attr:`freed` omits and ``ParameterRow.held_because``
+    #: explains.  On a joint fit, known means a bare path of some histogram or
+    #: a scoped ``hist.h.…`` one.  Empty on every fit that predates this field,
+    #: which is the honest reading: nobody looked.  It feeds
+    #: ``STAGE_PATH_UNKNOWN``.
+    unknown_paths: list[str] = Field(default_factory=list)
+    #: joint fits only: per histogram this stage's globs **reached elsewhere
+    #: and not there**, the globs that did (WP-1414, issue #265's comment).
+    #: Keyed by histogram index.  Histogram ``h`` is here when no glob
+    #: addressing it matched any of its rows while one of those globs matched
+    #: another histogram's — ``instrument.profile.*`` freeing the
+    #: constant-wavelength histogram and nothing on a bank.  A glob scoped to
+    #: another histogram (``hist.0.…``) does not address ``h``, and a row that
+    #: exists but is locked, tied or held counts as reached, so a deliberate
+    #: plan stays out of it.  Always empty on a single-histogram fit, where
+    #: there is no elsewhere.  It feeds ``STAGE_FREED_NOTHING``.
+    unreached_histograms: dict[int, list[str]] = Field(default_factory=dict)
 
 
 class HistogramResult(Base):
