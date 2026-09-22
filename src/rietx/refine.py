@@ -221,6 +221,13 @@ class _StageHold:
     #: far (WP-1110's own 51-transition survey).
     cell_runaway: list[tuple[str, float, float]] = dataclasses.field(
         default_factory=list)
+    #: ``(driver_path, [escaped_dependent_paths])`` per ``vars.*`` column
+    #: :func:`_vars_driven_cell_escapes` found driving a cell outside the
+    #: safety window this stage — named, never clamped (review of #385
+    #: finding 1).  Empty whenever :attr:`cell_runaway` is, and on every
+    #: stage this package's own suite runs outside this file's own fixture.
+    cell_runaway_unresolved: list[tuple[str, list[str]]] = dataclasses.field(
+        default_factory=list)
 
 
 def _tie_terms(source: "str | dict[str, float] | Sequence[tuple[str, float]]",
@@ -524,6 +531,20 @@ def clamp_cell_runaway(table: ParameterTable, start_values: dict[str, float]
     :meth:`~rietx.params.vector.ParameterTable.refresh_ties` (called by the
     caller, exactly as the WP-1301 collapse-restore beside this call already
     does) re-derives them off the clamped source.
+
+    **A cell driven by a caller's free ``vars.X`` is a different case, and
+    this function deliberately does not touch it** (review of #385 finding
+    1).  ``e.path not in free`` below tests the free path's own *name*, the
+    same construction :func:`_unsupported_phase_paths` and
+    :func:`_reach_beyond_self` already had to repair for WP-1342: a cell tied
+    to a free variable is not itself a free column (so the loop never visits
+    its entry) and the variable's own name is not a cell name either, so
+    testing names alone leaves it invisible twice over.  A single clamp target
+    would not even be the right fix if it were visible — a variable driving
+    two cells has no one path to pull back without moving the other — so the
+    escape is *named*, never silently passed through, by
+    :func:`_vars_driven_cell_escapes` beside this function, which the caller
+    folds into the same ``CELL_RUNAWAY`` diagnostic.
     """
     clamped: list[tuple[str, float, float]] = []
     free = set(table.free_paths)
@@ -546,6 +567,63 @@ def clamp_cell_runaway(table: ParameterTable, start_values: dict[str, float]
     return clamped
 
 
+def _vars_driven_cell_escapes(table: ParameterTable,
+                              start_values: dict[str, float]
+                              ) -> list[tuple[str, list[str]]]:
+    """Cell parameters a free ``vars.X`` drives outside the safety window —
+    named, never clamped (review of #385 finding 1).
+
+    :func:`clamp_cell_runaway` tests a free entry's own path against a cell
+    name, so a cell tied to a free ``vars.X`` is invisible to it: the cell is
+    not a free column (it is that column's dependent) and the free column's
+    own name is the variable's, not a cell's.  This asks the other question
+    instead — **columns, never names**, :func:`_unsupported_phase_paths`'s
+    repair for the identical construction (refine.py's own docstring on the
+    ``moving_paths``-vs-``free_paths`` split names this file) — by reading
+    :meth:`~rietx.params.vector.ParameterTable.column_reach`, which answers
+    what a column *moves* rather than what it is called.
+
+    **Never clamped, by design, not merely by omission.**  A variable driving
+    one cell has a single target and pulling it back would still move
+    whatever else that variable drives; a variable driving several has no
+    single target at all.  Either way, deciding which of the driver's other
+    directions may move is the caller's physics, not a post-solve safety
+    net's — so this only reports, and the report names the driver *and* every
+    escaped dependent, never the driver alone (a reader must be able to find
+    what it drove without re-deriving ``column_reach`` themselves).
+
+    Returns ``(driver_path, [escaped_dependent_paths])`` per ``vars.*``
+    column with at least one escaped dependent — empty on every stage where
+    no variable drives a cell outside the window, which is every stage this
+    package's own suite runs outside this file's own fixture.
+    """
+    by_path = {e.path: e for e in table.entries}
+    reach = table.column_reach()
+    out: list[tuple[str, list[str]]] = []
+    for column in table.free_paths:
+        if not is_variable_path(column):
+            continue
+        escaped: list[str] = []
+        for dependent in reach.get(column, []):
+            if dependent == column:
+                continue
+            cell_name = _cell_parameter_name(dependent, phases=None)
+            if cell_name is None:
+                continue
+            e = by_path[dependent]
+            start = start_values.get(dependent)
+            if start is None or not math.isfinite(start):
+                continue
+            lo, hi = cell_window(cell_name, start, -math.inf, math.inf,
+                                 path=dependent, fraction=CELL_SAFETY_FRACTION,
+                                 angle_deg=CELL_SAFETY_ANGLE_DEG)
+            if not (lo <= e.value <= hi):
+                escaped.append(dependent)
+        if escaped:
+            out.append((column, escaped))
+    return out
+
+
 #: An angle path's name (``_cell_parameter_name``'s output), the same test
 #: :func:`~rietx.params.vector.cell_window` branches on -- ``alpha``/``beta``/
 #: ``gamma`` are clamped by ``CELL_SAFETY_ANGLE_DEG`` (degrees, absolute),
@@ -555,45 +633,78 @@ _ANGLE_CELL_NAMES = ("alpha", "beta", "gamma")
 
 
 def _cell_runaway_diagnostic(
-        cell_runaway: list[tuple[str, float, float]]) -> Diagnostic | None:
-    """``CELL_RUNAWAY`` for one stage's :func:`clamp_cell_runaway` findings,
-    or ``None`` when it clamped nothing (the overwhelming majority of stages,
-    including every one this package's own suite runs)."""
-    if not cell_runaway:
+        cell_runaway: list[tuple[str, float, float]],
+        unresolved: list[tuple[str, list[str]]] | None = None,
+        ) -> Diagnostic | None:
+    """``CELL_RUNAWAY`` for one stage's :func:`clamp_cell_runaway` and
+    :func:`_vars_driven_cell_escapes` findings, or ``None`` when neither
+    found anything (the overwhelming majority of stages, including every
+    one this package's own suite runs).
+
+    ``unresolved`` never says "pulled back" — the whole point of review of
+    #385 finding 1 is that a ``vars.X``-driven escape is *not* clamped, so
+    the sentence for it says what happened instead: the driver and every
+    escaped dependent are named, and why nothing moved.  A stage that fires
+    both is one message, not two, since a reader tracing one ``CELL_RUNAWAY``
+    code should not have to reassemble it from two diagnostics that differ
+    only in which clause fired.
+    """
+    unresolved = unresolved or []
+    if not cell_runaway and not unresolved:
         return None
-    paths = [p for p, _, _ in cell_runaway]
-    worst = max(cell_runaway, key=lambda t: abs(t[1] - t[2]))
 
     def is_angle(path: str) -> bool:
         return _cell_parameter_name(path, phases=None) in _ANGLE_CELL_NAMES
 
-    detail = "; ".join(
-        f"{p} {old:.6g} -> {new:.6g} {'°' if is_angle(p) else 'Å'}"
-        for p, old, new in cell_runaway)
-    has_length = any(not is_angle(p) for p, _, _ in cell_runaway)
-    has_angle = any(is_angle(p) for p, _, _ in cell_runaway)
-    if has_length and has_angle:
-        window_clause = (f"±{CELL_SAFETY_FRACTION:.0%} (a/b/c) or "
-                         f"±{CELL_SAFETY_ANGLE_DEG:.0f}° (α/β/γ)")
-    elif has_angle:
-        window_clause = f"±{CELL_SAFETY_ANGLE_DEG:.0f}°"
-    else:
-        window_clause = f"±{CELL_SAFETY_FRACTION:.0%}"
+    paths = [p for p, _, _ in cell_runaway]
+    for driver, escaped in unresolved:
+        paths.append(driver)
+        paths.extend(escaped)
+
+    sentences = []
+    value = None
+    if cell_runaway:
+        worst = max(cell_runaway, key=lambda t: abs(t[1] - t[2]))
+        value = abs(worst[1] - worst[2])
+        detail = "; ".join(
+            f"{p} {old:.6g} -> {new:.6g} {'°' if is_angle(p) else 'Å'}"
+            for p, old, new in cell_runaway)
+        has_length = any(not is_angle(p) for p, _, _ in cell_runaway)
+        has_angle = any(is_angle(p) for p, _, _ in cell_runaway)
+        if has_length and has_angle:
+            window_clause = (f"±{CELL_SAFETY_FRACTION:.0%} (a/b/c) or "
+                             f"±{CELL_SAFETY_ANGLE_DEG:.0f}° (α/β/γ)")
+        elif has_angle:
+            window_clause = f"±{CELL_SAFETY_ANGLE_DEG:.0f}°"
+        else:
+            window_clause = f"±{CELL_SAFETY_FRACTION:.0%}"
+        sentences.append(
+            f"{len(cell_runaway)} free cell parameter"
+            f"{'' if len(cell_runaway) == 1 else 's'} left "
+            f"{window_clause} of this stage's starting cell "
+            f"during solving and {'was' if len(cell_runaway) == 1 else 'were'} "
+            f"pulled back to the window edge rather than left to reach "
+            f"an unphysical value: {detail}")
+    if unresolved:
+        driver_detail = "; ".join(
+            f"{driver} drives {', '.join(escaped)} outside its window"
+            for driver, escaped in unresolved)
+        sentences.append(
+            f"{driver_detail}, and {'was' if len(unresolved) == 1 else 'were'} "
+            f"not pulled back: a variable driving a cell has no single "
+            f"clamp target, and clamping the driver would move every other "
+            f"value it also reaches, so this is reported rather than "
+            f"corrected")
     return Diagnostic(
-        level="warning", code="CELL_RUNAWAY", where=paths,
-        value=abs(worst[1] - worst[2]),
-        message=(f"{len(cell_runaway)} free cell parameter"
-                 f"{'' if len(cell_runaway) == 1 else 's'} left "
-                 f"{window_clause} of this stage's starting cell "
-                 f"during solving and {'was' if len(cell_runaway) == 1 else 'were'} "
-                 f"pulled back to the window edge rather than left to reach "
-                 f"an unphysical value: {detail}"),
+        level="warning", code="CELL_RUNAWAY", where=paths, value=value,
+        message=". ".join(sentences),
         suggestion=(
-            "the pulled-back value is not a measurement: this phase's own "
-            "cell is degenerate with another free phase's (or with another "
-            "free parameter) along this direction; fix one phase's cell, "
-            "hold the other free phase, or free the cell in its own stage "
-            "away from the degenerate pairing"),
+            "a value this diagnostic names is not a measurement: this "
+            "phase's own cell is degenerate with another free phase's, "
+            "with another free parameter, or with the variable driving it, "
+            "along this direction; fix one phase's cell, hold the other "
+            "free phase, or free the cell in its own stage away from the "
+            "degenerate pairing"),
     )
 
 
@@ -2383,6 +2494,10 @@ class Refinement:
         # per-phase test above (CELL_SAFETY_FRACTION's docstring).  Checked
         # and corrected once, on the outcome, never as a bound the solver saw.
         cell_runaway = clamp_cell_runaway(table, start_values)
+        # A caller's free ``vars.X`` can drive a cell the same way and is
+        # invisible to the clamp above by construction (review of #385
+        # finding 1) — named here instead, never silently passed through.
+        cell_runaway_unresolved = _vars_driven_cell_escapes(table, start_values)
         if cell_runaway:
             table.refresh_ties()
             # ``table.commit`` above wrote ``outcome.theta`` into
@@ -2493,6 +2608,14 @@ class Refinement:
                 # rather than ``outcome`` — the merge just below carries
                 # ``second``'s ``theta`` field forward untouched otherwise.
                 second = dataclasses.replace(second, theta=table.x0())
+            # same measurement as the first solve, re-taken on the values the
+            # collapse-restore's own second solve landed on -- merged by
+            # driver rather than concatenated, so a driver still escaping
+            # after both solves is named once, not twice
+            merged = dict(cell_runaway_unresolved)
+            for driver, escaped in _vars_driven_cell_escapes(table, start_values):
+                merged[driver] = sorted(set(merged.get(driver, [])) | set(escaped))
+            cell_runaway_unresolved = list(merged.items())
             # the record is one stage: the second solve's answer, the first
             # solve's starting cost, and the iterations of both — the whole
             # point being that the hold cost something and it must be visible
@@ -2532,7 +2655,8 @@ class Refinement:
             held=list(held), released=list(released),
             reach={c: list(v) for c, v in held_reach.items()},
             blocked_by_hold=blocked_by_hold, unknown_paths=unknown_paths,
-            cell_runaway=list(cell_runaway))
+            cell_runaway=list(cell_runaway),
+            cell_runaway_unresolved=[(d, list(e)) for d, e in cell_runaway_unresolved])
 
     def fit(self, data: PatternData, *, mode: Mode = "rietveld",
             plan: RefinementPlan | str = "mccusker_default",
@@ -2838,7 +2962,7 @@ class Refinement:
                     continue          # re-taken on the converged vector below
                 else:
                     diagnostics.append(d)
-            runaway_diag = _cell_runaway_diagnostic(hold.cell_runaway)
+            runaway_diag = _cell_runaway_diagnostic(hold.cell_runaway, hold.cell_runaway_unresolved)
             if runaway_diag is not None:
                 diagnostics.append(runaway_diag)
                 stage_diagnostics = stage_diagnostics + [runaway_diag]
@@ -3063,7 +3187,7 @@ class Refinement:
             diagnostics.extend(_constraint_diagnostics(stage.name, outcome))
             diagnostics.extend(_degenerate_cell_diagnostics(
                 [(stage.name, outcome.n_degenerate_cell_probes)]))
-            runaway_diag = _cell_runaway_diagnostic(hold.cell_runaway)
+            runaway_diag = _cell_runaway_diagnostic(hold.cell_runaway, hold.cell_runaway_unresolved)
             if runaway_diag is not None:
                 diagnostics.append(runaway_diag)
 

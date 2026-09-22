@@ -332,9 +332,17 @@ CELL_WINDOW_ANGLE_DEG = 2.0
 CELL_MIN_LENGTH_A = 1.5
 
 #: Unconditional post-solve safety window (fraction, degrees) — see
-#: ``refine.clamp_cell_runaway``, which applies this to *every* free cell
-#: parameter regardless of ``phase_support``, after a stage has solved and
-#: committed.  ``phase_support`` (the authority behind ``cell_window``'s own
+#: ``refine.clamp_cell_runaway``, which applies this to every cell parameter
+#: that is itself a free *column* regardless of ``phase_support``, after a
+#: stage has solved and committed.  **"Free" is narrower than "moving" here**
+#: (the ``moving_paths``-vs-``free_paths`` rule, root CLAUDE.md), and the gap
+#: is not closed: a cell tied to a caller's free ``vars.X`` is a *moving*
+#: path, not a *free* one, so it is never clamped directly — clamping the
+#: driver would move every other value it also reaches, which is not this
+#: function's decision to make.  Such an escape is named instead, never
+#: silently passed through: see ``refine._vars_driven_cell_escapes`` and the
+#: review of #385 finding 1.  ``phase_support`` (the authority behind
+#: ``cell_window``'s own
 #: window above, and ``refine._hold_unsupported_phases``, WP-1301) is a
 #: per-phase amplitude test and cannot see a *joint* degeneracy: two free
 #: phases sharing a near-identical cell trade scale against each other along

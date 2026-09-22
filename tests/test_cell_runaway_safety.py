@@ -167,6 +167,87 @@ def test_a_held_cell_is_never_visited():
 
 
 # ----------------------------------------------------------------------
+# review of #385 (2026-09-22): a cell driven by a free ``vars.X`` is
+# invisible to ``clamp_cell_runaway``, which tests a free path's own name
+# -- and it must stay invisible to the clamp (a shared driver has no single
+# clamp target), but it must never pass through silently.
+# ----------------------------------------------------------------------
+def test_a_vars_driven_cell_escape_is_never_clamped_but_is_named():
+    """``phases.0.cell.a`` tied to a free ``vars.A`` (Yue's own reproduction,
+    review of #385 finding 1): ``clamp_cell_runaway`` still does not touch
+    it -- that is correct, per its own docstring, since pulling the driver
+    back would move every other value it reaches -- but
+    ``_vars_driven_cell_escapes`` must find it, and the ``CELL_RUNAWAY``
+    diagnostic built from both must name ``vars.A`` and ``phases.0.cell.a``
+    together, saying it was not pulled back and why."""
+    from rietx import Refinement
+    from rietx.refine import _cell_runaway_diagnostic, _vars_driven_cell_escapes
+
+    structure, ins = _degenerate_pair(5e-4)
+    ref = Refinement(structure, ins, history=False)
+    ref.add_variable("A", TRUE_A, min=1.0, max=1000.0)
+    ref.tie("phases.0.cell.a", "vars.A")
+    table = ref._prepare_table(restore=False)
+    table.set_vary(["vars.A", "phases.1.cell.a"], True)
+    start_values = table.decode(table.x0())
+
+    # the construction the review names: free (cells+vars) is ['phases.1.cell.a',
+    # 'vars.A'], moving (cells+vars) additionally carries 'phases.0.cell.a'
+    assert "phases.0.cell.a" not in table.free_paths
+    assert "phases.0.cell.a" in table.moving_paths
+    assert "vars.A" in table.free_paths
+
+    # the escape happens through the driver -- exactly as it would after a
+    # runaway TRF step + table.commit(outcome.theta) -- and the tie carries
+    # it to the dependent cell
+    driver = table.entries[table._paths["vars.A"]]
+    driver.value = TRUE_A * 50.0  # far outside +/-15%, same escape as above
+    table.refresh_ties()
+    dependent = table.entries[table._paths["phases.0.cell.a"]]
+    assert dependent.value == pytest.approx(TRUE_A * 50.0)
+
+    # clamp_cell_runaway does not, and must not, touch it
+    clamped = clamp_cell_runaway(table, start_values)
+    assert clamped == []
+    assert dependent.value == pytest.approx(TRUE_A * 50.0)  # still escaped
+
+    # LaB6 is cubic, so ``vars.A`` reaches ``b``/``c`` too, transitively
+    # through ``a``'s own symmetry tie -- column_reach's whole point (it
+    # answers what a column moves, not what it is named) is that this is
+    # not a special case to test around
+    unresolved = _vars_driven_cell_escapes(table, start_values)
+    assert unresolved == [("vars.A", ["phases.0.cell.a", "phases.0.cell.b",
+                                     "phases.0.cell.c"])]
+
+    # nothing is silently passed through: the diagnostic names the driver
+    # and every escaped dependent
+    diag = _cell_runaway_diagnostic(clamped, unresolved)
+    assert diag is not None
+    assert set(diag.where) == {"vars.A", "phases.0.cell.a",
+                               "phases.0.cell.b", "phases.0.cell.c"}
+    assert "vars.A" in diag.message
+    assert "phases.0.cell.a" in diag.message
+    assert "not pulled back" in diag.message
+
+
+def test_a_vars_driver_with_no_escaped_dependent_is_not_reported():
+    """The bit-identity companion: a free ``vars.X`` driving a cell that
+    never leaves the window is not reported at all."""
+    from rietx import Refinement
+    from rietx.refine import _vars_driven_cell_escapes
+
+    structure, ins = _degenerate_pair(5e-4)
+    ref = Refinement(structure, ins, history=False)
+    ref.add_variable("A", TRUE_A, min=1.0, max=1000.0)
+    ref.tie("phases.0.cell.a", "vars.A")
+    table = ref._prepare_table(restore=False)
+    table.set_vary(["vars.A", "phases.1.cell.a"], True)
+    start_values = table.decode(table.x0())
+
+    assert _vars_driven_cell_escapes(table, start_values) == []
+
+
+# ----------------------------------------------------------------------
 # the failure it exists for: end to end through Refinement.fit
 # ----------------------------------------------------------------------
 @pytest.fixture(scope="module")
