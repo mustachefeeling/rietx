@@ -1376,20 +1376,20 @@ def test_the_supercells_that_used_to_outrank_brucite_now_sit_below_it(
     across WP-1030's prunes, WP-1039's search-line ordering, WP-1040's third
     engine or WP-1041's dedup key.
 
-    What this row asserts is that the truth is **found**, that the supercells
-    are found beside it, and that the reversed panel member separates them.  It
-    does *not* assert the ranking: since WP-1442 an a × 2 supercell ranks above
-    the truth here, and
-    ``test_brucites_truth_is_not_ranked_first`` below carries that as a strict
-    xfail so it cannot pass unnoticed.  **WP-1446 owns restoring it.**
+    What this row asserts is that the truth is **ranked first**, that the
+    supercells are found beside it rather than hidden, and that the reversed
+    panel member separates them.  The rank was a strict xfail between WP-1442
+    and WP-1446, an a × 2 supercell leading on one extra indexed line; it came
+    back when the ranking was made to read the reversed member it already held
+    (``engines.order_below_parents``).
 
     The member that answers a supercell is visible in the numbers: the truth
     shows **0.86** of its own predicted lines against the c × 2 cell's 0.43 and
     the c × 3 cell's 0.32 — very close to the 1/2 and 1/3 an exact supercell
     must give, which is what makes it a signature rather than a threshold.
     Forward coverage cannot separate them at all: 31, 31 and 32 of 37 lines,
-    i.e. the supercells index *more*, and the a × 2 cell wins the rank on
-    exactly that one extra line.
+    i.e. the supercells index *more*, and that one extra line is what led the
+    list until the reversed member was allowed to answer it.
 
     The cell recovered is the **specimen's**, not the mineral's: a = 3.1475
     against Zigan & Rothbauer's 3.142 is +1750 ppm, 30× the goniometer-radius
@@ -1409,6 +1409,11 @@ def test_the_supercells_that_used_to_outrank_brucite_now_sit_below_it(
         "failure than the ranking one this row fences: "
         + repr([tuple(round(x, 4) for x in c.cell[:3])
                 for c in res.candidates[:6]]))
+
+    assert res.candidates[0] is best, (
+        "the truth is no longer ranked first — WP-1446's ordering is the one "
+        "thing between this row and WP-1026's original failure.  Ranked first: "
+        + repr(tuple(round(x, 4) for x in res.candidates[0].cell[:3])))
 
     assert best.system in ("hexagonal", "trigonal") and best.centring == "P", (
         f"the truth candidate: {best.system} {best.centring}")
@@ -1446,38 +1451,6 @@ def _brucite_truth(res):
                 and abs(c.cell[2] / C_BRUCITE - 1.0) < 3e-3):
             return c
     return None
-
-
-@pytest.mark.slow
-@pytest.mark.xdist_group("indexing-acceptance-brucite")
-@pytest.mark.xfail(strict=True, reason="WP-1446: an a × 2 supercell outranks "
-                                       "the truth on one extra indexed line")
-def test_brucites_truth_is_not_ranked_first(brucite_index):
-    """The rank the row above stopped asserting, carried where it cannot go quiet.
-
-    Measured 2026-09-22 (WP-1442): the first candidate is an a × 2 supercell at
-    a = 6.2950 against the certified 3.1475.  It predicts **90** reflections of
-    which 25 are present (0.28); the truth predicts 29 of which 25 are present
-    (0.86).  Both index the same 31 observed lines, and the supercell takes the
-    rank on one extra line of the fitted panel, 34 against 33.
-
-    WP-1442 did not cause this.  It stopped the Kβ/W Lα screen discarding two
-    real brucite lines as contamination on a specimen behind a graphite
-    monochromator, where neither line can reach the detector, and those two
-    discards were holding the supercell down.  Removing either one alone still
-    leaves the supercell first, so the margin is one line and always was.
-
-    ``strict=True`` deliberately: when WP-1446 makes the ranking read the
-    reversed panel member, this row goes **red**, and whoever is there restores
-    the assertion to the row above and deletes this one.
-    """
-    res = brucite_index
-    assert res.candidates
-    truth = _brucite_truth(res)
-    assert truth is not None
-    assert res.candidates[0] is truth, (
-        "ranked first: "
-        + repr(tuple(round(x, 4) for x in res.candidates[0].cell[:3])))
 
 
 @pytest.mark.slow

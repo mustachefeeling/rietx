@@ -106,10 +106,9 @@ is the `.inp` grammar 1118 refuses,
 [1433](wp/1433-the-inp-grammar-still-refused.md).
 
 **1442 filed four WPs, and
-[1446](wp/1446-a-supercell-that-outranks-the-truth.md) is first**: a brucite
-supercell outranks the truth while the panel holds the number refuting it, and
-`test_brucites_truth_is_not_ranked_first` is a strict xfail that goes **red**
-when it is fixed. Then [1445](wp/1445-the-optics-nobody-declared.md), needing a
+[1446](wp/1446-a-supercell-that-outranks-the-truth.md) is in flight**: a brucite
+supercell outranked the truth while the panel held the number refuting it, and
+the ranking now orders a candidate below any cell whose supercell it is. Then [1445](wp/1445-the-optics-nobody-declared.md), needing a
 schema decision first; [1447](wp/1447-a-threshold-each-pattern-sets-for-itself.md)
 and [1448](wp/1448-a-number-somebody-chose.md) block nothing.
 
