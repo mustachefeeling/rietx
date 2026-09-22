@@ -323,6 +323,180 @@ def _discriminating(hkl_extra: np.ndarray, q_extra: np.ndarray, q_lo: float,
             [float(v) for v in tt])
 
 
+#: How far two candidates' fitted volumes may sit from an exact integer ratio
+#: and still be tried as parent and derivative.  A **prefilter on a pair**, not a
+#: verdict: :func:`_derivative_transform` decides, and it decides on
+#: :func:`~rietx.indexing.reduce.same_lattice`.  One per cent because the two
+#: cells are independent fits of the same lattice — measured on the round-robin
+#: brucite pattern (WP-1446), the a × 2 supercell's volume sits 6 ppm from 4×
+#: the truth's, so a per cent is four orders of slack on what it has to admit
+#: while still cutting the pair list from N² to the few that can be related.
+_DERIVATIVE_VOLUME_RTOL = 1e-2
+
+
+def _derivative_transform(parent_cell: tuple[float, ...],
+                          child_cell: tuple[float, ...], *,
+                          max_index: int = MAX_AMBIGUITY_INDEX
+                          ) -> np.ndarray | None:
+    """``H`` with ``child`` = the index-n superlattice ``H`` makes of ``parent``.
+
+    ``None`` when no such H exists at or below ``max_index``.  The two cells are
+    **independent fits**, so the comparison is
+    :func:`~rietx.indexing.reduce.same_lattice` on the reduced forms rather than
+    a band in Q — measured on brucite (WP-1446), the parent's predicted lines sit
+    a median 7.0e-5 in Q from the supercell's against a median σ(Q) of 6.8e-5, so
+    a line-position test is not separable at this data's own precision while the
+    lattice test is exact to the fitting difference.
+
+    The volume ratio prefilters the pair (:data:`_DERIVATIVE_VOLUME_RTOL`) because
+    ``det H`` **is** that ratio, so a pair whose volumes are not in integer
+    proportion cannot be related by any H and needs no enumeration.
+
+    **The enumeration runs in the child's frame, and that is not a detail.**
+    ``same_lattice`` compares *reduced* forms, so an H passing it says only that
+    ``lattice(H·parent)`` and ``lattice(child)`` are the same lattice — the
+    child's own fitted basis is then ``U·H·parent`` for some unimodular ``U``,
+    and ``H⁻¹`` applied to *that* basis gives ``H⁻¹UH·parent``, a lattice of the
+    parent's volume that need not be the parent's.  Since
+    :func:`_refuted_supercell` enumerates the parent's lines from exactly that
+    product, the test is run the way it is used: ``transform_cell(child, H⁻ᵀ)``
+    is required to reduce to the parent, and ``Hᵀ`` is returned.  The transposed
+    HNF set is the complete one for that direction (the row form is canonical
+    under *left* multiplication by a unimodular matrix, its transpose under
+    *right*), so nothing is lost by asking the question from this side.  Asked
+    from the parent's side instead, a child reported in a permuted setting —
+    ``(2a, a, a)`` for a doubled cubic cell rather than ``(a, a, 2a)`` — takes
+    the first H in the list and hands ``_refuted_supercell`` an ``(2a, a, a/2)``
+    lattice, whose extras are a different set; measured, the same supercell is
+    refuted in one setting and cleared in the other.
+    """
+    from ..crystallography.lattice import cell_volume
+    from .qspace import af_from_cell
+    from .reduce import same_lattice
+
+    v_parent = float(cell_volume(*parent_cell))
+    v_child = float(cell_volume(*child_cell))
+    if v_parent <= 0.0 or v_child <= 0.0:
+        return None
+    ratio = v_child / v_parent
+    index = int(round(ratio))
+    if index < 2 or index > max_index:
+        return None
+    if abs(ratio - index) > _DERIVATIVE_VOLUME_RTOL * index:
+        return None
+    for h in hnf_matrices(index):
+        ht = np.ascontiguousarray(h.T)
+        try:
+            candidate = transform_cell(
+                child_cell, np.linalg.inv(np.asarray(ht, dtype=np.float64)))
+            equal, _chi2 = same_lattice(af_from_cell(candidate),
+                                        af_from_cell(parent_cell))
+        except (ValueError, np.linalg.LinAlgError):
+            continue
+        if equal:
+            return ht
+    return None
+
+
+def _refuted_supercell(parent_cell: tuple[float, ...], parent_system: str,
+                       parent_centring: str,
+                       child_cell: tuple[float, ...], child_system: str,
+                       child_centring: str,
+                       q_obs: np.ndarray, q_esd: np.ndarray,
+                       wavelength: float, two_theta_max: float, *,
+                       max_index: int = MAX_AMBIGUITY_INDEX,
+                       k_sigma: float = MATCH_SIGMA) -> bool:
+    """Do the data refute ``child`` as a mere supercell of ``parent``?
+
+    **Unwired, and the measurement is why** (WP-1446).  This is
+    :func:`ambiguity_partners`' second test asked of **two candidates already in
+    hand** rather than of an enumerated partner, and it was written to order the
+    ranked list so that a cell predicting reflections the pattern does not show
+    could not outrank one that does.  It does that, and it also demotes correct
+    cells, because the two cases are not separable by the question it asks.
+
+    Measured on the acceptance corpus.  On round-robin brucite it is right: the
+    a × 2 supercell predicts 88 lines, 59 extra to the truth's lattice and **58
+    of those absent inside the measured range**, and ordering below the parent
+    put the certified cell first where it had ranked third.  On certified
+    corundum it is wrong in the same breath: SRM 676a's **own** cell is an
+    index-2 derivative of a c/2 subcell that the search also returns, and 33 of
+    its 35 in-range extras are absent — because ``R -3 c``'s c-glide extinguishes
+    them, not because the cell is too big.  Wiring it cost four acceptance rows,
+    two on corundum and two on LaB6.
+
+    The populations interleave, so no bar drawn on this question separates them.
+    The absent-extra share reads **0.943** for corundum's truth against
+    **0.931** and **0.983** for the two brucite supercells that must be demoted;
+    the indexed-line gain over the parent reads −1 to +15 for corundum's truth
+    against +1 and 0 for those supercells.  Three variants were measured — any
+    absent extra, a share bound, and a gain bounded by ``n_unindexed`` — and each
+    fires on the correct cell.
+
+    This is the package's own doctrine arriving from the other side.  CLAUDE.md
+    already says to read a ``predicted_but_absent`` firing as "this cell predicts
+    lines the pattern lacks" and **never** as "this cell is too big", because a
+    space-group extinction refutes a correct cell and *only the extinction screen
+    separates the two*.  The literature says the same: de Wolff's M₂₀ punishes a
+    supercell only through ``N_poss`` and is blind to extinctions by
+    construction, and Oishi-Tomiyasu (2013)'s reversed figure — which this panel
+    already carries as ``m_rev`` — inherits the same blind spot.  Systematic
+    absences are not known until after the cell is, which is why
+    ``index → extinction symbol → space group`` is a sequence rather than one
+    question.
+
+    Kept, private and tested, because it is the instrument that measured all of
+    this, not because it won — exactly as
+    :func:`~rietx.indexing.fom._log_sum_scores` is kept.  A successor that
+    reorders on the extinction screen's verdict rather than on the peak list is
+    WP-1449.
+
+    Mechanics worth keeping if it is picked up again.  The parent's lines are
+    enumerated from the **child's own fitted metric**, ``transform_cell(child,
+    H⁻¹)``, so every true coincidence is exact and :func:`_extra_mask`'s
+    median-σ(Q) tolerance does the job it was written for; enumerating them from
+    the parent's own fit instead leaves the two sets a median σ(Q) apart and the
+    extras uncountable.  ``H`` is sought in the child's frame for that reason
+    too — see :func:`_derivative_transform`, whose verdict would otherwise turn
+    on which setting the engine happened to report the child in.  The coverage
+    self-check is not belt and braces: ``H`` relates two *metrics* and says
+    nothing about centring, so the check asks the child to actually predict the
+    parent's lines and declines the pair when it does not.  And a **true**
+    superstructure is not refuted, its superlattice reflections being present,
+    so there are no absent extras to count.
+    """
+    h = _derivative_transform(parent_cell, child_cell, max_index=max_index)
+    if h is None:
+        return False
+    obs = np.asarray(q_obs, dtype=np.float64)
+    esd = np.asarray(q_esd, dtype=np.float64)
+    # extras_absent_in_range windows each extra on the σ of the observed line
+    # nearest it, so a σ per observation is the contract rather than a nicety
+    if not len(obs) or len(esd) != len(obs):
+        return False
+    try:
+        parent_in_child = transform_cell(
+            child_cell, np.linalg.inv(np.asarray(h, dtype=np.float64)))
+        _hkl_p, q_parent = predicted_lines(parent_in_child, parent_system,
+                                           parent_centring, wavelength,
+                                           two_theta_max)
+        _hkl_c, q_child = predicted_lines(child_cell, child_system,
+                                          child_centring, wavelength,
+                                          two_theta_max)
+    except (ValueError, RuntimeError, np.linalg.LinAlgError):
+        return False
+    if not len(q_parent) or not len(q_child):
+        return False
+    tol = float(np.median(esd))
+    covered = np.min(np.abs(q_parent[:, None] - q_child[None, :]), axis=1)
+    if not np.all(covered <= max(tol, 1e-12)):
+        return False
+    extra = q_child[_extra_mask(q_child, q_parent, tol)]
+    q_lo, q_hi = float(np.min(obs)), float(np.max(obs))
+    return bool(extras_absent_in_range(extra, obs, esd, q_lo, q_hi,
+                                       k_sigma=k_sigma))
+
+
 __all__ = ["AMBIGUITY_DISCREPANCY_SLACK", "AMBIGUITY_EXTEND_FACTOR",
            "MAX_AMBIGUITY_INDEX",
            "MAX_DISCRIMINATING", "ambiguity_partners", "derivative_cells",

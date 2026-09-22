@@ -140,6 +140,7 @@ _ENTRY_DATE_RE = re.compile(r"^(?:- \*\*|#{3,4} )(\d{4}-\d{2}-\d{2})", re.M)
 #   2026-09-01  docs/ROADMAP.md               578 -> 589  for the triage's second batch
 #   2026-09-01  gui/CLAUDE.md                1019 -> 1028 for the placement pass
 #   2026-09-01  src/rietx/indexing/CLAUDE.md  296 -> 300  for the placement pass
+#   2026-09-22  src/rietx/indexing/CLAUDE.md  300 -> 306  for WP-1446
 #   2026-09-01  tests/CLAUDE.md               253 -> 275  for the placement pass
 #   2026-09-01  docs/ROADMAP.md               589 -> 597  for the roadmap reorder: landed 573, cap landed + 24
 #   2026-09-02  docs/ROADMAP.md               597 -> 621  for the magnetic scattering track (1326-1329, out of
@@ -530,7 +531,13 @@ SIZE_CAPS: dict[str, int | None] = {
     # instruction not to delete facts to fit.  Landed at 295; the +1 is
     # headroom, per this file's docstring.
     "tests/CLAUDE.md": 296,
-    "src/rietx/indexing/CLAUDE.md": 300,
+    # 300 -> 306 (WP-1446): one standing rule, on the bullet that already owns
+    # the question.  A space-group absence and an oversized cell are not
+    # separable by the reversed members either, measured rather than reasoned,
+    # so the next person to reach for that ranking finds the refutation instead
+    # of re-running it.  Raised rather than shaved, per the failure message's
+    # own instruction not to delete facts to fit; the numbers stayed in the WP.
+    "src/rietx/indexing/CLAUDE.md": 306,
     # 300 -> 350 (WP-1407): four per-format rows, and three standing rules the
     # Philips √ encoding taught — that a format may encode its counts rather
     # than store them, that the *permissive* description can be the defective

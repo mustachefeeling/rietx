@@ -1450,8 +1450,10 @@ def _brucite_truth(res):
 
 @pytest.mark.slow
 @pytest.mark.xdist_group("indexing-acceptance-brucite")
-@pytest.mark.xfail(strict=True, reason="WP-1446: an a × 2 supercell outranks "
-                                       "the truth on one extra indexed line")
+@pytest.mark.xfail(strict=True, reason="an a × 2 supercell outranks the truth "
+                                       "on one extra indexed line; WP-1446 "
+                                       "refuted the peak-list route, WP-1449 "
+                                       "owns the extinction-screen one")
 def test_brucites_truth_is_not_ranked_first(brucite_index):
     """The rank the row above stopped asserting, carried where it cannot go quiet.
 

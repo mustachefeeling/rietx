@@ -1538,7 +1538,15 @@ CLAIMS: tuple[Claim, ...] = (
                  "fitted panel, 34 against 33.  Unmasked rather than caused "
                  "by WP-1442, which stopped the Kbeta screen discarding two "
                  "real lines on a monochromated specimen; removing either "
-                 "alone still leaves the supercell first.  WP-1446 owns it, "
+                 "alone still leaves the supercell first.  WP-1446 MEASURED "
+                 "AND REFUTED the peak-list route 2026-09-22: ordering a cell "
+                 "below any derivative parent whose extra lines the pattern "
+                 "lacks does fix brucite, and demotes SRM 676a's own cell "
+                 "below a c/2 subcell, because R -3 c's c-glide leaves 33 of "
+                 "its 35 in-range extras absent.  The populations interleave "
+                 "-- share 0.943 for corundum's truth against 0.931 and 0.983 "
+                 "for the brucite supercells -- so no bar on that question "
+                 "separates them.  WP-1449 owns the extinction-screen route, "
                  "and strict=True turns this row red when it lands",
     ),
     Claim(

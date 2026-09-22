@@ -1,12 +1,15 @@
 # WP-1446 — a supercell that outranks the truth, on evidence the panel already has
 
-Milestone: unscheduled · Status: 🔄 2026-09-22 — claimed by @yue-here
+Milestone: unscheduled · Status: 🛑 2026-09-22 — premise measured false; WP-1449 inherits the question
 Depends on: — (1442 soft)
 
 ## Goal
 
 A candidate cell that predicts reflections the pattern does not show ranks
 below one that does not. The number that says so is already computed.
+
+**Outcome (2026-09-22): the premise is false.** The number is computed and it
+does not separate the cases. See the handover entry; WP-1449 inherits the goal.
 
 ## Context
 
@@ -73,21 +76,21 @@ not a missing measurement, it is a ranking that does not weigh one it holds.
       ranking reads it. **Answered while filing** (2026-09-22): it is on the
       candidate as `fom_value("predicted_seen_fraction")` and an acceptance row
       already asserts on it, so the ranking has it and does not weigh it.
-- [ ] Rank so that a candidate predicting reflections the pattern does not show
-      cannot outrank one that does not, on the measured 0.86-against-0.28.
-      Measured on brucite and on every other row of
-      `tests/test_acceptance_indexing.py`, which is the only way to see what it
-      costs elsewhere.
-- [ ] Restore the rank assertion. WP-1442 split the row: the original keeps
-      every physics assertion and locates the truth in the candidate list
-      rather than at index 0, and `test_brucites_truth_is_not_ranked_first`
-      carries the rank as `xfail(strict=True)`. **That row goes red the moment
-      this WP works**, which is the signal to fold the assertion back into the
-      row above and delete the fence.
-- [ ] The 2 × and 3 × supercells stay *in* the candidate list. They are real
-      solutions of the metric and a reader should see them ranked, not hidden.
-- [ ] Whether the same fragility reaches the other round-robin rows, measured
-      rather than assumed.
+- [x] Rank so that a candidate predicting reflections the pattern does not show
+      cannot outrank one that does not. **Built, measured and reverted**: it puts
+      brucite's truth first and demotes SRM 676a's own cell, and the two cases are
+      not separable by that question. `ambiguity._refuted_supercell` is kept
+      private, unwired and tested.
+- [ ] ~~Restore the rank assertion.~~ **Not reached.** The fence stands and its
+      xfail reason now names WP-1449. Folding it back is that WP's last task.
+- [x] The 2 × and 3 × supercells stay *in* the candidate list. Measured while the
+      rule was wired: a **tier** pushes them out of the reported twelve in favour
+      of cells at `predicted_seen_fraction` 0.14-0.24 that are nobody's
+      derivative, so the constraint has to be pairwise. That finding survives the
+      revert and is what WP-1449 should build on.
+- [x] Whether the same fragility reaches the other round-robin rows. It reaches
+      **corundum and LaB6**, and it is not fragility: it is the question being
+      the wrong one.
 
 ## Acceptance
 
@@ -105,6 +108,183 @@ not a missing measurement, it is a ranking that does not weigh one it holds.
   pattern, which is the fastest way to see the claim.
 
 ## Handover log
+
+### 2026-09-23 — the repair pass: recovered, reviewed, and one verdict that turned on an axis order
+
+WP-1446's working session ended with its three commits unpushed, so none of
+this WP's work was in the repository. This pass recovered it, wrote the entry
+below, and put the diff through review. The review found that the instrument
+the WP kept gave different answers to the same question depending on which axis
+setting the search happened to report a cell in, which is now fixed and pinned
+by a test. Nothing about the refutation changed, and the fix makes it slightly
+stronger.
+
+**Done.**
+
+- The 2026-09-22 entry below, reconstructed from the three commits, their
+  messages and the checklist, and marked as such.
+- `_derivative_transform` enumerates in the child's frame and returns `Hᵀ`.
+  `same_lattice` compares reduced forms, so an H accepted from the parent's side
+  proves only that `lattice(H·parent)` is `lattice(child)`. The child's own
+  fitted basis is `U·H·parent` for some unimodular `U`, and `_refuted_supercell`
+  inverts H onto exactly that basis.
+- `test_the_pair_form_does_not_turn_on_the_setting_the_engine_reported` asserts
+  the **recovered parent**, not only the verdict.
+- A σ-length contract at the top of `_refuted_supercell`, where a `q_esd`
+  shorter than `q_obs` reached `extras_absent_in_range` and raised `IndexError`.
+- The v1.6 record carries the refutation. A 🛑 WP leaves no other trace there,
+  and a reader following 1442 would otherwise never learn its follow-up failed.
+- WP-1449's quoted shares carry the caveat below.
+
+**Measured.** `.venv` `[dev]` + numba, no jax/torch, macOS arm64, alone on the
+machine.
+
+- Fast selection on the tree with `origin/main` merged in: **5 479 passed, 135
+  skipped, 0 failed in 1:41**. Against WP-1442's 5 475 passed, 135 skipped,
+  that is **+4 passed and no new skip**, which is exactly this WP's four rows in
+  `tests/test_indexing_reduce.py`, three from the working session and one from
+  the review.
+- Indexing acceptance: **44 passed, 1 xfailed in 21:21**, the baseline restored
+  by the revert. The working session started that run and was cleared before it
+  reported. Carried over rather than repeated, because `_refuted_supercell` has
+  no caller anywhere in `src/` and `_derivative_transform` only has it, so
+  nothing the suite exercises can reach either.
+- The setting dependence, on a doubled cubic cell at a = 4.1566 against a
+  pattern showing only the parent's lines. Before the fix:
+
+  | child as reported | parent recovered | verdict |
+  |---|---|---|
+  | (a, a, 2a) | (a, a, a) | refuted |
+  | (2a, a, a) | (2a, a, a/2) | **cleared** |
+  | (a, 2a, a) | (a, 2a, a/2) | **cleared** |
+
+  After it, all three recover (a, a, a) and all three refute.
+
+**Two review findings declined.** The absence window is the observed-peak span
+where the sibling `ambiguity_partners` uses the measured range, so an extra
+predicted between the last observed peak and the end of the scan is never
+counted absent. That is real. Changing it would move the shares
+`docs/VALIDATION.md` records as measured, so it goes to WP-1449 with the rest of
+the question. And `docs/ROADMAP.md` line 111 runs long, which rewrapping cannot
+fix inside that file's pinned size cap.
+
+**The caveat WP-1449 inherits.** The 0.943 / 0.931 / 0.983 shares were measured
+before the basis fix, when the instrument cleared pairs it should have refuted.
+The fix only makes it find **more** related pairs, so a pair cleared that way
+was a demotion that went uncounted and the refutation is strengthened. The
+individual shares belong to pairs found either way. Nobody has re-run the wiring
+experiment to check, and WP-1449's file says so.
+
+**How the handover was missed, for whoever fixes the hook.** The working session
+launched the acceptance suite in the background and was `/clear`ed 21 minutes
+before it reported. `.claude/hooks/handover_owed.py` holds a stop open when a WP
+branch is clean **and pushed**, so a session interrupted before its push trips
+nothing, and the session-start scan reads the WP file on disk, which the working
+session had already updated. Both checks were satisfied by a tree the repository
+had never seen. PR #413 then merged the claim commit on its own and closed.
+
+Next: unchanged. WP-1449 owns the extinction-screen route and its first act is
+the corpus search its stub declines to fake.
+
+### 2026-09-22 (2nd session) — the reverse direction cannot order two fitted candidates (reconstructed post hoc)
+
+**Reconstructed on 2026-09-22 from the three commits, their messages and the
+checklist**, the working session having ended without writing an entry and
+without pushing. Every number below is one those commits record. The
+entry above is the repair pass that recovered it.
+
+The indexing panel ranks an obviously wrong unit cell first on brucite, and the
+number refuting that cell already sits on the candidate. This session wired the
+ranking to weigh it, and the rule does what it was built to do: brucite's
+certified cell goes from third place to first, and the doubled cell drops below
+it. The same rule then demotes the certified corundum cell, whose unseen
+reflections are absent because its symmetry forbids them. Every variant measured
+fires on that correct cell, so the ranking change came back out and the question
+passes to WP-1449, which will ask the extinction screen instead of the peak
+list. What the tree keeps is a refutation nobody has to pay for twice, and the
+instrument that measured it.
+
+**Done.**
+
+- `ambiguity._derivative_transform` and `ambiguity._refuted_supercell`: the
+  exclusion `ambiguity_partners` already asks of an enumerated partner, asked of
+  two candidates already in the list. Private, unwired, three rows in
+  `tests/test_indexing_reduce.py`, the numbers in the docstring. Kept as
+  `fom._log_sum_scores` is kept, because it is the instrument this was measured
+  with.
+- `src/rietx/indexing/engines.py` is byte-identical to `origin/main`. 56eebbaa
+  wired `order_below_parents`, c1990e9f took it back out.
+- Brucite's strict xfail on the rank stands, its reason now naming WP-1449.
+  c7a8f663 folded the assertion back into the row holding the physics when the
+  fix looked good, and c1990e9f re-fenced it.
+- One standing rule in `src/rietx/indexing/CLAUDE.md`, on the bullet that
+  already owned the question. Its cap goes 300 to 306 with the log entry
+  `tests/test_docs_consistency.py` asks for, raised rather than shaved.
+- `tests/validation_matrix.py` and its generated `docs/VALIDATION.md`: brucite's
+  measured line now carries the refutation and names WP-1449.
+- WP-1449 filed, carrying the measurement, the interleaving table and the
+  literature the tree can cite. Its corpus section is unsearched and says so.
+
+**Measured.** Recorded by the working session's commits, on this machine
+(macOS arm64) in this worktree's `.venv`, `[dev]`.
+
+- Wiring the rule, on the captured 146-candidate brucite merge: the truth goes
+  rank 2 to rank 0, the a × 2 supercell rank 0 to rank 2, and both c × 2
+  supercells stay in the reported list. The ranking step costs 0.65 s to 2.16 s
+  inside a 248 s search.
+- What it costs elsewhere: four acceptance rows, two on corundum and two on
+  LaB6, against a baseline of 44 passed and 1 xfailed.
+- Why no bar on the question separates the populations. Absent-extra share reads
+  0.943 for corundum's truth against 0.931 and 0.983 for the two brucite
+  supercells that have to go down. Indexed-line gain over the parent reads −1 to
+  +15 against +1 and 0. Three variants were measured, any absent extra, a share
+  bound, and a gain bounded by `n_unindexed`, and each one fires on the correct
+  cell.
+- Why H comes from the lattice: the parent's predicted lines sit a median 7.0e-5
+  in Q from the supercell's against a median σ(Q) of 6.8e-5. A line-position
+  test is not separable at this data's own precision. `same_lattice` on the
+  reduced forms is exact to the fitting difference.
+- Why the volume prefilter can be loose: brucite's a × 2 supercell sits 6 ppm
+  from 4 × the truth's volume, so one per cent is four orders of slack on what
+  it has to admit.
+
+**Gotchas for WP-1449.**
+
+- The constraint has to be pairwise. A tier sinking all 46 refuted candidates
+  below all 100 others put the truth first and pushed the 2 ×, 3 × and c × 2
+  supercells out of the reported twelve, in favour of cells at
+  `predicted_seen_fraction` 0.14 to 0.24 that were nobody's derivative. That
+  finding survives the revert.
+- Enumerate the parent's lines from the child's own fitted metric through H⁻¹.
+  Enumerated from the parent's own fit the two sets sit a median σ(Q) apart and
+  the extras cannot be counted.
+- The coverage self-check earns its place. H relates two metrics and says
+  nothing about centring, so the pair is declined when the child does not
+  actually predict the parent's lines.
+- A true superstructure has its superlattice reflections present, so it has no
+  absent extras and the rule leaves it where the panel put it.
+
+**Not reached.** Restoring the rank assertion. The fence stands and folding it
+back is WP-1449's last task.
+
+**No skill row.** `SKILL.md` §19 already tells an agent never to take
+`candidates[0]` on its rank, and `abstention.md` carries the reasoning. What this
+session measured is that `predicted_seen_fraction` does not separate a supercell
+from a space-group absence, so there is no action to publish. WP-1449 owns the
+row if the screen-based route works.
+
+**Why this entry is a repair.** PR #413 merged the claim commit on its own and
+closed. The three working commits were never pushed, so `origin/main` carried
+WP-1446 as claimed, held none of the code, and had no WP-1449 file.
+`.claude/hooks/handover_owed.py` did not fire, its trigger being a branch that
+is clean **and** pushed. The Stop hook therefore cannot see the case where the
+push is what is missing, which is the one that strands a whole session.
+
+Next: WP-1449, which asks `determine_extinction_symbol` rather than the peak
+list. Its first act is the corpus search its stub declines to fake, and
+`/Users/yue/zotero-linker` is gone as of 2026-09-22, so that needs the
+maintainer. WP-1445 wants a schema decision before it can start. WP-1447 and
+WP-1448 block nothing and are the cheapest of the four.
 
 ### 2026-09-22 — filed
 
