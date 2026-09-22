@@ -241,6 +241,13 @@ class MultiParameterTable:
             names.add(self._canonical(h, e.path))
         return names
 
+    def known_paths(self) -> set[str]:
+        """Every name a glob can match in any histogram: bare and scoped."""
+        known: set[str] = set()
+        for h in range(self.n_histograms):
+            known |= self._names(h)
+        return known
+
     def unknown_literals(self, path_globs: list[str]) -> list[str]:
         """The literal paths naming no entry in any histogram (WP-1414).
 
@@ -249,9 +256,7 @@ class MultiParameterTable:
         some histogram or a scoped one (``hist.1.instrument.zero_shift``), so
         ``hist.7.…`` on a three-histogram fit is unknown however real its tail.
         """
-        known: set[str] = set()
-        for h in range(self.n_histograms):
-            known |= self._names(h)
+        known = self.known_paths()
         return [g for g in dict.fromkeys(path_globs)
                 if is_literal_path(g) and g not in known]
 
@@ -261,19 +266,28 @@ class MultiParameterTable:
         Maps each such histogram to the globs that did reach another one, in
         plan order.  Histogram ``h`` is unreached when no glob *addressing* it
         matched any of its rows, while one of those same globs matched a row
-        of another histogram.  Issue #265's joint fit is the case: ``instrument.profile.*``
-        freed four rows on the one constant-wavelength histogram and none on
-        any bank, and the result said ``converged``.
+        of another histogram.  Issue #265's joint fit is the case:
+        ``instrument.profile.*`` freed four rows on the one
+        constant-wavelength histogram and none on any bank, and the result
+        said ``converged``.
 
         Three things keep this silent where silence is right. **Matched, not
         freed**: a row that exists and is locked, tied or held was reached,
         and the reason it stayed is ``ParameterRow.held_because``'s to give —
         a capillary's force-fixed ``sample_displacement`` is not a miss. A
-        glob **scoped** to another histogram (``hist.0.…``) does not address
-        this one, so a plan that targets one histogram on purpose says
-        nothing about the rest. And a glob that matched **nowhere** is the
-        single-histogram case, silent for the reason
-        :func:`~rietx.params.vector.is_literal_path` gives.
+        glob **scoped** to another histogram does not address this one, so a
+        plan that targets one histogram on purpose says nothing about the
+        rest. And a glob that matched **nowhere** is the single-histogram
+        case, silent for the reason :func:`~rietx.params.vector.is_literal_path`
+        gives.
+
+        Scoped means one of two spellings.  A ``hist.<seg>.`` prefix addresses
+        the histograms ``<seg>`` admits, so ``hist.*.…`` still means every
+        one.  Any other glob addresses every histogram if it matched a **bare**
+        path anywhere, which is how a plan written for one histogram is
+        spelled, and otherwise only the histograms whose scoped names it
+        matched: ``*.1.instrument.zero_shift`` reaches histogram 1 by its
+        scope and is aimed there, never a miss on histogram 0.
 
         What it cannot tell apart, and so reports: a component one histogram
         declares and another does not (a hump, a surface roughness) is
@@ -282,16 +296,20 @@ class MultiParameterTable:
         """
         n = self.n_histograms
         names = [self._names(h) for h in range(n)]
-
-        def addresses(g: str, h: int) -> bool:
-            if not g.startswith("hist."):
-                return True
-            seg = g.split(".", 2)[1]
-            return fnmatch.fnmatchcase(str(h), seg)
-
+        bare = [{e.path for e in table.entries} for table in self.tables]
+        globs = list(dict.fromkeys(path_globs))
         hit = {g: [any(fnmatch.fnmatchcase(p, g) for p in names[h])
                    for h in range(n)]
-               for g in dict.fromkeys(path_globs)}
+               for g in globs}
+        written_bare = {g: any(fnmatch.fnmatchcase(p, g)
+                               for h in range(n) for p in bare[h])
+                        for g in globs}
+
+        def addresses(g: str, h: int) -> bool:
+            if g.startswith("hist."):
+                return fnmatch.fnmatchcase(str(h), g.split(".", 2)[1])
+            return written_bare[g] or hit[g][h]
+
         out: dict[int, list[str]] = {}
         for h in range(n):
             mine = [g for g in hit if addresses(g, h)]

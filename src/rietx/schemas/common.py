@@ -221,10 +221,12 @@ from .._nearmiss import did_you_mean
 #: 0.24 → 0.25 (WP-1414, issue #265): ``StageResult.unknown_paths`` — the
 #: literal ``turn_on`` paths naming no parameter of the model — and
 #: ``StageResult.unreached_histograms``, per histogram of a joint fit the globs
-#: that reached another histogram and none of its rows.  Additive and
-#: defaulted empty, the rule of 0.19 → 0.20.  A stored result from before this
-#: opens with nothing unknown and nothing unreached, which says the check did
-#: not exist, never that it passed.
+#: that reached another histogram and none of its rows.  Additive, the rule of
+#: 0.19 → 0.20, and defaulted to ``None`` rather than empty, unlike 0.24's
+#: ``blocked_by_hold``: no hold could exist before its field, so ``[]`` was
+#: true of every older result, while a typo'd literal freed nothing in silence
+#: long before this one.  A stored result from before this opens with ``None``,
+#: "nobody looked", and every runner now writes a value (WP-1076's rule).
 SCHEMA_VERSION = "0.25"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]

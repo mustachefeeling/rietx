@@ -772,6 +772,19 @@ def test_a_turn_on_that_reached_nothing_says_so_when_it_can(pattern, path, n_fre
     assert "STAGE_FREED_NOTHING" not in codes
 
 
+def test_a_stored_stage_record_says_nobody_looked_rather_than_nothing_missing():
+    """WP-1076's rule on the two new fields: the default is not an answer.
+
+    A result written before WP-1414 had typo'd literals freeing nothing in
+    silence too, so opening it with ``[]`` would claim a check that never
+    ran.  Every runner writes a value; only the default is ``None``.
+    """
+    old = rx.StageResult.model_validate_json(
+        '{"name": "cell", "status": "converged", "n_iterations": 3, '
+        '"cost_initial": 2.0, "cost_final": 1.0}')
+    assert old.unknown_paths is None and old.unreached_histograms is None
+
+
 def test_a_literal_repeated_across_stages_is_one_finding_naming_both(pattern):
     """Per path, not per stage: the hold's rule, for its reason."""
     structure, ins = perturbed_models()

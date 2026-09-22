@@ -2192,6 +2192,9 @@ class Refinement:
                             n_free=len(table.free_paths),
                             free_paths=list(table.free_paths),
                             held=list(held), released=list(released),
+                            # the reader aligns on this, the most recent one,
+                            # so it repeats what the first stage_start said
+                            unknown_paths=list(unknown_paths),
                             n_points=len(model.tt),
                             index=stage_index, n_stages=n_stages)
             # Once — never a third solve, whichever way the measurement moved,
@@ -2547,6 +2550,8 @@ class Refinement:
                 held_reach=hold.reach,
                 blocked_by_hold=hold.blocked_by_hold,
                 unknown_paths=hold.unknown_paths,
+                # checked, trivially: one histogram has no elsewhere
+                unreached_histograms={},
             ))
             if stage_reports:
                 self.stage_reports_.append(self._stage_report(
@@ -2695,7 +2700,7 @@ class Refinement:
                 ftol=stage.ftol, held=hold.held, released=hold.released,
                 held_reach=hold.reach,
                 blocked_by_hold=hold.blocked_by_hold,
-                unknown_paths=hold.unknown_paths)
+                unknown_paths=hold.unknown_paths, unreached_histograms={})
             # after the StageResult rather than beside the other two extends
             # above, because this one reads the record it has just built; and
             # before the node, so the node carries what the result carries
@@ -3472,7 +3477,9 @@ def _hold_diagnostics(stage_results: list[StageResult]) -> list[Diagnostic]:
 
 
 def _unknown_path_diagnostics(stage_results: list[StageResult],
-                              known: list[str]) -> list[Diagnostic]:
+                              known: list[str], *,
+                              listing: str = "ref.parameters()"
+                              ) -> list[Diagnostic]:
     """``STAGE_PATH_UNKNOWN`` — a stage asked for a parameter by a name no row has.
 
     Issue #265: ``turn_on=["instrument.source.wavelength"]`` freed nothing,
@@ -3497,10 +3504,13 @@ def _unknown_path_diagnostics(stage_results: list[StageResult],
     rides in the message.  One suggestion rather than three, since on dot
     paths the second and third are usually siblings of the first: for the
     issue's typo they were ``lines.0.weight`` and ``profile.w``.
+
+    ``listing`` is the call the suggestion names for seeing every path, which
+    is the caller's: a joint fit has no ``parameters()``.
     """
     by_path: dict[str, list[str]] = {}
     for sr in stage_results:
-        for path in sr.unknown_paths:
+        for path in sr.unknown_paths or ():
             by_path.setdefault(path, []).append(sr.name)
     out = []
     for path, stages in by_path.items():
@@ -3514,7 +3524,7 @@ def _unknown_path_diagnostics(stage_results: list[StageResult],
                      + (f"; {hint}" if hint else "")),
             where=[path],
             suggestion=("a literal path names exactly one parameter: correct "
-                        "it (ref.parameters() lists every path this model "
+                        f"it ({listing} lists every path this model "
                         "has), or write a glob if the stage is meant to reach "
                         "a component some models do not declare"),
         ))

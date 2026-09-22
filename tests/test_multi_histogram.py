@@ -287,6 +287,9 @@ def test_a_glob_that_reached_one_histogram_is_told_apart_from_the_rest():
     assert mt.unreached_histograms(["phases.*.scale", humps]) == {}, (
         "a glob that reaches histogram 1 elsewhere in the stage reaches it")
     assert mt.unreached_histograms([f"hist.0.{humps}"]) == {}
+    # scoped by what it matched rather than by its prefix: only histogram 1's
+    # scoped name answers it, so it is aimed there and histogram 0 is no miss
+    assert mt.unreached_histograms(["*.1.instrument.zero_shift"]) == {}
     assert mt.unreached_histograms(["hist.*.instrument.extra_components.*"]) == {
         1: ["hist.*.instrument.extra_components.*"]}
     assert mt.unreached_histograms(["instrument.geometry.sample_displacement"]) == {}

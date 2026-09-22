@@ -546,8 +546,8 @@ class MultiHistogramRefinement:
         # records.  The near-miss draws on both spellings a glob can match
         # here, so a bare typo is answered bare and a scoped one scoped.
         diagnostics = diagnostics + _unknown_path_diagnostics(
-            stage_results, sorted({name for h in range(n)
-                                   for name in mt._names(h)}))
+            stage_results, sorted(mt.known_paths()),
+            listing="[e.path for t in ref.mtable.tables for e in t.entries]")
         diagnostics = diagnostics + _unreached_histogram_diagnostics(
             stage_results, [h.label for h in histograms])
         # A phase the joint fit cannot see, and what the run did about it
@@ -749,7 +749,7 @@ def _unreached_histogram_diagnostics(stage_results: list[StageResult],
     """
     by_hist: dict[int, dict[str, list[str]]] = {}
     for sr in stage_results:
-        for h, globs in sr.unreached_histograms.items():
+        for h, globs in (sr.unreached_histograms or {}).items():
             by_hist.setdefault(h, {})[sr.name] = list(globs)
     out: list[Diagnostic] = []
     for h in sorted(by_hist):
@@ -767,8 +767,9 @@ def _unreached_histogram_diagnostics(stage_results: list[StageResult],
                      "those stages kept their starting values"),
             suggestion=("if this histogram declares no such component, "
                         "nothing is wrong. Otherwise its parameters go by "
-                        "other names: list them with the joint table's "
-                        f"hist.{h}.* rows and add a glob that reaches them, or "
+                        "other names: list them with "
+                        f"[e.path for e in ref.mtable.tables[{h}].entries] "
+                        "and add a glob that reaches them, or "
                         "scope the stage (hist.<k>.…) if one histogram was "
                         "the intent"),
         ))
