@@ -45,6 +45,7 @@ from .refine import (
     _absorption_diagnostics,
     _absorption_record,
     _capillary_offset_diagnostics,
+    _cell_runaway_diagnostic,
     _constraint_diagnostics,
     _covariance_diagnostics,
     _declared_wavelengths,
@@ -60,6 +61,7 @@ from .refine import (
     _unknown_path_diagnostics,
     _utcnow,
     _wavelength_calibration_diagnostics,
+    clamp_cell_runaway,
 )
 from .report.schemas import THRESHOLDS_VERSION
 from .schemas.common import Diagnostic, Provenance
@@ -168,6 +170,36 @@ def _rehold_multi(models, mtable, held: list[str],
     return released, collapsed
 
 
+def _clamp_cell_runaway_multi(mtable, start_values: list[dict[str, float]]
+                              ) -> list[tuple[str, float, float]]:
+    """:func:`~rietx.refine.clamp_cell_runaway`, extended to the joint runner
+    (review of #385 finding 2): same shape as :func:`_rehold_multi` above,
+    called the same way, after the same ``mtable.commit``.
+
+    A shared cell parameter is a genuinely separate :class:`Entry` in every
+    histogram's own :class:`~rietx.params.vector.ParameterTable` —
+    :meth:`~rietx.params.multi.MultiParameterTable.commit` writes the same
+    combined-θ value into each one, never a single shared object — so every
+    table's own entries must be clamped and its own ties refreshed
+    individually, exactly as the single-histogram runner does for one table.
+    What changes for the *report*: a shared path's escaped/clamped values are
+    identical in every histogram by construction (same start value, same
+    committed value, same window), so it is named once under its bare
+    (shared) path rather than once per histogram; a per-histogram path is
+    scoped (``hist.h.…``) and is never shared with another table, so it is
+    never deduplicated.
+    """
+    seen: dict[str, tuple[str, float, float]] = {}
+    for h, table in enumerate(mtable.tables):
+        clamped = clamp_cell_runaway(table, start_values[h])
+        if clamped:
+            table.refresh_ties()
+        for path, old, new in clamped:
+            scoped = mtable._canonical(h, path)
+            seen[scoped] = (scoped, old, new)
+    return list(seen.values())
+
+
 class MultiHistogramRefinement:
     """Joint Rietveld refinement of a shared structure against several patterns.
 
@@ -265,6 +297,12 @@ class MultiHistogramRefinement:
         # histogram (⇒ per-histogram frozen discreteness) and joint-solve.
         self.mtable.set_vary(["*"], False)
         stage_results: list[StageResult] = []
+        # one CELL_RUNAWAY diagnostic per stage that fired, exactly as the
+        # single-histogram runner builds one per _run_stage call (review of
+        # #385 finding 2) — collected here and folded into the run-level
+        # diagnostics once the loop ends, since a stage here has no
+        # StageReport of its own to carry it on.
+        cell_runaway_diags: list[Diagnostic] = []
         models = None
         outcome = None
         carried_hold: list[str] = []
@@ -311,6 +349,16 @@ class MultiHistogramRefinement:
                                               backend=self._backend,
                                               solver=self._solver, **stage_ftol)
             self.mtable.commit(outcome.theta)
+            # A phase's own support can stay above PHASE_SUPPORT_SIGMA in
+            # every histogram and its shared cell still walk to nonsense — the
+            # single-histogram runner's own joint-degeneracy gap
+            # (CELL_SAFETY_FRACTION's docstring), unaffected by which runner
+            # is asking.  Checked and corrected once, on the outcome, never as
+            # a bound the solver saw (review of #385 finding 2).
+            cell_runaway = _clamp_cell_runaway_multi(self.mtable, start_values)
+            if cell_runaway:
+                self.mtable._rebuild_columns()
+                outcome = dataclasses.replace(outcome, theta=self.mtable.x0())
             released, collapsed = _rehold_multi(models, self.mtable, held,
                                                 start_values)
             if released or collapsed:
@@ -323,6 +371,11 @@ class MultiHistogramRefinement:
                     max_iter=stage.max_iter, backend=self._backend,
                     solver=self._solver, **stage_ftol)
                 self.mtable.commit(second.theta)
+                second_runaway = _clamp_cell_runaway_multi(self.mtable, start_values)
+                if second_runaway:
+                    self.mtable._rebuild_columns()
+                    cell_runaway = cell_runaway + second_runaway
+                    second = dataclasses.replace(second, theta=self.mtable.x0())
                 outcome = dataclasses.replace(
                     second, cost_initial=outcome.cost_initial,
                     n_iterations=outcome.n_iterations + second.n_iterations,
@@ -332,6 +385,9 @@ class MultiHistogramRefinement:
                     # ran twice and the count is a fact about its whole search
                     n_degenerate_cell_probes=(outcome.n_degenerate_cell_probes
                                               + second.n_degenerate_cell_probes))
+            runaway_diag = _cell_runaway_diagnostic(cell_runaway)
+            if runaway_diag is not None:
+                cell_runaway_diags.append(runaway_diag)
             self.mtable.apply_to_models()
             carried_hold = list(held)
             stage_results.append(StageResult(
@@ -347,7 +403,7 @@ class MultiHistogramRefinement:
         assert models is not None and outcome is not None
         self._models = models
         self.result_ = self._build_result(models, outcome, weights, plan.correlation_guard,
-                                           stage_results)
+                                           stage_results, cell_runaway_diags)
         return self.result_
 
     # ------------------------------------------------------------------
@@ -393,7 +449,7 @@ class MultiHistogramRefinement:
         return ticks, tick_hkl
 
     def _build_result(self, models, outcome, weights, correlation_guard,
-                      stage_results) -> RefinementResult:
+                      stage_results, cell_runaway_diags=()) -> RefinementResult:
         mt = self.mtable
         n = mt.n_histograms
         thetas = mt.split(outcome.theta)
@@ -555,6 +611,10 @@ class MultiHistogramRefinement:
             listing="[e.path for t in ref.mtable.tables for e in t.entries]")
         diagnostics = diagnostics + _unreached_histogram_diagnostics(
             stage_results, [h.label for h in histograms])
+        # one CELL_RUNAWAY per stage that fired the joint clamp above,
+        # collected during the loop since there is no per-stage StageReport
+        # here to carry it on (review of #385 finding 2)
+        diagnostics = diagnostics + cell_runaway_diags
         # A phase the joint fit cannot see, and what the run did about it
         # (WP-1301).  Once for the fit rather than once per histogram, because
         # the statement is joint: the support is the phase's **strongest**

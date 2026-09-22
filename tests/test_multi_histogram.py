@@ -40,6 +40,7 @@ from rietx.params.multi import (
 )
 from rietx.params.vector import ParameterTable
 from rietx.schemas.instrument import BackgroundChebyshev
+from rietx.schemas.structure import Structure
 from rietx.strategy.staged import RefinementPlan, Stage
 from tests.test_schemas import make_lab6
 
@@ -748,3 +749,157 @@ def test_a_joint_fit_reports_its_microstructure(size_fixture):
     assert size.value == pytest.approx(TRUE_SIZE_A, rel=0.05)
     # and the joint result carries the constant it used, never a defaulted zero
     assert block.scherrer_k > 0.0
+
+
+# ----------------------------------------------------------------------
+# review of #385 (2026-09-22): the joint runner (multi.py:301-318, per that
+# review) has the single-histogram stage runner's shape line for line and had
+# no clamp_cell_runaway at all -- extended in rietx.multi._clamp_cell_runaway_multi.
+# ----------------------------------------------------------------------
+def _degenerate_pair_structure(decoy_scale: float) -> Structure:
+    """The single-histogram degenerate-pair construction
+    (``test_cell_runaway_safety._degenerate_pair``): two LaB6-shaped phases
+    sharing one starting cell, one at full scale and one at a trace.  Reused
+    here because the joint runner shares the cell across histograms by
+    default, and the same joint degeneracy trips it there too."""
+    real = make_lab6()
+    for n in "abc":
+        getattr(real.phases[0].cell, n).value = TRUE_A
+    real.phases[0].scale.value = 5e-4
+    decoy_s = make_lab6()
+    decoy = decoy_s.phases[0]
+    decoy.name = "decoy"
+    for n in "abc":
+        getattr(decoy.cell, n).value = TRUE_A
+    decoy.scale.value = decoy_scale
+    return Structure(phases=[real.phases[0], decoy])
+
+
+def _degenerate_pair_instruments() -> list[Instrument]:
+    out = []
+    for lam in (0.41390, 0.71070):
+        ins = Instrument.debye_scherrer(wavelength=lam)
+        ins.background = BackgroundChebyshev.with_terms(3)
+        out.append(ins)
+    return out
+
+
+def test_the_joint_clamp_fires_on_a_shared_degenerate_cell():
+    """Unit-level, at the level ``test_cell_runaway_safety.py`` tests the
+    single-histogram function: escape the shared cell directly on both
+    histograms' own tables -- exactly what ``mtable.commit(outcome.theta)``
+    after a runaway joint TRF step leaves behind -- rather than driving a
+    real solve there, which needs ~20 unwindowed iterations on purpose
+    (the single-histogram fixture's own docstring)."""
+    from rietx.multi import _clamp_cell_runaway_multi
+    from rietx.params.vector import CELL_SAFETY_ANGLE_DEG, CELL_SAFETY_FRACTION, cell_window
+    from rietx.refine import _cell_runaway_diagnostic
+
+    structure = _degenerate_pair_structure(5e-4)
+    mtable = MultiParameterTable(structure, _degenerate_pair_instruments())
+    mtable.set_vary(["phases.*.cell.a"], True)
+    start_values = mtable.decode(mtable.x0())
+
+    escaped = TRUE_A * 50.0  # far outside +/-15%, same escape as the single-histogram tests
+    for table in mtable.tables:
+        table.entries[table._paths["phases.0.cell.a"]].value = escaped
+
+    clamped = _clamp_cell_runaway_multi(mtable, start_values)
+    assert len(clamped) == 1, clamped  # shared -> named once, not once per histogram
+    path, old, new = clamped[0]
+    assert path == "phases.0.cell.a"   # bare: shared, never hist.h.-scoped
+    assert old == pytest.approx(escaped)
+    lo, hi = cell_window("a", start_values[0][path], -math.inf, math.inf,
+                         fraction=CELL_SAFETY_FRACTION,
+                         angle_deg=CELL_SAFETY_ANGLE_DEG)
+    assert new == pytest.approx(hi)
+
+    # both histograms' own entries were actually clamped, not just the report
+    for table in mtable.tables:
+        assert table.entries[table._paths["phases.0.cell.a"]].value == pytest.approx(hi)
+
+    diag = _cell_runaway_diagnostic(clamped)
+    assert diag is not None
+    assert diag.where == ["phases.0.cell.a"]
+    assert diag.code == "CELL_RUNAWAY"
+
+
+def test_a_shared_cell_inside_the_window_is_left_alone_jointly():
+    """The bit-identity companion: nothing to clamp in either histogram is
+    nothing changed in either."""
+    from rietx.multi import _clamp_cell_runaway_multi
+
+    structure = _degenerate_pair_structure(5e-4)
+    mtable = MultiParameterTable(structure, _degenerate_pair_instruments())
+    mtable.set_vary(["phases.*.cell.a"], True)
+    start_values = mtable.decode(mtable.x0())
+
+    for table in mtable.tables:
+        table.entries[table._paths["phases.0.cell.a"]].value = TRUE_A * 1.001
+
+    assert _clamp_cell_runaway_multi(mtable, start_values) == []
+
+
+@pytest.fixture(scope="module")
+def degenerate_pair_multi_fit():
+    """The joint-runner analogue of the single-histogram ``degenerate_pair_fit``
+    fixture: two histograms sharing the degenerate-pair structure, scale+cell
+    of both phases freed together in one stage, then a second stage forcing
+    the next compile -- the construction that crashed the single-histogram
+    runner before its own fix, reused here to reach ``multi.py``'s equivalent
+    gap (review of #385 finding 2)."""
+    structure = _degenerate_pair_structure(1e-5)
+    instruments = _degenerate_pair_instruments()
+    data = [synthesize(lam, 3.0, 24.0, scale=1e-5, zero=0.0,
+                       bkg=[40.0, 0.0, 0.0], seed=s)
+            for lam, s in ((0.41390, 11), (0.71070, 12))]
+    ref = MultiHistogramRefinement(structure, instruments)
+    plan = RefinementPlan(stages=[
+        Stage("both", ["phases.*.scale", "phases.*.cell.*"], max_iter=20),
+        Stage("zero", ["instrument.zero_shift"], max_iter=20),
+    ])
+    result = ref.fit(data, plan=plan)
+    return ref, result, data
+
+
+def test_the_joint_runner_does_not_crash_on_the_trigger_construction(
+        degenerate_pair_multi_fit):
+    _, result, _ = degenerate_pair_multi_fit
+    assert result.status in ("converged", "max_iter")
+
+
+def test_the_joint_runner_reports_and_clamps_the_runaway(degenerate_pair_multi_fit):
+    ref, result, _ = degenerate_pair_multi_fit
+    fired = [d for d in result.diagnostics if d.code == "CELL_RUNAWAY"]
+    assert len(fired) >= 1, [d.code for d in result.diagnostics]
+    for phase in ref.fitted_structures[0].phases:
+        a = phase.cell.a.value
+        assert 1.0 < a < 100.0, f"{phase.name}: a = {a:.6g} Å ran away"
+    # every histogram's own structure copy carries the same clamped cell
+    assert ref.fitted_structures[1].phases[0].cell.a.value == pytest.approx(
+        ref.fitted_structures[0].phases[0].cell.a.value, rel=1e-9)
+
+
+def test_the_joint_runners_reported_parameters_agree_with_its_statistics(
+        degenerate_pair_multi_fit):
+    """The finding-1 regression, replayed at the joint level: a firing clamp
+    must leave ``result.parameter(...)``/``fitted_structures`` and
+    ``result.histograms[h].y_calc``/``statistics`` agreeing about the *same*
+    cell -- never the reported parameter at the clamped value while the
+    curve and Rwp were built from the pre-clamp (escaped) one."""
+    ref, result, data = degenerate_pair_multi_fit
+    assert any(d.code == "CELL_RUNAWAY" for d in result.diagnostics)
+    a = result.parameter("phases.0.cell.a").value
+    assert a == pytest.approx(ref.fitted_structures[0].phases[0].cell.a.value)
+    for h in range(len(result.histograms)):
+        structure_h = ref.fitted_structures[h]
+        assert structure_h.phases[0].cell.a.value == pytest.approx(a, rel=1e-9)
+        model = compile_model(structure_h, ref.fitted_instruments[h], data[h],
+                              mode="rietveld")
+        table = ParameterTable(structure_h, ref.fitted_instruments[h])
+        y_calc = model.evaluate(table.decode(table.x0()))
+        assert np.asarray(result.histograms[h].y_calc) == pytest.approx(
+            y_calc, abs=1.0), (
+            f"histogram {h}: reported y_calc disagrees with a recompute at "
+            "the reported parameters -- the joint runner's theta was not "
+            "re-derived after the clamp fired")
