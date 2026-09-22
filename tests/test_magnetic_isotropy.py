@@ -988,6 +988,29 @@ def test_a_candidate_is_powder_equivalent_to_itself():
         assert isotropy.powder_equivalent(candidate, candidate, reflections)
 
 
+def test_an_empty_reflection_set_is_shaped_and_refused_by_name():
+    """A ``d_min`` past the cell admits nothing, and both halves must say so (#389 §4).
+
+    ``reflections`` built ``np.array([], dtype=np.int64)``, whose shape is
+    ``(0,)``, so the next consumer died inside numpy — ``matmul: Input operand 1
+    has a mismatch in its core dimension 0 … (size 3 is different from 0)`` —
+    naming nothing a caller could act on.  Two fixes, and neither replaces the
+    other: the empty set is now shaped ``(0, 3)``, and ``analyse`` refuses it
+    quoting the ``d_min`` and the cell that made it empty.
+    """
+    found = isotropy.candidates("P n m a", (0, 0, Fraction(1, 2)), GAMMA)
+    empty = isotropy.reflections(found.lattice, 6.5)
+    assert empty.hkl.shape == (0, 3)
+    assert empty.q.shape == (0, 3)
+    assert empty.d.shape == (0,)
+    assert empty.shells == ()
+    assert len(empty) == 0
+    # the longest edge of the magnetic cell is 6 Å, so 6.5 admits nothing
+    assert float(np.max(np.linalg.norm(found.lattice, axis=1))) < 6.5
+    with pytest.raises(ValueError, match=r"6\.5"):
+        isotropy.analyse(found, d_min=6.5)
+
+
 def test_a_domain_transforms_a_displacement_by_r_and_a_moment_by_the_axial_matrix():
     """The two actions differ by det(R)·ε, and a domain must use the right one (#389 §3).
 

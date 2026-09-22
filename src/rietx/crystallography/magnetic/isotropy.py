@@ -1466,6 +1466,12 @@ def reflections(lattice, d_min: float) -> ReflectionSet:
     completeness is what makes the domain average a constant factor rather than
     a reweighting (module docstring), so it is a correctness property and not
     an optimisation.
+
+    A ``d_min`` past the longest cell edge admits nothing, and the empty set is
+    shaped ``(0, 3)`` — ``np.array([], dtype=np.int64)`` is ``(0,)``, which the
+    next consumer dies on inside numpy rather than at a name (Yue's review of
+    #389 §4).  Whether an empty set is *usable* is the consumer's question:
+    :func:`analyse` refuses it, quoting the ``d_min`` and the cell.
     """
     a = np.asarray(lattice, dtype=np.float64)
     if not np.isfinite(d_min) or d_min <= 0:
@@ -1485,9 +1491,9 @@ def reflections(lattice, d_min: float) -> ReflectionSet:
         qs.append(q)
         ds.append(1.0 / norm)
     order = np.argsort(-np.asarray(ds))
-    hkl = np.array(rows, dtype=np.int64)[order]
-    q = np.array(qs, dtype=np.float64)[order]
-    d = np.asarray(ds, dtype=np.float64)[order]
+    hkl = np.array(rows, dtype=np.int64).reshape(-1, 3)[order]
+    q = np.array(qs, dtype=np.float64).reshape(-1, 3)[order]
+    d = np.asarray(ds, dtype=np.float64).reshape(-1)[order]
     shells: list[tuple[int, ...]] = []
     start = 0
     for i in range(1, len(d) + 1):
@@ -1945,6 +1951,13 @@ def analyse(candidate_set: CandidateSet, *, d_min: float = 1.5,
             f"{getattr(candidate_set.space_group, 'xhm', lambda: candidate_set.space_group)()}"
             f": see structure_factors, which every column goes through")
     refl = reflections(candidate_set.lattice, d_min)
+    if len(refl) == 0:
+        edges = ", ".join(f"{v:.4g}" for v in
+                          np.linalg.norm(candidate_set.lattice, axis=1))
+        raise ValueError(
+            f"no reflection of the magnetic cell has d >= {d_min} Å, so there is "
+            f"nothing to analyse: the cell edges are {edges} Å and d_min must be "
+            f"below the longest of them")
     little = _irreps.little_group(candidate_set.space_group, candidate_set.k)
     determinable, absences = [], []
     for candidate in candidate_set:
