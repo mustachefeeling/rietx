@@ -44,6 +44,8 @@ return the group it started from.
 from __future__ import annotations
 
 import random
+import subprocess
+import sys
 from fractions import Fraction
 
 import numpy as np
@@ -671,6 +673,68 @@ def test_setting_decides_whether_a_published_moment_fits():
 def test_database_settings_names_the_alternatives():
     assert [s.choice for s in database_settings("167.106")] == ["H", "R"]
     assert [s.hall_number for s in database_settings("136.499")] == [419]
+
+
+def test_magnetic_group_refuses_a_bad_hall_number_in_the_default_error_mode():
+    """``hall_number`` is caller input, so its refusal is a reachable branch.
+
+    In-process, i.e. with ``conftest``'s fixture holding spglib's own default
+    error mode.  The subprocess twin below is the half that broke.
+    """
+    with pytest.raises(ValueError, match="no magnetic space group for UNI 1"):
+        magnetic_group(1, hall_number=9999)
+
+
+#: Reaches :func:`magnetic_group`'s spglib call with a Hall number outside
+#: spglib's table — Yue's own probe — and asserts the *authored* refusal comes
+#: back rather than spglib's exception.  A subprocess because importing spgrep
+#: is what flips the error mode, the import happens once per process, and
+#: ``tests/conftest.py`` puts spglib's default back around every test.
+_MAGNETIC_GROUP_REFUSAL_PROBE = """
+import spgrep                                   # flips OLD_ERROR_HANDLING False
+import spglib.error
+from rietx.crystallography.magnetic.operators import magnetic_group
+
+assert spglib.error.OLD_ERROR_HANDLING is False, "spgrep no longer flips the flag"
+try:
+    magnetic_group(1, hall_number=9999)
+except ValueError as exc:
+    assert "no magnetic space group for UNI 1" in str(exc), str(exc)
+    assert "Hall setting 9999" in str(exc), str(exc)
+else:
+    raise AssertionError("magnetic_group did not refuse")
+print("OK")
+"""
+
+
+def test_the_magnetic_group_refusal_survives_a_process_that_imported_spgrep():
+    """The fourth member of the class in #389 §2, found in round 3 (§ before-merge 1).
+
+    ``spglib.error.OLD_ERROR_HANDLING`` is a **process-global** flag and
+    ``spgrep/__init__.py`` (0.7.0) sets it ``False`` at import without putting
+    it back.  In that mode spglib *raises* where it returned ``None``, so this
+    module's ``data is None`` refusal became unreachable in any process that
+    imported the oracle.  Measured on the tree round 3 was reviewed on:
+
+        OLD_ERROR_HANDLING True   magnetic_group(1, hall_number=9999)
+          -> ValueError: spglib has no magnetic space group for UNI 1
+        OLD_ERROR_HANDLING False  magnetic_group(1, hall_number=9999)
+          -> SpglibCppError: spacegroup search failed
+
+    The second names neither the group asked for nor the argument that was
+    wrong.  The ``# pragma: no cover`` that used to sit on the branch is gone
+    with it: a ``hall_number`` is caller input, not "cannot happen".
+
+    The sibling skip in :func:`database_settings` is written the same way and
+    is deliberately **not** tested: that function takes its Hall numbers from
+    spglib's own table, so no caller can put an out-of-range one in.  The
+    reason is in its docstring.
+    """
+    pytest.importorskip("spgrep")            # the oracle whose import flips it
+    done = subprocess.run([sys.executable, "-c", _MAGNETIC_GROUP_REFUSAL_PROBE],
+                          capture_output=True, text=True, timeout=300)
+    assert done.returncode == 0, done.stderr
+    assert done.stdout.strip().endswith("OK")
 
 
 # ---------------------------------------------------------------------------

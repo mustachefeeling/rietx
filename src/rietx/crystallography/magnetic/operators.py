@@ -825,9 +825,22 @@ def magnetic_group(spec, *, hall_number: int = 0) -> MagneticGroup:
     in.
     """
     uni = _resolve_uni(spec)
-    data = spglib.get_magnetic_symmetry_from_database(uni, hall_number)
-    if data is None:  # pragma: no cover - spglib returns None only on bad input
-        raise ValueError(f"spglib has no magnetic space group for UNI {uni}")
+    # ``hall_number`` is **caller input**, and a value outside spglib's table is
+    # the one way this call declines.  It declines two ways depending on
+    # ``spglib.error.OLD_ERROR_HANDLING``: ``None`` in the legacy mode, a
+    # ``SpglibError`` when the flag is off — and importing spgrep (the dev-only
+    # irreps oracle) flips the flag process-wide, so the authored message below
+    # became unreachable in any process that had imported it (Yue's round-3
+    # review of #389: ``magnetic_group(1, hall_number=9999)`` gave this
+    # ``ValueError`` before the import and ``SpglibCppError: spacegroup search
+    # failed`` after it).  Both modes must reach the same sentence.
+    try:
+        data = spglib.get_magnetic_symmetry_from_database(uni, hall_number)
+    except spglib.error.SpglibError:  # the same refusal, the other error mode
+        data = None
+    if data is None:
+        raise ValueError(f"spglib has no magnetic space group for UNI {uni}"
+                         f" in Hall setting {hall_number}")
     t = spglib.get_magnetic_spacegroup_type(uni)
     ops = [MagneticOperator.build(r, [Fraction(int(round(v * 24)), 24)
                                       for v in tr], -1 if e else 1)
@@ -877,13 +890,25 @@ def database_settings(spec) -> tuple[DatabaseSetting, ...]:
     than averaging when a moment does not fit its site.
 
     ``is_default`` marks the setting ``hall_number=0`` gives.
+
+    The skip below is the sibling of :func:`magnetic_group`'s refusal and is
+    written the same way, but **no caller can make it fire**: this function
+    takes its Hall numbers from spglib's own table (:func:`_halls_by_number`
+    walks 1-530), so the argument is never out of range and the only reachable
+    ``None`` would be a database entry spglib itself declines to serve.  It is
+    caught rather than left bare because the two error modes must agree even on
+    a branch nothing reaches — under ``OLD_ERROR_HANDLING = False`` an
+    uncaught refusal would *raise* out of this function where it used to skip.
     """
     uni = _resolve_uni(spec)
     number = int(spglib.get_magnetic_spacegroup_type(uni).number)
     default = magnetic_group(uni).all_operations()
     out: list[DatabaseSetting] = []
     for hall, symbol, choice in _halls_by_number().get(number, ()):
-        data = spglib.get_magnetic_symmetry_from_database(uni, hall)
+        try:
+            data = spglib.get_magnetic_symmetry_from_database(uni, hall)
+        except spglib.error.SpglibError:  # the same refusal, the other mode
+            data = None
         if data is None:
             continue
         same = set(magnetic_group(uni, hall_number=hall).all_operations()) == \
