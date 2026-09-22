@@ -546,6 +546,14 @@ def clamp_cell_runaway(table: ParameterTable, start_values: dict[str, float]
     return clamped
 
 
+#: An angle path's name (``_cell_parameter_name``'s output), the same test
+#: :func:`~rietx.params.vector.cell_window` branches on -- ``alpha``/``beta``/
+#: ``gamma`` are clamped by ``CELL_SAFETY_ANGLE_DEG`` (degrees, absolute),
+#: never ``CELL_SAFETY_FRACTION`` (a fraction of Å), so a message built for
+#: one and printed for the other names the wrong unit and the wrong window.
+_ANGLE_CELL_NAMES = ("alpha", "beta", "gamma")
+
+
 def _cell_runaway_diagnostic(
         cell_runaway: list[tuple[str, float, float]]) -> Diagnostic | None:
     """``CELL_RUNAWAY`` for one stage's :func:`clamp_cell_runaway` findings,
@@ -555,14 +563,28 @@ def _cell_runaway_diagnostic(
         return None
     paths = [p for p, _, _ in cell_runaway]
     worst = max(cell_runaway, key=lambda t: abs(t[1] - t[2]))
-    detail = "; ".join(f"{p} {old:.6g} -> {new:.6g} Å"
-                       for p, old, new in cell_runaway)
+
+    def is_angle(path: str) -> bool:
+        return _cell_parameter_name(path, phases=None) in _ANGLE_CELL_NAMES
+
+    detail = "; ".join(
+        f"{p} {old:.6g} -> {new:.6g} {'°' if is_angle(p) else 'Å'}"
+        for p, old, new in cell_runaway)
+    has_length = any(not is_angle(p) for p, _, _ in cell_runaway)
+    has_angle = any(is_angle(p) for p, _, _ in cell_runaway)
+    if has_length and has_angle:
+        window_clause = (f"±{CELL_SAFETY_FRACTION:.0%} (a/b/c) or "
+                         f"±{CELL_SAFETY_ANGLE_DEG:.0f}° (α/β/γ)")
+    elif has_angle:
+        window_clause = f"±{CELL_SAFETY_ANGLE_DEG:.0f}°"
+    else:
+        window_clause = f"±{CELL_SAFETY_FRACTION:.0%}"
     return Diagnostic(
         level="warning", code="CELL_RUNAWAY", where=paths,
         value=abs(worst[1] - worst[2]),
         message=(f"{len(cell_runaway)} free cell parameter"
                  f"{'' if len(cell_runaway) == 1 else 's'} left "
-                 f"±{CELL_SAFETY_FRACTION:.0%} of this stage's starting cell "
+                 f"{window_clause} of this stage's starting cell "
                  f"during solving and {'was' if len(cell_runaway) == 1 else 'were'} "
                  f"pulled back to the window edge rather than left to reach "
                  f"an unphysical value: {detail}"),
