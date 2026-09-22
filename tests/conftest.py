@@ -80,11 +80,22 @@ def _spglib_error_mode_is_not_a_shared_global():
 
     Restoring the flag per test is the suite-wide half of the fix; the other
     half is that a caller should catch both (see
-    ``magnetic.isotropy.IDENTIFY_REFUSALS``).
+    ``magnetic.isotropy.IDENTIFY_REFUSALS``, ``wyckoff.SPGLIB_REFUSALS`` and
+    ``indexing.reduce.SPGLIB_REFUSALS``).
+
+    It **sets** spglib's own default rather than preserving whatever it finds
+    (Yue's review of #389).  The two are not the same: a collection-time import
+    of spgrep — a conftest, a module-scope import in a test file, a plugin —
+    happens before any fixture runs, so "restore what I found" would preserve
+    the broken mode for the whole worker and every test would run in the state
+    this fixture exists to prevent.  ``True`` is what spglib itself defaults to,
+    so a test that says nothing about the mode gets spglib's documented one; a
+    test that wants the other mode sets it and is restored here.
     """
     import spglib.error
 
     before = spglib.error.OLD_ERROR_HANDLING
+    spglib.error.OLD_ERROR_HANDLING = True
     yield
     spglib.error.OLD_ERROR_HANDLING = before
 
