@@ -459,17 +459,27 @@ def test_the_frobenius_schur_class_agrees_with_the_character_it_implies():
 # 3. the spgrep oracle (dev-only; every name carries _oracle)
 # --------------------------------------------------------------------------
 
-def oracle_irreps(symbol, k):
-    """spgrep's small irreps and this module's, on the *same* operation list."""
+def spgrep_small_irreps(rotations, translations, k_primitive):
+    """**The oracle alone.**  Separated so a caller's ``try`` can hold spgrep's
+    refusal without also holding this package's own failure — the shape Yue's
+    round-3 review of #389 found one rank down, in the physically-irreducible
+    sweep.  Only spgrep is called here, so a ``ValueError`` out of it is
+    spgrep's by construction rather than by reading.
+    """
     spgrep_core = pytest.importorskip("spgrep")
-    rotations, translations = primitive_operations(symbol)
-    k_primitive = primitive_kvector(symbol, k)
-    little = little_group_from_operations(rotations, translations, k_primitive, centrings=())
-    theirs, mapping = spgrep_core.get_spacegroup_irreps_from_primitive_symmetry(
+    return spgrep_core.get_spacegroup_irreps_from_primitive_symmetry(
         rotations,
         np.array([[float(c) for c in t] for t in translations]),
         np.array([float(c) for c in k_primitive]),
     )
+
+
+def oracle_irreps(symbol, k):
+    """spgrep's small irreps and this module's, on the *same* operation list."""
+    rotations, translations = primitive_operations(symbol)
+    k_primitive = primitive_kvector(symbol, k)
+    little = little_group_from_operations(rotations, translations, k_primitive, centrings=())
+    theirs, mapping = spgrep_small_irreps(rotations, translations, k_primitive)
     assert list(mapping) == list(little.indices), (symbol, k)
     return little, small_irreps_of(little), theirs
 
@@ -546,16 +556,26 @@ def test_character_tables_agree_with_the_spgrep_oracle_for_all_230_groups():
     for symbol in ALL_SETTINGS:
         for k in ZONE_BOUNDARY_SET:
             if (symbol, k) in ORACLE_CANNOT_DO:
+                # the refusal asserted here is **spgrep's**, so the call under
+                # the guard is spgrep's alone: through ``oracle_irreps`` a
+                # ValueError out of this package's own construction would have
+                # satisfied the ``pytest.raises`` and filled ``declined``
+                # (measured 2026-09-22: on both pairs spgrep raises "Given
+                # representation is not irreducible: indicator=2" while
+                # ``small_irreps_of`` returns its one irrep quite happily)
+                rotations, translations = primitive_operations(symbol)
+                k_primitive = primitive_kvector(symbol, k)
                 if pinned:
                     with pytest.raises(ValueError):
-                        oracle_irreps(symbol, k)
+                        spgrep_small_irreps(rotations, translations, k_primitive)
                     declined += 1
                     continue
                 try:            # a later spgrep may have grown these two cases
-                    _, mine, theirs = oracle_irreps(symbol, k)
+                    spgrep_small_irreps(rotations, translations, k_primitive)
                 except ValueError:
                     declined += 1
                     continue
+                _, mine, theirs = oracle_irreps(symbol, k)
                 checked += 1
                 agreed += bool(tables_agree(mine, theirs))
                 continue
@@ -593,6 +613,23 @@ def test_physically_irreducible_dimensions_agree_with_the_spgrep_oracle():
     directly, so comparing dimensions tests the indicator without ever asking
     spgrep for it.  Restricted to 2k ≡ 0, where the pairing stays inside G_k;
     spgrep declines a further set of cases on its own, which are counted.
+
+    **``declined`` counts the oracle's refusals and nothing else.**  Until
+    2026-09-22 the ``try`` wrapped ``small_irreps_of`` as well, so this
+    package's own failures were counted as spgrep's, and on any spgrep whose
+    ``__version__`` is not the pinned one the two surviving assertions —
+    ``agreed == checked`` and ``checked + declined == 1477`` — hold at
+    ``0 == 0`` and ``0 + 1477 == 1477`` whatever the construction does (#389
+    round 3, before-merge 2).
+
+    *Made to fail on purpose 2026-09-22*: ``small_irreps_of`` replaced by a
+    function raising ``ValueError`` on every input, with ``spgrep.__version__``
+    set to ``"0.9.99"`` so the pinned block is skipped.  Before the repair the
+    test **passed**, at ``checked=0 agreed=0 declined=1477``.  After it the
+    same mutation propagates out of the bare ``small_irreps_of(little)`` below
+    — ``ValueError: BROKEN CONSTRUCTION (mutation probe)`` — and the test is
+    red in 0.09 s.  Unmutated it is green in 10.5 s at the pinned
+    ``(checked, agreed, declined) == (1363, 1363, 114)``.
     """
     spgrep_core = pytest.importorskip("spgrep")
     checked = agreed = declined = 0
@@ -605,8 +642,16 @@ def test_physically_irreducible_dimensions_agree_with_the_spgrep_oracle():
                 rotations, translations, k_primitive, centrings=())
             if not little.has_minus_k:
                 continue
-            try:
-                mine = small_irreps_of(little)
+            # **ours, outside the try**: a failure of this package's own
+            # construction is a failure of the test, never a decline.  Inside
+            # it, `declined` absorbed our own exceptions and the two surviving
+            # assertions could not tell the branches apart — measured in Yue's
+            # round-3 review of #389 with `small_irreps_of` replaced by a
+            # function raising on every input and `spgrep.__version__` set to
+            # "0.9.99": checked=0 agreed=0 declined=1477, and the test passed.
+            # (Reproduced 2026-09-22 before this change, with the same numbers.)
+            mine = small_irreps_of(little)
+            try:                        # the oracle's own refusal, and only it
                 real, _ = spgrep_core.get_spacegroup_irreps_from_primitive_symmetry(
                     rotations, floats, np.array([float(c) for c in k_primitive]), real=True)
             except (AssertionError, ValueError):
