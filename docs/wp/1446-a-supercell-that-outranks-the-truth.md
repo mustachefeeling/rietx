@@ -109,12 +109,89 @@ not a missing measurement, it is a ranking that does not weigh one it holds.
 
 ## Handover log
 
+### 2026-09-23 — the repair pass: recovered, reviewed, and one verdict that turned on an axis order
+
+WP-1446's working session ended with its three commits unpushed, so none of
+this WP's work was in the repository. This pass recovered it, wrote the entry
+below, and put the diff through review. The review found that the instrument
+the WP kept gave different answers to the same question depending on which axis
+setting the search happened to report a cell in, which is now fixed and pinned
+by a test. Nothing about the refutation changed, and the fix makes it slightly
+stronger.
+
+**Done.**
+
+- The 2026-09-22 entry below, reconstructed from the three commits, their
+  messages and the checklist, and marked as such.
+- `_derivative_transform` enumerates in the child's frame and returns `Hᵀ`.
+  `same_lattice` compares reduced forms, so an H accepted from the parent's side
+  proves only that `lattice(H·parent)` is `lattice(child)`. The child's own
+  fitted basis is `U·H·parent` for some unimodular `U`, and `_refuted_supercell`
+  inverts H onto exactly that basis.
+- `test_the_pair_form_does_not_turn_on_the_setting_the_engine_reported` asserts
+  the **recovered parent**, not only the verdict.
+- A σ-length contract at the top of `_refuted_supercell`, where a `q_esd`
+  shorter than `q_obs` reached `extras_absent_in_range` and raised `IndexError`.
+- The v1.6 record carries the refutation. A 🛑 WP leaves no other trace there,
+  and a reader following 1442 would otherwise never learn its follow-up failed.
+- WP-1449's quoted shares carry the caveat below.
+
+**Measured.** `.venv` `[dev]` + numba, no jax/torch, macOS arm64, alone on the
+machine.
+
+- Fast selection on the tree with `origin/main` merged in: **5 479 passed, 135
+  skipped, 0 failed in 1:41**. Against WP-1442's 5 475 passed, 135 skipped,
+  that is **+4 passed and no new skip**, which is exactly this WP's four rows in
+  `tests/test_indexing_reduce.py`, three from the working session and one from
+  the review.
+- Indexing acceptance: **44 passed, 1 xfailed in 21:21**, the baseline restored
+  by the revert. The working session started that run and was cleared before it
+  reported. Carried over rather than repeated, because `_refuted_supercell` has
+  no caller anywhere in `src/` and `_derivative_transform` only has it, so
+  nothing the suite exercises can reach either.
+- The setting dependence, on a doubled cubic cell at a = 4.1566 against a
+  pattern showing only the parent's lines. Before the fix:
+
+  | child as reported | parent recovered | verdict |
+  |---|---|---|
+  | (a, a, 2a) | (a, a, a) | refuted |
+  | (2a, a, a) | (2a, a, a/2) | **cleared** |
+  | (a, 2a, a) | (a, 2a, a/2) | **cleared** |
+
+  After it, all three recover (a, a, a) and all three refute.
+
+**Two review findings declined.** The absence window is the observed-peak span
+where the sibling `ambiguity_partners` uses the measured range, so an extra
+predicted between the last observed peak and the end of the scan is never
+counted absent. That is real. Changing it would move the shares
+`docs/VALIDATION.md` records as measured, so it goes to WP-1449 with the rest of
+the question. And `docs/ROADMAP.md` line 111 runs long, which rewrapping cannot
+fix inside that file's pinned size cap.
+
+**The caveat WP-1449 inherits.** The 0.943 / 0.931 / 0.983 shares were measured
+before the basis fix, when the instrument cleared pairs it should have refuted.
+The fix only makes it find **more** related pairs, so a pair cleared that way
+was a demotion that went uncounted and the refutation is strengthened. The
+individual shares belong to pairs found either way. Nobody has re-run the wiring
+experiment to check, and WP-1449's file says so.
+
+**How the handover was missed, for whoever fixes the hook.** The working session
+launched the acceptance suite in the background and was `/clear`ed 21 minutes
+before it reported. `.claude/hooks/handover_owed.py` holds a stop open when a WP
+branch is clean **and pushed**, so a session interrupted before its push trips
+nothing, and the session-start scan reads the WP file on disk, which the working
+session had already updated. Both checks were satisfied by a tree the repository
+had never seen. PR #413 then merged the claim commit on its own and closed.
+
+Next: unchanged. WP-1449 owns the extinction-screen route and its first act is
+the corpus search its stub declines to fake.
+
 ### 2026-09-22 (2nd session) — the reverse direction cannot order two fitted candidates (reconstructed post hoc)
 
 **Reconstructed on 2026-09-22 from the three commits, their messages and the
 checklist**, the working session having ended without writing an entry and
-without pushing. Every number below is one those commits record. The repair
-pass added the push, the review and the counts at the end.
+without pushing. Every number below is one those commits record. The
+entry above is the repair pass that recovered it.
 
 The indexing panel ranks an obviously wrong unit cell first on brucite, and the
 number refuting that cell already sits on the candidate. This session wired the
