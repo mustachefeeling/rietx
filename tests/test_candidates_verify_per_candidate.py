@@ -152,11 +152,21 @@ def test_a_partial_failure_does_not_raise(monkeypatch):
     assert len(cs) >= 2
     assert sum(1 for c in cs if c.verified is False) == 1
     assert sum(1 for c in cs if c.verified is True) == len(cs) - 1
-    # `assert x or True` cannot fail; this is the claim it was standing in for.
-    # The monkeypatch is still live here, so the attribute is the wrapper and
-    # `real` is the bound original monkeypatch restores on teardown.
+    # `assert x or True` cannot fail; these are the claims it was standing in
+    # for.  The monkeypatch is still live here, so the attribute is the wrapper
+    # and `real` is the bound original monkeypatch restores on teardown.
+    #
+    # `real is not flaky` was the first replacement and is a second tautology
+    # (#389 round 3, before-merge 3): `real` is bound at the top of this
+    # function and `flaky` defined below it, so the comparison is true of this
+    # function's own scope whatever the package does.  The falsifiable spelling
+    # names the *class attribute* on both sides — if `setattr` had not taken,
+    # `real` would still be what the class carries.  Made to fail on purpose
+    # 2026-09-22 by moving the `real = ...` binding below the `setattr`: this
+    # line goes red ("assert <function ...flaky> is not <function ...flaky>")
+    # while the one above it stays green.
     assert MagneticCandidate.in_allowed_span is flaky
-    assert real is not flaky
+    assert real is not MagneticCandidate.in_allowed_span
 
 
 # --------------------------------------------------------------------------
