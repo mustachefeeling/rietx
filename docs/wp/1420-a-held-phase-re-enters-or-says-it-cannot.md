@@ -123,6 +123,19 @@ down.
 
 ### Inherited
 
+**From WP-1333 (2026-09-22).** The chain now says one of this WP's silences
+out loud. `SEQUENTIAL_PATH_CHECK_INCOMPLETE` at `info` names every path some
+chain measured that no pattern could judge in the `direction="both"`
+comparison, and a phase held throughout one direction is exactly that case
+(issue #269). So "the chain says it cannot" has a first member for held paths
+under `"both"`. It says nothing about re-entry within one direction, which
+stays this WP's. Two rules came with it that a re-entry diagnostic should
+reuse. A path is named only if *some* chain measured it, and only if the two
+chains differ above `_noise_floor`. Without both it fired on every clean
+series (a tie row off a never-freed source, `profile.y` on its floor). And a
+rung whose fit raises now escalates the ladder (`SeriesEntry.rungs_raised`),
+so a held phase that makes a warm rung raise is rescued cold, not failed.
+
 **From WP-1342 (2026-09-19).** A held path is now a **column**, and it need
 not be a phase path at all: a caller's `vars.X` driving that cell is what the
 freeze stops, so `StageResult.held` can read `vars.caf2_a` where this WP

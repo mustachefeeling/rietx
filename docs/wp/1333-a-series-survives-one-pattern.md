@@ -1,6 +1,6 @@
 # WP-1333 — a series survives one pattern, and says which one it lost
 
-Milestone: unscheduled · Status: 🔄 2026-09-22 — claimed by @yue-here (a cloud session; picked up locally from the PR)
+Milestone: unscheduled · Status: 🔄 2026-09-22 — seven of eight tasks landed in a cloud session; the coordinate carry remains, and the branch waits on a push from a local clone (the session could not reach GitHub)
 Depends on: — (1317 soft: #218's forward-pass exposure is the sibling ask)
 Priority: P1 2026-09-23 — a chain of hundreds lost to one raise, and a check that died reading as passed
 
@@ -240,8 +240,9 @@ the absence visible (1072, 1076).
       without both conditions it fired on every clean series (measured: a tie
       row off a never-freed source and `profile.y` on its floor, on the
       eight-pattern LaB6 fixture).
-- [ ] Say in the handover what a recovered chain is **not**: warm state is not
+- [x] Say in the handover what a recovered chain is **not**: warm state is not
       recoverable from a `RefinementResult`, so a restart is a cold seam.
+      *Said 2026-09-22* in the handover entry and in the skill's `series.md`.
 - [x] Tests: a chain with one deliberately poisoned pattern returns the rest
       flagged; a covariance failure yields `None` esds and a diagnostic; a
       series whose backward pass is cancelled reports the check as not run.
@@ -279,6 +280,127 @@ one, never as the gate.
   a small one.
 
 ## Handover log
+
+- **2026-09-22** — A long series no longer dies because one pattern could not
+  be fitted. A pattern whose fit raises now goes down the same ladder a
+  diverged fit does, so a neighbour that handed on a runaway cell (#224) costs
+  one cold refit instead of the rest of the chain. A pattern no rung can fit
+  is marked and, by default, stepped over. An esd computation that fails
+  after a converged fit (#225) now yields absent esds and a warning instead of
+  losing the answer. And `direction="both"` now says when its comparison did
+  not run, or ran on less than the series, so zero path-dependence findings
+  means checked and clean at last. What is left is the coordinate carry folded
+  in from WP-1432's review, which is not local and probably wants a WP of its
+  own. Nothing of this reached GitHub, because the session could not push
+  (Gotchas).
+
+  *Done*, eight commits `0c98f6c..f4bbf37` on `wp1333-a-series-survives-one-pattern`:
+  - **Prune.** Inherited was folded into Context and Tasks and deleted. Context
+    re-read at `16b72c3`: PR #386 (merged 2026-09-18, after this WP was
+    written) had added `on_error` = raise/skip/carry, so "catches
+    `RefinementCancelled` only" was stale and is marked superseded in place.
+    But #386 abandoned every rung at the first raise, and it left three
+    defects, all now fixed. The caller's hooks sat inside the guard. A
+    backward raise under `"raise"` overwrote the forward `results_`. And the
+    backward pass's failures were discarded.
+  - **Covariance** (`b7ebe0b`). `least_squares._guarded_covariance` catches
+    `LinAlgError` only, on both solver entry points. `LSQOutcome.covariance_error`
+    carries `repr(exc)`, and `COVARIANCE_UNAVAILABLE` is emitted once per stage.
+    The values are bit-identical to a fit with a working eigensolve (tested),
+    and the mechanism is not asserted anywhere.
+  - **Ladder** (`3535a78`). A raised rung escalates. `SeriesEntry.rungs_raised`
+    is new (schema 0.24 → 0.25), and `rwp_warm` is `None` when the warm rung
+    raised. `_PatternRaised` wraps `ref.fit` alone. The forward chain is
+    published before the backward pass, and backward failures land on
+    `result.backward.failures`. `SERIES_PATTERN_FAILED.where` is now the label
+    (it was `entries[k]`, which is off by one). A `verify_discontinuities`
+    refit that raises now leaves its step unmeasured.
+  - **`SEQUENTIAL_PATH_CHECK_INCOMPLETE`** (`3535a78`, `464c0df`). It fires at
+    `warning` when the comparison did not run, naming the chain and the
+    pattern, and at `info` for missing patterns and for #269's unjudged paths.
+    `summary(deliverable="series")` now reads it.
+  - **Default** (`475d9fd`, its own commit so it can be reverted alone).
+    `on_error="carry"`, and a reported chain with no entry raises under every
+    policy.
+  - **Task 1** (`9835aea`, answered from code). The window was not in force
+    where the cell escaped, and it cannot be reached where the raise lands,
+    because the compile precedes `_freeze_cell_windows`.
+  - **Docs.** The manual's series chapter documents the failure surface, which
+    empties `tests/api_surface_deferred.txt` again (#386 had refilled it with
+    six names). The skill gains rows in `series.md`, `diagnostics.md` and
+    `abstention.md`. The 1.5.1 notes (`f4bbf37`) cover #386's `on_error` too,
+    since it had no record entry and is not in v1.5.0.
+
+  *Measured* (`[dev]` venv, Linux x86-64, py3.12, 4 cores, no other suite
+  running). A clean both-way run of the eight-pattern LaB6 fixture fires no
+  `SEQUENTIAL_PATH_CHECK_INCOMPLETE`. A naive "unjudged" list named two paths
+  there: `phases.0.atoms.1.x`, a tie row off a DOF never freed, and
+  `instrument.profile.y` on its softplus floor, which each chain measured on
+  different patterns at about 1e-15. That is why a path is named only if some
+  chain measured it and the chains differ above `_noise_floor`. The tests add
+  +18 items: 17 functions, one parametrized twice, none slow, in
+  `test_series_error_policy.py` (+12), `test_covariance_scaling.py` (+5) and
+  `test_termination_view.py` (+1). Fast and slow-series counts on the final tree: pending at this commit, filled in by the next.
+
+  *What a recovered chain is not* (task 5). A `RefinementResult` carries no
+  warm state, so re-running `fit` over the patterns after a dead chain starts
+  from the initial models. The recovered chain has a cold seam there that an
+  uninterrupted one does not. Within one run the ladder's cold rescue is the
+  same seam, and it says so (`reseeded`, `SEQUENTIAL_RESEED`).
+
+  *Decisions left to the maintainer*, each a place this branch departs from
+  #386 or from the triage:
+  - The default flip, revertable alone.
+  - `on_error="raise"` now tries every rung before raising.
+  - "A chain that fitted nothing raises" is a rule of this branch's own.
+  - #269's field form (a list on `SeriesResult` with a per-path count) was not
+    built. The diagnostic form shipped instead, and the field is still the
+    maintainer's to direct, with the reporter's offered PR.
+
+  *Gotchas*:
+  - Push was refused (403, "Claude doesn't have GitHub access": the GitHub
+    App), and the GitHub MCP's `create_branch` was refused too. So there is
+    no draft claim PR. The claim sits in this file and nowhere GitHub can see
+    it, and the commits travel as a git bundle.
+  - To inject an eigensolve failure into a whole fit, patch
+    `optimize.statistics.normal_covariance`. A global `np.linalg.pinv` patch
+    also breaks the report's region fits (`report/layer1.py`).
+  - This environment's worktree guard refuses heredocs and `$VAR` arguments,
+    so edit scripts went through the scratchpad.
+
+  *Review* (`/code-review high --fix`, `cbda6bd`): eight findings, six taken.
+  - The most important was a real hole. `check_guards`' soft-mode screen
+    eigensolves the same unit-column Gram, so #225's raise came back one call
+    after `_guarded_covariance` absorbed it, and the fit was discarded anyway.
+    My test had patched `normal_covariance` alone. Fixed, with a test shown
+    to fail without the fix.
+  - Also taken: the forward chain is published before
+    `verify_discontinuities` too; `result_`/`backward_` are reset per fit;
+    one `arrays()` call per trajectory; the `rungs_tried` docstring's cost
+    invariant; and the intermediate-stage `COVARIANCE_UNAVAILABLE` wording.
+  - Left for the maintainer, both deliberately: (4) a warm rung that raised
+    and was rescued by `warm_staged` fires no diagnostic, only `rungs_raised`,
+    which is a vocabulary call; (5) `_carry_into`/`_carry_variables` run
+    outside the fit guard, so a refusal there ends the series even where the
+    cold rung would succeed. `_carry_variables`' docstring calls that
+    refusal the caller's.
+  - The fast suite's one failure,
+    `test_telemetry.py::…[unwritable-directory]`, is this container running
+    as uid 0, where `chmod 0o500` does not stop a write. Not run on main.
+    What was checked is that the branch touches neither that test nor
+    `runs.py`, and that the sibling parameter (`parent-is-a-file`) passes.
+    Its fix is a root `skipif` beside the existing Windows one, which is
+    outside this WP.
+
+  Next, in order:
+  1. From a local clone, fetch the bundle, push the branch, open the PR and
+     mark it ready. That is the claim and the review this session could not
+     make.
+  2. Run the full suite on main merged into the branch. Only the series' own
+     slow rows ran here (counts above).
+  3. Decide the coordinate-carry task. The recommendation is its own WP: its
+     fix reaches `rebase_anchored_dofs` and the `constrain` re-declaration,
+     not the failure path. Then close 1333, rewriting Current focus.
 
 - **2026-09-03** — created, from the 2026-09-03 issue triage (issues #224,
   #225). Two raises, one granularity question, and one silent wrong answer
