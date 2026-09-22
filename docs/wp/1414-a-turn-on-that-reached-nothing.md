@@ -50,9 +50,25 @@ different fact. Nothing was declined, because nothing was found.
 
 **What the result already says.** `StageResult.freed` (`schemas/results.py`)
 records what a stage freed, written from `table.set_vary(stage.turn_on,
-True)` at `refine.py:1643`. So "what did this stage free" is answered. "What
-did it ask for and not get" is not, and a caller who reads `freed` sees the
-absence only by knowing what to expect.
+True)` at the top of `Refinement._run_stage`. So "what did this stage free"
+is answered. "What did it ask for and not get" is not, and a caller who reads
+`freed` sees the absence only by knowing what to expect.
+
+**One case of this is already reported, and it is the shape to copy**
+(WP-1435, folded from its `### Inherited` note on 2026-09-22). A `turn_on` has
+a fourth reason to free nothing beside a locked row, a tied row and the
+free-cell wavelength rule: a caller's `Refinement.hold`.
+`StageResult.blocked_by_hold` is the per-stage record of what a glob matched
+and could not free, and `HOLD_BLOCKED_PLAN` (info) is its diagnostic, built
+from the records once per fit with `where` the union and the message naming
+the stages, because a cumulative plan names the same glob in several stages
+and per-stage rows print one sentence four times. Two rules came with it.
+A `vary`-keyed report cannot be built: `vary=False` is the default rather
+than a decision (38 of 46 entries on the shipped LaB6, measured 2026-09-18),
+so a signal keyed on it names most of the table. And the reasons a row
+cannot be freed are read off the row (`ParameterRow.held_because`) and off
+`set_vary`'s **return**, never the list it was offered — 1435 found
+`optimize/identifiability.py` indexing by a candidate `set_vary` had declined.
 
 **The comment's two instances, one entry point over.** On a joint fit, a plan
 written with `instrument.profile.*` globs freed four rows on the one
@@ -77,38 +93,10 @@ per histogram, naming the globs. A single glob that matched nothing on its
 own stays silent. Whether a `PlanSpec` validator should refuse the literal
 case before any fit is the maintainer's call; the diagnostic is the floor.
 
-The neighbour in 1310 (#211, a `turn_on` glob overriding an explicit
-`vary=False`) is the same seam read the other way. Land them together if
-1310 has not.
-
-### Inherited
-
-**From WP-1435 (closed 2026-09-18), which built one case of this WP's
-channel.** A `turn_on` now has a *fourth* reason to free nothing, beside a
-locked row, a tied row and the free-cell wavelength rule: a caller's
-`Refinement.hold`. That case is already reported, so build the rest beside it
-rather than over it.
-
-- `StageResult.blocked_by_hold` is the per-stage record of paths a glob
-  matched and could not free, and `HOLD_BLOCKED_PLAN` (info, one per fit,
-  `where` = the union, the message naming the stages) is its diagnostic.
-  Deduplicating per fit rather than per stage was deliberate: a cumulative
-  plan names the same glob in several stages, and per-stage rows print the
-  same sentence four times.
-- **A `vary`-keyed version of this report cannot be built**, which is the
-  finding that sent 1435 to a hold in the first place. `vary=False` is the
-  default rather than a decision: measured 2026-09-18 on the shipped LaB6
-  with an 8-term Chebyshev background, 38 of 46 entries are declared fixed
-  and the shipped plans free 8-12 of those. Any signal keyed on "the caller
-  had it fixed" names most of the table. A hold is only ever deliberate,
-  which is what makes its report readable.
-- The reasons a row cannot be freed are now **five**, and
-  `ParameterRow.refinable`/`held_because` is still the one predicate over
-  them. Read the reason off the row rather than re-deriving it — WP-1435
-  found `optimize/identifiability.py` re-deriving it and indexing by a
-  candidate `set_vary` had declined, which was an unhandled `ValueError`.
-  The durable fix there is to use `set_vary`'s **return**, never the list it
-  was offered, and that applies to anything this WP writes.
+*Superseded in part, 2026-09-22:* the neighbour this paragraph named (1310's
+#211, a `turn_on` glob overriding an explicit `vary=False`) shipped as
+WP-1435, whose report is described above. There is nothing left to land
+beside it.
 
 ## Non-goals
 
@@ -125,8 +113,16 @@ rather than over it.
       real path (one shared near-miss helper with `__getattr__`), and
       `STAGE_FREED_NOTHING` per histogram when a stage's whole free list
       matched zero rows there.
-- [ ] `GuardFinding` constructors and `help.py` entries for both codes
-      (`tests/test_help.py` fails until they exist).
+- [ ] A `StageResult` field per finding, with the two diagnostics built from
+      the records the way `HOLD_BLOCKED_PLAN` is, and a `SCHEMA_VERSION` bump.
+      *Superseded in part, 2026-09-22:* this task read "`GuardFinding`
+      constructors and `help.py` entries for both codes (`tests/test_help.py`
+      fails until they exist)". Neither is where a code like these lives.
+      `GuardFinding` (`strategy/staged.py`) holds what the post-solve guards
+      found, and nothing about a plan's reach is decided after the solve.
+      `help.py` carries `PEAK_*` codes only. An engine code is meta-tested by
+      `test_docs_consistency.test_every_engine_diagnostic_code_has_a_protocol_row`
+      against the skill's references, which the last task covers.
 - [ ] Tests: the four-row reproduction above as a parametrised test, and a
       two-histogram fit whose plan reaches one histogram only.
 - [ ] Skill: a `references/diagnostics.md` row per code, and a
