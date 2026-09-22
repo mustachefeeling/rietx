@@ -760,12 +760,11 @@ def allowed_displacement_basis(operations, *, phases=None) -> np.ndarray:
     that :func:`allowed_moment_basis` cites Halpern & Johnson (1939) for; that
     a *displacement* is the polar one is stated by the authors of the displacive
     half of this construction — Campbell, Stokes, Tanner & Hatch, 2006,
-    *J. Appl. Cryst.* **39**, 607, whose tool's own documentation says "atomic
-    displacement modes are described using microscopic polar vectors" and puts
-    magnetic moments among the axial ones (ISODISTORT help, § Glossary and
-    References, read 2026-09-22).  The 2006 paper itself was not readable from
-    here, so what is cited to it is the construction the manual chapter already
-    attributes to it and not a sentence quoted from inside it.
+    *J. Appl. Cryst.* **39**, 607–614, § 4.5 "Order-parameter types and
+    tensors", p. 611: atomic displacement modes have order parameters that
+    transform "like polar first-rank tensors under the matrix operations of the
+    irrep" (read from the paper, 2026-09-22).  That paper says nothing about
+    moments; the axial law above rests on Halpern & Johnson alone.
 
     ``operations`` is materialised first, so a generator is accepted — it is
     read twice below — the same sibling defect as in
