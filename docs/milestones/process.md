@@ -550,6 +550,19 @@ repository and reads no WP file until a PR is cut.  Paid for twice, in Current
 focus (a closed WP's narrative and the triage fold list) and in § Unscheduled
 (the blurb describing the rows that left).  Landed 778, +6 headroom.
 
+784 -> 818 in two bumps on 2026-09-21 and -22, both recorded in the test's
+ledger: the issue triage's two rows and its placements, then WP-1442's four
+siblings.
+
+818 -> 828 for the priority column (2026-09-23).  One paragraph under § Work
+packages says what the `Priority` cell is, that the WP file's line is its
+authority and that `—` means unrated.  The column itself costs no lines:
+eleven table headers on the open sections widened and sixty rows given a `—`
+cell.  The rubric lives in `docs/wp/TEMPLATE.md`, which is not capped, and
+the re-rating duty is one clause in protocol step 3.  Rows filed before the
+rubric stay unrated on purpose; the index says which tier a new WP is and
+never claims one for a row nobody rated.  Landed 827, +1 headroom.
+
 ### `gui/CLAUDE.md`
 
 580 -> 612 for WP-1201 (2026-08-25): the house style — one token layer
