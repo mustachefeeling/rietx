@@ -418,21 +418,27 @@ class MagneticGroup:
         a different sequence for a differently-ordered seed), used to get
         back a ``MagneticGroup`` whose ``.operations`` picked a different
         coset representative — "the first one met" — for each caller.
-        ``compile_magnetic_sites`` (``scattering.py``) reads
-        ``group.all_operations()`` and keeps the *first* operation whose
-        image matches a nuclear site, with no check that a later match would
-        agree; picking a different representative can silently pick a
-        different, sign-disagreeing operation for that image (Q23 measured
-        exactly this with an unordered ``set()`` in ``_close_operations``,
-        on ``test_moment_path_is_clean_by_design``).  Sorting here, once,
-        before the coset split, makes ``.operations``/``.centerings`` (and
-        therefore ``.all_operations()``) bit-identical for any input order of
-        the same set — the representative is now a property of the group,
-        not of the caller's enumeration order — so no caller has to get its
-        own enumeration order right for this to hold.  See
-        :func:`~rietx.crystallography.magnetic.scattering._axial_matrices`
-        for the belt-and-braces consistency check kept on top of this at the
-        point of consumption.
+        The consumer that made this matter is a later WP-1327 module, not in
+        this tree: the site compiler there reads ``group.all_operations()``
+        and keeps the *first* operation whose image matches a nuclear site,
+        with no check that a later match would agree, so picking a different
+        representative can silently pick a different, sign-disagreeing
+        operation for that image (Q23 measured exactly this with an unordered
+        ``set()`` in ``_close_operations``, on
+        ``test_moment_path_is_clean_by_design``).  Sorting here, once, before
+        the coset split, makes ``.operations``/``.centerings`` (and therefore
+        ``.all_operations()``) bit-identical for any input order of the same
+        set — the representative is now a property of the group, not of the
+        caller's enumeration order — so no caller has to get its own
+        enumeration order right for this to hold.
+
+        **What guards that claim on this tree** is
+        ``test_magnetic_operators.py``'s sort-stability test: the same set of
+        operations, shuffled, gives a bit-identical
+        ``operations``/``centerings``/``all_operations()``.  The second,
+        belt-and-braces consistency check at the point of consumption lives in
+        that later module and guards nothing here (Yue's review of #389,
+        follow-ups: the claim had been stated against an absent module).
         """
         ops = tuple(sorted(dict.fromkeys(operations),
                            key=lambda op: (op.rotation, op.translation,
@@ -695,7 +701,12 @@ def allowed_moment_basis(operations, *, phases=None, transpose: bool = False,
     package calls them, and each defaults to the physics.  ``transpose=True``
     is the Rᵀ trap, and it is invisible outside a trigonal or hexagonal
     setting.
+
+    ``operations`` is materialised first, so a generator is accepted: it is
+    read twice below (``len`` and the ``zip``), and this is a public export
+    whose old body took one (Yue's review of #389, follow-ups).
     """
+    operations = list(operations)
     if phases is None:
         phases = [1] * len(operations)
     elif len(phases) != len(operations):
@@ -743,7 +754,24 @@ def allowed_displacement_basis(operations, *, phases=None) -> np.ndarray:
     ``kind="displacive"`` call before Q22, which is the bug this brief fixes:
     the polar action alone, with no return-vector phase, can only ever demand
     the +1 eigenspace of R).
+
+    **The convention, and where it is stated.**  *Polar* is defined by the
+    transformation law itself, v′ = R·v, against the axial v′ = ε·det(R)·R·v
+    that :func:`allowed_moment_basis` cites Halpern & Johnson (1939) for; that
+    a *displacement* is the polar one is stated by the authors of the displacive
+    half of this construction — Campbell, Stokes, Tanner & Hatch, 2006,
+    *J. Appl. Cryst.* **39**, 607, whose tool's own documentation says "atomic
+    displacement modes are described using microscopic polar vectors" and puts
+    magnetic moments among the axial ones (ISODISTORT help, § Glossary and
+    References, read 2026-09-22).  The 2006 paper itself was not readable from
+    here, so what is cited to it is the construction the manual chapter already
+    attributes to it and not a sentence quoted from inside it.
+
+    ``operations`` is materialised first, so a generator is accepted — it is
+    read twice below — the same sibling defect as in
+    :func:`allowed_moment_basis`.
     """
+    operations = list(operations)
     if phases is None:
         phases = [1] * len(operations)
     elif len(phases) != len(operations):
@@ -962,9 +990,10 @@ def identification(group, lattice=None, *, symprec: float = 1e-5
 
     The non-raising authority :func:`identify` is the strict wrapper over.  Use
     this wherever an unnamed group is still usable, which is everywhere the
-    operator list is the object: ``isotropy.candidates``,
-    ``magnetic.supercell`` and the report all read the result and treat
-    ``named=False`` as "unnamed in this cell" rather than as a failure.
+    operator list is the object: :func:`~rietx.crystallography.magnetic.isotropy.candidates`
+    here, and the supercell builder and the report of a later WP-1327 module,
+    all read the result and treat ``named=False`` as "unnamed in this cell"
+    rather than as a failure.
 
     See :class:`MagneticIdentification` for what comes back and why.
     """

@@ -152,7 +152,11 @@ def test_a_partial_failure_does_not_raise(monkeypatch):
     assert len(cs) >= 2
     assert sum(1 for c in cs if c.verified is False) == 1
     assert sum(1 for c in cs if c.verified is True) == len(cs) - 1
-    assert real is MagneticCandidate.in_allowed_span or True  # no-op, keeps `real` referenced
+    # `assert x or True` cannot fail; this is the claim it was standing in for.
+    # The monkeypatch is still live here, so the attribute is the wrapper and
+    # `real` is the bound original monkeypatch restores on teardown.
+    assert MagneticCandidate.in_allowed_span is flaky
+    assert real is not flaky
 
 
 # --------------------------------------------------------------------------

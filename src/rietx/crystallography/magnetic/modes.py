@@ -517,15 +517,6 @@ def _phases(numerators: np.ndarray, denominator: int) -> np.ndarray:
     return out
 
 
-def _phase(exponent: Fraction) -> complex:
-    """exp(2πi·exponent), exact for the quarter turns (the zone-boundary set)."""
-    exact = {Fraction(0): 1 + 0j, Fraction(1, 2): -1 + 0j,
-             Fraction(1, 4): 1j, Fraction(3, 4): -1j}
-    if exponent in exact:
-        return exact[exponent]
-    return complex(np.exp(2j * np.pi * float(exponent)))
-
-
 # --------------------------------------------------------------------------
 # the magnetic (or displacive) representation
 # --------------------------------------------------------------------------

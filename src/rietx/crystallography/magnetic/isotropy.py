@@ -1016,16 +1016,17 @@ def _close_operations(seed) -> tuple[MagneticOperator, ...]:
     easier to reproduce and debug — but no longer load-bearing for
     correctness: :meth:`~.operators.MagneticGroup.from_operations` used to
     pick "the first operation met in each coset" as its representative,
-    which made a downstream consumer (``compile_magnetic_sites``) depend on
-    *which* member of a coset that was (measured: shuffling this function's
-    seed order with a plain ``set`` flipped the sign of some declared
-    moments). ``from_operations`` now sorts the closed set canonically by
-    ``(rotation, translation, time_reversal)`` before choosing
-    representatives (small-fixes-20260917, item 1), so its output no longer
-    depends on the order this function — or any other caller — hands it
-    operations in; :func:`~.scattering._axial_matrices` also gained its own
-    consistency check at the point of consumption, on top of that, rather
-    than relying solely on this function's order.
+    which made a downstream consumer — the site compiler of a later WP-1327
+    module, not in this tree — depend on *which* member of a coset that was
+    (measured: shuffling this function's seed order with a plain ``set``
+    flipped the sign of some declared moments). ``from_operations`` now sorts
+    the closed set canonically by ``(rotation, translation, time_reversal)``
+    before choosing representatives (small-fixes-20260917, item 1), so its
+    output no longer depends on the order this function — or any other caller
+    — hands it operations in, which is what ``test_magnetic_operators.py``'s
+    sort-stability test measures here.  That later module's own consistency
+    check at the point of consumption sits on top of this and guards nothing
+    in this tree.
     """
     closed: dict[MagneticOperator, None] = {}
     for op in seed:

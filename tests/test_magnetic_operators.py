@@ -43,6 +43,7 @@ return the group it started from.
 
 from __future__ import annotations
 
+import random
 from fractions import Fraction
 
 import numpy as np
@@ -56,6 +57,7 @@ from rietx.crystallography.magnetic.operators import (
     UNI_NOT_IDENTIFIABLE,
     MagneticGroup,
     MagneticOperator,
+    allowed_displacement_basis,
     allowed_moment_basis,
     database_settings,
     format_transform,
@@ -503,6 +505,32 @@ def test_a_number_outside_the_tables_is_refused(spec):
 # ---------------------------------------------------------------------------
 # canonicalisation refusals
 # ---------------------------------------------------------------------------
+@pytest.mark.parametrize("basis_fn", [allowed_moment_basis, allowed_displacement_basis],
+                         ids=["moment", "displacement"])
+def test_the_allowed_basis_functions_take_a_generator(basis_fn):
+    """Both are public exports and both read ``operations`` twice (#389 follow-ups).
+
+    ``allowed_moment_basis`` gained a ``phases = [1] * len(operations)`` line in
+    this WP, which raises ``TypeError`` on a generator where the old body
+    accepted one; ``allowed_displacement_basis`` was written with the same
+    defect.  Both materialise the argument first now.
+    """
+    ops = magnetic_group("136.499").site_stabilizer((0.0, 0.0, 0.0))
+    from_list = basis_fn(list(ops))
+    from_generator = basis_fn(op for op in ops)
+    assert np.array_equal(from_generator, from_list)
+    assert basis_fn(iter(ops)).shape == from_list.shape
+
+
+def test_allowed_displacement_basis_is_exported_beside_its_axial_twin():
+    """The polar half of the pair must be reachable from the package namespace."""
+    from rietx.crystallography import magnetic
+
+    assert magnetic.allowed_displacement_basis is allowed_displacement_basis
+    assert "allowed_displacement_basis" in magnetic.__all__
+    assert "allowed_moment_basis" in magnetic.__all__
+
+
 def test_an_unclosed_list_is_refused_and_the_missing_product_is_named():
     # the first three of P4_2'/mnm' are not a subgroup (the first four are, so
     # a truncation is not automatically a counter-example)
@@ -521,6 +549,37 @@ def test_a_list_without_the_identity_is_refused():
 def test_a_rotation_in_the_centring_loop_is_refused():
     with pytest.raises(ValueError, match="centring loop"):
         MagneticGroup.from_xyz(("x,y,z,+1",), ("x,y,z,+1", "-x,-y,z,+1"))
+
+
+@pytest.mark.parametrize("bns", ["136.499", "62.448", "167.107", "225.121"])
+def test_the_canonical_order_is_a_property_of_the_group_not_of_the_input_order(bns):
+    """``from_operations`` sorts, so the same *set* gives the same object.
+
+    ``from_operations`` used to keep "the first operation met in each coset" as
+    its representative, which made a consumer that reads ``all_operations()``
+    and takes the first matching image depend on the order its caller happened
+    to enumerate in — a different representative can be a different,
+    sign-disagreeing operation for the same image.  The canonical sort on
+    ``(rotation, translation, time_reversal)`` is what makes that impossible.
+
+    Its docstring called the check in a later WP-1327 module the safety net for
+    this, and that module is not in this tree, so the claim was unguarded
+    (Yue's review of #389, follow-ups).  This is the guard on *this* tree: the
+    same operations in a shuffled order must give bit-identical ``operations``,
+    ``centerings`` and ``all_operations()``, and a fixed seed rather than a
+    random one so a failure is reproducible.
+    """
+    reference = magnetic_group(bns)
+    operations = list(reference.all_operations())
+    assert len(operations) > 2, bns
+    rng = random.Random(20260922)
+    for _ in range(8):
+        shuffled = operations[:]
+        rng.shuffle(shuffled)
+        rebuilt = MagneticGroup.from_operations(shuffled)
+        assert rebuilt.operations == reference.operations
+        assert rebuilt.centerings == reference.centerings
+        assert rebuilt.all_operations() == reference.all_operations()
 
 
 # ---------------------------------------------------------------------------
