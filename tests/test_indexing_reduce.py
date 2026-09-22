@@ -14,6 +14,9 @@ break the tie.
 
 from __future__ import annotations
 
+import subprocess
+import sys
+
 import numpy as np
 import pytest
 from hypothesis import HealthCheck, assume, given, settings
@@ -193,6 +196,56 @@ def test_conventional_cell_recovers_a_centred_lattice():
     # the conventional cell has twice the volume — two lattice points
     assert float(cell_volume(*conv)) == pytest.approx(
         2.0 * float(cell_volume(*prim)), rel=1e-6)
+
+
+#: The two fallbacks of ``reduce.py`` that read spglib's ``None``, each with
+#: the call that reaches it and what it must answer when spglib declines.
+#: ``conventional_cell`` returns the cell unchanged under ``P`` with no symbol;
+#: ``bravais_screen`` falls back to ``triclinic`` with no symbol at every
+#: tolerance of its sweep.  A cell of 1e-4 Å is the degenerate input measured in
+#: Yue's review of #389 — spglib's spacegroup search fails on it either way, so
+#: the *only* thing this pair of runs varies is the error mode.
+_SPGLIB_REFUSAL_PROBE = """
+import spgrep                                   # flips OLD_ERROR_HANDLING False
+import spglib.error
+from rietx.indexing.reduce import bravais_screen, conventional_cell
+
+assert spglib.error.OLD_ERROR_HANDLING is False, "spgrep no longer flips the flag"
+degenerate = (1e-4,) * 3 + (90.0, 90.0, 90.0)
+cell, centring, symbol = conventional_cell(degenerate)
+assert cell == degenerate and centring == "P" and symbol == "", (cell, centring, symbol)
+screen = bravais_screen(degenerate, cell_esd=1e-6)
+assert set(screen.by_symprec.values()) == {"triclinic"}, screen.by_symprec
+assert set(screen.spglib_symbols.values()) == {""}, screen.spglib_symbols
+print("OK")
+"""
+
+
+def test_the_spglib_fallbacks_survive_a_process_that_imported_spgrep():
+    """``reduce.py``'s ``data is None`` fallbacks must be reachable either way (#389 §2).
+
+    ``spglib.error.OLD_ERROR_HANDLING`` is a **process-global** flag, and
+    ``spgrep/__init__.py`` (0.7.0) sets it ``False`` at import and never puts it
+    back.  In that mode spglib *raises* ``SpglibError`` where it used to return
+    ``None``, so both of this module's documented fallbacks became unreachable
+    in any process that imported spgrep — which, since #389 puts spgrep in
+    ``[dev]`` and in CI, is every dev environment.  Measured in the review:
+
+    * ``conventional_cell((1e-4,) * 3 + (90, 90, 90))`` gave
+      ``((1e-4, 1e-4, 1e-4, 90, 90, 90), "P", "")`` before the import, and
+      ``SpglibCppError: spacegroup search failed`` after it.
+
+    The run is a **subprocess** on purpose: the import is what flips the flag,
+    it happens once per process, and ``tests/conftest.py`` puts spglib's own
+    default back around every test — so no in-process test can show the
+    reported state without setting the flag by hand, which is the one thing
+    that would not prove the import still causes it.
+    """
+    pytest.importorskip("spgrep")            # the oracle whose import flips it
+    done = subprocess.run([sys.executable, "-c", _SPGLIB_REFUSAL_PROBE],
+                          capture_output=True, text=True, timeout=300)
+    assert done.returncode == 0, done.stderr
+    assert done.stdout.strip().endswith("OK")
 
 
 # ----------------------------------------------------------------------
