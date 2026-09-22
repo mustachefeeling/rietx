@@ -47,9 +47,10 @@ from rietx.params.vector import (
     CELL_WINDOW_FRACTION,
     cell_window,
 )
-from rietx.refine import clamp_cell_runaway
+from rietx.refine import _build_result, _cell_runaway_diagnostic, clamp_cell_runaway
+from rietx.schemas.common import Parameter
 from rietx.schemas.instrument import BackgroundChebyshev
-from rietx.schemas.structure import Structure
+from rietx.schemas.structure import Atom, Cell, Phase, Structure
 from rietx.strategy.staged import RefinementPlan, Stage
 from tests.test_refine_synthetic import TRUE_A, synthesize
 from tests.test_schemas import make_lab6
@@ -238,3 +239,240 @@ def test_absent_phase_fixture_is_unaffected_by_the_new_safety_net():
     assert not any(d.code == "CELL_RUNAWAY" for d in result.diagnostics)
     a = ref.structure.phases[0].cell.a.value
     assert a == pytest.approx(TRUE_A, abs=2e-4)
+
+
+# ----------------------------------------------------------------------
+# review of #385 (2026-09-22): theta/Entry.value desync after a clamp
+# ----------------------------------------------------------------------
+#
+# ``clamp_cell_runaway`` mutates ``Entry.value`` directly and the caller
+# calls ``table.refresh_ties()`` when it fires, but neither touches the
+# ``LSQOutcome.theta`` the stage is carrying — and ``_build_result`` decodes
+# *that* ``theta`` (never the table) to build ``y_calc``/``statistics``/
+# ``ticks``, while ``RefinedParameter.value`` reads ``Entry.value`` straight
+# off the table.  A clamp that fires desynced the two: the reported
+# parameter was the clamped one, and the reported fit quality/pattern were
+# the pre-clamp (escaped) one's.
+#
+# On the two-phase construction above, reproducing this against a full
+# ``Refinement.fit()`` turned out to need more than the clamp itself: an
+# escaped cell generally also drops one phase's support (WP-1301), which
+# restores the pre-escape cell, holds it and re-solves — and that *second*
+# solve's ``theta`` is a fresh encoder output, never stale to begin with, so
+# the desync never reaches the stage's returned outcome on that route
+# regardless of whether the fix is present.  Tried and confirmed inert here:
+# (a) monkeypatching ``refine.CELL_SAFETY_FRACTION`` down to 0.02 so a modest
+# drift trips the clamp — still routed through the same collapse-restore,
+# because the joint degeneracy that drives the escape also drives one
+# phase's scale towards the other's; (b) a decoy scale two orders larger
+# (1e-2) than the fixture above, on the same reasoning.  So this asserts the
+# contract directly at ``clamp_cell_runaway``/``_build_result`` — the
+# review's own reproduction — which needs no solver at all: a stage's
+# ``table.commit(outcome.theta)`` is exactly ``table.commit(entry-set-by-
+# hand)`` from ``_build_result``'s point of view.
+def test_build_result_uses_the_theta_a_firing_clamp_left_stale():
+    """Demonstrates the *contract* directly: fed a stale (pre-clamp) theta,
+    ``_build_result`` disagrees with the table it was handed; fed
+    ``table.x0()`` re-derived after the clamp, it agrees exactly. This is
+    unconditionally true of ``_build_result`` and does not by itself prove
+    ``_run_stage``/``fit()`` honour it on a live solve (both thetas are
+    supplied here by hand) -- see
+    ``test_fit_re_derives_theta_after_a_firing_clamp_with_no_collapse``
+    below for the integration check that fails on the pre-fix tree."""
+    structure = make_lab6()
+    for n in "abc":
+        getattr(structure.phases[0].cell, n).value = TRUE_A
+    structure.phases[0].scale.value = 5e-4
+    ins = Instrument.debye_scherrer(wavelength=0.4139)
+    ins.background = BackgroundChebyshev.with_terms(3)
+
+    from rietx.params.vector import ParameterTable
+
+    data = synthesize()
+    table = ParameterTable(structure, ins)
+    table.set_vary(["phases.0.cell.a"], True)
+    start_values = table.decode(table.x0())
+
+    # what a runaway TRF step + ``table.commit(outcome.theta)`` leaves: an
+    # escaped cell, freshly committed.  ``stale_theta`` is exactly what
+    # ``outcome.theta`` held before this fix re-derived it.
+    entry = table.entries[table._paths["phases.0.cell.a"]]
+    entry.value = TRUE_A * 1.30  # +30%, outside CELL_SAFETY_FRACTION
+    stale_theta = table.x0()
+
+    clamped = clamp_cell_runaway(table, start_values)
+    assert len(clamped) == 1, clamped
+    table.refresh_ties()
+    fixed_theta = table.x0()  # the fix: re-derived after the clamp
+
+    # entry.value is the ground truth either way — RefinedParameter.value
+    # reads it directly and is not the thing under test here
+    assert entry.value != pytest.approx(TRUE_A * 1.30)  # the clamp moved it
+
+    import numpy as np
+
+    from rietx.model.forward import compile_model
+    from rietx.optimize.statistics import compute_statistics
+
+    model = compile_model(structure, ins, data)
+
+    def y_calc_and_rwp_at(theta):
+        values = table.decode(theta)
+        y_calc = model.evaluate(values)
+        y_bkg = model.background(values)
+        stats = compute_statistics(model.y_obs, y_calc, model.sigma,
+                                   n_free=0, y_background=y_bkg)
+        return y_calc, stats.rwp
+
+    y_calc_stale, rwp_stale = y_calc_and_rwp_at(stale_theta)
+    y_calc_fixed, rwp_fixed = y_calc_and_rwp_at(fixed_theta)
+
+    # the clamp actually moved the cell, so the two thetas decode to
+    # different y_calc/rwp -- otherwise this test would not be exercising
+    # anything
+    assert not np.allclose(y_calc_stale, y_calc_fixed)
+    assert rwp_stale != pytest.approx(rwp_fixed)
+
+    # the postcondition: _build_result called with the RE-DERIVED theta
+    # agrees with what the table (== RefinedParameter.value) actually holds;
+    # called with the STALE one, it does not.
+    result_stale = _build_result(
+        model, table, stale_theta, mode="rietveld", status="converged",
+        stage_results=[], diagnostics=[], structure=structure)
+    result_fixed = _build_result(
+        model, table, fixed_theta, mode="rietveld", status="converged",
+        stage_results=[], diagnostics=[], structure=structure)
+
+    reported_a = {p.path: p.value for p in result_fixed.parameters}["phases.0.cell.a"]
+    assert reported_a == pytest.approx(entry.value)  # both results report this
+
+    # stale: y_calc/rwp reflect the escaped cell, not the reported parameter
+    assert np.max(np.abs(np.asarray(result_stale.y_calc) - y_calc_fixed)) > 1.0
+    assert result_stale.statistics.rwp != pytest.approx(rwp_fixed)
+
+    # fixed: y_calc/rwp agree exactly with a recompute at the reported value
+    assert np.asarray(result_fixed.y_calc) == pytest.approx(y_calc_fixed)
+    assert result_fixed.statistics.rwp == pytest.approx(rwp_fixed)
+
+
+def test_fit_re_derives_theta_after_a_firing_clamp_with_no_collapse(monkeypatch):
+    """End-to-end regression, through the public ``Refinement.fit()`` surface
+    rather than a direct ``_build_result`` call.
+
+    On the degenerate-pair fixture, ``clamp_cell_runaway`` fires but so does
+    WP-1301's collapse-restore (one phase's support drops once its cell is
+    pulled back near the true value, since that is what stops it trading
+    scale against the other phase) -- and the second, restore-driven solve's
+    own ``theta`` is a fresh encoder output that was never stale, so it masks
+    the very bug this checks for regardless of whether the fix is present
+    (confirmed empirically: this construction, and two narrower-window
+    variants, all passed even against the pre-fix tree). So
+    ``_unsupported_phase_paths`` is patched to report no collapse ever, which
+    does not change what the clamp does (still fires, still pulls the cell
+    back to the same window edge) and isolates exactly the branch the fix
+    touches: the stage's own outcome, clamped and returned directly to
+    ``_build_result``, with no second solve in between.
+
+    Rather than recompiling a second model to compare ``y_calc`` against (a
+    fresh ``compile_model`` call makes its own frozen-window/FCJ-node sizing
+    decisions -- WP-1110's own "Frozen-per-stage discreteness" invariant --
+    which need not agree with the live fit's compiled model and produced a
+    large, unrelated mismatch when tried), this spies on the real
+    ``_build_result`` call ``fit()`` makes internally and checks its
+    ``theta`` argument decodes to exactly what the SAME table's
+    ``Entry.value``\\ s hold at that moment -- the literal postcondition the
+    fix restores, on the real code path, with no independent model build to
+    disagree about.
+    """
+    import sys
+
+    refine_module = sys.modules["rietx.refine"]  # see the other test's note
+    monkeypatch.setattr(refine_module, "_unsupported_phase_paths",
+                        lambda *a, **k: [])
+
+    captured = {}
+    real_build_result = refine_module._build_result
+
+    def spy(model, table, theta, **kwargs):
+        captured["theta"] = theta
+        captured["entry_values"] = {e.path: e.value for e in table.entries}
+        captured["decoded"] = table.decode(theta)
+        return real_build_result(model, table, theta, **kwargs)
+
+    monkeypatch.setattr(refine_module, "_build_result", spy)
+
+    structure, ins = _degenerate_pair(1e-5)
+    ref = Refinement(structure, ins, history=False)
+    plan = RefinementPlan(stages=[
+        Stage("both", ["phases.*.scale", "phases.*.cell.*"], max_iter=20),
+    ])
+    data = synthesize()
+    result = ref.fit(data, plan=plan)
+    assert any(d.code == "CELL_RUNAWAY" for d in result.diagnostics)
+    assert captured, "the spy never ran -- fit() must call _build_result by name"
+
+    for path, entry_value in captured["entry_values"].items():
+        assert captured["decoded"][path] == pytest.approx(entry_value, abs=1e-9), (
+            f"{path}: table.decode(theta)={captured['decoded'][path]!r} but "
+            f"Entry.value={entry_value!r} -- the theta _build_result received "
+            f"disagrees with the table it came from")
+
+
+# ----------------------------------------------------------------------
+# review of #385 (2026-09-22): the CELL_RUNAWAY message named the wrong
+# unit and the wrong window for an angle
+# ----------------------------------------------------------------------
+def _monoclinic_phase(beta: float) -> Structure:
+    cell = Cell(a=Parameter(value=5.0, min=0.1), b=Parameter(value=6.0, min=0.1),
+               c=Parameter(value=7.0, min=0.1), alpha=Parameter(value=90.0),
+               beta=Parameter(value=beta), gamma=Parameter(value=90.0))
+    return Structure(phases=[Phase(
+        name="probe", space_group="P 1 2/m 1", cell=cell,
+        atoms=[Atom(label="X", species="Si", x=Parameter(value=0.0),
+                    y=Parameter(value=0.0), z=Parameter(value=0.0))])])
+
+
+def test_a_free_beta_outside_the_angle_window_is_clamped_and_reported_in_degrees():
+    """A monoclinic phase's free ``beta`` escaping the ±``CELL_SAFETY_ANGLE_DEG``
+    window must be reported in degrees, at the angle window — never in Å at
+    the length fraction, which is what every ``a/b/c`` path in this file's
+    other tests correctly gets."""
+    from rietx.params.vector import ParameterTable
+
+    structure = _monoclinic_phase(98.3)
+    ins = Instrument.debye_scherrer(wavelength=1.5406)
+    table = ParameterTable(structure, ins)
+    hits = table.set_vary(["phases.0.cell.beta"], True)
+    assert "phases.0.cell.beta" in hits
+    start_values = table.decode(table.x0())
+
+    entry = table.entries[table._paths["phases.0.cell.beta"]]
+    entry.value = 98.3 + 10.0  # +10 deg, outside the +/-CELL_SAFETY_ANGLE_DEG window
+    clamped = clamp_cell_runaway(table, start_values)
+    assert len(clamped) == 1
+    path, old, new = clamped[0]
+    assert path == "phases.0.cell.beta"
+    lo, hi = cell_window("beta", 98.3, -math.inf, math.inf,
+                         fraction=CELL_SAFETY_FRACTION,
+                         angle_deg=CELL_SAFETY_ANGLE_DEG)
+    assert new == pytest.approx(hi)
+
+    diag = _cell_runaway_diagnostic(clamped)
+    assert diag is not None
+    assert "Å" not in diag.message
+    assert "15%" not in diag.message
+    assert "°" in diag.message
+    assert f"±{CELL_SAFETY_ANGLE_DEG:.0f}°" in diag.message
+
+
+def test_a_mixed_length_and_angle_clamp_names_both_windows():
+    """A stage that clamps both a length and an angle in the same firing
+    must not collapse to either unit alone."""
+    diag = _cell_runaway_diagnostic([
+        ("phases.0.cell.a", 5.403580000000001, 4.83009),
+        ("phases.0.cell.beta", 108.3, 104.3),
+    ])
+    assert diag is not None
+    assert "Å" in diag.message and "°" in diag.message
+    assert f"±{CELL_SAFETY_FRACTION:.0%}" in diag.message
+    assert f"±{CELL_SAFETY_ANGLE_DEG:.0f}°" in diag.message
