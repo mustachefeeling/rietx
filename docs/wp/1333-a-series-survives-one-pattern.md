@@ -189,7 +189,7 @@ the absence visible (1072, 1076).
       per stage, the answer-producing one saying every esd is absent. The
       eigensolve is the whole normal matrix, so "the affected block" is all
       of it. Values bit-identical to a working eigensolve (tested).
-- [ ] A chain continues past a failed pattern: mark it, carry the last good
+- [x] A chain continues past a failed pattern: mark it, carry the last good
       warm state forward, report it as `SEQUENTIAL_UNRECOVERED`.
       *Superseded in part 2026-09-22*: continuing and carrying exist since
       PR #386 as the opt-in `on_error="carry"`, reported as
@@ -202,6 +202,9 @@ the absence visible (1072, 1076).
       *(a)-(c) landed 2026-09-22*: `SeriesEntry.rungs_raised` (schema
       0.24 → 0.25), `_PatternRaised` around the fit alone, the forward chain
       published before the backward pass, `result.backward.failures`.
+      *(d) landed 2026-09-22, its own commit*: `on_error="carry"` is the
+      default, and a chain that fitted **no** pattern raises under every
+      policy, so an empty `SeriesResult` is never an answer.
 - [x] Record that the path-dependence comparison did not run — a distinct
       finding naming the pass that died and the pattern it died on, or a field
       on the series result. Zero findings must mean *checked and clean*. The
@@ -225,9 +228,11 @@ the absence visible (1072, 1076).
 - [ ] A refined coordinate crosses the pattern boundary (Context, folded from
       WP-1432's review): through `rebase_anchored_dofs`, with the `constrain`
       re-declaration handled — or its own WP if it outgrows this one.
-- [ ] Skill: `references/series.md` — the row saying that zero
+- [x] Skill: `references/series.md` — the row saying that zero
       `SEQUENTIAL_PATH_DEPENDENT` findings is only a clean bill once the
       not-run signal exists, and the row on what survives a failed pattern.
+      *Landed 2026-09-22*, with `abstention.md`'s #269 row pointed at the new
+      finding and the two new codes' `diagnostics.md` rows.
 
 ## Acceptance
 

@@ -119,19 +119,20 @@ def test_the_reproduction_still_raises_the_trigger_error(
     the failure this whole module is about."""
     series = _series()
     with pytest.raises(np.linalg.LinAlgError, match="SVD did not converge"):
-        series.fit(eight_patterns)
+        series.fit(eight_patterns, on_error="raise")
 
 
 # ----------------------------------------------------------------------
-# on_error="raise" (the default): still raises, but nothing already
-# converged is lost with it
+# on_error="raise" (the default until WP-1333): still raises, but nothing
+# already converged is lost with it
 # ----------------------------------------------------------------------
 def test_raise_still_raises_but_keeps_the_partial_results(
         eight_patterns, fail_on_pattern):
     series = _series()
     seen: list[int] = []
     with pytest.raises(np.linalg.LinAlgError) as excinfo:
-        series.fit(eight_patterns, on_result=lambda k, r: seen.append(k))
+        series.fit(eight_patterns, on_result=lambda k, r: seen.append(k),
+                   on_error="raise")
 
     # what on_result already knew before the crash — the four converged
     # patterns preceding the one that failed
@@ -220,7 +221,7 @@ def test_carry_fits_the_next_pattern_warm(eight_patterns, fail_on_pattern):
 def test_a_chain_with_no_failures_is_unaffected_by_the_new_parameter(
         eight_patterns):
     series = _series()
-    result = series.fit(eight_patterns)  # default on_error="raise"
+    result = series.fit(eight_patterns)  # the default policy
     assert len(result.entries) == N_PATTERNS
     assert result.n_failed == 0
     assert result.failures == []
@@ -230,6 +231,47 @@ def test_a_chain_with_no_failures_is_unaffected_by_the_new_parameter(
 
 def test_on_error_policies_is_the_one_vocabulary_the_validator_uses():
     assert ON_ERROR_POLICIES == ("raise", "skip", "carry")
+
+
+def test_the_default_carries_past_a_failed_pattern(eight_patterns,
+                                                   fail_on_pattern):
+    """WP-1333's goal, as the default: one pattern that cannot be fitted costs
+    that pattern, and the chain returns what it measured."""
+    import inspect
+
+    from rietx.sequential import SequentialRefinement as SR
+
+    assert inspect.signature(SR.fit).parameters["on_error"].default == "carry"
+    series = _series()
+    result = series.fit(eight_patterns)
+    assert len(result.entries) == N_PATTERNS - 1
+    assert [f.index for f in result.failures] == [FAIL_INDEX]
+    successor = next(e for e in result.entries if e.index == FAIL_INDEX + 1)
+    assert successor.rung == "warm"
+
+
+@pytest.mark.parametrize("policy", ["skip", "carry"])
+def test_a_series_that_measured_nothing_raises(eight_patterns, monkeypatch,
+                                               policy):
+    """An empty ``SeriesResult`` is not an answer: a chain that fitted no
+    pattern raises the last exception under every policy, with every failure
+    attached."""
+    targets = {id(p) for p in eight_patterns[:3]}
+    import rietx.refine  # noqa: F401
+
+    refine_mod = sys.modules["rietx.refine"]
+
+    def always_fails(self, data, *args, **kwargs):
+        assert id(data) in targets
+        raise np.linalg.LinAlgError("SVD did not converge for slice = 0")
+
+    monkeypatch.setattr(refine_mod.Refinement, "fit", always_fails)
+    series = _series()
+    with pytest.raises(np.linalg.LinAlgError) as excinfo:
+        series.fit(eight_patterns[:3], on_error=policy)
+    assert [f.index for f in excinfo.value.series_failures] == [0, 1, 2]
+    assert excinfo.value.series_results == []
+    assert series.failures_ == excinfo.value.series_failures
 
 
 # ----------------------------------------------------------------------

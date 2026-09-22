@@ -231,25 +231,34 @@ _LEVEL_RANK = {"info": 0, "warning": 1, "error": 2}
 REFIT_MODES = ("single", "stages")
 DIRECTIONS = ("forward", "backward", "both")
 
-#: How ``SequentialRefinement.fit`` reacts to a pattern whose fit does not
-#: return at all — an uncaught exception (``LinAlgError: SVD did not
-#: converge`` on a near-degenerate warm-carried block is the one this was
-#: written from) out of ``Refinement.fit``, not a fit that converged
-#: somewhere the reseed fence rejected (that is ``SeriesEntry.status ==
-#: "diverged"``, already handled by the quarantine below and needing no new
-#: policy).  ``"raise"`` is the default and keeps every existing caller's
-#: behaviour: the whole chain still ends in an exception, the same as before
-#: this policy existed, except that the partial results are no longer lost —
-#: see ``SequentialRefinement.results_``/``.failures_`` and the exception's
-#: own ``series_results``/``series_failures`` attributes.  ``"skip"`` drops
-#: the pattern (recorded in ``SeriesResult.failures``) and fits its successor
-#: **cold** — no warm start at all, since a pattern whose fit did not
-#: complete is not evidence the *next* one's warm state is trustworthy
-#: either.  ``"carry"`` also drops the pattern but fits its successor warm
-#: from the **last good** state, exactly like the WP-1051 quarantine already
-#: does for a diverged fit — appropriate when the failure is understood to be
-#: pattern-specific (a genuinely near-singular parameterisation at this one
-#: composition/temperature) rather than a sign the warm state itself is bad.
+#: How ``SequentialRefinement.fit`` reacts to a pattern on which **every
+#: rung** of the ladder raised — an uncaught exception out of
+#: ``Refinement.fit`` on each attempt, not a fit that converged somewhere the
+#: reseed fence rejected (that is ``SeriesEntry.status == "diverged"``, handled
+#: by the quarantine below with no policy).  A rung that raises is a rung that
+#: lost and the ladder escalates past it (WP-1333), so by the time a policy is
+#: consulted the last rung tried was a **cold** fit from the initial models —
+#: unless ``reseed=False`` or the pattern was the first walked, which have no
+#: ladder — and what failed is the pattern rather than its neighbour's state.
+#:
+#: ``"carry"`` is the default (WP-1333; ``"raise"`` was, PR #386): the pattern
+#: is recorded in ``SeriesResult.failures`` with ``SERIES_PATTERN_FAILED`` and
+#: its successor warm-starts from the **last accepted** state, exactly as the
+#: WP-1051 quarantine treats a diverged fit — a series is N separate
+#: refinements, and one that cannot be fitted is no reason to throw away the
+#: others, the same argument that makes a cancelled series *return*.
+#: ``"skip"`` records it the same way but fits the successor **cold**, for a
+#: caller who reads the failure as evidence against the warm state too.
+#: ``"raise"`` ends the chain in the last rung's exception, with the partial
+#: results kept: ``SequentialRefinement.results_``/``.failures_`` and the
+#: exception's own ``series_results``/``series_failures``/``series_failed``.
+#:
+#: **A series that measured nothing raises under every policy**: if the
+#: reported chain ends with no entry and at least one failure, the last
+#: exception is raised with ``series_failures`` attached, because an empty
+#: ``SeriesResult`` is not an answer and "a failure raises" is the package's
+#: contract.  A cancelled chain is exempt (it *returns*, WP-1016), and so is the
+#: ``direction="both"`` backward pass, whose failures cost only the comparison.
 ON_ERROR_POLICIES = ("raise", "skip", "carry")
 
 #: The escalation ladder in order, as names (WP-1051).  ``"warm"`` is the
@@ -676,10 +685,10 @@ class SequentialRefinement:
         self.backward_: SeriesResult | None = None
         self._structures: list[Structure] = []
         self._instruments: list[Instrument] = []
-        #: every pattern ``on_error`` caught rather than letting crash the
-        #: chain, populated whether ``fit`` returns normally or raises (see
-        #: ``ON_ERROR_POLICIES``) — read this after catching an exception
-        #: from ``fit()`` under the default ``on_error="raise"`` policy.
+        #: every pattern on which every rung raised, populated whether
+        #: ``fit`` returns normally or raises (see ``ON_ERROR_POLICIES``) —
+        #: read this after catching an exception from ``fit()`` under
+        #: ``on_error="raise"``, or from a chain that fitted nothing.
         self.failures_: list[SeriesFailure] = []
 
     # ------------------------------------------------------------------
@@ -700,7 +709,7 @@ class SequentialRefinement:
                               None] | None = None,
             constrain: Callable[[int, Refinement], None] | None = None,
             on_result: Callable[[int, RefinementResult], None] | None = None,
-            on_error: Literal["raise", "skip", "carry"] = "raise",
+            on_error: Literal["raise", "skip", "carry"] = "carry",
             events=None, cancel=None, progress=None, telemetry=None,
             label: str | None = None,
             ) -> SeriesResult:
@@ -839,22 +848,19 @@ class SequentialRefinement:
             ordinary dot-path — so a variable declared here warm-starts from
             the last accepted pattern rather than from its declaration.
         on_error:
-            What one pattern's uncaught exception does to the rest of the
-            chain — see :data:`ON_ERROR_POLICIES` for what each of the three
-            means and why "skip" and "carry" differ in what the *next*
-            pattern warm-starts from.  This is about a fit that never
-            returns (``numpy.linalg.LinAlgError: SVD did not converge`` on a
-            near-singular warm-carried block is the case this was written
-            from), not one that converges somewhere the reseed fence
-            rejects — that is ``"diverged"`` and the WP-1051 quarantine
-            already carries it through with no policy needed.  Every policy
-            records the failure on ``SeriesResult.failures`` (and this
-            instance's ``.failures_``); only ``"raise"`` — the default, and
-            what every caller before this parameter existed saw — still ends
-            the chain in an exception, though the partial results are no
-            longer lost with it (``.results_``/``.trees_`` are populated
-            before the re-raise, and the exception itself carries
-            ``series_results``/``series_failures``).
+            What a pattern on which every rung of the ladder raised does to
+            the rest of the chain — see :data:`ON_ERROR_POLICIES`.  A rung that
+            raises escalates like a diverged one first, so this is consulted
+            only once the cold rung has raised too.  The default ``"carry"``
+            records the pattern on ``SeriesResult.failures`` (and this
+            instance's ``.failures_``) with ``SERIES_PATTERN_FAILED`` and
+            warm-starts its successor from the last accepted pattern;
+            ``"skip"`` starts the successor cold; ``"raise"`` ends the chain in
+            the exception, keeping what completed on ``.results_``/``.trees_``
+            and on the exception.  A chain that fitted no pattern at all raises
+            whichever is chosen.  The caller's own ``prepare``/``constrain``
+            are never guarded: a raise there is the caller's and ends the
+            series as itself.
         events, cancel:
             What they mean on :meth:`Refinement.fit`, per pattern: every event a
             pattern's fit emits is forwarded with its place in the series stamped
@@ -1130,6 +1136,9 @@ class SequentialRefinement:
         #: walk, ``None`` when it ran to the end — what
         #: ``SEQUENTIAL_PATH_CHECK_INCOMPLETE`` names as "the pattern it died on"
         stopped_at: int | None = None
+        #: the last exception a failed pattern raised, for the one case a
+        #: non-raising policy still raises: a chain that fitted nothing
+        chain_raise: Exception | None = None
 
         n = len(patterns)
         for position, k in enumerate(order):
@@ -1242,6 +1251,7 @@ class SequentialRefinement:
                         last_raise.series_failures = self.failures_
                     raise last_raise
                 failures[k] = failure
+                chain_raise = last_raise
                 if on_error == "skip":
                     # No warm start at all for the next pattern: a fit that
                     # never returned is not evidence the *next* one's warm
@@ -1305,6 +1315,18 @@ class SequentialRefinement:
             if cancelled:
                 stopped_at = k
                 break
+
+        if (publish and not entries and failures and stopped_at is None
+                and chain_raise is not None):
+            # A series that measured nothing has no answer to return: the
+            # empty SeriesResult a policy would hand back reads as a short
+            # series, and "a failure raises" is the contract (ON_ERROR_POLICIES).
+            self.results_, self.trees_ = [], []
+            self._structures, self._instruments = [], []
+            self.failures_ = [failures[i] for i in sorted(failures)]
+            chain_raise.series_results = self.results_
+            chain_raise.series_failures = self.failures_
+            raise chain_raise
 
         keys = sorted(entries)
         return ([entries[k] for k in keys], [results[k] for k in keys],

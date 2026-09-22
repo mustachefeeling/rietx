@@ -111,6 +111,7 @@ recorded instead as annotation notes on each tree's root node. The default is
 | `prepare` | `(index, data, structure, instrument) -> None`, called on the warmed models before each fit |
 | `constrain` | `(index, ref) -> None`, called on each pattern's `Refinement` before its fit, where a tie, a named variable or a hold is declared |
 | `on_result` | `(index, result) -> None`, called with each pattern's full result as it finishes |
+| `on_error` | what a pattern on which every rung raised does to the chain: `"carry"` (default) warm-starts its successor from the last accepted pattern, `"skip"` starts it cold, `"raise"` ends the chain in the exception |
 | `events`, `cancel` | as on `Refinement.fit`, per pattern |
 
 `refit` sets the ladder's first rung, which is not the only plan a pattern can
@@ -479,7 +480,21 @@ reflection enumerator refuses it before the fit starts. The cold rung starts
 from the initial models and never sees it. Only a pattern on which every rung
 raised has no entry. It is recorded in `SeriesResult.failures` with a
 `SERIES_PATTERN_FAILED` warning, and what the chain does next is the `on_error`
-policy's choice.
+policy's choice. Each `SeriesFailure` carries the pattern's `SeriesFailure.index`
+and `SeriesFailure.label`, and `SeriesFailure.exception` is the last rung's
+exception as `repr`. `SeriesResult.n_failed` counts them, and
+`SequentialRefinement.failures_` is the same list on the runner, which is where
+to read it after catching an exception from `on_error="raise"`.
+
+By the time a policy is consulted, the last rung tried was a cold fit, unless
+`reseed=False` or the pattern was the first one walked. So under the default,
+`"carry"`, the successor warm-starts from the last accepted pattern, because
+what failed was this pattern and not the state its neighbour handed it. A
+series is N separate refinements, and one that cannot be fitted is no reason to
+discard the others. A chain that fitted no pattern at all still raises, whatever
+the policy, because an empty `SeriesResult` is not an answer. The caller's own
+`prepare` and `constrain` are never guarded: a raise there ends the series as
+itself.
 
 Quarantine is the other half, and it is about what the chain carries rather than
 what it reports. A fit still `"diverged"` after the last rung is neither a
