@@ -134,7 +134,7 @@ Aroyo, M. I. (2015). *Annu. Rev. Mater. Res.* **45**, 217.
 from __future__ import annotations
 
 import itertools
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, replace
 from fractions import Fraction
 
 import numpy as np
@@ -847,7 +847,6 @@ class MagneticCandidate:
     parent_atoms: np.ndarray        # (N,) int, index into permutation.positions/phases
     verified: bool | None = None
     verification_reason: str | None = None
-    _cache: dict = field(default_factory=dict, repr=False, compare=False)
 
     @property
     def free_amplitudes(self) -> int:
