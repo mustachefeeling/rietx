@@ -199,3 +199,119 @@ def test_nothing_changes_when_every_column_measured_something():
     assert diag_only.keys() == correlated.keys()
     for path, value in diag_only.items():
         assert correlated[path] == pytest.approx(value, rel=1e-12)
+
+
+# ----------------------------------------------------------------------
+# A failed eigensolve is not a failed fit (WP-1333, issue #225)
+# ----------------------------------------------------------------------
+# The reporter met ``LinAlgError: Eigenvalues did not converge`` out of
+# ``normal_covariance`` at a *converged* fit, and could not reduce it to a
+# data-free case (columns at 1e-90 to 1e-200 pass without raising), so these
+# tests inject the raise rather than construct it.  What they pin is the
+# consequence, which needs no mechanism: the solver's answer survives, every
+# esd is absent rather than raised over, and a diagnostic names the stage.
+
+def _eigh_fails(*args, **kwargs):
+    raise np.linalg.LinAlgError("Eigenvalues did not converge")
+
+
+def test_a_failed_eigensolve_leaves_the_esds_absent_not_raised(monkeypatch):
+    from rietx.optimize import least_squares, statistics
+
+    jac, resid = _problem()
+    assert least_squares._guarded_covariance(jac, resid, 4, 400)[2] is None
+
+    monkeypatch.setattr(statistics.np.linalg, "pinv", _eigh_fails)
+    stderr, corr, error = least_squares._guarded_covariance(jac, resid, 4, 400)
+    assert stderr is None and corr is None
+    assert "Eigenvalues did not converge" in error
+
+
+def test_only_an_eigensolver_failure_is_caught(monkeypatch):
+    """Anything that is not ``LinAlgError`` is a defect, and stays loud."""
+    from rietx.optimize import least_squares, statistics
+
+    def broken(*args, **kwargs):
+        raise TypeError("a bug, not a spectrum")
+
+    monkeypatch.setattr(statistics.np.linalg, "pinv", broken)
+    jac, resid = _problem()
+    with pytest.raises(TypeError, match="a bug"):
+        least_squares._guarded_covariance(jac, resid, 4, 400)
+
+
+@pytest.fixture(scope="module")
+def _lab6_pattern():
+    from tests.test_refine_synthetic import synthesize
+
+    return synthesize()
+
+
+def _fit(pattern):
+    from rietx import Refinement
+    from tests.test_refine_synthetic import perturbed_models
+
+    structure, ins = perturbed_models()
+    return Refinement(structure, ins).fit(pattern, plan="mccusker_default")
+
+
+def test_a_fit_whose_covariance_raises_returns_its_values(monkeypatch,
+                                                         _lab6_pattern):
+    """Every stage's esd computation raises; the fit still returns.
+
+    The values are **bit-identical** to the same fit with a working
+    eigensolver, because nothing in the solve reads an esd — they are
+    computed after each stage's solver has returned — and that is the whole
+    argument for the fallback: the answer was in hand when the raise
+    discarded it.
+    """
+    reference = _fit(_lab6_pattern)
+
+    from rietx.optimize import statistics
+
+    # the esd path only: the report's own region fits call ``pinv`` too, and
+    # a global patch would fail those for a reason this test is not about
+    monkeypatch.setattr(statistics, "normal_covariance", _eigh_fails)
+    result = _fit(_lab6_pattern)
+
+    assert result.status == reference.status
+    assert [(p.path, p.value) for p in result.parameters] == \
+        [(p.path, p.value) for p in reference.parameters]
+    assert all(p.stderr is None for p in result.parameters)
+    assert any(p.stderr is not None for p in reference.parameters)
+
+    fired = [d for d in result.diagnostics if d.code == "COVARIANCE_UNAVAILABLE"]
+    stages = [s.name for s in result.stages]
+    # one per stage, each naming its own, and the answer-producing one is the
+    # one that says the result's esds are gone
+    assert [d.where for d in fired] == [[name] for name in stages]
+    assert all(d.level == "warning" for d in fired)
+    assert "every esd on this result is absent" in fired[-1].message
+    assert all("intermediate stage" in d.message for d in fired[:-1])
+    assert not any(d.code == "COVARIANCE_UNAVAILABLE"
+                   for d in reference.diagnostics)
+
+
+def test_an_intermediate_failure_leaves_the_answer_its_esds(monkeypatch,
+                                                           _lab6_pattern):
+    """Only the first stage's eigensolve fails: the result keeps every esd."""
+    from rietx.optimize import statistics
+
+    real = statistics.normal_covariance
+    calls = {"n": 0}
+
+    def first_fails(*args, **kwargs):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise np.linalg.LinAlgError("Eigenvalues did not converge")
+        return real(*args, **kwargs)
+
+    reference = _fit(_lab6_pattern)
+    monkeypatch.setattr(statistics, "normal_covariance", first_fails)
+    result = _fit(_lab6_pattern)
+
+    fired = [d for d in result.diagnostics if d.code == "COVARIANCE_UNAVAILABLE"]
+    assert [d.where for d in fired] == [[result.stages[0].name]]
+    assert "intermediate stage" in fired[0].message
+    assert [(p.path, p.value, p.stderr) for p in result.parameters] == \
+        [(p.path, p.value, p.stderr) for p in reference.parameters]

@@ -181,9 +181,14 @@ the absence visible (1072, 1076).
 - [ ] Establish whether `cell_window` / `CELL_MIN_LENGTH_A` was in force on
       the failing path in #224, and record the answer (either way it changes
       how the raise is characterised, not whether the chain should survive it).
-- [ ] `covariance_estimates` returns `stderr=None` for the affected block plus
+- [x] `covariance_estimates` returns `stderr=None` for the affected block plus
       a diagnostic naming the stage and the reason, instead of raising; a
-      failed eigensolve is not a failed fit.
+      failed eigensolve is not a failed fit. *Landed 2026-09-22* one rank up,
+      in `least_squares._guarded_covariance` (both solver entry points), so
+      `covariance_estimates` keeps its array return; `COVARIANCE_UNAVAILABLE`
+      per stage, the answer-producing one saying every esd is absent. The
+      eigensolve is the whole normal matrix, so "the affected block" is all
+      of it. Values bit-identical to a working eigensolve (tested).
 - [ ] A chain continues past a failed pattern: mark it, carry the last good
       warm state forward, report it as `SEQUENTIAL_UNRECOVERED`.
       *Superseded in part 2026-09-22*: continuing and carrying exist since
