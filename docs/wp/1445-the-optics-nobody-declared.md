@@ -2,6 +2,7 @@
 
 Milestone: unscheduled · Status: ⬜
 Depends on: — (1442 soft)
+Priority: P2 2026-09-23 — an X-ray ghost search fires on a neutron source; the schema decision is this WP's first task
 
 ## Goal
 

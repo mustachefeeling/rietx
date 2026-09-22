@@ -2,6 +2,7 @@
 
 Milestone: unscheduled · Status: ⬜
 Depends on: — (1119 soft: a named coefficient is a named variable)
+Priority: P3 2026-09-23 — named on a use case, not on a measurement; per-pattern fits cover it
 
 ## Goal
 

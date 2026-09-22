@@ -2,6 +2,7 @@
 
 Milestone: unscheduled · Status: ⬜
 Depends on: —
+Priority: P2 2026-09-23 — a GSAS axis 100× too large in silence, caught by eye before any number is quoted
 
 ## Goal
 

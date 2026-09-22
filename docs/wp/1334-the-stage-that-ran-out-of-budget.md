@@ -2,6 +2,7 @@
 
 Milestone: unscheduled · Status: ⬜
 Depends on: —
+Priority: P3 2026-09-23 — cost only: 46.6 % of stage time for a 1.23 % median gain
 
 ## Goal
 

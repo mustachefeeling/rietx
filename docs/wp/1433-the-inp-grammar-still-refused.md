@@ -3,6 +3,7 @@
 Milestone: unscheduled · Status: ⬜
 Depends on: — (WP-1118 closed 2026-09-16 and handed these two over; WP-1119
 settled that neither needs an expression language)
+Priority: P3 2026-09-23 — two constructs refused by name; the file is edited around them
 
 ## Goal
 

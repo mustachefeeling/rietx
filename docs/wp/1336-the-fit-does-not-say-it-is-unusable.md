@@ -2,6 +2,7 @@
 
 Milestone: unscheduled · Status: ⬜
 Depends on: — (1310 soft: how findings arrive on the result)
+Priority: P2 2026-09-23 — a converged fit an order of magnitude off the measured widths, and no channel says so
 
 ## Goal
 

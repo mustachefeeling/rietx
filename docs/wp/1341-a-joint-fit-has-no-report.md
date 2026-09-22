@@ -3,6 +3,7 @@
 Milestone: unscheduled · Status: ⬜
 Depends on: — (1312 soft: it exercises and audits the joint fit; 1335 soft: the
 report path this one gains should already be cheap)
+Priority: P2 2026-09-23 — a joint fit cannot be inspected; refining the histograms apart is the workaround
 
 ## Goal
 

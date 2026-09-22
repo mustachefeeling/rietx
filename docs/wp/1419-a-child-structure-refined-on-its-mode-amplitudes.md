@@ -3,6 +3,7 @@
 Milestone: v1.6 · Status: ⬜
 Depends on: 1418 (the mode vectors: irreps, projection, isotropy subgroups);
 1327 soft (the operator-list phase both would share)
+Priority: P3 2026-09-23 — waits on 1418's mode vectors; P2 when they land
 
 ## Goal
 

@@ -5,6 +5,7 @@ Depends on: PR #290's `crystallography.magnetic` (landed 2026-09-10);
 1326 (the k candidates) for the k-search rung; 1327 (the moment, the hold)
 for the determination verb. The irrep and isotropy rungs depend on nothing
 unlanded.
+Priority: P2 2026-09-23 — the open milestone's; M-6 and M-7 first by the set order, no forward-model contact
 
 ## Goal
 

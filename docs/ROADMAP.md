@@ -65,13 +65,13 @@ so a session loads only what it needs:
    needs is neither: it goes in the agent skill — the body if it holds for
    every fit, the task shape's `references/` file otherwise (root CLAUDE.md
    § skill, WP-1330).
-5. **WP closes** (✅/🛑): rewrite "Current focus" for the successor and MOVE
-   the outgoing narrative to the **in-flight milestone record**
-   (`milestones/vX.Y.md` § "How vX.Y is getting here"; when no milestone is
-   open, the last shipped record's narrative). Current focus stays within
-   `CURRENT_FOCUS_CAP` lines *and* `CURRENT_FOCUS_WORD_CAP` words
-   (tests/test_docs_consistency.py) and repeats nothing a closed WP's own file
-   already says.
+5. **WP closes** (✅/🛑): delete its `Priority:` line (cell to `—`), rewrite
+   "Current focus" for the successor and MOVE the outgoing narrative to the
+   **in-flight milestone record** (`milestones/vX.Y.md` § "How vX.Y is
+   getting here"; when no milestone is open, the last shipped record's
+   narrative). Current focus stays within `CURRENT_FOCUS_CAP` lines *and*
+   `CURRENT_FOCUS_WORD_CAP` words (tests/test_docs_consistency.py) and
+   repeats nothing a closed WP's own file already says.
 6. **Milestone ships**: finish `milestones/vX.Y.md` with the measured
    acceptance block, flip the milestone row here, check README's claims.
    **Milestone opens**: bump `pyproject.version` to `1.x.0.dev0`, and write
@@ -163,9 +163,9 @@ else; the WP file's own Status line carries the summary.
 **Priority.** Which WP the next session's tokens should go to, `P1` to
 `P4`, on the tables of the open sections only. The WP file's `Priority:`
 line is the authority (rubric, date and reason in `wp/TEMPLATE.md`; a test
-holds the cell to it); a `—` is a WP opened before 2026-09-23, unrated and
-never low. Closing a WP re-rates the ones it unblocks or moots; the tier
-outranks the order any paragraph here states.
+holds the cell to it); a `—` is a WP in flight or closed, whose priority is
+moot. Closing a WP re-rates the ones it unblocks or moots; the tier outranks
+the order any paragraph here states.
 
 Sections are in milestone order, the same as the table above. Depends cells
 name hard dependencies; *soft* marks a preferred order.
@@ -581,13 +581,13 @@ existing.
 
 | WP | Title | Status | Priority | Depends on |
 |---|---|---|---|---|
-| [1326](wp/1326-satellites-without-a-moment.md) | Satellites at G ± k, with no moment model: is it magnetic? | ⬜ | — | — |
-| [1327](wp/1327-magnetic-structure.md) | A magnetic structure: state it, refine it, report what the powder cannot see | ⬜ | — | 1326 |
-| [1328](wp/1328-magnetic-interchange.md) | Magnetic interchange: magCIF in and out, and the readers stop refusing | ⬜ | — | 1327 (1118 soft) |
-| [1329](wp/1329-moment-in-a-series.md) | The moment in a series: the onset, the hold, the trajectory | ⬜ | — | 1327 (1326 soft) |
-| [1343](wp/1343-the-moment-pays-for-the-width.md) | The magnetic peaks are broader, and the moment pays for it | ⬜ | — | 1327 (1326 soft) |
-| [1418](wp/1418-the-magnetic-structure-is-determined.md) | The magnetic structure is determined, not only stated | ⬜ | — | 1327 (1326 soft) |
-| [1419](wp/1419-a-child-structure-refined-on-its-mode-amplitudes.md) | A child structure refined on its mode amplitudes | ⬜ | — | 1418 (1327 soft) |
+| [1326](wp/1326-satellites-without-a-moment.md) | Satellites at G ± k, with no moment model: is it magnetic? | ⬜ | P2 | — |
+| [1327](wp/1327-magnetic-structure.md) | A magnetic structure: state it, refine it, report what the powder cannot see | ⬜ | P2 | 1326 |
+| [1328](wp/1328-magnetic-interchange.md) | Magnetic interchange: magCIF in and out, and the readers stop refusing | ⬜ | P3 | 1327 (1118 soft) |
+| [1329](wp/1329-moment-in-a-series.md) | The moment in a series: the onset, the hold, the trajectory | ⬜ | P3 | 1327 (1326 soft) |
+| [1343](wp/1343-the-moment-pays-for-the-width.md) | The magnetic peaks are broader, and the moment pays for it | ⬜ | P3 | 1327 (1326 soft) |
+| [1418](wp/1418-the-magnetic-structure-is-determined.md) | The magnetic structure is determined, not only stated | ⬜ | P2 | 1327 (1326 soft) |
+| [1419](wp/1419-a-child-structure-refined-on-its-mode-amplitudes.md) | A child structure refined on its mode amplitudes | ⬜ | P3 | 1418 (1327 soft) |
 
 ### Unscheduled
 
@@ -607,9 +607,9 @@ its first concrete ask, **has no WP and needs one cut** — seam written out in
 | WP | Title | Status | Priority | Depends on |
 |---|---|---|---|---|
 | [1119](wp/1119-named-variables.md) | Named variables and equations: a `prm` of one's own | ✅ 2026-09-04 | — | — |
-| [1314](wp/1314-mfile-reader.md) | A Jana2020 project reader: .m50/.m40/.m41 | ⬜ | — | 1118 |
-| [1319](wp/1319-structure-interchange.md) | Structure interchange: checkCIF conformance and a bare XYZ importer | ⬜ | — | — |
-| [1433](wp/1433-the-inp-grammar-still-refused.md) | The `.inp` grammar the reader still refuses: `STR(...)` and `#if` | ⬜ | — | — |
+| [1314](wp/1314-mfile-reader.md) | A Jana2020 project reader: .m50/.m40/.m41 | ⬜ | P3 | 1118 |
+| [1319](wp/1319-structure-interchange.md) | Structure interchange: checkCIF conformance and a bare XYZ importer | ⬜ | P3 | — |
+| [1433](wp/1433-the-inp-grammar-still-refused.md) | The `.inp` grammar the reader still refuses: `STR(...)` and `#if` | ⬜ | P3 | — |
 
 #### The fit has no reference
 
@@ -633,9 +633,9 @@ for one specimen), and every converged fit reports a coherent domain size and a
 | WP | Title | Status | Priority | Depends on |
 |---|---|---|---|---|
 | [1131](wp/1131-sample-broadening-is-a-specimen-property.md) | Sample broadening is a specimen property, not an angular coefficient | ✅ 2026-09-02 | — | — |
-| [1133](wp/1133-diagnostic-names-its-view.md) | A diagnostic names the view that shows it | ⬜ | — | 1130 |
-| [1132](wp/1132-neutron-specimen-absorption.md) | A neutron µR, from the table this package already ships | ⬜ | — | #108 |
-| [1312](wp/1312-neutron-followthrough.md) | CW neutron follow-through: the seed, the resonant flag, the joint fit | ⬜ | — | — (1132 soft) |
+| [1133](wp/1133-diagnostic-names-its-view.md) | A diagnostic names the view that shows it | ⬜ | P3 | 1130 |
+| [1132](wp/1132-neutron-specimen-absorption.md) | A neutron µR, from the table this package already ships | ⬜ | P3 | #108 |
+| [1312](wp/1312-neutron-followthrough.md) | CW neutron follow-through: the seed, the resonant flag, the joint fit | ⬜ | P2 | — (1132 soft) |
 
 #### What fires, and what stays silent
 
@@ -650,26 +650,26 @@ the limit carried load rather than whether the value stopped near one, and
 
 | WP | Title | Status | Priority | Depends on |
 |---|---|---|---|---|
-| [1320](wp/1320-qpa-multimodal-fraction.md) | A phase fraction the pattern cannot fix | ⬜ | — | — (1310 soft) |
-| [1321](wp/1321-persisted-bounds-repair.md) | The bounds a Parameter field declared: repair and audit | ⬜ | — | — (PR #206 first) |
-| [1323](wp/1323-lebail-stop-rule.md) | The Le Bail alternation has a stop rule, and a scope | ⬜ | — | — |
+| [1320](wp/1320-qpa-multimodal-fraction.md) | A phase fraction the pattern cannot fix | ⬜ | P2 | — (1310 soft) |
+| [1321](wp/1321-persisted-bounds-repair.md) | The bounds a Parameter field declared: repair and audit | ⬜ | P2 | — (PR #206 first) |
+| [1323](wp/1323-lebail-stop-rule.md) | The Le Bail alternation has a stop rule, and a scope | ⬜ | P2 | — |
 | [1324](wp/1324-symmetry-silences.md) | Symmetry silences: an orbit that is not a multiplicity, a setting nobody chose | ✅ 2026-09-02 | — | — |
-| [1332](wp/1332-the-axis-a-reader-hands-back.md) | The axis a reader hands back | ⬜ | — | — |
-| [1336](wp/1336-the-fit-does-not-say-it-is-unusable.md) | The fit does not say it is unusable: the status channel and the width census | ⬜ | — | — (1310 soft) |
-| [1337](wp/1337-an-authored-refusal-not-a-traceback.md) | An authored refusal, not a raw traceback | ⬜ | — | — (1311, 1321 soft) |
+| [1332](wp/1332-the-axis-a-reader-hands-back.md) | The axis a reader hands back | ⬜ | P2 | — |
+| [1336](wp/1336-the-fit-does-not-say-it-is-unusable.md) | The fit does not say it is unusable: the status channel and the width census | ⬜ | P2 | — (1310 soft) |
+| [1337](wp/1337-an-authored-refusal-not-a-traceback.md) | An authored refusal, not a raw traceback | ⬜ | P3 | — (1311, 1321 soft) |
 | [1342](wp/1342-a-freeze-that-reads-names.md) | A structural freeze that reads names, and the tie it cannot see | ✅ 2026-09-19 | — | — (1301, 1119 soft) |
-| [1344](wp/1344-a-joint-fit-owes-each-histogram-its-diagnostics.md) | A joint fit owes each histogram the diagnostics its own radiation earns | ⬜ | — | — (1341 soft) |
-| [1414](wp/1414-a-turn-on-that-reached-nothing.md) | A `turn_on` that reached nothing says so | ⬜ | — | — (1341 soft) |
+| [1344](wp/1344-a-joint-fit-owes-each-histogram-its-diagnostics.md) | A joint fit owes each histogram the diagnostics its own radiation earns | ⬜ | P3 | — (1341 soft) |
+| [1414](wp/1414-a-turn-on-that-reached-nothing.md) | A `turn_on` that reached nothing says so | ⬜ | P2 | — (1341 soft) |
 | [1415](wp/1415-a-sigma-column-smaller-than-root-y.md) | A σ column smaller than √y | 🔄 2026-09-21 | — | — |
-| [1417](wp/1417-delta-bic-at-powder-channel-counts.md) | ΔBIC at powder channel counts | ⬜ | — | — (1339 soft) |
-| [1421](wp/1421-the-result-reproduces-its-own-number.md) | The result reproduces its own number | ⬜ | — | — (1310 soft) |
+| [1417](wp/1417-delta-bic-at-powder-channel-counts.md) | ΔBIC at powder channel counts | ⬜ | P2 | — (1339 soft) |
+| [1421](wp/1421-the-result-reproduces-its-own-number.md) | The result reproduces its own number | ⬜ | P3 | — (1310 soft) |
 | [1432](wp/1432-a-tie-onto-a-rederived-dof.md) | A tie onto a coordinate DOF, re-applied once per write | ✅ 2026-09-19 | — | — (1119 soft) |
 | [1434](wp/1434-the-bound-test-asks-the-wrong-question.md) | The bound test asks whether the value is near its limit, never whether the limit was binding | ✅ 2026-09-18 | — | — |
 | [1442](wp/1442-a-ghost-search-at-chance.md) | A ghost search at chance: the Kβ flag fires where Kβ cannot exist | ✅ 2026-09-22 | — | — (1415 soft) |
-| [1445](wp/1445-the-optics-nobody-declared.md) | The optics nobody declared: a source that cannot emit the line | ⬜ | — | — (1442 soft) |
+| [1445](wp/1445-the-optics-nobody-declared.md) | The optics nobody declared: a source that cannot emit the line | ⬜ | P2 | — (1442 soft) |
 | [1446](wp/1446-a-supercell-that-outranks-the-truth.md) | A supercell that outranks the truth, on evidence the panel already has | 🛑 2026-09-22 | — | — (1442 soft) |
-| [1447](wp/1447-a-threshold-each-pattern-sets-for-itself.md) | A threshold each pattern sets for itself | ⬜ | — | — (1442 soft) |
-| [1449](wp/1449-rank-on-what-the-screen-determined.md) | Rank on what the screen determined, not on what the peak list shows | ⬜ | — | — (1446 refuted the peak-list route) |
+| [1447](wp/1447-a-threshold-each-pattern-sets-for-itself.md) | A threshold each pattern sets for itself | ⬜ | P3 | — (1442 soft) |
+| [1449](wp/1449-rank-on-what-the-screen-determined.md) | Rank on what the screen determined, not on what the peak list shows | ⬜ | P2 | — (1446 refuted the peak-list route) |
 
 #### A long run is not one fit
 
@@ -686,10 +686,10 @@ the chain says nothing (issue #267).
 
 | WP | Title | Status | Priority | Depends on |
 |---|---|---|---|---|
-| [1333](wp/1333-a-series-survives-one-pattern.md) | A series survives one pattern, and says which one it lost | ⬜ | — | — (1317 soft) |
-| [1334](wp/1334-the-stage-that-ran-out-of-budget.md) | The stage that ran out of budget | ⬜ | — | — |
-| [1335](wp/1335-the-report-costs-more-than-the-fit.md) | The report costs more than the fit | ⬜ | — | — |
-| [1420](wp/1420-a-held-phase-re-enters-or-says-it-cannot.md) | A held phase re-enters, or the chain says it cannot | ⬜ | — | — (1333, 1342, 1419 soft) |
+| [1333](wp/1333-a-series-survives-one-pattern.md) | A series survives one pattern, and says which one it lost | ⬜ | P1 | — (1317 soft) |
+| [1334](wp/1334-the-stage-that-ran-out-of-budget.md) | The stage that ran out of budget | ⬜ | P3 | — |
+| [1335](wp/1335-the-report-costs-more-than-the-fit.md) | The report costs more than the fit | ⬜ | P3 | — |
+| [1420](wp/1420-a-held-phase-re-enters-or-says-it-cannot.md) | A held phase re-enters, or the chain says it cannot | ⬜ | P2 | — (1333, 1342, 1419 soft) |
 
 #### One file, many patterns
 
@@ -699,8 +699,8 @@ optional-dependency format.
 
 | WP | Title | Status | Priority | Depends on |
 |---|---|---|---|---|
-| [1315](wp/1315-zip-collection-reader.md) | A zip of patterns is N scans | ⬜ | — | — |
-| [1316](wp/1316-hdf5-multiscan-reader.md) | A NeXus/HDF5 multi-scan reader, behind an extra | ⬜ | — | — |
+| [1315](wp/1315-zip-collection-reader.md) | A zip of patterns is N scans | ⬜ | P3 | — |
+| [1316](wp/1316-hdf5-multiscan-reader.md) | A NeXus/HDF5 multi-scan reader, behind an extra | ⬜ | P3 | — |
 
 #### The formats a lab still has
 
@@ -712,7 +712,7 @@ does not exist (`.raw` is six unrelated vendors, none of them PANalytical).
 | WP | Title | Status | Priority | Depends on |
 |---|---|---|---|---|
 | [1407](wp/1407-the-format-a-benchtop-still-writes.md) | The format a benchtop still writes: PANalytical `.udf`/`.rd`, and three named refusals | ✅ 2026-09-13 | — | — |
-| [1416](wp/1416-read-xy-reads-the-files-shape.md) | `read_xy` reads the file's shape | ⬜ | — | — |
+| [1416](wp/1416-read-xy-reads-the-files-shape.md) | `read_xy` reads the file's shape | ⬜ | P2 | — |
 
 #### Render what the fit already knows
 
@@ -731,33 +731,33 @@ separability floor, and not scheduled here.
 
 | WP | Title | Status | Priority | Depends on |
 |---|---|---|---|---|
-| [1317](wp/1317-series-scrubber.md) | Scrub the series along its own trace | ⬜ | — | — |
-| [1318](wp/1318-strain-surface.md) | The Stephens strain surface, rendered | ⬜ | — | — |
-| [1322](wp/1322-events-aggregator.md) | The run is instrumentable, and nothing says so | ⬜ | — | — |
-| [1339](wp/1339-where-the-improvement-lives.md) | Where the improvement lives | ⬜ | — | — |
-| [1340](wp/1340-qpa-on-a-molar-basis.md) | QPA on a molar basis, and the basis travels with the number | ⬜ | — | — (1320 soft) |
-| [1341](wp/1341-a-joint-fit-has-no-report.md) | A joint fit has no report | ⬜ | — | — (1312, 1335 soft) |
-| [1444](wp/1444-the-pattern-before-the-model.md) | The pattern before the model, and a title on the figure | ⬜ | — | — |
+| [1317](wp/1317-series-scrubber.md) | Scrub the series along its own trace | ⬜ | P3 | — |
+| [1318](wp/1318-strain-surface.md) | The Stephens strain surface, rendered | ⬜ | P3 | — |
+| [1322](wp/1322-events-aggregator.md) | The run is instrumentable, and nothing says so | ⬜ | P3 | — |
+| [1339](wp/1339-where-the-improvement-lives.md) | Where the improvement lives | ⬜ | P3 | — |
+| [1340](wp/1340-qpa-on-a-molar-basis.md) | QPA on a molar basis, and the basis travels with the number | ⬜ | P3 | — (1320 soft) |
+| [1341](wp/1341-a-joint-fit-has-no-report.md) | A joint fit has no report | ⬜ | P2 | — (1312, 1335 soft) |
+| [1444](wp/1444-the-pattern-before-the-model.md) | The pattern before the model, and a title on the figure | ⬜ | P3 | — |
 
 #### The repo's own process
 
 | WP | Title | Status | Priority | Depends on |
 |---|---|---|---|---|
-| [1313](wp/1313-dist-belongs-to-main.md) | The GUI dist belongs to main | ⬜ | — | — |
+| [1313](wp/1313-dist-belongs-to-main.md) | The GUI dist belongs to main | ⬜ | P4 | — |
 | [1330](wp/1330-skill-references-by-shape.md) | The skill grows by reference: one file per task shape, and the row an agent can write | ✅ 2026-09-02 | — | 1304, 1308 |
 | [1331](wp/1331-landing-page-in-repo.md) | The landing page enters the repository, and the data comes redacted | ✅ 2026-09-03 | — | — (1003 soft) |
-| [1338](wp/1338-the-skills-own-gates.md) | The skill's own gates: the references, the private corpus, the cap race | ⬜ | — | — |
+| [1338](wp/1338-the-skills-own-gates.md) | The skill's own gates: the references, the private corpus, the cap race | ⬜ | P4 | — |
 | [1408](wp/1408-the-manual-reads-like-a-manual.md) | The theory manual reads like a manual | ✅ 2026-09-14 | — | — |
 | [1409](wp/1409-part-one-reads-like-a-manual.md) | Part 1 reads like a manual | ✅ 2026-09-14 | — | 1408 |
 | [1410](wp/1410-worktree-gate-scope.md) | The worktree gate guards this checkout, not every repository | ✅ 2026-09-14 | — | — |
-| [1443](wp/1443-part-one-read-by-a-newcomer.md) | Part 1 read by a newcomer: eleven passages, one word, and the version the manual describes | ⬜ | — | — (1409 is the shape) |
-| [1448](wp/1448-a-number-somebody-chose.md) | A number somebody chose says so, and says where the argument is | ⬜ | — | — |
+| [1443](wp/1443-part-one-read-by-a-newcomer.md) | Part 1 read by a newcomer: eleven passages, one word, and the version the manual describes | ⬜ | P3 | — (1409 is the shape) |
+| [1448](wp/1448-a-number-somebody-chose.md) | A number somebody chose says so, and says where the argument is | ⬜ | P4 | — |
 
 #### Candidates — named on a use case, not yet on a measurement
 
 | WP | Title | Status | Priority | Depends on |
 |---|---|---|---|---|
-| [1325](wp/1325-parametric-series.md) | Parametric series: a parameter as a function of the series axis | ⬜ | — | — (1119 soft) |
+| [1325](wp/1325-parametric-series.md) | Parametric series: a parameter as a function of the series axis | ⬜ | P3 | — (1119 soft) |
 
 ### v2+ — fenced
 

@@ -96,7 +96,8 @@ steps below run unchanged.
    name the trigger rather than scanning: this is a checklist against what
    the session *added*, not a re-review of it.
 7. **If the WP is closing** (✅/🛑): delete its consumed `### Inherited`
-   section, rewrite ROADMAP's "Current focus" for the successor (within
+   section and its `Priority:` line (the ROADMAP cell to `—`; a closed WP's
+   priority is moot), rewrite ROADMAP's "Current focus" for the successor (within
    `CURRENT_FOCUS_CAP`, tests/test_docs_consistency.py), and MOVE the
    outgoing focus narrative to the in-flight milestone record
    (the in-flight `docs/milestones/vX.Y.md` § "How vX.Y is getting here";

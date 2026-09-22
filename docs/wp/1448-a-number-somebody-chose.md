@@ -2,6 +2,7 @@
 
 Milestone: unscheduled · Status: ⬜
 Depends on: —
+Priority: P4 2026-09-23 — provenance bookkeeping; changes no number
 
 ## Goal
 

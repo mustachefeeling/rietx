@@ -3,6 +3,7 @@
 Milestone: v1.6 · Status: ⬜
 Depends on: — (first rung of the magnetic scattering track; 1327 builds on
 its reflection list)
+Priority: P2 2026-09-23 — the open milestone's first rung, nothing blocks it
 
 ## Goal
 

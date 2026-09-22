@@ -4,6 +4,7 @@ Milestone: unscheduled · Status: ⬜
 Depends on: — (WP-1130 closed 🛑 2026-09-04; it did **not** deliver the panel,
 and this WP inherits it along with the argument that licenses it — see
 ### Inherited)
+Priority: P3 2026-09-23 — a diagnostic that is right and says less than it could
 
 ## Goal
 

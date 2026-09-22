@@ -42,17 +42,13 @@ _STATUS_RE = re.compile(
 # The prune rule lands with WP-1031; WPs closed after this date must have
 # consumed (deleted) their ### Inherited mailbox on the way out.
 _INHERITED_PRUNE_EPOCH = "2026-07-31"
-# The priority rubric (TEMPLATE.md) lands on this date; a WP whose earliest
-# handover entry is on or after it carries a `Priority:` line.  Older WPs are
-# unrated (`—` in ROADMAP), which the template says means unrated, never low.
-_PRIORITY_EPOCH = "2026-09-23"
+# The priority rubric is TEMPLATE.md's: every ⬜ WP carries a `Priority:`
+# line, a closed one carries none (its priority is moot, and the cell reads
+# `—`), and a 🔄 one may keep the line it had.  Backfilled 2026-09-23.
 PRIORITIES = ("P1", "P2", "P3", "P4")
 _PRIORITY_RE = re.compile(
     r"^Priority: (?P<tier>P[1-4]) (?P<date>\d{4}-\d{2}-\d{2}) — \S", re.M
 )
-# The date of a handover entry in either sanctioned form (bullet or heading);
-# the earliest one in a WP's log is the day the WP was opened.
-_ENTRY_DATE_RE = re.compile(r"^(?:- \*\*|#{3,4} )(\d{4}-\d{2}-\d{2})", re.M)
 
 # Always-loaded documents: measured size + headroom, pinned by the pass that
 # achieved it.  Raising a cap is a decision about every future session's fixed
@@ -501,7 +497,8 @@ SIZE_CAPS: dict[str, int | None] = {
     # § Work packages saying what the `Priority` column is and where its
     # authority lives (the WP file's line, TEMPLATE.md's rubric).  The
     # column itself costs no lines: eleven headers widened and sixty rows
-    # given a `—` cell, on the open sections only.  Landed 827, +1 headroom.
+    # given a `—` cell, on the open sections only.  Landed 827, +1 headroom;
+    # the 2026-09-23 backfill rated every ⬜ row and landed at 827 again.
     "docs/ROADMAP.md": 828,
     # 1036 -> 1053 (WP-1429): where the GUI's colour values live, now that
     # they are Python and this workspace's `tokens.css` is generated from
@@ -793,29 +790,29 @@ def test_template_declares_the_priority_vocabulary():
         assert re.search(rf"^  {tier}  ", text, re.M), (
             f"TEMPLATE.md's rubric has no row for {tier}"
         )
-    assert _PRIORITY_EPOCH in text, "TEMPLATE.md does not name the rubric's epoch"
 
 
-def test_every_wp_opened_since_the_rubric_carries_a_controlled_priority_line():
-    """A WP written on or after the rubric's date is rated at the write.
+def test_every_not_started_wp_is_rated_and_no_closed_wp_is():
+    """A ⬜ WP is rated at the write; a close deletes the line.
 
-    An older WP may stay unrated; one that is rated is held to the format
-    either way, because the ROADMAP cell is read off this line.
+    A 🔄 WP may keep the line it had.  Any line present is held to the
+    format, because the ROADMAP cell is read off it.
     """
     for path in _wp_files():
         text = path.read_text(encoding="utf-8")
+        glyph, _ = _status_of(path)
         if "\nPriority:" in text:
             assert _priority_of(path), (
                 f"{path.name}: Priority line is not 'Priority: P<n> YYYY-MM-DD — <why>'"
             )
-            continue
-        log = text.split("## Handover log", 1)[-1]
-        dates = _ENTRY_DATE_RE.findall(log)
-        opened = min(dates) if dates else None
-        assert not (opened and opened >= _PRIORITY_EPOCH), (
-            f"{path.name}: opened {opened}, on or after the rubric's "
-            f"{_PRIORITY_EPOCH}, and carries no Priority line (TEMPLATE.md)"
-        )
+            assert glyph not in {"✅", "🛑"}, (
+                f"{path.name}: closed ({glyph}) and still rated — delete the "
+                "Priority line and set the ROADMAP cell to '—' (protocol step 5)"
+            )
+        else:
+            assert glyph != "⬜", (
+                f"{path.name}: not started and carries no Priority line (TEMPLATE.md)"
+            )
 
 
 def test_roadmap_priority_cell_mirrors_the_wp_priority_line():

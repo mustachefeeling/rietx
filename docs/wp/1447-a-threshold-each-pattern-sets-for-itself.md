@@ -2,6 +2,7 @@
 
 Milestone: unscheduled · Status: ⬜
 Depends on: — (1442 soft)
+Priority: P3 2026-09-23 — a threshold that works on copper and is not the pattern's own
 
 ## Goal
 

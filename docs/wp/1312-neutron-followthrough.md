@@ -2,6 +2,7 @@
 
 Milestone: unscheduled · Status: ⬜
 Depends on: — (WP-1132 is the maintainer's and does not gate any task here)
+Priority: P2 2026-09-23 — a resonant absorber's b is mis-tabulated in silence, on a path few fits run
 
 ## Goal
 

@@ -2,6 +2,7 @@
 
 Milestone: unscheduled · Status: ⬜
 Depends on: — (1310 soft: it owns which vector reaches the final diagnostics)
+Priority: P3 2026-09-23 — a number a reader cannot reproduce by a margin the record already calls staleness
 
 ## Goal
 
