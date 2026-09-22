@@ -686,7 +686,7 @@ the chain says nothing (issue #267).
 
 | WP | Title | Status | Priority | Depends on |
 |---|---|---|---|---|
-| [1333](wp/1333-a-series-survives-one-pattern.md) | A series survives one pattern, and says which one it lost | ⬜ | P1 | — (1317 soft) |
+| [1333](wp/1333-a-series-survives-one-pattern.md) | A series survives one pattern, and says which one it lost | 🔄 2026-09-22 | P1 | — (1317 soft) |
 | [1334](wp/1334-the-stage-that-ran-out-of-budget.md) | The stage that ran out of budget | ⬜ | P3 | — |
 | [1335](wp/1335-the-report-costs-more-than-the-fit.md) | The report costs more than the fit | ⬜ | P3 | — |
 | [1420](wp/1420-a-held-phase-re-enters-or-says-it-cannot.md) | A held phase re-enters, or the chain says it cannot | ⬜ | P2 | — (1333, 1342, 1419 soft) |
