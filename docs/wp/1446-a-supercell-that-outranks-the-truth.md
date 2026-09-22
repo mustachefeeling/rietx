@@ -1,6 +1,6 @@
 # WP-1446 — a supercell that outranks the truth, on evidence the panel already has
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-09-22 — claimed by @yue-here
 Depends on: — (1442 soft)
 
 ## Goal

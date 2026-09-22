@@ -659,7 +659,7 @@ the limit carried load rather than whether the value stopped near one, and
 | [1434](wp/1434-the-bound-test-asks-the-wrong-question.md) | The bound test asks whether the value is near its limit, never whether the limit was binding | ✅ 2026-09-18 | — |
 | [1442](wp/1442-a-ghost-search-at-chance.md) | A ghost search at chance: the Kβ flag fires where Kβ cannot exist | ✅ 2026-09-22 | — (1415 soft) |
 | [1445](wp/1445-the-optics-nobody-declared.md) | The optics nobody declared: a source that cannot emit the line | ⬜ | — (1442 soft) |
-| [1446](wp/1446-a-supercell-that-outranks-the-truth.md) | A supercell that outranks the truth, on evidence the panel already has | ⬜ | — (1442 soft) |
+| [1446](wp/1446-a-supercell-that-outranks-the-truth.md) | A supercell that outranks the truth, on evidence the panel already has | 🔄 2026-09-22 | — (1442 soft) |
 | [1447](wp/1447-a-threshold-each-pattern-sets-for-itself.md) | A threshold each pattern sets for itself | ⬜ | — (1442 soft) |
 
 #### A long run is not one fit
