@@ -2363,6 +2363,19 @@ class Refinement:
         cell_runaway = clamp_cell_runaway(table, start_values)
         if cell_runaway:
             table.refresh_ties()
+            # ``table.commit`` above wrote ``outcome.theta`` into
+            # ``Entry.value``, and the clamp above just wrote past it again
+            # directly on the entries — ``outcome.theta`` itself never
+            # changed, so every reader downstream that decodes *it* (this
+            # stage's own lebail/guard/event uses, and ``_build_result`` at
+            # the end of ``fit()``) would silently see the pre-clamp cell
+            # while ``RefinedParameter.value`` (read off these same entries)
+            # reports the clamped one.  ``table.x0()`` is the encoder inverse
+            # of ``decode`` over the free columns (round-trips through the
+            # same ``to_internal``/``to_physical`` pair `decode` uses), so
+            # re-deriving it here is a re-encoding of the committed table,
+            # not a second source of truth.
+            outcome = dataclasses.replace(outcome, theta=table.x0())
 
         # Support is a fact about the values, and a stage moves them.  So the
         # measurement is taken again at the answer, and it can have moved
@@ -2454,6 +2467,10 @@ class Refinement:
             if second_runaway:
                 table.refresh_ties()
                 cell_runaway = cell_runaway + second_runaway
+                # same re-derivation as the first clamp above, on ``second``
+                # rather than ``outcome`` — the merge just below carries
+                # ``second``'s ``theta`` field forward untouched otherwise.
+                second = dataclasses.replace(second, theta=table.x0())
             # the record is one stage: the second solve's answer, the first
             # solve's starting cost, and the iterations of both — the whole
             # point being that the hold cost something and it must be visible
