@@ -178,9 +178,31 @@ the absence visible (1072, 1076).
 
 ## Tasks
 
-- [ ] Establish whether `cell_window` / `CELL_MIN_LENGTH_A` was in force on
+- [x] Establish whether `cell_window` / `CELL_MIN_LENGTH_A` was in force on
       the failing path in #224, and record the answer (either way it changes
       how the raise is characterised, not whether the chain should survive it).
+      *Answered 2026-09-22 from the tree* (the #224 data are not in it, so
+      from code, not a re-run): **not in force where the cell escaped, and
+      unreachable where it raised.** (1) A windowed cell cannot leave
+      ±5 % + 0.05 Å of its stage's start, and |a| went from a lattice repeat to
+      348 Å, so the stage it escaped in did not window the phase: its
+      `phase_support` was at or above `PHASE_SUPPORT_SIGMA` at that stage's
+      start. PR #385 (issue #374) measured that mechanism on a synthetic pair
+      (a *supported* phase trading scale with a near-identical one walks
+      4.16 → 3803 Å in one stage, reporting `converged`), and its post-solve
+      clamp is the fix for the escape, which stays this WP's non-goal. (2) The
+      raise lands at the **next compile**, the next stage's, or when the escape
+      is in the last stage, the next *pattern's* first rung via the carried
+      warm state. `_run_stage` compiles, and so enumerates reflections, before
+      `run_least_squares` calls `_freeze_cell_windows`, so no window can catch
+      a cell that arrives already escaped. That is why the ladder, not the
+      window, is this WP's fix: the successor raises, every warm rung inherits
+      the cell, and only the cold rung escapes it. (3) The signs are a red
+      herring, assuming 90° angles (the message quotes lengths only): the
+      metric's diagonal is a², b², c² and its off-diagonals vanish, so a
+      negative length is an exact symmetry of the forward model and of the
+      degenerate-cell guard (det G = a²b²c² > 0). They say a step crossed
+      zero, not that the cell was degenerate.
 - [x] `covariance_estimates` returns `stderr=None` for the affected block plus
       a diagnostic naming the stage and the reason, instead of raising; a
       failed eigensolve is not a failed fit. *Landed 2026-09-22* one rank up,
