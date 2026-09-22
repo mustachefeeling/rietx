@@ -30,6 +30,7 @@ imported it would be checking the two halves against each other.
 
 from __future__ import annotations
 
+import importlib.metadata
 import itertools
 from fractions import Fraction
 
@@ -102,9 +103,35 @@ ALL_SETTINGS = tuple(gemmi.find_spacegroup_by_number(n).xhm() for n in range(1, 
 MEASURED_SPGREP_VERSION = "0.7.0"
 
 
+def _oracle_version(spgrep_core) -> str:
+    """The oracle's version, from the module or from its installed metadata.
+
+    spgrep sets ``__version__`` from package metadata inside a ``try``, so a
+    source checkout has no attribute at all.  Reading only the attribute made
+    that case indistinguishable from "a different version", and the gated
+    blocks below went quiet with no skip and no warning (review of #389 round
+    3, follow-ups).  The metadata is the same source spgrep itself reads, so it
+    is the right second place to look; when *neither* resolves the version is
+    unknown rather than different, and an unknown oracle version is not a
+    result — say so loudly instead of silently dropping the pinned counts.
+    """
+    version = str(getattr(spgrep_core, "__version__", "") or "")
+    if not version:
+        try:
+            version = str(importlib.metadata.version("spgrep"))
+        except importlib.metadata.PackageNotFoundError:
+            version = ""
+    if not version:
+        pytest.skip("spgrep exposes no __version__ and has no installed "
+                    "metadata, so the oracle's version is unknown and the "
+                    "refusal counts measured on "
+                    f"{MEASURED_SPGREP_VERSION} cannot be attributed")
+    return version
+
+
 def _counts_are_pinned(spgrep_core) -> bool:
     """Whether the oracle is the version its refusal counts were measured on."""
-    return str(getattr(spgrep_core, "__version__", "")) == MEASURED_SPGREP_VERSION
+    return _oracle_version(spgrep_core) == MEASURED_SPGREP_VERSION
 
 
 # --------------------------------------------------------------------------

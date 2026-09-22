@@ -1059,8 +1059,17 @@ def test_a_domain_transforms_a_displacement_by_r_and_a_moment_by_the_axial_matri
     """
     found = isotropy.candidates("P n m a", (0, 0, Fraction(1, 2)), GAMMA,
                                 kind="displacive")
-    candidate = found[1]
     little = irreps.little_group(found.space_group, found.k)
+    # Selected by the property the test is about — a domain set containing the
+    # inversion, the operation where the polar and axial actions differ — not
+    # by position.  All four candidates of this set qualify, so `found[1]` was
+    # right by accident and would follow the candidate order if it moved
+    # (review of #389 round 3, follow-ups).
+    with_inversion = [c for c in found
+                      if any(op.xyz() == "-x,-y,-z,+1"
+                             for op in isotropy._domain_operations(c, little))]
+    assert with_inversion, "no candidate of this set has the inversion as a domain operation"
+    candidate = with_inversion[0]
     domains = isotropy._domain_operations(candidate, little)
     improper = [op for op in domains if op.determinant * op.time_reversal < 0]
     assert improper, "this set is supposed to contain an improper domain operation"
@@ -1122,8 +1131,16 @@ def test_a_candidate_is_powder_equivalent_to_itself_at_a_coarse_d_min():
     classes at 5.2 are coarser than at 1.5, which is not guaranteed physics.
     """
     found = isotropy.candidates("P n m a", (0, 0, 0.5), GAMMA)
+    # the preconditions the two causes are stated over, asserted rather than
+    # described (review of #389 round 3, follow-ups): if the cell or the index
+    # bound moves, the instrument stops being aimed at the case above and this
+    # test says so instead of quietly testing something else
+    assert len(found) == 4, [c.label for c in found]
+    expected = {5.2: (4, 2), 1.5: (208, 44)}
     for d_min in (5.2, 1.5):
         reflections = isotropy.reflections(found.lattice, d_min)
+        assert (len(reflections), len(reflections.shells)) == expected[d_min], \
+            f"d_min={d_min}: {len(reflections)} reflections in {len(reflections.shells)} shells"
         for candidate in found:
             assert isotropy.powder_equivalent(candidate, candidate, reflections), \
                 f"{candidate.label} is not powder-equivalent to itself at d_min={d_min}"

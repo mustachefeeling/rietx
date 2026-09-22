@@ -329,6 +329,11 @@ try:
 except RuntimeError as exc:
     assert "not consistent with this group's setting" in str(exc), str(exc)
     assert "expected 62 (P n m a)" in str(exc), str(exc)
+    # `dataset is None or dataset.number != sg.number` has two branches and
+    # this probe is about the first: spglib declining the cell outright, which
+    # prints the group it found as `None`.  Without this line the probe would
+    # pass on the other branch too (review of #389 round 3, follow-ups).
+    assert "space group None" in str(exc), str(exc)
 else:
     raise AssertionError("site_constraints did not refuse")
 print("OK")
