@@ -340,7 +340,7 @@ one, never as the gate.
   chain measured it and the chains differ above `_noise_floor`. The tests add
   +18 items: 17 functions, one parametrized twice, none slow, in
   `test_series_error_policy.py` (+12), `test_covariance_scaling.py` (+5) and
-  `test_termination_view.py` (+1). Fast and slow-series counts on the final tree: pending at this commit, filled in by the next.
+  `test_termination_view.py` (+1). On the final tree (`cbda6bd`, which is main merged, since main had not moved from `16b72c3`), the fast selection was 1 failed, 5486 passed, 147 skipped (total 5634) in 12:41. Before the review the total was 5633, and the difference is the one test the review added. The failure is the uid-0 telemetry case under *Review*. The series slow rows (`test_acceptance_sequential.py`, `test_held_phase.py`, `test_sequential.py -m slow`) were 23 passed, both before and after the review. The full suite was not run.
 
   *What a recovered chain is not* (task 5). A `RefinementResult` carries no
   warm state, so re-running `fit` over the patterns after a dead chain starts
