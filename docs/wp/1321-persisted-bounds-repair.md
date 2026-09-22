@@ -3,6 +3,7 @@
 Milestone: unscheduled · Status: ⬜
 Depends on: — (PR #206 merges first: its validator and `model_fields_set`
 discriminator are this WP's reference behaviour)
+Priority: P2 2026-09-23 — bounds dropped in silence on documents already saved, and the sibling hazard unmeasured
 
 ## Goal
 

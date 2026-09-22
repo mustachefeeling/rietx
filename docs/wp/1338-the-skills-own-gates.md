@@ -2,6 +2,7 @@
 
 Milestone: unscheduled · Status: ⬜
 Depends on: —
+Priority: P4 2026-09-23 — gates on the skill's own files; a merge that fails late is the cost
 
 ## Goal
 

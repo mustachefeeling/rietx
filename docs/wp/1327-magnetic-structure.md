@@ -2,6 +2,7 @@
 
 Milestone: v1.6 · Status: ⬜
 Depends on: 1326 (the satellite reflection list)
+Priority: P2 2026-09-23 — the open milestone's core; the moment and its hold start without 1326's list
 
 ## Goal
 

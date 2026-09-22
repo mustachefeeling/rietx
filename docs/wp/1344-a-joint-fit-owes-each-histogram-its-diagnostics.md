@@ -2,6 +2,7 @@
 
 Milestone: unscheduled · Status: ⬜
 Depends on: — (WP-1341 owns the neighbouring "a joint fit has no report" gap)
+Priority: P3 2026-09-23 — a diagnostic the joint path is owed and does not get; 1341 is the larger sibling
 
 ## Goal
 

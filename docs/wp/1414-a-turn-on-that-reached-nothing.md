@@ -3,6 +3,7 @@
 Milestone: unscheduled · Status: ⬜
 Depends on: — (1341 soft: the joint fit's report is where the per-histogram
 finding is rendered)
+Priority: P2 2026-09-23 — a stage that freed nothing converges anyway; the parameter table shows it held, nothing fires
 
 ## Goal
 

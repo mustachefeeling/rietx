@@ -2,6 +2,7 @@
 
 Milestone: v1.6 · Status: ⬜
 Depends on: 1327 (the moment); 1326 soft (the satellite arm per pattern)
+Priority: P3 2026-09-23 — waits on 1327's moment; P2 when it lands
 
 ## Goal
 

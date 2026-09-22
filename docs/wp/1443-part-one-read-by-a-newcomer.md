@@ -2,6 +2,7 @@
 
 Milestone: unscheduled · Status: ⬜
 Depends on: — (1409 is the shape)
+Priority: P3 2026-09-23 — twelve passages a newcomer stopped on; the text is wrong in words, never in a number
 
 ## Goal
 

@@ -112,7 +112,7 @@ a file and held for the batch.
   Batch.
 - **New WP** where the work has a shape of its own: `docs/wp/TEMPLATE.md`
   whole, `Milestone: unscheduled`, a `Priority:` line rated by the
-  template's rubric (the test refuses a new WP without one), a ROADMAP row
+  template's rubric (the test refuses a ⬜ WP without one), a ROADMAP row
   under `### Unscheduled` with the tier in its Priority cell (the file's cap
   in `tests/test_docs_consistency.py` moves with a comment saying why), the
   Skill task line, and a first handover bullet:

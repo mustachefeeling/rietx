@@ -4,6 +4,7 @@ Milestone: unscheduled · Status: ⬜
 Depends on: — (1301 shipped, the hold this is about; 1333 soft, the same
 chain's other silent shape; 1342 soft, the freeze's blind tie; 1419 soft,
 the metric symmetry point a probe needs)
+Priority: P2 2026-09-23 — a held phase stays out of every later pattern and the chain says nothing, on the series path
 
 ## Goal
 

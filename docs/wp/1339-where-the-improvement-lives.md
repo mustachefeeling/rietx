@@ -2,6 +2,7 @@
 
 Milestone: unscheduled · Status: ⬜
 Depends on: —
+Priority: P3 2026-09-23 — a statistic compare already computes, reached as a function
 
 ## Goal
 

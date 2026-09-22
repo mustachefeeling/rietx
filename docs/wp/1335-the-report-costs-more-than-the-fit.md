@@ -2,6 +2,7 @@
 
 Milestone: unscheduled · Status: ⬜
 Depends on: —
+Priority: P3 2026-09-23 — cost only: a report at 26× the fit it reports on
 
 ## Goal
 

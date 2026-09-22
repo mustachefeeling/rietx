@@ -19,16 +19,17 @@ Keep the Status line here and the WP's row in ../ROADMAP.md in sync
 (tests/test_docs_consistency.py asserts both). The ROADMAP cell carries the
 glyph and the date only; the free text lives on this line.
 Priority values: P1 · P2 · P3 · P4 — which WP the next session's tokens
-should go to, rated once at the write and re-rated by whichever handover
-moves it. Required on every WP opened on or after 2026-09-23; older WPs
-carry no line and their ROADMAP cell reads `—`, which means unrated and
-never low. The ROADMAP cell carries the tier only; the date and the one
+should go to, rated at the write and re-rated by whichever handover
+moves it. Every ⬜ WP carries one. A closing session deletes the line, so a
+✅/🛑 WP carries none and its ROADMAP cell reads `—`; a 🔄 WP may keep the
+one it had. The ROADMAP cell carries the tier only; the date and the one
 clause of reason live on this line, and a re-rating rewrites it in place
 ("P1 2026-10-02 — was P2: 1442 landed, nothing blocks it").
 The rubric is weighted shortest job first (SAFe: cost of delay over size),
 scored on Nielsen's severity axes (how often, how badly, and whether it
 persists), with the repo's own severity class on top: a wrong number that
-nothing flags outranks one that raises.
+nothing flags outranks one that raises, and one on a path few fits run
+is P2.
   P1  paid by every user on every run: a silent wrong answer in a shipped
       path (a number a user quotes, wrong, nothing fired), a required check
       red on main, data loss; or the last rung of a feature whose other
@@ -43,14 +44,16 @@ nothing flags outranks one that raises.
       absence changes no number and no decision.
 Then at most one move, and the line says which: up a rung when what remains
 is small against what is already paid (a finishing rung, a WP whose last
-blocker shipped); down a rung when it waits on a decision nobody has taken,
-in which case the decision is the WP to rate P2. So closing a WP re-rates
-its dependants (handover step 5), and a fold from /issue-review re-rates
-the WP it lands in when the evidence moves its row.
-Worked on rows filed 2026-09-21/22 and left unrated: 1446 (a supercell
-outranks the truth on evidence the panel holds; a strict xfail waits) is
-P1; 1445 (a source that cannot emit the line) is P2 once its schema
-decision is taken and P3 while it waits; 1447 is P3; 1448 is P4.
+blocker shipped); down a rung when nothing in it can start, waiting on a
+decision nobody has taken or a hard dependency that has not shipped, and the
+line names what lands to lift it. So closing a WP re-rates its dependants
+(handover step 5), and a fold from /issue-review re-rates the WP it lands
+in when the evidence moves its row.
+Worked, from the 2026-09-23 backfill: 1333 is P1 (a chain of hundreds lost
+to one raise, and a check that died reading as passed); 1341 is P2 (a joint
+fit cannot be inspected; refining apart is the workaround); 1328 is P3
+(waits on 1327's model; P2 when it lands); 1448 is P4 (provenance
+bookkeeping, changes no number).
 A WP file must be self-contained: a session that reads ONLY this file
 (plus the auto-loaded CLAUDE.md) can start work. Link specific DESIGN.md
 sections instead of restating them, but restate anything short and

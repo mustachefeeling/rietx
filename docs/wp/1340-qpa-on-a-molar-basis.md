@@ -2,6 +2,7 @@
 
 Milestone: unscheduled · Status: ⬜
 Depends on: — (1320 soft: both touch `PhaseQuantity` and add a diagnostic row)
+Priority: P3 2026-09-23 — a second basis for a number QPA already reports
 
 ## Goal
 

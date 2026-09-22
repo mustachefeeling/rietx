@@ -2,6 +2,7 @@
 
 Milestone: unscheduled · Status: ⬜
 Depends on: — (1339 soft: the same family, where the improvement lives)
+Priority: P2 2026-09-23 — a verdict the skill sends agents to blesses a parameter within 1σ of zero
 
 ## Goal
 

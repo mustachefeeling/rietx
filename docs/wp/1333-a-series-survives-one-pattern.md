@@ -2,6 +2,7 @@
 
 Milestone: unscheduled · Status: ⬜
 Depends on: — (1317 soft: #218's forward-pass exposure is the sibling ask)
+Priority: P1 2026-09-23 — a chain of hundreds lost to one raise, and a check that died reading as passed
 
 ## Goal
 
