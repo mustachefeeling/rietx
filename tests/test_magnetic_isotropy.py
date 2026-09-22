@@ -988,6 +988,39 @@ def test_a_candidate_is_powder_equivalent_to_itself():
         assert isotropy.powder_equivalent(candidate, candidate, reflections)
 
 
+def test_a_candidate_is_powder_equivalent_to_itself_at_a_coarse_d_min():
+    """A coarse ``d_min`` must not make everything look separable (#389 §1).
+
+    Two distinct causes, both found by Yue's review on 2026-09-18 and both
+    reproduced here before the fix, made ``powder_equivalent(c, c, refl)``
+    return ``False`` for ``candidates("P n m a", (0, 0, 0.5), (0, 0, 0))`` at
+    ``d_min = 5.2``, where the set has 4 reflections in 2 shells:
+
+    * ``_fit_residual`` ran under ``method="lm"``, which *refuses* a problem
+      with fewer residuals than variables (2 shells against 3 free
+      amplitudes) — ``ValueError: Method 'lm' doesn't work when the number of
+      residuals is less than the number of variables``.  A bare
+      ``except Exception: continue`` turned that refusal into ``best = inf``,
+      i.e. into "distinguishable".
+    * candidate ``S4(a)`` has ``|M⊥|max = 6.1e-16`` over all four
+      reflections — every shell is a systematic absence — so the draws were
+      fitting round-off, and the ``<= 0.0`` guard written for exactly that
+      case does not fire on 1e-32.
+
+    The failure direction is the costly one: this module exists to say what a
+    powder average *cannot* separate, so a false "distinguishable" splits
+    models that are the same object.  Reflexivity is the weakest property the
+    relation has and is asserted at both limits; nothing here claims the
+    classes at 5.2 are coarser than at 1.5, which is not guaranteed physics.
+    """
+    found = isotropy.candidates("P n m a", (0, 0, 0.5), GAMMA)
+    for d_min in (5.2, 1.5):
+        reflections = isotropy.reflections(found.lattice, d_min)
+        for candidate in found:
+            assert isotropy.powder_equivalent(candidate, candidate, reflections), \
+                f"{candidate.label} is not powder-equivalent to itself at d_min={d_min}"
+
+
 def test_the_jacobian_deficit_is_the_undeterminable_direction():
     """A cubic ferromagnet has two free amplitudes a powder cannot see, and says so."""
     found = isotropy.candidates("F m -3 m", (0, 0, 0), GAMMA)

@@ -1760,6 +1760,16 @@ def _fit_residual(target: np.ndarray, factors: np.ndarray, shells,
     quadratic form in b, so the fit is a small non-linear least squares with an
     exact Jacobian.  Several restarts because a quadratic-form fit has sign and
     permutation symmetries and a single start can sit on a saddle.
+
+    The driver is ``"trf"`` whenever there are fewer shells than amplitudes,
+    because ``"lm"`` *refuses* that problem rather than solving it badly
+    (``ValueError: Method 'lm' doesn't work when the number of residuals is
+    less than the number of variables``).  A refusal is not a measurement: a
+    swallowed one leaves ``best`` at ``inf`` and makes :func:`powder_equivalent`
+    report a candidate as distinguishable from itself at a coarse ``d_min``,
+    which is the failure direction this module exists to avoid.  Nothing else
+    is caught here — a solver raising for any other reason is a defect and
+    surfaces (Yue's review of #389, 2026-09-18).
     """
     from scipy.optimize import least_squares
 
@@ -1781,13 +1791,11 @@ def _fit_residual(target: np.ndarray, factors: np.ndarray, shells,
     scale = float(np.max(np.abs(target))) or 1.0
     best = np.inf
     n = factors.shape[1]
+    method = "lm" if len(members) >= n else "trf"
     for _ in range(restarts):
         start = rng.normal(size=n) * np.sqrt(scale / max(n, 1))
-        try:
-            fit = least_squares(residual, start, jac=jacobian, method="lm",
-                                xtol=1e-14, ftol=1e-14, gtol=1e-14, max_nfev=4000)
-        except Exception:  # pragma: no cover - scipy declining a start
-            continue
+        fit = least_squares(residual, start, jac=jacobian, method=method,
+                            xtol=1e-14, ftol=1e-14, gtol=1e-14, max_nfev=4000)
         best = min(best, float(np.max(np.abs(fit.fun))))
     return best / scale
 
@@ -1820,6 +1828,17 @@ def powder_equivalent(a: MagneticCandidate, b: MagneticCandidate,
     rng = np.random.default_rng(seed)
     for source, factors in ((a, fb), (b, fa)):
         other = fa if factors is fb else fb
+        # A family whose M⊥ vanishes at every reflection of this set has *no*
+        # powder pattern to this d limit — every shell is a systematic absence
+        # — so nothing here can be distinguished from it, and the draws below
+        # would be fitting round-off (|F|max = 6.1e-16 for S4(a) of
+        # ``candidates("P n m a", (0, 0, 0.5), (0, 0, 0))`` at d_min = 5.2).
+        # Exact because M⊥ is linear in the amplitudes, and on the same
+        # tolerance as :func:`systematic_absences`, the authority for "this
+        # reflection is absent".  Yue's review of #389 found the coarse-d_min
+        # failure through the ``lm`` refusal above; this is its second cause.
+        if float(np.max(np.abs(other))) <= INTENSITY_RTOL:
+            continue
         for _ in range(draws):
             amplitudes = _normalised_draw(source, refl.lattice, rng)
             target = powder_intensities(source, amplitudes, refl, factors=other)
