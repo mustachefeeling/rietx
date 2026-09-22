@@ -429,8 +429,10 @@ def test_a_bcc_p_point_has_one_two_dimensional_projective_irrep():
     The little co-group is 222 with a factor system that is not a coboundary,
     so the four ordinary one-dimensional irreps collapse into a single
     two-dimensional projective one with χ = (2, 0, 0, 0) and Σ dim² = 4 =
-    |G_k/T| (Bradley & Cracknell, 1972, ch. 4; the central extension is the
-    quaternion group in the primitive gauge).  These are also the only two
+    |G_k/T| (Bradley & Cracknell, 1972, § 4.3 p. 181 — Lemma 4.3.1 and the
+    sentence after it — read with § 4.4 p. 185; the central extension is the
+    quaternion group in the primitive gauge, and the central extension itself is
+    their § 3.7 p. 158, Theorems 3.7.1 and 3.7.2, not ch. 4).  These are also the only two
     cases spgrep 0.7.0 raises on, so this is the arm that keeps them covered —
     if a later spgrep answers them, ``ORACLE_CANNOT_DO`` shrinks and the sweep
     below says so.

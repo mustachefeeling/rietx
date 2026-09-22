@@ -295,10 +295,16 @@ class MagneticOperator:
     def moment_matrix(self) -> np.ndarray:
         """ε·det(R)·R — the action on a moment, an **axial** vector.
 
-        Halpern & Johnson (1939), *Phys. Rev.* **55**, 898 is where the axial
-        character enters the magnetic structure factor; the ε factor is the
-        magnetic group's own (Perez-Mato et al. 2015).  R is **not**
-        transposed: see the module docstring.
+        The law is stated as M(R**r** + **t**) = θ·det(R)·R·M(**r**) by
+        Gallego, Tasci, de la Flor, Perez-Mato & Aroyo (2012), *J. Appl.
+        Cryst.* **45**, 1236 (MAGNEXT), eq. (3), p. 1239, and in prose
+        by Perez-Mato et al. (2015), *Annu. Rev. Mater. Res.* **45**, 217,
+        p. 220 — which is also where the ε (their θ) comes from.  **Not**
+        Halpern & Johnson (1939): that paper gives the interaction vector and
+        the powder average and states no transformation law at all (read page
+        by page 2026-09-22; the words *axial*, *pseudovector* and *inversion*
+        do not occur in it).  R is **not** transposed: see the module
+        docstring.
         """
         return self.time_reversal * self.determinant * self.matrix
 
@@ -678,9 +684,10 @@ def allowed_moment_basis(operations, *, phases=None, transpose: bool = False,
     """Integer basis of the moments invariant under a set of operations.
 
     ``operations`` is the site's magnetic stabiliser.  A moment is an axial
-    vector, so an operation acts on it as ε·det(R)·R (Halpern & Johnson, 1939,
-    *Phys. Rev.* **55**, 898, for the axial character; Perez-Mato et al., 2015,
-    *Annu. Rev. Mater. Res.* **45**, 217, for ε), and the allowed directions are
+    vector, so an operation acts on it as ε·det(R)·R (Gallego et al., 2012,
+    *J. Appl. Cryst.* **45**, 1236, eq. (3), p. 1239, for the law; Perez-Mato et
+    al., 2015, *Annu. Rev. Mater. Res.* **45**, 217, p. 220, for it in prose and
+    for ε), and the allowed directions are
     the simultaneous fixed points, ∩ ker(ε·det(R)·R − I).  The algebra is exact
     over ``Fraction`` and the basis is the deterministic smallest-integer one
     ``wyckoff._nullspace_int`` returns, so a test may compare arrays exactly.
@@ -757,14 +764,16 @@ def allowed_displacement_basis(operations, *, phases=None) -> np.ndarray:
 
     **The convention, and where it is stated.**  *Polar* is defined by the
     transformation law itself, v′ = R·v, against the axial v′ = ε·det(R)·R·v
-    that :func:`allowed_moment_basis` cites Halpern & Johnson (1939) for; that
+    that :func:`allowed_moment_basis` cites Gallego et al. (2012) eq. (3) for;
+    that
     a *displacement* is the polar one is stated by the authors of the displacive
     half of this construction — Campbell, Stokes, Tanner & Hatch, 2006,
     *J. Appl. Cryst.* **39**, 607–614, § 4.5 "Order-parameter types and
     tensors", p. 611: atomic displacement modes have order parameters that
     transform "like polar first-rank tensors under the matrix operations of the
     irrep" (read from the paper, 2026-09-22).  That paper says nothing about
-    moments; the axial law above rests on Halpern & Johnson alone.
+    moments; the axial law above rests on Gallego et al. (2012) eq. (3), p. 1239,
+    and Perez-Mato et al. (2015) p. 220.
 
     ``operations`` is materialised first, so a generator is accepted — it is
     read twice below — the same sibling defect as in
@@ -817,8 +826,13 @@ def magnetic_group(spec, *, hall_number: int = 0) -> MagneticGroup:
     group.
 
     The operators come back in spglib's database setting, which is the **BNS**
-    setting of Litvin's tables for the default ``hall_number``; an OG number
-    resolves to the same group but *not* to OG-setting operators.
+    setting for the default ``hall_number``; an OG number resolves to the same
+    group but *not* to OG-setting operators.  The BNS-setting machine-readable
+    tables spglib carries are **Stokes & Campbell's** (Perez-Mato et al. 2015
+    p. 220; Gallego et al. 2016a p. 1753); Litvin (2013), *Magnetic Group
+    Tables*, numbers and organises its groups on the **Opechowski–Guccione**
+    description and prints BNS symbols only as a comparison column, so it is
+    the source of the group *tabulation*, not of this setting.
     :attr:`MagneticGroup.setting` records which it was.  Carry a file's own
     ``_space_group_magn.transform_BNS_Pp_abc`` through
     :meth:`MagneticGroup.transformed` to reach the setting a magCIF is written
@@ -847,7 +861,7 @@ def magnetic_group(spec, *, hall_number: int = 0) -> MagneticGroup:
            for r, tr, e in zip(data["rotations"], data["translations"],
                                data["time_reversals"])]
     setting = ("BNS standard setting (spglib magnetic database, "
-               "Litvin 2013 tables)" if hall_number == 0
+               "Stokes & Campbell tables)" if hall_number == 0
                else f"spglib magnetic database, Hall number {hall_number}")
     return MagneticGroup.from_operations(
         ops, setting=setting, uni_number=uni, bns_number=t.bns_number,

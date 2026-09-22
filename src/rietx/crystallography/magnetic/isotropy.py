@@ -17,9 +17,12 @@ half of it is Perez-Mato, Gallego, Tasci, Elcoro, de la Flor & Aroyo (2015),
 
 This module also answers the question a *powder* code actually has to ask:
 which of those candidates the data cannot tell apart.  Shirane (1959),
-*Acta Cryst.* **12**, 282 states the classic case — a collinear structure in a
-cubic group gives a powder intensity independent of the moment direction — and
-:func:`equivalence_classes` computes that rather than asserting it.
+*Acta Cryst.* **12**, 282 states the classic case — a collinear structure of
+cubic **configurational** symmetry (his qualifier: the symmetry of the signed
+moment arrangement, not of the chemical cell; his MnO example is cubic in the
+one and rhombohedral in the other) gives a powder intensity independent of the
+moment direction — and :func:`equivalence_classes` computes that rather than
+asserting it.
 
 **Public API — fixed 2026-09-06.**
 
@@ -98,7 +101,11 @@ What a powder measures, and the domains
 ---------------------------------------
 The magnetic intensity of a reflection is |M⊥|² with
 M(h) = Σ_j m_j·exp(2πi h·r_j) over the magnetic cell and M⊥ = M − (M·ĥ)ĥ
-(Halpern & Johnson, 1939, *Phys. Rev.* **55**, 898), with a unit form factor
+(Halpern & Johnson, 1939, *Phys. Rev.* **55**, 898, eq. (6.22) p. 910 — whose
+**q** = **e**(**e**·**κ**) − **κ** is *minus* the perpendicular component; the
+sign written here is Rodríguez-Carvajal's (1993) eq. (1), and only |M⊥|² enters
+an unpolarised cross section, so no intensity depends on the choice), with a
+unit form factor
 here because the form factor is a per-species scalar that cancels from every
 comparison this module makes.  A powder sums that over every reflection at the
 same d and over every **domain** — the images of the model under the parent
@@ -117,10 +124,16 @@ References
 Shirane, G. (1959). *Acta Cryst.* **12**, 282 — the powder magnetic structure
 factor and the directions a powder average cannot determine.
 Halpern, O. & Johnson, M. H. (1939). *Phys. Rev.* **55**, 898 — the magnetic
-interaction vector M⊥.
+interaction vector (eq. 6.22, p. 910) and the powder average ⟨q²⟩ = 2/3
+(eq. 6.41, p. 911).  **Not** the axial transformation law, which that paper does
+not state; for that see Gallego et al. (2012) eq. (3), p. 1239.
 Gallego, S. V., Tasci, E. S., de la Flor, G., Perez-Mato, J. M. & Aroyo, M. I.
 (2012). *J. Appl. Cryst.* **45**, 1236 — MAGNEXT, systematic absences of
-magnetic reflections under a magnetic space group.
+magnetic reflections under a magnetic space group; **and eq. (3), p. 1239, the
+axial transformation law** M(R**r** + **t**) = θ·det(R)·R·M(**r**) this module's
+domain action uses.
+Rodríguez-Carvajal, J. (1993). *Physica B* **192**, 55, eq. (1) — the sign
+convention for M⊥ written above.
 Stokes, H. T. & Hatch, D. M. (1988). *Isotropy Subgroups of the 230
 Crystallographic Space Groups*. Singapore: World Scientific.
 Campbell, B. J., Stokes, H. T., Tanner, D. E. & Hatch, D. M. (2006).
@@ -1005,7 +1018,7 @@ def _close_operations(seed) -> tuple[MagneticOperator, ...]:
     translation that shows up only as a *product*, never as a term any single
     stabiliser-member-times-Δ can supply (the little group's own projective
     factor system carrying that translation's k-phase, Bradley & Cracknell
-    1972 ch. 7) — the P4₂ 4₂-screw squaring to the ordinary 2-fold with the
+    1972 § 3.7 eqns (3.7.6)–(3.7.8), p. 155) — the P4₂ 4₂-screw squaring to the ordinary 2-fold with the
     "lost" lattice translation folded back in (Q23) is exactly this.  Closing
     here, before :meth:`~.operators.MagneticGroup.from_operations`, is what
     multiplies that translation in; ``from_operations`` keeps its own closure
@@ -1074,7 +1087,7 @@ def _candidate_group(little: LittleGroup, cell: MagneticCell,
     nonsymmorphic little group can add a lattice translation that shows up
     only as a *product*, never as a term any single stabiliser-member-times-Δ
     supplies (the little group's own projective factor system, Bradley &
-    Cracknell 1972 ch. 7) — the P4₂ 4₂-screw squaring to the ordinary 2-fold
+    Cracknell 1972 § 3.7 eqns (3.7.6)–(3.7.8), p. 155) — the P4₂ 4₂-screw squaring to the ordinary 2-fold
     with the "lost" lattice translation folded back in is exactly this. So the
     seed set is always closed (:func:`_close_operations`) before being
     canonicalised, whichever ``kind`` this is: this is the one asymmetry
@@ -1539,8 +1552,9 @@ def _apply_domain(op: MagneticOperator, positions: np.ndarray,
     """One domain's positions and patterns, reindexed onto the same atom order.
 
     ``kind`` decides the action, and the two are genuinely different matrices:
-    a moment is an **axial** vector and transforms by ε·det(R)·R (Halpern &
-    Johnson, 1939), a displacement is a **polar** one and transforms by plain
+    a moment is an **axial** vector and transforms by ε·det(R)·R (Gallego et
+    al., 2012, eq. (3), p. 1239), a displacement is a **polar** one and
+    transforms by plain
     R — no determinant, and no time-reversal sign, because time reversal does
     not move an atom.  They differ by det(R)·ε, so an improper operation is
     exactly where using the wrong one is invisible in magnitude and wrong in
@@ -1860,11 +1874,15 @@ def powder_equivalent(a: MagneticCandidate, b: MagneticCandidate,
     which is why both directions are needed: a family with more amplitudes can
     imitate a smaller one without the reverse being true.
 
-    This is Shirane's rule (1959) made mechanical.  For a collinear structure in
-    a cubic group the powder intensity does not depend on the moment direction,
-    so the [100], [110] and [111] isotropy subgroups of one irrep come out
-    equivalent, and a uniaxial parent — where the angle to c *is* measurable —
-    does not.
+    This is Shirane's rule (1959) made mechanical.  For a collinear structure of
+    cubic **configurational** symmetry the powder intensity does not depend on
+    the moment direction, so the [100], [110] and [111] isotropy subgroups of
+    one irrep come out equivalent, and a uniaxial one — where the angle to c
+    *is* measurable — does not.  The qualifier is Shirane's own and is not
+    decoration: his p. 285 example is MnO, cubic in its *chemical* cell and
+    rhombohedral in its configurational symmetry, where the direction **is**
+    measurable.  This function computes the classes from the intensities and so
+    never has to decide which group the rule is about.
     """
     if little is None:
         little = _irreps.little_group(a.space_group, a.k)

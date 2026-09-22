@@ -57,7 +57,7 @@ $\mathbf{a}_{ij}$ is a lattice vector the phase reduces to $1$. At a
 zone-boundary k of a non-symmorphic group, $\omega$ genuinely departs from
 $1$, the irreps of $G_{\mathbf{k}}$ have no ordinary counterpart, and their
 dimensions are larger than any point-group irrep would give
-{cite}`bradleycracknell1972`. Kovalev tabulated exactly this case by hand; the
+{cite}`bradleycracknell1972` (§ 3.7 pp. 155–157). Kovalev tabulated exactly this case by hand; the
 package finds it by splitting the $\omega$-twisted regular representation of
 the little co-group, verifying $D(g_i)D(g_j) = \omega(g_i, g_j)D(g_i g_j)$
 before returning anything.
@@ -107,8 +107,12 @@ W^{\nu}_{lm} \;=\; \frac{d_\nu}{|P_{\mathbf{k}}|}
 
 {source}`rietx.crystallography.magnetic.modes.basis_vectors`
 
-{cite}`izyumov1991`, the ordinary group-theoretic projection operator carried
-over unchanged because the same factor system $\omega$ multiplies both
+The construction is {cite}`izyumov1991`'s (his eqn (2.12), p. 19, and its
+$G_{\mathbf{k}}$ form (9.1), p. 67); the $d_\nu/|P_{\mathbf{k}}|$ prefactor is
+the standard Wigner normalisation, written this way by Davies & Wills (2016,
+*arXiv*:1610.00472, eq. 6) — Izyumov's own two forms carry $1/n(G)$ and $1/N$
+with no $d_\nu$. It is the ordinary group-theoretic projection operator carried
+over unchanged, because the same factor system $\omega$ multiplies both
 $D_\nu$ and $\Gamma_{\mathrm{mag}}$ and cancels between them. $W^{\nu}_{11}$
 projects onto the first row of the irrep's subspace, whose rank is the
 multiplicity $n_\nu$; taking exactly $n_\nu$ independent columns of it, no
@@ -267,7 +271,8 @@ distinguishable candidates, so a refinement need only try one representative
 per class.
 
 Shirane's own example is mechanical here: for a collinear structure whose
-moment sits at a general direction of a cubic little group, every direction
+**configurational** symmetry — the symmetry of the signed moment arrangement,
+which Shirane distinguishes from the chemical one — is cubic, every direction
 of the order-parameter space gives the same powder intensity, and the
 [100], [110] and [111] isotropy subgroups of that irrep come out one
 equivalence class. Lowering the parent symmetry to tetragonal splits the

@@ -57,7 +57,8 @@ Conventions, all four of which a caller can get wrong silently:
    operations are in G_k for a non-cubic setting, hence the irreps.
 
 3. **The translation convention is D({E|a}) = exp(−2πi k·a)·1** (Bradley &
-   Cracknell, 1972, ch. 4; Izyumov, Naish & Ozerov, 1991).  It is the same sign
+   Cracknell, 1972, § 3.4 eqn (3.4.3), p. 119; Izyumov, Naish & Ozerov, 1991,
+   § 2 p. 20).  It is the same sign
    the permutation representation of a site orbit carries in its return-vector
    phase exp(−2πi k·a_g), so Γ_perm ⊗ Γ_axial decomposes against these irreps
    with no sign fix-up.  spgrep uses the same sign, pinned by a test.
@@ -80,7 +81,9 @@ co-group P_k with factor system
 where a_ij is a lattice vector — a *centring* vector for a centred group, which
 is why the centrings must be carried and not quotiented away.  On the zone
 boundary of a non-symmorphic group ω is not a coboundary and the irreps are
-genuinely projective (Bradley & Cracknell, 1972, ch. 4 and 7).  The projective
+genuinely projective (Bradley & Cracknell, 1972, § 3.7 pp. 155–157, where the
+zone-surface non-symmorphic case is the one left after their two homomorphic
+ones; and § 4.4 pp. 184–185).  The projective
 irreps are extracted by splitting the ω-twisted regular representation of P_k,
 which has dimension |P_k| and contains each irrep d_α times: a random Hermitian
 matrix averaged over the representation lies in its commutant, and each
@@ -702,7 +705,10 @@ def factor_system(little: LittleGroup) -> np.ndarray:
     D(g_i) D(g_j) = ω(i, j) D(g_i g_j) for every small irrep.  ω = 1
     identically exactly when the small irreps are ordinary (linear)
     representations of P_k; where it is not, dropping it changes the irrep count
-    and the dimensions — Bradley & Cracknell (1972) ch. 4.
+    and the dimensions — Bradley & Cracknell (1972) § 4.4 eqns (4.4.8)–(4.4.9),
+    pp. 184–185, which states it abstractly as μᵢ(β, γ) = Dᵢ(t_{βγ}); the
+    explicit space-group form used here is their § 3.7 eqns (3.7.7)–(3.7.8),
+    p. 155.
     """
     exps = factor_system_exponents(little)
     n = little.order
@@ -854,7 +860,16 @@ def _frobenius_schur(matrices: np.ndarray, little: LittleGroup) -> tuple[int, st
     picks up exp(−4πi k·a) when a representative moves by a lattice vector a, so
     the sum is well defined exactly when 2k ≡ 0 — which is also exactly when D*
     is a representation at the same k.  Wigner's three cases (1959, ch. 26);
-    Bradley & Cracknell (1972) ch. 7 states them for the space-group setting.
+    Bradley & Cracknell (1972) § 4.6 Theorem 4.6.2, p. 204, states them for the
+    space-group setting, with the three kinds defined at their Definition 1.3.7,
+    p. 20.  (Their ch. 7 is the *corepresentation* version — a different object:
+    it classifies representations of a magnetic group under an anti-unitary
+    operation, not the reality of a small irrep.)  One difference, since the
+    docstring above is narrower than their criterion: B&C's (4.6.11) is still
+    defined when −k is in the star but 2k ≢ 0, through coset representatives
+    outside the little group, where this function returns ``(0, "complex")``
+    unconditionally — :attr:`SmallIrrep.reality` describes the small irrep at k,
+    not the induced space-group representation.
     """
     if not little.has_minus_k:
         return 0, "complex"
