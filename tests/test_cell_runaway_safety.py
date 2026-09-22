@@ -154,14 +154,37 @@ def test_a_cell_outside_the_window_is_pulled_back_and_reported():
 
 def test_a_held_cell_is_never_visited():
     """Only ``table.free_paths`` is inspected — a fixed cell (or one held by
-    WP-1301) cannot have "escaped" anything, since nothing moved it."""
+    WP-1301, which is the same ``set_vary(..., False)`` under the hood) cannot
+    have "escaped" anything, since nothing moved it.
+
+    Review of #385 finding 3.  The escape is staged on the table's own
+    ``Entry`` — what a real stage's ``table.commit(outcome.theta)`` writes,
+    and what ``clamp_cell_runaway`` actually reads — never on the pydantic
+    ``structure``: ``ParameterTable._add`` snapshots ``Entry.value`` from the
+    model at construction and does not track it afterwards, so a write to
+    ``structure.phases[0].cell.a.value`` after the table is built lands
+    nowhere the function looks.  ``make_lab6`` frees the cell by default
+    (``Cell.cubic(..., vary=True)``), so this test held ``cell.a`` explicitly
+    is what makes the fixture's comment true — the previous
+    ``# cell.a not freed`` was false: the fixture frees it, and the old
+    test's escape silently missed the entries this function reads on two
+    counts, not one.
+
+    Made to fail on purpose once (``tests/CLAUDE.md``): commenting out
+    ``clamp_cell_runaway``'s ``if e.path not in free: continue`` line turned
+    this from green to red — ``clamped`` came back
+    ``[('phases.0.cell.a', 207.83, 4.830089999999999)]`` instead of ``[]``,
+    confirming the filter is what this pins rather than a vacuous write.
+    """
     from rietx.params.vector import ParameterTable
 
     structure, ins = _degenerate_pair(5e-4)
     table = ParameterTable(structure, ins)
-    # cell.a not freed
+    table.set_vary(["phases.0.cell.a"], False)  # explicitly held/fixed
+    assert "phases.0.cell.a" not in table.free_paths
     start_values = table.decode(table.x0())
-    structure.phases[0].cell.a.value = TRUE_A * 50.0  # would-be escape
+    entry = table.entries[table._paths["phases.0.cell.a"]]
+    entry.value = TRUE_A * 50.0  # staged on the Entry itself, not the pydantic model
     clamped = clamp_cell_runaway(table, start_values)
     assert clamped == []
 
