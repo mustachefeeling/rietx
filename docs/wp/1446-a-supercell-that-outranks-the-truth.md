@@ -1,12 +1,15 @@
 # WP-1446 — a supercell that outranks the truth, on evidence the panel already has
 
-Milestone: unscheduled · Status: 🔄 2026-09-22 — claimed by @yue-here
+Milestone: unscheduled · Status: 🛑 2026-09-22 — premise measured false; WP-1449 inherits the question
 Depends on: — (1442 soft)
 
 ## Goal
 
 A candidate cell that predicts reflections the pattern does not show ranks
 below one that does not. The number that says so is already computed.
+
+**Outcome (2026-09-22): the premise is false.** The number is computed and it
+does not separate the cases. See the handover entry; WP-1449 inherits the goal.
 
 ## Context
 
@@ -73,21 +76,21 @@ not a missing measurement, it is a ranking that does not weigh one it holds.
       ranking reads it. **Answered while filing** (2026-09-22): it is on the
       candidate as `fom_value("predicted_seen_fraction")` and an acceptance row
       already asserts on it, so the ranking has it and does not weigh it.
-- [ ] Rank so that a candidate predicting reflections the pattern does not show
-      cannot outrank one that does not, on the measured 0.86-against-0.28.
-      Measured on brucite and on every other row of
-      `tests/test_acceptance_indexing.py`, which is the only way to see what it
-      costs elsewhere.
-- [ ] Restore the rank assertion. WP-1442 split the row: the original keeps
-      every physics assertion and locates the truth in the candidate list
-      rather than at index 0, and `test_brucites_truth_is_not_ranked_first`
-      carries the rank as `xfail(strict=True)`. **That row goes red the moment
-      this WP works**, which is the signal to fold the assertion back into the
-      row above and delete the fence.
-- [ ] The 2 × and 3 × supercells stay *in* the candidate list. They are real
-      solutions of the metric and a reader should see them ranked, not hidden.
-- [ ] Whether the same fragility reaches the other round-robin rows, measured
-      rather than assumed.
+- [x] Rank so that a candidate predicting reflections the pattern does not show
+      cannot outrank one that does not. **Built, measured and reverted**: it puts
+      brucite's truth first and demotes SRM 676a's own cell, and the two cases are
+      not separable by that question. `ambiguity._refuted_supercell` is kept
+      private, unwired and tested.
+- [ ] ~~Restore the rank assertion.~~ **Not reached.** The fence stands and its
+      xfail reason now names WP-1449. Folding it back is that WP's last task.
+- [x] The 2 × and 3 × supercells stay *in* the candidate list. Measured while the
+      rule was wired: a **tier** pushes them out of the reported twelve in favour
+      of cells at `predicted_seen_fraction` 0.14-0.24 that are nobody's
+      derivative, so the constraint has to be pairwise. That finding survives the
+      revert and is what WP-1449 should build on.
+- [x] Whether the same fragility reaches the other round-robin rows. It reaches
+      **corundum and LaB6**, and it is not fragility: it is the question being
+      the wrong one.
 
 ## Acceptance
 

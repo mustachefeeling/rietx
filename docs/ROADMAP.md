@@ -105,10 +105,10 @@ in the [v1.6 record](milestones/v1.6.md). 1432 unblocks 1419's amplitudes; so
 is the `.inp` grammar 1118 refuses,
 [1433](wp/1433-the-inp-grammar-still-refused.md).
 
-**1442 filed four WPs, and
-[1446](wp/1446-a-supercell-that-outranks-the-truth.md) is in flight**: a brucite
-supercell outranked the truth while the panel held the number refuting it, and
-the ranking now orders a candidate below any cell whose supercell it is. Then [1445](wp/1445-the-optics-nobody-declared.md), needing a
+**1442 filed four WPs. [1446](wp/1446-a-supercell-that-outranks-the-truth.md)
+measured its premise false**: the reversed members cannot order two fitted
+candidates, so [1449](wp/1449-rank-on-what-the-screen-determined.md) inherits it
+and brucite's xfail stands. Then [1445](wp/1445-the-optics-nobody-declared.md), needing a
 schema decision first; [1447](wp/1447-a-threshold-each-pattern-sets-for-itself.md)
 and [1448](wp/1448-a-number-somebody-chose.md) block nothing.
 
@@ -658,8 +658,9 @@ the limit carried load rather than whether the value stopped near one, and
 | [1434](wp/1434-the-bound-test-asks-the-wrong-question.md) | The bound test asks whether the value is near its limit, never whether the limit was binding | ✅ 2026-09-18 | — |
 | [1442](wp/1442-a-ghost-search-at-chance.md) | A ghost search at chance: the Kβ flag fires where Kβ cannot exist | ✅ 2026-09-22 | — (1415 soft) |
 | [1445](wp/1445-the-optics-nobody-declared.md) | The optics nobody declared: a source that cannot emit the line | ⬜ | — (1442 soft) |
-| [1446](wp/1446-a-supercell-that-outranks-the-truth.md) | A supercell that outranks the truth, on evidence the panel already has | 🔄 2026-09-22 | — (1442 soft) |
+| [1446](wp/1446-a-supercell-that-outranks-the-truth.md) | A supercell that outranks the truth, on evidence the panel already has | 🛑 2026-09-22 | — (1442 soft) |
 | [1447](wp/1447-a-threshold-each-pattern-sets-for-itself.md) | A threshold each pattern sets for itself | ⬜ | — (1442 soft) |
+| [1449](wp/1449-rank-on-what-the-screen-determined.md) | Rank on what the screen determined, not on what the peak list shows | ⬜ | — (1446 refuted the peak-list route) |
 
 #### A long run is not one fit
 
