@@ -87,6 +87,25 @@ ORACLE_CANNOT_DO = frozenset({("I 21 21 21", (HALF, HALF, HALF)),
 
 ALL_SETTINGS = tuple(gemmi.find_spacegroup_by_number(n).xhm() for n in range(1, 231))
 
+#: The spgrep the oracle's *refusal* counts below were measured on, 2026-09-06,
+#: beside spglib 2.7.0 and gemmi 0.7.5.  ``pyproject.toml`` declares
+#: ``spgrep>=0.7`` with no ceiling, and which cases spgrep declines is spgrep's
+#: behaviour rather than this package's, so pinning those counts hands a future
+#: spgrep release the power to turn this suite red for a reason outside rietx
+#: (Yue's review of #389 §6).  The assertions are therefore split: what is
+#: *ours* — every pair this package checked agreed with the oracle, and the
+#: sweep covered every (setting, k) pair rather than silently shrinking — holds
+#: on any version, and only the split between checked and declined is gated
+#: here.  Loosened rather than skipped: a new spgrep is exactly when the
+#: agreement is worth measuring, so the test must still run and still compare
+#: every table it can.
+MEASURED_SPGREP_VERSION = "0.7.0"
+
+
+def _counts_are_pinned(spgrep_core) -> bool:
+    """Whether the oracle is the version its refusal counts were measured on."""
+    return str(getattr(spgrep_core, "__version__", "")) == MEASURED_SPGREP_VERSION
+
 
 # --------------------------------------------------------------------------
 # the magnetic representation, for the positive arm only
@@ -515,21 +534,39 @@ def test_character_tables_agree_with_the_spgrep_oracle_for_all_230_groups():
     Counts are asserted, not just the absence of a failure, so a silently
     shrinking sweep fails.  ``ORACLE_CANNOT_DO`` names the pairs spgrep 0.7.0
     raises on; those are asserted to still raise, so the day the oracle grows
-    they are noticed rather than skipped forever.
+    they are noticed rather than skipped forever — but only while the oracle is
+    the version that behaviour was measured on, since a refusal is spgrep's
+    business and ``pyproject.toml`` puts no ceiling on it
+    (``MEASURED_SPGREP_VERSION``).  The coverage guard does not depend on any
+    of that: ``checked + declined`` is every (setting, k) pair, 230 × 8.
     """
     spgrep_core = pytest.importorskip("spgrep")
+    pinned = _counts_are_pinned(spgrep_core)
     checked = agreed = declined = 0
     for symbol in ALL_SETTINGS:
         for k in ZONE_BOUNDARY_SET:
             if (symbol, k) in ORACLE_CANNOT_DO:
-                with pytest.raises(ValueError):
-                    oracle_irreps(symbol, k)
-                declined += 1
+                if pinned:
+                    with pytest.raises(ValueError):
+                        oracle_irreps(symbol, k)
+                    declined += 1
+                    continue
+                try:            # a later spgrep may have grown these two cases
+                    _, mine, theirs = oracle_irreps(symbol, k)
+                except ValueError:
+                    declined += 1
+                    continue
+                checked += 1
+                agreed += bool(tables_agree(mine, theirs))
                 continue
             _, mine, theirs = oracle_irreps(symbol, k)
             checked += 1
             agreed += bool(tables_agree(mine, theirs))
-    assert (checked, agreed, declined) == (1838, 1838, 2)
+    # ours, on every version: nothing disagreed, and nothing was skipped
+    assert agreed == checked
+    assert checked + declined == len(ALL_SETTINGS) * len(ZONE_BOUNDARY_SET) == 1840
+    if pinned:
+        assert (checked, agreed, declined) == (1838, 1838, 2)
     assert spgrep_core.__name__ == "spgrep"
 
 
@@ -577,8 +614,15 @@ def test_physically_irreducible_dimensions_agree_with_the_spgrep_oracle():
                 continue
             checked += 1
             agreed += bool(sorted(d.shape[1] for d in real) == _real_dimensions(mine))
-    assert (checked, agreed) == (1363, 1363)
-    assert declined == 114
+    # ours, on every version: nothing disagreed, and every 2k ≡ 0 pair this
+    # package built a little group for was attempted
+    assert agreed == checked
+    assert checked + declined == 1477
+    # spgrep's own: which of those it declines is its behaviour, not this
+    # package's, and pyproject puts no ceiling on the version
+    if _counts_are_pinned(spgrep_core):
+        assert (checked, agreed) == (1363, 1363)
+        assert declined == 114
 
 
 def _real_dimensions(irreps) -> list[int]:

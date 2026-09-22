@@ -657,6 +657,10 @@ Q22_K = ("1/2", "1/2", "0")
 Q22_ROTATION = ((1, 0, 0), (0, -1, 0), (0, 0, 1))
 Q22_TRANSLATION = (Fraction(0), Fraction(1, 2), Fraction(0))
 Q22_LITTLE_INDEX = 7
+#: The gauge-free selector for Q21's candidate: the BNS number of its isotropy
+#: subgroup.  The ``S1(rank 2)#3`` label is not one — ``isotropy.py``'s direction
+#: sort numbers the ties *after* sorting, and the tie-break is the gauge.
+Q22_BNS = "6.19"
 
 
 def test_the_return_vector_phase_flips_which_eigenspace_a_displacement_needs():
@@ -670,9 +674,25 @@ def test_the_return_vector_phase_flips_which_eigenspace_a_displacement_needs():
     eigenspace ``allowed_displacement_basis`` could ever return before Q22
     (no ``phases`` argument to carry that -1) — the +1 eigenspace is what a
     caller who only had the old rule available would be forced to accept.
+
+    **Nothing here may be selected or pinned by a gauge-dependent quantity**
+    (Yue's review of #389 §5-6, where CI was red on Linux and green on
+    darwin/arm64 for exactly that reason).  ``isotropy.py``'s own docstring at
+    the direction sort says the ``#n`` suffix exists *because* a gauge that is
+    not axis-aligned gives several directions the same fallback label, so the
+    candidate is chosen by its BNS number — a property of the isotropy subgroup
+    and not of any basis inside it — and the configuration by the span of the
+    atom's own displacements across the whole rank-2 family.  Which basis vector
+    of that family carries which share of it is the gauge; the line they lie on
+    is not, and ``in_span`` is a question about the line.
     """
     found = isotropy.candidates("P n m a", Q22_SITE, Q22_K, kind="displacive", verify=False)
-    candidate = next(c for c in found if c.label == "S1(rank 2)#3")
+    # BNS 6.19 is unique in this set, where every rank-2 direction has the same
+    # stabiliser order (4) and the ``#n`` numbering is the gauge
+    matching = [c for c in found if c.bns_number == Q22_BNS]
+    assert len(matching) == 1, [c.bns_number for c in found]
+    candidate = matching[0]
+    assert candidate.direction.rank == 2 and len(candidate.direction.stabilizer) == 4
     little = candidate.permutation.little
     assert little.rotations[Q22_LITTLE_INDEX].tolist() == [list(r) for r in Q22_ROTATION]
     assert little.translations[Q22_LITTLE_INDEX] == Q22_TRANSLATION
@@ -688,16 +708,24 @@ def test_the_return_vector_phase_flips_which_eigenspace_a_displacement_needs():
     rotation_magnetic = isotropy._rotation_in_cell(Q22_ROTATION, inverse, forward)
     op = MagneticOperator.build(rotation_magnetic, (Fraction(0),) * 3, 1)
 
-    pattern = candidate.configurations[2][atom]   # d = (0, 0.624, -0.624), Q21's own numbers
-    assert pattern == pytest.approx((0, 0.624, -0.624), abs=2e-4)
+    # Atom 2's displacements across the whole family span one line — rank 1,
+    # singular values (0.909, 0, 0) — and *which* configurations carry it is the
+    # gauge: darwin/arm64 puts it all in configuration 2, Linux splits the same
+    # quadrature sum between 2 and 3.  Every non-zero one of them is a
+    # displacement this atom is allowed, so every one of them is asserted.
+    block = candidate.configurations[:, atom, :]
+    assert np.linalg.matrix_rank(block, tol=1e-9) == 1
+    patterns = [row for row in block if float(np.linalg.norm(row)) > 1e-9]
+    assert patterns, "atom 2 has no displacement in this family at all"
 
     old_rule = allowed_displacement_basis([op])         # no phases: the pre-Q22 rule
     new_rule = allowed_displacement_basis([op], phases=[-1])   # Q22's fix
 
-    assert in_span(new_rule, pattern)
-    assert not in_span(old_rule, pattern), (
-        "the pre-Q22 rule must reject this candidate's own pattern, or this "
-        "is not a test of the fix")
+    for pattern in patterns:
+        assert in_span(new_rule, pattern)
+        assert not in_span(old_rule, pattern), (
+            "the pre-Q22 rule must reject this candidate's own pattern, or this "
+            "is not a test of the fix")
     assert candidate.in_allowed_span()
 
 
