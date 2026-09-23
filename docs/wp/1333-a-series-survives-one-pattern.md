@@ -163,7 +163,10 @@ reached, with the reason; (2) an info diagnostic; (3) per-path counts of
 comparable patterns. Triage recommended (1) with (3) folded in as a field — a
 schema addition and a `SCHEMA_VERSION` bump, the maintainer's to direct, and
 the reporter offers the PR once directed. Rule: absent rather than zero, and
-the absence visible (1072, 1076).
+the absence visible (1072, 1076). **Decided 2026-09-23**, in the issue
+triage: #269 is closed as landed by PR #420's diagnostic form (2). The field
+form (1) and (3) is not built until a caller needs the paths as data, and
+the reporter's PR offer stands for that case.
 
 ## Non-goals
 

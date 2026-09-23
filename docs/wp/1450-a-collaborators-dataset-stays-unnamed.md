@@ -49,7 +49,9 @@ of it. The synthetic fixtures in `test_background_auto.py` stand on their
 own, as its comment at 1307 says.
 
 **The reporter offers the PR** (docstrings and comments, the fast suite and
-the three-way skill mirror check).
+the three-way skill mirror check). **Decided 2026-09-23**, answered on
+#417: the offer is accepted, with the two extra sites named, and the WP
+stays P1.
 
 ## Non-goals
 

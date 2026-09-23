@@ -183,6 +183,10 @@ lands with the move or after it. Issue #426's spglib-to-moyo migration
 ([1452](1452-spglib-to-moyo.md))
 touches the same files and is also sequenced after the magnetic PRs; the two
 need an order.
+**Decided 2026-09-23**, answered on #418: v1.6, as this WP's front half,
+with `distortion_candidates` and `displacive_statement` landing as one
+object; a clean break with no shims, since the modules never shipped; and
+the move first as its own PR, the entry point after it with this WP.
 
 **2026-09-21, from the issue triage — #361's route (b) is a rung of this
 WP.** "A child structure refined on its mode amplitudes *and* its moments":
