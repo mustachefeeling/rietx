@@ -218,16 +218,24 @@ from .._nearmiss import did_you_mean
 #: rule as 0.19 → 0.20: a stored result from before this opens with nothing
 #: blocked, which is true of it — no hold could be declared, so no plan's glob
 #: was ever refused.
-#: 0.24 → 0.25 (WP-1414, issue #265): ``StageResult.unknown_paths`` — the
+#: 0.24 → 0.25 (WP-1333, issue #224): ``SeriesEntry.rungs_raised`` — the rungs
+#: of a pattern's escalation ladder whose fit raised rather than returned, now
+#: that a raised rung escalates like a diverged one instead of abandoning the
+#: pattern.  Additive and defaulted to ``{}``, the same rule as 0.19 → 0.20: a
+#: stored series from before this opens with no rung raised, which is true of
+#: it — a raise then ended the pattern, so no entry could carry one.
+#: 0.25 → 0.26 (WP-1414, issue #265): ``StageResult.unknown_paths`` — the
 #: literal ``turn_on`` paths naming no parameter of the model — and
 #: ``StageResult.unreached_histograms``, per histogram of a joint fit the globs
 #: that reached another histogram and none of its rows.  Additive, the rule of
 #: 0.19 → 0.20, and defaulted to ``None`` rather than empty, unlike 0.24's
-#: ``blocked_by_hold``: no hold could exist before its field, so ``[]`` was
-#: true of every older result, while a typo'd literal freed nothing in silence
-#: long before this one.  A stored result from before this opens with ``None``,
-#: "nobody looked", and every runner now writes a value (WP-1076's rule).
-SCHEMA_VERSION = "0.25"
+#: ``blocked_by_hold`` or 0.25's ``rungs_raised``: no hold could exist before
+#: its field, and no rung could raise and survive, so an empty default was
+#: true of every older document there, while a typo'd literal freed nothing in
+#: silence long before this one.  A stored result from before this opens with
+#: ``None``, "nobody looked", and every runner now writes a value (WP-1076's
+#: rule).
+SCHEMA_VERSION = "0.26"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
 

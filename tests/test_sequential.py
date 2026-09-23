@@ -1305,7 +1305,22 @@ def test_path_dependence_needs_an_esd_from_both_chains():
         "phases.1.cell.b",
         [5.4100, 5.4100, 5.4100, 5.4100, 5.4100, 5.4110, 5.4120, 5.4130],
         [None, None, None, None, esd, esd, esd, esd])
-    assert _path_dependence_diagnostics(held_late, held_early) == []
+    # nothing is judged — and since WP-1333 that is said, rather than being
+    # the same empty list an agreed path returns (issue #269)
+    assert _unjudged(_path_dependence_diagnostics(held_late, held_early)) == [
+        ["phases.1.cell.b"]]
+
+
+def _unjudged(diagnostics) -> list[list[str]]:
+    """Every diagnostic must be the #269 finding; return what each names.
+
+    The shape these tests pin is that the comparison judged nothing: no
+    ``SEQUENTIAL_PATH_DEPENDENT`` at all, and one ``info``
+    ``SEQUENTIAL_PATH_CHECK_INCOMPLETE`` naming the paths it could not reach.
+    """
+    assert all(d.code == "SEQUENTIAL_PATH_CHECK_INCOMPLETE" and d.level == "info"
+               for d in diagnostics), [d.code for d in diagnostics]
+    return [d.where for d in diagnostics]
 
 
 def test_path_dependence_keeps_the_patterns_both_chains_measured():
@@ -1425,7 +1440,7 @@ def test_the_abstention_row_recipe_counts_the_patterns_actually_judged():
     fa, ba = a.trajectory(path), a.backward.trajectory(path)
     assert len(fa) == len(ba) == 4          # the old check: EQUAL -> clearance
     assert set(fa.labels) & set(ba.labels) == set()
-    assert _path_dependence_diagnostics(a, a.backward) == []
+    assert _unjudged(_path_dependence_diagnostics(a, a.backward)) == [[path]]
     assert patterns_judged(a, path) == 0
 
     # B — the esd half.  Identical labels, identical lengths, and the
@@ -1435,8 +1450,19 @@ def test_the_abstention_row_recipe_counts_the_patterns_actually_judged():
     fb, bb = b.trajectory(path), b.backward.trajectory(path)
     assert len(fb) == len(bb) == 8          # the old check: EQUAL -> clearance
     assert fb.labels == bb.labels
+    # the two chains' values are *identical*, which the comparison's noise
+    # floor calls agreement whatever the esds say, so there is nothing an esd
+    # could have changed and nothing to name (WP-1333)
     assert _path_dependence_diagnostics(b, b.backward) == []
     assert patterns_judged(b, path) == 0
+
+    # B' — the same esd pattern over values that differ: now the silence
+    # would hide something, and the #269 finding names the path
+    shifted = [v + 2e-3 for v in ramp]
+    b2 = both(_series_missing(path, ramp, [None] * 8, absent=set()),
+              _series_missing(path, shifted, [esd] * 8, absent=set()))
+    assert _unjudged(_path_dependence_diagnostics(b2, b2.backward)) == [[path]]
+    assert patterns_judged(b2, path) == 0
 
     # The positive arm, because a count that only ever answers 0 is not
     # separable from a broken one: a series both chains measured throughout is
@@ -1812,7 +1838,14 @@ def test_a_cancelled_chain_does_not_run_the_verification_pass():
 
     assert set(passes) == {"forward"}
     assert runner.backward_ is None
-    assert [d.code for d in series.diagnostics] == ["SEQUENTIAL_CANCELLED"]
+    # the comparison that never ran says so (WP-1333): zero
+    # SEQUENTIAL_PATH_DEPENDENT findings is what a clean series reports too
+    assert [d.code for d in series.diagnostics] == [
+        "SEQUENTIAL_CANCELLED", "SEQUENTIAL_PATH_CHECK_INCOMPLETE"]
+    not_run = series.diagnostics[1]
+    assert not_run.level == "warning"
+    assert "did not run" in not_run.message
+    assert "forward chain was cancelled" in not_run.message
     assert not any(d.code == "SEQUENTIAL_PATH_DEPENDENT"
                    for d in series.diagnostics)
 

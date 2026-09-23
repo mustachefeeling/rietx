@@ -182,12 +182,13 @@ beside it.
   print it, was answered `instrument.profile.y`. Manual (`refining.md`,
   the `StageResult` table and three paragraphs), skill (§7 rows for both
   codes, surprises § 8.28), release notes (`releases/1.5.1.md`), v1.6 record.
-  `SCHEMA_VERSION` 0.24 → 0.25.
+  `SCHEMA_VERSION` 0.24 → 0.25 as written, and 0.25 → 0.26 once stacked on
+  WP-1333's PR #420, which took 0.25 first.
 
   **The two fields default to `None`, not empty, and that differs from
   1435's precedent on purpose.** No hold could exist before its field, so `[]`
   was true of every older result. A typo'd literal freed nothing in silence
-  long before this one, so `[]` on a result stored before 0.25 would claim a
+  long before this one, so `[]` on a result stored before 0.26 would claim a
   check that never ran, which is WP-1076's rule. Every runner writes a value.
   A single-histogram fit writes `unreached_histograms={}`.
 

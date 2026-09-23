@@ -97,7 +97,7 @@ Some constraints that shape (1) and (3):
   `RefinementResult.diagnostics`, one per histogram, with `value` the
   histogram index and `where` the globs. The record behind it is
   `StageResult.unreached_histograms` (histogram → globs, `{}` on a single
-  histogram, `None` on a result stored before schema 0.25). A report for a
+  histogram, `None` on a result stored before schema 0.26). A report for a
   joint fit should put it beside the histogram it names rather than in a
   pooled list, since "histogram 1 kept its starting profile" is the one line
   a reader of that histogram's panel needs. `STAGE_PATH_UNKNOWN` also fires on

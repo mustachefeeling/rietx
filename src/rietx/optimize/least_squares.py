@@ -255,6 +255,38 @@ class LSQOutcome:
     #: Optimization* 2nd ed. ch. 12 and 16: an active set is identified by the
     #: multiplier, never by proximity.
     residual_cosine: np.ndarray | None = None
+    #: ``repr`` of the ``LinAlgError`` the esd computation raised *after* the
+    #: solve returned, or ``None`` when it did not (WP-1333, issue #225).  A
+    #: failed eigensolve is not a failed fit: :attr:`theta` is the solver's
+    #: answer either way, and only :attr:`stderr_internal`/:attr:`correlation`
+    #: are absent — the ``float | None`` every esd downstream already is.
+    #: Written by :func:`_guarded_covariance`, the one place both solver entry
+    #: points reach ``covariance_estimates`` through; ``refine`` turns it into
+    #: ``COVARIANCE_UNAVAILABLE`` naming the stage.
+    covariance_error: str | None = None
+
+
+def _guarded_covariance(jac, fun, n_free: int, n_data: int
+                        ) -> tuple[np.ndarray | None, np.ndarray | None,
+                                   str | None]:
+    """:func:`covariance_estimates`, with an eigensolver failure made absent.
+
+    Returns ``(stderr, corr, None)``, or ``(None, None, repr(exc))`` when
+    ``np.linalg.LinAlgError`` escapes the pseudo-inverse.  Issue #225 met it
+    at a converged fit, pattern 78 of a 182-pattern chain, as ``Eigenvalues
+    did not converge`` out of ``eigh``, and the raise discarded the answer the
+    solver had already returned.  **The mechanism is not asserted here**: the
+    reporter could not reduce it to a data-free case, and ill-conditioned
+    synthetic Jacobians (columns at 1e-90 to 1e-200) pass through
+    :func:`~.statistics.normal_covariance` without raising.  Only
+    ``LinAlgError`` is caught, which is the one type an eigensolve reports
+    non-convergence with; anything else is a defect and stays loud.
+    """
+    try:
+        stderr, corr = covariance_estimates(jac, fun, n_free, n_data=n_data)
+    except np.linalg.LinAlgError as exc:
+        return None, None, repr(exc)
+    return stderr, corr, None
 
 
 def _residual_cosine(jac, fun) -> np.ndarray | None:
@@ -1363,9 +1395,11 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
     # feeds the table esds too), then split: table columns stay in the outcome,
     # the intensity tail lands on the model's Pawley block.
     stderr = corr = stderr_full = None
+    covariance_error = None
     if compute_uncertainties and res.jac is not None and len(res.fun) > len(res.x):
-        stderr_full, corr_full = covariance_estimates(res.jac, res.fun, len(res.x),
-                                                       n_data=len(model.tt))
+        stderr_full, corr_full, covariance_error = _guarded_covariance(
+            res.jac, res.fun, len(res.x), n_data=len(model.tt))
+    if stderr_full is not None:
         stderr, corr = stderr_full[:n_table], corr_full[:n_table, :n_table]
         if model.pawley is not None:
             model.pawley.stderr = stderr_full[n_table:]
@@ -1386,7 +1420,8 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
                       max_shift_over_esd=_final_shift_over_esd(
                           table, tracker.step(), stderr_full, corr, n_table),
                       termination=termination,
-                      n_degenerate_cell_probes=cell_guard.n_degenerate)
+                      n_degenerate_cell_probes=cell_guard.n_degenerate,
+                      covariance_error=covariance_error)
 
 
 def _multi_closures(models: list[CompiledModel], mtable: "MultiParameterTable",
@@ -1535,10 +1570,10 @@ def run_multi_least_squares(models: list[CompiledModel],
     termination = (res.termination if solver == "lm"
                    else _TRF_TERMINATION.get(res.status, str(res.status)))
 
-    stderr = corr = None
+    stderr = corr = covariance_error = None
     if compute_uncertainties and res.jac is not None and len(res.fun) > len(res.x):
-        stderr, corr = covariance_estimates(res.jac, res.fun, len(res.x),
-                                            n_data=n_data_total)
+        stderr, corr, covariance_error = _guarded_covariance(
+            res.jac, res.fun, len(res.x), n_data=n_data_total)
     jac_data = np.asarray(res.jac)[:n_data_total] if res.jac is not None else None
     # ``jac_data`` drops the penalty and restraint *rows*; the angle keeps
     # them, being read off the cost the driver actually minimised
@@ -1546,7 +1581,8 @@ def run_multi_least_squares(models: list[CompiledModel],
                       jac_data, stderr, corr, solver=solver,
                       residual_cosine=_residual_cosine(res.jac, res.fun),
                       termination=termination,
-                      n_degenerate_cell_probes=cell_guard.n_degenerate)
+                      n_degenerate_cell_probes=cell_guard.n_degenerate,
+                      covariance_error=covariance_error)
 
 
 def covariance_estimates(jac: np.ndarray, fun: np.ndarray, n_free: int,

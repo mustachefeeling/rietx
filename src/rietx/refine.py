@@ -2529,7 +2529,8 @@ class Refinement:
                     stage, data, mode, table, model, two_theta_limits,
                     plan.correlation_guard, events=stream, cancel=cancel,
                     stage_index=k, n_stages=len(plan.stages), ftol=ftol)
-            stage_diagnostics = _guard_diagnostics(guard)
+            stage_diagnostics = _guard_diagnostics(guard) + _covariance_diagnostics(
+                stage.name, outcome, answer=k == len(plan.stages))
             for d in stage_diagnostics:
                 if d.code in ("HIGH_CORRELATION", "FLAT_DIRECTION"):
                     # keyed by code *and* pair: a flat pair fires both, and a
@@ -2681,6 +2682,8 @@ class Refinement:
                     # ``fit_end`` to say so — recorded itself ``done``.
                     stream.close()  # we created it from a path/callable
             diagnostics = _guard_diagnostics(guard)
+            diagnostics.extend(_covariance_diagnostics(stage.name, outcome,
+                                                       answer=True))
             if mode == "pawley":
                 diagnostics.extend(_pawley_unresolved_diagnostics(model, self.structure))
             diagnostics.extend(_constraint_diagnostics(stage.name, outcome))
@@ -3386,6 +3389,53 @@ def _constraint_diagnostics(stage_name: str, outcome) -> list[Diagnostic]:
                    "vary the starting seed and quote them only if they survive "
                    "(the STEPHENS_STRAIN_NOT_POSITIVE protocol row applies even "
                    "though that guard is silent under solver='lm')",
+    )]
+
+
+def _covariance_diagnostics(stage_name: str, outcome, *,
+                            answer: bool) -> list[Diagnostic]:
+    """``COVARIANCE_UNAVAILABLE`` when a stage's esd computation raised after
+    its solve returned (WP-1333, issue #225).
+
+    One per stage, because the two cases say different things and a caller
+    acts on only one of them.  On the **answer-producing** stage (``answer``)
+    every esd on the result is absent — ``None``, the empty state the schema
+    has always declared — and so is everything built on the covariance (QPA
+    fractions' esds, geometry esds, the Bérar-Lelann factor's effect).  On an
+    **intermediate** stage the reported values are untouched and what did not
+    run is that stage's correlation guard, whose findings would have been read
+    off the matrix that was never formed.  ``warning`` either way: an esd that
+    is missing because its computation failed is not the same statement as one
+    that is missing because the parameter was not refined, and only this
+    diagnostic tells them apart.
+    """
+    error = getattr(outcome, "covariance_error", None)
+    if error is None:
+        return []
+    if answer:
+        consequence = ("every esd on this result is absent (None), as are the "
+                       "correlations and everything propagated from them")
+        suggestion = ("the refined values stand — the solve had returned "
+                      "before the esd computation failed — but quote none of them "
+                      "with an uncertainty from this fit; refit from these "
+                      "values (a near-singular normal matrix is the usual "
+                      "cause, so fixing or restraining the most correlated "
+                      "block is the usual cure) and read the esds from that")
+    else:
+        consequence = ("this intermediate stage's guards ran without a "
+                       "covariance; the result's esds are the answer-producing "
+                       "stage's, so this stage's failure is not why any of "
+                       "them would be absent")
+        suggestion = ("whatever this stage's guards would have read off the "
+                      "covariance — a HIGH_CORRELATION or FLAT_DIRECTION "
+                      "finding, an esd-scaled bound test — is unknown rather "
+                      "than absent on its stage report and history node; the "
+                      "result's own findings are the last stage's")
+    return [Diagnostic(
+        level="warning", code="COVARIANCE_UNAVAILABLE", where=[stage_name],
+        message=(f"stage {stage_name!r} returned ({outcome.status}), but its "
+                 f"esd computation raised {error}: {consequence}"),
+        suggestion=suggestion,
     )]
 
 

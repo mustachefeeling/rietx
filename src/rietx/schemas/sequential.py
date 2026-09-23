@@ -106,7 +106,9 @@ class SeriesEntry(Base):
     #: both set means a cold restart rescued the pattern, ``rwp_warm`` alone
     #: means the fence fired but a warm attempt was still the best of the
     #: ones tried — worth seeing, since it marks a pattern the series found
-    #: hard for a reason no restart could fix.
+    #: hard for a reason no restart could fix.  ``None`` when that first
+    #: attempt raised rather than returned: it reached no Rwp, and
+    #: :attr:`rungs_raised` says what it raised.
     rwp_warm: float | None = None
     #: Which attempt produced the values on this entry (WP-1051).  The chain
     #: escalates only on failure: ``"warm"`` is the collapsed warm refit
@@ -121,8 +123,21 @@ class SeriesEntry(Base):
     #: pattern that fitted first time, up to three when the ladder ran to the
     #: end.  It is what makes the escalation auditable — ``rung`` alone cannot
     #: say whether the winning attempt was the only one, and the cost in
-    #: ``n_iterations`` is the sum over exactly these.
+    #: ``n_iterations`` is the sum over exactly these less the ones in
+    #: :attr:`rungs_raised`, which report no count to charge.
     rungs_tried: list[str] = Field(default_factory=list)
+    #: The rungs of :attr:`rungs_tried` whose fit **raised** rather than
+    #: returned, each with ``repr(exc)`` (WP-1333).  A raised rung is a rung
+    #: that lost, and the ladder escalates past it exactly as past a diverged
+    #: one, so an entry exists only because a later rung returned; a pattern
+    #: on which every rung raised has no entry and is a
+    #: :class:`SeriesFailure` instead.  The case that made this a ladder
+    #: member rather than a failure is issue #224: a neighbour that converged
+    #: with a runaway cell hands it to every warm rung, the enumerator
+    #: refuses it at compile, and only the cold rung escapes.  Written by
+    #: ``SequentialRefinement._chain``; empty — which is true — wherever no
+    #: rung raised.
+    rungs_raised: dict[str, str] = Field(default_factory=dict)
 
     #: Where this pattern's own history lives (one tree per pattern — a tree is
     #: pinned to one pattern by its data fingerprint).
@@ -211,7 +226,9 @@ def _unservable(series: "SeriesResult", path: str) -> str:
 
 class SeriesFailure(Base):
     """One pattern the chain could not fit at all — an uncaught exception out
-    of :meth:`~rietx.refine.Refinement.fit`, not a converged-but-bad result
+    of :meth:`~rietx.refine.Refinement.fit` on **every** rung of the ladder
+    (WP-1333: a rung that raises escalates, so a pattern a later rung rescued
+    is an entry with ``rungs_raised`` instead), not a converged-but-bad result
     (that is ``SeriesEntry.status == "diverged"``, a different thing: a
     fit that ran to completion and landed somewhere the reseed fence
     rejected).  This is the fit never finishing — ``LinAlgError: SVD did not
@@ -221,8 +238,8 @@ class SeriesFailure(Base):
     ``index``/``label`` place it in the series exactly as
     :class:`SeriesEntry` does; ``exception`` is ``repr(exc)`` (the type and
     message, never the traceback — this is a summary field like the rest of
-    this module, not a debugging dump) captured where ``SequentialRefinement``
-    caught it.
+    this module, not a debugging dump) of the **last** rung's exception,
+    captured where ``SequentialRefinement`` caught it.
     """
 
     index: int
@@ -255,14 +272,14 @@ class SeriesResult(Base):
     #: returns.
     backward: "SeriesResult | None" = None
     diagnostics: list[Diagnostic] = Field(default_factory=list)
-    #: every pattern ``on_error`` did not let crash the whole chain — see
-    #: :class:`SeriesFailure`.  Empty under the default ``on_error="raise"``
-    #: policy on any chain that never failed, which is every chain this
-    #: package's own suite runs; on a chain that *did* fail under
-    #: ``on_error="raise"`` this is still populated (attached to the raised
-    #: exception too — ``SequentialRefinement.fit`` never returns in that
-    #: case, so the only way to read a partial ``SeriesResult`` back is off
-    #: ``SequentialRefinement.results_``/``.failures_`` or the exception).
+    #: every pattern on which every rung of the ladder raised, so the chain
+    #: has no entry for it — see :class:`SeriesFailure`.  Populated under the
+    #: default ``on_error="carry"`` and under ``"skip"``; under ``"raise"``
+    #: ``SequentialRefinement.fit`` never returns, and the same list is on
+    #: ``SequentialRefinement.failures_`` and the exception.  Empty — which is
+    #: true — on a chain where every pattern returned a fit.  On
+    #: :attr:`backward` it is the verification chain's own, which costs the
+    #: path-dependence comparison those patterns and nothing else.
     failures: list[SeriesFailure] = Field(default_factory=list)
     #: ``len(failures)``, carried as its own field because a consumer
     #: checking "did every pattern fit" wants a number, not a list to count —
@@ -652,16 +669,27 @@ class SeriesResult(Base):
         # the confident wrong answer this row exists to avoid.
         interrupted = any(d.code == "SEQUENTIAL_CANCELLED"
                           for d in self.diagnostics)
+        # WP-1333's record of the comparison, which is the authority where it
+        # exists: ``warning`` is "did not run" and says why (a backward pass
+        # that *raised* is not a cancel, and the row must not call it one),
+        # ``info`` is "ran on less than the series".  A series stored before
+        # schema 0.25 carries neither, and the cancel test above still speaks.
+        incomplete = by_code.get("SEQUENTIAL_PATH_CHECK_INCOMPLETE", [])
+        not_run = [d for d in incomplete if d.level == "warning"]
+        partial = [d for d in incomplete if d.level != "warning"]
         if self.direction == "both" and self.backward is not None \
-                and not interrupted:
+                and not interrupted and not not_run:
             paths = ", ".join(p for d in depend for p in d.where) or "none"
             lines.append(f"    ordering artefact: measured both ways, "
                          f"{len(depend)} parameter(s) disagree ({paths})")
+            for d in partial:
+                lines.append(f"      but {d.message}")
         elif self.direction == "both":
-            lines.append("    ordering artefact: NOT measured — direction="
-                         "'both' was asked for but the chain was cancelled "
-                         "before the two directions could be compared, so an "
-                         "empty disagreement list is silence, not agreement")
+            why = (not_run[0].message if not_run else
+                   "direction='both' was asked for but the chain was "
+                   "cancelled before the two directions could be compared")
+            lines.append(f"    ordering artefact: NOT measured — {why}, so an "
+                         f"empty disagreement list is silence, not agreement")
         else:
             lines.append(f"    ordering artefact: NOT measured — this chain ran "
                          f"{self.direction} only, and direction='both' is the "
