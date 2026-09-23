@@ -752,6 +752,7 @@ separability floor, and not scheduled here.
 | [1410](wp/1410-worktree-gate-scope.md) | The worktree gate guards this checkout, not every repository | ✅ 2026-09-14 | — | — |
 | [1443](wp/1443-part-one-read-by-a-newcomer.md) | Part 1 read by a newcomer: eleven passages, one word, and the version the manual describes | ⬜ | P3 | — (1409 is the shape) |
 | [1448](wp/1448-a-number-somebody-chose.md) | A number somebody chose says so, and says where the argument is | ⬜ | P4 | — |
+| [1450](wp/1450-a-collaborators-dataset-stays-unnamed.md) | A collaborator's dataset stays unnamed | ⬜ | P1 | — |
 
 #### Candidates — named on a use case, not yet on a measurement
 
