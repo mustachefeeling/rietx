@@ -38,6 +38,18 @@ Toby {cite}`toby2006`, and Part 2 gives them as equation
 `Statistics.chi2` is the reduced χ², not Σw δ². The two differ by a factor of
 N − P, which on a real pattern is several thousand.
 
+Every figure in the block, and `RefinementResult.y_calc` beside it, is measured
+on a compile at the values the result returns. The last stage solved on a
+compile whose peak windows and quadrature node counts were frozen at the
+values it started from, and when the two disagree by more than 0.1 % of χ² the
+result says so as `FROZEN_COMPILE_STALE`, both figures in its message. The
+esds are not re-measured: they are the last solve's, read off its Jacobian.
+To reproduce the number yourself, compile `Refinement.fitted_structure` and
+`Refinement.fitted_instrument` with `moving_paths` set to the paths in
+`result.parameters`. A compile claiming nothing moves sizes the peak
+quadrature for the values alone, and on the Si SRM 640c acceptance fixture
+that alone moves χ² by 1.4 %.
+
 The literature is not consistent about which of the two is called χ². The IUCr
 guidelines {cite}`mccusker1999` write χ² = Rwp/Rexp and say it should approach 1;
 that quantity is `Statistics.gof` here, and `Statistics.chi2` is its square. Both
