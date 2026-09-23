@@ -1,6 +1,6 @@
 # WP-1418 — the magnetic structure is determined, not only stated
 
-Milestone: v1.6 · Status: ⬜
+Milestone: v1.6 · Status: 🔄 2026-09-23 — M-6 and M-7 landed (PR #389); M-8, M-9, the Part 1 chapter and the skill rows remain
 Depends on: PR #290's `crystallography.magnetic` (landed 2026-09-10);
 1326 (the k candidates) for the k-search rung; 1327 (the moment, the hold)
 for the determination verb. The irrep and isotropy rungs depend on nothing
@@ -215,9 +215,9 @@ MAGNDATA magCIF entries serve the round-trip and span tests with no pattern.
 
 ## Tasks
 
-- [ ] M-6: irreps and decomposition, spgrep as oracle in the test suite
+- [x] M-6: irreps and decomposition, spgrep as oracle in the test suite
       only; the Pnma 4b/4c checks and the 230-group intertwiner test.
-- [ ] M-7: isotropy subgroups → operator lists, absences, powder-equivalence
+- [x] M-7: isotropy subgroups → operator lists, absences, powder-equivalence
       classes; ≥ 10 MAGNDATA parents recover their published group.
 - [ ] M-8: 1326's candidate generator made pluggable and the zone's special
       points and lines added, labelled.
@@ -274,3 +274,45 @@ no magnetic model declared.
   `docs/` recorded it until this round; spglib 2.7.0 in the venv carries the
   magnetic database. The decision it carries, the non-goal as sequencing, is
   the maintainer's; the triage recommends yes as a candidate.
+
+- **2026-09-23** — M-6 and M-7 landed from outside: PR #389
+  (`mustachefeeling`), merged as `ff5e5244` after four review rounds.
+  - **What it adds.** `crystallography/magnetic/irreps.py` (small irreps of
+    the little group by the ω-twisted regular representation, projective at a
+    non-symmorphic zone boundary), `modes.py` (Γ_perm ⊗ Γ_axial decomposed,
+    basis vectors projected per irrep row, real gauges where FS = +1) and
+    `isotropy.py` (isotropy subgroups as operator lists, MAGNEXT absences,
+    powder-equivalence classes). `symmetry.OperatorGroup`/`resolve_group`/
+    `as_group`/`group_key` let a symbol-less group reach `site_orbit` and
+    `wyckoff.site_constraints`. Manual Part 2 gains
+    `representation-analysis.md`, eight equations with Source lines. spgrep
+    joins `[dev]` as a test oracle only.
+  - **What it makes possible.** M-8 and M-9 can call `isotropy.candidates` and
+    `equivalence_classes` directly. Nothing is re-exported at `rx.` and no
+    verb exists, so the api index and the skill owe nothing yet.
+  - **What it does not do.** The Part 1 chapter, the skill rows and the M-9
+    acceptance (LaMnO₃, Cr₂WO₆) are all still open, so the manual task stays
+    unticked. Irrep labels are positional, and the CDML mapping is deferred
+    in `irreps.py`. Direction labels are the package's own, and a comparison
+    with a published table must go through the subgroup (BNS number).
+  - **Gotchas the review found.** (1) Importing spgrep sets
+    `spglib.error.OLD_ERROR_HANDLING = False` process-wide, which turns every
+    `None` test on a spglib call into a raise. All ten call sites were swept.
+    The reachable ones in `operators.py`, `wyckoff.py` and `indexing/reduce.py`
+    now catch `SpglibError` as well. `tests/conftest.py` sets the flag back to
+    spglib's default per test, so the suite cannot see the flip. (2) A rank-2
+    order-parameter family's basis is gauge-dependent across platforms: a
+    component pin failed on Linux and passed on darwin. Select candidates by
+    BNS number and assert spans. (3) `powder_equivalent` under `lm` refused
+    fewer shells than amplitudes and read the refusal as "different". It now
+    switches to `trf` and skips a family with no pattern at that d limit.
+  - **Left for the maintainer.** Three modules declare the same refusal tuple
+    (`wyckoff.SPGLIB_REFUSALS`, `indexing.reduce.SPGLIB_REFUSALS`,
+    `isotropy.IDENTIFY_REFUSALS`); one authority would need an import across
+    two subtrees. The suite pins spglib's deprecated error mode and emits
+    about 1530 `DeprecationWarning`s from `test_magnetic_operators.py` alone.
+    Moving the package to the new mode is its own WP. The new ATTRIBUTION row
+    for closed tools sits under the open-source heading, beside `xylib`.
+  - **Measured on the merged tree** (darwin/arm64, py3.12, `[dev,jax]`,
+    spglib 2.7.0, spgrep 0.7.0): fast 5889 passed, 84 skipped; `-m slow`
+    191 passed, 7 skipped, 1 xfailed; docs ladder 63 passed, `-W` build clean.

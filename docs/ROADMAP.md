@@ -96,8 +96,8 @@ placement, link resolution, and the size caps on this file and CLAUDE.md.
 open. Seven WPs — 1326-1329, 1343, 1418, 1419 — over a reference implementation
 on the `mustachefeeling` fork.
 
-**Nothing is in flight.** The order is set: 1418's M-6 and M-7 first, having no
-forward-model contact, then 1327's verb, then 1419 as its own PR because the
+**1418's M-6 and M-7 landed 2026-09-23** (PR #389, from outside), having no
+forward-model contact. The order continues with 1327's verb, then 1419 as its own PR because the
 two-lists decision it carries gets waved through in a diff about something
 else. **Neutron TOF stays at [§ v2+](#v2--fenced)** behind issue #193.
 
@@ -586,7 +586,7 @@ existing.
 | [1328](wp/1328-magnetic-interchange.md) | Magnetic interchange: magCIF in and out, and the readers stop refusing | ⬜ | P3 | 1327 (1118 soft) |
 | [1329](wp/1329-moment-in-a-series.md) | The moment in a series: the onset, the hold, the trajectory | ⬜ | P3 | 1327 (1326 soft) |
 | [1343](wp/1343-the-moment-pays-for-the-width.md) | The magnetic peaks are broader, and the moment pays for it | ⬜ | P3 | 1327 (1326 soft) |
-| [1418](wp/1418-the-magnetic-structure-is-determined.md) | The magnetic structure is determined, not only stated | ⬜ | P2 | 1327 (1326 soft) |
+| [1418](wp/1418-the-magnetic-structure-is-determined.md) | The magnetic structure is determined, not only stated | 🔄 2026-09-23 | P2 | 1327 (1326 soft) |
 | [1419](wp/1419-a-child-structure-refined-on-its-mode-amplitudes.md) | A child structure refined on its mode amplitudes | ⬜ | P3 | 1418 (1327 soft) |
 
 ### Unscheduled
