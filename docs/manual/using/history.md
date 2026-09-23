@@ -204,7 +204,7 @@ A `RefinementResult` is not measured this way. Its statistics and curves come
 from one more compile at the values it returns, with the last stage's own
 settings, so a result reproduces from its own parameters while the node it
 produced keeps the as-optimised figure. The two differ by the gap described
-here, and when that gap exceeds 0.1 % of χ² the result carries it as
+here, and when that gap exceeds 1 % of χ² the result carries it as
 `FROZEN_COMPILE_STALE` ([](results.md)).
 
 `NodeMetrics.status` is the solver's, copied from the stage's own

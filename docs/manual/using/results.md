@@ -39,7 +39,11 @@ Toby {cite}`toby2006`, and Part 2 gives them as equation
 N − P, which on a real pattern is several thousand.
 
 Every figure in the block, and `RefinementResult.y_calc` beside it, is measured
-on a compile at the values the result returns. The last stage solved on a
+on a compile at the values the result returns. Two results are not: a Pawley
+result, whose intensity block belongs to the solve and is returned as the
+frozen compile's, and a joint fit, which `rietx.multi` builds itself. Both
+report the frozen compile's figures, and neither carries
+`FROZEN_COMPILE_STALE`. The last stage solved on a
 compile whose peak windows and quadrature node counts were frozen at the
 values it started from, and when the two disagree by more than 1 % of χ² the
 result says so as `FROZEN_COMPILE_STALE`, both figures in its message. The
