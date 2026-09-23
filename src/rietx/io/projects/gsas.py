@@ -147,6 +147,52 @@ class GsasExpError(ValueError):
     """
 
 
+class _UnreadableField(GsasExpError):
+    """A non-blank fixed-width field that is not a number, before the file is named.
+
+    :func:`_num` knows the record and the columns but not the file, so it raises
+    this and :func:`_naming_the_file` puts the file's name in front at the
+    reader's boundary.
+    """
+
+
+def _naming_the_file(error: type[ValueError]):
+    """Re-raise an :class:`_UnreadableField` as ``error``, the file named first.
+
+    One wrapper at each reader's entry point rather than a ``path=`` threaded
+    through every field read: the ``.EXP`` and ``.prm`` readers share
+    :func:`read_icons` and :func:`read_prcf_header`, and each owns its own
+    refusal type.
+    """
+    import functools
+
+    def wrap(reader):
+        @functools.wraps(reader)
+        def read(path, *args, **kwargs):
+            try:
+                return reader(path, *args, **kwargs)
+            except _UnreadableField as exc:
+                raise error(f"{Path(path).name}: {exc}") from None
+        return read
+    return wrap
+
+
+class _Payload(str):
+    """A record's payload that remembers its key.
+
+    A refusal of one field has to say which record the field is on, and a
+    field read gets only the payload.  Slicing gives back a plain ``str``, so
+    the key goes no further than the payload :func:`split_records` returned.
+    """
+
+    key: str
+
+    def __new__(cls, text: str, key: str):
+        obj = super().__new__(cls, text)
+        obj.key = key
+        return obj
+
+
 @dataclass(frozen=True)
 class GsasProfileTerm:
     """One profile coefficient: what it is called, what it is, and its flag.
@@ -552,14 +598,30 @@ def split_records(text: str) -> list[tuple[str, str]]:
         lines = [text[i:i + RECORD_BYTES]
                  for i in range(0, len(text), RECORD_BYTES)]
         lines = [ln for ln in lines if ln.strip()]
-    return [(ln[:KEY_BYTES], ln[KEY_BYTES:]) for ln in lines]
+    return [(ln[:KEY_BYTES], _Payload(ln[KEY_BYTES:], ln[:KEY_BYTES]))
+            for ln in lines]
 
 
 def _num(payload: str, start: int, width: int) -> float | None:
     """One fixed-width numeric field, or ``None`` when it is blank.
 
     Blank is the distinction this whole reader rests on: a field GSAS did not
-    write is not a field holding zero.
+    write is not a field holding zero.  So a field that is **written and is not
+    a number** is refused, never read as ``None``.  Reading it as ``None`` would
+    turn a misaligned or corrupt record into a field the file left out, and
+    every optional field downstream would then answer "not stated" about a
+    record that stated something.  The refusal names the record key, the card
+    columns (0-based, end exclusive, the ``.prm`` reader's own convention) and
+    the text.  The file cannot be trusted by column past such a record, which
+    is why this is a refusal and not a dropped field (``GsasExpError``'s own
+    rule: a project reader refuses where a pattern reader would repair).
+
+    **What this cannot see** is a number that spills across a field boundary
+    and leaves two readable halves.  A left-aligned ``46.60`` starting two
+    columns before a 10-wide boundary reads as ``46`` and ``.60``.  Both are
+    numbers, so no per-field test can tell them from two right-justified
+    values.  Only a split that leaves one half unreadable (``1.2E`` / ``+02``)
+    is caught.
     """
     chunk = payload[start:start + width].strip()
     if not chunk:
@@ -567,7 +629,15 @@ def _num(payload: str, start: int, width: int) -> float | None:
     try:
         return float(chunk)
     except ValueError:
-        return None
+        key = getattr(payload, "key", None)
+        record = f"record {key.strip()!r}" if key else "a record"
+        raise _UnreadableField(
+            f"{record} holds {chunk!r} in columns {KEY_BYTES + start}-"
+            f"{KEY_BYTES + start + width}, which is not a number.  A field GSAS "
+            f"did not write is blank; this one is written and unreadable, so "
+            f"the record is misaligned or corrupt, and reading it as absent "
+            f"would report a value the file stated as one it left out"
+        ) from None
 
 
 def _int(payload: str, start: int, width: int) -> int | None:
@@ -722,8 +792,8 @@ def _required(value: float | None, *, path: str, where: str,
               what: str) -> float:
     """``value``, or a refusal naming the record the blank field sits on.
 
-    :func:`_num` answers ``None`` for a field that is blank or unreadable, and
-    that is right for an optional one — an absent ``KRATIO`` is a file stating
+    :func:`_num` answers ``None`` for a field that is blank (an unreadable one
+    it refuses itself), and that is right for an optional one — an absent ``KRATIO`` is a file stating
     no ratio.  A cell edge or a coordinate is not optional: it is declared
     ``float`` on the model, and letting the ``None`` through means the failure
     surfaces two modules away as a schema error naming neither the file nor the
@@ -732,8 +802,8 @@ def _required(value: float | None, *, path: str, where: str,
     """
     if value is None:
         raise GsasExpError(
-            f"{path}: {where} states no {what} — the field is blank or is not "
-            f"a number, and this one is not optional")
+            f"{path}: {where} states no {what} — the field is blank, and this "
+            f"one is not optional")
     return value
 
 
@@ -907,6 +977,7 @@ def _read_histogram(number: int, block: dict[str, str], kind: str,
         rwp=_num(rpowd, 0, 10), rp=_num(rpowd, 10, 10))
 
 
+@_naming_the_file(GsasExpError)
 def read_gsas_exp(path: str | Path, *,
                   diagnostics: list[Diagnostic] | None = None) -> GsasModel:
     """Read a GSAS-I ``.EXP`` experiment file.
@@ -1030,11 +1101,19 @@ def read_gsas_exp(path: str | Path, *,
         prefo = []
         for key in sorted(k for k in block if k.startswith("PREFO")):
             row = block[key]
+            # The file is the authority on the layout: ``FAP.EXP`` writes five
+            # F10 fields (ratio, h, k, l, and a fifth, 1.0 there), ``3X``, two
+            # flag letters and two ``I5``.  Read at a four-field layout (flag at
+            # 44, ``I5`` at 50), the flag was a digit of the fifth number and the
+            # integer was the letters ``NN``.  That was invisible only while
+            # :func:`_num` read unreadable text as a blank field.  Which
+            # quantity the first letter and first integer belong to is not
+            # established by any file here.
             prefo.append((
                 _num(row, 0, 10) or 1.0,
                 (_num(row, 10, 10) or 0.0, _num(row, 20, 10) or 0.0,
                  _num(row, 30, 10) or 0.0),
-                _flag(row, 44), _int(row, 50, 5) or 0))
+                _flag(row, 53), _int(row, 55, 5) or 0))
         phsfr = block.get("PHSFR", "")
         extpow = block.get("EXTPOW", "")
         hap[(ph, hs)] = GsasHap(

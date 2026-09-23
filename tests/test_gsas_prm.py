@@ -1046,3 +1046,21 @@ def test_a_calibration_that_fits_says_nothing_about_narrowing(tmp_path):
     diagnostics: list = []
     from_instrument(_calibrated(), diagnostics=diagnostics)
     assert not [d for d in diagnostics if d.code == "GSAS_PRM_VALUE_NARROWED"]
+
+
+def test_a_written_icons_field_that_is_not_a_number_is_refused(tmp_path):
+    """The ``.prm`` reader shares ``read_icons``, so it shares the refusal: a
+    non-blank, unparsable field is not a blank one, and the message names the
+    file, the record, the card columns and the text.
+    """
+    icons = _icons()
+    icons = icons[:40] + "   0.9x90 " + icons[50:]      # POLA, payload 40-50
+    p = tmp_path / "garbled.prm"
+    p.write_text(_prm(icons=icons), encoding="utf-8")
+    with pytest.raises(ValueError) as err:
+        read_gsas_prm(p)
+    message = str(err.value)
+    assert message.startswith("garbled.prm: ")
+    assert "'INS  1 ICONS'" in message
+    assert "columns 52-62" in message
+    assert "'0.9x90'" in message

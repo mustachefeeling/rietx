@@ -60,6 +60,7 @@ from .projects.gsas import (
     CW_PROFILE_COEFFICIENTS,
     KEY_BYTES,
     GsasIcons,
+    _naming_the_file,
     read_icons,
     read_prcf_header,
     split_records,
@@ -301,6 +302,7 @@ def _payloads(records: list[tuple[str, str]], name: str) -> list[str]:
     return [payload for got, payload in records if got == name]
 
 
+@_naming_the_file(ValueError)
 def read_gsas_prm(path: str | Path, *,
                   diagnostics: list[Diagnostic] | None = None) -> Instrument:
     """Read a GSAS-I ``.prm`` instrument-parameter file as a **frozen** ``Instrument``.
@@ -708,13 +710,12 @@ def _read_icons(records: list[tuple[str, str]], p: Path) -> GsasIcons:
     if not icons.lam1:
         raise ValueError(
             f"{p.name}: bank 1's ICONS record states no primary wavelength "
-            f"(LAM1, columns 12-22) — the field is blank or is not a number, "
-            f"and an instrument file without a wavelength describes no "
-            f"instrument")
+            f"(LAM1, columns 12-22) — the field is blank, and an instrument "
+            f"file without a wavelength describes no instrument")
     if icons.polarization is None:
         raise ValueError(
             f"{p.name}: bank 1's ICONS record states no polarization (POLA, "
-            f"columns 52-62) — the field is blank or is not a number.  Every "
+            f"columns 52-62) — the field is blank.  Every "
             f"real file in the corpus states it, and falling back on "
             f"Instrument.debye_scherrer's 0.99 would put this package's "
             f"number into an instrument the caller will read as the file's")

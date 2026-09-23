@@ -1061,3 +1061,70 @@ def test_every_numeric_field_carries_its_decimal_point():
     for start in (10, 20, 30, 40):          # x, y, z, occupancy
         assert "." in records["CRS1  AT  1A"][start:start + 10]
     assert "." in records["CRS1  AT  1B"][0:10]
+
+
+# ------------------------------------- a written field that is not a number
+
+def test_a_blank_field_is_none_and_a_written_one_is_its_value(tmp_path):
+    """Blank is "GSAS did not write this"; a well-formed field is its number."""
+    path = _exp(tmp_path, "esds.EXP", *_MINIMAL,
+                _card("CRS1  ABCSIG", "            0.000200"))
+    cell = read_gsas_exp(path).phases[0].cell
+    assert cell.esd_a is None
+    assert cell.esd_b == pytest.approx(0.0002)
+    assert cell.esd_c is None
+
+
+def test_a_written_field_that_is_not_a_number_is_refused_not_absent(tmp_path):
+    """A non-blank, unparsable field used to come back ``None``, which is also
+    what a field GSAS left out reads as, so a misaligned or corrupt record
+    arrived as a quietly missing value.  It is refused now, naming the file,
+    the record, the card columns and the text.
+    """
+    path = _exp(tmp_path, "garbled.EXP", *_MINIMAL,
+                _card("CRS1  ABCSIG", "  0.00X100  0.000200"))
+    with pytest.raises(GsasExpError) as err:
+        read_gsas_exp(path)
+    message = str(err.value)
+    assert message.startswith("garbled.EXP: ")
+    assert "'CRS1  ABCSIG'" in message
+    assert "columns 12-22" in message
+    assert "'0.00X100'" in message
+
+
+def test_a_number_spilling_over_its_field_reads_as_two_numbers(tmp_path):
+    """The limit of any per-field rule, pinned so nobody assumes it is caught.
+
+    A left-aligned ``46.60`` starting two columns before a 10-wide boundary
+    reads as ``46`` in one field and ``.60`` in the next.  Both are numbers, so
+    nothing refuses.  A split that leaves one half unreadable is refused.
+    """
+    path = _exp(tmp_path, "spill.EXP", *_MINIMAL,
+                _card("CRS1  ABCSIG", "        46.60"))
+    cell = read_gsas_exp(path).phases[0].cell
+    assert cell.esd_a == 46.0
+    assert cell.esd_b == pytest.approx(0.6)
+
+    path = _exp(tmp_path, "spill_e.EXP", *_MINIMAL,
+                _card("CRS1  ABCSIG", "   1.2345E+02"))
+    with pytest.raises(GsasExpError, match=r"'1\.2345E' in columns 12-22"):
+        read_gsas_exp(path)
+
+
+def test_a_required_field_that_is_not_a_number_names_the_text(tmp_path):
+    """A cell edge was refused already, but as "blank or is not a number"."""
+    cards = list(_MINIMAL)
+    cards[4] = _card("CRS1  ABC   ", "  4.000000  4.0O0000  4.000000    Y    0")
+    with pytest.raises(GsasExpError, match=r"'4\.0O0000' in columns 22-32"):
+        read_gsas_exp(_exp(tmp_path, "edge.EXP", *cards))
+
+
+def test_preferred_orientation_is_read_at_the_columns_the_file_writes(fap):
+    """``FAP.EXP``'s ``PREFO`` is five F10 fields, ``3X``, two letters, two I5.
+
+    Read at a four-field layout, the flag was a digit of the fifth number and
+    the integer was the letters ``NN``, which only :func:`_num` reading text as
+    a blank field kept quiet.
+    """
+    rows = fap.hap[(1, 1)].preferred_orientation
+    assert rows == ((1.0, (1.0, 0.0, 0.0), False, 0),)
