@@ -11,6 +11,9 @@ dim = ⟨tr R⟩ (vector rep) and ⟨(tr²R + tr R²)/2⟩ (symmetric square).
 
 from __future__ import annotations
 
+import subprocess
+import sys
+
 import numpy as np
 import pytest
 
@@ -305,3 +308,59 @@ def test_rhombohedral_and_hexagonal_r_settings_differ_in_the_derived_cell():
     assert rhombohedral[0] == pytest.approx(rhombohedral[1]) == pytest.approx(rhombohedral[2])
     assert rhombohedral[3] == pytest.approx(rhombohedral[4]) == pytest.approx(rhombohedral[5])
     assert rhombohedral[3] != pytest.approx(90.0)
+
+
+#: Reaches ``site_constraints``'s spglib call with a probe cell spglib cannot
+#: solve — 1e-4 Å edges, the degenerate input of Yue's review — and asserts the
+#: *authored* refusal comes back rather than spglib's own exception.  Run in a
+#: subprocess because importing spgrep is what flips the error mode, the import
+#: happens once per process, and ``tests/conftest.py`` puts spglib's default
+#: back around every test.
+_SPGLIB_REFUSAL_PROBE = """
+import numpy as np
+import spgrep                                   # flips OLD_ERROR_HANDLING False
+import spglib.error
+from rietx.crystallography import wyckoff
+
+assert spglib.error.OLD_ERROR_HANDLING is False, "spgrep no longer flips the flag"
+wyckoff._compatible_lattice = lambda sg: np.eye(3) * 1e-4   # spglib cannot solve it
+try:
+    wyckoff.site_constraints("P n m a", (0.0, 0.0, 0.0))
+except RuntimeError as exc:
+    assert "not consistent with this group's setting" in str(exc), str(exc)
+    assert "expected 62 (P n m a)" in str(exc), str(exc)
+    # `dataset is None or dataset.number != sg.number` has two branches and
+    # this probe is about the first: spglib declining the cell outright, which
+    # prints the group it found as `None`.  Without this line the probe would
+    # pass on the other branch too (review of #389 round 3, follow-ups).
+    assert "space group None" in str(exc), str(exc)
+else:
+    raise AssertionError("site_constraints did not refuse")
+print("OK")
+"""
+
+
+def test_the_site_constraints_refusal_survives_a_process_that_imported_spgrep():
+    """The authored refusal message must reach the caller in either error mode (#389 §2).
+
+    ``spglib.error.OLD_ERROR_HANDLING`` is a **process-global** flag, and
+    ``spgrep/__init__.py`` (0.7.0) sets it ``False`` at import and never puts it
+    back.  In that mode spglib *raises* ``SpglibError`` where it used to return
+    ``None``, so ``site_constraints``'s ``dataset is None`` branch — and with it
+    the sentence about coordinates being inconsistent with the group's setting —
+    became unreachable in any process that imported spgrep.  Measured on the
+    tree #389 was reviewed on, with the probe below:
+
+        default mode -> RuntimeError: spglib identified space group None,
+                        expected 62 (P n m a): the coordinates are not
+                        consistent with this group's setting
+        after spgrep -> SpglibCppError: spacegroup search failed
+
+    A caller cannot act on the second: it names neither the group it asked for
+    nor what is wrong with the coordinates.
+    """
+    pytest.importorskip("spgrep")            # the oracle whose import flips it
+    done = subprocess.run([sys.executable, "-c", _SPGLIB_REFUSAL_PROBE],
+                          capture_output=True, text=True, timeout=300)
+    assert done.returncode == 0, done.stderr
+    assert done.stdout.strip().endswith("OK")
