@@ -46,6 +46,25 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
+#: How spglib declines a cell it cannot solve, in **both** of its error modes.
+#: It returns ``None`` under ``spglib.error.OLD_ERROR_HANDLING = True``, which
+#: is spglib's own (deprecated) default, and **raises** ``SpglibError`` under
+#: ``False``.  The flag is process-global and a third-party import can flip it:
+#: ``spgrep/__init__.py`` (0.7.0) sets it ``False`` and never puts it back, so
+#: every ``if data is None`` fallback in this module became unreachable the
+#: moment anything in the process imported spgrep — measured in Yue's review of
+#: #389, where ``conventional_cell((1e-4,) * 3 + (90, 90, 90))`` returned its
+#: documented ``((1e-4, …), "P", "")`` before the import and raised
+#: ``SpglibCppError: spacegroup search failed`` after it.  A caller that wants
+#: the fallback catches this **as well as** reading the ``None``.
+SPGLIB_REFUSALS: tuple[type[BaseException], ...] = ()
+try:  # pragma: no cover - present in every spglib this package supports
+    from spglib.error import SpglibError as _SpglibError
+
+    SPGLIB_REFUSALS = (_SpglibError,)
+except ImportError:  # pragma: no cover - a spglib without the error module
+    pass
+
 #: χ²₆ at 99 % — the equality bound for two 6-vectors of A..F.  Six because the
 #: comparison is always made on the *reduced primitive* form, which has all six
 #: components free whatever system the candidates were found in.
@@ -228,8 +247,11 @@ def bravais_screen(cell: tuple[float, ...], centring: str = "P", *,
     lat = lattice_vectors(reduced.cell)
     by_symprec, symbols = {}, {}
     for k in symprec_sigmas:
-        data = spglib.get_symmetry_dataset((lat.tolist(), [[0.0, 0.0, 0.0]], [1]),
-                                           symprec=k * esd)
+        try:
+            data = spglib.get_symmetry_dataset((lat.tolist(), [[0.0, 0.0, 0.0]], [1]),
+                                               symprec=k * esd)
+        except SPGLIB_REFUSALS:       # the same refusal, the other error mode
+            data = None
         if data is None:
             by_symprec[k], symbols[k] = "triclinic", ""
             continue
@@ -279,8 +301,11 @@ def conventional_cell(cell: tuple[float, ...], *, symprec: float = 1e-3
     import spglib
 
     lat = lattice_vectors(cell)
-    data = spglib.get_symmetry_dataset((lat.tolist(), [[0.0, 0.0, 0.0]], [1]),
-                                       symprec=symprec)
+    try:
+        data = spglib.get_symmetry_dataset((lat.tolist(), [[0.0, 0.0, 0.0]], [1]),
+                                           symprec=symprec)
+    except SPGLIB_REFUSALS:           # the same refusal, the other error mode
+        data = None
     if data is None:
         return tuple(cell), "P", ""
     symbol = str(data.international)

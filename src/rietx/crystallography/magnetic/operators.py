@@ -75,6 +75,7 @@ from math import lcm
 
 import numpy as np
 import spglib
+import spglib.error
 
 from ..adp import cartesian_basis
 from ..lattice import direct_metric_tensor
@@ -294,10 +295,16 @@ class MagneticOperator:
     def moment_matrix(self) -> np.ndarray:
         """ε·det(R)·R — the action on a moment, an **axial** vector.
 
-        Halpern & Johnson (1939), *Phys. Rev.* **55**, 898 is where the axial
-        character enters the magnetic structure factor; the ε factor is the
-        magnetic group's own (Perez-Mato et al. 2015).  R is **not**
-        transposed: see the module docstring.
+        The law is stated as M(R**r** + **t**) = θ·det(R)·R·M(**r**) by
+        Gallego, Tasci, de la Flor, Perez-Mato & Aroyo (2012), *J. Appl.
+        Cryst.* **45**, 1236 (MAGNEXT), eq. (3), p. 1239, and in prose
+        by Perez-Mato et al. (2015), *Annu. Rev. Mater. Res.* **45**, 217,
+        p. 220 — which is also where the ε (their θ) comes from.  **Not**
+        Halpern & Johnson (1939): that paper gives the interaction vector and
+        the powder average and states no transformation law at all (read page
+        by page 2026-09-22; the words *axial*, *pseudovector* and *inversion*
+        do not occur in it).  R is **not** transposed: see the module
+        docstring.
         """
         return self.time_reversal * self.determinant * self.matrix
 
@@ -399,13 +406,49 @@ class MagneticGroup:
         """Canonicalise a flat operation list into (centerings, cosets).
 
         Splits off the pure-translation subgroup — which is what magCIF's
-        centring loop is — and keeps the first operation met in each of its
-        cosets.  Raises ``ValueError`` naming the offending product when the
-        list is not closed, when the identity is missing, or when the split
-        does not reproduce the input set: those are the three ways a
-        hand-written or transformed list stops being a group.
+        centring loop is — and keeps, of each coset, the operation that
+        sorts first under ``(rotation, translation, time_reversal)`` — a
+        total order on ``MagneticOperator`` that depends only on the
+        operation's own identity, never on the position it happened to
+        occupy in ``operations``.  Raises ``ValueError`` naming the
+        offending product when the list is not closed, when the identity is
+        missing, or when the split does not reproduce the input set: those
+        are the three ways a hand-written or transformed list stops being a
+        group.
+
+        **Order-independence (small-fixes-20260917, item 1).** Two callers
+        that build the same group from the same *set* of operations, in a
+        different order (``_candidate_group``'s seed dict walks
+        ``stabilizer x cell.translations`` in whatever order those come in,
+        and ``_close_operations`` can discover the same closure products in
+        a different sequence for a differently-ordered seed), used to get
+        back a ``MagneticGroup`` whose ``.operations`` picked a different
+        coset representative — "the first one met" — for each caller.
+        The consumer that made this matter is a later WP-1327 module, not in
+        this tree: the site compiler there reads ``group.all_operations()``
+        and keeps the *first* operation whose image matches a nuclear site,
+        with no check that a later match would agree, so picking a different
+        representative can silently pick a different, sign-disagreeing
+        operation for that image (Q23 measured exactly this with an unordered
+        ``set()`` in ``_close_operations``, on
+        ``test_moment_path_is_clean_by_design``).  Sorting here, once, before
+        the coset split, makes ``.operations``/``.centerings`` (and therefore
+        ``.all_operations()``) bit-identical for any input order of the same
+        set — the representative is now a property of the group, not of the
+        caller's enumeration order — so no caller has to get its own
+        enumeration order right for this to hold.
+
+        **What guards that claim on this tree** is
+        ``test_magnetic_operators.py``'s sort-stability test: the same set of
+        operations, shuffled, gives a bit-identical
+        ``operations``/``centerings``/``all_operations()``.  The second,
+        belt-and-braces consistency check at the point of consumption lives in
+        that later module and guards nothing here (Yue's review of #389,
+        follow-ups: the claim had been stated against an absent module).
         """
-        ops = tuple(dict.fromkeys(operations))          # order-preserving dedup
+        ops = tuple(sorted(dict.fromkeys(operations),
+                           key=lambda op: (op.rotation, op.translation,
+                                          op.time_reversal)))
         if IDENTITY not in ops:
             raise ValueError(
                 "the operation list has no identity 'x,y,z,+1'; a magnetic "
@@ -551,6 +594,23 @@ class MagneticGroup:
         The site-symmetry group of x, with the time-reversal signs kept — those
         are what turns the ordinary stabiliser into the magnetic one, and what
         makes a grey group forbid a moment everywhere.
+
+        This is a **geometric** test in whatever cell ``self`` is expressed in
+        — it says nothing about a k-driven return-vector phase (Q22).  For an
+        ordinary, already-resolved magnetic space group there is no such phase
+        to miss: every translation of the group is an exact lattice vector of
+        that group's own cell, full stop.  A group built from a k-driven
+        isotropy subgroup in its own magnetic cell (:mod:`.isotropy`'s
+        ``_candidate_group``) is different: an atom's own return-vector phase
+        lives in the *parent*-cell little group the magnetic cell was folded
+        from, not in this cell (where, by the magnetic cell's own defining
+        property `{t : k·t ∈ ℤ}`, every integer lattice vector dots to an
+        integer with k and the phase this method could recover here is
+        always +1 — recomputing it needs the parent-cell rotation,
+        translation and k directly, which is what
+        ``isotropy.MagneticCandidate.in_allowed_span`` does, feeding the
+        result to :func:`allowed_moment_basis`/:func:`allowed_displacement_
+        basis`'s ``phases`` argument instead of asking this method for it).
         """
         return tuple(op for op in self.all_operations()
                      if op.fixes_site(xyz, tol=tol))
@@ -609,33 +669,62 @@ class MagneticGroup:
     # -- identification ---------------------------------------------------
     def identify(self, lattice=None, *, symprec: float = 1e-5
                  ) -> MagneticSpaceGroupId:
-        """Which of the 1651 groups this is (spglib)."""
+        """Which of the 1651 groups this is (spglib); raises when unnamed."""
         return identify(self, lattice=lattice, symprec=symprec)
 
+    def identification(self, lattice=None, *, symprec: float = 1e-5
+                       ) -> MagneticIdentification:
+        """What this group is, named or not — see :func:`identification`."""
+        return identification(self, lattice=lattice, symprec=symprec)
 
-def allowed_moment_basis(operations, *, transpose: bool = False,
+
+def allowed_moment_basis(operations, *, phases=None, transpose: bool = False,
                          use_determinant: bool = True,
                          use_time_reversal: bool = True) -> np.ndarray:
     """Integer basis of the moments invariant under a set of operations.
 
     ``operations`` is the site's magnetic stabiliser.  A moment is an axial
-    vector, so an operation acts on it as ε·det(R)·R (Halpern & Johnson, 1939,
-    *Phys. Rev.* **55**, 898, for the axial character; Perez-Mato et al., 2015,
-    *Annu. Rev. Mater. Res.* **45**, 217, for ε), and the allowed directions are
+    vector, so an operation acts on it as ε·det(R)·R (Gallego et al., 2012,
+    *J. Appl. Cryst.* **45**, 1236, eq. (3), p. 1239, for the law; Perez-Mato et
+    al., 2015, *Annu. Rev. Mater. Res.* **45**, 217, p. 220, for it in prose and
+    for ε), and the allowed directions are
     the simultaneous fixed points, ∩ ker(ε·det(R)·R − I).  The algebra is exact
     over ``Fraction`` and the basis is the deterministic smallest-integer one
     ``wyckoff._nullspace_int`` returns, so a test may compare arrays exactly.
 
-    The three keyword flags exist **only** so a test can build the wrong action
-    on purpose and show that the span test catches it; nothing in the package
-    calls them, and each defaults to the physics.  ``transpose=True`` is the
-    Rᵀ trap, and it is invisible outside a trigonal or hexagonal setting.
+    ``phases`` (Q22) is an optional sequence, one exact ±1 per operation,
+    multiplying the required eigenvalue on top of ε·det(R): an atom's own
+    return-vector phase, for a stabiliser built from a k-driven isotropy
+    subgroup where one atom-independent ε per operator is not the whole
+    story (see :meth:`MagneticGroup.site_stabilizer`'s docstring).  Defaults
+    to all +1, which is the ordinary, already-resolved magnetic-space-group
+    case this function has always served — passing it changes nothing for
+    every caller but ``isotropy.MagneticCandidate.in_allowed_span``, which
+    computes each phase from :mod:`~rietx.crystallography.magnetic.modes`'s
+    ``SiteRepresentation.permutation.phases``.
+
+    The three other keyword flags exist **only** so a test can build the wrong
+    action on purpose and show that the span test catches it; nothing in the
+    package calls them, and each defaults to the physics.  ``transpose=True``
+    is the Rᵀ trap, and it is invisible outside a trigonal or hexagonal
+    setting.
+
+    ``operations`` is materialised first, so a generator is accepted: it is
+    read twice below (``len`` and the ``zip``), and this is a public export
+    whose old body took one (Yue's review of #389, follow-ups).
     """
+    operations = list(operations)
+    if phases is None:
+        phases = [1] * len(operations)
+    elif len(phases) != len(operations):
+        raise ValueError(
+            f"phases has {len(phases)} entries for {len(operations)} operations; "
+            f"one phase per operation is required")
     rows: list[list[Fraction]] = []
-    for op in operations:
+    for op, phase in zip(operations, phases):
         r = op.matrix
         a = (r.T if transpose else r)
-        factor = 1
+        factor = int(phase)
         if use_determinant:
             factor *= op.determinant
         if use_time_reversal:
@@ -643,6 +732,65 @@ def allowed_moment_basis(operations, *, transpose: bool = False,
         a = factor * a
         for i in range(3):
             rows.append([Fraction(int(a[i][j]) - (i == j)) for j in range(3)])
+    if not rows:
+        return np.eye(3, dtype=np.int64)
+    return _nullspace_int(rows, 3)
+
+
+def allowed_displacement_basis(operations, *, phases=None) -> np.ndarray:
+    """Integer basis of the displacements invariant under a set of operations.
+
+    ``operations`` is the site's magnetic stabiliser.  A displacement is a
+    **polar** vector, so its action under {R|t} is plain R — no determinant,
+    no time-reversal sign, because time reversal does not move an atom — and
+    the allowed directions are the simultaneous fixed points, ∩ ker(R − I),
+    same construction as :func:`~rietx.crystallography.wyckoff.coordinate_basis`
+    one rank down from the tensor algebra here.  This is what
+    :meth:`MagneticCandidate.in_allowed_span` must check for
+    ``kind="displacive"``: using the axial action (:func:`allowed_moment_basis`)
+    on a displacement is the same physics error the module docstring of
+    :mod:`~rietx.crystallography.magnetic.isotropy` warns about, and it is
+    invisible to a dimension count.
+
+    ``phases`` (Q22) is an optional sequence, one exact ±1 per operation: an
+    atom's own return-vector phase, which a displacement needs exactly as
+    much as a moment does — it is a fact about how the *site* returns under
+    {R|t} at this k, not about time reversal, so it does not appear or
+    disappear with ``kind`` (see :meth:`MagneticGroup.site_stabilizer`'s
+    docstring).  Defaults to all +1 (every other caller, and every
+    ``kind="displacive"`` call before Q22, which is the bug this brief fixes:
+    the polar action alone, with no return-vector phase, can only ever demand
+    the +1 eigenspace of R).
+
+    **The convention, and where it is stated.**  *Polar* is defined by the
+    transformation law itself, v′ = R·v, against the axial v′ = ε·det(R)·R·v
+    that :func:`allowed_moment_basis` cites Gallego et al. (2012) eq. (3) for;
+    that
+    a *displacement* is the polar one is stated by the authors of the displacive
+    half of this construction — Campbell, Stokes, Tanner & Hatch, 2006,
+    *J. Appl. Cryst.* **39**, 607–614, § 4.5 "Order-parameter types and
+    tensors", p. 611: atomic displacement modes have order parameters that
+    transform "like polar first-rank tensors under the matrix operations of the
+    irrep" (read from the paper, 2026-09-22).  That paper says nothing about
+    moments; the axial law above rests on Gallego et al. (2012) eq. (3), p. 1239,
+    and Perez-Mato et al. (2015) p. 220.
+
+    ``operations`` is materialised first, so a generator is accepted — it is
+    read twice below — the same sibling defect as in
+    :func:`allowed_moment_basis`.
+    """
+    operations = list(operations)
+    if phases is None:
+        phases = [1] * len(operations)
+    elif len(phases) != len(operations):
+        raise ValueError(
+            f"phases has {len(phases)} entries for {len(operations)} operations; "
+            f"one phase per operation is required")
+    rows: list[list[Fraction]] = []
+    for op, phase in zip(operations, phases):
+        r = int(phase) * op.matrix
+        for i in range(3):
+            rows.append([Fraction(int(r[i][j]) - (i == j)) for j in range(3)])
     if not rows:
         return np.eye(3, dtype=np.int64)
     return _nullspace_int(rows, 3)
@@ -678,24 +826,42 @@ def magnetic_group(spec, *, hall_number: int = 0) -> MagneticGroup:
     group.
 
     The operators come back in spglib's database setting, which is the **BNS**
-    setting of Litvin's tables for the default ``hall_number``; an OG number
-    resolves to the same group but *not* to OG-setting operators.
+    setting for the default ``hall_number``; an OG number resolves to the same
+    group but *not* to OG-setting operators.  The BNS-setting machine-readable
+    tables spglib carries are **Stokes & Campbell's** (Perez-Mato et al. 2015
+    p. 220; Gallego et al. 2016a p. 1753); Litvin (2013), *Magnetic Group
+    Tables*, numbers and organises its groups on the **Opechowski–Guccione**
+    description and prints BNS symbols only as a comparison column, so it is
+    the source of the group *tabulation*, not of this setting.
     :attr:`MagneticGroup.setting` records which it was.  Carry a file's own
     ``_space_group_magn.transform_BNS_Pp_abc`` through
     :meth:`MagneticGroup.transformed` to reach the setting a magCIF is written
     in.
     """
     uni = _resolve_uni(spec)
-    data = spglib.get_magnetic_symmetry_from_database(uni, hall_number)
-    if data is None:  # pragma: no cover - spglib returns None only on bad input
-        raise ValueError(f"spglib has no magnetic space group for UNI {uni}")
+    # ``hall_number`` is **caller input**, and a value outside spglib's table is
+    # the one way this call declines.  It declines two ways depending on
+    # ``spglib.error.OLD_ERROR_HANDLING``: ``None`` in the legacy mode, a
+    # ``SpglibError`` when the flag is off — and importing spgrep (the dev-only
+    # irreps oracle) flips the flag process-wide, so the authored message below
+    # became unreachable in any process that had imported it (Yue's round-3
+    # review of #389: ``magnetic_group(1, hall_number=9999)`` gave this
+    # ``ValueError`` before the import and ``SpglibCppError: spacegroup search
+    # failed`` after it).  Both modes must reach the same sentence.
+    try:
+        data = spglib.get_magnetic_symmetry_from_database(uni, hall_number)
+    except spglib.error.SpglibError:  # the same refusal, the other error mode
+        data = None
+    if data is None:
+        raise ValueError(f"spglib has no magnetic space group for UNI {uni}"
+                         f" in Hall setting {hall_number}")
     t = spglib.get_magnetic_spacegroup_type(uni)
     ops = [MagneticOperator.build(r, [Fraction(int(round(v * 24)), 24)
                                       for v in tr], -1 if e else 1)
            for r, tr, e in zip(data["rotations"], data["translations"],
                                data["time_reversals"])]
     setting = ("BNS standard setting (spglib magnetic database, "
-               "Litvin 2013 tables)" if hall_number == 0
+               "Stokes & Campbell tables)" if hall_number == 0
                else f"spglib magnetic database, Hall number {hall_number}")
     return MagneticGroup.from_operations(
         ops, setting=setting, uni_number=uni, bns_number=t.bns_number,
@@ -738,13 +904,25 @@ def database_settings(spec) -> tuple[DatabaseSetting, ...]:
     than averaging when a moment does not fit its site.
 
     ``is_default`` marks the setting ``hall_number=0`` gives.
+
+    The skip below is the sibling of :func:`magnetic_group`'s refusal and is
+    written the same way, but **no caller can make it fire**: this function
+    takes its Hall numbers from spglib's own table (:func:`_halls_by_number`
+    walks 1-530), so the argument is never out of range and the only reachable
+    ``None`` would be a database entry spglib itself declines to serve.  It is
+    caught rather than left bare because the two error modes must agree even on
+    a branch nothing reaches — under ``OLD_ERROR_HANDLING = False`` an
+    uncaught refusal would *raise* out of this function where it used to skip.
     """
     uni = _resolve_uni(spec)
     number = int(spglib.get_magnetic_spacegroup_type(uni).number)
     default = magnetic_group(uni).all_operations()
     out: list[DatabaseSetting] = []
     for hall, symbol, choice in _halls_by_number().get(number, ()):
-        data = spglib.get_magnetic_symmetry_from_database(uni, hall)
+        try:
+            data = spglib.get_magnetic_symmetry_from_database(uni, hall)
+        except spglib.error.SpglibError:  # the same refusal, the other mode
+            data = None
         if data is None:
             continue
         same = set(magnetic_group(uni, hall_number=hall).all_operations()) == \
@@ -782,6 +960,122 @@ def _resolve_uni(spec) -> int:
     raise ValueError(f"{text!r} is not a {kind} number in spglib's table")
 
 
+@dataclass(frozen=True)
+class MagneticIdentification:
+    """What an operator list *is*, whether or not it has a name.
+
+    **Why a result object rather than a refusal.**  A magnetic space group in a
+    cell no tabulated setting looks like is a perfectly good group — the
+    refinable object of decision D-4 is the operator list, and every orbit,
+    every allowed-moment subspace and every structure factor is computed from
+    that list and never from a symbol.  Being unnamed costs a *label* and
+    nothing else.  Before this class the only channel was
+    :func:`identify`'s ``ValueError``, so a caller had two options: drop the
+    case, or store ``None`` and lose the reason with it.  Measured on the
+    all-group k-sweep (2744 rows, all 230 settings, k ∈ {0,½}³): 29 cases
+    reach an isotropy subgroup spglib will not name, every one a c- or n-glide
+    group doubled along the glide's own translation, and every one a group the
+    sweep could otherwise have used.
+
+    ``named`` is the one thing a caller must branch on.  ``group_id`` is
+    :class:`MagneticSpaceGroupId` when named and ``None`` when not;
+    ``operations`` is always the magCIF ``x,y,z,±1`` list, which is the stored
+    form either way; ``closest_type`` is the Hermann-Mauguin symbol of the
+    *nuclear* type this list's point group and lattice belong to, so a report
+    can say "a monoclinic subgroup of type P2/m, unnamed in this cell" rather
+    than "unidentified"; ``reason`` is empty when named and spglib's refusal
+    when not.
+    """
+
+    named: bool
+    group_id: MagneticSpaceGroupId | None
+    operations: tuple[str, ...]
+    closest_type: str
+    reason: str
+
+    @property
+    def bns_number(self) -> str:
+        """The BNS number, or ``"unnamed"`` — what a label prints."""
+        return "unnamed" if self.group_id is None else self.group_id.bns_number
+
+    @property
+    def msg_type(self) -> int | None:
+        return None if self.group_id is None else self.group_id.msg_type
+
+
+def _closest_nuclear_type(ops) -> str:
+    """The H-M symbol of the nuclear type these magnetic operations belong to.
+
+    ε is dropped and the translations are kept, then
+    ``symmetry._closest_type`` answers with the tabulated group having this
+    list's point group and lattice — which is what "the closest standard type"
+    can honestly mean for a list no symbol reproduces.  Empty when even that
+    does not resolve.
+    """
+    from ..symmetry import _closest_type
+
+    triplets = tuple(op.xyz().rsplit(",", 1)[0] for op in ops)
+    try:
+        found = _closest_type(triplets)
+    except ValueError:                   # pragma: no cover - unparsable list
+        return ""
+    return "" if found is None else str(found.xhm())
+
+
+def identification(group, lattice=None, *, symprec: float = 1e-5
+                   ) -> MagneticIdentification:
+    """What this operator list is — **never a refusal**.
+
+    The non-raising authority :func:`identify` is the strict wrapper over.  Use
+    this wherever an unnamed group is still usable, which is everywhere the
+    operator list is the object: :func:`~rietx.crystallography.magnetic.isotropy.candidates`
+    here, and the supercell builder and the report of a later WP-1327 module,
+    all read the result and treat ``named=False`` as "unnamed in this cell"
+    rather than as a failure.
+
+    See :class:`MagneticIdentification` for what comes back and why.
+    """
+    ops = (group.all_operations() if isinstance(group, MagneticGroup)
+           else tuple(group))
+    rotations = np.array([op.rotation for op in ops], dtype="intc")
+    translations = np.array([[float(v) for v in op.translation] for op in ops],
+                            dtype="double")
+    time_reversals = np.array([op.time_reversal < 0 for op in ops], dtype="intc")
+    # spglib signals "no match" two ways depending on ``spglib.error.
+    # OLD_ERROR_HANDLING``: ``None`` in the legacy mode, a ``SpglibError`` when
+    # the flag is off — and importing spgrep (the dev-only irreps oracle) flips
+    # the flag process-wide.  Both must become the same authored answer, or a
+    # test that imports the oracle changes what this function does (measured
+    # 2026-09-06 on the merged tree: three tests failing on one xdist worker).
+    try:
+        t = spglib.get_magnetic_spacegroup_type_from_symmetry(
+            rotations, translations, time_reversals,
+            lattice=None if lattice is None else np.asarray(lattice, dtype="double"),
+            symprec=symprec)
+    except spglib.error.SpglibError:
+        t = None
+    listed = tuple(op.xyz() for op in ops)
+    if t is None:
+        return MagneticIdentification(
+            named=False, group_id=None, operations=listed,
+            closest_type=_closest_nuclear_type(ops),
+            reason=(
+                f"spglib did not match this list of {len(ops)} operations to "
+                f"any of the {N_MAGNETIC_SPACE_GROUPS} magnetic space groups. "
+                f"Either the list is not a magnetic space group in a "
+                f"crystallographic *setting* — which is what a child cell "
+                f"whose glide translation became a quarter is — or it is one "
+                f"of the database entries spglib cannot match to itself (UNI "
+                f"{', '.join(map(str, UNI_NOT_IDENTIFIABLE))} on 2.7.0)"))
+    return MagneticIdentification(
+        named=True,
+        group_id=MagneticSpaceGroupId(
+            uni_number=int(t.uni_number), bns_number=str(t.bns_number),
+            og_number=str(t.og_number), litvin_number=int(t.litvin_number),
+            number=int(t.number), msg_type=int(t.type)),
+        operations=listed, closest_type="", reason="")
+
+
 def identify(group, lattice=None, *, symprec: float = 1e-5
              ) -> MagneticSpaceGroupId:
     """Identify an operator list as one of the 1651 groups (spglib).
@@ -797,28 +1091,18 @@ def identify(group, lattice=None, *, symprec: float = 1e-5
     naming the group order when spglib does not match: on spglib 2.7.0 that
     happens for the database's own entries :data:`UNI_NOT_IDENTIFIABLE`, so a
     refusal here is not necessarily the caller's fault.
+
+    **The strict form, and it stays strict.**  This is the function to call
+    when a name is what is wanted and its absence is an error — a magCIF that
+    claims a BNS number, a round-trip assertion, a database check.  Where an
+    unnamed group is still usable — which is everywhere the operator list is
+    the refinable object — call :func:`identification` instead and branch on
+    its ``named``.
     """
-    ops = (group.all_operations() if isinstance(group, MagneticGroup)
-           else tuple(group))
-    rotations = np.array([op.rotation for op in ops], dtype="intc")
-    translations = np.array([[float(v) for v in op.translation] for op in ops],
-                            dtype="double")
-    time_reversals = np.array([op.time_reversal < 0 for op in ops], dtype="intc")
-    t = spglib.get_magnetic_spacegroup_type_from_symmetry(
-        rotations, translations, time_reversals,
-        lattice=None if lattice is None else np.asarray(lattice, dtype="double"),
-        symprec=symprec)
-    if t is None:
-        raise ValueError(
-            f"spglib did not match this list of {len(ops)} operations to any of "
-            f"the {N_MAGNETIC_SPACE_GROUPS} magnetic space groups. Either the "
-            f"list is not a magnetic space group in a crystallographic setting, "
-            f"or it is one of the database entries spglib cannot match to "
-            f"itself (UNI {', '.join(map(str, UNI_NOT_IDENTIFIABLE))} on 2.7.0)")
-    return MagneticSpaceGroupId(
-        uni_number=int(t.uni_number), bns_number=str(t.bns_number),
-        og_number=str(t.og_number), litvin_number=int(t.litvin_number),
-        number=int(t.number), msg_type=int(t.type))
+    result = identification(group, lattice, symprec=symprec)
+    if result.group_id is None:
+        raise ValueError(result.reason)
+    return result.group_id
 
 
 # ---------------------------------------------------------------------------
