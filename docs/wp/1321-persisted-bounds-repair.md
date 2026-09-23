@@ -33,6 +33,11 @@ shipping PR closes **#209 and #204**.
   those bounds, and the same answer may not hold there, since a persisted
   unbounded `biso` is a repair rather than a break.
 
+**2026-09-23, from the issue triage (issue #283).** The entry below is
+issue #283's open half, and it named only the PR, so the backlog read the
+issue as owned by three closed WPs. #283's degenerate-metric guard shipped
+in PR #289. Its bounds half is this WP's. The issue stays open until it lands.
+
 **From WP-1440 (the v1.5 notes audit, 2026-09-18).** PR #289 proposed physical
 bounds on `Cell`'s six parameters and the bounds half was **withdrawn** before
 merge, while its degenerate-metric guard shipped. The stated reason is this
