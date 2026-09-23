@@ -20,6 +20,7 @@ approximate — thing to enumerate here.
 from __future__ import annotations
 
 import functools
+import re
 from dataclasses import dataclass, field
 
 import gemmi
@@ -53,6 +54,83 @@ def get_spacegroup(symbol: str) -> gemmi.SpaceGroup:
     if sg is None:
         raise ValueError(f"unknown space group symbol: {symbol!r}")
     return sg
+
+
+# ---------------------------------------------------------------------------
+# a group given by its operations rather than by a symbol
+# ---------------------------------------------------------------------------
+#: The bracketed-label form.  A ``Phase.space_group`` ending in ``[...]`` is a
+#: **label**, not a resolvable symbol: it says "no Hermann-Mauguin symbol names
+#: this group in this cell", and the group itself is then
+#: ``Phase.symmetry_operations``.  The text before the bracket is the closest
+#: standard *type* (what spglib identifies the operation list as, which is a
+#: statement about the type and not about the setting) and the text inside says
+#: why the symbol is not enough — usually the cell.
+_LABEL = re.compile(r"^(?P<symbol>.*?)\s*\[(?P<note>[^\]]+)\]$")
+
+
+def split_group_label(text: str) -> tuple[str, str] | None:
+    """``("P m 1 1", "unnamed in 2a,b,a+c")`` for a bracketed label, else ``None``.
+
+    The one authority for the bracket convention, so the schema validator, the
+    supercell builder and the CIF writer cannot spell it three ways.
+    """
+    m = _LABEL.match(str(text).strip())
+    if m is None:
+        return None
+    return m.group("symbol").strip(), m.group("note").strip()
+
+
+def refuse_an_unnamed_parent(phase, caller: str, *, path: str = "space_group"
+                             ) -> None:
+    """Refuse to derive a child from a parent whose group only a list names.
+
+    The bracketed label is a *label* (:func:`split_group_label`), and gemmi
+    raises on it — "the bracket fails loudly, which is the safety property
+    working" (WP-1419 § Inherited).  But loudly is not the same as *usefully*:
+    on the path this guards, the caller got
+    ``ValueError: unknown space group symbol: 'Pm [unnamed in 2a,b,a+c]'``
+    from four frames down, with no phase named, no mention of the bracket
+    convention and nothing to do about it.
+
+    **Why this is a refusal and not a pass-through.**  Every other consumer of
+    a phase's symmetry resolves it with :func:`resolve_group` and works from
+    the operation list.  The derivations this guards cannot: the small
+    representations of a k-vector come from tables keyed on the *space-group
+    number* (:mod:`rietx.crystallography.magnetic.irreps`), and a group stated
+    only as an operation list in a non-standard cell has no number.  So there
+    is no operation list to fall back on here, and the honest answer is to say
+    which phase, which label, and that the parent of a mode or supercell
+    statement has to be a structure a symbol names.
+
+    ``caller`` is the public function's own name, so the message says where the
+    refusal came from rather than where it was implemented (WP-1103's
+    third-member rule: the exporters and the derivations refuse rather than
+    hand on a symbol they cannot honour).
+    """
+    label = getattr(phase, "space_group", "")
+    bracket = split_group_label(str(label))
+    if bracket is None:
+        return
+    closest, note = bracket
+    raise ValueError(
+        f"{caller}: the parent phase {getattr(phase, 'name', '?')!r} states "
+        f"its symmetry as the *label* {label!r} — no Hermann-Mauguin symbol "
+        f"generates its group in its cell ({note}), so the group is its "
+        f"symmetry_operations list and {closest or 'the leading symbol'} names "
+        f"only the closest type. This derivation needs a named parent: the "
+        f"small representations of a k-vector come from tables keyed on the "
+        f"space-group number, and an operation list in a non-standard cell has "
+        f"no number to key on. Derive the child from the original named parent "
+        f"with the composed transform, or restate this phase in a setting a "
+        f"symbol generates, rather than from a child that is itself unnamed "
+        f"(phases.*.{path})")
+
+
+def unnamed_label(closest: str | None, note: str) -> str:
+    """The bracketed label for a group no symbol reproduces in its cell."""
+    head = (closest or "").strip()
+    return f"{head} [{note}]" if head else f"[{note}]"
 
 
 @functools.lru_cache(maxsize=256)
@@ -1002,6 +1080,13 @@ class ReflectionSet:
     multiplicity: np.ndarray
     d: np.ndarray
     spacegroup: str = ""
+    #: The explicit ``x,y,z`` list when :attr:`spacegroup` is a *label* rather
+    #: than a symbol (:class:`OperatorGroup`), else ``None`` — so a consumer
+    #: that needs the group again (``report.strain``'s Stephens basis) can
+    #: rebuild it with :func:`resolve_group` instead of re-resolving a label
+    #: that names no tabulated group.  ``None`` for every set generated before
+    #: this field existed, which is every set from a symbol.
+    operations: tuple[str, ...] | None = None
     extra: dict = field(default_factory=dict)
 
     def __len__(self) -> int:
@@ -1023,7 +1108,7 @@ def reflection_orbits(sg_symbol: str, hkl_reps: np.ndarray) -> list[np.ndarray]:
     ``generate_reflections``); this is the frozen discrete object the
     March-Dollase correction averages over, computed once per stage.
     """
-    rots = rotation_matrices(get_spacegroup(sg_symbol))
+    rots = rotation_matrices(as_group(sg_symbol))
     rot_int = np.rint(np.transpose(rots, (0, 2, 1))).astype(np.int64)
     orbits: list[np.ndarray] = []
     for h in np.asarray(hkl_reps, dtype=np.int64):
@@ -1038,15 +1123,28 @@ def generate_reflections(sg_symbol: str,
                          cell: tuple[float, float, float, float, float, float],
                          wavelength: float,
                          two_theta_max: float,
-                         two_theta_min: float = 0.0) -> ReflectionSet:
+                         two_theta_min: float = 0.0,
+                         *, apply_absences: bool = True) -> ReflectionSet:
     """Enumerate the symmetry-unique, absence-allowed reflections in range.
 
     Strategy: enumerate all integer hkl in the sphere d ≥ d_min =
     λ/(2 sin(θ_max)), drop systematic absences (gemmi), group the survivors
     into Laue-group orbits (including Friedel mates), and keep one
     representative per orbit with its orbit size as the multiplicity.
+
+    ``apply_absences=False`` keeps the systematically absent orbits, which is
+    the reciprocal *lattice* (centring still applied — that is a condition on
+    the lattice, not on the structure factor) with the parent's Laue
+    multiplicities.  Its one caller is
+    ``crystallography.magnetic.scattering.magnetic_reflections``: a k = 0
+    magnetic space group generally drops the parent's glide and screw
+    operations, so it puts intensity exactly on the reflections a glide or
+    screw absence removes, and those rows have to exist for the peak to be
+    computed at all (WP-1327; WP-1326 measured it on Cr₂WO₆).  **The default is
+    unchanged**, so every existing caller enumerates the same list in the same
+    order and every number it produces is bit-identical.
     """
-    sg = get_spacegroup(sg_symbol)
+    sg = as_group(sg_symbol)
     ops = sg.operations()
 
     d_min = wavelength / (2.0 * np.sin(np.radians(two_theta_max / 2.0)))
@@ -1086,11 +1184,13 @@ def generate_reflections(sg_symbol: str,
     hkl, d = hkl[keep], d[keep]
 
     # systematic absences via gemmi GroupOps (vectorised where available)
-    try:
-        absent = np.asarray(ops.systematic_absences(hkl), dtype=bool)
-    except (AttributeError, TypeError):
-        absent = np.array([ops.is_systematically_absent(list(map(int, h))) for h in hkl])
-    hkl, d = hkl[~absent], d[~absent]
+    if apply_absences:
+        try:
+            absent = np.asarray(ops.systematic_absences(hkl), dtype=bool)
+        except (AttributeError, TypeError):
+            absent = np.array(
+                [ops.is_systematically_absent(list(map(int, h))) for h in hkl])
+        hkl, d = hkl[~absent], d[~absent]
 
     # Laue-group orbits.  A real-space operation x' = Rx + t acts on Miller
     # indices (column form) as h' = Rᵀ h; the orbit therefore uses the
@@ -1152,4 +1252,6 @@ def generate_reflections(sg_symbol: str,
     d_reps = d_spacings(reps, *cell)
     sort = np.argsort(-d_reps)  # ascending 2θ = descending d
     return ReflectionSet(hkl=reps[sort], multiplicity=mult[sort], d=d_reps[sort],
-                         spacegroup=sg.xhm())
+                         spacegroup=sg.xhm(),
+                         operations=(sg.xyz if isinstance(sg, OperatorGroup)
+                                     else None))

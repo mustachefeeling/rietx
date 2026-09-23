@@ -70,6 +70,8 @@ from rietx.schemas.plan import StageSpec
 from rietx.schemas.structure import (
     Atom,
     Cell,
+    MagneticSymmetry,
+    Moment,
     Phase,
     PreferredOrientation,
     StephensStrain,
@@ -176,6 +178,32 @@ def _variant_models() -> list[tuple[Structure, Instrument]]:
             background=BackgroundFixedPlusChebyshev(
                 fixed_two_theta=[10.0, 20.0, 30.0],
                 fixed_intensity=[120.0, 100.0, 95.0]))),
+        # A moment block: it needs its own phase, because the default model's
+        # Mg carries an ``aniso`` and a site may not have both, and because a
+        # moment needs a magnetic space group on the phase beside it.  Every
+        # ``Parameter`` here sits at its schema default — the components are
+        # the default zeros and the block is not free, which is a legal state
+        # (a record, not a dead parameter) and the one that keeps
+        # ``test_defaults_are_the_schemas_own`` reading defaults off this
+        # table like every other model here.  The instrument is the X-ray one
+        # every other model here uses: the moment DOFs come off the
+        # *structure*, and a neutron source renames ``instrument.source.*``
+        # paths this file's coverage tests enumerate separately.
+        (Structure(phases=[Phase(
+            name="MnF2", space_group="P 42/m n m",
+            cell=Cell(a=Parameter(value=4.8734), b=Parameter(value=4.8734),
+                      c=Parameter(value=3.3099), alpha=Parameter(value=90.0),
+                      beta=Parameter(value=90.0), gamma=Parameter(value=90.0)),
+            atoms=[
+                Atom(label="Mn", species="Mn", x=Parameter(value=0.0),
+                     y=Parameter(value=0.0), z=Parameter(value=0.0),
+                     moment=Moment(ion="Mn2+")),
+                Atom(label="F", species="F", x=Parameter(value=0.305),
+                     y=Parameter(value=0.305), z=Parameter(value=0.0)),
+            ],
+            magnetic_symmetry=MagneticSymmetry.model_validate("136.499"),
+        )]),
+         Instrument(source=Source(lines=[EmissionLine(wavelength=1.540598)]))),
     ]
 
 

@@ -199,6 +199,117 @@ attribute to the harmonic once everything else had its chance?". It is the only
 way to see a contamination whose peaks overlap the fundamental's too closely for
 a peak search to separate.
 
+## A moment, stated and refined
+
+When you know the magnetic structure, state it. A moment is a site attribute (`Atom.moment`, a `Moment` block)
+under a `MagneticSymmetry` declared on the phase as `Phase.magnetic_symmetry`. That shape is
+deliberate: `qpa.weight_fractions` reads species, occupancy and multiplicity
+and never sees a moment, so the classic trap of a separate magnetic phase
+doubling the specimen's mass is unreachable here, and the nuclear and magnetic
+contributions share the phase's one `Phase.scale`. A second magnetic scale is
+the easiest route to a plausible fit and a wrong moment; it is not offered.
+
+<!-- api-doc: no-exec — it needs a magnetic structure and a neutron pattern -->
+```python
+from rietx import Atom, Moment, Parameter, Phase
+
+mn = Atom(label="Mn", species="Mn",
+          x=Parameter(value=0.0), y=Parameter(value=0.0), z=Parameter(value=0.0),
+          moment=Moment.from_values((0.0, 0.0, 4.6), "Mn2+", vary=True))
+phase = Phase(name="MnF2", space_group="P 42/m n m", cell=cell,
+              atoms=[mn, f_site], magnetic_symmetry="136.499")
+```
+
+The symmetry is an operator list, and the number is a way of getting one.
+`MagneticSymmetry.operations` is the magCIF `_space_group_symop_magn_operation.xyz`
+loop (xyz strings each carrying a time-reversal sign, `"-x,-y,z,-1"`) and
+`MagneticSymmetry.centerings` the `_space_group_symop_magn_centering.xyz` loop.
+That list is the model. A UNI, BNS or OG number in its place, as above, is
+resolved through spglib's database and fills `MagneticSymmetry.bns_number`,
+`MagneticSymmetry.og_number`, `MagneticSymmetry.uni_number` and
+`MagneticSymmetry.setting` beside it; `MagneticSymmetry.symbol` and
+`MagneticSymmetry.propagation_vector_parent` are records you may set yourself.
+A Shubnikov *symbol* is not accepted: no dependency here parses one, and
+guessing is how a fit lands under the wrong group. `MagneticSymmetry.group`
+hands back the operator algebra if you want to inspect it.
+
+The components are stated, the modulus is refined. `Moment.crystalaxis_x`,
+`Moment.crystalaxis_y` and `Moment.crystalaxis_z` are the magCIF
+`_atom_site_moment.crystalaxis_*` convention: components along a right-handed
+basis of unit vectors parallel to the cell edges, in μ_B. That basis is
+oblique whenever the cell is, so on hexagonal axes the moment (1, 1, 0) is
+1 μ_B and not √2; `Moment.values` returns the three, and `Moment.vary` says
+whether the block asks to refine. What actually enters the least-squares
+problem is `phases.*.atoms.*.moment.dof*`: a modulus in μ_B, then one or two
+angles inside the subspace the site symmetry allows;
+{ref}`sec-moment-dofs` says why.
+
+`Moment.ion` is the magnetic form-factor key (`"Cr3+"`, `"Ho3+"`), and it is
+not `Atom.species`: the neutron scattering length is keyed by nuclide and
+the form factor by oxidation state. An ion the table does not carry is refused
+by name rather than mapped to a neighbour. `Moment.g` is the Landé factor;
+leave it `None` for a 3d or 4d ion, where the spin-only g = 2 makes the ⟨j₂⟩
+term of the dipole approximation vanish exactly, and set it for a 4f or 5f
+one, where it does not: an absent g there is refused rather than defaulted,
+because defaulting it silently drops a term worth tens of percent at high
+angle.
+
+Four declarations are refused where they are made, each because nothing later
+can rescue them: a moment with no `Phase.magnetic_symmetry` (there is no
+allowed subspace to refine in), a moment outside that subspace (the structure
+and the group disagree), a moment on a site that also carries `Atom.aniso`,
+and a moment that is free and exactly zero: |F_m|² is proportional to m²,
+so its Jacobian column vanishes at the origin and the parameter cannot move.
+Seed a physical estimate: 1-5 μ_B for a 3d ion.
+
+The term reaches a `neutron_cw` histogram and nothing else. On an X-ray
+histogram of a joint fit it is not computed at all, so the moment has no
+gradient anywhere and the report's moment arm carries no row for it; any
+other radiation is refused by name.
+
+## What the fit says about the moment
+
+<!-- api-doc: no-exec — it needs a refinement that has run -->
+```python
+report = ref.report()
+row = report.magnetic[0]
+print(row.magnitude, row.approximation, row.unmeasured_directions)
+```
+
+| Field | Is | Reads as |
+|---|---|---|
+| `MomentEvidence.phase`, `MomentEvidence.atom` | which site | the names you gave them |
+| `MomentEvidence.ion` | the form-factor key in force | |
+| `MomentEvidence.path` | the dot-path of the modulus DOF the row is about, the `dof0` row of `phases.*.atoms.*.moment.dof*` | the key to the same number in `RefinementResult.parameters`; `phase` and `atom` are labels and may repeat |
+| `MomentEvidence.magnitude` | the refined modulus, μ_B | its esd is on the `moment.dof0` row of `RefinementResult.parameters`: one writer per number |
+| `MomentEvidence.magnitude_esd` | that modulus's esd, μ_B | copied from the same row, never recomputed; Bérar-Lelann-inflated like every esd here |
+| `MomentEvidence.magnitude_from_components` | \|m\| recomputed from the components with the cosine metric | agrees with the line above to roundoff; disagreeing by 41 % on a hexagonal cell is what a Euclidean norm looks like |
+| `MomentEvidence.crystalaxis` | the three components the DOFs imply | derived, so they carry no esd |
+| `MomentEvidence.approximation` | which f(s) was used, named | ⟨j₀⟩ alone, or ⟨j₀⟩ + (2/g − 1)⟨j₂⟩ with g |
+| `MomentEvidence.free_directions` | every direction DOF the site symmetry leaves free | `"polar"`, `"azimuth"` |
+| `MomentEvidence.unmeasured_directions` | those of them the powder average did not determine | they are held, so they carry no esd at all |
+| `MomentEvidence.supported` | whether |m| is above its floor and above three of its own esds | false means the data does not support a moment here (not a small one) |
+| `MomentEvidence.note` | the sentence for whichever of those applies | |
+
+A direction a powder cannot see is held, not fitted. After the orbit
+average a cubic collinear structure's intensity does not depend on the moment
+direction at all, and a uniaxial one measures only the angle to its unique
+axis. Those are flat directions of the least-squares problem, and this rung
+takes the rule WP-1301 takes for a phase the data cannot see: hold them, name
+them in `StageResult.held`, and report what could not be measured rather than
+a number nobody measured.
+
+A moment the data does not support comes back unsupported, and the test is a
+ratio. Refine the same model against a pattern above the ordering
+temperature and the modulus goes to nothing, because |F_m|² ∝ m² and the only
+way to reduce χ² is to remove the magnetic intensity. On real data it does not
+land at exactly zero: on the Cr₂WO₆ tutorial pattern at 150 K it lands at
+0.067 μ_B with an esd of 0.395, six times larger. So `MomentEvidence.supported`
+is false when the modulus is below its floor or below three of its own
+esds, and the note quotes which. At 4 K the same model gives 2.010 ± 0.046, a
+ratio of 44, and the answer flips. That is the deliverable; a small moment with
+a small esd would not be.
+
 ## How hard each stage is converged
 
 `RefinementPlan.intermediate_ftol` is the termination tolerance every stage but

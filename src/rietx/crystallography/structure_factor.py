@@ -51,7 +51,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-import gemmi
 import numpy as np
 
 from ..backend import get_backend
@@ -60,7 +59,7 @@ from .adp import VOIGT, ustar_from_ucif
 from .neutron import b_coh as neutron_b_coh
 from .neutron import normalize_species as neutron_normalize_species
 from .scattering import f0, normalize_species
-from .symmetry import SITE_TOL, get_spacegroup, site_orbit
+from .symmetry import SITE_TOL, resolve_group, site_orbit
 
 
 @dataclass
@@ -132,7 +131,7 @@ class PhaseSites:
         return any(self.aniso)
 
 
-def select_orbit_ops(sg: gemmi.SpaceGroup, xyz: np.ndarray, *,
+def select_orbit_ops(sg, xyz: np.ndarray, *,
                      tol: float = SITE_TOL) -> tuple[np.ndarray, np.ndarray]:
     """Choose the operation subset giving distinct images of ``xyz``.
 
@@ -173,7 +172,7 @@ def compile_phase_sites(phase: Phase,
     kept**, because the isotope is the scatterer (see
     :mod:`rietx.crystallography.neutron`).
     """
-    sg = get_spacegroup(phase.space_group)
+    sg = resolve_group(phase.space_group, phase.symmetry_operations)
     ops: list[tuple[np.ndarray, np.ndarray]] = []
     species: list[str] = []
     aniso: list[bool] = []

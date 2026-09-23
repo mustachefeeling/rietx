@@ -133,7 +133,8 @@ and the rest describe what this specimen did to the peaks.
 | Field | Type | Default | Meaning |
 |---|---|---|---|
 | `Phase.name` | str | required | a label, and the key an export writes |
-| `Phase.space_group` | str | required | Hermann-Mauguin symbol or a number as a string, resolved by gemmi |
+| `Phase.space_group` | str | required | Hermann-Mauguin symbol or a number as a string, resolved by gemmi, or, beside `symmetry_operations`, a *label* |
+| `Phase.symmetry_operations` | list[str] or None | `None` | the phase's symmetry operations as `x,y,z` triplets, for a group no symbol names in this cell |
 | `Phase.cell` | `Cell` | required | lengths and angles |
 | `Phase.atoms` | list[`Atom`] | required | the asymmetric unit, at least one |
 | `Phase.scale` | `Parameter` | 1.0, fixed, softplus | this phase's contribution to the total intensity |
@@ -145,6 +146,7 @@ and the rest describe what this specimen did to the peaks.
 | `Phase.preferred_orientation` | `PreferredOrientation` or None | `None` | single-axis March-Dollase, {eq}`corr-md` |
 | `Phase.microstrain` | `StephensStrain` or None | `None` | anisotropic strain, width per hkl, {eq}`ms-sigma` |
 | `Phase.particle_radius_um` | float or None | `None` | Brindley microabsorption input, {eq}`corr-brindley`; a plain float, never refined |
+| `Phase.magnetic_symmetry` | `MagneticSymmetry` or None | `None` | the magnetic space group as its magCIF operator and centring loops, {eq}`int-Fmag` |
 | `Phase.restraints` | list | `[]` | soft observational restraints, {eq}`par-restraint` |
 
 The four broadening terms are the sample half of the instrument ⊕ sample split.
@@ -161,6 +163,47 @@ coherent domain, which is smaller than and unrelated to the particle whose
 absorption path Brindley's correction integrates over, and conflating the two is
 a standing error. Supply it from a micrograph or a particle-size measurement, or
 leave it `None`.
+
+`symmetry_operations` is how a phase states a group that has no name in its
+cell, and the case is not exotic: a parent operation whose translation along a
+doubled axis is a half becomes a *quarter* in the child cell of a
+superstructure, and no Hermann-Mauguin symbol in any tabulated setting has a
+quarter in its operation list. The group is a perfectly good space group there:
+it has orbits, site multiplicities and systematic absences like any other, and
+the only thing it lacks is a symbol. Leave the field `None` (the default) and
+nothing changes: the operations are resolved from `space_group` exactly as they
+always were.
+
+When the list is present, `space_group` is a label, and the rule is about
+labels. A *bracketed* label (`"Pm [unnamed in 2a,b,a+c]"`) says that the
+symbol before the bracket is only the closest standard *type* and does not
+generate this group; it requires the list, and no agreement between the two is
+claimed or checked. A *plain* symbol beside a list must generate that list
+exactly, and a disagreement is refused rather than resolved in either
+direction: stating the symmetry two ways and being told when the two are not
+the same group is the point, and silently preferring one of them is how a fit
+ends up with the wrong absences under a right-looking symbol. A list that is
+not a group (no identity, or not closed under composition) is refused too.
+
+Everything downstream reads the operations: site orbits and multiplicities, the
+Wyckoff constraint bases, systematic absences, the reflection list and its Laue
+multiplicities, the structure factor's frozen operation subsets, the cell ties,
+the bond-and-angle symmetry codes, ZMV and the weight fractions. The cell's
+metric constraints are the one thing an operation list cannot state directly,
+and they come from the tabulated group whose point group and lattice match the
+list, which are this group's own, so they are exact rather than approximate.
+Two things such a phase does not get: a Wyckoff letter, and the
+`SPACE_GROUP_SETTING_ASSUMED` warning, both being properties of a tabulated
+setting. `crystallography.magnetic.supercell.magnetic_supercell` builds such
+a phase by itself and says so with a `CHILD_GROUP_UNNAMED` diagnostic on the
+statement it returns.
+
+`magnetic_symmetry` and `Atom.moment` state a magnetic structure: a magnetic
+space group given as its operator list, and moments on the sites it allows.
+Both default to `None`, which is exactly off. A commensurate k ≠ 0 structure
+is stated in its magnetic supercell, never as a propagation vector beside a
+moment model. [](refining.md) has the blocks, what refines and what the report
+says.
 
 `Cell` holds six parameters and applies no symmetry itself.
 
@@ -191,6 +234,7 @@ the six values as a tuple.
 | `Atom.occ` | `Parameter` | 1.0, in [0, 1.5] | site occupancy |
 | `Atom.biso` | `Parameter` | 0.5 Å², in [0, 25] | isotropic displacement, B = 8π²·U |
 | `Atom.aniso` | `AnisoU` or None | `None` | anisotropic displacement, CIF U^ij, {eq}`int-dw-aniso` |
+| `Atom.moment` | `Moment` or None | `None` | a magnetic moment in crystal-axis components, μ_B, {eq}`int-Fmag`; needs `Phase.magnetic_symmetry` beside it |
 
 `species` is validated when the model compiles rather than when the object is
 built, so an unknown symbol fails with a crystallographic message instead of a

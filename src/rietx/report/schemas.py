@@ -185,7 +185,21 @@ from ..strategy.staged import BACKGROUND_ABSORPTION_GUARD
 #   the Layer-1 branch and left None on the abstained one.  Additive and
 #   defaulted, and no gate moved; it bumps because it is a new field on the
 #   report a consumer enumerates, exactly as 1.3 and 1.4 did.
-THRESHOLDS_VERSION = "1.5"
+# 1.5 → 1.6 (WP-1327): ``FitReport.magnetic`` — one row per magnetic site of
+#   the compiled model: the refined |m| with the magnitude the crystal-axis
+#   components imply beside it (the cosine metric, so they agree on an oblique
+#   cell only if the conversion is right), the dipole approximation in force
+#   per ion, the direction DOFs the powder average could not determine, and
+#   whether the modulus is above its floor at all.  Additive and defaulted to
+#   an empty list, which is the honest empty state — no compiled model, no
+#   moment declared, or an X-ray histogram where the term is identically zero.
+#   Two thresholds arrive with it, both gating only rows this field adds:
+#   :data:`MOMENT_SUPPORT_SIGMA` (|m|/σ below which a moment is unsupported,
+#   beside ``schemas.structure.MOMENT_FLOOR_MU_B``, the same floor the hold
+#   rule uses) and :data:`MOMENT_PAIR_RHO_MIN` (the correlation above which two
+#   moduli are reported as one powder-degenerate pair).  No existing threshold,
+#   gate or emission condition moved.
+THRESHOLDS_VERSION = "1.6"
 
 #: linearisation is only meaningful for peak shifts well inside the peak; past
 #: this fraction of FWHM the answer is "re-detect the peak", not "shift it"
@@ -1072,6 +1086,103 @@ class StageReport(Base):
     worst_absorption_path: str | None = None
 
 
+#: How many of its own esds a moment must be before the report calls it
+#: supported (WP-1327).  Three, and the choice is measured rather than
+#: conventional: the Cr₂WO₆ tutorial data gives |m|/σ = 0.17 at 150 K, above
+#: the ordering temperature, and 44 at 4 K, so anything from 1 to 20 separates
+#: them and 3 is the middle of the usable range on a log scale.  rietx's esds
+#: are Bérar-Lelann-inflated, which makes this test *conservative* — the
+#: factor is reported as ``Statistics.esd_inflation`` for a reader who wants
+#: to divide it back out.
+MOMENT_SUPPORT_SIGMA = 3.0
+
+#: |rho| above which two magnetic sites' modulus DOFs (``moment.dof0``) are
+#: read as a powder-degenerate pair (Q4/Q5 follow-up to WP-1327) rather than
+#: two independently measured moduli.  0.95 is Prince's "worthwhile"
+#: correlation bar (*Mathematical Techniques* 3rd ed. ch. 8, already quoted
+#: beside :class:`~rietx.schemas.results.SoftMode`) — at or above it the two
+#: parameters are, for practical purposes, one direction of the least-squares
+#: problem, which is exactly ``isotropy.determinable_amplitudes``'s pre-fit
+#: SVD-rank deficiency read off the *actual fitted* covariance instead: a
+#: rank of 1 where 2 amplitudes were free is |rho| -> 1 between them, not a
+#: separate criterion.
+MOMENT_PAIR_RHO_MIN = 0.95
+
+
+class MomentEvidence(Base):
+    """What the fit measured of one site's magnetic moment (WP-1327).
+
+    ``magnitude`` is the refined modulus DOF — the parameter that carries the
+    esd, which is read from ``RefinementResult.parameters`` at
+    ``phases.i.atoms.j.moment.dof0`` rather than duplicated here (WP-1076: one
+    writer per number).  ``magnitude_from_components`` is |m| recomputed from
+    the crystal-axis components with the magCIF *cosine* metric; the two agree
+    to roundoff when the conversion is right and disagree by up to 41 % on a
+    hexagonal cell when someone reaches for the Euclidean norm, which is why
+    both are here.
+
+    ``unmeasured_directions`` names the DOFs the powder average could not
+    determine — ``"polar"``, ``"azimuth"`` — and they are *held*, so they carry
+    no esd at all.
+
+    ``supported`` is the WP's null test, and it is a **ratio, not a floor**.
+    Measured on the Cr₂WO₆ tutorial data: refined against the 150 K pattern,
+    above the ordering temperature, the modulus does not go to zero — it lands
+    at 0.067 μ_B with an esd of 0.395, six times larger.  An absolute floor
+    calls that supported; the honest reading is that the moment is not
+    distinguishable from none, and the number that says so is |m|/σ.  So
+    ``supported`` is False whenever the modulus is below
+    :data:`~rietx.schemas.structure.MOMENT_FLOOR_MU_B` **or** below
+    :data:`MOMENT_SUPPORT_SIGMA` times its own esd.  At 4 K the same model
+    gives 2.010 ± 0.046 — a ratio of 44 — and the answer flips.
+    """
+
+    phase: str
+    atom: str
+    #: the magnetic form-factor key, e.g. ``"Cr3+"`` — not ``Atom.species``
+    ion: str
+    #: The dot-path of the **modulus** DOF this row is about —
+    #: ``phases.i.atoms.j.moment.dof0``.  ``phase`` and ``atom`` are *labels*,
+    #: chosen for a reader, and two phases may legitimately carry the same
+    #: atom label; the path is the key, and it is the one thing a caller needs
+    #: to reach the same number in ``RefinementResult.parameters`` or to seed
+    #: it on the next pattern of a series (WP-1329's carry rule).  Empty only
+    #: on a row built before this field existed.
+    path: str = ""
+    magnitude: float
+    #: the modulus's esd, **copied** from ``RefinementResult.parameters`` and
+    #: never recomputed here; ``None`` when the block did not refine.  It is
+    #: carried because ``supported`` is a ratio and the reader needs both
+    #: halves of it, and it is Bérar-Lelann-inflated like every other esd this
+    #: package quotes (``Statistics.esd_inflation`` divides the factor back
+    #: out).
+    magnitude_esd: float | None = None
+    magnitude_from_components: float = 0.0
+    crystalaxis: list[float]
+    #: the dipole approximation in force for this ion, named
+    approximation: str
+    #: every direction DOF the site symmetry leaves free, in DOF order
+    free_directions: list[str] = Field(default_factory=list)
+    #: those of them the powder average does not determine
+    unmeasured_directions: list[str] = Field(default_factory=list)
+    #: paths of the other ``MomentEvidence`` rows this modulus is powder-
+    #: degenerate with (Q5) -- empty for an ordinary, separately determined
+    #: row.  ``magnitude``/``magnitude_esd`` above stay this row's own refined
+    #: DOF and its esd (still what a magCIF writes per atom); the number the
+    #: powder actually measures for the pair is :attr:`paired_magnitude`.
+    paired_with: list[str] = Field(default_factory=list)
+    #: the powder-determinable combination this row belongs to when
+    #: :attr:`paired_with` is non-empty: the quadrature sum sqrt(Sigma m^2)
+    #: over the paired rows, with its esd propagated from their *measured*
+    #: covariance (``rho x sigma_i x sigma_j``, not the independent
+    #: approximation) -- ``MOMENT_PAIR_DEGENERATE`` names this pair.  ``None``
+    #: for an ordinary row.
+    paired_magnitude: float | None = None
+    paired_magnitude_esd: float | None = None
+    supported: bool = True
+    note: str = ""
+
+
 # ----------------------------------------------------------------------
 class FitReport(Base):
     """All three layers.  Layer 1/2 fields stay empty when not computed."""
@@ -1085,6 +1196,13 @@ class FitReport(Base):
     regions: list[Region] = Field(default_factory=list)
     n_regions_total: int = 0
     unmatched: list[UnmatchedPeak] = Field(default_factory=list)
+    #: the moment arm (WP-1327): one row per magnetic site, with the magnitude
+    #: the fit measured, the dipole approximation in force, the direction the
+    #: powder average could not determine, and whether the modulus is above
+    #: its floor at all.  Empty when no compiled model was supplied, when no
+    #: phase declares a moment, or on an X-ray histogram — absence for cause
+    #: in all three, never "no moment was found".
+    magnetic: list[MomentEvidence] = Field(default_factory=list)
     #: structural-vs-profile triage (Layer-0 in trustworthiness, though it
     #: needs the compiled model to run).  Absent for cause: None when the fit
     #: is already Le Bail/Pawley (the mode *is* an intensity-free description,

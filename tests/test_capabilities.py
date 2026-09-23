@@ -375,7 +375,8 @@ def test_the_documented_feature_keys_are_present(caps):
     """Removing a flag is a client-visible change, so make it a loud one."""
     expected = {
         "anisotropic_adp", "preferred_orientation", "stephens_strain",
-        "secondary_extinction", "restraints", "surface_roughness",
+        "secondary_extinction", "restraints", "magnetic_moments",
+        "surface_roughness",
         "capillary_absorption", "flat_plate_absorption", "anomalous_dispersion",
         "anomalous_dispersion_default_on", "extra_components",
         "multi_histogram",

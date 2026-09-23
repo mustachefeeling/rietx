@@ -535,6 +535,15 @@ def _features() -> dict[str, bool]:
         "stephens_strain": "microstrain" in Phase.model_fields,
         "secondary_extinction": "extinction" in Phase.model_fields,
         "restraints": "restraints" in Phase.model_fields,
+        # a magnetic moment on a site under a magnetic space group, refined
+        # against a neutron histogram (WP-1327).  Derived from the fields, like
+        # every flag here: the two together are what makes a moment model
+        # expressible at all, and either alone is not.  Which *radiations* carry
+        # the term is ``forward.magnetic_wanted``'s answer and is reported per
+        # source kind in the radiation arm above rather than as a second flag
+        # here.
+        "magnetic_moments": ("magnetic_symmetry" in Phase.model_fields
+                             and "moment" in Atom.model_fields),
         "surface_roughness": "surface_roughness" in Geometry.model_fields,
         "capillary_absorption": "mu_r" in Geometry.model_fields,
         "flat_plate_absorption": "mu_t" in Geometry.model_fields,

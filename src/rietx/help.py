@@ -122,6 +122,7 @@ UNIT_DISPLAY: dict[str, str] = {
     "counts": "counts",
     "counts*deg": "counts·deg 2θ",
     "1e-12 A^-4": "10⁻¹² Å⁻⁴",
+    "mu_B": "μ_B",
 }
 
 
@@ -834,6 +835,41 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         unit="Å²", default=None,
         typical="0.005-0.05 Å²",
         anchor="intensities.html#debye-waller-factors-and-adp-representations",
+    ),
+    "phases.*.atoms.*.moment.crystalaxis_*": HelpEntry(
+        title="Magnetic moment component",
+        description=(
+            "One crystal-axis component of this site's magnetic moment, in "
+            "the magCIF `_atom_site_moment.crystalaxis_*` convention — a "
+            "right-handed basis of **unit vectors** along the cell edges, so "
+            "on hexagonal axes the moment (1, 1, 0) is 1 μ_B and not √2. "
+            "These are **derived**, not refined: the moment enters the fit as "
+            "`phases.*.atoms.*.moment.dof*`, a modulus and the angles the "
+            "site symmetry leaves free, and these three are written back from "
+            "those at the end of a stage. They carry no esd; the magnitude's "
+            "is on the modulus DOF."
+        ),
+        unit="μ_B", default=None,
+        typical="1-5 μ_B for a 3d ion, up to 10 for a rare earth",
+        anchor="intensities.html#the-magnetic-structure-factor",
+    ),
+    "phases.*.atoms.*.moment.dof*": HelpEntry(
+        title="Magnetic moment degree of freedom",
+        description=(
+            "`dof0` is the moment's modulus in μ_B — the number a fit "
+            "measures, and the one that carries the esd. Any further entries "
+            "are angles in radians inside the subspace the site's magnetic "
+            "symmetry allows: one on a two-dimensional subspace, two on a "
+            "three-dimensional one. A powder average determines |m| and, on a "
+            "uniaxial structure, the angle to the unique axis — no more, so "
+            "the directions it cannot determine are **held** and named in "
+            "`StageResult.held` rather than returned as small numbers. "
+            "Seeding the modulus at exactly zero is refused: |F_m|² is "
+            "proportional to m², so the column is dead there."
+        ),
+        unit=None, default=None,
+        typical="1-5 μ_B for the modulus; the angles are unbounded radians",
+        anchor="parameterisation.html#moment-degrees-of-freedom",
     ),
     "phases.*.microstrain.s*": _STEPHENS_S,
     "phases.*.microstrain.dof.*": HelpEntry(

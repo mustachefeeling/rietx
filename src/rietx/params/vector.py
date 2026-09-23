@@ -28,11 +28,16 @@ from pydantic import ValidationError
 from scipy import sparse
 
 from ..crystallography.adp import U_NAMES
+from ..crystallography.magnetic.moments import (
+    dofs_from_moment,
+    moment_frame,
+    moment_from_dofs,
+)
 from ..crystallography.stephens import S_NAMES, isotropic_coefficients, strain_basis
 from ..crystallography.symmetry import (
     cell_constraints,
     check_cell_angles,
-    get_spacegroup,
+    resolve_group,
     rotation_matrices,
 )
 from ..crystallography.wyckoff import adp_basis, coordinate_basis, stabilizer_rotations
@@ -44,7 +49,7 @@ from ..schemas.instrument import (
     BackgroundPSpline,
     Instrument,
 )
-from ..schemas.structure import Structure
+from ..schemas.structure import MOMENT_COMPONENTS, Structure
 from .transforms import dphys_dinternal, internal_bounds, to_internal, to_physical
 
 #: Dot-path suffix of a source line's wavelength row.  One authority for the
@@ -906,6 +911,13 @@ class ParameterTable:
         #: table's arithmetic is untouched: the rebuild writes the literal 1.0
         #: it always wrote, and ``x0``/``bounds`` skip the lookup's branch.
         self._value_scale: dict[str, float] = {}
+        #: atom base path (``phases.0.atoms.2``) → the orthonormal frame of
+        #: that site's allowed moment subspace, in crystal-axis rows.  Frozen
+        #: here from the stage's declared cell and read by
+        #: :meth:`_refresh_moment_components`; the forward model builds the
+        #: *same* frame from the *same* cell through the one function that
+        #: makes it, so there is exactly one frame per site per stage.
+        self._moment_frames: dict[str, np.ndarray] = {}
         self._collect(structure, instrument)
         self._rebuild()
 
@@ -920,7 +932,7 @@ class ParameterTable:
 
     def _collect(self, structure: Structure, instrument: Instrument) -> None:
         for ip, phase in enumerate(structure.phases):
-            sg = get_spacegroup(phase.space_group)
+            sg = resolve_group(phase.space_group, phase.symmetry_operations)
             # The cell ties come from the *setting*, not from the crystal system
             # alone: a c-unique monoclinic symbol fixes β, not γ, and an R group
             # on rhombohedral axes ties c←a and α=β=γ rather than leaving c free
@@ -956,6 +968,7 @@ class ParameterTable:
                 self._collect_atom_coords(f"{base}.atoms.{j}", sg, atom)
                 self._add(f"{base}.atoms.{j}.occ", atom.occ)
                 self._collect_atom_adps(f"{base}.atoms.{j}", sg, atom)
+                self._collect_atom_moment(f"{base}.atoms.{j}", phase, atom)
 
         self._add("instrument.zero_shift", instrument.zero_shift)
         self._collect_instrument(instrument)
@@ -1115,6 +1128,77 @@ class ParameterTable:
             self.entries.append(Entry(path=path, value=float(coef[k]), vary=want_vary,
                                       lo=-np.inf, hi=np.inf, transform="identity"))
         self._add(f"{base}.biso", atom.biso, force_fixed=True)
+
+    def _collect_atom_moment(self, base: str, phase, atom) -> None:
+        """A moment enters θ as a modulus and the angles the site leaves free.
+
+        The **one** parameterisation in the package that is not affine, and the
+        reason is in ``crystallography.magnetic.moments``: a direction a powder
+        average cannot determine has to be a *column* for
+        :meth:`unmeasured_rows` to name it, and neither the components nor
+        their coefficients on the allowed basis is one.  So the three
+        ``crystalaxis_*`` components are **locked** entries — a record, carried
+        for globs, exporters and write-back — and the freedom lives entirely in
+        ``…moment.dof<k>``, whose value is the modulus in μ_B and then one or
+        two angles in radians.
+
+        The consequence of the non-affine map, stated so nobody looks for it:
+        a component has no ``C`` row, so it has no esd.  The esd of this block
+        is the modulus's, which is the quantity the data measures; an esd on a
+        direction that a powder cannot determine would be a number about
+        nothing, and where the powder *can* determine it the angle DOF carries
+        it.
+
+        A site whose symmetry allows no moment contributes no DOFs, so a
+        ``vary`` request on it is impossible rather than silently dead — the
+        schema has already refused the declaration itself.
+        """
+        moment = getattr(atom, "moment", None)
+        if moment is None:
+            return
+        group = phase.magnetic_symmetry.group()
+        cell = phase.cell.lengths_angles()
+        xyz = (atom.x.value, atom.y.value, atom.z.value)
+        frame = moment_frame(group.allowed_moment_basis(xyz), cell)
+        self._moment_frames[base] = frame
+        seed = dofs_from_moment(frame, cell, moment.values())
+        want_vary = moment.vary
+        for name in MOMENT_COMPONENTS:
+            self._add(f"{base}.moment.{name}", getattr(moment, name),
+                      force_fixed=True)
+        # Unbounded and identity-transform, like every other DOF here: the
+        # modulus is *signed* on a one-dimensional subspace (the only way two
+        # independent sites can be stated antiparallel along one axis), and on
+        # a larger one the antipode is an angle away.  |μ| is the magnitude,
+        # and the floor that decides support is on |μ|, not a bound.
+        for k, value in enumerate(seed):
+            self.entries.append(Entry(
+                path=f"{base}.moment.dof{k}", value=float(value),
+                vary=want_vary, lo=-np.inf, hi=np.inf, transform="identity"))
+
+    def _refresh_moment_components(self) -> None:
+        """Write every moment block's components back from its DOFs.
+
+        Called from :meth:`commit` and from :meth:`apply_to_models`, and from
+        nowhere in the residual: the map is not affine, so it cannot ride in
+        the constraint block with the ADP and coordinate rows, and running it
+        per residual evaluation would put a trigonometric call on the hot path
+        for a quantity only the *report* reads.  The forward model computes the
+        components it needs from the DOFs directly, through the same frame.
+        """
+        if not self._moment_frames:
+            return
+        by_path = {e.path: e for e in self.entries}
+        for base, frame in self._moment_frames.items():
+            dofs = [by_path[f"{base}.moment.dof{k}"].value
+                    for k in range(len(frame))]
+            components = moment_from_dofs(frame, dofs)
+            for name, value in zip(MOMENT_COMPONENTS, components, strict=True):
+                by_path[f"{base}.moment.{name}"].value = float(value)
+
+    def moment_frames(self) -> dict[str, np.ndarray]:
+        """The frozen per-site frames, for a caller that has to reproduce them."""
+        return dict(self._moment_frames)
 
     def _collect_instrument(self, instrument: Instrument) -> None:
         # K is a fact about the radiation, not about this instrument, wherever
@@ -2027,6 +2111,9 @@ class ParameterTable:
         values = self.decode(theta)
         for e in self.entries:
             e.value = values[e.path]
+        # the moment components are locked entries fed by a *non-affine* map,
+        # so the constraint block cannot carry them and they are derived here
+        self._refresh_moment_components()
         self._rebuild()  # held-source contributions to d follow the new values
 
     def stderr_physical(self, theta: np.ndarray, stderr_internal: np.ndarray,
@@ -2171,6 +2258,7 @@ class ParameterTable:
         esd from an earlier stage can never survive.  That is what lets the
         CIF exporter write standard uncertainties.
         """
+        self._refresh_moment_components()
         values = {e.path: e.value for e in self.entries}
         #: Every (parameter, path) the walk below reaches, written only once the
         #: walk is complete.  **The write is all-or-nothing**: the bound refusal
@@ -2237,6 +2325,13 @@ class ParameterTable:
                 if atom.aniso is not None:
                     for name in U_NAMES:
                         put(getattr(atom.aniso, name), f"{base}.atoms.{j}.{name}")
+                if atom.moment is not None:
+                    # derived from the DOFs above, never refined directly; the
+                    # esd map has no entry for them, so ``stderr`` is cleared
+                    # rather than left holding a previous stage's number
+                    for name in MOMENT_COMPONENTS:
+                        put(getattr(atom.moment, name),
+                            f"{base}.atoms.{j}.moment.{name}")
         put(instrument.zero_shift, "instrument.zero_shift")
         put(instrument.source.polarization, "instrument.polarization")
         for il, line in enumerate(instrument.source.lines):
