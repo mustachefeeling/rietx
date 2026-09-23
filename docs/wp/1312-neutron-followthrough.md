@@ -66,6 +66,11 @@ exercising this combination.
 
 ### Inherited
 
+- **2026-09-23, from the issue triage (issue #276).** The reporter claimed
+  #276's row on the thread on 2026-09-23: a fix is in progress on their fork,
+  off `ff56d956`, one PR per issue. The claim covers #276 only; #268's row is
+  unclaimed. No PR existed when this was written, so `wp_claim.py status`
+  cannot see the claim yet. Check the thread and `gh pr list` first.
 - **2026-09-16, from [1118](1118-foreign-model-files.md): there is now a real
   CW-neutron instrument to start from.** `rx.read_gsas2_instprm` reads a
   GSAS-II `.instprm` into a frozen `Instrument`, and `tests/data/gsas2_hb2a.instprm`
