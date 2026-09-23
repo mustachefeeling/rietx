@@ -761,9 +761,10 @@ print(ref.summary())
 
 The `next:` line is a `Refinement.suggest` probe on the channels the fit ran on,
 read as ΔBIC rather than as the Δχ² that ranks. It prints `next: free
-instrument.profile.w, predicted ΔBIC +48.2 (Δχ² 1.2e+03)`, or `next: nothing
-ΔBIC admits` when the leading candidate's gain does not pay for its parameter at
-this channel count. It costs one Jacobian build and no solve; [](report.md) has
+instrument.profile.w, predicted ΔBIC +48.2 at N_eff 612 (Δχ² 1.2e+03)`, or
+`next: nothing ΔBIC admits` when the leading candidate's gain does not pay for
+its parameter. `N_eff` is the count the ΔBIC was charged at, the channel count
+over the squared Bérar–Lelann factor, and not the raw channel count. It costs one Jacobian build and no solve; [](report.md) has
 the field and the two questions it separates.
 
 `deliverable=` adds the rows one purpose actually decides on, because the report

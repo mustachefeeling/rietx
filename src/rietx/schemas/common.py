@@ -235,7 +235,12 @@ from .._nearmiss import did_you_mean
 #: silence long before this one.  A stored result from before this opens with
 #: ``None``, "nobody looked", and every runner now writes a value (WP-1076's
 #: rule).
-SCHEMA_VERSION = "0.26"
+#: 0.26 → 0.27 (issue #270): ``CandidateGroup.delta_bic_raw_n`` and
+#: ``SuggestionResult.n_effective`` — ``CandidateGroup.delta_bic`` is now
+#: charged at N/f² (the probe residual's rows over its squared Bérar-Lelann
+#: factor) and the raw-N figure rides beside it.  Additive and defaulted to
+#: ``None``, the same rule as 0.19 → 0.20.
+SCHEMA_VERSION = "0.27"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
 

@@ -98,8 +98,14 @@ class CandidateGroup(Base):
     (Schwarz 1978) — the package's one BIC form — evaluated at the
     Gauss-Newton *prediction* of what freeing this group reaches:
     ``chi2_restricted`` the probe's own weighted SSR, ``chi2_full`` that SSR
-    minus :attr:`gain`, ``n_points`` the probe residual's length and
-    ``n_added`` the number of members.  **Positive favours freeing**, the sign
+    minus :attr:`gain`, ``n_added`` the number of members, and — since #270 —
+    N the **effective** count :attr:`SuggestionResult.n_effective`, the probe
+    residual's length divided by the square of its own Bérar-Lelann factor
+    (:func:`~rietx.optimize.statistics.effective_sample_size`).  Raw N let any
+    improvement outvote the ln N penalty on a serially correlated powder
+    residual, blessing parameters their own esds put within 1σ of zero; at
+    N_eff one parameter's ΔBIC is its predicted t² at the inflated esd minus
+    ln N_eff.  :attr:`delta_bic_raw_n` is the raw-N figure, kept beside it.  **Positive favours freeing**, the sign
     layer2 defines, so a full refit's ΔBIC computed the same way is directly
     comparable — that is what the test pins.
 
@@ -119,6 +125,11 @@ class CandidateGroup(Base):
     gain: float
     resolved: bool
     delta_bic: float
+    #: the same ΔBIC at the raw residual row count, the pre-#270 figure: an
+    #: upper bound on the evidence, which the serial correlation measured in
+    #: :attr:`SuggestionResult.n_effective` says to discount.  ``None`` where
+    #: the group was not built by ``suggest`` (written by ``build_suggestion``).
+    delta_bic_raw_n: float | None = None
 
 
 class SuggestionResult(Base):
@@ -144,6 +155,11 @@ class SuggestionResult(Base):
     chi2_red: float
     noise_floor: float
     summary: str
+    #: the observation count every :attr:`CandidateGroup.delta_bic` was
+    #: charged at: the probe's residual rows over the square of their
+    #: Bérar-Lelann factor (#270).  ``None`` where no factor was measured, in
+    #: which case the groups' ΔBIC is at the raw count.
+    n_effective: float | None = None
 
     def best_or_none(self) -> ParameterCandidate | None:
         """The one defensible winner, or ``None``.

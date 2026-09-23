@@ -168,6 +168,40 @@ def berar_lelann_factor(delta: np.ndarray) -> float:
     return max(float(np.sqrt((run_sums @ run_sums) / chi2)), 1.0)
 
 
+def effective_sample_size(n_points: int, esd_inflation: float | None) -> float:
+    """The channel count a model-selection penalty may charge, N/f² (#270).
+
+    Schwarz's BIC (1978, *Ann. Statist.* **6**, 461) and Hamilton's test
+    (1965, *Acta Cryst.* **18**, 502) both assume N **independent**
+    observations.  A powder residual is serially correlated, and the fit
+    already measures by how much: ``f`` is :func:`berar_lelann_factor`
+    (Bérar & Lelann 1991, *J. Appl. Cryst.* **24**, 1), the factor every
+    reported esd is inflated by.  Dividing N by f² is the count at which the
+    two answers agree: for one added parameter the reward term N_eff·ln(χ²_r/χ²_f)
+    is then the parameter's own t² at its *inflated* esd, so ΔBIC > 0 exactly
+    when t² > ln N_eff, and a parameter the esd column puts within 1σ of zero
+    can no longer be decisive.
+
+    A heuristic, not a theorem, and conservative in the direction the esds
+    are: white residuals still give f ≈ 1.51 (:func:`berar_lelann_factor`'s
+    caveat), so N_eff ≈ N/2.3 there.  Not :func:`effective_observations`,
+    which answers a resolution question (how many reflections the points
+    resolve); this answers an independence one.  ``esd_inflation`` of
+    ``None`` (a fit too short to measure it) returns N unchanged.
+
+    Chosen over M_ind on a measurement (WP-1417 task 3; 27 last-freed
+    parameters across the refining acceptance suites plus an 11-case
+    synthetic single-occupancy fit at 50 000 correlated points): at N/f²
+    every |t| < 2.3 is refused and every |t| ≥ 2.6 admitted, where charging
+    M_ind refused 8 of the 12 cases at |t| ≥ 2.6 it has a value for (up to
+    t = 6.8), admitted one at t = 0.81 where M_ind exceeds N/f², and has no
+    value for a joint fit.
+    """
+    if esd_inflation is None or not esd_inflation > 1.0:
+        return float(n_points)
+    return float(n_points) / (esd_inflation * esd_inflation)
+
+
 def _structural_targets(free_paths: list[str]) -> list[tuple[int, str]]:
     """The columns an absorption screen asks about: (index, path) pairs.
 

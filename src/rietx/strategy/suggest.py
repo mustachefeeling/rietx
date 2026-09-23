@@ -32,6 +32,7 @@ from ..optimize.statistics import (
     _off_span,
     _span_basis,
     block_projection_r2,
+    effective_sample_size,
     one_parameter_gains,
 )
 from ..schemas.suggest import (
@@ -118,6 +119,7 @@ def _matched_action_kind(path: str, actions: Sequence) -> str | None:
 def build_suggestion(jac: np.ndarray, resid: np.ndarray, free: list[int],
                      candidates: Sequence[Candidate], *, chi2_red: float,
                      top_n: int = 5, actions: Sequence = (),
+                     esd_inflation: float | None = None,
                      ) -> SuggestionResult:
     """Rank ``candidates`` by predicted Δχ², gated so a tie is never a winner.
 
@@ -127,6 +129,10 @@ def build_suggestion(jac: np.ndarray, resid: np.ndarray, free: list[int],
     ``actions`` are FitReport Layer-2 ``SuggestedAction``s (duck-typed:
     ``.kind`` and ``.parameter_paths``), already confidence-sorted, used only
     to annotate agreement between the two methods.
+
+    ``esd_inflation`` is the Bérar-Lelann factor of the state's data rows;
+    ΔBIC is charged at ``effective_sample_size`` of it (#270), and at the raw
+    row count when it is ``None``.
     """
     jac = np.asarray(jac)
     resid = np.asarray(resid, dtype=np.float64)
@@ -171,6 +177,8 @@ def build_suggestion(jac: np.ndarray, resid: np.ndarray, free: list[int],
     # block — penalty and restraint rows included — because the gain does)
     chi2_state = float(resid @ resid)
     n_rows = len(resid)
+    n_eff = (None if esd_inflation is None
+             else effective_sample_size(n_rows, esd_inflation))
 
     groups: list[CandidateGroup] = []
     for comp in _union_find_groups(len(survivors), links):
@@ -184,20 +192,22 @@ def build_suggestion(jac: np.ndarray, resid: np.ndarray, free: list[int],
         groups.append(CandidateGroup(
             members=members, gain=gain, resolved=len(members) == 1,
             delta_bic=_predicted_delta_bic(gain, len(members),
-                                           chi2_state, n_rows)))
+                                           chi2_state, n_rows, n_eff),
+            delta_bic_raw_n=_predicted_delta_bic(gain, len(members),
+                                                 chi2_state, n_rows)))
     groups.sort(key=lambda g: (-g.gain, g.members[0].path))
     groups = groups[:top_n]
 
     return SuggestionResult(
         groups=groups, non_separable=non_separable,
         skipped=skipped, n_evaluated=len(scored), chi2_red=chi2_red,
-        noise_floor=floor,
+        noise_floor=floor, n_effective=n_eff,
         summary=_summary(groups, floor, len(scored), len(non_separable),
-                         len(skipped), n_rows))
+                         len(skipped), n_rows, n_eff))
 
 
 def _predicted_delta_bic(gain: float, n_added: int, chi2_state: float,
-                         n_rows: int) -> float:
+                         n_rows: int, n_effective: float | None = None) -> float:
     """Schwarz's ΔBIC for freeing ``n_added`` parameters, predicted not fitted.
 
     The package's one BIC form (:func:`rietx.report.layer2.delta_bic`,
@@ -208,11 +218,13 @@ def _predicted_delta_bic(gain: float, n_added: int, chi2_state: float,
     """
     from ..report.layer2 import delta_bic
 
-    return delta_bic(chi2_state, chi2_state - gain, n_rows, n_added)
+    return delta_bic(chi2_state, chi2_state - gain, n_rows, n_added,
+                     n_effective=n_effective)
 
 
 def _summary(groups: list[CandidateGroup], floor: float, n_evaluated: int,
-             n_non_separable: int, n_skipped: int, n_rows: int) -> str:
+             n_non_separable: int, n_skipped: int, n_rows: int,
+             n_eff: float | None = None) -> str:
     """One deterministic sentence a human or agent can quote.
 
     The sentence carries both numbers because they answer different questions
@@ -238,5 +250,8 @@ def _summary(groups: list[CandidateGroup], floor: float, n_evaluated: int,
                 "not on this evidence alone")
     if top.delta_bic <= 0.0:
         head += (f"; ΔBIC refuses it — the predicted gain does not pay for "
-                 f"{len(top.members)} parameter(s) at N={n_rows}")
+                 f"{len(top.members)} parameter(s) at "
+                 + (f"N={n_rows}" if n_eff is None else
+                    f"N_eff={n_eff:.0f} ({n_rows} rows over the squared "
+                    f"esd inflation)"))
     return f"{head} ({tail})"

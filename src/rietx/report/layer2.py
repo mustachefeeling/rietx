@@ -123,7 +123,8 @@ IMPURITY_SIGMA = 8.0
 
 def hamilton_justified(chi2_restricted: float, chi2_full: float,
                        n_points: int, n_free_restricted: int,
-                       n_added: int, *, alpha: float = 0.05) -> bool:
+                       n_added: int, *, alpha: float = 0.05,
+                       n_effective: float | None = None) -> bool:
     """Hamilton's R-factor ratio test for adding ``n_added`` parameters.
 
     Hamilton (1965), Acta Cryst. 18, 502: under the null hypothesis that the
@@ -134,10 +135,22 @@ def hamilton_justified(chi2_restricted: float, chi2_full: float,
 
     compared against F(n_added, N − P_f) at ``alpha``.  Returns True when the
     improvement justifies the parameters.
+
+    ``n_effective`` is the independent-observation count to test at in place
+    of ``n_points`` — :func:`~rietx.optimize.statistics.effective_sample_size`
+    of the fit's ``esd_inflation`` (#270).  The statistic is then evaluated
+    as if the χ² had come from N_eff independent points (degrees of freedom
+    N_eff − P_f, so F ≈ t²/f² for one parameter), which is the same count
+    :func:`delta_bic` takes, so the two verdicts are read off one N.
+    ``None``, the default, is the raw-channel test it has always been.
     """
-    dof = n_points - n_free_restricted - n_added
+    n = float(n_points) if n_effective is None else float(n_effective)
+    dof = n - n_free_restricted - n_added
     if n_added <= 0 or dof <= 0 or chi2_full <= 0:
         return False
+    # with N_eff the χ²s are read as N_eff independent points' worth: both
+    # scale by N_eff/N and cancel in the ratio, leaving the dof to carry it,
+    # so F ≈ t²/f² — the parameter's t at its inflated esd, squared
     f = ((chi2_restricted - chi2_full) / n_added) / (chi2_full / dof)
     if f <= 0:
         return False
@@ -147,15 +160,27 @@ def hamilton_justified(chi2_restricted: float, chi2_full: float,
 
 
 def delta_bic(chi2_restricted: float, chi2_full: float,
-              n_points: int, n_added: int) -> float:
+              n_points: int, n_added: int, *,
+              n_effective: float | None = None) -> float:
     """BIC difference (restricted − full); positive favours the fuller model.
 
     ΔBIC = N·ln(χ²_r/χ²_f) − n_added·ln(N)  (Schwarz 1978, Gaussian errors).
+
+    Schwarz's N is a count of **independent** observations.  ``n_effective``
+    replaces it in both terms — pass
+    :func:`~rietx.optimize.statistics.effective_sample_size` of the fit's
+    ``esd_inflation`` — because on a powder pattern the residual is serially
+    correlated and raw N lets any χ² improvement outvote the ln N penalty:
+    the reporter's four ~49 500-channel synchrotron fits gave ΔBIC +36 to
+    +211 for an occupancy each fit's own esd put within 0.76-1.89σ of zero,
+    and N_eff = N/f² turned all four negative (#270).  ``None``, the default,
+    is the raw-N form, kept for the callers whose N *is* a count of
+    independent points (a peak list, a reflection set).
     """
     if chi2_full <= 0 or chi2_restricted <= 0:
         return 0.0
-    return (n_points * math.log(chi2_restricted / chi2_full)
-            - n_added * math.log(max(n_points, 2)))
+    n = float(n_points) if n_effective is None else float(n_effective)
+    return n * math.log(chi2_restricted / chi2_full) - n_added * math.log(max(n, 2.0))
 
 
 def _significant(templates, name: str) -> tuple[float, float] | None:
