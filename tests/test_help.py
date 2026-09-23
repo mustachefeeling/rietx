@@ -195,11 +195,14 @@ def _variant_models() -> list[tuple[Structure, Instrument]]:
                 # the default, and what an already-normalised reduction writes
                 # — produces no coefficient rows at all, and a family glob
                 # matching nothing is what test_every_family_glob_describes_a_
-                # real_path exists to catch.
+                # real_path exists to catch.  P10/P11 are zero: ITYP 1's
+                # fifth pair has no published exponent and is refused
+                # non-zero (GSAS Technical Manual p. 128).
                 incident_spectrum=IncidentSpectrum(
                     itype=1,
                     coefficients=[Parameter(value=float(n))
-                                  for n in range(1, 12)])),
+                                  for n in range(1, 10)]
+                    + [Parameter(value=0.0), Parameter(value=0.0)])),
             geometry=Geometry(kind="debye_scherrer"))),
     ]
 
