@@ -1,712 +1,594 @@
-"""Time-of-flight neutron peak profiles — back-to-back exponentials.
+"""Time-of-flight peak shape: back-to-back exponentials ⊗ Gaussian / pseudo-Voigt.
 
-A TOF powder pattern is collected in flight time rather than in angle, and its
-peak shape is dominated by the *moderator pulse*: a fast rise as neutrons of
-one wavelength start to leak out, a slow decay as the last of them do.  Von
-Dreele, Jorgensen & Windsor (1982), J. Appl. Cryst. 15, 581, model that pulse
-as two back-to-back exponentials and convolute it with the resolution
-function, which gives the two shapes implemented here (GSAS profile types 1
-and 3; Larson & Von Dreele, 2004, GSAS manual LAUR 86-748).  The physical
-reading of the two rates — moderator emission time constants — is Ikeda &
-Carpenter (1985), Nucl. Instrum. Methods A 239, 536; their full pulse-shape
-function (GSAS types 2 and 4) is *not* implemented here.
+A pulsed source delivers each wavelength as a pulse that rises fast and decays
+slowly, and a time-of-flight bank records that pulse convolved with the
+instrument's resolution.  The pulse is the pair of exponentials of Von Dreele,
+Jorgensen & Windsor (1982), *J. Appl. Cryst.* **15**, 581-589, p. 584:
 
-This module is a **standalone sibling** of ``pseudovoigt.py`` / ``voigt.py`` /
-``fcj.py``: pure functions of the peak-local offset and the shape parameters,
-arrays in and arrays out.  Nothing in the forward model calls it yet — the
-TOF *axis* is a schema change on the data seam and is not this module's to
-make — so every convention below is stated rather than inherited.
+    P(τ) = 2N·exp(+ατ)   τ ≤ 0          2N = αβ/(α+β)
+    P(τ) = 2N·exp(−βτ)   τ ≥ 0
 
-Units — stated, because unit mixing is how a TOF profile goes wrong
--------------------------------------------------------------------
-========================  ==========================================
-quantity                  unit
-========================  ==========================================
-flight time ``T``, ΔT     **microseconds** (µs), never ms
-d-spacing ``d``           Å
-``DIFC``                  µs/Å      (``DIFA`` µs/Å², ``TZERO`` µs)
-``alpha``, ``beta``       µs⁻¹      (rates, not times)
-``sigma``                 µs — the Gaussian **standard deviation**
-``gamma``                 µs — the Lorentzian **FWHM**
-========================  ==========================================
+(the same function as GSAS's E(τ), Larson & Von Dreele 2004, LAUR 86-748,
+GSAS Technical Manual p. 143).  α is a moderator slowing-down rate and β its
+storage decay rate (Ikeda & Carpenter 1985, *Nucl. Instrum. Methods* **A239**,
+536-544, p. 540-542), which is why α follows 1/d and β is nearly constant.
 
-The two width arguments deliberately do *not* share a convention, because
-GSAS's do not: its ``sig-0/1/2`` coefficients sum to the **variance** σ²
-(:func:`tof_sigma_sq` returns that variance, so a caller passes its square
-root here) while its ``gam-0/1/2`` sum to a full width.  ``gamma`` here is
-therefore *twice* the ``gamma`` of :func:`~rietx.model.profiles.voigt.voigt`,
-which takes a Lorentzian HWHM; the mixing with the Gaussian is the same
-Thompson-Cox-Hastings construction either way and is reused from
-``pseudovoigt.tch_gamma_eta``.
+Conventions, once
+-----------------
+* ``dt = T(channel) − T(peak)`` in µs: **positive dt is later flight time**.
+  VD82 eq. (16), the trailing edge, decays as Δ → +∞, and the manual's p. 144
+  writes the offset as ``(T − T_ph)``; its p. 143 prose says the opposite and
+  is not followed.  So β < α puts the tail at long flight time.  A caller
+  holding ``T_ph − T`` negates it first — nothing here guesses.
+* ``T_ph`` is the **junction** of the two exponentials, not the profile
+  maximum, which lies at dt > 0 (manual p. 147).
+* ``sigma`` is a Gaussian **standard deviation**, ``gamma`` a Lorentzian
+  **FWHM**; the combined TCH width Γ is a FWHM too.  Every rate is µs⁻¹.
 
-Sign — ΔT is **channel minus peak**
------------------------------------
-``dt`` = T(channel) − T(peak).  With that sign, ``alpha`` is the rise on the
-**short**-TOF side (dt < 0) and ``beta`` the decay on the **long**-TOF side
-(dt > 0), so β < α — the usual case, a decay slower than the rise — puts the
-tail at long flight time, which is where a moderator puts it.  A profile with
-the tail on the short-TOF side means the two rates have been swapped.
+The two decisions this module carries
+-------------------------------------
+1. **The Lorentzian argument sign.**  Convolving the pulse with a Lorentzian
+   gives ``H_L = (2N/π){Im S(P) − Im S(Q)}`` with ``S(w) = e^w E₁(w)`` and
 
-Two notes on the sources, both measured rather than assumed:
+       P = +α·dt − iαΓ/2,     Q = −β·dt + iβΓ/2
 
-* the GSAS manual's *prose* says ΔT is "the difference in TOF between the
-  reflection position, T_ph, and the profile point, T", which reads
-  T_ph − T — the opposite of its own formulae (its y = (ασ² + ΔT)/√(2σ²) is
-  the short-TOF wing only under channel − peak) and the opposite of GSAS-II,
-  which calls the profile with ``xdata - pos``.  The formulae and the code
-  agree with each other; the sentence is the odd one out.
-* the GSAS manual's Lorentzian term for profile type 3, and ``epsvoigt.for``
-  which implements it, both use p = −α·ΔT + iαΓ/2 for the *rise* wing.  That
-  is the argument the type-2 (Ikeda-Carpenter) function needs, where both
-  exponentials decay forward in time; the back-to-back rise wing runs
-  backwards and needs p = +α·ΔT + iαΓ/2.  As published, the type-3 Lorentzian
-  is symmetric under α ↔ β alone, which the exact convolution cannot be.
-  This module uses the sign the convolution requires;
-  ``tests/test_profile_tof.py`` measures both against a brute-force
-  convolution and pins the size of the disagreement (0.81 % of the peak at a
-  mixed shape).  A γ coefficient refined by GSAS against the published
-  function is therefore not directly transferable.
+   derived directly from the integral.  The manual's p. 147/148 prints
+   ``p = −αΔT + iαγ/2`` for profile function 3 by cross-reference to function
+   2, whose Ikeda-Carpenter α term is a *decay*; function 3's α term is a
+   *rise*, and the printed form reflects the α wing.  It also breaks the
+   exchange symmetry ``H(dt; α, β) = H(−dt; β, α)`` that the pulse forces,
+   which the form here satisfies bit for bit.  The printed ``p`` is **not**
+   implemented.
+2. **The combined-Γ reading of the TCH blend.**  Substituting the
+   Thompson-Cox-Hastings pseudo-Voigt (TCH87, *J. Appl. Cryst.* **20**, 79-83,
+   eqs. 4-5, as printed on manual p. 146) for the Voigt gives
 
-The closed forms
-----------------
-Write N = αβ/(2(α+β)) and let the bare pulse be E(τ) = 2N·e^{ατ} (τ < 0),
-2N·e^{−βτ} (τ ≥ 0), which has unit area.  Convoluting with a Gaussian of
-variance σ² gives GSAS type 1,
+       H = (1−η)·H_G(dt; α, β, σ_Γ) + η·H_L(dt; α, β, Γ),   σ_Γ = Γ/√(8 ln 2)
 
-    Ω(ΔT) = N[e^u·erfc(y) + e^v·erfc(z)]
-    u = (α/2)(ασ² + 2ΔT)      y = (ασ² + ΔT)/√(2σ²)
-    v = (β/2)(βσ² − 2ΔT)      z = (βσ² − ΔT)/√(2σ²)
+   — one width Γ in **both** halves, as TCH's own pV(x) = ηL(x;Γ) + (1−η)G(x;Γ)
+   has.  The manual's letters (σ in the Gaussian half, γ in the Lorentzian
+   half) read literally are wrong by up to half the peak height against the
+   exact back-to-back ⊗ Voigt; the combined reading is within the TCH
+   approximation's own ~1 %.  :func:`tof_pseudovoigt_widths` returns σ_Γ so no
+   caller can rebuild it as σ.
 
-and because u − y² = v − z² = −ΔT²/(2σ²) *identically*, the pair evaluates
-without overflow as one Gaussian factor times two scaled complementary error
-functions, e^{−ΔT²/2σ²}·[erfcx(y) + erfcx(z)] — which is what GSAS's own
-``HFUNC`` does and what :func:`_hwing` does here, through the Faddeeva w(z)
-already in ``faddeeva.py`` (erfcx(t) = w(it) for t ≥ 0, Weideman 1994).
+At γ = 0 the blend is **exactly** the Gaussian shape — Γ = Γ_G, η = 0 and
+σ_Γ = σ are set by selection, not computed, so the reduction holds bit for
+bit and the Lorentzian branch is never entered when every γ is zero.
 
-Convoluting instead with a pseudo-Voigt of the same two widths gives GSAS
-type 3: the Gaussian half is the above evaluated at the *combined* TCH width,
-and the Lorentzian half is
+Numerics
+--------
+No ``erfc``/``erfcx``/``E₁`` exists on the backend op set, so:
 
-    Ω_L(ΔT) = −(2N/π)·(Im[e^p E₁(p)] + Im[e^q E₁(q)])
-    p = α(ΔT + iΓ/2),   q = β(−ΔT + iΓ/2)
+* ``erfcx(x) = Re w(ix)`` for x ≥ 0 from :func:`~rietx.model.profiles.faddeeva.faddeeva_w`
+  (Weideman 1994), reflected for x < 0 through ``erfc(−x) = 2 − erfc(x)``.
+  The Gaussian shape is written as ``N·exp(−dt²/2σ²)·[erfcx(y) + erfcx(z)]``
+  (VD82 eq. 10) — both exponents of VD82 eq. 13 differ from y², z² by the same
+  −dt²/2σ² — and the reflected branch is only ever reached with e^u ≤ 1 or
+  e^v ≤ 1, so no intermediate overflows anywhere on the real line.
+* :func:`scaled_exp1` evaluates ``e^z E₁(z)`` by the power series
+  (Abramowitz & Stegun 5.1.11) in the wedge hugging the negative real axis
+  and by the continued fraction (A&S 5.1.22, modified Lentz, Thompson &
+  Barnett 1986) everywhere else.
 
-with E₁ the exponential integral and Γ the TCH combined FWHM.  E₁ is a
-genuinely different function from erfc — the Faddeeva w(z) cannot supply it —
-so :func:`scaled_exp1` implements e^z·E₁(z) here (§ below).
-
-At γ = 0 the TCH mixing gives η = 0 and Γ = Γ_G, and
-:func:`back_to_back_pseudovoigt` returns :func:`back_to_back_gaussian`
-bit-for-bit: the reduction is exact, not merely close.
+Every function is pure array arithmetic on :mod:`rietx.backend`; the value
+returned by each ``*_derivs`` is computed from the same intermediates as the
+plain shape and is bit-identical to it.
 """
 
 from __future__ import annotations
+
+import math
 
 import numpy as np
 
 from ...backend import get_backend
 from .faddeeva import faddeeva_w
 from .pseudovoigt import _TCH_ETA, _TCH_GAMMA, tch_gamma_eta
-from .voigt import GAUSS_FWHM_TO_SIGMA
 
-_SQRT2 = np.sqrt(2.0)
-_TWO_OVER_SQRT_PI = 2.0 / np.sqrt(np.pi)
-#: Euler-Mascheroni γ, for the E₁ power series
-_EULER = 0.5772156649015328606
+#: √(8 ln 2): Gaussian FWHM = √(8 ln 2)·σ (manual p. 146, Γ_G² = 8 ln2·σ²).
+SQRT_8LN2 = math.sqrt(8.0 * math.log(2.0))
+_SQRT2 = math.sqrt(2.0)
+_SQRT_2_OVER_PI = math.sqrt(2.0 / math.pi)
+#: Euler-Mascheroni γ_E (A&S 5.1.11).
+_EULER_GAMMA = 0.5772156649015328606
 
-# --- e^z·E₁(z): where each branch is used, and why -------------------------
-#
-# Two classical algorithms cover the plane and each fails where the other
-# works, so the split is by *cancellation*, not by |z| alone.  The power
-# series E₁(z) = −γ − ln z + Σ(−1)^{k+1} z^k/(k·k!) has its largest term
-# ~e^{|z|} against a result ~e^{−Re z}, so it loses roughly e^{|z| + Re z}:
-# exact on the negative real axis at any size, useless on the positive one
-# past |z| ≈ 5.  The continued fraction (Abramowitz & Stegun 5.1.22, by
-# modified Lentz) is the reverse — ~1e-15 for |z| ≳ 30 at every angle, arg z
-# → π included, and hopeless both for small |z| and for moderate |z| close to
-# the cut (measured: 1.3e-3 relative at z = −8 + 0.5i, at any term count).
-#
-# Hence *two* conditions, and the radius is not a convergence bound: the
-# series must own the near-cut wedge until |z| is large enough for the
-# fraction to be safe there, and must hand back before its own rotation-driven
-# cancellation bites (which is worse than e^{|z| + Re z} predicts once the
-# terms turn).  Both thresholds sit in a flat region — the measured worst case
-# over |z| ∈ [1e-3, 1e4] × 240 angles is 1.3e-14 relative at (4.0, 38.0) and
-# stays under 3.3e-14 for any loss in [3, 5] and radius in [35, 40], while
-# radius 30 costs three orders (9.5e-12, at |z| just above it, on the cut).
-#: series while the cancellation loss e^{|z| + Re z} stays under ~e^4 …
-SERIES_LOSS_EXPONENT = 4.0
-#: … and |z| is inside the radius the continued fraction is not yet safe over.
-SERIES_RADIUS = 38.0
-#: fixed term/iteration counts — never data-dependent, so the residual stays
-#: smooth for finite-difference and autodiff Jacobians (the same rule the FCJ
-#: quadrature follows in ``fcj.py``).
-SERIES_TERMS = 100
-CONTINUED_FRACTION_TERMS = 50
-#: arguments substituted into the branch that is *not* selected, so neither
-#: evaluation can produce a NaN that ``where`` would then have to hide
-_SERIES_SAFE = -1.0 + 0.0j
-_CF_SAFE = 10.0 + 0.0j
-#: modified-Lentz guards (Numerical Recipes' FPMIN role)
-_LENTZ_BIG = 1.0e300
-_LENTZ_TINY = 1.0e-300
+#: The :func:`scaled_exp1` switch (series where |z| + Re z ≤ 8 and |z| ≤ 60,
+#: continued fraction elsewhere), and the fixed term / step budgets that
+#: cover each side of it to ~1e-13.
+_SERIES_WEDGE = 8.0
+_SERIES_RADIUS = 60.0
+_SERIES_TERMS = 130
+_LENTZ_STEPS = 200
+_LENTZ_TOL = 1e-15
+_LENTZ_TINY = 1e-300
 
 
-# ----------------------------------------------------------------------
-# the TOF ↔ d map
-# ----------------------------------------------------------------------
+def _concrete(x):
+    """``x`` as a numpy array when it is plainly a value, else ``None``.
+
+    Refusals need a value; a traced backend hands over tracers, for which the
+    check is skipped (never forced) so the function stays traceable.
+    """
+    if isinstance(x, (int, float, np.ndarray, np.generic, list, tuple)):
+        return np.asarray(x)
+    return None
+
+
+# ---------------------------------------------------------------------------
+# flight time <-> d
+# ---------------------------------------------------------------------------
 def tof_from_d(d, difc, difa=0.0, tzero=0.0, difb=0.0):
-    """T = DIFC·d + DIFA·d² + TZERO + DIFB/d — flight time in µs from d in Å.
+    """Flight time in µs of a reflection at d-spacing ``d`` (Å).
 
-    The diffractometer constants of Von Dreele, Jorgensen & Windsor (1982),
-    J. Appl. Cryst. 15, 581: DIFC is the geometric constant (µs/Å, equal to
-    252.777·L·2·sinθ for a total flight path L in m), DIFA a small empirical
-    curvature (µs/Å²) absorbing sample-position and detector-depth effects,
-    and TZERO (µs) the electronic time offset.
-
-    ``difb`` (µs·Å) is GSAS-II's fourth term, ``GSASIIlattice.Dsp2pos`` — not
-    in the GSAS manual's relation and 0 in most projects, which is why it is
-    the last argument with a zero default.  **At difb = 0 the returned array is
-    bit-identical to the three-term form**: ``0.0 / d`` is ``+0.0`` for every
-    positive d and ``x + 0.0 == x`` exactly in IEEE-754 for every finite x, so
-    adding the term unconditionally costs one flop and changes no bit.  Written
-    that way rather than behind an ``if`` because a branch on a *value* is
-    exactly what the residual must not contain (the module header's purity
-    note): on a traced backend ``difb`` may be a tracer.
-
-    (Added by the time-of-flight forward model, which needs the four-term
-    relation on the backend op set with the constants coming from θ;
-    ``TOFSource.tof_from_d`` is the same relation on a *stored* calibration and
-    reads ``.value`` off the parameters, which a traced residual cannot do.)
+    ``T = DIFC·d + DIFA·d² + ZERO`` (Larson & Von Dreele 2004, GSAS Technical
+    Manual p. 141), plus ``DIFB/d``: a documented GSAS-II calibration
+    coefficient (the TOF calibration tutorial's ``TOF = Cd + Ad² + B/d + Z``)
+    with no physical interpretation given in the published documentation;
+    refine only against a standard.  Units: DIFC µs/Å, DIFA µs/Å², ZERO µs,
+    DIFB µs·Å.  ``difb`` defaults to 0, which is exactly the three-term
+    relation.
     """
     xp = get_backend()
     dd = xp.asarray(d, dtype=np.float64)
-    return difc * dd + difa * dd * dd + tzero + difb / dd
+    return difc * dd + difa * dd ** 2 + tzero + difb / dd
 
 
-def d_from_tof(tof, difc, difa=0.0, tzero=0.0):
-    """The exact inverse of :func:`tof_from_d`, on the physical branch.
+def d_from_tof(tof, difc, difa=0.0, tzero=0.0, difb=0.0):
+    """d-spacing in Å of flight time ``tof`` (µs) — the physical quadratic root.
 
-    Solving DIFA·d² + DIFC·d + (TZERO − T) = 0 for the root that tends to
-    (T − TZERO)/DIFC as DIFA → 0 gives, in the form that does not cancel,
+    With ``D = tof − ZERO`` the manual's relation (p. 141) is
+    ``DIFA·d² + DIFC·d − D = 0``.  The ``+`` root is the one that tends to
+    D/DIFC as DIFA → 0, for either sign of DIFA, and is evaluated in the
+    cancellation-free form ``d = 2D / (DIFC + √(DIFC² + 4·DIFA·D))``, exact at
+    DIFA = 0.
 
-        d = 2(T − TZERO) / (DIFC + √(DIFC² + 4·DIFA·(T − TZERO)))
-
-    which is also the DIFA = 0 answer with no branch.  Raises ``ValueError``
-    when the requested flight times do not lie on one monotonic branch of the
-    map — a negative discriminant, or a turning point (dT/dd = DIFC + 2·DIFA·d
-    changing sign) inside the range — because a non-monotonic map has no
-    inverse to choose and silently picking a root would put reflections at
-    d-spacings the instrument cannot have produced.
+    Refused by name: ``DIFC ≤ 0``; a negative discriminant (the bank's
+    calibration does not reach that flight time); and ``difb ≠ 0``, because
+    with a DIFB term the relation is a cubic with no single documented branch.
     """
-    xp = get_backend()
-    t = xp.asarray(tof, dtype=np.float64)
-    if difc <= 0.0:
-        raise ValueError(f"DIFC must be positive (got {difc})")
-    shifted = t - tzero
-    disc = difc * difc + 4.0 * difa * shifted
-    if bool(np.any(np.asarray(disc) < 0.0)):
+    if difb != 0.0:
         raise ValueError(
-            "TOF outside the range this (DIFC, DIFA, TZERO) can reach: the "
-            "quadratic T(d) has no real root there"
-        )
-    d = 2.0 * shifted / (difc + xp.sqrt(disc))
-    slope = difc + 2.0 * difa * d
-    if bool(np.any(np.asarray(slope) <= 0.0)):
+            f"d_from_tof(): difb = {difb} makes TOF = C·d + A·d² + B/d + Z a "
+            f"cubic in d with no documented branch; it is refused rather than "
+            f"approximated")
+    c = _concrete(difc)
+    if c is not None and np.any(c <= 0.0):
+        raise ValueError(f"d_from_tof(): DIFC must be positive, got {difc}")
+    xp = get_backend()
+    big_d = xp.asarray(tof, dtype=np.float64) - tzero
+    disc = difc * difc + 4.0 * difa * big_d
+    dc = _concrete(disc)
+    if dc is not None and np.any(dc < 0.0):
         raise ValueError(
-            "T(d) is not monotonic over the requested range: DIFA = "
-            f"{difa} turns the map at d = {-difc / (2.0 * difa):.4g} Å"
-        )
-    return d
+            f"d_from_tof(): DIFC² + 4·DIFA·(T − ZERO) is negative for "
+            f"DIFC = {difc}, DIFA = {difa}, ZERO = {tzero}: this bank's "
+            f"calibration does not reach that flight time")
+    return 2.0 * big_d / (difc + xp.sqrt(disc))
 
 
-# ----------------------------------------------------------------------
-# the d-dependence of the shape parameters (GSAS's own names)
-# ----------------------------------------------------------------------
-def tof_alpha(d, alpha0=0.0, alpha1=0.0):
-    """α(d) = α₀ + α₁/d [µs⁻¹] — the moderator rise rate.
+# ---------------------------------------------------------------------------
+# the d-dependence laws
+# ---------------------------------------------------------------------------
+def _require_positive_d(d, where: str):
+    dd = _concrete(d)
+    if dd is not None and np.any(dd <= 0.0):
+        raise ValueError(f"{where}(): d must be positive (the law is singular "
+                         f"at d = 0), got min d = {float(np.min(dd))}")
 
-    Larson & Von Dreele (2004), GSAS manual, TOF profile function 1
-    (coefficients ``alp-0``, ``alp-1``).  **Profile type 3 drops α₀** and
-    refines the single coefficient it names ``alp``: pass ``alpha0=0`` for
-    type-3-compatible behaviour, which is also what GSAS-II computes
-    (``getTOFalpha`` returns ``alpha/dsp``).  The rate is physically the
-    moderator's fast emission constant (Ikeda & Carpenter, 1985, Nucl.
-    Instrum. Methods A 239, 536), which is why it scales as 1/d ∝ energy.
+
+def tof_alpha(d, alpha0, alpha1):
+    """Rise rate α = α₀ + α₁/d in µs⁻¹ (VD82 eq. 17; manual p. 144).
+
+    ``alpha0`` µs⁻¹, ``alpha1`` µs⁻¹·Å.  GSAS profile function 3 has no α₀
+    term (manual p. 148, α = α₁/d), so a function-3 calibration supplies
+    ``alpha0 = 0``.  d must be positive.
+    """
+    _require_positive_d(d, "tof_alpha")
+    xp = get_backend()
+    return alpha0 + alpha1 / xp.asarray(d, dtype=np.float64)
+
+
+def tof_beta(d, beta0, beta1):
+    """Decay rate β = β₀ + β₁/d⁴ in µs⁻¹ (VD82 eq. 18; manual p. 144, 148).
+
+    ``beta0`` µs⁻¹, ``beta1`` µs⁻¹·Å⁴.  d must be positive.
+    """
+    _require_positive_d(d, "tof_beta")
+    xp = get_backend()
+    return beta0 + beta1 / xp.asarray(d, dtype=np.float64) ** 4
+
+
+def tof_sigma_sq(d, sig0, sig1, sig2):
+    """Gaussian **variance** σ² = sig0 + sig1·d² + sig2·d⁴ in µs².
+
+    The manual's variance law (p. 144, 148), not VD82 eq. 19's width law
+    σ = σ₀ + σ₁d, which is a different function; VD82-era σ₀, σ₁ values need
+    converting before they come here.  The three arguments **are** the
+    variance coefficients — the quantity a file calls ``sig-1`` is σ₁²
+    (manual p. 144), so it is used as written and never squared.  Units µs²,
+    µs²/Å², µs²/Å⁴.  Polynomial, no guard; a caller clamps σ² ≥ 0.
     """
     xp = get_backend()
     dd = xp.asarray(d, dtype=np.float64)
-    return alpha0 + alpha1 / dd
+    return sig0 + sig1 * dd ** 2 + sig2 * dd ** 4
 
 
-def tof_beta(d, beta0=0.0, beta1=0.0):
-    """β(d) = β₀ + β₁/d⁴ [µs⁻¹] — the moderator decay rate.
+def tof_gamma(d, gam0, gam1, gam2):
+    """Lorentzian FWHM γ = gam0 + gam1·d + gam2·d² in µs (manual p. 148).
 
-    Larson & Von Dreele (2004), GSAS manual (``bet-0``, ``bet-1``); the slow
-    constant of Ikeda & Carpenter (1985).  GSAS-II carries an extra ``beta-q``
-    term in 1/d²; it is not part of the published parameterisation and is not
-    implemented.
+    The isotropic part of the function-3 law; its cos φ and γ_L terms belong
+    with the microstructure machinery.  Units µs, µs/Å, µs/Å².  A caller
+    clamps γ ≥ 0.
     """
     xp = get_backend()
     dd = xp.asarray(d, dtype=np.float64)
-    return beta0 + beta1 / dd**4
+    return gam0 + gam1 * dd + gam2 * dd ** 2
 
 
-def tof_sigma_sq(d, sig0=0.0, sig1=0.0, sig2=0.0):
-    """σ²(d) = σ₀² + σ₁²·d² + σ₂²·d⁴ [µs²] — the Gaussian **variance**.
+def tof_sample_gamma(d, difc, size_per_a, strain):
+    """The **sample's** Lorentzian FWHM in µs: ``DIFC·(ε·d + (K/p)·d²)``.
 
-    Larson & Von Dreele (2004), GSAS manual, TOF profile functions 1 and 3.
-
-    **The coefficients are not squared here, and this is the trap in the
-    formula.**  The manual writes the three symbols as σ₀², σ₁², σ₂² because
-    each *is* a variance-like quantity; the refined parameters GSAS names
-    ``sig-0``, ``sig-1``, ``sig-2`` are those quantities themselves, and
-    GSAS-II's ``getTOFsig`` is literally ``sig-0 + sig-1·d² + sig-2·d⁴``.
-    Reading the superscripts as an instruction to square what the instrument
-    file supplies inflates every width by the value of the coefficient.
-    Variances add under convolution, which is why this law is written for σ²
-    while the Lorentzian one below is written for a width.
+    A strain broadens Δd/d = ε, so ΔT = DIFC·ε·d (linear in d, manual
+    p. 153); a crystallite size broadens Δd* = K/p, so ΔT = DIFC·(K/p)·d²
+    (quadratic in d, manual p. 154).  Inverting term by term gives the
+    manual's own γ₁ = DIFC·ε → S = γ₁/C (p. 153) and γ₂ = DIFC·K/p →
+    p = CK/γ₂ (p. 155).  ``strain`` is the fractional FWHM microstrain (not
+    per cent), ``size_per_a`` is K/p in Å⁻¹ with the Scherrer K the caller's
+    choice.  Add to the instrument γ (Lorentzian FWHMs add).
     """
     xp = get_backend()
     dd = xp.asarray(d, dtype=np.float64)
-    return sig0 + sig1 * dd**2 + sig2 * dd**4
+    return difc * (strain * dd + size_per_a * dd ** 2)
 
 
-def tof_gamma(d, gam0=0.0, gam1=0.0, gam2=0.0):
-    """γ(d) = γ₀ + γ₁·d + γ₂·d² [µs] — the Lorentzian **FWHM**.
+def tof_sample_sigma_sq(d, difc, size_var, strain_var):
+    """The **sample's** Gaussian variance in µs²: ``DIFC²/(8 ln2)·(ε²d² + (K/p)²d⁴)``.
 
-    Larson & Von Dreele (2004), GSAS manual, TOF profile function 3
-    (``gam-0``, ``gam-1``, ``gam-2``).  Documented by physics rather than by
-    letter, as the constant-wavelength widths in ``caglioti.py`` are: constant
-    Δd/d is microstrain and gives ΔT ∝ d, so **γ₁ is strain**; constant ΔQ is
-    Scherrer size and gives Δd ∝ d², so **γ₂ is size**.
-
-    The letters are worth stating because GSAS-II renames these three to X, Y,
-    Z (γ = Z + X·d + Y·d²) — and its X is the *size* coefficient in the
-    constant-wavelength law and the *strain* one here, with Y the other way
-    round.  One code, one pair of letters, two opposite meanings; transfer a
-    number by matching the power of d, never the letter.
+    The Gaussian twin of :func:`tof_sample_gamma`, stated as a variance so it
+    adds to the instrument's σ² (Gaussian variances add).  Inverting gives the
+    manual's σ₁² = DIFC²ε²/(8 ln2) → S = (1/C)√(8 ln2·σ₁²) (p. 153) and
+    σ₂² = DIFC²(K/p)²/(8 ln2) → p = CK/√(8 ln2·σ₂²) (p. 154).  Both arguments
+    are **squared** quantities — ``strain_var`` = ε² and ``size_var`` =
+    (K/p)² in Å⁻² — which is what the ``_var`` suffix says.
     """
     xp = get_backend()
     dd = xp.asarray(d, dtype=np.float64)
-    return gam0 + gam1 * dd + gam2 * dd**2
+    return (difc * difc / (8.0 * math.log(2.0))) * (
+        strain_var * dd ** 2 + size_var * dd ** 4)
 
 
-def tof_sample_gamma(d, difc, size_per_a=0.0, strain=0.0):
-    """The **specimen's** Lorentzian FWHM on a bank, µs — ``tof_gamma``'s peer.
-
-        ΔT_L = DIFC·(``size_per_a``·d² + ``strain``·d)
-
-    Both terms are one line of Bragg's law in flight time.  A bank's
-    calibration is T = DIFC·d, so a fractional spread in d is the same
-    fractional spread in T and ΔT = DIFC·d·(Δd/d):
-
-    * **microstrain** is a constant Δd/d = ε, so ΔT = DIFC·ε·d — the d¹ law;
-    * **crystallite size** is a constant ΔQ = 2πK/L, i.e. Δd/d = (K/L)·d
-      (:mod:`rietx.model.profiles.caglioti`'s (7)), so ΔT = DIFC·(K/L)·d² —
-      the d² law.
-
-    ``size_per_a`` is therefore K/L in **Å⁻¹** and ``strain`` is Δd/d
-    **dimensionless**, both as FWHMs, and neither carries a wavelength or an
-    angle: they are the specimen's own numbers and are the quantities a joint
-    constant-wavelength + time-of-flight fit shares.  Lorentzian FWHMs add
-    under convolution, so the two add linearly and the sum adds to the
-    instrument's γ(d).  Zero coefficients give an exact ``0.0``, so a phase
-    that declares no sample broadening leaves the instrument's γ bit for bit.
-
-    These are the same two powers of d the *instrument*'s :func:`tof_gamma`
-    already carries in γ₁ and γ₂ — deliberately, and it is why the sample terms
-    need no new container in the profile: the instrument ⊕ sample split here is
-    the same one ``caglioti.py`` draws on the angular arm, calibrated on a
-    standard and frozen, with the specimen's contribution the part refined.
-
-    Identical to GSAS-II's ``GetSampleSigGam`` TOF branch
-    (``GSASIIstrMath.py``; Toby & Von Dreele, 2013, J. Appl. Cryst. 46, 544)
-    with its units substituted: its ``Sgam = 1e-4·DIFC·d²/Size;i`` is the first
-    term with Size;i in µm and K = 1, and its
-    ``Mgam = 1e-6·DIFC·d·Mustrain;i`` is the second with
-    Mustrain;i = 10⁶·Δd/d.  **That Mustrain convention is GSAS-II's own and it
-    is not the one its constant-wavelength branch uses**: there
-    ``Mgam = 0.018·Mustrain;i·tanθ/π`` centidegrees is Δ2θ = 10⁻⁶·Mustrain·tanθ
-    radians, against the Stokes-Wilson Δ2θ = 2·(Δd/d)·tanθ, i.e.
-    Mustrain = 2·10⁶·Δd/d — a factor of two away from the flight-time branch.
-    rietx has one convention, Δd/d as a FWHM, in both arms
-    (:func:`~rietx.model.profiles.caglioti.microstrain_from_strain_coefficient`),
-    so a Mustrain transferred from GSAS-II must be read with the branch it came
-    from.
-
-    **DIFA and DIFB do not enter.**  The exact width would use
-    |dT/dd| = DIFC + 2·DIFA·d − DIFB/d², and GSAS-II uses DIFC alone; this
-    follows GSAS-II so that a width transferred between the two codes is the
-    same width, and the difference is exactly zero on any bank whose DIFA and
-    DIFB are zero — which is every bank rietx has been measured on.
-    """
+# ---------------------------------------------------------------------------
+# special functions on the op set
+# ---------------------------------------------------------------------------
+def _erfcx_abs(x):
+    """erfcx(|x|) = exp(x²)·erfc(|x|) = Re w(i|x|) — bounded in (0, 1]."""
     xp = get_backend()
-    dd = xp.asarray(d, dtype=np.float64)
-    return difc * (size_per_a * dd**2 + strain * dd)
-
-
-def tof_sample_sigma_sq(d, difc, size_var=0.0, strain_var=0.0):
-    """The specimen's Gaussian **variance** on a bank, µs² — ``tof_sigma_sq``'s peer.
-
-        σ² = DIFC²·(``size_var``·d⁴ + ``strain_var``·d²)/(8 ln 2)
-
-    The same two laws as :func:`tof_sample_gamma`, squared, because Gaussian
-    *variances* add under convolution where Lorentzian widths do: the two
-    mechanisms combine in quadrature, which is GSAS-II's
-    ``sig = [Sgam² + Mgam²]/ateln2`` written with the squares taken on the
-    coefficients instead of on the widths.
-
-    So the arguments are **variances**, not widths: ``size_var`` is (K/L)² in
-    Å⁻² and ``strain_var`` is (Δd/d)², which is exactly the convention
-    ``phases.N.gauss_size`` and ``gauss_strain`` are already stored in
-    (:mod:`rietx.model.profiles.caglioti`).  Writing it this way is not a
-    rearrangement for its own sake — it takes **no square root of a refined
-    parameter**, which matters because the derivative of √x at the zero
-    default is infinite and an autodiff backend returns a nan for it where
-    finite differences quietly return a number.
-
-    The 1/(8 ln 2) is **one over**
-    :data:`~rietx.model.profiles.voigt.GAUSS_FWHM_TO_SIGMA` squared — that
-    constant is Γ_G/σ = 2√(2 ln 2), so a variance divides by its square where a
-    standard deviation divides by it once.  GSAS-II keeps the same number the
-    other way up and calls it ``ateln2``; multiplying by it here instead of
-    dividing would inflate every Gaussian sample variance by 8 ln 2 ≈ 5.5, and
-    ``tests/test_tof_sample_broadening.py`` checks the direction against
-    (8 ln 2)⁻¹ written out rather than against this name.  Zero coefficients
-    give an exact ``0.0``.
-    """
-    xp = get_backend()
-    dd = xp.asarray(d, dtype=np.float64)
-    return (difc**2 * (size_var * dd**4 + strain_var * dd**2)
-            / GAUSS_FWHM_TO_SIGMA**2)
-
-
-# ----------------------------------------------------------------------
-# e^z·E₁(z)
-# ----------------------------------------------------------------------
-def _exp1_series(z):
-    """e^z·E₁(z) by the power series (Abramowitz & Stegun 5.1.11)."""
-    xp = get_backend()
-    total = xp.zeros_like(z)
-    term = xp.zeros_like(z) + 1.0
-    for k in range(1, SERIES_TERMS + 1):
-        term = term * (-z) / k          # (−z)^k / k!
-        total = total - term / k        # Σ (−1)^{k+1} z^k / (k·k!)
-    return xp.exp(z) * (-_EULER - xp.log(z) + total)
-
-
-def _exp1_continued_fraction(z):
-    """e^z·E₁(z) by modified Lentz on A&S 5.1.22's continued fraction.
-
-    The fraction converges *to* e^z·E₁(z) directly, so this branch needs no
-    exponential at all and cannot overflow for large Re z.
-    """
-    xp = get_backend()
-    b = z + 1.0
-    c = xp.zeros_like(z) + _LENTZ_BIG
-    d = 1.0 / b
-    h = d
-    for i in range(1, CONTINUED_FRACTION_TERMS + 1):
-        a = -float(i * i)
-        b = b + 2.0
-        d = 1.0 / (a * d + b + _LENTZ_TINY)
-        c = b + a / (c + _LENTZ_TINY)
-        h = h * (c * d)
-    return h
+    return xp.real(faddeeva_w(1j * xp.abs(x)))
 
 
 def scaled_exp1(z):
-    """e^z·E₁(z) for complex ``z`` off the negative real axis.
+    """``e^z·E₁(z)`` for complex ``z`` off the negative real axis.
 
-    The scaled form is the one the profile needs and the one that stays
-    bounded: E₁(z) itself overflows as Re z → −∞ and underflows as Re z → +∞,
-    while e^z·E₁(z) → −1/z at both ends.  Branch selection and its measured
-    accuracy are in this module's header comment; both branches are evaluated
-    on safe arguments so neither can put a NaN into the ``where``.
+    Never ``E₁`` alone: ``e^z`` overflows for Re z ≳ 709 while the product is
+    O(1/z) there.  Two evaluations, both written so the exponential never
+    stands alone:
+
+    * power series, Abramowitz & Stegun 5.1.11,
+      ``E₁(z) = −γ_E − ln z + Σ (−1)^{n+1} zⁿ/(n·n!)``, 130 terms by running
+      product, used where ``|z| + Re z ≤ 8`` and ``|z| ≤ 60`` — the wedge
+      along the negative real axis, where its cancellation is small;
+    * continued fraction, A&S 5.1.22,
+      ``1/(z+1−) 1²/(z+3−) 2²/(z+5−) …`` — the minus signs belong to the
+      fraction, so the partial numerators are ``a₁ = 1``,
+      ``aₙ = −(n−1)²`` and the denominators ``bₙ = z + 2n − 1``; evaluated by
+      modified Lentz (Thompson & Barnett 1986) to |Δ − 1| < 1e-15, used
+      everywhere else, where it converges in tens of steps at most.
+
+    Both branches run on clamped inputs and are selected with ``where``, so
+    a discarded branch can never overflow into the result or its gradient.
+    Each element stops updating once its own fraction has converged, so a
+    value never depends on the other elements it was batched with.
     """
     xp = get_backend()
-    zc = xp.asarray(z, dtype=np.complex128)
-    az = xp.abs(zc)
-    use_series = ((az + xp.real(zc)) <= SERIES_LOSS_EXPONENT) & (az <= SERIES_RADIUS)
-    return xp.where(
-        use_series,
-        _exp1_series(xp.where(use_series, zc, _SERIES_SAFE)),
-        _exp1_continued_fraction(xp.where(use_series, _CF_SAFE, zc)),
-    )
+    z = xp.asarray(z, dtype=np.complex128)
+    absz = xp.abs(z)
+    use_series = (absz + xp.real(z) <= _SERIES_WEDGE) & (absz <= _SERIES_RADIUS)
+
+    # --- series, on z inside its domain and a harmless 1 elsewhere
+    zs = xp.where(use_series, z, 1.0 + 0.0j)
+    term = zs
+    acc = zs
+    for n in range(2, _SERIES_TERMS + 1):
+        term = -term * zs / n
+        acc = acc + term / n
+    series = xp.exp(zs) * (-_EULER_GAMMA - xp.log(zs) + acc)
+
+    # --- continued fraction, on z outside the wedge and a fast 100 inside it
+    # With b₀ = 0 the first Lentz step is exactly f₁ = D₁ = 1/b₁ and C₁ = ∞
+    # (so C₂ = b₂); starting there rather than from f₀ = tiny keeps a 1/tiny
+    # out of the arithmetic, whose derivative would overflow to inf·0 = NaN
+    # in a traced Jacobian.
+    zc = xp.where(use_series, 100.0 + 0.0j, z)
+    dd = 1.0 / (zc + 1.0)
+    f = dd
+    c = None
+    done = absz < 0.0
+    numpy_backend = getattr(xp, "name", "numpy") == "numpy"
+    for n in range(2, _LENTZ_STEPS + 1):
+        a = -float((n - 1) * (n - 1))
+        b = zc + float(2 * n - 1)
+        dd = b + a * dd
+        dd = xp.where(dd == 0.0, _LENTZ_TINY + 0.0j, dd)
+        c = b if c is None else b + a / c
+        c = xp.where(c == 0.0, _LENTZ_TINY + 0.0j, c)
+        dd = 1.0 / dd
+        delta = c * dd
+        f = xp.where(done, f, f * delta)
+        done = done | (xp.abs(delta - 1.0) < _LENTZ_TOL)
+        if numpy_backend and bool(np.all(done)):
+            break
+    return xp.where(use_series, series, f)
 
 
-# ----------------------------------------------------------------------
-# the bare pulse and its Gaussian convolution
-# ----------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# the shapes
+# ---------------------------------------------------------------------------
 def back_to_back_exponential(dt, alpha, beta):
-    """The unmoderated pulse E(ΔT) — two back-to-back exponentials, unit area.
+    """The unit-area moderator pulse P(dt) (VD82 p. 584; manual p. 143).
 
-    Von Dreele, Jorgensen & Windsor (1982), J. Appl. Cryst. 15, 581.  Rise
-    e^{α·ΔT} at short TOF, decay e^{−β·ΔT} at long TOF, normalised by
-    αβ/(α+β).  This is the σ → 0 limit of :func:`back_to_back_gaussian` and
-    the shape whose asymmetry the sign convention in the module header is
-    about.
+    ``2N·exp(α·dt)`` for dt ≤ 0 and ``2N·exp(−β·dt)`` for dt ≥ 0,
+    2N = αβ/(α+β).  Each branch's argument is clamped so the unselected one
+    cannot overflow.  Obeys ``P(dt; α, β) = P(−dt; β, α)``.
     """
     xp = get_backend()
-    x = xp.asarray(dt, dtype=np.float64)
-    # the exponent is chosen *before* exponentiating: both spellings are
-    # negative on their own side, so neither branch can overflow
-    return (alpha * beta / (alpha + beta)) * xp.exp(
-        xp.where(x < 0.0, alpha * x, -beta * x)
-    )
+    dt = xp.asarray(dt, dtype=np.float64)
+    two_n = alpha * beta / (alpha + beta)
+    return two_n * xp.where(dt <= 0.0, xp.exp(alpha * xp.minimum(dt, 0.0)),
+                            xp.exp(-beta * xp.maximum(dt, 0.0)))
 
 
-def _erfcx(t):
-    """e^{t²}·erfc(t) for t ≥ 0, as w(it) — the Faddeeva already in the tree.
+def _gauss_parts(dt, alpha, beta, sigma):
+    """``(N, A, B, g)`` with ``H_G = N·(A + B)``; A = e^u erfc y, B = e^v erfc z.
 
-    w(z) = e^{−z²}erfc(−iz) on Im z ≥ 0 (``faddeeva.py``; Weideman 1994), so
-    z = it with t ≥ 0 gives exactly the scaled complementary error function.
-    Reusing it keeps one approximation in the package rather than two that
-    can drift apart, and is why this module adds no erfc of its own.
-    """
-    return get_backend().real(faddeeva_w(1j * t))
-
-
-def _hwing(exponent, y):
-    """e^{exponent}·erfcx(y) for either sign of y, without overflow.
-
-    The identity behind the whole profile is that the Gaussian exponent and
-    the erfc argument satisfy u − y² = −ΔT²/2σ², so the huge e^u and the tiny
-    erfc(y) are never formed separately.  For y < 0 the reflection
-    erfcx(y) = 2e^{y²} − erfcx(−y) is used, and there ``exponent + y²`` (the
-    GSAS u or v) is provably ≤ 0, so the substituted branch cannot overflow
-    either.  Same construction as GSAS's ``HFUNC``.
+    VD82 eqs. (10)-(15) / manual p. 143-144 with y = (ασ² + dt)/(σ√2),
+    z = (βσ² − dt)/(σ√2), u = (α/2)(ασ² + 2dt), v = (β/2)(βσ² − 2dt).  Since
+    u − y² = v − z² = −dt²/2σ², A = g·erfcx(y) with g = exp(−dt²/2σ²); for
+    y < 0 the reflection A = 2e^u − g·erfcx(|y|) is used, reached only where
+    u < 0 (the exponent is clamped at 0 for the unselected branch).  The
+    expressions are written α↔β, dt↔−dt symmetric term by term, so the
+    exchange symmetry holds bit for bit.
     """
     xp = get_backend()
-    kept = xp.exp(exponent) * _erfcx(xp.abs(y))
-    reflected = 2.0 * xp.exp(xp.minimum(exponent + y * y, 0.0)) - kept
-    return xp.where(y < 0.0, reflected, kept)
-
-
-def _gaussian_parts(dt, alpha, beta, sigma):
-    """(N, H₁, H₂, e^{E}, y₁, y₂, σ_safe) — written once, used by both forms.
-
-    :func:`back_to_back_gaussian` and :func:`back_to_back_gaussian_derivs`
-    build Ω from these same values, so the value a Jacobian caller sees is
-    bit-identical to the value the residual sees.  ``pseudovoigt.py`` and
-    ``voigt.py`` carry a deliberate 1-2 ulp split between their two spellings
-    for a caller that has to reproduce one of them; nothing consumes this
-    module yet, so there is no such caller and no reason to create the split.
-    """
-    xp = get_backend()
-    x = xp.asarray(dt, dtype=np.float64)
-    s = xp.asarray(sigma, dtype=np.float64)
-    safe = xp.where(s > 0.0, s, 1.0)
-    var = safe * safe
-    root = safe * _SQRT2
-    y1 = (alpha * var + x) / root
-    y2 = (beta * var - x) / root
-    exponent = -0.5 * (x / safe) ** 2
-    n = 0.5 * alpha * beta / (alpha + beta)
-    return n, _hwing(exponent, y1), _hwing(exponent, y2), xp.exp(exponent), y1, y2, safe
+    dt = xp.asarray(dt, dtype=np.float64)
+    s2 = sigma * sigma
+    rt = sigma * _SQRT2
+    y = (alpha * s2 + dt) / rt
+    z = (beta * s2 - dt) / rt
+    u = 0.5 * alpha * (alpha * s2 + 2.0 * dt)
+    v = 0.5 * beta * (beta * s2 - 2.0 * dt)
+    g = xp.exp(-(dt * dt) / (2.0 * s2))
+    gy = g * _erfcx_abs(y)
+    gz = g * _erfcx_abs(z)
+    a_term = xp.where(y >= 0.0, gy, 2.0 * xp.exp(xp.minimum(u, 0.0)) - gy)
+    b_term = xp.where(z >= 0.0, gz, 2.0 * xp.exp(xp.minimum(v, 0.0)) - gz)
+    norm = alpha * beta / (2.0 * (alpha + beta))
+    return norm, a_term, b_term, g
 
 
 def back_to_back_gaussian(dt, alpha, beta, sigma):
-    """GSAS TOF profile type 1: back-to-back exponentials ⊗ Gaussian.
+    """Back-to-back exponentials ⊗ Gaussian — GSAS TOF profile function 1.
 
-    Von Dreele, Jorgensen & Windsor (1982), J. Appl. Cryst. 15, 581, in the
-    closed erfc form; parameterisation as Larson & Von Dreele (2004), GSAS
-    manual.  Unit area in ΔT, so a reflection's intensity enters purely
-    through the prefactor, exactly as for the constant-wavelength shapes.
-
-    ``dt`` is channel − peak in µs, ``alpha``/``beta`` are rates in µs⁻¹ and
-    ``sigma`` is the Gaussian standard deviation in µs (the square root of
-    :func:`tof_sigma_sq`).  σ = 0 returns the bare
-    :func:`back_to_back_exponential` rather than a division by zero.
+    ``H_G(dt) = N·exp(−dt²/2σ²)·[erfcx(y) + erfcx(z)]``, N = αβ/(2(α+β)) —
+    VD82 eq. (10), equal to VD82 eq. (13) and the manual's
+    ``N[e^u erfc y + e^v erfc z]`` (p. 143-144).  Unit area, finite and
+    non-negative for every real dt, bounded by 2N.  ``sigma`` is the Gaussian
+    standard deviation in µs; dt = channel − peak.
     """
-    xp = get_backend()
-    s = xp.asarray(sigma, dtype=np.float64)
-    n, h1, h2, _e, _y1, _y2, _safe = _gaussian_parts(dt, alpha, beta, s)
-    return xp.where(
-        s > 0.0, n * (h1 + h2), back_to_back_exponential(dt, alpha, beta)
-    )
+    norm, a_term, b_term, _g = _gauss_parts(dt, alpha, beta, sigma)
+    return norm * (a_term + b_term)
 
 
 def back_to_back_gaussian_derivs(dt, alpha, beta, sigma):
-    """(Ω, ∂Ω/∂ΔT, ∂Ω/∂α, ∂Ω/∂β, ∂Ω/∂σ) — closed forms for the Jacobian.
+    """``(H, ∂H/∂dt, ∂H/∂α, ∂H/∂β, ∂H/∂σ)`` for :func:`back_to_back_gaussian`.
 
-    With H = e^{E}·erfcx(y) and dH/dy = 2y·H − (2/√π)e^{E},
+    Closed forms, with A, B, g, N as in the shape (the ∂/∂dt erfc terms cancel
+    identically, and for ∂/∂σ they collapse through N(α+β) = αβ/2):
 
-        ∂Ω/∂ΔT = N(αH₁ − βH₂)        — the two erfc terms cancel exactly
-        ∂Ω/∂α  = Ω·β/(α(α+β)) + N·(σ/√2)·dH₁/dy₁
-        ∂Ω/∂β  = Ω·α/(β(α+β)) + N·(σ/√2)·dH₂/dy₂
-        ∂Ω/∂σ² = Ω·ΔT²/(2σ⁴)
-                 + N[dH₁/dy₁·(ασ² − ΔT) + dH₂/dy₂·(βσ² + ΔT)]/(2σ²)^{3/2}
+        ∂H/∂dt = N(αA − βB)
+        ∂H/∂σ  = N(α²σA + β²σB) − (αβ/2)·√(2/π)·g
+        ∂H/∂α  = β²/(2(α+β)²)·(A+B) + N(ασ² + dt)A − Nσ√(2/π)·g
+        ∂H/∂β  = α²/(2(α+β)²)·(A+B) + N(βσ² − dt)B − Nσ√(2/π)·g
 
-    and ∂Ω/∂σ = 2σ·∂Ω/∂σ².  Note the *offset* convention: the derivative with
-    respect to the peak **position** is the negative of ∂Ω/∂ΔT, since
-    ΔT = channel − peak.  Slots into the ``(Ω, ∂/∂x, ∂/∂w…)`` shape of
-    ``pseudovoigt.pseudo_voigt_derivs``.
-
-    σ > 0 is required: the σ = 0 limit is the bare exponential pair, whose
-    ∂/∂σ does not exist (it is the one-sided start of a σ² law), so unlike
-    :func:`back_to_back_gaussian` this function does not substitute for it.
+    The value is built from the same intermediates as the shape and equals
+    it bit for bit.
     """
     xp = get_backend()
-    x = xp.asarray(dt, dtype=np.float64)
-    n, h1, h2, expo, y1, y2, s = _gaussian_parts(dt, alpha, beta, sigma)
-    omega = n * (h1 + h2)
-    dh1 = 2.0 * y1 * h1 - _TWO_OVER_SQRT_PI * expo
-    dh2 = 2.0 * y2 * h2 - _TWO_OVER_SQRT_PI * expo
-    var = s * s
-    d_ddt = n * (alpha * h1 - beta * h2)
-    d_dalpha = omega * beta / (alpha * (alpha + beta)) + n * (s / _SQRT2) * dh1
-    d_dbeta = omega * alpha / (beta * (alpha + beta)) + n * (s / _SQRT2) * dh2
-    root3 = (2.0 * var) ** 1.5
-    d_dvar = omega * (x * x) / (2.0 * var * var) + n * (
-        dh1 * (alpha * var - x) + dh2 * (beta * var + x)
-    ) / root3
-    return omega, d_ddt, d_dalpha, d_dbeta, 2.0 * s * d_dvar
+    dt = xp.asarray(dt, dtype=np.float64)
+    norm, a_term, b_term, g = _gauss_parts(dt, alpha, beta, sigma)
+    h = norm * (a_term + b_term)
+    s2 = sigma * sigma
+    ab = a_term + b_term
+    ssum2 = 2.0 * (alpha + beta) * (alpha + beta)
+    gauss_tail = norm * sigma * _SQRT_2_OVER_PI * g
+    d_dt = norm * (alpha * a_term - beta * b_term)
+    d_sigma = (norm * (alpha * alpha * sigma * a_term + beta * beta * sigma * b_term)
+               - 0.5 * alpha * beta * _SQRT_2_OVER_PI * g)
+    d_alpha = (beta * beta / ssum2) * ab + norm * (alpha * s2 + dt) * a_term - gauss_tail
+    d_beta = (alpha * alpha / ssum2) * ab + norm * (beta * s2 - dt) * b_term - gauss_tail
+    return h, d_dt, d_alpha, d_beta, d_sigma
 
 
-# ----------------------------------------------------------------------
-# the pseudo-Voigt convolution (GSAS type 3)
-# ----------------------------------------------------------------------
+def _lorentz_parts(dt, alpha, beta, width):
+    """``(N, P, Q, S(P), S(Q))`` for the Lorentzian half at FWHM ``width``.
+
+    P = α·dt − iα·width/2 and Q = −β·dt + iβ·width/2 — the signs the
+    convolution integral gives (module docstring, decision 1).
+    """
+    xp = get_backend()
+    dt = xp.asarray(dt, dtype=np.float64)
+    half = 0.5 * width
+    p = alpha * dt - 1j * (alpha * half)
+    q = -beta * dt + 1j * (beta * half)
+    norm = alpha * beta / (2.0 * (alpha + beta))
+    return norm, p, q, scaled_exp1(p), scaled_exp1(q)
+
+
+def _lorentz_value(norm, sp, sq):
+    xp = get_backend()
+    return (2.0 * norm / math.pi) * (xp.imag(sp) - xp.imag(sq))
+
+
+def back_to_back_lorentzian(dt, alpha, beta, gamma):
+    """Back-to-back exponentials ⊗ Lorentzian of FWHM ``gamma`` (µs, > 0).
+
+    ``H_L(dt) = (2N/π){Im[e^P E₁(P)] − Im[e^Q E₁(Q)]}`` with
+    ``P = α·dt − iαγ/2`` and ``Q = −β·dt + iβγ/2``, derived by splitting the
+    convolution with L(t) = (γ/2π)/((γ/2)² + t²) (manual p. 145) at the pulse
+    kink and using ∫₀^∞ e^{−as}/(s + w) ds = e^{aw}E₁(aw) (A&S § 5.1).  Not the
+    manual's printed p (p. 147/148) — see the module docstring.  Undefined at
+    γ = 0, where P and Q reach the real axis.
+    """
+    norm, _p, _q, sp, sq = _lorentz_parts(dt, alpha, beta, gamma)
+    return _lorentz_value(norm, sp, sq)
+
+
+def _lorentz_derivs(dt, alpha, beta, width):
+    """``(H_L, ∂/∂dt, ∂/∂α, ∂/∂β, ∂/∂width)`` from one S(P), one S(Q).
+
+    With S′(w) = S(w) − 1/w:
+
+        ∂H_L/∂dt = (2N/π)·Im[α(S(P) − 1/P) + β(S(Q) − 1/Q)]
+        ∂H_L/∂Γ  = −(N/π)·Re[α(S(P) − 1/P) + β(S(Q) − 1/Q)]
+        ∂H_L/∂α  = (2/π)·β²/(2(α+β)²)·Im[S(P) − S(Q)] + (2N/(πα))·Im[P·S(P)]
+        ∂H_L/∂β  = (2/π)·α²/(2(α+β)²)·Im[S(P) − S(Q)] − (2N/(πβ))·Im[Q·S(Q)]
+    """
+    xp = get_backend()
+    norm, p, q, sp, sq = _lorentz_parts(dt, alpha, beta, width)
+    h = _lorentz_value(norm, sp, sq)
+    dsp = sp - 1.0 / p
+    dsq = sq - 1.0 / q
+    comb = alpha * dsp + beta * dsq
+    diff_im = xp.imag(sp) - xp.imag(sq)
+    ssum2 = 2.0 * (alpha + beta) * (alpha + beta)
+    d_dt = (2.0 * norm / math.pi) * xp.imag(comb)
+    d_width = -(norm / math.pi) * xp.real(comb)
+    d_alpha = ((2.0 / math.pi) * (beta * beta / ssum2) * diff_im
+               + (2.0 * norm / (math.pi * alpha)) * xp.imag(p * sp))
+    d_beta = ((2.0 / math.pi) * (alpha * alpha / ssum2) * diff_im
+              - (2.0 * norm / (math.pi * beta)) * xp.imag(q * sq))
+    return h, d_dt, d_alpha, d_beta, d_width
+
+
 def tof_pseudovoigt_widths(sigma, gamma):
-    """(Γ, η, σ_eff) for :func:`back_to_back_pseudovoigt`.
+    """``(Γ, η, σ_Γ)``: the TCH combined FWHM, mixing, and the σ it implies.
 
-    The Thompson-Cox-Hastings (1987, J. Appl. Cryst. 20, 79) combination of
-    ``pseudovoigt.tch_gamma_eta``, entered with the Gaussian FWHM
-    Γ_G = 2√(2 ln2)·σ and the Lorentzian FWHM γ, and read back out as the
-    combined FWHM Γ, the mixing η, and the standard deviation Γ/(2√(2 ln2))
-    that the Gaussian half of the pseudo-Voigt is evaluated at.  γ = 0 is
-    forced to Γ = Γ_G exactly, so the type-3 shape reduces to type 1 without a
-    last-digit shift from the fifth root.
+    Γ_G = √(8 ln2)·σ; Γ and η from the TCH polynomials (TCH87 eqs. 4-5; manual
+    p. 146) through :func:`~rietx.model.profiles.pseudovoigt.tch_gamma_eta`,
+    whose coefficients are the ones this module uses; σ_Γ = Γ/√(8 ln2) is the
+    standard deviation of a Gaussian of FWHM Γ, which is what the Gaussian
+    half of the blend takes (module docstring, decision 2).  All three are
+    returned because a caller given only (Γ, η) would rebuild σ_Γ as σ.
+
+    Where γ = 0 the values are **selected**, not computed: Γ = Γ_G, σ_Γ = σ
+    exactly and η = 0, so the blend reduces to the Gaussian shape bit for
+    bit rather than to within the rounding of (Γ_G⁵)^{1/5}.
     """
     xp = get_backend()
-    g = xp.asarray(gamma, dtype=np.float64)
-    fwhm_g = GAUSS_FWHM_TO_SIGMA * xp.asarray(sigma, dtype=np.float64)
-    fwhm, eta = tch_gamma_eta(fwhm_g, g)
-    fwhm = xp.where(g > 0.0, fwhm, fwhm_g)
-    return fwhm, eta, fwhm / GAUSS_FWHM_TO_SIGMA
+    sig = xp.asarray(sigma, dtype=np.float64)
+    gam = xp.asarray(gamma, dtype=np.float64)
+    gamma_g = SQRT_8LN2 * sig
+    big_gamma, eta = tch_gamma_eta(gamma_g, gam)
+    off = gam == 0.0
+    big_gamma = xp.where(off, gamma_g, big_gamma)
+    eta = xp.where(off, 0.0, eta)
+    sigma_gamma = xp.where(off, sig, big_gamma / SQRT_8LN2)
+    return big_gamma, eta, sigma_gamma
 
 
-def _lorentzian_parts(dt, alpha, beta, fwhm):
-    """(N, e^p E₁(p), e^q E₁(q), p, q) for the Lorentzian half.
-
-    p = α(ΔT + iΓ/2), q = β(−ΔT + iΓ/2) — the arguments the convolution of
-    the back-to-back pair with a Lorentzian of FWHM Γ produces.  Γ = 0 is
-    substituted away because the caller multiplies this half by η, which is
-    exactly zero there; the substituted value never reaches the result.
-    """
-    xp = get_backend()
-    x = xp.asarray(dt, dtype=np.float64)
-    g = xp.asarray(fwhm, dtype=np.float64)
-    safe = xp.where(g > 0.0, g, 1.0)
-    p = alpha * (x + 0.5j * safe)
-    q = beta * (-x + 0.5j * safe)
-    n = 0.5 * alpha * beta / (alpha + beta)
-    return n, scaled_exp1(p), scaled_exp1(q), p, q
-
-
-def _lorentzian(dt, alpha, beta, fwhm):
-    xp = get_backend()
-    n, a, b, _p, _q = _lorentzian_parts(dt, alpha, beta, fwhm)
-    return -(2.0 * n / xp.pi) * (xp.imag(a) + xp.imag(b))
+def _all_zero(gamma) -> bool:
+    g = _concrete(gamma)
+    return g is not None and bool(np.all(g == 0.0))
 
 
 def back_to_back_pseudovoigt(dt, alpha, beta, sigma, gamma):
-    """GSAS TOF profile type 3: back-to-back exponentials ⊗ pseudo-Voigt.
+    """Back-to-back exponentials ⊗ TCH pseudo-Voigt — GSAS TOF profile function 3.
 
-    Von Dreele, Jorgensen & Windsor (1982), J. Appl. Cryst. 15, 581, for the
-    exponential pair; Thompson, Cox & Hastings (1987), J. Appl. Cryst. 20, 79,
-    for the pseudo-Voigt it is convoluted with; Larson & Von Dreele (2004),
-    GSAS manual, for the parameterisation.  ``gamma`` is the Lorentzian FWHM
-    in µs — see this module's header on why that differs from
-    ``voigt.voigt``'s half-width, and on the sign of p that this
-    implementation does *not* take from the manual.
+    ``H = (1−η)·H_G(dt; α, β, σ_Γ) + η·H_L(dt; α, β, Γ)`` with (Γ, η, σ_Γ)
+    from :func:`tof_pseudovoigt_widths` — the combined-Γ reading (module
+    docstring, decision 2).  ``sigma`` is the Gaussian standard deviation and
+    ``gamma`` the Lorentzian FWHM, both in µs.
 
-    Unit area in ΔT.  At γ = 0 this is :func:`back_to_back_gaussian` exactly.
+    γ = 0 is exactly :func:`back_to_back_gaussian`: when every γ is a plain
+    zero the Lorentzian branch is not evaluated at all, and element-wise the
+    Gaussian value is selected where γ = 0.
     """
     xp = get_backend()
-    fwhm, eta, sigma_eff = tof_pseudovoigt_widths(sigma, gamma)
-    gaussian = back_to_back_gaussian(dt, alpha, beta, sigma_eff)
-    lorentzian = _lorentzian(dt, alpha, beta, fwhm)
-    return xp.where(
-        xp.asarray(gamma, dtype=np.float64) > 0.0,
-        eta * lorentzian + (1.0 - eta) * gaussian,
-        gaussian,
-    )
-
-
-def _tch_slopes(fwhm_g, gamma, fwhm):
-    """(∂Γ/∂Γ_G, ∂Γ/∂γ, dη/dq) at the Γ ``tch_gamma_eta`` already returned.
-
-    Differentiating TCH's Γ⁵ = Σ c_i Γ_G^{5−i} γ^i and η = Σ e_j q^j term by
-    term.  The *values* stay ``tch_gamma_eta``'s, so this adds slopes to the
-    sibling's answer rather than a second copy of it.
-    """
-    xp = get_backend()
-    gg = xp.asarray(fwhm_g, dtype=np.float64)
-    gl = xp.asarray(gamma, dtype=np.float64)
-    coeffs = (1.0, *_TCH_GAMMA, 1.0)
-    d_dgg = xp.zeros_like(gg * gl)
-    d_dgl = xp.zeros_like(gg * gl)
-    for i, c in enumerate(coeffs):
-        if i < 5:
-            d_dgg = d_dgg + (5 - i) * c * gg ** (4 - i) * gl**i
-        if i > 0:
-            d_dgl = d_dgl + i * c * gg ** (5 - i) * gl ** (i - 1)
-    five_g4 = 5.0 * fwhm**4
-    e1, e2, e3 = _TCH_ETA
-    q = gl / fwhm
-    return d_dgg / five_g4, d_dgl / five_g4, e1 + 2.0 * e2 * q + 3.0 * e3 * q**2
+    if _all_zero(gamma):
+        return back_to_back_gaussian(dt, alpha, beta, sigma)
+    gam = xp.asarray(gamma, dtype=np.float64)
+    big_gamma, eta, sigma_gamma = tof_pseudovoigt_widths(sigma, gam)
+    norm, a_term, b_term, _g = _gauss_parts(dt, alpha, beta, sigma_gamma)
+    h_g = norm * (a_term + b_term)
+    width = xp.where(big_gamma > 0.0, big_gamma, 1.0)
+    lnorm, _p, _q, sp, sq = _lorentz_parts(dt, alpha, beta, width)
+    h_l = _lorentz_value(lnorm, sp, sq)
+    blend = (1.0 - eta) * h_g + eta * h_l
+    return xp.where(gam == 0.0, h_g, blend)
 
 
 def back_to_back_pseudovoigt_derivs(dt, alpha, beta, sigma, gamma):
-    """(Ω, ∂Ω/∂ΔT, ∂Ω/∂α, ∂Ω/∂β, ∂Ω/∂σ, ∂Ω/∂γ) for the type-3 Jacobian.
+    """``(H, ∂H/∂dt, ∂H/∂α, ∂H/∂β, ∂H/∂σ, ∂H/∂γ)`` for the function-3 shape.
 
-    The Lorentzian half differentiates cleanly through
-    d/dz[e^z E₁(z)] = e^z E₁(z) − 1/z: writing A = e^p E₁(p), B = e^q E₁(q),
+    Chain rule through Γ(Γ_G(σ), γ), η(γ/Γ) and σ_Γ = Γ/√(8 ln2):
 
-        ∂Ω_L/∂ΔT = −(2N/π)(α·Im A − β·Im B)
-        ∂Ω_L/∂α  = Ω_L·β/(α(α+β)) − (2N/πα)·Im(pA)
-        ∂Ω_L/∂β  = Ω_L·α/(β(α+β)) − (2N/πβ)·Im(qB)
-        ∂Ω_L/∂Γ  = −(N/π)(α·Re A + β·Re B)
+        ∂H/∂dt,α,β = (1−η)·∂H_G + η·∂H_L        (α, β enter neither Γ nor η)
+        ∂H/∂σ = (1−η)·∂H_G/∂σ_Γ·∂σ_Γ/∂σ + η·∂H_L/∂Γ·∂Γ/∂σ + η′·∂q/∂σ·(H_L − H_G)
+        ∂H/∂γ = (1−η)·∂H_G/∂σ_Γ·∂σ_Γ/∂γ + η·∂H_L/∂Γ·∂Γ/∂γ + η′·∂q/∂γ·(H_L − H_G)
 
-    where in each case the −1/z pieces of the two wings cancel identically —
-    a cancellation that only happens with the p sign this module uses, and
-    which GSAS's published derivatives carry as extra ΔT/(ΔT² + Γ²/4) terms.
-    The two width partials then run through TCH: σ and γ both move Γ, and γ
-    also moves η, so ∂Ω/∂σ = 2√(2ln2)·∂Ω/∂Γ_G with the mixing chain included.
+    with q = γ/Γ and the TCH polynomial's own partials.  **γ must be strictly
+    positive**: at γ = 0 the γ-derivative would need a one-sided limit no
+    source gives, so it is refused (a fit seeds γ at a small positive value
+    instead).  The returned value is the same arithmetic as
+    :func:`back_to_back_pseudovoigt` at γ > 0.
     """
     xp = get_backend()
-    g = xp.asarray(gamma, dtype=np.float64)
-    fwhm, eta, sigma_eff = tof_pseudovoigt_widths(sigma, gamma)
-    fwhm_g = GAUSS_FWHM_TO_SIGMA * xp.asarray(sigma, dtype=np.float64)
+    g_val = _concrete(gamma)
+    if g_val is not None and np.any(g_val <= 0.0):
+        raise ValueError(
+            "back_to_back_pseudovoigt_derivs(): gamma must be strictly positive "
+            "when a γ-derivative is requested — at γ = 0 it needs a one-sided "
+            "limit no source gives; seed γ at a small positive value, or use "
+            "back_to_back_gaussian_derivs for a purely Gaussian shape")
+    sig = xp.asarray(sigma, dtype=np.float64)
+    gam = xp.asarray(gamma, dtype=np.float64)
+    big_gamma, eta, sigma_gamma = tof_pseudovoigt_widths(sig, gam)
+    h_g, g_dt, g_da, g_db, g_ds = back_to_back_gaussian_derivs(
+        dt, alpha, beta, sigma_gamma)
+    h_l, l_dt, l_da, l_db, l_dw = _lorentz_derivs(dt, alpha, beta, big_gamma)
+    one_m = 1.0 - eta
+    h = one_m * h_g + eta * h_l
 
-    tg, dtg_ddt, dtg_da, dtg_db, dtg_dsig = back_to_back_gaussian_derivs(
-        dt, alpha, beta, sigma_eff
-    )
-    n, a, b, p, q = _lorentzian_parts(dt, alpha, beta, fwhm)
-    tl = -(2.0 * n / xp.pi) * (xp.imag(a) + xp.imag(b))
-    dtl_ddt = -(2.0 * n / xp.pi) * (alpha * xp.imag(a) - beta * xp.imag(b))
-    dtl_da = tl * beta / (alpha * (alpha + beta)) - (
-        2.0 * n / (xp.pi * alpha)
-    ) * xp.imag(p * a)
-    dtl_db = tl * alpha / (beta * (alpha + beta)) - (
-        2.0 * n / (xp.pi * beta)
-    ) * xp.imag(q * b)
-    dtl_dfwhm = -(n / xp.pi) * (alpha * xp.real(a) + beta * xp.real(b))
+    c1, c2, c3, c4 = _TCH_GAMMA
+    e1, e2, e3 = _TCH_ETA
+    gg = SQRT_8LN2 * sig
+    den = 5.0 * big_gamma ** 4
+    dgam_dgg = (5.0 * gg ** 4 + 4.0 * c1 * gg ** 3 * gam + 3.0 * c2 * gg ** 2 * gam ** 2
+                + 2.0 * c3 * gg * gam ** 3 + c4 * gam ** 4) / den
+    dgam_dgl = (c1 * gg ** 4 + 2.0 * c2 * gg ** 3 * gam + 3.0 * c3 * gg ** 2 * gam ** 2
+                + 4.0 * c4 * gg * gam ** 3 + 5.0 * gam ** 4) / den
+    dgam_dsig = dgam_dgg * SQRT_8LN2
+    q = gam / big_gamma
+    deta_dq = e1 + 2.0 * e2 * q + 3.0 * e3 * q * q
+    dq_dsig = -(gam / (big_gamma * big_gamma)) * dgam_dsig
+    dq_dgam = 1.0 / big_gamma - (gam / (big_gamma * big_gamma)) * dgam_dgl
+    lg = h_l - h_g
 
-    # ∂/∂Γ at fixed η — the Gaussian half sees Γ only through σ_eff = Γ/K
-    d_dfwhm = eta * dtl_dfwhm + (1.0 - eta) * dtg_dsig / GAUSS_FWHM_TO_SIGMA
-    d_deta = tl - tg
-    dgam_dgg, dgam_dgl, deta_dq = _tch_slopes(fwhm_g, g, fwhm)
-    qq = g / fwhm
-    dq_dgl = (1.0 - qq * dgam_dgl) / fwhm
-    dq_dgg = -qq * dgam_dgg / fwhm
-
-    omega = eta * tl + (1.0 - eta) * tg
-    d_ddt = eta * dtl_ddt + (1.0 - eta) * dtg_ddt
-    d_dalpha = eta * dtl_da + (1.0 - eta) * dtg_da
-    d_dbeta = eta * dtl_db + (1.0 - eta) * dtg_db
-    d_dgg = d_dfwhm * dgam_dgg + d_deta * deta_dq * dq_dgg
-    d_dgamma = d_dfwhm * dgam_dgl + d_deta * deta_dq * dq_dgl
-    d_dsigma = GAUSS_FWHM_TO_SIGMA * d_dgg
-    return omega, d_ddt, d_dalpha, d_dbeta, d_dsigma, d_dgamma
+    d_dt = one_m * g_dt + eta * l_dt
+    d_alpha = one_m * g_da + eta * l_da
+    d_beta = one_m * g_db + eta * l_db
+    d_sigma = (one_m * g_ds * (dgam_dsig / SQRT_8LN2) + eta * l_dw * dgam_dsig
+               + deta_dq * dq_dsig * lg)
+    d_gamma = (one_m * g_ds * (dgam_dgl / SQRT_8LN2) + eta * l_dw * dgam_dgl
+               + deta_dq * dq_dgam * lg)
+    return h, d_dt, d_alpha, d_beta, d_sigma, d_gamma
