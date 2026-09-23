@@ -406,7 +406,7 @@ def test_the_esds_survive_the_round_trip_because_the_su_tags_carry_them(tmp_path
     ``value(su)`` convention every other number in a rietx CIF uses, two
     significant figures of su leave the value quoted to one decimal — and a
     refined 2.0785 +/- 0.878 would be written ``2.1(9)`` and come back as 2.1.
-    So the crystal-axis components go out at five decimals with the
+    So the crystal-axis components go out as their own doubles with the
     dictionary's own ``_su`` items beside them, and this asserts both halves
     arrive.
     """
@@ -1760,11 +1760,9 @@ def test_a_refined_moment_writes_its_modulus_esd_and_survives_the_round_trip(
     ``phases.i.atoms.j.moment.dof0`` — the one writer, never recomputed.
 
     The precision claim is asserted rather than hoped for: 2.0784535703041347
-    is written at five decimals, so the value that comes back differs by less
-    than half a unit in the last written place, and every subsequent read and
-    write is exact. That is the strongest true statement about a fixed-precision
-    format and it is what "bit-identical stored fields" means in practice —
-    measured on the fit itself, the second read is bit-identical to the first.
+    is written as the shortest text for its double (``_moment_number``), so
+    the value that comes back is the one that was refined, bit for bit, and so
+    is the modulus esd — and every subsequent read and write is exact too.
     """
     import gemmi
 
@@ -1795,18 +1793,84 @@ def test_a_refined_moment_writes_its_modulus_esd_and_survives_the_round_trip(
     diagnostics: list = []
     first = structure_from_cif(str(out), diagnostics=diagnostics)
     got = first.phases[0].atoms[0].moment
-    half = 0.5 * 10.0 ** -magcif.MOMENT_DECIMALS
-    assert abs(got.crystalaxis_y.value - fitted) <= half
+    assert got.crystalaxis_y.value == fitted
     assert got.crystalaxis_y.stderr is None      # the components never had one
     (named,) = [d for d in diagnostics
                 if d.code == "CIF_MAGNETIC_MAGNITUDE_ESD_NOT_STORED"]
-    assert named.value == pytest.approx(esd, abs=half)
+    assert named.value == esd
 
     # ...and from here on it is exact
     out2 = tmp_path / "again.cif"
     structure_to_cif(first, str(out2))
     second = structure_from_cif(str(out2))
     assert _stored(first.phases[0]) == _stored(second.phases[0])
+
+
+#: A moment along YMnO3's tied ``mx,2mx,0`` direction whose five-decimal
+#: rounding leaves the line: (0.1456956, 0.2913912) prints ``0.14570 0.29139``,
+#: 4e-6 μ_B off it, past ``in_span``'s 1e-6.  Synthetic — the *shape* of the
+#: case a solver's own ``write_magcifs`` output was refused on (2026-09-23).
+_TIED_X = 0.1456956
+
+
+def _ymno3_with_tied_moment(tmp_path):
+    phase = _read(tmp_path, "YMnO3").phases[0]
+    j = next(i for i, a in enumerate(phase.atoms) if a.moment is not None)
+    atom = phase.atoms[j]
+    moment = atom.moment.model_copy(update={
+        name: rx.Parameter(value=value, unit="mu_B")
+        for name, value in zip(("crystalaxis_x", "crystalaxis_y",
+                                "crystalaxis_z"),
+                               (_TIED_X, 2 * _TIED_X, 0.0))})
+    atoms = [a.model_dump() for a in phase.atoms]
+    atoms[j] = atom.model_copy(update={"moment": moment}).model_dump()
+    # validated, not model_copy'd: the moment is on the line to float
+    # precision, so the in-memory model passes the check the reader applies
+    phase = rx.Phase.model_validate({**phase.model_dump(), "atoms": atoms})
+    return rx.Structure(phases=[phase]), j
+
+
+def test_a_moment_on_a_tied_direction_reads_back_from_its_own_writer(tmp_path):
+    """The writer's file passes the reader's span test on the moment it wrote.
+
+    The reproduction first: the site allows only [1, 2, 0], and the same moment
+    rounded to five decimals per component — what the writer printed until
+    2026-09-24 — is outside that span at the validator's 1e-6, so the reader
+    refused its own writer's file.  Written as the double itself it comes back
+    exactly, and exactly on the line.
+    """
+    structure, j = _ymno3_with_tied_moment(tmp_path)
+    phase = structure.phases[0]
+    atom = phase.atoms[j]
+    basis = phase.magnetic_symmetry.group().allowed_moment_basis(
+        (atom.x.value, atom.y.value, atom.z.value))
+    assert [list(map(int, r)) for r in basis] == [[1, 2, 0]]
+    assert in_span(basis, atom.moment.values())
+    assert not in_span(basis, [round(v, 5) for v in atom.moment.values()])
+
+    out = tmp_path / "tied.cif"
+    structure_to_cif(structure, str(out))
+    back = structure_from_cif(str(out)).phases[0].atoms[j].moment
+    assert list(back.values()) == list(atom.moment.values())
+
+
+def test_a_tied_moment_round_trips_bit_and_byte_identically(tmp_path):
+    """read → write → read is bit-identical on every stored field, and
+    write → read → write byte-identical, on the synthetic tied moment — the
+    fixed-point claim the four published fixtures make, on a moment whose
+    components carry every digit a refinement leaves in them."""
+    structure, _ = _ymno3_with_tied_moment(tmp_path)
+    out0 = tmp_path / "zero.cif"
+    structure_to_cif(structure, str(out0))
+    first = structure_from_cif(str(out0))
+    out1 = tmp_path / "one.cif"
+    structure_to_cif(first, str(out1))
+    second = structure_from_cif(str(out1))
+    out2 = tmp_path / "two.cif"
+    structure_to_cif(second, str(out2))
+    assert _stored(structure.phases[0]) == _stored(first.phases[0])
+    assert _stored(first.phases[0]) == _stored(second.phases[0])
+    assert out0.read_bytes() == out1.read_bytes() == out2.read_bytes()
 
 
 def test_the_modulus_esd_comes_from_the_dof_row_and_nowhere_else(tmp_path):
@@ -1839,7 +1903,7 @@ def test_the_modulus_esd_comes_from_the_dof_row_and_nowhere_else(tmp_path):
     assert _moment_esds(_NoEsd(), 0, phase) == {}
     assert magcif._number_or_dot(None) == "."
     assert magcif._number_or_dot(float("nan")) == "."
-    assert magcif._number_or_dot(0.3275) == "0.32750"
+    assert magcif._number_or_dot(0.3275) == "0.3275"
     # a phase with no magnetic symmetry is not even walked
     nuclear = phase.model_copy(update={
         "magnetic_symmetry": None,

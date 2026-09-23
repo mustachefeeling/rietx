@@ -929,16 +929,33 @@ def symmform_rank(symmform: str) -> int | None:
 # writing
 # ---------------------------------------------------------------------------
 
-#: Decimals every moment quantity is written to.  Five, and *not* the
-#: ``value(su)`` notation :func:`~rietx.crystallography.cif.format_su` uses for
-#: every other number in a rietx CIF — this is the one place that convention is
-#: the wrong one, for a measured reason.  A refined moment's esd is routinely
-#: 0.05-0.9 μ_B (WP-1327: 2.0785 ± 0.0655 on Cr₂WO₆, 0.0666 ± 0.878 on the null
-#: arm), so two significant figures of su leaves the *value* quoted to one or
-#: two decimals — ``0.1(9)`` for a modulus of 0.0666 — and a write/read round
-#: trip would not return the number that was refined.  The dictionary's own
-#: ``_su`` items carry the uncertainty instead, which is what they are for.
-MOMENT_DECIMALS = 5
+def _moment_number(value: float) -> str:
+    """A moment quantity as the shortest text that reads back as the same double.
+
+    ``repr``, and *not* the ``value(su)`` notation
+    :func:`~rietx.crystallography.cif.format_su` uses for every other number in
+    a rietx CIF — this is the one place that convention is the wrong one, for a
+    measured reason.  A refined moment's esd is routinely 0.05-0.9 μ_B
+    (WP-1327: 2.0785 ± 0.0655 on Cr₂WO₆, 0.0666 ± 0.878 on the null arm), so two
+    significant figures of su leaves the *value* quoted to one or two decimals
+    — ``0.1(9)`` for a modulus of 0.0666.  The dictionary's own ``_su`` items
+    carry the uncertainty instead, which is what they are for.
+
+    Nor a fixed number of decimals, which is what this was until it refused its
+    own writer's file: the reader tests the moment's membership of the site's
+    allowed span at 1e-6 μ_B (:func:`~.magnetic.operators.in_span`, through
+    the ``Phase`` validator), and five decimals rounds each component by up to
+    5e-6 *independently*, so a moment along a tied direction such as
+    ``mx,2mx,0`` stops being on it — (0.1456956, 0.2913912) prints as
+    ``0.14570 0.29139``, 4e-6 off the line (measured 2026-09-23 on
+    ``MagneticSolution.write_magcifs``' own output).  Loosening the span test
+    to the writer's rounding would pass a real disagreement of that size from
+    any other file; writing the double exactly keeps the moment the validator
+    already accepted, so write → read returns it bit for bit and
+    read → write → read is a fixed point from the first read on.  The Landé g
+    was fixed the same way.
+    """
+    return repr(float(value))
 
 
 def write_magnetic_block(block, phase, *,
@@ -960,10 +977,11 @@ def write_magnetic_block(block, phase, *,
     * ``_parent_propagation_vector.kxkykz`` where the block records the parent
       k, in the CIF2 bracket spelling MAGNDATA writes;
     * one ``_atom_site_moment`` row per site carrying a moment: the crystal-axis
-      components and their ``_su`` columns (see :data:`MOMENT_DECIMALS` for why
-      not ``value(su)``), and ``magnitude`` computed **once**, from the
-      components under the cosine metric ``cif_mag.dic`` defines, so the file
-      cannot carry a magnitude that disagrees with its own components;
+      components and their ``_su`` columns (see :func:`_moment_number` for why
+      neither ``value(su)`` nor a fixed number of decimals), and ``magnitude``
+      computed **once**, from the components under the cosine metric
+      ``cif_mag.dic`` defines, so the file cannot carry a magnitude that
+      disagrees with its own components;
     * ``magnitude_su`` where ``magnitude_esds`` supplies it — the esd of the
       *modulus*, which is where WP-1327 puts a moment's uncertainty (the
       component ``stderr`` of a refined moment is ``None`` by design, because
@@ -1009,9 +1027,9 @@ def write_magnetic_block(block, phase, *,
                       ("crystalaxis_x", "crystalaxis_y", "crystalaxis_z")]
         loop.add_row(
             [atom.label]
-            + [f"{p.value:.{MOMENT_DECIMALS}f}" for p in components]
+            + [_moment_number(p.value) for p in components]
             + [_number_or_dot(p.stderr) for p in components]
-            + [f"{moment_magnitude(m.values(), cell6):.{MOMENT_DECIMALS}f}",
+            + [_moment_number(moment_magnitude(m.values(), cell6)),
                _number_or_dot(esds.get(atom.label))])
     loop = block.init_loop("_rietx_atom_site_moment.", ["label", "ion", "g"])
     for atom in sites:
@@ -1034,7 +1052,7 @@ def _number_or_dot(value: float | None) -> str:
     """
     if value is None or not math.isfinite(value):
         return "."
-    return f"{value:.{MOMENT_DECIMALS}f}"
+    return _moment_number(value)
 
 
 def read_private_moment_items(block) -> tuple[dict[str, str], dict[str, float]]:
