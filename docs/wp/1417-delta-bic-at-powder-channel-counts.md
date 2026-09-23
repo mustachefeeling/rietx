@@ -95,6 +95,14 @@ shipped acceptance fixtures, since the issue's data are withheld.
 Not #219 (1339). That one is about *where* Δχ² lives; this is about N in the
 penalty. Same family, different mechanism, different fix.
 
+### Inherited
+
+- **2026-09-23, from the issue triage (issue #270).** The reporter claimed
+  this on the thread on 2026-09-23: a fix is in progress on their fork, off
+  `ff56d956`, one PR per issue. No PR existed when this was written, so
+  `wp_claim.py status` cannot see the claim yet. A session picking this WP
+  checks the thread and `gh pr list` first.
+
 ## Non-goals
 
 - Hamilton's test itself, and `hamilton_justified`'s threshold.
