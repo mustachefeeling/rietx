@@ -2320,8 +2320,9 @@ its commits are reachable only through the PR ref, not through any local branch.
 - **`STR(...)` is refused by name, not supported** (#107). The line-based
   split still cannot see a phase opened with the macro form, but PR #98 took
   the minimum honest fix with it (`_STR_MACRO`, `topas.py:1866`; the test
-  names seven affected archive files — `rigidb`, `split_fum`, `SPODI`, `D20`
-  and three `AT027-23_*`): such a file raises `TopasInpError` counting the
+  names seven affected archive files — `archive file 14`, `archive file 15`,
+  `archive file 16`, `archive file 17` and three variants of `archive file 18`):
+  such a file raises `TopasInpError` counting the
   phases it states, rather than returning zero. Those files therefore parse
   not at all, so PR #98's incidence figures are still **floors**, and what is
   parked at the registry-shape task is only *whether* the macro is read — a

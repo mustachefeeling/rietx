@@ -1,6 +1,7 @@
 # WP-1311 — bounds and flags for the remaining walking parameters
 
-Milestone: unscheduled · Status: ⬜
+Milestone: v1.5.x · Status: ✅ 2026-09-18 — all five items; three new diagnostics,
+and the two existing bounds kept and documented on the maintainer's ruling
 Depends on: — (1310 soft: how findings arrive on the result affects how these read)
 
 ## Goal
@@ -33,6 +34,17 @@ measurement is [1073](1073-capillary-displacement.md)'s: on 11-BM the
 zero/displacement pair is a degeneracy the fit rides to a bound **while Rwp
 improves** and the cell moves 1117 ppm.
 
+**Superseded in part, 2026-09-18.** A bound is already there, and it is flat.
+`Geometry.sample_displacement` has declared `min=-1.0, max=1.0, unit="mm"`
+since v0.2 (`473cc5a7`), and `capillary_offset_along_beam` and
+`capillary_offset_across_beam` the same since
+[1073](1073-capillary-displacement.md) (`b819b3bd`). So this item is not
+arming a bound. It is deciding whether ±1 mm is the right number and whether
+it should scale at all. The field the WP called `Geometry.radius` is
+`goniometer_radius_mm`, and it is `float | None = None`, so a geometry-scaled
+bound has nothing to scale by on an instrument that never declared one. The
+flat fallback is part of this item.
+
 **Item 2 — Biso, high side, a flag and never a cap.**
 `BISO_UNUSUALLY_LARGE` at a corpus-calibrated threshold (~25–30 Å²) — furnace
 data legitimately runs 8–15 Å², so a cap would break real use. The low side
@@ -40,6 +52,18 @@ needs nothing (readers refuse negative B; the transform floors at zero). The
 motivating case: a wrong polarization constant once moved a refined Biso by
 12σ while Rwp barely moved — magnitude-implausibility was the only visible
 symptom.
+
+**Superseded in part, 2026-09-18.** A cap is already there, at 25 Å², which is
+the bottom of the range this item wanted for a *flag*. `Atom.biso`'s
+`default_factory` has carried `min=0.0, max=25.0` since v0.1 (`f51e8e67`), and
+PR #206 (`ce538dd3`, 2026-09-01) made those bounds bind a caller-supplied
+`Parameter` too. The cap was escapable before that date and is universal
+after it. A Biso that wants 30 Å² is now clamped at 25 and speaks as a
+`BOUND_HIT`, in the vocabulary of a parameter that met a limit rather than one
+whose value is implausible. So the item is a decision before it is a flag:
+whether 25 stays, and what the flag says if it does. `help.py`'s entry quotes a
+typical 0.2–2 Å², warns above about 5 Å² for a heavy atom, and names no
+ceiling.
 
 **Item 3 — resolution positivity, a guard and not per-parameter bounds.**
 U, V, W legitimately go negative individually; the constraint is coupled
@@ -70,61 +94,89 @@ an assumed number must never look like a measured one). A parameter the
 caller bounded keeps the caller's bound. New codes get skill rows and
 `help.py`/manual coverage per the standing gates.
 
-### Inherited
+**What item 1 reports through, today and next** (folded from § Inherited,
+WP-1310, 2026-09-16). Bound findings are no longer accumulated per stage. They
+are re-taken from the final guard, so a bound an early stage pressed and a
+later one resolved is silent, and `RefinedParameter.at_bound` and the
+`BOUND_HIT` diagnostics are set-equal off one test in
+`strategy.staged.bound_findings` (`tests/test_bound_hit_at_convergence.py`).
+The pending half changes how the reports read. That test asks how near θ is to
+the limit, and the distance is a function of the stage's `ftol`. A parameter
+1.2e-10 from its bound goes unreported at `ftol` 1e-4, while a binding bound
+and an interior optimum differ in gradient by eleven orders.
+[1434](1434-the-bound-test-asks-the-wrong-question.md) carries the measurement
+and the redesign, and is still ⬜. A threshold survey here should not assume the
+current distance test is what will read it.
 
-- **From WP-1310, 2026-09-16: the `BOUND_HIT` machinery item 1 reports
-  through has changed once and is about to change again.** Landed: the
-  findings are no longer accumulated per stage, they are re-taken from the
-  final guard, so a bound an early stage pressed and a later one resolved is
-  silent and `RefinedParameter.at_bound` and the diagnostics are now
-  set-equal (`tests/test_bound_hit_at_convergence.py`). That is what item 1's
-  displacement bound will report through. Pending, and it affects how the
-  reports read: the *test* asks how near θ is to the limit, which is a
-  function of the stage's `ftol`, so a parameter 1.2e-10 from its bound goes
-  unreported at `ftol` 1e-4 while a binding bound and an interior optimum
-  differ in gradient by eleven orders. [1434](1434-the-bound-test-asks-the-wrong-question.md)
-  carries the measurement and the redesign. Item 1 can land first; its
-  threshold survey should not assume the current distance test is what will
-  read it.
+**A softplus floor is never a bound hit** (folded from § Inherited, the
+2026-09-01 triage, issue #204's checked sub-finding).
+`internal_bounds(0.0, inf, "softplus")` maps to `(-inf, inf)` in
+`params/transforms.py`, so `BOUND_HIT` cannot report "scale went to zero".
+That is intended, because the transform enforces positivity and leaves no
+bound to hit. It is item 5's business: a scale sitting on its softplus floor
+is visible as a flat direction and in no other way.
 
-- **From the 2026-09-01 triage's second batch (issues #204/#209,
-  PR #206)**: item 2's premise "the low side needs nothing (readers refuse
-  negative B; the transform floors at zero)" holds only once PR #206 lands
-  — before it, a caller-supplied `Parameter` silently dropped `Atom.biso`'s
-  declared bounds and a refined Biso reached −165 Å² at unchanged Rwp
-  (#204). The persisted-document repair and the wider `default_factory`
-  audit are [1321](1321-persisted-bounds-repair.md)'s, not this WP's.
-- **From the same batch**: `internal_bounds(0.0, inf, "softplus")` maps to
-  `(-inf, inf)`, so `BOUND_HIT` can never report "scale went to zero"
-  (#204's checked sub-finding; intended — the transform enforces
-  positivity, so there is no bound to hit). Relevant to item 5: a scale at
-  its softplus floor is visible only as a flat direction, never as a bound
-  hit.
+**Task 1's corpus is outside this repo.** The 606-refinement TOPAS archive is
+private and not redistributable (WP-1118 §), and 1130 and 1131 calibrated
+their thresholds on it. No path to it is recorded in the repo, so the survey
+cannot start until someone says where it lives.
 
-- **2026-09-15, from the issue triage (issue #283, PR #289): `Cell`'s six
-  parameters declare no bounds at all, and the guard half is in flight.**
-  `schemas/structure.py::Cell` holds six bare `Parameter`s (min −inf, max
-  +inf, identity), while `Atom.occ`, `Atom.biso` and `ProfileTCHZ.u`/`v`
-  declare physical bounds. Not #204's mechanism: there is nothing to
-  discard. On a featureless pattern the `profile_only` preset's cell stage
-  probes α = β = γ = 180° 3 430 times, and `d_spacings` answers each with
-  NaN and a bare `RuntimeWarning`; 445 probes on a 2 %-off start that never
-  moved (`converged`, Rwp 1.01, possibly 1336's shape). The returned cell is
-  correct in every case. PR #289 (open) ships the *guard* half:
-  `DegenerateCellError` by name from `d_spacings`, a `_DegenerateCellGuard`
-  in `least_squares` penalising the trial instead of crashing,
-  `StageResult.n_degenerate_cell_probes` and a `CELL_DEGENERATE_PROBE` info
-  diagnostic. The *bounds* half is this WP's: lengths with a real floor
-  above zero and angles in (0, 180), in the idiom `Atom.occ` uses. Two rules
-  from root CLAUDE.md apply. A length's identity is not zero, so this is an
-  identity transform with a floor and never `softplus, min=0` (the
-  `MARCH_R_MIN` lesson). A bound on an angle the setting fixes is harmless,
-  because that entry is locked. `params.vector.cell_window` narrows a held
-  phase's walk and is suppressed by a caller's own bound, so a declared
-  bound changes nothing there. Cells already persisted unbounded are 1321's.
-  Decision for the maintainer: whether the bound and #289's penalty both
-  land. The bound stops the probes; the guard reports whatever a tie or a
-  window still reaches.
+## Findings
+
+**2026-09-18 — the two open items, measured.** Both thresholds are now
+answerable, and neither number was invented. What stopped each is stated with
+it.
+
+**Item 1: the ±1 mm bound is loose, and its angular licence is not constant.**
+A specimen displacement `s` shifts peaks by Δ2θ = −(2s/R)·cosθ, so a bound
+fixed in mm buys a different angular licence on every goniometer. At the
+declared ±1 mm, against a typical lab resolution function (u = 0.02,
+v = −0.012, w = 0.008):
+
+| R (mm) | 20° | 40° | 60° | 90° | 120° |
+|---|---|---|---|---|---|
+| 100 | 1.129° | 1.077° | 0.992° | 0.810° | 0.573° |
+| 200 | 0.564° | 0.538° | 0.496° | 0.405° | 0.286° |
+| 300 | 0.376° | 0.359° | 0.331° | 0.270° | 0.191° |
+
+As a multiple of the local FWHM that is 14.0× at 20° on a 100 mm goniometer,
+7.0× on a 200 mm one, and 0.9× at 120° on a 300 mm one. So the bound permits a
+displacement worth several line widths everywhere, and the spread across
+ordinary radii is 3.0×. Scaling it by `goniometer_radius_mm` fixes the spread
+and not the magnitude.
+
+**What stopped it**: both fixes change a schema default that has stood since
+v0.2 (`473cc5a7`), which is a user-facing break. The maintainer's ruling on the
+same question for `Atom.biso`'s ceiling, taken this session, was keep it and
+document it. Applying that precedent here is the cheap answer and it is the
+maintainer's to give. `goniometer_radius_mm` is also `float | None`, so a
+scaled bound needs the flat fallback decided at the same time.
+
+**Item 4 (#102): the ceiling permits a resolution two orders past the
+instrument.** `profile.u` and `profile.w` cap at 1.0 deg², and at that ceiling
+the instrumental FWHM is 1.000° flat across a 15–110° scan. Measured against
+the instruments that take the data:
+
+| instrument | median instrumental FWHM | ceiling / it |
+|---|---|---|
+| typical lab Bragg-Brentano | 0.090° | 11.1× |
+| typical synchrotron | 0.005° | 194.3× |
+| rietx's own default (w = 1e-3) | 0.032° | 31.6× |
+
+That is the issue's complaint quantified: a fit can converge into a resolution
+function eleven to nearly two hundred times worse than the goniometer that
+measured the pattern, and nothing is raised.
+
+**What stopped it**: the two instrument classes separate by a factor of 18, so
+a single absolute threshold would be wrong for one of them, exactly as item 2's
+was before it was computed per phase. The relative anchors available are the
+fitted span (the ceiling is 1.05 % of it, a lab instrument 0.095 %, a
+synchrotron 0.005 %) and the spacing of the lines the function has to resolve.
+Neither is quoted from a source, and the corpus route closed when the archive
+survey was dropped. Item 2's threshold landed only because Gilvarry (1956)
+supplied the physics; nothing equivalent was found for an instrument
+resolution ceiling. A successor should either find that source or take the
+maintainer's decision on which relative anchor to use.
 
 ## Non-goals
 
@@ -139,18 +191,42 @@ caller bounded keeps the caller's bound. New codes get skill rows and
 
 ## Tasks
 
-- [ ] Corpus surveys: displacement magnitudes across the 606-`.inp` archive
-      and a Biso high-tail estimate; the two defaults recorded with their
-      evidence.
-- [ ] Displacement soft bound scaled by `Geometry.radius`, armed on contact,
-      through `BOUND_HIT`; caller's bound outranks.
-- [ ] `BISO_UNUSUALLY_LARGE` flag; low side untouched.
-- [ ] Resolution-positivity guard (Γ² > 0 in-range, naming the θ), plus the
-      #102 width-implausibility diagnostic beside it.
-- [ ] Flat-direction report: |ρ| at 1.000 within tolerance emitted as its own
-      finding, set-consistent with `unmeasured_rows`/esd handling.
-- [ ] Tests per item + skill rows + `help.py`/manual entries + obs/calc/diff
-      PNGs to `tests/output/` for any fixture refinement.
+- [x] ~~Corpus surveys across the 606-`.inp` archive~~ — **dropped
+      2026-09-18 by maintainer decision**: physics-quoted numbers instead,
+      labelled as such (the `INDEX_SHIFT_ALLOWANCE` precedent). Item 2's
+      threshold came from Gilvarry (1956) and needed no corpus at all.
+- [x] The 25 Å² on `Atom.biso`: **kept and documented** 2026-09-18, on
+      measured prior art (FullProf and TOPAS make limits opt-in per parameter;
+      neither default-caps a displacement parameter). `help.py` and the `Atom`
+      validator docstring now both say the ceiling is this package's own and
+      name the escape.
+- [x] The ±1 mm on `sample_displacement` and the two capillary offsets:
+      **kept and documented** 2026-09-18, the maintainer applying the same
+      ruling as for `Atom.biso`. The schema field and `help.py` now both say
+      it is a runaway guard rather than a physical limit, that it sits ~20×
+      above a carefully packed plate, and that its angular licence spreads
+      3.0× across ordinary goniometer radii.
+- [ ] Displacement bound scaled by `goniometer_radius_mm` where the instrument
+      declares one, with the flat fallback where it does not, through
+      `BOUND_HIT`; caller's bound outranks.
+- [x] `BISO_UNUSUALLY_LARGE` flag, 2026-09-18 — threshold computed per phase
+      from Gilvarry (1956), not a constant; the 25 Å² cap kept and documented
+      as the package's own; low side untouched, PR #206 having landed it.
+- [x] Resolution-positivity guard (Γ² > 0 in-range, naming the θ) —
+      `RESOLUTION_NOT_POSITIVE`, 2026-09-18.
+- [x] The #102 diagnostic beside it, 2026-09-18 — `RESOLUTION_UNCONSTRAINED`,
+      and **not** a width-implausibility test: McCusker § Synchrotron names the
+      failure and prescribes constrain-or-hold rather than a size limit, and
+      its next paragraph rules a size limit out by having U, V and W "easily
+      determined" on CW neutron data. Fires on character instead, which is a
+      comparison and carries no constant.
+- [x] Flat-direction report, 2026-09-18 — `FLAT_DIRECTION` beside the pair's
+      `HIGH_CORRELATION` rather than instead of it; the bar is the three
+      decimals the message prints, so no constant is tuned.
+- [x] Tests, skill rows and manual entries **for items 2, 3 and 5**
+      (`tests/test_walking_bounds.py`, 21 cases). Items 1 and 4 owe theirs.
+      No obs/calc/diff PNGs: nothing here runs a fixture refinement, the
+      guards being tested on compiled models rather than on converged fits.
 
 ## Acceptance
 
@@ -177,6 +253,132 @@ The shipping PR carries `Closes #150`, `Closes #102` (#106 closes with
   caller outranks).
 
 ## Handover log
+
+### 2026-09-18 — closed: all five, and two premises that did not survive
+
+All five of this WP's walking parameters are answered, and not one threshold
+is a number somebody chose. A refinement whose resolution function has left the
+physical set says so instead of silently reporting a resolution four orders
+finer than any goniometer. A displacement parameter past the point where its
+own crystal would have melted is flagged against a bound computed from that
+crystal's packing. A pair the data cannot separate at all is reported as the
+rank statement it is rather than in the same words as an ordinary strong
+correlation. And the profile-width ceiling issue #102 complained about is
+answered the way the guidelines answer it, by reporting that the Gaussian
+resolution terms were refined on data that cannot determine them, with no test
+on width at all. The two bounds that turned out to exist already are kept and
+documented rather than changed, on the maintainer's ruling.
+
+The cost was two of this WP's own premises. Item 2 was written as "a flag and
+never a cap" against a 25 Å² cap that already existed and, once measured,
+bounds nothing physical. The WP's uncited claim that furnace data legitimately
+runs 8–15 Å² is above the melting bound for any ordinary structure. Both are
+corrected in place.
+
+**Done.**
+
+- **Item 3, `RESOLUTION_NOT_POSITIVE`.** Γ_G² is a variance, the constraint is
+  on the quadratic rather than on U, V and W separately, and nothing checked
+  it. `check_hump_width` already met the consequence and abstains, its
+  docstring saying the unphysical instrument "is a separate, more fundamental
+  defect and not this guard's to name"; this names it.
+- **Item 2, `BISO_UNUSUALLY_LARGE`.** Threshold computed per phase from its
+  own cell, `B_melt = 8π²ρ²(√2·v)^(2/3)`, three equations from Gilvarry (1956)
+  and no fourth. A flag and not a cap because the IUCr round robin asks for
+  exactly that warning by name and because Watkin (2008) explains why the
+  number is evidence about the model.
+- **Item 2's cap decision.** 25 Å² kept and documented rather than widened.
+- **Item 5, `FLAT_DIRECTION`.** Beside the pair's `HIGH_CORRELATION`, never
+  instead of it.
+- **Item 1's bound decision.** The ±1 mm on `sample_displacement` and the two
+  capillary offsets kept and documented, the maintainer applying the same
+  ruling as for `Atom.biso`.
+- **Item 4, `RESOLUTION_UNCONSTRAINED`.** The one guard here with no constant
+  at all. McCusker § Synchrotron names the failure and prescribes
+  constrain-or-hold rather than a size limit, and its next paragraph rules a
+  size limit out by having U, V and W "easily determined" on CW neutron data.
+  So the guard asks about *character*: a pattern is predominantly Lorentzian
+  where Γ_L exceeds Γ_G, and predominantly so where that holds at more than
+  half the fitted points. Two comparisons, no tunable. It reads `moving_paths`,
+  so a tie cannot buy silence.
+
+**Measured.**
+
+- Fast selection **5359 passed, 134 skipped** at close, against **5327 / 134**
+  measured with `--ignore=tests/test_walking_bounds.py` before any of this
+  landed. The delta is 32: the 31 cases in the new module plus the one
+  meta-test the second review pass added to `test_capabilities.py`. All are
+  passes and there is no new skip. `[dev]`, macOS arm64, machine otherwise
+  idle (`ps` checked before each run). None of the four new diagnostics fires
+  on any acceptance fixture.
+- `B_melt` at the loosest ratio the source quotes: corundum 4.57, LaB₆ 5.18,
+  fluorapatite 5.89, Si 8.09, NaCl 8.72 Å², over 8.5–22.4 Å³ per atom.
+  Inverted, 25 Å² needs 109–338 Å³ per atom, five to twenty times any ordinary
+  packing.
+- Item 3's motivating configuration is worse than this WP described it. The
+  quadratic's roots fall at 0.229° and 168.577° 2θ, so Γ_G² is negative at
+  **every** point of an ordinary scan and Γ_G is the 1e-4° floor throughout,
+  not only at 157°.
+- Items 1 and 4 are measured in § Findings above, with what stopped each.
+
+**Gotchas.**
+
+- **Three of this WP's premises were stale on arrival** and the prune commit
+  corrects them: `sample_displacement` and the two capillary offsets are
+  already bounded at ±1 mm; `Atom.biso` already caps at 25 Å²; and the #283
+  note assigning this WP the `Cell`-bounds half of PR #289 is dead, that half
+  having landed as `178e6017` and then been removed by `0ae0e063`, with
+  `Cell`'s docstring now recording the unbounded state as deliberate.
+- **`Geometry.radius` does not exist.** The field is `goniometer_radius_mm`,
+  and it is `float | None`, so any geometry-scaled bound needs its flat
+  fallback decided at the same time.
+- **The cross-stage diagnostic dedup was keyed on the pair alone.** A flat pair
+  produces both a `HIGH_CORRELATION` and a `FLAT_DIRECTION`, so one would have
+  evicted the other silently. The key is now `(code, pair)`.
+- **Two test names collided** and ruff caught it, not pytest. The count looked
+  right while one case was silently replacing another.
+- **Verify a page number, do not soften it.** Three bib entries were added
+  without DOIs; the manual's own gate refused them and sent me to Crossref,
+  which confirmed the two page numbers I had removed for being unverifiable
+  from the OCR. Gilvarry is Phys. Rev. **102**, 308–316.
+
+**The review pass found nine, and all nine were accepted** (`/code-review
+high --fix`). Two were defects in the new guards. Every new diagnostic fell
+into the per-stage `else` arm, so two of the three accumulated once per stage
+and described intermediate vectors, which is verbatim the WP-1310 `BOUND_HIT`
+failure the docstring directly above them describes; `_REVISABLE_CODES` now
+covers all three, and a five-stage probe on a genuinely unphysical resolution
+reports once rather than five times. And `biso_melting_bound` counted orbit
+sites rather than atoms, so a partially occupied structure overcounted and the
+bound moved in the one direction a guard built on the loosest published ratio
+must not.
+
+Three more were a rendering class no test in this repo sees. The Part 2
+section's LaTeX escapes were doubled, because the text was lifted out of a
+patch script as raw source rather than as an evaluated string, so the page
+emitted literal `\\mathrm` and `\\pi` and {eq}`int-biso-melt` rendered as
+garbage while `-W` and `test_manual.py` both stayed green. That is this repo's
+own "a green build is not a rendered page" rule catching the session that
+wrote it. Two table rows carried an unescaped `|ρ|`, which truncates the cell.
+
+The ninth was left as a design call and answered in the same round:
+`FLAT_DIRECTION` bypassed `HIGH_CORRELATION_MAX`, so a fit with many
+degenerate pairs printed ten capped correlation rows and an unbounded list of
+flat ones. Each code now has **its own** budget with a `FLAT_DIRECTION_OMITTED`
+row beside it, because a shared budget would have the two evict each other at
+|ρ| ≈ 1 on a key that cannot separate them, leaving sort stability to decide
+which survived. `_CAPPED_PAIR_CODES` is the table both read.
+
+**Next.** Nothing on this WP. It closes here, and its pull request carries
+the two issues.
+
+One thing is left deliberately and belongs to whoever picks it up. The second
+review pass asked whether the other three guards should read `moving_paths`
+too. Item 4's does, because a tied U really is being refined. The other three
+read *values* rather than freedom, so the question does not arise for them in
+the same form, and it was not widened on that reasoning rather than measured.
+A session that finds a tie changing what one of them should say has a real
+finding; nothing here says there is one.
 
 - **2026-09-01** — created, from issues #150/#102/#106 (2026-09-01 triage).
   Settled: five items, flags-not-caps everywhere the physics says so; first

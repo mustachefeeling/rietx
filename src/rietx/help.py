@@ -289,7 +289,12 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
             "line by −2s·cosθ/R (McCusker eq 3), which is the largest "
             "systematic position error a laboratory pattern usually carries. "
             "The cosθ shape is close to the constant shape of `zero_shift`, "
-            "so freeing both on one pattern usually reports a correlation."
+            "so freeing both on one pattern usually reports a correlation. "
+            "The ±1 mm bound is a runaway guard rather than a physical "
+            "limit: it sits about twenty times above a carefully packed "
+            "plate, and because the shift goes as s/R the same bound "
+            "means three times more angle on a small goniometer than on "
+            "a large one. Declare a tighter bound if you know your mount."
         ),
         unit="mm", default="0.0",
         typical="|s| < 0.05 mm on a carefully packed flat plate",
@@ -1038,7 +1043,10 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
             "too-flexible background biases first. A negative B is "
             "unphysical and the bound is at 0; a refined B above about 5 Å² "
             "for a heavy atom usually means an absorption or background error "
-            "rather than a real displacement."
+            "rather than a real displacement. The schema also caps it at "
+            "25 Å², which is this package's own default and not what other "
+            "Rietveld codes do: pass your own Parameter with a wider max to "
+            "refine a specimen that runs hotter than that."
         ),
         unit="Å²", default="0.5",
         typical="0.2-2 Å² for an inorganic framework at room temperature",
@@ -1105,14 +1113,30 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
 #: is ``PEAK_UNUSABLE_FLAGS``, which the peaks route serves beside the
 #: vocabulary rather than leaving a client to re-derive.
 PEAK_FLAG_HELP: dict[str, HelpEntry] = {
+    "position_unmeasured": HelpEntry(
+        title="Position never determined",
+        label="no position",
+        description=(
+            "The fit returned this line's position with an uncertainty of "
+            "180° or more, which is the whole span a 2θ axis has. It is not a "
+            "poorly-determined position, it is no position: any window built "
+            "from it matches whatever it is compared against. The line is "
+            "kept so a report can say why it went, and excluded from "
+            "everything that matches positions."
+        ),
+        anchor="peak-positions.html#wavelength-scales",
+    ),
     "ghost_kbeta": HelpEntry(
         title="Kβ contamination line",
         label="Kβ ghost",
         description=(
             "The line sits where the Kβ partner of a stronger reflection "
-            "would be. It is excluded rather than stripped: Rachinger "
-            "stripping redistributes the counting noise and biases what is "
-            "left. The line is unusable as evidence of a lattice."
+            "would be, and several other strong reflections carry one at the "
+            "same ratio. That agreement is the evidence: a single line at a "
+            "predicted position is a coincidence and is not flagged. It is "
+            "excluded rather than stripped, because Rachinger stripping "
+            "redistributes the counting noise and biases what is left. The "
+            "line is unusable as evidence of a lattice."
         ),
         anchor="peak-positions.html#wavelength-scales",
     ),
@@ -1121,8 +1145,8 @@ PEAK_FLAG_HELP: dict[str, HelpEntry] = {
         label="W ghost",
         description=(
             "The line sits at a tungsten L emission position, which an aged "
-            "tube with a contaminated anode produces. Excluded for the same "
-            "reason as a Kβ ghost, and unusable."
+            "tube with a contaminated anode produces. Flagged jointly and "
+            "excluded for the same reasons as a Kβ ghost, and unusable."
         ),
         anchor="peak-positions.html#wavelength-scales",
     ),
@@ -1372,9 +1396,15 @@ PEAK_DIAGNOSTIC_HELP: dict[str, HelpEntry] = {
     "PEAK_CONTAMINATION_LINE": HelpEntry(
         title="Contamination lines excluded",
         description=(
-            "Lines were identified as Kβ or tungsten emission and excluded. "
-            "They are excluded and never stripped, because stripping "
-            "redistributes the counting noise."
+            "Several strong reflections carry a line at their Kβ or tungsten "
+            "position at one common ratio, so the beam is leaking that line "
+            "and those lines were excluded. The peak list carries the flag "
+            "and not the size of the leak. For that, run "
+            "`background.diagnose(data, wavelength=...)` and read "
+            "`ContaminationFlag.leak_ratio`: an unfiltered tube sits near "
+            "0.14, and a filter or monochromator only cuts it. They are "
+            "excluded and never stripped, because stripping redistributes "
+            "the counting noise."
         ),
         anchor="peak-positions.html#wavelength-scales",
     ),

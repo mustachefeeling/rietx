@@ -4,6 +4,7 @@ Milestone: unscheduled · Status: ⬜ — **the maintainer is handling this one*
 2026-08-24); this file is the specification, not a claim on the work
 Depends on: the CW neutron source (PR #108, open) — `NeutronSource` and
 `crystallography/neutron.py` are both prerequisites and both land there
+Priority: P3 2026-09-23 — a hand-measured µR covers it, and no neutron user is at the wall
 
 ## Goal
 
@@ -98,6 +99,13 @@ from the Sears table, and the X-ray control in
 `tests/test_neutron_cw.py::test_the_xray_control_still_estimates` still green —
 that test exists precisely so a future change here cannot quietly turn X-ray
 estimation off.
+
+### Inherited
+
+- **2026-09-23, from the issue triage (issue #117).** Issue #117 is this
+  WP's issue. Its reporter filed it on 2026-08-24 as "WP-1132, owner is
+  taking this one". Until today this file did not cite it, so the backlog
+  read #117 as owned only by 1134, which is ✅. It closes when this WP ships.
 
 ## Deliberately not in scope
 

@@ -2,6 +2,7 @@
 
 Milestone: unscheduled · Status: ⬜
 Depends on: —
+Priority: P3 2026-09-23 — a view over what the series already knows
 
 ## Goal
 
@@ -69,6 +70,17 @@ screenshots come from `docs/manual/make_screenshots.py`.
   of `plot_trajectory` stops inventing the same ranking. Both belong to the
   series surface this panel reads; land them here or split them out, but
   the panel should not be the only consumer.
+- **From WP-1333 (2026-09-22): half of #218 now exists, for the failure case
+  only.** `_run` publishes the forward chain onto `self.results_`/`.trees_`/
+  `.failures_` *before* the backward walk, and when the backward walk raises
+  it also sets `self.result_` to the forward `SeriesResult` and attaches it
+  to the exception as `series_result`. There is still no `self.forward_` on
+  a run that is merely in progress, which is what a live scrubber needs, so
+  #218's attribute or callback stays this WP's; build it on the same
+  early-publication point rather than a second one. A backward pass also now
+  carries its own `failures`, and `SEQUENTIAL_PATH_CHECK_INCOMPLETE` says
+  when the comparison did not run or ran on fewer patterns or paths — a
+  marker vocabulary this panel should draw rather than re-derive.
 
 ## Non-goals
 

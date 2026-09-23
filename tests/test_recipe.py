@@ -294,12 +294,72 @@ def test_the_spf_schema_is_refused_by_name(lab6_doc):
         read_recipe(doc)
 
 
-def test_a_non_pxc_instrument_is_refused_by_name(lab6_doc):
-    doc = _edit(lab6_doc)
-    doc["payload"]["instrument"]["initialization"][0]["Type"] = ["PNC", "PNC",
+def _as_type(doc: dict, kind: str) -> dict:
+    """A synthetic recipe: the LaB6 fixture with its instrument ``Type`` swapped."""
+    doc = _edit(doc)
+    doc["payload"]["instrument"]["initialization"][0]["Type"] = [kind, kind,
                                                                 False]
-    with pytest.raises(RecipeError, match="'PXC'"):
+    return doc
+
+
+def test_a_pnc_recipe_builds_the_neutron_arm_and_refines(lab6_doc):
+    """Issue #271: ``PNC`` is 2θ in degrees, so it is built, not refused.
+
+    Synthetic — the LaB6 recipe relabelled ``PNC`` — so the Rwp means nothing;
+    what is asserted is the source arm the reader built and that it fits.
+    """
+    recipe = read_recipe(_as_type(lab6_doc, "PNC"))
+    source = recipe.instrument.source
+    assert source.kind == "neutron_cw"
+    lam = lab6_doc["payload"]["instrument"]["initialization"][0]["Lam"][1]
+    assert source.wavelength.value == lam
+    assert not source.wavelength.vary
+    assert len(source.lines) == 1
+    assert source.polarization.value == 1.0 and not source.polarization.vary
+    assert source.dispersion is None
+    dropped = [d for d in recipe.diagnostics
+               if d.code == "RECIPE_FIELD_DROPPED"
+               and d.where == ["payload.instrument.initialization[0].Polariz."]]
+    assert len(dropped) == 1
+    ref = rx.Refinement(recipe.structure, recipe.instrument, history=False)
+    result = ref.fit(recipe.pattern, plan=recipe.plan,
+                     two_theta_limits=recipe.limits)
+    assert np.isfinite(result.statistics.rwp)
+
+
+def test_a_pnc_recipe_refuses_a_flagged_polarization(lab6_doc):
+    doc = _as_type(lab6_doc, "PNC")
+    doc["payload"]["instrument"]["parameterization"]["polarization"] = [
+        0.99, True, None, None]
+    with pytest.raises(RecipeError, match="nothing for the flag to refine"):
         read_recipe(doc)
+
+
+def test_a_pxc_recipe_is_unchanged_by_the_pnc_arm(lab6):
+    source = lab6.instrument.source
+    assert source.kind == "xray_cw"
+    assert source.polarization.value == 0.99
+
+
+@pytest.mark.parametrize("kind", ["PNT", "PXE"])
+def test_a_non_2theta_type_is_refused_with_its_own_reason(lab6_doc, kind):
+    """The refusal names what is true of that type alone (issue #271)."""
+    with pytest.raises(RecipeError) as exc:
+        read_recipe(_as_type(lab6_doc, kind))
+    msg = str(exc.value)
+    assert f"{kind!r} is" in msg
+    assert "PatternData holds 2θ in degrees" in msg
+    assert "'PNC' neutron" not in msg
+
+
+def test_a_time_of_flight_type_names_flight_time(lab6_doc):
+    with pytest.raises(RecipeError, match="time-of-flight neutron.*microseconds"):
+        read_recipe(_as_type(lab6_doc, "PNT"))
+
+
+def test_an_unknown_type_is_refused_without_a_described_reason(lab6_doc):
+    with pytest.raises(RecipeError, match="does not know this type"):
+        read_recipe(_as_type(lab6_doc, "SXC"))
 
 
 def test_an_unimplemented_broadening_model_is_refused_by_name(drx_doc):

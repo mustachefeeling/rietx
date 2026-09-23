@@ -6,14 +6,21 @@ WP-1004.  Everything here is plain API — the GUI is a consumer, not a premise.
 from __future__ import annotations
 
 import dataclasses
+from pathlib import Path
 
 import pytest
 
 import rietx as rx
-from rietx.params.vector import Entry
+from rietx._nearmiss import did_you_mean, near_misses
+from rietx.params.vector import Entry, is_literal_path
 from rietx.schemas.params import ParameterRow, TieSpec
 from rietx.strategy.staged import PLAN_INFO, PLAN_PRESETS
 from tests.test_refine_synthetic import perturbed_models, synthesize
+
+#: obs/calc/diff panels for visual inspection, gitignored (tests/CLAUDE.md):
+#: Rwp hides a locally bad fit, and the hold case is one where the *worse* Rwp
+#: is the right answer, so the picture is the check that nothing else broke.
+OUT = Path(__file__).parent / "output"
 
 SHORT = rx.RefinementPlan(stages=[
     rx.Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"], max_iter=20),
@@ -473,6 +480,205 @@ def test_symmetry_outranks_a_user_tie_when_an_edit_creates_one(ref):
         ref.untie("phases.0.cell.b")
 
 
+# --------------------------------------------------- holds (WP-1435, issue #211)
+CELL = "phases.0.cell.a"
+
+
+def test_a_plan_frees_a_pinned_parameter_and_a_hold_is_what_stops_it(ref, pattern):
+    """The defect and the fix in one test, because one implies the other.
+
+    ``vary=False`` is not a hold.  A plan *replaces* the vary flags rather
+    than continuing them (WP-1208), so a stage carrying ``phases.*.cell.*``
+    frees a pinned cell and refines it — while the model goes on reading
+    ``vary=False`` and ``result.parameters`` says ``True``, which is the
+    contradiction issue #211 reported.
+    """
+    ref.structure.phases[0].cell.a.vary = False
+    declared = ref.structure.phases[0].cell.a.value
+    ref.fit(pattern, plan=SHORT)
+    assert ref.structure.phases[0].cell.a.value != declared, "the defect is gone?"
+    assert ref.structure.phases[0].cell.a.vary is False, "the model still says fixed"
+
+    structure, ins = perturbed_models()
+    pinned = rx.Refinement(structure, ins)
+    assert pinned.hold(CELL) == [CELL]
+    result = pinned.fit(pattern, plan=SHORT)
+    OUT.mkdir(exist_ok=True)
+    result.plot(path=str(OUT / "wp1435_held_cell.png"))
+
+    assert pinned.structure.phases[0].cell.a.value == declared, "bit-identical"
+    # …and the value is not reported as a measurement, having never refined
+    assert not any(p.path == CELL for p in result.parameters)
+
+
+def test_a_blocked_stage_says_which_declaration_won(ref, pattern):
+    """The half a caller could not otherwise see.
+
+    Keyed on the hold rather than on ``vary``, which is the discriminator
+    WP-1310 measured into a dead end: ``vary=False`` is the default rather
+    than a decision, so a diagnostic on it names most of the table.
+    """
+    ref.hold(CELL)
+    result = ref.fit(pattern, plan=SHORT)
+
+    blocked = {s.name: s.blocked_by_hold for s in result.stages if s.blocked_by_hold}
+    assert blocked == {"cell": [CELL]}
+    assert all(CELL not in s.freed for s in result.stages)
+
+    hit = [d for d in result.diagnostics if d.code == "HOLD_BLOCKED_PLAN"]
+    assert len(hit) == 1, "one per fit, not one per stage"
+    assert hit[0].level == "info" and hit[0].where == [CELL]
+    assert hit[0].value == 1.0 and "'cell'" in hit[0].message
+
+
+def test_a_fit_that_declares_no_hold_is_silent_and_unchanged(ref, pattern):
+    """The empty state is empty, which is every fit that predates the field."""
+    result = ref.fit(pattern, plan=SHORT)
+    assert all(s.blocked_by_hold == [] for s in result.stages)
+    assert not [d for d in result.diagnostics if d.code == "HOLD_BLOCKED_PLAN"]
+
+
+def test_a_hold_marks_the_row_and_names_itself(ref):
+    ref.hold(CELL)
+    row = {r.path: r for r in ref.parameters()}[CELL]
+    assert row.held and not row.refinable
+    assert "hold()" in row.held_because and "unhold()" in row.held_because
+
+
+def test_the_reasons_a_caller_cannot_lift_outrank_a_hold(ref):
+    """A hold marks a structurally fixed row and never speaks for it.
+
+    Holding ``phases.*.cell.*`` on a cubic phase is one glob over six rows,
+    five of which the space group had already taken.  Marking them is right —
+    the caller did declare them — and reporting the hold first would be
+    wrong, because ``unhold`` cannot give back what symmetry holds.
+    """
+    ref.hold("phases.0.cell.*")
+    rows = {r.path: r for r in ref.parameters()}
+    assert rows["phases.0.cell.b"].held and rows["phases.0.cell.alpha"].held
+    assert rows["phases.0.cell.b"].held_because.startswith("tied:")
+    assert rows["phases.0.cell.alpha"].held_because.startswith("structurally fixed")
+    assert rows[CELL].held_because.startswith("held by this refinement")
+    # …and the refusal reads the table too, so it never gives advice that
+    # would not work: `unhold` gives a tied or locked row back no freer than
+    # it was, so those keep set_vary's older answer of declining in silence
+    assert ref.set_vary("phases.0.cell.b", True) == []
+    assert ref.set_vary("phases.0.cell.alpha", True) == []
+    with pytest.raises(ValueError, match="held by this refinement"):
+        ref.set_vary(CELL, True)
+
+
+def test_set_vary_refuses_a_held_path_and_sweeps_past_it(ref):
+    """A literal path is a claim, a pattern is a sweep.
+
+    The rule ``ParameterTable.set_vary`` already applies to a wavelength the
+    free cell makes degenerate: turning a broad glob into an error is worse
+    than declining one row of it, while a named path that cannot be honoured
+    has to say so.
+    """
+    ref.hold(CELL)
+    with pytest.raises(ValueError, match="held by this refinement"):
+        ref.set_vary(CELL, True)
+    assert ref.set_vary("phases.*.cell.*", True) == []
+    assert not {r.path: r for r in ref.parameters()}[CELL].vary
+    # holding does not block fixing, which a held row already is
+    assert CELL in ref.set_vary("phases.*.cell.*", False)
+
+
+def test_unhold_gives_it_back_fixed_rather_than_free(ref):
+    ref.hold(CELL)
+    with pytest.raises(ValueError, match="is not held"):
+        ref.unhold("phases.0.atoms.0.biso")
+    with pytest.raises(ValueError, match="unknown parameter path"):
+        ref.unhold("phases.0.cell.nonsense")
+    assert ref.unhold("phases.*.cell.*") == [CELL]
+    row = {r.path: r for r in ref.parameters()}[CELL]
+    assert row.refinable and not row.vary, "released, not freed"
+    with pytest.raises(ValueError, match="is not held"):
+        ref.unhold(CELL)          # the register no longer knows it
+
+
+def test_holding_a_free_parameter_fixes_it_at_once(ref):
+    """A declaration that took effect next stage would be honoured by
+    everything except the solve already running."""
+    ref.set_vary(CELL, True)
+    assert {r.path: r for r in ref.parameters()}[CELL].vary
+    ref.hold(CELL)
+    assert not {r.path: r for r in ref.parameters()}[CELL].vary
+    assert CELL not in ref._free_paths
+
+
+def test_a_checkout_restores_the_holds_the_node_had(ref, pattern):
+    """A hold that does not survive a checkout is a promise that expires."""
+    ref.fit(pattern, plan=SHORT)
+    before = ref.history.head
+    ref.hold(CELL)
+    held_node = ref.history.head
+    assert ref.history[held_node].state.holds == [CELL]
+
+    ref.checkout(before)
+    assert ref._user_holds == set()
+    assert not {r.path: r for r in ref.parameters()}[CELL].held
+
+    ref.checkout(held_node)
+    assert ref._user_holds == {CELL}
+    assert {r.path: r for r in ref.parameters()}[CELL].held
+
+
+def test_holds_survive_a_history_file_round_trip(pattern, tmp_path):
+    structure, ins = perturbed_models()
+    ref = rx.Refinement(structure, ins, history=tmp_path / "h.jsonl")
+    ref.fit(pattern, plan=SHORT)
+    ref.hold(CELL)
+    reopened = rx.Refinement.from_node(
+        rx.RefinementTree.load(tmp_path / "h.jsonl"), "head")
+    assert {r.path: r for r in reopened.parameters()}[CELL].held
+
+
+def test_a_hold_records_a_node_that_renders_the_call_that_made_it(ref, pattern):
+    ref.fit(pattern, plan=SHORT)
+    ref.hold(CELL)
+    action = ref.history[ref.history.head].action
+    assert action.kind == "set_hold" and action.held == [CELL]
+    assert action.api_call() == f"ref.hold({[CELL]!r})"
+    ref.unhold(CELL)
+    action = ref.history[ref.history.head].action
+    assert action.unheld == [CELL]
+    assert action.api_call() == f"ref.unhold({[CELL]!r})"
+
+
+def test_a_branch_inherits_the_declarations_it_is_rivalling_under(ref, pattern):
+    ref.fit(pattern, plan=SHORT)
+    ref.hold(CELL)
+    rival = ref.branch()
+    assert rival._user_holds == {CELL}
+    assert {r.path: r for r in rival.parameters()}[CELL].held
+
+
+def test_a_hold_on_a_path_an_edit_removed_is_kept_and_said_out_loud(ref):
+    """Opposite of a tie, which is dropped.
+
+    A tie describes a relation, so one whose model is gone is stale and goes.
+    A hold forbids, so there is nothing in it to go stale — and dropping it at
+    an edit is the one way a declaration could lapse in silence.
+    """
+    ref.hold("phases.0.atoms.1.biso")
+    thinner = ref.structure.model_copy(deep=True)
+    del thinner.phases[0].atoms[1]
+    with pytest.warns(UserWarning, match="hold nothing here"):
+        ref.edit(structure=thinner)
+    assert ref._user_holds == {"phases.0.atoms.1.biso"}, "kept, for a checkout back"
+
+
+def test_hold_without_history_still_edits():
+    structure, ins = perturbed_models()
+    ref = rx.Refinement(structure, ins, history=False)
+    assert ref.hold(CELL) == [CELL]
+    assert ref.history is None
+    with pytest.raises(ValueError, match="unknown parameter path"):
+        ref.hold("phases.0.cell.nonsense")
+
+
 def test_tie_without_history_still_edits():
     structure, ins = perturbed_models()
     ref = rx.Refinement(structure, ins, history=False)
@@ -480,6 +686,150 @@ def test_tie_without_history_still_edits():
     assert ref.history is None
     assert ref.structure.phases[0].atoms[1].biso.value == pytest.approx(
         ref.structure.phases[0].atoms[0].biso.value)
+
+
+# --------------------------------------------- a turn_on that reached nothing
+#: the working spelling of issue #265's wavelength, and the one it tried
+WAVELENGTH = "instrument.source.lines.0.wavelength"
+WAVELENGTH_TYPO = "instrument.source.wavelength"
+
+
+def test_a_literal_names_one_path_and_a_pattern_does_not():
+    assert is_literal_path("instrument.zero_shift")
+    assert is_literal_path("vars.A")
+    for glob in ("phases.*.scale", "phases.?.scale", "phases.[01].scale"):
+        assert not is_literal_path(glob), glob
+
+
+def test_an_unknown_literal_is_one_the_table_lacks_not_one_it_declined(ref):
+    """Found and declined is a different fact from not found (WP-1414).
+
+    A tied ``b``, a locked ``alpha`` and a held ``a`` all free nothing, and
+    ``ParameterRow.held_because`` says why for each; none is a typo.  Only
+    the literal naming no row is, and a pattern is never reported however
+    little it matched.
+    """
+    ref.hold(CELL)
+    table = ref._working_table()
+    asked = ["phases.0.cell.b", "phases.0.cell.alpha", CELL,
+             WAVELENGTH_TYPO, "phases.*.microstrain.dof.*", "phases.*.cel.*",
+             WAVELENGTH_TYPO, "vars.A"]
+    assert table.set_vary(asked, True) == []
+    assert table.unknown_literals(asked) == [WAVELENGTH_TYPO, "vars.A"], (
+        "order kept, repeats dropped, declined rows and patterns absent")
+
+
+def test_the_near_miss_folds_case_before_it_ranks(ref):
+    """Caglioti's U, typed as every paper prints it, is ``profile.u``.
+
+    ``difflib`` alone ranks ``instrument.profile.y`` first: a real path, one
+    character away, and the wrong parameter.
+    """
+    paths = [r.path for r in ref.parameters()]
+    assert near_misses("instrument.profile.U", paths, n=1) == ["instrument.profile.u"]
+    assert near_misses(WAVELENGTH_TYPO, paths, n=1) == [WAVELENGTH]
+    assert near_misses("nothing.like.it", paths) == []
+    assert did_you_mean("nothing.like.it", paths) == ""
+
+
+@pytest.mark.parametrize("path, n_freed, says", [
+    # the four rows of issue #265's reproduction, in its order
+    (WAVELENGTH_TYPO, 0, "STAGE_PATH_UNKNOWN"),
+    (WAVELENGTH, 1, "WAVELENGTH_CALIBRATION"),
+    # a pattern the shipped `lab_sample_refine` carries, on a model with no
+    # Stephens block: healthy, and the reason a pattern is never reported
+    ("phases.*.microstrain.dof.*", 0, None),
+    # a typo inside a pattern looks exactly like the row above, so it stays
+    # silent too; `surprises.md` tells the caller to read `freed`
+    ("phases.*.cel.*", 0, None),
+])
+def test_a_turn_on_that_reached_nothing_says_so_when_it_can(pattern, path, n_freed,
+                                                           says):
+    structure, ins = perturbed_models()
+    ref = rx.Refinement(structure, ins, history=False)
+    seen: list[dict] = []
+    result = ref.fit(pattern, events=seen.append, plan=rx.RefinementPlan(
+        stages=[rx.Stage("only", [path], max_iter=5)]))
+
+    stage = result.stages[0]
+    assert len(stage.freed) == n_freed
+    codes = {d.code for d in result.diagnostics}
+    unknown = [d for d in result.diagnostics if d.code == "STAGE_PATH_UNKNOWN"]
+    if says == "STAGE_PATH_UNKNOWN":
+        assert stage.unknown_paths == [path]
+        assert len(unknown) == 1 and unknown[0].level == "warning"
+        assert unknown[0].where == [path]
+        assert f"did you mean {WAVELENGTH!r}" in unknown[0].message
+        # decided at stage start, so a watcher sees it before the budget goes
+        start = next(e for e in seen if e["kind"] == "stage_start")
+        assert start["data"]["unknown_paths"] == [path]
+    else:
+        assert stage.unknown_paths == [] and not unknown
+    if says is not None:
+        assert says in codes
+    # a single-histogram fit has no elsewhere to have reached
+    assert stage.unreached_histograms == {}
+    assert "STAGE_FREED_NOTHING" not in codes
+
+
+def test_a_stored_stage_record_says_nobody_looked_rather_than_nothing_missing():
+    """WP-1076's rule on the two new fields: the default is not an answer.
+
+    A result written before WP-1414 had typo'd literals freeing nothing in
+    silence too, so opening it with ``[]`` would claim a check that never
+    ran.  Every runner writes a value; only the default is ``None``.
+    """
+    old = rx.StageResult.model_validate_json(
+        '{"name": "cell", "status": "converged", "n_iterations": 3, '
+        '"cost_initial": 2.0, "cost_final": 1.0}')
+    assert old.unknown_paths is None and old.unreached_histograms is None
+
+
+def test_a_literal_repeated_across_stages_is_one_finding_naming_both(pattern):
+    """Per path, not per stage: the hold's rule, for its reason."""
+    structure, ins = perturbed_models()
+    ref = rx.Refinement(structure, ins, history=False)
+    result = ref.fit(pattern, plan=rx.RefinementPlan(stages=[
+        rx.Stage("first", ["phases.*.scale", WAVELENGTH_TYPO], max_iter=5),
+        rx.Stage("second", [WAVELENGTH_TYPO, "phases.0.cell.aa"], max_iter=5),
+    ]))
+    unknown = {d.where[0]: d for d in result.diagnostics
+               if d.code == "STAGE_PATH_UNKNOWN"}
+    assert set(unknown) == {WAVELENGTH_TYPO, "phases.0.cell.aa"}
+    assert "stages 'first', 'second'" in unknown[WAVELENGTH_TYPO].message
+    assert "did you mean 'phases.0.cell.a'" in unknown["phases.0.cell.aa"].message
+    assert [s.unknown_paths for s in result.stages] == [
+        [WAVELENGTH_TYPO], [WAVELENGTH_TYPO, "phases.0.cell.aa"]]
+
+
+def test_a_single_stage_run_says_it_too(ref, pattern):
+    """``run_stage`` builds its own ``StageResult``: the second call site."""
+    result = ref.run_stage(pattern, rx.Stage("typo", [WAVELENGTH_TYPO], max_iter=5))
+    assert result.stages[-1].unknown_paths == [WAVELENGTH_TYPO]
+    assert [d.where for d in result.diagnostics
+            if d.code == "STAGE_PATH_UNKNOWN"] == [[WAVELENGTH_TYPO]]
+
+
+def test_the_shipped_presets_name_no_path_a_shipped_instrument_lacks():
+    """The literal rule may fire only on a caller's mistake, never on ours.
+
+    Every preset literal (``instrument.zero_shift``, the Caglioti five,
+    ``sample_displacement``, the axial pair) exists on every instrument
+    constructor — force-fixed where the geometry does not use it (WP-1073),
+    which is exactly why a declined row is not an unknown one.
+    """
+    instruments = [rx.Instrument.debye_scherrer(wavelength=1.5406),
+                   rx.Instrument.bragg_brentano(),
+                   rx.Instrument.flat_plate_transmission(),
+                   rx.Instrument.constant_wavelength_neutron(1.5),
+                   rx.Instrument.constant_wavelength_neutron(1.5, harmonics=True)]
+    structure, _ = perturbed_models()
+    for ins in instruments:
+        table = rx.Refinement(structure, ins, history=False)._working_table()
+        for name, build in PLAN_PRESETS.items():
+            for stage in build().stages:
+                assert table.unknown_literals(stage.turn_on) == [], (
+                    name, stage.name, ins.geometry.kind)
 
 
 # ----------------------------------------------------------------- PLAN_INFO

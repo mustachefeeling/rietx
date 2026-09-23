@@ -52,6 +52,7 @@ function row(path: string, over: Partial<ParamRow> = {}): ParamRow {
     transform: "identity",
     tie: null,
     locked: false,
+    held: false,
     esd: null,
     mode_fixed: false,
     needs_held_cell: false,
@@ -63,7 +64,7 @@ function row(path: string, over: Partial<ParamRow> = {}): ParamRow {
   // the server's own definition (`ParameterRow.refinable`), so a fixture cannot
   // claim a row is free while carrying a reason it is not
   base.refinable = over.refinable ?? (!base.locked && base.tie === null
-    && !base.mode_fixed && !base.needs_held_cell);
+    && !base.mode_fixed && !base.held && !base.needs_held_cell);
   return base;
 }
 
@@ -207,6 +208,14 @@ describe("the refine flag", () => {
     expect(heldGlyph(row("a", { needs_held_cell: true, refinable: false })))
       .toBe("≈");
     expect(heldKind(row("a", { needs_held_cell: true }))).toBe("degenerate");
+    // the fifth: the caller declared this one with `Refinement.hold`, so a
+    // plan's turn_on glob loses to it (WP-1435).  A pin rather than a lock,
+    // because unhold() takes it back and a space group does not
+    expect(heldGlyph(row("a", { held: true, refinable: false }))).toBe("📌");
+    expect(heldKind(row("a", { held: true }))).toBe("hold");
+    // and it loses in turn to the reasons above it, which unhold cannot lift
+    expect(heldKind(row("a", { held: true, locked: true }))).toBe("locked");
+    expect(heldKind(row("a", { held: true, mode_fixed: true }))).toBe("mode");
     expect(heldGlyph(row("a"))).toBe("");
     // …and a reason this client does not know still gets a mark: an empty box
     // reads as a control that failed to render

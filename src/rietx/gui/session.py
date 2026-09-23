@@ -65,7 +65,7 @@ from ..refine import (
     _VERSION,
     NoPhasesError,
     _refuse_without_phases,
-    mode_fixed_path,
+    mode_fixed_column,
 )
 from ..report.apply import api_call, describe_action, refusal, stage_for
 from ..schemas.instrument import Instrument
@@ -873,7 +873,15 @@ class GuiSession:
                 raise GuiError(str(exc), where=sorted(values)) from None
             changed["values"] = sorted(values)
         for glob, flag in vary.items():
-            changed["vary"][glob] = p.refinement.set_vary(glob, bool(flag))
+            try:
+                changed["vary"][glob] = p.refinement.set_vary(glob, bool(flag))
+            except ValueError as exc:
+                # ``set_vary`` could not refuse anything until WP-1435 gave a
+                # caller's hold precedence over a named path, so this branch
+                # ran bare and the first refusal would have been a 500.  Same
+                # treatment as ``set_values`` above: the sentence names the
+                # verb that resolves it, so it travels intact.
+                raise GuiError(str(exc), where=[glob]) from None
         return {"changed": changed, **self.params()}
 
     # ------------------------------------------------------------------
@@ -953,7 +961,9 @@ class GuiSession:
         broad the glob, and a wavelength does not match while this histogram's
         cell is free).  The one rule that lives in ``_run_stage`` instead is
         the intensity mode's force-fix, so that is applied here the same way it
-        is applied there, through :func:`~rietx.refine.mode_fixed_path`.
+        is applied there, through :func:`~rietx.refine.mode_fixed_column` —
+        which asks what each column moves, so a tie cannot carry a structural
+        parameter past it in either place (WP-1342).
 
         **Every matched path lands in exactly one of three buckets**, decided
         in this order: ``held`` (the stage's globs reach it and the stage will
@@ -1011,8 +1021,14 @@ class GuiSession:
             # matches itself, and this route is called on every head move,
             # where N calls would be N table rebuilds (a Le Bail phase's every
             # `.atoms.` row is mode-fixed).
-            dropped = [path for path in table.set_vary(globs, True)
-                       if mode_fixed_path(path, mode)]
+            # By what each column *moves*, as ``_run_stage`` does since
+            # WP-1342 — a tie can otherwise carry a structural parameter past
+            # the name test and this panel would promise a free column the
+            # next run drops.  Read after ``set_vary``, while they are columns.
+            freed_here = table.set_vary(globs, True)
+            reach = table.column_reach() if freed_here else {}
+            dropped = [path for path in freed_here
+                       if mode_fixed_column(reach.get(path, [path]), mode)]
             if dropped:
                 table.set_vary(dropped, False)
             after = set(table.free_paths)

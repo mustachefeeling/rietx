@@ -319,6 +319,19 @@ class Atom(Base):
         (issue #204). Measured cost: a refined Biso of -165 A^2 and an
         81-point QPA error at unchanged Rwp, invisible at the call site.
 
+        **The 25 A^2 ceiling is this package's own, and it is not common
+        practice** (WP-1311, measured 2026-09-18).  FullProf's hard limits are
+        opt-in, one user-supplied ``[LowLIMIT, HighLIMIT]`` line per parameter
+        (its manual's "Hard limits for parameters"), and TOPAS's bounding
+        constraints are declared per parameter in the input (Coelho, 2018);
+        neither ships a default ceiling on a displacement parameter.  It has
+        been here since v0.1 and the validator above is what made it bind a
+        caller's own ``Parameter``, so it is kept rather than widened.  A
+        specimen that genuinely runs hotter than 25 A^2 is served by supplying
+        the bound explicitly --- ``Atom(..., biso=Parameter(value=8.0,
+        vary=True, max=60.0))`` --- which wins over the declared one in either
+        direction, by the rule two paragraphs down.
+
         Detected with ``model_fields_set`` (or, for a raw dict, its keys —
         the same "was this key present" question one representation down)
         rather than by comparing against ``Parameter``'s own bare defaults:

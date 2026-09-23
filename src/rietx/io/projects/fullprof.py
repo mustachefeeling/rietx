@@ -4,9 +4,12 @@ Format: FullProf Suite (Rodríguez-Carvajal) ``.pcr`` control files. FullProf is
 closed source; **this reader is written from the file layout alone plus the
 published format description**, as ``ATTRIBUTION.md``'s fence requires — no
 FullProf code was read, no source file was consulted, and every layout fact
-below is quoted in a comment from a named real file so that the evidence for it
-is checkable. Where a real file is the *only* evidence for a block's position,
-that is said, and where there is no evidence at all the construct is **refused
+below is quoted in a comment from a real file at a real line so that the
+evidence for it is checkable. The corpus is the maintainer's own unpublished
+research data, so the files are cited as **corpus file 1** to **6** and the map
+from number to file is not public; the maintainer holds it in the private
+repository ``yue-here/rietx-corpus-map``. Where a real file is the *only*
+evidence for a block's position, that is said, and where there is no evidence at all the construct is **refused
 by name** rather than parsed on a guess.
 
 Why the format is worth reading: a ``.pcr`` carries the whole solved model — the
@@ -77,9 +80,8 @@ The three design decisions, and why
    normalisation of that column is degenerate with the phase scale factor —
    doubling every ``Occ`` and halving ``Scale`` is the same pattern. So the
    quantity a file states is a set of site occupancies *up to one arbitrary
-   common factor*, and the corpus proves the factor is not conventional: the
-   Cr₂WO₆ and Cr₂O₃ files carry a factor of 2 where the Co₃O₄ and YAG files
-   carry 1. What is recoverable is the *ratio* between sites, so
+   common factor*, and the corpus proves the factor is not conventional: two
+   corpus files carry a factor of 2 where two others carry 1. What is recoverable is the *ratio* between sites, so
    :func:`to_structure` divides each ``Occ`` by its site multiplicity, and
    **requires the result to be the same for every atom in the phase** — which
    is the statement "this phase is fully occupied", the only case where the
@@ -93,7 +95,7 @@ Four traps, all verified against the real files
 -----------------------------------------------
 
 1. **The ``!  Data for PHASE number: N`` comments lie.** In
-   ``crwo6002_G5_nc.pcr`` the *third* phase block is labelled ``PHASE number:
+   ``corpus file 1`` the *third* phase block is labelled ``PHASE number:
    1``. Phases are therefore parsed **positionally against ``Nph``** and the
    comment's index is recorded as :attr:`FullProfPhase.labelled_index` for
    provenance only. The parsed count is asserted against ``Nph``.
@@ -106,7 +108,7 @@ Four traps, all verified against the real files
    walk begins, and the column names are this module's own tables
    (:data:`_CELL_COLUMNS` and friends) zipped positionally.
 
-3. **A stale λ sits in the refinable-λ slot.** ``crwo6002_momcomp.pcr`` has
+3. **A stale λ sits in the refinable-λ slot.** ``corpus file 2`` has
    ``2.370100`` in the ``Zero Code SyCos Code SySin Code Lambda Code`` line
    while the refinement's real wavelength is the ``2.077100`` of the
    ``Lambda1 Lambda2`` line. Its codeword is ``0.00``, so it is inert and
@@ -115,7 +117,7 @@ Four traps, all verified against the real files
    is.
 
 4. **The file's own refined-parameter count can be stale.**
-   ``crwo6002_BV2andBV4.pcr`` declares 64 refined parameters and carries a
+   ``corpus file 3`` declares 64 refined parameters and carries a
    codeword for parameter 65. Both numbers are reported —
    :attr:`FullProfModel.refined_parameter_count` is the declaration and
    :attr:`FullProfModel.parameter_numbers` the set actually referenced — and
@@ -128,7 +130,7 @@ One grammar for a refined value
 Every refinable scalar in a ``.pcr`` is a number paired with a **codeword**,
 and the codeword carries two facts at once: ``10 × parameter_number +
 multiplier``, signed. So it says *which* free parameter drives the value and
-with what sign — which is how a ``.pcr`` writes a tie. ``crwo6002_G5_nc.pcr``'s
+with what sign — which is how a ``.pcr`` writes a tie. ``corpus file 1``'s
 two Cr sublattices carry ``11.00`` and ``-11.00`` on the same basis-vector
 coefficient: one parameter, opposite signs, i.e. the antiferromagnetic
 constraint, and a reader that recorded only "refined" would lose the physics.
@@ -184,7 +186,7 @@ class FullProfPcrError(ValueError):
 # Each tuple was read off a real file, named in the comment above it.
 
 #: ``!Job Npr Nph Nba Nex Nsc Nor Dum Iwg Ilo Ias Res Ste Nre Cry Uni Cor Opt Aut``
-#: — crwo6002_momcomp.pcr:4, values on :5. Nineteen fields; the count is
+#: — corpus file 2:4, values on :5. Nineteen fields; the count is
 #: asserted, because an eighteen-field (pre-``Aut``) form would shift every
 #: field after it and nothing in the corpus establishes which one is missing.
 _CONTROL_FIELDS = (
@@ -200,7 +202,7 @@ _CONTROL_FIELDS = (
 #:
 #: ``Iwg``, ``Ilo``, ``Ias``, ``Npr`` and ``Aut`` are deliberately *not* here:
 #: they change weighting, the profile function or FullProf's own parameter
-#: numbering, none of which moves a line. ``300q-1p5K_1.pcr`` has ``Aut 1``.
+#: numbering, none of which moves a line. ``corpus file 4`` has ``Aut 1``.
 _MUST_BE_ZERO = {
     "nsc": "extra scattering-factor lines follow it",
     "nor": "its meaning is not established by any file here",
@@ -217,26 +219,26 @@ _MUST_BE_ZERO = {
 }
 
 #: ``!Ipr Ppl Ioc Mat Pcr Ls1 Ls2 Ls3 NLI Prf Ins Rpa Sym Hkl Fou Sho Ana`` —
-#: crwo6002_momcomp.pcr:7, values on :8. Output-control switches only; recorded
+#: corpus file 2:7, values on :8. Output-control switches only; recorded
 #: for provenance and never acted on, because none of them moves a line.
 _OUTPUT_FIELDS = (
     "ipr", "ppl", "ioc", "mat", "pcr", "ls1", "ls2", "ls3", "nli", "prf",
     "ins", "rpa", "sym", "hkl", "fou", "sho", "ana")
 
 #: ``! Lambda1  Lambda2    Ratio    Bkpos    Wdt    Cthm     muR   AsyLim
-#: Rpolarz  2nd-muR -> Patt# 1`` — crwo6002_momcomp.pcr:10, values on :11.
+#: Rpolarz  2nd-muR -> Patt# 1`` — corpus file 2:10, values on :11.
 _PATTERN_FIELDS = (
     "lambda1", "lambda2", "ratio", "bkpos", "wdt", "cthm", "mur", "asylim",
     "rpolarz", "mur2")
 
 #: ``!NCY  Eps  R_at  R_an  R_pr  R_gl     Thmin       Step       Thmax    PSD
-#: Sent0`` — crwo6002_momcomp.pcr:13, values on :14.
+#: Sent0`` — corpus file 2:13, values on :14.
 _CYCLE_FIELDS = (
     "ncy", "eps", "r_at", "r_an", "r_pr", "r_gl", "thmin", "step", "thmax",
     "psd", "sent0")
 
 #: ``!Nat Dis Ang Pr1 Pr2 Pr3 Jbt Irf Isy Str Furth       ATZ    Nvk Npr More``
-#: — crwo6002_momcomp.pcr:83, values on :84; and the *same* fifteen positions
+#: — corpus file 2:83, values on :84; and the *same* fifteen positions
 #: under the ``Mom`` spelling on :141/:142, which is trap 2. ``ang_or_mom`` is
 #: deliberately one field: it is one column, and which of the two names it
 #: carries is a function of ``Jbt``, not of the file's prose.
@@ -248,8 +250,8 @@ _PHASE_FIELDS = (
 #: quantities. The line as a whole **cannot** go through :meth:`_Cursor.ints`
 #: the way the top-level control lines do, and that is a fact about the format
 #: rather than an oversight: ``Pr1 Pr2 Pr3`` are ``0.0 0.0 1.0`` and ``ATZ`` is
-#: ``963.500`` in crwo6002_momcomp.pcr:84 and ``154213.406`` in
-#: 300q-1p5K_1.pcr:66, so requiring the whole line to be integral would refuse
+#: ``963.500`` in corpus file 2:84 and ``154213.406`` in
+#: corpus file 4:66, so requiring the whole line to be integral would refuse
 #: every real file. The eleven fields below are the ones whose value is a count
 #: (``Nat``, ``Nvk``), a flag (``Dis``, ``Str``, ``Furth``, ``More``) or a
 #: grammar selector (``Jbt``, ``Irf``, ``Isy``, ``Npr``, and ``Ang``/``Mom``),
@@ -262,18 +264,18 @@ _PHASE_INTEGER_FIELDS = (
     "npr", "more")
 
 #: ``!  Zero    Code    SyCos    Code   SySin    Code  Lambda     Code MORE``
-#: — crwo6002_momcomp.pcr:76, values on :77. The value/codeword pairs are
+#: — corpus file 2:76, values on :77. The value/codeword pairs are
 #: **inline** here, not on a following line. ``lambda_slot`` is trap 3: a stale
 #: number with an inert codeword, and never the wavelength.
 _ZERO_FIELDS = ("zero", "sycos", "sysin", "lambda_slot")
 
 #: ``!  Scale        Shape1      Bov      Str1      Str2      Str3
-#: Strain-Model`` — crwo6002_momcomp.pcr:97, values on :98, codewords on :99.
+#: Strain-Model`` — corpus file 2:97, values on :98, codewords on :99.
 #: Six values plus a trailing integer model selector that has no codeword.
 _SCALE_COLUMNS = ("scale", "shape1", "bov", "str1", "str2", "str3")
 
 #: ``!       U         V          W           X          Y        GauSiz
-#: LorSiz Size-Model`` — crwo6002_momcomp.pcr:100/:101/:102. Seven values plus
+#: LorSiz Size-Model`` — corpus file 2:100/:101/:102. Seven values plus
 #: a trailing integer model selector. U/V/W are Caglioti in deg²(2θ); X/Y are
 #: the Lorentzian pair, and note the root CLAUDE.md convention warning — GSAS
 #: and FullProf swap the X/Y labels, so these are carried under FullProf's own
@@ -281,26 +283,26 @@ _SCALE_COLUMNS = ("scale", "shape1", "bov", "str1", "str2", "str3")
 _WIDTH_COLUMNS = ("u", "v", "w", "x", "y", "gausiz", "lorsiz")
 
 #: ``!     a          b         c        alpha      beta       gamma`` —
-#: crwo6002_momcomp.pcr:103/:104/:105. The codeword line is where a `.pcr`
+#: corpus file 2:103/:104/:105. The codeword line is where a `.pcr`
 #: writes a symmetry tie: ``51.00000 51.00000 61.00000`` ties a and b to
 #: parameter 5 and c to parameter 6, which is the tetragonal constraint.
 _CELL_COLUMNS = ("a", "b", "c", "alpha", "beta", "gamma")
 
 #: ``!  Pref1    Pref2      Asy1     Asy2     Asy3     Asy4      S_L      D_L``
-#: — crwo6002_momcomp.pcr:106/:107/:108. Eight values, eight codewords, no
+#: — corpus file 2:106/:107/:108. Eight values, eight codewords, no
 #: trailing model selector.
 _ASYM_COLUMNS = ("pref1", "pref2", "asy1", "asy2", "asy3", "asy4", "s_l", "d_l")
 
 #: ``!Atom   Typ       X        Y        Z     Biso       Occ     In Fin N_t
-#: Spc /Codes`` — crwo6002_momcomp.pcr:87, atom on :88, codewords on :89. The
+#: Spc /Codes`` — corpus file 2:87, atom on :88, codewords on :89. The
 #: label and the type consume the first two tokens; ``In``/``Fin``/``N_t``/
 #: ``Spc`` are trailing integers with no codewords.
 _ATOM_COLUMNS = ("x", "y", "z", "biso", "occ")
 
 #: ``!Atom   Typ  Mag Vek    X      Y      Z       Biso    Occ      Rx  Ry  Rz``
 #: then ``!     Ix     Iy     Iz    beta11  beta22  beta33    MagPh`` —
-#: crwo6002_momcomp.pcr:157-162 (``Isy = -1``, real/imaginary moment
-#: components) and crwo6002_G5_nc.pcr:166-171 (``Isy = -2``, where the same
+#: corpus file 2:157-162 (``Isy = -1``, real/imaginary moment
+#: components) and corpus file 1:166-171 (``Isy = -2``, where the same
 #: two columns are basis-vector coefficients ``C1..C3`` and ``C4..C9``). Same
 #: positions, different physical meaning, so the names are neutral: a magnetic
 #: atom occupies **four** lines — values, codewords, continuation, codewords.
@@ -309,13 +311,13 @@ _MAGNETIC_CONTINUATION = ("m4", "m5", "m6", "m7", "m8", "m9", "magph")
 
 #: What a nuclear phase's ``N_t`` adds to each atom. ``0`` is the isotropic
 #: form every single-pattern file here uses; ``2`` adds an anisotropic β line
-#: and its codeword line, evidenced by yag_xpress_072_new.pcr:187-190. Any
+#: and its codeword line, evidenced by corpus file 5:187-190. Any
 #: other value is refused, because how many lines it occupies is then a guess
 #: and a wrong guess desynchronises the rest of the file.
 _N_T_EXTRA_LINES = {0: 0, 2: 2}
 
 #: FullProf writes ``beta11 beta22 beta33 beta12 beta13 beta23`` in this order
-#: (yag_xpress_072_new.pcr:186). Read, and refused at :func:`to_structure` —
+#: (corpus file 5:186). Read, and refused at :func:`to_structure` —
 #: the β → U^ij conversion needs a convention (whether the stored off-diagonal
 #: already carries the factor 2 of the exponent) that no file here settles, and
 #: a wrong factor is a silently wrong Debye-Waller factor at high Q.
@@ -332,10 +334,10 @@ class Code:
     The encoding is ``10 × number + multiplier``, signed, so one number carries
     both *which* free parameter drives this value and the linear coefficient
     (usually ±1) with which it does. That is how a ``.pcr`` writes a tie: the
-    two Cr sublattices of ``crwo6002_G5_nc.pcr`` carry ``11.00`` and ``-11.00``
+    two Cr sublattices of ``corpus file 1`` carry ``11.00`` and ``-11.00``
     on the same basis-vector coefficient — one parameter, opposite sign, the
     antiferromagnetic constraint — and the tetragonal cell of
-    ``crwo6002_momcomp.pcr`` carries ``51.00000`` on both ``a`` and ``b``.
+    ``corpus file 2`` carries ``51.00000`` on both ``a`` and ``b``.
 
     A reader that recorded only "refined" would lose all of that, which is the
     same class of loss as the TOPAS reader's collapsed tri-state.
@@ -440,13 +442,13 @@ class MagneticSymmetry:
     * ``Isy = -1`` — ``Nsym Cen Laue MagMat`` then ``Nsym`` × (``SYMM``,
       ``MagMat`` × ``MSYM``); the atoms then carry real moment components
       ``Rx Ry Rz`` and imaginary ``Ix Iy Iz``
-      (``crwo6002_momcomp.pcr``:145-162).
+      (``corpus file 2``:145-162).
     * ``Isy = -2`` — ``Nsym Cen Laue Ireps N_Bas``, a real/imaginary indicator
       line of ``N_Bas`` values, then ``Nsym`` × (``SYMM``, ``|Ireps|`` ×
       (``BASR``, ``BASI``)) with ``3 × N_Bas`` numbers per basis line; the
       atoms then carry basis-vector coefficients ``C1..C9``
-      (``crwo6002_BV2andBV4.pcr``:145-161, ``crwo6002_G5_nc.pcr``:145-164,
-      ``300q-1p5K_1.pcr``:98-108).
+      (``corpus file 3``:145-161, ``corpus file 1``:145-164,
+      ``corpus file 4``:98-108).
 
     Every count above is asserted, which is what makes the walk past an
     unmodelled block safe: this reader has to land on the next phase's first
@@ -479,10 +481,13 @@ class SoftMomentConstraint:
     truncated to the field's width — which is why this resolves the key by
     **prefix** against the phase's labels rather than switching on a shape:
 
-    * ``CR   2.900 0.02000`` (``crwo6002_momcomp_softconstrained.pcr``:177),
+    * ``CR   1.000 0.01000`` (``corpus file 6``:177),
       whose phase's one atom is labelled ``CR``;
-    * ``1C  2.90 0.02`` / ``2C  2.90 0.02`` (``crwo6002_G5_nc.pcr``:190-191),
-      whose phase's two atoms are labelled ``1CR`` and ``2CR``.
+    * ``1C  1.00 0.01`` / ``2C  1.00 0.01`` (``corpus file 1``:190-191),
+      whose phase's two atoms are labelled ``1CR`` and ``2CR``. The moment and
+      its σ stand in for the corpus numbers; the **spelling** of each — how many
+      digits, in how many columns — is the file's own, and it is the spelling
+      this production turns on.
 
     Reading the second as a *site index* also fits those two lines, and would
     then read ``CR`` as a label — two productions where one explains both. The
@@ -504,7 +509,7 @@ class FullProfPhase:
 
     ``index`` is **positional** — its ordinal among the ``Nph`` blocks — and
     ``labelled_index`` is what the ``!  Data for PHASE number: N`` comment
-    claimed. They disagree in a real file (``crwo6002_G5_nc.pcr``'s third block
+    claimed. They disagree in a real file (``corpus file 1``'s third block
     says 1), which is why nothing keys on the comment.
     """
 
@@ -567,12 +572,12 @@ class FullProfModel:
     #: the format is worth reading at all.
     chi2: float | None = None
     #: The data file the header comment names. **Reported, never chased**: the
-    #: reference is routinely stale — ``300q-1p5K_1.pcr`` names
-    #: ``RT-1_5K_1.dat`` while the pattern beside it is ``300q-1p5K_1.dat`` —
-    #: and resolving it would be a reader inventing a filename.
+    #: reference is routinely stale, naming a pattern that is not the one
+    #: beside the file on disk. Resolving it would be a reader inventing a
+    #: filename.
     data_file: str | None = None
     #: The ``PCR-file:`` name from the same comment, which is likewise often
-    #: another refinement's (``crwo6002_G5_nc.pcr`` says ``crwo6002_BV2andBV4``).
+    #: another refinement's (``corpus file 1`` says ``corpus file 3``).
     pcr_name: str | None = None
     control: dict = field(default_factory=dict)
     output: dict = field(default_factory=dict)
@@ -611,7 +616,7 @@ class FullProfModel:
     def lambda_slot(self) -> Value | None:
         """The refinable-λ slot of the zero-shift line.
 
-        Trap 3: ``crwo6002_momcomp.pcr`` has ``2.370100`` here against a real λ
+        Trap 3: ``corpus file 2`` has ``2.370100`` here against a real λ
         of 2.077100, with codeword ``0.00`` so FullProf never used it. Read for
         provenance; :attr:`lambda1` is the wavelength.
         """
@@ -695,8 +700,8 @@ def _is_rhombohedral_metric(cell: dict) -> bool:
 
     The hexagonal setting of the same symbol has ``a = b ≠ c`` and
     ``α = β = 90°, γ = 120°``, so requiring all three angles equal is what tells
-    the two apart; every corpus R phase is hexagonal
-    (``crwo6002_momcomp.pcr``'s Cr₂O₃: 4.95420, 4.95420, 13.42130, 90, 90, 120).
+    the two apart; every R phase in the corpus is hexagonal, carrying two
+    equal edges and a third that differs, with γ = 120°.
     """
     try:
         a, b, c = (float(cell[k]) for k in ("a", "b", "c"))
@@ -718,16 +723,17 @@ def normalize_space_group(symbol: str, cell: dict | None = None) -> str:
     Three repairs, and each is a *report* rather than a contradiction:
 
     **Case.** FullProf carries the Hermann-Mauguin symbol in whatever case the
-    author typed: ``F D -3 M`` (``300q-1p5K_1.pcr``:68) and ``I A -3 D``
-    (``yag_xpress_072_new.pcr``:184) against ``P 42/m n m`` and ``R -3 c`` in
+    author typed: ``F D -3 M`` (``corpus file 4``:68) and ``I A -3 D``
+    (``corpus file 5``:184) against ``P 42/m n m`` and ``R -3 c`` in
     the same corpus. Only the lattice letter is upper case in a HM symbol —
     everything after it is drawn from ``m a b c d n`` plus digits, ``/`` and
     ``-`` — so lower-casing the tail is lossless.
 
     **Origin choice.** FullProf writes no origin suffix at all, which is the
     TOPAS ``Pn-3mZ`` trap in a worse form: gemmi resolves a bare ``F d -3 m`` to
-    origin choice **1**, and the corpus's spinel is on choice 2 (Co at ⅛⅛⅛ and
-    ½½½, O at x,x,x — the standard Co₃O₄ description). Choice 2 is therefore
+    origin choice **1**, and the corpus's spinel is on choice 2 (the A cation at
+    ⅛⅛⅛ and ½½½, O at x,x,x — the standard spinel description). Choice 2 is
+    therefore
     preferred wherever the bare symbol lands on choice 1.
 
     **Rhombohedral axes.** An R-lattice symbol is likewise written bare, and
@@ -747,8 +753,8 @@ def normalize_space_group(symbol: str, cell: dict | None = None) -> str:
     the phase's cell line has been read, the cell block sitting *after* the
     atoms in a ``.pcr``.
 
-    Every corpus R phase is hexagonal (Cr₂O₃ at 4.95420, 4.95420, 13.42130, 90,
-    90, 120), so this case closes a gap rather than fixing a measured wrong
+    Every corpus R phase is hexagonal — two equal edges, a third that differs,
+    γ = 120° — so this case closes a gap rather than fixing a measured wrong
     answer, and it is stated as a gap.
 
     The case and origin preferences are *conventions*, so they are not left to
@@ -796,11 +802,12 @@ def _strip(raw: str) -> str:
 
     * ``!`` opens a comment, and does so **inline** as well as at column 1 —
       ``61    !Number of refined parameters`` is a data line with a comment on
-      it (``crwo6002_momcomp.pcr``:74), so cutting at ``!`` is what makes the
+      it (``corpus file 2``:74), so cutting at ``!`` is what makes the
       count readable *and* what makes the header lines disappear.
     * ``<--`` annotates the space-group line
       (``P 42/m n m               <--Space group symbol``).
-    * ``#`` annotates an atom line (``#color cyan`` on every Cr₂WO₆ site).
+    * ``#`` annotates an atom line (``#color cyan`` on every site of one
+      corpus file's phases).
 
     A line that is empty after the cut is a comment line and never reaches the
     walk. The risk this accepts is a phase *name* containing one of the three
@@ -870,7 +877,7 @@ class _Cursor:
         ``leading`` parses only the leading numeric *run* and stops at the first
         token that is not a number, which one block genuinely needs: FullProf
         writes ``0.0000000 0.0000000 0.0000000          Propagation Vector  1``
-        (``300q-1p5K_1.pcr``:130), where the trailing words carry no comment
+        (``corpus file 4``:130), where the trailing words carry no comment
         marker for :func:`_strip` to cut at.
         """
         line = self.take(what)
@@ -973,7 +980,7 @@ def _block(cur: _Cursor, names: tuple, what: str, *, trailing: int = 0
 #: rewritten by FullProf on every cycle, so it is the answer and not a seed.
 _CHI2 = re.compile(r"Current\s+global\s+Chi2[^=]*=\s*([-+0-9.eE]+)")
 
-#: ``! Files => DAT-file: CrWO6002.dat,  PCR-file: crwo6002_momcomp``
+#: ``! Files => DAT-file: sample.dat,  PCR-file: another``
 _FILES = re.compile(r"DAT-file:\s*([^,]+?)\s*,\s*PCR-file:\s*(\S+)")
 
 #: ``!  Data for PHASE number:   1  ==> Current R_Bragg for Pattern#  1: 1.79``
@@ -1087,8 +1094,8 @@ def read_fullprof_pcr(path: str | Path) -> FullProfModel:
     if nba < 2:
         raise FullProfPcrError(
             f"{path}: Nba = {nba}. Only an interpolated background of two or "
-            f"more points is evidenced here (51 points in crwo6002_momcomp, 32 "
-            f"in 300q-1p5K_1); Nba 0 or 1 selects a polynomial or a debye/"
+            f"more points is evidenced here (51 and 32 points, in two real "
+            f"files); Nba 0 or 1 selects a polynomial or a debye/"
             f"Fourier background whose coefficient line's *position* in the "
             f"single-pattern layout no file establishes, and a negative Nba "
             f"selects a background model this reader does not know.")
@@ -1171,7 +1178,7 @@ def read_fullprof_pcr(path: str | Path) -> FullProfModel:
                 f"attached by file order, so an unequal count would report an "
                 f"agreement factor against the wrong phase. The comment's own "
                 f"phase number is trap 1 and cannot be used to re-key them — the "
-                f"third block of crwo6002_G5_nc.pcr is labelled "
+                f"third block of one real file is labelled "
                 f"'PHASE number: 1'.")
         for phase, (labelled, r_bragg) in zip(model.phases, r_braggs,
                                               strict=True):
@@ -1305,7 +1312,7 @@ def _read_phase(cur: _Cursor, path: Path, index: int) -> FullProfPhase:
 
     # Nvk propagation vectors, one value line and one codeword line each,
     # positioned after the Pref/Asy block. Evidenced by exactly one file
-    # (`300q-1p5K_1.pcr`:129-131, Nvk = 1) whose phase happens to be the last,
+    # (`corpus file 4`:129-131, Nvk = 1) whose phase happens to be the last,
     # so the *position* rests on one observation and is said to.
     for i in range(phase.nvk):
         _, k = cur.floats(f"phase {index} propagation vector {i + 1}",
@@ -1398,15 +1405,15 @@ def _read_magnetic_symmetry(cur: _Cursor, where: str, isy: int) -> MagneticSymme
     block = MagneticSymmetry(isy=isy, nsym=nsym, cen=cen, laue=laue,
                              ireps=ireps, n_bas=n_bas)
     # The indicator line carries one flag per basis vector: `0 0 0 0` for
-    # N_Bas = 4 (crwo6002_BV2andBV4.pcr:148), a single `0` for N_Bas = 1
-    # (300q-1p5K_1.pcr:101). The count is what pins the reading.
+    # N_Bas = 4 (corpus file 3:148), a single `0` for N_Bas = 1
+    # (corpus file 4:101). The count is what pins the reading.
     _, indicators = cur.ints("the Real(0)/Imaginary(1) indicator line",
                              expect=n_bas)
     block.real_imaginary = tuple(indicators)
     # Each BASR/BASI line holds 3 * N_Bas numbers — three components per basis
     # vector — and there are |Ireps| pairs per SYMM. Both counts are asserted:
-    # `crwo6002_G5_nc.pcr` has Nsym 3, Ireps -2, N_Bas 4 (3 x 5 = 15 lines,
-    # 12 numbers each) and `300q-1p5K_1.pcr` has Nsym 2, Ireps -1, N_Bas 1
+    # `corpus file 1` has Nsym 3, Ireps -2, N_Bas 4 (3 x 5 = 15 lines,
+    # 12 numbers each) and `corpus file 4` has Nsym 2, Ireps -1, N_Bas 1
     # (2 x 3 = 6 lines, 3 numbers each), which is what makes the rule a rule
     # rather than one file's coincidence.
     for i in range(nsym):
@@ -1520,14 +1527,14 @@ def _read_trailing(cur: _Cursor, path: Path, model: FullProfModel) -> None:
     Two productions share this region and they are told apart by whether the
     line **opens with a number**, which is a structural difference rather than a
     sniff: the fitted-range line is three numbers
-    (``9.000 157.000 1``, ``crwo6002_momcomp.pcr``:177) and a soft moment
+    (``9.000 157.000 1``, ``corpus file 2``:177) and a soft moment
     constraint opens with a site key that is not one (``CR``, ``1C``).
 
     The constraints are attached to the last phase, which is where every real
     file puts them; a *non-final* phase declaring ``Mom > 0`` is refused above,
     because nothing here establishes where its block would sit. The declared
     ``Mom`` and the number of lines found are both recorded and neither is
-    corrected into the other — they disagree in ``crwo6002_G5_nc.pcr``, which
+    corrected into the other — they disagree in ``corpus file 1``, which
     declares ``Mom = 1`` and writes two constraints.
     """
     last = model.phases[-1]
@@ -1597,7 +1604,7 @@ def occupancy_factor(phase: FullProfPhase, where: str | None = None) -> float:
     over the general multiplicity, and the *absolute* normalisation of the
     column is degenerate with the phase scale — doubling every ``Occ`` and
     halving ``Scale`` is the same pattern, which is why the corpus carries a
-    factor of 2 on the Cr₂WO₆ files and 1 on the Co₃O₄ and YAG ones.
+    factor of 2 on two of its files and 1 on two others.
 
     So ``Occ_i × M_general / M_i`` is the site occupancy up to one unknown
     common factor. Where it is the *same* for every site the phase is fully
@@ -1676,8 +1683,8 @@ def nuclear_parameter_ties(phase: FullProfPhase, where: str | None = None
     re-declaring it would be redundant. This is *checked*, not assumed: the
     site's DOF count is re-derived here and the group is only called carried
     where rietx's freedom is no larger than FullProf's. Both real cases in the
-    corpus land here — ``300q-1p5K_1.pcr``'s O1 ties x, y and z to parameter 41
-    on ``F d -3 m:2``'s 32e site (one DOF), and ``crwo6002_BV2andBV4.pcr`` ties
+    corpus land here — ``corpus file 4``'s O1 ties x, y and z to parameter 41
+    on ``F d -3 m:2``'s 32e site (one DOF), and ``corpus file 3`` ties
     O1's and O2's x to their y (parameters 56 and 57) on ``P 42/m n m``'s 4f
     (one DOF each). The phase's **cell** ties are the same kind of shared-number
     tie, but whether rietx reproduces one turns on the space group rather than on
@@ -2002,11 +2009,12 @@ def to_structure(model: FullProfModel, *, nuclear_only: bool = False,
       unmentioned. ``nuclear_only=True`` is how a caller *declares* it wants the
       nuclear subset; the omission is then the caller's, and named in the
       message this refusal replaces.
-    * **A negative ``Biso``.** ``300q-1p5K_1.pcr``'s O1 refined to −0.67266 Å²,
-      which is a real FullProf outcome (the column absorbs absorption and
-      normalisation error). rietx bounds ``biso`` at zero, and clamping −0.67 to
-      0 changes every high-Q intensity — a *contradiction*, not the kind of
-      small deviation root CLAUDE.md licenses a reader to repair silently.
+    * **A negative ``Biso``.** An oxygen site in ``corpus file 4`` refined to a
+      negative value, which is a real FullProf outcome (the column absorbs
+      absorption and normalisation error). rietx bounds ``biso`` at zero, and
+      clamping a negative Biso to 0 changes every high-Q intensity — a
+      *contradiction*, not the kind of small deviation root CLAUDE.md licenses
+      a reader to repair silently.
     * **An anisotropic β block.** The β → U^ij conversion needs a convention no
       file here settles (whether the stored off-diagonal already carries the
       exponent's factor of 2), and a wrong factor is a silently wrong

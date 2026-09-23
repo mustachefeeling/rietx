@@ -69,11 +69,51 @@ def read_pattern(path: str | Path, *, diagnostics: list[Diagnostic] | None = Non
     for the same reason: a reader is the one layer that may silently correct a
     stranger's file, and it may only do so where it can say that it did.
     Returning a bare :class:`PatternData` was an accident, not a design.
+
+    ``PATTERN_DEAD_CHANNELS`` is the one entry on that channel that is neither
+    a repair nor an assumption, and it is here rather than only at compile
+    because of *when* it is useful: a dead detector cell reaches the person as
+    fourteen parameters at their bounds several minutes later, and none of the
+    fourteen is the problem (issue #274).  It is format-agnostic — a dead cell
+    is a property of the measurement and not of the file — so it is raised
+    once here rather than in each reader, and only when a caller passed the
+    list, which keeps it off the path of everyone who did not ask.
     """
     p = Path(path)
     fmt = identify_format(p)
     kwargs = reader_options_for(fmt, options, diagnostics=diagnostics)
-    return fmt.read(p, diagnostics=diagnostics, **kwargs)
+    data = fmt.read(p, diagnostics=diagnostics, **kwargs)
+    if diagnostics is not None:
+        diagnostics.extend(_dead_channel_diagnostics(data, p.name))
+    return data
+
+
+def _dead_channel_diagnostics(data: PatternData, name: str) -> list[Diagnostic]:
+    """``PATTERN_DEAD_CHANNELS`` for a pattern just read — see
+    :func:`~rietx.background.diagnostics.dead_channels`, which is the one
+    authority and answers nothing without the file's own σ column."""
+    from ..background.diagnostics import _dead_interval, dead_channels
+
+    if data.sigma is None or data.axis != "two_theta":
+        return []  # the run and window lengths are degrees of 2θ
+    out = []
+    for run in dead_channels(data.tt(), data.y(), data.sig()):
+        lo, hi = _dead_interval(run)
+        out.append(Diagnostic(
+            level="warning", code="PATTERN_DEAD_CHANNELS",
+            message=(
+                f"{name}: {run.n_channels} channel(s) at "
+                f"{lo:.3f}-{hi:.3f}° carry "
+                f"{run.level_fraction:.2%} of the local background with an esd "
+                f"that fell with them — about {run.weight_ratio:,.0f}× the "
+                "weight of a live channel there"),
+            where=[f"{lo:.3f}-{hi:.3f}"],
+            suggestion=(
+                "a dead or masked detector cell. Nothing was changed in the "
+                f"pattern: exclude the interval ({lo:.3f}, {hi:.3f}) before "
+                "fitting, or the background will be pulled down to meet it"),
+        ))
+    return out
 
 
 def list_scans(path: str | Path) -> list[ScanInfo]:

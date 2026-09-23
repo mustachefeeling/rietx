@@ -1,4 +1,4 @@
-# 8. Twenty-four things that will surprise you, all measured
+# 8. Twenty-seven things that will surprise you, all measured
 
 Load it when something the fit did makes no sense. Every entry is a measured result that contradicts an intuition.
 
@@ -408,3 +408,80 @@ the component on the sample's own instrument after `load_instrument_profile`;
 nothing warns you.** Check `len(instrument.extra_components)` after the load if
 you are driving that workflow unattended.
 (Measured: WP-1103.)
+
+**8.25 `vary=False` does not keep a parameter fixed, because a plan replaces
+the vary flags rather than continuing them.** A stage's `turn_on` glob frees
+whatever it matches, so a cell you pinned is refined by any plan carrying
+`phases.*.cell.*` — measured on the shipped LaB6 over 2-30° 2θ: a cell declared
+at 4.157597 Å comes back at 4.156826 Å, 185 ppm away, while
+`structure.phases[0].cell.a.vary` still reads `False` and
+`result.parameters` says `True`. The model you handed in and the result
+contradict each other about the same parameter, and nothing fires.
+**Say it with `Refinement.hold(globs)` instead**, which outranks the glob,
+survives a save and reopen, and makes the stage report what it could not free
+(§7 `HOLD_BLOCKED_PLAN`). This is the failure mode of
+calibrate-on-a-certified-standard: holding the certificate's cell is what
+decorrelates zero, displacement and cell, so a plan that frees it leaves a
+calibration that is worthless and looks clean.
+(Measured: WP-1435, issue #211.)
+
+**8.26 A goodness of fit of 5 to 10 on a visually excellent refinement is
+often correct, and "fixing" it means discarding the σ column the instrument
+earned.** Most constant-wavelength neutron data is monitor-normalised with the
+error propagated, so the file's σ is smaller than √y. On the ILL D1B pattern
+this comes from, the median σ/√y is 0.289: the data are 3.46× more precise
+than Poisson-of-y, GoF is the ratio of the residual to *that* σ, and a GoF
+near 1 there would mean the fit was reproducing counting noise it cannot see.
+Rwp is unaffected, because every weighted residual in the package divides by
+the same σ. Do not substitute √y, and do not read the number against the
+1.0-1.3 band that a σ = √y X-ray pattern earns.
+**What this does break is anything that put a bar in σ.** A peak finder's
+"5σ above background" is thresholding the background model's own tracking
+error. That error is a fraction of the intensity and does not shrink when the
+counting improves. On such a file the finder reads it at 3.46× its honest
+significance. Measured over the 27 bundled pattern fixtures, by scaling the
+declared σ alone and leaving the data untouched: the sampling measurement
+behind §7 `PATTERN_UNDERSAMPLED` moved by a median factor of 5.45 and up to
+78×, and every fixture landed at 1.5-2.5 steps per FWHM at the D1B ratio, i.e.
+the warning fired on all of them. Both peak selections take a floor in the
+pattern's own dynamic range beside the σ floor now, and the median factor is
+1.000. A threshold in σ answers "is this significant". It answers nothing
+about whether a feature is real.
+(Measured: WP-1415, issues #274 and #275.)
+
+**8.27 A contamination flag on a single line is a coincidence, and until
+v1.6 the screen reported one per line.** Whether Kβ reaches the detector is a
+property of the optics, so a leak puts a line at the predicted position of
+*every* strong reflection, all at one ratio. Reading each match on its own
+cannot tell that from an accident of the pattern, and did not: over the
+seventeen bundled patterns — the sixteen IUCr round-robin phases and SRM
+660c — every one collected behind a graphite monochromator that removes both
+Kβ and W Lα, the old rule flagged 0.94 Kβ per
+pattern against a control fed made-up wavelengths that flagged 1.01. Each flag
+dropped a real reflection from `usable()`. The screen is now joint and those
+corpora report nothing, while a Kβ image injected at 10 % of its parent is
+found with its ratio on all six hosts tried. **Two consequences for an agent.**
+Read `ContaminationFlag.leak_ratio`, the ratio fitted across the supporting
+parents, rather than a single line's `intensity_ratio`. And read the detection
+floor honestly: a leak under about 10 % comes back as nothing, and how far
+under depends on how many peaks the pattern yields — zincite is caught at 1 %,
+magnetite at 22 usable peaks not until 10 %. So an empty `contamination` list
+means "no leak this rule can see" and never "the beam is clean". An unfiltered
+tube sits at 0.14 (Hölzer et al. 1997), which is the case worth catching.
+(Measured: WP-1442.)
+
+**8.28 A glob that matches nothing is normal, and a literal path that matches
+nothing is a typo.** Plans reach components a model may not declare, so a
+stage carrying `phases.*.microstrain.dof.*` on a model without a Stephens block
+frees nothing and is healthy. A path with no `*`, `?` or `[` names one
+parameter, though, and when the model has no such row the stage frees nothing,
+converges, and until v1.6 said nothing: `instrument.source.wavelength` for
+`instrument.source.lines.0.wavelength` is the measured case. That now fires
+§7 `STAGE_PATH_UNKNOWN` with the nearest real path. **A typo inside a glob
+(`phases.*.cel.*`) still cannot be told from a healthy miss, so read
+`StageResult.freed` for every stage you wrote yourself.** On a joint fit the
+same miss can hit one histogram only: `instrument.profile.*` freed the
+constant-wavelength histogram and nothing on the fork's time-of-flight banks,
+and the fit converged at Rwp 0.115 against 0.066 with the right globs. That is
+§7 `STAGE_FREED_NOTHING`.
+(Measured: WP-1414, issue #265.)

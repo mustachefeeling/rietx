@@ -2,6 +2,7 @@
 
 Milestone: unscheduled · Status: ⬜
 Depends on: —
+Priority: P4 2026-09-23 — gates on the skill's own files; a merge that fails late is the cost
 
 ## Goal
 
@@ -13,6 +14,10 @@ warning beforehand.
 
 ### Inherited
 
+- **2026-09-23, from the issue triage: #284 and #287 are closed.** #284 as
+  landed in PR #292, and #287 as answered, its `RECIPE_*` half landed in
+  PR #291. Neither ruling's gate is built. Whether one should be is still
+  this WP's question.
 - **2026-09-16, from [1431](1431-a-caller-names-its-run.md): the api.md half
   of the cap race is settled, and `REFERENCE_MAX_BYTES` is untouched.**
   `references/api.md` is generated from the installed package, one signature
@@ -70,6 +75,13 @@ and cannot be lifted directly.
   next diagnostic row possible, and #247's merge-result race now points at
   it. Whatever gate looks for a code's row in `diagnostics.md` alone must
   learn `magnetic.md`.
+- **From WP-1434, 2026-09-18: `diagnostics.md` now sits 9 bytes under
+  `REFERENCE_MAX_BYTES`, so the merge-result hazard is live on that file
+  rather than hypothetical.** The `BOUND_HIT` row grew by about 600 B, and
+  the file carried only 615 B of headroom before it. The headroom table in
+  § #247 was measured at `c79fb5df` and no longer describes that row.
+  Re-measure it before acting on it, and expect the next PR adding a
+  diagnostic code there to collide.
 
 ## Context
 

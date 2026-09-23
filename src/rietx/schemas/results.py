@@ -96,6 +96,13 @@ class RefinedParameter(Base):
     nothing wrote it, so every row of every result asserted "not at a bound"
     about a parameter no code had looked at.
 
+    **``True`` says the limit carried load, not that the value is near one**
+    (WP-1434).  The row must sit within a hundredth of its own esd of the
+    limit *and* the residual must still push it out of the allowed range, so a
+    value resting on a limit the fit is not pressing reads ``False`` and there
+    is nothing there to widen.  ``BOUND_HIT``'s ``Diagnostic.value`` carries
+    the evidence, signed; this flag is the bit.
+
     **The source is the guard, never a local recomputation.**  The one place
     the bound test happens is :func:`rietx.strategy.staged.bound_findings`,
     whose findings become the ``BOUND_HIT`` diagnostics; this flag is a
@@ -866,7 +873,26 @@ class StageResult(Base):
     #: on every fit with no unsupported phase, which is every fit that is
     #: working; the phase's own ``scale`` is never held, because that is how a
     #: phase legitimately climbs out of the noise.
+    #: Since WP-1342 these are **columns**, not names: a caller's ``vars.X``
+    #: driving that cell is what stopped moving, and a path under
+    #: ``phases.{ip}.`` need not appear here at all.  What each held column
+    #: also stopped is :attr:`held_reach`.
     held: list[str] = Field(default_factory=list)
+    #: per held column, the tied entries it also stopped — the other half of
+    #: :attr:`held`, and what lets a reader of this record find the *phase*
+    #: a held ``vars.X`` was about (WP-1342).  Carried beside ``held`` rather
+    #: than folded into it because the two are asked for by different
+    #: consumers: ``held`` is the set the verb passed to ``set_vary`` and the
+    #: set :attr:`freed` is made disjoint from, while this is the account
+    #: ``PHASE_UNCONSTRAINED`` is built from.
+    #:
+    #: **Only the columns that drove something else**, and every tie counts,
+    #: not only a caller's: holding a cubic ``a`` stops ``b`` and ``c`` with
+    #: it, and a reader should not have to know the crystal system to learn
+    #: that.  A column that moved nothing else is absent rather than mapped to
+    #: an empty list, so ``held`` and the values here together are every value
+    #: the stage froze.
+    held_reach: dict[str, list[str]] = Field(default_factory=dict)
     #: paths held at stage start and **released within the same stage**: the
     #: phase rose above support while the stage solved, so the hold was lifted
     #: and the stage solved a second time (once — never a third) with them
@@ -874,6 +900,51 @@ class StageResult(Base):
     #: :attr:`held`; the cost of both solves is in :attr:`n_iterations`, and
     #: :attr:`cost_initial` is still the cost the stage started at.
     released: list[str] = Field(default_factory=list)
+    #: paths this stage's ``turn_on`` matched and did **not** free, because
+    #: the caller had declared a hold on them (WP-1435,
+    #: ``Refinement.hold``).  The record of which declaration won: a plan's
+    #: glob loses to a hold, and before this the glob won in silence while
+    #: the model still read ``vary=False``.
+    #:
+    #: Disjoint from :attr:`freed` (a blocked path never entered it) and from
+    #: :attr:`held`, which is WP-1301's separate thing — a *stage's* reading
+    #: of what the data can see, decided per stage and lifted at the next.
+    #: This one is the caller's, and it persists until ``unhold``.
+    #:
+    #: Empty on every fit where no hold was declared, which is every fit that
+    #: predates this field.  It feeds ``HOLD_BLOCKED_PLAN``.
+    blocked_by_hold: list[str] = Field(default_factory=list)
+    #: the **literal** paths in this stage's ``turn_on`` that name no parameter
+    #: of the model, in plan order (WP-1414, issue #265).  A literal is a
+    #: ``turn_on`` entry with no ``*``, ``?`` or ``[``: it names one parameter,
+    #: so missing it is a typo or a renamed path, and whatever the stage was
+    #: meant to refine was not.  A *pattern* that matched nothing is not here,
+    #: because that is how the shipped plans reach components a model may not
+    #: declare; nor is a row that exists and was declined (locked, tied or
+    #: held), which :attr:`freed` omits and ``ParameterRow.held_because``
+    #: explains.  On a joint fit, known means a bare path of some histogram or
+    #: a scoped ``hist.h.…`` one.  It feeds ``STAGE_PATH_UNKNOWN``.
+    #:
+    #: **``None`` means nobody looked**, and every runner writes a list, so an
+    #: empty one is a stage that was checked and named nothing missing.  The
+    #: default is for a result stored before this field: a typo'd literal
+    #: freed nothing in silence then too, so ``[]`` there would claim a check
+    #: that never ran (WP-1076's rule; ``RefinedParameter.at_bound`` is the
+    #: precedent).  Writers: the three runners that build a ``StageResult``.
+    unknown_paths: list[str] | None = None
+    #: joint fits only: per histogram this stage's globs **reached elsewhere
+    #: and not there**, the globs that did (WP-1414, issue #265's comment).
+    #: Keyed by histogram index.  Histogram ``h`` is here when no glob
+    #: addressing it matched any of its rows while one of those globs matched
+    #: another histogram's — ``instrument.profile.*`` freeing the
+    #: constant-wavelength histogram and nothing on a bank.  A glob scoped to
+    #: another histogram (``hist.0.…``) does not address ``h``, and a row that
+    #: exists but is locked, tied or held counts as reached, so a deliberate
+    #: plan stays out of it.  Written ``{}`` by a single-histogram fit, where
+    #: there is no elsewhere to have reached, and ``None`` — nobody looked —
+    #: only on a result stored before the field, for :attr:`unknown_paths`'
+    #: reason.  It feeds ``STAGE_FREED_NOTHING``.
+    unreached_histograms: dict[int, list[str]] | None = None
 
 
 class HistogramResult(Base):
@@ -983,35 +1054,59 @@ def _stage_lines(stages: list[StageResult], max_shift_over_esd: float | None) ->
 HIGH_CORRELATION_MAX = 10
 
 
-def _cap_high_correlation(diagnostics: list[Diagnostic]) -> list[Diagnostic]:
-    """Bound ``HIGH_CORRELATION`` at :data:`HIGH_CORRELATION_MAX`, worst first,
-    for **rendering only** — see that constant's docstring for why this must
-    never be applied to a stored diagnostics list.
+#: The pair-keyed codes :func:`_cap_high_correlation` bounds, each as
+#: ``(code, its omitted-count code, what one row is called)``.
+#:
+#: **Each gets its own budget of** :data:`HIGH_CORRELATION_MAX`, never a shared
+#: one.  A flat direction emits a ``FLAT_DIRECTION`` *and* the
+#: ``HIGH_CORRELATION`` it sharpens (WP-1311), and both carry |ρ| ≈ 1, so one
+#: budget would make them compete for the same ten slots on a key that cannot
+#: separate them — which of the two survives would then be decided by sort
+#: stability rather than by anything about the fit.
+_CAPPED_PAIR_CODES = (
+    ("HIGH_CORRELATION", "HIGH_CORRELATION_OMITTED", "correlated pair"),
+    ("FLAT_DIRECTION", "FLAT_DIRECTION_OMITTED", "flat direction"),
+)
 
-    Every other code passes through untouched and in place; the correlation
-    entries are pulled out, ordered by |ρ|, truncated, and the survivors
-    appended where the last one used to sit.
-    """
-    is_hc = [d.code == "HIGH_CORRELATION" for d in diagnostics]
-    if sum(is_hc) <= HIGH_CORRELATION_MAX:
+
+def _cap_one_code(diagnostics: list[Diagnostic], code: str, omitted_code: str,
+                  noun: str) -> list[Diagnostic]:
+    """One code's rows bounded at :data:`HIGH_CORRELATION_MAX`, worst |ρ| first."""
+    is_hit = [d.code == code for d in diagnostics]
+    if sum(is_hit) <= HIGH_CORRELATION_MAX:
         return diagnostics
-    correlated = sorted((d for d, hc in zip(diagnostics, is_hc) if hc),
-                        key=lambda d: abs(d.value) if d.value is not None else 0.0,
-                        reverse=True)
-    kept, omitted = correlated[:HIGH_CORRELATION_MAX], correlated[HIGH_CORRELATION_MAX:]
-    out = [d for d, hc in zip(diagnostics, is_hc) if not hc]
-    last_hc = max(i for i, hc in enumerate(is_hc) if hc)
-    insert_at = sum(not hc for hc in is_hc[:last_hc + 1])
+    hits = sorted((d for d, hit in zip(diagnostics, is_hit) if hit),
+                  key=lambda d: abs(d.value) if d.value is not None else 0.0,
+                  reverse=True)
+    kept, omitted = hits[:HIGH_CORRELATION_MAX], hits[HIGH_CORRELATION_MAX:]
+    out = [d for d, hit in zip(diagnostics, is_hit) if not hit]
+    last_hit = max(i for i, hit in enumerate(is_hit) if hit)
+    insert_at = sum(not hit for hit in is_hit[:last_hit + 1])
     out[insert_at:insert_at] = [*kept, Diagnostic(
-        level="info", code="HIGH_CORRELATION_OMITTED", where=[],
+        level="info", code=omitted_code, where=[],
         value=float(len(omitted)),
-        message=f"{len(omitted)} more correlated pair(s) below the "
+        message=f"{len(omitted)} more {noun}(s) below the "
                 f"{HIGH_CORRELATION_MAX} shown here, weaker than all of them",
         suggestion="result.identifiability carries the full correlation "
                    "matrix and top_correlations list — nothing here was "
                    "dropped from the fit, only from this message",
     )]
     return out
+
+
+def _cap_high_correlation(diagnostics: list[Diagnostic]) -> list[Diagnostic]:
+    """Bound each pair-keyed code at :data:`HIGH_CORRELATION_MAX`, worst first,
+    for **rendering only** — see that constant's docstring for why this must
+    never be applied to a stored diagnostics list.
+
+    Every other code passes through untouched and in place; a bounded code's
+    entries are pulled out, ordered by |ρ|, truncated, and the survivors
+    appended where the last one used to sit.  Which codes, and why each has its
+    own budget: :data:`_CAPPED_PAIR_CODES`.
+    """
+    for code, omitted_code, noun in _CAPPED_PAIR_CODES:
+        diagnostics = _cap_one_code(diagnostics, code, omitted_code, noun)
+    return diagnostics
 
 
 #: What ``summary(deliverable=…)`` accepts, on a result and on a series alike

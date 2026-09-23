@@ -2,6 +2,7 @@
 
 Milestone: unscheduled · Status: ⬜
 Depends on: — (the branch-protection toggles are the maintainer's to flip by hand)
+Priority: P4 2026-09-23 — CI bookkeeping; a merge conflict on bundler output is the whole cost
 
 ## Goal
 

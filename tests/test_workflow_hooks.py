@@ -1141,3 +1141,113 @@ def test_a_draft_claim_reads_as_a_draft(
     assert pr.draft is True
     line = claim.describe_pull_request(pr, [("9605", "names it")])
     assert "(draft)" in line
+
+
+# --------------------------------------------------------------------------- #
+# The issue backlog (.claude/skills/issue-review/backlog.py): /issue-review's
+# table, one row an open issue, cross-referenced against the planning record
+# and origin/main.  Network-free here: the cross-reference is a pure function
+# of what the three gh calls and git log return.
+# --------------------------------------------------------------------------- #
+
+_backlog_spec = importlib.util.spec_from_file_location(
+    "issue_backlog", ROOT / ".claude" / "skills" / "issue-review" / "backlog.py"
+)
+backlog = importlib.util.module_from_spec(_backlog_spec)
+_backlog_spec.loader.exec_module(backlog)
+
+
+def _issue(n: int, **kw) -> "backlog.Issue":
+    base = dict(
+        number=n, title=f"issue {n}", author="someone", created="2026-09-01",
+        updated="2026-09-01", labels=(), body=f"body of {n}", comments=(),
+        url=f"https://example/{n}",
+    )
+    base.update(kw)
+    return backlog.Issue(**base)
+
+
+def test_a_citation_is_the_number_with_a_boundary() -> None:
+    """The same regex wp_claim reads WP files with, so #284 never matches #2840."""
+    assert backlog.cited_numbers("fixes #284, see #2840 and #28") == frozenset({284, 2840, 28})
+    assert backlog.cited_numbers("") == frozenset()
+
+
+@pytest.mark.parametrize(
+    "paths,placement",
+    [
+        (["docs/wp/1416-x.md", "docs/ROADMAP.md", "tests/test_docs_consistency.py"], True),
+        (["gui/CLAUDE.md", ".claude/commands/pr-review.md"], True),
+        (["docs/wp/1416-x.md", "src/rietx/io/formats/xy.py"], False),
+        (["docs/manual/using/parameters.md"], False),  # for a docs issue, the fix
+        ([], False),  # a merge commit lists no files and is no evidence
+    ],
+)
+def test_a_placement_touches_only_the_planning_record(paths: list, placement: bool) -> None:
+    """The three triage PRs cited every issue they filed and bumped the ROADMAP
+    cap in a test file, so the session-start hook's docs-only reading missed
+    them: 65 of 86 open issues read as "landed" on 2026-09-21."""
+    assert backlog.is_placement(paths) is placement
+
+
+def test_the_row_separates_placements_from_landings_and_names_the_untriaged() -> None:
+    issues = [_issue(266), _issue(284), _issue(374), _issue(407, author="newcomer")]
+    citations = {"1416": {266}, "1338": {284, 287}}
+    statuses = {"1416": "⬜", "1338": "🔄"}
+    refs = [
+        backlog.Reference("merged PR", "PR #326 (2026-09-15)", frozenset({266, 284}), True),
+        backlog.Reference("merged PR", "PR #292 (2026-09-10)", frozenset({284})),
+        backlog.Reference("commit", "2a2f0ba9 2026-09-09 skill: rows", frozenset({284})),
+        backlog.Reference("open PR", "#385 (them)", frozenset({374})),
+    ]
+    rows = backlog.cross_reference(issues, citations, statuses, frozenset({374}), refs)
+    by = {r.issue.number: r for r in rows}
+    assert by[266].wps == (("1416", "⬜"),)
+    assert by[266].landed == () and by[266].placed == ("PR #326 (2026-09-15)",)
+    assert by[284].landed == ("PR #292 (2026-09-10)", "2a2f0ba9 2026-09-09 skill: rows")
+    assert by[374].wps == () and by[374].roadmap and by[374].triaged
+    assert by[374].open_prs == ("#385 (them)",)
+    assert not by[407].triaged
+    text = backlog.table(rows, today=backlog.date(2026, 9, 21))
+    assert text.count(backlog.UNTRIAGED) == 1 and "ROADMAP" in text
+    assert backlog.summary(rows).splitlines() == [
+        "4 open; 1 untriaged; 1 with a landed reference; 1 cited by an open PR",
+        "untriaged: #407",
+        "landed reference: #284",
+    ]
+
+
+def test_the_commit_log_parser_skips_merges_and_reads_the_file_list() -> None:
+    """``--name-only`` with the record format: a merge commit has two parents
+    and lists no files; a fix lists its code; a placement lists the record."""
+    log = (
+        "\x1e19d5c7e7\x1fp1 p2\x1f2026-09-20\x1fMerge pull request #408 from x\x1f\x1f\n"
+        "\x1e1f8e9071\x1fp1\x1f2026-09-01\x1fschemas: Atom inherits bounds (#204)\x1f\x1f\n"
+        "src/rietx/schemas/structure.py\ntests/test_schemas.py\n\n"
+        "\x1eb3e1a4c2\x1fp1\x1f2026-09-15\x1fdocs: the triage\x1fplaces #266\n\x1f\n"
+        "docs/wp/1416-x.md\ndocs/ROADMAP.md\n\n"
+    )
+    refs = backlog.parse_commit_log(log)
+    assert [(r.label[:8], r.placement, sorted(r.cited)) for r in refs] == [
+        ("1f8e9071", False, [204]),
+        ("b3e1a4c2", True, [266]),
+    ]
+
+
+def test_wp_statuses_read_the_glyph_off_the_milestone_line(tmp_path: Path) -> None:
+    wp = tmp_path / "docs" / "wp"
+    wp.mkdir(parents=True)
+    (wp / "9001-x.md").write_text("# WP-9001\n\nMilestone: unscheduled · Status: ⬜\n", encoding="utf-8")
+    (wp / "9002-y.md").write_text("# WP-9002\n\nMilestone: v1.6 · Status: 🔄 2026-09-19 — claimed\n", encoding="utf-8")
+    (wp / "9003-z.md").write_text("# WP-9003\n\nno status line\n", encoding="utf-8")
+    (wp / "TEMPLATE.md").write_text("Milestone: v0.X · Status: ⬜\n", encoding="utf-8")
+    assert backlog.wp_statuses(tmp_path) == {"9001": "⬜", "9002": "🔄", "9003": "?"}
+
+
+def test_the_issue_file_carries_body_comments_and_both_reference_kinds() -> None:
+    issue = _issue(390, comments=(("them", "2026-09-18T20:31:01Z", "a reply"),))
+    row = backlog.Row(issue, (("1418", "⬜"),), False, (), ("PR #391 (2026-09-18)",), ("PR #326 (2026-09-15)",))
+    text = backlog.issue_file(row)
+    for needle in ("# #390 — issue 390", "body of 390", "### them · 2026-09-18T20:31:01Z", "a reply",
+                   "cited by: WP-1418 ⬜", "PR #391 (2026-09-18)", "PR #326 (2026-09-15)"):
+        assert needle in text

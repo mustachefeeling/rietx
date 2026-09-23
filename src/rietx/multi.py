@@ -64,6 +64,7 @@ from .refine import (
     _capillary_offset_diagnostics,
     _compile_for,
     _constraint_diagnostics,
+    _covariance_diagnostics,
     _declared_wavelengths,
     _degenerate_cell_diagnostics,
     _guard_diagnostics,
@@ -75,11 +76,11 @@ from .refine import (
     _refuse_without_phases,
     _resolve_specimen_absorption,
     _size_flag_diagnostics,
-    _stage_freed_nothing_diagnostics,
     _strain_flag_diagnostics,
     _tof_absorption_diagnostics,
     _tof_background_peak_diagnostics,
     _tof_intensity_basis_diagnostics,
+    _unknown_path_diagnostics,
     _utcnow,
     _wavelength_calibration_diagnostics,
 )
@@ -444,19 +445,16 @@ class MultiHistogramRefinement:
         # histogram (⇒ per-histogram frozen discreteness) and joint-solve.
         self.mtable.set_vary(["*"], False)
         stage_results: list[StageResult] = []
-        # ``STAGE_FREED_NOTHING``, accumulated where the free set is applied
-        # rather than derived from ``StageResult.freed`` afterwards: that list
-        # has the held paths removed, and a held path was still *matched* by
-        # the stage's globs.  The question this answers is whether the globs
-        # found a row, which only this call knows (T-1d).
-        stage_notes: list[Diagnostic] = []
         models = None
         outcome = None
         carried_hold: list[str] = []
         for stage, ftol in zip(plan.stages, plan.stage_ftols(), strict=True):
             freed = self.mtable.set_vary(stage.turn_on, True)
-            stage_notes.extend(_stage_freed_nothing_diagnostics(
-                stage.name, stage.turn_on, freed, n_histograms=n))
+            # what the stage asked for and did not get (WP-1414): a literal
+            # no histogram has, and — the joint fit's own case — a histogram
+            # the stage's globs reached nothing of while reaching another's
+            unknown_paths = self.mtable.unknown_literals(stage.turn_on)
+            unreached = self.mtable.unreached_histograms(stage.turn_on)
             if carried_hold:
                 # lift the previous stage's hold before this one decides its
                 # own — the single-histogram runner's rule (``_run_stage``),
@@ -529,12 +527,13 @@ class MultiHistogramRefinement:
                 freed=freed,
                 n_constraint_truncations=outcome.n_constraint_truncations,
                 n_degenerate_cell_probes=outcome.n_degenerate_cell_probes,
-                ftol=ftol, held=held, released=released))
+                ftol=ftol, held=held, released=released,
+                unknown_paths=unknown_paths, unreached_histograms=unreached))
 
         assert models is not None and outcome is not None
         self._models = models
         self.result_ = self._build_result(models, outcome, weights, plan.correlation_guard,
-                                           stage_results, stage_notes)
+                                           stage_results)
         return self.result_
 
     # ------------------------------------------------------------------
@@ -593,7 +592,7 @@ class MultiHistogramRefinement:
         return ticks, tick_hkl
 
     def _build_result(self, models, outcome, weights, correlation_guard,
-                      stage_results, stage_notes=()) -> RefinementResult:
+                      stage_results) -> RefinementResult:
         mt = self.mtable
         n = mt.n_histograms
         thetas = mt.split(outcome.theta)
@@ -743,7 +742,9 @@ class MultiHistogramRefinement:
 
         # one bound test, two consumers: the rows' at_bound flag and the
         # BOUND_HIT diagnostics (WP-1076)
-        at_bounds = bound_findings(mt.bounds(), mt.free_paths, outcome.theta)
+        at_bounds = bound_findings(
+            mt.bounds(), mt.free_paths, outcome.theta,
+            cos=outcome.residual_cosine, esd=outcome.stderr_internal)
         # The reference histogram's physical esds, built once in the loop above
         # and read by two consumers (WP-1131): the shared rows of
         # ``_parameters``, and the microstructure block, both of which read the
@@ -766,16 +767,28 @@ class MultiHistogramRefinement:
         esd_ref = per_esds[ref_h] if per_esds else {}
         parameters = self._parameters(thetas, stderr, corr, at_bounds, esd_ref,
                                       ref_h)
-        diagnostics = list(stage_notes) + self._top_diagnostics(
-            outcome, correlation_guard, top_bg, at_bounds)
+        diagnostics = self._top_diagnostics(outcome, correlation_guard, top_bg,
+                                            at_bounds)
         if stage_results:
             diagnostics = diagnostics + _constraint_diagnostics(
                 stage_results[-1].name, outcome)
+            # the answer-producing stage only: its covariance is the one every
+            # reported esd is read off (WP-1333)
+            diagnostics = diagnostics + _covariance_diagnostics(
+                stage_results[-1].name, outcome, answer=True)
         # Every stage, not only the last one, exactly as the single-histogram
         # path sums it (``refine._degenerate_cell_diagnostics``): a degenerate
         # probe is a fact about the search and not about the final point.
         diagnostics = diagnostics + _degenerate_cell_diagnostics(
             [(sr.name, sr.n_degenerate_cell_probes) for sr in stage_results])
+        # What a stage asked for and did not get (WP-1414), read off the
+        # records.  The near-miss draws on both spellings a glob can match
+        # here, so a bare typo is answered bare and a scoped one scoped.
+        diagnostics = diagnostics + _unknown_path_diagnostics(
+            stage_results, sorted(mt.known_paths()),
+            listing="[e.path for t in ref.mtable.tables for e in t.entries]")
+        diagnostics = diagnostics + _unreached_histogram_diagnostics(
+            stage_results, [h.label for h in histograms])
         # A phase the joint fit cannot see, and what the run did about it
         # (WP-1301).  Once for the fit rather than once per histogram, because
         # the statement is joint: the support is the phase's **strongest**
@@ -1033,6 +1046,58 @@ def _shared_coverage_diagnostics(mtable) -> list[Diagnostic]:
                 "resolution off instrument.source.profile_tof. To stop sharing "
                 "it altogether, say so: "
                 f'SharingMap(per_histogram=["{_unscoped(path)}"])'),
+        ))
+    return out
+
+
+def _unreached_histogram_diagnostics(stage_results: list[StageResult],
+                                     labels: list[str]) -> list[Diagnostic]:
+    """``STAGE_FREED_NOTHING`` — a histogram a stage's globs passed over.
+
+    Issue #265's comment: on a joint fit, a plan written with
+    ``instrument.profile.*`` freed four rows on the one constant-wavelength
+    histogram and none on any bank, and the joint result said ``converged``
+    at Rwp 0.115 where globs naming the banks' own rows gave 0.066. Nothing a
+    single-histogram fit reports could have said it, because each bank's miss
+    is only a miss *beside* the histogram the same glob did reach.
+
+    ``info``, and read off ``StageResult.unreached_histograms``, which already
+    excludes the deliberate cases (a scoped glob, a declined row) and the
+    healthy one (a glob matching nowhere).  What remains can still be true and
+    intended — a hump declared on one histogram is reached on one side only —
+    so this states what the stage did and leaves the verdict to the caller.
+
+    One diagnostic per **histogram**, naming every stage that passed it over
+    and the globs that reached elsewhere, for :func:`_hold_diagnostics`'
+    reason: a cumulative plan says the same thing stage after stage. ``where``
+    is those globs, the thing a caller edits; ``value`` is the histogram's
+    index.
+    """
+    by_hist: dict[int, dict[str, list[str]]] = {}
+    for sr in stage_results:
+        for h, globs in (sr.unreached_histograms or {}).items():
+            by_hist.setdefault(h, {})[sr.name] = list(globs)
+    out: list[Diagnostic] = []
+    for h in sorted(by_hist):
+        stages = by_hist[h]
+        where = list(dict.fromkeys(g for globs in stages.values() for g in globs))
+        label = labels[h] if h < len(labels) else f"hist{h}"
+        names = ", ".join(repr(s) for s in stages)
+        out.append(Diagnostic(
+            level="info", code="STAGE_FREED_NOTHING",
+            where=where, value=float(h),
+            message=(f"stage{'' if len(stages) == 1 else 's'} {names} freed "
+                     f"nothing in histogram {h} ({label}): "
+                     f"{', '.join(where)} matched rows of another histogram "
+                     "and none of this one, so its instrument parameters for "
+                     "those stages kept their starting values"),
+            suggestion=("if this histogram declares no such component, "
+                        "nothing is wrong. Otherwise its parameters go by "
+                        "other names: list them with "
+                        f"[e.path for e in ref.mtable.tables[{h}].entries] "
+                        "and add a glob that reaches them, or "
+                        "scope the stage (hist.<k>.…) if one histogram was "
+                        "the intent"),
         ))
     return out
 

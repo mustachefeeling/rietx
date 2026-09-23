@@ -1,6 +1,6 @@
 # WP-1435 — a hold the caller declares, which a plan may not quietly override
 
-Milestone: unscheduled · Status: ⬜
+Milestone: v1.5.x · Status: ✅ 2026-09-18 — shipped, `hold`/`unhold` and HOLD_BLOCKED_PLAN
 Depends on: — (WP-1070 is the shape to copy, already shipped)
 
 ## Goal
@@ -54,6 +54,20 @@ default one in memory, and does **not** survive a JSON round trip — every
 field comes back set — so a project opened from disk would report every
 parameter as deliberately pinned, and that is the commonest path.
 
+**Re-checked 2026-09-18, on arrival.** The defect reproduces on
+`origin/main` `78cf0945`: the shipped LaB6 with all six cell parameters declared
+`vary=False`, fitted under `mccusker_default` over 2-30° 2θ, comes back with
+`cell.a` at 4.156826 against the declared 4.157597. That is 185 ppm, with
+`ref.structure.phases[0].cell.a.vary` still reading `False`, and
+`CAPILLARY_OFFSET_UNAVAILABLE` the only diagnostic raised.
+
+The 41-of-42 count re-measures as **38 of 46** under an 8-term Chebyshev
+background declared free, which is where the four extra entries and the seven
+extra declared-free ones come from. The plans free 16-20 paths and 8-12 of them
+are already declared fixed. The numbers move with the background declaration and
+the conclusion does not: a diagnostic keyed on `vary` still prints eight to
+twelve useless lines beside the one that matters, so the design stands.
+
 **So the missing thing is an authority, not a message.** A user's declaration
 has nowhere to live that a plan can read, which is exactly the problem WP-1070
 solved for *ties*: `Refinement._ties` is the one authority for which ties are
@@ -97,34 +111,45 @@ kind of statement.
 
 ## Tasks
 
-- [ ] `Refinement._holds` as the one authority, on `_ties`' model, with
+- [x] `Refinement._user_holds` as the one authority, on `_ties`' model, with
       `hold`/`unhold` verbs taking the same globs `set_vary` does and
       auto-committing nodes. A held path refuses an edit that would free it
       and names the hold, as a tied path refuses and names its sources.
-- [ ] Precedence in the one place that applies it, never at the call sites:
+      Named `_user_holds` rather than the `_holds` this WP asked for, because
+      WP-1301's stage hold is `Refinement._held` and the two would sit one
+      letter apart in the same method bodies meaning opposite things. One is
+      the caller's declaration and persists; the other is one stage's reading
+      of what the data can see.
+- [x] Precedence in the one place that applies it, never at the call sites:
       `locked`/`mode_fixed` outranks a hold, a hold outranks a stage's
       `turn_on`. A model edit can make a held path locked after the fact, so
       the check is re-asked where it is applied (WP-1070's lesson).
-- [ ] `RefinementState.holds` so a checkout restores them, and the project
+- [x] `RefinementState.holds` so a checkout restores them, and the project
       document carries them. A hold that does not survive reopening a `.rex`
       is worse than none, because it is a promise that lapses silently.
-- [ ] `ParameterRow.held_because` gains the hold as a fourth reason, and
-      `parameters()` reports it. The row already names which of three reasons
-      holds a path, so this is one member, not a new channel.
-- [ ] A plan that matched a held path reports it: `StageResult` records what
+- [x] `ParameterRow.held_because` gains the hold as a **fifth** reason, and
+      `parameters()` reports it. The WP was written saying fourth, counting the
+      three of the class docstring; `needs_held_cell` is the fourth and has been
+      since WP-1134. Still one member rather than a new channel.
+- [x] A plan that matched a held path reports it: `StageResult` records what
       the glob would have freed, and one diagnostic names the paths. This is
       now a real signal because the set is the caller's own declarations
       rather than every default.
-- [ ] Tests: the calibrate-on-a-standard case end to end, asserting the cell
+- [x] Tests: the calibrate-on-a-standard case end to end, asserting the cell
       does not move and the report names the plan's attempt; a checkout
       restoring holds; the precedence pairs; and the refusals. Plus
       obs/calc/diff PNGs to `tests/output/`.
-- [ ] Manual: `using/` gains the hold beside the user constraints, and the
+- [x] Manual: `using/` gains the hold beside the user constraints, and the
       calibration chapter says plainly that holding a certified cell is what a
       hold is for.
-- [ ] Skill: a body rule, since it holds for every fit — a caller who needs a
-      parameter to stay put says so with a hold, because a plan's glob
-      outranks `vary=False`.
+- [x] Skill: the rule that a plan's glob outranks `vary=False`, landed in
+      `references/surprises.md` as 8.25 rather than in the body this WP
+      asked for. The body never mentions `set_vary`, `turn_on` or a plan's
+      globs at all, so stating the rule there meant introducing the whole
+      mechanism into a file with 131 B of headroom, and surprises.md is
+      where a measured result that contradicts an intuition already lives.
+      Plus the `HOLD_BLOCKED_PLAN` row every engine code owes
+      `references/diagnostics.md`.
 
 ## Acceptance
 
@@ -154,6 +179,115 @@ The shipping PR carries `Closes #211`.
   GPL: concepts only.
 
 ## Handover log
+
+- **2026-09-18** — **closed.** You can now tell a refinement that a parameter
+  must not move and have it mean something. Before this, marking a parameter
+  fixed was a suggestion that any plan overrode in silence. The plan freed it,
+  refined it, and left the model you handed in still saying the parameter was
+  fixed, so the model and the result contradicted each other and nothing
+  reported it. That is the failure mode of calibrating against a certified
+  standard, where holding the certificate's cell is the entire reason the
+  calibration decorrelates. The cost is one verb to learn and one diagnostic
+  to read. What it rules out is the thing the issue originally asked for: no
+  diagnostic keyed on the `vary` flag can do this job, because that flag is a
+  default rather than a decision on 38 of 46 parameters.
+
+  **Done.** `Refinement.hold`/`unhold` on WP-1070's model, with
+  `_user_holds` the one authority and `set_hold` history nodes.
+  Enforcement is `Entry.held`, read by `ParameterTable.set_vary` beside
+  `locked` — in the table rather than at the call sites, which is what makes
+  a stage's `turn_on` honour it. `RefinementState.holds` carries the register
+  through a checkout, a branch and a `.rex` reopen.
+  `ParameterRow.held`/`held_because` is the fifth held-reason (the WP said
+  fourth; `needs_held_cell` has been the fourth since WP-1134).
+  `StageResult.blocked_by_hold` plus `HOLD_BLOCKED_PLAN` say which
+  declaration won. Reached the GUI (a pin glyph), the `.rxt` document (a
+  `held` annotation), the manual (`concepts.md` § holding-a-parameter, plus
+  `model.md`, `history.md`, `series.md`, `constraints.md`), and the skill
+  (`surprises.md` 8.25, the `HOLD_BLOCKED_PLAN` row). `SCHEMA_VERSION`
+  0.23 → 0.24.
+
+  **Measured** (`[dev]` only, no jax/torch, macOS arm64, machine otherwise
+  idle). The premise re-verified on arrival at `78cf0945`, then the fix, on
+  11-BM SRM 660a over 2-30° 2θ under `mccusker_default`, cell declared at the
+  SRM certificate's 4.1569162 Å:
+
+  | | cell `a` | from certificate | zero shift | Rwp |
+  |---|---|---|---|---|
+  | pinned `vary=False` | 4.156826 | −21.7 ppm | −0.000226 | 0.089875 |
+  | held | 4.1569162 | exact | +0.000070 | 0.096942 |
+
+  **The pinned fit has the better Rwp.** That is why this was invisible for
+  as long as it was, and it is the reason an Rwp comparison could never have
+  been this change's evidence (root CLAUDE.md's rule, from the other side).
+  The zero shift is the rest of the story: freed, the cell takes 296 µ° of
+  zero with it, which is exactly the decorrelation `lab_calibrate` exists to
+  buy. The 41-of-42 count from 1310 re-measures as 38 of 46 under an 8-term
+  Chebyshev background; the plans free 16-20 paths of which 8-12 are already
+  declared fixed, so the discriminator argument holds under both
+  measurements. Fast suite 5401 passed / 134 skipped, full suite 5580 / 143
+  in 23:05, both on the final tree, run alone. +18 tests exactly, and
+  passed+skipped moved by 18 in the fast selection with no new skip.
+
+  **Gotchas, and four of them were not the hold.** Adding a refusal to
+  `set_vary` broke three callers that had been written when it could not
+  refuse, and each failed differently. `optimize/identifiability.py` asked
+  for its requested candidates back rather than the ones `set_vary` took, so
+  the first declined row was an `IndexError`; the durable fix is to read the
+  **return**, which also covers the free-cell wavelength rule that could
+  already decline one. The GUI's `PATCH /api/params` ran its vary loop
+  unguarded, where `set_values` beside it was wrapped, so the first refusal
+  would have been a 500. `textdoc._FLAG_WORDS` did not know the word, so the
+  `.rxt` rendered `held` and its own parser dropped the row — the module's
+  docstring warns about exactly that class and its round-trip test missed it,
+  because no fixture declares a hold. And
+  `test_the_client_draws_a_mark_for_every_reason_a_row_can_be_held` promised
+  in its name to check the client and only checked Python: the tripwire
+  tripped, and had the author stopped at updating the expected set, the GUI
+  would have shipped blind. It now reads `lib/table.ts`.
+
+  Two absences stated rather than fixed. A joint fit reaches no user
+  declaration at all — `MultiHistogramRefinement` has no `_ties`,
+  `_variables` or `_user_holds` — which is pre-existing and true of WP-1070's
+  ties as much as of this, so it is recorded here and not quietly widened. A
+  hold on a path an `edit` removed is **kept** and warned about, the opposite
+  of a tie, which is dropped: a tie describes and can go stale, a hold
+  forbids and cannot.
+
+  Two caps moved, each in the commit that needed it and each with its reason
+  in the table. `REFERENCE_MAX_BYTES` 36 000 → 36 600: `diagnostics.md` had
+  9 bytes of headroom and every engine code owes it a row, so the two tests
+  were in tension. Its comment says the next addition splits the file rather
+  than moving this again. Root `CLAUDE.md` 938 → 954 for the rule itself.
+  `gui/CLAUDE.md` is line-neutral instead, its four lines over being
+  narrative this entry owes.
+
+  **The review pass** (`/code-review high --fix`) found five and four were
+  taken. Two matter beyond this diff. The refusal I wrote gave **false
+  advice**: `hold("phases.*.cell.*")` marks the symmetry-tied and locked rows
+  too, so `set_vary("phases.0.cell.b", True)` told the caller to `unhold` a
+  row `unhold` cannot free, and it now filters to where the hold is the
+  reason that bites — the same filter `blocked_by_hold` uses. And `hold`/
+  `unhold` had **no row in the generated api index**, which every session
+  about to call rietx loads whole, so an agent would read `set_vary(path,
+  False)` there and walk into #211; the gate that should have caught it
+  covers module-level functions in `rx.__all__` only and cannot see a
+  `Refinement` method. Also: `set_held` was quadratic per table build
+  (1.13 → 2.10 ms on the 41-entry synthetic under `hold("*")`, now 1.15), and
+  two dead local `fnmatch` imports went. **Declined the fifth**, and it is
+  worth knowing: `unhold`'s "comes back fixed" is untrue when the recorded
+  free set ends up empty, because `_free_paths` cannot tell "none recorded"
+  from "recorded empty" and `_working_table` then falls back to the models'
+  own flags. The fix is a sentinel or a `vary` write-back, both behaviour
+  changes outside this diff, and plain `set_vary` has the same quirk on
+  `main`.
+
+  **Next.** Nothing here. The forward work is filed: WP-1414 (a `turn_on`
+  that reached nothing) inherits the channel, the per-fit deduplication and
+  the reason a `vary`-keyed report cannot be built; WP-1420 (a held phase
+  re-enters) inherits the `_held` / `_user_holds` split by name. The
+  joint-fit absence above is nobody's WP yet and is worth one if user
+  constraints are ever wanted there.
 
 - **2026-09-16** — created by WP-1310's session, which reproduced issue #211
   and measured its proposed fix into a dead end. The issue asks for a

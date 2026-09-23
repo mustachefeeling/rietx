@@ -2770,6 +2770,35 @@ def test_exports_land_in_the_project_and_cannot_escape_it(fitted, tmp_path):
     assert client.post("/api/export/nonsense")[0] == 404
 
 
+def test_patching_vary_on_a_held_path_is_a_refusal_rather_than_a_crash(
+        blank, tmp_path, pattern_file):
+    """``set_vary`` could refuse nothing until WP-1435, so this branch ran bare.
+
+    The first refusal it could raise would have left the route with an
+    unhandled ``ValueError``, which is a 500 on a request the caller got
+    wrong — and the message naming ``unhold`` would never have reached them.
+    A glob is a sweep and still succeeds, holding nothing back but the held
+    row, which is the same split ``Refinement.set_vary`` makes.
+    """
+    session, client = blank
+    project = _open(session, tmp_path / "heldroute.rex", pattern_file)
+    project.refinement.hold("phases.0.cell.a")
+
+    status, payload = client.patch("/api/params",
+                                   {"vary": {"phases.0.cell.a": True}})
+    assert status == 400, payload
+    assert "unhold" in payload["error"]["message"]
+    assert payload["error"]["where"] == ["phases.0.cell.a"]
+
+    status, payload = client.patch("/api/params",
+                                   {"vary": {"phases.*.cell.*": True}})
+    assert status == 200, payload
+    assert payload["changed"]["vary"]["phases.*.cell.*"] == []
+    row = next(r for r in payload["parameters"]
+                if r["path"] == "phases.0.cell.a")
+    assert row["held"] and not row["vary"]
+
+
 def test_the_client_draws_a_mark_for_every_reason_a_row_can_be_held():
     """`lib/table.ts:heldKind` has one state per reason, and this is the list.
 
@@ -2782,13 +2811,23 @@ def test_the_client_draws_a_mark_for_every_reason_a_row_can_be_held():
     mark until a browser pass on the 11-BM example (WP-1214).
 
     Derived from ``refinable`` rather than listed, because ``refinable`` *is*
-    the definition of held: a fifth reason has to be written into it, and it
+    the definition of held: a sixth reason has to be written into it, and it
     fails here the moment it is.  The fields it reads, not the words its source
     contains — ``set_vary`` in a docstring is not a read of ``vary``, and
     ``locked`` contains ``lo``.
+
+    The second assertion is the one this test is named after, and it was
+    missing until WP-1435 added the fifth reason (a caller's ``hold``).  The
+    list above is a tripwire that asks a human to go and teach the client, and
+    a tripwire is only as good as the trip: it went off, and nothing would
+    have failed had the author stopped there and updated the list.  So the
+    client's own source is read here.  The two vocabularies share field names
+    one for one, ``row.<field>`` against ``self.<field>``, which is what makes
+    the comparison possible without running TypeScript.
     """
     import ast
     import inspect
+    import re
     import textwrap
 
     from rietx.schemas.params import ParameterRow
@@ -2797,7 +2836,16 @@ def test_the_client_draws_a_mark_for_every_reason_a_row_can_be_held():
     read = {node.attr for node in ast.walk(tree)
             if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name)
             and node.value.id == "self" and node.attr in ParameterRow.model_fields}
-    assert read == {"locked", "tie", "mode_fixed", "needs_held_cell"}
+    assert read == {"locked", "tie", "mode_fixed", "held", "needs_held_cell"}
+
+    source = (Path(__file__).parents[1] / "gui" / "src" / "lib"
+              / "table.ts").read_text(encoding="utf-8")
+    body = source.split("export function heldKind(")[1].split("\n}")[0]
+    drawn = set(re.findall(r"row\.(\w+)", body))
+    assert read <= drawn, (
+        f"held-reason(s) the client cannot draw: {sorted(read - drawn)} — "
+        "add a branch to lib/table.ts's heldKind and a glyph to heldGlyph, or "
+        "the row shows an empty box where its vary checkbox would be")
 
 
 def test_the_instrument_profile_saves_from_a_project_that_has_not_been_fitted(
@@ -4077,3 +4125,32 @@ def test_the_wizard_creates_a_project_from_no_structure_at_all(blank, tmp_path,
     assert session.project.refinement.structure.phases == []
     # mode is not forced either way: with no phase there is nothing to govern
     assert doc["doc"]["mode"] == "rietveld"
+
+
+def test_plan_resolve_force_fixes_a_column_a_tie_drives(blank, tmp_path,
+                                                        pattern_file):
+    """The panel and the stage drop ask one question (WP-1342).
+
+    This route mirrors ``_run_stage``'s intensity-mode force-fix, and until
+    this WP both tested the free path's **name** — so a variable driving an
+    atom's ``biso`` was promised as freed here and dropped by the run. A panel
+    that offers a column the next run silently fixes is the disagreement
+    WP-1076's rule exists to prevent.
+    """
+    session, client = blank
+    _open(session, tmp_path / "tied.rex", pattern_file, mode="lebail")
+
+    ref = session.project.refinement
+    ref.add_variable("B", 0.7, min=0.0, max=25.0)
+    ref.tie("phases.0.atoms.0.biso", "vars.B")
+    assert client.put("/api/plan", {"plan": {"stages": [
+        {"name": "bkg", "turn_on": ["instrument.background.*"]},
+        {"name": "displ", "turn_on": ["instrument.background.*", "vars.*"]},
+    ]}})[0] == 200
+
+    stage = next(s for s in _ladder(client)["stages"] if s["name"] == "displ")
+    assert "vars.B" not in stage["frees"]
+    assert "vars.B" in {h["path"] for h in stage["held"]}
+    # and the row agrees with the panel, being the same test
+    rows = {r.path: r for r in ref.parameters(mode="lebail")}
+    assert rows["vars.B"].mode_fixed and not rows["vars.B"].refinable

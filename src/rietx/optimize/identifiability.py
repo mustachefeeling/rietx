@@ -201,7 +201,15 @@ def exchangeability_scan(model, table) -> list[ExchangeRow]:
     if not candidates:
         return []
     try:
-        table.set_vary(candidates, True)
+        # the paths ``set_vary`` **took**, never the ones it was offered.  It
+        # declines a row for reasons this list cannot enumerate and should not
+        # try to: a caller's hold (WP-1435), a wavelength the free cell makes
+        # degenerate, and whatever is added next.  Asking for the requested
+        # set back is an index error on the first one it declines, which is
+        # what a held cell produced.
+        candidates = table.set_vary(candidates, True)
+        if not candidates:
+            return []
         paths = list(table.free_paths)
         J = np.asarray(_make_jacobian(model, table)(table.x0()))
         free_idx = [paths.index(p) for p in free_before]

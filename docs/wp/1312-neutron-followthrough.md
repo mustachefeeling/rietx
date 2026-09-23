@@ -1,7 +1,8 @@
 # WP-1312 — CW neutron follow-through: the seed, the resonant flag, the joint fit
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: ⬜ — tasks 1-2 and the #271 row landed from outside (PRs #280, #282, #427); tasks 3-4 and the #268/#276 rows open
 Depends on: — (WP-1132 is the maintainer's and does not gate any task here)
+Priority: P2 2026-09-23 — a resonant absorber's b is mis-tabulated in silence, on a path few fits run
 
 ## Goal
 
@@ -65,6 +66,11 @@ exercising this combination.
 
 ### Inherited
 
+- **2026-09-23, from the issue triage (issue #276).** The reporter claimed
+  #276's row on the thread and opened PR #429 the same day ("the neutron
+  preset builds its profile in a coarse-instrument box; a bare wide width
+  still refuses by name"). The PR covers #276 only; #268's row is unclaimed.
+  Reviewing it is `/pr-review`'s.
 - **2026-09-16, from [1118](1118-foreign-model-files.md): there is now a real
   CW-neutron instrument to start from.** `rx.read_gsas2_instprm` reads a
   GSAS-II `.instprm` into a frozen `Instrument`, and `tests/data/gsas2_hb2a.instprm`
@@ -193,6 +199,44 @@ issue #113 saying its (a) slice landed — #113 stays open for the fenced
 - Sears, V. F. (1992), *Neutron News* **3**(3), 26 — the shipped table.
 
 ## Handover log
+
+### 2026-09-23 — the #271 row landed from outside; a `PNC` recipe now builds
+
+`read_recipe` now reads a GSAS-II `PNC` instrument block rather than refusing
+it. That is the #271 row of the 2026-09-15 inheritance, live since PR #427
+merged (`90d4663e`, closing #271). Like tasks 1 and 2 it arrived from an
+outside contributor with no `WP-NNNN:` prefix and no touch of this file. The
+WP stays `⬜`: tasks 3 and 4 are untouched, the #268 and #276 rows are open,
+and no session owns it.
+
+**What the merge makes possible.** A `PNC` recipe builds
+`NeutronSource(wavelength=Lam)` and refines. The λ-flag refusal runs before
+the source is built, so a flagged neutron wavelength is refused as an X-ray
+one is. `NeutronSource.dispersion` is `None`, so the recipe's
+`_decline_dispersion` returns before any Cromer-Liberman lookup. A stated
+`Polariz.` is reported as `RECIPE_FIELD_DROPPED`, and a refine flag on it is
+refused. The ground is GSAS-II's `GetIntensityCorr`, which applies the
+factor only to an X-ray type, and `io/instrument_profile.py` already reads a
+`PNC` `.instprm` bank on it. Each other type now has its own refusal:
+`PNT`/`PXE` for the axis, `PXB`/`PNB` for the profile function, and an
+unknown code as unknown. The list lives in `RECIPE_TYPES` and
+`_REFUSED_TYPES`, outside `__all__`.
+
+**What it deliberately does not do.** The test recipe is the LaB6 X-ray
+fixture relabelled `PNC`, so it pins the source arm and that the fit runs,
+and its Rwp means nothing. No real neutron recipe is in the tree. Task 3's
+mixed-fit example would be the first place one could be exercised.
+
+**Two loose ends, posted as non-blocking follow-ups on the PR.** The
+diagnostic's `where` always names `initialization[0].Polariz.`, even when
+only `parameterization.polarization` carried the value. The module
+docstring's `RECIPE_FIELD_DROPPED` paragraph lists `Z = 0` and the hump γ,
+and omits this case. It is a dropped value that is not at the model's
+identity, justified because it is inert in GSAS-II too.
+
+**Measured on the merged tree** (darwin/arm64, python 3.12, `[dev,jax]`,
+nothing else running): fast suite 5925 passed, 84 skipped; full `-m slow`
+191 passed, 7 skipped, 1 xfailed; `ruff` and the `-W` manual build clean.
 
 ### 2026-09-16 — task 1 landed from outside; the seed is the width you asked for
 

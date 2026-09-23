@@ -146,6 +146,22 @@ user's); `RefinementState.ties` is why a checkout restores the parameter *count*
 outranks a user tie, enforced in `_apply_ties` and not only in the verbs' refusals — a model
 edit can make an already-tied path symmetry-tied after the fact.
 
+**A hold** (WP-1435, #211) is that construction over `vary` rather than over ties, and it
+exists because **`vary=False` does not keep a parameter fixed**: a plan *replaces* the vary
+flags (WP-1208), so any stage whose `turn_on` matches frees it — a certified cell pinned for
+`lab_calibrate` refined 185 ppm while the model still read `False` and nothing said so.
+`hold`/`unhold` (`set_hold` nodes), `Refinement._user_holds` the authority,
+`RefinementState.holds` why a checkout restores it, and `Entry.held` read by
+`ParameterTable.set_vary` beside `locked` — **in the table, never at the call sites**, or
+only the callers that remembered would honour it. Precedence: locked/`mode_fixed` outrank a
+hold, a hold outranks a glob, and `held_because` reports them in that order because only the
+middle one `unhold` can lift. A blocked glob is **reported**, not silent
+(`StageResult.blocked_by_hold`, `HOLD_BLOCKED_PLAN`) — and that report is keyed on the hold
+because it cannot be keyed on `vary`, which 38 of 46 LaB6 entries carry by default. Two
+consequences for a new caller: `set_vary` **can now refuse**, so read its return rather than
+the list you offered it; and `_user_holds` is not `_held`, which is WP-1301's stage-scoped
+reading of what the data can see.
+
 **Plans.** Exactly **one** `StageSpec`/`PlanSpec`, in `schemas/plan.py`; `schemas/history.py`
 and `agent.py` re-export. `PLAN_INFO` (`strategy/staged.py`) carries
 title/description/modes/when-to-use per preset, in bijection with `PLAN_PRESETS` by meta-test.
@@ -263,6 +279,16 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   reaches is verified where it is used** — `_peak_chain_column` checks the scalars it
   finite-differences anyway against the bases it was told to skip and raises naming the path, so
   a wrong claim costs work, never a short column (WP-1109).
+  **A freeze resting on *flatness* needs the other reading of C — which column moves it**
+  (WP-1342): `column_reach`, and `entry_reach` where the entry is not a column. Testing the free
+  path's **name** could not see a `vars.X` driving it, so the absent-phase hold and the Le
+  Bail/Pawley force-fix each reported success on a set they could not see into, silently and at
+  Rwp identical to 1.7e-15. Three rules for a new consumer. **All, never any** — one visible
+  phase gives a shared column real gradient, and holding it anyway cost 10 441 ppm on that
+  phase's cell. A **variable is dropped before the test**, the forward model never reading one
+  (`is_variable_path`, third rule); left in, every tied column fails on its own name. And the
+  record takes the **column** while its reach rides beside it (`StageResult.held_reach`), since
+  `where` keyed on the reach made one finding about a phase into one per tied cell parameter.
 - **A staged plan does not converge its intermediate stages; the one that does is the last**
   (WP-1123, flipping what 1113 measured). `RefinementPlan.intermediate_ftol` (1e-6 vs the
   solver's 1e-9) is the schedule; `stage_ftols()` the one authority applying it, since the plan
@@ -358,6 +384,14 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   member each need their writer named at review. Where the fact already has a computing authority
   the second surface is a *projection* of it: `staged.bound_findings` is one bound test feeding
   both the `BOUND_HIT` diagnostics and `at_bound`, pinned **set-equal** rather than re-derived.
+  **That test asks whether the limit *carried load*, never whether the value is near one**
+  (WP-1434): TRF keeps its iterates strictly feasible, so a distance measures when the solver
+  stopped, and it went silent on nine of 32 binding cases. It is a conjunction — within a
+  hundredth of an esd of the limit *and* the residual not orthogonal to that column
+  (`LSQOutcome.residual_cosine`, zero on every free column at a stationary point by the normal
+  equations) — because the angle cannot separate a stage that stopped early en route and the
+  distance cannot separate a free optimum that lands nearby. Neither threshold is tunable by
+  eye; both docstrings carry the window they were measured into.
   Where it has none the honest empty state is `None`, which cannot regress into a lie the way a
   defaulted `False` can. All nine of 1076's surfaced while writing a manual chapter over the type,
   never by reading the code. **A message that names its discriminator makes the same claim**, one
@@ -478,7 +512,11 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   papers only. **Data carries its own fence, per file**: a PyPI upload publishes harder than a
   repository does, so a file entering the *wheel* (`src/rietx/data/`) states its status where it
   ships — `qarr/*.prn` have none, which is why the four round-robin standards cannot be example
-  projects however small (WP-1204).
+  projects however small (WP-1204). **A private corpus is cited by number, never by name**
+  (2026-09-18 audit): nothing lacking a peer-reviewed citation is public, so TOPAS's and FullProf's
+  corpora are `archive file N`/`corpus file N`, private `yue-here/rietx-corpus-map` holds the map,
+  and a fixture carries synthetic numbers at the file's own column widths. A public teaching
+  download keeps its name; a physics citation keeps its measurement and drops only the specimen.
 
 ## Conventions
 
@@ -700,7 +738,16 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   `phases.i.atoms.j.dof.k` (one per allowed direction from `crystallography/wyckoff.py`) and
   affine-ties x/y/z to them; free them with the `phases.*.atoms.*.dof.*` glob (the
   `mccusker_structural` plan does). Fully fixed special positions get locked coords — `vary=True`
-  there raises.
+  there raises. **A coordinate DOF is *relative*, so the invariant is that a rebuild reproduces
+  the coordinate** (WP-1432): the row is x = x_stored + Σ Bₖθₖ with the DOF rederived to
+  zero, so a tie onto one from a source that does not reset — a named variable, re-declared from
+  its register — anchored on a coordinate that had already absorbed the displacement and added it
+  again, once per table build, silently (0.2093 → 0.2493 over four writes while `vars.A` read
+  0.01 throughout). `ParameterTable.rebase_anchored_dofs` takes that contribution back out of the
+  anchor, and **which entries are anchored is data built where the anchor is**, never a name read
+  at a call site — ADP and Stephens DOFs spell their paths the same way and are absolute. The tie
+  register has two consumers, `Refinement._apply_ties` and `replay` (which carried the defect
+  alone for a build off the node's own structure), so **a third consumer of `_ties` calls it too**.
 - **Anisotropic ADPs are opt-in per atom** (`Atom.aniso`, CIF U^ij in Å²), refining the same way:
   `phases.i.atoms.j.adp.k` patterns from `wyckoff.adp_basis`, freed by the
   `phases.*.atoms.*.adp.*` glob every displacement stage carries alongside `…biso`. Unlike
@@ -889,13 +936,18 @@ of overlap, never proof of a clash** — one issue is cited by five WPs here —
 `EnterWorktree` never refuses on it. And it needs the network, so it lives in `/wp-start` and **never
 in the SessionStart hook**, which stays stdlib-only, offline-safe and 0.25 s.
 
-Shipped: **v0.1 … v1.4**, one record each in `docs/milestones/`; ROADMAP's table carries the
+**An issue reaches the roadmap through `/issue-review`**, which tests each report against the tree
+before placing it (a close, a comment, a fold into a WP's `### Inherited`, a new WP, a fence, a
+milestone), docs-only, with every public act batched to the person. The `#N` a WP file cites is the
+whole triage record: the command's table reads it, and so does `wp_claim.py` above.
+
+Shipped: **v0.1 … v1.5**, one record each in `docs/milestones/`; ROADMAP's table carries the
 acceptance one-liners, restated in neither place. Since WP-1117 the compatibility promise
 (`docs/manual/using/compatibility.md`) is a **preview**: anything may change in any release,
 versions bumping per observable change. **1.0.2 was written and never published**, folded into v1.1
 (2026-08-23), so 1.0.1 is what anyone upgrades *from* and `docs/releases/1.0.2.md` describes a
 release that never existed. `pyproject.version` tracks the milestone in flight, or the **last
-shipped when none is** — `1.5.0.dev0` today, with v1.5 open. It is the string every
+shipped when none is** — `1.6.0.dev0` today, with v1.6 open. It is the string every
 `RefinementResult.provenance` and history node stamps; a new milestone opens at `1.x.0.dev0`.
 
 **Indexing.** Full dossier `src/rietx/indexing/CLAUDE.md` (auto-loads when a session works there);

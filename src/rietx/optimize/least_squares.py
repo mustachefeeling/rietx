@@ -227,6 +227,82 @@ class LSQOutcome:
     #: ``StageResult.n_degenerate_cell_probes``, carried by
     #: ``SCHEMA_VERSION`` 0.19 → 0.20 (see ``schemas/common.py``).
     n_degenerate_cell_probes: int = 0
+    #: cos of the angle between the residual and each Jacobian **column**,
+    #: ``gₖ / (‖J:,ₖ‖·‖r‖)`` with ``g = Jᵀr`` the gradient of ½‖r‖²; signed,
+    #: in [−1, 1], **table columns only**, so it indexes like :attr:`theta`.
+    #: The rows are the whole augmented system (data, background penalty and
+    #: restraints alike), because the cost the driver minimised is the one
+    #: whose stationarity is being read.
+    #:
+    #: WP-1434 is the consumer, and the quantity is chosen rather than
+    #: inherited.  At an *unconstrained* stationary point the normal equations
+    #: put ``Jᵀr = 0``, so every free column is orthogonal to the residual and
+    #: every entry here is 0.  A column that is **not** orthogonal is being
+    #: held by something other than optimality, and for a column sitting at a
+    #: declared limit that something is the limit: the sign says which way the
+    #: solver would still move it, and the magnitude says how hard.  Distance
+    #: to the limit cannot say this, because TRF keeps its iterates strictly
+    #: feasible and where a boundary solution lands is a function of when the
+    #: solver stopped (issue #273).  Measured on the WP's fixtures: 1.5e−2 to
+    #: 2.1e−1 over 32 genuinely-binding cases against 5.0e−10 at a free
+    #: optimum, seven orders where the distance gives none.
+    #:
+    #: Dimensionless by construction, so it is comparable across parameters
+    #: whose units are not, and it is the same definition under both drivers
+    #: rather than scipy's ``optimality``, which is Coleman-Li-scaled and
+    #: which the ``lm`` driver does not produce at all.  Both drivers fill it
+    #: from the ``jac``/``fun`` pair they each already return (WP-1076: a
+    #: declared field names its writer); ``None`` only where :attr:`jac` is,
+    #: at the zero-parameter early return.  See Nocedal & Wright, *Numerical
+    #: Optimization* 2nd ed. ch. 12 and 16: an active set is identified by the
+    #: multiplier, never by proximity.
+    residual_cosine: np.ndarray | None = None
+    #: ``repr`` of the ``LinAlgError`` the esd computation raised *after* the
+    #: solve returned, or ``None`` when it did not (WP-1333, issue #225).  A
+    #: failed eigensolve is not a failed fit: :attr:`theta` is the solver's
+    #: answer either way, and only :attr:`stderr_internal`/:attr:`correlation`
+    #: are absent — the ``float | None`` every esd downstream already is.
+    #: Written by :func:`_guarded_covariance`, the one place both solver entry
+    #: points reach ``covariance_estimates`` through; ``refine`` turns it into
+    #: ``COVARIANCE_UNAVAILABLE`` naming the stage.
+    covariance_error: str | None = None
+
+
+def _guarded_covariance(jac, fun, n_free: int, n_data: int
+                        ) -> tuple[np.ndarray | None, np.ndarray | None,
+                                   str | None]:
+    """:func:`covariance_estimates`, with an eigensolver failure made absent.
+
+    Returns ``(stderr, corr, None)``, or ``(None, None, repr(exc))`` when
+    ``np.linalg.LinAlgError`` escapes the pseudo-inverse.  Issue #225 met it
+    at a converged fit, pattern 78 of a 182-pattern chain, as ``Eigenvalues
+    did not converge`` out of ``eigh``, and the raise discarded the answer the
+    solver had already returned.  **The mechanism is not asserted here**: the
+    reporter could not reduce it to a data-free case, and ill-conditioned
+    synthetic Jacobians (columns at 1e-90 to 1e-200) pass through
+    :func:`~.statistics.normal_covariance` without raising.  Only
+    ``LinAlgError`` is caught, which is the one type an eigensolve reports
+    non-convergence with; anything else is a defect and stays loud.
+    """
+    try:
+        stderr, corr = covariance_estimates(jac, fun, n_free, n_data=n_data)
+    except np.linalg.LinAlgError as exc:
+        return None, None, repr(exc)
+    return stderr, corr, None
+
+
+def _residual_cosine(jac, fun) -> np.ndarray | None:
+    """``gₖ / (‖J:,ₖ‖·‖r‖)`` per column — see :attr:`LSQOutcome.residual_cosine`.
+
+    A zero column, or a residual that has reached exactly zero, leaves its
+    entry at 0.0 rather than dividing: there is no angle to report, and 0 is
+    the value that reads as "this column is not being held".
+    """
+    if jac is None:
+        return None
+    j, f = np.asarray(jac), np.asarray(fun)
+    denom = np.linalg.norm(j, axis=0) * np.linalg.norm(f)
+    return np.divide(j.T @ f, denom, out=np.zeros(j.shape[1]), where=denom > 0)
 
 
 def _lebail_snapshot(model: CompiledModel) -> list[np.ndarray] | None:
@@ -1442,9 +1518,11 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
     # feeds the table esds too), then split: table columns stay in the outcome,
     # the intensity tail lands on the model's Pawley block.
     stderr = corr = stderr_full = None
+    covariance_error = None
     if compute_uncertainties and res.jac is not None and len(res.fun) > len(res.x):
-        stderr_full, corr_full = covariance_estimates(res.jac, res.fun, len(res.x),
-                                                       n_data=model.n_points)
+        stderr_full, corr_full, covariance_error = _guarded_covariance(
+            res.jac, res.fun, len(res.x), n_data=model.n_points)
+    if stderr_full is not None:
         stderr, corr = stderr_full[:n_table], corr_full[:n_table, :n_table]
         if model.pawley is not None:
             model.pawley.stderr = stderr_full[n_table:]
@@ -1453,13 +1531,20 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
         # residual eval is not guaranteed to sit exactly at the solution)
         model.set_pawley_intensities(res.x[n_table:])
     jac_table = np.asarray(res.jac)[:, :n_table] if res.jac is not None else None
+    # off the *full* augmented Jacobian, then sliced to the table columns: the
+    # aux block's own angles belong with the Pawley intensities, not here
+    cos_table = _residual_cosine(res.jac, res.fun)
+    if cos_table is not None:
+        cos_table = cos_table[:n_table]
     return LSQOutcome(res.x[:n_table], cost0, float(res.cost), int(res.nfev), status,
                       jac_table, stderr, corr, n_aux=n_aux, solver=solver,
+                      residual_cosine=cos_table,
                       n_constraint_truncations=n_truncated,
                       max_shift_over_esd=_final_shift_over_esd(
                           table, tracker.step(), stderr_full, corr, n_table),
                       termination=termination,
-                      n_degenerate_cell_probes=cell_guard.n_degenerate)
+                      n_degenerate_cell_probes=cell_guard.n_degenerate,
+                      covariance_error=covariance_error)
 
 
 def _multi_closures(models: list[CompiledModel], mtable: "MultiParameterTable",
@@ -1612,15 +1697,19 @@ def run_multi_least_squares(models: list[CompiledModel],
     termination = (res.termination if solver == "lm"
                    else _TRF_TERMINATION.get(res.status, str(res.status)))
 
-    stderr = corr = None
+    stderr = corr = covariance_error = None
     if compute_uncertainties and res.jac is not None and len(res.fun) > len(res.x):
-        stderr, corr = covariance_estimates(res.jac, res.fun, len(res.x),
-                                            n_data=n_data_total)
+        stderr, corr, covariance_error = _guarded_covariance(
+            res.jac, res.fun, len(res.x), n_data=n_data_total)
     jac_data = np.asarray(res.jac)[:n_data_total] if res.jac is not None else None
+    # ``jac_data`` drops the penalty and restraint *rows*; the angle keeps
+    # them, being read off the cost the driver actually minimised
     return LSQOutcome(res.x, cost0, float(res.cost), int(res.nfev), status,
                       jac_data, stderr, corr, solver=solver,
+                      residual_cosine=_residual_cosine(res.jac, res.fun),
                       termination=termination,
-                      n_degenerate_cell_probes=cell_guard.n_degenerate)
+                      n_degenerate_cell_probes=cell_guard.n_degenerate,
+                      covariance_error=covariance_error)
 
 
 def covariance_estimates(jac: np.ndarray, fun: np.ndarray, n_free: int,

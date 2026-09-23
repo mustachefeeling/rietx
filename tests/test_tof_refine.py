@@ -390,10 +390,13 @@ def test_the_schema_version_moved_with_the_field():
     The cut onto main (2026-09-18) renumbered the whole chain once more,
     against main as it shipped: main's ladder runs to 0.22 (#283's 0.20,
     WP-1309's 0.21, WP-1438's 0.22) and this chain's six bumps follow it
-    contiguously from 0.23, which lands the literal at 0.28."""
+    contiguously from 0.23, which lands the literal at 0.28.  The merge of
+    main on 2026-09-23 renumbered it again: main's ladder had reached 0.26
+    (#375's 0.23, #211's 0.24, WP-1333's 0.25, WP-1414's 0.26), so the six
+    bumps run 0.27-0.32."""
     from rietx.schemas.common import SCHEMA_VERSION
 
-    assert SCHEMA_VERSION == "0.28"
+    assert SCHEMA_VERSION == "0.32"
 
 
 def test_a_result_round_trips_through_json_on_either_axis():

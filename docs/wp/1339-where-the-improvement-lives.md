@@ -2,6 +2,7 @@
 
 Milestone: unscheduled · Status: ⬜
 Depends on: —
+Priority: P3 2026-09-23 — a statistic compare already computes, reached as a function
 
 ## Goal
 
@@ -119,6 +120,31 @@ below), and (3) as **report-only output** — a number the reader judges, not
 a `Diagnostic`, because a diagnostic needs a threshold and the package
 reports evidence rather than verdicts. The contributor's PR offer for (1)
 and (2) is accepted.
+
+### Inherited
+
+- **2026-09-23, from the issue triage (issue #219).** The reporter's
+  2026-09-04 comment carries this WP's question to a second phase, and no
+  session had folded it. Synthetic cubic Cu with anisotropic Stephens strain,
+  modelled as the parent plus an `I 4/m m m` subgroup phase that is not in the
+  specimen. The absent subgroup takes the misfit at 57σ support and ΔBIC −1818,
+  with no `PHASE_UNCONSTRAINED` and no hold. On the isotropic control, Rwp is
+  0.0399 in every arm, and the subgroup's support reads 0.65σ (held), 197σ or
+  54-56σ depending only on the seed. So for a phase collinear with another,
+  `phase_support` measures where the fit landed on a ridge. `HIGH_CORRELATION`
+  fires on the two scales in every arm and separates nothing. The localisation
+  statistic transfers weakly: a gain-density ratio of 2.4 for the phantom
+  against 1.3 for a real 40 % subgroup, with no sign flip. What did separate
+  them was ± seeds off the identity point and the rival with the same freedom
+  on the parent (ΔBIC +797 against the phantom). Checked against the tree at
+  `644dff84`: `schemas/sequential.py:78-81` still calls `PHASE_UNCONSTRAINED`
+  the measurement that answers "is this phase real", which this falsifies for
+  a collinear phase. That sentence is a fix whatever else this WP decides.
+- **From WP-1434, 2026-09-18: which codes fired in that measurement may no
+  longer reproduce.** `BOUND_HIT` now asks whether the limit carried load
+  instead of whether the value stopped near one, so the `lor_strain` floor
+  observation was taken under a test that no longer exists. Re-run before
+  building on the list of what fired.
 
 ## Non-goals
 

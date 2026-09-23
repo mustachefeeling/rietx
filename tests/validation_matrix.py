@@ -1511,7 +1511,43 @@ CLAIMS: tuple[Claim, ...] = (
                  "0.43 and 0.32, near the exact 1/2 and 1/3 an exact supercell "
                  "must give.  Still low on indexed_fraction_low (31/37) and "
                  "predicted_but_absent (1 of 29, the 6_3 screw); "
-                 "best_or_none() returns None",
+                 "best_or_none() returns None.  RANK RE-MEASURED 2026-09-22 "
+                 "(WP-1442): this row no longer asserts the rank, only that "
+                 "the truth is found, the supercells are found beside it and "
+                 "the reversed member separates them by more than 1.5x",
+    ),
+    Claim(
+        "test_acceptance_indexing",
+        "test_brucites_truth_is_not_ranked_first",
+        "qarr", ("characterisation",),
+        "the rank the row above stopped asserting, carried as a strict xfail "
+        "so that fixing it goes red rather than quiet",
+        reference="No tolerance and no reference value: the assertion is an "
+                  "identity, that candidates[0] IS the certified-cell "
+                  "candidate the row above already located and checked "
+                  "against Zigan & Rothbauer at 3e-3.  There is nothing here "
+                  "to interpret a bar against, which is why it is an xfail "
+                  "rather than a loosened number -- a bar widened until a "
+                  "wrong answer fits is the failure this matrix exists to "
+                  "prevent",
+        measured="FAILS: an a x 2 supercell at a = 6.2950 ranks first against "
+                 "the certified 3.1475.  It predicts 90 reflections of which "
+                 "25 are present (0.28); the truth predicts 29 of which 25 "
+                 "are present (0.86); both index the same 31 observed lines "
+                 "and the supercell takes the rank on one extra line of the "
+                 "fitted panel, 34 against 33.  Unmasked rather than caused "
+                 "by WP-1442, which stopped the Kbeta screen discarding two "
+                 "real lines on a monochromated specimen; removing either "
+                 "alone still leaves the supercell first.  WP-1446 MEASURED "
+                 "AND REFUTED the peak-list route 2026-09-22: ordering a cell "
+                 "below any derivative parent whose extra lines the pattern "
+                 "lacks does fix brucite, and demotes SRM 676a's own cell "
+                 "below a c/2 subcell, because R -3 c's c-glide leaves 33 of "
+                 "its 35 in-range extras absent.  The populations interleave "
+                 "-- share 0.943 for corundum's truth against 0.931 and 0.983 "
+                 "for the brucite supercells -- so no bar on that question "
+                 "separates them.  WP-1449 owns the extinction-screen route, "
+                 "and strict=True turns this row red when it lands",
     ),
     Claim(
         "test_acceptance_indexing",

@@ -37,7 +37,7 @@ import warnings
 import numpy as np
 from pydantic import Field
 from scipy.ndimage import median_filter
-from scipy.signal import find_peaks, peak_widths
+from scipy.signal import find_peaks, peak_prominences, peak_widths
 
 from ..schemas.common import Base
 from ..schemas.pattern import PatternData, require_two_theta
@@ -83,13 +83,138 @@ _ANODE_MATCH_TOL = 0.01
 GHOST_TOL_DEG = 0.15
 #: How many combined σ the observed ghost may sit from its predicted position.
 GHOST_MATCH_K = 3.0
-#: Ghost/parent intensity-ratio window.  Kβ is ≤ ~0.2 of Kα even unfiltered and
-#: W Lα weaker still, so anything above the upper bound is a reflection, not a
-#: ghost; the lower bound keeps noise-level coincidences out.
-GHOST_RATIO_RANGE = (0.005, 0.6)
+#: Largest position esd, in ° 2θ, at which a fitted line still has a position
+#: this check can use.  A line past it is neither a parent nor a candidate.
+#:
+#: It **is** :data:`GHOST_TOL_DEG`, because that floor is the prediction's own
+#: error: once a fit knows less about where its line is than the prediction
+#: does, "matched loosely" has become "matched to whatever is nearby".  That is
+#: not a hypothetical.  Over the 1 108 fitted lines of the 17 monochromated
+#: fixtures the position esd is 0.005° at the median and 0.019° at p90, and the
+#: far tail is a cliff rather than a tail: past p99 it runs 10¹⁹ to 10⁵²
+#: degrees, a singular normal matrix on an unresolved shoulder or a line with no
+#: intensity.  On ``FAP.XRA`` two such fits at 64.330° carried 1 961° and
+#: 11 390°, matched every parent, and produced 32 of that pattern's 35 raw
+#: matches (WP-1442).
+#:
+#: The bar drops 22 of those 1 108 lines, 2.0 %, and with it caps the matching
+#: window at ``GHOST_MATCH_K·√2·GHOST_TOL_DEG`` = 0.636°.  The σ term is at or
+#: under the floor for 93.68 % of parent-line pairs anyway, so this costs
+#: almost nothing a well-fitted pattern was using.
+#:
+#: **It is not**
+#: :data:`~rietx.schemas.indexing.PEAK_POSITION_ESD_MAX_DEG`, which is 180° and
+#: takes a line out of ``PeakList.usable`` altogether.  The two ask different
+#: questions and the answers are properly different by three orders of
+#: magnitude: that one asks whether the line has a position *at all*, so its
+#: scale is the 2θ axis; this one asks whether the line can be matched against
+#: **a specific prediction**, so its scale is that prediction's own error,
+#: which is what :data:`GHOST_TOL_DEG` is.  A line can be far too vague to
+#: confirm a Kβ position and still be a perfectly good lattice line.
+GHOST_ESD_MAX_DEG = GHOST_TOL_DEG
+#: Ghost/parent intensity-ratio window.
+#:
+#: The ceiling is the physics.  Hölzer et al. (1997) Table VI gives the
+#: corrected Kβ1,3/Kα1,2 integrated-intensity ratio for the 3d anodes to better
+#: than 4 %: Cu 0.141, Cr 0.139-0.147, Mn 0.140, Fe 0.143-0.152, Co 0.137,
+#: Ni 0.147-0.150.  An *unfiltered* tube therefore sits near 0.15, and every
+#: filter and every monochromator only cuts it, so 0.25 clears the largest
+#: tabulated value by 1.6× and calls anything above a reflection.  W Lα1 comes
+#: off the filament rather than the target and is weaker still, so it shares the
+#: ceiling with room to spare.
+#:
+#: The 0.6 this shipped until WP-1442 admitted four times an unfiltered tube's
+#: leak, and the "≤ ~0.2" its docstring quoted had no source.  On the 17
+#: monochromated fixtures the ceiling change alone removed nothing, because the
+#: joint bar (:data:`GHOST_MIN_PARENTS`) had already silenced them; what it
+#: buys is that a *reported* leak_ratio is now one a tube could produce.
+#:
+#: **The ceiling is a cliff, not a taper**, and that part is measured: a Kβ
+#: image injected into ``corundum.prn`` is found with its ratio through 0.24
+#: (an injected 0.14 reads back 0.141) and returns **no flag at all** from
+#: 0.26 up, which is what a clean pattern returns.  A ratio past the ceiling is
+#: a reflection by construction, so that is the rule working; it is written down
+#: because the distance from an unfiltered tube's 0.14 to the edge is 1.8× and
+#: not obviously generous.
+#:
+#: **Whether the census path eats into that 1.8× is argued and not measured.**
+#: Hölzer's number is Kβ1,3 over the whole Kα1,2 doublet, which is what
+#: ``flag_ghosts`` divides by: :mod:`rietx.indexing.peakfit` models the emission
+#: set, so one ``ObservedPeak.intensity`` is the reflection's integral over
+#: every line.  :func:`diagnose` has no such model and divides by a *net height*
+#: at one channel, which above the doublet's resolving angle is Kα1 alone, about
+#: two thirds of the pair — so a real leak, which is one line, should read high
+#: there.  **This fixture cannot show it**: the injector adds a scaled copy of
+#: the whole pattern, Kα2 satellites included, so its ghost is a doublet image
+#: and the height ratio comes back faithful by construction.  Demonstrating it
+#: needs a leak synthesised from the emission model rather than from the
+#: pattern.  Retuning on it is WP-1447's; what a reader must not do is take the
+#: 1.6× as the census path's.
+#:
+#: The floor keeps noise-level coincidences out.  It is also the height floor
+#: :func:`diagnose` admits ghost *candidates* at, because a maximum smaller than
+#: it cannot pass this test against any parent.
+GHOST_RATIO_RANGE = (0.005, 0.25)
 #: How many of the strongest lines are searched for ghosts.  A ghost of a weak
 #: line is below noise by construction.
 GHOST_N_PARENTS = 8
+
+#: How many of those parents must carry a candidate at one common ratio before
+#: a contamination is reported at all.
+#:
+#: A leak is a property of the *beam*: whatever fraction of Kβ reaches the
+#: detector reaches it for every reflection, so a real one puts a line at the
+#: predicted position of every strong parent, all at the same ratio.  A
+#: coincidence puts one line somewhere.  Taking each match on its own could not
+#: tell those apart, and did not: on the 17 monochromated fixtures, where
+#: neither Kβ nor W Lα can reach the detector, the per-line rule flagged 0.94
+#: Kβ per pattern against a control fed 26 made-up wavelengths that flagged
+#: 1.01 (WP-1442).
+#:
+#: The bar is measured rather than chosen, against a control that asks the same
+#: question at wavelengths which are not an emission line of anything.  Over
+#: **2 656 draws** (16 round-robin patterns × 166 such wavelengths) the count
+#: reaches **4** and no more, and **0.000 %** reach 5; the real Kβ reaches 2 on
+#: the worst of those patterns.  A Kβ image injected into six of them scores at
+#: least 6 at r = 0.10 and at least 5 at r = 0.15, so 5 separates the two
+#: populations with a margin of one count on each side.
+#:
+#: **The control is only fair away from Kα1.** Above ≈0.98·λ(Kα1) the predicted
+#: companion lands on top of its own parent and matches the parent's own Kα2
+#: partner, which is self-matching rather than coincidence: measured, the
+#: control's mean jumps from 0.50 to 3.95 and its maximum from 4 to 8 inside
+#: that band alone.  The band is excluded, along with ±0.01 around the real Kβ
+#: and W Lα ratios, which sit at 0.904 and 0.958 and are well clear of it.  A
+#: first calibration that swept into the band reported a 1.3 % false rate and
+#: was wrong (WP-1442's handover has both runs).
+#:
+#: **The detection floor this buys is r ≈ 0.10**, not lower: over corundum,
+#: zincite, cpd-1e, brucite, zircon and magnetite the minimum score at r = 0.05
+#: is 2, and magnetite — 22 fitted lines — reaches only 2 there.  An unfiltered
+#: tube sits at 0.14 (Hölzer 1997 Table VI), which is the case worth catching.
+#: A *residual* leak past a working filter is below the floor and is reported
+#: as nothing, which is the honest answer at this evidence.
+#:
+#: The number is calibrated on Cu Kα laboratory data from one instrument class,
+#: because that is what the bundled corpus has an anode for.  A control run per
+#: pattern would remove that dependence and costs ~1.4 % of the peak fit it
+#: rides on; it is written up in WP-1447 rather than built, the fixed bar
+#: having measured at zero false findings here (decided 2026-09-22 with the
+#: maintainer).
+GHOST_MIN_PARENTS = 5
+
+#: How far two parents' ratios may differ and still be called one leak, as a
+#: factor.  The physical ratio is constant; what varies is the fitted intensity
+#: of a weak line sitting on a strong one's flank, which is tens of percent.
+#:
+#: Measured at 1.3, 1.5, 2.0 and 3.0 against the control
+#: :data:`GHOST_MIN_PARENTS` describes: the control's maximum is **4 at every
+#: one of them**, so widening costs no specificity at all, while an injected
+#: leak at r = 0.10 scores 5 at 1.3 and 1.5 against 6 at 2.0 and 3.0.  The
+#: tolerance buys detection for nothing.  2.0 is the widest at which "a common
+#: ratio" still means something, which is where it stops being a measurement
+#: and becomes a judgement (decided 2026-09-22; WP-1442).
+GHOST_RATIO_TOL = 2.0
 
 #: The sampling band of McCusker, Von Dreele, Cox, Louër & Scardi (1999) §2:
 #: "There should be at least five steps (but generally not more than ten)
@@ -114,6 +239,36 @@ STEPS_PER_FWHM_MAX = 10.0
 #: WP-1071's handover, so the number is a floor and not a tuning.
 SAMPLING_PROMINENCE_SIGMA = 5.0
 
+#: The second floor under both sampling bars, as a fraction of the pattern's
+#: near-maximum net signal — the 99.9th percentile that
+#: :attr:`PatternDiagnostics.signal_to_background` already calls by that name,
+#: rather than ``max``, which is one channel and can be a cosmic ray.
+#:
+#: It is here because a bar in σ alone asks the wrong question of a pattern
+#: whose σ is *right* and smaller than √y.  What the peak finder thresholds is
+#: not noise: it is the envelope's own tracking error, which is a fraction of
+#: the intensity and does not shrink when the counting gets better.  So a file
+#: whose σ is 0.289·√y — most constant-wavelength neutron data, monitor
+#: normalised and propagated — measures that error at 3.46× its honest
+#: significance.  Measured on the 27 pattern fixtures the suite carries, by
+#: scaling the declared σ alone and leaving the data untouched: today's
+#: selection moves the answer by a median factor of **5.45** and up to 78×
+#: across σ ×1.0 → ×0.05, and every fixture lands at 1.5-2.5 steps per FWHM
+#: at the D1B ratio, i.e. ``PATTERN_UNDERSAMPLED`` on all of them.  With this
+#: floor the median factor is **1.000** (worst 1.037), because the binding bar
+#: is no longer in σ.
+#:
+#: **It is a selection width, not a floor**, and is quoted as one: the value
+#: decides how many lines the median covers, so unlike
+#: :data:`SAMPLING_PROMINENCE_SIGMA` the answer does move with it — up to 18 %
+#: between 0.02 and 0.05 on the fixtures.  What is flat is the thing it is for:
+#: σ-scale invariance is exact from 0.015 upwards, so 0.03 carries 2× margin.
+#: Chosen with that margin and for leaving the shipped answer alone where σ is
+#: honest (median 0.998 of today's over the fixtures, worst 0.678, and **no**
+#: fixture crosses :data:`STEPS_PER_FWHM_MIN` in either direction).  The sweep
+#: is in WP-1415's handover.
+SAMPLING_HEIGHT_FRACTION = 0.03
+
 #: Median-filter width, in ° 2θ, applied to the variance-inflation ratio before
 #: any region is cut out of it (:func:`counting_coverage`).  It is what makes the
 #: threshold below mean anything: measured on the two BT-1 patterns quoted there,
@@ -130,7 +285,7 @@ COVERAGE_SMOOTH_DEG = 1.0
 
 #: How many times the plateau's variance-per-count a smoothed channel must carry
 #: before it counts as thinly covered.  Set from the gap between the two things
-#: it has to separate, on ``Al2O3023.xye`` (NIST BT-1, 3.00-166.25° at 0.05°,
+#: it has to separate, on a NIST BT-1 pattern (3.00-166.25° at 0.05°,
 #: 3266 points, σ from the file): the smoothed ratio *drifts* over 1.11-1.37
 #: through 149-161°, then **steps** to 2.25 in a single channel at 161.30° and
 #: holds it to the end of the scan.  1.5 sits between the two with ≈1.4× margin
@@ -209,14 +364,81 @@ CUTOFF_PLATEAU_DEG = 2.0
 #: fail in.
 CUTOFF_INTERIOR_FRACTION = 0.70
 
+#: How far below the local background level a channel must sit to be a
+#: candidate for *dead* rather than quiet (:func:`dead_channels`).  A detector
+#: cell that is not seeing anything reads a Poisson sample of nothing — single
+#: counts where its neighbours carry thousands — so the gap this straddles is
+#: orders of magnitude, not a factor of two.  It is only the first of two
+#: tests, and the weaker one: on the bundled fixtures it alone selects 248
+#: runs, every one of them a channel that legitimately counted zero, and
+#: :data:`DEAD_WEIGHT_RATIO_MIN` is what rejects all 248.  Swept 0.02 to 0.30
+#: against a synthetic carrying issue #274's pair: the run is found identically
+#: over the whole range, and no fixture survives the second test anywhere in
+#: it, so the value is set from the physics — a decade below the background —
+#: rather than from a boundary the data show.
+DEAD_LEVEL_FRACTION = 0.10
+
+#: How far a run must outvote its neighbours before it is reported — the
+#: second test, and the one that means something.  Weights are 1/σ², so the
+#: question a dead cell poses is not "is this channel low" but "does this
+#: channel outvote the pattern", and the two are answered by different columns.
+#: A channel that legitimately counted zero carries *less* weight than a live
+#: one, not more.  A dead cell's σ collapsed with its intensity, so it carries
+#: more, and the gap between the two is not a close call: measured over the
+#: bundled fixtures, all 248 of the level-only candidates land between **0.94
+#: and 3.00**, while a synthetic D1B carrying issue #274's own pair — y = 3
+#: and 5 at σ = 1.000 and 1.414, beside background at 39 066 and σ = 57.1 —
+#: reads **2243**.  100 sits between them with 33× margin below and 22× above,
+#: and the answer on both sets is identical anywhere from 3 to 1000, so this
+#: one *is* a floor rather than a tuning.
+DEAD_WEIGHT_RATIO_MIN = 100.0
+
+#: Width, in ° 2θ, of the median window that turns the background envelope into
+#: the *local level* a dead channel is judged against.  It is
+#: :func:`background_envelope`'s own window for the reason that function gives
+#: for it — wider than any Bragg FWHM — and the median is taken over the
+#: envelope rather than over the intensities so a peak cannot be the level its
+#: own flanks are compared with.  Three degrees is also comfortably wider than
+#: the longest run this function will report (:data:`CUTOFF_MIN_DEG`), which is
+#: what stops a dropout from dragging down the level that is meant to expose
+#: it: at 0.1° steps that is 10 channels inside a 30-channel median.
+DEAD_LEVEL_WINDOW_DEG = 3.0
+
+#: How many times :func:`dead_channels` re-derives which channels to withhold
+#: from its level estimate before taking the mask as settled.  Each pass walks
+#: the mask one median-window further into a long dropout, so the cap bounds a
+#: dropout this converges on at roughly that many windows; past it the run is
+#: declined by the length test anyway, which is the outcome the cap exists to
+#: reach *cleanly* rather than to avoid.  Not a tuning: on every fixture and
+#: every synthetic measured the mask settles on pass 2 or 3.
+_DEAD_REPAIR_PASSES = 6
+
 
 class ContaminationFlag(Base):
-    """A weak peak consistent with a known contamination line of a strong one."""
+    """One line of a contamination finding that is **joint across parents**.
+
+    A flag is never emitted on its own evidence.  The rule gathers candidates
+    for every one of the strongest parents, finds the ratio the most of them
+    agree on, and emits nothing at all unless :data:`GHOST_MIN_PARENTS` of them
+    do.  Each flag then names one ghost line of that finding, and carries the
+    finding's own numbers beside its own: ``leak_ratio`` is the ratio fitted
+    across the supporting parents, ``n_parents`` how many supported it, and
+    ``n_parents_searched`` how many were in range to be asked.
+
+    So ``intensity_ratio`` is this line's, and ``leak_ratio`` is the
+    pattern's.  A reader wanting to know whether the beam carries Kβ reads the
+    second.  The three finding-level fields repeat across every flag of one
+    finding, which is what lets a caller drop a line without losing the
+    evidence for it.
+    """
 
     kind: str                  # "kbeta" | "tungsten_la"
-    two_theta: float           # where the ghost sits
-    parent_two_theta: float    # the strong Kα parent reflection
-    intensity_ratio: float     # ghost/parent net height
+    two_theta: float           # where this ghost sits
+    parent_two_theta: float    # the strong Kα parent it is a ghost of
+    intensity_ratio: float     # this ghost/parent intensity
+    leak_ratio: float          # the ratio fitted across the supporting parents
+    n_parents: int             # parents supporting the finding
+    n_parents_searched: int    # parents whose ghost position was in range
 
 
 class SignalCutoff(Base):
@@ -270,6 +492,46 @@ class SignalCutoff(Base):
     relative_error_ratio: float | None = None   # median σ/y there, over interior
 
 
+class DeadChannelRun(Base):
+    """A short run of channels the detector was not seeing the sample through.
+
+    A dead or masked PSD cell, a gap between detector banks, a channel the
+    electronics dropped.  Not a verdict and **applied nowhere**: this reports,
+    and which channels a run fits is ``project.fitted_mask``'s answer built
+    from the caller's ``excluded_regions`` (WP-1033).  What the finding owes a
+    caller is the interval to exclude, which is why the two 2θ bounds are the
+    first two fields.
+
+    It is :class:`SignalCutoff`'s interior peer and the two do not overlap by
+    construction: a collapse of :data:`CUTOFF_MIN_DEG` or longer is an
+    instrument that stopped and belongs to :func:`signal_cutoffs`, and anything
+    shorter is this — "a dip or a gap in the first channels", which is what
+    that function's own docstring calls the case it declines.
+
+    ``weight_ratio`` is why a two-channel dropout is worth a diagnostic at all,
+    and it is the number to lead with.  Weights are 1/σ², so a channel whose
+    intensity collapsed *and* whose σ collapsed with it does not merely
+    contribute nothing — it outvotes the pattern.  On the ILL D1B file of issue
+    #274 two cells at σ = 1.0 sit beside live channels at σ = 55.1, so each
+    carries the weight of about 3 000 live ones, and a 12-term Chebyshev
+    background is dragged through zero to reach them: Rwp 0.087 against 0.0074
+    with the same channels excluded, the Caglioti terms at their bounds and
+    every Biso pinned at zero.  None of the fourteen bound hits is the problem,
+    which is the whole reason this is reported where the cause is rather than
+    left to be read off the symptoms.  It is **required**, not optional: the
+    census answers nothing without a measured σ, so there is no run whose
+    ratio is unknown.  An optional one would be a state with no writer.
+    """
+
+    two_theta_min: float
+    two_theta_max: float
+    n_channels: int
+    #: the run's median intensity over the local background level
+    level_fraction: float
+    #: (local σ / the run's σ)² — how many live channels one of these outvotes
+    weight_ratio: float
+
+
 class CoverageRegion(Base):
     """A stretch of pattern whose σ carries more variance per count than the
     bulk of the scan does — fewer independent observations behind each channel.
@@ -301,7 +563,7 @@ class CoverageRegion(Base):
     plateau is measured in the middle.
 
     ``inflation`` is a **median** over the region, so it summarises rather than
-    resolves: a region can hold finer steps of its own (on ``Al2O3023.xye`` the
+    resolves: a region can hold finer steps of its own (on that same pattern the
     low-angle region runs ≈5× below 8°, ≈2.2× from 8-11°, ≈4× over 11.3-13°, then
     ≈2.2× tapering to 1× by ≈55°), and the levels are not even monotonic in 2θ.
     """
@@ -332,9 +594,20 @@ class PatternDiagnostics(Base):
     the range, ask again if you changed it.
 
     * ``peak_fraction`` — fraction of channels more than 3σ above the
-      envelope: how much of the pattern is peak rather than background.
+      envelope.  **Read it as the σ-relative statement it is, not as how much
+      of the pattern is peak**: the bar is in σ, so a file whose σ is right and
+      smaller than √y has genuinely more channels significantly above
+      background and this number rises without the pattern changing.  Measured
+      by rescaling the declared σ alone over the bundled fixtures, ×1.0 to
+      ×0.15: a median factor of 2.92 and up to 9.57 (WP-1415, which left the
+      definition alone rather than redefine a shipped number — the two measures
+      below were the ones making a claim about *lines*, and they no longer move
+      at all).
     * ``peak_density_per_deg`` — resolved-peak count per degree 2θ; dense
       patterns (≳2/deg) favour stiff baselines and low background order.
+      Its census takes :data:`SAMPLING_HEIGHT_FRACTION`'s floor, so it counts
+      lines rather than the envelope's tracking error and does not move with
+      the declared σ.
     * ``signal_to_background`` — near-maximum net signal (99.9th percentile)
       over the median background level.
     * ``air_scatter_gain`` — fraction of the cubic-fit residual variance of
@@ -373,6 +646,12 @@ class PatternDiagnostics(Base):
       seeing the sample (:func:`signal_cutoffs`), each a :class:`SignalCutoff`.
       Empty means the pattern's own ends are at its own interior level, which
       is the ordinary case and the one every other field here assumes.
+    * ``dead_channels`` — short interior runs that measure nothing and outvote
+      the pattern while doing it (:func:`dead_channels`), each a
+      :class:`DeadChannelRun`.  Empty means none was found **or none could
+      be**: the test needs a measured σ, so a pattern under the Poisson
+      fallback answers empty for the second reason.  ``coverage_plateau``
+      ``None`` is how to tell the two apart.
     """
 
     n_points: int
@@ -392,6 +671,7 @@ class PatternDiagnostics(Base):
     coverage_plateau: float | None = None
     coverage_regions: list[CoverageRegion] = Field(default_factory=list)
     signal_cutoffs: list[SignalCutoff] = Field(default_factory=list)
+    dead_channels: list[DeadChannelRun] = Field(default_factory=list)
 
 
 def background_envelope(two_theta: np.ndarray, y: np.ndarray, *,
@@ -495,13 +775,34 @@ def _median_steps_per_fwhm(net: np.ndarray, sigma: np.ndarray
     hence :data:`SAMPLING_PROMINENCE_SIGMA`, without which the measurement
     reads the noise on a strong peak's own top.
 
+    **Both bars are the larger of a σ floor and a dynamic-range floor**
+    (:data:`SAMPLING_HEIGHT_FRACTION`), because the two floors answer different
+    questions and only one of them is σ's.  "Is this maximum significant" is
+    the σ question.  "Is it a line rather than the envelope failing to track
+    the background" is a question about the pattern's own scale, and asking it
+    in σ is what made the measurement a function of the declared σ rather than
+    of the experiment: on a file whose σ is right and 3.46× smaller than √y the
+    σ bar reads the envelope's tracking error as 5σ of significance.  With the
+    second floor the answer is invariant under a rescale of the declared σ,
+    measured on every fixture the suite carries (that constant's note).
+
     The median rather than the mean: one clipped width from a peak sitting on
     a neighbour's flank should not move the answer, and the guideline is about
     the pattern rather than about its worst line.
     """
-    z = np.where(net > 0, net, 0.0) / sigma
-    idx, _ = find_peaks(z, height=5.0, distance=3,
-                        prominence=SAMPLING_PROMINENCE_SIGMA)
+    pos = np.where(net > 0, net, 0.0)
+    if not len(pos):
+        return None, 0
+    # the same "near-maximum net signal" ``signal_to_background`` reports, and
+    # a percentile rather than ``max`` for the same reason: one hot channel
+    # would otherwise set what counts as a line (measured — anchoring on
+    # ``max`` lets a single injected spike move 16 of 26 fixtures by over 5 %,
+    # one of them by 66 %; on the percentile, 3 of 26 and none past 9 %).
+    floor = SAMPLING_HEIGHT_FRACTION * float(np.percentile(pos, 99.9))
+    idx, _ = find_peaks(pos, distance=3,
+                        height=np.maximum(5.0 * sigma, floor),
+                        prominence=np.maximum(
+                            SAMPLING_PROMINENCE_SIGMA * sigma, floor))
     if not len(idx):
         return None, 0
     with warnings.catch_warnings():
@@ -744,6 +1045,170 @@ def signal_cutoffs(
             for edge in ("low", "high") if any(c.edge == edge for c in cutoffs)]
 
 
+def dead_channels(
+    two_theta: np.ndarray, y: np.ndarray, sigma: np.ndarray | None = None, *,
+    level_fraction: float = DEAD_LEVEL_FRACTION,
+    weight_ratio_min: float = DEAD_WEIGHT_RATIO_MIN,
+    window_deg: float = DEAD_LEVEL_WINDOW_DEG,
+    max_run_deg: float = CUTOFF_MIN_DEG,
+) -> list[DeadChannelRun]:
+    """Short runs inside the range that outvote the pattern while measuring
+    nothing — a dead detector cell, a masked channel, a gap between banks.
+
+    Model-free, like everything else here, and it **reports and applies
+    nothing**: the interval it names is the caller's to exclude, because
+    ``project.fitted_mask`` is the one authority on which channels a run fits
+    (WP-1033).
+
+    **It needs a measured σ and returns nothing without one**, which is the
+    load-bearing part rather than a limitation.  "This channel is low" does not
+    separate a dead cell from a channel that legitimately counted zero — both
+    are low, and the bundled fixtures carry 217 of the second kind.  What
+    separates them is the σ column: a channel that counted zero honestly
+    carries *less* weight than a live one, while a dead cell's error bar
+    collapsed along with its intensity and it carries thousands of times more.
+    Under the Poisson fallback σ = √max(y, 1) that distinction does not exist —
+    every low channel would look dead — so answering at all would be reporting
+    the fallback rather than the file, the same refusal
+    :func:`counting_coverage` makes and for the same reason.
+
+    Why the *level* is a median of the envelope rather than of the
+    intensities: the comparison a dead channel has to lose is against its own
+    background, and on any pattern with peaks a median of ``y`` over a window
+    centred on a strong line *is* that line, which would make the line's own
+    flanks read as dead.  :func:`background_envelope` is already the module's
+    peak-robust stand-in for the background, and a median over
+    :data:`DEAD_LEVEL_WINDOW_DEG` of it removes the local dip the dropout
+    itself puts in the envelope.
+
+    Why short interior runs only, and what that leaves uncovered.  At an
+    **end** of the range the subject is :func:`signal_cutoffs`, which declines
+    the short case in exactly these words ("a dip or a gap in the first
+    channels"), and closing that gap is the second half of issue #274 — not
+    done here, because it needs the two real files to say whether a short
+    dropout at an edge is separable from a cliff.  A run of
+    :data:`CUTOFF_MIN_DEG` or longer in the **middle** is declined too, and
+    that one is owned by nobody today: ``signal_cutoffs`` reads ends only.  It
+    is declined rather than answered because the level a long run is judged
+    against cannot survive it — a dropout wider than
+    :data:`DEAD_LEVEL_WINDOW_DEG` drags down the very estimate meant to expose
+    it, and the honest failure there is silence rather than the spurious
+    one-channel run the length test alone produced.
+    """
+    tt = np.asarray(two_theta, dtype=np.float64)
+    counts = np.asarray(y, dtype=np.float64)
+    if sigma is None or len(tt) < 3:
+        return []
+    sig = np.asarray(sigma, dtype=np.float64)
+    step = float(np.median(np.diff(tt)))
+    if not np.isfinite(step) or step <= 0:
+        return []
+
+    width = max(int(window_deg / step), 5)
+
+    # Two passes, because a level computed from the channels it is judging is
+    # not a level.  ``background_envelope`` anchors a knot at each data edge
+    # and extrapolates linearly from the two nearest (WP-1028), so a dropout
+    # near an end drags those knots down and the extrapolation carries the
+    # envelope *negative* — measured on a synthetic D1B with #274's own pair
+    # four channels from the top of the range: the envelope reads −4.6 where
+    # the background is 78, over the last 30 channels, and the run is missed.
+    # Which is the case the issue reports, so it is the case to get right.
+    # Pass 1 is a median of the intensities, which needs no knots and no
+    # extrapolation; it is not peak-robust, and does not need to be, because
+    # all it decides is which channels are withheld from pass 2.  It is run to
+    # a fixed point because one pass only reaches a run's outer channels once
+    # the run approaches the median's own window: the interior's window is
+    # itself all dropout, so the median there is dead and the channel is not
+    # flagged.  Iterating on the repaired series walks the mask inward until
+    # it stops growing — without it a 1.9° dropout left the level collapsed
+    # across its middle, which made every later test read the wrong number
+    # there rather than decline.
+    repaired = counts
+    suspect = np.zeros(len(counts), bool)
+    for _ in range(_DEAD_REPAIR_PASSES):
+        coarse = median_filter(repaired, size=width, mode="nearest")
+        with np.errstate(invalid="ignore"):
+            found = (coarse > 0) & (counts < level_fraction * coarse)
+        if found.all() or not found.any() or np.array_equal(found, suspect):
+            break
+        suspect = found
+        repaired = counts.copy()
+        repaired[suspect] = np.interp(
+            tt[suspect], tt[~suspect], counts[~suspect])
+    level = median_filter(background_envelope(tt, repaired), size=width,
+                          mode="nearest")
+    with np.errstate(invalid="ignore"):
+        low = (level > 0) & (counts < level_fraction * level)
+    if not low.any() or not (~low).any():
+        return []
+
+    out: list[DeadChannelRun] = []
+    for a, b in _runs(low):
+        if tt[b] - tt[a] >= max_run_deg:
+            continue                      # too long — see the docstring
+        # Bounded by live channels on both sides, at the level, or declined.
+        # This is what makes "interior" true by construction rather than by
+        # assertion, and it is also the guard on the level estimate itself: a
+        # run long enough to drag the level down is one whose own edge channel
+        # is the only one still reading below it, and a run touching an end of
+        # the range has no neighbour there to be bounded by.  Without it a
+        # 1.9° interior dropout came back as a spurious *one-channel* run
+        # rather than as nothing.
+        if a == 0 or b == len(tt) - 1:
+            continue
+        if not (counts[a - 1] >= level_fraction * level[a - 1]
+                and counts[b + 1] >= level_fraction * level[b + 1]):
+            continue
+        run_sigma = _finite_median(sig[a:b + 1])
+        if not run_sigma or run_sigma <= 0:
+            continue
+        # against the run's own neighbours, not the whole pattern: the pull a
+        # dead channel exerts is on the background *there*, and a median σ
+        # taken over the whole range would be a different instrument's answer
+        # on a pattern whose counting statistics vary along it.
+        near = np.zeros(len(tt), bool)
+        near[max(a - width, 0):b + 1 + width] = True
+        near &= ~low
+        live_sigma = _finite_median(sig[near]) if near.any() else None
+        if not live_sigma or live_sigma <= 0:
+            continue
+        ratio = float((live_sigma / run_sigma) ** 2)
+        if ratio < weight_ratio_min:
+            continue
+        here = _finite_median(level[a:b + 1])
+        frac = (float(np.median(counts[a:b + 1])) / here
+                if here and here > 0 else 0.0)
+        out.append(DeadChannelRun(
+            two_theta_min=float(tt[a]), two_theta_max=float(tt[b]),
+            n_channels=int(b - a + 1), level_fraction=float(frac),
+            weight_ratio=ratio))
+    return out
+
+
+#: Decimals both ``PATTERN_DEAD_CHANNELS`` messages quote an interval to.
+_DEAD_INTERVAL_DECIMALS = 3
+
+
+def _dead_interval(run: DeadChannelRun) -> tuple[float, float]:
+    """The interval to exclude for ``run``, at the precision it is printed at.
+
+    The bounds are **widened outward**, never rounded to nearest, and that is
+    the whole content.  ``PatternData.in_range_mask`` drops
+    ``lo <= 2θ <= hi`` against the stored doubles, so a bound printed to
+    :data:`_DEAD_INTERVAL_DECIMALS` and read back has to *contain* the run.
+    Nearest does not: a 0.1° grid built by accumulation puts the first dead
+    channel at 64.99999999999979, which prints as ``65.000``, and a caller
+    following the message verbatim leaves that very channel in the fit
+    (measured — one of the two channels of the D1B pair survived the
+    exclusion the finding asked for).  Widening costs at most one extra
+    channel a side, and a live channel beside a dead one is worth nothing.
+    """
+    scale = 10.0 ** _DEAD_INTERVAL_DECIMALS
+    return (float(np.floor(run.two_theta_min * scale) / scale),
+            float(np.ceil(run.two_theta_max * scale) / scale))
+
+
 def counting_coverage(
     two_theta: np.ndarray, y: np.ndarray, sigma: np.ndarray | None, *,
     threshold: float = COVERAGE_INFLATION_THRESHOLD,
@@ -774,14 +1239,14 @@ def counting_coverage(
     **What a region means.** On an instrument with a bank of detectors on a
     circle, the number contributing to a given 2θ falls off at both ends of the
     range, and v ∝ 1/n_eff counts them.  Measured on two NIST BT-1
-    constant-wavelength neutron patterns (``Al2O3023.xye`` and ``CrWO6003.xye``,
-    3.00-166.25° at 0.05°, 3266 points, σ from the file, plateau v = 0.837 and
-    0.826): both show the same ladder — ≈5× below ≈8°, ≈2.2-2.6× from 8° to
+    constant-wavelength neutron patterns (3.00-166.25° at 0.05°, 3266 points,
+    σ from the file, plateau v = 0.837 and 0.826): both show the same ladder —
+    ≈5× below ≈8°, ≈2.2-2.6× from 8° to
     ≈15°, tapering to 1× by ≈55°, 1× through the middle, and a step back to
     ≈2.2× within one channel at 161.30°, held to the end of the scan.  The levels
     are *quantised* because detectors are integers, which is what makes a step
     a step rather than a gradual falloff, and they are not monotonic in 2θ
-    (Al2O3023 sits at ≈4× over 11.3-13.0°, between two ≈2.2× stretches).
+    (one of them sits at ≈4× over 11.3-13.0°, between two ≈2.2× stretches).
     Neither pattern's plateau contains a region at all.
 
     **Where it fires on the bundled patterns**, and why a detector-count reading
@@ -901,13 +1366,69 @@ def diagnose(data: PatternData, *, wavelength: float | None = None,
     # *measured* — under the Poisson fallback that ratio is a function of the
     # level it was derived from and would say nothing.
     cutoffs = signal_cutoffs(tt, y, sigma if data.sigma is not None else None)
+    # the same σ-measured test, and for a sharper reason: without the file's
+    # own σ this one cannot separate a dead cell from a channel that counted
+    # zero at all, so it answers empty rather than guessing
+    dead = dead_channels(tt, y, sigma if data.sigma is not None else None)
 
     env = background_envelope(tt, y)
     net = y - env
     med_env = float(np.median(env))
 
     peak_channels = net > 3.0 * sigma
-    idx, _ = find_peaks(np.where(net > 0, net, 0.0) / sigma, height=5.0, distance=3)
+    # The census wants every line the pattern shows, so it keeps no prominence
+    # bar — but its height bar takes the same dynamic-range floor the width
+    # measurement does (:data:`SAMPLING_HEIGHT_FRACTION`), and for the same
+    # reason: in σ alone it counted the envelope's tracking error as lines, and
+    # harder the better the counting statistics were.  Measured over the
+    # fixtures: 1558 "peaks" on 11-BM NAC at the file's own σ and 9403 at a
+    # σ 3.46× smaller, against 96 at every scale with the floor; on a synthetic
+    # 13-line CW-neutron pattern, 79 rising to 201 over σ ×1.0 to ×0.05,
+    # against 27 at every one of them.  27 rather than 13 because this census
+    # keeps no prominence bar and a strong peak's own noisy top carries more
+    # than one maximum — which is what :data:`SAMPLING_PROMINENCE_SIGMA` is
+    # for, and what a *count* deliberately does not apply.  The defect fixed
+    # here is the scale dependence, not the over-count.
+    # One ``find_peaks`` call serves the census and the ghost search, read at
+    # two floors off the same near-maximum, because the census bar cannot also
+    # be the ghost bar: a ghost is accepted down to ``GHOST_RATIO_RANGE[0]`` =
+    # 0.5 % of its parent, which is six times *under* the census floor, so a
+    # single 3 % bar deletes the Kβ and W Lα leaks this check exists to find
+    # (measured: four injected 1 % Kβ ghosts, all four flagged at the σ bar and
+    # none at the census floor).  Below ``ghost_bar`` no candidate can pass the
+    # ratio test anyway, so it is the widest bar the ghost search has any use
+    # for.  The census is the subset above its own bar, which is the set a
+    # second ``find_peaks`` at that bar returns: ``distance`` keeps the tallest
+    # of a cluster, and a peak admitted by a *lower* floor can never displace a
+    # taller one (checked equal on every bundled fixture at σ ×1, ×0.289 and
+    # ×0.05).
+    pos_net = np.where(net > 0, net, 0.0)
+    near_max = float(np.percentile(pos_net, 99.9))
+    census_bar = np.maximum(5.0 * sigma, SAMPLING_HEIGHT_FRACTION * near_max)
+    ghost_bar = np.maximum(5.0 * sigma, GHOST_RATIO_RANGE[0] * near_max)
+    candidates, _ = find_peaks(pos_net, distance=3, height=ghost_bar)
+    idx = candidates[pos_net[candidates] >= census_bar[candidates]]
+
+    # Where the two part is *prominence*, and they part because they are asked
+    # different questions (WP-1442).  A count wants every line the pattern
+    # shows, so the census keeps no prominence bar and says so above.  The
+    # ghost search asks whether several strong parents carry a line at one
+    # ratio, and the answer is decided by how many *coincidences* the pool can
+    # supply: on the demo notebook's Kapton-hump pattern the 291 candidates
+    # here let a made-up wavelength gather 6 supporting parents, and 5 of the
+    # 16 bundled fixtures did the same — over ``GHOST_MIN_PARENTS``, so the
+    # real wavelengths landing at 0-3 was luck rather than margin.  A genuine
+    # ghost on a background is a resolved maximum with full prominence above
+    # its flanking saddles; a ripple on a hump has none, which is the same
+    # separation :data:`SAMPLING_PROMINENCE_SIGMA` was added for one rank down.
+    # Gated, the chance consensus tops out at 4 over every fixture and the demo
+    # (means 1.3 → 0.25), while an injected leak at r ≥ 0.02 still gathers 5-8.
+    # Computed off the shared candidates rather than by a second ``find_peaks``,
+    # since a peak's prominence is a property of the signal and not of the
+    # selection it was found under.
+    prominence = peak_prominences(pos_net, candidates)[0]
+    ghost_idx = candidates[
+        prominence >= SAMPLING_PROMINENCE_SIGMA * sigma[candidates]]
 
     # nested envelope fits: cubic, then cubic + 1/(2θ) air-scatter column
     design = chebyshev_design_matrix(tt, 4, float(tt[0]), float(tt[-1]))
@@ -921,8 +1442,8 @@ def diagnose(data: PatternData, *, wavelength: float | None = None,
     hump = float(np.sqrt(np.mean(r_air ** 2)) / max(med_env, 1e-12))
 
     flags: list[ContaminationFlag] = []
-    if wavelength is not None and len(idx):
-        flags = _contamination_flags(tt, net, sigma, idx, wavelength)
+    if wavelength is not None and len(ghost_idx):
+        flags = _contamination_flags(tt, net, sigma, ghost_idx, wavelength)
 
     lam = (select_arpls_lambda(data).selected if baseline_lambda is None
            else baseline_lambda)
@@ -955,6 +1476,7 @@ def diagnose(data: PatternData, *, wavelength: float | None = None,
         coverage_plateau=plateau,
         coverage_regions=coverage,
         signal_cutoffs=cutoffs,
+        dead_channels=dead,
     )
 
 
@@ -1002,6 +1524,12 @@ def contamination_flags_from_peaks(
     but a raw channel-index census does.  ``intensity`` should be an
     *integrated* intensity where one exists; net height is a fallback that
     biases the ratio test by the ghost/parent width ratio.
+
+    The finding is **joint**: see :data:`GHOST_MIN_PARENTS` for why a single
+    match is no evidence and what the bar was measured against.  An empty list
+    therefore means "no leak this rule can see", which on a pattern with fewer
+    than :data:`GHOST_MIN_PARENTS` parents in range is a silence rather than a
+    clean bill, exactly as an unrecognised wavelength is.
     """
     anode = identify_anode(wavelength)
     if anode is None:
@@ -1012,35 +1540,124 @@ def contamination_flags_from_peaks(
         return []
     lo, hi = (float(tt.min()), float(tt.max())) if tt_range is None else tt_range
     esd = None if two_theta_esd is None else np.asarray(two_theta_esd, dtype=np.float64)
-    r_lo, r_hi = GHOST_RATIO_RANGE
-    strongest = np.argsort(inten)[::-1][:GHOST_N_PARENTS]
     flags: list[ContaminationFlag] = []
     for kind, lam_ghost in (("kbeta", _KBETA[anode]), ("tungsten_la", _W_LA1)):
-        ratio = lam_ghost / wavelength
-        for ip in strongest:
-            s = np.sin(np.radians(tt[ip] / 2.0)) * ratio
-            if s >= 1.0:
-                continue
-            tt_ghost = 2.0 * np.degrees(np.arcsin(s))
-            if not (lo <= tt_ghost <= hi):
-                continue
-            if esd is None:
-                window = np.full(len(tt), tol_deg)
-            else:
-                window = np.maximum(
-                    tol_deg, k_sigma * np.sqrt(esd ** 2 + esd[ip] ** 2))
-            near = np.flatnonzero(np.abs(tt - tt_ghost) < window)
-            for ig in near:
-                r = float(inten[ig] / max(inten[ip], 1e-12))
-                if not (r_lo < r < r_hi):
-                    continue
-                if (intensity_esd is not None
-                        and inten[ig] <= 5.0 * intensity_esd[ig]):
-                    continue
-                flags.append(ContaminationFlag(
-                    kind=kind, two_theta=float(tt[ig]),
-                    parent_two_theta=float(tt[ip]), intensity_ratio=r))
+        cands, n_searched = _ghost_candidates(
+            tt, inten, esd, intensity_esd, lam_ghost / wavelength, lo, hi,
+            tol_deg=tol_deg, k_sigma=k_sigma)
+        support, leak, chosen = _ghost_consensus(cands)
+        if support < GHOST_MIN_PARENTS:
+            continue
+        # One flag per ghost *line*.  The consensus is keyed on parents, and two
+        # of them can predict the same line: a Kα1/Kα2 pair fitted as two lines
+        # put their Kβ images 0.04° apart, inside any matching window, and the
+        # pre-WP-1442 rule flagged that line once per parent (cpd-1b 31.716°,
+        # cpd-4 33.737°).  The count of *parents* is the evidence and stays on
+        # every flag; the list is per line because ``usable()`` drops lines.
+        # Keep the entry whose ratio is nearest the finding's, so the flag a
+        # reader sees is the one the leak was fitted from.
+        per_line: dict[int, tuple[int, int, float]] = {}
+        for cand in chosen:
+            ig = cand[1]
+            if (ig not in per_line
+                    or abs(np.log(cand[2] / leak))
+                    < abs(np.log(per_line[ig][2] / leak))):
+                per_line[ig] = cand
+        for ip, ig, r in sorted(per_line.values(), key=lambda c: c[1]):
+            flags.append(ContaminationFlag(
+                kind=kind, two_theta=float(tt[ig]),
+                parent_two_theta=float(tt[ip]), intensity_ratio=r,
+                leak_ratio=leak, n_parents=support,
+                n_parents_searched=n_searched))
     return flags
+
+
+def _ghost_candidates(
+    tt: np.ndarray, inten: np.ndarray, esd: np.ndarray | None,
+    intensity_esd: np.ndarray | None, ratio: float, lo: float, hi: float,
+    *, tol_deg: float, k_sigma: float,
+) -> tuple[list[tuple[int, int, float]], int]:
+    """Every ``(parent, ghost, ratio)`` the position and ratio windows admit.
+
+    Returns them with the number of parents whose predicted ghost position fell
+    inside the pattern — the denominator the consensus count is read against,
+    and not the same as :data:`GHOST_N_PARENTS` on a pattern whose range cuts
+    some of the predictions off.
+
+    A line whose position esd exceeds :data:`GHOST_ESD_MAX_DEG` is dropped
+    before anything else, as a parent and as a candidate, so the ranking that
+    picks the parents is over lines that have a position at all.
+    """
+    r_lo, r_hi = GHOST_RATIO_RANGE
+    out: list[tuple[int, int, float]] = []
+    n_searched = 0
+    placed = (np.ones(len(tt), dtype=bool) if esd is None
+              else np.isfinite(esd) & (esd <= GHOST_ESD_MAX_DEG))
+    rank = np.argsort(np.where(placed, inten, -np.inf))[::-1][:GHOST_N_PARENTS]
+    for ip in rank:
+        if not placed[ip]:
+            continue
+        s = np.sin(np.radians(tt[ip] / 2.0)) * ratio
+        if s >= 1.0:
+            continue
+        tt_ghost = 2.0 * np.degrees(np.arcsin(s))
+        if not (lo <= tt_ghost <= hi):
+            continue
+        n_searched += 1
+        if esd is None:
+            window = np.full(len(tt), tol_deg)
+        else:
+            window = np.maximum(
+                tol_deg, k_sigma * np.sqrt(esd ** 2 + esd[ip] ** 2))
+        for ig in np.flatnonzero(placed & (np.abs(tt - tt_ghost) < window)):
+            r = float(inten[ig] / max(inten[ip], 1e-12))
+            if not (r_lo < r < r_hi):
+                continue
+            if (intensity_esd is not None
+                    and inten[ig] <= 5.0 * intensity_esd[ig]):
+                continue
+            out.append((int(ip), int(ig), r))
+    return out, n_searched
+
+
+def _ghost_consensus(
+    cands: list[tuple[int, int, float]],
+) -> tuple[int, float, list[tuple[int, int, float]]]:
+    """The ratio the most **distinct parents** support, within a factor.
+
+    Parents rather than ghost lines, because the question is how many
+    *independent* reflections agree, and one parent with several in-window
+    candidates would otherwise supply its own corroboration.
+
+    That is an argument rather than a measurement, and the measurement does not
+    decide it: against the control :data:`GHOST_MIN_PARENTS` describes, both
+    rules separate cleanly (parent-counted, control maximum 4 against an
+    injection minimum of 6 at r = 0.10; ghost-counted, 3 against 5).  An
+    earlier note here claimed the ghost-counted statistic overlapped its own
+    control; that was measured against a control contaminated near λ(Kα1) and
+    is withdrawn.  Parents are kept on the independence argument alone
+    (decided 2026-09-22; WP-1442).
+
+    The returned list holds one candidate per supporting parent, the one whose
+    ratio is nearest the consensus, so a caller emitting one flag per entry
+    cannot report the same parent twice.
+    """
+    best: tuple[int, float, list[tuple[int, int, float]]] = (0, 0.0, [])
+    for seed in cands:
+        lo, hi = seed[2] / GHOST_RATIO_TOL, seed[2] * GHOST_RATIO_TOL
+        keep = [c for c in cands if lo <= c[2] <= hi]
+        n = len({c[0] for c in keep})
+        if n <= best[0]:
+            continue
+        per: dict[int, tuple[int, int, float]] = {}
+        for c in keep:
+            if (c[0] not in per
+                    or abs(np.log(c[2] / seed[2]))
+                    < abs(np.log(per[c[0]][2] / seed[2]))):
+                per[c[0]] = c
+        chosen = sorted(per.values(), key=lambda c: c[1])
+        best = (n, float(np.median([c[2] for c in chosen])), chosen)
+    return best
 
 
 def _contamination_flags(tt: np.ndarray, net: np.ndarray, sigma: np.ndarray,

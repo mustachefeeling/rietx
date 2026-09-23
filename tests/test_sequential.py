@@ -337,6 +337,47 @@ def test_a_tie_declared_in_constrain_holds_on_every_pattern(thermal_patterns):
                     two_theta_range=(3.0, 10.0))
 
 
+def test_a_hold_declared_in_constrain_reaches_every_pattern(thermal_patterns):
+    """The third fact that lives in no model (WP-1435), through #376's hook.
+
+    A hold is neither a value nor a relation, so ``carry`` cannot move it and
+    ``prepare`` runs before the ``Refinement`` exists — the same absence a
+    tie had, and it inherits the same answer rather than a new channel.
+
+    Asserted on the trajectory as well as the values, because that is what a
+    series consumer reads: a held path is not a measurement of any pattern,
+    so it has no trajectory to plot.
+    """
+    from pathlib import Path
+
+    from rietx.viz.plots import plot_result
+
+    def hold_the_cell(index, ref):
+        ref.hold("phases.0.cell.*")
+
+    runner = SequentialRefinement(*_start_models())
+    declared = runner.structure.phases[0].cell.a.value
+    series = runner.fit(thermal_patterns[:3], plan=_TIED,
+                        constrain=hold_the_cell)
+
+    assert len(series) == 3
+    for entry in series.entries:
+        paths = {p.path for p in entry.parameters}
+        assert "phases.0.cell.a" not in paths, "a held value is not a measurement"
+        assert any(d.code == "HOLD_BLOCKED_PLAN" for d in entry.diagnostics)
+    assert series.trajectory("phases.0.cell.a").value == []
+
+    for structure in runner.fitted_structures:
+        assert structure.phases[0].cell.a.value == declared
+
+    out = Path(__file__).parent / "output"
+    out.mkdir(exist_ok=True)
+    for k, result in enumerate(runner.results_):
+        plot_result(result, path=str(out / f"sequential_held_cell_p{k}.png"))
+        plot_result(result, path=str(out / f"sequential_held_cell_p{k}_zoom.png"),
+                    two_theta_range=(3.0, 10.0))
+
+
 def test_an_untied_series_leaves_the_same_pair_free_and_unequal(thermal_patterns):
     """The control the test above needs: without the hook they diverge.
 
@@ -1264,7 +1305,22 @@ def test_path_dependence_needs_an_esd_from_both_chains():
         "phases.1.cell.b",
         [5.4100, 5.4100, 5.4100, 5.4100, 5.4100, 5.4110, 5.4120, 5.4130],
         [None, None, None, None, esd, esd, esd, esd])
-    assert _path_dependence_diagnostics(held_late, held_early) == []
+    # nothing is judged — and since WP-1333 that is said, rather than being
+    # the same empty list an agreed path returns (issue #269)
+    assert _unjudged(_path_dependence_diagnostics(held_late, held_early)) == [
+        ["phases.1.cell.b"]]
+
+
+def _unjudged(diagnostics) -> list[list[str]]:
+    """Every diagnostic must be the #269 finding; return what each names.
+
+    The shape these tests pin is that the comparison judged nothing: no
+    ``SEQUENTIAL_PATH_DEPENDENT`` at all, and one ``info``
+    ``SEQUENTIAL_PATH_CHECK_INCOMPLETE`` naming the paths it could not reach.
+    """
+    assert all(d.code == "SEQUENTIAL_PATH_CHECK_INCOMPLETE" and d.level == "info"
+               for d in diagnostics), [d.code for d in diagnostics]
+    return [d.where for d in diagnostics]
 
 
 def test_path_dependence_keeps_the_patterns_both_chains_measured():
@@ -1384,7 +1440,7 @@ def test_the_abstention_row_recipe_counts_the_patterns_actually_judged():
     fa, ba = a.trajectory(path), a.backward.trajectory(path)
     assert len(fa) == len(ba) == 4          # the old check: EQUAL -> clearance
     assert set(fa.labels) & set(ba.labels) == set()
-    assert _path_dependence_diagnostics(a, a.backward) == []
+    assert _unjudged(_path_dependence_diagnostics(a, a.backward)) == [[path]]
     assert patterns_judged(a, path) == 0
 
     # B — the esd half.  Identical labels, identical lengths, and the
@@ -1394,8 +1450,19 @@ def test_the_abstention_row_recipe_counts_the_patterns_actually_judged():
     fb, bb = b.trajectory(path), b.backward.trajectory(path)
     assert len(fb) == len(bb) == 8          # the old check: EQUAL -> clearance
     assert fb.labels == bb.labels
+    # the two chains' values are *identical*, which the comparison's noise
+    # floor calls agreement whatever the esds say, so there is nothing an esd
+    # could have changed and nothing to name (WP-1333)
     assert _path_dependence_diagnostics(b, b.backward) == []
     assert patterns_judged(b, path) == 0
+
+    # B' — the same esd pattern over values that differ: now the silence
+    # would hide something, and the #269 finding names the path
+    shifted = [v + 2e-3 for v in ramp]
+    b2 = both(_series_missing(path, ramp, [None] * 8, absent=set()),
+              _series_missing(path, shifted, [esd] * 8, absent=set()))
+    assert _unjudged(_path_dependence_diagnostics(b2, b2.backward)) == [[path]]
+    assert patterns_judged(b2, path) == 0
 
     # The positive arm, because a count that only ever answers 0 is not
     # separable from a broken one: a series both chains measured throughout is
@@ -1771,7 +1838,14 @@ def test_a_cancelled_chain_does_not_run_the_verification_pass():
 
     assert set(passes) == {"forward"}
     assert runner.backward_ is None
-    assert [d.code for d in series.diagnostics] == ["SEQUENTIAL_CANCELLED"]
+    # the comparison that never ran says so (WP-1333): zero
+    # SEQUENTIAL_PATH_DEPENDENT findings is what a clean series reports too
+    assert [d.code for d in series.diagnostics] == [
+        "SEQUENTIAL_CANCELLED", "SEQUENTIAL_PATH_CHECK_INCOMPLETE"]
+    not_run = series.diagnostics[1]
+    assert not_run.level == "warning"
+    assert "did not run" in not_run.message
+    assert "forward chain was cancelled" in not_run.message
     assert not any(d.code == "SEQUENTIAL_PATH_DEPENDENT"
                    for d in series.diagnostics)
 

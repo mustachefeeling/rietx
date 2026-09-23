@@ -1,6 +1,8 @@
 # WP-1432 — a tie onto a coordinate DOF, re-applied once per write
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: ✅ 2026-09-19 — the anchor is corrected where
+the tie is known, so a rebuild reproduces the coordinate; `replay` carried the
+same defect alone and now rebases too
 Depends on: — (1119 soft — it is that WP's surface this breaks)
 
 ## Goal
@@ -63,12 +65,32 @@ plans all freeing the same variable from zero returned bit-identical values
 while the variable is nonzero, which is where `Refinement.fit` called twice
 lands, and where WP-1419's workflow lives.
 
+**Re-measured 2026-09-19** on `main` at `6593244e` (worktree venv `[dev]`,
+macOS arm64, Python 3.12), because WP-1435 edited both named seams in the three
+days between. All three rows stand, on LaB6's own B `x` DOF (base 0.1993)
+rather than the original `z`: the coordinate reads 0.2093, 0.2193, 0.2293,
+0.2393, 0.2493 across the declaration and four writes, the DOF reads 0.0 at
+every one of them, and `vars.A` reads 0.01 throughout. The ADP control holds at
+0.02 and the DOF-source control holds at its stored pair.
+
 **Why nothing caught it.** `tests/test_named_variables.py` has no DOF case at
 all, though `optimize/least_squares.py`'s `_column_identities` docstring is
 written around exactly this path ("a variable driving a Wyckoff DOF reaches
 `[…atoms.1.x, …atoms.1.dof.0]`"). The Jacobian dispatch that docstring governs
 is correct. What is wrong is upstream of it, in what the table holds by the time
 the column is built.
+
+**A series declares ties too** (WP-1441, 2026-09-18, issue #376), which adds a
+caller to both seams below and one constraint on the fix. `SequentialRefinement.fit`
+takes a `constrain=(index, ref)` hook called on each pattern's fresh `Refinement`,
+and it is the documented place to declare a tie across a chain. The chain is
+*clear* of this defect by construction, one declaration against a table built
+moments earlier, so **the fix must not assume a tie has been re-applied at least
+once**. A caller's hook may then `set_values` legitimately, which is this
+defect with the series' multiplier on it: a 68-pattern ramp applies it 68 times.
+`sequential._carry_variables` is a second such caller, writing a carried
+variable's value through `refresh_ties`/`_write_back` on a `Refinement` whose
+history tree does not exist yet.
 
 **Seams.** `refine.Refinement._apply_ties` and `_write_back`,
 `params.vector.ParameterTable.__init__` (the coordinate tie's `const`) and
@@ -89,30 +111,6 @@ A third option, making coordinate DOFs absolute like ADP and Stephens ones, is
 out of scope here: it changes what `set_values` on a DOF means for every caller
 and what the manual documents, for a defect that lives in the tie path.
 
-### Inherited
-
-**From WP-1441 (2026-09-18), issue #376.** A series can now declare ties, and
-that adds a caller to both seams this WP names.
-
-`SequentialRefinement.fit` takes a `constrain=(index, ref)` hook, called on each
-pattern's fresh `Refinement` before its fit, and it is now the documented place
-to declare a tie across a chain. Two consequences here. The chain itself is
-*clear* of this defect by construction — one declaration per pattern against a
-table built moments earlier, with no write-through verb between the tie and the
-solve — so a fix here must not assume a tie has been re-applied at least once.
-And a caller's hook may legitimately `set_values` after tying, which is 1432's
-trigger with the series' own multiplier on it: a 68-pattern ramp applies it 68
-times rather than once.
-
-`sequential._carry_variables` is a **new `set_values` caller**, on a
-`Refinement` whose history tree does not exist yet. It writes a carried
-variable's value after the hook has declared the variable and its ties, so it
-runs the `refresh_ties` / `_write_back` path this WP is repairing, on exactly
-the variable-drives-a-tie shape 1432 measured. Whatever the fix does to that
-path, `tests/test_sequential.py::test_a_named_variable_warm_starts_under_the_carry_globs`
-is a second fixture over it, and it asserts on the value a fit *starts* from
-rather than the one it ends at.
-
 ## Non-goals
 
 - Distortion-mode amplitudes. WP-1419 consumes this fix and does not contain it;
@@ -122,19 +120,24 @@ rather than the one it ends at.
 
 ## Tasks
 
-- [ ] A failing test first: the four-write table above, plus the ADP control and
+- [x] A failing test first: the four-write table above, plus the ADP control and
       the DOF-source control, so the class is pinned before the fix moves.
-- [ ] The fix, in the `_apply_ties`/`__init__` seam; a tied coordinate DOF keeps
+- [x] The fix, in the `_apply_ties`/`__init__` seam; a tied coordinate DOF keeps
       its meaning across rebuilds.
-- [ ] The second shape: `fit()` twice on one `Refinement` reports the same
+- [x] The second shape: `fit()` twice on one `Refinement` reports the same
       amplitude both times, and the structure does not move between them.
-- [ ] `tests/test_named_variables.py` grows the DOF case it never had, with the
+- [x] `tests/test_named_variables.py` grows the DOF case it never had, with the
       declared-order asymmetry as a regression case.
-- [ ] Manual: `using/model.md` says a coordinate DOF is a displacement from the
+- [x] `tests/test_sequential.py::test_a_named_variable_warm_starts_under_the_carry_globs`
+      stays green: it is the second fixture over the repaired path, and it
+      asserts on the value a fit *starts* from rather than the one it ends at.
+- [x] Manual: `using/model.md` says a coordinate DOF is a displacement from the
       stored coordinate. Say what that means for a tie onto one.
-- [ ] Skill: none, unless the fix changes what an agent should write — a tie
-      onto a DOF is the documented way to constrain coordinates, so if the
-      spelling changes, `references/` gains the row (root CLAUDE.md § skill).
+- [x] Skill: none. The spelling is unchanged, and the one the skill already
+      teaches (`tie_equal` on the `dof.k` paths of a coordinate group,
+      `references/diagnostics-projects.md`) is DOF-to-DOF — the control arm,
+      clean before the repair. Reaching the defect needed a source that does
+      not reset, which no shipped guidance asks for.
 
 ## Acceptance
 
@@ -156,6 +159,102 @@ reports what the first did.
 - `docs/manual/using/model.md` § the two tie populations.
 
 ## Handover log
+
+### 2026-09-19 — closed: the rebuild reproduces the coordinate, and replay does too
+
+A constraint declared on an atom's position now means the same thing however
+many times the refinement is touched afterwards. Every verb that wrote the
+models back used to add the constraint's whole value to the coordinate again,
+so a position drifted by one displacement per call while the variable naming it
+still read what was declared. A second `fit()` on the same `Refinement`
+reported that variable at zero with the structure carrying the displacement in
+full, at an identical Rwp. Replaying a recorded node had the same fault, and
+that is the worst place for it: replay exists to say what a recorded state was,
+so nothing downstream had any way to notice.
+
+**Done.** `ParameterTable.rebase_anchored_dofs` takes the tie's contribution
+back out of the coordinate's anchor on every build, so the rebuild reproduces
+the coordinate. That is the invariant the untied case always had. The DOF then
+reads the displacement its tie declares. Which entries are anchored
+is data built in `_collect_atom_coords` (`_anchored_dofs`), never a path prefix
+matched at the call site, because ADP and Stephens DOFs spell `…adp.k` and
+`…microstrain.dof.k` the same way and are absolute. `refresh_ties` and the
+rebase share one `_implied` helper. Two callers, because the tie register has
+exactly two consumers: `Refinement._apply_ties` and `replay`. The manual says
+what the anchor is; the root CLAUDE.md carries the invariant and the rule that
+a third consumer calls the rebase too.
+
+**The sibling, which the WP did not name.** `replay` builds its table from the
+node's own structure and re-declares the recorded ties on it, so it inherited
+the defect whole and was never covered by the single-`Refinement` reasoning.
+`multi.py` declares no user ties at all, so there is no third consumer to fix.
+
+**Measured**, worktree venv `[dev]`, macOS arm64, Python 3.12, alone on the
+machine, on `main` at `6593244e`:
+
+| | before | after |
+|---|---|---|
+| coordinate over four writes (`vars.A` = 0.01) | 0.2093 → 0.2493 | 0.2093 throughout |
+| the DOF those writes drove | 0.0 | 0.01 |
+| antiphase pair at declaration | 0.010 / −0.005 | 0.005 / −0.005 |
+| `replay` of a fitted node | x = 0.2174294764 | x = 0.2083647382 |
+| that node's Rwp | 10.711190685 | 10.708626649 |
+
+The anchor was re-measured at the start of this session before anything was
+built on it, since WP-1435 had edited both named seams in the three days since
+the WP was written. All three rows reproduced. The two controls held then and
+hold now: an ADP DOF under the same tie stays at 0.02, and a coordinate DOF
+following another coordinate DOF is bit-identical, both ends resetting together.
+
+Seven tests, six of them written before the fix and one from the review pass.
+All seven go red with the rebase disabled and both controls stay green, a check
+run on the broken code and not assumed from it. Fast selection 5408 passed /
+134 skipped in 81 s. Full selection 5587 passed / 143 skipped in 23:09, and
+that is where the two `slow` bit-identity goldens run. They are pinned to
+darwin/arm64, so CI cannot see them. Both selections were measured twice, once
+before the review pass and once after, and each moved by exactly the one test
+it added: 5407 → 5408 fast, 5586 → 5587 full, no new skip either time. No local
+baseline exists for the +7 check, so that falls to CI: `main` at `6593244e`
+measured 5388 passed / 147 skipped on the Linux `[dev]` fast job, and this
+branch should read 5395 / 147.
+
+**Gotchas.** The single application at declaration is deliberate, so the anchor
+settles one rebuild later and stays put from there. A new DOF family that is a
+displacement from a stored value must register itself in `_anchored_dofs`, and
+inherits nothing by spelling its paths like the existing ones. A source that
+resets contributes zero. The DOF-source arm is bit-identical for that reason,
+and the fix is invisible to every fit that declares no such tie.
+
+**The review pass** (`/code-review high --fix`) found four things and changed
+two. Accepted and fixed: the rebase subtracts from a stored constant, so
+calling it twice walks the coordinate the other way by the same amount, at
+0.2093, 0.1993, 0.1893 over three calls. That is this defect mirrored and just
+as silent, and CLAUDE.md had just asked a third consumer to call the method, so
+the table now records which paths it has rebased. Accepted as a documentation
+fix: the release note's "nothing else is affected" overstated it, since each
+`tie` declares a displacement from where the coordinate stands and `untie`
+leaves it there, so a toggle moves the structure by one displacement per cycle
+(verified here at 0.1993 → 0.2093 → 0.2193). Filed into WP-1333 rather than
+fixed: `sequential._carry_into` discards a carried coordinate, because it
+re-derives every tied entry from a destination anchor the carry never touched.
+Declined: `rebase_anchored_dofs` returns the paths it rebased and only a test
+reads that, which is WP-1076's shape, but dropping the return would leave the
+method's outcome unobservable to the caller CLAUDE.md invites.
+
+**Bookkeeping repaired alongside.** WP-1435's cap bump (938 → 954) existed only
+as a note at the cap, missing from the dated ledger in
+`tests/test_docs_consistency.py` and from the caps diary in
+`docs/milestones/process.md`. Both are reconstructed from that note and marked
+as written a day late.
+
+Next: nothing here. WP-1419 can consume the fix, and its `### Inherited` says
+so; WP-1421 has the replay instance recorded as one measured case of the class
+it is about; WP-1342 has `_anchored_dofs` as a precedent for the question it
+asks about a freeze. The one open item is the series carry, parked in WP-1333's
+mailbox because no open WP owns `sequential._carry_into` and this session was
+not going to move series numbers at its handover. It deserves a row of its own
+in the silent-answer track, and the mailbox is a holding place rather than a
+home.
 
 - **2026-09-16** — created from the `/pr-review` round on issues #286 and #293.
   The defect was found while checking whether WP-1419's distortion-mode

@@ -171,6 +171,13 @@ with `BackgroundFixedPlusChebyshev` or co-refine it under the smoothness penalty
 of `BackgroundPSpline`. Subtracting changes the counting statistics that
 `sigma` describes while leaving `sigma` alone.
 
+`diagnose(data, wavelength=...)` reads the pattern before any model exists and
+returns a `PatternDiagnostics`: how finely the peaks were sampled, whether the
+background carries a hump or an air-scatter rise, where the signal runs out at
+either end, which channels are dead, and whether the beam is leaking Kβ or
+tungsten Lα. [](results.md) documents every field. Run it on a file you have
+not seen before, and read `signal_cutoffs` first.
+
 ## The structure
 
 `Structure` is a list of phases and nothing else. `Structure.phases` carries at

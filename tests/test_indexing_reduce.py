@@ -14,6 +14,9 @@ break the tie.
 
 from __future__ import annotations
 
+import subprocess
+import sys
+
 import numpy as np
 import pytest
 from hypothesis import HealthCheck, assume, given, settings
@@ -23,6 +26,8 @@ from rietx.crystallography.lattice import cell_volume
 from rietx.indexing.ambiguity import (
     AMBIGUITY_EXTEND_FACTOR,
     MAX_AMBIGUITY_INDEX,
+    _derivative_transform,
+    _refuted_supercell,
     ambiguity_partners,
     derivative_cells,
     hnf_matrices,
@@ -195,6 +200,56 @@ def test_conventional_cell_recovers_a_centred_lattice():
         2.0 * float(cell_volume(*prim)), rel=1e-6)
 
 
+#: The two fallbacks of ``reduce.py`` that read spglib's ``None``, each with
+#: the call that reaches it and what it must answer when spglib declines.
+#: ``conventional_cell`` returns the cell unchanged under ``P`` with no symbol;
+#: ``bravais_screen`` falls back to ``triclinic`` with no symbol at every
+#: tolerance of its sweep.  A cell of 1e-4 Å is the degenerate input measured in
+#: Yue's review of #389 — spglib's spacegroup search fails on it either way, so
+#: the *only* thing this pair of runs varies is the error mode.
+_SPGLIB_REFUSAL_PROBE = """
+import spgrep                                   # flips OLD_ERROR_HANDLING False
+import spglib.error
+from rietx.indexing.reduce import bravais_screen, conventional_cell
+
+assert spglib.error.OLD_ERROR_HANDLING is False, "spgrep no longer flips the flag"
+degenerate = (1e-4,) * 3 + (90.0, 90.0, 90.0)
+cell, centring, symbol = conventional_cell(degenerate)
+assert cell == degenerate and centring == "P" and symbol == "", (cell, centring, symbol)
+screen = bravais_screen(degenerate, cell_esd=1e-6)
+assert set(screen.by_symprec.values()) == {"triclinic"}, screen.by_symprec
+assert set(screen.spglib_symbols.values()) == {""}, screen.spglib_symbols
+print("OK")
+"""
+
+
+def test_the_spglib_fallbacks_survive_a_process_that_imported_spgrep():
+    """``reduce.py``'s ``data is None`` fallbacks must be reachable either way (#389 §2).
+
+    ``spglib.error.OLD_ERROR_HANDLING`` is a **process-global** flag, and
+    ``spgrep/__init__.py`` (0.7.0) sets it ``False`` at import and never puts it
+    back.  In that mode spglib *raises* ``SpglibError`` where it used to return
+    ``None``, so both of this module's documented fallbacks became unreachable
+    in any process that imported spgrep — which, since #389 puts spgrep in
+    ``[dev]`` and in CI, is every dev environment.  Measured in the review:
+
+    * ``conventional_cell((1e-4,) * 3 + (90, 90, 90))`` gave
+      ``((1e-4, 1e-4, 1e-4, 90, 90, 90), "P", "")`` before the import, and
+      ``SpglibCppError: spacegroup search failed`` after it.
+
+    The run is a **subprocess** on purpose: the import is what flips the flag,
+    it happens once per process, and ``tests/conftest.py`` puts spglib's own
+    default back around every test — so no in-process test can show the
+    reported state without setting the flag by hand, which is the one thing
+    that would not prove the import still causes it.
+    """
+    pytest.importorskip("spgrep")            # the oracle whose import flips it
+    done = subprocess.run([sys.executable, "-c", _SPGLIB_REFUSAL_PROBE],
+                          capture_output=True, text=True, timeout=300)
+    assert done.returncode == 0, done.stderr
+    assert done.stdout.strip().endswith("OK")
+
+
 # ----------------------------------------------------------------------
 # Dedup
 # ----------------------------------------------------------------------
@@ -340,6 +395,93 @@ def test_a_surviving_partner_says_where_to_measure_to_break_the_tie():
                for t in p.discriminating_two_theta)
     assert p.transformation and abs(round(float(np.linalg.det(
         np.array(p.transformation))))) == p.index
+
+
+def test_the_pair_form_refutes_the_supercell_the_partner_form_refutes():
+    """WP-1446: the same exclusion, asked of two candidates already in hand.
+
+    :func:`ambiguity_partners` asks it of a partner it enumerated from the
+    parent; the pair form asks it of two lattices already in the list.  One test
+    rather than two because the claim is that they agree: the supercell the
+    partner form drops is the one the pair form refutes.
+
+    The pair form is **unwired** — it demotes correct cells whose absences are
+    space-group extinctions, and its docstring carries the numbers.  These rows
+    pin the instrument, never a ranking.
+    """
+    parent = (4.1566,) * 3 + (90.0,) * 3
+    child = transform_cell(parent, np.diag([1, 1, 2]))
+    q, esd = _lines(parent)                      # only the parent's lines exist
+
+    assert ambiguity_partners(parent, "cubic", "P", q, esd, LAM, 90.0,
+                              max_index=2) == []
+    assert _refuted_supercell(parent, "cubic", "P", child, "triclinic", "P",
+                              q, esd, LAM, 90.0)
+
+
+def test_a_true_superstructure_is_not_refuted():
+    """The test is self-correcting, and this is what makes it a signature.
+
+    An exact supercell whose extra reflections are *present* has no absent
+    extras to count, so the rule declines to demote it — the doubled cell is
+    then a lattice statement rather than a cell choice, and the reader should
+    see it ranked where the panel put it.  The blind spot that remains is the
+    module docstring's: superlattice intensity below the picker's floor, which
+    moves to the Le Bail validation rather than being lost here.
+    """
+    parent = (4.1566,) * 3 + (90.0,) * 3
+    child = transform_cell(parent, np.diag([1, 1, 2]))
+    q, esd = _lines(child, "triclinic", "P")     # the child's lines are there
+
+    assert not _refuted_supercell(parent, "cubic", "P", child, "triclinic",
+                                  "P", q, esd, LAM, 90.0)
+
+
+def test_the_pair_form_does_not_turn_on_the_setting_the_engine_reported():
+    """Two engines report the same doubled cubic lattice in different settings.
+
+    The verdict has to be the same one.  ``same_lattice`` compares *reduced*
+    forms, so an H found from the parent's side says nothing about the child's
+    own basis, and ``H`` inverted onto a permuted basis gives a lattice of the
+    parent's volume that is not the parent's — ``(2a, a, a/2)`` here, whose
+    extras are a different set.  Measured before the enumeration moved into the
+    child's frame, ``(a, a, 2a)`` was refuted and ``(2a, a, a)`` cleared.
+    """
+    parent = (4.1566,) * 3 + (90.0,) * 3
+    natural = transform_cell(parent, np.diag([1, 1, 2]))
+    permuted = (natural[2], natural[0], natural[1]) + (90.0,) * 3
+    q, esd = _lines(parent)                      # only the parent's lines exist
+
+    for child in (natural, permuted):
+        h = _derivative_transform(parent, child)
+        assert h is not None
+        recovered = transform_cell(
+            child, np.linalg.inv(np.asarray(h, dtype=float)))
+        assert np.allclose(recovered, parent)
+        assert _refuted_supercell(parent, "cubic", "P", child, "triclinic",
+                                  "P", q, esd, LAM, 90.0)
+
+
+def test_a_derivative_transform_is_found_by_the_lattice_and_not_by_the_lines():
+    """``H`` comes from ``same_lattice`` on the reduced forms, and ``det H`` is
+    the index.
+
+    The direction that matters is the refusal: an unrelated cell of the same
+    volume as a genuine derivative has no H, so the volume prefilter cannot by
+    itself demote anything.
+    """
+    parent = (4.1566,) * 3 + (90.0,) * 3
+    child = transform_cell(parent, np.diag([1, 2, 2]))
+    h = _derivative_transform(parent, child)
+    assert h is not None
+    assert abs(round(float(np.linalg.det(np.asarray(h, dtype=float))))) == 4
+
+    # same volume as that index-4 derivative, unrelated metric
+    v = float(cell_volume(*child))
+    edge = v ** (1.0 / 3.0)
+    unrelated = (edge * 1.31, edge * 0.83, edge / (1.31 * 0.83)) + (90.0,) * 3
+    assert abs(cell_volume(*unrelated) / v - 1.0) < 1e-9
+    assert _derivative_transform(parent, unrelated) is None
 
 
 def test_ambiguity_index_is_fenced():

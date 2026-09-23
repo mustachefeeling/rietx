@@ -7,12 +7,13 @@ interface convention.  See ``ATTRIBUTION.md``.
 
 from __future__ import annotations
 
-import difflib
 import math
 from functools import lru_cache
 from typing import Annotated, ClassVar, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from .._nearmiss import did_you_mean
 
 #: Data-contract version of the pydantic schemas (``Capabilities.schema_version``).
 #: Any change a consumer could observe bumps the last component by one, and
@@ -201,7 +202,43 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 #: empty where there is nothing to say, which is the case for the reserved
 #: declared-peaks key: a peak given by centre has no Miller index, and ``[]``
 #: there would claim it had none of its own.
-#: 0.22 → 0.23 (T-1, issue #193): the **time-of-flight abscissa**, five
+#: 0.22 → 0.23 (issue #375): ``SeriesResult.failures``
+#: (``list[SeriesFailure]``) and ``.n_failed`` — a pattern
+#: ``SequentialRefinement.fit``'s new ``on_error`` policy caught rather than
+#: letting crash the whole chain.  Additive and defaulted to ``[]``/``0``, the
+#: same rule as 0.19 → 0.20: a stored series from before this opens with no
+#: failures recorded, which is the honest statement that this field did not
+#: exist yet, never a claim that every pattern fit — the default policy is
+#: still ``on_error="raise"``, unchanged behaviour, so no existing chain's
+#: reported entries move.
+#: 0.23 → 0.24 (issue #211): ``StageResult.blocked_by_hold`` — the paths a
+#: stage's ``turn_on`` matched and a caller's ``Refinement.hold`` kept fixed,
+#: and ``RefinementState.holds``/``NodeAction.held``/``.unheld``, the register
+#: a checkout restores it from.  Additive and defaulted to ``[]``, the same
+#: rule as 0.19 → 0.20: a stored result from before this opens with nothing
+#: blocked, which is true of it — no hold could be declared, so no plan's glob
+#: was ever refused.
+#: 0.24 → 0.25 (WP-1333, issue #224): ``SeriesEntry.rungs_raised`` — the rungs
+#: of a pattern's escalation ladder whose fit raised rather than returned, now
+#: that a raised rung escalates like a diverged one instead of abandoning the
+#: pattern.  Additive and defaulted to ``{}``, the same rule as 0.19 → 0.20: a
+#: stored series from before this opens with no rung raised, which is true of
+#: it — a raise then ended the pattern, so no entry could carry one.
+#: 0.25 → 0.26 (WP-1414, issue #265): ``StageResult.unknown_paths`` — the
+#: literal ``turn_on`` paths naming no parameter of the model — and
+#: ``StageResult.unreached_histograms``, per histogram of a joint fit the globs
+#: that reached another histogram and none of its rows.  Additive, the rule of
+#: 0.19 → 0.20, and defaulted to ``None`` rather than empty, unlike 0.24's
+#: ``blocked_by_hold`` or 0.25's ``rungs_raised``: no hold could exist before
+#: its field, and no rung could raise and survive, so an empty default was
+#: true of every older document there, while a typo'd literal freed nothing in
+#: silence long before this one.  A stored result from before this opens with
+#: ``None``, "nobody looked", and every runner now writes a value (WP-1076's
+#: rule).
+#: (0.26 → 0.27 … 0.31 → 0.32 are the time-of-flight branch's six bumps,
+#: renumbered above main's 0.26 at the merge of 2026-09-23; open PRs #431 and
+#: #433 also claim 0.27, and the ladder is renumbered on whichever lands last.)
+#: 0.26 → 0.27 (T-1, issue #193): the **time-of-flight abscissa**, five
 #: observable changes landing together because they are one feature — the
 #: 0.6 → 0.7 CW-neutron entry above is the precedent, and this is its
 #: time-of-flight twin.
@@ -230,8 +267,8 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 #: (e) new ``Diagnostic`` codes ``GSAS_IPARM_PROFILE_DECLINED``,
 #: ``GSAS_IPARM_FIELD_DROPPED`` and ``GSAS2_INSTPRM_FIELD_DROPPED``, from the
 #: two instrument-parameter readers in ``io/instrument_tof.py``.
-#: 0.23 → 0.24 (T-1c, issue #193): the **result's** abscissa — the twin of
-#: 0.22 → 0.23 one rank down, and four observable changes listed together
+#: 0.27 → 0.28 (T-1c, issue #193): the **result's** abscissa — the twin of
+#: 0.26 → 0.27 one rank down, and four observable changes listed together
 #: because they are one feature, exactly as that entry lists five.
 #: (a) ``RefinementResult.tof`` and ``HistogramResult.tof`` added (a flight
 #: time in µs) and ``two_theta`` on both becomes optional, defaulting to
@@ -252,7 +289,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 #: time-of-flight fit.  No constant-wavelength number moves: the values are the
 #: same degrees they always were, and only the field's declared contract grew a
 #: second case.
-#: 0.24 → 0.25 (T-3, issue #193): what varies with **wavelength inside one
+#: 0.28 → 0.29 (T-3, issue #193): what varies with **wavelength inside one
 #: time-of-flight histogram** — the incident spectrum the file declares, and
 #: the specimen absorption and extinction that follow λ across a bank.  One
 #: bump, three observable changes, because they are one feature: each is a
@@ -282,14 +319,14 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 #: (c) no constant-wavelength number moves.  The X-ray and CW-neutron paths do
 #: not reach any of it; measured bit-identical on the shipped 11-BM Si SRM 640c
 #: acceptance refinement, values, esds, statistics and curves.
-#: 0.25 → 0.26 (T-3b, issue #193): the **intensity basis** — whether a stored
+#: 0.29 → 0.30 (T-3b, issue #193): the **intensity basis** — whether a stored
 #: channel holds the counts it recorded or those counts already divided by the
 #: channel's own width.  ``PatternData.intensity_basis`` is added, a
 #: ``Literal["counts", "density"] | None`` defaulting to ``None`` ("the file
 #: did not say"), so every serialized pattern carries one more key and a
 #: consumer switching on it has a three-valued field rather than a boolean.
 #: It is the other half of GSAS's I_o = I'_o/(W·I_i), whose I_i half landed in
-#: 0.24 → 0.25: on a time-of-flight bank a ``"counts"`` pattern now has its
+#: 0.28 → 0.29: on a time-of-flight bank a ``"counts"`` pattern now has its
 #: calculated Bragg sum multiplied by the channel width W measured from the
 #: pattern's own abscissa, a ``"density"`` pattern by nothing, and ``None``
 #: proceeds as a density — the behaviour every build before this one had —
@@ -298,9 +335,9 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 #: header stating the bin-width multiplication; a stated ``.xye`` Y-axis
 #: unit), never from the values.  **No constant-wavelength number moves**: the
 #: field is read by the flight-time forward model and by nothing else.
-#: 0.26 → 0.27 (T-3c, issue #193): **no field is added or removed** — this
+#: 0.30 → 0.31 (T-3c, issue #193): **no field is added or removed** — this
 #: entry records an observable change to ``ParameterTable`` and to the forward
-#: model on the time-of-flight arm, the same kind of change 0.24 → 0.25 (b)
+#: model on the time-of-flight arm, the same kind of change 0.28 → 0.29 (b)
 #: recorded for ``phases.*.extinction``.
 #: (a) a phase's four sample-broadening widths (``lor_size``, ``gauss_size``,
 #: ``lor_strain``, ``gauss_strain``) are **no longer force-fixed on a
@@ -321,7 +358,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 #: whose phases declare no sample broadening**: every added term is an exact
 #: ±0 at rietx's zero defaults, which are a physical statement — an infinite,
 #: strain-free crystal — and are deliberately *not* GSAS-II's non-zero ones.
-#: 0.27 → 0.28 (T-1d, issue #193): ``ProfileTOF.sig0``/``sig1``/``sig2`` gain
+#: 0.31 → 0.32 (T-1d, issue #193): ``ProfileTOF.sig0``/``sig1``/``sig2`` gain
 #: ``min = 0.0`` and the **softplus** transform.  No field is added; what
 #: changes is what a serialized ``ProfileTOF`` says about those three
 #: (``"min": 0.0``, ``"transform": "softplus"`` where a document written before
@@ -349,7 +386,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 #: keep their signs: a negative γ₁ beside positive γ₀ and γ₂ is how a
 #: resolution function narrows and broadens again, so it is the *polynomial*
 #: that is checked and not the coefficients.
-SCHEMA_VERSION = "0.28"
+SCHEMA_VERSION = "0.32"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
 
@@ -426,7 +463,7 @@ class Base(BaseModel):
         mid-assignment — never a typo, so it gets its own message rather than
         the closest-match one, which would otherwise trivially "suggest"
         itself); then a nested block that carries this name; then the closest
-        own-field match (``difflib``, cutoff 0.6); then, for a small schema,
+        own-field match (:mod:`rietx._nearmiss`); then, for a small schema,
         every field name; otherwise the plain pydantic-shaped message
         untouched, so a caller matching on ``"no attribute 'x'"`` keeps
         working.
@@ -451,10 +488,9 @@ class Base(BaseModel):
                 + " or ".join(paths)
                 + ". The top level carries what this schema declares; a value "
                   "computed about it lives in the block that computed it.")
-        close = difflib.get_close_matches(
-            name, list(type(self).model_fields), n=3, cutoff=0.6)
-        if close:
-            raise AttributeError(f"{plain}; did you mean {', '.join(close)!r}?")
+        hint = did_you_mean(name, type(self).model_fields)
+        if hint:
+            raise AttributeError(f"{plain}; {hint}")
         fields = list(type(self).model_fields)
         if len(fields) <= type(self)._ATTR_HINT_FIELD_CAP:
             raise AttributeError(f"{plain}; its fields are {fields}")

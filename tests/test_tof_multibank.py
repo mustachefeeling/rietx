@@ -838,7 +838,7 @@ def test_a_constant_wavelength_joint_fit_compiles_the_same_objects():
 
 
 # ----------------------------------------------------------------------
-# 6. a stage that freed nothing says so, per histogram (T-1d)
+# 6. a stage that freed nothing on a bank: what the record says (T-1d)
 # ----------------------------------------------------------------------
 #: The natural wrong spelling, and why it is natural: `instrument.profile.*` is
 #: where a constant-wavelength peak shape lives, and it is what every plan
@@ -858,29 +858,36 @@ def _freed_nothing(result) -> list:
     return [d for d in result.diagnostics if d.code == "STAGE_FREED_NOTHING"]
 
 
-def test_a_cw_only_profile_stage_on_a_bank_says_it_freed_nothing(patterns):
-    """The single-histogram arm of the measured failure.
+def test_a_cw_only_profile_stage_on_a_bank_is_matched_not_freed(patterns):
+    """The single-histogram arm of the measured failure, under main's ruling.
 
-    Before this the stage ran, solved the problem the stage before it had
-    already solved, and reported ``converged`` — with nothing anywhere in the
-    result saying its free list had matched no row.
+    This branch first answered it with a ``STAGE_FREED_NOTHING`` row of its
+    own.  The merge of main (2026-09-23) took WP-1414's instead, which rules
+    the other way on this exact shape: **matched, not freed** — a row that
+    exists and is force-fixed was *reached*, and ``held_because`` is where the
+    reason lives (``params.multi.unreached_histograms``' docstring), while a
+    single-histogram fit never emits ``STAGE_FREED_NOTHING`` at all
+    (``test_params_surface``).  A bank carries ``instrument.profile.*`` and
+    force-fixes it, so the stage is silent and the evidence is the record:
+    an empty ``freed`` and the rows' ``held_because``.  The merge report
+    names the lost detection as an open decision.
     """
-    result = rx.Refinement(started_structure(), started_bank(**BANK_90),
-                           history=False).fit(
+    ref = rx.Refinement(started_structure(), started_bank(**BANK_90),
+                        history=False)
+    result = ref.fit(
         patterns[0], plan=rx.RefinementPlan(stages=[
             rx.Stage("scale_bkg", ["phases.*.scale", "instrument.background.c*"]),
             rx.Stage("profile", CW_ONLY_PROFILE_GLOBS)]))
-    hits = _freed_nothing(result)
-    assert len(hits) == 1
-    assert hits[0].level == "info"
-    assert "'profile'" in hits[0].message
-    assert "instrument.profile.u" in hits[0].message
-    assert "instrument.source.profile_tof" in hits[0].suggestion
-    assert hits[0].where == CW_ONLY_PROFILE_GLOBS
-    # the stage still ran and still reported a status, which is the half that
-    # made this invisible
-    assert result.stages[-1].name == "profile"
-    assert result.stages[-1].freed == []
+    assert _freed_nothing(result) == []
+    stage = result.stages[-1]
+    assert stage.name == "profile"
+    assert stage.freed == []
+    # the paths exist, so none is a typo either
+    assert stage.unknown_paths == []
+    rows = {r.path: r for r in ref.parameters()}
+    for path in CW_ONLY_PROFILE_GLOBS:
+        assert not rows[path].refinable
+        assert rows[path].held_because
 
 
 def test_the_right_globs_on_the_same_bank_are_silent(patterns):
@@ -895,13 +902,16 @@ def test_the_right_globs_on_the_same_bank_are_silent(patterns):
     assert set(result.stages[-1].freed) == set(TOF_PROFILE_GLOBS)
 
 
-def test_a_mixed_joint_fit_names_the_histogram_the_stage_missed(patterns):
-    """The shape that hides, and the reason the code is per histogram.
+def test_a_mixed_joint_fit_records_which_histogram_the_stage_freed(patterns):
+    """The shape that hides, under main's WP-1414 ruling.
 
     Two banks and one constant-wavelength histogram; the profile stage's globs
-    are the CW container's.  It frees four rows — all histogram 2's — so a
-    joint count says "4 freed" and nothing is wrong, while both banks got
-    nothing.  The diagnostic fires for histograms 0 and 1 and not for 2.
+    are the CW container's.  It frees four rows — all histogram 2's.  Both
+    banks carry those paths force-fixed, so ``unreached_histograms`` counts
+    them as reached ("matched, not freed") and no ``STAGE_FREED_NOTHING``
+    fires; this branch's own per-histogram row said the opposite and was
+    dropped at the merge of 2026-09-23 for main's.  What the record still says
+    is which histogram the four rows belong to.
     """
     ref = rx.MultiHistogramRefinement(
         started_structure(),
@@ -909,12 +919,9 @@ def test_a_mixed_joint_fit_names_the_histogram_the_stage_missed(patterns):
     result = ref.fit(patterns, plan=rx.RefinementPlan(stages=[
         rx.Stage("scale_bkg", ["phases.*.scale", "instrument.background.c*"]),
         rx.Stage("profile", CW_ONLY_PROFILE_GLOBS)]))
-    hits = _freed_nothing(result)
-    assert len(hits) == 2
-    assert [h.where[0] for h in hits] == ["hist.0", "hist.1"]
-    assert all("histogram" in h.message for h in hits)
-    # and the joint count really is non-zero, which is what hid it
+    assert _freed_nothing(result) == []
     profile_stage = next(s for s in result.stages if s.name == "profile")
+    assert profile_stage.unreached_histograms == {}
     assert len(profile_stage.freed) == 4
     assert all(p.startswith("hist.2.") for p in profile_stage.freed)
 
@@ -933,3 +940,28 @@ def test_a_shared_glob_counts_for_every_histogram(patterns):
     # scope, which is exactly what makes it count for all three
     assert cell.freed == ["phases.0.cell.a"] * 3
     assert _freed_nothing(result) == []
+
+
+def test_a_shared_path_a_bank_force_fixes_is_named_through_the_public_fit(patterns):
+    """``SHARED_PARAMETER_NOT_IN_EVERY_HISTOGRAM`` reached through ``fit``.
+
+    The two structural paths a bank force-fixes (March-Dollase ``r``, the
+    Stephens block) never get this far: declaring either on the phase is
+    refused by ``compile_tof_model`` first.  An ``instrument.`` path is
+    per-histogram by default, and a caller who shares one on purpose is the
+    reachable case: ``instrument.zero_shift`` is a 2θ offset the bank locks,
+    so only the constant-wavelength histogram carries its column.
+    """
+    ref = rx.MultiHistogramRefinement(
+        started_structure(), [started_bank(**BANK_90), cw_instrument()],
+        sharing=rx.SharingMap(shared=["instrument.zero_shift"]))
+    result = ref.fit([patterns[0], patterns[2]], plan=rx.RefinementPlan(stages=[
+        rx.Stage("scale_bkg", ["phases.*.scale", "instrument.background.c*"]),
+        rx.Stage("zero", ["instrument.zero_shift"], max_iter=5)]))
+    hits = [d for d in result.diagnostics
+            if d.code == "SHARED_PARAMETER_NOT_IN_EVERY_HISTOGRAM"]
+    assert len(hits) == 1
+    assert hits[0].level == "info"
+    assert hits[0].where == ["instrument.zero_shift"]
+    assert hits[0].value == 1.0          # one histogram carried it
+    assert "histogram 0 cannot express it" in hits[0].message

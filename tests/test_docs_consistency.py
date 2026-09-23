@@ -42,6 +42,13 @@ _STATUS_RE = re.compile(
 # The prune rule lands with WP-1031; WPs closed after this date must have
 # consumed (deleted) their ### Inherited mailbox on the way out.
 _INHERITED_PRUNE_EPOCH = "2026-07-31"
+# The priority rubric is TEMPLATE.md's: every ⬜ WP carries a `Priority:`
+# line, a closed one carries none (its priority is moot, and the cell reads
+# `—`), and a 🔄 one may keep the line it had.  Backfilled 2026-09-23.
+PRIORITIES = ("P1", "P2", "P3", "P4")
+_PRIORITY_RE = re.compile(
+    r"^Priority: (?P<tier>P[1-4]) (?P<date>\d{4}-\d{2}-\d{2}) — \S", re.M
+)
 
 # Always-loaded documents: measured size + headroom, pinned by the pass that
 # achieved it.  Raising a cap is a decision about every future session's fixed
@@ -129,6 +136,7 @@ _INHERITED_PRUNE_EPOCH = "2026-07-31"
 #   2026-09-01  docs/ROADMAP.md               578 -> 589  for the triage's second batch
 #   2026-09-01  gui/CLAUDE.md                1019 -> 1028 for the placement pass
 #   2026-09-01  src/rietx/indexing/CLAUDE.md  296 -> 300  for the placement pass
+#   2026-09-22  src/rietx/indexing/CLAUDE.md  300 -> 306  for WP-1446
 #   2026-09-01  tests/CLAUDE.md               253 -> 275  for the placement pass
 #   2026-09-01  docs/ROADMAP.md               589 -> 597  for the roadmap reorder: landed 573, cap landed + 24
 #   2026-09-02  docs/ROADMAP.md               597 -> 621  for the magnetic scattering track (1326-1329, out of
@@ -198,6 +206,25 @@ _INHERITED_PRUNE_EPOCH = "2026-07-31"
 #                                                          a WP file the contributor does not read.
 #                                                          Paid for in Current focus and § Unscheduled.
 #                                                          Landed 778, +6 headroom
+#   2026-09-18  CLAUDE.md                     929 -> 938  for WP-1434: the bound test's new question,
+#                                                          which no consumer of BOUND_HIT or at_bound
+#                                                          can re-derive from the code it reads.
+#                                                          Landed 937, +1 headroom
+#   2026-09-18  CLAUDE.md                     938 -> 954  for WP-1435: a hold the caller declares,
+#                                                          owed to every session that writes a plan
+#                                                          or a set_vary call site. Row written
+#                                                          2026-09-19, the session having left it
+#   2026-09-19  CLAUDE.md                     954 -> 963  for WP-1432: a coordinate DOF is relative,
+#                                                          so a rebuild must reproduce the
+#                                                          coordinate. Landed 962, +1 headroom
+#   2026-09-19  CLAUDE.md                     963 -> 973  for WP-1342: a freeze resting on flatness
+#                                                          asks which column moves an entry, never
+#                                                          what it is called. Folded into the
+#                                                          moving_paths bullet rather than added
+#                                                          beside it, being that rule one rank down,
+#                                                          and owed to every future freeze: four
+#                                                          consumers now read it and a fifth would
+#                                                          repeat the defect. Landed 972, +1 headroom
 SIZE_CAPS: dict[str, int | None] = {
     # 739 -> 755 (WP-1102): two standing rules for the component seam — that an
     # additive non-Bragg term is a union *member* and not a new field, and that
@@ -361,7 +388,37 @@ SIZE_CAPS: dict[str, int | None] = {
     # after magnetic (TOF, texture, PDF), which is protocol rule 4's test, and
     # the measurement behind it is the reader's context rather than a byte
     # count.  Landed 925, +4 headroom.
-    "CLAUDE.md": 929,
+    # 929 -> 938 (WP-1434, 2026-09-18): the bound test asks whether the limit
+    # carried load, never whether the value is near one, and it is a
+    # conjunction because each half covers what the other cannot.  It governs
+    # every consumer of `BOUND_HIT` and `at_bound` and every future bound, so
+    # it cannot go down a rank into the WP: a session reading the flag has no
+    # way to re-derive the change from a `False` it disagrees with.  The
+    # thresholds, their measured windows and the two rejected fixes stayed in
+    # the WP and in the two constants' own docstrings.  Landed 937, +1
+    # headroom.
+    # 938 -> 954 (WP-1435): a caller's hold, and the reason it had to be a
+    # mechanism rather than a message — `vary=False` does not survive a plan,
+    # so every session that writes a plan, a calibration or a `set_vary` call
+    # site needs the rule, not just the one that built it. It also states the
+    # two things that bite a caller who does not know it exists: `set_vary`
+    # can refuse now, and `_user_holds` is not WP-1301's `_held`.
+    # 954 -> 963 (WP-1432): a coordinate DOF is relative, and the invariant
+    # that keeps it honest is that a rebuild reproduces the coordinate. It
+    # belongs beside the DOF bullet it qualifies rather than a rank down,
+    # because the two facts a stranger needs are about *other* code: which
+    # entries are anchored is data built where the anchor is, so a new DOF
+    # family inherits nothing by spelling its paths the same way; and the tie
+    # register's consumers each call the rebase, so a third one written
+    # without the rule carries the defect `replay` carried alone. The
+    # measurement, the two controls and the rejected fixes stayed in the WP.
+    # 973 -> 978 (/issue-review, 2026-09-21): one paragraph saying how an
+    # issue reaches the roadmap, beside the contributor paragraph whose
+    # PR -> issue -> WP chain it completes from the issue's end. A standing
+    # rule for anyone who files or folds a WP: the `#N` citation is the whole
+    # triage record, read by the command's table and by wp_claim.py alike.
+    # Landed 977, +1 headroom.
+    "CLAUDE.md": 978,
     # 672 -> 676 (WP-1102): the Current focus rewrite at 1102's close names the
     # milestone's one break and what makes 1103 the seam's proving case.
     # 676 -> 682 (WP-1407): a new Unscheduled group, "The formats a lab still
@@ -430,13 +487,28 @@ SIZE_CAPS: dict[str, int | None] = {
     # until a PR is cut.  Paid for twice — Current focus lost a closed WP's
     # narrative and the triage fold list, § Unscheduled lost the blurb
     # describing the rows that left.  Landed 778, +6 headroom.
-    "docs/ROADMAP.md": 784,
+    # 784 -> 816 (/issue-review, 2026-09-21): two rows (1443, 1444), the two
+    # blurb sentences the rows need, one paragraph placing #374 in its PR
+    # under § v1.5.x (no open WP owns it), #362 on the TOF fence, and two
+    # v2+ bullets — Estimation (#355) and Navigation (#349) — each naming the
+    # gate that would reopen it.  Every finding stays in the WP files and on
+    # the threads.  Landed 813, +3 headroom.
+    # 818 -> 828 (the priority column, 2026-09-23): one paragraph under
+    # § Work packages saying what the `Priority` column is and where its
+    # authority lives (the WP file's line, TEMPLATE.md's rubric).  The
+    # column itself costs no lines: eleven headers widened and sixty rows
+    # given a `—` cell, on the open sections only.  Landed 827, +1 headroom;
+    # the 2026-09-23 backfill rated every ⬜ row and landed at 827 again.
+    # 828 -> 831 (/issue-review, 2026-09-23): three rows under § The repo's
+    # own process, 1450-1452, for issues #417, #419 and #426.  No prose:
+    # every finding and fold stays in the WP files.  Landed 830, +1 headroom.
+    "docs/ROADMAP.md": 831,
     # 1036 -> 1053 (WP-1429): where the GUI's colour values live, now that
     # they are Python and this workspace's `tokens.css` is generated from
     # them. It governs work outside the WP that measured it — an edit to a
     # token here is a rebuild, and an edit in the wrong file is a test
     # failure nobody can act on without the rule. Landed at 1045.
-    "gui/CLAUDE.md": 1053,
+    "gui/CLAUDE.md": 1056,   # +3: the node floor the dist build needs (WP-1442)
     # 275 -> 283 (WP-1426): a third way a guard goes quiet, and the only one of
     # the three that is about the instrument rather than the assertion — a
     # browser's layout-shift entry cannot see inside a plotly div, so a
@@ -459,7 +531,13 @@ SIZE_CAPS: dict[str, int | None] = {
     # instruction not to delete facts to fit.  Landed at 295; the +1 is
     # headroom, per this file's docstring.
     "tests/CLAUDE.md": 296,
-    "src/rietx/indexing/CLAUDE.md": 300,
+    # 300 -> 306 (WP-1446): one standing rule, on the bullet that already owns
+    # the question.  A space-group absence and an oversized cell are not
+    # separable by the reversed members either, measured rather than reasoned,
+    # so the next person to reach for that ranking finds the refutation instead
+    # of re-running it.  Raised rather than shaved, per the failure message's
+    # own instruction not to delete facts to fit; the numbers stayed in the WP.
+    "src/rietx/indexing/CLAUDE.md": 306,
     # 300 -> 350 (WP-1407): four per-format rows, and three standing rules the
     # Philips √ encoding taught — that a format may encode its counts rather
     # than store them, that the *permissive* description can be the defective
@@ -674,6 +752,99 @@ def test_roadmap_status_cell_is_a_glyph_and_a_date():
         assert _STATUS_CELL_RE.match(cell), (
             f"ROADMAP row {wp_id}: status cell {cell!r} is not '<glyph> <date>' "
             "— put the summary on the WP file's Status line"
+        )
+
+
+def _priority_of(path: Path) -> tuple[str, str] | None:
+    """(tier, date) from the WP file's `Priority:` line, or None when unrated."""
+    m = _PRIORITY_RE.search(path.read_text(encoding="utf-8"))
+    return (m.group("tier"), m.group("date")) if m else None
+
+
+def _priority_cells() -> dict[str, str | None]:
+    """WP id -> the row's Priority cell, or None where its table has no column.
+
+    A header line names its columns, and the rows under it (to the next
+    blank line) are read against that header, so the column may sit on the
+    open sections' tables only.
+    """
+    cells: dict[str, str | None] = {}
+    columns: list[str] = []
+    row_re = re.compile(r"^\| \[(\d{4})\]\(wp/")
+    for line in ROADMAP.read_text(encoding="utf-8").splitlines():
+        if line.startswith("| WP |"):
+            columns = [c.strip() for c in line.strip("|").split("|")]
+            continue
+        if not line.startswith("|"):
+            columns = []
+            continue
+        m = row_re.match(line)
+        if not m:
+            continue
+        row = [c.strip() for c in line.strip("|").split("|")]
+        if "Priority" in columns:
+            assert len(row) == len(columns), (
+                f"ROADMAP row {m.group(1)}: {len(row)} cells under a "
+                f"{len(columns)}-column header"
+            )
+            cells[m.group(1)] = row[columns.index("Priority")]
+        else:
+            cells[m.group(1)] = None
+    return cells
+
+
+def test_template_declares_the_priority_vocabulary():
+    """TEMPLATE.md carries the rubric; every tier this test accepts is in it."""
+    text = TEMPLATE.read_text(encoding="utf-8")
+    for tier in PRIORITIES:
+        assert re.search(rf"^  {tier}  ", text, re.M), (
+            f"TEMPLATE.md's rubric has no row for {tier}"
+        )
+
+
+def test_every_not_started_wp_is_rated_and_no_closed_wp_is():
+    """A ⬜ WP is rated at the write; a close deletes the line.
+
+    A 🔄 WP may keep the line it had.  Any line present is held to the
+    format, because the ROADMAP cell is read off it.
+    """
+    for path in _wp_files():
+        text = path.read_text(encoding="utf-8")
+        glyph, _ = _status_of(path)
+        if "\nPriority:" in text:
+            assert _priority_of(path), (
+                f"{path.name}: Priority line is not 'Priority: P<n> YYYY-MM-DD — <why>'"
+            )
+            assert glyph not in {"✅", "🛑"}, (
+                f"{path.name}: closed ({glyph}) and still rated — delete the "
+                "Priority line and set the ROADMAP cell to '—' (protocol step 5)"
+            )
+        else:
+            assert glyph != "⬜", (
+                f"{path.name}: not started and carries no Priority line (TEMPLATE.md)"
+            )
+
+
+def test_roadmap_priority_cell_mirrors_the_wp_priority_line():
+    """The WP file's line is the authority; the index cell is its tier.
+
+    A rated WP whose row sits in a table without the column is a rating
+    nobody reading the index can see, so that fails too.
+    """
+    cells = _priority_cells()
+    for path in _wp_files():
+        wp_id = path.name[:4]
+        rated = _priority_of(path)
+        cell = cells[wp_id]
+        if cell is None:
+            assert rated is None, (
+                f"WP {wp_id}: file rates it {rated[0]} but its ROADMAP table has "
+                "no Priority column — add the column to that section's table"
+            )
+            continue
+        expected = rated[0] if rated else "—"
+        assert cell == expected, (
+            f"WP {wp_id}: ROADMAP Priority cell is {cell!r}, file says {expected!r}"
         )
 
 

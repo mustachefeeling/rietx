@@ -20,7 +20,8 @@ matrix — no pydantic objects are touched per iteration.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from collections.abc import Iterable
+from dataclasses import dataclass, replace
 
 import numpy as np
 from pydantic import ValidationError
@@ -300,6 +301,16 @@ class Entry:
     transform: str
     tie: AffineTie | None = None  # affine dependence on other entries
     locked: bool = False  # structurally fixed: set_vary may never free it
+    #: the caller declared this parameter does not move (WP-1435).  Written by
+    #: ``Refinement._apply_holds`` from its own register on every build, for
+    #: the reason a user tie is: a hold is not a property of the models, and
+    #: nothing the table derives from a structure could rebuild it.
+    #:
+    #: Read by :meth:`set_vary` alongside ``locked``, which is the whole
+    #: mechanism.  The two differ in who said so and in what can undo it: a
+    #: locked entry is the space group's and no caller may free it, a held one
+    #: is the caller's own and ``Refinement.unhold`` takes it back.
+    held: bool = False
 
 
 #: Path prefix of a caller's own named variable (WP-1119).  A variable is a
@@ -314,14 +325,42 @@ VAR_PREFIX = "vars."
 def is_variable_path(path: str) -> bool:
     """Is ``path`` a caller's named variable rather than a model parameter?
 
-    One predicate rather than a repeated ``startswith``, because two rules turn
-    on it and they must not drift: a tied source is accepted only where this is
-    true (a variable may follow other variables — TOPAS's ``prm B = 2 A`` — while
-    a tied *model* path keeps the refusal that steers a caller to what it
-    follows), and only a path answering true is written back to the variable
-    register instead of into the pydantic models.
+    One predicate rather than a repeated ``startswith``, because three rules
+    turn on it and they must not drift: a tied source is accepted only where
+    this is true (a variable may follow other variables — TOPAS's ``prm B =
+    2 A`` — while a tied *model* path keeps the refusal that steers a caller to
+    what it follows); only a path answering true is written back to the
+    variable register instead of into the pydantic models; and a freeze asking
+    what a column *moves* drops these before deciding, because the forward
+    model never reads one (``refine._only_moves``, WP-1342).
+
+    All three are the same fact — a variable is not a model parameter — and it
+    is a fact about the **namespace** rather than a guess from a name: the
+    model tree's only top-level segments are ``phases`` and ``instrument``, so
+    nothing it owns can answer true here.
     """
     return path.startswith(VAR_PREFIX)
+
+
+#: ``fnmatch``'s metacharacters.  A ``set_vary``/``turn_on`` entry carrying
+#: none of them is a *literal* path, and a literal is the one spelling that can
+#: be wrong in a way a pattern cannot (WP-1414).
+_GLOB_CHARS = frozenset("*?[")
+
+
+def is_literal_path(glob: str) -> bool:
+    """Does ``glob`` name exactly one path, rather than match a family?
+
+    The distinction every "matched nothing" rule turns on (WP-1414).  A
+    pattern that matches nothing is ordinary: the shipped plans free
+    ``phases.*.microstrain.dof.*`` and ``instrument.extra_components.*`` on
+    models with neither, and a rule firing there would fire on every healthy
+    plan.  A literal names one parameter, so if the table has no such entry the
+    caller is wrong — a typo, or a path renamed under them.  Also the test
+    ``Refinement.set_vary`` applies before refusing a held path, so that the
+    two cannot disagree about which spellings are claims.
+    """
+    return not any(ch in _GLOB_CHARS for ch in glob)
 
 
 #: Cell parameter names in table order — lengths first, then angles.
@@ -1012,6 +1051,20 @@ class ParameterTable:
         #: the stage's size cap (a width, deg 2θ), or ``None`` for "no claim
         #: made" — see :meth:`freeze_size_cap`
         self._size_cap: float | None = None
+        #: displacement DOF path → the coordinate rows anchored on it, as
+        #: ``(path, coefficient)`` pairs.  Built where the anchor is built
+        #: (:meth:`_collect_atom_coords`) rather than read back off a name,
+        #: because "this entry is a displacement from a stored value" is a
+        #: fact about how the row was constructed and nothing in the row says
+        #: it — the ADP and Stephens DOFs spell their paths the same way and
+        #: are absolute.  :meth:`rebase_anchored_dofs` is the one consumer.
+        self._anchored_dofs: dict[str, tuple[tuple[str, float], ...]] = {}
+        #: the anchored DOF paths :meth:`rebase_anchored_dofs` has already
+        #: taken out of their coordinates on *this* table.  The correction is
+        #: a subtraction from a stored constant, so it is not idempotent and a
+        #: second application walks the coordinate the other way — exactly the
+        #: defect it exists to end, mirrored.
+        self._rebased: set[str] = set()
         #: path → a fixed positive factor between this table's *physical* value
         #: and the number the free column carries — see :meth:`apply_value_scale`.
         #: Empty for every single-histogram table, which is why an unscaled
@@ -1229,9 +1282,12 @@ class ParameterTable:
                 self._add(f"{base}.{c}", p, tie=AffineTie(terms=terms, const=p.value))
             else:
                 self._add(f"{base}.{c}", p, force_fixed=True)
-        for path in dof_paths:
+        for k, path in enumerate(dof_paths):
             self.entries.append(Entry(path=path, value=0.0, vary=want_vary,
                                       lo=-np.inf, hi=np.inf, transform="identity"))
+            self._anchored_dofs[path] = tuple(
+                (f"{base}.{c}", float(basis[k][c_idx]))
+                for c_idx, c in enumerate(("x", "y", "z")) if basis[k][c_idx] != 0)
 
     def _collect_atom_adps(self, base: str, sg, atom) -> None:
         """Displacement parameters: ``biso``, or aniso U^ij through DOFs.
@@ -1663,6 +1719,45 @@ class ParameterTable:
             e.vary = False
         self._rebuild()
 
+    def set_held(self, paths: str | Iterable[str], held: bool) -> list[str]:
+        """Mark entries as the caller's declared hold.  Returns the ones that exist.
+
+        Holding forces ``vary=False``, for the reason tying does: the caller
+        has said this parameter does not move, and leaving it free would mean
+        the very next solve moved it.  A locked or tied entry is marked anyway
+        and the mark changes nothing about it, so a hold declared over a broad
+        glob does not have to know which rows the space group had already
+        taken; ``ParameterRow.held_because`` reports the structural reason
+        first, because that is the one a caller cannot lift.
+
+        It takes **several paths in one call**, and that is not a
+        convenience.  The whole register is re-applied on every table build,
+        and :meth:`_rebuild` walks every entry, so one rebuild per path made
+        that re-application quadratic in the size of the hold: at 41 entries a
+        ``hold("*")`` put a build from 1.13 ms to 2.10 ms, and the term grows
+        as N².
+
+        Unlike :meth:`set_tie` this returns rather than raising on an unknown
+        path.  The register is re-applied on every build, and a path can
+        vanish between two of them (a phase removed by ``edit``), which is
+        ``Refinement._apply_holds``' warning to give rather than this
+        method's crash.
+        """
+        if isinstance(paths, str):
+            paths = [paths]
+        hits = []
+        for path in paths:
+            i = self._paths.get(path)
+            if i is None:
+                continue
+            e = self.entries[i]
+            e.held = held
+            if held:
+                e.vary = False
+            hits.append(path)
+        self._rebuild()
+        return hits
+
     def refresh_ties(self) -> None:
         """Recompute every tied entry's value from its sources.
 
@@ -1679,9 +1774,74 @@ class ParameterTable:
         self._rebuild()
         for e in self.entries:
             if e.tie is not None:
-                terms, const = self._flatten(e.tie, (e.path,))
-                e.value = const + sum(c * self.entries[j].value for j, c in terms)
+                e.value = self._implied(e.tie, e.path)
         self._rebuild()  # held tied entries contribute to d through their values
+
+    def rebase_anchored_dofs(self, paths: Iterable[str]) -> list[str]:
+        """Take a user-tied displacement DOF back out of its coordinates' anchor.
+
+        A coordinate DOF is a displacement *from the stored coordinate*: the
+        row is ``x = x_stored + Σ Bₖ·θₖ`` and the DOF is rederived to zero on
+        every build, so a rebuild reproduces ``x`` exactly.  That holds only
+        while the DOF comes back at zero.  Tie one to a source that does
+        **not** reset — a named variable, re-declared from its register at the
+        value it holds — and the rebuild anchors at a coordinate that has
+        already absorbed the displacement and then adds it again, once per
+        table build, for as long as the tie is declared (WP-1432, issue #293).
+
+        So the anchor is corrected here, where the tie is known: ``x_stored``
+        less what the tie is about to contribute.  The rebuild then preserves
+        the coordinate, which is the invariant the free case already had, and
+        the DOF reads the displacement its tie says it is rather than zero.
+        The anchor stops moving after the first rebuild and the coordinate is
+        *derived* from the variable rather than accumulated, which is what
+        makes a second ``fit()`` report what the first one did.
+
+        Takes the paths just declared and returns the ones it rebased, so a
+        caller can say that it happened.  A DOF whose source is another
+        coordinate DOF contributes zero (both ends reset together) and is
+        rebased by exactly nothing — that arm stays bit-identical.  An ADP or
+        Stephens DOF is **absolute** and never appears in
+        :attr:`_anchored_dofs`, so it is not reachable from here at all.
+
+        Values are recomputed for the rows this touches rather than through
+        :meth:`refresh_ties`, which would recompute every tied entry in the
+        table for a repair that reaches two of them.
+
+        **A path is rebased once per table, and the table is what remembers
+        it.**  The correction subtracts from a stored constant, so a second
+        application walks the coordinate the other way by the same amount.
+        That is the defect mirrored, and it is just as silent.  A repeat call
+        therefore skips what the first one did and rebases only what is new,
+        which lets a caller hand the whole register over after declaring one
+        more tie.  The guard is in the table rather than in a calling
+        convention, for the reason :attr:`Entry.held` is: a convention is
+        honoured only by the callers that remembered it, and the register
+        gains consumers.
+        """
+        hits = [p for p in paths
+                if p in self._anchored_dofs and p in self._paths
+                and p not in self._rebased
+                and self.entries[self._paths[p]].tie is not None]
+        if not hits:
+            return []
+        for path in hits:
+            dof = self.entries[self._paths[path]]
+            dof.value = self._implied(dof.tie, path)
+            for coord, coeff in self._anchored_dofs[path]:
+                e = self.entries[self._paths[coord]]
+                if e.tie is None:   # symmetry took the row over; _apply_ties says so
+                    continue
+                e.tie = replace(e.tie, const=e.tie.const - coeff * dof.value)
+                e.value = self._implied(e.tie, coord)
+        self._rebased.update(hits)
+        self._rebuild()
+        return hits
+
+    def _implied(self, tie: AffineTie, path: str) -> float:
+        """The value a tie implies right now, chains flattened onto free rows."""
+        terms, const = self._flatten(tie, (path,))
+        return const + sum(c * self.entries[j].value for j, c in terms)
 
     # -- vary control (used by the staged strategy) --------------------
     def set_vary(self, path_globs: list[str], vary: bool) -> list[str]:
@@ -1690,6 +1850,15 @@ class ParameterTable:
         Tied and locked entries never match: symmetry-fixed cell angles and
         the line-0 emission weight cannot be freed even by a broad glob such
         as ``phases.*.cell.*``.
+
+        Nor does a **held** entry, the caller's own declaration that this
+        parameter does not move (WP-1435).  It is skipped here rather than
+        checked by each caller because a stage's ``turn_on`` arrives through
+        this method, and a hold that only ``Refinement.set_vary`` honoured
+        would be silently overridden by every plan.  Whether a caller is told
+        about the skip is that caller's question: a plan records it on
+        ``StageResult.blocked_by_hold``, and ``Refinement.set_vary`` refuses a
+        literal path outright.
         """
         import fnmatch
 
@@ -1706,7 +1875,7 @@ class ParameterTable:
         hits = []
         for e in self.entries:
             if any(fnmatch.fnmatchcase(e.path, g) for g in path_globs):
-                if e.tie is None and not e.locked:
+                if e.tie is None and not e.locked and not (vary and e.held):
                     # Asked per row rather than once before the loop.  Computed
                     # once, the contract was order-dependent: two calls freeing
                     # the cell then λ skipped λ, while ONE call carrying both
@@ -1722,6 +1891,26 @@ class ParameterTable:
                     hits.append(e.path)
         self._rebuild()
         return hits
+
+    def unknown_literals(self, path_globs: list[str]) -> list[str]:
+        """The literal paths among ``path_globs`` that name no entry (WP-1414).
+
+        The half of a ``set_vary`` call its return cannot carry.  ``hits``
+        answers "what did this free", and an empty list is the same answer for
+        a pattern that legitimately matched nothing, for a row declined as
+        locked, tied or held, and for a path that does not exist.  Only the
+        last is the caller's mistake, and only a literal can make it
+        (:func:`is_literal_path`), so this reports exactly those: a declined
+        row *was* found, and ``ParameterRow.held_because`` says why.
+
+        A question about the table's paths and nothing else, so it is asked
+        separately rather than folded into ``set_vary``'s return, which a
+        dozen callers read as a list of freed paths.  Order kept, repeats
+        dropped.
+        """
+        known = {e.path for e in self.entries}
+        return [g for g in dict.fromkeys(path_globs)
+                if is_literal_path(g) and g not in known]
 
     def _wavelength_paths(self) -> frozenset[str]:
         return frozenset(e.path for e in self.entries
@@ -1841,6 +2030,78 @@ class ParameterTable:
         """
         reach = np.asarray(abs(self._C).sum(axis=1)).ravel()
         return [e.path for i, e in enumerate(self.entries) if reach[i] > 0.0]
+
+    def column_reach(self) -> dict[str, list[str]]:
+        """Per free column, every entry path it moves — itself and its ties.
+
+        :attr:`moving_paths` answers "does this entry move"; this answers
+        "*which column* moves it", which is the question a freeze resting on
+        flatness has to ask.  A column is a flat direction only when everything
+        it reaches is flat, and the entry that is flat is rarely the one
+        carrying the freedom: since WP-1119 a caller's ``vars.X`` can drive a
+        phase's cell, and the only free *name* is then the variable's.
+
+        One column-wise read of the same **C** that :attr:`moving_paths` reads
+        row-wise and that ``optimize._column_extras`` reads for the Jacobian's
+        own reach gate — never a second derivation, which could disagree with
+        the matrix the residual is actually built from.  An explicitly stored
+        zero coefficient is not reach, matching ``moving_paths``' test rather
+        than the sparsity pattern, since a tie may flatten to a zero term.
+
+        **With no tie every column reaches exactly itself**, so a consumer
+        replacing a test on ``free_paths`` with a test on this is bit-identical
+        on every model that declared none — which is what made it safe to apply
+        unconditionally rather than behind a freeze.  Keyed and ordered by
+        :attr:`free_paths`; the values are in entry order, so neither answer
+        depends on how θ was assembled.
+        """
+        csc = self._C.tocsc()
+        out: dict[str, list[str]] = {}
+        for j, path in enumerate(self.free_paths):
+            sl = slice(csc.indptr[j], csc.indptr[j + 1])
+            rows = csc.indices[sl][csc.data[sl] != 0.0]
+            out[path] = [self.entries[i].path for i in sorted(rows)]
+        return out
+
+    def entry_reach(self) -> dict[str, list[str]]:
+        """The same question asked of **every** entry, free or not.
+
+        :meth:`column_reach` reads **C**, which has a column only for a free
+        entry — so it cannot answer for one that is fixed, and a consumer that
+        must give the same answer either way (a *report* about what a mode
+        would force-fix, say) has nothing to ask.  This reads the declarations
+        C is compiled from instead: each tied entry's flattened sources, which
+        ``_flatten`` has already resolved through chains, transposed.
+
+        **One declaration, two readings, and a test holds them equal** on every
+        free path — ``column_reach()[p] == entry_reach()[p]`` there — so this
+        is not a second opinion about the constraint block.  It is the wider
+        one: a fixed source's dependents are still its dependents, and C simply
+        has no room to say so.
+
+        Every entry is a key, including one nothing follows, whose value is
+        itself.  Ordered by entry for the same reason ``column_reach`` is.
+
+        A source's coefficients are **summed before the zero test**, because
+        ``_rebuild`` scatters them into one C entry and the sparse constructor
+        sums duplicates there too.  Per term, the two readings come apart:
+        ``dep = p - q`` with ``p`` and ``q`` both following one source is a
+        cancelled dependency C does not carry, and ``entry_reach`` called it
+        reach while ``moving_paths`` did not.
+        """
+        deps: dict[int, set[int]] = {}
+        for i, e in enumerate(self.entries):
+            if e.tie is None:
+                continue
+            summed: dict[int, float] = {}
+            for j, coeff in self._flatten(e.tie, (e.path,))[0]:
+                summed[j] = summed.get(j, 0.0) + coeff
+            for j, coeff in summed.items():
+                if coeff != 0.0:
+                    deps.setdefault(j, set()).add(i)
+        return {e.path: [self.entries[k].path
+                         for k in sorted({i, *deps.get(i, ())})]
+                for i, e in enumerate(self.entries)}
 
     def x0(self) -> np.ndarray:
         return np.array([to_internal(self._unscaled(self.entries[i]),

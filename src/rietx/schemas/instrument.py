@@ -1222,6 +1222,22 @@ class Geometry(Base):
                   "flat_plate_transmission"] = "debye_scherrer"
     goniometer_radius_mm: float | None = None
     surface_roughness: SurfaceRoughness | None = None
+    #: How far the specimen sits off the goniometer axis (mm).
+    #:
+    #: **The ±1 mm is a runaway guard, not a physical limit** (WP-1311,
+    #: measured 2026-09-18), and two things follow that a caller should know.
+    #: It is *loose*: ``help.py`` gives a carefully packed flat plate as
+    #: |s| < 0.05 mm, so the bound sits a factor of 20 above ordinary practice,
+    #: and at the bound itself a line moves 0.19-1.13° depending on the
+    #: goniometer, which is 0.9-14.0× a typical laboratory FWHM.  And its
+    #: *angular* licence is not constant, because eq (3)'s shift goes as s/R:
+    #: one bound in mm spreads 3.0× across ordinary goniometer radii (100 to
+    #: 300 mm).  Scaling it by ``goniometer_radius_mm`` would fix the spread
+    #: and not the magnitude, and that field is optional, so a scaled bound
+    #: would still need this flat one as its fallback.  Kept as it is because
+    #: it has stood since v0.2 and narrowing it is a user-facing break; a
+    #: caller who wants the tighter, instrument-aware limit declares it, and
+    #: an explicit bound always beats a declared one.
     sample_displacement: Parameter = Field(
         default_factory=lambda: Parameter(value=0.0, min=-1.0, max=1.0, unit="mm")
     )

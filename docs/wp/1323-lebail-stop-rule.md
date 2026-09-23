@@ -2,6 +2,7 @@
 
 Milestone: unscheduled · Status: ⬜
 Depends on: —
+Priority: P2 2026-09-23 — the skill sends every Le Bail job to a hand loop with no cap; the call is the workaround
 
 ## Goal
 
@@ -64,6 +65,22 @@ does not change it.
 
 ### Inherited
 
+- **2026-09-23, from the issue triage (issue #210).** The reporter's two
+  later comments (2026-09-01 and 2026-09-02) revise the Context's framing,
+  and no session had folded them. The time cost does not transfer: on a
+  second specimen, 20 uncapped passes took 8.6 s. The divergence does. From
+  a poor start Rwp rose monotonically, 37.73 % to 47.65 % over 20 passes, and
+  19.09 % to 26.09 % over 15 on the six-phase pattern, where a cap of 8 with
+  keep-best stopped at pass 3 and kept pass 1. From a good start the
+  alternation helps: 56.80 % to 26.93 %, still improving at the bound, and
+  2.5247 % against staged Rietveld's 2.5614 % when started from Rietveld's
+  converged answer. So a cap alone truncates a converging run. The ask is
+  keep-best, a stop on the first non-monotone pass, no early stop while Rwp
+  still falls, and the stop reason recorded. The reporter also asks for one
+  sentence where an agent reads it, saying the result depends on the start
+  state. Checked against the tree at `644dff84`: Context § Measured cost
+  still leads with the 40-minute figure, and no skill row states the
+  start-state dependence.
 - **2026-09-15, from the issue #313 manual fix (no WP).** A second way the
   alternation wanders, on a *wrong cell* rather than a flat profile subspace.
   LaB₆ (`tests/data/11BM_LaB6_660a.fxye`, 2-20°, `plan="profile_only"`,

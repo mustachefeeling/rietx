@@ -1,11 +1,11 @@
 """rietx: Python-API-first analysis and Rietveld refinement of powder diffraction data."""
 
-import difflib
 import importlib
 import inspect
 import pkgutil
 
 from . import schemas
+from ._nearmiss import did_you_mean as _did_you_mean
 
 # The background estimator and the model-free pattern diagnostics were reachable
 # only as ``rietx.background.auto_background`` — this module never imported
@@ -254,7 +254,7 @@ for _name, _cls in _schema_classes().items():
 del _name, _cls
 
 
-#: A name ``difflib`` below cannot help with, answered with where the thing
+#: A name the near-miss below cannot help with, answered with where the thing
 #: actually is.  Two kinds qualify, both real: a miss that is really one level
 #: down under a *different* name than the one reached for
 #: (``identify_format``, WP-1302 — an agent wanted "what format is this", the
@@ -279,7 +279,7 @@ def __getattr__(name: str) -> object:
     paying an import for every submodule up front is not the fix for typing
     ``rietx.viz``, and the root CLAUDE.md's own commands write it that way.
     Anything else gets the closest match against the top-level surface
-    (``difflib``, cutoff 0.6), falling back to one curated pointer for a name
+    (:mod:`rietx._nearmiss`), falling back to one curated pointer for a name
     that exists but answers to a different address, and failing that the
     plain ``ImportError``-shaped message untouched.
 
@@ -315,7 +315,7 @@ def __getattr__(name: str) -> object:
     extra = _TOP_LEVEL_HINTS.get(name)
     if extra:
         raise AttributeError(f"{plain}; {extra}")
-    close = difflib.get_close_matches(name, __all__, n=3, cutoff=0.6)
-    if close:
-        raise AttributeError(f"{plain}; did you mean {', '.join(close)!r}?")
+    hint = _did_you_mean(name, __all__)
+    if hint:
+        raise AttributeError(f"{plain}; {hint}")
     raise AttributeError(plain)

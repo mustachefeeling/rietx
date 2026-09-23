@@ -79,6 +79,31 @@ def fitted_project(tmp_path_factory, pattern_file):
     return project, result
 
 
+# ------------------------------------------------------------------ holds
+def test_a_hold_survives_reopening_the_project(tmp_path, pattern_file):
+    """A promise that expires on reopen is worse than no promise (WP-1435).
+
+    The register rides on the history node rather than in ``project.json``,
+    which is the split working as designed: a hold is model state, the
+    document holds settings, and the head *is* the working state. So the
+    assertion is on what the reopened refinement enforces, not on a field.
+    """
+    project = _create(tmp_path / "held.rex", pattern_file)
+    assert project.refinement.hold("phases.0.cell.a") == ["phases.0.cell.a"]
+    project.save()
+
+    reopened = rx.Project.open(project.path)
+    row = {r.path: r for r in reopened.refinement.parameters()}["phases.0.cell.a"]
+    assert row.held and not row.refinable
+
+    # and it is still enforced, not merely remembered
+    result = reopened.fit(plan=SHORT)
+    assert [s.blocked_by_hold for s in result.stages if s.blocked_by_hold] == \
+        [["phases.0.cell.a"]]
+    assert reopened.refinement.structure.phases[0].cell.a.value == \
+        project.refinement.structure.phases[0].cell.a.value
+
+
 # ------------------------------------------------------------------ layout
 def test_create_writes_the_documented_layout(tmp_path, pattern_file):
     project = _create(tmp_path / "s.rex", pattern_file, ui={"disclosure": "simple"})

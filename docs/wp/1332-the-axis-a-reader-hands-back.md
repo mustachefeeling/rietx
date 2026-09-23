@@ -2,6 +2,7 @@
 
 Milestone: unscheduled · Status: ⬜
 Depends on: —
+Priority: P2 2026-09-23 — a GSAS axis 100× too large in silence, caught by eye before any number is quoted
 
 ## Goal
 
@@ -63,6 +64,20 @@ should still open, so the honest surface is a `Diagnostic` naming the range
 rather than adding a second channel. Whether a range that is arithmetically
 impossible (negative, or past 180°) should refuse while a merely surprising
 one reports is the one design call this WP has to take rather than reach for.
+
+### Inherited
+
+- **From WP-1415, 2026-09-21: a new reader diagnostic's row goes in §7i, not
+  §7.** The skill's `references/diagnostics.md` was 38 B under its cap, so the
+  eleven reader rows moved to `references/diagnostics-reading.md` (§7i) on the
+  maintainer's criterion: the main table carries what a fit is likely to say,
+  and a code conditional on a file quirk goes to a secondary doc. A reader code
+  this WP adds belongs there, and `test_every_engine_diagnostic_code_has_a_protocol_row`
+  accepts a row anywhere in the skill tree.
+- **`read_pattern` now has a post-dispatch hook** (`_dead_channel_diagnostics`,
+  `io/readers.py`), which runs after `fmt.read` and only when the caller passed
+  a `diagnostics=` list. A check that belongs to every format rather than to
+  one reader can hang there, which may suit this WP's axis-plausibility test.
 
 ## Non-goals
 

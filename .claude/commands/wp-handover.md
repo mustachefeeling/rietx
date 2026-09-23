@@ -50,7 +50,12 @@ steps below run unchanged.
    row.
 5. **Push forward references**: anything learned that changes work in a WP
    that is not closed and not this one goes into *that* WP's `### Inherited`
-   section, naming this WP as the source.
+   section, naming this WP as the source. **Re-rate what this close moved**:
+   a WP whose last blocker was this one, or whose trigger this work mooted,
+   gets its `Priority:` line rewritten (tier, today's date, one clause naming
+   this WP; rubric in `docs/wp/TEMPLATE.md`) and its ROADMAP cell set to the
+   new tier. An unrated WP (`—`) stays unrated unless the move is the reason
+   to rate it.
 6. **Audit this session's CLAUDE.md edits** (root, `gui/`, `tests/`,
    `src/rietx/indexing/`): every added line must be a standing rule
    (protocol rule 4 — evidence compressed to a clause plus a pointer), never
@@ -91,7 +96,8 @@ steps below run unchanged.
    name the trigger rather than scanning: this is a checklist against what
    the session *added*, not a re-review of it.
 7. **If the WP is closing** (✅/🛑): delete its consumed `### Inherited`
-   section, rewrite ROADMAP's "Current focus" for the successor (within
+   section and its `Priority:` line (the ROADMAP cell to `—`; a closed WP's
+   priority is moot), rewrite ROADMAP's "Current focus" for the successor (within
    `CURRENT_FOCUS_CAP`, tests/test_docs_consistency.py), and MOVE the
    outgoing focus narrative to the in-flight milestone record
    (the in-flight `docs/milestones/vX.Y.md` § "How vX.Y is getting here";
@@ -106,6 +112,13 @@ steps below run unchanged.
    tree. It belongs *here*, ahead of Verify, because a fix is a code change:
    one landed after the suite ran, or after the PR was opened, leaves neither
    the quoted counts nor the review describing the tree that merges.
+
+   **A prose-only branch skips it**, saying so in one line. `/code-review`
+   hunts correctness bugs in code, and a branch that touched only `docs/`,
+   the `CLAUDE.md`s and the markdown under `.claude/` gives it nothing to
+   read. A `.py` anywhere, hooks and skill scripts included, is code. The
+   review a prose branch gets is step 6's checklist against what it
+   declared, and step 10's `test_docs_consistency.py`.
    - Each accepted fix lands as its own commit prefixed `WP-NNNN:` like any
      other work; one left uncommitted fails step 10's clean-tree check.
    - **A finding is advice, not a gate** — declining one is a line in the
