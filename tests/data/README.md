@@ -1549,6 +1549,7 @@ Aeris, `XPERT` on the other):
 | `ScanStepSize` | 1 | `0.01086644000` or `0.02626056501` |
 | `ScanType` | 1 | `CONTINUOUS` |
 | `ScanStepTime` | 1 | five distinct values; **see the caveat below** |
+| `ba2fesbse5/nuclear_1p5K_structure.json`, `ba2fesbse5/nuclear_1p5K_instrument.json` | Ba₂FeSbSe₅: the **refined nuclear structure at 1.5 K** (P n m a, a = 12.5963, b = 9.0982, c = 9.1316 Å, six sites) and the constant-wavelength neutron instrument it was refined with (λ = 2.426 Å, Debye–Scherrer, Chebyshev background), both as rietx JSON. The starting point for the metric-coordinate recovery tests (`test_metric_coordinates.py`): a real oblique-cell nuclear model whose cell is perturbed synthetically and recovered; no measured pattern is read | Refined by the data owner from the 1.5 K pattern of the 23-pattern variable-temperature series of M. W. Gaultois et al., *Phys. Rev. B* **103**, 054115 (2021) (LLB G4.1, λ = 2.426 Å) | Contributed by the data owner, M. W. Gaultois, for redistribution with this package under the repository's terms; a derived structure, cited to the paper; the patterns themselves are not in this repository |
 
 `Title1` carrying up to ten comma-separated fields is the load-bearing one: a
 line cannot be split on every comma, only on the first, with the trailing `,/`

@@ -60,7 +60,8 @@ from rietx.schemas.pattern import PatternData
 from rietx.schemas.structure import Atom, Cell, Phase, Structure
 from rietx.strategy.staged import RefinementPlan, Stage
 
-DATA = Path("/Users/michael.gaultois/Claude/Code/data/ba2fesbse5_session20260908")
+#: Ba₂FeSbSe₅ at 1.5 K, the refined nuclear structure and its instrument (`tests/data/README.md`).
+DATA = Path(__file__).resolve().parent / "data" / "ba2fesbse5"
 K_0_HALF_HALF = ("0", "1/2", "1/2")
 
 #: Q-17b's own ten (nine tabulated settings + R-centred trigonal), copied
