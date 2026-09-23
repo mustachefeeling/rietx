@@ -70,7 +70,7 @@ milliseconds:
 ```{math}
 :label: corr-ityp1
 
-I_i(T) \;=\; P_1 \;+\; \sum_{k=1}^{5} P_{2k}\,
+I_i(T) \;=\; P_1 \;+\; \sum_{k=1}^{4} P_{2k}\,
               \exp\!\left(-P_{2k+1}\,T^{k}\right)
 ```
 
@@ -81,6 +81,12 @@ $P_2\exp(-P_3/T^2)/T^5$, and types 3–5 twelve-term Chebyshev polynomials of
 the first kind in $X = 2/T - 1$ (or $X = T/10$ for type 5). The millisecond is
 the trap: everything else on this arm is microseconds, and in µs the
 Chebyshev argument leaves its orthogonal range by three orders.
+
+The four powers are Von Dreele, Jorgensen and Windsor's original series
+{cite}`vondreele1982`; the manual states eleven coefficients but prints no
+exponent for the fifth pair, so $P_{10}$ and $P_{11}$ must be zero and a file
+or a model that sets either is refused by name rather than evaluated with a
+guessed power of $T$.
 
 Whether a file carries one is a fact about the file and not about the
 technique. ISIS GEM writes `ITYP 0` on all six banks (no spectrum, because

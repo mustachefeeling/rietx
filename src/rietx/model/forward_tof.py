@@ -49,7 +49,8 @@ along the bank here, because λ is a property of the channel:
   its ``ITYP`` record and which is a function of the **flight time** (ISIS GEM
   writes ``ITYP 0``, i.e. none — already divided out by its reduction; LANSCE
   NPDF writes ``ITYP 1`` with a full ``ICOFF`` block, i.e. its histograms still
-  carry it).  Applied **per channel**, to the calculated Bragg sum and not to
+  carry it; a non-zero fifth pair there is refused by
+  :mod:`rietx.model.tof_spectrum`, its exponent being unpublished).  Applied **per channel**, to the calculated Bragg sum and not to
   the background — :meth:`CompiledTOFModel.incident_spectrum` and
   :mod:`rietx.model.tof_spectrum`;
 * the **channel width** W(T), the other half of the same one-line relation
@@ -260,7 +261,8 @@ def sample_broadening_terms(ip: int, values: dict[str, float]) -> tuple:
     read as the **specimen quantities** a time-of-flight bank can use:
     ``size_*`` is K/L in Å⁻¹ and ``strain_*`` is Δd/d, both FWHMs, both free
     of any wavelength and any angle
-    (:func:`~rietx.model.profiles.tof.tof_sample_width`).
+    (:func:`~rietx.model.profiles.tof.tof_sample_gamma`,
+    :func:`~rietx.model.profiles.tof.tof_sample_sigma_sq`).
 
     **The two pairs are stored differently, and the asymmetry is WP-1131's.**
     A microstrain coefficient is λ-free: ``lor_strain`` is the same number of

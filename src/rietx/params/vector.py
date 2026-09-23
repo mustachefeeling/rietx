@@ -1087,7 +1087,7 @@ class ParameterTable:
             # reason given was that the branch could not use them; it can.  A
             # crystallite size and a microstrain broaden every peak of a phase
             # on a bank exactly as they do on a scan — ΔT = DIFC·(K/L)·d² and
-            # ΔT = DIFC·ε·d (``model.profiles.tof.tof_sample_width``) — and
+            # ΔT = DIFC·ε·d (``model.profiles.tof.tof_sample_gamma``) — and
             # they are properties of the *specimen*, so they are the columns a
             # joint constant-wavelength + time-of-flight fit shares.  What
             # differs between the arms is only the **unit** the size pair is

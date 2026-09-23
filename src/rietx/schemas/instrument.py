@@ -504,9 +504,9 @@ class ProfileTOF(Base):
     #: Gaussian broadening) and every held value decodes through ``d``, not
     #: through the transform, so no number a fit already reported moves.
     #:
-    #: The residual fence this leaves tighter than GSAS-II: its ``getTOFsig``
-    #: puts no sign constraint on ``sig-1``/``sig-2``, so a negative one there
-    #: is admissible as long as the sum stays positive.  Every real block
+    #: The fence: ``sig-*`` are variance coefficients (GSAS Technical Manual
+    #: p. 144), so each is floored at zero rather than only their sum at a
+    #: given d.  Every real block
     #: measured on this track — four LANSCE NPDF banks, two POWGEN
     #: ``.instprm`` banks — has all three non-negative, and the only negative
     #: value ever seen was a refinement walking to one and being refused.

@@ -597,7 +597,9 @@ what a reduction that already divided by a vanadium measurement leaves behind,
 and what ISIS GEM, SNS NOMAD and POWGEN all write. A LANSCE-style file writes
 `ITYP 1` with a full `ICOFF` block, and reading it is the difference between a
 Si standard fitting to $R_{wp}\approx0.02$ and to $R_{wp}\approx0.25$ with its
-displacement parameter pinned at zero. [](../corrections.md) has the functions
+displacement parameter pinned at zero. A block whose fifth pair ($P_{10}$,
+$P_{11}$) is non-zero is refused, because the manual prints no exponent for
+it. [](../corrections.md) has the functions
 and where the factor is applied.
 
 `Instrument.tof_neutron_bank` is the constructor, beside

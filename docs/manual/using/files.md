@@ -159,20 +159,22 @@ Both come back with every parameter `vary=False`, for the reason
 calibration refined against a standard, and freeing DIFC beside a free cell
 re-opens the same flat direction a free wavelength does.
 
-The GSAS-I reader reads one `PRCF` profile layout (type 1 written with
-eight coefficients, which is what every real type-1 block declares against the
-manual's twelve) and says so with a `GSAS_IPARM_PROFILE_READ` diagnostic that
-names the layout as *corroborated rather than documented*: the order was
-established from the physics it produces and from GSAS-II's own reader, not
-transcribed from a specification. Every other type is declined, with a
-`GSAS_IPARM_PROFILE_DECLINED` diagnostic naming the type and the coefficient
-count, because each GSAS time-of-flight profile function has its own
-independently-defined layout and reading one off another's description would be
-a guess. Declining is a diagnostic rather than a refusal because a declined
-profile leaves `ProfileTOF` at its all-zero state, which the flight-time
-compiler refuses by name (so it can stop a fit and never mislead one), while
-the calibration, which is what the caller came for, was read. A GSAS-II
-`.instprm` names each coefficient, so its profile *is* read.
+The GSAS-I reader holds to the layout the GSAS manual documents and refuses
+anything else by name. The first `PRCF` set is the default whatever its
+profile function; a type-1 or type-3 default set must carry the documented 12
+or 21 coefficients, read in the manual's listed order, and the
+`GSAS_IPARM_PROFILE_READ` diagnostic says that the order is an assumption,
+since the manual lists the names but never states the record order. A block
+of any other length is refused, never padded or truncated. A default set of a
+function this package does not evaluate (types 2, 4 and 5) is refused, while
+a later set of any type is skipped with `GSAS_IPARM_PROFILE_DECLINED`. A
+non-zero anisotropic or peak-shift coefficient is refused rather than dropped,
+and so is a non-zero fifth pair of an ITYP 1 or 2 incident spectrum, whose
+exponent the manual does not print. A bank with no `PRCF` set at all keeps its
+calibration and gets an all-zero `ProfileTOF`, which the flight-time compiler
+refuses by name, so a fit on it stops instead of running on a profile nobody
+read. A GSAS-II `.instprm` names each coefficient, so its profile is read; a
+key with no published time-of-flight law is accepted only at exactly zero.
 
 Weights follow from all this. The package uses the file's esd column when the
 file has one, and Poisson σ = √max(y, 1) only as the fallback. It never
