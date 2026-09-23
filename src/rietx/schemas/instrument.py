@@ -616,6 +616,7 @@ class IncidentSpectrum(Base):
         # model layer imports, not the other way round.
         from ..model.tof_spectrum import (
             COEFFICIENT_COUNTS,
+            _refuse_inferred_pair,
             _type_zero_message,
             _unknown_type_message,
         )
@@ -633,6 +634,14 @@ class IncidentSpectrum(Base):
                 f"using fewer writes zeros into the rest; a list of the wrong "
                 f"length is refused rather than padded, because which end the "
                 f"missing ones belong to is not stated anywhere.")
+        # ITYP 1/2's fifth pair (P10, P11) has no published exponent: refused
+        # here, at construction, and not only when a forward model evaluates
+        # it, so a hand-built spectrum cannot be stored and fail later.
+        try:
+            _refuse_inferred_pair(self.itype,
+                                  [c.value for c in self.coefficients])
+        except ValueError as exc:
+            raise ValueError(f"IncidentSpectrum: {exc}") from None
         lo, hi = self.tof_min_us, self.tof_max_us
         if lo is not None and hi is not None and not lo < hi:
             raise ValueError(

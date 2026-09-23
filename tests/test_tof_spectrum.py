@@ -252,3 +252,25 @@ def test_mu_is_affine_in_lambda_with_the_absorption_as_its_slope():
         neutron_attenuation_terms(counts, 0.0)
     with pytest.raises(KeyError):
         neutron_attenuation_terms({"Xx": 1.0}, vol)
+
+
+def test_the_schema_refuses_a_non_zero_fifth_pair_at_construction():
+    """SPEC § 4.3: ITYP 1/2's P10, P11 have no published exponent.  The
+    refusal is at validation, so a hand-built spectrum cannot be stored and
+    only fail later, on evaluation."""
+    from rietx.schemas.common import Parameter  # noqa: PLC0415
+    from rietx.schemas.instrument import IncidentSpectrum  # noqa: PLC0415
+
+    base = [5.0, 800.0, 0.11, 900.0, 4.5e-3, 1000.0, 5.0e-4, -1400.0, 3.4e-4,
+            0.0, 0.0]
+    for itype in (1, 2):
+        IncidentSpectrum(itype=itype,
+                         coefficients=[Parameter(value=v) for v in base])
+        for k in (9, 10):
+            vals = list(base)
+            vals[k] = 0.1
+            with pytest.raises(ValueError, match=f"P{k + 1} = 0.1 is non-zero"):
+                IncidentSpectrum(itype=itype,
+                                 coefficients=[Parameter(value=v) for v in vals])
+    # the Chebyshev types have no inferred pair: slots 10 and 11 are theirs
+    IncidentSpectrum(itype=3, coefficients=[Parameter(value=0.1)] * 12)
