@@ -848,6 +848,37 @@ class StageResult(Base):
     #: Empty on every fit where no hold was declared, which is every fit that
     #: predates this field.  It feeds ``HOLD_BLOCKED_PLAN``.
     blocked_by_hold: list[str] = Field(default_factory=list)
+    #: the **literal** paths in this stage's ``turn_on`` that name no parameter
+    #: of the model, in plan order (WP-1414, issue #265).  A literal is a
+    #: ``turn_on`` entry with no ``*``, ``?`` or ``[``: it names one parameter,
+    #: so missing it is a typo or a renamed path, and whatever the stage was
+    #: meant to refine was not.  A *pattern* that matched nothing is not here,
+    #: because that is how the shipped plans reach components a model may not
+    #: declare; nor is a row that exists and was declined (locked, tied or
+    #: held), which :attr:`freed` omits and ``ParameterRow.held_because``
+    #: explains.  On a joint fit, known means a bare path of some histogram or
+    #: a scoped ``hist.h.…`` one.  It feeds ``STAGE_PATH_UNKNOWN``.
+    #:
+    #: **``None`` means nobody looked**, and every runner writes a list, so an
+    #: empty one is a stage that was checked and named nothing missing.  The
+    #: default is for a result stored before this field: a typo'd literal
+    #: freed nothing in silence then too, so ``[]`` there would claim a check
+    #: that never ran (WP-1076's rule; ``RefinedParameter.at_bound`` is the
+    #: precedent).  Writers: the three runners that build a ``StageResult``.
+    unknown_paths: list[str] | None = None
+    #: joint fits only: per histogram this stage's globs **reached elsewhere
+    #: and not there**, the globs that did (WP-1414, issue #265's comment).
+    #: Keyed by histogram index.  Histogram ``h`` is here when no glob
+    #: addressing it matched any of its rows while one of those globs matched
+    #: another histogram's — ``instrument.profile.*`` freeing the
+    #: constant-wavelength histogram and nothing on a bank.  A glob scoped to
+    #: another histogram (``hist.0.…``) does not address ``h``, and a row that
+    #: exists but is locked, tied or held counts as reached, so a deliberate
+    #: plan stays out of it.  Written ``{}`` by a single-histogram fit, where
+    #: there is no elsewhere to have reached, and ``None`` — nobody looked —
+    #: only on a result stored before the field, for :attr:`unknown_paths`'
+    #: reason.  It feeds ``STAGE_FREED_NOTHING``.
+    unreached_histograms: dict[int, list[str]] | None = None
 
 
 class HistogramResult(Base):

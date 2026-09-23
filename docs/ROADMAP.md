@@ -101,8 +101,8 @@ forward-model contact. The order continues with 1327's verb, then 1419 as its ow
 two-lists decision it carries gets waved through in a diff about something
 else. **Neutron TOF stays at [§ v2+](#v2--fenced)** behind issue #193.
 
-**Six silent-answer fixes have landed since the ship** (1434, 1435, 1432,
-1342, 1415, 1442), staged in [releases/1.5.1.md](releases/1.5.1.md), narrated
+**Seven silent-answer fixes have landed since the ship** (1434, 1435, 1432,
+1342, 1415, 1442, 1414), staged in [releases/1.5.1.md](releases/1.5.1.md), narrated
 in the [v1.6 record](milestones/v1.6.md). 1432 unblocks 1419's amplitudes; so
 is the `.inp` grammar 1118 refuses,
 [1433](wp/1433-the-inp-grammar-still-refused.md).
@@ -119,7 +119,7 @@ WinXPOW export, and a blank for a `rietx compare` standard.
 
 **Queued, unscheduled** ([§ Unscheduled](#unscheduled)): the 2026-09-01
 triage's 1312-1322 plus 1323 and 1325; the 2026-09-03 triage's 1332-1341 less 1342; 1133;
-the **2026-09-15 triage**'s 1414-1421, less the two in v1.6 and 1432.
+the **2026-09-15 triage**'s 1415-1421, less the two in v1.6 and 1432.
 
 **Parked, blocking nothing:** the 1.0.0-notes promises (`.rex` zip transport,
 `excluded_regions` honoured by `replay` — 1003 § B); the indexing narrowing and
@@ -659,7 +659,7 @@ the limit carried load rather than whether the value stopped near one, and
 | [1337](wp/1337-an-authored-refusal-not-a-traceback.md) | An authored refusal, not a raw traceback | ⬜ | P3 | — (1311, 1321 soft) |
 | [1342](wp/1342-a-freeze-that-reads-names.md) | A structural freeze that reads names, and the tie it cannot see | ✅ 2026-09-19 | — | — (1301, 1119 soft) |
 | [1344](wp/1344-a-joint-fit-owes-each-histogram-its-diagnostics.md) | A joint fit owes each histogram the diagnostics its own radiation earns | ⬜ | P3 | — (1341 soft) |
-| [1414](wp/1414-a-turn-on-that-reached-nothing.md) | A `turn_on` that reached nothing says so | ⬜ | P2 | — (1341 soft) |
+| [1414](wp/1414-a-turn-on-that-reached-nothing.md) | A `turn_on` that reached nothing says so | ✅ 2026-09-22 | — | — (1341 soft) |
 | [1415](wp/1415-a-sigma-column-smaller-than-root-y.md) | A σ column smaller than √y | 🔄 2026-09-23 | — | — |
 | [1417](wp/1417-delta-bic-at-powder-channel-counts.md) | ΔBIC at powder channel counts | ⬜ | P2 | — (1339 soft) |
 | [1421](wp/1421-the-result-reproduces-its-own-number.md) | The result reproduces its own number | ⬜ | P3 | — (1310 soft) |

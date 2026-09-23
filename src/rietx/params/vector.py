@@ -287,6 +287,27 @@ def is_variable_path(path: str) -> bool:
     return path.startswith(VAR_PREFIX)
 
 
+#: ``fnmatch``'s metacharacters.  A ``set_vary``/``turn_on`` entry carrying
+#: none of them is a *literal* path, and a literal is the one spelling that can
+#: be wrong in a way a pattern cannot (WP-1414).
+_GLOB_CHARS = frozenset("*?[")
+
+
+def is_literal_path(glob: str) -> bool:
+    """Does ``glob`` name exactly one path, rather than match a family?
+
+    The distinction every "matched nothing" rule turns on (WP-1414).  A
+    pattern that matches nothing is ordinary: the shipped plans free
+    ``phases.*.microstrain.dof.*`` and ``instrument.extra_components.*`` on
+    models with neither, and a rule firing there would fire on every healthy
+    plan.  A literal names one parameter, so if the table has no such entry the
+    caller is wrong — a typo, or a path renamed under them.  Also the test
+    ``Refinement.set_vary`` applies before refusing a held path, so that the
+    two cannot disagree about which spellings are claims.
+    """
+    return not any(ch in _GLOB_CHARS for ch in glob)
+
+
 #: Cell parameter names in table order — lengths first, then angles.
 _CELL_NAMES = ("a", "b", "c", "alpha", "beta", "gamma")
 
@@ -1600,6 +1621,26 @@ class ParameterTable:
                     hits.append(e.path)
         self._rebuild()
         return hits
+
+    def unknown_literals(self, path_globs: list[str]) -> list[str]:
+        """The literal paths among ``path_globs`` that name no entry (WP-1414).
+
+        The half of a ``set_vary`` call its return cannot carry.  ``hits``
+        answers "what did this free", and an empty list is the same answer for
+        a pattern that legitimately matched nothing, for a row declined as
+        locked, tied or held, and for a path that does not exist.  Only the
+        last is the caller's mistake, and only a literal can make it
+        (:func:`is_literal_path`), so this reports exactly those: a declined
+        row *was* found, and ``ParameterRow.held_because`` says why.
+
+        A question about the table's paths and nothing else, so it is asked
+        separately rather than folded into ``set_vary``'s return, which a
+        dozen callers read as a list of freed paths.  Order kept, repeats
+        dropped.
+        """
+        known = {e.path for e in self.entries}
+        return [g for g in dict.fromkeys(path_globs)
+                if is_literal_path(g) and g not in known]
 
     def _wavelength_paths(self) -> frozenset[str]:
         return frozenset(e.path for e in self.entries

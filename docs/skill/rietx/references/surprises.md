@@ -469,3 +469,19 @@ magnetite at 22 usable peaks not until 10 %. So an empty `contamination` list
 means "no leak this rule can see" and never "the beam is clean". An unfiltered
 tube sits at 0.14 (Hölzer et al. 1997), which is the case worth catching.
 (Measured: WP-1442.)
+
+**8.28 A glob that matches nothing is normal, and a literal path that matches
+nothing is a typo.** Plans reach components a model may not declare, so a
+stage carrying `phases.*.microstrain.dof.*` on a model without a Stephens block
+frees nothing and is healthy. A path with no `*`, `?` or `[` names one
+parameter, though, and when the model has no such row the stage frees nothing,
+converges, and until v1.6 said nothing: `instrument.source.wavelength` for
+`instrument.source.lines.0.wavelength` is the measured case. That now fires
+§7 `STAGE_PATH_UNKNOWN` with the nearest real path. **A typo inside a glob
+(`phases.*.cel.*`) still cannot be told from a healthy miss, so read
+`StageResult.freed` for every stage you wrote yourself.** On a joint fit the
+same miss can hit one histogram only: `instrument.profile.*` freed the
+constant-wavelength histogram and nothing on the fork's time-of-flight banks,
+and the fit converged at Rwp 0.115 against 0.066 with the right globs. That is
+§7 `STAGE_FREED_NOTHING`.
+(Measured: WP-1414, issue #265.)

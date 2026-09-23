@@ -11,7 +11,8 @@ from pathlib import Path
 import pytest
 
 import rietx as rx
-from rietx.params.vector import Entry
+from rietx._nearmiss import did_you_mean, near_misses
+from rietx.params.vector import Entry, is_literal_path
 from rietx.schemas.params import ParameterRow, TieSpec
 from rietx.strategy.staged import PLAN_INFO, PLAN_PRESETS
 from tests.test_refine_synthetic import perturbed_models, synthesize
@@ -685,6 +686,150 @@ def test_tie_without_history_still_edits():
     assert ref.history is None
     assert ref.structure.phases[0].atoms[1].biso.value == pytest.approx(
         ref.structure.phases[0].atoms[0].biso.value)
+
+
+# --------------------------------------------- a turn_on that reached nothing
+#: the working spelling of issue #265's wavelength, and the one it tried
+WAVELENGTH = "instrument.source.lines.0.wavelength"
+WAVELENGTH_TYPO = "instrument.source.wavelength"
+
+
+def test_a_literal_names_one_path_and_a_pattern_does_not():
+    assert is_literal_path("instrument.zero_shift")
+    assert is_literal_path("vars.A")
+    for glob in ("phases.*.scale", "phases.?.scale", "phases.[01].scale"):
+        assert not is_literal_path(glob), glob
+
+
+def test_an_unknown_literal_is_one_the_table_lacks_not_one_it_declined(ref):
+    """Found and declined is a different fact from not found (WP-1414).
+
+    A tied ``b``, a locked ``alpha`` and a held ``a`` all free nothing, and
+    ``ParameterRow.held_because`` says why for each; none is a typo.  Only
+    the literal naming no row is, and a pattern is never reported however
+    little it matched.
+    """
+    ref.hold(CELL)
+    table = ref._working_table()
+    asked = ["phases.0.cell.b", "phases.0.cell.alpha", CELL,
+             WAVELENGTH_TYPO, "phases.*.microstrain.dof.*", "phases.*.cel.*",
+             WAVELENGTH_TYPO, "vars.A"]
+    assert table.set_vary(asked, True) == []
+    assert table.unknown_literals(asked) == [WAVELENGTH_TYPO, "vars.A"], (
+        "order kept, repeats dropped, declined rows and patterns absent")
+
+
+def test_the_near_miss_folds_case_before_it_ranks(ref):
+    """Caglioti's U, typed as every paper prints it, is ``profile.u``.
+
+    ``difflib`` alone ranks ``instrument.profile.y`` first: a real path, one
+    character away, and the wrong parameter.
+    """
+    paths = [r.path for r in ref.parameters()]
+    assert near_misses("instrument.profile.U", paths, n=1) == ["instrument.profile.u"]
+    assert near_misses(WAVELENGTH_TYPO, paths, n=1) == [WAVELENGTH]
+    assert near_misses("nothing.like.it", paths) == []
+    assert did_you_mean("nothing.like.it", paths) == ""
+
+
+@pytest.mark.parametrize("path, n_freed, says", [
+    # the four rows of issue #265's reproduction, in its order
+    (WAVELENGTH_TYPO, 0, "STAGE_PATH_UNKNOWN"),
+    (WAVELENGTH, 1, "WAVELENGTH_CALIBRATION"),
+    # a pattern the shipped `lab_sample_refine` carries, on a model with no
+    # Stephens block: healthy, and the reason a pattern is never reported
+    ("phases.*.microstrain.dof.*", 0, None),
+    # a typo inside a pattern looks exactly like the row above, so it stays
+    # silent too; `surprises.md` tells the caller to read `freed`
+    ("phases.*.cel.*", 0, None),
+])
+def test_a_turn_on_that_reached_nothing_says_so_when_it_can(pattern, path, n_freed,
+                                                           says):
+    structure, ins = perturbed_models()
+    ref = rx.Refinement(structure, ins, history=False)
+    seen: list[dict] = []
+    result = ref.fit(pattern, events=seen.append, plan=rx.RefinementPlan(
+        stages=[rx.Stage("only", [path], max_iter=5)]))
+
+    stage = result.stages[0]
+    assert len(stage.freed) == n_freed
+    codes = {d.code for d in result.diagnostics}
+    unknown = [d for d in result.diagnostics if d.code == "STAGE_PATH_UNKNOWN"]
+    if says == "STAGE_PATH_UNKNOWN":
+        assert stage.unknown_paths == [path]
+        assert len(unknown) == 1 and unknown[0].level == "warning"
+        assert unknown[0].where == [path]
+        assert f"did you mean {WAVELENGTH!r}" in unknown[0].message
+        # decided at stage start, so a watcher sees it before the budget goes
+        start = next(e for e in seen if e["kind"] == "stage_start")
+        assert start["data"]["unknown_paths"] == [path]
+    else:
+        assert stage.unknown_paths == [] and not unknown
+    if says is not None:
+        assert says in codes
+    # a single-histogram fit has no elsewhere to have reached
+    assert stage.unreached_histograms == {}
+    assert "STAGE_FREED_NOTHING" not in codes
+
+
+def test_a_stored_stage_record_says_nobody_looked_rather_than_nothing_missing():
+    """WP-1076's rule on the two new fields: the default is not an answer.
+
+    A result written before WP-1414 had typo'd literals freeing nothing in
+    silence too, so opening it with ``[]`` would claim a check that never
+    ran.  Every runner writes a value; only the default is ``None``.
+    """
+    old = rx.StageResult.model_validate_json(
+        '{"name": "cell", "status": "converged", "n_iterations": 3, '
+        '"cost_initial": 2.0, "cost_final": 1.0}')
+    assert old.unknown_paths is None and old.unreached_histograms is None
+
+
+def test_a_literal_repeated_across_stages_is_one_finding_naming_both(pattern):
+    """Per path, not per stage: the hold's rule, for its reason."""
+    structure, ins = perturbed_models()
+    ref = rx.Refinement(structure, ins, history=False)
+    result = ref.fit(pattern, plan=rx.RefinementPlan(stages=[
+        rx.Stage("first", ["phases.*.scale", WAVELENGTH_TYPO], max_iter=5),
+        rx.Stage("second", [WAVELENGTH_TYPO, "phases.0.cell.aa"], max_iter=5),
+    ]))
+    unknown = {d.where[0]: d for d in result.diagnostics
+               if d.code == "STAGE_PATH_UNKNOWN"}
+    assert set(unknown) == {WAVELENGTH_TYPO, "phases.0.cell.aa"}
+    assert "stages 'first', 'second'" in unknown[WAVELENGTH_TYPO].message
+    assert "did you mean 'phases.0.cell.a'" in unknown["phases.0.cell.aa"].message
+    assert [s.unknown_paths for s in result.stages] == [
+        [WAVELENGTH_TYPO], [WAVELENGTH_TYPO, "phases.0.cell.aa"]]
+
+
+def test_a_single_stage_run_says_it_too(ref, pattern):
+    """``run_stage`` builds its own ``StageResult``: the second call site."""
+    result = ref.run_stage(pattern, rx.Stage("typo", [WAVELENGTH_TYPO], max_iter=5))
+    assert result.stages[-1].unknown_paths == [WAVELENGTH_TYPO]
+    assert [d.where for d in result.diagnostics
+            if d.code == "STAGE_PATH_UNKNOWN"] == [[WAVELENGTH_TYPO]]
+
+
+def test_the_shipped_presets_name_no_path_a_shipped_instrument_lacks():
+    """The literal rule may fire only on a caller's mistake, never on ours.
+
+    Every preset literal (``instrument.zero_shift``, the Caglioti five,
+    ``sample_displacement``, the axial pair) exists on every instrument
+    constructor — force-fixed where the geometry does not use it (WP-1073),
+    which is exactly why a declined row is not an unknown one.
+    """
+    instruments = [rx.Instrument.debye_scherrer(wavelength=1.5406),
+                   rx.Instrument.bragg_brentano(),
+                   rx.Instrument.flat_plate_transmission(),
+                   rx.Instrument.constant_wavelength_neutron(1.5),
+                   rx.Instrument.constant_wavelength_neutron(1.5, harmonics=True)]
+    structure, _ = perturbed_models()
+    for ins in instruments:
+        table = rx.Refinement(structure, ins, history=False)._working_table()
+        for name, build in PLAN_PRESETS.items():
+            for stage in build().stages:
+                assert table.unknown_literals(stage.turn_on) == [], (
+                    name, stage.name, ins.geometry.kind)
 
 
 # ----------------------------------------------------------------- PLAN_INFO

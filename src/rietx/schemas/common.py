@@ -7,12 +7,13 @@ interface convention.  See ``ATTRIBUTION.md``.
 
 from __future__ import annotations
 
-import difflib
 import math
 from functools import lru_cache
 from typing import Annotated, ClassVar, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from .._nearmiss import did_you_mean
 
 #: Data-contract version of the pydantic schemas (``Capabilities.schema_version``).
 #: Any change a consumer could observe bumps the last component by one, and
@@ -223,7 +224,18 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 #: pattern.  Additive and defaulted to ``{}``, the same rule as 0.19 → 0.20: a
 #: stored series from before this opens with no rung raised, which is true of
 #: it — a raise then ended the pattern, so no entry could carry one.
-SCHEMA_VERSION = "0.25"
+#: 0.25 → 0.26 (WP-1414, issue #265): ``StageResult.unknown_paths`` — the
+#: literal ``turn_on`` paths naming no parameter of the model — and
+#: ``StageResult.unreached_histograms``, per histogram of a joint fit the globs
+#: that reached another histogram and none of its rows.  Additive, the rule of
+#: 0.19 → 0.20, and defaulted to ``None`` rather than empty, unlike 0.24's
+#: ``blocked_by_hold`` or 0.25's ``rungs_raised``: no hold could exist before
+#: its field, and no rung could raise and survive, so an empty default was
+#: true of every older document there, while a typo'd literal freed nothing in
+#: silence long before this one.  A stored result from before this opens with
+#: ``None``, "nobody looked", and every runner now writes a value (WP-1076's
+#: rule).
+SCHEMA_VERSION = "0.26"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
 
@@ -300,7 +312,7 @@ class Base(BaseModel):
         mid-assignment — never a typo, so it gets its own message rather than
         the closest-match one, which would otherwise trivially "suggest"
         itself); then a nested block that carries this name; then the closest
-        own-field match (``difflib``, cutoff 0.6); then, for a small schema,
+        own-field match (:mod:`rietx._nearmiss`); then, for a small schema,
         every field name; otherwise the plain pydantic-shaped message
         untouched, so a caller matching on ``"no attribute 'x'"`` keeps
         working.
@@ -325,10 +337,9 @@ class Base(BaseModel):
                 + " or ".join(paths)
                 + ". The top level carries what this schema declares; a value "
                   "computed about it lives in the block that computed it.")
-        close = difflib.get_close_matches(
-            name, list(type(self).model_fields), n=3, cutoff=0.6)
-        if close:
-            raise AttributeError(f"{plain}; did you mean {', '.join(close)!r}?")
+        hint = did_you_mean(name, type(self).model_fields)
+        if hint:
+            raise AttributeError(f"{plain}; {hint}")
         fields = list(type(self).model_fields)
         if len(fields) <= type(self)._ATTR_HINT_FIELD_CAP:
             raise AttributeError(f"{plain}; its fields are {fields}")

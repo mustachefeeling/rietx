@@ -477,10 +477,36 @@ for stage in result.stages:
 | `StageResult.held` | paths the plan freed that this stage held anyway, because the data could not see their phase |
 | `StageResult.held_reach` | per held path, the tied parameters it also stopped |
 | `StageResult.released` | the ones it held at the start and let go again, having seen the phase appear while it solved |
+| `StageResult.unknown_paths` | the literal `turn_on` paths that name no parameter of this model; `None` on a result stored before the check existed |
+| `StageResult.unreached_histograms` | joint fits: per histogram, the globs that freed rows of another histogram and matched none of this one; `{}` on a single histogram, `None` on a result stored before the check existed |
 
-`StageResult.freed` is the field to read when a stage did nothing: a glob that
-matches no path is not an error, so an empty list means the stage was a no-op
-and the run continued past it in silence.
+`StageResult.freed` is the field to read when a stage did nothing. A glob that
+matches no path is not an error, because that is how the shipped plans reach a
+component your model may not declare: `lab_sample_refine` frees
+`phases.*.microstrain.dof.*` whether or not a phase carries a Stephens block.
+An empty list can therefore mean the stage was a no-op, and the run continues
+past it.
+
+A literal path is different. With no `*`, `?` or `[` in it, it names one
+parameter, so if the model has no such row the plan is wrong: a typo, or a
+path renamed under you. `StageResult.unknown_paths` lists it and the fit reports
+`STAGE_PATH_UNKNOWN` at `warning` with the nearest real path. A stage asking
+for the wavelength without its line index is pointed at line 0's wavelength,
+the row the table actually has. It is a diagnostic, not an exception,
+because one plan runs every pattern of a series ([](series.md)). A misspelt
+family inside a glob looks exactly like a glob that correctly matched nothing,
+so no rule can report it, and `freed` is the place to look.
+
+A joint fit (`MultiHistogramRefinement`, in [](series.md)) has one more way to do nothing, which is to do it on
+one histogram only. A glob written for one instrument's parameter names reaches
+only the histograms that have them. So a stage whose globs freed rows of
+histogram 0 and matched none of histogram 1 records
+`StageResult.unreached_histograms == {1: [the globs]}`, and the fit reports
+`STAGE_FREED_NOTHING` at `info`, one diagnostic per histogram. A glob scoped to
+one histogram (`hist.0.…`) is not reported, because that is a plan aimed on
+purpose. Nor is a row that exists and is force-fixed, since it was reached. A
+component declared on one histogram only, such as a hump, *is* reported,
+because it is a true account of what the stage did.
 
 `StageResult.held` is the field to read when a parameter did nothing. A phase
 reaches the pattern only through `scale × |F|² × profile`, so a phase whose
