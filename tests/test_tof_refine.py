@@ -396,7 +396,7 @@ def test_the_schema_version_moved_with_the_field():
     bumps run 0.27-0.32."""
     from rietx.schemas.common import SCHEMA_VERSION
 
-    assert SCHEMA_VERSION == "0.32"
+    assert SCHEMA_VERSION == "0.33"
 
 
 def test_a_result_round_trips_through_json_on_either_axis():
