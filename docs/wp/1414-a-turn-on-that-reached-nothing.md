@@ -142,6 +142,14 @@ beside it.
 
 ## Handover log
 
+- **2026-09-23** — The count the close entry deferred, and nothing else
+  changed. The fast suite on the final tree (`0f0feaa`; `[dev]` only, Linux
+  cloud container, uid 0) ran 5482 passed / 147 skipped / 1 failed in
+  12:51. The failure is the uid-0 `unwritable-directory` telemetry case
+  below, and passed is +1 on the pre-review run, which is the review pass's
+  one added test, so the branch's +13 against `main` holds. Next: the close
+  entry's list, starting with pushing the bundle from a clone that can.
+
 - **2026-09-22** — **closed.** A refinement plan that asks for a parameter by
   a name the model does not have now says so, and names the parameter it
   probably meant. Before this, the stage freed nothing, converged, and the
