@@ -3,14 +3,17 @@
 Synthetic files written column by column with the strict reader's own fixture
 helpers (``tests/test_instrument_tof.py``), so a record here is laid out
 exactly as a spec-legal one is and differs only by the deviation under test.
-The one real fixture is the NPDF run 7245 calibration's instrument records
-(below, with its provenance).  The slot destinations and the fifth-pair
+The one real fixture is the NPDF run 7245 calibration's instrument records,
+``tests/data/tof/npdf_7245_instrument.iparm`` (its header carries the
+provenance; ``tests/data/README.md`` the licence finding).  The slot destinations and the fifth-pair
 exponent these tests pin were measured against GSAS-II v5.8.2 run as a black
 box; the run is recorded in the module docstring of
 :mod:`rietx.io.legacy.lansce_iparm`, and GSAS-II is not needed to run them.
 """
 
 from __future__ import annotations
+
+from pathlib import Path
 
 import pytest
 
@@ -241,3 +244,29 @@ def test_without_the_bolt_on_the_strict_refusal_stands(tmp_path):
         "request by rietx.io.legacy.read_lansce_iparm")
 
 
+# ------------------------------------------------------------ the real records
+NPDF_7245 = Path(__file__).parent / "data" / "tof" / "npdf_7245_instrument.iparm"
+
+
+def test_the_real_calibration_reads_end_to_end_with_all_three_deviations():
+    """NPDF 7245, all four banks verbatim: refused by the strict reader, read
+    by the bolt-on under the values GSAS-II v5.8.2 printed for the same file,
+    and each deviation reported once by its role."""
+    with pytest.raises(ValueError, match=r"'46\.60' in columns 30-34"):
+        read_gsas_tof_iparm(NPDF_7245)
+    notes = []
+    banks = read_lansce_iparm(NPDF_7245, diagnostics=notes)
+    assert sorted(banks) == [1, 2, 3, 4]
+    assert banks[3].source.difc.value == 14594.35
+    assert banks[1].source.two_theta_bank_deg == 46.6
+    two = banks[2].source.incident_spectrum
+    assert two.itype == 1
+    assert [c.value for c in two.coefficients][9:] == [-2858.9, 5.21191e-05]
+    assert banks[4].source.profile_tof.alpha0.value == 0.000719136
+    legacy = {n.where[-1]: n for n in notes if n.code == "GSAS_IPARM_LEGACY_LAYOUT"}
+    assert sorted(legacy) == ["BNKPAR", "ICOFF3", "PRCF1"]
+    assert all(n.level == "info" for n in legacy.values())
+    assert legacy["BNKPAR"].where == ["bank 1", "BNKPAR"]
+    assert "TTHETA = 46.6" in legacy["BNKPAR"].message
+    assert legacy["PRCF1"].where == ["bank 1", "bank 2", "bank 3", "bank 4", "PRCF1"]
+    assert legacy["ICOFF3"].where == ["bank 1", "bank 2", "ICOFF3"]
