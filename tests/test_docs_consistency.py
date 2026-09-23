@@ -225,6 +225,11 @@ _PRIORITY_RE = re.compile(
 #                                                          and owed to every future freeze: four
 #                                                          consumers now read it and a fifth would
 #                                                          repeat the defect. Landed 972, +1 headroom
+#   2026-09-23  src/rietx/io/CLAUDE.md        545 -> 558  for the legacy LANSCE .iparm bolt-on: a new
+#                                                          io/legacy/ section (read-only-when-asked, call
+#                                                          the strict reader, model/ out of reach, black-box
+#                                                          evidence), the long form in legacy/__init__.py.
+#                                                          Landed 557, +1 headroom
 SIZE_CAPS: dict[str, int | None] = {
     # 739 -> 755 (WP-1102): two standing rules for the component seam — that an
     # additive non-Bragg term is a union *member* and not a new field, and that
@@ -611,7 +616,10 @@ SIZE_CAPS: dict[str, int | None] = {
     # is a calibration and not a pattern -- the distinction the next such
     # reader will otherwise get wrong. Landed at 542. The long form is in the
     # module docstrings: `io/instrument_tof.py` and `io/formats/gsas.py`.
-    "src/rietx/io/CLAUDE.md": 545,
+    # 545 -> 558 (2026-09-23): the `legacy/` section, a reader accepting a
+    # named deviation only when asked -- four rules a stranger needs before
+    # adding the next legacy layout; the evidence is in `legacy/__init__.py`.
+    "src/rietx/io/CLAUDE.md": 558,
 }
 CURRENT_FOCUS_CAP: int | None = 60  # lines within ROADMAP's Current focus (WP-1031 landed at 33; the 1060 rewrite at 44)
 # Words, because a line cap alone was met by nine 1000-character paragraphs

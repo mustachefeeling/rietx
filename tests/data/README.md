@@ -1581,3 +1581,29 @@ structure. It does **not** prove the key vocabulary, carrying only **5** of the
 it is also the evidence that the comma before the terminator is optional. The
 key table above is what the real files prove, and the two together are why the
 reader requires only `DataAngleRange`, `ScanStepSize` and the marker.
+
+## Legacy LANSCE instrument file — `tof/npdf_7245_instrument.iparm`
+
+**What it is.** The instrument records (`BANK`, `HTYPE`, and per bank `ICONS`,
+`BNKPAR`, `I ITYP`, `ICOFF`, `IECOF`, `PRCF`) of one GSAS-I `.iparm`: NPDF,
+Lujan Center, run 7245, Si standard in a helium displex, Michael Gaultois's
+2014 beamtime. Copied verbatim, record for record and column for column; the
+file's CR LF line ends are written as LF (this repository stores LF only), and
+every other record (bank names, data-file names, headers, the `IECOR`
+correlation matrix, `FPATH1`, `VRAD`) is omitted. A `COMMENT` header carries
+the provenance.
+
+**Licence finding.** Instrument metadata from a published beamtime (Laurita
+et al. 2019, *Phys. Rev. Materials* **3**, 095003): a calibration, not a
+measured pattern, and the coordinator's ruling of 2026-09-23 allows the run
+7245 calibration's DIFC/DIFA/TZERO, bank angles and records into the tree.
+The second NPDF file consulted for the layout (another run) is not copied and
+no value from it appears anywhere.
+
+**What it proves.** All three legacy deviations `read_lansce_iparm` accepts,
+in one real file: an 8-coefficient type-1 `PRCF` set on all four banks, a
+non-zero ITYP 1 fifth `ICOFF` pair on banks 1 and 2, and bank 1's TTHETA
+`46.60` written across columns 30-34. The strict reader refuses it; the
+bolt-on reads every field equal to GSAS-II v5.8.2's instrument dictionary for
+the same file (run as a black box, 2026-09-23), bank 4's `alp-0` excepted,
+which GSAS-II carries under no name.

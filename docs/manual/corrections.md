@@ -70,7 +70,7 @@ milliseconds:
 ```{math}
 :label: corr-ityp1
 
-I_i(T) \;=\; P_1 \;+\; \sum_{k=1}^{4} P_{2k}\,
+I_i(T) \;=\; P_1 \;+\; \sum_{k=1}^{5} P_{2k}\,
               \exp\!\left(-P_{2k+1}\,T^{k}\right)
 ```
 
@@ -82,11 +82,15 @@ the first kind in $X = 2/T - 1$ (or $X = T/10$ for type 5). The millisecond is
 the trap: everything else on this arm is microseconds, and in µs the
 Chebyshev argument leaves its orthogonal range by three orders.
 
-The four powers are Von Dreele, Jorgensen and Windsor's original series
-{cite}`vondreele1982`; the manual states eleven coefficients but prints no
-exponent for the fifth pair, so $P_{10}$ and $P_{11}$ must be zero and a file
-or a model that sets either is refused by name rather than evaluated with a
-guessed power of $T$.
+The first four powers are Von Dreele, Jorgensen and Windsor's original series
+{cite}`vondreele1982`. The manual states eleven coefficients, but its printed
+ladder of exponents stops before the fifth pair. That exponent, 5, was
+established by conformance, not read: GSAS-II 5.8.2 was run as a black box on
+synthetic coefficient sets and on a real LANSCE bank, and the exponent fitted
+to its computed spectrum is 5.000000, with the rms doubling at a shift of
+about $10^{-15}$. The strict file reader still refuses a non-zero
+$P_{10}$ or $P_{11}$, because it holds to the documented layout. The legacy
+LANSCE reader in [](using/files.md) passes the pair through.
 
 Whether a file carries one is a fact about the file and not about the
 technique. ISIS GEM writes `ITYP 0` on all six banks (no spectrum, because

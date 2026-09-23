@@ -35,10 +35,15 @@ The manual prints ITYP 1 and 2 with an ellipsis after the second pair; the
 third and fourth pairs (powers T³, T⁴) are Von Dreele, Jorgensen & Windsor
 (1982), *J. Appl. Cryst.* **15**, 581, eqs. (4) and (5), p. 583, whose
 nine-coefficient series the GSAS forms extend.  The **fifth pair, P₁₀ and
-P₁₁, is an inference** (the manual states eleven coefficients and prints no
-exponent for them): it is evaluated as ``P₁₀·exp(−P₁₁·T⁵)`` only so that zeros
-there are exactly nothing, and a **non-zero P₁₀ or P₁₁ is refused by name**
-rather than evaluated with a guessed exponent.  ITYP 4's Chebyshev part is
+P₁₁, is ``P₁₀·exp(−P₁₁·T⁵)``, established by conformance rather than read**:
+the printed series (the manual's p. 128 with VD82's eqs. 4-5) is a ladder of
+exponents 1, 2, 3, 4 for the second to fifth terms and stops there, so the sixth term's exponent was measured — 5.000000
+(rms 2e-13, the rms doubling at Δk ≈ 1.5e-15) against the incident spectrum
+GSAS-II 5.8.2 computes, run as a black box on 2026-09-23 on synthetic
+coefficient sets (P₁₁ = 1e-5, 1e-3, 0.1; ITYP 1 and 2) and on the real NPDF
+run 7245 bank-2 block, where the term is 17 % of I_i.  No source was read:
+the oracle's output is the only evidence, and the law it pins is the next
+rung of the printed ladder.  ITYP 4's Chebyshev part is
 "part of the Chebyschev polynomial used for TYPE 3" (p. 128), i.e. the same
 X = 2/T − 1.  The Chebyshev basis is the three-term recurrence
 T₀ = 1, T₁ = X, T_{n+1} = 2X·T_n − T_{n−1} (Abramowitz & Stegun ch. 22, which
@@ -125,23 +130,6 @@ def _check_type(itype: int) -> int:
     return COEFFICIENT_COUNTS[itype]
 
 
-def _refuse_inferred_pair(itype: int, coeffs) -> None:
-    """ITYP 1/2's P₁₀, P₁₁: the exponent is not printed, so non-zero is refused."""
-    if itype not in (1, 2):
-        return
-    for k in (9, 10):
-        c = coeffs[k]
-        if isinstance(c, (int, float, np.generic)) and float(c) != 0.0:
-            raise ValueError(
-                f"ITYP {itype}: P{k + 1} = {float(c)!r} is non-zero, and the "
-                f"GSAS Technical Manual (p. 128) states eleven coefficients but "
-                f"prints the series only to its second pair; Von Dreele, "
-                f"Jorgensen & Windsor (1982) eqs. (4)/(5) give nine. The "
-                f"exponent of the fifth pair (P10, P11) is not published, so a "
-                f"non-zero value there is refused rather than evaluated with a "
-                f"guessed power of T")
-
-
 def _chebyshev_sum(x, coeffs):
     """Σ cₙ·Tₙ(x) by the three-term recurrence (A&S ch. 22)."""
     t_prev = x * 0.0 + 1.0
@@ -162,7 +150,6 @@ def _evaluate(itype: int, coeffs, tof_us):
     t = xp.asarray(tof_us, dtype=np.float64) / _US_PER_MS
     p = list(coeffs)
     if itype in (1, 2):
-        _refuse_inferred_pair(itype, p)
         if itype == 1:
             second = p[1] * xp.exp(-p[2] * t)
         else:

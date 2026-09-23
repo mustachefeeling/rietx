@@ -49,8 +49,8 @@ along the bank here, because λ is a property of the channel:
   its ``ITYP`` record and which is a function of the **flight time** (ISIS GEM
   writes ``ITYP 0``, i.e. none — already divided out by its reduction; LANSCE
   NPDF writes ``ITYP 1`` with a full ``ICOFF`` block, i.e. its histograms still
-  carry it; a non-zero fifth pair there is refused by
-  :mod:`rietx.model.tof_spectrum`, its exponent being unpublished).  Applied **per channel**, to the calculated Bragg sum and not to
+  carry it, fifth pair P₁₀·exp(−P₁₁·T⁵) included — its exponent measured by
+  conformance, :mod:`rietx.model.tof_spectrum`).  Applied **per channel**, to the calculated Bragg sum and not to
   the background — :meth:`CompiledTOFModel.incident_spectrum` and
   :mod:`rietx.model.tof_spectrum`;
 * the **channel width** W(T), the other half of the same one-line relation

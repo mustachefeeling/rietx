@@ -386,7 +386,21 @@ from .._nearmiss import did_you_mean
 #: keep their signs: a negative γ₁ beside positive γ₀ and γ₂ is how a
 #: resolution function narrows and broadens again, so it is the *polynomial*
 #: that is checked and not the coefficients.
-SCHEMA_VERSION = "0.32"
+#: 0.32 → 0.33 (LANSCE legacy layout, issue #193): ``IncidentSpectrum`` **accepts
+#: a non-zero ITYP 1/2 fifth pair** (P₁₀, P₁₁), which 0.27–0.32 refused at
+#: validation because the manual prints no exponent for it.  No field is added;
+#: what changes is that a document carrying a non-zero pair now loads, and the
+#: forward model evaluates it as ``P₁₀·exp(−P₁₁·T⁵)``.  The exponent 5 is the
+#: next rung of the printed ladder (1, 2, 3, 4 — the manual's p. 128 with Von
+#: Dreele 1982 eqs. 4–5) and was **measured, not read**: 5.000000 by conformance
+#: against GSAS-II 5.8.2's computed spectrum run as a black box (rms 2e-13,
+#: doubling at Δk ≈ 1.5e-15) on synthetic sets and on a real NPDF block where the
+#: term is 17 % of the spectrum (``model/tof_spectrum`` docstring).  The strict
+#: ``.iparm`` reader still refuses the pair at read time — strict means the
+#: documented layout — and points at ``io.legacy.read_lansce_iparm``, which
+#: passes it through and reports it.  A document written before this with a
+#: zero pair reads identically.
+SCHEMA_VERSION = "0.33"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
 

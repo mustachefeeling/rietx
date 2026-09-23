@@ -605,8 +605,9 @@ and what ISIS GEM, SNS NOMAD and POWGEN all write. A LANSCE-style file writes
 `ITYP 1` with a full `ICOFF` block, and reading it is the difference between a
 Si standard fitting to $R_{wp}\approx0.02$ and to $R_{wp}\approx0.25$ with its
 displacement parameter pinned at zero. A block whose fifth pair ($P_{10}$,
-$P_{11}$) is non-zero is refused, because the manual prints no exponent for
-it. [](../corrections.md) has the functions
+$P_{11}$) is non-zero is refused by `read_gsas_tof_iparm`, which holds to the
+documented layout. The model evaluates the pair, and
+`rietx.io.legacy.read_lansce_iparm` reads it. [](../corrections.md) has the functions
 and where the factor is applied.
 
 `Instrument.tof_neutron_bank` is the constructor, beside

@@ -478,13 +478,27 @@ makes).
   default whatever its `PTYP`; `NCOF` exactly 12 / 15 / 21; a default PTYP
   2/4/5 refused, a non-default set declined; a non-zero anisotropic term or
   ITYP 1/2 fifth `ICOFF` pair refused. A LANSCE-shaped file (8-slot type-1
-  `PRCF`) is **refused** until a published source states that layout. A bank
+  `PRCF`) is **refused** here and read only by `legacy/` below. A bank
   with no `PRCF` reads with an all-zero `ProfileTOF` that `compile_tof_model`
   refuses by name.
 - **`.instprm` grammar is observed, not specified**, and is not
   `projects/gsas2.read_instprm`'s: keys with no published TOF law are
   accepted only at exactly zero; **`difB` is read because dropping it is
   silent**. Coefficient laws and spectrum refusals stay in `model/`.
+
+## `legacy/` — a documented deviation, read only when asked
+
+A real file's departure from a *published* format, accepted as named, only
+when a caller names the reader; the strict reader keeps refusing it and nothing
+dispatches here (`legacy/__init__.py`, each module's docstring). **Call the
+strict reader, never copy it**: restate the records in the documented layout
+and hand them to `instrument_tof._banks_from_records`, whose one keyword
+(`fifth_pair=`) is the only other door, so every check applies and a clean file
+comes back byte for byte. **`model/` is out of reach**: a deviation it refuses
+stays refused. **Token-reading is a named deviation, never a fallback**
+(`BNKPAR` alone, restated in columns; a token that does not fit leaves the
+strict refusal standing). Evidence is another program's **output** run as a
+black box, never its source, recorded with its version.
 
 ## Project writers
 

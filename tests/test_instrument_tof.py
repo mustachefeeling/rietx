@@ -353,9 +353,11 @@ def test_a_spectrum_block_that_disagrees_with_its_type_is_refused(tmp_path):
     with pytest.raises(ValueError, match="P12 = 0.7"):
         read_gsas_tof_iparm(write(tmp_path, iparm(bank(1, spectrum=spectrum_records(
             1, 1, ELEVEN + [0.7])))))
-    with pytest.raises(ValueError, match="P10 = 70000.0 is non-zero"):
+    with pytest.raises(ValueError, match="P10 = 70000.0 is non-zero") as err:
         read_gsas_tof_iparm(write(tmp_path, iparm(bank(1, spectrum=spectrum_records(
             1, 1, ELEVEN[:9] + [70000.0, 0.1])))))
+    assert "established by conformance" in str(err.value)
+    assert str(err.value).endswith("read by rietx.io.legacy.read_lansce_iparm")
     with pytest.raises(ValueError, match="point-by-point"):
         read_gsas_tof_iparm(write(tmp_path, iparm(bank(1, spectrum=spectrum_records(
             1, 10, [])))))
