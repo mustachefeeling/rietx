@@ -242,16 +242,19 @@ def moderator_temperature(p3, difc, two_theta_deg):
 # ---------------------------------------------------------------------------
 # Lorentz factor and extinction
 # ---------------------------------------------------------------------------
-def tof_lorentz(d, theta):
+def tof_lorentz(d, theta_deg):
     """The TOF-neutron Lorentz factor ``d⁴·sin Θ`` (GSAS Technical Manual p. 140).
 
-    ``theta`` is the bank's Bragg angle Θ (half the scattering angle) in
-    **radians** — a per-bank constant, so only d⁴ varies with reflection.  No
-    polarisation factor: neutrons have none.
+    ``theta_deg`` is the bank's Bragg angle Θ (half the scattering angle) in
+    **degrees**, like every angle in the package — a per-bank constant, so
+    only d⁴ varies with reflection.  No polarisation factor: neutrons have
+    none.  (The specification, § 10, wrote this signature in radians; degrees
+    is a deliberate departure to keep the package's one angle convention.)
     """
     xp = get_backend()
     dd = xp.asarray(d, dtype=np.float64)
-    return dd ** 4 * xp.sin(xp.asarray(theta, dtype=np.float64))
+    th = xp.asarray(theta_deg, dtype=np.float64) * (math.pi / 180.0)
+    return dd ** 4 * xp.sin(th)
 
 
 #: E_L at x = 1 from each side (S88 eqs. 3 and 4), for the record: the
@@ -261,7 +264,7 @@ SABINE_LAUE_ASYMPTOTE_AT_1 = math.sqrt(2.0 / math.pi) * (
     1.0 - 1.0 / 8.0 - 3.0 / 128.0 - 15.0 / 1024.0)
 
 
-def sabine_extinction(x, theta):
+def sabine_extinction(x, theta_deg):
     """Sabine's extinction factor ``E = E_L·cos²θ + E_B·sin²θ`` (S88 eqs. 2-5).
 
     Sabine, Von Dreele & Jørgensen (1988), *Acta Cryst.* **A44**, 374-379,
@@ -271,7 +274,9 @@ def sabine_extinction(x, theta):
         E_L = (2/(πx))^{1/2}·[1 − 1/(8x) − 3/(128x²) − 15/(1024x³)]    x > 1
         E_B = (1 + x)^{−1/2}
 
-    ``theta`` is the Bragg angle θ in **radians** (2θ the scattering angle).
+    ``theta_deg`` is the Bragg angle θ in **degrees** (2θ the scattering
+    angle), like every angle in the package; the specification (§ 10) wrote
+    radians, and degrees is a deliberate departure from it.
     The Laue branch is discontinuous at x = 1 by ~2.2 % (0.68229 against
     0.66774) — in the published formulas, kept as published; a refinement
     that wanders across x = 1 will see the step.  Both branches are evaluated
@@ -287,7 +292,7 @@ def sabine_extinction(x, theta):
         1.0 - r / 8.0 - 3.0 * r * r / 128.0 - 15.0 * r * r * r / 1024.0)
     e_l = xp.where(xv <= 1.0, laue_series, laue_asym)
     e_b = 1.0 / xp.sqrt(1.0 + xp.maximum(xv, 0.0))
-    th = xp.asarray(theta, dtype=np.float64)
+    th = xp.asarray(theta_deg, dtype=np.float64) * (math.pi / 180.0)
     return e_l * xp.cos(th) ** 2 + e_b * xp.sin(th) ** 2
 
 

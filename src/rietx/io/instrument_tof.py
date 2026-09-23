@@ -99,6 +99,7 @@ from ..model.tof_spectrum import (
 )
 from ..schemas.common import Diagnostic, Parameter
 from ..schemas.instrument import IncidentSpectrum, Instrument, ProfileTOF, TOFSource
+from .projects.gsas import split_records
 
 #: Documented coefficient names, in the manual's "respectively" order (p. 144,
 #: 147, 148) — the only ordering the documentation offers (module docstring).
@@ -145,18 +146,22 @@ def _note(diagnostics, level, code, message, where=()):
 
 
 class _Record:
-    """One 80-column record, with 1-based column access and a located error."""
+    """One 80-column record, with 1-based column access and a located error.
 
-    def __init__(self, path: Path, lineno: int, text: str):
+    Records are numbered as :func:`_read_records` returns them (blank lines
+    are not records), which is the number an error message quotes.
+    """
+
+    def __init__(self, path: Path, number: int, text: str):
         self.path = path
-        self.lineno = lineno
+        self.number_in_file = number
         self.text = text.rstrip("\r\n").ljust(80)
 
     def cols(self, a: int, b: int) -> str:
         return self.text[a - 1:b]
 
     def fail(self, message: str) -> ValueError:
-        return ValueError(f"{self.path}: line {self.lineno} "
+        return ValueError(f"{self.path}: record {self.number_in_file} "
                           f"({self.text[:12].rstrip()!r}): {message}")
 
     def number(self, a: int, b: int, what: str) -> float:
@@ -184,7 +189,27 @@ class _Record:
         return [self.cols(13 + 15 * k, 27 + 15 * k) for k in range(4)]
 
 
+def _read_records(path: Path) -> list[tuple[str, str]]:
+    """The file's ``(12-character key, payload)`` records, in file order.
+
+    The splitting is the package's one GSAS card-index grammar,
+    :func:`rietx.io.projects.gsas.split_records` (80-character records, a
+    12-character key, the payload from column 13 — GSAS Technical Manual
+    p. 221, the same columns as SPEC § 6.1), so a column means the same thing
+    here as in the experiment-file and constant-wavelength ``.prm`` readers.
+    Only the splitting is shared: every field is read below by this module's
+    own column parser, which refuses a non-numeric field rather than reading
+    it as blank.
+    """
+    try:
+        raw = path.read_bytes()
+    except OSError as exc:
+        raise OSError(f"{path}: cannot be read ({exc})") from exc
+    return split_records(raw.decode("latin-1"))
+
+
 def _read_lines(path: Path) -> list[str]:
+    """An ``.instprm``'s lines (the grammar :func:`read_gsas2_instprm` states)."""
     try:
         return path.read_text(encoding="utf-8").splitlines()
     except UnicodeDecodeError:
@@ -413,10 +438,11 @@ def read_gsas_tof_iparm(path: str | Path, *,
     whole_dropped: list[str] = []
     banks: dict[int, dict] = {}
 
-    for lineno, line in enumerate(_read_lines(path), start=1):
+    for number, (key, payload) in enumerate(_read_records(path), start=1):
+        line = key + payload
         if not line.startswith("INS "):
             continue
-        rec = _Record(path, lineno, line)
+        rec = _Record(path, number, line)
         bb = rec.cols(5, 6)
         name = rec.cols(7, 12)
         if not bb.strip():

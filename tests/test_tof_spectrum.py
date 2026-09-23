@@ -178,9 +178,10 @@ def test_the_moderator_temperature_is_the_manuals_expression():
 
 # ------------------------------------------------------------ Lorentz factor
 def test_the_tof_lorentz_factor_is_d4_sin_theta():
-    """SPEC § 4.2: L = d⁴·sin Θ (manual p. 140), Θ the bank's Bragg angle."""
+    """SPEC § 4.2: L = d⁴·sin Θ (manual p. 140), Θ the bank's Bragg angle, in
+    degrees (the package convention; SPEC § 10 wrote radians)."""
     d = np.array([0.8, 1.6, 3.2])
-    got = tof_lorentz(d, math.radians(45.0))
+    got = tof_lorentz(d, 45.0)
     assert np.allclose(got, d ** 4 * math.sin(math.radians(45.0)), rtol=1e-15)
     assert got[1] / got[0] == pytest.approx(16.0)
 
@@ -189,7 +190,7 @@ def test_the_tof_lorentz_factor_is_d4_sin_theta():
 def test_the_laue_series_carries_the_published_digits():
     """SPEC § 4.4: 1 − x/2 + x²/4 − 5x³/48 + 7x⁴/192 (x ≤ 1) and
     (2/πx)^½[1 − 1/(8x) − 3/(128x²) − 15/(1024x³)] (x > 1), S88 eqs. 3-4.
-    θ = 0 isolates E_L, θ = 90° isolates E_B = (1+x)^−½."""
+    θ = 0 isolates E_L, θ = 90° isolates E_B = (1+x)^−½; θ in degrees."""
     x = 0.5
     assert float(sabine_extinction(x, 0.0)) == pytest.approx(
         1 - x / 2 + x ** 2 / 4 - 5 * x ** 3 / 48 + 7 * x ** 4 / 192, rel=1e-15)
@@ -197,11 +198,11 @@ def test_the_laue_series_carries_the_published_digits():
     assert float(sabine_extinction(x, 0.0)) == pytest.approx(
         math.sqrt(2 / (math.pi * x)) * (1 - 1 / (8 * x) - 3 / (128 * x ** 2)
                                         - 15 / (1024 * x ** 3)), rel=1e-15)
-    assert float(sabine_extinction(3.0, math.pi / 2)) == pytest.approx(0.5, rel=1e-15)
+    assert float(sabine_extinction(3.0, 90.0)) == pytest.approx(0.5, rel=1e-15)
     theta = math.radians(30.0)
     x = 0.3
     el = float(sabine_extinction(x, 0.0))
-    assert float(sabine_extinction(x, theta)) == pytest.approx(
+    assert float(sabine_extinction(x, 30.0)) == pytest.approx(
         el * math.cos(theta) ** 2 + (1 + x) ** -0.5 * math.sin(theta) ** 2, rel=1e-15)
 
 
@@ -221,7 +222,7 @@ def test_the_published_step_at_x_equal_one_is_kept():
 def test_sabine_is_finite_at_zero_and_far_out():
     """SPEC § 5.3 item 5: both branches evaluated on clamped arguments."""
     x = np.array([0.0, 1e-12, 1.0, 1e6, 1e300])
-    e = sabine_extinction(x, 0.4)
+    e = sabine_extinction(x, 23.0)
     assert np.all(np.isfinite(e)) and float(e[0]) == 1.0
 
 
