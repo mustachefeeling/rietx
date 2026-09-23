@@ -488,16 +488,17 @@ makes).
 
 ## `legacy/` — a documented deviation, read only when asked
 
-A real file's departure from a *published* format, accepted exactly as named,
-only when a caller names the reader; the strict reader keeps refusing it and
-nothing dispatches here (rules and evidence: `legacy/__init__.py`, and each
-module's docstring). **Call the strict reader, never copy it**: restate the
-records in the documented layout and hand them to
-`instrument_tof._banks_from_records`, so every check applies and a file with no
-deviation comes back byte for byte. **`model/` is out of reach**: a deviation
-the model refuses stays refused, naming the rule (the fifth ITYP pair's k = 5
-is measured and still `_refuse_inferred_pair`'s). Evidence is another program's
-**output** run as a black box, never its source, recorded with its version.
+A real file's departure from a *published* format, accepted as named, only
+when a caller names the reader; the strict reader keeps refusing it and nothing
+dispatches here (`legacy/__init__.py`, each module's docstring). **Call the
+strict reader, never copy it**: restate the records in the documented layout
+and hand them to `instrument_tof._banks_from_records`, whose one keyword
+(`fifth_pair=`) is the only other door, so every check applies and a clean file
+comes back byte for byte. **`model/` is out of reach**: a deviation it refuses
+stays refused. **Token-reading is a named deviation, never a fallback**
+(`BNKPAR` alone, restated in columns; a token that does not fit leaves the
+strict refusal standing). Evidence is another program's **output** run as a
+black box, never its source, recorded with its version.
 
 ## Project writers
 
