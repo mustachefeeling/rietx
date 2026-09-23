@@ -302,13 +302,16 @@ a number nobody measured.
 A moment the data does not support comes back unsupported, and the test is a
 ratio. Refine the same model against a pattern above the ordering
 temperature and the modulus goes to nothing, because |F_m|² ∝ m² and the only
-way to reduce χ² is to remove the magnetic intensity. On real data it does not
-land at exactly zero: on the Cr₂WO₆ tutorial pattern at 150 K it lands at
-0.067 μ_B with an esd of 0.395, six times larger. So `MomentEvidence.supported`
-is false when the modulus is below its floor or below three of its own
-esds, and the note quotes which. At 4 K the same model gives 2.010 ± 0.046, a
-ratio of 44, and the answer flips. That is the deliverable; a small moment with
-a small esd would not be.
+way to reduce χ² is to remove the magnetic intensity. Where it lands depends
+on the rest of the model: on the Cr₂WO₆ tutorial pattern at 150 K (GSAS-II
+tutorial *Magnetic-II*, HB-2A) one stage list left it at 0.067 μ_B with an esd
+of 0.395, six times larger, and the acceptance protocol this package ships
+(u, v, w, x free in the width stage) drives it to the floor with an esd three
+orders of magnitude above it. Neither is a measurement. So
+`MomentEvidence.supported` is false when the modulus is below its floor or
+below three of its own esds, and the note quotes which. At 4 K the same model
+gives 2.078 ± 0.066, a ratio of 32, and the answer flips. That is the
+deliverable; a small moment with a small esd would not be.
 
 ## How hard each stage is converged
 

@@ -1089,7 +1089,8 @@ class StageReport(Base):
 #: How many of its own esds a moment must be before the report calls it
 #: supported (WP-1327).  Three, and the choice is measured rather than
 #: conventional: the Cr₂WO₆ tutorial data gives |m|/σ = 0.17 at 150 K, above
-#: the ordering temperature, and 44 at 4 K, so anything from 1 to 20 separates
+#: the ordering temperature (or a modulus at its floor, under the shipped
+#: acceptance protocol), and 32 at 4 K, so anything from 1 to 20 separates
 #: them and 3 is the middle of the usable range on a log scale.  rietx's esds
 #: are Bérar-Lelann-inflated, which makes this test *conservative* — the
 #: factor is reported as ``Statistics.esd_inflation`` for a reader who wants
@@ -1126,15 +1127,17 @@ class MomentEvidence(Base):
     no esd at all.
 
     ``supported`` is the WP's null test, and it is a **ratio, not a floor**.
-    Measured on the Cr₂WO₆ tutorial data: refined against the 150 K pattern,
-    above the ordering temperature, the modulus does not go to zero — it lands
-    at 0.067 μ_B with an esd of 0.395, six times larger.  An absolute floor
-    calls that supported; the honest reading is that the moment is not
-    distinguishable from none, and the number that says so is |m|/σ.  So
-    ``supported`` is False whenever the modulus is below
+    Measured on the Cr₂WO₆ tutorial data (GSAS-II *Magnetic-II*, HB-2A):
+    refined against the 150 K pattern, above the ordering temperature, the
+    modulus need not go to zero — one stage list leaves it at 0.067 μ_B with
+    an esd of 0.395, six times larger, while the shipped acceptance protocol
+    drives it to the floor with an esd three orders of magnitude above it.  An
+    absolute floor calls the first supported; the honest reading of both is
+    that the moment is not distinguishable from none, and the number that says
+    so is |m|/σ.  So ``supported`` is False whenever the modulus is below
     :data:`~rietx.schemas.structure.MOMENT_FLOOR_MU_B` **or** below
     :data:`MOMENT_SUPPORT_SIGMA` times its own esd.  At 4 K the same model
-    gives 2.010 ± 0.046 — a ratio of 44 — and the answer flips.
+    gives 2.078 ± 0.066 — a ratio of 32 — and the answer flips.
     """
 
     phase: str
