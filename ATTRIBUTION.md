@@ -198,6 +198,28 @@ used. Sources under GPL were **studied only**; no GPL code has been ported.
   alternative cylinder fit used by GSAS-II and TOPAS, valid to µR ≤ 3.
   **Not implemented**: its coefficients trace only to a conference abstract
   that could not be obtained, so they cannot be verified against a source.
+- Stokes, H. T. & Hatch, D. M. (1988). *Isotropy Subgroups of the 230
+  Crystallographic Space Groups*, World Scientific — isotropy subgroups
+  (`crystallography/magnetic/isotropy.py`).
+- Campbell, B. J., Stokes, H. T., Tanner, D. E. & Hatch, D. M. (2006).
+  *J. Appl. Cryst.* 39, 607–614 (ISODISPLACE) — the mode view of a distorted
+  structure, and displacements as polar vectors
+  (`crystallography/magnetic/modes.py`, `operators.allowed_displacement_basis`).
+- Wills, A. S. (2000). *Physica B* 276–278, 680 (SARAh) — basis vectors as the
+  refinable coordinates of a magnetic structure (`modes.py`).
+- Rodríguez-Carvajal, J. (1993). *Physica B* 192, 55 — the sign convention for
+  the magnetic interaction vector (`isotropy.py`).
+- Perez-Mato, J. M., Gallego, S. V., Tasci, E. S., Elcoro, L., de la Flor, G. &
+  Aroyo, M. I. (2015). *Annu. Rev. Mater. Res.* 45, 217 — magnetic space groups
+  and representation analysis (`isotropy.py`, `operators.py`).
+- Gallego, S. V., Tasci, E. S., de la Flor, G., Perez-Mato, J. M. & Aroyo, M. I.
+  (2012). *J. Appl. Cryst.* 45, 1236 (MAGNEXT) — magnetic systematic absences,
+  and the axial transformation law in its eq. (3) (`isotropy.py`, `operators.py`).
+- Davies, Z. & Wills, A. S. (2016). *arXiv*:1610.00472 — the projector's
+  normalisation (`modes.py`). Its I4₁32 decomposition, orbit split and
+  projection ranks are asserted in `tests/test_magnetic_modes.py`. Its
+  basis-vector table is not reproduced, because a basis vector is fixed only up
+  to a change of basis.
 
 ## Open-source software studied or used
 
@@ -217,7 +239,6 @@ used. Sources under GPL were **studied only**; no GPL code has been ported.
 | gemmi | MPL-2.0 | **Dependency** — CIF parsing, space-group operations, hkl utilities. |
 | spglib | BSD-3 | **Dependency, and the source of two tabulations.** Wyckoff letters and oriented site-symmetry symbols (`crystallography/wyckoff.py`), and the **magnetic space-group database** the 1651 Shubnikov groups are read from (`crystallography/magnetic/operators.py`). Nothing is vendored: the tables are queried at run time through the installed library. spglib's own `msg.py` credits **Litvin, D. B. (2013), *Magnetic Group Tables*, IUCr** (`https://www.iucr.org/publ/978-0-9553602-2-0`) for the Litvin serial number it returns beside each group; the sequential 1–1651 numbering the package speaks in is the UNI numbering of **Campbell, Stokes, Perez-Mato & Rodríguez-Carvajal (2022), *Acta Cryst.* A78, 99**, and the identification algorithms are **Shinohara, Togo & Tanaka (2023), *Acta Cryst.* A79, 390**. Three of its 1651 entries do not round-trip through its own identification on 2.7.0 and are named in `operators.UNI_NOT_IDENTIFIABLE` rather than worked around. |
 | spgrep | BSD-3 | **Dev-only test oracle** (`[dev]`, never a runtime dependency): an independent generator of the small irreps of a little group, used in `tests/test_magnetic_irreps.py` to check `crystallography/magnetic/irreps.py` against a second implementation of a different algorithm (Neto's subgroup chain against our split of the twisted regular representation). Every test using it carries `_oracle` in its name and `pytest.importorskip`, so the suite is green without it. **No code ported**; the licence text was read at 0.7.0 (BSD 3-Clause, Kohei Shinohara, 2022), as was that of its own dependency `hsnf` (MIT, same author). Nothing from either is redistributed. |
-| ISOTROPY Software Suite / ISODISTORT / FINDSYM (Stokes, Hatch & Campbell); SARAh (Wills); BasIreps (FullProf); Bilbao MAXMAGN and k-SUBGROUPSMAG | Closed-source binaries and web services — no source is published for any of them | **Method references only, and not consulted as software.** Listed for the same reason as `xylib` below: to state what was *not* used. The representation-analysis modules (`crystallography/magnetic/irreps.py`, `modes.py`, `isotropy.py`) implement the published method, and each module cites the paper it took it from — **Stokes & Hatch (1988)**, *Isotropy Subgroups of the 230 Crystallographic Space Groups*; **Campbell, Stokes, Tanner & Hatch (2006)**, *J. Appl. Cryst.* **39**, 607 (ISODISPLACE); **Wills (2000)**, *Physica B* **276-278**, 680 (SARAh); **Rodriguez-Carvajal (1993)**, *Physica B* **192**, 55 (BasIreps); **Perez-Mato, Gallego, Tasci, Elcoro, de la Flor & Aroyo (2015)**, *Annu. Rev. Mater. Res.* **45**, 217; **Gallego, Tasci, de la Flor, Perez-Mato & Aroyo (2012)**, *J. Appl. Cryst.* **45**, 1236 (MAGNEXT). **None of these programs was run, no output of one was transcribed, and there is no source code to read for any of them.** What a table could have supplied is this package's own instead, and says so where it is built: the isotropy **direction labels** (`isotropy.py`, "the labels here are this package's, not ISODISTORT's, and a comparison with a published table must be made on the subgroup") and the **irrep labels and their order** (`irreps.py`, positional and by dimension then character, explicitly **not** CDML, with the CDML mapping deferred rather than faked). The single place a printed result is compared against is a **paper**, cited in the test: Davies & Wills (2016), *arXiv*:1610.00472, whose I4₁32 decomposition, orbit split and projection ranks are asserted in `tests/test_magnetic_modes.py` — and whose componentwise basis-vector table is deliberately *not* reproduced, a basis vector being fixed only up to the intertwiner. Bilbao's MAXMAGN and MAGNEXT CGI endpoints were unreachable on 2026-09-06 (404 and HTTP 500) and no number in this repository comes from either, which `tests/test_magnetic_isotropy.py` records beside the four BNS numbers it affects. |
 | matplotlib | PSF-based (matplotlib license) | **Optional dependency** (`[viz]`) — static fit plots and the VLM montage. |
 | plotly | MIT | **Optional dependency** (`[viz]`) — self-contained interactive HTML viewer (plotly.js embedded in generated files). |
 | BGMN / Profex | GPL | Studied (papers/docs only). **No code ported.** |
@@ -225,6 +246,23 @@ used. Sources under GPL were **studied only**; no GPL code has been ported.
 | FAIRmat `readers-xrd` | Apache-2.0 | **Vendor-format reference and fixture source** (WP-1047): its `tests/data` files are vendored as `tests/data/panalytical_*.xrdml` (and their `.json` reader outputs, used as independent oracles), and its element paths were consulted as specification. **One fence, and it is not cured by the wrapper's licence**: `src/fairmat_readers_xrd/ikz.py` — the file holding *both* its BRML and RASX readers — says it is "adapted from" `github.com/carichte/IKZ`, which has **no LICENSE file at all**, and Apache-2.0 on the wrapper grants nothing the upstream did not. So that file is **structural specification only**, never a line-for-line reading. It holds no data, so the fence does not reach the fixtures. |
 | PowderLine (NSLS2) | BSD-3 | **Interchange format, fixture source and convention reference** (WP-1306). `src/rietx/io/recipe.py` reads its `GSASII_Rietveld` recipe; two complete cross-engine fixtures are vendored verbatim under `tests/data/powderline/` (test data only — nothing enters the wheel) with the upstream `LICENSE` beside them, as the BSD-3 redistribution clause requires. Its `topas/conversions.py` and `easydiff/conversions.py` were read as a **unit table** — merger, the way a format specification is (see the section below) — and every row of it was re-measured here against the committed LaB6 GSAS-II output before the reader was written; the one row the fixtures cannot settle (`Zero`, on which the two upstream modules disagree with each other) is refused rather than adopted. **No code ported.** |
 | xylib | LGPL-2.1 | Listed **precisely to state that it was not ported.** It is the most complete open catalogue of vendor powder formats and its `uxd.cpp`, `rigaku_dat.cpp` and `bruker_raw.cpp` were *not* consulted for any reader here; the LGPL bars a port into an MIT core, and where a format fact was needed it was taken from a permissive source or measured off a file. |
+
+## Closed-source software (not used)
+
+These programs publish no source code. rietx implements the methods from the
+papers that describe them, listed above. It does not run them, copy their
+output or reproduce their tables.
+
+| Program | What rietx took, and from where |
+|---|---|
+| ISOTROPY Software Suite: ISODISTORT, FINDSYM (Stokes, Hatch & Campbell) | The method, from Stokes & Hatch (1988) and Campbell et al. (2006). The isotropy direction labels are rietx's own (`isotropy.py`). Compare with an ISODISTORT table through the subgroup's BNS number. |
+| SARAh (Wills) | The method, from Wills (2000). |
+| BasIreps (FullProf suite) | The method, from Rodríguez-Carvajal (1993). The irrep labels and their order are rietx's own and are not CDML labels (`irreps.py`). The CDML mapping is deferred. |
+| Bilbao Crystallographic Server: MAXMAGN, MAGNEXT, k-SUBGROUPSMAG | The method, from Perez-Mato et al. (2015) and Gallego et al. (2012). MAXMAGN and MAGNEXT were unreachable on 2026-09-06 (404 and HTTP 500), and no number in this repository comes from either (`tests/test_magnetic_isotropy.py`). |
+
+TOPAS and FullProf are closed-source too. What rietx took from their papers and
+documentation is recorded where it was used, in the literature list above and
+in § Format specifications below.
 
 ## Format specifications (WP-1047)
 
