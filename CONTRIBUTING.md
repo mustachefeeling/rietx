@@ -133,6 +133,16 @@ MIT. Port code only from permissively licensed sources, and update
 `ATTRIBUTION.md` in the same change. BGMN, Profex and xrayutilities are
 GPL: concepts only, never code. TOPAS and FullProf are closed: papers only.
 
+**Data you cannot publish.** Name a dataset in the repository only if it
+is a public download or has a peer-reviewed citation. This holds in code
+comments, docstrings, tests, the manual and release notes. It covers a
+sample or compound name, a run or proposal number, a file name, the
+instrument and conditions of the experiment, and any property of the
+specimen read off a refinement. A number the code depends on may still come
+from private data. Describe the data by its kind ("a private
+constant-wavelength neutron scan") and keep the number. The skill's rows
+draw the same line (§ The agent skill).
+
 ## Maintainer-only machinery
 
 Parts of `CLAUDE.md` serve the maintainer's own workflow and do not bind an
