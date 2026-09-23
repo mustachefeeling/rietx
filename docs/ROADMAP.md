@@ -660,7 +660,7 @@ the limit carried load rather than whether the value stopped near one, and
 | [1342](wp/1342-a-freeze-that-reads-names.md) | A structural freeze that reads names, and the tie it cannot see | ✅ 2026-09-19 | — | — (1301, 1119 soft) |
 | [1344](wp/1344-a-joint-fit-owes-each-histogram-its-diagnostics.md) | A joint fit owes each histogram the diagnostics its own radiation earns | ⬜ | P3 | — (1341 soft) |
 | [1414](wp/1414-a-turn-on-that-reached-nothing.md) | A `turn_on` that reached nothing says so | ⬜ | P2 | — (1341 soft) |
-| [1415](wp/1415-a-sigma-column-smaller-than-root-y.md) | A σ column smaller than √y | 🔄 2026-09-21 | — | — |
+| [1415](wp/1415-a-sigma-column-smaller-than-root-y.md) | A σ column smaller than √y | 🔄 2026-09-23 | — | — |
 | [1417](wp/1417-delta-bic-at-powder-channel-counts.md) | ΔBIC at powder channel counts | ⬜ | P2 | — (1339 soft) |
 | [1421](wp/1421-the-result-reproduces-its-own-number.md) | The result reproduces its own number | ⬜ | P3 | — (1310 soft) |
 | [1432](wp/1432-a-tie-onto-a-rederived-dof.md) | A tie onto a coordinate DOF, re-applied once per write | ✅ 2026-09-19 | — | — (1119 soft) |

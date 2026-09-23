@@ -1,6 +1,6 @@
 # WP-1415 — a σ column smaller than √y
 
-Milestone: unscheduled · Status: 🔄 2026-09-21 — five of seven tasks landed; the two that need the D1B and D20 files are the contributor's
+Milestone: unscheduled · Status: 🔄 2026-09-23 — six of seven tasks landed; the edge-dropout change is measured and implemented on the contributor's branch, awaiting its PR
 Depends on: —
 
 ## Goal
@@ -83,7 +83,8 @@ refined:
 
 Every background is dragged through zero at the top of the range. The
 Caglioti terms run to their bounds (u, v pinned; w = x = y = 0) and all three
-Biso pin at zero. The fit emits `BACKGROUND_ABSORPTION` ×15, `BOUND_HIT` ×14,
+Biso pin at zero. The fit emitted `BACKGROUND_ABSORPTION` ×15, `BOUND_HIT` ×14
+(×3 under WP-1434's test, re-measured 2026-09-22 below),
 `HIGH_CORRELATION`, `DATA_SUPPORT_LOW` and `PATTERN_UNDERSAMPLED` (#275
 above). All symptoms. Fourteen parameters at bounds is the loudest thing a fit
 can say short of refusing, and none of the fourteen is the problem.
@@ -147,9 +148,10 @@ channels and a σ column at 0.3·√y reproduces both defects without it.
       `peak_fraction` is the third σ-relative surface in that function and was
       deliberately **not** generalised — its definition is honestly σ-relative
       — so it is documented with its measured swing instead.
-- [ ] Re-measure `BOUND_HIT` on the #274 fixture under WP-1434's test, and
-      correct the `×14` in § Context to what it is today. **Needs the real
-      file.** Measured 2026-09-21 on the synthetic that reproduces everything
+- [x] Re-measure `BOUND_HIT` on the #274 fixture under WP-1434's test, and
+      correct the `×14` in § Context to what it is today. **Done by the
+      contributor on the real file (#274, 2026-09-22): ×3 inside, ×2 with the
+      dead pair excluded.** Before that it needed the real file. Measured 2026-09-21 on the synthetic that reproduces everything
       else: the spoilt fit emits `PATTERN_DEAD_CHANNELS`,
       `RESOLUTION_UNCONSTRAINED`, `RESOLUTION_NOT_POSITIVE` and
       `PATTERN_UNDERSAMPLED`, and **no** `BOUND_HIT` at all — the bounds a
@@ -166,7 +168,10 @@ channels and a σ column at 0.3·√y reproduces both defects without it.
       and `help.py` documents parameter, flag and option *names*, never
       `PATTERN_*` codes, which live in the skill's `references/`.
 - [ ] `signal_cutoffs` admits a short dropout at an edge, if the D1B and D20
-      files agree it is separable from a cliff. **Left for the contributor who
+      files agree it is separable from a cliff. **Measured separable by the
+      contributor (#274, 2026-09-22), and implemented in `dead_channels` rather
+      than `signal_cutoffs` on their unpushed branch. Open until that PR
+      lands.** Before that: **Left for the contributor who
       has those two files** (2026-09-21 decision): the task is conditional on
       what they agree, and neither file is in the tree. `dead_channels`
       declines an edge-touching run today and says so, so the gap is named
@@ -198,6 +203,43 @@ channels and a σ column at 0.3·√y reproduces both defects without it.
   (`fitted_mask`), WP-1047 (a reader repairs only where it says so).
 
 ## Handover log
+
+- **2026-09-23** — the contributor's #274 comment of 2026-09-22 settles both
+  open tasks' measurements. It was measured on `origin/main` `a1261ca1` with
+  the D1B file (Sparks et al. 2019, *Phys. Rev. B* **99**, 104104), the Roth
+  CIF, a 12-term Chebyshev, `axial_hl` and `mccusker_structural`.
+
+  - **Task 3.** `BOUND_HIT` is **3** with the dead pair inside the window and
+    **2** with it excluded, down from ×14 under the old test. Rwp 0.08724 inside
+    reproduces § Context to 4-5 figures. The control reads 0.00766 against the
+    quoted 0.00739, 3.6 % apart, which the contributor flags as an unrecovered
+    stage-order or seed difference. The three hits inside are all three Biso at
+    their floor of 0, with esds of 2.3-5.4 Å². None of them names the cause.
+  - **Task 5.** On `main`, **neither routine sees this file.** The trailing
+    dead pair is the literal last two channels, and `dead_channels` declines
+    any run touching an edge (`diagnostics.py:1156`, verified 2026-09-23).
+    The weight ratio already in use separates an edge dropout from a cliff
+    with no new threshold: D1B trailing pair 2285.7, leading pair about 1520,
+    Mythen V₆O₁₃ high edge 0.34-1.10. `DEAD_WEIGHT_RATIO_MIN = 100` sits 15×
+    below the first and 90× above the last. Three D20 holds fall on the Mythen
+    side (private data, no figures).
+  - **Implemented on the contributor's unpushed branch.** `dead_channels`
+    declines only a run touching *both* ends, and judges an edge run against
+    its one live side. A second defect is fixed with it:
+    `median_filter(mode="nearest")` pads an edge run with its own dead value,
+    so the level read 5.0 against about 37 000. `mode="reflect"` gives 37 123.
+    That call is at `diagnostics.py:1130` and `:1139` (verified 2026-09-23).
+    The task's wording named `signal_cutoffs`. The change lives in
+    `dead_channels` instead, which is the routine that already has the test.
+  - **Left open by the contributor, deliberately.** D1B's *leading* dead pair
+    (0.79-0.89°) is still missed, because `background_envelope` extrapolates
+    negative at that edge. This is the gotcha in the 2026-09-21 entry below.
+    It does not matter on this file, since `signal_cutoffs`' leading cutoff
+    already covers it.
+
+  **Next.** The WP closes when the contributor's PR lands with the edge change
+  and the `mode="reflect"` fix. Review it against the three synthetic tests
+  the comment names, and against the acceptance pair.
 
 - **2026-09-21** (2nd session) — Two diagnostics that quietly assumed Poisson
   counting statistics now hold up on a file whose errors are smaller than √y,
