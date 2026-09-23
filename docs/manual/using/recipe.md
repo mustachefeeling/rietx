@@ -57,6 +57,16 @@ for d in recipe.diagnostics:
 `read_recipe` also takes `diagnostics=`, the same opt-in list `read_pattern`
 takes, for a caller accumulating across several reads.
 
+## Neutron recipes
+
+A `PNC` instrument is constant-wavelength neutron. Its axis is 2θ in degrees,
+exactly as for `PXC`, so it is read rather than refused: `Recipe.instrument`
+carries a `NeutronSource` whose wavelength is the recipe's `Lam`, with no
+emission-line doublet and the polarization pinned at 1. A stated `Polariz.` is
+inert there, as it is in GSAS-II, which applies the factor only to an X-ray
+type; it is reported as `RECIPE_FIELD_DROPPED`, and a *refine flag* on it is
+refused.
+
 ## Refusals
 
 A recipe this package cannot represent raises `RecipeError`, a `ValueError`,
@@ -66,7 +76,7 @@ never silently ignore a refine flag.
 | Refused | Because |
 |---|---|
 | `schema_name` other than `GSASII_Rietveld` | `GSASII_SPF` is single-peak fitting, which is {ref}`fit_peaks <fitting-peaks-you-name>` here and not a recipe: it refines nothing |
-| `Type` other than `PXC` | every other type puts something that is not 2θ on the x axis |
+| `Type` other than `PXC` or `PNC` | each is named with its own reason: `PNT` (time-of-flight) and `PXE` (energy-dispersive) put something that is not 2θ on the x axis, and the pink-beam `PXB`/`PNB` need a profile function other than the constant-wavelength one |
 | a `size_broadening` or `strain_broadening` `model` other than `isotropic` | PowderLine itself raises `NotImplementedError` for these |
 | a non-zero `Zero` | see below |
 | a non-zero `Z` | this package's Lorentzian width is X/cosθ + Y·tanθ, with no constant term |
