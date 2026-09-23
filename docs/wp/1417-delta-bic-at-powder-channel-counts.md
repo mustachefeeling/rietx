@@ -98,10 +98,11 @@ penalty. Same family, different mechanism, different fix.
 ### Inherited
 
 - **2026-09-23, from the issue triage (issue #270).** The reporter claimed
-  this on the thread on 2026-09-23: a fix is in progress on their fork, off
-  `ff56d956`, one PR per issue. No PR existed when this was written, so
-  `wp_claim.py status` cannot see the claim yet. A session picking this WP
-  checks the thread and `gh pr list` first.
+  this on the thread and opened PR #431 the same day ("ΔBIC is charged at
+  the independent-observation count N/f², measured against the
+  alternative"). Its penalty takes a stand on this WP's open estimator
+  question, so the review reads it against § Context's recommendation.
+  Reviewing it is `/pr-review`'s.
 
 ## Non-goals
 
