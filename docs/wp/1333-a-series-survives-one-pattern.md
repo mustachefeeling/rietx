@@ -313,6 +313,14 @@ one, never as the gate.
   - A count check against CI is not exact: the nightly is `[dev,jax]` at an
     older `main` (1 failed, 5709 passed, 103 skipped). The fast-selection
     delta of +18 is exact, from the 2026-09-22 entry.
+  - **`main` moved 24 commits during that run** (to `ff56d95`: WP-1418's
+    magnetic representation analysis, plus `symmetry.py`, `wyckoff.py` and
+    `indexing/reduce.py`; none of them a file this branch touches). It was
+    merged in cleanly. On the merged tree, the fast selection was **1 failed,
+    5817 passed, 161 skipped** in 15:46, the failure being the uid-0 case, and
+    the series slow rows were **23 passed**, the ramp row among them. So the
+    full-suite counts above are the pre-merge tree's; the full suite was not
+    re-run on the merged one.
 
   Next, in order:
   1. Review #420, starting with the decisions its body lists.
