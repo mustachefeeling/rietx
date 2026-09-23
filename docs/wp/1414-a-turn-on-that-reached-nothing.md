@@ -147,8 +147,23 @@ beside it.
   cloud container, uid 0) ran 5482 passed / 147 skipped / 1 failed in
   12:51. The failure is the uid-0 `unwritable-directory` telemetry case
   below, and passed is +1 on the pre-review run, which is the review pass's
-  one added test, so the branch's +13 against `main` holds. Next: the close
-  entry's list, starting with pushing the bundle from a clone that can.
+  one added test, so the branch's +13 against `main` holds.
+
+  **Later that day: pushed, and stacked on WP-1333's PR #420** at the
+  maintainer's request, once GitHub access returned. PR #421's base is
+  `claude/bold-albattani-him8uh`, merged in rather than rebased. The one
+  conflict was `SCHEMA_VERSION`, since #420 took 0.24 → 0.25, so this WP's
+  fields are now 0.25 → 0.26. #421's diff against its base is the same 27
+  files this branch changed against `main`, so it does not reach into #420's
+  code. Fast suite on the stacked tree (same venv and container): 5499 passed /
+  147 skipped / 1 failed in 12:45, the same uid-0 case. That is 5647 items,
+  which is this branch's 5630 plus 17 from #420. #420's diff adds 16 test
+  functions, one parametrized twice, so 17 is right and its body's "+18" is
+  off by one. **No second review ran over the stack**: a branch-vs-`main`
+  review now reads both PRs, so any further pass reads #421's diff against its
+  base alone. Next: #420 merges first. If its handover adds commits, merge
+  them in here again. Then retarget #421 to `main`, where `Closes #265` takes
+  effect.
 
 - **2026-09-22** — **closed.** A refinement plan that asks for a parameter by
   a name the model does not have now says so, and names the parameter it
