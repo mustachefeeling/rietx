@@ -176,6 +176,25 @@ refuses by name, so a fit on it stops instead of running on a profile nobody
 read. A GSAS-II `.instprm` names each coefficient, so its profile is read; a
 key with no published time-of-flight law is accepted only at exactly zero.
 
+Legacy instrument files. A *legacy layout* is a file that departs from a
+published format in a way the format's documentation does not describe, but
+that a facility actually wrote. The strict reader refuses one, and a legacy
+reader accepts exactly the departures it names, and only when you call it by
+name. `rietx.io.legacy.read_lansce_iparm` is that reader for LANSCE NPDF
+`.iparm` files, which depart from the GSAS manual in two ways. The first is a
+type-1 `PRCF` set with 8 coefficients instead of the documented 12. It is read
+as the first eight of the twelve, reported as `GSAS_IPARM_LEGACY_LAYOUT`. The
+second is a non-zero fifth pair in an ITYP 1 or 2 incident spectrum. Its
+exponent is now measured, P₁₀·exp(−P₁₁·T⁵), but the incident-spectrum model
+still refuses a non-zero pair, so a bank carrying one is refused with a message
+saying so. The layout comes from our own files and was checked against
+GSAS-II v5.8.2 run as a black box: GSAS-II reads an 8-slot and a 12-slot block
+slot for slot alike, and its incident spectrum equals this package's with the
+fifth exponent at 5. GSAS-II was consulted for the file layout and the
+spectrum only, never for a peak shape. A file carrying neither departure is
+handed to `read_gsas_tof_iparm` and comes back unchanged. The two readers do
+not dispatch to each other, so you opt in by calling it.
+
 The GSAS-I file is read by column, so a value written one field too wide
 would be cut short: `46.60` placed in columns 30–34 leaves `46.` in TTHETA's
 columns 23–32. Every record the reader parses is therefore checked at each
