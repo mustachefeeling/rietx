@@ -2740,8 +2740,7 @@ class Refinement:
                     # stopped at the prescribed step 1 would have quoted.
                     moment_off_state = moment_off_state or rung
             stage_diagnostics = (
-                _stage_freed_nothing_diagnostics(stage.name, stage.turn_on, freed)
-                + _guard_diagnostics(guard)
+                _guard_diagnostics(guard)
                 + _covariance_diagnostics(stage.name, outcome,
                                           answer=k == len(plan.stages)))
             for d in stage_diagnostics:
@@ -2907,8 +2906,7 @@ class Refinement:
                     # way out — or was cancelled, which reaches here with no
                     # ``fit_end`` to say so — recorded itself ``done``.
                     stream.close()  # we created it from a path/callable
-            diagnostics = order + _stage_freed_nothing_diagnostics(
-                stage.name, stage.turn_on, freed) + _guard_diagnostics(guard)
+            diagnostics = order + _guard_diagnostics(guard)
             diagnostics.extend(_covariance_diagnostics(stage.name, outcome,
                                                        answer=True))
             if mode == "pawley":
@@ -3769,69 +3767,6 @@ def _moved_moment_diagnostics(stage_name: str, off_state: dict, released: dict,
                 "reflections is what would separate the two")))
     return out
 
-
-def _stage_freed_nothing_diagnostics(
-        stage_name: str, turn_on: list[str], freed: list[str], *,
-        n_histograms: int = 1) -> list[Diagnostic]:
-    """``STAGE_FREED_NOTHING`` — a stage whose free list matched no row.
-
-    ``set_vary`` **returns what it matched**, and nothing in ``Stage`` or
-    ``RefinementResult`` surfaced that: a stage that freed nothing solved the
-    same problem the stage before it did and still reported ``converged``.
-
-    **Measured, and it cost a whole refinement.**  On a five-histogram joint
-    fit, a profile stage's globs matched four rows on one histogram and none at
-    all on the other four, whose peak shape is registered under a different
-    path.  Every stage reported ``converged`` with those four histograms' whole
-    profile still at its seed, and nothing in the result said so.  So the
-    diagnostic is **per histogram** and names the histogram's index: a stage
-    that frees rows on some histograms and none on others is the shape that
-    hides, and a joint count of 4 hides it.
-
-    **Per stage, never per glob**, which is the narrowing issue #265 argues
-    for one rank over: a *glob* matching nothing is normal — ``lab_sample_refine``
-    ships ``phases.*.microstrain.dof.*``, which correctly matches nothing on a
-    phase with no Stephens block — and a typo is indistinguishable from it.  A
-    whole stage matching nothing is not normal: it did no work.  ``info``
-    because there is a legitimate case (a preset stage for a correction this
-    model does not declare — ``roughness`` on a neutron instrument), and the
-    honest report of that case is still "this stage freed nothing".
-
-    ``freed`` is the joint table's scoped spelling on a joint fit
-    (``hist.1.instrument.profile.u``; a *shared* path arrives bare), so a
-    shared hit counts for every histogram and a scoped one for its own.
-    """
-    if n_histograms <= 1:
-        if freed:
-            return []
-        empty = [None]
-    else:
-        shared = any(not p.startswith("hist.") for p in freed)
-        if shared:
-            return []
-        touched = {p.split(".", 2)[1] for p in freed if p.startswith("hist.")}
-        empty = [h for h in range(n_histograms) if str(h) not in touched]
-    out = []
-    for h in empty:
-        where = list(turn_on) if h is None else [f"hist.{h}"] + list(turn_on)
-        scope = "" if h is None else f", histogram {h} of {n_histograms},"
-        out.append(Diagnostic(
-            level="info", code="STAGE_FREED_NOTHING",
-            message=(f"stage {stage_name!r}{scope} freed no parameter at all: "
-                     f"its free list {list(turn_on)} matched no row of the "
-                     f"parameter table"
-                     + ("" if h is None else
-                        " for this histogram") +
-                     ". The stage still ran, and it solved the same problem "
-                     "the stage before it did"),
-            where=where,
-            suggestion=(
-                "check the paths against Refinement.parameters() — a glob "
-                "written for one histogram's parameterisation can match no row "
-                "at all on another. If the stage is a preset's and this model "
-                "declares no such correction, nothing is wrong and the stage "
-                "did nothing")))
-    return out
 
 
 def _constraint_diagnostics(stage_name: str, outcome) -> list[Diagnostic]:
