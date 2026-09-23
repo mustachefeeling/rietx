@@ -8,8 +8,9 @@ returned values instead, and ``FROZEN_COMPILE_STALE`` says when the two
 differ by more than ``FROZEN_COMPILE_CHI2_REL``.
 
 The fixture is synthetic: the LaB6 pattern of ``test_refine_synthetic``, with
-``w`` started at a tenth of its truth and freed in the last stage, so the last
-stage's windows were sized for a line ten times too narrow in variance.
+``w`` started at a tenth of its truth and the zero at -0.05° (truth 0.008°),
+both freed in the last stage, so its windows were sized for lines too narrow
+and in the wrong place: 1.65e-2 relative χ², above the 1e-2 threshold.
 """
 
 from __future__ import annotations
@@ -42,6 +43,7 @@ def pattern():
 def narrow_start(pattern):
     structure, instrument = perturbed_models()
     instrument.profile.w.value = TRUE_W / 10
+    instrument.zero_shift.value = -0.05
     ref = rx.Refinement(structure, instrument)
     return ref, ref.fit(pattern, plan=_plan())
 

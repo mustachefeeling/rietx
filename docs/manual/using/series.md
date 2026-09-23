@@ -392,7 +392,7 @@ alters a fitted value.
 | `SEQUENTIAL_DISCONTINUITY` | a step much larger than the local trend: the science, or a chain failure, and the diagnostic says both |
 | `SEQUENTIAL_PATH_DEPENDENT` | with `direction="both"`, forward and backward disagree by more than their esds allow |
 | `SEQUENTIAL_PATH_CHECK_INCOMPLETE` | with `direction="both"`, the comparison did not run, or ran on fewer patterns or paths than the series has |
-| `SEQUENTIAL_PERSISTENT_FINDING` | one of the per-pattern codes fired in more than half the patterns, so it is about the model rather than about a pattern |
+| `SEQUENTIAL_PERSISTENT_FINDING` | one of the per-pattern codes fired in more than half the patterns, so it is about the model rather than about a pattern; a code about how a pattern was *measured* (`FROZEN_COMPILE_STALE`, listed in `sequential.NOT_A_SERIES_FINDING`) is never counted |
 
 The last one exists because of an arithmetic problem the others do not have. A
 per-pattern diagnostic can only say "this pattern". In a run of 68 it therefore

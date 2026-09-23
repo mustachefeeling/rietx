@@ -41,7 +41,7 @@ N − P, which on a real pattern is several thousand.
 Every figure in the block, and `RefinementResult.y_calc` beside it, is measured
 on a compile at the values the result returns. The last stage solved on a
 compile whose peak windows and quadrature node counts were frozen at the
-values it started from, and when the two disagree by more than 0.1 % of χ² the
+values it started from, and when the two disagree by more than 1 % of χ² the
 result says so as `FROZEN_COMPILE_STALE`, both figures in its message. The
 esds are not re-measured: they are the last solve's, read off its Jacobian.
 To reproduce the number yourself, compile `Refinement.fitted_structure` and

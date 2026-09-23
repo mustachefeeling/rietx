@@ -442,6 +442,28 @@ def test_the_summary_carries_the_worst_level_and_promotes_nothing():
                      level="info"))[0].level == "info"
 
 
+def test_a_finding_about_how_a_pattern_was_measured_is_never_aggregated():
+    """``FROZEN_COMPILE_STALE`` (#272) on every pattern is a chain whose every
+    last stage re-sized its windows, not a model that is wrong, so it gains no
+    series finding — while a model-level code beside it still does."""
+    from rietx.schemas.common import Diagnostic
+    from rietx.schemas.sequential import SeriesEntry, SeriesResult
+    from rietx.sequential import NOT_A_SERIES_FINDING, _persistent_diagnostics
+
+    assert "FROZEN_COMPILE_STALE" in NOT_A_SERIES_FINDING
+    assert _persistent_diagnostics(
+        _series_with(10, 10, code="FROZEN_COMPILE_STALE", path="",
+                     level="info")) == []
+    entries = [SeriesEntry(index=i, label=f"p{i}", diagnostics=[
+        Diagnostic(level="info", code="FROZEN_COMPILE_STALE", message="…",
+                   value=2e-3),
+        Diagnostic(level="warning", code="BOUND_HIT",
+                   where=["phases.0.cell.a"], message="…")])
+        for i in range(10)]
+    out = _persistent_diagnostics(SeriesResult(entries=entries))
+    assert [d.message.split()[0] for d in out] == ["BOUND_HIT"]
+
+
 def test_one_error_among_warnings_sets_the_summary_level():
     from rietx.schemas.common import Diagnostic
     from rietx.schemas.sequential import SeriesEntry, SeriesResult

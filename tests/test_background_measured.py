@@ -419,6 +419,33 @@ def test_the_result_divides_by_the_weight_the_model_used():
     assert np.allclose(np.asarray(result.sigma), model.sigma)
 
 
+def test_a_last_stage_that_moved_the_scale_reports_the_solves_weights():
+    """#272's final compile rebuilds the model at the returned values, and a
+    compile widens σ at the scale it sees — so without a rule the result would
+    divide by σ at the *fitted* scale while its χ², esds and solve used σ at the
+    scale the stage started from.  The rule: the solve's σ, and the reported
+    Rwp is measured with it."""
+    data, blank, structure, ins = synthetic_blank_case()
+    ins = _with_blank(ins, blank, vary_scale=True)
+    ref = rx.Refinement(structure, ins)
+    result = ref.fit(data, plan=_bkg_only_plan(), telemetry=False)
+    assert abs(ref.fitted_instrument.background.scale.value - 1.0) > 0.05, \
+        "the last stage must move the scale, or this pins nothing"
+
+    at_start = compile_model(structure, ins, data, mode="rietveld")
+    at_answer = compile_model(ref.fitted_structure, ref.fitted_instrument, data,
+                              mode="rietveld")
+    assert not np.allclose(at_answer.sigma, at_start.sigma), \
+        "the two readings must differ for the choice to be visible"
+    sigma = np.asarray(result.sigma)
+    assert np.array_equal(sigma, at_start.sigma)
+
+    diff = np.asarray(result.y_obs) - np.asarray(result.y_calc)
+    w = 1.0 / sigma ** 2
+    rwp = np.sqrt((w @ (diff * diff)) / (w @ np.asarray(result.y_obs) ** 2))
+    assert result.statistics.rwp == pytest.approx(rwp, rel=1e-12)
+
+
 # ----------------------------------------------------------------------
 # the range
 # ----------------------------------------------------------------------

@@ -2605,7 +2605,11 @@ class Refinement:
         slack) and nothing else changed.  **What this does not move**: the
         solve, which ran on the frozen compile and is not biased by it (the
         issue measured the minimum moving ≤ 0.0014 esd); the covariance and
-        every esd, which stay those of that solve's Jacobian; and the history
+        every esd, which stay those of that solve's Jacobian; the weights,
+        which stay the solve's σ, so ``result.sigma`` is still a lookup of the
+        σ the model used (WP-1309: a measured background widens σ at the scale
+        a compile sees, and a fresh σ would re-weight a result whose esds did
+        not); and the history
         node, which keeps its as-optimised metrics, so a node and the result
         it produced differ by the amount ``FROZEN_COMPILE_STALE`` quotes.
 
@@ -2626,6 +2630,11 @@ class Refinement:
             moving_paths=set(table.moving_paths),
             restraint_weight_scale=stage.restraint_weight_scale,
             window_slack_deg=stage.window_slack_deg)
+        # the solve's weights, never the fresh compile's: a measured
+        # background widens σ at the scale a compile sees (WP-1309), so a last
+        # stage that moved that scale would re-weight here, and the result
+        # would divide by a σ its χ², esds and solve never used
+        fresh.sigma = model.sigma
         if mode == "lebail":
             _carry_lebail(model, fresh)
         values = table.decode(outcome.theta)
@@ -4313,9 +4322,15 @@ def _restore_lebail(states: list[ReflectionState], model: CompiledModel) -> None
 
 #: Relative gap between χ² on the last stage's frozen compile and on a fresh
 #: compile at the returned values above which ``FROZEN_COMPILE_STALE`` reports
-#: it (#272).  One part in a thousand: Si SRM 640c's 1.38 % fires it, FAP's
-#: 0.02 % (the issue's two acceptance fixtures) does not.
-FROZEN_COMPILE_CHI2_REL = 1e-3
+#: it (#272).  One part in a hundred, set from the gap measured on the 358
+#: fits the acceptance files and the synthetic chains run: every single-pattern
+#: acceptance fixture sits at or under 2.8e-3 (Si SRM 640c 8e-5, FAP 2e-4,
+#: Stephens brucite 2.5e-3) and the held-phase ramp under 5.2e-3, while the QPA
+#: round-robin sample-1 chain reaches 1.3-2.1e-2.  At 1e-3 it fired on 74 of
+#: the 358, a fifth of ordinary fits, which is noise and not a signal.  The
+#: issue's 1.38 % on Si is the compile that claims nothing moves
+#: (``moving_paths=None``), not the frozen one, and would still fire.
+FROZEN_COMPILE_CHI2_REL = 1e-2
 
 
 #: a Pawley overlap group is reported unresolved when *any* member carries a
