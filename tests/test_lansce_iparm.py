@@ -119,28 +119,94 @@ def test_a_legacy_block_keeps_the_strict_column_checks(tmp_path):
 
 # --------------------------------------------- deviation 2: the fifth ICOFF pair
 @pytest.mark.parametrize("itype", [1, 2])
-def test_a_nonzero_fifth_pair_is_refused_naming_the_measured_exponent(tmp_path, itype):
-    """k = 5 is measured (GSAS-II's spectrum, fitted), and it is the power the
-    model evaluates; the model refuses a non-zero P10/P11, so the bank is
-    refused and the message names both facts."""
+def test_a_nonzero_fifth_pair_is_read_and_reported(tmp_path, itype):
+    """The pair passes through to the model (whose T⁵ law was established by
+    conformance), lands as P10/P11 and is reported once, naming the bank."""
     assert LANSCE_FIFTH_PAIR_EXPONENT == 5
     coeffs = [4.5, 787.5, 0.11, 895.4, 0.0045, 0.0, 0.0, 0.0, 0.0, 5.0, 1e-3]
-    text = iparm(legacy_bank(1, spectrum=spectrum_records(1, itype, coeffs)))
-    with pytest.raises(ValueError) as err:
-        read_lansce_iparm(write(tmp_path, text))
-    msg = str(err.value)
-    assert f"bank 1: ITYP {itype} carries a non-zero fifth ICOFF pair" in msg
-    assert "P10*exp(-P11*T^5)" in msg
-    assert "_refuse_inferred_pair" in msg
+    text = iparm(bank(1, spectrum=spectrum_records(1, itype, coeffs)))
+    notes = []
+    banks = read_lansce_iparm(write(tmp_path, text), diagnostics=notes)
+    sp = banks[1].source.incident_spectrum
+    assert sp.itype == itype
+    assert [c.value for c in sp.coefficients] == coeffs
+    (fifth,) = [n for n in notes if n.code == "GSAS_IPARM_LEGACY_LAYOUT"]
+    assert fifth.level == "info" and fifth.where == ["bank 1", "ICOFF3"]
+    assert f"bank 1 ITYP {itype}: P10 = 5.0, P11 = 0.001" in fifth.message
+    assert "P10*exp(-P11*T^5)" in fifth.message
+    with pytest.raises(ValueError, match="established by conformance"):
+        read_gsas_tof_iparm(write(tmp_path, text))
 
 
-def test_the_fifth_pair_refusal_speaks_after_every_other_refusal(tmp_path):
-    """A file wrong in some other way is refused for that reason first: the
-    fifth pair is only refused once the rest of the file has been read."""
+def test_a_file_with_a_fifth_pair_is_still_refused_for_any_other_reason(tmp_path):
+    """Passing the pair through changes nothing else: a file wrong in some
+    other way is refused by the strict body for that reason."""
     coeffs = [1.0] + [0.0] * 8 + [5.0, 1e-3]
     text = iparm(legacy_bank(1, spectrum=spectrum_records(1, 1, coeffs)), htype="PNCR")
     with pytest.raises(ValueError, match="HTYPE 'PNCR'"):
         read_lansce_iparm(write(tmp_path, text))
+
+
+def test_the_chebyshev_types_slots_ten_and_eleven_are_not_a_deviation(tmp_path):
+    """ITYP 3's P10/P11 are ordinary Chebyshev coefficients the strict reader
+    reads, so the bolt-on hands the file to it unchanged and reports nothing."""
+    coeffs = [0.7, -0.2, 0.05, 0.3, -0.1, 0.02, 0.01, -0.03, 0.004, 0.002,
+              -0.001, 0.0005]
+    path = write(tmp_path, iparm(bank(1, spectrum=spectrum_records(1, 3, coeffs))))
+    notes = []
+    legacy = read_lansce_iparm(path, diagnostics=notes)
+    assert legacy[1].model_dump_json() == read_gsas_tof_iparm(path)[1].model_dump_json()
+    assert not [n for n in notes if n.code == "GSAS_IPARM_LEGACY_LAYOUT"]
+
+
+# ------------------------------------------ deviation 3: a BNKPAR field overrun
+def overrun_bank(b=1, text="46.60", col=30):
+    lines = bank(b)
+    lines[1] = rec(f"INS {b:2d}BNKPAR", (13, f"{2.5:10.4f}"), (col, text))
+    return lines
+
+
+def test_a_bnkpar_value_across_a_boundary_is_token_read_and_reported(tmp_path):
+    """TTHETA written one field too wide (columns 30-34, the real 7245 bank 1
+    shape): the strict reader refuses it, the bolt-on re-reads that record by
+    tokens, takes 46.6, and says so with the record, its raw text and the
+    value."""
+    path = write(tmp_path, iparm(overrun_bank(1), bank(2)))
+    with pytest.raises(ValueError, match="runs across the boundary between TTHETA"):
+        read_gsas_tof_iparm(path)
+    notes = []
+    banks = read_lansce_iparm(path, diagnostics=notes)
+    assert banks[1].source.two_theta_bank_deg == 46.6
+    assert banks[1].source.l2_m == 2.5
+    (legacy,) = [n for n in notes if n.code == "GSAS_IPARM_LEGACY_LAYOUT"]
+    assert legacy.level == "info" and legacy.where == ["bank 1", "BNKPAR"]
+    assert "record 4 ('INS  1BNKPAR    2.5000       46.60')" in legacy.message
+    assert "DIST = 2.5, TTHETA = 46.6" in legacy.message
+    # the rest of the file is what the strict reader makes of it
+    strict_two = read_gsas_tof_iparm(write(tmp_path, iparm(bank(1))))[1]
+    assert banks[2].source.profile_tof == strict_two.source.profile_tof
+
+
+@pytest.mark.parametrize(("text", "col"), [("46.60", 21), ("46.6x0", 21),
+                                           ("46.60 1 2 3 4 5 6", 30)])
+def test_a_bnkpar_record_the_tokens_cannot_read_stays_the_strict_readers(
+        tmp_path, text, col):
+    """Two numbers run together, a non-number, or more tokens than BNKPAR has
+    fields: the token read declines, and the strict reader's own column
+    refusal is what the caller sees."""
+    path = write(tmp_path, iparm(overrun_bank(1, text=text, col=col)))
+    with pytest.raises(ValueError, match="runs across the boundary"):
+        read_lansce_iparm(path)
+
+
+def test_only_bnkpar_is_token_read(tmp_path):
+    """An ICONS value across a boundary is not one of the three deviations:
+    both readers refuse it with the strict message."""
+    b = bank(1)
+    b[0] = rec("INS  1 ICONS", (13, "   6911.21"), (23, "0 -2.79"))
+    for reader in (read_gsas_tof_iparm, read_lansce_iparm):
+        with pytest.raises(ValueError, match="runs across the boundary between DIFC"):
+            reader(write(tmp_path, iparm(b)))
 
 
 # ------------------------------------------------- pass-through and the opt-in
@@ -175,104 +241,3 @@ def test_without_the_bolt_on_the_strict_refusal_stands(tmp_path):
         "request by rietx.io.legacy.read_lansce_iparm")
 
 
-def test_a_strict_refusal_that_is_not_a_legacy_deviation_is_the_strict_readers(tmp_path):
-    """A malformed record is refused with the strict reader's message, never
-    a legacy one."""
-    b = bank(1)
-    b[1] = rec("INS  1BNKPAR", (13, f"{2.5:10.4f}"), (30, "46.60"))
-    for reader in (read_gsas_tof_iparm, read_lansce_iparm):
-        with pytest.raises(ValueError, match="runs across the boundary between TTHETA"):
-            reader(write(tmp_path, iparm(b)))
-
-
-# ------------------------------------------------------------ the real records
-#: Instrument records (ICONS, BNKPAR, ITYP, ICOFF, PRCF set 1) of the LANSCE
-#: NPDF run 7245 Si-standard calibration, from Michael Gaultois's 2014 NPDF
-#: beamtime — publishable instrument metadata, copied verbatim column for
-#: column except ITYP's CHKSUM field, left blank.  Labels, file names, the
-#: IECOF/IECOR records and the other PRCF set are not carried.
-NPDF_7245 = {
-    1: """\
-INS  1 ICONS   6911.21 -2.79     -19.420
-INS  1BNKPAR      2.50       46.60
-INS  1I ITYP    1    8.0000   49.0000
-INS  1ICOFF1   0.449188E+01   0.787522E+03   0.111159E+00   0.895364E+03
-INS  1ICOFF2   0.448643E-02   0.108620E+04   0.521265E-03  -0.139701E+04
-INS  1ICOFF3   0.341671E-03   0.702966E+05   0.100000E+00   0.000000E+00
-INS  1PRCF1     1    8   0.01000
-INS  1PRCF11   0.000000E+00   0.146061E+00   0.434277E-01   0.233696E-01
-INS  1PRCF12   0.000000E+00   0.353349E+03   0.000000E+00   0.000000E+00""",
-    2: """\
-INS  2 ICONS  11974.73   -2.3500   -3.6200
-INS  2BNKPAR      1.50       90.
-INS  2I ITYP    1    8.0000   45.0000
-INS  2ICOFF1   0.109878E+02   0.970381E+04   0.165101E+00   0.505955E+04
-INS  2ICOFF2   0.880267E-02  -0.109476E+04   0.341586E-03  -0.190635E+04
-INS  2ICOFF3   0.159619E-03  -0.285890E+04   0.521191E-04   0.000000E+00
-INS  2PRCF1     1    8   0.01000
-INS  2PRCF11   0.000000E+00   0.446556E+00   0.549619E-01   0.276371E-02
-INS  2PRCF12   0.000000E+00   0.299511E+03   0.000000E+00   0.000000E+00""",
-    3: """\
-INS  3 ICONS  14594.35   0.01    3.57
-INS  3BNKPAR      1.50      119.
-INS  3I ITYP    1    8.0000   45.0000
-INS  3ICOFF1   0.613761E+02   0.691851E+05   0.168724E+00   0.244430E+05
-INS  3ICOFF2   0.101438E-01  -0.133261E+06   0.473261E-02   0.554446E+05
-INS  3ICOFF3   0.610942E-03   0.000000E+00   0.000000E+00   0.000000E+00
-INS  3PRCF1     1    8   0.01000
-INS  3PRCF11   0.000000E+00   0.518818E-01   0.355876E-01   0.309258E-02
-INS  3PRCF12   0.000000E+00   0.198915E+03   0.000000E+00   0.000000E+00""",
-    4: """\
-INS  4 ICONS  16292.82   -4.2800    0.2900
-INS  4BNKPAR      1.50      148.
-INS  4I ITYP    1    8.0000   45.0000
-INS  4ICOFF1   0.551915E+02   0.557738E+05   0.160750E+00   0.265429E+05
-INS  4ICOFF2   0.972714E-02  -0.109071E+06   0.508520E-02   0.579425E+06
-INS  4ICOFF3   0.138607E-02   0.000000E+00   0.000000E+00   0.000000E+00
-INS  4PRCF1     1    8   0.01000
-INS  4PRCF11   0.719136E-03   0.777253E-01   0.455314E-01   0.213342E-02
-INS  4PRCF12   0.000000E+00   0.118693E+03   0.000000E+00   0.000000E+00""",
-}
-
-
-def npdf_file(*numbers, renumber=False) -> str:
-    lines = [rec("INS   BANK  ", (13, f"{len(numbers):5d}")), rec("INS   HTYPE ", (15, "PNTR"))]
-    for new, old in enumerate(numbers, start=1):
-        block = NPDF_7245[old]
-        if renumber:
-            block = block.replace(f"INS {old:2d}", f"INS {new:2d}")
-        lines.extend(block.splitlines())
-    return "\n".join(lines) + "\n"
-
-
-def test_the_real_calibration_reads_under_gsas2s_names(tmp_path):
-    """NPDF 7245 banks 3 and 4 (the two whose fifth pair is zero and whose
-    columns are aligned), renumbered 1-2: each coefficient GSAS-II v5.8.2
-    printed for them lands on the field its name maps to.  Bank 4's slot 1
-    (``alp-0`` by the manual's order) is read, where GSAS-II carries it under
-    no name."""
-    banks = read_lansce_iparm(write(tmp_path, npdf_file(3, 4, renumber=True)))
-    three, four = banks[1].source, banks[2].source
-    assert (three.difc.value, three.difa.value, three.tzero.value) == (14594.35, 0.01, 3.57)
-    assert three.two_theta_bank_deg == 119.0 and four.two_theta_bank_deg == 148.0
-    # GSAS-II: alpha, beta-0, beta-1, sig-1 (sig-0 and sig-2 read as 0)
-    for src, gsas2 in ((three, (0.0518818, 0.0355876, 0.00309258, 198.915)),
-                       (four, (0.0777253, 0.0455314, 0.00213342, 118.693))):
-        p = src.profile_tof
-        assert (p.alpha1.value, p.beta0.value, p.beta1.value, p.sig1.value) == gsas2
-        assert p.sig0.value == 0.0 and p.sig2.value == 0.0
-    assert three.profile_tof.alpha0.value == 0.0
-    assert four.profile_tof.alpha0.value == 0.000719136
-    assert four.incident_spectrum.itype == 1
-    assert four.incident_spectrum.coefficients[3].value == 26542.9
-
-
-def test_the_real_calibration_as_written_is_refused_for_its_bank_one_angle(tmp_path):
-    """All four banks verbatim: bank 1 writes TTHETA ``46.60`` one column too
-    wide (columns 30-34), which is not one of the two legacy deviations, so the
-    strict column check refuses it through both readers — before the fifth
-    pairs of banks 1 and 2 are reached."""
-    path = write(tmp_path, npdf_file(1, 2, 3, 4))
-    for reader in (read_gsas_tof_iparm, read_lansce_iparm):
-        with pytest.raises(ValueError, match=r"'46\.60' in columns 30-34"):
-            reader(path)

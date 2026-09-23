@@ -140,15 +140,42 @@ def test_the_chebyshev_types_are_chebyshev_series():
     assert np.allclose(incident_intensity(t_us, 4, c), want4, rtol=1e-13, atol=1e-15)
 
 
-def test_the_inferred_fifth_pair_is_refused_when_non_zero():
-    """SPEC § 4.3 / § 8.7: the exponent of P₁₀, P₁₁ is not published — a
-    non-zero value there is refused by name, for both ITYP 1 and 2."""
+def test_the_fifth_pair_is_p10_exp_minus_p11_t_to_the_fifth():
+    """The sixth term of ITYP 1 and 2 is P₁₀·exp(−P₁₁·T⁵), T in ms — the
+    exponent established by conformance against GSAS-II 5.8.2's computed
+    spectrum (``tof_spectrum``'s docstring).  Asserted as the difference the
+    pair makes, at three flight times where the term is neither ≈ P₁₀ nor ≈ 0,
+    against the closed form."""
+    base = [1.0, 2.0, 0.3, 0.5, 0.01, 0.25, 1e-3, 0.1, 1e-4]
+    p10, p11 = 5.0, 1e-3
+    t_us = np.array([2500.0, 3500.0, 4500.0])
+    want = p10 * np.exp(-p11 * (t_us / 1000.0) ** 5)
+    assert np.all((want > 0.5) & (want < 4.75))
     for itype in (1, 2):
-        for k in (9, 10):
-            p = [1.0] * 9 + [0.0, 0.0]
-            p[k] = 0.5
-            with pytest.raises(ValueError, match=f"P{k + 1} = 0.5 is non-zero"):
-                incident_spectrum(itype, p, 5000.0)
+        got = (incident_spectrum(itype, base + [p10, p11], t_us)
+               - incident_spectrum(itype, base + [0.0, 0.0], t_us))
+        assert got == pytest.approx(want, rel=1e-12)
+
+
+#: GSAS-II 5.8.2's own incident spectrum for one synthetic ICOFF block, read
+#: off as I_i = Y₀/Yobs from a flat pattern (Y₀ = 1000) it imported as a black
+#: box on 2026-09-23 (the ``lansce_iparm`` module docstring has the run):
+#: ``(X µs, Yobs)`` at three of its bin centres.  Block: P₁ = 1, P₁₀ = 5,
+#: P₁₁ = 1e-3, the rest zero — ITYP 1 and ITYP 2 gave the same numbers.
+ORACLE_FIFTH_PAIR_BLOCK = [1.0] + [0.0] * 8 + [5.0, 1e-3]
+ORACLE_FIFTH_PAIR_POINTS = [(2500.8517, 180.69954374067368),
+                            (3500.35645, 252.7589305502936),
+                            (4499.1497, 558.259330610657)]
+
+
+def test_the_six_term_sum_is_gsas2s_computed_spectrum():
+    """The whole ITYP 1/2 sum, fifth pair included, equals the spectrum
+    GSAS-II computed from the same block, to 1e-12 relative."""
+    x = np.array([p[0] for p in ORACLE_FIFTH_PAIR_POINTS])
+    oracle = 1000.0 / np.array([p[1] for p in ORACLE_FIFTH_PAIR_POINTS])
+    for itype in (1, 2):
+        got = incident_spectrum(itype, ORACLE_FIFTH_PAIR_BLOCK, x)
+        assert got == pytest.approx(oracle, rel=1e-12)
 
 
 def test_refusals_by_name_and_by_value():
@@ -254,10 +281,9 @@ def test_mu_is_affine_in_lambda_with_the_absorption_as_its_slope():
         neutron_attenuation_terms({"Xx": 1.0}, vol)
 
 
-def test_the_schema_refuses_a_non_zero_fifth_pair_at_construction():
-    """SPEC § 4.3: ITYP 1/2's P10, P11 have no published exponent.  The
-    refusal is at validation, so a hand-built spectrum cannot be stored and
-    only fail later, on evaluation."""
+def test_the_schema_accepts_a_non_zero_fifth_pair():
+    """ITYP 1/2's P10, P11 carry the conformance-established fifth term, so a
+    non-zero pair is a legal spectrum, and a stored one evaluates."""
     from rietx.schemas.common import Parameter  # noqa: PLC0415
     from rietx.schemas.instrument import IncidentSpectrum  # noqa: PLC0415
 
@@ -266,11 +292,11 @@ def test_the_schema_refuses_a_non_zero_fifth_pair_at_construction():
     for itype in (1, 2):
         IncidentSpectrum(itype=itype,
                          coefficients=[Parameter(value=v) for v in base])
-        for k in (9, 10):
-            vals = list(base)
-            vals[k] = 0.1
-            with pytest.raises(ValueError, match=f"P{k + 1} = 0.1 is non-zero"):
-                IncidentSpectrum(itype=itype,
-                                 coefficients=[Parameter(value=v) for v in vals])
-    # the Chebyshev types have no inferred pair: slots 10 and 11 are theirs
+        vals = base[:9] + [5.0, 1e-3]
+        sp = IncidentSpectrum(itype=itype,
+                              coefficients=[Parameter(value=v) for v in vals])
+        assert [c.value for c in sp.coefficients][9:] == [5.0, 1e-3]
+        assert np.isfinite(incident_spectrum(
+            itype, [c.value for c in sp.coefficients], 3000.0))
+    # the Chebyshev types: slots 10 and 11 are ordinary coefficients
     IncidentSpectrum(itype=3, coefficients=[Parameter(value=0.1)] * 12)

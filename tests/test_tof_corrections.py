@@ -39,9 +39,10 @@ P = rx.Parameter
 #: A synthetic ``ITYP 1``/``ITYP 2`` coefficient set: eleven numbers of the
 #: shape a real moderator fit has (a small constant, then amplitude/rate pairs
 #: of decreasing size), invented here so no line of anybody's beamtime file
-#: enters the repository.  The fifth pair (P10, P11) is zero: its exponent is
-#: not published, so a non-zero value there is refused (SPEC § 4.3; GSAS
-#: Technical Manual p. 128; Von Dreele, Jorgensen & Windsor 1982 eqs. 4-5).
+#: enters the repository.  The fifth pair (P10, P11) is zero here, so the
+#: long-hand sum below stops at the T⁴ term; its T⁵ law is pinned separately
+#: (GSAS Technical Manual p. 128; Von Dreele, Jorgensen & Windsor 1982
+#: eqs. 4-5; the exponent by conformance, ``tof_spectrum``'s docstring).
 ELEVEN = [5.0, 800.0, 0.11, 900.0, 4.5e-3, 1000.0, 5.0e-4, -1400.0, 3.4e-4,
           0.0, 0.0]
 #: Twelve for the Chebyshev types.
@@ -97,8 +98,8 @@ def test_type_one_is_the_manuals_sum_of_exponentials():
     ``tof_spectrum`` and this assertion can only agree if the *pairing* of
     amplitude with rate and the *power* of T in each term are both right, and
     those are the two things a transcription gets wrong.  The powers 1…4 are
-    VD82 eq. (4)'s (SPEC § 4.3); the fifth pair's is unpublished, so that pair
-    must be zero and a non-zero one is refused by name.
+    VD82 eq. (4)'s (SPEC § 4.3); the fifth pair's, 5, was established by
+    conformance, and is asserted as the term a non-zero pair adds.
     """
     t_us = np.array([8000.0, 17500.0, 26200.0, 38400.0, 45000.0])
     t = t_us / 1000.0  # the manual's argument is milliseconds
@@ -115,10 +116,13 @@ def test_type_one_is_the_manuals_sum_of_exponentials():
     # alone.  Writing the sum in the module's own order would make the test a
     # copy of the code rather than an independent statement of the formula.
     assert got == pytest.approx(want, rel=1e-14)
+    # three flight times where the term is 298, 216 and 25 of P10 = 300
+    p10, p11 = 300.0, 2e-7
+    fifth = p10 * np.exp(-p11 * t[:3] ** 5)
     for itype in (1, 2):
-        for k in (9, 10):
-            with pytest.raises(ValueError, match=f"P{k + 1} = 0.1 is non-zero"):
-                incident_spectrum(itype, [*p[:k], 0.1, *p[k + 1:]], t_us)
+        added = (incident_spectrum(itype, [*p[:9], p10, p11], t_us[:3])
+                 - incident_spectrum(itype, p, t_us[:3]))
+        assert added == pytest.approx(fifth, rel=1e-9)
 
 
 def test_type_two_replaces_only_the_first_exponential_with_a_maxwellian():
@@ -224,12 +228,7 @@ def test_ityp_ten_is_refused_for_its_own_reason_and_not_as_an_unknown():
 
 def test_a_coefficient_count_that_disagrees_with_the_type_is_refused_not_padded():
     def block(itype, n):
-        # ones, with ITYP 1/2's fifth pair (P10, P11) zero where it exists,
-        # since a non-zero one is refused before the count is looked at
-        vals = [1.0] * n
-        if itype in (1, 2):
-            vals[9:11] = [0.0] * len(vals[9:11])
-        return vals
+        return [1.0] * n
 
     for itype, want in ((1, 11), (2, 11), (3, 12), (4, 12), (5, 12)):
         incident_spectrum(itype, block(itype, want), np.array([1e4]))

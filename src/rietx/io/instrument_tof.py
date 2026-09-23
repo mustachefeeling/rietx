@@ -33,7 +33,8 @@ bank number ``bb`` in columns 5-6.
   TOF-in-milliseconds (p. 223); ``INS bbIECOFc`` their esds, carried as each
   coefficient's ``stderr``.  A block that disagrees with its ITYP — a missing
   or out-of-sequence record, a non-zero slot the type does not read, a
-  non-zero ITYP 1/2 fifth pair whose exponent is unpublished, ITYP 10 (the
+  non-zero ITYP 1/2 fifth pair (its exponent is established by conformance,
+  not by the documented layout; ``legacy.read_lansce_iparm`` reads it), ITYP 10 (the
   spectrum is in another file), an undefined ITYP — is refused by name
   (:mod:`rietx.model.tof_spectrum`).  ``IECOR`` has no slot and is dropped.
   No ``ITYP`` record at all is read as no spectrum.
@@ -128,7 +129,6 @@ from pydantic import ValidationError
 
 from ..model.tof_spectrum import (
     COEFFICIENT_COUNTS,
-    _refuse_inferred_pair,
     _unknown_type_message,
 )
 from ..schemas.common import Diagnostic, Parameter
@@ -365,7 +365,7 @@ def _e15_values(path: Path, bank: int, name: str, fields: list[str]) -> list[flo
 
 def _spectrum(path: Path, bank: int, ityp_rec: _Record | None,
               icoff: dict[int, _Record], iecof: dict[int, _Record],
-              dropped: list[str]) -> IncidentSpectrum:
+              dropped: list[str], fifth_pair: bool = False) -> IncidentSpectrum:
     if ityp_rec is None:
         if icoff:
             raise ValueError(f"{path}: bank {bank} has ICOFF records and no "
@@ -400,10 +400,20 @@ def _spectrum(path: Path, bank: int, ityp_rec: _Record | None,
                 f"{path}: bank {bank}: ITYP {itype} uses {want} coefficients and "
                 f"slot P{k + 1} = {vals[k]!r} is non-zero; a number in a slot the "
                 f"declared function does not read is refused")
-    try:
-        _refuse_inferred_pair(itype, vals)
-    except ValueError as exc:
-        raise ValueError(f"{path}: bank {bank}: {exc}") from None
+    if itype in (1, 2) and not fifth_pair:
+        # the documented layout stops at the fourth pair; the model evaluates
+        # a fifth, but this reader is the documented layout (module docstring)
+        for k in (9, 10):
+            if vals[k] != 0.0:
+                raise ValueError(
+                    f"{path}: bank {bank}: ITYP {itype}: P{k + 1} = {vals[k]!r} "
+                    f"is non-zero. The GSAS Technical Manual (p. 128) states "
+                    f"eleven coefficients and prints no exponent for the fifth "
+                    f"pair (P10, P11), and this reader holds to the documented "
+                    f"layout. The exponent is established by conformance "
+                    f"(P10*exp(-P11*T^5), T in ms, rietx.model.tof_spectrum), "
+                    f"and a file carrying the pair is read by "
+                    f"rietx.io.legacy.read_lansce_iparm")
     esds: list[float | None] = [None] * want
     if iecof:
         evals = _e15_values(path, bank, "IECOF",
@@ -529,13 +539,17 @@ def read_gsas_tof_iparm(path: str | Path, *,
 
 
 def _banks_from_records(path: Path, records: list[tuple[str, str]],
-                        diagnostics) -> dict[int, Instrument]:
+                        diagnostics, *, fifth_pair: bool = False
+                        ) -> dict[int, Instrument]:
     """:func:`read_gsas_tof_iparm` on records already split from ``path``.
 
     The one body of the strict reader, and the seam
     :mod:`rietx.io.legacy.lansce_iparm` hands a restated record list to, so
     a legacy layout is checked by exactly the columns and refusals a
     documented file is.  ``path`` is only ever quoted in messages.
+    ``fifth_pair=True`` is that module's one switch into this body: it lets
+    a non-zero ITYP 1/2 fifth ICOFF pair through to the model, which
+    evaluates it; the strict reader never sets it.
     """
     nbank: int | None = None
     htype: str | None = None
@@ -636,7 +650,7 @@ def _banks_from_records(path: Path, records: list[tuple[str, str]],
         ttheta = bnkpar.number(23, 32, "TTHETA")
         dropped = list(bank["dropped"])
         spectrum = _spectrum(path, b, bank["ityp"], bank["icoff"], bank["iecof"],
-                             dropped)
+                             dropped, fifth_pair)
         if bank["bad_key"] is not None:
             raise bank["bad_key"]
         profile = _profile(path, b, bank["prcf"], bank["prcf_c"], diagnostics)
