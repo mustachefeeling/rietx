@@ -180,6 +180,7 @@ builder are one object from two directions and must not land as two. The
 reporter asks three things and will not start before the answers: v1.6 or
 v2+, the package name with or without shims, and whether the entry point
 lands with the move or after it. Issue #426's spglib-to-moyo migration
+([1452](1452-spglib-to-moyo.md))
 touches the same files and is also sequenced after the magnetic PRs; the two
 need an order.
 
