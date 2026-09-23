@@ -21,7 +21,7 @@ wrong:
   a white beam has not got.  So a bank holds the size in d-space, K/L in Å⁻¹,
   and ``params.multi.size_value_scales`` converts — the same map that already
   put one specimen's size into each constant-wavelength histogram's units.
-* **Units.**  Å against µm, Δd/d against GSAS-II's 10⁻⁶ ``Mustrain``, a FWHM
+* **Units.**  Å against µm, Δd/d against a strain quoted in 10⁻⁶, a FWHM
   against a variance, a Lorentzian FWHM against a HWHM.  Each is checked
   against the relation it comes from rather than against a remembered factor.
 * **The broadening enters γ and σ² before the Thompson-Cox-Hastings mixing.**
@@ -30,8 +30,7 @@ wrong:
 
 Every fixture here is synthetic.  rietx's own defaults stay at **zero**
 broadening, which is a physical statement (an infinite, strain-free crystal)
-and deliberately not GSAS-II's non-zero tutorial defaults; where a comparison
-with GSAS-II is made, the values are seeded explicitly and said so.
+and no other program's non-zero defaults are adopted.
 """
 
 from __future__ import annotations
@@ -74,12 +73,6 @@ from tests.test_tof_multibank import (
 
 #: The four paths this rung is about.
 WIDTHS = ("lor_size", "gauss_size", "lor_strain", "gauss_strain")
-
-#: GSAS-II's tutorial defaults, in **its** units and with **its** Scherrer
-#: convention (K = 1): ``Size;i`` in µm, ``Mustrain;i`` in 10⁻⁶ of its own
-#: mustrain.  Seeded explicitly wherever they are used, never adopted as
-#: rietx's — rietx's default is an exact zero on all four.
-G2_SIZE_UM, G2_MUSTRAIN = 1.0, 1000.0
 
 DIFC = 12000.0          # µs/Å, the 90° synthetic bank's
 
@@ -126,7 +119,7 @@ def test_the_two_laws_are_the_powers_of_d_the_physics_gives():
 
 
 def test_the_gaussian_pair_add_as_variances_not_as_widths():
-    """GSAS-II's ``sig = [Sgam² + Mgam²]/ateln2``, with the squares taken on the
+    """The size and strain Gaussian variances add, with the squares taken on the
     coefficients so no square root of a refined parameter reaches the residual.
 
     The quadrature is not a convention: two independent Gaussian broadenings
@@ -179,29 +172,6 @@ def test_a_crystallite_gives_the_same_delta_d_over_d_on_both_arms():
         pytest.approx(size_a))
     assert apparent_size_from_d_size_coefficient(s_tof, SCHERRER_K) == (
         pytest.approx(size_a))
-
-
-def test_the_bank_reproduces_gsas2s_own_sample_widths():
-    """``GetSampleSigGam``'s TOF branch, re-typed from GSAS-II's source, against
-    this module's law with the same specimen expressed in rietx's units.
-
-    GSAS-II's ``Size;i`` is in µm with **K = 1**, so its 1 µm default is the
-    d-space coefficient 1/10⁴ Å⁻¹ — which rietx, whose K is 0.9, reports as a
-    9000 Å crystallite.  Its ``Mustrain;i`` is 10⁶·μ with μ = ΔT/T, which is
-    rietx's Δd/d directly *on this branch*; its constant-wavelength branch uses
-    μ = 2·Δd/d for the same symbol, and the disagreement is GSAS-II's own (see
-    ``tof_sample_gamma``'s docstring).  Both are seeded here, never adopted.
-    """
-    d = np.array([1.0, 1.5, 2.0, 3.0])
-    g2_sgam = 1.0e-4 * DIFC * d ** 2 / G2_SIZE_UM
-    g2_mgam = 1.0e-6 * DIFC * d * G2_MUSTRAIN
-    size_coeff = 1.0e-4 / G2_SIZE_UM            # K/L in Å⁻¹ at GSAS-II's K = 1
-    strain = 1.0e-6 * G2_MUSTRAIN               # Δd/d
-    assert tof_sample_gamma(d, DIFC, size_coeff, 0.0) == pytest.approx(g2_sgam)
-    assert tof_sample_gamma(d, DIFC, 0.0, strain) == pytest.approx(g2_mgam)
-    # what rietx calls that crystallite, in its own Scherrer convention
-    assert apparent_size_from_d_size_coefficient(size_coeff, SCHERRER_K) == (
-        pytest.approx(9000.0))
 
 
 def test_the_stored_coefficients_read_as_the_specimen_quantities():

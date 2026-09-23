@@ -39,9 +39,11 @@ P = rx.Parameter
 #: A synthetic ``ITYP 1``/``ITYP 2`` coefficient set: eleven numbers of the
 #: shape a real moderator fit has (a small constant, then amplitude/rate pairs
 #: of decreasing size), invented here so no line of anybody's beamtime file
-#: enters the repository.
+#: enters the repository.  The fifth pair (P10, P11) is zero: its exponent is
+#: not published, so a non-zero value there is refused (SPEC § 4.3; GSAS
+#: Technical Manual p. 128; Von Dreele, Jorgensen & Windsor 1982 eqs. 4-5).
 ELEVEN = [5.0, 800.0, 0.11, 900.0, 4.5e-3, 1000.0, 5.0e-4, -1400.0, 3.4e-4,
-          70000.0, 0.1]
+          0.0, 0.0]
 #: Twelve for the Chebyshev types.
 TWELVE = [3.0, 1.4, -0.9, 0.55, -0.3, 0.17, -0.09, 0.05, -0.02, 0.011,
           -0.006, 0.003]
@@ -89,13 +91,14 @@ def values_of(structure, instrument) -> dict[str, float]:
 
 # ------------------------------------------------- the transcription, by hand
 def test_type_one_is_the_manuals_sum_of_exponentials():
-    """PAGE 128, term by term, written out here rather than looped.
+    """PAGE 128 and VD82 eq. (4), term by term, written out here rather than looped.
 
-    The point of writing the five terms long-hand is that the loop in
+    The point of writing the terms long-hand is that the loop in
     ``tof_spectrum`` and this assertion can only agree if the *pairing* of
     amplitude with rate and the *power* of T in each term are both right, and
-    those are the two things a transcription gets wrong.  ``(i+1)/2`` in
-    GSAS-II's own loop is what the powers 1…5 come from.
+    those are the two things a transcription gets wrong.  The powers 1…4 are
+    VD82 eq. (4)'s (SPEC § 4.3); the fifth pair's is unpublished, so that pair
+    must be zero and a non-zero one is refused by name.
     """
     t_us = np.array([8000.0, 17500.0, 26200.0, 38400.0, 45000.0])
     t = t_us / 1000.0  # the manual's argument is milliseconds
@@ -104,8 +107,7 @@ def test_type_one_is_the_manuals_sum_of_exponentials():
             + p[1] * np.exp(-p[2] * t)
             + p[3] * np.exp(-p[4] * t ** 2)
             + p[5] * np.exp(-p[6] * t ** 3)
-            + p[7] * np.exp(-p[8] * t ** 4)
-            + p[9] * np.exp(-p[10] * t ** 5))
+            + p[7] * np.exp(-p[8] * t ** 4))
     got = incident_spectrum(1, p, t_us)
     # ``approx`` and not ``array_equal``: this expression sums the five terms
     # onto P1 left to right while the module accumulates them and adds P1 last,
@@ -113,6 +115,10 @@ def test_type_one_is_the_manuals_sum_of_exponentials():
     # alone.  Writing the sum in the module's own order would make the test a
     # copy of the code rather than an independent statement of the formula.
     assert got == pytest.approx(want, rel=1e-14)
+    for itype in (1, 2):
+        for k in (9, 10):
+            with pytest.raises(ValueError, match=f"P{k + 1} = 0.1 is non-zero"):
+                incident_spectrum(itype, [*p[:k], 0.1, *p[k + 1:]], t_us)
 
 
 def test_type_two_replaces_only_the_first_exponential_with_a_maxwellian():
@@ -182,8 +188,7 @@ def test_the_argument_is_a_flight_time_and_the_public_door_takes_microseconds():
     one_ms_in_us = 1000.0
     p = ELEVEN
     by_hand = (p[0] + p[1] * math.exp(-p[2]) + p[3] * math.exp(-p[4])
-               + p[5] * math.exp(-p[6]) + p[7] * math.exp(-p[8])
-               + p[9] * math.exp(-p[10]))
+               + p[5] * math.exp(-p[6]) + p[7] * math.exp(-p[8]))
     assert incident_spectrum(1, p, np.array([one_ms_in_us]))[0] == pytest.approx(
         by_hand, rel=1e-14)
 
@@ -218,15 +223,22 @@ def test_ityp_ten_is_refused_for_its_own_reason_and_not_as_an_unknown():
 
 
 def test_a_coefficient_count_that_disagrees_with_the_type_is_refused_not_padded():
+    def block(itype, n):
+        # ones, with ITYP 1/2's fifth pair (P10, P11) zero where it exists,
+        # since a non-zero one is refused before the count is looked at
+        vals = [1.0] * n
+        if itype in (1, 2):
+            vals[9:11] = [0.0] * len(vals[9:11])
+        return vals
+
     for itype, want in ((1, 11), (2, 11), (3, 12), (4, 12), (5, 12)):
-        good = [1.0] * want
-        incident_spectrum(itype, good, np.array([1e4]))
+        incident_spectrum(itype, block(itype, want), np.array([1e4]))
         for n in (want - 1, want + 1):
             with pytest.raises(ValueError, match=f"uses {want} coefficients"):
-                incident_spectrum(itype, [1.0] * n, np.array([1e4]))
+                incident_spectrum(itype, block(itype, n), np.array([1e4]))
             with pytest.raises(ValueError, match=f"uses {want} coefficients"):
                 IncidentSpectrum(itype=itype,
-                                 coefficients=[P(value=1.0)] * n)
+                                 coefficients=[P(value=v) for v in block(itype, n)])
 
 
 def test_the_fitted_window_is_carried_and_checked():

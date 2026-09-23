@@ -412,10 +412,10 @@ def test_a_time_map_bank_naming_a_map_the_file_does_not_hold_is_refused(tmp_path
 
 
 def test_a_ralf_or_slog_bank_reads_its_own_x_column_as_microseconds(tmp_path):
-    """The fold is taken off the bintype, which is the bug in the reference.
+    """The fold is taken off the bintype, as the manual states it.
 
     The manual says an FXYE x column is "centidegrees for CW data or
-    microseconds for TOF data"; GSAS-II divides by 100 unconditionally.  These
+    microseconds for TOF data", so only a CW bank is divided by 100.  These
     same bytes under ``CONS`` are the positive control in the test below.
     """
     xs = [1106.19950 * 1.004 ** i for i in range(N)]
@@ -736,25 +736,30 @@ INS   FPATH1   32.00
 INS   HTYPE   PNTR
 INS  1 ICONS   6911.21 -2.79     -19.420
 INS  1BNKNAM bank_45
-INS  1BNKPAR      2.50       46.60
+INS  1BNKPAR      2.50     46.60
 INS  1I ITYP    1    8.0000   49.0000     37556
 INS  1ICOFF1   0.500000E+01   0.800000E+03   0.110000E+00   0.900000E+03
 INS  1ICOFF2   0.450000E-02   0.100000E+04   0.500000E-03  -0.140000E+04
-INS  1ICOFF3   0.340000E-03   0.700000E+05   0.100000E+00   0.000000E+00
+INS  1ICOFF3   0.340000E-03   0.000000E+00   0.000000E+00   0.000000E+00
 INS  1IECOF1   0.120000E+00   0.100000E+02   0.440000E-03   0.600000E+01
 INS  1IECOF2   0.180000E-04   0.580000E+01   0.260000E-05   0.390000E+02
 INS  1IECOF3   0.650000E-05   0.000000E+00   0.000000E+00   0.000000E+00
 INS  1IECOR1 1.000-0.110 0.679-0.055-0.558 0.222 0.066 0.002-0.002 0.000
-INS  1PRCF1     1    8   0.01000
+INS  1PRCF1     1   12   0.01000
 INS  1PRCF11   0.000000E+00   0.146061E+00   0.434277E-01   0.233696E-01
 INS  1PRCF12   0.000000E+00   0.353349E+03   0.000000E+00   0.000000E+00
+INS  1PRCF13   0.000000E+00   0.000000E+00   0.000000E+00   0.000000E+00
 INS  2 ICONS  11974.73   -2.3500   -3.6200
-INS  2BNKPAR      1.50       90.00
-INS  2PRCF      2   15   0.00100
-INS  2PRCF 1   0.000000E+00   0.200000E+00   0.337096E+02   0.551603E+02
-INS  2PRCF 2   0.000000E+00   0.167064E+03   0.000000E+00   0.000000E+00
-INS  2PRCF 3   0.000000E+00   0.000000E+00   0.000000E+00   0.000000E+00
-INS  2PRCF 4   0.000000E+00   0.000000E+00   0.000000E+00
+INS  2BNKPAR      1.50     90.00
+INS  2PRCF1     1   12   0.00100
+INS  2PRCF11   0.000000E+00   0.200000E+00   0.337096E+02   0.551603E+02
+INS  2PRCF12   0.000000E+00   0.167064E+03   0.000000E+00   0.000000E+00
+INS  2PRCF13   0.000000E+00   0.000000E+00   0.000000E+00   0.000000E+00
+INS  2PRCF2     2   15   0.00100
+INS  2PRCF21   0.000000E+00   0.200000E+00   0.337096E+02   0.551603E+02
+INS  2PRCF22   0.000000E+00   0.167064E+03   0.000000E+00   0.000000E+00
+INS  2PRCF23   0.000000E+00   0.000000E+00   0.000000E+00   0.000000E+00
+INS  2PRCF24   0.000000E+00   0.000000E+00   0.000000E+00
 """
 
 INSTPRM = """\
@@ -785,9 +790,9 @@ difA:-0.981525860367
 def test_a_gsas_i_tof_file_gives_one_instrument_per_bank(tmp_path):
     """Several banks is what a TOF diffractometer *is*, so none is picked.
 
-    The two ``PRCF`` spellings in the fixture are the two real ones — bank 1
-    writes ``PRCF1``/``PRCF11`` and bank 2 writes ``PRCF``/``PRCF 1`` — which
-    is why the records are read by column and the header found structurally.
+    Bank 1 declares a type-1 default set; bank 2 a type-1 default and a
+    type-2 second set, which is reported and skipped because set 1 is the
+    default whatever its function (SPEC § 6.1; GSAS Technical Manual p. 223).
     """
     p = tmp_path / "synthetic.iparm"
     p.write_text(IPARM, encoding="utf-8")
@@ -797,28 +802,30 @@ def test_a_gsas_i_tof_file_gives_one_instrument_per_bank(tmp_path):
     one = banks[1].source
     assert (one.difc.value, one.difa.value, one.tzero.value) == (6911.21, -2.79, -19.42)
     assert one.two_theta_bank_deg == 46.60
-    assert (one.l1_m, one.l2_m) == (32.0, 2.50)
+    # DIST is carried as l2; FPATH1 is not a record the manual lists, so the
+    # primary flight path is not stated and stays unset (SPEC § 6.1)
+    assert (one.l1_m, one.l2_m) == (None, 2.50)
     assert banks[2].source.difc.value == 11974.73
     # a calibration arrives frozen, exactly as load_instrument_profile's does
     assert not any(getattr(one, n).vary for n in ("difc", "difa", "tzero", "difb"))
-    # one diagnostic per PRCF block, naming the type and count either way:
-    # bank 1's type-1/8 block is the one layout read (T-1d), bank 2's type-2
-    # block is still declined
+    assert not any(getattr(one.profile_tof, f).vary for f in ProfileTOF.model_fields)
+    assert one.profile_tof.alpha1.value == pytest.approx(0.146061)
+    assert one.profile_tof.sig1.value == pytest.approx(353.349)
+    assert banks[2].source.profile_tof.sig1.value == pytest.approx(167.064)
+    # one read per bank, and bank 2's second set declined by name
     read = [n for n in notes if n.code == "GSAS_IPARM_PROFILE_READ"]
     declined = [n for n in notes if n.code == "GSAS_IPARM_PROFILE_DECLINED"]
-    assert len(read) == 1 and len(declined) == 1
-    assert "function 1 with 8" in read[0].message
-    assert "**corroborated, not documented**" in read[0].message
-    assert "function 2 with 15" in declined[0].message
-    assert all(getattr(banks[2].source.profile_tof, f).value == 0.0
-               for f in ProfileTOF.model_fields)
+    assert len(read) == 2
+    assert all("function 1 with 12" in n.message for n in read)
+    assert len(declined) == 1 and "PRCF set 2 (profile function 2)" in declined[0].message
     dropped = [n for n in notes if n.code == "GSAS_IPARM_FIELD_DROPPED"]
-    assert len(dropped) == 1
-    # IECOR is dropped and says why; ICOFF and IECOF are read and so are *not*
-    # in the drop list any more, which is the half of this that would rot
+    assert dropped
+    # IECOR has no slot and is dropped; ICOFF and IECOF are read and so are
+    # *not* in the drop list, which is the half of this that would rot
     # silently if only the message were asserted
-    assert dropped[0].where == ["BNKNAM", "IECOR1"]
-    assert "IECOR" in dropped[0].message and "ICOFF" not in dropped[0].where
+    where = [w for n in dropped for w in n.where]
+    assert any("IECOR" in w for w in where)
+    assert not any("ICOFF" in w or "IECOF" in w for w in where)
 
     # the incident spectrum: bank 1 declares one, bank 2 has no ITYP record at
     # all and therefore has none
@@ -827,7 +834,7 @@ def test_a_gsas_i_tof_file_gives_one_instrument_per_bank(tmp_path):
     assert (spec.tof_min_us, spec.tof_max_us) == (8000.0, 49000.0)
     assert [p.value for p in spec.coefficients] == [
         5.0, 800.0, 0.11, 900.0, 0.0045, 1000.0, 5e-4, -1400.0, 3.4e-4,
-        70000.0, 0.1]
+        0.0, 0.0]
     # eleven, not twelve: type 1 uses eleven and the block's twelfth slot is
     # a slot the function does not read
     assert len(spec.coefficients) == 11
@@ -837,49 +844,19 @@ def test_a_gsas_i_tof_file_gives_one_instrument_per_bank(tmp_path):
     assert banks[2].source.incident_spectrum.coefficients == []
 
 
-#: A one-bank ``.iparm`` whose type-1 ``PRCF`` block is the eight-coefficient
-#: layout T-1d reads, written with the ``PRCF1``/``PRCF11`` spelling.  The
-#: numbers are the arithmetic below and not a real bank's: the physics that
-#: corroborated the *order* is recorded in ``io/instrument_tof.py`` and cannot
-#: be reproduced on a synthetic fixture, because it needs four real banks.
+#: A one-bank ``.iparm`` with a type-1 default ``PRCF`` set of the documented
+#: twelve coefficients (SPEC § 6.1; GSAS Technical Manual p. 144, 223).  The
+#: numbers are invented, not a real bank's.
 PRCF1_IPARM = """\
 INS   BANK      1
 INS   HTYPE   PNTR
-INS   FPATH1     32.0000
 INS  1 ICONS   6911.21   -2.7900  -19.4200
-INS  1BNKPAR      2.50       46.60
-INS  1PRCF1     1    8   0.01000
+INS  1BNKPAR      2.50     46.60
+INS  1PRCF1     1   12   0.01000
 INS  1PRCF11   0.500000E-02   0.146061E+00   0.434277E-01   0.233696E-01
 INS  1PRCF12   0.700000E+01   0.353349E+03   0.110000E+02   0.000000E+00
+INS  1PRCF13   0.000000E+00   0.000000E+00   0.000000E+00   0.000000E+00
 """
-
-
-def test_the_type_one_eight_coefficient_prcf_block_is_read(tmp_path):
-    """The one ``PRCF`` layout that is read, and its slot order (T-1d).
-
-    ``(alp-0, alp-1, bet-0, bet-1, sig-0, sig-1, sig-2, s1ec)`` — corroborated
-    rather than documented, and the diagnostic says so, because the manual
-    gives type 1 twelve coefficients and no obtainable file writes twelve.
-    Everything read arrives held, like the calibration beside it.
-    """
-    p = tmp_path / "prcf1.iparm"
-    p.write_text(PRCF1_IPARM, encoding="utf-8")
-    notes = []
-    profile = read_gsas_tof_iparm(str(p), diagnostics=notes)[1].source.profile_tof
-    assert profile.alpha0.value == pytest.approx(0.005)
-    assert profile.alpha1.value == pytest.approx(0.146061)
-    assert profile.beta0.value == pytest.approx(0.0434277)
-    assert profile.beta1.value == pytest.approx(0.0233696)
-    assert profile.sig0.value == pytest.approx(7.0)
-    assert profile.sig1.value == pytest.approx(353.349)
-    assert profile.sig2.value == pytest.approx(11.0)
-    # type 1 is a Gaussian: it has no Lorentzian terms to read, so γ stays off
-    assert (profile.gam0.value, profile.gam1.value, profile.gam2.value) == (0.0,) * 3
-    assert not any(getattr(profile, f).vary for f in ProfileTOF.model_fields)
-    read = [n for n in notes if n.code == "GSAS_IPARM_PROFILE_READ"]
-    assert len(read) == 1
-    assert "alp-0, alp-1, bet-0, bet-1, sig-0, sig-1, sig-2, s1ec" in read[0].message
-    assert "**corroborated, not documented**" in read[0].message
 
 
 def test_the_profile_is_read_whether_or_not_diagnostics_were_asked_for(tmp_path):
@@ -894,69 +871,54 @@ def test_the_profile_is_read_whether_or_not_diagnostics_were_asked_for(tmp_path)
 
 
 @pytest.mark.parametrize(
-    ("edit", "why"),
+    ("edit", "why", "match"),
     [("   0.700000E+01   0.353349E+03   0.110000E+02   0.000000E+00",
-      "   0.700000E+01   0.353349E+03   0.110000E+02   0.250000E+00"),
+      "   0.700000E+01   0.353349E+03   0.110000E+02   0.250000E+00",
+      "s1ec = 0.25 is non-zero"),
      ("   0.700000E+01   0.353349E+03   0.110000E+02   0.000000E+00",
-      "   0.700000E+01  -0.353349E+03   0.110000E+02   0.000000E+00")],
+      "   0.700000E+01  -0.353349E+03   0.110000E+02   0.000000E+00",
+      "sig1 = -353.349 is a variance coefficient and is negative")],
     ids=["a nonzero s1ec", "a negative variance coefficient"])
-def test_a_type_one_block_that_disagrees_with_the_layout_is_declined(
-        tmp_path, edit, why):
-    """Two signs that the block is not the layout its header declares, and
-    both decline it rather than read past them.
+def test_a_type_one_block_that_disagrees_with_the_layout_is_refused(
+        tmp_path, edit, why, match):
+    """Two signs that the block is not a model ``ProfileTOF`` can hold, and
+    both are refused by name rather than read past (SPEC § 6.1, § 8.2).
 
-    ``s1ec`` is a slot this container has no term for, so a value there is
-    ``read_gsas_prm``'s refuse-at-drift case; a negative ``sig`` is a variance
-    coefficient with the wrong sign, and GSAS-II puts no sign constraint on
-    those, so a file carrying one is either a different layout or a model
-    ``ProfileTOF`` cannot hold. The **calibration still comes back**, which is
-    why this is a diagnostic and not a raise.
+    ``s1ec`` is an anisotropic term with no slot here, so dropping it would be
+    silent; a negative ``sig`` is a variance with the wrong sign (SPEC § 3.1).
     """
     p = tmp_path / "odd.iparm"
     p.write_text(PRCF1_IPARM.replace(edit, why), encoding="utf-8")
-    notes = []
-    bank = read_gsas_tof_iparm(str(p), diagnostics=notes)[1]
-    assert bank.source.difc.value == 6911.21
-    assert all(getattr(bank.source.profile_tof, f).value == 0.0
-               for f in ProfileTOF.model_fields)
-    assert [n.code for n in notes] == ["GSAS_IPARM_PROFILE_DECLINED"]
-
-
-def test_a_bank_declaring_several_profile_functions_reads_only_the_first(
-        tmp_path):
-    """The file does not say which function was in force, so the lowest-
-    numbered block is read — GSAS-II's own selection rule.
-
-    LANSCE NPDF declares type 1 *and* type 4 on every bank. Here the type-1
-    block is moved *after* a type-0 one to show the rule is the block number
-    and not the file order: with a lower-numbered block present, the type-1
-    block is declined too and says why.
-    """
-    p = tmp_path / "two_functions.iparm"
-    p.write_text(PRCF1_IPARM
-                 + "INS  1PRCF0     4   12   0.00500\n"
-                   "INS  1PRCF01   0.294620E+00   0.604030E-01   0.382300E-02"
-                   "   0.100000E+02\n", encoding="utf-8")
-    notes = []
-    bank = read_gsas_tof_iparm(str(p), diagnostics=notes)[1]
-    assert all(getattr(bank.source.profile_tof, f).value == 0.0
-               for f in ProfileTOF.model_fields)
-    assert {n.code for n in notes} == {"GSAS_IPARM_PROFILE_DECLINED"}
-    assert any("GSAS-II reads the lowest-numbered block" in n.message
-               for n in notes)
+    with pytest.raises(ValueError, match=match):
+        read_gsas_tof_iparm(str(p), diagnostics=[])
 
 
 def test_a_declined_profile_still_stops_a_fit_loudly_rather_than_misleading_one(
         tmp_path):
-    """The whole reason declining may be a diagnostic: an all-zero
-    ``ProfileTOF`` is refused **by name** by the flight-time compiler."""
+    """No silent fit from a profile the reader did not read.
+
+    A default set of a function this package does not evaluate (PTYP 2,
+    Ikeda-Carpenter) is refused at read (SPEC § 1.2, § 6.1).  A bank with no
+    ``PRCF`` set at all is read with a ``GSAS_IPARM_PROFILE_DECLINED``
+    diagnostic and an all-zero ``ProfileTOF``, which the flight-time compiler
+    refuses **by name**.
+    """
     from rietx.model.forward_tof import compile_tof_model  # noqa: PLC0415
     from tests.test_forward_tof import silicon  # noqa: PLC0415
 
     p = tmp_path / "declined.iparm"
-    p.write_text(PRCF1_IPARM.replace("     1    8   0.01000",
+    p.write_text(PRCF1_IPARM.replace("     1   12   0.01000",
                                      "     2   15   0.01000"), encoding="utf-8")
-    instrument = read_gsas_tof_iparm(str(p))[1]
+    with pytest.raises(ValueError, match="PTYP = 2"):
+        read_gsas_tof_iparm(str(p))
+
+    bare = "".join(ln + "\n" for ln in PRCF1_IPARM.splitlines()
+                   if "PRCF" not in ln)
+    p.write_text(bare, encoding="utf-8")
+    notes = []
+    instrument = read_gsas_tof_iparm(str(p), diagnostics=notes)[1]
+    assert [n.code for n in notes if "PROFILE" in n.code] == [
+        "GSAS_IPARM_PROFILE_DECLINED"]
     pattern = PatternData(tof=[2000.0 + 5.0 * i for i in range(200)],
                           intensity=[10.0] * 200)
     with pytest.raises(ValueError, match="non-positive α or β"):
@@ -979,15 +941,15 @@ def test_the_iparm_reader_refuses_a_spectrum_block_that_disagrees_with_its_type(
         return str(q)
 
     short = IPARM.replace(
-        "INS  1ICOFF3   0.340000E-03   0.700000E+05   0.100000E+00   0.000000E+00\n",
+        "INS  1ICOFF3   0.340000E-03   0.000000E+00   0.000000E+00   0.000000E+00\n",
         "")
     with pytest.raises(ValueError, match="holds 8"):
         read_gsas_tof_iparm(write(short))
 
     # the twelfth slot carries a number the type-1 function never reads
     used = IPARM.replace(
-        "INS  1ICOFF3   0.340000E-03   0.700000E+05   0.100000E+00   0.000000E+00",
-        "INS  1ICOFF3   0.340000E-03   0.700000E+05   0.100000E+00   0.700000E+00")
+        "INS  1ICOFF3   0.340000E-03   0.000000E+00   0.000000E+00   0.000000E+00",
+        "INS  1ICOFF3   0.340000E-03   0.000000E+00   0.000000E+00   0.700000E+00")
     with pytest.raises(ValueError, match="P12 = 0.7"):
         read_gsas_tof_iparm(write(used))
 
@@ -1023,7 +985,7 @@ def test_a_constant_wavelength_prm_is_refused_and_told_where_to_go(tmp_path):
 def test_a_bank_with_no_angle_is_refused(tmp_path):
     """DIFC alone does not give the angle back — it is one number from two."""
     p = tmp_path / "noangle.iparm"
-    p.write_text(IPARM.replace("INS  1BNKPAR      2.50       46.60\n", ""),
+    p.write_text(IPARM.replace("INS  1BNKPAR      2.50     46.60\n", ""),
                  encoding="utf-8")
     with pytest.raises(ValueError, match="no BNKPAR record"):
         read_gsas_tof_iparm(str(p))
@@ -1039,8 +1001,8 @@ def test_a_gsas_ii_instprm_reads_every_named_coefficient(tmp_path):
     assert source.tzero.value == 0.0
     assert source.two_theta_bank_deg == 90.0
     profile = source.profile_tof
-    # GSAS-II's lone ``alpha`` is a 1/d coefficient, so it is alpha1 and not
-    # alpha0 — getTOFalpha is ``ins['alpha']/dsp``
+    # the lone ``alpha`` maps to alpha1, not alpha0: profile function 3 has
+    # α = α₁/d (SPEC § 6.2's table; GSAS Technical Manual p. 148)
     assert (profile.alpha0.value, profile.alpha1.value) == (0.0, 4.0)
     assert (profile.beta0.value, profile.beta1.value) == (0.001, 3.63)
     assert (profile.sig0.value, profile.sig1.value) == (0.0, 10.0)

@@ -1049,8 +1049,8 @@ def test_what_the_floor_actually_buys_is_the_sign_and_not_a_live_gradient():
 
     The cost is stated rather than hidden: the floored fit is **worse** here
     (Rwp 0.1675 against 0.0947), because it is refusing a compensation the
-    unfloored one is allowed to make. That is the trade, and GSAS-II makes the
-    other choice — its ``getTOFsig`` puts no sign constraint on these.
+    unfloored one is allowed to make. That is the trade: ``sig-*`` are
+    variance coefficients (SPEC § 3.1), and a negative variance is not a model.
     """
     from rietx.model.forward_tof import compile_tof_model
 
