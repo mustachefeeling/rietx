@@ -1,6 +1,6 @@
 # WP-1312 — CW neutron follow-through: the seed, the resonant flag, the joint fit
 
-Milestone: unscheduled · Status: ⬜ — tasks 1-2 and the #271 row landed from outside (PRs #280, #282, #427); tasks 3-4 and the #268/#276 rows open
+Milestone: unscheduled · Status: ⬜ — tasks 1-2 and the #271/#276 rows landed from outside (PRs #280, #282, #427, #429); tasks 3-4 and the #268 row open
 Depends on: — (WP-1132 is the maintainer's and does not gate any task here)
 Priority: P2 2026-09-23 — a resonant absorber's b is mis-tabulated in silence, on a path few fits run
 
@@ -199,6 +199,65 @@ issue #113 saying its (a) slice landed — #113 stays open for the fenced
 - Sears, V. F. (1992), *Neutron News* **3**(3), 26 — the shipped table.
 
 ## Handover log
+
+### 2026-09-23 (2nd session) — the #276 row landed from outside; the neutron preset builds a coarse box
+
+A constant-wavelength neutron instrument whose lines are wider than 1° can
+now be built from the preset. `Instrument.constant_wavelength_neutron` builds
+its profile with `ProfileTCHZ.coarse`, in `TCHZ_BOUNDS_COARSE` (u ∈ [−0.5, 8],
+v ∈ [−4, 4], w, x and y up to 8). So `fwhm_deg` reaches √8 ≈ 2.83° before the
+preset's own fence refuses it by name. That is the #276 row of the 2026-09-15
+inheritance, live since PR #429 merged (`2d42303a`, closing #276). Like the
+rows before it, it arrived from an outside contributor with no `WP-NNNN:`
+prefix and no touch of this file. The WP stays `⬜`: tasks 3 and 4 are
+untouched, the #268 row is open, and no session owns it.
+
+**Decided (2026-09-23, the maintainer, on the PR).** The #276 row said
+"the constructor refuses by name", quoting the 2026-09-11 ruling. The PR
+instead read the ruling's escape as the neutron preset's job, and asked. The
+maintainer took that reading. Calling `constant_wavelength_neutron` is the
+explicit instrument statement that reason 3 asked a coarse instrument to
+make. Reason 2's cost, every new instrument's search box moving, is avoided,
+because the X-ray presets keep their box literal for literal. The schema
+default is unchanged, so no `SCHEMA_VERSION` bump was owed.
+
+**What the merge makes possible.** The APDW D1B Co₃O₄ model (U = 1.576,
+V = −0.501, W = 0.475) constructs through `ProfileTCHZ.coarse(...)`. A bare
+number for any width is refused by name, on construction and on assignment,
+where on main it was pydantic's type error. The message names the width, the
+value, the default box and both escapes: `ProfileTCHZ.coarse` and an explicit
+`Parameter(value, min, max)`. `TCHZ_DEFAULTS`, `TCHZ_BOUNDS` and
+`TCHZ_BOUNDS_COARSE` in `schemas/instrument.py` are the one statement of the
+seeds and the two boxes.
+
+**What it deliberately does not do.** A bare wide width still refuses:
+`ProfileTCHZ(u=1.576)` raises. That is the ruling's cost, and `using/data.md`
+says so. No X-ray preset's box moves, and
+`test_the_x_ray_profile_box_is_unchanged` pins all three literal for literal.
+`indexing.workflow.seed_widths` still seeds `w` unfenced, so the 2026-09-16
+gotcha stands.
+
+**Gotcha.** Two neutron routes now give two boxes. The preset builds the
+coarse box, while `read_gsas2_instprm` starts from the default box and
+widens each width only as far as the file's value needs. That is not wrong,
+since a file is the caller's claim, but it is worth a look when #268's row
+is picked up.
+
+**Measured on the merged tree** (Linux x86_64, 4 cores, python 3.12,
+`[dev,jax]`):
+
+- Fast suite: 1 failed, 5920 passed, 96 skipped. The failure is
+  `test_telemetry.py`'s unwritable-directory case, which fails on main alone
+  because the bench runs as root.
+- Fast collect: 6007 → 6015, +8.
+- Full `-m slow`: 2 failed, 188 passed, 9 skipped. Neither failure is #429's.
+  The brucite XPASS(strict) is red on main's own nightly (run 51), and the
+  held-phase ramp guard is an X-ray path, over its 60 s guard under load and
+  green in isolation on the same tree.
+- `ruff`: clean.
+
+**Next** is unchanged: task 3, whose first open item is still sourcing the
+public X-ray + neutron dual dataset. The #268 row is unclaimed.
 
 ### 2026-09-23 — the #271 row landed from outside; a `PNC` recipe now builds
 
