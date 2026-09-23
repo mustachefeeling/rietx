@@ -70,6 +70,22 @@ that distinct lattices can produce identical positions.
 general knowledge, never from a paper read for this WP. **Expand this section on
 a machine with the corpus before designing anything.**
 
+### Inherited
+
+- **From WP-1333 (2026-09-23): on Linux x86-64 the brucite strict xfail
+  passes, so `main`'s full suite is red there.**
+  `tests/test_acceptance_indexing.py::test_brucites_truth_is_not_ranked_first`
+  reported `[XPASS(strict)]` on the 2026-09-22 nightly at `a1261ca`
+  (`[dev,jax]`, 1 failed, 5709 passed, 103 skipped). It did so again in
+  WP-1333's full run at `16b72c3`, which carries #414 (`[dev]`, Linux x86-64,
+  py3.12). WP-1446's handover recorded it as "1 xfailed", so on at least one
+  platform the truth is now ranked first and on another it is not. Either the
+  ranking the xfail pins is platform-dependent, which is a finding in itself,
+  or the mark needs `strict=False` with a reason. Folding the row back is this
+  WP's last task in any case. Until then, every Linux nightly `full` job fails
+  on this one row, and a real regression in that job would read as the same
+  red.
+
 ## Questions for the corpus
 
 - Does Oishi-Tomiyasu (2013, *J. Appl. Cryst.* **46**, 1277-1282) address the

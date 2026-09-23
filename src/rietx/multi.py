@@ -46,6 +46,7 @@ from .refine import (
     _absorption_record,
     _capillary_offset_diagnostics,
     _constraint_diagnostics,
+    _covariance_diagnostics,
     _declared_wavelengths,
     _degenerate_cell_diagnostics,
     _guard_diagnostics,
@@ -530,6 +531,10 @@ class MultiHistogramRefinement:
         if stage_results:
             diagnostics = diagnostics + _constraint_diagnostics(
                 stage_results[-1].name, outcome)
+            # the answer-producing stage only: its covariance is the one every
+            # reported esd is read off (WP-1333)
+            diagnostics = diagnostics + _covariance_diagnostics(
+                stage_results[-1].name, outcome, answer=True)
         # Every stage, not only the last one, exactly as the single-histogram
         # path sums it (``refine._degenerate_cell_diagnostics``): a degenerate
         # probe is a fact about the search and not about the final point.
