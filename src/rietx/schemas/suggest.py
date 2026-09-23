@@ -106,8 +106,10 @@ class CandidateGroup(Base):
     residual, blessing parameters their own esds put within 1σ of zero; at
     N_eff one parameter's ΔBIC is its predicted t² at the inflated esd minus
     ln N_eff.  :attr:`delta_bic_raw_n` is the raw-N figure, kept beside it.  **Positive favours freeing**, the sign
-    layer2 defines, so a full refit's ΔBIC computed the same way is directly
-    comparable — that is what the test pins.
+    layer2 defines, so a full refit's ΔBIC computed the same way — charged at
+    ``effective_sample_size`` of the **restricted** fit's ``esd_inflation``,
+    since the probe measures f on the restricted state's residual — is
+    directly comparable; that is what the test pins.
 
     Predicted, not measured: the linearisation is the same one ``gain`` is,
     and a group whose predicted ``chi2_full`` reaches zero leaves the linear
