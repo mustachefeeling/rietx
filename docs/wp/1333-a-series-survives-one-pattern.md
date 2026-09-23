@@ -1,6 +1,6 @@
 # WP-1333 — a series survives one pattern, and says which one it lost
 
-Milestone: unscheduled · Status: 🔄 2026-09-22 — seven of eight tasks landed and the PR is open; the coordinate carry remains
+Milestone: unscheduled · Status: 🔄 2026-09-23 — seven of eight tasks landed, PR #420 open and green; the coordinate carry remains
 Depends on: — (1317 soft: #218's forward-pass exposure is the sibling ask)
 Priority: P1 2026-09-23 — a chain of hundreds lost to one raise, and a check that died reading as passed
 
@@ -280,6 +280,45 @@ one, never as the gate.
   a small one.
 
 ## Handover log
+
+- **2026-09-23** — The work is now on GitHub and checked end to end. Once
+  GitHub access was fixed the branch went up as PR #420, and its required
+  checks all pass. The full test suite, including the slow real-data rows,
+  was run once on the final tree. It found nothing this branch broke. Two
+  existing failures, neither this branch's, now have owners. The
+  coordinate-carry task is still the one thing left.
+
+  *Done*: pushed to `claude/bold-albattani-him8uh` and opened #420, ready
+  rather than draft, since the handover had already run. `32c0923` brought
+  the Status line and the entry's first next-step up to date for the push.
+  CI on `32c0923` passed all six checks (lint, fast py3.11-3.14, fast jax) and
+  the PR reads `mergeable_state: clean`. `main` has not moved from
+  `16b72c3`, so the branch is the merged tree.
+
+  *Measured*, full suite (`-n auto --dist loadgroup`, `[dev]` venv, Linux
+  x86-64, py3.12, 4 cores, no other suite running): **3 failed, 5663 passed,
+  158 skipped in 1:24:44**. None of the three is this branch's.
+  - `test_telemetry.py::…[unwritable-directory]`: uid 0, as in the fast runs.
+  - `test_acceptance_indexing.py::test_brucites_truth_is_not_ranked_first`:
+    `[XPASS(strict)]`, the same failure the 2026-09-22 nightly `full` job had
+    on `main`. Filed to WP-1449 § Inherited.
+  - `test_held_phase.py::test_the_ramp_reproduction_no_longer_runs_away`: it
+    passes alone and passed in the 2026-09-22 slow-series run. Serially its
+    chain is 9.1 s compiled and 11.2 s numpy against a 60 s guard, with 1609
+    and 1659 iterations against a 2164 bar, and no raised rung or failure. So
+    it is the wall-clock guard tripping under this run's load, where some
+    fixtures ran up to 3.4× slower than CI's (the three-phase indexing setup,
+    945 s here against 278 s). Filed to WP-1420 § Inherited, which will touch
+    that file.
+  - A count check against CI is not exact: the nightly is `[dev,jax]` at an
+    older `main` (1 failed, 5709 passed, 103 skipped). The fast-selection
+    delta of +18 is exact, from the 2026-09-22 entry.
+
+  Next, in order:
+  1. Review #420, starting with the decisions its body lists.
+  2. Decide the coordinate-carry task: its own WP, recommended, or here.
+  3. Close 1333, rewriting Current focus. Once 1333 is gone, WP-1420's soft
+     dependency on it is moot.
 
 - **2026-09-22** — A long series no longer dies because one pattern could not
   be fitted. A pattern whose fit raises now goes down the same ladder a
