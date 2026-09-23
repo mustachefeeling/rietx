@@ -938,17 +938,98 @@ class ProfileTCHZ(Base):
     """
 
     shape: Literal["tchz_pv", "voigt"] = "tchz_pv"
-    u: Parameter = Field(default_factory=lambda: Parameter(value=0.0, min=-0.05, max=1.0, unit="deg^2"))
-    v: Parameter = Field(default_factory=lambda: Parameter(value=0.0, min=-0.5, max=0.5, unit="deg^2"))
-    w: Parameter = Field(
-        default_factory=lambda: Parameter(value=1e-3, min=0.0, max=1.0, unit="deg^2", transform="softplus")
-    )
-    x: Parameter = Field(
-        default_factory=lambda: Parameter(value=1e-3, min=0.0, max=1.0, unit="deg", transform="softplus")
-    )
-    y: Parameter = Field(
-        default_factory=lambda: Parameter(value=0.0, min=0.0, max=1.0, unit="deg", transform="softplus")
-    )
+    u: Parameter = Field(default_factory=lambda: _tchz_width("u"))
+    v: Parameter = Field(default_factory=lambda: _tchz_width("v"))
+    w: Parameter = Field(default_factory=lambda: _tchz_width("w"))
+    x: Parameter = Field(default_factory=lambda: _tchz_width("x"))
+    y: Parameter = Field(default_factory=lambda: _tchz_width("y"))
+
+    @model_validator(mode="before")
+    @classmethod
+    def _refuse_bare_widths(cls, data):
+        """A bare number is refused by name, inside the default box or not.
+
+        A width is a :class:`Parameter` carrying its own box; a bare number
+        never was one, and pydantic's type error said so without saying what
+        to do.  The default box (:data:`TCHZ_BOUNDS`) is sized for a lab or
+        synchrotron X-ray line and stays the default (WP-1312's 2026-09-11
+        ruling: the bound stays, the constructor refuses by name).  So a bare
+        width — a long-wavelength neutron instrument's Caglioti ``U = 1.576``
+        (issue #276), or ``u=0.5`` — is refused naming the width, the value,
+        the box and the two escapes: :meth:`ProfileTCHZ.coarse`, which builds
+        *all five* widths in :data:`TCHZ_BOUNDS_COARSE` from bare values, or
+        an explicit ``Parameter(value, min, max)`` carrying the caller's own
+        bound.  A :class:`Parameter` or a dict passes through untouched.
+        """
+        if not isinstance(data, dict):
+            return data
+        bare = {name: v for name, v in data.items()
+                if name in TCHZ_DEFAULTS and isinstance(v, (int, float))
+                and not isinstance(v, bool)}
+        if bare:
+            said = ", ".join(f"{n}={float(v)!r} (default box [{TCHZ_BOUNDS[n][0]}, "
+                             f"{TCHZ_BOUNDS[n][1]}])"
+                             for n, v in bare.items())
+            raise ValueError(
+                f"ProfileTCHZ: {said} is a bare number, and a width is a "
+                f"Parameter carrying its box; the default box is sized for an "
+                f"X-ray line and is not widened on your behalf. For a coarser "
+                f"instrument (a CW neutron line) build ProfileTCHZ.coarse(...), "
+                f"every width in TCHZ_BOUNDS_COARSE; or state the width as an "
+                f"explicit Parameter(value, min, max) with its own bounds")
+        return data
+
+    @classmethod
+    def coarse(cls, *, shape: Literal["tchz_pv", "voigt"] = "tchz_pv",
+               **widths: float) -> "ProfileTCHZ":
+        """Widths in the coarse-instrument box, :data:`TCHZ_BOUNDS_COARSE`.
+
+        What :meth:`Instrument.constant_wavelength_neutron` builds: a CW
+        neutron diffractometer's lines are 0.2-2.5°, where the default box
+        is sized for a ~0.03° synchrotron line and caps ``w`` at 1 deg².
+        ``widths`` are values (``u=1.576``), each kept in this box.
+        """
+        unknown = set(widths) - set(TCHZ_DEFAULTS)
+        if unknown:
+            raise TypeError(f"ProfileTCHZ.coarse: no width named "
+                            f"{sorted(unknown)}; the widths are "
+                            f"{sorted(TCHZ_DEFAULTS)}")
+        return cls(shape=shape, **{
+            name: _tchz_width(name, widths.get(name), box="coarse")
+            for name in TCHZ_DEFAULTS})
+
+
+#: The default :class:`ProfileTCHZ` seed per width coefficient.
+TCHZ_DEFAULTS: dict[str, float] = {"u": 0.0, "v": 0.0, "w": 1e-3, "x": 1e-3,
+                                   "y": 0.0}
+
+#: The default refinement box per width coefficient, sized for a lab or
+#: synchrotron X-ray line.  Every X-ray preset builds these, so they are the
+#: numbers every X-ray fit's search box has always been.
+TCHZ_BOUNDS: dict[str, tuple[float, float]] = {
+    "u": (-0.05, 1.0), "v": (-0.5, 0.5), "w": (0.0, 1.0), "x": (0.0, 1.0),
+    "y": (0.0, 1.0)}
+
+#: The coarse-instrument box: what a constant-wavelength neutron line needs.
+#: Measured on the public APDW Co3O4 set (ILL D1B, λ = 2.52 Å; issue #276):
+#: its FullProf model has U = 1.576, V = -0.501, W = 0.475, outside the
+#: default box on two coefficients, and with these bounds it converges to
+#: U = 1.654 ± 0.051, within 5 % of that model.
+TCHZ_BOUNDS_COARSE: dict[str, tuple[float, float]] = {
+    "u": (-0.5, 8.0), "v": (-4.0, 4.0), "w": (0.0, 8.0), "x": (0.0, 8.0),
+    "y": (0.0, 8.0)}
+
+_TCHZ_UNITS = {"u": "deg^2", "v": "deg^2", "w": "deg^2", "x": "deg", "y": "deg"}
+_TCHZ_TRANSFORMS = {"u": "identity", "v": "identity", "w": "softplus",
+                    "x": "softplus", "y": "softplus"}
+
+
+def _tchz_width(name: str, value: float | None = None, *,
+                box: Literal["default", "coarse"] = "default") -> Parameter:
+    lo, hi = (TCHZ_BOUNDS if box == "default" else TCHZ_BOUNDS_COARSE)[name]
+    return Parameter(value=TCHZ_DEFAULTS[name] if value is None else value,
+                     min=lo, max=hi, unit=_TCHZ_UNITS[name],
+                     transform=_TCHZ_TRANSFORMS[name])
 
 
 class BackgroundChebyshev(Base):
@@ -1776,10 +1857,22 @@ class Instrument(Base):
 
         The seeded profile is a flat Gaussian of ``fwhm_deg`` at every angle,
         with ``x`` left at its negligible default: the width you observed is
-        the width you get.  ``fwhm_deg`` may not exceed the square
-        root of ``w``'s upper bound, 1.0° at the schema default: above that it
-        raises ``ValueError`` naming the value passed and the bound.  To
-        declare a genuinely coarser instrument, set ``instrument.profile.w``
+        the width you get.
+
+        The profile is built in the coarse-instrument box
+        (:meth:`ProfileTCHZ.coarse`, :data:`TCHZ_BOUNDS_COARSE`): this is
+        WP-1312's escape, built for you.  The default box is sized for a
+        ~0.03° synchrotron line and caps ``w`` at 1 deg², a 1.0° FWHM, where
+        a long-wavelength CW neutron line is wider (issue #276: 1.10° on D1B
+        at λ = 2.52 Å); the ruling keeps that default and has the constructor
+        refuse past it, so the preset takes the escape on the caller's behalf,
+        all five bounds at once.  The cost, said out loud: a *bare* wide width
+        still refuses — ``ProfileTCHZ(u=1.576)`` raises, naming
+        ``ProfileTCHZ.coarse`` and an explicit ``Parameter`` as the ways out.
+        ``fwhm_deg`` may not exceed the square root of ``w``'s upper bound,
+        √8 ≈ 2.83° in the coarse box: above it raises ``ValueError`` naming
+        the value passed and the bound.  To declare a coarser instrument
+        still, set ``instrument.profile.w``
         explicitly, with its own bounds, instead of ``fwhm_deg``.
 
         Note the profile itself needs no neutron-specific code: the Caglioti
@@ -1808,7 +1901,8 @@ class Instrument(Base):
                    geometry=Geometry(kind="debye_scherrer",
                                      goniometer_radius_mm=goniometer_radius_mm,
                                      capillary_radius_mm=capillary_radius_mm,
-                                     mu_r=mu_r))
+                                     mu_r=mu_r),
+                   profile=ProfileTCHZ.coarse())
         if fwhm_deg is not None:
             # Seed the Gaussian constant term alone, at the *full* observed
             # width: with U = V = 0 the Caglioti law gives Gamma_G = sqrt(W),

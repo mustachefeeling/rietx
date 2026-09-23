@@ -22,7 +22,12 @@ from rietx.crystallography.structure_factor import (
 )
 from rietx.crystallography.symmetry import generate_reflections
 from rietx.model.corrections import lorentz_polarization
-from rietx.schemas.instrument import NeutronSource
+from rietx.schemas.instrument import (
+    TCHZ_BOUNDS,
+    TCHZ_BOUNDS_COARSE,
+    NeutronSource,
+    ProfileTCHZ,
+)
 
 CORUNDUM_CELL = (4.758877, 4.758877, 12.992880, 90.0, 90.0, 120.0)
 
@@ -96,23 +101,107 @@ def test_profile_seed_sets_the_gaussian_constant_term_only():
 
 
 def test_fwhm_deg_above_the_ceiling_raises_value_error():
-    """The maintainer's 2026-09-11 decision: a `fwhm_deg` that would seed `w`
-    past its own declared upper bound is refused rather than silently
-    building an instrument whose seed sits on or past a wall the model does
-    not admit. 1.2 deg squares to 1.44, past the schema default's 1.0."""
+    """The maintainer's 2026-09-11 fence, kept: a `fwhm_deg` that would seed
+    `w` past its own declared upper bound is refused rather than building an
+    instrument whose seed sits past a wall the model does not admit. The
+    neutron preset's box is the coarse one since issue #276, so the wall is
+    w = 8 deg² (2.83 deg), and 3.0 deg squares to 9.0, past it."""
     with pytest.raises(ValueError) as exc:
-        rx.Instrument.constant_wavelength_neutron(2.0780, fwhm_deg=1.2)
+        rx.Instrument.constant_wavelength_neutron(2.0780, fwhm_deg=3.0)
     message = str(exc.value)
     assert "fwhm_deg" in message
-    assert "1.2" in message
+    assert "3.0" in message
     assert "profile.w" in message
 
 
 def test_fwhm_deg_just_under_the_ceiling_builds():
     """The other side of the same fence: nothing this close to the bound is
     refused, and the seed is exactly what was asked for."""
-    inst = rx.Instrument.constant_wavelength_neutron(2.0780, fwhm_deg=0.999)
-    assert inst.profile.w.value == pytest.approx(0.999 ** 2)
+    inst = rx.Instrument.constant_wavelength_neutron(2.0780, fwhm_deg=2.8)
+    assert inst.profile.w.value == pytest.approx(2.8 ** 2)
+
+
+def test_a_long_wavelength_line_wider_than_one_degree_builds():
+    """Issue #276: D1B at 2.52 Å has a 1.10 deg strongest line, which the
+    X-ray-sized box (w <= 1 deg²) made unreachable from this preset."""
+    inst = rx.Instrument.constant_wavelength_neutron(2.52, fwhm_deg=1.2)
+    assert inst.profile.w.value == pytest.approx(1.44)
+    for name, (lo, hi) in TCHZ_BOUNDS_COARSE.items():
+        param = getattr(inst.profile, name)
+        assert (param.min, param.max) == (lo, hi)
+
+
+def test_a_bare_wide_width_refuses_and_names_both_escapes():
+    """WP-1312's ruling, the cost said out loud: the default box stays and a
+    bare width past it is refused by name, never switched into another box
+    on the caller's behalf. The message names both ways out."""
+    for kwargs in (dict(u=1.576), dict(u=1.576, v=-0.501, w=0.475)):
+        with pytest.raises(ValueError) as exc:
+            ProfileTCHZ(**kwargs)
+        message = str(exc.value)
+        assert "u=1.576" in message
+        assert "ProfileTCHZ.coarse" in message
+        assert "Parameter(value, min, max)" in message
+
+
+def test_the_explicit_parameter_escape_builds_a_wide_width():
+    profile = ProfileTCHZ(u=rx.Parameter(value=1.576, min=-0.5, max=8.0,
+                                         unit="deg^2"))
+    assert (profile.u.value, profile.u.max) == (1.576, 8.0)
+
+
+def test_a_published_d1b_caglioti_model_constructs_through_coarse():
+    """Issue #276: the APDW Co3O4 D1B FullProf model, U outside the default
+    box and V just outside it, built through the named escape: all five
+    widths in the coarse box (the instrument, not one bound)."""
+    profile = ProfileTCHZ.coarse(u=1.576, v=-0.501, w=0.475)
+    assert (profile.u.value, profile.v.value, profile.w.value) == (
+        1.576, -0.501, 0.475)
+    for name, (lo, hi) in TCHZ_BOUNDS_COARSE.items():
+        param = getattr(profile, name)
+        assert (param.min, param.max) == (lo, hi)
+    # round-trips with its box
+    again = ProfileTCHZ.model_validate_json(profile.model_dump_json())
+    assert again == profile
+    # past the coarse box it still refuses, by the Parameter's own message
+    with pytest.raises(ValueError, match="outside bounds"):
+        ProfileTCHZ.coarse(u=9.0)
+
+
+def test_a_bare_width_inside_the_default_box_refuses_by_name():
+    """As on main, a bare number never builds a width; the refusal now names
+    the width, the value, the box and both escapes, not pydantic's type."""
+    with pytest.raises(ValueError) as exc:
+        ProfileTCHZ(u=0.5)
+    message = str(exc.value)
+    assert "u=0.5" in message
+    lo, hi = TCHZ_BOUNDS["u"]
+    assert f"[{lo}, {hi}]" in message
+    assert "ProfileTCHZ.coarse" in message
+    assert "Parameter(value, min, max)" in message
+
+
+@pytest.mark.parametrize("build", [
+    lambda: rx.Instrument.debye_scherrer(0.4139),
+    lambda: rx.Instrument.bragg_brentano(),
+    lambda: rx.Instrument.flat_plate_transmission(),
+])
+def test_the_x_ray_profile_box_is_unchanged(build):
+    """The coarse box is the neutron preset's alone: every X-ray instrument
+    still builds the profile it always has, literal for literal."""
+    expected = {
+        "u": dict(value=0.0, min=-0.05, max=1.0, unit="deg^2"),
+        "v": dict(value=0.0, min=-0.5, max=0.5, unit="deg^2"),
+        "w": dict(value=1e-3, min=0.0, max=1.0, unit="deg^2",
+                  transform="softplus"),
+        "x": dict(value=1e-3, min=0.0, max=1.0, unit="deg",
+                  transform="softplus"),
+        "y": dict(value=0.0, min=0.0, max=1.0, unit="deg",
+                  transform="softplus"),
+    }
+    profile = build().profile
+    for name, kw in expected.items():
+        assert getattr(profile, name) == rx.Parameter(**kw)
 
 
 def test_the_explicit_parameter_escape_hatch_round_trips_with_its_own_bound():

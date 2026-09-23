@@ -456,6 +456,33 @@ a 0.3° line started from the default is not found at all. The width function
 needs no neutron-specific code. The Caglioti law U·tan²θ + V·tanθ + W is the
 neutron resolution function, and the X-ray path is the borrower.
 
+The width *bounds* do differ. `ProfileTCHZ`'s default box is sized for an
+X-ray line and caps `w` at 1 deg², a 1.0° FWHM, while a long-wavelength neutron
+line is wider: 1.10° on the ILL D1B Co₃O₄ tutorial set at λ = 2.52 Å, whose
+published model has U = 1.576, outside the default `u` bound. The default box
+stays, and the constructor refuses past it by name (WP-1312). The neutron
+preset builds that refusal's escape for you: its profile is
+`ProfileTCHZ.coarse`, all five widths in `TCHZ_BOUNDS_COARSE` (u in [−0.5, 8],
+v in [−4, 4], w, x and y up to 8), so `fwhm_deg` may reach √8 ≈ 2.83° before it
+is refused by name. The cost of that ruling, said out loud: a *bare* wide width
+still refuses. `ProfileTCHZ(u=1.576)` raises, and the message names the two
+ways out, `ProfileTCHZ.coarse(...)` or an explicit `Parameter(value, min, max)`
+with your own bound. Every X-ray preset keeps the default box, so no X-ray
+fit's search box moved.
+
+```python
+from rietx.schemas.instrument import ProfileTCHZ
+
+try:
+    ProfileTCHZ(u=1.576)
+except ValueError as refusal:
+    assert "ProfileTCHZ.coarse" in str(refusal)
+else:
+    raise AssertionError("a bare wide width is refused")
+d1b = ProfileTCHZ.coarse(u=1.576, v=-0.501, w=0.475)
+assert d1b.u.max == 8.0 and d1b.w.max == 8.0
+```
+
 Two corrections are refused rather than ignored. `surface_roughness` is an
 X-ray effect: both models depress the low-angle intensity of a beam that
 penetrates microns, while a thermal neutron beam penetrates centimetres, so the
