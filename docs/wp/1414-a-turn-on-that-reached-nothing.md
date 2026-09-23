@@ -161,9 +161,18 @@ beside it.
   functions, one parametrized twice, so 17 is right and its body's "+18" is
   off by one. **No second review ran over the stack**: a branch-vs-`main`
   review now reads both PRs, so any further pass reads #421's diff against its
-  base alone. Next: #420 merges first. If its handover adds commits, merge
-  them in here again. Then retarget #421 to `main`, where `Closes #265` takes
-  effect.
+  base alone.
+
+  **Then #420 merged, and `main` came in** (`74c737f`, which also carries
+  #389's WP-1418 M-6/M-7, #422 and #423). GitHub retargeted #421 to `main`
+  itself. The one conflict was ROADMAP's 1414/1415 rows: 1414 stays closed and
+  1415 takes #423's date. `SCHEMA_VERSION` needed nothing, since `main` stops
+  at #420's 0.25. #421 is still the same 27 files against `main`. Fast suite
+  on the merged tree: 5830 passed / 161 skipped / 1 failed in 16:20, the same
+  uid-0 case. The skipped count rose by 14 with `main`'s merges, and this
+  branch's test diff carries no skip marker, so none of the 14 is this WP's.
+  Next: CI on #421, then the maintainer's merge. `Closes #265` takes effect
+  there.
 
 - **2026-09-22** — **closed.** A refinement plan that asks for a parameter by
   a name the model does not have now says so, and names the parameter it
