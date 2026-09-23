@@ -1037,9 +1037,11 @@ def _shared_coverage_diagnostics(mtable) -> list[Diagnostic]:
                 f"refined value and its esd therefore come from histogram"
                 f"{'' if len(carried) == 1 else 's'} "
                 f"{', '.join(str(h) for h in carried)} alone, not from the "
-                f"joint data. This is the flight-time case: a bank's widths are "
-                f"instrument.source.profile_tof's polynomials in d, and a "
-                f"coefficient in deg 2theta is not one of them"),
+                f"joint data. On a time-of-flight bank the usual case is a "
+                f"width: its widths are instrument.source.profile_tof's "
+                f"polynomials in d, and a coefficient in deg 2theta is not one "
+                f"of them; a zero shift or a geometry term shared onto a bank "
+                f"is force-fixed for the same reason"),
             suggestion=(
                 "nothing to do if that is what you meant — read this value as a "
                 "measurement of the histograms named, and the bank's own "
