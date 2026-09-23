@@ -499,7 +499,10 @@ SIZE_CAPS: dict[str, int | None] = {
     # column itself costs no lines: eleven headers widened and sixty rows
     # given a `—` cell, on the open sections only.  Landed 827, +1 headroom;
     # the 2026-09-23 backfill rated every ⬜ row and landed at 827 again.
-    "docs/ROADMAP.md": 828,
+    # 828 -> 831 (/issue-review, 2026-09-23): three rows under § The repo's
+    # own process, 1450-1452, for issues #417, #419 and #426.  No prose:
+    # every finding and fold stays in the WP files.  Landed 830, +1 headroom.
+    "docs/ROADMAP.md": 831,
     # 1036 -> 1053 (WP-1429): where the GUI's colour values live, now that
     # they are Python and this workspace's `tokens.css` is generated from
     # them. It governs work outside the WP that measured it — an edit to a

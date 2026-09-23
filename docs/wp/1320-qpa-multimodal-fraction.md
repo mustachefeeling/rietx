@@ -69,6 +69,24 @@ before anything asserts on it.
 
 ### Inherited
 
+- **2026-09-23, from the issue triage (issue #203).** The reporter posted a
+  design on the thread on 2026-09-01, after this file was written, and
+  nothing here names it. It differs from § The detector is the probe on the
+  axis. It profiles the **phase scale**, not a broadening term: pin
+  `phases.i.scale` on a grid rising from 0, refit warm, and report a
+  one-sided 95 % limit at Δχ² ≤ 2.71, inflated by the Bérar-Lelann factor
+  the esds already carry. Convert to wt% per grid point, never after. Three
+  caveats come with it. The linear-block screen is a lower bound, so it may
+  trigger the scan and never be reported as the limit. On a real six-phase
+  fit no local statistic singled the phase out (`background_absorption`
+  0.183 against another phase's 0.208; absent from `top_correlations` and
+  from the one scale-bearing soft mode). And the limit bounds the modelled
+  crystalline form only, never amorphous material of the same composition.
+  It also suggests a `remove_phase` action at `execution="advice"` beside
+  `add_impurity_phase`. Checked against the tree at `644dff84`:
+  `ActionKind` has no `remove_phase`, and no pinned-scale profile exists.
+  The pin axis is one of this WP's in-WP decisions, and this is a second
+  candidate for it.
 - **2026-09-02, from [1324](1324-symmetry-silences.md): two ways a weight
   fraction was wrong that no residual could see, both now closed and both
   reported.** A fraction rides on `scale × ZMV`, and 1324 was about the ZMV

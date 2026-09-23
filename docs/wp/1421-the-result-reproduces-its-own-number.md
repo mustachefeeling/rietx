@@ -78,6 +78,12 @@ Le Bail and Pawley intensities are frozen per stage as well
 
 ### Inherited
 
+**2026-09-23, from the issue triage (issue #272).** The reporter claimed this
+on the thread on 2026-09-23: a fix is in progress on their fork, off
+`ff56d956`, one PR per issue. No PR existed when this was written, so
+`wp_claim.py status` cannot see the claim yet. A session picking this WP
+checks the thread and `gh pr list` first.
+
 **From WP-1342 (2026-09-19).** `StageResult` gained `held_reach`, a
 `dict[str, list[str]]` written on every stage beside `held`. It is state a
 replay has to reproduce, and it is the first *mapping* on that record rather

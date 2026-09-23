@@ -100,6 +100,13 @@ from the Sears table, and the X-ray control in
 that test exists precisely so a future change here cannot quietly turn X-ray
 estimation off.
 
+### Inherited
+
+- **2026-09-23, from the issue triage (issue #117).** Issue #117 is this
+  WP's issue. Its reporter filed it on 2026-08-24 as "WP-1132, owner is
+  taking this one". Until today this file did not cite it, so the backlog
+  read #117 as owned only by 1134, which is ✅. It closes when this WP ships.
+
 ## Deliberately not in scope
 
 - **Energy-dependent σ_abs near a resonance.** Item 4 *refuses* there; making

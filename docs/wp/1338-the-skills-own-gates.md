@@ -14,6 +14,10 @@ warning beforehand.
 
 ### Inherited
 
+- **2026-09-23, from the issue triage: #284 and #287 are closed.** #284 as
+  landed in PR #292, and #287 as answered, its `RECIPE_*` half landed in
+  PR #291. Neither ruling's gate is built. Whether one should be is still
+  this WP's question.
 - **2026-09-16, from [1431](1431-a-caller-names-its-run.md): the api.md half
   of the cap race is settled, and `REFERENCE_MAX_BYTES` is untouched.**
   `references/api.md` is generated from the installed package, one signature

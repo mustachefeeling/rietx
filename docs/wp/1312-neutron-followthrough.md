@@ -66,6 +66,11 @@ exercising this combination.
 
 ### Inherited
 
+- **2026-09-23, from the issue triage (issue #276).** The reporter claimed
+  #276's row on the thread and opened PR #429 the same day ("the neutron
+  preset builds its profile in a coarse-instrument box; a bare wide width
+  still refuses by name"). The PR covers #276 only; #268's row is unclaimed.
+  Reviewing it is `/pr-review`'s.
 - **2026-09-16, from [1118](1118-foreign-model-files.md): there is now a real
   CW-neutron instrument to start from.** `rx.read_gsas2_instprm` reads a
   GSAS-II `.instprm` into a frozen `Instrument`, and `tests/data/gsas2_hb2a.instprm`

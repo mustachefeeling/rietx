@@ -161,6 +161,33 @@ the transposed rotation set is a group too and passes any dimension count.
 
 ### Inherited
 
+**2026-09-23, from the issue triage (issue #418).** The reporter proposes
+moving the representation analysis that PR #389 landed today (`irreps.py`,
+`modes.py`, and the `kind`-neutral half of `isotropy.py`) out of
+`crystallography/magnetic/` into a symmetry package of its own. Magnetism
+becomes one consumer of it and displacive modes the other. A new entry,
+`distortion_candidates(parent, k, sites, ...)`, returns per irrep and
+direction the child group, (P, p) and each orbit's displacement basis. It is
+checked against Howard & Stokes (1998) *Acta Cryst.* B**54**, 782 (R₄⁺ (a,0,0)
+→ I4/mcm, (a,a,0) → Imma, (a,a,a) → R-3c; Γ₄⁻ (a,0,0) → P4mm). Mode-amplitude
+refinement is a stated non-goal, so the proposal is this WP's front half.
+Checked against the tree at `644dff84`. The three modules hold 4152 lines,
+with one mention of "moment" in `irreps.py` and fourteen in `modes.py`.
+v1.5.0 shipped only `operators.py` under `magnetic/`, so the three modules
+have never been in a release, and moving them breaks no user's import. The
+proposed `distortion_candidates` and this file's `displacive_statement`
+builder are one object from two directions and must not land as two. The
+reporter asks three things and will not start before the answers: v1.6 or
+v2+, the package name with or without shims, and whether the entry point
+lands with the move or after it. Issue #426's spglib-to-moyo migration
+([1452](1452-spglib-to-moyo.md))
+touches the same files and is also sequenced after the magnetic PRs; the two
+need an order.
+**Decided 2026-09-23**, answered on #418: v1.6, as this WP's front half,
+with `distortion_candidates` and `displacive_statement` landing as one
+object; a clean break with no shims, since the modules never shipped; and
+the move first as its own PR, the entry point after it with this WP.
+
 **2026-09-21, from the issue triage — #361's route (b) is a rung of this
 WP.** "A child structure refined on its mode amplitudes *and* its moments":
 in the displacive child the parent's k = (½,0,½) is k = 0 of the supercell,

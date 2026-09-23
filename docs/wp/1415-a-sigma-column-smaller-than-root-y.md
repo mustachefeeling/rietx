@@ -121,6 +121,16 @@ on its stated licence (root CLAUDE.md: data carries its own fence, per file);
 `tests/data/README.md` records the answer. A synthetic pattern with two dead
 channels and a σ column at 0.3·√y reproduces both defects without it.
 
+### Inherited
+
+- **2026-09-23, from the issue triage (issue #274).** The edge-dropout task
+  is in PR #425, the contributor's, opened 2026-09-23 at the maintainer's
+  request on the thread. It is one commit off `ff56d956`: an edge-touching
+  run judged against its live side, and `median_filter(mode="reflect")`. The
+  PR says the three synthetic tests, `test_background_auto.py` and
+  `test_readers_robust.py` pass on its tree. Its claim matches what the
+  thread asked for. Reviewing it is `/pr-review`'s.
+
 ## Non-goals
 
 - Replacing the file's σ with √y anywhere. The issues are explicit that the

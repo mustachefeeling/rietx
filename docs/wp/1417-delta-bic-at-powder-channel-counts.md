@@ -95,6 +95,15 @@ shipped acceptance fixtures, since the issue's data are withheld.
 Not #219 (1339). That one is about *where* Δχ² lives; this is about N in the
 penalty. Same family, different mechanism, different fix.
 
+### Inherited
+
+- **2026-09-23, from the issue triage (issue #270).** The reporter claimed
+  this on the thread and opened PR #431 the same day ("ΔBIC is charged at
+  the independent-observation count N/f², measured against the
+  alternative"). Its penalty takes a stand on this WP's open estimator
+  question, so the review reads it against § Context's recommendation.
+  Reviewing it is `/pr-review`'s.
+
 ## Non-goals
 
 - Hamilton's test itself, and `hamilton_justified`'s threshold.
