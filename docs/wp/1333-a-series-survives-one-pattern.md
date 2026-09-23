@@ -1,6 +1,6 @@
 # WP-1333 — a series survives one pattern, and says which one it lost
 
-Milestone: unscheduled · Status: 🔄 2026-09-22 — seven of eight tasks landed in a cloud session; the coordinate carry remains, and the branch waits on a push from a local clone (the session could not reach GitHub)
+Milestone: unscheduled · Status: 🔄 2026-09-22 — seven of eight tasks landed and the PR is open; the coordinate carry remains
 Depends on: — (1317 soft: #218's forward-pass exposure is the sibling ask)
 Priority: P1 2026-09-23 — a chain of hundreds lost to one raise, and a check that died reading as passed
 
@@ -359,9 +359,11 @@ one, never as the gate.
 
   *Gotchas*:
   - Push was refused (403, "Claude doesn't have GitHub access": the GitHub
-    App), and the GitHub MCP's `create_branch` was refused too. So there is
-    no draft claim PR. The claim sits in this file and nowhere GitHub can see
-    it, and the commits travel as a git bundle.
+    App), and the GitHub MCP's `create_branch` was refused too, for the whole
+    working session, so there was no draft claim PR while the work ran. A git
+    bundle was the fallback. The push succeeded on 2026-09-23, once the
+    maintainer had connected the app through claude.ai's `connect-github` page
+    for this organization, after the generic GitHub install page 404'd.
   - To inject an eigensolve failure into a whole fit, patch
     `optimize.statistics.normal_covariance`. A global `np.linalg.pinv` patch
     also breaks the report's region fits (`report/layer1.py`).
@@ -393,9 +395,8 @@ one, never as the gate.
     outside this WP.
 
   Next, in order:
-  1. From a local clone, fetch the bundle, push the branch, open the PR and
-     mark it ready. That is the claim and the review this session could not
-     make.
+  1. Review the PR (opened 2026-09-23, from this session once access was
+     fixed), starting with the decisions listed above.
   2. Run the full suite on main merged into the branch. Only the series' own
      slow rows ran here (counts above).
   3. Decide the coordinate-carry task. The recommendation is its own WP: its
