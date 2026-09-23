@@ -35,6 +35,32 @@ $U, V, W$ are the instrument resolution function {cite}`caglioti1958`. The
 sample adds a Gaussian microstrain term $U_s\tan^2\theta$ and a Gaussian size
 term $P/\cos^2\theta$ {cite}`larson2004,thompson1987`.
 
+$\Gamma_G^2$ is a variance, so the physical constraint is on the sum and not on
+its coefficients:
+
+```{math}
+:label: prof-caglioti-positive
+
+\Gamma_G^2(\theta) \;>\; 0
+\qquad \text{for every } \theta \text{ in the fitted range}
+```
+
+{source}`rietx.strategy.staged.check_resolution_positive`
+
+Each coefficient separately may be negative. A negative $V$ is the ordinary
+sign of a focusing geometry, and the schema bounds allow it. What the sum
+cannot do is go below zero where a peak is being fitted, because the width
+there would be the square root of a negative variance.
+
+Nothing raises when it does. `gaussian_fwhm` clamps $\Gamma_G^2$ to a small
+floor to keep the root real, so the model reports a resolution some four orders
+finer than any goniometer and the fit goes on converging. The condition above
+is therefore checked as a guard rather than enforced as a bound, and a fit that
+trips it reports `RESOLUTION_NOT_POSITIVE`. Read that as "these resolution
+parameters are not quotable", the same reading
+`STEPHENS_STRAIN_NOT_POSITIVE` has and for the same reason: a variance left its
+physical set, and the widths built on it are not measurements.
+
 ```{math}
 :label: prof-caglioti-l
 
@@ -56,6 +82,32 @@ the $\theta$-law, never the letter.
 {ref}`sec-width-as-size` reads either $1/\cos\theta$ coefficient back as a
 crystallite size, and says why $U$ and $W$ have no size to read. Anisotropic
 (hkl-dependent) sample broadening is in {ref}`ch-microstructure`.
+
+(sec-resolution-determined)=
+### When $U$, $V$ and $W$ are determined at all
+
+The two laws above are fitted together, so how well each is determined depends
+on how much of the peak it carries. On high-resolution data the peaks are
+predominantly Lorentzian, and there the Gaussian parameters are poorly
+constrained: "unconstrained refinement of the Gaussian parameters $U$, $V$ and
+$W$ may lead to nonphysical results, or at worst, complete failure of the
+refinement" {cite}`mccusker1999`. The same source gives the remedy, and it is
+not a limit on the width. Apply a constraint, or hold the parameters at the
+instrumental values.
+
+The converse holds for constant-wavelength neutron data, where the instrument
+dominates the profile and the same three parameters are, in that paper's
+words, easily determined by refinement. So the question is about the character
+of the pattern rather than the size of the widths, and any single bound on
+width would have to be wrong for one technique or the other.
+
+rietx therefore reports rather than bounds. A fit that frees $U$, $V$ or $W$ on
+a pattern where $\Gamma_L$ exceeds $\Gamma_G$ at more than half the fitted
+points gets a `RESOLUTION_UNCONSTRAINED` diagnostic. "Predominantly" is a
+comparison between two computed widths, so no calibrated constant enters. The
+workflow that implements the paper's remedy is in Part 1: calibrate on a
+standard with its certified cell held fixed, save the profile, and load it
+before the sample fit.
 
 (sec-strain-cap)=
 ## The strain width bound

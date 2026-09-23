@@ -150,7 +150,7 @@ _KEYWORDS = (TEXTDOC_MAGIC, "project", "pattern", "mode", "limits", "excluded", 
              "guard", "tolerance", "stage", "phase", "instrument", "peaks",
              *RESERVED_BLOCKS)
 
-_FLAG_WORDS = ("locked", "mode-fixed", "softplus", "logit")
+_FLAG_WORDS = ("locked", "mode-fixed", "held", "softplus", "logit")
 _PAIR_WORDS = ("min", "max", "esd")
 
 #: Order the annotations render in.  One tuple, so the renderer and the
@@ -162,7 +162,7 @@ _PAIR_WORDS = ("min", "max", "esd")
 #: middle produced a document this module's own parser could not read back, which
 #: is what the round-trip test exists to catch.
 _ANNOTATION_ORDER = ("min", "max", "softplus", "logit", "locked", "mode-fixed",
-                     "esd", "tie")
+                     "held", "esd", "tie")
 
 
 # ----------------------------------------------------------------------
@@ -307,6 +307,8 @@ def annotations_of(row) -> dict[str, Any]:
         out["locked"] = True
     if row.mode_fixed:
         out["mode-fixed"] = True
+    if row.held:
+        out["held"] = True
     if row.esd is not None:
         out["esd"] = float(_fmt(row.esd))
     return out
@@ -1036,6 +1038,8 @@ _ANNOTATION_REASONS = {
     "locked": "locked is structural (symmetry, or a representation that owns "
               "this channel)",
     "mode-fixed": "mode-fixed follows the intensity mode; change 'mode' instead",
+    "held": "held is a declaration you made with ref.hold(); ref.unhold() "
+            "takes it back, and until then no plan's glob frees it",
     "esd": "an esd is a result of a fit, not an input to one",
 }
 

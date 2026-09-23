@@ -125,6 +125,38 @@ def test_the_fixed_point_holds_over_the_shapes_that_broke_it(tmp_path,
     assert (errors, delta.is_empty()) == ([], True)
 
 
+def test_a_hold_renders_as_an_annotation_and_refuses_the_at_marker(
+        tmp_path, pattern_file):
+    """The fifth held-reason, in the document as the other four are (WP-1435).
+
+    Without the annotation a held row renders as an ordinary fixed parameter:
+    no ``@``, nothing saying why, and the reason arrives only after the user
+    has typed one and been refused. That is the gap the four before it do not
+    have.
+
+    The refusal itself needed no work here, which is the point of
+    ``ParameterRow.refinable`` being one predicate: the vary check reads it
+    and inherited the new reason.
+    """
+    project = _project(tmp_path / "held.rex", pattern_file)
+    project.refinement.hold("phases.0.cell.a")
+
+    text = td.render(project)
+    rows = {row.path: row for row in td.parse(text).rows}
+    assert rows["phases.0.cell.a"].annotations["held"] is True
+
+    # an unedited document still round-trips clean with the annotation on it
+    delta, errors = td.changes(td.parse(text), project)
+    assert (errors, delta.is_empty()) == ([], True)
+
+    # and freeing it by hand is refused with the sentence that names the verb
+    edited = _edit(text, "cell.a", "  cell.a @ " + f"{rows['phases.0.cell.a'].value}"
+                   + "  held")
+    _, errors = _changes(edited, project)
+    assert errors and "cannot be freed" in errors[0].message
+    assert "unhold()" in errors[0].message
+
+
 def test_a_user_tie_renders_as_a_tie_and_stays_read_only(project):
     """WP-1070: the ``=`` annotation already says it, and there is no tie *line*.
 

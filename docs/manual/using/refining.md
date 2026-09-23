@@ -190,9 +190,10 @@ be dropped for one parameter fewer. A weight that was never
 freed reports `HARMONIC_HELD` and must not be quoted at all.
 
 Two related checks are model-free and run before any fit, and neither
-substitutes for this one. `diagnose(data)` looks for a weak peak at the Kβ or
-W Lα position of a strong one and returns `ContaminationFlag`s, needing no
-structure, answering "does something here look like a known contaminant?". This
+substitutes for this one. `diagnose(data)` asks whether several of the strongest
+reflections all carry a line at their Kβ or W Lα position at one common ratio,
+and returns `ContaminationFlag`s, needing no structure. It answers "is the beam
+leaking a known line?", and reports nothing below about 10 % of the parent. This
 one needs a converged model and answers "how much intensity did the model
 attribute to the harmonic once everything else had its chance?". It is the only
 way to see a contamination whose peaks overlap the fundamental's too closely for
@@ -1195,11 +1196,38 @@ for stage in result.stages:
 | `StageResult.n_constraint_truncations` | steps the bounded-LM driver shortened to stay inside a linear-inequality constraint |
 | `StageResult.n_degenerate_cell_probes` | trial cells this stage's residual refused as degenerate (zero or negative volume) rather than warning about and returning NaN |
 | `StageResult.held` | paths the plan freed that this stage held anyway, because the data could not see their phase |
+| `StageResult.held_reach` | per held path, the tied parameters it also stopped |
 | `StageResult.released` | the ones it held at the start and let go again, having seen the phase appear while it solved |
+| `StageResult.unknown_paths` | the literal `turn_on` paths that name no parameter of this model; `None` on a result stored before the check existed |
+| `StageResult.unreached_histograms` | joint fits: per histogram, the globs that freed rows of another histogram and matched none of this one; `{}` on a single histogram, `None` on a result stored before the check existed |
 
-`StageResult.freed` is the field to read when a stage did nothing: a glob that
-matches no path is not an error, so an empty list means the stage was a no-op
-and the run continued past it in silence.
+`StageResult.freed` is the field to read when a stage did nothing. A glob that
+matches no path is not an error, because that is how the shipped plans reach a
+component your model may not declare: `lab_sample_refine` frees
+`phases.*.microstrain.dof.*` whether or not a phase carries a Stephens block.
+An empty list can therefore mean the stage was a no-op, and the run continues
+past it.
+
+A literal path is different. With no `*`, `?` or `[` in it, it names one
+parameter, so if the model has no such row the plan is wrong: a typo, or a
+path renamed under you. `StageResult.unknown_paths` lists it and the fit reports
+`STAGE_PATH_UNKNOWN` at `warning` with the nearest real path. A stage asking
+for the wavelength without its line index is pointed at line 0's wavelength,
+the row the table actually has. It is a diagnostic, not an exception,
+because one plan runs every pattern of a series ([](series.md)). A misspelt
+family inside a glob looks exactly like a glob that correctly matched nothing,
+so no rule can report it, and `freed` is the place to look.
+
+A joint fit (`MultiHistogramRefinement`, in [](series.md)) has one more way to do nothing, which is to do it on
+one histogram only. A glob written for one instrument's parameter names reaches
+only the histograms that have them. So a stage whose globs freed rows of
+histogram 0 and matched none of histogram 1 records
+`StageResult.unreached_histograms == {1: [the globs]}`, and the fit reports
+`STAGE_FREED_NOTHING` at `info`, one diagnostic per histogram. A glob scoped to
+one histogram (`hist.0.…`) is not reported, because that is a plan aimed on
+purpose. Nor is a row that exists and is force-fixed, since it was reached. A
+component declared on one histogram only, such as a hump, *is* reported,
+because it is a true account of what the stage did.
 
 `StageResult.held` is the field to read when a parameter did nothing. A phase
 reaches the pattern only through `scale × |F|² × profile`, so a phase whose
@@ -1211,6 +1239,19 @@ which is how the phase can still appear. The values come back as the ones you
 handed in rather than as a walk, `PHASE_UNCONSTRAINED` names the phase and the
 stages that held it, and the parameters are absent from
 `RefinementResult.parameters` because nothing measured them.
+
+A stage holds whichever parameter carries the freedom. Tie that cell to a
+variable of your own and the variable is what stops moving, so
+`StageResult.held` names `vars.A` where the cell would otherwise appear.
+`StageResult.held_reach` maps each held path to the tied parameters it was
+driving. A cubic `a` held on its own account lists the `b` and `c` that
+followed it. A held `vars.A` lists the cell it drove. The two fields together
+are every value the stage froze.
+
+A variable driving two phases is held only while the data can see neither of
+them. One visible phase gives it gradient, so it is not the flat direction a
+hold exists to remove, and holding it would freeze a cell the data can measure.
+A phase appearing while the stage solves lifts the hold the same way.
 
 A hold is decided per stage, at the values that stage starts from, so a phase
 that appears later refines normally from the stage where it appears. If it
@@ -1275,9 +1316,14 @@ once:
 | `GuardFinding.nonpositive_adp` | an anisotropic displacement tensor is not positive definite |
 | `GuardFinding.nonpositive_strain` | a Stephens block gives a negative σ²(M) for some reflection |
 | `GuardFinding.narrow_hump` | a declared hump has narrowed towards the instrumental resolution, where it is a reflection rather than a background feature |
+| `GuardFinding.unsupported_resolution` | the Gaussian resolution terms were refined on a pattern whose peaks are predominantly Lorentzian, where the data does not determine them |
+| `GuardFinding.flat_direction` | a correlated pair reaches \|ρ\| = 1.000 to the precision the message prints, so the data does not separate them at all |
+| `GuardFinding.large_biso` | an isotropic displacement parameter is past the Lindemann melting bound computed from its own phase's cell |
+| `GuardFinding.nonpositive_resolution` | the Caglioti quadratic Γ_G² = U·tan²θ + V·tanθ + W goes below zero somewhere in the fitted range, where the forward model clamps Γ_G to a floor rather than raising |
 
 `GuardFinding.value` is the headline number for the kind: the correlation
-coefficient, the block R², the minimum eigenvalue, the worst σ²(M). It is
+coefficient, the block R², the minimum eigenvalue, the worst σ²(M), the
+worst Γ_G². It is
 `None` for `GuardFinding.at_bound`, which has no number to report.
 
 `code` is an open vocabulary of strings and deliberately not a closed type. It

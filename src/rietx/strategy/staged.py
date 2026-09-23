@@ -12,11 +12,11 @@ invariant — they stay frozen *within* a stage).
 from __future__ import annotations
 
 import dataclasses
-import difflib
 import functools
 import re
 from dataclasses import dataclass, field
 
+from .._nearmiss import did_you_mean
 from ..schemas.common import Mode
 
 # INTERMEDIATE_FTOL is defined beside the mirror because the pydantic field
@@ -114,9 +114,9 @@ def _dataclass_attr_hint(cls: type, name: str) -> AttributeError:
     """
     fields = [f.name for f in dataclasses.fields(cls)]
     plain = f"{cls.__name__!r} object has no attribute {name!r}"
-    close = difflib.get_close_matches(name, fields, n=3, cutoff=0.6)
-    if close:
-        msg = f"{plain}; did you mean {', '.join(close)!r}?"
+    hint = did_you_mean(name, fields)
+    if hint:
+        msg = f"{plain}; {hint}"
     elif len(fields) <= 12:
         msg = f"{plain}; its fields are {fields}"
     else:
@@ -266,9 +266,10 @@ _ROUGHNESS_STAGE = (
 #: displacement parameters and the scale, so the hump should already be
 #: described when ``biso`` opens — which puts this stage before
 #: ``coordinates``.  Stated as an ordering argument rather than as a measured
-#: effect on purpose: on the BT-1 Cr₂WO₆ case
+#: effect on purpose: on the BT-1 neutron case
 #: (:class:`~rietx.schemas.instrument.HumpComponent` has the table) declaring
-#: the peak did **not** move Biso(Cr) back to a physical value, and the stage
+#: the peak did **not** move that phase's first Biso back to a physical value,
+#: and the stage
 #: sits here because this is the order that gives it the chance, not because
 #: the chance was measured to be taken.
 #:
@@ -792,11 +793,19 @@ class GuardFinding:
 
     code: str
     paths: tuple[str, ...]
-    #: the headline number — ρ, block R², a min eigenvalue, the worst σ²(M).
-    #: ``None`` where the finding has no number (a parameter at its bound).
+    #: the headline number — ρ, block R², a min eigenvalue, the worst σ²(M),
+    #: the worst Γ_G².  ``None`` where the finding has no number (a parameter
+    #: at its bound).
     value: float | None
     #: rendered form, identical to the pre-v1.0 list entry
     message: str
+    #: a clause a *diagnostic* appends to its own sentence, already rendered.
+    #: Written only by :meth:`at_bound` and read only where ``BOUND_HIT``
+    #: builds its ``Diagnostic`` (WP-1434 gives that finding evidence to
+    #: carry; WP-1076 wants both ends of a new field named).  It is
+    #: deliberately not part of :meth:`__str__`, which is the pre-v1.0 text
+    #: byte for byte and is what the other diagnostics are built from.
+    detail: str = ""
 
     def __str__(self) -> str:
         return self.message
@@ -808,8 +817,19 @@ class GuardFinding:
                    f"{a} ~ {b} (ρ={rho:+.3f})")
 
     @classmethod
-    def at_bound(cls, path: str) -> "GuardFinding":
-        return cls("BOUND_HIT", (path,), None, path)
+    def at_bound(cls, path: str, cos: float | None = None,
+                 gap_over_esd: float | None = None) -> "GuardFinding":
+        """``cos`` is the evidence that the limit carried load, not that the
+        value sits near one — see :func:`bound_findings`.  Both are ``None``
+        on the fallback path, where no solve stood behind the test, and the
+        finding then renders exactly as it did before WP-1434.
+        """
+        if cos is None:
+            return cls("BOUND_HIT", (path,), None, path)
+        gap = ("" if gap_over_esd is None
+               else f", {gap_over_esd:.1e} esd from the limit")
+        return cls("BOUND_HIT", (path,), float(cos), path,
+                   detail=f" (ρ={cos:+.3f}{gap})")
 
     @classmethod
     def background_absorption(cls, path: str, r2: float) -> "GuardFinding":
@@ -834,6 +854,37 @@ class GuardFinding:
                    f"worst σ²(M) {worst:+.2e} at {hkl})")
 
     @classmethod
+    def unsupported_resolution(cls, freed: tuple[str, ...], share: float,
+                               n_lorentzian: int, n_total: int) -> "GuardFinding":
+        names = ", ".join(path.rsplit(".", 1)[1].upper() for path in freed)
+        return cls("RESOLUTION_UNCONSTRAINED", freed, float(share),
+                   f"{names} refined on a predominantly Lorentzian pattern "
+                   f"(Γ_L exceeds Γ_G at {n_lorentzian} of {n_total} fitted "
+                   f"points; the Gaussian carries {share:.0%} of the width)")
+
+    @classmethod
+    def flat_direction(cls, a: str, b: str, rho: float) -> "GuardFinding":
+        return cls("FLAT_DIRECTION", (a, b), float(rho),
+                   f"{a} ~ {b} (ρ={rho:+.3f}; the data does not separate them)")
+
+    @classmethod
+    def large_biso(cls, path: str, biso: float, b_melt: float) -> "GuardFinding":
+        return cls("BISO_UNUSUALLY_LARGE", (path,), float(biso),
+                   f"{path} (B = {biso:.2f} Å², {biso / b_melt:.1f}× the "
+                   f"{b_melt:.2f} Å² Lindemann melting bound for this cell)")
+
+    @classmethod
+    def nonpositive_resolution(cls, n_bad: int, n_total: int, worst: float,
+                               two_theta: float) -> "GuardFinding":
+        return cls("RESOLUTION_NOT_POSITIVE",
+                   ("instrument.profile.u", "instrument.profile.v",
+                    "instrument.profile.w"),
+                   float(worst),
+                   f"the Caglioti resolution function ({n_bad} of {n_total} "
+                   f"fitted points, worst Γ_G² {worst:+.2e} deg² at "
+                   f"{two_theta:.3f}° 2θ)")
+
+    @classmethod
     def narrow_hump(cls, path: str, fwhm: float, gamma_inst: float,
                                position: float) -> "GuardFinding":
         ratio = fwhm / gamma_inst if gamma_inst > 0.0 else float("inf")
@@ -846,9 +897,15 @@ class GuardFinding:
 class GuardReport:
     """The guards a stage tripped, grouped by kind — see :class:`GuardFinding`.
 
-    The six *finding* field names are unchanged from v0.2; what they hold is
+    The six *finding* field names from v0.2 are unchanged; what they hold is
     findings rather than strings.  ``str(finding)`` is the old entry, so a
     consumer that only ever printed them needs no change.
+    ``nonpositive_resolution``, ``large_biso``, ``unsupported_resolution`` and
+    ``flat_directions`` are the eighth to eleventh — ``narrow_humps`` (WP-1103)
+    is the seventh — added by WP-1311; their
+    writers are :func:`check_resolution_positive`, :func:`check_biso_plausible`,
+    :func:`check_resolution_supported` and the correlation loop in
+    :func:`check_guards`.
 
     ``measured_background_absorption`` is the one field that is **not**
     findings, and it is here rather than beside them so that the number a
@@ -881,6 +938,21 @@ class GuardReport:
     nonpositive_adps: list[GuardFinding] = field(default_factory=list)
     # phases whose Stephens strain coefficients have left the physical cone
     nonpositive_strain: list[GuardFinding] = field(default_factory=list)
+    # the instrument resolution function dipping below zero somewhere in the
+    # fitted range — a variance the forward model then clamps to a floor
+    # (see check_resolution_positive)
+    nonpositive_resolution: list[GuardFinding] = field(default_factory=list)
+    # isotropic displacement parameters past the Lindemann melting bound for
+    # their own cell (see check_biso_plausible)
+    large_biso: list[GuardFinding] = field(default_factory=list)
+    # the Gaussian resolution terms refined on a pattern whose peaks are
+    # predominantly Lorentzian, where they are not determined
+    # (see check_resolution_supported)
+    unsupported_resolution: list[GuardFinding] = field(default_factory=list)
+    # pairs whose |ρ| is 1.000 to the precision the report states it in — a
+    # rank statement about the data, reported beside the correlation rather
+    # than instead of it (see FLAT_DIRECTION_RHO)
+    flat_directions: list[GuardFinding] = field(default_factory=list)
     # two-way surface-roughness degeneracy (WP-0502): either roughness is not
     # identifiable from this data, or a displacement parameter is now hiding
     # in it.  Same block-R² statistic as background_correlations.
@@ -908,9 +980,18 @@ class GuardReport:
     def findings(self) -> list[GuardFinding]:
         """Every finding, in the order the diagnostics are emitted in
         (``refine._guard_diagnostics``): narrow peaks come *before* the
-        background/roughness absorption findings, matching that loop order."""
+        background/roughness absorption findings, matching that loop order.
+
+        **Every** ``list[GuardFinding]`` field reaches this list, which
+        ``tests/test_capabilities.py`` holds true by ``dataclasses.fields``
+        rather than by a second hand-written order: a new field that a writer
+        fills and this method drops is invisible — the report carries it, the
+        diagnostics carry it, and only this projection is empty (WP-1076's
+        rule, since a declared name whose reader is missing fails no test)."""
         return [*self.high_correlations, *self.at_bounds, *self.nonpositive_adps,
-                *self.nonpositive_strain, *self.narrow_humps,
+                *self.nonpositive_strain, *self.unsupported_resolution,
+                *self.flat_directions, *self.large_biso,
+                *self.nonpositive_resolution, *self.narrow_humps,
                 *self.background_correlations, *self.roughness_correlations]
 
 
@@ -1134,6 +1215,289 @@ def check_stephens_positive(table, model) -> list[GuardFinding]:
     return out
 
 
+#: The three Gaussian resolution terms, in the order a message names them.
+#: Data rather than three literals, because the guard below, its message and
+#: its test all have to mean the same three.
+GAUSSIAN_RESOLUTION_PATHS = ("instrument.profile.u", "instrument.profile.v",
+                             "instrument.profile.w")
+
+
+def check_resolution_supported(table, model) -> list[GuardFinding]:
+    """U, V, W refined on a pattern whose peaks are predominantly Lorentzian.
+
+    McCusker et al. (1999, J. Appl. Cryst. 32, 36) § Synchrotron states both
+    the failure and its remedy: "because of the predominantly Lorentzian
+    character of high-resolution data, refinement of the Lorentzian half-width
+    parameters X and Y is usually straightforward, but unconstrained refinement
+    of the Gaussian parameters U, V and W may lead to nonphysical results, or
+    at worst, complete failure of the refinement.  In such cases, some kind of
+    constraint function should be applied, or the parameters fixed at the
+    instrumental values."
+
+    So the question this asks is **not how wide the widths are**.  A size test
+    would need a number, and the same paper rules one out in the next
+    paragraph: for constant-wavelength neutron data the instrument dominates
+    the profile and "U, V and W are easily determined by Rietveld refinement",
+    so one threshold would have to be wrong for one technique or the other.
+    What the paper makes testable is *character*, and "predominantly" is a
+    comparison rather than a constant: the pattern is predominantly Lorentzian
+    where Γ_L exceeds Γ_G, and predominantly so where that holds at more than
+    half the fitted points.  No free constant enters, which is why this guard
+    has no tunable of its own.
+
+    Fires only on terms this table can actually **move**.  Held at a measured
+    instrumental profile they are exactly what the paper prescribes, so
+    reporting them would flag the remedy as the fault (the WP-1073 lesson: a
+    map that suggests a force-fixed parameter is reporting its own blindness).
+
+    ``moving_paths`` rather than ``free_paths``, which is the root CLAUDE.md
+    rule and not a detail here.  A tie carries its coefficient on the free
+    column it follows, so a ``U`` reaching the fit through
+    :meth:`~rietx.refine.Refinement.tie` is refined on this pattern without
+    ever being a column of θ.  It is exactly as undetermined as a free one and
+    exactly as unquotable, so asking which entries are *columns* would let a
+    tie buy silence.
+
+    The instrument terms alone, no phase size or strain, for the reason
+    ``CompiledModel.instrument_fwhm_deg`` gives.  Needs the compiled model for
+    the fitted axis, so it returns ``[]`` without one.
+    """
+    import numpy as np
+
+    from ..model.profiles.caglioti import gaussian_fwhm, lorentzian_fwhm
+
+    if model is None:
+        return []
+    moving = set(table.moving_paths)
+    freed = tuple(p for p in GAUSSIAN_RESOLUTION_PATHS if p in moving)
+    if not freed:
+        return []
+    tt = np.asarray(model.tt, dtype=np.float64)
+    if tt.size == 0:
+        return []
+    values = {e.path: e.value for e in table.entries}
+    try:
+        theta = 0.5 * tt
+        g = np.asarray(gaussian_fwhm(theta, values["instrument.profile.u"],
+                                     values["instrument.profile.v"],
+                                     values["instrument.profile.w"]))
+        lo = np.asarray(lorentzian_fwhm(theta, values["instrument.profile.x"],
+                                        values["instrument.profile.y"]))
+    except KeyError:
+        return []
+
+    lorentzian = lo > g
+    if lorentzian.sum() * 2 <= tt.size:      # not predominantly, so no claim
+        return []
+    share = float(np.median(g / (g + lo))) if np.all(g + lo > 0.0) else 0.0
+    return [GuardFinding.unsupported_resolution(
+        freed, share, int(lorentzian.sum()), int(tt.size))]
+
+
+#: |ρ| at or above which a correlated pair is reported as a **flat direction**
+#: as well as a high correlation (WP-1311, issue #106).
+#:
+#: Derived from the report rather than chosen.  ``GuardFinding.correlation``
+#: renders ρ to three decimals, so 0.9995 and 1.0 are the same number as far as
+#: anything downstream can see, and 1 − 5e-4 is exactly the half-width of that
+#: rounding.  The claim the finding makes is therefore one the report can
+#: actually support: "ρ is 1.000 to the precision this message states it in".
+#: A tighter bar would assert a distinction the message cannot print, a looser
+#: one would call a genuine 0.997 degenerate.
+FLAT_DIRECTION_RHO = 1.0 - 5e-4
+
+
+#: Lindemann critical ratio ρ = √⟨u²⟩ / r, the fraction of the nearest-neighbour
+#: distance the root-mean-square vibration amplitude reaches at melting
+#: (Gilvarry, J. J., 1956, Phys. Rev. 102, 308, eq 8).  **The most generous of
+#: the four ratios that paper quotes**, so a finding is past *every* criterion
+#: in the source rather than past one reading of it: Gilvarry's own averages
+#: are 0.072 and 0.076 (his Table III), and he calls those "significantly
+#: below" the 0.085 and "somewhat less than" 0.105 he attributes to Grüneisen.
+#: Picking the loosest is what keeps this a flag with no tuned constant in it.
+LINDEMANN_RHO = 0.105
+
+
+def biso_melting_bound(volume_a3: float, n_atoms: float) -> float:
+    """Isotropic B at which an atom in this cell reaches the Lindemann bound.
+
+    Three equations from Gilvarry (1956), and no fourth.  Eq (1) writes the
+    Debye-Waller exponent as ``M = 8π²(sinθ/λ)²⟨u²⟩`` with ⟨u²⟩ "the
+    mean-square amplitude, **normal to the plane of reflection**" — which is
+    the crystallographic ``B = 8π²·Uiso`` exactly, the same one-dimensional
+    quantity this package stores, so no convention is being converted here.
+    Eq (8) is the criterion, ⟨u²⟩ = ρ²r² at fusion with r the
+    nearest-neighbour distance.  Eq (9) gets r from the volume per atom,
+    ``v = r³/√2``, stated for close-packed lattices with the paper's own
+    licence to use it more widely: "for other lattice types, the variation of
+    v/r³ from the close-packed value is too small to consider here".
+
+    Together: ``B_melt = 8π²ρ²(√2·v)^(2/3)``.
+
+    **The domain is stated in the source and it is narrower than this
+    package's**: Gilvarry restricts to isotropic monatomic solids and says the
+    theory "is not directly applicable to elements with complex lattices",
+    where ρ may itself depend on lattice type.  Extrapolating it to an
+    arbitrary crystal is why this reports and never bounds — a cap resting on
+    an extrapolation would refuse fits the source cannot speak about.
+
+    Measured at :data:`LINDEMANN_RHO` on ordinary inorganic solids (WP-1311):
+    corundum 4.6, LaB₆ 5.2, fluorapatite 5.9, Si 8.1, NaCl 8.7 Å², over
+    8.5-22.4 Å³ per atom.  Two consequences worth carrying.  ``help.py``'s
+    long-standing "a refined B above about 5 Å² for a heavy atom usually means
+    an absorption or background error" sits inside that band, which is an
+    independent line arriving at the same place.  And ``Atom.biso``'s 25 Å²
+    schema ceiling needs 109-338 Å³ per atom to be reachable below melting,
+    five to twenty times any ordinary packing, so it bounds nothing physical
+    and this guard is what actually speaks.
+    """
+    import numpy as np
+
+    if volume_a3 <= 0.0 or n_atoms <= 0:
+        return float("inf")
+    v = volume_a3 / n_atoms
+    r_squared = (np.sqrt(2.0) * v) ** (2.0 / 3.0)
+    return float(8.0 * np.pi ** 2 * LINDEMANN_RHO ** 2 * r_squared)
+
+
+def check_biso_plausible(table, model) -> list[GuardFinding]:
+    """Isotropic B values past the Lindemann melting bound for their own cell.
+
+    A flag and never a cap, which is what the IUCr round robin asked for:
+    "it may also be possible to build more 'intelligence' into Rietveld codes
+    and issue more warnings for potentially serious errors — (a) atom and
+    overall thermal parameters which are physically unrealistic (negative,
+    zero or large positive values)" (Madsen et al., 2001, J. Appl. Cryst. 34,
+    409, § 6.2).  The other two warnings named there are already built:
+    non-standard settings (``SPACE_GROUP_SETTING_ASSUMED``) and the
+    occupancy/ZMV check.  Why a warning rather than a bound is Watkin
+    (2008, J. Appl. Cryst. 41, 491): a false atom's "ADP will rise to a very large
+    value, indicating that it should be removed from the model", so the number
+    is *evidence about the model* and clamping it destroys the evidence.
+
+    The threshold is computed per phase from that phase's own cell rather than
+    fixed, because :func:`biso_melting_bound` moves by a factor 4.5 across
+    ordinary packing densities and one constant would be wrong at one end.
+    The low side needs nothing: readers refuse a negative B, the schema floors
+    at zero, and PR #206 made that floor bind a caller-supplied ``Parameter``.
+
+    Anisotropic sites are skipped.  Their ``biso`` is an inert record of the
+    starting estimate (``schemas.structure.Atom``), so testing it would report
+    a number no stage can move.
+
+    Needs the compiled model for the site multiplicities, so it returns ``[]``
+    without one — the ``check_stephens_positive`` convention.  The atom count
+    those multiplicities feed is weighted by occupancy, since the bound is per
+    atom rather than per site.
+    """
+    from ..crystallography.lattice import cell_volume
+
+    if model is None:
+        return []
+    values = {e.path: e.value for e in table.entries}
+    out: list[GuardFinding] = []
+    for ip, cp in enumerate(model.phases):
+        base = f"phases.{ip}"
+        try:
+            volume = cell_volume(
+                values[f"{base}.cell.a"], values[f"{base}.cell.b"],
+                values[f"{base}.cell.c"], values[f"{base}.cell.alpha"],
+                values[f"{base}.cell.beta"], values[f"{base}.cell.gamma"])
+        except KeyError:  # defensive: every phase carries all six cell entries
+            continue
+        # occupancy-weighted, because the bound divides the cell volume by the
+        # number of *atoms* in it and not by the number of sites.  A site at
+        # occ = 0.25 — a cavity cation, a disordered water — puts a quarter of
+        # an atom in the cell, and counting it whole shrinks v and so the
+        # bound, which is the one direction this guard must not err in (its
+        # whole design is the loosest criterion the source quotes).
+        n_atoms = sum(values.get(f"{base}.atoms.{j}.occ", 1.0) * len(rot)
+                      for j, (rot, _tran) in enumerate(cp.sites.ops))
+        bound = biso_melting_bound(volume, n_atoms)
+        for j, is_aniso in enumerate(cp.sites.aniso):
+            if is_aniso:
+                continue
+            path = f"{base}.atoms.{j}.biso"
+            biso = values.get(path)
+            if biso is not None and biso > bound:
+                out.append(GuardFinding.large_biso(path, biso, bound))
+    return out
+
+
+#: relative tolerance below which a Γ_G² counts as *on* zero rather than below
+#: it (WP-1311) — the :data:`STEPHENS_CONE_TOL` situation one seam over, and
+#: resolved the same way.  Zero is inside the physical set: U = V = W = 0 is an
+#: instrument with no Gaussian broadening at all, which is the state every
+#: profile starts from before a resolution stage frees anything.  Relative to
+#: the largest |Γ_G²| over the same fitted range, because the quadratic is
+#: evaluated here and inside ``gaussian_fwhm`` in different association orders
+#: and the two disagree in the last bits.
+RESOLUTION_CONE_TOL = 1e-9
+
+
+def check_resolution_positive(table, model) -> list[GuardFinding]:
+    """The Caglioti resolution function dipping below zero in the fitted range.
+
+    Γ_G² = U·tan²θ + V·tanθ + W is a **variance**, so the physical constraint
+    is on the quadratic as a whole and not on its three coefficients: U, V and
+    W each legitimately go negative on real instruments (Caglioti et al., 1958;
+    a negative V is the usual sign of a focusing geometry), and the schema
+    bounds allow that.  What cannot happen is the sum going negative somewhere
+    a peak is actually being fitted.
+
+    When it does, nothing raises.  ``gaussian_fwhm`` clamps Γ_G² to
+    ``caglioti._MIN_GAMMA_G2`` (≈ (1e-4°)²) to keep its √ real, so the forward
+    model reports a resolution four orders finer than any real goniometer and
+    the fit carries on converging.  ``check_hump_width`` already meets the
+    consequence and abstains rather than endorsing a peak it cannot judge; its
+    docstring says the instrument being unphysical there "is a separate, more
+    fundamental defect and not this guard's to name".  This is the guard that
+    names it.
+
+    Measured on the motivating configuration (WP-1311, from PR #115's review):
+    schema-legal U = 0.05, V = −0.5, W = 0.001 puts the two roots of the
+    quadratic at 0.229° and 168.577° 2θ, so Γ_G² is negative across **every**
+    point of an ordinary scan and Γ_G is reported as the 1e-4° floor
+    throughout — not, as the issue had it, only at the high-angle end.
+
+    Tested over the frozen fitted axis rather than over all θ: a dip outside
+    the measured range is unobservable, and flagging it would be a claim the
+    data cannot support (the ``check_stephens_positive`` convention).  Needs
+    the compiled model for that axis, so it returns ``[]`` without one.
+
+    The **instrument** quadratic alone, with no phase size or strain term, for
+    the reason ``CompiledModel.instrument_fwhm_deg`` gives: the question is
+    about the goniometer, and its answer must not depend on which phase one
+    happens to ask about.  A sample term large enough to lift the total back
+    over zero does not make U, V, W quotable.  Read a firing as "this
+    resolution function is not quotable", never as a verdict on the sample.
+    """
+    import numpy as np
+
+    if model is None:
+        return []
+    tt = np.asarray(model.tt, dtype=np.float64)
+    if tt.size == 0:
+        return []
+    values = {e.path: e.value for e in table.entries}
+    try:
+        u = values["instrument.profile.u"]
+        v = values["instrument.profile.v"]
+        w = values["instrument.profile.w"]
+    except KeyError:  # defensive: ParameterTable always adds the five profile
+        return []     # entries, so nothing in-tree reaches this
+
+    tan = np.tan(np.radians(0.5 * tt))
+    g2 = u * tan * tan + v * tan + w
+    scale = max(float(np.max(np.abs(g2))), 1.0)
+    bad = g2 < -RESOLUTION_CONE_TOL * scale
+    if not bad.any():
+        return []
+    k = int(np.argmin(g2))
+    return [GuardFinding.nonpositive_resolution(
+        int(bad.sum()), int(g2.size), float(g2[k]), float(tt[k]))]
+
+
 #: a free column counts as "on its bound" within this fraction of **the closest
 #: bound's own magnitude**, floored at 1 — scipy's ``rtol`` from
 #: ``optimize._lsq.common.find_active_constraints``, which is the test TRF
@@ -1152,9 +1516,34 @@ def check_stephens_positive(table, model) -> list[GuardFinding]:
 #: the *other* bound was.
 BOUND_HIT_RTOL = 1e-10
 
+#: the **loose** half of WP-1434's conjunction: how close to its limit a value
+#: must sit, as a fraction of that parameter's own esd.  A distance is
+#: meaningless on its own — TRF keeps its iterates strictly feasible, so where
+#: a boundary solution lands is a function of when the solver stopped — but it
+#: is what separates a bound that is carrying load from a stage that simply
+#: stopped early while still heading towards one, which the gradient cannot do
+#: (both push outward).  Measured: over 32 genuinely-binding cases on FAP and
+#: Si SRM 640c, with ``ftol`` swept 1e-9 … 1e-3, the largest gap was 7.7e-4
+#: esd; the early-stopped row of the WP's ``make_lab6`` sweep sits at 2.36 esd
+#: and a free optimum at 2.4e+3.  1e-2 is inside that window with 13x margin
+#: below and 236x above, and it reads as the physical statement it is: the
+#: limit and the value are the same number to a hundredth of an esd.
+BOUND_HIT_ESD_FRAC = 1e-2
 
-def bound_findings(bounds, free: list[str], theta) -> list[GuardFinding]:
-    """Free paths sitting on a bound — **the one place this test happens**.
+#: the **binding** half: how far the residual must be from orthogonal to a
+#: column before the limit holding it is called active
+#: (:attr:`~rietx.optimize.least_squares.LSQOutcome.residual_cosine`).  The
+#: sign alone does not discriminate, because at a free optimum the gradient is
+#: small and its direction arbitrary — measured, "pushes outward" reads true
+#: there too.  Measured: 1.5e-2 … 2.1e-1 over the 32 binding cases against
+#: 5.0e-10 at a free optimum, so 1e-4 sits 145x below the weakest binding case
+#: and 2e+5 above the free one.
+BOUND_HIT_COS_MIN = 1e-4
+
+
+def bound_findings(bounds, free: list[str], theta, *,
+                   cos=None, esd=None) -> list[GuardFinding]:
+    """Free paths whose bound **carried load** — the one place this happens.
 
     ``bounds`` is the ``(lo, hi)`` pair from a
     :class:`~rietx.params.vector.ParameterTable` or a
@@ -1172,11 +1561,42 @@ def bound_findings(bounds, free: list[str], theta) -> list[GuardFinding]:
     never seen here, so a consumer must report it as unmeasured rather than as
     not-at-a-bound; that is what the flag's third state is for.
 
-    The test is scipy's own (see :data:`BOUND_HIT_RTOL`), including the clause
-    that makes a bound active only when it is the **nearer** of the two: on a
-    narrow interval both thresholds can cover the whole span, and without it
-    which bound gets reported is decided by the order the branches are written
-    in rather than by where the value sits.
+    **The question is "did the limit change the answer", never "is the value
+    near the limit"** (WP-1434, issue #273).  TRF keeps its iterates strictly
+    feasible, so how close a boundary solution lands is a function of the
+    stage's ``ftol``: on the issue's own fixtures nine of 32 genuinely-binding
+    cases ended 1e-10 to 1.6e-6 inside their limit, ``converged``, with
+    ordinary esds and no flag.  No tolerance fixes that, because the distance
+    it would have to admit is four orders wide across one set of fixtures.
+
+    So the test is a **conjunction**, and each half covers what the other
+    cannot.  *Near the limit*, measured in the parameter's own esd
+    (:data:`BOUND_HIT_ESD_FRAC`) — this is what keeps a stage that stopped
+    early while still travelling towards a bound from being reported as
+    having reached one.  *And still pushed into it*: the residual is not
+    orthogonal to that column (:data:`BOUND_HIT_COS_MIN`) and the sign says
+    the solver would leave the feasible set if it could.  At an unconstrained
+    stationary point the normal equations force orthogonality on every free
+    column, so a column that keeps an angle is being held by something, and at
+    a limit that something is the limit (Nocedal & Wright, *Numerical
+    Optimization* 2nd ed. ch. 12, 16 — an active set is identified by the
+    multiplier, never by proximity).
+
+    ``cos`` is
+    :attr:`~rietx.optimize.least_squares.LSQOutcome.residual_cosine` and
+    ``esd`` its ``stderr_internal``, both in the same column order as
+    ``free``.  **Both are optional and the fallback is the pre-WP-1434 test**,
+    a bare distance against :data:`BOUND_HIT_RTOL`: a caller with no solve
+    behind it (or a stage whose covariance was not computed) still gets an
+    answer, and the same answer it used to get.  A non-finite or non-positive
+    esd falls back per column, which is what a direction the data cannot
+    measure has (``ParameterTable.unmeasured_rows``); its cosine is ~0, so the
+    conjunction declines it either way.
+
+    Either path keeps the clause making a bound active only when it is the
+    **nearer** of the two: on a narrow interval both thresholds can cover the
+    whole span, and without it which bound gets reported is decided by the
+    order the branches are written in rather than by where the value sits.
     """
     import numpy as np
 
@@ -1185,11 +1605,35 @@ def bound_findings(bounds, free: list[str], theta) -> list[GuardFinding]:
     for k, path in enumerate(free):
         t = theta[k]
         below, above = t - lo[k], hi[k] - t
-        tol_lo = BOUND_HIT_RTOL * max(1.0, abs(lo[k])) if np.isfinite(lo[k]) else None
-        tol_hi = BOUND_HIT_RTOL * max(1.0, abs(hi[k])) if np.isfinite(hi[k]) else None
-        if ((tol_lo is not None and below <= min(above, tol_lo))
-                or (tol_hi is not None and above <= min(below, tol_hi))):
+        # the nearer limit is the only candidate; ``None`` where it is infinite
+        if below <= above:
+            gap, limit, sign = below, lo[k], +1.0
+        else:
+            gap, limit, sign = above, hi[k], -1.0
+        if not np.isfinite(limit):
+            continue
+
+        e = None if esd is None else esd[k]
+        # the esd window is the *loose* half and is only ever evaluated as
+        # half of the conjunction: without ``cos`` there is nothing to pair it
+        # with, so the fallback is the pre-WP-1434 distance, exactly as this
+        # docstring promises.  Widening the window without the binding test
+        # would report every column within a hundredth of an esd of a limit.
+        if cos is not None and e is not None and np.isfinite(e) and e > 0.0:
+            near, scaled = gap <= BOUND_HIT_ESD_FRAC * e, gap / e
+        else:
+            near, scaled = gap <= BOUND_HIT_RTOL * max(1.0, abs(limit)), None
+        if not near:
+            continue
+
+        if cos is None:
             out.append(GuardFinding.at_bound(path))
+            continue
+        c = float(cos[k])
+        # ``sign`` is +1 at a lower limit, where a solver still pressing
+        # outward would be *lowering* θ, i.e. g > 0; −1 at an upper one
+        if sign * c > 0.0 and abs(c) >= BOUND_HIT_COS_MIN:
+            out.append(GuardFinding.at_bound(path, c, scaled))
     return out
 
 
@@ -1197,8 +1641,8 @@ def check_guards(table, outcome, threshold: float,
                  background_threshold: float = BACKGROUND_ABSORPTION_GUARD,
                  roughness_threshold: float = ROUGHNESS_ABSORPTION_GUARD,
                  model=None, scan_exchangeability: bool = False) -> GuardReport:
-    """Correlation, bound, background/roughness-absorption, ADP- and
-    strain-shape guards.
+    """Correlation, bound, background/roughness-absorption, ADP-, strain- and
+    resolution-shape guards.
 
     ``scan_exchangeability`` additionally runs the WP-1056 held-parameter
     scan (one extra evaluate-only Jacobian), which only the answer-producing
@@ -1216,6 +1660,9 @@ def check_guards(table, outcome, threshold: float,
     report = GuardReport()
     report.nonpositive_adps = check_adp_positive_definite(table)
     report.nonpositive_strain = check_stephens_positive(table, model)
+    report.nonpositive_resolution = check_resolution_positive(table, model)
+    report.large_biso = check_biso_plausible(table, model)
+    report.unsupported_resolution = check_resolution_supported(table, model)
     report.narrow_humps = check_hump_width(table, model)
     free = table.free_paths
 
@@ -1226,6 +1673,17 @@ def check_guards(table, outcome, threshold: float,
                 if abs(corr[i, j]) > threshold:
                     report.high_correlations.append(
                         GuardFinding.correlation(free[i], free[j], corr[i, j]))
+                    # |ρ| = 1.000 is a rank statement, not a strong
+                    # correlation, and saying so in the same vocabulary as
+                    # ρ = 0.96 undersells it.  Reported *beside* the
+                    # correlation rather than instead of it: the
+                    # SEQUENTIAL_PERSISTENT_FINDING precedent, where the
+                    # sharper finding rides alongside the ones it sharpens,
+                    # so no existing consumer loses a row it counts on.
+                    if abs(corr[i, j]) >= FLAT_DIRECTION_RHO:
+                        report.flat_directions.append(
+                            GuardFinding.flat_direction(
+                                free[i], free[j], corr[i, j]))
         # measured once (WP-1056): the same matrix the loop above thresholds
         report.measured_top_correlations = top_correlations(corr, free)
 
@@ -1238,7 +1696,16 @@ def check_guards(table, outcome, threshold: float,
             outcome.jac, free, peak_prefixes)
         report.measured_extra_peak_absorption = extra_peak_absorption(
             outcome.jac, free, peak_prefixes)
-        report.measured_soft_modes = soft_modes(outcome.jac, free)
+        try:
+            report.measured_soft_modes = soft_modes(outcome.jac, free)
+        except np.linalg.LinAlgError:
+            # the unit-column Gram is the matrix the esd computation already
+            # failed to eigensolve (WP-1333, issue #225): the stage has said so
+            # through ``COVARIANCE_UNAVAILABLE``, and a second raise of the
+            # same failure here would discard the answer that guard kept.
+            # Anywhere the covariance *did* form, this stays loud.
+            if getattr(outcome, "covariance_error", None) is None:
+                raise
         if scan_exchangeability and model is not None:
             report.measured_exchangeability = exchangeability_scan(model, table)
         for path, r2 in sorted(report.measured_background_absorption.items(),
@@ -1253,5 +1720,8 @@ def check_guards(table, outcome, threshold: float,
                 report.roughness_correlations.append(
                     GuardFinding.roughness_absorption(path, r2))
 
-    report.at_bounds = bound_findings(table.bounds(), free, outcome.theta)
+    report.at_bounds = bound_findings(
+        table.bounds(), free, outcome.theta,
+        cos=getattr(outcome, "residual_cosine", None),
+        esd=getattr(outcome, "stderr_internal", None))
     return report

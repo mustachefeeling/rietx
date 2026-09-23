@@ -657,6 +657,10 @@ Q22_K = ("1/2", "1/2", "0")
 Q22_ROTATION = ((1, 0, 0), (0, -1, 0), (0, 0, 1))
 Q22_TRANSLATION = (Fraction(0), Fraction(1, 2), Fraction(0))
 Q22_LITTLE_INDEX = 7
+#: The gauge-free selector for Q21's candidate: the BNS number of its isotropy
+#: subgroup.  The ``S1(rank 2)#3`` label is not one — ``isotropy.py``'s direction
+#: sort numbers the ties *after* sorting, and the tie-break is the gauge.
+Q22_BNS = "6.19"
 
 
 def test_the_return_vector_phase_flips_which_eigenspace_a_displacement_needs():
@@ -670,9 +674,25 @@ def test_the_return_vector_phase_flips_which_eigenspace_a_displacement_needs():
     eigenspace ``allowed_displacement_basis`` could ever return before Q22
     (no ``phases`` argument to carry that -1) — the +1 eigenspace is what a
     caller who only had the old rule available would be forced to accept.
+
+    **Nothing here may be selected or pinned by a gauge-dependent quantity**
+    (Yue's review of #389 §5-6, where CI was red on Linux and green on
+    darwin/arm64 for exactly that reason).  ``isotropy.py``'s own docstring at
+    the direction sort says the ``#n`` suffix exists *because* a gauge that is
+    not axis-aligned gives several directions the same fallback label, so the
+    candidate is chosen by its BNS number — a property of the isotropy subgroup
+    and not of any basis inside it — and the configuration by the span of the
+    atom's own displacements across the whole rank-2 family.  Which basis vector
+    of that family carries which share of it is the gauge; the line they lie on
+    is not, and ``in_span`` is a question about the line.
     """
     found = isotropy.candidates("P n m a", Q22_SITE, Q22_K, kind="displacive", verify=False)
-    candidate = next(c for c in found if c.label == "S1(rank 2)#3")
+    # BNS 6.19 is unique in this set, where every rank-2 direction has the same
+    # stabiliser order (4) and the ``#n`` numbering is the gauge
+    matching = [c for c in found if c.bns_number == Q22_BNS]
+    assert len(matching) == 1, [c.bns_number for c in found]
+    candidate = matching[0]
+    assert candidate.direction.rank == 2 and len(candidate.direction.stabilizer) == 4
     little = candidate.permutation.little
     assert little.rotations[Q22_LITTLE_INDEX].tolist() == [list(r) for r in Q22_ROTATION]
     assert little.translations[Q22_LITTLE_INDEX] == Q22_TRANSLATION
@@ -688,16 +708,24 @@ def test_the_return_vector_phase_flips_which_eigenspace_a_displacement_needs():
     rotation_magnetic = isotropy._rotation_in_cell(Q22_ROTATION, inverse, forward)
     op = MagneticOperator.build(rotation_magnetic, (Fraction(0),) * 3, 1)
 
-    pattern = candidate.configurations[2][atom]   # d = (0, 0.624, -0.624), Q21's own numbers
-    assert pattern == pytest.approx((0, 0.624, -0.624), abs=2e-4)
+    # Atom 2's displacements across the whole family span one line — rank 1,
+    # singular values (0.909, 0, 0) — and *which* configurations carry it is the
+    # gauge: darwin/arm64 puts it all in configuration 2, Linux splits the same
+    # quadrature sum between 2 and 3.  Every non-zero one of them is a
+    # displacement this atom is allowed, so every one of them is asserted.
+    block = candidate.configurations[:, atom, :]
+    assert np.linalg.matrix_rank(block, tol=1e-9) == 1
+    patterns = [row for row in block if float(np.linalg.norm(row)) > 1e-9]
+    assert patterns, "atom 2 has no displacement in this family at all"
 
     old_rule = allowed_displacement_basis([op])         # no phases: the pre-Q22 rule
     new_rule = allowed_displacement_basis([op], phases=[-1])   # Q22's fix
 
-    assert in_span(new_rule, pattern)
-    assert not in_span(old_rule, pattern), (
-        "the pre-Q22 rule must reject this candidate's own pattern, or this "
-        "is not a test of the fix")
+    for pattern in patterns:
+        assert in_span(new_rule, pattern)
+        assert not in_span(old_rule, pattern), (
+            "the pre-Q22 rule must reject this candidate's own pattern, or this "
+            "is not a test of the fix")
     assert candidate.in_allowed_span()
 
 
@@ -986,6 +1014,136 @@ def test_a_candidate_is_powder_equivalent_to_itself():
     reflections = isotropy.reflections(found.lattice, 1.8)
     for candidate in found:
         assert isotropy.powder_equivalent(candidate, candidate, reflections)
+
+
+def test_an_empty_reflection_set_is_shaped_and_refused_by_name():
+    """A ``d_min`` past the cell admits nothing, and both halves must say so (#389 §4).
+
+    ``reflections`` built ``np.array([], dtype=np.int64)``, whose shape is
+    ``(0,)``, so the next consumer died inside numpy — ``matmul: Input operand 1
+    has a mismatch in its core dimension 0 … (size 3 is different from 0)`` —
+    naming nothing a caller could act on.  Two fixes, and neither replaces the
+    other: the empty set is now shaped ``(0, 3)``, and ``analyse`` refuses it
+    quoting the ``d_min`` and the cell that made it empty.
+    """
+    found = isotropy.candidates("P n m a", (0, 0, Fraction(1, 2)), GAMMA)
+    empty = isotropy.reflections(found.lattice, 6.5)
+    assert empty.hkl.shape == (0, 3)
+    assert empty.q.shape == (0, 3)
+    assert empty.d.shape == (0,)
+    assert empty.shells == ()
+    assert len(empty) == 0
+    # the longest edge of the magnetic cell is 6 Å, so 6.5 admits nothing
+    assert float(np.max(np.linalg.norm(found.lattice, axis=1))) < 6.5
+    with pytest.raises(ValueError, match=r"6\.5"):
+        isotropy.analyse(found, d_min=6.5)
+
+
+def test_a_domain_transforms_a_displacement_by_r_and_a_moment_by_the_axial_matrix():
+    """The two actions differ by det(R)·ε, and a domain must use the right one (#389 §3).
+
+    A moment is an **axial** vector — ε·det(R)·R, Halpern & Johnson (1939) — and
+    a displacement a **polar** one, plain R: no determinant, and no
+    time-reversal sign, because time reversal does not move an atom.
+    ``_apply_domain`` read ``moment_matrix()`` whatever ``candidate.kind``
+    said, so on a displacive ``P n m a`` (0, 0, ½) candidate the inversion
+    ``-x,-y,-z,+1`` acted as diag(+1, +1, +1) where a displacement needs
+    diag(−1, −1, −1), while the *proper* domain operation was unaffected — the
+    two images stopped carrying consistent relative signs, which is the whole
+    content of a domain average.
+
+    The assertion is exact rather than approximate: the two actions are the same
+    integer matrix times det(R)·ε, so the two images must be exactly that
+    multiple of each other, operation by operation, and the inversion is the one
+    where the factor is −1.
+    """
+    found = isotropy.candidates("P n m a", (0, 0, Fraction(1, 2)), GAMMA,
+                                kind="displacive")
+    little = irreps.little_group(found.space_group, found.k)
+    # Selected by the property the test is about — a domain set containing the
+    # inversion, the operation where the polar and axial actions differ — not
+    # by position.  All four candidates of this set qualify, so `found[1]` was
+    # right by accident and would follow the candidate order if it moved
+    # (review of #389 round 3, follow-ups).
+    with_inversion = [c for c in found
+                      if any(op.xyz() == "-x,-y,-z,+1"
+                             for op in isotropy._domain_operations(c, little))]
+    assert with_inversion, "no candidate of this set has the inversion as a domain operation"
+    candidate = with_inversion[0]
+    domains = isotropy._domain_operations(candidate, little)
+    improper = [op for op in domains if op.determinant * op.time_reversal < 0]
+    assert improper, "this set is supposed to contain an improper domain operation"
+    for op in domains:
+        polar = isotropy._apply_domain(op, candidate.positions,
+                                       candidate.configurations, kind="displacive")
+        axial = isotropy._apply_domain(op, candidate.positions,
+                                       candidate.configurations, kind="magnetic")
+        factor = op.determinant * op.time_reversal
+        assert np.array_equal(axial, factor * polar), op.xyz()
+        if op.xyz() == "-x,-y,-z,+1":
+            assert np.array_equal(np.diag(op.matrix.astype(np.float64)),
+                                  [-1.0, -1.0, -1.0])
+            assert factor == -1
+
+
+def test_the_magnetic_intensity_entry_points_refuse_a_displacive_set_by_name():
+    """What ``analyse`` computes is magnetic, so it must not accept the other kind (#389 §3).
+
+    ``structure_factors`` takes the moments to Cartesian μ_B and applies
+    Halpern & Johnson's perpendicular projection; a displacement reaches a
+    nuclear reflection through the scalar h·u instead, so every column
+    ``analyse`` fills would be a plausible number that means nothing.  Before
+    this fix ``analyse()`` accepted a displacive set without a word and returned
+    a four-candidate table.
+    """
+    found = isotropy.candidates("P n m a", (0, 0, Fraction(1, 2)), GAMMA,
+                                kind="displacive")
+    reflections = isotropy.reflections(found.lattice, 2.0)
+    with pytest.raises(ValueError, match="displacive"):
+        isotropy.structure_factors(found[0], reflections)
+    with pytest.raises(ValueError, match="displacive"):
+        isotropy.analyse(found, d_min=2.0)
+
+
+def test_a_candidate_is_powder_equivalent_to_itself_at_a_coarse_d_min():
+    """A coarse ``d_min`` must not make everything look separable (#389 §1).
+
+    Two distinct causes, both found by Yue's review on 2026-09-18 and both
+    reproduced here before the fix, made ``powder_equivalent(c, c, refl)``
+    return ``False`` for ``candidates("P n m a", (0, 0, 0.5), (0, 0, 0))`` at
+    ``d_min = 5.2``, where the set has 4 reflections in 2 shells:
+
+    * ``_fit_residual`` ran under ``method="lm"``, which *refuses* a problem
+      with fewer residuals than variables (2 shells against 3 free
+      amplitudes) — ``ValueError: Method 'lm' doesn't work when the number of
+      residuals is less than the number of variables``.  A bare
+      ``except Exception: continue`` turned that refusal into ``best = inf``,
+      i.e. into "distinguishable".
+    * candidate ``S4(a)`` has ``|M⊥|max = 6.1e-16`` over all four
+      reflections — every shell is a systematic absence — so the draws were
+      fitting round-off, and the ``<= 0.0`` guard written for exactly that
+      case does not fire on 1e-32.
+
+    The failure direction is the costly one: this module exists to say what a
+    powder average *cannot* separate, so a false "distinguishable" splits
+    models that are the same object.  Reflexivity is the weakest property the
+    relation has and is asserted at both limits; nothing here claims the
+    classes at 5.2 are coarser than at 1.5, which is not guaranteed physics.
+    """
+    found = isotropy.candidates("P n m a", (0, 0, 0.5), GAMMA)
+    # the preconditions the two causes are stated over, asserted rather than
+    # described (review of #389 round 3, follow-ups): if the cell or the index
+    # bound moves, the instrument stops being aimed at the case above and this
+    # test says so instead of quietly testing something else
+    assert len(found) == 4, [c.label for c in found]
+    expected = {5.2: (4, 2), 1.5: (208, 44)}
+    for d_min in (5.2, 1.5):
+        reflections = isotropy.reflections(found.lattice, d_min)
+        assert (len(reflections), len(reflections.shells)) == expected[d_min], \
+            f"d_min={d_min}: {len(reflections)} reflections in {len(reflections.shells)} shells"
+        for candidate in found:
+            assert isotropy.powder_equivalent(candidate, candidate, reflections), \
+                f"{candidate.label} is not powder-equivalent to itself at d_min={d_min}"
 
 
 def test_the_jacobian_deficit_is_the_undeterminable_direction():

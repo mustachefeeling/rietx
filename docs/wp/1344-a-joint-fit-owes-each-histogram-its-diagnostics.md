@@ -2,6 +2,7 @@
 
 Milestone: unscheduled · Status: ⬜
 Depends on: — (WP-1341 owns the neighbouring "a joint fit has no report" gap)
+Priority: P3 2026-09-23 — a diagnostic the joint path is owed and does not get; 1341 is the larger sibling
 
 ## Goal
 
@@ -87,6 +88,16 @@ a fact about the *specimen* (one answer for the fit), which about a
   belongs to every histogram that sees it, whereas a radiation-keyed
   diagnostic is per histogram — two different answers from the same census,
   which is the distinction the WP's Context says is most of the work.
+- **From WP-1414, 2026-09-22: one more census row, already placed.**
+  `STAGE_FREED_NOTHING` is joint-only and per histogram by construction, and
+  it lives on the top-level diagnostics rather than on
+  `HistogramResult.diagnostics`: a stage's reach is a fact about the *plan*,
+  decided before any histogram's model is compiled, so it belongs with the
+  plan's other findings (`STAGE_PATH_UNKNOWN`, `HOLD_BLOCKED_PLAN`'s
+  single-histogram sibling), not with the radiation-keyed ones. If this WP
+  moves per-histogram findings into `HistogramResult`, read that as a
+  deliberate exception rather than a miss. It keys on histogram **index**
+  (`value`), which a reordered histogram list would silently repoint.
 
 ## Non-goals
 

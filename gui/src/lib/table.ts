@@ -31,9 +31,13 @@ export interface ParamRow {
   transform: string;
   tie: TieSpec | null;
   locked: boolean;
+  /** the caller declared this parameter does not move, with `Refinement.hold`
+   *  (WP-1435).  The one held-reason a caller both created and can lift, and
+   *  the only one a plan's `turn_on` glob loses to. */
+  held: boolean;
   esd: number | null;
   mode_fixed: boolean;
-  /** the fourth reason a row can be held: a free wavelength needs this
+  /** the fifth reason a row can be held: a free wavelength needs this
    *  histogram's cell held, since d = λ/(2 sin θ) fixes only the product */
   needs_held_cell: boolean;
   refinable: boolean;
@@ -82,15 +86,17 @@ export function normalize(rows: readonly any[]): ParamRow[] {
  * changes, and a Le Bail phase's mandatory dummy atom is exactly the row a user
  * must not read as structurally fixed (WP-1004).
  *
- * **Four** of them, not the three WP-1011 wrote: a free wavelength needs its
+ * **Five** of them, not the three WP-1011 wrote.  A free wavelength needs its
  * histogram's cell held, and that row arrived after the vocabulary did.  It went
  * unnoticed because the glyph was a ternary chain whose last arm caught
  * everything, so the wavelength of every project on screen wore the mode-fixed
- * mark (found in a browser on the 11-BM example, WP-1214). */
-export function heldKind(row: ParamRow): "" | "locked" | "tied" | "mode" | "degenerate" {
+ * mark (found in a browser on the 11-BM example, WP-1214).  The fifth is a
+ * caller's own hold (WP-1435). */
+export function heldKind(row: ParamRow): "" | "locked" | "tied" | "mode" | "hold" | "degenerate" {
   if (row.locked) return "locked";
   if (row.tie) return "tied";
   if (row.mode_fixed) return "mode";
+  if (row.held) return "hold";
   if (row.needs_held_cell) return "degenerate";
   return "";
 }
@@ -113,6 +119,7 @@ export function heldGlyph(row: ParamRow): string {
   const kind = heldKind(row);
   if (kind === "locked") return "🔒";
   if (kind === "tied") return "=";
+  if (kind === "hold") return "📌";
   if (kind === "degenerate") return "≈";
   return kind === "" && row.refinable ? "" : "·";
 }

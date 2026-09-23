@@ -47,6 +47,24 @@ from .symmetry import (
     site_orbit,
 )
 
+#: How spglib declines a cell it cannot solve, in **both** of its error modes.
+#: It returns ``None`` under ``spglib.error.OLD_ERROR_HANDLING = True``, which
+#: is spglib's own (deprecated) default, and **raises** ``SpglibError`` under
+#: ``False``.  The flag is process-global and a third-party import can flip it:
+#: ``spgrep/__init__.py`` (0.7.0) sets it ``False`` and never puts it back, so
+#: :func:`site_constraints`'s authored "coordinates are not consistent with this
+#: group's setting" message became unreachable — a raw ``SpglibError`` arrived
+#: in its place — the moment anything in the process imported spgrep (Yue's
+#: review of #389).  A caller that owns the refusal message catches this **as
+#: well as** reading the ``None``.
+SPGLIB_REFUSALS: tuple[type[BaseException], ...] = ()
+try:  # pragma: no cover - present in every spglib this package supports
+    from spglib.error import SpglibError as _SpglibError
+
+    SPGLIB_REFUSALS = (_SpglibError,)
+except ImportError:  # pragma: no cover - a spglib without the error module
+    pass
+
 #: Index pairs of the symmetric-tensor components in storage order.
 _VOIGT: tuple[tuple[int, int], ...] = ((0, 0), (1, 1), (2, 2), (0, 1), (0, 2), (1, 2))
 
@@ -187,11 +205,13 @@ def site_constraints(space_group, xyz, *, tol: float = SITE_TOL) -> SiteConstrai
     position count as on it).  Raises ``RuntimeError`` if spglib does not
     recover the requested group from the probe cell — that indicates
     coordinates given in a setting inconsistent with the operators, not a
-    tolerance issue.  **The Wyckoff letter is spglib's**, so it is available
-    only for a group spglib names; an
-    :class:`~rietx.crystallography.symmetry.OperatorGroup` gets the constraint
-    bases, the site symmetry and the multiplicity — which are all read off its
-    own operations — and an empty letter.
+    tolerance issue.  **The Wyckoff letter and the oriented site-symmetry
+    symbol are both spglib's**, so they are available only for a group spglib
+    names; an :class:`~rietx.crystallography.symmetry.OperatorGroup` gets the
+    constraint bases and the multiplicity — read off its own operations — with
+    ``wyckoff`` and ``site_symmetry`` both empty, rather than a plausible wrong
+    symbol for the type spglib would identify from the probe cell (the comment
+    at that return says why).
     """
     sg = as_group(space_group)
     x = np.asarray(xyz, dtype=np.float64)
@@ -229,8 +249,11 @@ def site_constraints(space_group, xyz, *, tol: float = SITE_TOL) -> SiteConstrai
     positions = list(site_positions) + [p for p in dummy_orbit]
     numbers = [1] * len(site_positions) + [2] * len(dummy_orbit)
 
-    dataset = spglib.get_symmetry_dataset(
-        (_compatible_lattice(sg), positions, numbers), symprec=1e-5)
+    try:
+        dataset = spglib.get_symmetry_dataset(
+            (_compatible_lattice(sg), positions, numbers), symprec=1e-5)
+    except SPGLIB_REFUSALS:           # the same refusal, the other error mode
+        dataset = None
     if dataset is None or dataset.number != sg.number:
         found = None if dataset is None else dataset.number
         raise RuntimeError(

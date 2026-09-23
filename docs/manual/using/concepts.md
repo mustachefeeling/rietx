@@ -282,6 +282,63 @@ A variable is no expression language. The relation is affine,
 computes exactly. There is no string form: `"2*A + 0.5"` parses nowhere, and the
 method calls above are the whole surface.
 
+(holding-a-parameter)=
+## Holding a parameter against the plan
+
+Setting `vary=False` does not keep a parameter still. A plan replaces the vary
+flags rather than continuing them, so a stage whose `turn_on` glob matches your
+pinned parameter frees it and refines it. The value moves, the model you handed
+in goes on reading `vary=False`, and nothing says which of the two declarations
+won.
+
+`Refinement.hold` is how you say it and have it stick.
+
+<!-- api-doc: no-exec — it needs the reader's own structure and instrument -->
+```python
+ref = rx.Refinement(standard, instrument)
+ref.hold("phases.0.cell.*")            # the certificate's cell, not a guess
+result = ref.fit(data, plan="lab_calibrate")
+```
+
+The verb takes the same fnmatch globs as `set_vary` and returns the paths it
+held, sorted. `Refinement.unhold` takes it back, and takes the same globs; a
+literal path that is not held is refused rather than passing silently. An
+unheld parameter comes back fixed at its current value, since withdrawing a
+refusal to move something is not a decision to move it.
+
+Calibration is the case it exists for. Refining a certified standard with its
+cell held fixed is what decorrelates zero shift from displacement from cell,
+and it works because the cell is supplied rather than fitted. A plan that
+frees that cell leaves a calibration that is worthless and reports nothing
+unusual. On the 11-BM LaB6 SRM 660a pattern over 2-30° 2θ, `mccusker_default`
+moves a cell declared at 4.157597 Å to 4.156826 Å, which is 185 ppm. With the
+hold in place it comes back at 4.157597 Å exactly.
+
+A hold outranks a plan's glob and loses to the space group. Holding
+`phases.0.cell.*` on a cubic phase marks all six rows and frees none of them,
+and the listing still reports `b` as tied and `alpha` as locked, because those
+are the reasons `unhold` cannot lift. The parameter listing reads a held row
+through `ParameterRow.held`, and [](model.md) has the field beside the other
+four held-reasons.
+
+The stage that wanted the parameter says so. `StageResult.blocked_by_hold`
+names what its glob matched and could not free, and the fit raises
+`HOLD_BLOCKED_PLAN` at `info` naming the paths and the stages. Nothing is
+wrong when it fires: it is the record of which declaration won, which is the
+half you could not otherwise see.
+
+:::{note}
+The diagnostic is keyed on holds rather than on `vary=False` for a measured
+reason. `vary=False` is the default rather than a decision, so on the LaB6
+above 38 of 46 parameters carry it and a plan frees 8 to 12 of them. A
+diagnostic on that would print ten useless lines beside the one that matters.
+A hold is only ever deliberate.
+:::
+
+A hold lives on one `Refinement`, and a series builds a fresh one per pattern.
+Declare it in `SequentialRefinement.fit`'s `constrain` hook to hold across a
+chain, the way you declare a tie there ([](series.md)).
+
 (restraining-a-distance)=
 ## Restraining a distance or an angle
 

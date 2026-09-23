@@ -236,6 +236,14 @@ line if the checkpoint ended it. Close with
    when the contributor asked or the work was folded into another PR.
    Anything else stops and asks (`all`: defers).
 
+   **And say which issues the merge closed.** Read
+   `gh pr view N --json closingIssuesReferences` before merging. A PR that
+   fixes an issue without linking it (a keyword in backticks, `/wp-handover`
+   step 11) leaves the issue open with its fix on main; close it after the
+   merge with a one-line comment naming the PR, in step 8's public register.
+   One left open is what `/issue-review`'s landed column exists to find, so
+   the miss costs a later round rather than the fix.
+
    **A merge that lands part of an in-flight WP owes that WP a handover entry,
    and nothing will ask for it.** Two ways in, and only the first is mechanical:
    the PR carries `WP-NNNN:` commits, **or** its content is a task an open WP

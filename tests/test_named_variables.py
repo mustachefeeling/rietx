@@ -23,6 +23,7 @@ from rietx.params.vector import ParameterTable
 from rietx.schemas.common import Parameter
 from rietx.schemas.instrument import BackgroundChebyshev
 from rietx.schemas.pattern import PatternData
+from rietx.schemas.structure import AnisoU
 from tests.test_refine_synthetic import (
     TRUE_A,
     TRUE_BKG,
@@ -613,3 +614,342 @@ def test_a_tie_holds_its_source_where_the_dependents_ceiling_is(four_site_patter
     with pytest.raises(ValueError, match=r"phases\.0\.atoms\.1\.biso=0\.33.*"
                                          r"0\.5\u00b7phases\.0\.atoms\.0\.biso"):
         run(window=False)
+
+
+# ------------------------------------------ a tie onto a coordinate DOF (1432)
+#: LaB6's B site is 6f — one site-symmetry-allowed direction, so one DOF — and
+#: ``perturbed_models`` stores its x there.  The anchor is what every assertion
+#: below is written against: the coordinate the tie was declared over.
+B_X = "phases.0.atoms.1.x"
+B_DOF = "phases.0.atoms.1.dof.0"
+B_X0 = 0.1993
+
+#: Ten write-throughs, which is WP-1432's acceptance.  The defect added the
+#: source's whole value at each one, so ten of them moved a coordinate by ten
+#: times what the caller declared.
+WRITE_THROUGHS = 10
+
+
+@pytest.fixture
+def ref_aniso():
+    """The same refinement with an anisotropic B site, for the ADP control."""
+    structure, ins = perturbed_models()
+    atom = structure.phases[0].atoms[1]
+    atom.biso.vary = False
+    atom.aniso = AnisoU.from_values([0.01, 0.01, 0.01, 0.0, 0.0, 0.0])
+    return rx.Refinement(structure, ins)
+
+
+#: Where the second B site is stored, so a displacement off it is readable.
+B2_X0 = 0.30
+
+
+def two_site_refinement() -> rx.Refinement:
+    """A second 6f B site, so one coordinate DOF can follow another."""
+    structure, ins = perturbed_models()
+    structure.phases[0].atoms.append(
+        rx.Atom(label="B2", species="B", x=Parameter(value=B2_X0),
+                y=Parameter(value=0.5), z=Parameter(value=0.5)))
+    return rx.Refinement(structure, ins)
+
+
+@pytest.fixture
+def ref_two_sites():
+    return two_site_refinement()
+
+
+def values(ref) -> dict[str, float]:
+    return {r.path: r.value for r in ref.parameters()}
+
+
+def write_through(ref) -> None:
+    """A verb that rebuilds the table and writes the models back.
+
+    Unrelated to the tie on purpose: ``phases.0.scale`` shares nothing with a
+    coordinate, so anything that moves is the rebuild and not the write.
+    """
+    ref.set_values({"phases.0.scale": 0.02})
+
+
+def test_a_variable_driving_a_coordinate_dof_survives_ten_write_throughs(ref):
+    """The defect WP-1432 names, and the one a caller cannot see happening.
+
+    A coordinate DOF is a *displacement from the stored coordinate*, so every
+    table build anchors ``x`` at what the model holds and rederives the DOF to
+    zero.  A variable is the opposite — re-declared from the register at the
+    value it holds — so the two together made each rebuild add the variable's
+    whole value to a coordinate that had already absorbed it.  The tie means
+    one displacement, not one per verb.
+    """
+    ref.add_variable("A", 0.01, min=-0.5, max=0.5)
+    ref.tie(B_DOF, "vars.A")
+    # the tie takes its implied value immediately, which is the one application
+    assert values(ref)[B_X] == pytest.approx(B_X0 + 0.01)
+
+    for _ in range(WRITE_THROUGHS):
+        write_through(ref)
+        rows = values(ref)
+        assert rows["vars.A"] == 0.01                  # the source never moved
+        assert rows[B_DOF] == pytest.approx(0.01)      # the DOF *is* the variable
+        assert rows[B_X] == pytest.approx(B_X0 + 0.01)
+
+
+def test_an_adp_dof_under_the_same_tie_is_the_control(ref_aniso):
+    """The first control, and it is what bounds the class.
+
+    An ADP DOF is **absolute** — ``adp_basis`` spans the whole allowed
+    subspace, so the entry carries U itself rather than a displacement, and its
+    dependents' ``AffineTie`` has no ``const`` to accumulate into.  Tied to the
+    same kind of source it held its value before the repair, which is what says
+    the defect is the coordinate anchor and not the tie machinery.
+    """
+    adp = next(r.path for r in ref_aniso.parameters() if ".adp." in r.path)
+    ref_aniso.add_variable("A", 0.02, min=0.0, max=0.5)
+    ref_aniso.tie(adp, "vars.A")
+
+    for _ in range(WRITE_THROUGHS):
+        write_through(ref_aniso)
+        assert values(ref_aniso)[adp] == pytest.approx(0.02)
+
+
+def test_a_coordinate_dof_following_another_is_the_control(ref_two_sites):
+    """The second control: both ends reset together, so nothing accumulates.
+
+    The source is rederived to zero on every build exactly as the target is, so
+    the implied displacement is zero at each one and both coordinates keep the
+    values the model stores.  This is the arm that stays bit-identical through
+    the repair — the fix is about a source that does *not* reset.
+    """
+    ref_two_sites.tie("phases.0.atoms.2.dof.0", B_DOF)
+    before = values(ref_two_sites)
+
+    for _ in range(WRITE_THROUGHS):
+        write_through(ref_two_sites)
+        rows = values(ref_two_sites)
+        for path in (B_X, B_DOF, "phases.0.atoms.2.x", "phases.0.atoms.2.dof.0"):
+            assert rows[path] == before[path]
+
+
+def test_a_second_fit_reports_what_the_first_one_did(ref, pattern):
+    """The quiet half of WP-1432, and the one a caller reads as a number.
+
+    Fitting twice rebuilds the table between the two solves, so the defect ran
+    once in the middle: the refined displacement had migrated into the base
+    coordinate, the second fit found it already there, and the variable that
+    named it came back at zero at an identical Rwp. The quantity a caller asked
+    for was still in the structure and no longer in the answer.
+    """
+    plan = rx.RefinementPlan(stages=[
+        rx.Stage("displacement", ["vars.*"], max_iter=40)])
+    ref.add_variable("A", 0.01, min=-0.5, max=0.5)
+    ref.tie(B_DOF, "vars.A")
+
+    first = ref.fit(pattern, plan=plan)
+    _plot(first, "dof_first_fit")
+    a1 = ref._variables["A"].value
+    x1 = ref.fitted_structure.phases[0].atoms[1].x.value
+
+    second = ref.fit(pattern, plan=plan)
+    _plot(second, "dof_second_fit")
+    a2 = ref._variables["A"].value
+    x2 = ref.fitted_structure.phases[0].atoms[1].x.value
+
+    # the same answer, and the structure still standing where the first fit
+    # left it — the two are one claim, since the defect moved them apart
+    assert a2 == pytest.approx(a1, abs=1e-6)
+    assert x2 == pytest.approx(x1, abs=1e-6)
+    assert x2 == pytest.approx(B_X0 + a2, abs=1e-9)
+    assert second.statistics.rwp == pytest.approx(first.statistics.rwp, rel=1e-3)
+
+
+#: The antiphase pair: one variable, two sites, opposite signs.
+ANTIPHASE = ((B_DOF, 1.0), ("phases.0.atoms.2.dof.0", -1.0))
+
+#: What the pair is seeded at, and therefore what each site's displacement must
+#: read the moment both ties are declared.
+SEED = 0.005
+
+
+def antiphase_arm(order, pattern=None):
+    """Declare the pair in ``order`` on a *fresh* refinement, optionally fitting.
+
+    Fresh per arm on purpose: reusing one refinement would start the second arm
+    wherever the first one finished, and two arms that begin at different
+    points can only be compared to a solver tolerance.
+    """
+    ref = two_site_refinement()
+    ref.add_variable("A", SEED, min=-0.2, max=0.2)
+    for path, scale in order:
+        ref.tie(path, "vars.A", scale=scale)
+    result = None if pattern is None else ref.fit(
+        pattern, plan=rx.RefinementPlan(stages=[
+            rx.Stage("displacement", ["vars.*"], max_iter=40)]))
+    atoms = (ref.structure if result is None else ref.fitted_structure
+             ).phases[0].atoms
+    return result, (atoms[1].x.value - B_X0, atoms[2].x.value - B2_X0)
+
+
+def test_an_antiphase_pair_ends_symmetric_whichever_was_declared_first(pattern):
+    """The regression case, because it is how the defect first showed.
+
+    Two sites tied to one variable with opposite signs are a constraint that
+    they move *together*, in antiphase. Declared in order, each target used to
+    collect a different number of applications — the first one more than the
+    second, since declaring the second rebuilt the table and re-applied the
+    first — so the pair came back at +0.02251 and −0.01751 about their anchors.
+    A constraint meant to couple two atoms had moved them differently, and the
+    order it was written in was the whole reason.
+    """
+    # the declaration alone, where the arithmetic is exact: one application
+    # each, whichever was declared first
+    for order in (ANTIPHASE, ANTIPHASE[::-1]):
+        _, (up, down) = antiphase_arm(order)
+        assert (up, down) == pytest.approx((SEED, -SEED), abs=1e-12)
+
+    # and through a fit, where the pair must still be one quantity
+    result, (up, down) = antiphase_arm(ANTIPHASE, pattern)
+    _plot(result, "dof_antiphase")
+    assert up == pytest.approx(-down, abs=1e-12)
+
+    _, reversed_pair = antiphase_arm(ANTIPHASE[::-1], pattern)
+    assert reversed_pair == pytest.approx((up, down), abs=1e-12)
+
+
+def test_replaying_a_node_rebases_the_anchor_the_same_way(ref, pattern):
+    """The sibling: ``replay`` is the second place a table meets a user tie.
+
+    It builds a table from the node's own structure, re-declares the recorded
+    variables and ties on it, and is otherwise ``_prepare_table`` one rank out
+    — so it inherited the defect whole. A replayed node came back with the
+    displacement applied twice, which is the worst place for it: replay exists
+    to say what a recorded state *was*, and nothing else in the answer says the
+    model it measured is not the model on file.
+    """
+    plan = rx.RefinementPlan(stages=[
+        rx.Stage("displacement", ["vars.*"], max_iter=40)])
+    ref.add_variable("A", 0.01, min=-0.5, max=0.5)
+    ref.tie(B_DOF, "vars.A")
+    result = ref.fit(pattern, plan=plan)
+
+    replayed = rx.replay(ref.history, result.node_id, pattern)
+    rows = {p.path: p.value for p in replayed.parameters}
+    # the node's own coordinate, not one displacement further on: 0.2084 here,
+    # against the 0.2174 the un-rebased build answered with
+    assert rows[B_X] == pytest.approx(
+        ref.fitted_structure.phases[0].atoms[1].x.value, abs=1e-12)
+    assert rows[B_X] == pytest.approx(B_X0 + rows["vars.A"], abs=1e-12)
+    # and the statistics stand, which is what replay is asked for.  Marginal
+    # differences are expected of it (``NodeMetrics``); a whole displacement
+    # is not.
+    assert replayed.statistics.rwp == pytest.approx(result.statistics.rwp,
+                                                    rel=1e-6)
+
+
+def test_rebasing_an_anchor_twice_does_nothing_the_second_time(ref):
+    """The repair's own mirror, and it would be as silent as the defect.
+
+    The correction subtracts the tie's contribution from a stored constant, so
+    a second application walks the coordinate *down* by that contribution
+    rather than leaving it alone.  Two callers rebase today and CLAUDE.md's
+    coordinate-DOF bullet asks a third to; one whose table came from
+    ``_working_table`` — already rebased — would have inverted the fix without
+    anything saying so.  The table remembers instead, so a caller may hand the
+    whole register over after declaring one more tie.
+    """
+    ref.add_variable("A", 0.01, min=-0.5, max=0.5)
+    ref.tie(B_DOF, "vars.A")
+    table = ref._working_table()
+    by_path = {e.path: e for e in table.entries}
+    assert by_path[B_X].value == pytest.approx(B_X0 + 0.01)
+
+    assert table.rebase_anchored_dofs([B_DOF]) == []
+    assert table.rebase_anchored_dofs([B_DOF]) == []
+    assert by_path[B_X].value == pytest.approx(B_X0 + 0.01)
+
+
+# ----------------------------------------------------------------------
+# WP-1342 — the Le Bail force-fix asks what a column moves
+# ----------------------------------------------------------------------
+# The phase freeze's sibling, found by asking which other decision in
+# ``refine.py`` reads a free path's name.  Against an intensity model there is
+# no |F|² to fit, so a structural parameter is not refinable at all; the drop
+# tested the free path's name, and a variable driving one slipped past it.
+def _lebail_plan(glob: str) -> rx.RefinementPlan:
+    return rx.RefinementPlan(stages=[
+        rx.Stage("bkg", ["instrument.background.*"]),
+        rx.Stage("displ", ["instrument.background.*", glob]),
+    ])
+
+
+def _lebail_fit(tied: bool):
+    ref = rx.Refinement(make_lab6(),
+                        rx.Instrument.debye_scherrer(wavelength=WAVELENGTH),
+                        history=False)
+    glob = "phases.*.atoms.*.biso"
+    if tied:
+        ref.add_variable("B", 0.7, min=0.0, max=25.0)
+        ref.tie("phases.0.atoms.0.biso", "vars.B")
+        glob = "vars.*"
+    result = ref.fit(synthesize(), mode="lebail", plan=_lebail_plan(glob),
+                     telemetry=False)
+    return ref, result
+
+
+def test_a_variable_driving_a_structural_path_is_force_fixed_in_lebail():
+    """The arm that failed: ``vars.B`` entered θ where its dependent could not.
+
+    Le Bail extracts the intensities, so an atom's ``biso`` changes nothing in
+    the calculated pattern — the column is dead, and before this it came back
+    with a value and an esd that read as measurements.
+    """
+    _, tied = _lebail_fit(tied=True)
+    _, plain = _lebail_fit(tied=False)
+
+    freed = {p for s in tied.stages for p in s.freed}
+    assert "vars.B" not in freed
+    assert freed == {p for s in plain.stages for p in s.freed}
+    # and the dead column is gone from the answer, not merely unreported
+    assert "vars.B" not in {p.path for p in tied.parameters}
+
+
+def test_the_force_fixed_column_costs_the_fit_nothing():
+    """Bit-identical to the untied fit, which is what "dead column" means."""
+    _, tied = _lebail_fit(tied=True)
+    _, plain = _lebail_fit(tied=False)
+    assert tied.statistics.rwp == plain.statistics.rwp
+
+
+def test_the_row_and_the_drop_agree_about_a_force_fixed_column():
+    """One test projected twice, never two opinions (WP-1076).
+
+    ``parameters()`` reports ``mode_fixed`` and ``_run_stage`` drops the freed
+    path; a row calling a column refinable that the next stage silently fixes
+    is the disagreement that rule exists to prevent.
+    """
+    ref, _ = _lebail_fit(tied=True)
+    rows = {r.path: r for r in ref.parameters(mode="lebail")}
+    assert rows["vars.B"].mode_fixed
+    assert not rows["vars.B"].refinable
+    # and in rietveld the same variable is an ordinary refinable parameter
+    assert not {r.path: r for r in ref.parameters(mode="rietveld")}[
+        "vars.B"].mode_fixed
+
+
+def test_a_column_driving_one_fixed_and_one_live_path_stays_free():
+    """All, never any — the flatness argument again.
+
+    A variable driving an atom's ``biso`` *and* the zero shift has gradient
+    through the zero shift, so fixing it would freeze a parameter Le Bail
+    refines perfectly well.
+    """
+    ref = rx.Refinement(make_lab6(),
+                        rx.Instrument.debye_scherrer(wavelength=WAVELENGTH),
+                        history=False)
+    ref.add_variable("M", 0.01, min=-1.0, max=1.0)
+    ref.tie("phases.0.atoms.0.biso", "vars.M", scale=10.0, offset=0.5)
+    ref.tie("instrument.zero_shift", "vars.M")
+
+    result = ref.fit(synthesize(), mode="lebail",
+                     plan=_lebail_plan("vars.*"), telemetry=False)
+    assert "vars.M" in {p for s in result.stages for p in s.freed}
+    assert "vars.M" in {p.path for p in result.parameters}

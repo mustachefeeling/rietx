@@ -2,6 +2,7 @@
 
 Milestone: unscheduled · Status: ⬜
 Depends on: 1118 (its first task — the model-format registry and the answer's shape)
+Priority: P3 2026-09-23 — a reader nobody is waiting for; Jana exports a CIF
 
 ## Goal
 

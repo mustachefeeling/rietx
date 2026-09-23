@@ -1657,8 +1657,10 @@ def test_the_capability_flag_is_derived_from_the_fields():
     # main as it actually shipped: main's own entries run to 0.22 (issue #204
     # and WP-1102 above, #283's 0.20, WP-1309's 0.21 and WP-1438's 0.22), and
     # the maintainer ruled the chain's own bumps follow them contiguously — so
-    # this chain's eight start at 0.23 and this one lands at 0.30.
-    assert caps.schema_version == "0.30"
+    # this chain's eight start at 0.23 and this one lands at 0.30.  The merge
+    # of main at 0.26 (2026-09-23) moved the eight to 0.27-0.34; open PR #431
+    # also claims 0.27, and whichever lands last renumbers.
+    assert caps.schema_version == "0.34"
 
 
 def test_every_moment_dof_has_a_help_entry():

@@ -71,7 +71,8 @@ API_INDEXES = sorted(REFERENCE_DIR.glob("api*.md"))
 # its peers are in, which is what the cap exists to protect against.
 # Raised again for the magnetic family's own routing row (small-fixes-20260917,
 # item 3, issue #286): every magnetic and distortion-mode diagnostic moved out
-# of §7/§7g/§9b into its own §7i file (references/magnetic.md), which needed
+# of §7/§7g/§9b into its own §7j file (references/magnetic.md; §7i when it
+# landed, renumbered when WP-1415's reader file took §7i), which needed
 # one new index-table row here to be reachable at all
 # (test_every_reference_file_is_reachable_from_the_body). The body was at
 # 32_993 B, 7 B under the old cap — nowhere near enough room for a row the
@@ -84,8 +85,30 @@ SKILL_MAX_BYTES = 33_600
 #: agentskills.io/specification: "Keep your main SKILL.md under 500 lines."
 SKILL_MAX_LINES = 500
 #: Bash output above 40 kB is truncated to a ~2 kB preview, so a reference file
-#: stays under that even when a session cats it rather than Reads.
-REFERENCE_MAX_BYTES = 36_000
+#: stays comfortably under that even when a session cats it rather than Reads.
+#: 36_000 → 36_600 in the commit that needed the 571 B, on WP-1131's precedent
+#: for ``SKILL_MAX_BYTES``: ``HOLD_BLOCKED_PLAN``'s row, which
+#: ``test_docs_consistency.test_every_engine_diagnostic_code_has_a_protocol_row``
+#: requires of every engine code, and ``diagnostics.md`` had 9 B of headroom.
+#: The two tests are in tension and one had to give, and deleting another
+#: code's measured guidance to fit a new one is the wrong direction.
+#:
+#: **That split happened** (WP-1415, 2026-09-21), so the cap has not moved
+#: again and this note records the seam rather than asking for one. The
+#: criterion was not size: the main table carries what a **fit** is likely to
+#: say, and a code conditional on a quirk of the file you read goes to a
+#: secondary doc. The eleven reader rows became §7i,
+#: ``references/diagnostics-reading.md``, taking ``diagnostics.md`` from
+#: 36 562 to 30 953 B. ``diagnostics-projects.md`` had recorded that those rows
+#: stay in §7 on a different criterion, and that paragraph was corrected in the
+#: same commit.
+#:
+#: So the next addition has room, and the rule for the one after it is the
+#: criterion above rather than a byte count: ask which file a reader meets the
+#: code in, and whether a fit is likely to say it. ``SKILL.md`` is now the
+#: tighter of the two (68 B under :data:`SKILL_MAX_BYTES`), and a routing row
+#: is what a new reference file costs there.
+REFERENCE_MAX_BYTES = 36_600
 #: `api.md` is **generated** from the installed package, so its size is a fact
 #: about the public API and not a thing an author chose.  The authored cap says
 #: "stop writing, split the file", which is advice this file cannot take: the

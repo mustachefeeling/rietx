@@ -485,6 +485,36 @@ def test_diagnostics_keep_their_messages_and_gain_their_paths():
     assert [f.code for f in report.findings()] == [d.code for d in diags]
 
 
+def test_every_finding_field_reaches_findings_and_a_diagnostic():
+    """``findings()`` and ``_guard_diagnostics`` are read off the *fields*.
+
+    The test above populates three lists, so it says nothing about a field it
+    does not name.  WP-1311 added four (``nonpositive_resolution``,
+    ``large_biso``, ``unsupported_resolution``, ``flat_directions``), gave each
+    a writer and a diagnostic, and left ``findings()`` — whose docstring says
+    "every finding" — returning ``[]`` for a report carrying only those four.
+    Nothing went red, which is WP-1076's rule exactly: a declared name with a
+    missing reader fails no test.  So the roster is ``dataclasses.fields``, and
+    a field added without a line in either projection fails here.
+    """
+    import dataclasses
+
+    from rietx.strategy.staged import GuardReport as _GR
+
+    one = GuardFinding("PLACEHOLDER", ("phases.0.scale",), 1.0, "x")
+    fields = [f.name for f in dataclasses.fields(_GR)
+              if f.type == "list[GuardFinding]"]
+    assert len(fields) >= 11, "field roster no longer resolves by annotation"
+    for name in fields:
+        report = GuardReport(**{name: [one]})
+        assert report.findings() == [one], (
+            f"GuardReport.{name} never reaches findings() — add it there, in "
+            "the order refine._guard_diagnostics emits it")
+        assert len(_guard_diagnostics(report)) == 1, (
+            f"GuardReport.{name} never reaches a diagnostic — add its loop to "
+            "refine._guard_diagnostics")
+
+
 def test_a_finding_is_immutable_and_hashable():
     """Findings are values: a report can be deduplicated or put in a set."""
     import dataclasses

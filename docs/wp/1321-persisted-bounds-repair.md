@@ -3,6 +3,7 @@
 Milestone: unscheduled · Status: ⬜
 Depends on: — (PR #206 merges first: its validator and `model_fields_set`
 discriminator are this WP's reference behaviour)
+Priority: P2 2026-09-23 — bounds dropped in silence on documents already saved, and the sibling hazard unmeasured
 
 ## Goal
 
@@ -16,6 +17,21 @@ shipping PR closes **#209 and #204**.
 ## Context
 
 ### Inherited
+
+- **2026-09-18, from [1311](1311-walking-parameter-bounds.md): PR #206 landed,
+  and the ceiling it made universal turns out to bound nothing physical.**
+  `Atom.biso`'s `default_factory` has carried `min=0.0, max=25.0` since v0.1;
+  `ce538dd3` made those bounds bind a caller-supplied `Parameter` too, so a
+  cap that was escapable before 2026-09-01 is universal after it. Measured
+  against the Lindemann melting bound (Gilvarry 1956, via
+  `strategy.staged.biso_melting_bound`), 25 Å² needs 109–338 Å³ per atom to be
+  reachable below melting, which is five to twenty times any ordinary packing.
+  So the ceiling is not a physical limit and a `BOUND_HIT` on `biso` is not
+  one arriving. 1311 kept it and documented it rather than widening it, on the
+  maintainer's ruling that changing a v0.1 default is a user-facing break —
+  which is the same question this WP asks about documents persisted *without*
+  those bounds, and the same answer may not hold there, since a persisted
+  unbounded `biso` is a repair rather than a break.
 
 **From WP-1440 (the v1.5 notes audit, 2026-09-18).** PR #289 proposed physical
 bounds on `Cell`'s six parameters and the bounds half was **withdrawn** before

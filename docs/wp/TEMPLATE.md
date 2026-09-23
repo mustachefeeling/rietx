@@ -2,6 +2,7 @@
 
 Milestone: v0.X · Status: ⬜
 Depends on: WP-MMMM (or —)
+Priority: P? YYYY-MM-DD — <the rubric row it meets, and the move if any>
 
 <!--
 Numbering: MMNN — the block of the milestone this WP is OPENED for, then the
@@ -17,6 +18,42 @@ for every glyph except ⬜; the free text is optional and may wrap.
 Keep the Status line here and the WP's row in ../ROADMAP.md in sync
 (tests/test_docs_consistency.py asserts both). The ROADMAP cell carries the
 glyph and the date only; the free text lives on this line.
+Priority values: P1 · P2 · P3 · P4 — which WP the next session's tokens
+should go to, rated at the write and re-rated by whichever handover
+moves it. Every ⬜ WP carries one. A closing session deletes the line, so a
+✅/🛑 WP carries none and its ROADMAP cell reads `—`; a 🔄 WP may keep the
+one it had. The ROADMAP cell carries the tier only; the date and the one
+clause of reason live on this line, and a re-rating rewrites it in place
+("P1 2026-10-02 — was P2: 1442 landed, nothing blocks it").
+The rubric is weighted shortest job first (SAFe: cost of delay over size),
+scored on Nielsen's severity axes (how often, how badly, and whether it
+persists), with the repo's own severity class on top: a wrong number that
+nothing flags outranks one that raises, and one on a path few fits run
+is P2.
+  P1  paid by every user on every run: a silent wrong answer in a shipped
+      path (a number a user quotes, wrong, nothing fired), a required check
+      red on main, data loss; or the last rung of a feature whose other
+      rungs shipped, the value already paid for and the remainder small.
+  P2  a feature the open milestone was opened for; a scoping WP, the
+      decision with a named user that other WPs wait on; a defect that
+      fires wrongly (a raise or a flag) and costs a user a workaround.
+  P3  a workaround covers it: a reader nobody is waiting for, a view over
+      what the fit already knows, a cost-only item with no user at the
+      wall, a diagnostic that is right but says less than it could.
+  P4  bookkeeping: process, hygiene, wording, a rename, anything whose
+      absence changes no number and no decision.
+Then at most one move, and the line says which: up a rung when what remains
+is small against what is already paid (a finishing rung, a WP whose last
+blocker shipped); down a rung when nothing in it can start, waiting on a
+decision nobody has taken or a hard dependency that has not shipped, and the
+line names what lands to lift it. So closing a WP re-rates its dependants
+(handover step 5), and a fold from /issue-review re-rates the WP it lands
+in when the evidence moves its row.
+Worked, from the 2026-09-23 backfill: 1333 is P1 (a chain of hundreds lost
+to one raise, and a check that died reading as passed); 1341 is P2 (a joint
+fit cannot be inspected; refining apart is the workaround); 1328 is P3
+(waits on 1327's model; P2 when it lands); 1448 is P4 (provenance
+bookkeeping, changes no number).
 A WP file must be self-contained: a session that reads ONLY this file
 (plus the auto-loaded CLAUDE.md) can start work. Link specific DESIGN.md
 sections instead of restating them, but restate anything short and

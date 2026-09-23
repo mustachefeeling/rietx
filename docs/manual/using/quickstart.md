@@ -271,7 +271,7 @@ phase: Na2Ca3Al2F14, I 21 3, a=10.257 A, 6 asymmetric atoms
 Le Bail:  status=converged  Rwp=0.1435  GoF=5.44  a=10.251214 A
 Rietveld: status=converged  Rwp=0.0933  GoF=3.54
           a = 10.251216 +/- 0.000046 A (COD reference 10.257(1); high-accuracy powder ~10.2497-10.2506)
-          [warning] BOUND_HIT: phases.1.atoms.0.biso refined to its bound
+          [warning] BOUND_HIT: phases.1.atoms.0.biso refined to its bound (ρ=+0.187, 1.5e-27 esd from the limit)
 ```
 
 It goes on to print the report summary, its five worst regions, and the history

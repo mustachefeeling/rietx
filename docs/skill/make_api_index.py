@@ -182,7 +182,12 @@ SECTIONS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
         "one-shot function form. Plans are named in `rx.PLAN_INFO` or built as "
         "a `rx.RefinementPlan` of `rx.Stage`s; `ref.parameters()` lists every "
         "entry, fixed, locked and tied included, and the editing verbs "
-        "auto-commit a history node each.",
+        "auto-commit a history node each. **`vary=False` is not a pin**: a "
+        "plan replaces the vary flags rather than continuing them, so a "
+        "stage's `turn_on` glob frees whatever it matches. Say it with "
+        "`ref.hold(globs)`, which outranks the glob, survives a save and "
+        "reopen, and makes the stage report what it could not free "
+        "(§8.25, §7 `HOLD_BLOCKED_PLAN`).",
         ("rx.Refinement", "rx.Refinement.fit", "rx.Refinement.report",
          "rx.Refinement.summary", "rx.Refinement.suggest",
          "rx.Refinement.predict", "rx.Refinement.run_stage",
@@ -190,6 +195,7 @@ SECTIONS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
          "rx.Refinement.set_values", "rx.Refinement.tie",
          "rx.Refinement.tie_equal", "rx.Refinement.untie",
          "rx.Refinement.add_variable", "rx.Refinement.remove_variable",
+         "rx.Refinement.hold", "rx.Refinement.unhold",
          "rx.Refinement.edit",
          "rx.refine", "rx.RefinementPlan", "rx.Stage", "rx.PLAN_INFO",
          "rx.ParameterRow"),

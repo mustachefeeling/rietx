@@ -2,6 +2,7 @@
 
 Milestone: unscheduled · Status: ⬜
 Depends on: — (1310 soft: how findings arrive on the result)
+Priority: P2 2026-09-23 — a converged fit an order of magnitude off the measured widths, and no channel says so
 
 ## Goal
 
@@ -119,6 +120,13 @@ choice should be visible.
   pinned set-equal (`tests/test_bound_hit_at_convergence.py`). A fit whose
   status and diagnostics disagree is still this WP's subject; that particular
   disagreement is no longer an instance of it.
+- **From WP-1434, 2026-09-18: `BOUND_HIT` changed what it claims, and its
+  silence became informative.** It fires when the limit *carried load* rather
+  than when the value stopped near one, and `Diagnostic.value` on that code
+  is a number where it was `None`. A status channel reading this code gets a
+  stronger signal than 1310 left it: a parameter resting near a limit with no
+  row is one the limit is not holding, so there is nothing to widen. Nine of
+  32 constructed cases were silent before this and none are now.
 
 ## Non-goals
 

@@ -2,6 +2,7 @@
 
 Milestone: unscheduled · Status: ⬜
 Depends on: — (1310 soft: it owns which vector reaches the final diagnostics)
+Priority: P3 2026-09-23 — a number a reader cannot reproduce by a margin the record already calls staleness
 
 ## Goal
 
@@ -74,6 +75,30 @@ lands applies to the stage trajectory too.
 
 Le Bail and Pawley intensities are frozen per stage as well
 (`ReflectionState`). A fresh compile must carry them, never re-partition.
+
+### Inherited
+
+**From WP-1342 (2026-09-19).** `StageResult` gained `held_reach`, a
+`dict[str, list[str]]` written on every stage beside `held`. It is state a
+replay has to reproduce, and it is the first *mapping* on that record rather
+than a list, so a comparison written for the list fields will pass over it in
+silence. It is also readable only while the held column is still in θ — the
+runner captures it before `set_vary` and carries it on `_StageHold` — so a
+rebuild that tries to re-derive it from the finished table gets nothing back.
+That is this WP's own thesis in miniature: what a state *records* and what
+rebuilding from that state *produces* are two objects.
+
+**From WP-1432 (2026-09-19).** One measured instance of this WP's
+class, found and fixed. `replay` rebuilt its table from the node's own
+structure and re-declared the recorded ties on it, and a user tie onto a
+coordinate DOF was applied a second time in doing so. A replayed node therefore
+answered for a model one displacement past the one recorded: x = 0.2174294764
+against the node's 0.2083647382, Rwp 10.711190685 against 10.708626649, with
+nothing in the answer saying which model it had measured. The repair is
+`ParameterTable.rebase_anchored_dofs`, called by both consumers of the tie
+register. The shape is worth carrying into this WP: what a state *records* and
+what rebuilding from that state *produces* are two objects, and only a test
+comparing them can say they agree.
 
 ## Non-goals
 

@@ -4,6 +4,7 @@ Milestone: unscheduled · Status: ⬜
 Depends on: — (1301 shipped, the hold this is about; 1333 soft, the same
 chain's other silent shape; 1342 soft, the freeze's blind tie; 1419 soft,
 the metric symmetry point a probe needs)
+Priority: P2 2026-09-23 — a held phase stays out of every later pattern and the chain says nothing, on the series path
 
 ## Goal
 
@@ -119,6 +120,64 @@ Two neighbours. 1333 is the same chain's other silent shape (a pattern that
 died reading as passed); this one is a pattern that converged to the wrong
 basin reading as right. 1342 is the hold's blind tie, the freeze one rank
 down.
+
+### Inherited
+
+**From WP-1333 (2026-09-23): the ramp reproduction's wall-clock guard is a
+load sensor.** `tests/test_held_phase.py::test_the_ramp_reproduction_no_longer_runs_away`
+failed in WP-1333's full run (`[dev]`, Linux x86-64, 4 cores, 1:24:44). It
+passed alone, and in that session's slow-series run. Measured serially, the
+chain takes 9.1 s compiled and 11.2 s on the numpy path, against its 60 s
+`RAMP_RUNAWAY_GUARD_S`, with 1609 and 1659 iterations against the 2164 bar. So
+every deterministic assertion holds on both paths, and only the guard can
+move with load, on a run whose fixtures were up to 3.4× slower than CI's
+nightly. About 6× margin is under what `tests/CLAUDE.md` § Budgets calls
+several times, and this WP will add rows to that file, so it is the one to
+widen the guard or move the claim to the iteration count, which already
+carries it.
+
+**From WP-1333 (2026-09-22).** The chain now says one of this WP's silences
+out loud. `SEQUENTIAL_PATH_CHECK_INCOMPLETE` at `info` names every path some
+chain measured that no pattern could judge in the `direction="both"`
+comparison, and a phase held throughout one direction is exactly that case
+(issue #269). So "the chain says it cannot" has a first member for held paths
+under `"both"`. It says nothing about re-entry within one direction, which
+stays this WP's. Two rules came with it that a re-entry diagnostic should
+reuse. A path is named only if *some* chain measured it, and only if the two
+chains differ above `_noise_floor`. Without both it fired on every clean
+series (a tie row off a never-freed source, `profile.y` on its floor). And a
+rung whose fit raises now escalates the ladder (`SeriesEntry.rungs_raised`),
+so a held phase that makes a warm rung raise is rescued cold, not failed.
+
+**From WP-1342 (2026-09-19).** A held path is now a **column**, and it need
+not be a phase path at all: a caller's `vars.X` driving that cell is what the
+freeze stops, so `StageResult.held` can read `vars.caf2_a` where this WP
+expects `phases.1.cell.a`. Three consequences for the re-entry question.
+`_released_phases` is handed that column list, so whatever this WP builds on
+top of it inherits the same shape. The phase behind a held column is found
+through `StageResult.held_reach`, which maps each held column to the tied
+entries it also stopped — `_held_by_phase` is the worked example. And a column
+reaching a *supported* phase as well as an unsupported one is never held
+(`refine._only_moves`), so the "cannot get back in" case this WP is about
+cannot arise for a shared column; it is already free.
+
+**From WP-1435 (closed 2026-09-18), which put a second hold on the same
+object.** There are now two holds on a `Refinement` and they mean opposite
+things, so name them carefully in anything this WP writes.
+
+- `Refinement._held` is WP-1301's and this WP's subject: the *package's*
+  reading of what one stage's data can see, lifted at the start of the next
+  stage, recorded on `StageResult.held`/`.released`.
+- `Refinement._user_holds` is the *caller's* declaration that a parameter
+  does not move whatever a plan asks, lifted only by `unhold`, carried on
+  `RefinementState.holds` and recorded on `StageResult.blocked_by_hold`.
+  It was deliberately **not** named `_holds`, which would have sat one letter
+  from `_held` in the same method bodies meaning the reverse.
+
+They never overlap today, and the reason is worth keeping true: WP-1301's
+`_hold_unsupported_phases` only holds paths that are *free*, and a
+user-held path is never free. A re-entry mechanism that lifts a hold has to
+respect that split, because lifting a user hold is not this WP's to do.
 
 ## Non-goals
 

@@ -295,10 +295,16 @@ class MagneticOperator:
     def moment_matrix(self) -> np.ndarray:
         """ε·det(R)·R — the action on a moment, an **axial** vector.
 
-        Halpern & Johnson (1939), *Phys. Rev.* **55**, 898 is where the axial
-        character enters the magnetic structure factor; the ε factor is the
-        magnetic group's own (Perez-Mato et al. 2015).  R is **not**
-        transposed: see the module docstring.
+        The law is stated as M(R**r** + **t**) = θ·det(R)·R·M(**r**) by
+        Gallego, Tasci, de la Flor, Perez-Mato & Aroyo (2012), *J. Appl.
+        Cryst.* **45**, 1236 (MAGNEXT), eq. (3), p. 1239, and in prose
+        by Perez-Mato et al. (2015), *Annu. Rev. Mater. Res.* **45**, 217,
+        p. 220 — which is also where the ε (their θ) comes from.  **Not**
+        Halpern & Johnson (1939): that paper gives the interaction vector and
+        the powder average and states no transformation law at all (read page
+        by page 2026-09-22; the words *axial*, *pseudovector* and *inversion*
+        do not occur in it).  R is **not** transposed: see the module
+        docstring.
         """
         return self.time_reversal * self.determinant * self.matrix
 
@@ -418,21 +424,31 @@ class MagneticGroup:
         a different sequence for a differently-ordered seed), used to get
         back a ``MagneticGroup`` whose ``.operations`` picked a different
         coset representative — "the first one met" — for each caller.
-        ``compile_magnetic_sites`` (``scattering.py``) reads
-        ``group.all_operations()`` and keeps the *first* operation whose
-        image matches a nuclear site, with no check that a later match would
-        agree; picking a different representative can silently pick a
-        different, sign-disagreeing operation for that image (Q23 measured
-        exactly this with an unordered ``set()`` in ``_close_operations``,
-        on ``test_moment_path_is_clean_by_design``).  Sorting here, once,
-        before the coset split, makes ``.operations``/``.centerings`` (and
-        therefore ``.all_operations()``) bit-identical for any input order of
-        the same set — the representative is now a property of the group,
-        not of the caller's enumeration order — so no caller has to get its
-        own enumeration order right for this to hold.  See
-        :func:`~rietx.crystallography.magnetic.scattering._axial_matrices`
-        for the belt-and-braces consistency check kept on top of this at the
-        point of consumption.
+        The consumer that made this matter is WP-1327's site compiler,
+        :func:`~rietx.crystallography.magnetic.scattering.compile_magnetic_sites`:
+        its ``_axial_matrices`` reads ``group.all_operations()`` and keeps the *first* operation whose image matches a nuclear site,
+        with no check that a later match would agree, so picking a different
+        representative can silently pick a different, sign-disagreeing
+        operation for that image (Q23 measured exactly this with an unordered
+        ``set()`` in ``_close_operations``, on
+        ``test_moment_path_is_clean_by_design``).  Sorting here, once, before
+        the coset split, makes ``.operations``/``.centerings`` (and therefore
+        ``.all_operations()``) bit-identical for any input order of the same
+        set — the representative is now a property of the group, not of the
+        caller's enumeration order — so no caller has to get its own
+        enumeration order right for this to hold.
+
+        **What guards that claim on this tree** is
+        ``test_magnetic_operators.py``'s sort-stability test: the same set of
+        operations, shuffled, gives a bit-identical
+        ``operations``/``centerings``/``all_operations()``;
+        ``test_operator_order_independence.py`` checks the same end to end
+        through ``compile_magnetic_sites``.  There is no second consistency
+        check at the point of consumption — a "do all matches agree" test
+        there is wrong on a special position, where a stabiliser's axial matrix
+        legitimately differs from the identity's (that test file's docstring)
+        — so this sort is the whole guard (Yue's review of #389, follow-ups:
+        the claim had been stated against a check that does not exist).
         """
         ops = tuple(sorted(dict.fromkeys(operations),
                            key=lambda op: (op.rotation, op.translation,
@@ -672,9 +688,10 @@ def allowed_moment_basis(operations, *, phases=None, transpose: bool = False,
     """Integer basis of the moments invariant under a set of operations.
 
     ``operations`` is the site's magnetic stabiliser.  A moment is an axial
-    vector, so an operation acts on it as ε·det(R)·R (Halpern & Johnson, 1939,
-    *Phys. Rev.* **55**, 898, for the axial character; Perez-Mato et al., 2015,
-    *Annu. Rev. Mater. Res.* **45**, 217, for ε), and the allowed directions are
+    vector, so an operation acts on it as ε·det(R)·R (Gallego et al., 2012,
+    *J. Appl. Cryst.* **45**, 1236, eq. (3), p. 1239, for the law; Perez-Mato et
+    al., 2015, *Annu. Rev. Mater. Res.* **45**, 217, p. 220, for it in prose and
+    for ε), and the allowed directions are
     the simultaneous fixed points, ∩ ker(ε·det(R)·R − I).  The algebra is exact
     over ``Fraction`` and the basis is the deterministic smallest-integer one
     ``wyckoff._nullspace_int`` returns, so a test may compare arrays exactly.
@@ -695,7 +712,12 @@ def allowed_moment_basis(operations, *, phases=None, transpose: bool = False,
     package calls them, and each defaults to the physics.  ``transpose=True``
     is the Rᵀ trap, and it is invisible outside a trigonal or hexagonal
     setting.
+
+    ``operations`` is materialised first, so a generator is accepted: it is
+    read twice below (``len`` and the ``zip``), and this is a public export
+    whose old body took one (Yue's review of #389, follow-ups).
     """
+    operations = list(operations)
     if phases is None:
         phases = [1] * len(operations)
     elif len(phases) != len(operations):
@@ -743,7 +765,25 @@ def allowed_displacement_basis(operations, *, phases=None) -> np.ndarray:
     ``kind="displacive"`` call before Q22, which is the bug this brief fixes:
     the polar action alone, with no return-vector phase, can only ever demand
     the +1 eigenspace of R).
+
+    **The convention, and where it is stated.**  *Polar* is defined by the
+    transformation law itself, v′ = R·v, against the axial v′ = ε·det(R)·R·v
+    that :func:`allowed_moment_basis` cites Gallego et al. (2012) eq. (3) for;
+    that
+    a *displacement* is the polar one is stated by the authors of the displacive
+    half of this construction — Campbell, Stokes, Tanner & Hatch, 2006,
+    *J. Appl. Cryst.* **39**, 607–614, § 4.5 "Order-parameter types and
+    tensors", p. 611: atomic displacement modes have order parameters that
+    transform "like polar first-rank tensors under the matrix operations of the
+    irrep" (read from the paper, 2026-09-22).  That paper says nothing about
+    moments; the axial law above rests on Gallego et al. (2012) eq. (3), p. 1239,
+    and Perez-Mato et al. (2015) p. 220.
+
+    ``operations`` is materialised first, so a generator is accepted — it is
+    read twice below — the same sibling defect as in
+    :func:`allowed_moment_basis`.
     """
+    operations = list(operations)
     if phases is None:
         phases = [1] * len(operations)
     elif len(phases) != len(operations):
@@ -790,24 +830,42 @@ def magnetic_group(spec, *, hall_number: int = 0) -> MagneticGroup:
     group.
 
     The operators come back in spglib's database setting, which is the **BNS**
-    setting of Litvin's tables for the default ``hall_number``; an OG number
-    resolves to the same group but *not* to OG-setting operators.
+    setting for the default ``hall_number``; an OG number resolves to the same
+    group but *not* to OG-setting operators.  The BNS-setting machine-readable
+    tables spglib carries are **Stokes & Campbell's** (Perez-Mato et al. 2015
+    p. 220; Gallego et al. 2016a p. 1753); Litvin (2013), *Magnetic Group
+    Tables*, numbers and organises its groups on the **Opechowski–Guccione**
+    description and prints BNS symbols only as a comparison column, so it is
+    the source of the group *tabulation*, not of this setting.
     :attr:`MagneticGroup.setting` records which it was.  Carry a file's own
     ``_space_group_magn.transform_BNS_Pp_abc`` through
     :meth:`MagneticGroup.transformed` to reach the setting a magCIF is written
     in.
     """
     uni = _resolve_uni(spec)
-    data = spglib.get_magnetic_symmetry_from_database(uni, hall_number)
-    if data is None:  # pragma: no cover - spglib returns None only on bad input
-        raise ValueError(f"spglib has no magnetic space group for UNI {uni}")
+    # ``hall_number`` is **caller input**, and a value outside spglib's table is
+    # the one way this call declines.  It declines two ways depending on
+    # ``spglib.error.OLD_ERROR_HANDLING``: ``None`` in the legacy mode, a
+    # ``SpglibError`` when the flag is off — and importing spgrep (the dev-only
+    # irreps oracle) flips the flag process-wide, so the authored message below
+    # became unreachable in any process that had imported it (Yue's round-3
+    # review of #389: ``magnetic_group(1, hall_number=9999)`` gave this
+    # ``ValueError`` before the import and ``SpglibCppError: spacegroup search
+    # failed`` after it).  Both modes must reach the same sentence.
+    try:
+        data = spglib.get_magnetic_symmetry_from_database(uni, hall_number)
+    except spglib.error.SpglibError:  # the same refusal, the other error mode
+        data = None
+    if data is None:
+        raise ValueError(f"spglib has no magnetic space group for UNI {uni}"
+                         f" in Hall setting {hall_number}")
     t = spglib.get_magnetic_spacegroup_type(uni)
     ops = [MagneticOperator.build(r, [Fraction(int(round(v * 24)), 24)
                                       for v in tr], -1 if e else 1)
            for r, tr, e in zip(data["rotations"], data["translations"],
                                data["time_reversals"])]
     setting = ("BNS standard setting (spglib magnetic database, "
-               "Litvin 2013 tables)" if hall_number == 0
+               "Stokes & Campbell tables)" if hall_number == 0
                else f"spglib magnetic database, Hall number {hall_number}")
     return MagneticGroup.from_operations(
         ops, setting=setting, uni_number=uni, bns_number=t.bns_number,
@@ -850,13 +908,25 @@ def database_settings(spec) -> tuple[DatabaseSetting, ...]:
     than averaging when a moment does not fit its site.
 
     ``is_default`` marks the setting ``hall_number=0`` gives.
+
+    The skip below is the sibling of :func:`magnetic_group`'s refusal and is
+    written the same way, but **no caller can make it fire**: this function
+    takes its Hall numbers from spglib's own table (:func:`_halls_by_number`
+    walks 1-530), so the argument is never out of range and the only reachable
+    ``None`` would be a database entry spglib itself declines to serve.  It is
+    caught rather than left bare because the two error modes must agree even on
+    a branch nothing reaches — under ``OLD_ERROR_HANDLING = False`` an
+    uncaught refusal would *raise* out of this function where it used to skip.
     """
     uni = _resolve_uni(spec)
     number = int(spglib.get_magnetic_spacegroup_type(uni).number)
     default = magnetic_group(uni).all_operations()
     out: list[DatabaseSetting] = []
     for hall, symbol, choice in _halls_by_number().get(number, ()):
-        data = spglib.get_magnetic_symmetry_from_database(uni, hall)
+        try:
+            data = spglib.get_magnetic_symmetry_from_database(uni, hall)
+        except spglib.error.SpglibError:  # the same refusal, the other mode
+            data = None
         if data is None:
             continue
         same = set(magnetic_group(uni, hall_number=hall).all_operations()) == \
@@ -962,9 +1032,10 @@ def identification(group, lattice=None, *, symprec: float = 1e-5
 
     The non-raising authority :func:`identify` is the strict wrapper over.  Use
     this wherever an unnamed group is still usable, which is everywhere the
-    operator list is the object: ``isotropy.candidates``,
-    ``magnetic.supercell`` and the report all read the result and treat
-    ``named=False`` as "unnamed in this cell" rather than as a failure.
+    operator list is the object: :func:`~rietx.crystallography.magnetic.isotropy.candidates`
+    here, and WP-1327's supercell builder (``magnetic.supercell``) and report
+    all read the result and treat ``named=False`` as "unnamed in this cell"
+    rather than as a failure.
 
     See :class:`MagneticIdentification` for what comes back and why.
     """

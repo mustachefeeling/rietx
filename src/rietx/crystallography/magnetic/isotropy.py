@@ -17,9 +17,12 @@ half of it is Perez-Mato, Gallego, Tasci, Elcoro, de la Flor & Aroyo (2015),
 
 This module also answers the question a *powder* code actually has to ask:
 which of those candidates the data cannot tell apart.  Shirane (1959),
-*Acta Cryst.* **12**, 282 states the classic case — a collinear structure in a
-cubic group gives a powder intensity independent of the moment direction — and
-:func:`equivalence_classes` computes that rather than asserting it.
+*Acta Cryst.* **12**, 282 states the classic case — a collinear structure of
+cubic **configurational** symmetry (his qualifier: the symmetry of the signed
+moment arrangement, not of the chemical cell; his MnO example is cubic in the
+one and rhombohedral in the other) gives a powder intensity independent of the
+moment direction — and :func:`equivalence_classes` computes that rather than
+asserting it.
 
 **Public API — fixed 2026-09-06.**
 
@@ -98,7 +101,11 @@ What a powder measures, and the domains
 ---------------------------------------
 The magnetic intensity of a reflection is |M⊥|² with
 M(h) = Σ_j m_j·exp(2πi h·r_j) over the magnetic cell and M⊥ = M − (M·ĥ)ĥ
-(Halpern & Johnson, 1939, *Phys. Rev.* **55**, 898), with a unit form factor
+(Halpern & Johnson, 1939, *Phys. Rev.* **55**, 898, eq. (6.22) p. 910 — whose
+**q** = **e**(**e**·**κ**) − **κ** is *minus* the perpendicular component; the
+sign written here is Rodríguez-Carvajal's (1993) eq. (1), and only |M⊥|² enters
+an unpolarised cross section, so no intensity depends on the choice), with a
+unit form factor
 here because the form factor is a per-species scalar that cancels from every
 comparison this module makes.  A powder sums that over every reflection at the
 same d and over every **domain** — the images of the model under the parent
@@ -117,10 +124,16 @@ References
 Shirane, G. (1959). *Acta Cryst.* **12**, 282 — the powder magnetic structure
 factor and the directions a powder average cannot determine.
 Halpern, O. & Johnson, M. H. (1939). *Phys. Rev.* **55**, 898 — the magnetic
-interaction vector M⊥.
+interaction vector (eq. 6.22, p. 910) and the powder average ⟨q²⟩ = 2/3
+(eq. 6.41, p. 911).  **Not** the axial transformation law, which that paper does
+not state; for that see Gallego et al. (2012) eq. (3), p. 1239.
 Gallego, S. V., Tasci, E. S., de la Flor, G., Perez-Mato, J. M. & Aroyo, M. I.
 (2012). *J. Appl. Cryst.* **45**, 1236 — MAGNEXT, systematic absences of
-magnetic reflections under a magnetic space group.
+magnetic reflections under a magnetic space group; **and eq. (3), p. 1239, the
+axial transformation law** M(R**r** + **t**) = θ·det(R)·R·M(**r**) this module's
+domain action uses.
+Rodríguez-Carvajal, J. (1993). *Physica B* **192**, 55, eq. (1) — the sign
+convention for M⊥ written above.
 Stokes, H. T. & Hatch, D. M. (1988). *Isotropy Subgroups of the 230
 Crystallographic Space Groups*. Singapore: World Scientific.
 Campbell, B. J., Stokes, H. T., Tanner, D. E. & Hatch, D. M. (2006).
@@ -134,7 +147,7 @@ Aroyo, M. I. (2015). *Annu. Rev. Mater. Res.* **45**, 217.
 from __future__ import annotations
 
 import itertools
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, replace
 from fractions import Fraction
 
 import numpy as np
@@ -847,7 +860,6 @@ class MagneticCandidate:
     parent_atoms: np.ndarray        # (N,) int, index into permutation.positions/phases
     verified: bool | None = None
     verification_reason: str | None = None
-    _cache: dict = field(default_factory=dict, repr=False, compare=False)
 
     @property
     def free_amplitudes(self) -> int:
@@ -1006,7 +1018,7 @@ def _close_operations(seed) -> tuple[MagneticOperator, ...]:
     translation that shows up only as a *product*, never as a term any single
     stabiliser-member-times-Δ can supply (the little group's own projective
     factor system carrying that translation's k-phase, Bradley & Cracknell
-    1972 ch. 7) — the P4₂ 4₂-screw squaring to the ordinary 2-fold with the
+    1972 § 3.7 eqns (3.7.6)–(3.7.8), p. 155) — the P4₂ 4₂-screw squaring to the ordinary 2-fold with the
     "lost" lattice translation folded back in (Q23) is exactly this.  Closing
     here, before :meth:`~.operators.MagneticGroup.from_operations`, is what
     multiplies that translation in; ``from_operations`` keeps its own closure
@@ -1017,16 +1029,16 @@ def _close_operations(seed) -> tuple[MagneticOperator, ...]:
     easier to reproduce and debug — but no longer load-bearing for
     correctness: :meth:`~.operators.MagneticGroup.from_operations` used to
     pick "the first operation met in each coset" as its representative,
-    which made a downstream consumer (``compile_magnetic_sites``) depend on
-    *which* member of a coset that was (measured: shuffling this function's
-    seed order with a plain ``set`` flipped the sign of some declared
-    moments). ``from_operations`` now sorts the closed set canonically by
-    ``(rotation, translation, time_reversal)`` before choosing
-    representatives (small-fixes-20260917, item 1), so its output no longer
-    depends on the order this function — or any other caller — hands it
-    operations in; :func:`~.scattering._axial_matrices` also gained its own
-    consistency check at the point of consumption, on top of that, rather
-    than relying solely on this function's order.
+    which made a downstream consumer — WP-1327's site compiler,
+    ``scattering.compile_magnetic_sites`` — depend on *which* member of a coset that was
+    (measured: shuffling this function's seed order with a plain ``set``
+    flipped the sign of some declared moments). ``from_operations`` now sorts
+    the closed set canonically by ``(rotation, translation, time_reversal)``
+    before choosing representatives (small-fixes-20260917, item 1), so its
+    output no longer depends on the order this function — or any other caller
+    — hands it operations in, which is what ``test_magnetic_operators.py``'s
+    sort-stability test measures here, and
+    ``test_operator_order_independence.py`` end to end through that compiler.
     """
     closed: dict[MagneticOperator, None] = {}
     for op in seed:
@@ -1074,7 +1086,7 @@ def _candidate_group(little: LittleGroup, cell: MagneticCell,
     nonsymmorphic little group can add a lattice translation that shows up
     only as a *product*, never as a term any single stabiliser-member-times-Δ
     supplies (the little group's own projective factor system, Bradley &
-    Cracknell 1972 ch. 7) — the P4₂ 4₂-screw squaring to the ordinary 2-fold
+    Cracknell 1972 § 3.7 eqns (3.7.6)–(3.7.8), p. 155) — the P4₂ 4₂-screw squaring to the ordinary 2-fold
     with the "lost" lattice translation folded back in is exactly this. So the
     seed set is always closed (:func:`_close_operations`) before being
     canonicalised, whichever ``kind`` this is: this is the one asymmetry
@@ -1466,6 +1478,12 @@ def reflections(lattice, d_min: float) -> ReflectionSet:
     completeness is what makes the domain average a constant factor rather than
     a reweighting (module docstring), so it is a correctness property and not
     an optimisation.
+
+    A ``d_min`` past the longest cell edge admits nothing, and the empty set is
+    shaped ``(0, 3)`` — ``np.array([], dtype=np.int64)`` is ``(0,)``, which the
+    next consumer dies on inside numpy rather than at a name (Yue's review of
+    #389 §4).  Whether an empty set is *usable* is the consumer's question:
+    :func:`analyse` refuses it, quoting the ``d_min`` and the cell.
     """
     a = np.asarray(lattice, dtype=np.float64)
     if not np.isfinite(d_min) or d_min <= 0:
@@ -1485,9 +1503,9 @@ def reflections(lattice, d_min: float) -> ReflectionSet:
         qs.append(q)
         ds.append(1.0 / norm)
     order = np.argsort(-np.asarray(ds))
-    hkl = np.array(rows, dtype=np.int64)[order]
-    q = np.array(qs, dtype=np.float64)[order]
-    d = np.asarray(ds, dtype=np.float64)[order]
+    hkl = np.array(rows, dtype=np.int64).reshape(-1, 3)[order]
+    q = np.array(qs, dtype=np.float64).reshape(-1, 3)[order]
+    d = np.asarray(ds, dtype=np.float64).reshape(-1)[order]
     shells: list[tuple[int, ...]] = []
     start = 0
     for i in range(1, len(d) + 1):
@@ -1528,10 +1546,29 @@ def _domain_operations(candidate: MagneticCandidate,
 
 
 def _apply_domain(op: MagneticOperator, positions: np.ndarray,
-                  configurations: np.ndarray, *, tol: float = 1e-5):
-    """One domain's positions and moment patterns, reindexed onto the same atom order."""
+                  configurations: np.ndarray, *, kind: str = "magnetic",
+                  tol: float = 1e-5):
+    """One domain's positions and patterns, reindexed onto the same atom order.
+
+    ``kind`` decides the action, and the two are genuinely different matrices:
+    a moment is an **axial** vector and transforms by ε·det(R)·R (Gallego et
+    al., 2012, eq. (3), p. 1239), a displacement is a **polar** one and
+    transforms by plain
+    R — no determinant, and no time-reversal sign, because time reversal does
+    not move an atom.  They differ by det(R)·ε, so an improper operation is
+    exactly where using the wrong one is invisible in magnitude and wrong in
+    sign: on a displacive ``P n m a`` (0, 0, ½) candidate the inversion
+    ``-x,-y,-z,+1`` needs diag(−1, −1, −1) and the axial matrix gives
+    diag(+1, +1, +1), while the other domain operation ``-x,y+1/2,-z,+1`` is
+    unaffected — so the two images stopped carrying consistent relative signs
+    (Yue's review of #389 §3).  This is the physics
+    :func:`~.operators.allowed_displacement_basis` was added in this WP to get
+    right on the other half of the engine.
+    """
+    if kind not in ORDER_PARAMETER_KINDS:
+        raise ValueError(f"kind must be one of {ORDER_PARAMETER_KINDS}, got {kind!r}")
     moved = np.array([op.act_on_site(p) for p in positions])
-    action = op.moment_matrix().astype(np.float64)
+    action = (op.moment_matrix() if kind == "magnetic" else op.matrix).astype(np.float64)
     index = np.full(positions.shape[0], -1, dtype=int)
     for j in range(moved.shape[0]):
         delta = np.abs(positions - moved[j])
@@ -1562,7 +1599,27 @@ def structure_factors(candidate: MagneticCandidate, refl: ReflectionSet, *,
     quadratic form, so "absent for every amplitude" and "how many amplitudes a
     powder determines" are exact statements about a matrix rather than a
     conclusion drawn from random draws.
+
+    **Magnetic candidates only**, and a ``kind="displacive"`` one is refused by
+    name (Yue's review of #389 §3).  Every quantity here is magnetic neutron
+    intensity: the moments are taken to Cartesian μ_B, the perpendicular
+    projection is Halpern & Johnson's magnetic cross-section geometry, and a
+    magnetic form factor is the thing deliberately set to one.  A *displacement*
+    reaches a nuclear reflection through the scalar h·u, not through a
+    perpendicular-projected vector, so the whole expression — and with it
+    :func:`powder_intensities`, :func:`systematic_absences`,
+    :func:`determinable_amplitudes`, :func:`powder_equivalent` and
+    :func:`analyse`, which all route through here — would be a plausible number
+    that means nothing.  Displacive candidates exist for the control described
+    at :func:`candidates` and for WP-1327's displacive half to build on; the
+    intensity of one is that WP's to write.
     """
+    if candidate.kind != "magnetic":
+        raise ValueError(
+            f"structure_factors computes magnetic neutron intensity (M⊥, Halpern & "
+            f"Johnson 1939) and {candidate.label!r} is a {candidate.kind!r} candidate: "
+            f"a displacement reaches a reflection through h·u, not through a "
+            f"perpendicular-projected moment, so this number would be meaningless")
     lattice = refl.lattice
     if little is None:
         little = _irreps.little_group(candidate.space_group, candidate.k)
@@ -1572,7 +1629,8 @@ def structure_factors(candidate: MagneticCandidate, refl: ReflectionSet, *,
     unit = refl.q / np.linalg.norm(refl.q, axis=1)[:, None]
     out = np.zeros((len(ops), candidate.free_amplitudes, len(refl), 3), dtype=np.complex128)
     for o, op in enumerate(ops):
-        patterns = _apply_domain(op, candidate.positions, candidate.configurations)
+        patterns = _apply_domain(op, candidate.positions, candidate.configurations,
+                                 kind=candidate.kind)
         for p, pattern in enumerate(patterns):
             cartesian = moment_cartesian(pattern, lattice)
             total = phase @ cartesian                      # (n_hkl, 3)
@@ -1760,6 +1818,16 @@ def _fit_residual(target: np.ndarray, factors: np.ndarray, shells,
     quadratic form in b, so the fit is a small non-linear least squares with an
     exact Jacobian.  Several restarts because a quadratic-form fit has sign and
     permutation symmetries and a single start can sit on a saddle.
+
+    The driver is ``"trf"`` whenever there are fewer shells than amplitudes,
+    because ``"lm"`` *refuses* that problem rather than solving it badly
+    (``ValueError: Method 'lm' doesn't work when the number of residuals is
+    less than the number of variables``).  A refusal is not a measurement: a
+    swallowed one leaves ``best`` at ``inf`` and makes :func:`powder_equivalent`
+    report a candidate as distinguishable from itself at a coarse ``d_min``,
+    which is the failure direction this module exists to avoid.  Nothing else
+    is caught here — a solver raising for any other reason is a defect and
+    surfaces (Yue's review of #389, 2026-09-18).
     """
     from scipy.optimize import least_squares
 
@@ -1781,13 +1849,11 @@ def _fit_residual(target: np.ndarray, factors: np.ndarray, shells,
     scale = float(np.max(np.abs(target))) or 1.0
     best = np.inf
     n = factors.shape[1]
+    method = "lm" if len(members) >= n else "trf"
     for _ in range(restarts):
         start = rng.normal(size=n) * np.sqrt(scale / max(n, 1))
-        try:
-            fit = least_squares(residual, start, jac=jacobian, method="lm",
-                                xtol=1e-14, ftol=1e-14, gtol=1e-14, max_nfev=4000)
-        except Exception:  # pragma: no cover - scipy declining a start
-            continue
+        fit = least_squares(residual, start, jac=jacobian, method=method,
+                            xtol=1e-14, ftol=1e-14, gtol=1e-14, max_nfev=4000)
         best = min(best, float(np.max(np.abs(fit.fun))))
     return best / scale
 
@@ -1807,11 +1873,15 @@ def powder_equivalent(a: MagneticCandidate, b: MagneticCandidate,
     which is why both directions are needed: a family with more amplitudes can
     imitate a smaller one without the reverse being true.
 
-    This is Shirane's rule (1959) made mechanical.  For a collinear structure in
-    a cubic group the powder intensity does not depend on the moment direction,
-    so the [100], [110] and [111] isotropy subgroups of one irrep come out
-    equivalent, and a uniaxial parent — where the angle to c *is* measurable —
-    does not.
+    This is Shirane's rule (1959) made mechanical.  For a collinear structure of
+    cubic **configurational** symmetry the powder intensity does not depend on
+    the moment direction, so the [100], [110] and [111] isotropy subgroups of
+    one irrep come out equivalent, and a uniaxial one — where the angle to c
+    *is* measurable — does not.  The qualifier is Shirane's own and is not
+    decoration: his p. 285 example is MnO, cubic in its *chemical* cell and
+    rhombohedral in its configurational symmetry, where the direction **is**
+    measurable.  This function computes the classes from the intensities and so
+    never has to decide which group the rule is about.
     """
     if little is None:
         little = _irreps.little_group(a.space_group, a.k)
@@ -1820,6 +1890,17 @@ def powder_equivalent(a: MagneticCandidate, b: MagneticCandidate,
     rng = np.random.default_rng(seed)
     for source, factors in ((a, fb), (b, fa)):
         other = fa if factors is fb else fb
+        # A family whose M⊥ vanishes at every reflection of this set has *no*
+        # powder pattern to this d limit — every shell is a systematic absence
+        # — so nothing here can be distinguished from it, and the draws below
+        # would be fitting round-off (|F|max = 6.1e-16 for S4(a) of
+        # ``candidates("P n m a", (0, 0, 0.5), (0, 0, 0))`` at d_min = 5.2).
+        # Exact because M⊥ is linear in the amplitudes, and on the same
+        # tolerance as :func:`systematic_absences`, the authority for "this
+        # reflection is absent".  Yue's review of #389 found the coarse-d_min
+        # failure through the ``lm`` refusal above; this is its second cause.
+        if float(np.max(np.abs(other))) <= INTENSITY_RTOL:
+            continue
         for _ in range(draws):
             amplitudes = _normalised_draw(source, refl.lattice, rng)
             target = powder_intensities(source, amplitudes, refl, factors=other)
@@ -1873,8 +1954,27 @@ def analyse(candidate_set: CandidateSet, *, d_min: float = 1.5,
     Returns a new :class:`CandidateSet` whose ``__str__`` prints the whole
     classic table.  The reflection list is the magnetic cell's own to ``d_min``,
     on the cell the set was built with.
+
+    Every column it fills is magnetic neutron intensity, so a
+    ``kind="displacive"`` set is refused by name rather than given plausible
+    numbers — see :func:`structure_factors`, which is where all three columns
+    are computed.
     """
+    if candidate_set.kind != "magnetic":
+        raise ValueError(
+            f"analyse fills in magnetic absences, determinable amplitudes and powder "
+            f"equivalence classes, and this is a {candidate_set.kind!r} candidate set "
+            f"for {candidate_set.site} of "
+            f"{getattr(candidate_set.space_group, 'xhm', lambda: candidate_set.space_group)()}"
+            f": see structure_factors, which every column goes through")
     refl = reflections(candidate_set.lattice, d_min)
+    if len(refl) == 0:
+        edges = ", ".join(f"{v:.4g}" for v in
+                          np.linalg.norm(candidate_set.lattice, axis=1))
+        raise ValueError(
+            f"no reflection of the magnetic cell has d >= {d_min} Å, so there is "
+            f"nothing to analyse: the cell edges are {edges} Å and d_min must be "
+            f"below the longest of them")
     little = _irreps.little_group(candidate_set.space_group, candidate_set.k)
     determinable, absences = [], []
     for candidate in candidate_set:

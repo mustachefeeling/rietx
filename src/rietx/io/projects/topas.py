@@ -14,9 +14,12 @@ alternative is hunting CIFs that may not match what was actually fitted.
 
 **The format, as this reader understands it.** Five rounds of this reader were
 written from archive files, which finds the bugs one lab's dialect happens to
-contain and does not terminate. The model below is derived from TOPAS Academic's
-own *Technical Reference* instead, and the archive is used to corroborate and to
-prioritise. Where the two disagreed, the reference won and the code moved.
+contain and does not terminate. The archive is the maintainer's own unpublished
+research data, so its files are cited as **archive file 1** onwards and the map
+from number to file is not public; the maintainer holds it in the private
+repository ``yue-here/rietx-corpus-map``. The model below is derived from TOPAS
+Academic's own *Technical Reference* instead, and the archive is used to
+corroborate and to prioritise. Where the two disagreed, the reference won and the code moved.
 
 1. **A lexer, then a pre-processor, then a grammar — in that order** (§1.2, §19).
    A line comment is ``'`` to end of line; a block comment is ``/* … */`` **and
@@ -387,8 +390,8 @@ def strip_comments(text: str) -> str:
     The block and line comments are stripped in **one pass**, not block-first,
     because the two interact: the ``'/*`` idiom comments out the block-comment
     *delimiter itself*, so the phase between a ``'/*`` and a ``'*/`` is **live**
-    (real, measured — ``TOF neutron input LSF.inp`` in the ORNL NOMAD archive
-    uses it to enable one of three refinements). Stripping ``/* */`` first with
+    (real, measured — an archive file uses it to hold three refinements in one
+    input and enable one of them). Stripping ``/* */`` first with
     a regex read the ``/*`` in ``'/*`` as opening a block and deleted that live
     phase. So a ``/*`` or ``*/`` preceded on its line by an unquoted ``'`` is
     itself comment text and opens/closes nothing: the ``'`` line comment is
@@ -666,7 +669,7 @@ def refuse_moved_attachment(active: str, path) -> None:
     belongs to that ``str``"), and three verbs suspend it.
 
     ``for`` is the one the archive uses, and it is not decoration: the
-    ``WISH_*`` series and ``wo3_t0000_04.inp`` declare a **whole phase** —
+    ``archive file 27`` series and ``archive file 1`` declare a **whole phase** —
     ``phase_name``, ``space_group``, all six cell edges, every ``site`` line —
     inside ``for xdds { for strs 1 to 1 { … } }``. ``_BLOCK`` looks for ``str``
     at the start of a line and ``for strs`` is not that, so such a phase is
@@ -1050,8 +1053,8 @@ _ADPS_KW = re.compile(r"\badps\b", re.I)
 #: ``ADPs { u11 u22 u33 u12 u13 u23 }``, each slot any spelling of the one
 #: grammar (named, flagged, equation, evaluated tail). The slot order is an
 #: archive-evidenced **specification fact** (`io/CLAUDE.md`'s rule 2):
-#: `Gd12Co5Bi.inp:187` names its slots ``Ho1_u11 … Ho1_u23`` in exactly that
-#: order, and `SXC223C_seed_01.inp:73` names slots 1, 2, 3 and 6
+#: `archive file 2:187` names its slots ``Ho1_u11 … Ho1_u23`` in exactly that
+#: order, and `archive file 3:73` names slots 1, 2, 3 and 6
 #: ``u11Se``/``u22Se``/``u33Se``/``u23Se`` with the two zeros in the
 #: ``u12``/``u13`` positions.
 _ADPS_BRACE = re.compile(r"\badps\b\s*\{([^}]*)\}", re.I)
@@ -1224,7 +1227,7 @@ def refined(name: str, text: str) -> bool | None:
 #: The keywords this reader reads a value for, and therefore the only places a
 #: **name slot** can sit. ``x ph1_O1_x 0.29935`` declares ``ph1_O1_x``, which
 #: ``y = ph1_O1_x;`` two tokens later references; refusing that cost 14 of the
-#: 606 archive files, the tier-1 Cr2WO6 references among them. ``prm`` and
+#: 606 archive files, the tier-1 references among them. ``prm`` and
 #: ``local`` are TOPAS's explicit declarations.
 #:
 #: The *keyword* slot is never a declaration, and that is the whole narrowing:
@@ -1254,7 +1257,7 @@ def symbol_table(text: str) -> dict[str, float]:
 
     Needed because a coordinate equation routinely *references another
     parameter* rather than being self-contained: ``y = ph1_O1_x;`` is how a
-    tetragonal Cr2WO6 oxygen says y is tied to x. Refusing those cost 14 of the
+    tetragonal oxygen site says y is tied to x. Refusing those cost 14 of the
     606 archive files, so the reference is resolved instead — and an
     unresolvable one still returns None and still raises, because inventing a
     coordinate is the one outcome worse than refusing to read the file.
@@ -1397,7 +1400,7 @@ _UNDEFINED_CELL_MACROS = ("Orthorhombic", "Monoclinic", "Triclinic")
 #: What **ends** a ``str`` block. A `.inp` has no closing brace, so a phase's
 #: text runs to the next block opener — and splitting on ``str`` alone made a
 #: trailing ``hkl_Is``/``xo_Is`` Pawley block part of the phase above it, so
-#: `_read` swept the neighbour's numbers: `W02_DR_11bmb_3858_pawley_Nb2O5.inp`
+#: `_read` swept the neighbour's numbers: `archive file 4`
 #: gave tungsten b = 3.814 and c = 19.299 off the Nb2O5 ``load hkl_m_d_th2 I``
 #: table (a d-spacing column, read as a cell edge), and a `scale` or a
 #: `weight_percent` the ``str`` block itself omits is still read off the block
@@ -1869,7 +1872,7 @@ def read_topas_inp(path: str | Path, *,
 
     # `Tr_wp` hangs off **both** `Ttop` and `Txdd`, and `xdd` is an array, so a
     # multi-dataset file states one r_wp per dataset *and* the run's own. The
-    # first match is therefore not "the" r_wp: `001_Pawley_unitcell.inp` states
+    # first match is therefore not "the" r_wp: `archive file 5` states
     # 4.408 above its `xdd` and 14.188 inside it, and 81 of the 606 archive
     # files state more than one. What the grammar does settle is *which* one is
     # the file's: the one at top level, above every block opener. Where there is
@@ -1971,7 +1974,7 @@ def read_topas_inp(path: str | Path, *,
         else:
             mag_space_group = None
         if not (name and sg):
-            # Recorded rather than passed over in silence: `simulate_Nb_Cu.inp`
+            # Recorded rather than passed over in silence: `archive file 6`
             # has a `str` block stating a cell and two sites and no
             # `phase_name`, and it used to arrive named "CaO" with scale 1.0 —
             # both read off the `hkl_Is` block below it. Naming it is the

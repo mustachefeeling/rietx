@@ -31,6 +31,8 @@ from rietx import Refinement
 from rietx.model.forward import PHASE_SUPPORT_SIGMA, compile_model
 from rietx.params.vector import ParameterTable
 from rietx.refine import _unsupported_phase_paths
+from rietx.schemas.plan import PlanSpec, StageSpec
+from rietx.schemas.structure import Structure
 from tests.test_absent_phase import _absent_phase_inputs
 from tests.test_refine_synthetic import TRUE_A, synthesize
 from tests.test_schemas import make_lab6
@@ -929,3 +931,355 @@ def test_a_later_stage_re_decides_the_hold_rather_than_inheriting_it():
     assert "phases.1.cell.a" in {p.path for p in result.parameters}
     assert ref.structure.phases[1].cell.a.value == pytest.approx(
         RAMP_CAF2_A, rel=1e-3)
+
+
+# ----------------------------------------------------------------------
+# WP-1342 — the freeze asks what a column moves, not what it is called
+# ----------------------------------------------------------------------
+# The hold exists to remove a *flat direction*.  Flatness is a property of the
+# column, and until this WP the test for it was a property of the column's
+# **name**: ``_unsupported_phase_paths`` kept the free paths starting
+# ``phases.{ip}.``.  Drive the same cell through a named variable (WP-1119) and
+# the only free name is ``vars.A``, which matches nothing — so the freeze
+# reported that it had done its job, on a set it could not see into.
+def _tied_absent(source: float = 5.2) -> Refinement:
+    """The absent-phase fixture with phase 1's cell driven by ``vars.A``."""
+    structure, ins = _absent_phase_inputs()
+    ref = Refinement(structure, ins, history=False)
+    ref.add_variable("A", source, min=1.0, max=20.0)
+    ref.tie("phases.1.cell.a", "vars.A")
+    return ref
+
+
+#: Everything the cell stage below carries forward — staging is cumulative.
+_CELL_PLAN_BASE = ["phases.*.scale", "instrument.background.*",
+                   "instrument.profile.w", "instrument.zero_shift"]
+
+
+def _cell_plan(*cell_globs: str) -> PlanSpec:
+    """Scale, background, profile, then the cell — a plan that converges.
+
+    Thick enough that the fits below are real ones (Rwp 0.0414, GoF 1.027,
+    the present phase's cell 1.4 ppm from the truth), because a comparison
+    between two badly-scaled fits is a comparison between two artefacts. The
+    cell stage frees whatever glob it is given, which is the whole difference
+    between the arms: one names the parameter, the other names the variable
+    driving it.
+    """
+    return PlanSpec(stages=[
+        StageSpec(name="scale_bkg",
+                  turn_on=["phases.*.scale", "instrument.background.*"]),
+        StageSpec(name="profile", turn_on=list(_CELL_PLAN_BASE)),
+        StageSpec(name="cell",
+                  turn_on=[*_CELL_PLAN_BASE, *cell_globs]),
+    ])
+
+
+def test_a_column_that_only_moves_an_unsupported_phase_is_held():
+    """The arm that failed before this WP: same freeze, same phase, one tie.
+
+    Measured on this fixture phase 1 contributes 0.0396σ, far under
+    ``PHASE_SUPPORT_SIGMA``, and its cell is exactly as flat driven through
+    ``vars.A`` as driven by its own column.  The hold must see it either way.
+    """
+    ref = _tied_absent()
+    pattern = synthesize()
+    model = compile_model(ref.structure, ref.instrument, pattern,
+                          mode="rietveld")
+    table = ref._prepare_table(restore=False)
+    table.set_vary(["vars.A", "phases.0.cell.a"], True)
+
+    support = model.phase_support(table.decode(table.x0()))
+    assert support[1] < PHASE_SUPPORT_SIGMA, "the fixture stopped being absent"
+    # the tied entry is not a column of θ and still moves while θ does
+    assert "phases.1.cell.a" not in table.free_paths
+    assert "phases.1.cell.a" in table.moving_paths
+
+    assert _unsupported_phase_paths(model, table) == ["vars.A"]
+
+
+def test_the_untied_answer_is_unchanged():
+    """The control, and the reason the change is safe: no tie, same answer.
+
+    Every free column reaches exactly itself when nothing is tied onto it, so
+    the reach test degenerates to the prefix test it replaced.
+    """
+    structure, ins = _absent_phase_inputs()
+    ref = Refinement(structure, ins, history=False)
+    pattern = synthesize()
+    model = compile_model(ref.structure, ref.instrument, pattern,
+                          mode="rietveld")
+    table = ParameterTable(ref.structure, ref.instrument)
+    table.set_vary(["phases.*.cell.a"], True)
+
+    assert _unsupported_phase_paths(model, table) == ["phases.1.cell.a"]
+
+
+def test_a_column_reaching_a_supported_phase_is_never_held():
+    """The several-phase decision, and the measurement behind it.
+
+    One variable driving both cells is **not** a flat direction: phase 0 gives
+    it real gradient, so holding it would freeze a direction the data can see.
+    Measured on this fixture, holding it leaves the present phase's cell at the
+    4.20 Å seed — 10 441 ppm from the truth, Rwp 0.9589 — against 4.156594 Å at
+    −1 ppm and Rwp 0.0416 with the column free.  So the rule is *all*, never
+    *any*: hold the column only when everything it moves belongs to a phase the
+    data cannot see.
+    """
+    structure, ins = _absent_phase_inputs()
+    ref = Refinement(structure, ins, history=False)
+    ref.add_variable("A", 4.20, min=1.0, max=20.0)
+    ref.tie_equal(["phases.0.cell.a", "phases.1.cell.a"], source="vars.A")
+
+    pattern = synthesize()
+    model = compile_model(ref.structure, ref.instrument, pattern,
+                          mode="rietveld")
+    table = ref._prepare_table(restore=False)
+    table.set_vary(["vars.A"], True)
+
+    support = model.phase_support(table.decode(table.x0()))
+    assert support[0] >= PHASE_SUPPORT_SIGMA > support[1], "fixture moved"
+    assert _unsupported_phase_paths(model, table) == []
+
+
+def test_a_column_that_moves_the_phases_own_scale_is_never_held():
+    """The scale rule survives the rewrite, and falls out of it.
+
+    A phase reaches the pattern only through ``scale × |F|² × profile``, so the
+    scale is the one direction that is not flat when the phase is invisible.
+    Under the reach test that needs no special case: a column moving
+    ``phases.1.scale`` moves something the data can see.
+    """
+    structure, ins = _absent_phase_inputs()
+    ref = Refinement(structure, ins, history=False)
+    ref.add_variable("S", structure.phases[1].scale.value, min=0.0, max=1.0)
+    ref.tie("phases.1.scale", "vars.S")
+
+    pattern = synthesize()
+    model = compile_model(ref.structure, ref.instrument, pattern,
+                          mode="rietveld")
+    table = ref._prepare_table(restore=False)
+    table.set_vary(["vars.S"], True)
+    assert _unsupported_phase_paths(model, table) == []
+
+
+def test_the_absent_cell_stops_walking_through_its_tie():
+    """The fit-level cost, and what the record said about it.
+
+    Unheld, the variable walked the absent cell 5.2 → 3.35512 Å while the two
+    fits agreed on Rwp to 1.7e-15 — the flat direction costs nothing at all to
+    travel, which is why no Rwp comparison can find this — and
+    ``StageResult.held`` was empty throughout.
+    """
+    ref = _tied_absent()
+    result = ref.fit(synthesize(), plan=_cell_plan("vars.*"), telemetry=False)
+
+    held = {p for stage in result.stages for p in stage.held}
+    assert "vars.A" in held, "the freeze still cannot see the tie"
+    assert ref.structure.phases[1].cell.a.value == 5.2
+    assert [r.value for r in ref.parameters() if r.path == "vars.A"] == [5.2]
+
+
+def test_the_record_and_the_diagnostic_name_the_phase_behind_the_column():
+    """A held column is not a phase path, and the report is about a phase.
+
+    ``StageResult.held`` records the column the verb acted on; ``held_reach``
+    records what that column also stopped, which is how ``PHASE_UNCONSTRAINED``
+    still finds the phase to talk about.  Without it the message would go
+    silent on exactly the fits this WP repairs.
+    """
+    ref = _tied_absent()
+    result = ref.fit(synthesize(), plan=_cell_plan("vars.*"), telemetry=False)
+
+    stage = next(s for s in result.stages if s.held)
+    assert stage.held == ["vars.A"]
+    assert stage.held_reach == {"vars.A": ["phases.1.cell.a", "phases.1.cell.b",
+                                           "phases.1.cell.c"]}
+
+    fired = [d for d in result.diagnostics if d.code == "PHASE_UNCONSTRAINED"]
+    assert len(fired) == 1, [d.code for d in result.diagnostics]
+    assert "was held for" in fired[0].message
+    # the column, because that is the declaration a caller can lift — and one
+    # finding about the phase, not one per parameter the column drove, because
+    # `where` is what the series keys its persistent-finding aggregation on
+    assert fired[0].where == ["vars.A"]
+
+
+def test_held_reach_carries_the_derived_ties_a_hold_also_stopped():
+    """It is about the column, not about the caller: symmetry ties count too.
+
+    Holding a cubic ``a`` stops ``b`` and ``c`` with it, and a reader of the
+    record should not have to know the crystal system to learn that. The map
+    is ``column_reach`` restricted to what was held, minus each column itself —
+    so a column that moved nothing else is absent rather than mapped to an
+    empty list, and the union with ``held`` is every value this stage froze.
+    """
+    structure, ins = _absent_phase_inputs()
+    ref = Refinement(structure, ins, history=False)
+    result = ref.fit(synthesize(), plan="mccusker_default", telemetry=False)
+
+    stage = next(s for s in result.stages if s.held)
+    assert stage.held == ["phases.1.cell.a"]
+    assert stage.held_reach == {"phases.1.cell.a": ["phases.1.cell.b",
+                                                    "phases.1.cell.c"]}
+    for other in result.stages:
+        assert set(other.held_reach) <= set(other.held), other.name
+
+
+def test_the_hold_reaches_every_pattern_of_a_chain():
+    """WP-1441's exposure: the tie is re-declared per pattern, so the miss was.
+
+    A tie could once be declared only on a single ``Refinement``, so a freeze
+    that could not see it cost one answer. ``constrain=(index, ref)`` puts the
+    declaration on every pattern of a chain, which multiplies the exposure by
+    the chain's length and hides it where nobody reads an individual fit.
+
+    There is no CaF₂ in any of these patterns, so the honest answer for its
+    cell is the 5.4631 Å the model was handed, on every one of them. Measured
+    with the name test restored, the same chain returns 5.30422, 5.38679,
+    5.57821, 5.39074 and 5.59999 Å — a 0.296 Å spread for a phase that is not
+    there, two of them on the caller's own bound — while every Rwp sits within
+    1e-5 of the held arm's, three of the five patterns report no diagnostic at
+    all, and the chain-level finding is absent. That walk is not monotone, so
+    it reads as a trajectory rather than as a fault, and ``direction="both"``
+    cannot separate it from a real one because both directions carry the tie.
+    """
+    import rietx as rx
+    from rietx.sequential import SequentialRefinement
+
+    # five, which is `MIN_POINTS_FOR_PERSISTENCE`: the chain-level sentence is
+    # half of what this arm is for, and below that the aggregation declines
+    temperatures = [25.0, 60.0, 95.0, 130.0, 165.0]
+    assert max(temperatures) < RAMP_T_TRANSITION, "these are the sub-onset ones"
+
+    def constrain(index, ref):
+        ref.add_variable("caf2_a", RAMP_CAF2_A, min=5.30, max=5.60)
+        ref.tie("phases.1.cell.a", "vars.caf2_a")
+
+    # the collapsed stage, plus the glob that frees the caller's own variable —
+    # without it the tie is declared and nothing ever frees what drives it
+    plan = rx.RefinementPlan(stages=[rx.Stage(
+        "all", ["phases.*.scale", "instrument.background.*", "phases.*.cell.*",
+                "instrument.profile.w", "instrument.profile.x", "vars.*"])])
+    runner = SequentialRefinement(_ramp_start(bounds=None),
+                                  _ramp_instrument(),
+                                  carry=["phases.0.*", "instrument.*"])
+    series = runner.fit(_ramp_patterns(temperatures), x=temperatures,
+                        labels=[f"{t:.0f}C" for t in temperatures],
+                        plan=plan, refit="single", constrain=constrain)
+
+    for entry, structure in zip(series.entries, runner.fitted_structures,
+                                strict=True):
+        # the value is the one handed in, on every pattern — not a walk that
+        # stopped somewhere, and not a number anybody may quote
+        assert structure.phases[1].cell.a.value == RAMP_CAF2_A, entry.label
+        assert "vars.caf2_a" not in {p.path for p in entry.parameters}
+        assert "PHASE_UNCONSTRAINED" in [d.code for d in entry.diagnostics]
+
+    # and the chain says the thing no per-pattern finding can
+    persistent = [d for d in series.diagnostics
+                  if d.code == "SEQUENTIAL_PERSISTENT_FINDING"]
+    assert len(persistent) == 1
+    assert persistent[0].where == ["vars.caf2_a"]
+    assert "5 of 5" in persistent[0].message
+
+
+def test_a_held_column_is_released_when_its_phase_appears():
+    """The release is the hold's other half, and it reads names too.
+
+    ``released_fit``'s pattern, with the CaF₂ cell driven through a variable.
+    The stage starts with the phase invisible, so the column is held; the scale
+    climbs while the stage solves, and the hold must be lifted here rather than
+    one pattern later. The release test could only ever see ``phases.1.`` in
+    the held path's own name, so a held ``vars.caf2_a`` stayed held: measured,
+    the cell sat at its 5.40 Å seed against 5.463026 Å, and Rwp 0.1939 against
+    0.0550 — a hold this WP made possible and nothing could lift.
+    """
+    import rietx as rx
+
+    data = _ramp_patterns([700.0])[0]
+    ref = rx.Refinement(_ramp_start(caf2_a=5.40), _ramp_instrument(),
+                        history=False)
+    ref.add_variable("caf2_a", 5.40, min=5.0, max=6.0)
+    ref.tie("phases.1.cell.a", "vars.caf2_a")
+    plan = rx.RefinementPlan(stages=[rx.Stage(
+        "all", ["phases.*.scale", "instrument.background.*", "phases.*.cell.*",
+                "instrument.profile.w", "instrument.profile.x", "vars.*"])])
+    result = ref.fit(data, plan=plan, telemetry=False)
+
+    stage = result.stages[0]
+    assert stage.released == ["vars.caf2_a"]
+    assert stage.held == [], "the hold was lifted, so nothing stayed held"
+    a = ref.structure.phases[1].cell.a.value
+    assert a == pytest.approx(RAMP_CAF2_A, rel=1e-4), f"CaF2 a = {a}"
+    assert result.statistics.rwp < 0.06
+
+
+def test_a_column_held_for_two_absent_phases_is_reported_under_both():
+    """One column, two flat phases, and a warning owed about each of them.
+
+    ``_only_moves`` holds a column when *every* phase it moves is invisible,
+    which one variable driving two absent cells satisfies — so the column is
+    correctly held, and ``PHASE_UNCONSTRAINED`` is owed for both phases. Read
+    by stopping at the first phase the column's names mention, the second one
+    had nothing held, nothing free under its own prefix, and therefore no
+    finding at all.
+    """
+    import rietx as rx
+
+    structure, ins = _absent_phase_inputs()
+    second = structure.phases[1].model_copy(deep=True)
+    second.name = "absent2"
+    ref = rx.Refinement(
+        Structure(phases=[structure.phases[0], structure.phases[1], second]),
+        ins, history=False)
+    ref.add_variable("A", 5.2, min=1.0, max=20.0)
+    ref.tie_equal(["phases.1.cell.a", "phases.2.cell.a"], source="vars.A")
+    result = ref.fit(synthesize(), plan=_cell_plan("vars.*"), telemetry=False)
+
+    stage = next(s for s in result.stages if s.held)
+    assert stage.held == ["vars.A"]
+    fired = [d for d in result.diagnostics if d.code == "PHASE_UNCONSTRAINED"]
+    assert len(fired) == 2, [d.message for d in fired]
+    assert {d.message.split()[1] for d in fired} == {"1", "2"}
+    # the column, once per phase — never the six cell parameters it drove
+    assert all(d.where == ["vars.A"] for d in fired)
+
+
+@pytest.mark.slow
+def test_the_tied_hold_is_drawn_for_inspection():
+    """Rwp hides locally-bad fits; the picture is the check that does not.
+
+    Two panels of the same fixture, drawn from the same plan: the cell driven
+    by its own column, and driven through ``vars.A``. The held phase
+    contributes nothing to draw — that is what "held" means — so what these
+    show is that the phase which *is* there is fitted the same either way,
+    which is the claim a Rwp equality alone cannot make.
+    """
+    import matplotlib.pyplot as plt
+
+    from rietx.viz.plots import plot_result
+
+    OUT.mkdir(exist_ok=True)
+    structure, ins = _absent_phase_inputs()
+    plain = Refinement(structure, ins, history=False)
+    untied = plain.fit(synthesize(), plan=_cell_plan("phases.*.cell.a"),
+                       telemetry=False)
+    # the present phase's cell is freed by its own column in both arms, so the
+    # only difference between them is how the *absent* phase's cell is driven
+    tied = _tied_absent().fit(
+        synthesize(), plan=_cell_plan("vars.*", "phases.0.cell.a"),
+        telemetry=False)
+
+    for name, result in (("untied", untied), ("tied", tied)):
+        plot_result(result, path=str(OUT / f"held_phase_reach_{name}.png"))
+    plt.close("all")
+
+    assert (OUT / "held_phase_reach_untied.png").exists()
+    assert (OUT / "held_phase_reach_tied.png").exists()
+    # the phase that is there is fitted identically either way — bit-identical
+    # rather than close, which is the strongest form of "the repair costs the
+    # converged fit nothing"; the arms differ only in what each one held
+    assert tied.statistics.rwp == untied.statistics.rwp
+    assert {p for s in untied.stages for p in s.held} == {"phases.1.cell.a"}
+    assert {p for s in tied.stages for p in s.held} == {"vars.A"}

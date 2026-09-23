@@ -24,6 +24,7 @@ from ..model.forward import PAWLEY_OVERLAP_FWHM_FRAC
 from ..schemas.indexing import (
     PEAK_ASYMMETRY_MIN_SIGMA,
     PEAK_AXIAL_TAIL_MAX_FWHM,
+    PEAK_POSITION_ESD_MAX_DEG,
     PEAK_REFUTED_SIGMA,
     PEAK_SATELLITE_MAX_RATIO,
     PEAK_SATELLITE_NEAR_FWHM,
@@ -282,9 +283,9 @@ def peaks_of_group(fit: GroupFit, group_index: int, wavelength: float
     window only through ``intensity × profile``, so one that refined to no
     intensity contributes nothing and its own position stops being
     identifiable — item 13's rule about a phase the data cannot see, one rank
-    down.  "At its bound" is the same test the refinement's ``BOUND_HIT`` uses,
-    and the constant is imported rather than restated because there is one
-    answer to that question.
+    down.  "At its bound" is the distance half of the refinement's own bound
+    test — ``BOUND_HIT`` is a conjunction since WP-1434 — and the constant is
+    imported rather than restated so the two cannot drift apart.
 
     Flagged rather than dropped, for ``not_separable``'s reason and one more: a
     report must be able to say why a line went, and a component a **human**
@@ -328,6 +329,8 @@ def _flags_for(fit: GroupFit, j: int) -> list[PeakFlag]:
         flags.append("axial_tail")
     if float(fit.intensity[j]) <= BOUND_HIT_RTOL:
         flags.append("no_intensity")
+    if not (float(fit.two_theta_esd[j]) < PEAK_POSITION_ESD_MAX_DEG):
+        flags.append("position_unmeasured")
     t = fit.asymmetry_t[j]
     if np.isfinite(t) and abs(t) >= PEAK_ASYMMETRY_MIN_SIGMA:
         flags.append("asymmetry_unmodelled")

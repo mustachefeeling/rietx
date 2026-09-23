@@ -71,23 +71,31 @@ def _old_rule_in_allowed_span(candidate) -> bool:
 # A. the two measured Pnma cases: Q21 flagged them, Q22 fixed them
 # --------------------------------------------------------------------------
 
-@pytest.mark.parametrize("k,label,bns", [
-    (K_HALF_HALF_0, "S1(rank 2)#3", "6.19"),
-    (K_0_HALF_HALF, "S2(rank 1)#2", "26.67"),
+@pytest.mark.parametrize("k,stabilizer,bns", [
+    (K_HALF_HALF_0, 4, "6.19"),
+    (K_0_HALF_HALF, 8, "26.67"),
 ])
-def test_the_two_q21_candidates_now_verify_true_under_q22(k, label, bns):
+def test_the_two_q21_candidates_now_verify_true_under_q22(k, stabilizer, bns):
+    """Selected by BNS number and stabiliser order, which are the gauge-free keys.
+
+    The ``#n`` in a direction label is not one: ``isotropy.py``'s direction sort
+    numbers the ties *after* sorting on ``(rank, -len(stabilizer), label)``, and
+    its own comment says the numbering exists because a gauge that is not
+    axis-aligned gives several directions the same fallback label — so which of
+    them is ``#3`` follows the gauge, and the gauge differs between platforms
+    (Yue's review of #389 §6).
+    """
     cs = candidates("P n m a", PNMA_MIRROR_SITE, k, kind="displacive", verify=True)
-    labels = [c.label for c in cs]
-    assert label in labels
-    by_label = {c.label: c for c in cs}
-    candidate = by_label[label]
-    assert candidate.bns_number == bns
+    matching = [c for c in cs if c.bns_number == bns]
+    assert len(matching) == 1, [c.bns_number for c in cs]
+    candidate = matching[0]
+    assert len(candidate.direction.stabilizer) == stabilizer
     # the old rule really did reject this candidate — the fix is not a no-op
     assert _old_rule_in_allowed_span(candidate) is False, (
-        f"{label} must fail the pre-Q22 rule, or this is not testing the fix")
+        f"BNS {bns} must fail the pre-Q22 rule, or this is not testing the fix")
     # ... and the new rule (what candidates() actually flags) accepts it
     assert candidate.verified is True, (
-        f"{label} still fails its own span check under the Q22 rule")
+        f"BNS {bns} still fails its own span check under the Q22 rule")
     assert candidate.verification_reason is None
     for c in cs:
         assert c.verified is True, f"{c.label} unexpectedly failed its own span check"
@@ -144,7 +152,21 @@ def test_a_partial_failure_does_not_raise(monkeypatch):
     assert len(cs) >= 2
     assert sum(1 for c in cs if c.verified is False) == 1
     assert sum(1 for c in cs if c.verified is True) == len(cs) - 1
-    assert real is MagneticCandidate.in_allowed_span or True  # no-op, keeps `real` referenced
+    # `assert x or True` cannot fail; these are the claims it was standing in
+    # for.  The monkeypatch is still live here, so the attribute is the wrapper
+    # and `real` is the bound original monkeypatch restores on teardown.
+    #
+    # `real is not flaky` was the first replacement and is a second tautology
+    # (#389 round 3, before-merge 3): `real` is bound at the top of this
+    # function and `flaky` defined below it, so the comparison is true of this
+    # function's own scope whatever the package does.  The falsifiable spelling
+    # names the *class attribute* on both sides — if `setattr` had not taken,
+    # `real` would still be what the class carries.  Made to fail on purpose
+    # 2026-09-22 by moving the `real = ...` binding below the `setattr`: this
+    # line goes red ("assert <function ...flaky> is not <function ...flaky>")
+    # while the one above it stays green.
+    assert MagneticCandidate.in_allowed_span is flaky
+    assert real is not MagneticCandidate.in_allowed_span
 
 
 # --------------------------------------------------------------------------
@@ -174,19 +196,21 @@ def test_named_group_candidates_are_bit_identical_to_before():
 # E. CandidateSet.verified_only() — the filter the callers use
 # --------------------------------------------------------------------------
 
-@pytest.mark.parametrize("k,label", [
-    (K_HALF_HALF_0, "S1(rank 2)#3"),
-    (K_0_HALF_HALF, "S2(rank 1)#2"),
+@pytest.mark.parametrize("k,bns", [
+    (K_HALF_HALF_0, "6.19"),
+    (K_0_HALF_HALF, "26.67"),
 ])
-def test_verified_only_is_a_no_op_on_this_site_under_q22(k, label):
+def test_verified_only_is_a_no_op_on_this_site_under_q22(k, bns):
     """Under Q21's rule this site had one candidate ``verified_only()`` dropped
-    (``label``); under Q22's fix it verifies too, so the filter now keeps
-    everything — pinned here so a regression back to the Q21 behaviour would
-    be caught by a *count* changing, not just by a label disappearing."""
+    (the one with this BNS number); under Q22's fix it verifies too, so the
+    filter now keeps everything — pinned here so a regression back to the Q21
+    behaviour would be caught by a *count* changing, not just by a candidate
+    disappearing.  Named by BNS number rather than by direction label, which
+    carries the gauge (#389 §6)."""
     cs = candidates("P n m a", PNMA_MIRROR_SITE, k, kind="displacive", verify=True)
     n_before = len(cs)
     filtered = cs.verified_only()
-    assert label in [c.label for c in filtered]
+    assert [c.bns_number for c in filtered].count(bns) == 1
     assert len(filtered) == n_before
     assert all(c.verified is not False for c in filtered)
 

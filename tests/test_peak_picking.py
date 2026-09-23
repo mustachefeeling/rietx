@@ -612,16 +612,21 @@ def test_contamination_line_is_flagged_not_subtracted():
     """
     instrument = _instrument()
     y_true, grid, truth = _forward(instrument)
-    # a Kβ ghost of the strongest line, at ~1/500 of it
+    # a Kβ *leak*: every line carries its image at 6 %, which is what a beam
+    # does.  Doping one line is a coincidence and since WP-1442 is not flagged.
+    lam = instrument.source.lines[0].wavelength.value
     lam_kb = 1.392234
+    y = y_true.copy()
+    for t in truth:
+        g = 2 * np.degrees(np.arcsin(
+            lam_kb / lam * np.sin(np.radians(0.5 * float(t)))))
+        fw = float(predicted_fwhm(np.array([g]), instrument)[0])
+        h = float(y_true[np.argmin(np.abs(grid - float(t)))])
+        y = y + 0.06 * h * np.exp(-0.5 * ((grid - g) / (fw / 2.355)) ** 2)
     parent = float(truth[np.argmax([y_true[np.argmin(np.abs(grid - t))]
                                     for t in truth])])
-    tt_ghost = 2 * np.degrees(np.arcsin(lam_kb / instrument.source.lines[0].wavelength.value
-                                        * np.sin(np.radians(0.5 * parent))))
-    fwhm = float(predicted_fwhm(np.array([tt_ghost]), instrument)[0])
-    peak_h = float(y_true[np.argmin(np.abs(grid - parent))])
-    y = y_true + 0.06 * peak_h * np.exp(
-        -0.5 * ((grid - tt_ghost) / (fwhm / 2.355)) ** 2)
+    tt_ghost = 2 * np.degrees(np.arcsin(
+        lam_kb / lam * np.sin(np.radians(0.5 * parent))))
 
     peaks = pick_peaks(_noisy(y, grid, 77), instrument)
     ghosts = [p for p in peaks.peaks if "ghost_kbeta" in p.flags]
@@ -868,11 +873,20 @@ def test_the_phantom_components_of_a_real_pattern_are_flagged_and_excluded():
     assert len(flagged) == 2, [(p.two_theta, p.intensity) for p in flagged]
     assert all(p.intensity < 1e-15 for p in flagged)
     assert not any("no_intensity" in p.flags for p in peaks.usable())
-    # they are the *only* thing this flag removed — 8 other components are
-    # already unusable here for reasons of their own (ghosts, not_separable)
+    # they are the *only* thing this flag removed — the other components that
+    # are unusable here are so for reasons of their own.  Both flags come off,
+    # because since WP-1442 these two carry ``position_unmeasured`` as well:
+    # their esds are 1e+49 and 1e+17 degrees, and a component that refined to
+    # no intensity has no identifiable position, which is the sentence
+    # ``no_intensity``'s own docstring already made.  The two screens agree
+    # here by construction and neither is redundant — WP-1442's apatite case is
+    # a component with real intensity and no position, which only the second
+    # one sees.
+    assert all("position_unmeasured" in p.flags for p in flagged)
     keeps_without_the_flag = [
         p for p in peaks.peaks
-        if not (set(p.flags) - {"no_intensity"}) & PEAK_UNUSABLE_FLAGS]
+        if not (set(p.flags) - {"no_intensity", "position_unmeasured"})
+        & PEAK_UNUSABLE_FLAGS]
     assert len(keeps_without_the_flag) == len(peaks.usable()) + 2
 
     # and the point of removing them: every line offered to an engine now has a

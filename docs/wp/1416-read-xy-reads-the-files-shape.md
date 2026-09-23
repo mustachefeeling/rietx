@@ -2,6 +2,7 @@
 
 Milestone: unscheduled · Status: ⬜
 Depends on: —
+Priority: P2 2026-09-23 — a constant column becomes σ in silence, on the shape few .xy files have
 
 ## Goal
 

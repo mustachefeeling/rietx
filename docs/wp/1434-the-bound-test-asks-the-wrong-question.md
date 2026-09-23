@@ -1,6 +1,8 @@
 # WP-1434 — the bound test asks whether the value is near its limit, never whether the limit was binding
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: ✅ 2026-09-18 — the flag asks whether
+the limit carried load; issue #273's nine silent cases all speak, at every `ftol`,
+and no fitted value moved
 Depends on: — (1310 landed the vector half; this is the tolerance half)
 
 ## Goal
@@ -27,7 +29,7 @@ test now runs only on the **last** stage, so `RefinementPlan.intermediate_ftol`
 (1e-6) can no longer reach it and only a caller's own final `ftol` is left.
 
 **The defect that survives.** `bound_findings`
-(`strategy/staged.py:1031`) decides by distance: is θ within
+(`strategy/staged.py:1377`) decides by distance: is θ within
 `BOUND_HIT_RTOL = 1e-10` of the limit. TRF keeps its iterates strictly
 feasible, so how close a boundary solution lands is a function of when the
 solver stopped. Measured 2026-09-16 on `make_lab6` with a ±0.02° zero shift
@@ -66,7 +68,7 @@ at a genuine interior optimum, a separation of eleven orders where distance
 gives none.
 
 **The repo already answers this question correctly one door along.**
-`CONSTRAINT_ACTIVE` (`refine.py:2828`) fires "when the answer-producing stage
+`CONSTRAINT_ACTIVE` (`refine.py:2953`) fires "when the answer-producing stage
 **pressed** a constraint", counts truncations rather than distances, examines
 only the stage whose θ becomes the result, and is `info` rather than `warning`
 because landing on a constraint face is what a constrained driver is for. Its
@@ -95,12 +97,27 @@ gradient is large, because the stage stopped early en route. That is a
 `STAGE_MAX_ITER`-shaped statement and must not become a `BOUND_HIT`, so the
 test stays a conjunction — near the limit **and** still pushed into it.
 
+**Three corrections, 2026-09-18, checked against the tree on arrival.**
+`StageOutcome` is a name this WP and 1310 both use and no module defines. The
+carrier is `LSQOutcome` (`optimize/least_squares.py:174`), which `refine.py`
+reads and which already holds four WP-1076-shaped fields with named writers;
+`LMOutcome` (`optimize/lm.py:205`) is the `lm` driver's half. Nothing else in
+§ Context moved. The line numbers above are refreshed: WP-1311 landed on
+2026-09-18 and grew `staged.py` by about 350 lines. And `bound_findings` takes
+`(bounds, free, theta)` and no outcome, while its one caller `check_guards`
+(`staged.py:1491`) already has `outcome` in hand, so the gradient reaches the
+test through a signature change and not through new plumbing.
+
 ## Non-goals
 
 - **Not which parameters get bounds.** The geometry-scaled displacement
   bound, the Biso flag and the rest are
   [1311](1311-walking-parameter-bounds.md)'s, which reports through this
-  machinery and inherits whatever it decides.
+  machinery. It closed 2026-09-18 and decided to *keep* the bounds it found —
+  the ±1 mm on `sample_displacement`, the two capillary offsets and the 25 Å²
+  Biso cap — on the maintainer's ruling, so what this WP inherits is settled
+  rather than pending. Its four new diagnostics fire on no acceptance fixture,
+  which is the baseline the last task measures against.
 - **Not the softplus floor.** A softplus lower bound is −∞ internally so
   `BOUND_HIT` never fires from below on a scale or a width; 1311's Inherited
   records that as intended and it is not revisited here.
@@ -109,31 +126,68 @@ test stays a conjunction — near the limit **and** still pushed into it.
 
 ## Tasks
 
-- [ ] Capture the gradient and the optimality measure on `StageOutcome`, from
-      the `OptimizeResult` both drivers already produce. A declared field
-      needs its writer named at review (WP-1076), so the `lm` path either
-      fills it or the field admits that it cannot.
-- [ ] `bound_findings` takes the conjunction: within a *loose* distance of the
+- [x] Capture the gradient and the optimality measure on `LSQOutcome`
+      (`optimize/least_squares.py:174`), from the `OptimizeResult` both drivers
+      already produce. A declared field needs its writer named at review
+      (WP-1076), so the `lm` path either fills it or the field admits that it
+      cannot; `LMOutcome` (`optimize/lm.py:205`) carries `fun` and `jac`, so
+      the `lm` half is computable rather than absent.
+      **Landed as one field, `LSQOutcome.residual_cosine`**, and the choice is
+      measured rather than inherited: `gₖ/(‖J:,ₖ‖·‖r‖)`, the cosine of the
+      angle between the residual and each Jacobian column. The normal
+      equations force that to zero on every free column at an unconstrained
+      optimum, so a column that keeps an angle is held by something, and at a
+      limit that something is the limit. It is dimensionless, so it compares
+      across parameters whose units do not, and it has one definition under
+      both drivers — unlike scipy's `optimality`, which is Coleman-Li-scaled
+      and which `lm` does not produce.
+- [x] `bound_findings` takes the conjunction: within a *loose* distance of the
       limit **and** the gradient still pushing into it, normalised by the
       optimality measure. State the two thresholds with the measurement that
       set them, and keep `BOUND_HIT_RTOL`'s role explicit (it becomes the
       loose half, so its value moves and its meaning changes).
-- [ ] The finding carries its evidence, as `CONSTRAINT_ACTIVE` does: the
+      `BOUND_HIT_ESD_FRAC = 1e-2` is the loose half, measured in the
+      parameter's own esd; `BOUND_HIT_COS_MIN = 1e-4` the binding half, plus
+      the sign. `BOUND_HIT_RTOL` keeps its value and becomes the **fallback**
+      distance test, taken per column when no solve stands behind the call or
+      when an esd is unavailable, which reproduces the pre-1434 answer.
+- [x] The finding carries its evidence, as `CONSTRAINT_ACTIVE` does: the
       gradient and how far from the limit, so a reader can judge without
       re-running. `GuardFinding.at_bound` currently carries `value=None`.
-- [ ] Re-measure issue #273's 24 cases on FAP and Si SRM 640c, and the four
+      It now carries ρ there, with the rendered clause on a new `detail` field
+      that only the `BOUND_HIT` diagnostic reads. `str(finding)` is untouched,
+      which is what the byte-for-byte pin is about.
+- [x] Re-measure issue #273's 24 cases on FAP and Si SRM 640c, and the four
       rows in the table above. The bar is every genuinely-binding case firing
       at every `ftol`, and the interior optimum silent at every `ftol`.
-- [ ] Check what moves on the acceptance suites. A test that changes which
+      **Met.** 32 cases on FAP and Si SRM 640c with `ftol` swept 1e-9 … 1e-3:
+      nine silent before, none after. On the `make_lab6` sweep both binding
+      rows fire at every `ftol`, the early-stopped row stays silent and the
+      interior optimum stays silent at every `ftol`. Numbers in the handover.
+- [x] Check what moves on the acceptance suites. A test that changes which
       diagnostics fire is the point; one that changes a *value* is a bug.
-- [ ] Tests: the `ftol` sweep as a fixture, a binding bound and an interior
+      **Nothing moved.** All fifteen acceptance modules: 150 passed, one
+      failed, and the failure is the NAC termination-view golden carrying the
+      new evidence clause — one line of it, the view's structure untouched.
+      Regenerated as that test's docstring prescribes. No value, cell, esd or
+      Rwp row moved anywhere, and NAC's own `BOUND_HIT` still fires, so it was
+      a bound that carried load rather than a false positive this removed.
+- [x] Tests: the `ftol` sweep as a fixture, a binding bound and an interior
       optimum side by side, and the early-stopped row asserting it does **not**
       become a `BOUND_HIT`. Plus obs/calc/diff PNGs to `tests/output/`.
-- [ ] Skill: the `BOUND_HIT` row in the diagnostics table says what the flag
+      Thirteen rows in `test_bound_hit_at_convergence.py`, two of them unit
+      rows on `bound_findings` that need no fit. The early-stopped row asserts
+      the **angle** as well as the silence, because a row that passed for the
+      wrong reason would look identical.
+- [x] Skill: the `BOUND_HIT` row in the diagnostics table says what the flag
       now means and what its evidence fields carry. It currently tells an
       agent to widen the bound or fix the parameter, which stays right, but
       the reading "this bound carried load" is new and is the part an agent
-      acts on.
+      acts on. Landed, including the *silence*: a parameter near a limit with
+      no row is one the limit is not holding, so widening it buys nothing.
+      **`diagnostics.md` now sits 9 bytes under its 36 000-byte cap**, and it
+      had 615 bytes of headroom before this row. The next session adding a
+      code here pays for it with a cut or splits the file.
 
 ## Acceptance
 
@@ -155,7 +209,7 @@ The shipping PR carries `Closes #273`.
 - [1310](1310-report-repeats-itself.md) § 6 — the measurement that ruled out
   both of the issue's fixes, and § 4 for the vector half already landed.
 - [1311](1311-walking-parameter-bounds.md) — reports through this machinery.
-- `refine.py:2828` `_constraint_diagnostics` — the design note: evidence from
+- `refine.py:2953` `_constraint_diagnostics` — the design note: evidence from
   the answer-producing stage, `info` not `warning`.
 - Coelho (2005), *J. Appl. Cryst.* **38**, 455 (in the local corpus).
 - Nocedal & Wright, *Numerical Optimization*, ch. 12, 16; Gill, Murray &
@@ -163,6 +217,128 @@ The shipping PR carries `Closes #273`.
 - scipy `least_squares` documentation, `active_mask` and `optimality`.
 
 ## Handover log
+
+### 2026-09-18 — closed: the flag means the limit changed the answer
+
+A warning that a parameter has hit its limit now means the limit changed the
+answer. Before this it meant the value had stopped close to the limit, and how
+close a bounded fit stops is a function of how tightly the solver was asked to
+converge. The same pinned parameter was therefore reported at one convergence
+tolerance and silent at a looser one. Nine of thirty-two constructed cases
+ended converged, hard against a limit, carrying ordinary uncertainties and no
+warning at all. All nine now speak, and the warning carries the number behind
+its own claim, so a reader can tell a limit that carried load from one the
+solver happened to stop beside.
+
+**Done.**
+
+- **The question changed, and the quantity that answers it is measured rather
+  than inherited.** `LSQOutcome.residual_cosine` is `gₖ/(‖J:,ₖ‖·‖r‖)`, the
+  cosine of the angle between the residual and each Jacobian column. The normal
+  equations force that to zero on every free column at an unconstrained
+  optimum, so a column that keeps an angle is held by something, and at a limit
+  that something is the limit. Both drivers fill it from the `jac`/`fun` pair
+  they already return.
+- **`bound_findings` takes a conjunction**: within `BOUND_HIT_ESD_FRAC` (1e-2)
+  of the limit in units of the parameter's own esd, **and** the cosine past
+  `BOUND_HIT_COS_MIN` (1e-4) with the sign pointing out of the feasible set.
+  Each half covers what the other cannot, and the measurement below says so.
+- **`BOUND_HIT_RTOL` keeps its value and becomes the fallback**, taken per
+  column when no solve stands behind the call or an esd is unavailable. So
+  `bound_findings` stays a pure function of arrays and returns what it used to.
+- **The finding carries its evidence.** `Diagnostic.value` was `None` on this
+  code and is now ρ; the rendered clause sits on a new `GuardFinding.detail`
+  that only the `BOUND_HIT` diagnostic reads. `str(finding)` is untouched,
+  which is what the byte-for-byte pin protects.
+- Thirteen test rows, the skill's diagnostics row, and a staged
+  [1.5.1](../releases/1.5.1.md) section.
+
+**Measured.** `[dev]`, macOS arm64, machine otherwise idle (`ps` checked
+before each run).
+
+- **Issue #273 reproduced, then closed.** 32 cases on FAP and Si SRM 640c,
+  a declared bound moved to the wrong side of the converged optimum and `ftol`
+  swept 1e-9 … 1e-3: **nine silent before, none after**. The nine matches the
+  issue's own headline count.
+- **The separation the two thresholds sit in.** Over those 32 binding cases
+  gap/esd ran 8.4e-16 … 7.7e-4 and |ρ| ran 1.5e-2 … 2.1e-1. The `make_lab6`
+  early-stopped row sits at 2.36 esd with ρ = 6.6e-2, and a free optimum at
+  2.4e+3 esd with ρ = 5.0e-10. **ρ does not separate the early-stopped row**,
+  which is why the distance half stays and carries the margin; the distance
+  cannot separate a free optimum that lands near a limit, which is why the
+  angle half exists.
+- **The `make_lab6` bar.** Both binding rows fire at every `ftol`, the
+  early-stopped row is silent, the interior optimum is silent at every `ftol`.
+- **Acceptance: nothing moved but the sentence.** All fifteen modules,
+  150 passed and 1 failed in 20:26, the failure being the NAC
+  termination-view golden carrying the new clause on one line. Regenerated as
+  its docstring prescribes. No value, cell, esd or Rwp row moved. NAC's own
+  `BOUND_HIT` still fires, so it was a bound carrying load rather than a false
+  positive this removed.
+- **Counts.** Fast selection **5383 passed, 134 skipped** (~1:26); full suite
+  **5562 passed, 143 skipped** (23:46-24:34 over two runs, machine otherwise
+  idle). `origin/main` had not moved from where this branch was cut, so this
+  tree *is* the merged tree. The full suite was run twice, before and after
+  the review pass, and the counts are identical, so its fixes moved no number.
+  One test module changed, 4 → 17 collected, so this WP adds **13, all
+  passes, no new skip**. WP-1311's 5359/134 predates #386, #387 and 1441
+  merging, so the rest of the difference is main's and not this WP's.
+
+**Gotchas.**
+
+- **`StageOutcome` does not exist and never did.** This WP's first task and
+  WP-1310 § 6 both name it; no module defines it. The carrier is `LSQOutcome`,
+  with `LMOutcome` the `lm` driver's half. Corrected in § Context on arrival.
+- **Both fixes issue #273 proposed stay ruled out**, and the WP's own
+  reasoning about them held up under re-measurement. `active_mask` agrees with
+  the old test on every row, and a rule reading `ftol` is fitted to whichever
+  fixture wrote it.
+- **The WP proposed scipy's `optimality` as the normaliser and it is not what
+  landed.** It is Coleman-Li-scaled, and the `lm` driver does not produce one
+  at all, so a field quoting it would have had no writer on half the package.
+  The cosine has one definition under both drivers.
+- **`docs/skill/rietx/references/diagnostics.md` now sits 9 bytes under its
+  36 000-byte cap**, and had 615 bytes of headroom before this row. The file
+  was already near the line. A session adding a code there pays with a cut or
+  splits the file.
+- **The binding panel in `tests/output/` is meant to look bad** (Rwp ≈ 0.97
+  against ≈ 0.015). It is the two-stage plan, which never frees the cell, so
+  the 500 ppm error has only the zero shift to hide in. That is what makes the
+  bound bind, and the render test's docstring says so.
+- **`check_guards` reads both new fields with `getattr`.** Several suites hand
+  it a `SimpleNamespace` outcome, as they already did for the truncation count.
+
+**Review.** `/code-review high --fix`, six findings, all accepted and none
+declined.
+
+- **One was a real gap in this branch.** `bound_findings` applied the esd
+  window whenever `esd` was supplied, `cos=None` included, so a caller passing
+  only `esd` got a threshold about 1e8× looser with no binding test at all.
+  That is the opposite of what the docstring promises the fallback does. No
+  package path reaches it, since `LSQOutcome` writes `stderr_internal` only
+  where it writes `residual_cosine`, but a shim would land there. The window
+  now requires `cos`.
+- **One was a comment that inverted its own reasoning.** Descending by raising
+  θ is g < 0, and the sign test wants g > 0 at a lower limit. The code was
+  right under KKT; the comment would have talked a maintainer into flipping it
+  and silencing every lower-bound hit.
+- **Four were surfaces still describing the old flag**, and the first of them
+  matters most: `RefinedParameter.at_bound`'s docstring is the API-level
+  authority a caller actually reads, and this session had updated the skill
+  and the release note while leaving it saying "at a bound". Also the
+  quickstart transcript, three comments claiming `BOUND_HIT_RTOL` is the one
+  place the question is answered, and the caps-diary row's placement and its
+  missing `process.md` paragraph.
+- **Skipped, and left as a doc task**: `docs/manual/using/quickstart.md:84` is
+  stale independently of this branch. It shows `rietx 1.3.0`, a `biso` stage
+  the current default plan does not run, and Rwp 0.0933 where a fresh
+  `rx.refine` gives 0.1338, with the prose below quoting those numbers.
+
+**Next.** [1435](1435-a-hold-the-caller-declares.md), the other half WP-1310
+left and the one Current focus pairs with this. It is independent of anything
+here, and WP-1070 is the shape it copies. [1311](1311-walking-parameter-bounds.md)
+is closed and reports through this machinery, so its four diagnostics inherit
+the new reading with no work.
 
 - **2026-09-16** — created by WP-1310's session, which fixed the other half of
   issue #273 and measured this half into a different shape than the issue

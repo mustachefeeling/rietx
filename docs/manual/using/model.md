@@ -95,10 +95,11 @@ listing is the cheapest way to see what is there.
 | `ParameterRow.transform` | str | the reparameterisation, {eq}`par-softplus` |
 | `ParameterRow.tie` | `TieSpec` or None | what this value follows, if anything |
 | `ParameterRow.locked` | bool | structurally fixed, `set_vary` can never free it |
+| `ParameterRow.held` | bool | you declared it does not move, with `Refinement.hold` |
 | `ParameterRow.mode_fixed` | bool | force-fixed by the intensity mode in force |
 | `ParameterRow.esd` | float or None | the uncertainty from the most recent fit |
 
-The first eight fields mirror the optimiser's own entry type field for field,
+The first nine fields mirror the optimiser's own entry type field for field,
 and a test asserts that, so a new field cannot be added to the table without
 appearing here. `esd` and `mode_fixed` are the deliberate additions. `esd` is a
 property of a completed fit rather than of a parameter, and merging it in lets
@@ -108,7 +109,7 @@ one listing answer both "what is this worth" and "how well is it known".
 is the single predicate a front end should grey a row by, and the second is the
 sentence to show beside it.
 
-## The four reasons a row is held
+## The five reasons a row is held
 
 They are distinguishable on purpose, because the fix differs.
 
@@ -117,9 +118,10 @@ They are distinguishable on purpose, because the fix differs.
 | `locked` | structurally fixed: a symmetry-fixed cell angle, a fully fixed special position, the first emission line's weight, a non-primary emission line's wavelength, `biso` on a site that declares an anisotropic tensor | no |
 | `tie` | an affine function of other rows, so the freedom lives in its sources | only if it is your own tie |
 | `mode_fixed` | refinable in principle, but the current intensity mode force-fixes it | switch back to `rietveld` |
+| `held` | you declared this parameter does not move, whatever a plan asks for ({ref}`holding-a-parameter`). The only reason you both created and can lift | `Refinement.unhold` |
 | `ParameterRow.needs_held_cell` | a wavelength that cannot be freed right now, because this histogram's cell is free and the two are an exactly flat direction. The only dynamic held-reason: hold the cell and the same row becomes refinable ({ref}`a-refinable-wavelength`) | no |
 
-`ParameterRow.refinable` is false if any of the four holds. The four counts do
+`ParameterRow.refinable` is false if any of the five holds. The five counts do
 not add up to the number of held rows, and should not. On the LaB6 table above,
 asking for the Le Bail listing marks fourteen rows `mode_fixed` while the
 refinable count only falls from 25 to 19, because eight of those fourteen were
@@ -173,6 +175,14 @@ constant: on the LaB6 table above, `phases.0.atoms.1.x` describes itself as
 a displacement from the stored coordinate {eq}`par-coord`. ADP and Stephens
 degrees of freedom are absolute instead, which enforces their site symmetry
 exactly.
+
+Tying a coordinate degree of freedom is how two atoms are constrained to move
+together. A coordinate itself refuses a user tie, since symmetry outranks one.
+The anchor is then the coordinate as it stood when the tie was declared.
+`phases.0.atoms.1.dof.0` reads the displacement its tie implies, and
+`phases.0.atoms.1.x` reads the sum of the two. That holds at every rebuild for
+as long as the tie is declared, so a second `Refinement.fit` reports the
+amplitude the first one did.
 
 ## What the optimiser actually varies
 

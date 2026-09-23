@@ -120,16 +120,35 @@ What an operator must know, all measured:
   series, caught only by distrusting a suspiciously flat all-zero result.
   Per-entry diagnostics are real and carry every per-pattern occurrence; the
   rollups are not among them.
-- **An unrun check is indistinguishable from a passed one.**  A series whose
-  forward pass completed all 125 patterns and whose **backward pass crashed**
-  reports **zero** `SEQUENTIAL_PATH_DEPENDENT` findings — byte-for-byte what a
-  clean series reports.  Confirm both passes completed before reading an empty
-  set as a pass, and report the empty set as a measured result rather than
-  omitting it.  Both safety checks are also worth pricing up front: on one
+- **Zero `SEQUENTIAL_PATH_DEPENDENT` is a clean bill only with no
+  `SEQUENTIAL_PATH_CHECK_INCOMPLETE` beside it.**  A series whose forward pass
+  completed all 125 patterns and whose **backward pass crashed** reported zero
+  findings, byte-for-byte what a clean series reports; the comparison now says
+  when it did not run (`warning`, naming the chain and the pattern it stopped
+  on) and when it ran on less than the series (`info`: patterns one chain has
+  no entry for, or paths no pattern could judge).  Report the empty set as a
+  measured result only in the first case's absence, and name what an `info`
+  one lists.  *(Measured: issue #224's series C before WP-1333; the codes are
+  WP-1333's.)*  Both safety checks are also worth pricing up front: on one
   series the backward pass was **43.9 %** of wall clock and the
   `verify_discontinuities` refits **15.1 %**, so **59 % of the run bought
   assurance rather than answers** — the right trade for a trajectory you will
   publish, the wrong one for a screen.
+- **One pattern that cannot be fitted costs that pattern, not the chain.**  A
+  rung whose fit raises escalates like a diverged one, so a neighbour that
+  converged into a runaway cell (every warm rung inherits it and the
+  enumerator refuses it) is rescued by the cold rung and comes back
+  `reseeded` with `rungs_raised` saying what the warm rungs hit.  Only a
+  pattern on which every rung raised is a `SeriesFailure` — absent from
+  `entries`, named by `SERIES_PATTERN_FAILED` — and the default
+  `on_error="carry"` continues from the last accepted pattern.  Read a
+  failed pattern as a gap, never as a datum, and check `result.n_failed`
+  before quoting a trajectory as complete.  What a *restarted* chain is not:
+  a new `fit` over the remaining patterns warm-starts from the **initial**
+  models, since a `RefinementResult` does not carry the warm state, so a
+  resumed chain has a cold seam an uninterrupted one does not.  *(Measured:
+  issue #224, 20 of 24 patterns lost to one raise before WP-1333; the ladder
+  rescue is WP-1333's fixture test, not a re-run of that series.)*
 - **A flagged step can check itself.**  `verify_discontinuities=True` refits
   each `SEQUENTIAL_DISCONTINUITY`'s two patterns **cold and independently** and
   writes the cold step over the chain's step to the diagnostic's `value`, signed:
@@ -202,7 +221,7 @@ through the transition.
 Two codes — `SEQUENTIAL_MOMENT_HOLD` and `SEQUENTIAL_MOMENT_ONSET` — and
 `solve_magnetic`/`analyse_moments`'s own `K_VECTOR_UNSEPARATED` and
 `MOMENT_PAIR_DEGENERATE` fire on exactly this trajectory; their rows moved to
-§7i, [`references/magnetic.md`](magnetic.md) (issue #286), with the rest of
+§7j, [`references/magnetic.md`](magnetic.md) (issue #286), with the rest of
 the magnetic family rather than staying split off here on their own — load
 that file for what each one says you must not do.
 
@@ -229,7 +248,7 @@ support column is there, so take the bracket yourself and say it is one.
 
 `DISTORTION_MODE_UNSUPPORTED` fires on exactly this trajectory, and
 `CHILD_GROUP_UNNAMED` on the same builders' returned statement; both rows
-moved to §7i, [`references/magnetic.md`](magnetic.md) (issue #286) beside the
+moved to §7j, [`references/magnetic.md`](magnetic.md) (issue #286) beside the
 rest of the family — load that file for what each says you must not do.
 
 Driving one: **`fit()` is all-or-nothing, so wire `on_result=` before starting

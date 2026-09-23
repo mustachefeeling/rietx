@@ -1,4 +1,4 @@
-# 7i. The magnetic family: a stated moment, its width, and the child group it implies
+# 7j. The magnetic family: a stated moment, its width, and the child group it implies
 
 Load it when a magnetic `Diagnostic` fired — from a fit's `result.diagnostics`, from a magCIF/TOPAS/FullProf import, from `solve_magnetic`/`analyse_moments`, or from `magnetic_supercell`/`displacive_statement`'s returned statement — or when a distortion-mode amplitude's own support code fired instead.
 

@@ -71,6 +71,7 @@ ratio is what makes wide branching affordable.
 | `set_value` | `Refinement.set_values` |
 | `set_tie` | `Refinement.tie`, `Refinement.tie_equal` and `Refinement.untie` |
 | `set_variable` | `Refinement.add_variable` and `Refinement.remove_variable` |
+| `set_hold` | `Refinement.hold` and `Refinement.unhold` |
 | `edit_model` | `Refinement.edit` |
 | `merge` | `Refinement.merge` |
 
@@ -86,7 +87,10 @@ globs a stage freed or a `set_vary` changed. `NodeAction.values` is what
 `set_values` was called with. `NodeAction.ties` and `NodeAction.untied` are what
 a tie edit declared and removed, and `NodeAction.variables` and
 `NodeAction.removed_variables` are the same pair for a variable edit: the
-declaration by name, and the names deleted.
+declaration by name, and the names deleted. `NodeAction.held` and
+`NodeAction.unheld` are that pair for a hold ({ref}`holding-a-parameter`), as
+resolved dot-paths rather than the globs you typed. The glob matched a model,
+and replaying it against a later one could hold a different set.
 
 A stage records its solver settings as well: `NodeAction.max_iter`,
 `NodeAction.lebail_cycles`, `NodeAction.seed`, `NodeAction.strain_seed`,
@@ -132,9 +136,10 @@ default, which keeps a plain stage's line short.
 | `RefinementState.two_theta_limits` | the fitted range |
 | `RefinementState.ties` | the user constraints in force |
 | `RefinementState.variables` | the named variables declared, by name |
+| `RefinementState.holds` | the paths held against a plan's globs |
 | `RefinementState.reflections` | extracted or refined intensities, per phase |
 
-The last four are carried because the models do not hold them. A vary flag
+The last five are carried because the models do not hold them. A vary flag
 survives in the models, and the free set after globbing does not. A symmetry tie
 is rederived from the space group on every table build, while a tie you declared
 is not derivable from anything. A node without them would restore a model with
@@ -145,6 +150,13 @@ not a property of the models, and a {ref}`named variable <named-variables>` is
 not in them at all, since there is no field for it to be written to. The node is
 its only record, and a checkout that dropped it would restore ties naming a
 parameter that no longer exists.
+
+`RefinementState.holds` is the same argument again, for a different reason.
+A hold is a refusal rather than a value, so nothing in the models could encode
+it: the one field that comes close is `vary`, and a plan replaces the vary
+flags rather than continuing them. A checkout that dropped the register would
+hand back a state whose pin had quietly expired, which is worse than never
+having declared it.
 
 `RefinementState.reflections` is a list of `ReflectionState`, one per phase whose
 intensities are not computed from the structure.

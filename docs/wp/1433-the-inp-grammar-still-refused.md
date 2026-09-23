@@ -3,6 +3,7 @@
 Milestone: unscheduled · Status: ⬜
 Depends on: — (WP-1118 closed 2026-09-16 and handed these two over; WP-1119
 settled that neither needs an expression language)
+Priority: P3 2026-09-23 — two constructs refused by name; the file is edited around them
 
 ## Goal
 
@@ -32,7 +33,8 @@ none.
 
 Two counts are on record and they count different things. Issue #107 says five
 archive files parse zero phases. PR #98's test names seven carrying the form:
-`rigidb`, `split_fum`, `SPODI`, `D20` and three `AT027-23_*`. Settling that is a
+`archive file 14`, `archive file 15`, `archive file 16`, `archive file 17` and
+three variants of `archive file 18`. Settling that is a
 pass over the private archive, and it is the first measurement here.
 
 What is undecided is the shape of the fix. Expanding `STR(...)` as a special

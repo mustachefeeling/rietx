@@ -2,6 +2,7 @@
 
 Milestone: unscheduled · Status: ⬜
 Depends on: —
+Priority: P4 2026-09-23 — gates on the skill's own files; a merge that fails late is the cost
 
 ## Goal
 
@@ -70,6 +71,13 @@ and cannot be lifted directly.
   next diagnostic row possible, and #247's merge-result race now points at
   it. Whatever gate looks for a code's row in `diagnostics.md` alone must
   learn `magnetic.md`.
+- **From WP-1434, 2026-09-18: `diagnostics.md` now sits 9 bytes under
+  `REFERENCE_MAX_BYTES`, so the merge-result hazard is live on that file
+  rather than hypothetical.** The `BOUND_HIT` row grew by about 600 B, and
+  the file carried only 615 B of headroom before it. The headroom table in
+  § #247 was measured at `c79fb5df` and no longer describes that row.
+  Re-measure it before acting on it, and expect the next PR adding a
+  diagnostic code there to collide.
 
 ## Context
 

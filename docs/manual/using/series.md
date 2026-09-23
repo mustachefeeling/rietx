@@ -109,8 +109,9 @@ recorded instead as annotation notes on each tree's root node. The default is
 | `reseed`, `reseed_factor` | the fence that rejects a bad warm start, and how far above the median Rwp it fires |
 | `first_rung_factor` | how much the first rung may spend before the ladder gives up on it, as a multiple of the most expensive first rung this chain has converged. `None` removes the bound |
 | `prepare` | `(index, data, structure, instrument) -> None`, called on the warmed models before each fit |
-| `constrain` | `(index, ref) -> None`, called on each pattern's `Refinement` before its fit, where a tie or a named variable is declared |
+| `constrain` | `(index, ref) -> None`, called on each pattern's `Refinement` before its fit, where a tie, a named variable or a hold is declared |
 | `on_result` | `(index, result) -> None`, called with each pattern's full result as it finishes |
+| `on_error` | what a pattern on which every rung raised does to the chain: `"carry"` (default) warm-starts its successor from the last accepted pattern, `"skip"` starts it cold, `"raise"` ends the chain in the exception |
 | `events`, `cancel` | as on `Refinement.fit`, per pattern |
 
 `refit` sets the ladder's first rung, which is not the only plan a pattern can
@@ -141,9 +142,9 @@ estimating them afresh.
 
 ### Declaring a constraint on every pattern
 
-A tie and a named variable ([](constraints.md)) live on the `Refinement` and in
-no model, so no `carry` glob reaches them and `prepare` runs before that
-`Refinement` exists. `constrain` is where they go:
+A tie, a named variable and a hold ([](constraints.md)) live on the
+`Refinement` and in no model, so no `carry` glob reaches them and `prepare`
+runs before that `Refinement` exists. `constrain` is where they go:
 
 <!-- api-doc: no-exec — runs the chain above -->
 ```python
@@ -151,6 +152,7 @@ def constrain(index, ref):
     ref.add_variable("B_site", 0.5, min=0.0, max=5.0)
     ref.tie_equal(["phases.0.atoms.0.biso", "phases.0.atoms.1.biso"],
                   source="vars.B_site")
+    ref.hold("phases.0.cell.*")
 
 result = series.fit(patterns, constrain=constrain)
 ```
@@ -161,6 +163,12 @@ mean the same thing on all of them. The hook therefore runs once per *fit*, and
 a pattern can be fitted several times: every rung of the escalation ladder gets
 it, and so does the cold refit `verify_discontinuities` performs. A raise inside
 it ends the series, as a raise in `prepare` does.
+
+A held path drops out of that pattern's `entry.parameters` and out of the
+trajectory, because a held value is what you handed in rather than something
+the pattern measured. Measured on a two-pattern synthetic chain: the
+trajectory for a held cell edge comes back empty, against two points and
+their esds without the hold.
 
 `vars.B_site` is an ordinary dot-path, so `carry` governs it like any other
 parameter, and the variable warm-starts from the last accepted pattern. On a
@@ -217,6 +225,7 @@ patterns in order.
 | `SeriesEntry.rwp_warm` | Rwp the first, warm attempt reached, set whenever the ladder escalated |
 | `SeriesEntry.rung` | which attempt produced these values: `"warm"`, `"warm_staged"` or `"cold"` |
 | `SeriesEntry.rungs_tried` | every rung attempted, in ladder order |
+| `SeriesEntry.rungs_raised` | the rungs among those whose fit raised rather than returned, each with `repr` of the exception |
 | `SeriesEntry.node_id`, `SeriesEntry.tree_id` | where this pattern's history lives |
 
 `SeriesEntry.value` and `SeriesEntry.stderr` look a path up in that entry's
@@ -541,7 +550,7 @@ its own, so `SeriesResult.trajectory` already reaches the same numbers by path.
 A sequential fit is path-dependent by construction. Every pattern's answer
 depends on its neighbour's, so the method can imprint a trend the data do not
 carry: one bad pattern's error is inherited by all its successors, and the
-result is a smooth-looking curve. Seven diagnostics fence that, and none of
+result is a smooth-looking curve. Eight diagnostics fence that, and none of
 them alters a fitted value.
 
 | Code | Says |
@@ -550,11 +559,13 @@ them alters a fitted value.
 | `SEQUENTIAL_UNRECOVERED` | the pattern diverged and stayed diverged after every rung; it seeded no successor and joined no median |
 | `SEQUENTIAL_DISCONTINUITY` | a step much larger than the local trend: the science, or a chain failure, and the diagnostic says both |
 | `SEQUENTIAL_PATH_DEPENDENT` | with `direction="both"`, forward and backward disagree by more than their esds allow |
+| `SEQUENTIAL_PATH_CHECK_INCOMPLETE` | with `direction="both"`, the comparison did not run, or ran on fewer patterns or paths than the series has |
 | `SEQUENTIAL_PERSISTENT_FINDING` | one of the per-pattern codes fired in more than half the patterns, so it is about the model rather than about a pattern |
 | `SEQUENTIAL_MOMENT_HOLD` | on how many patterns the moment came back unsupported, and on which successors its modulus was therefore reseeded to its floor |
 | `SEQUENTIAL_MOMENT_ONSET` | where along the axis the moment stops being supported, as a bracket; under `direction="both"` it carries both chains' brackets and says whether they overlap |
 
-The last one exists because of an arithmetic problem the others do not have. A
+`SEQUENTIAL_PERSISTENT_FINDING` exists because of an arithmetic problem the
+others do not have. A
 per-pattern diagnostic can only say "this pattern". In a run of 68 it therefore
 cannot say "42 of 68", and that is the sentence you act on, because one
 `BOUND_HIT` is a pattern that hit a bound while a `BOUND_HIT` in most of them is
@@ -630,6 +641,32 @@ benchmark's ten-pattern series: 1603 solver evaluations without the bound and
 identical. On the eight-mixture round-robin series the two runs are identical to
 the evaluation. Set `first_rung_factor=None` to reproduce a pre-1.1 run exactly.
 
+A rung whose fit raises, rather than returning a result, has lost in the same
+sense as a diverged one, and the ladder escalates past it the same way.
+`SeriesEntry.rungs_raised` records what each such rung raised, and
+`SeriesEntry.rwp_warm` is `None` when the warm rung was one of them, since it
+reached no Rwp. The case that needs this is a neighbour that converged with a
+cell far outside the physical range. Every warm rung inherits that cell, and the
+reflection enumerator refuses it before the fit starts. The cold rung starts
+from the initial models and never sees it. Only a pattern on which every rung
+raised has no entry. It is recorded in `SeriesResult.failures` with a
+`SERIES_PATTERN_FAILED` warning, and what the chain does next is the `on_error`
+policy's choice. Each `SeriesFailure` carries the pattern's `SeriesFailure.index`
+and `SeriesFailure.label`, and `SeriesFailure.exception` is the last rung's
+exception as `repr`. `SeriesResult.n_failed` counts them, and
+`SequentialRefinement.failures_` is the same list on the runner, which is where
+to read it after catching an exception from `on_error="raise"`.
+
+By the time a policy is consulted, the last rung tried was a cold fit, unless
+`reseed=False` or the pattern was the first one walked. So under the default,
+`"carry"`, the successor warm-starts from the last accepted pattern, because
+what failed was this pattern and not the state its neighbour handed it. A
+series is N separate refinements, and one that cannot be fitted is no reason to
+discard the others. A chain that fitted no pattern at all still raises, whatever
+the policy, because an empty `SeriesResult` is not an answer. The caller's own
+`prepare` and `constrain` are never guarded: a raise there ends the series as
+itself.
+
 Quarantine is the other half, and it is about what the chain carries rather than
 what it reports. A fit still `"diverged"` after the last rung is neither a
 starting point nor a scale, so its successor warm-starts from the last accepted
@@ -672,6 +709,19 @@ messages compare against is `SeriesResult.backward`, the reverse chain's own
 `refine_sequential` can read the second trajectory and not only the verdict
 about it. Its own `backward` is `None`, which is one extra level rather than a
 cycle, and `SequentialRefinement.backward_` is the same object.
+
+Zero `SEQUENTIAL_PATH_DEPENDENT` findings is also what you get when the
+comparison never happened, so a comparison that did not run says so. When the
+forward chain was cancelled, the backward chain was cancelled, or the backward
+chain raised, `SEQUENTIAL_PATH_CHECK_INCOMPLETE` fires at `warning`, naming the
+chain and the pattern it stopped on. When it ran on less than the series, the
+same code fires at `info`. In that case `where` names the patterns one chain
+has no entry for, or the paths some chain measured that no pattern could judge,
+because no pattern has an esd for them in both chains. So zero findings with
+neither of these present means the comparison was made and found nothing. A
+backward chain's own failures are on `result.backward.failures`. Its raise
+under `on_error="raise"` no longer costs the forward chain, which is on
+`SequentialRefinement.result_` and on the exception as `series_result`.
 
 `SeriesResult.n_iterations` counts the chain the result reports, which under
 `direction="both"` is the forward one. It is not what the run cost:

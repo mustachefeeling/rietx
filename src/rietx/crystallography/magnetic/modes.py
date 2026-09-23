@@ -99,8 +99,13 @@ the same factor system ω, the projection operator is
 
     W^ν_{lm} = (d_ν/|P_k|) · Σ_g conj(D_ν(g)_{lm}) · Γ(g)
 
-(Izyumov, Naish & Ozerov, 1991; the two forms and the unitarity they assume are
-laid out by Davies & Wills, 2016, arXiv:1610.00472).  The ω factors cancel
+The **construction** is Izyumov, Naish & Ozerov (1991), § 2 eqn (2.12) p. 19 and
+its G_k specialisation § 9 eqn (9.1) p. 67; the **prefactor d_ν/|P_k|** is the
+standard Wigner normalisation and is written that way by Davies & Wills (2016),
+arXiv:1610.00472, eq. 6 — Izyumov's own two forms carry 1/n(G) and 1/N with no
+d_ν, so each half of this line names the source that actually states it.  The
+prefactor is a scalar and no computed subspace depends on it; only the citation
+does.  The ω factors cancel
 between conj(D_ν) and Γ, so the great orthogonality relation applies unchanged
 and W^ν_{lm}·ψ^λ_p = δ_{mp}·ψ^λ_l.  W^ν_{11} is therefore the projector onto
 the row-1 subspace, whose rank is the multiplicity n_ν; its columns in the
@@ -116,7 +121,9 @@ phase is real, i.e. when 2k is a reciprocal lattice vector (``little.has_minus_k
 There, an irrep with Frobenius–Schur indicator +1 is equivalent to a real
 representation, and this module finds the unitary C with C†D(g)C real (Autonne–
 Takagi factorisation of the symmetric unitary intertwiner between D and D*) and
-projects with that gauge, so the basis vectors come out real.  The three cases
+projects with that gauge, so the basis vectors come out real.  The three classes
+are Bradley & Cracknell's first, third and second kind — Definition 1.3.7, p. 20,
+with the space-group criterion at § 4.6 Theorem 4.6.2, p. 204.  The three cases
 that stay complex are named in :class:`IrrepBasis.reality` and each says what
 pairing makes a real moment arrangement:
 
@@ -127,6 +134,13 @@ pairing makes a real moment arrangement:
   physically irreducible representation is D ⊕ D*, same amplitude count.
 * 2k ≡ 0 with FS = −1 (pseudoreal) — D ≅ D* but only through an antisymmetric
   intertwiner, so no real gauge exists and the real form is D ⊕ D.
+
+Izyumov, Naish & Ozerov (1991) is cited for the **middle** case only, the
+physically irreducible pairing of an irrep with an inequivalent conjugate
+(printed p. 30, under eqn (2.40)).  Their prose there states of the η = −1 case
+that the representation can be brought to real form, which is the pseudoreal
+case and is the one case where no real gauge exists; the third bullet above
+follows Bradley & Cracknell instead, and deliberately does not cite p. 30.
 
 The conjugate partner carries no information the returned vectors do not, which
 is why it is described rather than duplicated into the returned array.
@@ -147,15 +161,20 @@ the decomposition by characters, the basis vectors by projection, and the
 F/G/C/A modes of a four-atom orbit.
 Izyumov, Yu. A., Naish, V. E. & Ozerov, R. P. (1991). *Neutron Diffraction of
 Magnetic Materials*. New York: Consultants Bureau — projection operators for
-every row of a multi-dimensional irrep, the return-translation phase, and the
-physically irreducible combinations of complex-conjugate irreps.
+every row of a multi-dimensional irrep (§ 2 eqn (2.12) p. 19, § 9 eqn (9.1)
+p. 67; neither carries the d_ν prefactor this module uses), the
+return-translation phase (§ 8 p. 60), and the physically irreducible pairing of
+an irrep with an *inequivalent* conjugate (p. 30).  **Not** cited for the
+pseudoreal case: the prose under his eqn (2.40) misstates it.
 Wills, A. S. (2000). *Physica B* **276–278**, 680 — SARAh: basis vectors as the
 refinable coordinates of a magnetic structure.
 Davies, Z. & Wills, A. S. (2016). *arXiv*:1610.00472 (preprint) — over- and
 under-generation of basis vectors, and the basis-set view of the projector's
 row and column indices.
 Bradley, C. J. & Cracknell, A. P. (1972). *The Mathematical Theory of Symmetry
-in Solids*. Oxford: Clarendon — the projective case and the reality classes.
+in Solids*. Oxford: Clarendon — the projective case (§ 3.7 pp. 155–158, § 4.4
+pp. 184–185) and the reality classes (Definition 1.3.7 p. 20; § 4.6 Theorem
+4.6.2 p. 204).
 Campbell, B. J., Stokes, H. T., Tanner, D. E. & Hatch, D. M. (2006). *J. Appl.
 Cryst.* **39**, 607 — the mode-amplitude view of a distorted structure, which
 is the displacive twin of the magnetic decomposition here.
@@ -517,15 +536,6 @@ def _phases(numerators: np.ndarray, denominator: int) -> np.ndarray:
     return out
 
 
-def _phase(exponent: Fraction) -> complex:
-    """exp(2πi·exponent), exact for the quarter turns (the zone-boundary set)."""
-    exact = {Fraction(0): 1 + 0j, Fraction(1, 2): -1 + 0j,
-             Fraction(1, 4): 1j, Fraction(3, 4): -1j}
-    if exponent in exact:
-        return exact[exponent]
-    return complex(np.exp(2j * np.pi * float(exponent)))
-
-
 # --------------------------------------------------------------------------
 # the magnetic (or displacive) representation
 # --------------------------------------------------------------------------
@@ -746,7 +756,9 @@ def decompose(rep: SiteRepresentation, irreps) -> Decomposition:
     n_ν = (1/|P_k|)·Σ_g conj(χ_ν(g))·χ(g), the character inner product over the
     little co-group.  Both characters carry the same factor system ω, so the ω
     cancels in the product and the ordinary orthogonality relation applies
-    unchanged (Bradley & Cracknell, 1972, ch. 4); the sum is over the *coset
+    unchanged (Bradley & Cracknell, 1972, § 3.7 eqns (3.7.17)–(3.7.18), p. 157,
+    the orthogonality relations for projective representations sharing a factor
+    system); the sum is over the *coset
     representatives*, one per element of P_k, which is what makes it finite.
 
     Two things are refused loudly rather than rounded away, because both are
@@ -880,9 +892,10 @@ class IrrepBasis:
 def basis_vectors(rep: SiteRepresentation, irrep: SmallIrrep) -> IrrepBasis:
     """Project the basis vectors of one small irrep out of a site representation.
 
-    The projector is W^ν_{lm} = (d_ν/|P_k|)·Σ_g conj(D_ν(g)_{lm})·Γ(g)
-    (Izyumov, Naish & Ozerov, 1991, § on projection operators; Davies & Wills,
-    2016, eq. 6).  W^ν_{11} projects onto the row-1 subspace, whose rank is the
+    The projector is W^ν_{lm} = (d_ν/|P_k|)·Σ_g conj(D_ν(g)_{lm})·Γ(g) —
+    the construction of Izyumov, Naish & Ozerov (1991), § 2 eqn (2.12) p. 19 and
+    § 9 eqn (9.1) p. 67, with the d_ν/|P_k| normalisation as Davies & Wills
+    (2016) eq. 6 writes it (neither of Izyumov's forms carries the d_ν).  W^ν_{11} projects onto the row-1 subspace, whose rank is the
     multiplicity n_ν; its columns are the trial vectors "atom 1 along **a**",
     "atom 1 along **b**", … in orbit order, which is the trial set BasIreps and
     SARAh use, and they are Gram–Schmidted **in the cell metric** until n_ν

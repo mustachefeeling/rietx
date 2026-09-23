@@ -74,7 +74,12 @@ and never silently ignores a refine flag.  This reader refuses by name:
   fitting, which this package does as :func:`~rietx.indexing.fit_peaks` and not
   as a recipe: a recipe describes a refinement, and ``fit_peaks`` refines
   nothing;
-* ``Type`` other than ``PXC`` (constant-wavelength X-ray);
+* ``Type`` other than ``PXC`` (constant-wavelength X-ray) or ``PNC``
+  (constant-wavelength neutron, built as :class:`~rietx.schemas.instrument.NeutronSource`
+  with its polarization pinned at 1 and ``Lam`` its wavelength) — each refused
+  type is named with a reason true of it alone: time-of-flight and
+  energy-dispersive histograms put another quantity than 2θ on the axis, and
+  the pink-beam types need another profile function;
 * a ``size_broadening``/``strain_broadening`` ``model`` other than
   ``isotropic`` — upstream raises ``NotImplementedError`` on these itself;
 * a non-zero ``Zero``, and a non-zero ``Z``;
@@ -112,6 +117,7 @@ from ..schemas.instrument import (
     Geometry,
     HumpComponent,
     Instrument,
+    NeutronSource,
     ProfileTCHZ,
     Source,
 )
@@ -474,6 +480,71 @@ def _runs(x: np.ndarray, mask: np.ndarray) -> list[tuple[float, float]]:
     return out
 
 
+#: The GSAS-II instrument ``Type`` codes this reader builds, and the source arm
+#: each one takes.  Both put 2θ in degrees on the histogram axis, which is what
+#: :attr:`PatternData.two_theta` holds; they differ only in the source.
+RECIPE_TYPES: dict[str, str] = {
+    "PXC": "constant-wavelength X-ray",
+    "PNC": "constant-wavelength neutron",
+}
+
+#: Why each other ``Type`` GSAS-II defines is refused, true of that type alone.
+#: A code absent from here is refused as unknown rather than described.
+_REFUSED_TYPES: dict[str, str] = {
+    "PNT": ("time-of-flight neutron: its histogram axis is flight time in "
+            "microseconds and its peak shape a different profile function, "
+            "and PatternData holds 2θ in degrees"),
+    "PNB": ("pink-beam neutron: its peak shape is a different profile "
+            "function from the constant-wavelength one ProfileTCHZ fits"),
+    "PXB": ("pink-beam X-ray: its peak shape is a different profile function "
+            "from the constant-wavelength one ProfileTCHZ fits"),
+    "PXE": ("energy-dispersive X-ray: its histogram axis is photon energy, "
+            "and PatternData holds 2θ in degrees"),
+}
+
+
+def _refused_type_reason(kind) -> str:
+    handled = " and ".join(f"'{k}' ({v})" for k, v in RECIPE_TYPES.items())
+    why = _REFUSED_TYPES.get(kind)
+    if why is None:
+        return (f"This reader handles {handled} only, and does not know this "
+                f"type")
+    return f"This reader handles {handled} only; {kind!r} is {why}"
+
+
+def _drop_neutron_polarization(iparm: dict, par: dict,
+                               diags: list[Diagnostic]) -> None:
+    """``Polariz.`` on a ``PNC`` instrument: inert in both packages.
+
+    GSAS-II applies the polarization factor only to an ``XC`` or ``XB`` type
+    (``GSASIIstrMath.GetIntensityCorr``, the precedent
+    ``io.instrument_profile`` reads a ``PNC`` ``.instprm`` bank by), and
+    :class:`NeutronSource` pins K = 1.  A stated value is therefore reported
+    as dropped; a *refine flag* on it is refused, because a flag this reader
+    cannot honour is never silently ignored.
+    """
+    entry = par.get("polarization")
+    if not _is_off(entry):
+        _, flag, _, _ = _spec(
+            entry, "payload.instrument.parameterization.polarization")
+        if flag:
+            raise RecipeError(
+                "payload.instrument.parameterization.polarization: flagged for "
+                "refinement on a 'PNC' instrument. Neutrons carry no "
+                "polarization factor (NeutronSource pins K = 1, and GSAS-II "
+                "applies the factor only to an X-ray type), so there is "
+                "nothing for the flag to refine")
+    if _iparm(iparm, "Polariz.") is not None or not _is_off(entry):
+        diags.append(Diagnostic(
+            level="info", code="RECIPE_FIELD_DROPPED",
+            message=(
+                "Polariz. on a 'PNC' (constant-wavelength neutron) instrument "
+                "is inert: GSAS-II applies the polarization factor only to an "
+                "X-ray type, and NeutronSource pins K = 1, the bare Lorentz "
+                "factor"),
+            where=["payload.instrument.initialization[0].Polariz."]))
+
+
 def _read_instrument(payload: dict, pattern: PatternData,
                      limits: tuple[float, float] | None,
                      diags: list[Diagnostic]) -> Instrument:
@@ -489,12 +560,11 @@ def _read_instrument(payload: dict, pattern: PatternData,
     iparm = init[0]
 
     kind = _iparm(iparm, "Type")
-    if kind != "PXC":
+    if kind not in RECIPE_TYPES:
         raise RecipeError(
-            f"payload.instrument.initialization[0].Type: {kind!r}. This reader "
-            f"handles 'PXC' — constant-wavelength X-ray — only; 'PNC' neutron "
-            f"and every time-of-flight type put a different quantity on the "
-            f"x axis than PatternData holds")
+            f"payload.instrument.initialization[0].Type: {kind!r}. "
+            f"{_refused_type_reason(kind)}")
+    neutron = kind == "PNC"
 
     par = inst.get("parameterization") or {}
     lam_entry = (par.get("wavelength")
@@ -502,8 +572,8 @@ def _read_instrument(payload: dict, pattern: PatternData,
     lam = _iparm(iparm, "Lam")
     if lam is None:
         raise RecipeError(
-            "payload.instrument.initialization[0].Lam: missing; a PXC recipe "
-            "must state its wavelength")
+            f"payload.instrument.initialization[0].Lam: missing; a {kind} "
+            f"recipe must state its wavelength")
     line = EmissionLine(wavelength=Parameter(value=float(lam), unit="A"))
     if lam_entry is not None:
         _apply(line.wavelength, lam_entry,
@@ -516,15 +586,19 @@ def _read_instrument(payload: dict, pattern: PatternData,
                 "flat direction and this package refuses it — calibrate λ "
                 "against a standard with its cell held instead")
 
-    pol = _iparm(iparm, "Polariz.")
-    source = Source(lines=[line],
-                    polarization=Parameter(
-                        value=0.99 if pol is None else float(pol),
-                        min=0.0, max=1.0))
-    if not _is_off(par.get("polarization")):
-        _apply(source.polarization, par["polarization"],
-               "payload.instrument.parameterization.polarization",
-               diagnostics=diags)
+    if neutron:
+        source = NeutronSource(wavelength=line.wavelength)
+        _drop_neutron_polarization(iparm, par, diags)
+    else:
+        pol = _iparm(iparm, "Polariz.")
+        source = Source(lines=[line],
+                        polarization=Parameter(
+                            value=0.99 if pol is None else float(pol),
+                            min=0.0, max=1.0))
+        if not _is_off(par.get("polarization")):
+            _apply(source.polarization, par["polarization"],
+                   "payload.instrument.parameterization.polarization",
+                   diagnostics=diags)
 
     profile = ProfileTCHZ()
     broadening = (par.get("broadening") or {})

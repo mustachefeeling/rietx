@@ -160,7 +160,7 @@ def test_normalised_species_compile_under_both_dispersion_settings(
 def _hand_structure(species, *, label="A1", space_group="P 1"):
     """A one-atom structure with a chosen species, built in code, not read."""
     return Structure(phases=[Phase(
-        name="Cr2WO6", space_group=space_group, cell=Cell.cubic(5.0),
+        name="Trirutile", space_group=space_group, cell=Cell.cubic(5.0),
         scale=Parameter(value=5e-3),
         atoms=[Atom(label=label, species=species, x=Parameter(value=0.0),
                     y=Parameter(value=0.0), z=Parameter(value=0.0))])])
@@ -196,7 +196,7 @@ def test_a_malformed_species_is_named_at_compile(species, dispersion_on):
     with pytest.raises(ValueError) as excinfo:
         _compile(_hand_structure(species, label="A1"), dispersion_on=dispersion_on)
     message = str(excinfo.value)
-    assert "Cr2WO6" in message, "the phase is not named"
+    assert "Trirutile" in message, "the phase is not named"
     assert "A1" in message, "the atom label is not named"
     assert "atom 0" in message, "the atom index is not named"
     assert repr(species) in message, "the offending species is not quoted"
@@ -226,7 +226,7 @@ def test_a_well_formed_symbol_with_no_table_row_is_also_named(dispersion_on):
     with pytest.raises(ValueError) as excinfo:
         _compile(_hand_structure("Xx", label="A1"), dispersion_on=dispersion_on)
     message = str(excinfo.value)
-    assert "Cr2WO6" in message and "atom 0" in message and "A1" in message
+    assert "Trirutile" in message and "atom 0" in message and "A1" in message
     assert repr("Xx") in message
 
 
@@ -334,7 +334,7 @@ def test_an_xray_compile_names_the_atom_its_own_lookup_choked_on():
     ``test_a_well_formed_symbol_with_no_table_row_is_also_named`` covers it.
     """
     structure = Structure(phases=[Phase(
-        name="Cr2WO6", space_group="P 1", cell=Cell.cubic(5.0),
+        name="Trirutile", space_group="P 1", cell=Cell.cubic(5.0),
         scale=Parameter(value=5e-3),
         atoms=[
             Atom(label="D1", species="D", x=Parameter(value=0.0),

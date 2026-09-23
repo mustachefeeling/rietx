@@ -3,6 +3,7 @@
 Milestone: unscheduled · Status: ⬜
 Depends on: — (1312 soft: it exercises and audits the joint fit; 1335 soft: the
 report path this one gains should already be cheap)
+Priority: P2 2026-09-23 — a joint fit cannot be inspected; refining the histograms apart is the workaround
 
 ## Goal
 
@@ -81,6 +82,28 @@ Some constraints that shape (1) and (3):
   phase unsupported in one histogram and supported in another is a case the
   report has to have an answer for, even if that answer is "report it per
   histogram".
+
+### Inherited
+
+- **From WP-1434, 2026-09-18: `bound_findings` grew two keyword arguments,
+  and `multi.py` already passes both.** It takes `cos=outcome.residual_cosine`
+  and `esd=outcome.stderr_internal`, so the joint path inherits the new
+  conjunction with no work here. The Context claim that the guard path is
+  already multi-histogram-aware still holds and is now carrying more; the
+  call has moved off `multi.py:477`.
+- **From WP-1414, 2026-09-22: the joint fit has its first finding that only a
+  joint fit can raise, and this WP is where it gets rendered.**
+  `STAGE_FREED_NOTHING` (info) sits on the **top-level**
+  `RefinementResult.diagnostics`, one per histogram, with `value` the
+  histogram index and `where` the globs. The record behind it is
+  `StageResult.unreached_histograms` (histogram → globs, `{}` on a single
+  histogram, `None` on a result stored before schema 0.26). A report for a
+  joint fit should put it beside the histogram it names rather than in a
+  pooled list, since "histogram 1 kept its starting profile" is the one line
+  a reader of that histogram's panel needs. `STAGE_PATH_UNKNOWN` also fires on
+  joint fits, with its suggestion naming the `mtable` listing because
+  `MultiHistogramRefinement` has no `parameters()`, and that absence is this
+  WP's to close.
 
 ## Non-goals
 

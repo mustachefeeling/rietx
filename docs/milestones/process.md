@@ -361,6 +361,43 @@ mechanism went down a rank as this rule requires: the gate is a glob over
 generated index are different objects is `make_api_index.py`'s docstring.
 Landed 925, +4 headroom.
 
+929 -> 938 for WP-1434 (2026-09-18): the bound test asks whether the limit
+carried load, never whether the value stopped near one.  The clause runs to
+eight lines because the shape is the content: it is a conjunction, and each half
+covers exactly what the other cannot, so a reader given one half alone would
+weaken it back to the test that went silent on nine of 32 binding cases.  It
+governs every consumer of `BOUND_HIT` and `at_bound`, and every bound anyone
+adds after it, which is protocol rule 4's test — and a session reading a
+`False` it disagrees with has no way to re-derive the change from the code in
+front of it.  The operating detail went down a rank as this rule requires: the
+two thresholds carry the windows they were measured into in their own
+docstrings, the sweep and the two fixes the issue proposed and measurement
+ruled out are in the WP, and the user-facing sentence is the 1.5.1 release
+note.  Landed 937, +1 headroom.
+
+938 -> 954 for WP-1435 (2026-09-18, recorded 2026-09-19): a hold the caller
+declares, and why it had to be a mechanism rather than a message.  `vary=False`
+does not survive a plan, so the rule is owed to every session that writes a
+plan, a calibration or a `set_vary` call site, not only to the one that built
+the verb.  The clause also states the two facts that bite a caller who does not
+know the verb exists: `set_vary` can refuse now, so read its return rather than
+the list you offered it, and `_user_holds` is not WP-1301's stage-scoped
+`_held`.  The precedence order, the blocked-glob report and the measured LaB6
+counts stayed in the WP.  The session landed the clause and its cap and left
+this paragraph and the ledger row unwritten; both are reconstructed here from
+the cap note it did write.
+
+954 -> 963 for WP-1432 (2026-09-19): a coordinate DOF is relative, and the
+invariant that keeps it honest is that a rebuild reproduces the coordinate.  It
+sits beside the DOF bullet it qualifies because the two facts a stranger needs
+are about *other* code.  Which entries are anchored is data built where the
+anchor is, so a new DOF family inherits nothing by spelling its paths the same
+way — ADP and Stephens DOFs already spell them identically and are absolute.
+And each consumer of the tie register calls the rebase, so a third one written
+without the rule carries the defect `replay` carried alone.  The measurement,
+the two controls that bound the class and the two rejected fixes stayed in the
+WP.  Landed 962, +1 headroom.
+
 ### `docs/ROADMAP.md`
 
 400 -> 416 for the agentic-report planning session (2026-08-18): four
@@ -512,6 +549,19 @@ reader they are written for is building against this index from outside the
 repository and reads no WP file until a PR is cut.  Paid for twice, in Current
 focus (a closed WP's narrative and the triage fold list) and in § Unscheduled
 (the blurb describing the rows that left).  Landed 778, +6 headroom.
+
+784 -> 818 in two bumps on 2026-09-21 and -22, both recorded in the test's
+ledger: the issue triage's two rows and its placements, then WP-1442's four
+siblings.
+
+818 -> 828 for the priority column (2026-09-23).  One paragraph under § Work
+packages says what the `Priority` cell is, that the WP file's line is its
+authority and that `—` means unrated.  The column itself costs no lines:
+eleven table headers on the open sections widened and sixty rows given a `—`
+cell.  The rubric lives in `docs/wp/TEMPLATE.md`, which is not capped, and
+the re-rating duty is one clause in protocol step 3.  Rows filed before the
+rubric stay unrated on purpose; the index says which tier a new WP is and
+never claims one for a row nobody rated.  Landed 827, +1 headroom.
 
 ### `gui/CLAUDE.md`
 

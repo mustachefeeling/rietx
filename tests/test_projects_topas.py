@@ -227,9 +227,9 @@ SITE_LINES = [
     # the species as a number picked up the word "beq" and raised ValueError
     ("site A1 x 0.5 y 0. z 0.5 occ Sr+2 beq 0.7650`",
      (0.5, 0.0, 0.5), 1.0, 0.7650),
-    # a partial occupancy with a flag and a name
-    ("site A1 x 0.5 y 0.5 z 0.5 occ La+3 !LSF_occ_La 0.6 vcocc beq bval1 2.02",
-     (0.5, 0.5, 0.5), 0.6, 2.02),
+    # a partial occupancy with a flag and a name, carrying `vcocc`
+    ("site A1 x 0.5 y 0.5 z 0.5 occ Na+1 !occ_A1 0.5 vcocc beq bval1 1.5",
+     (0.5, 0.5, 0.5), 0.5, 1.5),
 ]
 
 
@@ -245,9 +245,9 @@ def test_every_real_site_spelling_reads(tmp_path, line, xyz, occ, beq):
 def test_an_equation_referencing_another_parameter_resolves(tmp_path):
     """``y = ph1_O1_x;`` is how a tetragonal oxygen says y is tied to x.
 
-    Refusing it cost 14 archive files, the tier-1 Cr2WO6 references among them.
+    Refusing it cost 14 archive files, the tier-1 references among them.
     """
-    inp = _inp(tmp_path, "s.inp", 'str\nphase_name "Cr2WO6"\nspace_group "P42/mnm"\na 4.58\n'
+    inp = _inp(tmp_path, "s.inp", 'str\nphase_name "Trirutile"\nspace_group "P42/mnm"\na 4.58\n'
                    'site O1 x ph1_O1_x 0.29935` y = ph1_O1_x; z 0 occ O-2 1. '
                    'beq ph1_beq_o1 0.34174`\n')
     (site,) = read_topas_inp(inp).phases[0].sites
@@ -296,7 +296,7 @@ def test_a_token_with_no_number_never_escapes_as_a_bare_valueerror(tmp_path):
     """Root CLAUDE.md: a reader raises naming the file, never its parser's
     exception. Three archive files reached ``ValueError('beq')`` this way."""
     inp = _inp(tmp_path, "s.inp", 'str\nphase_name "P"\nspace_group "P1"\na 5.0\n'
-                   'site A1 x 0 y 0 z 0 occ La+3 !LSF_cubic_occ_La beq b 0.5\n')
+                   'site A1 x 0 y 0 z 0 occ Na+1 !occ_A1 beq b 0.5\n')
     model = read_topas_inp(inp)          # must not raise ValueError
     assert model.phases[0].sites[0].occupancy == pytest.approx(1.0)
 
@@ -562,11 +562,11 @@ def test_a_phase_whose_sites_were_all_disabled_refuses_naming_the_phase(tmp_path
 # ------------------------------------------- one grammar, on the cell too
 
 #: The cell had its own regex once, and it admitted three of these six. The
-#: numbers are `parametric_04.inp`'s monoclinic `p21n` lattice parameter, which
+#: numbers are `archive file 7`'s monoclinic `p21n` lattice parameter, which
 #: that file writes as an equation with TOPAS's evaluated tail — measured: the
 #: three equation spellings left `a` out of `phase.cell`, so `to_structure`
 #: dropped the phase, and across the archive that lost **320 phases in 15
-#: files**, 107 patterns of `parametric_04.inp` among them.
+#: files**, 107 patterns of `archive file 7` among them.
 CELL_SPELLINGS = [
     ("a 7.301139", 7.301139, None),
     # a *name* is itself the refine flag — Technical Reference 2.1, "A parameter
@@ -634,28 +634,28 @@ LATTICE_MACROS = [
     ("Cubic_(lpa 4.15689)", (4.15689,) * 3 + (90.0,) * 3, True),
     # nameless: `\w*` in front of the value ate the integer part and gave
     # a = 0.15689, the same class as `weight_percent 11.596` → 0.596.
-    ("Cubic(10)", (10.0,) * 3 + (90.0,) * 3, None),              # rigidb.inp:37
+    ("Cubic(10)", (10.0,) * 3 + (90.0,) * 3, None),              # archive file 14:37
     ("Cubic_( 4.15689)", (4.15689,) * 3 + (90.0,) * 3, None),
     # flag with no name: the whole cell came back empty, so the phase vanished.
-    ("Cubic(@  4.15692`)", (4.15692,) * 3 + (90.0,) * 3, True),  # LaB6_Riet_TCHZ_01.inp:54
+    ("Cubic(@  4.15692`)", (4.15692,) * 3 + (90.0,) * 3, True),  # archive file 8:54
     ("Cubic_(!lpa 4.15689)", (4.15689,) * 3 + (90.0,) * 3, False),
     # TOPAS's own evaluated tail, inside the macro's parenthesis.
     # an *equation* is a constraint (2.4), not an independent parameter, so a
     # name on one is not the refine flag — only its write-back tick is.
-    ("Cubic(=a1;:  5.43416_0.00012)",                            # Si_in_cap_NOMAD_jue.inp:139
+    ("Cubic(=a1;:  5.43416_0.00012)",                            # archive file 9:139
      (5.43416,) * 3 + (90.0,) * 3, None),
-    ("Cubic(aLP  11.210591`)",                                   # i15-xpdf_…_pdfonly.inp:69
-     (11.210591,) * 3 + (90.0,) * 3, True),
+    ("Cubic(aLP  11.000000`)",                                   # archive file 10:69
+     (11.000000,) * 3 + (90.0,) * 3, True),
     # a = b, c, and γ = 90 — TOPAS writes the two independent lengths in order.
-    ("Tetragonal(@  4.594290`, @  2.958587`)",                   # d5_05005_pawley_01.inp:38
-     (4.594290, 4.594290, 2.958587, 90.0, 90.0, 90.0), True),
+    ("Tetragonal(@  4.500000`, @  2.900000`)",                   # archive file 11:38
+     (4.500000, 4.500000, 2.900000, 90.0, 90.0, 90.0), True),
     # a = b, c, and γ = **120**.
-    ("Hexagonal(@  3.613074`, @  12.037126`)",                   # BL104_B_1.inp:87
-     (3.613074, 3.613074, 12.037126, 90.0, 90.0, 120.0), True),
-    ("Trigonal(  12.695126,   37.972985)",                       # AT027-23_…:90
-     (12.695126, 12.695126, 37.972985, 90.0, 90.0, 120.0), None),
-    ("Trigonal(@  12.68790`_0.00010,  @  37.94996`_0.00056)",    # AT027-23_…_fin.inp:51
-     (12.68790, 12.68790, 37.94996, 90.0, 90.0, 120.0), True),
+    ("Hexagonal(@  3.500000`, @  12.000000`)",                   # archive file 12:87
+     (3.500000, 3.500000, 12.000000, 90.0, 90.0, 120.0), True),
+    ("Trigonal(  12.500000,   37.500000)",                       # archive file 18:90
+     (12.500000, 12.500000, 37.500000, 90.0, 90.0, 120.0), None),
+    ("Trigonal(@  12.50000`_0.00010,  @  37.50000`_0.00056)",    # archive file 32:51
+     (12.50000, 12.50000, 37.50000, 90.0, 90.0, 120.0), True),
 ]
 
 
@@ -691,7 +691,7 @@ def test_the_rhombohedral_macro_takes_an_edge_and_an_angle(tmp_path):
     back with a 55 Å edge and three right angles, which is not a cell any data
     would fit and is exactly the wrong-number-with-nothing-raised this reader
     exists to prevent. It appears in **no** archive file in live text — it is in
-    `D20.inp` only inside a `'` comment — so nothing here corroborates it and
+    `archive file 17` only inside a `'` comment — so nothing here corroborates it and
     nothing here contradicts it either; the citation is the whole evidence.
     """
     inp = _inp(tmp_path, "rhomb.inp",
@@ -803,7 +803,7 @@ def test_a_lattice_macro_beside_an_explicit_cell_is_not_needed(tmp_path):
                'a 7.018696\nb 6.520921\nc 13.019527\nal 90\nbe 93.32175\nga 90\n'
                'site Al1 x 0.70588 y 0.32198 z 0.89924 occ Al+3 1.\n'
                'hkl_Is\nphase_name "hexagonal from Dicvol"\n'
-               'Hexagonal(@  3.613074`, @  12.037126`)\nspace_group "P-6m2"\n')
+               'Hexagonal(@  3.500000`, @  12.000000`)\nspace_group "P-6m2"\n')
     phase = read_topas_inp(inp).phases[0]
     assert phase.cell["a"] == pytest.approx(7.018696)
     assert phase.cell["c"] == pytest.approx(13.019527)
@@ -930,8 +930,8 @@ def test_a_write_back_backtick_after_an_evaluated_tail_is_read_as_refined(tmp_pa
     ("occ Ca @ 0.6", True),          # uncharged — the one that worked, by luck
     ("occ Ca+2 !n 0.6", False),
     ("occ Ca !n 0.6", False),        # uncharged but *named*: also lost
-    ("occ Si !ph1_Si 0.8000", False),        # SiGe_LiCl-KCl_grey_PVII.inp
-    ("occ La+3 !LSF_occ_La 0.6 vcocc", False),   # lasf_longruns_riet_07.inp
+    ("occ Si !ph1_Si 0.8000", False),        # archive file 13
+    ("occ Na+1 !occ_A1 0.5 vcocc", False),   # named and flagged, plus `vcocc`
     ("occ Na+1 1", None),            # the file says nothing
 ])
 def test_an_occupancys_flag_is_read_whatever_the_species(occ, expected):
@@ -1427,7 +1427,7 @@ def test_a_trailing_pawley_block_lends_the_phase_above_nothing(tmp_path):
     trailing `hkl_Is` belonged to the phase above it and `_read`/`_field` swept
     the whole thing — three of the neighbour's numbers, silently.
 
-    Measured on the real file: `W02_DR_11bmb_3858_pawley_Nb2O5.inp` gave
+    Measured on the real file: `archive file 4` gave
     tungsten b = 3.814 and c = 19.299 off the Nb2O5 block's
     `load hkl_m_d_th2 I` table, where 3.814 is a **d-spacing** column read as a
     cell edge. It is F1's failure mode moved from the cell regex to the block
@@ -1484,7 +1484,7 @@ def test_a_phase_after_a_pawley_block_is_still_read(tmp_path):
 
 
 def test_a_str_block_with_no_phase_name_is_recorded_not_passed_over(tmp_path):
-    """Measured, on `simulate_Nb_Cu.inp`: a `str` block stating a cell and two
+    """Measured, on `archive file 6`: a `str` block stating a cell and two
     sites and **no** `phase_name` used to arrive named "CaO" with scale 1.0 —
     both read off the `hkl_Is` block below it. That is finding 2 on a real file.
 
@@ -1524,8 +1524,8 @@ def test_a_phase_opening_with_the_STR_macro_is_refused_by_name(tmp_path):
     Such a file returned **zero** phases and `to_structure` then answered "A
     Pawley or indexing-only .inp is legal and has none" — a confident wrong
     diagnosis about a file that plainly contains `STR(`. Seven archive files
-    are affected (`rigidb.inp`, `split_fum.inp`, `SPODI.inp`, `D20.inp` and
-    three `AT027-23_*` variants), all of them returning no phase at all.
+    are affected (`archive file 14`, `archive file 15`, `archive file 16`, `archive file 17` and
+    three variants of archive file 18), all returning no phase at all.
     Expanding the macro can wait; answering wrongly about it cannot.
     """
     inp = _inp(tmp_path, "strmacro.inp",
@@ -1977,52 +1977,52 @@ def test_a_partial_tensor_with_a_missing_diagonal_is_refused(tmp_path):
 
 # The archive's live anisotropic spelling is the six-slot positional
 # `ADPs { u11 u22 u33 u12 u13 u23 }` brace block (6 files), not the named
-# form. The slot order is archive-evidenced: `Gd12Co5Bi.inp:187` names its
-# slots `Ho1_u11 … Ho1_u23` in exactly that order, and `SXC223C_seed_01.inp:73`
-# names slots 1, 2, 3 and 6 `u11Se`/`u22Se`/`u33Se`/`u23Se` with the two zeros
+# form. The slot order is archive-evidenced: `archive file 2:187` names its
+# slots `A1_u11 … A1_u23` in exactly that order, and `archive file 3:73`
+# names slots 1, 2, 3 and 6 `u11A`/`u22A`/`u33A`/`u23A` with the two zeros
 # in the u12/u13 positions. Each fixture below is a real file's spelling.
 
 def test_the_positional_adps_brace_block_reads_in_slot_order(tmp_path):
-    """`Gd12Co5Bi.inp`'s spelling: named slots, each with a `min … max=…;`
+    """`archive file 2`'s spelling: named slots, each with a `min … max=…;`
     window (inert on AnisoU, skipped) and `_LIMIT_*` annotations."""
-    inp = _inp(tmp_path, "gd12.inp",
+    inp = _inp(tmp_path, "named_adps.inp",
                'str\nphase_name "P"\nspace_group "P1"\na 5.0\n'
-               'site Ho1 x 0.28707 y 0.18406 z 0 occ Gd 1.0 ADPs { '
-               'Ho1_u11  0.02159` min 0.0001 max=0.1; '
-               'Ho1_u22  0.00709` min 0.0001 max=0.1; '
-               'Ho1_u33  0.00830` min 0.0001 max=0.1; '
-               'Ho1_u12  0.00343`_LIMIT_MIN_0.0001 min 0.0001 max=0.1; '
-               'Ho1_u13  0.01501` min 0.0001 max=0.1; '
-               'Ho1_u23  0.00112`_LIMIT_MIN_0.0001 min 0.0001 max=0.1; }\n')
+               'site A1 x 0.21111 y 0.18888 z 0 occ Na 1.0 ADPs { '
+               'A1_u11  0.02000` min 0.0001 max=0.1; '
+               'A1_u22  0.00700` min 0.0001 max=0.1; '
+               'A1_u33  0.00800` min 0.0001 max=0.1; '
+               'A1_u12  0.00300`_LIMIT_MIN_0.0001 min 0.0001 max=0.1; '
+               'A1_u13  0.01500` min 0.0001 max=0.1; '
+               'A1_u23  0.00100`_LIMIT_MIN_0.0001 min 0.0001 max=0.1; }\n')
     site = read_topas_inp(inp).phases[0].sites[0]
-    assert site.adps == pytest.approx({"u11": 0.02159, "u22": 0.00709,
-                                       "u33": 0.00830, "u12": 0.00343,
-                                       "u13": 0.01501, "u23": 0.00112})
+    assert site.adps == pytest.approx({"u11": 0.02000, "u22": 0.00700,
+                                       "u33": 0.00800, "u12": 0.00300,
+                                       "u13": 0.01500, "u23": 0.00100})
     assert site.vary["u11"] is True          # the write-back backtick
 
 
 def test_a_positional_slot_carries_its_own_flag_and_evaluated_tail(tmp_path):
-    """`SXC223C_seed_01.inp`'s second spelling: `=u11Se;: 0.00737` evaluated
+    """`archive file 3`'s second spelling: `=u11A;: 0.00600` evaluated
     tails, bare `0 0` for the u12/u13 slots, and a named sixth slot."""
-    inp = _inp(tmp_path, "sxc.inp",
+    inp = _inp(tmp_path, "tailed_adps.inp",
                'str\nphase_name "P"\nspace_group "P1"\na 5.0\n'
-               'site Se2 x 0.25 y 0.59643 z 0.25 occ Se 1 ADPs { '
-               '=u11Se;:  0.00737`_0.00040 =u22Se;:  0.00000`_0.00035 '
-               '=u33Se;:  0.00200`_0.00035 0 0 u23Se -0.00151`_0.00059 }\n')
+               'site A2 x 0.25 y 0.55555 z 0.25 occ Na 1 ADPs { '
+               '=u11A;:  0.00600`_0.00040 =u22A;:  0.00000`_0.00035 '
+               '=u33A;:  0.00200`_0.00035 0 0 u23A -0.00150`_0.00059 }\n')
     site = read_topas_inp(inp).phases[0].sites[0]
-    assert site.adps == pytest.approx({"u11": 0.00737, "u22": 0.0,
+    assert site.adps == pytest.approx({"u11": 0.00600, "u22": 0.0,
                                        "u33": 0.002, "u12": 0.0,
-                                       "u13": 0.0, "u23": -0.00151})
+                                       "u13": 0.0, "u23": -0.00150})
 
 
 def test_an_adps_slot_this_reader_cannot_resolve_refuses(tmp_path):
-    """`lasf_longruns_riet_07.inp`'s spelling ties slots with `= Get(u33);`, a
+    """One archive spelling ties `ADPs` slots with `= Get(u33);`, a
     TOPAS function this reader does not have — a stated slot it cannot resolve,
     refused by finding 4's rule rather than substituted."""
-    inp = _inp(tmp_path, "lasf.inp",
+    inp = _inp(tmp_path, "tied_adps.inp",
                'str\nphase_name "P"\nspace_group "P1"\na 5.0\n'
                'site O1 x 0.5 y 0 z 0 occ O-2 1 ADPs { '
-               'o1_u11  0.01835`_0.00053 = Get(u33); o1_u33  0.06084`_0.00046 '
+               'o1_u11  0.01800`_0.00053 = Get(u33); o1_u33  0.06000`_0.00046 '
                '= 0; = 0; = 0; }\n')
     with pytest.raises(TopasInpError) as exc:
         read_topas_inp(inp)
@@ -2110,21 +2110,22 @@ def test_strip_comments_apostrophe_delimiters_are_not_block_comments():
 
 
 def test_the_apostrophe_block_comment_idiom_keeps_the_phase_active(tmp_path):
-    """Built from a minimal reproduction of `TOF neutron input LSF.inp` (ORNL
-    NOMAD), where `'/*` and `'*/` enable one of three refinements. `strip_comments`
-    removed `/* */` first and deleted the active phase; the fix reads it."""
+    """Built from a minimal reproduction of the archive idiom, where `'/*` and
+    `'*/` hold three refinements in one input and enable one of them.
+    `strip_comments` removed `/* */` first and deleted the active phase; the fix
+    reads it."""
     inp = _inp(tmp_path, "idiom.inp",
                "' a header\n"
                "/* la 1 lo 0.7093 */\n"          # a real block comment: dead
                "'/*\n"
-               'str\nphase_name "LSF rhombohedral"\nspace_group "R-3cH"\n'
-               'a 5.537319`\nb 5.537319`\nc 13.561602`\nal 90 be 90 ga 120\n'
-               'site La1 x 0 y 0 z 0.25 occ La+3 .6 beq bl 1.14\n'
+               'str\nphase_name "trigonal phase"\nspace_group "R-3cH"\n'
+               'a 5.0`\nb 5.0`\nc 13.0`\nal 90 be 90 ga 120\n'
+               'site A1 x 0 y 0 z 0.25 occ Na+1 .5 beq bl 1.0\n'
                "'*/\n")
     model = read_topas_inp(inp)
-    assert [p.name for p in model.phases] == ["LSF rhombohedral"]
+    assert [p.name for p in model.phases] == ["trigonal phase"]
     assert model.wavelength is None          # the real /* */ block was stripped
-    assert model.phases[0].cell["c"] == pytest.approx(13.561602)
+    assert model.phases[0].cell["c"] == pytest.approx(13.0)
 
 
 # ============================================================= round-four review
@@ -2497,7 +2498,7 @@ def test_a_dataset_that_holds_no_phase_is_named_not_silently_empty(tmp_path):
 def test_the_runs_own_r_wp_is_the_one_stated_at_top_level(tmp_path):
     """`Tr_wp` hangs off `Ttop` *and* `Txdd`, so a file states the run's own
     figure of merit and one per dataset. Measured on
-    `001_Pawley_unitcell.inp`: 4.408 above the `xdd`, 14.188 inside it. The
+    `archive file 5`: 4.408 above the `xdd`, 14.188 inside it. The
     first match is the run's only because of where it sits, not because it is
     first."""
     inp = _inp(tmp_path, "fom.inp",
@@ -2619,7 +2620,7 @@ def test_a_conditional_is_a_token_not_a_line(tmp_path):
 
 
 def test_a_conditional_inside_a_site_line_still_gates_it(tmp_path):
-    """`i15-xpdf_ee18630-1_v001_pdfonly.inp` gates a site's `beq` with an
+    """`archive file 10` gates a site's `beq` with an
     `#ifdef` written *inside the site line*. A line anchor cannot see it."""
     inp = _inp(tmp_path, "insite.inp",
                'str\nphase_name "P"\nspace_group "P1"\na 5.0\n'
@@ -2684,8 +2685,8 @@ def test_a_for_loop_over_content_this_reader_reads_is_refused(tmp_path):
 
     The block model — `_BLOCK` slicing between openers — *is* the assumption
     that a card belongs to the block it sits inside, and the reference licenses
-    it only in the absence of these verbs. The `WISH_*` series and
-    `wo3_t0000_04.inp` declare a whole phase inside
+    it only in the absence of these verbs. The ``archive file 27`` series and
+    `archive file 1` declare a whole phase inside
     `for xdds { for strs 1 to 1 { ... } }`: `for strs` is not a line-initial
     `str`, so the phase is invisible to the split, and where a real `str`
     exists elsewhere its cell and sites are swept into *that* one instead.

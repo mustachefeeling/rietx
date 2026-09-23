@@ -7,12 +7,13 @@ interface convention.  See ``ATTRIBUTION.md``.
 
 from __future__ import annotations
 
-import difflib
 import math
 from functools import lru_cache
 from typing import Annotated, ClassVar, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from .._nearmiss import did_you_mean
 
 #: Data-contract version of the pydantic schemas (``Capabilities.schema_version``).
 #: Any change a consumer could observe bumps the last component by one, and
@@ -201,7 +202,43 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 #: empty where there is nothing to say, which is the case for the reserved
 #: declared-peaks key: a peak given by centre has no Miller index, and ``[]``
 #: there would claim it had none of its own.
-#: 0.22 → 0.23 (WP-1326): ``Phase.propagation_vector`` — a commensurate k on
+#: 0.22 → 0.23 (issue #375): ``SeriesResult.failures``
+#: (``list[SeriesFailure]``) and ``.n_failed`` — a pattern
+#: ``SequentialRefinement.fit``'s new ``on_error`` policy caught rather than
+#: letting crash the whole chain.  Additive and defaulted to ``[]``/``0``, the
+#: same rule as 0.19 → 0.20: a stored series from before this opens with no
+#: failures recorded, which is the honest statement that this field did not
+#: exist yet, never a claim that every pattern fit — the default policy is
+#: still ``on_error="raise"``, unchanged behaviour, so no existing chain's
+#: reported entries move.
+#: 0.23 → 0.24 (issue #211): ``StageResult.blocked_by_hold`` — the paths a
+#: stage's ``turn_on`` matched and a caller's ``Refinement.hold`` kept fixed,
+#: and ``RefinementState.holds``/``NodeAction.held``/``.unheld``, the register
+#: a checkout restores it from.  Additive and defaulted to ``[]``, the same
+#: rule as 0.19 → 0.20: a stored result from before this opens with nothing
+#: blocked, which is true of it — no hold could be declared, so no plan's glob
+#: was ever refused.
+#: 0.24 → 0.25 (WP-1333, issue #224): ``SeriesEntry.rungs_raised`` — the rungs
+#: of a pattern's escalation ladder whose fit raised rather than returned, now
+#: that a raised rung escalates like a diverged one instead of abandoning the
+#: pattern.  Additive and defaulted to ``{}``, the same rule as 0.19 → 0.20: a
+#: stored series from before this opens with no rung raised, which is true of
+#: it — a raise then ended the pattern, so no entry could carry one.
+#: 0.25 → 0.26 (WP-1414, issue #265): ``StageResult.unknown_paths`` — the
+#: literal ``turn_on`` paths naming no parameter of the model — and
+#: ``StageResult.unreached_histograms``, per histogram of a joint fit the globs
+#: that reached another histogram and none of its rows.  Additive, the rule of
+#: 0.19 → 0.20, and defaulted to ``None`` rather than empty, unlike 0.24's
+#: ``blocked_by_hold`` or 0.25's ``rungs_raised``: no hold could exist before
+#: its field, and no rung could raise and survive, so an empty default was
+#: true of every older document there, while a typo'd literal freed nothing in
+#: silence long before this one.  A stored result from before this opens with
+#: ``None``, "nobody looked", and every runner now writes a value (WP-1076's
+#: rule).
+#: **The eight entries below were renumbered 0.23-0.30 → 0.27-0.34** when the
+#: magnetic branch merged main at 0.26 (2026-09-23); open PR #431 (issue #270)
+#: also claims 0.27, and the ladder is renumbered on whichever lands last.
+#: 0.26 → 0.27 (WP-1326): ``Phase.propagation_vector`` — a commensurate k on
 #: the nuclear cell, which adds satellites at Q = H ± k to the phase's frozen
 #: reflection list — and ``ReflectionState.satellite_order``, the m that makes
 #: (H, m) the key a Le Bail/Pawley intensity is restored on.  Both additive and
@@ -215,14 +252,14 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 #: than silently taking one side), and again when this chain was cut against
 #: main as it shipped, whose own ladder had reached 0.22 meanwhile.  Nothing
 #: about what the fields *are* changed; only where they sit in the sequence.
-#: 0.23 → 0.24 (WP-1327): ``Atom.moment`` (crystal-axis components in μ_B, the
+#: 0.27 → 0.28 (WP-1327): ``Atom.moment`` (crystal-axis components in μ_B, the
 #: magCIF ``_atom_site_moment.crystalaxis_*`` convention, with the ion and the
 #: Landé g the dipole form factor needs) and ``Phase.magnetic_symmetry`` (the
 #: magCIF operator and centring loops with their time-reversal signs, the
 #: BNS/OG symbol as metadata).  Both additive and both defaulted to ``None``,
 #: which is the honest empty state and the bit-identical one — a phase that
 #: declares neither serializes and refines exactly as before.
-#: 0.24 → 0.25 (WP-1329): the moment along a series.  Two additive fields on
+#: 0.28 → 0.29 (WP-1329): the moment along a series.  Two additive fields on
 #: stored result schemas, both defaulted, so every document written before this
 #: version reloads unchanged and no number any fit produces moves:
 #: (a) ``SeriesEntry.magnetic`` — WP-1327's ``MomentEvidence`` rows per pattern
@@ -239,7 +276,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 #: bit-identical case: a phase that declares no moment serialises exactly as
 #: before apart from one empty list.  ``MagneticTrajectory``/``MagneticOnset``
 #: are *derived* views over these two and are stored nowhere.
-#: 0.25 → 0.26 (M-1, distortion modes): three additive fields a consumer
+#: 0.29 → 0.30 (M-1, distortion modes): three additive fields a consumer
 #: notices, listed together because they are one feature.
 #: **This entry was written as pending renumbering.** WP-1343 claimed 0.26 on
 #: another branch of this fork at the same time, and the plan's rule for two
@@ -279,13 +316,13 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 #: generate the list, are both refused.  The CIF writer gains
 #: ``_space_group_symop_operation_xyz`` and ``_space_group_name_H-M_alt`` for
 #: such a phase, and the reader round-trips them.
-#: 0.26 → 0.27 (WP-1343): ``Phase.magnetic_lor_size`` and
+#: 0.30 → 0.31 (WP-1343): ``Phase.magnetic_lor_size`` and
 #: ``Phase.magnetic_lor_strain`` — the magnetic component's own extra
 #: Lorentzian size and strain broadening (deg 2θ, ``min = 0.0``, softplus,
 #: default 0.0, refused non-zero on a phase with no ``magnetic_symmetry``);
 #: both are exactly off at that default, so every document written before this
 #: version reloads unchanged and no number any fit produces moves.
-#: 0.27 → 0.28 (M2): ``Phase.distortion_components`` — a read-only grouped
+#: 0.31 → 0.32 (M2): ``Phase.distortion_components`` — a read-only grouped
 #: view over the already-list-valued ``distortion_modes``, one entry per
 #: distinct (k, irrep_label, direction) the phase's modes carry, which is what
 #: a multi-component displacive statement (a phase whose modes span two order
@@ -293,7 +330,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 #: through.  Not a stored field: it is computed from data the schema already
 #: holds, so every document written before this version reloads unchanged and
 #: no number any fit produces moves; a consumer only notices the new property.
-#: 0.28 → 0.29 (M-3, WP-1419 § Inherited's seed rule): ``StageSpec.
+#: 0.32 → 0.33 (M-3, WP-1419 § Inherited's seed rule): ``StageSpec.
 #: distortion_seed`` and ``StageAction.distortion_seed`` — the displacive
 #: amplitude (Å, signed) a stage puts an all-zero distortion-mode block on
 #: before freeing it, mirroring ``strain_seed``'s shape for the third and last
@@ -308,7 +345,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 #: records: if another branch of this fork claims the same literal at the same
 #: time, both claim it so the merge conflicts loudly rather than silently
 #: taking one side, and the integration rung renumbers.
-#: 0.29 → 0.30 (M-3, WP-1419 § Inherited's A_τ): ``RefinementResult.
+#: 0.33 → 0.34 (M-3, WP-1419 § Inherited's A_τ): ``RefinementResult.
 #: distortion_totals`` and the :class:`~rietx.schemas.results.DistortionTotal`
 #: it holds — one row per (k, irrep, direction) component of a mode-carrying
 #: phase, with AMPLIMODES' basis-independent A_τ, its esd through the block
@@ -320,7 +357,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 #: additive — that ``DISTORTION_MODE_UNSUPPORTED`` now fires per component
 #: rather than per mode (``report.schemas.THRESHOLDS_VERSION`` 1.9 → 1.10 says
 #: what moved and why).  **Written as pending renumbering**, same rule.
-SCHEMA_VERSION = "0.30"
+SCHEMA_VERSION = "0.34"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
 
@@ -397,7 +434,7 @@ class Base(BaseModel):
         mid-assignment — never a typo, so it gets its own message rather than
         the closest-match one, which would otherwise trivially "suggest"
         itself); then a nested block that carries this name; then the closest
-        own-field match (``difflib``, cutoff 0.6); then, for a small schema,
+        own-field match (:mod:`rietx._nearmiss`); then, for a small schema,
         every field name; otherwise the plain pydantic-shaped message
         untouched, so a caller matching on ``"no attribute 'x'"`` keeps
         working.
@@ -422,10 +459,9 @@ class Base(BaseModel):
                 + " or ".join(paths)
                 + ". The top level carries what this schema declares; a value "
                   "computed about it lives in the block that computed it.")
-        close = difflib.get_close_matches(
-            name, list(type(self).model_fields), n=3, cutoff=0.6)
-        if close:
-            raise AttributeError(f"{plain}; did you mean {', '.join(close)!r}?")
+        hint = did_you_mean(name, type(self).model_fields)
+        if hint:
+            raise AttributeError(f"{plain}; {hint}")
         fields = list(type(self).model_fields)
         if len(fields) <= type(self)._ATTR_HINT_FIELD_CAP:
             raise AttributeError(f"{plain}; its fields are {fields}")

@@ -1,10 +1,11 @@
 # WP-1418 — the magnetic structure is determined, not only stated
 
-Milestone: v1.6 · Status: ⬜
+Milestone: v1.6 · Status: 🔄 2026-09-23 — M-6 and M-7 landed (PR #389); M-8, M-9, the Part 1 chapter and the skill rows remain
 Depends on: PR #290's `crystallography.magnetic` (landed 2026-09-10);
 1326 (the k candidates) for the k-search rung; 1327 (the moment, the hold)
 for the determination verb. The irrep and isotropy rungs depend on nothing
 unlanded.
+Priority: P2 2026-09-23 — the open milestone's; M-6 and M-7 first by the set order, no forward-model contact
 
 ## Goal
 
@@ -124,6 +125,48 @@ MAGNDATA magCIF entries serve the round-trip and span tests with no pattern.
 
 ### Inherited
 
+- **2026-09-21, from the issue triage: #384 and #390, both measured on the
+  fork against this WP's solver.** Checked against the tree at `4ee4e7f5`:
+  `solve_magnetic` is not on `main` yet, so neither can be reproduced here;
+  both are read as claims about the fork's `magnetic-v16` (aa665eaf) and
+  taken on at the PR. **#390** ran the determination verb blind over every
+  commensurate MAGNDATA entry with the published k: 70 % recover the
+  published group exactly, 88 % it or a supergroup. The supergroup cases
+  were *not* a missing kernel-subgroup candidate (checked: the published
+  class is enumerated, refined and loses); the real fault was a moment with
+  two or more free components seeded along its first basis row, a stationary
+  point of χ² where the residual point-group action fixes that row, fixed by
+  a deterministic 0.02 tilt (0.15 regressed two of twenty controls). After
+  it, six of nine supergroup winners remain across noise draws: the
+  secondary order parameter is unsupported at those statistics, a power
+  finding and not a ranking defect. Three pieces of machinery ride in the
+  series: `MagneticSolution.margin` (ΔBIC over the best *other eligible*
+  class, `None` on abstention, one eligibility helper), a **descent audit
+  after selection** (the winner's maximal same-k operator-list subgroups
+  refitted from its own solution, `MAGNETIC_SUBGROUP_PREFERRED` if one beats
+  it beyond the tie width; k ≠ 0 descents changing the atom count not yet
+  matched), and the group–subgroup lattice among tied classes in the
+  summary. Proposed acceptance wording, to take or leave: *a supergroup
+  winner is accompanied by the descent audit's statement of what ΔBIC its
+  maximal subgroups reached, and the report says the secondary order
+  parameter is unsupported rather than absent.* **#384** asks that the
+  candidate comparison reach where a person reads a fit afterwards: (1) a
+  structured `magnetic_candidates` section on the winner's `FitReport` (the
+  rows `str(solution)` prints, plus verdict, reason and tie diagnostics;
+  smallest, offered for this WP's PR series); (2) the tree records the
+  fan-out, one `stage` subtree per candidate class with the chosen class the
+  continuing branch, under a `select` kind carrying criterion and margin,
+  with `cherry_pick` able to replay a loser as the completeness check;
+  (3) the GUI tree greys rejected branches and shows the margin on hover.
+  (2) is a `NodeKind` addition and so a vocabulary member that needs its
+  writer named (root CLAUDE.md, WP-1076); (3) is `gui/`'s. **Decided
+  2026-09-21** (posted on both threads): #384 part 1, the `FitReport`
+  section, lands in this WP's PR series; parts 2 and 3 are a follow-up WP
+  after this one ships, since a `select` kind is a vocabulary member with a
+  writer to name and the GUI reads what the tree records. #390's acceptance
+  wording is taken as offered and is this WP's; the seed tilt's docstring
+  carries the two numbers that chose it (0.15 regressed two of twenty
+  controls, 0.02 none) and the control set.
 - **2026-09-18 — this WP is v1.6's first, and M-6 and M-7 are its first PRs.**
   The milestone opened today ([record](../milestones/v1.6.md)) over the seven
   magnetic WPs. The order was set on #286: M-6 (irreps, spgrep as a test oracle
@@ -172,9 +215,9 @@ MAGNDATA magCIF entries serve the round-trip and span tests with no pattern.
 
 ## Tasks
 
-- [ ] M-6: irreps and decomposition, spgrep as oracle in the test suite
+- [x] M-6: irreps and decomposition, spgrep as oracle in the test suite
       only; the Pnma 4b/4c checks and the 230-group intertwiner test.
-- [ ] M-7: isotropy subgroups → operator lists, absences, powder-equivalence
+- [x] M-7: isotropy subgroups → operator lists, absences, powder-equivalence
       classes; ≥ 10 MAGNDATA parents recover their published group.
 - [ ] M-8: 1326's candidate generator made pluggable and the zone's special
       points and lines added, labelled.
@@ -231,3 +274,45 @@ no magnetic model declared.
   `docs/` recorded it until this round; spglib 2.7.0 in the venv carries the
   magnetic database. The decision it carries, the non-goal as sequencing, is
   the maintainer's; the triage recommends yes as a candidate.
+
+- **2026-09-23** — M-6 and M-7 landed from outside: PR #389
+  (`mustachefeeling`), merged as `ff5e5244` after four review rounds.
+  - **What it adds.** `crystallography/magnetic/irreps.py` (small irreps of
+    the little group by the ω-twisted regular representation, projective at a
+    non-symmorphic zone boundary), `modes.py` (Γ_perm ⊗ Γ_axial decomposed,
+    basis vectors projected per irrep row, real gauges where FS = +1) and
+    `isotropy.py` (isotropy subgroups as operator lists, MAGNEXT absences,
+    powder-equivalence classes). `symmetry.OperatorGroup`/`resolve_group`/
+    `as_group`/`group_key` let a symbol-less group reach `site_orbit` and
+    `wyckoff.site_constraints`. Manual Part 2 gains
+    `representation-analysis.md`, eight equations with Source lines. spgrep
+    joins `[dev]` as a test oracle only.
+  - **What it makes possible.** M-8 and M-9 can call `isotropy.candidates` and
+    `equivalence_classes` directly. Nothing is re-exported at `rx.` and no
+    verb exists, so the api index and the skill owe nothing yet.
+  - **What it does not do.** The Part 1 chapter, the skill rows and the M-9
+    acceptance (LaMnO₃, Cr₂WO₆) are all still open, so the manual task stays
+    unticked. Irrep labels are positional, and the CDML mapping is deferred
+    in `irreps.py`. Direction labels are the package's own, and a comparison
+    with a published table must go through the subgroup (BNS number).
+  - **Gotchas the review found.** (1) Importing spgrep sets
+    `spglib.error.OLD_ERROR_HANDLING = False` process-wide, which turns every
+    `None` test on a spglib call into a raise. All ten call sites were swept.
+    The reachable ones in `operators.py`, `wyckoff.py` and `indexing/reduce.py`
+    now catch `SpglibError` as well. `tests/conftest.py` sets the flag back to
+    spglib's default per test, so the suite cannot see the flip. (2) A rank-2
+    order-parameter family's basis is gauge-dependent across platforms: a
+    component pin failed on Linux and passed on darwin. Select candidates by
+    BNS number and assert spans. (3) `powder_equivalent` under `lm` refused
+    fewer shells than amplitudes and read the refusal as "different". It now
+    switches to `trf` and skips a family with no pattern at that d limit.
+  - **Left for the maintainer.** Three modules declare the same refusal tuple
+    (`wyckoff.SPGLIB_REFUSALS`, `indexing.reduce.SPGLIB_REFUSALS`,
+    `isotropy.IDENTIFY_REFUSALS`); one authority would need an import across
+    two subtrees. The suite pins spglib's deprecated error mode and emits
+    about 1530 `DeprecationWarning`s from `test_magnetic_operators.py` alone.
+    Moving the package to the new mode is its own WP. The new ATTRIBUTION row
+    for closed tools sits under the open-source heading, beside `xylib`.
+  - **Measured on the merged tree** (darwin/arm64, py3.12, `[dev,jax]`,
+    spglib 2.7.0, spgrep 0.7.0): fast 5889 passed, 84 skipped; `-m slow`
+    191 passed, 7 skipped, 1 xfailed; docs ladder 63 passed, `-W` build clean.

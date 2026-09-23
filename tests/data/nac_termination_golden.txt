@@ -6,7 +6,7 @@ Refinement.summary: converged (rietveld)
   stage profile: converged (# it, ftol=#e#)
   stage biso: converged (# it, ftol=solver default), max|Δθ|/esd=#
   diagnostics: # unresolved
-    WARNING BOUND_HIT: phases.#atoms.#biso refined to its bound — widen the bound or fix the parameter
+    WARNING BOUND_HIT: phases.#atoms.#biso refined to its bound (ρ=#, #e# esd from the limit) — widen the bound or fix the parameter
     INFO CAPILLARY_OFFSET_UNAVAILABLE: this capillary geometry declares no goniometer radius, so the eq (#) specimen-offset aberrations are held at zero — which is not the same statement as having measured them to be zero — set instrument.geometry.goniometer_radius_mm if the diffractometer's is known; an unmodelled offset of this kind lands in the cell as a uniform d-scale error, moving both axes together, which leaves an axial ratio looking better than either axis deserves
   layer#/#: Rwp=# GoF=#; # regions, top # shown (#% of χ²); # unmatched observed peak(s); remaining # regions carry #% of χ²; between the peak regions the residual is systematic, not noise — χ²_red=# over # channels at Durbin-Watson d=# (# = uncorrelated), misfit no region entry covers; Layer # on #/# regions, # active suggestion(s)
     region ##°: #% of χ², max|Δ|/σ=#

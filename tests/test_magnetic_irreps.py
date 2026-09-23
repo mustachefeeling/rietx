@@ -30,6 +30,7 @@ imported it would be checking the two halves against each other.
 
 from __future__ import annotations
 
+import importlib.metadata
 import itertools
 from fractions import Fraction
 
@@ -86,6 +87,51 @@ ORACLE_CANNOT_DO = frozenset({("I 21 21 21", (HALF, HALF, HALF)),
                               ("I b c a", (HALF, HALF, HALF))})
 
 ALL_SETTINGS = tuple(gemmi.find_spacegroup_by_number(n).xhm() for n in range(1, 231))
+
+#: The spgrep the oracle's *refusal* counts below were measured on, 2026-09-06,
+#: beside spglib 2.7.0 and gemmi 0.7.5.  ``pyproject.toml`` declares
+#: ``spgrep>=0.7`` with no ceiling, and which cases spgrep declines is spgrep's
+#: behaviour rather than this package's, so pinning those counts hands a future
+#: spgrep release the power to turn this suite red for a reason outside rietx
+#: (Yue's review of #389 §6).  The assertions are therefore split: what is
+#: *ours* — every pair this package checked agreed with the oracle, and the
+#: sweep covered every (setting, k) pair rather than silently shrinking — holds
+#: on any version, and only the split between checked and declined is gated
+#: here.  Loosened rather than skipped: a new spgrep is exactly when the
+#: agreement is worth measuring, so the test must still run and still compare
+#: every table it can.
+MEASURED_SPGREP_VERSION = "0.7.0"
+
+
+def _oracle_version(spgrep_core) -> str:
+    """The oracle's version, from the module or from its installed metadata.
+
+    spgrep sets ``__version__`` from package metadata inside a ``try``, so a
+    source checkout has no attribute at all.  Reading only the attribute made
+    that case indistinguishable from "a different version", and the gated
+    blocks below went quiet with no skip and no warning (review of #389 round
+    3, follow-ups).  The metadata is the same source spgrep itself reads, so it
+    is the right second place to look; when *neither* resolves the version is
+    unknown rather than different, and an unknown oracle version is not a
+    result — say so loudly instead of silently dropping the pinned counts.
+    """
+    version = str(getattr(spgrep_core, "__version__", "") or "")
+    if not version:
+        try:
+            version = str(importlib.metadata.version("spgrep"))
+        except importlib.metadata.PackageNotFoundError:
+            version = ""
+    if not version:
+        pytest.skip("spgrep exposes no __version__ and has no installed "
+                    "metadata, so the oracle's version is unknown and the "
+                    "refusal counts measured on "
+                    f"{MEASURED_SPGREP_VERSION} cannot be attributed")
+    return version
+
+
+def _counts_are_pinned(spgrep_core) -> bool:
+    """Whether the oracle is the version its refusal counts were measured on."""
+    return _oracle_version(spgrep_core) == MEASURED_SPGREP_VERSION
 
 
 # --------------------------------------------------------------------------
@@ -383,8 +429,10 @@ def test_a_bcc_p_point_has_one_two_dimensional_projective_irrep():
     The little co-group is 222 with a factor system that is not a coboundary,
     so the four ordinary one-dimensional irreps collapse into a single
     two-dimensional projective one with χ = (2, 0, 0, 0) and Σ dim² = 4 =
-    |G_k/T| (Bradley & Cracknell, 1972, ch. 4; the central extension is the
-    quaternion group in the primitive gauge).  These are also the only two
+    |G_k/T| (Bradley & Cracknell, 1972, § 4.3 p. 181 — Lemma 4.3.1 and the
+    sentence after it — read with § 4.4 p. 185; the central extension is the
+    quaternion group in the primitive gauge, and the central extension itself is
+    their § 3.7 p. 158, Theorems 3.7.1 and 3.7.2, not ch. 4).  These are also the only two
     cases spgrep 0.7.0 raises on, so this is the arm that keeps them covered —
     if a later spgrep answers them, ``ORACLE_CANNOT_DO`` shrinks and the sweep
     below says so.
@@ -440,17 +488,27 @@ def test_the_frobenius_schur_class_agrees_with_the_character_it_implies():
 # 3. the spgrep oracle (dev-only; every name carries _oracle)
 # --------------------------------------------------------------------------
 
-def oracle_irreps(symbol, k):
-    """spgrep's small irreps and this module's, on the *same* operation list."""
+def spgrep_small_irreps(rotations, translations, k_primitive):
+    """**The oracle alone.**  Separated so a caller's ``try`` can hold spgrep's
+    refusal without also holding this package's own failure — the shape Yue's
+    round-3 review of #389 found one rank down, in the physically-irreducible
+    sweep.  Only spgrep is called here, so a ``ValueError`` out of it is
+    spgrep's by construction rather than by reading.
+    """
     spgrep_core = pytest.importorskip("spgrep")
-    rotations, translations = primitive_operations(symbol)
-    k_primitive = primitive_kvector(symbol, k)
-    little = little_group_from_operations(rotations, translations, k_primitive, centrings=())
-    theirs, mapping = spgrep_core.get_spacegroup_irreps_from_primitive_symmetry(
+    return spgrep_core.get_spacegroup_irreps_from_primitive_symmetry(
         rotations,
         np.array([[float(c) for c in t] for t in translations]),
         np.array([float(c) for c in k_primitive]),
     )
+
+
+def oracle_irreps(symbol, k):
+    """spgrep's small irreps and this module's, on the *same* operation list."""
+    rotations, translations = primitive_operations(symbol)
+    k_primitive = primitive_kvector(symbol, k)
+    little = little_group_from_operations(rotations, translations, k_primitive, centrings=())
+    theirs, mapping = spgrep_small_irreps(rotations, translations, k_primitive)
     assert list(mapping) == list(little.indices), (symbol, k)
     return little, small_irreps_of(little), theirs
 
@@ -515,21 +573,49 @@ def test_character_tables_agree_with_the_spgrep_oracle_for_all_230_groups():
     Counts are asserted, not just the absence of a failure, so a silently
     shrinking sweep fails.  ``ORACLE_CANNOT_DO`` names the pairs spgrep 0.7.0
     raises on; those are asserted to still raise, so the day the oracle grows
-    they are noticed rather than skipped forever.
+    they are noticed rather than skipped forever — but only while the oracle is
+    the version that behaviour was measured on, since a refusal is spgrep's
+    business and ``pyproject.toml`` puts no ceiling on it
+    (``MEASURED_SPGREP_VERSION``).  The coverage guard does not depend on any
+    of that: ``checked + declined`` is every (setting, k) pair, 230 × 8.
     """
     spgrep_core = pytest.importorskip("spgrep")
+    pinned = _counts_are_pinned(spgrep_core)
     checked = agreed = declined = 0
     for symbol in ALL_SETTINGS:
         for k in ZONE_BOUNDARY_SET:
             if (symbol, k) in ORACLE_CANNOT_DO:
-                with pytest.raises(ValueError):
-                    oracle_irreps(symbol, k)
-                declined += 1
+                # the refusal asserted here is **spgrep's**, so the call under
+                # the guard is spgrep's alone: through ``oracle_irreps`` a
+                # ValueError out of this package's own construction would have
+                # satisfied the ``pytest.raises`` and filled ``declined``
+                # (measured 2026-09-22: on both pairs spgrep raises "Given
+                # representation is not irreducible: indicator=2" while
+                # ``small_irreps_of`` returns its one irrep quite happily)
+                rotations, translations = primitive_operations(symbol)
+                k_primitive = primitive_kvector(symbol, k)
+                if pinned:
+                    with pytest.raises(ValueError):
+                        spgrep_small_irreps(rotations, translations, k_primitive)
+                    declined += 1
+                    continue
+                try:            # a later spgrep may have grown these two cases
+                    spgrep_small_irreps(rotations, translations, k_primitive)
+                except ValueError:
+                    declined += 1
+                    continue
+                _, mine, theirs = oracle_irreps(symbol, k)
+                checked += 1
+                agreed += bool(tables_agree(mine, theirs))
                 continue
             _, mine, theirs = oracle_irreps(symbol, k)
             checked += 1
             agreed += bool(tables_agree(mine, theirs))
-    assert (checked, agreed, declined) == (1838, 1838, 2)
+    # ours, on every version: nothing disagreed, and nothing was skipped
+    assert agreed == checked
+    assert checked + declined == len(ALL_SETTINGS) * len(ZONE_BOUNDARY_SET) == 1840
+    if pinned:
+        assert (checked, agreed, declined) == (1838, 1838, 2)
     assert spgrep_core.__name__ == "spgrep"
 
 
@@ -556,6 +642,23 @@ def test_physically_irreducible_dimensions_agree_with_the_spgrep_oracle():
     directly, so comparing dimensions tests the indicator without ever asking
     spgrep for it.  Restricted to 2k ≡ 0, where the pairing stays inside G_k;
     spgrep declines a further set of cases on its own, which are counted.
+
+    **``declined`` counts the oracle's refusals and nothing else.**  Until
+    2026-09-22 the ``try`` wrapped ``small_irreps_of`` as well, so this
+    package's own failures were counted as spgrep's, and on any spgrep whose
+    ``__version__`` is not the pinned one the two surviving assertions —
+    ``agreed == checked`` and ``checked + declined == 1477`` — hold at
+    ``0 == 0`` and ``0 + 1477 == 1477`` whatever the construction does (#389
+    round 3, before-merge 2).
+
+    *Made to fail on purpose 2026-09-22*: ``small_irreps_of`` replaced by a
+    function raising ``ValueError`` on every input, with ``spgrep.__version__``
+    set to ``"0.9.99"`` so the pinned block is skipped.  Before the repair the
+    test **passed**, at ``checked=0 agreed=0 declined=1477``.  After it the
+    same mutation propagates out of the bare ``small_irreps_of(little)`` below
+    — ``ValueError: BROKEN CONSTRUCTION (mutation probe)`` — and the test is
+    red in 0.09 s.  Unmutated it is green in 10.5 s at the pinned
+    ``(checked, agreed, declined) == (1363, 1363, 114)``.
     """
     spgrep_core = pytest.importorskip("spgrep")
     checked = agreed = declined = 0
@@ -568,8 +671,16 @@ def test_physically_irreducible_dimensions_agree_with_the_spgrep_oracle():
                 rotations, translations, k_primitive, centrings=())
             if not little.has_minus_k:
                 continue
-            try:
-                mine = small_irreps_of(little)
+            # **ours, outside the try**: a failure of this package's own
+            # construction is a failure of the test, never a decline.  Inside
+            # it, `declined` absorbed our own exceptions and the two surviving
+            # assertions could not tell the branches apart — measured in Yue's
+            # round-3 review of #389 with `small_irreps_of` replaced by a
+            # function raising on every input and `spgrep.__version__` set to
+            # "0.9.99": checked=0 agreed=0 declined=1477, and the test passed.
+            # (Reproduced 2026-09-22 before this change, with the same numbers.)
+            mine = small_irreps_of(little)
+            try:                        # the oracle's own refusal, and only it
                 real, _ = spgrep_core.get_spacegroup_irreps_from_primitive_symmetry(
                     rotations, floats, np.array([float(c) for c in k_primitive]), real=True)
             except (AssertionError, ValueError):
@@ -577,8 +688,15 @@ def test_physically_irreducible_dimensions_agree_with_the_spgrep_oracle():
                 continue
             checked += 1
             agreed += bool(sorted(d.shape[1] for d in real) == _real_dimensions(mine))
-    assert (checked, agreed) == (1363, 1363)
-    assert declined == 114
+    # ours, on every version: nothing disagreed, and every 2k ≡ 0 pair this
+    # package built a little group for was attempted
+    assert agreed == checked
+    assert checked + declined == 1477
+    # spgrep's own: which of those it declines is its behaviour, not this
+    # package's, and pyproject puts no ceiling on the version
+    if _counts_are_pinned(spgrep_core):
+        assert (checked, agreed) == (1363, 1363)
+        assert declined == 114
 
 
 def _real_dimensions(irreps) -> list[int]:

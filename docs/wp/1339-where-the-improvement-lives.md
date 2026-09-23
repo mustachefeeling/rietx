@@ -2,6 +2,7 @@
 
 Milestone: unscheduled · Status: ⬜
 Depends on: —
+Priority: P3 2026-09-23 — a statistic compare already computes, reached as a function
 
 ## Goal
 
@@ -119,6 +120,14 @@ below), and (3) as **report-only output** — a number the reader judges, not
 a `Diagnostic`, because a diagnostic needs a threshold and the package
 reports evidence rather than verdicts. The contributor's PR offer for (1)
 and (2) is accepted.
+
+### Inherited
+
+- **From WP-1434, 2026-09-18: which codes fired in that measurement may no
+  longer reproduce.** `BOUND_HIT` now asks whether the limit carried load
+  instead of whether the value stopped near one, so the `lor_strain` floor
+  observation was taken under a test that no longer exists. Re-run before
+  building on the list of what fired.
 
 ## Non-goals
 
