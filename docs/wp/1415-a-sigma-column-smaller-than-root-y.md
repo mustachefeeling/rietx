@@ -102,7 +102,8 @@ than a bystander.
 What the package has: `signal_cutoffs` (same module) returns the leading
 cutoff only (`edge='low'`, 2.99°, 22 channels). The trailing two-channel
 dropout is below `CUTOFF_MIN_DEG = 1.0` and interior besides. Its own
-docstring describes this failure shape on an ILL D20 file.
+docstring describes this failure shape on a private constant-wavelength
+neutron PSD scan.
 
 **The shape of the fix.** A dead cell has a signature no live channel has: its
 intensity and its σ are both an order of magnitude below their neighbours',
@@ -112,9 +113,9 @@ channel at read (`read_pattern`, WP-1047) and in the fit's list at compile.
 It reports and applies nothing. `project.fitted_mask` is the one authority
 on which channels a run fits (WP-1033), and `excluded_regions` is the
 caller's. The finding names the channels and the interval to exclude.
-Thresholds are measured on this file and on the D20 file `signal_cutoffs`
-documents, never on one. `signal_cutoffs` may additionally admit a short
-dropout at either edge, which is the issue's second ask.
+Thresholds are measured on this file and on the private neutron PSD scan
+`signal_cutoffs` documents, never on one. `signal_cutoffs` may additionally
+admit a short dropout at either edge, which is the issue's second ask.
 
 **Data.** The APDW set is public. Whether it may enter `tests/data/` depends
 on its stated licence (root CLAUDE.md: data carries its own fence, per file);
@@ -177,8 +178,9 @@ channels and a σ column at 0.3·√y reproduces both defects without it.
       the peer is `PATTERN_UNDERSAMPLED`, a plain `Diagnostic` in `refine.py`),
       and `help.py` documents parameter, flag and option *names*, never
       `PATTERN_*` codes, which live in the skill's `references/`.
-- [ ] `signal_cutoffs` admits a short dropout at an edge, if the D1B and D20
-      files agree it is separable from a cliff. **Measured separable by the
+- [ ] `signal_cutoffs` admits a short dropout at an edge, if the D1B file and
+      the private neutron PSD scan agree it is separable from a cliff.
+      **Measured separable by the
       contributor (#274, 2026-09-22), and implemented in `dead_channels` rather
       than `signal_cutoffs` on their unpushed branch. Open until that PR
       lands.** Before that: **Left for the contributor who
@@ -230,9 +232,11 @@ channels and a σ column at 0.3·√y reproduces both defects without it.
     any run touching an edge (`diagnostics.py:1156`, verified 2026-09-23).
     The weight ratio already in use separates an edge dropout from a cliff
     with no new threshold: D1B trailing pair 2285.7, leading pair about 1520,
-    Mythen V₆O₁₃ high edge 0.34-1.10. `DEAD_WEIGHT_RATIO_MIN = 100` sits 15×
-    below the first and 90× above the last. Three D20 holds fall on the Mythen
-    side (private data, no figures).
+    a private Mythen operando set's high edge of order unity or below (three
+    patterns, no figures). `DEAD_WEIGHT_RATIO_MIN = 100` sits 15× below the
+    first and nearly two orders of magnitude above the last. Three holds of
+    the private neutron PSD scan fall on the Mythen side (private data, no
+    figures).
   - **Implemented on the contributor's unpushed branch.** `dead_channels`
     declines only a run touching *both* ends, and judges an edge run against
     its one live side. A second defect is fixed with it:
@@ -392,8 +396,9 @@ channels and a σ column at 0.3·√y reproduces both defects without it.
   **Next, in order.** (1) **The two open tasks are the contributor's**, by the
   maintainer's decision of 2026-09-21, and both are blocked on files this repo
   does not have: whether `signal_cutoffs` should admit a short dropout at an
-  edge is conditional on the D1B and D20 files agreeing it is separable from a
-  cliff, and re-measuring `BOUND_HIT ×14` under WP-1434's test needs #274's own
+  edge is conditional on the D1B file and the private neutron PSD scan
+  agreeing it is separable from a cliff, and re-measuring `BOUND_HIT ×14`
+  under WP-1434's test needs #274's own
   model, since **no** `BOUND_HIT` fires on the synthetic at all. (2) WP-1442
   should now import the selection rather than growing a second; its
   `Depends on` already says `1415 soft`. (3) If the D1B file ever enters
@@ -411,8 +416,8 @@ channels and a σ column at 0.3·√y reproduces both defects without it.
   names still exists: `SAMPLING_PROMINENCE_SIGMA`, `_median_steps_per_fwhm`,
   `sampling_steps_per_fwhm`, `signal_cutoffs` (still edge-only,
   `min_deg=CUTOFF_MIN_DEG=1.0`), `STEPS_PER_FWHM_MIN`/`MAX`. Neither the D1B
-  nor the D20 file is in `tests/data/`, so where the measurements come from is
-  the first thing to settle.
+  file nor the private neutron PSD scan is in `tests/data/`, so where the
+  measurements come from is the first thing to settle.
 
 - **2026-09-15** — created, from the 2026-09-15 issue triage (issues #274,
   #275). Grouped because one σ column smaller than √y breaks both, and the
