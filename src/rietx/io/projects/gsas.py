@@ -81,6 +81,7 @@ source was consulted.  See ``ATTRIBUTION.md``.
 
 from __future__ import annotations
 
+import contextvars
 import math
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -156,23 +157,49 @@ class _UnreadableField(GsasExpError):
     """
 
 
+#: The optional fields :func:`_num` read as absent because they overflowed,
+#: as ``(record key, first card column, end card column)``.  A list only
+#: inside a reader :func:`_naming_the_file` wraps; ``None`` outside one.
+_OVERFLOWS: contextvars.ContextVar[list[tuple[str, int, int]] | None] = (
+    contextvars.ContextVar("gsas_overflows", default=None))
+
+
 def _naming_the_file(error: type[ValueError]):
-    """Re-raise an :class:`_UnreadableField` as ``error``, the file named first.
+    """Re-raise an :class:`_UnreadableField` as ``error``, the file named first,
+    and report every optional field :func:`_num` read as an overflow.
 
     One wrapper at each reader's entry point rather than a ``path=`` threaded
     through every field read: the ``.EXP`` and ``.prm`` readers share
     :func:`read_icons` and :func:`read_prcf_header`, and each owns its own
-    refusal type.
+    refusal type.  The overflows go on the reader's own ``diagnostics=`` list
+    as ``GSAS_FIELD_OVERFLOW``, after whatever the reader appended itself.
     """
     import functools
 
     def wrap(reader):
         @functools.wraps(reader)
         def read(path, *args, **kwargs):
+            overflows: list[tuple[str, int, int]] = []
+            token = _OVERFLOWS.set(overflows)
             try:
-                return reader(path, *args, **kwargs)
+                result = reader(path, *args, **kwargs)
             except _UnreadableField as exc:
                 raise error(f"{Path(path).name}: {exc}") from None
+            finally:
+                _OVERFLOWS.reset(token)
+            diagnostics = kwargs.get("diagnostics")
+            if diagnostics is not None:
+                name = Path(path).name
+                for key, lo, hi in overflows:
+                    diagnostics.append(Diagnostic(
+                        level="warning", code="GSAS_FIELD_OVERFLOW",
+                        message=(
+                            f"{name}: record {key!r} holds only asterisks in "
+                            f"columns {lo}-{hi}, a Fortran overflow: GSAS had "
+                            f"the value and it was too wide for its field.  "
+                            f"The field is optional and is read as absent"),
+                        where=[key]))
+            return result
         return read
     return wrap
 
@@ -384,16 +411,23 @@ class GsasIcons:
         return tuple(w for w in (self.lam1, self.lam2) if w)
 
 
-def read_icons(payload: str) -> GsasIcons:
-    """Read one ``ICONS`` payload — the record past its 12-byte key."""
+def read_icons(payload: str, *,
+               required: tuple[str, ...] = ()) -> GsasIcons:
+    """Read one ``ICONS`` payload — the record past its 12-byte key.
+
+    ``required`` names the fields the caller refuses when blank, so that one
+    which overflowed is refused as an overflow (:func:`_num`) rather than
+    arriving as ``None`` and being refused as blank.
+    """
     return GsasIcons(
-        lam1=_num(payload, 0, 10),
+        lam1=_num(payload, 0, 10, required="lam1" in required),
         lam2=_num(payload, 10, 10),
         zero=_num(payload, 20, 10),
         # the three refine flags sit at 32-35; the zero-point's is the third
         refine_zero=_flag(payload, 34),
         damping=_int(payload, 39, 1),
-        polarization=_num(payload, 40, 10),
+        polarization=_num(payload, 40, 10,
+                          required="polarization" in required),
         polarization_type=_int(payload, 50, 5),
         ka2_ratio=_num(payload, 55, 10),
     )
@@ -457,7 +491,15 @@ class GsasHap:
     phase_fraction: float | None
     refine_phase_fraction: bool
     profile: GsasProfile | None
-    #: March-Dollase rows: (coefficient, (h, k, l), refined, kind)
+    #: March-Dollase rows: (coefficient, (h, k, l), refined, kind).  **Read at
+    #: ``FAP.EXP``'s layout, not the manual's.**  The manual prints ``PREFO`` as
+    #: ``4F10.5, 4X, A1, 2I5`` (flag at payload column 44, integers at 45 and
+    #: 50); the one file here writes five ``F10`` fields, ``3X``, two flag
+    #: letters and two ``I5``, and the two disagree.  This reads the file's:
+    #: the flag at 53, the integer at 55.  A record in the manual's layout
+    #: therefore reads its flag as ``False`` (column 53 falls inside its second
+    #: ``I5``).  Which quantity the first letter and first integer are is not
+    #: established by any file here, and nothing downstream reads either.
     preferred_orientation: tuple[tuple[float, tuple[float, float, float], bool, int], ...] = ()
     extinction: float | None = None
     refine_extinction: bool = False
@@ -602,7 +644,19 @@ def split_records(text: str) -> list[tuple[str, str]]:
             for ln in lines]
 
 
-def _num(payload: str, start: int, width: int) -> float | None:
+def _is_overflow(field: str) -> bool:
+    """Whether a fixed-width field is a Fortran formatted-output overflow.
+
+    A Fortran ``Fw.d`` or ``Iw`` edit descriptor given a value too wide for
+    ``w`` columns writes ``w`` asterisks instead.  So a field whose every
+    column is ``*`` is not garbage: the writer had a value and ran out of room
+    for it.  Two columns is the floor, since one ``*`` is as likely a stray.
+    """
+    return len(field) >= 2 and field == "*" * len(field)
+
+
+def _num(payload: str, start: int, width: int, *,
+         required: bool = False, edit: str = "F") -> float | None:
     """One fixed-width numeric field, or ``None`` when it is blank.
 
     Blank is the distinction this whole reader rests on: a field GSAS did not
@@ -622,8 +676,29 @@ def _num(payload: str, start: int, width: int) -> float | None:
     numbers, so no per-field test can tell them from two right-justified
     values.  Only a split that leaves one half unreadable (``1.2E`` / ``+02``)
     is caught.
+
+    **A Fortran overflow is the one written, unreadable field with a known
+    cause** (:func:`_is_overflow`: every column ``*``).  The record is neither
+    misaligned nor corrupt, and the refusal above would claim more than that
+    evidence allows, so the policy turns on ``required``:
+
+    * a **required** field (a cell edge, a coordinate, ``ICONS``'s ``LAM1`` in
+      a ``.prm``: anything :func:`_required` or a reader's own check refuses
+      when blank) is refused, and the message says overflow.  The value was
+      real and is gone, and no substitute is the file's;
+    * an **optional** field (an esd, a history ``RPOWD`` Rwp, anything whose
+      absence the reader already tolerates) reads as ``None``, as a blank one
+      does, and the reader reports it as ``GSAS_FIELD_OVERFLOW`` on its
+      ``diagnostics=`` list, naming the record key and the columns.  Refusing
+      the whole file over a lost esd would withhold every number the file
+      did state, and the diagnostic is what keeps "absent" from reading as
+      "the file left it out".
+
+    Read outside a reader :func:`_naming_the_file` wraps, an optional overflow
+    is ``None`` with nothing reported: there is no channel to report it on.
     """
-    chunk = payload[start:start + width].strip()
+    field = payload[start:start + width]
+    chunk = field.strip()
     if not chunk:
         return None
     try:
@@ -631,6 +706,17 @@ def _num(payload: str, start: int, width: int) -> float | None:
     except ValueError:
         key = getattr(payload, "key", None)
         record = f"record {key.strip()!r}" if key else "a record"
+        lo, hi = KEY_BYTES + start, KEY_BYTES + start + width
+        if _is_overflow(field):
+            if required:
+                raise _UnreadableField(
+                    f"{record} holds {chunk!r} in columns {lo}-{hi}, a "
+                    f"Fortran overflow: the value was too wide for its "
+                    f"{edit}{width} field.  GSAS had the value and did not write "
+                    f"it, and this field is not optional") from None
+            if (overflows := _OVERFLOWS.get()) is not None:
+                overflows.append((key.strip() if key else "?", lo, hi))
+            return None
         raise _UnreadableField(
             f"{record} holds {chunk!r} in columns {KEY_BYTES + start}-"
             f"{KEY_BYTES + start + width}, which is not a number.  A field GSAS "
@@ -640,8 +726,9 @@ def _num(payload: str, start: int, width: int) -> float | None:
         ) from None
 
 
-def _int(payload: str, start: int, width: int) -> int | None:
-    value = _num(payload, start, width)
+def _int(payload: str, start: int, width: int, *,
+         required: bool = False) -> int | None:
+    value = _num(payload, start, width, required=required, edit="I")
     return None if value is None else int(value)
 
 
@@ -678,10 +765,14 @@ class GsasPrcfHeader:
     flags: str
 
 
-def read_prcf_header(payload: str) -> GsasPrcfHeader:
-    """Read one ``PRCF`` header payload — the record past its 12-byte key."""
+def read_prcf_header(payload: str, *,
+                     required: tuple[str, ...] = ()) -> GsasPrcfHeader:
+    """Read one ``PRCF`` header payload — the record past its 12-byte key.
+
+    ``required`` as for :func:`read_icons`.
+    """
     return GsasPrcfHeader(
-        function=_int(payload, 0, 5),
+        function=_int(payload, 0, 5, required="function" in required),
         n_coefficients=_int(payload, 5, 5) or 0,
         cutoff=_num(payload, 10, 10),
         damping=_int(payload, 24, 1) or 0,
@@ -692,7 +783,7 @@ def read_prcf_header(payload: str) -> GsasPrcfHeader:
 def _profile(payload: str, coefficients: list[float], *, path: str,
              where: str) -> GsasProfile:
     """Build a :class:`GsasProfile` from a ``PRCF`` header and its coefficients."""
-    header = read_prcf_header(payload)
+    header = read_prcf_header(payload, required=("function",))
     function = header.function
     n_cof = header.n_coefficients
     cutoff = header.cutoff
@@ -780,11 +871,14 @@ def _continuation(block: dict[str, str], stem: str, *, path: str = "<model>",
             try:
                 values.append(float(chunk))
             except ValueError:
+                what = ("a Fortran overflow: the value was too wide for its "
+                        "E15 field" if _is_overflow(payload[i:i + 15])
+                        else "which is not a number")
                 raise GsasExpError(
                     f"{path}: {where or stem} record {suffix!r} holds "
-                    f"{chunk!r} at column {i + KEY_BYTES}, which is not a "
-                    f"number.  Skipping it would shift every later coefficient "
-                    f"onto the name of the one before it") from None
+                    f"{chunk!r} at column {i + KEY_BYTES}, {what}.  Skipping "
+                    f"it would shift every later coefficient onto the name of "
+                    f"the one before it") from None
     return values
 
 
@@ -821,14 +915,14 @@ def _read_phase(number: int, block: dict[str, str], path: str,
     volume = block.get("CELVOL", "")
     where = f"phase {number}'s cell"
     cell = GsasCell(
-        a=_required(_num(abc, 0, 10), path=path, where=where, what="a"),
-        b=_required(_num(abc, 10, 10), path=path, where=where, what="b"),
-        c=_required(_num(abc, 20, 10), path=path, where=where, what="c"),
-        alpha=_required(_num(angles, 0, 10), path=path, where=where,
+        a=_required(_num(abc, 0, 10, required=True), path=path, where=where, what="a"),
+        b=_required(_num(abc, 10, 10, required=True), path=path, where=where, what="b"),
+        c=_required(_num(abc, 20, 10, required=True), path=path, where=where, what="c"),
+        alpha=_required(_num(angles, 0, 10, required=True), path=path, where=where,
                         what="alpha"),
-        beta=_required(_num(angles, 10, 10), path=path, where=where,
+        beta=_required(_num(angles, 10, 10, required=True), path=path, where=where,
                        what="beta"),
-        gamma=_required(_num(angles, 20, 10), path=path, where=where,
+        gamma=_required(_num(angles, 20, 10, required=True), path=path, where=where,
                         what="gamma"),
         refined=_flag(abc, 34), damping=_int(abc, 39, 1) or 0,
         esd_a=_num(sig_abc, 0, 10), esd_b=_num(sig_abc, 10, 10),
@@ -860,10 +954,10 @@ def _read_phase(number: int, block: dict[str, str], path: str,
         atoms.append(GsasAtom(
             label=_text(head, 50, 8) or species,
             species=species,
-            x=_required(_num(head, 10, 10), path=path, where=site, what="x"),
-            y=_required(_num(head, 20, 10), path=path, where=site, what="y"),
-            z=_required(_num(head, 30, 10), path=path, where=site, what="z"),
-            occupancy=_required(_num(head, 40, 10), path=path, where=site,
+            x=_required(_num(head, 10, 10, required=True), path=path, where=site, what="x"),
+            y=_required(_num(head, 20, 10, required=True), path=path, where=site, what="y"),
+            z=_required(_num(head, 30, 10, required=True), path=path, where=site, what="z"),
+            occupancy=_required(_num(head, 40, 10, required=True), path=path, where=site,
                                 what="occupancy"),
             multiplicity=_int(head, 58, 4) or 0,
             uiso=uij[0] if isotropic else None,
@@ -1101,14 +1195,8 @@ def read_gsas_exp(path: str | Path, *,
         prefo = []
         for key in sorted(k for k in block if k.startswith("PREFO")):
             row = block[key]
-            # The file is the authority on the layout: ``FAP.EXP`` writes five
-            # F10 fields (ratio, h, k, l, and a fifth, 1.0 there), ``3X``, two
-            # flag letters and two ``I5``.  Read at a four-field layout (flag at
-            # 44, ``I5`` at 50), the flag was a digit of the fifth number and the
-            # integer was the letters ``NN``.  That was invisible only while
-            # :func:`_num` read unreadable text as a blank field.  Which
-            # quantity the first letter and first integer belong to is not
-            # established by any file here.
+            # The columns read, and why they are not the manual's, are in
+            # ``GsasHap.preferred_orientation``'s docstring.
             prefo.append((
                 _num(row, 0, 10) or 1.0,
                 (_num(row, 10, 10) or 0.0, _num(row, 20, 10) or 0.0,

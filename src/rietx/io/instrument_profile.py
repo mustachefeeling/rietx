@@ -705,13 +705,13 @@ def _read_icons(records: list[tuple[str, str]], p: Path) -> GsasIcons:
             f"{p.name}: expected exactly one ICONS record for bank 1, found "
             f"{len(payloads)} — a bank declaring its constants more than once "
             f"(or not at all) is ambiguous, not a single instrument")
-    icons = read_icons(payloads[0])
+    icons = read_icons(payloads[0], required=("lam1", "polarization"))
 
     if not icons.lam1:
         raise ValueError(
             f"{p.name}: bank 1's ICONS record states no primary wavelength "
-            f"(LAM1, columns 12-22) — the field is blank, and an instrument "
-            f"file without a wavelength describes no instrument")
+            f"(LAM1, columns 12-22) — the field is blank or zero, and an "
+            f"instrument file without a wavelength describes no instrument")
     if icons.polarization is None:
         raise ValueError(
             f"{p.name}: bank 1's ICONS record states no polarization (POLA, "
@@ -785,7 +785,7 @@ def _read_prcf(records: list[tuple[str, str]],
             f"than once (the one real example is a stock GSAS file stacking "
             f"types 2, 3 and 4 with placeholder values under one bank) is "
             f"ambiguous about which applies, not a richer instrument")
-    header = read_prcf_header(headers[0])
+    header = read_prcf_header(headers[0], required=("function",))
     prof_type, ncoef = header.function, header.n_coefficients
     if prof_type is None:
         raise ValueError(

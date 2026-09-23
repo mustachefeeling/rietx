@@ -667,7 +667,14 @@ The converse holds too. A field that is written but is not a number is not
 blank, and the read is refused rather than returning `None`. The message names
 the file, the record key, the card columns and the text. A record like that is
 misaligned or corrupt, so nothing on it can be trusted by column. The `.prm`
-reader shares the record grammar and refuses the same way. One case no
+reader shares the record grammar and refuses the same way. A field of nothing
+but asterisks is the exception with a known cause: it is Fortran's output for a
+value too wide for its field, so the writer had the number and ran out of
+columns. In a required field, such as a cell edge or a `.prm`'s `LAM1`, the
+read is refused and the message says overflow. In an optional one, such as an
+esd or the history Rwp, the field reads as `None` and the reader reports
+`GSAS_FIELD_OVERFLOW` on its `diagnostics=` list, naming the record and the
+columns. One case no
 per-field rule can catch: a number that spills across a field boundary and
 leaves two readable halves, such as a left-aligned `46.60` read as `46` and
 `.60`.

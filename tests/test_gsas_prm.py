@@ -1064,3 +1064,35 @@ def test_a_written_icons_field_that_is_not_a_number_is_refused(tmp_path):
     assert "'INS  1 ICONS'" in message
     assert "columns 52-62" in message
     assert "'0.9x90'" in message
+
+
+def test_an_overflowed_lam1_is_refused_as_an_overflow_not_as_blank(tmp_path):
+    """``LAM1`` is required, so its Fortran overflow is refused, and the
+    message names the overflow rather than calling the field blank.
+    """
+    icons = "*" * 10 + _icons()[10:]
+    p = tmp_path / "overflow.prm"
+    p.write_text(_prm(icons=icons), encoding="utf-8")
+    with pytest.raises(ValueError) as err:
+        read_gsas_prm(p)
+    message = str(err.value)
+    assert message.startswith("overflow.prm: ")
+    assert "columns 12-22" in message
+    assert "Fortran overflow: the value was too wide for its F10 field" in message
+    assert "blank" not in message
+
+
+def test_an_overflowed_kratio_is_absent_and_reported(tmp_path):
+    """``KRATIO`` is optional (a blank one states no ratio), so an overflow
+    reads as absent, with ``GSAS_FIELD_OVERFLOW`` on the reader's channel.
+    """
+    icons = _icons()
+    icons = icons[:55] + "*" * 10 + icons[65:]           # KRATIO, payload 55-65
+    p = tmp_path / "overflow.prm"
+    p.write_text(_prm(icons=icons), encoding="utf-8")
+    diagnostics: list = []
+    read_gsas_prm(p, diagnostics=diagnostics)
+    (d,) = [d for d in diagnostics if d.code == "GSAS_FIELD_OVERFLOW"]
+    assert d.level == "warning"
+    assert d.where == ["INS  1 ICONS"]
+    assert "columns 67-77" in d.message

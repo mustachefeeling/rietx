@@ -1128,3 +1128,69 @@ def test_preferred_orientation_is_read_at_the_columns_the_file_writes(fap):
     """
     rows = fap.hap[(1, 1)].preferred_orientation
     assert rows == ((1.0, (1.0, 0.0, 0.0), False, 0),)
+
+
+# ------------------------------------------- a Fortran overflow is named
+
+def _fap_with(tmp_path, name, key, start, width):
+    """``FAP.EXP`` with one field overwritten by the asterisks Fortran writes
+    for a value too wide for its edit descriptor.  ``start`` is the payload
+    column, the card column less the 12-byte key.
+    """
+    lines = FAP.read_bytes().decode("latin-1").split("\r\n")
+    (i,) = [n for n, ln in enumerate(lines) if ln.startswith(key)]
+    col = 12 + start
+    lines[i] = lines[i][:col] + "*" * width + lines[i][col + width:]
+    path = tmp_path / name
+    path.write_bytes("\r\n".join(lines).encode("latin-1"))
+    return path
+
+
+def test_an_overflowed_required_field_is_refused_as_an_overflow(tmp_path):
+    """A cell edge of asterisks is not a misaligned record: GSAS had the value
+    and ran out of columns.  Required, so refused, and the message says why.
+    """
+    path = _fap_with(tmp_path, "overflow.EXP", "CRS1  ABC   ", 10, 10)
+    with pytest.raises(GsasExpError) as err:
+        read_gsas_exp(path)
+    message = str(err.value)
+    assert message.startswith("overflow.EXP: ")
+    assert "'CRS1  ABC'" in message and "columns 22-32" in message
+    assert "Fortran overflow: the value was too wide for its F10 field" in message
+    assert "misaligned" not in message and "corrupt" not in message
+
+
+@pytest.mark.parametrize("key, start, what", [
+    ("CRS1  ABCSIG", 10, "esd_b"),
+    (" REFN RPOWD ", 0, "rwp"),
+])
+def test_an_overflowed_optional_field_is_absent_and_reported(tmp_path, key,
+                                                             start, what):
+    """An esd or the history Rwp: the reader tolerates its absence, so an
+    overflow reads as ``None`` — and says so, because a silent ``None`` would
+    read as the file having left the field out.
+    """
+    path = _fap_with(tmp_path, "overflow.EXP", key, start, 10)
+    diagnostics: list = []
+    model = read_gsas_exp(path, diagnostics=diagnostics)
+    value = (model.phases[0].cell.esd_b if what == "esd_b" else model.rwp)
+    assert value is None
+    reference = read_gsas_exp(FAP)
+    assert reference.phases[0].cell.esd_b is not None and reference.rwp
+    found = [d for d in diagnostics if d.code == "GSAS_FIELD_OVERFLOW"]
+    assert len(found) == 1
+    (d,) = found
+    assert d.level == "warning"
+    assert d.where == [key.strip()]
+    assert d.message.startswith("overflow.EXP: ")
+    assert f"columns {12 + start}-{22 + start}" in d.message
+    assert "Fortran overflow" in d.message
+    # the rest of the file is read as it was
+    assert model.phases[0].cell.a == reference.phases[0].cell.a
+    assert not [d for d in _diagnostics(FAP) if d.code == "GSAS_FIELD_OVERFLOW"]
+
+
+def _diagnostics(path):
+    out: list = []
+    read_gsas_exp(path, diagnostics=out)
+    return out
