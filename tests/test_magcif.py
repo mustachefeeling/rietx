@@ -454,6 +454,54 @@ def test_the_ion_and_the_g_round_trip_through_the_two_private_items(tmp_path):
     assert (back.ion, back.g) == ("Mn3+", 1.98)
 
 
+def test_a_g_with_twelve_significant_digits_round_trips_exactly(tmp_path):
+    """The g is written at ``repr`` precision, not to six figures.
+
+    An assumed Hund's-rule g_J is a rational — Nd3+'s is 8/11 — whose decimal
+    does not end in six significant figures, so a ``:.6g`` writer returned it
+    3.7e-7 to 2.9e-6 off on 156 MAGNDATA entries: a form-factor weight lost on
+    the first trip and then stable, which a byte comparison of two writes
+    alone cannot see.
+    """
+    structure = _read(tmp_path, "LaMnO3")
+    atom = structure.phases[0].atoms[1]
+    structure.phases[0].atoms[1] = atom.model_copy(update={
+        "moment": atom.moment.model_copy(update={"g": 0.727272727273})})
+    out1 = tmp_path / "one.cif"
+    structure_to_cif(structure, str(out1))
+    second = structure_from_cif(str(out1))
+    out2 = tmp_path / "two.cif"
+    structure_to_cif(second, str(out2))
+    assert second.phases[0].atoms[1].moment.g == 0.727272727273
+    assert _stored(structure.phases[0]) == _stored(second.phases[0])
+    assert out1.read_bytes() == out2.read_bytes()
+
+
+def test_the_first_read_of_a_su_is_the_double_a_second_read_gives(tmp_path):
+    """``3.7000(3)`` reads an esd of 0.0003 — the nearest double — on the first
+    read, and the writer's ``0.00030`` reads the same double back.
+
+    Multiplying by ``10.0 ** -4`` rounds twice and landed 1 ulp high
+    (0.00030000000000000003), so a read -> write -> read moved every such esd
+    once; dividing by ``10 ** 4`` is a single correctly-rounded operation.
+    """
+    import gemmi
+
+    loop = _moment_loop([("Mn1", "3.7000(3)", "0.0(3)", "0.00000", "mx,my,mz")])
+    structure = _read(tmp_path, "LaMnO3", moment_loop=loop)
+    first = structure.phases[0].atoms[1].moment
+    out = tmp_path / "rt.cif"
+    structure_to_cif(structure, str(out))
+    block = gemmi.cif.read(str(out)).sole_block()
+    written = [float(block.find_values(f"_atom_site_moment.crystalaxis_{n}_su")[0])
+               for n in "xy"]
+    second = structure_from_cif(str(out)).phases[0].atoms[1].moment
+    for n, w in zip("xy", written):
+        assert (getattr(first, f"crystalaxis_{n}").stderr
+                == getattr(second, f"crystalaxis_{n}").stderr == w)
+    assert written == [0.0003, 0.3]
+
+
 def test_a_caller_supplied_ion_beats_the_files_own(tmp_path):
     """``moment_ions=`` overrides what the file wrote, and the file's own
     private item overrides nothing else.

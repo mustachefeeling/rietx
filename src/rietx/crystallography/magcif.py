@@ -230,7 +230,10 @@ def parse_su(text: str) -> tuple[float, float | None]:
             f"{text!r} writes a standard uncertainty on a number in "
             f"exponential notation; the su's place is then ambiguous and this "
             f"reader refuses it rather than pick a decade")
-    return value, int(m.group(2)) * 10.0 ** (-decimals)
+    # su / 10**decimals is one correctly-rounded division, so 3.7(3) reads
+    # 0.3 — the double the writer's "0.30000" reads back as; multiplying by
+    # 10.0**-decimals rounds twice and lands 1 ulp off
+    return value, int(m.group(2)) / 10 ** decimals
 
 
 # ---------------------------------------------------------------------------
@@ -1013,7 +1016,7 @@ def write_magnetic_block(block, phase, *,
     loop = block.init_loop("_rietx_atom_site_moment.", ["label", "ion", "g"])
     for atom in sites:
         loop.add_row([atom.label, _quote(atom.moment.ion),
-                      "." if atom.moment.g is None else f"{atom.moment.g:.6g}"])
+                      "." if atom.moment.g is None else repr(atom.moment.g)])
 
 
 def _quote(text: str) -> str:
