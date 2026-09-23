@@ -181,6 +181,11 @@ _PRCF_FIELDS = ((13, 17, "PTYP"), (18, 22, "NCOF"), (23, 32, "CTOF"))
 _E15_FIELDS = tuple((13 + 15 * k, 27 + 15 * k, f"coefficient field {k + 1}")
                     for k in range(4))
 
+#: The one sentence a strict refusal adds for the legacy LANSCE layout.
+_LEGACY_POINTER = (". An 8-coefficient type-1 block is the legacy LANSCE "
+                   "layout, read on request by "
+                   "rietx.io.legacy.read_lansce_iparm")
+
 #: .instprm keys mapped onto the schema.
 _INSTPRM_SOURCE = {"difC": "difc", "difA": "difa", "difB": "difb", "Zero": "tzero"}
 _INSTPRM_PROFILE = {"alpha": "alpha1", "beta-0": "beta0", "beta-1": "beta1",
@@ -452,7 +457,8 @@ def _profile(path: Path, bank: int, headers: dict[int, _Record],
                     f"coefficients; the manual documents {want} for function "
                     f"{ptyp}, and a block of another length is refused — never "
                     f"zero-padded or truncated — because the order of its "
-                    f"slots would be a guess")
+                    f"slots would be a guess"
+                    + (_LEGACY_POINTER if (ptyp, ncof) == (1, 8) else ""))
         if n != 1:
             _note(diagnostics, "info", "GSAS_IPARM_PROFILE_DECLINED",
                   f"bank {bank}: PRCF set {n} (profile function {ptyp}) is not "
@@ -519,12 +525,24 @@ def read_gsas_tof_iparm(path: str | Path, *,
     in the schema); what is *returned* never depends on whether it was given.
     """
     path = Path(path)
+    return _banks_from_records(path, _read_records(path), diagnostics)
+
+
+def _banks_from_records(path: Path, records: list[tuple[str, str]],
+                        diagnostics) -> dict[int, Instrument]:
+    """:func:`read_gsas_tof_iparm` on records already split from ``path``.
+
+    The one body of the strict reader, and the seam
+    :mod:`rietx.io.legacy.lansce_iparm` hands a restated record list to, so
+    a legacy layout is checked by exactly the columns and refusals a
+    documented file is.  ``path`` is only ever quoted in messages.
+    """
     nbank: int | None = None
     htype: str | None = None
     whole_dropped: list[str] = []
     banks: dict[int, dict] = {}
 
-    for number, (key, payload) in enumerate(_read_records(path), start=1):
+    for number, (key, payload) in enumerate(records, start=1):
         line = key + payload
         if not line.startswith("INS "):
             continue
