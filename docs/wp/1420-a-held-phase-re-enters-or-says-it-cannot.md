@@ -123,6 +123,19 @@ down.
 
 ### Inherited
 
+**From WP-1333 (2026-09-23): the ramp reproduction's wall-clock guard is a
+load sensor.** `tests/test_held_phase.py::test_the_ramp_reproduction_no_longer_runs_away`
+failed in WP-1333's full run (`[dev]`, Linux x86-64, 4 cores, 1:24:44). It
+passed alone, and in that session's slow-series run. Measured serially, the
+chain takes 9.1 s compiled and 11.2 s on the numpy path, against its 60 s
+`RAMP_RUNAWAY_GUARD_S`, with 1609 and 1659 iterations against the 2164 bar. So
+every deterministic assertion holds on both paths, and only the guard can
+move with load, on a run whose fixtures were up to 3.4× slower than CI's
+nightly. About 6× margin is under what `tests/CLAUDE.md` § Budgets calls
+several times, and this WP will add rows to that file, so it is the one to
+widen the guard or move the claim to the iteration count, which already
+carries it.
+
 **From WP-1333 (2026-09-22).** The chain now says one of this WP's silences
 out loud. `SEQUENTIAL_PATH_CHECK_INCOMPLETE` at `info` names every path some
 chain measured that no pattern could judge in the `direction="both"`
