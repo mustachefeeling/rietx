@@ -26,8 +26,8 @@ Readers and constructors. `rx.read_pattern` opens every format `rx.capabilities(
 - `rx.read_pattern(path: str | Path, *, diagnostics: list[Diagnostic] | None = None, **options: Any) -> PatternData` — Read any supported pattern file, dispatching on *content* first.
 - `rx.read_pdcif(path: str | Path, *, block: str | None = None, diagnostics: list[Diagnostic] | None = None) -> PatternData` — Read a powder pattern from a pdCIF file.
 - `rx.read_recipe(source: str | Path | dict, *, diagnostics: list[Diagnostic] | None = None) -> Recipe` — Read a PowderLine `GSASII_Rietveld` recipe.
-- `rx.read_gsas_tof_iparm(path: str | Path, *, diagnostics: list[Diagnostic] | None = None) -> dict[int, Instrument]` — A GSAS-I TOF instrument-parameter file, **one Instrument per bank**.
-- `rx.read_gsas2_instprm_tof(path: str | Path, *, diagnostics: list[Diagnostic] | None = None) -> Instrument` — A GSAS-II `.instprm` time-of-flight bank, as a **frozen** Instrument.
+- `rx.read_gsas_tof_iparm(path: str | Path, *, diagnostics: list[Diagnostic] | None = None) -> dict[int, Instrument]` — Read a GSAS-I TOF instrument-parameter file: `{bank number: Instrument}`.
+- `rx.read_gsas2_instprm_tof(path: str | Path, *, diagnostics: list[Diagnostic] | None = None) -> Instrument` — Read a GSAS-II time-of-flight `.instprm` as one frozen `Instrument`.
 - `rx.read_gsas_prm(path: str | Path, *, diagnostics: list[Diagnostic] | None = None) -> Instrument` — Read a GSAS-I `.prm` instrument-parameter file as a **frozen** `Instrument`.
 - `rx.write_gsas_prm(instrument: Instrument, path: str | Path, *, header: str = '', diagnostics: list[Diagnostic] | None = None)` — Write `instrument` to `path` as a GSAS-I `.prm`.
 - `rx.read_project_model(path: str | Path, *, diagnostics: list[Diagnostic] | None = None) -> ProjectModel` — Read a refinement another program wrote, dispatching on *content*.

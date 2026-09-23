@@ -467,40 +467,24 @@ makes).
 - **The calibration is never in the data file** — no DIFC in any GSAS
   bintype — so a pattern out of `formats/gsas.py` reads in microseconds with
   no way back to a d-spacing until one of these readers runs.
-- **Records are split by the shared card grammar and read by column**:
-  `projects/gsas.split_records` gives the 12-character key and the payload
-  (the same columns as the `.EXP` and CW `.prm` readers), and every field is
-  then read at the manual's FORTRAN columns (GSAS Technical Manual p. 221-223)
-  by the module's own parser, which **refuses** a non-numeric field where
-  `gsas._num` reads it as blank. A header is found structurally, never from
-  its values; a value outside its field is a misread, not a tolerance.
-- **One instrument per bank, returned as a dict** — TOF's several banks are
-  what the instrument *is* (unlike the CW `read_gsas_prm`, which refuses a
-  multi-bank file), so picking one would be the silent-selection failure.
-- **Strict to the documented layout, refused by name otherwise.** `PRCF` set
-  1 is the default whatever its `PTYP`, and a set numbered outside 1…9 is
-  refused; `NCOF` must be the documented 12 / 15 / 21 for `PTYP` 1 / 2 / 3,
-  never padded or truncated; a default set of a function the package does not
-  evaluate (2, 4, 5) is refused, a non-default one reported
-  (`GSAS_IPARM_PROFILE_DECLINED`) and skipped; a non-zero anisotropic or
-  peak-shift coefficient is refused, not dropped. `ICOFF` for ITYP 1/2 must
-  have a zero fifth pair (P10, P11), because its exponent is unpublished.
-  So a file shaped like the old LANSCE fixtures (8-coefficient type-1 `PRCF`,
-  a non-zero fifth pair) is **refused**; admitting one needs a published
-  source for the layout, not a second reader's agreement.
-- **A bank with no `PRCF` set is read with a declined profile** — an
-  all-zero `ProfileTOF` that `compile_tof_model` refuses by name, so the
-  calibration is usable and a fit on it cannot run silently.
-- **`.instprm` grammar is observed, not specified**, and is *not* the CW
-  reader's `projects/gsas2.read_instprm` (which opens banks on `#`, splits on
-  `;` and strips spaces): one bank, `#` comments, `key:value`, a repeated key
-  refused. Keys without a published TOF law (`beta-q`, `sig-q`, `Z`, `X`,
-  `Y`, and the CW names) are accepted only at exactly zero. **`difB` is read
-  because dropping it is silent** — it moves every peak of a project that
-  sets it; GSAS-I has no DIFB field, so it is 0 there.
-- **Physics stays in `model/`**: spectrum laws and refusals are
-  `model/tof_spectrum.py`'s, profile laws `model/profiles/tof.py`'s; this
-  module maps records onto them and never evaluates a coefficient law.
+- **Records are split by the shared card grammar, fields read by column**:
+  `projects/gsas.split_records` gives key and payload; each field is read at
+  the manual's FORTRAN columns by this module's own parser, which refuses a
+  non-numeric field (`gsas._num` reads it as blank). A value outside its
+  field is a misread, not a tolerance.
+- **One instrument per bank, returned as a dict** — several banks are what a
+  TOF instrument *is*, so picking one is the silent-selection failure.
+- **Strict to the documented layout, refused by name otherwise**: set 1 the
+  default whatever its `PTYP`; `NCOF` exactly 12 / 15 / 21; a default PTYP
+  2/4/5 refused, a non-default set declined; a non-zero anisotropic term or
+  ITYP 1/2 fifth `ICOFF` pair refused. A LANSCE-shaped file (8-slot type-1
+  `PRCF`) is **refused** until a published source states that layout. A bank
+  with no `PRCF` reads with an all-zero `ProfileTOF` that `compile_tof_model`
+  refuses by name.
+- **`.instprm` grammar is observed, not specified**, and is not
+  `projects/gsas2.read_instprm`'s: keys with no published TOF law are
+  accepted only at exactly zero; **`difB` is read because dropping it is
+  silent**. Coefficient laws and spectrum refusals stay in `model/`.
 
 ## Project writers
 
