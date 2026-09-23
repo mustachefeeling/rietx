@@ -57,6 +57,40 @@ machinery, so a non-zero one is refused rather than dropped.  ``CTOF`` is "a
 cutoff factor" (p. 223) and nothing more in the manual: it is read, reported,
 and never used to set a window.
 
+**Column overrun.**  Reading by column, a value written one field too wide
+is silently *truncated*: ``46.60`` placed in columns 30-34 leaves ``46.`` in
+TTHETA's columns 23-32, which reads as 46.0.  So every parsed record (BANK,
+ICONS, BNKPAR, I ITYP, ICOFF/IECOF, the default PRCF set's header and
+coefficient records) is tested at each field boundary, a ``10X`` skip and the
+columns after the last field (to 80) counting as spans a right-aligned
+writer leaves blank.  At a boundary where the left span's last column **and**
+the right span's first column are both non-blank, the pair is two packed
+full-width fields only if the right span holds no blank at all — a
+right-aligned field whose first column is occupied is full.  Any blank in
+the right span means a token began on the left and stopped inside the right
+span, which no right-aligned field produces, and the record is refused
+naming its key, both fields' columns and the raw text.  Blank fields keep
+their FORTRAN reading of zero.
+
+What this cannot see, stated rather than hidden:
+
+* **an overrun that ends exactly on a field boundary** — ``       46.`` then
+  ``6000000000`` is, character for character, two full-width fields, and the
+  two halves read as 46.0 and 6000000000;
+* **a whole-field shift** — a value placed entirely inside the wrong field,
+  left- or right-aligned, crosses no boundary and reads as a well-formed
+  number in the wrong slot (a TTHETA moved into TILT's columns reads TTHETA
+  as blank, i.e. zero);
+* **mixed alignment is refused though FORTRAN would read it**: a full
+  right-aligned field followed by a *left*-aligned one (``      2.5046.60``)
+  is legal FORTRAN input (blanks in a numeric field are null by default),
+  but on the page it is the overrun's signature, and right-aligning the
+  second value costs nothing.
+
+``HTYPE`` is text, not a number, and is not tested; a shifted histogram type
+already fails the ``PNT`` test.  The ``.instprm`` reader splits ``key:value``
+lines and slices no columns, so none of this applies to it.
+
 GSAS-II ``.instprm`` — :func:`read_gsas2_instprm`
 ------------------------------------------------
 The published GSAS-II documentation names the TOF parameters
@@ -130,6 +164,23 @@ _PRCF_NOT_EVALUATED: dict[int, str] = {
     5: "profile function 5 (manual p. 155)",
 }
 
+#: Each parsed record's FORTRAN layout as contiguous ``(first, last, name)``
+#: column spans (GSAS Technical Manual p. 221-223; SPEC § 6.1) — what
+#: :meth:`_Record.check_columns` tests for a number crossing a boundary.  A
+#: ``10X`` skip is a span too: a right-aligned writer leaves it blank.
+_BANK_FIELDS = ((13, 17, "NBANK"),)
+_ICONS_FIELDS = ((13, 22, "DIFC"), (23, 32, "DIFA"), (33, 42, "ZERO"),
+                 (43, 52, "the 10X skip"), (53, 62, "POLA"), (63, 67, "IPOLA"),
+                 (68, 77, "KRATIO"))
+_BNKPAR_FIELDS = ((13, 22, "DIST"), (23, 32, "TTHETA"), (33, 42, "TILT"),
+                  (43, 52, "SEPN"), (53, 62, "HGHT"), (63, 67, "NTUBE"),
+                  (68, 72, "ITUBE"))
+_ITYP_FIELDS = ((13, 17, "ITYP"), (18, 27, "TMIN"), (28, 37, "TMAX"),
+                (38, 47, "CHKSUM"))
+_PRCF_FIELDS = ((13, 17, "PTYP"), (18, 22, "NCOF"), (23, 32, "CTOF"))
+_E15_FIELDS = tuple((13 + 15 * k, 27 + 15 * k, f"coefficient field {k + 1}")
+                    for k in range(4))
+
 #: .instprm keys mapped onto the schema.
 _INSTPRM_SOURCE = {"difC": "difc", "difA": "difa", "difB": "difb", "Zero": "tzero"}
 _INSTPRM_PROFILE = {"alpha": "alpha1", "beta-0": "beta0", "beta-1": "beta1",
@@ -186,7 +237,40 @@ class _Record:
 
     def e15_block(self) -> list[str]:
         """The four 4E15.6 fields (columns 13-72), raw."""
+        self.check_columns(_E15_FIELDS)
         return [self.cols(13 + 15 * k, 27 + 15 * k) for k in range(4)]
+
+    def check_columns(self, fields: tuple[tuple[int, int, str], ...]) -> None:
+        """Refuse a number that runs across a field boundary (module docstring,
+        § Column overrun).
+
+        ``fields`` is the record's FORTRAN layout as contiguous ``(first, last,
+        name)`` spans from column 13; the columns after the last field, to 80,
+        are one more span a right-aligned writer leaves blank.  At each
+        boundary, a non-blank last column on the left beside a non-blank first
+        column on the right is two full fields only if the right span holds no
+        blank at all; any blank in it means a token began on the left and
+        stopped short of the right span's end, which no right-aligned field
+        produces.
+        """
+        spans = list(fields)
+        if spans[-1][1] < 80:
+            spans.append((spans[-1][1] + 1, 80, "the columns after the last field"))
+        for (a1, b1, n1), (a2, b2, n2) in zip(spans, spans[1:]):
+            left, right = self.cols(a1, b1), self.cols(a2, b2)
+            if left[-1] == " " or right[0] == " " or " " not in right:
+                continue
+            start = b1
+            while start > a1 and self.text[start - 2] != " ":
+                start -= 1
+            end = a2 + right.index(" ") - 1
+            raise self.fail(
+                f"the text {self.text[start - 1:end]!r} in columns {start}-{end} "
+                f"runs across the boundary between {n1} (columns {a1}-{b1}) and "
+                f"{n2} (columns {a2}-{b2}). Read by column, {n1} would be "
+                f"{left.strip()!r} and {n2} would begin {right.strip()!r} — a "
+                f"misaligned field, refused rather than read as a truncated "
+                f"number; right-align each value inside its columns")
 
 
 def _read_records(path: Path) -> list[tuple[str, str]]:
@@ -282,6 +366,7 @@ def _spectrum(path: Path, bank: int, ityp_rec: _Record | None,
             raise ValueError(f"{path}: bank {bank} has ICOFF records and no "
                              f"'I ITYP' record to say which function they are")
         return IncidentSpectrum()
+    ityp_rec.check_columns(_ITYP_FIELDS)
     itype = ityp_rec.integer(13, 17, "ITYP")
     tmin = ityp_rec.number(18, 27, "TMIN")
     tmax = ityp_rec.number(28, 37, "TMAX")
@@ -352,6 +437,7 @@ def _profile(path: Path, bank: int, headers: dict[int, _Record],
     chosen: ProfileTOF | None = None
     for n in sorted(headers):
         rec = headers[n]
+        rec.check_columns(_PRCF_FIELDS)
         ptyp = rec.integer(13, 17, "PTYP")
         ncof = rec.integer(18, 22, "NCOF")
         ctof = rec.number(23, 32, "CTOF")
@@ -448,6 +534,7 @@ def read_gsas_tof_iparm(path: str | Path, *,
         if not bb.strip():
             key = name.strip()
             if key == "BANK":
+                rec.check_columns(_BANK_FIELDS)
                 nbank = rec.integer(13, 17, "NBANK")
             elif key == "HTYPE":
                 htype = rec.cols(15, 18).strip()
@@ -511,6 +598,7 @@ def read_gsas_tof_iparm(path: str | Path, *,
             raise ValueError(f"{path}: NBANK is {nbank} and bank {b} has no "
                              f"ICONS record")
         icons = bank["icons"]
+        icons.check_columns(_ICONS_FIELDS)
         difc = icons.number(13, 22, "DIFC")
         difa = icons.number(23, 32, "DIFA")
         zero = icons.number(33, 42, "ZERO")
@@ -525,6 +613,7 @@ def read_gsas_tof_iparm(path: str | Path, *,
                              f"scattering angle is unknown — DIFC alone is one "
                              f"number from two and does not give the angle back")
         bnkpar = bank["bnkpar"]
+        bnkpar.check_columns(_BNKPAR_FIELDS)
         dist = bnkpar.number(13, 22, "DIST")
         ttheta = bnkpar.number(23, 32, "TTHETA")
         dropped = list(bank["dropped"])

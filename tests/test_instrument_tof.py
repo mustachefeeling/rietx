@@ -219,6 +219,89 @@ def test_a_bank_with_no_angle_is_refused(tmp_path):
         read_gsas_tof_iparm(write(tmp_path, iparm(b)))
 
 
+def _with(b, key, line):
+    """``b`` with the record whose key contains ``key`` replaced by ``line``."""
+    return [line if key in old[:12] else old for old in b]
+
+
+def test_a_number_running_across_a_field_boundary_is_refused(tmp_path):
+    """Module docstring § Column overrun: the phase-C fixture wrote TTHETA
+    ``46.60`` in columns 30-34, so TTHETA's own columns 23-32 held ``46.``
+    and read 46.0 with no word said.  It is refused, naming the record, both
+    fields' columns and the raw text."""
+    b = _with(bank(1), "BNKPAR", rec("INS  1BNKPAR", (13, f10(2.5)), (30, "46.60")))
+    with pytest.raises(ValueError, match=r"'INS  1BNKPAR'.*'46\.60' in columns "
+                                         r"30-34.*TTHETA \(columns 23-32\).*TILT "
+                                         r"\(columns 33-42\)"):
+        read_gsas_tof_iparm(write(tmp_path, iparm(b)))
+
+
+def test_the_right_aligned_phase_c_record_reads_its_angle(tmp_path):
+    """The same record right-aligned, as the corrected fixture writes it."""
+    b = _with(bank(1), "BNKPAR", "INS  1BNKPAR      2.50     46.60")
+    src = read_gsas_tof_iparm(write(tmp_path, iparm(b)))[1].source
+    assert (src.two_theta_bank_deg, src.l2_m) == (46.60, 2.5)
+
+
+def test_packed_full_width_fields_are_two_numbers(tmp_path):
+    """A right-aligned field whose first column is occupied is full, so two
+    fields touching with no blank anywhere in the right one are read as two —
+    the class the check cannot tell from an overrun ending on a boundary."""
+    b = _with(bank(1), "BNKPAR", rec("INS  1BNKPAR", (13, f10(2.5)),
+                                     (23, "46.6000000")))
+    coeffs = [0.45, 0.055, 0.003, 1.0]
+    full = rec("INS  1PRCF11", *((13 + 15 * k, f"{v:15.9E}")
+                                 for k, v in enumerate(coeffs)))
+    assert all(len(f"{v:15.9E}") == 15 for v in coeffs)
+    b = _with(b, "PRCF11", full)
+    src = read_gsas_tof_iparm(write(tmp_path, iparm(b)))[1].source
+    assert src.two_theta_bank_deg == 46.6
+    assert (src.profile_tof.alpha1.value, src.profile_tof.sig0.value) == (0.45, 1.0)
+
+
+def test_a_blank_field_still_reads_as_zero(tmp_path):
+    """The check is about occupied columns; a blank DIST keeps the FORTRAN
+    reading of zero, which the reader carries as no flight path."""
+    b = _with(bank(1), "BNKPAR", rec("INS  1BNKPAR", (23, f10(46.6))))
+    src = read_gsas_tof_iparm(write(tmp_path, iparm(b)))[1].source
+    assert (src.two_theta_bank_deg, src.l2_m) == (46.6, None)
+
+
+@pytest.mark.parametrize("key, line, fields", [
+    ("BANK", rec("INS   BANK  ", (17, "12")), "NBANK"),
+    (" ICONS", rec("INS  1 ICONS", (13, "   6911.21"), (23, "3"), (33, f10(-19.42))),
+     "DIFC"),
+    (" ICONS", rec("INS  1 ICONS", (13, f10(6911.21)), (23, f10(-2.79)),
+                   (38, "-19.42")), "ZERO .columns 33-42. and the 10X skip"),
+    ("BNKPAR", rec("INS  1BNKPAR", (13, f10(2.5)), (23, f10(46.6)), (63, "    1"),
+                   (68, "    12"), (74, "3")), "ITUBE"),
+    ("PRCF1 ", rec("INS  1PRCF1 ", (13, "    3"), (18, "   21"), (23, "0.01")),
+     "NCOF .columns 18-22. and CTOF"),
+    ("PRCF11", rec("INS  1PRCF11", (13, e15(0.45)), (28, e15(0.055)),
+                   (43, "3.000000E-03"), (58, e15(1.0))), "coefficient field 2"),
+])
+def test_every_parsed_record_is_checked(tmp_path, key, line, fields):
+    """Every fixed-column record the reader parses carries the check, the
+    columns after the last field included."""
+    text = iparm(bank(1)).splitlines()
+    text = [line if key in old[:12] else old for old in text]
+    with pytest.raises(ValueError, match=f"runs across the boundary.*{fields}"):
+        read_gsas_tof_iparm(write(tmp_path, "\n".join(text) + "\n"))
+
+
+def test_the_spectrum_records_are_checked(tmp_path):
+    """I ITYP and the ICOFF block (spectrum records) carry the check too."""
+    spec = spectrum_records(1, 1, ELEVEN)
+    spec[0] = rec("INS  1I ITYP", (13, "    1"), (18, "   8.00001"), (28, "5"))
+    with pytest.raises(ValueError, match="runs across.*TMIN"):
+        read_gsas_tof_iparm(write(tmp_path, iparm(bank(1, spectrum=spec))))
+    spec = spectrum_records(1, 1, ELEVEN)
+    spec[1] = spec[1][:72] + "12"
+    with pytest.raises(ValueError, match="runs across.*coefficient field 4.*after "
+                                         "the last field"):
+        read_gsas_tof_iparm(write(tmp_path, iparm(bank(1, spectrum=spec))))
+
+
 def test_nbank_and_the_banks_present_must_agree(tmp_path):
     """SPEC § 6.1: the per-bank records repeat for each of NBANK banks."""
     with pytest.raises(ValueError, match="bank 2 has no ICONS"):

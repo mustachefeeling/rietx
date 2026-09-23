@@ -176,6 +176,22 @@ refuses by name, so a fit on it stops instead of running on a profile nobody
 read. A GSAS-II `.instprm` names each coefficient, so its profile is read; a
 key with no published time-of-flight law is accepted only at exactly zero.
 
+The GSAS-I file is read by column, so a value written one field too wide
+would be cut short: `46.60` placed in columns 30–34 leaves `46.` in TTHETA's
+columns 23–32. Every record the reader parses is therefore checked at each
+field boundary. Where the last column of one field and the first column of
+the next are both occupied and the next field still has a blank in it, a
+number has run across the boundary. No right-aligned file produces that, so
+the record is refused with its key, both fields' columns and the raw text.
+A blank field still reads as zero. Two misalignments cannot be seen this way.
+One is an overrun that ends exactly on a field boundary: `       46.` then
+`6000000000` is the same text as two full-width fields. The other is a value
+moved wholly into the wrong field, which reads as a well-formed number in the
+wrong slot. The price of the check is that a full field followed directly by
+a *left*-aligned one (`      2.5046.60`) is refused, although FORTRAN would
+read it; right-align the second value. A `.instprm` is `key:value` lines, not
+columns, and is not affected.
+
 Weights follow from all this. The package uses the file's esd column when the
 file has one, and Poisson σ = √max(y, 1) only as the fallback. It never
 subtracts an estimated background: hold the background additively
