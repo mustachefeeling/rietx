@@ -1,6 +1,6 @@
 # WP-1421 — the result reproduces its own number
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: ⬜ — tasks 1 and 3-5 landed from outside under shape (a) (PR #432); tasks 2 and 6 open in part
 Depends on: — (1310 soft: it owns which vector reaches the final diagnostics)
 Priority: P3 2026-09-23 — a number a reader cannot reproduce by a margin the record already calls staleness
 
@@ -116,17 +116,17 @@ comparing them can say they agree.
 
 ## Tasks
 
-- [ ] Measure: for every acceptance fixture and every golden, χ² and Rwp on
+- [x] Measure: for every acceptance fixture and every golden, χ² and Rwp on
       the last stage's compile against a fresh compile at θ\*. The table
       goes in the handover and decides (a).
 - [ ] The statistics block says which compile produced it, and carries the
       fresh-compile χ² when one was measured. The writer is named at review
       (1076).
-- [ ] Decide (a) from the table. If taken, one compile after the last stage,
+- [x] Decide (a) from the table. If taken, one compile after the last stage,
       and the goldens regenerated in the same commit with the diff quoted.
-- [ ] `using/history.md`'s staleness sentence and the results chapter say
+- [x] `using/history.md`'s staleness sentence and the results chapter say
       which compile a result's statistics come from.
-- [ ] Tests: a fixture whose last stage moves a window-sizing parameter
+- [x] Tests: a fixture whose last stage moves a window-sizing parameter
       asserts the statement; under (b) every golden stays bit-identical.
 - [ ] Skill: a `references/judging.md` row saying which compile a reported
       Rwp comes from, and that the difference is not a fit defect.
@@ -145,6 +145,79 @@ comparing them can say they agree.
 - `schemas/history.py`'s as-optimised docstring; `docs/manual/using/history.md`.
 
 ## Handover log
+
+### 2026-09-24 — landed from outside under shape (a); a result is measured on a compile at its own values
+
+`Refinement.fit` and `run_stage` now end with one more compile at the values
+the result returns (`Refinement._final_compile`). It is built with the last
+stage's own discrete settings (the moving set, c_w and the window slack), so
+only the values differ. This is issue #272's fix, live since PR #432 merged
+(`09ce2cd1`, closing #272). It came from an outside contributor with no
+`WP-NNNN:` prefix and no touch of this file, so this entry is written at the
+merge. The WP stays `⬜`: two tasks are open in part, and no session owns it.
+
+**The measurement, and why it took (a) rather than the recommended (b).** The
+relative χ² gap between the frozen and the fresh compile was logged on 358
+fits, across the acceptance files and the synthetic chains.
+
+- Single-pattern acceptance, maximum per file: si640c 8.4e-5, fap 2.0e-4,
+  capillary 6.1e-5, nac 1.6e-4, srm676a 5.2e-4, lab6_cbn 5.5e-4, extra_peaks
+  6.4e-4, dispersion 1.1e-3, powderline 1.1e-3, qpa_roundrobin 1.1e-3,
+  stephens 2.5e-3, fitreport_layers 2.4e-3.
+- Synthetic chains: held_phase 5.2e-3, test_sequential 2.0e-3.
+- The QPA sample-1 chain: 1.3-2.1e-2.
+
+(a) costs one compile, 0.055 s on the Si 640c fit (3.7 s) and 0.024 s on FAP.
+(b) would have needed the sizing decision to be observable. **No golden
+moved.** On Si 640c the fresh compile gives χ² 88 283.25 against the frozen
+88 284.16, so the reported Rwp 0.08263 stands. The issue's 89 501.76 is
+reproduced exactly by `compile_model(..., moving_paths=None)`. Its 1.38 %
+therefore comes from the moving-set sizing claim, not from the
+start-of-stage freeze. `results.md` says how to reproduce a result's number.
+
+**What the merge makes possible.** A result's `y_calc`, statistics and
+per-point residuals reproduce from a rebuild at `result.parameters`. The
+history node keeps its as-optimised metrics. The info finding
+`FROZEN_COMPILE_STALE` quotes both χ² when they differ by more than
+`FROZEN_COMPILE_CHI2_REL` = 1e-2. At 1e-3 it fired on 74 of the 358 fits; at
+1e-2 it fires on 6, all of them in the sample-1 chain.
+`sequential.NOT_A_SERIES_FINDING` keeps it out of
+`SEQUENTIAL_PERSISTENT_FINDING`.
+
+**What it deliberately does not do.**
+
+- The solve, the covariance and every esd stay the last solve's.
+- **The weights stay the solve's.** `result.sigma` is still a lookup of the σ
+  the model used (WP-1309), because a measured background widens σ at the
+  scale a compile sees. A test pins this on a fit whose last stage moves the
+  background scale.
+- A **Pawley** result and a **joint** fit (`multi.py` builds its own) get no
+  fresh compile. Both report the frozen figures and never carry the row.
+  `results.md` and the diagnostics row say so, because round 1 of the review
+  asked for it.
+- The statistics block has no field naming its compile. The fresh χ² appears
+  only in the finding's message, past the threshold. That is task 2 in part.
+- There is no `judging.md` row (task 6); the `diagnostics.md` row stands in
+  for it.
+
+**Measured on the merged tree** (`origin/main` `2d42303a`
+plus #430, #432 and #431; Linux x86_64, 4 cores, python 3.12, `[dev,jax]`):
+
+- Fast suite: 1 failed, 5944 passed, 96 skipped. The failure is
+  `test_telemetry.py`'s unwritable-directory case, which fails on main alone
+  because the bench runs as root.
+- Fast collect with #432 alone on main: 6015 → 6022, +7.
+- Full `-m slow`: 2 failed, 188 passed, 9 skipped in 1:32:45. Neither failure
+  is #432's. The brucite XPASS(strict) is red on main's own nightly (run 51).
+  The held-phase ramp tripped its 60 s runaway guard at 147 s under load. Run
+  alone it passes, in 21.4 s on this tree against 20.3 s on main, the difference being the one extra
+  compile per pattern.
+- `ruff`: clean.
+
+**Next.** Decide whether task 2's "says which compile produced it" still
+wants a field now that every non-Pawley, single-histogram result is
+fresh-compiled. Then decide whether task 6's `judging.md` row adds anything
+the diagnostics row does not already say.
 
 - **2026-09-15** — created, from the 2026-09-15 issue triage (issue #272).
   Checked against the tree: `_build_result` evaluates the stage's own model;
