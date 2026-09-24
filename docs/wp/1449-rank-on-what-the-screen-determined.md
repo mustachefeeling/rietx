@@ -85,6 +85,44 @@ a machine with the corpus before designing anything.**
   WP's last task in any case. Until then, every Linux nightly `full` job fails
   on this one row, and a real regression in that job would read as the same
   red.
+- **From the nightly investigation (2026-09-24): the XPASS comes from a
+  truncated search.** The platform was a proxy for speed. On the Linux `full`
+  job the brucite search reports `INDEX_SEARCH_INCOMPLETE`. The evidence is
+  the gallery sidecar `indexing_brucite.gallery.json` in run 35988617175's
+  `test-output-linux` artifact. The fixture's setup took 802 s, 860 s and
+  848 s on the 22, 23 and 24 Sep nightlies, against a budget of 300 s per
+  engine and system.
+
+  Reproduced on macOS arm64 (`.venv` `[dev]` + numba, at `14239188`). Only
+  `budget_seconds` changed between the two runs, and the machine carried a
+  load of about 7 from another session:
+
+  | `budget_seconds` | search | wall | ranked first |
+  |---|---|---|---|
+  | 300 | complete | 520 s | a × 2 supercell, a = 6.2950 (the xfail holds) |
+  | 60 | dichotomy incomplete in both systems | 153 s | truth, a = 3.1477 (as on Linux) |
+
+  Corroboration does not move. In both runs dichotomy and trial_error find
+  the a × 2 cell, and it indexes 34 lines against the truth's 33. Within the
+  corroborated tier `rank_candidates` orders by a Borda count. A Borda count
+  depends on the rest of the pool, and a truncated dichotomy returns a
+  different pool (145 merged lattices against 146). That is enough to flip a
+  one-line margin.
+
+  For the fold-back task, this row can assert a rank only on a search that
+  finished. The one CI job that runs slow rows is the Linux `full` job. It did
+  not finish this search on any of the three nights. The macOS job runs slow
+  rows only when dispatched with `full_macos`. There are two options, and
+  neither has been costed. One skips the row when the result carries
+  `INDEX_SEARCH_INCOMPLETE`. The other raises brucite's budget until the Linux
+  runner completes the search.
+
+  The class is wider than this row. Seven of the 13 indexing searches in the
+  same artifact carry `INDEX_SEARCH_INCOMPLETE`: brucite, corundum,
+  corundum_shift, cpd1a, fluorite, hl2 and nac. The comment on
+  `REAL_DATA_BUDGET_SECONDS` says the budget is several times the search's
+  cost. On that runner it is not. Only brucite's assertion flips. Nobody has
+  checked which of the other six rows assert a rank.
 
 ## Questions for the corpus
 
