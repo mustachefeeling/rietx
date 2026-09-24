@@ -300,3 +300,28 @@ def test_pawley_intensity_centred_off_the_data_stays_bounded():
     ridge = R[-int(off.sum()):]
     assert (np.count_nonzero(ridge, axis=1) == 1).all()
     assert sorted(np.flatnonzero(ridge.any(axis=0))) == list(np.flatnonzero(off))
+    # ...and the result names them, once for the phase (the review of #453):
+    # a caller exporting intensities must see which ones are the ridge's
+    ridged = [dg for dg in result.diagnostics if dg.code == "PAWLEY_OFF_DATA_RIDGED"]
+    assert len(ridged) == 1 and ridged[0].level == "info"
+    name = ref.structure.phases[0].name
+    assert ridged[0].where == [f"{name} {hkl[k]}" for k in np.flatnonzero(off)]
+    assert f"{name} (6, 0, 2)" in ridged[0].where
+
+
+def test_pawley_off_data_code_is_silent_when_every_reflection_is_on_the_data():
+    """The same pattern cut at 73.5°, where no reflection falls in the list's
+    margin past the last channel (the next line is at 74.19°): nothing is
+    ridged, so ``PAWLEY_OFF_DATA_RIDGED`` must not fire."""
+    from rietx import Structure
+
+    p = fap_series(1)[0]
+    tt = np.asarray(p.two_theta)
+    keep = tt <= 73.5
+    cut = PatternData(two_theta=tt[keep].tolist(),
+                      intensity=np.asarray(p.intensity)[keep].tolist())
+    ref = Refinement(Structure.from_cif(str(FAP_CIF)), _fap_instrument(False))
+    result = ref.fit(cut, mode="pawley", plan="pawley_default")
+    assert result.status == "converged"
+    assert not ref._model.pawley.off_data
+    assert not [dg for dg in result.diagnostics if dg.code == "PAWLEY_OFF_DATA_RIDGED"]

@@ -103,7 +103,9 @@ An intensity the data do not determine then stays within $s_p$, with an esd of
 that order. One the data do reach has a column far more precise than a prior
 that wide. Without the ridge, a synthetic series refined one such intensity to
 $10^{12}$, and TRF's step test, which is relative to $\lVert x\rVert$, ended
-warm refits early (WP-1459).
+warm refits early (WP-1459). The result names the ridged reflections, one
+`PAWLEY_OFF_DATA_RIDGED` diagnostic per phase, because their intensities are
+the ridge's and not the data's.
 
 ## The residual row layout
 
