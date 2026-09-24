@@ -506,7 +506,11 @@ SIZE_CAPS: dict[str, int | None] = {
     # agent session on a private in-situ series, across three existing
     # sections; a fifth finding was folded into 1420's Inherited instead.  No
     # prose: the evidence stays in the WP files.  Landed 834, +1 headroom.
-    "docs/ROADMAP.md": 835,
+    # 835 -> 840 (/issue-review, 2026-09-24): rows for the WPs this round
+    # files under two existing sections.  No prose beyond one clause on
+    # #374's second instance and one on #442 beside #193: the evidence stays
+    # in the WP files.  Landed at the count the round's PR states.
+    "docs/ROADMAP.md": 840,
     # 1036 -> 1053 (WP-1429): where the GUI's colour values live, now that
     # they are Python and this workspace's `tokens.css` is generated from
     # them. It governs work outside the WP that measured it — an edit to a
