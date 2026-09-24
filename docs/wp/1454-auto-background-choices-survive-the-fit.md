@@ -177,12 +177,23 @@ penalty on a background before choosing.
       back all 1074 rows (561 `HIGH_CORRELATION`, 513 `FLAT_DIRECTION`). Only
       65 of them name the air term, so the other 1009 are the spline's own
       pairs, pulled in by that one flat direction.
-- [ ] If any fit in the fast selection still reports one degeneracy as many
+- [x] If any fit in the fast selection still reports one degeneracy as many
       pair rows after that, file a WP to group them into one finding. The
       candidates are connected components of the thresholded pairs, or the
       flat eigen-directions of the Jacobi-scaled normal matrix, and every
       reader of the rows is audited first (WP-1103). If none does, record
-      the zero here.
+      the zero here. **Filed 2026-09-24 as WP-1459**: not zero. `check_guards`
+      was wrapped over the whole fast selection on this branch's final tree,
+      443 calls in 186 tests. Its largest component is 35 parameters reported
+      as 569 rows, in `test_pspline_refines_a_curved_background`, where
+      `auto_background` itself declared the air term beside 3° knots. A
+      declared air term floods the way a declined one did whenever the spline
+      can already draw 1/(2θ), so that question went to 1459 with the
+      grouping. The first pass of the audit saw only 7 calls, because
+      `import rietx.refine` binds the package's `refine` *function*, so the
+      wrapper patched an attribute on a function. The module is reached
+      through `sys.modules["rietx.refine"]`. Any instrument that patches
+      `refine` needs that.
 - [x] Measure the flexible side of the penalty. Take a public pattern with
       broad reflections, scale it down and fit with fine knots. Record
       whether a Biso or a fraction moves, and whether `background_absorption`
