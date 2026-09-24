@@ -16,11 +16,12 @@ drive it.
 
 **The evidence.** The 2026-09-24 review of an agent session read one run
 end to end. The agent drove rietx at `644dff84` through the skill, on a
-private synchrotron in-situ series of 48 patterns. Several candidate phases
-entered and left along the series, and at most three were present in any
-pattern. Two candidates were proxies that share one structure with a
-neighbour. The maintainer holds the transcript, the scripts and the data.
-None of it is public, so quote only what the runs did (CONTRIBUTING, WP-1450).
+private synchrotron in-situ series of 48 patterns: `in-situ series 1` in the
+private `yue-here/rietx-corpus-map`, which says where the data, the scripts
+and the transcript live. Several candidate phases entered and left along the
+series, and at most three were present in any pattern. Two candidates were
+proxies that share one structure with a neighbour. None of it is public, so
+quote only what the runs did (CONTRIBUTING, WP-1450).
 
 The agent read `references/series.md` and inspected
 `SequentialRefinement.fit`, then wrote its own chain in about 240 lines over

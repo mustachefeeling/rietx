@@ -12,8 +12,8 @@ older number in silence.
 
 ## Context
 
-**The evidence.** An agent session on 2026-09-23 used the main checkout's
-venv. The code there was `644dff84`, whose `pyproject.version` is
+**The evidence.** An agent session on 2026-09-23 (`in-situ series 1` in the
+private corpus map) used the main checkout's venv. The code there was `644dff84`, whose `pyproject.version` is
 `1.6.0.dev0`. `rietx.__version__` said `1.4.0`, because the editable install
 predated two version bumps. Every `RefinementResult.provenance`, every run's
 `meta.json`, and the report the agent delivered say 1.4.0. Somebody
