@@ -232,9 +232,18 @@ spline the refinement reports Rwp **0.08852** and GoF 1.022, against **0.08969**
 and 1.025 with a correct Chebyshev-6 — the wrong background wins on every
 agreement index — and its displacement parameters come back 0.958 and 0.000 Å²
 against a truth of 0.5, one of them on its bound, where the correct background
-gives 0.691 and 0.327. `worst_absorption` reads 0.46 against 0.08. **Nothing
-else in the report distinguishes these two fits, and the plot does not either**:
-the over-flexible residual is white noise inside ±3σ.
+gives 0.691 and 0.327. `worst_absorption` reads 0.46 against 0.08, either side
+of the 0.25 at which `BACKGROUND_ABSORPTION` fires. **Nothing else in the report
+distinguishes these two fits, and the plot does not either**: the over-flexible
+residual is white noise inside ±3σ.
+
+The **too-stiff** side has no guard of its own. On round-robin sample 2, a
+1°-knot P-spline with its penalty ten thousand times too stiff moved corundum's
+Biso 28 % with no background code firing, at 1.17× the Rwp and with the
+fractions within 1 wt % (WP-1454). Before 1.5.1 that was what high counts did to the
+default λ, which was measured in intensity units. λ is a pure number now, and
+the same λ means the same stiffness at any count level. A λ tuned by hand
+against an older version, such as λ ≈ 1/σ², does not carry over.
 
 The whole `report.background.absorption` table is published rather than only the
 entries over `BACKGROUND_ABSORPTION_NOTABLE`, because a fired/not-fired bit is a

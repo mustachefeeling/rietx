@@ -299,9 +299,16 @@ penalty on a background before choosing.
       selection. The same flood appears on the synthetic LaB₆ pattern at 2°
       knots: none without a term, and more rows than coefficients (554) with a
       zero term declared. That arm is the failure reproduced.
-- [ ] Skill: the `SKILL.md:77` sentence; the 0.25 threshold beside the 0.46
+- [x] Skill: the `SKILL.md:77` sentence; the 0.25 threshold beside the 0.46
       example; and the seed note in `references/judging.md`, if the new scale
-      changes what a seed means.
+      changes what a seed means. **Landed 2026-09-24.** `SKILL.md` §1 names
+      `two_theta_limits` in place of "does the right thing", at +32 B
+      (32 964 of 33 000). `references/judging.md` and `references/batch.md`
+      put the 0.25 guard beside 0.46 against 0.08. `judging.md` gains the
+      stiff side: no guard of its own, the sample-2 measurement, and that a λ
+      tuned by hand before 1.5.1 does not carry over. The seed note is
+      unchanged: a seed is a coefficient value, in intensity units under
+      either penalty.
 
 ## Acceptance
 
