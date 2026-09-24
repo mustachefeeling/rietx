@@ -521,13 +521,15 @@ PARAMETER_HELP: dict[str, HelpEntry] = {
         description=(
             "Scales an additive 1/(2θ) term for the low-angle air-scatter "
             "rise, carried by the P-spline background beside its spline "
-            "coefficients. 0 is exactly no term, and that is where it belongs "
-            "unless `rietx.background.diagnose` reports the rise: the shape is "
-            "broad, so freeing it without cause gives the background one more "
-            "way to imitate a peak."
+            "coefficients. Absent unless declared, and `auto_background` "
+            "declares it only when `rietx.background.diagnose` reports the "
+            "rise: the shape is broad, so freeing it without cause gives the "
+            "background one more way to imitate a peak. Absent, it has no "
+            "path, so no plan can free it."
         ),
-        unit=None, default="0.0",
-        typical="0 unless the pattern diagnostics report a low-angle rise",
+        unit=None, default="null",
+        typical="absent unless the pattern diagnostics report a low-angle "
+                "rise; 1e-3 as a seed where they do",
         anchor="background.html#additive-background-models",
     ),
     "instrument.extra_components.*.position": HelpEntry(

@@ -154,11 +154,29 @@ penalty on a background before choosing.
 
 ## Tasks
 
-- [ ] The air term. Decide how a declined term stays off, and write the
+- [x] The air term. Decide how a declined term stays off, and write the
       decision here. The candidates: presets free `instrument.background.c*`,
       plus the air term only where the model turned it on; or the declined
       term is held the way a caller's hold is, which needs a seam because a
       model carries no holds. Land it, and measure NAC at 0.75° again.
+      **Decided 2026-09-24: a declined term is absent**, which is neither
+      candidate. `BackgroundPSpline.air_scatter` is `Parameter | None` and
+      defaults to `None`, so a declined term has no design row and no path,
+      and no glob can reach it. The first candidate still needed the model to
+      say "on" through a plan that replaces the vary flags. The second needed
+      a hold the model cannot carry. Absence is how the package already spells
+      an optional term (`Geometry.mu_t`, `Phase.microstrain`, `Atom.aniso`,
+      `Source.dispersion`), and it needs no seam. `for_range` builds no air
+      term, and `auto_background` declares one on its trigger as before.
+      `SCHEMA_VERSION` 0.27 → 0.28, not additive. A document saved before this
+      carries the old default, a `Parameter` at 0, and refines as it did.
+      **Re-measured** on the § 3 protocol (`[dev]` venv, Linux x86-64):
+      background-only correlation rows at 8°, 2° and 0.75° knots went from
+      1 / 0 / 1074 to 0 / 0 / 0. Rwp moved 0.09366 → 0.09367 at 8° and not at
+      all at 2° or 0.75°. Declaring a zero air term explicitly at 0.75° gives
+      back all 1074 rows (561 `HIGH_CORRELATION`, 513 `FLAT_DIRECTION`). Only
+      65 of them name the air term, so the other 1009 are the spline's own
+      pairs, pulled in by that one flat direction.
 - [ ] If any fit in the fast selection still reports one degeneracy as many
       pair rows after that, file a WP to group them into one finding. The
       candidates are connected components of the thresholded pairs, or the

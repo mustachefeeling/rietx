@@ -1067,17 +1067,24 @@ class BackgroundPSpline(Base):
     has ``len(breakpoints) + 2`` coefficients).
 
     ``air_scatter`` scales an additive 1/(2θ) term for the low-angle
-    air-scatter rise; leave it fixed at 0 unless the pattern diagnostics
-    flag it (``rietx.background.diagnose``).
+    air-scatter rise.  It is **absent** (``None``) unless something declares
+    it, and :func:`rietx.background.auto_background` declares it only when
+    the pattern diagnostics flag the rise (``rietx.background.diagnose``).
+    Absent means no design row and no parameter path, which is what keeps it
+    off: every preset frees ``instrument.background.*`` and a plan replaces
+    the vary flags (WP-1208), so a term held at 0 with ``vary=False`` was
+    freed on every fit anyway.  Inside the span of a fine spline its column
+    was a flat direction, reported once per pair of background columns
+    (WP-1454).  Declare one with ``Parameter(value=1e-3, min=0.0,
+    transform="softplus")``; exactly 0 under softplus is the zero floor,
+    where its column is live but tiny.
     """
 
     kind: Literal["pspline"] = "pspline"
     breakpoints: list[float]
     coefficients: list[Parameter]
     lambda_smooth: float = Field(default=1.0, ge=0.0)
-    air_scatter: Parameter = Field(
-        default_factory=lambda: Parameter(value=0.0, min=0.0, transform="softplus")
-    )
+    air_scatter: Parameter | None = None
 
     @model_validator(mode="after")
     def _consistent(self) -> "BackgroundPSpline":

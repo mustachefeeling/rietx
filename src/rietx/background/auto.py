@@ -47,6 +47,8 @@ def auto_background(data: PatternData, *, kind: str = "pspline",
             else _KNOT_STEP_SMOOTH_DEG)
     bkg = BackgroundPSpline.for_range(diag.two_theta_min, diag.two_theta_max,
                                       knot_step_deg=step, lambda_smooth=1.0)
+    # Declined means absent, never a zero one: a plan's ``instrument.background.*``
+    # frees whatever path exists (WP-1454).
     if diag.air_scatter_gain > AIR_SCATTER_TRIGGER:
         bkg.air_scatter = Parameter(value=1e-3, vary=True, min=0.0,
                                     transform="softplus")

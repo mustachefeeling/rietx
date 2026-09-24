@@ -3013,16 +3013,20 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
             sigma = np.sqrt(sigma * sigma + (s * sig_f) ** 2)
     elif isinstance(bkg, BackgroundPSpline):
         n_coef = len(bkg.coefficients)
-        bkg_paths = tuple(f"instrument.background.c{n}" for n in range(n_coef)) \
-            + ("instrument.background.air",)
-        spline = bspline_design_matrix(tt, np.asarray(bkg.breakpoints))
-        with np.errstate(divide="ignore"):
-            air_row = 1.0 / np.maximum(tt, 1e-3)
-        design = np.vstack([spline, air_row[None, :]])
+        bkg_paths = tuple(f"instrument.background.c{n}" for n in range(n_coef))
+        design = bspline_design_matrix(tt, np.asarray(bkg.breakpoints))
+        # An air term the model does not declare has no row, so no plan's
+        # ``instrument.background.*`` can free it (WP-1454).
+        n_air = 0 if bkg.air_scatter is None else 1
+        if n_air:
+            bkg_paths = bkg_paths + ("instrument.background.air",)
+            with np.errstate(divide="ignore"):
+                air_row = 1.0 / np.maximum(tt, 1e-3)
+            design = np.vstack([design, air_row[None, :]])
         if bkg.lambda_smooth > 0.0 and n_coef > 2:
             d2 = second_difference_matrix(n_coef)
             penalty = np.hstack([np.sqrt(bkg.lambda_smooth) * d2,
-                                 np.zeros((d2.shape[0], 1))])  # air term unpenalised
+                                 np.zeros((d2.shape[0], n_air))])  # air term unpenalised
     else:  # pragma: no cover - schema exhausts the union
         raise TypeError(f"unsupported background model {type(bkg).__name__}")
 

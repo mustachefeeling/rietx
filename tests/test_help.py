@@ -148,12 +148,17 @@ def _variant_models() -> list[tuple[Structure, Instrument]]:
     Every ``Parameter`` here sits at its schema default **except** the peak's
     ``center``, which has no usable default: finite bounds are what size its
     frozen window, so :class:`PeakComponent` refuses one without them.  The
-    numbers below are arbitrary and only have to be finite.
+    numbers below are arbitrary and only have to be finite.  The P-spline's
+    air term is the other exception, having no default but absence.
     """
     structure, _ = _default_models()
+    # The air term is absent by default (WP-1454), so the family is declared
+    # here the way ``auto_background`` declares it, or the corpus could
+    # describe it unmet.
     spline = BackgroundPSpline(
         breakpoints=[10.0, 20.0, 30.0, 40.0],
-        coefficients=[Parameter(value=0.0) for _ in range(6)])
+        coefficients=[Parameter(value=0.0) for _ in range(6)],
+        air_scatter=Parameter(value=1e-3, min=0.0, transform="softplus"))
     return [
         (structure, Instrument(
             source=Source(lines=[EmissionLine(wavelength=1.540598)]),

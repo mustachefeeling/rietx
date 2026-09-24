@@ -891,7 +891,7 @@ def test_arpls_lambda_selection_returns_evidence():
 def test_auto_background_shapes_to_pattern():
     flat = auto_background(_peaky_pattern(background=_flat_bkg), wavelength=WAVELENGTH)
     assert isinstance(flat, BackgroundPSpline)
-    assert flat.air_scatter.value == 0.0 and not flat.air_scatter.vary
+    assert flat.air_scatter is None, "a declined air term is absent, not zero (WP-1454)"
 
     air = auto_background(_peaky_pattern(background=_air_scatter_bkg), wavelength=WAVELENGTH)
     assert air.air_scatter.vary, "1/x term should switch on for air scatter"
@@ -899,6 +899,44 @@ def test_auto_background_shapes_to_pattern():
     cheb = auto_background(_peaky_pattern(background=_hump_bkg), kind="chebyshev")
     assert isinstance(cheb, BackgroundChebyshev)
     assert len(cheb.coefficients) >= 4
+
+
+def test_an_undeclared_air_term_raises_no_background_correlation_rows():
+    """Every preset frees ``instrument.background.*`` and a plan replaces the
+    vary flags, so an air term held at 0 was refined anyway.  Inside a fine
+    spline's span its 1/(2θ) column is one flat direction, which the guard
+    reported once per pair of background columns (WP-1454).  Absent, there is
+    no path for the glob to free.  The declared arm is the failure reproduced,
+    so this test can still go red: more rows than the spline has coefficients
+    is one degeneracy counted many times."""
+    data = _peaky_pattern(background=_flat_bkg, lo=20.0, hi=60.0)
+    seed = float(np.percentile(data.intensity, 5))
+
+    def background_rows(air):
+        ins = rx.Instrument.bragg_brentano(monochromator_two_theta=26.6)
+        ins.profile.w.value = 3e-3
+        ins.profile.x.value = 5e-3
+        bkg = BackgroundPSpline.for_range(20.0, 60.0, knot_step_deg=2.0,
+                                          lambda_smooth=1e-4)
+        for c in bkg.coefficients:
+            c.value = seed
+        bkg.air_scatter = air
+        ins.background = bkg
+        structure = make_lab6()
+        structure.phases[0].scale.value = 3e-4
+        result = rx.Refinement(structure, ins, history=False).fit(
+            data, plan="profile_only", telemetry=False)
+        return len(bkg.coefficients), [
+            d for d in result.diagnostics
+            if d.code in ("HIGH_CORRELATION", "FLAT_DIRECTION")
+            and all(p.startswith("instrument.background.") for p in d.where)]
+
+    assert BackgroundPSpline.for_range(20.0, 60.0).air_scatter is None
+    _, rows = background_rows(None)
+    assert rows == [], [d.where for d in rows]
+    n_coef, flooded = background_rows(
+        rx.Parameter(value=0.0, min=0.0, transform="softplus"))
+    assert len(flooded) > n_coef
 
 
 # ----------------------------------------------------------------------

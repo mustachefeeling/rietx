@@ -240,7 +240,13 @@ from .._nearmiss import did_you_mean
 #: charged at N/f² (the probe residual's rows over its squared Bérar-Lelann
 #: factor) and the raw-N figure rides beside it.  Additive and defaulted to
 #: ``None``, the same rule as 0.19 → 0.20.
-SCHEMA_VERSION = "0.27"
+#: 0.27 → 0.28 (WP-1454): ``BackgroundPSpline.air_scatter`` is
+#: ``Parameter | None`` and defaults to ``None``, which is no 1/(2θ) term at
+#: all rather than one at zero.  Not additive: a stored ``null`` does not load
+#: before this.  A document from before it carries the old default, a
+#: ``Parameter`` at 0, and opens with that term declared, so it refines as it
+#: did; setting the field to ``None`` is what drops it.
+SCHEMA_VERSION = "0.28"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
 

@@ -156,7 +156,8 @@ def background_parameters(bkg) -> list[tuple[str, Parameter]]:
     """
     if isinstance(bkg, BackgroundPSpline):
         out = [(f"c{n}", p) for n, p in enumerate(bkg.coefficients)]
-        out.append(("air", bkg.air_scatter))
+        if bkg.air_scatter is not None:  # absent is no term, not a zero one
+            out.append(("air", bkg.air_scatter))
         return out
     if isinstance(bkg, BackgroundFixedPlusChebyshev):
         out = [(f"c{n}", p) for n, p in enumerate(bkg.chebyshev.coefficients)]

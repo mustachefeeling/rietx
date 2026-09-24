@@ -680,8 +680,11 @@ under the second-difference penalty of {eq}`bg-penalty`.
 `BackgroundPSpline.coefficients` has exactly `len(breakpoints) + 2` entries for
 the clamped cubic basis, `BackgroundPSpline.lambda_smooth` is the penalty
 weight, and `BackgroundPSpline.air_scatter` scales an additive 1/2θ term for the
-low-angle air rise. `BackgroundPSpline.for_range` builds uniform knots over a 2θ
-range.
+low-angle air rise. The air term is absent (`None`) unless you declare it or
+`auto_background` does, which it does only when the pattern diagnostics report
+the rise. Absent, it has no parameter path, so no plan can free it.
+`BackgroundPSpline.for_range` builds uniform knots over a 2θ range, with no air
+term.
 
 `BackgroundFixedPlusChebyshev` holds a fixed curve additively and refines a
 polynomial on top of it. `BackgroundFixedPlusChebyshev.fixed_two_theta` and
