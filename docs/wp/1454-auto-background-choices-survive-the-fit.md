@@ -282,11 +282,23 @@ penalty on a background before choosing.
       knots still clamped to the limits. An inverted interval is refused
       with `check_interval`'s sentence, and limits holding fewer than two
       channels are refused by name.
-- [ ] Tests. Unit invariance: at k ∈ {10⁻³, 1, 10³} the fitted background
+- [x] Tests. Unit invariance: at k ∈ {10⁻³, 1, 10³} the fitted background
       divided by k agrees within the spread the same fit shows when
       restarted, measured first and never chosen (tests/CLAUDE.md § Budgets
       in tests). And NAC at 0.75° knots: no correlation row names a declined
-      air term.
+      air term. **Landed 2026-09-24**, both in `tests/test_background_auto.py`.
+      `test_the_penalty_is_equally_stiff_in_any_intensity_unit` measures its
+      own restart spread each run and asserts k = 10⁻³ and 10³ inside it,
+      with the old intensity-unit rows as the arm that must fail it.
+      Measured first under `profile_only`: spread 4.9e-3 of the curve's
+      maximum; 2.7e-4 and 3.1e-9 for the two k; the old rows 7.4e-2 and 0.56.
+      A scale-and-background plan was tried and dropped. It is linear, so
+      spread and invariance both sit at 1e-16 and the comparison would be
+      noise. `test_an_undeclared_air_term_raises_no_background_correlation_rows`
+      stands in for NAC, whose walkthrough fit is too slow for the fast
+      selection. The same flood appears on the synthetic LaB₆ pattern at 2°
+      knots: none without a term, and more rows than coefficients (554) with a
+      zero term declared. That arm is the failure reproduced.
 - [ ] Skill: the `SKILL.md:77` sentence; the 0.25 threshold beside the 0.46
       example; and the seed note in `references/judging.md`, if the new scale
       changes what a seed means.

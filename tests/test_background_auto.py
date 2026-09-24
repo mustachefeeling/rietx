@@ -968,6 +968,50 @@ def test_an_undeclared_air_term_raises_no_background_correlation_rows():
     assert len(flooded) > n_coef
 
 
+def test_the_penalty_is_equally_stiff_in_any_intensity_unit():
+    """Multiply y, σ and the phase scale by k: the fitted background divided by
+    k is the same curve (WP-1454).  The bar is the spread the same fit shows
+    when restarted from another start, measured here rather than chosen, and
+    the old intensity-unit rows are the arm that must fail it.
+
+    Measured 2026-09-24 (``[dev]``, Linux x86-64): restart spread 4.9e-3 of the
+    curve's maximum, k = 1e-3 and 1e3 within 2.7e-4 and 3.1e-9 of k = 1; the
+    old rows 7.4e-2 at 1e-3 and 0.56 at 1e3, a straight line at Rwp 0.36.
+    """
+    base = _peaky_pattern(background=_hump_bkg, lo=20.0, hi=60.0)
+    sig = base.sig()
+
+    def fitted_background(k, units="dimensionless", restart=False):
+        data = base.model_copy(update={
+            "intensity": list(np.asarray(base.intensity) * k),
+            "sigma": list(sig * k)})
+        ins = rx.Instrument.bragg_brentano(monochromator_two_theta=26.6)
+        ins.profile.w.value = 3e-3
+        ins.profile.x.value = 5e-3
+        bkg = BackgroundPSpline.for_range(20.0, 60.0, knot_step_deg=2.0)
+        bkg.lambda_units = units
+        seed = float(np.percentile(data.intensity, 5)) * (1.3 if restart else 1.0)
+        for c in bkg.coefficients:
+            c.value = seed
+        ins.background = bkg
+        structure = make_lab6()
+        structure.phases[0].scale.value = 3e-4 * k * (0.8 if restart else 1.0)
+        result = rx.Refinement(structure, ins, history=False).fit(
+            data, plan="profile_only", telemetry=False)
+        return np.asarray(result.y_background) / k
+
+    reference = fitted_background(1.0)
+    size = np.abs(reference).max()
+    spread = np.abs(fitted_background(1.0, restart=True) - reference).max() / size
+    for k in (1e-3, 1e3):
+        moved = np.abs(fitted_background(k) - reference).max() / size
+        assert moved < spread, (k, moved, spread)
+
+    old = fitted_background(1.0, units="intensity")
+    moved = np.abs(fitted_background(1e3, units="intensity") - old).max() / size
+    assert moved > spread, (moved, spread)
+
+
 # ----------------------------------------------------------------------
 # P-spline mechanics
 # ----------------------------------------------------------------------
