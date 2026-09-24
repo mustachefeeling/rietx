@@ -550,6 +550,7 @@ Considering freeing a parameter is not a refinement move.
 | `SuggestionResult.chi2_red` | the current state's χ²/ν, seeded candidates excluded | the scale the floor is set from |
 | `SuggestionResult.noise_floor` | the gain gate that was applied | {{ SUGGEST_MIN_GAIN }} × the larger of that χ²/ν and 1, so a fit already at χ²/ν ≤ 1 does not get a gate below the constant. Stored, so the serialized result explains its own gate |
 | `SuggestionResult.summary` | one sentence of prose | the whole answer for a reader |
+| `SuggestionResult.n_effective` | the observation count every `CandidateGroup.delta_bic` was charged at | the probe's residual rows over the square of their Bérar-Lelann factor, `optimize.statistics.effective_sample_size`. Null only where no factor was measured |
 | `SuggestionResult.best_or_none` | the one defensible winner, or null | null rather than a defended tie |
 
 | Field | Is | Reads as |
@@ -557,12 +558,17 @@ Considering freeing a parameter is not a refinement move.
 | `CandidateGroup.members` | one or more `ParameterCandidate` | |
 | `CandidateGroup.gain` | the joint gain of freeing the whole group | what the data measures; the members' own gains are near-equal by construction |
 | `CandidateGroup.resolved` | false exactly when there is more than one member | a tie the data cannot split, merged by pairwise collinearity rather than reported as a winner |
-| `CandidateGroup.delta_bic` | the same gain read as a model-selection answer | Schwarz's ΔBIC (`report.layer2.delta_bic`, the form the whole package uses) at the Gauss-Newton prediction of what freeing the group reaches. Positive favours freeing, so a full refit's ΔBIC computed the same way is directly comparable |
+| `CandidateGroup.delta_bic` | the same gain read as a model-selection answer | Schwarz's ΔBIC (`report.layer2.delta_bic`, the form the whole package uses) at the Gauss-Newton prediction of what freeing the group reaches, charged at `SuggestionResult.n_effective`. Positive favours freeing, so a full refit's ΔBIC computed the same way, with `n_effective=` from the restricted fit's `Statistics.esd_inflation` (the residual `suggest` measures f on), is directly comparable |
+| `CandidateGroup.delta_bic_raw_n` | the same ΔBIC at the raw residual row count | the pre-1.6 figure, an upper bound on the evidence. Where it is positive and `delta_bic` is not, the leverage is real and the serial correlation says it is not independent evidence |
 
 The two numbers answer different questions and can disagree, and both are there
 for that reason. `gain` ranks, being the leverage the parameter has on χ² at
 this state. `delta_bic` decides: it charges `ln N` per parameter, so it asks whether
-the leverage pays for what it costs at this pattern's channel count. A group can
+the leverage pays for what it costs at this pattern's channel count. Its N is
+the *effective* count, the rows over the squared esd inflation, because a
+powder residual is serially correlated and at raw N any improvement pays
+(issue #270 measured ΔBIC +36 to +211 for a parameter within 1σ of zero; the
+theory chapter has the derivation). A group can
 clear the noise floor, the 3σ point of χ²₁ and the same whatever the pattern,
 and still be refused by ΔBIC on a long pattern. "This parameter has leverage,
 and the leverage does not pay for it" is then the honest reading. It is what a

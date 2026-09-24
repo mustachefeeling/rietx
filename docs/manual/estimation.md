@@ -346,3 +346,32 @@ pairwise indistinguishable come back as one unresolved group carrying a joint
 gain, which is a tie. As with indexing there is no `.best`, and
 `best_or_none()` answers `None` whenever the evidence does not choose one
 parameter.
+
+A gain that clears the floor is then read as a model-selection answer, ΔBIC
+{cite}`schwarz1978`, and that needs a premise the gain does not: Schwarz's
+$N$ counts independent observations. A powder residual is serially
+correlated, and at raw channel counts the reward term
+$N\ln(\chi^2_r/\chi^2_f)$ outvotes the $\ln N$ penalty for almost any
+improvement. The fit already measures the correlation, as the Bérar-Lelann
+factor $f$ every esd is inflated by {cite}`berar1991`, and the penalty is
+charged at
+
+```{math}
+:label: est-effective-n
+
+N_{\mathrm{eff}} = N / f^{2}, \qquad
+\Delta\mathrm{BIC} = N_{\mathrm{eff}} \ln\frac{\chi^2_r}{\chi^2_f}
+                     - k \ln N_{\mathrm{eff}},
+```
+
+{source}`rietx.optimize.statistics.effective_sample_size`
+
+the count at which, for one added parameter, the reward term is that
+parameter's $t^2$ at its inflated esd, so ΔBIC is positive exactly when
+$t^2 > \ln N_{\mathrm{eff}}$. It is a heuristic and not a theorem, and it is
+conservative the way the esds are: white residuals still give $f \approx
+1.51$. Hamilton's test {cite}`hamilton1965` takes the same $N_{\mathrm{eff}}$,
+so the two verdicts are read off one count. Measured on four ~49 500-channel
+synchrotron fits of one occupancy, raw $N$ gave ΔBIC +36 to +211 to a
+parameter each fit's own esd put within 0.76-1.89σ of zero, and
+$N_{\mathrm{eff}}$ turned all four negative.

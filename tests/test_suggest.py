@@ -550,11 +550,19 @@ def _refit_ssr(result) -> float:
 
 
 def _measured_delta_bic(restricted, full, n_added: int) -> float:
-    """What the agent measured by hand: two nested refits, one ΔBIC."""
+    """What the agent measured by hand: two nested refits, one ΔBIC.
+
+    Charged at N_eff from the **restricted** fit's ``esd_inflation``, as
+    ``suggest`` charges its prediction: it measures f on the restricted
+    state's residual, so that is the fit whose f makes the two comparable.
+    """
+    from rietx.optimize.statistics import effective_sample_size
     from rietx.report.layer2 import delta_bic
 
-    return delta_bic(_refit_ssr(restricted), _refit_ssr(full),
-                     len(restricted.two_theta), n_added)
+    n = len(restricted.two_theta)
+    return delta_bic(_refit_ssr(restricted), _refit_ssr(full), n, n_added,
+                     n_effective=effective_sample_size(
+                         n, restricted.statistics.esd_inflation))
 
 
 def _fitted(truth, free, **edits):
@@ -570,8 +578,9 @@ def test_predicted_delta_bic_agrees_with_a_full_refit_when_it_admits(truth):
 
     The comparison is made where an agent would make it — at the *converged*
     restricted state, since the score is a local statistic — and the two
-    numbers are computed the same way from the same nested pair, so their
-    signs are directly comparable."""
+    numbers are computed the same way from the same nested pair, both charged
+    at N_eff from the restricted fit's ``esd_inflation``, so their signs are
+    directly comparable."""
     r, restricted, data = _fitted(truth, _FREE, w=6e-3)
     res = r.suggest(data)
     top = res.groups[0]
@@ -586,8 +595,10 @@ def test_predicted_and_refit_agree_that_an_inert_parameter_is_refused(truth):
     """The other direction, and the ramp's own case: at a converged fit of a
     pattern with no specimen displacement, ``sample_displacement`` is not
     worth its parameter.  The prediction says so by never listing it; a full
-    refit says so with a negative ΔBIC.  (The agent measured exactly this at
-    25 °C and quoted it in the other sign convention, +6.7 to refuse.)"""
+    refit says so with a negative ΔBIC, charged as the prediction is, at N_eff
+    from the restricted fit's ``esd_inflation``.  (The agent measured exactly
+    this at 25 °C, at raw N, and quoted it in the other sign convention, +6.7
+    to refuse.)"""
     path = "instrument.geometry.sample_displacement"
     r, restricted, data = _fitted(truth, _FREE)
     res = r.suggest(data)

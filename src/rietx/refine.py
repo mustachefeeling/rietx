@@ -71,6 +71,7 @@ from .optimize.qpa import (
 from .optimize.statistics import (
     OBS_PER_PARAMETER_MIN,
     OBS_PER_PARAMETER_PREFERRED,
+    berar_lelann_factor,
     compute_statistics,
     data_support,
     structure_r_factors,
@@ -1736,6 +1737,8 @@ class Refinement:
 
         from .optimize.least_squares import _jacobian_for, _make_residual
 
+        n_data = [0]
+
         def probe():
             """Compile the table's state on model copies; return (jac, resid, x0)."""
             structure = self.structure.model_copy(deep=True)
@@ -1765,6 +1768,7 @@ class Refinement:
             x0 = table.x0()
             if model.pawley is not None:
                 x0 = np.concatenate([x0, model.pawley_x0()])
+            n_data[0] = len(model.tt)
             return (_jacobian_for(model, table, self._backend)(x0),
                     _make_residual(model, table)(x0), x0)
 
@@ -1808,9 +1812,12 @@ class Refinement:
         chi2_red = float(resid @ resid) / max(len(resid) - len(free_idx), 1)
         actions = () if report is None else getattr(
             report, "suggested_actions", report)
+        # the data rows' serial correlation, which ΔBIC's N must not ignore
+        # (#270): the data block leads the row layout, penalty rows after it
+        inflation = berar_lelann_factor(resid[:n_data[0]])
         return build_suggestion(jac, resid, free_idx, candidates,
                                 chi2_red=chi2_red, top_n=top_n,
-                                actions=actions)
+                                actions=actions, esd_inflation=inflation)
 
     @classmethod
     def from_node(cls, tree: RefinementTree, node_id: str, *,
@@ -3029,9 +3036,13 @@ class Refinement:
         top = s.groups[0]
         what = (top.members[0].path if top.resolved
                 else "|".join(pc.path for pc in top.members) + " (a tie)")
+        # the count the ΔBIC was charged at, said where the verdict is read
+        # (WP-1417): N/f², not the raw channel count, since #270
+        at = ("" if s.n_effective is None
+              else f" at N_eff {s.n_effective:.0f}")
         if top.delta_bic > 0.0:
-            return (f"  next: free {what}, predicted ΔBIC {top.delta_bic:+.1f} "
-                    f"(Δχ² {top.gain:.4g})")
+            return (f"  next: free {what}, predicted ΔBIC {top.delta_bic:+.1f}"
+                    f"{at} (Δχ² {top.gain:.4g})")
         # The groups are ranked by Δχ², and ΔBIC charges k·ln N — so a
         # multi-member tie can lead the ranking and still be refused while a
         # single-member group below it is admitted.  "The leader is refused"
@@ -3043,7 +3054,7 @@ class Refinement:
                 f"{admits.gain:.4g} and ΔBIC does admit it "
                 f"({admits.delta_bic:+.1f})")
         return (f"  next: {what} leads on Δχ² {top.gain:.4g} and ΔBIC "
-                f"refuses it ({top.delta_bic:+.1f}){tail}")
+                f"refuses it ({top.delta_bic:+.1f}{at}){tail}")
 
     def _deliverable_lines(self, deliverable: str, report) -> list[str]:
         """Section 3: §4b's deciding rows for one declared purpose only."""

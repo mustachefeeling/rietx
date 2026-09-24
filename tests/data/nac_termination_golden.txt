@@ -14,7 +14,7 @@ Refinement.summary: converged (rietveld)
     region ##°: #% of χ², max|Δ|/σ=#
     unmatched obs peaks: #
     serial correlation (DW): #, esds inflated ×#
-  next: free phases.#atoms.#dof.#, predicted ΔBIC # (Δχ² #e#)
+  next: free phases.#atoms.#dof.#, predicted ΔBIC # at N_eff # (Δχ² #e#)
   deliverable: qpa
     background.absorption worst: phases.#atoms.#biso R²=#
     #: # ± #

@@ -144,6 +144,9 @@ def test_summary_next_line_is_the_suggest_probe_read_as_delta_bic():
         top = s.groups[0]
         assert f"{top.delta_bic:+.1f}" in line
         assert ("free " in line) if top.delta_bic > 0 else ("refuses it" in line)
+        # WP-1417: the line names the count the ΔBIC was charged at (#270)
+        assert s.n_effective is not None
+        assert f"at N_eff {s.n_effective:.0f}" in line
 
 
 @pytest.mark.parametrize("deliverable", ["phase_id", "qpa", "structure"])
