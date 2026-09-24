@@ -47,6 +47,7 @@ from .layer2 import (
     suggest_actions,
     texture_actions,
 )
+from .magnetic import analyse_moments
 from .schemas import (
     LEBAIL_GAP_NOTABLE,
     RIVAL_DECISIVE_MIN_CHI2_RATIO,
@@ -101,6 +102,7 @@ __all__ = [
     "UnmatchedPeak",
     "VerificationOutcome",
     "abstention_flavour",
+    "analyse_moments",
     "analyse_strain",
     "analyse_texture",
     "analyse_trends",
@@ -174,6 +176,7 @@ def _attach_separability(report: FitReport) -> None:
 
 def build_report(result: RefinementResult, *, model=None, values=None,
                  plan=None, free_paths: list[str] | None = None,
+                 structure=None, held: list[str] | None = None,
                  top_n: int = 15, match_tol_deg: float = 0.08,
                  min_peak_sigma: float = 5.0) -> FitReport:
     """Build the report, going as deep as the inputs allow.
@@ -190,6 +193,15 @@ def build_report(result: RefinementResult, *, model=None, values=None,
     plan, free_paths:
         Used by the Layer-2 strategy veto: actions the plan already performs,
         or parameters already free, are marked inactive.
+    structure:
+        The :class:`~rietx.schemas.structure.Structure` the model was compiled
+        from.  Optional, and it buys exactly one thing: the moment arm
+        (WP-1327) labels each row with the atom's own label rather than its
+        index, which the compiled model does not carry.
+    held:
+        The last stage's hold list (``StageResult.held``), so the moment arm's
+        "unmeasured" directions are the refinement's answer rather than a
+        second opinion about it.
     """
     report = build_layer0(result, top_n=top_n, match_tol_deg=match_tol_deg,
                           min_peak_sigma=min_peak_sigma)
@@ -232,7 +244,31 @@ def build_report(result: RefinementResult, *, model=None, values=None,
         report.summary += "; " + clause
     if model is None or values is None:
         return report
-
+    # The moment arm (WP-1327) is computed **above** the Layer-1 gate, because
+    # it is axis-free in the strong sense: every number in a
+    # :class:`~rietx.report.schemas.MomentEvidence` row — the modulus, its esd,
+    # the crystal-axis components, the form-factor approximation, the free and
+    # unmeasured directions — is a function of the moment DOFs, the cell and
+    # the magnetic operator list, and not one of them is a function of the
+    # abscissa.  No field of the row names an angle.  It needs no regions, no
+    # regression template and no analytic derivative bases, so it speaks
+    # wherever Layer 1 abstains: a moment is the *deliverable* of a magnetic
+    # refinement rather than a diagnostic that something is wrong, and a fit
+    # that measured one and then declined to print it would be the silent drop
+    # this whole arm is written against.  ``held`` is the stage's own hold
+    # list, so "unmeasured" here is the refinement's answer rather than a
+    # second opinion about it.
+    report.magnetic = analyse_moments(
+        model, values, structure, held=held,
+        # the esds the fit measured, copied rather than recomputed (WP-1076:
+        # one writer per number) — ``supported`` is a ratio against them
+        esd={p.path: p.stderr for p in result.parameters
+             if p.stderr is not None},
+        # Q5: the fit's own worst-|rho| list, the one place the covariance
+        # survives past fit time — folds a powder-degenerate moment pair into
+        # one quadrature number instead of two independently-quoted moduli.
+        correlations=(result.identifiability.top_correlations
+                     if result.identifiability is not None else None))
     attributions = attribute_regions(model, values, report.regions)
     report.attribution = attributions
     # March-Dollase texture and Stephens anisotropic strain are computed before

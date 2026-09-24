@@ -63,6 +63,15 @@ from ..crystallography.lattice import (
     reciprocal_metric_tensor,
     two_theta_deg,
 )
+from ..crystallography.magnetic.scattering import (
+    MAGNETIC_SOURCE_KINDS,
+    NON_MAGNETIC_SOURCE_KINDS,
+    MagneticSites,
+    compile_magnetic_sites,
+    magnetic_f2,
+    magnetic_reflections,
+    merge_magnetic,
+)
 from ..crystallography.neutron import b_coh as neutron_b_coh
 from ..crystallography.neutron import (
     normalize_species as neutron_normalize_species,
@@ -565,6 +574,30 @@ class CompiledPhase:
     # the hot loop exactly as it was; numpy path only, for the reason the FCJ
     # memo is numpy-only.
     scalar_cache: dict[str, tuple] | None = None
+    # WP-1327.  ``magnetic`` is the frozen per-atom magnetic data — the axial
+    # matrices ε·det(R)·R on the *nuclear* operation subset, the form-factor
+    # ion and g, the moment frame — and ``None`` for every phase without a
+    # moment, which is what keeps that phase bit-identical.  The three
+    # ``mag_*`` arrays are the frozen Laue orbit of every reflection
+    # (``preferred_orientation.orbit_layout``, the same flattened shape the
+    # March-Dollase correction averages over): |F_⊥|² is *not* constant over
+    # that orbit, because the moment direction breaks the Laue symmetry, so
+    # the magnetic intensity is its **average** and not one representative's
+    # value times a multiplicity.
+    #
+    # ``nuclear_mask`` is (N,) 1.0/0.0 over the reflection list and ``None``
+    # for every phase without a moment.  A k = 0 magnetic space group puts
+    # intensity on the reciprocal-lattice points the parent's glide and screw
+    # operations forbid, those rows are added to the reflection list
+    # (``magnetic_reflections``), and the nuclear structure factor there is
+    # identically zero by the absence condition — so the mask is exact
+    # arithmetic rather than a tolerance.  It is built as shared plumbing: a
+    # satellite row (WP-1326) is the other row whose nuclear term is zero.
+    nuclear_mask: np.ndarray | None = None
+    magnetic: MagneticSites | None = None
+    mag_members: np.ndarray | None = None   # (M_total, 3) int
+    mag_seg: np.ndarray | None = None       # (M_total,) int → reflection index
+    mag_counts: np.ndarray | None = None    # (N,) int orbit sizes
 
 
 @dataclass
@@ -1111,6 +1144,16 @@ class CompiledModel:
             out.append(float(values[base + "biso"]))
             if cp.sites.any_aniso:
                 out.extend(float(values.get(base + u, 0.0)) for u in U_NAMES)
+            # The moment DOFs belong in this key, and leaving them out is the
+            # silent-short-column failure of WP-1070 rather than a slow path:
+            # ``_peak_chain_column`` perturbs one θ and re-runs ``phase_peaks``,
+            # so a stale |F|² memo would hand the perturbed call the
+            # unperturbed intensity and the moment's Jacobian column would come
+            # back identically **zero** — a moment that cannot refine, with no
+            # error anywhere.
+            if cp.magnetic is not None:
+                out.extend(float(values[f"{base}moment.dof{k}"])
+                           for k in range(cp.magnetic.n_dofs(j)))
         return tuple(out)
 
     def _site_values(self, ip: int, values: dict[str, float], cell: tuple
@@ -1135,6 +1178,86 @@ class CompiledModel:
         uaniso = xp.stack([xp.stack([values.get(f"phases.{ip}.atoms.{j}.{u}", 0.0)
                                      for u in U_NAMES]) for j in range(n)])
         return xyz, occ, biso, uaniso, reciprocal_axis_lengths(*cell)
+
+    def _nuclear_mask(self, ip: int):
+        """(N,) 1.0 on a nuclear row, 0.0 on a parent-forbidden one — or ``None``.
+
+        ``None`` is the phase with no moment, and it is not the same as an
+        array of ones: the multiply never happens, so a phase that declares no
+        moment reaches the same arithmetic in the same order and every number
+        it produces is bit-identical to what it produced before WP-1327
+        existed.
+
+        Lifted onto the backend, never left as a frozen numpy constant beside
+        a θ-derived value (root ``CLAUDE.md``: ``ndarray * tensor`` raises on
+        torch and ``tensor * ndarray`` goes through a deprecated path), so the
+        traced backends see an ``xp`` array exactly as they do for the
+        multiplicity.
+        """
+        cp = self.phases[ip]
+        if cp.nuclear_mask is None:
+            return None
+        return get_backend().asarray(cp.nuclear_mask, dtype=np.float64)
+
+    def _nuclear_f2(self, ip: int, d, values: dict[str, float], cell: tuple):
+        """⟨|F|²⟩ with a parent-forbidden row set to exactly zero (WP-1327).
+
+        A k = 0 magnetic space group drops the parent's glide and screw
+        operations, so its reflection list carries rows the nuclear structure
+        factor forbids; the nuclear term there is zero by the absence
+        condition, and the mask makes it exactly zero rather than whatever
+        roundoff the orbit sum leaves.  The result is masked, rather than the
+        reflection list being split in two: one array per quantity is what
+        every consumer downstream was written over.
+        """
+        cp = self.phases[ip]
+        f2 = structure_factors_squared(
+            cp.reflections.hkl, d, cp.sites,
+            *self._site_values(ip, values, cell))
+        nuc = self._nuclear_mask(ip)
+        return f2 if nuc is None else f2 * nuc
+
+    def _moment_dofs(self, ip: int, values: dict[str, float]) -> list:
+        """Each atom's moment DOF vector, decoded — empty where there is none."""
+        cp = self.phases[ip]
+        return [np.array([values[f"phases.{ip}.atoms.{j}.moment.dof{k}"]
+                          for k in range(cp.magnetic.n_dofs(j))],
+                         dtype=np.float64)
+                for j in range(cp.sites.n_asym)]
+
+    def _magnetic_f2(self, ip: int, d, values: dict[str, float], cell: tuple):
+        """p²·⟨|F_⊥|²⟩ in fm², or ``None`` when this phase has no moment.
+
+        Added to ⟨|F_N|²⟩ rather than carried beside it, because both are in
+        fm² and the phase's **one** scale multiplies both — a separate magnetic
+        scale is the easiest route to a plausible fit and a wrong moment, and
+        WP-1327 declines to offer one.  The heavy lifting is in
+        ``crystallography.magnetic.scattering``; what belongs here is the
+        dispatch and the frozen orbit layout.
+        """
+        cp = self.phases[ip]
+        if cp.magnetic is None:
+            return None
+        xyz, occ, biso, _u, _a = self._site_values(ip, values, cell)
+        stol = 1.0 / (2.0 * np.asarray(d, dtype=np.float64))
+        return magnetic_f2(cp.mag_members, cp.mag_seg, cp.mag_counts, stol,
+                           cp.magnetic, cell, xyz, occ, biso,
+                           self._moment_dofs(ip, values))
+
+    def _total_f2(self, ip: int, d, values: dict[str, float], cell: tuple):
+        """⟨|F_N|²⟩ + p²⟨|F_⊥|²⟩ — the nuclear and magnetic terms, one scale.
+
+        The addition happens **only** where a magnetic term exists, so a phase
+        with no moment reaches the same arithmetic in the same order and every
+        number it produces is bit-identical to what it produced before this WP.
+        Secondary extinction reads this total, which is the physical reading:
+        the attenuation is of the reflection, and the reflection is whatever
+        the crystal actually diffracts.  It changes nothing at the default
+        ``extinction = 0``, where Sabine's E is exactly 1.
+        """
+        f2 = self._nuclear_f2(ip, d, values, cell)
+        mag = self._magnetic_f2(ip, d, values, cell)
+        return f2 if mag is None else f2 + mag
 
     def _po_factors(self, ip: int, values: dict[str, float], cell: tuple
                     ) -> np.ndarray | None:
@@ -1344,9 +1467,7 @@ class CompiledModel:
             # (``schemas.instrument.check_harmonics``).
             f2 = self._memo(
                 cp, "f2", lambda: (cell_key(), self._atom_key(ip, values)),
-                lambda: structure_factors_squared(
-                    cp.reflections.hkl, d, cp.sites,
-                    *self._site_values(ip, values, cell)))
+                lambda: self._total_f2(ip, d, values, cell))
             # multiplicity lifted onto the backend: a frozen numpy factor in a
             # product with traced values (backend/api.py)
             mult = xp.asarray(cp.reflections.multiplicity, dtype=np.float64)
@@ -1713,10 +1834,27 @@ class CompiledModel:
         """
         return self._structural_intensity_grad(ip, j, coeffs, values, d_f2_d_uaniso)
 
+    def structural_grad_supported(self, ip: int) -> bool:
+        """Whether the analytic coordinate/ADP columns are exact for this phase.
+
+        **False when the phase carries a moment**, and this is a declared
+        exclusion rather than an omission (the WP-1070 rule: an unstated
+        exclusion is the column-comes-back-*wrong* class of bug).  A moment
+        sits on the same coordinate and takes the same Debye-Waller factor as
+        the nucleus, so ∂I/∂x has a magnetic term too, and
+        ``structure_factor.d_f2_d_xyz`` computes only the nuclear one.  Rather
+        than write a second analytic kernel for it, the dispatch drops such a
+        phase to ``_peak_chain_column``, which re-runs ``phase_peaks`` at the
+        perturbed θ and is therefore exact for whatever the intensity contains.
+        The cost is one extra residual-shaped evaluation per structural column
+        of a magnetic phase.
+        """
+        return self.phases[ip].magnetic is None
+
     def _structural_intensity_grad(self, ip: int, j: int, coeffs: np.ndarray,
                                    values: dict[str, float], kernel
                                    ) -> list[np.ndarray] | None:
-        if self.mode != "rietveld":
+        if self.mode != "rietveld" or not self.structural_grad_supported(ip):
             return None
         cp = self.phases[ip]
         cell = tuple(values[f"phases.{ip}.cell.{k}"]
@@ -1725,6 +1863,16 @@ class CompiledModel:
         xyz, occ, biso, uaniso, astar = self._site_values(ip, values, cell)
         df2 = kernel(cp.reflections.hkl, d, cp.sites, xyz, occ, biso, j, uaniso, astar
                      ) @ np.asarray(coeffs, dtype=np.float64)
+        # a parent-forbidden row has no nuclear structure factor, so it has no
+        # derivative of one either — the same mask ``_nuclear_f2`` applies to
+        # the forward model, applied here so the analytic column and the
+        # residual cannot disagree about a row the forward model puts at
+        # exactly zero.  (Unreached today — a phase with a mask carries a
+        # moment and ``structural_grad_supported`` declines it — and kept so
+        # the two readers of the mask cannot drift.)
+        nuc = self._nuclear_mask(ip)
+        if nuc is not None:
+            df2 = df2 * nuc
         d_base = values[f"phases.{ip}.scale"] * cp.reflections.multiplicity * df2
         # March-Dollase P multiplies the intensity and does not depend on the
         # coordinates/ADPs, so a structural move chains through it unchanged —
@@ -1742,8 +1890,9 @@ class CompiledModel:
         # explicitly; the scale/occ/biso/cell/extinction columns pick it up
         # from the FD-of-phase_peaks chain.
         ext = values[f"phases.{ip}.extinction"]
-        f2 = structure_factors_squared(cp.reflections.hkl, d, cp.sites,
-                                       xyz, occ, biso, uaniso, astar)
+        # the extinction variable x is built from the whole reflection, so the
+        # magnetic term belongs in it exactly as it does in ``phase_peaks``
+        f2 = self._total_f2(ip, d, values, cell)
         vol = cell_volume(*cell)
         out = []
         # λ read through ``line_lambdas``, never off the frozen tuple: a joint
@@ -1787,9 +1936,9 @@ class CompiledModel:
         cell = tuple(values[f"phases.{ip}.cell.{k}"]
                      for k in ("a", "b", "c", "alpha", "beta", "gamma"))
         d = d_spacings(cp.reflections.hkl, *cell)
-        xyz, occ, biso, uaniso, astar = self._site_values(ip, values, cell)
-        f2 = structure_factors_squared(cp.reflections.hkl, d, cp.sites,
-                                       xyz, occ, biso, uaniso, astar)
+        # preferred orientation multiplies the whole reflection's intensity, so
+        # the derivative carries the magnetic term with it
+        f2 = self._total_f2(ip, d, values, cell)
         gstar = reciprocal_metric_tensor(*cell)
         r = values[f"phases.{ip}.preferred_orientation.r"]
         _P, dP = march_dollase_and_dr(cp.po_members, cp.po_seg, cp.po_counts,
@@ -2296,9 +2445,8 @@ class CompiledModel:
             cell = tuple(values[f"phases.{ip}.cell.{key}"]
                          for key in ("a", "b", "c", "alpha", "beta", "gamma"))
             d = d_spacings(cp.reflections.hkl, *cell)
-            f2 = np.asarray(structure_factors_squared(
-                cp.reflections.hkl, d, cp.sites,
-                *self._site_values(ip, values, cell)), dtype=np.float64)
+            f2 = np.asarray(self._total_f2(ip, d, values, cell),
+                            dtype=np.float64)
             i_calc = np.asarray(cp.reflections.multiplicity,
                                 dtype=np.float64) * f2
             live = w_calc > 0.0
@@ -2652,6 +2800,44 @@ def _reraise_species_fault(phase, disp, lams, exc, *, neutron=False):
     raise exc
 
 
+# ----------------------------------------------------------------------
+def magnetic_wanted(phase, source) -> bool:
+    """Whether this phase's moment contributes to *this* histogram (WP-1327).
+
+    **The magnetic term enters a neutron histogram and nothing else.**  A
+    neutron sees the
+    magnetization density through its own moment; an X-ray of a laboratory or
+    ordinary synchrotron experiment does not, to many orders of magnitude, so
+    on an X-ray histogram of a joint fit the term is identically zero — and it
+    is not *computed* and then found to be zero, it is never built, so the
+    phase's X-ray arithmetic is untouched.  A moment refined against X-ray data
+    alone therefore has no gradient anywhere, which is exactly the state the
+    hold rule reports as unobserved rather than fitting.
+
+    Any other radiation is refused **by name** rather than silently treated as
+    one of the two.  This function is the one authority on that dispatch, so a
+    second forward arm asks it rather than re-testing ``source.kind``.
+    """
+    if phase.magnetic_symmetry is None or not any(
+            a.moment is not None for a in phase.atoms):
+        return False
+    kind = getattr(source, "kind", None)
+    if kind in MAGNETIC_SOURCE_KINDS:
+        return True
+    if kind in NON_MAGNETIC_SOURCE_KINDS:
+        return False
+    raise ValueError(
+        f"phase {phase.name!r} carries a magnetic moment and the source is "
+        f"{kind!r}. The magnetic structure factor is a **neutron** term: it is "
+        f"the neutron's own moment coupling to the magnetization density, and "
+        f"an X-ray of a laboratory or ordinary synchrotron experiment does not "
+        f"see it to many orders of magnitude. This package computes it for "
+        f"neutron_cw, returns False for xray_cw, and refuses "
+        f"any other source by name rather than guessing which of the two it "
+        f"resembles. Refine the moment against a neutron histogram, or drop "
+        f"the moment to fit the nuclear structure against this source")
+
+
 
 def _compile_extra_peaks(instrument, tt: np.ndarray, lams: list[float]
                          ) -> tuple[CompiledExtraPeak, ...]:
@@ -2857,6 +3043,21 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
         cell = phase.cell.lengths_angles()
         refl = generate_reflections(phase.space_group, cell, lam_gen,
                                     two_theta_max=hi_eff, two_theta_min=gen_min)
+        # WP-1327: a magnetic space group generally drops the parent's glide
+        # and screw operations, so a k = 0 magnetic structure puts intensity
+        # on reciprocal-lattice points the nuclear structure factor forbids —
+        # Cr₂WO₆'s (0 0 1) and (1 0 2), its two strongest 4 K peaks, are both
+        # there.  Those rows are not in the nuclear list at all, so they are
+        # generated and merged, with a mask that keeps the nuclear term at
+        # exactly zero on them (which is the absence condition, not a
+        # tolerance).  Only for a phase that declares a moment; every other
+        # phase enumerates the list it always did.
+        magnetic_mask = None
+        if magnetic_wanted(phase, instrument.source):
+            extra = magnetic_reflections(
+                phase.space_group, cell, lam_gen, hi_eff, two_theta_min=gen_min,
+                magnetic_group=phase.magnetic_symmetry.group())
+            refl, magnetic_mask = merge_magnetic(refl, extra)
         f_anom = None
         # The source decides the radiation, exactly as it decides f_anom: a
         # neutron source resolves bound coherent scattering lengths instead of
@@ -2926,6 +3127,15 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
 
         cp = CompiledPhase(reflections=refl, sites=sites, win=win, fcj_n=fcj_n,
                            strain_monomials=strain_monomials)
+        if magnetic_mask is not None:
+            cp.nuclear_mask = magnetic_mask
+            cp.magnetic = compile_magnetic_sites(phase, sites.ops)
+            # the Laue orbit of every reflection, frozen here: |F_⊥|² varies
+            # over it, so the magnetic intensity is the orbit *average*.  The
+            # same layout the March-Dollase correction uses, built from the
+            # same ``reflection_orbits``.
+            cp.mag_members, cp.mag_seg, cp.mag_counts = orbit_layout(
+                reflection_orbits(phase.space_group, refl.hkl))
         cp.batch = _batch_layout(win, fcj_n, tt)
         # the off-state gate (see the field): ext is exactly its identity and
         # nothing this stage moves can take it off there

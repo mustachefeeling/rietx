@@ -133,6 +133,19 @@ def make_traced_residual(model, table, xp):
     of the decoded coordinates and cell, so a forward-mode transform
     differentiates them with no extra wiring.
     """
+    # WP-1327: the magnetic structure factor is host numpy.  Two of its steps —
+    # the Cholesky factorisation behind the Cartesian frame and the
+    # crystal-axis→Cartesian solve — are not in this package's ``xp`` protocol,
+    # and freezing them against a cell that is still refining would be an
+    # approximation nobody asked for.  So the twin **declines by name** rather
+    # than tracing a model whose magnetic term it would silently drop; the
+    # numpy path is exact, and a moment's Jacobian column comes from the peak
+    # chain, which re-runs the forward model and needs no tracing.
+    if any(getattr(cp, "magnetic", None) is not None for cp in model.phases):
+        raise NotImplementedError(
+            "the magnetic structure factor (WP-1327) has no traced twin, so a "
+            f"phase carrying a moment cannot be differentiated on the {xp.name} "
+            "backend; refine it on numpy, where its Jacobian column is exact")
     decode = make_traced_decode(table, xp)
     n_table = len(table.free_paths)
     sqrt_w_host = np.asarray(1.0 / model.sigma, dtype=np.float64)

@@ -360,6 +360,33 @@ they were built from. Their licence texts ship in the wheel and sdist as
   gemmi is already a dependency — its f″ is sound (and is used as a test
   oracle) but its f′ disagrees with every published tabulation for several
   lanthanides and actinides.
+- Magnetic **form-factor coefficients** in
+  `src/rietx/crystallography/magnetic/form_factor.py` (`_J0`, `_J2`) — the
+  ⟨j₀⟩ and ⟨j₂⟩ analytic-fit coefficients of Brown, P. J., *International
+  Tables for Crystallography* Vol. C, § 4.4.5. Transcribed from the
+  **public-domain** `periodictable` package (`periodictable/magnetic_ff.py`,
+  © Paul Kienzle; its `LICENSE.txt` opens "Periodictable is in the public
+  domain", and the per-file exception it names covers `cromermann.py` only,
+  which is not used here), which in turn carries the CrysFML Fortran table.
+  `periodictable` is **not** a dependency of this package — the numbers are in
+  source, keyed by ion, with no runtime import. The float literals there are
+  float32 round-trips of the published four-decimal values (`90.029602` for
+  `90.0296`) and were rounded back, with the correction asserted to lie inside
+  float32 relative precision so a genuine fifth decimal could not be
+  truncated. The CrysFML O(1−) row is deliberately **not** taken: it is
+  printed to six decimals, has no ⟨j₂⟩ partner, and does not come from Brown's
+  tabulation. Cross-checked against published rows: Fe³⁺ ⟨j₀⟩ (all seven
+  coefficients) against arXiv:1309.3683, which cites Dianoux & Lander,
+  *Neutron Data Booklet* (OCP Science, 2003), and Mn²⁺ ⟨j₀⟩ (all seven)
+  against the 2025 MnF₂ polarised-neutron study. Cite Brown (ITC C § 4.4.5).
+  **Deliberately not used:** GSAS-II's `atmdata.py` (spec-only under its
+  grant-back clause) and McPhase's table as it travels with Dans_Diffraction
+  (GPL) — the numbers in both are Brown's, but those files are not ours to
+  copy. `periodictable`'s pre-combined `J` table is also not used: its own
+  module docstring writes the dipole coefficient as (1 − 2/g), which is the
+  wrong sign, and then says of the table that it "does not seem to be the
+  case in practice". Only ⟨j₀⟩ and ⟨j₂⟩ are taken, and the combination
+  f = ⟨j₀⟩ + (2/g − 1)⟨j₂⟩ is computed here.
 - Element **colours** in `src/rietx/gui/structure3d.py` (`_CPK`) — the
   *assignments* are the CPK convention (Corey & Pauling, 1953, Rev. Sci. Instrum.
   24, 621; Koltun, 1965, US Patent 3,170,246): hydrogen white, carbon black,

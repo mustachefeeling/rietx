@@ -850,6 +850,7 @@ def _make_jacobian(model: CompiledModel, table: ParameterTable):
                 else:
                     fd_cols.append(c)
             elif ((dof := _STRUCTURAL_PATH.match(path)) and model.mode == "rietveld"
+                    and model.structural_grad_supported(int(dof.group(1)))
                     and _within_atom(extra, dof.group(1), dof.group(2))):
                 rows, grad = (("x", "y", "z"), model.coordinate_intensity_grad) \
                     if dof.group(3) == "dof" else (U_NAMES, model.adp_intensity_grad)

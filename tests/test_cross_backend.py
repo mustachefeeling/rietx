@@ -409,13 +409,67 @@ def _state_extra_peak():
     return model, table, {}
 
 
+def _state_magnetic():
+    """WP-1327: a moment DOF and the structural columns of a magnetic phase.
+
+    The **only** config here whose model is magnetic, and it exists because
+    two derivative paths are new: the moment modulus (no analytic branch
+    claims ``…moment.dof*``, so it takes the peak-chain column), and a
+    coordinate DOF on a phase carrying a moment, which
+    ``CompiledModel.structural_grad_supported`` drops from the analytic
+    structural branch because ``d_f2_d_xyz`` carries no magnetic term — a
+    column built from that kernel would come back short rather than wrong,
+    exactly the failure the matrix is for.
+
+    The autodiff rows **decline** on it rather than agreeing, and they say so
+    by name: the traced twin refuses any model carrying a moment (the
+    Cholesky behind the Cartesian moment frame is not in the ``xp`` protocol),
+    so the comparison this config actually makes is the analytic assembly
+    against central differences.  ``test_the_magnetic_config_declines_the_traced_
+    backends_by_name`` asserts the decline, so the skip below cannot go silent.
+    """
+    import rietx as rx
+    from rietx.schemas.instrument import BackgroundChebyshev
+    from rietx.schemas.pattern import PatternData
+    from tests.test_backend_shim import _free
+    from tests.test_magnetic import _mnf2
+
+    structure = rx.Structure(phases=[_mnf2(biso=0.4)])
+    structure.phases[0].scale.value = 0.05
+    ins = rx.Instrument.constant_wavelength_neutron(2.4)
+    ins.profile.u.value, ins.profile.w.value = 0.05, 0.03
+    ins.profile.x.value = 0.04
+    ins.background = BackgroundChebyshev.with_terms(2)
+    ins.background.coefficients[0].value = 20.0
+
+    grid = np.arange(8.0, 140.0, 0.05)
+    empty = PatternData(two_theta=grid.tolist(),
+                        intensity=np.zeros_like(grid).tolist())
+    sim = compile_model(structure, ins, empty, mode="rietveld")
+    sim_table = ParameterTable(structure, ins)
+    y = sim.evaluate(sim_table.decode(sim_table.x0()))
+    # off the expansion point, so no column is dead by construction
+    pattern = PatternData(two_theta=sim.tt.tolist(),
+                          intensity=(np.asarray(y) * 1.03 + 2.0).tolist())
+
+    table = ParameterTable(structure, ins)
+    _free(table, ["phases.0.scale", "phases.0.lor_size",
+                  "phases.0.atoms.0.moment.dof0",
+                  "phases.0.atoms.1.dof.*", "phases.0.atoms.1.biso",
+                  "instrument.background.c0", "instrument.zero_shift"])
+    model = compile_model(structure, ins, pattern, mode="rietveld",
+                          moving_paths=set(table.moving_paths))
+    return model, table, {}
+
+
 CONFIGS = {"families": _state_families,
            "families_voigt": _state_families_voigt,
            "families_tied": _state_families_tied,
            "families_variable": _state_families_variable,
            "capillary_offsets": _state_capillary_offsets,
            "extra_components": _state_extra_components,
-           "extra_peak": _state_extra_peak, **STATES}
+           "extra_peak": _state_extra_peak,
+           "magnetic": _state_magnetic, **STATES}
 
 #: the fast configs run everywhere; the two real-data ones are `slow`.
 #: ``families_voigt`` (WP-0405's shape) and ``toy_restraints`` (WP-0406's extra
@@ -442,6 +496,7 @@ CONFIG_PARAMS = [
     _config("capillary_offsets"),
     _config("extra_components"),
     _config("extra_peak"),
+    _config("magnetic"),
     _config("toy_lebail"),
     _config("toy_pawley"),
     _config("toy_rich"),
@@ -535,6 +590,11 @@ def _backend_jacobian(name: str):
 
     def build(config, model, table):
         pytest.importorskip(name)
+        if any(getattr(cp, "magnetic", None) is not None
+               for cp in model.phases):
+            # WP-1327's twin refuses a moment by name, so there is no traced
+            # Jacobian to compare; the decline itself is asserted below
+            pytest.skip("the magnetic structure factor has no traced twin")
         return _for_backend(config, model, table, name)
 
     return build
@@ -646,6 +706,30 @@ def test_jacobian_matches_analytic(method, config):
                     rel_max=rel_max, cos_min=cos_min,
                     kink=_kink_paths(model, table),
                     what=f"{config}/{method} ")
+
+
+def test_the_magnetic_config_declines_the_traced_backends_by_name():
+    """The skip in ``_backend_jacobian`` above, made a measured fact.
+
+    WP-1327's config is the only magnetic model in this file, and its autodiff
+    rows are skipped rather than compared.  That is only honest if the twin
+    really refuses — a twin that silently dropped the magnetic term would
+    produce a Jacobian, agree with nothing, and the skip would be hiding it.
+    """
+    model, table = _state("magnetic")
+    assert any(cp.magnetic is not None for cp in model.phases)
+    assert not model.structural_grad_supported(0)
+    asked = 0
+    for name in ("jax", "torch"):
+        try:
+            __import__(name)
+        except ImportError:                  # a numpy-only checkout
+            continue
+        asked += 1
+        with pytest.raises(NotImplementedError, match="magnetic"):
+            _jacobian_for(model, table, name)
+    if not asked:
+        pytest.skip("no autodiff backend installed")
 
 
 @pytest.mark.parametrize("config", CONFIG_PARAMS)

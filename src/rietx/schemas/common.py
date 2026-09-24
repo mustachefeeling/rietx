@@ -240,7 +240,15 @@ from .._nearmiss import did_you_mean
 #: charged at N/f² (the probe residual's rows over its squared Bérar-Lelann
 #: factor) and the raw-N figure rides beside it.  Additive and defaulted to
 #: ``None``, the same rule as 0.19 → 0.20.
-SCHEMA_VERSION = "0.27"
+#: 0.27 → 0.28 (WP-1327): two additive fields, both defaulted to ``None``,
+#: which is the honest empty state and the bit-identical one — a phase that
+#: declares neither serializes apart from the new nulls, and refines, exactly
+#: as before.  ``Atom.moment`` (crystal-axis components in μ_B, the magCIF
+#: ``_atom_site_moment.crystalaxis_*`` convention, with the ion and the Landé
+#: g the dipole form factor needs) and ``Phase.magnetic_symmetry`` (the magCIF
+#: operator and centring loops with their time-reversal signs, the BNS/OG
+#: symbol as metadata).
+SCHEMA_VERSION = "0.28"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
 

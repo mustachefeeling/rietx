@@ -10,4 +10,6 @@
 # excluded with a reason, or deliberately deferred by regenerating this file —
 # which shows up as a diff in review.  WP-1067 closes when this file has no
 # names left.
-
+MomentEvidence.paired_magnitude
+MomentEvidence.paired_magnitude_esd
+MomentEvidence.paired_with
