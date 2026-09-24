@@ -472,6 +472,44 @@ npm --prefix gui test && npm --prefix gui run check
 
 ## Handover log
 
+- **2026-09-25** — session state saved for a `/clear`, before
+  `/wp-handover`. The WP is filed and not started. PR #461 carries it with
+  the spike and a demo someone can click through. Nothing in the package
+  changed. The maintainer has not yet answered the first task (confirm the
+  migration on § Staying on plotly's numbers, and D1-D8), nor whether to
+  file a three.js WP for the 3D viewer now.
+  *Done:* the WP and ROADMAP row, `1461-uplot-spike/` (drivers, logs,
+  screenshots), the adversarial review and the re-measurement it forced, a
+  forward reference in 1317's Inherited, and the demo (`serve.mjs`, `?demo`
+  toolbar). Branch `wp1461-uplot` in worktree
+  `.claude/worktrees/wp1461-uplot`, pushed.
+  *In flight:* a demo server on `http://127.0.0.1:8810/`, started from this
+  session. Restart it with `node docs/wp/1461-uplot-spike/serve.mjs 8810`.
+  The spike's `node_modules` is a symlink into a session scratchpad that will
+  be cleaned, so run `npm install` in the spike directory first (README).
+  *Not yet done from the handover checklist:* the Stop hook asked for
+  `/wp-handover 1461` on 2026-09-24. It still owes a `/code-review high
+  --fix` over the spike's `.mjs`/`.py`, the `session_start.py` check, and
+  a PR body rewritten from this log.
+  *Gotchas:*
+  - `Plotly.Plots.resize` resolves after a 100 ms `setTimeout`, so time work
+    with `TaskDuration`, never a promise.
+  - Load averages ran from 7 to 29 on this shared machine. GUI boot moved
+    from 842 to 2295 ms between runs, so quote ranges and side-by-side
+    ratios.
+  - The worktree guard refuses heredoc scripts and shell loops; write a
+    scratchpad script and run it by path.
+  - The drivers rewrite `shots/`, and the spike's `.gitignore` keeps only
+    the six cited screenshots.
+  - WP numbers: 1460 was already held on WP-1454's branch, so check remote
+    branches as well as main before taking one.
+  *Next:*
+  1. The maintainer's answers go into § Decisions, and the first task gets
+     ticked.
+  2. If a three.js WP is wanted, file it.
+  3. Run `/wp-handover 1461`.
+  4. Task 2: measure D4 and D8 on the real payloads, which sets the route
+     the pilot builds on.
 - **2026-09-24** — created. The maintainer asked whether a lighter library
   would make the plots snappier, and asked for one backend for all plotting
   if it held up. The spike measured three libraries, today's GUI and a uPlot
