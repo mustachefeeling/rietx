@@ -523,6 +523,9 @@ class CompiledPhase:
     # grouping (None outside pawley mode)
     tt_primary: np.ndarray | None = None  # (N,)
     fwhm_primary: np.ndarray | None = None  # (N,)
+    # True where no emission line's compile-time centre lies on the fitted
+    # data (``PawleyBlock.off_data``; None outside pawley mode)
+    off_data: np.ndarray | None = None  # (N,) bool
     # March-Dollase preferred orientation: the frozen symmetry orbit of every
     # reflection (flattened; see preferred_orientation.orbit_layout) plus the
     # fixed integer axis.  None unless the phase carries a PO block in Rietveld
@@ -2620,9 +2623,28 @@ class CompiledModel:
         after the intensities are seeded/carried so s reflects a realistic
         scale; constant during the least-squares run, like the background
         penalty.
+
+        Then one row per reflection centred off the data
+        (:attr:`PawleyBlock.off_data`): √λ/s·I_k, a ridge toward zero whose
+        width s is the phase's largest on-data intensity (WP-1459, issue
+        #440).  A reflection that stays off the data meets it only through a
+        tail, so its column is all but zero and it is bounded below only: on a
+        synthetic fluorapatite pattern ending at 74.99° the (6 0 2) at 75.44°
+        refined to 1.45e8 against a median of 81, a warm-started series
+        carried it to 1.1e12, and TRF's step test (relative to ‖x‖) then ended
+        solves after two iterations at up to 769× the Rwp of the same chain
+        re-seeded.  The reflection cannot simply be dropped: the list runs
+        0.5° past the data so that one a stage *moves onto* the data is
+        modelled, and without that margin a later pattern of the same series,
+        fitted cold from a cell 0.1 % short, stalled its cell stage at 24 %
+        Rwp against 3.4 %.  With the ridge an undetermined
+        intensity stays within s and comes back with an esd of order s — the
+        overlap rows' large-but-honest answer — while a reflection the data
+        do reach has a column far more precise than a prior as wide as the
+        strongest reflection.
         """
         pb = self.pawley
-        if pb is None or not pb.groups:
+        if pb is None or not (pb.groups or pb.off_data):
             return
         intens = self.pawley_x0()
         rows: list[np.ndarray] = []
@@ -2633,6 +2655,15 @@ class CompiledModel:
                 row = np.zeros(pb.n, dtype=np.float64)
                 for j in g:
                     row[j] = (np.sqrt(lam) / s) * ((1.0 if j == k else 0.0) - 1.0 / n)
+                rows.append(row)
+        off = np.zeros(pb.n, dtype=bool)
+        off[pb.off_data] = True
+        for a, b in pb.phase_slices:
+            on = intens[a:b][~off[a:b]]
+            s = max(float(on.max()) if len(on) else 0.0, 1.0)
+            for k in np.flatnonzero(off[a:b]):
+                row = np.zeros(pb.n, dtype=np.float64)
+                row[a + k] = np.sqrt(lam) / s
                 rows.append(row)
         pb.restraint = np.array(rows, dtype=np.float64) if rows else None
 
@@ -2661,6 +2692,7 @@ class PawleyBlock:
     n: int                                   # total intensities across phases
     phase_slices: list[tuple[int, int]]      # (start, stop) into the flat vector
     groups: list[list[int]]                  # overlapped groups (flat idx), size ≥ 2
+    off_data: list[int] = field(default_factory=list)  # centred off the data (flat idx)
     restraint: np.ndarray | None = None      # (n_rows, n) √λ-scaled restraint rows
     stderr: np.ndarray | None = None         # per-intensity esd, filled post-solve
 
@@ -3164,6 +3196,7 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
         win = np.zeros((n_lines, n, 2), dtype=np.int64)
         fcj_n = np.zeros((n_lines, n), dtype=np.int64)
         tt_primary = fwhm_primary = None
+        on_data = np.zeros(n, dtype=bool)
         # Stephens anisotropic strain: freeze the quartic monomials and take
         # the width estimate *with* Λ, so a direction that is three times
         # broader than the isotropic average still gets a wide enough window.
@@ -3194,6 +3227,7 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
             gamma_est, eta_est = tch_gamma_eta(g_est, l_est)
             if il == 0:  # primary line drives Pawley overlap grouping
                 tt_primary, fwhm_primary = pos.copy(), gamma_est.copy()
+            on_data |= (pos >= tt_min) & (pos <= tt_max)
             slack = (WINDOW_MIN_DEG if window_slack_deg is None
                      else window_slack_deg)
             half = window_fwhm_mult(eta_est) * gamma_est + slack
@@ -3242,6 +3276,7 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
             cp.hkl_intensity = np.full(n, max(float(np.median(y_obs)), 1.0))
         if mode == "pawley":
             cp.tt_primary, cp.fwhm_primary = tt_primary, fwhm_primary
+            cp.off_data = ~on_data
         # March-Dollase preferred orientation acts on *calculated* structure-
         # factor intensities, so it is a Rietveld-mode correction only — Le Bail
         # and Pawley intensities are empirical and would absorb it.  Freeze the
@@ -3423,6 +3458,7 @@ def _build_pawley_block(phases: list[CompiledPhase]) -> PawleyBlock:
     """
     phase_slices: list[tuple[int, int]] = []
     groups: list[list[int]] = []
+    off_data: list[int] = []
     offset = 0
     for cp in phases:
         n = len(cp.reflections)
@@ -3430,8 +3466,11 @@ def _build_pawley_block(phases: list[CompiledPhase]) -> PawleyBlock:
         if cp.tt_primary is not None and n:
             for g in _overlap_groups(cp.tt_primary, cp.fwhm_primary):
                 groups.append([offset + k for k in g])
+        if cp.off_data is not None:
+            off_data.extend(offset + int(k) for k in np.flatnonzero(cp.off_data))
         offset += n
-    return PawleyBlock(n=offset, phase_slices=phase_slices, groups=groups)
+    return PawleyBlock(n=offset, phase_slices=phase_slices, groups=groups,
+                       off_data=off_data)
 
 
 def seed_phase_scales(structure: Structure, instrument: Instrument,

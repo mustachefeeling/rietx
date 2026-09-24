@@ -2084,3 +2084,33 @@ def test_write_csv_follows_to_table_through_the_resolver(tmp_path):
     assert lines[1].split(",")[7:] == ["0.05", "90.0", "1.0"]
     # the skipped pattern writes empty cells, as every other absence does
     assert lines[2].split(",")[7:] == ["0.06", "", ""]
+
+
+def test_pawley_chain_carried_intensities_refit_as_far_as_cleared():
+    """WP-1459 (issue #440): carrying a Pawley pattern's per-hkl intensities to
+    the next must not stop the warm refit short.  A reflection centred off the
+    data used to grow along the chain (1.45e8 → 2.8e11 → 1.1e12) until TRF's
+    step test, relative to ‖x‖, ended pattern 3 after two iterations at 2.81×
+    the Rwp of the same chain re-seeded.  ``carry_hkl_intensities=False`` is
+    the re-seeded chain; the two must agree to 1e-3 relative on every pattern
+    (measured: identical to five digits), and the switch must actually clear
+    what the carried chain hands on."""
+    from tests.test_pawley import FAP_CIF, _fap_instrument, fap_series
+
+    patterns = fap_series(4)
+    seen: dict[bool, list[int]] = {True: [], False: []}
+    rwp = {}
+    for carry in (True, False):
+        def hook(i, ref, carry=carry):
+            seen[carry].append(sum(len(r.intensity) for r in ref._pending_reflections))
+
+        sr = SequentialRefinement(rx.Structure.from_cif(str(FAP_CIF)),
+                                  _fap_instrument(False),
+                                  carry_hkl_intensities=carry)
+        series = sr.fit(patterns, mode="pawley", plan="pawley_default",
+                        reseed=False, constrain=hook)
+        assert all(e.status == "converged" for e in series.entries)
+        rwp[carry] = [e.statistics.rwp for e in series.entries]
+    assert seen[True][0] == 0 and all(n > 0 for n in seen[True][1:])
+    assert seen[False] == [0, 0, 0, 0]
+    np.testing.assert_allclose(rwp[True], rwp[False], rtol=1e-3)

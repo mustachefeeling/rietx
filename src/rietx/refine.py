@@ -2570,6 +2570,7 @@ class Refinement:
 
             if mode == "pawley":
                 diagnostics.extend(_pawley_unresolved_diagnostics(model, self.structure))
+                diagnostics.extend(_pawley_off_data_diagnostics(model, self.structure))
             diagnostics.extend(_constraint_diagnostics(plan.stages[-1].name, outcome))
             diagnostics.extend(_degenerate_cell_diagnostics(
                 [(sr.name, sr.n_degenerate_cell_probes) for sr in stage_results]))
@@ -2916,6 +2917,7 @@ class Refinement:
                                                        answer=True))
             if mode == "pawley":
                 diagnostics.extend(_pawley_unresolved_diagnostics(model, self.structure))
+                diagnostics.extend(_pawley_off_data_diagnostics(model, self.structure))
             diagnostics.extend(_constraint_diagnostics(stage.name, outcome))
             diagnostics.extend(_degenerate_cell_diagnostics(
                 [(stage.name, outcome.n_degenerate_cell_probes)]))
@@ -4589,6 +4591,36 @@ def _pawley_unresolved_diagnostics(model: CompiledModel,
                        "per-reflection split is not resolved by these data",
         ))
     return out
+
+
+def _pawley_off_data_diagnostics(model: CompiledModel,
+                                 structure: Structure) -> list[Diagnostic]:
+    """Name, per phase, the reflections whose intensity came from the ridge.
+
+    A reflection with no emission line centred on the fitted data is kept in
+    the list (so a stage can move it onto the data) and ridged toward zero
+    (:meth:`CompiledModel.build_pawley_restraint`, WP-1459).  Its reported
+    intensity is then the ridge's answer, not the data's, and nothing in the
+    value or its esd says so — the overlap rows' precedent
+    (:func:`_pawley_unresolved_diagnostics`) is to name what the restraint set.
+    """
+    pb = model.pawley
+    if pb is None or not pb.off_data:
+        return []
+    by_phase: dict[int, list[str]] = {}
+    for gi in pb.off_data:
+        ip, k = _pawley_locate(pb, gi)
+        h = tuple(int(v) for v in model.phases[ip].reflections.hkl[k])
+        by_phase.setdefault(ip, []).append(f"{structure.phases[ip].name} {h}")
+    return [Diagnostic(
+        level="info", code="PAWLEY_OFF_DATA_RIDGED", where=labels,
+        message=(f"{len(labels)} reflection(s) of {structure.phases[ip].name} have "
+                 f"no emission line centred on the fitted data; their "
+                 f"intensities were ridged toward zero and are the ridge's "
+                 f"value, not a measurement"),
+        suggestion="do not export or use these intensities; widen the fitted "
+                   "range if they are needed",
+    ) for ip, labels in by_phase.items()]
 
 
 #: a species whose |f|² at k = 0 moves by more than this fraction when f′, f″

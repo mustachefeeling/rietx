@@ -655,6 +655,14 @@ class SequentialRefinement:
     ``["*"]`` carries everything, and anything excluded restarts from the
     *initial* models on every pattern.
 
+    ``carry_hkl_intensities`` decides the same thing for the state a glob
+    cannot name: a Le Bail or Pawley pattern's per-hkl intensities, which live
+    outside θ.  ``True`` (default) seeds each warm pattern from the last
+    accepted pattern's intensities, matched by hkl; ``False`` starts every
+    pattern's extraction afresh, exactly as the first pattern's (WP-1459,
+    issue #440 — until then the only way was clearing a private attribute in a
+    ``constrain`` hook).  No effect in Rietveld mode, which extracts none.
+
     ``history`` accepts ``False`` (default — a long series makes a lot of
     trees), ``True`` for in-memory trees, or a **directory** path, in which case
     each pattern's history is written to ``<dir>/<label>.jsonl``.  There is one
@@ -673,6 +681,7 @@ class SequentialRefinement:
     def __init__(self, structure: Structure, instrument: Instrument, *,
                  backend: str = "numpy", solver: str = "trf",
                  carry: Sequence[str] = ("*",),
+                 carry_hkl_intensities: bool = True,
                  history: bool | str | Path = False):
         if backend != "numpy":
             from .backend import resolve_backend
@@ -689,6 +698,7 @@ class SequentialRefinement:
         self.structure = structure.model_copy(deep=True)
         self.instrument = instrument.model_copy(deep=True)
         self.carry = list(carry)
+        self.carry_hkl_intensities = bool(carry_hkl_intensities)
         self._history = history
         self.results_: list[RefinementResult] = []
         self.trees_: list[RefinementTree | None] = []
@@ -1381,7 +1391,7 @@ class SequentialRefinement:
         root_declared = _declared_wavelengths(self.instrument)
         if len(root_declared) == len(ref._declared_wavelengths):
             ref._declared_wavelengths = list(root_declared)
-        if previous_hkl and mode in ("lebail", "pawley"):
+        if previous_hkl and mode in ("lebail", "pawley") and self.carry_hkl_intensities:
             # Le Bail/Pawley per-hkl intensities are path-dependent state that
             # lives *outside* θ, so `_carry_into` cannot reach them — and a flat
             # re-seed would throw away everything the previous pattern learned,
@@ -2057,15 +2067,17 @@ def _path_dependence_diagnostics(forward: SeriesResult,
 def refine_sequential(patterns: Sequence[PatternData], structure: Structure,
                       instrument: Instrument, *,
                       carry: Sequence[str] = ("*",),
+                      carry_hkl_intensities: bool = True,
                       backend: str = "numpy", solver: str = "trf",
                       history: bool | str | Path = False,
                       **kw) -> SeriesResult:
     """One-shot functional API for a warm-started series.
 
     ``refine_sequential(patterns, structure, instrument, x=temperatures)``.
-    Keyword arguments beyond ``carry``/``backend``/``solver``/``history`` go to
-    :meth:`SequentialRefinement.fit`.
+    Keyword arguments beyond ``carry``/``carry_hkl_intensities``/``backend``/
+    ``solver``/``history`` go to :meth:`SequentialRefinement.fit`.
     """
     series = SequentialRefinement(structure, instrument, carry=carry,
+                                  carry_hkl_intensities=carry_hkl_intensities,
                                   backend=backend, solver=solver, history=history)
     return series.fit(patterns, **kw)

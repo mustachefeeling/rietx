@@ -85,6 +85,20 @@ What an operator must know, all measured:
   from the last **accepted** pattern, a quarantined one seeding no successor
   here either.  *(Measured: WP-1441, issue #376 — before it, the tie holding
   pattern 1 together left `ref._ties` empty on pattern 2.)*
+- **A Le Bail or Pawley chain carries its per-hkl intensities too, and
+  `carry_hkl_intensities=False` turns that off.**  They live outside θ, so no
+  `carry` glob reaches them; the constructor switch does, and `False` starts
+  every pattern's extraction afresh, as the first pattern's is. Keep the
+  default for Pawley: on a synthetic 10-pattern fluorapatite ramp the two
+  chains agree to five digits of Rwp on every pattern. For Le Bail, carrying
+  is the better start (Rwp 3.95 % against 4.29 % on the last pattern of the
+  same ramp). A Pawley reflection centred past the end of the data is ridged
+  toward zero. Where only its tail reaches the data it comes back near zero,
+  with an esd of the order of the strongest reflection (2e-4 ± 3.9e3 against
+  a strongest of 2.6e3). Read that as "not measured", never as an intensity.
+  *(Measured: WP-1459, issue #440. Before the ridge that one reflection grew to 1.1e12 along the
+  carried chain, and warm refits stopped on `xtol`, still `converged`, at up
+  to 769× the re-seeded chain's Rwp.)*
 - **A sequential trajectory is path-dependent by construction**, so a smooth
   curve is exactly what a poisoned chain produces.  `direction="both"` runs the
   series each way and reports `SEQUENTIAL_PATH_DEPENDENT` per parameter.  For
