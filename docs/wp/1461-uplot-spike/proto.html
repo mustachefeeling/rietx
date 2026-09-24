@@ -432,7 +432,21 @@ if (DEMO) {
   });
   bar.appendChild(status);
   const paint = document.createElement("span"); paint.id = "paint"; bar.appendChild(paint);
-  addEventListener("repaint", (e) => { paint.textContent = `last frame: ${e.detail.panes} pane${e.detail.panes === 1 ? "" : "s"} painted in ${e.detail.ms.toFixed(1)} ms`; });
+  // After a drag, split the wait: how long the pointer sat still before the mouse-up reached the
+  // page, and how long the page took from the mouse-up to the frame. macOS three-finger drag holds
+  // the drag open after the fingers lift, so a late mouse-up shows here as the pointer sitting still.
+  let lastMove = 0, up = null;
+  addEventListener("pointermove", (e) => { if (e.buttons) lastMove = e.timeStamp; }, true);
+  addEventListener("pointerdown", (e) => { lastMove = e.timeStamp; }, true);
+  addEventListener("pointerup", (e) => {   // a mouse-up that repaints nothing is forgotten two frames on
+    const mine = up = { t: e.timeStamp, still: e.timeStamp - lastMove };
+    requestAnimationFrame(() => requestAnimationFrame(() => { if (up === mine) up = null; }));
+  }, true);
+  addEventListener("repaint", (e) => {
+    let text = `last frame: ${e.detail.panes} pane${e.detail.panes === 1 ? "" : "s"} painted in ${e.detail.ms.toFixed(1)} ms`;
+    if (up) { text += ` · pointer still ${up.still.toFixed(0)} ms before the mouse-up · mouse-up to frame ${(performance.now() - up.t).toFixed(0)} ms`; up = null; }
+    paint.textContent = text;
+  });
   timed(`mounted ${N.toLocaleString()} points`, () => mount(N));
 }
 </script></body></html>
