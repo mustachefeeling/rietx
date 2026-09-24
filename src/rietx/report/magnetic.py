@@ -98,12 +98,13 @@ def analyse_moments(model, values, structure=None, *,
             out.append(_row(model, values, ip, j, cp, msites, phase_name,
                             cell, held_set, structure, esd or {}))
     if correlations:
-        out = _pair_degenerate_moments(out, correlations)
+        out = _pair_degenerate_moments(
+            out, correlations, {r.path: float(values[r.path]) for r in out})
     return out
 
 
-def _pair_degenerate_moments(rows: list[MomentEvidence],
-                             correlations: list) -> list[MomentEvidence]:
+def _pair_degenerate_moments(rows: list[MomentEvidence], correlations: list,
+                             signed: dict[str, float]) -> list[MomentEvidence]:
     """Q5: fold a powder-degenerate pair into one measured number.
 
     ``isotropy.analyse`` computes, pre-fit, how many of a candidate's free
@@ -122,6 +123,16 @@ def _pair_degenerate_moments(rows: list[MomentEvidence],
     pair is not claimed twice — the greedy match by |rho|, worst first, is
     what keeps this well-defined when more than one pair in a phase crosses
     the bar.
+
+    ``signed`` is each row's **signed** modulus DOF, ``{path: dof0}``.  The
+    esd is the linearised gᵀCg with g = ∂m/∂d = d/m, and ``rho`` is the
+    correlation of the two *signed* columns, so g needs the signs too: two
+    sites stated antiparallel (d_a = +2, d_b = −2) have their degenerate
+    direction along (1, 1), ρ → +1, and a cross term of −σ² that cancels the
+    diagonal.  ``MomentEvidence.magnitude`` is |dof0|, and building g from it
+    flipped that cross term and reported √2·σ for a sum the data determines
+    well (review of #433, finding 4).  Required rather than defaulted, so no
+    caller can reach the unsigned form by leaving it out.
     """
     by_path = {r.path: i for i, r in enumerate(rows) if r.path}
     claimed: set[str] = set()
@@ -138,13 +149,16 @@ def _pair_degenerate_moments(rows: list[MomentEvidence],
         a, b = updated[ia], updated[ib]
         if a.magnitude_esd is None or b.magnitude_esd is None:
             continue
-        m = math.sqrt(a.magnitude ** 2 + b.magnitude ** 2)
+        d_a, d_b = signed[a.path], signed[b.path]
+        m = math.sqrt(d_a ** 2 + d_b ** 2)
         if m <= 0.0:
             continue
+        # rho belongs to (path_a, path_b); the rows are in that order here
         cov_ab = c.rho * a.magnitude_esd * b.magnitude_esd
-        var_m = ((a.magnitude / m) ** 2 * a.magnitude_esd ** 2
-                 + (b.magnitude / m) ** 2 * b.magnitude_esd ** 2
-                 + 2.0 * (a.magnitude / m) * (b.magnitude / m) * cov_ab)
+        g_a, g_b = d_a / m, d_b / m
+        var_m = (g_a ** 2 * a.magnitude_esd ** 2
+                 + g_b ** 2 * b.magnitude_esd ** 2
+                 + 2.0 * g_a * g_b * cov_ab)
         esd_m = math.sqrt(max(var_m, 0.0))
         note = (f"not separately determined: this modulus and {b.atom}'s "
                 f"({b.path}) are correlated at rho={c.rho:.3f} — the powder "
@@ -207,10 +221,21 @@ def _row(model, values, ip, j, cp, msites, phase_name, cell, held_set,
              else f"atoms.{j}")
     sigma = esd.get(f"{base}.dof0")
     at_floor = modulus <= MOMENT_FLOOR_MU_B
-    insignificant = sigma is not None and modulus <= MOMENT_SUPPORT_SIGMA * sigma
-    supported = not (at_floor or insignificant)
+    # ``None`` where there is no esd: the modulus was stated and held, or it
+    # left the covariance as unmeasured, and in neither case did anything test
+    # it — the honest empty state, which a defaulted ``True`` read as an
+    # answer (review of #433, finding 5; WP-1076's first shape)
+    supported: bool | None
+    if sigma is None:
+        supported = None
+    else:
+        supported = not (at_floor or modulus <= MOMENT_SUPPORT_SIGMA * sigma)
     note = ""
-    if not supported:
+    if supported is None:
+        note = ("the modulus has no esd — it was stated and held, or the fit "
+                "left it out of the covariance as unmeasured — so whether the "
+                "data supports a moment here was not tested")
+    elif not supported:
         # the reason is quoted, because the two are different readings: a
         # modulus driven to the floor is a fit that removed the magnetic
         # intensity outright, while one that is merely inside its own esd is

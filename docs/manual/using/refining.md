@@ -288,7 +288,7 @@ print(row.magnitude, row.approximation, row.unmeasured_directions)
 | `MomentEvidence.approximation` | which f(s) was used, named | ⟨j₀⟩ alone, or ⟨j₀⟩ + (2/g − 1)⟨j₂⟩ with g |
 | `MomentEvidence.free_directions` | every direction DOF the site symmetry leaves free | `"polar"`, `"azimuth"` |
 | `MomentEvidence.unmeasured_directions` | those of them the powder average did not determine | they are held, so they carry no esd at all |
-| `MomentEvidence.supported` | whether |m| is above its floor and above three of its own esds | false means the data does not support a moment here (not a small one) |
+| `MomentEvidence.supported` | whether |m| is above its floor and above three of its own esds | false means the data does not support a moment here (not a small one); `None` means the modulus has no esd — stated and held, or unmeasured — so nothing was tested |
 | `MomentEvidence.note` | the sentence for whichever of those applies | |
 
 A direction a powder cannot see is held, not fitted. After the orbit
@@ -309,7 +309,8 @@ of 0.395, six times larger, and the acceptance protocol this package ships
 (u, v, w, x free in the width stage) drives it to the floor with an esd three
 orders of magnitude above it. Neither is a measurement. So
 `MomentEvidence.supported` is false when the modulus is below its floor or
-below three of its own esds, and the note quotes which. At 4 K the same model
+below three of its own esds, and the note quotes which. A modulus with no
+esd has no ratio to take, and `supported` is then `None`, not an answer. At 4 K the same model
 gives 2.078 ± 0.066, a ratio of 32, and the answer flips. That is the
 deliverable; a small moment with a small esd would not be.
 

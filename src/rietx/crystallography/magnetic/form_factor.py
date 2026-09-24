@@ -572,22 +572,22 @@ def coefficients(ion: str) -> tuple[Coefficients, Coefficients | None]:
     return _J0[ion], _J2.get(ion)
 
 
-def _jn(coef: Coefficients, s2, *, s2_factor: bool):
+def _jn(coef: Coefficients, stol2, *, stol2_factor: bool):
     xp = get_backend()
     a0, a1, b0, b1, c0, c1, d = coef
-    out = (a0 * xp.exp(-a1 * s2) + b0 * xp.exp(-b1 * s2)
-           + c0 * xp.exp(-c1 * s2) + d)
-    return s2 * out if s2_factor else out
+    out = (a0 * xp.exp(-a1 * stol2) + b0 * xp.exp(-b1 * stol2)
+           + c0 * xp.exp(-c1 * stol2) + d)
+    return stol2 * out if stol2_factor else out
 
 
-def j0(ion: str, s):
-    """⟨j₀⟩(s) for ``ion``; ``s`` = sinθ/λ in Å⁻¹.  ⟨j₀⟩(0) = 1 by construction."""
+def j0(ion: str, stol):
+    """⟨j₀⟩(s) for ``ion``; ``stol`` = s = sinθ/λ in Å⁻¹.  ⟨j₀⟩(0) = 1 by construction."""
     c0, _ = coefficients(ion)
-    s = get_backend().asarray(s, dtype=np.float64)
-    return _jn(c0, s * s, s2_factor=False)
+    stol = get_backend().asarray(stol, dtype=np.float64)
+    return _jn(c0, stol * stol, stol2_factor=False)
 
 
-def j2(ion: str, s):
+def j2(ion: str, stol):
     """⟨j₂⟩(s), **including its s² factor**, so ⟨j₂⟩(0) = 0 exactly."""
     _, c2 = coefficients(ion)
     if c2 is None:
@@ -595,8 +595,8 @@ def j2(ion: str, s):
             f"the form-factor table carries ⟨j0⟩ for {ion!r} but no ⟨j2⟩, so "
             f"the dipole approximation cannot be completed for it. Refine it "
             f"with g = 2 (⟨j0⟩ alone) only if that is the physics you mean")
-    s = get_backend().asarray(s, dtype=np.float64)
-    return _jn(c2, s * s, s2_factor=True)
+    stol = get_backend().asarray(stol, dtype=np.float64)
+    return _jn(c2, stol * stol, stol2_factor=True)
 
 
 #: What ``magnetic_form_factor`` used, for the report and the diagnostics: the
@@ -636,10 +636,10 @@ def resolve_g(ion: str, g: float | None) -> float:
     return 2.0
 
 
-def magnetic_form_factor(ion: str, s, g: float | None = None):
+def magnetic_form_factor(ion: str, stol, g: float | None = None):
     """f(s) = ⟨j₀⟩ + (2/g − 1)·⟨j₂⟩ — the dipole approximation.
 
-    ``s`` is sinθ/λ = 1/2d in Å⁻¹, the same argument the X-ray form factor and
+    ``stol`` is s = sinθ/λ = 1/2d in Å⁻¹, the same argument the X-ray form factor and
     the Debye-Waller factor take (``crystallography.structure_factor``); it is
     **not** Q, and it is not Q/4π expressed in some other unit.
 
@@ -649,7 +649,7 @@ def magnetic_form_factor(ion: str, s, g: float | None = None):
     """
     gg = resolve_g(ion, g)
     c2_weight = 2.0 / gg - 1.0
-    f = j0(ion, s)
+    f = j0(ion, stol)
     if c2_weight == 0.0:
         return f
-    return f + c2_weight * j2(ion, s)
+    return f + c2_weight * j2(ion, stol)

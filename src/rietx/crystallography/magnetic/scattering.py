@@ -60,10 +60,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+import gemmi
 import numpy as np
 
 from ..adp import cartesian_basis
-from ..symmetry import SITE_TOL, ReflectionSet, generate_reflections
+from ..symmetry import SITE_TOL, ReflectionSet, as_group, generate_reflections
 from .form_factor import approximation_name, coefficients, resolve_g
 from .moments import moment_frame, moment_from_dofs
 
@@ -73,6 +74,17 @@ from .moments import moment_frame, moment_from_dofs
 #: 10⁻¹² cm is 2.695 fm; the two spellings are the same number and the fm one
 #: is the one this package computes in.
 P_MAGNETIC_FM = 2.695
+
+#: The source kinds whose histograms carry the magnetic term, and the ones that
+#: do not.  One table, two readers: ``model.forward.magnetic_wanted`` dispatches
+#: on it (and refuses a kind in neither set by name), and
+#: ``capabilities.RadiationCapability.magnetic_scattering`` is derived from it,
+#: so the arm a client reads cannot disagree with what the forward model does.
+#: A neutron couples to the magnetization density through its own moment; an
+#: X-ray of a laboratory or ordinary synchrotron experiment does not, to many
+#: orders of magnitude.
+MAGNETIC_SOURCE_KINDS = frozenset({"neutron_cw"})
+NON_MAGNETIC_SOURCE_KINDS = frozenset({"xray_cw"})
 
 
 @dataclass
@@ -246,7 +258,8 @@ def _axial_matrices(group, xyz, rot, tran, phase_name, label) -> np.ndarray:
 def magnetic_reflections(sg_symbol,
                          cell: tuple[float, float, float, float, float, float],
                          wavelength: float, two_theta_max: float,
-                         two_theta_min: float = 0.0) -> ReflectionSet:
+                         two_theta_min: float = 0.0, *,
+                         magnetic_group=None) -> ReflectionSet:
     """The reciprocal-lattice points the **nuclear** structure factor forbids.
 
     A k = 0 magnetic structure puts intensity exactly where the parent's glide
@@ -257,12 +270,26 @@ def magnetic_reflections(sg_symbol,
     the nuclear reflection list at all**, so a magnetic phase needs them added
     or its strongest peaks are simply not computed.
 
-    Centring conditions *are* applied — those are conditions on the lattice,
-    which a magnetic structure in the same cell shares — and glide and screw
-    absences are not.  The Laue multiplicity is the parent group's, because
-    that is what makes two reflections coincide in a powder pattern; the fact
-    that the *magnetic* symmetry is lower is exactly why the intensity is an
-    orbit average rather than one representative's value.
+    **Centring conditions are applied, except the ones the magnetic group
+    reverses.**  A parent centring translation t forbids every h with
+    h·t ∉ ℤ, and an ordinary magnetic group carries t unprimed, so its
+    magnetic structure factor obeys the same condition and those rows would
+    only be zero-intensity rows reaching every consumer :func:`merge_magnetic`
+    names.  A black-white lattice (BNS type IV) carries t *primed* — an
+    anti-centring, the moment reversed on translation — and there the
+    magnetic intensity sits exactly at h·t ∈ ℤ + ½, on the rows the nuclear
+    centring forbids.  So each parent centring is applied unless
+    ``magnetic_group`` holds it with time reversal −1.  ``magnetic_group``
+    ``None`` applies every centring, which is the ordinary case.  (gemmi's
+    ``systematic_absences`` is where the centring test lives, and skipping it
+    to keep the glide and screw rows skipped the centring with them; this
+    function applies it itself.)
+
+    Glide and screw absences are not applied.  The Laue multiplicity is the
+    parent group's, because that is what makes two reflections coincide in a
+    powder pattern; the fact that the *magnetic* symmetry is lower is exactly
+    why the intensity is an orbit average rather than one representative's
+    value.
 
     Magnetic absences are not applied either, and are not needed: |F_m|² is
     identically zero where the magnetic group forbids the reflection, so the
@@ -278,10 +305,40 @@ def magnetic_reflections(sg_symbol,
     keep = {tuple(map(int, h)) for h in allowed.hkl}
     mask = np.array([tuple(map(int, h)) not in keep for h in everything.hkl],
                     dtype=bool)
+    centrings = applied_centrings(as_group(sg_symbol), magnetic_group)
+    if len(centrings) and len(everything):
+        # h·t for every centring t, in 1/DEN units: integral iff divisible
+        phase = everything.hkl.astype(np.int64) @ centrings.T
+        mask &= np.all(phase % gemmi.Op.DEN == 0, axis=1)
     return ReflectionSet(hkl=everything.hkl[mask],
                          multiplicity=everything.multiplicity[mask],
                          d=everything.d[mask],
                          spacegroup=everything.spacegroup)
+
+
+def applied_centrings(group, magnetic_group=None) -> np.ndarray:
+    """``(n, 3)`` int — the parent's non-trivial centrings a magnetic row must obey.
+
+    In gemmi's 1/``Op.DEN`` units.  Every centring translation of ``group``
+    except the identity and except any the magnetic group carries as an
+    **anti**-centring (time reversal −1): under that one the magnetic
+    structure factor changes sign on translation, so the condition it imposes
+    is h·t ∈ ℤ + ½ rather than h·t ∈ ℤ, and the rows the nuclear centring
+    forbids are exactly the magnetic ones — the black-white lattices of the
+    type-IV groups (Litvin, 2013, *Magnetic Group Tables*, IUCr, § 1.3 on the
+    BNS lattice types).
+    """
+    den = gemmi.Op.DEN
+    anti = set()
+    if magnetic_group is not None:
+        for op in magnetic_group.centerings:
+            if op.time_reversal == -1:
+                anti.add(tuple(int(round(float(c) * den)) % den
+                               for c in op.translation))
+    kept = [tuple(int(c) % den for c in t)
+            for t in group.operations().cen_ops]
+    kept = [t for t in kept if any(t) and t not in anti]
+    return np.array(kept, dtype=np.int64).reshape(-1, 3)
 
 
 def merge_magnetic(nuclear: ReflectionSet, extra: ReflectionSet
@@ -335,15 +392,15 @@ def reciprocal_cartesian_basis(cell) -> np.ndarray:
     return np.linalg.inv(np.asarray(cartesian_basis(*cell), dtype=np.float64)).T
 
 
-def magnetic_f2(members, seg, counts, s, msites: MagneticSites, cell,
+def magnetic_f2(members, seg, counts, stol, msites: MagneticSites, cell,
                 xyz, occ, biso, dofs: list[np.ndarray]):
     """``(N,)`` p²·⟨|F_⊥|²⟩ in fm², the orbit average over each reflection's Laue orbit.
 
     ``members`` (M_total, 3), ``seg`` (M_total,) and ``counts`` (N,) are the
     frozen orbit layout (``model.preferred_orientation.orbit_layout``) — every
     reflection's symmetry equivalents, Friedel mates included, stacked and
-    segmented.  ``s`` is (N,) sinθ/λ = 1/2d, the same argument the nuclear
-    structure factor evaluates its form factors at.  ``dofs[j]`` is atom
+    segmented.  ``stol`` is (N,) s = sinθ/λ = 1/2d, the same argument the
+    nuclear structure factor evaluates its form factors at.  ``dofs[j]`` is atom
     ``j``'s moment DOF vector, or an empty array where it carries no moment.
 
     Adds to ⟨|F_N|²⟩ directly: both are in fm², so the phase's one scale
@@ -362,7 +419,7 @@ def magnetic_f2(members, seg, counts, s, msites: MagneticSites, cell,
     m_hkl = np.asarray(members, dtype=np.float64)
     seg_i = np.asarray(seg, dtype=np.int64)
     n = len(counts)
-    s_mem = np.asarray(s, dtype=np.float64)[seg_i]              # (M_total,)
+    stol_mem = np.asarray(stol, dtype=np.float64)[seg_i]              # (M_total,)
 
     cart = _crystalaxis_to_cartesian(cell)                      # (3, 3)
     total = np.zeros((len(seg_i), 3), dtype=np.complex128)
@@ -376,8 +433,8 @@ def magnetic_f2(members, seg, counts, s, msites: MagneticSites, cell,
         positions = np.asarray(rot) @ np.asarray(xyz[j], dtype=np.float64) \
             + np.asarray(tran, dtype=np.float64)                         # (m, 3)
         phase = np.exp(2.0j * np.pi * (positions @ m_hkl.T))             # (m, M)
-        amp = (float(occ[j]) * _form_factor(msites, j, s_mem)
-               * np.exp(-float(biso[j]) * s_mem * s_mem))                # (M,)
+        amp = (float(occ[j]) * _form_factor(msites, j, stol_mem)
+               * np.exp(-float(biso[j]) * stol_mem * stol_mem))                # (M,)
         contrib = np.einsum("km,kc->mc", phase, m_cart.astype(np.complex128))
         total = total + amp[:, None] * contrib
 
@@ -394,26 +451,26 @@ def magnetic_f2(members, seg, counts, s, msites: MagneticSites, cell,
     return (P_MAGNETIC_FM ** 2) * summed / np.asarray(counts, dtype=np.float64)
 
 
-def _form_factor(msites: MagneticSites, j: int, s):
-    """f_j(s) for the atom's ion and g, evaluated on the member-shaped s."""
+def _form_factor(msites: MagneticSites, j: int, stol):
+    """f_j(s) for the atom's ion and g, evaluated on the member-shaped ``stol``."""
     ion = msites.ions[j]
     g = msites.g_factors[j]
     c0, c2 = coefficients(ion)
-    s2 = s * s
-    f = _three_gaussian(c0, s2, s2_factor=False)
+    stol2 = stol * stol
+    f = _three_gaussian(c0, stol2, stol2_factor=False)
     weight = 2.0 / g - 1.0
     if weight == 0.0:
         return f
     if c2 is None:  # pragma: no cover - the schema refuses this combination
         raise KeyError(f"no ⟨j2⟩ for {ion!r}")
-    return f + weight * _three_gaussian(c2, s2, s2_factor=True)
+    return f + weight * _three_gaussian(c2, stol2, stol2_factor=True)
 
 
-def _three_gaussian(coef, s2, *, s2_factor: bool):
+def _three_gaussian(coef, stol2, *, stol2_factor: bool):
     a0, a1, b0, b1, c0, c1, d = coef
-    out = (a0 * np.exp(-a1 * s2) + b0 * np.exp(-b1 * s2)
-           + c0 * np.exp(-c1 * s2) + d)
-    return s2 * out if s2_factor else out
+    out = (a0 * np.exp(-a1 * stol2) + b0 * np.exp(-b1 * stol2)
+           + c0 * np.exp(-c1 * stol2) + d)
+    return stol2 * out if stol2_factor else out
 
 
 def _crystalaxis_to_cartesian(cell) -> np.ndarray:

@@ -64,6 +64,8 @@ from ..crystallography.lattice import (
     two_theta_deg,
 )
 from ..crystallography.magnetic.scattering import (
+    MAGNETIC_SOURCE_KINDS,
+    NON_MAGNETIC_SOURCE_KINDS,
     MagneticSites,
     compile_magnetic_sites,
     magnetic_f2,
@@ -1238,8 +1240,8 @@ class CompiledModel:
         if cp.magnetic is None:
             return None
         xyz, occ, biso, _u, _a = self._site_values(ip, values, cell)
-        s = 1.0 / (2.0 * np.asarray(d, dtype=np.float64))
-        return magnetic_f2(cp.mag_members, cp.mag_seg, cp.mag_counts, s,
+        stol = 1.0 / (2.0 * np.asarray(d, dtype=np.float64))
+        return magnetic_f2(cp.mag_members, cp.mag_seg, cp.mag_counts, stol,
                            cp.magnetic, cell, xyz, occ, biso,
                            self._moment_dofs(ip, values))
 
@@ -2821,9 +2823,9 @@ def magnetic_wanted(phase, source) -> bool:
             a.moment is not None for a in phase.atoms):
         return False
     kind = getattr(source, "kind", None)
-    if kind == "neutron_cw":
+    if kind in MAGNETIC_SOURCE_KINDS:
         return True
-    if kind == "xray_cw":
+    if kind in NON_MAGNETIC_SOURCE_KINDS:
         return False
     raise ValueError(
         f"phase {phase.name!r} carries a magnetic moment and the source is "
@@ -3061,8 +3063,9 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
         # phase enumerates the list it always did.
         magnetic_mask = None
         if magnetic_wanted(phase, instrument.source):
-            extra = magnetic_reflections(group, cell, lam_gen,
-                                         hi_eff, two_theta_min=gen_min)
+            extra = magnetic_reflections(
+                group, cell, lam_gen, hi_eff, two_theta_min=gen_min,
+                magnetic_group=phase.magnetic_symmetry.group())
             refl, magnetic_mask = merge_magnetic(refl, extra)
         f_anom = None
         # The source decides the radiation, exactly as it decides f_anom: a

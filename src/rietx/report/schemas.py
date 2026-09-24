@@ -1137,7 +1137,8 @@ class MomentEvidence(Base):
     so is |m|/σ.  So ``supported`` is False whenever the modulus is below
     :data:`~rietx.schemas.structure.MOMENT_FLOOR_MU_B` **or** below
     :data:`MOMENT_SUPPORT_SIGMA` times its own esd.  At 4 K the same model
-    gives 2.078 ± 0.066 — a ratio of 32 — and the answer flips.
+    gives 2.078 ± 0.066 — a ratio of 32 — and the answer flips.  With no esd
+    there is no ratio to take, and ``supported`` is ``None``.
     """
 
     phase: str
@@ -1182,7 +1183,11 @@ class MomentEvidence(Base):
     #: for an ordinary row.
     paired_magnitude: float | None = None
     paired_magnitude_esd: float | None = None
-    supported: bool = True
+    #: the null test: ``True`` or ``False`` where the modulus carries an esd
+    #: to test against, ``None`` where it does not (stated and held, or left
+    #: out of the covariance as unmeasured) — "not tested", which a defaulted
+    #: ``True`` used to read as an answer
+    supported: bool | None = None
     note: str = ""
 
 

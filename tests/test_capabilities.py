@@ -26,6 +26,7 @@ import rietx as rx
 from rietx.backend.api import BACKEND_NAMES, EXPERIMENTAL_BACKENDS
 from rietx.background.diagnostics import _KBETA
 from rietx.capabilities import capabilities
+from rietx.crystallography.magnetic.scattering import MAGNETIC_SOURCE_KINDS
 from rietx.io.readers import PATTERN_FORMATS
 from rietx.optimize.least_squares import SOLVERS
 from rietx.refine import _guard_diagnostics
@@ -177,12 +178,16 @@ def test_each_radiation_reports_what_actually_differs(caps):
         # and only one accepts a value.  The class attribute is the one
         # authority, and ``check_harmonics`` reads the same one.
         assert arm.harmonic_contamination == cls.harmonics_supported
+        # the magnetic term: the table the forward model dispatches on
+        assert arm.magnetic_scattering == (kind in MAGNETIC_SOURCE_KINDS)
 
     # and the two disagree, which is the whole reason the arm exists
     assert by_kind["xray_cw"].anomalous_dispersion
     assert not by_kind["neutron_cw"].anomalous_dispersion
     assert by_kind["xray_cw"].harmonic_contamination is False
     assert by_kind["neutron_cw"].harmonic_contamination is True
+    assert by_kind["neutron_cw"].magnetic_scattering is True
+    assert by_kind["xray_cw"].magnetic_scattering is False
     # unbounded on both, for different reasons: an X-ray source declares its own
     # line list, and a neutron source can grow one at λ/n.  A source whose
     # spectrum is one wavelength and can be nothing else would report 1 — there

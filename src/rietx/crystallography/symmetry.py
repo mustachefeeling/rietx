@@ -1132,10 +1132,11 @@ def generate_reflections(sg_symbol: str,
     into Laue-group orbits (including Friedel mates), and keep one
     representative per orbit with its orbit size as the multiplicity.
 
-    ``apply_absences=False`` keeps the systematically absent orbits, which is
-    the reciprocal *lattice* (centring still applied — that is a condition on
-    the lattice, not on the structure factor) with the parent's Laue
-    multiplicities.  Its one caller is
+    ``apply_absences=False`` keeps every systematically absent orbit —
+    **centring absences included**, since gemmi's one absence test is where the
+    centring condition lives too — with the parent's Laue multiplicities.  A
+    caller that wants the lattice rather than every integer hkl applies the
+    centring itself.  Its one caller is
     ``crystallography.magnetic.scattering.magnetic_reflections``: a k = 0
     magnetic space group generally drops the parent's glide and screw
     operations, so it puts intensity exactly on the reflections a glide or

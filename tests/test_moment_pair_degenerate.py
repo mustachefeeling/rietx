@@ -151,7 +151,7 @@ def test_pair_degenerate_moments_quadrature_and_esd_are_correct():
     rho = 0.97
     corr = [CorrelationPair(path_a=a.path, path_b=b.path, rho=rho)]
 
-    out = _pair_degenerate_moments([a, b], corr)
+    out = _pair_degenerate_moments([a, b], corr, {a.path: 3.0, b.path: 4.0})
     ra, rb = out
     m = math.sqrt(3.0 ** 2 + 4.0 ** 2)
     cov_ab = rho * 0.2 * 0.3
@@ -175,6 +175,38 @@ def test_pair_degenerate_moments_quadrature_and_esd_are_correct():
     assert set(diags[0].where) == {a.path, b.path}
 
 
+@pytest.mark.parametrize("d_b, rho", [(2.0, -0.999), (-2.0, 0.999)])
+def test_the_paired_esd_uses_the_signed_moduli(d_b, rho):
+    """gᵀCg at g = d/m, signs included — the antiparallel case is the one that bites.
+
+    Review of #433, finding 4.  Two sites stated **antiparallel**
+    (d_a = +2, d_b = −2) have their powder-degenerate direction along (1, 1),
+    so ρ of the signed columns → +1 and the cross term −σ² cancels the
+    diagonal: the quadrature sum is well determined.  Built from |dof0| the
+    cross term flipped sign and the esd came out √2·σ = 0.1414 against a
+    linearised truth of 0.0032.  The parallel case (ρ → −1) agreed either
+    way, which is why the arithmetic test above never saw it.
+    """
+    sigma = 0.1
+    a = MomentEvidence(phase="p", atom="Mn1", ion="Mn3+", path="a.dof0",
+                       magnitude=2.0, magnitude_esd=sigma,
+                       crystalaxis=[2.0, 0.0, 0.0], approximation="MHO3")
+    b = MomentEvidence(phase="p", atom="Mn2", ion="Mn3+", path="b.dof0",
+                       magnitude=abs(d_b), magnitude_esd=sigma,
+                       crystalaxis=[0.0, abs(d_b), 0.0], approximation="MHO3")
+    corr = [CorrelationPair(path_a="a.dof0", path_b="b.dof0", rho=rho)]
+    out = _pair_degenerate_moments([a, b], corr, {"a.dof0": 2.0, "b.dof0": d_b})
+
+    d = np.array([2.0, d_b])
+    m = float(np.hypot(*d))
+    g = d / m
+    cov = sigma ** 2 * np.array([[1.0, rho], [rho, 1.0]])
+    truth = math.sqrt(float(g @ cov @ g))
+    assert out[0].paired_magnitude == pytest.approx(m)
+    assert out[0].paired_magnitude_esd == pytest.approx(truth, rel=1e-12)
+    assert out[0].paired_magnitude_esd < 0.01
+
+
 def test_below_the_rho_bar_nothing_is_paired():
     a = MomentEvidence(phase="p", atom="Mn1", ion="Mn3+", path="a.dof0",
                        magnitude=3.0, magnitude_esd=0.2,
@@ -183,7 +215,7 @@ def test_below_the_rho_bar_nothing_is_paired():
                        magnitude=4.0, magnitude_esd=0.3,
                        crystalaxis=[0.0, 4.0, 0.0], approximation="MHO3")
     corr = [CorrelationPair(path_a="a.dof0", path_b="b.dof0", rho=0.5)]
-    out = _pair_degenerate_moments([a, b], corr)
+    out = _pair_degenerate_moments([a, b], corr, {"a.dof0": 3.0, "b.dof0": 4.0})
     assert out[0].paired_with == [] and out[1].paired_with == []
     assert not moment_pair_diagnostics(out)
 

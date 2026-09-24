@@ -1034,6 +1034,69 @@ def test_the_magnetic_reflections_are_the_ones_the_nuclear_factor_forbids():
     assert not (set(rows) & nuclear_index)
 
 
+def _colourless_group(symbol):
+    """The type-I magnetic group of a space group: every operation unprimed."""
+    import gemmi
+
+    ops = [o.triplet() + ",+1" for o in gemmi.SpaceGroup(symbol).operations()]
+    return MagneticGroup.from_xyz(ops)
+
+
+@pytest.mark.parametrize("symbol, forbids", [
+    ("F m -3 m", lambda h, k, ell: len({h % 2, k % 2, ell % 2}) > 1),
+    ("I m -3 m", lambda h, k, ell: (h + k + ell) % 2 == 1),
+    ("I 41/a m d", lambda h, k, ell: (h + k + ell) % 2 == 1),
+])
+def test_an_ordinary_magnetic_group_keeps_the_parents_centring(symbol, forbids):
+    """A centred parent with an unprimed centring adds no lattice-forbidden row.
+
+    Review of #433, finding 1: skipping gemmi's absence test to keep the glide
+    and screw rows skipped the centring test with it, so a symmorphic F or I
+    parent gained a row for every lattice-forbidden hkl in range — zero
+    intensity under an ordinary group, but a row in the frozen windows, the
+    FCJ node counts and the observation count all the same.  The two
+    symmorphic parents must now add **nothing** (they have no glide or screw
+    to lift); ``I 4₁/a m d`` still gains its glide rows, and every one of them
+    obeys the I centring.
+    """
+    from rietx.crystallography.magnetic.scattering import magnetic_reflections
+
+    cell = ((4.0, 4.0, 4.0, 90.0, 90.0, 90.0) if "m -3 m" in symbol
+            else (3.8, 3.8, 9.5, 90.0, 90.0, 90.0))
+    for group in (None, _colourless_group(symbol)):
+        extra = magnetic_reflections(symbol, cell, 2.4, 150.0,
+                                     magnetic_group=group)
+        assert not [h for h in extra.hkl.tolist() if forbids(*h)]
+        if "m -3 m" in symbol:
+            assert len(extra) == 0
+        else:
+            assert len(extra) > 0
+
+
+def test_a_black_white_lattice_keeps_the_rows_its_anti_centring_lights():
+    """A BNS type-IV group puts its intensity exactly on the centring absences.
+
+    The nuclear structure is body-centred (``I m -3 m``); the magnetic group is
+    ``P m -3 m`` with the body centring *primed*, (½,½,½)′, so the moment
+    reverses on translation and |F_m|² lives at h + k + l odd — every row the
+    nuclear centring forbids.  Those rows must be generated, and only those:
+    the h + k + l even ones are already nuclear rows.
+    """
+    import gemmi
+
+    from rietx.crystallography.magnetic.scattering import magnetic_reflections
+
+    primitive = [o.triplet() + ",+1"
+                 for o in gemmi.SpaceGroup("P m -3 m").operations()]
+    group = MagneticGroup.from_xyz(primitive,
+                                   ["x,y,z,+1", "x+1/2,y+1/2,z+1/2,-1"])
+    extra = magnetic_reflections("I m -3 m", (4.0, 4.0, 4.0, 90.0, 90.0, 90.0),
+                                 2.4, 150.0, magnetic_group=group)
+    rows = extra.hkl.tolist()
+    assert rows and all(sum(h) % 2 == 1 for h in rows)
+    assert [1, 0, 0] in rows and [1, 1, 1] in rows
+
+
 def test_the_nuclear_term_is_exactly_zero_on_a_magnetic_only_row():
     """The mask is the absence condition, not a tolerance.
 
@@ -1482,6 +1545,41 @@ def test_a_flat_moment_direction_is_held_and_named():
     assert again.magnetic[0].unmeasured_directions == ["polar", "azimuth"]
 
 
+def test_a_moment_the_phase_hold_took_stays_held_with_its_phase():
+    """A modulus held because its *phase* is invisible is not released as a direction.
+
+    Review of #433, finding 2.  The phase hold (WP-1301) takes every free
+    structural path of a phase the data cannot see, ``moment.dof0`` included.
+    Read back by name, those paths went to the direction probe, which skips
+    ``dof0`` by construction and so released it after the first solve — and the
+    second solve walked the modulus of a still-invisible phase from 2.12 to
+    −1.73 μ_B (measured on this fixture before the fix).  The moment DOFs
+    must stay held, with their phase, at the values they started from.
+    """
+    import rietx as rx
+
+    nuclear = Phase(name="nuc", space_group="P m -3 m", cell=cell(4.1, 4.1, 4.1),
+                    atoms=[atom("Cs", "Cs", (0.0, 0.0, 0.0)),
+                           atom("Cl", "Cl", (0.5, 0.5, 0.5))])
+    model, _t, values, *_ = _compiled(nuclear)
+    y = np.asarray(model.evaluate(values), dtype=np.float64) + 20.0
+    invisible = _cubic_phase((2.0, 0.5, 0.5)).model_copy(
+        update={"scale": Parameter(value=1e-10, min=0.0)})
+    ref = rx.Refinement(rx.Structure(phases=[nuclear, invisible]),
+                        rx.Instrument.constant_wavelength_neutron(LAMBDA_CW))
+    result = ref.fit(
+        rx.PatternData(two_theta=_grid().tolist(), intensity=y.tolist()),
+        plan=rx.RefinementPlan(stages=[
+            rx.Stage("scale", ["phases.*.scale", "instrument.background.c*"]),
+            rx.Stage("moment", ["phases.*.atoms.*.moment.dof*"]),
+        ]))
+    moment = {f"phases.1.atoms.0.moment.dof{k}" for k in range(3)}
+    assert moment <= set(result.stages[-1].held), result.stages[-1].held
+    assert not moment & {p.path for p in result.parameters}
+    assert ref.structure.phases[1].atoms[0].moment.values() == pytest.approx(
+        (2.0, 0.5, 0.5), abs=1e-12)
+
+
 def test_a_determinable_direction_is_not_held():
     """The control the hold needs, or it is a rule that cannot fail.
 
@@ -1553,17 +1651,40 @@ def test_supported_is_a_ratio_and_not_only_a_floor():
         # the same expression ``report.magnetic`` applies, exercised directly
         from rietx.schemas.structure import MOMENT_FLOOR_MU_B
 
+        if sigma is None:
+            return None
         return not (magnitude <= MOMENT_FLOOR_MU_B
-                    or (sigma is not None
-                        and magnitude <= MOMENT_SUPPORT_SIGMA * sigma))
+                    or magnitude <= MOMENT_SUPPORT_SIGMA * sigma)
 
-    assert not supported(0.0666, 0.3947)      # Cr₂WO₆ at 150 K: 0.17σ
-    assert supported(2.010, 0.046)            # Cr₂WO₆ at 4 K: 44σ
-    assert not supported(1e-9, None)          # the floor arm, with no esd
-    assert supported(2.0, None)               # a fixed block that never refined
+    assert supported(0.0666, 0.3947) is False   # Cr₂WO₆ at 150 K: 0.17σ
+    assert supported(2.010, 0.046) is True      # Cr₂WO₆ at 4 K: 44σ
+    assert supported(1e-9, 1e-6) is False       # the floor arm
+    # no esd, nothing tested: ``None``, never an answer (review of #433,
+    # finding 5) — at the floor or not
+    assert supported(1e-9, None) is None
+    assert supported(2.0, None) is None         # a fixed block that never refined
     assert MomentEvidence(phase="p", atom="a", ion="Cr3+", magnitude=2.0,
                           magnitude_from_components=2.0, crystalaxis=[0, 0, 2],
-                          approximation="x").supported
+                          approximation="x").supported is None
+
+
+def test_a_stated_and_held_moment_is_not_tested_rather_than_supported():
+    """The writer's half of finding 5: a modulus with no esd reports ``None``.
+
+    A moment stated with ``vary=False`` and a plan that never frees it does
+    not refine, so it has no esd and no ratio to take.  The row must say "not tested", not ``True`` with an empty
+    note — the defaulted answer WP-1076 names.
+    """
+    import rietx as rx
+
+    ref, _result = _fit(_cubic_phase((3.0, 0.0, 0.0)),
+                        _cubic_phase((2.5, 0.0, 0.0), vary=False),
+                        stages=[rx.Stage("scale", ["phases.*.scale",
+                                                   "instrument.background.c*"])])
+    row = ref.report().magnetic[0]
+    assert row.magnitude_esd is None
+    assert row.supported is None
+    assert "not tested" in row.note
 
 
 def test_the_report_names_the_approximation_per_ion():
@@ -1644,7 +1765,7 @@ def test_the_capability_flag_is_derived_from_the_fields():
     # ``Atom.moment``, ``Phase.magnetic_symmetry`` and ``Phase.symmetry_operations``
     # landed together with WP-1327, on the rung after main's 0.26; open PR #431
     # also claims 0.27, and whichever lands last renumbers.
-    assert caps.schema_version == "0.27"
+    assert caps.schema_version == "0.28"
 
 
 def test_every_moment_dof_has_a_help_entry():

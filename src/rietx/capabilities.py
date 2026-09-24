@@ -48,6 +48,7 @@ from .backend.api import (
 # fails loudly if either name moves, which is the property that matters — see the
 # module docstring on derivation over restatement.
 from .background.diagnostics import _KBETA
+from .crystallography.magnetic.scattering import MAGNETIC_SOURCE_KINDS
 from .history.events import EVENT_SCHEMA_VERSION
 
 # The plans arm iterates PLAN_INFO, not PLAN_PRESETS: the two are held in
@@ -178,6 +179,12 @@ class RadiationCapability(Base):
     #: own refusal reads — so this cannot claim a support the validator denies.
     #: False for X-rays, where one shared f′/f″ cannot serve λ and λ/n.
     harmonic_contamination: bool
+    #: ``True`` where a histogram of this radiation carries the magnetic
+    #: structure factor of a phase that declares a moment (WP-1327).  Read off
+    #: ``crystallography.magnetic.scattering.MAGNETIC_SOURCE_KINDS``, the table
+    #: ``model.forward.magnetic_wanted`` dispatches on, so it cannot claim a
+    #: term the forward model does not build
+    magnetic_scattering: bool
 
 
 class ReaderCapability(Base):
@@ -466,6 +473,7 @@ def _radiation(cls: type) -> RadiationCapability:
         max_emission_lines=None if (lines_field is not None or harmonics) else 1,
         polarization_refinable="polarization" in cls.model_fields,
         harmonic_contamination=harmonics,
+        magnetic_scattering=kind in MAGNETIC_SOURCE_KINDS,
     )
 
 
@@ -539,9 +547,9 @@ def _features() -> dict[str, bool]:
         # against a neutron histogram (WP-1327).  Derived from the fields, like
         # every flag here: the two together are what makes a moment model
         # expressible at all, and either alone is not.  Which *radiations* carry
-        # the term is ``forward.magnetic_wanted``'s answer and is reported per
-        # source kind in the radiation arm above rather than as a second flag
-        # here.
+        # the term is reported per source kind, as
+        # ``RadiationCapability.magnetic_scattering``, rather than as a second
+        # flag here.
         "magnetic_moments": ("magnetic_symmetry" in Phase.model_fields
                              and "moment" in Atom.model_fields),
         "surface_roughness": "surface_roughness" in Geometry.model_fields,

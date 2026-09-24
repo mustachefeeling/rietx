@@ -2231,7 +2231,13 @@ class Refinement:
         # starts from, and both go into ``StageResult.held`` so the report can
         # say which and why.
         held, held_reach = _hold_unsupported_phases(model, table)
-        held = held + _hold_flat_moments(model, table)
+        # kept apart, because the release below judges each hold by its own
+        # question: a moment DOF the *phase* hold took (every free structural
+        # path of an invisible phase, ``moment.dof0`` included) stays with the
+        # phase, and only what this probe itself held is asked again as a
+        # direction (review of #433, finding 2)
+        moment_hold = _hold_flat_moments(model, table)
+        held = held + moment_hold
         if held:
             held_set = set(held)
             freed = [p for p in declared_freed if p not in held_set]
@@ -2280,9 +2286,13 @@ class Refinement:
         # direction rather than a phase, so ``_released_phases``'s prefix test
         # would release them for the wrong reason — a phase rising above the
         # noise says nothing about whether its moment direction became
-        # determinable
-        moment_held = [p for p in held if _MOMENT_DOF.match(p)]
-        phase_held = [p for p in held if p not in set(moment_held)]
+        # determinable.  *Which* paths are moment holds is what
+        # ``_hold_flat_moments`` returned, never a name match on ``held``: the
+        # phase hold takes an invisible phase's moment DOFs too, and read by
+        # name those went to the direction probe, which skips ``dof0`` and so
+        # released the modulus of a phase the data still could not see.
+        moment_held = [p for p in held if p in set(moment_hold)]
+        phase_held = [p for p in held if p not in set(moment_hold)]
         # the hold's reach travels with it: a held ``vars.X`` names no phase,
         # and asking the table now would get nothing back (WP-1342)
         released = (_released_phases(model, table, phase_held, support, held_reach)
