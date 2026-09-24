@@ -9,9 +9,16 @@ body{margin:0;background:var(--ground);color:var(--ink);font:12px system-ui}
 #tip{position:absolute;pointer-events:none;background:var(--ground);border:1px solid var(--grid);padding:3px 6px;display:none;font:11px ui-monospace,monospace;white-space:pre;z-index:10}
 .ring{position:absolute;width:14px;height:14px;border:2px solid var(--peak);border-radius:50%;pointer-events:none;display:none;transform:translate(-9px,-9px);z-index:5}
 #strip{font:11px ui-monospace,monospace;height:16px;padding:2px 64px}
+#legend{padding:0 8px}
 #legend span{margin-right:12px;cursor:pointer;user-select:none}
 #legend span.off{opacity:.35}
 .u-select{background:rgba(100,100,255,.15)}
+#bar{display:flex;flex-wrap:wrap;gap:4px;align-items:center;padding:8px 8px 4px;width:1184px}
+#bar button{font:12px system-ui;padding:3px 8px;border:1px solid var(--grid);background:var(--ground);color:var(--ink);border-radius:3px;cursor:pointer}
+#bar button.on{background:var(--obs);color:var(--ground);border-color:var(--obs)}
+#bar .sep{margin-left:12px;opacity:.6}
+#status{margin-left:12px;font:12px ui-monospace,monospace}
+#help{padding:0 8px 6px;opacity:.7;width:1184px}
 </style></head><body>
 <div id="legend"></div>
 <div id="wrap"><div id="main"></div><div id="ticks"></div><div id="resid"></div><div id="tip"></div></div>
@@ -359,4 +366,53 @@ window.P = {
     return { ms: performance.now() - t0, rows: rows.length - 1, chars: text.length };
   },
 };
+
+// ---------------------------------------------------------------- ?demo: a toolbar for a person
+// The driver never passes ?demo, so its timings are untouched by any of this.
+if (new URLSearchParams(location.search).has("demo")) {
+  const q = new URLSearchParams(location.search), N = +(q.get("n") ?? 59498);
+  const bar = document.createElement("div"); bar.id = "bar"; document.body.prepend(bar);
+  const help = document.createElement("div"); help.id = "help"; bar.after(help);
+  help.textContent = "drag: zoom · wheel: zoom · shift-wheel or alt-drag: pan · double-click: reset · "
+    + "exclude mode: drag a region · peaks mode: click adds, drag moves, shift-click toggles, right-click removes";
+  const status = document.createElement("span"); status.id = "status";
+  const say = (t) => { status.textContent = t; };
+  const sep = (t) => { const s = document.createElement("span"); s.className = "sep"; s.textContent = t; bar.appendChild(s); };
+  const group = (label, items, pick, on) => {
+    sep(label); const bs = [];
+    for (const [text, value] of items) {
+      const b = document.createElement("button"); b.textContent = text; bar.appendChild(b); bs.push(b);
+      if (value === on) b.classList.add("on");
+      b.onclick = async () => { bs.forEach((x) => x.classList.remove("on")); b.classList.add("on"); await pick(value); };
+    }
+  };
+  const button = (text, fn) => { const b = document.createElement("button"); b.textContent = text; b.onclick = fn; bar.appendChild(b); };
+  // the call plus the microtask uPlot commits its draw in: work, without the wait for the next frame
+  const timed = async (label, fn) => {
+    const t0 = performance.now(); const r = await fn(); await Promise.resolve(); await Promise.resolve();
+    say(`${label}: ${(performance.now() - t0).toFixed(1)} ms`); return r;
+  };
+  const save = (blob, name) => { const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; a.click(); };
+  const base = (n, all) => `?demo&n=${n}${all ? "&all" : ""}`;
+  group("points", [["22 003", 22003], ["59 498", 59498], ["200 000", 200000]], (n) => { location.search = base(n, ALL_MARKERS); }, N);
+  group("markers", [["thinned", false], ["every one", true]], (all) => { location.search = base(N, all); }, ALL_MARKERS);
+  group("mode", [["zoom", "zoom"], ["exclude", "select"], ["peaks", "peaks"]], (m) => P.setMode(m), "zoom");
+  group("y", [["lin", "lin"], ["√", "sqrt"], ["log", "log"]], (s) => timed(`${s} scale`, () => P.setScale(s)), "lin");
+  group("theme", [["light", "light"], ["dark", "dark"]], (t) => timed(`${t} theme`, () => P.theme(t)), "light");
+  group("candidate lines", [["none", 0], ["426", 426], ["92 103", 92103]], (n) => timed(`${n} lines`, () => P.candidates(n)), 0);
+  sep("");
+  button("live stage", () => timed("stage update, zoom kept", () => P.stage()));
+  sep("export");
+  button("copy PNG", async () => { const r = await P.copyPNG(); say(`copied a ${r.w}×${r.h} PNG (${(r.bytes / 1024).toFixed(0)} kB) in ${r.ms.toFixed(0)} ms`); });
+  button("copy data", async () => { const r = await P.copyTSV(); say(`copied ${r.rows} rows as TSV in ${r.ms.toFixed(0)} ms`); });
+  button("PNG ↓", () => P.composite().toBlob((b) => save(b, "pattern.png"), "image/png"));
+  button("SVG ↓", async () => {
+    const { ms, svgs } = await P.exportSVG(); let y = 0; const heights = [420, 48, 170];
+    const parts = svgs.map((s, i) => { const p = s.replace("<svg", `<svg y="${y}"`); y += heights[i]; return p; });
+    save(new Blob([`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${y}">${parts.join("")}</svg>`], { type: "image/svg+xml" }), "pattern.svg");
+    say(`SVG exported in ${ms.toFixed(0)} ms`);
+  });
+  bar.appendChild(status);
+  timed(`mounted ${N.toLocaleString()} points`, () => mount(N));
+}
 </script></body></html>

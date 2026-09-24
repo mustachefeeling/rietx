@@ -17,6 +17,7 @@ or runs in the suite. The logs in `results/` are the runs the WP quotes.
 | `gui_td.mjs` | Today's GUI as main-thread work: boot frames, hover, resize, and the full-resolution window with its parse and grid union. |
 | `gui_probe.mjs`, `driver3.mjs` | Earlier GUI probes (latency of boot, zoom and resize), SVG export, and the standalone-page comparison. |
 | `make_exports.py`, `make_uplot_export.mjs` | Build today's `write_html` page and its uPlot equivalent from one set of arrays. |
+| `serve.mjs`, `index.html` | The demos for a person: `node serve.mjs [port]`, then <http://127.0.0.1:8810/>. `?demo` gives the prototype pages a toolbar that times each action. |
 
 ## Method
 

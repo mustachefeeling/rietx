@@ -115,4 +115,15 @@ Q.film = (M = 200, N = 22003) => {
   return { buildMs, levels: levels.map((l) => l.w) };
 };
 window.Q = Q;
+
+// ?demo: draw all three for a person; the driver never passes it
+if (new URLSearchParams(location.search).has("demo")) {
+  for (const [id, text] of [["traj", "Series trajectory: esd whiskers, reseeded rings, an unrecovered cross (hover for the tooltip)"],
+                            ["cmp", "Compare overlay: ten variants of 22 003 points (hover focuses the nearest)"],
+                            ["film", "In-situ map: 200 patterns × 22 003 channels (wheel zooms, hover reads a pixel)"]]) {
+    const h = document.createElement("h3"); h.textContent = text; h.style.cssText = "font:600 13px system-ui;margin:14px 8px 4px";
+    document.getElementById(id).before(h);
+  }
+  Q.traj(); Q.cmp(); Q.film();
+}
 </script></body></html>
