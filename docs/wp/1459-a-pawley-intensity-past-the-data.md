@@ -1,7 +1,7 @@
 # WP-1459 — a Pawley intensity past the end of the data
 
 Milestone: unscheduled · Status: ⬜
-Depends on: — (1336 soft: its status channel is where "converged at Rwp 87×" belongs)
+Depends on: — (1336 soft: its status channel is where "converged at 2494× the cleared Rwp" belongs)
 Priority: P2 2026-09-24 — a sequential Pawley chain stops early and reports `converged` at many times the Rwp a cleared chain reaches; the default reseed ladder rescued every pattern on this tree, so the wrong answer needs `reseed=False` or a drift under the fence
 
 ## Goal
