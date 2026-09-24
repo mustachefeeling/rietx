@@ -245,7 +245,13 @@ from .._nearmiss import did_you_mean
 #: all rather than one at zero.  Not additive: a stored ``null`` does not load
 #: before this.  A document from before it carries the old default, a
 #: ``Parameter`` at 0, and opens with that term declared, so it refines as it
-#: did; setting the field to ``None`` is what drops it.
+#: did; setting the field to ``None`` is what drops it.  In the same step
+#: ``BackgroundPSpline.lambda_units`` (``"dimensionless"`` default,
+#: ``"intensity"`` the old rows): a document from before it has no such key,
+#: so its stored λ opens as the new pure number and its penalty changes.  That
+#: is deliberate rather than defaulted, because the old λ's meaning moved with
+#: the intensity unit and no stored value says which unit it was chosen in;
+#: ``lambda_units="intensity"`` refits it as before.
 SCHEMA_VERSION = "0.28"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]

@@ -1017,7 +1017,14 @@ def test_penalty_rows_enter_the_residual():
     for n in range(n_coef):
         curved[f"instrument.background.c{n}"] = float(n) ** 2
     pen = model.penalty_residual(curved)
-    np.testing.assert_allclose(pen, np.sqrt(4.0) * 2.0)  # D₂ of n² is 2
+    # D₂ of n² is 2, weighed against the data's own weight per coefficient
+    scale = np.sqrt(len(model.tt) / n_coef) / np.median(model.sigma)
+    np.testing.assert_allclose(pen, np.sqrt(4.0) * 2.0 * scale)
+    # the pre-WP-1454 rows, which a golden declares
+    ins.background.lambda_units = "intensity"
+    old = compile_model(structure, ins, data).penalty_residual(curved)
+    np.testing.assert_allclose(old, np.sqrt(4.0) * 2.0, rtol=0, atol=0)
+    ins.background.lambda_units = "dimensionless"
 
     from rietx.optimize.least_squares import _make_jacobian, _make_residual
     table.set_vary(["*"], False)

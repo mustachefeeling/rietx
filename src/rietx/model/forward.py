@@ -46,6 +46,7 @@ from ..background.models import (
     chebyshev_design_matrix,
     hump_curve,
     interpolate_fixed,
+    pspline_penalty_scale,
     second_difference_matrix,
 )
 from ..crystallography.adp import U_NAMES, reciprocal_axis_lengths
@@ -3025,7 +3026,12 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
             design = np.vstack([design, air_row[None, :]])
         if bkg.lambda_smooth > 0.0 and n_coef > 2:
             d2 = second_difference_matrix(n_coef)
-            penalty = np.hstack([np.sqrt(bkg.lambda_smooth) * d2,
+            weight = np.sqrt(bkg.lambda_smooth)
+            if bkg.lambda_units == "dimensionless":
+                # σ is this compile's, over the fitted channels, so the scale
+                # is frozen per stage like every other discrete choice here
+                weight *= pspline_penalty_scale(sigma, n_coef)
+            penalty = np.hstack([weight * d2,
                                  np.zeros((d2.shape[0], n_air))])  # air term unpenalised
     else:  # pragma: no cover - schema exhausts the union
         raise TypeError(f"unsupported background model {type(bkg).__name__}")

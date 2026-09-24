@@ -679,7 +679,11 @@ under the second-difference penalty of {eq}`bg-penalty`.
 `BackgroundPSpline.breakpoints` are the knots in 2θ,
 `BackgroundPSpline.coefficients` has exactly `len(breakpoints) + 2` entries for
 the clamped cubic basis, `BackgroundPSpline.lambda_smooth` is the penalty
-weight, and `BackgroundPSpline.air_scatter` scales an additive 1/2θ term for the
+weight, a pure number measured against the data's own weight per coefficient,
+so the same λ means the same stiffness in counts, in a normalised unit or at
+any step size. `BackgroundPSpline.lambda_units` set to `"intensity"` restores the
+pre-1.5.1 rows, whose λ moved with the intensity unit, to reproduce an old fit.
+`BackgroundPSpline.air_scatter` scales an additive 1/2θ term for the
 low-angle air rise. The air term is absent (`None`) unless you declare it or
 `auto_background` does, which it does only when the pattern diagnostics report
 the rise. Absent, it has no parameter path, so no plan can free it.

@@ -220,11 +220,58 @@ penalty on a background before choosing.
       counts, reproduced on public data. It meets this WP's own P1 condition,
       a structural answer moving with nothing fired, on the side the WP had
       not suspected. The penalty scale below is what removes it.
-- [ ] Decide the penalty's scale, and write the decision here. Either divide
+- [x] Decide the penalty's scale, and write the decision here. Either divide
       the penalty rows by one σ frozen at compile (the median over the fitted
       channels), which makes λ dimensionless for every caller; or keep the
       units and derive λ in `auto_background` from the counts, which fixes
       only the helper. Land it, with the goldens' decision recorded.
+      **Decided 2026-09-24: the first, with a second factor.** The rows are
+      √(λ·m)·D₂c/σ̄, with σ̄ the median σ over the fitted channels and m the
+      fitted channels per coefficient, both frozen at compile
+      (`background.models.pspline_penalty_scale`, baked into
+      `CompiledModel.bkg_penalty`, which every backend reaches through
+      `penalty_residual`). σ̄ alone removes the unit, and m is needed as well
+      because the data's weight on one coefficient grows as m/σ̄². Without m,
+      a 0.001° scan and a 0.02° scan of one curve would disagree by 20× at
+      one λ. Derived, not measured: a feature of width W costs about
+      λ·(h/W)⁴ of what it buys, so λ = 1 suppresses features narrower than
+      about one knot spacing h. The second candidate would have fixed only
+      the helper, and the private series was fitted through the helper and
+      then by hand. **The default stays 1.0, now a pure number.** On NAC the
+      old default measures between 0.01 and 0.1 in the new units (max|D₂c|
+      37.6, against 69.5 and 34.3 there), close to the predicted σ̄²/m =
+      0.078. On sample 2 at `auto_background`'s own 3° knots, which also
+      declares the air term there, the old default measures near the new
+      1.0, and the structure is flat from 0.1 to 100:
+      | λ (dimensionless) | Rwp | B Al | B Mg | R² | background code |
+      |---|---|---|---|---|---|
+      | old λ = 1, intensity units | 0.12302 | 0.352 | 0.802 | 0.17 | — |
+      | 0.01 | 0.12205 | 0.346 | 0.820 | 0.28 | `BACKGROUND_ABSORPTION` |
+      | 0.1 | 0.12267 | 0.351 | 0.803 | 0.19 | — |
+      | 1 | 0.12326 | 0.352 | 0.801 | 0.16 | — |
+      | 10 | 0.12366 | 0.352 | 0.800 | 0.15 | — |
+      | 100 | 0.12412 | 0.353 | 0.799 | 0.15 | — |
+      So 1.0 sits a decade inside the flexible edge and at least two decades
+      from anything the stiff side moved here, and it reproduces the old
+      default at both public count levels. The private series, at high
+      counts, was 10⁴-fold stiffer than that. **The way back** is
+      `BackgroundPSpline.lambda_units = "intensity"`, the old rows exactly,
+      following the `dispersion = None` and `intermediate_ftol = None`
+      precedents. **Goldens:** `test_backend_shim`'s `toy_lebail` declares
+      the old air term and `"intensity"`, so its darwin npz stays
+      bit-identical. That cannot be checked from Linux, where the goldens
+      skip, so the nightly macOS job is the first to run it.
+      `test_acceptance_si640c` declares `"intensity"`, because every number
+      it quotes was measured that way; its plan never freed the air term.
+      No other test pins a P-spline number. A stored document has no
+      `lambda_units`, so its λ opens as the pure number and its penalty
+      changes. That is deliberate: the stored value never said which unit it
+      was chosen in (`SCHEMA_VERSION` 0.28's note). Prior art: GSAS-II's
+      eight background functions carry no smoothness penalty, so there is no
+      scaling convention to adopt (GSASIIpwd docs, 2026-09-24). TOPAS was
+      not checked. The WP § 1 table, rerun with its own code, is now one row
+      four times: max|D₂c|/k = 4.5707 and Rwp 0.0939775 at k = 10⁻⁴, 10⁻²,
+      1 and 10², to 13 digits.
 - [x] `auto_background` spans the fitted range: take `two_theta_limits`, or
       read the range the fit will use. **Landed 2026-09-24** as a
       `two_theta_limits` keyword, the tuple `fit` takes. The diagnostics, the

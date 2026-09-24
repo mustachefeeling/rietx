@@ -84,7 +84,7 @@ Every refinable quantity is a `rx.Parameter` (`value`, `vary`, bounds), addresse
 - `rx.BackgroundChebyshev` — Shifted-Chebyshev background, linear in its coefficients.
   Fields: `kind: Literal['chebyshev'] = 'chebyshev'`, `coefficients: list[Parameter] = [Parameter(0.0) × 4]`
 - `rx.BackgroundPSpline` — Penalized cubic P-spline background, co-refined with the structure.
-  Fields: `kind: Literal['pspline'] = 'pspline'`, `breakpoints: list[float]`, `coefficients: list[Parameter]`, `lambda_smooth: float = 1.0`, `air_scatter: Parameter | None = None`
+  Fields: `kind: Literal['pspline'] = 'pspline'`, `breakpoints: list[float]`, `coefficients: list[Parameter]`, `lambda_smooth: float = 1.0`, `lambda_units: Literal['dimensionless', 'intensity'] = 'dimensionless'`, `air_scatter: Parameter | None = None`
 - `rx.BackgroundFixedPlusChebyshev` — A fixed curve (never subtracted; held additively) plus a small refinable Chebyshev correction on top, and a scale on the curve itself.
   Fields: `kind: Literal['fixed_plus_chebyshev'] = 'fixed_plus_chebyshev'`, `fixed_two_theta: list[float]`, `fixed_intensity: list[float]`, `fixed_sigma: list[float] | None = None`, `fixed_source: str | None = None`, `scale: Parameter = Parameter(1.0, min=0.0)`, `chebyshev: BackgroundChebyshev = BackgroundChebyshev(…)`
 - `rx.Dispersion` — Anomalous scattering corrections f′, f″ at the source wavelengths.

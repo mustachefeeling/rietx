@@ -1084,6 +1084,16 @@ class BackgroundPSpline(Base):
     breakpoints: list[float]
     coefficients: list[Parameter]
     lambda_smooth: float = Field(default=1.0, ge=0.0)
+    #: What ``lambda_smooth`` is measured against.  ``"dimensionless"``: the
+    #: rows are √(λ·m)·D₂c/σ̄, with σ̄ the median σ over the fitted channels
+    #: and m the fitted channels per coefficient, both frozen at compile
+    #: (:func:`rietx.background.models.pspline_penalty_scale`).  One λ then
+    #: means the same stiffness in any intensity unit, at any count level and
+    #: any step size.  ``"intensity"``: the pre-WP-1454 rows √λ·D₂c, whose λ
+    #: carries inverse intensity squared, so a unit change alone took one
+    #: background from unpenalised to a straight line.  Kept as the
+    #: bit-identical way back, which is what a golden declares.
+    lambda_units: Literal["dimensionless", "intensity"] = "dimensionless"
     air_scatter: Parameter | None = None
 
     @model_validator(mode="after")

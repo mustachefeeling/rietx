@@ -291,8 +291,10 @@ def _background_description(instrument: Instrument) -> str:
         base = (f"{curve}, {scale} + shifted-Chebyshev, "
                 f"{len(bkg.chebyshev.coefficients)} terms")
     elif isinstance(bkg, BackgroundPSpline):
+        # the unit travels with the number: an intensity-unit λ and a
+        # dimensionless one are different stiffnesses (WP-1454)
         base = (f"penalized cubic P-spline, {len(bkg.breakpoints)} knots, "
-                f"lambda_smooth={bkg.lambda_smooth:.4g}")
+                f"lambda_smooth={bkg.lambda_smooth:.4g} ({bkg.lambda_units})")
     else:
         base = type(bkg).__name__
     n = sum(1 for c in instrument.extra_components
