@@ -52,7 +52,12 @@ spline fine enough to follow a hump. So a declared term is the same flat
 direction a declined one was, and it floods on an intermediate stage of the
 default lab plan. On NAC at 8° knots the same term gave one row, so how much a
 declared air term buys beside a P-spline depends on the knots. That is not yet
-measured.
+measured. One path declares the term with no rise in range at all.
+`auto_background(data, diagnostics=diagnose(data), two_theta_limits=(40, 110))`
+uses the caller's whole-file diagnostics as given, so a rise below 40° declares
+a 1/(2θ) column over 40-110°, where it is flatter still. WP-1454's review found
+this path and declined to change it, because "used as given" is the documented
+contract. Decide it with the air-term task below.
 
 **Candidates for grouping** (from WP-1454): connected components of the
 thresholded pairs, which is what the table above used; or the flat
