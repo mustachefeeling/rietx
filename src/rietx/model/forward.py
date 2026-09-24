@@ -89,7 +89,6 @@ from ..crystallography.symmetry import (
     ReflectionSet,
     generate_reflections,
     reflection_orbits,
-    resolve_group,
 )
 from ..schemas.common import Mode
 from ..schemas.instrument import (
@@ -3042,15 +3041,7 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
     restraint_items: list = []
     for ip, phase in enumerate(structure.phases):
         cell = phase.cell.lengths_angles()
-        # The phase's own operation list when it carries one: a child cell
-        # whose glide translation is a quarter (a k ≠ 0 magnetic supercell,
-        # ``magnetic.supercell``) has no Hermann-Mauguin symbol, and its
-        # absences, multiplicities and Laue orbits all have to come from the
-        # operations rather than from the label.  ``None`` is exactly the old
-        # path, so every other phase enumerates the identical list in the
-        # identical order.
-        group = resolve_group(phase.space_group, phase.symmetry_operations)
-        refl = generate_reflections(group, cell, lam_gen,
+        refl = generate_reflections(phase.space_group, cell, lam_gen,
                                     two_theta_max=hi_eff, two_theta_min=gen_min)
         # WP-1327: a magnetic space group generally drops the parent's glide
         # and screw operations, so a k = 0 magnetic structure puts intensity
@@ -3064,7 +3055,7 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
         magnetic_mask = None
         if magnetic_wanted(phase, instrument.source):
             extra = magnetic_reflections(
-                group, cell, lam_gen, hi_eff, two_theta_min=gen_min,
+                phase.space_group, cell, lam_gen, hi_eff, two_theta_min=gen_min,
                 magnetic_group=phase.magnetic_symmetry.group())
             refl, magnetic_mask = merge_magnetic(refl, extra)
         f_anom = None
@@ -3144,7 +3135,7 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
             # same layout the March-Dollase correction uses, built from the
             # same ``reflection_orbits``.
             cp.mag_members, cp.mag_seg, cp.mag_counts = orbit_layout(
-                reflection_orbits(group, refl.hkl))
+                reflection_orbits(phase.space_group, refl.hkl))
         cp.batch = _batch_layout(win, fcj_n, tt)
         # the off-state gate (see the field): ext is exactly its identity and
         # nothing this stage moves can take it off there
@@ -3168,7 +3159,7 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
         # and Pawley intensities are empirical and would absorb it.  Freeze the
         # symmetry orbit of each reflection here; the angles follow the cell.
         if mode == "rietveld" and phase.preferred_orientation is not None and n:
-            orbits = reflection_orbits(group, refl.hkl)
+            orbits = reflection_orbits(phase.space_group, refl.hkl)
             cp.po_axis = np.array(phase.preferred_orientation.axis, dtype=np.int64)
             cp.po_members, cp.po_seg, cp.po_counts = orbit_layout(orbits)
         # Soft restraints are a structural correction (bond/angle geometry, or a

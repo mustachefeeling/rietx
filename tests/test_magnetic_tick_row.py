@@ -13,10 +13,8 @@ import numpy as np
 import pytest
 
 import rietx as rx
-from rietx.crystallography.magnetic.isotropy import candidates
-from rietx.crystallography.magnetic.supercell import magnetic_supercell
 from rietx.schemas.common import Parameter
-from rietx.schemas.structure import Atom, Cell, Phase
+from rietx.schemas.structure import Atom, Cell, Moment, Phase
 
 LAMBDA_CW = 2.4
 GRID = np.arange(8.0, 130.0, 0.05)
@@ -39,6 +37,25 @@ def tetragonal() -> Phase:
                     biso=Parameter(value=0.6))])
 
 
+def mnf2() -> Phase:
+    """MnF₂, P 4₂/mnm under BNS 136.499, Mn moment 4.6 μ_B along c.
+
+    Erickson (1953), *Phys. Rev.* **90**, 779.  Its strongest magnetic line,
+    (1 0 0), is a screw absence of the nuclear group, so it is a
+    magnetic-only row of the k = 0 reflection list.
+    """
+    return Phase(
+        name="MnF2", space_group="P 42/m n m", cell=_cell(4.8734, 4.8734, 3.3099),
+        atoms=[Atom(label="Mn1", species="Mn", x=Parameter(value=0.0),
+                    y=Parameter(value=0.0), z=Parameter(value=0.0),
+                    biso=Parameter(value=0.4),
+                    moment=Moment.from_values((0.0, 0.0, 4.6), "Mn2+")),
+               Atom(label="F1", species="F", x=Parameter(value=0.305),
+                    y=Parameter(value=0.305), z=Parameter(value=0.0),
+                    biso=Parameter(value=0.6))],
+        magnetic_symmetry="136.499")
+
+
 def neutron():
     return rx.Instrument.constant_wavelength_neutron(LAMBDA_CW, fwhm_deg=0.35)
 
@@ -57,33 +74,33 @@ def _tick_trace_names(html: str) -> list[str]:
 
 @pytest.mark.slow
 def test_a_magnetic_phase_draws_two_tick_rows(tmp_path):
-    """A k=(0,0,1/2) magnetic tetragonal phase: two ``hkl:`` traces, one
-    nuclear and one "(magnetic)"."""
+    """A k = 0 magnetic phase: two ``hkl:`` traces, one nuclear and one
+    "(magnetic)", and the screw-absent (1 0 0) on the magnetic one."""
     instrument = neutron()
-    truth = candidates("P 4/m m m", (0.0, 0.0, 0.0), (0, 0, "1/2"))[0]
-    statement = magnetic_supercell(tetragonal(), truth, magnetic_species=["Mn1"],
-                                   ion={"Mn1": "Mn3+"}, magnitude=3.0)
-    data = simulate(statement.phase, instrument)
+    phase = mnf2()
+    data = simulate(phase, instrument)
 
-    ref = rx.Refinement(rx.Structure(phases=[statement.phase]), instrument)
+    ref = rx.Refinement(rx.Structure(phases=[phase]), instrument)
     ref.fit(data, plan=rx.RefinementPlan(stages=[
         rx.Stage("scale", ["phases.*.scale", "instrument.background.c*"]),
         rx.Stage("moment", ["phases.*.atoms.*.moment.dof*"])]))
     result = ref.result_
 
     names = {name for name in result.ticks}
-    assert statement.phase.name in names
-    assert f"{statement.phase.name} (magnetic)" in names
-    assert result.ticks[f"{statement.phase.name} (magnetic)"], \
+    assert phase.name in names
+    assert f"{phase.name} (magnetic)" in names
+    assert result.ticks[f"{phase.name} (magnetic)"], \
         "the magnetic row must not be empty on a phase that carries a moment"
+    assert [1, 0, 0] in result.tick_hkl[f"{phase.name} (magnetic)"]
+    assert [1, 0, 0] not in result.tick_hkl[phase.name]
 
     from rietx.viz.html import write_html
     out = tmp_path / "magnetic.html"
     write_html(result, str(out))
     html = out.read_text(encoding="utf-8")
     trace_names = _tick_trace_names(html)
-    assert statement.phase.name in trace_names
-    assert f"{statement.phase.name} (magnetic)" in trace_names
+    assert phase.name in trace_names
+    assert f"{phase.name} (magnetic)" in trace_names
 
 
 def test_a_non_magnetic_phase_draws_one_tick_row(tmp_path):

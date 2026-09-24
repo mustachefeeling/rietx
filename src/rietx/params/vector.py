@@ -37,7 +37,7 @@ from ..crystallography.stephens import S_NAMES, isotropic_coefficients, strain_b
 from ..crystallography.symmetry import (
     cell_constraints,
     check_cell_angles,
-    resolve_group,
+    get_spacegroup,
     rotation_matrices,
 )
 from ..crystallography.wyckoff import adp_basis, coordinate_basis, stabilizer_rotations
@@ -932,7 +932,7 @@ class ParameterTable:
 
     def _collect(self, structure: Structure, instrument: Instrument) -> None:
         for ip, phase in enumerate(structure.phases):
-            sg = resolve_group(phase.space_group, phase.symmetry_operations)
+            sg = get_spacegroup(phase.space_group)
             # The cell ties come from the *setting*, not from the crystal system
             # alone: a c-unique monoclinic symbol fixes β, not γ, and an R group
             # on rhombohedral axes ties c←a and α=β=γ rather than leaving c free

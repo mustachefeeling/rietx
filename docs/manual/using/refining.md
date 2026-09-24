@@ -227,8 +227,8 @@ loop (xyz strings each carrying a time-reversal sign, `"-x,-y,z,-1"`) and
 That list is the model. A UNI, BNS or OG number in its place, as above, is
 resolved through spglib's database and fills `MagneticSymmetry.bns_number`,
 `MagneticSymmetry.og_number`, `MagneticSymmetry.uni_number` and
-`MagneticSymmetry.setting` beside it; `MagneticSymmetry.symbol` and
-`MagneticSymmetry.propagation_vector_parent` are records you may set yourself.
+`MagneticSymmetry.setting` beside it; `MagneticSymmetry.symbol` is a record
+you may set yourself.
 A Shubnikov *symbol* is not accepted: no dependency here parses one, and
 guessing is how a fit lands under the wrong group. `MagneticSymmetry.group`
 hands back the operator algebra if you want to inspect it.
@@ -288,7 +288,7 @@ print(row.magnitude, row.approximation, row.unmeasured_directions)
 | `MomentEvidence.approximation` | which f(s) was used, named | ⟨j₀⟩ alone, or ⟨j₀⟩ + (2/g − 1)⟨j₂⟩ with g |
 | `MomentEvidence.free_directions` | every direction DOF the site symmetry leaves free | `"polar"`, `"azimuth"` |
 | `MomentEvidence.unmeasured_directions` | those of them the powder average did not determine | they are held, so they carry no esd at all |
-| `MomentEvidence.supported` | whether |m| is above its floor and above three of its own esds | false means the data does not support a moment here (not a small one); `None` means the modulus has no esd — stated and held, or unmeasured — so nothing was tested |
+| `MomentEvidence.supported` | whether |m| is above its floor and above three of its own esds | false means the data does not support a moment here (not a small one); `None` means the modulus has no esd (stated and held, or unmeasured), so nothing was tested |
 | `MomentEvidence.note` | the sentence for whichever of those applies | |
 
 A direction a powder cannot see is held, not fitted. After the orbit

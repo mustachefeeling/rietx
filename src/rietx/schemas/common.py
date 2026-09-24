@@ -240,22 +240,14 @@ from .._nearmiss import did_you_mean
 #: charged at N/f² (the probe residual's rows over its squared Bérar-Lelann
 #: factor) and the raw-N figure rides beside it.  Additive and defaulted to
 #: ``None``, the same rule as 0.19 → 0.20.
-#: 0.27 → 0.28 (WP-1327): three additive fields, all defaulted to ``None``,
+#: 0.27 → 0.28 (WP-1327): two additive fields, both defaulted to ``None``,
 #: which is the honest empty state and the bit-identical one — a phase that
-#: declares none of them serializes apart from the new nulls, and refines,
-#: exactly as before.  ``Atom.moment`` (crystal-axis components in μ_B, the
-#: magCIF ``_atom_site_moment.crystalaxis_*`` convention, with the ion and the
-#: Landé g the dipole form factor needs); ``Phase.magnetic_symmetry`` (the
-#: magCIF operator and centring loops with their time-reversal signs, the
-#: BNS/OG symbol as metadata); and ``Phase.symmetry_operations`` (the phase's
-#: own ``x,y,z`` operation list, under a bracketed ``space_group`` label when
-#: no Hermann-Mauguin symbol generates the group in its cell).  The last was
-#: written for the distortion-mode track's M-1 rung and moves here because
-#: this WP's k ≠ 0 magnetic supercell (``magnetic.supercell.magnetic_supercell``)
-#: is its first consumer: a parent glide's ½ along a doubled axis is a ¼ in the
-#: child, which no symbol carries.  What a consumer notices beyond the nulls is
-#: that ``space_group`` may be such a label, and that a bracketed label with no
-#: list, or a plain symbol that does not generate the list, is refused.
+#: declares neither serializes apart from the new nulls, and refines, exactly
+#: as before.  ``Atom.moment`` (crystal-axis components in μ_B, the magCIF
+#: ``_atom_site_moment.crystalaxis_*`` convention, with the ion and the Landé
+#: g the dipole form factor needs) and ``Phase.magnetic_symmetry`` (the magCIF
+#: operator and centring loops with their time-reversal signs, the BNS/OG
+#: symbol as metadata).
 SCHEMA_VERSION = "0.28"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]

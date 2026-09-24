@@ -65,7 +65,6 @@ import numpy as np
 
 from ..crystallography.lattice import d_spacings
 from ..crystallography.stephens import monomial_matrix, stephens_basis
-from ..crystallography.symmetry import resolve_group
 from ..model.forward import CompiledModel
 from .schemas import (
     STRAIN_MAX_GRAM_CONDITION,
@@ -279,9 +278,7 @@ def analyse_strain(model: CompiledModel, values: dict[str, float], *,
                 * max(float(np.sqrt(weight.max(initial=0.0))), 1e-300)) \
             & np.isfinite(tan_theta[0]) & (tan_theta[0] > 0.0)
         n_used = int(live.sum())
-        basis = stephens_basis(resolve_group(
-            cp.reflections.spacegroup,
-            cp.reflections.operations)).astype(np.float64)
+        basis = stephens_basis(cp.reflections.spacegroup).astype(np.float64)
         if n_used < max(STRAIN_MIN_REFLECTIONS, len(basis) + 1):
             out.append(StrainAnalysis(phase_index=ip, n_reflections_used=n_used,
                                       n_patterns=len(basis)))

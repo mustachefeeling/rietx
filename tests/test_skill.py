@@ -70,14 +70,7 @@ API_INDEXES = sorted(REFERENCE_DIR.glob("api*.md"))
 # governs — the fixed bytes every session that loads the skill pays — moves by
 # 3 %, and the alternative was a deliverable whose row lived outside the table
 # its peers are in, which is what the cap exists to protect against.
-# Raised again by WP-1327 for the magnetic family's routing row (issue #286's
-# ruling puts the family in its own §7j file, references/magnetic.md, which
-# needs one index-table row here to be reachable at all —
-# test_every_reference_file_is_reachable_from_the_body).  The body was at
-# 32_932 B, 68 B under the old cap, and the row is not droppable without
-# breaking that reachability test, so the cap moves instead; 33_200 keeps
-# about the margin above the new body (33_090 B) that 33_000 kept before.
-SKILL_MAX_BYTES = 33_200
+SKILL_MAX_BYTES = 33_000
 #: agentskills.io/specification: "Keep your main SKILL.md under 500 lines."
 SKILL_MAX_LINES = 500
 #: Bash output above 40 kB is truncated to a ~2 kB preview, so a reference file

@@ -57,7 +57,7 @@ import math
 import gemmi
 import numpy as np
 
-from ..crystallography.symmetry import as_group, resolve_group
+from ..crystallography.symmetry import get_spacegroup
 from .restraints import (
     _COS_CLAMP,
     CompiledRestraints,
@@ -169,7 +169,7 @@ def _shell(g: np.ndarray, cutoff: float) -> np.ndarray:
     return np.stack([grid.ravel() for grid in grids], axis=1).astype(np.float64)
 
 
-def symmetry_operations(space_group) -> list[str]:
+def symmetry_operations(space_group: str) -> list[str]:
     """The ``x,y,z`` triplets of ``space_group``, in gemmi's listing order.
 
     A symmetry code is an index into a listed order, so it means nothing
@@ -178,28 +178,14 @@ def symmetry_operations(space_group) -> list[str]:
     reader to re-derive the order from the Hermann-Mauguin symbol and hope it
     matches.
     """
-    return [op.triplet() for op in _op_list(space_group)]
+    return [op.triplet() for op in get_spacegroup(space_group).operations()]
 
 
-def _op_list(space_group):
-    """The operations of a symbol or a group object, in the listing order.
-
-    ``_group_arrays`` is the one authority for that order (see
-    ``symmetry._op_list_from_xyz`` for why a group carrying its own list must
-    keep the caller's), so a symmetry code written by the CIF exporter and the
-    (R, t) pair the bond search matched it against cannot come from two
-    different orderings.
-    """
-    from ..crystallography.symmetry import _group_arrays, group_key
-
-    return _group_arrays(group_key(as_group(space_group)))[0]
-
-
-def _symop_table(space_group) -> list[tuple[np.ndarray, np.ndarray]]:
+def _symop_table(space_group: str) -> list[tuple[np.ndarray, np.ndarray]]:
     """(R, t) of every operation of ``space_group``, in the same order."""
     return [(np.array(op.rot, dtype=np.float64) / gemmi.Op.DEN,
              np.array(op.tran, dtype=np.float64) / gemmi.Op.DEN)
-            for op in _op_list(space_group)]
+            for op in get_spacegroup(space_group).operations()]
 
 
 def _symop_index(symops, rot: np.ndarray, tran: np.ndarray) -> int | None:
@@ -307,8 +293,7 @@ def _phase_items(phase, sites, values, ip: int, notes: list[str]):
     cell = tuple(values[f"phases.{ip}.cell.{k}"] for k in _CELL_NAMES)
     g = _metric_g(cell)
     shifts = _shell(g, CONTACT_MAX_ANG)
-    symops = _symop_table(resolve_group(phase.space_group,
-                                        phase.symmetry_operations))
+    symops = _symop_table(phase.space_group)
     elements = [_element(a.species) for a in phase.atoms]
     radii = [float(e.covalent_r) for e in elements]
     metal = [bool(e.is_metal) for e in elements]

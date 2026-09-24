@@ -61,7 +61,6 @@ from ..crystallography.symmetry import (
     expand_positions,
     free_cell_names,
     get_spacegroup,
-    resolve_group,
     rotation_matrices,
 )
 from ..crystallography.wyckoff import adp_basis, coordinate_basis, stabilizer_rotations
@@ -203,10 +202,7 @@ def site_rows(structure: Structure) -> list[dict]:
     rows: list[dict] = []
     for i, phase in enumerate(structure.phases):
         try:
-            # the phase's own operation list when it carries one (Q-17), so a
-            # child cell no symbol names still gets its constraint bases
-            sg = resolve_group(phase.space_group, phase.symmetry_operations)
-            sg.xhm()
+            sg = get_spacegroup(phase.space_group)
         except (ValueError, RuntimeError) as exc:
             rows.append({"path": f"phases.{i}", "error": str(exc)})
             continue
@@ -301,8 +297,7 @@ def position_values(structure: Structure, path: str, xyz) -> dict:
             f"{path}: a position is three finite numbers, not {list(xyz)!r}")
 
     current = np.array([atom.x.value, atom.y.value, atom.z.value])
-    rots = stabilizer_rotations(
-        resolve_group(phase.space_group, phase.symmetry_operations), current)
+    rots = stabilizer_rotations(get_spacegroup(phase.space_group), current)
     basis = coordinate_basis(rots)  # rows are the allowed directions, (k, 3)
     delta = target - current
     if len(basis) == 0:
@@ -351,7 +346,7 @@ def held_causes(structure: Structure, rows: list[dict] | None = None,
     causes: dict[str, str] = {}
     for i, phase in enumerate(structure.phases):
         try:
-            sg = resolve_group(phase.space_group, phase.symmetry_operations)
+            sg = get_spacegroup(phase.space_group)
             cons = cell_constraints(sg)
         except (ValueError, RuntimeError):
             continue
@@ -587,8 +582,7 @@ def _refusals(candidate: Structure, instrument, phase: int) -> list[dict]:
     """
     block = candidate.phases[phase]
     try:
-        check_cell_angles(resolve_group(block.space_group,
-                                        block.symmetry_operations),
+        check_cell_angles(get_spacegroup(block.space_group),
                           {n: getattr(block.cell, n).value
                            for n in ("alpha", "beta", "gamma")})
     except ValueError as exc:

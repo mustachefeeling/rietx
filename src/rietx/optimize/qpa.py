@@ -40,7 +40,7 @@ from ..crystallography.attenuation import (
     packed_mu_t,
 )
 from ..crystallography.lattice import cell_volume
-from ..crystallography.symmetry import as_group, expand_positions, resolve_group
+from ..crystallography.symmetry import expand_positions, get_spacegroup
 from ..schemas.common import Diagnostic
 from ..schemas.results import (
     MicroabsorptionCorrection,
@@ -132,7 +132,7 @@ def _formula_units(element_counts: dict[str, float], *, tol: float = 0.02) -> in
     return max(z, 1)
 
 
-def phase_zmv(space_group, cell: tuple[float, float, float, float, float, float],
+def phase_zmv(space_group: str, cell: tuple[float, float, float, float, float, float],
               atoms, multiplicities=None) -> ZMV:
     """Z·M·V factors for one phase.
 
@@ -149,7 +149,7 @@ def phase_zmv(space_group, cell: tuple[float, float, float, float, float, float]
     to within the dedup tolerance of a special position would otherwise
     collapse its orbit and mis-weigh the cell.
     """
-    sg = as_group(space_group) if multiplicities is None else None
+    sg = get_spacegroup(space_group) if multiplicities is None else None
     volume = cell_volume(*cell)
     cell_mass = 0.0
     element_counts: dict[str, float] = {}
@@ -382,9 +382,7 @@ def compute_qpa(structure: Structure, values: dict[str, float],
                   values[f"{base}.atoms.{j}.z"], values[f"{base}.atoms.{j}.occ"])
                  for j, atom in enumerate(phase.atoms)]
         mult = multiplicities[ip] if multiplicities is not None else None
-        zmvs.append(phase_zmv(
-            resolve_group(phase.space_group, phase.symmetry_operations),
-            cell, atoms, multiplicities=mult))
+        zmvs.append(phase_zmv(phase.space_group, cell, atoms, multiplicities=mult))
         scales.append(values[f"{base}.scale"])
 
     if sum(z.zmv * s for z, s in zip(zmvs, scales)) <= 0.0:
@@ -493,9 +491,7 @@ def _specimen_mu_and_volumes(structure: Structure, values: dict[str, float],
                       values[f"{base}.atoms.{j}.z"], values[f"{base}.atoms.{j}.occ"])
                      for j, atom in enumerate(phase.atoms)]
             mult = multiplicities[ip] if multiplicities is not None else None
-            zmvs.append(phase_zmv(
-                resolve_group(phase.space_group, phase.symmetry_operations),
-                cell, atoms, multiplicities=mult))
+            zmvs.append(phase_zmv(phase.space_group, cell, atoms, multiplicities=mult))
             scales.append(values[f"{base}.scale"])
         mus = [linear_attenuation(z.element_counts, z.cell_volume, wavelength)
                for z in zmvs]

@@ -33,7 +33,7 @@ from __future__ import annotations
 import numpy as np
 
 from ..crystallography.lattice import reciprocal_metric_tensor
-from ..crystallography.symmetry import reflection_orbits, resolve_group
+from ..crystallography.symmetry import reflection_orbits
 from ..model.forward import CompiledModel
 from ..model.preferred_orientation import cos2_alpha, march_term, orbit_layout
 from .schemas import (
@@ -187,16 +187,8 @@ def analyse_texture(model: CompiledModel, values: dict[str, float], *,
             results.append(TextureAnalysis(phase_index=ip, n_reflections_used=n_used))
             continue
 
-        # ``resolve_group``, not the bare ``spacegroup`` string: for a phase
-        # carrying its own operation list that string is a *label* the tables
-        # do not hold, and the list rides along on the frozen set for exactly
-        # this (Q-17).  Found by the Ba₂FeSbSe₅ S3(a,b) acceptance fit, which
-        # refined for 1268 s and then died in ``report()``.
-        frozen = model.phases[ip].reflections
         members, seg, counts = orbit_layout(reflection_orbits(
-            resolve_group(frozen.spacegroup or refl.spacegroup,
-                          frozen.operations if frozen.spacegroup
-                          else refl.operations), refl.hkl))
+            model.phases[ip].reflections.spacegroup or refl.spacegroup, refl.hkl))
         # restrict the score to live reflections: zero their weight, keep the
         # orbit layout aligned with the full list
         w_live = np.where(live, w, 0.0)
