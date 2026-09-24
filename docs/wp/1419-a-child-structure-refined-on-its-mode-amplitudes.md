@@ -236,7 +236,11 @@ on `main` at `84eddb17` against a fork integration branch measured at
   branches carry no TOF branch and the integration branch was not pushed. The
   ask returned on 2026-09-18 is that the TOF half be pushed as its own branch
   with the rungs it reaches named, and the milestone decision is then taken on
-  the code.
+  the code. *Decided 2026-09-24 (issue triage, on #193):* the branch is
+  `tof-cleanroom-20260923`, and the fence holds until v1.6 closes. The
+  decision is then taken on that branch in the reporter's cuts, with the
+  legacy-layer location and the NPDF fixtures' provenance decided alongside
+  the first cut.
 - **2026-09-18, second ruling: magnetic entry points do not enter `api.md`.**
   This supersedes the § In / § Out split below, which is parked rather than
   done. The maintainer's call is that magnetic refinement is uncommon enough

@@ -78,6 +78,12 @@ from `SeriesResult`, so neither surface invents a second set of names.
 
 ### Inherited
 
+- **2026-09-24, from the issue triage: #237 closed as a duplicate of #223.**
+  This file keeps citing both. The 9c.13 row the 2026-09-03 entry below
+  places in `references/batch.md` merged with PR #233 and now lives in
+  `references/batch-operating.md` § 9c.13, still cross-referenced from
+  `references/series.md`; revise it there.
+
 From **WP-1403** (2026-09-15), which removed this WP's Task 2 premise:
 
 - **Task 2 is discharged, not deferred.** The `history` defaults asymmetry was

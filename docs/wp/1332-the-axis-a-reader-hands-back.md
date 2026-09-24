@@ -153,6 +153,10 @@ generalisation task asks.
 
 ### Inherited
 
+- **2026-09-24, from the issue triage: #236 closed as a duplicate of #230**
+  (the same axis defect, reported from review of #233 and from an archive).
+  This file keeps citing both, and its skill task still revises the
+  `references/batch-operating.md` § 9c.14 clause #236 named.
 - **From WP-1415, 2026-09-21: a new reader diagnostic's row goes in §7i, not
   §7.** The skill's `references/diagnostics.md` was 38 B under its cap, so the
   eleven reader rows moved to `references/diagnostics-reading.md` (§7i) on the
