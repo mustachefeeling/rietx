@@ -497,12 +497,19 @@ barely moves it. Measured on a real pattern it reads 0.019 against the 0.3
 trigger, because the tail carried 0.3 % of the whole-range residual the nested
 cubic-against-cubic+1/x fit compares. A fitted result carries a second, narrower
 check for exactly that case. `LOW_ANGLE_UNMODELLED` reads the fit's own residual
-over `[two_theta_min, first_tick − 2·FWHM)`, taking every phase and every
-emission line so that a peak's own low-angle flank is never counted, and fires
-when that region's mean weighted-squared residual exceeds three times the
-whole-pattern reduced χ² (`Diagnostic.value`). It is silent when the region holds
-fewer than ten channels: no reflections at all, or the first one sits at or near
-the low edge. The message reports the ratio and leaves the choice of remedy open.
+over `[two_theta_min, first_tick − 2·FWHM)`, taking every phase, every
+emission line and every declared peak so that a peak's own low-angle flank is
+never counted, and fires when that region's mean weighted-squared residual
+exceeds three times the whole-pattern reduced χ² (`Diagnostic.value`).
+`first_tick` is the lowest tick with intensity behind it: an image, on any
+emission line, of a reflection whose strongest calculated point reaches 1σ of
+the noise on some line, which is the per-phase threshold `PHASE_UNCONSTRAINED`
+reads applied reflection by reflection. A Kα2 or λ/2 image of a reflection the
+data sees therefore keeps its place however weak it is on its own. A tick with
+nothing behind it (a phase held at a vanishing scale, a declared peak at zero
+area, a reflection whose structure factor is zero) does not move the boundary.
+It is silent when the region holds fewer than ten channels: no reflections
+carrying intensity at all, or the first one sits at or near the low edge. The message reports the ratio and leaves the choice of remedy open.
 Raising the pattern's lower limit to where the residual falls under 2σ and adding
 the background's air-scatter term are both available, and only whoever is looking
 at the pattern can tell whether the region is genuinely outside the beam or the

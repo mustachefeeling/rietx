@@ -4177,8 +4177,18 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
     # answer to *where* a tick goes is the thing this must not become: the
     # index is carried through the same sort the positions are, so a tick and
     # its Miller index cannot come apart (WP-1438).
+    #
+    # `tick_support` rides beside the positions on the same terms, carried
+    # through the same filter and sort, so the low-angle boundary can ask
+    # which ticks have anything behind them without pairing by position
+    # (WP-1458).  Each tick carries its *reflection's* support: the strongest
+    # modelled point in σ (`CompiledModel.reflection_support`) over every
+    # emission-line image of that hkl, so a Kα2 or λ/2 image is judged with the
+    # reflection it is an image of, as its index already says.  It is not a
+    # result field; `_low_angle_diagnostics` is its one reader.
     ticks = {}
     tick_hkl = {}
+    tick_support = {}
     for ip, cp in enumerate(model.phases):
         name = structure.phases[ip].name
         cell = tuple(values[f"phases.{ip}.cell.{k}"]
@@ -4192,6 +4202,9 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
         # the same hkl and says so.
         hkl = (np.tile(cp.reflections.hkl, (len(rows), 1)) if rows
                else np.zeros((0, 3), dtype=np.int64))
+        line_support = model.reflection_support(ip, values)
+        sup = (np.tile(np.max(np.stack(line_support), axis=0), len(rows))
+               if rows else np.array([]))
         keep = np.isfinite(pos)
         if cp.magnetic is not None:
             # issue #278: a magnetic phase's reflections are drawn as their
@@ -4202,8 +4215,9 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
             # fraction per *reflection*, tiled across ``rows`` (one row per
             # emission line, each already ``cp.reflections``-ordered) before
             # the positions are concatenated and sorted.
-            # ``tick_hkl`` is carried through the same mask and the same sort
-            # as the positions, so a split row keeps its Miller indices.
+            # ``tick_hkl`` and ``tick_support`` are carried through the same
+            # mask and the same sort as the positions, so a split row keeps its
+            # Miller indices and its support.
             d = np.asarray(cp.reflections.d, dtype=np.float64)
             f_nuc = np.asarray(model._nuclear_f2(ip, d, values, cell),
                                dtype=np.float64)
@@ -4220,11 +4234,12 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
         else:
             rows_out = ((name, keep),)
         for key, sel in rows_out:
-            pos_k, hkl_k = pos[sel], hkl[sel]
+            pos_k, hkl_k, sup_k = pos[sel], hkl[sel], sup[sel]
             order = np.argsort(pos_k, kind="stable")
             ticks[key] = [float(v) for v in pos_k[order]]
             tick_hkl[key] = [[int(h), int(k), int(el)]
                              for h, k, el in hkl_k[order]]
+            tick_support[key] = [float(v) for v in sup_k[order]]
 
     # Declared sharp peaks are ticks too, under one reserved key.  This is the
     # whole of the member contract's clause 2 for `PeakComponent`: a hump joins
@@ -4250,6 +4265,11 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
     extra_ticks = model.extra_peak_tick_positions(values)
     if extra_ticks:
         ticks[EXTRA_TICK_KEY] = extra_ticks
+        images = model.extra_peak_support(values)
+        best = {}
+        for _, j, s in images:
+            best[j] = max(best.get(j, 0.0), s)
+        tick_support[EXTRA_TICK_KEY] = [best[j] for _, j, _ in images]
 
     # Quantitative phase analysis from the refined scales.  Le Bail scales are
     # degenerate with the extracted intensities, so QPA is Rietveld-only.  σ(W)
@@ -4390,7 +4410,7 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
     # this function already built, so the two cannot disagree about where
     # the first reflection sits.
     diagnostics = diagnostics + _low_angle_diagnostics(
-        model, values, y_calc, stats, ticks)
+        model, values, y_calc, stats, ticks, tick_support)
 
     # What a declared sharp peak did, once the fit has an answer about it
     # (WP-1103).  Built after ``ticks`` because "is this component sitting on a
@@ -5409,11 +5429,37 @@ LOW_ANGLE_MIN_CHANNELS = 10
 
 
 def _first_reflection_fwhm(model: CompiledModel, values: dict[str, float],
-                           ticks: dict[str, list[float]]
+                           ticks: dict[str, list[float]],
+                           support: dict[str, list[float]] | None = None
                            ) -> tuple[float, float] | None:
-    """``(2θ, FWHM)`` of the lowest-angle reflection over every phase and
-    emission line, or ``None`` when the model has no reflection at all
-    (an empty structure list).
+    """``(2θ, FWHM)`` of the lowest-angle reflection the data can see, over
+    every phase, emission line and declared peak, or ``None`` when there is
+    none (an empty structure list, or no tick carrying intensity).
+
+    **Which ticks count** (WP-1458): the images of a reflection whose
+    strongest modelled point, on any emission line, reaches
+    :data:`~rietx.model.forward.PHASE_SUPPORT_SIGMA` σ of the noise — read
+    off ``support``, which :func:`_build_result` builds from
+    :meth:`CompiledModel.reflection_support` and
+    :meth:`CompiledModel.extra_peak_support` and pairs with ``ticks`` by
+    index.  That is :meth:`CompiledModel.phase_support`'s test one rank down,
+    per reflection rather than per phase, because a *supported* row can still
+    carry empty ticks below its first real line (a declared peak at zero
+    area, a superstructure reflection whose |F| is zero), and because a
+    phase's summed curve can clear the threshold where none of its
+    reflections does (issue #436's large-cell dummy: 1.23σ summed, no
+    reflection above 0.62σ).  A tick with nothing behind it reaches nothing;
+    before this rule one below the data moved the boundary there and silenced
+    the diagnostic.
+
+    **Per reflection, not per image**: the unit is the hkl, as ``tick_hkl``
+    has it, so a Kα2 or λ/2 image of a reflection the data sees keeps its
+    place however weak the image is on its own.  Judged image by image, the
+    λ/2 (111) of the published BT-1 Cu(311) Nd₂Ru₂O₇ fit (0.095σ, beside its
+    primary's 2.86σ) was dropped, the region grew from 36 to 185 channels,
+    and a warning firing at 5.92× today fell to 2.66×.
+
+    ``support=None`` makes no claim and counts every tick by position alone.
 
     The FWHM is the **instrumental** resolution function alone (Caglioti
     U/V/W + the Lorentzian X/Y, no per-phase size/strain broadening): this
@@ -5424,7 +5470,12 @@ def _first_reflection_fwhm(model: CompiledModel, values: dict[str, float],
     already built (zero-shift included), reused rather than re-derived so the
     two cannot disagree about where the first reflection sits.
     """
-    all_ticks = [t for row in ticks.values() for t in row]
+    if support is None:
+        all_ticks = [t for row in ticks.values() for t in row]
+    else:
+        all_ticks = [t for name, row in ticks.items()
+                     for t, s in zip(row, support[name], strict=True)
+                     if s >= PHASE_SUPPORT_SIGMA]
     if not all_ticks:
         return None
     first_tick = min(all_ticks)
@@ -5440,7 +5491,8 @@ def _first_reflection_fwhm(model: CompiledModel, values: dict[str, float],
 
 
 def _low_angle_diagnostics(model: CompiledModel, values: dict[str, float],
-                           y_calc, stats, ticks: dict[str, list[float]]
+                           y_calc, stats, ticks: dict[str, list[float]],
+                           support: dict[str, list[float]] | None = None
                            ) -> list[Diagnostic]:
     """``LOW_ANGLE_UNMODELLED``: the channels below the first reflection carry
     more residual than the fit's own whole-pattern χ²_red would predict.
@@ -5453,9 +5505,12 @@ def _low_angle_diagnostics(model: CompiledModel, values: dict[str, float],
     on Ba₂FeSbSe₅ 1.5 K: 0.019, against the ``AIR_SCATTER_TRIGGER`` of 0.3;
     19 tail channels out of 779 carry 0.3 % of the whole-range RSS the nested
     fit compares). This diagnostic instead reads the fit's own residual, and
-    only over the region no reflection — of any phase, any emission line —
-    can reach: ``[two_theta_min, first_tick − 2·FWHM)``, so a peak's own
-    low-angle flank is never counted as unmodelled.
+    only over the region no reflection — of any phase, any emission line,
+    any declared peak — can reach: ``[two_theta_min, first_tick − 2·FWHM)``,
+    so a peak's own low-angle flank is never counted as unmodelled.
+    ``first_tick`` is the lowest tick carrying calculated intensity the data
+    can see (``support``; :func:`_first_reflection_fwhm` states the rule), so
+    an empty tick below the first real line does not move the boundary.
 
     Silent (``[]``) rather than firing, under either of two conditions:
 
@@ -5480,7 +5535,7 @@ def _low_angle_diagnostics(model: CompiledModel, values: dict[str, float],
     genuinely outside the beam, versus the background model is locally
     wrong) and only whoever is looking at the pattern can tell which.
     """
-    first = _first_reflection_fwhm(model, values, ticks)
+    first = _first_reflection_fwhm(model, values, ticks, support)
     if first is None:
         return []
     first_tick, fwhm = first
