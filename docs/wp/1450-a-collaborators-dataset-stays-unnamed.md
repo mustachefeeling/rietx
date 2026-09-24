@@ -1,6 +1,7 @@
 # WP-1450 — a collaborator's dataset stays unnamed
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-09-23 — CONTRIBUTING's rule landed (PR #435); the
+redaction itself is the reporter's PR #438
 Depends on: —
 Priority: P1 2026-09-23 — the data owner asked; land it before 1.5.1 is cut, because the wheel ships `diagnostics.py` and `topas.py`; comments and docstrings only, so the job is small
 
@@ -110,6 +111,34 @@ git grep -n -f <patterns file from yue-here/rietx-corpus-map> -- '*.py' '*.md'  
 
 ## Handover log
 
+- **2026-09-23** — (reconstructed post hoc on 2026-09-24, from the commit's
+  own diff and message; the session that made it left no entry) CONTRIBUTING
+  now states for every file the rule this WP applies to one dataset: a
+  dataset is named in the repository only if it is a public download or has a
+  peer-reviewed citation, and private data is described by its kind while the
+  number it gave is kept. Until then a human contributor met the rule only in
+  CONTRIBUTING's section on the skill's rows, and CLAUDE.md had carried it
+  since 2026-09-18. None of the thirty sites is touched by it; removing them
+  is the reporter's pull request, still open.
+  - *Done*: `bc0c25f`, merged in PR #435. `CONTRIBUTING.md` § Licensing gains
+    a paragraph, "Data you cannot publish": the rule; what it covers (a sample
+    or compound name, a run or proposal number, a file name, the instrument and
+    conditions, a specimen property read off a refinement); that a number the
+    code depends on may still come from private data; and a pointer to
+    § The agent skill, which draws the same line. The reason is the commit
+    message's: the rule reached CLAUDE.md three weeks after the leak it
+    answers, and a human contributor reads CONTRIBUTING. It is adjacent to the
+    Goal rather than one of the Tasks, so no box is ticked.
+  - *Not in the record*: whether that session checked the paragraph's wording
+    against § The agent skill or the CLAUDE.md clause. The diff does not say.
+  - *State at the repair (2026-09-24)*: PR #438, from the reporter's fork and
+    titled `WP-1450:`, is open and edits all seven files Context lists. It does
+    not touch this file. Whether it reaches zero hits needs the patterns file
+    of task 1, which lives in the private map, and was not checked here.
+  - Next: review PR #438 against the Acceptance grep, then merge it before
+    1.5.1 is cut, as Context requires. On merge, tick tasks 2 to 6 from what
+    it did, record the replaced numbers in the private map if task 4 wants
+    them, and close the WP.
 - **2026-09-23** — created, from the 2026-09-23 issue triage (issue #417).
   Checked against the tree at `644dff84`: every site the issue lists
   reproduces, and the issue's own search finds two more in the TOPAS reader
