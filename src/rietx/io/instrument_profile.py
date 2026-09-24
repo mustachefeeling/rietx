@@ -167,33 +167,31 @@ def _iter_parameters(ins: Instrument):
 # GSAS-I .prm (Larson & Von Dreele, LAUR 86-748) — read_gsas_prm
 # ---------------------------------------------------------------------------
 
-#: ``HTYPE`` values this reader recognises and what each means.  Only
-#: ``PXCR`` (constant-wavelength X-ray, Bragg-Brentano/Debye-Scherrer powder)
-#: is read, and every other value is refused **by name** rather than
-#: approximated.  The reason differs by value and the table says which:
-#: a time-of-flight ``HTYPE`` puts something this reader's destination
-#: (:class:`~rietx.schemas.instrument.ProfileTCHZ`, a Caglioti/TCH **angular**
-#: resolution function) cannot express, which is the *scope, not evidence*
-#: argument ``io/formats/gsas.py`` makes for its non-``CONS`` bintypes;
-#: a constant-wavelength neutron ``HTYPE`` is the opposite case and is refused
-#: for want of a fixture.  Claiming scope for both would be false of the
-#: second.  ``PNTR`` is
-#: the one this corpus actually contains (2 of 1508 files): powder neutron
-#: time-of-flight, whose ``BNKPAR``/per-bank ``PRCF`` records parameterise a
-#: flight-time peak shape (moderator pulse, L2, DIFC/DIFA) with no 2θ
-#: resolution law inside them at all.
-#:
-#: ``PNCR`` is the other way round and is refused for a different reason.  A
-#: constant-wavelength neutron file states exactly the kind of thing this
-#: reader's destination can hold — ``ProfileTCHZ`` is where
-#: :meth:`Instrument.constant_wavelength_neutron` puts its own resolution
-#: function — so what stops it is not the *meaning* of the record but the
-#: absence of a fixture: ``tests/data/mg090.Cu311.inst`` is the one real
-#: ``PNCR`` file this repository holds and its ``PRCF`` is **type 1**, whose
-#: coefficient layout no real example pins down (see ``_PRCF_TYPE_REFUSALS``).
-#: Refusing it by name for the reason that is true keeps the refusal honest
-#: and says what a future reader would need.
+#: ``HTYPE`` values this reader reads, and the radiation each names.  Both are
+#: constant-wavelength, so both state a Caglioti/TCH **angular** resolution
+#: law, which is what :class:`~rietx.schemas.instrument.ProfileTCHZ` holds —
+#: for ``PNCR`` it is where :meth:`Instrument.constant_wavelength_neutron`
+#: puts its own.  Whether a file of either reads is then decided by its
+#: ``PRCF`` type, never by its ``HTYPE`` (issue #437, WP-1312): the ``INS
+#: bbPRCFn`` record (``PTYP, NCOF, CTOF``; Larson & Von Dreele, LAUR 86-748)
+#: is defined by profile function, not by radiation, so type 3 reads under
+#: either and the other types are refused under either, each refusal naming
+#: the type the file in hand carries.  The first real type-3 ``PNCR`` file,
+#: ``tests/data/gsas2_hb2a_cr2wo6.prm`` (HFIR HB-2A), is what pins that down.
 _HTYPE_PXCR = "PXCR"
+_HTYPE_PNCR = "PNCR"
+_HTYPES_READ: dict[str, str] = {
+    _HTYPE_PXCR: "constant-wavelength X-ray",
+    _HTYPE_PNCR: "constant-wavelength neutron",
+}
+
+#: ``HTYPE`` values this reader recognises in order to refuse them **by
+#: name** rather than approximate them.  ``PNTR`` is the one the corpus this
+#: reader was built against actually contains (2 of 1508 files): powder
+#: neutron time-of-flight, whose ``BNKPAR``/per-bank ``PRCF`` records
+#: parameterise a flight-time peak shape (moderator pulse, L2, DIFC/DIFA) with
+#: no 2θ resolution law inside them at all — the *scope, not evidence*
+#: argument ``io/formats/gsas.py`` makes for its non-``CONS`` bintypes.
 _HTYPE_REFUSALS: dict[str, str] = {
     "PNTR": (
         "powder neutron time-of-flight data.  Its bank records carry BNKPAR "
@@ -206,18 +204,6 @@ _HTYPE_REFUSALS: dict[str, str] = {
         "correction entirely (see the module docstring's calibrate/freeze "
         "workflow, written for a constant-wavelength source) and is out of "
         "scope here."
-    ),
-    "PNCR": (
-        "powder neutron constant-wavelength data.  Unlike PNTR its "
-        "resolution function is the kind ProfileTCHZ can hold — it is what "
-        "Instrument.constant_wavelength_neutron builds — so this refusal is "
-        "about evidence, not meaning: the one real PNCR file this "
-        "repository holds (tests/data/mg090.Cu311.inst, the neutron half of "
-        "the ndruo pair) carries a PRCF of type 1, and no real file pins "
-        "down type 1's coefficient layout, so reading it by position off "
-        "type 3 would be a guess rather than a parser.  A real type-3 PNCR "
-        "file, or a type-1 example with numbers to verify against, is what "
-        "this needs."
     ),
 }
 
@@ -311,7 +297,11 @@ def read_gsas_prm(path: str | Path, *,
     LAUR 86-748 (``ATTRIBUTION.md``: manual-as-spec, no code taken).  Reads
     the dominant case this format actually ships — a single ``BANK``,
     ``HTYPE PXCR`` (constant-wavelength X-ray), profile function 3 — and
-    refuses everything else **by name**, following ``read_gsas``'s policy in
+    its neutron twin, ``HTYPE PNCR`` with profile function 3, which lands on
+    :meth:`Instrument.constant_wavelength_neutron` at ``LAM1`` with the same
+    coefficient mapping (the ``PRCF`` record is defined by profile function,
+    not by radiation; WP-1312, issue #437).  Everything else is refused
+    **by name**, following ``read_gsas``'s policy in
     ``io/formats/gsas.py``: a record this reader cannot map onto
     ``ProfileTCHZ`` is a refusal, not an approximation.
 
@@ -420,7 +410,15 @@ def read_gsas_prm(path: str | Path, *,
       is absent for a ``PRCF`` declaring exactly eight.
     * ``GSAS_PRM_GEOMETRY_ASSUMED`` — always, because a ``.prm`` states no
       geometry at all and this reader returns
-      :meth:`Instrument.debye_scherrer`.
+      :meth:`Instrument.debye_scherrer` (``PXCR``) or
+      :meth:`Instrument.constant_wavelength_neutron` (``PNCR``), both
+      Debye-Scherrer.
+
+    A ``PNCR`` file differs in three places, each because a
+    :class:`~rietx.schemas.instrument.NeutronSource` has one wavelength and
+    no polarisation: a non-zero ``LAM2`` is refused, and ``POLA`` (which
+    such files still write) and ``KRATIO`` are read and not applied, named
+    in the ``ICONS`` row of ``GSAS_PRM_FIELD_DROPPED``.
 
     That second one matters more than a dropped zero.  ``Geometry.kind``
     selects the position correction and its suggested action
@@ -471,7 +469,11 @@ def read_gsas_prm(path: str | Path, *,
             f"one bank of several would silently pick a bank rather than "
             f"letting the caller choose")
 
-    icons = _read_icons(records, p)
+    # The profile type is asked before ICONS' values, because it is what
+    # decides whether this file can be read at all: a type-1 PNCR file
+    # hears about its type, not about a field of a record that would not
+    # have been read either way.
+    neutron = htype == _HTYPE_PNCR
     prof_type, coeffs = _read_prcf(records, p)
     if prof_type != _PRCF_TYPE_3:
         what = _PRCF_TYPE_REFUSALS.get(prof_type)
@@ -485,15 +487,31 @@ def read_gsas_prm(path: str | Path, *,
                 f"its coefficient layout from; this is not one of those "
                 f"either, so what its coefficients mean is not established "
                 f"at all")
+        # Worded about *this file's* type and HTYPE, never about a fixture:
+        # the PNCR refusal this replaced told a type-3 file that it carried
+        # type 1, because it described the repository's one PNCR file rather
+        # than the file in hand (issue #437).
         raise ValueError(
-            f"{p.name}: this bank's profile is {what} (GSAS PRCF type "
-            f"{prof_type}) — only type 3 is read.  Each GSAS profile "
+            f"{p.name}: HTYPE {htype} ({_HTYPES_READ[htype]}), and this "
+            f"bank's profile is {what} (GSAS PRCF type {prof_type}) — only "
+            f"type 3 is read, under PXCR and PNCR alike.  Each GSAS profile "
             f"function has its own, independently-defined coefficient "
             f"layout (type 3's 19 are not a superset of type {prof_type}'s "
-            f"{len(coeffs)}), and no real instrument file of this type was "
-            f"found to derive or verify one against — only a stock example "
-            f"carrying placeholder zero-broadening values.  Reading it by "
-            f"position off type 3 would be a guess, not a parser")
+            f"{len(coeffs)}), and this reader has no verified layout for "
+            f"type {prof_type} to read this file's {len(coeffs)} "
+            f"coefficient(s) by.  Reading them by position off type 3 would "
+            f"be a guess, not a parser")
+
+    icons = _read_icons(records, p, neutron=neutron)
+    if neutron and icons.lam2:
+        raise ValueError(
+            f"{p.name}: HTYPE PNCR (constant-wavelength neutron) and ICONS "
+            f"states a second wavelength, LAM2 = {icons.lam2!r}.  A neutron "
+            f"source here is one monochromated wavelength (NeutronSource), "
+            f"with no emission-line doublet to put a second one in, and a "
+            f"λ/2 contaminant is a harmonic, which the format does not state "
+            f"as a LAM2 — so what this field means in this file is not "
+            f"established, and it is refused rather than dropped")
 
     if len(coeffs) < len(_PRCF_MAPPED):
         raise ValueError(
@@ -530,7 +548,8 @@ def read_gsas_prm(path: str | Path, *,
                 f"position 8, so a non-zero one here is unidentified rather "
                 f"than dropped")
 
-    instrument = _build_instrument(icons, (gu, gv, gw, lx, ly, sl, hl), p)
+    instrument = _build_instrument(icons, (gu, gv, gw, lx, ly, sl, hl), p,
+                                   neutron=neutron)
 
     if diagnostics is not None:
         # The drop half of io/CLAUDE.md's rule: a field at the model's
@@ -551,9 +570,17 @@ def read_gsas_prm(path: str | Path, *,
             if icons.lam2 else
             f"KRATIO = {ratio}, read and not applied (it weights a second "
             f"line, and LAM2 states none here)")
+        # A neutron file still writes POLA (HB-2A's says 0.990), and the
+        # NeutronSource pins the polarisation term at 1, so the value is the
+        # file's and is not carried — which is a drop, and says so.
+        pola = blank if icons.polarization is None else icons.polarization
+        pola_note = (
+            f"POLA = {pola}, read and not applied (HTYPE PNCR "
+            f"is a neutron source, whose polarisation term NeutronSource "
+            f"pins at 1), " if neutron else "")
         dropped = [
-            ("ICONS", f"IPOLA (the polarization type) = "
-                      f"{blank if icons.polarization_type is None else 0}, "
+            ("ICONS", f"{pola_note}IPOLA (the polarization type) = "
+                      f"{blank if icons.polarization_type is None else icons.polarization_type}, "
                       f"the refine flags and IDAMP = "
                       f"{blank if icons.damping is None else icons.damping} "
                       f"(refinement controls, which a frozen calibration has "
@@ -578,14 +605,20 @@ def read_gsas_prm(path: str | Path, *,
                 where=[record]))
 
     if diagnostics is not None:
+        why = (
+            "HTYPE PNCR, so this instrument came back debye_scherrer, which "
+            "is what Instrument.constant_wavelength_neutron builds (a CW "
+            "neutron diffractometer is a can of powder in the beam with "
+            "detectors on a circle)"
+            if neutron else
+            "HTYPE PXCR spans Bragg-Brentano and Debye-Scherrer, so this "
+            "instrument came back debye_scherrer (packing_fraction=0.6, a "
+            "capillary offset pair) because that is what the corpus this "
+            "reader was built against is")
         diagnostics.append(Diagnostic(
             level="warning", code="GSAS_PRM_GEOMETRY_ASSUMED",
-            message=(f"{p.name}: a GSAS .prm states no geometry, and HTYPE "
-                     f"PXCR spans Bragg-Brentano and Debye-Scherrer, so this "
-                     f"instrument came back debye_scherrer "
-                     f"(packing_fraction=0.6, a capillary offset pair) "
-                     f"because that is what the corpus this reader was built "
-                     f"against is — it was not read from the file"),
+            message=(f"{p.name}: a GSAS .prm states no geometry; {why} — it "
+                     f"was not read from the file"),
             where=["instrument.geometry.kind"],
             suggestion=("if this calibration is from a flat-plate "
                         "diffractometer, set the geometry yourself: "
@@ -602,8 +635,16 @@ def read_gsas_prm(path: str | Path, *,
 
 
 def _build_instrument(icons: GsasIcons,
-                      coefficients: tuple[float, ...], p: Path) -> Instrument:
+                      coefficients: tuple[float, ...], p: Path, *,
+                      neutron: bool = False) -> Instrument:
     """The ``Instrument`` this bank states, frozen, or a refusal naming the file.
+
+    ``neutron`` (an ``HTYPE PNCR`` file) starts from
+    :meth:`Instrument.constant_wavelength_neutron` at ``LAM1`` — a
+    :class:`~rietx.schemas.instrument.NeutronSource`, one wavelength, the
+    polarisation term pinned at 1, the coarse-instrument profile box — and
+    maps the same eight ``PRCF`` coefficients onto it as a ``PXCR`` file,
+    because the type-3 record is the same record under either radiation.
 
     Every value here is the file's own, and the schema holds each to a range
     (``ProfileTCHZ.w`` is non-negative, ``Source.polarization`` sits in [0, 1],
@@ -622,9 +663,13 @@ def _build_instrument(icons: GsasIcons,
     """
     gu, gv, gw, lx, ly, sl, hl = coefficients
     try:
-        instrument = Instrument.debye_scherrer(
-            wavelength=icons.lam1, polarization=icons.polarization)
-        if icons.lam2:
+        if neutron:
+            instrument = Instrument.constant_wavelength_neutron(
+                wavelength=icons.lam1)
+        else:
+            instrument = Instrument.debye_scherrer(
+                wavelength=icons.lam1, polarization=icons.polarization)
+        if icons.lam2 and not neutron:
             # A second line's weight is relative to the first, which the
             # parameter table pins at 1 (EmissionLine) — so KRATIO, the
             # Kα2/Kα1 intensity ratio, is exactly the number this slot wants.
@@ -661,22 +706,28 @@ def _build_instrument(icons: GsasIcons,
 
 
 def _check_htype(htype: str, p: Path) -> None:
-    """Pass ``PXCR``; refuse any other ``HTYPE`` **by name**."""
-    if htype == _HTYPE_PXCR:
+    """Pass ``PXCR`` and ``PNCR``; refuse any other ``HTYPE`` **by name**.
+
+    Passing is not reading: a ``PNCR`` or ``PXCR`` file is read only if its
+    ``PRCF`` type is, which ``read_gsas_prm`` asks next.
+    """
+    if htype in _HTYPES_READ:
         return
     what = _HTYPE_REFUSALS.get(htype)
     if what is not None:
         raise ValueError(f"{p.name}: HTYPE {htype} is {what}")
     raise ValueError(
-        f"{p.name}: unrecognised GSAS HTYPE {htype!r} — only PXCR "
-        f"(constant-wavelength X-ray) is read.  "
+        f"{p.name}: unrecognised GSAS HTYPE {htype!r} — only "
+        f"{' and '.join(f'{h} ({what})' for h, what in _HTYPES_READ.items())}"
+        f" are read.  "
         f"{', '.join(sorted(_HTYPE_REFUSALS))} "
         f"{'is' if len(_HTYPE_REFUSALS) == 1 else 'are'} recognised and "
         f"refused by name; this is not one of those either, so what this "
         f"file's HTYPE means is not established at all")
 
 
-def _read_icons(records: list[tuple[str, str]], p: Path) -> GsasIcons:
+def _read_icons(records: list[tuple[str, str]], p: Path, *,
+                neutron: bool = False) -> GsasIcons:
     """Read bank 1's ``ICONS`` record, **by column**, and refuse what it states
     that this reader cannot carry.
 
@@ -698,6 +749,12 @@ def _read_icons(records: list[tuple[str, str]], p: Path) -> GsasIcons:
     the reason for refusing it was that no file here stated the intensity
     weight, and that reason was an artefact of not knowing which field
     ``KRATIO`` was.
+
+    ``neutron`` (``HTYPE PNCR``) waives the two polarisation checks: a
+    :class:`~rietx.schemas.instrument.NeutronSource` pins its polarisation
+    term at 1, so neither a blank ``POLA`` nor an ``IPOLA`` convention can
+    change the instrument, and refusing on one would refuse a file for a
+    reason that is not true of it.
     """
     payloads = _payloads(records, "ICONS")
     if len(payloads) != 1:
@@ -705,14 +762,15 @@ def _read_icons(records: list[tuple[str, str]], p: Path) -> GsasIcons:
             f"{p.name}: expected exactly one ICONS record for bank 1, found "
             f"{len(payloads)} — a bank declaring its constants more than once "
             f"(or not at all) is ambiguous, not a single instrument")
-    icons = read_icons(payloads[0], required=("lam1", "polarization"))
+    icons = read_icons(payloads[0], required=(
+        ("lam1",) if neutron else ("lam1", "polarization")))
 
     if not icons.lam1:
         raise ValueError(
             f"{p.name}: bank 1's ICONS record states no primary wavelength "
             f"(LAM1, columns 12-22) — the field is blank or zero, and an "
             f"instrument file without a wavelength describes no instrument")
-    if icons.polarization is None:
+    if icons.polarization is None and not neutron:
         raise ValueError(
             f"{p.name}: bank 1's ICONS record states no polarization (POLA, "
             f"columns 52-62) — the field is blank.  Every "
@@ -727,7 +785,7 @@ def _read_icons(records: list[tuple[str, str]], p: Path) -> GsasIcons:
             f"real file in this corpus has a non-zero value to settle it "
             f"against, so a non-zero one here is refused rather than mapped "
             f"onto instrument.zero_shift on either guess")
-    if icons.polarization_type:
+    if icons.polarization_type and not neutron:
         raise ValueError(
             f"{p.name}: ICONS field IPOLA (the polarization type) is "
             f"{icons.polarization_type!r}, not 0 — every real file in the "
@@ -911,8 +969,9 @@ def from_instrument(instrument: Instrument, *, header: str = "",
     refine it.
 
     Three more refusals, each naming what ``ICONS`` cannot state.  A neutron
-    source, which is ``HTYPE PNCR``/``PNTR`` and not the ``PXCR`` this pair
-    reads.  More than two emission lines, ``ICONS`` holding ``LAM1`` and
+    source, which would be ``HTYPE PNCR`` — :func:`read_gsas_prm` reads a
+    type-3 one, but what its ``POLA`` and ``KRATIO`` should say for a source
+    with neither is spelled by one real file only, so it is not written.  More than two emission lines, ``ICONS`` holding ``LAM1`` and
     ``LAM2`` and nothing further.  And a second line whose weight is outside the
     ``0 < w <= 2`` a ``KRATIO`` means, which is the bound the reader checks.
 
@@ -932,11 +991,12 @@ def from_instrument(instrument: Instrument, *, header: str = "",
     if isinstance(instrument.source, NeutronSource):
         raise ValueError(
             "a GSAS-I .prm written by this package states HTYPE PXCR, "
-            "constant-wavelength X-ray, which is the one type read_gsas_prm "
-            "reads.  A neutron source is PNCR or PNTR, and this package "
-            "refuses both on the way in — PNTR because a flight-time peak "
-            "shape has nowhere in ProfileTCHZ to go, PNCR for want of a real "
-            "type-3 file to check a layout against")
+            "constant-wavelength X-ray.  A constant-wavelength neutron source "
+            "would be HTYPE PNCR, which read_gsas_prm reads (profile type 3) "
+            "but this writer does not write: what a PNCR file's POLA and "
+            "KRATIO fields should hold for a source that has neither is "
+            "spelled only by the one real file this package holds, which is "
+            "a reading, not a convention to write by")
 
     source = instrument.source
     if len(source.lines) > 2:
