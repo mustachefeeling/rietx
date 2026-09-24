@@ -1,0 +1,11 @@
+{
+  "name": "wp-1461-uplot-spike",
+  "private": true,
+  "description": "The measurement spike behind WP-1461. Never built, never shipped: install here, run by hand.",
+  "dependencies": {
+    "echarts": "6.1.0",
+    "playwright-core": "1.63.0",
+    "svgcanvas": "2.6.0",
+    "uplot": "1.6.32"
+  }
+}

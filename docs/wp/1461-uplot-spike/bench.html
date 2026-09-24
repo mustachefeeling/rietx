@@ -1,0 +1,125 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>body{margin:0;font:12px sans-serif} #plot,#main,#resid{width:1200px} #plot{height:600px} #main{height:420px} #resid{height:160px}</style>
+</head><body>
+<div id="host"></div>
+<script>
+// Synthetic powder pattern with the NAC shape: N channels, ~300 reflections,
+// obs/calc/bkg/diff + one tick row.  Values do not matter to a renderer; counts do.
+function pattern(N, seed) {
+  let s = seed; const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
+  const x = new Float64Array(N), obs = new Float64Array(N), calc = new Float64Array(N),
+        bkg = new Float64Array(N), diff = new Float64Array(N);
+  const peaks = []; for (let i = 0; i < 300; i++) peaks.push([5 + 55 * rnd(), 200 + 5000 * rnd() ** 3]);
+  peaks.sort((a, b) => a[0] - b[0]);
+  for (let i = 0; i < N; i++) {
+    const t = 5 + 55 * i / (N - 1); x[i] = t; let c = 50 + 30 * Math.exp(-t / 20);
+    bkg[i] = c;
+    for (const [p, h] of peaks) { const d = (t - p) / 0.02; if (d > -40 && d < 40) c += h / (1 + d * d); }
+    calc[i] = c; obs[i] = c + Math.sqrt(c) * (rnd() - 0.5) * 2; diff[i] = (obs[i] - calc[i]) / Math.sqrt(c);
+  }
+  return { x, obs, calc, bkg, diff, ticks: peaks.map((p) => p[0]) };
+}
+const frame = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+const median = (a) => { const b = [...a].sort((p, q) => p - q); return b[b.length >> 1]; };
+async function time(fn, reps) {
+  const out = [];
+  // main-thread work until the call has drawn, then one frame outside the timer
+  for (let i = 0; i < reps; i++) { await frame(); const t0 = performance.now(); await fn(i);
+    await Promise.resolve(); await Promise.resolve(); out.push(performance.now() - t0); }
+  return median(out);
+}
+function load(src) {
+  return new Promise((res, rej) => { const t0 = performance.now(); const s = document.createElement("script");
+    s.src = src; s.onload = () => res(performance.now() - t0); s.onerror = rej; document.head.appendChild(s); });
+}
+
+const LIBS = {
+  plotly: {
+    src: "plotly.min.js",
+    async build(d) {
+      document.getElementById("host").innerHTML = '<div id="plot"></div>';
+      this.el = document.getElementById("plot");
+      const tr = (d) => [
+        { x: d.x, y: d.obs, type: "scattergl", mode: "markers", marker: { size: 4 }, hoverinfo: "none" },
+        { x: d.x, y: d.calc, type: "scattergl", mode: "lines", line: { width: 1.2 }, hoverinfo: "none" },
+        { x: d.x, y: d.bkg, type: "scattergl", mode: "lines", line: { width: 1, dash: "dot" }, hoverinfo: "none" },
+        { x: d.x, y: d.diff, type: "scattergl", mode: "lines", yaxis: "y2", line: { width: 1 }, hoverinfo: "none" },
+        { x: d.ticks, y: d.ticks.map(() => 0), type: "scattergl", mode: "markers", yaxis: "y3",
+          marker: { symbol: "line-ns-open", size: 8 }, hoverinfo: "none" }];
+      this.tr = tr;
+      this.layout = { height: 600, showlegend: false, hovermode: false,
+        yaxis: { domain: [0.32, 1] }, yaxis3: { domain: [0.26, 0.31], showticklabels: false },
+        yaxis2: { domain: [0, 0.25] }, margin: { l: 50, r: 10, t: 10, b: 30 } };
+      await Plotly.newPlot(this.el, tr(d), this.layout, { displaylogo: false });
+    },
+    async update(d) { await Plotly.react(this.el, this.tr(d), this.layout); },
+    async zoom(lo, hi) { await Plotly.relayout(this.el, { "xaxis.range": [lo, hi] }); },
+    async resize(w) { this.el.style.width = w + "px"; this.layout = { ...this.layout, width: undefined, autosize: true }; await Plotly.Plots.resize(this.el); },
+    renderer() { const c = this.el.querySelector("canvas"); const gl = c && (c.getContext("webgl") || c.getContext("webgl2"));
+      const ext = gl && gl.getExtension("WEBGL_debug_renderer_info"); return ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : "?"; },
+  },
+  uplot: {
+    src: "node_modules/uplot/dist/uPlot.iife.min.js",
+    async build(d) {
+      document.getElementById("host").innerHTML = '<div id="main"></div><div id="resid"></div>';
+      const sync = uPlot.sync("x");
+      const ticks = d.ticks;
+      // ticks drawn in a hook: vertical strokes in a band under the curves
+      const tickHook = (u) => { const c = u.ctx; c.save(); c.strokeStyle = "#9467bd"; c.lineWidth = 1; c.beginPath();
+        const y0 = u.bbox.top + u.bbox.height - 14 * devicePixelRatio, y1 = y0 + 10 * devicePixelRatio;
+        for (const t of ticks) { if (t < u.scales.x.min || t > u.scales.x.max) continue;
+          const px = Math.round(u.valToPos(t, "x", true)) + 0.5; c.moveTo(px, y0); c.lineTo(px, y1); }
+        c.stroke(); c.restore(); };
+      const common = { width: 1200, legend: { show: false }, cursor: { sync: { key: sync.key }, drag: { x: true, y: false } },
+        scales: { x: { time: false } } };
+      this.main = new uPlot({ ...common, height: 420, hooks: { draw: [tickHook] },
+        series: [{}, { stroke: "#1f77b4", paths: () => null, points: { show: true, size: 4, fill: "#1f77b4" } },
+                 { stroke: "#d62728", width: 1.2 }, { stroke: "#2ca02c", width: 1, dash: [3, 3] }] },
+        [d.x, d.obs, d.calc, d.bkg], document.getElementById("main"));
+      this.resid = new uPlot({ ...common, height: 160, series: [{}, { stroke: "#555", width: 1 }] },
+        [d.x, d.diff], document.getElementById("resid"));
+    },
+    async update(d) { this.main.setData([d.x, d.obs, d.calc, d.bkg]); this.resid.setData([d.x, d.diff]); },
+    async zoom(lo, hi) { this.main.setScale("x", { min: lo, max: hi }); this.resid.setScale("x", { min: lo, max: hi }); },
+    async resize(w) { this.main.setSize({ width: w, height: 420 }); this.resid.setSize({ width: w, height: 160 }); },
+    renderer() { return "canvas2d"; },
+  },
+  echarts: {
+    src: "node_modules/echarts/dist/echarts.min.js",
+    async build(d) {
+      document.getElementById("host").innerHTML = '<div id="plot"></div>';
+      this.chart = echarts.init(document.getElementById("plot"), null, { renderer: "canvas" });
+      this.opt = (d) => {
+        const xy = (y) => Array.from(d.x, (x, i) => [x, y[i]]);
+        return { animation: false, grid: [{ top: 10, height: 380, left: 50, right: 10 }, { top: 420, height: 150, left: 50, right: 10 }],
+          xAxis: [{ type: "value", min: "dataMin", max: "dataMax" }, { type: "value", gridIndex: 1, min: "dataMin", max: "dataMax" }],
+          yAxis: [{ type: "value" }, { type: "value", gridIndex: 1 }],
+          dataZoom: [{ type: "inside", xAxisIndex: [0, 1], filterMode: "none" }],
+          series: [
+            { type: "scatter", data: xy(d.obs), symbolSize: 3, large: true },
+            { type: "line", data: xy(d.calc), showSymbol: false, lineStyle: { width: 1.2 }, sampling: "lttb" },
+            { type: "line", data: xy(d.bkg), showSymbol: false, lineStyle: { width: 1, type: "dotted" }, sampling: "lttb" },
+            { type: "line", data: xy(d.diff), xAxisIndex: 1, yAxisIndex: 1, showSymbol: false, lineStyle: { width: 1 }, sampling: "lttb" },
+          ] };
+      };
+      this.chart.setOption(this.opt(d)); this.chart.getZr().flush();
+    },
+    async update(d) { this.chart.setOption(this.opt(d)); this.chart.getZr().flush(); },
+    async zoom(lo, hi) { this.chart.dispatchAction({ type: "dataZoom", startValue: lo, endValue: hi }); this.chart.getZr().flush(); },
+    async resize(w) { this.chart.resize({ width: w, height: 600 }); this.chart.getZr().flush(); },
+    renderer() { return "canvas2d"; },
+  },
+};
+
+window.run = async (lib, N) => {
+  const L = LIBS[lib];
+  const loadMs = await load(L.src);
+  const a = pattern(N, 7), b = pattern(N, 11);
+  const t0 = performance.now(); await L.build(a); await Promise.resolve(); const firstMs = performance.now() - t0;
+  const updateMs = await time((i) => L.update(i % 2 ? a : b), 11);
+  const zoomMs = await time((i) => L.zoom(10 + i, 14 + i), 11);
+  const resizeMs = await time((i) => L.resize(i % 2 ? 1200 : 1000), 11);
+  return { lib, N, loadMs, firstMs, updateMs, zoomMs, resizeMs, renderer: L.renderer() };
+};
+</script></body></html>

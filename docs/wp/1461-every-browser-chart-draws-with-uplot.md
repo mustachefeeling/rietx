@@ -1,0 +1,482 @@
+# WP-1461 — every browser chart draws with uPlot
+
+Milestone: unscheduled · Status: ⬜
+Depends on: —
+Priority: P2 2026-09-24 — the maintainer's decision that every browser chart builds on one module; today plotly blocks every GUI open for 0.7-0.8 s before the first plot
+
+## Goal
+
+Every 2D chart rietx draws in a browser comes from one rietx chart module
+built on uPlot. That covers the GUI's pattern and Series panels,
+`rietx watch`, `rietx compare` and the file `write_html` writes. None of those
+pages loads plotly.js. Opening the GUI on the NAC example has no long frame
+from a chart library, and § Acceptance holds against today's plotly renderer
+measured the same way on the same machine.
+
+## Context
+
+### How the numbers were taken
+
+The spike, its logs and screenshots are in
+[`1461-uplot-spike/`](1461-uplot-spike/README.md), and every number below
+names the log it comes from. Unless a line says *latency*, a number is
+main-thread work: the change in CDP `TaskDuration`, minus the page's idle
+rate over the same wall time, per event. Frames come from a
+`requestAnimationFrame` loop and the `long-animation-frame` entry, which
+fires above 50 ms. The browser is headless Chrome for Testing from
+playwright's chromium build 1223, on an Apple M4 shared with other sessions.
+Load averages ran from 7 to 29 during the runs, so absolute times move with
+load. Ranges are over at least three runs where a log has them, and the
+claims rest on ratios measured side by side.
+
+The first draft of this WP timed plotly calls by promise latency. That
+overstated plotly's resize about ninefold, because `Plots.resize` waits on a
+100 ms `setTimeout` before it relayouts. `results/gpu3.txt` is that
+latency-timed run. Everything quoted below is work unless it says otherwise.
+
+### What plotly costs today
+
+**The library head-to-head** at NAC's 59 498 channels, five series, three
+fresh pages each (`results/bench_td.txt`):
+
+| | plotly.js (Python `plotly` 7.1.0) | uPlot 1.6.32 | plotly / uPlot |
+|---|---|---|---|
+| minified / gzip | 4.82 MB / 1.47 MB | 51 KB / 22 KB | 94× / 67× |
+| load and parse | 400-489 ms | 9.2-11.2 ms | ~45× |
+| first draw | 197-265 ms | 27.5-32.6 ms | ~7× |
+| new data | 23.9-27.2 ms | 9.9-10.3 ms | ~2.5× |
+| zoom | 3.75-4.17 ms | 1.62-1.69 ms | ~2.4× |
+| resize | 11.5-12.9 ms, then 101 ms of timer latency | 1.7-2.5 ms | ~6× in work |
+
+Sizes are in `results/sizes.txt`. A plotly resize through `relayout` with an
+explicit width and height costs 10.2-11.4 ms and skips the timer.
+
+**Today's GUI**, NAC example fitted through the server
+(`results/gui_td.txt`, `gui_boot.txt`, `run3.txt`, `gui2.txt`):
+
+- **Opening.** Evaluating `plotly.js` is one long animation frame of 700-811
+  ms across seven runs. The pattern's first `scattergl` react is a second
+  one of 315-415 ms. The page answers no input during either. Under this
+  load the first plot landed 1481-2295 ms after navigation. An earlier run
+  under lighter load landed at 842 ms.
+- **Resizing.** A viewport resize costs 27-61 ms of work for the whole app,
+  of which plotly's share is about 12 ms. `Plots.resize` then resolves
+  120-144 ms after it was asked (latency). The same latency ends every
+  gesture that changes the layout around the plot. That happened after 3 of
+  3 exclude drags, the double-click reset and 1 of 5 zoom drags; what
+  changes the height is not traced.
+- **Zooming.** Every zoom refetches `/api/result/window`. At the default
+  budget that is 906 KB, fetched in 65-74 ms (latency). Zoomed windows took
+  6-53 ms, then a react of 6-26 ms.
+- **Per pointer move**, react, refetch and resize work included: hover
+  2.11-2.27 ms over four runs, drag-zoom 3.66 ms and an exclude drag 4.69 ms
+  over one run each.
+
+### Staying on plotly, costed
+
+Three changes would remove most of the lag without a new library:
+
+- `relayout` with an explicit size instead of `Plots.resize` (10.2-11.4 ms
+  of work, no timer);
+- the full-resolution data in the page and a client-side zoom (D4), where a
+  plotly zoom costs 3.75-4.17 ms;
+- a partial plotly bundle, which is unmeasured.
+
+The migration buys the rest:
+
+- 400-489 ms less script evaluation at every open (a 700-811 ms frame in
+  the app under load);
+- a first draw about 7× cheaper;
+- updates about 2.5× cheaper;
+- the plotly-only code in § What changes deleted;
+- 4.8 MB less in every file `write_html` writes.
+
+The maintainer asked on 2026-09-24 for one backend for all plotting "if
+it's good". The first task confirms that choice on these corrected numbers.
+
+### Every feature, rebuilt on uPlot and measured
+
+`proto.html` rebuilds the GUI's pattern plot on synthetic data.
+`proto2.html` rebuilds the Series trajectory and the compare overlay, and
+adds an in-situ 2D map as the first chart no page has yet.
+`proto_driver.mjs` drives both with real mouse and wheel input. **The
+prototype has none of the app's own work**: no Svelte, no stores, no
+ten-field readout. So its costs are a floor for the port, never a
+prediction, and § Acceptance measures the real pages.
+
+At 59 498 points, three runs (`results/proto_59498*.txt`, the files without
+`allmarkers`), every row held a p95 frame of 17.7 ms or less with **zero
+long animation frames**:
+
+| Behaviour (where it is used today) | uPlot mechanism | Per event, ms |
+|---|---|---|
+| hover readout, nearest reflection and peak (Plot strip, watch hkl) | `setCursor` hook, binary search | 0.65-0.95; tick pane 0.34-0.74 |
+| drag-zoom (all) | built in | 0.84-1.33 |
+| wheel zoom; wheel pan; alt-drag pan | a 20-line listener | 3.11-3.70; 2.88-3.52; 3.81-4.06 |
+| exclude-region drag, armed (Plot) | `drag.setScale = false`, `setSelect` hook | 0.85-1.51 |
+| peak drag-move; click-add (Plot) | listeners on `u.over`, `posToVal` | 1.09-1.17; 2.19-3.17 |
+| shift-click and right-click on a peak (Plot) | the same listeners | asserted in the log |
+| table-to-plot hover ring (Peaks) | a DOM overlay, no redraw | 0.16-0.22 |
+| legend toggle (all) | `setSeries` | 1.19-1.37 |
+
+And the one-off operations, same runs:
+
+| Operation | uPlot mechanism | ms |
+|---|---|---|
+| mount three linked panes | three instances, cursor sync, a `setScale` hook | 53-94 |
+| double-click reset | built in | 10.3-23.6 |
+| linear, √ or log scale | `distr` 1, 100 or 3; a pane rebuild | 7.0-16.1 |
+| theme switch | colour functions re-read at every draw | 0.7-3.9 |
+| live stage update, zoom kept (watch) | `setData(data, false)` | 16.2-33.8 |
+| resize | `setSize` | 1.7-2.7 |
+| 426 or 92 103 candidate lines (Plot) | a draw hook, one stroke per pixel column | 0.5-1.4 or 15.9-20.0 |
+| copy PNG to the clipboard, read back as `image/png` | panes composited, `ClipboardItem` | 20.5-48.7 |
+| copy the visible data as TSV | `writeText` | 32.6-37.8 for 59 497 rows; 1.6-1.8 zoomed |
+
+With the 92 103 candidate lines drawn, hover costs 0.39-0.52 ms and wheel
+zoom 5.11-5.47 ms.
+
+Single runs, so no range (`results/proto_run2.txt`, `proto_dpr2.txt`,
+`run3.txt`):
+
+- **devicePixelRatio 2**, 22 003 points: every per-event gesture cost
+  0.05-3.4 ms and the double-click reset 12.4 ms, with zero long frames.
+  The PNG copy is 2400×1276 in 42 ms. GPU raster time was not measured.
+- **200 000 points**: hover 0.90 ms, wheel zoom 8.4 ms, reset 40 ms. Long
+  frames: 51 ms in the wheel zoom, 56 ms in the exclude drag and 59 ms in the
+  wheel zoom with candidate lines. That is the ceiling D4 needs.
+- **SVG export** of a zoomed window: 180 ms, 526, 30 and 66 kB for the three
+  panes, faithful to the canvas (`shots/export-svg.png`).
+- **Standalone page**, the figure `write_html` draws, from the same arrays:
+  1.63 MB, drawn 83-93 ms after navigation, against plotly's 6.53 MB at
+  598-686 ms (latency, three loads each). Most of the 1.63 MB is the arrays
+  at full JSON precision.
+- **Series trajectory** with esd whiskers and a tooltip: hover 1.56 ms.
+  **Compare overlay**, 10 × 22 003 with hover focus: hover 1.34 ms, wheel
+  zoom 2.80 ms. **2D map**, 200 × 22 003 from a max-pooled pyramid: built in
+  71 ms, wheel zoom 1.56 ms, hover 0.88 ms. These three are gross, without
+  the idle subtraction.
+
+### What the spike found that a session would otherwise relearn
+
+1. **Cursor sync carries a drag selection to every pane in the group**, so a
+   `setSelect` handler runs once per pane. Five exclude drags added fifteen
+   regions until the handler ran only in the pane the drag began in
+   (`results/proto_run1_before_fixes.txt`).
+2. **A custom scale needs its own ticks.** Under `distr: 100` (√) uPlot
+   printed one y label. `splits` evenly spaced in √ space fixes it, as the
+   GUI's `sqrtTicks` does today (`plot.ts:796-807`).
+3. **Tick labels do not adapt to a narrow range.** A trajectory spanning
+   1e-4 Å printed `10.251` five times. An axis over a refined parameter needs
+   a `values` formatter whose precision follows the tick step.
+4. **uPlot draws every marker.** At 59 498 points that costs 1.3-1.6× the
+   thinned figures on redraw-heavy gestures: wheel zoom 4.10-5.78 ms, reset
+   25-41 ms. Two runs in three had long frames of 55-67 ms, in the drag-zoom
+   and the wheel zoom, against none in the thinned runs
+   (`results/proto_59498_allmarkers_run*.txt`, load about 12). At 200 000 points
+   every marker cost 13 ms per wheel event with long frames
+   (`proto_run1_before_fixes.txt`). A `paths` builder keeping each
+   device-pixel column's minimum and maximum brought that to 8.4 ms. D5 says
+   which to use.
+5. **uPlot takes its 2D context once, at construction**
+   (`const ctx = self.ctx = can.getContext("2d")`), and reads every colour
+   function again at each draw. A theme switch is one redraw. A y-scale
+   switch rebuilds the pane.
+6. **SVG needs a recording `Path2D`.** svgcanvas cannot read a native
+   `Path2D`, and uPlot strokes every series through one. About 40 lines swap
+   in a recording class for the export chart only. The export chart must
+   also join no sync group. Otherwise its first `setScale` redraws the live
+   panes while `Path2D` is swapped, which threw page errors and reset the
+   zoom.
+7. **The first draw from a new 2D-map pyramid level uploads a texture**:
+   two long frames, 100 ms at most, in the first wheel zoom.
+8. **uPlot leaves the canvas transparent**, so a PNG export fills the ground
+   colour first.
+9. **jsdom has no canvas.** `getContext` returns null and uPlot's
+   constructor uses the context at once. vitest stubs uPlot the way
+   `test-setup.ts` stubs `window.Plotly` today, and browser tests cover the
+   drawing.
+10. **One chart, one x array.** uPlot's default mode aligns every series on
+    one sorted x array. Every surface has data on a second grid (D8). The
+    fitted and masked NAC grids merge onto one 59 498-point axis, with every
+    series null-padded, in 4.4-5.4 ms (`results/gui_td.txt`).
+11. **A tooltip is a capability, not a requirement.** WP-1213 deleted
+    plotly's hover box because it covered the data, and the GUI answers
+    hover with its readout strip. The spike's tooltip costs the same as the
+    strip. Adding one to the GUI is the maintainer's call.
+
+### Behaviours the spike did not rebuild
+
+Verified in the code by the review; each is carried by the port and named
+by a test.
+
+- **GUI pattern panel:**
+  - y-zoom, and the y and y2 ranges it pins;
+  - the raw view (no result), and Esc to disarm (`Plot.svelte:1224`);
+  - axis titles that name where σ came from;
+  - peak markers: circle or diamond, open or filled, esd whiskers capped at
+    3×FWHM;
+  - per-group peak-fit curves on their own grids (`Plot.svelte:661-676`).
+- **The readout's fields:** d-spacing, background, candidate hkl and
+  emission line, peak-fit value, the masked-arm lookup, the residual kind.
+- **Σχ² under a client zoom.** It is accumulated across the window
+  (`session.py:2644-2651`). With full-resolution data it re-bases at each
+  zoom as cum[i] − cum[i₀ − 1].
+- **Series panel:**
+  - the per-pattern obs, calc and Δ chart with its own excluded arm
+    (`Series.svelte:363-374`);
+  - the backward chain and the dashed tone of a path-dependent parameter;
+  - an unrecovered pattern *plotted* as a cross, because "a gap reads as
+    data nobody collected" (`series.ts:229-234`). The spike nulled it, which
+    was wrong.
+- **`rietx watch`:** the n_drawn-of-n_points annotation, the legend's cap
+  label, the Δ/σ range ladder and the ±3σ band.
+- **`write_html`:**
+  - the weighted two-panel mode with its ±3σ band;
+  - the per-phase `"hkl: …"` trace names that `test_magnetic_tick_row.py`
+    parses out of the file;
+  - its palette. It draws from `viz/plots.PALETTES` (calc `#ff7f0e`) while
+    the browser pages use theme tokens (`--plot-calc` `#c23b22`), so the
+    module takes a palette as input or the file changes colour silently.
+
+### What changes
+
+- **Pages.**
+  - GUI: `gui/src/panels/Plot.svelte`, `lib/plot.ts`, `lib/peaks.ts`,
+    `panels/Series.svelte`, `lib/series.ts`, `lib/plotly.ts`,
+    `panels/Structure3D.svelte` (its loading only).
+  - `rietx watch`: `src/rietx/watch/static/watch.mjs` and `watch-core.mjs`.
+  - The page string in `src/rietx/compare_app.py`, which becomes a file
+    (root CLAUDE.md: a page that is javascript is a file).
+  - `src/rietx/viz/html.py` and `src/rietx/viz/plotlyjs.py`.
+- **Code that exists only to handle plotly.** It goes with plotly:
+  - the axis pinning in `plot.ts` (`heldRanges`, `pinPatch`, reads of
+    `ax._rl` and `_fullLayout`), which stops plotly autoranging on every
+    `react`;
+  - `movedAxes`, which parses `plotly_relayout` payloads;
+  - the empty ring trace kept as SVG so select-drag does not crash;
+  - `marker.color` set against the colorway, and `hoverinfo: "none"` on
+    every trace;
+  - the `!important` overrides of plotly's select outline;
+  - the invisible marker overlay behind the Series error bars;
+  - `Plotly.purge` for WebGL contexts, and the watcher's legend and margin
+    placement.
+  `readout`, `residual`, `curveToggles` and `sqrtTicks` in `plot.ts` stay as
+  pure functions. `maskShapes` becomes the input of the shading hook.
+- **Tests.**
+  - The `/plotly.js` route and its fallback: `test_gui_server.py`,
+    `test_watch_app.py`, `test_gui_dist.py`.
+  - The no-plotly paths: `test_snapshot.py`, `test_events_viz_history.py`.
+  - The `importorskip("plotly")` in `test_examples.py`.
+  - `write_html`'s output: `test_magnetic_tick_row.py`.
+  - `test_gui_palette.py:436-480`, `test_compare_ui.py` and
+    `test_docs_consistency.py:523`.
+  - `test_watch_browser.py` reads `_fullData` because it is "what was
+    painted rather than what was asked for" (`:227`). Its replacement must
+    keep that property: sample canvas pixels, or record the resolved
+    `strokeStyle` at draw time.
+  - `App.test.ts` stubs `Plotly.react` in about 20 blocks, and
+    `structure3d.test.ts` asserts on `uirevision`.
+- **Rules.** `gui/CLAUDE.md` § Usability, § Repairs found by use, § What is
+  fitted, shaded and selectable, and § The view, the armed cursor and the
+  theme's scope.
+  - Rules about what the plot says survive the port. A tick belongs to the
+    model, hiding a curve is by exception, a hover link never redraws the
+    pattern, a region drag is an armed mode, `cumulative_chi2` is
+    accumulated over every point, and a `ResizeObserver` sizes the chart,
+    since uPlot has no autosize.
+  - Rules about how plotly behaves are deleted: the autorange traps, the
+    view handed back on every draw, `doubleClick: "autosize"`, and
+    `responsive: true` listening to window resizes only.
+- **Dependencies.** `pyproject.toml`'s `gui` and `viz` extras. ATTRIBUTION.md's
+  two plotly rows gain uPlot and svgcanvas rows.
+- **Docs.** The manual's GUI chapters and their screenshots,
+  `using/cli.md`, `using/install.md`, `using/files.md`, root CLAUDE.md,
+  `tests/CLAUDE.md` and README. In the skill, `references/api.md` is
+  generated by `make_api_index.py`.
+
+### Decisions this WP takes
+
+Each carries the recommended answer. The maintainer confirms or overturns it
+in the first task.
+
+- **D1. Scope.** Every 2D chart in a browser.
+  - matplotlib stays for the files it writes (`plots.py`, `indexing.py`,
+    `plot_for_vlm`), which are made without a browser.
+  - The 3D structure viewer is not covered (§ Non-goals). So this WP gives
+    one backend for charts, not for all plotting.
+- **D2. uPlot vendored once and bundled into the GUI.**
+  - `uPlot.iife.min.js` and `uPlot.min.css` at a pinned version go into
+    `src/rietx/viz/static/`, with uPlot's LICENSE beside them. The file
+    carries only its URL and version (`results/sizes.txt`), and MIT needs
+    the notice with every copy.
+  - The watcher and the compare page load it from their servers.
+    `write_html` inlines it with the notice.
+  - The GUI bundles it and the chart module into its dist through a vite
+    alias, as it bundles CodeMirror. plotly was loaded at runtime because
+    of its 4.8 MB (WP-1010), and uPlot is 51 KB.
+  - `gui/scripts/build_info.py` names the vendored directory in its digest,
+    or the dist would go stale unseen. Bundling keeps the chart layer under
+    svelte-check and within vitest's reach.
+- **D3. One chart module in two layers.** `src/rietx/viz/static/rxplot.mjs`
+  holds:
+  - shared plumbing: panes on one x, sync, gestures, the readout hook,
+    formatters, exports, theme and palette input;
+  - the figures built on it: the pattern, the trajectory, the overlay.
+
+  Its pure half (nearest lookups, tick formatting, TSV, the grid union) runs
+  under `node --test` and vitest. Its drawing runs under browser tests.
+- **D4. Full-resolution data once, zoom in the client.**
+  - The NAC window at full resolution is 22 003 fitted plus 37 495 masked
+    channels: 3.41 MB of JSON, fetched in 152-171 ms (mostly the server
+    serialising) and parsed in 8.1-8.6 ms (`results/gui_td.txt`). Today's
+    per-zoom 906 KB costs 65-74 ms.
+  - This reverses `session.py:2575-2582`, which excluded the arrays because
+    "a browser then decimates for a plot it can only draw a few thousand
+    points of". uPlot draws 59 498 at the costs above.
+  - The GUI fetches a result on open, on checkout and when a run ends
+    (`App.svelte:960-976`), never per stage.
+  - Binary typed arrays would cut the size and the parse; not measured.
+  - Above a ceiling, 100 000 points as a starting figure, the server keeps
+    decimating through `compare.decimation_index`. At 200 000 the spike had
+    long frames.
+- **D5. Draw every marker at NAC scale.**
+  - That costs 1.3-1.6× the thinned figures and stays inside a frame
+    (finding 4). The client then does not decimate, so `decimation_index`
+    remains the one authority for which points exist, as `compare.py:1021`
+    and `gui/CLAUDE.md` require, and the watcher's n_drawn stays true.
+  - Thinning per pixel column is the fallback if a browser or a larger
+    pattern needs it. Adopting it retires "the client does not decimate" in
+    the same commit.
+- **D6. Exports.**
+  - Copy PNG, download PNG, copy the visible data as TSV, and download SVG
+    (svgcanvas, loaded on the first export, with its own and canvas2svg's
+    notices). They replace the modebar's camera.
+  - The modebar's modes become gestures: drag to zoom, wheel to zoom,
+    shift-wheel or alt-drag to pan, double-click to reset, and the armed
+    range and exclude modes as today.
+- **D7. `write_html` keeps its name.** It loses `include_plotlyjs`, since
+  uPlot is always inlined. `figure_from_arrays` returns a plotly Figure, so
+  it is replaced by a function returning the page. An old file still opens.
+  Code passing either breaks, and the break is recorded in the open
+  milestone's record on the day it lands.
+- **D8. A second grid, per surface.**
+  - GUI pattern: the fitted and masked grids merge onto one axis with null
+    padding (4.4-5.4 ms on the real payload).
+  - Peak-group fits, candidate lines, ticks and peak markers: draw hooks.
+  - Compare variants: each is decimated today on its own index set
+    (`compare_app.py:481-495`). Under D4 they share the pattern's channels,
+    so the union is that grid.
+  - Series trajectory: in chain order, a heat-then-cool series loops. That
+    needs mode 2 (an x per series) or a draw hook.
+  - Series per-pattern chart: the union, as for the pattern panel.
+
+### Where it will bite
+
+- **Safari and Firefox are unmeasured.** Only Chromium is cached here, and
+  `rietx gui` opens the default browser, which on a Mac is often Safari.
+  WebKit also caps canvas size below Chromium, so the 2D map's 22 003-wide
+  base level may need tiling. Both browsers are inside the pilot's gate.
+- **The boot win needs the 3D viewer gated.** `Structure3D` mounts hidden
+  inside Model at boot (`Model.svelte:455`, `viewer = true`), and it loads
+  plotly. Loading it only when the view is first shown moves plotly's
+  evaluation, a 700-811 ms frame today, onto that first click.
+- **The prototype flatters.** Its per-event costs have no app overhead. The
+  pilot measures the real panel against the real plotly renderer.
+- **One maintainer.** uPlot is Leon Sorokin's. Vendoring a pinned copy
+  means a stalled upstream costs nothing until a browser change breaks it.
+
+## Non-goals
+
+- **The 3D structure viewer.** It draws a scene, and uPlot has no 3D. It
+  keeps plotly (`mesh3d`, `scatter3d`), loaded when first shown, and the `gui`
+  extra keeps plotly until it moves. Moving it, with three.js as the likely
+  candidate, is a WP of its own. Whether to file that now is the
+  maintainer's call.
+- **matplotlib figures.** They are files, written without a browser.
+- **New chart types.** The 2D map shows the module can carry one. A series
+  map belongs to the WP that wants it; 1317 is the nearest.
+- **The theme tokens** (`viz/theme.py`), consumed unchanged.
+
+## Tasks
+
+- [ ] The maintainer confirms the migration on § Staying on plotly's numbers and decides D1-D8, and this file records which
+- [ ] Measure D4 and D8 on real payloads (the NAC result, a compare standard, a series): JSON against binary arrays, parse, grid union. Settle the route and the ceiling.
+- [ ] Vendor uPlot 1.6.32, its css and LICENSE into `src/rietx/viz/static/`. Add the ATTRIBUTION row and put the directory in `build_info.py`'s digest. Serve it from the watch and compare servers. Pin its version against `gui/package.json`'s devDependency in a test, and rebuild the dist, since the devDependency moves the digest.
+- [ ] The module's core: panes on one x, sync, drag, wheel and pan, y-zoom, select, the readout hook, the `ResizeObserver` path. Findings 1-3, 5 and 10 each get a case: the pure half under `node --test` and vitest, the drawing in a browser test.
+- [ ] Pilot, the gate: the GUI pattern panel on the core behind a flag, with the plotly renderer still selectable. Port the spike driver to the real page as the acceptance probe. Measure § Acceptance 1-3 against the plotly renderer on the same machine, in Chromium, WebKit and Firefox through playwright's builds. Record go or no-go in the handover.
+- [ ] GUI pattern panel complete: peaks, candidates, masks, raw view, readout fields, Esc, axis titles. Delete the plotly-only code, stub uPlot in `test-setup.ts`, and move `App.test.ts` off the `Plotly.react` stub. Drawn colours are asserted from pixels or from the recorded `strokeStyle`.
+- [ ] `rietx watch` on the module. `test_watch_browser.py` asserts what was drawn.
+- [ ] GUI Series panel: trajectory (D8), per-pattern chart, rings, crosses plotted, the dashed tone, the tick formatter
+- [ ] `rietx compare`: its page becomes a file, on the module
+- [ ] `write_html` writes the uPlot page, with the notice inline, the weighted mode, `viz/plots.PALETTES` as its palette and the `"hkl: …"` labels `test_magnetic_tick_row.py` reads. Drop `include_plotlyjs`, replace `figure_from_arrays`, take plotly out of the `viz` extra, and record the break.
+- [ ] Exports: copy PNG, download PNG, copy TSV, SVG through svgcanvas with its notices
+- [ ] Structure3D loads plotly when first shown. A test asserts no other page requests `/plotly.js`. Record the first-show cost.
+- [ ] Remove the flag and the pattern panel's plotly renderer
+- [ ] Docs: the `gui/CLAUDE.md` rules as § What changes sorts them, the manual's GUI chapters with regenerated screenshots, `using/cli.md`, `install.md` and `files.md`, root CLAUDE.md, `tests/CLAUDE.md`, README
+- [ ] Tests: the suites in § Acceptance green, the fast count's movement stated, and every test listed in § What changes updated
+- [ ] Skill: regenerate `references/api.md` with `make_api_index.py` when D7 lands, then `rietx skill --install . --copy`. Nothing else in the skill draws a browser chart.
+
+## Acceptance
+
+Measured by the spike driver ported to the real pages, on the NAC example,
+in Chromium at devicePixelRatio 1 and 2. Each run is paired with the plotly
+renderer on the same machine and load, and three or more runs give ranges.
+These are measurements recorded in the handover, not test budgets (root
+CLAUDE.md: a wall-clock budget in a test is a runaway guard).
+
+1. **Opening the GUI:** no long animation frame is attributed to a chart
+   library. Today plotly's evaluation is a 700-811 ms frame and its first
+   draw a 315-415 ms frame.
+2. **Gestures:**
+   - Hover, drag-zoom, an exclude drag and a peak drag each cost no more
+     main-thread work per event than the plotly renderer on the same run.
+   - Wheel zoom and pan, which plotly's renderer does not offer, cost at
+     most 8.3 ms per event, half a 60 Hz frame.
+   - Every gesture holds a p95 frame of 17.7 ms or less with zero long
+     animation frames.
+   - A zoom ends without a network round trip.
+3. **Resizing:** the chart's own work is at most 5 ms, and it shows its new
+   size in the frame after the resize, with no timer.
+4. **`write_html`** on the NAC result: at most half of today's plotly file,
+   in both size and time to first draw. The spike measured 1.63 against
+   6.53 MB and 83-93 against 598-686 ms.
+5. **No plotly on chart pages.** No page requests `/plotly.js` except when
+   the 3D view is first shown. `rietx watch`, `rietx compare` and a written
+   file load no plotly at all.
+6. **Coverage:** every behaviour in § Every feature and § Behaviours the
+   spike did not rebuild is present and named by a test.
+7. **Other browsers:** in WebKit and Firefox through playwright's builds,
+   every gesture works, nothing throws, and per-event work is recorded.
+
+```sh
+.venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"
+.venv/bin/python -m pytest tests/test_watch_browser.py tests/test_gui_server.py tests/test_watch_app.py tests/test_magnetic_tick_row.py
+npm --prefix gui test && npm --prefix gui run check
+.venv/bin/python -m ruff check src tests examples
+.venv/bin/python -m sphinx -W -q -b html docs/manual docs/manual/_build/html
+```
+
+## References
+
+- uPlot 1.6.32, Leon Sorokin, MIT. <https://github.com/leeoniya/uPlot>
+- svgcanvas 2.6.0, MIT, descended from Gliffy's canvas2svg (MIT).
+  <https://github.com/zenozeng/svgcanvas>
+- plotly.js, MIT, as served by the Python `plotly` 7.1.0 package.
+- Apache ECharts 6.1.0, Apache-2.0. Measured once by latency
+  (`results/gpu3.txt`): replacing its data at 22 003 points took 23-25 ms,
+  longer than a 60 Hz frame. Not taken further.
+- Grafana's time-series panel is built on uPlot, the prior art for a
+  measurement UI on this library.
+- Long Animation Frames API (W3C draft): what counts as a long frame here.
+
+## Handover log
+
+- **2026-09-24** — created. The maintainer asked whether a lighter library
+  would make the plots snappier, and asked for one backend for all plotting
+  if it held up. The spike measured three libraries, today's GUI and a uPlot
+  rebuild of every feature. An adversarial review then found the first
+  draft had timed plotly's resize by its promise, a 100 ms timer included,
+  and had missed behaviours and a shared-x-axis constraint. Everything was
+  re-measured as main-thread work, and this file now quotes those numbers.
+  Next: the maintainer confirms the migration and D1-D8 on them.

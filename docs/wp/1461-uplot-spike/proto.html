@@ -1,0 +1,362 @@
+<!doctype html>
+<html data-theme="light"><head><meta charset="utf-8">
+<link rel="stylesheet" href="node_modules/uplot/dist/uPlot.min.css">
+<style>
+:root[data-theme=light]{--ground:#ffffff;--ink:#222222;--grid:#e6e6e6;--obs:#1f77b4;--masked:#aaaaaa;--calc:#d62728;--bkg:#2ca02c;--diff:#555555;--band:rgba(0,0,0,.06);--excl:rgba(255,160,0,.18);--cand:rgba(90,90,255,.45);--peak:#ff7f0e;--phase0:#9467bd;--phase1:#8c564b;--phase2:#e377c2}
+:root[data-theme=dark]{--ground:#16181c;--ink:#dddddd;--grid:#2a2d33;--obs:#6fb3ff;--masked:#666666;--calc:#ff6b6b;--bkg:#5fd35f;--diff:#aaaaaa;--band:rgba(255,255,255,.07);--excl:rgba(255,160,0,.22);--cand:rgba(150,150,255,.45);--peak:#ffa94d;--phase0:#c39bff;--phase1:#d9a08c;--phase2:#ff9fd9}
+body{margin:0;background:var(--ground);color:var(--ink);font:12px system-ui}
+#wrap{position:relative;width:1200px}
+#tip{position:absolute;pointer-events:none;background:var(--ground);border:1px solid var(--grid);padding:3px 6px;display:none;font:11px ui-monospace,monospace;white-space:pre;z-index:10}
+.ring{position:absolute;width:14px;height:14px;border:2px solid var(--peak);border-radius:50%;pointer-events:none;display:none;transform:translate(-9px,-9px);z-index:5}
+#strip{font:11px ui-monospace,monospace;height:16px;padding:2px 64px}
+#legend span{margin-right:12px;cursor:pointer;user-select:none}
+#legend span.off{opacity:.35}
+.u-select{background:rgba(100,100,255,.15)}
+</style></head><body>
+<div id="legend"></div>
+<div id="wrap"><div id="main"></div><div id="ticks"></div><div id="resid"></div><div id="tip"></div></div>
+<div id="strip"></div>
+<div id="series"></div>
+<div id="film"></div>
+<script src="node_modules/uplot/dist/uPlot.iife.min.js"></script>
+<script>
+// ---------------------------------------------------------------- data
+const W = 1200, YAX = 64;          // fixed y gutter so the stacked panes line up on x
+const ALL_MARKERS = new URLSearchParams(location.search).has("all");
+const X0 = 5, X1 = 60;
+let C = {};
+function readColors() {
+  const cs = getComputedStyle(document.documentElement);
+  for (const k of ["ground","ink","grid","obs","masked","calc","bkg","diff","band","excl","cand","peak","phase0","phase1","phase2"])
+    C[k] = cs.getPropertyValue("--" + k).trim();
+}
+const lcg = (seed) => { let s = seed; return () => (s = (s * 16807) % 2147483647) / 2147483647; };
+const lower = (a, v) => { let lo = 0, hi = a.length; while (lo < hi) { const m = (lo + hi) >> 1; if (a[m] < v) lo = m + 1; else hi = m; } return lo; };
+
+function makePattern(N, seed, shift = 0) {
+  const rnd = lcg(seed), dx = (X1 - X0) / (N - 1);
+  const x = new Float64Array(N), calc = new Float64Array(N), bkg = new Float64Array(N),
+        obs = new Float64Array(N), diff = new Float64Array(N);
+  for (let i = 0; i < N; i++) { x[i] = X0 + i * dx; bkg[i] = 50 + 30 * Math.exp(-x[i] / 20); calc[i] = bkg[i]; }
+  const prnd = lcg(99), peaks = [];
+  for (let k = 0; k < 300; k++) peaks.push([X0 + (X1 - X0) * prnd(), 200 + 5000 * prnd() ** 3]);
+  peaks.sort((a, b) => a[0] - b[0]);
+  const g = 0.02;
+  for (const [p0, h] of peaks) {
+    const p = p0 * (1 + shift);
+    const lo = Math.max(0, Math.floor((p - 40 * g - X0) / dx)), hi = Math.min(N - 1, Math.ceil((p + 40 * g - X0) / dx));
+    for (let i = lo; i <= hi; i++) { const d = (x[i] - p) / g; calc[i] += h / (1 + d * d); }
+  }
+  for (let i = 0; i < N; i++) { const s = Math.sqrt(calc[i]); obs[i] = calc[i] + s * (rnd() - 0.5) * 3.4; diff[i] = (obs[i] - calc[i]) / s; }
+  return { x, obs, calc, bkg, diff, peaks };
+}
+function makeTicks() {   // three phases, Kα1+α2 doublets: ~700 ticks a phase
+  const rnd = lcg(5), phases = [];
+  for (let p = 0; p < 3; p++) {
+    const pos = [], hkl = [];
+    for (let k = 0; k < 350; k++) {
+      const t = X0 + (X1 - X0) * rnd(), h = `(${1 + (k % 7)} ${(k * 3) % 5} ${(k * 7) % 4})`;
+      pos.push(t, t * 1.0025); hkl.push(h + " α1", h + " α2");
+    }
+    const ord = pos.map((_, i) => i).sort((a, b) => pos[a] - pos[b]);
+    phases.push({ x: Float64Array.from(ord.map((i) => pos[i])), hkl: ord.map((i) => hkl[i]) });
+  }
+  return phases;
+}
+
+const S = { N: 22003, mode: "zoom", scale: "lin", excluded: [[5, 6.5]], hidden: new Set(), cand: null, stage: 0, pointerPane: null };
+let D, T, PEAKS;
+function build(N) {
+  S.N = N; D = makePattern(N, 7); T = makeTicks();
+  PEAKS = D.peaks.filter((p) => p[1] > 1500).slice(0, 40).map(([x]) => {
+    const i = lower(D.x, x); return { x, y: D.calc[Math.min(i, N - 1)], fwhm: 0.02 + 0.04 * ((x * 13) % 1), excl: false };
+  });
+}
+function splitObs() {
+  const n = D.x.length, o = new Array(n), m = new Array(n), ex = S.excluded;
+  for (let i = 0; i < n; i++) {
+    const xv = D.x[i]; let inEx = false;
+    for (let r = 0; r < ex.length; r++) if (xv >= ex[r][0] && xv <= ex[r][1]) { inEx = true; break; }
+    o[i] = inEx ? null : D.obs[i]; m[i] = inEx ? D.obs[i] : null;
+  }
+  return [o, m];
+}
+function peakFit() {   // the dashed curve a peak fit draws; recomputed on a peak edit, not during a drag
+  const n = D.x.length, y = new Array(n).fill(null), dx = (X1 - X0) / (n - 1);
+  for (const p of PEAKS) {
+    if (p.excl) continue;
+    const lo = Math.max(0, Math.floor((p.x - 10 * p.fwhm - X0) / dx)), hi = Math.min(n - 1, Math.ceil((p.x + 10 * p.fwhm - X0) / dx));
+    for (let i = lo; i <= hi; i++) { const d = (D.x[i] - p.x) / (p.fwhm / 2); y[i] = (y[i] ?? D.bkg[i]) + (p.y - D.bkg[i]) / (1 + d * d); }
+  }
+  return y;
+}
+const mainData = () => { const [o, m] = splitObs(); return [D.x, o, m, D.calc, D.bkg, peakFit()]; };
+
+// ---------------------------------------------------------------- draw hooks
+const px = (u, v) => u.valToPos(v, "x", true);
+function drawExcluded(u) {
+  const { ctx, bbox } = u; ctx.save(); ctx.fillStyle = C.excl;
+  for (const [a, b] of S.excluded) {
+    const l = Math.max(bbox.left, px(u, a)), r = Math.min(bbox.left + bbox.width, px(u, b));
+    if (r > l) ctx.fillRect(l, bbox.top, r - l, bbox.height);
+  }
+  ctx.restore();
+}
+function vlines(u, xs, top, h, color) {   // one path, one stroke per device pixel column
+  const { ctx, scales } = u; const i0 = lower(xs, scales.x.min), i1 = lower(xs, scales.x.max);
+  ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.beginPath(); let last = -1;
+  for (let i = i0; i < i1; i++) { const p = Math.round(px(u, xs[i])) + 0.5; if (p === last) continue; last = p; ctx.moveTo(p, top); ctx.lineTo(p, top + h); }
+  ctx.stroke(); ctx.restore();
+}
+function drawCandidates(u) { if (S.cand) vlines(u, S.cand, u.bbox.top, u.bbox.height, C.cand); }
+function drawPeaks(u) {
+  const { ctx } = u, dpr = devicePixelRatio; ctx.save(); ctx.lineWidth = 1.5 * dpr;
+  for (const p of PEAKS) {
+    if (p.x < u.scales.x.min || p.x > u.scales.x.max) continue;
+    const X = px(u, p.x), Y = u.valToPos(p.y, "y", true), hw = px(u, p.x + p.fwhm / 2) - X;
+    ctx.strokeStyle = p.excl ? C.masked : C.peak;
+    ctx.beginPath(); ctx.moveTo(X - hw, Y); ctx.lineTo(X + hw, Y); ctx.moveTo(X - hw, Y - 3 * dpr); ctx.lineTo(X - hw, Y + 3 * dpr);
+    ctx.moveTo(X + hw, Y - 3 * dpr); ctx.lineTo(X + hw, Y + 3 * dpr); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(X, Y - 9 * dpr); ctx.lineTo(X - 5 * dpr, Y - 17 * dpr); ctx.lineTo(X + 5 * dpr, Y - 17 * dpr); ctx.closePath();
+    if (p.excl) ctx.stroke(); else { ctx.fillStyle = C.peak; ctx.fill(); }
+  }
+  ctx.restore();
+}
+function drawTicks(u) {
+  const { bbox } = u, rows = T.length, rh = bbox.height / rows;
+  T.forEach((ph, r) => vlines(u, ph.x, bbox.top + r * rh + 2, rh - 4, C["phase" + r]));
+}
+function drawBand(u) {
+  const { ctx, bbox } = u, a = u.valToPos(3, "y", true), b = u.valToPos(-3, "y", true);
+  ctx.save(); ctx.fillStyle = C.band; ctx.fillRect(bbox.left, Math.max(a, bbox.top), bbox.width, Math.min(b, bbox.top + bbox.height) - Math.max(a, bbox.top)); ctx.restore();
+}
+
+function thinMarkers(u, si, i0, i1) {
+  const xs = u.data[0], ys = u.data[si], sz = 3 * devicePixelRatio, h = sz / 2, p = new Path2D();
+  let col = NaN, mn = 0, mx = 0, mnY = 0, mxY = 0, have = false;
+  const flush = () => { if (!have) return; p.rect(col - h, mnY - h, sz, sz); if (mxY !== mnY) p.rect(col - h, mxY - h, sz, sz); };
+  for (let i = i0; i <= i1; i++) {
+    const y = ys[i]; if (y == null) continue;
+    const X = Math.round(u.valToPos(xs[i], "x", true)), Y = u.valToPos(y, "y", true);
+    if (X !== col) { flush(); col = X; mn = mx = y; mnY = mxY = Y; have = true; }
+    else { if (y < mn) { mn = y; mnY = Y; } if (y > mx) { mx = y; mxY = Y; } }
+  }
+  flush();
+  return { stroke: null, fill: p, clip: null, band: null, gaps: null, flags: 0 };
+}
+// ---------------------------------------------------------------- charts
+const U = {};
+let syncing = false;
+function setX(lo, hi, except) {
+  syncing = true;
+  for (const k of ["main", "ticks", "resid"]) if (U[k] && U[k] !== except) U[k].setScale("x", { min: lo, max: hi });
+  syncing = false;
+}
+function onScale(u, key) { if (key === "x" && !syncing) setX(u.scales.x.min, u.scales.x.max, u); }
+function yScale() {
+  if (S.scale === "log") return { distr: 3, log: 10 };
+  if (S.scale === "sqrt") return { distr: 100, fwd: (v) => Math.sign(v) * Math.sqrt(Math.abs(v)), bwd: (v) => Math.sign(v) * v * v };
+  return {};
+}
+const axisX = (labels) => ({ stroke: () => C.ink, grid: { stroke: () => C.grid, width: 1 }, ticks: { stroke: () => C.grid },
+                             ...(labels ? {} : { values: (u, s) => s.map(() => ""), size: 6 }) });
+function sqrtSplits(u, ai, min, max) {
+  const a = Math.sqrt(Math.max(min, 0)), b = Math.sqrt(Math.max(max, 0)), out = [];
+  for (let k = 0; k <= 6; k++) { const v = (a + (b - a) * k / 6) ** 2, e = 10 ** Math.floor(Math.log10(Math.max(v, 1))); out.push(Math.round(v / e * 2) / 2 * e); }
+  return [...new Set(out)];
+}
+const axisY = (show = true) => ({ stroke: () => C.ink, grid: { stroke: () => C.grid, width: 1, show }, ticks: { stroke: () => C.grid, show }, size: YAX,
+                                  ...(show ? {} : { values: (u, s) => s.map(() => "") }) });
+const cursor = () => ({ sync: { key: S.exporting ? "export" : "rx", setSeries: false }, drag: { x: true, y: false, setScale: S.mode === "zoom" },
+                        points: { show: false }, y: false, focus: { prox: -1 } });
+
+function makeMain(el) {
+  return new uPlot({
+    width: W, height: 420, legend: { show: false }, cursor: cursor(),
+    scales: { x: { time: false }, y: yScale() }, axes: [axisX(false), S.scale === "sqrt" ? { ...axisY(), splits: sqrtSplits } : axisY()],
+    series: [{},
+      // `?all` draws every marker through uPlot's own points (D5's alternative); default thins per pixel column
+      ...(ALL_MARKERS
+        ? [{ label: "observed", stroke: () => C.obs, paths: () => null, points: { show: true, size: 3, width: 0, fill: () => C.obs } },
+           { label: "masked", stroke: () => C.masked, paths: () => null, points: { show: true, size: 3, width: 0, fill: () => C.masked } }]
+        : [{ label: "observed", stroke: () => C.obs, fill: () => C.obs, paths: thinMarkers, points: { show: false } },
+           { label: "masked", stroke: () => C.masked, fill: () => C.masked, paths: thinMarkers, points: { show: false } }]),
+      { label: "calculated", stroke: () => C.calc, width: 1.2 },
+      { label: "background", stroke: () => C.bkg, width: 1, dash: [4, 3] },
+      { label: "peak fit", stroke: () => C.peak, width: 1, dash: [2, 2] }],
+    hooks: { drawClear: [drawExcluded, drawCandidates], draw: [drawPeaks], setScale: [onScale], setCursor: [onCursor], setSelect: [onSelect] },
+  }, mainData(), el);
+}
+function makeTickPane(el) {
+  return new uPlot({ width: W, height: 48, legend: { show: false }, cursor: cursor(), scales: { x: { time: false }, y: { range: [0, 1] } },
+    axes: [axisX(false), axisY(false)], series: [{}, { show: false }],
+    hooks: { drawClear: [drawExcluded], draw: [drawTicks], setScale: [onScale], setSelect: [onSelect] } },
+    [D.x, new Array(D.x.length).fill(null)], el);
+}
+function makeResid(el) {
+  return new uPlot({ width: W, height: 170, legend: { show: false }, cursor: cursor(), scales: { x: { time: false } },
+    axes: [axisX(true), axisY()], series: [{}, { label: "Δ/σ", stroke: () => C.diff, width: 1 }],
+    hooks: { drawClear: [drawExcluded, drawBand], setScale: [onScale], setSelect: [onSelect] } }, [D.x, D.diff], el);
+}
+
+// ---------------------------------------------------------------- interaction
+const tip = document.getElementById("tip"), strip = document.getElementById("strip");
+let ring;
+function nearest(xs, v, u, radiusPx) {   // index of the nearest entry within radiusPx, or -1
+  const i = lower(xs, v); let best = -1, bd = Infinity;
+  for (const j of [i - 1, i]) if (j >= 0 && j < xs.length) { const d = Math.abs(u.valToPos(xs[j], "x") - u.valToPos(v, "x")); if (d < bd) { bd = d; best = j; } }
+  return bd <= radiusPx ? best : -1;
+}
+function onCursor(u) {
+  if (u !== U.main) return;
+  const { left, top, idx } = u.cursor;
+  if (left == null || left < 0 || idx == null) { tip.style.display = "none"; strip.textContent = ""; ring.style.display = "none"; return; }
+  const xv = u.posToVal(left, "x");
+  let text = `2θ ${xv.toFixed(4)}  obs ${D.obs[idx].toFixed(1)}  calc ${D.calc[idx].toFixed(1)}  Δ/σ ${D.diff[idx].toFixed(2)}`;
+  if (S.pointerPane === "ticks") {
+    const rh = U.ticks.over.clientHeight / T.length, row = Math.min(T.length - 1, Math.max(0, Math.floor(U.ticks.cursor.top / rh)));
+    const j = nearest(T[row].x, xv, u, 4); if (j >= 0) text += `  phase ${row} ${T[row].hkl[j]}`;
+  }
+  const px_ = PEAKS.map((p) => p.x); const order = px_.map((_, i) => i).sort((a, b) => px_[a] - px_[b]);
+  const k = nearest(order.map((i) => px_[i]), xv, u, 8);
+  if (k >= 0) { const p = PEAKS[order[k]]; placeRing(p); text += `  peak ${p.x.toFixed(4)} fwhm ${p.fwhm.toFixed(3)}`; } else ring.style.display = "none";
+  strip.textContent = text;
+  const pane = S.pointerPane ? U[S.pointerPane] : u, oy = pane.over.offsetTop + pane.root.offsetTop, ox = pane.over.offsetLeft;
+  tip.textContent = text.replace(/  /g, "\n"); tip.style.display = "block";
+  tip.style.left = Math.min(ox + left + 14, W - 170) + "px"; tip.style.top = (oy + (pane.cursor.top ?? top) + 14) + "px";
+}
+function placeRing(p) {
+  ring.style.left = U.main.valToPos(p.x, "x") + "px"; ring.style.top = U.main.valToPos(p.y, "y") + "px"; ring.style.display = "block";
+}
+window.hoverPeak = (i) => placeRing(PEAKS[i]);   // the table → plot link
+
+function onSelect(u) {
+  if (S.mode !== "select" || u.select.width < 2 || u !== (U[S.pointerPane] ?? U.main)) return;
+  const a = u.posToVal(u.select.left, "x"), b = u.posToVal(u.select.left + u.select.width, "x");
+  S.excluded.push([a, b]);
+  u.setSelect({ left: 0, top: 0, width: 0, height: 0 }, false);
+  U.main.setData(mainData(), false);
+  for (const k of ["ticks", "resid"]) U[k].redraw(false, false);
+}
+function setMode(m) {
+  S.mode = m;
+  for (const k of ["main", "ticks", "resid"]) { const d = U[k].cursor.drag; d.setScale = m === "zoom"; d.x = m !== "peaks"; }
+}
+function wheelAndPan(u) {
+  u.over.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    const { min, max } = u.scales.x;
+    if (e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) { const d = (max - min) * (e.deltaX || e.deltaY) / 1000; setX(min + d, max + d); }
+    else { const x = u.posToVal(e.offsetX, "x"), f = Math.exp(e.deltaY * 0.002); setX(x - (x - min) * f, x + (max - x) * f); }
+  }, { passive: false });
+  u.root.addEventListener("mousedown", (e) => {   // alt-drag pans; capture so uPlot never starts a select
+    if (!e.altKey) return; e.stopPropagation(); e.preventDefault();
+    const x0 = e.clientX, { min, max } = u.scales.x, perPx = (max - min) / u.over.clientWidth;
+    const mv = (ev) => { const d = (ev.clientX - x0) * perPx; setX(min - d, max - d); };
+    const up = () => { window.removeEventListener("mousemove", mv); window.removeEventListener("mouseup", up); };
+    window.addEventListener("mousemove", mv); window.addEventListener("mouseup", up);
+  }, true);
+  u.over.addEventListener("mouseenter", () => { S.pointerPane = Object.keys(U).find((k) => U[k] === u); });
+  u.over.addEventListener("mouseleave", () => { S.pointerPane = null; });
+}
+function peakGestures(u) {
+  const hit = (e) => { let best = -1, bd = 10; PEAKS.forEach((p, i) => { const d = Math.hypot(u.valToPos(p.x, "x") - e.offsetX, u.valToPos(p.y, "y") - e.offsetY); if (d < bd) { bd = d; best = i; } }); return best; };
+  u.over.addEventListener("mousedown", (e) => {
+    if (S.mode !== "peaks" || e.button !== 0 || e.altKey) return;
+    const i = hit(e);
+    if (i >= 0 && e.shiftKey) { PEAKS[i].excl = !PEAKS[i].excl; U.main.setData(mainData(), false); return; }
+    if (i < 0) { const x = u.posToVal(e.offsetX, "x"), j = Math.min(lower(D.x, x), D.x.length - 1);
+      PEAKS.push({ x, y: D.calc[j], fwhm: 0.03, excl: false }); U.main.setData(mainData(), false); return; }
+    const mv = (ev) => { const r = u.over.getBoundingClientRect(); PEAKS[i].x = u.posToVal(ev.clientX - r.left, "x"); u.redraw(false, false); };
+    const up = () => { window.removeEventListener("mousemove", mv); window.removeEventListener("mouseup", up); U.main.setData(mainData(), false); };
+    window.addEventListener("mousemove", mv); window.addEventListener("mouseup", up);
+  });
+  u.over.addEventListener("contextmenu", (e) => { if (S.mode !== "peaks") return; const i = hit(e); if (i >= 0) { e.preventDefault(); PEAKS.splice(i, 1); U.main.setData(mainData(), false); } });
+}
+function legend() {
+  const el = document.getElementById("legend"); el.innerHTML = "";
+  U.main.series.forEach((s, i) => { if (!i) return; const b = document.createElement("span"); b.textContent = s.label; b.style.color = s.stroke();
+    b.onclick = () => window.toggleSeries(i); el.appendChild(b); });
+}
+window.toggleSeries = (i) => { const show = !U.main.series[i].show; U.main.setSeries(i, { show }); document.querySelectorAll("#legend span")[i - 1].classList.toggle("off", !show); };
+
+// ---------------------------------------------------------------- lifecycle
+function mount(N) {
+  for (const k of Object.keys(U)) { U[k].destroy(); delete U[k]; }
+  build(N); readColors();
+  U.main = makeMain(document.getElementById("main"));
+  U.ticks = makeTickPane(document.getElementById("ticks"));
+  U.resid = makeResid(document.getElementById("resid"));
+  ring = document.createElement("div"); ring.className = "ring"; U.main.over.appendChild(ring);
+  for (const k of ["main", "ticks", "resid"]) wheelAndPan(U[k]);
+  peakGestures(U.main); legend();
+}
+window.P = {
+  mount, setMode, setX,
+  rect: (k) => { const r = U[k].over.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; },
+  xRange: () => [U.main.scales.x.min, U.main.scales.x.max],
+  setScale(kind) {   // a y-scale change rebuilds the main pane, keeping the x window
+    const [lo, hi] = this.xRange(); S.scale = kind; U.main.destroy();
+    U.main = makeMain(document.getElementById("main")); ring = document.createElement("div"); ring.className = "ring"; U.main.over.appendChild(ring);
+    wheelAndPan(U.main); peakGestures(U.main); setX(lo, hi);
+  },
+  theme(t) { document.documentElement.dataset.theme = t; readColors(); for (const k of ["main", "ticks", "resid"]) U[k].redraw(false, true); legend(); },
+  stage() {   // a live update: new numbers, the reader's zoom kept
+    S.stage++; const p = makePattern(S.N, 7 + S.stage, S.stage * 1e-5); D.calc = p.calc; D.obs = p.obs; D.diff = p.diff;
+    U.main.setData(mainData(), false); U.resid.setData([D.x, D.diff], false);
+  },
+  resize(w) { for (const k of ["main", "ticks", "resid"]) U[k].setSize({ width: w, height: U[k].height }); },
+  candidates(n) { if (!n) { S.cand = null; } else { const r = lcg(3); S.cand = Float64Array.from({ length: n }, () => X0 + (X1 - X0) * r()).sort(); } U.main.redraw(false, false); },
+  peaks: () => PEAKS.map((p) => ({ x: p.x, excl: p.excl })),
+  excluded: () => S.excluded.map((r) => r.slice()),
+  composite(scale = 1) {   // the three panes as one canvas, ground filled (uPlot leaves it transparent)
+    const cs = ["main", "ticks", "resid"].map((k) => U[k].ctx.canvas), w = cs[0].width, h = cs.reduce((a, c) => a + c.height, 0);
+    const off = document.createElement("canvas"); off.width = w * scale; off.height = h * scale; const g = off.getContext("2d");
+    g.scale(scale, scale); g.fillStyle = C.ground; g.fillRect(0, 0, w, h); let y = 0; for (const c of cs) { g.drawImage(c, 0, y); y += c.height; }
+    return off;
+  },
+  async copyPNG() {
+    const t0 = performance.now(), off = this.composite();
+    const blob = await new Promise((r) => off.toBlob(r, "image/png"));
+    await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+    return { ms: performance.now() - t0, bytes: blob.size, w: off.width, h: off.height };
+  },
+  async exportSVG() {   // each pane redrawn once into svgcanvas; a recording Path2D replays uPlot's paths into it
+    const { Context } = await import("./node_modules/svgcanvas/dist/svgcanvas.esm.js");
+    class RecPath {
+      constructor(p) { this.ops = p instanceof RecPath ? p.ops.slice() : []; }
+      moveTo(...a) { this.ops.push(["moveTo", a]); } lineTo(...a) { this.ops.push(["lineTo", a]); } rect(...a) { this.ops.push(["rect", a]); }
+      arc(...a) { this.ops.push(["arc", a]); } bezierCurveTo(...a) { this.ops.push(["bezierCurveTo", a]); } closePath() { this.ops.push(["closePath", []]); }
+    }
+    const t0 = performance.now(), Native = window.Path2D, get = HTMLCanvasElement.prototype.getContext, out = [], [lo, hi] = this.xRange();
+    S.exporting = true; syncing = true;   // the export charts join no group and move no live pane
+    for (const [make, h] of [[makeMain, 420], [makeTickPane, 48], [makeResid, 170]]) {
+      let svg = null, used = false;
+      HTMLCanvasElement.prototype.getContext = function (t, ...r) {
+        if (used || t !== "2d") return get.call(this, t, ...r);
+        used = true; svg = new Context({ width: W, height: h });
+        for (const m of ["stroke", "fill", "clip"]) {
+          const o = svg[m].bind(svg);
+          svg[m] = (p, ...rest) => { if (p instanceof RecPath) { svg.beginPath(); for (const [op, a] of p.ops) svg[op](...a); return o(...rest); } return o(p, ...rest); };
+        }
+        return svg;
+      };
+      window.Path2D = RecPath;
+      const host = document.createElement("div"); document.body.appendChild(host);
+      try {
+        const u = make(host); u.setScale("x", { min: lo, max: hi });
+        await Promise.resolve(); await Promise.resolve();
+        out.push(svg.getSerializedSvg()); u.destroy();
+      } finally { HTMLCanvasElement.prototype.getContext = get; window.Path2D = Native; host.remove(); }
+    }
+    S.exporting = false; syncing = false;
+    return { ms: performance.now() - t0, svgs: out };
+  },
+  async copyTSV() {   // the visible window, every column, as a spreadsheet pastes it
+    const t0 = performance.now(), [lo, hi] = this.xRange(), i0 = lower(D.x, lo), i1 = lower(D.x, hi), rows = ["two_theta\tobs\tcalc\tbackground\tdelta_over_sigma"];
+    for (let i = i0; i < i1; i++) rows.push(`${D.x[i]}\t${D.obs[i]}\t${D.calc[i]}\t${D.bkg[i]}\t${D.diff[i]}`);
+    const text = rows.join("\n"); await navigator.clipboard.writeText(text);
+    return { ms: performance.now() - t0, rows: rows.length - 1, chars: text.length };
+  },
+};
+</script></body></html>
