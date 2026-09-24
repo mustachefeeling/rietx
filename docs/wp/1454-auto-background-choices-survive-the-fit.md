@@ -1,6 +1,6 @@
 # WP-1454 — `auto_background`'s choices survive the fit
 
-Milestone: unscheduled · Status: ✅ 2026-09-24 — all three choices hold through the fit; the flood a declared air term still raises is WP-1459
+Milestone: unscheduled · Status: ✅ 2026-09-24 — all three choices hold through the fit; the flood a declared air term still raises is WP-1460
 Depends on: —
 
 ## Goal
@@ -181,13 +181,13 @@ penalty on a background before choosing.
       candidates are connected components of the thresholded pairs, or the
       flat eigen-directions of the Jacobi-scaled normal matrix, and every
       reader of the rows is audited first (WP-1103). If none does, record
-      the zero here. **Filed 2026-09-24 as WP-1459**: not zero. `check_guards`
+      the zero here. **Filed 2026-09-24 as WP-1460**: not zero. `check_guards`
       was wrapped over the whole fast selection on this branch's final tree,
       443 calls in 186 tests. Its largest component is 35 parameters reported
       as 569 rows, in `test_pspline_refines_a_curved_background`, where
       `auto_background` itself declared the air term beside 3° knots. A
       declared air term floods the way a declined one did whenever the spline
-      can already draw 1/(2θ), so that question went to 1459 with the
+      can already draw 1/(2θ), so that question went to 1460 with the
       grouping. The first pass of the audit saw only 7 calls, because
       `import rietx.refine` binds the package's `refine` *function*, so the
       wrapper patched an attribute on a function. The module is reached
@@ -352,12 +352,12 @@ reports no air-term correlation rows.
   default weight is still 1, now a pure number, so ordinary fits land about
   where they did, and old ones reproduce by declaring the old units. The
   correlation flood this WP started from is gone for a declined air term but
-  not for one the helper declares beside a fine spline, and WP-1459 has that.
+  not for one the helper declares beside a fine spline, and WP-1460 has that.
   - *Done*, one commit per task: the air term absent when declined (`0ef9a39`),
     `two_theta_limits` on `auto_background` (`764c3ad`), the stiff side
     measured (`9d73a84`), λ a pure number with `lambda_units` as the way back
     (`4554e1a`), the invariance test (`4ba5b94`), the skill (`810d3ba`), and
-    task 2's audit filing WP-1459 (`3920f3f`). Review fixes followed in
+    task 2's audit filing WP-1460 (`3920f3f`). Review fixes followed in
     `1373f86`. `SCHEMA_VERSION` 0.27 → 0.28, once for both field changes. The
     manual's `bg-penalty` equation, Part 1's background paragraph, root
     CLAUDE.md's background clause and `releases/1.5.1.md`'s three sections
@@ -375,7 +375,7 @@ reports no air-term correlation rows.
     that miss them, and three comments still spelling the rows √λ·D₂c. The
     other 5 were declined. Whole-file diagnostics can declare an air term
     from a rise outside the limits; "used as given" is the contract, so that
-    went to WP-1459's air-term task. A stored λ reopens as the pure number,
+    went to WP-1460's air-term task. A stored λ reopens as the pure number,
     and a stored zero air term reopens declared: both deliberate and written
     into the schema note and the release notes, since nothing stored says
     which unit an old λ was chosen in. m counts every coefficient even where
@@ -391,7 +391,7 @@ reports no air-term correlation rows.
     bit-identical. The goldens skip on Linux, so the nightly macOS job is the
     first check of that.
   - Next: nothing in this WP. PR #446 carries it, and it should merge before
-    1.5.1 is cut, since the release notes describe it. Then WP-1459, starting
+    1.5.1 is cut, since the release notes describe it. Then WP-1460, starting
     with its reader audit, which decides whether grouping replaces the pair
     rows or rides beside them.
 

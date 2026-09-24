@@ -673,7 +673,7 @@ the limit carried load rather than whether the value stopped near one, and
 | [1449](wp/1449-rank-on-what-the-screen-determined.md) | Rank on what the screen determined, not on what the peak list shows | ⬜ | P2 | — (1446 refuted the peak-list route) |
 | [1454](wp/1454-auto-background-choices-survive-the-fit.md) | `auto_background`'s choices survive the fit | ✅ 2026-09-24 | — | — |
 | [1456](wp/1456-an-editable-install-stamps-what-it-runs.md) | An editable install stamps what it runs | ⬜ | P3 | — |
-| [1459](wp/1459-one-degeneracy-one-finding.md) | One degeneracy, one finding | ⬜ | P3 | — (1454, 1302 soft) |
+| [1460](wp/1460-one-degeneracy-one-finding.md) | One degeneracy, one finding | ⬜ | P3 | — (1454, 1302 soft) |
 
 #### A long run is not one fit
 

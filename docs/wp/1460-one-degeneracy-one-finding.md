@@ -1,4 +1,4 @@
-# WP-1459 — one degeneracy, one finding
+# WP-1460 — one degeneracy, one finding
 
 Milestone: unscheduled · Status: ⬜
 Depends on: — (1454 removed the commonest source; 1302 is the render cap)
