@@ -563,6 +563,14 @@ the re-rating duty is one clause in protocol step 3.  Rows filed before the
 rubric stay unrated on purpose; the index says which tier a new WP is and
 never claims one for a row nobody rated.  Landed 827, +1 headroom.
 
+828 -> 831 for the 2026-09-23 issue triage: three rows under § The repo's own
+process, 1450-1452.  No prose.  Landed 830, +1 headroom.  (Recorded
+2026-09-24; that session wrote only the test's ledger line.)
+
+831 -> 837 for the 2026-09-24 review of an agent session on a private in-situ
+series: six rows, 1453-1458, in four existing sections.  No prose, because
+each WP file carries its own evidence.  Landed 836, +1 headroom.
+
 ### `gui/CLAUDE.md`
 
 580 -> 612 for WP-1201 (2026-08-25): the house style — one token layer
