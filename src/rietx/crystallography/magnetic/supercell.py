@@ -1163,12 +1163,18 @@ def _partition_into_child_orbits(symbol, entries):
     sg = as_group(symbol)
     assigned = [False] * len(entries)
     groups: list[tuple[int, list[int]]] = []
-    for i, (_j, _c, position) in enumerate(entries):
+    for i, (j, _c, position) in enumerate(entries):
         if assigned[i]:
             continue
         orbit = expand_positions(sg, position)
-        members = [n for n, (_pj, _pc, q) in enumerate(entries)
-                   if any(_same_site(q, p) for p in orbit)]
+        # an orbit is taken over *this parent atom's* entries: two parent atoms
+        # sharing a position (a mixed-occupancy site, Fe/Cr on one Wyckoff
+        # position) are two atoms of the child too, and matching on position
+        # alone joined them into one orbit and refused the statement.  A wrong
+        # transform is still caught — an orbit reaching a position this atom
+        # has no entry at is short, and the whole-orbit check below says so.
+        members = [n for n, (pj, _pc, q) in enumerate(entries)
+                   if pj == j and any(_same_site(q, p) for p in orbit)]
         for n in members:
             if assigned[n]:
                 raise ValueError(
@@ -1178,13 +1184,6 @@ def _partition_into_child_orbits(symbol, entries):
                     f"that site twice in |F_N|^2. This is a bug in the orbit "
                     f"partition, not a tolerance to widen")
             assigned[n] = True
-        if len({entries[n][0] for n in members}) != 1:
-            raise ValueError(
-                f"magnetic_supercell(): one orbit of {sg.xhm()!r} in the child "
-                f"cell joins atoms from more than one parent site "
-                f"({sorted({entries[n][0] for n in members})}); the parent "
-                f"structure's own symmetry is not a subgroup of the child's, "
-                f"which means the cell transform is wrong")
         if len(members) != len(orbit):
             raise ValueError(
                 f"magnetic_supercell(): the orbit of "
@@ -1248,16 +1247,18 @@ def anti_translation_residual(phase) -> float:
     structure still has the symmetry it claims.
     """
     group = phase.magnetic_symmetry.group()
+    # keyed by species too: two atoms sharing a position (a mixed-occupancy
+    # site) each carry their own moment, and one is never the other's image
     sites = [(np.array([a.x.value, a.y.value, a.z.value], dtype=np.float64),
-              np.array(a.moment.values(), dtype=np.float64))
+              np.array(a.moment.values(), dtype=np.float64), a.species)
              for a in phase.atoms if a.moment is not None]
     worst = 0.0
-    for position, moment in sites:
+    for position, moment, species in sites:
         for op in group.all_operations():
             image = op.act_on_site(position)
             carried = op.act_on_moment(moment)
-            for q, m in sites:
-                if _same_site(q, image):
+            for q, m, other in sites:
+                if other == species and _same_site(q, image):
                     worst = max(worst, float(np.max(np.abs(m - carried))))
     return worst
 
@@ -1305,14 +1306,17 @@ def anti_translation_ties(phase, ip: int = 0):
     for op in group.centerings:
         if not op.is_translation:                      # pragma: no cover - schema
             continue
-        for j, _atom in magnetic:
+        for j, atom in magnetic:
             if j in tied:
                 continue
             image = op.act_on_site(positions[j])
             if _same_site(image, positions[j]):
                 continue
-            target = next((n for n, _a in magnetic
+            # the image of *this* species: a co-sited atom of another one
+            # (a mixed-occupancy site) sits at the same position and is not it
+            target = next((n for n, a in magnetic
                            if n not in tied and n != j
+                           and a.species == atom.species
                            and _same_site(positions[n], image)), None)
             if target is None:
                 continue

@@ -39,6 +39,7 @@ from rietx.crystallography.magnetic.operators import identify
 from rietx.crystallography.magnetic.supercell import (
     SupercellStatement,
     anti_translation_residual,
+    anti_translation_ties,
     child_basis,
     magnetic_supercell,
 )
@@ -920,3 +921,56 @@ def test_a_child_that_holds_the_parents_centring_is_stated_with_every_atom():
         live = f2_parent > 1e-9
         assert np.allclose(f2_child[live] / f2_parent[live], 0.25, rtol=1e-12)
         assert any(a.moment is not None for a in child.atoms)
+
+
+# ================================================== a mixed-occupancy site
+def mixed_site_parent(space_group: str) -> Phase:
+    """Fe and Cr sharing the origin (occupancies ¾ and ¼), O elsewhere."""
+    return Phase(
+        name="synthetic mixed site", space_group=space_group,
+        cell=_cell(4.0, 4.0, 6.0, 90.0, 90.0, 90.0),
+        atoms=[
+            Atom(label="Fe", species="Fe", x=P(value=0.0), y=P(value=0.0),
+                 z=P(value=0.0), occ=P(value=0.75), biso=P(value=0.3)),
+            Atom(label="O", species="O", x=P(value=0.5), y=P(value=0.0),
+                 z=P(value=0.0), biso=P(value=0.5)),
+            Atom(label="Cr", species="Cr", x=P(value=0.0), y=P(value=0.0),
+                 z=P(value=0.0), occ=P(value=0.25), biso=P(value=0.3)),
+        ])
+
+
+@pytest.mark.parametrize("space_group, k", [
+    ("P 4/m m m", HALF_C),
+    ("I m m m", (1, 1, 1)),
+])
+def test_two_atoms_sharing_a_site_are_two_atoms_of_the_child(space_group, k):
+    """A mixed-occupancy site is stated, not refused as a wrong transform.
+
+    The orbit partition matched child positions by position alone, so Fe and
+    Cr on one parent site landed in one child orbit and the statement was
+    refused with "joins atoms from more than one parent site … the cell
+    transform is wrong" — measured on two k ≠ 0 entries whose parents carry a
+    mixed site.  Each parent atom now keeps its own orbits; the anti-translation
+    ties pair an atom with its own species' image, and |F_N|² is the parent's.
+    """
+    parent = mixed_site_parent(space_group)
+    cand = candidates(space_group, (0.0, 0.0, 0.0), k).candidates[0]
+    statement = magnetic_supercell(parent, cand, magnetic_species=["Fe", "Cr"],
+                                   ion={"Fe": "Fe3+", "Cr": "Cr3+"},
+                                   magnitude=2.0)
+    child = statement.phase
+    per_parent = {j: sum(1 for pj, _c in statement.site_map if pj == j)
+                  for j in range(3)}
+    assert per_parent[0] == per_parent[2] >= 1
+    for target, source, _scale, _offset in anti_translation_ties(child):
+        t, s = (int(p.split(".")[3]) for p in (target, source))
+        assert child.atoms[t].species == child.atoms[s].species
+    assert anti_translation_residual(child) == pytest.approx(0.0, abs=1e-12)
+    refl = generate_reflections(space_group, parent.cell.lengths_angles(), 1.2,
+                                two_theta_max=120.0)
+    mapped = np.rint(refl.hkl @ _p_matrix(statement)).astype(np.int64)
+    f2_parent = _nuclear_f2(parent, refl.hkl)
+    f2_child = _nuclear_f2(child, mapped)
+    live = f2_parent > 1e-9
+    assert np.allclose(f2_child[live] / f2_parent[live],
+                       float(statement.volume_ratio) ** 2, rtol=1e-12)
