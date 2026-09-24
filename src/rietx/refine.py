@@ -2406,9 +2406,15 @@ class Refinement:
                 raise
 
             assert model is not None and outcome is not None
-            self._model = model
             self._write_back(table)
             self._record_free_paths(table)
+            # the result's curves and statistics from a compile at the values
+            # it returns, never the last stage's start-of-stage one (#272)
+            model, recompiled = self._final_compile(
+                model, table, outcome, data, mode, two_theta_limits,
+                plan.stages[-1])
+            diagnostics.extend(recompiled)
+            self._model = model
 
             if mode == "pawley":
                 diagnostics.extend(_pawley_unresolved_diagnostics(model, self.structure))
@@ -2582,6 +2588,77 @@ class Refinement:
         diagnostics.extend(_dedup_high_correlations(correlation_hits))
         return model, outcome, guard, stage_results, diagnostics
 
+    def _final_compile(self, model: CompiledModel, table: ParameterTable,
+                       outcome, data: PatternData, mode: Mode,
+                       two_theta_limits, stage: Stage,
+                       ) -> tuple[CompiledModel, list[Diagnostic]]:
+        """A compile at the values a result returns, for the result (#272).
+
+        A stage's compile froze its windows and FCJ node counts at the values
+        the stage *started* from (root CLAUDE.md § Invariants), so when the
+        last stage moves what sized them — λ, zero, the axial terms, the
+        widths — the frozen model evaluated at the answer is not the model a
+        reader rebuilds from ``result.parameters``: 1.38 % in χ² on the Si SRM
+        640c acceptance fixture.  The result's ``y_calc``, statistics and every
+        per-point residual are therefore measured here, on one more compile
+        with the last stage's own discrete settings (moving set, c_w, window
+        slack) and nothing else changed.  **What this does not move**: the
+        solve, which ran on the frozen compile and is not biased by it (the
+        issue measured the minimum moving ≤ 0.0014 esd); the covariance and
+        every esd, which stay those of that solve's Jacobian; the weights,
+        which stay the solve's σ, so ``result.sigma`` is still a lookup of the
+        σ the model used (WP-1309: a measured background widens σ at the scale
+        a compile sees, and a fresh σ would re-weight a result whose esds did
+        not); and the history
+        node, which keeps its as-optimised metrics, so a node and the result
+        it produced differ by the amount ``FROZEN_COMPILE_STALE`` quotes.
+
+        Le Bail intensities are carried by hkl, never re-partitioned.  A Pawley
+        model is returned as it is: its intensity block and their esds belong
+        to the solve and a compile does not carry them, so a Pawley result is
+        still the frozen compile's.
+
+        Returns the model to report from and a ``FROZEN_COMPILE_STALE`` finding
+        when the two χ² differ by more than :data:`FROZEN_COMPILE_CHI2_REL`,
+        so a caller can see when the frozen windows mattered.
+        """
+        if mode == "pawley":
+            return model, []
+        fresh = compile_model(
+            self.structure, self.instrument, data, mode=mode,
+            two_theta_limits=two_theta_limits,
+            moving_paths=set(table.moving_paths),
+            restraint_weight_scale=stage.restraint_weight_scale,
+            window_slack_deg=stage.window_slack_deg)
+        # the solve's weights, never the fresh compile's: a measured
+        # background widens σ at the scale a compile sees (WP-1309), so a last
+        # stage that moved that scale would re-weight here, and the result
+        # would divide by a σ its χ², esds and solve never used
+        fresh.sigma = model.sigma
+        if mode == "lebail":
+            _carry_lebail(model, fresh)
+        values = table.decode(outcome.theta)
+        chi2_frozen = float(np.sum(
+            ((model.y_obs - model.evaluate(values)) / model.sigma) ** 2))
+        chi2_fresh = float(np.sum(
+            ((fresh.y_obs - fresh.evaluate(values)) / fresh.sigma) ** 2))
+        rel = (abs(chi2_fresh - chi2_frozen) / chi2_frozen
+               if chi2_frozen > 0 else 0.0)
+        if not rel > FROZEN_COMPILE_CHI2_REL:
+            return fresh, []
+        return fresh, [Diagnostic(
+            level="info", code="FROZEN_COMPILE_STALE",
+            message=(
+                f"the reported statistics and curves come from a compile at "
+                f"the returned parameters, chi2 = {chi2_fresh:.6g}; the last "
+                f"stage's own compile, whose peak windows and FCJ node counts "
+                f"were frozen at the values it started from, gives "
+                f"{chi2_frozen:.6g} at the same parameters, "
+                f"{100 * rel:.2g} % apart. The fit is not biased by it; the "
+                f"history node keeps the frozen figure, the result the fresh "
+                f"one, and the esds are the last solve's either way"),
+            value=rel)]
+
     def _stage_report(self, name, plan, data, mode, table, model, outcome,
                       guard, stage_diagnostics) -> StageReport:
         """One trajectory rung: the report at this stage's end (WP-1058).
@@ -2729,6 +2806,13 @@ class Refinement:
                     restraint_weight_scale=stage.restraint_weight_scale,
                     ftol=stage.ftol, window_slack_deg=stage.window_slack_deg,
                 ), model, table, outcome, diagnostics)
+
+            # after the node, which keeps its as-optimised metrics: the result
+            # is measured on a compile at the values it returns (#272)
+            model, recompiled = self._final_compile(
+                model, table, outcome, data, mode, ttl, stage)
+            diagnostics = diagnostics + recompiled
+            self._model = model
 
             self.result_ = _build_result(
                 model, table, outcome.theta, mode=mode, status=outcome.status,
@@ -4234,6 +4318,19 @@ def _restore_lebail(states: list[ReflectionState], model: CompiledModel) -> None
             continue
         lookup = {tuple(h): state.intensity[i] for i, h in enumerate(state.hkl)}
         _scatter_lebail(lookup, model.phases[state.phase_index])
+
+
+#: Relative gap between χ² on the last stage's frozen compile and on a fresh
+#: compile at the returned values above which ``FROZEN_COMPILE_STALE`` reports
+#: it (#272).  One part in a hundred, set from the gap measured on the 358
+#: fits the acceptance files and the synthetic chains run: every single-pattern
+#: acceptance fixture sits at or under 2.8e-3 (Si SRM 640c 8e-5, FAP 2e-4,
+#: Stephens brucite 2.5e-3) and the held-phase ramp under 5.2e-3, while the QPA
+#: round-robin sample-1 chain reaches 1.3-2.1e-2.  At 1e-3 it fired on 74 of
+#: the 358, a fifth of ordinary fits, which is noise and not a signal.  The
+#: issue's 1.38 % on Si is the compile that claims nothing moves
+#: (``moving_paths=None``), not the frozen one, and would still fire.
+FROZEN_COMPILE_CHI2_REL = 1e-2
 
 
 #: a Pawley overlap group is reported unresolved when *any* member carries a

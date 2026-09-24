@@ -219,6 +219,17 @@ MIN_POINTS_FOR_DISCONTINUITY = 5
 #: things is not a summary.
 MIN_POINTS_FOR_PERSISTENCE = 5
 
+#: Per-pattern codes :func:`_persistent_diagnostics` never aggregates, because
+#: they are about how the package *measured* a pattern rather than about the
+#: model, so "in most of the series" changes no subject.  The rule for a
+#: member: the code would read the same on a series whose model is right.
+#: ``FROZEN_COMPILE_STALE`` (#272) says a result was measured on a fresh
+#: compile whose χ² sits a fraction from the frozen one; a chain whose every
+#: last stage moves the zero and the widths fires it on every pattern (the QPA
+#: round-robin sample-1 chain, 1.3-2.1e-2), and promoting it would turn a
+#: statement about compile sizing into a warning about the model.
+NOT_A_SERIES_FINDING = frozenset({"FROZEN_COMPILE_STALE"})
+
 #: ``Diagnostic.level`` as an ordering, so a summary of many occurrences can
 #: carry the worst one rather than a fixed level of its own.
 _LEVEL_RANK = {"info": 0, "warning": 1, "error": 2}
@@ -1884,7 +1895,9 @@ def _persistent_diagnostics(series: SeriesResult) -> list[Diagnostic]:
     diagnostics already say what there is to say, and repeating them here would
     be a second authority on the same fact. Counted per (code, path) so the
     message can name the parameter, and the codes are an open vocabulary — this
-    aggregates whatever fired, and needs no edit when a new one lands.
+    aggregates whatever fired, and needs no edit when a new one lands, with one
+    declared exception: a code about how a pattern was measured rather than
+    about the model (:data:`NOT_A_SERIES_FINDING`) is never aggregated.
     """
     n = len(series.entries)
     if n < MIN_POINTS_FOR_PERSISTENCE:
@@ -1902,6 +1915,8 @@ def _persistent_diagnostics(series: SeriesResult) -> list[Diagnostic]:
         # pattern is one pattern, or the count would measure stages
         seen: set[tuple[str, str]] = set()
         for d in entry.diagnostics:
+            if d.code in NOT_A_SERIES_FINDING:
+                continue
             for p in (d.where or [""]):
                 key = (d.code, p)
                 if key not in seen:
