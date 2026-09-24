@@ -133,7 +133,8 @@ and the rest describe what this specimen did to the peaks.
 | Field | Type | Default | Meaning |
 |---|---|---|---|
 | `Phase.name` | str | required | a label, and the key an export writes |
-| `Phase.space_group` | str | required | Hermann-Mauguin symbol or a number as a string, resolved by gemmi |
+| `Phase.space_group` | str | required | Hermann-Mauguin symbol or a number as a string, resolved by gemmi, or, beside `symmetry_operations`, a *label* |
+| `Phase.symmetry_operations` | list[str] or None | `None` | the phase's symmetry operations as `x,y,z` triplets, for a group no symbol names in this cell |
 | `Phase.cell` | `Cell` | required | lengths and angles |
 | `Phase.atoms` | list[`Atom`] | required | the asymmetric unit, at least one |
 | `Phase.scale` | `Parameter` | 1.0, fixed, softplus | this phase's contribution to the total intensity |
@@ -169,6 +170,38 @@ Both default to `None`, which is exactly off. A commensurate k ≠ 0 structure
 is stated in its magnetic supercell, never as a propagation vector beside a
 moment model. [](refining.md) has the blocks, what refines and what the report
 says.
+
+`symmetry_operations` is how a phase states a group that has no name in its
+cell, and the case is not exotic: a parent operation whose translation along a
+doubled axis is a half becomes a *quarter* in the child cell of a
+superstructure, and no Hermann-Mauguin symbol in any tabulated setting has a
+quarter in its operation list. The group is a perfectly good space group there:
+it has orbits, site multiplicities and systematic absences like any other, and
+the only thing it lacks is a symbol. Leave the field `None` (the default) and
+nothing changes: the operations are resolved from `space_group` exactly as they
+always were.
+
+When the list is present, `space_group` is a label, and the rule is about
+labels. A *bracketed* label (`"Pm [unnamed in 2a,b,a+c]"`) says that the
+symbol before the bracket is only the closest standard *type* and does not
+generate this group; it requires the list, and no agreement between the two is
+claimed or checked. A *plain* symbol beside a list must generate that list
+exactly, and a disagreement is refused rather than resolved in either
+direction: stating the symmetry two ways and being told when the two are not
+the same group is the point, and silently preferring one of them is how a fit
+ends up with the wrong absences under a right-looking symbol. A list that is
+not a group (no identity, or not closed under composition) is refused too.
+
+Everything downstream reads the operations: site orbits and multiplicities, the
+Wyckoff constraint bases, systematic absences, the reflection list and its Laue
+multiplicities, the structure factor's frozen operation subsets, the cell ties,
+the bond-and-angle symmetry codes and the CIF export's symmetry loop, ZMV and
+the weight fractions. The cell's metric constraints are the one thing an
+operation list cannot state directly, and they come from the tabulated group
+whose point group and lattice match the list, which are this group's own, so
+they are exact rather than approximate. Two things such a phase does not get:
+a Wyckoff letter, and the `SPACE_GROUP_SETTING_ASSUMED` warning, both being
+properties of a tabulated setting.
 
 `Cell` holds six parameters and applies no symmetry itself.
 

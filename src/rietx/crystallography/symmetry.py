@@ -20,6 +20,7 @@ approximate — thing to enumerate here.
 from __future__ import annotations
 
 import functools
+import re
 from dataclasses import dataclass, field
 
 import gemmi
@@ -53,6 +54,37 @@ def get_spacegroup(symbol: str) -> gemmi.SpaceGroup:
     if sg is None:
         raise ValueError(f"unknown space group symbol: {symbol!r}")
     return sg
+
+
+# ---------------------------------------------------------------------------
+# a group given by its operations rather than by a symbol
+# ---------------------------------------------------------------------------
+#: The bracketed-label form.  A ``Phase.space_group`` ending in ``[...]`` is a
+#: **label**, not a resolvable symbol: it says "no Hermann-Mauguin symbol names
+#: this group in this cell", and the group itself is then
+#: ``Phase.symmetry_operations``.  The text before the bracket is the closest
+#: standard *type* (what spglib identifies the operation list as, which is a
+#: statement about the type and not about the setting) and the text inside says
+#: why the symbol is not enough — usually the cell.
+_LABEL = re.compile(r"^(?P<symbol>.*?)\s*\[(?P<note>[^\]]+)\]$")
+
+
+def split_group_label(text: str) -> tuple[str, str] | None:
+    """``("P m 1 1", "unnamed in 2a,b,a+c")`` for a bracketed label, else ``None``.
+
+    The one authority for the bracket convention, so the schema validator, the
+    supercell builder and the CIF writer cannot spell it three ways.
+    """
+    m = _LABEL.match(str(text).strip())
+    if m is None:
+        return None
+    return m.group("symbol").strip(), m.group("note").strip()
+
+
+def unnamed_label(closest: str | None, note: str) -> str:
+    """The bracketed label for a group no symbol reproduces in its cell."""
+    head = (closest or "").strip()
+    return f"{head} [{note}]" if head else f"[{note}]"
 
 
 @functools.lru_cache(maxsize=256)
@@ -1002,6 +1034,13 @@ class ReflectionSet:
     multiplicity: np.ndarray
     d: np.ndarray
     spacegroup: str = ""
+    #: The explicit ``x,y,z`` list when :attr:`spacegroup` is a *label* rather
+    #: than a symbol (:class:`OperatorGroup`), else ``None`` — so a consumer
+    #: that needs the group again (``report.strain``'s Stephens basis) can
+    #: rebuild it with :func:`resolve_group` instead of re-resolving a label
+    #: that names no tabulated group.  ``None`` for every set generated before
+    #: this field existed, which is every set from a symbol.
+    operations: tuple[str, ...] | None = None
     extra: dict = field(default_factory=dict)
 
     def __len__(self) -> int:
@@ -1023,7 +1062,7 @@ def reflection_orbits(sg_symbol: str, hkl_reps: np.ndarray) -> list[np.ndarray]:
     ``generate_reflections``); this is the frozen discrete object the
     March-Dollase correction averages over, computed once per stage.
     """
-    rots = rotation_matrices(get_spacegroup(sg_symbol))
+    rots = rotation_matrices(as_group(sg_symbol))
     rot_int = np.rint(np.transpose(rots, (0, 2, 1))).astype(np.int64)
     orbits: list[np.ndarray] = []
     for h in np.asarray(hkl_reps, dtype=np.int64):
@@ -1060,7 +1099,7 @@ def generate_reflections(sg_symbol: str,
     unchanged**, so every existing caller enumerates the same list in the same
     order and every number it produces is bit-identical.
     """
-    sg = get_spacegroup(sg_symbol)
+    sg = as_group(sg_symbol)
     ops = sg.operations()
 
     d_min = wavelength / (2.0 * np.sin(np.radians(two_theta_max / 2.0)))
@@ -1168,4 +1207,6 @@ def generate_reflections(sg_symbol: str,
     d_reps = d_spacings(reps, *cell)
     sort = np.argsort(-d_reps)  # ascending 2θ = descending d
     return ReflectionSet(hkl=reps[sort], multiplicity=mult[sort], d=d_reps[sort],
-                         spacegroup=sg.xhm())
+                         spacegroup=sg.xhm(),
+                         operations=(sg.xyz if isinstance(sg, OperatorGroup)
+                                     else None))
