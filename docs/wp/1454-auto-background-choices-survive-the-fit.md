@@ -369,7 +369,22 @@ reports no air-term correlation rows.
     no new skip. The failure is the `unwritable-directory` case of
     `test_telemetry.py`, which fails because this container runs as uid 0
     (`chmod 0o500` binds nobody). It fails on the first run too, and it is
-    queued as its own task, not fixed here. The full suite ran once on the final tree, which is current main plus this branch, since main had not moved: 6068 passed, 158 skipped and 3 failed, in about 1 h 37 min at -n auto with nothing else running. Besides the uid-0 case, two failures come from load and not from this diff. The held-phase ramp's 60 s runaway guard took 76.5 s under the suite's load and 16.9 s alone, a 3.5× margin, so it is a load sensor; its background is a Chebyshev. The brucite strict xfail passed under load and xfailed alone; indexing builds no P-spline, and the flip is written into WP-1449's Inherited. There is no baseline full count on this machine, per tests/CLAUDE.md, so only the fast delta is exact.
+    queued as its own task, not fixed here. The full suite ran once, at
+    `016d06c`, which was current main plus this branch: 6068 passed, 158
+    skipped and 3 failed, in about 1 h 37 min at `-n auto` with nothing else
+    running. Besides the uid-0 case, two failures come from load and not from
+    this diff. The held-phase ramp's 60 s runaway guard took 76.5 s under the
+    suite's load and 16.9 s alone, a 3.5× margin, which makes it a load
+    sensor; its background is a Chebyshev. The brucite strict xfail passed
+    under load and xfailed alone. Indexing builds no P-spline, and the flip is
+    written into WP-1449's Inherited. Main then moved to `54a049d` with docs
+    only: the issue batch's WPs 1457-1459, which took this WP's filing
+    number and made it 1460, and a cap comment in `test_docs_consistency.py`.
+    It was merged in, and the fast selection on the merged tree gave the same
+    5886 passed, 147 skipped and 1 failed. The full suite was not re-run,
+    because the merge changed no code and no test count. There is no baseline
+    full count on this machine, per tests/CLAUDE.md, so only the fast delta is
+    exact.
   - *Review* (`/code-review high --fix`): 8 candidates, 3 fixed in `1373f86`.
     Those are a 10-channel floor on the limits, named refusal of diagnostics
     that miss them, and three comments still spelling the rows √λ·D₂c. The
