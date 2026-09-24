@@ -659,7 +659,7 @@ the limit carried load rather than whether the value stopped near one, and
 | [1336](wp/1336-the-fit-does-not-say-it-is-unusable.md) | The fit does not say it is unusable: the status channel and the width census | ⬜ | P2 | — (1310 soft) |
 | [1337](wp/1337-an-authored-refusal-not-a-traceback.md) | An authored refusal, not a raw traceback | ⬜ | P3 | — (1311, 1321 soft) |
 | [1342](wp/1342-a-freeze-that-reads-names.md) | A structural freeze that reads names, and the tie it cannot see | ✅ 2026-09-19 | — | — (1301, 1119 soft) |
-| [1344](wp/1344-a-joint-fit-owes-each-histogram-its-diagnostics.md) | A joint fit owes each histogram the diagnostics its own radiation earns | ⬜ | P3 | — (1341 soft) |
+| [1344](wp/1344-a-joint-fit-owes-each-histogram-its-diagnostics.md) | A joint fit owes each histogram the diagnostics its own radiation earns | ⬜ | P3 | — |
 | [1414](wp/1414-a-turn-on-that-reached-nothing.md) | A `turn_on` that reached nothing says so | ✅ 2026-09-22 | — | — (1341 soft) |
 | [1415](wp/1415-a-sigma-column-smaller-than-root-y.md) | A σ column smaller than √y | 🔄 2026-09-23 | — | — |
 | [1417](wp/1417-delta-bic-at-powder-channel-counts.md) | ΔBIC at powder channel counts | ⬜ | P2 | — (1339 soft) |
@@ -740,7 +740,7 @@ separability floor, and not scheduled here.
 | [1322](wp/1322-events-aggregator.md) | The run is instrumentable, and nothing says so | ⬜ | P3 | — |
 | [1339](wp/1339-where-the-improvement-lives.md) | Where the improvement lives | ⬜ | P3 | — |
 | [1340](wp/1340-qpa-on-a-molar-basis.md) | QPA on a molar basis, and the basis travels with the number | ⬜ | P3 | — (1320 soft) |
-| [1341](wp/1341-a-joint-fit-has-no-report.md) | A joint fit has no report | ⬜ | P2 | — (1312, 1335 soft) |
+| [1341](wp/1341-a-joint-fit-has-no-report.md) | A joint fit has no report | ⬜ | P2 | — (1312, 1335, 1344 soft) |
 | [1444](wp/1444-the-pattern-before-the-model.md) | The pattern before the model, and a title on the figure | ⬜ | P3 | — |
 
 #### The repo's own process

@@ -2,7 +2,9 @@
 
 Milestone: unscheduled · Status: ⬜
 Depends on: — (1312 soft: it exercises and audits the joint fit; 1335 soft: the
-report path this one gains should already be cheap)
+report path this one gains should already be cheap; 1344 soft: it sorts each
+diagnostic into per specimen, per histogram or per fit, and decides where a
+per-histogram finding lives, and this report renders that)
 Priority: P2 2026-09-23 — a joint fit cannot be inspected; refining the histograms apart is the workaround
 
 ## Goal
