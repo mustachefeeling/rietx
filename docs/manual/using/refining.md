@@ -892,7 +892,7 @@ One refusal: a non-neutron histogram, by name. Everything else is reported.
 | `MagneticTrial.n_free_parameters` | the whole free count | |
 | `MagneticTrial.moments` | one `MomentRow` per site that carries one | |
 | `MagneticTrial.held` | the DOFs the stage held | a direction here was not measured |
-| `MagneticTrial.supported` | whether any site's moment survived the null test | false disqualifies the trial from winning |
+| `MagneticTrial.supported` | whether any site's moment, or any degenerate pair's quadrature sum, survived the null test | false disqualifies the trial from winning |
 | `MagneticTrial.anti_translation_drift` | how far a supercell refinement left its own group, μ_B | zero is the pass; `None` for k = 0, where there is no anti-centring |
 | `MagneticTrial.n_starts` | how many seeds the moment stage was started from | one per magnetic site plus the flat one; 1 when the class has a single site |
 | `MagneticTrial.n_minima` | how many distinct minima those starts found | more than one is a fact about the candidate: its moment problem is multimodal and one seed would have reported another answer |
@@ -906,6 +906,7 @@ One refusal: a non-neutron histogram, by name. Everything else is reported.
 | `MomentRow.unmeasured_directions` | direction DOFs the powder average did not determine | non-empty is a result about the measurement |
 | `MomentRow.paired_with` | the other site's path this modulus is powder-degenerate with | non-empty when the fit's own correlation showed the two are not separately determined |
 | `MomentRow.paired_magnitude`, `MomentRow.paired_magnitude_esd` | the quadrature sum sqrt(sum m^2) over the pair and its esd from the measured covariance | this, not `MomentRow.magnitude`, is the number the powder measures for the pair; `None` when `paired_with` is empty |
+| `MomentRow.pair_supported` | the null test applied to the pair's quadrature sum | each modulus of a degenerate pair fails the test alone (its esd is the length of the flat direction), so the solve's gate reads this; false for an ordinary row |
 
 ## How hard each stage is converged
 

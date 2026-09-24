@@ -52,7 +52,10 @@ back unsupported (WP-1327 D4: below the floor *or* below
 ``MOMENT_SUPPORT_SIGMA`` of its own esd, because the null does not land at zero
 — 0.0666 μ_B with an esd of 0.878 on a real 150 K pattern) cannot win, whatever
 its ΔBIC.  When no trial has a supported moment the verdict is that there is
-nothing to solve.
+nothing to solve.  A powder-degenerate pair (Q5) is tested as the pair: each
+modulus alone rides a flat direction and fails the ratio however large it is,
+so the gate reads the quadrature sum the powder does measure
+(:attr:`MomentRow.pair_supported`).
 
 **What it refuses.**  An X-ray histogram, by name: the *position* of a magnetic
 satellite and of a superstructure reflection are the same and the inference is
@@ -335,6 +338,32 @@ class MomentRow:
             return None
         return abs(self.magnitude) / self.esd
 
+    @property
+    def pair_supported(self) -> bool:
+        """Whether this row's Q5 pair survives WP-1327's null test *as a pair*.
+
+        A powder-degenerate pair (:attr:`paired_with`) has each modulus
+        undetermined on its own — the two ride a flat direction |ρ| → 1, so
+        each row's esd is the length of that valley and :attr:`supported`
+        fails however large the moment is — while the quadrature sum the
+        powder does measure can be many esds clear of zero.  Measured on a
+        two-site MAGNDATA sweep entry: each modulus at 0.4× its own esd
+        ("unsupported"), their quadrature sum at 63× its esd, and the solve
+        said "nothing to solve" because the gate read the rows (with the
+        coordinates also free, the published group lost the same way to a
+        class whose ΔBIC was 7× lower — see :func:`_moment_correlations`).  The
+        same test as the row's (above the floor and more than
+        ``MOMENT_SUPPORT_SIGMA`` of its own esd), applied to the number that
+        is measured; False for an ordinary row.
+        """
+        from ..report.schemas import MOMENT_SUPPORT_SIGMA
+        from ..schemas.structure import MOMENT_FLOOR_MU_B
+
+        m, esd = self.paired_magnitude, self.paired_magnitude_esd
+        if not self.paired_with or m is None or m <= MOMENT_FLOOR_MU_B:
+            return False
+        return esd is None or m > MOMENT_SUPPORT_SIGMA * esd
+
 
 @dataclass(frozen=True)
 class MagneticTrial:
@@ -394,8 +423,9 @@ class MagneticTrial:
 
     @property
     def supported(self) -> bool:
-        """Whether any site's moment survived WP-1327's null test."""
-        return any(m.supported for m in self.moments)
+        """Whether any site's moment — or any Q5 pair's quadrature sum
+        (:attr:`MomentRow.pair_supported`) — survived WP-1327's null test."""
+        return any(m.supported or m.pair_supported for m in self.moments)
 
     @property
     def label(self) -> str:
@@ -1436,8 +1466,7 @@ def _moment_rows(ref, result, structure
         held=list(result.stages[-1].held) if result.stages else [],
         esd={p.path: p.stderr for p in result.parameters
              if p.stderr is not None},
-        correlations=(result.identifiability.top_correlations
-                     if result.identifiability is not None else None))
+        correlations=_moment_correlations(result))
     rows = [
         MomentRow(label=e.atom, ion=e.ion, magnitude=float(e.magnitude),
                   esd=None if e.magnitude_esd is None
@@ -1450,6 +1479,41 @@ def _moment_rows(ref, result, structure
                   paired_magnitude_esd=e.paired_magnitude_esd)
         for e in evidence]
     return tuple(rows), n_moment, tuple(moment_pair_diagnostics(evidence))
+
+
+def _moment_correlations(result):
+    """The correlated pairs Q5's fold reads: the worst-|ρ| list, plus every
+    stored ``HIGH_CORRELATION``/``FLAT_DIRECTION`` pair between two moment DOFs.
+
+    ``identifiability.top_correlations`` is only the worst
+    :data:`~rietx.optimize.identifiability.TOP_CORRELATIONS_K` pairs of the
+    whole fit, and a fit that also frees coordinates can fill every slot with
+    ρ = 1 coordinate pairs: measured on the same two-Co-site entry with the
+    coordinates free, the moment pair at ρ = −1.000 was absent from the list
+    and the fold never ran.  The guard's own findings on
+    ``result.diagnostics`` are the same matrix thresholded rather than
+    truncated (never capped in storage — ``_cap_high_correlation`` bounds the
+    rendering only), so they carry the pair; its ``value`` is the signed ρ.
+    ``None`` when neither source has anything, exactly as before.
+    """
+    from ..schemas.results import CorrelationPair
+
+    pairs = (list(result.identifiability.top_correlations)
+             if result.identifiability is not None else [])
+    seen = {frozenset((c.path_a, c.path_b)) for c in pairs}
+    for d in getattr(result, "diagnostics", None) or ():
+        where = list(d.where or ())
+        if (d.code not in ("HIGH_CORRELATION", "FLAT_DIRECTION")
+                or len(where) != 2 or d.value is None
+                or not all(_MOMENT_GLOB in w for w in where)):
+            continue
+        key = frozenset(where)
+        if key in seen:
+            continue
+        seen.add(key)
+        pairs.append(CorrelationPair(path_a=where[0], path_b=where[1],
+                                     rho=float(d.value)))
+    return pairs or None
 
 
 def _values_of(ref):
@@ -1639,7 +1703,8 @@ def _rank(trials: list[MagneticTrial], tie_width: float, tie_r: float):
         if refined and not any(t.supported for t in refined):
             return (tuple(ordered), (), "nothing to solve",
                     f"{len(refined)} candidate(s) refined and not one came "
-                    f"back with a supported moment — every modulus is at its "
+                    f"back with a supported moment — every modulus (and "
+                    f"every degenerate pair's quadrature sum) is at its "
                     f"floor or below MOMENT_SUPPORT_SIGMA of its own esd, "
                     f"which is what an unmagnetised pattern looks like under a "
                     f"magnetic model")

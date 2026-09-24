@@ -1358,3 +1358,91 @@ def test_the_tie_lattice_appears_in_str_only_for_a_genuine_tie():
     assert "descent among the tied classes" in str(tied_solution)
     solved_solution = _solution((t0,), (0,), "solved", "solo for test")
     assert "descent among the tied classes" not in str(solved_solution)
+
+
+# ================================================ Q5 pairs and the null test
+
+def _paired_trial(index, *, delta_bic, m, esd, pair_m, pair_esd, bns="1.1"):
+    """A two-site trial whose moduli are a Q5 pair: each row ``m ± esd``,
+    their quadrature sum ``pair_m ± pair_esd``."""
+    rows = tuple(
+        MomentRow(label=lb, ion="Mn3+", magnitude=m, esd=esd,
+                  crystalaxis=(m, 0.0, 0.0), supported=m > 3.0 * esd,
+                  paired_with=(f"phases.0.atoms.{1 - i}.moment.dof0",),
+                  paired_magnitude=pair_m, paired_magnitude_esd=pair_esd)
+        for i, lb in enumerate(("Mn1", "Mn2")))
+    return MagneticTrial(
+        class_index=index, representative=f"S{index}(a)",
+        members=(f"{bns} S{index}(a)",), site="Mn1", irrep=f"S{index}",
+        direction="(a)", bns_number=bns, uni_number=None, msg_type=1,
+        free_amplitudes=1, determinable_amplitudes=1, status="refined",
+        rwp=0.1, gof=1.0, delta_bic=delta_bic, r_magnetic=0.07,
+        n_moment_parameters=2, n_free_parameters=12, moments=rows)
+
+
+def test_a_degenerate_pair_is_tested_as_the_pair_not_row_by_row():
+    """W14: each modulus of a powder-degenerate pair fails the ratio alone
+    (esd 2.4× the value — the length of the flat valley), while the quadrature
+    sum the powder measures sits 63 esds clear.  Reading the rows made the
+    best class ineligible, and a class with a seventh of its ΔBIC won; the
+    gate must read the measured number."""
+    pair = _paired_trial(0, delta_bic=3500.0, m=2.0, esd=4.8,
+                         pair_m=2.83, pair_esd=0.045, bns="1.1")
+    assert not any(r.supported for r in pair.moments)
+    assert all(r.pair_supported for r in pair.moments)
+    assert pair.supported
+    lesser = _trial(1, delta_bic=500.0, r_mag=0.48, free=2, bns="2.2")
+    ordered, tied, verdict, _why = _rank([lesser, pair], SOLVE_TIE_DELTA_BIC,
+                                         0.02)
+    assert verdict == "solved" and tied == (0,)
+    assert ordered[0].bns_number == "1.1"
+
+
+def test_a_pair_whose_quadrature_sum_is_inside_its_esd_stays_unsupported():
+    """The negative arm: the same gate, on the pair.  A null pattern's pair
+    comes back small against its own esd and must not be let through."""
+    null = _paired_trial(0, delta_bic=5000.0, m=0.3, esd=2.0,
+                         pair_m=0.42, pair_esd=0.5)
+    assert not null.supported
+    _o, tied, verdict, reason = _rank([null], SOLVE_TIE_DELTA_BIC, 0.02)
+    assert verdict == "nothing to solve" and tied == ()
+    assert "quadrature sum" in reason
+
+
+def test_an_ordinary_row_is_not_pair_supported():
+    row = MomentRow(label="Mn1", ion="Mn3+", magnitude=3.0, esd=0.1,
+                    crystalaxis=(3.0, 0.0, 0.0), supported=True)
+    assert row.pair_supported is False
+
+
+def test_the_fold_reads_stored_moment_correlations_beyond_the_top_list():
+    """W14: with coordinates free, the fit's worst-five |ρ| list was all
+    coordinate pairs at ρ = 1 and the moment pair (ρ = −1.000) was only in the
+    stored HIGH_CORRELATION/FLAT_DIRECTION findings, so the fold never ran."""
+    from types import SimpleNamespace
+
+    from rietx.schemas.common import Diagnostic
+    from rietx.schemas.results import CorrelationPair
+    from rietx.strategy.magnetic import _moment_correlations
+
+    a, b = "phases.0.atoms.0.moment.dof0", "phases.0.atoms.1.moment.dof0"
+    top = [CorrelationPair(path_a=f"phases.0.atoms.{i}.dof.1",
+                           path_b=f"phases.0.atoms.{i + 1}.dof.1", rho=1.0)
+           for i in range(2, 7)]
+    diags = [Diagnostic(level="warning", code="HIGH_CORRELATION",
+                        message="m", where=[a, b], value=-1.0),
+             Diagnostic(level="warning", code="FLAT_DIRECTION",
+                        message="m", where=[a, b], value=-1.0),
+             Diagnostic(level="warning", code="HIGH_CORRELATION",
+                        message="m", where=["phases.0.scale",
+                                            "phases.0.atoms.0.biso"],
+                        value=0.97)]
+    result = SimpleNamespace(
+        identifiability=SimpleNamespace(top_correlations=top),
+        diagnostics=diags)
+    pairs = _moment_correlations(result)
+    moment_pairs = [c for c in pairs if {c.path_a, c.path_b} == {a, b}]
+    assert len(moment_pairs) == 1 and moment_pairs[0].rho == -1.0
+    assert len(pairs) == 6  # the five top pairs kept, the non-moment one not added
+    assert _moment_correlations(SimpleNamespace(identifiability=None,
+                                                diagnostics=[])) is None
