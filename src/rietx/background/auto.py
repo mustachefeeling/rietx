@@ -12,6 +12,7 @@ from __future__ import annotations
 from ..schemas.common import Parameter
 from ..schemas.instrument import Background, BackgroundChebyshev, BackgroundPSpline
 from ..schemas.pattern import PatternData
+from ..schemas.project import check_interval
 from .diagnostics import PatternDiagnostics, diagnose
 from .select import select_chebyshev_order
 
@@ -27,7 +28,8 @@ _KNOT_STEP_HUMPY_DEG = 3.0
 
 def auto_background(data: PatternData, *, kind: str = "pspline",
                     diagnostics: PatternDiagnostics | None = None,
-                    wavelength: float | None = None) -> Background:
+                    wavelength: float | None = None,
+                    two_theta_limits: tuple[float, float] | None = None) -> Background:
     """Build a background model sized to the pattern.
 
     ``kind="pspline"`` (default): penalized co-refined spline — knot spacing
@@ -35,7 +37,28 @@ def auto_background(data: PatternData, *, kind: str = "pspline",
     penalty rows keep it stiff against Bragg intensity), air term on
     diagnostic trigger.  ``kind="chebyshev"``: order from masked-channel
     BIC + Durbin-Watson stop.
+
+    ``two_theta_limits`` is the range the fit will use, the same tuple
+    ``fit`` takes.  The diagnostics, the order selection and the knots are
+    all taken over it.  Without it the knots span the whole file, and every
+    coefficient past the fitted range is held by the penalty alone, which
+    extends the curve to wherever its slope points (WP-1454: on a private
+    series, negative from 75° past a 40° limit).  ``diagnostics`` supplied by the
+    caller are used as given, and the knots are still confined to the limits.
     """
+    if two_theta_limits is not None:
+        lo, hi = (float(v) for v in two_theta_limits)
+        check_interval("two_theta_limits", lo, hi)
+        # the channels a fit under these limits uses, asked of the one
+        # authority for that (WP-1033); imported here, since project sits
+        # above this package
+        from ..project import fitted_mask
+
+        if int(fitted_mask(data, (lo, hi)).sum()) < 2:
+            raise ValueError(
+                f"two_theta_limits ({lo}, {hi}) leave fewer than two channels "
+                "to build a background over")
+        data = data.crop(lo, hi)
     diag = diagnostics or diagnose(data, wavelength=wavelength)
     if kind == "chebyshev":
         sel = select_chebyshev_order(data)
@@ -45,8 +68,11 @@ def auto_background(data: PatternData, *, kind: str = "pspline",
 
     step = (_KNOT_STEP_HUMPY_DEG if diag.amorphous_hump_score > HUMP_TRIGGER
             else _KNOT_STEP_SMOOTH_DEG)
-    bkg = BackgroundPSpline.for_range(diag.two_theta_min, diag.two_theta_max,
-                                      knot_step_deg=step, lambda_smooth=1.0)
+    k_lo, k_hi = diag.two_theta_min, diag.two_theta_max
+    if two_theta_limits is not None:
+        k_lo, k_hi = max(k_lo, lo), min(k_hi, hi)
+    bkg = BackgroundPSpline.for_range(k_lo, k_hi, knot_step_deg=step,
+                                      lambda_smooth=1.0)
     # Declined means absent, never a zero one: a plan's ``instrument.background.*``
     # frees whatever path exists (WP-1454).
     if diag.air_scatter_gain > AIR_SCATTER_TRIGGER:

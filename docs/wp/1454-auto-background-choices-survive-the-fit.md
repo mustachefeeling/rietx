@@ -192,8 +192,16 @@ penalty on a background before choosing.
       channels), which makes λ dimensionless for every caller; or keep the
       units and derive λ in `auto_background` from the counts, which fixes
       only the helper. Land it, with the goldens' decision recorded.
-- [ ] `auto_background` spans the fitted range: take `two_theta_limits`, or
-      read the range the fit will use.
+- [x] `auto_background` spans the fitted range: take `two_theta_limits`, or
+      read the range the fit will use. **Landed 2026-09-24** as a
+      `two_theta_limits` keyword, the tuple `fit` takes. The diagnostics, the
+      Chebyshev order selection and the knots are all taken over it. The
+      channel count asks `project.fitted_mask`, the WP-1033 authority,
+      through a function-level import, since `project` sits above
+      `background/`. Caller-supplied `diagnostics` are used as given, with the
+      knots still clamped to the limits. An inverted interval is refused
+      with `check_interval`'s sentence, and limits holding fewer than two
+      channels are refused by name.
 - [ ] Tests. Unit invariance: at k ∈ {10⁻³, 1, 10³} the fitted background
       divided by k agrees within the spread the same fit shows when
       restarted, measured first and never chosen (tests/CLAUDE.md § Budgets

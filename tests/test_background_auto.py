@@ -901,6 +901,35 @@ def test_auto_background_shapes_to_pattern():
     assert len(cheb.coefficients) >= 4
 
 
+def test_auto_background_knots_span_the_fitted_range():
+    """The knots cover the channels a fit under the same limits uses and no
+    others (WP-1454): a coefficient past the fitted range has no data, only
+    the penalty, and extends the curve wherever its slope points."""
+    data = _peaky_pattern(background=_flat_bkg)
+    whole = auto_background(data, wavelength=WAVELENGTH)
+    assert whole.breakpoints[0] == pytest.approx(data.two_theta[0])
+    assert whole.breakpoints[-1] == pytest.approx(data.two_theta[-1])
+
+    limited = auto_background(data, wavelength=WAVELENGTH, two_theta_limits=(30.0, 70.0))
+    tt = np.asarray(data.two_theta)
+    fitted = tt[(tt >= 30.0) & (tt <= 70.0)]
+    assert limited.breakpoints[0] == pytest.approx(fitted[0])
+    assert limited.breakpoints[-1] == pytest.approx(fitted[-1])
+
+    # caller-supplied diagnostics over the whole file: the knots still stop at the limits
+    kept = auto_background(data, diagnostics=diagnose(data, wavelength=WAVELENGTH),
+                           two_theta_limits=(30.0, 70.0))
+    assert kept.breakpoints[0] >= 30.0 and kept.breakpoints[-1] <= 70.0
+
+
+def test_auto_background_refuses_limits_it_cannot_use():
+    data = _peaky_pattern(background=_flat_bkg)
+    with pytest.raises(ValueError, match="inverted"):
+        auto_background(data, two_theta_limits=(70.0, 30.0))
+    with pytest.raises(ValueError, match="fewer than two channels"):
+        auto_background(data, two_theta_limits=(200.0, 210.0))
+
+
 def test_an_undeclared_air_term_raises_no_background_correlation_rows():
     """Every preset frees ``instrument.background.*`` and a plan replaces the
     vary flags, so an air term held at 0 was refined anyway.  Inside a fine
