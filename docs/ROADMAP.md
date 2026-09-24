@@ -698,6 +698,7 @@ the chain says nothing (issue #267).
 | [1335](wp/1335-the-report-costs-more-than-the-fit.md) | The report costs more than the fit | ⬜ | P3 | — |
 | [1420](wp/1420-a-held-phase-re-enters-or-says-it-cannot.md) | A held phase re-enters, or the chain says it cannot | ⬜ | P2 | — (1333, 1342, 1419 soft) |
 | [1453](wp/1453-both-directions-name-the-lower-cost.md) | Both directions name the lower cost | ⬜ | P3 | — (1420 soft) |
+| [1459](wp/1459-a-pawley-intensity-past-the-data.md) | A Pawley intensity past the end of the data | ⬜ | P2 | — (1336 soft) |
 
 #### One file, many patterns
 
