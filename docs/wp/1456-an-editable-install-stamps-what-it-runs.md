@@ -1,4 +1,4 @@
-# WP-1458 — an editable install stamps what it runs
+# WP-1456 — an editable install stamps what it runs
 
 Milestone: unscheduled · Status: ⬜
 Depends on: —
@@ -13,12 +13,14 @@ older number in silence.
 ## Context
 
 **The evidence.** An agent session on 2026-09-23 (`in-situ series 1` in the
-private corpus map) used the main checkout's venv. The code there was `644dff84`, whose `pyproject.version` is
-`1.6.0.dev0`. `rietx.__version__` said `1.4.0`, because the editable install
-predated two version bumps. Every `RefinementResult.provenance`, every run's
-`meta.json`, and the report the agent delivered say 1.4.0. Somebody
-reproducing from that report would install a release that does not contain
-the code that ran.
+private corpus map) used the main checkout's venv. The code there was
+`644dff84`, whose `pyproject.version` is `1.6.0.dev0`. `rietx.__version__`
+said `1.4.0`, because the editable install predated the version bumps since
+1.4.0. Every result's `provenance.package_version` and every run's
+`meta.json` say 1.4.0. The agent's report says 1.4.0 too. It names commit
+`644dff84` beside it, but only because the agent recorded the commit by hand.
+The results and run records carry no commit, so a reader holding only those
+would install a release that does not contain the code that ran.
 
 **The mechanism.** `_VERSION = version(DIST_NAME)` (`src/rietx/refine.py:121-134`)
 reads the installed metadata. An editable install writes that metadata once,
@@ -69,5 +71,5 @@ In a venv installed at one version and then bumped in source, a fit's
 ## Handover log
 
 - **2026-09-24** — created from the review of an agent session whose
-  deliverable stamped 1.4.0 while running 1.6.0.dev0 code. Checked against
-  the tree at `2d42303a`. Next: the prior art.
+  results stamped 1.4.0 while running 1.6.0.dev0 code. Checked against the
+  tree at `2d42303a`. Next: the prior art.

@@ -567,9 +567,10 @@ never claims one for a row nobody rated.  Landed 827, +1 headroom.
 process, 1450-1452.  No prose.  Landed 830, +1 headroom.  (Recorded
 2026-09-24; that session wrote only the test's ledger line.)
 
-831 -> 837 for the 2026-09-24 review of an agent session on a private in-situ
-series: six rows, 1453-1458, in four existing sections.  No prose, because
-each WP file carries its own evidence.  Landed 836, +1 headroom.
+831 -> 835 for the 2026-09-24 review of an agent session on a private in-situ
+series: four rows, 1453-1456, in three existing sections.  A fifth finding
+went into WP-1420's `### Inherited` rather than a row of its own.  No prose,
+because each WP file carries its own evidence.  Landed 834, +1 headroom.
 
 ### `gui/CLAUDE.md`
 
