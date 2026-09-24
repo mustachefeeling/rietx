@@ -167,7 +167,12 @@ powder peak, and only the average is observable in a powder.
 ## Writing them out
 
 [](files.md) has the three writers that turn a result into a file, what each
-file contains, and why the CIF carries a symmetry-operation loop of its own.
+file contains, and why the CIF carries a symmetry-operation loop of its own, and,
+for a phase carrying a moment, the magCIF block the same writer adds:
+the operator and centring loops, the BNS metadata, and the refined moments with
+the modulus esd in `_atom_site_moment.magnitude_su`. A phase with no
+`Phase.magnetic_symmetry` gets none of it, so a nuclear export is byte for byte
+what it always was.
 `Refinement` carries the same three as methods on the refinement that produced
 the result, which saves passing the pieces back in: `Refinement.write_cif`,
 `Refinement.write_reflection_table` and `Refinement.write_qpa_table`. Each takes

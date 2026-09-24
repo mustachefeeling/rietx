@@ -486,19 +486,55 @@ def test_the_certified_standards_protocol_survives_the_round_trip(tmp_path):
 
 # ------------------------------------------- report or refuse, never drop
 
-def test_a_magnetic_phase_is_refused_by_name(tmp_path):
-    """rietx has no magnetic structure model, so returning the nuclear half
-    silently would hand back a model that looks complete.
+def test_mag_space_group_is_not_read_as_the_nuclear_one(tmp_path):
+    """`mag_space_group` must not reach `space_group`, and the pin outlives the
+    refusal that used to hide the question.
 
     Found by compiling every structure the reader returns: `mag_space_group
     62.448` matched an unanchored `space_group` and arrived as the *symbol*
-    "62.448", which gemmi then refused a long way from the cause.
+    "62.448", which gemmi then refused a long way from the cause. Until
+    WP-1328 a read-time raise on `mag_space_group` masked that — the keyword
+    could not reach a built phase at all. Now the magnetic construct is read
+    (WP-1327 gave the package a magnetic model, and `coverage`'s
+    `magnetic space group` row is the declared stance), so the collision is a
+    live question again and this is the only thing asserting the answer: `\\b`
+    is what keeps the two apart, since `mag_space_group` offers no word
+    boundary before `space`.
     """
     inp = _inp(tmp_path, "mag.inp",
-               'str\nphase_name "LaMnO3_mag"\nmag_space_group 62.448\na 5.7\n'
-               'site Mn1 x 0 y 0 z 0 occ Mn+3 1 beq b 0.5\n')
-    with pytest.raises(TopasInpError, match="magnetic space group"):
-        read_topas_inp(inp)
+               'str\nphase_name "LaMnO3_mag"\nspace_group "P n m a"\n'
+               'mag_space_group 62.448\na 5.7 b 7.6 c 5.5\n'
+               'site Mn1 x 0 y 0 z 0 occ Mn+3 1 beq b 0.5 mlx 3.4\n')
+    model = read_topas_inp(inp)
+    (phase,) = model.phases
+    assert phase.space_group == "P n m a"
+    assert phase.mag_space_group == "62.448"
+    assert phase.sites[0].moment == {"mlx": 3.4}
+    # ... and the symbol is *reported*, because no dependency here parses one.
+    (hit,) = model.coverage.reported
+    assert hit.feature.name == "magnetic space group"
+    assert hit.keywords == ("mag_space_group",)
+
+
+def test_a_magnetic_phase_with_no_group_supplied_is_refused_by_name(tmp_path):
+    """The refusal WP-1328 leaves behind, and where it moved to.
+
+    Reading a magnetic `.inp` no longer raises — the moments are on the model
+    and `mag_space_group` is reported — but *building* one still cannot invent
+    the operator list a symbol does not give. So the refusal is at
+    `to_structure`, where the claim about a refinement is made, and it names
+    the phase, the sites carrying moments and the symbol the file wrote.
+    """
+    inp = _inp(tmp_path, "mag.inp",
+               'str\nphase_name "LaMnO3_mag"\nspace_group "P n m a"\n'
+               'mag_space_group 62.448\na 5.7 b 7.6 c 5.5\n'
+               'site Mn1 x 0 y 0 z 0 occ Mn+3 1 beq b 0.5 mlx 3.4\n')
+    model = read_topas_inp(inp)
+    with pytest.raises(TopasInpError, match="Shubnikov"):
+        to_structure(model)
+    built = to_structure(model, magnetic_symmetry="62.448")
+    assert built.phases[0].magnetic_symmetry.bns_number == "62.448"
+    assert built.phases[0].atoms[0].moment.values() == (3.4, 0.0, 0.0)
 
 
 def test_an_inp_with_no_structural_phase_refuses_naming_the_file(tmp_path):

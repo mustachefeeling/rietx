@@ -123,6 +123,10 @@ FEATURES: tuple[Feature, ...] = (
        "adps", "u11", "u22", "u33", "u12", "u13", "u23"),
     _f("parameter declarations", Stance.READ,
        "a named parameter an equation may reference", "prm", "local"),
+    _f("magnetic moments", Stance.READ,
+       "the site magnetic moments and the Landé g "
+       "(to_structure(magnetic_symmetry=...))",
+       "mlx", "mly", "mlz", "mg"),
 
     # --------------------------------------------------------------- refused
     _f("rigid body", Stance.REFUSED,
@@ -154,14 +158,31 @@ FEATURES: tuple[Feature, ...] = (
        why="such a phase does not diffract from the cell it states — the "
            "pattern comes from the stacking sequence — so a Structure built "
            "from the cell and sites is a different specimen"),
-    _f("magnetic structure", Stance.REFUSED,
-       "a magnetic structure",
-       "mag_space_group", "mag_only", "mag_only_for_mag_sites",
-       "mlx", "mly", "mlz", "mg", "mag_atom_out",
-       why="rietx has no magnetic model, so the nuclear half is all that could "
-           "be imported and it would look complete"),
+    _f("magnetic-only phase", Stance.REFUSED,
+       "a phase, or a site, contributing magnetic intensity only",
+       "mag_only", "mag_only_for_mag_sites",
+       why="such a phase has no nuclear structure factor at all — its "
+           "intensity is |F_m|² alone — and rietx's magnetic model is a moment "
+           "on a site of a nuclear phase sharing one scale (WP-1327), so there "
+           "is no shape here for a phase whose nuclear half is declared "
+           "absent. Importing the sites as an ordinary phase would add the "
+           "nuclear intensity the file says is not there"),
 
     # -------------------------------------------------------------- reported
+    _f("magnetic space group", Stance.REPORTED,
+       "the magnetic space group, as a Shubnikov symbol", "mag_space_group",
+       why="TOPAS states the group as a *symbol* (`P4_2'/mnm'`, or a BNS "
+           "number) and rietx's model is the operator list, because no "
+           "dependency here parses a Shubnikov symbol — spglib exposes UNI, "
+           "BNS and OG *numbers* and no symbol table, and guessing one is how "
+           "a fit lands under the wrong group (M-5). So the symbol is carried "
+           "as metadata, the site moments are read, and the operator list has "
+           "to come from the caller: pass "
+           "`to_structure(magnetic_symmetry=...)` a BNS/OG/UNI number or an "
+           "operator list. A `mag_space_group` stating a BNS *number* would "
+           "resolve on its own, and that is the row to move to READ when this "
+           "reader learns to tell a number from a symbol on TOPAS's own "
+           "evidence"),
     _f("peak profile", Stance.REPORTED,
        "the peak shape and the instrument convolutions",
        "peak_type", "pv_lor", "pv_fwhm", "h1", "h2", "m1", "m2",
@@ -235,6 +256,13 @@ FEATURES: tuple[Feature, ...] = (
        "append_cartesian", "append_fractional", "append_bond_lengths",
        "in_str_format", "consider_lattice_parameters", "p1_fractional_to_file",
        "out", "out_record", "phase_out", "phase_out_X", "atom_out",
+       # `mag_atom_out` is `atom_out`'s magnetic twin and belongs beside it:
+       # it appends the site moments to the `.OUT`, so it says where output
+       # goes and nothing about the model.  WP-1328's task list puts it in the
+       # *read* group; there is nothing in it to read — a stance of READ would
+       # claim the reader builds something from a directive that carries no
+       # value — so it is IGNORED here and the deviation is in the report.
+       "mag_atom_out",
        "xdd_out", "report_on_str", "report_on", "view_structure",
        "fourier_map", "sites_distance", "sites_angle", "sites_geometry"),
     _f("figures of merit", Stance.IGNORED,
