@@ -1,7 +1,8 @@
 # WP-1314 — a Jana2020 project reader: .m50/.m40/.m41
 
 Milestone: unscheduled · Status: ⬜
-Depends on: 1118 (its first task — the model-format registry and the answer's shape)
+Depends on: — (1118 closed ✅ 2026-09-16 and delivered what this waited on: the
+model-format registry, `io/projects/registry.py`, and the answer's shape)
 Priority: P3 2026-09-23 — a reader nobody is waiting for; Jana exports a CIF
 
 ## Goal

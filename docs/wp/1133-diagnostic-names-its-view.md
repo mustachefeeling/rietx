@@ -71,6 +71,15 @@ variables, and no pooling across rounds.
 
 ### Inherited
 
+- **2026-09-24, from a review of the open WPs: task 2's target file is
+  gone.** `docs/AGENT_PROTOCOL.md` became the agent skill in v1.3 (WPs 1304
+  and 1308; v1.3 record, § Acceptance), and its last pointer was deleted in
+  v1.4.0 (`29c0ea49`). The channel rule goes in the skill now. Root
+  CLAUDE.md § skill decides where: the body if it holds for every fit, a
+  `references/` file otherwise, with `references/judging.md` the likely one.
+  A body row is paid for by a cut. The rule and its evidence stand as
+  written.
+
 From **WP-1406** (2026-09-15), which documented the track this WP was waiting on:
 
 - **There is a rendered view to name now, and it is live rather than a file.**

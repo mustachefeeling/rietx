@@ -64,6 +64,17 @@ optimum of its own pattern. The options:
 Option 1 changes no fitted number and could land first. Its new field needs
 its writer named at review (root CLAUDE.md, a declared name is a claim).
 
+### Inherited
+
+- **2026-09-24, from a review of the open WPs: task 1's fixture can be fixed
+  out from under it.** Task 1 closes this WP if the two passes never
+  disagree in cost, and it names WP-1420's #267 fixture as a candidate.
+  1420's probe rung is written to bring the forward chain into the right
+  basin on that fixture at all three fractions. Once it lands, the passes
+  may agree there because 1420 fixed the forward chain, and a close on that
+  measurement would be wrong. So measure before 1420's rung lands, or on a
+  two-basin series with no held phase, and record which in the handover.
+
 ## Non-goals
 
 - Choosing between different models. With different phase sets the
