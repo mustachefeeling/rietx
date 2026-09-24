@@ -588,7 +588,7 @@ existing.
 | [1328](wp/1328-magnetic-interchange.md) | Magnetic interchange: magCIF in and out, and the readers stop refusing | ⬜ | P3 | 1327 (1118 soft) |
 | [1329](wp/1329-moment-in-a-series.md) | The moment in a series: the onset, the hold, the trajectory | ⬜ | P3 | 1327 (1326 soft) |
 | [1343](wp/1343-the-moment-pays-for-the-width.md) | The magnetic peaks are broader, and the moment pays for it | ⬜ | P3 | 1327 (1326 soft) |
-| [1418](wp/1418-the-magnetic-structure-is-determined.md) | The magnetic structure is determined, not only stated | 🔄 2026-09-23 | P2 | 1327 (1326 soft) |
+| [1418](wp/1418-the-magnetic-structure-is-determined.md) | The magnetic structure is determined, not only stated | 🔄 2026-09-25 | P2 | 1327 (1326 soft) |
 | [1419](wp/1419-a-child-structure-refined-on-its-mode-amplitudes.md) | A child structure refined on its mode amplitudes | ⬜ | P3 | 1418 (1327 soft) |
 
 ### Unscheduled
@@ -676,7 +676,7 @@ the limit carried load rather than whether the value stopped near one, and
 | [1454](wp/1454-auto-background-choices-survive-the-fit.md) | `auto_background`'s choices survive the fit | ⬜ | P2 | — |
 | [1456](wp/1456-an-editable-install-stamps-what-it-runs.md) | An editable install stamps what it runs | ⬜ | P3 | — |
 | [1457](wp/1457-the-stage-rwp-leaves-out-the-declared-peaks.md) | The stage Rwp leaves out the declared peaks | ⬜ | P2 | — |
-| [1458](wp/1458-a-tick-with-nothing-behind-it.md) | A tick with nothing behind it moves the low-angle boundary | ⬜ | P3 | — (1327 soft) |
+| [1458](wp/1458-a-tick-with-nothing-behind-it.md) | A tick with nothing behind it moves the low-angle boundary | ✅ 2026-09-24 | — | — (1327 soft) |
 
 #### A long run is not one fit
 

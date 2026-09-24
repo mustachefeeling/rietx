@@ -1,6 +1,6 @@
 # WP-1418 — the magnetic structure is determined, not only stated
 
-Milestone: v1.6 · Status: 🔄 2026-09-23 — M-6 and M-7 landed (PR #389); M-8, M-9, the Part 1 chapter and the skill rows remain
+Milestone: v1.6 · Status: 🔄 2026-09-25 — M-6 and M-7 landed (PR #389), and the #439 row (PR #449); M-8, M-9, the Part 1 chapter and the skill rows remain
 Depends on: PR #290's `crystallography.magnetic` (landed 2026-09-10);
 1326 (the k candidates) for the k-search rung; 1327 (the moment, the hold)
 for the determination verb. The irrep and isotropy rungs depend on nothing
@@ -340,3 +340,22 @@ no magnetic model declared.
   - **Measured on the merged tree** (darwin/arm64, py3.12, `[dev,jax]`,
     spglib 2.7.0, spgrep 0.7.0): fast 5889 passed, 84 skipped; `-m slow`
     191 passed, 7 skipped, 1 xfailed; docs ladder 63 passed, `-W` build clean.
+- **2026-09-25** — the #439 row landed from outside: PR #449
+  (`mustachefeeling`), merged as `2a308ec1`, closing #439 by hand (the PR
+  named it without a closing keyword). Test-only, one file.
+  - **What it changes.** The spgrep oracle test no longer pins
+    `(checked, agreed, declined) == (1363, 1363, 114)`. It still asserts
+    `agreed == checked` and that checked plus declined covers all 1477 pairs.
+    On the measured spgrep, every declined `(setting, k)` must be in
+    `ORACLE_REAL_MAY_DECLINE`, the 114 pairs over 58 settings recorded on
+    macOS arm64. A machine declining fewer passes, and one declining a pair
+    off the list fails, naming it.
+  - **What it does not do.** Which BLAS kernel decides `P n -3 m:1` at
+    (½, ½, ½) is still unmeasured. The list is one machine's, so a machine
+    that declines a pair this Mac returns on would fail until the pair is
+    recorded.
+  - **Measured on the merged tree** (darwin/arm64, py3.12, `[dev,jax]`,
+    spgrep 0.7.0), run twice because main moved by one WP file during the
+    first: fast 6094 passed, 89 skipped; `test_magnetic_irreps.py` 46 passed;
+    `-m slow` 197 passed, 7 skipped, 1 xfailed. This Mac still declines
+    `P n -3 m:1` at (½, ½, ½), checked directly.

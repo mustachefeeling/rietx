@@ -77,7 +77,11 @@ comment prices a second background pass as the thing to avoid.
 as a fitted count today, as far as a grep shows. Either give it the fitted
 count, with the file's count beside it as `n_points_file` (an open-dict
 addition, no `EVENT_SCHEMA_VERSION` bump), or say in `events.py`'s
-docstring which count it is.
+docstring which count it is. **Decided 2026-09-25, on PR #450's review:**
+the first option needs a bump after all, because it changes what
+`n_points` means, and `events.py` says a change of meaning is what the
+version is for. So `n_points` keeps the file count and the fitted count
+rides beside it as `n_fitted`, the name the GUI's project data already uses.
 
 ## Non-goals
 
@@ -90,8 +94,8 @@ docstring which count it is.
 
 - [ ] `refine.py`'s stage block adds `extra_peak_curve` when the model
       declares peaks, in `evaluate`'s association order.
-- [ ] `fit_start.n_points`: the fitted count plus `n_points_file`, or a
-      docstring line naming the whole-file count. Say which in the handover.
+- [ ] `fit_start` gains the fitted count as `n_fitted`, and `n_points`
+      keeps the file count (decided 2026-09-25; see Context).
 - [ ] Tests: `stage_end.rwp == fit_end.rwp` on a one-stage fit declaring a
       `PeakComponent` (fails on `8fbafe5`); a no-peak fit's `stage_end.rwp`
       bit-identical to `8fbafe5`'s; `tests/test_telemetry.py` and the
@@ -117,3 +121,11 @@ None beyond the issue: no physics changes.
   cited, the issue's figures reproduce to the digit, and the stage block is
   the only caller that sums the model without `extra_peak_curve`. Next: the
   one-line fix and its two tests.
+- **2026-09-25** — PR #450 (`mustachefeeling`) reviewed at `6fa8af7c` in the
+  `/pr-review all` run; held, not merged. The stage-Rwp fix is right: it
+  restates `evaluate`'s sum in its own association order, and a no-peak fit
+  keeps its stage Rwp to the bit. Two items stand before merge. The golden
+  `PRE_FIX_NO_PEAK_RWP` must declare its kernel path
+  (`compiled.set_enabled`). And `fit_start.n_points` changed meaning under
+  this file's advice, so the maintainer decided the new key above. That
+  advice was this WP's mistake, and the review says so.

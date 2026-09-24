@@ -1,6 +1,6 @@
 # WP-1312 — CW neutron follow-through: the seed, the resonant flag, the joint fit
 
-Milestone: unscheduled · Status: ⬜ — tasks 1-2 and the #271/#276 rows landed from outside (PRs #280, #282, #427, #429); tasks 3-4 and the #268 row open
+Milestone: unscheduled · Status: ⬜ — tasks 1-2 and the #271, #276 and #437 rows landed from outside (PRs #280, #282, #427, #429, #452); tasks 3-4 and the #268 row open
 Depends on: — (WP-1132 is the maintainer's and does not gate any task here)
 Priority: P2 2026-09-23 — a resonant absorber's b is mis-tabulated in silence, on a path few fits run
 
@@ -224,6 +224,51 @@ issue #113 saying its (a) slice landed — #113 stays open for the fenced
 - Sears, V. F. (1992), *Neutron News* **3**(3), 26 — the shipped table.
 
 ## Handover log
+
+### 2026-09-24 — the #437 row landed from outside; a type-3 PNCR `.prm` reads
+
+`rx.read_gsas_prm` now reads a constant-wavelength neutron `.prm` whose
+profile is type 3. It builds `Instrument.constant_wavelength_neutron` at
+`LAM1` and maps the eight `PRCF` coefficients exactly as it does for `PXCR`.
+That is the #437 row of the 2026-09-24 inheritance, live since PR #452 merged
+(`28ed67af`, closing #437). It arrived from an outside contributor with a
+`WP-1312:` commit and no touch of this file. The WP stays `⬜`: tasks 3 and 4
+are untouched, the #268 row is open, and no session owns it.
+
+**What the merge makes possible.** The `PRCF` type decides what reads, under
+either `HTYPE`, and it is checked before `ICONS`. A type-1 file is refused for
+its own type. The message names the file, its `HTYPE` and its coefficient
+count, and it no longer describes `mg090.Cu311.inst`. The fixture is
+`tests/data/gsas2_hb2a_cr2wo6.prm`, the Magnetic-II tutorial's HB-2A
+instrument. A test crosses it against `gsas2_hb2a.instprm` on the same
+diffractometer. Source kind, geometry, λ (to 1.8e-4) and X = Y = 0 agree.
+U V W, the zero and the axial terms differ, because the two files are two
+calibrations.
+
+**What it deliberately does not do.** `write_gsas_prm` still refuses a
+neutron source. The one real `PNCR` file writes `POLA 0.990` and
+`KRATIO 0.500` for a source with neither, and one file is a reading, too thin
+to write a convention from. A non-zero `LAM2` on a `PNCR` file is refused.
+`POLA` and `KRATIO` are read and named in `GSAS_PRM_FIELD_DROPPED`'s `ICONS`
+row, and neither is applied.
+
+**Gotchas.** `tests/test_acceptance_magnetic.py:45` still says `read_gsas_prm`
+refuses this file, and the acceptance seeds its width by hand. The comment is
+now false. Reading the instrument from the `.prm` instead would move a slow
+acceptance's numbers, so that is WP-1327's call, and the review left it as a
+follow-up. The 2026-09-23 two-routes gotcha gains a third route: the `.prm`
+reader goes through the preset and so gets the coarse box, while
+`read_gsas2_instprm` widens the default box only as far as the file needs.
+
+**Measured on the merged tree** (darwin arm64, python 3.12, `[dev,jax]`, a
+suite from another repository sharing the machine):
+
+- Fast suite: 6087 passed, 89 skipped (#452 alone on `14239188`).
+- The slow tests around the reader (`test_acceptance_wavelength.py`,
+  `test_multi_histogram.py`, `test_acceptance_magnetic.py`,
+  `test_neutron_cw.py`): 10 passed.
+- The whole `-m slow` suite once, on `14239188` + #452 + #456, whose tree is
+  the one main reached at `dab23473`: 197 passed, 7 skipped, 1 xfailed.
 
 ### 2026-09-23 (2nd session) — the #276 row landed from outside; the neutron preset builds a coarse box
 
