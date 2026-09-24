@@ -1,6 +1,6 @@
 # WP-1454 — `auto_background`'s choices survive the fit
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-09-24 — claimed by @yue-here
 Depends on: —
 Priority: P2 2026-09-24 — the default background of every P-spline fit: its stiffness follows the intensity unit, its knots ignore the fitted range, and every preset frees an air term it declined; the flexible side is derived silent, P1 if task 3 measures a structural answer moving with nothing fired
 
