@@ -70,8 +70,10 @@ differences from the issue's macOS table matter for the work:
   where a user with defaults meets this.
 
 **A single fit has it too.** Pattern 0's fit, with nothing carried, ends
-with an out-of-range intensity of 4.13e7 (it is pattern 1's carried maximum)
-and its last stage ended on `xtol` after 3 iterations. So any multi-stage
+with (6 0 2), centred at 75.44° past the last channel at 74.99°, at 4.13e7
+against a median of 81 over 105 reflections; the next largest is 2.6e3
+(checked with a hook on pattern 1's carried state). Its last stage ended on
+`xtol` after 3 iterations. So any multi-stage
 Pawley fit's later stages inherit the scale problem. Whether that costs a
 single fit anything is unmeasured.
 
