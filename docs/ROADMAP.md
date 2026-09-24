@@ -607,7 +607,7 @@ its first concrete ask, **has no WP and needs one cut** — seam written out in
 | WP | Title | Status | Priority | Depends on |
 |---|---|---|---|---|
 | [1119](wp/1119-named-variables.md) | Named variables and equations: a `prm` of one's own | ✅ 2026-09-04 | — | — |
-| [1314](wp/1314-mfile-reader.md) | A Jana2020 project reader: .m50/.m40/.m41 | ⬜ | P3 | 1118 |
+| [1314](wp/1314-mfile-reader.md) | A Jana2020 project reader: .m50/.m40/.m41 | ⬜ | P3 | — |
 | [1319](wp/1319-structure-interchange.md) | Structure interchange: checkCIF conformance and a bare XYZ importer | ⬜ | P3 | — |
 | [1433](wp/1433-the-inp-grammar-still-refused.md) | The `.inp` grammar the reader still refuses: `STR(...)` and `#if` | ⬜ | P3 | — |
 | [1455](wp/1455-a-topas-tchz-profile-reads-in.md) | A TOPAS TCHZ profile reads in | ⬜ | P3 | — (1433 soft) |
@@ -655,11 +655,11 @@ the limit carried load rather than whether the value stopped near one, and
 | [1321](wp/1321-persisted-bounds-repair.md) | The bounds a Parameter field declared: repair and audit | ⬜ | P2 | — (PR #206 first) |
 | [1323](wp/1323-lebail-stop-rule.md) | The Le Bail alternation has a stop rule, and a scope | ⬜ | P2 | — |
 | [1324](wp/1324-symmetry-silences.md) | Symmetry silences: an orbit that is not a multiplicity, a setting nobody chose | ✅ 2026-09-02 | — | — |
-| [1332](wp/1332-the-axis-a-reader-hands-back.md) | The axis a reader hands back | ⬜ | P2 | — |
+| [1332](wp/1332-the-axis-a-reader-hands-back.md) | What a reader hands back: the axis, the rows, the σ column | ⬜ | P2 | — |
 | [1336](wp/1336-the-fit-does-not-say-it-is-unusable.md) | The fit does not say it is unusable: the status channel and the width census | ⬜ | P2 | — (1310 soft) |
 | [1337](wp/1337-an-authored-refusal-not-a-traceback.md) | An authored refusal, not a raw traceback | ⬜ | P3 | — (1311, 1321 soft) |
 | [1342](wp/1342-a-freeze-that-reads-names.md) | A structural freeze that reads names, and the tie it cannot see | ✅ 2026-09-19 | — | — (1301, 1119 soft) |
-| [1344](wp/1344-a-joint-fit-owes-each-histogram-its-diagnostics.md) | A joint fit owes each histogram the diagnostics its own radiation earns | ⬜ | P3 | — (1341 soft) |
+| [1344](wp/1344-a-joint-fit-owes-each-histogram-its-diagnostics.md) | A joint fit owes each histogram the diagnostics its own radiation earns | ⬜ | P3 | — |
 | [1414](wp/1414-a-turn-on-that-reached-nothing.md) | A `turn_on` that reached nothing says so | ✅ 2026-09-22 | — | — (1341 soft) |
 | [1415](wp/1415-a-sigma-column-smaller-than-root-y.md) | A σ column smaller than √y | 🔄 2026-09-23 | — | — |
 | [1417](wp/1417-delta-bic-at-powder-channel-counts.md) | ΔBIC at powder channel counts | ⬜ | P2 | — (1339 soft) |
@@ -710,13 +710,13 @@ optional-dependency format.
 
 1047's declared follow-up, reopened by an ask for a PANalytical `.raw` that
 does not exist (`.raw` is six unrelated vendors, none of them PANalytical).
-1416 makes the positional `.xy` reader check the shape of what it accepted
-(issue #266).
+1416, the positional `.xy` reader checking the shape of what it accepted
+(issue #266), was folded into 1332 on 2026-09-24.
 
 | WP | Title | Status | Priority | Depends on |
 |---|---|---|---|---|
 | [1407](wp/1407-the-format-a-benchtop-still-writes.md) | The format a benchtop still writes: PANalytical `.udf`/`.rd`, and three named refusals | ✅ 2026-09-13 | — | — |
-| [1416](wp/1416-read-xy-reads-the-files-shape.md) | `read_xy` reads the file's shape | ⬜ | P2 | — |
+| [1416](wp/1416-read-xy-reads-the-files-shape.md) | `read_xy` reads the file's shape | 🛑 2026-09-24 | — | — |
 
 #### Render what the fit already knows
 
@@ -740,7 +740,7 @@ separability floor, and not scheduled here.
 | [1322](wp/1322-events-aggregator.md) | The run is instrumentable, and nothing says so | ⬜ | P3 | — |
 | [1339](wp/1339-where-the-improvement-lives.md) | Where the improvement lives | ⬜ | P3 | — |
 | [1340](wp/1340-qpa-on-a-molar-basis.md) | QPA on a molar basis, and the basis travels with the number | ⬜ | P3 | — (1320 soft) |
-| [1341](wp/1341-a-joint-fit-has-no-report.md) | A joint fit has no report | ⬜ | P2 | — (1312, 1335 soft) |
+| [1341](wp/1341-a-joint-fit-has-no-report.md) | A joint fit has no report | ⬜ | P2 | — (1312, 1335, 1344 soft) |
 | [1444](wp/1444-the-pattern-before-the-model.md) | The pattern before the model, and a title on the figure | ⬜ | P3 | — |
 
 #### The repo's own process
