@@ -610,6 +610,7 @@ its first concrete ask, **has no WP and needs one cut** — seam written out in
 | [1314](wp/1314-mfile-reader.md) | A Jana2020 project reader: .m50/.m40/.m41 | ⬜ | P3 | 1118 |
 | [1319](wp/1319-structure-interchange.md) | Structure interchange: checkCIF conformance and a bare XYZ importer | ⬜ | P3 | — |
 | [1433](wp/1433-the-inp-grammar-still-refused.md) | The `.inp` grammar the reader still refuses: `STR(...)` and `#if` | ⬜ | P3 | — |
+| [1455](wp/1455-a-topas-tchz-profile-reads-in.md) | A TOPAS TCHZ profile reads in | ⬜ | P3 | — (1433 soft) |
 
 #### The fit has no reference
 
@@ -670,6 +671,8 @@ the limit carried load rather than whether the value stopped near one, and
 | [1446](wp/1446-a-supercell-that-outranks-the-truth.md) | A supercell that outranks the truth, on evidence the panel already has | 🛑 2026-09-22 | — | — (1442 soft) |
 | [1447](wp/1447-a-threshold-each-pattern-sets-for-itself.md) | A threshold each pattern sets for itself | ⬜ | P3 | — (1442 soft) |
 | [1449](wp/1449-rank-on-what-the-screen-determined.md) | Rank on what the screen determined, not on what the peak list shows | ⬜ | P2 | — (1446 refuted the peak-list route) |
+| [1454](wp/1454-auto-background-choices-survive-the-fit.md) | `auto_background`'s choices survive the fit | ⬜ | P2 | — |
+| [1456](wp/1456-an-editable-install-stamps-what-it-runs.md) | An editable install stamps what it runs | ⬜ | P3 | — |
 
 #### A long run is not one fit
 
@@ -690,6 +693,7 @@ the chain says nothing (issue #267).
 | [1334](wp/1334-the-stage-that-ran-out-of-budget.md) | The stage that ran out of budget | ⬜ | P3 | — |
 | [1335](wp/1335-the-report-costs-more-than-the-fit.md) | The report costs more than the fit | ⬜ | P3 | — |
 | [1420](wp/1420-a-held-phase-re-enters-or-says-it-cannot.md) | A held phase re-enters, or the chain says it cannot | ⬜ | P2 | — (1333, 1342, 1419 soft) |
+| [1453](wp/1453-both-directions-name-the-lower-cost.md) | Both directions name the lower cost | ⬜ | P3 | — (1420 soft) |
 
 #### One file, many patterns
 

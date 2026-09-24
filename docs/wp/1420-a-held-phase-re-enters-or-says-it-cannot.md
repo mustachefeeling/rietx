@@ -123,6 +123,32 @@ down.
 
 ### Inherited
 
+**From the 2026-09-24 transcript review (PR #444, which filed WPs 1453-1456):
+a real held-phase series for task 3, and a deferred question.** The series is
+`in-situ series 1` in the private `yue-here/rietx-corpus-map`, which says
+where the data, the scripts and the transcript live. It is 48 synchrotron
+patterns in which phases enter and leave. Quote only what the runs did
+(CONTRIBUTING, WP-1450). An agent refined it at `644dff84` with a
+hand-written chain, because `SequentialRefinement` takes one `Structure` for
+the whole chain. That chain fitted one to four candidates per pattern, and
+two candidates were proxies sharing one structure with a neighbour, which is
+this WP's collinear case by construction. It declared a window of patterns
+per phase, pruned a phase under 1 wt % or under 2σ, and bounded each phase's
+cell to about ±0.15 % of a reference to keep its identity. Its first chain
+swapped two phases' identities across a transition while Rwp stayed smooth.
+The hand chain ran no series check, so the package never had the chance to
+see it.
+
+**Deferred into this WP: can the fixed list carry such a series?** Run it
+through `refine_sequential` with every candidate in one `Structure`, in both
+directions. If it cannot, because a proxy takes its neighbour's reflections
+or because carrying every candidate costs too much, file the follow-up: a
+phase set declared per pattern, with carry, trajectories and path dependence
+keyed by phase name. Read first how GSAS-II's sequential refinement and a
+TOPAS batch file treat a phase that enters mid-series. If the fixed list
+serves, the docs task here takes the recipe, because `references/series.md`
+has no route for a changing phase set.
+
 **From WP-1333 (2026-09-23): the ramp reproduction's wall-clock guard is a
 load sensor.** `tests/test_held_phase.py::test_the_ramp_reproduction_no_longer_runs_away`
 failed in WP-1333's full run (`[dev]`, Linux x86-64, 4 cores, 1:24:44). It
