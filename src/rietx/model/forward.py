@@ -626,7 +626,8 @@ class CompiledModel:
     # columns either way)
     bkg_paths: tuple[str, ...]
     bkg_design: np.ndarray  # (len(bkg_paths), n_points)
-    # P-spline smoothness penalty: extra residual rows √λ·D₂·c, already scaled
+    # P-spline smoothness penalty: extra residual rows w·D₂·c, the weight w
+    # (√λ, times √m/σ̄ under ``lambda_units="dimensionless"``) already folded in
     # (columns aligned with bkg_paths); None for penalty-free backgrounds
     bkg_penalty: np.ndarray | None
     #: Whether :attr:`sigma` came from the file's own esd column, or from the
@@ -858,7 +859,8 @@ class CompiledModel:
         return gamma
 
     def penalty_residual(self, values: dict[str, float]) -> np.ndarray | None:
-        """√λ·D₂·c rows appended to the residual (P-spline smoothness)."""
+        """w·D₂·c rows appended to the residual (P-spline smoothness; the
+        frozen weight w is ``bkg_penalty``'s, see that field)."""
         if self.bkg_penalty is None:
             return None
         xp = get_backend()
@@ -1839,7 +1841,7 @@ class CompiledModel:
         # Short is exactly what does not happen here, and that is checkable
         # rather than hopeful: the whole-model FD writes ``J[:n_data, c]`` only,
         # and a peak parameter's derivative on every row below the data block is
-        # *identically* zero — the P-spline penalty rows are √λ·D₂·c in the
+        # *identically* zero — the P-spline penalty rows are w·D₂·c in the
         # background *coefficients*, the Pawley rows are in the intensity block,
         # and a restraint row is a function of coordinates and cell.  So the
         # rows the FD leaves at their zero initialisation are the rows whose

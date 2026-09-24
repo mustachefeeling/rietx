@@ -147,7 +147,11 @@ def pspline_penalty_scale(sigma: np.ndarray, n_coef: int) -> float:
     λ·(h/W)⁴ of the fit it buys, with h the knot spacing, so λ = 1 suppresses
     features narrower than about one knot spacing and leaves wider ones to the
     data.  The O(1) constant in that is not computed.  Both inputs are frozen
-    at stage compile, like σ itself.
+    at stage compile, like σ itself.  m counts every coefficient, so it holds
+    as stated only while the knots span the fitted channels, which
+    ``auto_background(two_theta_limits=…)`` arranges.  Knots past the fitted
+    range make the penalty weaker than λ says on the coefficients that do see
+    data.
     """
     sigma = np.asarray(sigma, dtype=np.float64)
     return float(np.sqrt(sigma.size / n_coef) / np.median(sigma))

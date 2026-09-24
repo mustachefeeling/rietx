@@ -291,8 +291,9 @@ penalty on a background before choosing.
       through a function-level import, since `project` sits above
       `background/`. Caller-supplied `diagnostics` are used as given, with the
       knots still clamped to the limits. An inverted interval is refused
-      with `check_interval`'s sentence, and limits holding fewer than two
-      channels are refused by name.
+      with `check_interval`'s sentence. Limits holding fewer than ten
+      channels, `compile_model`'s own floor, are refused by count, and so are
+      diagnostics that miss the limits (both added by the handover's review).
 - [x] Tests. Unit invariance: at k ∈ {10⁻³, 1, 10³} the fitted background
       divided by k agrees within the spread the same fit shows when
       restarted, measured first and never chosen (tests/CLAUDE.md § Budgets

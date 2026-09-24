@@ -24,6 +24,9 @@ HUMP_TRIGGER = 0.05
 #: P-spline knot spacing scales inversely with how busy the baseline is
 _KNOT_STEP_SMOOTH_DEG = 8.0
 _KNOT_STEP_HUMPY_DEG = 3.0
+#: fewest fitted channels ``two_theta_limits`` may leave: ``compile_model``'s
+#: own floor, below which no fit runs (and ``diagnose`` divides by zero at 2)
+_MIN_FIT_CHANNELS = 10
 
 
 def auto_background(data: PatternData, *, kind: str = "pspline",
@@ -54,10 +57,11 @@ def auto_background(data: PatternData, *, kind: str = "pspline",
         # above this package
         from ..project import fitted_mask
 
-        if int(fitted_mask(data, (lo, hi)).sum()) < 2:
+        n_fit = int(fitted_mask(data, (lo, hi)).sum())
+        if n_fit < _MIN_FIT_CHANNELS:
             raise ValueError(
-                f"two_theta_limits ({lo}, {hi}) leave fewer than two channels "
-                "to build a background over")
+                f"two_theta_limits ({lo}, {hi}) leave {n_fit} fitted channels, "
+                f"fewer than the {_MIN_FIT_CHANNELS} a fit needs")
         data = data.crop(lo, hi)
     diag = diagnostics or diagnose(data, wavelength=wavelength)
     if kind == "chebyshev":
@@ -71,6 +75,11 @@ def auto_background(data: PatternData, *, kind: str = "pspline",
     k_lo, k_hi = diag.two_theta_min, diag.two_theta_max
     if two_theta_limits is not None:
         k_lo, k_hi = max(k_lo, lo), min(k_hi, hi)
+        if k_lo >= k_hi:  # caller's diagnostics cover none of the limits
+            raise ValueError(
+                f"the supplied diagnostics span {diag.two_theta_min:g}-"
+                f"{diag.two_theta_max:g}°, which does not overlap "
+                f"two_theta_limits ({lo}, {hi})")
     bkg = BackgroundPSpline.for_range(k_lo, k_hi, knot_step_deg=step,
                                       lambda_smooth=1.0)
     # Declined means absent, never a zero one: a plan's ``instrument.background.*``

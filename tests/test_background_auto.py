@@ -926,8 +926,16 @@ def test_auto_background_refuses_limits_it_cannot_use():
     data = _peaky_pattern(background=_flat_bkg)
     with pytest.raises(ValueError, match="inverted"):
         auto_background(data, two_theta_limits=(70.0, 30.0))
-    with pytest.raises(ValueError, match="fewer than two channels"):
+    with pytest.raises(ValueError, match="fewer than the 10 a fit needs"):
         auto_background(data, two_theta_limits=(200.0, 210.0))
+    # two channels: enough for a PatternData, not for ``diagnose`` or a fit
+    tt = np.asarray(data.two_theta)
+    with pytest.raises(ValueError, match="leave 2 fitted channels"):
+        auto_background(data, two_theta_limits=(tt[10], tt[11]))
+    # caller's diagnostics over a range the limits do not reach
+    elsewhere = diagnose(data.crop(20.0, 30.0), wavelength=WAVELENGTH)
+    with pytest.raises(ValueError, match="does not overlap"):
+        auto_background(data, diagnostics=elsewhere, two_theta_limits=(50.0, 70.0))
 
 
 def test_an_undeclared_air_term_raises_no_background_correlation_rows():
