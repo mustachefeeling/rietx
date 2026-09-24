@@ -591,20 +591,20 @@ diffraction information and belong outside the fit range.
 | `SignalCutoff.n_channels` | channels outside the boundary, i.e. exactly what a trim there would drop |
 | `SignalCutoff.relative_error_ratio` | the implied precision penalty: the region's median σ/y over the interior's. Null when σ was not measured |
 
-Measured on an ILL D20 constant-wavelength neutron scan of in-situ SrFeO₃
-(λ = 2.422 Å, 1540 points over 0.034–153.934°, σ from the file), the two ends are
-different shapes and carry different arguments. The trailing end is a cliff:
-91 % of the interior level at 142.83°, 24 % at 144.03°, then flat at 2–3 % for
-the remaining 8.7°. That is a factor of 45 in 2.3°, and past it nothing at all.
-The leading end is a graded degradation: a direct-beam shoulder, a shadowed
-floor near 5 %, a broad bump peaking around 4.6° at 14 %, then a climb that
-reaches the interior level only around 28°. At that wavelength the bump sits at
-d ≈ 30 Å, so it is not sample diffraction. There is structure at the low end,
-and it is a beamstop halo and air scatter rather than the specimen, so fitting a
-background through it means describing non-specimen structure at 3× the
-interior's fractional error. `signal_cutoffs` reports the pair at 7.63° and
-143.03°; TOPAS's own refinements of that file declare
-`start_X 8 finish_X 142`.
+Measured on a private constant-wavelength neutron PSD scan (σ from the file),
+the two ends are different shapes and carry different arguments. The trailing
+end is a cliff: from the interior level to a floor of a few per cent within a
+couple of degrees, then flat for the rest of the range. That is a factor of
+tens in a couple of degrees, and past it nothing at all. The leading end is a
+graded degradation: a direct-beam shoulder, a shadowed floor of a few per cent,
+a broad bump at a modest fraction of the interior level, then a climb that
+reaches the interior level only tens of degrees in. The bump sits at d ≈ 30 Å,
+so it is not sample diffraction. There is structure at the low end, and it is a
+beamstop halo and air scatter rather than the specimen, so fitting a background
+through it means describing non-specimen structure at several times the
+interior's fractional error. `signal_cutoffs` reports a boundary at each end:
+the leading one within half a degree of the window the data owner's own TOPAS
+refinements of that file declare, the trailing one a little further out.
 
 :::{warning}
 Nothing is trimmed for you and nothing else is re-measured. `diagnose` reports
@@ -612,20 +612,21 @@ these and stops, because a fit range is a protocol decision and the numbers abov
 do not settle it on their own.
 
 That is also why the ordering matters: every other field of a
-`PatternDiagnostics` is measured over the whole range it was handed. On that same
-file, full range against the 8–142° window, `amorphous_hump_score` reads 0.2549
-against 0.1380, inflated 1.85× by the dead tail. `air_scatter_gain` reads 0.0027
-against 0.1433, hiding the real low-angle rise entirely, and `baseline_lambda`
-moves two decades, 10⁴ against 10⁶. If you decide to trim, call `diagnose` again
-on the trimmed pattern. The first answer described the range you gave it.
+`PatternDiagnostics` is measured over the whole range it was handed. On that
+same file, full range against the data owner's TOPAS window,
+`amorphous_hump_score` is inflated nearly twofold by the dead tail.
+`air_scatter_gain` is understated by more than an order of magnitude, hiding the
+real low-angle rise entirely, and `baseline_lambda` moves by two decades. If you
+decide to trim, call `diagnose` again on the trimmed pattern. The first answer
+described the range you gave it.
 
 `SignalCutoff.relative_error_ratio` is derived rather than a second observation.
-Where σ²/y is constant, as it is across that whole pattern at about 20 000
-straight through both transitions, σ/y is 1/√y up to a constant. So the ratio is
-1/√`floor_fraction` and says nothing the level did not. It is reported because it
-is the number an experimenter reads. That σ²/y stays flat is also what separates
-this from `PatternDiagnostics.coverage_regions`: the file's σ there is honest,
-and those channels are empty rather than thinly covered.
+Where σ²/y is constant, as it is across that whole pattern straight through both
+transitions, σ/y is 1/√y up to a constant. So the ratio is 1/√`floor_fraction`
+and says nothing the level did not. It is reported because it is the number an
+experimenter reads. That σ²/y stays flat is also what separates this from
+`PatternDiagnostics.coverage_regions`: the file's σ there is honest, and those
+channels are empty rather than thinly covered.
 :::
 
 ### A channel that measures nothing and outvotes the pattern
