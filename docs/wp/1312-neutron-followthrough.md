@@ -66,6 +66,31 @@ exercising this combination.
 
 ### Inherited
 
+- **2026-09-24, from the issue triage (issue #437): `read_gsas_prm` refuses
+  a type-3 `PNCR` file it could read.** The same class of defect as #271's
+  row below, in the GSAS-I reader: `io/instrument_profile.py`'s
+  `_HTYPE_REFUSALS["PNCR"]` refuses every `HTYPE PNCR` file before the
+  `PRCF` type is read. Its message describes the repository's one fixture
+  (`tests/data/mg090.Cu311.inst`, `PRCF` type 1) rather than the file in
+  hand. *Checked against the tree at `8fbafe5`*: `11BM_LaB6_cBN_mg2044.prm`
+  (`PXCR`, `PRCF1 3 19`) reads to a `ProfileTCHZ`. The same file with
+  `HTYPE PNCR` and `ICONS 2.4067` raises, telling the user their file
+  "carries a PRCF of type 1". That is the message rule root `CLAUDE.md` gives
+  under WP-1118: a message that names its discriminator makes a claim about
+  the file. **The ask:** key the refusal on the `PRCF` type, as the `PXCR`
+  path already does. A type-3 `PNCR` file reads onto
+  `Instrument.constant_wavelength_neutron` (a `NeutronSource` at the `ICONS`
+  λ, no Kα₂, no polarisation) with the `PXCR` mapping of U V W / X Y / S/L
+  H/L. A type-1 file keeps its refusal, worded about its own type. **The
+  fixture the docstring asked for exists publicly**: the GSAS-II tutorial
+  *Magnetic-II* instrument file `Cr2WO6_T4K_dat.prm` (HFIR HB-2A,
+  λ 2.4067 Å, `INS 1PRCF1 3 8`). Its provenance goes in
+  `tests/data/README.md`, and the file goes under `tests/`, never
+  `src/rietx/data/`. The same instrument's GSAS-II `.instprm` is already
+  `tests/data/gsas2_hb2a.instprm` (WP-1118's entry below), so the two readers
+  can be crossed on one diffractometer. The reporter offered the PR on the
+  thread. No re-rating: a raise that fires wrongly and costs a workaround
+  is this WP's P2 row already.
 - **2026-09-23, from the issue triage (issue #276).** The reporter claimed
   #276's row on the thread and opened PR #429 the same day ("the neutron
   preset builds its profile in a coarse-instrument box; a bare wide width
