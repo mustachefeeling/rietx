@@ -17,7 +17,7 @@ body{margin:0;background:var(--ground);color:var(--ink);font:12px system-ui}
 #bar button{font:12px system-ui;padding:3px 8px;border:1px solid var(--grid);background:var(--ground);color:var(--ink);border-radius:3px;cursor:pointer}
 #bar button.on{background:var(--obs);color:var(--ground);border-color:var(--obs)}
 #bar .sep{margin-left:12px;opacity:.6}
-#status{margin-left:12px;font:12px ui-monospace,monospace}
+#status,#paint{margin-left:12px;font:12px ui-monospace,monospace}
 #help{padding:0 8px 6px;opacity:.7;width:1184px}
 </style></head><body>
 <div id="legend"></div>
@@ -153,13 +153,17 @@ function thinMarkers(u, si, i0, i1) {
 }
 // ---------------------------------------------------------------- charts
 const U = {};
-let syncing = false;
+// The panes are linked by value, never by a flag. uPlot fires setScale hooks from a microtask,
+// after setX has returned, so a flag set around the loop is already clear when the echo arrives.
+// Every setScale repaints its pane even when the range has not moved, so an echo cost the main
+// and tick panes a second paint on every zoom.
 function setX(lo, hi, except) {
-  syncing = true;
-  for (const k of ["main", "ticks", "resid"]) if (U[k] && U[k] !== except) U[k].setScale("x", { min: lo, max: hi });
-  syncing = false;
+  for (const k of ["main", "ticks", "resid"]) {
+    const u = U[k];
+    if (u && u !== except && (u.scales.x.min !== lo || u.scales.x.max !== hi)) u.setScale("x", { min: lo, max: hi });
+  }
 }
-function onScale(u, key) { if (key === "x" && !syncing) setX(u.scales.x.min, u.scales.x.max, u); }
+function onScale(u, key) { if (key === "x" && !S.exporting) setX(u.scales.x.min, u.scales.x.max, u); }
 function yScale() {
   if (S.scale === "log") return { distr: 3, log: 10 };
   if (S.scale === "sqrt") return { distr: 100, fwd: (v) => Math.sign(v) * Math.sqrt(Math.abs(v)), bwd: (v) => Math.sign(v) * v * v };
@@ -177,6 +181,20 @@ const axisY = (show = true) => ({ stroke: () => C.ink, grid: { stroke: () => C.g
 const cursor = () => ({ sync: { key: S.exporting ? "export" : "rx", setSeries: false }, drag: { x: true, y: false, setScale: S.mode === "zoom" },
                         points: { show: false }, y: false, focus: { prox: -1 } });
 
+// ?demo reports each frame's repaints; without it no timer is attached, so the driver's numbers are untouched
+const DEMO = new URLSearchParams(location.search).has("demo");
+let paintT0 = 0, frameCost = null;
+function timedPaint(hooks) {
+  if (!DEMO) return hooks;
+  const start = () => { paintT0 = performance.now(); };
+  const end = () => {
+    if (S.exporting) return;
+    if (!frameCost) { frameCost = { panes: 0, ms: 0 }; requestAnimationFrame(() => { const c = frameCost; frameCost = null; dispatchEvent(new CustomEvent("repaint", { detail: c })); }); }
+    frameCost.panes++; frameCost.ms += performance.now() - paintT0;
+  };
+  return { ...hooks, drawClear: [start, ...(hooks.drawClear ?? [])], draw: [...(hooks.draw ?? []), end] };
+}
+
 function makeMain(el) {
   return new uPlot({
     width: W, height: 420, legend: { show: false }, cursor: cursor(),
@@ -191,19 +209,19 @@ function makeMain(el) {
       { label: "calculated", stroke: () => C.calc, width: 1.2 },
       { label: "background", stroke: () => C.bkg, width: 1, dash: [4, 3] },
       { label: "peak fit", stroke: () => C.peak, width: 1, dash: [2, 2] }],
-    hooks: { drawClear: [drawExcluded, drawCandidates], draw: [drawPeaks], setScale: [onScale], setCursor: [onCursor], setSelect: [onSelect] },
+    hooks: timedPaint({ drawClear: [drawExcluded, drawCandidates], draw: [drawPeaks], setScale: [onScale], setCursor: [onCursor], setSelect: [onSelect] }),
   }, mainData(), el);
 }
 function makeTickPane(el) {
   return new uPlot({ width: W, height: 48, legend: { show: false }, cursor: cursor(), scales: { x: { time: false }, y: { range: [0, 1] } },
     axes: [axisX(false), axisY(false)], series: [{}, { show: false }],
-    hooks: { drawClear: [drawExcluded], draw: [drawTicks], setScale: [onScale], setSelect: [onSelect] } },
+    hooks: timedPaint({ drawClear: [drawExcluded], draw: [drawTicks], setScale: [onScale], setSelect: [onSelect] }) },
     [D.x, new Array(D.x.length).fill(null)], el);
 }
 function makeResid(el) {
   return new uPlot({ width: W, height: 170, legend: { show: false }, cursor: cursor(), scales: { x: { time: false } },
     axes: [axisX(true), axisY()], series: [{}, { label: "Δ/σ", stroke: () => C.diff, width: 1 }],
-    hooks: { drawClear: [drawExcluded, drawBand], setScale: [onScale], setSelect: [onSelect] } }, [D.x, D.diff], el);
+    hooks: timedPaint({ drawClear: [drawExcluded, drawBand], setScale: [onScale], setSelect: [onSelect] }) }, [D.x, D.diff], el);
 }
 
 // ---------------------------------------------------------------- interaction
@@ -336,7 +354,7 @@ window.P = {
       arc(...a) { this.ops.push(["arc", a]); } bezierCurveTo(...a) { this.ops.push(["bezierCurveTo", a]); } closePath() { this.ops.push(["closePath", []]); }
     }
     const t0 = performance.now(), Native = window.Path2D, get = HTMLCanvasElement.prototype.getContext, out = [], [lo, hi] = this.xRange();
-    S.exporting = true; syncing = true;   // the export charts join no group and move no live pane
+    S.exporting = true;   // the export charts join no group and move no live pane
     for (const [make, h] of [[makeMain, 420], [makeTickPane, 48], [makeResid, 170]]) {
       let svg = null, used = false;
       HTMLCanvasElement.prototype.getContext = function (t, ...r) {
@@ -356,7 +374,7 @@ window.P = {
         out.push(svg.getSerializedSvg()); u.destroy();
       } finally { HTMLCanvasElement.prototype.getContext = get; window.Path2D = Native; host.remove(); }
     }
-    S.exporting = false; syncing = false;
+    S.exporting = false;
     return { ms: performance.now() - t0, svgs: out };
   },
   async copyTSV() {   // the visible window, every column, as a spreadsheet pastes it
@@ -369,7 +387,7 @@ window.P = {
 
 // ---------------------------------------------------------------- ?demo: a toolbar for a person
 // The driver never passes ?demo, so its timings are untouched by any of this.
-if (new URLSearchParams(location.search).has("demo")) {
+if (DEMO) {
   const q = new URLSearchParams(location.search), N = +(q.get("n") ?? 59498);
   const bar = document.createElement("div"); bar.id = "bar"; document.body.prepend(bar);
   const help = document.createElement("div"); help.id = "help"; bar.after(help);
@@ -413,6 +431,8 @@ if (new URLSearchParams(location.search).has("demo")) {
     say(`SVG exported in ${ms.toFixed(0)} ms`);
   });
   bar.appendChild(status);
+  const paint = document.createElement("span"); paint.id = "paint"; bar.appendChild(paint);
+  addEventListener("repaint", (e) => { paint.textContent = `last frame: ${e.detail.panes} pane${e.detail.panes === 1 ? "" : "s"} painted in ${e.detail.ms.toFixed(1)} ms`; });
   timed(`mounted ${N.toLocaleString()} points`, () => mount(N));
 }
 </script></body></html>
