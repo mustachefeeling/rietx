@@ -1,8 +1,7 @@
 # WP-1416 — `read_xy` reads the file's shape
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🛑 2026-09-24 — folded into [WP-1332](1332-the-axis-a-reader-hands-back.md), which carries this file's context and tasks; nothing was built here
 Depends on: —
-Priority: P2 2026-09-23 — a constant column becomes σ in silence, on the shape few .xy files have
 
 ## Goal
 
@@ -102,6 +101,13 @@ reader is outside this WP.
 
 ## Handover log
 
+- **2026-09-24** — folded into WP-1332, from a review of the open WPs for
+  overlap. Both WPs check what `read_pattern` hands back and report through
+  `diagnostics=`, under the same `io/CLAUDE.md` rule, test arm and skill
+  section, and both were P2 with no dependency. WP-1332 now holds this
+  file's Goal, Context, Non-goals, Tasks, Acceptance and References, and is
+  the file to read. This one stays as the record of what was filed. Next:
+  none here.
 - **2026-09-15** — created, from the 2026-09-15 issue triage (issue #266).
   Checked against the tree: the reader is as the issue quotes it; the
   ascending check cannot see a point below x₁.
