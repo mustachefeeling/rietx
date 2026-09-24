@@ -783,10 +783,10 @@ scope creep. Each item names what fenced it.
   ([1122](wp/1122-compiled-peaks-buffer.md) measured shape reuse below
   break-even without one); neutron **TOF** (CW landed in 1134; issue #193; the
   energy-dependent resonant absorption at S(Q), #113) — **built through
-  rather than deferred**: a working implementation reaching at least T-1 and
-  T-2 exists unpushed on the `mustachefeeling` fork, so #193 is the next fence
-  decision to take, on the branch once it is visible (1419 § Inherited,
-  2026-09-18) — and issue #362 lists the constant-wavelength reads
+  rather than deferred**: the fork's branch is visible (`tof-cleanroom-20260923`),
+  and **decided 2026-09-24: held until v1.6 closes**, then taken on that branch
+  in its own cuts (T-1, T-2/T-3, T-5), with #442 (a bank's force-fixed CW width
+  rows under 1414's "matched, not freed") going with T-1 — and issue #362 lists the constant-wavelength reads
   (`CompiledModel.tt`, `line_wavelengths`, `sigma_measured`; `viz/snapshot.py`
   and 23 more sites) a second compiled-model class meets, so the accessor seam
   it proposes waits for that class rather than preceding it; spherical-harmonics
