@@ -23,7 +23,7 @@ trailing stretches where the instrument stopped seeing the sample.  Everything
 else here is computed over the whole range it is handed, so a dead end corrupts
 those answers — measured, and the numbers are in that function's docstring.  It
 reads the **intensities**, and it is not :func:`counting_coverage` under another
-name: measured on the pattern quoted there, σ²/y holds at ≈20 000 straight
+name: measured on the pattern quoted there, σ²/y holds constant straight
 through the collapse, so σ is honest and those channels are not thinly covered,
 they are empty.  What σ adds is that same level re-expressed as a precision, and
 :class:`SignalCutoff` carries it as a derived number rather than as a second
@@ -295,34 +295,35 @@ COVERAGE_SMOOTH_DEG = 1.0
 COVERAGE_INFLATION_THRESHOLD = 1.5
 
 #: How far below the interior level a run must sit to be a *collapse* rather
-#: than a falling background (:func:`signal_cutoffs`).  Swept on the three ILL
-#: D20 patterns quoted there, 0.15 to 0.40, watching the reported boundary:
-#: the **trailing** cliff barely moves (143.33 → 142.73°, 0.6° over a 2.7×
-#: change in the constant) because it is steep, while the **leading** boundary
-#: is flat at 7.63-7.73° over 0.20-0.30 and then breaks — 9.63° at 0.35, 11.53°
-#: at 0.40 — because the leading end is a graded climb that only reaches 32 % of
-#: the interior level by 8°, so a threshold above ≈0.32 swallows the climb
-#: itself and the walk-back starts from inside live data.  0.25 sits in the
-#: middle of the flat stretch, with ≈1.3× margin to the break above and to the
-#: 0.15 that puts the run's inner edge below the 4.6° halo bump.  It is also
-#: what keeps a sample-free ``Background.xye`` silent at the low end (it fires
-#: there at 0.30 and above), which is the one file in the set with no low-angle
-#: answer to get right.
+#: than a falling background (:func:`signal_cutoffs`).  Swept 0.15 to 0.40 on
+#: the three private constant-wavelength neutron PSD scans quoted there,
+#: watching the reported boundary: the **trailing** cliff barely moves (a
+#: fraction of a degree over a 2.7× change in the constant) because it is
+#: steep, while the **leading** boundary is flat over 0.20-0.30 and then breaks
+#: outward by degrees at 0.35 and 0.40, because the leading end is a graded
+#: climb that has reached only about a third of the interior level a few
+#: degrees in, so a threshold much above 0.30 swallows the climb itself and
+#: the walk-back starts from inside live data.  0.25 sits in the middle of the
+#: flat stretch, with margin to the break above and to the 0.15 that puts the
+#: run's inner edge below the low-angle halo bump.  It is also what keeps the
+#: sample-free scan of the set silent at the low end (it fires there at 0.30
+#: and above), which is the one file in the set with no low-angle answer to
+#: get right.
 CUTOFF_FRACTION = 0.25
 
 #: The fraction of the local plateau at which the collapse is declared to have
 #: *begun*, which is the 2θ actually reported.  The floor is not the boundary a
-#: fit range wants: on ``306774`` the trailing level is still 92 % of interior
-#: at 142.83°, 24 % at 144.03° and 2-3 % from 145.2° on, so reporting where it
-#: reaches the floor would hand back 2.3° of unfittable transition inside the
-#: range.  Swept 0.80 to 0.99 on the two SrFeO₃ files, it is the gentlest of
-#: these constants and the only monotone one: the trailing boundary moves
-#: 143.23 → 143.13 → 143.03 → 143.03 → 142.93° and the leading one
-#: 7.43 → 7.63 → 7.63 → 7.93 → 8.13°, i.e. ≈0.1-0.2° per 0.05 of the constant,
-#: with no break anywhere.  0.90 is where both files agree with TOPAS's own
-#: window to within half a degree; a caller who wants the boundary further out
-#: or further in should pass ``onset_fraction`` rather than expect a different
-#: default to be more correct.
+#: fit range wants: on the private scans the trailing level is still near the
+#: interior level a few tenths of a degree before the cliff, a quarter of it
+#: a degree later and a few per cent from about two degrees on, so reporting
+#: where it reaches the floor would hand back some two degrees of unfittable
+#: transition inside the range.  Swept 0.80 to 0.99 on the two sample scans,
+#: it is the gentlest of these constants and the only monotone one: each
+#: boundary moves steadily, by tenths of a degree across the sweep, with no
+#: break anywhere.  0.90 is where both files agree with the data owner's own
+#: TOPAS window to within half a degree; a caller who wants the boundary
+#: further out or further in should pass ``onset_fraction`` rather than expect
+#: a different default to be more correct.
 CUTOFF_ONSET_FRACTION = 0.90
 
 #: Shortest collapse, in ° 2θ, that is reported at all.  Twice
@@ -336,7 +337,7 @@ CUTOFF_MIN_DEG = 1.0
 #: Rolling-median width, in ° 2θ, that turns the intensities into a *level*.
 #: It is there to stop one spike or one dropped channel opening or closing a
 #: run, not to remove peaks — the plateau window below is what averages over
-#: those.  Measured at 0.3, 0.5, 1.0 and 2.0° on the three D20 patterns: 0.3
+#: those.  Measured at 0.3, 0.5, 1.0 and 2.0° on the three private scans: 0.3
 #: and 0.5 give identical boundaries at both edges, and 1.0-2.0 move the
 #: trailing one by a single channel, so 0.5 is a floor rather than a tuning.
 CUTOFF_SMOOTH_DEG = 0.5
@@ -344,21 +345,20 @@ CUTOFF_SMOOTH_DEG = 0.5
 #: Width, in ° 2θ, of the window just inside a collapse whose median level is
 #: the "local plateau" the onset is measured against.  It has to clear the
 #: cliff without being taken over by one strong peak, and both failures were
-#: measured on ``306774``: at 0.5° the window sits *inside* the collapse, the
-#: plateau reads 0.38 of interior and the reported trailing boundary lands at
-#: 143.73°, half-way down the cliff; at 3° it reaches back over a 110 %-of-
-#: interior peak, reads 1.10, and walks out to 142.73°, trimming live data.
-#: Between 1 and 3° the answer moves 143.53 → 143.03 → 142.73°, i.e. under 1°
-#: for a 3× change, and every one of those lies between the last full-level
-#: channel (142.43°) and the floor (145.2°) — TOPAS's own ``finish_X 142`` sits
-#: just inside all three, so the decision this supports is insensitive even
-#: where the number is not.
+#: measured on the private scans: at 0.5° the window sits *inside* the
+#: collapse, the plateau reads well under half of interior and the reported
+#: trailing boundary lands half-way down the cliff; at 3° it reaches back over
+#: a peak above the interior level, reads more than 1, and walks out into live
+#: data.  Between 1 and 3° the answer moves under 1° for a 3× change, and every
+#: one of those lies between the last full-level channel and the floor — the
+#: data owner's own TOPAS ``finish_X`` sits just inside all three, so the
+#: decision this supports is insensitive even where the number is not.
 CUTOFF_PLATEAU_DEG = 2.0
 
 #: The central fraction of the range whose median level is "the interior".  It
 #: must exclude both dead ends, and 0.70 clears them with ≈2× margin on the
-#: files measured (the leading region is 4.7 % of the channels, the trailing one
-#: 6.5-7 %).  A pattern whose dead ends exceed 15 % of the channels drags the
+#: files measured (each dead end is under a tenth of the channels).  A
+#: pattern whose dead ends exceed 15 % of the channels drags the
 #: interior median down towards them, the threshold with it, and the measure
 #: under-reports — silence rather than a false claim, which is the direction to
 #: fail in.
@@ -462,27 +462,29 @@ class SignalCutoff(Base):
     fit range should stop at.  It is a channel that is still at level, so a
     caller trimming to it keeps it: ``n_channels`` is exactly what such a trim
     would drop, which is why the count is reported rather than the region's own
-    width — 109 of 1540 channels is the fact, and 9.9° is not.
+    width — the channels a trim drops are the fact, and a width in degrees is
+    not.
 
     ``floor_fraction`` is how dead: the region's median level over the interior
     level.  A **median**, so it summarises rather than resolves, and the two
     ends of the same file are different shapes underneath the same kind of
-    number (0.025 trailing, a genuine floor; 0.10 leading, an average over a
-    shadowed floor near 0.05 and a halo bump near 0.14).  It is also the number
-    that separates "there is nothing here" from "there is less here", which is a
-    judgement this function declines to make for the caller.
+    number (a few per cent trailing, a genuine floor; several times that
+    leading, an average over a shadowed floor below it and a halo bump above
+    it).  It is also the number that separates "there is nothing here" from
+    "there is less here", which is a judgement this function declines to make
+    for the caller.
 
     ``relative_error_ratio`` is the implied precision penalty — the region's
     median σ/y over the interior's — and it is **derived, not a second
     observation**.  Where σ²/y is constant, as it is on every pattern measured
     here, σ/y = √(σ²/y) / √y, so the ratio is 1/√``floor_fraction`` and nothing
-    more: measured on ``306774``, 3.18 against 3.13 at the leading edge and 6.35
-    against 6.34 at the trailing one.  It is carried because it is the language
-    the person who took the data uses ("the data quality steps below the
-    cutoff") and because saying so once here is what stops a third measure of
-    the same fact being added later.  ``None`` when σ was not measured: under
-    the Poisson fallback the ratio is *identically* 1/√``floor_fraction``, so
-    reporting it would be reporting the fallback.
+    more: measured on the private scan, the derived ratio and the directly
+    measured one agree to within a few per cent at both edges.  It is carried
+    because it is the language the person who took the data uses ("the data
+    quality steps below the cutoff") and because saying so once here is what
+    stops a third measure of the same fact being added later.  ``None`` when σ
+    was not measured: under the Poisson fallback the ratio is *identically*
+    1/√``floor_fraction``, so reporting it would be reporting the fallback.
     """
 
     edge: str                       # "low" | "high"
@@ -502,11 +504,16 @@ class DeadChannelRun(Base):
     caller is the interval to exclude, which is why the two 2θ bounds are the
     first two fields.
 
-    It is :class:`SignalCutoff`'s interior peer and the two do not overlap by
+    It is :class:`SignalCutoff`'s peer and the two do not overlap by
     construction: a collapse of :data:`CUTOFF_MIN_DEG` or longer is an
     instrument that stopped and belongs to :func:`signal_cutoffs`, and anything
     shorter is this — "a dip or a gap in the first channels", which is what
-    that function's own docstring calls the case it declines.
+    that function's own docstring calls the case it declines — **at either
+    end of the range or in the interior** (WP-1415): a short dropout is judged
+    by its weight-ratio signature, not by where it sits, and that signature is
+    what tells it apart from a genuine edge cliff (measured on the public D1B
+    file and a private Mythen operando set, with a wide margin either side of
+    :data:`DEAD_WEIGHT_RATIO_MIN` — see :func:`dead_channels`).
 
     ``weight_ratio`` is why a two-channel dropout is worth a diagnostic at all,
     and it is the number to lead with.  Weights are 1/σ², so a channel whose
@@ -581,17 +588,17 @@ class PatternDiagnostics(Base):
     **Read ``signal_cutoffs`` first.**  Every other field here is computed over
     the whole range this object was handed, so where a cutoff exists they are
     measurements of a range that includes channels the instrument was not
-    seeing the sample through, and they say so.  Measured on the ILL D20
-    pattern of :func:`signal_cutoffs` (0.03-153.93°, against the 8-142° window
-    TOPAS's own refinements of it declare): the dead tail inflates
-    ``amorphous_hump_score`` 1.85× (0.2549 against 0.1380), **hides** the
-    low-angle air-scatter rise altogether (``air_scatter_gain`` 0.0027 against
-    0.1433, 52× understated), and moves ``baseline_lambda`` by two decades
-    (10⁴ against 10⁶).  Nothing is re-run on a trimmed range and no field's
-    value depends on the cutoffs — a diagnostic that quietly reported numbers
-    for a range the caller did not ask about would be worse than one that says
-    which range it used.  The ordering is the handling: read the cutoffs, decide
-    the range, ask again if you changed it.
+    seeing the sample through, and they say so.  Measured on the private
+    constant-wavelength neutron PSD scan of :func:`signal_cutoffs` (the full
+    range against the window the data owner's own TOPAS refinements of it
+    declare): the dead tail inflates ``amorphous_hump_score`` nearly twofold,
+    **hides** the low-angle air-scatter rise altogether (``air_scatter_gain``
+    understated by more than an order of magnitude), and moves
+    ``baseline_lambda`` by two decades.  Nothing is re-run on a trimmed range
+    and no field's value depends on the cutoffs — a diagnostic that quietly
+    reported numbers for a range the caller did not ask about would be worse
+    than one that says which range it used.  The ordering is the handling: read
+    the cutoffs, decide the range, ask again if you changed it.
 
     * ``peak_fraction`` — fraction of channels more than 3σ above the
       envelope.  **Read it as the σ-relative statement it is, not as how much
@@ -879,53 +886,51 @@ def signal_cutoffs(
     information and **must be excluded rather than fitted**.  This reports them
     and applies nothing; the range is the caller's decision.
 
-    **The evidence.**  ILL D20 constant-wavelength neutron, λ = 2.422 Å, in-situ
-    SrFeO₃, 1540 points over 0.034-153.934° at 0.1°, σ from the file
-    (``306774_SrFeO3_801_N2_10minScan.xye``; interior median level 1.19e8).  The
-    two ends are different shapes, which is why one rule has to describe both:
+    **The evidence.**  A private constant-wavelength neutron PSD scan (σ from
+    the file).  The two ends are different shapes, which is why one rule has to
+    describe both:
 
-    * **Trailing — a cliff, then a floor.**  110 % of the interior level at
-      142.43°, 91 % at 142.83°, 62 % at 143.23°, 24 % at 144.03°, 3.5 % at
-      145.03°, then flat at 2.0-3.5 % for the remaining 8.7° to 153.93°.  A
-      factor of ≈45 in 2.3°, and past it nothing.
-    * **Leading — a graded degradation.**  23 % at 0.03° (the direct-beam
-      shoulder), 4.9 % on a shadowed floor over 1.8-3.6°, a *bump* peaking near
-      4.6° at 14 % — at λ = 2.422 Å that is d ≈ 30 Å, so it is not sample
-      diffraction — then a monotone climb through 32 % at 8.03° and 60 % at
-      20.03°, reaching the interior level only around 28°.
+    * **Trailing — a cliff, then a floor.**  From above the interior level to
+      a few per cent of it within a couple of degrees, then flat at that floor
+      for the remaining several degrees of the range.  A factor of tens in a
+      couple of degrees, and past it nothing.
+    * **Leading — a graded degradation.**  A direct-beam shoulder in the first
+      channels, a shadowed floor of a few per cent over the next degrees, a
+      *bump* peaking at a modest fraction of interior — at the instrument's
+      wavelength that is d ≈ 30 Å, so it is not sample diffraction — then a
+      monotone climb that reaches the interior level only tens of degrees in.
 
     So the two ends carry different arguments, and only the first is "there is
     nothing here".  At the low end there *is* structure; it is a beamstop halo
-    and air scatter rather than the specimen, measured at 3-5× the interior's
-    fractional error, and fitting a background through it means describing
-    non-specimen structure at poor precision.  Both are reasons to exclude, and
-    they are not the same reason.
+    and air scatter rather than the specimen, measured at several times the
+    interior's fractional error, and fitting a background through it means
+    describing non-specimen structure at poor precision.  Both are reasons to
+    exclude, and they are not the same reason.
 
-    **σ is not the story.**  σ²/y holds at 19 600-21 100 (±3 %) straight through
-    both transitions, so the file's σ is honest and this is not a variance or
-    weighting problem — it is a region with no information in it.  Do not read a
-    :class:`SignalCutoff` as a :class:`CoverageRegion` or merge the two
-    measures: that one counts detectors, this one counts photons.  The precision
-    penalty a caller reads (σ/y: 5.9 % at 2.03°, 2.3 % at 8.03°, 1.29 % in the
-    interior, 7.3 % at 145.43°, 9.1 % at 148.13°) is a *consequence* of the
-    level and is reported as :attr:`SignalCutoff.relative_error_ratio`, derived.
+    **σ is not the story.**  σ²/y holds constant to within a few per cent
+    straight through both transitions, so the file's σ is honest and this is
+    not a variance or weighting problem — it is a region with no information
+    in it.  Do not read a :class:`SignalCutoff` as a :class:`CoverageRegion`
+    or merge the two measures: that one counts detectors, this one counts
+    photons.  The precision penalty a caller reads (σ/y several times the
+    interior's inside either collapse) is a *consequence* of the level and is
+    reported as :attr:`SignalCutoff.relative_error_ratio`, derived.
 
     **Why exclusion and not a more flexible background.**  A Chebyshev or a
-    P-spline asked to span a factor-45 cliff has no such shape available: it
-    either rings across the whole pattern or splits the difference, and both
-    distort the background *under the real peaks*.  That is CLAUDE.md's
-    "background flexibility is a correctness question, not a cosmetic one" one
-    step earlier — before the background model is chosen, not after it has been
-    asked to do something it cannot.
+    P-spline asked to span a cliff of a factor of tens has no such shape
+    available: it either rings across the whole pattern or splits the
+    difference, and both distort the background *under the real peaks*.  That
+    is CLAUDE.md's "background flexibility is a correctness question, not a
+    cosmetic one" one step earlier — before the background model is chosen, not
+    after it has been asked to do something it cannot.
 
     **And it is read before the other diagnostics, because it corrupts them.**
     Measured on that file, :func:`diagnose` over the full range against the
-    TOPAS 8-142° window: ``amorphous_hump_score`` 0.2549 against 0.1380 (1.85×
-    inflated by the dead tail), ``air_scatter_gain`` 0.0027 against 0.1433 (the
-    real low-angle rise **masked entirely**, 52× understated, because the
-    envelope's 1/x column is spent on the leading collapse instead), and
-    ``baseline_lambda`` 10⁴ against 10⁶ (the arPLS stiffness selection moved by
-    two decades).
+    data owner's TOPAS window: ``amorphous_hump_score`` inflated nearly
+    twofold by the dead tail, ``air_scatter_gain`` understated by more than an
+    order of magnitude (the real low-angle rise **masked entirely**, because
+    the envelope's 1/x column is spent on the leading collapse instead), and
+    ``baseline_lambda`` moved by two decades (the arPLS stiffness selection).
 
     **The method**, and every constant it uses carries its own measurement:
 
@@ -937,8 +942,8 @@ def signal_cutoffs(
        the first or last channel** — that is what makes it a cutoff rather than
        an interior gap, and the extension is what lets a first channel sitting a
        hair above the threshold belong to the collapse behind it (measured: two
-       of the three D20 files start at 0.226 and 0.259 of interior against a
-       0.25 threshold, and the same region follows both).
+       of the three private scans start a hair either side of the 0.25
+       threshold, and the same region follows both).
     4. It must span at least ``min_deg``, or it is a dip and not an instrument.
     5. The **local plateau** is the median of ``lvl`` over the
        :data:`CUTOFF_PLATEAU_DEG` just inside the run; walking inward from the
@@ -1081,19 +1086,36 @@ def dead_channels(
     :data:`DEAD_LEVEL_WINDOW_DEG` of it removes the local dip the dropout
     itself puts in the envelope.
 
-    Why short interior runs only, and what that leaves uncovered.  At an
-    **end** of the range the subject is :func:`signal_cutoffs`, which declines
-    the short case in exactly these words ("a dip or a gap in the first
-    channels"), and closing that gap is the second half of issue #274 — not
-    done here, because it needs the two real files to say whether a short
-    dropout at an edge is separable from a cliff.  A run of
-    :data:`CUTOFF_MIN_DEG` or longer in the **middle** is declined too, and
-    that one is owned by nobody today: ``signal_cutoffs`` reads ends only.  It
-    is declined rather than answered because the level a long run is judged
-    against cannot survive it — a dropout wider than
-    :data:`DEAD_LEVEL_WINDOW_DEG` drags down the very estimate meant to expose
-    it, and the honest failure there is silence rather than the spurious
-    one-channel run the length test alone produced.
+    **A short run touching an edge is admitted too (WP-1415), on the same
+    weight-ratio test as an interior one — measured on issue #274's own D1B
+    file (public; Sparks et al. 2019, *Phys. Rev. B* **99**, 104104) and a
+    private Mythen operando set, and separately checked against unpublished
+    neutron PSD holds; neither private set is quoted here.**
+    D1B (`300q-300K.dat`, the issue's own fixture) carries a two-channel dead
+    pair at *each* end (0.79-0.89°, y≈4-7, σ≈1; and 128.59-128.69°, y=3-5,
+    σ=1.0-1.414 — the latter is the file's literal last two channels, nothing
+    recorded beyond them).  Both read a weight ratio against their single
+    live neighbour of **1520 and 2286** — the same signature
+    :data:`DEAD_WEIGHT_RATIO_MIN` already gates on in the interior, 15-23×
+    over it.  The private Mythen set is the negative control: its edges are
+    cliffs of the kind :func:`signal_cutoffs` reports, and read the same way
+    they give weight ratios of order unity or below — nearly two orders of
+    magnitude under the threshold and nowhere near the D1B signature,
+    because a cliff's σ falls **with** its level (honest counting statistics)
+    while a dead cell's σ collapses **against** it.  The private neutron PSD
+    holds :func:`signal_cutoffs`' docstring draws on agree in direction —
+    private, unpublished data, so no figure from either private set is
+    repeated here, only the agreement.  So the
+    rule is the interior rule, unchanged, with one relaxation — an
+    edge-touching run is judged **against whichever side has a neighbour**
+    rather than declined outright, and a run touching both ends (the whole
+    pattern) still has none and is still declined.  A run of
+    :data:`CUTOFF_MIN_DEG` or longer in the **middle** is still declined: the
+    level a long run is judged against cannot survive it — a dropout wider
+    than :data:`DEAD_LEVEL_WINDOW_DEG` drags down the very estimate meant to
+    expose it, and the honest failure there is silence rather than the
+    spurious one-channel run the length test alone produced.  That case stays
+    owned by nobody today; only the edge case was #274's second ask.
     """
     tt = np.asarray(two_theta, dtype=np.float64)
     counts = np.asarray(y, dtype=np.float64)
@@ -1124,10 +1146,24 @@ def dead_channels(
     # it stops growing — without it a 1.9° dropout left the level collapsed
     # across its middle, which made every later test read the wrong number
     # there rather than decline.
+    # ``mode="reflect"`` here, not ``"nearest"`` (WP-1415, measured on #274's
+    # real file rather than the synthetic above): a run that sits at the
+    # *literal* last channels of the array — D1B's trailing pair is exactly
+    # this, nothing recorded beyond 128.69° — has ``"nearest"`` pad the window
+    # past the edge by repeating the dropout's own value, which drags
+    # ``coarse`` down to the dropout itself (measured: 5.0 against an interior
+    # ~37 000) and ``found`` never fires, so the repair never runs and the
+    # channel is silently missed regardless of the edge-admission below.
+    # ``"reflect"`` instead mirrors the true samples back past the edge, so at
+    # most the two dropout channels themselves re-appear in the padding before
+    # it recovers to the interior level (measured: coarse tail 37 123, the
+    # correct neighbouring value).  A synthetic four channels from the top (the
+    # comment above) never exercised this because real data still existed
+    # beyond the dropout there; #274's own file does not have that luxury.
     repaired = counts
     suspect = np.zeros(len(counts), bool)
     for _ in range(_DEAD_REPAIR_PASSES):
-        coarse = median_filter(repaired, size=width, mode="nearest")
+        coarse = median_filter(repaired, size=width, mode="reflect")
         with np.errstate(invalid="ignore"):
             found = (coarse > 0) & (counts < level_fraction * coarse)
         if found.all() or not found.any() or np.array_equal(found, suspect):
@@ -1137,7 +1173,7 @@ def dead_channels(
         repaired[suspect] = np.interp(
             tt[suspect], tt[~suspect], counts[~suspect])
     level = median_filter(background_envelope(tt, repaired), size=width,
-                          mode="nearest")
+                          mode="reflect")
     with np.errstate(invalid="ignore"):
         low = (level > 0) & (counts < level_fraction * level)
     if not low.any() or not (~low).any():
@@ -1147,18 +1183,28 @@ def dead_channels(
     for a, b in _runs(low):
         if tt[b] - tt[a] >= max_run_deg:
             continue                      # too long — see the docstring
-        # Bounded by live channels on both sides, at the level, or declined.
-        # This is what makes "interior" true by construction rather than by
-        # assertion, and it is also the guard on the level estimate itself: a
-        # run long enough to drag the level down is one whose own edge channel
-        # is the only one still reading below it, and a run touching an end of
-        # the range has no neighbour there to be bounded by.  Without it a
-        # 1.9° interior dropout came back as a spurious *one-channel* run
-        # rather than as nothing.
-        if a == 0 or b == len(tt) - 1:
+        # Bounded by a live channel at the level on every side it *has* one,
+        # or declined.  A run touching both ends is the whole pattern and has
+        # no neighbour anywhere — declined, as always.  A run touching one
+        # end (WP-1415, issue #274's second ask) is judged against the side
+        # it has: the array simply ending is not evidence either way, and the
+        # weight-ratio test below is what actually separates a dead edge pair
+        # from a signal_cutoffs-shaped cliff (measured on the public D1B file
+        # and a private Mythen operando set, and separately checked against
+        # private neutron PSD holds — see the docstring).  For a genuinely *interior* run this is unchanged and
+        # still load-bearing: one long enough to drag the level down is one
+        # whose own edge channel is the only one still reading below it.
+        # Without some bound a 1.9° interior dropout came back as a spurious
+        # *one-channel* run rather than as nothing.
+        touches_low_edge = a == 0
+        touches_high_edge = b == len(tt) - 1
+        if touches_low_edge and touches_high_edge:
+            continue                      # the whole pattern — not this measure's
+        if not touches_low_edge and not (
+                counts[a - 1] >= level_fraction * level[a - 1]):
             continue
-        if not (counts[a - 1] >= level_fraction * level[a - 1]
-                and counts[b + 1] >= level_fraction * level[b + 1]):
+        if not touches_high_edge and not (
+                counts[b + 1] >= level_fraction * level[b + 1]):
             continue
         run_sigma = _finite_median(sig[a:b + 1])
         if not run_sigma or run_sigma <= 0:

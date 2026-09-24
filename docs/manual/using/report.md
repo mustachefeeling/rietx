@@ -64,6 +64,7 @@ or absent for a stated reason:
 | `FitReport.attribution` | one `RegionAttribution` per region | Layer 1 |
 | `FitReport.trends` | one `TrendAnalysis` per observable | Layer 1 |
 | `FitReport.texture`, `FitReport.strain` | one entry per phase, always | Layer 1 |
+| `FitReport.magnetic` | one `MomentEvidence` per magnetic site whenever the model is available | evidence |
 | `FitReport.layer1_available` | whether Layer 1 ran at all | Layer 1 |
 | `FitReport.abstained_reason`, `FitReport.abstained_kind` | why it declined, and which kind | Layer 1 |
 | `FitReport.suggested_actions` | the advisory list | Layer 2 |

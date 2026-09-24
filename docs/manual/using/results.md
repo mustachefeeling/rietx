@@ -447,7 +447,7 @@ from.
 | `PatternDiagnostics.coverage_plateau` | the bulk pattern's σ²/max(y, 1), median over the middle half of the range | 1.0 is pure Poisson counting; anything else says the file's σ is something else (merged detectors, a monitor normalisation). Null means σ was not measured, so nothing was checked |
 | `PatternDiagnostics.coverage_regions` | stretches whose σ carries more variance per count than that plateau, each a `CoverageRegion` | the pattern's statistical weight is not uniform across its range; see below |
 | `PatternDiagnostics.signal_cutoffs` | ends of the range where the level collapsed and stayed down, each a `SignalCutoff` | read this one first; see below |
-| `PatternDiagnostics.dead_channels` | short interior runs that measure nothing and outvote the pattern while doing it, each a `DeadChannelRun` | empty also means *not checkable*: the test needs the file's own σ. See below |
+| `PatternDiagnostics.dead_channels` | short runs, inside the range or at either end, that measure nothing and outvote the pattern while doing it, each a `DeadChannelRun` | empty also means *not checkable*: the test needs the file's own σ. See below |
 
 A contamination is one finding, and each flag is one line of it. The first
 four fields are that line's, the last three the finding's, and the last three
@@ -497,12 +497,19 @@ barely moves it. Measured on a real pattern it reads 0.019 against the 0.3
 trigger, because the tail carried 0.3 % of the whole-range residual the nested
 cubic-against-cubic+1/x fit compares. A fitted result carries a second, narrower
 check for exactly that case. `LOW_ANGLE_UNMODELLED` reads the fit's own residual
-over `[two_theta_min, first_tick − 2·FWHM)`, taking every phase and every
-emission line so that a peak's own low-angle flank is never counted, and fires
-when that region's mean weighted-squared residual exceeds three times the
-whole-pattern reduced χ² (`Diagnostic.value`). It is silent when the region holds
-fewer than ten channels: no reflections at all, or the first one sits at or near
-the low edge. The message reports the ratio and leaves the choice of remedy open.
+over `[two_theta_min, first_tick − 2·FWHM)`, taking every phase, every
+emission line and every declared peak so that a peak's own low-angle flank is
+never counted, and fires when that region's mean weighted-squared residual
+exceeds three times the whole-pattern reduced χ² (`Diagnostic.value`).
+`first_tick` is the lowest tick with intensity behind it: an image, on any
+emission line, of a reflection whose strongest calculated point reaches 1σ of
+the noise on some line, which is the per-phase threshold `PHASE_UNCONSTRAINED`
+reads applied reflection by reflection. A Kα2 or λ/2 image of a reflection the
+data sees therefore keeps its place however weak it is on its own. A tick with
+nothing behind it (a phase held at a vanishing scale, a declared peak at zero
+area, a reflection whose structure factor is zero) does not move the boundary.
+It is silent when the region holds fewer than ten channels: no reflections
+carrying intensity at all, or the first one sits at or near the low edge. The message reports the ratio and leaves the choice of remedy open.
 Raising the pattern's lower limit to where the residual falls under 2σ and adding
 the background's air-scatter term are both available, and only whoever is looking
 at the pattern can tell whether the region is genuinely outside the beam or the
@@ -591,20 +598,20 @@ diffraction information and belong outside the fit range.
 | `SignalCutoff.n_channels` | channels outside the boundary, i.e. exactly what a trim there would drop |
 | `SignalCutoff.relative_error_ratio` | the implied precision penalty: the region's median σ/y over the interior's. Null when σ was not measured |
 
-Measured on an ILL D20 constant-wavelength neutron scan of in-situ SrFeO₃
-(λ = 2.422 Å, 1540 points over 0.034–153.934°, σ from the file), the two ends are
-different shapes and carry different arguments. The trailing end is a cliff:
-91 % of the interior level at 142.83°, 24 % at 144.03°, then flat at 2–3 % for
-the remaining 8.7°. That is a factor of 45 in 2.3°, and past it nothing at all.
-The leading end is a graded degradation: a direct-beam shoulder, a shadowed
-floor near 5 %, a broad bump peaking around 4.6° at 14 %, then a climb that
-reaches the interior level only around 28°. At that wavelength the bump sits at
-d ≈ 30 Å, so it is not sample diffraction. There is structure at the low end,
-and it is a beamstop halo and air scatter rather than the specimen, so fitting a
-background through it means describing non-specimen structure at 3× the
-interior's fractional error. `signal_cutoffs` reports the pair at 7.63° and
-143.03°; TOPAS's own refinements of that file declare
-`start_X 8 finish_X 142`.
+Measured on a private constant-wavelength neutron PSD scan (σ from the file),
+the two ends are different shapes and carry different arguments. The trailing
+end is a cliff: from the interior level to a floor of a few per cent within a
+couple of degrees, then flat for the rest of the range. That is a factor of
+tens in a couple of degrees, and past it nothing at all. The leading end is a
+graded degradation: a direct-beam shoulder, a shadowed floor of a few per cent,
+a broad bump at a modest fraction of the interior level, then a climb that
+reaches the interior level only tens of degrees in. The bump sits at d ≈ 30 Å,
+so it is not sample diffraction. There is structure at the low end, and it is a
+beamstop halo and air scatter rather than the specimen, so fitting a background
+through it means describing non-specimen structure at several times the
+interior's fractional error. `signal_cutoffs` reports a boundary at each end:
+the leading one within half a degree of the window the data owner's own TOPAS
+refinements of that file declare, the trailing one a little further out.
 
 :::{warning}
 Nothing is trimmed for you and nothing else is re-measured. `diagnose` reports
@@ -612,27 +619,31 @@ these and stops, because a fit range is a protocol decision and the numbers abov
 do not settle it on their own.
 
 That is also why the ordering matters: every other field of a
-`PatternDiagnostics` is measured over the whole range it was handed. On that same
-file, full range against the 8–142° window, `amorphous_hump_score` reads 0.2549
-against 0.1380, inflated 1.85× by the dead tail. `air_scatter_gain` reads 0.0027
-against 0.1433, hiding the real low-angle rise entirely, and `baseline_lambda`
-moves two decades, 10⁴ against 10⁶. If you decide to trim, call `diagnose` again
-on the trimmed pattern. The first answer described the range you gave it.
+`PatternDiagnostics` is measured over the whole range it was handed. On that
+same file, full range against the data owner's TOPAS window,
+`amorphous_hump_score` is inflated nearly twofold by the dead tail.
+`air_scatter_gain` is understated by more than an order of magnitude, hiding the
+real low-angle rise entirely, and `baseline_lambda` moves by two decades. If you
+decide to trim, call `diagnose` again on the trimmed pattern. The first answer
+described the range you gave it.
 
 `SignalCutoff.relative_error_ratio` is derived rather than a second observation.
-Where σ²/y is constant, as it is across that whole pattern at about 20 000
-straight through both transitions, σ/y is 1/√y up to a constant. So the ratio is
-1/√`floor_fraction` and says nothing the level did not. It is reported because it
-is the number an experimenter reads. That σ²/y stays flat is also what separates
-this from `PatternDiagnostics.coverage_regions`: the file's σ there is honest,
-and those channels are empty rather than thinly covered.
+Where σ²/y is constant, as it is across that whole pattern straight through both
+transitions, σ/y is 1/√y up to a constant. So the ratio is 1/√`floor_fraction`
+and says nothing the level did not. It is reported because it is the number an
+experimenter reads. That σ²/y stays flat is also what separates this from
+`PatternDiagnostics.coverage_regions`: the file's σ there is honest, and those
+channels are empty rather than thinly covered.
 :::
 
 ### A channel that measures nothing and outvotes the pattern
 
-`PatternDiagnostics.dead_channels` is the interior companion to the section
-above. A dead or masked detector cell, a gap between banks, a channel the
-electronics dropped: its intensity falls to nothing and its esd falls with it.
+`PatternDiagnostics.dead_channels` is the short companion to the section
+above: a run shorter than a cutoff, judged wherever it sits, in the interior
+or touching either end of the range. A run spanning the whole pattern is not
+judged, having no live neighbour to be weighed against. A dead or masked
+detector cell, a gap between banks, a channel the electronics dropped: its
+intensity falls to nothing and its esd falls with it.
 Weights are 1/σ², so it does not merely contribute nothing. It outvotes its
 neighbours, and the background model is pulled down to meet it.
 

@@ -55,6 +55,8 @@
   "parameters:phases.*.atoms.*.adp.*",
   "parameters:phases.*.atoms.*.biso",
   "parameters:phases.*.atoms.*.dof.*",
+  "parameters:phases.*.atoms.*.moment.crystalaxis_*",
+  "parameters:phases.*.atoms.*.moment.dof*",
   "parameters:phases.*.atoms.*.occ",
   "parameters:phases.*.atoms.*.u11",
   "parameters:phases.*.atoms.*.u12",

@@ -223,15 +223,40 @@ def _fully_declared() -> tuple[object, object]:
         update={"geometry": geometry, "extra_components": [peak]})
 
 
+def _magnetic() -> tuple[object, object]:
+    """Rutile with a moment on the Ti site, under a P 4₂/mnm-derived MSG.
+
+    Same reason as :func:`_fully_declared` one function up: a moment block
+    contributes no dot-paths at all unless a phase declares one, so a manual
+    naming ``phases.*.atoms.*.moment.dof*`` would fail the check below against
+    every plain model — for the right reason, on a real path.  A neutron
+    instrument, because that is the only radiation the term reaches.
+    """
+    from rietx.schemas.structure import MagneticSymmetry, Moment
+
+    structure = make_rutile()
+    phase = structure.phases[0]
+    atoms = [phase.atoms[0].model_copy(update={
+        "moment": Moment.from_values((0.0, 0.0, 4.6), "Ti3+")}), *phase.atoms[1:]]
+    return (structure.model_copy(update={"phases": [phase.model_copy(update={
+        "atoms": atoms,
+        # built rather than assigned: ``model_copy(update=…)`` does not
+        # revalidate, so the number-as-input shorthand would stay a string
+        "magnetic_symmetry": MagneticSymmetry.model_validate("136.499")})]}),
+        Instrument.constant_wavelength_neutron(2.4))
+
+
 def _parameter_paths() -> set[str]:
-    """Every dot-path three representative models put on the table.
+    """Every dot-path four representative models put on the table.
 
     LaB6 (cubic, tied cell, locked special positions), rutile with free
-    coordinates — which is what puts `…atoms.*.dof.*` paths in reach — and the
-    fully-declared LaB6 above for the optional correction blocks.
+    coordinates — which is what puts `…atoms.*.dof.*` paths in reach — the
+    fully-declared LaB6 above for the optional correction blocks, and a
+    magnetic rutile for the moment DOFs.
     """
     plain = Instrument.debye_scherrer(wavelength=0.4139)
-    models = [(make_lab6(), plain), (make_rutile(vary_coords=True), plain), _fully_declared()]
+    models = [(make_lab6(), plain), (make_rutile(vary_coords=True), plain),
+              _fully_declared(), _magnetic()]
     paths: set[str] = set()
     for structure, instrument in models:
         paths.update(entry.path for entry in ParameterTable(structure, instrument).entries)

@@ -1038,13 +1038,27 @@ def generate_reflections(sg_symbol: str,
                          cell: tuple[float, float, float, float, float, float],
                          wavelength: float,
                          two_theta_max: float,
-                         two_theta_min: float = 0.0) -> ReflectionSet:
+                         two_theta_min: float = 0.0,
+                         *, apply_absences: bool = True) -> ReflectionSet:
     """Enumerate the symmetry-unique, absence-allowed reflections in range.
 
     Strategy: enumerate all integer hkl in the sphere d ≥ d_min =
     λ/(2 sin(θ_max)), drop systematic absences (gemmi), group the survivors
     into Laue-group orbits (including Friedel mates), and keep one
     representative per orbit with its orbit size as the multiplicity.
+
+    ``apply_absences=False`` keeps every systematically absent orbit —
+    **centring absences included**, since gemmi's one absence test is where the
+    centring condition lives too — with the parent's Laue multiplicities.  A
+    caller that wants the lattice rather than every integer hkl applies the
+    centring itself.  Its one caller is
+    ``crystallography.magnetic.scattering.magnetic_reflections``: a k = 0
+    magnetic space group generally drops the parent's glide and screw
+    operations, so it puts intensity exactly on the reflections a glide or
+    screw absence removes, and those rows have to exist for the peak to be
+    computed at all (WP-1327; WP-1326 measured it on Cr₂WO₆).  **The default is
+    unchanged**, so every existing caller enumerates the same list in the same
+    order and every number it produces is bit-identical.
     """
     sg = get_spacegroup(sg_symbol)
     ops = sg.operations()
@@ -1086,11 +1100,13 @@ def generate_reflections(sg_symbol: str,
     hkl, d = hkl[keep], d[keep]
 
     # systematic absences via gemmi GroupOps (vectorised where available)
-    try:
-        absent = np.asarray(ops.systematic_absences(hkl), dtype=bool)
-    except (AttributeError, TypeError):
-        absent = np.array([ops.is_systematically_absent(list(map(int, h))) for h in hkl])
-    hkl, d = hkl[~absent], d[~absent]
+    if apply_absences:
+        try:
+            absent = np.asarray(ops.systematic_absences(hkl), dtype=bool)
+        except (AttributeError, TypeError):
+            absent = np.array(
+                [ops.is_systematically_absent(list(map(int, h))) for h in hkl])
+        hkl, d = hkl[~absent], d[~absent]
 
     # Laue-group orbits.  A real-space operation x' = Rx + t acts on Miller
     # indices (column form) as h' = Rᵀ h; the orbit therefore uses the

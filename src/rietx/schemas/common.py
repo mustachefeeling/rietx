@@ -240,7 +240,15 @@ from .._nearmiss import did_you_mean
 #: charged at N/f² (the probe residual's rows over its squared Bérar-Lelann
 #: factor) and the raw-N figure rides beside it.  Additive and defaulted to
 #: ``None``, the same rule as 0.19 → 0.20.
-#: 0.27 → 0.28 (WP-1454): ``BackgroundPSpline.air_scatter`` is
+#: 0.27 → 0.28 (WP-1327): two additive fields, both defaulted to ``None``,
+#: which is the honest empty state and the bit-identical one — a phase that
+#: declares neither serializes apart from the new nulls, and refines, exactly
+#: as before.  ``Atom.moment`` (crystal-axis components in μ_B, the magCIF
+#: ``_atom_site_moment.crystalaxis_*`` convention, with the ion and the Landé
+#: g the dipole form factor needs) and ``Phase.magnetic_symmetry`` (the magCIF
+#: operator and centring loops with their time-reversal signs, the BNS/OG
+#: symbol as metadata).
+#: 0.28 → 0.29 (WP-1454): ``BackgroundPSpline.air_scatter`` is
 #: ``Parameter | None`` and defaults to ``None``, which is no 1/(2θ) term at
 #: all rather than one at zero.  Not additive: a stored ``null`` does not load
 #: before this.  A document from before it carries the old default, a
@@ -252,7 +260,7 @@ from .._nearmiss import did_you_mean
 #: is deliberate rather than defaulted, because the old λ's meaning moved with
 #: the intensity unit and no stored value says which unit it was chosen in;
 #: ``lambda_units="intensity"`` refits it as before.
-SCHEMA_VERSION = "0.28"
+SCHEMA_VERSION = "0.29"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
 

@@ -1,8 +1,7 @@
 # WP-1458 — a tick with nothing behind it moves the low-angle boundary
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: ✅ 2026-09-24 — all four tasks landed from outside in PR #456; the boundary is the first reflection the data sees, judged over all its line images
 Depends on: — (1327 soft: its magnetic tick row is the case that found it)
-Priority: P3 2026-09-24 — a warning goes silent when a phase with no intensity puts a tick below the first real line; the fit and its numbers are unchanged, so a user loses a warning, not a number
 
 ## Goal
 
@@ -79,14 +78,14 @@ says the region is read "every phase, every emission line". The row, and
 
 ## Tasks
 
-- [ ] Measure both readings on the four cases and on every fixture where
+- [x] Measure both readings on the four cases and on every fixture where
       the code fires at `8fbafe5`; record the table in this file.
-- [ ] Implement the chosen boundary in `_first_reflection_fwhm`, and update
+- [x] Implement the chosen boundary in `_first_reflection_fwhm`, and update
       its docstring's rule to say what the code does.
-- [ ] Tests: the issue's pair (fires without the dummy, and now fires with
+- [x] Tests: the issue's pair (fires without the dummy, and now fires with
       it too); a held phase's ticks do not silence it; every existing
       `LOW_ANGLE_UNMODELLED` test unchanged.
-- [ ] Skill: the `LOW_ANGLE_UNMODELLED` row in `references/diagnostics.md`
+- [x] Skill: the `LOW_ANGLE_UNMODELLED` row in `references/diagnostics.md`
       names the new boundary; re-sync with `rietx skill --install . --copy`.
 
 ## Acceptance
@@ -102,6 +101,65 @@ says the region is read "every phase, every emission line". The row, and
 None beyond the issue and WP-1301's `phase_support`; no physics changes.
 
 ## Handover log
+
+### 2026-09-24 — done from outside: the boundary is the first reflection the data sees
+
+All four tasks landed in PR #456, merged as `dab23473`. It came from an outside
+contributor with a `WP-1458:` commit and no touch of this file. Issue #436 was
+named without a closing keyword, so it was closed by hand with a note naming
+the PR.
+
+`LOW_ANGLE_UNMODELLED` now bounds its region at the lowest tick whose
+reflection reaches `PHASE_SUPPORT_SIGMA` (1σ) on some emission line. That is
+`phase_support`'s quantity and threshold, read one reflection at a time, so no
+new constant entered. A tick with nothing behind it no longer moves the
+boundary. The cases are a phase held at a vanishing scale, a declared peak at
+zero area, and a reflection whose |F| is zero.
+
+**Decided (by the contributor, from measurement).** Neither of this WP's two
+readings works on its own. Judged per phase, the issue's own pair stays silent:
+the dummy's summed curve reaches 1.23σ from two coincident reflections at
+0.62σ each. Judged per image, the published BT-1 Cu(311) Nd₂Ru₂O₇ fit goes
+silent. Its λ/2 (111) image carries 0.095σ beside its primary's 2.86σ, and
+dropping the image grows the region from 36 to 185 channels and moves the
+ratio from 5.92× to 2.66×. The reflection separates them, judged over all its
+line images, which is how `tick_hkl` already pairs a tick with its hkl.
+
+Task 1's table, measured by the contributor on the synthetic LaB6 of
+`test_refine_synthetic.synthesize()` with a 400-count hump at 4.0°
+(`mccusker_default`, Rwp 0.1357 in every row):
+
+| case | before | per phase | per image | per reflection (shipped) |
+|---|---|---|---|---|
+| LaB6 alone | fires 6.80× | fires | fires | fires 6.80× |
+| + a = 30 Å dummy, scale fixed 1e-14 (1.23σ) | silent | silent | fires | fires 6.80× |
+| + same dummy, held by `PHASE_UNCONSTRAINED` | silent | fires | fires | fires 6.79× |
+| + same dummy, scale free (1.12σ) | silent | silent | fires | fires 6.79× |
+| + `PeakComponent` at 3.3°, area 0 | silent | silent | fires | fires 6.80× |
+| doubled cell, half-order ticks with \|F\| = 0 | silent | silent | fires | fires 6.80× |
+
+Of every fixture in the suite, eight fire at `54a049d2` (ten fits). All ten
+still fire with the boundary unchanged. The only disagreement among the
+readings is the per-image silence on the λ/2 fit above. 34 other fits moved
+their boundary upward, and none started or stopped firing.
+
+**What the merge makes possible.** `CompiledModel.reflection_support` and
+`extra_peak_support` give each reflection's and each declared peak's strongest
+calculated point in σ. `_build_result` builds `tick_support` beside `ticks` and
+`tick_hkl`, through the same mask and sort, #433's magnetic row included. It is
+a local and not a result field.
+
+**What it deliberately does not do.** The two remedies, the 3× ratio and the
+ten-channel floor are unchanged. Exactly coincident reflections are judged one
+by one. Summing a multiplet would make the dummy case silent again, with the
+boundary at 3.24°. `multi.py` has no low-angle diagnostic before or after, so a
+joint fit still gets none; that belongs with WP-1344.
+
+**Measured on the merged tree** (darwin arm64, python 3.12, `[dev,jax]`, a
+suite from another repository sharing the machine): fast suite 6087 passed,
+89 skipped (#456 alone on `14239188`); the whole `-m slow` suite once, on
+`14239188` + #452 + #456, whose tree is the one main reached at `dab23473`:
+197 passed, 7 skipped, 1 xfailed.
 
 - **2026-09-24** — created, from the 2026-09-24 issue triage (issue #436).
   Checked against the tree at `8fbafe5`: both fits reproduce the issue's

@@ -96,6 +96,7 @@ either fine or broken depending on which seed the suite happened to pin.
 | `srm660a_capillary` | `tests/data/11BM_LaB6_660a.fxye` | consistency only — *never* an anchor | APS 11-BM SRM 660a LaB6 in the beamline's documented 0.81 mm Kapton bore; lambda was calibrated against this very standard |
 | `ndruo_joint` | `tests/data/mg090.fxye` | cross-code | Nd2Ru2O7 pyrochlore, one specimen, two histograms: APS 11-BM synchrotron X-ray (lambda 0.4132950 A, 49 493 points) and NCNR BT-1 neutron through a Cu(311) monochromator (lambda 1.54040 A, 3 296 points).  The two histograms of the combined refinement in Gaultois et al., J. Phys.: Condens. Matter 25 (2013) 186004 (doi:10.1088/0953-8984/25/18/186004), whose stated method is to hold the X-ray wavelength and refine the neutron one -- the only one-specimen two-wavelength pair in the suite, hence the only dataset that can exercise a refinable wavelength at all |
 | `bethanechol` | `tests/data/bethanechol_indexing.json` | cross-code | Bergmann et al. (2004) Tables 5 and 6: ten sets of twenty 2theta positions for bethanechol chloride, the known P21/n cell, and every program's published score -- the only externally graded benchmark any feature in this package has |
+| `cr2wo6_hb2a` | `tests/data/gsas2_hb2a_cr2wo6_4K.dat` | characterisation | HFIR HB-2A constant-wavelength neutron (lambda 2.4067 A) Cr2WO6 at 4 K, below its ordering temperature, and its 150 K partner gsas2_hb2a_cr2wo6_150K.dat, above it -- the GSAS-II Magnetic-II tutorial pair, vendored verbatim.  No certified moment exists, so every row referenced to it is characterisation: a moment the report supports below T_N and refuses above it |
 
 `consistency` is a fence, not a label: 11-BM calibrated its wavelength against
 SRM 660a LaB6 itself, so a refined LaB6 cell from that file reproduces the
@@ -1433,6 +1434,40 @@ The single-histogram refinable wavelength, on NIST SRM 640c silicon at APS 11-BM
 **Referenced to:** existence, not a number -- a ceiling row
 
 **Measured:** one PNG written to tests/output/si640c_full.png
+
+### `tests/test_acceptance_magnetic.py`
+
+A magnetic moment on real neutron data, and the refusal of one. The pair is one specimen either side of its ordering temperature, so the same moment model is asked twice: below T_N the report calls the moment supported, along a from either in-plane seed; above it the report calls it unsupported and Rwp does not move. No moment here is certified, so the rows are characterisation -- the second is the one that separates no moment from a small invented one.
+
+#### `test_the_4k_moment_is_supported_and_lies_along_a`
+
+`characterisation` `ceiling` · dataset `cr2wo6_hb2a`
+
+**Claims:** below T_N a moment under BNS 58.395 is reported supported, along a, and removes about half of the nuclear-only misfit
+
+**Referenced to:** no certified moment exists; the band 1.9-2.3 mu_B is an envelope around GSAS-II's own 2.121 +/- 0.019 on the tutorial's steps (a black-box run, protocol NOT adopted) and the 2026-09-23 re-run's 2.078 +/- 0.066 from the tutorial's ICSD start -- never a cross-code bar
+
+**Measured:** |m| 2.125 +/- 0.060 mu_B (35 sigma, bar 10), a-component 0.9997 of |m|; Rwp 0.1042 against 0.2047 nuclear-only (bar 0.65x)
+
+#### `test_the_4k_moment_does_not_depend_on_its_in_plane_seed`
+
+`own_result` · dataset `cr2wo6_hb2a` · survives 2 starts
+
+**Claims:** seeded along a or along b, the 4 K fit lands on the same moment
+
+**Referenced to:** the same protocol from the other in-plane seed
+
+**Measured:** |m| agrees to 4e-7 mu_B (bar 0.1 esd); Rwp to 1.4e-10 relative
+
+#### `test_the_150k_null_finds_no_moment`
+
+`characterisation` · dataset `cr2wo6_hb2a`
+
+**Claims:** above T_N the same moment model is reported unsupported and does not move Rwp -- WP-1327's null, the one check separating no moment from a small invented one
+
+**Referenced to:** the nuclear-only fit to the same 150 K pattern; the claim is inadmissibility (supported is False), not a value
+
+**Measured:** |m| 0.067 +/- 1.02 mu_B (0.07 sigma, bar 3); Rwp 0.099241 against 0.099242 nuclear-only (bar 1e-3 relative)
 
 ## The one default this matrix decided
 

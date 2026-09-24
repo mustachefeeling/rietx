@@ -656,27 +656,213 @@ def test_a_refusal_leaves_no_half_list_on_the_callers_list():
     assert diagnostics == []
 
 
-def test_the_one_real_non_pxcr_file_in_the_repo_is_refused_for_the_true_reason():
+def test_a_type_1_pncr_file_is_refused_for_its_own_type():
     """``tests/data/mg090.Cu311.inst`` is ``HTYPE PNCR`` — powder neutron,
-    **constant wavelength** — and ``tests/data/README.md`` documents it as the
-    ndruo pair's neutron instrument file, which
-    ``test_acceptance_wavelength.py`` transcribes by hand today.
+    **constant wavelength** — with a ``PRCF1`` of **type 1**.  Since WP-1312
+    the ``HTYPE`` is not what refuses it: a type-3 ``PNCR`` file reads (below),
+    so this one is refused by its profile type, exactly as a type-1 ``PXCR``
+    file would be.
 
-    Its meaning is established, so the catch-all "what this file's HTYPE means
-    is not established at all" was false of it: ``ProfileTCHZ`` is exactly
-    where ``Instrument.constant_wavelength_neutron`` puts its own resolution
-    function.  Refusing is still right, for the reason used everywhere else in
-    this reader — its ``PRCF`` is type 1 and no real file pins that layout
-    down.  The refusal has to say *that*.
+    The message is about *the file in hand* (issue #437).  The refusal it
+    replaced was keyed on the ``HTYPE`` and described the repository's one
+    ``PNCR`` fixture, so a type-3 file was told it carried type 1.  So the
+    message must name this file, its ``HTYPE`` and its type — and must not
+    mention a fixture, which a user's file is not.
     """
-    with pytest.raises(ValueError, match="PNCR") as exc:
+    with pytest.raises(ValueError) as exc:
         read_gsas_prm(DATA / "mg090.Cu311.inst")
     message = str(exc.value)
-    assert "constant-wavelength" in message
-    assert "type 1" in message, "the refusal must name the missing fixture"
+    assert message.startswith("mg090.Cu311.inst: ")
+    assert "HTYPE PNCR (constant-wavelength neutron)" in message
+    assert "(GSAS PRCF type 1)" in message
+    assert "type 1's 6" in message, "the count is this file's own"
+    assert "tests/data" not in message and "fixture" not in message
     assert "not established at all" not in message, (
-        "PNCR is recognised by name; the catch-all branch is for values the "
-        "manual does not define")
+        "PNCR and type 1 are both recognised by name; the catch-all branches "
+        "are for values the manual does not define")
+
+
+def test_a_type_1_refusal_is_worded_the_same_under_either_htype(tmp_path):
+    """The ``PRCF`` record is defined by profile function, not by radiation,
+    so a type-1 refusal says the same thing under ``PXCR`` and ``PNCR`` —
+    naming whichever ``HTYPE`` the file states."""
+    for htype, radiation in (("PXCR", "X-ray"), ("PNCR", "neutron")):
+        f = tmp_path / f"type1_{htype}.prm"
+        f.write_text(_prm(htype=htype, prcf_type=1, ncoef=6,
+                          coeffs=(1.0, -0.5, 0.2, 0.0, 0.0, 0.0)),
+                     encoding="utf-8")
+        with pytest.raises(ValueError) as exc:
+            read_gsas_prm(f)
+        message = str(exc.value)
+        assert message.startswith(f"{f.name}: HTYPE {htype} "
+                                  f"(constant-wavelength {radiation})")
+        assert "(GSAS PRCF type 1)" in message
+
+
+# ----------------------------------------------- PNCR, profile type 3 (#437)
+
+#: HFIR HB-2A's GSAS-I instrument file from the GSAS-II *Magnetic-II*
+#: tutorial, vendored verbatim (``tests/data/README.md``): ``HTYPE PNCR``,
+#: ``INS 1PRCF1 3 8`` — the first real type-3 ``PNCR`` file this reader met.
+HB2A_PRM = DATA / "gsas2_hb2a_cr2wo6.prm"
+
+
+def test_a_type_3_pncr_file_reads_onto_the_neutron_preset():
+    """The file's own numbers, converted by the ``PXCR`` mapping: ``ICONS``
+    LAM1 2.4067 Å; ``PRCF`` GU 701.3626, GV −1157.202, GW 558.7603
+    centidegrees² → deg² (÷1e4); LX = LY = 0; S/L = H/L = 0.001 cross
+    unconverted.  The source is a :class:`NeutronSource` — one wavelength,
+    no Kα₂, the polarisation term pinned at 1 — although the file writes
+    ``POLA 0.990`` and ``KRATIO 0.500``."""
+    inst = read_gsas_prm(HB2A_PRM)
+    assert isinstance(inst.source, rx.NeutronSource)
+    assert inst.source.wavelength.value == 2.4067
+    assert inst.source.harmonics == []
+    assert inst.source.polarization.value == 1.0
+    prof = inst.profile
+    assert prof.u.value == pytest.approx(701.3626 / 1e4, rel=1e-12)
+    assert prof.v.value == pytest.approx(-1157.202 / 1e4, rel=1e-12)
+    assert prof.w.value == pytest.approx(558.7603 / 1e4, rel=1e-12)
+    assert prof.x.value == 0.0 and prof.y.value == 0.0
+    assert inst.geometry.kind == "debye_scherrer"
+    assert inst.geometry.axial_sl.value == 0.001
+    assert inst.geometry.axial_hl.value == 0.001
+    assert inst.zero_shift.value == 0.0
+    # A frozen calibration, like every file this reader returns.
+    assert not any(p.vary for p in (prof.u, prof.v, prof.w, prof.x, prof.y,
+                                    inst.source.wavelength))
+    # It is the neutron preset's instrument, box and all, not an X-ray one
+    # with its source swapped.
+    ref = rx.Instrument.constant_wavelength_neutron(wavelength=2.4067)
+    for name in "uvwxy":
+        got, want = getattr(prof, name), getattr(ref.profile, name)
+        assert (got.min, got.max) == (want.min, want.max), name
+
+
+def test_a_type_3_pncr_file_says_what_it_dropped_and_assumed():
+    """``POLA`` is the file's number and a neutron source has no use for it,
+    so it is a drop, and named; the geometry is still assumed, and the
+    assumption names the preset it came from rather than the 11-BM corpus."""
+    diagnostics: list = []
+    read_gsas_prm(HB2A_PRM, diagnostics=diagnostics)
+    by_code: dict = {}
+    for d in diagnostics:
+        by_code.setdefault(d.code, []).append(d)
+    icons = [d for d in by_code["GSAS_PRM_FIELD_DROPPED"]
+             if d.where == ["ICONS"]]
+    assert len(icons) == 1
+    assert "POLA = 0.99, read and not applied" in icons[0].message
+    assert "KRATIO = 0.5, read and not applied" in icons[0].message
+    (geometry,) = by_code["GSAS_PRM_GEOMETRY_ASSUMED"]
+    assert "HTYPE PNCR" in geometry.message
+    assert "constant_wavelength_neutron" in geometry.message
+    assert "PXCR" not in geometry.message
+
+
+def test_the_two_hb2a_files_cross_on_one_diffractometer():
+    """HB-2A in two formats: the GSAS-I ``.prm`` above and the GSAS-II
+    ``.instprm`` (``gsas2_hb2a.instprm``, from a different tutorial), read by
+    two different readers.  What they agree on is what the diffractometer
+    fixes; what they differ on is what a calibration fixes, and the two
+    files are two calibrations — the ``.prm`` is a tutorial's starting
+    instrument, the ``.instprm`` a refined Si calibration with a non-zero
+    zero — so the differences are pinned as differences rather than forced
+    equal.
+
+    Agree: the source kind (``NeutronSource``, from ``PNCR`` and ``PNC``),
+    the geometry (Debye-Scherrer), the wavelength to 1.8e-4 relative
+    (2.4067 against 2.40627 Å — one monochromator, each file's own
+    calibration of it), no Lorentzian width (X = Y = 0 in both).
+
+    Differ, legitimately: U V W (the Gaussian FWHM ratio runs 0.42-1.49
+    over 10-150° 2θ), the zero (0 against −0.0096°), the axial divergence
+    (S/L + H/L 0.002 against SH/L 0.09), and the profile's bound box — the
+    ``.prm`` lands on the neutron preset's coarse box, the ``.instprm`` on
+    the default one (the two-routes gotcha WP-1312's 2026-09-23 entry
+    names).
+    """
+    import numpy as np
+
+    prm = read_gsas_prm(HB2A_PRM)
+    instprm = rx.read_gsas2_instprm(DATA / "gsas2_hb2a.instprm")
+
+    assert isinstance(prm.source, rx.NeutronSource)
+    assert isinstance(instprm.source, rx.NeutronSource)
+    assert prm.geometry.kind == instprm.geometry.kind == "debye_scherrer"
+    lam_prm = prm.source.wavelength.value
+    lam_instprm = instprm.source.wavelength.value
+    assert lam_prm == pytest.approx(lam_instprm, rel=2e-4)
+    assert lam_prm != lam_instprm
+    for name in "xy":
+        assert getattr(prm.profile, name).value == 0.0
+        assert getattr(instprm.profile, name).value == 0.0
+
+    def fwhm(profile, two_theta):
+        t = np.tan(np.radians(two_theta / 2))
+        return np.sqrt(profile.u.value * t * t + profile.v.value * t
+                       + profile.w.value)
+
+    ratios = [fwhm(prm.profile, tt) / fwhm(instprm.profile, tt)
+              for tt in (10, 30, 60, 90, 120, 150)]
+    assert min(ratios) < 0.5 and max(ratios) > 1.4, ratios
+    assert prm.zero_shift.value == 0.0
+    assert instprm.zero_shift.value == pytest.approx(-0.009602591470493875)
+    axial_prm = prm.geometry.axial_sl.value + prm.geometry.axial_hl.value
+    axial_instprm = (instprm.geometry.axial_sl.value
+                     + instprm.geometry.axial_hl.value)
+    assert axial_prm == pytest.approx(0.002)
+    assert axial_instprm == pytest.approx(0.09)
+    assert prm.profile.w.max != instprm.profile.w.max
+
+
+def test_the_issues_synthetic_pncr_file_reads(tmp_path):
+    """Issue #437's reproduction, rebuilt by text substitution: the
+    repository's own ``11BM_LaB6_cBN_mg2044.prm`` (``PXCR``, ``PRCF1 3 19``)
+    with ``HTYPE PNCR`` and ``ICONS`` LAM1 2.4067.  It was refused, telling
+    the user their file carried a type-1 ``PRCF``; it reads, with the same
+    widths as the ``PXCR`` original, onto a neutron source."""
+    text = (DATA / "11BM_LaB6_cBN_mg2044.prm").read_text(encoding="latin-1")
+    swapped = text.replace("INS   HTYPE   PXCR", "INS   HTYPE   PNCR", 1)
+    swapped = swapped.replace("ICONS 0.4136800", "ICONS 2.4067000", 1)
+    assert swapped.count("PNCR") == 1 and "2.4067000" in swapped
+    f = tmp_path / "synthetic_pncr_type3.prm"
+    f.write_text(swapped, encoding="latin-1")
+
+    xray = read_gsas_prm(DATA / "11BM_LaB6_cBN_mg2044.prm")
+    neutron = read_gsas_prm(f)
+    assert isinstance(neutron.source, rx.NeutronSource)
+    assert neutron.source.wavelength.value == 2.4067
+    for name in "uvwxy":
+        assert (getattr(neutron.profile, name).value
+                == getattr(xray.profile, name).value), name
+    assert neutron.geometry.axial_sl.value == xray.geometry.axial_sl.value
+    assert neutron.geometry.axial_hl.value == xray.geometry.axial_hl.value
+
+
+def test_a_pncr_file_stating_a_second_wavelength_is_refused(tmp_path):
+    """A neutron source is one wavelength, so ``LAM2`` has nowhere to go and
+    its meaning in such a file is not established: refused by name, never
+    dropped (a doublet read onto an X-ray source is the ``PXCR`` case)."""
+    f = tmp_path / "pncr_lam2.prm"
+    f.write_text(_prm(htype="PNCR", icons=_icons(lam1=2.4, lam2=1.2)),
+                 encoding="utf-8")
+    with pytest.raises(ValueError, match="LAM2 = 1.2"):
+        read_gsas_prm(f)
+
+
+def test_a_pncr_file_needs_no_polarisation(tmp_path):
+    """``POLA`` and ``IPOLA`` cannot change a neutron instrument, so a blank
+    ``POLA`` or an ``IPOLA`` convention this reader cannot name is not a
+    reason to refuse one — both are refused under ``PXCR``, where they would
+    change the answer."""
+    for icons in (_icons(lam1=2.4, pola=None), _icons(lam1=2.4, ipola=1)):
+        f = tmp_path / "pncr_pola.prm"
+        f.write_text(_prm(htype="PNCR", icons=icons), encoding="utf-8")
+        inst = read_gsas_prm(f)
+        assert inst.source.polarization.value == 1.0
+        f.write_text(_prm(htype="PXCR", icons=icons), encoding="utf-8")
+        with pytest.raises(ValueError, match="POLA"):
+            read_gsas_prm(f)
 
 
 def test_a_non_numeric_icons_field_names_the_file(tmp_path):

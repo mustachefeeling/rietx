@@ -1,6 +1,6 @@
 # WP-1327 — a magnetic structure: state it, refine it, report what the powder cannot see
 
-Milestone: v1.6 · Status: ⬜
+Milestone: v1.6 · Status: 🔄 2026-09-24 — the k = 0 moment landed from outside (PR #433); the analytic moment branch, the LaMnO₃ second dataset and the PNGs remain, and k ≠ 0 is in the contributor's two follow-on branches
 Depends on: 1326 (the satellite reflection list)
 Priority: P2 2026-09-23 — the open milestone's core; the moment and its hold start without 1326's list
 
@@ -289,33 +289,46 @@ rule above applies to the form factors.
 
 ## Tasks
 
-- [ ] The schema: `Atom.moment` (crystal-axis components, μ_B) and
+- [x] The schema: `Atom.moment` (crystal-axis components, μ_B) and
       `Phase.magnetic_symmetry` (operator strings with ε, centrings, the
       symbol as metadata); refused together with `propagation_vector`
       (1326); `SCHEMA_VERSION` bump with its one-sentence comment.
-- [ ] Moment DOFs from the operators: the allowed subspace per site from the
+      **PR #433 (`14239188`), `SCHEMA_VERSION` 0.28. The refusal with
+      `propagation_vector` is `refuse_moment_model_with_k`, written and
+      tested, with no caller until 1326's field exists.**
+- [x] Moment DOFs from the operators: the allowed subspace per site from the
       axial action with ε, in `crystallography/wyckoff.py`'s style, wired
       as `atoms.j.moment.dof.k` (modulus and angles in the subspace); the
-      span test above, on a published structure's known moment.
-- [ ] The form-factor table: ⟨j₀⟩ and ⟨j₂⟩ coefficients transcribed from
+      span test above, on a published structure's known moment. **Spelled
+      `atoms.j.moment.dofK` (`dof0` the signed modulus); twenty published
+      moments lie in the derived span.**
+- [x] The form-factor table: ⟨j₀⟩ and ⟨j₂⟩ coefficients transcribed from
       ITC Vol. C with the `ATTRIBUTION.md` row, keyed by magnetic ion, refusal
       by name for an absent ion, the g-factor input, and the approximation
-      named in the output.
-- [ ] The magnetic structure factor: the orbit average of |F_⊥|², p, the
+      named in the output. **From the public-domain `periodictable` table
+      (Brown's coefficients), with `ATTRIBUTION.md` rows; the GPL
+      transcriptions were deliberately not copied.**
+- [x] The magnetic structure factor: the orbit average of |F_⊥|², p, the
       shared scale, the neutron-only dispatch, the per-stage freeze of
       operators and form factors beside `PhaseSites.f_anom`.
-- [ ] The flat-direction hold: `moving_paths` and `StageResult.held` for a
+- [x] The flat-direction hold: `moving_paths` and `StageResult.held` for a
       moment block at its floor, re-measured at the answer as 1301 does.
 - [ ] The Jacobian: FD first, then the analytic branch with its
       `_column_extras` reach declared, cross-backend rows, the traced twin.
-- [ ] The report: moment magnitudes and esds in the parameter table, the
+      **FD and the cross-backend `magnetic` row landed. A magnetic phase's
+      structural columns take the peak-chain FD column by declared
+      exclusion (`structural_grad_supported`), and the traced backends
+      decline it by name. No analytic moment branch yet.**
+- [x] The report: moment magnitudes and esds in the parameter table, the
       unmeasured direction named, the approximation named, the hold named;
       QPA untouched, asserted.
-- [ ] Manual Part 2 (the structure factor, the perpendicular projection, the
+- [x] Manual Part 2 (the structure factor, the perpendicular projection, the
       dipole form factor, each with its *Source* line), Part 1 chapter, skill
       rows, `help.py` entries, `capabilities()` feature flag.
 - [ ] Tests, including the acceptance below, with obs/calc/diff PNGs to
-      `tests/output/`.
+      `tests/output/`. **Cr₂WO₆ 4 K and the 150 K null ship
+      (`test_acceptance_magnetic.py`). LaMnO₃ is not vendored, and no
+      magnetic refinement writes a PNG.**
 
 ## Acceptance
 
@@ -362,6 +375,60 @@ rule above applies to the form factors.
   [1312](1312-neutron-followthrough.md) the joint-fit audit this term joins.
 
 ## Handover log
+
+### 2026-09-24 — the k = 0 moment landed from outside
+
+rietx can now refine a magnetic structure. A moment is stated on a site of
+a nuclear phase, under a magnetic space group given as its operator list,
+and refined against a constant-wavelength neutron pattern with the phase's
+one scale. The report says what the powder cannot see: a direction it is
+blind to comes back held and unmeasured, and a moment within three of its
+own esds comes back unsupported rather than small. It arrived as the
+contributor's PR #433, reviewed over two rounds. The first round split the
+k ≠ 0 supercell and the operation-list phase out to their own PRs, and asked
+for the real-data acceptance to ship. Seven of nine tasks are ticked.
+
+- *Done*: PR #433, merged as `14239188`. The Tasks above say which landed
+  and how. Three facts change how anyone builds on it. `SCHEMA_VERSION` is
+  0.28 on `main`, and the maintainer's open #446 also claims 0.28, so it
+  renumbers. `RadiationCapability.magnetic_scattering` is derived from
+  `scattering.MAGNETIC_SOURCE_KINDS`, the table `magnetic_wanted` dispatches
+  on. `MomentEvidence.supported` is `bool | None`, with `None` where the
+  modulus has no esd.
+- *Acceptance, against this file's text*: the Cr₂WO₆ pair ships verbatim
+  from GSAS-II-tutorials `924e9eb8`, SHA-256 checked against upstream. The
+  suite starts from ideal trirutile positions, because the tutorial's CIF is
+  an ICSD entry. **The 2.35(2) μ_B bar is not met by either code**: current
+  GSAS-II on the tutorial's own steps gives 2.121 ± 0.019, and the shipped
+  protocol gives 2.12 ± 0.06. So `test_acceptance_magnetic.py` asserts a
+  1.9-2.3 envelope, a ratio above 10 and alignment along a. **The null is
+  met by the ratio rule, not by the floor**: 0.067 ± 1.02 μ_B, `supported`
+  False, Rwp unmoved to 1e-3. The WP text says "held at its floor". The
+  shipped value stays off the floor, and the `MomentEvidence` docstring
+  explains why the ratio is the honest test. LaMnO₃ (3.54 ± 0.33 μ_B
+  against about 3.7 published) was run read-and-test and is not vendored.
+  The cubic-collinear, QPA and no-moment bit-identity items ship as tests.
+- *Gotchas found in review*: `magnetic_reflections` had skipped the
+  parent's centring along with the glides. It now applies each centring
+  unless the magnetic group carries it as an anti-centring (BNS type IV). A
+  moment DOF the phase hold took was released by the direction probe, which
+  skips `dof0`, so a still-invisible phase's modulus walked (2.12 → −1.73 μ_B
+  on the fixture). The paired esd was built from |dof0| and flipped its
+  cross term for antiparallel sites.
+- *Measured on the merged tree* (`main` + #425 + #438 + #433, the tree this
+  merge produced; Linux x86_64, `[dev,jax]`, 4 cores): fast suite 1 failed,
+  6067 passed, 101 skipped, which is +117 passed and +5 skipped from this PR.
+  The failure is `test_telemetry`'s root-only case. GUI vitest gave 594
+  passed, svelte-check was clean, and the dist was byte-identical. Full
+  `-m slow`: 2 failed, 193 passed, 9 skipped, with every magnetic slow file
+  passing. Both failures were load (WP-1415's entry of this date).
+- *Next*: the contributor's two follow-on branches, the operation-list phase
+  with the CIF exporter's `resolve_group` fix, then `magnetic_supercell` on
+  top of both. Either can make `symmetry.OperatorGroup`'s docstring true
+  again, since it names two functions `main` does not have (already so
+  before this PR). After those: the analytic moment branch, LaMnO₃ once its
+  licence is checked, and the acceptance PNGs. WP-1458 (a null group's
+  zero-intensity ticks quieting `LOW_ANGLE_UNMODELLED`) was filed in review.
 
 - **2026-09-02** — created, from the assessment of PR #221. That proposal
   left two decisions open, the stated form and the QPA exclusion; both are

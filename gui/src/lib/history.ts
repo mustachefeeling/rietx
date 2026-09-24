@@ -362,6 +362,12 @@ export const PLACES: Readonly<Record<string, Format>> = {
   "phases.*.atoms.*.adp.*": 5,
   "phases.*.atoms.*.biso": 3,
   "phases.*.atoms.*.dof.*": 5,
+  // WP-1327: crystal-axis components and the modulus in μ_B, whose esd is a
+  // few hundredths on real data (2.078 ± 0.066 on Cr₂WO₆ at 4 K), so three
+  // places show a move the fit resolves; the angle DOFs are radians, which
+  // four places write to 0.006°
+  "phases.*.atoms.*.moment.crystalaxis_*": 3,
+  "phases.*.atoms.*.moment.dof*": 4,
   "phases.*.atoms.*.occ": 4,
   "phases.*.atoms.*.u11": 5,
   "phases.*.atoms.*.u12": 5,

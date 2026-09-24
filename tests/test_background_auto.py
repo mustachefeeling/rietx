@@ -1430,11 +1430,13 @@ def test_identifiability_carries_the_quiet_measurements_too():
 
 # ----------------------------------------------------------------------
 # signal cutoffs — an end of the range the instrument was not seeing
-# through.  The real-data provenance (ILL D20 SrFeO₃, NIST BT-1) is in
-# ``signal_cutoffs``' docstring; nothing here reads a drive.
+# through.  The real-data provenance (a private constant-wavelength neutron
+# PSD scan; NIST BT-1 for the coverage measure) is in ``signal_cutoffs``'
+# docstring; nothing here reads a drive.
 # ----------------------------------------------------------------------
 _LEVEL = 1.0e8
-#: σ²/y of the D20 files these cases are shaped after, measured at ≈20 000.
+#: σ²/y constant across the range, as on the private neutron PSD scans these
+#: cases are shaped after.
 _VARIANCE_PER_COUNT = 2.0e4
 
 
@@ -1463,8 +1465,8 @@ def _sigma_like_the_file(y):
 def _collapse(tt, y, *, at, edge, floor=0.02, deg=0.5):
     """Taper ``y`` beyond ``at`` towards ``floor``, e-folding over ``deg``.
 
-    A factor of 50 in ≈2°, then a floor — the trailing shape measured on
-    ``306774`` (factor ≈45 over 2.3°, then 2-3 %).
+    A factor of 50 in ≈2°, then a floor — the trailing shape of the private
+    neutron PSD scan ``signal_cutoffs`` documents.
     """
     x = (tt - at) if edge == "high" else (at - tt)
     taper = np.where(x > 0.0, np.maximum(np.exp(-x / deg), floor), 1.0)

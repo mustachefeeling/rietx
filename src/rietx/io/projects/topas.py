@@ -424,8 +424,8 @@ _DIRECTIVE = re.compile(
     r"#(?:(?P<cond>ifdef|ifndef)\s+(?P<sym>\S+)|(?P<kw>elseif|else|endif|if)\b)")
 
 #: A `#define`d symbol, read with the **same** charset the `#ifdef` above uses.
-#: `\w+` on one side and a bare token on the other is how `#define SrFeO3-x_fit`
-#: comes to define `SrFeO3` while `#ifdef SrFeO3-x_fit` asks for something else:
+#: `\w+` on one side and a bare token on the other is how `#define ABO3-x_fit`
+#: comes to define `ABO3` while `#ifdef ABO3-x_fit` asks for something else:
 #: two spellings of one name, disagreeing in silence (5 archive files).
 _DEFINE = re.compile(r"#define\s+(\S+)")
 

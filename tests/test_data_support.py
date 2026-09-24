@@ -710,6 +710,114 @@ def test_a_run_too_long_to_judge_is_declined_rather_than_fragmented(n, found):
     assert len(dead_channels(tt, y, sig)) == found
 
 
+def test_a_dead_pair_at_the_literal_last_channel_is_found():
+    """WP-1415, issue #274's second ask, measured on the real D1B file rather
+    than the synthetic above: `300q-300K.dat` has nothing recorded past
+    128.69°, so its trailing dead pair touches the *literal* end of the
+    array, with no live channel beyond it to be "bounded" by.  Declining
+    every edge-touching run, as this measure did before WP-1415, missed
+    exactly the case issue #274 reported and quoted a stale ×14 `BOUND_HIT`
+    count as the symptom instead.
+
+    The criterion is unchanged — the same weight-ratio test the interior case
+    uses — and the real files sit well clear of it on both sides: D1B's two
+    edge pairs read a weight ratio of 1520-2286, 15-23× **above**
+    ``DEAD_WEIGHT_RATIO_MIN``, while a private Mythen operando set's cliff
+    edges, none of them a dead cell, read of order unity or below, nearly two
+    orders of magnitude **below** it (private neutron PSD holds agree in
+    direction; neither private set's figures are quoted).  This fixture plants the same pair at the synthetic's own last
+    two channels."""
+    from rietx.background.diagnostics import dead_channels
+
+    n = len(np.arange(5.0, 128.85, 0.1))
+    data = _monitor_normalised(dead=(n - 2, n - 1))
+    tt, y, sig = _arrays(data)
+    runs = dead_channels(tt, y, sig)
+    assert len(runs) == 1
+    run = runs[0]
+    assert run.n_channels == 2
+    assert run.two_theta_max == pytest.approx(float(tt[-1]))
+    assert run.weight_ratio > 1000.0
+
+
+def test_a_dead_pair_at_the_literal_first_channel_is_found():
+    """The low-edge twin of the test above: a run touching index 0 has no
+    live channel *before* it, only after, and is judged against that one
+    side."""
+    from rietx.background.diagnostics import dead_channels
+
+    data = _monitor_normalised(dead=(0, 1))
+    tt, y, sig = _arrays(data)
+    runs = dead_channels(tt, y, sig)
+    assert len(runs) == 1
+    run = runs[0]
+    assert run.n_channels == 2
+    assert run.two_theta_min == pytest.approx(float(tt[0]))
+    assert run.weight_ratio > 1000.0
+
+
+def test_an_honestly_low_edge_is_not_a_dead_cell():
+    """The negative control: a coverage cliff at an edge, whose neighbours
+    fall *with* it, must not become a false positive once edge-touching runs
+    are admitted.
+
+    What separates the two is not the edge pair itself but its window.  The
+    weight ratio is (median live σ within :data:`DEAD_LEVEL_WINDOW_DEG`)² over
+    the run's σ², so with σ ∝ √y a pair at 1/k of its neighbours' level reads
+    ≈ k whenever those neighbours are the interior — a two-channel *step*
+    reads 50.09 at k = 50 and is reported from k = 100 on (the next test pins
+    that).  A real cliff is a ramp: the channels before the pair are falling
+    too, so the live σ it is weighed against is itself low.  This plants that
+    shape: the last 60 channels fall geometrically to 1/10 of the interior,
+    the last two a further factor 10 (1/100 overall, the same depth as the
+    reported step), σ ∝ √y throughout.  The pair is still found low, so the
+    weight-ratio test is what declines it — measured at 18.7, 5× under
+    ``DEAD_WEIGHT_RATIO_MIN``.  With σ ∝ √y the floor is 1/``DEAD_LEVEL_FRACTION``
+    (a channel is low only under a tenth of its level), so no √y synthetic
+    reaches the real data's: a private Mythen operando set's cliff edges read
+    of order unity or below, nearly two orders of magnitude under the
+    threshold, against D1B's dead pairs 15-23× above it (private neutron PSD
+    holds agree in direction; neither private set's figures are quoted)."""
+    from rietx.background.diagnostics import (
+        DEAD_WEIGHT_RATIO_MIN,
+        dead_channels,
+    )
+
+    tt, y, sig = _arrays(_monitor_normalised())
+    fall = np.ones(len(tt))
+    fall[-60:] = np.geomspace(1.0, 0.1, 60)
+    fall[-2:] *= 0.1
+    y, sig = y * fall, sig * np.sqrt(fall)
+    seen = dead_channels(tt, y, sig, weight_ratio_min=0.0)
+    assert len(seen) == 1 and seen[0].two_theta_max == pytest.approx(tt[-1])
+    assert seen[0].weight_ratio < DEAD_WEIGHT_RATIO_MIN / 4
+    assert dead_channels(tt, y, sig) == []
+
+
+@pytest.mark.parametrize("k", [100, 200, 400])
+def test_an_edge_step_a_hundredfold_down_is_reported(k):
+    """The boundary the control above declares, pinned rather than left a
+    surprise: a two-channel *step* at the literal edge to 1/k of the interior,
+    σ scaled by 1/√k — honest counting statistics, not a collapsed detector —
+    has only interior neighbours in its window, so its weight ratio is ≈ k
+    and from k = ``DEAD_WEIGHT_RATIO_MIN`` on it **is** reported as dead.
+    The measure cannot tell such a step from a dead pair and does not claim
+    to; what it separates is a step from a ramp."""
+    from rietx.background.diagnostics import (
+        DEAD_WEIGHT_RATIO_MIN,
+        dead_channels,
+    )
+
+    tt, y, sig = _arrays(_monitor_normalised())
+    y, sig = y.copy(), sig.copy()
+    y[-2:] /= k
+    sig[-2:] /= np.sqrt(k)
+    runs = dead_channels(tt, y, sig)
+    assert len(runs) == 1 and runs[0].n_channels == 2
+    assert runs[0].weight_ratio >= DEAD_WEIGHT_RATIO_MIN
+    assert runs[0].weight_ratio == pytest.approx(k, rel=0.01)
+
+
 #: The synthetic LaB6's background, raised to the regime issue #274 reports.
 #: A dead cell's damage is (σ_local/σ_dead)², and σ_local goes as √background,
 #: so the *same* dead channel that outvotes 3000 live ones on a CW-neutron

@@ -2594,13 +2594,13 @@ def test_a_conditional_inside_a_site_line_still_gates_it(tmp_path):
 
 
 def test_a_define_and_an_ifdef_agree_on_what_a_symbol_is(tmp_path):
-    """`#define SrFeO3-x_fit` bound `SrFeO3` under `\\w+` while
-    `#ifdef SrFeO3-x_fit` asked for the whole token — two spellings of one name,
+    """`#define ABO3-x_fit` bound `ABO3` under `\\w+` while
+    `#ifdef ABO3-x_fit` asked for the whole token — two spellings of one name,
     disagreeing in silence (5 archive files). One charset, both sides."""
     inp = _inp(tmp_path, "sym.inp",
-               '#define SrFeO3-x_fit\n'
+               '#define ABO3-x_fit\n'
                'str\nphase_name "P"\nspace_group "P1"\na 5.0\n'
-               '#ifdef SrFeO3-x_fit\n'
+               '#ifdef ABO3-x_fit\n'
                'site LIVE x 0 y 0 z 0 occ Na+1 1 beq b 0.5\n'
                '#endif\n')
     (phase,) = read_topas_inp(inp).phases

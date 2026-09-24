@@ -145,6 +145,7 @@ and the rest describe what this specimen did to the peaks.
 | `Phase.preferred_orientation` | `PreferredOrientation` or None | `None` | single-axis March-Dollase, {eq}`corr-md` |
 | `Phase.microstrain` | `StephensStrain` or None | `None` | anisotropic strain, width per hkl, {eq}`ms-sigma` |
 | `Phase.particle_radius_um` | float or None | `None` | Brindley microabsorption input, {eq}`corr-brindley`; a plain float, never refined |
+| `Phase.magnetic_symmetry` | `MagneticSymmetry` or None | `None` | the magnetic space group as its magCIF operator and centring loops, {eq}`int-Fmag` |
 | `Phase.restraints` | list | `[]` | soft observational restraints, {eq}`par-restraint` |
 
 The four broadening terms are the sample half of the instrument ⊕ sample split.
@@ -161,6 +162,13 @@ coherent domain, which is smaller than and unrelated to the particle whose
 absorption path Brindley's correction integrates over, and conflating the two is
 a standing error. Supply it from a micrograph or a particle-size measurement, or
 leave it `None`.
+
+`magnetic_symmetry` and `Atom.moment` state a magnetic structure: a magnetic
+space group given as its operator list, and moments on the sites it allows.
+Both default to `None`, which is exactly off. A commensurate k ≠ 0 structure
+is stated in its magnetic supercell, never as a propagation vector beside a
+moment model. [](refining.md) has the blocks, what refines and what the report
+says.
 
 `Cell` holds six parameters and applies no symmetry itself.
 
@@ -191,6 +199,7 @@ the six values as a tuple.
 | `Atom.occ` | `Parameter` | 1.0, in [0, 1.5] | site occupancy |
 | `Atom.biso` | `Parameter` | 0.5 Å², in [0, 25] | isotropic displacement, B = 8π²·U |
 | `Atom.aniso` | `AnisoU` or None | `None` | anisotropic displacement, CIF U^ij, {eq}`int-dw-aniso` |
+| `Atom.moment` | `Moment` or None | `None` | a magnetic moment in crystal-axis components, μ_B, {eq}`int-Fmag`; needs `Phase.magnetic_symmetry` beside it |
 
 `species` is validated when the model compiles rather than when the object is
 built, so an unknown symbol fails with a crystallographic message instead of a

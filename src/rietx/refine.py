@@ -5,6 +5,7 @@ from __future__ import annotations
 import dataclasses
 import fnmatch
 import math
+import re
 import warnings
 from collections.abc import Sequence
 from contextlib import contextmanager
@@ -255,6 +256,10 @@ def _tie_terms(source: "str | dict[str, float] | Sequence[tuple[str, float]]",
     return [(path, scale * coeff) for path, coeff in seen.items()]
 
 
+#: ``phases.i.atoms.j.moment.dof<k>`` — the moment block's own DOF paths.
+_MOMENT_DOF = re.compile(r"^phases\.\d+\.atoms\.\d+\.moment\.dof\d+$")
+
+
 def _unsupported_phase_paths(model: CompiledModel, table: ParameterTable,
                              support: np.ndarray | None = None) -> list[str]:
     """The free columns that move nothing but phases the data cannot see.
@@ -299,6 +304,117 @@ def _unsupported_phase_paths(model: CompiledModel, table: ParameterTable,
     reach = table.column_reach()
     return [p for p in table.free_paths
             if _only_moves(reach.get(p, [p]), prefixes)]
+
+
+#: A moment direction whose calculated-pattern response is this far below the
+#: modulus's measures nothing, and is held (WP-1327).
+#:
+#: **Measured, not chosen.**  On the cubic collinear test structure — where the
+#: orbit-averaged intensity is provably independent of the moment direction —
+#: the two angle DOFs respond at ~1e-15 of the modulus's response for the
+#: finite rotation below, which is roundoff.  On Cr₂WO₆ at 4 K under BNS
+#: 58.395, where the in-plane angle *is* determined, the same probe reads
+#: ~1e0.  Fifteen orders of magnitude separate the two, so the floor sits in
+#: the middle of the gap rather than at the edge of either.
+#:
+#: This exists because the package's other "measured nothing" mechanism
+#: (:meth:`ParameterTable.unmeasured_free`, through
+#: ``optimize.statistics.normal_covariance``) fires only on a column with **no
+#: gradient at all** — ``d > 0.0`` — and an analytically flat direction is not
+#: bitwise flat.  Widening that test to a relative one would change the esd of
+#: every fit in the package; holding the moment block's own flat directions
+#: changes nothing outside it.
+MOMENT_DIRECTION_SUPPORT = 1e-6
+
+#: **A finite rotation, and that is the whole point.**  0.1 rad ≈ 5.7°.
+#:
+#: A derivative-scale step (1e-6) does not answer the question this probe is
+#: asking.  The intensity as a function of a moment's azimuth is *stationary*
+#: at every direction the symmetry fixes, so its first derivative vanishes
+#: there even when the angle is perfectly well determined — measured on
+#: Cr₂WO₆ at 4 K, where a 1e-6 step reads 5e-7 of the modulus's response with
+#: the moment along **a** and 1e0 with it at 45° to a.  A first-derivative
+#: probe would have held a determined direction sitting at its own optimum and
+#: reported it as something the powder could not see, which is the one thing
+#: this rung must not do.  A finite rotation reads the *curvature* as well, so
+#: "flat here" and "flat everywhere" stop looking alike.
+#:
+#: The modulus is probed by the displacement the same rotation produces —
+#: μ → μ + 0.1·|μ| — so the ratio is "does moving the moment sideways matter,
+#: compared to moving it lengthwise by as much".
+MOMENT_PROBE_ANGLE_RAD = 0.1
+
+#: Purity cut (issue #278) deciding which of a magnetic phase's reflections
+#: draw on the nuclear tick row and which on its own "(magnetic)" row, by the
+#: magnetic fraction p²⟨|F_⊥|²⟩ / (⟨|F_N|²⟩ + p²⟨|F_⊥|²⟩): a reflection at or
+#: above ``1 - MAGNETIC_TICK_PURITY`` is magnetic, at or below it is nuclear,
+#: and one in between draws on **neither** row rather than picking a side
+#: arbitrarily.  ``CompiledPhase.nuclear_mask`` alone is not enough: it is
+#: exact for a k = 0 magnetic space group's own absences, but on a k != 0
+#: supercell the strongest magnetic reflections sit in the child group's own
+#: reflection list with the mask at 1.0 and an identically-zero ⟨|F_N|²⟩ (the
+#: nuclear atoms still carry the parent's translation) — a classifier reading
+#: the mask alone would draw those on the nuclear row.
+MAGNETIC_TICK_PURITY = 0.05
+
+
+def _flat_moment_paths(model: CompiledModel, table: ParameterTable,
+                       candidates: list[str] | None = None) -> list[str]:
+    """Moment **direction** DOFs the calculated pattern does not respond to.
+
+    The rule WP-1327 takes from WP-1301, one object down: a direction the data
+    cannot see is a flat direction, and holding it is cheaper and truer than
+    letting it wander into a number with an esd.  What a powder cannot see of
+    a moment is Shirane's (1959) result — a cubic collinear structure's
+    direction entirely, a uniaxial one's azimuth — and it is *measured* here
+    rather than derived from the symmetry, so a structure the classification
+    does not anticipate is handled by the same rule.
+
+    **The modulus is never held.**  It is the one direction that is not flat,
+    and it is how a moment legitimately climbs out of the noise — exactly the
+    argument that keeps a phase's own ``scale`` out of
+    :func:`_unsupported_phase_paths`.  A modulus sitting at its floor makes
+    every direction flat (|F_m|² ∝ m²), so the probe holds them all without
+    needing a special case for it; what the *report* says about the modulus
+    there is ``MomentEvidence.supported``.
+
+    ``candidates`` defaults to the free paths.  Passing a held list asks the
+    opposite question — which of these could now move — because the probe
+    perturbs the decoded value dict directly rather than θ, and a moment DOF
+    has no tie, so a held path is perturbable exactly as a free one is.
+    """
+    paths = [p for p in (table.free_paths if candidates is None else candidates)
+             if _MOMENT_DOF.match(p) and not p.endswith(".dof0")]
+    if not paths:
+        return []
+    values = table.decode(table.x0())
+    y0 = np.asarray(model.evaluate(values), dtype=np.float64)
+
+    def response(path: str, step: float) -> float:
+        v = dict(values)
+        v[path] = values[path] + step
+        return float(np.linalg.norm(
+            np.asarray(model.evaluate(v), dtype=np.float64) - y0))
+
+    flat: list[str] = []
+    for path in paths:
+        modulus = path.rsplit(".dof", 1)[0] + ".dof0"
+        mu = abs(values[modulus])
+        # the same tip displacement both ways: a rotation by δφ moves the
+        # moment by |μ|·δφ, so the modulus is probed by exactly that much
+        scale = response(modulus, MOMENT_PROBE_ANGLE_RAD * max(mu, 1e-6))
+        if scale <= 0.0 or response(path, MOMENT_PROBE_ANGLE_RAD) <= (
+                MOMENT_DIRECTION_SUPPORT * scale):
+            flat.append(path)
+    return flat
+
+
+def _hold_flat_moments(model: CompiledModel, table: ParameterTable) -> list[str]:
+    """Apply :func:`_flat_moment_paths` to the table; returns what it held."""
+    held = _flat_moment_paths(model, table)
+    if held:
+        table.set_vary(held, False)
+    return held
 
 
 def _only_moves(reached: list[str], prefixes: tuple[str, ...]) -> bool:
@@ -2108,7 +2224,20 @@ class Refinement:
         # did.  Derived rather than patched, because a collapse and a release
         # can happen in the same stage.
         declared_freed = list(freed)
+        # Two holds, and they answer different questions of the same stage: a
+        # phase the data cannot see at all (WP-1301), and a moment *direction*
+        # the powder average cannot determine (WP-1327).  Both are flat
+        # directions, both are taken after the compile at the values the stage
+        # starts from, and both go into ``StageResult.held`` so the report can
+        # say which and why.
         held, held_reach = _hold_unsupported_phases(model, table)
+        # kept apart, because the release below judges each hold by its own
+        # question: a moment DOF the *phase* hold took (every free structural
+        # path of an invisible phase, ``moment.dof0`` included) stays with the
+        # phase, and only what this probe itself held is asked again as a
+        # direction (review of #433, finding 2)
+        moment_hold = _hold_flat_moments(model, table)
+        held = held + moment_hold
         if held:
             held_set = set(held)
             freed = [p for p in declared_freed if p not in held_set]
@@ -2153,13 +2282,29 @@ class Refinement:
         # one measurement, two questions — the release and the collapse are
         # complementary readings of the same ``phase_support`` vector
         support = model.phase_support(table.decode(table.x0()))
+        # the moment holds are asked of the answer separately: they are about a
+        # direction rather than a phase, so ``_released_phases``'s prefix test
+        # would release them for the wrong reason — a phase rising above the
+        # noise says nothing about whether its moment direction became
+        # determinable.  *Which* paths are moment holds is what
+        # ``_hold_flat_moments`` returned, never a name match on ``held``: the
+        # phase hold takes an invisible phase's moment DOFs too, and read by
+        # name those went to the direction probe, which skips ``dof0`` and so
+        # released the modulus of a phase the data still could not see.
+        moment_held = [p for p in held if p in set(moment_hold)]
+        phase_held = [p for p in held if p not in set(moment_hold)]
         # the hold's reach travels with it: a held ``vars.X`` names no phase,
         # and asking the table now would get nothing back (WP-1342)
-        released = (_released_phases(model, table, held, support, held_reach)
-                    if held else [])
+        released = (_released_phases(model, table, phase_held, support, held_reach)
+                    if phase_held else [])
+        if moment_held:
+            still_flat = set(_flat_moment_paths(model, table, moment_held))
+            released = released + [p for p in moment_held if p not in still_flat]
         # the same question the hold asked, asked again of the answer: what is
-        # free now and belongs to a phase the data cannot see
-        collapsed = _unsupported_phase_paths(model, table, support)
+        # free now and belongs to a phase the data cannot see, and what moment
+        # direction went flat while the stage ran
+        collapsed = (_unsupported_phase_paths(model, table, support)
+                     + _flat_moment_paths(model, table))
         if released or collapsed:
             if collapsed:
                 # Restore before holding: those values moved in a direction the
@@ -2697,6 +2842,7 @@ class Refinement:
             max_shift_over_esd=outcome.max_shift_over_esd)
         report = build_report(result, model=model,
                               values=table.decode(outcome.theta), plan=plan,
+                              structure=self.structure,
                               free_paths=list(table.free_paths))
         return report.for_stage(name)
 
@@ -2929,6 +3075,7 @@ class Refinement:
         table = ParameterTable(self.structure, self.instrument)
         return build_report(self.result_, model=self._model,
                             values=table.decode(table.x0()), plan=plan,
+                            structure=self.structure, held=list(self._held),
                             free_paths=list(self._free_paths), **kw)
 
     def summary(self, *, deliverable: str | None = None, plot: str | None = None,
@@ -4030,25 +4177,69 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
     # answer to *where* a tick goes is the thing this must not become: the
     # index is carried through the same sort the positions are, so a tick and
     # its Miller index cannot come apart (WP-1438).
+    #
+    # `tick_support` rides beside the positions on the same terms, carried
+    # through the same filter and sort, so the low-angle boundary can ask
+    # which ticks have anything behind them without pairing by position
+    # (WP-1458).  Each tick carries its *reflection's* support: the strongest
+    # modelled point in σ (`CompiledModel.reflection_support`) over every
+    # emission-line image of that hkl, so a Kα2 or λ/2 image is judged with the
+    # reflection it is an image of, as its index already says.  It is not a
+    # result field; `_low_angle_diagnostics` is its one reader.
     ticks = {}
     tick_hkl = {}
+    tick_support = {}
     for ip, cp in enumerate(model.phases):
         name = structure.phases[ip].name
         cell = tuple(values[f"phases.{ip}.cell.{k}"]
                      for k in ("a", "b", "c", "alpha", "beta", "gamma"))
-        rows = [cp.reflections.two_theta(cell, lam) + values["instrument.zero_shift"]
+        rows = [cp.reflections.two_theta(cell, lam)
+                + values["instrument.zero_shift"]
                 for lam in model.line_wavelengths]
         pos = np.concatenate(rows) if rows else np.array([])
         # one reflection list per emission line, in the same order each time,
         # so the index list is that list tiled — the Kα2 image of a peak is
-        # the same hkl and says so
+        # the same hkl and says so.
         hkl = (np.tile(cp.reflections.hkl, (len(rows), 1)) if rows
                else np.zeros((0, 3), dtype=np.int64))
+        line_support = model.reflection_support(ip, values)
+        sup = (np.tile(np.max(np.stack(line_support), axis=0), len(rows))
+               if rows else np.array([]))
         keep = np.isfinite(pos)
-        pos, hkl = pos[keep], hkl[keep]
-        order = np.argsort(pos, kind="stable")
-        ticks[name] = [float(v) for v in pos[order]]
-        tick_hkl[name] = [[int(h), int(k), int(el)] for h, k, el in hkl[order]]
+        if cp.magnetic is not None:
+            # issue #278: a magnetic phase's reflections are drawn as their
+            # own tick row, as a second phase would be -- split by a purity
+            # cut on the magnetic fraction (MAGNETIC_TICK_PURITY: see its
+            # docstring for why the mask on ``CompiledPhase`` is not enough
+            # on a k != 0 supercell).  One
+            # fraction per *reflection*, tiled across ``rows`` (one row per
+            # emission line, each already ``cp.reflections``-ordered) before
+            # the positions are concatenated and sorted.
+            # ``tick_hkl`` and ``tick_support`` are carried through the same
+            # mask and the same sort as the positions, so a split row keeps its
+            # Miller indices and its support.
+            d = np.asarray(cp.reflections.d, dtype=np.float64)
+            f_nuc = np.asarray(model._nuclear_f2(ip, d, values, cell),
+                               dtype=np.float64)
+            f_mag = np.asarray(model._magnetic_f2(ip, d, values, cell),
+                               dtype=np.float64)
+            total = f_nuc + f_mag
+            with np.errstate(invalid="ignore", divide="ignore"):
+                frac = np.where(total > 0.0, f_mag / total, 0.0)
+            mag_hkl = frac >= 1.0 - MAGNETIC_TICK_PURITY
+            mag_row = (np.concatenate([mag_hkl for _ in rows])
+                       if rows else np.zeros(0, dtype=bool))
+            rows_out = ((name, keep & ~mag_row),
+                        (f"{name} (magnetic)", keep & mag_row))
+        else:
+            rows_out = ((name, keep),)
+        for key, sel in rows_out:
+            pos_k, hkl_k, sup_k = pos[sel], hkl[sel], sup[sel]
+            order = np.argsort(pos_k, kind="stable")
+            ticks[key] = [float(v) for v in pos_k[order]]
+            tick_hkl[key] = [[int(h), int(k), int(el)]
+                             for h, k, el in hkl_k[order]]
+            tick_support[key] = [float(v) for v in sup_k[order]]
 
     # Declared sharp peaks are ticks too, under one reserved key.  This is the
     # whole of the member contract's clause 2 for `PeakComponent`: a hump joins
@@ -4074,6 +4265,11 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
     extra_ticks = model.extra_peak_tick_positions(values)
     if extra_ticks:
         ticks[EXTRA_TICK_KEY] = extra_ticks
+        images = model.extra_peak_support(values)
+        best = {}
+        for _, j, s in images:
+            best[j] = max(best.get(j, 0.0), s)
+        tick_support[EXTRA_TICK_KEY] = [best[j] for _, j, _ in images]
 
     # Quantitative phase analysis from the refined scales.  Le Bail scales are
     # degenerate with the extracted intensities, so QPA is Rietveld-only.  σ(W)
@@ -4214,7 +4410,7 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
     # this function already built, so the two cannot disagree about where
     # the first reflection sits.
     diagnostics = diagnostics + _low_angle_diagnostics(
-        model, values, y_calc, stats, ticks)
+        model, values, y_calc, stats, ticks, tick_support)
 
     # What a declared sharp peak did, once the fit has an answer about it
     # (WP-1103).  Built after ``ticks`` because "is this component sitting on a
@@ -5233,11 +5429,37 @@ LOW_ANGLE_MIN_CHANNELS = 10
 
 
 def _first_reflection_fwhm(model: CompiledModel, values: dict[str, float],
-                           ticks: dict[str, list[float]]
+                           ticks: dict[str, list[float]],
+                           support: dict[str, list[float]] | None = None
                            ) -> tuple[float, float] | None:
-    """``(2θ, FWHM)`` of the lowest-angle reflection over every phase and
-    emission line, or ``None`` when the model has no reflection at all
-    (an empty structure list).
+    """``(2θ, FWHM)`` of the lowest-angle reflection the data can see, over
+    every phase, emission line and declared peak, or ``None`` when there is
+    none (an empty structure list, or no tick carrying intensity).
+
+    **Which ticks count** (WP-1458): the images of a reflection whose
+    strongest modelled point, on any emission line, reaches
+    :data:`~rietx.model.forward.PHASE_SUPPORT_SIGMA` σ of the noise — read
+    off ``support``, which :func:`_build_result` builds from
+    :meth:`CompiledModel.reflection_support` and
+    :meth:`CompiledModel.extra_peak_support` and pairs with ``ticks`` by
+    index.  That is :meth:`CompiledModel.phase_support`'s test one rank down,
+    per reflection rather than per phase, because a *supported* row can still
+    carry empty ticks below its first real line (a declared peak at zero
+    area, a superstructure reflection whose |F| is zero), and because a
+    phase's summed curve can clear the threshold where none of its
+    reflections does (issue #436's large-cell dummy: 1.23σ summed, no
+    reflection above 0.62σ).  A tick with nothing behind it reaches nothing;
+    before this rule one below the data moved the boundary there and silenced
+    the diagnostic.
+
+    **Per reflection, not per image**: the unit is the hkl, as ``tick_hkl``
+    has it, so a Kα2 or λ/2 image of a reflection the data sees keeps its
+    place however weak the image is on its own.  Judged image by image, the
+    λ/2 (111) of the published BT-1 Cu(311) Nd₂Ru₂O₇ fit (0.095σ, beside its
+    primary's 2.86σ) was dropped, the region grew from 36 to 185 channels,
+    and a warning firing at 5.92× today fell to 2.66×.
+
+    ``support=None`` makes no claim and counts every tick by position alone.
 
     The FWHM is the **instrumental** resolution function alone (Caglioti
     U/V/W + the Lorentzian X/Y, no per-phase size/strain broadening): this
@@ -5248,7 +5470,12 @@ def _first_reflection_fwhm(model: CompiledModel, values: dict[str, float],
     already built (zero-shift included), reused rather than re-derived so the
     two cannot disagree about where the first reflection sits.
     """
-    all_ticks = [t for row in ticks.values() for t in row]
+    if support is None:
+        all_ticks = [t for row in ticks.values() for t in row]
+    else:
+        all_ticks = [t for name, row in ticks.items()
+                     for t, s in zip(row, support[name], strict=True)
+                     if s >= PHASE_SUPPORT_SIGMA]
     if not all_ticks:
         return None
     first_tick = min(all_ticks)
@@ -5264,7 +5491,8 @@ def _first_reflection_fwhm(model: CompiledModel, values: dict[str, float],
 
 
 def _low_angle_diagnostics(model: CompiledModel, values: dict[str, float],
-                           y_calc, stats, ticks: dict[str, list[float]]
+                           y_calc, stats, ticks: dict[str, list[float]],
+                           support: dict[str, list[float]] | None = None
                            ) -> list[Diagnostic]:
     """``LOW_ANGLE_UNMODELLED``: the channels below the first reflection carry
     more residual than the fit's own whole-pattern χ²_red would predict.
@@ -5277,9 +5505,12 @@ def _low_angle_diagnostics(model: CompiledModel, values: dict[str, float],
     on Ba₂FeSbSe₅ 1.5 K: 0.019, against the ``AIR_SCATTER_TRIGGER`` of 0.3;
     19 tail channels out of 779 carry 0.3 % of the whole-range RSS the nested
     fit compares). This diagnostic instead reads the fit's own residual, and
-    only over the region no reflection — of any phase, any emission line —
-    can reach: ``[two_theta_min, first_tick − 2·FWHM)``, so a peak's own
-    low-angle flank is never counted as unmodelled.
+    only over the region no reflection — of any phase, any emission line,
+    any declared peak — can reach: ``[two_theta_min, first_tick − 2·FWHM)``,
+    so a peak's own low-angle flank is never counted as unmodelled.
+    ``first_tick`` is the lowest tick carrying calculated intensity the data
+    can see (``support``; :func:`_first_reflection_fwhm` states the rule), so
+    an empty tick below the first real line does not move the boundary.
 
     Silent (``[]``) rather than firing, under either of two conditions:
 
@@ -5304,7 +5535,7 @@ def _low_angle_diagnostics(model: CompiledModel, values: dict[str, float],
     genuinely outside the beam, versus the background model is locally
     wrong) and only whoever is looking at the pattern can tell which.
     """
-    first = _first_reflection_fwhm(model, values, ticks)
+    first = _first_reflection_fwhm(model, values, ticks, support)
     if first is None:
         return []
     first_tick, fwhm = first

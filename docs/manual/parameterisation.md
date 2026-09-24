@@ -183,6 +183,60 @@ the same Cholesky-derived Cartesian frame the ADP construction uses, so the
 crystal-axis and fractional actions of $R$ agree. The constraint algebra never
 has to see a cell.
 
+(sec-moment-dofs)=
+## Moment degrees of freedom
+
+A magnetic moment takes the same construction one tensor rank *down*, and then
+departs from it in the one way that matters. The allowed subspace at a site is
+the simultaneous fixed points of the axial action over the site's magnetic
+stabiliser: the rotation untransposed, times its determinant, times the
+operation's time-reversal sign:
+
+```{math}
+:label: par-moment
+
+\bigcap_{(R,\,\mathbf{t},\,\varepsilon)\, \in\, G_{\mathbf{x}}}
+\ker\bigl(\varepsilon \det(R)\, R - I\bigr).
+```
+
+{source}`rietx.crystallography.magnetic.operators`
+
+The same exact rational nullspace as {eq}`par-coord` and {eq}`par-adp`, and
+the same deterministic smallest-integer basis. The transposed set is a group
+too, so a wrong action leaves the *dimension* of this subspace unchanged in
+every crystal system; the only test that can fail is whether a known moment
+lies in the derived span. Measured over all 1651 magnetic space groups
+against a grid of sites, $R$ and $R^{\mathsf T}$ give different spans for 543
+(group, site) pairs and every one of them is trigonal or hexagonal, so a test
+set built from rutile, perovskite and spinel proves nothing here.
+
+Where the moment departs from the ADP is the parameterisation. A powder
+average determines $|m|$ and, for a uniaxial structure, the angle to the
+unique axis, and nothing else {cite}`shirane1959`. Those undeterminable
+directions have to *be columns* of the least-squares problem for the package's
+flat-direction rule to name them, and neither the components nor their
+coefficients on {eq}`par-moment` is one: a rotation of the moment is a
+combination of all of them, so every coefficient would come back unmeasured
+and the magnitude, which the data does determine, would come back with no esd.
+So the DOFs are a modulus and angles inside the allowed subspace,
+
+```{math}
+:label: par-moment-dof
+
+\mathbf{m} \;=\; \mu \sum_k \hat{u}_k(\phi,\theta)\, \mathbf{e}_k,
+\qquad \mathbf{e}_i^{\mathsf T} G\, \mathbf{e}_j = \delta_{ij},
+```
+
+{source}`rietx.crystallography.magnetic.moments`
+
+with $\{\mathbf{e}_k\}$ a Gram-Schmidt frame of {eq}`par-moment` in the magCIF
+unit-vector metric $G$ (ones on the diagonal, cosines of the cell angles
+off it). That metric is what makes $\mu$ equal $|m|$ as the CIF defines it: on
+hexagonal axes the moment $(1, 1, 0)$ is $1\ \mu_B$, not $\sqrt 2$. One
+dimension gives $(\mu)$ with $\mu$ *signed*, two give $(\mu, \phi)$ and three
+$(\mu, \theta, \phi)$; the frame is frozen per stage from the declared cell,
+like every other discrete object here.
+
 ## Soft restraints
 
 A bond-length, angle or value restraint contributes one row to the residual

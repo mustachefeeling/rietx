@@ -167,7 +167,7 @@ penalty on a background before choosing.
       an optional term (`Geometry.mu_t`, `Phase.microstrain`, `Atom.aniso`,
       `Source.dispersion`), and it needs no seam. `for_range` builds no air
       term, and `auto_background` declares one on its trigger as before.
-      `SCHEMA_VERSION` 0.27 → 0.28, not additive. A document saved before this
+      `SCHEMA_VERSION` 0.28 → 0.29, not additive. A document saved before this
       carries the old default, a `Parameter` at 0, and refines as it did.
       **Re-measured** on the § 3 protocol (`[dev]` venv, Linux x86-64):
       background-only correlation rows at 8°, 2° and 0.75° knots went from
@@ -276,7 +276,7 @@ penalty on a background before choosing.
       No other test pins a P-spline number. A stored document has no
       `lambda_units`, so its λ opens as the pure number and its penalty
       changes. That is deliberate: the stored value never said which unit it
-      was chosen in (`SCHEMA_VERSION` 0.28's note). Prior art: GSAS-II's
+      was chosen in (`SCHEMA_VERSION` 0.29's note). Prior art: GSAS-II's
       eight background functions carry no smoothness penalty, so there is no
       scaling convention to adopt (GSASIIpwd docs, 2026-09-24). TOPAS was
       not checked. The WP § 1 table, rerun with its own code, is now one row
@@ -358,7 +358,7 @@ reports no air-term correlation rows.
     measured (`9d73a84`), λ a pure number with `lambda_units` as the way back
     (`4554e1a`), the invariance test (`4ba5b94`), the skill (`810d3ba`), and
     task 2's audit filing WP-1460 (`3920f3f`). Review fixes followed in
-    `1373f86`. `SCHEMA_VERSION` 0.27 → 0.28, once for both field changes. The
+    `1373f86`. `SCHEMA_VERSION` 0.28 → 0.29, once for both field changes. The
     manual's `bg-penalty` equation, Part 1's background paragraph, root
     CLAUDE.md's background clause and `releases/1.5.1.md`'s three sections
     all moved in the same commits.

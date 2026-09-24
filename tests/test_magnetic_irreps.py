@@ -102,6 +102,80 @@ ALL_SETTINGS = tuple(gemmi.find_spacegroup_by_number(n).xhm() for n in range(1, 
 #: every table it can.
 MEASURED_SPGREP_VERSION = "0.7.0"
 
+#: Every (setting, k) at which spgrep 0.7.0's ``real=True`` construction has
+#: been seen to decline, all 114 with its own ``AssertionError: T is not square
+#: root of intertwiner.`` — recorded 2026-09-24 on macOS arm64 (numpy 2.5.2),
+#: where the physically-irreducible sweep reads 1363 checked, 114 declined.
+#: **Which of these a machine declines depends on the machine, not the OS**
+#: (#439): ``P n -3 m:1`` at k = (½, ½, ½) declines on that Mac and on one
+#: Linux x86_64 (OpenBLAS, Haswell kernel) and returns on another Linux x86_64,
+#: which reads 1364 / 113.  The likeliest variable is the BLAS kernel, which is
+#: unmeasured.  So the gate is that the declined set is a *subset* of this list:
+#: declining fewer passes, and a case declined outside it fails by name.
+_ORACLE_REAL_DECLINES = {
+    "P 1 2/c 1": ("0 0 1/2", "0 1/2 1/2", "1/2 0 1/2", "1/2 1/2 1/2"),
+    "P 1 21/c 1": ("0 0 1/2", "1/2 0 1/2"),
+    "C 1 2/c 1": ("0 0 1/2",),
+    "P 21 21 21": ("1/2 0 0",),
+    "P c c m": ("0 0 1/2", "0 1/2 1/2", "1/2 0 1/2", "1/2 1/2 1/2"),
+    "P m m a": ("1/2 0 0", "1/2 0 1/2", "1/2 1/2 0", "1/2 1/2 1/2"),
+    "P n n a": ("0 0 1/2", "1/2 0 0"),
+    "P m n a": ("1/2 0 0", "1/2 1/2 0"),
+    "P c c a": ("0 0 1/2", "0 1/2 1/2", "1/2 0 0", "1/2 1/2 0"),
+    "P c c n": ("0 0 1/2", "1/2 0 0"),
+    "P n n m": ("0 0 1/2",),
+    "P b c n": ("0 1/2 0", "1/2 0 0", "1/2 1/2 0"),
+    "P b c a": ("1/2 0 0",),
+    "P n m a": ("1/2 0 0",),
+    "C m c a": ("1/2 1/2 0",),
+    "C c c m": ("0 0 1/2",),
+    "C m m a": ("1/2 1/2 0", "1/2 1/2 1/2"),
+    "I b a m": ("0 1/2 1/2", "1/2 0 1/2"),
+    "I b c a": ("0 1/2 1/2", "1/2 0 1/2", "1/2 1/2 0"),
+    "I m m a": ("1/2 1/2 0",),
+    "P 42/m": ("0 0 1/2", "1/2 1/2 1/2"),
+    "P 4/n:1": ("1/2 1/2 0", "1/2 1/2 1/2"),
+    "P 42/n:1": ("1/2 1/2 0",),
+    "P 4 21 2": ("1/2 1/2 0", "1/2 1/2 1/2"),
+    "P 41 21 2": ("1/2 1/2 0",),
+    "P 42 21 2": ("1/2 1/2 0",),
+    "P 43 21 2": ("1/2 1/2 0",),
+    "P 42 n m": ("1/2 1/2 0",),
+    "P 42 m c": ("0 0 1/2", "1/2 1/2 1/2"),
+    "P 42 b c": ("0 0 1/2",),
+    "P 4/m c c": ("0 0 1/2", "0 1/2 1/2", "1/2 0 1/2", "1/2 1/2 1/2"),
+    "P 4/m n c": ("0 0 1/2",),
+    "P 4/n c c:1": ("0 0 1/2",),
+    "P 42/m m c": ("0 0 1/2", "1/2 1/2 1/2"),
+    "P 42/m c m": ("0 0 1/2", "0 1/2 1/2", "1/2 0 1/2", "1/2 1/2 1/2"),
+    "P 42/m b c": ("0 0 1/2",),
+    "P 42/m n m": ("0 0 1/2", "1/2 1/2 0"),
+    "I 4/m c m": ("0 1/2 1/2", "1/2 0 1/2"),
+    "P -3 1 c": ("0 0 1/2", "0 1/2 1/2", "1/2 0 1/2", "1/2 1/2 1/2"),
+    "P -3 c 1": ("0 0 1/2", "0 1/2 1/2", "1/2 0 1/2", "1/2 1/2 1/2"),
+    "R -3 c:H": ("1/2 0 1/2",),
+    "P -6 2 c": ("0 0 1/2",),
+    "P 6/m c c": ("0 0 1/2", "0 1/2 1/2", "1/2 0 1/2", "1/2 1/2 1/2"),
+    "P 63/m c m": ("0 0 1/2", "1/2 1/2 1/2"),
+    "P 63/m m c": ("0 0 1/2",),
+    "P 21 3": ("1/2 0 0",),
+    "P n -3:1": ("1/2 1/2 1/2",),
+    "P a -3": ("1/2 0 0",),
+    "I a -3": ("0 1/2 1/2", "1/2 0 1/2", "1/2 1/2 0"),
+    "P 42 3 2": ("1/2 1/2 1/2",),
+    "P 43 3 2": ("0 1/2 1/2", "1/2 0 1/2"),
+    "P 41 3 2": ("0 1/2 1/2", "1/2 0 1/2"),
+    "P -4 3 n": ("0 0 1/2", "0 1/2 0", "1/2 0 0"),
+    "P n -3 n:1": ("1/2 1/2 1/2",),
+    "P m -3 n": ("0 0 1/2", "0 1/2 0", "1/2 0 0", "1/2 1/2 1/2"),
+    "P n -3 m:1": ("1/2 1/2 1/2",),
+    "F m -3 c": ("1/2 1/2 1/2",),
+    "I a -3 d": ("0 1/2 1/2", "1/2 0 1/2", "1/2 1/2 0"),
+}
+ORACLE_REAL_MAY_DECLINE = frozenset(
+    (symbol, tuple(map(Fraction, k.split())))
+    for symbol, ks in _ORACLE_REAL_DECLINES.items() for k in ks)
+
 
 def _oracle_version(spgrep_core) -> str:
     """The oracle's version, from the module or from its installed metadata.
@@ -657,11 +731,23 @@ def test_physically_irreducible_dimensions_agree_with_the_spgrep_oracle():
     test **passed**, at ``checked=0 agreed=0 declined=1477``.  After it the
     same mutation propagates out of the bare ``small_irreps_of(little)`` below
     — ``ValueError: BROKEN CONSTRUCTION (mutation probe)`` — and the test is
-    red in 0.09 s.  Unmutated it is green in 10.5 s at the pinned
-    ``(checked, agreed, declined) == (1363, 1363, 114)``.
+    red in 0.09 s.  Unmutated it is green in 10.5 s, on the machine that
+    recorded ``ORACLE_REAL_MAY_DECLINE``, at 1363 checked and 114 declined.
+
+    **Which pairs spgrep declines is gated as a subset, never as a count**
+    (#439).  An exact ``(1363, 1363, 114)`` pin failed on a Linux x86_64 that
+    reads ``(1364, 1364, 113)``: spgrep's own ``real=True`` check returns there
+    for ``P n -3 m:1`` at k = (½, ½, ½) and asserts on this Mac and on another
+    Linux x86_64, so the split is by machine and not by OS (the BLAS kernel is
+    the likeliest variable, unmeasured).  A count measured spgrep's floating
+    point on one machine; the subset says what a refusal may be, so a machine
+    declining fewer passes and one declining a pair off the list fails naming
+    it.  The mutation probe above is untouched by the change: it goes red on
+    the bare construction call, before any decline is recorded.
     """
     spgrep_core = pytest.importorskip("spgrep")
-    checked = agreed = declined = 0
+    checked = agreed = 0
+    declined: list[tuple[str, tuple[Fraction, ...]]] = []
     for symbol in ALL_SETTINGS:
         rotations, translations = primitive_operations(symbol)
         floats = np.array([[float(c) for c in t] for t in translations])
@@ -684,19 +770,23 @@ def test_physically_irreducible_dimensions_agree_with_the_spgrep_oracle():
                 real, _ = spgrep_core.get_spacegroup_irreps_from_primitive_symmetry(
                     rotations, floats, np.array([float(c) for c in k_primitive]), real=True)
             except (AssertionError, ValueError):
-                declined += 1
+                declined.append((symbol, k))
                 continue
             checked += 1
             agreed += bool(sorted(d.shape[1] for d in real) == _real_dimensions(mine))
     # ours, on every version: nothing disagreed, and every 2k ≡ 0 pair this
     # package built a little group for was attempted
     assert agreed == checked
-    assert checked + declined == 1477
+    assert checked + len(declined) == 1477
     # spgrep's own: which of those it declines is its behaviour, not this
-    # package's, and pyproject puts no ceiling on the version
+    # package's, and pyproject puts no ceiling on the version — so on the
+    # measured version a refusal must be one already recorded, by name
     if _counts_are_pinned(spgrep_core):
-        assert (checked, agreed) == (1363, 1363)
-        assert declined == 114
+        unrecorded = [(symbol, " ".join(map(str, k))) for symbol, k in declined
+                      if (symbol, k) not in ORACLE_REAL_MAY_DECLINE]
+        assert not unrecorded, (
+            f"spgrep {MEASURED_SPGREP_VERSION} declined {len(unrecorded)} (setting, k) "
+            f"pair(s) not in ORACLE_REAL_MAY_DECLINE: {unrecorded}")
 
 
 def _real_dimensions(irreps) -> list[int]:

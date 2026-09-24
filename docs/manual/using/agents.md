@@ -132,7 +132,10 @@ sorted(caps.features)
   `RadiationCapability` carries `RadiationCapability.kind`, the discriminator to
   write, `RadiationCapability.title` and `RadiationCapability.scatterer`, the
   one-line statement of what does the scattering and therefore whether the
-  amplitude falls off with Q. The other four say how the shape of the source
+  amplitude falls off with Q. `RadiationCapability.magnetic_scattering` says
+  whether a histogram of that radiation carries the magnetic structure factor of
+  a phase declaring a moment ([](refining.md)), read off the same table the
+  forward model dispatches on. The other four say how the shape of the source
   differs, which decides whether a field exists to set at all:
   `RadiationCapability.anomalous_dispersion`,
   `RadiationCapability.max_emission_lines` (`None` for unbounded, 1 for a source

@@ -197,7 +197,13 @@ instrument = rx.read_gsas_prm("beamline.prm")
 ```
 
 It reads the dominant case the format ships: one bank, `HTYPE PXCR`
-(constant-wavelength X-ray), GSAS profile function 3. It converts `GU`/`GV`/`GW`
+(constant-wavelength X-ray), GSAS profile function 3. Its neutron twin, `HTYPE
+PNCR` with profile function 3, reads too, onto
+`Instrument.constant_wavelength_neutron` at the file's `LAM1`: the profile
+record is defined by profile function rather than by radiation, so the same
+coefficients land in the same places. A neutron source has one wavelength and
+no polarization, so such a file's `POLA` and `KRATIO` are read and not applied,
+and a non-zero `LAM2` is refused. It converts `GU`/`GV`/`GW`
 from centidegrees² and `LX`/`LY` from centidegrees into the degrees² and degrees
 `ProfileTCHZ` uses. A file stating a Kα1/Kα2 doublet comes back with two
 emission lines, the second weighted by the `KRATIO` field, which is the Kα2/Kα1
@@ -208,9 +214,9 @@ as well. A neutron time-of-flight file (`HTYPE PNTR`) and every other
 GSAS profile function are refused by name rather than approximated, and the
 refusal says which reason applies to which. A time-of-flight file puts something
 onto the axis that `ProfileTCHZ`'s constant-wavelength Caglioti/TCH law cannot
-express. A constant-wavelength neutron file (`HTYPE PNCR`) states a law it could
-hold and is refused only for want of a real fixture to pin its coefficient
-layout down. A GSAS `.LST` refinement output has no reader and is transcribed
+express. A profile function other than 3 is refused under `PXCR` and `PNCR`
+alike, naming the type the file carries, because each function has its own
+coefficient layout and no verified one exists here for the others. A GSAS `.LST` refinement output has no reader and is transcribed
 by hand. A GSAS `.EXP`, a TOPAS `.inp` and a FullProf `.pcr` are whole
 refinements rather than instrument files, and have their own readers in the
 next section.
@@ -271,9 +277,12 @@ refuses a non-zero one on the way in for that reason, so writing a guess would
 make a file this package will not read back and a `ZERO` wrong by 100× puts
 every peak in the wrong place. Set `zero_shift` to 0 and let the receiving
 program refine it; a zero shift belongs to the mount rather than to the
-goniometer. A neutron source, a third emission line and a second line whose
-weight is not a `KRATIO` are refused for the same reason in the other three
-cases: each would make a file this package's own reader declines.
+goniometer. A third emission line and a second line whose weight is not a
+`KRATIO` are refused for the same reason: each would make a file this
+package's own reader declines. A neutron source is refused for a different
+one. The reader takes a type-3 `HTYPE PNCR` file, but what such a file's `POLA`
+and `KRATIO` should hold, for a source that has neither, is spelled by one real
+file only, and that is a reading rather than a convention to write by.
 
 Pass no list and the read is silent and identical, so the channel is opt-in
 rather than a behaviour change.

@@ -40,10 +40,11 @@ restated here; a page named `x` below is `https://rietx.org/using/x.html`.
 | you are about to call rietx: entry points, constructors, the four answer types and their fields, the report | [`references/api.md`](references/api.md) | `quickstart`, `model`, `refining`, `results`, `agents` |
 | you were handed another program's input file, not a pattern | [`references/api.md`](references/api.md) § In | `recipe`, `files` |
 | a `Diagnostic` fired and you need its row — §7 the engine's own, §7g another program's project file, §7h a file you wrote back, §7i your own file as read | [`references/diagnostics.md`](references/diagnostics.md), [`references/diagnostics-projects.md`](references/diagnostics-projects.md), [`references/diagnostics-gsas.md`](references/diagnostics-gsas.md), [`references/diagnostics-reading.md`](references/diagnostics-reading.md) | `results` |
+| §7j — a magnetic `Diagnostic` fired | [`references/magnetic.md`](references/magnetic.md) | `results` |
 | §6 — something declined to answer: abstentions, caveats, gate failures, `best_or_none()` returning `None` | [`references/abstention.md`](references/abstention.md) | `report` |
 | §5 — you are about to quote a number: which field carries which fact, and read numbers rather than pixels | [`references/numbers.md`](references/numbers.md) | `report`, `results` |
 | §4/§4b — a judging or deliverable rule needs its measurement, before you override one | [`references/judging.md`](references/judging.md) | `report`, `qpa`, `constraints` |
-| §8 — the fit did something that makes no sense: twenty-six measured results that contradict an intuition | [`references/surprises.md`](references/surprises.md) | `refining` |
+| §8 — the fit did something that makes no sense: measured results that contradict an intuition | [`references/surprises.md`](references/surprises.md) | `refining` |
 | §7b-7f — the phase is unknown, or you want the peaks themselves and no cell: peak picking, fitting peaks you name, indexing, the closed loop, the extinction screen | [`references/diagnostics-indexing.md`](references/diagnostics-indexing.md) | `indexing` |
 | §9 — one fit is not the answer: the trajectory, and the history DAG as a search structure | [`references/history.md`](references/history.md) | `history` |
 | §9b — an in-situ ramp, a sweep or a tray: chaining N patterns, and checking the chain both ways | [`references/series.md`](references/series.md) | `series` |
@@ -216,9 +217,7 @@ Rwp compares your model to the *data you have*, weighted by counting statistics.
 It is dominated by the strongest peaks and by the background level: a useful
 *relative* number between two fits of the same data over the same channels, and a
 nearly useless absolute one. Measured, 18 refinements of one identical PbSO₄
-dataset returned Rwp 8.2–20.0 % (Hill, 1992, *J. Appl. Cryst.* **25**, 589), and
-Toby (2006, *Powder Diffr.* **21**, 67) finds "no simple way to distinguish a good
-fit from one that is just plain wrong based on R factors".
+dataset returned Rwp 8.2–20.0 % (Hill, 1992, *J. Appl. Cryst.* **25**, 589).
 
 Judge a fit in this order. `print(result)` renders steps 9 and 17 (per-stage
 status, every diagnostic, provenance, agreement indices last), and
