@@ -668,3 +668,115 @@ def test_a_mixed_length_and_angle_clamp_names_both_windows():
     assert f"±{CELL_SAFETY_FRACTION:.0%}" in diag.message
     assert f"±{CELL_SAFETY_ANGLE_DEG:.0f}°" in diag.message
 
+
+# ----------------------------------------------------------------------
+# issue #374's second instance: Le Bail, two phases of one structure type,
+# cell lengths gone negative with every stage ``converged``
+# ----------------------------------------------------------------------
+_ORTHO = (4.02, 4.21, 4.43)
+
+
+def _ortho_phase(name: str, f: float) -> Phase:
+    a, b, c = (f * v for v in _ORTHO)
+    return Phase(
+        name=name, space_group="P m m m",
+        cell=Cell(a=Parameter(value=a, vary=True), b=Parameter(value=b, vary=True),
+                  c=Parameter(value=c, vary=True), alpha=Parameter(value=90.0),
+                  beta=Parameter(value=90.0), gamma=Parameter(value=90.0)),
+        atoms=[Atom(label="La", species="La", x=Parameter(value=0.0),
+                    y=Parameter(value=0.0), z=Parameter(value=0.0)),
+               Atom(label="B1", species="B", x=Parameter(value=0.2),
+                    y=Parameter(value=0.5), z=Parameter(value=0.5))])
+
+
+def _ortho_pattern():
+    import numpy as np
+
+    from rietx.model.forward import compile_model
+    from rietx.params.vector import ParameterTable
+    from rietx.schemas.pattern import PatternData
+
+    truth = Structure(phases=[_ortho_phase("p", 1.0)])
+    ins = Instrument.debye_scherrer(wavelength=0.4139)
+    ins.profile.w.value = 0.002
+    ins.background = BackgroundChebyshev(
+        coefficients=[Parameter(value=v) for v in (200.0, -20.0, 5.0)])
+    tt = np.arange(3.0, 24.0, 0.005)
+    empty = PatternData(two_theta=tt.tolist(), intensity=np.zeros_like(tt).tolist())
+    model = compile_model(truth, ins, empty, mode="rietveld")
+    table = ParameterTable(truth, ins)
+    y = model.evaluate(table.decode(table.x0())) * 2e4
+    y = np.random.default_rng(7).poisson(np.maximum(y, 1.0)).astype(float)
+    return PatternData(two_theta=model.tt.tolist(), intensity=y.tolist())
+
+
+def test_a_negative_cell_length_in_lebail_is_caught_by_the_same_clamp(monkeypatch):
+    """Two orthorhombic phases of one structure type with cells 0.8 % apart,
+    Le Bail, the plan freeing background → cell → widths → an axial term.
+    The ``cell`` solve's answer is replaced by the issue's shape — a ≈ −1.0e4,
+    b ≈ −5.9e4, c ≈ 1.9e5 Å, a *positive* volume, so no degenerate-metric
+    refusal can see it — and the stage still reports ``converged``.
+
+    No positivity guard is needed beside the clamp: its window is a band
+    around the stage's positive starting length (±15 %, and ±6° inside
+    (0°, 180°) for an angle), so a length ≤ 0 is outside it by construction
+    and is pulled back like any other escape, in Le Bail mode as in Rietveld.
+    Measured without the clamp: the ``widths`` compile refuses to enumerate
+    reflections for the escaped cell (``ValueError``); a run whose last stage
+    escaped would have returned it."""
+    import dataclasses
+    import sys
+
+    refine_module = sys.modules["rietx.refine"]
+    real = refine_module.run_least_squares
+    issue_shape = dict(zip("abc", (-1.0e4, -5.9e4, 1.9e5), strict=True))
+
+    def solve(model, table, **kwargs):
+        outcome = real(model, table, **kwargs)
+        if kwargs.get("stage") != "cell":
+            return outcome
+        table.commit(outcome.theta)
+        by_path = {e.path: e for e in table.entries}
+        for n, v in issue_shape.items():
+            by_path[f"phases.1.cell.{n}"].value = v
+        return dataclasses.replace(outcome, theta=table.x0())
+
+    monkeypatch.setattr(refine_module, "run_least_squares", solve)
+    ins = Instrument.debye_scherrer(wavelength=0.4139)
+    ins.background = BackgroundChebyshev.with_terms(3)
+    ref = Refinement(Structure(phases=[_ortho_phase("p", 1.0),
+                                       _ortho_phase("twin", 1.008)]),
+                     ins, history=False)
+    result = ref.fit(_ortho_pattern(), mode="lebail", plan=RefinementPlan(stages=[
+        Stage("bkg", ["instrument.background.*"]),
+        Stage("cell", ["phases.*.cell.*"]),
+        Stage("widths", ["instrument.profile.u", "instrument.profile.v",
+                         "instrument.profile.w"]),
+        Stage("axial", ["instrument.geometry.axial_sl"]),
+    ]))
+
+    assert all(s.status == "converged" for s in result.stages)
+    fired = [d for d in result.diagnostics if d.code == "CELL_RUNAWAY"]
+    assert len(fired) == 1
+    assert fired[0].where == [f"phases.1.cell.{n}" for n in "abc"]
+    for n in "abc":
+        assert f"phases.1.cell.{n} {issue_shape[n]:.6g} -> " in fired[0].message
+    for phase in ref.structure.phases:
+        assert all(v > 1.0 for v in phase.cell.lengths_angles()[:3]), phase.name
+
+
+@pytest.mark.parametrize("beta", [-3.0, 0.0, 180.0, 185.0])
+def test_an_angle_outside_zero_to_180_is_clamped(beta):
+    """The angle half of the positivity question: a free β the solve left
+    at or past 0° or 180° is outside ±6° of a physical start, so the clamp
+    pulls it back to the window edge — no second test needed."""
+    from rietx.params.vector import ParameterTable
+
+    table = ParameterTable(_monoclinic_phase(95.0), Instrument.debye_scherrer(
+        wavelength=0.4139))
+    table.set_vary(["phases.0.cell.beta"], True)
+    start_values = table.decode(table.x0())
+    next(e for e in table.entries if e.path == "phases.0.cell.beta").value = beta
+    clamped = clamp_cell_runaway(table, start_values)
+    assert [(p, old) for p, old, _ in clamped] == [("phases.0.cell.beta", beta)]
+    assert 0.0 < clamped[0][2] < 180.0
