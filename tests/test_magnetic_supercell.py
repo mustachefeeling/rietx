@@ -845,3 +845,78 @@ def test_every_spglib_short_symbol_resolves_after_normalisation():
             wrong.append((short, sg.number, number))
     assert unresolved == []
     assert wrong == []
+
+
+# ================================================ a child that holds a centring
+def fcc_parent() -> Phase:
+    """Mn on 4a, O on 4b of F m -3 m: the rock-salt shape of an X-point order."""
+    return Phase(
+        name="synthetic Fm-3m", space_group="F m -3 m",
+        cell=_cell(4.4, 4.4, 4.4, 90.0, 90.0, 90.0),
+        atoms=[
+            Atom(label="Mn", species="Mn", x=P(value=0.0), y=P(value=0.0),
+                 z=P(value=0.0), biso=P(value=0.3)),
+            Atom(label="O", species="O", x=P(value=0.5), y=P(value=0.5),
+                 z=P(value=0.5), biso=P(value=0.5)),
+        ])
+
+
+def test_the_cosets_of_a_child_basis_with_halves_are_never_empty():
+    """det P = ½ has one integer coset, not ``round(½)`` = none.
+
+    F m -3 m at k = (0, 0, 1) doubles the *primitive* cell, which is half the
+    conventional one, so M-7's basis carries halves and the child lattice holds
+    the face centrings.  Counting |det P| rounded gave zero cosets, hence zero
+    atoms and a Phase that refused to exist ("has no atoms") — measured on four
+    k ≠ 0 entries of face-centred parents.
+    """
+    from rietx.crystallography.magnetic.supercell import (
+        _parse_basis,
+        lattice_cosets,
+    )
+
+    basis = child_basis("F m -3 m", (0, 0, 1))
+    assert abs(np.linalg.det(np.array(basis, dtype=float))) == pytest.approx(0.5)
+    assert lattice_cosets(basis) == ((0, 0, 0),)
+    # a half-integral basis whose lattice does *not* hold ℤ³: two classes
+    assert len(lattice_cosets(_parse_basis("a/2+b/2,-a/2+b/2,2c;0,0,0"))) == 2
+
+
+def test_a_child_that_holds_the_parents_centring_is_stated_with_every_atom():
+    """Every candidate of F m -3 m at k = (0, 0, 1) is stated, and |F_N|² holds.
+
+    The child cell holds half a conventional cell, so each parent site's four
+    conventional images come down to two, and the structure-factor identity is
+    the same one the integral case obeys with |det P| = ½:
+    |F_child|² = ¼·|F_parent|² on every parent reflection, zero on every
+    superlattice one.
+    """
+    parent = fcc_parent()
+    found = candidates(parent.space_group, (0.0, 0.0, 0.0), (0, 0, 1)).candidates
+    assert len(found) >= 2
+    refl = generate_reflections(parent.space_group, parent.cell.lengths_angles(),
+                                1.2, two_theta_max=120.0)
+    f2_parent = _nuclear_f2(parent, refl.hkl)
+    for cand in found:
+        statement = magnetic_supercell(parent, cand, magnetic_species="Mn",
+                                       ion="Mn2+", magnitude=2.0,
+                                       nuclear_group="magnetic")
+        child = statement.phase
+        assert statement.volume_ratio == Fraction(1, 2)
+        ratio = _volume(child.cell.lengths_angles()) / _volume(
+            parent.cell.lengths_angles())
+        assert ratio == pytest.approx(0.5, rel=1e-14)
+        # two Mn and two O in the child cell, whatever the orbit split
+        per_parent = {0: 0, 1: 0}
+        from rietx.crystallography.symmetry import expand_positions, resolve_group
+
+        sg = resolve_group(child.space_group, child.symmetry_operations)
+        for (j, _c), atom in zip(statement.site_map, child.atoms):
+            per_parent[j] += len(expand_positions(
+                sg, np.array([atom.x.value, atom.y.value, atom.z.value])))
+        assert per_parent == {0: 2, 1: 2}, cand.bns_number
+        mapped = np.rint(refl.hkl @ _p_matrix(statement)).astype(np.int64)
+        f2_child = _nuclear_f2(child, mapped)
+        live = f2_parent > 1e-9
+        assert np.allclose(f2_child[live] / f2_parent[live], 0.25, rtol=1e-12)
+        assert any(a.moment is not None for a in child.atoms)

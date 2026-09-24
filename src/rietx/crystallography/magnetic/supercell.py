@@ -167,7 +167,13 @@ class SupercellStatement:
 
     phase: Phase
     transform: str
-    index: int
+    #: |det P|, the child cell's volume in conventional parent cells: an
+    #: ``int`` for every integral P, a ``Fraction`` when the child basis carries
+    #: halves because it holds a centring vector of the parent (½ for
+    #: F m -3 m at k = (0, 0, 1); :func:`lattice_cosets`).  It is not the
+    #: number of integer-lattice cosets, which the two share only when P is
+    #: integral.
+    index: int | Fraction
     parent_space_group: str
     child_space_group: str
     group: MagneticGroup
@@ -187,7 +193,7 @@ class SupercellStatement:
     _cache: dict = field(default_factory=dict, repr=False, compare=False)
 
     @property
-    def volume_ratio(self) -> int:
+    def volume_ratio(self) -> int | Fraction:
         """|det P| — how many parent cells the child cell holds."""
         return self.index
 
@@ -1021,9 +1027,21 @@ def lattice_cosets(basis) -> tuple[tuple[int, int, int], ...]:
     Enumerated by class rather than by a fundamental-domain test, so a transform
     with negative entries — which is what a database setting routinely gives,
     to keep a frame right-handed — is handled without a sign convention.
+
+    **A child basis need not be integral.**  For a centred parent, M-7's
+    :func:`child_basis` is written on the conventional axes but spans a
+    multiple of the *primitive* cell, so P can carry halves and |det P| can be
+    below one — F m -3 m at k = (0, 0, 1) gives det P = ½.  The child lattice
+    then contains the centring vectors, ℤ³ is not a sublattice of it, and the
+    classes are those of ℤ³ modulo ℤ³ ∩ L_child: their count is the order of
+    the group the columns of P⁻¹ generate modulo 1, which is |det P| exactly
+    when P is integral and is **never zero**.  ``round(|det P|)`` was that
+    count only in the integral case, and at det P = ½ it rounded to no coset
+    and no atom at all.  :func:`_child_positions` removes the images such a
+    child lattice identifies.
     """
     inverse = _isotropy._fraction_inverse(basis)
-    want = int(round(abs(np.linalg.det(_matrix_of(basis)))))
+    want = _integer_coset_count(basis)
     seen: dict[tuple[int, ...], tuple[int, int, int]] = {}
     span = 1
     while len(seen) < want and span <= 8:
@@ -1046,11 +1064,48 @@ def lattice_cosets(basis) -> tuple[tuple[int, int, int], ...]:
     return tuple(seen.values())
 
 
+def _volume_index(basis) -> int | Fraction:
+    """|det P| exactly, as an ``int`` whenever it is one."""
+    from .operators import _rational_determinant
+
+    volume = abs(_rational_determinant([[Fraction(v) for v in row]
+                                        for row in basis]))
+    return int(volume) if volume.denominator == 1 else volume
+
+
+def _integer_coset_count(basis) -> int:
+    """|ℤ³ / (ℤ³ ∩ L_child)|, exactly: the order of ⟨P⁻¹·e₁, P⁻¹·e₂, P⁻¹·e₃⟩ mod 1."""
+    inverse = _isotropy._exact_inverse(basis)
+    generators = [tuple(inverse[i][j] % 1 for i in range(3)) for j in range(3)]
+    zero = (Fraction(0), Fraction(0), Fraction(0))
+    seen = {zero}
+    frontier = [zero]
+    while frontier:
+        grown = []
+        for element in frontier:
+            for g in generators:
+                image = tuple((a + b) % 1 for a, b in zip(element, g))
+                if image not in seen:
+                    seen.add(image)
+                    grown.append(image)
+        frontier = grown
+    return len(seen)
+
+
 def _child_positions(parent_phase, basis, shift, cosets):
     """Every atom of the child cell: ``(parent index, coset index, position)``.
 
-    ``x_child = P⁻¹·(x_parent + n − p)`` with ``n`` a coset of ℤ³/L_child and
-    ``p`` the origin shift of the transform.
+    ``x_child = P⁻¹·(x_parent + n − p)`` with ``n`` a coset of ℤ³/(ℤ³ ∩ L_child)
+    and ``p`` the origin shift of the transform.
+
+    When the child lattice holds a centring vector of the parent (a non-integral
+    P, :func:`lattice_cosets`), a site's conventional orbit lists that centring
+    image and the child cell calls it the same atom, so an image already placed
+    *for the same parent atom* is dropped — and the count that is left is
+    checked against |det P| times the conventional orbit, because a site short
+    or doubled here is silent in |F_N|².  Two parent atoms sharing one position
+    (a mixed-occupancy site) are two atoms and are never merged.  For an
+    integral P no image is ever dropped, so the list is what it always was.
     """
     from ..symmetry import resolve_group
 
@@ -1058,15 +1113,29 @@ def _child_positions(parent_phase, basis, shift, cosets):
                        parent_phase.symmetry_operations)
     inverse = _isotropy._fraction_inverse(basis)
     origin = np.array([float(v) for v in shift], dtype=np.float64)
+    volume = _volume_index(basis)
     out = []
     for j, atom in enumerate(parent_phase.atoms):
         xyz = np.array([atom.x.value, atom.y.value, atom.z.value],
                        dtype=np.float64)
-        for image in expand_positions(sg, xyz):
+        orbit = expand_positions(sg, xyz)
+        placed: list[np.ndarray] = []
+        for image in orbit:
             for c, coset in enumerate(cosets):
                 moved = inverse @ (image + np.array(coset, dtype=np.float64)
-                                   - origin)
-                out.append((j, c, moved % 1.0))
+                                   - origin) % 1.0
+                if any(_same_site(moved, q) for q in placed):
+                    continue
+                placed.append(moved)
+                out.append((j, c, moved))
+        want = len(orbit) * volume
+        if len(placed) != want:
+            raise ValueError(
+                f"magnetic_supercell(): parent atom {atom.label!r} has "
+                f"{len(orbit)} images in the conventional cell, so a child cell "
+                f"of |det P| = {volume} must hold {want} of them, and "
+                f"{len(placed)} distinct positions were placed. This is a bug "
+                f"in the cell transform, not a tolerance to widen")
     return out
 
 
@@ -1545,7 +1614,7 @@ def magnetic_supercell(parent: Phase, candidate=None, *, group=None,
         scale=Parameter(value=parent.scale.value),
     )
     return SupercellStatement(
-        phase=phase, transform=transform, index=len(cosets),
+        phase=phase, transform=transform, index=_volume_index(basis),
         parent_space_group=parent.space_group, child_space_group=symbol,
         group=group, site_map=tuple(site_map),
         k=None if k is None else tuple(str(c) for c in k),
@@ -1671,7 +1740,7 @@ class DisplaciveStatement:
 
     phase: Phase
     transform: str
-    index: int
+    index: int | Fraction
     parent_space_group: str
     child_space_group: str
     irrep_label: str
@@ -1731,7 +1800,7 @@ class MultiComponentStatement:
 
     phase: Phase
     transform: str
-    index: int
+    index: int | Fraction
     parent_space_group: str
     child_space_group: str
     k: tuple[str, str, str]
@@ -2433,7 +2502,7 @@ def _multi_component_displacive_statement(
         scale=Parameter(value=parent_phase.scale.value),
     )
     return MultiComponentStatement(
-        phase=phase, transform=transform, index=len(cosets),
+        phase=phase, transform=transform, index=_volume_index(basis),
         parent_space_group=parent_phase.space_group,
         child_space_group=child_group_stmt.label,
         k=tuple(str(c) for c in mcell.k), labels=tuple(labels),
