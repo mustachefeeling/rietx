@@ -903,3 +903,38 @@ def test_the_joint_runners_reported_parameters_agree_with_its_statistics(
             f"histogram {h}: reported y_calc disagrees with a recompute at "
             "the reported parameters -- the joint runner's theta was not "
             "re-derived after the clamp fired")
+
+
+def test_the_joint_runner_withholds_an_esd_by_the_single_histogram_rule(
+        degenerate_pair_multi_fit):
+    """Review of #385 round 3, item 3: the joint runner withholds on the rule
+    ``refine._build_result`` uses — the answer-producing stage's clamp, and
+    every path tied to a clamped one.
+
+    "early" is ``degenerate_pair_multi_fit``: the clamp fires in ``both`` and
+    ``zero`` refines the still-free cells again, so every cell row reports an
+    esd.  "end" reverses the stages, so ``both`` is the answer: measured here,
+    it pulls ``phases.1.cell.a`` from -58.83 Å back to the 3.48311 Å edge and
+    leaves ``phases.0`` inside the window — so phase 1's ``a``/``b``/``c`` are
+    withheld and phase 0's keep theirs."""
+    _, early, _ = degenerate_pair_multi_fit
+    assert any(d.code == "CELL_RUNAWAY" for d in early.diagnostics)
+    for phase in (0, 1):
+        for n in "abc":
+            row = early.parameter(f"phases.{phase}.cell.{n}")
+            assert row.stderr is not None, f"early: phases.{phase}.cell.{n}"
+
+    data = [synthesize(lam, 3.0, 24.0, scale=1e-5, zero=0.0,
+                       bkg=[40.0, 0.0, 0.0], seed=s)
+            for lam, s in ((0.41390, 11), (0.71070, 12))]
+    ref = MultiHistogramRefinement(_degenerate_pair_structure(1e-5),
+                                   _degenerate_pair_instruments())
+    end = ref.fit(data, plan=RefinementPlan(stages=[
+        Stage("zero", ["instrument.zero_shift"], max_iter=20),
+        Stage("both", ["phases.*.scale", "phases.*.cell.*"], max_iter=20),
+    ]))
+    fired = [d for d in end.diagnostics if d.code == "CELL_RUNAWAY"]
+    assert len(fired) == 1 and fired[0].where == ["phases.1.cell.a"]
+    for n in "abc":
+        assert end.parameter(f"phases.1.cell.{n}").stderr is None, n
+        assert end.parameter(f"phases.0.cell.{n}").stderr is not None, n
