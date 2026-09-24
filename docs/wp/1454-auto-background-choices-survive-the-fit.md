@@ -2,7 +2,7 @@
 
 Milestone: unscheduled · Status: 🔄 2026-09-24 — claimed by @yue-here
 Depends on: —
-Priority: P2 2026-09-24 — the default background of every P-spline fit: its stiffness follows the intensity unit, its knots ignore the fitted range, and every preset frees an air term it declined; the flexible side is derived silent, P1 if task 3 measures a structural answer moving with nothing fired
+Priority: P1 2026-09-24 — was P2: task 3 measured corundum's Biso moving 28 % with no background code fired, when counts are high enough to stiffen the old penalty; this WP's own P1 condition, met on the stiff side
 
 ## Goal
 
@@ -183,10 +183,43 @@ penalty on a background before choosing.
       flat eigen-directions of the Jacobi-scaled normal matrix, and every
       reader of the rows is audited first (WP-1103). If none does, record
       the zero here.
-- [ ] Measure the flexible side of the penalty. Take a public pattern with
+- [x] Measure the flexible side of the penalty. Take a public pattern with
       broad reflections, scale it down and fit with fine knots. Record
       whether a Biso or a fraction moves, and whether `background_absorption`
       or any guard fires. This sets the priority.
+      **Measured 2026-09-24**, on IUCr CPD round-robin sample 2
+      (`tests/data/qarr/cpd-2.prn`: corundum, zincite, fluorite and platy,
+      broad-lined brucite). The model is `test_acceptance_qpa_roundrobin`'s,
+      and so is the plan, including the March-Dollase stage. The reference is
+      a fit under its Chebyshev(6). From that model, the background becomes a
+      P-spline at the old λ = 1 in intensity units. Intensity, σ and the
+      phase scales are then multiplied by k and the plan runs again.
+      k ≤ 10⁻² is the unpenalised limit, and the two k rows there agree to four
+      figures. `[dev]` venv, Linux x86-64.
+
+      | knots | k | Rwp | wt % cor/zin/flu/bru | B Al | B Mg | B O (bru) | R² | background code |
+      |---|---|---|---|---|---|---|---|---|
+      | Cheb 6 | 1 | 0.1328 | 22.05/17.08/22.43/38.43 | 0.356 | 0.794 | 1.087 | 0.14 | — |
+      | 2° | 10⁻³ | 0.1193 | 21.46/16.84/22.19/39.52 | 0.217 | 1.048 | 1.457 | 0.43 | `BACKGROUND_ABSORPTION` |
+      | 2° | 1 | 0.1226 | 21.91/17.06/22.40/38.63 | 0.333 | 0.838 | 1.097 | 0.21 | — |
+      | 2° | 10² | 0.1529 | 21.46/17.16/22.54/38.84 | 0.176 | 0.826 | 0.948 | 0.16 | `LOW_ANGLE_UNMODELLED` |
+      | 1° | 10⁻³ | 0.1153 | 21.87/16.26/21.97/39.90 | 0.285 | 1.162 | 1.864 | 0.63 | `BACKGROUND_ABSORPTION` |
+      | 1° | 1 | 0.1211 | 21.71/16.99/22.29/39.02 | 0.274 | 0.983 | 1.171 | 0.32 | `BACKGROUND_ABSORPTION` |
+      | 1° | 10² | 0.1412 | 21.69/17.14/22.46/38.71 | 0.255 | 0.807 | 1.004 | 0.16 | **none** |
+
+      The flexible side is not silent. Every arm whose Biso moved by 20 % or
+      more fired `BACKGROUND_ABSORPTION`, and the 0.25 guard sat between the
+      firing rows (0.32 and up) and the quiet ones (0.21 and down). The
+      **stiff** side is the silent one. At 1° knots and k = 10², which is
+      counts at a hundred times this lab scan's and ordinary for a synchrotron
+      or a long count, corundum's Al Biso moved 28 % and no background code
+      fired. The codes on that row are the reference fit's own. At 2° the only
+      flag was `LOW_ANGLE_UNMODELLED`, which names a region rather than a
+      stiffness. Fractions moved 1.1 wt % at most, inside the participant
+      spread. That is the private series' failure, a straight line at high
+      counts, reproduced on public data. It meets this WP's own P1 condition,
+      a structural answer moving with nothing fired, on the side the WP had
+      not suspected. The penalty scale below is what removes it.
 - [ ] Decide the penalty's scale, and write the decision here. Either divide
       the penalty rows by one σ frozen at compile (the median over the fitted
       channels), which makes λ dimensionless for every caller; or keep the
