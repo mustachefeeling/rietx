@@ -1636,12 +1636,13 @@ def test_the_null_test_reports_the_moment_unsupported_rather_than_small():
 def test_supported_is_a_ratio_and_not_only_a_floor():
     """The null test on real data does not land at zero — it lands inside its esd.
 
-    Measured on the Cr₂WO₆ tutorial data (read-and-test, nothing vendored):
-    refined against the 150 K pattern, above the ordering temperature, the
-    modulus comes back at 0.067 μ_B with an esd of 0.395 — **six times
-    larger**. An absolute floor calls that supported. The honest reading is
-    |m|/σ, and that is what ``MomentEvidence.supported`` tests, so the two
-    arms are checked here on the numbers that motivated the rule.
+    Measured on the Cr₂WO₆ tutorial data: refined against the 150 K pattern,
+    above the ordering temperature, one stage list brought the modulus back at
+    0.067 μ_B with an esd of 0.395 — **six times larger** — and the shipped
+    acceptance protocol (``test_acceptance_magnetic.py``) at 0.067 ± 1.02. An
+    absolute floor calls either supported. The honest reading is |m|/σ, and
+    that is what ``MomentEvidence.supported`` tests, so the two arms are
+    checked here on the numbers that motivated the rule.
     """
     from rietx.report.schemas import MOMENT_SUPPORT_SIGMA, MomentEvidence
 
@@ -1658,6 +1659,8 @@ def test_supported_is_a_ratio_and_not_only_a_floor():
 
     assert supported(0.0666, 0.3947) is False   # Cr₂WO₆ at 150 K: 0.17σ
     assert supported(2.010, 0.046) is True      # Cr₂WO₆ at 4 K: 44σ
+    assert supported(0.0670, 1.022) is False    # the shipped null: 0.07σ
+    assert supported(2.125, 0.060) is True      # the shipped 4 K fit: 35σ
     assert supported(1e-9, 1e-6) is False       # the floor arm
     # no esd, nothing tested: ``None``, never an answer (review of #433,
     # finding 5) — at the floor or not

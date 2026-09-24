@@ -1088,10 +1088,11 @@ class StageReport(Base):
 
 #: How many of its own esds a moment must be before the report calls it
 #: supported (WP-1327).  Three, and the choice is measured rather than
-#: conventional: the Cr₂WO₆ tutorial data gives |m|/σ = 0.17 at 150 K, above
-#: the ordering temperature (or a modulus at its floor, under the shipped
-#: acceptance protocol), and 32 at 4 K, so anything from 1 to 20 separates
-#: them and 3 is the middle of the usable range on a log scale.  rietx's esds
+#: conventional: on the Cr₂WO₆ tutorial data the shipped acceptance protocol
+#: (``tests/test_acceptance_magnetic.py``) gives |m|/σ = 0.07 at 150 K, above
+#: the ordering temperature, and 35 at 4 K (an earlier stage list: 0.17 and
+#: 44), so anything from about 1 to 10 separates them with room on both
+#: sides, and 3 sits inside that range.  rietx's esds
 #: are Bérar-Lelann-inflated, which makes this test *conservative* — the
 #: factor is reported as ``Statistics.esd_inflation`` for a reader who wants
 #: to divide it back out.
@@ -1129,15 +1130,16 @@ class MomentEvidence(Base):
     ``supported`` is the WP's null test, and it is a **ratio, not a floor**.
     Measured on the Cr₂WO₆ tutorial data (GSAS-II *Magnetic-II*, HB-2A):
     refined against the 150 K pattern, above the ordering temperature, the
-    modulus need not go to zero — one stage list leaves it at 0.067 μ_B with
-    an esd of 0.395, six times larger, while the shipped acceptance protocol
-    drives it to the floor with an esd three orders of magnitude above it.  An
-    absolute floor calls the first supported; the honest reading of both is
-    that the moment is not distinguishable from none, and the number that says
-    so is |m|/σ.  So ``supported`` is False whenever the modulus is below
+    modulus need not go to zero — the shipped acceptance protocol
+    (``tests/test_acceptance_magnetic.py``) leaves it at 0.067 μ_B with an esd
+    of 1.02, fifteen times larger, while the same stages from the tutorial's
+    own starting structure drive it to the floor with an esd three orders of
+    magnitude above it.  An absolute floor calls the first supported; the
+    honest reading of both is that the moment is not distinguishable from
+    none, and the number that says so is |m|/σ.  So ``supported`` is False whenever the modulus is below
     :data:`~rietx.schemas.structure.MOMENT_FLOOR_MU_B` **or** below
-    :data:`MOMENT_SUPPORT_SIGMA` times its own esd.  At 4 K the same model
-    gives 2.078 ± 0.066 — a ratio of 32 — and the answer flips.  With no esd
+    :data:`MOMENT_SUPPORT_SIGMA` times its own esd.  At 4 K the same protocol
+    gives 2.12 ± 0.06 — a ratio of 35 — and the answer flips.  With no esd
     there is no ratio to take, and ``supported`` is ``None``.
     """
 
