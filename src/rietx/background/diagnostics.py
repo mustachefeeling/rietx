@@ -502,11 +502,16 @@ class DeadChannelRun(Base):
     caller is the interval to exclude, which is why the two 2θ bounds are the
     first two fields.
 
-    It is :class:`SignalCutoff`'s interior peer and the two do not overlap by
+    It is :class:`SignalCutoff`'s peer and the two do not overlap by
     construction: a collapse of :data:`CUTOFF_MIN_DEG` or longer is an
     instrument that stopped and belongs to :func:`signal_cutoffs`, and anything
     shorter is this — "a dip or a gap in the first channels", which is what
-    that function's own docstring calls the case it declines.
+    that function's own docstring calls the case it declines — **at either
+    end of the range or in the interior** (WP-1415): a short dropout is judged
+    by its weight-ratio signature, not by where it sits, and that signature is
+    what tells it apart from a genuine edge cliff (measured on the public D1B
+    file and a private Mythen operando set, with a wide margin either side of
+    :data:`DEAD_WEIGHT_RATIO_MIN` — see :func:`dead_channels`).
 
     ``weight_ratio`` is why a two-channel dropout is worth a diagnostic at all,
     and it is the number to lead with.  Weights are 1/σ², so a channel whose
@@ -1081,19 +1086,36 @@ def dead_channels(
     :data:`DEAD_LEVEL_WINDOW_DEG` of it removes the local dip the dropout
     itself puts in the envelope.
 
-    Why short interior runs only, and what that leaves uncovered.  At an
-    **end** of the range the subject is :func:`signal_cutoffs`, which declines
-    the short case in exactly these words ("a dip or a gap in the first
-    channels"), and closing that gap is the second half of issue #274 — not
-    done here, because it needs the two real files to say whether a short
-    dropout at an edge is separable from a cliff.  A run of
-    :data:`CUTOFF_MIN_DEG` or longer in the **middle** is declined too, and
-    that one is owned by nobody today: ``signal_cutoffs`` reads ends only.  It
-    is declined rather than answered because the level a long run is judged
-    against cannot survive it — a dropout wider than
-    :data:`DEAD_LEVEL_WINDOW_DEG` drags down the very estimate meant to expose
-    it, and the honest failure there is silence rather than the spurious
-    one-channel run the length test alone produced.
+    **A short run touching an edge is admitted too (WP-1415), on the same
+    weight-ratio test as an interior one — measured on issue #274's own D1B
+    file (public; Sparks et al. 2019, *Phys. Rev. B* **99**, 104104) and a
+    private Mythen operando set, and separately checked against unpublished
+    neutron PSD holds; neither private set is quoted here.**
+    D1B (`300q-300K.dat`, the issue's own fixture) carries a two-channel dead
+    pair at *each* end (0.79-0.89°, y≈4-7, σ≈1; and 128.59-128.69°, y=3-5,
+    σ=1.0-1.414 — the latter is the file's literal last two channels, nothing
+    recorded beyond them).  Both read a weight ratio against their single
+    live neighbour of **1520 and 2286** — the same signature
+    :data:`DEAD_WEIGHT_RATIO_MIN` already gates on in the interior, 15-23×
+    over it.  The private Mythen set is the negative control: its edges are
+    cliffs of the kind :func:`signal_cutoffs` reports, and read the same way
+    they give weight ratios of order unity or below — nearly two orders of
+    magnitude under the threshold and nowhere near the D1B signature,
+    because a cliff's σ falls **with** its level (honest counting statistics)
+    while a dead cell's σ collapses **against** it.  The private neutron PSD
+    holds :func:`signal_cutoffs`' docstring draws on agree in direction —
+    private, unpublished data, so no figure from either private set is
+    repeated here, only the agreement.  So the
+    rule is the interior rule, unchanged, with one relaxation — an
+    edge-touching run is judged **against whichever side has a neighbour**
+    rather than declined outright, and a run touching both ends (the whole
+    pattern) still has none and is still declined.  A run of
+    :data:`CUTOFF_MIN_DEG` or longer in the **middle** is still declined: the
+    level a long run is judged against cannot survive it — a dropout wider
+    than :data:`DEAD_LEVEL_WINDOW_DEG` drags down the very estimate meant to
+    expose it, and the honest failure there is silence rather than the
+    spurious one-channel run the length test alone produced.  That case stays
+    owned by nobody today; only the edge case was #274's second ask.
     """
     tt = np.asarray(two_theta, dtype=np.float64)
     counts = np.asarray(y, dtype=np.float64)
@@ -1124,10 +1146,24 @@ def dead_channels(
     # it stops growing — without it a 1.9° dropout left the level collapsed
     # across its middle, which made every later test read the wrong number
     # there rather than decline.
+    # ``mode="reflect"`` here, not ``"nearest"`` (WP-1415, measured on #274's
+    # real file rather than the synthetic above): a run that sits at the
+    # *literal* last channels of the array — D1B's trailing pair is exactly
+    # this, nothing recorded beyond 128.69° — has ``"nearest"`` pad the window
+    # past the edge by repeating the dropout's own value, which drags
+    # ``coarse`` down to the dropout itself (measured: 5.0 against an interior
+    # ~37 000) and ``found`` never fires, so the repair never runs and the
+    # channel is silently missed regardless of the edge-admission below.
+    # ``"reflect"`` instead mirrors the true samples back past the edge, so at
+    # most the two dropout channels themselves re-appear in the padding before
+    # it recovers to the interior level (measured: coarse tail 37 123, the
+    # correct neighbouring value).  A synthetic four channels from the top (the
+    # comment above) never exercised this because real data still existed
+    # beyond the dropout there; #274's own file does not have that luxury.
     repaired = counts
     suspect = np.zeros(len(counts), bool)
     for _ in range(_DEAD_REPAIR_PASSES):
-        coarse = median_filter(repaired, size=width, mode="nearest")
+        coarse = median_filter(repaired, size=width, mode="reflect")
         with np.errstate(invalid="ignore"):
             found = (coarse > 0) & (counts < level_fraction * coarse)
         if found.all() or not found.any() or np.array_equal(found, suspect):
@@ -1137,7 +1173,7 @@ def dead_channels(
         repaired[suspect] = np.interp(
             tt[suspect], tt[~suspect], counts[~suspect])
     level = median_filter(background_envelope(tt, repaired), size=width,
-                          mode="nearest")
+                          mode="reflect")
     with np.errstate(invalid="ignore"):
         low = (level > 0) & (counts < level_fraction * level)
     if not low.any() or not (~low).any():
@@ -1147,18 +1183,28 @@ def dead_channels(
     for a, b in _runs(low):
         if tt[b] - tt[a] >= max_run_deg:
             continue                      # too long — see the docstring
-        # Bounded by live channels on both sides, at the level, or declined.
-        # This is what makes "interior" true by construction rather than by
-        # assertion, and it is also the guard on the level estimate itself: a
-        # run long enough to drag the level down is one whose own edge channel
-        # is the only one still reading below it, and a run touching an end of
-        # the range has no neighbour there to be bounded by.  Without it a
-        # 1.9° interior dropout came back as a spurious *one-channel* run
-        # rather than as nothing.
-        if a == 0 or b == len(tt) - 1:
+        # Bounded by a live channel at the level on every side it *has* one,
+        # or declined.  A run touching both ends is the whole pattern and has
+        # no neighbour anywhere — declined, as always.  A run touching one
+        # end (WP-1415, issue #274's second ask) is judged against the side
+        # it has: the array simply ending is not evidence either way, and the
+        # weight-ratio test below is what actually separates a dead edge pair
+        # from a signal_cutoffs-shaped cliff (measured on the public D1B file
+        # and a private Mythen operando set, and separately checked against
+        # private neutron PSD holds — see the docstring).  For a genuinely *interior* run this is unchanged and
+        # still load-bearing: one long enough to drag the level down is one
+        # whose own edge channel is the only one still reading below it.
+        # Without some bound a 1.9° interior dropout came back as a spurious
+        # *one-channel* run rather than as nothing.
+        touches_low_edge = a == 0
+        touches_high_edge = b == len(tt) - 1
+        if touches_low_edge and touches_high_edge:
+            continue                      # the whole pattern — not this measure's
+        if not touches_low_edge and not (
+                counts[a - 1] >= level_fraction * level[a - 1]):
             continue
-        if not (counts[a - 1] >= level_fraction * level[a - 1]
-                and counts[b + 1] >= level_fraction * level[b + 1]):
+        if not touches_high_edge and not (
+                counts[b + 1] >= level_fraction * level[b + 1]):
             continue
         run_sigma = _finite_median(sig[a:b + 1])
         if not run_sigma or run_sigma <= 0:

@@ -447,7 +447,7 @@ from.
 | `PatternDiagnostics.coverage_plateau` | the bulk pattern's σ²/max(y, 1), median over the middle half of the range | 1.0 is pure Poisson counting; anything else says the file's σ is something else (merged detectors, a monitor normalisation). Null means σ was not measured, so nothing was checked |
 | `PatternDiagnostics.coverage_regions` | stretches whose σ carries more variance per count than that plateau, each a `CoverageRegion` | the pattern's statistical weight is not uniform across its range; see below |
 | `PatternDiagnostics.signal_cutoffs` | ends of the range where the level collapsed and stayed down, each a `SignalCutoff` | read this one first; see below |
-| `PatternDiagnostics.dead_channels` | short interior runs that measure nothing and outvote the pattern while doing it, each a `DeadChannelRun` | empty also means *not checkable*: the test needs the file's own σ. See below |
+| `PatternDiagnostics.dead_channels` | short runs, inside the range or at either end, that measure nothing and outvote the pattern while doing it, each a `DeadChannelRun` | empty also means *not checkable*: the test needs the file's own σ. See below |
 
 A contamination is one finding, and each flag is one line of it. The first
 four fields are that line's, the last three the finding's, and the last three
@@ -630,9 +630,12 @@ and those channels are empty rather than thinly covered.
 
 ### A channel that measures nothing and outvotes the pattern
 
-`PatternDiagnostics.dead_channels` is the interior companion to the section
-above. A dead or masked detector cell, a gap between banks, a channel the
-electronics dropped: its intensity falls to nothing and its esd falls with it.
+`PatternDiagnostics.dead_channels` is the short companion to the section
+above: a run shorter than a cutoff, judged wherever it sits, in the interior
+or touching either end of the range. A run spanning the whole pattern is not
+judged, having no live neighbour to be weighed against. A dead or masked
+detector cell, a gap between banks, a channel the electronics dropped: its
+intensity falls to nothing and its esd falls with it.
 Weights are 1/σ², so it does not merely contribute nothing. It outvotes its
 neighbours, and the background model is pulled down to meet it.
 
