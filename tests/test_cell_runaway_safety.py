@@ -326,23 +326,106 @@ _LEBAIL_STAGES = [
     Stage("axial", ["instrument.geometry.axial_sl"]),
 ]
 
+#: the second phase of :func:`_cubic_pair`, 1.2 % larger: both phases are in
+#: the data, and no peak of one sits on a peak of the other at this resolution
+CUBIC_TWIN = 1.012
+#: how far the injected answer puts the escaping cell, outside the ±15 % window
+ESCAPE = 1.30
+ESCAPED = "phases.1.cell.a"
+
+
+def _cubic_pair() -> Structure:
+    """Two cubic LaB6-shaped phases at ``TRUE_A`` and ``CUBIC_TWIN·TRUE_A`` —
+    each ``b``/``c`` tied to its ``a`` by the symmetry, which is what the tie
+    closure of the esd rule needs to be tested on."""
+    phases = []
+    for name, f in (("p", 1.0), ("twin", CUBIC_TWIN)):
+        phase = make_lab6().phases[0]
+        phase.name = name
+        for n in "abc":
+            getattr(phase.cell, n).value = TRUE_A * f
+        phase.scale.value = 5e-4
+        phases.append(phase)
+    return Structure(phases=phases)
+
+
+def _cubic_pair_pattern(wavelength: float = 0.4139, seed: int = 7):
+    """``_cubic_pair`` at its own values, Poisson noise at a fixed seed."""
+    import numpy as np
+
+    from rietx.model.forward import compile_model
+    from rietx.params.vector import ParameterTable
+    from rietx.schemas.pattern import PatternData
+
+    truth = _cubic_pair()
+    ins = Instrument.debye_scherrer(wavelength=wavelength)
+    ins.profile.w.value = 2.5e-4
+    ins.background = BackgroundChebyshev(
+        coefficients=[Parameter(value=v) for v in (200.0, -20.0, 5.0)])
+    tt = np.arange(3.0, 24.0, 0.005)
+    empty = PatternData(two_theta=tt.tolist(), intensity=np.zeros_like(tt).tolist())
+    model = compile_model(truth, ins, empty, mode="rietveld")
+    table = ParameterTable(truth, ins)
+    y = model.evaluate(table.decode(table.x0()))
+    y = np.random.default_rng(seed).poisson(np.maximum(y, 1.0)).astype(float)
+    return PatternData(two_theta=model.tt.tolist(), intensity=y.tolist())
+
 
 @pytest.fixture(scope="module")
 def lebail_pair_fits():
-    """The degenerate pair in Le Bail mode, run twice: the plan cut after its
-    ``cell`` stage, so the clamp fires in the stage that produces the answer
-    ("end"), and the whole four-stage plan, so the clamp fires in ``cell`` and
-    the two later stages re-converge the still-free cell from the window edge
-    ("early").  Measured on this construction: every stage ``converged`` bar
-    the axial one's ``max_iter``, the ``cell`` stage walks one phase's
-    ``a`` to 757.853 Å (cut) / 16.9163 Å (full), and without the clamp the
-    full plan returns ``a`` = 16.917 Å with nothing said."""
+    """The #374 Le Bail plan on ``_cubic_pair``, run twice, with the escape
+    **injected** rather than found: the ``cell`` solve's answer for
+    ``phases.1.cell.a`` is replaced by ``ESCAPE`` times itself, so the clamp
+    fires on that one path in that one stage on every platform.
+
+    "end" cuts the plan after ``cell``, so the clamp fires in the stage that
+    produces the answer.  "early" runs the whole plan and puts the value the
+    ``cell`` solve found back as ``widths``' answer, so ``axial`` refines the
+    cell from a value inside its window and its clamp has nothing to do.
+
+    Why injected (review of #385 round 4): the fixture this replaces walked a
+    free, jointly degenerate pair and recorded one machine's stopping point.
+    On the Linux CI jobs the walk crossed WP-1301's hold instead, and the
+    clamped row left ``parameters`` altogether.  The hold is patched off
+    (``_unsupported_phase_paths`` reports nothing) for the same reason: a
+    cell pulled back to a window edge 15 % from its data is a phase the data
+    cannot see, so on this construction the collapse-restore would otherwise
+    hold it deterministically, and the rule under test is the clamp's."""
+    import dataclasses
+    import sys
+
+    refine_module = sys.modules["rietx.refine"]
+    real = refine_module.run_least_squares
     out = {}
     for name, stages in (("end", _LEBAIL_STAGES[:2]), ("early", _LEBAIL_STAGES)):
-        structure, ins = _degenerate_pair(5e-4)
-        ref = Refinement(structure, ins, history=False)
-        out[name] = ref.fit(synthesize(), mode="lebail",
-                            plan=RefinementPlan(stages=list(stages)))
+        found: dict[str, float] = {}
+
+        def solve(model, table, _found=found, **kwargs):
+            outcome = real(model, table, **kwargs)
+            stage = kwargs.get("stage")
+            if stage not in ("cell", "widths") or stage in _found:
+                return outcome
+            table.commit(outcome.theta)
+            entry = table.entries[table._paths[ESCAPED]]
+            if stage == "cell":
+                _found["solved"] = entry.value
+                entry.value = ESCAPE * entry.value
+            else:
+                entry.value = _found["solved"]
+            _found[stage] = entry.value
+            table.refresh_ties()
+            return dataclasses.replace(outcome, theta=table.x0())
+
+        ins = Instrument.debye_scherrer(wavelength=0.4139)
+        ins.background = BackgroundChebyshev.with_terms(3)
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr(refine_module, "run_least_squares", solve)
+            mp.setattr(refine_module, "_unsupported_phase_paths",
+                       lambda *a, **k: [])
+            ref = Refinement(_cubic_pair(), ins, history=False)
+            out[name] = ref.fit(_cubic_pair_pattern(), mode="lebail",
+                                plan=RefinementPlan(stages=list(stages)))
+        assert set(found) >= {"cell"}, "the injection never ran"
     return out
 
 
@@ -356,27 +439,32 @@ def test_a_clamped_cells_stderr_is_withheld(lebail_pair_fits):
     happened in the stage that produced the answer, and on every path tied to
     a withheld one (a tie inherits its source's blindness).
 
-    "end": the answer stage clamped ``phases.0.cell.a`` to the window edge,
+    "end": the answer stage clamped ``phases.1.cell.a`` to the window edge,
     so ``a`` — still a free column, never dropped — and the cubic ``b``/``c``
-    tied to it all report ``stderr=None``.  "early": the same clamp fired in
-    ``cell``, and ``widths``/``axial`` refined the cell again from there, so
-    the value reported is a fit result and ``a``, ``b``, ``c`` all carry the
-    esd that last stage measured.  Before this fix "early" withheld ``a``'s
-    esd off the run's accumulated diagnostics and left ``b``/``c`` theirs."""
+    tied to it all report ``stderr=None``, while phase 0, never clamped,
+    keeps its esd.  "early": the same clamp fired in ``cell``, and the later
+    stages refined the cell again from inside the window, so the value
+    reported is a fit result and every cell row carries the esd that last
+    stage measured.  Before round 3 "early" withheld ``a``'s esd off the run's
+    accumulated diagnostics and left ``b``/``c`` theirs."""
     end, early = lebail_pair_fits["end"], lebail_pair_fits["early"]
 
     fired = [d for d in end.diagnostics if d.code == "CELL_RUNAWAY"]
-    assert len(fired) == 1 and "phases.0.cell.a" in fired[0].where
-    rows = _cell_rows(end, 0)
+    assert len(fired) == 1 and fired[0].where == [ESCAPED]
+    assert [s.name for s in end.stages][-1] == "cell"
+    rows = _cell_rows(end, 1)
     assert rows["a"] is not None and rows["a"].vary is True
-    _, edge = cell_window("a", TRUE_A, -math.inf, math.inf,
+    _, edge = cell_window("a", TRUE_A * CUBIC_TWIN, -math.inf, math.inf,
                           fraction=CELL_SAFETY_FRACTION, angle_deg=CELL_SAFETY_ANGLE_DEG)
     assert rows["a"].value == pytest.approx(edge)   # the window edge, not a fit
     for n, row in rows.items():
-        assert row is not None and row.stderr is None, f"end: cell.{n} {row}"
+        assert row is not None and row.value == pytest.approx(edge), n
+        assert row.stderr is None, f"end: phases.1.cell.{n} {row}"
+    for n, row in _cell_rows(end, 0).items():
+        assert row is not None and row.stderr is not None, f"end: phases.0.cell.{n}"
 
     fired = [d for d in early.diagnostics if d.code == "CELL_RUNAWAY"]
-    assert len(fired) == 1 and "phases.0.cell.a" in fired[0].where
+    assert len(fired) == 1 and fired[0].where == [ESCAPED]
     assert [s.name for s in early.stages][-1] == "axial"
     for phase in (0, 1):
         rows = _cell_rows(early, phase)
