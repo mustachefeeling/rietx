@@ -1,8 +1,7 @@
 # WP-1454 — `auto_background`'s choices survive the fit
 
-Milestone: unscheduled · Status: 🔄 2026-09-24 — claimed by @yue-here
+Milestone: unscheduled · Status: ✅ 2026-09-24 — all three choices hold through the fit; the flood a declared air term still raises is WP-1459
 Depends on: —
-Priority: P1 2026-09-24 — was P2: task 3 measured corundum's Biso moving 28 % with no background code fired, when counts are high enough to stiffen the old penalty; this WP's own P1 condition, met on the stiff side
 
 ## Goal
 
@@ -342,6 +341,59 @@ reports no air-term correlation rows.
   audit).
 
 ## Handover log
+
+- **2026-09-24** — `auto_background`'s three choices now hold through the fit.
+  Its smoothness penalty is equally stiff in any intensity unit, at any count
+  level and at any step size. Its knots cover only the range being fitted. An
+  air-scatter term it decided against is no longer refined anyway. The unit
+  problem was the reverse of what this WP expected. On public round-robin data
+  the over-flexible side always fired its guard, while a penalty stiffened by
+  high counts moved a displacement parameter 28 % with no warning at all. The
+  default weight is still 1, now a pure number, so ordinary fits land about
+  where they did, and old ones reproduce by declaring the old units. The
+  correlation flood this WP started from is gone for a declined air term but
+  not for one the helper declares beside a fine spline, and WP-1459 has that.
+  - *Done*, one commit per task: the air term absent when declined (`0ef9a39`),
+    `two_theta_limits` on `auto_background` (`764c3ad`), the stiff side
+    measured (`9d73a84`), λ a pure number with `lambda_units` as the way back
+    (`4554e1a`), the invariance test (`4ba5b94`), the skill (`810d3ba`), and
+    task 2's audit filing WP-1459 (`3920f3f`). Review fixes followed in
+    `1373f86`. `SCHEMA_VERSION` 0.27 → 0.28, once for both field changes. The
+    manual's `bg-penalty` equation, Part 1's background paragraph, root
+    CLAUDE.md's background clause and `releases/1.5.1.md`'s three sections
+    all moved in the same commits.
+  - *Measured*, `[dev]` venv, Linux x86-64, alone on the machine unless
+    stated. The numbers sit under each task above. The fast selection on the
+    final tree gave 5886 passed, 147 skipped and 1 failed (6034), against 6030
+    on this session's first run. The +4 is the four tests added, all passes,
+    no new skip. The failure is the `unwritable-directory` case of
+    `test_telemetry.py`, which fails because this container runs as uid 0
+    (`chmod 0o500` binds nobody). It fails on the first run too, and it is
+    queued as its own task, not fixed here. The full suite ran once on the final tree, which is current main plus this branch, since main had not moved: 6068 passed, 158 skipped and 3 failed, in about 1 h 37 min at -n auto with nothing else running. Besides the uid-0 case, two failures come from load and not from this diff. The held-phase ramp's 60 s runaway guard took 76.5 s under the suite's load and 16.9 s alone, a 3.5× margin, so it is a load sensor; its background is a Chebyshev. The brucite strict xfail passed under load and xfailed alone; indexing builds no P-spline, and the flip is written into WP-1449's Inherited. There is no baseline full count on this machine, per tests/CLAUDE.md, so only the fast delta is exact.
+  - *Review* (`/code-review high --fix`): 8 candidates, 3 fixed in `1373f86`.
+    Those are a 10-channel floor on the limits, named refusal of diagnostics
+    that miss them, and three comments still spelling the rows √λ·D₂c. The
+    other 5 were declined. Whole-file diagnostics can declare an air term
+    from a rise outside the limits; "used as given" is the contract, so that
+    went to WP-1459's air-term task. A stored λ reopens as the pure number,
+    and a stored zero air term reopens declared: both deliberate and written
+    into the schema note and the release notes, since nothing stored says
+    which unit an old λ was chosen in. m counts every coefficient even where
+    the knots overrun the fitted range: now stated in
+    `pspline_penalty_scale`'s docstring rather than changed, because
+    `auto_background` no longer builds that case. `rietx compare`'s `pspline`
+    variant moved with the default, and nothing pins its numbers.
+  - *Gotchas.* `import rietx.refine` binds the package's `refine` function,
+    not the module. An instrument that patches it goes through
+    `sys.modules["rietx.refine"]`, or it sees only direct `staged` calls
+    (task 2's first audit saw 7 of 443). `test_backend_shim`'s `toy_lebail`
+    golden declares the old air term and `"intensity"` so its npz stays
+    bit-identical. The goldens skip on Linux, so the nightly macOS job is the
+    first check of that.
+  - Next: nothing in this WP. PR #446 carries it, and it should merge before
+    1.5.1 is cut, since the release notes describe it. Then WP-1459, starting
+    with its reader audit, which decides whether grouping replaces the pair
+    rows or rides beside them.
 
 - **2026-09-24** — created from the review of an agent session on a private
   series. Both NAC tables were measured the same day, at `2d42303a`. The

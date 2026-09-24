@@ -85,6 +85,14 @@ a machine with the corpus before designing anything.**
   WP's last task in any case. Until then, every Linux nightly `full` job fails
   on this one row, and a real regression in that job would read as the same
   red.
+- **From WP-1454 (2026-09-24): on one Linux machine the row flips with load,
+  not with platform.** `[dev]`, Linux x86-64, py3.12, 4 cores, at `016d06c`
+  (main at `8fbafe5` plus WP-1454, which touches no indexing code). The full
+  suite at `-n auto` reported `[XPASS(strict)]`. The same row run alone on the
+  same tree reported `1 xfailed`. So the ranking it pins moves with the quick
+  preset's wall-clock budget. A fix that flips it has to be judged on a run
+  alone, and a mark kept strict will stay a load sensor until then
+  (tests/CLAUDE.md § Budgets in tests).
 
 ## Questions for the corpus
 

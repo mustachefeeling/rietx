@@ -101,8 +101,8 @@ forward-model contact. The order continues with 1327's verb, then 1419 as its ow
 two-lists decision it carries gets waved through in a diff about something
 else. **Neutron TOF stays at [§ v2+](#v2--fenced)** behind issue #193.
 
-**Seven silent-answer fixes have landed since the ship** (1434, 1435, 1432,
-1342, 1415, 1442, 1414), staged in [releases/1.5.1.md](releases/1.5.1.md), narrated
+**Eight silent-answer fixes have landed since the ship** (1434, 1435, 1432,
+1342, 1415, 1442, 1414, 1454), staged in [releases/1.5.1.md](releases/1.5.1.md), narrated
 in the [v1.6 record](milestones/v1.6.md). 1432 unblocks 1419's amplitudes; so
 is the `.inp` grammar 1118 refuses,
 [1433](wp/1433-the-inp-grammar-still-refused.md).
@@ -671,7 +671,7 @@ the limit carried load rather than whether the value stopped near one, and
 | [1446](wp/1446-a-supercell-that-outranks-the-truth.md) | A supercell that outranks the truth, on evidence the panel already has | 🛑 2026-09-22 | — | — (1442 soft) |
 | [1447](wp/1447-a-threshold-each-pattern-sets-for-itself.md) | A threshold each pattern sets for itself | ⬜ | P3 | — (1442 soft) |
 | [1449](wp/1449-rank-on-what-the-screen-determined.md) | Rank on what the screen determined, not on what the peak list shows | ⬜ | P2 | — (1446 refuted the peak-list route) |
-| [1454](wp/1454-auto-background-choices-survive-the-fit.md) | `auto_background`'s choices survive the fit | 🔄 2026-09-24 | P1 | — |
+| [1454](wp/1454-auto-background-choices-survive-the-fit.md) | `auto_background`'s choices survive the fit | ✅ 2026-09-24 | — | — |
 | [1456](wp/1456-an-editable-install-stamps-what-it-runs.md) | An editable install stamps what it runs | ⬜ | P3 | — |
 | [1459](wp/1459-one-degeneracy-one-finding.md) | One degeneracy, one finding | ⬜ | P3 | — (1454, 1302 soft) |
 
