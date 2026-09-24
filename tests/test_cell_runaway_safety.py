@@ -314,27 +314,91 @@ def test_cell_runaway_is_reported_when_it_fires(degenerate_pair_fit):
     assert finding.value is not None and finding.value > 0.0
 
 
-def test_a_clamped_cells_stderr_is_withheld(degenerate_pair_fit):
-    """Review of #385 follow-up item 4: the clamped cell stays a free
-    column (``vary=True``, so it is not dropped from ``parameters`` the way
-    WP-1301's hold drops a path) but its pre-clamp covariance describes the
-    escaped value, not the window edge actually reported -- so its ``stderr``
-    is withheld rather than printed as if it measured the reported value.
-    ``at_bound`` is untouched: this is not one of the solver's own bounds."""
-    _, result = degenerate_pair_fit
-    fired = [d for d in result.diagnostics if d.code == "CELL_RUNAWAY"]
-    assert fired, "nothing fired -- this test needs the clamp to have run"
-    clamped_paths = {p for d in fired for p in d.where}
+#: the plan shape of the second instance on issue #374 (Le Bail, two phases
+#: of one structure type): background, then cell, then widths, then an axial
+#: term.  Staging is cumulative, so the cell stays free in every later stage.
+_LEBAIL_WIDTHS = ["instrument.profile.u", "instrument.profile.v",
+                  "instrument.profile.w"]
+_LEBAIL_STAGES = [
+    Stage("bkg", ["instrument.background.*"]),
+    Stage("cell", ["phases.*.cell.*"]),
+    Stage("widths", _LEBAIL_WIDTHS),
+    Stage("axial", ["instrument.geometry.axial_sl"]),
+]
+
+
+@pytest.fixture(scope="module")
+def lebail_pair_fits():
+    """The degenerate pair in Le Bail mode, run twice: the plan cut after its
+    ``cell`` stage, so the clamp fires in the stage that produces the answer
+    ("end"), and the whole four-stage plan, so the clamp fires in ``cell`` and
+    the two later stages re-converge the still-free cell from the window edge
+    ("early").  Measured on this construction: every stage ``converged`` bar
+    the axial one's ``max_iter``, the ``cell`` stage walks one phase's
+    ``a`` to 757.853 Å (cut) / 16.9163 Å (full), and without the clamp the
+    full plan returns ``a`` = 16.917 Å with nothing said."""
+    out = {}
+    for name, stages in (("end", _LEBAIL_STAGES[:2]), ("early", _LEBAIL_STAGES)):
+        structure, ins = _degenerate_pair(5e-4)
+        ref = Refinement(structure, ins, history=False)
+        out[name] = ref.fit(synthesize(), mode="lebail",
+                            plan=RefinementPlan(stages=list(stages)))
+    return out
+
+
+def _cell_rows(result, phase: int) -> dict[str, object]:
     by_path = {p.path: p for p in result.parameters}
-    checked = 0
-    for path in clamped_paths:
-        row = by_path.get(path)
-        if row is None:
-            continue  # WP-1301 held (and dropped) this path after the clamp fired
-        assert row.stderr is None, f"{path}: stderr {row.stderr} not withheld"
-        assert row.vary is True  # still a free column, never dropped
-        checked += 1
-    assert checked, "every clamped path was held afterwards -- nothing exercised the withholding"
+    return {n: by_path.get(f"phases.{phase}.cell.{n}") for n in "abc"}
+
+
+def test_a_clamped_cells_stderr_is_withheld(lebail_pair_fits):
+    """Review of #385 round 3: the esd is withheld only where the clamp
+    happened in the stage that produced the answer, and on every path tied to
+    a withheld one (a tie inherits its source's blindness).
+
+    "end": the answer stage clamped ``phases.0.cell.a`` to the window edge,
+    so ``a`` — still a free column, never dropped — and the cubic ``b``/``c``
+    tied to it all report ``stderr=None``.  "early": the same clamp fired in
+    ``cell``, and ``widths``/``axial`` refined the cell again from there, so
+    the value reported is a fit result and ``a``, ``b``, ``c`` all carry the
+    esd that last stage measured.  Before this fix "early" withheld ``a``'s
+    esd off the run's accumulated diagnostics and left ``b``/``c`` theirs."""
+    end, early = lebail_pair_fits["end"], lebail_pair_fits["early"]
+
+    fired = [d for d in end.diagnostics if d.code == "CELL_RUNAWAY"]
+    assert len(fired) == 1 and "phases.0.cell.a" in fired[0].where
+    rows = _cell_rows(end, 0)
+    assert rows["a"] is not None and rows["a"].vary is True
+    _, edge = cell_window("a", TRUE_A, -math.inf, math.inf,
+                          fraction=CELL_SAFETY_FRACTION, angle_deg=CELL_SAFETY_ANGLE_DEG)
+    assert rows["a"].value == pytest.approx(edge)   # the window edge, not a fit
+    for n, row in rows.items():
+        assert row is not None and row.stderr is None, f"end: cell.{n} {row}"
+
+    fired = [d for d in early.diagnostics if d.code == "CELL_RUNAWAY"]
+    assert len(fired) == 1 and "phases.0.cell.a" in fired[0].where
+    assert [s.name for s in early.stages][-1] == "axial"
+    for phase in (0, 1):
+        rows = _cell_rows(early, phase)
+        for n, row in rows.items():
+            assert row is not None and row.stderr is not None, (
+                f"early: phases.{phase}.cell.{n} withheld after re-converging")
+        # one answer to "is this measured?" across a tie
+        assert rows["b"].stderr == pytest.approx(rows["a"].stderr)
+        assert rows["c"].stderr == pytest.approx(rows["a"].stderr)
+
+
+def test_the_rietveld_trigger_reports_the_esd_its_last_stage_measured(
+        degenerate_pair_fit):
+    """Yue's round-3 probe on ``degenerate_pair_fit``: the clamp fires in
+    ``both`` and ``zero`` refines the cell again, so ``phases.0.cell.a``
+    (4.15657 Å, not the 4.83 Å edge) reports its esd, and so do ``b``/``c``."""
+    _, result = degenerate_pair_fit
+    assert any(d.code == "CELL_RUNAWAY" for d in result.diagnostics)
+    rows = _cell_rows(result, 0)
+    assert rows["a"].stderr is not None
+    assert rows["b"].stderr == pytest.approx(rows["a"].stderr)
+    assert rows["c"].stderr == pytest.approx(rows["a"].stderr)
 
 
 def test_a_well_behaved_fit_never_fires_it():
@@ -603,3 +667,4 @@ def test_a_mixed_length_and_angle_clamp_names_both_windows():
     assert "Å" in diag.message and "°" in diag.message
     assert f"±{CELL_SAFETY_FRACTION:.0%}" in diag.message
     assert f"±{CELL_SAFETY_ANGLE_DEG:.0f}°" in diag.message
+
