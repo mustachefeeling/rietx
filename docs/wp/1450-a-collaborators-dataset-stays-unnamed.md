@@ -1,6 +1,6 @@
 # WP-1450 — a collaborator's dataset stays unnamed
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-09-24 — the redaction landed (PR #438); the two private-map tasks and the map-pattern acceptance grep remain, and are the maintainer's
 Depends on: —
 Priority: P1 2026-09-23 — the data owner asked; land it before 1.5.1 is cut, because the wheel ships `diagnostics.py` and `topas.py`; comments and docstrings only, so the job is small
 
@@ -82,15 +82,18 @@ and the WP-1415 file is edited in the same PR.
 - [ ] The patterns file exists in `yue-here/rietx-corpus-map`: one pattern
       per role (the run number, the compound, the instrument name, the
       wavelength), as agreed on #417.
-- [ ] Genericise every site above, keeping each threshold, its shape and
-      the d-spacing at `diagnostics.py:893`.
-- [ ] Where a record must say that a string was removed, name its role and
+- [x] Genericise every site above, keeping each threshold, its shape and
+      the d-spacing at `diagnostics.py:893`. **PR #438 (`605a0e50`), plus
+      the five sites and three numerals its review found beyond the list.**
+- [x] Where a record must say that a string was removed, name its role and
       never its value, in commits, the PR body and the handover alike.
+      **#438's commit message, body and thread do; so does this file.**
 - [ ] If the corpus map should record the replaced numbers, add them there,
       never to this tree.
-- [ ] Tests: none new. The fast selection passes unchanged, since no
-      behaviour moves.
-- [ ] Skill: none. No skill file names the dataset (checked at `644dff84`).
+- [x] Tests: none new. The fast selection passes unchanged, since no
+      behaviour moves. **Only the TOPAS test's example token changed.**
+- [x] Skill: none. No skill file names the dataset (checked at `644dff84`,
+      and again on the merged tree, all three copies).
 
 ## Acceptance
 
@@ -109,6 +112,52 @@ git grep -n -f <patterns file from yue-here/rietx-corpus-map> -- '*.py' '*.md'  
 - Issue #417.
 
 ## Handover log
+
+### 2026-09-24 — the redaction landed from the reporter's PR
+
+`main` no longer names the collaborator's dataset. That means no run number,
+compound, instrument, wavelength, file name or count level, and no number
+measured on it. Every threshold and the shape of the evidence behind it
+stay. It landed as the reporter's PR #438, reviewed over two rounds and
+merged before 1.5.1 is cut, as the Priority line asks. What is left needs
+the private map, which this session could not read.
+
+- *Done*: PR #438, merged as `605a0e50`. Issue #417 was closed by hand
+  with a comment naming the PR, because the PR carried no closing keyword.
+  The thirty listed sites are done. Review round 1 found five more the list
+  missed: the module docstring's σ²/y level; `SignalCutoff`'s counts, width,
+  floor fractions and levels; and the manual's window, three before/after
+  pairs and σ²/y level. The contributor's own derived-number search found
+  three numerals beside them. The WP-1415 file's six lines are rewritten in
+  the same commit, as Context required. The TOPAS test's token is a synthetic
+  hyphenated name of the same shape. Tasks 2, 3, 5 and 6 are ticked.
+- *Checked, and how*: the identifier search used one pattern per role,
+  taken from the strings `main` carried. **It is not the map's patterns
+  file**, because cloning `yue-here/rietx-corpus-map` was refused in this
+  session. Those patterns hit 33 lines on `main` at `54a049d2` and none on
+  the merged tree, across every tracked text file including the three skill
+  copies and both merged commit messages. A derived-number sweep then took
+  the 113 distinct numbers in the removed text. The 24 that recur in added
+  lines are all package constants, sweep coordinates, public D1B figures,
+  the synthetic fixture's own parameters, or issue and WP numbers.
+  Fast suite on the merged tree: 1 failed, 6067 passed, 101 skipped, the
+  failure being `test_telemetry`'s root-only case. The full `-m slow` suite
+  ran once, on `main` + #425 + #438 + #433: 2 failed, 193 passed,
+  9 skipped. Both failures were load, neither this change's
+  (WP-1415's entry of this date has the detail).
+- *Gotcha*: #425, the WP-1415 PR, first called the second private set
+  public and named it. Its round 2 aligned it with this WP's wording before
+  either merged, so the two now describe it the same way.
+- *Not in scope, recorded*: issue #417's own body quotes the run number and
+  the compound in its search line, and #274's body names the instrument.
+  Neither is a file on `main`. Editing an issue body is the maintainer's call.
+- *Follow-up the reporter offered*: `CUTOFF_ONSET_FRACTION`'s comment says
+  "both files agree … within half a degree" of the TOPAS window. The removed
+  sweep shows that holds at the leading end only. The review asked for it to
+  be reworded like `results.md` in a separate PR.
+- *Next*: run the Acceptance grep with the map's patterns file (task 1), and
+  record the replaced numbers in the map if task 4 wants them. Then close
+  the WP.
 
 - **2026-09-23** — created, from the 2026-09-23 issue triage (issue #417).
   Checked against the tree at `644dff84`: every site the issue lists

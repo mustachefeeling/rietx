@@ -1,6 +1,6 @@
 # WP-1415 — a σ column smaller than √y
 
-Milestone: unscheduled · Status: 🔄 2026-09-23 — six of seven tasks landed; the edge-dropout change is measured and implemented on the contributor's branch, awaiting its PR
+Milestone: unscheduled · Status: ✅ 2026-09-24 — all seven tasks landed; the last, the edge-dropout change, from outside in PR #425
 Depends on: —
 
 ## Goal
@@ -122,15 +122,9 @@ on its stated licence (root CLAUDE.md: data carries its own fence, per file);
 `tests/data/README.md` records the answer. A synthetic pattern with two dead
 channels and a σ column at 0.3·√y reproduces both defects without it.
 
-### Inherited
-
-- **2026-09-23, from the issue triage (issue #274).** The edge-dropout task
-  is in PR #425, the contributor's, opened 2026-09-23 at the maintainer's
-  request on the thread. It is one commit off `ff56d956`: an edge-touching
-  run judged against its live side, and `median_filter(mode="reflect")`. The
-  PR says the three synthetic tests, `test_background_auto.py` and
-  `test_readers_robust.py` pass on its tree. Its claim matches what the
-  thread asked for. Reviewing it is `/pr-review`'s.
+The issue's second ask arrived as the contributor's PR #425, opened
+2026-09-23 at the maintainer's request on the thread, reviewed over three
+rounds and merged 2026-09-24 (the handover log's entry of that date).
 
 ## Non-goals
 
@@ -178,12 +172,12 @@ channels and a σ column at 0.3·√y reproduces both defects without it.
       the peer is `PATTERN_UNDERSAMPLED`, a plain `Diagnostic` in `refine.py`),
       and `help.py` documents parameter, flag and option *names*, never
       `PATTERN_*` codes, which live in the skill's `references/`.
-- [ ] `signal_cutoffs` admits a short dropout at an edge, if the D1B file and
+- [x] `signal_cutoffs` admits a short dropout at an edge, if the D1B file and
       the private neutron PSD scan agree it is separable from a cliff.
       **Measured separable by the
       contributor (#274, 2026-09-22), and implemented in `dead_channels` rather
-      than `signal_cutoffs` on their unpushed branch. Open until that PR
-      lands.** Before that: **Left for the contributor who
+      than `signal_cutoffs`: landed in PR #425 (`30d36911`, 2026-09-24).**
+      Before that: **Left for the contributor who
       has those two files** (2026-09-21 decision): the task is conditional on
       what they agree, and neither file is in the tree. `dead_channels`
       declines an edge-touching run today and says so, so the gap is named
@@ -215,6 +209,51 @@ channels and a σ column at 0.3·√y reproduces both defects without it.
   (`fitted_mask`), WP-1047 (a reader repairs only where it says so).
 
 ## Handover log
+
+### 2026-09-24 — the edge-dropout task landed from outside; the WP closes
+
+A dead pair of detector channels at the very first or very last point of a
+pattern is now named, the way an interior pair already was. This was
+issue #274's second ask. Before, `dead_channels` declined any run touching an
+end and said so. Now a short run there is judged against the one side it
+has, on the same weight-ratio test as an interior one, and a run spanning
+the whole pattern is still declined. The last task is ticked, and the
+Inherited mailbox that pointed at the PR is consumed and folded into Context.
+
+- *Done*: PR #425, the contributor's, merged as `30d36911`. It closed #274
+  through its own `Closes` line. The change sits in `dead_channels`, as the
+  2026-09-23 entry recorded, and `signal_cutoffs` is unchanged. One boundary
+  defect came with it: `median_filter(mode="nearest")` padded past the last
+  channel with the dropout's own value, which hid exactly this case whatever
+  the exclusion did, so it is `mode="reflect"` now. No new threshold was
+  added: D1B's edge pairs read a weight ratio 15-23× above
+  `DEAD_WEIGHT_RATIO_MIN`, and a private Mythen set's cliff edges read
+  nearly two orders of magnitude below it.
+- *What it deliberately does not do*: tell a real two-channel step down to
+  1/k of its neighbours from a dead pair. Under √y counting such a step reads
+  a weight ratio of about k, so from k = 100 it is reported.
+  `test_an_edge_step_a_hundredfold_down_is_reported` pins that as a stated
+  boundary rather than a surprise. The separation the tests demonstrate is a
+  step against a ramp, since the real cliffs' σ falls with their level.
+- *Gotchas found in review* (three rounds): the first negative control
+  planted a step at 1/50, which passed only because 50 < 100. It now plants
+  a ramp, measured at 18.68. And the Mythen set was called public in the PR
+  and private in #438. It is private, so it is described by kind throughout,
+  commit message included.
+- *Measured on the merged tree* (Linux x86_64, python 3.12, `[dev,jax]`,
+  4 cores, nothing else running): fast suite 1 failed, 5950 passed,
+  96 skipped, in about 18 min. The failure is `test_telemetry`'s
+  unwritable-directory case, because the container runs as root. The
+  full `-m slow` suite ran once, on `main` + #425 + #438 + #433: 2 failed,
+  193 passed, 9 skipped, in about 80 min. Neither failure is this change's.
+  The ramp runaway guard in `test_held_phase.py` fired at 150 s against 60 s
+  under load and passes alone in 16 s. The brucite strict xfail passed
+  under load, as it does on `main`'s nightly on `644dff84`, and alone it
+  xfails.
+- *Next*: nothing on this WP. The round-2 real-data comparison ran over the
+  13 σ-carrying patterns in `tests/data/`. It found the edge admission fires
+  nowhere new there, so the first real-data sighting will come from a user's
+  file.
 
 - **2026-09-23** — the contributor's #274 comment of 2026-09-22 settles both
   open tasks' measurements. It was measured on `origin/main` `a1261ca1` with

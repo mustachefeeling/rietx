@@ -584,7 +584,7 @@ existing.
 | WP | Title | Status | Priority | Depends on |
 |---|---|---|---|---|
 | [1326](wp/1326-satellites-without-a-moment.md) | Satellites at G ± k, with no moment model: is it magnetic? | ⬜ | P2 | — |
-| [1327](wp/1327-magnetic-structure.md) | A magnetic structure: state it, refine it, report what the powder cannot see | ⬜ | P2 | 1326 |
+| [1327](wp/1327-magnetic-structure.md) | A magnetic structure: state it, refine it, report what the powder cannot see | 🔄 2026-09-24 | P2 | 1326 |
 | [1328](wp/1328-magnetic-interchange.md) | Magnetic interchange: magCIF in and out, and the readers stop refusing | ⬜ | P3 | 1327 (1118 soft) |
 | [1329](wp/1329-moment-in-a-series.md) | The moment in a series: the onset, the hold, the trajectory | ⬜ | P3 | 1327 (1326 soft) |
 | [1343](wp/1343-the-moment-pays-for-the-width.md) | The magnetic peaks are broader, and the moment pays for it | ⬜ | P3 | 1327 (1326 soft) |
@@ -663,7 +663,7 @@ the limit carried load rather than whether the value stopped near one, and
 | [1342](wp/1342-a-freeze-that-reads-names.md) | A structural freeze that reads names, and the tie it cannot see | ✅ 2026-09-19 | — | — (1301, 1119 soft) |
 | [1344](wp/1344-a-joint-fit-owes-each-histogram-its-diagnostics.md) | A joint fit owes each histogram the diagnostics its own radiation earns | ⬜ | P3 | — |
 | [1414](wp/1414-a-turn-on-that-reached-nothing.md) | A `turn_on` that reached nothing says so | ✅ 2026-09-22 | — | — (1341 soft) |
-| [1415](wp/1415-a-sigma-column-smaller-than-root-y.md) | A σ column smaller than √y | 🔄 2026-09-23 | — | — |
+| [1415](wp/1415-a-sigma-column-smaller-than-root-y.md) | A σ column smaller than √y | ✅ 2026-09-24 | — | — |
 | [1417](wp/1417-delta-bic-at-powder-channel-counts.md) | ΔBIC at powder channel counts | ⬜ | P2 | — (1339 soft) |
 | [1421](wp/1421-the-result-reproduces-its-own-number.md) | The result reproduces its own number | ⬜ | P3 | — (1310 soft) |
 | [1432](wp/1432-a-tie-onto-a-rederived-dof.md) | A tie onto a coordinate DOF, re-applied once per write | ✅ 2026-09-19 | — | — (1119 soft) |
@@ -761,7 +761,7 @@ separability floor, and not scheduled here.
 | [1410](wp/1410-worktree-gate-scope.md) | The worktree gate guards this checkout, not every repository | ✅ 2026-09-14 | — | — |
 | [1443](wp/1443-part-one-read-by-a-newcomer.md) | Part 1 read by a newcomer: eleven passages, one word, and the version the manual describes | ⬜ | P3 | — (1409 is the shape) |
 | [1448](wp/1448-a-number-somebody-chose.md) | A number somebody chose says so, and says where the argument is | ⬜ | P4 | — |
-| [1450](wp/1450-a-collaborators-dataset-stays-unnamed.md) | A collaborator's dataset stays unnamed | ⬜ | P1 | — |
+| [1450](wp/1450-a-collaborators-dataset-stays-unnamed.md) | A collaborator's dataset stays unnamed | 🔄 2026-09-24 | P1 | — |
 | [1451](wp/1451-the-extinction-a-powder-has.md) | The extinction a powder has: primary, not secondary | ⬜ | P4 | — |
 | [1452](wp/1452-spglib-to-moyo.md) | spglib to moyo, once | ⬜ | P3 | 1327, 1418, 1419 |
 
