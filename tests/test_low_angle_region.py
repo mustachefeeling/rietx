@@ -2,7 +2,9 @@
 
 ``LOW_ANGLE_UNMODELLED`` (``rietx.refine``) reads the fit's own residual over
 ``[two_theta_min, first_tick - 2*FWHM)`` — the channels no reflection, of any
-phase or emission line, can reach — and fires when their mean weighted-squared
+phase, emission line or declared peak, can reach, ``first_tick`` being the
+lowest tick with at least ``PHASE_SUPPORT_SIGMA`` of calculated intensity
+behind it (WP-1458) — and fires when their mean weighted-squared
 residual exceeds :data:`rietx.refine.LOW_ANGLE_UNMODELLED_RATIO` times the
 whole-pattern reduced chi-square.  It exists beside
 ``PatternDiagnostics.air_scatter_gain`` (``background/diagnostics.py``) rather
@@ -205,3 +207,188 @@ def test_no_reflections_returns_none():
     values = table.decode(table.x0())
     assert _first_reflection_fwhm(model, values, {}) is None
     assert _low_angle_diagnostics(model, values, model.y_obs, None, {}) == []
+
+
+# --------------------------------------------------------------------------
+# the boundary is the first tick with intensity behind it (WP-1458, #436)
+# --------------------------------------------------------------------------
+def _hump_pattern() -> PatternData:
+    """Issue #436's pattern: the synthetic LaB6 of ``test_refine_synthetic``
+    (lambda 0.4139 Ang, 3-24 deg, first reflection (100) at 5.72 deg) plus an
+    unmodelled Gaussian hump at 4.0 deg (400 counts, sigma 0.3 deg)."""
+    from tests.test_refine_synthetic import synthesize
+
+    pat = synthesize()
+    tt = np.asarray(pat.two_theta)
+    y = np.asarray(pat.intensity, float)
+    y += 400.0 * np.exp(-0.5 * ((tt - 4.0) / 0.3) ** 2)
+    return PatternData(two_theta=tt.tolist(), intensity=y.tolist())
+
+
+@pytest.fixture(scope="module")
+def hump_pattern() -> PatternData:
+    return _hump_pattern()
+
+
+def _dummy(scale: Parameter) -> rx.Phase:
+    """A large-cell cubic phase whose lowest ticks (2.51 deg on) fall below
+    LaB6 (100) and below the data's 3 deg start."""
+    from rietx.schemas.structure import Atom, Cell
+
+    return rx.Phase(
+        name="dummy", space_group="P m -3 m", cell=Cell.cubic(30.0, vary=False),
+        atoms=[Atom(label="C", species="C", x=Parameter(value=0.0),
+                    y=Parameter(value=0.0), z=Parameter(value=0.0))],
+        scale=scale)
+
+
+def _low_angle(structure, instrument, pattern):
+    result = rx.Refinement(structure, instrument, history=False).fit(
+        pattern, plan="mccusker_default", telemetry=False)
+    return result, [d for d in result.diagnostics
+                    if d.code == "LOW_ANGLE_UNMODELLED"]
+
+
+def _assert_fires_at_lab6_100(found):
+    """The region the LaB6-only fit reads: below (100) at 5.72 deg."""
+    assert len(found) == 1
+    assert "(5.72° − 2×FWHM = 5.68°)" in found[0].message
+    assert found[0].value > LOW_ANGLE_UNMODELLED_RATIO
+
+
+def test_the_issue_pair_fires_with_and_without_the_dummy(hump_pattern):
+    """#436: a cubic dummy at a fixed 1e-14 scale leaves the fit unchanged and
+    put its 2.51 deg tick below the data, silencing the diagnostic.  None of
+    its reflections reaches 1 sigma, so the boundary stays at LaB6 (100)."""
+    from tests.test_refine_synthetic import perturbed_models
+
+    structure, instrument = perturbed_models()
+    alone, found = _low_angle(structure, instrument, hump_pattern)
+    _assert_fires_at_lab6_100(found)
+
+    structure, instrument = perturbed_models()
+    structure.phases.append(_dummy(Parameter(value=1e-14, vary=False)))
+    result, found = _low_angle(structure, instrument, hump_pattern)
+    assert min(result.ticks["dummy"]) < hump_pattern.two_theta[0]
+    assert result.statistics.rwp == pytest.approx(alone.statistics.rwp, rel=1e-3)
+    _assert_fires_at_lab6_100(found)
+
+
+def test_a_held_phase_does_not_silence_it(hump_pattern):
+    """A phase ``PHASE_UNCONSTRAINED`` holds keeps its ticks (WP-1301); with
+    nothing behind them they do not move the boundary."""
+    from tests.test_refine_synthetic import perturbed_models
+
+    structure, instrument = perturbed_models()
+    structure.phases.append(_dummy(Parameter(value=1e-14, min=0.0, max=1e-10)))
+    result, found = _low_angle(structure, instrument, hump_pattern)
+    assert "PHASE_UNCONSTRAINED" in {d.code for d in result.diagnostics}
+    _assert_fires_at_lab6_100(found)
+
+
+def test_a_zero_area_declared_peak_does_not_silence_it(hump_pattern):
+    """A declared ``PeakComponent`` at 3.3 deg, area at its default 0: its
+    ticks sit under ``EXTRA_TICK_KEY`` and carry nothing."""
+    from rietx.model.components import EXTRA_TICK_KEY
+    from rietx.schemas.instrument import PeakComponent
+    from tests.test_refine_synthetic import perturbed_models
+
+    structure, instrument = perturbed_models()
+    instrument.extra_components = [PeakComponent(
+        center=Parameter(value=3.3, min=3.1, max=3.5, unit="deg"),
+        fwhm=Parameter(value=0.05, min=0.01, max=0.2, unit="deg"))]
+    result, found = _low_angle(structure, instrument, hump_pattern)
+    assert min(result.ticks[EXTRA_TICK_KEY]) < 3.5
+    _assert_fires_at_lab6_100(found)
+
+
+def test_empty_ticks_of_a_supported_phase_do_not_silence_it(hump_pattern):
+    """The row #433's magnetic phase adds, stood in for without magnetism: LaB6
+    described in a doubled cell, whose half-order reflections (2.85, 4.04,
+    4.94 deg) are ticks with |F| = 0 on a phase the data plainly supports —
+    the case no per-phase test can see."""
+    from rietx.schemas.structure import Atom, Cell
+    from tests.test_refine_synthetic import TRUE_A, TRUE_SCALE, perturbed_models
+
+    structure, instrument = perturbed_models()
+    atoms = [Atom(label=f"La{i}", species="La", x=Parameter(value=x),
+                  y=Parameter(value=y), z=Parameter(value=z))
+             for i, (x, y, z) in enumerate([(0, 0, 0), (.5, 0, 0),
+                                            (.5, .5, 0), (.5, .5, .5)])]
+    atoms += [Atom(label=f"B{i}", species="B", x=Parameter(value=x0 + 0.1993 / 2),
+                   y=Parameter(value=.25), z=Parameter(value=.25))
+              for i, x0 in enumerate((0.0, 0.5))]
+    structure.phases[0] = rx.Phase(
+        name="LaB6x2", space_group="P m -3 m",
+        cell=Cell.cubic(2 * (TRUE_A + 0.004), vary=True), atoms=atoms,
+        scale=Parameter(value=TRUE_SCALE * 1.8 / 64))
+    result, found = _low_angle(structure, instrument, hump_pattern)
+    assert min(result.ticks["LaB6x2"]) < 3.0
+    _assert_fires_at_lab6_100(found)
+
+
+def test_reflection_support_is_phase_support_one_rank_down():
+    """Per-reflection support is max(y/sigma) over one window: never above the
+    phase's, and equal to it on LaB6, whose strongest reflection stands alone.
+    A reflection with an empty frozen window reads 0."""
+    from rietx.model.forward import PHASE_SUPPORT_SIGMA
+
+    pattern = _lab6_air_scatter_pattern(lo=15.0, hi=60.0)
+    structure = make_lab6()
+    structure.phases[0].scale.value = 3e-4
+    ins = rx.Instrument.bragg_brentano(radiation="CuKa1")
+    model = compile_model(structure, ins, pattern, mode="rietveld")
+    table = ParameterTable(structure, ins)
+    values = table.decode(table.x0())
+    rows = model.reflection_support(0, values)
+    best = max(float(np.max(r)) for r in rows)
+    assert best == pytest.approx(float(model.phase_support(values)[0]), rel=1e-9)
+    empty = model.phases[0].win[0, :, 1] <= model.phases[0].win[0, :, 0]
+    assert np.all(rows[0][empty] == 0.0)
+    assert (rows[0][~empty] >= PHASE_SUPPORT_SIGMA).any()
+
+
+def test_first_reflection_skips_ticks_without_support():
+    """``support`` pairs with ``ticks`` by index; a tick below the threshold
+    is not the first reflection, and a row with none supported is no row."""
+    structure = make_lab6()
+    ins = rx.Instrument.bragg_brentano(radiation="CuKa1")
+    tt = np.arange(15.0, 90.0, 0.02)
+    grid = PatternData(two_theta=tt.tolist(), intensity=[0.0] * len(tt))
+    model = compile_model(structure, ins, grid, mode="rietveld")
+    table = ParameterTable(structure, ins)
+    values = table.decode(table.x0())
+    ticks = {"LaB6": [21.36, 30.4], "ghost": [16.0]}
+    got = _first_reflection_fwhm(model, values, ticks,
+                                 {"LaB6": [50.0, 80.0], "ghost": [0.99]})
+    assert got is not None and got[0] == 21.36
+    got = _first_reflection_fwhm(model, values, ticks,
+                                 {"LaB6": [0.5, 80.0], "ghost": [0.99]})
+    assert got is not None and got[0] == 30.4
+    assert _first_reflection_fwhm(model, values, ticks,
+                                  {"LaB6": [0.0, 0.0], "ghost": [0.0]}) is None
+    assert _first_reflection_fwhm(model, values, ticks)[0] == 16.0
+
+
+def test_extra_peak_support_pairs_with_the_tick_positions():
+    """``extra_peak_support`` lists the images ``extra_peak_tick_positions``
+    does, in the same order, each naming its peak; a zero area reads 0 and a
+    real one reads its height in sigma."""
+    from rietx.schemas.instrument import PeakComponent
+
+    structure = make_lab6()
+    ins = rx.Instrument.bragg_brentano(radiation="CuKa")
+    ins.extra_components = [
+        PeakComponent(center=Parameter(value=18.0, min=17.5, max=18.5, unit="deg")),
+        PeakComponent(center=Parameter(value=25.0, min=24.5, max=25.5, unit="deg"),
+                      area=Parameter(value=50.0, min=0.0, transform="softplus"))]
+    tt = np.arange(15.0, 40.0, 0.02)
+    grid = PatternData(two_theta=tt.tolist(), intensity=[100.0] * len(tt))
+    model = compile_model(structure, ins, grid, mode="rietveld")
+    table = ParameterTable(structure, ins)
+    values = table.decode(table.x0())
+    images = model.extra_peak_support(values)
+    assert [p for p, _, _ in images] == model.extra_peak_tick_positions(values)
+    assert {j for _, j, _ in images} == {0, 1}
+    assert all(s == 0.0 for _, j, s in images if j == 0)
+    assert max(s for _, j, s in images if j == 1) > 1.0

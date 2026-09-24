@@ -1781,6 +1781,94 @@ class CompiledModel:
             out[ip] = float(np.max(y / sigma)) if len(y) else 0.0
         return out
 
+    def reflection_support(self, ip: int, values: dict[str, float]
+                           ) -> list[np.ndarray]:
+        """Each reflection's strongest modelled point, in σ of the noise.
+
+        :meth:`phase_support` one rank down — the same quantity, max(y/σ), over
+        one (emission line, reflection) window instead of over the whole phase
+        — so the two can be read against one threshold,
+        :data:`PHASE_SUPPORT_SIGMA` (WP-1458).  One array per emission line
+        over the frozen reflection list, the layout :meth:`phase_peaks`
+        returns.  A reflection whose frozen window is empty (generated in the
+        compiler's margin, outside the fitted range) reads 0: nothing of it is
+        on a point the data holds.
+
+        Built from the Ω planes :meth:`phase_component` scatters, taken per row
+        before the scatter rather than re-evaluated, and on the loop path
+        (every traced backend) from the same per-reflection profile.
+        Evaluate-only; never in the hot loop.
+        """
+        cp = self.phases[ip]
+        sigma = np.asarray(self.sigma, dtype=np.float64)
+        peaks = self.phase_peaks(ip, values)
+        out = [np.zeros(len(np.asarray(p[0]))) for p in peaks]
+        if get_backend().name == "numpy":
+            lay = cp.batch
+            if not len(lay.i0):
+                return out
+            pos = lay.gather(peaks, 0)
+            omega = self._omega_batch(
+                lay, pos, lay.gather(peaks, 1), lay.gather(peaks, 2),
+                np.isfinite(pos), values["instrument.geometry.axial_sl"],
+                values["instrument.geometry.axial_hl"], compiled.SPELL_FORWARD)
+            height = lay.gather(peaks, 3)[:, None] * omega / sigma[lay.idx]
+            row = np.max(height, axis=1)
+            for il in range(len(lay.line_ptr) - 1):
+                a, b = int(lay.line_ptr[il]), int(lay.line_ptr[il + 1])
+                out[il][lay.k[a:b]] = row[a:b]
+            return out
+        sl = values["instrument.geometry.axial_sl"]
+        hl = values["instrument.geometry.axial_hl"]
+        for il, (pos, gamma, eta, intensity) in enumerate(peaks):
+            for k in range(len(pos)):
+                prof = self._reflection_profile(cp, il, k, pos[k], gamma[k],
+                                                eta[k], sl, hl)
+                if prof is None:
+                    continue
+                i0, i1 = int(cp.win[il, k, 0]), int(cp.win[il, k, 1])
+                y = np.asarray(intensity[k] * prof, dtype=np.float64)
+                out[il][k] = float(np.max(y / sigma[i0:i1]))
+        return out
+
+    def extra_peak_support(self, values: dict[str, float]
+                           ) -> list[tuple[float, int, float]]:
+        """``(position, peak, support)`` of every declared peak's line images.
+
+        The images :meth:`extra_peak_tick_positions` lists — same filter, same
+        sort, so the two pair by index — each with the index of the peak it is
+        an image of (into :attr:`peak_components`) and its strongest modelled
+        point in σ of the noise, :meth:`reflection_support`'s quantity for a
+        declared peak.  The curve is :meth:`extra_peak_curve`'s term for that
+        (peak, line), rebuilt here on numpy because that method returns the
+        sum and this needs the terms.  An image whose frozen window is empty
+        reads 0.  Evaluate-only.
+        """
+        sigma = np.asarray(self.sigma, dtype=np.float64)
+        pol = values["instrument.polarization"]
+        out: list[tuple[float, int, float]] = []
+        for j, peak in enumerate(self.peak_components):
+            center = float(values[peak.paths["center"]])
+            area = float(values[peak.paths["area"]])
+            gamma = float(values[peak.paths["fwhm"]])
+            eta = float(values[peak.paths["eta"]])
+            lp0 = lorentz_polarization(center, pol)
+            reach = len(peak.lam_ratio) if peak.all_lines else 1
+            for il in range(reach):
+                pos = float(_line_image_deg(center, float(peak.lam_ratio[il]), np))
+                if not np.isfinite(pos):
+                    continue
+                i0, i1 = int(peak.win[il, 0]), int(peak.win[il, 1])
+                if i1 <= i0:
+                    out.append((pos, j, 0.0))
+                    continue
+                gain = float(values[peak.weight_paths[il]])
+                if il:
+                    gain = gain * float(lorentz_polarization(pos, pol) / lp0)
+                y = area * gain * pseudo_voigt(self.tt[i0:i1] - pos, gamma, eta)
+                out.append((pos, j, float(np.max(np.asarray(y) / sigma[i0:i1]))))
+        return sorted(out, key=lambda t: t[0])
+
     def phase_line_counts(self) -> np.ndarray:
         """How many (emission line, reflection) windows of each phase cover a point.
 
