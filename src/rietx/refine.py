@@ -7,7 +7,7 @@ import fnmatch
 import math
 import re
 import warnings
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from importlib.metadata import PackageNotFoundError, version
@@ -622,6 +622,30 @@ def _vars_driven_cell_escapes(table: ParameterTable,
         if escaped:
             out.append((column, escaped))
     return out
+
+
+def _cell_runaway_withheld(table: ParameterTable,
+                           named: Iterable[str]) -> set[str]:
+    """The paths whose esd a result withholds, given the paths one stage's
+    ``CELL_RUNAWAY`` finding names (its ``where``).
+
+    Every cell path named, and every entry tied to one of them, transitively:
+    a tie inherits its source's blindness (root CLAUDE.md, the covariance
+    clause), so a cubic ``b``/``c`` following a withheld ``a`` cannot report
+    the esd ``a`` lost.  A ``vars.X`` driver the finding names is not a cell
+    and keeps its esd; the cells it drives are named themselves.  Which
+    stage's finding is the caller's to decide (:func:`_build_result`).
+    """
+    withheld = {p for p in named if _cell_parameter_name(p, phases=None) is not None}
+    grew = bool(withheld)
+    while grew:
+        grew = False
+        for e in table.entries:
+            if (e.tie is not None and e.path not in withheld
+                    and any(src in withheld for src, _ in e.tie.terms)):
+                withheld.add(e.path)
+                grew = True
+    return withheld
 
 
 #: An angle path's name (``_cell_parameter_name``'s output), the same test
@@ -2806,7 +2830,8 @@ class Refinement:
             model = None
 
             try:
-                model, outcome, guard, stage_results, diagnostics = self._run_plan(
+                (model, outcome, guard, stage_results, diagnostics,
+                 answer_runaway) = self._run_plan(
                     plan, data, mode, table, two_theta_limits, tree, stream, cancel,
                     stage_results, diagnostics, sinks=sinks,
                     stage_reports=stage_reports)
@@ -2848,7 +2873,8 @@ class Refinement:
                 solver=self._solver,
                 mu_r_source=self._mu_r_source, mu_r_skipped=self._mu_r_skipped,
                 guard=guard, max_shift_over_esd=outcome.max_shift_over_esd,
-                declared_wavelengths=declared_wavelengths)
+                declared_wavelengths=declared_wavelengths,
+                cell_runaway=answer_runaway)
             _apply_esds(table, self.result_, self.structure, self.instrument)
             self._stamp(self.result_, tree)
             if stream is not None:
@@ -2883,12 +2909,16 @@ class Refinement:
                   stage_reports: bool = False):
         """The stage loop of :meth:`fit`, split out so cancellation has one exit.
 
-        Returns ``(model, outcome, guard, stage_results, diagnostics)``; raises
-        :class:`RefinementCancelled` with the completed stages attached.  The
-        guard returned is the **last** stage's, for the same reason
-        :func:`_constraint_diagnostics` reads only that stage: earlier stages
-        measured an intermediate state, and it is the answer-producing one
-        whose Jacobian the result's identifiability evidence describes.
+        Returns ``(model, outcome, guard, stage_results, diagnostics,
+        answer_runaway)``; raises :class:`RefinementCancelled` with the
+        completed stages attached.  The guard returned is the **last** stage's,
+        for the same reason :func:`_constraint_diagnostics` reads only that
+        stage: earlier stages measured an intermediate state, and it is the
+        answer-producing one whose Jacobian the result's identifiability
+        evidence describes.  ``answer_runaway`` is that stage's
+        ``CELL_RUNAWAY`` finding (``[]`` or one), for the same reason: it is
+        what :func:`_build_result` withholds esds on, while ``diagnostics``
+        carries every stage's.
 
         ``stage_reports`` appends one :class:`~rietx.report.StageReport` per
         completed stage to :attr:`stage_reports_`.  A cancelled run keeps the
@@ -2943,6 +2973,7 @@ class Refinement:
         ftols = plan.stage_ftols()
         correlation_hits: dict[tuple[str, frozenset],
                               list[tuple[str, Diagnostic]]] = {}
+        answer_runaway: list[Diagnostic] = []
         for k, (stage, ftol) in enumerate(zip(plan.stages, ftols, strict=True),
                                           start=1):
             with self._abandon_on_cancel(cancel, stage.name, stage_results, stream):
@@ -2963,6 +2994,9 @@ class Refinement:
                 else:
                     diagnostics.append(d)
             runaway_diag = _cell_runaway_diagnostic(hold.cell_runaway, hold.cell_runaway_unresolved)
+            # the last stage's alone survives the loop: an earlier stage's
+            # clamp is re-measured by every later one (staging is cumulative)
+            answer_runaway = [] if runaway_diag is None else [runaway_diag]
             if runaway_diag is not None:
                 diagnostics.append(runaway_diag)
                 stage_diagnostics = stage_diagnostics + [runaway_diag]
@@ -3005,7 +3039,7 @@ class Refinement:
             diagnostics.extend(d for d in _guard_diagnostics(guard)
                                if d.code in _REVISABLE_CODES)
         diagnostics.extend(_dedup_high_correlations(correlation_hits))
-        return model, outcome, guard, stage_results, diagnostics
+        return model, outcome, guard, stage_results, diagnostics, answer_runaway
 
     def _final_compile(self, model: CompiledModel, table: ParameterTable,
                        outcome, data: PatternData, mode: Mode,
@@ -4411,6 +4445,7 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
                   guard=None,
                   max_shift_over_esd: float | None = None,
                   declared_wavelengths: list[float] | None = None,
+                  cell_runaway: Sequence[Diagnostic] | None = None,
                   ) -> RefinementResult:
     values = table.decode(theta)
     y_calc = model.evaluate(values)
@@ -4431,27 +4466,25 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
     tested = set(table.free_paths) if guard is not None else set()
     on_bound = {p for f in guard.at_bounds for p in f.paths} if guard is not None else set()
     # A CELL_RUNAWAY finding's own message says the named cell's value is
-    # "not a measurement" — the pulled-back one because it is a window edge,
-    # not a fit; a merely-named (vars.X-driven, never clamped) one for the
-    # same reason the finding names it at all.  Review of #385 follow-up
-    # item 4: the row itself is still owed (a caller iterating `parameters`
-    # must still find the path — WP-1301's own hold sets `vary=False` and
-    # drops the row outright, which this cell never does, since it stays a
-    # free column the whole time), so the smallest change that keeps the
-    # claim honest is withholding its stderr rather than the row.  No new
-    # field: the CELL_RUNAWAY diagnostic already named the path, and that
-    # `where` entry *is* the flag — a caller cross-referencing diagnostics
-    # already has to, the same way `at_bound` is a projection of `BOUND_HIT`
-    # rather than a second source of truth.
-    cell_runaway_paths = {
-        p for d in diagnostics if d.code == "CELL_RUNAWAY" for p in d.where
-        if _cell_parameter_name(p, phases=None) is not None}
+    # "not a measurement", so its esd is withheld while the row stays (it is
+    # still a free column; WP-1301's hold is what drops a row).  Keyed on the
+    # **answer-producing stage's** finding, never the run's accumulated list
+    # (review of #385 round 3): staging is cumulative, so a cell clamped in
+    # stage 1 is refined again from the window edge by every later stage, and
+    # the esd the last stage measured is a measurement.  ``cell_runaway`` is
+    # that stage's finding; ``None`` reads it off ``diagnostics``, which is
+    # right for every caller whose list is one stage's (``run_stage``, a stage
+    # report, ``replay``).  The flag stays the finding's own ``where``, as
+    # ``at_bound`` is a projection of ``BOUND_HIT``, and a tie inherits it.
+    withheld = _cell_runaway_withheld(table, (
+        p for d in (diagnostics if cell_runaway is None else cell_runaway)
+        if d.code == "CELL_RUNAWAY" for p in d.where))
     params = []
     for e in table.entries:
         if e.vary or e.tie is not None:
             params.append(RefinedParameter(
                 path=e.path, value=e.value, vary=e.vary,
-                stderr=(None if e.path in cell_runaway_paths
+                stderr=(None if e.path in withheld
                        else stderr_phys.get(e.path)),
                 at_bound=(e.path in on_bound) if e.path in tested else None,
             ))
