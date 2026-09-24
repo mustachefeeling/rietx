@@ -204,6 +204,26 @@ Single runs, so no range (`results/proto_run2.txt`, `proto_dpr2.txt`,
     plotly's hover box because it covered the data, and the GUI answers
     hover with its readout strip. The spike's tooltip costs the same as the
     strip. Adding one to the GUI is the maintainer's call.
+12. **Link panes by value.** uPlot fires `setScale` hooks from a microtask,
+    after the call that set the scale has returned. A flag set around that
+    call is already clear when the echo arrives. And every `setScale`
+    repaints its pane, even when the range has not moved. The spike linked
+    its panes with such a flag until 2026-09-25, so every zoom, pan and reset
+    painted the main and tick panes twice. `setX` now leaves alone a pane
+    already at the range. The gesture table above was measured with the echo,
+    so its zoom, pan and reset rows overstate the cost
+    (`results/zoom_probe.txt`).
+13. **Firefox stalls where Chromium does not.** The table above is Chromium
+    only, and the maintainer reads in Firefox. `zoom_probe.mjs` sent Firefox
+    155 the same drag-zoom twelve times, at devicePixelRatio 2 and 59 498
+    points. Most drags painted in 3-9 ms over the three panes. Two stalls
+    recurred at the same drags in every run. The residual line took
+    117-296 ms on the first two drags. On drags 9-11, one paint spent
+    29-204 ms in the two dashed curves. Chrome 148 painted every drag in
+    9 ms or less, though neither timer sees
+    GPU raster. Turning off `gfx.canvas.accelerated` moved neither stall. The
+    load average was 67-84, which inflates their size but did not move them.
+    The pilot's Firefox row must look for both.
 
 ### Behaviours the spike did not rebuild
 
@@ -472,6 +492,21 @@ npm --prefix gui test && npm --prefix gui run check
 
 ## Handover log
 
+- **2026-09-25, later** — the maintainer saw a slight delay on every zoom
+  in the demo. The spike's pane link echoed, so each zoom painted the main
+  and tick panes twice (finding 12). `proto.html` now links by value, and
+  each pane paints once in Chrome 148 and Firefox 155
+  (`results/zoom_probe.txt`). Headless Chromium spent 24-32 ms from input to
+  the next frame on every event, including an empty mouse-down. So that
+  pipeline cannot show a delay this small, and the delay the maintainer saw
+  is not yet measured in a headed browser. Firefox showed two stalls that
+  Chromium does not (finding 13). `?demo` now prints each frame's repaints
+  beside the toolbar, so a person can see what a zoom costs in their own
+  browser. The spike's `node_modules` is now a real install, since
+  `zoom_probe.mjs` needs `puppeteer-core` to drive the installed Firefox.
+  *Next:* the maintainer zooms in Firefox with the fix and reads the
+  repaint line. If the delay remains while the line says a few ms, the delay
+  is the browser's input-to-screen path, and the pilot measures it headed.
 - **2026-09-25** — session state saved for a `/clear`, before
   `/wp-handover`. The WP is filed and not started. PR #461 carries it with
   the spike and a demo someone can click through. Nothing in the package

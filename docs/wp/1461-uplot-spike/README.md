@@ -14,10 +14,11 @@ or runs in the suite. The logs in `results/` are the runs the WP quotes.
 | `proto.html` | The GUI's pattern plot rebuilt on uPlot: three linked panes, every gesture, the exports. `?all` draws every marker. |
 | `proto2.html` | The Series trajectory, the compare overlay and an in-situ 2D map. |
 | `proto_driver.mjs` | Drives both prototype pages with real mouse and wheel input and times each gesture. |
+| `zoom_probe.mjs` | Counts and times the paints behind one drag-zoom and one wheel zoom, in Chrome for Testing or the installed Firefox (finding 12, finding 13). `echo` puts back the pane link that painted twice. |
 | `gui_td.mjs` | Today's GUI as main-thread work: boot frames, hover, resize, and the full-resolution window with its parse and grid union. |
 | `gui_probe.mjs`, `driver3.mjs` | Earlier GUI probes (latency of boot, zoom and resize), SVG export, and the standalone-page comparison. |
 | `make_exports.py`, `make_uplot_export.mjs` | Build today's `write_html` page and its uPlot equivalent from one set of arrays. |
-| `serve.mjs`, `index.html` | The demos for a person: `node serve.mjs [port]`, then <http://127.0.0.1:8810/>. `?demo` gives the prototype pages a toolbar that times each action. |
+| `serve.mjs`, `index.html` | The demos for a person: `node serve.mjs [port]`, then <http://127.0.0.1:8810/>. `?demo` gives the prototype pages a toolbar that times each action, and the pattern page prints each frame's repaints. |
 
 ## Method
 
@@ -49,9 +50,11 @@ node gui_td.mjs 0                          # today's GUI, run index 0; add `boot
 ../../../.venv/bin/python make_exports.py .   # needs arrays.json, which proto_driver.mjs writes
 node make_uplot_export.mjs
 node driver3.mjs                           # starts `rietx gui` on port 8799 and fits the NAC example
+node serve.mjs 8810 & node zoom_probe.mjs firefox 2 [echo]   # or chrome; the probe loads the page from serve.mjs
 ```
 
 The drivers expect Chrome for Testing from playwright's chromium build 1223
 in the playwright cache (`~/Library/Caches/ms-playwright/chromium-1223`). Set
 `RIETX` to use a `rietx` other than the repository's `.venv`. The GUI drivers
-bind port 8799.
+bind port 8799. `zoom_probe.mjs` drives Firefox from
+`/Applications/Firefox.app` through `puppeteer-core`, over WebDriver BiDi.
