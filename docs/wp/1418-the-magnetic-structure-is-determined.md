@@ -125,6 +125,30 @@ MAGNDATA magCIF entries serve the round-trip and span tests with no pattern.
 
 ### Inherited
 
+- **2026-09-24, from the issue triage (issue #439): the spgrep oracle's
+  refusal count depends on the machine.**
+  `tests/test_magnetic_irreps.py::test_physically_irreducible_dimensions_agree_with_the_spgrep_oracle`
+  (M-6, PR #389) pins `(checked, agreed, declined) == (1363, 1363, 114)`
+  under spgrep 0.7.0. The reporter found one case, `P n -3 m:1` at
+  k = (½, ½, ½), where spgrep's own `real=True` construction raises
+  `AssertionError: T is not square root of intertwiner.` on their macOS
+  arm64 machine but returns on their WSL2 x86_64 one, which reads
+  `(1364, 1364, 113)` and fails the pin. *Checked at `8fbafe5`*: **the split
+  is not macOS against Linux.** On this triage's Linux x86_64 container
+  (numpy 2.5.3 on scipy-openblas 0.3.34, `DYNAMIC_ARCH`, Haswell kernel;
+  spgrep 0.7.0) that case declines too, and the test passes at the pinned
+  counts in 42 s. The likeliest variable is the BLAS kernel OpenBLAS picks
+  for the CPU, which is unmeasured. Either way the pinned `declined` count
+  measures spgrep's floating point on one machine, not this package. **The
+  ask, the reporter's:** keep the two platform-independent assertions
+  (`agreed == checked`, `checked + declined == 1477`). Replace the exact
+  pin with the invariant that matters, that the declined set is a subset of
+  a recorded list of spgrep's refusals (114 entries, this case included), so
+  a machine that declines fewer still passes and one that declines a new
+  case fails by name. Keep the mutation-probe property the test's docstring
+  records (a construction that raises everywhere must still go red). A
+  test-only change; the reporter offered the PR. Whether to report the
+  assertion upstream to spgrep is separate.
 - **2026-09-21, from the issue triage: #384 and #390, both measured on the
   fork against this WP's solver.** Checked against the tree at `4ee4e7f5`:
   `solve_magnetic` is not on `main` yet, so neither can be reproduced here;

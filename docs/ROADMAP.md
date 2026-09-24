@@ -542,7 +542,9 @@ Issue **#374** — a *supported* phase's cell walking to hundreds of Å inside o
 stage, along a direction it shares with a second free phase's cell and which
 `phase_support` cannot see — is in the contributor's PR #385, a post-solve
 clamp with a `CELL_RUNAWAY` diagnostic. Its review is `/pr-review`'s; no WP
-here, since 1110 and 1301, whose windows it sits beside, are closed.
+here, since 1110 and 1301, whose windows it sits beside, are closed. A second
+instance (2026-09-24 on the thread) is Le Bail with lengths gone negative, so
+the review checks the clamp in that mode and a positivity test beside it.
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
@@ -673,6 +675,8 @@ the limit carried load rather than whether the value stopped near one, and
 | [1449](wp/1449-rank-on-what-the-screen-determined.md) | Rank on what the screen determined, not on what the peak list shows | ⬜ | P2 | — (1446 refuted the peak-list route) |
 | [1454](wp/1454-auto-background-choices-survive-the-fit.md) | `auto_background`'s choices survive the fit | ⬜ | P2 | — |
 | [1456](wp/1456-an-editable-install-stamps-what-it-runs.md) | An editable install stamps what it runs | ⬜ | P3 | — |
+| [1457](wp/1457-the-stage-rwp-leaves-out-the-declared-peaks.md) | The stage Rwp leaves out the declared peaks | ⬜ | P2 | — |
+| [1458](wp/1458-a-tick-with-nothing-behind-it.md) | A tick with nothing behind it moves the low-angle boundary | ⬜ | P3 | — (1327 soft) |
 
 #### A long run is not one fit
 
@@ -694,6 +698,7 @@ the chain says nothing (issue #267).
 | [1335](wp/1335-the-report-costs-more-than-the-fit.md) | The report costs more than the fit | ⬜ | P3 | — |
 | [1420](wp/1420-a-held-phase-re-enters-or-says-it-cannot.md) | A held phase re-enters, or the chain says it cannot | ⬜ | P2 | — (1333, 1342, 1419 soft) |
 | [1453](wp/1453-both-directions-name-the-lower-cost.md) | Both directions name the lower cost | ⬜ | P3 | — (1420 soft) |
+| [1459](wp/1459-a-pawley-intensity-past-the-data.md) | A Pawley intensity past the end of the data | ⬜ | P2 | — (1336 soft) |
 
 #### One file, many patterns
 
@@ -778,10 +783,10 @@ scope creep. Each item names what fenced it.
   ([1122](wp/1122-compiled-peaks-buffer.md) measured shape reuse below
   break-even without one); neutron **TOF** (CW landed in 1134; issue #193; the
   energy-dependent resonant absorption at S(Q), #113) — **built through
-  rather than deferred**: a working implementation reaching at least T-1 and
-  T-2 exists unpushed on the `mustachefeeling` fork, so #193 is the next fence
-  decision to take, on the branch once it is visible (1419 § Inherited,
-  2026-09-18) — and issue #362 lists the constant-wavelength reads
+  rather than deferred**: the fork's branch is visible (`tof-cleanroom-20260923`),
+  and **decided 2026-09-24: held until v1.6 closes**, then taken on that branch
+  in its own cuts (T-1, T-2/T-3, T-5), with #442 (a bank's force-fixed CW width
+  rows under 1414's "matched, not freed") going with T-1 — and issue #362 lists the constant-wavelength reads
   (`CompiledModel.tt`, `line_wavelengths`, `sigma_measured`; `viz/snapshot.py`
   and 23 more sites) a second compiled-model class meets, so the accessor seam
   it proposes waits for that class rather than preceding it; spherical-harmonics
