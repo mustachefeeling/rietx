@@ -542,7 +542,9 @@ Issue **#374** — a *supported* phase's cell walking to hundreds of Å inside o
 stage, along a direction it shares with a second free phase's cell and which
 `phase_support` cannot see — is in the contributor's PR #385, a post-solve
 clamp with a `CELL_RUNAWAY` diagnostic. Its review is `/pr-review`'s; no WP
-here, since 1110 and 1301, whose windows it sits beside, are closed.
+here, since 1110 and 1301, whose windows it sits beside, are closed. A second
+instance (2026-09-24 on the thread) is Le Bail with lengths gone negative, so
+the review checks the clamp in that mode and a positivity test beside it.
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
