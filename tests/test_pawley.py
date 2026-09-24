@@ -229,3 +229,74 @@ def test_pawley_never_frees_structure_or_scale():
     assert not any(p.endswith(".scale") for p in freed)
     assert not any(".atoms." in p for p in freed)
     assert not any(".source.lines." in p for p in freed)
+
+
+# ------------------------------------------- a reflection centred off the data
+FAP_CIF = Path(__file__).parent / "data" / "fluorapatite.cif"
+FAP_TT = np.arange(15.0, 75.0, 0.01)
+
+
+def _fap_instrument(true_background: bool) -> Instrument:
+    ins = Instrument.bragg_brentano(radiation="CuKa")
+    ins.profile.w.value = 4e-3
+    ins.background = (BackgroundChebyshev(
+        coefficients=[Parameter(value=v) for v in (200.0, -30.0, 10.0)])
+        if true_background else BackgroundChebyshev.with_terms(3))
+    return ins
+
+
+def fap_series(n: int, span: int = 10) -> list[PatternData]:
+    """Issue #440's synthetic fluorapatite series: patterns 0..n-1 of a
+    ``span``-pattern ramp (cell +0.3 %, two coordinates and one Biso moving),
+    Poisson counts, data ending at 74.99° with (6 0 2) centred at 75.44°."""
+    from rietx import Structure
+
+    out = []
+    for k in range(n):
+        s = Structure.from_cif(str(FAP_CIF))
+        p, f = s.phases[0], k / (span - 1)
+        at = {a.label: a for a in p.atoms}
+        p.cell.a.value *= 1 + 3e-3 * f
+        p.cell.c.value *= 1 + 3e-3 * f
+        p.scale.value = 2e-3
+        at["Ca2"].x.value += 0.02 * f
+        at["O7"].z.value += 0.03 * f
+        at["Ca1"].biso.value += 1.5 * f
+        ins = _fap_instrument(True)
+        m = compile_model(s, ins, PatternData(two_theta=FAP_TT.tolist(),
+                                              intensity=[0.0] * len(FAP_TT)))
+        t = ParameterTable(s, ins)
+        y = np.random.default_rng(100 + k).poisson(
+            np.maximum(m.evaluate(t.decode(t.x0())), 1.0))
+        out.append(PatternData(two_theta=FAP_TT.tolist(),
+                               intensity=y.astype(float).tolist()))
+    return out
+
+
+def test_pawley_intensity_centred_off_the_data_stays_bounded():
+    """WP-1459 (issue #440): a reflection whose every line is centred past the
+    last channel meets the data only through a tail, and as a free linear
+    column it refined to 1.45e8 against a median of 81.  The list keeps it
+    (the margin lets a stage move a reflection *onto* the data), flagged
+    ``off_data`` and ridged toward zero; after a full plan no such intensity
+    may exceed the phase median (measured: 26, 26 and 2e-4 against 81)."""
+    from rietx import Structure
+
+    ref = Refinement(Structure.from_cif(str(FAP_CIF)), _fap_instrument(False))
+    result = ref.fit(fap_series(1)[0], mode="pawley", plan="pawley_default")
+    assert result.status == "converged"
+    model = ref._model
+    cp = model.phases[0]
+    hkl = [tuple(h) for h in cp.reflections.hkl.tolist()]
+    off = cp.off_data
+    assert off is not None and off[hkl.index((6, 0, 2))]
+    # the flag is "no line centred on the data", read off the compile
+    assert not off[(cp.tt_primary >= model.tt_min) & (cp.tt_primary <= model.tt_max)].any()
+    assert sorted(model.pawley.off_data) == list(np.flatnonzero(off))
+    median = float(np.median(cp.hkl_intensity))
+    assert cp.hkl_intensity[off].max() <= median
+    # one ridge row per off-data reflection, below the overlap rows
+    R = model.pawley.restraint
+    ridge = R[-int(off.sum()):]
+    assert (np.count_nonzero(ridge, axis=1) == 1).all()
+    assert sorted(np.flatnonzero(ridge.any(axis=0))) == list(np.flatnonzero(off))
