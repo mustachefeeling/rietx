@@ -124,6 +124,24 @@ returns the whole pattern. The view stays where you put it across a peak edit, a
 knob change and a fit that lands on the same channels. A pattern past 150 000
 channels arrives as a min/max sample, and the line under the plot says so.
 
+### Saving the picture
+
+Four buttons at the end of the knob strip save or copy what the plot shows
+now, at your zoom and with your hidden curves left out.
+
+| Button | Gives |
+|---|---|
+| `PNG` | the plot as a PNG file, at your screen's pixel density |
+| `SVG` | the plot redrawn as vectors, for a figure you will edit |
+| `copy image` | the PNG, on the clipboard |
+| `copy data` | every channel in view as tab-separated columns, which a spreadsheet pastes |
+
+The columns are `two_theta`, `y_obs`, `excluded` (1 for an excluded channel),
+`y_calc`, `y_background`, and the residual the selector shows. The legend is in
+neither picture, so name the curves in your caption. The line beside the
+buttons says what each press did, and says so when a browser refuses the
+clipboard.
+
 ## Parameters
 
 Every entry in the parameter table, one row each, with the control that frees it.
@@ -369,7 +387,10 @@ model, a cross is not a measurement.
 The trajectory is drawn in the order the chain ran. A heat-then-cool series
 therefore comes back along its own axis. Pointing at a point names its pattern,
 its coordinate and its value, with the esd where the fit gave one. Clicking a
-pattern's row plots that pattern's own fit instead.
+pattern's row plots that pattern's own fit instead. The chart has the pattern
+plot's four export buttons, between its legend and the plot. On the trajectory,
+`copy data` gives each pattern in view with its x, its value and its esd, and
+the backward chain's value when there is one.
 
 A series does not persist. Its patterns are staged uploads and its answer lives
 in the session, so closing the window loses the staged list. Say what you need
