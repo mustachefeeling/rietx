@@ -11,7 +11,7 @@
 // `#spec`: the title, the palette, the axis titles, the legend and which
 // residual is drawn. What is left here is the DOM.
 
-import {hklLabel, nearest, pattern, unpack} from '../static/rxplot.mjs';
+import {exportButtons, hklLabel, nearest, pattern, unpack} from '../static/rxplot.mjs';
 
 const spec = JSON.parse(document.getElementById('spec').textContent);
 
@@ -118,6 +118,14 @@ fig.onCursor = (at) => {
   readout.textContent = `2θ ${num(a.two_theta[i], 4)}°   obs ${num(a.y_obs[i], 1)}   `
     + `calc ${num(a.y_calc?.[i], 1)}   ${spec.labels.resid} ${num(a[residKey]?.[i], 2)}`;
 };
+
+// The four exports (D6). svgcanvas is inlined in a module of its own, which
+// leaves its `Context` on the window, and the file is named after itself.
+document.getElementById('exports').append(...exportButtons(() => fig, {
+  name: () => decodeURIComponent(location.pathname.split('/').pop()).replace(/\.html?$/i, '') || 'figure',
+  svgcanvas: async () => window.rxSvgcanvas,
+  say: (text) => { readout.textContent = text; },
+}));
 
 // the suite's handle on what was drawn (`tests/test_html_browser.py`)
 host.__rx = fig;

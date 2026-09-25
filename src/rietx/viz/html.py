@@ -6,9 +6,9 @@ ticks, and the residual under both, with the same gestures. A drag zooms, the
 wheel zooms about the pointer, shift-wheel and alt-drag pan, a double-click
 resets, and the legend hides a curve.
 
-Everything is inlined: uPlot with its licence, the chart module
-(``static/rxplot.mjs``), this page's own script and stylesheet (``figure/``)
-and the fit's curves. So the file opens from a disk or an email with no
+Everything is inlined: uPlot and svgcanvas with their licences, the chart
+module (``static/rxplot.mjs``), this page's own script and stylesheet
+(``figure/``) and the fit's curves. So the file opens from a disk or an email with no
 network, no server and no optional dependency. It used to embed plotly.js,
 4.8 MB of every file (§ Staying on plotly in the WP).
 
@@ -38,7 +38,7 @@ FIGURE_DIR = Path(__file__).parent / "figure"
 
 #: The one import ``figure.mjs`` makes. The file answers it by inlining the
 #: module before the script, so the statement itself is taken out.
-_IMPORT = "import {hklLabel, nearest, pattern, unpack} from '../static/rxplot.mjs';\n"
+_IMPORT = "import {exportButtons, hklLabel, nearest, pattern, unpack} from '../static/rxplot.mjs';\n"
 
 #: The residual each mode draws, as ``rxplot.pattern`` names it, and the
 #: payload array it reads.
@@ -51,6 +51,14 @@ def _script_safe(text: str, name: str) -> str:
     if "</script" in lowered or "<!--" in lowered:
         raise ValueError(f"{name} holds '</script' or '<!--', so it cannot be "
                          "inlined in a <script> element")
+    return text
+
+
+def _notice(name: str) -> str:
+    """A vendored licence, to be written as a comment beside its code."""
+    text = (CHART_DIR / name).read_text(encoding="utf-8").strip()
+    if "*/" in text:
+        raise ValueError(f"{name} holds '*/', so it cannot be its code's comment")
     return text
 
 
@@ -124,9 +132,10 @@ def page(result: RefinementResult, *, weighted: bool = False,
     chrome = theme.TOKENS["light"]
     uplot = _script_safe((CHART_DIR / "uPlot.iife.min.js").read_text(encoding="utf-8"),
                          "uPlot")
-    notice = (CHART_DIR / "uPlot.LICENSE").read_text(encoding="utf-8")
-    if "*/" in notice:
-        raise ValueError("uPlot's licence holds '*/', so it cannot be its code's comment")
+    notice = _notice("uPlot.LICENSE")
+    svgcanvas = _script_safe((CHART_DIR / "svgcanvas.esm.js").read_text(encoding="utf-8"),
+                             "svgcanvas")
+    svg_notice = _notice("svgcanvas.LICENSE")
     module = _script_safe((CHART_DIR / "rxplot.mjs").read_text(encoding="utf-8"), "rxplot.mjs")
     script = (FIGURE_DIR / "figure.mjs").read_text(encoding="utf-8")
     if script.count(_IMPORT) != 1:
@@ -151,7 +160,7 @@ def page(result: RefinementResult, *, weighted: bool = False,
 </style>
 </head>
 <body>
-<header><h1>{escape(title)}</h1><div id="readout"></div></header>
+<header><h1>{escape(title)}</h1><span id="exports"></span><div id="readout"></div></header>
 <div id="plot"></div>
 <script type="application/json" id="spec">{_json(spec)}</script>
 <script type="application/octet-stream" id="curves">
@@ -159,9 +168,16 @@ def page(result: RefinementResult, *, weighted: bool = False,
 </script>
 <script>
 /*
-{notice.strip()}
+{notice}
 */
 {uplot}
+</script>
+<script type="module">
+/*
+{svg_notice}
+*/
+{svgcanvas}
+window.rxSvgcanvas = {{ Context }};
 </script>
 <script type="module">
 {module}

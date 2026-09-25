@@ -9,6 +9,10 @@ body { display:flex; flex-direction:column; background:var(--ground); color:var(
 header { flex:0 0 auto; display:flex; gap:16px; align-items:baseline;
          padding:8px 12px 4px; white-space:nowrap; overflow:hidden; }
 h1 { font-size:13px; font-weight:600; margin:0; flex:0 0 auto; }
+#exports { flex:0 0 auto; display:flex; gap:4px; }
+#exports button { font:inherit; font-size:12px; padding:1px 7px; cursor:pointer; color:var(--fg);
+                  background:var(--ground); border:1px solid var(--line); border-radius:3px; }
+#exports button:hover { background:color-mix(in srgb, var(--fg) 6%, var(--ground)); }
 #readout { flex:1 1 auto; text-align:right; overflow:hidden; text-overflow:ellipsis;
            white-space:pre; color:var(--muted); font-variant-numeric:tabular-nums; }
 #plot { position:relative; flex:1 1 auto; min-height:360px; margin:0 8px 4px; }

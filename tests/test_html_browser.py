@@ -13,6 +13,8 @@ does.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 playwright = pytest.importorskip("playwright")
@@ -125,3 +127,21 @@ def test_the_readout_reads_the_channel_and_names_the_reflection(page, written):
     _frames(page)
     label = "(" + " ".join(str(v).replace("-", "−") for v in hkl) + ")"
     assert page.text_content("#readout") == f"{phase}  {label}  2θ {at:.4f}°"
+
+
+def test_the_four_exports_work_from_a_file_on_disk(page, written):
+    """D6, with no server: svgcanvas is inlined, and each file is named after the page."""
+    _, files = written
+    stem = files[page.weighted].stem
+    page.context.grant_permissions(["clipboard-read", "clipboard-write"])
+    for label, ext in (("PNG", "png"), ("SVG", "svg")):
+        with page.expect_download() as download:
+            page.get_by_role("button", name=label, exact=True).click()
+        assert download.value.suggested_filename == f"{stem}.{ext}"
+    svg = Path(download.value.path()).read_text(encoding="utf-8")
+    assert svg.startswith("<svg") and svg.count("<svg") == 4
+    page.get_by_role("button", name="copy data").click()
+    page.wait_for_function("document.getElementById('readout').textContent.startsWith('copied')")
+    text = page.evaluate("navigator.clipboard.readText()")
+    assert text.split("\n")[0].endswith("delta_over_sigma" if page.weighted else "obs_minus_calc")
+
