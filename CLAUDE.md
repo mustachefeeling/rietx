@@ -574,9 +574,9 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
 - **A live view is numbers a viewer draws, never a page the fit builds** (WP-1402).
   `viz/snapshot.py` writes `snapshot.json` per stage and imports no plotting library, so a
   base install can record one; `viz/live.py` is a shim over it and `rietx watch` draws it
-  with the chart module and redraws in place, which keeps the reader's zoom across a stage.
-  The page it replaced was serialised on the fit's own thread at 4.51-6.03 MB a stage.
-  `rietx html` still writes one on demand — what stopped is producing it unasked.
+  with the chart module every browser chart shares (`viz/static/rxplot.mjs` over a vendored
+  uPlot, WP-1461), redrawing in place so the zoom survives a stage. The page it replaced cost
+  the fit's thread 4.51-6.03 MB a stage; `rietx html` writes one on demand, module inlined.
 - **A per-stage charge is judged on the shortest fit, never the typical one** (WP-1413): it is
   near-constant, so `nac` at 0.354 s spends 50 ms on six snapshots against a 17.7 ms budget.
   **That one is paid** (WP-1438): a ratio is the wrong test where the absolute charge is 50 ms,

@@ -114,13 +114,13 @@ green for months; the third WP-1426):
   consults the index first and answers for a **tracked** file without reading
   the ignore rules at all; every file that test checks is committed, so the
   rules were never asked. `--no-index` is what makes it ask.
-
-- **The instrument does not reach the thing you aimed it at.** A browser raises
-  a `layout-shift` entry when an element's *box* moves, and a chart repaints
-  canvases inside one, so nothing drawn there is ever a layout shift. A stage
-  boundary that moved plotly's plot area 19 px scored exactly 0. A claim about
-  the *page* reads the observer; one about the *picture* reads each uPlot
-  pane's `over`, and a stillness test needs both instruments.
+- **The instrument does not reach the thing you aimed it at.** A `layout-shift`
+  entry fires when an element's *box* moves, and a chart repaints canvases inside
+  one, so a stage boundary that moved plotly's plot area 19 px scored exactly 0.
+  The *page* reads the observer, the *picture* each uPlot pane's `over`, and a
+  stillness test needs both. Colour likewise: a series' `stroke` is what it was
+  handed (a plotly tick row painted another, WP-1438), and what it painted is
+  `RECORD`'s log of every stroke and fill (`test_watch_browser.py`).
 
 The check all three share: make the guard fail on purpose once, and confirm the
 failure message is the one you expected.
