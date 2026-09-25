@@ -191,6 +191,19 @@ MAGNDATA magCIF entries serve the round-trip and span tests with no pattern.
   esd between the pre-fit and the final stage. WP-1343 is the same symptom
   (a moment reading low) from a different cause, the width. All numbers
   are on simulated data; none on incommensurate k or a joint fit.
+  **Decided 2026-09-25**, after the maintainer asked for established
+  practice. Neither recipe is it: Rodríguez-Carvajal's FullProf tutorial
+  refines the nuclear model on a pattern above T_N, fixes the structural
+  parameters below it, and keeps "the scale factor … constant and equal to
+  the scale factor obtained for the nuclear structure; otherwise the
+  magnetic moment amplitudes cannot be properly determined" (checked
+  verbatim). So: (1) the gate fix first, its own PR; (2) `solve_magnetic`
+  takes a nuclear reference when there is one (a paramagnetic pattern, or a
+  refined nuclear model with its scale), held in the ranked stage; (3) with
+  none, (iv) is the default, with the stopping rule and a round cap, through
+  the same seam as (2); (4) (v) is an opt-in plan; (5) the nuclear-scale
+  diagnostic. The reporter was asked for a zero-moment arm standing in for
+  the paramagnetic reference.
 - **2026-09-24, from the issue triage (issue #439): the spgrep oracle's
   refusal count depends on the machine.**
   `tests/test_magnetic_irreps.py::test_physically_irreducible_dimensions_agree_with_the_spgrep_oracle`

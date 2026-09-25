@@ -98,7 +98,19 @@ is still named in the result.
   the file's magnetic group, and k ≠ 0 supercells go through
   `magnetic_supercell`, not this rule. **The reporter asked for a decision
   before the PR opens:** the tiered rule, or the file's own group always
-  winning over the parent.
+  winning over the parent. **Decided 2026-09-25: the tiered rule, parent
+  first, with the `info` diagnostic and the `nuclear_group` override.** The
+  maintainer asked for established practice, and it agrees. FullProf's
+  standard route keeps the nuclear phase in its own space group ("The symbol
+  of the space group that we need to provide in the magnetic phase is not
+  used for generating atoms", Rodríguez-Carvajal's magnetic-structure
+  tutorial, checked verbatim), with a single MSG phase through
+  `mCIF_to_PCR` as the alternative. The TOPAS LaMnO₃ tutorial keeps Pnma for
+  the nuclear part. Cui, Huang & Toby (2006, *Powder Diffr.* 21, 71) is
+  reported to constrain "the nuclear structure to higher symmetry than the
+  magnetic structure" (not checked: the publisher blocked the PDF).
+  `nuclear_group="file"` is that alternative route. Condition (b) stays a
+  hard test.
 - **2026-09-16, from [1118](1118-foreign-model-files.md): "out" now has a
   rulebook, and this WP's magCIF writer inherits it.** `io/CLAUDE.md` gained a
   § Project writers when the GSAS-I pair landed, four rules covering every
