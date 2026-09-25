@@ -260,7 +260,17 @@ from .._nearmiss import did_you_mean
 #: is deliberate rather than defaulted, because the old λ's meaning moved with
 #: the intensity unit and no stored value says which unit it was chosen in;
 #: ``lambda_units="intensity"`` refits it as before.
-SCHEMA_VERSION = "0.29"
+#: 0.29 → 0.30 (WP-1327, the operation-list phase split out of PR #433):
+#: ``Phase.symmetry_operations``, the phase's own ``x,y,z`` operation list,
+#: defaulted to ``None`` — the honest empty state and the bit-identical one:
+#: a phase that declares none serializes apart from the new null, and refines,
+#: exactly as before.  Written for the distortion-mode track's M-1 rung and for
+#: a k ≠ 0 magnetic supercell, where a parent glide's ½ along a doubled axis
+#: is a ¼ in the child and no symbol carries it.  What a consumer notices
+#: beyond the null is that ``space_group`` may then be a bracketed *label*,
+#: and that a bracketed label with no list, or a plain symbol that does not
+#: generate the list, is refused.
+SCHEMA_VERSION = "0.30"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
 

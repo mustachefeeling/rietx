@@ -90,10 +90,9 @@ def test_the_page_references_no_external_asset():
     """The offline guarantee, executable.
 
     A strict-CSP or air-gapped machine must need no exception, so the page may
-    not name a single remote host.  plotly.js is the interesting case: it is
-    fetched at runtime from ``/plotly.js``, which the server reads out of the
-    installed ``plotly`` package — no 4.8 MB vendored copy in the dist, and no
-    CDN.
+    not name a single remote host.  plotly.js was the interesting case, fetched
+    at runtime from ``/plotly.js`` out of the installed package; since WP-1461
+    and WP-1462 no panel draws with it, so the dist asks for it nowhere.
     """
     html = (DIST / "index.html").read_text(encoding="utf-8")
     js = (DIST / "assets" / "app.js").read_text(encoding="utf-8")
@@ -110,7 +109,7 @@ def test_the_page_references_no_external_asset():
         remote = [url for url in remote if "//www.w3.org/" not in url]
         # a comment may mention a URL; an *asset reference* may not exist
         assert not remote, f"{name} references remote assets: {remote[:3]}"
-    assert "/plotly.js" in js  # …and it does load plotly, from us
+    assert not [name for name, text in built if "/plotly.js" in text]
     assert 'src="/assets/app.js"' in html
 
 

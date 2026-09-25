@@ -38,6 +38,21 @@ export function nearest(xs, v, toPx, radius) {
 }
 
 /**
+ * The index of the point nearest `(left, top)` in the plane, or -1 when none is
+ * within `radius`. `xs` and `ys` are pixel positions, null where a point has no
+ * value. For a figure whose x is not sorted, as a trajectory's chain is not.
+ */
+export function nearestXY(xs, ys, left, top, radius) {
+  let best = -1, dist = radius * radius;
+  for (let i = 0; i < xs.length; i++) {
+    if (xs[i] == null || ys[i] == null) continue;
+    const d = (xs[i] - left) ** 2 + (ys[i] - top) ** 2;
+    if (d <= dist) { dist = d; best = i; }
+  }
+  return best;
+}
+
+/**
  * Ticks for a √ axis, evenly spaced in √ space and rounded to half a decade
  * of the gap to the next tick. uPlot spaces ticks in value space, which on a √
  * scale printed one label for the whole axis (finding 2). Rounding to the
@@ -177,13 +192,13 @@ const MIN_PANE = 60;
 
 const TYPES = ["lin", "sqrt", "log"];
 
-function yScale(uPlot, kind, pinned, fixed) {
+function yScale(uPlot, kind, pinned, fixed, own) {
   // a band of rows, like the reflection ticks, has a range of its own and no zoom
   if (fixed) return { range: () => fixed };
   if (!TYPES.includes(kind)) throw new Error(`rxplot: no y scale "${kind}"; one of ${TYPES.join(", ")}`);
-  const auto = kind === "log"
+  const auto = own ?? (kind === "log"
     ? (u, min, max) => uPlot.rangeLog(min, max, 10, true)
-    : (u, min, max) => uPlot.rangeNum(min, max, 0.1, true);
+    : (u, min, max) => uPlot.rangeNum(min, max, 0.1, true));
   // a y range the reader zoomed to is held across every x zoom until a reset
   const range = (u, min, max) => pinned() ?? auto(u, min, max);
   if (kind === "log") return { distr: 3, log: 10, range };
@@ -206,7 +221,8 @@ function axes(spec, gutter) {
   const text = { font: FONT, labelFont: FONT };
   const x = { ...text, stroke: ink, grid: { stroke: line, width: 1 }, ticks: { stroke: line } };
   if (!spec.xLabels) Object.assign(x, { values: (u, s) => s.map(() => ""), size: 6 });
-  else Object.assign(x, { size: 24 }, spec.xLabel == null ? {} : { label: spec.xLabel, labelSize: TITLE });
+  else Object.assign(x, { size: 24, values: (u, s) => tickLabels(s) },
+                     spec.xLabel == null ? {} : { label: spec.xLabel, labelSize: TITLE });
   const y = { ...text, stroke: ink, grid: { stroke: line, width: 1 }, ticks: { stroke: line }, size: gutter,
               label: spec.label ?? "", labelSize: TITLE };
   if (spec.yLabels === false) {
@@ -234,6 +250,9 @@ function axes(spec, gutter) {
  *   the panes with a `height`, so the group fills a host whose height the page
  *   decides;
  * - `y` ("lin", "sqrt" or "log"), or `range`, a fixed y range no drag zooms;
+ * - `auto`, `(u, min, max) => [lo, hi]`, the y range while the reader has not
+ *   chosen one, in place of the data's padded extent. uPlot calls it at every
+ *   x range, with `u.series[0].idxs` the channels in view;
  * - `label`, the y axis title, a string or a function uPlot reads at each draw;
  *   `yLabels: false` for a band whose y means nothing;
  * - `xLabels`, and `xLabel` the x axis title under them;
@@ -337,7 +356,7 @@ export function panes(uPlot, host, spec) {
     extend("setCursor", onCursor);
     const u = new uPlot({
       width: host.clientWidth, height: heights()[key], legend: { show: false },
-      scales: { x: { time: false }, y: yScale(uPlot, p.y ?? "lin", () => pins[key] ?? null, p.range) },
+      scales: { x: { time: false }, y: yScale(uPlot, p.y ?? "lin", () => pins[key] ?? null, p.range, p.auto) },
       axes: axes(p, gutter),
       series: [{}, ...p.series],
       cursor: {
@@ -370,6 +389,12 @@ export function panes(uPlot, host, spec) {
     for (const p of all) {
       out[p.key] = p.share ? Math.max(MIN_PANE, Math.floor(room * p.share / shares)) : p.height ?? 200;
     }
+    // A floor raised a pane past its share, so the panes overrun the host and
+    // a host that clips cuts the last axis off. The largest shared pane gives
+    // the excess back, down to its own floor.
+    const over = Object.values(out).reduce((sum, h) => sum + h, 0) - host.clientHeight;
+    const big = all.filter((p) => p.share).sort((a, b) => out[b.key] - out[a.key])[0];
+    if (over > 0 && big) out[big.key] = Math.max(MIN_PANE, out[big.key] - over);
     return out;
   }
 
@@ -572,6 +597,10 @@ const RESIDUALS = { weighted: "delta", delta: "delta_raw", cumulative: "cumulati
  * - `rawResidual()`: the residual pane's values over the pattern's channels
  *   when the payload carries no fit, or null for none. The GUI draws its peak
  *   groups' own residual there.
+ * - `ranges`: `{ main, resid }`, each that pane's `auto` (`panes`), for a
+ *   page whose y ranges are its own. The watcher holds the intensity to the
+ *   observed points and the residual to a ladder of rungs, so neither moves
+ *   while the fit does.
  *
  * A cumulative χ² is re-based at every x zoom (`chi2Base`), so it starts at
  * zero at the view's left edge, as the window route's did.
@@ -663,14 +692,15 @@ export function pattern(uPlot, host, curves, spec) {
   const group = panes(uPlot, host, {
     x: curves.arrays.two_theta,
     panes: [
-      { key: "main", share: 0.76, y: state.y, label: () => spec.labels?.y?.() ?? "",
+      { key: "main", share: 0.76, y: state.y, auto: spec.ranges?.main, label: () => spec.labels?.y?.() ?? "",
         series: [markers("obs"), markers("masked"),
                  { show: !state.hidden.has("calc"), stroke: ink("calc"), width: 1.2 },
                  { show: !state.hidden.has("bkg"), stroke: ink("bkg"), width: 1, dash: [3, 3] }],
         data: mainData(), hooks: hooks("main") },
       { key: "ticks", height: tickHeight(Object.keys(state.c.ticks).length), range: [0, 1], yLabels: false,
         series: [{ show: false }], data: nulls(), hooks: hooks("ticks", { draw: [drawTicks] }) },
-      { key: "resid", share: 0.24, xLabels: true, xLabel: "2θ (°)", label: () => spec.labels?.resid?.() ?? "",
+      { key: "resid", share: 0.24, xLabels: true, xLabel: "2θ (°)", auto: spec.ranges?.resid,
+        label: () => spec.labels?.resid?.() ?? "",
         series: [{ show: residShown(), stroke: ink("diff"), width: 1 }],
         data: residData(), hooks: hooks("resid", { drawAxes: [drawZero] }) },
     ],
@@ -738,6 +768,198 @@ export function pattern(uPlot, host, curves, spec) {
     const diff = residShown();
     if (resid.series[1].show !== diff) resid.setSeries(1, { show: diff });
     ticks.redraw(false, false);
+  };
+
+  return group;
+}
+
+// ---------------------------------------------------------------- the trajectory
+
+/** `v` when it is a finite number, else null: a value or an esd a fit did not give. */
+const finite = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+
+/** The marks a trajectory can hide by id, as `setHidden` takes them. */
+const TRAJECTORY_MARKS = ["forward", "esd", "backward", "rings", "crosses"];
+
+/** The distance, in CSS pixels, within which the pointer names a point. */
+const REACH = 8;
+
+/**
+ * A parameter across a series (D3, D8): its value at each pattern's
+ * coordinate, joined in chain order, with its esd as a whisker.
+ *
+ * Chain order is not x order. A heat-then-cool series comes back along its own
+ * x, while uPlot draws a series over one ascending x. So the figure paints its
+ * marks in a draw hook, over one pane whose single series only sets the x
+ * extent, and uPlot keeps the axes, the grid and the gestures.
+ *
+ * `traj`: `{ x, value, stderr, backward }` in chain order. `stderr` and
+ * `backward` may be absent, and a null anywhere is a point with no value.
+ *
+ * `spec`:
+ *
+ * - `colors()`: `{ tone, warn, muted }`, read at every draw. `tone` is the
+ *   forward chain's, `warn` the rings' and crosses', `muted` the backward
+ *   chain's.
+ * - `dashed`: the forward chain is drawn dashed, as a path-dependent
+ *   parameter's is.
+ * - `rings`, `crosses`: one boolean per point. A ring marks a point the
+ *   chain reseeded, and a cross a point no rung recovered. Both points stay
+ *   in the chain: a gap reads as data nobody collected.
+ * - `hidden`: the marks not drawn, from "forward", "esd", "backward",
+ *   "rings" and "crosses".
+ * - `xLabel`, `yLabel`: the axis titles.
+ *
+ * A point with no esd has no whisker at all. A whisker of zero length would
+ * claim the value was measured exactly.
+ *
+ * The figure is the pane group (`panes`) with `setHidden`, and `onPoint`,
+ * which the page sets: it is called with `{ i, chain, left, top }` for the
+ * point nearest the pointer within reach, `chain` "forward" or "backward" and
+ * `left`, `top` its CSS px in the plot area, or with null.
+ */
+export function trajectory(uPlot, host, traj, spec) {
+  const t = traj, n = t.x.length;
+  const hidden = new Set(spec.hidden ?? []);
+  const shown = (id) => !hidden.has(id);
+  const value = (i) => finite(t.value[i]), esd = (i) => finite(t.stderr?.[i]);
+  const back = (i) => (t.backward ? finite(t.backward[i]) : null);
+
+  // uPlot's one x must ascend, so its series is the chain sorted by x
+  const order = Array.from({ length: n }, (_, i) => i).sort((a, b) => t.x[a] - t.x[b]);
+  const xs = Float64Array.from(order, (i) => t.x[i]);
+
+  /** The y range: every chain and every whisker's two ends, over the x in view. */
+  function extent(u) {
+    const idxs = u.series[0].idxs;
+    const lo = idxs?.length ? xs[idxs[0]] : -Infinity, hi = idxs?.length ? xs[idxs[1]] : Infinity;
+    let min = Infinity, max = -Infinity;
+    const take = (v) => { if (v != null) { min = Math.min(min, v); max = Math.max(max, v); } };
+    for (let i = 0; i < n; i++) {
+      if (!(t.x[i] >= lo && t.x[i] <= hi)) continue;
+      const v = value(i), e = esd(i);
+      take(v);
+      take(back(i));
+      if (v != null && e != null) { take(v - e); take(v + e); }
+    }
+    return Number.isFinite(min) ? uPlot.rangeNum(min, max, 0.1, true) : [0, 1];
+  }
+
+  /** A line through `at(i)` in chain order, broken where a point has no value. */
+  function chain(u, at, color, width, dash) {
+    const { ctx } = u;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.setLineDash(dash);
+    ctx.beginPath();
+    let open = false;
+    for (let i = 0; i < n; i++) {
+      const v = at(i);
+      if (v == null) { open = false; continue; }
+      const X = u.valToPos(t.x[i], "x", true), Y = u.valToPos(v, "y", true);
+      if (open) ctx.lineTo(X, Y); else ctx.moveTo(X, Y);
+      open = true;
+    }
+    ctx.stroke();
+  }
+
+  /** `mark(ctx, X, Y)` at every point `at` gives a value and `where` allows, then one stroke or fill. */
+  function each(u, at, where, mark, paint) {
+    const { ctx } = u;
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    for (let i = 0; i < n; i++) {
+      const v = at(i);
+      if (v == null || !where(i)) continue;
+      mark(ctx, u.valToPos(t.x[i], "x", true), u.valToPos(v, "y", true), i);
+    }
+    ctx[paint]();
+  }
+
+  function draw(u) {
+    const c = spec.colors(), r = devicePixelRatio, { ctx } = u, { left, top, width, height } = u.bbox;
+    const all = () => true;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(left, top, width, height);
+    ctx.clip();
+    if (t.backward && shown("backward")) {
+      chain(u, back, c.muted, r, [r, 3 * r]);
+      ctx.lineWidth = r;
+      ctx.strokeStyle = c.muted;
+      const d = 3 * r;
+      each(u, back, all, (g, X, Y) => {
+        g.moveTo(X, Y - d); g.lineTo(X + d, Y); g.lineTo(X, Y + d); g.lineTo(X - d, Y); g.closePath();
+      }, "stroke");
+    }
+    if (shown("esd")) {
+      ctx.lineWidth = r;
+      ctx.strokeStyle = c.tone;
+      const cap = 3 * r;
+      each(u, value, (i) => esd(i) != null, (g, X, Y, i) => {
+        const lo = u.valToPos(value(i) - esd(i), "y", true), hi = u.valToPos(value(i) + esd(i), "y", true);
+        g.moveTo(X, lo); g.lineTo(X, hi);
+        g.moveTo(X - cap, lo); g.lineTo(X + cap, lo);
+        g.moveTo(X - cap, hi); g.lineTo(X + cap, hi);
+      }, "stroke");
+    }
+    if (shown("forward")) {
+      chain(u, value, c.tone, 1.4 * r, spec.dashed ? [6 * r, 4 * r] : []);
+      ctx.fillStyle = c.tone;
+      each(u, value, all, (g, X, Y) => { g.moveTo(X + 3 * r, Y); g.arc(X, Y, 3 * r, 0, 2 * Math.PI); }, "fill");
+    }
+    ctx.strokeStyle = c.warn;
+    if (spec.rings && shown("rings")) {
+      ctx.lineWidth = 1.4 * r;
+      each(u, value, (i) => spec.rings[i], (g, X, Y) => {
+        g.moveTo(X + 6.5 * r, Y); g.arc(X, Y, 6.5 * r, 0, 2 * Math.PI);
+      }, "stroke");
+    }
+    if (spec.crosses && shown("crosses")) {
+      ctx.lineWidth = 2.2 * r;
+      const d = 5 * r;
+      each(u, value, (i) => spec.crosses[i], (g, X, Y) => {
+        g.moveTo(X - d, Y - d); g.lineTo(X + d, Y + d); g.moveTo(X - d, Y + d); g.lineTo(X + d, Y - d);
+      }, "stroke");
+    }
+    ctx.restore();
+  }
+
+  // a series that paints nothing: the chain is the hook's to draw
+  const none = () => ({ stroke: null, fill: null, clip: null, band: null, gaps: null, flags: 0 });
+  const group = panes(uPlot, host, {
+    x: xs,
+    panes: [{ key: "traj", share: 1, xLabels: true, xLabel: spec.xLabel ?? "", label: spec.yLabel ?? "",
+              auto: extent, series: [{ paths: none, points: { show: false } }],
+              data: [Array.from(order, (i) => value(i))], hooks: { draw: [draw] } }],
+  });
+
+  group.onPoint = null;
+  group.onCursor = (hit) => {
+    if (!group.onPoint) return;
+    if (!hit) { group.onPoint(null); return; }
+    const u = group.panes.traj;
+    const X = t.x.map((x) => u.valToPos(x, "x"));
+    const Y = (at) => Array.from({ length: n }, (_, i) => (at(i) == null ? null : u.valToPos(at(i), "y")));
+    const chains = [["forward", value], ["backward", back]].filter(([id]) => shown(id));
+    let best = null;
+    for (const [id, at] of chains) {
+      const ys = Y(at), i = nearestXY(X, ys, hit.left, hit.top, REACH);
+      if (i < 0) continue;
+      const d = (X[i] - hit.left) ** 2 + (ys[i] - hit.top) ** 2;
+      if (!best || d < best.d) best = { i, chain: id, left: X[i], top: ys[i], d };
+    }
+    group.onPoint(best && { i: best.i, chain: best.chain, left: best.left, top: best.top });
+  };
+
+  /** Draw every mark but `ids`. */
+  group.setHidden = (ids) => {
+    hidden.clear();
+    for (const id of ids) {
+      if (!TRAJECTORY_MARKS.includes(id)) throw new Error(`rxplot: no trajectory mark "${id}"; one of ${TRAJECTORY_MARKS.join(", ")}`);
+      hidden.add(id);
+    }
+    group.redraw();
   };
 
   return group;

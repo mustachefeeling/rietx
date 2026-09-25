@@ -1,6 +1,6 @@
 # WP-1461 — every browser chart draws with uPlot
 
-Milestone: unscheduled · Status: 🔄 2026-09-25 — tasks 1-6 and 15 done: the pattern panel draws with the chart module alone, its plotly renderer and the flag deleted; task 7, the watcher, next
+Milestone: unscheduled · Status: 🔄 2026-09-25 — tasks 1-8 and 15 done: the pattern panel, rietx watch and the Series panel draw with the chart module; task 9, rietx compare, next
 Depends on: —
 Priority: P2 2026-09-24 — the maintainer's decision that every browser chart builds on one module; today plotly blocks every GUI open for 0.7-0.8 s before the first plot
 
@@ -731,8 +731,8 @@ renames its file and updates the two links to it here.
 - [x] The module's core: panes on one x, sync, drag, wheel and pan, y-zoom, select, the readout hook, the `ResizeObserver` path. Findings 1-3, 5 and 10 each get a case: the pure half under `node --test` and vitest, the drawing in a browser test. (`src/rietx/viz/static/rxplot.mjs`; `tests/rxplot.test.mjs` through `tests/test_rxplot.py`, and `tests/test_rxplot_browser.py`, which covers finding 12 too. Vitest moved to the pilot, where the GUI first imports the module.)
 - [x] Pilot, the gate: the curves route (D4) and its decoder in the module's pure half, and the GUI pattern panel on the core behind a flag, with the plotly renderer still selectable. Port the spike driver to the real page as the acceptance probe. Measure § Acceptance 1-3 against the plotly renderer on the same machine, in Chromium, WebKit and Firefox through playwright's builds. Build both marker paths (D5) and measure each, at NAC's 59 498 channels and at `11BM_LaB6_660a.fxye`'s 132 992. Record go or no-go, which marker path, and so which ceiling, in the handover. The GUI's vitest imports the module's pure half. (**Go**, § The pilot, measured. D5 chose thinning, so the ceiling is 150 000 channels. The flag is `?chart=uplot`; the probe is `pilot.mjs`.)
 - [x] GUI pattern panel complete: peaks, candidates, masks, raw view, readout fields, Esc, axis titles. Delete the plotly-only code, stub uPlot in `test-setup.ts`, and move `App.test.ts` off the `Plotly.react` stub. Drawn colours are asserted from pixels or from the recorded `strokeStyle`. (Task 15 came in with it, by the maintainer's decision in § Decisions. Also the Σχ² re-base at a zoom, `rxplot.chi2Base`; the raw view's per-group residual through `rawResidual`; the pointer's line restyled solid `--fg`; `/api/result/window` deleted with its only client. `gui/src/test-uplot.ts` is the stand-in, `tests/test_gui_browser.py` reads the inks.)
-- [ ] `rietx watch` on the module, serving the vendored uPlot from its own server. `test_watch_browser.py` asserts what was drawn.
-- [ ] GUI Series panel: trajectory (D8), per-pattern chart through the curves route, rings, crosses plotted, the dashed tone, the tick formatter
+- [x] `rietx watch` on the module, serving the vendored uPlot from its own server. `test_watch_browser.py` asserts what was drawn. (`rxplot.pattern` gained `ranges`, so the page holds the intensity to the observed points and Δ/σ to its ladder. The legend, the point count and the tick label are the page's own DOM over the chart. `test_watch_browser.py` reads uPlot's scales and the inks the canvas recorded, through `RECORD`, which `test_gui_browser.py` now imports.)
+- [x] GUI Series panel: trajectory (D8), per-pattern chart through the curves route, rings, crosses plotted, the dashed tone, the tick formatter (`rxplot.trajectory` draws the chain in a draw hook over one pane, so a heat-then-cool series comes back along its own x, and picks the hovered point by `nearestXY`. Every labelled x axis now takes `tickLabels`. The member's chart is `rxplot.pattern` over `/api/series/curves`. `/api/series/window`, `curve_window` and `_series_masked_arm` are deleted. The legend is the `.segmented` curve toggles with a swatch in each. The pointer line's `--fg` rule moved to `app.css` for every GUI chart.)
 - [ ] `rietx compare`: its page becomes a file, on the module, and its server serves the vendored uPlot. `/api/state` drops the curves, and each variant's come once through a route (D4). `resample` becomes a subtraction.
 - [ ] `write_html` writes the uPlot page, with the notice inline, the weighted mode, `viz/plots.PALETTES` as its palette and the `"hkl: …"` labels `test_magnetic_tick_row.py` reads. Drop `include_plotlyjs`, replace `figure_from_arrays`, take plotly out of the `viz` extra, and record the break.
 - [ ] Exports: copy PNG, download PNG, copy TSV, SVG through svgcanvas with its notices. Pin svgcanvas exactly in `gui/package.json` and add it to `.github/dependabot.yml`'s allow list.
@@ -797,6 +797,145 @@ npm --prefix gui test && npm --prefix gui run check
 
 ## Handover log
 
+### 2026-09-25 (6th session) — the watcher and the Series panel draw with the chart module
+
+`rietx watch` and the GUI's Series panel no longer use plotly. The watcher now
+serves the chart itself, so a base install draws the live picture, where it used
+to print an install hint in its place. The watcher's plot takes the GUI's
+gestures, a legend that hides curves, and the same tick label as before. A series
+trajectory is now drawn in the order the chain ran, so a heat-then-cool ramp
+comes back along its own axis, which D8 thought would need uPlot's scatter mode
+and did not. The window route the Series panel used is deleted, so the curves
+route is the only way a pattern reaches a GUI chart. What still loads plotly is
+`rietx compare`, `write_html` and the 3D view.
+
+*Done:*
+- Task 7, the watcher (`0e14ff05`).
+  - `watch.mjs` draws the snapshot with `rxplot.pattern`, turned into a
+    curves payload by `watch-core.curvesOf`, every channel kept and fitted.
+    A stage is `setCurves(…, keep)`, so the reader's zoom and hidden curves
+    survive it. Another run is a new figure.
+  - `rxplot.pattern` takes `ranges`, a page's own auto y range (a pane's
+    `auto`). The watcher holds the intensity to the observed points in view
+    (`intensityRange`) and Δ/σ to its ladder over the whole snapshot
+    (`deltaRange`). `rangesOf` split into those two. A drag still pins y over
+    either.
+  - The legend, the point count and the tick label are the page's own DOM over
+    the chart: the legend at the plot area's top left, as wide as it at most;
+    the count under the x axis at the left end; the tick label over the band.
+    `legendOf` names custom properties, so a theme switch restyles it by CSS.
+  - The server serves `rxplot.mjs`, `uPlot.iife.min.js` and `uPlot.min.css`
+    from `viz/static` (`watch.CHART_FILES`). `/plotly.js` and the missing-plotly
+    message are gone. `coalesce`, `withAlpha` and `phaseInk` went with plotly.
+  - A theme switch or the system's scheme moving repaints the canvas without a
+    refetch (`retheme`).
+- Task 8, the Series panel (`288c83db`, docs `9c84d303`).
+  - `rxplot.trajectory`: one pane whose only series sets the x extent, and a
+    draw hook painting the chain in chain order, esd whiskers only where there
+    is an esd, the dotted backward chain, rings and crosses. The pointer picks
+    by distance in the plane (`nearestXY`), since the two legs of a loop share
+    an x. `setHidden` takes "forward", "esd", "backward", "rings", "crosses".
+  - Every labelled x axis now takes `tickLabels` (finding 3).
+  - The member's chart is `rxplot.pattern` over `/api/series/curves`.
+    `lib/seriesChart.ts` binds uPlot to both figures and is imported on the
+    first draw, as `lib/pattern.ts` is.
+  - The legend is the pattern panel's `.segmented` toggles with a swatch in
+    each (`trajectoryLegend`, `memberLegend`). The pointer text is
+    `pointText`: the value to six figures, the esd to two.
+  - Deleted: `/api/series/window`, `GuiSession.series_window`,
+    `_series_masked_arm`, `curve_window` and `api.seriesWindow`.
+    `_windowed_ticks` became `_tick_rows`, its window gone with its caller.
+    The curves tests' oracle is now a result's own σ arithmetic
+    (`_residuals`), and the window test's two unique facts (a later exclusion
+    moves no member's mask; the index is required) moved to the curves test.
+  - The pointer line's solid `--fg` is one rule in `app.css` for every GUI
+    chart, out of `Plot.svelte`.
+- Found by looking and fixed: at the run pane's 340 px floor the watcher's
+  point count ran into the centred 2θ title. It moved to the title row's left
+  end, and `test_the_point_count_keeps_clear_of_the_axis_title_at_the_floor`
+  measures ink against room.
+- Also fixed: `using/cli.md` said the watcher has no theme control, and it has
+  one since WP-1438. Its route table counted eight routes over ten rows.
+- Guards broken on purpose, each failing as expected: the caption placement,
+  the ±3σ band, and the page-owned ranges (both the intensity and the ladder).
+- WP-1317's `### Inherited` has what it needs from task 8, and supersedes the
+  mode-2 remark this WP left there.
+- `/code-review high --fix` made eight findings and fixed all eight
+  (`5ef72f03`, `078ecde2`, `72a3da03`, `44ff6f5e`):
+  - shared panes raised to their floor overran the host, so a clipping host
+    cut the last axis (4 px on a 260 px Series member chart);
+  - a throw building the watcher's chart skipped `pumpEvents`, stopping the
+    console, and each retry stacked another legend in `#plot`;
+  - showing the Series tab again rebuilt its figure and lost the zoom and the
+    hidden marks, where plotly's `uirevision` kept both;
+  - a member with no background offered a live toggle that did nothing, where
+    WP-1210 says list it disabled with the reason;
+  - the Series toggle restated `toggleCurve`;
+  - three `gui/CLAUDE.md` statements the port made false.
+
+  I rewrote one of its rulebook lines. It said WP-1015's swallowed-click trap
+  now applies to the Series canvas, but the host clips the canvas and its
+  observer refits it, so nothing overhangs a control. It left three alone,
+  each with a reason: a missing `--phase-*` token could part the watcher's
+  legend from its canvas (the tokens are generated); `_tick_rows` no longer
+  drops a non-finite tick position (positions are finite); the intensity
+  range copies the points in view at each zoom (a snapshot is screen-sized).
+
+*Measured:*
+- Fast suite at `288c83db`: 6130 passed, 140 skipped, in 3:12. `[dev]` venv
+  plus playwright 1.63.0, macOS arm64. The total is 6270 against 6262 at the
+  start of the session. Task 7 added four watcher browser cases (zoom across a
+  stage, legend toggle, the ±3σ band, the caption at the floor). Task 8 added
+  five trajectory cases in `test_rxplot_browser.py` and deleted the series
+  window test. The browser modules ran, since playwright is in this venv; they
+  skip in CI.
+- Fast suite on the final tree with main merged in (`e1a25c52`): 6159
+  passed, 140 skipped, in 3:11, 6299 in all. Main brought the other 29, 26
+  new test functions from #385 and one of them parametrized four ways. The
+  review added no Python test. Another tree's pytest was running beside it,
+  at load 5-12.
+- vitest 558 → 561: `series.test.ts` lost six trace cases and gained eight,
+  and the review added the missing-background case. svelte-check clean.
+- Node: `watch_core.test.mjs` 48, `rxplot.test.mjs` 15.
+- Other browsers, playwright's Firefox 155 and WebKit 26.6, one probe each: the
+  watcher draws, names a tick, keeps a wheel zoom across a stage and steps the
+  ladder; the Series panel draws a looping trajectory, names the hovered point
+  and draws a member's pattern. No page error in either.
+- The watcher's legend: five entries take 409 px in one row and six 504. At
+  the 340 px floor it is three rows and 58 px, 15 % of the plot, where plotly's
+  was three rows there and six by 300.
+- The watcher's seven served files are 188 kB.
+- The full selection did not run: nothing here moves a refined number.
+
+*Gotchas:*
+- A probe of the watcher or the GUI reads and writes the real
+  `~/.rietx/settings.json` unless `RIETX_STATE_DIR` is a temp dir, and a
+  colour test that does not isolate it draws in this machine's stored theme.
+  The new colour tests call `_light`.
+- The watcher's picture is instrumented through `#plot.__rx`, the figure, and
+  `RECORD`, the canvas ink recorder `test_gui_browser.py` now imports.
+- A cross's 2.2 px arms reach 6 px above its point, so the ring test probes at
+  7 px.
+- `App.test.ts` imports `lib/seriesChart` up front for the same reason it
+  imports `lib/pattern`. The uPlot stand-in gained `clip()`.
+- The worktree guard refuses long heredocs and variables in paths. A splice
+  script in the scratchpad (`START`, `END`, replacement file) did the edits.
+
+*Next:*
+1. Task 9, `rietx compare`: its page becomes a file on the module, its server
+   serves the vendored uPlot from `watch.CHART_FILES`' table (move it to
+   `viz` when a second server needs it), `/api/state` drops the curves and
+   each variant's come once through a route, and `resample` becomes a
+   subtraction.
+2. Then tasks 10-14 in order. Task 10 is D7's break, recorded in the release
+   record on the day it lands. Task 12, loading plotly on the 3D view's first
+   show, overlaps WP-1462, which another session held at this handover
+   (branch `wp1462-structure-viewer-scope`). Read where it stands first: if
+   the viewer leaves plotly, task 12 shrinks to the test that no page loads it.
+3. Someone with Safari open tries a drag in the GUI and the watcher
+   (finding 15). They are the only renderers now.
+4. The `/api/peaks` payload's `pattern` arm is still a decimated copy read
+   only as a boolean (the 5th session's Next 4).
 ### 2026-09-25 (5th session) — the pattern panel draws with the chart module alone
 
 The GUI's pattern plot no longer uses plotly. It gets every channel once and

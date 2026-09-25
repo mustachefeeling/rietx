@@ -2476,23 +2476,6 @@ class GuiSession:
             entry["result"], entry["backward"], running=busy,
             curves=[bool(r.two_theta) for r in runner.results_])
 
-    def series_window(self, index: int, lo: float | None = None,
-                      hi: float | None = None, max_points: int = 4000) -> dict:
-        """One series member's curves, through the *same* window arithmetic.
-
-        :func:`curve_window`, so the σ policy and the decimation are the project
-        plot's (CLAUDE.md: every weighted residual divides by ``sig()``).  The
-        masked-channel arm is computed from this member's own pattern through
-        ``project.fitted_mask`` — the one authority — because the protocol
-        applied to it was the project's while the *pattern* was not.
-        """
-        entry, res = self._series_member_result(index)
-        member = entry["members"][index]
-        return {"index": index, "label": member["label"], "x": member["x"],
-                **curve_window(res, lo, hi, max_points,
-                               weighted=bool(member["has_sigma"])),
-                **self._series_masked_arm(index, lo, hi, max_points)}
-
     def _series_member_result(self, index: int):
         """The series entry and member ``index``'s result, which has curves, or a refusal."""
         entry = self._series_entry()
@@ -2511,8 +2494,19 @@ class GuiSession:
     def series_curves(self, index: int) -> Packed:
         """One series member's channels and curves, as :meth:`result_curves` serves the project's.
 
-        Built by :func:`curve_arrays` from this member's own pattern under the
-        limits this run used, for the reason :meth:`_series_masked_arm` gives.
+        Built by :func:`curve_arrays`, so the σ policy is the project plot's
+        (CLAUDE.md: every weighted residual divides by ``sig()``).
+
+        The masked channels come from this member's own pattern through
+        ``project.fitted_mask``, the one authority, under the limits **this
+        run** used and the member's own ``excluded_regions`` as it was read. A
+        result carries only the channels ``compile_model`` kept, so without
+        them the per-pattern plot would range inside the fit range and the
+        protocol would be invisible in a picture of its own output (WP-1033).
+        There is no stale arm and no need for one: the mask cannot drift from
+        the curves beside it, because a series member cannot be refitted under
+        a new protocol without re-running the chain, which replaces the whole
+        answer.
         """
         from ..project import fitted_mask
 
@@ -2522,38 +2516,6 @@ class GuiSession:
             data.tt(), data.y(), fitted_mask(data, entry["limits"]), res,
             weighted=bool(member["has_sigma"]),
             header={"index": index, "label": member["label"], "x": member["x"]})
-
-    def _series_masked_arm(self, index: int, lo: float | None, hi: float | None,
-                           max_points: int) -> dict:
-        """The channels this member's fit masked, for the same reason as WP-1033.
-
-        A result carries only the channels ``compile_model`` kept, so without this
-        the per-pattern plot autoranges *inside* the fit range and the protocol is
-        invisible in a picture of its own output.  There is no ``stale`` arm and
-        does not need one: the mask is rebuilt from the limits **this run** used
-        and from the member's own ``excluded_regions`` as it was read, so it
-        cannot drift from the curves beside it — a series member cannot be
-        re-fitted under a new protocol without re-running the chain, which
-        replaces the whole answer.
-        """
-        from ..project import fitted_mask
-
-        entry = self._series_entry()
-        data = entry["data"][index]
-        keep = fitted_mask(data, entry["limits"])
-        tt_all, y_all = data.tt(), data.y()
-        out = ~keep
-        if lo is not None:
-            out &= tt_all >= lo
-        if hi is not None:
-            out &= tt_all <= hi
-        if not out.any():
-            return {"excluded": {"two_theta": [], "y_obs": []}, "n_excluded": 0}
-        tt, y = tt_all[out], y_all[out]
-        idx = decimation_index(tt, [y], max(2, max_points // 4))
-        return {"excluded": {"two_theta": tt[idx].tolist(),
-                             "y_obs": y[idx].tolist()},
-                "n_excluded": int(out.sum())}
 
     def series_history(self, index: int) -> dict:
         """One series member's own history tree — read-only, and that is the point.
@@ -2959,83 +2921,6 @@ class GuiSession:
 # ----------------------------------------------------------------------
 # helpers
 # ----------------------------------------------------------------------
-def curve_window(res, lo: float | None, hi: float | None, max_points: int, *,
-                 weighted: bool) -> dict:
-    """One result's curves over a 2θ window, decimated — the shared arithmetic.
-
-    Module-level and taking the result explicitly, because the result it
-    draws is not the project's: ``GuiSession.series_window`` serves one member
-    of a series. It decided the σ for the project's own window route too until
-    that route went with the plotly renderer (WP-1461), and :func:`curve_arrays`
-    decides it the same way — ``RefinementResult.sig()``, never a
-    re-derivation — so no two panels draw residuals under two policies.
-
-    ``weighted`` is the caller's fact, not this function's: it is whether the σ
-    was **measured** (``DataRef.has_sigma``) rather than whether ``delta`` is
-    divided by something, which it always is. ``GuiSession.result_curves``'s
-    docstring says what happens when that distinction is lost.
-
-    **Three residuals, and one of them cannot be derived from the others**
-    (WP-1029). ``cumulative_chi2`` is Σ(Δ/σ)² accumulated over **every** point
-    of the window and decimated afterwards, so it still ends at the window's
-    true χ². Summing the decimated subset would understate it by whatever the
-    dropped points contributed, which on a wide view is most of them. The index
-    set is computed from the other three curves: a cumulative curve is
-    monotone, so it has no peak a bucket could miss.
-    """
-    import numpy as np
-
-    tt = np.asarray(res.two_theta, dtype=float)
-    mask = np.ones(len(tt), dtype=bool)
-    if lo is not None:
-        mask &= tt >= lo
-    if hi is not None:
-        mask &= tt <= hi
-    if not mask.any():
-        return {"two_theta": [], "y_obs": [], "y_calc": [], "y_background": [],
-                "delta": [], "delta_raw": [], "cumulative_chi2": [],
-                "weighted": weighted, "ticks": {}, "tick_hkl": {},
-                "n_total": 0,
-                "n_returned": 0, "max_points": max_points}
-    y_obs = np.asarray(res.y_obs)[mask]
-    y_calc = np.asarray(res.y_calc)[mask]
-    y_bkg = np.asarray(res.y_background)[mask] if res.y_background else None
-    # σ over the whole pattern, then masked: RefinementResult.sig() floors
-    # against the pattern's own median, and a window-local floor would make
-    # the residual depend on how far the user happened to be zoomed in
-    sigma = res.sig()[mask]
-    tt = tt[mask]
-    raw = y_obs - y_calc
-    delta = raw / sigma
-    # accumulated over every point, then decimated (the docstring says why)
-    cumulative = np.cumsum(delta**2)
-    idx = decimation_index(tt, [y_obs, y_calc, delta], max_points)
-    window = (float(tt[0]), float(tt[-1]))
-    return {
-        "two_theta": tt[idx].tolist(),
-        "y_obs": y_obs[idx].tolist(),
-        "y_calc": y_calc[idx].tolist(),
-        "y_background": [] if y_bkg is None else y_bkg[idx].tolist(),
-        "delta": delta[idx].tolist(),
-        "delta_raw": raw[idx].tolist(),
-        "cumulative_chi2": cumulative[idx].tolist(),
-        # whether σ was the file's or a Poisson fallback is the *server's*
-        # fact: a client labelling its axis without it can only guess
-        "weighted": weighted,
-        # every emission line's ticks, not just the primary — Layer 0 flags
-        # each Kα2 peak as an impurity otherwise (CLAUDE.md)
-        #
-        # The window filter runs **once** and both lists take its answer
-        # (WP-1438). Filtering them separately, on the same predicate, is the
-        # shape that drifts: a tick and the Miller index under the pointer
-        # would be two derivations of one fact, and nothing here could tell
-        # which of the two had gone wrong.
-        **_windowed_ticks(res, window),
-        "window": list(window), "n_total": int(mask.sum()),
-        "n_returned": len(idx), "max_points": max_points,
-    }
-
-
 #: About the most channels the curves route sends (WP-1461, D4 and D5). The
 #: chart paints each pixel column's lowest and highest point, and the pilot
 #: measured that at 132 992 channels, the largest pattern the repository reads,
@@ -3049,9 +2934,16 @@ def curve_arrays(tt_all, y_all, keep, res, *, weighted: bool,
                  header: dict | None = None) -> Packed:
     """A pattern's every channel, and a fit's curves on the channels it kept.
 
-    The full-resolution counterpart of :func:`curve_window` (WP-1461, D4), with
-    its two callers for the same reason: ``GuiSession.result_curves`` and
-    ``GuiSession.series_curves``. The σ is ``RefinementResult.sig()``, as there.
+    WP-1461, D4. Module-level and taking the result explicitly, because it has
+    two callers whose results are different: ``GuiSession.result_curves`` draws
+    the project's, and ``GuiSession.series_curves`` one member of a series.
+    One function means no two panels draw residuals under two policies: the σ
+    is ``RefinementResult.sig()``, never a re-derivation.
+
+    ``weighted`` is the caller's fact, not this function's: it is whether the σ
+    was **measured** (``DataRef.has_sigma``) rather than whether ``delta`` is
+    divided by something, which it always is. ``GuiSession.result_curves``'s
+    docstring says what happens when that distinction is lost.
 
     The arrays:
 
@@ -3069,10 +2961,13 @@ def curve_arrays(tt_all, y_all, keep, res, *, weighted: bool,
     2θ is the pattern's own under the mask it was fitted with, and so is its
     ``y_obs``. A result not on this pattern's channels is refused.
 
-    Past :data:`CURVES_CEILING` channels the pattern is decimated as the window
-    route decimates it, and every index follows: ``n_channels`` is then the
-    pattern's count and ``decimated`` says so. The Σχ² is accumulated over every
-    fitted channel before that, so each value sent is still exact.
+    Past :data:`CURVES_CEILING` channels the pattern is decimated, and every
+    index follows: ``n_channels`` is then the pattern's count and ``decimated``
+    says so. **Three residuals, and one of them cannot be derived from the
+    others** (WP-1029): the Σχ² is accumulated over every fitted channel before
+    any decimation, so each value sent is still exact, where summing the
+    channels that survive would understate it by whatever the dropped ones
+    contributed.
     """
     import numpy as np
 
@@ -3102,7 +2997,7 @@ def curve_arrays(tt_all, y_all, keep, res, *, weighted: bool,
     head.update({
         "fit": True, "n_fitted": len(tt_fit),
         "stale": not np.array_equal(grid[keep], tt_fit),
-        **_windowed_ticks(res, (-math.inf, math.inf)),
+        **_tick_rows(res),
     })
     return _under_ceiling(Packed(head, arrays))
 
@@ -3110,11 +3005,10 @@ def curve_arrays(tt_all, y_all, keep, res, *, weighted: bool,
 def _under_ceiling(packed: Packed) -> Packed:
     """``packed`` with its pattern decimated to :data:`CURVES_CEILING` channels.
 
-    The channels kept are ``decimation_index``'s over the curves
-    :func:`curve_window` decimates by, observed, calculated and Δ/σ, so the
-    two routes agree on which points survive and a misfit spike survives as
-    a peak top does. The budget is split between the curves, since each adds
-    its own bucket extrema. ``kept`` and ``fitted`` are re-indexed onto the
+    The channels kept are ``decimation_index``'s over observed, calculated and
+    Δ/σ, the curves every window this package drew was decimated by, so a
+    misfit spike survives as a peak top does. The budget is split between the
+    curves, since each adds its own bucket extrema. ``kept`` and ``fitted`` are re-indexed onto the
     channels that stay, and a fitted channel that went takes its model values
     with it.
     """
@@ -3148,24 +3042,18 @@ def _under_ceiling(packed: Packed) -> Packed:
     return Packed({**packed.header, "decimated": True}, out)
 
 
-def _windowed_ticks(res, window) -> dict:
-    """``ticks`` and ``tick_hkl``, cut to the window by one pass.
+def _tick_rows(res) -> dict:
+    """``ticks`` and ``tick_hkl``, the Miller indices only where they pair.
 
-    ``tick_hkl`` is a companion pinned by index (``RefinementResult``), so the
-    cut is made once and applied to both.  A result built before WP-1438 — one
-    reopened from a project's history — carries positions and no indices, and
-    then the row is simply absent rather than a list of blanks: the page falls
-    back to hovering the 2θ it always had.
+    ``tick_hkl`` is a companion pinned by index (``RefinementResult``), so a
+    row's indices are sent only when they are as many as its positions. A
+    result built before WP-1438 — one reopened from a project's history —
+    carries positions and no indices, and then the row is simply absent rather
+    than a list of blanks: the page falls back to the 2θ it always showed.
     """
-    ticks: dict[str, list[float]] = {}
-    hkl: dict[str, list[list[int]]] = {}
-    for phase, row in res.ticks.items():
-        indices = res.tick_hkl.get(phase)
-        paired = indices is not None and len(indices) == len(row)
-        kept = [i for i, t in enumerate(row) if window[0] <= t <= window[1]]
-        ticks[phase] = [row[i] for i in kept]
-        if paired:
-            hkl[phase] = [indices[i] for i in kept]
+    ticks = {phase: list(row) for phase, row in res.ticks.items()}
+    hkl = {phase: list(res.tick_hkl[phase]) for phase, row in res.ticks.items()
+           if phase in res.tick_hkl and len(res.tick_hkl[phase]) == len(row)}
     return {"ticks": ticks, "tick_hkl": hkl}
 
 

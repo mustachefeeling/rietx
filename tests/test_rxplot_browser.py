@@ -495,3 +495,97 @@ def test_diff_hides_the_fits_residual_and_never_the_pages(page):
     page.evaluate("G.setCurves(raw, true)")
     _frames(page)
     assert page.evaluate("G.panes.resid.series[1].show") is True
+
+
+# ---------------------------------------------------------------- the trajectory
+TONE, WARN = [0, 0, 255], [255, 128, 0]
+
+#: A probe this many CSS px above a point clears its 3 px dot and its ring,
+#: and lands inside a 0.01 whisker, which is ~17 px each way on this loop.
+ABOVE = 11
+
+
+def _above(page, x: float, v: float, px: int = ABOVE) -> list[list[int]]:
+    """The pixels ``px`` CSS px above the point (x, v) on the trajectory pane."""
+    dy = page.evaluate("([v, px]) => { const u = G.panes.traj;"
+                       " return u.posToVal(u.valToPos(v, 'y') - px, 'y'); }", [v, px])
+    return _near(page, "traj", x, dy, r=1)
+
+
+def test_a_trajectory_comes_back_along_its_own_x_in_chain_order(page):
+    """D8: a heat-then-cool series is joined in the order it was refined, never
+    in x order. Sorted by x, the two points at 300 would be joined by a vertical
+    stroke that the chain never makes."""
+    page.evaluate("mountTrajectory()")
+    _frames(page)
+    # up, then back down along the same x
+    assert _has(_near(page, "traj", 375, 1.15, r=2), TONE)
+    assert _has(_near(page, "traj", 375, 1.175, r=2), TONE)
+    # and never the x-sorted join between the first and the last point
+    assert not _has(_near(page, "traj", 300.4, 1.025, r=1), TONE, alpha=100)
+
+
+def test_a_point_with_no_esd_has_no_whisker(page):
+    """A zero-length whisker would claim the value was measured exactly, so a
+    point the fit gave no esd has none at all, while its neighbour at the same
+    x has one."""
+    page.evaluate("mountTrajectory({ rings: [], crosses: [] })")
+    _frames(page)
+    assert _has(_above(page, 350, 1.15), TONE)        # point 3, esd 0.01
+    assert not _has(_above(page, 350, 1.1), TONE, alpha=60)   # point 1, none
+
+
+def test_a_reseeded_point_is_ringed_and_an_unrecovered_one_crossed(page):
+    """Both stay in the chain, in the warning ink: a gap reads as data nobody
+    collected. 7 px straight above a point is the ring's top edge, and above
+    where the cross's 2.2 px arms end (6 px, measured), so it is inked by the
+    ring alone."""
+    page.evaluate("mountTrajectory({ hidden: ['esd'] })")
+    _frames(page)
+    ring = _above(page, 350, 1.1, px=7)
+    cross = _above(page, 350, 1.15, px=7)
+    assert _has(ring, WARN) and not _has(cross, WARN, alpha=60)
+    # the cross's arm, on the diagonal
+    diag = page.evaluate("""() => { const u = G.panes.traj, X = u.valToPos(350, 'x', true),
+        Y = u.valToPos(1.15, 'y', true), d = Math.round(3.5 * devicePixelRatio);
+        return Array.from(u.ctx.getImageData(Math.round(X) + d - 1, Math.round(Y) + d - 1, 3, 3).data); }""")
+    assert any(abs(diag[i] - 255) < 40 and abs(diag[i + 1] - 128) < 40 and diag[i + 3] > 150
+               for i in range(0, len(diag), 4)), diag
+    # and hiding them hides them
+    page.evaluate("G.setHidden(['esd', 'rings', 'crosses'])")
+    _frames(page)
+    assert not _has(_above(page, 350, 1.1, px=7), WARN, alpha=60)
+
+
+def test_the_pointer_names_the_point_nearest_in_the_plane(page):
+    """Two points share x = 350, one per leg of the loop, so a lookup by x alone
+    (`nearest`) could name the wrong one. The trajectory's is by distance in the
+    plane (`nearestXY`)."""
+    page.evaluate("mountTrajectory()")
+    _frames(page)
+    b = _box(page, "traj")
+    for v, want in ((1.1, 1), (1.15, 3)):
+        at = page.evaluate("([x, v]) => { const u = G.panes.traj;"
+                           " return [u.valToPos(x, 'x'), u.valToPos(v, 'y')]; }", [350, v])
+        page.mouse.move(b["x"] + at[0], b["y"] + at[1] + 2)
+        _frames(page)
+        assert page.evaluate("G.points.at(-1)") == {"i": want, "chain": "forward"}
+    # and far from every point, nothing
+    page.mouse.move(b["x"] + 5, b["y"] + b["h"] - 5)
+    _frames(page)
+    assert page.evaluate("G.points.at(-1)") is None
+
+
+def test_a_trajectory_zooms_like_every_other_chart(page):
+    """The gestures are the pane group's: the wheel narrows x, and y follows
+    the points still in view, whiskers included."""
+    page.evaluate("mountTrajectory()")
+    _frames(page)
+    before = _y(page, "traj")
+    b = _box(page, "traj")
+    page.mouse.move(b["x"] + 0.05 * b["w"], b["y"] + b["h"] / 2)
+    page.mouse.wheel(0, -400)
+    _frames(page)
+    lo, hi = _x(page, "traj")
+    assert 300 <= lo < hi < 400
+    assert _y(page, "traj")[1] < before[1], "y did not follow the view"

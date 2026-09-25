@@ -49,7 +49,7 @@ import gemmi
 import numpy as np
 
 from ..crystallography.adp import cartesian_basis, reciprocal_axis_lengths, ustar_from_ucif
-from ..crystallography.symmetry import expand_orbit, get_spacegroup
+from ..crystallography.symmetry import expand_orbit, resolve_group
 
 #: Semi-axes are drawn at ``k(p)·√λ``.  ``k`` is the radius of the sphere of
 #: probability ``p`` for a trivariate normal, i.e. ``√χ²₃(p)`` — the ORTEP
@@ -388,7 +388,13 @@ def build(structure, phase: int = 0, *, probability: float = DEFAULT_PROBABILITY
     cell = ph.cell.lengths_angles()
     basis = cartesian_basis(*cell)            # lattice vectors as columns, Å
     astar = reciprocal_axis_lengths(*cell)
-    sg = get_spacegroup(ph.space_group)
+    # ``resolve_group``, not ``get_spacegroup``: a phase whose group no
+    # Hermann-Mauguin symbol names in its cell carries a bracketed *label*
+    # here and its operations in ``symmetry_operations``, and handing the
+    # label to gemmi raises "Unknown space-group name" out of a viewer
+    # endpoint (M-3 item 5b).  ``OperatorGroup`` carries the same
+    # ``operations()``/``xhm()`` surface the two readers below use.
+    sg = resolve_group(ph.space_group, ph.symmetry_operations)
 
     sites, atoms, notes = _expand(ph, phase, sg, basis, astar, max_atoms)
     # the colours are decided *here*, over the phase's own element list, because

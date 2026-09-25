@@ -498,7 +498,30 @@ drawn-fraction check and a ring-ink count instead. `using/install.md` and
 ATTRIBUTION.md are unchanged: the `gui` extra still needs plotly for the
 Series panel, no dependency was added, and no code was ported.
 
+*Paused* at the maintainer's request, during `/wp-handover`, after merging
+`origin/main`. The merge brought WP-1461's Series port (#467), so nothing in
+`gui/src` imports `lib/plotly.ts` any more and the built dist no longer names
+`/plotly.js`. `test_gui_dist.py` and `gui/index.html`'s comment were
+corrected for that in the merge. On the merged tree: GUI vitest 562 passed,
+svelte-check clean, and `test_gui_dist`, `test_gui_server`,
+`test_structure3d_browser`, `test_docs_consistency` and `test_gui_manual`
+215 passed (`[dev]` venv plus playwright, macOS). The fast selection has not
+run on the merged tree. The handover's steps 10-12 (verify, PR, report)
+have not run either. The PR body is not written into the repository.
+
 *Next*, in order:
+0. The GUI's plotly remnants, now this WP's since it lands after the Series
+   port: the `/plotly.js` route and `_NO_PLOTLY_JS` in `gui/server.py` (and
+   its module docstring), `gui/src/lib/plotly.ts`, `lib/plot.ts:hoverLabel`
+   and its two tests in `plot.test.ts`, and the `Plotly` stand-in in
+   `test-setup.ts`. `test_gui_server.py` then asserts `/plotly.js` is a 404.
+   The `gui` extra becomes `[]`, kept so `pip install 'rietx[gui]'` still
+   works. `using/install.md`, `gui-quickstart.md`, `cli.md` and
+   `gui/CLAUDE.md`'s "plotly is not vendored" line follow.
+   `viz/plotlyjs.py` stays for `rietx compare` (WP-1461 task 9). Stage the
+   new viewer and the extra's change in `docs/releases/1.5.1.md`, whose
+   Series section still says the 3D view draws with plotly. Then resume
+   `/wp-handover` at step 9 (a review of the new commits), 10 and 11.
 1. The GPU gate: run `1462-spike/gui_viewer.mjs`, or open the GUI, on a
    Windows or Linux machine with a real GPU. A broken picture there sends D1
    to its three.js fallback; a good one closes the gate.
