@@ -31,6 +31,9 @@ from tests.test_watch_browser import _chromium  # noqa: E402
 
 DATA = Path(__file__).parent / "data"
 
+#: the project and the browser are module fixtures every test here shares
+pytestmark = pytest.mark.xdist_group("structure3d-browser")
+
 
 @pytest.fixture(scope="module")
 def gui(tmp_path_factory):

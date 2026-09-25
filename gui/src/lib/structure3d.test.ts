@@ -164,6 +164,16 @@ describe("the scene", () => {
     expect(invert3([1, 0, 0, 0, 1, 0, 0, 0, 0])).toBeNull();
   });
 
+  it("keeps two flat axes perpendicular to the one that is left", () => {
+    // eigh sorts ascending, so two non-positive axes are columns 0 and 1; with
+    // the survivor along x a fixed fallback of x̂ made M singular
+    const geo = geometry();
+    geo.atoms[2].ellipsoid = [[0, 0, 0.2], [0, 0, 0], [0, 0, 0]];
+    const atom = buildScene(geo, { mode: "ellipsoid" }).atoms[2];
+    expect(atom.inverse).not.toBeNull();
+    expectMatrix(mul3(atom.shape, atom.inverse), I3, 9);
+  });
+
   it("hides the species the legend switched off, and the images when asked", () => {
     const geo = geometry();
     const noLa = buildScene(geo, { mode: "ball", hidden: new Set(["La"]) });

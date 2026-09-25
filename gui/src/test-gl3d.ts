@@ -7,7 +7,7 @@
  * scene and view it was handed, in `frames`, so a component test asserts what
  * the viewer asked to have drawn.  Only `createRenderer` is replaced; the rest of the
  * module is the real one.  What a browser then paints is
- * `tests/test_gui_browser.py`'s.
+ * `tests/test_structure3d_browser.py`'s.
  */
 
 import type { ExportOptions, Renderer } from "./lib/gl3d";
@@ -41,10 +41,7 @@ export function createRenderer(canvas: HTMLCanvasElement): Renderer | null {
     },
     async exportPng(view: View, options: ExportOptions) {
       exports.push({ view, options });
-      return new Blob([], { type: "image/png" });
-    },
-    exportSize() {
-      return { width: 3000, height: 2000 };
+      return { blob: new Blob([], { type: "image/png" }), width: 3000, height: 2000 };
     },
     dispose() {
       lifecycle.disposed += 1;

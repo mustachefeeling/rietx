@@ -11,7 +11,7 @@
  * `lib/structure3d.ts` builds both, as pure functions a test can read, and
  * solves the same equations for hover.  jsdom has no WebGL, so the component
  * tests run against `test-gl3d.ts`, which records what it was asked to draw;
- * what a browser paints is `tests/test_gui_browser.py`'s.
+ * what a browser paints is `tests/test_structure3d_browser.py`'s.
  *
  * Three facts shape the code:
  *
@@ -217,15 +217,20 @@ export interface ExportOptions {
   longSide?: number;
 }
 
+export interface ExportedPng {
+  blob: Blob;
+  width: number;
+  height: number;
+}
+
 export interface Renderer {
   /** upload a scene; the next `draw` shows it */
   setScene(scene: Scene): void;
   /** draw one frame at the canvas's size, on `background` (0..1 RGB) */
   draw(view: View, background: number[]): void;
-  /** render once more, offscreen and larger, to a PNG */
-  exportPng(view: View, options: ExportOptions): Promise<Blob | null>;
-  /** the size an export would have, device pixels, before it is asked for */
-  exportSize(longSide?: number): { width: number; height: number };
+  /** render once more, offscreen and larger, to a PNG, with the size it came
+   *  out at: smaller than asked where the GPU could not allocate that */
+  exportPng(view: View, options: ExportOptions): Promise<ExportedPng | null>;
   dispose(): void;
 }
 
@@ -272,7 +277,8 @@ export function instanceData(scene: Scene): { atoms: Float32Array; halves: Float
 }
 
 /**
- * A renderer on `canvas`, or `null` where the browser has no WebGL2.
+ * A renderer on `canvas`, or `null` where the browser has no WebGL2 or cannot
+ * build these shaders with it (a context lost at birth, a driver's refusal).
  *
  * One context for the viewer's life: browsers keep about sixteen a page and
  * drop the oldest past that without a word, so `dispose` gives it back at once
@@ -283,7 +289,7 @@ export function createRenderer(canvas: HTMLCanvasElement): Renderer | null {
     antialias: true, alpha: false, premultipliedAlpha: false,
     preserveDrawingBuffer: false,
   }) as WebGL2RenderingContext | null;
-  if (!gl) return null;
+  if (!gl || gl.isContextLost()) return null;
   const context: WebGL2RenderingContext = gl;
 
   let programs: { atom: Program; half: Program; line: Program } | null = null;
@@ -495,7 +501,7 @@ export function createRenderer(canvas: HTMLCanvasElement): Renderer | null {
     return null;
   }
 
-  async function exportPng(view: View, options: ExportOptions): Promise<Blob | null> {
+  async function exportPng(view: View, options: ExportOptions): Promise<ExportedPng | null> {
     if (lost || !scene) return null;
     let { width, height } = exportSize(options.longSide);
     let pixels: Uint8Array | null = null;
@@ -557,7 +563,8 @@ export function createRenderer(canvas: HTMLCanvasElement): Renderer | null {
       ctx.fillStyle = label.color;
       ctx.fillText(label.text, label.x * scale, label.y * scale);
     }
-    return new Promise((resolve) => out.toBlob((blob) => resolve(blob), "image/png"));
+    return new Promise((resolve) => out.toBlob(
+      (blob) => resolve(blob && { blob, width, height }), "image/png"));
   }
 
   function onLost(event: Event) {
@@ -573,9 +580,16 @@ export function createRenderer(canvas: HTMLCanvasElement): Renderer | null {
     if (last) draw(last.view, last.background);
   }
 
+  try {
+    init();
+  } catch (exc) {
+    // thrown out of a mount effect this would take the panel with it; the
+    // viewer says it cannot draw instead, and the reason stays in the console
+    console.error(exc);
+    return null;
+  }
   canvas.addEventListener("webglcontextlost", onLost);
   canvas.addEventListener("webglcontextrestored", onRestored);
-  init();
 
   return {
     setScene(next: Scene) {
@@ -584,7 +598,6 @@ export function createRenderer(canvas: HTMLCanvasElement): Renderer | null {
     },
     draw,
     exportPng,
-    exportSize,
     dispose() {
       canvas.removeEventListener("webglcontextlost", onLost);
       canvas.removeEventListener("webglcontextrestored", onRestored);

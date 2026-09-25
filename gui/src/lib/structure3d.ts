@@ -333,8 +333,18 @@ function drawable(m: number[][]): Mat3 {
     const u = [out[(c + 1) % 3], out[3 + (c + 1) % 3], out[6 + (c + 1) % 3]];
     const v = [out[(c + 2) % 3], out[3 + (c + 2) % 3], out[6 + (c + 2) % 3]];
     let n = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
-    const nn = Math.hypot(n[0], n[1], n[2]);
-    n = nn > 0 ? n.map((x) => x / nn) : [c === 0 ? 1 : 0, c === 1 ? 1 : 0, c === 2 ? 1 : 0];
+    let nn = Math.hypot(n[0], n[1], n[2]);
+    if (!(nn > 0)) {
+      // a neighbour is zero too, so the cross product says nothing: take the
+      // Cartesian axis least along the column that is left, made perpendicular
+      // to it — a fixed axis could be that column, and M would be singular
+      const w = Math.hypot(u[0], u[1], u[2]) > 0 ? u : v;
+      const wn = Math.hypot(w[0], w[1], w[2]);
+      const k = [0, 1, 2].reduce((best, j) => (Math.abs(w[j]) < Math.abs(w[best]) ? j : best), 0);
+      n = [0, 1, 2].map((j) => (j === k ? 1 : 0) - (wn > 0 ? (w[k] * w[j]) / (wn * wn) : 0));
+      nn = Math.hypot(n[0], n[1], n[2]);
+    }
+    n = n.map((x) => x / nn);
     out[c] = FLAT_AXIS * n[0];
     out[3 + c] = FLAT_AXIS * n[1];
     out[6 + c] = FLAT_AXIS * n[2];

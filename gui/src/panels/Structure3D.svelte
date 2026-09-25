@@ -79,9 +79,13 @@
    *  and making them reactive would re-render the panel on every frame of a
    *  drag. */
   let scene: Scene | null = null;
+  const EMPTY: Scene = { atoms: [], halves: [], lines: [], labels: [],
+                         center: [0, 0, 0], radius: 1, depth: 1 };
   let view: View = openingView();
   let frame = 0;
-  let geo = $state<Geometry | null>(null);
+  /** raw: the payload is replaced, never edited, and a deep proxy would sit
+   *  under every read `buildScene` and the hover make */
+  let geo = $state.raw<Geometry | null>(null);
   let error = $state("");
   /** Has a first load *settled*? — see `load`. */
   let ready = $state(false);
@@ -117,6 +121,9 @@
   /** What is under the pointer: the readout strip's one line (WP-1213's rule —
    *  a box over the picture covers the thing it describes). */
   let reading = $state("");
+  /** Why the last PNG failed.  Its own field, not `error`: that one replaces
+   *  the controls, the PNG button among them, until the next load. */
+  let exportError = $state("");
 
   const entries = $derived(geo ? legend(geo) : []);
   const levels = $derived(geo ? Object.keys(geo.probability_levels) : []);
@@ -226,7 +233,15 @@
   async function rebuild() {
     const geometry = geo;
     await Promise.resolve();
-    if (!geometry || geometry !== geo) return;
+    if (geometry !== geo) return;
+    if (!geometry) {
+      // nothing to draw is still a frame: an opaque canvas never drawn is
+      // black, and one drawn before keeps the structure that is gone
+      scene = EMPTY;
+      renderer?.setScene(scene);
+      paint();
+      return;
+    }
     const style = getComputedStyle(document.body);
     // the cell frame is the picture's frame, so it gets the accent rather than
     // `--line`: a hairline border colour is invisible against the page in a 3D
@@ -266,9 +281,12 @@
   function background(): number[] {
     let at: Element | null = canvas?.parentElement ?? null;
     while (at) {
+      // only an opaque `rgb()` is the colour behind the canvas: a tint is
+      // blended with what is under it, and `color(srgb …)` counts in 0..1
       const colour = getComputedStyle(at).backgroundColor;
-      const parts = colour.match(/[\d.]+/g)?.map(Number) ?? [];
-      if (parts.length >= 3 && (parts.length < 4 || parts[3] > 0)) {
+      const parts = /^rgba?\(/.test(colour)
+        ? colour.match(/[\d.]+/g)?.map(Number) ?? [] : [];
+      if (parts.length >= 3 && (parts.length < 4 || parts[3] >= 1)) {
         return parts.slice(0, 3).map((v) => v / 255);
       }
       at = at.parentElement;
@@ -393,21 +411,21 @@
       return { text: label.text, x, y, color: style?.color || "#1f5fa8",
                font: style?.font || "600 12px sans-serif" };
     });
-    const size = renderer.exportSize(EXPORT_LONG_SIDE);
-    const blob = await renderer.exportPng(view, {
+    exportError = "";
+    const png = await renderer.exportPng(view, {
       background: transparent ? null : background(), labels,
     });
-    if (!blob) {
-      error = "the export could not be rendered at any size this GPU allows";
+    if (!png) {
+      exportError = "the export could not be rendered at any size this GPU allows";
       return;
     }
     const name = `${(geo.name || "structure").replace(/[^\w.-]+/g, "_")}.png`;
     const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
+    link.href = URL.createObjectURL(png.blob);
     link.download = name;
     link.click();
     setTimeout(() => URL.revokeObjectURL(link.href), 0);
-    say(`# saved ${name}, ${size.width} × ${size.height} px`
+    say(`# saved ${name}, ${png.width} × ${png.height} px`
       + (transparent ? " on a transparent background" : ""));
   }
 </script>
@@ -486,6 +504,8 @@
         title="drawing thresholds — none of them is a fact about the sample, so
                none is stored in the project">{knobsOpen ? "▾" : "▸"} drawing</button>
     </div>
+
+    {#if exportError}<p class="bad">{exportError}</p>{/if}
 
     {#if knobsOpen}
       <!-- Where each knob lives is settled by *what it changes*, not by taste:
