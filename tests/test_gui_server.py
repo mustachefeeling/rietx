@@ -2982,6 +2982,23 @@ def test_exports_land_in_the_project_and_cannot_escape_it(fitted, tmp_path):
     assert client.post("/api/export/nonsense")[0] == 404
 
 
+def test_the_html_export_without_plotly_names_the_extra(fitted, monkeypatch):
+    """The GUI runs on a base install since WP-1462, and the html figure does not.
+
+    It is plotly's, which only the ``viz`` extra installs, so a base install
+    meets it here. Uncaught, the ``ImportError`` was a 500.
+    """
+    import sys
+
+    _, client, _ = fitted
+    monkeypatch.setitem(sys.modules, "plotly", None)
+    monkeypatch.setitem(sys.modules, "plotly.graph_objects", None)
+    status, payload = client.post("/api/export/html")
+    assert status == 409, payload
+    assert payload["error"]["code"] == "EXPORT_UNAVAILABLE"
+    assert "[viz]" in payload["error"]["message"]
+
+
 def test_patching_vary_on_a_held_path_is_a_refusal_rather_than_a_crash(
         blank, tmp_path, pattern_file):
     """``set_vary`` could refuse nothing until WP-1435, so this branch ran bare.

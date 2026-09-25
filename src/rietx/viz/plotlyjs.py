@@ -23,9 +23,8 @@ CONTENT_TYPE = "application/javascript; charset=utf-8"
 def plotly_js(fallback: str) -> str:
     """The bundled plotly.js source, or ``fallback`` where plotly is absent.
 
-    Read per request rather than cached, which is what the two copies this
-    replaces did. The file is a few megabytes and a page fetches it once, so
-    the read is not on any path that runs per stage.
+    Read per request rather than cached. The file is a few megabytes and a
+    page fetches it once, so the read is not on any path that runs per stage.
     """
     try:
         from plotly.offline import get_plotlyjs

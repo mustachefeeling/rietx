@@ -2839,6 +2839,10 @@ class GuiSession:
             # one: a Le Bail fit has no weight fractions, and saying so beats
             # writing an empty table
             raise GuiError(str(exc), code="EXPORT_UNAVAILABLE", status=409) from None
+        except ImportError as exc:
+            # the html figure is plotly's, which the `viz` extra installs and a
+            # base install (all the GUI itself needs since WP-1462) lacks
+            raise GuiError(str(exc), code="EXPORT_UNAVAILABLE", status=409) from None
         return {"kind": kind, "path": str(target), "name": target.name,
                 "bytes": target.stat().st_size}
 
