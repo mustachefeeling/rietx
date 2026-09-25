@@ -97,6 +97,16 @@ SKILL_MAX_LINES = 500
 #: code in, and whether a fit is likely to say it. ``SKILL.md`` is now the
 #: tighter of the two (68 B under :data:`SKILL_MAX_BYTES`), and a routing row
 #: is what a new reference file costs there.
+#:
+#: **The second split** (PR #385, 2026-09-25) applied that criterion when
+#: ``CELL_RUNAWAY``'s row and main's growth took ``diagnostics.md`` to
+#: 37 008 B. The seven series codes (``SEQUENTIAL_*`` and
+#: ``SERIES_PATTERN_FAILED``, 3 423 B) arrive on a ``SeriesResult`` and a
+#: single fit never emits one, so they moved to a code table at the end of
+#: §9b, ``references/series.md``, which already had its routing row, so
+#: ``SKILL.md`` did not grow. ``diagnostics.md`` went to 33 789 B and
+#: ``series.md`` from 25 685 to 29 545 B; one pointer row stays where the
+#: rows stood.
 REFERENCE_MAX_BYTES = 36_600
 #: `api.md` is **generated** from the installed package, so its size is a fact
 #: about the public API and not a thing an author chose.  The authored cap says
