@@ -330,6 +330,13 @@ by a test.
 Each carries the recommended answer. The maintainer confirms or overturns it
 in the first task.
 
+**Decided 2026-09-25.** The maintainer confirmed the migration to uPlot, D1
+(every chart shown in a browser) and D2 (a vendored copy), and D4-D8 as
+recommended. D3 went unanswered and stands as recommended. They asked how a
+vendored copy stays current, and D2 now says. The 3D viewer's move is
+[WP-1462](1462-the-structure-viewer-draws-with-threejs.md), filed the same
+day.
+
 - **D1. Scope.** Every 2D chart in a browser.
   - matplotlib stays for the files it writes (`plots.py`, `indexing.py`,
     `plot_for_vlm`), which are made without a browser.
@@ -348,6 +355,16 @@ in the first task.
   - `gui/scripts/build_info.py` names the vendored directory in its digest,
     or the dist would go stale unseen. Bundling keeps the chart layer under
     svelte-check and within vitest's reach.
+  - **Keeping it current.** Nothing in the repository watches a dependency
+    today: there is no Dependabot or Renovate configuration. plotly.js moves
+    with the Python `plotly` package, so a vendored uPlot would be the first
+    copy that stays frozen by default. So uPlot is pinned exactly in
+    `gui/package.json`, and `npm run build` copies its three files into
+    `src/rietx/viz/static/`, the one step that writes them. A test holds the
+    version in the vendored file's banner equal to the pin. Dependabot,
+    limited to uPlot and svgcanvas, opens a pull request for each release.
+    The lock file is in the dist's digest, so that pull request stays red
+    until someone runs the build, which refreshes the vendored copy too.
 - **D3. One chart module in two layers.** `src/rietx/viz/static/rxplot.mjs`
   holds:
   - shared plumbing: panes on one x, sync, gestures, the readout hook,
@@ -420,9 +437,8 @@ in the first task.
 
 - **The 3D structure viewer.** It draws a scene, and uPlot has no 3D. It
   keeps plotly (`mesh3d`, `scatter3d`), loaded when first shown, and the `gui`
-  extra keeps plotly until it moves. Moving it, with three.js as the likely
-  candidate, is a WP of its own. Whether to file that now is the
-  maintainer's call.
+  extra keeps plotly until it moves.
+  [WP-1462](1462-the-structure-viewer-draws-with-threejs.md) moves it.
 - **matplotlib figures.** They are files, written without a browser.
 - **New chart types.** The 2D map shows the module can carry one. A series
   map belongs to the WP that wants it; 1317 is the nearest.
@@ -430,9 +446,9 @@ in the first task.
 
 ## Tasks
 
-- [ ] The maintainer confirms the migration on § Staying on plotly's numbers and decides D1-D8, and this file records which
+- [x] The maintainer confirms the migration on § Staying on plotly's numbers and decides D1-D8, and this file records which
 - [ ] Measure D4 and D8 on real payloads (the NAC result, a compare standard, a series): JSON against binary arrays, parse, grid union. Settle the route and the ceiling.
-- [ ] Vendor uPlot 1.6.32, its css and LICENSE into `src/rietx/viz/static/`. Add the ATTRIBUTION row and put the directory in `build_info.py`'s digest. Serve it from the watch and compare servers. Pin its version against `gui/package.json`'s devDependency in a test, and rebuild the dist, since the devDependency moves the digest.
+- [ ] Vendor uPlot 1.6.32, its css and LICENSE into `src/rietx/viz/static/`, copied there by `npm run build` from the exact pin in `gui/package.json` (D2, § Keeping it current). Add the ATTRIBUTION row and put the directory in `build_info.py`'s digest. Serve it from the watch and compare servers. A test holds the vendored banner's version equal to the pin. Add `.github/dependabot.yml`, limited to uPlot and svgcanvas in `gui/`. Rebuild the dist, since the pin moves the digest.
 - [ ] The module's core: panes on one x, sync, drag, wheel and pan, y-zoom, select, the readout hook, the `ResizeObserver` path. Findings 1-3, 5 and 10 each get a case: the pure half under `node --test` and vitest, the drawing in a browser test.
 - [ ] Pilot, the gate: the GUI pattern panel on the core behind a flag, with the plotly renderer still selectable. Port the spike driver to the real page as the acceptance probe. Measure § Acceptance 1-3 against the plotly renderer on the same machine, in Chromium, WebKit and Firefox through playwright's builds. Record go or no-go in the handover.
 - [ ] GUI pattern panel complete: peaks, candidates, masks, raw view, readout fields, Esc, axis titles. Delete the plotly-only code, stub uPlot in `test-setup.ts`, and move `App.test.ts` off the `Plotly.react` stub. Drawn colours are asserted from pixels or from the recorded `strokeStyle`.
@@ -519,8 +535,13 @@ npm --prefix gui test && npm --prefix gui run check
   `puppeteer-core` to drive the installed Firefox. A docs-test collector
   that read the packages' READMEs as planning docs now drops what
   `.gitignore` drops.
-  *Next:* unchanged from the entry below. The maintainer still owes the
-  answers on the migration and D1-D8.
+  The maintainer then answered the first task: the migration, D1, D2 and
+  D4-D8 confirmed, D3 standing as recommended (§ Decisions). They asked how
+  a vendored uPlot stays current, and D2 and the vendoring task now carry
+  the answer. WP-1462 was filed for the 3D viewer on their request, with
+  three.js and 3Dmol.js sized that day.
+  *Next:* `/wp-handover 1461`, then task 2 (measure D4 and D8 on the real
+  payloads).
 - **2026-09-25** — session state saved for a `/clear`, before
   `/wp-handover`. The WP is filed and not started. PR #461 carries it with
   the spike and a demo someone can click through. Nothing in the package
