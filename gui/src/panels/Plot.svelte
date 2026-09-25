@@ -923,11 +923,18 @@
   }
 
   // -- the chart module (WP-1461's pilot) --------------------------------
-  /** What the chart lays over the figure, from this panel's props. */
+  /** What the chart lays over the figure, from this panel's props. `held` is
+   *  read untracked: a new payload is drawn by the fetch that brought it, and
+   *  tracked here it cost the knob effect a second paint of every fetch. */
   function overlayNow(): Overlay {
     return { protocol, extent, peaks: peaks?.peaks ?? null, groups: peaks?.groups ?? null,
-             peaksActive, candidate: overlay, hidden, held };
+             peaksActive, candidate: overlay, hidden, held: untrack(() => held) };
   }
+
+  /** Which fetch is the latest. Two can be in flight (a run ending and a mask
+   *  moving), and the older one landing last would draw the older curves, or
+   *  build a second figure into the same host. */
+  let fetchSeq = 0;
 
   /**
    * Fetch the curves once and draw them (D4). A zoom fetches nothing: the
@@ -936,16 +943,19 @@
    */
   async function drawChart() {
     if (!node) return;
+    const seq = ++fetchSeq;
     let mod: typeof import("../lib/pattern");
     let c: Curves;
     try {
       mod = chartModule ??= await import("../lib/pattern");
       c = await mod.fetchCurves();
     } catch (exc) {
+      if (seq !== fetchSeq) return;
       shown = null;
       if (!(exc instanceof ApiError && exc.empty)) loadError = (exc as Error).message;
       return;
     }
+    if (seq !== fetchSeq) return;
     loadError = "";
     const w = mod.windowOf(c);
     held = w;
@@ -953,7 +963,6 @@
     shown = { n: tt.length, total: tt.length, lo: tt[0] ?? 0, hi: tt[tt.length - 1] ?? 0 };
     if (!chart) {
       chart = new mod.PatternChart(node, c, overlayNow(), {
-        markers: choice.markers,
         scale: untrack(() => scale),
         kind: untrack(() => kind),
         labels: {
@@ -983,6 +992,7 @@
   let pendingZoom: [number, number] | null = null;
 
   function dropChart() {
+    fetchSeq++;
     chart?.destroy();
     chart = null;
     curves = null;

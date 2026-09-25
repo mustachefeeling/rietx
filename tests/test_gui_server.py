@@ -2560,6 +2560,37 @@ def test_stale_curves_carry_the_mask_the_next_run_fits(fitted):
         client.post("/api/project", {"excluded_regions": []})
 
 
+def test_a_pattern_past_the_ceiling_is_decimated_and_every_index_follows(
+        fitted, monkeypatch):
+    """D4 and D5: past ``CURVES_CEILING`` the route decimates the pattern as the
+    window route does, and ``kept``, ``fitted`` and the model follow the channels
+    that stay. The ceiling is lowered here, since no pattern on disk passes it."""
+    from rietx.gui import session as session_mod
+
+    _, client, _ = fitted
+    whole = _packed(client, "/api/result/curves").arrays
+    monkeypatch.setattr(session_mod, "CURVES_CEILING", 1000)
+    got = _packed(client, "/api/result/curves")
+    head, arrays = got.header, got.arrays
+    assert head["decimated"] is True
+    # a budget rather than a ceiling, as decimation_index's always was: a
+    # bucket's minimum and maximum can bring one channel past it
+    assert head["n_channels"] == len(whole["two_theta"]) > 1010 >= len(arrays["two_theta"])
+    # every channel sent is the pattern's own, in order, with its own intensity
+    at = np.searchsorted(whole["two_theta"], arrays["two_theta"])
+    np.testing.assert_array_equal(whole["two_theta"][at], arrays["two_theta"])
+    np.testing.assert_array_equal(whole["y_obs"][at], arrays["y_obs"])
+    # min and max per bucket, so the tallest peak survives
+    assert arrays["y_obs"].max() == whole["y_obs"].max()
+    # the indices name the same channels they named before, and the model and
+    # its Σχ² come with them unchanged
+    assert set(at[arrays["kept"]]) <= set(whole["kept"])
+    full = {int(i): q for q, i in enumerate(whole["fitted"])}
+    rows = [full[int(i)] for i in at[arrays["fitted"]]]
+    for key in ("y_calc", "delta", "cumulative_chi2"):
+        np.testing.assert_array_equal(arrays[key], whole[key][rows], err_msg=key)
+
+
 def test_before_any_fit_the_curves_are_the_raw_pattern(blank, tmp_path, pattern_file):
     """The raw view is the same payload without the model (D4), so a project
     that has never been fitted still draws, which is indexing's situation."""

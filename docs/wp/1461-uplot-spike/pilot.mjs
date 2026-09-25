@@ -6,7 +6,8 @@
 // engine: chromium (Chrome for Testing 1223, CDP work), firefox or webkit
 // (playwright's builds, work from wrapped callbacks). dataset: nac, or a path to
 // a .rex project to open (make_lab6.py builds the 132 992-channel one).
-// renderer: plotly, uplot (every marker) or thin (per pixel column). One server
+// renderer: plotly or chart (the chart module; until D5 was decided, `uplot`
+// drew every marker and `thin` each pixel column's extremes). One server
 // and one fit per call, a fresh page per renderer, so the renderers of one call
 // are measured side by side.
 //
@@ -23,11 +24,11 @@ import { chromium, firefox, webkit } from "playwright-core";
 
 const DIR = fileURLToPath(new URL(".", import.meta.url));
 const [ENGINE = "chromium", DATASET = "nac", DPR = "1", RUN = "0", ...RENDERERS] = process.argv.slice(2);
-const renderers = RENDERERS.length ? RENDERERS : ["plotly", "uplot", "thin"];
+const renderers = RENDERERS.length ? RENDERERS : ["plotly", "chart"];
 const CFT = os.homedir() + "/Library/Caches/ms-playwright/chromium-1223/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing";
 const RIETX = process.env.RIETX ?? fileURLToPath(new URL("../../../.venv/bin/rietx", import.meta.url));
 const PORT = 8790 + Number(RUN) % 9, GUI = `http://127.0.0.1:${PORT}`;
-const QUERY = { plotly: "", uplot: "?chart=uplot", thin: "?chart=uplot&markers=thin" };
+const QUERY = { plotly: "", chart: "?chart=uplot" };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const load = () => os.loadavg().map((v) => v.toFixed(1)).join(" ");
 const say = (line) => console.log(`[${ENGINE} ${DATASET.split("/").pop()} dpr${DPR} run${RUN}] ${line}`);
@@ -35,6 +36,21 @@ const say = (line) => console.log(`[${ENGINE} ${DATASET.split("/").pop()} dpr${D
 // ------------------------------------------------------------------ the page's own instruments
 // Installed before any script of the app runs (gui/CLAUDE.md: instrument before the library loads).
 function instruments() {
+  // playwright's WebKit synthesises every mouse move with movementX and movementY
+  // at 0, and uPlot drops a zero-movement move while dragging (a guard for a
+  // Chrome-on-Windows phantom move), so no drag works there. A real mouse in
+  // Safari reports the movement, so the probe supplies it from clientX/Y.
+  if (/AppleWebKit/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent)) {
+    const moved = new WeakMap(), native = Object.getOwnPropertyDescriptor(MouseEvent.prototype, "movementX");
+    const nativeY = Object.getOwnPropertyDescriptor(MouseEvent.prototype, "movementY");
+    let lx = null, ly = null;
+    window.addEventListener("mousemove", (e) => {
+      if (lx !== null) moved.set(e, [e.clientX - lx, e.clientY - ly]);
+      lx = e.clientX; ly = e.clientY;
+    }, true);
+    Object.defineProperty(MouseEvent.prototype, "movementX", { get() { return native.get.call(this) || (moved.get(this)?.[0] ?? 0); } });
+    Object.defineProperty(MouseEvent.prototype, "movementY", { get() { return nativeY.get.call(this) || (moved.get(this)?.[1] ?? 0); } });
+  }
   const raf = window.requestAnimationFrame.bind(window), now = () => performance.now();
   const W = (window.__w = { work: 0, depth: 0, frames: [], loaf: [], fetches: [], errors: [] });
   // frame intervals, from an untimed loop
@@ -260,21 +276,23 @@ async function measure(renderer) {
   out.peakMoved = moved;
 
   // -- 3. resizing: the app's work, and the chart library's own from a CPU profile
-  const works = [], own = [];
+  const works = [], own = [], wrapped = [];
   if (cdp) {
     await cdp.send("Profiler.enable");
     await cdp.send("Profiler.setSamplingInterval", { interval: 100 });
   }
   for (let i = 0; i < 6; i++) {
     if (cdp) await cdp.send("Profiler.start");
-    const t0 = await td(), w0 = Date.now();
+    const t0 = await td(), w0 = Date.now(), c0 = await page.evaluate(() => window.__w.work);
     await page.setViewportSize({ width: i % 2 ? 1500 : 1300, height: 1000 });
     await sleep(500);
     works.push((await td()) - t0 - idle * (Date.now() - w0));
+    wrapped.push((await page.evaluate(() => window.__w.work)) - c0);
     if (cdp) own.push(libraryTime((await cdp.send("Profiler.stop")).profile, renderer));
   }
-  out.resize = { app: works, chart: own };
-  say(`${renderer}: resize, the app's work ${works.map((v) => v.toFixed(1)).join(", ")} ms; the chart's own ${own.map((v) => v.toFixed(1)).join(", ")} ms`);
+  out.resize = { app: works, chart: own, wrapped };
+  const list = (xs) => xs.map((v) => v.toFixed(1)).join(", ");
+  say(`${renderer}: resize, the app's work ${list(works)} ms; the chart's own ${list(own)} ms; wrapped ${list(wrapped)} ms`);
   say(`${renderer}: page errors ${JSON.stringify(errors)}; load ${load()}`);
   await context.close();
   return out;

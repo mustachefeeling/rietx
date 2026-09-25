@@ -3113,6 +3113,15 @@ def curve_window(res, lo: float | None, hi: float | None, max_points: int, *,
     }
 
 
+#: About the most channels the curves route sends (WP-1461, D4 and D5). The
+#: chart paints each pixel column's lowest and highest point, and the pilot
+#: measured that at 132 992 channels, the largest pattern the repository reads,
+#: with no long frame. The spike's 200 000 had one, so a pattern past this is
+#: decimated by ``viz.compare.decimation_index`` first, whose count is a budget:
+#: a bucket's minimum and maximum can bring it a channel over.
+CURVES_CEILING = 150_000
+
+
 def curve_arrays(tt_all, y_all, keep, res, *, weighted: bool,
                  header: dict | None = None) -> Packed:
     """A pattern's every channel, and a fit's curves on the channels it kept.
@@ -3137,6 +3146,11 @@ def curve_arrays(tt_all, y_all, keep, res, *, weighted: bool,
     both checked on the NAC example and a series member bit for bit: a result's
     2θ is the pattern's own under the mask it was fitted with, and so is its
     ``y_obs``. A result not on this pattern's channels is refused.
+
+    Past :data:`CURVES_CEILING` channels the pattern is decimated as the window
+    route decimates it, and every index follows: ``n_channels`` is then the
+    pattern's count and ``decimated`` says so. The Σχ² is accumulated over every
+    fitted channel before that, so each value sent is still exact.
     """
     import numpy as np
 
@@ -3149,7 +3163,7 @@ def curve_arrays(tt_all, y_all, keep, res, *, weighted: bool,
     arrays = {"two_theta": grid, "y_obs": np.asarray(y_all, dtype=float)[order],
               "kept": np.sort(rank[np.flatnonzero(keep)])}
     if res is None or not res.two_theta:
-        return Packed({**head, "fit": False}, arrays)
+        return _under_ceiling(Packed({**head, "fit": False}, arrays))
 
     tt_fit = np.asarray(res.two_theta, dtype=float)
     at = np.minimum(np.searchsorted(grid, tt_fit), len(grid) - 1)
@@ -3173,7 +3187,36 @@ def curve_arrays(tt_all, y_all, keep, res, *, weighted: bool,
         "stale": not np.array_equal(tt_all[np.asarray(keep)], tt_fit),
         **_windowed_ticks(res, (-math.inf, math.inf)),
     })
-    return Packed(head, arrays)
+    return _under_ceiling(Packed(head, arrays))
+
+
+def _under_ceiling(packed: Packed) -> Packed:
+    """``packed`` with its pattern decimated to :data:`CURVES_CEILING` channels.
+
+    The channels kept are ``decimation_index``'s over the observed intensity,
+    so no peak top is lost. ``kept`` and ``fitted`` are re-indexed onto them,
+    and a fitted channel that went takes its model values with it.
+    """
+    import numpy as np
+
+    arrays = packed.arrays
+    n = len(arrays["two_theta"])
+    if n <= CURVES_CEILING:
+        return packed
+    sel = decimation_index(arrays["two_theta"], [arrays["y_obs"]], CURVES_CEILING)
+    where = np.full(n, -1)
+    where[sel] = np.arange(len(sel))
+    out = {"two_theta": arrays["two_theta"][sel], "y_obs": arrays["y_obs"][sel]}
+    kept = where[arrays["kept"]]
+    out["kept"] = kept[kept >= 0]
+    if "fitted" in arrays:
+        fitted = where[arrays["fitted"]]
+        on = fitted >= 0
+        out["fitted"] = fitted[on]
+        for key, values in arrays.items():
+            if key not in out and key != "fitted":
+                out[key] = values[on]
+    return Packed({**packed.header, "decimated": True}, out)
 
 
 def _windowed_ticks(res, window) -> dict:

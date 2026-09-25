@@ -333,6 +333,12 @@ export function panes(uPlot, host, spec) {
         sync: { key: sync, setSeries: false, scales: ["x", null],
                 filters: { pub: (type) => type !== "mousedown" && type !== "mouseup" && type !== "dblclick" } },
         drag: { x: true, y: group.mode === "zoom", uni: UNI, dist: CLICK, setScale: false },
+        // The cursor's own index for every series. uPlot's default walks each
+        // series left and right from the pointer to its nearest non-null value,
+        // on every move, in every pane; a fit's arrays are null over every
+        // masked channel and the tick band's series is null throughout, and no
+        // page reads a series' own index (finding 17).
+        dataIdx: (self, seriesIdx, idx) => idx,
         bind: { dblclick: () => null },
         points: { show: false }, y: false, focus: { prox: -1 },
       },
@@ -493,8 +499,12 @@ export function vlines(u, xs, top, height, color) {
 
 /**
  * A uPlot `paths` builder drawing one square marker at each device-pixel
- * column's lowest and highest point, D5's thinned path. At 200 000 points
- * every marker cost 13 ms a wheel event and this 8.4 ms (finding 4).
+ * column's lowest and highest point (D5). The pilot measured every marker
+ * against this on the real panel: every marker made long frames of 50-127 ms
+ * at 132 992 channels in chromium, and of 166-258 ms at 59 498 in Firefox and
+ * WebKit, where this made none in chromium at either size. Which points a
+ * payload carries is still the server's to decide; this decides which of them
+ * are painted, and a hit test or the readout still reads every one.
  */
 function thinMarkers(size) {
   return (u, si, i0, i1) => {
@@ -538,8 +548,8 @@ const RESIDUALS = { weighted: "delta", delta: "delta_raw", cumulative: "cumulati
  *
  * - `colors()`: `{ obs, masked, calc, bkg, diff, zero, phase }`, read at every
  *   draw, so a theme switch is a `redraw`. `phase` is one ink per tick row.
- * - `markers`: "all" draws every observed point, "thin" each pixel column's
- *   lowest and highest (D5).
+ * - The observed points are painted as each pixel column's lowest and
+ *   highest (D5, `thinMarkers`).
  * - `y`: the intensity scale, "lin", "sqrt" or "log". `residual`: "weighted",
  *   "delta" or "cumulative".
  * - `hidden`: the curves not drawn, as "obs", "masked", "calc", "bkg", "diff"
@@ -576,11 +586,8 @@ export function pattern(uPlot, host, curves, spec) {
   const nulls = () => [new Array(state.c.n).fill(null)];
 
   function markers(key) {
-    const alpha = key === "masked" ? 0.45 : 1, show = !state.hidden.has(key);
-    return spec.markers === "thin"
-      ? { show, stroke: ink(key), fill: ink(key), alpha, paths: thinMarkers(size[key]), points: { show: false } }
-      : { show, stroke: ink(key), alpha, paths: () => null,
-          points: { show: true, size: size[key], width: 0, fill: ink(key) } };
+    return { show: !state.hidden.has(key), stroke: ink(key), fill: ink(key),
+             alpha: key === "masked" ? 0.45 : 1, paths: thinMarkers(size[key]), points: { show: false } };
   }
 
   function drawTicks(u) {

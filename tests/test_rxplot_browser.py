@@ -328,14 +328,19 @@ def test_the_pattern_puts_the_fit_on_its_channels_and_nowhere_else(page):
     assert _has(_near(page, "main", 25), [255, 0, 0], alpha=100)
 
 
-def test_both_marker_paths_draw_the_observed_points(page):
-    """D5's two paths, drawn where the data is."""
-    for markers in ("all", "thin"):
-        page.evaluate("m => mountPattern({markers: m, hidden: ['calc', 'bkg']})", markers)
-        _frames(page)
-        x, y = page.evaluate("(() => { const c = curves(), i = c.arrays.kept[40];"
-                             " return [c.arrays.two_theta[i], c.arrays.y_obs[i]]; })()")
-        assert _has(_near(page, "main", x, y), [0, 0, 0]), markers
+def test_a_thinned_column_still_paints_its_highest_and_lowest_point(page):
+    """D5: each pixel column paints only its extremes, so a peak top one channel
+    wide survives a view of 20 or more channels a pixel, and so does the lowest
+    point beside it. Striding would drop both."""
+    page.evaluate("""(() => { const c = curves(20000), i = c.arrays.kept[3000];
+        c.arrays.y_obs[i] = 400; c.arrays.y_obs[i + 1] = -200;
+        window.spike = [c.arrays.two_theta[i], c.arrays.two_theta[i + 1]];
+        return mountPattern({hidden: ['calc', 'bkg']}, c); })()""")
+    _frames(page)
+    top, low = page.evaluate("spike")
+    assert page.evaluate("G.panes.main.data[0].length / G.panes.main.bbox.width") > 20
+    assert _has(_near(page, "main", top, 400), [0, 0, 0])
+    assert _has(_near(page, "main", low, -200), [0, 0, 0])
 
 
 def test_the_panes_fill_the_host_and_follow_it(page):

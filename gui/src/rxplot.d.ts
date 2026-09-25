@@ -40,7 +40,6 @@ declare module "rxplot" {
 
   export interface PatternSpec {
     colors: () => PatternColors;
-    markers?: "all" | "thin";
     y?: "lin" | "sqrt" | "log";
     residual?: "weighted" | "delta" | "cumulative";
     hidden?: readonly string[];

@@ -81,7 +81,6 @@ export interface Overlay {
 }
 
 export interface ChartOptions {
-  markers: "all" | "thin";
   scale: Scale;
   kind: ResidualKind;
   labels: { y: () => string; resid: () => string };
@@ -105,7 +104,6 @@ export class PatternChart {
     const shade = (u: any) => this.shade(u);
     this.fig = pattern(uPlot, host, curves, {
       colors: () => ({ ...this.colors, masked: this.colors.edge }),
-      markers: opts.markers,
       y: Y[opts.scale],
       residual: opts.kind,
       hidden: overlay.hidden,

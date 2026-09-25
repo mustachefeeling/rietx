@@ -68,8 +68,8 @@ describe("the chart module's payload in the window's shape", () => {
 
 describe("the renderer is chosen by the page's query string", () => {
   it("is plotly unless asked for the chart module", () => {
-    expect(chartChoice("")).toEqual({ uplot: false, markers: "all" });
-    expect(chartChoice("?chart=uplot")).toEqual({ uplot: true, markers: "all" });
-    expect(chartChoice("?chart=uplot&markers=thin")).toEqual({ uplot: true, markers: "thin" });
+    expect(chartChoice("")).toEqual({ uplot: false });
+    expect(chartChoice("?chart=uplot")).toEqual({ uplot: true });
+    expect(chartChoice("?chart=plotly")).toEqual({ uplot: false });
   });
 });

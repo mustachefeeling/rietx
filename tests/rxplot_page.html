@@ -65,10 +65,10 @@ window.curves = (n = 1100, shift = 0) => {
 // every ink distinct and opaque, so a pixel says which curve it is
 window.inks = { obs: "#000000", masked: "#0000ff", calc: "#ff0000", bkg: "#00c000", diff: "#ff00ff",
                 zero: "#808080", phase: ["#00a0a0", "#a000a0"] };
-window.mountPattern = (spec = {}) => {
+window.mountPattern = (spec = {}, payload = curves()) => {
   window.G?.destroy();
   window.layers = [];
-  const G = window.G = rx.pattern(uPlot, host, curves(), {
+  const G = window.G = rx.pattern(uPlot, host, payload, {
     colors: () => inks,
     layers: { main: { under: [() => layers.push("under")], over: [() => layers.push("over")] } },
     ...spec,
