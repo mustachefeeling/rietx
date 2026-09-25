@@ -1,41 +1,45 @@
 /**
- * The structure viewer's arithmetic (WP-1015).
+ * The structure viewer's arithmetic (WP-1015, WP-1462).
  *
  * There is deliberately no crystallography to test here — the orbit, the
  * metric, the eigen-decomposition and the bond rule are all in
  * `src/rietx/gui/structure3d.py` and asserted in `tests/test_structure3d.py`.
  * What *is* here is the part that can silently draw the right numbers wrongly:
- * the matrix-vector convention (the payload's 3×3 has the principal axes as
+ * the matrix convention (the payload's 3×3 has the principal axes as
  * **columns**, so transposing it would rotate every ellipsoid to a plausible
- * but wrong orientation), a mesh whose face indices must be offset per atom, and
- * a polyline whose nulls are what keep bonds from being joined end to end.
+ * but wrong orientation), the view's handedness (a mirrored cell looks
+ * right), and the pick, which must solve the same quadric the shader draws.
  */
 import { describe, expect, it } from "vitest";
 
+import { instanceData } from "./gl3d";
 import {
-  DEFAULT_CAMERA,
-  LIGHTING,
-  LIGHT_POSITION,
+  CELL_WIDTH_PX,
+  FLAT_AXIS,
   STICK_FLOOR,
   STICK_RADIUS,
+  apply3,
   atomLabel,
   atomTransform,
-  atomTraces,
-  axisCamera,
-  axisTrace,
-  bondTraces,
+  axisLabels,
+  axisView,
+  bondLabel,
+  buildScene,
   caption,
-  cellTrace,
   dim,
-  layout,
+  invert3,
   legend,
+  mul3,
+  openingView,
+  pickAtom,
+  pickHalf,
+  project,
+  rgb,
+  rotateBy,
   stickRadius,
-  stickTransform,
-  traces,
   transform,
-  unitCylinder,
-  unitSphere,
   type Geometry,
+  type Mat3,
   type Site,
 } from "./structure3d";
 
@@ -81,78 +85,15 @@ function geometry(extra: Partial<Geometry> = {}): Geometry {
   };
 }
 
-describe("the unit sphere", () => {
-  it("closes: every edge is shared by exactly two triangles", () => {
-    const { vertices, faces } = unitSphere(6, 10);
-    // Euler for a closed triangulated sphere: V − E + F = 2, with 3F = 2E
-    expect(vertices.length).toBe(2 + 5 * 10);
-    expect(faces.length).toBe(2 * 10 + 4 * 10 * 2);
-    expect(vertices.length - (3 * faces.length) / 2 + faces.length).toBe(2);
-  });
+const I3: Mat3 = [1, 0, 0, 0, 1, 0, 0, 0, 1];
 
-  it("is a unit sphere", () => {
-    for (const v of unitSphere(8, 16).vertices) {
-      expect(Math.hypot(v[0], v[1], v[2])).toBeCloseTo(1, 12);
-    }
-  });
+function expectMatrix(actual: Mat3, expected: Mat3, digits = 12) {
+  actual.forEach((v, k) => expect(v).toBeCloseTo(expected[k], digits));
+}
 
-  it("indexes no vertex it does not have", () => {
-    const { vertices, faces } = unitSphere(5, 7);
-    for (const face of faces) {
-      for (const index of face) {
-        expect(index).toBeGreaterThanOrEqual(0);
-        expect(index).toBeLessThan(vertices.length);
-      }
-    }
-  });
-});
-
-describe("the unit cylinder", () => {
-  it("is a tube of unit radius running z = 0 to z = 1", () => {
-    const { vertices, faces } = unitCylinder(6);
-    expect(vertices.length).toBe(12);
-    expect(faces.length).toBe(12);        // two triangles per segment
-    for (const v of vertices) {
-      expect(Math.hypot(v[0], v[1])).toBeCloseTo(1, 12);
-      expect(v[2] === 0 || v[2] === 1).toBe(true);
-    }
-    for (const face of faces) {
-      for (const index of face) expect(index).toBeLessThan(vertices.length);
-    }
-  });
-
-  it("wraps: the last segment closes onto the first", () => {
-    const { faces } = unitCylinder(5);
-    expect(faces[faces.length - 1].some((i) => i < 2)).toBe(true);
-  });
-});
-
-describe("the stick transform", () => {
-  it("sends the cylinder's axis to the segment and its rim to the radius", () => {
-    const t = stickTransform([1, 0, 0], [1, 0, 3], 0.08);
-    // z spans the segment itself…
-    expect(transform(t, [0, 0, 1])).toEqual([0, 0, 3]);
-    // …and x̂, ŷ are perpendicular to it, at exactly the radius
-    for (const v of [[1, 0, 0], [0, 1, 0]]) {
-      const p = transform(t, v);
-      expect(Math.hypot(p[0], p[1], p[2])).toBeCloseTo(0.08, 12);
-      expect(p[2]).toBeCloseTo(0, 12);
-    }
-  });
-
-  it("does not degenerate for a bond along any axis", () => {
-    // a chain along c is the common case, not the rare one, and a perpendicular
-    // built against a fixed ẑ would be a zero cross product — i.e. a NaN tube
-    for (const to of [[1, 0, 0], [0, 1, 0], [0, 0, 1], [1, 1, 1]]) {
-      const t = stickTransform([0, 0, 0], to, 0.1);
-      for (const row of t) for (const value of row) expect(value).not.toBeNaN();
-      const u = transform(t, [1, 0, 0]);
-      const dot = u[0] * to[0] + u[1] * to[1] + u[2] * to[2];
-      expect(dot).toBeCloseTo(0, 12);
-      expect(Math.hypot(u[0], u[1], u[2])).toBeCloseTo(0.1, 12);
-    }
-  });
-});
+function dot(a: number[], b: number[]): number {
+  return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+}
 
 describe("the transform", () => {
   it("reads the matrix by rows, so the payload's columns stay the axes", () => {
@@ -183,58 +124,68 @@ describe("the transform", () => {
   });
 });
 
-describe("the traces", () => {
-  it("groups atoms per species and per side of the cell wall, with face offsets", () => {
+describe("the scene", () => {
+  it("draws each atom through its own matrix, kept row-major with its inverse", () => {
     const geo = geometry();
-    const sphere = unitSphere(4, 6);
-    const meshes = atomTraces(geo, "ball", sphere);
-    // two buffers for La — one inside the cell, one for its boundary image,
-    // which is drawn dimmer (WP-1029) — and one for B, which has no image
-    expect(meshes.map((m) => m.name)).toEqual(["La", "La", "B"]);
-    expect(meshes[1].color).toBe(dim(meshes[0].color));
-    for (const mesh of meshes) {
-      expect(mesh.x.length).toBe(sphere.vertices.length);
-      expect(mesh.i.length).toBe(sphere.faces.length);
-      expect(Math.max(...mesh.i)).toBeLessThan(mesh.x.length);
-    }
+    const scene = buildScene(geo, { mode: "ellipsoid" });
+    expect(scene.atoms.map((a) => a.index)).toEqual([0, 1, 2]);
+    const b = scene.atoms[2];
+    // the payload's (row 2, column 0) is 0.05: row-major keeps it at [6]
+    expect(b.shape[6]).toBeCloseTo(0.05 * 1.5382, 12);
+    expect(b.shape[2]).toBe(0);
+    expectMatrix(mul3(b.shape, b.inverse), I3);
   });
 
-  it("puts each atom's own hover text on each of its vertices", () => {
-    const meshes = atomTraces(geometry(), "ellipsoid", unitSphere(4, 6));
-    expect(meshes[0].text[0]).toContain("La (La)");
-    expect(meshes[1].text[0]).toContain("La (La)");   // the image, same atom
-    expect(meshes[2].text[0]).toContain("RMS");
+  it("dims an image outside the cell rather than drawing it identically", () => {
+    expect(dim("#ffffff", 0.5)).toBe("#808080");
+    expect(dim("#48d860")).toBe("#2d863c");   // 0.62 of each channel, rounded
+    expect(dim("not a colour")).toBe("not a colour");
+    const scene = buildScene(geometry(), { mode: "ball" });
+    expect(scene.atoms[1].color).toEqual(rgb(dim("#aabbcc")));
+    expect(scene.atoms[0].color).toEqual(rgb("#aabbcc"));
   });
 
-  it("hides the species the legend switched off, and the boundary images", () => {
-    const geo = geometry();
-    const sphere = unitSphere(4, 6);
-    expect(atomTraces(geo, "ball", sphere, new Set(["La"])).map((m) => m.name))
-      .toEqual(["B"]);
-    const inner = atomTraces(geo, "ball", sphere, new Set(), false);
-    expect(inner[0].x.length).toBe(sphere.vertices.length);   // one La, not two
+  it("rings only an anisotropic site, and only in ellipsoid mode", () => {
+    // an isotropic site's T is √U·I, whose axes are x, y and z: rings there
+    // would claim an orientation the site does not have
+    expect(buildScene(geometry(), { mode: "ellipsoid" }).atoms.map((a) => a.rings))
+      .toEqual([false, false, true]);
+    expect(buildScene(geometry(), { mode: "ball" }).atoms.some((a) => a.rings))
+      .toBe(false);
   });
 
-  it("lights every mesh with the one fixed screen-space key", () => {
-    // plotly's `lightposition` is read in the *projection's* frame, not the
-    // data's (measured on plotly.js 3.7.0 — WP-1029's reopened log), so a
-    // fixed value follows the camera by construction and there is nothing to
-    // recompute per draw.  Two facts are worth pinning because each was
-    // shipped wrong once: z must not be positive — a z-dominant light sits
-    // behind the scene and the whole visible side renders ambient-flat, which
-    // is what "desaturated, dark and flat" was — and the ambient floor is what
-    // keeps the unlit side of a sphere readable rather than near-black.
-    expect(LIGHT_POSITION.z).toBeLessThanOrEqual(0);
-    expect(LIGHTING.ambient).toBeGreaterThanOrEqual(0.5);
+  it("draws a flat axis thin rather than losing the atom", () => {
+    // the server draws a non-positive axis at zero; the ray-caster needs M⁻¹
     const geo = geometry();
-    const meshes = [...atomTraces(geo, "ball", unitSphere(4, 6)),
-                    ...bondTraces(geo, unitCylinder(6))];
-    for (const mesh of meshes) {
-      // the same key and the same surface on every solid — the sticks and the
-      // balls must not disagree about where the light is
-      expect(mesh.lightposition).toEqual(LIGHT_POSITION);
-      expect(mesh.lighting).toEqual(LIGHTING);
-    }
+    geo.atoms[2].ellipsoid = [[0.2, 0, 0], [0, 0.1, 0], [0, 0, 0]];
+    const shape = buildScene(geo, { mode: "ellipsoid" }).atoms[2];
+    expect(Math.hypot(shape.shape[2], shape.shape[5], shape.shape[8])).toBeCloseTo(FLAT_AXIS, 12);
+    expect(shape.inverse.every(Number.isFinite)).toBe(true);
+    expect(invert3([1, 0, 0, 0, 1, 0, 0, 0, 0])).toBeNull();
+  });
+
+  it("hides the species the legend switched off, and the images when asked", () => {
+    const geo = geometry();
+    const noLa = buildScene(geo, { mode: "ball", hidden: new Set(["La"]) });
+    expect(noLa.atoms.map((a) => a.index)).toEqual([2]);
+    // a half belongs to its atom: hiding La and leaving its stub would be a
+    // coloured spike ending in mid-air
+    expect(noLa.halves.map((h) => h.color)).toEqual([rgb("#e0a080")]);
+    // the images go and their bonds stay, ending in mid-air — which is what
+    // the checkbox says it does
+    const inner = buildScene(geo, { mode: "ball", showBoundary: false });
+    expect(inner.atoms.map((a) => a.index)).toEqual([0, 2]);
+    expect(inner.halves.length).toBe(2);
+  });
+
+  it("splits a bond at its midpoint and colours each half by its own atom", () => {
+    const scene = buildScene(geometry(), { mode: "ball" });
+    expect(scene.halves.map((h) => h.color)).toEqual([rgb("#aabbcc"), rgb("#e0a080")]);
+    expect(scene.halves[0].from).toEqual([0, 0, 0]);
+    expect(scene.halves[0].to).toEqual([1, 1, 0.4]);
+    expect(scene.halves[1].from).toEqual([2, 2, 0.8]);
+    expect(scene.halves[1].to).toEqual([1, 1, 0.4]);
+    expect(bondLabel(geometry(), geometry().bonds[0])).toBe("La–B  3.000 Å");
   });
 
   it("sizes the stick for the mode it is drawn in", () => {
@@ -242,74 +193,25 @@ describe("the traces", () => {
     // ball mode: the fixed radius, pinned below BALL_FRACTION on the smallest
     // covalent radius there is, so no species is a lump on a rod
     expect(stickRadius(geo, "ball")).toBe(STICK_RADIUS);
-
-    // ellipsoid mode: an atom's size is √U·k(p) and has nothing to do with a
-    // covalent radius, so the stick follows the smallest semi-axis drawn.  The
-    // fixture's is 0.1 Å at k = 1.5382 → 0.1538, half of which is under the
-    // fixed radius, so the stick thins rather than swallowing the atom.
+    // ellipsoid mode: half the smallest drawn semi-axis, so the open end of a
+    // stick lies inside the ellipsoid's inscribed sphere in every direction
     const thin = stickRadius(geo, "ellipsoid");
     expect(thin).toBeCloseTo(0.5 * 0.1 * 1.5382, 12);
     expect(thin).toBeLessThan(STICK_RADIUS);
-    // the burial is a proof, not a hope: r ≤ ½·min semi-axis puts the rim
-    // inside the ellipsoid's inscribed sphere, hence inside it in every
-    // direction — which is what `unitCylinder` going uncapped now rests on
-    expect(thin).toBeLessThanOrEqual(0.5 * 0.1 * geo.scale);
-
-    // it never *grows* past the fixed radius, however big the exaggeration
     expect(stickRadius(geo, "ellipsoid", 8)).toBe(STICK_RADIUS);
-    // …and never vanishes, however small
     expect(stickRadius(geo, "ellipsoid", 0.001)).toBe(STICK_FLOOR);
+    expect(buildScene(geo, { mode: "ellipsoid" }).halves[0].radius).toBe(thin);
   });
 
-  it("dims an image outside the cell rather than drawing it identically", () => {
-    expect(dim("#ffffff", 0.5)).toBe("#808080");
-    expect(dim("#48d860")).toBe("#2d863c");   // 0.62 of each channel, rounded
-    expect(dim("not a colour")).toBe("not a colour");
-  });
-
-  it("breaks the cell polyline with nulls", () => {
-    const cell = cellTrace(geometry(), "#ccc");
-    expect(cell.x.length).toBe(12 * 3);
-    // exactly one null per edge: without them plotly joins edge to edge and
-    // draws a scribble that reads as a cell
-    expect(cell.x.filter((v: number | null) => v === null).length).toBe(12);
-  });
-
-  it("splits a bond at its midpoint and colours each half by its own atom", () => {
-    const geo = geometry();
-    const tube = unitCylinder(6);
-    const sticks = bondTraces(geo, tube);
-    expect(sticks.map((t) => t.name)).toEqual(["bonds:La", "bonds:B"]);
-    expect(sticks.map((t) => t.color)).toEqual(["#aabbcc", "#e0a080"]);
-    // one half each, and both carry the whole bond's hover
-    for (const half of sticks) {
-      expect(half.x.length).toBe(tube.vertices.length);
-      expect(half.i.length).toBe(tube.faces.length);
-      expect(Math.max(...half.i)).toBeLessThan(half.x.length);
-      expect(half.text[0]).toContain("La–B");
-      expect(half.text[0]).toContain("3.000 Å");
+  it("frames the cell with twelve edges at a width in CSS pixels", () => {
+    // a WebGL line is one *device* pixel, half a CSS pixel at DPR 2 and a
+    // hairline in a 3000 px export, so the frame is quads with a width (D9)
+    const scene = buildScene(geometry(), { mode: "ball", cell: "#1f5fa8" });
+    expect(scene.lines.length).toBe(12);
+    for (const line of scene.lines) {
+      expect(line.width).toBe(CELL_WIDTH_PX);
+      expect(line.color).toEqual(rgb("#1f5fa8"));
     }
-    // La's half runs from La's own position to the midpoint, and no further
-    const mid = [1, 1, 0.4];
-    for (const k of [0, 1, 2]) {
-      const axis = [sticks[0].x, sticks[0].y, sticks[0].z][k];
-      expect(Math.min(...axis)).toBeGreaterThanOrEqual(-0.09);
-      expect(Math.max(...axis)).toBeLessThanOrEqual(mid[k] + 0.09);
-    }
-  });
-
-  it("takes a species' half-sticks with it when the legend switches it off", () => {
-    // a half belongs to its atom: hiding La and leaving its stub would be a
-    // coloured spike ending in mid-air
-    const sticks = bondTraces(geometry(), unitCylinder(6), new Set(["La"]));
-    expect(sticks.map((t) => t.name)).toEqual(["bonds:B"]);
-  });
-
-  it("draws the cell behind the bonds behind the atoms", () => {
-    const all = traces(geometry(), "ball", unitSphere(4, 6), unitCylinder(6),
-                       "#ccc");
-    expect(all.map((t) => t.name))
-      .toEqual(["cell", "axes", "bonds:La", "bonds:B", "La", "La", "B"]);
   });
 
   it("labels the cell's own axes, clear of the corner atoms", () => {
@@ -317,17 +219,151 @@ describe("the traces", () => {
     // clearance is in Å and set by the largest ball, because a corner site is
     // drawn at all eight corners: a percentage of the edge put every letter
     // inside an atom on the first structure it was tried on.
-    const axes = axisTrace(geometry(), "#1f5fa8");
-    expect(axes.text).toEqual(["a", "b", "c"]);
+    const labels = axisLabels(geometry());
+    expect(labels.map((l) => l.text)).toEqual(["a", "b", "c"]);
     const clear = 0.35 + 0.4 * 2.0;               // the fixture's largest radius
-    expect(axes.x).toEqual([4 + clear, 0, 0]);
-    expect(axes.y).toEqual([0, 4 + clear, 0]);
-    expect(axes.z).toEqual([0, 0, 4 + clear]);
-    // …and it clears the ball itself, whatever the cell edge is
-    const small = axisTrace(geometry({ cell: [1, 1, 1, 90, 90, 90],
-                                       lattice: [[1, 0, 0], [0, 1, 0], [0, 0, 1]] }),
-                            "#1f5fa8");
-    expect(small.x[0] - 1).toBeGreaterThan(0.4 * 2.0);
+    expect(labels[0].pos).toEqual([4 + clear, 0, 0]);
+    expect(labels[1].pos).toEqual([0, 4 + clear, 0]);
+    expect(labels[2].pos).toEqual([0, 0, 4 + clear]);
+    const small = axisLabels(geometry({ lattice: [[1, 0, 0], [0, 1, 0], [0, 0, 1]] }));
+    expect(small[0].pos[0] - 1).toBeGreaterThan(0.4 * 2.0);
+  });
+
+  it("fits a view that neither a mode nor a legend click moves", () => {
+    const geo = geometry();
+    const ball = buildScene(geo, { mode: "ball" });
+    const big = buildScene(geo, { mode: "ellipsoid", exaggeration: 4,
+                                  hidden: new Set(["B"]) });
+    expect(big.radius).toBe(ball.radius);
+    expect(big.center).toEqual(ball.center);
+    // …while the depth range holds whatever is drawn
+    expect(ball.depth).toBeGreaterThan(ball.radius - 1);
+  });
+
+  it("packs each atom as 25 floats with the matrices as columns", () => {
+    const scene = buildScene(geometry(), { mode: "ellipsoid" });
+    const { atoms, halves, lines } = instanceData(scene);
+    expect(atoms.length).toBe(3 * 25);
+    expect(halves.length).toBe(2 * 10);
+    expect(lines.length).toBe(12 * 10);
+    // GLSL's mat3(c0, c1, c2) takes columns: the B atom's column 0 is the
+    // payload's first principal axis, (0.2, 0, 0.05)·k
+    const b = atoms.subarray(50, 75);
+    expect(b[3]).toBeCloseTo(0.2 * 1.5382, 5);
+    expect(b[5]).toBeCloseTo(0.05 * 1.5382, 5);
+    expect(b[24]).toBe(1);                   // rings on
+  });
+});
+
+describe("the view", () => {
+  it("opens down the body diagonal with c up, as a right-handed rotation", () => {
+    const r = openingView().rotation;
+    const [x, y, z] = [r.slice(0, 3), r.slice(3, 6), r.slice(6, 9)];
+    for (const row of [x, y, z]) expect(Math.hypot(...row)).toBeCloseTo(1, 12);
+    expect(dot(x, y)).toBeCloseTo(0, 12);
+    // right-handed: x × y = z, or the whole cell is drawn mirrored
+    expect(x[1] * y[2] - x[2] * y[1]).toBeCloseTo(z[0], 12);
+    expect(z[0]).toBeGreaterThan(0);
+    expect(z[1]).toBeGreaterThan(0);
+    expect(y[2]).toBeGreaterThan(0);          // Cartesian z up the screen
+  });
+
+  it("looks down a lattice vector with the next one but one up", () => {
+    // down a puts c up and b right, and so round: the three projections a
+    // structure is normally drawn in
+    const geo = geometry();
+    const down = axisView(geo, 2).rotation;
+    expectMatrix(down, [1, 0, 0, 0, 1, 0, 0, 0, 1]);           // a right, b up
+    expectMatrix(axisView(geo, 0).rotation, [0, 1, 0, 0, 0, 1, 1, 0, 0]);
+    // monoclinic, β = 110°: up is c with its part along a taken out
+    const beta = (110 * Math.PI) / 180;
+    const mono = geometry({ lattice: [[5, 0, 0], [0, 9, 0],
+                                      [7 * Math.cos(beta), 0, 7 * Math.sin(beta)]] });
+    const r = axisView(mono, 0).rotation;
+    expect(r.slice(6, 9)).toEqual([1, 0, 0]);
+    expect(dot(r.slice(3, 6), [1, 0, 0])).toBeCloseTo(0, 12);
+    expect(r[5]).toBeGreaterThan(0);          // c's own side of the plane
+  });
+
+  it("keeps the zoom the user had and drops the pan", () => {
+    const view = { ...openingView(), zoom: 2.5, pan: [1, -2] };
+    const down = axisView(geometry(), 1, view);
+    expect(down.zoom).toBe(2.5);
+    expect(down.pan).toEqual([0, 0]);
+  });
+
+  it("turns the front of the scene the way the pointer drags", () => {
+    const view = { rotation: I3, zoom: 1, pan: [0, 0] };
+    // the point nearest the viewer is +z in view space; a drag to the right
+    // moves it right, a drag down moves it down (screen y is down, view y up)
+    const right = apply3(rotateBy(view, 20, 0).rotation, [0, 0, 1]);
+    expect(right[0]).toBeGreaterThan(0);
+    expect(right[1]).toBeCloseTo(0, 12);
+    const down = apply3(rotateBy(view, 0, 20).rotation, [0, 0, 1]);
+    expect(down[1]).toBeLessThan(0);
+    expect(rotateBy(view, 0, 0)).toBe(view);
+  });
+
+  it("stays a rotation over a long drag", () => {
+    let view = openingView();
+    for (let i = 0; i < 2000; i += 1) view = rotateBy(view, 7 * Math.sin(i), 5 * Math.cos(i));
+    const r = view.rotation;
+    expectMatrix(mul3(r, [r[0], r[3], r[6], r[1], r[4], r[7], r[2], r[5], r[8]]), I3, 9);
+  });
+
+  it("puts the scene's centre at the canvas centre, and pans in Å", () => {
+    const scene = buildScene(geometry(), { mode: "ball" });
+    const view = openingView();
+    const [x, y] = project(scene, view, 400, 300, scene.center);
+    expect(x).toBeCloseTo(200, 9);
+    expect(y).toBeCloseTo(150, 9);
+    const panned = project(scene, { ...view, pan: [1, 0] }, 400, 300, scene.center);
+    const s = 300 / (2 * scene.radius);
+    expect(panned[0]).toBeCloseTo(200 - s, 9);
+  });
+});
+
+describe("the pick", () => {
+  const W = 400, H = 400;
+
+  it("finds the atom under a pixel, the nearest to the viewer first", () => {
+    const geo = geometry();
+    const scene = buildScene(geo, { mode: "ball" });
+    const view = axisView(geo, 2);                 // down c: a right, b up
+    const [x, y] = project(scene, view, W, H, [2, 2, 0.8]);
+    expect(scene.atoms[pickAtom(scene, view, W, H, x, y)!.atom].index).toBe(2);
+    // La at the origin and its image at (4, 0, 0) do not overlap down c, but
+    // straight down a they do: the one at x = 4 is nearer the viewer
+    const along = axisView(geo, 0);
+    const [ax, ay] = project(scene, along, W, H, [0, 0, 0]);
+    expect(scene.atoms[pickAtom(scene, along, W, H, ax, ay)!.atom].index).toBe(1);
+    expect(pickAtom(scene, view, W, H, 5, 5)).toBeNull();
+  });
+
+  it("solves an ellipsoid, not its bounding ball", () => {
+    // B's first axis is 0.2·k long along x and its second 0.1·k along y: a
+    // pixel 0.15·k off-centre along x hits, the same distance along y misses
+    const geo = geometry();
+    geo.bonds = [];
+    const scene = buildScene(geo, { mode: "ellipsoid" });
+    const view = axisView(geo, 2);
+    const s = W * view.zoom / (2 * scene.radius);
+    const [x, y] = project(scene, view, W, H, [2, 2, 0.8]);
+    const k = 0.15 * 1.5382 * s;
+    expect(pickAtom(scene, view, W, H, x + k, y)).not.toBeNull();
+    expect(pickAtom(scene, view, W, H, x, y - k)).toBeNull();
+  });
+
+  it("finds a bond half, and says which bond it is", () => {
+    const geo = geometry();
+    const scene = buildScene(geo, { mode: "ball" });
+    const view = axisView(geo, 2);
+    // three quarters of the way along, on B's half
+    const [x, y] = project(scene, view, W, H, [1.5, 1.5, 0.6]);
+    const hit = pickHalf(scene, view, W, H, x, y)!;
+    expect(scene.halves[hit.half].color).toEqual(rgb("#e0a080"));
+    expect(scene.halves[hit.half].bond).toBe(0);
+    expect(pickHalf(scene, view, W, H, 5, 5)).toBeNull();
   });
 });
 
@@ -348,7 +384,7 @@ describe("the legend", () => {
   });
 });
 
-describe("the caption and the layout", () => {
+describe("the caption", () => {
   it("says what is drawn and at which thresholds", () => {
     const text = caption(geometry(), "ellipsoid");
     expect(text).toContain("2 atoms in the cell");
@@ -366,70 +402,5 @@ describe("the caption and the layout", () => {
       .toContain("not positive definite");
     // …and only in the mode that draws it
     expect(atomLabel(geo, geo.atoms[2], "ball")).not.toContain("positive");
-  });
-
-  it("keeps one Å the same length on all three axes", () => {
-    // without `aspectmode: "data"` plotly stretches the box to a cube, which
-    // draws a monoclinic cell as an orthogonal one — the whole content of the
-    // picture for a low-symmetry phase.  It is also what makes `axisCamera`
-    // legal: the data→scene map is then a uniform scale.
-    expect(layout("#111").scene.aspectmode).toBe("data");
-    expect(layout("#111").uirevision).toBe("structure3d");
-  });
-
-  it("draws a crystal, not a plot: parallel projection, no Cartesian box", () => {
-    const scene = layout("#111").scene;
-    // perspective converges the far edges of the cell, so a cubic cell does not
-    // look cubic; every crystallographic figure is a parallel projection
-    expect(scene.camera.projection.type).toBe("orthographic");
-    // turntable pins `up` to +z and rewrites any camera that disagrees — and
-    // `cartesian_basis` is upper triangular, so c ∥ ẑ for every orthogonal cell
-    // and "view down c" would be a degenerate lookAt
-    expect(scene.dragmode).toBe("orbit");
-    for (const key of ["xaxis", "yaxis", "zaxis"]) {
-      expect(scene[key].visible).toBe(false);
-    }
-  });
-
-  it("looks down a lattice vector with the next one but one up", () => {
-    // down a puts c up and b right, and so round: the three projections a
-    // structure is normally drawn in
-    const geo = geometry({
-      // monoclinic, β = 110°, so `up` is genuinely not a lattice vector
-      lattice: [[5, 0, 0], [0, 9, 0], [7 * Math.cos((110 * Math.PI) / 180), 0,
-                                       7 * Math.sin((110 * Math.PI) / 180)]],
-    });
-    const down = axisCamera(geo, 0);
-    expect(down.eye.y).toBeCloseTo(0, 12);
-    expect(down.eye.z).toBeCloseTo(0, 12);
-    expect(down.eye.x).toBeGreaterThan(0);
-    // up is c, with the part along a taken out — an up parallel to the eye is a
-    // singular lookAt, and in a triclinic cell no two axes are perpendicular
-    const up = down.up!;
-    expect(up.x * down.eye.x + up.y * down.eye.y + up.z * down.eye.z)
-      .toBeCloseTo(0, 12);
-    expect(Math.hypot(up.x, up.y, up.z)).toBeCloseTo(1, 12);
-    expect(up.z).toBeGreaterThan(0);            // c's own side of the plane
-
-    // the projection follows, and the distance is the caller's — so choosing a
-    // view keeps whatever zoom the user had
-    expect(down.projection).toEqual(DEFAULT_CAMERA.projection);
-    const held = { eye: { x: 0, y: 0, z: 4 } };
-    const eye = axisCamera(geo, 2, held).eye;
-    expect(Math.hypot(eye.x, eye.y, eye.z)).toBeCloseTo(4, 12);
-  });
-
-  it("takes the camera from its caller, defaulting to the opening view", () => {
-    // The caller owns it because plotly does not keep it: every redraw here
-    // builds new trace objects, and replacing a `mesh3d` rebuilds the gl3d
-    // scene from the layout.  Isolated in a browser and measured by comparing
-    // screenshots — reading `layout.scene.camera` back reports whatever was
-    // last passed *in*, so it says a rotation was preserved when it was not.
-    expect(layout("#111").scene.camera).toEqual(DEFAULT_CAMERA);
-    const held = { eye: { x: 0.2, y: 2.1, z: 0.4 } };
-    // by identity: merging anything into the caller's camera here — the
-    // projection included — would be a second authority on the view
-    expect(layout("#111", held).scene.camera).toBe(held);
-    expect(layout("#111").scene.uirevision).toBe("structure3d");
   });
 });

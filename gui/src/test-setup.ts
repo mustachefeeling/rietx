@@ -35,6 +35,16 @@ if (typeof globalThis.ResizeObserver === "undefined") {
 vi.mock("uplot", async () => ({ default: (await import("./test-uplot")).StubPlot }));
 
 /**
+ * The structure viewer's WebGL2 renderer, for the same reason (WP-1462): jsdom
+ * has no WebGL, so `test-gl3d.ts` records each scene and view the viewer hands
+ * over, which is what `App.test.ts` asserts the viewer on.
+ */
+vi.mock("./lib/gl3d", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./lib/gl3d")>()),
+  createRenderer: (await import("./test-gl3d")).createRenderer,
+}));
+
+/**
  * A plotly stand-in: jsdom does not fetch `<script src>`, so `lib/plotly.ts`'s
  * runtime loader — which injects `/plotly.js` served out of the installed
  * Python package rather than vendoring 4.8 MB into the committed dist

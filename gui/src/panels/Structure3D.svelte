@@ -1,42 +1,56 @@
 <script lang="ts">
   /**
-   * The structure, rotatable, with **no new JS dependency** (WP-1015).
+   * The structure, rotatable, drawn by the viewer's own WebGL2 renderer
+   * (WP-1015, WP-1462).
    *
-   * plotly is already on the page — injected at runtime from `/plotly.js`, not
-   * vendored (WP-1010) — and `mesh3d` + `scatter3d` are all a ball-and-stick or
-   * thermal-ellipsoid view needs.  Everything hard is server-side: the symmetry
-   * orbit with each image's *rotated* displacement tensor, the bonds, the cell
-   * frame.  This component fetches Cartesian numbers and draws them.
+   * Everything hard is server-side: the symmetry orbit with each image's
+   * *rotated* displacement tensor, the bonds, the cell frame.  This component
+   * fetches Cartesian numbers, turns them into a scene (`lib/structure3d.ts`)
+   * and hands that to `lib/gl3d.ts`, which ray-casts every atom and bond as
+   * the exact quadric it is.  No library draws it: plotly cost 4.8 MB for a
+   * few hundred ellipsoids, and three.js would have cost 139 KB for the same
+   * (WP-1462 § The field, measured).
    *
    * **The ellipsoids are the reason this exists**, and they are a diagnostic
    * rather than decoration: their axes are refined quantities, so an
    * over-flexible background — which improves Rwp while inflating ADPs
    * (CLAUDE.md's block projection R²) — arrives here as balloons, and a tensor
    * that is not positive definite arrives as a flat disc with the reason in its
-   * hover. Neither is visible in the parameter table, where the same six numbers
-   * look like six ordinary rows.
+   * readout. Neither is visible in the parameter table, where the same six
+   * numbers look like six ordinary rows.
    *
    * Two knobs, and both are *drawing* thresholds rather than facts about the
    * sample, which is why neither is persisted: the probability level rescales
    * client-side from the table the payload carries (no refetch), and the bond
    * tolerance is a server round trip because the server owns the bond rule.
+   *
+   * **The view is owned here, outright.**  plotly rebuilt its scene from the
+   * layout on every redraw, so the view had to be read back from a private
+   * object first; a `View` this component holds survives every redraw by
+   * construction, and a test says so.
    */
+  import { untrack } from "svelte";
+
   import { ApiError, api } from "../api";
-  import { hoverLabel } from "../lib/plot";
-  import { loadPlotly } from "../lib/plotly";
-  import { coalesce } from "../lib/resize";
+  import { createRenderer, EXPORT_LONG_SIDE, type Renderer } from "../lib/gl3d";
   import {
-    DEFAULT_CAMERA,
-    axisCamera,
+    atomLabel,
+    axisView,
+    bondLabel,
+    buildScene,
     caption,
-    layout,
     legend,
-    traces,
-    unitCylinder,
-    unitSphere,
-    type Camera,
+    openingView,
+    pickAtom,
+    pickHalf,
+    pixelsPerAngstrom,
+    project,
+    rgb,
+    rotateBy,
     type Geometry,
     type Mode,
+    type Scene,
+    type View,
   } from "../lib/structure3d";
 
   import type { Theme } from "../lib/theme";
@@ -48,23 +62,25 @@
   }: {
     /** bumped by the model pane every time it re-reads — see the effect below */
     stamp?: number;
-    /** the resolved theme, and a dependency of the draw effect: this panel
-     *  samples `--accent` and the body colour at draw time, so a theme change
-     *  that does not redraw leaves the old theme's frame and labels on the
-     *  canvas (WP-1029 q) */
+    /** the resolved theme, and a dependency of the scene effect: the cell
+     *  frame samples `--accent` and the canvas the panel's background, so a
+     *  theme change that does not redraw leaves the old theme on the canvas
+     *  (WP-1029 q) */
     theme?: Theme;
     say?: (line: string) => void;
   } = $props();
 
-  let node: HTMLDivElement | undefined = $state();
-  let plotly: any = $state(null);
-  let observer: ResizeObserver | null = null;
-  /** The last camera handed to plotly — see `liveCamera`.  Deliberately not
-   *  `$state`: nothing renders it, and making it reactive would redraw on
-   *  every frame of a drag. */
-  let camera: Camera = DEFAULT_CAMERA;
-  /** A camera a *button* chose, which must outrank whatever is on screen. */
-  let pending: Camera | null = null;
+  let canvas: HTMLCanvasElement | undefined = $state();
+  let labelNodes: HTMLSpanElement[] = $state([]);
+  let renderer: Renderer | null = null;
+  /** jsdom and old browsers: no WebGL2, so say so rather than show a blank box */
+  let unsupported = $state(false);
+  /** What is drawn and where from.  Neither is `$state`: nothing renders them,
+   *  and making them reactive would re-render the panel on every frame of a
+   *  drag. */
+  let scene: Scene | null = null;
+  let view: View = openingView();
+  let frame = 0;
   let geo = $state<Geometry | null>(null);
   let error = $state("");
   /** Has a first load *settled*? — see `load`. */
@@ -96,12 +112,12 @@
    *  under a 300 px plot in a 380 px column; mode and the view buttons stay in
    *  the open because they are the two anyone reaches for. */
   let knobsOpen = $state(false);
-  /** Bumped by the view buttons.  The camera itself is not `$state` — nothing
-   *  renders it — so this is what asks the draw effect for one more frame. */
-  let view = $state(0);
+  /** Export the PNG on a transparent background rather than the panel's. */
+  let transparent = $state(false);
+  /** What is under the pointer: the readout strip's one line (WP-1213's rule —
+   *  a box over the picture covers the thing it describes). */
+  let reading = $state("");
 
-  const sphere = unitSphere();
-  const cylinder = unitCylinder();
   const entries = $derived(geo ? legend(geo) : []);
   const levels = $derived(geo ? Object.keys(geo.probability_levels) : []);
 
@@ -121,18 +137,43 @@
     load();
   });
 
-  /** Draw whenever the geometry or a client-side knob moves.  An `$effect` over
-   *  the state rather than a call at each site — WP-1013's rule, learned when a
-   *  fifth call site was the one that forgot. */
+  /** One renderer for the canvas's life, given back when the panel closes:
+   *  browsers keep about sixteen WebGL contexts a page and drop the oldest
+   *  without a word.
+   *
+   *  The canvas is this effect's only dependency, and that is load-bearing:
+   *  `rebuild` reads the geometry, so called bare it would make every new
+   *  payload re-run this effect, whose cleanup *loses* the context — and a
+   *  canvas keeps the context it first gave, dead, so the next renderer drew
+   *  Chrome's sad face (found in a browser; jsdom's stand-in loses nothing). */
+  $effect(() => {
+    if (!canvas) return;
+    renderer = createRenderer(canvas);
+    unsupported = renderer === null;
+    const observer = typeof ResizeObserver === "undefined"
+      ? null : new ResizeObserver(() => schedule());
+    observer?.observe(canvas);
+    untrack(() => rebuild());
+    return () => {
+      observer?.disconnect();
+      if (frame) cancelAnimationFrame(frame);
+      frame = 0;
+      renderer?.dispose();
+      renderer = null;
+    };
+  });
+
+  /** Rebuild the scene whenever the geometry or a client-side knob moves.  An
+   *  `$effect` over the state rather than a call at each site — WP-1013's rule,
+   *  learned when a fifth call site was the one that forgot. */
   $effect(() => {
     void geo;
     void mode;
     void hidden;
     void showBoundary;
     void exaggeration;
-    void view;
-    void theme; // the frame/label colours are sampled at draw time (WP-1029 q)
-    draw();
+    void theme;
+    rebuild();
   });
 
   /**
@@ -144,9 +185,7 @@
    * The older answer is dropped rather than merged, for the same reason.
    *
    * `ready` separates "not fetched yet" from "fetched, and there is nothing" —
-   * one `geo === null` cannot say both, and the first paint waits on the
-   * payload *and* on parsing plotly (measured 605–1447 ms), so the panel spent
-   * all of it saying "no structure yet" about a structure that was on its way.
+   * one `geo === null` cannot say both.
    */
   async function load() {
     const mine = ++seq;
@@ -177,101 +216,138 @@
       : { ...payload, probability: Number(key), scale };
   }
 
-  async function draw() {
+  /**
+   * A new scene for the renderer, then a frame.
+   *
+   * One microtask first: a style sampled synchronously inside an effect races
+   * the shell's `applyTheme` effect in the same flush, and the first dark
+   * frame would wear light ink (`gui/CLAUDE.md`, Plot.svelte's rule).
+   */
+  async function rebuild() {
     const geometry = geo;
-    if (!node || !geometry) return;
-    try {
-      plotly = plotly ?? (await loadPlotly());
-    } catch (exc) {
-      error = (exc as Error).message;
-      return;
-    }
+    await Promise.resolve();
+    if (!geometry || geometry !== geo) return;
     const style = getComputedStyle(document.body);
     // the cell frame is the picture's frame, so it gets the accent rather than
     // `--line`: a hairline border colour is invisible against the page in a 3D
     // scene, and the first browser run drew a box nobody could see.  The a/b/c
     // letters take the same colour, so frame and labels read as one object.
     const cell = style.getPropertyValue("--accent").trim() || "#1f5fa8";
-    // the camera for this draw: what a button chose, else what the user has
-    // rotated to, else the last one handed over.  The key light is *not*
-    // computed from it — `lightposition` is screen-relative (measured, see
-    // `lib/structure3d.ts:LIGHT_POSITION`), so the fixed key already follows
-    // every rotation, mid-drag included.
-    camera = pending ?? liveCamera() ?? camera;
-    pending = null;
-    await plotly.react(
-      node,
-      traces(geometry, mode, sphere, cylinder, cell, hidden, showBoundary,
-             exaggeration),
-      layout(style.color, camera,
-             hoverLabel((name) => style.getPropertyValue(name))),
-      // the default gl3d modebar floats over a panel this small, and one of its
-      // buttons (`tableRotation`) sets `dragmode: "turntable"` — which pins the
-      // up vector to +z and would silently break the view-down-axis buttons.
-      // `toImage` is the one worth keeping: a PNG of the structure for a slide.
-      { responsive: true, displaylogo: false, modeBarButtons: [["toImage"]] });
-    watch();
+    scene = buildScene(geometry, { mode, hidden, showBoundary, exaggeration, cell });
+    renderer?.setScene(scene);
+    paint();
+  }
+
+  /** One frame per animation frame, however many pointer events asked. */
+  function schedule() {
+    if (frame || typeof requestAnimationFrame === "undefined") {
+      if (!frame) paint();
+      return;
+    }
+    frame = requestAnimationFrame(() => {
+      frame = 0;
+      paint();
+    });
+  }
+
+  function paint() {
+    if (!renderer || !scene || !canvas) return;
+    renderer.draw(view, background());
+    placeLabels();
   }
 
   /**
-   * The camera plotly is *actually* showing, read back before every redraw.
+   * The colour the canvas clears to: the panel's own.
    *
-   * The view has to be re-supplied on every draw, because each one builds new
-   * trace objects and replacing a `mesh3d` tears the gl3d scene down and
-   * rebuilds it from the layout — which `uirevision` does not cover.  So the
-   * question is only where to read it from, and two of the three obvious
-   * answers are wrong:
-   *
-   * - `layout.scene.camera` reports whatever was last passed **in**.  Read it
-   *   back and it says the rotation was kept when it was thrown away, which is
-   *   why this is measured by comparing screenshots and never by reading state.
-   * - `plotly_relayout` — the public signal, and what this component listened
-   *   for until now — **does not fire for a gl3d camera drag at all**.
-   *   Measured in Chrome against plotly 6.9.0: zero events across a drag that
-   *   moved the eye from (1.35, 1.35, 0.95) to (−0.62, −1.41, −1.47), and the
-   *   next redraw put the scene back to the opening view.  It was wrong in the
-   *   shipped build too, not a regression: the same probe against WP-1015's own
-   *   `static/` says the same thing.
-   *
-   * What is left is the scene object, whose `getCamera()` returns the live
-   * `up`/`center`/`eye`/`projection` — private, but it is the only reading of
-   * the view that is a reading of the view.  When it is absent the last known
-   * camera stands, which is exactly the behaviour it replaces.
+   * The canvas is opaque — alpha-to-coverage writes its edge coverage into the
+   * samples, which is right only where alpha is thrown away (`lib/gl3d.ts`) —
+   * so it paints the colour that would otherwise show through it.
    */
-  function liveCamera(): Camera | null {
-    const scene = (node as any)?._fullLayout?.scene?._scene;
-    const live = scene?.getCamera?.();
-    // a camera that lost its projection would put the scene back into
-    // perspective — and a projection *change* disposes and re-initialises the
-    // gl plot, so that is a teardown per redraw, not a cosmetic slip
-    return live
-      ? { ...live, projection: live.projection ?? DEFAULT_CAMERA.projection }
-      : null;
+  function background(): number[] {
+    let at: Element | null = canvas?.parentElement ?? null;
+    while (at) {
+      const colour = getComputedStyle(at).backgroundColor;
+      const parts = colour.match(/[\d.]+/g)?.map(Number) ?? [];
+      if (parts.length >= 3 && (parts.length < 4 || parts[3] > 0)) {
+        return parts.slice(0, 3).map((v) => v / 255);
+      }
+      at = at.parentElement;
+    }
+    const token = getComputedStyle(document.body).getPropertyValue("--bg").trim();
+    return rgb(token || "#fbfbfa");
   }
 
-  /**
-   * Keep the canvas the size of its box.
-   *
-   * plotly's `responsive: true` listens for **window** resizes only, and this
-   * plot's box changes without one: the legend, the knobs and the caption below
-   * it all render *after* the first payload arrives, which shortens the plot
-   * div underneath an already-sized canvas.  Found in Chrome and structurally
-   * invisible to jsdom, which has no layout — the canvas overhung the legend and
-   * swallowed its clicks, so the chips looked live and were not.
-   *
-   * `coalesce` for the same reason the pattern plot has it, and on the same
-   * evidence rather than by analogy: measured here too, a 60-move drag of the
-   * model pane's column grip issued **60** resizes whose last resolved 1.115 s
-   * after it was asked for (`lib/resize.ts` carries the numbers and the rule).
-   */
-  function watch() {
-    if (observer || !node || typeof ResizeObserver === "undefined") return;
-    const fit = coalesce(() => (node && plotly ? plotly.Plots?.resize(node) : undefined));
-    observer = new ResizeObserver(fit);
-    observer.observe(node);
+  /** The a, b, c letters as DOM over the canvas (D3): crisp, and in the
+   *  theme's own type. */
+  function placeLabels() {
+    if (!scene || !canvas) return;
+    const width = canvas.clientWidth, height = canvas.clientHeight;
+    scene.labels.forEach((label, k) => {
+      const node = labelNodes[k];
+      if (!node) return;
+      const [x, y] = project(scene!, view, width, height, label.pos);
+      node.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%)`;
+    });
   }
 
-  $effect(() => () => observer?.disconnect());
+  // ---------------------------------------------------------------------
+  // the pointer: a trackball, a pan and a zoom, and the readout
+  // ---------------------------------------------------------------------
+
+  let drag: { x: number; y: number; pan: boolean } | null = null;
+
+  function onDown(event: PointerEvent) {
+    drag = { x: event.clientX, y: event.clientY,
+             pan: event.button === 2 || event.shiftKey };
+    canvas?.setPointerCapture?.(event.pointerId);
+    reading = "";
+  }
+
+  function onMove(event: PointerEvent) {
+    if (!drag) {
+      hover(event);
+      return;
+    }
+    const dx = event.clientX - drag.x, dy = event.clientY - drag.y;
+    drag.x = event.clientX;
+    drag.y = event.clientY;
+    if (drag.pan && scene && canvas) {
+      const s = pixelsPerAngstrom(scene, view, canvas.clientWidth, canvas.clientHeight);
+      view = { ...view, pan: [view.pan[0] - dx / s, view.pan[1] + dy / s] };
+    } else {
+      view = rotateBy(view, dx, dy);
+    }
+    schedule();
+  }
+
+  function onUp(event: PointerEvent) {
+    drag = null;
+    canvas?.releasePointerCapture?.(event.pointerId);
+  }
+
+  function onWheel(event: WheelEvent) {
+    event.preventDefault();
+    view = { ...view, zoom: Math.min(40, Math.max(0.1, view.zoom * Math.exp(-event.deltaY * 0.0015))) };
+    schedule();
+  }
+
+  /** What is under the pointer, solved on the CPU against the same quadrics
+   *  the shader draws (D4): 12-61 µs an event at 116-173 atoms. */
+  function hover(event: PointerEvent) {
+    if (!scene || !canvas || !geo) return;
+    const box = canvas.getBoundingClientRect();
+    const x = event.clientX - box.left, y = event.clientY - box.top;
+    const width = canvas.clientWidth, height = canvas.clientHeight;
+    const atom = pickAtom(scene, view, width, height, x, y);
+    const half = pickHalf(scene, view, width, height, x, y);
+    if (atom && (!half || atom.z >= half.z)) {
+      reading = atomLabel(geo, geo.atoms[scene.atoms[atom.atom].index], mode);
+    } else if (half) {
+      reading = bondLabel(geo, geo.bonds[scene.halves[half.half].bond]);
+    } else {
+      reading = "";
+    }
+  }
 
   function toggleSpecies(species: string) {
     const next = new Set(hidden);
@@ -284,14 +360,13 @@
    *  draws, and the cure for the roll that free rotation allows. */
   function look(axis: number) {
     if (!geo) return;
-    // the distance from what is on screen, so the button keeps the user's zoom
-    pending = axisCamera(geo, axis, liveCamera() ?? camera);
-    view += 1;
+    view = axisView(geo, axis, view);
+    paint();
   }
 
   function home() {
-    pending = DEFAULT_CAMERA;
-    view += 1;
+    view = openingView();
+    paint();
   }
 
   function setProbability(key: string) {
@@ -301,6 +376,39 @@
     mode = "ellipsoid";
     say(`# ellipsoids at ${(Number(key) * 100).toFixed(0)} % `
       + `(k = ${geo.scale.toFixed(4)} = √χ²₃(${key}))`);
+  }
+
+  /**
+   * A PNG of the structure, rendered once more offscreen with its long side at
+   * `EXPORT_LONG_SIDE` pixels (D5): the screen is a slide at best, and a figure
+   * wants 2000 px at 300 dpi.  The letters are DOM on screen, so the export is
+   * handed where they sit and how they look, and draws them itself.
+   */
+  async function savePng() {
+    if (!renderer || !scene || !canvas || !geo) return;
+    const width = canvas.clientWidth, height = canvas.clientHeight;
+    const labels = scene.labels.map((label, k) => {
+      const [x, y] = project(scene!, view, width, height, label.pos);
+      const style = labelNodes[k] ? getComputedStyle(labelNodes[k]) : null;
+      return { text: label.text, x, y, color: style?.color || "#1f5fa8",
+               font: style?.font || "600 12px sans-serif" };
+    });
+    const size = renderer.exportSize(EXPORT_LONG_SIDE);
+    const blob = await renderer.exportPng(view, {
+      background: transparent ? null : background(), labels,
+    });
+    if (!blob) {
+      error = "the export could not be rendered at any size this GPU allows";
+      return;
+    }
+    const name = `${(geo.name || "structure").replace(/[^\w.-]+/g, "_")}.png`;
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = name;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(link.href), 0);
+    say(`# saved ${name}, ${size.width} × ${size.height} px`
+      + (transparent ? " on a transparent background" : ""));
   }
 </script>
 
@@ -328,9 +436,23 @@
     {/if}
   </header>
 
-  <div class="plot" bind:this={node}></div>
+  <div class="plot">
+    <!-- drag rotates, shift- or right-drag pans, the wheel zooms -->
+    <canvas bind:this={canvas}
+      onpointerdown={onDown} onpointermove={onMove} onpointerup={onUp}
+      onpointercancel={onUp} onpointerleave={() => { if (!drag) reading = ""; }}
+      onwheel={onWheel} oncontextmenu={(e) => e.preventDefault()}></canvas>
+    <div class="letters" aria-hidden="true">
+      {#each ["a", "b", "c"] as text, k (text)}
+        <span bind:this={labelNodes[k]} hidden={!geo}>{text}</span>
+      {/each}
+    </div>
+  </div>
+  <p class="reading mono">{reading || " "}</p>
 
-  {#if error}
+  {#if unsupported}
+    <p class="bad">this browser has no WebGL2, which the structure viewer draws with</p>
+  {:else if error}
     <p class="bad">{error}</p>
   {:else if !geo}
     <p class="muted">{ready ? "no structure yet" : "loading the structure…"}</p>
@@ -356,6 +478,9 @@
         <button class="ghost" onclick={home}>reset</button>
       </span>
       <span class="spacer"></span>
+      <button class="ghost" onclick={savePng}
+        title="save the picture as a PNG {EXPORT_LONG_SIDE} px on its long side —
+               rendered again, not captured from the screen">PNG</button>
       <button class="ghost" class:on={knobsOpen}
         onclick={() => (knobsOpen = !knobsOpen)}
         title="drawing thresholds — none of them is a fact about the sample, so
@@ -406,6 +531,11 @@
             onchange={(e) => (showBoundary = (e.currentTarget as HTMLInputElement).checked)} />
           images outside the cell
         </label>
+        <label class="inline">
+          <input type="checkbox" checked={transparent}
+            onchange={(e) => (transparent = (e.currentTarget as HTMLInputElement).checked)} />
+          transparent PNG
+        </label>
       </div>
     {/if}
 
@@ -442,8 +572,49 @@
   }
 
   .plot {
+    position: relative;
     flex: 1 1 auto;
     min-height: 300px;
+  }
+
+  canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    touch-action: none;
+    cursor: grab;
+  }
+
+  canvas:active {
+    cursor: grabbing;
+  }
+
+  .letters {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  .letters span {
+    position: absolute;
+    left: 0;
+    top: 0;
+    color: var(--accent);
+    font-weight: 600;
+    font-size: var(--text-sm);
+  }
+
+  .reading {
+    /* one line, always there, so a hover does not move the controls below */
+    min-height: 1.4em;
+    margin: 2px 0 0;
+    font-size: var(--text-sm);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .legend {
