@@ -23,6 +23,7 @@ or runs in the suite. The logs in `results/` are the runs the WP quotes.
 | `make_exports.py`, `make_uplot_export.mjs` | Build today's `write_html` page and its uPlot equivalent from one set of arrays. |
 | `pilot.mjs` | The pilot's acceptance probe: the real GUI, plotly against the chart module on one server, every gesture as CDP work per event and as the time inside every callback the page registered. Chromium, Firefox and WebKit. |
 | `pilot_matrix.mjs`, `pilot_summary.mjs` | The pilot's runs, appended to `results/pilot_<engine>_<dataset>_dpr<n>.txt`, and those logs read back as ranges. Logs before the D5 decision name three renderers: `uplot` drew every marker, `thin` thinned per pixel column. After it, `chart` is the thinned module. |
+| `hover_trace.mjs` | One chromium trace of a hover sweep per renderer, summed by trace event, with the rectangles repainted (the WP's finding 18). |
 | `make_lab6.py` | The `lab6_capillary` standard as a GUI project, for the 132 992-channel runs. |
 | `serve.mjs`, `index.html` | The demos for a person: `node serve.mjs [port]`, then <http://127.0.0.1:8810/>. `?demo` gives the prototype pages a toolbar that times each action, and the pattern page prints each frame's repaints. |
 

@@ -260,6 +260,15 @@ Single runs, so no range (`results/proto_run2.txt`, `proto_dpr2.txt`,
     null-padded by design (the model over 37 000 masked NAC channels, the
     tick band's series throughout), and no page reads a series' own index.
     `panes()` hands every series the cursor's index instead.
+18. **plotly answers at most one hover every 50 ms.** Its fx throttles hover
+    calls to `HOVERMINTIME: 50`, so at the probe's 16 ms spacing it answers
+    about one move in three. The chart's readout answers every move. A trace
+    of one 120-move sweep had the chart repaint the page 240 times and plotly
+    87 times (`hover_trace.mjs`). So plotly's hover work per move sits under
+    the chart's in some runs: in 1 of 7 paired runs on the final build, and
+    in 3 of 19 over the pilot's three builds, each a matrix's first call at
+    dpr 1, by 0.22-0.68 ms. The chart's own figure is steady at 3.2-3.6 ms. Matching plotly's would mean answering fewer moves, so the
+    miss is recorded rather than tuned away.
 
 ### Behaviours the spike did not rebuild
 
@@ -445,6 +454,82 @@ three runs each at load 3-5:
   size, at load 7-29, had long frames in three gestures. At load 3-5 only this
   one kept its long frame.
 
+### The pilot, measured
+
+`pilot.mjs` drove the real GUI on one server per call, plotly against the
+chart module, with every gesture sent as real input. Work is the change in
+CDP `TaskDuration` less the page's idle rate, per event. "Callbacks" is the
+time inside every listener, microtask, timer, frame and `ResizeObserver`
+callback the page registered, the one figure Firefox and WebKit give. A
+resize's own share is the CPU profile's time in stacks through the chart
+library's files. Chrome for Testing 148, playwright's Firefox 155 (build
+1543) and WebKit 26.6 (build 2359), load averages 3-7, three calls a row
+unless a row says one. `pilot_summary.mjs 2026-09-25T05:33` reads the final
+set back from `results/pilot_*.txt`; the earlier blocks there are the D5
+comparison and a first re-measurement.
+
+**Go.** On NAC in chromium the chart met acceptance 1, 3 and 2, except the
+hover clause in one paired run of seven, by 0.68 ms (finding 18). It met
+acceptance 7 in Firefox and WebKit.
+
+1. **Opening.** plotly's evaluation was a long frame of 308-320 ms, then
+   125-158 ms in `app.js`. With the chart, no long frame at all, at
+   devicePixelRatio 1 and 2. At 132 992 channels there was one frame of
+   52-66 ms, in `app.js` and none of it the chart library's.
+2. **Gestures**, work per event in ms, chart against plotly:
+
+   | Gesture | dpr 1 chart | dpr 1 plotly | dpr 2 chart | dpr 2 plotly |
+   |---|---|---|---|---|
+   | hover | 3.32-3.56 | 2.82-4.29 | 3.41-3.59 | 4.16-4.28 |
+   | drag-zoom | 4.12-4.35 | 8.77-9.29 | 3.90-4.33 | 8.15-8.76 |
+   | exclude drag | 5.07-5.77 | 11.13-11.71 | 5.69-5.82 | 9.72-11.15 |
+   | peak drag | 1.56-1.78 | 8.64-8.97 | 2.20-2.49 | 7.67-8.09 |
+   | wheel zoom | 4.73-5.02 | none | 5.55-6.23 | none |
+   | shift-wheel pan | 5.16-5.50 | none | 6.43-7.41 | none |
+   | alt-drag pan | 3.68-3.73 | none | 3.71-4.32 | none |
+
+   - The chart had no long animation frame in any gesture. plotly had one of
+     51 ms, in an exclude drag.
+   - A chart zoom fetched nothing. plotly fetched the window after every zoom
+     and reset, nine times over five drags.
+   - The p95 frame interval was 16.7-18.6 ms for both renderers and every
+     gesture, hover included. That is headless chromium's frame clock under
+     the probe, so the 17.7 ms clause cannot separate the two here.
+3. **Resizing.** The chart's own work was 1.7-3.5 ms at dpr 1 and 1.5-2.9 at
+   dpr 2, against plotly's 11.3-17.2 and 11.3-14.5. The next-frame claim is
+   `test_rxplot_browser.py`'s.
+
+At **132 992 channels** (LaB6, dpr 1) the chart had no long frame in any
+gesture. Its wheel zoom cost 8.49-8.75 ms an event and a resize 4.6-6.7 ms of
+its own. plotly had long frames of up to 64 ms in its peak drags and 56 ms in
+an exclude.
+
+**Firefox and WebKit** (NAC, dpr 1): every gesture worked, no page error was
+thrown, and every drag moved its line. Chart callbacks per event in ms:
+
+| Gesture | Firefox | WebKit |
+|---|---|---|
+| hover | 0.89-1.01 | 0.61-0.72 |
+| drag-zoom | 2.29-2.46 | 1.00-1.17 |
+| exclude drag | 3.00-3.07 | 1.48-1.52 |
+| peak drag | 0.71-0.93 | 0.71-0.86 |
+| wheel zoom | 7.45-8.40 | 4.40-4.80 |
+| shift-wheel pan | 4.60-5.80 | 2.70-2.80 |
+| alt-drag pan | 4.79 | 1.86-2.29 |
+| resize, per resize | 4-11 | 3-9 |
+
+The longest frame was 50.0-50.5 ms in Firefox, where the refetched payload of
+an exclude lands, and 26-28 ms in WebKit. plotly's were 50.0-51.5 and
+39-48 ms in the same gesture.
+
+**D5** was decided on the first matrix, which measured every marker beside
+the thinned path. Every marker made long frames in chromium at 132 992
+channels: 10 in the drag-zooms (up to 61 ms), 13 in the excludes (up to
+127 ms) and 3 in the wheel zooms (up to 59 ms), over three runs. At dpr 2 on
+NAC its wheel zoom cost 8.53-9.59 ms an event. On NAC an exclude made frames
+of 166.7-216.7 ms in Firefox and 242-258 ms in WebKit, and Firefox's wheel
+zoom spent 21.40-21.85 ms in callbacks an event.
+
 ### Decisions this WP takes
 
 Each carries the recommended answer. The maintainer confirms or overturns it
@@ -619,7 +704,7 @@ day.
 - [x] Measure D4 and D8 on real payloads (the NAC result, a compare standard, a series): JSON against binary arrays, parse, grid union. Settle the route and the ceiling. (Float64 binary, the pattern's own grid with a fitted index, compare curves out of the poll; the ceiling follows D5.)
 - [x] Vendor uPlot 1.6.32, its css and LICENSE into `src/rietx/viz/static/`, copied there by `npm run build` from the exact pin in `gui/package.json` (D2, § Keeping it current). Add the ATTRIBUTION row and put the directory in `build_info.py`'s digest. A test holds the vendored banner's version equal to the pin. Add `.github/dependabot.yml` for uPlot in `gui/`. Rebuild the dist, since the pin moves the digest. (Serving it moved to the watch and compare tasks, where a page first loads it. svgcanvas joins Dependabot with the export task, which adds the dependency.)
 - [x] The module's core: panes on one x, sync, drag, wheel and pan, y-zoom, select, the readout hook, the `ResizeObserver` path. Findings 1-3, 5 and 10 each get a case: the pure half under `node --test` and vitest, the drawing in a browser test. (`src/rietx/viz/static/rxplot.mjs`; `tests/rxplot.test.mjs` through `tests/test_rxplot.py`, and `tests/test_rxplot_browser.py`, which covers finding 12 too. Vitest moved to the pilot, where the GUI first imports the module.)
-- [ ] Pilot, the gate: the curves route (D4) and its decoder in the module's pure half, and the GUI pattern panel on the core behind a flag, with the plotly renderer still selectable. Port the spike driver to the real page as the acceptance probe. Measure § Acceptance 1-3 against the plotly renderer on the same machine, in Chromium, WebKit and Firefox through playwright's builds. Build both marker paths (D5) and measure each, at NAC's 59 498 channels and at `11BM_LaB6_660a.fxye`'s 132 992. Record go or no-go, which marker path, and so which ceiling, in the handover. The GUI's vitest imports the module's pure half.
+- [x] Pilot, the gate: the curves route (D4) and its decoder in the module's pure half, and the GUI pattern panel on the core behind a flag, with the plotly renderer still selectable. Port the spike driver to the real page as the acceptance probe. Measure § Acceptance 1-3 against the plotly renderer on the same machine, in Chromium, WebKit and Firefox through playwright's builds. Build both marker paths (D5) and measure each, at NAC's 59 498 channels and at `11BM_LaB6_660a.fxye`'s 132 992. Record go or no-go, which marker path, and so which ceiling, in the handover. The GUI's vitest imports the module's pure half. (**Go**, § The pilot, measured. D5 chose thinning, so the ceiling is 150 000 channels. The flag is `?chart=uplot`; the probe is `pilot.mjs`.)
 - [ ] GUI pattern panel complete: peaks, candidates, masks, raw view, readout fields, Esc, axis titles. Delete the plotly-only code, stub uPlot in `test-setup.ts`, and move `App.test.ts` off the `Plotly.react` stub. Drawn colours are asserted from pixels or from the recorded `strokeStyle`.
 - [ ] `rietx watch` on the module, serving the vendored uPlot from its own server. `test_watch_browser.py` asserts what was drawn.
 - [ ] GUI Series panel: trajectory (D8), per-pattern chart through the curves route, rings, crosses plotted, the dashed tone, the tick formatter
