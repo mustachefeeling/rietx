@@ -582,6 +582,10 @@ private series: two rows, 1463 and 1464, in two existing sections, and one
 sentence on #374's third instance.  Four more findings went into the
 `### Inherited` of 1322, 1420, 1455 and 1456.  Landed 845, +1 headroom.
 
+846 -> 851 for the 2026-09-25 issue triage: one row, 1465, under § What
+fires, and what stays silent, and four lines in § v1.6 recording the order
+#286 asked for.  Landed 850, +1 headroom.
+
 ### `gui/CLAUDE.md`
 
 580 -> 612 for WP-1201 (2026-08-25): the house style — one token layer
