@@ -607,12 +607,19 @@ export function pattern(uPlot, host, curves, spec) {
     if (!key) throw new Error(`rxplot: no residual "${state.residual}"; one of ${Object.keys(RESIDUALS).join(", ")}`);
     if (!c.header.fit) return [spec.rawResidual?.() ?? nulls()[0]];
     if (cumulative()) {
-      const cum = c.arrays.cumulative_chi2, b = state.base;
-      return [c.on(Float64Array.from(cum, (v) => v - b))];
+      // re-based in place: a wheel zoom moves the base on nearly every event,
+      // and a fresh pair of channel-length arrays each time is garbage per tick
+      const cum = c.arrays.cumulative_chi2, at = c.arrays.fitted, b = state.base;
+      const out = (c.resid.rebased ??= new Array(c.n).fill(null));
+      for (let q = 0; q < at.length; q++) out[at[q]] = cum[q] - b;
+      return [out];
     }
     c.resid[key] ??= c.on(c.arrays[key]);
     return [c.resid[key]];
   };
+  /** The residual pane's curve is drawn. Before a fit it is the page's
+   *  `rawResidual`, whose own toggle is the page's, so "diff" does not hide it. */
+  const residShown = () => !(state.c.header.fit && state.hidden.has("diff"));
 
   function markers(key) {
     return { show: !state.hidden.has(key), stroke: ink(key), fill: ink(key),
@@ -664,7 +671,7 @@ export function pattern(uPlot, host, curves, spec) {
       { key: "ticks", height: tickHeight(Object.keys(state.c.ticks).length), range: [0, 1], yLabels: false,
         series: [{ show: false }], data: nulls(), hooks: hooks("ticks", { draw: [drawTicks] }) },
       { key: "resid", share: 0.24, xLabels: true, xLabel: "2θ (°)", label: () => spec.labels?.resid?.() ?? "",
-        series: [{ show: !state.hidden.has("diff"), stroke: ink("diff"), width: 1 }],
+        series: [{ show: residShown(), stroke: ink("diff"), width: 1 }],
         data: residData(), hooks: hooks("resid", { drawAxes: [drawZero] }) },
     ],
   });
@@ -694,6 +701,9 @@ export function pattern(uPlot, host, curves, spec) {
     const rows = tickHeight(Object.keys(state.c.ticks).length);
     if (group.panes.ticks.height !== rows) group.setHeight("ticks", rows);
     group.load(payload.arrays.two_theta, { main: mainData(), ticks: nulls(), resid: residData() }, keep);
+    // a fit arriving or leaving changes what "diff" governs (`residShown`)
+    const resid = group.panes.resid, show = residShown();
+    if (resid.series[1].show !== show) resid.setSeries(1, { show });
   };
 
   /** Another intensity scale, the x range kept. The rebuilt pane takes its
@@ -725,7 +735,7 @@ export function pattern(uPlot, host, curves, spec) {
       const show = !state.hidden.has(id);
       if (main.series[i + 1].show !== show) main.setSeries(i + 1, { show });
     }));
-    const diff = !state.hidden.has("diff");
+    const diff = residShown();
     if (resid.series[1].show !== diff) resid.setSeries(1, { show: diff });
     ticks.redraw(false, false);
   };

@@ -474,3 +474,24 @@ def test_a_payload_without_a_fit_draws_the_residual_the_page_supplies(page):
     page.evaluate("strip = strip.map((v) => (v == null ? null : v + 1)); G.refreshResidual()")
     _frames(page)
     assert page.evaluate("G.panes.resid.data[1][450] === strip[450]")
+
+
+def test_diff_hides_the_fits_residual_and_never_the_pages(page):
+    """``hidden: ['diff']`` is the fit's residual switched off. A page's own
+    residual has its own toggle, so a reader who hid Δ/σ and then checked out
+    to a state with no fit still sees the peak groups' strip, and a fit landing
+    after that hides it again."""
+    page.evaluate("""(() => { const a = curves().arrays;
+        window.raw = { header: { fit: false, weighted: true },
+                       arrays: { two_theta: a.two_theta, y_obs: a.y_obs, kept: a.kept } };
+        window.strip = new Array(a.two_theta.length).fill(null);
+        strip[450] = 1;
+        return mountPattern({ hidden: ['diff'], rawResidual: () => strip }, raw); })()""")
+    _frames(page)
+    assert page.evaluate("G.panes.resid.series[1].show") is True
+    page.evaluate("G.setCurves(curves(), true)")
+    _frames(page)
+    assert page.evaluate("G.panes.resid.series[1].show") is False
+    page.evaluate("G.setCurves(raw, true)")
+    _frames(page)
+    assert page.evaluate("G.panes.resid.series[1].show") is True

@@ -320,8 +320,11 @@
         labels: {
           y: () => (scale === "linear" ? "intensity" : `intensity (${scale})`),
           // an axis title names what is plotted: on the raw view that is each
-          // peak group's own residual, since there is no model to take one from
-          resid: () => (!held ? "" : held.raw ? "(y − fit)/σ per group" : residual(kind, held).title),
+          // peak group's own residual, since there is no model to take one from,
+          // and nothing where that residual is not drawn (`PatternChart.groupResidual`)
+          resid: () => (!held ? "" : !held.raw ? residual(kind, held).title
+            : peaksActive && peaks?.groups?.length && shows(hidden, "peakfit")
+              ? "(y − fit)/σ per group" : ""),
         },
       });
       applied = untrack(() => ({ kind, scale, theme }));

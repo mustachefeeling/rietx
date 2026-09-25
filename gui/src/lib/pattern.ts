@@ -149,7 +149,8 @@ export class PatternChart {
     const key = this.residualInputs();
     if (key.some((v, i) => v !== this.residualKey[i])) {
       this.residualKey = key;
-      this.fig.refreshResidual();
+      // with a fit the pane is the model's residual, which a peak edit leaves alone
+      if (!this.curves.header.fit) this.fig.refreshResidual();
     }
     this.fig.redraw();
   }

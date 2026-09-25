@@ -402,13 +402,13 @@ entry is described, pinned by a meta-test over every geometry — ten were mute
 the day it was written. WP-1203 retargeted it from `title=` to a corpus key.
 
 **What is fitted, shaded and selectable** (WP-1033, `lib/plot.ts`,
-`panels/Plot.svelte`, `session._masked_arm`, `Project.fitted_mask`) is the fit
+`panels/Plot.svelte`, `session.result_curves`, `Project.fitted_mask`) is the fit
 range and the excluded regions made visible, and its founding measurement is
 that **a mask is invisible in a picture of its own output**: `compile_model`
 masks before a result exists, so both payloads carried only the surviving
 channels — a band would have shaded a hole, and a fit range had no *outside* at
 all, the axis autoranging inside it. So the masked channels travel beside the
-fitted ones (`excluded`, quarter budget) and `Project.fitted_mask` is the one
+fitted ones (the curves payload's `kept`) and `Project.fitted_mask` is the one
 authority for which channels the next run fits, pinned to `compile_model` by
 asserting `len(result.two_theta)` against it. Four rules. **Protocol is not a
 drawing choice and may not wear its clothes** — the residual selector and the
