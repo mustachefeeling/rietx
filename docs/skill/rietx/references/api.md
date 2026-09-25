@@ -44,7 +44,7 @@ Readers and constructors. `rx.read_pattern` opens every format `rx.capabilities(
 - `rx.Instrument.bragg_brentano(*, radiation: str = 'CuKa', goniometer_radius_mm: float = 217.5, monochromator_two_theta: float | None = None, ka2_ratio: float = 0.5, mu_t: float | None = None, thickness_mm: float | None = None) -> Instrument` — Lab flat-plate diffractometer preset with a Kα1/Kα2 doublet.
 - `rx.Instrument.debye_scherrer(wavelength: float, *, polarization: float = 0.99, goniometer_radius_mm: float | None = None, capillary_radius_mm: float | None = None, packing_fraction: float = 0.6, mu_r: float | None = None) -> Instrument` — Synchrotron/capillary preset with a single wavelength.
 - `rx.estimate_mu_r(structure: Structure, instrument: Instrument) -> float | None` — Starting µR for a packed capillary, from composition and geometry.
-- `rx.auto_background(data: PatternData, *, kind: str = 'pspline', diagnostics: PatternDiagnostics | None = None, wavelength: float | None = None) -> Background` — Build a background model sized to the pattern.
+- `rx.auto_background(data: PatternData, *, kind: str = 'pspline', diagnostics: PatternDiagnostics | None = None, wavelength: float | None = None, two_theta_limits: tuple[float, float] | None = None) -> Background` — Build a background model sized to the pattern.
 - `rx.diagnose(data: PatternData, *, wavelength: float | None = None, baseline_lambda: float | None = None) -> PatternDiagnostics` — Compute `PatternDiagnostics` for a raw pattern.
 - `rx.load_instrument_profile(path: str | Path) -> Instrument` — Read a profile file back as a **frozen** instrument.
 - `rx.save_instrument_profile(instrument: Instrument, path: str | Path)` — Write the instrument's calibrated state to a JSON profile file.
@@ -84,7 +84,7 @@ Every refinable quantity is a `rx.Parameter` (`value`, `vary`, bounds), addresse
 - `rx.BackgroundChebyshev` — Shifted-Chebyshev background, linear in its coefficients.
   Fields: `kind: Literal['chebyshev'] = 'chebyshev'`, `coefficients: list[Parameter] = [Parameter(0.0) × 4]`
 - `rx.BackgroundPSpline` — Penalized cubic P-spline background, co-refined with the structure.
-  Fields: `kind: Literal['pspline'] = 'pspline'`, `breakpoints: list[float]`, `coefficients: list[Parameter]`, `lambda_smooth: float = 1.0`, `air_scatter: Parameter = Parameter(0.0, min=0.0)`
+  Fields: `kind: Literal['pspline'] = 'pspline'`, `breakpoints: list[float]`, `coefficients: list[Parameter]`, `lambda_smooth: float = 1.0`, `lambda_units: Literal['dimensionless', 'intensity'] = 'dimensionless'`, `air_scatter: Parameter | None = None`
 - `rx.BackgroundFixedPlusChebyshev` — A fixed curve (never subtracted; held additively) plus a small refinable Chebyshev correction on top, and a scale on the curve itself.
   Fields: `kind: Literal['fixed_plus_chebyshev'] = 'fixed_plus_chebyshev'`, `fixed_two_theta: list[float]`, `fixed_intensity: list[float]`, `fixed_sigma: list[float] | None = None`, `fixed_source: str | None = None`, `scale: Parameter = Parameter(1.0, min=0.0)`, `chebyshev: BackgroundChebyshev = BackgroundChebyshev(…)`
 - `rx.Dispersion` — Anomalous scattering corrections f′, f″ at the source wavelengths.

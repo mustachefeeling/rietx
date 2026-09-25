@@ -76,8 +76,8 @@ Preconditions, all of which must hold before `fit()` is meaningful:
 **Never subtract a background before refining.** Subtraction invalidates the
 counting-statistics weights and can make intensities negative. Hold an estimated
 background *additively* (`BackgroundFixedPlusChebyshev`) or co-refine it under a
-smoothness penalty (`BackgroundPSpline`). `rx.auto_background(data)` does the
-right thing. A **measured blank** (empty can, blank capillary, matrix-only scan)
+smoothness penalty (`BackgroundPSpline`); `rx.auto_background(data,
+two_theta_limits=…)` sizes one to the range you fit. A **measured blank** (empty can, blank capillary, matrix-only scan)
 is `BackgroundFixedPlusChebyshev.from_pattern(blank)`, which carries its esds;
 free `…background.scale` against a **low-order** polynomial, because the blank is
 never on the specimen's scale and enough Chebyshev terms describe the curve

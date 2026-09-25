@@ -46,6 +46,7 @@ from ..background.models import (
     chebyshev_design_matrix,
     hump_curve,
     interpolate_fixed,
+    pspline_penalty_scale,
     second_difference_matrix,
 )
 from ..crystallography.adp import U_NAMES, reciprocal_axis_lengths
@@ -661,7 +662,8 @@ class CompiledModel:
     # columns either way)
     bkg_paths: tuple[str, ...]
     bkg_design: np.ndarray  # (len(bkg_paths), n_points)
-    # P-spline smoothness penalty: extra residual rows √λ·D₂·c, already scaled
+    # P-spline smoothness penalty: extra residual rows w·D₂·c, the weight w
+    # (√λ, times √m/σ̄ under ``lambda_units="dimensionless"``) already folded in
     # (columns aligned with bkg_paths); None for penalty-free backgrounds
     bkg_penalty: np.ndarray | None
     #: Whether :attr:`sigma` came from the file's own esd column, or from the
@@ -893,7 +895,8 @@ class CompiledModel:
         return gamma
 
     def penalty_residual(self, values: dict[str, float]) -> np.ndarray | None:
-        """√λ·D₂·c rows appended to the residual (P-spline smoothness)."""
+        """w·D₂·c rows appended to the residual (P-spline smoothness; the
+        frozen weight w is ``bkg_penalty``'s, see that field)."""
         if self.bkg_penalty is None:
             return None
         xp = get_backend()
@@ -2078,7 +2081,7 @@ class CompiledModel:
         # Short is exactly what does not happen here, and that is checkable
         # rather than hopeful: the whole-model FD writes ``J[:n_data, c]`` only,
         # and a peak parameter's derivative on every row below the data block is
-        # *identically* zero — the P-spline penalty rows are √λ·D₂·c in the
+        # *identically* zero — the P-spline penalty rows are w·D₂·c in the
         # background *coefficients*, the Pawley rows are in the intensity block,
         # and a restraint row is a function of coordinates and cell.  So the
         # rows the FD leaves at their zero initialisation are the rows whose
@@ -3346,16 +3349,25 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
             sigma = np.sqrt(sigma * sigma + (s * sig_f) ** 2)
     elif isinstance(bkg, BackgroundPSpline):
         n_coef = len(bkg.coefficients)
-        bkg_paths = tuple(f"instrument.background.c{n}" for n in range(n_coef)) \
-            + ("instrument.background.air",)
-        spline = bspline_design_matrix(tt, np.asarray(bkg.breakpoints))
-        with np.errstate(divide="ignore"):
-            air_row = 1.0 / np.maximum(tt, 1e-3)
-        design = np.vstack([spline, air_row[None, :]])
+        bkg_paths = tuple(f"instrument.background.c{n}" for n in range(n_coef))
+        design = bspline_design_matrix(tt, np.asarray(bkg.breakpoints))
+        # An air term the model does not declare has no row, so no plan's
+        # ``instrument.background.*`` can free it (WP-1454).
+        n_air = 0 if bkg.air_scatter is None else 1
+        if n_air:
+            bkg_paths = bkg_paths + ("instrument.background.air",)
+            with np.errstate(divide="ignore"):
+                air_row = 1.0 / np.maximum(tt, 1e-3)
+            design = np.vstack([design, air_row[None, :]])
         if bkg.lambda_smooth > 0.0 and n_coef > 2:
             d2 = second_difference_matrix(n_coef)
-            penalty = np.hstack([np.sqrt(bkg.lambda_smooth) * d2,
-                                 np.zeros((d2.shape[0], 1))])  # air term unpenalised
+            weight = np.sqrt(bkg.lambda_smooth)
+            if bkg.lambda_units == "dimensionless":
+                # σ is this compile's, over the fitted channels, so the scale
+                # is frozen per stage like every other discrete choice here
+                weight *= pspline_penalty_scale(sigma, n_coef)
+            penalty = np.hstack([weight * d2,
+                                 np.zeros((d2.shape[0], n_air))])  # air term unpenalised
     else:  # pragma: no cover - schema exhausts the union
         raise TypeError(f"unsupported background model {type(bkg).__name__}")
 

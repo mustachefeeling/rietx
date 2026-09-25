@@ -128,6 +128,35 @@ def second_difference_matrix(n: int) -> np.ndarray:
     return d
 
 
+def pspline_penalty_scale(sigma: np.ndarray, n_coef: int) -> float:
+    """√(m)/σ̄, the factor that makes the P-spline's λ a pure number.
+
+    The penalty rows are √λ·D₂c (Eilers & Marx, 1996, Stat. Sci. 11, 89),
+    with c in intensity units, while every data row is divided by its σ.  So
+    λ on its own carries units of inverse intensity squared: multiply y and σ
+    by k and the data rows do not move while the penalty's effective weight
+    moves by k² (WP-1454 measured an 8-knot background go from unpenalised to
+    a straight line on a unit change alone).  Dividing the rows by σ̄, the
+    median σ over the fitted channels, removes the units.  Multiplying them by
+    √m, with m the fitted channels per coefficient, removes the sampling
+    density: the data's own weight on one coefficient grows as m/σ̄², so this
+    measures λ against it, and a 0.001° synchrotron scan and a 0.02° lab scan
+    of one curve at one knot spacing take the same λ to mean the same thing.
+
+    Derived, not measured: a background feature of width W then costs about
+    λ·(h/W)⁴ of the fit it buys, with h the knot spacing, so λ = 1 suppresses
+    features narrower than about one knot spacing and leaves wider ones to the
+    data.  The O(1) constant in that is not computed.  Both inputs are frozen
+    at stage compile, like σ itself.  m counts every coefficient, so it holds
+    as stated only while the knots span the fitted channels, which
+    ``auto_background(two_theta_limits=…)`` arranges.  Knots past the fitted
+    range make the penalty weaker than λ says on the coefficients that do see
+    data.
+    """
+    sigma = np.asarray(sigma, dtype=np.float64)
+    return float(np.sqrt(sigma.size / n_coef) / np.median(sigma))
+
+
 #: −4 ln 2, the Gaussian's FWHM normalisation, as one named constant so the
 #: numpy and traced evaluations cannot spell it two ways.  The association is
 #: fixed too: ``FOUR_LN2_NEG * (u * u)`` with u = (2θ − 2θ₀)/Γ, one spelling,

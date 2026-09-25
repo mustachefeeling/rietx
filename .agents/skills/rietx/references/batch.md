@@ -95,9 +95,9 @@ R_B flatter whichever model partitioned the intensities, so neither ranks
 across protocols. A batch that varies the background order or the excluded
 regions per candidate has ranked protocols, not models: on one fit, the
 over-flexible background won on every agreement index while being wrong, and
-`worst_absorption` (0.46 against 0.08) was the only row that separated the
-two. Compare `rwp_background_subtracted` pairs, the Le Bail gap ratio and ΔBIC
-for nested models, each on an identical protocol. *(Hypothesis: follows from
+`worst_absorption` (0.46 against 0.08, with the guard at 0.25) was the only row
+that separated the two. Compare `rwp_background_subtracted` pairs, the Le Bail
+gap ratio and ΔBIC for nested models, each on an identical protocol. *(Hypothesis: follows from
 §4's same-channels rule and WP-1055's single-fit measurement; no batch has
 measured the ranking itself.)*
 
