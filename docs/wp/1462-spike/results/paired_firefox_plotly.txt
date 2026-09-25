@@ -1,0 +1,3 @@
+2026-09-25T13:58:31.495Z firefox plotly run 0 | first frame 4329 ms, long frames while opening [] | drag gap p50 17.0 p95 48.0 ms over 112, long frames 0 | hover gap p95 61.0 ms, long frames 0 | load 144.9 on 10 cpus
+2026-09-25T13:58:48.615Z firefox plotly run 1 | first frame 2754 ms, long frames while opening [] | drag gap p50 17.0 p95 90.0 ms over 96, long frames 0 | hover gap p95 44.0 ms, long frames 0 | load 158.3 on 10 cpus
+2026-09-25T13:59:05.105Z firefox plotly run 2 | first frame 2791 ms, long frames while opening [] | drag gap p50 17.0 p95 37.0 ms over 96, long frames 0 | hover gap p95 44.0 ms, long frames 0 | load 173.9 on 10 cpus

@@ -584,30 +584,29 @@ export function pickAtom(scene: Scene, view: View, width: number, height: number
 }
 
 /** The bond half under a canvas point, or `null` — the shader's finite
- *  cylinder, solved for one ray. */
+ *  cylinder, solved for one ray: the ray's origin and direction with their
+ *  parts along the axis removed, against a circle of the stick's radius. */
 export function pickHalf(scene: Scene, view: View, width: number, height: number,
                          px: number, py: number): { half: number; z: number } | null {
   const [x, y] = unproject(scene, view, width, height, px, py);
   let best: { half: number; z: number } | null = null;
   for (const [i, half] of scene.halves.entries()) {
     const A = toView(scene, view, half.from), B = toView(scene, view, half.to);
-    const ba = [B[0] - A[0], B[1] - A[1], B[2] - A[2]];
-    // the ray starts far in front and runs down −z
-    const oc = [x - A[0], y - A[1], 1e4 - A[2]];
-    const baba = ba[0] * ba[0] + ba[1] * ba[1] + ba[2] * ba[2];
-    const bard = -ba[2];
-    const baoc = ba[0] * oc[0] + ba[1] * oc[1] + ba[2] * oc[2];
-    const k2 = baba - bard * bard;
-    if (k2 < 1e-12) continue;
-    const k1 = baba * -oc[2] - baoc * bard;
-    const k0 = baba * (oc[0] * oc[0] + oc[1] * oc[1] + oc[2] * oc[2])
-      - baoc * baoc - half.radius * half.radius * baba;
-    const h = k1 * k1 - k2 * k0;
-    if (h < 0) continue;
-    const t = (-k1 - Math.sqrt(h)) / k2;
-    const along = baoc + t * bard;
-    if (along < 0 || along > baba) continue;
-    const z = 1e4 - t;
+    const len = Math.hypot(B[0] - A[0], B[1] - A[1], B[2] - A[2]);
+    if (len < 1e-9) continue;
+    const w = [(B[0] - A[0]) / len, (B[1] - A[1]) / len, (B[2] - A[2]) / len];
+    const o = [x - A[0], y - A[1], -A[2]];
+    const ow = o[0] * w[0] + o[1] * w[1] + o[2] * w[2];
+    const q = [o[0] - ow * w[0], o[1] - ow * w[1], o[2] - ow * w[2]];
+    const e = [-w[2] * w[0], -w[2] * w[1], 1 - w[2] * w[2]];
+    const a = e[0] * e[0] + e[1] * e[1] + e[2] * e[2];
+    if (a < 1e-9) continue;                     // looking straight down the bond
+    const b = q[0] * e[0] + q[1] * e[1] + q[2] * e[2];
+    const disc = b * b - a * (q[0] * q[0] + q[1] * q[1] + q[2] * q[2] - half.radius ** 2);
+    if (disc < 0) continue;
+    const z = (-b + Math.sqrt(disc)) / a;
+    const along = ow + z * w[2];
+    if (along < 0 || along > len) continue;
     if (!best || z > best.z) best = { half: i, z };
   }
   return best;

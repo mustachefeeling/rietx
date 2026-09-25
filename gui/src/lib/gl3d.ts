@@ -135,26 +135,29 @@ uniform float uDepth;
 ${SHADE}
 out vec4 frag;
 void main() {
-  // a ray from the front of the depth range straight down -z, against the
-  // finite cylinder A-B, open at both ends: the far end is buried in its own
-  // atom (stickRadius' proof) and the near end meets the other half
-  vec3 ro = vec3(vXY, uDepth), rd = vec3(0.0, 0.0, -1.0);
-  vec3 ba = vB - vA, oc = ro - vA;
-  float baba = dot(ba, ba), bard = dot(ba, rd), baoc = dot(ba, oc);
-  float k2 = baba - bard * bard;
-  if (k2 < 1e-9) discard;
-  float k1 = baba * dot(oc, rd) - baoc * bard;
-  float k0 = baba * dot(oc, oc) - baoc * baoc - vR * vR * baba;
-  float h = k1 * k1 - k2 * k0;
-  float w = max(fwidth(h), 1e-12);
-  float coverage = clamp(0.5 + h / w, 0.0, 1.0);
+  // The ray (x, y, z) with z free, against the finite cylinder A-B, open at
+  // both ends: the far end is buried in its own atom (stickRadius' proof) and
+  // the near end meets the other half.  Taken apart along the axis w, a point
+  // is at radius |q + z·e| from it, with q and e the ray's origin and
+  // direction with their parts along w removed — the ellipsoid's equation
+  // with a circle for the sphere.
+  float len = length(vB - vA);
+  if (len < 1e-9) discard;
+  vec3 w = (vB - vA) / len;
+  vec3 o = vec3(vXY, 0.0) - vA;
+  vec3 dz = vec3(0.0, 0.0, 1.0);
+  vec3 q = o - dot(o, w) * w, e = dz - dot(dz, w) * w;
+  float a = dot(e, e);
+  if (a < 1e-9) discard;                     // looking straight down the bond
+  float b = dot(q, e), disc = b * b - a * (dot(q, q) - vR * vR);
+  float fw = max(fwidth(disc), 1e-12);
+  float coverage = clamp(0.5 + disc / fw, 0.0, 1.0);
   if (coverage <= 0.0) discard;
-  float t = (-k1 - sqrt(max(h, 0.0))) / k2;
-  float y = baoc + t * bard;
-  if (y < 0.0 || y > baba) discard;
-  vec3 p = ro + t * rd;
-  vec3 n = normalize((oc + t * rd - ba * y / baba) / vR);
-  gl_FragDepth = clamp(0.5 - p.z / (2.0 * uDepth), 0.0, 1.0);
+  float z = (-b + sqrt(max(disc, 0.0))) / a;  // the root nearer the viewer
+  float along = dot(o, w) + z * dot(dz, w);
+  if (along < 0.0 || along > len) discard;
+  vec3 n = normalize((q + z * e) / vR);
+  gl_FragDepth = clamp(0.5 - z / (2.0 * uDepth), 0.0, 1.0);
   frag = vec4(shade(vColor, n), coverage);
 }`;
 

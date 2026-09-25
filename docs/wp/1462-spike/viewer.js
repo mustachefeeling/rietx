@@ -80,22 +80,23 @@ flat in vec3 vA; flat in vec3 vB; flat in vec3 vColor; flat in float vR;
 uniform float uDepth; uniform vec3 uLight;
 out vec4 frag;
 void main() {
-  // ray from the front plane straight down -z against the finite cylinder A-B
-  vec3 ro = vec3(vXY, uDepth), rd = vec3(0.0, 0.0, -1.0);
-  vec3 ba = vB - vA, oc = ro - vA;
-  float baba = dot(ba, ba), bard = dot(ba, rd), baoc = dot(ba, oc);
-  float k2 = baba - bard * bard;
-  if (k2 < 1e-9) discard;
-  float k1 = baba * dot(oc, rd) - baoc * bard;
-  float k0 = baba * dot(oc, oc) - baoc * baoc - vR * vR * baba;
-  float h = k1 * k1 - k2 * k0;
-  if (h < 0.0) discard;
-  float t = (-k1 - sqrt(h)) / k2;
-  float y = baoc + t * bard;
-  if (y < 0.0 || y > baba) discard;
-  vec3 p = ro + t * rd;
-  vec3 n = (oc + t * rd - ba * y / baba) / vR;
-  gl_FragDepth = 0.5 - p.z / (2.0 * uDepth);
+  // the ray (x, y, z) with z free against the finite cylinder A-B: with the
+  // parts along the axis w removed, the radius is |q + z·e|
+  float len = length(vB - vA);
+  if (len < 1e-9) discard;
+  vec3 w = (vB - vA) / len;
+  vec3 o = vec3(vXY, 0.0) - vA;
+  vec3 dz = vec3(0.0, 0.0, 1.0);
+  vec3 q = o - dot(o, w) * w, e = dz - dot(dz, w) * w;
+  float a = dot(e, e);
+  if (a < 1e-9) discard;
+  float b = dot(q, e), disc = b * b - a * (dot(q, q) - vR * vR);
+  if (disc < 0.0) discard;
+  float z = (-b + sqrt(disc)) / a;
+  float along = dot(o, w) + z * dot(dz, w);
+  if (along < 0.0 || along > len) discard;
+  vec3 n = (q + z * e) / vR;
+  gl_FragDepth = 0.5 - z / (2.0 * uDepth);
   float diffuse = max(dot(n, uLight), 0.0);
   frag = vec4(vColor * (0.38 + 0.62 * diffuse), 1.0);
 }`;

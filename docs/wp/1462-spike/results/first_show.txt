@@ -1,0 +1,17 @@
+# Opening the Model tab in a fresh browser, NAC example, Chromium 1223 headed, Apple M4,
+# load average 107-142 on 10 cpus, 2026-09-25.
+#
+# loaf_attribution.mjs: the long animation frames of that opening and the script each names.
+viewer open: [{"start":2457,"duration":91,"render":3,"scripts":[{"invoker":"Response.text.then","source":"app.js","fn":"","duration":87}]}]
+viewer open: [{"start":2523,"duration":59,"render":3,"scripts":[{"invoker":"Response.text.then","source":"app.js","fn":"","duration":56}]}]
+# ...and the same page reloaded (warm browser), viewer still open: no long frame either time.
+#
+# gl_time.mjs: every WebGL2 method timed over the same opening, three fresh browsers.
+{"loaf":[{"start":2399,"duration":52},{"start":2566,"duration":87}],"getContext":25,"gl":["getShaderParameter ×6 15.6 ms","getProgramParameter ×6 6.6 ms","linkProgram ×3 0.6 ms","vertexAttribDivisor ×16 0.5 ms","createProgram ×3 0.4 ms","bufferData ×5 0.4 ms","uniformMatrix3fv ×3 0.4 ms","clear ×1 0.3 ms"],"total":"26.1"}
+{"loaf":[{"start":2504,"duration":89}],"getContext":26,"gl":["getShaderParameter ×6 19.8 ms","getProgramParameter ×6 5.8 ms","vertexAttribPointer ×19 2.1 ms","bindVertexArray ×10 1.2 ms","bufferData ×5 0.8 ms","linkProgram ×3 0.7 ms","vertexAttribDivisor ×16 0.7 ms","shaderSource ×6 0.5 ms"],"total":"34.1"}
+{"loaf":[],"getContext":7,"gl":["getShaderParameter ×6 9.6 ms","getProgramParameter ×6 3.5 ms","shaderSource ×6 0.1 ms","attachShader ×6 0.1 ms","deleteShader ×6 0.1 ms","getActiveUniform ×19 0.1 ms","createBuffer ×5 0.1 ms","getAttribLocation ×19 0.1 ms"],"total":"13.9"}
+#
+# first_frame.mjs, Firefox 1543 headed: the one draw came 218 ms after the click
+# ({"t":2204,"w":1070,"h":600,"cw":535}, Model opened at 1986 ms); the canvas was blank
+# in a screenshot at +300 ms and drawn at +1200 ms, so Firefox presents the first
+# frame after compiling the shaders.
