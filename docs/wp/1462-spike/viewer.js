@@ -114,6 +114,28 @@ uniform vec3 uColor;
 out vec4 frag;
 void main() { frag = vec4(uColor, 1.0); }`;
 
+// Polyhedra are ordinary triangles: flat faces, lit two-sided, blended.
+const POLY_VS = `#version 300 es
+in vec3 aPos; in vec3 aNormal; in vec4 aColor;
+uniform mat3 uR; uniform vec3 uTarget; uniform vec2 uScale; uniform float uDepth;
+out vec3 vN; out vec4 vColor;
+void main() {
+  vec3 p = uR * (aPos - uTarget);
+  vN = uR * aNormal; vColor = aColor;
+  gl_Position = vec4(p.xy * uScale, -p.z / uDepth, 1.0);
+}`;
+
+const POLY_FS = `#version 300 es
+precision highp float;
+in vec3 vN; in vec4 vColor;
+uniform vec3 uLight;
+out vec4 frag;
+void main() {
+  vec3 n = normalize(gl_FrontFacing ? vN : -vN);
+  frag = vec4(vColor.rgb * (0.45 + 0.55 * max(dot(n, uLight), 0.0)), vColor.a);
+}`;
+
+const POLY_ALPHA = 0.55;
 const STICK_RADIUS = 0.08;
 const LIGHT = normalize([-0.45, 0.55, 0.7]);
 
@@ -220,10 +242,11 @@ export function createViewer(canvas, overlay) {
   const atomProg = program(gl, ATOM_VS, ATOM_FS);
   const bondProg = program(gl, BOND_VS, BOND_FS);
   const lineProg = program(gl, LINE_VS, LINE_FS);
+  const polyProg = program(gl, POLY_VS, POLY_FS);
   let R = [1, 0, 0, 0, 1, 0, 0, 0, 1];
   let target = [0, 0, 0], extent = 10, zoom = 1, depth = 20;
-  let geometry = null, mode = "ball", exaggeration = 1;
-  let atoms = null, bonds = null, frame = null, shapes = [], hidden = new Set();
+  let geometry = null, mode = "ball", exaggeration = 1, showPoly = false;
+  let atoms = null, bonds = null, frame = null, poly = null, polyEdges = null, shapes = [], hidden = new Set();
   let background = [1, 1, 1], accent = [0.1, 0.35, 0.8];
   const labels = ["a", "b", "c"].map((t) => {
     const el = document.createElement("div");
@@ -270,6 +293,49 @@ export function createViewer(canvas, overlay) {
     gl.vertexAttribPointer(l, 3, gl.FLOAT, false, 0, 0);
     gl.bindVertexArray(null);
     frame = { vao, buffers: [buf], count: 24 };
+    uploadPolyhedra(shown);
+  }
+
+  // One flat-shaded triangle list for every polyhedron, each owning a range so a
+  // frame can draw them back to front; and their edges as lines in a darker ink.
+  function uploadPolyhedra(shown) {
+    release(poly); release(polyEdges);
+    poly = polyEdges = null;
+    const list = (geometry.polyhedra || []).filter((p) => shown[p.center]);
+    if (!showPoly || !list.length) return;
+    const tri = [], lines = [], ranges = [];
+    for (const p of list) {
+      const col = [...hex(p.color), POLY_ALPHA];
+      const first = tri.length / 10;
+      for (const [i, j, k] of p.faces) {
+        const [a, b, c] = [p.vertices[i], p.vertices[j], p.vertices[k]];
+        const u = b.map((x, m) => x - a[m]), v = c.map((x, m) => x - a[m]);
+        const n = normalize([u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]]);
+        for (const q of [a, b, c]) tri.push(...q, ...n, ...col);
+      }
+      const centroid = [0, 1, 2].map((m) => p.vertices.reduce((s, q) => s + q[m], 0) / p.vertices.length);
+      ranges.push({ first, count: tri.length / 10 - first, centroid });
+      for (const [i, j] of p.edges) lines.push(...p.vertices[i], ...p.vertices[j]);
+    }
+    const mk = (prog, data, layout) => {
+      const vao = gl.createVertexArray();
+      gl.bindVertexArray(vao);
+      const buf = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
+      const stride = layout.reduce((s, [, n]) => s + n, 0) * 4;
+      let off = 0;
+      for (const [name, n] of layout) {
+        const l = gl.getAttribLocation(prog.p, name);
+        gl.enableVertexAttribArray(l);
+        gl.vertexAttribPointer(l, n, gl.FLOAT, false, stride, off);
+        off += n * 4;
+      }
+      gl.bindVertexArray(null);
+      return { vao, buffers: [buf] };
+    };
+    poly = { ...mk(polyProg, tri, [["aPos", 3], ["aNormal", 3], ["aColor", 4]]), ranges };
+    polyEdges = { ...mk(lineProg, lines, [["aPos", 3]]), count: lines.length / 3 };
   }
 
   function uniforms(prog, W, H) {
@@ -304,6 +370,27 @@ export function createViewer(canvas, overlay) {
     gl.uniform3fv(lineProg.u.uColor, accent);
     gl.bindVertexArray(frame.vao);
     gl.drawArrays(gl.LINES, 0, frame.count);
+    if (poly) {
+      gl.uniform3fv(lineProg.u.uColor, [0.25, 0.25, 0.25]);
+      gl.bindVertexArray(polyEdges.vao);
+      gl.drawArrays(gl.LINES, 0, polyEdges.count);
+      // translucent faces last: depth-tested against everything opaque, writing
+      // no depth, farthest polyhedron first and each one's back faces first
+      uniforms(polyProg, W, H);
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+      gl.depthMask(false);
+      gl.enable(gl.CULL_FACE);
+      gl.bindVertexArray(poly.vao);
+      const z = (r) => R[6] * (r.centroid[0] - target[0]) + R[7] * (r.centroid[1] - target[1]) + R[8] * (r.centroid[2] - target[2]);
+      for (const r of [...poly.ranges].sort((p, q) => z(p) - z(q))) {
+        gl.cullFace(gl.FRONT); gl.drawArrays(gl.TRIANGLES, r.first, r.count);
+        gl.cullFace(gl.BACK); gl.drawArrays(gl.TRIANGLES, r.first, r.count);
+      }
+      gl.disable(gl.CULL_FACE);
+      gl.depthMask(true);
+      gl.disable(gl.BLEND);
+    }
     gl.bindVertexArray(null);
     // a, b, c as DOM text at each edge's end, beyond the origin corner
     const cw = canvas.clientWidth, ch = canvas.clientHeight, sc = s / dpr;
@@ -369,6 +456,7 @@ export function createViewer(canvas, overlay) {
       geometry = g;
       mode = opts.mode ?? mode;
       exaggeration = opts.exaggeration ?? exaggeration;
+      showPoly = opts.poly ?? showPoly;
       if (first) fit();
       upload();
       draw();
@@ -383,8 +471,8 @@ export function createViewer(canvas, overlay) {
     counts() { return { atoms: atoms.count, bondHalves: bonds.count }; },
     destroy() {
       ro.disconnect();
-      release(atoms); release(bonds); release(frame);
-      for (const p of [atomProg, bondProg, lineProg]) gl.deleteProgram(p.p);
+      release(atoms); release(bonds); release(frame); release(poly); release(polyEdges);
+      for (const p of [atomProg, bondProg, lineProg, polyProg]) gl.deleteProgram(p.p);
       gl.getExtension("WEBGL_lose_context")?.loseContext();
       for (const l of labels) l.remove();
     },

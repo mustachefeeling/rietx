@@ -192,10 +192,57 @@ The prototype lacks the legend, the a/b/c buttons, the knobs, bond hover,
 theme colours and context-loss handling. A full viewer is estimated at
 700 lines and under 10 KB gzip.
 
+### Polyhedra
+
+The maintainer asked for a polyhedral view on the same day, because many
+users will be solid-state chemists. The spike added one to test whether it
+moves D1. `payloads.py` stands in for the server. It reads each centre's
+shell off the bond segments, takes the convex hull with scipy, and sends
+vertices, outward-wound triangles and edges. `viewer.js` draws them as
+ordinary triangles after the opaque impostors: depth-tested against them,
+writing no depth, blended at alpha 0.55. Each frame orders the polyhedra
+farthest first by centroid and draws each one's back faces before its
+front faces.
+
+- **The renderer part is small.** It is 88 lines, taking the prototype to
+  480 lines, 13.3 KB minified and 5.5 KB gzip (`results/sizes_poly.txt`).
+  NAC's 26 polyhedra (AlF₆ and CaF₈) drew the same in the three engines, a
+  mean difference of 0.016 and 0.009 levels of 255
+  (`shots/engines-nac-poly.png`). A frame's draw call stayed at p95 0.3 ms
+  in Chromium and the frame gap at p95 17-18 ms in all three
+  (`results/proto_run3_poly.txt`, load average 43).
+- **The ordering is right while polyhedra do not interpenetrate.**
+  Coordination polyhedra share corners, edges or faces and never overlap in
+  volume, so ordering whole polyhedra works. If artefacts appear,
+  weighted blended order-independent transparency needs no ordering at all
+  (McGuire & Bavoil 2013). three.js also orders transparent objects whole
+  and ships no order-independent mode, so it gains nothing here.
+- **The bond rule is not a coordination rule.** Under the radius-sum rule,
+  fluorapatite's P reaches 4 Ca at 3.1-3.2 Å beside its 4 O, so its first
+  hull had 8 vertices. The spike's ligand rule takes the non-metal
+  neighbours of another element. It gives PO₄, AlF₆ and CaF₈. gemmi carries
+  no electronegativity table and neither does rietx, so a better rule needs
+  a table with a citation.
+- **A shell is matched by position.** The server can find a contact from a
+  translated copy of the centre, so a shell collected by atom index came out
+  short on 6 of 18 Ca in NAC.
+- **The hull needs care at its edges.** A square face comes out as two
+  triangles, so an edge is drawn only where its two faces are not
+  coplanar. A shell of fewer than four atoms, or a planar one such as CO₃,
+  has no 3D hull, and the spike met neither.
+- **Not tried:** hovering a polyhedron (a ray–triangle test on the CPU),
+  hiding the centre-to-ligand bonds inside a polyhedron, and choosing the
+  centres in the GUI.
+
+Hard polyhedra work falls on the server. The ligand rule, the hull and the
+degenerate shells are chemistry and geometry, and WP-1015's founding rule
+keeps both there.
+
 ## Decisions this WP takes
 
 Each carries the recommended answer, for the maintainer to confirm or
-overturn in the first task. D1, D4 and D6 changed in the second session.
+overturn in the first task. The second session changed D1 and D4 and
+added D6 to D8.
 
 - **D1. The viewer draws its own quadrics in WebGL2, with no library.** It
   follows the practice of Mol\* and NGL, measured above at 4.8 KB gzip
@@ -228,6 +275,13 @@ overturn in the first task. D1, D4 and D6 changed in the second session.
   1 the prototype's outlines step (`shots/lab6-dpr1-edges.png`). The fix is
   coverage from the ray's discriminant through alpha-to-coverage, or a
   2× buffer.
+- **D8. The polyhedral view is a WP of its own, filed to follow this
+  one.** § Polyhedra showed it fits D1 as one more pass of 88 lines, so
+  nothing in this WP is built for it. The new WP carries a `polyhedra` arm
+  in the payload, the ligand rule, degenerate shells, a choice of centres,
+  the translucent pass and their tests. None of that is needed to leave
+  plotly. The alternative folds it in here and makes D2 "the payload gains
+  one arm".
 
 ## Where it will bite
 
@@ -261,15 +315,16 @@ overturn in the first task. D1, D4 and D6 changed in the second session.
 - **A new look,** beyond D6. The second pass's choices carry over: parallel
   projection, no axis box, cylinders in Å, a/b/c labels and the light on
   the camera.
-- **New structure features:** polyhedra, a packing diagram, labels on
-  atoms, the octant cut-out, depth cueing, ambient occlusion, animation of
-  a refinement. Each is a shader addition on D1 and a WP of its own.
+- **New structure features:** a packing diagram, labels on atoms, the
+  octant cut-out, depth cueing, ambient occlusion, animation of a
+  refinement. Each is an addition on D1 and a WP of its own. Polyhedra are
+  D8's.
 - **WebGPU.** Firefox on Linux does not ship it yet.
 - **Any other chart.** 2D charts are WP-1461's.
 
 ## Tasks
 
-- [ ] The maintainer confirms D1-D7, and this file records which, renamed if D1 holds
+- [ ] The maintainer confirms D1-D8, and this file records which, renamed if D1 holds, with the polyhedra WP filed if D8 holds
 - [ ] Spike, the gate: the prototype on the GPU paths it has not met (any Windows or Linux machine the maintainer can reach), and paired against today's plotly viewer on the same machine: first show, rotation frames and hover work per event, in Chromium, WebKit and Firefox. Record go or no-go in the handover. On no-go, draw the same payloads with three.js before stopping.
 - [ ] The renderer: instanced atom and bond-half impostors, the cell frame, the a/b/c overlay, the orthographic camera, the trackball, the light on the camera, theme colours, D6's ellipses, D7's antialiasing, context loss, and release on unmount
 - [ ] Interaction: hover on atoms and bond halves, legend toggles, the a/b/c and reset views, the three knobs, the view kept across redraws, `ResizeObserver` sizing, and PNG export
@@ -319,6 +374,8 @@ npm --prefix gui test && npm --prefix gui run check
   Report ORNL-3794, Oak Ridge National Laboratory. Burnett, M. N. &
   Johnson, C. K. (1996), ORTEP-III, ORNL-6895, for the principal ellipses
   and the octant convention.
+- McGuire, M. & Bavoil, L. (2013). Weighted blended order-independent
+  transparency. *Journal of Computer Graphics Techniques* 2(2).
 - Rose, A. S. & Hildebrand, P. W. (2015). NGL Viewer: a web application for
   molecular visualization. *Nucleic Acids Res.* 43, W576.
 - three.js 0.186.1, MIT. <https://github.com/mrdoob/three.js>
@@ -343,11 +400,15 @@ npm --prefix gui test && npm --prefix gui run check
   ray-cast impostors. A 392-line prototype drew the served payload that
   way in all three engines at 4.8 KB gzip, with exact surfaces and the
   ORTEP principal ellipses the viewer has never had. D1 now recommends it,
-  with three.js as the fallback. Folded the `### Inherited` mailbox: its
-  Dependabot and licence entries went to the docs task as fallback-only,
-  and its `hoverLabel` and stand-in entry went to the delete and test
-  tasks. *Next:* the maintainer decides D1-D7. If D1 holds, rename this
-  file and its ROADMAP row, then run the spike gate.
+  with three.js as the fallback. The maintainer then asked for a polyhedral
+  view for solid-state chemists. The spike drew translucent coordination
+  polyhedra beside the impostors in 88 more lines, so D1 stands. The hard
+  part is a ligand rule on the server, and D8 gives the view a WP of its
+  own. Folded the `### Inherited` mailbox: its Dependabot and licence
+  entries went to the docs task as fallback-only, and its `hoverLabel` and
+  stand-in entry went to the delete and test tasks. *Next:* the maintainer
+  decides D1-D8. If D1 holds, rename this file and its ROADMAP row. If D8
+  holds, file the polyhedra WP. Then run the spike gate.
 - **2026-09-25** — filed from WP-1461's session, on the maintainer's
   request, once they confirmed the move to uPlot. The library sizes above
   were measured that day. Nothing else was: no scene was drawn in three.js

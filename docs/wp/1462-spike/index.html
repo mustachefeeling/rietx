@@ -26,7 +26,7 @@ const v = createViewer(document.getElementById("c"), document.getElementById("ov
 const tCreate = performance.now();
 if (q.get("rot")) v.rotate([1, 0.6, 0], Number(q.get("rot")));
 if (q.get("zoom")) v.zoom(Number(q.get("zoom")));
-v.set(g, { mode, exaggeration: Number(q.get("ex") || 1) });
+v.set(g, { mode, exaggeration: Number(q.get("ex") || 1), poly: q.has("poly") });
 const tSet = performance.now();
 await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
 const tFrame = performance.now();
