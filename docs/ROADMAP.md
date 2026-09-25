@@ -676,6 +676,7 @@ could not answer closed 2026-09-18 as **1434** (the bound flag) and **1435**
 | [1457](wp/1457-the-stage-rwp-leaves-out-the-declared-peaks.md) | The stage Rwp leaves out the declared peaks | ⬜ | P2 | — |
 | [1458](wp/1458-a-tick-with-nothing-behind-it.md) | A tick with nothing behind it moves the low-angle boundary | ✅ 2026-09-24 | — | — (1327 soft) |
 | [1460](wp/1460-one-degeneracy-one-finding.md) | One degeneracy, one finding | ⬜ | P3 | — (1454, 1302 soft) |
+| [1465](wp/1465-a-width-that-became-background.md) | A phase width that became background, and an absorption screen that never ran | ⬜ | P2 | — |
 
 #### A long run is not one fit
 

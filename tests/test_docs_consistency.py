@@ -511,7 +511,10 @@ SIZE_CAPS: dict[str, int | None] = {
     # one sentence on #374's second instance and the #193 decision with #442
     # beside it in § v2+: the evidence stays in the WP files.  Landed 839,
     # +1 headroom.
-    "docs/ROADMAP.md": 840,
+    # 840 -> 842 (/issue-review, 2026-09-25): one row, 1465, under § What
+    # fires, and what stays silent, for issue #451.  No prose: the evidence
+    # stays in the WP file.  Landed 841, +1 headroom.
+    "docs/ROADMAP.md": 842,
     # 1036 -> 1053 (WP-1429): where the GUI's colour values live, now that
     # they are Python and this workspace's `tokens.css` is generated from
     # them. It governs work outside the WP that measured it — an edit to a

@@ -572,6 +572,9 @@ series: four rows, 1453-1456, in three existing sections.  A fifth finding
 went into WP-1420's `### Inherited` rather than a row of its own.  No prose,
 because each WP file carries its own evidence.  Landed 834, +1 headroom.
 
+840 -> 842 for the 2026-09-25 issue triage: one row, 1465, under § What
+fires, and what stays silent.  No prose.  Landed 841, +1 headroom.
+
 ### `gui/CLAUDE.md`
 
 580 -> 612 for WP-1201 (2026-08-25): the house style — one token layer
