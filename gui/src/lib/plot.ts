@@ -3,11 +3,11 @@
  *
  * Two knobs the plot never had: **which residual** and **which y-scaling**.
  * Both are drawing choices, so both live in the client — but the residuals
- * themselves do not: `/api/result/window` sends all three, because what a
+ * themselves do not: `/api/result/curves` sends all three, because what a
  * residual *is* depends on whether the file brought an esd column, and because
- * cumulative χ² has to be accumulated over every point and decimated afterwards
- * rather than summed from the decimated subset (which would understate it by
- * whatever the dropped points contributed). This module only *chooses*.
+ * cumulative χ² has to be accumulated over every channel by the server, which
+ * holds them all (WP-1461: a zoom re-bases it, `rxplot.chi2Base`). This module
+ * only *chooses*.
  */
 
 import {
@@ -23,15 +23,6 @@ import { formatValue } from "./table";
 
 export type ResidualKind = "delta" | "weighted" | "cumulative";
 export type Scale = "linear" | "sqrt" | "log";
-
-/**
- * Which renderer draws the pattern, from the page's query string (WP-1461).
- * `?chart=uplot` picks the chart module; anything else is plotly, the default
- * until the other pages are ported and the flag goes.
- */
-export function chartChoice(search: string): { uplot: boolean } {
-  return { uplot: new URLSearchParams(search).get("chart") === "uplot" };
-}
 
 /**
  * The five curve colours, read from the custom properties `app.css` themes.
@@ -91,32 +82,17 @@ export function curveColors(read: (name: string) => string): {
 }
 
 /**
- * The ink a phase's tick row is drawn in, by its position in the phase list.
- *
- * A *single* phase takes the observed curve's neutral instead of the first
- * phase colour: colour is for telling rows apart, and one row has nothing to be
- * told apart from (the house figure rule, which `viz/plots.py` has always
- * followed and this page did not). Past the fourth phase the palette cycles —
- * four is the ceiling because the rows stop being nameable by colour, and a
- * fifth row is told apart by its gutter label.
- */
-export function phaseInk(colors: { obs: string; phase: string[] },
-                         index: number, count: number): string {
-  if (count <= 1) return colors.obs;
-  return colors.phase[index % colors.phase.length];
-}
-
-/**
  * The hover box, themed from the same custom properties everything else reads.
  *
  * plotly's default hover box is a **light** surface, and nothing in this app
  * ever styled it: `hovermode: "x unified"` was set and every trace given a
  * `hovertemplate`, while `layout.font.color` was the themed `--fg`. On the dark
  * theme that is light-grey ink on a white box, which is what the report said.
- * Both plotly surfaces take it — the pattern plot and the structure viewer — so
+ * Both plotly surfaces take it — the Series panel and the structure viewer — so
  * it lives here rather than in either component, and neither learns a hex value
  * (WP-1032; the fallbacks are the light palette's, for a page with no
- * stylesheet).
+ * stylesheet). The pattern plot draws no box since WP-1213, and no plotly since
+ * WP-1461.
  *
  * `bordercolor` is `--line` and not the trace colour: `x unified` draws **one**
  * box for every trace at that 2θ, so a per-trace border would be a colour picked
@@ -133,22 +109,33 @@ export function hoverLabel(read: (name: string) => string): {
   };
 }
 
+/**
+ * The curves as the readout reads them (`lib/pattern.ts:windowOf`): the fitted
+ * channels on the arrays, one value per channel, and the masked ones on their
+ * own arm. Typed arrays, since they are the payload's own views (WP-1461, D4).
+ */
 export interface Window {
-  two_theta: number[];
-  y_obs: number[];
-  y_calc: number[];
-  y_background?: number[];
-  delta?: number[];
-  delta_raw?: number[];
-  cumulative_chi2?: number[];
+  /** the pattern before any fit: no model, and no residual but the peak groups' */
+  raw?: boolean;
+  two_theta: ArrayLike<number>;
+  y_obs: ArrayLike<number>;
+  y_calc?: ArrayLike<number>;
+  y_background?: ArrayLike<number>;
+  delta?: ArrayLike<number>;
+  delta_raw?: ArrayLike<number>;
+  cumulative_chi2?: ArrayLike<number>;
   /** σ was *measured* (the file's esd column), not the Poisson fallback */
   weighted?: boolean;
   /** the measured points the protocol masks — never in the residual, and not
-   *  in the result at all, which is why the server sends them separately */
-  excluded?: { two_theta: number[]; y_obs: number[] };
+   *  in the result at all, which is why the payload's `kept` sets them apart */
+  excluded?: { two_theta: ArrayLike<number>; y_obs: ArrayLike<number> };
   n_excluded?: number;
   /** the curves on screen were fitted over a different channel set */
   stale?: boolean;
+  /** every emission line's reflection positions, per phase */
+  ticks?: Record<string, number[]>;
+  /** which reflection each entry of `ticks` is, pinned to it by index */
+  tick_hkl?: Record<string, number[][]>;
 }
 
 /**
@@ -166,278 +153,40 @@ export interface Protocol {
   regions: [number, number][];
 }
 
+/** A band of 2θ the protocol does not fit, or the dotted edge of one. */
+export type MaskShape =
+  | { type: "rect"; x0: number; x1: number; color: string }
+  | { type: "line"; x: number; color: string };
+
 /**
- * The shapes that shade what is not being fitted.
+ * What shades the channels the protocol does not fit, in 2θ.
  *
- * `yref: "paper"` on purpose, and it is the load-bearing choice: a band in data
- * coordinates would have to be recomputed for every intensity scale (a rectangle
- * in log space is not the rectangle in linear space), and the reflection ticks
- * already own the only free y-domain there was — `TICK_BAND` at [0.225, 0.275].
- * In paper coordinates one rectangle spans both subplots *and* the tick band,
- * which is also the truth: an excluded channel is missing from the residual, not
- * only from the pattern.
+ * The chart's shading layer draws each band the full height of every pane:
+ * an excluded channel is missing from the residual, not only from the pattern,
+ * and a band in data coordinates would change shape with the intensity scale.
  *
- * **Every shape is clipped to the measured range**, and that is a browser
- * finding rather than tidiness: a shape bound to a data axis takes part in
- * plotly's autorange, so bands drawn past the data to cover any future zoom-out
- * (the obvious implementation, and the first one here) *became* the range — on
- * the 0.5–59.99° NAC pattern the axis came back reading −40 to 100 with the
- * data squeezed into a fifth of the width. Clipping is also the truthful shape:
- * outside the measured pattern there are no channels to exclude, so there is
- * nothing there to shade.
+ * **Every shape is clipped to the measured range**, because outside the
+ * measured pattern there are no channels to exclude. It was a browser finding
+ * first: under plotly a shape took part in the autorange, and bands drawn past
+ * the data *became* the range, −40 to 100 on the 0.5–59.99° NAC pattern.
  *
- * `layer: "below"` keeps the wash under the traces — a shaded band that dims the
- * points it covers would be saying something about the data rather than about
- * the protocol.
+ * The layer runs under the curves: a band that dimmed the points it covers
+ * would be saying something about the data rather than about the protocol.
  */
 export function maskShapes(protocol: Protocol, extent: [number, number],
-                           colors: { mask: string; edge: string }): any[] {
+                           colors: { mask: string; edge: string }): MaskShape[] {
   const [lo, hi] = extent;
-  const band = (x0: number, x1: number) => (x1 <= lo || x0 >= hi ? null : {
-    type: "rect", xref: "x", yref: "paper",
-    x0: Math.max(x0, lo), x1: Math.min(x1, hi), y0: 0, y1: 1,
-    fillcolor: colors.mask, line: { width: 0 }, layer: "below",
-  });
-  const edge = (x: number) => (x < lo || x > hi ? null : {
-    type: "line", xref: "x", yref: "paper", x0: x, x1: x, y0: 0, y1: 1,
-    line: { color: colors.edge, width: 1, dash: "dot" }, layer: "below",
-  });
-  const shapes: (any | null)[] = [];
+  const band = (x0: number, x1: number): MaskShape | null => (x1 <= lo || x0 >= hi ? null
+    : { type: "rect", x0: Math.max(x0, lo), x1: Math.min(x1, hi), color: colors.mask });
+  const edge = (x: number): MaskShape | null => (x < lo || x > hi ? null
+    : { type: "line", x, color: colors.edge });
+  const shapes: (MaskShape | null)[] = [];
   if (protocol.limits) {
     const [a, b] = protocol.limits;
     shapes.push(band(lo, a), band(b, hi), edge(a), edge(b));
   }
   for (const [a, b] of protocol.regions) shapes.push(band(a, b), edge(a), edge(b));
-  return shapes.filter(Boolean);
-}
-
-/**
- * The axis ranges the user has dragged to, read back off plotly.
- *
- * **A redraw is not a reason to move the axes**, and before this every redraw
- * did: the layout handed to `react` carried no `range`, so plotly re-autoranged
- * over *everything drawn* — and what is drawn is not only the window. The peak
- * markers span the whole pattern (the list is not windowed) and so do the mask
- * shapes, which are `xref: "x"` and therefore take part in the autorange, the
- * same property `maskShapes` clips against above. Measured in Chrome on the
- * synthetic fixture, a drag to 9.97–14.66° came back as:
- *
- * | also on the plot            | axis after the refetch |
- * |-----------------------------|------------------------|
- * | nothing                     | 9.97–14.66 ✓           |
- * | a peak list                 | 4.57–24.85             |
- * | an excluded region at 4–5°  | 3.99–24.88             |
- * | a fitted range of 8–18°     | 3.00–24.94             |
- *
- * — so the zoom worked only on a plot with nothing else on it, which is why the
- * report was "horizontal zoom does not work when there are excluded regions".
- * The same react is what threw the view away on every peak edit: a toggle
- * repaints, and on the raw view there is not even a window fetch to land back
- * in (measured: 9.97–14.66 → the full 1.74–25.25 on one shift-click).
- *
- * This is WP-1015's rule for the 3D camera one panel over — `react` rebuilds
- * the scene, so **the view must be handed back on every draw** — and it is read
- * from `_fullLayout` immediately before the react for that rule's reason too: a
- * drag, a double-click and the modebar all move it, so a copy kept here would
- * be a second answer.
- *
- * `autorange === false` was read as "the user has said" until WP-1212, and that
- * is where the rule leaked: plotly sets the flag on a zoom or a pan and nowhere
- * else, so on a plot nobody had zoomed there was nothing to keep and every
- * redraw re-fitted the axes. It now means "explicit", full stop — `pinPatch`
- * below makes every axis explicit after each paint, and `movedAxes` is what
- * answers the other half. `live` is the caller's: a y axis is only the same
- * axis while it is still drawing the same thing, and a √ or log scaling
- * re-means `yaxis` while another residual re-means `yaxis2` (Σχ² runs to
- * hundreds of thousands where Δ/σ runs to ±5).
- */
-export interface Ranges {
-  xaxis?: [number, number];
-  yaxis?: [number, number];
-  yaxis2?: [number, number];
-}
-
-/**
- * The range an axis is **drawing** with, which is not always `ax.range`.
- *
- * A browser finding, and the one that decides whether pinning is safe at all
- * (WP-1212). On the first plot of a fresh div — the raw pattern view, which is
- * the state a project is in before any fit — `_fullLayout.xaxis.range` was
- * still plotly's empty-axis default `[-1, 6]` with `autorange: true` while the
- * axis was drawing 0-60°: the tick labels, `_length`/`_offset` and `p2d` all
- * agreed on −3.07-63.56 and only `range` did not. Plotly keeps the resolved
- * pair in `ax._rl`, which is what its pixel map is built from, so `_rl` is the
- * honest read and `range` is the one that can be stale. The two are the same
- * number whenever `range` is fresh, log axes included (both are in log units).
- *
- * Reading any of this back off `_fullLayout` is WP-1044's rule, and WP-1015's
- * before it; this only names which field inside it answers the question.
- */
-export function drawnRange(ax: any): [number, number] | null {
-  for (const pair of [ax?._rl, ax?.range]) {
-    if (!Array.isArray(pair) || pair.length !== 2) continue;
-    const out: [number, number] = [Number(pair[0]), Number(pair[1])];
-    if (out.every(Number.isFinite)) return out;
-  }
-  return null;
-}
-
-export function heldRanges(full: any, live: { yaxis: boolean; yaxis2: boolean }): Ranges {
-  const out: Ranges = {};
-  const keep = (key: keyof Ranges, ok: boolean) => {
-    const ax = full?.[key];
-    if (!ok || ax?.autorange !== false) return;
-    const pair = drawnRange(ax);
-    if (pair) out[key] = pair;
-  };
-  keep("xaxis", true);
-  keep("yaxis", live.yaxis);
-  keep("yaxis2", live.yaxis2);
-  return out;
-}
-
-/** A `range` key, or nothing at all — an absent one is what leaves plotly
- *  autoranging, and `range: null` would not (it is a value like any other). */
-export function span(range?: [number, number]): { range?: [number, number] } {
-  return range ? { range } : {};
-}
-
-/**
- * The axes this panel pins, and why the other two are not among them.
- *
- * `yaxis3` is the reflection tick band and `yaxis4` the candidate overlay:
- * each is declared with a range of its own (`TICK_BAND`, `CANDIDATE_AXIS`) and
- * neither ever autoranges, so pinning them would be a claim about an axis
- * nobody can move.
- */
-export const PINNED_AXES = ["xaxis", "yaxis", "yaxis2"] as const;
-
-/** One flag per pinnable axis — used for "a person moved this one by hand". */
-export type AxisFlags = Record<(typeof PINNED_AXES)[number], boolean>;
-
-export function noAxes(): AxisFlags {
-  return { xaxis: false, yaxis: false, yaxis2: false };
-}
-
-/**
- * The relayout patch that turns every autoranging axis into an explicit one.
- *
- * **`autorange === false` is the whole repair, and a redraw cannot reach it.**
- * `heldRanges` above keeps an axis only once plotly has set that flag, which it
- * does on a zoom or a pan and nowhere else — so on a plot the user has not
- * zoomed, every axis stays autoranging and *everything* moves it. Measured on
- * the NAC example (WP-1212): a hover over the peaks table costs no `react` at
- * all and still moves `yaxis` by 1.03 % of its span, because `drawRing`'s
- * `restyle` puts a `marker.size: 16` ring on the axis and scatter autorange
- * pads by marker size. The same hover on a *zoomed* plot moves nothing, which
- * is why the WP-1044 repair read as complete.
- *
- * So the axes are made explicit as soon as they have a range worth keeping:
- * after every paint, whatever plotly autoranged is written back as a `range`,
- * and from then on a `react` or a `restyle` has nothing left to re-derive.
- * The values are plotly's own — this reads the range it computed rather than
- * computing one, because reproducing autorange padding (marker sizes, error
- * bars, log ticks, the tick band's domain) is a second answer to a question
- * plotly has already answered correctly.
- *
- * Returns `{}` when there is nothing to pin, which is the common case: on the
- * second and later paints of a payload every axis is already explicit.
- *
- * `skip` names the axes the caller is **not** drawing anything on, and it is a
- * guard rather than a repair — said plainly, because the review that asked for
- * it described a defect that does not reproduce. Chrome drops an unused axis
- * from `_fullLayout` altogether: hide the difference curve and `yaxis2` is
- * *absent*, so there is nothing to pin, and letting a run land while it is
- * hidden leaves it absent and brings it back at the residual's own range
- * (measured: −81.76-61.68 → absent → −81.76-61.68). What made it look like a
- * defect is the jsdom stub, which synthesises every axis unconditionally. The
- * guard stays because "pin what plotly fitted" should not depend on plotly
- * choosing to drop what it could not fit, and an empty axis left autoranging is
- * the honest state — there is nothing on it for a redraw to move.
- */
-export function pinPatch(full: any, skip: readonly string[] = []):
-    Record<string, [number, number]> {
-  const patch: Record<string, [number, number]> = {};
-  for (const key of PINNED_AXES) {
-    const ax = full?.[key];
-    if (!ax?.autorange || skip.includes(key)) continue;
-    // `drawnRange`, never `ax.range`: on the first plot of a fresh div the two
-    // disagree, and pinning `range` there froze plotly's empty-axis default
-    // over a pattern spanning 0-60°. That is what made the raw view blank; the
-    // fitted view escaped it only because the run that followed re-fitted the
-    // axes anyway (measured both ways).
-    const pair = drawnRange(ax);
-    if (pair) patch[`${key}.range`] = pair;
-  }
-  return patch;
-}
-
-/**
- * Which axes a `plotly_relayout` event says a person moved by hand.
- *
- * Once every axis carries an explicit range, `autorange === false` no longer
- * answers "has the user said?" — it is true of every axis on every plot, and
- * the two questions that used to share that flag come apart. This is the other
- * one, and plotly reports it per gesture: a drag emits `<axis>.range[0]` and
- * `[1]`, while a double-click (`doubleClick: "autosize"`) emits
- * `<axis>.autorange`, which hands *every* axis back and is therefore a reset
- * rather than a move.
- *
- * A patch this panel writes itself is not a gesture and must not arrive here;
- * the caller gates on that rather than on the key spelling, because
- * `relayout({"xaxis.range": pair})` and a drag differ only in `[0]`/`[1]` and
- * that is far too fine a thing to rest a rule on.
- */
-export function movedAxes(ev: Record<string, any> | null | undefined):
-    { moved: (typeof PINNED_AXES)[number][]; reset: boolean } {
-  const moved: (typeof PINNED_AXES)[number][] = [];
-  let reset = false;
-  for (const key of PINNED_AXES) {
-    if (ev?.[`${key}.autorange`]) reset = true;
-    else if (typeof ev?.[`${key}.range[0]`] === "number") moved.push(key);
-  }
-  return { moved, reset };
-}
-
-/**
- * The ranges to hand back when a paint is allowed to re-fit the axes.
- *
- * Two paints are: the first of a new payload (a run, a checkout — the numbers
- * are different ones and a range from the old set would clip them) and the one
- * after a double-click. Everything else — a hover, a tab change, an exclusion,
- * a peak edit, a theme change — hands back all of them, which is the rule this
- * whole module exists for.
- *
- * What survives a re-fit is what the *person* set: a zoom is not thrown away by
- * a run finishing, which is WP-1044's rule and the reason this is a filter and
- * not an empty object.
- */
-/**
- * A knob that re-means an axis un-says whatever was said about it.
- *
- * `userSet` remembers that a person dragged an axis, and it has to be forgotten
- * when that axis stops drawing the same thing: a range dragged on Δ/σ is not a
- * range on Σχ², which runs to hundreds of thousands, and it would otherwise
- * survive into the next re-fit as though it had been chosen there.
- * `heldRanges`' `live` gate hides this *within* a paint — an axis that changed
- * meaning is not handed back — and does nothing across the payload change that
- * licenses a re-fit, which is where the stale flag would be read.
- *
- * The same argument as `live`, one step later: that one decides what this paint
- * hands back, this one decides what the *next* re-fit is allowed to keep.
- */
-export function forget(user: AxisFlags, live: { yaxis: boolean; yaxis2: boolean }): AxisFlags {
-  return {
-    xaxis: user.xaxis,
-    yaxis: user.yaxis && live.yaxis,
-    yaxis2: user.yaxis2 && live.yaxis2,
-  };
-}
-
-export function userRanges(ranges: Ranges, user: AxisFlags): Ranges {
-  const out: Ranges = {};
-  for (const key of PINNED_AXES) if (user[key] && ranges[key]) out[key] = ranges[key];
-  return out;
+  return shapes.filter((x): x is MaskShape => x !== null);
 }
 
 /** A drawn interval as an ordered pair, or null if it is a point. */
@@ -487,42 +236,6 @@ export function formatRegion([a, b]: [number, number]): string {
 }
 
 /**
- * The reflection ticks get an axis of their own, in the gap between the plots.
- *
- * They used to ride on the residual axis at `y = −0.5 − row·0.9`, which made
- * their visibility a property of **which residual is selected**: under Δ/σ they
- * sat near the middle, and under cumulative χ² — whose values run to hundreds of
- * thousands (measured on the NAC fit: y2 spanned −59 253 to 658 029) — they were
- * pinned at the floor as an invisible line. A tick is a statement about the
- * *model*, so it cannot be drawn in a coordinate system owned by the residual.
- *
- * The gap `[0.22, 0.28]` between the two subplots was already free (`yaxis`
- * starts at 0.28), so this needed no room made for it. The range is fixed in
- * rows, one per phase, and `fixedrange` keeps a stray drag from zooming a band
- * whose vertical coordinate means nothing.
- */
-export const TICK_BAND: [number, number] = [0.225, 0.275];
-
-export function tickBand(nPhases: number): { axis: any; rows: number[] } | null {
-  if (nPhases <= 0) return null;
-  const rows: number[] = [];
-  for (let i = 0; i < nPhases; i++) rows.push(-(i + 0.5));
-  return {
-    axis: {
-      domain: TICK_BAND,
-      anchor: "x",
-      range: [-nPhases, 0],
-      fixedrange: true,
-      showticklabels: false,
-      showgrid: false,
-      zeroline: false,
-      showline: false,
-    },
-    rows,
-  };
-}
-
-/**
  * An indexing candidate's predicted lines, as the plot needs them (WP-1211).
  *
  * `label` is built here rather than served: the panel already renders the cell,
@@ -548,54 +261,6 @@ export interface CandidateOverlay {
    *  source's own list: a Kα2 line sits at a different 2θ for the same hkl */
   line?: number[];
 }
-
-/**
- * Full-height lines through the data, as one null-separated trace.
- *
- * One trace and not N: the peak layer's `joinCurves` established the idiom here
- * (sixty windows as sixty traces is a legend, not a layer), and at this WP's cap
- * the alternative is two thousand of them. Shapes were the other candidate and
- * are worse for the same reason plus one: a `xref: "x"` shape takes part in the
- * autorange (WP-1033), and two thousand SVG paths are re-laid-out on every
- * zoom.
- */
-export function candidateLines(twoTheta: readonly number[]): {
-  x: (number | null)[]; y: (number | null)[];
-} {
-  const x: (number | null)[] = [];
-  const y: (number | null)[] = [];
-  for (const t of twoTheta) {
-    x.push(t, t, null);
-    y.push(0, 1, null);
-  }
-  return { x, y };
-}
-
-/**
- * The axis those lines are drawn against: the data panel's, pinned to [0, 1].
- *
- * An **overlaying** axis, which is what makes "full height" mean the height of
- * the plot rather than the height of the data — it takes `yaxis`'s domain and
- * keeps its own range, so the lines span the upper subplot whatever the
- * intensity scale is doing and whatever the user has zoomed the y axis to.
- * That is also why they are not on `y3`, the tick band: a tick belongs to a
- * fitted model and sits in its own strip, while these are a hypothesis laid
- * *over* the data to be compared with it.
- *
- * `fixedrange` because a vertical coordinate that means nothing must not be
- * zoomable — `tickBand`'s reasoning, one axis over. The x axis is shared, and
- * the lines cannot widen it: the server clips them to the measured range.
- */
-export const CANDIDATE_AXIS = {
-  overlaying: "y",
-  anchor: "x",
-  range: [0, 1],
-  fixedrange: true,
-  showticklabels: false,
-  showgrid: false,
-  zeroline: false,
-  showline: false,
-};
 
 /** A curve the plot can be asked to stop drawing. */
 export interface CurveToggle {
@@ -637,7 +302,7 @@ export interface PeakLayer {
  * *unconditionally* whenever `y_background` is non-empty, so nothing was
  * missing — what was missing is the control to turn a forced curve **off**.
  */
-export function curveToggles(w: Window & { raw?: boolean; ticks?: Record<string, unknown> },
+export function curveToggles(w: Window,
                              residualLabel = "Δ",
                              layer?: PeakLayer | null): CurveToggle[] {
   const out: CurveToggle[] = [
@@ -722,7 +387,7 @@ export function toggleCurve(hidden: readonly string[], id: string): string[] {
 }
 
 export interface Residual {
-  values: number[];
+  values: ArrayLike<number>;
   /** the y2 axis title — it names what is plotted, never what was hoped for */
   title: string;
   label: string;
@@ -733,8 +398,8 @@ export interface Residual {
 export const RESIDUAL_KINDS: { id: ResidualKind; label: string; title: string }[] = [
   { id: "weighted", label: "Δ/σ", title: "the weighted residual the fit actually minimises" },
   { id: "delta", label: "Δ", title: "observed − calculated, in counts" },
-  { id: "cumulative", label: "Σχ²", title: "χ² accumulated across the window — a flat "
-    + "stretch contributed nothing, a step is where the misfit is" },
+  { id: "cumulative", label: "Σχ²", title: "χ² accumulated from the view's left edge — "
+    + "a flat stretch contributed nothing, a step is where the misfit is" },
 ];
 
 export const SCALES: { id: Scale; label: string; title: string }[] = [
@@ -786,35 +451,6 @@ export function residual(kind: ResidualKind, w: Window): Residual {
   };
 }
 
-/** √ is applied to the *data*, because plotly has no such axis type. */
-export function scaleValues(scale: Scale, values: number[] | undefined): number[] | undefined {
-  if (!values || scale !== "sqrt") return values;
-  // negatives happen — a background-subtracted point, a noisy low-count channel
-  // — and √(negative) is NaN, which loses the trace rather than the point
-  return values.map((v) => (v > 0 ? Math.sqrt(v) : 0));
-}
-
-/**
- * Ticks that read in **intensity** even when the data has been square-rooted.
- *
- * Without this the axis would be labelled in √counts, which is a unit nobody
- * measures in and which makes the scaling look like a different dataset rather
- * than a different view of one. `null` means "let plotly decide", which is the
- * right answer for linear and log.
- */
-export function sqrtTicks(hi: number, n = 6): { tickvals: number[]; ticktext: string[] } | null {
-  if (!Number.isFinite(hi) || hi <= 0) return null;
-  const vals: number[] = [];
-  for (let i = 0; i <= n; i++) {
-    const y = (hi * i) / n;
-    vals.push(y);
-  }
-  return {
-    tickvals: vals.map((y) => Math.sqrt(y)),
-    ticktext: vals.map((y) => (y >= 1000 ? y.toPrecision(3) : String(Number(y.toPrecision(3))))),
-  };
-}
-
 // ----------------------------------------------------------------------
 // the readout strip (WP-1213)
 // ----------------------------------------------------------------------
@@ -824,7 +460,7 @@ export function sqrtTicks(hi: number, n = 6): { tickvals: number[]; ticktext: st
  * The plot's one nearest-channel question, asked by the readout and by the peak
  * layer's marker heights. `-1` when there is nothing to look in.
  */
-export function nearestIndex(xs: readonly number[], x: number): number {
+export function nearestIndex(xs: ArrayLike<number>, x: number): number {
   if (!xs.length) return -1;
   let lo = 0;
   let hi = xs.length - 1;
@@ -885,6 +521,9 @@ export interface ReadoutInputs {
    *  **drawn**, so `data only` empties it down to the points — the same
    *  exception list, read the same way */
   hidden?: readonly string[];
+  /** what a cumulative χ² drawn from the view's left edge has subtracted
+   *  (`rxplot.chi2Base`), so the strip quotes the curve it sits under */
+  chi2Base?: number;
 }
 
 /** What a field with nothing in it prints — one spelling, so an empty strip
@@ -950,25 +589,20 @@ function offset(delta: number): string {
  * says where the pointer is, without a field that changes width to say it.
  */
 export function readout(
-  w: (Window & {
-    raw?: boolean;
-    ticks?: Record<string, number[]>;
-    /** which reflection each entry of `ticks` is, pinned to it by index */
-    tick_hkl?: Record<string, number[][]>;
-  }) | null,
+  w: Window | null,
   x: number | null,
   inputs: ReadoutInputs,
 ): Readout | null {
   if (!w) return null;
   const hidden = inputs.hidden ?? [];
-  const fitted = w.two_theta ?? [];
+  const fitted = w.two_theta;
   // The masked channels are a *separate arm* (WP-1033: they are in no result,
   // so the server sends them beside it), and they are measured points like any
   // other — a pointer inside an excluded region is over one of them. Without
   // this the readout snapped to the nearest surviving channel and printed its
   // numbers under a pointer that could be a whole region away.
   const maskedOn = shows(hidden, "masked");
-  const excluded = maskedOn ? w.excluded?.two_theta ?? [] : [];
+  const excluded: ArrayLike<number> = maskedOn ? w.excluded?.two_theta ?? [] : [];
   if (!fitted.length && !excluded.length) return null;
   // `null` is the pointer being off the plot, which is most of the time: the
   // strip keeps its fields and empties them, because a strip that grew fields
@@ -1002,7 +636,10 @@ export function readout(
     }
     if (shows(hidden, "diff")) {
       const res = residual(inputs.kind, w);
-      rows.push({ id: "diff", label: res.label, value: fit(res.values[k]), ink: "diff" });
+      // a cumulative curve is drawn from the view's left edge, and so is its value
+      const base = inputs.kind === "cumulative" ? inputs.chi2Base ?? 0 : 0;
+      const v = res.values[k];
+      rows.push({ id: "diff", label: res.label, value: fit(v == null ? v : v - base), ink: "diff" });
     }
   }
 

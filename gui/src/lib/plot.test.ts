@@ -2,36 +2,21 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  CANDIDATE_AXIS,
-  TICK_BAND,
-  candidateLines,
   curveColors,
   curveToggles,
   dataOnlyHidden,
-  drawnRange,
   formatRegion,
-  forget,
-  heldRanges,
   hoverLabel,
   isDataOnly,
   maskShapes,
   masked,
   mergeRegions,
-  movedAxes,
   nearestIndex,
-  noAxes,
   normalizeRegion,
-  phaseInk,
-  pinPatch,
   readout,
   residual,
-  scaleValues,
   shows,
-  span,
-  sqrtTicks,
-  tickBand,
   toggleCurve,
-  userRanges,
   type Window,
 } from "./plot";
 import { formatHkl } from "./peaks";
@@ -72,27 +57,6 @@ describe("choosing a residual", () => {
   it("drops the zero line under a curve that only rises", () => {
     expect(residual("cumulative", WEIGHTED).zeroline).toBe(false);
     expect(residual("weighted", WEIGHTED).zeroline).toBe(true);
-  });
-});
-
-describe("scaling the intensity axis", () => {
-  it("leaves the data alone unless it is √ — plotly has an axis type for log", () => {
-    expect(scaleValues("linear", [1, 4, 9])).toEqual([1, 4, 9]);
-    expect(scaleValues("log", [1, 4, 9])).toEqual([1, 4, 9]);
-    expect(scaleValues("sqrt", [1, 4, 9])).toEqual([1, 2, 3]);
-  });
-
-  it("floors a negative rather than making it NaN", () => {
-    // √(negative) is NaN, and one NaN loses the trace rather than the point —
-    // the structure viewer's ellipsoid lesson, on a curve
-    expect(scaleValues("sqrt", [-3, 0, 4])).toEqual([0, 0, 2]);
-  });
-
-  it("labels the √ axis in intensity, not in √counts", () => {
-    const ticks = sqrtTicks(900, 3)!;
-    expect(ticks.ticktext).toEqual(["0", "300", "600", "900"]);
-    expect(ticks.tickvals[3]).toBeCloseTo(30, 12);
-    expect(sqrtTicks(0)).toBeNull();
   });
 });
 
@@ -151,40 +115,6 @@ describe("the curve colours (WP-1029 q)", () => {
   });
 });
 
-describe("the ink a phase's tick row takes (WP-1438)", () => {
-  const COLORS = { obs: "#8a8a8a",
-                   phase: ["#009e73", "#cc79a7", "#56b4e9", "#f0e442"] };
-
-  it("gives each phase its own colour, keyed by the phase", () => {
-    expect(phaseInk(COLORS, 0, 3)).toBe("#009e73");
-    expect(phaseInk(COLORS, 1, 3)).toBe("#cc79a7");
-    expect(phaseInk(COLORS, 2, 3)).toBe("#56b4e9");
-  });
-
-  it("gives a single phase the neutral instead of the first colour", () => {
-    // colour is for telling rows apart, and one row has nothing to be told
-    // apart from — the house figure rule, which `viz/plots.py` has always
-    // followed and this page did not until now
-    expect(phaseInk(COLORS, 0, 1)).toBe(COLORS.obs);
-    expect(phaseInk(COLORS, 0, 0)).toBe(COLORS.obs);
-  });
-
-  it("cycles past the fourth phase rather than running out", () => {
-    // four is where the rows stop being nameable by colour; a fifth is told
-    // apart by its gutter label, and it still has to be drawn in something
-    expect(phaseInk(COLORS, 4, 5)).toBe("#009e73");
-    expect(phaseInk(COLORS, 7, 8)).toBe("#f0e442");
-  });
-
-  it("does not depend on how many traces were drawn before it", () => {
-    // the defect this replaced: the tick traces carried no colour, so plotly
-    // assigned from its cycle by position in the trace array, and every trace
-    // ahead of them is conditional — freeing the background moved every row
-    expect(phaseInk(COLORS, 1, 2)).toBe(phaseInk(COLORS, 1, 2));
-    expect(phaseInk(COLORS, 1, 2)).not.toBe(phaseInk(COLORS, 0, 2));
-  });
-});
-
 describe("shading what is not fitted (WP-1033)", () => {
   const COLORS = { mask: "#1b1b1b14", edge: "#6b6b66" };
   const EXTENT: [number, number] = [3, 24];
@@ -198,34 +128,34 @@ describe("shading what is not fitted (WP-1033)", () => {
     // autorange, so bands drawn past the data to cover a zoom-out *became* the
     // range — the 0.5–59.99° NAC pattern came back reading −40 to 100
     const shapes = maskShapes({ limits: [8, 19], regions: [] }, EXTENT, COLORS);
-    const bands = shapes.filter((s) => s.type === "rect");
-    expect(bands.map((s) => [s.x0, s.x1])).toEqual([[3, 8], [19, 24]]);
+    const bands = shapes.flatMap((s) => (s.type === "rect" ? [[s.x0, s.x1]] : []));
+    expect(bands).toEqual([[3, 8], [19, 24]]);
   });
 
   it("draws no band where a limit is already outside the data", () => {
-    // …and no edge either: both are bound to the x axis, so either one placed
-    // out there would drag the view with it
+    // …and no edge either: outside the measured pattern there are no channels
+    // to exclude, so there is nothing there to mark
     const shapes = maskShapes({ limits: [1, 40], regions: [[30, 33]] }, EXTENT, COLORS);
     expect(shapes).toEqual([]);
   });
 
-  it("puts every shape in paper coordinates, which is what survives a scale", () => {
-    // a rectangle in log space is not the rectangle in linear space, and the
-    // only free y-domain — TICK_BAND — belongs to the reflection ticks
+  it("washes a band and dots its edges, in the protocol's two inks", () => {
+    // the wash marks absence from the residual and the edge is the boundary,
+    // which has to stay readable when the wash is off-screen — a fit range
+    // shows only its edges once you zoom inside it
     const shapes = maskShapes({ limits: [8, 19], regions: [[13, 16]] }, EXTENT, COLORS);
-    expect(shapes.every((s) => s.yref === "paper" && s.y0 === 0 && s.y1 === 1)).toBe(true);
-    expect(shapes.every((s) => s.xref === "x")).toBe(true);
-    // …and under the traces: a wash that dimmed the points would be saying
-    // something about the data rather than about the protocol
-    expect(shapes.every((s) => s.layer === "below")).toBe(true);
+    expect(shapes.filter((s) => s.type === "rect").every((s) => s.color === COLORS.mask))
+      .toBe(true);
+    expect(shapes.filter((s) => s.type === "line").every((s) => s.color === COLORS.edge))
+      .toBe(true);
   });
 
   it("gives every region a band and both its edges", () => {
     const shapes = maskShapes({ limits: null, regions: [[13, 16], [20, 21]] },
                               EXTENT, COLORS);
-    expect(shapes.filter((s) => s.type === "rect").map((s) => [s.x0, s.x1]))
+    expect(shapes.flatMap((s) => (s.type === "rect" ? [[s.x0, s.x1]] : [])))
       .toEqual([[13, 16], [20, 21]]);
-    expect(shapes.filter((s) => s.type === "line").map((s) => s.x0))
+    expect(shapes.filter((s) => s.type === "line").map((s) => (s.type === "line" ? s.x : NaN)))
       .toEqual([13, 16, 20, 21]);
   });
 });
@@ -282,33 +212,6 @@ describe("the hover box (WP-1032)", () => {
       bgcolor: "#ffffff", bordercolor: "#dcdcd6",
       font: { color: "#1b1b1b", size: 11 },
     });
-  });
-});
-
-describe("the reflection ticks' own band (WP-1032)", () => {
-  it("sits in the gap the two subplots already leave", () => {
-    // yaxis2 ends at 0.22 and yaxis starts at 0.28, so this needed no room made
-    const band = tickBand(2)!;
-    expect(band.axis.domain).toEqual(TICK_BAND);
-    expect(TICK_BAND[0]).toBeGreaterThanOrEqual(0.22);
-    expect(TICK_BAND[1]).toBeLessThanOrEqual(0.28);
-  });
-
-  it("gives every phase a row, in a range that cannot be zoomed away", () => {
-    // on the residual axis the rows were at y = −0.5 − row·0.9, so under a
-    // cumulative χ² curve running to 6.6e5 (measured on the NAC fit) they were a
-    // line on the floor.  Here the coordinate is the band's own.
-    const band = tickBand(3)!;
-    expect(band.rows).toEqual([-0.5, -1.5, -2.5]);
-    expect(band.axis.range).toEqual([-3, 0]);
-    expect(band.axis.fixedrange).toBe(true);
-    expect(band.axis.showticklabels).toBe(false);
-  });
-
-  it("is absent when there is nothing to tick", () => {
-    // the raw/peaks view has no reflections at all — an empty axis would still
-    // take its slice of the plot's height
-    expect(tickBand(0)).toBeNull();
   });
 });
 
@@ -412,31 +315,6 @@ describe("which curves are drawn (WP-1032)", () => {
 });
 
 describe("an indexing candidate's lines (WP-1211)", () => {
-  it("draws each position as its own full-height segment", () => {
-    // one trace with null gaps, not N traces: sixty windows as sixty traces is
-    // a legend rather than a layer (the peak layer's rule), and at the server's
-    // cap the alternative is two thousand of them
-    const { x, y } = candidateLines([20.49, 25.58]);
-    expect(x).toEqual([20.49, 20.49, null, 25.58, 25.58, null]);
-    expect(y).toEqual([0, 1, null, 0, 1, null]);
-  });
-
-  it("draws nothing from nothing", () => {
-    expect(candidateLines([])).toEqual({ x: [], y: [] });
-  });
-
-  it("hangs them on an overlaying axis pinned to [0, 1]", () => {
-    // overlaying `y` is what makes "full height" the height of the *plot*: the
-    // axis takes yaxis's domain and keeps its own range, so a zoomed intensity
-    // axis or a √ scaling cannot shorten a predicted line.  And fixedrange, for
-    // tickBand's reason — a vertical coordinate that means nothing must not be
-    // zoomable.
-    expect(CANDIDATE_AXIS.overlaying).toBe("y");
-    expect(CANDIDATE_AXIS.range).toEqual([0, 1]);
-    expect(CANDIDATE_AXIS.fixedrange).toBe(true);
-    expect(CANDIDATE_AXIS.showticklabels).toBe(false);
-  });
-
   it("has a colour of its own, not the peak layer's", () => {
     // both layers are up on the same tab at the same time, and telling them
     // apart *is* the question the overlay answers — which of the picked lines
@@ -456,207 +334,6 @@ describe("an indexing candidate's lines (WP-1211)", () => {
       { ...WEIGHTED, ticks: { NAC: [1] } }, "Δ", { n: 1, groups: 0, active: true });
     expect(toggles.map((t) => t.id)).not.toContain("candidate");
     expect(dataOnlyHidden(toggles)).not.toContain("candidate");
-  });
-});
-
-describe("handing the view back (WP-1044)", () => {
-  const LIVE = { yaxis: true, yaxis2: true };
-  const full = (over: Record<string, any> = {}) => ({
-    xaxis: { autorange: false, range: [9.97, 14.66] },
-    yaxis: { autorange: false, range: [0, 4200] },
-    yaxis2: { autorange: false, range: [-5, 5] },
-    yaxis3: { autorange: false, range: [-2, 0] },   // the tick band — ours already
-    ...over,
-  });
-
-  it("keeps every axis that carries an explicit range", () => {
-    expect(heldRanges(full(), LIVE)).toEqual({
-      xaxis: [9.97, 14.66], yaxis: [0, 4200], yaxis2: [-5, 5],
-    });
-  });
-
-  it("leaves an autoranging axis alone, which is what a double-click restores", () => {
-    // plotly puts `autorange` back on a double-click, so the *absence* of a
-    // range key is how "show me all of it" survives the next redraw
-    expect(heldRanges(full({ xaxis: { autorange: true, range: [1.7, 25.3] } }), LIVE))
-      .not.toHaveProperty("xaxis");
-    expect(heldRanges({}, LIVE)).toEqual({});
-    expect(heldRanges(undefined, LIVE)).toEqual({});
-  });
-
-  it("never hands back the tick band — it is not the user's axis", () => {
-    expect(heldRanges(full(), LIVE)).not.toHaveProperty("yaxis3");
-  });
-
-  it("drops a y range whose axis no longer means the same thing", () => {
-    // a √ or log scaling re-means `yaxis`, and another residual re-means
-    // `yaxis2` (Σχ² runs to hundreds of thousands where Δ/σ runs to ±5)
-    expect(heldRanges(full(), { yaxis: false, yaxis2: true }))
-      .toEqual({ xaxis: [9.97, 14.66], yaxis2: [-5, 5] });
-    expect(heldRanges(full(), { yaxis: true, yaxis2: false }))
-      .toEqual({ xaxis: [9.97, 14.66], yaxis: [0, 4200] });
-  });
-
-  it("refuses a range that is not two numbers", () => {
-    expect(heldRanges(full({ xaxis: { autorange: false, range: ["2020-01-01", 3] } }), LIVE))
-      .not.toHaveProperty("xaxis");
-    expect(heldRanges(full({ xaxis: { autorange: false } }), LIVE)).not.toHaveProperty("xaxis");
-  });
-
-  it("emits a range key only when there is one — an absent key is the autorange", () => {
-    expect(span([1, 2])).toEqual({ range: [1, 2] });
-    expect(span()).toEqual({});
-    expect("range" in span()).toBe(false);
-  });
-});
-
-describe("a redraw never moves the axes (WP-1212)", () => {
-  const full = (over: Record<string, any> = {}) => ({
-    xaxis: { autorange: true, range: [-3.07, 63.56] },
-    yaxis: { autorange: true, range: [-18597.7, 283838.2] },
-    yaxis2: { autorange: true, range: [-81.8, 61.7] },
-    yaxis3: { autorange: false, range: [-2, 0] },
-    yaxis4: { autorange: false, range: [0, 1] },
-    ...over,
-  });
-
-  describe("pinning what plotly autoranged", () => {
-    it("writes every autoranging axis back as an explicit range", () => {
-      expect(pinPatch(full())).toEqual({
-        "xaxis.range": [-3.07, 63.56],
-        "yaxis.range": [-18597.7, 283838.2],
-        "yaxis2.range": [-81.8, 61.7],
-      });
-    });
-
-    it("is empty once they are explicit, so a repaint costs no relayout", () => {
-      expect(pinPatch(full({
-        xaxis: { autorange: false, range: [-3.07, 63.56] },
-        yaxis: { autorange: false, range: [-18597.7, 283838.2] },
-        yaxis2: { autorange: false, range: [-81.8, 61.7] },
-      }))).toEqual({});
-      expect(pinPatch({})).toEqual({});
-      expect(pinPatch(undefined)).toEqual({});
-    });
-
-    it("leaves the tick band and the candidate axis out of it", () => {
-      // both are declared with a range of their own and neither autoranges, so
-      // pinning either would be a claim about an axis nobody can move (WP-1211)
-      const patch = pinPatch(full({
-        yaxis3: { autorange: true, range: [-2, 0] },
-        yaxis4: { autorange: true, range: [0, 1] },
-      }));
-      expect(patch).not.toHaveProperty("yaxis3.range");
-      expect(patch).not.toHaveProperty("yaxis4.range");
-    });
-
-    it("refuses a range that is not two finite numbers", () => {
-      expect(pinPatch(full({ xaxis: { autorange: true, range: ["a", 3] } })))
-        .not.toHaveProperty("xaxis.range");
-      expect(pinPatch(full({ xaxis: { autorange: true } })))
-        .not.toHaveProperty("xaxis.range");
-    });
-
-    it("leaves an axis with nothing drawn on it autoranging", () => {
-      // A guard, not a repair: Chrome drops an unused axis from `_fullLayout`
-      // altogether, so there is nothing there to pin (measured — hiding the
-      // residual makes `yaxis2` *absent*, and it comes back at its own range).
-      // What made it look like a defect is this suite's own stub, which
-      // synthesises every axis whether or not a trace is on it.
-      expect(pinPatch(full(), ["yaxis2"])).toEqual({
-        "xaxis.range": [-3.07, 63.56], "yaxis.range": [-18597.7, 283838.2],
-      });
-      expect(pinPatch(full(), ["xaxis", "yaxis", "yaxis2"])).toEqual({});
-    });
-
-    it("pins the range the axis is drawing with, not the one it is carrying", () => {
-      // On the first plot of a fresh div the two disagree: `range` was still
-      // plotly's empty-axis default while the ticks, the pixel map and `_rl`
-      // all said 0-60° (WP-1212, measured on the raw view). Pinning `range`
-      // there froze a blank plot.
-      expect(pinPatch(full({
-        xaxis: { autorange: true, range: [-1, 6], _rl: [-3.07, 63.56] },
-      }))["xaxis.range"]).toEqual([-3.07, 63.56]);
-      expect(drawnRange({ range: [-1, 6], _rl: [-3.07, 63.56] })).toEqual([-3.07, 63.56]);
-      expect(drawnRange({ range: [9.97, 14.66] })).toEqual([9.97, 14.66]);
-      expect(drawnRange({ _rl: ["a", 3], range: [1, 2] })).toEqual([1, 2]);
-      expect(drawnRange({})).toBeNull();
-      expect(drawnRange(undefined)).toBeNull();
-    });
-  });
-
-  it("hands back the drawn range too, so a stale one cannot survive a redraw", () => {
-    expect(heldRanges({ xaxis: { autorange: false, range: [-1, 6], _rl: [10, 14] } },
-                      { yaxis: true, yaxis2: true })).toEqual({ xaxis: [10, 14] });
-  });
-
-  describe("which axes a person moved", () => {
-    it("reads a drag off the range keys plotly emits", () => {
-      expect(movedAxes({ "xaxis.range[0]": 9.97, "xaxis.range[1]": 14.66 }))
-        .toEqual({ moved: ["xaxis"], reset: false });
-    });
-
-    it("takes a box zoom as both axes at once", () => {
-      expect(movedAxes({
-        "xaxis.range[0]": 9.97, "xaxis.range[1]": 14.66,
-        "yaxis.range[0]": 0, "yaxis.range[1]": 4200,
-      })).toEqual({ moved: ["xaxis", "yaxis"], reset: false });
-    });
-
-    it("reads a double-click as a reset, never as a move", () => {
-      // `doubleClick: \"autosize\"` hands every axis back at once, which is the
-      // one gesture that undoes what the user said rather than restating it
-      expect(movedAxes({ "xaxis.autorange": true, "yaxis.autorange": true }))
-        .toEqual({ moved: [], reset: true });
-    });
-
-    it("is silent about anything else, an empty event included", () => {
-      expect(movedAxes({ dragmode: "select" })).toEqual({ moved: [], reset: false });
-      expect(movedAxes({})).toEqual({ moved: [], reset: false });
-      expect(movedAxes(null)).toEqual({ moved: [], reset: false });
-      expect(movedAxes(undefined)).toEqual({ moved: [], reset: false });
-    });
-
-    it("ignores the tick band's own axis", () => {
-      expect(movedAxes({ "yaxis3.range[0]": -2, "yaxis3.range[1]": 0 }))
-        .toEqual({ moved: [], reset: false });
-    });
-  });
-
-  describe("what survives a re-fit", () => {
-    const ranges = { xaxis: [9.97, 14.66], yaxis: [0, 4200], yaxis2: [-5, 5] } as const;
-
-    it("keeps the zoom a person made and drops the pin this panel wrote", () => {
-      expect(userRanges(ranges as any, { xaxis: true, yaxis: false, yaxis2: false }))
-        .toEqual({ xaxis: [9.97, 14.66] });
-    });
-
-    it("keeps nothing when nobody has moved anything", () => {
-      // the first paint of a payload on a plot nobody has touched: every axis
-      // re-fits, which is the one paint that is allowed to
-      expect(userRanges(ranges as any, noAxes())).toEqual({});
-    });
-
-    it("cannot invent an axis the layout did not resolve", () => {
-      expect(userRanges({ xaxis: [1, 2] }, { xaxis: true, yaxis: true, yaxis2: true }))
-        .toEqual({ xaxis: [1, 2] });
-    });
-
-    it("forgets a y axis a knob has re-meant, and only that one", () => {
-      // A range dragged on Δ/σ is not a range on Σχ², which runs to hundreds of
-      // thousands. `heldRanges`' `live` gate covers the paint the knob causes;
-      // this covers the *next* re-fit, which is the one that would read the
-      // stale flag and keep a range nobody chose for the curve now on the axis.
-      const all = { xaxis: true, yaxis: true, yaxis2: true };
-      expect(forget(all, { yaxis: true, yaxis2: false }))
-        .toEqual({ xaxis: true, yaxis: true, yaxis2: false });
-      expect(forget(all, { yaxis: false, yaxis2: true }))
-        .toEqual({ xaxis: true, yaxis: false, yaxis2: true });
-      // the 2θ axis means the same thing under every knob this panel has
-      expect(forget(all, { yaxis: false, yaxis2: false }).xaxis).toBe(true);
-      // and it never *grants* one: a knob cannot say a person zoomed
-      expect(forget(noAxes(), { yaxis: true, yaxis2: true })).toEqual(noAxes());
-    });
   });
 });
 
@@ -712,6 +389,17 @@ describe("the readout strip (WP-1213)", () => {
     const cumulative = readout(FITTED, 3, { kind: "cumulative" })!;
     expect(cumulative.rows.find((r) => r.id === "diff")!.label).toBe("Σχ²");
     expect(cumulative.rows.filter((r) => r.id === "diff")).toHaveLength(1);
+  });
+
+  it("quotes a zoomed Σχ² from the view's left edge, as the curve is drawn (WP-1461)", () => {
+    // the payload sums over every fitted channel, and a zoom re-bases the curve
+    // (`rxplot.chi2Base`); a strip quoting the whole sum would sit under a
+    // curve reading something else
+    const at = (kind: "cumulative" | "weighted") =>
+      value(readout(FITTED, 3, { kind, chi2Base: 0.04 }), "diff");
+    expect(at("cumulative")).toBe(String(0.2114 - 0.04));
+    // …and only there: a Δ/σ has nothing summed to subtract
+    expect(at("weighted")).toBe("0.33");
   });
 
   it("quotes the unscaled intensity at six figures, as the deleted templates did", () => {

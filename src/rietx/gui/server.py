@@ -135,11 +135,6 @@ def _query_int(query: dict, key: str, default: int) -> int:
         raise GuiError(f"{key}={values[0]!r} is not an integer", where=[key]) from None
 
 
-def _window(s: GuiSession, q: dict, _body: dict) -> dict:
-    return s.result_window(lo=_query_float(q, "lo"), hi=_query_float(q, "hi"),
-                           max_points=_query_int(q, "max_points", 4000))
-
-
 def _diff(s: GuiSession, q: dict, _body: dict) -> dict:
     a, b = q.get("a", [""])[0], q.get("b", [""])[0]
     if not a or not b:
@@ -264,7 +259,6 @@ ROUTES: dict[tuple[str, str], Any] = {
     ("GET", "/api/run/state"): lambda s, q, b: s.run_state(),
 
     ("GET", "/api/result"): lambda s, q, b: s.result(),
-    ("GET", "/api/result/window"): _window,
     # every channel once, as float64 arrays rather than JSON (WP-1461, D4)
     ("GET", "/api/result/curves"): lambda s, q, b: s.result_curves(),
     ("GET", "/api/report"): _report,
@@ -797,7 +791,7 @@ every route is a method on <code>rietx.gui.GuiSession</code>.</p>
  <li><span class="m">GET</span> <code>/api/events</code> — SSE (<code>?since=</code> replay,
      <code>?poll=1</code> JSON fallback)</li>
  <li><span class="m">GET</span> <code>/api/result</code> ·
-     <code>/api/result/window?lo=&amp;hi=</code> · <code>/api/report</code></li>
+     <code>/api/result/curves</code> · <code>/api/report</code></li>
  <li><span class="m">GET</span> <code>/api/history</code> ·
      <span class="m">POST</span> <code>/api/history/checkout</code></li>
  <li><span class="m">GET</span>/<span class="m">PUT</span> <code>/api/textdoc</code>

@@ -1893,8 +1893,8 @@ class GuiSession:
 
         The pattern rides on every answer because the peak panel is the one
         surface that must draw *before a fit exists*: an indexing project has
-        no ``/api/result/window`` to plot until a candidate is adopted and
-        Le-Bail-fitted, and picking peaks by eye needs the counts on screen.
+        no fit to plot until a candidate is adopted and Le-Bail-fitted, and
+        picking peaks by eye needs the counts on screen.
         Not idle-gated: it reads a project artifact and the pattern.
         """
         p = self._need_project()
@@ -2031,9 +2031,10 @@ class GuiSession:
         """The measured pattern, masked and decimated, for the peak plot.
 
         The masked channels ride along in ``excluded`` for the reason
-        :meth:`_masked_arm` gives: this is the view a project has *before* any
-        fit, so it is the only place the fit range can be seen at all, and it
-        cropped to the limits — a user could not see what they had cut.  The
+        :meth:`result_curves` sends ``kept``: this is the view a project has
+        *before* any fit, so it is the only place the fit range can be seen at
+        all, and it cropped to the limits — a user could not see what they had
+        cut.  The
         intersection itself is :meth:`Project.fitted_mask`, so this cannot
         drift from what the residual contains.
         """
@@ -2593,13 +2594,14 @@ class GuiSession:
     # results
     # ------------------------------------------------------------------
     def result(self) -> dict:
-        """The last result without its curves (they go through ``result_window``).
+        """The last result without its curves (they go through ``result_curves``).
 
-        A 40 000-point pattern is five arrays of 40 000 floats — ~4 MB of JSON
-        that a browser then decimates for a plot it can only draw a few thousand
-        points of.  So the arrays are excluded here and served per window, and
-        what is left is the whole of the rest: statistics, refined values with
-        esds, per-stage outcomes, diagnostics, QPA, absorption, provenance.
+        A 40 000-point pattern is five arrays of 40 000 floats: ~4 MB of JSON,
+        whose serialisation alone took the curves route 52-57 ms on NAC where
+        float64 binary takes 0.2 ms (WP-1461, D4). So the arrays are excluded
+        here and sent once as arrays, and what is left is the whole of the rest:
+        statistics, refined values with esds, per-stage outcomes, diagnostics,
+        QPA, absorption, provenance.
 
         ``maturity`` is WP-1029's one honest signal that a fit is hopeless, and
         it is deliberately **not** a new word.  It quotes the FitReport's own
@@ -2636,123 +2638,41 @@ class GuiSession:
         }
         return {"result": payload}
 
-    def result_window(self, lo: float | None = None, hi: float | None = None,
-                      max_points: int = 4000) -> dict:
-        """Observed, calculated, background and weighted residual over a window.
-
-        Decimated with ``viz.compare.decimation_index`` — bucket min *and* max of
-        every curve, never striding, so zooming out cannot drop a peak top and
-        make a bad fit look clean.
-
-        ``max_points`` is a **budget, not a ceiling**: the index set is the union
-        of three curves' per-bucket extrema over ``max_points // 2`` buckets, so
-        it can come back larger (measured: 4132 points for a 4200-point pattern
-        at a budget of 4000).  ``n_returned`` is therefore the length to trust,
-        and a client sizing an array from ``max_points`` would be wrong.
-
-        The arithmetic is :func:`curve_window`, shared with the series panel's
-        per-pattern route (WP-1016) for the reason every weighted residual in this
-        package divides by ``RefinementResult.sig()``: a second window builder
-        would be a second σ policy, which is the class of bug WP-1029 (s) found.
-        What stays here is what only a *project's* result has — the masked
-        channels and the ``stale`` comparison, both of which need
-        ``Project.fitted_mask``.
-
-        **Three residuals, and one of them cannot be derived from the others**
-        (WP-1029).  ``delta_raw`` is obs − calc and ``delta`` is that over σ —
-        either could be recomputed in a client from ``y_obs``/``y_calc``, but
-        the σ is :meth:`RefinementResult.sig`, the same one the matplotlib and
-        plotly panels divide by, so the picture cannot depend on which of them
-        drew it.  ``cumulative_chi2`` is the one that is genuinely not derivable: it is
-        Σ(Δ/σ)² accumulated over **every** point of the window and decimated
-        afterwards, so it still ends at the window's true χ².  Summing the
-        decimated subset instead would understate it by whatever the dropped
-        points contributed, which on a wide view is most of them.
-
-        The index set is deliberately computed from the same three curves as
-        before, so adding these did not change which points come back: a
-        cumulative curve is monotone, so it has no peak a bucket could miss.
-
-        ``weighted`` is **not** "is ``delta`` divided by something" — it always
-        is, because the fit always weighted by something.  It is whether that
-        something was *measured*: ``DataRef.has_sigma``, the file's esd column
-        against the Poisson ``√max(y,1)`` estimate, which is the same fact the
-        text document renders as "σ from file".  It cannot be read off the
-        result, whose ``sigma`` array has already collapsed the two into one
-        list of floats; reading ``bool(res.sigma)`` instead — as this did until
-        WP-1029 (s) — asked "is this a *pre-v0.2* result", a question whose
-        answer is always True for anything this GUI can produce.  So the flag
-        was a constant, the client's no-esd branch was unreachable, and a
-        Poisson fit got its axis labelled ``(obs−calc)/σ`` with nothing saying
-        the σ was an assumption.
-        """
-        res = self._need_result()
-        if not res.two_theta:
-            raise GuiError("this result carries no curves", code="NO_RESULT",
-                           status=409)
-        return {**curve_window(res, lo, hi, max_points,
-                               weighted=self._need_project().data_ref.has_sigma),
-                **self._masked_arm(lo, hi, max_points)}
-
     def result_curves(self) -> Packed:
         """Every channel of the pattern, and the last fit's curves on the ones it kept.
 
         The payload behind a chart that zooms in the browser (WP-1461, D4), so
-        it is sent once and not per window. Before any fit it is the pattern
+        it is sent once and never per zoom. Before any fit it is the pattern
         alone, which is the raw view. :func:`curve_arrays` builds it, and its
-        docstring gives the contract.
+        docstring gives the contract. Three facts on it were each measured
+        before they were sent, and each is a defect when it goes missing:
+
+        - **The masked channels travel beside the fitted ones** (WP-1033). A
+          result carries only the channels ``compile_model`` kept, so with
+          ``two_theta_limits`` set a plot's x axis fitted *inside* the fit
+          range and a user could not see what they cut: on the synthetic
+          fixture a 3–24° pattern came back as 8.005–18.990°, with zero points
+          inside a 3° exclusion. ``kept`` is ``Project.fitted_mask``, so what
+          is shaded is what the next run fits.
+        - **``stale`` compares the fitted 2θ values, not their count.** Settings
+          persist on the verb and curves move only on a run, so between an
+          exclusion and the next fit the curves on screen were computed over
+          another channel set (measured: 586 points inside a new band still in
+          the residual), and two masks can keep the same number of channels.
+        - **``weighted`` is whether σ was measured**, ``DataRef.has_sigma``: the
+          file's esd column against the Poisson ``√max(y,1)`` estimate. Δ/σ is
+          divided by a σ either way, since the fit always weighted by
+          something, so the flag changes an axis title and never which curve
+          is drawn. It cannot be read off the result, whose ``sigma`` has
+          already collapsed the two into one list of floats; ``bool(res.sigma)``
+          was a constant until WP-1029 (s), and a Poisson fit's axis said its σ
+          had been measured.
         """
         p = self._need_project()
         # read once: the worker swaps the result wholesale (``_need_result``)
         res = p.refinement.result_
         return curve_arrays(p.data.tt(), p.data.y(), p.fitted_mask(), res,
                             weighted=p.data_ref.has_sigma)
-
-    def _masked_arm(self, lo: float | None, hi: float | None,
-                    max_points: int) -> dict:
-        """The measured points this window covers that the protocol **masks**.
-
-        Measured before it was written (WP-1033): a result carries only the
-        channels ``compile_model`` kept, so with ``two_theta_limits`` set the
-        plot's x-axis autoranges *inside* the fit range and a user cannot see
-        what they cut — on the synthetic fixture, a 3–24° pattern came back as
-        8.005–18.990°, with zero points inside a 3° exclusion.  A band shaded
-        over that is a band over nothing.  So the excluded channels travel
-        beside the fitted ones, decimated the same way, and the client draws
-        them recessively under the shading.
-
-        ``stale`` is the other half, and it is the one thing on this route that
-        is about *disagreement*: settings persist on the verb while curves move
-        only on a run, so between an exclusion and the next fit the result on
-        screen was computed over a different channel set (measured: 586 points
-        inside the new band still in the residual).  The comparison is exact —
-        the fitted 2θ values, not their count — because two different masks can
-        keep the same number of channels.
-        """
-        import numpy as np
-
-        p = self._need_project()
-        keep = p.fitted_mask()
-        tt_all, y_all = p.data.tt(), p.data.y()
-        # read once: the worker swaps the result wholesale (``_need_result``)
-        res = p.refinement.result_
-        stale = res is None or not np.array_equal(
-            tt_all[keep], np.asarray(res.two_theta, dtype=float))
-        out = ~keep
-        if lo is not None:
-            out &= tt_all >= lo
-        if hi is not None:
-            out &= tt_all <= hi
-        if not out.any():
-            return {"excluded": {"two_theta": [], "y_obs": []},
-                    "n_excluded": 0, "stale": stale}
-        tt, y = tt_all[out], y_all[out]
-        # a quarter of the budget: these points are context, and spending the
-        # same 4000 on them as on the fit would halve the fitted curve's detail
-        idx = decimation_index(tt, [y], max(2, max_points // 4))
-        return {"excluded": {"two_theta": tt[idx].tolist(),
-                             "y_obs": y[idx].tolist()},
-                "n_excluded": int(out.sum()), "stale": stale}
 
     def report(self, plan: str | None = None) -> dict:
         """The three-layer :class:`FitReport` for the last fit, plus what applies.
@@ -3043,17 +2963,25 @@ def curve_window(res, lo: float | None, hi: float | None, max_points: int, *,
                  weighted: bool) -> dict:
     """One result's curves over a 2θ window, decimated — the shared arithmetic.
 
-    Module-level and taking the result explicitly, because it has two callers
-    that hold results from different places: ``GuiSession.result_window`` (the
-    project's own fit) and ``GuiSession.series_window`` (one member of a series,
-    which the project does not own).  Everything about *what* is drawn is decided
-    here once, in particular the σ — ``RefinementResult.sig()``, never a
-    re-derivation — so the two panels cannot draw residuals under two policies.
+    Module-level and taking the result explicitly, because the result it
+    draws is not the project's: ``GuiSession.series_window`` serves one member
+    of a series. It decided the σ for the project's own window route too until
+    that route went with the plotly renderer (WP-1461), and :func:`curve_arrays`
+    decides it the same way — ``RefinementResult.sig()``, never a
+    re-derivation — so no two panels draw residuals under two policies.
 
     ``weighted`` is the caller's fact, not this function's: it is whether the σ
     was **measured** (``DataRef.has_sigma``) rather than whether ``delta`` is
-    divided by something, which it always is.  See ``result_window``'s docstring
-    for what happens when that distinction is lost.
+    divided by something, which it always is. ``GuiSession.result_curves``'s
+    docstring says what happens when that distinction is lost.
+
+    **Three residuals, and one of them cannot be derived from the others**
+    (WP-1029). ``cumulative_chi2`` is Σ(Δ/σ)² accumulated over **every** point
+    of the window and decimated afterwards, so it still ends at the window's
+    true χ². Summing the decimated subset would understate it by whatever the
+    dropped points contributed, which on a wide view is most of them. The index
+    set is computed from the other three curves: a cumulative curve is
+    monotone, so it has no peak a bucket could miss.
     """
     import numpy as np
 
@@ -3079,7 +3007,7 @@ def curve_window(res, lo: float | None, hi: float | None, max_points: int, *,
     tt = tt[mask]
     raw = y_obs - y_calc
     delta = raw / sigma
-    # accumulated over every point, then decimated — see result_window
+    # accumulated over every point, then decimated (the docstring says why)
     cumulative = np.cumsum(delta**2)
     idx = decimation_index(tt, [y_obs, y_calc, delta], max_points)
     window = (float(tt[0]), float(tt[-1]))

@@ -229,15 +229,6 @@ export const api = {
   runState: () => call("GET", "/api/run/state"),
 
   result: () => call("GET", "/api/result"),
-  /** Decimated curves for a 2θ window.  Server-side on purpose: it uses the
-   *  same min/max decimation the comparison UI does, so a plot here and a plot
-   *  there cannot disagree about which points survive. */
-  window: (lo?: number, hi?: number, maxPoints = 4000) => {
-    const query = new URLSearchParams({ max_points: String(maxPoints) });
-    if (lo !== undefined) query.set("lo", String(lo));
-    if (hi !== undefined) query.set("hi", String(hi));
-    return call("GET", `/api/result/window?${query}`);
-  },
   /** The pattern's every channel and the fit's curves on the ones it kept, as
    *  `rxplot.mjs`'s `unpack` reads them; before a fit, the pattern alone. */
   curves: () => arrays("/api/result/curves"),

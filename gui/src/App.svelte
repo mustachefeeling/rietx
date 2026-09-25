@@ -341,7 +341,7 @@
     try {
       result = (await api.result()).result;
       resultError = "";
-      plotKey += 1; // the curves moved: tell the plot to refetch its window
+      plotKey += 1; // the curves moved: tell the plot to fetch them again
     } catch (error) {
       result = null;
       // NO_RESULT is an empty state, not a failure: a fresh project has no

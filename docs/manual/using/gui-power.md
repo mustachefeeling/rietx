@@ -246,7 +246,6 @@ indices int32, so a browser reads each array without copying it.
 |---|---|
 | `POST /api/run` · `POST /api/cancel` · `GET /api/run/state` | start the plan; ask it to stop between iterations; where it is |
 | `GET /api/result` | the fit's numbers, without the curves |
-| `GET /api/result/window` | the curves for one 2θ window, decimated server-side |
 | `GET /api/result/curves` | every channel of the pattern and, after a fit, its curves on the channels it kept |
 | `GET /api/report` · `POST /api/report/apply` | the `FitReport`; run the stage one of its suggestions names |
 

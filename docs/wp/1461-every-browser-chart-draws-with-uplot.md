@@ -1,6 +1,6 @@
 # WP-1461 — every browser chart draws with uPlot
 
-Milestone: unscheduled · Status: 🔄 2026-09-25 — claimed by @yue-here for task 6, the pattern panel complete; tasks 1-5 done: the pilot said go, D5 thinning, the pattern panel on the chart module behind ?chart=uplot
+Milestone: unscheduled · Status: 🔄 2026-09-25 — tasks 1-6 and 15 done: the pattern panel draws with the chart module alone, its plotly renderer and the flag deleted; task 7, the watcher, next
 Depends on: —
 Priority: P2 2026-09-24 — the maintainer's decision that every browser chart builds on one module; today plotly blocks every GUI open for 0.7-0.8 s before the first plot
 
@@ -547,6 +547,16 @@ the real panel and pick. The 3D viewer's move is
 [WP-1462](1462-the-structure-viewer-draws-with-threejs.md), filed the same
 day.
 
+**Decided 2026-09-25, the fifth session.** Task 6 said to delete the plotly-only
+code, and task 15 to remove the flag and the plotly renderer after tasks 7-14.
+Both could not hold, since the plotly renderer depends on the code task 6
+deletes. Task 14's test that no page loads `/plotly.js` would also fail while
+plotly drew the pattern by default. Asked, the maintainer chose to delete the
+pattern panel's plotly renderer and the `?chart=uplot` flag in task 6, which
+takes task 15 in. The chart has drawn the pattern since that merge. A later
+acceptance run pairs against plotly from a build of `58f7dbce`, the last commit
+with the plotly renderer.
+
 - **D1. Scope.** Every 2D chart in a browser.
   - matplotlib stays for the files it writes (`plots.py`, `indexing.py`,
     `plot_for_vlm`), which are made without a browser.
@@ -705,14 +715,14 @@ day.
 - [x] Vendor uPlot 1.6.32, its css and LICENSE into `src/rietx/viz/static/`, copied there by `npm run build` from the exact pin in `gui/package.json` (D2, § Keeping it current). Add the ATTRIBUTION row and put the directory in `build_info.py`'s digest. A test holds the vendored banner's version equal to the pin. Add `.github/dependabot.yml` for uPlot in `gui/`. Rebuild the dist, since the pin moves the digest. (Serving it moved to the watch and compare tasks, where a page first loads it. svgcanvas joins Dependabot with the export task, which adds the dependency.)
 - [x] The module's core: panes on one x, sync, drag, wheel and pan, y-zoom, select, the readout hook, the `ResizeObserver` path. Findings 1-3, 5 and 10 each get a case: the pure half under `node --test` and vitest, the drawing in a browser test. (`src/rietx/viz/static/rxplot.mjs`; `tests/rxplot.test.mjs` through `tests/test_rxplot.py`, and `tests/test_rxplot_browser.py`, which covers finding 12 too. Vitest moved to the pilot, where the GUI first imports the module.)
 - [x] Pilot, the gate: the curves route (D4) and its decoder in the module's pure half, and the GUI pattern panel on the core behind a flag, with the plotly renderer still selectable. Port the spike driver to the real page as the acceptance probe. Measure § Acceptance 1-3 against the plotly renderer on the same machine, in Chromium, WebKit and Firefox through playwright's builds. Build both marker paths (D5) and measure each, at NAC's 59 498 channels and at `11BM_LaB6_660a.fxye`'s 132 992. Record go or no-go, which marker path, and so which ceiling, in the handover. The GUI's vitest imports the module's pure half. (**Go**, § The pilot, measured. D5 chose thinning, so the ceiling is 150 000 channels. The flag is `?chart=uplot`; the probe is `pilot.mjs`.)
-- [ ] GUI pattern panel complete: peaks, candidates, masks, raw view, readout fields, Esc, axis titles. Delete the plotly-only code, stub uPlot in `test-setup.ts`, and move `App.test.ts` off the `Plotly.react` stub. Drawn colours are asserted from pixels or from the recorded `strokeStyle`.
+- [x] GUI pattern panel complete: peaks, candidates, masks, raw view, readout fields, Esc, axis titles. Delete the plotly-only code, stub uPlot in `test-setup.ts`, and move `App.test.ts` off the `Plotly.react` stub. Drawn colours are asserted from pixels or from the recorded `strokeStyle`. (Task 15 came in with it, by the maintainer's decision in § Decisions. Also the Σχ² re-base at a zoom, `rxplot.chi2Base`; the raw view's per-group residual through `rawResidual`; the pointer's line restyled solid `--fg`; `/api/result/window` deleted with its only client. `gui/src/test-uplot.ts` is the stand-in, `tests/test_gui_browser.py` reads the inks.)
 - [ ] `rietx watch` on the module, serving the vendored uPlot from its own server. `test_watch_browser.py` asserts what was drawn.
 - [ ] GUI Series panel: trajectory (D8), per-pattern chart through the curves route, rings, crosses plotted, the dashed tone, the tick formatter
 - [ ] `rietx compare`: its page becomes a file, on the module, and its server serves the vendored uPlot. `/api/state` drops the curves, and each variant's come once through a route (D4). `resample` becomes a subtraction.
 - [ ] `write_html` writes the uPlot page, with the notice inline, the weighted mode, `viz/plots.PALETTES` as its palette and the `"hkl: …"` labels `test_magnetic_tick_row.py` reads. Drop `include_plotlyjs`, replace `figure_from_arrays`, take plotly out of the `viz` extra, and record the break.
 - [ ] Exports: copy PNG, download PNG, copy TSV, SVG through svgcanvas with its notices. Pin svgcanvas exactly in `gui/package.json` and add it to `.github/dependabot.yml`'s allow list.
 - [ ] Structure3D loads plotly when first shown. A test asserts no other page requests `/plotly.js`. Record the first-show cost.
-- [ ] Remove the flag and the pattern panel's plotly renderer
+- [x] Remove the flag and the pattern panel's plotly renderer (in task 6)
 - [ ] Docs: the `gui/CLAUDE.md` rules as § What changes sorts them, the manual's GUI chapters with regenerated screenshots, `using/cli.md`, `install.md` and `files.md`, root CLAUDE.md, `tests/CLAUDE.md`, README
 - [ ] Tests: the suites in § Acceptance green, the fast count's movement stated, and every test listed in § What changes updated
 - [ ] Skill: regenerate `references/api.md` with `make_api_index.py` when D7 lands, then `rietx skill --install . --copy`. Nothing else in the skill draws a browser chart.
