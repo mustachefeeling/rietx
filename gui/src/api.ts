@@ -83,6 +83,23 @@ async function upload(kind: string, file: File | null,
   return payload;
 }
 
+/**
+ * A route answering float64 arrays rather than JSON (WP-1461, D4): the curves,
+ * every channel once. A refusal is still the JSON error envelope.
+ */
+async function arrays(path: string): Promise<ArrayBuffer> {
+  const response = await fetch(path);
+  if (response.ok) return response.arrayBuffer();
+  const text = await response.text();
+  let payload: any = null;
+  try {
+    payload = text ? JSON.parse(text) : null;
+  } catch {
+    payload = { error: { code: "BAD_RESPONSE", message: text.slice(0, 200) } };
+  }
+  throw new ApiError(response.status, payload);
+}
+
 export const api = {
   capabilities: () => call("GET", "/api/capabilities"),
   /** The whole help corpus plus `docs_url` (WP-1202/1203).  Fetched once at
@@ -221,6 +238,9 @@ export const api = {
     if (hi !== undefined) query.set("hi", String(hi));
     return call("GET", `/api/result/window?${query}`);
   },
+  /** The pattern's every channel and the fit's curves on the ones it kept, as
+   *  `rxplot.mjs`'s `unpack` reads them; before a fit, the pattern alone. */
+  curves: () => arrays("/api/result/curves"),
   /** The three layers **plus** an `apply` arm parallel to `suggested_actions`:
    *  whether the server would act on each one, and what it would run.  Idle-only
    *  (Layers 1-2 read the compiled model a stage would be rewriting), so this

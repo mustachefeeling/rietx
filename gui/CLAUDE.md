@@ -125,11 +125,11 @@ the built files must be *in* the wheel, and no built file may name a remote host
 The digest itself lives once, in `gui/scripts/build_info.py`, called by both the
 build and the test; `build-info.json` deliberately carries no timestamp, because
 `git diff --exit-code src/rietx/gui/static` has to mean "stale", not "rebuilt".
-Two duplications were refused: the client does **not** decimate (`/api/result/window`
-does, through `viz.compare.decimation_index`, and zoom refetches the window) and
-plotly is **not** vendored (injected at runtime from `/plotly.js`, so the app boots
-and says so when it is absent). uPlot is vendored into `src/rietx/viz/static` by
-`scripts/vendor.py`, the build's first step (WP-1461): bump the pin and build.
+**Which points a payload carries is the server's** (`viz.compare.decimation_index`, in the
+window route and past `CURVES_CEILING` in the curves route); the chart module paints
+each pixel column's extremes of them (WP-1461 D5), what is drawn and never what the
+readout reads. plotly is **not** vendored (served from `/plotly.js`); uPlot is, into
+`src/rietx/viz/static` by `scripts/vendor.py`, the build's first step: bump the pin, build.
 `npm run build` needs `python3`, `vitest` needs
 `resolve.conditions: ["browser"]` or `mount()` comes from svelte's server build,
 `@sveltejs/vite-plugin-svelte` must be v7 for Vite 8, and the toolchain needs

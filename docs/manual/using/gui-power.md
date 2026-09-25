@@ -191,7 +191,8 @@ wrote is the history `Refinement.history` gives you.
 ## The routes
 
 The server is stdlib `http.server` bound to `127.0.0.1`. Every response is JSON
-except the static files and the pattern uploads. Mutating routes return 409
+except the static files and the two `curves` routes, and every request body is
+JSON except the uploads. Mutating routes return 409
 while a run is in flight, and that refusal outranks body validation. The
 package's frozen-per-stage rule is enforced structurally rather than by
 discipline.
@@ -199,6 +200,12 @@ discipline.
 Non-finite floats are spelled as strings (`"Infinity"`, `"-Infinity"`, `"NaN"`)
 in responses and event frames alike, because `JSON.parse` rejects the bare
 tokens Python writes by default.
+
+The `curves` routes send numbers rather than text. The body is a little-endian
+uint32 giving the header's length, then a JSON header, then the arrays the
+header lists, each starting on an 8-byte boundary. Floats are float64 and
+indices int32, so a browser reads each array without copying it.
+`rietx.viz.packed.unpack` reads one in Python.
 
 ### The build, and things that are not a project
 
@@ -240,6 +247,7 @@ tokens Python writes by default.
 | `POST /api/run` · `POST /api/cancel` · `GET /api/run/state` | start the plan; ask it to stop between iterations; where it is |
 | `GET /api/result` | the fit's numbers, without the curves |
 | `GET /api/result/window` | the curves for one 2θ window, decimated server-side |
+| `GET /api/result/curves` | every channel of the pattern and, after a fit, its curves on the channels it kept |
 | `GET /api/report` · `POST /api/report/apply` | the `FitReport`; run the stage one of its suggestions names |
 
 ### Peaks and indexing
@@ -260,7 +268,7 @@ tokens Python writes by default.
 |---|---|
 | `GET /api/series` · `PUT /api/series` | the staged pattern list; replace it whole |
 | `POST /api/series/run` · `GET /api/series/result` | run the chain; its per-pattern answers and trajectories |
-| `GET /api/series/window` · `GET /api/series/history` | one member's curves; one member's tree |
+| `GET /api/series/window` · `GET /api/series/curves` · `GET /api/series/history` | one member's curves, per window or whole; one member's tree |
 | `GET /api/history` | the node graph |
 | `GET /api/history/diff` · `GET /api/history/compare` | one node against its parent; two nodes against each other |
 | `POST /api/history/checkout` · `POST /api/history/branch` | restore a state; fork from one |

@@ -25,6 +25,15 @@ export type ResidualKind = "delta" | "weighted" | "cumulative";
 export type Scale = "linear" | "sqrt" | "log";
 
 /**
+ * Which renderer draws the pattern, from the page's query string (WP-1461).
+ * `?chart=uplot` picks the chart module; anything else is plotly, the default
+ * until the other pages are ported and the flag goes.
+ */
+export function chartChoice(search: string): { uplot: boolean } {
+  return { uplot: new URLSearchParams(search).get("chart") === "uplot" };
+}
+
+/**
  * The five curve colours, read from the custom properties `app.css` themes.
  *
  * The plot samples these at *draw* time — a theme change restyles the page by

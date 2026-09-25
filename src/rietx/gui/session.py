@@ -74,6 +74,7 @@ from ..schemas.structure import Structure
 from ..strategy.staged import PLAN_PRESETS, resolve_plan
 from ..viz import theme
 from ..viz.compare import decimation_index
+from ..viz.packed import Packed
 from . import series as series_mod
 from . import symmetry
 from .imports import (
@@ -2484,6 +2485,15 @@ class GuiSession:
         ``project.fitted_mask`` — the one authority — because the protocol
         applied to it was the project's while the *pattern* was not.
         """
+        entry, res = self._series_member_result(index)
+        member = entry["members"][index]
+        return {"index": index, "label": member["label"], "x": member["x"],
+                **curve_window(res, lo, hi, max_points,
+                               weighted=bool(member["has_sigma"])),
+                **self._series_masked_arm(index, lo, hi, max_points)}
+
+    def _series_member_result(self, index: int):
+        """The series entry and member ``index``'s result, which has curves, or a refusal."""
         entry = self._series_entry()
         runner = entry["runner"]
         if not 0 <= index < len(runner.results_):
@@ -2495,11 +2505,22 @@ class GuiSession:
         if not res.two_theta:
             raise GuiError("this series pattern carries no curves",
                            code="NO_RESULT", status=409)
-        member = entry["members"][index]
-        return {"index": index, "label": member["label"], "x": member["x"],
-                **curve_window(res, lo, hi, max_points,
-                               weighted=bool(member["has_sigma"])),
-                **self._series_masked_arm(index, lo, hi, max_points)}
+        return entry, res
+
+    def series_curves(self, index: int) -> Packed:
+        """One series member's channels and curves, as :meth:`result_curves` serves the project's.
+
+        Built by :func:`curve_arrays` from this member's own pattern under the
+        limits this run used, for the reason :meth:`_series_masked_arm` gives.
+        """
+        from ..project import fitted_mask
+
+        entry, res = self._series_member_result(index)
+        data, member = entry["data"][index], entry["members"][index]
+        return curve_arrays(
+            data.tt(), data.y(), fitted_mask(data, entry["limits"]), res,
+            weighted=bool(member["has_sigma"]),
+            header={"index": index, "label": member["label"], "x": member["x"]})
 
     def _series_masked_arm(self, index: int, lo: float | None, hi: float | None,
                            max_points: int) -> dict:
@@ -2672,6 +2693,20 @@ class GuiSession:
         return {**curve_window(res, lo, hi, max_points,
                                weighted=self._need_project().data_ref.has_sigma),
                 **self._masked_arm(lo, hi, max_points)}
+
+    def result_curves(self) -> Packed:
+        """Every channel of the pattern, and the last fit's curves on the ones it kept.
+
+        The payload behind a chart that zooms in the browser (WP-1461, D4), so
+        it is sent once and not per window. Before any fit it is the pattern
+        alone, which is the raw view. :func:`curve_arrays` builds it, and its
+        docstring gives the contract.
+        """
+        p = self._need_project()
+        # read once: the worker swaps the result wholesale (``_need_result``)
+        res = p.refinement.result_
+        return curve_arrays(p.data.tt(), p.data.y(), p.fitted_mask(), res,
+                            weighted=p.data_ref.has_sigma)
 
     def _masked_arm(self, lo: float | None, hi: float | None,
                     max_points: int) -> dict:
@@ -3071,6 +3106,118 @@ def curve_window(res, lo: float | None, hi: float | None, max_points: int, *,
         "window": list(window), "n_total": int(mask.sum()),
         "n_returned": len(idx), "max_points": max_points,
     }
+
+
+#: About the most channels the curves route sends (WP-1461, D4 and D5). The
+#: chart paints each pixel column's lowest and highest point, and the pilot
+#: measured that at 132 992 channels, the largest pattern the repository reads,
+#: with no long frame. The spike's 200 000 had one, so a pattern past this is
+#: decimated by ``viz.compare.decimation_index`` first, whose count is a budget:
+#: a bucket's minimum and maximum can bring it a channel over.
+CURVES_CEILING = 150_000
+
+
+def curve_arrays(tt_all, y_all, keep, res, *, weighted: bool,
+                 header: dict | None = None) -> Packed:
+    """A pattern's every channel, and a fit's curves on the channels it kept.
+
+    The full-resolution counterpart of :func:`curve_window` (WP-1461, D4), with
+    its two callers for the same reason: ``GuiSession.result_curves`` and
+    ``GuiSession.series_curves``. The σ is ``RefinementResult.sig()``, as there.
+
+    The arrays:
+
+    - ``two_theta`` and ``y_obs``: the pattern over every channel, ascending in
+      2θ, as ``PatternData`` refuses any other order and uPlot draws no other.
+    - ``kept``: the channels the protocol fits now, as indices into those two.
+      The client draws the rest as masked.
+    - With a fit, ``fitted``: the channels the fit kept, the same way. Then
+      ``y_calc``, ``y_background`` when there is one, ``delta``, ``delta_raw``
+      and ``cumulative_chi2``, one value per fitted channel.
+
+    ``fitted`` and ``kept`` differ only when ``stale``: an exclusion persists
+    on the verb and the curves move only on a run. Two facts carry the index,
+    both checked on the NAC example and a series member bit for bit: a result's
+    2θ is the pattern's own under the mask it was fitted with, and so is its
+    ``y_obs``. A result not on this pattern's channels is refused.
+
+    Past :data:`CURVES_CEILING` channels the pattern is decimated as the window
+    route decimates it, and every index follows: ``n_channels`` is then the
+    pattern's count and ``decimated`` says so. The Σχ² is accumulated over every
+    fitted channel before that, so each value sent is still exact.
+    """
+    import numpy as np
+
+    grid = np.asarray(tt_all, dtype=float)
+    head = {"weighted": weighted, "n_channels": len(grid), **(header or {})}
+    arrays = {"two_theta": grid, "y_obs": np.asarray(y_all, dtype=float),
+              "kept": np.flatnonzero(keep)}
+    if res is None or not res.two_theta:
+        return _under_ceiling(Packed({**head, "fit": False}, arrays))
+
+    tt_fit = np.asarray(res.two_theta, dtype=float)
+    at = np.minimum(np.searchsorted(grid, tt_fit), len(grid) - 1)
+    if not np.array_equal(grid[at], tt_fit):
+        raise GuiError("the fit's channels are not this pattern's, so its curves "
+                       "cannot be drawn over it — run again",
+                       code="RESULT_NOT_ON_PATTERN", status=409)
+    y_obs, y_calc = np.asarray(res.y_obs), np.asarray(res.y_calc)
+    raw = y_obs - y_calc
+    delta = raw / res.sig()
+    arrays.update({"fitted": at, "y_calc": y_calc})
+    if res.y_background:
+        arrays["y_background"] = np.asarray(res.y_background)
+    arrays.update({"delta": delta, "delta_raw": raw,
+                   # accumulated over every fitted channel; a client re-bases it
+                   # at a zoom as cum[j] − cum[i−1]
+                   "cumulative_chi2": np.cumsum(delta**2)})
+    head.update({
+        "fit": True, "n_fitted": len(tt_fit),
+        "stale": not np.array_equal(grid[keep], tt_fit),
+        **_windowed_ticks(res, (-math.inf, math.inf)),
+    })
+    return _under_ceiling(Packed(head, arrays))
+
+
+def _under_ceiling(packed: Packed) -> Packed:
+    """``packed`` with its pattern decimated to :data:`CURVES_CEILING` channels.
+
+    The channels kept are ``decimation_index``'s over the curves
+    :func:`curve_window` decimates by, observed, calculated and Δ/σ, so the
+    two routes agree on which points survive and a misfit spike survives as
+    a peak top does. The budget is split between the curves, since each adds
+    its own bucket extrema. ``kept`` and ``fitted`` are re-indexed onto the
+    channels that stay, and a fitted channel that went takes its model values
+    with it.
+    """
+    import numpy as np
+
+    arrays = packed.arrays
+    n = len(arrays["two_theta"])
+    if n <= CURVES_CEILING:
+        return packed
+    curves = [arrays["y_obs"]]
+    if "fitted" in arrays:
+        # off the fit's channels the model is the data and the residual zero,
+        # so neither adds an extremum there
+        for key, off in (("y_calc", arrays["y_obs"]), ("delta", np.zeros(n))):
+            on_grid = np.array(off, dtype=float)
+            on_grid[arrays["fitted"]] = arrays[key]
+            curves.append(on_grid)
+    sel = decimation_index(arrays["two_theta"], curves, CURVES_CEILING // len(curves))
+    where = np.full(n, -1)
+    where[sel] = np.arange(len(sel))
+    out = {"two_theta": arrays["two_theta"][sel], "y_obs": arrays["y_obs"][sel]}
+    kept = where[arrays["kept"]]
+    out["kept"] = kept[kept >= 0]
+    if "fitted" in arrays:
+        fitted = where[arrays["fitted"]]
+        on = fitted >= 0
+        out["fitted"] = fitted[on]
+        for key, values in arrays.items():
+            if key not in out and key != "fitted":
+                out[key] = values[on]
+    return Packed({**packed.header, "decimated": True}, out)
 
 
 def _windowed_ticks(res, window) -> dict:

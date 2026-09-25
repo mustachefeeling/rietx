@@ -41,4 +41,41 @@ def test_the_pure_half_is_unit_tested():
     assert done.returncode == 0, done.stdout + done.stderr
     match = re.search(r"^# pass (\d+)$", done.stdout, re.MULTILINE)
     assert match is not None, done.stdout
-    assert int(match.group(1)) >= 9, done.stdout
+    assert int(match.group(1)) >= 13, done.stdout
+
+
+def test_the_browser_reads_what_python_packs(tmp_path):
+    """D4's body is written by ``rietx.viz.packed`` and read by ``rxplot.mjs``'s
+    ``unpack``: two halves of one format in two languages, so only running both
+    says they agree. The offsets are what a one-sided test cannot see."""
+    import json
+
+    import numpy as np
+
+    from rietx.viz.packed import pack
+
+    arrays = {"two_theta": np.linspace(5.0, 6.0, 3), "kept": np.array([0, 2]),
+              "odd": np.array([1.0 / 3.0]),
+              "fitted": np.array([1, 2, 3], dtype=np.int64)}
+    body = tmp_path / "body.bin"
+    body.write_bytes(pack({"fit": True, "ticks": {"a": [5.5]}}, arrays))
+    script = (f"import {{unpack}} from {json.dumps(MODULE.as_uri())};"
+              "import {readFileSync} from 'node:fs';"
+              f"const b = readFileSync({json.dumps(str(body))});"
+              "const {header, arrays} = unpack("
+              "b.buffer.slice(b.byteOffset, b.byteOffset + b.length));"
+              "const out = {header};"
+              "for (const [k, v] of Object.entries(arrays))"
+              " out[k] = [v.constructor.name, Array.from(v)];"
+              "console.log(JSON.stringify(out));")
+    done = subprocess.run([_node(), "--input-type=module", "-e", script],
+                          capture_output=True, text=True, check=False)
+    assert done.returncode == 0, done.stderr
+    out = json.loads(done.stdout)
+    assert out.pop("header") == {"fit": True, "ticks": {"a": [5.5]}}
+    assert out == {
+        "two_theta": ["Float64Array", [5.0, 5.5, 6.0]],
+        "kept": ["Int32Array", [0, 2]],
+        # every digit survives: float64 on the wire, not a printed decimal
+        "odd": ["Float64Array", [1.0 / 3.0]],
+        "fitted": ["Int32Array", [1, 2, 3]]}
