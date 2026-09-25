@@ -195,6 +195,12 @@ describe("the legend", () => {
     expect(ids(memberLegend(false))).toEqual(["obs", "calc", "bkg", "diff"]);
     expect(ids(memberLegend(true))).toEqual(["obs", "masked", "calc", "bkg", "diff"]);
   });
+
+  it("keeps a missing background listed, disabled and saying why", () => {
+    const bkg = memberLegend(false, false).find((e) => e.id === "bkg");
+    expect(bkg?.absent).toMatch(/no background/);
+    expect(memberLegend(false).find((e) => e.id === "bkg")?.absent).toBeUndefined();
+  });
 });
 
 describe("what the pointer says", () => {

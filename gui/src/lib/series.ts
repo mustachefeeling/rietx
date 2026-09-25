@@ -211,6 +211,9 @@ export interface LegendEntry {
   label: string;
   ink: string;
   mark: "line" | "dash" | "dot" | "ring" | "cross";
+  /** Why the mark cannot be drawn, when it cannot: its entry is listed and
+   *  disabled, never dropped (`CurveToggle.absent`). */
+  absent?: string;
 }
 
 /**
@@ -282,14 +285,16 @@ export function pointText(traj: Trajectory, i: number,
 /**
  * What a member's pattern chart offers: the fitted points, the masked ones
  * when the protocol masked any, the model, the background and the residual.
- * `rxplot.pattern`'s ids, over its own inks.
+ * `rxplot.pattern`'s ids, over its own inks. A fit with no background keeps
+ * the entry, disabled and saying why.
  */
-export function memberLegend(masked: boolean): LegendEntry[] {
+export function memberLegend(masked: boolean, background = true): LegendEntry[] {
   return [
     { id: "obs", label: "obs", ink: "--plot-obs", mark: "dot" },
     ...(masked ? [{ id: "masked", label: "excluded", ink: "--muted", mark: "dot" } as LegendEntry] : []),
     { id: "calc", label: "calc", ink: "--plot-calc", mark: "line" },
-    { id: "bkg", label: "background", ink: "--plot-bkg", mark: "dash" },
+    { id: "bkg", label: "background", ink: "--plot-bkg", mark: "dash",
+      ...(background ? {} : { absent: "this pattern's fit has no background" }) },
     { id: "diff", label: "Δ/σ", ink: "--plot-diff", mark: "line" },
   ];
 }

@@ -29,7 +29,7 @@
 
   import { api } from "../api";
   import { seriesCompact } from "../lib/resize";
-  import { curveColors } from "../lib/plot";
+  import { curveColors, toggleCurve } from "../lib/plot";
   import {
     asRequest,
     axisTitle,
@@ -325,10 +325,14 @@
   }
   let colors = readColors();
 
-  // a new answer is a new figure; `draw` is idempotent over one
+  /** The answer the figure on screen was drawn from. Showing the tab again
+   *  keeps that figure, with the reader's zoom and hidden marks. */
+  let drawnFrom: any = null;
+
+  // a new answer is a new figure
   $effect(() => {
-    void answer;
-    if (active) draw();
+    void plotNode;
+    if (active && answer !== drawnFrom) draw();
   });
 
   /** A canvas keeps the colours it was painted with, so a theme click
@@ -343,7 +347,7 @@
   });
 
   function toggle(id: string) {
-    hidden = hidden.includes(id) ? hidden.filter((h) => h !== id) : [...hidden, id];
+    hidden = toggleCurve(hidden, id);
     fig?.setHidden(hidden);
   }
 
@@ -362,6 +366,7 @@
       }
     }
     if (ticket !== drawing || !plotNode) return;
+    drawnFrom = answer;
     fig?.destroy();
     fig = null;
     tip = null;
@@ -369,7 +374,8 @@
     colors = readColors();
     if (index !== null) {
       const { arrays, header } = curves;
-      legend = memberLegend(arrays.kept.length < arrays.two_theta.length);
+      legend = memberLegend(arrays.kept.length < arrays.two_theta.length,
+                            "y_background" in arrays);
       fig = chart.mountMember(plotNode, curves, {
         colors: () => ({ ...colors, masked: colors.edge }),
         residual: "weighted",
@@ -616,8 +622,10 @@ plot's x-axis title, and the column above">
          moves nothing a reader is holding still -->
     <div class="segmented legend" role="group" aria-label="what the plot draws">
       {#each legend as entry (entry.id)}
-        <button class:on={!hidden.includes(entry.id)} aria-pressed={!hidden.includes(entry.id)}
-          title={`${entry.label} — click to ${hidden.includes(entry.id) ? "show" : "hide"}`}
+        <button class:on={!entry.absent && !hidden.includes(entry.id)}
+          aria-pressed={!entry.absent && !hidden.includes(entry.id)} disabled={!!entry.absent}
+          title={entry.absent
+            ?? `${entry.label} — click to ${hidden.includes(entry.id) ? "show" : "hide"}`}
           onclick={() => toggle(entry.id)}><i class={entry.mark}
           style:--ink={`var(${entry.ink})`}></i>{entry.label}</button>
       {/each}
