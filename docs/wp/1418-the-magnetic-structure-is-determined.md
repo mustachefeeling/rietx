@@ -125,6 +125,72 @@ MAGNDATA magCIF entries serve the round-trip and span tests with no pattern.
 
 ### Inherited
 
+- **2026-09-25, from the issue triage (issue #455): M-7's class count is a
+  random variable of the platform and the seed.** `isotropy.equivalence_classes`
+  calls a pair *distinguishable* when any one of its draws has every restart
+  of `_fit_residual` above `rtol`, and *equivalent* when all `draws` (3)
+  reproduce. The reporter swept 2422 cases on a Mac and a Linux machine:
+  candidate counts and MSG-type censuses agree on all of them, and 103 class
+  counts differ from this cause alone. Two mechanisms. **A, local minima**
+  (five of six cases studied): at `restarts=4`, 21 of 40 pair-runs that are
+  equivalent came out distinguishable, so the count is too high. **B,
+  partial reachability** (`P a -3`, k = (½,½,½)): one family reproduces
+  about three quarters of the other's draws and converges to a real non-zero
+  minimum on the rest, so 3 draws pass it about 42 % of the time and the
+  count is too low. More restarts do not fix B. The platform enters through
+  `MagneticCandidate.configurations`: a multi-copy or multi-dimensional
+  family's basis is fixed only up to a rotation within its span (Accelerate
+  and OpenBLAS pick different ones), so one seeded `rng.normal` stream draws
+  different moments. *Reproduced at `07952d4e`* (macOS arm64, numpy 2.5.3,
+  scipy 1.18.1, one thread): the issue's script prints the reporter's macOS
+  column residual for residual, `((0, 1), (2,))` for `P 1 21/c 1`
+  k = (0,0,½), and basis rotation 3 flips it to `((0,), (1,), (2,))` on one
+  machine. That flip is the machine-independent proof. **The asks, the
+  reporter's:** (1) stop at the first restart that reaches `rtol` and raise
+  the cap (at 32, both machines agree on the five A cases, members included;
+  cost ×0.97 to ×5.2; one equivalent draw still needed its 32nd restart, so
+  32 is not a margin); (2) make the amplitude basis canonical, the RREF-and-QR
+  that `_projector_rows` already applies, extended to the copy basis, so a
+  count at least means the same thing everywhere; (3) the docstring says both
+  verdicts are statistical. B needs more draws, and how small an unreachable
+  fraction still counts as "distinguishable" is a definitional choice the
+  reporter leaves to this WP, unmeasured in cost. A deterministic
+  alternative (seed the B-fit from A's amplitudes through the span
+  intersection) is named and unmeasured. M-7 is ticked, so this reopens it
+  as a defect in a landed rung. The MAGNDATA recovery acceptance should say
+  which platform and seed its counts were taken on.
+- **2026-09-25, from the issue triage (issue #458): a blind nuclear pre-fit
+  biases every moment low, measured on the fork against M-9.**
+  `solve_magnetic` is not on `main` yet (checked at `07952d4e`), so this is
+  read as a claim about the fork's `magnetic-v16`, taken on at M-9's PR.
+  The nuclear model is pre-fitted to the whole pattern, so scale, Biso and
+  extinction absorb the magnetic intensity and the profile and coordinates
+  co-adapt. The final "all" stage of `SOLVE_STAGE_PATHS` frees scale and
+  Biso again but does not undo it. On simulated neutron patterns of 20
+  MAGNDATA structures × 3 noise seeds, solved blind: median recovered /
+  published first-site moment 0.943, 10 of 20 entries at 0.43-0.93, and the
+  bias tracks the pre-fit scale's overshoot (Spearman ρ −0.62). Two blind
+  recipes close it: **(iv)** hold the ranked winner's moments, re-fit the
+  whole nuclear model with the moment present from a generic prior (Biso
+  1.0 Å², extinction 0), carry it back and solve again (0.995 at round 2);
+  **(v)** one solve whose last stage also frees extinction, the coordinate
+  DOFs and the profile (0.998). Both hold the exact published group on
+  58 of 60 and leave a k ≠ 0 negative control unchanged. (v) frees
+  coordinates in the *ranked* stage, the confound M-9 removed, and timed out
+  once at 1500 s; (iv) keeps the ranked stage and needs a stopping rule and
+  an API that hands `solve_magnetic` a nuclear state from a refined trial.
+  **A gate defect found on the way, independent of the recipe:** `_rank`'s
+  3σ null test reads each modulus of a powder-degenerate pair alone (each
+  esd about 2.4× its value, the quadrature sum 63σ clear), so a correct
+  class is ineligible; and the Q5 fold reads only the five-slot
+  `top_correlations`, which free coordinates can fill. Fork branch
+  `fix/w14-rank-key` adds `MomentRow.pair_supported` and reads the stored
+  `HIGH_CORRELATION`/`FLAT_DIRECTION` findings. **The asks:** the gate fix
+  first; a default recipe (the reporter reads (iv) as default and (v) as an
+  opt-in plan); a diagnostic when the nuclear scale moves by more than its
+  esd between the pre-fit and the final stage. WP-1343 is the same symptom
+  (a moment reading low) from a different cause, the width. All numbers
+  are on simulated data; none on incommensurate k or a joint fit.
 - **2026-09-24, from the issue triage (issue #439): the spgrep oracle's
   refusal count depends on the machine.**
   `tests/test_magnetic_irreps.py::test_physically_irreducible_dimensions_agree_with_the_spgrep_oracle`
