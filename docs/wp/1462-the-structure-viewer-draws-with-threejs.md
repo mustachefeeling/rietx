@@ -454,7 +454,8 @@ cpus, new against plotly on the same machine (`results/paired_*.txt`):
   toggles of the viewer made six contexts and lost five, so each close gives
   its context back. No `/plotly.js` request while the viewer shows.
 - Counts: GUI vitest 558 passed in 23 files, node 22.15.0 on macOS, the same
-  as at session start (the viewer's 28 + 16 tests became 26 + 18). Python
+  as at session start (the viewer's 28 + 16 tests became 26 + 18), then 559
+  after the review's one test. Python
   `-m "not slow"`, `[dev]` venv with python playwright 1.63.0 installed in this
   worktree, macOS: 6125 passed, 140 skipped, 1 failed. The failure was
   `test_watch_browser.py`'s console-seam test, which passed alone at load 35.
@@ -477,6 +478,20 @@ cpus, new against plotly on the same machine (`results/paired_*.txt`):
   merge, the spike's copy too.
 - `npm --prefix DIR init` writes `package.json` into the working directory,
   not `DIR`.
+
+*Review.* `/code-review high --fix` raised ten findings. It fixed eight,
+which landed as one commit: a tensor with two non-positive axes could make
+the drawn shape singular, a failed export hid the controls, and the console
+quoted the size asked for rather than the size made. `createRenderer` could
+throw where it should return null, an empty payload left the last structure
+on the canvas, and `background()` misread a translucent or `color()`
+ancestor. The geometry is now `$state.raw`, and the browser module has an
+`xdist_group`. One finding is declined: a bond half's open end shows when
+its own atom is hidden, by the legend or by unticking the images. plotly's
+cylinders were open the same way, so nothing is lost. Capping them means
+cap discs in the shader and in `pickHalf` together. After the fixes, vitest
+passed 559 (the new test is the two-flat-axes case) and svelte-check found
+no errors.
 
 *Not done, on purpose.* The tests task's "reads pixels at known atoms" is a
 drawn-fraction check and a ring-ink count instead. `using/install.md` and
