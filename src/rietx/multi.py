@@ -45,6 +45,8 @@ from .refine import (
     _absorption_diagnostics,
     _absorption_record,
     _capillary_offset_diagnostics,
+    _cell_runaway_diagnostic,
+    _cell_runaway_withheld,
     _constraint_diagnostics,
     _covariance_diagnostics,
     _declared_wavelengths,
@@ -60,6 +62,7 @@ from .refine import (
     _unknown_path_diagnostics,
     _utcnow,
     _wavelength_calibration_diagnostics,
+    clamp_cell_runaway,
 )
 from .report.schemas import THRESHOLDS_VERSION
 from .schemas.common import Diagnostic, Provenance
@@ -168,6 +171,36 @@ def _rehold_multi(models, mtable, held: list[str],
     return released, collapsed
 
 
+def _clamp_cell_runaway_multi(mtable, start_values: list[dict[str, float]]
+                              ) -> list[tuple[str, float, float]]:
+    """:func:`~rietx.refine.clamp_cell_runaway`, extended to the joint runner
+    (review of #385 finding 2): same shape as :func:`_rehold_multi` above,
+    called the same way, after the same ``mtable.commit``.
+
+    A shared cell parameter is a genuinely separate :class:`Entry` in every
+    histogram's own :class:`~rietx.params.vector.ParameterTable` —
+    :meth:`~rietx.params.multi.MultiParameterTable.commit` writes the same
+    combined-θ value into each one, never a single shared object — so every
+    table's own entries must be clamped and its own ties refreshed
+    individually, exactly as the single-histogram runner does for one table.
+    What changes for the *report*: a shared path's escaped/clamped values are
+    identical in every histogram by construction (same start value, same
+    committed value, same window), so it is named once under its bare
+    (shared) path rather than once per histogram; a per-histogram path is
+    scoped (``hist.h.…``) and is never shared with another table, so it is
+    never deduplicated.
+    """
+    seen: dict[str, tuple[str, float, float]] = {}
+    for h, table in enumerate(mtable.tables):
+        clamped = clamp_cell_runaway(table, start_values[h])
+        if clamped:
+            table.refresh_ties()
+        for path, old, new in clamped:
+            scoped = mtable._canonical(h, path)
+            seen[scoped] = (scoped, old, new)
+    return list(seen.values())
+
+
 class MultiHistogramRefinement:
     """Joint Rietveld refinement of a shared structure against several patterns.
 
@@ -265,6 +298,15 @@ class MultiHistogramRefinement:
         # histogram (⇒ per-histogram frozen discreteness) and joint-solve.
         self.mtable.set_vary(["*"], False)
         stage_results: list[StageResult] = []
+        # one CELL_RUNAWAY diagnostic per stage that fired, exactly as the
+        # single-histogram runner builds one per _run_stage call (review of
+        # #385 finding 2) — collected here and folded into the run-level
+        # diagnostics once the loop ends, since a stage here has no
+        # StageReport of its own to carry it on.
+        cell_runaway_diags: list[Diagnostic] = []
+        # the last stage's alone, which is what the result withholds esds on
+        # — ``refine._run_plan``'s ``answer_runaway``, for its reason
+        answer_runaway: list[Diagnostic] = []
         models = None
         outcome = None
         carried_hold: list[str] = []
@@ -311,6 +353,16 @@ class MultiHistogramRefinement:
                                               backend=self._backend,
                                               solver=self._solver, **stage_ftol)
             self.mtable.commit(outcome.theta)
+            # A phase's own support can stay above PHASE_SUPPORT_SIGMA in
+            # every histogram and its shared cell still walk to nonsense — the
+            # single-histogram runner's own joint-degeneracy gap
+            # (CELL_SAFETY_FRACTION's docstring), unaffected by which runner
+            # is asking.  Checked and corrected once, on the outcome, never as
+            # a bound the solver saw (review of #385 finding 2).
+            cell_runaway = _clamp_cell_runaway_multi(self.mtable, start_values)
+            if cell_runaway:
+                self.mtable._rebuild_columns()
+                outcome = dataclasses.replace(outcome, theta=self.mtable.x0())
             released, collapsed = _rehold_multi(models, self.mtable, held,
                                                 start_values)
             if released or collapsed:
@@ -323,6 +375,11 @@ class MultiHistogramRefinement:
                     max_iter=stage.max_iter, backend=self._backend,
                     solver=self._solver, **stage_ftol)
                 self.mtable.commit(second.theta)
+                second_runaway = _clamp_cell_runaway_multi(self.mtable, start_values)
+                if second_runaway:
+                    self.mtable._rebuild_columns()
+                    cell_runaway = cell_runaway + second_runaway
+                    second = dataclasses.replace(second, theta=self.mtable.x0())
                 outcome = dataclasses.replace(
                     second, cost_initial=outcome.cost_initial,
                     n_iterations=outcome.n_iterations + second.n_iterations,
@@ -332,6 +389,10 @@ class MultiHistogramRefinement:
                     # ran twice and the count is a fact about its whole search
                     n_degenerate_cell_probes=(outcome.n_degenerate_cell_probes
                                               + second.n_degenerate_cell_probes))
+            runaway_diag = _cell_runaway_diagnostic(cell_runaway)
+            answer_runaway = [] if runaway_diag is None else [runaway_diag]
+            if runaway_diag is not None:
+                cell_runaway_diags.append(runaway_diag)
             self.mtable.apply_to_models()
             carried_hold = list(held)
             stage_results.append(StageResult(
@@ -347,7 +408,8 @@ class MultiHistogramRefinement:
         assert models is not None and outcome is not None
         self._models = models
         self.result_ = self._build_result(models, outcome, weights, plan.correlation_guard,
-                                           stage_results)
+                                           stage_results, cell_runaway_diags,
+                                           answer_runaway)
         return self.result_
 
     # ------------------------------------------------------------------
@@ -393,7 +455,8 @@ class MultiHistogramRefinement:
         return ticks, tick_hkl
 
     def _build_result(self, models, outcome, weights, correlation_guard,
-                      stage_results) -> RefinementResult:
+                      stage_results, cell_runaway_diags=(),
+                      answer_runaway=()) -> RefinementResult:
         mt = self.mtable
         n = mt.n_histograms
         thetas = mt.split(outcome.theta)
@@ -532,7 +595,8 @@ class MultiHistogramRefinement:
         # is exactly 1.0.  With a correlation matrix this is a dense n x n, so
         # a second build here would double the cost for the same dict.
         esd_hist0 = per_esds[0] if per_esds else {}
-        parameters = self._parameters(thetas, stderr, corr, at_bounds, esd_hist0)
+        parameters = self._parameters(thetas, stderr, corr, at_bounds, esd_hist0,
+                                      answer_runaway)
         diagnostics = self._top_diagnostics(outcome, correlation_guard, top_bg,
                                             at_bounds)
         if stage_results:
@@ -555,6 +619,10 @@ class MultiHistogramRefinement:
             listing="[e.path for t in ref.mtable.tables for e in t.entries]")
         diagnostics = diagnostics + _unreached_histogram_diagnostics(
             stage_results, [h.label for h in histograms])
+        # one CELL_RUNAWAY per stage that fired the joint clamp above,
+        # collected during the loop since there is no per-stage StageReport
+        # here to carry it on (review of #385 finding 2)
+        diagnostics = diagnostics + cell_runaway_diags
         # A phase the joint fit cannot see, and what the run did about it
         # (WP-1301).  Once for the fit rather than once per histogram, because
         # the statement is joint: the support is the phase's **strongest**
@@ -618,9 +686,23 @@ class MultiHistogramRefinement:
         wavelength = model.line_wavelengths[0] if model.line_wavelengths else None
         return compute_qpa(struct, values, scale_cov, mult, wavelength=wavelength)
 
-    def _parameters(self, thetas, stderr, corr, at_bounds, esd0) -> list[RefinedParameter]:
+    def _parameters(self, thetas, stderr, corr, at_bounds, esd0,
+                    answer_runaway=()) -> list[RefinedParameter]:
         mt = self.mtable
         params: list[RefinedParameter] = []
+        # The single-histogram rule (``refine._build_result``): a cell the
+        # answer-producing stage's CELL_RUNAWAY names has its esd withheld,
+        # and so does every path tied to it — asked of each histogram's own
+        # table, because the ties are per table.  The finding scopes a
+        # per-histogram path ``hist.h.…`` and names a shared one bare
+        # (``_clamp_cell_runaway_multi``), so each table reads its own names.
+        named = [p for d in answer_runaway for p in d.where]
+        withheld = []
+        for h, table in enumerate(mt.tables):
+            prefix = f"hist.{h}."
+            local = [p[len(prefix):] if p.startswith(prefix) else p for p in named
+                     if p.startswith(prefix) or not p.startswith("hist.")]
+            withheld.append(_cell_runaway_withheld(table, local))
         # The row path is the combined path — shared rows unprefixed,
         # per-histogram rows `hist.h.…` — which is exactly how
         # `MultiParameterTable.free_paths` spells them, so the projection keys
@@ -634,7 +716,7 @@ class MultiHistogramRefinement:
             if mt.sharing.is_shared(e.path) and (e.vary or e.tie is not None):
                 params.append(RefinedParameter(
                     path=e.path, value=e.value, vary=e.vary,
-                    stderr=esd0.get(e.path),
+                    stderr=None if e.path in withheld[0] else esd0.get(e.path),
                     at_bound=(e.path in on_bound) if e.path in tested else None))
         for h, table in enumerate(mt.tables):
             cm = mt.col_map(h)
@@ -646,7 +728,7 @@ class MultiHistogramRefinement:
                     row = f"hist.{h}.{e.path}"
                     params.append(RefinedParameter(
                         path=row, value=e.value, vary=e.vary,
-                        stderr=esd.get(e.path),
+                        stderr=None if e.path in withheld[h] else esd.get(e.path),
                         at_bound=(row in on_bound) if row in tested else None))
         return params
 

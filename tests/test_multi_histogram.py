@@ -40,6 +40,7 @@ from rietx.params.multi import (
 )
 from rietx.params.vector import ParameterTable
 from rietx.schemas.instrument import BackgroundChebyshev
+from rietx.schemas.structure import Structure
 from rietx.strategy.staged import RefinementPlan, Stage
 from tests.test_schemas import make_lab6
 
@@ -748,3 +749,263 @@ def test_a_joint_fit_reports_its_microstructure(size_fixture):
     assert size.value == pytest.approx(TRUE_SIZE_A, rel=0.05)
     # and the joint result carries the constant it used, never a defaulted zero
     assert block.scherrer_k > 0.0
+
+
+# ----------------------------------------------------------------------
+# review of #385 (2026-09-22): the joint runner (multi.py:301-318, per that
+# review) has the single-histogram stage runner's shape line for line and had
+# no clamp_cell_runaway at all -- extended in rietx.multi._clamp_cell_runaway_multi.
+# ----------------------------------------------------------------------
+def _degenerate_pair_structure(decoy_scale: float) -> Structure:
+    """The single-histogram degenerate-pair construction
+    (``test_cell_runaway_safety._degenerate_pair``): two LaB6-shaped phases
+    sharing one starting cell, one at full scale and one at a trace.  Reused
+    here because the joint runner shares the cell across histograms by
+    default, and the same joint degeneracy trips it there too."""
+    real = make_lab6()
+    for n in "abc":
+        getattr(real.phases[0].cell, n).value = TRUE_A
+    real.phases[0].scale.value = 5e-4
+    decoy_s = make_lab6()
+    decoy = decoy_s.phases[0]
+    decoy.name = "decoy"
+    for n in "abc":
+        getattr(decoy.cell, n).value = TRUE_A
+    decoy.scale.value = decoy_scale
+    return Structure(phases=[real.phases[0], decoy])
+
+
+def _degenerate_pair_instruments() -> list[Instrument]:
+    out = []
+    for lam in (0.41390, 0.71070):
+        ins = Instrument.debye_scherrer(wavelength=lam)
+        ins.background = BackgroundChebyshev.with_terms(3)
+        out.append(ins)
+    return out
+
+
+def test_the_joint_clamp_fires_on_a_shared_degenerate_cell():
+    """Unit-level, at the level ``test_cell_runaway_safety.py`` tests the
+    single-histogram function: escape the shared cell directly on both
+    histograms' own tables -- exactly what ``mtable.commit(outcome.theta)``
+    after a runaway joint TRF step leaves behind -- rather than driving a
+    real solve there, which needs ~20 unwindowed iterations on purpose
+    (the single-histogram fixture's own docstring)."""
+    from rietx.multi import _clamp_cell_runaway_multi
+    from rietx.params.vector import CELL_SAFETY_ANGLE_DEG, CELL_SAFETY_FRACTION, cell_window
+    from rietx.refine import _cell_runaway_diagnostic
+
+    structure = _degenerate_pair_structure(5e-4)
+    mtable = MultiParameterTable(structure, _degenerate_pair_instruments())
+    mtable.set_vary(["phases.*.cell.a"], True)
+    start_values = mtable.decode(mtable.x0())
+
+    escaped = TRUE_A * 50.0  # far outside +/-15%, same escape as the single-histogram tests
+    for table in mtable.tables:
+        table.entries[table._paths["phases.0.cell.a"]].value = escaped
+
+    clamped = _clamp_cell_runaway_multi(mtable, start_values)
+    assert len(clamped) == 1, clamped  # shared -> named once, not once per histogram
+    path, old, new = clamped[0]
+    assert path == "phases.0.cell.a"   # bare: shared, never hist.h.-scoped
+    assert old == pytest.approx(escaped)
+    lo, hi = cell_window("a", start_values[0][path], -math.inf, math.inf,
+                         fraction=CELL_SAFETY_FRACTION,
+                         angle_deg=CELL_SAFETY_ANGLE_DEG)
+    assert new == pytest.approx(hi)
+
+    # both histograms' own entries were actually clamped, not just the report
+    for table in mtable.tables:
+        assert table.entries[table._paths["phases.0.cell.a"]].value == pytest.approx(hi)
+
+    diag = _cell_runaway_diagnostic(clamped)
+    assert diag is not None
+    assert diag.where == ["phases.0.cell.a"]
+    assert diag.code == "CELL_RUNAWAY"
+
+
+def test_a_shared_cell_inside_the_window_is_left_alone_jointly():
+    """The bit-identity companion: nothing to clamp in either histogram is
+    nothing changed in either."""
+    from rietx.multi import _clamp_cell_runaway_multi
+
+    structure = _degenerate_pair_structure(5e-4)
+    mtable = MultiParameterTable(structure, _degenerate_pair_instruments())
+    mtable.set_vary(["phases.*.cell.a"], True)
+    start_values = mtable.decode(mtable.x0())
+
+    for table in mtable.tables:
+        table.entries[table._paths["phases.0.cell.a"]].value = TRUE_A * 1.001
+
+    assert _clamp_cell_runaway_multi(mtable, start_values) == []
+
+
+@pytest.fixture(scope="module")
+def degenerate_pair_multi_fit():
+    """The joint-runner analogue of the single-histogram ``degenerate_pair_fit``
+    fixture: two histograms sharing the degenerate-pair structure, scale+cell
+    of both phases freed together in one stage, then a second stage forcing
+    the next compile -- the construction that crashed the single-histogram
+    runner before its own fix, reused here to reach ``multi.py``'s equivalent
+    gap (review of #385 finding 2)."""
+    structure = _degenerate_pair_structure(1e-5)
+    instruments = _degenerate_pair_instruments()
+    data = [synthesize(lam, 3.0, 24.0, scale=1e-5, zero=0.0,
+                       bkg=[40.0, 0.0, 0.0], seed=s)
+            for lam, s in ((0.41390, 11), (0.71070, 12))]
+    ref = MultiHistogramRefinement(structure, instruments)
+    plan = RefinementPlan(stages=[
+        Stage("both", ["phases.*.scale", "phases.*.cell.*"], max_iter=20),
+        Stage("zero", ["instrument.zero_shift"], max_iter=20),
+    ])
+    result = ref.fit(data, plan=plan)
+    return ref, result, data
+
+
+def test_the_joint_runner_does_not_crash_on_the_trigger_construction(
+        degenerate_pair_multi_fit):
+    _, result, _ = degenerate_pair_multi_fit
+    assert result.status in ("converged", "max_iter")
+
+
+def test_the_joint_runner_reports_and_clamps_the_runaway(degenerate_pair_multi_fit):
+    ref, result, _ = degenerate_pair_multi_fit
+    fired = [d for d in result.diagnostics if d.code == "CELL_RUNAWAY"]
+    assert len(fired) >= 1, [d.code for d in result.diagnostics]
+    for phase in ref.fitted_structures[0].phases:
+        a = phase.cell.a.value
+        assert 1.0 < a < 100.0, f"{phase.name}: a = {a:.6g} Å ran away"
+    # every histogram's own structure copy carries the same clamped cell
+    assert ref.fitted_structures[1].phases[0].cell.a.value == pytest.approx(
+        ref.fitted_structures[0].phases[0].cell.a.value, rel=1e-9)
+
+
+def test_the_joint_runners_reported_parameters_agree_with_its_statistics(
+        degenerate_pair_multi_fit):
+    """The finding-1 regression, replayed at the joint level: a firing clamp
+    must leave ``result.parameter(...)``/``fitted_structures`` and
+    ``result.histograms[h].y_calc``/``statistics`` agreeing about the *same*
+    cell -- never the reported parameter at the clamped value while the
+    curve and Rwp were built from the pre-clamp (escaped) one."""
+    ref, result, data = degenerate_pair_multi_fit
+    assert any(d.code == "CELL_RUNAWAY" for d in result.diagnostics)
+    a = result.parameter("phases.0.cell.a").value
+    assert a == pytest.approx(ref.fitted_structures[0].phases[0].cell.a.value)
+    for h in range(len(result.histograms)):
+        structure_h = ref.fitted_structures[h]
+        assert structure_h.phases[0].cell.a.value == pytest.approx(a, rel=1e-9)
+        model = compile_model(structure_h, ref.fitted_instruments[h], data[h],
+                              mode="rietveld")
+        table = ParameterTable(structure_h, ref.fitted_instruments[h])
+        y_calc = model.evaluate(table.decode(table.x0()))
+        assert np.asarray(result.histograms[h].y_calc) == pytest.approx(
+            y_calc, abs=1.0), (
+            f"histogram {h}: reported y_calc disagrees with a recompute at "
+            "the reported parameters -- the joint runner's theta was not "
+            "re-derived after the clamp fired")
+
+
+def _joint_cubic_pair_fit(monkeypatch, stages, script):
+    """``MultiHistogramRefinement`` on the single-histogram file's
+    ``_cubic_pair`` at two wavelengths, the joint solve's answer for the
+    shared ``phases.1.cell.a`` replaced on the solves ``script`` names (by
+    call index, one solve a stage): ``"escape"`` puts it at ``ESCAPE`` times
+    what the solve found, ``"back"`` returns it to that found value.
+
+    Injected rather than found, for the reason
+    ``test_cell_runaway_safety.lebail_pair_fits`` gives (review of #385 round
+    4): the degenerate pair's joint walk stops where the machine stops it, and
+    on two of the five Linux CI jobs its phase 1 left ``parameters`` through
+    WP-1301's hold.  Both holds are patched off here, since a cell pulled back
+    to a window edge 15 % from its data is a phase the data cannot see and
+    would be held deterministically, and the rule under test is the clamp's."""
+    import dataclasses
+
+    from rietx import multi as multi_module
+    from tests.test_cell_runaway_safety import (
+        ESCAPE,
+        ESCAPED,
+        _cubic_pair,
+        _cubic_pair_pattern,
+    )
+
+    real = multi_module.run_multi_least_squares
+    calls: list[int] = []
+    found: dict[str, float] = {}
+
+    def solve(models, mtable, **kwargs):
+        outcome = real(models, mtable, **kwargs)
+        action = script.get(len(calls))
+        calls.append(len(calls))
+        if action is None:
+            return outcome
+        mtable.commit(outcome.theta)
+        # a shared cell is a separate Entry in every histogram's own table
+        for table in mtable.tables:
+            entry = table.entries[table._paths[ESCAPED]]
+            if action == "escape":
+                found["solved"] = entry.value
+                entry.value = ESCAPE * entry.value
+            else:
+                entry.value = found["solved"]
+            table.refresh_ties()
+        mtable._rebuild_columns()
+        return dataclasses.replace(outcome, theta=mtable.x0())
+
+    monkeypatch.setattr(multi_module, "run_multi_least_squares", solve)
+    monkeypatch.setattr(multi_module, "_hold_unsupported_phases_multi",
+                        lambda *a, **k: [])
+    monkeypatch.setattr(multi_module, "_rehold_multi", lambda *a, **k: ([], []))
+    instruments = []
+    for lam in (0.41390, 0.71070):
+        ins = Instrument.debye_scherrer(wavelength=lam)
+        ins.background = BackgroundChebyshev.with_terms(3)
+        instruments.append(ins)
+    data = [_cubic_pair_pattern(lam, seed) for lam, seed in ((0.41390, 11),
+                                                             (0.71070, 12))]
+    result = MultiHistogramRefinement(_cubic_pair(), instruments).fit(
+        data, plan=RefinementPlan(stages=stages))
+    assert len(calls) == len(stages), calls   # one solve a stage: nothing held
+    return result
+
+
+def test_the_joint_runner_withholds_an_esd_by_the_single_histogram_rule(
+        monkeypatch):
+    """Review of #385 round 3, item 3: the joint runner withholds on the rule
+    ``refine._build_result`` uses — the answer-producing stage's clamp, and
+    every path tied to a clamped one.
+
+    "end": ``cell`` is the answer stage and its clamp pulls the shared
+    ``phases.1.cell.a`` back to the window edge, so phase 1's ``a``/``b``/``c``
+    are withheld and phase 0's keep theirs.  "early": the clamp fires in
+    ``cell``, ``zero`` returns the cell inside the window and ``bkg`` refines
+    it from there, so every cell row reports an esd."""
+    from rietx.params.vector import CELL_SAFETY_ANGLE_DEG, CELL_SAFETY_FRACTION, cell_window
+    from tests.test_cell_runaway_safety import CUBIC_TWIN, ESCAPED
+
+    cell = Stage("cell", ["phases.*.cell.*"])
+    zero = Stage("zero", ["instrument.zero_shift"])
+    bkg = Stage("bkg", ["instrument.background.*"])
+
+    end = _joint_cubic_pair_fit(monkeypatch, [zero, cell], {1: "escape"})
+    fired = [d for d in end.diagnostics if d.code == "CELL_RUNAWAY"]
+    assert len(fired) == 1 and fired[0].where == [ESCAPED]
+    _, edge = cell_window("a", TRUE_A * CUBIC_TWIN, -math.inf, math.inf,
+                          fraction=CELL_SAFETY_FRACTION,
+                          angle_deg=CELL_SAFETY_ANGLE_DEG)
+    for n in "abc":
+        row = end.parameter(f"phases.1.cell.{n}")
+        assert row.value == pytest.approx(edge), n
+        assert row.stderr is None, n
+        assert end.parameter(f"phases.0.cell.{n}").stderr is not None, n
+
+    early = _joint_cubic_pair_fit(monkeypatch, [cell, zero, bkg],
+                                  {0: "escape", 1: "back"})
+    fired = [d for d in early.diagnostics if d.code == "CELL_RUNAWAY"]
+    assert len(fired) == 1 and fired[0].where == [ESCAPED]
+    for phase in (0, 1):
+        rows = [early.parameter(f"phases.{phase}.cell.{n}") for n in "abc"]
+        for row in rows:
+            assert row.stderr is not None, f"early: {row.path}"
+        assert rows[1].stderr == pytest.approx(rows[0].stderr)
+        assert rows[2].stderr == pytest.approx(rows[0].stderr)
