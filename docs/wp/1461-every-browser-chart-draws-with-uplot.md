@@ -1,6 +1,6 @@
 # WP-1461 — every browser chart draws with uPlot
 
-Milestone: unscheduled · Status: 🔄 2026-09-26 — tasks 1-12 and 15 done: no chart loads plotly and every chart exports; task 13, the docs, next, then task 14's acceptance run
+Milestone: unscheduled · Status: 🔄 2026-09-26 — claimed by @yue-here for task 13, the docs, then task 14's acceptance run; tasks 1-12 and 15 done
 Depends on: —
 Priority: P2 2026-09-24 — the maintainer's decision that every browser chart builds on one module; today plotly blocks every GUI open for 0.7-0.8 s before the first plot
 
