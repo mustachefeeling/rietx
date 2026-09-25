@@ -389,6 +389,12 @@ export function panes(uPlot, host, spec) {
     for (const p of all) {
       out[p.key] = p.share ? Math.max(MIN_PANE, Math.floor(room * p.share / shares)) : p.height ?? 200;
     }
+    // A floor raised a pane past its share, so the panes overrun the host and
+    // a host that clips cuts the last axis off. The largest shared pane gives
+    // the excess back, down to its own floor.
+    const over = Object.values(out).reduce((sum, h) => sum + h, 0) - host.clientHeight;
+    const big = all.filter((p) => p.share).sort((a, b) => out[b.key] - out[a.key])[0];
+    if (over > 0 && big) out[big.key] = Math.max(MIN_PANE, out[big.key] - over);
     return out;
   }
 
