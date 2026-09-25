@@ -167,9 +167,9 @@ function axes(spec, gutter) {
  * Panes stacked in `host`, sharing one x.
  *
  * `spec.x` is the one x array. Each of `spec.panes` is `{ key, series, data }`
- * plus optional `height` (CSS px) or `share` (of the host's height), `y`
- * ("lin", "sqrt" or "log"), `range` (a fixed y range, which no drag zooms),
- * `xLabels`, and `hooks` merged into uPlot's.
+ * plus optional `height` (CSS px), `y` ("lin", "sqrt" or "log"), `range` (a
+ * fixed y range, which no drag zooms), `xLabels`, and `hooks` merged into
+ * uPlot's.
  * `series` and `data` leave out the x, which the group supplies.
  *
  * The group answers the gestures every page shares:
@@ -182,7 +182,7 @@ function axes(spec, gutter) {
  *   started in, and zooms nothing.
  * - The pointer calls `onCursor({ key, idx, x, left, top })`, or `onCursor(null)`
  *   as it leaves. Only the pane under the pointer calls it.
- * - A `ResizeObserver` on `host` sizes every pane in the frame the host changed.
+ * - A `ResizeObserver` on `host` widens every pane in the frame the host changed.
  *
  * The panes share their cursor through uPlot's sync, and nothing else: a drag's
  * mousedown and mouseup stay in their own pane. Synced, a drag selected in every
@@ -195,9 +195,6 @@ export function panes(uPlot, host, spec) {
   const group = { panes: {}, mode: "zoom", onSelect: null, onCursor: null };
   const pins = {}, divs = {}, specs = {};
   let pointer = null;
-
-  const heightOf = (p) => (p.share != null
-    ? Math.max(1, Math.round(p.share * host.clientHeight)) : (p.height ?? 200));
 
   group.setX = (lo, hi) => {
     for (const u of Object.values(group.panes)) {
@@ -271,7 +268,7 @@ export function panes(uPlot, host, spec) {
     extend("setSelect", onSelect);
     extend("setCursor", onCursor);
     const u = new uPlot({
-      width: host.clientWidth, height: heightOf(p), legend: { show: false },
+      width: host.clientWidth, height: p.height ?? 200, legend: { show: false },
       scales: { x: { time: false }, y: yScale(uPlot, p.y ?? "lin", () => pins[key] ?? null, p.range) },
       axes: axes(p, gutter),
       series: [{}, ...p.series],
@@ -332,9 +329,8 @@ export function panes(uPlot, host, spec) {
   // and setSize commits in the microtask after it, so a new size shows in the
   // same frame, with no timer.
   const observer = new ResizeObserver(() => {
-    for (const p of Object.values(specs)) {
-      const u = group.panes[p.key], width = host.clientWidth, height = heightOf(p);
-      if (u.width !== width || u.height !== height) u.setSize({ width, height });
+    for (const u of Object.values(group.panes)) {
+      if (u.width !== host.clientWidth) u.setSize({ width: host.clientWidth, height: u.height });
     }
   });
   observer.observe(host);

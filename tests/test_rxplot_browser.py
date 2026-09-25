@@ -13,6 +13,7 @@ the package or a cached chromium is missing. That includes CI, as for
 from __future__ import annotations
 
 import http.server
+import math
 import threading
 from pathlib import Path
 
@@ -194,6 +195,16 @@ def test_the_readout_comes_from_the_pane_under_the_pointer(page):
     page.mouse.move(b["x"] + 0.5 * b["w"], b["y"] - 40)
     _frames(page)
     assert page.evaluate("G.cursors.at(-1)") is None
+
+
+def test_a_live_update_keeps_the_readers_zoom(page):
+    """``setData``: new numbers for a pane, the window the reader chose kept."""
+    _drag(page, "main", 0.3, 0.2, 0.6, 0.7)
+    window, y = _x(page, "main"), _y(page, "main")
+    page.evaluate("G.setData('main', [Array.from(X, x => 100 + 40 * Math.cos(x))])")
+    _frames(page)
+    assert _x(page, "main") == window and _y(page, "main") == y
+    assert page.evaluate("G.panes.main.data[1][0]") == 100 + 40 * math.cos(5)
 
 
 def _pixel(page, key: str, x: float, y: float) -> list[int]:
