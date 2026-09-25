@@ -128,7 +128,9 @@ build and the test; `build-info.json` deliberately carries no timestamp, because
 Two duplications were refused: the client does **not** decimate (`/api/result/window`
 does, through `viz.compare.decimation_index`, and zoom refetches the window) and
 plotly is **not** vendored (injected at runtime from `/plotly.js`, so the app boots
-and says so when it is absent). `npm run build` needs `python3`, `vitest` needs
+and says so when it is absent). uPlot is vendored into `src/rietx/viz/static` by
+`scripts/vendor.py`, the build's first step (WP-1461): bump the pin and build.
+`npm run build` needs `python3`, `vitest` needs
 `resolve.conditions: ["browser"]` or `mount()` comes from svelte's server build,
 `@sveltejs/vite-plugin-svelte` must be v7 for Vite 8, and the toolchain needs
 **node ≥ 20.12** — rolldown imports `styleText` from `node:util`, an older node
@@ -228,10 +230,8 @@ pinned to `textdoc._KEYWORDS` and `StageSpec.model_fields` by
 own dispatch*, so an indented `plan` is a parameter named `plan`. And **a response
 carrying an older `seq` is dropped** — a 300 ms debounce puts two validations in
 flight across one pause and they can land out of order. CodeMirror is a separate
-committed chunk (`assets/vendor-cm.js`, 328 kB) imported *dynamically*, so
-`app.js` stays well under it — 114 kB when this was written, 164 kB after
-WP-1015's two passes — and boot-to-interactive stays under ~120 ms;
-`tests/test_gui_dist.py` asserts the split, because a stray static import would
+committed chunk (`assets/vendor-cm.js`, 328 kB) imported *dynamically*, so it
+stays off the boot path; `tests/test_gui_dist.py` asserts the split, because a stray static import would
 inline the library and no byte count would say so. The editor's document and its diagnostics are `$effect`s
 over the sync state, never pushed — pushing let a head move wipe a squiggle while
 the problem list still named the line.

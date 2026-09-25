@@ -1,6 +1,6 @@
 # WP-1461 — every browser chart draws with uPlot
 
-Milestone: unscheduled · Status: 🔄 2026-09-25 — task 2 measured: float64 binary on the pattern's own grid, compare curves out of the poll, the ceiling follows D5; the vendoring task next
+Milestone: unscheduled · Status: 🔄 2026-09-25 — tasks 2 and 3 done: the payload route settled, uPlot vendored at its pin with Dependabot watching; the module's core next
 Depends on: —
 Priority: P2 2026-09-24 — the maintainer's decision that every browser chart builds on one module; today plotly blocks every GUI open for 0.7-0.8 s before the first plot
 
@@ -461,6 +461,7 @@ day.
     `src/rietx/viz/static/`, the one step that writes them. A test holds the
     version in the vendored file's banner equal to the pin. Dependabot,
     limited to uPlot and svgcanvas, opens a pull request for each release.
+    svgcanvas joins its allow list with the export task.
     The lock file is in the dist's digest, so that pull request stays red
     until someone runs the build, which refreshes the vendored copy too.
 - **D3. One chart module in two layers.** `src/rietx/viz/static/rxplot.mjs`
@@ -584,15 +585,15 @@ day.
 
 - [x] The maintainer confirms the migration on § Staying on plotly's numbers and decides D1-D8, and this file records which (D5 deferred to the pilot by that decision)
 - [x] Measure D4 and D8 on real payloads (the NAC result, a compare standard, a series): JSON against binary arrays, parse, grid union. Settle the route and the ceiling. (Float64 binary, the pattern's own grid with a fitted index, compare curves out of the poll; the ceiling follows D5.)
-- [ ] Vendor uPlot 1.6.32, its css and LICENSE into `src/rietx/viz/static/`, copied there by `npm run build` from the exact pin in `gui/package.json` (D2, § Keeping it current). Add the ATTRIBUTION row and put the directory in `build_info.py`'s digest. Serve it from the watch and compare servers. A test holds the vendored banner's version equal to the pin. Add `.github/dependabot.yml`, limited to uPlot and svgcanvas in `gui/`. Rebuild the dist, since the pin moves the digest.
+- [x] Vendor uPlot 1.6.32, its css and LICENSE into `src/rietx/viz/static/`, copied there by `npm run build` from the exact pin in `gui/package.json` (D2, § Keeping it current). Add the ATTRIBUTION row and put the directory in `build_info.py`'s digest. A test holds the vendored banner's version equal to the pin. Add `.github/dependabot.yml` for uPlot in `gui/`. Rebuild the dist, since the pin moves the digest. (Serving it moved to the watch and compare tasks, where a page first loads it. svgcanvas joins Dependabot with the export task, which adds the dependency.)
 - [ ] The module's core: panes on one x, sync, drag, wheel and pan, y-zoom, select, the readout hook, the `ResizeObserver` path. Findings 1-3, 5 and 10 each get a case: the pure half under `node --test` and vitest, the drawing in a browser test.
 - [ ] Pilot, the gate: the curves route (D4), and the GUI pattern panel on the core behind a flag, with the plotly renderer still selectable. Port the spike driver to the real page as the acceptance probe. Measure § Acceptance 1-3 against the plotly renderer on the same machine, in Chromium, WebKit and Firefox through playwright's builds. Build both marker paths (D5) and measure each, at NAC's 59 498 channels and at `11BM_LaB6_660a.fxye`'s 132 992. Record go or no-go, which marker path, and so which ceiling, in the handover.
 - [ ] GUI pattern panel complete: peaks, candidates, masks, raw view, readout fields, Esc, axis titles. Delete the plotly-only code, stub uPlot in `test-setup.ts`, and move `App.test.ts` off the `Plotly.react` stub. Drawn colours are asserted from pixels or from the recorded `strokeStyle`.
-- [ ] `rietx watch` on the module. `test_watch_browser.py` asserts what was drawn.
+- [ ] `rietx watch` on the module, serving the vendored uPlot from its own server. `test_watch_browser.py` asserts what was drawn.
 - [ ] GUI Series panel: trajectory (D8), per-pattern chart through the curves route, rings, crosses plotted, the dashed tone, the tick formatter
-- [ ] `rietx compare`: its page becomes a file, on the module. `/api/state` drops the curves, and each variant's come once through a route (D4). `resample` becomes a subtraction.
+- [ ] `rietx compare`: its page becomes a file, on the module, and its server serves the vendored uPlot. `/api/state` drops the curves, and each variant's come once through a route (D4). `resample` becomes a subtraction.
 - [ ] `write_html` writes the uPlot page, with the notice inline, the weighted mode, `viz/plots.PALETTES` as its palette and the `"hkl: …"` labels `test_magnetic_tick_row.py` reads. Drop `include_plotlyjs`, replace `figure_from_arrays`, take plotly out of the `viz` extra, and record the break.
-- [ ] Exports: copy PNG, download PNG, copy TSV, SVG through svgcanvas with its notices
+- [ ] Exports: copy PNG, download PNG, copy TSV, SVG through svgcanvas with its notices. Pin svgcanvas exactly in `gui/package.json` and add it to `.github/dependabot.yml`'s allow list.
 - [ ] Structure3D loads plotly when first shown. A test asserts no other page requests `/plotly.js`. Record the first-show cost.
 - [ ] Remove the flag and the pattern panel's plotly renderer
 - [ ] Docs: the `gui/CLAUDE.md` rules as § What changes sorts them, the manual's GUI chapters with regenerated screenshots, `using/cli.md`, `install.md` and `files.md`, root CLAUDE.md, `tests/CLAUDE.md`, README
