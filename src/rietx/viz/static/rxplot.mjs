@@ -408,6 +408,13 @@ export function panes(uPlot, host, spec) {
       },
       hooks,
     }, [spec.x, ...p.data], divs[key]);
+    // The pointer's line carries no quantity, so it is chrome: solid, in
+    // `--fg`, the one ink no plot colour is near (WP-1213). uPlot's own is
+    // dashed grey-blue, which reads as the dotted edge an excluded region
+    // leaves. Inline and through the token, so every page takes it and a theme
+    // switch restyles it. A rule in each page's stylesheet had to outrank
+    // uPlot's own, and one page of four had none.
+    u.root.querySelector(".u-cursor-x")?.style.setProperty("border-right", "1px solid var(--fg)");
     u.__rxKey = key;
     group.panes[key] = u;
     gestures(u, key);

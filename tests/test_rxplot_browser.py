@@ -197,6 +197,23 @@ def test_the_readout_comes_from_the_pane_under_the_pointer(page):
     assert page.evaluate("G.cursors.at(-1)") is None
 
 
+def test_the_pointers_line_is_solid_in_the_pages_ink_and_follows_it(page):
+    """WP-1213's rule, owned by the module since WP-1461's task 10. Each page
+    restated it in its own stylesheet until then, and ``rietx compare`` had
+    none, so its line was uPlot's dashed grey-blue. A theme switch restyles
+    it, since the line reads the token rather than its value."""
+    b = _box(page, "main")
+    page.mouse.move(b["x"] + 0.5 * b["w"], b["y"] + 0.5 * b["h"])
+    _frames(page)
+    read = """() => [...document.querySelectorAll('.u-cursor-x')].map((el) => {
+        const s = getComputedStyle(el);
+        return [s.borderRightStyle, s.borderRightWidth, s.borderRightColor]; })"""
+    lines = page.evaluate(read)
+    assert lines and all(line == ["solid", "1px", "rgb(27, 27, 27)"] for line in lines), lines
+    page.evaluate("document.documentElement.style.setProperty('--fg', '#e6e6e2')")
+    assert {line[2] for line in page.evaluate(read)} == {"rgb(230, 230, 226)"}
+
+
 def test_a_live_update_keeps_the_readers_zoom(page):
     """``setData``: new numbers for a pane, the window the reader chose kept."""
     _drag(page, "main", 0.3, 0.2, 0.6, 0.7)
