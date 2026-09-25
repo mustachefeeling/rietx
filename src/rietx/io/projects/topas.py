@@ -255,10 +255,17 @@ class TopasSite:
     #: products to the printed digits. One sentence in the same reference
     #: points elsewhere —
     #: the ``mlx`` keyword entry calls them "Cartesian components" — and its
-    #: own formula and both macros contradict it, so it is not followed. This
-    #: is **documented, not measured**: no TOPAS output has been compared
-    #: against a rietx one (the oblique-cell run that would is prepared, not
-    #: run), and :func:`to_structure` says so in ``TOPAS_MOMENT_CONVENTION``.
+    #: own formula and both macros contradict it, so it is not followed. It is
+    #: also **measured** (2026-09-25, TOPAS-64 v6): one Mn²⁺ site in BNS 1.1 on
+    #: a 5.2 / 6.9 / 8.4 Å, β = 115° cell with ``mlx 0.4 mly -0.3 mlz 0.3``.
+    #: TOPAS's magnetic intensity ratios over 54 strong equal-d pairs
+    #: (h k l)/(h −k l), which cancel form factor, Lorentz factor and scale,
+    #: match this reading to four digits on every pair, and its absolute
+    #: magnetic intensity gives |m| = 3.2452 μ_B, this reading's value. The
+    #: crystal-axis and Cartesian readings miss the median pair by factors of
+    #: 1.58 and 1.80. A moment along b alone, where all three readings
+    #: coincide, matches under all three, which is the control that the
+    #: comparison can separate them. The same holds on the orthogonal cell.
     #: Until WP-1328's review this reader took the crystal-axis reading
     #: (``mlx`` as μ_B along a unit vector), which made an imported moment too
     #: small by roughly the edge length and, wherever the edges differ and the
@@ -1053,9 +1060,10 @@ _SITE_KEYWORDS = r"\b(?:" + "|".join(
 _ADP_KEYS = ("u11", "u22", "u33", "u12", "u13", "u23")
 
 #: The site's magnetic keywords, in the order :class:`~rietx.Moment` stores
-#: them plus the Landé factor last (WP-1328).  ``mlx``/``mly``/``mlz`` are read
-#: as crystal-axis components in μ_B — see :attr:`TopasSite.moment` for what
-#: that claim rests on — and ``mg`` is the g the ⟨j₂⟩ term of a 4f form factor
+#: them plus the Landé factor last (WP-1328).  ``mlx``/``mly``/``mlz`` are
+#: fractional-basis components, converted to crystal-axis μ_B by
+#: :func:`to_structure` — see :attr:`TopasSite.moment` for what that rests
+#: on — and ``mg`` is the g the ⟨j₂⟩ term of a 4f form factor
 #: needs (``crystallography.magnetic.form_factor.resolve_g``).
 _MOMENT_KEYS = ("mlx", "mly", "mlz", "mg")
 
@@ -2773,9 +2781,12 @@ def _magnetic_build_diagnostics(model: TopasModel, phases_in, specs,
                      f"mly*|b|, mlz*|c|)"),
             suggestion=("the reading is the TOPAS Technical Reference § 13 "
                         "(Fmagc = L*Fmag; MM_CrystalAxis_Display gives mxc = "
-                        "mlx*a), documented and *not yet measured* against "
-                        "TOPAS's own output; a file's MM_CrystalAxis_Display "
-                        "values are the stored components, to check against")))
+                        "mlx*a), and it is measured: TOPAS 6's own calculated "
+                        "magnetic intensities on a monoclinic cell match it "
+                        "pair by pair and in |m|, and match neither a "
+                        "crystal-axis nor a Cartesian reading; a file's "
+                        "MM_CrystalAxis_Display values are the stored "
+                        "components, to check against")))
         bare = [s for s in moment_sites if re.fullmatch(r"[A-Za-z]{1,2}",
                                                         s.species)]
         if bare:

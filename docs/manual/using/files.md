@@ -309,9 +309,14 @@ crystal-axis moment is therefore (mlx·|a|, mly·|b|, mlz·|c|). This is a
 per-axis scale, never a rotation. It is the TOPAS Technical Reference's own
 reading, § 13: Fmagc = L·Fmag, and its `MM_CrystalAxis_Display` macro gives
 mxc = mlx·a. A file's `MM_CrystalAxis_Display` line is the number to compare
-with. On the Durham LaMnO₃ tutorial it agrees to the printed digits. It has
-not been measured against TOPAS's own calculated intensities, and
-`TOPAS_MOMENT_CONVENTION` says so.
+with. On the Durham LaMnO₃ tutorial it agrees to the printed digits. It is
+also measured against TOPAS's own calculated intensities. On a monoclinic
+cell with β = 115° and a moment on all three axes, TOPAS 6's magnetic
+intensity ratios between reflections of equal d match this reading on every
+pair to four digits, and its absolute magnetic intensity gives the same |m|.
+A crystal-axis reading misses the median pair by about 58 %, and a Cartesian
+one by about 80 %. With the moment along b alone, where the three readings
+coincide, all three match, which shows the comparison can tell them apart.
 
 `mag_only` and `mag_only_for_mag_sites` switch a site's nuclear scattering off.
 The file that uses them typically restates the magnetic sites in a second
