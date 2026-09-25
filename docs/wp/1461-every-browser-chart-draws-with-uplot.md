@@ -1,6 +1,6 @@
 # WP-1461 — every browser chart draws with uPlot
 
-Milestone: unscheduled · Status: 🔄 2026-09-25 — tasks 2-4 done: the payload route settled, uPlot vendored at its pin, the module's core built and browser-tested; the pilot next
+Milestone: unscheduled · Status: 🔄 2026-09-25 — tasks 2-4 done: the payload route settled, uPlot vendored at its pin, the module's core built, browser-tested and reviewed; the pilot next
 Depends on: —
 Priority: P2 2026-09-24 — the maintainer's decision that every browser chart builds on one module; today plotly blocks every GUI open for 0.7-0.8 s before the first plot
 
@@ -662,6 +662,98 @@ npm --prefix gui test && npm --prefix gui run check
 - Long Animation Frames API (W3C draft): what counts as a long frame here.
 
 ## Handover log
+
+### 2026-09-25 (3rd session) — the payload route, uPlot vendored, the chart module's core
+
+The pilot now has what it builds on. Measured on real answers, the curves
+should travel as float64 binary over the pattern's own channels. That cuts
+the server's 60 ms and the browser's parse to almost nothing, at 57 % of the
+bytes. The compare page resends every variant's curves on every 700 ms poll
+today, so it has to stop before it can go to full resolution. uPlot is
+vendored at an exact pin, only the build writes the copy, and Dependabot
+watches it. The chart module's core exists, with a test for each way the
+spike found to get it wrong, and a review fixed four more defects in it. The
+pilot, which decides go or no-go, has not started.
+
+*Done:*
+- Task 2: `payloads.py`, `payload_probe.mjs` and `transport.py` in the spike,
+  with their logs. § The payload behind a client zoom holds the numbers, and
+  D4 and D8 record what they settled. The ceiling follows D5: 150 000
+  channels with thinning, 100 000 with every marker.
+- Task 3: `gui/scripts/vendor.py` is the build's first step. The digest
+  covers `src/rietx/viz/static/`, and `test_gui_dist.py` holds the banner to
+  the pin and the files in the wheel. Also `LICENSE-3RD-PARTY.md`,
+  ATTRIBUTION, `.github/dependabot.yml`, and `gui.yml` triggering on and
+  diffing the vendored directory. The `gui/CLAUDE.md` rule fits its cap by
+  dropping a stale size claim: `app.js` "well under" `vendor-cm.js` at
+  114-164 kB, where the build prints 303 against 328 kB. Serving uPlot moved
+  to the watch and compare tasks, and svgcanvas's Dependabot row to the
+  export task.
+- Task 4: `src/rietx/viz/static/rxplot.mjs`. Its pure half has 9 node cases,
+  run by `tests/test_rxplot.py`. `tests/test_rxplot_browser.py` has 13
+  chromium cases. Four guards were broken on purpose (findings 1, 2, 3 and
+  12), and each failed with the expected message.
+- `/code-review high --fix` made seven findings and fixed six (`c6f1cb80`):
+  - a press under 8 px is a click, since uPlot turned a 1 px jitter into a
+    whole-axis zoom;
+  - a live update re-ranges an unzoomed y;
+  - a narrow √ window keeps its ticks;
+  - every tick label prints its own value;
+  - the wheel test requires `rxplot.mjs`;
+  - `vendor.py` names a missing package instead of printing a traceback.
+
+  It declined narrowing the digest to the vendored files, because the pilot
+  makes `rxplot.mjs` a GUI build input.
+- Before the review, `share` heights went for want of a caller, and
+  `setData` gained its case.
+- Forward references: WP-1313 (the digest now covers the chart module) and
+  WP-1462 (the allow list exists, and bundled code owes
+  `LICENSE-3RD-PARTY.md` its licence).
+
+*Measured:*
+- The payload and ceiling figures are in § The payload behind a client zoom.
+  The headline figures:
+  - today's JSON route at every channel takes 59-60 ms to its first byte, of
+    which 52-57 ms is `json.dumps`;
+  - float64 binary takes 0.2 ms;
+  - the parse falls from 3.8-5.1 ms in Chrome and 8.4-9.2 ms in Firefox to
+    nothing;
+  - the compare poll is 2.96 MB today, and 45.69 MB at every channel on
+    `lab6_capillary`;
+  - at 132 992 points, every marker gave a 62-67 ms long frame in 3 of 3
+    runs.
+- Fast suite on the final tree (main unchanged since the last handover, so
+  this is the merge's tree): 6100 passed, 140 skipped and 2 failed, in 9:05.
+  That is the `[dev]` venv plus playwright 1.63.0, on macOS arm64. No other
+  suite was running, but load ran from 41 to 161. The total is 6242 against
+  6179 last session. The +63 is the 16 tests added here (1 dist, 2 node
+  wrappers, 13 browser) plus 47 from `test_watch_browser.py`, which was one
+  module skip until playwright was installed and is now 48 cases.
+- The 2 failures are that module's two seam cases, which assert at most 6
+  resizes over a drag and counted 8. They failed again run alone, at load
+  153-161. This branch changes no watcher file, and CI skips the module.
+- The full selection did not run. Nothing here moves a measured number.
+
+*Gotchas:*
+- uPlot commits its first draw in a microtask, so a scale read right after
+  construction is null. Wait a frame.
+- Editing `rxplot.mjs` stales the dist. Rebuild with node 22
+  (`~/.nvm/versions/node/v22.15.0/bin` first on `PATH`).
+- Firefox rounds `performance.now()` to 1 ms unless
+  `privacy.reduceTimerPrecision` is off (`payload_probe.mjs` sets it).
+- `*.html` swallowed the browser harness, the seventh file it has taken.
+  `.gitignore` carries a negation for it.
+- The worktree guard refuses a heredoc naming git, and a shell variable in a
+  `sed` or `node` argument. Run a scratchpad script by path.
+
+*Next:*
+1. The pilot, task 5, in a fresh session. Build the curves route first
+   (`session.py`, `server.py`, its decoder in the module's pure half, a GUI
+   chapter for `test_gui_manual.py`), since it fixes the panel's data shape.
+   Then the pattern panel on the core behind a flag, then the probe in three
+   browsers. WebKit needs playwright's webkit build, which is not cached here.
+2. Rerun `tests/test_watch_browser.py` alone at low load. If the seam cases
+   still count 8 resizes, file it against the watcher, not here.
 
 ### 2026-09-25 (2nd session) — the zoom delay, the maintainer's decisions, and WP-1462
 
