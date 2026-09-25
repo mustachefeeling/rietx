@@ -62,6 +62,21 @@ named `prm` lines, which is what this session had. The fragment has no fixed
 grammar, since the names are the user's. So the first cut is probably the
 macro, with the fragment left to the caller and the help entries.
 
+### Inherited
+
+**From the 2026-09-25 review of a second session on the same series.** A
+second agent session read the same instrument file and made the same
+translation. It folded Z into U and W, set the file's 1/cosθ Lorentzian term
+as rietx X and dropped the tanθ one as about zero. It replaced the Gaussian
+terms with (0, 0, 10⁻⁶), because the folded variance is non-positive below
+2θ ≈ 62°, which covers the whole fitted range. It got there with one
+`help_for` call over the profile paths, against the first session's six source
+reads. It also took `Rs` as the goniometer radius. `CAPILLARY_OFFSET_UNAVAILABLE`
+then fired on 0 of 48 final results, against 48 of 48 in the first session.
+That is consistent with the guess about `Rs` above, and it does not verify it.
+Two sessions have now zeroed the Gaussian by hand, so what TOPAS does with a
+negative variance is still the open question.
+
 ## Non-goals
 
 - Fundamental parameters beyond one radius (`Rp`, TOPAS's full axial model).
