@@ -95,7 +95,6 @@ def test_the_page_references_no_external_asset():
     and WP-1462 no panel draws with it, so the dist asks for it nowhere.
     """
     html = (DIST / "index.html").read_text(encoding="utf-8")
-    js = (DIST / "assets" / "app.js").read_text(encoding="utf-8")
     # every built script, not just the entry: WP-1013 added chunks, and a
     # vendored library is exactly where a CDN fallback or a sourcemap URL hides
     built = [("index.html", html)] + [(p.name, p.read_text(encoding="utf-8"))

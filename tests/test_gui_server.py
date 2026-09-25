@@ -366,16 +366,20 @@ def test_no_route_is_declared_twice(blank):
     assert not set(UPLOAD_ROUTES) & set(RESERVED_ROUTES)
 
 
-def test_the_built_app_is_served_and_so_is_plotly(blank):
-    """With the committed dist present (WP-1010), ``/`` is the real app."""
+def test_the_built_app_is_served_and_plotly_is_not(blank):
+    """With the committed dist present (WP-1010), ``/`` is the real app.
+
+    ``/plotly.js`` was served out of the installed package until the last
+    panel drawing with it left (WP-1461 the charts, WP-1462 the structure
+    viewer), so the page runs nothing the dist does not hold.
+    """
     _, client = blank
     status, payload = client.get("/")
     assert status == 200
     assert 'src="/assets/app.js"' in payload["raw"]
     assert client.get("/assets/app.js")[0] == 200
     assert client.get("/assets/app.css")[0] == 200
-    status, payload = client.get("/plotly.js")
-    assert status == 200 and len(payload["raw"]) > 1000
+    assert client.get("/plotly.js")[0] == 404
     assert client.get("/assets/nope.js")[0] == 404
 
 

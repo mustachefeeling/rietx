@@ -138,7 +138,7 @@ build and the test; `build-info.json` deliberately carries no timestamp, because
 **Which points a payload carries is the server's** (`viz.compare.decimation_index`, past
 `CURVES_CEILING` in the curves routes); the chart module paints
 each pixel column's extremes of them (WP-1461 D5), what is drawn and never what the
-readout reads. plotly is **not** vendored (served from `/plotly.js`); uPlot is, into
+readout reads. No GUI page loads plotly (WP-1462); uPlot is vendored, into
 `src/rietx/viz/static` by `scripts/vendor.py`, the build's first step: bump the pin, build.
 `npm run build` needs `python3`, `vitest` needs
 `resolve.conditions: ["browser"]` or `mount()` comes from svelte's server build,

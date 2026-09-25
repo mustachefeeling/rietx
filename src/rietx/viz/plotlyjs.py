@@ -1,29 +1,22 @@
-"""plotly.js out of the installed package — one answer, three servers.
+"""plotly.js out of the installed package, for the one page still drawing with it.
 
-``gui/server.py``, ``compare_app.py`` and ``watch/`` each serve a page that
-draws with plotly, and each serves the library itself from the installed python
-package rather than a CDN or a vendored copy in a dist. That is deliberate
-twice over: a page works air-gapped, and no build step can leave a stale
-plotly in a committed bundle.
+``compare_app.py`` serves the library from the installed python package rather
+than a CDN or a vendored copy. A page works air-gapped that way, and no build
+step can leave a stale plotly in a committed bundle.
 
-The three of them had two copies of this between them and were about to have
-three, which is the point at which "written once and consumed everywhere"
-starts to cost something. What is *not* consolidated is the rest: the
-``_send``/``_json`` helpers, the route tables and the handler factories stay
-duplicated, a choice ``gui/CLAUDE.md`` records. This is one function.
+Three servers shared this once. ``watch/`` left plotly for the chart module in
+WP-1461, and ``gui/server.py`` lost its route in WP-1462, when the structure
+viewer took its own renderer. WP-1461's task 9 moves ``rietx compare`` too, and
+this module goes with it.
 
-The fallback is the **caller's**, because the three pages fail differently and
-nothing here can guess which. The GUI sets a window flag its dist checks and
-logs to the console; ``compare_app`` replaces the whole body with an install
-line; ``watch`` writes its note into the plot pane it would have drawn in. A
-default here would be a fourth convention, invented by the module least able to
-say what the page needs.
+The fallback is the **caller's**, because each page fails in its own way.
+``compare_app`` replaces the whole body with an install line.
 """
 
 from __future__ import annotations
 
-#: What the routes serve it as. Shared so a fourth caller cannot decide plotly
-#: is ``text/plain`` and spend an afternoon on it.
+#: What the route serves it as, named so a caller cannot decide plotly is
+#: ``text/plain`` and spend an afternoon on it.
 CONTENT_TYPE = "application/javascript; charset=utf-8"
 
 

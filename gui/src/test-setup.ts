@@ -43,21 +43,3 @@ vi.mock("./lib/gl3d", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./lib/gl3d")>()),
   createRenderer: (await import("./test-gl3d")).createRenderer,
 }));
-
-/**
- * A plotly stand-in: jsdom does not fetch `<script src>`, so `lib/plotly.ts`'s
- * runtime loader — which injects `/plotly.js` served out of the installed
- * Python package rather than vendoring 4.8 MB into the committed dist
- * (WP-1010) — never resolves under test, and the Series panel and the
- * structure viewer never reach their draws. The stub records nothing and draws
- * nothing; a test that asserts traces replaces it with a recording one.
- */
-if (typeof (globalThis as any).Plotly === "undefined") {
-  (globalThis as any).Plotly = {
-    react: async () => {},
-    // `restyle` is the hover link's whole mechanism (WP-1032): a mouse move
-    // moves one two-coordinate trace rather than repainting the pattern
-    restyle: async () => {},
-    purge: () => {},
-  };
-}

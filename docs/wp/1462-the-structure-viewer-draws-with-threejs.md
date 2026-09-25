@@ -6,10 +6,15 @@ Priority: P3 2026-09-25 — after WP-1461 the structure viewer is the last page 
 
 ## Goal
 
-The GUI's 3D structure viewer leaves plotly. No page rietx serves loads
-plotly.js, and `pyproject.toml` names plotly nowhere. Everything the viewer
+The GUI's 3D structure viewer leaves plotly. No page the GUI serves loads
+plotly.js, and the `gui` extra names no plotly. Everything the viewer
 shows and does today survives, and its crystallography rules in
 `gui/CLAUDE.md` stand unchanged.
+
+*Narrowed 2026-09-25.* The goal first said no page rietx serves loads plotly
+and `pyproject.toml` names it nowhere. Two users of plotly are outside this
+WP: `rietx compare` (WP-1461's task 9) and `viz.html.write_html`, which writes
+a plotly page from Python. Both keep it through the `viz` extra.
 
 The file was filed recommending three.js, and its name still says so. The
 maintainer chose a renderer of our own (D1). The file is renamed once
@@ -337,7 +342,7 @@ shell.
 - [x] The renderer: instanced atom and bond-half impostors, D9's line quads for the cell frame, the a/b/c overlay, the orthographic camera, the trackball, the light on the camera, theme colours, boundary images dimmed, D6's ellipses, D7's antialiasing, context loss, and release on unmount
 - [x] Interaction: hover on atoms and bond halves, legend toggles, the a/b/c and reset views, pan and zoom, the three knobs, the view kept across redraws, and `ResizeObserver` sizing
 - [x] Export (D5): the offscreen render at a 3000 px long side, multisampled, lines and labels scaled, on the screen's background and on a transparent one
-- [x] Leave plotly in the viewer: the trace builders, the tessellation, the camera read-back and the modebar. The `/plotly.js` route, `gui/src/lib/plotly.ts`, the `gui` extra's plotly, `viz/plotlyjs.py`, `lib/plot.ts:hoverLabel` and the `Plotly` stand-in in `test-setup.ts` go only if the Series panel has left plotly too.
+- [x] Leave plotly in the viewer: the trace builders, the tessellation, the camera read-back and the modebar. The `/plotly.js` route, `gui/src/lib/plotly.ts`, the `gui` extra's plotly, `viz/plotlyjs.py`, `lib/plot.ts:hoverLabel` and the `Plotly` stand-in in `test-setup.ts` go only if the Series panel has left plotly too. It had, so they went on 2026-09-25 and the `gui` extra is empty; `viz/plotlyjs.py` stays for `rietx compare`.
 - [ ] Rename this file to its title once WP-1461 has merged, with its ROADMAP row and WP-1461's two links
 - [x] Tests: `structure3d.test.ts` on the pure half and the instance data; a WebGL stand-in beside `test-uplot.ts`; a browser test that reads pixels at known atoms, finds a principal ellipse on an anisotropic site, and asserts a redraw keeps the view; a test that no page requests `/plotly.js`
 - [x] Docs: the structure viewer paragraphs in `gui/CLAUDE.md` (crystallography rules kept, plotly traps deleted), `using/install.md` for the `gui` extra, ATTRIBUTION.md, and the root CLAUDE.md's GUI lines if they name plotly. On the three.js fallback also: its row in `.github/dependabot.yml`'s allow list (WP-1461 created it) and its licence text in `LICENSE-3RD-PARTY.md`.
@@ -349,8 +354,8 @@ page, paired with the plotly viewer on the same machine and load, three or
 more runs for ranges, recorded in the handover.
 
 1. **No plotly in the viewer.** Showing the structure viewer requests no
-   `/plotly.js`. Once the Series panel has left plotly too, the route is
-   gone and `pyproject.toml` names plotly in no extra.
+   `/plotly.js`. Once the Series panel has left plotly too, the GUI's route
+   is gone and the `gui` extra names no plotly (narrowed 2026-09-25, § Goal).
 2. **First show:** no long animation frame is attributed to the renderer.
    The time from the viewer's first show to its first frame is recorded
    beside plotly's.
