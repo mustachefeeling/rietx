@@ -36,6 +36,8 @@ test('fmt takes the decimals its size needs, and the esd beside it', () => {
   assert.equal(fmt(123.4567891, null), '123.457');
   assert.equal(fmt(4.7591234, 1.2e-4), '4.75912 <span class="esd">±0.00012</span>');
   assert.equal(fmt(0.01234567, 0), '0.012346');
+  // a NaN value reaches the page as null, and must not print as 0.000000
+  assert.equal(fmt(null, null), '—');
 });
 
 test('valueText gives four figures and never an exponent', () => {

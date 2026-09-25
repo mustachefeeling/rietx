@@ -23,6 +23,10 @@ const COLORS = ["#1f5fa8","#c23b22","#2e8b57","#8a5cc4","#c98a17","#0f8f9c",
                 "#b3487e","#6b7280","#4b7f1f","#a1421f"];
 
 let CATALOG = null, RECORDS = {}, POLL = null;
+// The variants the last Run asked for. A poll waits for these alone: one
+// ticked while a run is in flight was never requested, so waiting on it held
+// Run disabled for good.
+let REQUESTED = new Set();
 // Each variant's unpacked curves, for the standard on screen: a Map rather
 // than an object, since a later fetch never re-orders what has landed.
 const CURVES = new Map();
@@ -135,6 +139,10 @@ async function run() {
   await fetch('/api/run', {method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({standard, variants})});
+  // the reader left this standard while the request was out, and its
+  // `onchange` has already stopped the poll and re-enabled Run
+  if ($('standard').value !== standard) return;
+  REQUESTED = new Set(variants);
   if (POLL) clearInterval(POLL);
   POLL = setInterval(poll, 700);
   poll();
@@ -153,7 +161,7 @@ async function poll() {
     if (usable(record)) fetchCurves(standard, key);
   }
   draw();
-  const outstanding = variants.some(v => !(v in RECORDS));
+  const outstanding = variants.some(v => REQUESTED.has(v) && !(v in RECORDS));
   if (!outstanding && !s.busy) stopPolling();
 }
 

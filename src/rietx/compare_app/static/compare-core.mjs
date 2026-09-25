@@ -15,8 +15,10 @@ export function num(value, digits) {
     ? value.toFixed(digits) : '—';
 }
 
-// A refined value to the decimals its size needs, and its esd beside it.
+// A refined value to the decimals its size needs, and its esd beside it. A
+// value that was not finite arrives as `null`, and prints a dash, never a zero.
 export function fmt(value, stderr) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return '—';
   const mag = Math.abs(value);
   const digits = mag >= 100 ? 3 : mag >= 1 ? 5 : 6;
   const v = Number(value).toFixed(digits);
