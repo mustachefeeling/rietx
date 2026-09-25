@@ -227,6 +227,13 @@ _TOY_WHOLE_PATTERN_FREE = [
 def _state_toy_lebail():
     structure, instrument, pattern = _toy_base()
     instrument.background = BackgroundPSpline.for_range(15.0, 80.0)
+    # The pre-WP-1454 defaults, declared rather than inherited, for the reason
+    # dispersion is declined in ``_toy_base``: the npz was captured with an air
+    # column and with λ in intensity units, and a golden that moves when a
+    # default moves proves nothing about the op shim.
+    instrument.background.air_scatter = rx.Parameter(value=0.0, min=0.0,
+                                                     transform="softplus")
+    instrument.background.lambda_units = "intensity"
     table = ParameterTable(structure, instrument)
     _free(table, _TOY_WHOLE_PATTERN_FREE)
     model = compile_model(structure, instrument, pattern, mode="lebail",

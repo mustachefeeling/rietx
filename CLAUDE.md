@@ -452,7 +452,8 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   `phases.`, never on a `.scale` suffix**: a background parameter is *in* the span it would be
   projected onto, so a free measured-background scale scored R² = 1.00 about itself and fired the
   guard on every fit until WP-1309. `optimize.statistics._structural_targets` is the one list both
-  screens read.
+  screens read. **A penalty's λ is weighed against the data's, never in intensity units**
+  (√(λ·m)/σ̄, frozen at compile): the too-stiff side has no guard; a unit moved Biso 28 % (WP-1454).
 - **Reciprocal-space symmetry action is Rᵀ** (transposed rotation) — matters for non-cubic
   orbit/multiplicity counting (`symmetry.py` comment). **This is about hkl; applying it to a
   *tensor* is the opposite mistake**: a quantity contracting with h twice (G\*, or the U\* form of

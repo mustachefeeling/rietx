@@ -184,6 +184,10 @@ def _instrument(limits: tuple[float, float]) -> rx.Instrument:
     ins.source.dispersion = None
     ins.background = BackgroundPSpline.for_range(
         limits[0], limits[1], knot_step_deg=4.0)
+    # Declared, not inherited, for the same reason: every number this suite
+    # quotes was measured with λ in intensity units, the only kind there was
+    # before WP-1454 (λ·σ̄²/m ≈ 0.03 in the new units at this count level).
+    ins.background.lambda_units = "intensity"
     return ins
 
 

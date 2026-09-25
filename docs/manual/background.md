@@ -14,15 +14,29 @@ disciplined by second-difference penalty rows appended to the residual
 ```{math}
 :label: bg-penalty
 
-r_{\mathrm{pen}} \;=\; \sqrt{\lambda}\, (D_2\, c),
+r_{\mathrm{pen}} \;=\; \sqrt{\lambda\, m}\;\frac{D_2\, c}{\bar\sigma},
 ```
 
-{source}`rietx.background.models.second_difference_matrix`
+{source}`rietx.background.models.pspline_penalty_scale`
 
-with $D_2$ the $(n-2) \times n$ second-difference matrix. The rows land in
-$J^\top J$, so the covariance is regularised, and they are excluded from
-$R_{wp}$ and the serial-correlation statistics. They are soft observations
-rather than data.
+with $D_2$ the $(n-2) \times n$ second-difference matrix, $\bar\sigma$ the median
+$\sigma$ over the fitted channels and $m = N/n$ the fitted channels per
+coefficient, both frozen at stage compile. The coefficients carry the
+intensity's unit and every data row is divided by its $\sigma$, so without
+$\bar\sigma$ the penalty's weight would move by $k^2$ when the intensities and
+their $\sigma$ are multiplied by $k$. Dividing by $\bar\sigma$ takes the unit
+out of $\lambda$, and $m$ takes out the sampling density, because the data's
+own weight on one coefficient grows as $m/\bar\sigma^2$. So $\lambda$ is a pure
+number, the penalty's weight against the data's. A background feature of width
+$W$ then costs about $\lambda (h/W)^4$ of the fit it buys, with $h$ the knot
+spacing. That is derived, not measured, and its constant of order one is not
+computed. Setting `lambda_units` to `"intensity"` drops both factors, which
+gives the rows $\sqrt{\lambda}\, D_2 c$ that every fit used before and keeps
+them as the bit-identical way back.
+
+The rows land in $J^\top J$, so the covariance is regularised, and they are
+excluded from $R_{wp}$ and the serial-correlation statistics. They are soft
+observations rather than data.
 
 (a-measured-background)=
 ## A measured background

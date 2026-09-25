@@ -891,7 +891,7 @@ def test_arpls_lambda_selection_returns_evidence():
 def test_auto_background_shapes_to_pattern():
     flat = auto_background(_peaky_pattern(background=_flat_bkg), wavelength=WAVELENGTH)
     assert isinstance(flat, BackgroundPSpline)
-    assert flat.air_scatter.value == 0.0 and not flat.air_scatter.vary
+    assert flat.air_scatter is None, "a declined air term is absent, not zero (WP-1454)"
 
     air = auto_background(_peaky_pattern(background=_air_scatter_bkg), wavelength=WAVELENGTH)
     assert air.air_scatter.vary, "1/x term should switch on for air scatter"
@@ -899,6 +899,125 @@ def test_auto_background_shapes_to_pattern():
     cheb = auto_background(_peaky_pattern(background=_hump_bkg), kind="chebyshev")
     assert isinstance(cheb, BackgroundChebyshev)
     assert len(cheb.coefficients) >= 4
+
+
+def test_auto_background_knots_span_the_fitted_range():
+    """The knots cover the channels a fit under the same limits uses and no
+    others (WP-1454): a coefficient past the fitted range has no data, only
+    the penalty, and extends the curve wherever its slope points."""
+    data = _peaky_pattern(background=_flat_bkg)
+    whole = auto_background(data, wavelength=WAVELENGTH)
+    assert whole.breakpoints[0] == pytest.approx(data.two_theta[0])
+    assert whole.breakpoints[-1] == pytest.approx(data.two_theta[-1])
+
+    limited = auto_background(data, wavelength=WAVELENGTH, two_theta_limits=(30.0, 70.0))
+    tt = np.asarray(data.two_theta)
+    fitted = tt[(tt >= 30.0) & (tt <= 70.0)]
+    assert limited.breakpoints[0] == pytest.approx(fitted[0])
+    assert limited.breakpoints[-1] == pytest.approx(fitted[-1])
+
+    # caller-supplied diagnostics over the whole file: the knots still stop at the limits
+    kept = auto_background(data, diagnostics=diagnose(data, wavelength=WAVELENGTH),
+                           two_theta_limits=(30.0, 70.0))
+    assert kept.breakpoints[0] >= 30.0 and kept.breakpoints[-1] <= 70.0
+
+
+def test_auto_background_refuses_limits_it_cannot_use():
+    data = _peaky_pattern(background=_flat_bkg)
+    with pytest.raises(ValueError, match="inverted"):
+        auto_background(data, two_theta_limits=(70.0, 30.0))
+    with pytest.raises(ValueError, match="fewer than the 10 a fit needs"):
+        auto_background(data, two_theta_limits=(200.0, 210.0))
+    # two channels: enough for a PatternData, not for ``diagnose`` or a fit
+    tt = np.asarray(data.two_theta)
+    with pytest.raises(ValueError, match="leave 2 fitted channels"):
+        auto_background(data, two_theta_limits=(tt[10], tt[11]))
+    # caller's diagnostics over a range the limits do not reach
+    elsewhere = diagnose(data.crop(20.0, 30.0), wavelength=WAVELENGTH)
+    with pytest.raises(ValueError, match="does not overlap"):
+        auto_background(data, diagnostics=elsewhere, two_theta_limits=(50.0, 70.0))
+
+
+def test_an_undeclared_air_term_raises_no_background_correlation_rows():
+    """Every preset frees ``instrument.background.*`` and a plan replaces the
+    vary flags, so an air term held at 0 was refined anyway.  Inside a fine
+    spline's span its 1/(2θ) column is one flat direction, which the guard
+    reported once per pair of background columns (WP-1454).  Absent, there is
+    no path for the glob to free.  The declared arm is the failure reproduced,
+    so this test can still go red: more rows than the spline has coefficients
+    is one degeneracy counted many times."""
+    data = _peaky_pattern(background=_flat_bkg, lo=20.0, hi=60.0)
+    seed = float(np.percentile(data.intensity, 5))
+
+    def background_rows(air):
+        ins = rx.Instrument.bragg_brentano(monochromator_two_theta=26.6)
+        ins.profile.w.value = 3e-3
+        ins.profile.x.value = 5e-3
+        bkg = BackgroundPSpline.for_range(20.0, 60.0, knot_step_deg=2.0,
+                                          lambda_smooth=1e-4)
+        for c in bkg.coefficients:
+            c.value = seed
+        bkg.air_scatter = air
+        ins.background = bkg
+        structure = make_lab6()
+        structure.phases[0].scale.value = 3e-4
+        result = rx.Refinement(structure, ins, history=False).fit(
+            data, plan="profile_only", telemetry=False)
+        return len(bkg.coefficients), [
+            d for d in result.diagnostics
+            if d.code in ("HIGH_CORRELATION", "FLAT_DIRECTION")
+            and all(p.startswith("instrument.background.") for p in d.where)]
+
+    assert BackgroundPSpline.for_range(20.0, 60.0).air_scatter is None
+    _, rows = background_rows(None)
+    assert rows == [], [d.where for d in rows]
+    n_coef, flooded = background_rows(
+        rx.Parameter(value=0.0, min=0.0, transform="softplus"))
+    assert len(flooded) > n_coef
+
+
+def test_the_penalty_is_equally_stiff_in_any_intensity_unit():
+    """Multiply y, σ and the phase scale by k: the fitted background divided by
+    k is the same curve (WP-1454).  The bar is the spread the same fit shows
+    when restarted from another start, measured here rather than chosen, and
+    the old intensity-unit rows are the arm that must fail it.
+
+    Measured 2026-09-24 (``[dev]``, Linux x86-64): restart spread 4.9e-3 of the
+    curve's maximum, k = 1e-3 and 1e3 within 2.7e-4 and 3.1e-9 of k = 1; the
+    old rows 7.4e-2 at 1e-3 and 0.56 at 1e3, a straight line at Rwp 0.36.
+    """
+    base = _peaky_pattern(background=_hump_bkg, lo=20.0, hi=60.0)
+    sig = base.sig()
+
+    def fitted_background(k, units="dimensionless", restart=False):
+        data = base.model_copy(update={
+            "intensity": list(np.asarray(base.intensity) * k),
+            "sigma": list(sig * k)})
+        ins = rx.Instrument.bragg_brentano(monochromator_two_theta=26.6)
+        ins.profile.w.value = 3e-3
+        ins.profile.x.value = 5e-3
+        bkg = BackgroundPSpline.for_range(20.0, 60.0, knot_step_deg=2.0)
+        bkg.lambda_units = units
+        seed = float(np.percentile(data.intensity, 5)) * (1.3 if restart else 1.0)
+        for c in bkg.coefficients:
+            c.value = seed
+        ins.background = bkg
+        structure = make_lab6()
+        structure.phases[0].scale.value = 3e-4 * k * (0.8 if restart else 1.0)
+        result = rx.Refinement(structure, ins, history=False).fit(
+            data, plan="profile_only", telemetry=False)
+        return np.asarray(result.y_background) / k
+
+    reference = fitted_background(1.0)
+    size = np.abs(reference).max()
+    spread = np.abs(fitted_background(1.0, restart=True) - reference).max() / size
+    for k in (1e-3, 1e3):
+        moved = np.abs(fitted_background(k) - reference).max() / size
+        assert moved < spread, (k, moved, spread)
+
+    old = fitted_background(1.0, units="intensity")
+    moved = np.abs(fitted_background(1e3, units="intensity") - old).max() / size
+    assert moved > spread, (moved, spread)
 
 
 # ----------------------------------------------------------------------
@@ -950,7 +1069,14 @@ def test_penalty_rows_enter_the_residual():
     for n in range(n_coef):
         curved[f"instrument.background.c{n}"] = float(n) ** 2
     pen = model.penalty_residual(curved)
-    np.testing.assert_allclose(pen, np.sqrt(4.0) * 2.0)  # D₂ of n² is 2
+    # D₂ of n² is 2, weighed against the data's own weight per coefficient
+    scale = np.sqrt(len(model.tt) / n_coef) / np.median(model.sigma)
+    np.testing.assert_allclose(pen, np.sqrt(4.0) * 2.0 * scale)
+    # the pre-WP-1454 rows, which a golden declares
+    ins.background.lambda_units = "intensity"
+    old = compile_model(structure, ins, data).penalty_residual(curved)
+    np.testing.assert_allclose(old, np.sqrt(4.0) * 2.0, rtol=0, atol=0)
+    ins.background.lambda_units = "dimensionless"
 
     from rietx.optimize.least_squares import _make_jacobian, _make_residual
     table.set_vary(["*"], False)
