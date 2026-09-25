@@ -1,6 +1,6 @@
 # WP-1461 — every browser chart draws with uPlot
 
-Milestone: unscheduled · Status: 🔄 2026-09-25 — tasks 2 and 3 done: the payload route settled, uPlot vendored at its pin with Dependabot watching; the module's core next
+Milestone: unscheduled · Status: 🔄 2026-09-25 — tasks 2-4 done: the payload route settled, uPlot vendored at its pin, the module's core built and browser-tested; the pilot next
 Depends on: —
 Priority: P2 2026-09-24 — the maintainer's decision that every browser chart builds on one module; today plotly blocks every GUI open for 0.7-0.8 s before the first plot
 
@@ -162,10 +162,18 @@ Single runs, so no range (`results/proto_run2.txt`, `proto_dpr2.txt`,
 1. **Cursor sync carries a drag selection to every pane in the group**, so a
    `setSelect` handler runs once per pane. Five exclude drags added fifteen
    regions until the handler ran only in the pane the drag began in
-   (`results/proto_run1_before_fixes.txt`).
+   (`results/proto_run1_before_fixes.txt`). The module's core goes further
+   and syncs the cursor only. Its `filters.pub` keeps a mousedown, mouseup
+   and double-click in their own pane, so a drag is one pane's event and its
+   handler runs once. That also matches plotly, which draws the zoom box in
+   the dragged subplot alone.
 2. **A custom scale needs its own ticks.** Under `distr: 100` (√) uPlot
    printed one y label. `splits` evenly spaced in √ space fixes it, as the
-   GUI's `sqrtTicks` does today (`plot.ts:796-807`).
+   GUI's `sqrtTicks` does today (`plot.ts:796-807`). The labels need a
+   `filter` as well. uPlot applies its log-axis label filter when `distr` is
+   3 or more and `log` is 10, and a √ scale is `distr: 100` with `log` at its
+   default of 10. So every √ label but a power of ten printed blank until the
+   core's `filter` returned the splits unchanged.
 3. **Tick labels do not adapt to a narrow range.** A trajectory spanning
    1e-4 Å printed `10.251` five times. An axis over a refined parameter needs
    a `values` formatter whose precision follows the tick step.
@@ -586,8 +594,8 @@ day.
 - [x] The maintainer confirms the migration on § Staying on plotly's numbers and decides D1-D8, and this file records which (D5 deferred to the pilot by that decision)
 - [x] Measure D4 and D8 on real payloads (the NAC result, a compare standard, a series): JSON against binary arrays, parse, grid union. Settle the route and the ceiling. (Float64 binary, the pattern's own grid with a fitted index, compare curves out of the poll; the ceiling follows D5.)
 - [x] Vendor uPlot 1.6.32, its css and LICENSE into `src/rietx/viz/static/`, copied there by `npm run build` from the exact pin in `gui/package.json` (D2, § Keeping it current). Add the ATTRIBUTION row and put the directory in `build_info.py`'s digest. A test holds the vendored banner's version equal to the pin. Add `.github/dependabot.yml` for uPlot in `gui/`. Rebuild the dist, since the pin moves the digest. (Serving it moved to the watch and compare tasks, where a page first loads it. svgcanvas joins Dependabot with the export task, which adds the dependency.)
-- [ ] The module's core: panes on one x, sync, drag, wheel and pan, y-zoom, select, the readout hook, the `ResizeObserver` path. Findings 1-3, 5 and 10 each get a case: the pure half under `node --test` and vitest, the drawing in a browser test.
-- [ ] Pilot, the gate: the curves route (D4), and the GUI pattern panel on the core behind a flag, with the plotly renderer still selectable. Port the spike driver to the real page as the acceptance probe. Measure § Acceptance 1-3 against the plotly renderer on the same machine, in Chromium, WebKit and Firefox through playwright's builds. Build both marker paths (D5) and measure each, at NAC's 59 498 channels and at `11BM_LaB6_660a.fxye`'s 132 992. Record go or no-go, which marker path, and so which ceiling, in the handover.
+- [x] The module's core: panes on one x, sync, drag, wheel and pan, y-zoom, select, the readout hook, the `ResizeObserver` path. Findings 1-3, 5 and 10 each get a case: the pure half under `node --test` and vitest, the drawing in a browser test. (`src/rietx/viz/static/rxplot.mjs`; `tests/rxplot.test.mjs` through `tests/test_rxplot.py`, and `tests/test_rxplot_browser.py`, which covers finding 12 too. Vitest moved to the pilot, where the GUI first imports the module.)
+- [ ] Pilot, the gate: the curves route (D4) and its decoder in the module's pure half, and the GUI pattern panel on the core behind a flag, with the plotly renderer still selectable. Port the spike driver to the real page as the acceptance probe. Measure § Acceptance 1-3 against the plotly renderer on the same machine, in Chromium, WebKit and Firefox through playwright's builds. Build both marker paths (D5) and measure each, at NAC's 59 498 channels and at `11BM_LaB6_660a.fxye`'s 132 992. Record go or no-go, which marker path, and so which ceiling, in the handover. The GUI's vitest imports the module's pure half.
 - [ ] GUI pattern panel complete: peaks, candidates, masks, raw view, readout fields, Esc, axis titles. Delete the plotly-only code, stub uPlot in `test-setup.ts`, and move `App.test.ts` off the `Plotly.react` stub. Drawn colours are asserted from pixels or from the recorded `strokeStyle`.
 - [ ] `rietx watch` on the module, serving the vendored uPlot from its own server. `test_watch_browser.py` asserts what was drawn.
 - [ ] GUI Series panel: trajectory (D8), per-pattern chart through the curves route, rings, crosses plotted, the dashed tone, the tick formatter

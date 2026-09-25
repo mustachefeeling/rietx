@@ -48,6 +48,8 @@ htmlcov/
 # has run the split.  `tests/test_watch_app.py` asks `git check-ignore` about
 # all four.
 !src/rietx/watch/static/**
+# The chart module's browser-test harness (WP-1461), the seventh.
+!tests/rxplot_page.html
 gui/node_modules/
 gui/.vite/
 # every test refinement writes obs/calc/diff plots and exported tables here,

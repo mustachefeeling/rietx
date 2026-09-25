@@ -1,0 +1,50 @@
+<!doctype html>
+<!-- WP-1461: the harness `tests/test_rxplot_browser.py` drives. It loads the
+     vendored uPlot and rxplot.mjs as a page would, and mounts three linked panes
+     on synthetic data. It is a test file, so it lives in tests/ and never ships. -->
+<html><head><meta charset="utf-8">
+<link rel="stylesheet" href="/uPlot.min.css">
+<style>
+  :root { --fg: #1b1b1b; --line: #dcdcd6; --plot-calc: #c23b22; --plot-diff: #555555; }
+  body { margin: 0; background: #ffffff; }
+  #host { width: 800px; height: 490px; }
+</style></head><body>
+<div id="host"></div>
+<script src="/uPlot.iife.min.js"></script>
+<script type="module">
+import * as rx from "/rxplot.mjs";
+
+const N = 2000;
+const X = Float64Array.from({ length: N }, (_, i) => 5 + 55 * i / (N - 1));
+const wave = Array.from(X, (x) => 100 + 50 * Math.sin(x));
+const delta = Array.from(X, (x) => Math.cos(3 * x));
+const host = document.getElementById("host");
+window.rx = rx;
+window.X = X;
+window.paints = {};
+
+// Three panes as the pattern panel stacks them: the curves, a band of ticks with
+// a range of its own, and the residual carrying the x labels. `opts.main` swaps
+// the main pane's one series, and `opts.y` its scale.
+window.mount = (opts = {}) => {
+  window.G?.destroy();
+  const count = (key) => ({ draw: [() => { window.paints[key] = (window.paints[key] ?? 0) + 1; }] });
+  const G = window.G = rx.panes(uPlot, host, {
+    x: X,
+    panes: [
+      { key: "main", height: 300, y: opts.y ?? "lin", hooks: count("main"),
+        series: [{ stroke: () => rx.token("--plot-calc"), width: 3 }], data: [opts.main ?? wave] },
+      { key: "ticks", height: 40, range: [0, 1], hooks: count("ticks"),
+        series: [{ show: false }], data: [new Array(N).fill(null)] },
+      { key: "resid", height: 150, xLabels: true, hooks: count("resid"),
+        series: [{ stroke: () => rx.token("--plot-diff"), width: 1 }], data: [delta] },
+    ],
+  });
+  G.selects = [];
+  G.cursors = [];
+  G.onSelect = (lo, hi, key) => G.selects.push([lo, hi, key]);
+  G.onCursor = (hit) => G.cursors.push(hit && { key: hit.key, idx: hit.idx });
+  return true;
+};
+window.ready = true;
+</script></body></html>
