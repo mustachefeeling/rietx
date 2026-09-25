@@ -1,3 +1,5 @@
+import { fileURLToPath } from "node:url";
+
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 // from vitest/config, not vite: it is the one that types the `test` key
 import { defineConfig } from "vitest/config";
@@ -24,7 +26,7 @@ export default defineConfig({
       output: {
         entryFileNames: "assets/app.js",
         chunkFileNames: "assets/[name].js",
-        // Application code is still one chunk.  CodeMirror — the app's one real
+        // Application code is still one chunk.  CodeMirror — its first real
         // dependency (WP-1013) — is not, and splitting it *serves* the
         // one-chunk decision rather than reversing it: a committed dist has to
         // diff reviewably, and ~350 kB of minified third-party bytes inside
@@ -34,9 +36,13 @@ export default defineConfig({
         // keeps the boot path at the size WP-1010 measured — the editor is
         // fetched the first time someone opens the text pane, not before the
         // first paint.
+        //
+        // uPlot is split for the same reason (WP-1461): 51 kB of third-party
+        // bytes that change only when its pin does.
         manualChunks: (id: string) =>
           /node_modules[\\/](@codemirror|@lezer|crelt|style-mod|w3c-keyname)[\\/]/
-            .test(id) ? "vendor-cm" : undefined,
+            .test(id) ? "vendor-cm"
+            : /node_modules[\\/]uplot[\\/]/.test(id) ? "vendor-uplot" : undefined,
         assetFileNames: (info) =>
           info.names?.[0]?.endsWith(".css") ? "assets/app.css" : "assets/[name][extname]",
       },
@@ -46,7 +52,15 @@ export default defineConfig({
   // svelte, or `mount()` comes from the server bundle and throws
   // `lifecycle_function_unavailable` — which is how a component test that only
   // ever ran on the server announces itself.
-  resolve: process.env.VITEST ? { conditions: ["browser"] } : undefined,
+  resolve: {
+    // The chart module is javascript in the Python package, because `rietx
+    // watch` and `rietx compare` serve it to a page as it is (WP-1461, D3).
+    // `src/rxplot.d.ts` declares its types.
+    alias: {
+      rxplot: fileURLToPath(new URL("../src/rietx/viz/static/rxplot.mjs", import.meta.url)),
+    },
+    ...(process.env.VITEST ? { conditions: ["browser"] } : {}),
+  },
   test: {
     environment: "node",
     include: ["src/**/*.test.ts"],
