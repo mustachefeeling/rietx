@@ -190,11 +190,12 @@ carries: `gui/server.py` spells non-finite floats as the schemas do
 them back with `lib/table.ts`'s `num()`. jsdom lacks `ResizeObserver` (which
 `bind:clientHeight` compiles to, so its absence throws *during mount*) and
 `DragEvent`; `gui/src/test-setup.ts` is the one place that gap is filled. It
-also has no plotly **emitter** — the library decorates the graph div with `on`
-at runtime, so `plotNode.on?.(…)` is a silent no-op and no plotly event can be
-driven at all; a test that needs one patches `on`/`removeAllListeners` onto
-`HTMLDivElement.prototype` for its own block (WP-1033) rather than globally,
-because what it wants is to *capture* the handlers.
+has no canvas either, and uPlot draws in its constructor, so `test-setup.ts`
+mocks `uplot` with `test-uplot.ts`'s `StubPlot`: uPlot's state, the chart
+module's hooks fired, and every stroke recorded with the style it was made in,
+so **a drawn colour is asserted from the record, never from the option handed
+in** (WP-1461). What uPlot paints from it is `tests/test_gui_browser.py`'s
+question.
 
 The **history and report panels** (WP-1012) are the GUI's read-and-act half, and
 the module that carries them is `report/apply.py` — the *how* beside Layer 2's
@@ -388,26 +389,23 @@ its own as `.ͼ1 .cm-gutters` and wins on specificity. The curves route sends
 **three** residuals and a `weighted` flag: two are derivable in a client and
 `cumulative_chi2` is not, because it is summed over every fitted channel, and a
 zoom re-bases that one sum (`rxplot.chi2Base`) rather than summing what it
-holds. And plotly's `responsive: true` window-only listener bit a **second**
-panel — any control row under a plot needs a `ResizeObserver` (the chart
-module keeps its own).
+holds. A chart is sized by the `ResizeObserver` the chart module keeps on its
+host (`rxplot.panes`), because uPlot has no autosize: a panel sizes the host
+and never the chart.
 
 **Repairs found by use** (WP-1032, `lib/resize.ts`, `lib/plot.ts`,
 `panels/{Plot,Peaks,Structure3D}.svelte`) is the pass that measured what the
 eleven panels *feel* like, and its rules are about how to find such things.
-**A trailing canvas is not a dropped frame**: `Plotly.Plots.resize` returns a
-promise and does its work in chunks, so an un-coalesced `ResizeObserver` costs
-*latency*, not jank — a drag issued one ~111 ms resize per pointer move and the
-last landed 1.10 s late at a steady 60 fps. Every `Plots.resize` therefore goes
-through `resize.ts:coalesce` (one in flight, at most one queued, and the queued
-one runs, so the last redraw is the final size), and both plotly panels were
-*measured* before taking it; the pattern and Series panels left plotly in
-WP-1461 and the structure viewer in WP-1462, so nothing calls it now. The
-viewer's `ResizeObserver` asks for one frame a `requestAnimationFrame`.
-**Instrument before the library loads**: a `$state`
-rune proxies the namespace and caches each property on first read, so patching
-`window.Plotly` after boot counts nothing while the plot redraws — use an init
-script. **A fix that does not remove the symptom is evidence about the cause**:
+**A trailing canvas is not a dropped frame**: chunked work behind an
+un-coalesced `ResizeObserver` costs *latency*, not jank. Under plotly a drag
+issued one ~111 ms resize per pointer move and the last landed 1.10 s late at a
+steady 60 fps, so measure when the final size lands, not the frame rate. The
+chart module's `setSize` runs in the observer's own frame and the viewer asks
+for one `requestAnimationFrame`, so neither queues, and `resize.ts:coalesce`
+went with plotly (WP-1461). **Instrument before the library loads**: a
+`$state` rune proxies a namespace and caches each property on first read, so a
+probe patched in after boot counts nothing while the chart redraws (it was
+`window.Plotly`) — use an init script. **A fix that does not remove the symptom is evidence about the cause**:
 the sticky peak header's backdrop is opaque and the panel column's missing
 surface was a real, separate mismatch; what paints a row over the header is
 `opacity: 0.55`, which promotes it to z-index 0 while the sticky `th` sat at
@@ -726,7 +724,7 @@ zoom drag starting 0.9° from a marker silently moved a line 11° (the coarse
 10 px stays for shift-toggle and click-to-add, whose precision comes from the
 group refit); and a drawn **σ whisker is capped at 3×FWHM**, because a
 degenerate component reports σ in tens of degrees (111° measured) and an
-uncapped error bar owns the autorange. `/api/index` and
+uncapped error bar spans the pattern (under plotly it owned the autorange). `/api/index` and
 `/api/index/extinction` are run *kinds* on the one machine — a cancelled
 search or screen **returns** what it has and its status is read off the token.
 The candidate table's Adopt follows the server's `adopt` arm (one answer with

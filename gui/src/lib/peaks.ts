@@ -199,7 +199,7 @@ export function nearestPeak(
  * that line 11° instead of zooming. The FWHM cap says when a drag may *mean*
  * "move this line": once 10 px covers more than ~a line width, the line is
  * subpixel and precision-editing it is not what any drag can express — so the
- * drag falls through to plotly's zoom, which is the survey view's gesture.
+ * drag falls through to the chart's zoom, which is the survey view's gesture.
  * The coarse pixel radius stays right for the non-destructive gestures
  * (shift-toggle, right-click refit target a *labelled* thing) and for
  * click-to-add, whose final position comes from the group refit, not the

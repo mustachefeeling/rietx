@@ -112,7 +112,7 @@ dev = [
     # Two user-facing extras ride along rather than being restated here: docs so
     # tests/test_manual.py builds the theory manual in the standard suite
     # instead of importorskip-ing out, viz so the renderers' tests have the
-    # matplotlib and plotly they render with, at the floors declared above.
+    # matplotlib they render with, at the floor declared above.
     "rietx[docs,viz]",
     "pytest>=8",
     # `-n auto --dist loadgroup` is how the suite is meant to be run; the
