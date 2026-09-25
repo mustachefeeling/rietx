@@ -1043,10 +1043,19 @@ class ReflectionSet:
 
     Attributes
     ----------
-    hkl : (N, 3) int array — one representative per orbit.
+    hkl : (N, 3) int array — one representative per orbit.  For a satellite row
+        (WP-1326) this is the **parent** reciprocal-lattice vector H, and the
+        scattering vector the peak sits at is :attr:`index`, H + m·k.
     multiplicity : (N,) int — orbit size under the Laue group (Friedel incl.).
-    d : (N,) float — d-spacings at the cell used for generation (refresh with
-        :meth:`update_positions` when the cell moves during refinement).
+    d : (N,) float — d-spacings at the cell used for generation.
+    satellite_order : (N,) int or None — the m of Q = H + m·k, 0 on a nuclear
+        row.  ``None`` — every purely nuclear set — is not the same as an
+        all-zero array: it is what makes :attr:`index` return ``hkl`` itself,
+        so a phase without a propagation vector reaches every consumer with
+        the identical array object it always did.
+    propagation_vector : (3,) float or None — k in fractional coordinates of
+        the conventional reciprocal cell, carried beside the orders so
+        :attr:`index` can be rebuilt from what is stored.
     """
 
     hkl: np.ndarray
@@ -1061,13 +1070,41 @@ class ReflectionSet:
     #: this field existed, which is every set from a symbol.
     operations: tuple[str, ...] | None = None
     extra: dict = field(default_factory=dict)
+    satellite_order: np.ndarray | None = None
+    propagation_vector: tuple[float, float, float] | None = None
 
     def __len__(self) -> int:
         return len(self.hkl)
 
+    @property
+    def index(self) -> np.ndarray:
+        """(N, 3) — the reciprocal-space index each row's peak sits at.
+
+        ``hkl`` for a nuclear row, H + m·k for a satellite; the array is
+        integer when nothing in the set is a satellite and float otherwise.
+        **Everything that computes a position, a d-spacing or a width reads
+        this**, and everything that identifies a reflection — the structure
+        factor's op subsets, the March-Dollase orbit, a stored per-hkl
+        intensity — reads ``hkl`` and ``satellite_order`` instead.  The split
+        is what keeps a satellite an integer object in the record while its
+        peak sits at a rational index (WP-1326).
+        """
+        if self.satellite_order is None:
+            return self.hkl
+        k = np.asarray(self.propagation_vector, dtype=np.float64)
+        return (self.hkl.astype(np.float64)
+                + self.satellite_order[:, None].astype(np.float64) * k)
+
+    @property
+    def is_satellite(self) -> np.ndarray:
+        """(N,) bool — which rows are satellites; all-False when none are."""
+        if self.satellite_order is None:
+            return np.zeros(len(self.hkl), dtype=bool)
+        return self.satellite_order != 0
+
     def two_theta(self, cell: tuple[float, float, float, float, float, float],
                   wavelength: float) -> np.ndarray:
-        d = d_spacings(self.hkl, *cell)
+        d = d_spacings(self.index, *cell)
         return two_theta_deg(d, wavelength)
 
 

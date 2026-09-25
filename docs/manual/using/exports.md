@@ -129,6 +129,7 @@ the structure, for a caller that holds those instead of a `Refinement`.
 | `ReflectionRow.multiplicity` | the Laue-group multiplicity of the orbit |
 | `ReflectionRow.f_squared` | \|F\|², or `None` in Le Bail and Pawley mode |
 | `ReflectionRow.intensity` | the modelled integrated intensity of this row |
+| `ReflectionRow.satellite_order` | the m of Q = H + m·k, 0 on every nuclear reflection |
 
 Three of those need care.
 
@@ -142,6 +143,14 @@ that line only, so a row missing from one line may be present in another.
 Rietveld mode it is scale × multiplicity × \|F\|² × preferred orientation ×
 line weight × Lp × extinction × absorption × roughness. It is what the peak
 under the tick is made of.
+
+`ReflectionRow.satellite_order` is 0 for every row of a phase that declares no
+`Phase.propagation_vector`, which is every phase unless you asked for one. Where
+it is not, `ReflectionRow.h`, `ReflectionRow.k` and `ReflectionRow.l` stay the
+parent reciprocal-lattice vector H and the row is read as H and m together,
+the (3+1)-index spelling; `ReflectionRow.d` is the satellite's own d-spacing,
+not the parent's, and `ReflectionRow.f_squared` on such a row is exactly 0 in
+Rietveld mode because this rung computes no magnetic structure factor.
 
 `ReflectionRow.f_squared` is `None` in Le Bail and Pawley mode, where the
 per-reflection intensity is extracted or refined rather than computed from the

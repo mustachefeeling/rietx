@@ -214,6 +214,12 @@ class ReflectionState(Base):
 
     phase_index: int
     hkl: list[list[int]] = Field(default_factory=list)  # (N, 3)
+    #: m of Q = H + m·k per row, for a phase carrying a propagation vector
+    #: (WP-1326).  ``None`` — every phase that declares no k — is not the same
+    #: as a list of zeros: it is what keeps a document written by a fit without
+    #: satellites byte for byte what it was, and ``hkl`` alone is then a
+    #: complete key.  With a k it is not: H + k and H − k share one H.
+    satellite_order: list[int] | None = None
     intensity: list[float] = Field(default_factory=list)  # (N,)
     kind: Literal["lebail_extracted", "pawley_refined"] = "lebail_extracted"
     stderr: list[float] | None = None  # Pawley has esds; Le Bail does not

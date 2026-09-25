@@ -273,7 +273,16 @@ from .._nearmiss import did_you_mean
 #: ``MagneticSymmetry.propagation_vector_parent``, the parent's k recorded on
 #: a magnetic supercell ``magnetic.supercell.magnetic_supercell`` builds,
 #: defaulted to ``None``.
-SCHEMA_VERSION = "0.31"
+#: 0.31 → 0.32 (WP-1326): ``Phase.propagation_vector`` — a commensurate k on
+#: the nuclear cell, which adds satellites at Q = H ± k to the phase's frozen
+#: reflection list — and ``ReflectionState.satellite_order``, the m that makes
+#: (H, m) the key a Le Bail/Pawley intensity is restored on.  Both additive and
+#: both defaulted to ``None``, which is the honest empty state *and* the
+#: bit-identical one: a phase that declares no k serializes exactly as before
+#: apart from the new null, and its reflection list, its intensities and every
+#: number the fit produces are unchanged.  0.31 is the magnetic supercell's
+#: (#477), which landed first; this is the rung after it.
+SCHEMA_VERSION = "0.32"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
 
