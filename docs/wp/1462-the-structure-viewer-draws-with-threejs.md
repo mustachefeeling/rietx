@@ -1,6 +1,6 @@
 # WP-1462 — the structure viewer draws with its own WebGL2 renderer
 
-Milestone: unscheduled · Status: 🔄 2026-09-25 — D1-D9 decided; the renderer is being built
+Milestone: unscheduled · Status: 🔄 2026-09-25 — the renderer is built and replaces plotly in the viewer; the Windows or Linux GPU gate and the rename after WP-1461 remain
 Depends on: 1461 (soft)
 Priority: P3 2026-09-25 — after WP-1461 the structure viewer is the last page that loads plotly, 4.82 MB evaluated in a 700-811 ms frame on its first show
 
@@ -334,13 +334,13 @@ shell.
 
 - [x] The maintainer confirms D1-D8 (2026-09-25); the critical pass revises D5 and D6 and adds D9; WP-1466 is filed for D8
 - [ ] Spike, the gate: the renderer on the GPU paths the prototype has not met (any Windows or Linux machine the maintainer can reach), and paired against today's plotly viewer on the same machine: first show, rotation frames and hover work per event, in Chromium, WebKit and Firefox. Record go or no-go in the handover. On no-go, draw the same payloads with three.js before stopping.
-- [ ] The renderer: instanced atom and bond-half impostors, D9's line quads for the cell frame, the a/b/c overlay, the orthographic camera, the trackball, the light on the camera, theme colours, boundary images dimmed, D6's ellipses, D7's antialiasing, context loss, and release on unmount
-- [ ] Interaction: hover on atoms and bond halves, legend toggles, the a/b/c and reset views, pan and zoom, the three knobs, the view kept across redraws, and `ResizeObserver` sizing
-- [ ] Export (D5): the offscreen render at a 3000 px long side, multisampled, lines and labels scaled, on the screen's background and on a transparent one
-- [ ] Leave plotly in the viewer: the trace builders, the tessellation, the camera read-back and the modebar. The `/plotly.js` route, `gui/src/lib/plotly.ts`, the `gui` extra's plotly, `viz/plotlyjs.py`, `lib/plot.ts:hoverLabel` and the `Plotly` stand-in in `test-setup.ts` go only if the Series panel has left plotly too.
+- [x] The renderer: instanced atom and bond-half impostors, D9's line quads for the cell frame, the a/b/c overlay, the orthographic camera, the trackball, the light on the camera, theme colours, boundary images dimmed, D6's ellipses, D7's antialiasing, context loss, and release on unmount
+- [x] Interaction: hover on atoms and bond halves, legend toggles, the a/b/c and reset views, pan and zoom, the three knobs, the view kept across redraws, and `ResizeObserver` sizing
+- [x] Export (D5): the offscreen render at a 3000 px long side, multisampled, lines and labels scaled, on the screen's background and on a transparent one
+- [x] Leave plotly in the viewer: the trace builders, the tessellation, the camera read-back and the modebar. The `/plotly.js` route, `gui/src/lib/plotly.ts`, the `gui` extra's plotly, `viz/plotlyjs.py`, `lib/plot.ts:hoverLabel` and the `Plotly` stand-in in `test-setup.ts` go only if the Series panel has left plotly too.
 - [ ] Rename this file to its title once WP-1461 has merged, with its ROADMAP row and WP-1461's two links
-- [ ] Tests: `structure3d.test.ts` on the pure half and the instance data; a WebGL stand-in beside `test-uplot.ts`; a browser test that reads pixels at known atoms, finds a principal ellipse on an anisotropic site, and asserts a redraw keeps the view; a test that no page requests `/plotly.js`
-- [ ] Docs: the structure viewer paragraphs in `gui/CLAUDE.md` (crystallography rules kept, plotly traps deleted), `using/install.md` for the `gui` extra, ATTRIBUTION.md, and the root CLAUDE.md's GUI lines if they name plotly. On the three.js fallback also: its row in `.github/dependabot.yml`'s allow list (WP-1461 created it) and its licence text in `LICENSE-3RD-PARTY.md`.
+- [x] Tests: `structure3d.test.ts` on the pure half and the instance data; a WebGL stand-in beside `test-uplot.ts`; a browser test that reads pixels at known atoms, finds a principal ellipse on an anisotropic site, and asserts a redraw keeps the view; a test that no page requests `/plotly.js`
+- [x] Docs: the structure viewer paragraphs in `gui/CLAUDE.md` (crystallography rules kept, plotly traps deleted), `using/install.md` for the `gui` extra, ATTRIBUTION.md, and the root CLAUDE.md's GUI lines if they name plotly. On the three.js fallback also: its row in `.github/dependabot.yml`'s allow list (WP-1461 created it) and its licence text in `LICENSE-3RD-PARTY.md`.
 
 ## Acceptance
 
@@ -402,26 +402,100 @@ npm --prefix gui test && npm --prefix gui run check
 
 ## Handover log
 
-- **2026-09-25 (2nd session)** — scoped on the maintainer's question: which
-  3D library is the uPlot of structure plotting, and can we do better than
-  one. No library is. The engines cost 137-216 KB gzip, and most of that is
-  a material system this viewer does not use. The thin helpers are uPlot's
-  size but only wrap WebGL calls. The molecular viewers bring their own
-  crystallography. What the molecular viewers do inside is the answer:
-  ray-cast impostors. A 392-line prototype drew the served payload that
-  way in all three engines at 4.8 KB gzip, with exact surfaces and the
-  ORTEP principal ellipses the viewer has never had. D1 now recommends it,
-  with three.js as the fallback. The maintainer then asked for a polyhedral
-  view for solid-state chemists. The spike drew translucent coordination
-  polyhedra beside the impostors in 88 more lines, so D1 stands. The hard
-  part is a ligand rule on the server, and D8 gives the view a WP of its
-  own. The maintainer added that good defaults are part of the design, for
-  polyhedra too, so D8 now opens that WP with a proposed set. Folded the
-  `### Inherited` mailbox: its Dependabot and licence
-  entries went to the docs task as fallback-only, and its `hoverLabel` and
-  stand-in entry went to the delete and test tasks. *Next:* the maintainer
-  decides D1-D8. If D1 holds, rename this file and its ROADMAP row. If D8
-  holds, file the polyhedra WP. Then run the spike gate.
+### 2026-09-25 (2nd session) — scoped against the field, decided, and built the renderer
+
+The GUI's structure viewer no longer uses plotly. It draws with a small
+renderer written for it, which solves each atom and bond exactly, so spheres
+and ellipsoids stay smooth at any zoom, and anisotropic atoms now show the
+three principal rings of an ORTEP drawing. Opening the viewer takes a
+fraction of what plotly took, and a PNG is now a 3000-pixel render fit for a
+paper. Coordination polyhedra, which the maintainer asked for during the
+session, fit the same renderer and have a WP of their own (1466). Two things
+stay open: a check on a Windows or Linux GPU, and deleting plotly from the
+GUI altogether once the Series panel leaves it.
+
+*Decided.* The maintainer confirmed D1-D8 and asked for a critical pass
+against VESTA, Mol\*, ChimeraX and Daams & Villars (1993), read in full. It
+revised D5 (the export is a render of its own) and D6 (ring ink that stays
+visible on a dark atom), and added D9 (lines are quads with a width in CSS
+pixels). WP-1466 carries the polyhedra and their proposed defaults.
+`gui/CLAUDE.md` § Defaults records the maintainer's rule that every choice
+ships a default that suits most phases.
+
+*Done.* `gui/src/lib/gl3d.ts` is the renderer; `lib/structure3d.ts` keeps the
+pure half and gains the scene, the view and a CPU pick that solves the
+shader's equations; `panels/Structure3D.svelte` owns the view, puts hover in
+a readout line under the canvas, and adds pan, zoom, `PNG` and a transparent
+option. `gui/src/test-gl3d.ts` stands in for the renderer under jsdom. Docs:
+the viewer paragraphs in `gui/CLAUDE.md`, the GUI guide's 3D section, and
+root CLAUDE.md's vitest line. The spike (`1462-spike/`) keeps the prototype,
+the paired driver and every log quoted here.
+
+*Measured*, Apple M4 on macOS, playwright-core 1.63.0 with Chromium 1223,
+Firefox 1543 and WebKit 2359, the NAC example, load average 107-174 on 10
+cpus, new against plotly on the same machine (`results/paired_*.txt`):
+
+| | Chromium | Firefox | WebKit |
+|---|---|---|---|
+| Model tab to a drawn picture | 395-619 ms against 1963-4771 ms | 912-982 against 2754-4329 | 515-729 against 1482-6091 |
+| drag frame p95 | 17.1-17.6 ms against 16.9-17.7 | 33-43 against 37-90 | 18-20 against 30-39 |
+
+- Chromium's long frames while opening: one of 55-99 ms against one of
+  1497-4086 ms. It is a `Response.text.then` callback in `app.js`, and it is
+  absent on a warm reload. The viewer's WebGL calls over the whole opening
+  total 14-34 ms, 13-27 of them in the shader-compile checks at mount, which
+  run in a different task, plus 7-26 ms for `getContext`
+  (`results/first_show.txt`). None during a drag or a hover sweep.
+- Acceptance 3's 17.7 ms p95 holds in Chromium. Firefox and WebKit miss it
+  under this load, and plotly was slower in every paired run.
+- `app.js` 96.4 to 102.6 KB gzip, +6.2 KB net of the deleted trace builders
+  (acceptance 4).
+- The export is 3000 × 1682 in all three engines, both backgrounds. Five
+  toggles of the viewer made six contexts and lost five, so each close gives
+  its context back. No `/plotly.js` request while the viewer shows.
+- Counts: GUI vitest 558 passed in 23 files, node 22.15.0 on macOS, the same
+  as at session start (the viewer's 28 + 16 tests became 26 + 18). Python
+  `-m "not slow"`, `[dev]` venv with python playwright 1.63.0 installed in this
+  worktree, macOS: 6125 passed, 140 skipped, 1 failed. The failure was
+  `test_watch_browser.py`'s console-seam test, which passed alone at load 35.
+  The 4 tests in `tests/test_structure3d_browser.py` are new, and skip where
+  playwright is absent, CI included. The full selection did not run: the
+  change is GUI-only and moves no measured number.
+
+*Gotchas.*
+- A mount effect that calls a function reading state tracks that state. The
+  viewer's did, so every payload disposed the renderer and made a new one on
+  a canvas whose context was dead, and Chrome drew its sad face. Fixed with
+  `untrack`; `test-gl3d.ts` now counts a renderer made on a dead canvas.
+- Firefox presents the first frame hundreds of ms after the draw call, while
+  it compiles the shaders, so first-show numbers come off screenshots.
+- In a narrow window the model pane stacks and the viewer sits below the
+  fold: a driver scrolls it into view before aiming the mouse, since a
+  screenshot finds it either way.
+- The first cylinder shader followed Inigo Quilez's published function, whose
+  page states no licence. It was rederived as the ellipsoid's equation before
+  merge, the spike's copy too.
+- `npm --prefix DIR init` writes `package.json` into the working directory,
+  not `DIR`.
+
+*Not done, on purpose.* The tests task's "reads pixels at known atoms" is a
+drawn-fraction check and a ring-ink count instead. `using/install.md` and
+ATTRIBUTION.md are unchanged: the `gui` extra still needs plotly for the
+Series panel, no dependency was added, and no code was ported.
+
+*Next*, in order:
+1. The GPU gate: run `1462-spike/gui_viewer.mjs`, or open the GUI, on a
+   Windows or Linux machine with a real GPU. A broken picture there sends D1
+   to its three.js fallback; a good one closes the gate.
+2. Once WP-1461 merges, rename this file to its title, with the ROADMAP row
+   and WP-1461's two links.
+3. Whichever of this WP and WP-1461's Series task lands second deletes
+   `/plotly.js`, `lib/plotly.ts`, the `gui` extra's plotly, `viz/plotlyjs.py`
+   if only the GUI uses it, `lib/plot.ts:hoverLabel` and the `Plotly`
+   stand-in. Acceptance 1 is whole then.
+4. WP-1466 (polyhedra) needs Brunner & Schwarzenbach (1971) from the
+   maintainer before its threshold is set.
+
 - **2026-09-25** — filed from WP-1461's session, on the maintainer's
   request, once they confirmed the move to uPlot. The library sizes above
   were measured that day. Nothing else was: no scene was drawn in three.js

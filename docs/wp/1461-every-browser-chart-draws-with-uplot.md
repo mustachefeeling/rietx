@@ -697,6 +697,21 @@ with the plotly renderer.
 - **One maintainer.** uPlot is Leon Sorokin's. Vendoring a pinned copy
   means a stalled upstream costs nothing until a browser change breaks it.
 
+### Inherited
+
+**From WP-1462 (2026-09-25, on branch `wp1462-structure-viewer-scope`).** The
+structure viewer no longer loads plotly: it draws with its own WebGL2
+renderer. Two consequences here. First, "the boot win needs the 3D viewer
+gated" is moot once WP-1462 merges. The viewer's mount now costs one WebGL
+context and three shader compiles, measured at 14-34 ms of WebGL calls plus
+7-26 ms for `getContext` over a first opening of the Model tab
+(`1462-spike/results/first_show.txt`). Second, the Series panel is then
+plotly's last user. Whichever of the Series task and WP-1462 lands second
+deletes the `/plotly.js` route, `gui/src/lib/plotly.ts`, the `gui` extra's
+plotly, `viz/plotlyjs.py` if only the GUI uses it, `lib/plot.ts:hoverLabel`
+and the `Plotly` stand-in in `test-setup.ts`. After WP-1461 merges, WP-1462
+renames its file and updates the two links to it here.
+
 ## Non-goals
 
 - **The 3D structure viewer.** It draws a scene, and uPlot has no 3D. It
