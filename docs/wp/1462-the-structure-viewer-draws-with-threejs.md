@@ -230,6 +230,12 @@ front faces.
   triangles, so an edge is drawn only where its two faces are not
   coplanar. A shell of fewer than four atoms, or a planar one such as CO₃,
   has no 3D hull, and the spike met neither.
+- **A shell's size under the bond rule is not a safe default key.** Every
+  site as a centre gives LaB6's La 24 B, NAC's Al 6, Ca 8 and Na 4 F, and
+  fluorapatite's P 4 O and both Ca 9. Na's shell of 4 is the covalent-radius
+  cutoff cutting a large ionic cation's shell short. So "draw polyhedra
+  where the shell holds 4 to 6" would draw a NaF₄ tetrahedron that is not
+  there.
 - **Not tried:** hovering a polyhedron (a ray–triangle test on the CPU),
   hiding the centre-to-ligand bonds inside a polyhedron, and choosing the
   centres in the GUI.
@@ -282,6 +288,18 @@ added D6 to D8.
   the translucent pass and their tests. None of that is needed to leave
   plotly. The alternative folds it in here and makes D2 "the payload gains
   one arm".
+  **The new WP's first deliverable is its defaults.** Most users should
+  never need a polyhedron setting. Its proposal, to be measured across more
+  phases than the three here:
+  - *centres*: sites with a separated shell of 4 to 8 ligands, where a clear
+    gap in distance follows the last ligand. That draws PO₄, AlF₆ and CaF₈
+    and skips NAC's Na and LaB6's La;
+  - *ligands*: non-metal neighbours of another element (§ Polyhedra);
+  - *look*: the centre's colour at alpha 0.55, edges in a darker ink, the
+    centre atom kept, and the centre-to-ligand sticks hidden;
+  - *when*: on in ball mode when a centre qualifies, and off in ellipsoid
+    mode, where translucent faces would cover the ADPs the mode exists to
+    show. One toggle overrides either.
 
 ## Where it will bite
 
@@ -404,7 +422,9 @@ npm --prefix gui test && npm --prefix gui run check
   view for solid-state chemists. The spike drew translucent coordination
   polyhedra beside the impostors in 88 more lines, so D1 stands. The hard
   part is a ligand rule on the server, and D8 gives the view a WP of its
-  own. Folded the `### Inherited` mailbox: its Dependabot and licence
+  own. The maintainer added that good defaults are part of the design, for
+  polyhedra too, so D8 now opens that WP with a proposed set. Folded the
+  `### Inherited` mailbox: its Dependabot and licence
   entries went to the docs task as fallback-only, and its `hoverLabel` and
   stand-in entry went to the delete and test tasks. *Next:* the maintainer
   decides D1-D8. If D1 holds, rename this file and its ROADMAP row. If D8
