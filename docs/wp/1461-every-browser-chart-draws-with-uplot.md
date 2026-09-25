@@ -1,6 +1,6 @@
 # WP-1461 — every browser chart draws with uPlot
 
-Milestone: unscheduled · Status: 🔄 2026-09-26 — claimed by @yue-here for task 10, write_html; tasks 1-9, 12 and 15 done
+Milestone: unscheduled · Status: 🔄 2026-09-26 — tasks 1-12 and 15 done: no chart loads plotly and every chart exports; task 13, the docs, next, then task 14's acceptance run
 Depends on: —
 Priority: P2 2026-09-24 — the maintainer's decision that every browser chart builds on one module; today plotly blocks every GUI open for 0.7-0.8 s before the first plot
 
@@ -781,6 +781,133 @@ npm --prefix gui test && npm --prefix gui run check
 - Long Animation Frames API (W3C draft): what counts as a long frame here.
 
 ## Handover log
+
+### 2026-09-26 (8th session) — write_html and the exports draw with the chart module
+
+No chart rietx draws needs plotly now. The file `write_html` writes is the
+GUI's pattern chart, with uPlot, the chart module and the fit's numbers inside
+it, so it opens from a disk with no network. On the NAC example it is a fifth
+of the plotly file's size and draws in a sixth of the time. Every chart can
+now save a PNG or an SVG of what it shows and copy the picture or the numbers
+in view. That replaces plotly's camera button on five surfaces. Two defects
+were found on the way and fixed where every page draws. The GUI's Δ view could
+lose its deepest misfit past the channel ceiling, and the compare page drew
+the pointer line dashed. What is left is the documentation pass and the
+acceptance measurements.
+
+*Done:*
+- The claim (`6e94c2ea`). The branch is `wp1461-write-html`, stacked on
+  `wp1461-compare`, and its PR #476 has that branch as its base, so #474
+  merges first. The WP had no `### Inherited` to prune.
+- Task 10 (`4e65cc9a`).
+  - `viz.html.page` replaces `figure_from_arrays` and returns the file:
+    uPlot with its licence, the chart module, `viz/figure/`'s script and
+    stylesheet, and the curves as base64 float64. `write_html` lost
+    `include_plotlyjs`, and `max_points` now defaults to `CURVES_CEILING`
+    (it was 200 000). The break is in `releases/1.5.1.md`'s Upgrading.
+  - The script joins the module in one `<script type="module">`, inside a
+    block, so no name either declares can collide. `html.py` takes its one
+    import line out by exact match and refuses a file that does not have it.
+  - `curve_arrays`, `_under_ceiling` and `_tick_rows` moved from
+    `gui/session.py` to `viz/packed.py`, so the file draws the GUI's payload.
+    Session keeps a wrapper turning `OffPattern` into its 409. The ceiling is
+    read at call time, since a test monkeypatches it.
+  - The file draws from `PALETTES["light"]`, the matplotlib figure's, with
+    the light theme's chrome for axes and grid. `weighted=True` draws Δ/σ
+    with the ±3σ band; otherwise the raw difference, in its own pane now.
+  - Found and fixed: the decimation kept Δ/σ's extremes and not the raw
+    difference's, which the file and the GUI's Δ view draw. The pointer-line
+    rule moved into `rxplot.panes`, since `rietx compare` had none. The
+    compare page's drag box took the watcher's rule, because uPlot's 7 %
+    black vanishes on the dark theme.
+  - plotly left the `viz` extra, `ATTRIBUTION.md`, `README.md`,
+    `install.md`, `files.md` and the GUI's html export, whose 409 went.
+    `api.md` was regenerated and both skill copies re-synced (task 15).
+- Task 11 (`abb680be`).
+  - The pane group has `png`, `copyImage`, `svg(load)` and `tsv`, and each
+    figure gives its rows through `group.table`. The SVG redraws each pane
+    once through svgcanvas under a recording `Path2D` (finding 6), at the
+    live pane's size, x and y range and shown series.
+  - Placement: the GUI's pattern and Series panels (`panels/Exports.svelte`),
+    the file's header, an Export section on the compare page, and an
+    `export` menu in the watcher's bar, which keeps one row at 420 px.
+  - svgcanvas 2.6.0 is pinned, allowed by Dependabot, and vendored by
+    `vendor.py`, which now takes a table of packages and records their
+    versions in `VENDORED.json`. The watcher and compare serve it, the file
+    inlines it, and the GUI loads it as the lazy `vendor-svgcanvas` chunk.
+  - Found and fixed: the export row's static `import {download}` inlined the
+    chart module into `app.js` with nothing going red. `test_gui_dist.py`
+    now holds the chart module, uPlot and svgcanvas off the boot path, and
+    the gui rulebook says so.
+
+*Measured:*
+- `write_html` on the NAC result, 22 003 fitted channels, against
+  `origin/main`'s plotly writer on the same result: 1.23 MB against 6.49 MB,
+  and 80-87 ms against 521-601 ms from navigation to a drawn canvas. Three
+  alternating loads each in chromium at load 3.0-3.9. Acceptance 4 holds.
+- The raw-difference decimation, on the synthetic fixture cut to 600
+  channels: its minimum read −363 where the pattern holds −391. The GUI's
+  ceiling test failed the same way (362.5 against 391.4) before the fix.
+- The GUI dist: `app.js` 312.67 to 315.02 kB, the `rxplot` chunk 14.9 to
+  18.7 kB, and `vendor-svgcanvas` 24.05 kB (7.71 kB gzip), fetched on the
+  first SVG alone.
+- The file's exports at devicePixelRatio 2, zoomed to 8-12°: PNG 153 kB, SVG
+  177 kB, a TSV of 800 rows. The SVG, drawn back in the browser, matches the
+  canvas.
+- Fast suite at `abb680be`: 6260 passed, 140 skipped, 6400 in all, in 2:58.
+  That is the `[dev]` venv plus playwright on macOS arm64, with another
+  session's pytest running at load 5.0. Against 6379 at `ad817bbf` that is
+  +21, and the diff accounts for all of it: +3 net in
+  `test_events_viz_history.py` (three plotly tests gone, six added), +4 in
+  `test_rxplot_browser.py`, 10 in the new `test_html_browser.py`, and one
+  each in the watcher, compare, GUI browser and dist suites. No new skip.
+- Vitest 560 to 563, the three in `Exports.test.ts`. svelte-check clean.
+  `rxplot.test.mjs` 17 to 19. The browser suites and every module this
+  touches together: 518 passed, then `test_structure3d_browser.py` 4 after
+  its fix.
+- Every new guard was broken on purpose once and failed as expected: the
+  pointer line (dashed #607d8b), the export's y range (a live label `90`
+  missing from the SVG) and the raw decimation (above).
+- The full selection did not run. No refined number moves.
+
+*Deliberately not generalised:*
+- The legend is in neither picture, since every page draws it as DOM over
+  the chart. The TSV carries the names.
+- The file is light only, as plotly's was, though `PALETTES` has a dark set.
+- `uv.lock` still names plotly. Nothing has re-locked it since WP-1109, and
+  WP-1462 left the `gui` extra in it too.
+- The drag box stays a rule in each page's stylesheet, since the GUI dresses
+  it as the exclusion an armed drag will leave.
+- The GUI's pattern export is named `pattern`, because the panel is handed
+  no project name.
+
+*Gotchas:*
+- svgcanvas's constructor asks for a native 2D context itself. The recording
+  patch marks itself taken before constructing, or it re-enters without end.
+- A panel importing anything but types from `rxplot` at the top puts the
+  chart module on the boot path. Import it inside the handler.
+- A new vitest file needs `// @vitest-environment jsdom`, since the config's
+  default is node. Editing any test under `gui/src` moves the dist's digest,
+  so rebuild.
+- The GUI now shows two `PNG` buttons, the pattern's and the 3D viewer's, so
+  a locator scopes to its panel.
+- A watcher probe outside the suite never reaches `networkidle`. Wait on the
+  suite's `DRAWN` instead.
+- The worktree guard refuses long heredocs, as before. Scratch scripts did
+  the edits.
+
+*Next:*
+1. Merge #474, then #476 on top of it.
+2. Task 13, the docs. That covers the plotly-era paragraphs of `gui/CLAUDE.md`
+   as § What changes sorts them, the manual's GUI chapters with screenshots
+   from `make_screenshots.py` showing the export row, `using/cli.md` for
+   `rietx html`, root CLAUDE.md, `tests/CLAUDE.md` and the README.
+3. Task 14. Measure § Acceptance 1-3 and 5-7 on the real pages in chromium,
+   WebKit and Firefox, paired against the plotly build of `58f7dbce`, and
+   check each test § What changes lists. Then the WP closes, and WP-1462's
+   rename follows.
+4. Someone with Safari tries a drag in each page (finding 15).
+5. The `/api/peaks` payload's `pattern` arm (the 5th session's Next 4).
 
 ### 2026-09-26 (7th session) — rietx compare draws with the chart module
 
