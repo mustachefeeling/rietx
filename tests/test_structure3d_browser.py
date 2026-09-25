@@ -24,7 +24,7 @@ from rietx.gui import GuiSession
 from tests.test_gui_server import _start
 
 playwright = pytest.importorskip("playwright")
-PIL = pytest.importorskip("PIL.Image")
+imread = pytest.importorskip("matplotlib.image").imread
 from playwright.sync_api import sync_playwright  # noqa: E402
 
 from tests.test_watch_browser import _chromium  # noqa: E402
@@ -100,7 +100,7 @@ def _centre(page) -> tuple[float, float]:
 def _picture(page) -> np.ndarray:
     """The canvas as the page shows it, RGB floats in 0..1."""
     png = page.locator(".viewer canvas").screenshot()
-    return np.asarray(PIL.open(io.BytesIO(png)).convert("RGB"), dtype=float) / 255
+    return np.asarray(imread(io.BytesIO(png)), dtype=float)[..., :3]
 
 
 def _drawn(picture: np.ndarray) -> float:
@@ -164,6 +164,6 @@ def test_the_png_is_rendered_again_at_3000_pixels(page, tmp_path):
         page.get_by_role("button", name="PNG", exact=True).click()
     path = tmp_path / "structure.png"
     download.value.save_as(path)
-    image = PIL.open(path)
-    assert max(image.size) == 3000
-    assert _drawn(np.asarray(image.convert("RGB"), dtype=float) / 255) > 0.02
+    image = np.asarray(imread(path), dtype=float)[..., :3]
+    assert max(image.shape[:2]) == 3000
+    assert _drawn(image) > 0.02
