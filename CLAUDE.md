@@ -58,7 +58,7 @@ latest nightly `full` job log (`gh run list --workflow nightly.yml`; `[dev,jax]`
 `rietx compare` answers "does this new correction actually help?": pick a standard, tick
 variants, read the **cumulative Δχ² vs reference** panel — it localises *where* a change acted,
 not just whether Rwp moved. Registry+runner `viz/compare.py` (headless
-`compare.run(standard, variant)`); server/page `compare_app.py`. Its standards are the
+`compare.run(standard, variant)`); server `compare_app/`, page its `static/`. Its standards are the
 acceptance suites' protocols, asserted field by field by `tests/test_compare_ui.py` — **add a
 row there whenever a new correction lands.**
 
@@ -642,17 +642,17 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   snapshot loses by 27× against a 3365 MB/s loopback, and SSE moves the walk into a thread
   rather than removing it, the stdlib having no file watcher.
 - **A page that is javascript is a *file*: `node --check`ed, its DOM-free half run by `node
-  --test`** (WP-1430; `src/rietx/watch/static/` + `tests/watch_core.test.mjs`, both run from
-  `tests/test_watch_app.py`). Quoted inside python it is unlinted and unimportable, and one
-  stray escape cost a page while every test stayed green (WP-1402). `.mjs`, since `node
-  --check` reads a `.js` as CommonJS; cases in `tests/`, since the wheel takes `src/rietx`
-  whole. `compare_app.py` is the page still in a string. **No file check sees layout**
-  (WP-1405): an id selector outranks `[hidden] {display:none}`, so a closed dialog was a sheet
-  swallowing every click — `test_watch_browser.py` drives chromium. **Nor a cut** (WP-1424): a
-  `table-layout:fixed` column's declared width is the cell's whole *box*, so one sized for its
-  content is short by its padding and elides, and an ellipsis is what fitting and not fitting
-  look the same amount of. Measure ink against room, never `scrollWidth`, which is
-  `clientWidth` wherever overflow is visible.
+  --test`** (WP-1430 `watch/static/`, WP-1461 `compare_app/static/`, each with a `*_core`
+  case file in `tests/`, out of the wheel). Quoted inside python it is unlinted and
+  unimportable, and one stray escape cost a page while every test stayed green (WP-1402).
+  `.mjs`, since `node --check` reads a `.js` as CommonJS. A page directory takes its own `!`
+  line in `.gitignore`, whose `*.html` has swallowed eight committed files. **No file check
+  sees layout** (WP-1405): an id selector outranks `[hidden] {display:none}`, so a closed
+  dialog was a sheet swallowing every click — `test_watch_browser.py` drives chromium. **Nor a
+  cut** (WP-1424): a `table-layout:fixed` column's declared width is the cell's whole *box*,
+  so one sized for its content is short by its padding and elides, and an ellipsis is what
+  fitting and not fitting look the same amount of. Measure ink against room, never
+  `scrollWidth`, which is `clientWidth` wherever overflow is visible.
 - **A pane that cannot meet its floor beside its neighbour stacks, and the breakpoint is the
   stylesheet's** (WP-1438). `rietx watch` gave the list its declared `80ch` and the run pane
   whatever was left, which at 420 px was nothing and 863 px of horizontal document scroll. The

@@ -217,7 +217,7 @@ because a rail is drawn on `--panel` and has to read there.""",
 
 #: The route both Python pages link, and what it is served as — one spelling,
 #: because two servers linking two different paths to one stylesheet is the
-#: duplication this module exists to remove.  ``viz/plotlyjs.py`` is the
+#: duplication this module exists to remove.  ``viz/chart.py`` is the
 #: precedent for serving an asset out of the installed package; the difference
 #: is that this one is *rendered*, the GUI's committed copy being the generated
 #: side rather than the source.

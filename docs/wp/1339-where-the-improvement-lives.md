@@ -123,6 +123,19 @@ and (2) is accepted.
 
 ### Inherited
 
+- **From WP-1461, 2026-09-26: the page this WP's Context describes has
+  moved.** The compare page is files in `compare_app/static/`, and the
+  JavaScript embedded in `compare_app.py` is gone. The Δχ² against the
+  reference is now `rxplot.difference`, a plain subtraction in the chart
+  module's `overlay` figure. It was a linear interpolation between two
+  separately decimated grids. The subtraction holds because every variant of
+  a standard fits the same channels, and
+  `test_no_variant_moves_the_channels_a_standard_fits` pins that. A user's
+  two candidate models on their own data have no such guarantee unless both
+  fits share limits and exclusions. `RunRecord` now keeps float64 arrays at
+  every fitted channel, and `RunRecord.curves()` packs them for the page.
+  There is still no Python function taking two results and returning where
+  their Δχ² lives, so the lift this WP plans is unchanged.
 - **2026-09-23, from the issue triage (issue #219).** The reporter's
   2026-09-04 comment carries this WP's question to a second phase, and no
   session had folded it. Synthetic cubic Cu with anisotropic Stephens strain,

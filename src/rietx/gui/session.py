@@ -74,7 +74,7 @@ from ..schemas.structure import Structure
 from ..strategy.staged import PLAN_PRESETS, resolve_plan
 from ..viz import theme
 from ..viz.compare import decimation_index
-from ..viz.packed import Packed
+from ..viz.packed import CURVES_CEILING, Packed
 from . import series as series_mod
 from . import symmetry
 from .imports import (
@@ -2925,15 +2925,6 @@ class GuiSession:
 # ----------------------------------------------------------------------
 # helpers
 # ----------------------------------------------------------------------
-#: About the most channels the curves route sends (WP-1461, D4 and D5). The
-#: chart paints each pixel column's lowest and highest point, and the pilot
-#: measured that at 132 992 channels, the largest pattern the repository reads,
-#: with no long frame. The spike's 200 000 had one, so a pattern past this is
-#: decimated by ``viz.compare.decimation_index`` first, whose count is a budget:
-#: a bucket's minimum and maximum can bring it a channel over.
-CURVES_CEILING = 150_000
-
-
 def curve_arrays(tt_all, y_all, keep, res, *, weighted: bool,
                  header: dict | None = None) -> Packed:
     """A pattern's every channel, and a fit's curves on the channels it kept.

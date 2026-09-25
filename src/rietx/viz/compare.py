@@ -43,9 +43,10 @@ do.  Pass ``data_dir`` to point elsewhere.
 
 from __future__ import annotations
 
+import math
 import time
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from pathlib import Path
 
 import numpy as np
@@ -73,6 +74,7 @@ from ..schemas.structure import (
     Structure,
 )
 from ..strategy.staged import RefinementPlan, Stage
+from .packed import CURVES_CEILING, Packed
 
 
 def default_data_dir() -> Path:
@@ -883,9 +885,26 @@ VARIANT_BY_KEY = {v.key: v for v in VARIANTS}
 # ----------------------------------------------------------------------
 # running
 # ----------------------------------------------------------------------
+#: The per-channel arrays a record carries, which leave it only through
+#: :meth:`RunRecord.curves`.
+CURVES = ("two_theta", "y_obs", "y_calc", "y_background", "delta",
+          "cumulative_chi2")
+
+
 @dataclass
 class RunRecord:
-    """One (standard, variant) refinement, reduced to what the UI needs."""
+    """One (standard, variant) refinement, reduced to what the UI needs.
+
+    The six :data:`CURVES` are float64 arrays over the fitted channels, every
+    one of them up to ``CURVES_CEILING`` (WP-1461, D4). A page polls
+    :meth:`summary`, which leaves them out, and fetches :meth:`curves` once
+    per variant.
+
+    **Every variant of a standard has the same channels**, because a variant
+    changes the model and never the data or its limits
+    (``test_no_variant_moves_the_channels_a_standard_fits``). That is what lets
+    the page draw every variant over one x and take a Δχ² by subtraction.
+    """
 
     standard: str
     variant: str
@@ -899,15 +918,16 @@ class RunRecord:
     n_points: int
     durbin_watson: float | None
     esd_inflation: float | None
-    two_theta: list[float]
-    y_obs: list[float]
-    y_calc: list[float]
-    y_background: list[float]
-    #: weighted residual δ = (y_obs − y_calc)/σ, full resolution before decimation
-    delta: list[float]
-    #: cumulative Σδ² — the reference-independent half of the Δχ² panel, so the
-    #: client can re-reference to any variant without a server round trip
-    cumulative_chi2: list[float]
+    two_theta: np.ndarray
+    y_obs: np.ndarray
+    y_calc: np.ndarray
+    y_background: np.ndarray
+    #: weighted residual δ = (y_obs − y_calc)/σ
+    delta: np.ndarray
+    #: cumulative Σδ², summed over every fitted channel before any decimation:
+    #: the reference-independent half of the Δχ² panel, so the client can
+    #: re-reference to any variant without a server round trip
+    cumulative_chi2: np.ndarray
     ticks: dict[str, list[float]] = field(default_factory=dict)
     #: which reflection each tick is, index for index (WP-1438); a phase whose
     #: result carried no indices is absent rather than empty
@@ -915,6 +935,43 @@ class RunRecord:
     diagnostics: list[dict] = field(default_factory=list)
     parameters: list[dict] = field(default_factory=list)
     error: str | None = None
+
+    @classmethod
+    def failed(cls, standard: str, variant: str, *, status: str, error: str,
+               seconds: float) -> RunRecord:
+        """A record with no fit behind it: no statistics and no curves."""
+        nan, empty = float("nan"), np.zeros(0)
+        return cls(standard=standard, variant=variant, status=status,
+                   seconds=seconds, rwp=nan, rp=nan, gof=nan, chi2=nan,
+                   n_free=0, n_points=0, durbin_watson=None, esd_inflation=None,
+                   **{name: empty for name in CURVES}, error=error)
+
+    def summary(self) -> dict:
+        """Every field but the curves and their ticks, ready for ``json.dumps``.
+
+        A value that is not a finite number is ``None``. A failed fit's
+        statistics are NaN, which ``json.dumps`` writes as a bare ``NaN`` that
+        no browser's ``JSON.parse`` reads, so one failed variant would stop the
+        page's every poll.
+        """
+        return _finite({f.name: getattr(self, f.name) for f in fields(self)
+                        if f.name not in (*CURVES, "ticks", "tick_hkl")})
+
+    def curves(self) -> Packed:
+        """The arrays and the tick rows drawn over them, packed (D4)."""
+        return Packed({"ticks": self.ticks, "tick_hkl": self.tick_hkl},
+                      {name: getattr(self, name) for name in CURVES})
+
+
+def _finite(value):
+    """``value`` with every float that is not finite made ``None``, all the way down."""
+    if isinstance(value, float):
+        return value if math.isfinite(value) else None
+    if isinstance(value, dict):
+        return {k: _finite(v) for k, v in value.items()}
+    if isinstance(value, list | tuple):
+        return [_finite(v) for v in value]
+    return value
 
 
 #: parameters worth showing next to Rwp.  Deliberately includes the displacement
@@ -942,13 +999,18 @@ def _reported_parameters(result) -> list[dict]:
 
 
 def run(standard_key: str, variant_key: str, *,
-        data_dir: Path | None = None, max_points: int = 4000) -> RunRecord:
+        data_dir: Path | None = None,
+        max_points: int = CURVES_CEILING) -> RunRecord:
     """Refine one standard under one variant and reduce it for the UI.
 
     Never raises on a refinement failure: a variant that blows up is a *result*
     (it means the correction is not usable on this specimen), so the record
     comes back with ``error`` set and the UI shows it beside the ones that
     worked.  Programming errors in the registry itself still propagate.
+
+    Past ``max_points`` channels the curves are decimated on the observed
+    points alone. Those are the same for every variant of a standard, so every
+    variant keeps the same channels and the page's Δχ² stays a subtraction.
     """
     from ..refine import Refinement
 
@@ -969,25 +1031,19 @@ def run(standard_key: str, variant_key: str, *,
         result = ref.fit(inputs.data, plan=inputs.plan,
                          two_theta_limits=inputs.two_theta_limits)
     except Exception as exc:  # a failed variant is a finding, not a crash
-        return RunRecord(
-            standard=standard_key, variant=variant_key, status="failed",
-            seconds=time.perf_counter() - started,
-            rwp=float("nan"), rp=float("nan"), gof=float("nan"),
-            chi2=float("nan"), n_free=0, n_points=0,
-            durbin_watson=None, esd_inflation=None,
-            two_theta=[], y_obs=[], y_calc=[], y_background=[],
-            delta=[], cumulative_chi2=[],
-            error=f"{type(exc).__name__}: {exc}")
+        return RunRecord.failed(standard_key, variant_key, status="failed",
+                                error=f"{type(exc).__name__}: {exc}",
+                                seconds=time.perf_counter() - started)
 
-    tt = np.asarray(result.two_theta)
-    y_obs = np.asarray(result.y_obs)
-    y_calc = np.asarray(result.y_calc)
-    y_bkg = np.asarray(result.y_background)
+    tt = np.asarray(result.two_theta, dtype=float)
+    y_obs = np.asarray(result.y_obs, dtype=float)
+    y_calc = np.asarray(result.y_calc, dtype=float)
+    y_bkg = np.asarray(result.y_background, dtype=float)
     sigma = np.asarray(result.sigma)
     delta = (y_obs - y_calc) / np.where(sigma > 0.0, sigma, 1.0)
     cumulative = np.cumsum(delta ** 2)
 
-    idx = decimation_index(tt, [y_obs, y_calc, delta], max_points)
+    idx = decimation_index(tt, [y_obs], max_points)
     stats = result.statistics
     return RunRecord(
         standard=standard_key, variant=variant_key, status=result.status,
@@ -995,10 +1051,9 @@ def run(standard_key: str, variant_key: str, *,
         rwp=stats.rwp, rp=stats.rp, gof=stats.gof, chi2=stats.chi2,
         n_free=stats.n_free_parameters, n_points=stats.n_points,
         durbin_watson=stats.durbin_watson, esd_inflation=stats.esd_inflation,
-        two_theta=tt[idx].tolist(),
-        y_obs=y_obs[idx].tolist(), y_calc=y_calc[idx].tolist(),
-        y_background=y_bkg[idx].tolist(),
-        delta=delta[idx].tolist(), cumulative_chi2=cumulative[idx].tolist(),
+        two_theta=tt[idx], y_obs=y_obs[idx], y_calc=y_calc[idx],
+        y_background=y_bkg[idx], delta=delta[idx],
+        cumulative_chi2=cumulative[idx],
         ticks={k: v for k, v in result.ticks.items()},
         tick_hkl={k: v for k, v in result.tick_hkl.items()},
         diagnostics=[{"level": d.level, "code": d.code, "where": list(d.where),

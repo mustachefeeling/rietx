@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>rietx — compare settings</title>
+<link rel="stylesheet" href="/tokens.css">
+<link rel="stylesheet" href="/uPlot.min.css">
+<link rel="stylesheet" href="/compare.css">
+<!-- deferred, so it runs before the module below, which draws with it -->
+<script defer src="/uPlot.iife.min.js"></script>
+<script type="module" src="/compare.mjs"></script>
+</head><body>
+<div id="side">
+  <h1>rietx · compare settings</h1>
+  <p class="sub">Does this correction actually make the fit better — and where?</p>
+
+  <h2>Standard</h2>
+  <select id="standard"></select>
+  <p class="desc" id="standard-desc"></p>
+
+  <h2>Variants</h2>
+  <div id="variants"></div>
+
+  <h2>Reference for &Delta;&chi;&sup2;</h2>
+  <select id="reference"></select>
+
+  <div class="buttons">
+    <button id="run">Run</button>
+    <button id="clear" class="ghost">Clear plots</button>
+  </div>
+  <div id="log"></div>
+</div>
+
+<div id="main">
+  <div id="readout"></div>
+  <!-- The three panes share one x, so they are one figure in one host, and
+       the page moves each heading in front of its pane once it is drawn. -->
+  <div id="figure" class="empty">
+    <div id="head-cum">
+      <h2>Cumulative &Delta;&chi;&sup2; vs the reference</h2>
+      <p class="note">&Sigma;<sub>2&theta;'&le;2&theta;</sub>(&delta;&sup2;<sub>variant</sub> &minus;
+        &delta;&sup2;<sub>ref</sub>). <b>Falling = winning</b>, rising = losing, flat = doing
+        nothing. The slope says <i>where</i> the change acted, which is what separates a
+        correction that models physics from one that absorbs it. The endpoint is the whole
+        &chi;&sup2; difference.</p>
+      <p class="note" id="nothing">Nothing drawn yet: tick the variants to compare and press Run.</p>
+    </div>
+    <div id="head-diff">
+      <h2>Weighted residual (y<sub>obs</sub> &minus; y<sub>calc</sub>)/&sigma;</h2>
+      <p class="note">Same vertical scale for every variant, so smaller is literally better.</p>
+    </div>
+    <div id="head-fit">
+      <h2>Observed and calculated</h2>
+    </div>
+    <div id="tip" class="tip" hidden></div>
+  </div>
+  <p class="note warn" id="mismatch" hidden></p>
+
+  <h2>Statistics</h2>
+  <p class="note">Read the diagnostics below before believing a Rwp improvement.
+    Some variants here <i>cannot</i> change Rwp by construction — capillary
+    absorption is an exact reparameterisation of the scale and B<sub>iso</sub> —
+    so the parameter columns are where their effect shows up.</p>
+  <div id="stats"></div>
+
+  <h2>Diagnostics</h2>
+  <div id="diagnostics"></div>
+
+  <h2>Refined parameters</h2>
+  <div id="params"></div>
+</div>
+</body></html>

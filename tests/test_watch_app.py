@@ -19,7 +19,6 @@ import signal
 import socket
 import subprocess
 import sys
-import tempfile
 import time
 import urllib.error
 import urllib.parse
@@ -497,11 +496,6 @@ def _node() -> str:
     return node
 
 
-def _page_script(page: str) -> str:
-    start = page.index("<script>") + len("<script>")
-    return page[start:page.index("</script>", start)]
-
-
 def test_the_page_files_parse_as_javascript():
     """The page is files now (WP-1430), and this is what it bought.
 
@@ -576,29 +570,6 @@ def test_the_ported_drag_arithmetic_keeps_the_guis_cases():
     dropped the reasons would pass a parsed check.
     """
     assert _ported_block(GUI_RESIZE_TESTS) == _ported_block(CORE_TESTS)
-
-
-def test_the_embedded_page_parses_as_javascript():
-    """``compare_app`` is still a page quoted inside python, and python cannot
-    see a syntax error in one.
-
-    The same defect, the same check, the one page it still applies to. WP-1430
-    moved the watcher's page out of its string and named this one as the
-    remaining case; WP-1429 is queued over it and may do the same.
-    """
-    node = _node()
-    from rietx import compare_app
-
-    with tempfile.NamedTemporaryFile("w", suffix=".js", encoding="utf-8",
-                                     delete=False) as fh:
-        fh.write(_page_script(compare_app._PAGE))
-        path = fh.name
-    try:
-        done = subprocess.run([node, "--check", path],
-                              capture_output=True, text=True, check=False)
-    finally:
-        os.unlink(path)
-    assert done.returncode == 0, done.stderr
 
 
 #: Ids `watch.mjs` reaches for that `index.html` deliberately does not carry.
@@ -1154,7 +1125,7 @@ def test_the_page_follows_the_theme_the_gui_stored(tmp_path, monkeypatch):
 def test_the_stylesheet_is_served_out_of_the_package(tmp_path):
     """`tokens.css` is emitted, never read off disk (WP-1429).
 
-    `viz/plotlyjs.py` one rank down: a value the wheel has to serve cannot live
+    `viz/chart.py` one rank down: a value the wheel has to serve cannot live
     in the GUI workspace, which is a build input and is not installed.  So the
     route renders the emitter and `gui/src/tokens.css` is the generated copy,
     not the source.

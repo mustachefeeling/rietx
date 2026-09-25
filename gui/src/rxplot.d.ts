@@ -14,6 +14,7 @@ declare module "rxplot" {
   export function lower(xs: ArrayLike<number>, v: number): number;
   export function chi2Base(cum: ArrayLike<number>, xs: ArrayLike<number>, lo: number): number;
   export function token(name: string, el?: Element): string;
+  export function hklLabel(hkl: unknown): string;
   export function vlines(u: any, xs: ArrayLike<number>, top: number, height: number,
                          color: string): void;
 

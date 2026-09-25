@@ -9,7 +9,8 @@ import assert from 'node:assert/strict';
 import {test} from 'node:test';
 
 import {
-  chi2Base, lower, nearest, nearestXY, partition, phaseInk, positive, scatter, sqrtSplits, tickDecimals, tickHeight,
+  chi2Base, difference, hklLabel, lower, nearest, nearestXY, partition, phaseInk, positive, scatter, sqrtSplits,
+  tickDecimals, tickHeight,
   tickLabels, unpack,
 } from '../src/rietx/viz/static/rxplot.mjs';
 
@@ -158,4 +159,17 @@ test('a dtype no typed array reads is refused by name', () => {
   const head = new TextDecoder().decode(new Uint8Array(buffer, 4, n)).replace('<f8', '<f4');
   new Uint8Array(buffer, 4).set(new TextEncoder().encode(head));
   assert.throws(() => unpack(buffer), /y is <f4/);
+});
+
+// ------------------------------------------------------------------ the overlay
+test('a Miller index reads as a reader writes one', () => {
+  assert.equal(hklLabel([1, 0, -1]), '(1 0 −1)');
+  assert.equal(hklLabel([10, -4, 0]), '(10 −4 0)');
+  assert.equal(hklLabel([1, 2]), '');
+  assert.equal(hklLabel(null), '');
+});
+
+test('a difference is a subtraction on one grid, and two grids throw', () => {
+  assert.deepEqual(Array.from(difference([3, 5, 9], [1, 1, 4])), [2, 4, 5]);
+  assert.throws(() => difference([1, 2, 3], [1, 2]), /3 channels against 2/);
 });

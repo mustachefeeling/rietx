@@ -50,6 +50,9 @@ htmlcov/
 !src/rietx/watch/static/**
 # The chart module's browser-test harness (WP-1461), the seventh.
 !tests/rxplot_page.html
+# The compare page, out of its python string (WP-1461), the eighth.
+# `tests/test_compare_ui.py` asks `git check-ignore` about each file.
+!src/rietx/compare_app/static/**
 gui/node_modules/
 gui/.vite/
 # every test refinement writes obs/calc/diff plots and exported tables here,
