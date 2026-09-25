@@ -224,6 +224,16 @@ Single runs, so no range (`results/proto_run2.txt`, `proto_dpr2.txt`,
     GPU raster. Turning off `gfx.canvas.accelerated` moved neither stall. The
     load average was 67-84, which inflates their size but did not move them.
     The pilot's Firefox row must look for both.
+14. **A drag-zoom on macOS three-finger drag waits for the OS.** That
+    setting holds a drag open after the fingers lift, and the browser gets
+    the mouse-up only when it ends. The maintainer's trackpad has it on.
+    They felt about 300 ms between lifting and the zoom, in Chrome, Safari
+    and Firefox alike, and confirmed the setting as the cause. No page sees
+    the fingers lift, so no library can remove the wait, and plotly has it
+    too. Wheel and pinch zoom have no release. The `?demo` readout splits a
+    drag's wait at the mouse-up: the pointer sitting still before it, then
+    the page's time after it. A latency probe must start its clock at the
+    mouse-up.
 
 ### Behaviours the spike did not rebuild
 
@@ -498,15 +508,19 @@ npm --prefix gui test && npm --prefix gui run check
   each pane paints once in Chrome 148 and Firefox 155
   (`results/zoom_probe.txt`). Headless Chromium spent 24-32 ms from input to
   the next frame on every event, including an empty mouse-down. So that
-  pipeline cannot show a delay this small, and the delay the maintainer saw
-  is not yet measured in a headed browser. Firefox showed two stalls that
-  Chromium does not (finding 13). `?demo` now prints each frame's repaints
-  beside the toolbar, so a person can see what a zoom costs in their own
-  browser. The spike's `node_modules` is now a real install, since
-  `zoom_probe.mjs` needs `puppeteer-core` to drive the installed Firefox.
-  *Next:* the maintainer zooms in Firefox with the fix and reads the
-  repaint line. If the delay remains while the line says a few ms, the delay
-  is the browser's input-to-screen path, and the pilot measures it headed.
+  pipeline cannot show a delay this small. Firefox showed two stalls that
+  Chromium does not (finding 13). The maintainer then placed the delay:
+  about 300 ms after releasing a drag, in all three browsers. That was
+  macOS three-finger drag holding the mouse-up back, and the maintainer
+  confirmed it (finding 14). So the double paint was real, but it was not
+  the delay they felt. `?demo` now prints each frame's repaints beside the
+  toolbar, and after a drag it splits the wait at the mouse-up. The spike's
+  `node_modules` is now a real install, since `zoom_probe.mjs` needs
+  `puppeteer-core` to drive the installed Firefox. A docs-test collector
+  that read the packages' READMEs as planning docs now drops what
+  `.gitignore` drops.
+  *Next:* unchanged from the entry below. The maintainer still owes the
+  answers on the migration and D1-D8.
 - **2026-09-25** — session state saved for a `/clear`, before
   `/wp-handover`. The WP is filed and not started. PR #461 carries it with
   the spike and a demo someone can click through. Nothing in the package
