@@ -4982,21 +4982,30 @@ def _symmetry_silence_diagnostics(structure: Structure,
     ``:R`` changes the operators themselves, not only the origin.
     """
     from .crystallography.symmetry import (
-        get_spacegroup,
+        resolve_group,
         setting_diagnostics,
         snap_diagnostics,
+        split_group_label,
     )
 
     structural = mode == "rietveld"
     out: list[Diagnostic] = []
     for i, phase in enumerate(structure.phases):
-        sg = get_spacegroup(phase.space_group)
+        sg = resolve_group(phase.space_group, phase.symmetry_operations)
         if structural:
             out.extend(snap_diagnostics(
                 sg,
                 [(a.label, (a.x.value, a.y.value, a.z.value)) for a in phase.atoms],
                 source=f"phase {phase.name!r}", prefix=f"phases.{i}"))
 
+        # **A label is not a symbol.**  The setting-assumed warning asks which
+        # of a *symbol's* tabulated settings gemmi picked; a phase carrying its
+        # own operation list has no ambiguity to warn about — the operations
+        # say which setting it is in — and the bracketed label names a type
+        # rather than a setting, so resolving it here would compare the cell
+        # contents of settings the phase never claimed to be in.
+        if split_group_label(phase.space_group) is not None:
+            continue
         # ``mode`` decides whether the atoms may be asked for a composition:
         # outside rietveld they are a scaffold and ``C8`` from a dummy carbon is
         # a fiction.  The setting is reported either way.

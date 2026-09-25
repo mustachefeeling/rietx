@@ -1646,7 +1646,11 @@ def from_structure(structure, *,
     import gemmi
 
     from ...crystallography.cif import write_structure_block
-    from ...crystallography.symmetry import get_spacegroup, setting_alternatives
+    from ...crystallography.symmetry import (
+        get_spacegroup,
+        refuse_operation_list,
+        setting_alternatives,
+    )
 
     doc = gemmi.cif.Document()
     ambiguous: list[str] = []
@@ -1654,6 +1658,7 @@ def from_structure(structure, *,
     for index, phase in enumerate(structure.phases):
         _refuse_non_finite(phase, index)
         _refuse_unquotable(phase, index)
+        refuse_operation_list(phase, "a GSAS-II phase CIF")
         block = doc.add_new_block(_block_name(phase.name, index, taken_names))
         sg = get_spacegroup(phase.space_group)
         resolved = sg.xhm()

@@ -2408,7 +2408,11 @@ def from_structure(structure: Structure) -> str:
     import numpy as np
 
     from ..._about import DIST_NAME
-    from ...crystallography.symmetry import expand_positions, get_spacegroup
+    from ...crystallography.symmetry import (
+        expand_positions,
+        get_spacegroup,
+        refuse_operation_list,
+    )
     from ...schemas.instrument import _KA_DOUBLETS
 
     for phase in structure.phases:
@@ -2503,6 +2507,7 @@ def from_structure(structure: Structure) -> str:
     body.append("0.0 0.0 0.0 0.0 0.0 0.0 1.0 0.0")
 
     for phase in structure.phases:
+        refuse_operation_list(phase, "a FullProf `.pcr`")
         sg = get_spacegroup(phase.space_group)
         resolved = sg.xhm()
         bare = _bare_symbol(resolved)

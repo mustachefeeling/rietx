@@ -36,6 +36,7 @@ import numpy as np
 from ..crystallography.cif import format_su, write_structure_block
 from ..crystallography.lattice import d_spacings
 from ..crystallography.structure_factor import structure_factors_squared
+from ..crystallography.symmetry import resolve_group
 from ..model.components import COMPONENT_AGGREGATE
 from ..model.forward import CompiledModel
 from ..model.geometry import symmetry_operations
@@ -370,7 +371,7 @@ def _write_phase_agreement(block, row: PhaseAgreement | None) -> None:
 
 
 def _write_geometry_loops(block, geometry: GeometryTable | None, ip: int,
-                          space_group: str) -> None:
+                          space_group) -> None:
     """``_geom_bond`` / ``_geom_contact`` / ``_geom_angle`` for one phase.
 
     Tag names are the COMCIFS core dictionary's, checked rather than
@@ -393,7 +394,10 @@ def _write_geometry_loops(block, geometry: GeometryTable | None, ip: int,
     order, so this writes ``_space_group_symop_operation_xyz`` beside it.
     Without that loop the codes would point at whatever order a reader's own
     expansion of the Hermann-Mauguin symbol happened to produce — a silent
-    reindexing, which is worse than no code at all.  ``?`` appears where an
+    reindexing, which is worse than no code at all.  ``space_group`` is
+    therefore the group :func:`~rietx.crystallography.symmetry.resolve_group`
+    returns for the phase, never its label: for a phase carrying its own
+    operation list that is the list, in the order the bond search indexed.  ``?`` appears where an
     image needs a lattice shift the one-digit code cannot express; the
     distance is unaffected (:mod:`rietx.model.geometry`).
 
@@ -482,7 +486,13 @@ def refinement_cif_doc(result: RefinementResult, structure: Structure,
         # factors are: the labels a _geom_ loop names are that block's
         # _atom_site labels, and a code is resolved against that block's symop
         # loop.  Nothing is written when the fit produced no table.
-        _write_geometry_loops(block, result.geometry, ip, phase.space_group)
+        # ``resolve_group``, never the label: the symmetry codes index the
+        # operation order the bond search used, which is the phase's own list
+        # when it carries one, and a bracketed label names no tabulated group
+        # at all (review of #433, finding 3)
+        _write_geometry_loops(
+            block, result.geometry, ip,
+            resolve_group(phase.space_group, phase.symmetry_operations))
         if ip == 0:
             # refinement scalars + the pattern loop live on the first block, so
             # a single-phase export is one self-contained block that both

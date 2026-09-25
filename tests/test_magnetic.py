@@ -1766,8 +1766,9 @@ def test_the_capability_flag_is_derived_from_the_fields():
     caps = rx.capabilities()
     assert caps.features["magnetic_moments"] is True
     # ``Atom.moment`` and ``Phase.magnetic_symmetry`` landed together with
-    # WP-1327, on the rung after #431's 0.27.  WP-1454 took the next, 0.29.
-    assert caps.schema_version == "0.29"
+    # WP-1327, on the rung after #431's 0.27.  WP-1454 took the next, 0.29;
+    # ``Phase.symmetry_operations`` (the operation-list phase, #448) took 0.30.
+    assert caps.schema_version == "0.30"
 
 
 def test_every_moment_dof_has_a_help_entry():

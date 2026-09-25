@@ -10,7 +10,7 @@ import gemmi
 from ..schemas.common import Diagnostic, Parameter
 from ..schemas.structure import AnisoU, Atom, Cell, Phase, Structure
 from .adp import U_NAMES, u_equivalent
-from .symmetry import snap_diagnostics
+from .symmetry import OperatorGroup, snap_diagnostics, split_group_label
 
 
 def _strip_su(value: str) -> float:
@@ -187,12 +187,22 @@ def structure_from_cif(path: str, *, phase_name: str | None = None,
     record what changed: each distinct rewritten form appends one
     ``CIF_SPECIES_NORMALISED`` diagnostic naming the substitution, with
     ``where`` carrying every affected atom path.
+
+    A **bracketed** H-M label beside an operation loop is a phase carrying its
+    own operation list (what :func:`write_structure_block` writes for one), and
+    comes back as that list in the file's order under that label — never as
+    whatever symbol gemmi finds for the operations, which would drop the label
+    and reorder the list a symmetry code indexes.
     """
     small = gemmi.read_small_structure(path)
     if not small.sites:
         raise ValueError(f"no atom sites found in {path}")
 
-    sg = small.spacegroup
+    listed = None
+    if split_group_label(small.spacegroup_hm or "") is not None and small.symops:
+        listed = [str(op) for op in small.symops]
+    sg = (OperatorGroup(label=small.spacegroup_hm.strip(), xyz=tuple(listed))
+          if listed else small.spacegroup)
     if sg is None:
         # fall back on the raw H-M string in the file
         doc = gemmi.cif.read(path)
@@ -253,6 +263,7 @@ def structure_from_cif(path: str, *, phase_name: str | None = None,
     phase = Phase(
         name=phase_name or (small.name or "phase_1"),
         space_group=sg.xhm(),
+        symmetry_operations=listed,
         cell=Cell(
             # bounds deliberately left open: a cell length's default window
             # is anchored per stage on the value that stage starts from
@@ -316,6 +327,10 @@ def _fmt(p: Parameter, decimals: int) -> str:
 def write_structure_block(block, phase: Phase) -> None:
     """Write one phase's cell, sites and ADP loops into a gemmi CIF ``block``.
 
+    A phase carrying its own operation list also gets a
+    ``_space_group_symop_operation_xyz`` loop in its own order, which
+    :func:`structure_from_cif` reads back under the bracketed label.
+
     Anisotropic sites get an ``_atom_site_aniso_*`` loop in the CIF U^ij
     convention — the same numbers :class:`~rietx.schemas.structure.AnisoU`
     stores — and their ``_atom_site_B_iso_or_equiv`` carries the equivalent
@@ -334,6 +349,14 @@ def write_structure_block(block, phase: Phase) -> None:
     for name in ("alpha", "beta", "gamma"):
         block.set_pair(f"_cell_angle_{name}", _fmt(getattr(c, name), 4))
     block.set_pair("_symmetry_space_group_name_H-M", gemmi.cif.quote(phase.space_group))
+    if phase.symmetry_operations is not None:
+        # the list is the group, in the order a symmetry code indexes; a
+        # bracketed label alone names nothing a reader can expand.  The
+        # refinement exporter's geometry loop rewrites the same loop from the
+        # same list (``resolve_group``), so the two cannot disagree.
+        ops = block.init_loop("_space_group_symop_", ["id", "operation_xyz"])
+        for idx, triplet in enumerate(phase.symmetry_operations):
+            ops.add_row([str(idx + 1), gemmi.cif.quote(triplet)])
     loop = block.init_loop("_atom_site_", [
         "label", "type_symbol", "fract_x", "fract_y", "fract_z",
         "occupancy", "B_iso_or_equiv", "adp_type",

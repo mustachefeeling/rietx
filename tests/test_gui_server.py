@@ -1557,6 +1557,62 @@ def test_an_orbit_collision_blocks_only_when_the_occupancies_say_it_is_one(
         == ["orbit_collision_shared"]
 
 
+def test_an_operation_list_phase_resolves_its_list_on_every_symmetry_route(
+        blank, tmp_path, pattern_file):
+    """A bracketed label is not a symbol, so the GUI reads the list (#448).
+
+    ``phase_facts`` and the preview's orbit expansion asked ``get_spacegroup``
+    for the label, so both routes served an ``error`` row beside working sites,
+    the ``.rxt`` phase line read "unresolvable symbol", and the preview compared
+    against no orbits at all.  The list here is ``P 4/m m m``'s own, under a
+    bracketed label, and the collision is the one the test above uses.
+    """
+    import gemmi
+
+    from rietx.gui.textdoc import _phase_comment
+    from rietx.schemas.structure import Atom
+
+    session, client = blank
+    project = _open(session, tmp_path / "listed.rex", pattern_file)
+    structure = project.refinement.structure
+    ops = [op.triplet() for op in gemmi.SpaceGroup("P 4/m m m").operations()]
+    phase = type(structure.phases[0]).model_validate({
+        **dict(structure.phases[0]), "space_group": "P 4/m m m [explicit]",
+        "symmetry_operations": ops})
+    phase.atoms.append(Atom(label="X1", species="B", x={"value": 0.3},
+                            y={"value": 0.0}, z={"value": 0.0}))
+    phase.atoms.append(Atom(label="X2", species="B", x={"value": 0.0},
+                            y={"value": 0.0}, z={"value": 0.3}))
+    structure.phases[0] = phase
+
+    for facts in (client.get("/api/structure")[1]["symmetry"][0],
+                  client.get("/api/structure/symmetry?phase=0")[1]["symmetry"]):
+        assert "error" not in facts, facts
+        assert facts["xhm"] == "P 4/m m m [explicit]"
+        assert facts["n_operations"] == 16 and facts["hall"] is None
+        assert facts["crystal_system"] == "tetragonal"
+        assert facts["ties"] == {"b": "a"}
+    assert _phase_comment(phase) == ("P 4/m m m [explicit] · 16 operations · "
+                                     "closest type No. 123 · tetragonal · "
+                                     "Laue 4/mmm")
+
+    # the symbol replaces the list, and the orbits on both sides are real
+    out = client.post("/api/structure/symmetry/preview",
+                      {"phase": 0, "space_group": "P m -3 m"})[1]
+    note = next(n for n in out["notes"] if n["kind"] == "orbit_collision")
+    assert note["where"] == ["phases.0.atoms.2", "phases.0.atoms.3"]
+    assert out["blocked"] is True and not out["refusals"]
+    assert "setting_change" not in [n["kind"] for n in out["notes"]]
+    sites = {s["label"]: s for s in out["sites"]}
+    assert (sites["X1"]["from"]["multiplicity"],
+            sites["X1"]["to"]["multiplicity"]) == (4, 6)
+    # …and the list's own symbol is the same group: nothing to collide, no gate
+    out = client.post("/api/structure/symmetry/preview",
+                      {"phase": 0, "space_group": "P 4/m m m"})[1]
+    assert out["blocked"] is False
+    assert not [n for n in out["notes"] if n["kind"].startswith("orbit")]
+
+
 def test_a_shared_site_is_judged_as_a_group_and_never_as_pairs(blank, tmp_path,
                                                                pattern_file):
     """Three atoms at occ 0.4 are 1.2 on one site; no *pair* of them exceeds 1.
