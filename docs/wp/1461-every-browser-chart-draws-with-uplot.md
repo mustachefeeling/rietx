@@ -1,6 +1,6 @@
 # WP-1461 — every browser chart draws with uPlot
 
-Milestone: unscheduled · Status: 🔄 2026-09-25 — claimed by @yue-here for the pilot (task 5); tasks 1-4 done
+Milestone: unscheduled · Status: 🔄 2026-09-25 — tasks 1-5 done: the pilot said go, D5 thinning, the pattern panel on the chart module behind ?chart=uplot; task 6 next
 Depends on: —
 Priority: P2 2026-09-24 — the maintainer's decision that every browser chart builds on one module; today plotly blocks every GUI open for 0.7-0.8 s before the first plot
 
@@ -771,6 +771,83 @@ npm --prefix gui test && npm --prefix gui run check
 - Long Animation Frames API (W3C draft): what counts as a long frame here.
 
 ## Handover log
+
+### 2026-09-25 (4th session) — the pilot says go, and the chart thins per pixel column
+
+The migration now has its evidence on the real GUI rather than a
+prototype. With the chart module drawing NAC's pattern, opening the GUI has
+no long frame, and a zoom costs about half plotly's work and fetches
+nothing. A resize costs the chart 2-3 ms against plotly's 11-17. Every
+gesture works in Firefox and WebKit too. Drawing every observed point did
+not hold up: at 132 992 channels, and in Firefox and WebKit, it made frames
+of 50-258 ms. So the chart paints each pixel column's highest and lowest
+point instead. One clause of the gate missed by a hair on one run: plotly
+answers a hover at most every 50 ms, and the chart answers every move, so
+plotly's hover can cost less per move. The panel is still behind
+`?chart=uplot`, and the plotly renderer is still the default.
+
+*Done:*
+- Task 5, the pilot. `/api/result/curves` and `/api/series/curves` send the
+  pattern's every channel once as float64 arrays (`viz/packed.py`,
+  `session.curve_arrays`), with `kept` always, and decimate past
+  `CURVES_CEILING` = 150 000 over the window route's three curves.
+  `rxplot.mjs` gained `unpack` and the pattern figure (three panes, the
+  thinned markers, layers). `gui/src/lib/pattern.ts` puts the panel on it
+  behind `?chart=uplot`, with the shading, candidate lines, peak markers,
+  peak fits and a DOM hover ring. `api.curves`, `rxplot.d.ts` and a vite
+  alias bring the module into the GUI, and uPlot is its own chunk
+  (`vendor-uplot.js`). The manual's route table names both routes.
+- D5 decided: thinning, by the rule set beforehand (§ Decisions, § The pilot,
+  measured). The every-marker path is gone, and `gui/CLAUDE.md`'s "the client
+  does not decimate" became a rule about which points a payload carries.
+- The probe: `pilot.mjs`, `pilot_matrix.mjs`, `pilot_summary.mjs`,
+  `make_lab6.py` and `hover_trace.mjs`, with 48 calls' logs in `results/`.
+- Findings 15-18, each from a run that went wrong: playwright's WebKit drags,
+  the dash uPlot leaves on the canvas, its null-walking cursor, and plotly's
+  hover throttle. The last two cut the chart's hover work.
+- `/code-review high --fix` made ten findings and fixed seven. A torn-down
+  panel no longer builds a figure from a fetch in flight. A settings PATCH no
+  longer repaints the chart. A scale switch keeps hidden curves hidden. The
+  status line says when the server decimated. A line at the view's upper
+  edge draws. The descending-scan sort is gone, since `PatternData` refuses
+  one (checked, `schemas/pattern.py:41`). The series routes share one lookup.
+  Of the three it left, I did one: the ceiling decimates over the window
+  route's three curves rather than the observed one alone. The other two are
+  task 6's: Σχ² re-basing at a zoom, and `windowOf` copying the payload into
+  plain arrays for the readout.
+
+*Measured* (details in § The pilot, measured):
+- NAC, chromium, dpr 1 and 2, three calls each, load 3-7. Work per event,
+  chart against plotly: drag-zoom 3.90-4.35 against 8.15-9.29, exclude
+  5.07-5.82 against 9.72-11.71, peak drag 1.56-2.49 against 7.67-8.97,
+  hover 3.32-3.59 against 2.82-4.29. Wheel zoom 4.73-6.23, pans 3.68-7.41.
+  No long frame from the chart in any gesture.
+- Fast suite on the final tree: 6116 passed, 140 skipped, in 2:58, `[dev]`
+  venv plus playwright 1.63.0, macOS arm64, no other suite running at the
+  start, load 7.5-12. The total is 6256 against 6242, which is 15 tests
+  added less the one the review deleted. Before the review it was 6117
+  and 140.
+- vitest 598, +4 (`pattern.test.ts`); svelte-check clean.
+- The two watcher seam cases that failed last session at load 150 passed.
+- The full selection did not run: nothing here moves a refined number.
+
+*Gotchas:*
+- Every pilot call starts a fresh `rietx gui` that imports the source, so
+  editing `session.py` mid-matrix changes the runs after the edit. Edit the
+  GUI source freely, but rebuild the dist only between matrices.
+- playwright's Firefox (1543) and WebKit (2359) builds are now cached.
+- The worktree guard refused inline scripts naming "checkout" and shell
+  variables in `node` arguments; the edits went through scratchpad scripts.
+
+*Next:*
+1. Task 6, the pattern panel complete, which also answers the two review
+   findings left. Re-base Σχ² at each zoom, as `session.py:2644-2651` does per
+   window. Draw the raw view's per-group residual. Then the axis titles, Esc,
+   and the readout without the `Array.from` copies. Then delete the plotly-only
+   code and move `App.test.ts` off its `Plotly.react` stub.
+2. Someone with Safari open tries a drag at `?chart=uplot` (finding 15).
+3. Then tasks 7-15 in order. The watcher is the next page to port, and it
+   reuses `rxplot.pattern` with a ±3σ layer.
 
 ### 2026-09-25 (3rd session) — the payload route, uPlot vendored, the chart module's core
 
