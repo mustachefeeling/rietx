@@ -1,6 +1,6 @@
 # WP-1461 — every browser chart draws with uPlot
 
-Milestone: unscheduled · Status: 🔄 2026-09-25 — the maintainer's decisions recorded but D5, reopened; the spike's demo fixed and the zoom delay placed; task 2 next
+Milestone: unscheduled · Status: 🔄 2026-09-25 — the maintainer's decisions recorded, D5 left to the pilot; the spike's demo fixed and the zoom delay placed; task 2 next
 Depends on: —
 Priority: P2 2026-09-24 — the maintainer's decision that every browser chart builds on one module; today plotly blocks every GUI open for 0.7-0.8 s before the first plot
 
@@ -333,10 +333,11 @@ in the first task.
 **Decided 2026-09-25.** The maintainer confirmed the migration to uPlot, D1
 (every chart shown in a browser) and D2 (a vendored copy), and D4-D8 as
 recommended. D3 went unanswered and stands as recommended. They asked how a
-vendored copy stays current, and D2 now says. **D5 is reopened**: it was
-confirmed on a summary saying every marker "stays fast at NAC's size", and
-finding 4 says two runs in three had long frames. The maintainer decides it
-again on those numbers. The 3D viewer's move is
+vendored copy stays current, and D2 now says. **D5 is decided in the
+pilot.** It was first confirmed on a summary saying every marker "stays fast
+at NAC's size", while finding 4 says two runs in three had long frames. Put
+back with those numbers, the maintainer chose to let the pilot measure both
+marker paths on the real panel and pick. The 3D viewer's move is
 [WP-1462](1462-the-structure-viewer-draws-with-threejs.md), filed the same
 day.
 
@@ -390,8 +391,11 @@ day.
   - Above a ceiling, 100 000 points as a starting figure, the server keeps
     decimating through `compare.decimation_index`. At 200 000 the spike had
     long frames.
-- **D5. Draw every marker at NAC scale.** Reopened 2026-09-25, see
-  § Decided.
+- **D5. Draw every marker at NAC scale, or thin per pixel column.**
+  Decided in the pilot (2026-09-25, § Decided). The pilot builds both paths
+  and measures them on the real panel in all three browsers. It takes every
+  marker if that holds § Acceptance 2's zero long frames, and thinning
+  otherwise.
   - That costs 1.3-1.6× the thinned figures. In two runs of three it also
     made long frames of 55-67 ms, where the thinned runs had none
     (finding 4). This line said "stays inside a frame" until the
@@ -453,11 +457,11 @@ day.
 
 ## Tasks
 
-- [ ] The maintainer confirms the migration on § Staying on plotly's numbers and decides D1-D8, and this file records which (all recorded 2026-09-25 but D5, reopened)
+- [x] The maintainer confirms the migration on § Staying on plotly's numbers and decides D1-D8, and this file records which (D5 deferred to the pilot by that decision)
 - [ ] Measure D4 and D8 on real payloads (the NAC result, a compare standard, a series): JSON against binary arrays, parse, grid union. Settle the route and the ceiling.
 - [ ] Vendor uPlot 1.6.32, its css and LICENSE into `src/rietx/viz/static/`, copied there by `npm run build` from the exact pin in `gui/package.json` (D2, § Keeping it current). Add the ATTRIBUTION row and put the directory in `build_info.py`'s digest. Serve it from the watch and compare servers. A test holds the vendored banner's version equal to the pin. Add `.github/dependabot.yml`, limited to uPlot and svgcanvas in `gui/`. Rebuild the dist, since the pin moves the digest.
 - [ ] The module's core: panes on one x, sync, drag, wheel and pan, y-zoom, select, the readout hook, the `ResizeObserver` path. Findings 1-3, 5 and 10 each get a case: the pure half under `node --test` and vitest, the drawing in a browser test.
-- [ ] Pilot, the gate: the GUI pattern panel on the core behind a flag, with the plotly renderer still selectable. Port the spike driver to the real page as the acceptance probe. Measure § Acceptance 1-3 against the plotly renderer on the same machine, in Chromium, WebKit and Firefox through playwright's builds. Record go or no-go in the handover.
+- [ ] Pilot, the gate: the GUI pattern panel on the core behind a flag, with the plotly renderer still selectable. Port the spike driver to the real page as the acceptance probe. Measure § Acceptance 1-3 against the plotly renderer on the same machine, in Chromium, WebKit and Firefox through playwright's builds. Build both marker paths (D5) and measure each. Record go or no-go, and which marker path, in the handover.
 - [ ] GUI pattern panel complete: peaks, candidates, masks, raw view, readout fields, Esc, axis titles. Delete the plotly-only code, stub uPlot in `test-setup.ts`, and move `App.test.ts` off the `Plotly.react` stub. Drawn colours are asserted from pixels or from the recorded `strokeStyle`.
 - [ ] `rietx watch` on the module. `test_watch_browser.py` asserts what was drawn.
 - [ ] GUI Series panel: trajectory (D8), per-pattern chart, rings, crosses plotted, the dashed tone, the tick formatter
@@ -585,9 +589,8 @@ both land no page needs plotly.
   review. Restart it to pick up the 400 answer.
 
 *Next:*
-1. The maintainer decides D5 again on finding 4's numbers: every marker
-   drawn made long frames in two runs of three, and the thinned runs had
-   none. The pilot's marker path follows from it.
+1. D5 was put back to the maintainer and answered the same day: the pilot
+   measures both marker paths and picks (§ Decided).
 2. Task 2: measure D4 and D8 on the real payloads, which settles the route
    the pilot builds on.
 3. The vendoring task, which also adds Dependabot.
