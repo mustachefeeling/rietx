@@ -586,6 +586,10 @@ sentence on #374's third instance.  Four more findings went into the
 fires, and what stays silent, and four lines in § v1.6 recording the order
 #286 asked for.  Landed 850, +1 headroom.
 
+851 -> 852 for the 2026-09-25 review of the same private series' Stephens
+runs: one row, 1467, under § What fires, and what stays silent.  No prose.
+Landed 851, +1 headroom.
+
 ### `gui/CLAUDE.md`
 
 580 -> 612 for WP-1201 (2026-08-25): the house style — one token layer
