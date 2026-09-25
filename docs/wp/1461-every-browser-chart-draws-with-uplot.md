@@ -913,7 +913,10 @@ route is the only way a pattern reaches a GUI chart. What still loads plotly is
    each variant's come once through a route, and `resample` becomes a
    subtraction.
 2. Then tasks 10-14 in order. Task 10 is D7's break, recorded in the release
-   record on the day it lands.
+   record on the day it lands. Task 12, loading plotly on the 3D view's first
+   show, overlaps WP-1462, which another session held at this handover
+   (branch `wp1462-structure-viewer-scope`). Read where it stands first: if
+   the viewer leaves plotly, task 12 shrinks to the test that no page loads it.
 3. Someone with Safari open tries a drag in the GUI and the watcher
    (finding 15). They are the only renderers now.
 4. The `/api/peaks` payload's `pattern` arm is still a decimated copy read
