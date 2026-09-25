@@ -845,6 +845,20 @@ through it.
     that said compare still draws with plotly is corrected.
   - The GUI: `rxplot.d.ts` declares `hklLabel`, `plot.test.ts` holds the
     module's copy equal to the other two, and the dist is rebuilt.
+- `/code-review high --fix` made five findings and fixed three (`135f9d41`).
+  - The poll waited on every ticked variant, so one ticked after Run held Run
+    disabled for good. It now waits on the variants Run sent.
+  - A Run whose standard changed before its request answered started a poll
+    for the new standard. It now returns.
+  - `fmt` printed a missing parameter value as `0.000000`. It prints a dash,
+    and a node case says so.
+
+  I left two. `_finite` answers "how does a non-finite float reach a browser"
+  with `null`, where `gui/server.py`'s `_finite` sends the strings `NaN` and
+  `Infinity`. Unifying them changes one page's wire format for no reader's
+  gain, and each page's reader handles its own. The Δχ² axis title can keep
+  an old variant's name when the reference moves between two variants that
+  both lack curves. It shows only over a pane that is already empty.
 
 *Measured:*
 - Fast suite at `ad817bbf`: 6239 passed, 140 skipped, 6379 in all, in 3:11.
@@ -855,7 +869,7 @@ through it.
   `test_rxplot_browser.py`, and minus one in `test_watch_app.py`. No
   baseline was measured here, since that is CI's job, so the +17 is from the
   diff and not from two runs.
-- Node: `compare_core.test.mjs` 10 cases, `rxplot.test.mjs` 15 to 17. Vitest
+- Node: `compare_core.test.mjs` 10 cases (one gained an assertion in review), `rxplot.test.mjs` 15 to 17. Vitest
   560, the new assertions inside an existing case. svelte-check clean.
 - The browser suites together (GUI, watcher, chart, compare, dist): 108
   passed.
@@ -865,6 +879,7 @@ through it.
   Light and dark both checked by eye.
 - `test_no_variant_moves_the_channels_a_standard_fits` builds every
   available standard under every variant it applies to, in 2.5 s.
+- After the review's fixes (`135f9d41`), which touched only the compare page, its two modules ran again on the final tree: 65 passed. `origin/main` had not moved since the branch was cut.
 - The full selection did not run. Nothing here moves a refined number.
 
 *Deliberately not generalised:*
