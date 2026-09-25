@@ -1,6 +1,6 @@
 # WP-1461 — every browser chart draws with uPlot
 
-Milestone: unscheduled · Status: 🔄 2026-09-25 — tasks 1-5 done: the pilot said go, D5 thinning, the pattern panel on the chart module behind ?chart=uplot; task 6 next
+Milestone: unscheduled · Status: 🔄 2026-09-25 — claimed by @yue-here for task 6, the pattern panel complete; tasks 1-5 done: the pilot said go, D5 thinning, the pattern panel on the chart module behind ?chart=uplot
 Depends on: —
 Priority: P2 2026-09-24 — the maintainer's decision that every browser chart builds on one module; today plotly blocks every GUI open for 0.7-0.8 s before the first plot
 
