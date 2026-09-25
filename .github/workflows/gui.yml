@@ -18,6 +18,7 @@ on:
     paths: &gui_paths
       - 'gui/**'
       - 'src/rietx/gui/**'
+      - 'src/rietx/viz/static/**'
       - '.github/workflows/gui.yml'
   pull_request:
     paths: *gui_paths
@@ -49,9 +50,11 @@ jobs:
       # different bytes, which is the failure mode the WP pre-authorised a
       # fallback for: if this proves flaky cross-OS (minifier nondeterminism),
       # narrow the comparison to build-info.json and record the measurement.
+      # The build also writes the vendored uPlot (gui/scripts/vendor.py), so a
+      # copy that differs from the pinned release fails here too.
       - name: The committed dist is current
         run: |
-          git diff --exit-code --stat src/rietx/gui/static \
+          git diff --exit-code --stat src/rietx/gui/static src/rietx/viz/static \
             || { echo "::error::the committed dist does not match a fresh build"; exit 1; }
 
       - name: Unit tests (vitest)

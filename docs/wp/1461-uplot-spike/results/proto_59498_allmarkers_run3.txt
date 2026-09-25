@@ -1,0 +1,26 @@
+CONSOLE Failed to load resource: the server responded with a status of 404 (Not Found)
+
+=== N = 59498 points ===
+mount (three panes, first draw) 41.1 ms
+hover sweep, main pane                        120 ev    0.77 ms/ev   frames p50 16.7 p95 16.8 max 17.7   LoAF 0
+hover sweep, tick pane (hkl lookup)            60 ev    0.66 ms/ev   frames p50 16.7 p95 17.1 max 17.7   LoAF 0
+drag-zoom (5 drags x 20 moves)                110 ev    1.48 ms/ev   frames p50 16.7 p95 17.2 max 17.7   LoAF 0
+double-click reset                              1 ev   25.30 ms/ev   frames p50 16.7 p95 16.8 max 16.8   LoAF 0
+  zoomed to [ '32.375', '32.546' ] reset to [ '5.000', '60.000' ]
+wheel zoom in+out (120 events)                120 ev    4.10 ms/ev   frames p50 16.7 p95 17.0 max 17.7   LoAF 0
+wheel pan (60 events)                          60 ev    3.87 ms/ev   frames p50 16.7 p95 17.1 max 17.8   LoAF 0
+alt-drag pan (40 moves)                        40 ev    3.74 ms/ev   frames p50 16.7 p95 17.0 max 17.7   LoAF 0
+  after pans [ '33.440', '38.440' ]
+exclude-region drags (5 x 20 moves)           110 ev    1.03 ms/ev   frames p50 16.7 p95 16.9 max 17.7   LoAF 0
+  excluded regions 1 -> 6; range still 5.00,60.00
+peak drag-move (60 moves)                      60 ev    2.45 ms/ev   frames p50 16.7 p95 16.8 max 17.6   LoAF 0
+  peak 30 moved 20.5399 -> 21.6112
+peak click-add (10 clicks)                     10 ev    2.81 ms/ev   frames p50 16.7 p95 17.0 max 17.5   LoAF 0
+  peaks 40 -> add 50; shift-click excl false -> true; right-click remove -> 49
+table -> plot hover ring (120)                120 ev    0.27 ms/ev   frames p50 16.7 p95 17.2 max 17.7   LoAF 0
+legend toggle (10)                             10 ev    2.51 ms/ev   frames p50 16.7 p95 17.4 max 17.4   LoAF 0
+  programmatic (max of reps where repeated), ms: {"sqrt":5.5,"log":5,"lin":4.2,"dark":1.7,"light":2.6,"stage":11.2,"stageKeepsZoom":[20,22],"resize":1.6,"cand426":8.4,"cand92k":17.4}
+hover sweep with 92,103 candidate lines        60 ev    0.57 ms/ev   frames p50 16.7 p95 16.8 max 17.2   LoAF 0
+wheel zoom with 92,103 candidate lines         60 ev    4.60 ms/ev   frames p50 16.7 p95 16.8 max 17.6   LoAF 0
+  copy PNG {"ms":21.90000009536743,"bytes":146641,"w":1200,"h":638} clipboard read back {"types":["image/png"],"bytes":134179}
+  copy TSV full {"ms":17,"rows":59497,"chars":5522758} read back chars 5522758 | zoomed {"ms":6.199999928474426,"rows":2163,"chars":201323}

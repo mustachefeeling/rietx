@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -36,12 +37,23 @@ from pathlib import Path
 #: alter the output without touching a single component.
 SOURCE_GLOBS = ("src/**/*",)
 SOURCE_FILES = ("package.json", "package-lock.json", "vite.config.ts",
-                "tsconfig.json", "index.html", "scripts/build_info.py")
+                "tsconfig.json", "index.html", "scripts/build_info.py",
+                "scripts/vendor.py")
+
+#: Directories outside ``gui/`` whose every file counts. ``scripts/vendor.py``
+#: writes the pinned chart library there (WP-1461), so a hand edit of a vendored
+#: file, or a pin moved without a build, reads as a stale dist.
+OUTSIDE_DIRS = (Path("..") / "src" / "rietx" / "viz" / "static",)
 
 #: Written next to the built assets, and committed with them.
 BUILD_INFO = "build-info.json"
 
 DIST_RELATIVE = Path("..") / "src" / "rietx" / "gui" / "static"
+
+
+def relative(path: Path, gui_dir: Path) -> str:
+    """``path`` as the digest names it: POSIX, relative to ``gui/``, ``../`` outside it."""
+    return Path(os.path.relpath(path, gui_dir)).as_posix()
 
 
 def source_files(gui_dir: Path) -> list[Path]:
@@ -59,7 +71,9 @@ def source_files(gui_dir: Path) -> list[Path]:
         candidate = gui_dir / name
         if candidate.is_file():
             found.add(candidate)
-    return sorted(found, key=lambda p: p.relative_to(gui_dir).as_posix())
+    for directory in OUTSIDE_DIRS:
+        found.update(p for p in (gui_dir / directory).glob("**/*") if p.is_file())
+    return sorted(found, key=lambda p: relative(p, gui_dir))
 
 
 def source_hash(gui_dir: Path) -> tuple[str, int]:
@@ -71,7 +85,7 @@ def source_hash(gui_dir: Path) -> tuple[str, int]:
     digest = hashlib.sha256()
     files = source_files(gui_dir)
     for path in files:
-        digest.update(path.relative_to(gui_dir).as_posix().encode("utf-8"))
+        digest.update(relative(path, gui_dir).encode("utf-8"))
         digest.update(b"\0")
         digest.update(path.read_bytes())
         digest.update(b"\0")

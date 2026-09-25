@@ -1,0 +1,15 @@
+run 5 (uninstrumented boot): first react at 2295 ms; long frames [{"at":51,"dur":133,"top":["http://127.0.0.1:8799/assets/app.js 123ms app.js:"]},{"at":249,"dur":53,"top":["Response.text.then 39ms app.js:"]},{"at":597,"dur":811,"top":["http://127.0.0.1:8799/plotly.js 802ms plotly.js:"]},{"at":1895,"dur":415,"top":["Response.text.then 410ms app.js:"]},{"at":2316,"dur":83,"top":["Response.text.then 46ms app.js:"]}]; plotly calls ["react[scattergl] 1903-2295","react[scattergl] 2319-2363","react[scattergl] 2368-2396","resize[] 2310-2421"]
+file:///Users/yue/Code/rietx/.claude/worktrees/wp1461-uplot/docs/wp/1461-uplot-spike/gui_td.mjs:49
+                                ^
+
+
+run 6 (uninstrumented boot): first react at 1481 ms; long frames [{"at":17,"dur":66,"top":["http://127.0.0.1:8799/assets/app.js 54ms app.js:"]},{"at":411,"dur":708,"top":["http://127.0.0.1:8799/plotly.js 702ms plotly.js:"]},{"at":1177,"dur":315,"top":["Response.text.then 305ms app.js:"]},{"at":1497,"dur":74,"top":["Response.text.then 39ms app.js:"]}]; plotly calls ["react[scattergl] 1189-1481","react[scattergl] 1502-1537","react[scattergl] 1542-1568","resize[] 1491-1602"]
+file:///Users/yue/Code/rietx/.claude/worktrees/wp1461-uplot/docs/wp/1461-uplot-spike/gui_td.mjs:49
+                                ^
+
+
+run 7 (uninstrumented boot): first react at 1576 ms; long frames [{"at":23,"dur":68,"top":["http://127.0.0.1:8799/assets/app.js 53ms app.js:"]},{"at":502,"dur":700,"top":["http://127.0.0.1:8799/plotly.js 697ms plotly.js:"]},{"at":1255,"dur":331,"top":["Response.text.then 318ms app.js:"]},{"at":1591,"dur":73,"top":["Response.text.then 40ms app.js:"]}]; plotly calls ["react[scattergl] 1271-1576","react[scattergl] 1594-1632","react[scattergl] 1636-1662","resize[] 1586-1699"]
+file:///Users/yue/Code/rietx/.claude/worktrees/wp1461-uplot/docs/wp/1461-uplot-spike/gui_td.mjs:49
+                                ^
+
+

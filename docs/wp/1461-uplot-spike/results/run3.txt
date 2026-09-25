@@ -1,0 +1,8 @@
+SVG export: 180 ms, 526 kB / 30 kB / 66 kB; page errors 0; live window after 20.00,30.00
+plotly_export.html   6.53 MB   navigation to drawn 686, 599, 598 ms
+uplot_export.html    1.63 MB   navigation to drawn 86, 83, 93 ms
+idle rate 0.017 ms/ms; plot box {"x":72,"y":137.25,"width":846,"height":488.8800048828125}
+GUI hover sweep, main plot                    120 ev    2.22 ms/ev   frames p50 16.7 p95 17.5 max 400.0   LoAF 1 (max 406)   {}
+GUI drag-zoom (5 drags x 20 moves)            110 ev    3.66 ms/ev   frames p50 16.7 p95 17.4 max 17.7   LoAF 0   {"fetch":[33,12,14,12,11],"react":[26,8,6,8,7],"resize":[122]}
+GUI double-click reset                          1 ev   59.78 ms/ev   frames p50 16.7 p95 17.4 max 17.6   LoAF 0   {"fetch":[29],"react":[22],"relayout":[1],"resize":[116]}
+GUI exclude-region drags (3 x 20 moves)        66 ev    4.69 ms/ev   frames p50 16.7 p95 17.5 max 17.7   LoAF 0   {"relayout":[19,19],"fetch":[23,14,6,24,29,53,16,10],"react":[13,10,8],"resize":[118,105,116]}

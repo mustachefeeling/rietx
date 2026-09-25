@@ -629,9 +629,8 @@ Sample broadening was stored as a deg-2θ coefficient and shared across
 histograms as though it were a specimen property; for **size** it is not (the
 same crystallite broadens by a different angle at a different wavelength).
 **1131 closed 2026-09-02**: a joint fit now shares the crystallite size and each
-histogram carries its own coefficient (measured 363.3/623.9 Å → 408.8/408.8 Å
-for one specimen), and every converged fit reports a coherent domain size and a
-Δd/d with esds. The neutron rows follow 1134.
+histogram carries its own coefficient (numbers in 1131), and every converged
+fit reports a coherent domain size and a Δd/d with esds. The neutron rows follow 1134.
 
 | WP | Title | Status | Priority | Depends on |
 |---|---|---|---|---|
@@ -647,9 +646,8 @@ about; the titles below say which. Three triages feed it (2026-09-01, -03,
 -15) plus the 2026-09-16 review of #286 and #293, which cut 1432 of 1342's
 kind. The orbit that was not a multiplicity (1324) is closed and 1320 restates
 what it measured. 1310 closed on four of six in § v1.5, and both of the two it
-could not answer closed 2026-09-18: **1434**, the bound flag now asking whether
-the limit carried load rather than whether the value stopped near one, and
-**1435**, where a caller's hold outranks a plan's glob and the plan says so.
+could not answer closed 2026-09-18 as **1434** (the bound flag) and **1435**
+(a caller's hold), each file saying what changed.
 
 | WP | Title | Status | Priority | Depends on |
 |---|---|---|---|---|
@@ -748,6 +746,8 @@ separability floor, and not scheduled here.
 | [1340](wp/1340-qpa-on-a-molar-basis.md) | QPA on a molar basis, and the basis travels with the number | ⬜ | P3 | — (1320 soft) |
 | [1341](wp/1341-a-joint-fit-has-no-report.md) | A joint fit has no report | ⬜ | P2 | — (1312, 1335, 1344 soft) |
 | [1444](wp/1444-the-pattern-before-the-model.md) | The pattern before the model, and a title on the figure | ⬜ | P3 | — |
+| [1461](wp/1461-every-browser-chart-draws-with-uplot.md) | Every browser chart draws with uPlot | 🔄 2026-09-25 | P2 | — |
+| [1462](wp/1462-the-structure-viewer-draws-with-threejs.md) | The structure viewer draws with three.js | ⬜ | P3 | — (1461 soft) |
 
 #### The repo's own process
 
