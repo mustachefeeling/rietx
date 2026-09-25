@@ -313,7 +313,8 @@ def magnetic_reflections(sg_symbol,
     return ReflectionSet(hkl=everything.hkl[mask],
                          multiplicity=everything.multiplicity[mask],
                          d=everything.d[mask],
-                         spacegroup=everything.spacegroup)
+                         spacegroup=everything.spacegroup,
+                         operations=everything.operations)
 
 
 def applied_centrings(group, magnetic_group=None) -> np.ndarray:
@@ -353,6 +354,12 @@ def merge_magnetic(nuclear: ReflectionSet, extra: ReflectionSet
     **exact** rather than a tolerance: on those rows the nuclear structure
     factor is identically zero by the glide or screw condition, so masking it
     is the arithmetic the symmetry already implies and not an approximation.
+
+    ``operations`` rides along with ``spacegroup`` onto the merged set: a phase
+    whose group has no Hermann-Mauguin symbol carries it as an explicit
+    operation list under a bracketed *label*, and a set holding the label
+    without the list cannot be resolved by anything reading it back
+    (``report.strain``, ``report.texture``).
     """
     if len(extra) == 0:
         return nuclear, np.ones(len(nuclear), dtype=np.float64)
@@ -363,6 +370,7 @@ def merge_magnetic(nuclear: ReflectionSet, extra: ReflectionSet
     sort = np.argsort(-d, kind="stable")
     merged = ReflectionSet(hkl=hkl[sort], multiplicity=mult[sort], d=d[sort],
                            spacegroup=nuclear.spacegroup,
+                           operations=nuclear.operations,
                            extra=dict(nuclear.extra))
     return merged, nuc[sort].astype(np.float64)
 

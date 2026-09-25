@@ -524,3 +524,67 @@ def test_a_reordered_list_under_a_real_symbol_exports_in_the_callers_order(
     assert list(phase.symmetry_operations) != _triplets("P 1 21/c 1")
     symops, _block = _exported_symops(phase, tmp_path)
     assert symops == list(phase.symmetry_operations)
+
+
+# ---------------------------------------------------------------------------
+# a moment on an operation-list phase (review of #448, item 1)
+# ---------------------------------------------------------------------------
+#: MnF₂, P 4₂/mnm, moment along c on Mn (Erickson 1953, *Phys. Rev.* **90**,
+#: 779): its strongest magnetic row, (1 0 0), is absent in the nuclear group,
+#: so the phase goes through ``merge_magnetic``.  The same fixture
+#: ``test_magnetic`` uses, here under a bracketed label with the symbol's own
+#: operation list.
+_MNF2_SYMBOL = "P 42/m n m"
+_MNF2_CELL = (4.8734, 4.8734, 3.3099, 90.0, 90.0, 90.0)
+
+
+def _mnf2_listed(moment):
+    from rietx.schemas.structure import Moment
+
+    def at(label, species, xyz, m=None):
+        return Atom(label=label, species=species, x=Parameter(value=xyz[0]),
+                    y=Parameter(value=xyz[1]), z=Parameter(value=xyz[2]),
+                    occ=Parameter(value=1.0), biso=Parameter(value=0.3),
+                    moment=m)
+
+    return Phase(
+        name="MnF2", space_group=f"{_MNF2_SYMBOL} [explicit]",
+        symmetry_operations=_triplets(_MNF2_SYMBOL), cell=_cell(_MNF2_CELL),
+        atoms=[at("Mn", "Mn", (0.0, 0.0, 0.0),
+                  Moment.from_values(moment, "Mn2+", vary=True)),
+               at("F", "F", (0.3050, 0.3050, 0.0))],
+        magnetic_symmetry="136.499")
+
+
+def test_a_moment_on_an_operation_list_phase_keeps_the_list_through_report():
+    """``merge_magnetic`` carries ``operations``, so ``report()`` resolves.
+
+    It built the merged set from the label alone, and the strain and texture
+    arms then asked ``resolve_group`` for a bracketed label with no list:
+    "unknown space group symbol", after the fit had finished.
+    """
+    from rietx.model.forward import compile_model
+
+    tt = np.arange(10.0, 140.0, 0.05)
+    instrument = rx.Instrument.constant_wavelength_neutron(2.4)
+    truth = Structure(phases=[_mnf2_listed((0.0, 0.0, 4.6))])
+    flat = rx.PatternData(two_theta=tt.tolist(), intensity=np.ones_like(tt).tolist())
+    model = compile_model(truth, instrument, flat)
+    refl = model.phases[0].reflections
+    assert refl.operations == tuple(truth.phases[0].symmetry_operations)
+    assert refl.spacegroup == truth.phases[0].space_group
+    assert (1, 0, 0) in {tuple(map(int, h)) for h in refl.hkl}, \
+        "the fixture has no magnetic-only row, so it never reaches the merge"
+
+    from rietx.params.vector import ParameterTable
+    table = ParameterTable(truth, instrument)
+    y = np.asarray(model.evaluate(table.decode(table.x0())), dtype=np.float64) + 20.0
+    ref = rx.Refinement(Structure(phases=[_mnf2_listed((0.0, 0.0, 3.5))]),
+                        instrument.model_copy(deep=True))
+    ref.fit(rx.PatternData(two_theta=tt.tolist(), intensity=y.tolist()),
+            plan=rx.RefinementPlan(stages=[
+                rx.Stage("scale", ["phases.*.scale", "instrument.background.c*"]),
+                rx.Stage("moment", ["phases.*.atoms.*.moment.dof*"])]))
+    report = ref.report()
+    assert len(report.strain) == 1 and len(report.texture) == 1
+    assert len(report.magnetic) == 1
