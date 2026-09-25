@@ -17,6 +17,9 @@ or runs in the suite. The logs in `results/` are the runs the WP quotes.
 | `zoom_probe.mjs` | Counts and times the paints behind one drag-zoom and one wheel zoom, in Chrome for Testing or the installed Firefox (finding 12, finding 13). `echo` puts back the pane link that painted twice. |
 | `gui_td.mjs` | Today's GUI as main-thread work: boot frames, hover, resize, and the full-resolution window with its parse and grid union. |
 | `gui_probe.mjs`, `driver3.mjs` | Earlier GUI probes (latency of boot, zoom and resize), SVG export, and the standalone-page comparison. |
+| `payloads.py` | Task 2's server half: builds today's and the proposed curve payloads for the NAC example, two compare standards and the QPA series, times building and serialising them, and counts every pattern's channels. Writes `payloads/`. |
+| `payload_probe.mjs` | Task 2's browser half: fetch, decode, parse and grid union of each payload, in Chrome for Testing or Firefox. |
+| `transport.py` | The real `/api/result/window` route timed with curl, beside the GUI's own `_send` serving the same bytes, so the server's work and the transfer separate. |
 | `make_exports.py`, `make_uplot_export.mjs` | Build today's `write_html` page and its uPlot equivalent from one set of arrays. |
 | `serve.mjs`, `index.html` | The demos for a person: `node serve.mjs [port]`, then <http://127.0.0.1:8810/>. `?demo` gives the prototype pages a toolbar that times each action, and the pattern page prints each frame's repaints. |
 
@@ -51,6 +54,9 @@ node gui_td.mjs 0                          # today's GUI, run index 0; add `boot
 node make_uplot_export.mjs
 node driver3.mjs                           # starts `rietx gui` on port 8799 and fits the NAC example
 node serve.mjs 8810 & node zoom_probe.mjs firefox 2 [echo]   # or chrome; the probe loads the page from serve.mjs
+(cd ../../.. && PYTHONPATH=. .venv/bin/python docs/wp/1461-uplot-spike/payloads.py sizes nac compare compare:lab6_capillary series)
+node serve.mjs 8811 & node payload_probe.mjs chrome     # or firefox
+../../../.venv/bin/python transport.py                  # needs payloads/ from payloads.py
 ```
 
 The drivers expect Chrome for Testing from playwright's chromium build 1223

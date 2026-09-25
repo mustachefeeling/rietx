@@ -1,0 +1,89 @@
+payloads.py sizes nac compare compare:lab6_capillary series  (numpy 2.5.3, rietx 1.6.0.dev0, 6 timed runs after one warm-up)
+== channel counts of the patterns on disk
+                     49497  tests/data/11BM_Kapton.xy
+                    132992  tests/data/11BM_LaB6_660a.fxye
+                     49496  tests/data/11BM_LaB6_cBN_mg2044.xye
+                     59498  tests/data/11BM_NAC.fxye
+                     48000  tests/data/11BM_Si640c.xy
+                      5753  tests/data/FAP.XRA
+                      2001  tests/data/bruker_absorber.brml
+                      7134  tests/data/bruker_raw4_scrambled.raw
+                      3296  tests/data/mg090.Cu311.gsas
+                     49493  tests/data/mg090.fxye
+                      1800  tests/data/panalytical_attenuator.xrdml
+                       255  tests/data/panalytical_mesh.xrdml
+                      5027  tests/data/panalytical_powder.xrdml
+                         3  tests/data/rigaku_multiscan.ras
+                      3501  tests/data/rigaku_nims.ras
+                      2726  tests/data/rigaku_powder.rasx
+                         4  tests/data/rigaku_three_column.ras
+                      7001  tests/data/rigaku_zno_counts.rasx
+                      7251  tests/data/qarr/brucite.prn
+                      7251  tests/data/qarr/corundum.prn
+                      7251  tests/data/qarr/cpd-1a.prn
+                      7251  tests/data/qarr/cpd-1b.prn
+                      7251  tests/data/qarr/cpd-1c.prn
+                      7251  tests/data/qarr/cpd-1d.prn
+                      7251  tests/data/qarr/cpd-1e.prn
+                      7251  tests/data/qarr/cpd-1f.prn
+                      7251  tests/data/qarr/cpd-1g.prn
+                      7251  tests/data/qarr/cpd-1h.prn
+                      7251  tests/data/qarr/cpd-2.prn
+                      7251  tests/data/qarr/cpd-4.prn
+                      7251  tests/data/qarr/fluorite.prn
+                      7251  tests/data/qarr/magnetit.prn
+                      7251  tests/data/qarr/zincite.prn
+                      7251  tests/data/qarr/zircon.prn
+                     59498  src/rietx/data/examples/11BM_NAC.fxye
+                      5753  src/rietx/data/examples/FAP.XRA
+== NAC example, fitted through a GuiSession
+  fit took 1 s
+  today, one window: 7386 fitted + 1002 masked points, 0.91 MB; built 6.8-7.3 ms, serialised 13.9-16.6 ms
+  today's shape, every channel: 22003 fitted + 37495 masked points, 3.41 MB; built 8.1-11.0 ms, serialised 51.7-56.8 ms
+  fitted grid is the pattern's grid under the mask: True; y_obs is the pattern's intensity there: True
+  proposed: 59498 channels, 22003 fitted; arrays built in 1.3-1.3 ms
+    B json    3.56 MB, serialised in 54.5-54.7 ms
+    B json7   2.08 MB, serialised in 36.2-37.3 ms
+    B f64     1.93 MB, serialised in 0.2-0.2 ms
+    B f32     1.01 MB, serialised in 0.1-0.2 ms
+  float32's largest relative error: two_theta 5.9e-08, y_obs 5.9e-08, y_calc 5.9e-08, y_background 5.9e-08, delta 5.9e-08, delta_raw 6.0e-08, cumulative_chi2 5.9e-08
+  Σχ² re-based in float32: 0.1% of the pattern 1.2e-03, 1.0% of the pattern 6.5e-05, 10.0% of the pattern 1.5e-06
+== compare standard `nac`
+  variants: baseline, dispersion, voigt, pspline
+  baseline: converged, 22003 channels, 1 s
+  dispersion: converged, 22003 channels, 1 s
+  voigt: converged, 22003 channels, 1 s
+  pspline: converged, 22003 channels, 1 s
+  every variant fits the same channels: True; the same y_obs: True
+  /api/state today, 4000 a variant, 4 variants: 2.96 MB, serialised 41.3-42.2 ms; sent on every 700 ms poll
+  /api/state today's shape, every channel, 4 variants: 8.77 MB, serialised 123.3-123.7 ms; sent on every 700 ms poll
+  /api/state without the curves: 27.3 kB
+  one variant's curves, f64: 1.06 MB, serialised 1.6-1.7 ms; fetched once, when the variant lands
+  one variant's curves, f32: 0.53 MB, serialised 1.6-1.7 ms; fetched once, when the variant lands
+  Σχ² re-based in float32: 0.1% of the pattern 1.2e-03, 1.0% of the pattern 6.5e-05, 10.0% of the pattern 1.5e-06
+== compare standard `lab6_capillary`
+  variants: baseline, dispersion, voigt, pspline
+  baseline: converged, 116001 channels, 1 s
+  dispersion: converged, 116001 channels, 1 s
+  voigt: converged, 116001 channels, 2 s
+  pspline: converged, 116001 channels, 2 s
+  every variant fits the same channels: True; the same y_obs: True
+  /api/state today, 4000 a variant, 4 variants: 3.31 MB, serialised 45.4-45.5 ms; sent on every 700 ms poll
+  /api/state today's shape, every channel, 4 variants: 45.69 MB, serialised 632.9-653.8 ms; sent on every 700 ms poll
+  /api/state without the curves: 25.9 kB
+  one variant's curves, f64: 5.57 MB, serialised 8.7-9.7 ms; fetched once, when the variant lands
+  one variant's curves, f32: 2.78 MB, serialised 9.7-10.6 ms; fetched once, when the variant lands
+  Σχ² re-based in float32: 0.1% of the pattern 2.2e-04, 1.0% of the pattern 1.9e-05, 10.0% of the pattern 1.5e-06
+== QPA sample-1 series, the acceptance protocol
+  8 patterns chained in 7 s
+  /api/series/result (entries and trajectories): 480.1 kB, serialised 2.3-2.5 ms
+  member 0, max_points 4000: 5864 points, 0.66 MB; built 1.7-1.9 ms, serialised 9.6-10.2 ms
+  member 0, max_points 1000000000: 7251 points, 0.82 MB; built 1.1-1.3 ms, serialised 12.0-12.5 ms
+  fitted grid is the pattern's grid under the mask: True; y_obs is the pattern's intensity there: True
+  proposed: 7251 channels, 7251 fitted; arrays built in 0.4-0.4 ms
+    B json    0.86 MB, serialised in 12.9-13.6 ms
+    B json7   0.44 MB, serialised in 8.5-8.8 ms
+    B f64     0.44 MB, serialised in 0.1-0.1 ms
+    B f32     0.24 MB, serialised in 0.1-0.1 ms
+  float32's largest relative error: two_theta 5.7e-08, y_obs 0.0e+00, y_calc 5.9e-08, y_background 5.9e-08, delta 5.9e-08, delta_raw 5.9e-08, cumulative_chi2 5.9e-08
+  Σχ² re-based in float32: 0.1% of the pattern 2.5e-04, 1.0% of the pattern 1.1e-05, 10.0% of the pattern 9.0e-07
