@@ -261,6 +261,13 @@ const TITLE = 18;
 /** An x axis's height in CSS px, bare and with its tick labels. A title adds `TITLE`. */
 const X_BARE = 6, X_LABELS = 24;
 
+/**
+ * How far an x title sits below `X_LABELS`, inside its `TITLE`. uPlot puts the
+ * title's top at the axis's size, where the tick labels end, and it ran into
+ * whichever label sat near the middle.
+ */
+const X_TITLE_GAP = 4;
+
 /** Axis type, at the size the pages' own controls are set in. uPlot's titles are bold by default. */
 const FONT = '11px system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
 
@@ -270,7 +277,7 @@ function axes(spec, gutter) {
   const x = { ...text, stroke: ink, grid: { stroke: line, width: 1 }, ticks: { stroke: line } };
   if (!spec.xLabels) Object.assign(x, { values: (u, s) => s.map(() => ""), size: X_BARE });
   else Object.assign(x, { size: X_LABELS, values: (u, s) => tickLabels(s) },
-                     spec.xLabel == null ? {} : { label: spec.xLabel, labelSize: TITLE });
+                     spec.xLabel == null ? {} : { label: spec.xLabel, labelSize: TITLE, labelGap: X_TITLE_GAP });
   const y = { ...text, stroke: ink, grid: { stroke: line, width: 1 }, ticks: { stroke: line }, size: gutter,
               label: spec.label ?? "", labelSize: TITLE };
   if (spec.yLabels === false) {
