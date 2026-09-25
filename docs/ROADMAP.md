@@ -685,6 +685,7 @@ could not answer closed 2026-09-18 as **1434** (the bound flag) and **1435**
 | [1460](wp/1460-one-degeneracy-one-finding.md) | One degeneracy, one finding | ⬜ | P3 | — (1454, 1302 soft) |
 | [1463](wp/1463-a-phase-at-zero-withholds-every-esd.md) | A phase at zero withholds every esd | ⬜ | P2 | — (1320 soft) |
 | [1465](wp/1465-a-width-that-became-background.md) | A phase width that became background, and an absorption screen that never ran | ⬜ | P2 | — |
+| [1467](wp/1467-a-stephens-block-on-a-frozen-floor.md) | A Stephens block on a frozen floor, and a clamp the solver leans on | ⬜ | P2 | — (1318 soft) |
 
 #### A long run is not one fit
 

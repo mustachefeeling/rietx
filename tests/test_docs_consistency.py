@@ -519,7 +519,10 @@ SIZE_CAPS: dict[str, int | None] = {
     # fires, and what stays silent, for issue #451, and four lines in § v1.6
     # recording the order #286 asked for (1326, 1328, 1343, 1329).  The
     # evidence stays in the WP files.  Landed 850, +1 headroom.
-    "docs/ROADMAP.md": 851,
+    # 851 -> 852 (2026-09-25): one row, 1467, under § What fires, and what
+    # stays silent, from a review of the same private series' Stephens runs.
+    # No prose: the evidence stays in the WP file.  Landed 851, +1 headroom.
+    "docs/ROADMAP.md": 852,
     # 1036 -> 1053 (WP-1429): where the GUI's colour values live, now that
     # they are Python and this workspace's `tokens.css` is generated from
     # them. It governs work outside the WP that measured it — an edit to a
