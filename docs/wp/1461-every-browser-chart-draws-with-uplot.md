@@ -1,6 +1,6 @@
 # WP-1461 — every browser chart draws with uPlot
 
-Milestone: unscheduled · Status: 🔄 2026-09-25 — claimed by @yue-here for task 9, rietx compare; tasks 1-8 and 15 done
+Milestone: unscheduled · Status: 🔄 2026-09-26 — tasks 1-9, 12 and 15 done: every page but the file write_html writes draws with the chart module; task 10, write_html, next
 Depends on: —
 Priority: P2 2026-09-24 — the maintainer's decision that every browser chart builds on one module; today plotly blocks every GUI open for 0.7-0.8 s before the first plot
 
@@ -781,6 +781,123 @@ npm --prefix gui test && npm --prefix gui run check
 - Long Animation Frames API (W3C draft): what counts as a long frame here.
 
 ## Handover log
+
+### 2026-09-26 (7th session) — rietx compare draws with the chart module
+
+`rietx compare` no longer uses plotly, and a base install draws it. Its three
+panes are one figure on one 2θ axis, with the gestures the GUI and the watcher
+have. Each variant's curves now come once and at every channel. The page used
+to resend a 4000-point sample of every variant on each 700 ms poll. The Δχ²
+panel is a plain subtraction, because every variant of a standard fits the
+same channels, and a test now holds the registry to that. Building the page
+showed two defects the GUI, the watcher and the Series panel shared: a
+one-phase tick band 5 px tall, and a ring on every point of a line once a zoom
+spread them. Both are fixed in the one place all four pages draw. What still
+loads plotly is the file `write_html` writes, and the GUI's html export
+through it.
+
+*Done:*
+- The claim (`168e2388`) and the Inherited prune (`7c38ce7f`). WP-1462's note
+  folded into § Non-goals, and task 12 is ticked as overtaken: the viewer loads
+  no plotly and three tests say so.
+- Task 9 (`ad817bbf`).
+  - `compare_app.py` is the package `compare_app/`, with the page in
+    `static/`: `index.html`, `compare.css`, `compare.mjs` and
+    `compare-core.mjs`, the pure half that imports nothing. `.gitignore` took
+    the new `index.html` exactly as it took the watcher's, so it gained
+    `!src/rietx/compare_app/static/**`, and a `check-ignore --no-index` test
+    covers each file.
+  - `rxplot.overlay` is D3's third figure: `cum`, `diff` and `fit` panes and
+    a tick band carrying the x axis. The reference draws flat at zero, so a
+    new reference is new numbers for one pane. A reference with no fit yet
+    leaves `cum` empty rather than taking another fit's Δχ². `difference` and
+    `hklLabel` joined the pure half.
+  - `/api/state` sends `RunRecord.summary()`, with no arrays and no ticks.
+    `/api/curves?standard=&variant=` sends `RunRecord.curves()` packed, the
+    ticks in its header. The page fetches each variant once and drops a fetch
+    answered after the reader cleared the plots or changed standard.
+  - `RunRecord`'s six arrays are float64 at every fitted channel. Past
+    `CURVES_CEILING` they are decimated on the observed points alone, which
+    every variant of a standard shares, so the grids stay one. The ceiling
+    moved from `gui/session.py` to `viz/packed.py`, and session re-imports it.
+  - A failed variant's NaN statistics went out as a bare `NaN`, and
+    `JSON.parse` threw on it, so one failed variant stopped every poll.
+    `summary()` sends `null`, and `RunRecord.failed` builds both failure
+    records.
+  - The variant list is the legend. Each entry carries its swatch, and
+    unticking hides the variant in every pane without a rebuild, so the zoom
+    holds. A variant landing rebuilds the figure at its old x range. The
+    sticky line over the panes reads each variant's value at the pointer, and
+    over the tick band a tip names the reflection.
+  - `viz/plotlyjs.py` is deleted. `viz/chart.py` holds `CHART_DIR` and
+    `CHART_FILES`, which both servers read.
+  - Found by looking, fixed in `panes()` for every page. A band (`yLabels:
+    false`) now has no automatic top padding. That padding took 17 px of a
+    one-phase band's 22. Every series now defaults to `points: {show:
+    false}`, where uPlot ringed each point once they sat far enough apart.
+    Both guards were broken on purpose and failed as expected (5 against 22;
+    rings on three series).
+  - Also fixed: switching standard mid-run left the poll waiting for variants
+    nobody asked for, so Run stayed disabled. The old page had this too.
+  - Docs: root CLAUDE.md's page-is-a-file rule names both pages and the
+    `.gitignore` line a page directory needs. `using/cli.md` says what the
+    figure does. `releases/1.5.1.md` has a section, and its WP-1462 line
+    that said compare still draws with plotly is corrected.
+  - The GUI: `rxplot.d.ts` declares `hklLabel`, `plot.test.ts` holds the
+    module's copy equal to the other two, and the dist is rebuilt.
+
+*Measured:*
+- Fast suite at `ad817bbf`: 6239 passed, 140 skipped, 6379 in all, in 3:11.
+  That is the `[dev]` venv plus playwright, macOS arm64, with no other pytest
+  running, at load 3.5-3.8. Against `origin/main` this branch adds 19 Python
+  test functions and removes 2, so +17: five in the new
+  `test_compare_browser.py`, a net eight in `test_compare_ui.py`, five in
+  `test_rxplot_browser.py`, and minus one in `test_watch_app.py`. No
+  baseline was measured here, since that is CI's job, so the +17 is from the
+  diff and not from two runs.
+- Node: `compare_core.test.mjs` 10 cases, `rxplot.test.mjs` 15 to 17. Vitest
+  560, the new assertions inside an existing case. svelte-check clean.
+- The browser suites together (GUI, watcher, chart, compare, dist): 108
+  passed.
+- On real zincite fits, baseline and anomalous dispersion: 7251 channels
+  drawn, where the old page sent 4000 a variant. Three polls and two curves
+  fetches, one per variant. Dispersion ends at Δχ² −518.65 against baseline.
+  Light and dark both checked by eye.
+- `test_no_variant_moves_the_channels_a_standard_fits` builds every
+  available standard under every variant it applies to, in 2.5 s.
+- The full selection did not run. Nothing here moves a refined number.
+
+*Deliberately not generalised:*
+- A Miller index now has three formatters: `watch-core.mjs`, the GUI's
+  `formatHkl` and the module's `hklLabel`. `plot.test.ts` holds all three
+  equal. `watch-core.mjs` cannot import the module under `node --test`, which
+  runs it from another directory. The GUI's could import the module's, and
+  was left alone.
+- The ten variant hues stay literals, as WP-1429 decided.
+
+*Gotchas:*
+- The compare page's tick band sits below the fold at 900 px, so a pointer
+  test scrolls the pane into view first (`_centre`).
+- Ticking a checkbox from script fires no `change`, so the page's reference
+  list goes stale. The tests dispatch the event (`_tick`).
+- Importing `test_compare_ui`'s `server` fixture into another module trips
+  ruff F811 on the parameter that uses it. The `noqa` names why.
+- A change to `rxplot.mjs` moves the GUI dist's digest. Rebuild under node
+  22 (`~/.nvm/versions/node/v22.15.0/bin` on `PATH`) and run `npm ci` there
+  first.
+- The worktree guard refuses long heredocs and loops. Splice scripts in the
+  scratchpad did the larger edits.
+
+*Next:*
+1. Task 10, `write_html`, D7's break. Record it in `releases/1.5.1.md` on the
+   day it lands. Plotly leaves the `viz` extra with it, and the GUI's
+   `html` export follows: `session.py`'s 409 naming the `viz` extra goes.
+2. Task 11, the exports. The compare page lost plotly's modebar camera here,
+   so until task 11 it has no PNG download. Task 11 covers it as a third page.
+3. Tasks 13-15: docs, the tests' final pass, the skill.
+4. Someone with Safari tries a drag in the GUI, the watcher and now the
+   compare page (finding 15).
+5. The `/api/peaks` payload's `pattern` arm (the 5th session's Next 4).
 
 ### 2026-09-25 (6th session) — the watcher and the Series panel draw with the chart module
 

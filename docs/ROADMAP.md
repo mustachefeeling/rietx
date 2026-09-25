@@ -757,7 +757,7 @@ separability floor, and not scheduled here.
 | [1340](wp/1340-qpa-on-a-molar-basis.md) | QPA on a molar basis, and the basis travels with the number | ⬜ | P3 | — (1320 soft) |
 | [1341](wp/1341-a-joint-fit-has-no-report.md) | A joint fit has no report | ⬜ | P2 | — (1312, 1335, 1344 soft) |
 | [1444](wp/1444-the-pattern-before-the-model.md) | The pattern before the model, and a title on the figure | ⬜ | P3 | — |
-| [1461](wp/1461-every-browser-chart-draws-with-uplot.md) | Every browser chart draws with uPlot | 🔄 2026-09-25 | P2 | — |
+| [1461](wp/1461-every-browser-chart-draws-with-uplot.md) | Every browser chart draws with uPlot | 🔄 2026-09-26 | P2 | — |
 | [1462](wp/1462-the-structure-viewer-draws-with-threejs.md) | The structure viewer draws with its own WebGL2 renderer | 🔄 2026-09-25 | P3 | — (1461 soft) |
 | [1466](wp/1466-the-structure-viewer-draws-coordination-polyhedra.md) | The structure viewer draws coordination polyhedra | ⬜ | P3 | 1462 |
 
