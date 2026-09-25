@@ -85,6 +85,11 @@ directory too, and the version test must not stay red on a pull request
 nobody is asked to rebuild. WP-1462 adds three.js to the same allow list,
 bundled only.
 
+**From WP-1462 (2026-09-25).** It does not, after all. The structure viewer
+draws with its own WebGL2 renderer, compiled into `app.js` with no
+dependency, so the allow list stays as WP-1461 left it. three.js joins it only
+if WP-1462's GPU gate sends its D1 to the fallback.
+
 ## Non-goals
 
 - **Not the `.gitattributes` interim** — merged (issue #163); it stays until

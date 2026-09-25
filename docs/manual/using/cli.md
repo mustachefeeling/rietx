@@ -472,8 +472,9 @@ This is also what `rietx watch`'s `open` button runs, with `--no-open` and
 under a running fit is safe to open this way and no other way. The copy is
 frozen at the moment it is taken, and the fit carries on writing the original.
 
-The GUI needs the `gui` extra ([](install.md)), which is plotly only: the built
-front end is committed inside the package, so installing it never needs node.
+The GUI needs nothing beyond a base install. Its built front end is committed
+inside the package, so installing it never needs node. The `gui` extra
+([](install.md)) is empty and kept for old install lines.
 
 ## `rietx skill`: the protocol, where your harness looks
 

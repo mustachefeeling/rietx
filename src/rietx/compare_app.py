@@ -122,8 +122,7 @@ def _themed(page: str) -> str:
 
 
 #: This page has one panel and no shell worth keeping, so a missing plotly
-#: replaces the body outright. The GUI answers the same absence with a window
-#: flag its dist checks — which is why the fallback belongs to the caller.
+#: replaces the body outright.
 _NO_PLOTLY_JS = ("document.body.innerHTML = '<p style=\"font:14px sans-serif;"
                  "padding:2rem\">This page needs plotly: "
                  f"<code>pip install \\'{DIST_NAME}[viz]\\'</code></p>';")

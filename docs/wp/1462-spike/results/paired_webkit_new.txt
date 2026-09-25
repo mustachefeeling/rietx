@@ -1,0 +1,3 @@
+2026-09-25T13:59:17.769Z webkit new run 0 | first frame 729 ms, long frames while opening [] | drag gap p50 17.0 p95 20.0 ms over 18, long frames 0 | hover gap p95 19.0 ms, long frames 0 | load 168.7 on 10 cpus
+2026-09-25T13:59:27.974Z webkit new run 1 | first frame 627 ms, long frames while opening [] | drag gap p50 17.0 p95 20.0 ms over 19, long frames 0 | hover gap p95 18.0 ms, long frames 0 | load 163.3 on 10 cpus
+2026-09-25T13:59:37.337Z webkit new run 2 | first frame 515 ms, long frames while opening [] | drag gap p50 17.0 p95 18.0 ms over 19, long frames 0 | hover gap p95 18.0 ms, long frames 0 | load 163.0 on 10 cpus

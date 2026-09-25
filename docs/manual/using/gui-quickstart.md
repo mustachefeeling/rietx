@@ -20,11 +20,11 @@ Python API is the one to build on.
 
 ## Install and start
 
-The GUI needs the `gui` extra, which is plotly and nothing else. The front end
-itself is committed inside the package, so installing it never needs node.
+The GUI needs nothing beyond rietx itself. Its front end is committed inside
+the package, so installing it never needs node.
 
 ```console
-$ pip install 'rietx[gui]'
+$ pip install rietx
 $ rietx gui
 rietx gui — http://127.0.0.1:8731/
   no project — open or create one in the app

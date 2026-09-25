@@ -25,7 +25,7 @@ uv pip install --python .venv/bin/python -e ".[dev,jax,torch]"   # + optional ja
 .venv/bin/python -m sphinx -W -q -b html docs/manual docs/manual/_build/html  # theory manual
 .venv/bin/rietx gui my_sample.rex [--scratch]      # the refinement GUI (localhost:8731); --scratch works on a temp-dir copy
 npm --prefix gui ci && npm --prefix gui run build      # rebuild the GUI's committed dist
-npm --prefix gui test && npm --prefix gui run check    # vitest (jsdom mount, fnmatch parity, panel/text-sync/model-edit/3D-trace/splitter/theme/plot/peaks logic; count: § Numbers) + svelte-check
+npm --prefix gui test && npm --prefix gui run check    # vitest (jsdom mount, fnmatch parity, panel/text-sync/model-edit/3D-scene/splitter/theme/plot/peaks logic; count: § Numbers) + svelte-check
 .venv/bin/rietx watch <live-dir>                     # live viewer for a LiveSession run
 .venv/bin/rietx compare --open                       # settings-comparison UI on the standards
 ```

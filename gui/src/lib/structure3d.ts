@@ -1,24 +1,25 @@
-/** The structure viewer's geometry, as pure functions (WP-1015).
+/** The structure viewer's geometry, as pure functions (WP-1015, WP-1462).
  *
  * **No crystallography crosses the wire.**  `GET /api/structure3d` returns
  * Cartesian points in Å, 3×3 matrices and index pairs; everything here is the
- * arithmetic that turns those into plotly traces — a unit sphere pushed through
- * a matrix, a polyline broken by nulls, a legend grouped by species.  The
- * symmetry expansion, the metric, the eigen-decomposition and the bond rule are
- * all server-side, which is the same refusal WP-1010 made about decimation: two
- * answers to "where is this atom" is one more than a viewer may have.
+ * arithmetic that turns those into a `Scene` the renderer draws and a `View`
+ * it draws it from.  The symmetry expansion, the metric, the
+ * eigen-decomposition and the bond rule are all server-side, which is the same
+ * refusal WP-1010 made about decimation: two answers to "where is this atom"
+ * is one more than a viewer may have.
  *
- * The one design fact worth stating here is why an ellipsoid is a **mesh** and a
- * ball is the same mesh.  Plotly's `scatter3d` markers are sized in *pixels*, so
- * a ball-and-stick drawn with them does not scale with zoom and cannot be
- * compared with the cell around it; `mesh3d` is in data coordinates, so one code
- * path — `pos + T·v` over a unit sphere — serves both modes and the only
- * difference between them is which `T` is used.  A ball is `f·r·I`, an
- * ellipsoid is `k(p)·T` from the payload, and neither the sphere nor the loop
- * knows which it is drawing.
+ * The one design fact worth stating here is why a ball and an ellipsoid are
+ * one code path.  Every atom is `pos + M·v` over the unit sphere `v`, and the
+ * renderer ray-casts that quadric exactly (`lib/gl3d.ts`), so the only
+ * difference between the modes is which `M` is used: a ball is `f·r·I`, an
+ * ellipsoid is `k(p)·T` from the payload.  Everything is in Å, so a ball can be
+ * compared with the cell around it, which is what plotly's pixel-sized markers
+ * could not do and why WP-1015 drew meshes.
+ *
+ * The same equation the shader solves is solved here for the pointer
+ * (`pickAtom`, `pickHalf`), since the browser already holds every position and
+ * matrix — so hover needs no id buffer and no pixel read-back (WP-1462 D4).
  */
-
-import type { hoverLabel } from "./plot";
 
 export interface Site {
   index: number;
@@ -81,51 +82,8 @@ export interface Geometry {
 
 export type Mode = "ball" | "ellipsoid";
 
-/**
- * One surface for every solid in the scene — balls, ellipsoids and sticks — so
- * the three cannot drift apart.
- *
- * The ambient term is the shadow floor: an unlit face renders at ambient × the
- * species colour, so 0.58 keeps the dark side of a mid-green at ~74 luminance
- * (measured) against the 48 that was reported as "dark", while the diffuse
- * range above it — up to full colour where the surface faces the key — is the
- * depth cue that separates overlapping same-coloured spheres.  Specular stays
- * modest: 400 identical spheres at a high specular read as a tray of plastic
- * beads, which is WP-1015's observation and still true.
- */
-export const LIGHTING = {
-  ambient: 0.58, diffuse: 0.72, specular: 0.12, roughness: 0.45, fresnel: 0.05,
-};
-
-/**
- * The key light, up and to the left **of the screen** — `lightposition` is
- * not in data coordinates.
- *
- * Measured on plotly.js 3.7.0 (WP-1029's reopened log; the probe pages are
- * quoted there): the renderer pushes the trace attribute through the inverse
- * of the full projection·view·model transform, so the frame it is read in is
- * the *projection's* — screen-relative, not scene-relative — and a fixed value
- * therefore rides the camera by construction, **during a drag included**.
- * Three sign facts are load-bearing, all measured:
- *
- * - **z > 0 is behind the scene.**  The visible side renders ambient-flat —
- *   which is exactly what both earlier passes shipped without knowing it:
- *   WP-1015's fixed `(1e5, 1e5, 1e5)` and WP-1029's camera-derived light were
- *   both z-dominant, so the scene was never lit by its diffuse term at all,
- *   and "desaturated, dark and flat" was the ambient constant rendered alone.
- * - **z < 0 is a headlight**: lit everywhere, and the lateral components stop
- *   mattering (measured pixel-identical from |z| = 3e1 to 1e5) — shape comes
- *   only from the radial falloff.
- * - **z = 0 keeps the key lateral**, which is where the modelling comes from;
- *   the on-screen direction wobbles with an oblique view matrix but never
- *   leaves the viewer's side.
- *
- * The magnitude is irrelevant (scale-invariant, measured), and the previous
- * pass's `lightPosition(camera)` arithmetic is deleted with its premise: a
- * *data*-space light would need to follow the camera; a screen-space light
- * already does.
- */
-export const LIGHT_POSITION = { x: -1e5, y: 1e5, z: 0 };
+/** A 3×3 matrix, **row-major**, nine numbers. */
+export type Mat3 = number[];
 
 /**
  * A colour scaled toward black — the second depth cue, for images outside the
@@ -145,124 +103,10 @@ export function dim(color: string, factor = 0.62): string {
   return `#${channel(1)}${channel(3)}${channel(5)}`;
 }
 
-export interface Mesh {
-  vertices: number[][];
-  faces: number[][];
-}
-
-/**
- * A unit sphere as vertices and triangles — built once and reused for every atom.
- *
- * Latitude/longitude rather than a subdivided icosahedron: the triangles bunch
- * at the poles, which a subdivided icosahedron avoids, but at this resolution
- * the difference is invisible and the construction is one that can be read.
- *
- * Twelve rings by twenty-four is 266 vertices and 528 triangles per atom, so
- * the budget at `MAX_ATOMS` = 400 is 106 k vertices — an order below what plotly
- * ships in an isosurface, and comfortably inside 32-bit mesh indices.  Sixteen
- * segments left a 22.5° facet on every ball, which is what a sphere looks like
- * when it is a polygon.
- */
-export function unitSphere(rings = 12, segments = 24): Mesh {
-  const vertices: number[][] = [[0, 0, 1]];
-  for (let r = 1; r < rings; r += 1) {
-    const theta = (Math.PI * r) / rings;
-    for (let s = 0; s < segments; s += 1) {
-      const phi = (2 * Math.PI * s) / segments;
-      vertices.push([Math.sin(theta) * Math.cos(phi),
-                     Math.sin(theta) * Math.sin(phi),
-                     Math.cos(theta)]);
-    }
-  }
-  vertices.push([0, 0, -1]);
-  const bottom = vertices.length - 1;
-  const ring = (r: number, s: number) => 1 + (r - 1) * segments + (s % segments);
-
-  const faces: number[][] = [];
-  for (let s = 0; s < segments; s += 1) {
-    faces.push([0, ring(1, s), ring(1, s + 1)]);
-    faces.push([bottom, ring(rings - 1, s + 1), ring(rings - 1, s)]);
-  }
-  for (let r = 1; r < rings - 1; r += 1) {
-    for (let s = 0; s < segments; s += 1) {
-      const a = ring(r, s), b = ring(r, s + 1);
-      const c = ring(r + 1, s), d = ring(r + 1, s + 1);
-      faces.push([a, c, d], [a, d, b]);
-    }
-  }
-  return { vertices, faces };
-}
-
-/**
- * A unit cylinder along +z: radius 1, from z = 0 to z = 1, **open at both ends**.
- *
- * Caps would be triangles nobody ever sees — the two halves of a bond butt
- * against each other at the midpoint, and the far end is buried inside its own
- * atom.  WP-1015 justified the second half of that with "whose ball is larger
- * than the stick for every element there is", which is true in **ball** mode
- * and overclaims in ellipsoid mode, where an atom's size comes from √U·k(p) and
- * not from a covalent radius: NAC's smallest semi-axis at the shipped 10 %
- * level is 0.065 Å against a 0.08 Å stick, so the stick was *wider than the
- * atom*.  `stickRadius` is what makes the sentence true again in both modes —
- * see its own proof — and a tensor that is not positive definite is drawn as a
- * visible disc on purpose, so an open end showing there is the point.
- *
- * Six segments: a hexagonal prism with averaged normals is indistinguishable
- * from round at the three or four pixels a bond is ever drawn at, and the
- * budget is real — at `MAX_BONDS` this is 4000 × 2 halves × 24 vertices.
- */
-export function unitCylinder(segments = 6): Mesh {
-  const vertices: number[][] = [];
-  for (let s = 0; s < segments; s += 1) {
-    const phi = (2 * Math.PI * s) / segments;
-    vertices.push([Math.cos(phi), Math.sin(phi), 0],
-                  [Math.cos(phi), Math.sin(phi), 1]);
-  }
-  const faces: number[][] = [];
-  for (let s = 0; s < segments; s += 1) {
-    const a = 2 * s, b = a + 1;
-    const c = (2 * s + 2) % (2 * segments), d = c + 1;
-    faces.push([a, c, d], [a, d, b]);
-  }
-  return { vertices, faces };
-}
-
-function cross(a: number[], b: number[]): number[] {
-  return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2],
-          a[0] * b[1] - a[1] * b[0]];
-}
-
-/**
- * The 3×3 one half-stick is drawn through: columns `(r·u, r·v, w)`.
- *
- * The same convention `atomTransform` uses — columns are the axes — so a
- * cylinder goes through the *same* `transform()` a sphere does, and
- * `(cos φ, sin φ, t)` lands at `from + r·cos φ·u + r·sin φ·v + t·w`: a tube of
- * radius `r` running from `from` to `to`.  That is this module's one code path
- * earning its keep a second time.
- *
- * `u` is built against the coordinate axis the stick is *least* aligned with.  A
- * fixed choice like ẑ is exactly parallel for a bond down c — a chain along the
- * c axis is the common case, not the rare one — and the cross product would be
- * zero, which is a NaN tube.
- */
-export function stickTransform(from: number[], to: number[],
-                               radius: number): number[][] {
-  const w = [to[0] - from[0], to[1] - from[1], to[2] - from[2]];
-  const n = Math.hypot(w[0], w[1], w[2]) || 1;
-  const d = [w[0] / n, w[1] / n, w[2] / n];
-  const k = Math.abs(d[0]) <= Math.abs(d[1])
-    ? (Math.abs(d[0]) <= Math.abs(d[2]) ? 0 : 2)
-    : (Math.abs(d[1]) <= Math.abs(d[2]) ? 1 : 2);
-  const pick = [0, 0, 0];
-  pick[k] = 1;
-  const raw = cross(d, pick);
-  const length = Math.hypot(raw[0], raw[1], raw[2]) || 1;
-  const u = raw.map((c) => c / length);
-  const v = cross(d, u);        // unit, since d ⟂ u and both are unit
-  return [[radius * u[0], radius * v[0], w[0]],
-          [radius * u[1], radius * v[1], w[1]],
-          [radius * u[2], radius * v[2], w[2]]];
+/** `#rrggbb` as three channels in 0..1; anything else is mid-grey. */
+export function rgb(color: string): number[] {
+  if (!/^#[0-9a-f]{6}$/i.test(color)) return [0.5, 0.5, 0.5];
+  return [1, 3, 5].map((at) => parseInt(color.slice(at, at + 2), 16) / 255);
 }
 
 /** `T·v` for a 3×3 whose **columns** are the axes — the payload's convention. */
@@ -307,6 +151,12 @@ export function atomLabel(geometry: Geometry, atom: DrawnAtom, mode: Mode): stri
   return parts.join("  ·  ");
 }
 
+/** One hover line per bond: the two sites and the length. */
+export function bondLabel(geometry: Geometry, bond: Bond): string {
+  const name = (index: number) => geometry.sites[geometry.atoms[index].site].label;
+  return `${name(bond.i)}–${name(bond.j)}  ${bond.d.toFixed(3)} Å`;
+}
+
 /** Species → its legend entry, in the order the sites are declared. */
 export function legend(geometry: Geometry): Array<{ species: string; color: string;
                                                     sites: Site[] }> {
@@ -322,64 +172,6 @@ export function legend(geometry: Geometry): Array<{ species: string; color: stri
     }
   }
   return out;
-}
-
-/**
- * One `mesh3d` per species — every atom of that species, in one vertex buffer.
- *
- * Per species rather than per atom because a trace is what plotly draws in one
- * call and what the legend toggles; a 90-atom cell would otherwise be 90 legend
- * entries and 90 draw calls for six distinct colours.  `hidden` is the set of
- * species the legend has switched off, applied here rather than through
- * plotly's own legend so it survives a redraw the same way every other bit of
- * state in this app does.
- */
-export function atomTraces(geometry: Geometry, mode: Mode, sphere: Mesh,
-                           hidden: ReadonlySet<string> = new Set(),
-                           showBoundary = true,
-                           exaggeration = 1): any[] {
-  const traces: any[] = [];
-  for (const entry of legend(geometry)) {
-    if (hidden.has(entry.species)) continue;
-    const indices = new Set(entry.sites.map((site) => site.index));
-    // two buffers per species, not one: an image outside the cell is drawn
-    // dimmer, which says what it is *and* separates the overlap at a cell face
-    // that the "atoms merge" complaint was really about
-    for (const outside of [false, true]) {
-      if (outside && !showBoundary) continue;
-      const x: number[] = [], y: number[] = [], z: number[] = [];
-      const i: number[] = [], j: number[] = [], k: number[] = [];
-      const text: string[] = [];
-      for (const atom of geometry.atoms) {
-        if (!indices.has(atom.site)) continue;
-        if (Boolean(atom.boundary) !== outside) continue;
-        const matrix = atomTransform(geometry, atom, mode, exaggeration);
-        const label = atomLabel(geometry, atom, mode);
-        const offset = x.length;
-        for (const v of sphere.vertices) {
-          const p = transform(matrix, v);
-          x.push(atom.pos[0] + p[0]);
-          y.push(atom.pos[1] + p[1]);
-          z.push(atom.pos[2] + p[2]);
-          text.push(label);
-        }
-        for (const face of sphere.faces) {
-          i.push(offset + face[0]);
-          j.push(offset + face[1]);
-          k.push(offset + face[2]);
-        }
-      }
-      if (!x.length) continue;
-      traces.push({
-        type: "mesh3d", name: entry.species, x, y, z, i, j, k, text,
-        color: outside ? dim(entry.color) : entry.color,
-        flatshading: false, showlegend: false,
-        lighting: LIGHTING, lightposition: LIGHT_POSITION,
-        hovertemplate: "%{text}<extra></extra>",
-      });
-    }
-  }
-  return traces;
 }
 
 /** Half a bond is 0.08 Å thick.
@@ -422,88 +214,214 @@ export function stickRadius(geometry: Geometry, mode: Mode, exaggeration = 1): n
 }
 
 /**
- * Bonds as two-tone cylinders, one `mesh3d` per species.
+ * A drawn semi-axis below this is drawn at this, in Å.
  *
- * A `scatter3d` line is sized in **pixels**, which is the objection the atoms
- * already answered: at any zoom but the one it was tuned for, a 4 px stick is a
- * hairline or a drainpipe, and it cannot be compared with the cell around it.
- * A cylinder is in Å like everything else in the picture.
- *
- * Split at the midpoint and coloured by the atom each half leaves — the
- * convention every other viewer uses, and the thing that makes a bond say which
- * two species it joins without a hover.  It also gives the legend a rule it did
- * not have: **a half belongs to its atom**, so switching a species off takes its
- * own halves with it rather than leaving coloured stubs in mid-air.
+ * A tensor that is not positive definite arrives with its non-positive axes at
+ * **zero** (the server's rule: visibly flat, never a NaN).  The ray-caster
+ * solves through `M⁻¹`, which a zero column does not have, so the column is
+ * kept at a thousandth of an Å: still a disc at any zoom a person uses.
  */
-export function bondTraces(geometry: Geometry, cylinder: Mesh,
-                           hidden: ReadonlySet<string> = new Set(),
-                           mode: Mode = "ball", exaggeration = 1): any[] {
-  const radius = stickRadius(geometry, mode, exaggeration);
-  const buckets = new Map<string, any>();
-  for (const bond of geometry.bonds) {
-    const mid = [0, 1, 2].map((k) => (bond.a[k] + bond.b[k]) / 2);
-    const ends: Array<[number[], number]> = [[bond.a, bond.i], [bond.b, bond.j]];
-    const label = `${geometry.sites[geometry.atoms[bond.i].site].label}–`
-      + `${geometry.sites[geometry.atoms[bond.j].site].label}  ${bond.d.toFixed(3)} Å`;
-    for (const [from, index] of ends) {
-      const site = geometry.sites[geometry.atoms[index].site];
-      if (hidden.has(site.species)) continue;
-      let bucket = buckets.get(site.species);
-      if (!bucket) {
-        bucket = {
-          type: "mesh3d", name: `bonds:${site.species}`,
-          x: [], y: [], z: [], i: [], j: [], k: [], text: [],
-          color: site.color, flatshading: false, showlegend: false,
-          lighting: LIGHTING, lightposition: LIGHT_POSITION,
-          hovertemplate: "%{text}<extra></extra>",
-        };
-        buckets.set(site.species, bucket);
-      }
-      const matrix = stickTransform(from, mid, radius);
-      const offset = bucket.x.length;
-      for (const v of cylinder.vertices) {
-        const p = transform(matrix, v);
-        bucket.x.push(from[0] + p[0]);
-        bucket.y.push(from[1] + p[1]);
-        bucket.z.push(from[2] + p[2]);
-        bucket.text.push(label);
-      }
-      for (const face of cylinder.faces) {
-        bucket.i.push(offset + face[0]);
-        bucket.j.push(offset + face[1]);
-        bucket.k.push(offset + face[2]);
-      }
-    }
-  }
-  // legend order, so the trace list is the same one twice running
-  return legend(geometry).map((entry) => buckets.get(entry.species))
-    .filter((bucket) => bucket !== undefined);
+export const FLAT_AXIS = 1e-3;
+
+/** The cell frame's width, in CSS pixels (WP-1462 D9) — plotly's `line.width`
+ *  was 2, and a WebGL line is one *device* pixel, half that at DPR 2. */
+export const CELL_WIDTH_PX = 2;
+
+/** One atom as the renderer draws it. */
+export interface SceneAtom {
+  /** index into `geometry.atoms`, for the hover text */
+  index: number;
+  pos: number[];
+  /** `pos + M·v` over the unit sphere, row-major */
+  shape: Mat3;
+  inverse: Mat3;
+  color: number[];
+  /** draw the three principal ellipses: an anisotropic site, in ellipsoid mode */
+  rings: boolean;
 }
 
-/** The cell frame: the twelve edges the payload names, as one polyline. */
-export function cellTrace(geometry: Geometry, color: string): any {
-  const x: Array<number | null> = [], y: Array<number | null> = [];
-  const z: Array<number | null> = [];
-  for (const [a, b] of geometry.edges) {
-    x.push(geometry.corners[a][0], geometry.corners[b][0], null);
-    y.push(geometry.corners[a][1], geometry.corners[b][1], null);
-    z.push(geometry.corners[a][2], geometry.corners[b][2], null);
+/** One half of a bond: a cylinder from its atom to the midpoint. */
+export interface SceneHalf {
+  bond: number;
+  from: number[];
+  to: number[];
+  radius: number;
+  color: number[];
+}
+
+/** A segment drawn at a width in CSS pixels. */
+export interface SceneLine {
+  a: number[];
+  b: number[];
+  color: number[];
+  width: number;
+}
+
+export interface SceneLabel {
+  text: string;
+  pos: number[];
+}
+
+/** Everything the renderer draws, in Å — and nothing it has to derive. */
+export interface Scene {
+  atoms: SceneAtom[];
+  halves: SceneHalf[];
+  lines: SceneLine[];
+  labels: SceneLabel[];
+  /** the centre of the cell and its atoms, and the radius the view fits */
+  center: number[];
+  radius: number;
+  /** how far from the centre anything drawn reaches, Å: the depth range */
+  depth: number;
+}
+
+export interface SceneOptions {
+  mode: Mode;
+  hidden?: ReadonlySet<string>;
+  showBoundary?: boolean;
+  exaggeration?: number;
+  /** the cell frame's colour, `#rrggbb` */
+  cell?: string;
+}
+
+function toRowMajor(m: number[][]): Mat3 {
+  return [m[0][0], m[0][1], m[0][2], m[1][0], m[1][1], m[1][2],
+          m[2][0], m[2][1], m[2][2]];
+}
+
+/** The inverse of a row-major 3×3; `null` when it is singular. */
+export function invert3(m: Mat3): Mat3 | null {
+  const [a, b, c, d, e, f, g, h, i] = m;
+  const A = e * i - f * h, B = -(d * i - f * g), C = d * h - e * g;
+  const det = a * A + b * B + c * C;
+  if (!Number.isFinite(det) || Math.abs(det) < 1e-300) return null;
+  return [A / det, -(b * i - c * h) / det, (b * f - c * e) / det,
+          B / det, (a * i - c * g) / det, -(a * f - c * d) / det,
+          C / det, -(a * h - b * g) / det, (a * e - b * d) / det];
+}
+
+/** `a·b` for row-major 3×3s. */
+export function mul3(a: Mat3, b: Mat3): Mat3 {
+  const o = new Array(9);
+  for (let r = 0; r < 3; r += 1) {
+    for (let c = 0; c < 3; c += 1) {
+      o[3 * r + c] = a[3 * r] * b[c] + a[3 * r + 1] * b[3 + c] + a[3 * r + 2] * b[6 + c];
+    }
   }
-  return {
-    type: "scatter3d", mode: "lines", name: "cell", x, y, z,
-    line: { width: 2, color }, showlegend: false,
-    hoverinfo: "skip",
-  };
+  return o;
+}
+
+/** `m·v` for a row-major 3×3. */
+export function apply3(m: Mat3, v: number[]): number[] {
+  return [m[0] * v[0] + m[1] * v[1] + m[2] * v[2],
+          m[3] * v[0] + m[4] * v[1] + m[5] * v[2],
+          m[6] * v[0] + m[7] * v[1] + m[8] * v[2]];
+}
+
+export function transpose3(m: Mat3): Mat3 {
+  return [m[0], m[3], m[6], m[1], m[4], m[7], m[2], m[5], m[8]];
+}
+
+/** An atom's drawn shape with every column at least `FLAT_AXIS` long. */
+function drawable(m: number[][]): Mat3 {
+  const out = toRowMajor(m);
+  for (let c = 0; c < 3; c += 1) {
+    const length = Math.hypot(out[c], out[3 + c], out[6 + c]);
+    if (length >= FLAT_AXIS) continue;
+    // a zero column has no direction left, so a flat axis takes the one the
+    // other two leave free
+    const u = [out[(c + 1) % 3], out[3 + (c + 1) % 3], out[6 + (c + 1) % 3]];
+    const v = [out[(c + 2) % 3], out[3 + (c + 2) % 3], out[6 + (c + 2) % 3]];
+    let n = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
+    let nn = Math.hypot(n[0], n[1], n[2]);
+    if (!(nn > 0)) {
+      // a neighbour is zero too, so the cross product says nothing: take the
+      // Cartesian axis least along the column that is left, made perpendicular
+      // to it — a fixed axis could be that column, and M would be singular
+      const w = Math.hypot(u[0], u[1], u[2]) > 0 ? u : v;
+      const wn = Math.hypot(w[0], w[1], w[2]);
+      const k = [0, 1, 2].reduce((best, j) => (Math.abs(w[j]) < Math.abs(w[best]) ? j : best), 0);
+      n = [0, 1, 2].map((j) => (j === k ? 1 : 0) - (wn > 0 ? (w[k] * w[j]) / (wn * wn) : 0));
+      nn = Math.hypot(n[0], n[1], n[2]);
+    }
+    n = n.map((x) => x / nn);
+    out[c] = FLAT_AXIS * n[0];
+    out[3 + c] = FLAT_AXIS * n[1];
+    out[6 + c] = FLAT_AXIS * n[2];
+  }
+  return out;
+}
+
+/**
+ * The scene for one payload, in the given mode.
+ *
+ * `hidden` is the set of species the legend has switched off, and **a half
+ * belongs to its atom**: switching a species off takes its own halves with it
+ * rather than leaving coloured stubs in mid-air.  `showBoundary` hides the
+ * images outside the cell and keeps the bonds to them, which then end in
+ * mid-air — what the checkbox says it does.
+ *
+ * Bonds are split at the midpoint and each half is coloured by the atom it
+ * leaves — the convention every other viewer uses, and the thing that makes a
+ * bond say which two species it joins without a hover.
+ */
+export function buildScene(geometry: Geometry, options: SceneOptions): Scene {
+  const { mode, hidden = new Set<string>(), showBoundary = true,
+          exaggeration = 1, cell = "#1f5fa8" } = options;
+  const atoms: SceneAtom[] = [];
+  geometry.atoms.forEach((atom, index) => {
+    const site = geometry.sites[atom.site];
+    if (hidden.has(site.species)) return;
+    if (atom.boundary && !showBoundary) return;
+    const shape = drawable(atomTransform(geometry, atom, mode, exaggeration));
+    atoms.push({
+      index,
+      pos: atom.pos,
+      shape,
+      inverse: invert3(shape)!,
+      color: rgb(atom.boundary ? dim(site.color) : site.color),
+      // an isotropic site's T is √U·I, whose axes are x, y and z: rings there
+      // would claim an orientation the site does not have
+      rings: mode === "ellipsoid" && site.aniso,
+    });
+  });
+  const radius = stickRadius(geometry, mode, exaggeration);
+  const halves: SceneHalf[] = [];
+  geometry.bonds.forEach((bond, index) => {
+    const mid = [0, 1, 2].map((k) => (bond.a[k] + bond.b[k]) / 2);
+    for (const [from, at] of [[bond.a, bond.i], [bond.b, bond.j]] as const) {
+      const site = geometry.sites[geometry.atoms[at].site];
+      if (hidden.has(site.species)) continue;
+      halves.push({ bond: index, from, to: mid, radius, color: rgb(site.color) });
+    }
+  });
+  const ink = rgb(cell);
+  const lines: SceneLine[] = geometry.edges.map(([a, b]) => ({
+    a: geometry.corners[a], b: geometry.corners[b], color: ink, width: CELL_WIDTH_PX,
+  }));
+  // the fit reads positions and ball sizes only, so neither a mode nor a
+  // legend click moves the zoom; the depth range holds whatever is drawn
+  const points = [...geometry.corners, ...geometry.atoms.map((a) => a.pos)];
+  const lo = [0, 1, 2].map((k) => Math.min(...points.map((p) => p[k])));
+  const hi = [0, 1, 2].map((k) => Math.max(...points.map((p) => p[k])));
+  const center = [0, 1, 2].map((k) => (lo[k] + hi[k]) / 2);
+  // the half-diagonal of the box holds the scene in *every* orientation, so a
+  // rotation never pushes an atom off the canvas
+  const half = Math.hypot(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]) / 2;
+  const ball = geometry.ball_fraction * Math.max(0, ...geometry.sites.map((s) => s.radius));
+  const reach = Math.max(ball, ...atoms.map((a) => [0, 1, 2].reduce((m, c) =>
+    Math.max(m, Math.hypot(a.shape[c], a.shape[3 + c], a.shape[6 + c])), 0)));
+  return { atoms, halves, lines, labels: axisLabels(geometry), center,
+           radius: Math.max(half + ball, 1), depth: half + reach + 1 };
 }
 
 /**
  * "a", "b", "c" just beyond the far end of the three cell edges leaving the
  * origin.
  *
- * This is the scene's frame of reference, and it replaces plotly's Cartesian
- * box: nothing in the picture happens in x, y or z, and the box's tick labels
- * churn on every frame of a drag.  `lattice`'s rows *are* those three edges
- * (corner `1 << k` is `lattice[k]`).
+ * This is the scene's frame of reference, in place of a Cartesian box: nothing
+ * in the picture happens in x, y or z.  `lattice`'s rows *are* those three
+ * edges (corner `1 << k` is `lattice[k]`).
  *
  * The clearance is **in Å and set by the largest ball**, not a percentage of the
  * cell edge.  A fraction is the wrong shape for the problem: a corner site is
@@ -511,161 +429,197 @@ export function cellTrace(geometry: Geometry, color: string): any {
  * LaB6's 4.16 Å edge is 0.33 Å against a lanthanum drawn at 0.83 — every letter
  * was inside an atom, which is what a browser showed and jsdom cannot.
  */
-export function axisTrace(geometry: Geometry, color: string): any {
+export function axisLabels(geometry: Geometry): SceneLabel[] {
   const largest = Math.max(0, ...geometry.sites.map((site) => site.radius));
   const clear = 0.35 + geometry.ball_fraction * largest;
-  const ends = [0, 1, 2].map((k) => {
+  const origin = geometry.corners[0] ?? [0, 0, 0];
+  return ["a", "b", "c"].map((text, k) => {
     const v = geometry.lattice[k];
     const length = Math.hypot(v[0], v[1], v[2]) || 1;
-    return v.map((c) => c * (1 + clear / length));
+    return { text, pos: v.map((c, i) => origin[i] + c * (1 + clear / length)) };
   });
-  return {
-    type: "scatter3d", mode: "text", name: "axes",
-    x: ends.map((p) => p[0]), y: ends.map((p) => p[1]), z: ends.map((p) => p[2]),
-    text: ["a", "b", "c"], textposition: "middle center",
-    textfont: { color, size: 12 }, showlegend: false, hoverinfo: "skip",
-  };
 }
 
-/** Everything, in draw order: cell and its letters behind, sticks, then atoms. */
-export function traces(geometry: Geometry, mode: Mode, sphere: Mesh,
-                       cylinder: Mesh, cell: string,
-                       hidden: ReadonlySet<string> = new Set(),
-                       showBoundary = true,
-                       exaggeration = 1): any[] {
-  return [cellTrace(geometry, cell), axisTrace(geometry, cell),
-          ...bondTraces(geometry, cylinder, hidden, mode, exaggeration),
-          ...atomTraces(geometry, mode, sphere, hidden, showBoundary,
-                        exaggeration)];
-}
-
-/** A camera in the scene's coordinates.  Typed rather than `any` so a wrong
- *  argument to `layout` is a `svelte-check` failure and not a silently
- *  perspective scene. */
-export interface Camera {
-  eye: { x: number; y: number; z: number };
-  up?: { x: number; y: number; z: number };
-  center?: { x: number; y: number; z: number };
-  projection?: { type: "orthographic" | "perspective" };
-}
+// ----------------------------------------------------------------------
+// the view
+// ----------------------------------------------------------------------
 
 /**
- * The opening view — down the body diagonal, so no axis is edge-on, and
- * **orthographic**.
+ * Where the scene is seen from: a rotation, a zoom and a pan.
  *
- * plotly's default is perspective, under which the far face of a cell is drawn
- * smaller than the near one and parallel edges converge: a cubic cell does not
- * look cubic, which is the one thing a picture of a cell is for.  Every
- * crystallographic figure is a parallel projection (VESTA calls it that and
- * offers both).  The projection must survive the component's camera capture —
- * changing it disposes and re-initialises the whole gl plot, so losing the field
- * would be a scene teardown per redraw rather than a cosmetic slip.
+ * `rotation`'s rows are the screen's x (right), y (up) and z (toward the
+ * viewer) in the scene's Å, so a point's view coordinates are
+ * `rotation·(p − center)`.  The projection is **parallel**: perspective
+ * converges a cubic cell's far edges, and a picture of a cell is for seeing its
+ * shape (every crystallographic figure is a parallel projection).
+ * `pan` is in Å along the screen's x and y; `zoom` multiplies the fit.
  */
-export const DEFAULT_CAMERA: Camera = {
-  eye: { x: 1.35, y: 1.35, z: 0.95 },
-  up: { x: 0, y: 0, z: 1 },
-  center: { x: 0, y: 0, z: 0 },
-  projection: { type: "orthographic" },
-};
+export interface View {
+  rotation: Mat3;
+  zoom: number;
+  pan: number[];
+}
 
-/**
- * The camera looking straight down one lattice vector.
- *
- * `eye` is in the scene's coordinates rather than in Å — but under
- * `aspectmode: "data"` plotly's data→scene map is a *uniform* scale, so a
- * direction in Å is the same direction there.  That is the second job that
- * setting does, and it is what makes this function legal at all.
- *
- * `up` is the lattice vector two steps on cyclically: down **a** puts **c** up
- * and **b** right, down **b** puts **a** up and **c** right, down **c** puts
- * **b** up and **a** right, since `right = cross(−n, up)` on a right-handed
- * a, b, c.  Those are the three projections a crystallographer draws.  It is
- * Gram-Schmidted against the view direction because in a triclinic cell no two
- * lattice vectors are perpendicular, and an `up` parallel to the eye is a
- * singular `lookAt` — which is also why `layout` sets `dragmode: "orbit"`:
- * turntable would overwrite this `up` with +z, and c ∥ ẑ for every orthogonal
- * cell.
- *
- * The distance comes from the camera passed in, so choosing a projection keeps
- * whatever zoom the user had.
- */
-export function axisCamera(geometry: Geometry, axis: number,
-                           camera: Camera = DEFAULT_CAMERA): Camera {
+/** The rotation that looks *from* `eye` toward the centre with `up` up. */
+export function lookFrom(eye: number[], up: number[]): Mat3 {
   const unit = (v: number[]) => {
     const n = Math.hypot(v[0], v[1], v[2]) || 1;
     return [v[0] / n, v[1] / n, v[2] / n];
   };
-  const n = unit(geometry.lattice[axis]);
-  const raw = geometry.lattice[(axis + 2) % 3];
-  const along = raw[0] * n[0] + raw[1] * n[1] + raw[2] * n[2];
-  const up = unit([raw[0] - along * n[0], raw[1] - along * n[1],
-                   raw[2] - along * n[2]]);
-  const r = Math.hypot(camera.eye.x, camera.eye.y, camera.eye.z) || 2.06;
+  const z = unit(eye);
+  const along = up[0] * z[0] + up[1] * z[1] + up[2] * z[2];
+  const y = unit([up[0] - along * z[0], up[1] - along * z[1], up[2] - along * z[2]]);
+  const x = [y[1] * z[2] - y[2] * z[1], y[2] * z[0] - y[0] * z[2], y[0] * z[1] - y[1] * z[0]];
+  return [...x, ...y, ...z];
+}
+
+/**
+ * The opening view — down the body diagonal, so no axis is edge-on, with the
+ * Cartesian z (which is c for every orthogonal cell) up.  The eye plotly's
+ * viewer opened at, kept so the first picture does not move.
+ */
+export function openingView(): View {
+  return { rotation: lookFrom([1.35, 1.35, 0.95], [0, 0, 1]), zoom: 1, pan: [0, 0] };
+}
+
+/**
+ * The view looking straight down one lattice vector.
+ *
+ * The lattice vector points at the viewer and the next one but one is up:
+ * down **a** puts **c** up and **b** right, down **b** puts **a** up and **c**
+ * right, down **c** puts **b** up and **a** right, since `right = up × toward`
+ * on a right-handed a, b, c.  Those are the three projections a
+ * crystallographer draws.  `up` is Gram-Schmidted against the view direction
+ * because in a triclinic cell no two lattice vectors are perpendicular.
+ *
+ * The zoom comes from the view passed in, so choosing a projection keeps the
+ * zoom the user had; the pan goes, because a pan is relative to a direction.
+ */
+export function axisView(geometry: Geometry, axis: number, view: View = openingView()): View {
   return {
-    eye: { x: n[0] * r, y: n[1] * r, z: n[2] * r },
-    up: { x: up[0], y: up[1], z: up[2] },
-    center: { x: 0, y: 0, z: 0 },
-    projection: DEFAULT_CAMERA.projection,
+    rotation: lookFrom(geometry.lattice[axis], geometry.lattice[(axis + 2) % 3]),
+    zoom: view.zoom,
+    pan: [0, 0],
   };
 }
 
 /**
- * The scene layout.
+ * The view after a drag of `dx`, `dy` CSS pixels: a trackball.
  *
- * `aspectmode: "data"` keeps one Å the same length on all three axes — without
- * it plotly stretches the box to a cube and a monoclinic cell is drawn as an
- * orthogonal one, which is the whole *content* of the picture for a
- * low-symmetry phase.  It does a second job that `axisCamera` depends on: the
- * data→scene map becomes a *uniform* scale, so a direction in Å is the same
- * direction in camera coordinates.
- *
- * **`dragmode: "orbit"` is load-bearing, not a preference.**  Turntable — which
- * is what gl3d picks when no `camera.up` is supplied, i.e. what this scene used
- * to be — pins `up` to +z and *rewrites* any camera that disagrees.  The
- * server's `cartesian_basis` is an upper-triangular Cholesky factor, so **c ∥ ẑ
- * for every orthogonal cell**, and "view down c" under turntable would put the
- * eye exactly on the up axis: a degenerate `lookAt`, i.e. a blank scene.  Orbit
- * is also how Jmol and VESTA rotate, and the a/b/c buttons are the cure for the
- * roll it allows.
- *
- * **The caller supplies the camera, and must supply the live one.**  This is the
- * part that took a screenshot comparison to establish, because plotly's stored
- * `layout.scene.camera` keeps saying whatever was *passed in* while the view is
- * somewhere else entirely — read it back and it reports a rotation as preserved
- * when it has been thrown away.  Isolated in the browser, three cases:
- * `Plots.resize` keeps the view; `react` with the *same* trace objects and a
- * fresh layout keeps it; `react` with **fresh trace objects** does not, because
- * replacing a `mesh3d` tears the gl3d scene down and rebuilds it from the layout.
- * Every redraw here builds new traces, so `uirevision` cannot save it and the
- * only durable answer is for the component to own the camera — captured from
- * `plotly_relayout` and handed back in — which is what
- * `panels/Structure3D.svelte` does.
- *
- * `hover` is `lib/plot.ts`'s themed box (WP-1032), optional only so the layout
- * stays assertable without a stylesheet: this surface hovers atoms and bonds
- * with the same un-themed light box the pattern plot had.
+ * The rotation is about the screen axis perpendicular to the drag, applied in
+ * the screen's frame, so the front of the scene follows the pointer whatever
+ * the current orientation — the free rotation plotly's `orbit` mode gave, with
+ * no up vector to pin (turntable would pin +z, and c ∥ z for every orthogonal
+ * cell, so "down c" would be a degenerate view).
  */
-export function layout(fg: string, camera: Camera = DEFAULT_CAMERA,
-                       hover?: ReturnType<typeof hoverLabel>): any {
-  // No Cartesian box: `axisTrace` labels the frame of reference this picture
-  // actually has.  `visible: false` takes plotly's wholesale branch — ticks,
-  // labels, title, grid, zeroline and background off in one flag.
-  const axis = { visible: false };
-  return {
-    margin: { l: 0, r: 0, t: 0, b: 0 },
-    showlegend: false,
-    font: { color: fg, size: 11 },
-    paper_bgcolor: "rgba(0,0,0,0)",
-    ...(hover ? { hoverlabel: hover } : {}),
-    scene: {
-      aspectmode: "data",
-      dragmode: "orbit",
-      xaxis: axis, yaxis: axis, zaxis: axis,
-      camera,
-      uirevision: "structure3d",
-    },
-    uirevision: "structure3d",
+export function rotateBy(view: View, dx: number, dy: number, radiansPerPx = 0.008): View {
+  const angle = Math.hypot(dx, dy) * radiansPerPx;
+  if (!(angle > 0)) return view;
+  const [x, y] = [dy / Math.hypot(dx, dy), dx / Math.hypot(dx, dy)];
+  const c = Math.cos(angle), s = Math.sin(angle), t = 1 - c;
+  // Rodrigues about (x, y, 0)
+  const turn: Mat3 = [t * x * x + c, t * x * y, s * y,
+                      t * x * y, t * y * y + c, -s * x,
+                      -s * y, s * x, c];
+  return { ...view, rotation: orthonormal(mul3(turn, view.rotation)) };
+}
+
+/** Re-orthonormalise a rotation, so a long drag cannot shear the picture. */
+function orthonormal(m: Mat3): Mat3 {
+  const unit = (v: number[]) => {
+    const n = Math.hypot(v[0], v[1], v[2]) || 1;
+    return v.map((c) => c / n);
   };
+  const x = unit(m.slice(0, 3));
+  let y = m.slice(3, 6);
+  const along = x[0] * y[0] + x[1] * y[1] + x[2] * y[2];
+  y = unit([y[0] - along * x[0], y[1] - along * x[1], y[2] - along * x[2]]);
+  const z = [x[1] * y[2] - x[2] * y[1], x[2] * y[0] - x[0] * y[2], x[0] * y[1] - x[1] * y[0]];
+  return [...x, ...y, ...z];
+}
+
+/** Pixels per Å for a canvas of `width` × `height` CSS pixels. */
+export function pixelsPerAngstrom(scene: Scene, view: View, width: number,
+                                  height: number): number {
+  return view.zoom * Math.min(width, height) / (2 * scene.radius);
+}
+
+/** A scene point in view coordinates, Å: x right, y up, z toward the viewer. */
+export function toView(scene: Scene, view: View, p: number[]): number[] {
+  const v = apply3(view.rotation, [p[0] - scene.center[0], p[1] - scene.center[1],
+                                   p[2] - scene.center[2]]);
+  return [v[0] - view.pan[0], v[1] - view.pan[1], v[2]];
+}
+
+/** A scene point on the canvas, in CSS pixels from its top-left corner. */
+export function project(scene: Scene, view: View, width: number, height: number,
+                        p: number[]): number[] {
+  const s = pixelsPerAngstrom(scene, view, width, height);
+  const v = toView(scene, view, p);
+  return [width / 2 + v[0] * s, height / 2 - v[1] * s, v[2]];
+}
+
+/** A canvas point, CSS pixels, back to view coordinates in Å (x, y only). */
+function unproject(scene: Scene, view: View, width: number, height: number,
+                   px: number, py: number): number[] {
+  const s = pixelsPerAngstrom(scene, view, width, height);
+  return [(px - width / 2) / s, (height / 2 - py) / s];
+}
+
+/**
+ * The atom under a canvas point, or `null`: the nearest to the viewer of those
+ * whose ellipsoid the ray meets.
+ *
+ * The ray is `(x, y, z)` with `z` free, which in an atom's unit-sphere frame is
+ * `u = q + t·e` — the shader's equation, solved once per atom here.
+ */
+export function pickAtom(scene: Scene, view: View, width: number, height: number,
+                         px: number, py: number): { atom: number; z: number } | null {
+  const [x, y] = unproject(scene, view, width, height, px, py);
+  const back = transpose3(view.rotation);
+  let best: { atom: number; z: number } | null = null;
+  for (const [i, atom] of scene.atoms.entries()) {
+    const c = toView(scene, view, atom.pos);
+    const minv = mul3(atom.inverse, back);
+    const q = apply3(minv, [x - c[0], y - c[1], 0]);
+    const e = [minv[2], minv[5], minv[8]];
+    const a = e[0] * e[0] + e[1] * e[1] + e[2] * e[2];
+    const b = q[0] * e[0] + q[1] * e[1] + q[2] * e[2];
+    const disc = b * b - a * (q[0] * q[0] + q[1] * q[1] + q[2] * q[2] - 1);
+    if (disc < 0 || a <= 0) continue;
+    const z = c[2] + (-b + Math.sqrt(disc)) / a;
+    if (!best || z > best.z) best = { atom: i, z };
+  }
+  return best;
+}
+
+/** The bond half under a canvas point, or `null` — the shader's finite
+ *  cylinder, solved for one ray: the ray's origin and direction with their
+ *  parts along the axis removed, against a circle of the stick's radius. */
+export function pickHalf(scene: Scene, view: View, width: number, height: number,
+                         px: number, py: number): { half: number; z: number } | null {
+  const [x, y] = unproject(scene, view, width, height, px, py);
+  let best: { half: number; z: number } | null = null;
+  for (const [i, half] of scene.halves.entries()) {
+    const A = toView(scene, view, half.from), B = toView(scene, view, half.to);
+    const len = Math.hypot(B[0] - A[0], B[1] - A[1], B[2] - A[2]);
+    if (len < 1e-9) continue;
+    const w = [(B[0] - A[0]) / len, (B[1] - A[1]) / len, (B[2] - A[2]) / len];
+    const o = [x - A[0], y - A[1], -A[2]];
+    const ow = o[0] * w[0] + o[1] * w[1] + o[2] * w[2];
+    const q = [o[0] - ow * w[0], o[1] - ow * w[1], o[2] - ow * w[2]];
+    const e = [-w[2] * w[0], -w[2] * w[1], 1 - w[2] * w[2]];
+    const a = e[0] * e[0] + e[1] * e[1] + e[2] * e[2];
+    if (a < 1e-9) continue;                     // looking straight down the bond
+    const b = q[0] * e[0] + q[1] * e[1] + q[2] * e[2];
+    const disc = b * b - a * (q[0] * q[0] + q[1] * q[1] + q[2] * q[2] - half.radius ** 2);
+    if (disc < 0) continue;
+    const z = (-b + Math.sqrt(disc)) / a;
+    const along = ow + z * w[2];
+    if (along < 0 || along > len) continue;
+    if (!best || z > best.z) best = { half: i, z };
+  }
+  return best;
 }
 
 /** The sentence under the plot: what is drawn, at what thresholds. */

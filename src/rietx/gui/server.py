@@ -3,8 +3,8 @@
 Stdlib ``http.server``, as ``rietx watch`` and ``rietx compare`` already are.
 A single-user localhost app with ~30 routes gains nothing from an ASGI stack and
 loses the two properties that matter here: a base install with no new
-dependencies, and a page that works air-gapped (plotly.js is served out of the
-installed package, so a strict-CSP or offline machine needs no exception).
+dependencies, and a page that works air-gapped (every script the page runs is
+in the committed dist, so a strict-CSP or offline machine needs no exception).
 Server-sent events work fine on ``ThreadingHTTPServer``.
 
 **This module is transport only.**  Every route is one line — parse, call a
@@ -36,12 +36,10 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
-from .._about import DIST_NAME, SERVER_TOKEN, STATE_DIR_ENV, STATE_DIR_NAME
+from .._about import SERVER_TOKEN, STATE_DIR_ENV, STATE_DIR_NAME
 from ..project import Project
 from ..viz.packed import MEDIA_TYPE as PACKED_MEDIA_TYPE
 from ..viz.packed import Packed
-from ..viz.plotlyjs import CONTENT_TYPE as PLOTLY_CONTENT_TYPE
-from ..viz.plotlyjs import plotly_js
 from .imports import MAX_UPLOAD_BYTES, UPLOAD_KINDS
 from .session import EXPORT_DEFAULTS, RESERVED_ROUTES, GuiError, GuiSession
 
@@ -49,7 +47,7 @@ from .session import EXPORT_DEFAULTS, RESERVED_ROUTES, GuiError, GuiSession
 DEFAULT_PORT = 8731
 
 #: Built frontend assets (WP-1010) land here and are committed, so installing
-#: ``[gui]`` never needs node.  Until then the placeholder page below explains
+#: the package never needs node.  Until then the placeholder page below explains
 #: itself and the API is fully usable without it.
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -347,15 +345,6 @@ def _upload_options(query: dict) -> dict:
 # ----------------------------------------------------------------------
 # the handler
 # ----------------------------------------------------------------------
-#: What the dist sees instead of plotly when plotly is not installed. The
-#: window flag is what the page checks; the console line is for whoever opens
-#: the devtools. The shape is this page's, which is why :func:`plotly_js` takes
-#: it rather than owning it.
-_NO_PLOTLY_JS = (f"window.__{SERVER_TOKEN.upper()}_NO_PLOTLY__ = true;\n"
-                 f"console.error('{SERVER_TOKEN} gui: plotly is not installed — "
-                 f"pip install \\'{DIST_NAME}[gui]\\'');")
-
-
 def _handler(session: GuiSession, holder: dict):
     class Handler(http.server.BaseHTTPRequestHandler):
         server_version = "rietx-gui"
@@ -507,10 +496,6 @@ def _handler(session: GuiSession, holder: dict):
 
         # -- static --------------------------------------------------
         def _static(self, path: str) -> None:
-            if path == "/plotly.js":
-                self._send(plotly_js(_NO_PLOTLY_JS).encode("utf-8"),
-                           PLOTLY_CONTENT_TYPE)
-                return
             index = STATIC_DIR / "index.html"
             if path in ("/", "/index.html"):
                 if index.is_file():

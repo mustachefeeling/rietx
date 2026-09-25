@@ -7,6 +7,15 @@ pipeline and package-wide invariants; `docs/milestones/v1.0.md` holds the
 narrative of how these panels landed; the WP files (1008…1015, 1029) hold the
 measured detail behind each rule below.
 
+## Defaults
+
+**Every choice the GUI offers ships a default that suits most phases, and a
+setting is for the rest** (the maintainer's rule, recorded in WP-1462). A user
+who never opens a drawer sees the conventional picture, such as ellipsoids at
+50 % and bonds at 1.15×(rᵢ+rⱼ). A default
+is measured across phases and the measurement is kept where the choice is
+made. A setting most users would change means the default is wrong.
+
 ## House style
 
 **The token *values* are Python and `gui/src/tokens.css` is generated**
@@ -129,7 +138,7 @@ build and the test; `build-info.json` deliberately carries no timestamp, because
 **Which points a payload carries is the server's** (`viz.compare.decimation_index`, past
 `CURVES_CEILING` in the curves routes); the chart module paints
 each pixel column's extremes of them (WP-1461 D5), what is drawn and never what the
-readout reads. plotly is **not** vendored (served from `/plotly.js`); uPlot is, into
+readout reads. No GUI page loads plotly (WP-1462); uPlot is vendored, into
 `src/rietx/viz/static` by `scripts/vendor.py`, the build's first step: bump the pin, build.
 `npm run build` needs `python3`, `vitest` needs
 `resolve.conditions: ["browser"]` or `mount()` comes from svelte's server build,
@@ -276,67 +285,75 @@ one field** (the reload after a failed apply wiped it), and `axialWarning` stays
 silent on the S/L = H/L pair that is 0-and-held, because that is the shipped
 default and a warning on every fresh lab instrument is a warning nobody reads.
 
-The **structure viewer** (WP-1015, `src/rietx/gui/structure3d.py`,
-`gui/src/panels/Structure3D.svelte`, `gui/src/lib/structure3d.ts`) is the model as
-drawable geometry, served by `GET /api/structure3d` and rendered by the plotly
-already on the page — **zero new dependencies**, and a third column of the model
-pane rather than a sixth tab. Its founding rule is that **everything hard stays on
-the server**: the payload is Cartesian points, 3×3 matrices and index pairs, and
-the browser's whole job is `pos + T·v` over one unit sphere (which is also why a
-ball and an ellipsoid are one code path — plotly's markers are sized in *pixels*,
-so a ball-and-stick drawn with them cannot be compared with the cell around it).
-That forced the one new crystallography verb: **`symmetry.expand_orbit` returns
-the operation as well as the position**, because U\* → R·U\*·Rᵀ means an image
-drawn with its parent's tensor is right on a cubic site and wrong on every other
-one; `expand_positions` now delegates to it. Four rules. **gemmi has no colour
-table** — it supplies radii and `is_metal`, and the colours are the CPK convention
-with values chosen here (ATTRIBUTION.md), never transcribed. **A radius-sum bond
-rule needs one chemical predicate**: bond metals to metals only when the phase has
-no non-metal in it, or LaB6's twelve cell edges become La–La sticks (covalent
-radius 2.07 Å against a = 4.158 Å). **A non-positive-definite tensor draws its
-non-positive axes at zero**, because `√(negative)` is a NaN and one NaN vertex
-loses the whole mesh, not one atom. And **bond segments complete their partners
-exactly one level** — a bond to a translated image is correct and *reads* as
-broken — which is the line between a coordination and the packing diagram this WP
-declined. `probability` and `bond_tolerance` are drawing thresholds on the query
-string, never in `ProjectDoc`.
+The **structure viewer** (WP-1015, WP-1462; `src/rietx/gui/structure3d.py`,
+`gui/src/panels/Structure3D.svelte`, `gui/src/lib/structure3d.ts`,
+`gui/src/lib/gl3d.ts`) is the model as drawable geometry, served by
+`GET /api/structure3d` and drawn by the viewer's own WebGL2 renderer, **no
+library** (plotly cost 4.8 MB for it, three.js would have cost 139 KB gzip, this
+costs 6.2 KB). A third column of the model pane rather than a sixth tab. Its
+founding rule is that **everything hard stays on the server**: the payload is
+Cartesian points, 3×3 matrices and index pairs, and the browser's whole job is
+`pos + M·v` over one unit sphere, which is also why a ball and an ellipsoid are
+one code path. That forced the one new crystallography verb:
+**`symmetry.expand_orbit` returns the operation as well as the position**,
+because U\* → R·U\*·Rᵀ means an image drawn with its parent's tensor is right on
+a cubic site and wrong on every other one; `expand_positions` now delegates to
+it. Four rules. **gemmi has no colour table** — it supplies radii and
+`is_metal`, and the colours are the CPK convention with values chosen here
+(ATTRIBUTION.md), never transcribed. **A radius-sum bond rule needs one chemical
+predicate**: bond metals to metals only when the phase has no non-metal in it,
+or LaB6's twelve cell edges become La–La sticks (covalent radius 2.07 Å against
+a = 4.158 Å). **A non-positive-definite tensor draws its non-positive axes at
+zero** on the server (a √ of a negative is a NaN), and the client keeps such a
+column at `FLAT_AXIS` = 1 mÅ because the ray-caster solves through M⁻¹. And
+**bond segments complete their partners exactly one level** — a bond to a
+translated image is correct and *reads* as broken — which is the line between a
+coordination and the packing diagram this WP declined. `probability` and
+`bond_tolerance` are drawing thresholds on the query string, never in
+`ProjectDoc`.
 
-Its **second pass** (2026-07-30) changed no geometry and every default, because
-the scene was plotly's rather than crystallography's — read against VESTA, Jmol
-and 3Dmol.js, and measured against the bundled **plotly.js 3.7.0** (which is
-what `/plotly.js` serves; 6.9.0 is the Python `plotly` package, and the two
-version independently) rather than its
-docs. **Parallel projection** (perspective converges a cubic cell's far edges),
-**no Cartesian axis box** (`axisTrace` labels the cell's own a/b/c edges instead,
-at a clearance in Å set by the largest ball — a percentage of the edge put every
-letter inside a corner atom), and **bonds as two-tone cylinders in Å**, which is
-the marker argument above applied to sticks and which settles the legend rule *a
-half belongs to its atom*. `STICK_RADIUS` = 0.08 Å is a lower bound on
+Its **look** (the second pass, 2026-07-30, read against VESTA, Jmol and
+3Dmol.js) is crystallography's rather than a plotting library's. **Parallel
+projection** (perspective converges a cubic cell's far edges), **no Cartesian
+axis box** (the cell's own a/b/c edges are labelled instead, at a clearance in
+Å set by the largest ball — a percentage of the edge put every letter inside a
+corner atom), and **bonds as two-tone cylinders in Å**, which settles the legend
+rule *a half belongs to its atom*. `STICK_RADIUS` = 0.08 Å is a lower bound on
 `BALL_FRACTION` = 0.40 (VESTA's fraction, on covalent rather than atomic radii),
-pinned by test so hydrogen cannot become a lump on a rod. **`dragmode: "orbit"`
-is load-bearing**: turntable pins `camera.up` to +z and rewrites any camera that
-disagrees, and `cartesian_basis` is upper-triangular, so c ∥ ẑ for every
-orthogonal cell and `axisCamera`'s "view down c" would draw nothing — the free
-trackball and the a/b/c buttons are one decision. `axisCamera` also depends on a
-second job `aspectmode: "data"` does: the data→scene map is a *uniform* scale, so
-a direction in Å is a direction in camera coordinates.
+pinned by test so hydrogen cannot become a lump on a rod. **The trackball has no
+up vector to pin**: `cartesian_basis` is upper-triangular, so c ∥ ẑ for every
+orthogonal cell, and a turntable's +z would make "view down c" degenerate — the
+free rotation and the a/b/c buttons are one decision. In ellipsoid mode an
+anisotropic site draws its **three principal ellipses**, one unit-frame
+coordinate near zero since T's columns are the principal axes, and an isotropic
+site draws none, its axes pointing nowhere.
 
-Browser-only traps, and the last is the durable one: plotly's `responsive: true`
-listens for **window** resizes only, so a plot with controls below it keeps an
-oversized canvas that swallows their clicks (`ResizeObserver` → `Plots.resize`;
-`gui/src/lib/plotly.ts` is the one runtime loader, shared with `Plot.svelte`);
-`--line` is invisible in a 3D scene, so the cell frame takes `--accent`; and
-**`react` with fresh trace objects resets the gl3d camera** (replacing a `mesh3d`
-rebuilds the scene from the layout, which `uirevision` does not cover), so the
-view must be handed back on every draw. *Where it is read from* took three
-attempts and two wrong claims in the log: `layout.scene.camera` reports whatever
-was passed **in**, and `plotly_relayout` **never fires for a gl3d camera drag at
-all** — measured, zero events, and true of the shipped build too, so the listener
-that replaced the first wrong answer was silently receiving nothing. The only
-reading of the view is `gd._fullLayout.scene._scene.getCamera()`, read back
-immediately before each `react`. Method note behind all three: compare
-screenshots, never a sha256 of one (a WebGL re-render differs by a pixel), and
-when a claim is about an event, count the events.
+The **renderer** (WP-1462) draws a `Scene` from a `View`, both built by pure
+functions in `structure3d.ts`, and knows nothing else. Seven rules.
+**Every atom and bond half is a ray-cast quadric** on one instanced quad, exact
+at any zoom and export size (the practice of Mol\* and NGL; WP-1462 § The field).
+**Hover solves the shader's own equations on the CPU** (`pickAtom`, `pickHalf`,
+12-61 µs an event), and says what it hit in a readout line under the canvas,
+WP-1213's rule for the pattern carried over. **An impostor's outline is a
+`discard`, which MSAA does not smooth**, so each shader computes its coverage
+and hands it to alpha-to-coverage — which writes coverage into the samples, so
+**the canvas is opaque**, cleared to the panel's own background, and a
+**transparent export renders twice**, on black and on white, taking alpha from
+the difference. **A line is a quad with a width in CSS pixels** (`gl.LINES` is
+one device pixel: half a CSS pixel at DPR 2, a hairline in an export). **The PNG
+is a render of its own**, offscreen at `EXPORT_LONG_SIDE` = 3000 px and
+multisampled, and the a/b/c letters, which are DOM on screen, are drawn into it.
+**One context for the canvas's life**: the mount effect depends on the canvas
+and nothing else, calling `rebuild` under `untrack` — called bare, it read the
+geometry, every payload re-ran the effect, and its cleanup's `loseContext` left
+the canvas holding a dead context that drew Chrome's sad face (jsdom's stand-in
+loses nothing, so `test-gl3d.ts` now counts a renderer made on a dead canvas).
+And **Firefox presents the first frame only after compiling the shaders**, some
+hundreds of ms after the draw call, so a first-show number is read off
+screenshots, never off the call. Under test, `test-setup.ts` mocks
+`lib/gl3d`'s `createRenderer` with `test-gl3d.ts`, which records every scene
+and view; `--line` is invisible in a 3D scene, so the cell frame takes
+`--accent`; and pictures are compared, never a sha256 of one.
 
 **Usability** (WP-1029, `gui/src/lib/{resize,theme,plot}.ts`,
 `panels/Splitter.svelte`, `gui/structure3d.py`) is the pass that made the eleven
@@ -381,7 +398,8 @@ last landed 1.10 s late at a steady 60 fps. Every `Plots.resize` therefore goes
 through `resize.ts:coalesce` (one in flight, at most one queued, and the queued
 one runs, so the last redraw is the final size), and both plotly panels were
 *measured* before taking it; the pattern and Series panels left plotly in
-WP-1461, so the 3D view is its one caller.
+WP-1461 and the structure viewer in WP-1462, so nothing calls it now. The
+viewer's `ResizeObserver` asks for one frame a `requestAnimationFrame`.
 **Instrument before the library loads**: a `$state`
 rune proxies the namespace and caches each property on first read, so patching
 `window.Plotly` after boot counts nothing while the plot redraws — use an init
@@ -716,21 +734,13 @@ adopt arm allows and its class is unrefuted. A right-click refit prompts via
 `window.prompt`, which a headless driver must answer (`page.on("dialog")`) or
 the verb silently never fires — round 1's false "missing echo".
 
-Its second pass (2026-07-31) added three browser facts. **plotly's
-`lightposition` is screen-relative, not a data-space point** — read through the
-inverse of the full projection transform, so z > 0 sits *behind* the scene and
-a z-dominant light renders the whole visible side ambient-flat, which is what
-"desaturated, dark and flat" was: both earlier passes had shipped one, and the
-scene had never been lit by its diffuse term at all. The viewer's key is one
-fixed `LIGHT_POSITION = (−1e5, 1e5, 0)` (z = 0 keeps it lateral; z < 0 is a
-headlight and the lateral part dies) that follows the camera by construction,
-mid-drag included — no camera arithmetic exists, and `Plotly.version` at
-runtime is the only version measurement (a static grep of the bundle finds a
-sub-dependency's `version:"…"` string). **A style sampled synchronously inside
-an effect races the shell's `applyTheme` effect in the same flush** —
-`Plot.svelte` awaits one microtask before `getComputedStyle`, or the first
-dark repaint wears light ink; the 3D panel never had the bug because its draw
-awaits the plotly loader first. And **an effect that reads the project
+Its second pass (2026-07-31) added three browser facts; the one about plotly's
+screen-relative `lightposition` left with plotly (WP-1462), whose renderer lights
+from a fixed direction in view space, so the key follows every rotation by
+construction. **A style sampled synchronously inside an effect races the
+shell's `applyTheme` effect in the same flush** — `Plot.svelte` and the 3D
+panel's `rebuild` each await one microtask before `getComputedStyle`, or the
+first dark repaint wears light ink. And **an effect that reads the project
 *object* refires on every ui-only PATCH** — Model reloads on a boolean
 `$derived` (`hasProject`), or a theme click refetches three routes plus the 3D
 geometry with the head unmoved.

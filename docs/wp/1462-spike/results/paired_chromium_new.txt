@@ -1,0 +1,4 @@
+2026-09-25T13:54:20.001Z chromium new run 0 | first frame 522 ms, long frames while opening [99] | drag gap p50 16.6 p95 17.6 ms over 73, long frames 0 | hover gap p95 17.3 ms, long frames 0 | load 99.1 on 10 cpus
+2026-09-25T13:54:55.307Z chromium new run 0 | first frame 545 ms, long frames while opening [92] | drag gap p50 16.7 p95 17.1 ms over 65, long frames 0 | hover gap p95 17.6 ms, long frames 0 | load 107.3 on 10 cpus
+2026-09-25T13:55:08.695Z chromium new run 1 | first frame 619 ms, long frames while opening [85] | drag gap p50 16.6 p95 17.2 ms over 73, long frames 0 | hover gap p95 17.8 ms, long frames 0 | load 107.0 on 10 cpus
+2026-09-25T13:55:48.874Z chromium new run 2 | first frame 395 ms, long frames while opening [55] | drag gap p50 16.6 p95 17.2 ms over 76, long frames 0 | hover gap p95 17.2 ms, long frames 0 | load 126.4 on 10 cpus

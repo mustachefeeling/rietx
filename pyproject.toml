@@ -79,10 +79,11 @@ dependencies = [
 
 [project.optional-dependencies]
 viz = ["matplotlib>=3.8", "plotly>=5.20"]
-# the GUI server (WP-1008+) serves plotly.js out of this package; the built
-# frontend assets are committed under src/rietx/gui/static, so installing
-# the extra never needs node
-gui = ["plotly>=5.20"]
+# Empty since WP-1462, and kept so `pip install 'rietx[gui]'` still works: the
+# built frontend is committed under src/rietx/gui/static with every library it
+# draws with (uPlot, and the structure viewer's own renderer), so the GUI needs
+# nothing a base install lacks, and installing it never needs node.
+gui = []
 jax = ["jax>=0.4.30"]
 # EXPERIMENTAL, and deliberately not part of [dev]: torch is a ~500 MB
 # dependency whose CPU Jacobian is ~10x slower than the analytic numpy one and

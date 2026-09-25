@@ -366,16 +366,20 @@ def test_no_route_is_declared_twice(blank):
     assert not set(UPLOAD_ROUTES) & set(RESERVED_ROUTES)
 
 
-def test_the_built_app_is_served_and_so_is_plotly(blank):
-    """With the committed dist present (WP-1010), ``/`` is the real app."""
+def test_the_built_app_is_served_and_plotly_is_not(blank):
+    """With the committed dist present (WP-1010), ``/`` is the real app.
+
+    ``/plotly.js`` was served out of the installed package until the last
+    panel drawing with it left (WP-1461 the charts, WP-1462 the structure
+    viewer), so the page runs nothing the dist does not hold.
+    """
     _, client = blank
     status, payload = client.get("/")
     assert status == 200
     assert 'src="/assets/app.js"' in payload["raw"]
     assert client.get("/assets/app.js")[0] == 200
     assert client.get("/assets/app.css")[0] == 200
-    status, payload = client.get("/plotly.js")
-    assert status == 200 and len(payload["raw"]) > 1000
+    assert client.get("/plotly.js")[0] == 404
     assert client.get("/assets/nope.js")[0] == 404
 
 
@@ -2976,6 +2980,23 @@ def test_exports_land_in_the_project_and_cannot_escape_it(fitted, tmp_path):
     assert status == 400 and payload["error"]["where"] == ["filename"]
     assert not (tmp_path / "escaped.cif").exists()
     assert client.post("/api/export/nonsense")[0] == 404
+
+
+def test_the_html_export_without_plotly_names_the_extra(fitted, monkeypatch):
+    """The GUI runs on a base install since WP-1462, and the html figure does not.
+
+    It is plotly's, which only the ``viz`` extra installs, so a base install
+    meets it here. Uncaught, the ``ImportError`` was a 500.
+    """
+    import sys
+
+    _, client, _ = fitted
+    monkeypatch.setitem(sys.modules, "plotly", None)
+    monkeypatch.setitem(sys.modules, "plotly.graph_objects", None)
+    status, payload = client.post("/api/export/html")
+    assert status == 409, payload
+    assert payload["error"]["code"] == "EXPORT_UNAVAILABLE"
+    assert "[viz]" in payload["error"]["message"]
 
 
 def test_patching_vary_on_a_held_path_is_a_refusal_rather_than_a_crash(

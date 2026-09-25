@@ -277,7 +277,7 @@ indices int32, so a browser reads each array without copying it.
 
 | Route | Is |
 |---|---|
-| `POST /api/export/cif` · `POST /api/export/html` · `POST /api/export/qpa` | the refined structure; the interactive figure; the phase fractions |
+| `POST /api/export/cif` · `POST /api/export/html` · `POST /api/export/qpa` | the refined structure; the interactive figure, which needs the `viz` extra; the phase fractions |
 | `POST /api/export/reflections` · `POST /api/export/result_json` | the reflection list; the whole result |
 | `POST /api/export/instrument_profile` | the instrument, answered from the project because it needs no result |
 | `POST /api/upload/pattern` · `POST /api/upload/cif` · `POST /api/upload/instrument` | the three routes whose body is raw bytes rather than JSON: a file goes up as itself, with its name and reader options in the query string |

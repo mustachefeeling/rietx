@@ -431,9 +431,8 @@ def build(structure, phase: int = 0, *, probability: float = DEFAULT_PROBABILITY
         "volume": float(abs(np.linalg.det(basis))),
         "lattice": basis.T.tolist(),          # rows a, b, c as Cartesian vectors
         "corners": corners.tolist(),
-        # twelve index pairs into ``corners``; the client joins them with the
-        # nulls plotly wants, so "12 edges" is a fact of the payload and not of
-        # whichever polyline convention the renderer happens to use
+        # twelve index pairs into ``corners``, so "12 edges" is a fact of the
+        # payload and not of whichever line convention the renderer happens to use
         "edges": _EDGES,
         "sites": sites,
         "atoms": atoms,

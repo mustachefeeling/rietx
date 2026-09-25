@@ -4,10 +4,9 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>rietx</title>
-    <!-- No external asset of any kind: plotly.js is fetched at runtime from
-         /plotly.js, which the Python server serves out of the installed
-         package. tests/test_gui_dist.py asserts that this file references no
-         http(s) URL, which is the offline guarantee made executable. -->
+    <!-- No external asset of any kind: every script is in the built assets.
+         tests/test_gui_dist.py asserts that this file references no http(s)
+         URL, which is the offline guarantee made executable. -->
     <script type="module" crossorigin src="/assets/app.js"></script>
     <link rel="stylesheet" crossorigin href="/assets/app.css">
   </head>

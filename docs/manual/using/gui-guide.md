@@ -282,11 +282,22 @@ count doubling under a symbol with the same number of free parameters.
 
 ### The 3D view
 
-A third column of this panel, on by default, drawn by the server and rendered by
-plotly. Two modes: balls, and displacement ellipsoids.
+A third column of this panel, on by default. The server computes the geometry,
+and the browser draws it with rietx's own WebGL2 renderer, so every sphere,
+ellipsoid and stick is exact at any zoom. Two modes: balls, and displacement
+ellipsoids.
 The projection is parallel and there is no axis box, so the cell's own a, b, c
-edges are the frame of reference. Rotation is a free trackball, with buttons to
-view down a, b or c.
+edges are the frame of reference. Drag to rotate (a free trackball), shift-drag
+or right-drag to pan, and scroll to zoom. The buttons view down a, b or c.
+The line under the picture names the atom or bond under the pointer.
+
+In ellipsoid mode each anisotropic site also shows its three principal
+ellipses, the rings of an ORTEP drawing. An isotropic site shows none, because
+its axes point nowhere in particular.
+
+`PNG` renders the picture again, 3000 pixels on its long side, with the a, b, c
+letters drawn in. That is a 17 cm figure at 300 dpi with room to crop.
+`transparent PNG`, under `drawing`, leaves the background out.
 
 Two things here will mislead you if nobody says them:
 
@@ -298,8 +309,8 @@ Two things here will mislead you if nobody says them:
   user needs it.
 - The ellipsoids are a diagnostic. Their axes are refined quantities, so a
   background flexible enough to imitate the peaks arrives here as balloons,
-  while improving Rwp. A non-positive-definite tensor arrives as a flat disc
-  with the reason in its hover. Six ordinary-looking numbers in the parameter
+  while improving Rwp. A non-positive-definite tensor arrives as a flat disc,
+  and the line under the picture gives the reason when you point at it. Six ordinary-looking numbers in the parameter
   table are obvious in the picture.
 
 The probability selector scales the ellipsoids. The `× size` factor beside it is

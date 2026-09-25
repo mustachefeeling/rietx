@@ -6,7 +6,6 @@ import {
   curveToggles,
   dataOnlyHidden,
   formatRegion,
-  hoverLabel,
   isDataOnly,
   maskShapes,
   masked,
@@ -190,28 +189,6 @@ describe("the region list (WP-1033)", () => {
 
   it("labels a chip with what would be sent, not a rounded story", () => {
     expect(formatRegion([13.0004, 16])).toBe("13.000–16.000°");
-  });
-});
-
-describe("the hover box (WP-1032)", () => {
-  it("takes its surface, border and ink from the theme's own properties", () => {
-    // nothing themed it before: `hovermode: "x unified"` and a hovertemplate on
-    // every trace, over plotly's default *light* box, with `layout.font.color`
-    // already themed — light-grey ink on white, on the dark page
-    const dark: Record<string, string> = {
-      "--panel": " #1e1e1e ", "--line": "#333333", "--fg": "#e6e6e2",
-    };
-    expect(hoverLabel((name) => dark[name] ?? "")).toEqual({
-      bgcolor: "#1e1e1e", bordercolor: "#333333",
-      font: { color: "#e6e6e2", size: 11 },
-    });
-  });
-
-  it("falls back per property to the light palette, as the curve colours do", () => {
-    expect(hoverLabel(() => "")).toEqual({
-      bgcolor: "#ffffff", bordercolor: "#dcdcd6",
-      font: { color: "#1b1b1b", size: 11 },
-    });
   });
 });
 

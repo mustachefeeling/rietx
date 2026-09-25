@@ -269,8 +269,8 @@ def __getattr__(name: str) -> object:
     plain ``ImportError``-shaped message untouched.
 
     A submodule that exists but fails to import for its own reason — ``viz``
-    and ``gui`` both pull in optional dependencies (``matplotlib``,
-    ``plotly``) that a minimal install does not have — raises
+    pulls in optional dependencies (``matplotlib``, ``plotly``) that a
+    minimal install does not have — raises
     ``AttributeError`` rather than letting the underlying
     ``ModuleNotFoundError`` escape: the two look identical from outside
     (``rietx.viz`` is not there either way), but only ``AttributeError`` is

@@ -1,0 +1,17 @@
+# First headed runs, from a scratchpad copy of these files before shot.mjs and the zoom/ex query
+# parameters existed (neither changes driver.mjs's pages). Chromium and Firefox+WebKit were two calls.
+chromium dpr2 lab6 ball      atoms 116 halves 420 | import 10.0 create 243.3 set 12.6 data→frame 264.5 ms | draw p50 0.10 p95 0.20 ms, gap p95 17.6 ms | pick 14.7 µs (346 hits) | tip "" | ERR Failed to load resource: the server responded with a status of 404 (Not Found)
+         gpu: ANGLE (Apple, ANGLE Metal Renderer: Apple M4, Unspecified Version)
+chromium dpr2 nac  ellipsoid atoms 173 halves 510 | import 4.9 create 12.0 set 11.1 data→frame 55.1 ms | draw p50 0.10 p95 0.20 ms, gap p95 17.6 ms | pick 22.2 µs (38 hits) | tip "" | ok
+chromium dpr2 fap  ball      atoms 116 halves 348 | import 4.3 create 8.9 set 9.9 data→frame 23.1 ms | draw p50 0.10 p95 0.20 ms, gap p95 17.6 ms | pick 17.8 µs (126 hits) | tip "Ca1 Ca (0.667, 0.333, 0.502)" | ok
+chromium dpr2 nac  ball      atoms 173 halves 510 | import 4.1 create 11.8 set 7.6 data→frame 28.0 ms | draw p50 0.10 p95 0.20 ms, gap p95 17.6 ms | pick 22.8 µs (169 hits) | tip "" | ok
+firefox  dpr2 lab6 ball      atoms 116 halves 420 | import 50.0 create 21.0 set 3.0 data→frame 101.0 ms | draw p50 0.00 p95 1.00 ms, gap p95 18.0 ms | pick 15.0 µs (310 hits) | tip "" | ok
+         gpu: Apple M1, or similar
+firefox  dpr2 nac  ellipsoid atoms 173 halves 510 | import 4.0 create 13.0 set 2.0 data→frame 30.0 ms | draw p50 0.00 p95 1.00 ms, gap p95 18.0 ms | pick 22.5 µs (34 hits) | tip "" | ok
+firefox  dpr2 fap  ball      atoms 116 halves 348 | import 6.0 create 16.0 set 3.0 data→frame 32.0 ms | draw p50 0.00 p95 1.00 ms, gap p95 18.0 ms | pick 17.0 µs (136 hits) | tip "Ca1 Ca (0.667, 0.333, 0.502)" | ok
+firefox  dpr2 nac  ball      atoms 173 halves 510 | import 6.0 create 15.0 set 3.0 data→frame 31.0 ms | draw p50 0.00 p95 1.00 ms, gap p95 18.0 ms | pick 23.5 µs (170 hits) | tip "" | ok
+webkit   dpr2 lab6 ball      atoms 116 halves 420 | import 5.0 create 1554.0 set 14.0 data→frame 1643.0 ms | draw p50 0.00 p95 1.00 ms, gap p95 18.0 ms | pick 14.5 µs (307 hits) | tip "" | ok
+         gpu: Apple GPU
+webkit   dpr2 nac  ellipsoid atoms 173 halves 510 | import 2.0 create 5.0 set 4.0 data→frame 27.0 ms | draw p50 0.00 p95 1.00 ms, gap p95 18.0 ms | pick 26.0 µs (41 hits) | tip "" | ok
+webkit   dpr2 fap  ball      atoms 116 halves 348 | import 2.0 create 4.0 set 4.0 data→frame 24.0 ms | draw p50 0.00 p95 1.00 ms, gap p95 18.0 ms | pick 14.0 µs (155 hits) | tip "Ca1 Ca (0.667, 0.333, 0.502)" | ok
+webkit   dpr2 nac  ball      atoms 173 halves 510 | import 2.0 create 6.0 set 5.0 data→frame 30.0 ms | draw p50 0.00 p95 1.00 ms, gap p95 18.0 ms | pick 21.0 µs (182 hits) | tip "" | ok

@@ -26,6 +26,8 @@ import App from "./App.svelte";
 import { STAGE_WORDS } from "./lib/rxt";
 import { pack } from "./test-curves";
 import { StubPlot } from "./test-uplot";
+import { exports, frames, lifecycle, type Frame } from "./test-gl3d";
+import { project } from "./lib/structure3d";
 // Loaded here so the panels' own `import("../lib/pattern")` and
 // `import("../lib/seriesChart")` find them loaded: a first import outlasts
 // `flush()`, and a plot case run alone (`-t`) then drew nothing where the same
@@ -3148,24 +3150,13 @@ describe("the model editor", () => {
 });
 
 // ----------------------------------------------------------------------
-// the structure viewer (WP-1015)
+// the structure viewer (WP-1015, WP-1462)
 // ----------------------------------------------------------------------
 describe("the structure viewer", () => {
-  /** plotly is injected at runtime and stubbed globally in `test-setup.ts`; the
-   *  viewer's assertions are about the *traces it hands over*, so this replaces
-   *  the stub with a recording one for the duration of a test. */
-  function recorder(live?: any) {
-    const drawn: any[] = [];
-    vi.stubGlobal("Plotly", {
-      react: async (node: any, traces: any[], layout: any) => {
-        drawn.push({ traces, layout });
-        // what a real gl3d plot leaves behind: the scene object whose
-        // `getCamera()` is the only honest reading of the view
-        if (live) node._fullLayout = { scene: { _scene: { getCamera: () => live } } };
-      },
-      purge: () => {},
-    });
-    return drawn;
+  /** `test-gl3d.ts` keeps every frame the viewer asked for; the viewer's
+   *  assertions are about the *scene and view it hands over*. */
+  function last(): Frame {
+    return frames[frames.length - 1];
   }
 
   async function openViewer(extra: Record<string, any> = {}) {
@@ -3187,34 +3178,38 @@ describe("the structure viewer", () => {
     await flush();
   }
 
-  /** by name, not by index: the trace list grows, the names do not move. */
-  function trace(drawn: any[], name: string): any {
-    return drawn[drawn.length - 1].traces.find((t: any) => t.name === name);
+  function canvas(): HTMLCanvasElement {
+    return host.querySelector<HTMLCanvasElement>(".viewer canvas")!;
   }
 
-  it("draws the cell, the bonds and one mesh per species", async () => {
-    const drawn = recorder();
+  /** A drag across the canvas: jsdom has no `PointerEvent`, and the handlers
+   *  read only what a mouse event carries. */
+  async function drag(dx: number, dy: number) {
+    const at = (type: string, x: number, y: number) =>
+      canvas().dispatchEvent(new MouseEvent(type, { clientX: x, clientY: y, bubbles: true }));
+    at("pointerdown", 100, 100);
+    at("pointermove", 100 + dx, 100 + dy);
+    at("pointerup", 100 + dx, 100 + dy);
+    await flush();
+  }
+
+  it("draws each atom, each bond half and the cell, all in Å", async () => {
     await openViewer();
-    const { traces, layout } = drawn[drawn.length - 1];
-    expect(traces.map((t: any) => t.name))
-      .toEqual(["cell", "axes", "bonds:La", "bonds:B", "La", "La", "B"]);
-    expect(trace(drawn, "La").type).toBe("mesh3d");
-    // a stick is in Å like everything else, so it is a mesh and not a 4 px line
-    expect(trace(drawn, "bonds:La").type).toBe("mesh3d");
-    expect(trace(drawn, "axes").text).toEqual(["a", "b", "c"]);
-    // a crystal, not a plot: parallel projection and no Cartesian box
-    expect(layout.scene.camera.projection.type).toBe("orthographic");
-    expect(layout.scene.xaxis.visible).toBe(false);
-    // one Å is one Å on every axis, or a monoclinic cell is drawn orthogonal
-    expect(layout.scene.aspectmode).toBe("data");
-    // …and every draw supplies the *same* camera under a scene revision, which
-    // is what plotly needs to keep a rotation the user made (see `lib/layout`)
-    expect(layout.scene.uirevision).toBe("structure3d");
-    for (const d of drawn) expect(d.layout.scene.camera).toEqual(layout.scene.camera);
+    const { scene } = last();
+    expect(scene.atoms.map((a) => a.index)).toEqual([0, 1, 2]);
+    // the image outside the cell is drawn dimmer than the La it is a copy of
+    expect(scene.atoms[1].color[0]).toBeLessThan(scene.atoms[0].color[0]);
+    expect(scene.halves.length).toBe(2);
+    expect(scene.lines.length).toBe(12);
+    expect(scene.labels.map((l) => l.text)).toEqual(["a", "b", "c"]);
+    // a ball is the covalent radius times the ball fraction, in Å
+    expect(scene.atoms[0].shape[0]).toBeCloseTo(0.4 * 2.07, 12);
+    // …and the letters are on the page, over the canvas
+    expect([...host.querySelectorAll(".viewer .letters span")].map((s) => s.textContent))
+      .toEqual(["a", "b", "c"]);
   });
 
   it("says what it drew and at which thresholds", async () => {
-    recorder();
     await openViewer();
     expect(host.textContent).toContain("2 atoms in the cell + 1 image outside it");
     expect(host.textContent).toContain("1 bond segment at 1.15×");
@@ -3226,15 +3221,12 @@ describe("the structure viewer", () => {
     // the payload carries k(p) for every level it offers, so a probability
     // change is a client multiply — a refetch would be a round trip for a
     // number already on the page
-    const drawn = recorder();
     const stub = await openViewer();
     button("ellipsoids")!.click();
     await openKnobs();
     const before = stub.calls.filter((c) => c.path === "/api/structure3d").length;
-    // the sphere's first vertex is its +z pole, and La sits at the origin, so
-    // this is the semi-axis itself: 0.08 · k(p)
-    const at50 = trace(drawn, "La").z[0];
-    expect(at50).toBeCloseTo(0.08 * 1.5382, 6);
+    // La's tensor is 0.08 Å on the diagonal, so its drawn semi-axis is 0.08 · k(p)
+    expect(last().scene.atoms[0].shape[8]).toBeCloseTo(0.08 * 1.5382, 6);
 
     const select = [...host.querySelectorAll("select")]
       .find((s) => [...s.options].some((o) => o.textContent?.trim() === "90 %"))!;
@@ -3243,7 +3235,7 @@ describe("the structure viewer", () => {
     await flush();
 
     expect(stub.calls.filter((c) => c.path === "/api/structure3d").length).toBe(before);
-    expect(trace(drawn, "La").z[0]).toBeCloseTo(0.08 * 2.5003, 6);
+    expect(last().scene.atoms[0].shape[8]).toBeCloseTo(0.08 * 2.5003, 6);
     expect(host.textContent).toContain("ellipsoids at 90 %");
 
     // …and the level survives a reload.  Found in Chrome: the payload carries
@@ -3255,7 +3247,7 @@ describe("the structure viewer", () => {
     button("Apply")!.click();
     await flush();
     expect(host.textContent).toContain("ellipsoids at 90 %");
-    expect(trace(drawn, "La").z[0]).toBeCloseTo(0.08 * 2.5003, 6);
+    expect(last().scene.atoms[0].shape[8]).toBeCloseTo(0.08 * 2.5003, 6);
   });
 
   it("calls an exaggeration an exaggeration, never a probability", async () => {
@@ -3264,11 +3256,10 @@ describe("the structure viewer", () => {
     // "bigger so I can see it" is a drawing scale, and a viewer that drew
     // 1.5·k(0.5) under a "50 %" label would be claiming a surface it is not
     // drawing.
-    const drawn = recorder();
     await openViewer();
     button("ellipsoids")!.click();
     await openKnobs();
-    const at50 = trace(drawn, "La").z[0];
+    const at50 = last().scene.atoms[0].shape[8];
 
     const size = [...host.querySelectorAll<HTMLInputElement>('input[type="range"]')]
       .find((i) => i.max === "4")!;
@@ -3276,7 +3267,7 @@ describe("the structure viewer", () => {
     size.dispatchEvent(new Event("input", { bubbles: true }));
     await flush();
 
-    expect(trace(drawn, "La").z[0]).toBeCloseTo(at50 * 2, 6);
+    expect(last().scene.atoms[0].shape[8]).toBeCloseTo(at50 * 2, 6);
     // the probability is still the probability…
     expect(host.textContent).toContain("ellipsoids at 50 % (k = 1.538)");
     // …and the factor is stated beside it, as what it is
@@ -3286,79 +3277,69 @@ describe("the structure viewer", () => {
   });
 
   it("thins the stick for the mode it is drawn in", async () => {
-    // WP-1015's justification for an uncapped cylinder — "the far end is buried
-    // inside its own atom, whose ball is larger than the stick for every
-    // element there is" — is true in ball mode and overclaims in ellipsoid
-    // mode, where an atom's size is √U·k(p) and not a covalent radius.
-    const drawn = recorder();
+    // an open stick is buried in its atom only while it is thinner than the
+    // atom, and in ellipsoid mode an atom's size is √U·k(p), not a radius
     await openViewer();
-    const ball = trace(drawn, "bonds:La");
-    const ballRadius = Math.max(...ball.x) - Math.min(...ball.x);
-
+    const ball = last().scene.halves[0].radius;
     button("ellipsoids")!.click();
     await flush();
-    const thin = trace(drawn, "bonds:La");
-    expect(Math.max(...thin.x) - Math.min(...thin.x)).toBeLessThan(ballRadius);
+    expect(last().scene.halves[0].radius).toBeLessThan(ball);
     expect(host.textContent).toContain("sticks 0.0");
   });
 
-  it("re-supplies the view the user rotated to, read from the scene", async () => {
-    // Every redraw builds new trace objects, and replacing a `mesh3d` rebuilds
-    // the gl3d scene from the layout — so the view has to be handed back in.
-    // Where it is read from is the whole question: `layout.scene.camera` reports
-    // what was passed *in*, and `plotly_relayout` does not fire for a gl3d drag
-    // at all (measured in Chrome, and true of the shipped build too).
-    const rotated = { up: { x: 0, y: 0, z: 1 }, center: { x: 0, y: 0, z: 0 },
-                      eye: { x: -0.62, y: -1.41, z: -1.47 },
-                      projection: { type: "orthographic" } };
-    const drawn = recorder(rotated);
+  it("keeps the view the user rotated to across a redraw", async () => {
+    // plotly rebuilt its scene from the layout on every redraw and the view had
+    // to be read back from a private object; the view is this component's now
     await openViewer();
+    const opening = last().view.rotation;
+    await drag(40, 10);
     button("ellipsoids")!.click();
     await flush();
-    expect(drawn[drawn.length - 1].layout.scene.camera.eye).toEqual(rotated.eye);
-  });
-
-  it("lets a view button outrank what is on screen", async () => {
-    // …but not the other way round: a camera the user *chose* must survive the
-    // read-back, or pressing "down c" would draw whatever the scene already had
-    const drawn = recorder({ eye: { x: -0.62, y: -1.41, z: -1.47 },
-                             projection: { type: "orthographic" } });
-    await openViewer();
-    button("c")!.click();
+    const rotated = last().view.rotation;
+    expect(rotated).not.toEqual(opening);
+    button("balls")!.click();
     await flush();
-    const eye = drawn[drawn.length - 1].layout.scene.camera.eye;
-    expect(eye.x).toBeCloseTo(0, 12);
-    expect(eye.y).toBeCloseTo(0, 12);
-    expect(eye.z).toBeGreaterThan(0);
+    expect(last().view.rotation).toEqual(rotated);
   });
 
   it("looks down a lattice vector without asking the server anything", async () => {
-    const drawn = recorder();
     const stub = await openViewer();
     const before = stub.calls.filter((c) => c.path === "/api/structure3d").length;
-    const opening = drawn[drawn.length - 1].layout.scene.camera;
+    const opening = last().view;
+    await drag(40, 10);
 
     button("c")!.click();
     await flush();
-    const down = drawn[drawn.length - 1].layout.scene.camera;
-    // LaB6 is cubic, so c is exactly ẑ — the case turntable would have made a
-    // degenerate lookAt, and the reason `dragmode` is "orbit"
-    expect(down.eye.x).toBeCloseTo(0, 12);
-    expect(down.eye.y).toBeCloseTo(0, 12);
-    expect(down.up).toEqual({ x: 0, y: 1, z: 0 });     // b is up
-    // …and the zoom the user had is kept
-    expect(Math.hypot(down.eye.x, down.eye.y, down.eye.z))
-      .toBeCloseTo(Math.hypot(opening.eye.x, opening.eye.y, opening.eye.z), 12);
+    // LaB6 is cubic, so down c puts a right and b up exactly
+    const down = last().view.rotation;
+    [1, 0, 0, 0, 1, 0, 0, 0, 1].forEach((v, k) => expect(down[k]).toBeCloseTo(v, 12));
 
     button("reset")!.click();
     await flush();
-    expect(drawn[drawn.length - 1].layout.scene.camera).toEqual(opening);
+    expect(last().view).toEqual(opening);
     expect(stub.calls.filter((c) => c.path === "/api/structure3d").length)
       .toBe(before);
   });
 
+  it("says what is under the pointer in the strip below, not in a box over it", async () => {
+    // WP-1213's rule, carried to the 3D pane: a box over the picture covers
+    // the thing it describes
+    await openViewer();
+    Object.defineProperty(canvas(), "clientWidth", { value: 400, configurable: true });
+    Object.defineProperty(canvas(), "clientHeight", { value: 400, configurable: true });
+    const { scene, view } = last();
+    const hover = async (p: number[]) => {
+      const [x, y] = project(scene, view, 400, 400, p);
+      canvas().dispatchEvent(new MouseEvent("pointermove", { clientX: x, clientY: y, bubbles: true }));
+      await flush();
+      return host.querySelector(".viewer .reading")!.textContent!.trim();
+    };
+    expect(await hover([0.8284, 2.0784, 2.0784])).toContain("B (B)");
+    expect(await hover([0, 0, 0])).toContain("La (La)");
+    expect(await hover([0.414, 1.039, 1.039])).toContain("La–B  3.058 Å");
+  });
+
   it("refetches when the bond threshold moves, because the server owns the rule", async () => {
-    recorder();
     const stub = await openViewer();
     await openKnobs();
     const slider = host.querySelector<HTMLInputElement>('input[type="range"]')!;
@@ -3376,8 +3357,8 @@ describe("the structure viewer", () => {
     // …and the *fetch* waits for the release, because the server owns the rule
     slider.dispatchEvent(new Event("change", { bubbles: true }));
     await flush();
-    const last = stub.calls.filter((c) => c.path === "/api/structure3d").pop()!;
-    expect(last.url).toContain("bond_tolerance=1.05");
+    const latest = stub.calls.filter((c) => c.path === "/api/structure3d").pop()!;
+    expect(latest.url).toContain("bond_tolerance=1.05");
   });
 
   /** A promise plus the button that resolves it. */
@@ -3392,7 +3373,6 @@ describe("the structure viewer", () => {
     // two requests in flight, and the picture must agree with the control that
     // asked for it rather than with whichever answer landed last
     const held: Array<() => void> = [];
-    recorder();
     await openViewer({
       "/api/structure3d": (call: Call) => {
         const asked = new URL(call.url, "http://x").searchParams
@@ -3422,10 +3402,9 @@ describe("the structure viewer", () => {
   });
 
   it("says it is loading until the first answer settles", async () => {
-    // "no structure yet" was a false statement for the whole 605–1447 ms the
-    // first paint takes — one `geo === null` cannot say both "not fetched" and
+    // "no structure yet" was a false statement while the first answer was on
+    // its way — one `geo === null` cannot say both "not fetched" and
     // "fetched, and there is nothing here"
-    recorder();
     const g = gate();
     await openViewer({
       "/api/structure3d": () => ({ body: GEOMETRY, gate: g.promise }),
@@ -3438,7 +3417,6 @@ describe("the structure viewer", () => {
   });
 
   it("switches a species off from the legend without a round trip", async () => {
-    const drawn = recorder();
     const stub = await openViewer();
     const before = stub.calls.filter((c) => c.path === "/api/structure3d").length;
     // the legend acts, so since WP-1201 it is `button.ghost` and not a chip
@@ -3447,15 +3425,15 @@ describe("the structure viewer", () => {
     swatch.click();
     await flush();
     // La's half-sticks go with it: a half belongs to its atom
-    expect(drawn[drawn.length - 1].traces.map((t: any) => t.name))
-      .toEqual(["cell", "axes", "bonds:B", "B"]);
+    const { scene } = last();
+    expect(scene.atoms.map((a) => a.index)).toEqual([2]);
+    expect(scene.halves.length).toBe(1);
     expect(stub.calls.filter((c) => c.path === "/api/structure3d").length).toBe(before);
   });
 
   it("offers the draw mode as one segmented control with one side on", async () => {
     // two plain buttons wore the primary (filled) register, so both read as
     // pressed — a control that answers no question (found by use, 2026-07-31)
-    recorder();
     await openViewer();
     const group = host.querySelector('.viewer .segmented[aria-label="draw mode"]')!;
     const on = () => [...group.querySelectorAll("button.on")].map((b) => b.textContent!.trim());
@@ -3468,18 +3446,17 @@ describe("the structure viewer", () => {
   });
 
   it("redraws on a theme change, without asking the server", async () => {
-    // the cell frame samples `--accent` and the labels sample the body colour
+    // the cell frame samples `--accent` and the canvas the panel's background
     // at draw time, so the redraw is what lets a theme change reach the canvas
     // at all (WP-1029 q) — and the geometry did not move, so refetching it
     // would be a round trip for numbers already in hand
-    const drawn = recorder();
     const stub = await openViewer();
     const fetched = stub.calls.filter((c) => c.path === "/api/structure3d").length;
-    const painted = drawn.length;
+    const painted = frames.length;
     [...host.querySelectorAll("button")]
       .find((b) => b.getAttribute("aria-label") === "dark")!.click();
     await flush();
-    expect(drawn.length).toBeGreaterThan(painted);
+    expect(frames.length).toBeGreaterThan(painted);
     expect(stub.calls.filter((c) => c.path === "/api/structure3d").length).toBe(fetched);
   });
 
@@ -3488,9 +3465,9 @@ describe("the structure viewer", () => {
     // the moment that returns — while the head reaches the *shell* only on the
     // next SSE frame.  Following the pane is what keeps the picture and the atom
     // table showing the same structure.
-    const drawn = recorder();
     const stub = await openViewer();
     const before = stub.calls.filter((c) => c.path === "/api/structure3d").length;
+    const painted = frames.length;
     field("phases.0.cell.a").value = "4.2";
     field("phases.0.cell.a").dispatchEvent(new Event("input", { bubbles: true }));
     await flush();
@@ -3498,14 +3475,17 @@ describe("the structure viewer", () => {
     await flush();
     expect(stub.calls.filter((c) => c.path === "/api/structure3d").length)
       .toBeGreaterThan(before);
-    expect(drawn.length).toBeGreaterThan(1);
+    expect(frames.length).toBeGreaterThan(painted);
   });
 
-  it("can be closed, and asks for nothing while it is", async () => {
-    recorder();
+  it("can be closed, gives its WebGL context back, and asks for nothing while closed", async () => {
+    // browsers keep about sixteen live contexts a page and drop the oldest
+    // without a word, so a viewer toggled a few times must not hold on to its
     const stub = await openViewer();
+    const given = lifecycle.disposed;
     button("3D")!.click();
     await flush();
+    expect(lifecycle.disposed).toBe(given + 1);
     const before = stub.calls.filter((c) => c.path === "/api/structure3d").length;
     expect(host.querySelector('input[type="range"]')).toBeNull();
     field("phases.0.cell.a").value = "4.3";
@@ -3514,6 +3494,57 @@ describe("the structure viewer", () => {
     button("Apply")!.click();
     await flush();
     expect(stub.calls.filter((c) => c.path === "/api/structure3d").length).toBe(before);
+  });
+
+  it("keeps one renderer through every redraw", async () => {
+    // a canvas keeps the first context it gave, so a renderer disposed and
+    // made again on it draws with a dead one — which a mode switch once did,
+    // because the mount effect had come to depend on the geometry
+    await openViewer();
+    const { created, disposed, onDeadCanvas } = { ...lifecycle };
+    button("ellipsoids")!.click();
+    await flush();
+    [...host.querySelectorAll<HTMLButtonElement>(".legend button")]
+      .find((b) => b.textContent?.trim() === "B")!.click();
+    await flush();
+    [...host.querySelectorAll("button")]
+      .find((b) => b.getAttribute("aria-label") === "dark")!.click();
+    await flush();
+    field("phases.0.cell.a").value = "4.2";
+    field("phases.0.cell.a").dispatchEvent(new Event("input", { bubbles: true }));
+    await flush();
+    button("Apply")!.click();
+    await flush();
+    expect(lifecycle.created).toBe(created);
+    expect(lifecycle.disposed).toBe(disposed);
+    expect(lifecycle.onDeadCanvas).toBe(onDeadCanvas);
+  });
+
+  it("exports a PNG rendered again, with its letters, on either background", async () => {
+    // D5: the export is a render of its own at EXPORT_LONG_SIDE, not the
+    // screen's pixels, and the letters are DOM on screen, so it is handed them
+    vi.stubGlobal("URL", Object.assign(URL, {
+      createObjectURL: () => "blob:structure",
+      revokeObjectURL: () => {},
+    }));
+    const before = exports.length;
+    await openViewer();
+    button("PNG")!.click();
+    await flush();
+    expect(exports.length).toBe(before + 1);
+    const first = exports[exports.length - 1].options;
+    expect(first.background).not.toBeNull();
+    expect(first.labels.map((l) => l.text)).toEqual(["a", "b", "c"]);
+
+    await openKnobs();
+    const box = [...host.querySelectorAll<HTMLLabelElement>(".drawer label")]
+      .find((l) => l.textContent?.includes("transparent PNG"))!
+      .querySelector("input")!;
+    box.click();
+    await flush();
+    button("PNG")!.click();
+    await flush();
+    expect(exports[exports.length - 1].options.background).toBeNull();
   });
 
   function field(path: string): HTMLInputElement {
