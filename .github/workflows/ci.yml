@@ -16,7 +16,13 @@ name: CI
 #                                 so it gates like the rest)
 #   fast jax                      the same selection with [dev,jax] — the jax
 #                                 rows are jit-compile bound, so this is the
-#                                 slowest job here (~10 min)
+#                                 slowest job here (20-21 min, 2026-09-25)
+#
+# The timeouts are runaway guards, never timers (tests/CLAUDE.md § Budgets in
+# tests).  On 2026-09-25, over main's last ten runs, the fast legs took
+# 13-19.5 min, bimodal by runner, and jax 20-21 min.  At 20 and 30 min the
+# caps cancelled py3.11 at 96 % on main (07952d4e) and twice on PR #463 with no
+# test failing, so they are 30 and 40.
 #
 # No paths-ignore: these jobs are branch-protection required checks, and a
 # path filter would leave a docs-only PR with required checks that never
@@ -75,7 +81,7 @@ jobs:
     name: fast py${{ matrix.python }}
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -100,7 +106,7 @@ jobs:
     name: fast jax
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v7
