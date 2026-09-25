@@ -74,6 +74,7 @@ from ..schemas.structure import Structure
 from ..strategy.staged import PLAN_PRESETS, resolve_plan
 from ..viz import theme
 from ..viz.compare import decimation_index
+from ..viz.packed import Packed
 from . import series as series_mod
 from . import symmetry
 from .imports import (
@@ -2501,6 +2502,31 @@ class GuiSession:
                                weighted=bool(member["has_sigma"])),
                 **self._series_masked_arm(index, lo, hi, max_points)}
 
+    def series_curves(self, index: int) -> Packed:
+        """One series member's channels and curves, as :meth:`result_curves` serves the project's.
+
+        Built by :func:`curve_arrays` from this member's own pattern under the
+        limits this run used, for the reason :meth:`_series_masked_arm` gives.
+        """
+        from ..project import fitted_mask
+
+        entry = self._series_entry()
+        runner = entry["runner"]
+        if not 0 <= index < len(runner.results_):
+            raise GuiError(
+                f"no series pattern {index}; the run reached "
+                f"{len(runner.results_)}", code="NOT_FOUND", status=404,
+                where=["index"])
+        res = runner.results_[index]
+        if not res.two_theta:
+            raise GuiError("this series pattern carries no curves",
+                           code="NO_RESULT", status=409)
+        data, member = entry["data"][index], entry["members"][index]
+        return curve_arrays(
+            data.tt(), data.y(), fitted_mask(data, entry["limits"]), res,
+            weighted=bool(member["has_sigma"]),
+            header={"index": index, "label": member["label"], "x": member["x"]})
+
     def _series_masked_arm(self, index: int, lo: float | None, hi: float | None,
                            max_points: int) -> dict:
         """The channels this member's fit masked, for the same reason as WP-1033.
@@ -2672,6 +2698,20 @@ class GuiSession:
         return {**curve_window(res, lo, hi, max_points,
                                weighted=self._need_project().data_ref.has_sigma),
                 **self._masked_arm(lo, hi, max_points)}
+
+    def result_curves(self) -> Packed:
+        """Every channel of the pattern, and the last fit's curves on the ones it kept.
+
+        The payload behind a chart that zooms in the browser (WP-1461, D4), so
+        it is sent once and not per window. Before any fit it is the pattern
+        alone, which is the raw view. :func:`curve_arrays` builds it, and its
+        docstring gives the contract.
+        """
+        p = self._need_project()
+        # read once: the worker swaps the result wholesale (``_need_result``)
+        res = p.refinement.result_
+        return curve_arrays(p.data.tt(), p.data.y(), p.fitted_mask(), res,
+                            weighted=p.data_ref.has_sigma)
 
     def _masked_arm(self, lo: float | None, hi: float | None,
                     max_points: int) -> dict:
@@ -3071,6 +3111,69 @@ def curve_window(res, lo: float | None, hi: float | None, max_points: int, *,
         "window": list(window), "n_total": int(mask.sum()),
         "n_returned": len(idx), "max_points": max_points,
     }
+
+
+def curve_arrays(tt_all, y_all, keep, res, *, weighted: bool,
+                 header: dict | None = None) -> Packed:
+    """A pattern's every channel, and a fit's curves on the channels it kept.
+
+    The full-resolution counterpart of :func:`curve_window` (WP-1461, D4), with
+    its two callers for the same reason: ``GuiSession.result_curves`` and
+    ``GuiSession.series_curves``. The σ is ``RefinementResult.sig()``, as there.
+
+    The arrays:
+
+    - ``two_theta`` and ``y_obs``: the pattern over every channel, ascending in
+      2θ. uPlot draws one ascending x, and no reader promises a scan runs
+      upward, so a descending file is served reversed.
+    - ``kept``: the channels the protocol fits now, as indices into those two.
+      The client draws the rest as masked.
+    - With a fit, ``fitted``: the channels the fit kept, the same way. Then
+      ``y_calc``, ``y_background`` when there is one, ``delta``, ``delta_raw``
+      and ``cumulative_chi2``, one value per fitted channel.
+
+    ``fitted`` and ``kept`` differ only when ``stale``: an exclusion persists
+    on the verb and the curves move only on a run. Two facts carry the index,
+    both checked on the NAC example and a series member bit for bit: a result's
+    2θ is the pattern's own under the mask it was fitted with, and so is its
+    ``y_obs``. A result not on this pattern's channels is refused.
+    """
+    import numpy as np
+
+    tt_all = np.asarray(tt_all, dtype=float)
+    order = np.argsort(tt_all, kind="stable")
+    rank = np.empty_like(order)
+    rank[order] = np.arange(len(order))
+    grid = tt_all[order]
+    head = {"weighted": weighted, "n_channels": len(grid), **(header or {})}
+    arrays = {"two_theta": grid, "y_obs": np.asarray(y_all, dtype=float)[order],
+              "kept": np.sort(rank[np.flatnonzero(keep)])}
+    if res is None or not res.two_theta:
+        return Packed({**head, "fit": False}, arrays)
+
+    tt_fit = np.asarray(res.two_theta, dtype=float)
+    at = np.minimum(np.searchsorted(grid, tt_fit), len(grid) - 1)
+    if not np.array_equal(grid[at], tt_fit):
+        raise GuiError("the fit's channels are not this pattern's, so its curves "
+                       "cannot be drawn over it — run again",
+                       code="RESULT_NOT_ON_PATTERN", status=409)
+    up = np.argsort(at, kind="stable")
+    y_obs, y_calc = np.asarray(res.y_obs)[up], np.asarray(res.y_calc)[up]
+    raw = y_obs - y_calc
+    delta = raw / res.sig()[up]
+    arrays.update({"fitted": at[up], "y_calc": y_calc})
+    if res.y_background:
+        arrays["y_background"] = np.asarray(res.y_background)[up]
+    arrays.update({"delta": delta, "delta_raw": raw,
+                   # accumulated over every fitted channel; a client re-bases it
+                   # at a zoom as cum[j] − cum[i−1]
+                   "cumulative_chi2": np.cumsum(delta**2)})
+    head.update({
+        "fit": True, "n_fitted": len(tt_fit),
+        "stale": not np.array_equal(tt_all[np.asarray(keep)], tt_fit),
+        **_windowed_ticks(res, (-math.inf, math.inf)),
+    })
+    return Packed(head, arrays)
 
 
 def _windowed_ticks(res, window) -> dict:

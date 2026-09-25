@@ -2489,6 +2489,143 @@ def test_result_carries_no_curves_and_the_window_serves_them(fitted):
     assert empty["ticks"] == {} and empty["tick_hkl"] == {}
 
 
+def _packed(client: Client, path: str):
+    """``GET`` a packed body, and the header and arrays in it."""
+    from rietx.viz.packed import MEDIA_TYPE, unpack
+
+    conn = HTTPConnection("127.0.0.1", client.port, timeout=60)
+    try:
+        conn.request("GET", path, headers={"Host": f"127.0.0.1:{client.port}"})
+        response = conn.getresponse()
+        body = response.read()
+    finally:
+        conn.close()
+    assert response.status == 200, body[:300]
+    assert response.getheader("Content-Type") == MEDIA_TYPE
+    return unpack(body)
+
+
+def test_the_curves_route_sends_every_channel_once(fitted):
+    """WP-1461, D4: the pattern over every channel, the fit on the ones it kept.
+
+    Everything a window route computes has to come out of this one the same, bit
+    for bit, or a chart that zooms in the browser draws a different fit from the
+    one the window route drew: the σ, the three residuals, the Σχ² accumulated
+    over every channel, and the ticks with their Miller indices.
+    """
+    from rietx.gui.session import curve_window
+
+    _, client, project = fitted
+    result = project.refinement.result_
+    got = _packed(client, "/api/result/curves")
+    head, arrays = got.header, got.arrays
+    tt, y = project.data.tt(), project.data.y()
+    assert head["fit"] is True and head["stale"] is False
+    assert head["weighted"] is True
+    assert head["n_channels"] == len(tt) and head["n_fitted"] == len(result.two_theta)
+    np.testing.assert_array_equal(arrays["two_theta"], tt)
+    np.testing.assert_array_equal(arrays["y_obs"], y)
+    # the fit lands on the pattern by index, and the pattern's intensity there
+    # is the fit's y_obs: the two facts the whole payload rests on
+    fitted_at = arrays["fitted"]
+    assert fitted_at.dtype == np.int32
+    np.testing.assert_array_equal(tt[fitted_at], result.two_theta)
+    np.testing.assert_array_equal(y[fitted_at], result.y_obs)
+    np.testing.assert_array_equal(arrays["kept"], np.flatnonzero(project.fitted_mask()))
+
+    whole = curve_window(result, None, None, 10 * len(result.two_theta),
+                         weighted=True)
+    for key in ("y_calc", "y_background", "delta", "delta_raw", "cumulative_chi2"):
+        np.testing.assert_array_equal(arrays[key], whole[key], err_msg=key)
+    assert head["ticks"] == result.ticks and head["tick_hkl"] == result.tick_hkl
+
+
+def test_stale_curves_carry_the_mask_the_next_run_fits(fitted):
+    """D4: once an exclusion outruns the fit, ``kept`` says what the protocol
+    fits now and ``fitted`` what the fit on screen kept, so a client shades the
+    one and draws the model on the other."""
+    _, client, project = fitted
+    fitted_before = _packed(client, "/api/result/curves").arrays["fitted"]
+    assert client.post("/api/project", {"excluded_regions": [[13.0, 16.0]]})[0] == 200
+    try:
+        got = _packed(client, "/api/result/curves")
+        assert got.header["stale"] is True
+        np.testing.assert_array_equal(got.arrays["fitted"], fitted_before)
+        kept = got.arrays["kept"]
+        np.testing.assert_array_equal(kept, np.flatnonzero(project.fitted_mask()))
+        tt = got.arrays["two_theta"]
+        assert not ((tt[kept] >= 13.0) & (tt[kept] <= 16.0)).any()
+        assert ((tt[fitted_before] >= 13.0) & (tt[fitted_before] <= 16.0)).any()
+    finally:
+        client.post("/api/project", {"excluded_regions": []})
+
+
+def test_before_any_fit_the_curves_are_the_raw_pattern(blank, tmp_path, pattern_file):
+    """The raw view is the same payload without the model (D4), so a project
+    that has never been fitted still draws, which is indexing's situation."""
+    session, client = blank
+    project = _open(session, tmp_path / "raw.rex", pattern_file)
+    assert client.post("/api/project", {"two_theta_limits": [8.0, 19.0]})[0] == 200
+    got = _packed(client, "/api/result/curves")
+    assert got.header["fit"] is False
+    assert set(got.arrays) == {"two_theta", "y_obs", "kept"}
+    np.testing.assert_array_equal(got.arrays["y_obs"], project.data.y())
+    np.testing.assert_array_equal(got.arrays["kept"],
+                                  np.flatnonzero(project.fitted_mask()))
+    assert len(got.arrays["kept"]) < len(got.arrays["two_theta"])
+
+
+def test_a_descending_scan_is_served_ascending(fitted):
+    """uPlot draws one ascending x, and no reader promises a scan runs upward,
+    so a pattern read high to low is served reversed with its indices and its
+    Σχ² following, and draws exactly as the same scan read low to high."""
+    from types import SimpleNamespace
+
+    from rietx.gui.session import curve_arrays
+
+    _, _, project = fitted
+    res = project.refinement.result_
+    tt, y, keep = project.data.tt(), project.data.y(), project.fitted_mask()
+    up = curve_arrays(tt, y, keep, res, weighted=True)
+    sig = res.sig()
+    down = SimpleNamespace(
+        two_theta=res.two_theta[::-1], y_obs=res.y_obs[::-1],
+        y_calc=res.y_calc[::-1], y_background=res.y_background[::-1],
+        sig=lambda: sig[::-1], ticks=res.ticks, tick_hkl=res.tick_hkl)
+    flipped = curve_arrays(tt[::-1], y[::-1], keep[::-1], down, weighted=True)
+    assert flipped.header == up.header
+    for key, values in up.arrays.items():
+        np.testing.assert_allclose(flipped.arrays[key], values, rtol=1e-12,
+                                   err_msg=key)
+    assert np.all(np.diff(flipped.arrays["two_theta"]) > 0)
+
+
+def test_a_series_member_has_curves_of_its_own(series):
+    """``series_curves`` is ``result_curves`` for one member, built by the same
+    function from that member's pattern under the limits its run used."""
+    from rietx.gui.session import curve_window
+    from rietx.project import fitted_mask
+
+    session, client, _ = series
+    got = _packed(client, "/api/series/curves?index=1")
+    head, arrays = got.header, got.arrays
+    assert (head["index"], head["label"], head["x"]) == (1, "T400", 400.0)
+    assert head["fit"] is True and head["stale"] is False and head["weighted"] is True
+    entry = session._series_run
+    result = entry["runner"].results_[1]
+    np.testing.assert_array_equal(arrays["two_theta"][arrays["fitted"]],
+                                  result.two_theta)
+    np.testing.assert_array_equal(
+        arrays["kept"], np.flatnonzero(fitted_mask(entry["data"][1], entry["limits"])))
+    whole = curve_window(result, None, None, 10 * len(result.two_theta),
+                         weighted=True)
+    np.testing.assert_array_equal(arrays["delta"], whole["delta"])
+
+    assert client.get("/api/series/curves")[0] == 400
+    status, payload = client.get("/api/series/curves?index=9")
+    assert status == 404 and payload["error"]["where"] == ["index"]
+
+
 def test_the_result_says_when_a_fit_is_past_the_point_of_being_a_fit(fitted):
     """WP-1029 item (c): one honest signal, in the report's own vocabulary."""
     from rietx.report.schemas import MATURITY_MAX_RWP

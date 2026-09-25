@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import {test} from 'node:test';
 
 import {
-  lower, nearest, partition, scatter, sqrtSplits, tickDecimals, tickLabels,
+  lower, nearest, partition, scatter, sqrtSplits, tickDecimals, tickLabels, unpack,
 } from '../src/rietx/viz/static/rxplot.mjs';
 
 // ------------------------------------------------------------------ lookups
@@ -80,4 +80,46 @@ test('the observed pattern splits into fitted and masked over one grid', () => {
   const [inside, outside] = partition([1, 2, 3, 4, 5, 6], Int32Array.from([1, 3]));
   assert.deepEqual(inside, [null, 2, null, 4, null, null]);
   assert.deepEqual(outside, [1, null, 3, null, 5, 6]);
+});
+
+// ------------------------------------------------------------------ D4
+/** A body in `rietx.viz.packed`'s layout, for the cases below. `test_rxplot.py`
+ *  decodes one Python wrote, which is the check that the two agree. */
+function packed(header, arrays) {
+  const specs = [];
+  let offset = 0;
+  for (const [name, a] of Object.entries(arrays)) {
+    specs.push({name, dtype: a instanceof Float64Array ? '<f8' : '<i4', offset, length: a.length});
+    offset += Math.ceil(a.byteLength / 8) * 8;
+  }
+  let head = JSON.stringify({...header, arrays: specs});
+  head += ' '.repeat((8 - ((4 + head.length) % 8)) % 8);
+  const buffer = new ArrayBuffer(4 + head.length + offset), view = new DataView(buffer);
+  view.setUint32(0, head.length, true);
+  new Uint8Array(buffer, 4).set(new TextEncoder().encode(head));
+  for (const [i, a] of Object.values(arrays).entries()) {
+    new Uint8Array(buffer, 4 + head.length + specs[i].offset).set(new Uint8Array(a.buffer));
+  }
+  return buffer;
+}
+
+test('a packed body decodes to its header and views on its arrays', () => {
+  const buffer = packed({fit: true}, {
+    two_theta: Float64Array.from([5, 5.5, 6]), fitted: Int32Array.from([0, 2, 7]),
+    y: Float64Array.from([1.25])});
+  const {header, arrays} = unpack(buffer);
+  assert.deepEqual(header, {fit: true});
+  assert.deepEqual(Array.from(arrays.two_theta), [5, 5.5, 6]);
+  assert.deepEqual(Array.from(arrays.fitted), [0, 2, 7]);
+  assert.deepEqual(Array.from(arrays.y), [1.25]);
+  // a view, never a copy: 59 498 channels of five arrays is 2 MB
+  assert.equal(arrays.two_theta.buffer, buffer);
+});
+
+test('a dtype no typed array reads is refused by name', () => {
+  const buffer = packed({}, {y: Float64Array.from([1])});
+  const n = new DataView(buffer).getUint32(0, true);
+  const head = new TextDecoder().decode(new Uint8Array(buffer, 4, n)).replace('<f8', '<f4');
+  new Uint8Array(buffer, 4).set(new TextEncoder().encode(head));
+  assert.throws(() => unpack(buffer), /y is <f4/);
 });

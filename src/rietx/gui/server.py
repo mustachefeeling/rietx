@@ -38,6 +38,8 @@ from urllib.parse import parse_qs, urlparse
 
 from .._about import DIST_NAME, SERVER_TOKEN, STATE_DIR_ENV, STATE_DIR_NAME
 from ..project import Project
+from ..viz.packed import MEDIA_TYPE as PACKED_MEDIA_TYPE
+from ..viz.packed import Packed
 from ..viz.plotlyjs import CONTENT_TYPE as PLOTLY_CONTENT_TYPE
 from ..viz.plotlyjs import plotly_js
 from .imports import MAX_UPLOAD_BYTES, UPLOAD_KINDS
@@ -174,6 +176,13 @@ def _series_window(s: GuiSession, q: dict, _body: dict) -> dict:
                            max_points=_query_int(q, "max_points", 4000))
 
 
+def _series_curves(s: GuiSession, q: dict, _body: dict) -> Packed:
+    """``index`` is required, for ``_series_window``'s reason."""
+    if not q.get("index") or q["index"][0] == "":
+        raise GuiError("series curves needs ?index=<pattern>", where=["index"])
+    return s.series_curves(_query_int(q, "index", 0))
+
+
 def _series_history(s: GuiSession, q: dict, _body: dict) -> dict:
     if not q.get("index") or q["index"][0] == "":
         raise GuiError("series history needs ?index=<pattern>", where=["index"])
@@ -256,6 +265,8 @@ ROUTES: dict[tuple[str, str], Any] = {
 
     ("GET", "/api/result"): lambda s, q, b: s.result(),
     ("GET", "/api/result/window"): _window,
+    # every channel once, as float64 arrays rather than JSON (WP-1461, D4)
+    ("GET", "/api/result/curves"): lambda s, q, b: s.result_curves(),
     ("GET", "/api/report"): _report,
     ("POST", "/api/report/apply"): lambda s, q, b: s.report_apply(b),
 
@@ -293,6 +304,7 @@ ROUTES: dict[tuple[str, str], Any] = {
     ("POST", "/api/series/run"): lambda s, q, b: s.run({**b, "kind": "series"}),
     ("GET", "/api/series/result"): lambda s, q, b: s.series_result(),
     ("GET", "/api/series/window"): _series_window,
+    ("GET", "/api/series/curves"): _series_curves,
     ("GET", "/api/series/history"): _series_history,
 
     ("GET", "/api/history"): lambda s, q, b: s.history(),
@@ -477,7 +489,11 @@ def _handler(session: GuiSession, holder: dict):
                 handler = ROUTES.get((method, path))
                 if handler is not None:
                     body = self._body() if method != "GET" else {}
-                    self._json(handler(session, query, body))
+                    answer = handler(session, query, body)
+                    if isinstance(answer, Packed):
+                        self._send(answer.to_bytes(_dumps), PACKED_MEDIA_TYPE)
+                    else:
+                        self._json(answer)
                     return
                 if (method, path) in RESERVED_ROUTES:
                     owner = RESERVED_ROUTES[(method, path)]

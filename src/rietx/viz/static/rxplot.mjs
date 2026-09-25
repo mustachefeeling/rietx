@@ -124,6 +124,26 @@ export function partition(y, index) {
   return [inside, outside];
 }
 
+const TYPED = { "<f8": Float64Array, "<i4": Int32Array };
+
+/**
+ * A packed body as `{ header, arrays }`, the format `rietx.viz.packed` writes
+ * (D4): a little-endian uint32 header length, the JSON header, then 8-aligned
+ * arrays the header lists. Each array is a view on `buffer`, never a copy.
+ */
+export function unpack(buffer) {
+  const n = new DataView(buffer).getUint32(0, true);
+  const header = JSON.parse(new TextDecoder().decode(new Uint8Array(buffer, 4, n)));
+  const arrays = {};
+  for (const { name, dtype, offset, length } of header.arrays) {
+    const Typed = TYPED[dtype];
+    if (!Typed) throw new Error(`rxplot: ${name} is ${dtype}, which no typed array reads`);
+    arrays[name] = new Typed(buffer, 4 + n + offset, length);
+  }
+  delete header.arrays;
+  return { header, arrays };
+}
+
 // ---------------------------------------------------------------- drawing half
 
 /** A CSS custom property's value on `el`, read at the moment of the call. */
