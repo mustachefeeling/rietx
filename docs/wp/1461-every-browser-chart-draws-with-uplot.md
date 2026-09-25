@@ -688,38 +688,21 @@ with the plotly renderer.
   the default browser, which on a Mac is often Safari. WebKit also caps
   canvas size below Chromium, so the 2D map's 22 003-wide base level may
   need tiling.
-- **The boot win needs the 3D viewer gated.** `Structure3D` mounts hidden
-  inside Model at boot (`Model.svelte:455`, `viewer = true`), and it loads
-  plotly. Loading it only when the view is first shown moves plotly's
-  evaluation, a 700-811 ms frame today, onto that first click.
 - **The prototype flatters.** Its per-event costs have no app overhead. The
   pilot measures the real panel against the real plotly renderer.
 - **One maintainer.** uPlot is Leon Sorokin's. Vendoring a pinned copy
   means a stalled upstream costs nothing until a browser change breaks it.
 
-### Inherited
-
-**From WP-1462 (2026-09-25, on branch `wp1462-structure-viewer-scope`).** The
-structure viewer no longer loads plotly: it draws with its own WebGL2
-renderer. Two consequences here. First, "the boot win needs the 3D viewer
-gated" is moot once WP-1462 merges. The viewer's mount now costs one WebGL
-context and three shader compiles, measured at 14-34 ms of WebGL calls plus
-7-26 ms for `getContext` over a first opening of the Model tab
-(`1462-spike/results/first_show.txt`). Second, WP-1462 landed after the
-Series task, so it deleted the GUI's plotly: the `/plotly.js` route in
-`gui/server.py`, `gui/src/lib/plotly.ts`, `lib/plot.ts:hoverLabel` and the
-`Plotly` stand-in in `test-setup.ts`. The `gui` extra is now `[]`. Updated
-2026-09-25 (3rd session). `viz/plotlyjs.py` stays, because `compare_app.py`
-is now its one caller. Its docstring says the compare task deletes it, and the
-`rietx compare` task here should do that. After WP-1461 closes, WP-1462
-renames its file and updates the two links to it here.
-
 ## Non-goals
 
-- **The 3D structure viewer.** It draws a scene, and uPlot has no 3D. It
-  keeps plotly (`mesh3d`, `scatter3d`), loaded when first shown, and the `gui`
-  extra keeps plotly until it moves.
-  [WP-1462](1462-the-structure-viewer-draws-with-threejs.md) moves it.
+- **The 3D structure viewer.** It draws a scene, and uPlot has no 3D.
+  [WP-1462](1462-the-structure-viewer-draws-with-threejs.md) gave it its own
+  WebGL2 renderer (PR #472, merged 2026-09-25). That also deleted the GUI's
+  plotly: the `/plotly.js` route, `lib/plotly.ts`, and plotly in the `gui`
+  extra, which is now `[]`. Its mount costs 14-34 ms of WebGL calls plus
+  7-26 ms for `getContext` on a first opening of the Model tab
+  (`1462-spike/results/first_show.txt`). WP-1462 renames its file after this
+  WP closes, and the two links to it here follow.
 - **matplotlib figures.** They are files, written without a browser.
 - **New chart types.** The 2D map shows the module can carry one. A series
   map belongs to the WP that wants it; 1317 is the nearest.
@@ -735,10 +718,10 @@ renames its file and updates the two links to it here.
 - [x] GUI pattern panel complete: peaks, candidates, masks, raw view, readout fields, Esc, axis titles. Delete the plotly-only code, stub uPlot in `test-setup.ts`, and move `App.test.ts` off the `Plotly.react` stub. Drawn colours are asserted from pixels or from the recorded `strokeStyle`. (Task 15 came in with it, by the maintainer's decision in § Decisions. Also the Σχ² re-base at a zoom, `rxplot.chi2Base`; the raw view's per-group residual through `rawResidual`; the pointer's line restyled solid `--fg`; `/api/result/window` deleted with its only client. `gui/src/test-uplot.ts` is the stand-in, `tests/test_gui_browser.py` reads the inks.)
 - [x] `rietx watch` on the module, serving the vendored uPlot from its own server. `test_watch_browser.py` asserts what was drawn. (`rxplot.pattern` gained `ranges`, so the page holds the intensity to the observed points and Δ/σ to its ladder. The legend, the point count and the tick label are the page's own DOM over the chart. `test_watch_browser.py` reads uPlot's scales and the inks the canvas recorded, through `RECORD`, which `test_gui_browser.py` now imports.)
 - [x] GUI Series panel: trajectory (D8), per-pattern chart through the curves route, rings, crosses plotted, the dashed tone, the tick formatter (`rxplot.trajectory` draws the chain in a draw hook over one pane, so a heat-then-cool series comes back along its own x, and picks the hovered point by `nearestXY`. Every labelled x axis now takes `tickLabels`. The member's chart is `rxplot.pattern` over `/api/series/curves`. `/api/series/window`, `curve_window` and `_series_masked_arm` are deleted. The legend is the `.segmented` curve toggles with a swatch in each. The pointer line's `--fg` rule moved to `app.css` for every GUI chart.)
-- [ ] `rietx compare`: its page becomes a file, on the module, and its server serves the vendored uPlot. `/api/state` drops the curves, and each variant's come once through a route (D4). `resample` becomes a subtraction.
+- [ ] `rietx compare`: its page becomes a file, on the module, and its server serves the vendored uPlot. `/api/state` drops the curves, and each variant's come once through a route (D4). `resample` becomes a subtraction. Delete `viz/plotlyjs.py`, whose one caller the compare page is.
 - [ ] `write_html` writes the uPlot page, with the notice inline, the weighted mode, `viz/plots.PALETTES` as its palette and the `"hkl: …"` labels `test_magnetic_tick_row.py` reads. Drop `include_plotlyjs`, replace `figure_from_arrays`, take plotly out of the `viz` extra, and record the break.
 - [ ] Exports: copy PNG, download PNG, copy TSV, SVG through svgcanvas with its notices. Pin svgcanvas exactly in `gui/package.json` and add it to `.github/dependabot.yml`'s allow list.
-- [ ] Structure3D loads plotly when first shown. A test asserts no other page requests `/plotly.js`. Record the first-show cost.
+- [x] Structure3D loads plotly when first shown. A test asserts no other page requests `/plotly.js`. Record the first-show cost. (Overtaken by WP-1462: the viewer loads no plotly. `test_the_built_app_is_served_and_plotly_is_not`, `test_gui_dist.py` and `test_the_viewer_draws_the_structure_and_asks_for_no_plotly` assert it, and the first show is measured in `1462-spike/results/first_show.txt`.)
 - [x] Remove the flag and the pattern panel's plotly renderer (in task 6)
 - [ ] Docs: the `gui/CLAUDE.md` rules as § What changes sorts them, the manual's GUI chapters with regenerated screenshots, `using/cli.md`, `install.md` and `files.md`, root CLAUDE.md, `tests/CLAUDE.md`, README
 - [ ] Tests: the suites in § Acceptance green, the fast count's movement stated, and every test listed in § What changes updated
