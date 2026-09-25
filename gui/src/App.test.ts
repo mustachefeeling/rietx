@@ -26,6 +26,10 @@ import App from "./App.svelte";
 import { STAGE_WORDS } from "./lib/rxt";
 import { pack } from "./test-curves";
 import { StubPlot } from "./test-uplot";
+// Loaded here so the panel's own `import("../lib/pattern")` finds it loaded: a
+// first import outlasts `flush()`, and a plot case run alone (`-t`) then drew
+// nothing where the same case in the whole file passed.
+import "./lib/pattern";
 
 const CAPABILITIES = {
   package_version: "1.0.0.dev0",
@@ -4022,6 +4026,40 @@ describe("the peaks tab (WP-1027)", () => {
     const sent = stub.calls.find((c) => c.path === "/api/peaks/flag");
     // the unusable line's checkbox asks to *use* it — the overrule, not a toggle blind
     expect(sent?.body).toEqual({ index: 1, use_for_indexing: true });
+  });
+
+  it("draws the groups' own residual under the raw pattern, in the peak layer's ink",
+     async () => {
+    // Before a fit there is no model to take a residual from, so the lower pane
+    // is each fitted group's (y − fit)/σ, on the channels its window covers. It
+    // is part of the peak layer, so it is drawn on the Peaks tab and in the
+    // layer's ink, which is also how its row in the strip names it.
+    const withGroups = {
+      ...PEAKS_PAYLOAD,
+      groups: [{ two_theta: [10, 11, 12], y_fit: [4, 2, 3], delta: [0.5, -1, 2] }],
+    };
+    vi.stubGlobal("fetch", server({
+      ...boot(), ...RAW,
+      "/api/peaks": () => ({ body: withGroups }),
+    }).fetcher);
+    app = mount(App, { target: host });
+    await flush();
+
+    const strip = () => {
+      const u = pane("resid");
+      return Array.from(u.data[0] as ArrayLike<number>)
+        .flatMap((x, i) => (u.data[1][i] == null ? [] : [[x, u.data[1][i]]]));
+    };
+    button("Peaks")!.click();
+    await flush();
+    expect(strip()).toEqual([[10, 0.5], [11, -1], [12, 2]]);
+    expect(ink("resid", 1)).toBe(INK.peakfit);
+    expect(pane("resid").opts.axes[1].label()).toBe("(y − fit)/σ per group");
+
+    // …and leaving the tab takes it off with the rest of the layer
+    button("Report")!.click();
+    await flush();
+    expect(strip()).toEqual([]);
   });
 
   it("removes the line under a right-click, with no prompt in the way", async () => {

@@ -111,7 +111,10 @@ export class PatternChart {
     this.ringEl.className = "rx-ring";
     const shade = (u: any) => this.shade(u);
     this.fig = pattern(uPlot, host, curves, {
-      colors: () => ({ ...this.colors, masked: this.colors.edge }),
+      // before a fit the lower pane is the peak groups' own residual, which
+      // wears the peak layer's ink (WP-1210), as its row in the strip does
+      colors: () => ({ ...this.colors, masked: this.colors.edge,
+                       diff: this.curves.header.fit ? this.colors.diff : this.colors.peakfit }),
       y: Y[opts.scale],
       residual: opts.kind,
       hidden: overlay.hidden,
