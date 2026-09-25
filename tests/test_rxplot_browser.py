@@ -290,3 +290,135 @@ def test_a_live_update_follows_the_data_where_the_reader_chose_no_y(page):
     _frames(page)
     lo, hi = _y(page, "main")
     assert lo <= 500 and hi >= 1500
+
+
+# ------------------------------------------------------------------ the pattern
+def _near(page, key: str, x: float, y: float | None = None, r: int = 3) -> list[list[int]]:
+    """The RGBA pixels around data point (x, y) on pane ``key``, or down the whole
+    plot-area column at ``x`` when ``y`` is None."""
+    return page.evaluate("""([k, x, y, r]) => {
+        const u = G.panes[k], b = u.bbox, px = Math.round(u.valToPos(x, 'x', true));
+        const top = y == null ? b.top : Math.round(u.valToPos(y, 'y', true)) - r;
+        const h = y == null ? b.height : 2 * r + 1;
+        const img = u.ctx.getImageData(px - r, top, 2 * r + 1, h).data, out = [];
+        for (let i = 0; i < img.length; i += 4) out.push(Array.from(img.slice(i, i + 4)));
+        return out;
+    }""", [key, x, y, r])
+
+
+def _has(pixels, rgb, alpha=200, tol=40) -> bool:
+    return any(p[3] >= alpha and all(abs(p[i] - rgb[i]) <= tol for i in range(3)) for p in pixels)
+
+
+def test_the_pattern_puts_the_fit_on_its_channels_and_nowhere_else(page):
+    """Finding 10 for the whole figure: the model lands by ``fitted`` and is null
+    elsewhere, and the observed points split by ``kept``."""
+    page.evaluate("mountPattern()")
+    _frames(page)
+    got = page.evaluate("""(() => { const d = G.panes.main.data, c = curves(), k = c.arrays.kept;
+        const at = (i) => [d[1][i], d[2][i], d[3][i]];
+        return { inside: at(k[0]), outside: at(0), n: d[0].length }; })()""")
+    assert got["n"] == 1100
+    obs, masked, calc = got["inside"]
+    assert obs is not None and masked is None and calc == obs + 5
+    obs, masked, calc = got["outside"]
+    assert obs is None and masked is not None and calc is None
+    # and nothing of the model is drawn over the masked channels
+    assert not _has(_near(page, "main", 50), [255, 0, 0])
+    assert _has(_near(page, "main", 25), [255, 0, 0], alpha=100)
+
+
+def test_both_marker_paths_draw_the_observed_points(page):
+    """D5's two paths, drawn where the data is."""
+    for markers in ("all", "thin"):
+        page.evaluate("m => mountPattern({markers: m, hidden: ['calc', 'bkg']})", markers)
+        _frames(page)
+        x, y = page.evaluate("(() => { const c = curves(), i = c.arrays.kept[40];"
+                             " return [c.arrays.two_theta[i], c.arrays.y_obs[i]]; })()")
+        assert _has(_near(page, "main", x, y), [0, 0, 0]), markers
+
+
+def test_the_panes_fill_the_host_and_follow_it(page):
+    """Panes sized by ``share`` take what the fixed tick band leaves, and a host
+    whose height the page changes is filled again in the next frame."""
+    page.evaluate("mountPattern()")
+    _frames(page)
+    heights = page.evaluate("Object.values(G.panes).map(u => u.height)")
+    assert heights[1] == page.evaluate("rx.tickHeight(2)")
+    assert 488 <= sum(heights) <= 490
+    page.evaluate("document.getElementById('host').style.height = '600px'")
+    _frames(page, 2)
+    assert 598 <= sum(page.evaluate("Object.values(G.panes).map(u => u.height)")) <= 600
+
+
+def test_a_new_payload_keeps_the_view_only_when_asked(page):
+    """``setCurves``: a run landing keeps the reader's window; a new pattern resets."""
+    page.evaluate("mountPattern()")
+    _frames(page)
+    _drag(page, "main", 0.3, 0.5, 0.5, 0.51)
+    window = _x(page, "main")
+    page.evaluate("G.setCurves(curves(), true)")
+    _frames(page)
+    assert _x(page, "main") == window == _x(page, "resid")
+    page.evaluate("G.setCurves(curves(1100, 3), false)")
+    _frames(page)
+    assert _x(page, "main") == [8.0, 63.0] == _x(page, "resid")
+
+
+def test_a_residual_switch_draws_the_new_numbers_and_forgets_its_y(page):
+    page.evaluate("mountPattern()")
+    _frames(page)
+    _drag(page, "resid", 0.3, 0.3, 0.6, 0.6)
+    boxed = _y(page, "resid")
+    page.evaluate("G.setResidual('delta')")
+    _frames(page)
+    got = page.evaluate("(() => { const c = curves(), i = c.arrays.kept[3];"
+                        " return [G.panes.resid.data[1][i], c.arrays.delta_raw[3]]; })()")
+    assert got[0] == got[1]
+    assert _y(page, "resid") != boxed
+    lo, hi = _y(page, "resid")
+    assert lo <= -2.9 and hi >= 2.9
+
+
+def test_a_log_scale_keeps_the_view_and_hides_curves_by_id(page):
+    page.evaluate("mountPattern()")
+    _frames(page)
+    _drag(page, "main", 0.3, 0.5, 0.5, 0.51)
+    window = _x(page, "main")
+    page.evaluate("G.setY('log')")
+    _frames(page)
+    assert _x(page, "main") == window
+    assert page.evaluate("G.panes.main.scales.y.distr") == 3
+    page.evaluate("G.setHidden(['calc', 'diff'])")
+    _frames(page)
+    shown = page.evaluate("[G.panes.main.series.map(s => s.show), G.panes.resid.series[1].show]")
+    assert shown == [[True, True, True, False, True], False]
+
+
+def test_each_phase_ticks_in_its_own_row_and_ink(page):
+    """Two phases, two rows, two inks; a hidden row draws nothing."""
+    page.evaluate("mountPattern()")
+    _frames(page)
+    rows = page.evaluate("""(() => { const u = G.panes.ticks, b = u.bbox;
+        return [b.top + b.height / 4, b.top + 3 * b.height / 4].map(Math.round); })()""")
+
+    def row_has(x, row, rgb):
+        pixels = page.evaluate("""([x, y]) => { const u = G.panes.ticks;
+            const px = Math.round(u.valToPos(x, 'x', true));
+            return Array.from({length: 5}, (_, i) => Array.from(u.ctx.getImageData(px - 2 + i, y, 1, 1).data)); }""",
+                               [x, row])
+        return _has(pixels, rgb, alpha=100)
+
+    assert row_has(12, rows[0], [0, 0xa0, 0xa0]) and not row_has(12, rows[1], [0xa0, 0, 0xa0])
+    assert row_has(15, rows[1], [0xa0, 0, 0xa0])
+    page.evaluate("G.setHidden(['ticks:b'])")
+    _frames(page)
+    assert not row_has(15, rows[1], [0xa0, 0, 0xa0])
+
+
+def test_a_pages_layers_run_under_the_grid_and_over_the_curves(page):
+    page.evaluate("mountPattern()")
+    _frames(page)
+    page.evaluate("layers.length = 0; G.redraw()")
+    _frames(page)
+    assert page.evaluate("layers") == ["under", "over"]

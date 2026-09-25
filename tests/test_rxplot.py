@@ -41,7 +41,7 @@ def test_the_pure_half_is_unit_tested():
     assert done.returncode == 0, done.stdout + done.stderr
     match = re.search(r"^# pass (\d+)$", done.stdout, re.MULTILINE)
     assert match is not None, done.stdout
-    assert int(match.group(1)) >= 11, done.stdout
+    assert int(match.group(1)) >= 13, done.stdout
 
 
 def test_the_browser_reads_what_python_packs(tmp_path):

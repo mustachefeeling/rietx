@@ -9,7 +9,8 @@ import assert from 'node:assert/strict';
 import {test} from 'node:test';
 
 import {
-  lower, nearest, partition, scatter, sqrtSplits, tickDecimals, tickLabels, unpack,
+  lower, nearest, partition, phaseInk, positive, scatter, sqrtSplits, tickDecimals, tickHeight,
+  tickLabels, unpack,
 } from '../src/rietx/viz/static/rxplot.mjs';
 
 // ------------------------------------------------------------------ lookups
@@ -80,6 +81,19 @@ test('the observed pattern splits into fitted and masked over one grid', () => {
   const [inside, outside] = partition([1, 2, 3, 4, 5, 6], Int32Array.from([1, 3]));
   assert.deepEqual(inside, [null, 2, null, 4, null, null]);
   assert.deepEqual(outside, [1, null, 3, null, 5, 6]);
+});
+
+// ------------------------------------------------------------------ the pattern
+test('a log scale gets a gap wherever a value is at or under zero', () => {
+  assert.deepEqual(positive(Float64Array.from([2, 0, -1, 3])), [2, null, null, 3]);
+  assert.deepEqual(positive([null, 5]), [null, 5]);
+});
+
+test('one tick row takes the observed ink, several take a phase ink each', () => {
+  const colors = {obs: 'grey', phase: ['a', 'b']};
+  assert.equal(phaseInk(colors, 0, 1), 'grey');
+  assert.deepEqual([0, 1, 2].map((r) => phaseInk(colors, r, 3)), ['a', 'b', 'a']);
+  assert.ok(tickHeight(2) > tickHeight(1));
 });
 
 // ------------------------------------------------------------------ D4
