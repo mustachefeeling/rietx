@@ -1,20 +1,25 @@
 // The pilot's logs as ranges: one row per engine, dataset, devicePixelRatio,
-// renderer and gesture, over every run. `node pilot_summary.mjs` prints what
-// the WP quotes from `results/pilot_*.txt`.
+// renderer and gesture, over every run. `node pilot_summary.mjs [since]` prints
+// what the WP quotes from `results/pilot_*.txt`; `since`, an ISO time, keeps the
+// runs from then on, so a change to the code starts a fresh set.
 import { fileURLToPath } from "node:url";
 import fs from "node:fs";
 import path from "node:path";
 
 const DIR = path.join(fileURLToPath(new URL(".", import.meta.url)), "results");
+const SINCE = process.argv[2] ?? "";
 const rows = new Map(), notes = new Map();
 const get = (key) => { if (!rows.has(key)) rows.set(key, { work: [], wrapped: [], p95: [], max: [], loaf: [], fetch: [] }); return rows.get(key); };
 const note = (key, text) => { if (!notes.has(key)) notes.set(key, []); notes.get(key).push(text); };
 const nums = (s) => (s.match(/-?\d+(\.\d+)?/g) ?? []).map(Number);
 
 for (const file of fs.readdirSync(DIR).filter((f) => /^pilot_.*\.txt$/.test(f)).sort()) {
+  let at = "";
   for (const line of fs.readFileSync(path.join(DIR, file), "utf8").split("\n")) {
+    const h = line.match(/^# (\d{4}-\S+) run/);
+    if (h) at = h[1];
     const m = line.match(/^\[(\w+) (\S+) dpr(\d) run\d+\] (\w+): (.*)$/);
-    if (!m) continue;
+    if (!m || at < SINCE) continue;
     const [, engine, ds, dpr, renderer, rest] = m;
     const base = `${engine} ${ds.startsWith("lab6") ? "lab6" : ds} dpr${dpr} ${renderer}`;
     let g;

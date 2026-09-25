@@ -138,10 +138,12 @@ export class PatternChart {
     return px < 0 || px > box.width ? null : u.posToVal(px, "x");
   }
 
-  /** Degrees of 2θ per CSS pixel at the current zoom. */
+  /** Degrees of 2θ per CSS pixel at the current zoom. The readout asks on
+   *  every pointer move, so the width is the one uPlot last laid out, not
+   *  `over.clientWidth`, which can force a layout per move. */
   degPerPx(): number {
-    const u = this.fig.panes.main, { min, max } = u.scales.x;
-    return u.over.clientWidth ? Math.abs(max - min) / u.over.clientWidth : 0.01;
+    const u = this.fig.panes.main, { min, max } = u.scales.x, width = u.bbox.width / devicePixelRatio;
+    return width ? Math.abs(max - min) / width : 0.01;
   }
 
   /** Put the hover ring on the line at 2θ `at`, or take it off. A DOM move,

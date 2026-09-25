@@ -109,3 +109,78 @@
 [chromium nac dpr1 run2] uplot: resize, the app's work -0.5, -1.3, -1.5, -1.9, -1.4, -0.9 ms; the chart's own 2.4, 2.4, 1.9, 2.0, 2.3, 2.3 ms; wrapped 2.8, 2.4, 2.3, 1.9, 2.3, 2.4 ms
 [chromium nac dpr1 run2] uplot: page errors []; load 3.9 4.8 6.6
 # exit 0
+
+# 2026-09-25T05:11:40.234Z run 0, load 5.9 6.8 6.2
+[chromium nac dpr1 run0] fitted in 2 s; load 5.9 6.8 6.2
+[chromium nac dpr1 run0] plotly: boot long frames [{"dur":70,"scripts":["app.js: 62ms"]},{"dur":329,"scripts":["plotly.js: 327ms"]},{"dur":197,"scripts":["app.js: 193ms"]}]
+[chromium nac dpr1 run0] plotly: hover        work 2.70 ms/event, wrapped 0.14; frame p95 17.6 max 18.6 ms; long frames []; fetches []
+[chromium nac dpr1 run0] plotly: the readout under the pointer reads "2θ\n—"
+[chromium nac dpr1 run0] plotly: drag-zoom    work 7.93 ms/event, wrapped 2.51; frame p95 18.2 max 18.6 ms; long frames []; fetches ["/api/result/window","/api/result/window","/api/result/window","/api/result/window","/api/result/window","/api/result/window","/api/result/window","/api/result/window","/api/result/window"]
+[chromium nac dpr1 run0] plotly: exclude      work 9.60 ms/event, wrapped 5.09; frame p95 18.3 max 32.1 ms; long frames [{"dur":53,"top":[": 45ms"]}]; fetches ["/api/project","/api/peaks","/api/result/window","/api/plan","/api/plans","/api/plan/resolve","/api/project","/api/peaks","/api/result/window","/api/plan","/api/plans","/api/plan/resolve","/api/project","/api/peaks","/api/result/window","/api/plan","/api/plans","/api/plan/resolve"]
+[chromium nac dpr1 run0] plotly: peak-drag    work 7.39 ms/event, wrapped 4.68; frame p95 17.5 max 18.5 ms; long frames []; fetches ["/api/peaks/move","/api/result/window"]
+[chromium nac dpr1 run0] plotly: the drag moved a line: true
+[chromium nac dpr1 run0] plotly: resize, the app's work 14.3, 11.3, 13.4, 10.4, 10.7, 12.2 ms; the chart's own 14.3, 12.8, 11.6, 11.6, 12.0, 12.8 ms; wrapped 15.0, 13.2, 12.3, 12.7, 12.4, 13.4 ms
+[chromium nac dpr1 run0] plotly: page errors []; load 5.6 6.6 6.1
+[chromium nac dpr1 run0] chart: boot long frames []
+[chromium nac dpr1 run0] chart: hover        work 3.15 ms/event, wrapped 0.60; frame p95 18.5 max 33.3 ms; long frames []; fetches []
+[chromium nac dpr1 run0] chart: the readout under the pointer reads "2θ\n58.7455°"
+[chromium nac dpr1 run0] chart: drag-zoom    work 3.43 ms/event, wrapped 1.25; frame p95 18.2 max 18.7 ms; long frames []; fetches []
+[chromium nac dpr1 run0] chart: exclude      work 5.02 ms/event, wrapped 1.78; frame p95 18.1 max 18.6 ms; long frames []; fetches ["/api/project","/api/peaks","/api/result/curves","/api/plan","/api/plans","/api/plan/resolve","/api/project","/api/peaks","/api/result/curves","/api/plan","/api/plans","/api/plan/resolve","/api/project","/api/peaks","/api/result/curves","/api/plan","/api/plans","/api/plan/resolve"]
+[chromium nac dpr1 run0] chart: wheel-zoom   work 4.34 ms/event, wrapped 3.94; frame p95 18.0 max 18.5 ms; long frames []; fetches []
+[chromium nac dpr1 run0] chart: wheel-pan    work 4.88 ms/event, wrapped 2.63; frame p95 18.2 max 18.6 ms; long frames []; fetches []
+[chromium nac dpr1 run0] chart: alt-pan      work 3.59 ms/event, wrapped 2.31; frame p95 17.7 max 17.8 ms; long frames []; fetches []
+[chromium nac dpr1 run0] chart: peak-drag    work 1.64 ms/event, wrapped 0.71; frame p95 18.1 max 18.5 ms; long frames []; fetches ["/api/peaks/move"]
+[chromium nac dpr1 run0] chart: the drag moved a line: true
+[chromium nac dpr1 run0] chart: resize, the app's work -0.3, -2.0, -3.0, 7.1, 1.9, -2.6 ms; the chart's own 3.3, 2.1, 1.8, 1.8, 2.0, 2.1 ms; wrapped 3.4, 2.1, 1.9, 1.8, 2.2, 2.2 ms
+[chromium nac dpr1 run0] chart: page errors []; load 6.5 6.8 6.2
+# exit 0
+
+# 2026-09-25T05:12:58.558Z run 1, load 6.5 6.8 6.2
+[chromium nac dpr1 run1] fitted in 1 s; load 6.9 6.8 6.2
+[chromium nac dpr1 run1] chart: boot long frames []
+[chromium nac dpr1 run1] chart: hover        work 3.62 ms/event, wrapped 0.65; frame p95 18.1 max 31.9 ms; long frames []; fetches []
+[chromium nac dpr1 run1] chart: the readout under the pointer reads "2θ\n58.7455°"
+[chromium nac dpr1 run1] chart: drag-zoom    work 4.34 ms/event, wrapped 1.38; frame p95 18.2 max 18.8 ms; long frames []; fetches []
+[chromium nac dpr1 run1] chart: exclude      work 5.75 ms/event, wrapped 1.80; frame p95 17.8 max 18.7 ms; long frames []; fetches ["/api/project","/api/peaks","/api/result/curves","/api/plan","/api/plans","/api/plan/resolve","/api/project","/api/peaks","/api/result/curves","/api/plan","/api/plans","/api/plan/resolve","/api/project","/api/peaks","/api/result/curves","/api/plan","/api/plans","/api/plan/resolve"]
+[chromium nac dpr1 run1] chart: wheel-zoom   work 4.83 ms/event, wrapped 4.08; frame p95 18.1 max 18.6 ms; long frames []; fetches []
+[chromium nac dpr1 run1] chart: wheel-pan    work 5.43 ms/event, wrapped 2.60; frame p95 18.1 max 18.7 ms; long frames []; fetches []
+[chromium nac dpr1 run1] chart: alt-pan      work 3.95 ms/event, wrapped 2.38; frame p95 17.5 max 18.0 ms; long frames []; fetches []
+[chromium nac dpr1 run1] chart: peak-drag    work 1.96 ms/event, wrapped 0.72; frame p95 17.8 max 18.7 ms; long frames []; fetches ["/api/peaks/move"]
+[chromium nac dpr1 run1] chart: the drag moved a line: true
+[chromium nac dpr1 run1] chart: resize, the app's work 1.2, -1.6, -1.6, 3.3, -1.1, -1.2 ms; the chart's own 2.8, 2.0, 1.8, 1.9, 1.8, 1.7 ms; wrapped 3.0, 2.0, 1.9, 1.9, 1.9, 2.1 ms
+[chromium nac dpr1 run1] chart: page errors []; load 6.0 6.7 6.2
+[chromium nac dpr1 run1] plotly: boot long frames [{"dur":320,"scripts":["plotly.js: 318ms"]},{"dur":148,"scripts":["app.js: 146ms"]}]
+[chromium nac dpr1 run1] plotly: hover        work 3.72 ms/event, wrapped 0.15; frame p95 18.0 max 18.7 ms; long frames []; fetches []
+[chromium nac dpr1 run1] plotly: the readout under the pointer reads "2θ\n—"
+[chromium nac dpr1 run1] plotly: drag-zoom    work 9.28 ms/event, wrapped 2.85; frame p95 18.0 max 18.7 ms; long frames []; fetches ["/api/result/window","/api/result/window","/api/result/window","/api/result/window","/api/result/window","/api/result/window","/api/result/window","/api/result/window","/api/result/window"]
+[chromium nac dpr1 run1] plotly: exclude      work 10.92 ms/event, wrapped 5.57; frame p95 18.0 max 18.6 ms; long frames []; fetches ["/api/project","/api/peaks","/api/result/window","/api/plan","/api/plans","/api/plan/resolve","/api/project","/api/peaks","/api/result/window","/api/plan","/api/plans","/api/plan/resolve","/api/project","/api/peaks","/api/result/window","/api/plan","/api/plans","/api/plan/resolve"]
+[chromium nac dpr1 run1] plotly: peak-drag    work 9.05 ms/event, wrapped 4.75; frame p95 18.0 max 33.4 ms; long frames []; fetches ["/api/peaks/move","/api/result/window"]
+[chromium nac dpr1 run1] plotly: the drag moved a line: true
+[chromium nac dpr1 run1] plotly: resize, the app's work 15.6, 11.5, 11.2, 21.8, 11.4, 14.0 ms; the chart's own 15.4, 12.4, 11.4, 13.5, 11.9, 13.8 ms; wrapped 15.9, 13.0, 11.7, 13.6, 12.6, 14.4 ms
+[chromium nac dpr1 run1] plotly: page errors []; load 6.3 6.7 6.2
+# exit 0
+
+# 2026-09-25T05:14:15.947Z run 2, load 6.3 6.7 6.2
+[chromium nac dpr1 run2] fitted in 1 s; load 6.3 6.7 6.2
+[chromium nac dpr1 run2] plotly: boot long frames [{"dur":319,"scripts":["plotly.js: 318ms"]},{"dur":129,"scripts":["app.js: 127ms"]}]
+[chromium nac dpr1 run2] plotly: hover        work 4.32 ms/event, wrapped 0.22; frame p95 18.0 max 18.7 ms; long frames []; fetches []
+[chromium nac dpr1 run2] plotly: the readout under the pointer reads "2θ\n—"
+[chromium nac dpr1 run2] plotly: drag-zoom    work 8.00 ms/event, wrapped 2.54; frame p95 18.1 max 18.7 ms; long frames []; fetches ["/api/result/window","/api/result/window","/api/result/window","/api/result/window","/api/result/window","/api/result/window","/api/result/window","/api/result/window","/api/result/window"]
+[chromium nac dpr1 run2] plotly: exclude      work 10.70 ms/event, wrapped 6.04; frame p95 18.2 max 18.6 ms; long frames []; fetches ["/api/project","/api/peaks","/api/result/window","/api/plan","/api/plans","/api/plan/resolve","/api/project","/api/peaks","/api/result/window","/api/plan","/api/plans","/api/plan/resolve","/api/project","/api/peaks","/api/result/window","/api/plan","/api/plans","/api/plan/resolve"]
+[chromium nac dpr1 run2] plotly: peak-drag    work 8.23 ms/event, wrapped 4.67; frame p95 17.8 max 33.3 ms; long frames []; fetches ["/api/peaks/move","/api/result/window"]
+[chromium nac dpr1 run2] plotly: the drag moved a line: true
+[chromium nac dpr1 run2] plotly: resize, the app's work 13.2, 10.2, 21.2, 10.6, 10.1, 11.3 ms; the chart's own 15.0, 12.4, 12.9, 12.7, 12.3, 13.1 ms; wrapped 15.6, 12.7, 13.6, 13.4, 12.6, 13.7 ms
+[chromium nac dpr1 run2] plotly: page errors []; load 7.0 6.8 6.3
+[chromium nac dpr1 run2] chart: boot long frames []
+[chromium nac dpr1 run2] chart: hover        work 3.65 ms/event, wrapped 0.68; frame p95 18.2 max 18.7 ms; long frames []; fetches []
+[chromium nac dpr1 run2] chart: the readout under the pointer reads "2θ\n58.7455°"
+[chromium nac dpr1 run2] chart: drag-zoom    work 3.86 ms/event, wrapped 1.34; frame p95 18.0 max 18.7 ms; long frames []; fetches []
+[chromium nac dpr1 run2] chart: exclude      work 5.88 ms/event, wrapped 1.92; frame p95 18.1 max 18.6 ms; long frames []; fetches ["/api/project","/api/peaks","/api/result/curves","/api/plan","/api/plans","/api/plan/resolve","/api/project","/api/peaks","/api/result/curves","/api/plan","/api/plans","/api/plan/resolve","/api/project","/api/peaks","/api/result/curves","/api/plan","/api/plans","/api/plan/resolve"]
+[chromium nac dpr1 run2] chart: wheel-zoom   work 4.67 ms/event, wrapped 4.02; frame p95 18.1 max 18.5 ms; long frames []; fetches []
+[chromium nac dpr1 run2] chart: wheel-pan    work 5.08 ms/event, wrapped 2.51; frame p95 18.0 max 18.5 ms; long frames []; fetches []
+[chromium nac dpr1 run2] chart: alt-pan      work 3.78 ms/event, wrapped 2.51; frame p95 17.5 max 18.6 ms; long frames []; fetches []
+[chromium nac dpr1 run2] chart: peak-drag    work 1.43 ms/event, wrapped 0.67; frame p95 18.1 max 18.6 ms; long frames []; fetches ["/api/peaks/move"]
+[chromium nac dpr1 run2] chart: the drag moved a line: true
+[chromium nac dpr1 run2] chart: resize, the app's work -0.4, -2.5, -2.9, 6.8, 2.4, -2.2 ms; the chart's own 3.4, 2.0, 1.8, 1.8, 2.0, 2.0 ms; wrapped 3.6, 1.9, 1.7, 1.8, 2.2, 2.4 ms
+[chromium nac dpr1 run2] chart: page errors []; load 5.9 6.6 6.2
+# exit 0

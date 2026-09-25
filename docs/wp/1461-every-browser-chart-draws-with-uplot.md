@@ -242,6 +242,24 @@ Single runs, so no range (`results/proto_run2.txt`, `proto_dpr2.txt`,
     drag's wait at the mouse-up: the pointer sitting still before it, then
     the page's time after it. A latency probe must start its clock at the
     mouse-up.
+15. **No drag works in playwright's WebKit.** Its synthesised mouse moves
+    carry `movementX` and `movementY` at 0, where Chromium and Firefox fill
+    them in. uPlot drops a zero-movement move while a button is down, a guard
+    against a phantom move Chrome on Windows sends after a mouse-down. So in
+    that WebKit the select box stays zero wide, even under uPlot's default
+    options. A real mouse in Safari reports the movement. The pilot probe
+    fills it in from `clientX` for WebKit only (`pilot.mjs`), and a drag in
+    real Safari is still for a person to try.
+16. **uPlot leaves its last series' dash on the canvas**, into the next frame
+    as well. A layer drawn after the background's dashed line drew the peak
+    markers dashed, and a layer under the series starts with the previous
+    frame's dash. Every layer that strokes sets its own dash.
+17. **uPlot's default cursor walks each series through its nulls.** On every
+    pointer move, in every pane, `cursor.dataIdx` looks left and right from
+    the pointer for the series' nearest non-null value. The curves payload is
+    null-padded by design (the model over 37 000 masked NAC channels, the
+    tick band's series throughout), and no page reads a series' own index.
+    `panes()` hands every series the cursor's index instead.
 
 ### Behaviours the spike did not rebuild
 
@@ -435,11 +453,12 @@ in the first task.
 **Decided 2026-09-25.** The maintainer confirmed the migration to uPlot, D1
 (every chart shown in a browser) and D2 (a vendored copy), and D4-D8 as
 recommended. D3 went unanswered and stands as recommended. They asked how a
-vendored copy stays current, and D2 now says. **D5 is decided in the
-pilot.** It was first confirmed on a summary saying every marker "stays fast
-at NAC's size", while finding 4 says two runs in three had long frames. Put
-back with those numbers, the maintainer chose to let the pilot measure both
-marker paths on the real panel and pick. The 3D viewer's move is
+vendored copy stays current, and D2 now says. **D5 was left to the
+pilot**, and the pilot chose thinning (§ The pilot, measured). It was first
+confirmed on a summary saying every marker "stays fast at NAC's size", while
+finding 4 says two runs in three had long frames. Put back with those
+numbers, the maintainer chose to let the pilot measure both marker paths on
+the real panel and pick. The 3D viewer's move is
 [WP-1462](1462-the-structure-viewer-draws-with-threejs.md), filed the same
 day.
 
@@ -487,18 +506,21 @@ day.
     header, then 8-aligned arrays. The header carries what the window
     route's JSON carries beside its arrays: `weighted`, the ticks and their
     hkl, `stale` and the counts. The arrays are the pattern's 2θ and
-    intensity over every channel, `fitted` (int32), and `y_calc`,
+    intensity over every channel, `kept` and `fitted` (int32), and `y_calc`,
     `y_background`, `delta`, `delta_raw` and `cumulative_chi2` on the fitted
     channels. The raw view is the same payload without the model arrays.
+    Built as `/api/result/curves` and `/api/series/curves`
+    (`session.curve_arrays`, `viz/packed.py`).
   - **Binary** cuts the server's work from about 60 ms to under 2 ms and the
     browser's parse from 4-9 ms to nothing, at 57 % of the bytes. JSON at
     seven digits still serialises for 36-37 ms.
   - **Float64**, because float32 moves a re-based Σχ² by 1.2e-3 of itself
     over a narrow window. At float64 the readout prints the server's numbers.
-  - **A stale payload carries the current mask too.** `fitted` indexes the
-    result's grid, and once `stale` is true that differs from the protocol's
-    mask. The masked arm is the current protocol's, as `_masked_arm`
-    computes it today. This part is unbuilt and unmeasured.
+  - **Every payload carries the current mask as `kept`.** `fitted` indexes
+    the result's grid, and once `stale` is true that differs from the
+    protocol's mask. The masked points are the current protocol's, as
+    `_masked_arm` computes them. `kept` is sent whether or not the payload is
+    stale, at 4 bytes a fitted channel, so the client has one path.
   - **When it is fetched.** The GUI fetches on open, on checkout and when a
     run ends (`App.svelte:960-976`), never per stage. It also refetches
     after an edit that can change the mask, as `draw` does today
@@ -507,35 +529,35 @@ day.
     index. `/api/series/result` stays JSON at 480 kB.
   - **The compare page's `/api/state`** drops the curves. Each variant's
     curves come once, in this format, when the variant lands.
-  - The decoder is about five lines, and it belongs to `rxplot.mjs`'s pure
-    half (D3), shared by all three pages. `/api/result/window` and
+  - The decoder is `rxplot.mjs`'s `unpack`, in its pure half (D3), shared
+    by all three pages. `/api/result/window` and
     `/api/series/window` go when the plotly renderer goes.
   - This reverses `session.py:2575-2582`, which excluded the arrays because
     "a browser then decimates for a plot it can only draw a few thousand
     points of". uPlot draws 59 498 at the costs above.
   - `rietx watch` is outside this route. The fit writes its snapshot per
     stage, decimated, at the cost WP-1413 measured.
-  - **The ceiling follows D5.** Above it the server keeps decimating through
-    `compare.decimation_index`. With per-column thinning it is 150 000
-    channels, which binds no pattern on disk. The largest is 132 992, which
-    held in the prototype, and 200 000 did not. With every marker it stays
-    100 000, unmeasured, since every marker had a long frame at 132 992 in
-    3 of 3 runs. The pilot measures the real panel at 132 992 either way.
-- **D5. Draw every marker at NAC scale, or thin per pixel column.**
-  Decided in the pilot (2026-09-25, § Decided). The pilot builds both paths
-  and measures them on the real panel in all three browsers. It takes every
-  marker if that holds § Acceptance 2's zero long frames, and thinning
-  otherwise.
-  - That costs 1.3-1.6× the thinned figures. In two runs of three it also
-    made long frames of 55-67 ms, where the thinned runs had none
-    (finding 4). This line said "stays inside a frame" until the
-    `/code-review` pass of 2026-09-25 found it contradicting finding 4 and
-    the logs. The client then does not decimate, so `decimation_index`
-    remains the one authority for which points exist, as `compare.py:1021`
-    and `gui/CLAUDE.md` require, and the watcher's n_drawn stays true.
-  - Thinning per pixel column is the fallback if a browser or a larger
-    pattern needs it. Adopting it retires "the client does not decimate" in
-    the same commit.
+  - **The ceiling is 150 000 channels**, since D5 chose thinning
+    (`session.CURVES_CEILING`). Above it the server decimates through
+    `compare.decimation_index`, and `kept`, `fitted` and the model follow the
+    channels that stay. It binds no pattern on disk: the largest is 132 992,
+    where the real panel had no long frame in chromium (§ The pilot,
+    measured), and the prototype's 200 000 had one.
+- **D5. Thin per pixel column.** Decided by the pilot on 2026-09-25, by the
+  rule set beforehand: every marker if it held § Acceptance 2's zero long
+  frames on the real panel in all three browsers, and thinning otherwise.
+  - Every marker did not hold. In chromium it made long frames of 50-127 ms
+    at 132 992 channels, in the drag-zoom, the exclude and the wheel zoom,
+    and its wheel zoom cost 8.5-9.6 ms an event at devicePixelRatio 2 on
+    NAC. In Firefox and WebKit on NAC an exclude made frames of 166-258 ms.
+    Thinned, chromium had no long frame at either size.
+  - The chart paints each device-pixel column's lowest and highest point
+    (`rxplot.mjs`'s `thinMarkers`), and the every-marker path is gone.
+    Which points a payload carries stays the server's
+    (`decimation_index`); which of them are painted is the chart's, and the
+    readout and every hit test still read every channel. `gui/CLAUDE.md`'s
+    "the client does not decimate" was rewritten to say that in the same
+    commit.
 - **D6. Exports.**
   - Copy PNG, download PNG, copy the visible data as TSV, and download SVG
     (svgcanvas, loaded on the first export, with its own and canvas2svg's
@@ -565,10 +587,12 @@ day.
 
 ### Where it will bite
 
-- **Safari and Firefox are unmeasured.** Only Chromium is cached here, and
-  `rietx gui` opens the default browser, which on a Mac is often Safari.
-  WebKit also caps canvas size below Chromium, so the 2D map's 22 003-wide
-  base level may need tiling. Both browsers are inside the pilot's gate.
+- **Real Safari is untried.** The pilot drove playwright's Firefox and
+  WebKit builds, and a drag works in that WebKit only because the probe
+  supplies the mouse movement it leaves out (finding 15). `rietx gui` opens
+  the default browser, which on a Mac is often Safari. WebKit also caps
+  canvas size below Chromium, so the 2D map's 22 003-wide base level may
+  need tiling.
 - **The boot win needs the 3D viewer gated.** `Structure3D` mounts hidden
   inside Model at boot (`Model.svelte:455`, `viewer = true`), and it loads
   plotly. Loading it only when the view is first shown moves plotly's
