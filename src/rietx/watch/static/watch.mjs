@@ -443,6 +443,8 @@ function hoverTick(state, at) {
 
 function makeChart(id, snap) {
   const div = $('plot');
+  // an empty host: a figure given up on can have left its overlays behind
+  div.replaceChildren();
   if (!palette) retheme();
   const state = {id: id, div: div, snap: snap, hidden: new Set(),
                  ladder: deltaRange(snap.delta), legendKey: null};
@@ -511,11 +513,18 @@ async function drawSnapshot(id) {
   }
   if (currentId() !== id || !$('plot')) return true;
   const drawn = performance.now();
-  if (chart && chart.id === id && chart.div === $('plot')) {
-    updateChart(chart, snap);
-  } else {
-    destroyChart();
-    chart = makeChart(id, snap);
+  try {
+    if (chart && chart.id === id && chart.div === $('plot')) {
+      updateChart(chart, snap);
+    } else {
+      destroyChart();
+      chart = makeChart(id, snap);
+    }
+  } catch (err) {
+    // A picture that cannot be drawn is given up on for this write, never
+    // let through: thrown, it would skip `pumpEvents` and stop the console.
+    console.error(err);
+    return true;
   }
   since('snap:draw', drawn);
   setText($('s-where'), whereOf(rows.get(id)));
