@@ -107,6 +107,14 @@ licence text to `LICENSE-3RD-PARTY.md`, the file the wheel ships as its
 notices, beside the ATTRIBUTION row this WP's pin task names. WP-1461 added
 uPlot's there.
 
+**From WP-1461 (2026-09-25, 5th session).** The pattern panel left plotly, so
+two things in `gui/src` serve only this viewer and the Series panel:
+`lib/plot.ts:hoverLabel` and the `Plotly` stand-in in `test-setup.ts`.
+Whichever of this WP and WP-1461's Series task lands second deletes them. The
+jsdom answer to "jsdom has no canvas" is `gui/src/test-uplot.ts`, a stand-in
+that records what was asked to be painted, with `tests/test_gui_browser.py`
+reading what chromium painted. A three.js scene wants the same two halves.
+
 ## Decisions this WP takes
 
 Each carries the recommended answer, for the maintainer to confirm or
