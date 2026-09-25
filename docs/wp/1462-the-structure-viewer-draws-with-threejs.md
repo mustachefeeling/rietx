@@ -437,10 +437,26 @@ The same commit removes an unused variable the merge left in
   tests. svelte-check clean.
 - Fast selection on the merged tree, load average 3: 6221 passed, 140
   skipped, none failed. It is the first fast count on this tree. The previous
-  entry's 6125 predates the merge, so the two do not compare. This session
-  added no Python test and renamed one.
+  entry's 6125 predates the merge, so the two do not compare. After the
+  review's one test and a docs-only merge of `origin/main` (WP-1327's
+  handover): 6222 passed, 140 skipped, none failed. This session added that
+  one Python test and renamed one.
 - The full selection did not run. The change is GUI-only and moves no
   measured number.
+
+*Review.* `/code-review high --fix` on the plotly commit found one defect.
+The GUI's `html` export draws with plotly, so on a base install
+`write_html`'s `ImportError` reached the route as a 500. It now answers 409
+`EXPORT_UNAVAILABLE`, whose message names `rietx[viz]`. A new test hides
+plotly to check it, and the install table, the gui-power route row and the
+1.5.1 notes say that one export needs `viz`. The rest were stale mentions of
+plotly, in ATTRIBUTION.md, `rietx.__getattr__`, a `structure3d.py` comment and
+a `plotlyjs.py` docstring. Declined: re-locking `uv.lock`, which was already
+about 60 lines behind `pyproject.toml` and would move unrelated pins; and the
+plotly lines in DESIGN.md and a `test_docs_consistency.py` cap comment, both
+dated records. A fresh `rietx[gui]` install therefore gets no plotly and so
+no `html` export until WP-1461 moves `write_html`. Putting plotly back in the
+`gui` extra until then is the other choice, and it is the maintainer's.
 
 *Forward note.* WP-1461's `### Inherited` entry from this WP now says the
 GUI's plotly is gone and that its compare task should delete
