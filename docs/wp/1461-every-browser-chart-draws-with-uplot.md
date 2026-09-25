@@ -248,8 +248,8 @@ Single runs, so no range (`results/proto_run2.txt`, `proto_dpr2.txt`,
     against a phantom move Chrome on Windows sends after a mouse-down. So in
     that WebKit the select box stays zero wide, even under uPlot's default
     options. A real mouse in Safari reports the movement. The pilot probe
-    fills it in from `clientX` for WebKit only (`pilot.mjs`), and a drag in
-    real Safari is still for a person to try.
+    fills it in from `clientX` for WebKit only (`pilot.mjs`). A drag in
+    real Safari works: the maintainer tried it in the GUI on 2026-09-26.
 16. **uPlot leaves its last series' dash on the canvas**, into the next frame
     as well. A layer drawn after the background's dashed line drew the peak
     markers dashed, and a layer under the series starts with the previous
@@ -682,9 +682,10 @@ with the plotly renderer.
 
 ### Where it will bite
 
-- **Real Safari is untried.** The pilot drove playwright's Firefox and
-  WebKit builds, and a drag works in that WebKit only because the probe
-  supplies the mouse movement it leaves out (finding 15). `rietx gui` opens
+- **Real Safari was untried until 2026-09-26.** The pilot drove
+  playwright's Firefox and WebKit builds, and a drag works in that WebKit
+  only because the probe supplies the mouse movement it leaves out
+  (finding 15). The maintainer then dragged in real Safari, and it worked. `rietx gui` opens
   the default browser, which on a Mac is often Safari. WebKit also caps
   canvas size below Chromium, so the 2D map's 22 003-wide base level may
   need tiling.
