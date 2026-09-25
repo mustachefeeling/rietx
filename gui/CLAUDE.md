@@ -7,6 +7,15 @@ pipeline and package-wide invariants; `docs/milestones/v1.0.md` holds the
 narrative of how these panels landed; the WP files (1008…1015, 1029) hold the
 measured detail behind each rule below.
 
+## Defaults
+
+**Every choice the GUI offers ships a default that suits most phases, and a
+setting is for the rest** (the maintainer's rule, recorded in WP-1462). A user
+who never opens a drawer sees the conventional picture, such as ellipsoids at
+50 % and bonds at 1.15×(rᵢ+rⱼ). A default
+is measured across phases and the measurement is kept where the choice is
+made. A setting most users would change means the default is wrong.
+
 ## House style
 
 **The token *values* are Python and `gui/src/tokens.css` is generated**

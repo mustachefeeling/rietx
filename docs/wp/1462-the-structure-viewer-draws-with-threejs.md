@@ -1,6 +1,6 @@
-# WP-1462 — the structure viewer draws with three.js
+# WP-1462 — the structure viewer draws with its own WebGL2 renderer
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-09-25 — D1-D9 decided; the renderer is being built
 Depends on: 1461 (soft)
 Priority: P3 2026-09-25 — after WP-1461 the structure viewer is the last page that loads plotly, 4.82 MB evaluated in a 700-811 ms frame on its first show
 
@@ -11,10 +11,9 @@ plotly.js, and `pyproject.toml` names plotly nowhere. Everything the viewer
 shows and does today survives, and its crystallography rules in
 `gui/CLAUDE.md` stand unchanged.
 
-The title names three.js, the answer this file was filed with. The second
-session recommends a renderer of our own instead (D1). The file keeps its
-name until the maintainer decides, because WP-1461's in-flight file links
-to it.
+The file was filed recommending three.js, and its name still says so. The
+maintainer chose a renderer of our own (D1). The file is renamed once
+WP-1461 merges, because WP-1461's in-flight file links to this name.
 
 ## Context
 
@@ -217,99 +216,73 @@ front faces.
   weighted blended order-independent transparency needs no ordering at all
   (McGuire & Bavoil 2013). three.js also orders transparent objects whole
   and ships no order-independent mode, so it gains nothing here.
-- **The bond rule is not a coordination rule.** Under the radius-sum rule,
-  fluorapatite's P reaches 4 Ca at 3.1-3.2 Å beside its 4 O, so its first
-  hull had 8 vertices. The spike's ligand rule takes the non-metal
-  neighbours of another element. It gives PO₄, AlF₆ and CaF₈. gemmi carries
-  no electronegativity table and neither does rietx, so a better rule needs
-  a table with a citation.
-- **A shell is matched by position.** The server can find a contact from a
-  translated copy of the centre, so a shell collected by atom index came out
-  short on 6 of 18 Ca in NAC.
-- **The hull needs care at its edges.** A square face comes out as two
-  triangles, so an edge is drawn only where its two faces are not
-  coplanar. A shell of fewer than four atoms, or a planar one such as CO₃,
-  has no 3D hull, and the spike met neither.
-- **A shell's size under the bond rule is not a safe default key.** Every
-  site as a centre gives LaB6's La 24 B, NAC's Al 6, Ca 8 and Na 4 F, and
-  fluorapatite's P 4 O and both Ca 9. Na's shell of 4 is the covalent-radius
-  cutoff cutting a large ionic cation's shell short. So "draw polyhedra
-  where the shell holds 4 to 6" would draw a NaF₄ tetrahedron that is not
-  there.
-- **The largest distance gap finds the shell the bond rule misses.** Sort a
-  site's ligand distances and take the largest ratio of one distance to
-  the one before, among the first 13. Na's shell is 7 F from 2.19 to
-  2.58 Å, then 3.63 Å, a ratio of 1.41. The ratio is 2.08 after Al's 6 F,
-  1.98 after P's 4 O and 1.54 after NAC Ca's 8 F. Fluorapatite's Ca sites
-  have no clear gap (1.14 and 1.15), and LaB6's La has 24 B at one
-  distance. A threshold between 1.15 and 1.41 separates them on these
-  three phases. The published form of the rule is the maximum-gap method
-  (Brunner & Schwarzenbach 1971), not yet read here.
-- **Not tried:** hovering a polyhedron (a ray–triangle test on the CPU),
-  hiding the centre-to-ligand bonds inside a polyhedron, and choosing the
-  centres in the GUI.
-
-Hard polyhedra work falls on the server. The ligand rule, the hull and the
-degenerate shells are chemistry and geometry, and WP-1015's founding rule
-keeps both there.
+- **The rest is chemistry, and it is WP-1466's.** The spike also met the
+  ligand rule, shells matched by position, the hull's coplanar faces and
+  the shell measurements behind the polyhedra defaults. All of it is
+  server-side, and WP-1466 carries it.
 
 ## Decisions this WP takes
 
-Each carries the recommended answer, for the maintainer to confirm or
-overturn in the first task. The second session changed D1 and D4 and
-added D6 to D8.
+The maintainer confirmed D1-D8 on 2026-09-25 and asked for a critical pass
+over all of them, against what VESTA, Mol\*, ChimeraX and the others do. That
+pass changed D5 and D6 and added D9. Its sources are a survey of those
+programs' manuals and docs, and Daams & Villars (1993) for the coordination
+shell.
 
-- **D1. The viewer draws its own quadrics in WebGL2, with no library.** It
-  follows the practice of Mol\* and NGL, measured above at 4.8 KB gzip
-  against three.js's 139 KB. It needs no Dependabot entry, no licence row
-  and no bundle pin, as WP-1015's "zero new dependencies" had it. Three
-  alternatives were weighed. A thin helper (twgl.js, OGL) would replace the
-  60 lines of program and buffer setup the prototype already has. three.js
-  would draw tessellated meshes and would need a custom shader or extra
-  geometry for the rings. A molecular viewer owns the crystallography. **Fallback:**
-  three.js, bundled and pinned, if the spike's gate fails on a GPU the
-  prototype has not met.
-- **D2. The payload does not change.** The prototype drew it as served.
-  `structure3d.ts` keeps its pure half: `atomTransform`, `axisCamera`,
-  `atomLabel`, `legend`, `caption` and `stickRadius`. The trace builders
-  and the tessellation (`unitSphere`, `unitCylinder`, `stickTransform`) go,
-  since impostors need no mesh.
-- **D3. The a, b and c labels are a DOM overlay.** Each label is placed at
-  its projected 3D position on every frame. Text stays crisp, takes the
-  theme's font and colour, and needs no font atlas.
-- **D4. Hover solves the quadric on the CPU.** The same equation the shader
-  solves, for the pixel under the pointer, costs 12-61 µs an event at 116
-  to 173 atoms. It needs no id buffer and no pixel read-back.
-- **D5. PNG export draws once more and reads the canvas in the same task.**
-  The WebGL buffer is not kept between frames for this.
+- **D1. The viewer draws its own quadrics in WebGL2, with no library.**
+  *Stands.* It follows the practice of Mol\* and NGL, measured above at
+  4.8 KB gzip against three.js's 139 KB, and needs no Dependabot entry,
+  licence row or bundle pin. The pass found two costs. The code is ours,
+  about 1000 lines once export and context loss are in. And no candidate
+  gives a vector export: only VESTA offers one (EPS, PDF, SVG), and a
+  scene of impostors has no triangles to write. A vector export would
+  project the same ellipses and cylinders onto a 2D canvas, depth-sorted,
+  and is out of scope here. **Fallback:** three.js, bundled and pinned, if
+  the renderer fails on a GPU the spike has not met.
+- **D2. The payload does not change.** *Stands.* The prototype drew it as
+  served. `structure3d.ts` keeps its pure half (`atomTransform`,
+  `atomLabel`, `legend`, `caption`, `stickRadius`) and gains the view
+  arithmetic. The plotly trace builders and the tessellation go.
+- **D3. The a, b and c labels are a DOM overlay.** *Stands.* Text stays
+  crisp and takes the theme. One consequence is D5's: the labels are not
+  in the WebGL canvas, so the export draws them itself.
+- **D4. Hover solves the quadric on the CPU.** *Stands.* 12-61 µs an event
+  at 116 to 173 atoms. Mol\* renders ids to a buffer because its surfaces
+  exist only in shaders. Here the browser holds every atom's position and
+  T, so the CPU solves the same equation. Bond halves are picked the same
+  way, as finite cylinders.
+- **D5. PNG export is a render of its own, larger than the screen.**
+  *Revised.* Today's export is plotly's `toImage` at scale 1, the size of
+  the panel. VESTA multiplies the view by a scale factor, ChimeraX
+  supersamples 3× by default, and Mol\* offers presets up to 3840×2160.
+  The export renders offscreen with its long side at 3000 px, enough for a
+  17 cm figure at 300 dpi with margin. It is multisampled, and capped by
+  `MAX_RENDERBUFFER_SIZE` and `MAX_VIEWPORT_DIMS`. Line widths and the
+  a/b/c labels scale with it, so the picture matches the screen. The
+  background is the screen's. A transparent background, which VESTA, Mol\*
+  and ChimeraX all offer, is a second button. Impostors make the larger
+  render exact: nothing is tessellated, so nothing needs refining.
 - **D6. Anisotropic sites show their principal ellipses in ellipsoid
-  mode.** This is the one new look this WP adds, three lines of shader.
-  The octant cut-out stays out (Non-goals). Strike it and the rest stands.
-- **D7. Silhouettes are antialiased in the shader.** MSAA smooths triangle
-  edges only, and an impostor's outline is a `discard`. At devicePixelRatio
-  1 the prototype's outlines step (`shots/lab6-dpr1-edges.png`). The fix is
-  coverage from the ray's discriminant through alpha-to-coverage, or a
-  2× buffer.
-- **D8. The polyhedral view is a WP of its own, filed to follow this
-  one.** § Polyhedra showed it fits D1 as one more pass of 88 lines, so
-  nothing in this WP is built for it. The new WP carries a `polyhedra` arm
-  in the payload, the ligand rule, degenerate shells, a choice of centres,
-  the translucent pass and their tests. None of that is needed to leave
-  plotly. The alternative folds it in here and makes D2 "the payload gains
-  one arm".
-  **The new WP's first deliverable is its defaults.** Most users should
-  never need a polyhedron setting. Its proposal, to be measured across more
-  phases than the three here:
-  - *centres*: sites whose shell holds 4 to 8 ligands and ends at a clear
-    distance gap (§ Polyhedra). On the three phases that draws PO₄, AlF₆,
-    CaF₈ and NaF₇ and skips fluorapatite's Ca and LaB6's La;
-  - *ligands*: non-metal neighbours of another element, out to that gap,
-    and so independent of the bond rule's covalent radii;
-  - *look*: the centre's colour at alpha 0.55, edges in a darker ink, the
-    centre atom kept, and the centre-to-ligand sticks hidden;
-  - *when*: on in ball mode when a centre qualifies, and off in ellipsoid
-    mode, where translucent faces would cover the ADPs the mode exists to
-    show. One toggle overrides either.
+  mode.** *Stands, with a fix.* On NAC's dark violet Na the dark ring
+  vanished into the atom. The ring ink is darkened on a light atom and
+  lightened on a dark one. Rings stay off isotropic sites, whose T axes
+  are arbitrary and would claim an orientation that is not there. The
+  octant cut-out stays out (Non-goals).
+- **D7. Silhouettes are antialiased in the shader.** *Stands.* Coverage
+  comes from the ray's discriminant, through alpha-to-coverage on a
+  multisampled canvas. The export gets the same at its own resolution.
+- **D8. The polyhedral view is WP-1466, filed to follow this one.**
+  *Stands.* § Polyhedra showed it fits D1 as one more pass, so nothing here
+  is built for it. The pass moved its defaults and they live in that file
+  now. Its shell rule follows Daams & Villars (1993) and the maximum-gap
+  method they apply, and its look and its choice of centres follow VESTA
+  and Mercury.
+- **D9. Lines are screen-space quads with a width in CSS pixels.**
+  *New.* The cell frame is 2 px today, and `gl.LINES` draws one device
+  pixel. That is 0.5 CSS px at devicePixelRatio 2, and a hairline in a
+  3000 px export. Each edge is an instanced quad extruded across its
+  projected direction, depth-tested like the atoms. Its width scales with
+  the device and the export. This retires the "one pixel wide" risk below.
 
 ## Where it will bite
 
@@ -331,9 +304,14 @@ added D6 to D8.
   uPlot. A browser test covers the drawing, and it reads back pixels or
   compares pictures, never a hash of a screenshot (`gui/CLAUDE.md`: a WebGL
   re-render differs by a pixel).
-- **WebGL lines are one pixel wide.** The cell frame is thin at any zoom.
-  If that reads badly, the edges become cylinder impostors at a radius set
-  in pixels each frame.
+- **An export is a large buffer.** 3000 × 2500 pixels at 4 samples is
+  about 240 MB of colour and depth while it renders. The export frees it
+  at once, and falls back to fewer samples, then a smaller size, when the
+  allocation fails.
+- **plotly outlives this WP until the Series panel leaves it.**
+  `panels/Series.svelte` still draws with plotly. The `/plotly.js` route,
+  `lib/plotly.ts` and the `gui` extra's plotly go with whichever of this WP
+  and WP-1461's Series task lands second.
 - **The camera is owned outright.** The renderer keeps the camera between
   draws, so the read-back rule above goes. A redraw must still not reset
   the view, and a test says so.
@@ -348,15 +326,19 @@ added D6 to D8.
   refinement. Each is an addition on D1 and a WP of its own. Polyhedra are
   D8's.
 - **WebGPU.** Firefox on Linux does not ship it yet.
+- **A vector export** (D1), and DPI metadata in the PNG. The pixel count is
+  what a journal checks.
 - **Any other chart.** 2D charts are WP-1461's.
 
 ## Tasks
 
-- [ ] The maintainer confirms D1-D8, and this file records which, renamed if D1 holds, with the polyhedra WP filed if D8 holds
-- [ ] Spike, the gate: the prototype on the GPU paths it has not met (any Windows or Linux machine the maintainer can reach), and paired against today's plotly viewer on the same machine: first show, rotation frames and hover work per event, in Chromium, WebKit and Firefox. Record go or no-go in the handover. On no-go, draw the same payloads with three.js before stopping.
-- [ ] The renderer: instanced atom and bond-half impostors, the cell frame, the a/b/c overlay, the orthographic camera, the trackball, the light on the camera, theme colours, D6's ellipses, D7's antialiasing, context loss, and release on unmount
-- [ ] Interaction: hover on atoms and bond halves, legend toggles, the a/b/c and reset views, the three knobs, the view kept across redraws, `ResizeObserver` sizing, and PNG export
-- [ ] Delete plotly: the trace builders, the tessellation, the camera read-back, `gui/src/lib/plotly.ts`, the `/plotly.js` route, the `gui` extra's plotly, and `viz/plotlyjs.py` if WP-1461 left it only for this viewer. `lib/plot.ts:hoverLabel` and the `Plotly` stand-in in `test-setup.ts` go with whichever of this WP and WP-1461's Series task lands second.
+- [x] The maintainer confirms D1-D8 (2026-09-25); the critical pass revises D5 and D6 and adds D9; WP-1466 is filed for D8
+- [ ] Spike, the gate: the renderer on the GPU paths the prototype has not met (any Windows or Linux machine the maintainer can reach), and paired against today's plotly viewer on the same machine: first show, rotation frames and hover work per event, in Chromium, WebKit and Firefox. Record go or no-go in the handover. On no-go, draw the same payloads with three.js before stopping.
+- [ ] The renderer: instanced atom and bond-half impostors, D9's line quads for the cell frame, the a/b/c overlay, the orthographic camera, the trackball, the light on the camera, theme colours, boundary images dimmed, D6's ellipses, D7's antialiasing, context loss, and release on unmount
+- [ ] Interaction: hover on atoms and bond halves, legend toggles, the a/b/c and reset views, pan and zoom, the three knobs, the view kept across redraws, and `ResizeObserver` sizing
+- [ ] Export (D5): the offscreen render at a 3000 px long side, multisampled, lines and labels scaled, on the screen's background and on a transparent one
+- [ ] Leave plotly in the viewer: the trace builders, the tessellation, the camera read-back and the modebar. The `/plotly.js` route, `gui/src/lib/plotly.ts`, the `gui` extra's plotly, `viz/plotlyjs.py`, `lib/plot.ts:hoverLabel` and the `Plotly` stand-in in `test-setup.ts` go only if the Series panel has left plotly too.
+- [ ] Rename this file to its title once WP-1461 has merged, with its ROADMAP row and WP-1461's two links
 - [ ] Tests: `structure3d.test.ts` on the pure half and the instance data; a WebGL stand-in beside `test-uplot.ts`; a browser test that reads pixels at known atoms, finds a principal ellipse on an anisotropic site, and asserts a redraw keeps the view; a test that no page requests `/plotly.js`
 - [ ] Docs: the structure viewer paragraphs in `gui/CLAUDE.md` (crystallography rules kept, plotly traps deleted), `using/install.md` for the `gui` extra, ATTRIBUTION.md, and the root CLAUDE.md's GUI lines if they name plotly. On the three.js fallback also: its row in `.github/dependabot.yml`'s allow list (WP-1461 created it) and its licence text in `LICENSE-3RD-PARTY.md`.
 
@@ -366,8 +348,9 @@ Measured like WP-1461's § Acceptance: the spike driver ported to the real
 page, paired with the plotly viewer on the same machine and load, three or
 more runs for ranges, recorded in the handover.
 
-1. **No plotly anywhere.** No page requests `/plotly.js`, the route is
-   gone, and `pyproject.toml` names plotly in no extra.
+1. **No plotly in the viewer.** Showing the structure viewer requests no
+   `/plotly.js`. Once the Series panel has left plotly too, the route is
+   gone and `pyproject.toml` names plotly in no extra.
 2. **First show:** no long animation frame is attributed to the renderer.
    The time from the viewer's first show to its first frame is recorded
    beside plotly's.
@@ -402,9 +385,6 @@ npm --prefix gui test && npm --prefix gui run check
   Report ORNL-3794, Oak Ridge National Laboratory. Burnett, M. N. &
   Johnson, C. K. (1996), ORTEP-III, ORNL-6895, for the principal ellipses
   and the octant convention.
-- Brunner, G. O. & Schwarzenbach, D. (1971). *Z. Kristallogr.* 133,
-  127-133. The maximum-gap coordination number, cited for the polyhedra
-  WP and not yet read.
 - McGuire, M. & Bavoil, L. (2013). Weighted blended order-independent
   transparency. *Journal of Computer Graphics Techniques* 2(2).
 - Rose, A. S. & Hildebrand, P. W. (2015). NGL Viewer: a web application for
