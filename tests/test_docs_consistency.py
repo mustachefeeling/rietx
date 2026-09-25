@@ -954,8 +954,11 @@ def _kept_by_git(paths: list[Path]) -> list[Path]:
     """
     import subprocess
 
+    # -z: without it git C-quotes a path holding a backslash or a non-ASCII
+    # byte, so every Windows path, and any `é`, would never match below.
     result = subprocess.run(
-        ["git", "check-ignore", "--stdin"], input="\n".join(map(str, paths)),
+        ["git", "check-ignore", "-z", "--stdin"],
+        input="".join(f"{p}\0" for p in paths),
         cwd=ROOT, capture_output=True, text=True, check=False,
     )
     # 0 is "something matched", 1 is "nothing did"; anything else is git
@@ -964,7 +967,7 @@ def _kept_by_git(paths: list[Path]) -> list[Path]:
         f"git check-ignore exited {result.returncode} and asked nothing: "
         f"{result.stderr.strip()}"
     )
-    ignored = set(result.stdout.splitlines())
+    ignored = set(result.stdout.split("\0"))
     return [p for p in paths if str(p) not in ignored]
 
 
