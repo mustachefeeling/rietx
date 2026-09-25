@@ -1586,8 +1586,10 @@ def test_the_registry_splits_the_magnetic_construct_by_keyword():
     * the site moments and the Landé g are **READ** (the build is behind
       ``to_structure(magnetic_symmetry=...)``, the way ``adps`` is behind
       ``aniso=True``);
-    * ``mag_space_group`` is **REPORTED**, because it is a Shubnikov *symbol*
-      and no dependency here parses one;
+    * ``mag_space_group`` is **READ**: a BNS or OG number is the group (and a
+      ``str`` stating no ``space_group`` takes its nuclear group from it),
+      while a Shubnikov *symbol*, which no dependency here parses, is carried
+      as metadata and the build refuses a moment-bearing phase by name;
     * ``mag_only``/``mag_only_for_mag_sites`` stay **REFUSED**, now with the
       argument they always needed — a phase with no nuclear structure factor
       has no shape in WP-1327's model, which is a moment on a nuclear phase
@@ -1601,14 +1603,15 @@ def test_the_registry_splits_the_magnetic_construct_by_keyword():
     assert coverage.stance("mly") is coverage.Stance.READ
     assert coverage.stance("mlz") is coverage.Stance.READ
     assert coverage.stance("mg") is coverage.Stance.READ
-    assert coverage.stance("mag_space_group") is coverage.Stance.REPORTED
+    assert coverage.stance("mag_space_group") is coverage.Stance.READ
     assert coverage.stance("mag_only") is coverage.Stance.REFUSED
     assert coverage.stance("mag_only_for_mag_sites") is coverage.Stance.REFUSED
     assert coverage.stance("mag_atom_out") is coverage.Stance.IGNORED
     assert coverage.feature("mag_atom_out") is coverage.feature("atom_out")
     # a READ keyword is not scanned, because finding it changes nothing
     assert not {"mlx", "mly", "mlz", "mg"} & coverage.SCANNED
-    assert {"mag_space_group", "mag_only"} <= coverage.SCANNED
+    assert {"mag_only", "mag_only_for_mag_sites"} <= coverage.SCANNED
+    assert "mag_space_group" not in coverage.SCANNED
     # and the sentence that is now false is gone from the whole registry
     assert not [f for f in coverage.FEATURES
                 if "no magnetic model" in f.why]
@@ -1624,16 +1627,16 @@ def test_a_topas_magnetic_phase_reads_with_the_moments_in_place(tmp_path):
     assert phase.sites[0].moment == {"mlx": 0.0, "mly": 2.35, "mlz": 0.0}
     assert phase.sites[0].vary["mly"] is True
     assert [s.moment for s in phase.sites[1:]] == [None, None, None]
-    (hit,) = model.coverage.reported
-    assert hit.feature.name == "magnetic space group"
-    assert any(d.code == "TOPAS_FEATURES_NOT_IMPORTED" for d in diagnostics)
+    assert not model.coverage.reported     # every construct here is read
 
     built: list = []
     structure = topas_to_structure(model, magnetic_symmetry="58.395",
                                    diagnostics=built)
     (out,) = structure.phases
     assert out.magnetic_symmetry.bns_number == "58.395"
-    assert out.atoms[0].moment.values() == (0.0, 2.35, 0.0)
+    # `mly 2.35` is fractional: 2.35 of the 4.582 Å b edge, in mu_B
+    assert out.atoms[0].moment.values() == pytest.approx((0.0, 2.35 * 4.582,
+                                                          0.0))
     assert out.atoms[0].moment.ion == "Cr3+"    # `occ Cr+3` normalises to it
     assert out.atoms[0].moment.vary is True
     codes = [d.code for d in built]
@@ -1705,6 +1708,150 @@ def test_a_stated_moment_component_that_cannot_be_resolved_refuses(tmp_path):
     text = _TOPAS_MAG.replace("mly @ 2.35", "mly = Get(nothing);")
     with pytest.raises(TopasInpError, match="could not resolve mly"):
         read_topas_inp(_inp(tmp_path, text))
+
+
+#: A ``str`` in the syntax of the Durham LaMnO₃ magnetic tutorial's
+#: ``maglamno3_riet_04.inp`` (an ISODISTORT P1 export): ``mag_space_group 1.1``
+#: and **no** ``space_group``, the moment resolved through a ``prm`` equation
+#: carrying the equation's value after ``;:``. Synthetic: the tutorial is named
+#: for its syntax only, and every number here is this file's own (the tutorial
+#: states no licence). The ``MM_CrystalAxis_Display`` line TOPAS prints beside
+#: the moment is left out until a TOPAS run of this str supplies it.
+_TOPAS_TUTORIAL_P1 = """\
+str
+   phase_name "LaMnO3_P1"
+   mag_space_group 1.1
+   prm  Mn_1_dmlx  0.06810
+   prm  Mn_1_mlx  = 0  + Mn_1_dmlx;:  0.06810`
+   prm  Mn_1_mly  = 0  + 0.60240;:  0.60240`
+   prm  Mn_1_mlz  = 0  + 0.04130;:  0.04130`
+   a     5.61240
+   b     5.83170
+   c     7.74410
+   al   90.00000
+   be   90.00000
+   ga   90.00000
+   scale 0.01
+   site La_1  x 0.98710 y 0.05230 z 0.25000 occ La 1 beq 1.0
+   site Mn_1  x 0.00000 y 0.50000 z 0.00000 occ Mn 1 beq 1.0
+      mlx = Mn_1_mlx; mly = Mn_1_mly; mlz = Mn_1_mlz;
+   site O1_1  x 0.08120 y 0.48150 z 0.25000 occ O 1 beq 1.0
+"""
+
+#: mlx·a, mly·b, mlz·c for Mn_1 to five decimals, crystal-axis mu_B. Our
+#: arithmetic, not a TOPAS output: the display line waits for a TOPAS run.
+_TUTORIAL_DISPLAY = (0.38220, 3.51302, 0.31983)
+
+
+def test_a_topas_moment_is_fractional_and_matches_the_tutorials_display(
+        tmp_path):
+    """``mlx mly mlz`` are fractional-basis components, so the stored
+    crystal-axis moment is each times its edge — and equals the
+    ``MM_CrystalAxis_Display`` values TOPAS printed beside them, to the
+    precision both were printed at.
+
+    The Technical Reference § 13 states it twice (Fmagc = L·Fmag with
+    m = {mlx, mly, mlz}; ``MM_CrystalAxis_Display`` as mxc = mlx·a) and the
+    tutorial's numbers agree. The old crystal-axis reading stored
+    (0.06810, 0.60240, 0.04130) and is 2.9 μ_B off here. Five-decimal ``mlx``
+    times an edge is good to 0.5e-5·|edge|, the display to 0.5e-5 more.
+    """
+    diagnostics: list = []
+    model = read_topas_inp(_inp(tmp_path, _TOPAS_TUTORIAL_P1),
+                           diagnostics=diagnostics)
+    (phase,) = model.phases                 # a `mag_space_group`-only str reads
+    assert phase.space_group == "" and phase.mag_space_group == "1.1"
+    built: list = []
+    structure = topas_to_structure(model, diagnostics=built)
+    (out,) = structure.phases
+    assert out.magnetic_symmetry.bns_number == "1.1"
+    assert out.space_group == "P 1"         # derived: the family group of 1.1
+    mn = next(a for a in out.atoms if a.label == "Mn_1")
+    edges = (5.61240, 5.83170, 7.74410)
+    for got, shown, edge in zip(mn.moment.values(), _TUTORIAL_DISPLAY, edges):
+        assert abs(got - shown) <= 0.5e-5 * edge + 0.5e-5, (got, shown)
+    codes = {d.code: d for d in built}
+    assert "TOPAS_MOMENT_CONVENTION" in codes
+    assert "fractional" in codes["TOPAS_MOMENT_CONVENTION"].message
+    assert "not yet measured" in codes["TOPAS_MOMENT_CONVENTION"].suggestion
+    read = codes["TOPAS_MAGNETIC_GROUP_READ"]
+    assert read.where == ["phases.0.magnetic_symmetry", "phases.0.space_group"]
+    assert "'P 1'" in read.message
+
+
+def test_a_topas_moment_on_an_oblique_cell_is_a_per_axis_scale_not_a_rotation(
+        tmp_path):
+    """On a monoclinic cell the stored crystal-axis vector is
+    ``(mlx·|a|, mly·|b|, mlz·|c|)``, and its Cartesian form is exactly
+    TOPAS's ``L·m`` — the lattice matrix applied to (mlx, mly, mlz).
+
+    The oblique cell is what separates the readings: the crystal-axis one
+    (the old reader) stores (0.4, −0.3, 0.3), and a Cartesian-components one
+    would rotate the vector off the per-axis scale. Both fail here.
+    """
+    text = ('str\n phase_name "mono"\n mag_space_group 1.1\n'
+            ' a 5.2 b 6.9 c 8.4 al 90 be 115 ga 90\n scale 0.01\n'
+            ' site Mn1 x 0.13 y 0.27 z 0.41 occ Mn+2 1 beq 0.5 '
+            'mlx 0.4 mly -0.3 mlz 0.3\n')
+    structure = topas_to_structure(read_topas_inp(_inp(tmp_path, text)))
+    (out,) = structure.phases
+    stored = np.array(out.atoms[0].moment.values())
+    np.testing.assert_allclose(stored, [0.4 * 5.2, -0.3 * 6.9, 0.3 * 8.4],
+                               rtol=0, atol=1e-12)
+    from rietx.crystallography.adp import cartesian_basis
+
+    cell = (5.2, 6.9, 8.4, 90.0, 115.0, 90.0)
+    np.testing.assert_allclose(
+        moment_to_cartesian(stored, cell),
+        cartesian_basis(*cell) @ np.array([0.4, -0.3, 0.3]),
+        rtol=0, atol=1e-12)
+    assert moment_magnitude(stored, cell) == pytest.approx(3.2452, abs=1e-4)
+
+
+def test_a_mag_space_group_only_phase_with_a_symbol_is_refused_by_name(
+        tmp_path):
+    """No ``space_group``, and a ``mag_space_group`` that is a *symbol*: there
+    is no operator list to derive the nuclear group from, so the build refuses
+    naming the phase and the symbol rather than guessing a group — whether or
+    not the phase states a moment."""
+    text = ('str\n phase_name "bare"\n mag_space_group "P n\' m a\'"\n'
+            ' a 5.7 b 7.6 c 5.5\n scale 0.01\n'
+            ' site Mn1 x 0 y 0 z 0 occ Mn+3 1 beq 0.5\n')
+    model = read_topas_inp(_inp(tmp_path, text))
+    assert model.phases[0].space_group == ""
+    with pytest.raises(TopasInpError, match="states no space_group") as exc:
+        topas_to_structure(model)
+    assert "P n' m a'" in str(exc.value) and "'bare'" in str(exc.value)
+    # a str stating neither group is still a skipped block, as before
+    neither = read_topas_inp(_inp(tmp_path, text.replace(
+        ' mag_space_group "P n\' m a\'"\n', ""), name="neither.inp"))
+    assert not neither.phases
+    (skipped,) = neither.skipped_blocks
+    assert skipped.lacked == "space_group"
+
+
+def test_mag_only_for_mag_sites_stays_refused_in_the_tutorials_two_str_idiom(
+        tmp_path):
+    """``mag_only_for_mag_sites`` switches a site's nuclear term off, and the
+    file that uses it (the Durham tutorial's ``maglamno3_riet_02.inp`` layout)
+    states the nuclear structure in one ``str`` and restates the magnetic site
+    in a second, ``mag_space_group``-only one carrying the keyword. Both now
+    read as phases; *building* them without the keyword would count Mn's
+    nuclear scattering twice, so it is refused, not dropped with a
+    diagnostic."""
+    text = ('str\n phase_name "LaMnO3"\n space_group Pnma\n'
+            ' a 5.8120 b 7.7030 c 5.5810\n scale 0.01\n'
+            ' site Mn x 0 y 0 z 0 occ Mn 1 beq 1.0\n'
+            'str\n phase_name "LaMnO3_magnetic"\n mag_only_for_mag_sites\n'
+            ' a 5.8120 b 7.7030 c 5.5810\n mag_space_group 62.448\n'
+            ' site Mn x 0 y 0 z 0 occ Mn 1 beq 1.0\n'
+            ' mlx @ 0.66120 mly @ 0.03140 mlz @ 0.01870\n scale 0.01\n')
+    model = read_topas_inp(_inp(tmp_path, text))
+    assert [p.name for p in model.phases] == ["LaMnO3", "LaMnO3_magnetic"]
+    (hit,) = model.coverage.refused
+    assert hit.feature.name == "magnetic-only phase"
+    with pytest.raises(TopasInpError, match="twice"):
+        topas_to_structure(model)
 
 
 # ===========================================================================

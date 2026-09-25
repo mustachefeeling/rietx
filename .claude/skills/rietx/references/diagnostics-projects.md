@@ -28,7 +28,7 @@ of its own, below. GSAS and GSAS-II have a file of their own, §7h,
 kinds between them and the writers that put three of them back, under the same
 criterion.
 
-The TOPAS `.inp` reader's moment rows (`TOPAS_MOMENT_CONVENTION`,
+The TOPAS `.inp` reader's magnetic rows (`TOPAS_MAGNETIC_GROUP_READ`, `TOPAS_MOMENT_CONVENTION`,
 `TOPAS_MOMENT_ION_UNCHARGED`) and the FullProf `.pcr` reader's
 `FULLPROF_MAGNETIC_PHASE_OMITTED` moved out to §7j,
 [`references/magnetic.md`](magnetic.md) (issue #286), beside the rest of the

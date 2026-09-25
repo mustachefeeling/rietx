@@ -409,8 +409,8 @@ PROJECT_FORMATS: tuple[ProjectFormat, ...] = (
             carries=("phases", "sites", "refine flags", "the emission profile",
                      "the run's own Rwp and GoF", "the data files it points at"),
             # "both" (dry-run merge finding, 2026-09-17): the magnetic chain's
-            # TOPAS_MOMENT_CONVENTION/TOPAS_MOMENT_ION_UNCHARGED diagnostics
-            # fire from to_structure(..., magnetic_symmetry=..., diagnostics=[]),
+            # TOPAS_MAGNETIC_GROUP_READ/TOPAS_MOMENT_* diagnostics
+            # fire from to_structure(..., diagnostics=[]),
             # so the build channel reports too, same as gsas_exp's docstring
             # above already names as the failure shape a forwards-only
             # assertion would miss.

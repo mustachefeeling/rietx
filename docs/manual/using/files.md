@@ -286,6 +286,38 @@ trip would lose which form factor the refinement used. A refinement CIF also
 carries `_atom_site_moment.magnitude_su`, the esd of the modulus, which is
 where a moment's uncertainty lives.
 
+### A magnetic phase from a TOPAS `.inp`
+
+A TOPAS `.inp` states a magnetic phase as `mag_space_group` on a `str`, with
+`mlx mly mlz` (and optionally `mg`) on each magnetic `site`. Its magnetic
+examples, and ISODISTORT's TOPAS export, often state no nuclear `space_group`
+at all. `rx.read_topas_inp` reads such a `str` as a phase. The build then takes
+the nuclear group from the magnetic one: its operators with time reversal
+dropped, under the magCIF reader's tier-2 rule above. TOPAS itself generates
+the atoms from those operators.
+
+A `mag_space_group` written as a BNS number (`62.448`, `1.1`) or an OG number
+is used as the group directly. It resolves to the operators of that number's
+standard setting, and `TOPAS_MAGNETIC_GROUP_READ` says so. A Shubnikov
+*symbol* is only kept as metadata, because nothing here parses one. The build
+refuses a phase that states moments under a symbol until you pass
+`to_structure(magnetic_symmetry=...)`.
+
+`mlx mly mlz` are components in the **fractional** basis,
+m = mlx·**a** + mly·**b** + mlz·**c** with the edges in Å. The stored
+crystal-axis moment is therefore (mlx·|a|, mly·|b|, mlz·|c|). This is a
+per-axis scale, never a rotation. It is the TOPAS Technical Reference's own
+reading, § 13: Fmagc = L·Fmag, and its `MM_CrystalAxis_Display` macro gives
+mxc = mlx·a. A file's `MM_CrystalAxis_Display` line is the number to compare
+with. On the Durham LaMnO₃ tutorial it agrees to the printed digits. It has
+**not** been measured against TOPAS's own calculated intensities, and
+`TOPAS_MOMENT_CONVENTION` says so.
+
+`mag_only` and `mag_only_for_mag_sites` switch a site's nuclear scattering off.
+The file that uses them typically restates the magnetic sites in a second
+`str`. Building that without the switch would count those sites' nuclear
+scattering twice, so it is refused by name rather than dropped.
+
 ## Instrument profiles
 
 A calibrated instrument is a file. `save_instrument_profile` writes one and
@@ -656,7 +688,7 @@ do.
 | `TopasModel.emission_lines`, `TopasModel.emission_macro`, `TopasModel.anode`, `TopasModel.wavelength` | the emission profile, as stated or as a macro named it |
 | `TopasModel.geometry`, `TopasModel.goniometer_radius_mm` | the diffractometer, where the file says |
 | `TopasModel.background_terms` | how many background coefficients were refined |
-| `TopasModel.skipped_blocks` | phase blocks that stated no name or space group, recorded whether or not a diagnostics list was passed |
+| `TopasModel.skipped_blocks` | phase blocks that stated no name, or neither a `space_group` nor a `mag_space_group`, recorded whether or not a diagnostics list was passed |
 | `TopasModel.coverage` | what the reader met and did not carry; see below |
 
 `read_fullprof_pcr` returns a `FullProfModel`:

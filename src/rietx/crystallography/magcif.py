@@ -647,7 +647,8 @@ def _magnetic_group_phrase(magnetic_symmetry) -> str:
     return "the file's magnetic group" + (f" {named}" if named else "")
 
 
-def resolve_nuclear_symmetry(hm_symbol: str, magnetic_symmetry, path: str, *,
+def resolve_nuclear_symmetry(hm_symbol: str | None, magnetic_symmetry,
+                             path: str, *,
                              sites=(),
                              diagnostics: list[Diagnostic] | None = None,
                              nuclear_group: str = "auto",
@@ -697,6 +698,13 @@ def resolve_nuclear_symmetry(hm_symbol: str, magnetic_symmetry, path: str, *,
     ``"file"`` skips tier 1 (tier 2, else the refusal), and ``"parent"``
     forces tier 1 and raises :class:`MagCifError` by name where the parent
     cannot carry the file's atoms, rather than falling through.
+
+    ``hm_symbol=None`` is a file that names **no** parent — a TOPAS ``str``
+    stating only ``mag_space_group``, whose atoms TOPAS generates with the
+    magnetic group's own operators. Tier 1 has nothing to try, so it is tier 2
+    or the refusal (``"parent"`` is refused outright), and **no diagnostic is
+    appended**: the caller knows why no parent was named and says so on its
+    own channel (``TOPAS_MAGNETIC_GROUP_READ``).
     """
     import gemmi
 
@@ -712,6 +720,29 @@ def resolve_nuclear_symmetry(hm_symbol: str, magnetic_symmetry, path: str, *,
             operator_key(np.asarray(op.rot, dtype=np.float64) / op.DEN,
                          np.asarray(op.tran, dtype=np.float64) / op.DEN)
             for op in ops)
+
+    if hm_symbol is None:
+        derived = keys(gemmi.Op(o) for o in nuclear_operations(magnetic_symmetry))
+        if nuclear_group == "parent":
+            raise MagCifError(
+                f"{path}: nuclear_group='parent' asks for the positions to "
+                f"refine under the parent space group, and the file names "
+                f"none — only its magnetic group")
+        taken = next((other for other in gemmi.spacegroup_table()
+                      if keys(other.operations()) == derived), None)
+        if taken is None:
+            raise MagCifError(
+                f"{path} names no parent space group, and its own nuclear "
+                f"group (the operators of "
+                f"{_magnetic_group_phrase(magnetic_symmetry)} with time "
+                f"reversal dropped) is in a setting no tabulated symbol names. "
+                f"A phase here resolves its operations from its space-group "
+                f"symbol alone, so any symbol would put the atoms under "
+                f"operations other than the ones the file states. What would "
+                f"make this readable: a phase carrying the operation list "
+                f"explicitly (Phase.symmetry_operations), or the nuclear space "
+                f"group stated beside the magnetic one.")
+        return taken, taken.xhm()
 
     # MAGNDATA writes the IUCr screw-axis subscript with an underscore
     # (``P 2_1/c``), a perfectly standard spelling gemmi's lookup table does

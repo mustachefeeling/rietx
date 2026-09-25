@@ -510,31 +510,45 @@ def test_mag_space_group_is_not_read_as_the_nuclear_one(tmp_path):
     assert phase.space_group == "P n m a"
     assert phase.mag_space_group == "62.448"
     assert phase.sites[0].moment == {"mlx": 3.4}
-    # ... and the symbol is *reported*, because no dependency here parses one.
-    (hit,) = model.coverage.reported
-    assert hit.feature.name == "magnetic space group"
-    assert hit.keywords == ("mag_space_group",)
+    # ... and the keyword is *read* (a number is the group), so nothing about
+    # it is left to report.
+    assert not model.coverage.reported
+    assert coverage.stance("mag_space_group") is coverage.Stance.READ
 
 
-def test_a_magnetic_phase_with_no_group_supplied_is_refused_by_name(tmp_path):
-    """The refusal WP-1328 leaves behind, and where it moved to.
+def test_a_magnetic_phase_takes_its_bns_number_and_refuses_a_bare_symbol(
+        tmp_path):
+    """A `mag_space_group` number is the group; a symbol still is not.
 
-    Reading a magnetic `.inp` no longer raises — the moments are on the model
-    and `mag_space_group` is reported — but *building* one still cannot invent
-    the operator list a symbol does not give. So the refusal is at
-    `to_structure`, where the claim about a refinement is made, and it names
-    the phase, the sites carrying moments and the symbol the file wrote.
+    Reading a magnetic `.inp` does not raise — the moments are on the model —
+    and a BNS number resolves on its own (spglib, the standard setting), so
+    `to_structure` builds with no caller spec and says where the group came
+    from. A Shubnikov *symbol* gives no operator list, so the refusal stays at
+    `to_structure`, naming the phase, the sites and the symbol.
     """
-    inp = _inp(tmp_path, "mag.inp",
-               'str\nphase_name "LaMnO3_mag"\nspace_group "P n m a"\n'
-               'mag_space_group 62.448\na 5.7 b 7.6 c 5.5\n'
-               'site Mn1 x 0 y 0 z 0 occ Mn+3 1 beq b 0.5 mlx 3.4\n')
-    model = read_topas_inp(inp)
-    with pytest.raises(TopasInpError, match="Shubnikov"):
-        to_structure(model)
-    built = to_structure(model, magnetic_symmetry="62.448")
+    text = ('str\nphase_name "LaMnO3_mag"\nspace_group "P n m a"\n'
+            'mag_space_group 62.448\na 5.7 b 7.6 c 5.5\n'
+            'site Mn1 x 0 y 0 z 0 occ Mn+3 1 beq b 0.5 mlx 0.6\n')
+    built_diags: list = []
+    built = to_structure(read_topas_inp(_inp(tmp_path, "mag.inp", text)),
+                         diagnostics=built_diags)
     assert built.phases[0].magnetic_symmetry.bns_number == "62.448"
-    assert built.phases[0].atoms[0].moment.values() == (3.4, 0.0, 0.0)
+    assert built.phases[0].space_group == "P n m a"
+    # mlx is fractional: 0.6 of a 5.7 Å edge is 3.42 mu_B along a
+    assert built.phases[0].atoms[0].moment.values() == pytest.approx(
+        (0.6 * 5.7, 0.0, 0.0))
+    (read,) = [d for d in built_diags if d.code == "TOPAS_MAGNETIC_GROUP_READ"]
+    assert "'62.448'" in read.message
+    assert read.where == ["phases.0.magnetic_symmetry"]
+
+    symbol = read_topas_inp(_inp(tmp_path, "sym.inp", text.replace(
+        "mag_space_group 62.448", "mag_space_group \"P n' m a'\"")))
+    with pytest.raises(TopasInpError, match="Shubnikov") as excinfo:
+        to_structure(symbol)
+    assert "P n' m a'" in str(excinfo.value)
+    assert "'Mn1'" in str(excinfo.value)
+    built = to_structure(symbol, magnetic_symmetry="62.448")
+    assert built.phases[0].magnetic_symmetry.bns_number == "62.448"
 
 
 def test_an_inp_with_no_structural_phase_refuses_naming_the_file(tmp_path):

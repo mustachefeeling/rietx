@@ -127,6 +127,13 @@ FEATURES: tuple[Feature, ...] = (
        "the site magnetic moments and the Landé g "
        "(to_structure(magnetic_symmetry=...))",
        "mlx", "mly", "mlz", "mg"),
+    _f("magnetic space group", Stance.READ,
+       "the magnetic space group: a BNS or OG number is the group, and a "
+       "`str` stating no `space_group` takes its nuclear group from it; a "
+       "Shubnikov symbol is carried as metadata and the build refuses a "
+       "moment-bearing phase by name until to_structure(magnetic_symmetry=...) "
+       "supplies the operators",
+       "mag_space_group"),
 
     # --------------------------------------------------------------- refused
     _f("rigid body", Stance.REFUSED,
@@ -166,23 +173,13 @@ FEATURES: tuple[Feature, ...] = (
            "on a site of a nuclear phase sharing one scale (WP-1327), so there "
            "is no shape here for a phase whose nuclear half is declared "
            "absent. Importing the sites as an ordinary phase would add the "
-           "nuclear intensity the file says is not there"),
+           "nuclear intensity the file says is not there — and the idiom that "
+           "uses it (a nuclear `str` beside a `mag_only_for_mag_sites` one "
+           "restating the magnetic sites, as the Durham LaMnO3 tutorial does) "
+           "would then count those sites' nuclear scattering twice, so the "
+           "keyword is not droppable with a diagnostic either"),
 
     # -------------------------------------------------------------- reported
-    _f("magnetic space group", Stance.REPORTED,
-       "the magnetic space group, as a Shubnikov symbol", "mag_space_group",
-       why="TOPAS states the group as a *symbol* (`P4_2'/mnm'`, or a BNS "
-           "number) and rietx's model is the operator list, because no "
-           "dependency here parses a Shubnikov symbol — spglib exposes UNI, "
-           "BNS and OG *numbers* and no symbol table, and guessing one is how "
-           "a fit lands under the wrong group (M-5). So the symbol is carried "
-           "as metadata, the site moments are read, and the operator list has "
-           "to come from the caller: pass "
-           "`to_structure(magnetic_symmetry=...)` a BNS/OG/UNI number or an "
-           "operator list. A `mag_space_group` stating a BNS *number* would "
-           "resolve on its own, and that is the row to move to READ when this "
-           "reader learns to tell a number from a symbol on TOPAS's own "
-           "evidence"),
     _f("peak profile", Stance.REPORTED,
        "the peak shape and the instrument convolutions",
        "peak_type", "pv_lor", "pv_fwhm", "h1", "h2", "m1", "m2",
