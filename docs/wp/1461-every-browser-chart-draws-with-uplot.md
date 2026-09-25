@@ -705,11 +705,13 @@ renderer. Two consequences here. First, "the boot win needs the 3D viewer
 gated" is moot once WP-1462 merges. The viewer's mount now costs one WebGL
 context and three shader compiles, measured at 14-34 ms of WebGL calls plus
 7-26 ms for `getContext` over a first opening of the Model tab
-(`1462-spike/results/first_show.txt`). Second, the Series panel is then
-plotly's last user. Whichever of the Series task and WP-1462 lands second
-deletes the `/plotly.js` route, `gui/src/lib/plotly.ts`, the `gui` extra's
-plotly, `viz/plotlyjs.py` if only the GUI uses it, `lib/plot.ts:hoverLabel`
-and the `Plotly` stand-in in `test-setup.ts`. After WP-1461 merges, WP-1462
+(`1462-spike/results/first_show.txt`). Second, WP-1462 landed after the
+Series task, so it deleted the GUI's plotly: the `/plotly.js` route in
+`gui/server.py`, `gui/src/lib/plotly.ts`, `lib/plot.ts:hoverLabel` and the
+`Plotly` stand-in in `test-setup.ts`. The `gui` extra is now `[]`. Updated
+2026-09-25 (3rd session). `viz/plotlyjs.py` stays, because `compare_app.py`
+is now its one caller. Its docstring says the compare task deletes it, and the
+`rietx compare` task here should do that. After WP-1461 closes, WP-1462
 renames its file and updates the two links to it here.
 
 ## Non-goals

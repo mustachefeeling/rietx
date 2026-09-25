@@ -1,6 +1,6 @@
 # WP-1462 — the structure viewer draws with its own WebGL2 renderer
 
-Milestone: unscheduled · Status: 🔄 2026-09-25 — the renderer is built and replaces plotly in the viewer; the Windows or Linux GPU gate and the rename after WP-1461 remain
+Milestone: unscheduled · Status: 🔄 2026-09-25 — the renderer replaces plotly and no GUI page loads plotly; the Windows or Linux GPU gate and the rename after WP-1461 closes remain
 Depends on: 1461 (soft)
 Priority: P3 2026-09-25 — after WP-1461 the structure viewer is the last page that loads plotly, 4.82 MB evaluated in a 700-811 ms frame on its first show
 
@@ -13,12 +13,13 @@ shows and does today survives, and its crystallography rules in
 
 *Narrowed 2026-09-25.* The goal first said no page rietx serves loads plotly
 and `pyproject.toml` names it nowhere. Two users of plotly are outside this
-WP: `rietx compare` (WP-1461's task 9) and `viz.html.write_html`, which writes
-a plotly page from Python. Both keep it through the `viz` extra.
+WP: `rietx compare` and `viz.html.write_html`, which writes a plotly page
+from Python. Both keep it through the `viz` extra until WP-1461's last two
+tasks move them to uPlot and take plotly out of that extra.
 
 The file was filed recommending three.js, and its name still says so. The
 maintainer chose a renderer of our own (D1). The file is renamed once
-WP-1461 merges, because WP-1461's in-flight file links to this name.
+WP-1461 closes, because WP-1461's in-flight file links to this name.
 
 ## Context
 
@@ -343,7 +344,7 @@ shell.
 - [x] Interaction: hover on atoms and bond halves, legend toggles, the a/b/c and reset views, pan and zoom, the three knobs, the view kept across redraws, and `ResizeObserver` sizing
 - [x] Export (D5): the offscreen render at a 3000 px long side, multisampled, lines and labels scaled, on the screen's background and on a transparent one
 - [x] Leave plotly in the viewer: the trace builders, the tessellation, the camera read-back and the modebar. The `/plotly.js` route, `gui/src/lib/plotly.ts`, the `gui` extra's plotly, `viz/plotlyjs.py`, `lib/plot.ts:hoverLabel` and the `Plotly` stand-in in `test-setup.ts` go only if the Series panel has left plotly too. It had, so they went on 2026-09-25 and the `gui` extra is empty; `viz/plotlyjs.py` stays for `rietx compare`.
-- [ ] Rename this file to its title once WP-1461 has merged, with its ROADMAP row and WP-1461's two links
+- [ ] Rename this file to its title once WP-1461 has closed, with its ROADMAP row and WP-1461's two links
 - [x] Tests: `structure3d.test.ts` on the pure half and the instance data; a WebGL stand-in beside `test-uplot.ts`; a browser test that reads pixels at known atoms, finds a principal ellipse on an anisotropic site, and asserts a redraw keeps the view; a test that no page requests `/plotly.js`
 - [x] Docs: the structure viewer paragraphs in `gui/CLAUDE.md` (crystallography rules kept, plotly traps deleted), `using/install.md` for the `gui` extra, ATTRIBUTION.md, and the root CLAUDE.md's GUI lines if they name plotly. On the three.js fallback also: its row in `.github/dependabot.yml`'s allow list (WP-1461 created it) and its licence text in `LICENSE-3RD-PARTY.md`.
 
@@ -406,6 +407,55 @@ npm --prefix gui test && npm --prefix gui run check
 - `1462-spike/README.md`: the files and how to rerun them.
 
 ## Handover log
+
+### 2026-09-25 (3rd session) — the GUI's plotly goes, and the handover resumes
+
+The GUI no longer loads plotly anywhere. The last pieces that could fetch it
+went this session, so `rietx gui` runs on a base install. The `gui` extra now
+installs nothing and is kept so old install lines still work. Nothing a user
+sees changed, because none of the removed code was in the built page. plotly
+stays in rietx only for `rietx compare` and the Python HTML export, and
+WP-1461's last two tasks move both.
+
+*Done.* Next item 0 of the previous entry, in one commit: the `/plotly.js`
+route and `_NO_PLOTLY_JS` in `gui/server.py`, `gui/src/lib/plotly.ts`,
+`lib/plot.ts:hoverLabel` and its two tests, and the `Plotly` stand-in in
+`test-setup.ts`. `test_gui_server.py` asserts a 404 on the route. The install,
+CLI and quickstart pages, `gui/CLAUDE.md` and `docs/releases/1.5.1.md` (a new
+section on the viewer) follow. `viz/plotlyjs.py` stays for `compare_app.py`,
+its one caller now, and its docstring says so. The Goal and acceptance 1 are
+narrowed in place: they had promised that `pyproject.toml` names plotly
+nowhere, which is WP-1461's to finish. The rename waits for WP-1461 to
+*close*, since four of its PRs have merged and "merged" no longer says when.
+The same commit removes an unused variable the merge left in
+`test_gui_dist.py`, which had turned the draft PR's ruff job red.
+
+*Measured*, macOS, node 22.15.0 and the `[dev]` venv plus python playwright
+1.63.0:
+- The rebuilt dist is byte-identical apart from `build-info.json`.
+- GUI vitest 560 passed in 23 files. That is 562 less the two `hoverLabel`
+  tests. svelte-check clean.
+- Fast selection on the merged tree, load average 3: 6221 passed, 140
+  skipped, none failed. It is the first fast count on this tree. The previous
+  entry's 6125 predates the merge, so the two do not compare. This session
+  added no Python test and renamed one.
+- The full selection did not run. The change is GUI-only and moves no
+  measured number.
+
+*Forward note.* WP-1461's `### Inherited` entry from this WP now says the
+GUI's plotly is gone and that its compare task should delete
+`viz/plotlyjs.py`.
+
+*Next*, in order:
+1. The GPU gate: run `1462-spike/gui_viewer.mjs`, or open the GUI, on a
+   Windows or Linux machine with a real GPU. A broken picture sends D1 to its
+   three.js fallback, and a good one closes the gate and this WP's last
+   measured task.
+2. Rename this file once WP-1461 closes, with the ROADMAP row and WP-1461's
+   two links. No WP-1461 branch is open today, so the maintainer may prefer
+   the rename in this PR.
+3. WP-1466 (polyhedra) needs Brunner & Schwarzenbach (1971) from the
+   maintainer before its threshold is set.
 
 ### 2026-09-25 (2nd session) — scoped against the field, decided, and built the renderer
 
