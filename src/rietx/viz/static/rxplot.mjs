@@ -593,9 +593,13 @@ export function panes(uPlot, host, spec) {
   group.png = () => new Promise((resolve, reject) => group.image().toBlob(
     (blob) => (blob ? resolve(blob) : reject(new Error("the browser made no PNG"))), "image/png"));
 
-  /** The panes as a PNG on the clipboard. */
+  /**
+   * The panes as a PNG on the clipboard. The item takes the blob's promise,
+   * so the write starts inside the press: Safari refuses a write made after
+   * an await has spent the user's activation.
+   */
   group.copyImage = async () => {
-    const blob = await group.png();
+    const blob = group.png();
     await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
     return blob;
   };
@@ -718,7 +722,9 @@ export function download(blob, name) {
   document.body.appendChild(a);
   a.click();
   a.remove();
-  setTimeout(() => URL.revokeObjectURL(a.href), 0);
+  // late, not at once: Firefox and Safari read the URL after the click
+  // returns, and a revoked one saves nothing
+  setTimeout(() => URL.revokeObjectURL(a.href), 60_000);
 }
 
 /**
@@ -1009,8 +1015,9 @@ export function pattern(uPlot, host, curves, spec) {
       rows.push([c.arrays.two_theta[i], c.arrays.y_obs[i], c.masked[i] == null ? 0 : 1,
                  c.calc[i], c.bkg[i], resid[i]]);
     }
-    return { names: ["two_theta", "y_obs", "excluded", "y_calc", "y_background",
-                     RESIDUAL_COLUMNS[state.residual]], rows };
+    // before a fit the pane is the page's `rawResidual`, whatever residual is chosen
+    const residName = c.header.fit ? RESIDUAL_COLUMNS[state.residual] : "residual";
+    return { names: ["two_theta", "y_obs", "excluded", "y_calc", "y_background", residName], rows };
   };
 
   /** A new payload. `keep` holds the reader's view, as a run landing should. */

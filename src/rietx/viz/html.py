@@ -112,12 +112,14 @@ def page(result: RefinementResult, *, weighted: bool = False,
                                  result, weighted=None, ceiling=max_points)
     residual, array = _RESIDUAL[bool(weighted)]
     # A result is fitted at every channel it carries, so the page builds
-    # `kept` and `fitted` itself, and it draws one residual of the three.
-    keep = ("two_theta", "y_obs", "y_calc", "y_background", array)
+    # `kept` and `fitted` itself, and it draws one residual of the three. An
+    # all-zero background is no background: sent, it would draw a line at zero
+    # that no legend entry can hide, and pull the intensity axis down to it.
+    has_background = bool(np.any(curves.arrays.get("y_background", [])))
+    keep = ("two_theta", "y_obs", "y_calc", array) + (("y_background",) if has_background else ())
     body = packed.pack(curves.header, {k: v for k, v in curves.arrays.items() if k in keep})
 
     hue = PALETTES["light"]
-    has_background = bool(np.any(curves.arrays.get("y_background", [])))
     title = f"{result.mode}  Rwp={s.rwp:.4f}  GoF={s.gof:.2f}"
     spec = {
         "residual": residual, "band": bool(weighted),

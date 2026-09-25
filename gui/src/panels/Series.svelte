@@ -311,7 +311,8 @@
 
   /** An export's file name: the parameter the trajectory is of, or the pattern shown. */
   function exportName(): string {
-    if (selectedPattern !== null) return `series-pattern-${selectedPattern + 1}`;
+    // numbered as the heading and the table number it, from 0
+    if (selectedPattern !== null) return `series-pattern-${selectedPattern}`;
     return `trajectory-${(current?.path ?? "series").replace(/[^\w.-]+/g, "_")}`;
   }
   /** What its legend offers, and which of those the reader hid, for this view. */
