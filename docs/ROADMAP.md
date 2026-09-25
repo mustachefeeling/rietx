@@ -571,7 +571,11 @@ first, having no forward-model contact; then 1327's verb, one PR; M-9 with
 1418; then 1419 alone, because the decision it carries — the full child group
 for reflection generation, multiplicity and the metric, the ε-reduced
 stabiliser only for orbit expansion of the mode field — gets decided properly
-in a PR that is about it and waved through in one that is not. Every magnetic
+in a PR that is about it and waved through in one that is not. Refined in
+#286 on 2026-09-25: PR #448 (the operation-list phase) and the k ≠ 0
+supercell follow 1327's model. Then 1326, which needs neither; 1328 once #448
+is in, so it opens complete; then 1343 and 1329. M-9 waits for the supercell
+and 1328. Every magnetic
 row in the agent skill, diagnostic codes included, goes in
 `references/magnetic.md`, and the merge result of the whole set is measured
 once before the first PR is cut.
