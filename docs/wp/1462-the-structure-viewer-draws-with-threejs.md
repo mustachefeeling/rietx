@@ -236,6 +236,15 @@ front faces.
   cutoff cutting a large ionic cation's shell short. So "draw polyhedra
   where the shell holds 4 to 6" would draw a NaF₄ tetrahedron that is not
   there.
+- **The largest distance gap finds the shell the bond rule misses.** Sort a
+  site's ligand distances and take the largest ratio of one distance to
+  the one before, among the first 13. Na's shell is 7 F from 2.19 to
+  2.58 Å, then 3.63 Å, a ratio of 1.41. The ratio is 2.08 after Al's 6 F,
+  1.98 after P's 4 O and 1.54 after NAC Ca's 8 F. Fluorapatite's Ca sites
+  have no clear gap (1.14 and 1.15), and LaB6's La has 24 B at one
+  distance. A threshold between 1.15 and 1.41 separates them on these
+  three phases. The published form of the rule is the maximum-gap method
+  (Brunner & Schwarzenbach 1971), not yet read here.
 - **Not tried:** hovering a polyhedron (a ray–triangle test on the CPU),
   hiding the centre-to-ligand bonds inside a polyhedron, and choosing the
   centres in the GUI.
@@ -291,10 +300,11 @@ added D6 to D8.
   **The new WP's first deliverable is its defaults.** Most users should
   never need a polyhedron setting. Its proposal, to be measured across more
   phases than the three here:
-  - *centres*: sites with a separated shell of 4 to 8 ligands, where a clear
-    gap in distance follows the last ligand. That draws PO₄, AlF₆ and CaF₈
-    and skips NAC's Na and LaB6's La;
-  - *ligands*: non-metal neighbours of another element (§ Polyhedra);
+  - *centres*: sites whose shell holds 4 to 8 ligands and ends at a clear
+    distance gap (§ Polyhedra). On the three phases that draws PO₄, AlF₆,
+    CaF₈ and NaF₇ and skips fluorapatite's Ca and LaB6's La;
+  - *ligands*: non-metal neighbours of another element, out to that gap,
+    and so independent of the bond rule's covalent radii;
   - *look*: the centre's colour at alpha 0.55, edges in a darker ink, the
     centre atom kept, and the centre-to-ligand sticks hidden;
   - *when*: on in ball mode when a centre qualifies, and off in ellipsoid
@@ -392,6 +402,9 @@ npm --prefix gui test && npm --prefix gui run check
   Report ORNL-3794, Oak Ridge National Laboratory. Burnett, M. N. &
   Johnson, C. K. (1996), ORTEP-III, ORNL-6895, for the principal ellipses
   and the octant convention.
+- Brunner, G. O. & Schwarzenbach, D. (1971). *Z. Kristallogr.* 133,
+  127-133. The maximum-gap coordination number, cited for the polyhedra
+  WP and not yet read.
 - McGuire, M. & Bavoil, L. (2013). Weighted blended order-independent
   transparency. *Journal of Computer Graphics Techniques* 2(2).
 - Rose, A. S. & Hildebrand, P. W. (2015). NGL Viewer: a web application for

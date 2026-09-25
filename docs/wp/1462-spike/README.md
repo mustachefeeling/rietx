@@ -13,6 +13,7 @@ ships or runs in the suite. The logs in `results/` are the runs the WP quotes.
 | `payloads.py` | Writes `lab6.json`, `nac.json` and `fap.json` from `tests/data` through `rietx.gui.structure3d.build`, plus a `polyhedra` arm the server does not send: AlF₆ and CaF₈ in NAC, PO₄ in fluorapatite. |
 | `driver.mjs` | Loads each payload in Chromium, Firefox and WebKit: time to first frame, 240 rotation frames, 2000 picks, one real hover, a screenshot. The last case is NAC with its polyhedra. |
 | `shot.mjs` | One screenshot for a query string, at `DPR` (default 2). |
+| `gap.py` | Every site's sorted ligand distances and the largest gap among the first 13, for D8's default shell (`results/shell_gaps.txt`). Run as `.venv/bin/python docs/wp/1462-spike/gap.py docs/wp/1462-spike`. |
 | `measure.mjs` | Bundles each candidate library's likely imports with esbuild and reports minified and gzip bytes. |
 
 ## Running it
