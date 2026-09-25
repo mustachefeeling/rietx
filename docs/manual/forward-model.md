@@ -83,6 +83,30 @@ of order the group intensity itself. An unresolved split is then reported at
 report a spuriously tight one. Such groups come back flagged
 `PAWLEY_OVERLAP_UNRESOLVED`.
 
+The reflection list runs 0.5° past each end of the fitted window, so that a
+reflection a stage moves onto the data is modelled. A reflection with no
+emission line centred on the data reaches it only through a tail, so its column
+is nearly zero and its intensity is bounded below only. Each such reflection
+gets one more row in the same block, a ridge toward zero,
+
+```{math}
+:label: fm-pawley-ridge
+
+r_k \;=\; \frac{\sqrt{\lambda}}{s_p}\, I_k,
+\qquad s_p = \max_{j\,\text{on the data}} I_j ,
+```
+
+{source}`rietx.model.forward.CompiledModel.build_pawley_restraint`
+
+where $s_p$ is the phase's largest on-data intensity when the stage starts.
+An intensity the data do not determine then stays within $s_p$, with an esd of
+that order. One the data do reach has a column far more precise than a prior
+that wide. Without the ridge, a synthetic series refined one such intensity to
+$10^{12}$, and TRF's step test, which is relative to $\lVert x\rVert$, ended
+warm refits early (WP-1459). The result names the ridged reflections, one
+`PAWLEY_OFF_DATA_RIDGED` diagnostic per phase, because their intensities are
+the ridge's and not the data's.
+
 ## The residual row layout
 
 The residual carries four blocks of rows, and the data is the first. The

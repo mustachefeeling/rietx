@@ -476,6 +476,17 @@ class TestPublishedCu311Histogram:
         a_on = fits["on"][0].structure.phases[0].cell.a.value
         assert abs(a_on - a_off) < 1e-3
 
+    def test_the_half_wavelength_image_keeps_the_low_angle_boundary(self, fits):
+        """``LOW_ANGLE_UNMODELLED``'s boundary is judged per reflection over
+        every line image (WP-1458): the λ/2 (111) at 7.36° carries 0.095σ on
+        its own, but its primary carries 2.86σ, so it still bounds the region
+        at 6.76° and the warning keeps firing.  Judged image by image it was
+        dropped and the region's ratio fell from 5.92 to 2.66."""
+        _, on = fits["on"]
+        found = [d for d in on.diagnostics if d.code == "LOW_ANGLE_UNMODELLED"]
+        assert len(found) == 1
+        assert "(7.36° − 2×FWHM = 6.76°)" in found[0].message
+
 
 @pytest.mark.slow
 @pytest.mark.xdist_group("harmonics-synthetic")

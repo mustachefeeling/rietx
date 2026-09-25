@@ -523,6 +523,9 @@ class CompiledPhase:
     # grouping (None outside pawley mode)
     tt_primary: np.ndarray | None = None  # (N,)
     fwhm_primary: np.ndarray | None = None  # (N,)
+    # True where no emission line's compile-time centre lies on the fitted
+    # data (``PawleyBlock.off_data``; None outside pawley mode)
+    off_data: np.ndarray | None = None  # (N,) bool
     # March-Dollase preferred orientation: the frozen symmetry orbit of every
     # reflection (flattened; see preferred_orientation.orbit_layout) plus the
     # fixed integer axis.  None unless the phase carries a PO block in Rietveld
@@ -1781,6 +1784,94 @@ class CompiledModel:
             out[ip] = float(np.max(y / sigma)) if len(y) else 0.0
         return out
 
+    def reflection_support(self, ip: int, values: dict[str, float]
+                           ) -> list[np.ndarray]:
+        """Each reflection's strongest modelled point, in σ of the noise.
+
+        :meth:`phase_support` one rank down — the same quantity, max(y/σ), over
+        one (emission line, reflection) window instead of over the whole phase
+        — so the two can be read against one threshold,
+        :data:`PHASE_SUPPORT_SIGMA` (WP-1458).  One array per emission line
+        over the frozen reflection list, the layout :meth:`phase_peaks`
+        returns.  A reflection whose frozen window is empty (generated in the
+        compiler's margin, outside the fitted range) reads 0: nothing of it is
+        on a point the data holds.
+
+        Built from the Ω planes :meth:`phase_component` scatters, taken per row
+        before the scatter rather than re-evaluated, and on the loop path
+        (every traced backend) from the same per-reflection profile.
+        Evaluate-only; never in the hot loop.
+        """
+        cp = self.phases[ip]
+        sigma = np.asarray(self.sigma, dtype=np.float64)
+        peaks = self.phase_peaks(ip, values)
+        out = [np.zeros(len(np.asarray(p[0]))) for p in peaks]
+        if get_backend().name == "numpy":
+            lay = cp.batch
+            if not len(lay.i0):
+                return out
+            pos = lay.gather(peaks, 0)
+            omega = self._omega_batch(
+                lay, pos, lay.gather(peaks, 1), lay.gather(peaks, 2),
+                np.isfinite(pos), values["instrument.geometry.axial_sl"],
+                values["instrument.geometry.axial_hl"], compiled.SPELL_FORWARD)
+            height = lay.gather(peaks, 3)[:, None] * omega / sigma[lay.idx]
+            row = np.max(height, axis=1)
+            for il in range(len(lay.line_ptr) - 1):
+                a, b = int(lay.line_ptr[il]), int(lay.line_ptr[il + 1])
+                out[il][lay.k[a:b]] = row[a:b]
+            return out
+        sl = values["instrument.geometry.axial_sl"]
+        hl = values["instrument.geometry.axial_hl"]
+        for il, (pos, gamma, eta, intensity) in enumerate(peaks):
+            for k in range(len(pos)):
+                prof = self._reflection_profile(cp, il, k, pos[k], gamma[k],
+                                                eta[k], sl, hl)
+                if prof is None:
+                    continue
+                i0, i1 = int(cp.win[il, k, 0]), int(cp.win[il, k, 1])
+                y = np.asarray(intensity[k] * prof, dtype=np.float64)
+                out[il][k] = float(np.max(y / sigma[i0:i1]))
+        return out
+
+    def extra_peak_support(self, values: dict[str, float]
+                           ) -> list[tuple[float, int, float]]:
+        """``(position, peak, support)`` of every declared peak's line images.
+
+        The images :meth:`extra_peak_tick_positions` lists — same filter, same
+        sort, so the two pair by index — each with the index of the peak it is
+        an image of (into :attr:`peak_components`) and its strongest modelled
+        point in σ of the noise, :meth:`reflection_support`'s quantity for a
+        declared peak.  The curve is :meth:`extra_peak_curve`'s term for that
+        (peak, line), rebuilt here on numpy because that method returns the
+        sum and this needs the terms.  An image whose frozen window is empty
+        reads 0.  Evaluate-only.
+        """
+        sigma = np.asarray(self.sigma, dtype=np.float64)
+        pol = values["instrument.polarization"]
+        out: list[tuple[float, int, float]] = []
+        for j, peak in enumerate(self.peak_components):
+            center = float(values[peak.paths["center"]])
+            area = float(values[peak.paths["area"]])
+            gamma = float(values[peak.paths["fwhm"]])
+            eta = float(values[peak.paths["eta"]])
+            lp0 = lorentz_polarization(center, pol)
+            reach = len(peak.lam_ratio) if peak.all_lines else 1
+            for il in range(reach):
+                pos = float(_line_image_deg(center, float(peak.lam_ratio[il]), np))
+                if not np.isfinite(pos):
+                    continue
+                i0, i1 = int(peak.win[il, 0]), int(peak.win[il, 1])
+                if i1 <= i0:
+                    out.append((pos, j, 0.0))
+                    continue
+                gain = float(values[peak.weight_paths[il]])
+                if il:
+                    gain = gain * float(lorentz_polarization(pos, pol) / lp0)
+                y = area * gain * pseudo_voigt(self.tt[i0:i1] - pos, gamma, eta)
+                out.append((pos, j, float(np.max(np.asarray(y) / sigma[i0:i1]))))
+        return sorted(out, key=lambda t: t[0])
+
     def phase_line_counts(self) -> np.ndarray:
         """How many (emission line, reflection) windows of each phase cover a point.
 
@@ -2532,9 +2623,28 @@ class CompiledModel:
         after the intensities are seeded/carried so s reflects a realistic
         scale; constant during the least-squares run, like the background
         penalty.
+
+        Then one row per reflection centred off the data
+        (:attr:`PawleyBlock.off_data`): √λ/s·I_k, a ridge toward zero whose
+        width s is the phase's largest on-data intensity (WP-1459, issue
+        #440).  A reflection that stays off the data meets it only through a
+        tail, so its column is all but zero and it is bounded below only: on a
+        synthetic fluorapatite pattern ending at 74.99° the (6 0 2) at 75.44°
+        refined to 1.45e8 against a median of 81, a warm-started series
+        carried it to 1.1e12, and TRF's step test (relative to ‖x‖) then ended
+        solves after two iterations at up to 769× the Rwp of the same chain
+        re-seeded.  The reflection cannot simply be dropped: the list runs
+        0.5° past the data so that one a stage *moves onto* the data is
+        modelled, and without that margin a later pattern of the same series,
+        fitted cold from a cell 0.1 % short, stalled its cell stage at 24 %
+        Rwp against 3.4 %.  With the ridge an undetermined
+        intensity stays within s and comes back with an esd of order s — the
+        overlap rows' large-but-honest answer — while a reflection the data
+        do reach has a column far more precise than a prior as wide as the
+        strongest reflection.
         """
         pb = self.pawley
-        if pb is None or not pb.groups:
+        if pb is None or not (pb.groups or pb.off_data):
             return
         intens = self.pawley_x0()
         rows: list[np.ndarray] = []
@@ -2545,6 +2655,15 @@ class CompiledModel:
                 row = np.zeros(pb.n, dtype=np.float64)
                 for j in g:
                     row[j] = (np.sqrt(lam) / s) * ((1.0 if j == k else 0.0) - 1.0 / n)
+                rows.append(row)
+        off = np.zeros(pb.n, dtype=bool)
+        off[pb.off_data] = True
+        for a, b in pb.phase_slices:
+            on = intens[a:b][~off[a:b]]
+            s = max(float(on.max()) if len(on) else 0.0, 1.0)
+            for k in np.flatnonzero(off[a:b]):
+                row = np.zeros(pb.n, dtype=np.float64)
+                row[a + k] = np.sqrt(lam) / s
                 rows.append(row)
         pb.restraint = np.array(rows, dtype=np.float64) if rows else None
 
@@ -2573,6 +2692,7 @@ class PawleyBlock:
     n: int                                   # total intensities across phases
     phase_slices: list[tuple[int, int]]      # (start, stop) into the flat vector
     groups: list[list[int]]                  # overlapped groups (flat idx), size ≥ 2
+    off_data: list[int] = field(default_factory=list)  # centred off the data (flat idx)
     restraint: np.ndarray | None = None      # (n_rows, n) √λ-scaled restraint rows
     stderr: np.ndarray | None = None         # per-intensity esd, filled post-solve
 
@@ -3076,6 +3196,7 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
         win = np.zeros((n_lines, n, 2), dtype=np.int64)
         fcj_n = np.zeros((n_lines, n), dtype=np.int64)
         tt_primary = fwhm_primary = None
+        on_data = np.zeros(n, dtype=bool)
         # Stephens anisotropic strain: freeze the quartic monomials and take
         # the width estimate *with* Λ, so a direction that is three times
         # broader than the isotropic average still gets a wide enough window.
@@ -3106,6 +3227,7 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
             gamma_est, eta_est = tch_gamma_eta(g_est, l_est)
             if il == 0:  # primary line drives Pawley overlap grouping
                 tt_primary, fwhm_primary = pos.copy(), gamma_est.copy()
+            on_data |= (pos >= tt_min) & (pos <= tt_max)
             slack = (WINDOW_MIN_DEG if window_slack_deg is None
                      else window_slack_deg)
             half = window_fwhm_mult(eta_est) * gamma_est + slack
@@ -3154,6 +3276,7 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
             cp.hkl_intensity = np.full(n, max(float(np.median(y_obs)), 1.0))
         if mode == "pawley":
             cp.tt_primary, cp.fwhm_primary = tt_primary, fwhm_primary
+            cp.off_data = ~on_data
         # March-Dollase preferred orientation acts on *calculated* structure-
         # factor intensities, so it is a Rietveld-mode correction only — Le Bail
         # and Pawley intensities are empirical and would absorb it.  Freeze the
@@ -3335,6 +3458,7 @@ def _build_pawley_block(phases: list[CompiledPhase]) -> PawleyBlock:
     """
     phase_slices: list[tuple[int, int]] = []
     groups: list[list[int]] = []
+    off_data: list[int] = []
     offset = 0
     for cp in phases:
         n = len(cp.reflections)
@@ -3342,8 +3466,11 @@ def _build_pawley_block(phases: list[CompiledPhase]) -> PawleyBlock:
         if cp.tt_primary is not None and n:
             for g in _overlap_groups(cp.tt_primary, cp.fwhm_primary):
                 groups.append([offset + k for k in g])
+        if cp.off_data is not None:
+            off_data.extend(offset + int(k) for k in np.flatnonzero(cp.off_data))
         offset += n
-    return PawleyBlock(n=offset, phase_slices=phase_slices, groups=groups)
+    return PawleyBlock(n=offset, phase_slices=phase_slices, groups=groups,
+                       off_data=off_data)
 
 
 def seed_phase_scales(structure: Structure, instrument: Instrument,

@@ -127,6 +127,15 @@ either, the fence below catches it.
 The default is `["*"]`, meaning everything. A parameter excluded from it
 restarts from the initial model on every pattern, and not from its neighbour.
 
+A Le Bail or Pawley pattern's per-$hkl$ intensities are not parameters, so no
+glob reaches them. `SequentialRefinement.carry_hkl_intensities` decides whether
+they cross the boundary. The default is `True`, which seeds each warm pattern
+from its predecessor's intensities, matched by $hkl$. With `False`, every
+pattern's extraction starts afresh, the way the first pattern's does. On a
+synthetic 10-pattern fluorapatite ramp, the carried and fresh Pawley chains
+agree to five digits of Rwp on every pattern. The carried Le Bail chain ends
+lower, at 3.95 % against 4.29 % (WP-1459).
+
 Carrying everything is cheap even when it looks reckless. Measured on the eight
 IUCr round-robin sample-1 mixtures (three phases, one goniometer, 7251 points
 each over 5–150°, and a composition that swings from 1.8 to 94.2 wt % across the
