@@ -1,28 +1,12 @@
 import { unpack } from "rxplot";
 import { describe, expect, it } from "vitest";
 
-import { chartChoice } from "./plot";
+import { pack } from "../test-curves";
 import { sameGrid, windowOf } from "./pattern";
 
-/** A curves body in `rietx.viz.packed`'s layout, as the route sends one. */
+/** A curves body as the route sends one, unpacked as the panel unpacks it. */
 function body(header: Record<string, unknown>, arrays: Record<string, Float64Array | Int32Array>) {
-  const specs: object[] = [];
-  let offset = 0;
-  for (const [name, a] of Object.entries(arrays)) {
-    specs.push({ name, dtype: a instanceof Float64Array ? "<f8" : "<i4", offset, length: a.length });
-    offset += Math.ceil(a.byteLength / 8) * 8;
-  }
-  let head = JSON.stringify({ ...header, arrays: specs });
-  head += " ".repeat((8 - ((4 + head.length) % 8)) % 8);
-  const buffer = new ArrayBuffer(4 + head.length + offset);
-  new DataView(buffer).setUint32(0, head.length, true);
-  new Uint8Array(buffer, 4).set(new TextEncoder().encode(head));
-  let at = 4 + head.length;
-  for (const a of Object.values(arrays)) {
-    new Uint8Array(buffer, at).set(new Uint8Array(a.buffer));
-    at += Math.ceil(a.byteLength / 8) * 8;
-  }
-  return unpack(buffer);
+  return unpack(pack(header, arrays));
 }
 
 const f64 = (...v: number[]) => Float64Array.from(v);
@@ -36,13 +20,17 @@ describe("the chart module's payload in the window's shape", () => {
       cumulative_chi2: f64(1, 2),
     });
     const w = windowOf(c);
+    const plain = (a: ArrayLike<number> | undefined) => Array.from(a ?? []);
     expect(w.raw).toBeUndefined();
-    expect(w.two_theta).toEqual([5.5, 6]);
-    expect(w.y_obs).toEqual([20, 30]);
-    expect(w.y_calc).toEqual([21, 29]);
+    expect(plain(w.two_theta)).toEqual([5.5, 6]);
+    expect(plain(w.y_obs)).toEqual([20, 30]);
+    // the model's arrays are the payload's own views: nothing of them is copied
+    expect(w.y_calc).toBe(c.arrays.y_calc);
+    expect(w.cumulative_chi2).toBe(c.arrays.cumulative_chi2);
     // no background in the payload is an empty curve, which is what hides its toggle
-    expect(w.y_background).toEqual([]);
-    expect(w.excluded).toEqual({ two_theta: [5, 6.5], y_obs: [10, 40] });
+    expect(plain(w.y_background)).toEqual([]);
+    expect(plain(w.excluded!.two_theta)).toEqual([5, 6.5]);
+    expect(plain(w.excluded!.y_obs)).toEqual([10, 40]);
     expect(w.n_excluded).toBe(2);
     expect(w.ticks).toEqual({ a: [5.5] });
   });
@@ -52,8 +40,9 @@ describe("the chart module's payload in the window's shape", () => {
       two_theta: f64(5, 6, 7), y_obs: f64(1, 2, 3), kept: i32(0, 1),
     }));
     expect(w.raw).toBe(true);
-    expect(w.two_theta).toEqual([5, 6]);
-    expect(w.excluded).toEqual({ two_theta: [7], y_obs: [3] });
+    expect(Array.from(w.two_theta)).toEqual([5, 6]);
+    expect(Array.from(w.excluded!.two_theta)).toEqual([7]);
+    expect(Array.from(w.excluded!.y_obs)).toEqual([3]);
   });
 
   it("keeps the view only over the same channels", () => {
@@ -63,13 +52,5 @@ describe("the chart module's payload in the window's shape", () => {
     expect(sameGrid(a, b)).toBe(true);
     expect(sameGrid(a, other)).toBe(false);
     expect(sameGrid(null, b)).toBe(false);
-  });
-});
-
-describe("the renderer is chosen by the page's query string", () => {
-  it("is plotly unless asked for the chart module", () => {
-    expect(chartChoice("")).toEqual({ uplot: false });
-    expect(chartChoice("?chart=uplot")).toEqual({ uplot: true });
-    expect(chartChoice("?chart=plotly")).toEqual({ uplot: false });
   });
 });

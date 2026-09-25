@@ -117,11 +117,12 @@ at every distance. There is no radius at which the app could tell them apart.
 The peak gestures below are the opposite case, where the ambiguity is local and
 can be resolved by aim.
 
-Zoom is a fetch rather than a crop: dragging refetches that 2θ window at full
-point budget, so zooming in gets you more points and not bigger pixels.
-Double-click returns the whole pattern, which the modebar's home button also
-does less visibly. The view stays where you put it across a peak edit or a knob
-change.
+The plot holds every channel of the pattern, sent once, so a zoom fetches
+nothing and zooming in shows every point the file has. Drag to zoom, scroll to
+zoom about the pointer, and shift-scroll or alt-drag to pan. Double-click
+returns the whole pattern. The view stays where you put it across a peak edit, a
+knob change and a fit that lands on the same channels. A pattern past 150 000
+channels arrives as a min/max sample, and the line under the plot says so.
 
 ## Parameters
 
@@ -205,7 +206,7 @@ a position typed to four decimals is not a position aimed at with a mouse.
 
 A drag only moves a line when you are zoomed in far enough for the line to be
 visible. The grab radius is the smaller of 10 px and 1.5 fitted peak widths, so
-at a whole-pattern view a drag is always plotly's zoom. Zoom first, then
+at a whole-pattern view a drag is always a zoom. Zoom first, then
 correct. Before that radius existed, a drag starting near a marker could move a
 line by degrees.
 
@@ -282,7 +283,7 @@ count doubling under a symbol with the same number of free parameters.
 ### The 3D view
 
 A third column of this panel, on by default, drawn by the server and rendered by
-the same plotly the pattern uses. Two modes: balls, and displacement ellipsoids.
+plotly. Two modes: balls, and displacement ellipsoids.
 The projection is parallel and there is no axis box, so the cell's own a, b, c
 edges are the frame of reference. Rotation is a free trackball, with buttons to
 view down a, b or c.

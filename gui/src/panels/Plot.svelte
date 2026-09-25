@@ -2,64 +2,45 @@
   /**
    * Observed, calculated, difference and reflection ticks.
    *
-   * **The window comes from the server.** `/api/result/window` decimates with
-   * the same min/max index set `rietx compare` uses, so this plot and that one
-   * cannot disagree about which points survive; a client-side decimator would be
-   * a second answer to the one question a plot must not have two answers to. On
-   * zoom we refetch the visible range at full budget, which is what makes
-   * inspecting a single peak on a 45 000-point pattern honest rather than
-   * interpolated.
+   * **The curves come once, at every channel** (WP-1461, D4).
+   * `/api/result/curves` sends the pattern's every channel and the fit on the
+   * channels it kept, as float64 arrays, and the figure zooms in the browser, so
+   * a zoom fetches nothing. Which points a payload carries is the server's to
+   * decide (`viz.compare.decimation_index`, past `CURVES_CEILING`); the chart
+   * paints each pixel column's extremes of them, and the readout and every hit
+   * test read every one.
    *
-   * plotly.js is loaded at runtime from `/plotly.js`, served out of the
-   * installed Python package — no vendored 4.8 MB copy in the committed dist,
-   * and the page still works air-gapped.  The loader itself is `lib/plotly.ts`,
-   * shared with the structure viewer since WP-1015.
+   * The figure is `rxplot.pattern` through `lib/pattern.ts`, which lays this
+   * panel's own layers over it: the protocol's shading, the candidate's lines,
+   * the picked peaks and their fitted profiles, and the hover ring. That module
+   * is imported on the first draw, so a page with no project open fetches no
+   * chart library.
    */
   import { untrack } from "svelte";
 
-  import { ApiError, api } from "../api";
-  import { loadPlotly } from "../lib/plotly";
-  import { grabToleranceDeg, joinCurves, nearestPeak, type PeaksPayload } from "../lib/peaks";
+  import { ApiError } from "../api";
+  import { grabToleranceDeg, nearestPeak, type PeaksPayload } from "../lib/peaks";
   import {
-    CANDIDATE_AXIS,
     RESIDUAL_KINDS,
-    chartChoice,
     SCALES,
-    candidateLines,
-    curveColors,
     curveToggles,
     dataOnlyHidden,
-    drawnRange,
     formatRegion,
-    forget,
-    heldRanges,
     isDataOnly,
-    maskShapes,
     mergeRegions,
-    movedAxes,
-    nearestIndex,
-    noAxes,
     normalizeRegion,
-    phaseInk,
-    pinPatch,
     readout,
     residual,
-    scaleValues,
     shows,
-    span,
-    sqrtTicks,
-    tickBand,
     toggleCurve,
-    userRanges,
     type CandidateOverlay,
     type Protocol,
-    type Ranges,
     type Readout,
     type ResidualKind,
     type Scale,
+    type Window,
   } from "../lib/plot";
   import type { Curves, Overlay, PatternChart } from "../lib/pattern";
-  import { coalesce } from "../lib/resize";
   import type { Theme } from "../lib/theme";
 
   let {
@@ -92,7 +73,7 @@
      *  null means the whole pattern */
     zoom?: [number, number] | null;
     error: string;
-    /** the resolved theme, and a *dependency of the repaint effect*: the canvas
+    /** the resolved theme, and a *dependency of the knob effect*: the canvas
      *  keeps the colours it was painted with, so a theme change that only
      *  restyles the page leaves last theme's text on this plot (WP-1029 q) */
     theme?: Theme;
@@ -148,17 +129,12 @@
   } = $props();
 
   let node: HTMLDivElement | undefined = $state();
-  let plotly: any = $state(null);
-  /** Which renderer draws this pattern (WP-1461's pilot, `lib/plot.ts:chartChoice`).
-   *  Read once: a page switches renderer by loading again. */
-  const choice = chartChoice(typeof location === "undefined" ? "" : location.search);
-  /** The chart module's figure, its module and the payload it is drawing.
-   *  Plain `let`s, for the reason the painted-state ones below are: they
-   *  belong to the draw that reads them. */
+  /** The figure, its module and the payload it is drawing. Plain `let`s: they
+   *  belong to the draw that reads them, and a reactive one would make every
+   *  draw a reason to draw again. */
   let chart: PatternChart | null = null;
   let chartModule: typeof import("../lib/pattern") | null = null;
   let curves: Curves | null = null;
-  let observer: ResizeObserver | null = null;
   let loadError = $state("");
   let shown = $state<{ n: number; total: number; lo: number; hi: number } | null>(null);
   /** Drawing choices, not facts about the fit — so neither is persisted, for
@@ -172,17 +148,14 @@
   /** what was hidden before `data only` was pressed, so the second press puts
    *  the plot back rather than showing everything (WP-1210) */
   let beforeDataOnly = $state<string[] | null>(null);
-  /** The payload the last draw used, so a knob redraws without a refetch.
+  /** The payload in the readout's shape (`lib/pattern.ts:windowOf`).
    *
-   *  `$state.raw`, and that is not a micro-optimisation: a plain `$state`
-   *  **proxies** the object, so `held` and the `w` the fetch handed `paint` are
-   *  two identities for one payload — which is the pair `fresh` asks about
-   *  (`w !== paintedPayload`), and svelte says so in dev
-   *  (`state_proxy_equality_mismatch`, surfaced by WP-1213's derived read of
-   *  `held` and true before it). A window payload is replaced whole and never
-   *  mutated, which is exactly what `$state.raw` is for; it also keeps a
-   *  4000-point `y_obs` out of the proxy the knob repaint maps over. */
-  let held: any = $state.raw(null);
+   *  `$state.raw`: a payload is replaced whole and never mutated, and a plain
+   *  `$state` would proxy it, so the readout would read every array through a
+   *  proxy on every pointer move. It is also what `held` and the payload a
+   *  draw handed the figure have to be: one identity, never two (svelte says
+   *  so in dev, `state_proxy_equality_mismatch`, WP-1213). */
+  let held: Window | null = $state.raw(null);
   /** the toggles this payload offers — background only when there is one, one
    *  row per phase (WP-1032), the peak layer when a list exists (WP-1210) */
   const toggles = $derived(
@@ -204,583 +177,14 @@
   /** …and the same gate on the selection, so leaving the tab puts the curves
    *  back as well as taking the lines off. */
   const picked = $derived(peaksActive && candidatePicked);
-  /** What the last paint drew each y axis in.  Plain `let`s, not `$state`: they
-   *  are read inside the paint they describe, and a reactive one would make
-   *  every paint a reason to paint again. */
-  let paintedScale: Scale | null = null;
-  let paintedKind: ResidualKind | null = null;
-  /** …and which payload, so a paint can tell "the same numbers again" from "a
-   *  run landed" — the one distinction that licenses re-fitting the axes. */
-  let paintedKey: number | null = null;
-  let paintedResult: any = null;
-  let paintedPayload: any = null;
-  /** …and which axes that paint drew nothing on, so a pin outside `paint` — the
-   *  raw view's double-click — asks the same question it did. */
-  let paintedEmpty: string[] = [];
-
-  /** Which axes a *person* has moved, as plotly reports each gesture.
-   *
-   *  Since WP-1212 every axis carries an explicit range after the first paint,
-   *  so `autorange === false` no longer separates "the user zoomed" from "we
-   *  pinned it" — this does, and it is fed from the relayout event rather than
-   *  read back off the layout, because by the time it is read the pin has
-   *  already been written (`lib/plot.ts:movedAxes`). Plain `let`s again: they
-   *  belong to the paint that reads them. */
-  let userSet = noAxes();
-  /** True while this panel is writing the pin, so its own relayout is not
-   *  mistaken for the gesture it looks like. */
-  let pinning = false;
-  /** Whether the div currently holds a plot.
-   *
-   *  The fetch effect's last branch purges it (a checkout takes the curves away
-   *  server-side) while this panel keeps `plotly`, so any verb aimed at the div
-   *  from outside a paint is aimed at an element plotly no longer owns. Reasoned
-   *  from that path rather than observed: a browser pass could not get a
-   *  checkout to reach the purge branch, so what plotly does there is unproven
-   *  and this is a guard on the state, not a repair of a seen throw. */
-  let plotted = false;
-
-  /** The view on screen, handed back to the next draw (`lib/plot.ts`).
-   *
-   *  `fresh` is the paint that may re-fit: the first of a new payload, where a
-   *  range measured on the old numbers would clip the new ones. It keeps the
-   *  axes the *person* set — a zoom is not thrown away by a run finishing,
-   *  which is WP-1044's rule and is now a filter rather than a side effect of
-   *  reading `autorange`.
-   *
-   *  The knob comparison is **untracked**: this is called from inside the fetch
-   *  effect as well as the repaint one, and a tracked read there would make
-   *  choosing Δ over Δ/σ a reason to ask the server for the window again — the
-   *  exact round trip the two effects are split to avoid (caught by the jsdom
-   *  suite, which counts the reacts one click costs). */
-  function view(fresh = false): Ranges {
-    const all = heldRanges((node as any)?._fullLayout, untrack(() =>
-      ({ yaxis: paintedScale === scale, yaxis2: paintedKind === kind })));
-    return fresh ? userRanges(all, userSet) : all;
-  }
-
-  /** The 2θ window the axis is showing, or null when it is showing all of it.
-   *
-   *  This is the window the *next fetch* asks for, which is why a peak edit no
-   *  longer silently coarsens the picture: the payload follows the axis instead
-   *  of falling back to the whole pattern under a pinned range. It asks
-   *  `userSet` rather than the layout because the pin makes every x range
-   *  explicit — and a pinned full view is "all of it", which is a fetch with no
-   *  window, not a fetch for plotly's padded range (which reaches past the
-   *  pattern at both ends). */
-  function shownWindow(): [number, number] | null {
-    return userSet.xaxis ? view().xaxis ?? null : null;
-  }
-
-  /**
-   * Make every autoranging axis explicit, so nothing that follows can move it.
-   *
-   * The last act of a paint, and the one that carries this WP: a `react` can
-   * only hand back a range that already exists, so the *first* paint of a
-   * payload has to autorange — and until this runs, the plot is left in the
-   * state where a hover's `restyle` re-fits the y axis (measured: 1.03 % of the
-   * span, once per row the pointer crosses). Costs a `relayout` on that first
-   * paint and nothing at all afterwards, since `pinPatch` returns `{}` once
-   * every axis is explicit.
-   */
-  async function pinAxes(empty: readonly string[] = paintedEmpty) {
-    if (!node || !plotly || !plotted) return;
-    const patch = pinPatch((node as any)._fullLayout, empty);
-    if (!Object.keys(patch).length) return;
-    pinning = true;
-    try {
-      await plotly.relayout?.(node, patch);
-    } finally {
-      pinning = false;
-    }
-  }
-
-  /** The pinnable axes carrying no drawn point — plotly fits those to its own
-   *  empty default, which is a number to look at and not a range to keep. */
-  function emptyAxes(traces: any[]): string[] {
-    const on = (axis: string) => traces.some((t) =>
-      (t.yaxis ?? "y") === axis && (t.x?.length ?? 0) > 0);
-    const out: string[] = [];
-    if (!on("y") && !on("y2")) out.push("xaxis");
-    if (!on("y")) out.push("yaxis");
-    if (!on("y2")) out.push("yaxis2");
-    return out;
-  }
-
-  function layout(w: any, colors: ReturnType<typeof curveColors>, nPhases: number,
-                  ranges: Ranges, armed: boolean): any {
-    const style = getComputedStyle(document.body);
-    const fg = style.color;
-    // the panel border colour, for the grid: plotly's default grid is
-    // near-white, which is invisible noise on a light page and glare on a
-    // dark one — a themed page themes its grid too
-    const line = style.getPropertyValue("--line").trim() || "#dcdcd6";
-    const res = w.raw
-      ? { title: "(y − fit)/σ per group", label: "", zeroline: true }
-      : residual(kind, w);
-    const ticks = scale === "sqrt" ? sqrtTicks(Math.max(0, ...(w.y_obs ?? [0]))) : null;
-    const band = tickBand(nPhases);
-    return {
-      ...(band ? { yaxis3: band.axis } : {}),
-      // the candidate overlay's own axis, declared only while it is drawn —
-      // an overlaying axis with no trace on it still costs plotly a pass
-      ...(overlay ? { yaxis4: CANDIDATE_AXIS } : {}),
-      // What is not being fitted, shaded where it acts.  Drawn from the
-      // project document rather than inferred from a hole in the data: a gap
-      // in the arrays is what an exclusion *leaves*, not what it is, and a
-      // renderer that guessed would be a second authority on the protocol.
-      shapes: extent ? maskShapes(protocol, extent, colors) : [],
-      // The one arbitration in this panel: while a range gesture is armed the
-      // drag belongs to plotly's own select box, and the peak verbs below are
-      // suspended for as long as it is (see `arm`).
-      dragmode: armed ? "select" : "zoom",
-      selectdirection: "h",
-      // The live gesture dressed as the thing it is about to become (WP-1212).
-      // plotly's default marquee is a dark dotted box that says "select", and
-      // what an armed drag here means is "exclude this range" — so it is drawn
-      // in `maskShapes`' own two colours, from the same `curveColors` call, and
-      // `selectdirection: "h"` has already made the box full height, so its two
-      // long sides *are* the dotted edges the exclusion will leave behind.
-      newselection: { line: { color: colors.edge, width: 1, dash: "dot" } },
-      activeselection: { fillcolor: colors.mask, opacity: 1 },
-      margin: { l: 62, r: 12, t: 8, b: 40 },
-      showlegend: true,
-      legend: { orientation: "h", y: 1.12, x: 0 },
-      font: { color: fg, size: 11 },
-      paper_bgcolor: "rgba(0,0,0,0)",
-      plot_bgcolor: "rgba(0,0,0,0)",
-      // Every axis the user has moved is handed back through `span` (see
-      // `heldRanges`); an axis they have not keeps no `range` key at all, which
-      // is what leaves plotly autoranging.
-      //
-      // The x axis is anchored to the *lower* subplot, so the ticks and the
-      // title sit under the residual rather than between the two — where the
-      // title landed inside the residual plot, on a cumulative χ² curve.
-      //
-      // It also carries the pointer's own mark on the data (WP-1213), and
-      // `across` rather than plotly's default `toaxis` for the reason just
-      // above: a spike drawn to *its* axis would stop at the residual, and what
-      // the reader is lining up is a position in the pattern.
-      //
-      // Solid, in the page's own ink, and that is a browser finding: dotted in
-      // `colors.edge` — the obvious first choice — is `maskShapes`' excluded-
-      // region edge exactly, so the pointer drew a line indistinguishable from
-      // a protocol boundary. It needs no `--plot-*` token of its own (WP-1210)
-      // because it carries no quantity: it is chrome, so it takes `--fg`, which
-      // is the one ink on the page no plot colour is near.
-      xaxis: { title: { text: "2θ (°)" }, zeroline: false, domain: [0, 1],
-               anchor: "y2", gridcolor: line,
-               showspikes: true, spikemode: "across", spikesnap: "cursor",
-               spikedash: "solid", spikethickness: 1, spikecolor: fg,
-               ...span(ranges.xaxis) },
-      yaxis: {
-        title: { text: scale === "linear" ? "intensity" : `intensity (${scale})` },
-        domain: [0.28, 1],
-        type: scale === "log" ? "log" : "linear",
-        gridcolor: line,
-        ...(ticks ? { tickmode: "array", ...ticks } : {}),
-        ...span(ranges.yaxis),
-      },
-      yaxis2: { title: { text: res.title }, domain: [0, 0.22], gridcolor: line,
-                zeroline: res.zeroline, zerolinecolor: colors.zero,
-                ...span(ranges.yaxis2) },
-      // **The box is gone and the strip below has its job** (WP-1213). The
-      // report was that it covered the data, and plotly offers no positioning
-      // for the unified box beyond `hoverlabel.align` — so this is not a
-      // setting to change but a box to delete. `hovermode: "x"` with every
-      // trace at `hoverinfo: "none"` keeps the machinery that finds the point
-      // and draws the spike (plotly's own gate is `!== "skip"`) and draws no
-      // label at all.
-      hovermode: "x",
-    };
-  }
-
-  /**
-   * Fetch a window and draw it.
-   *
-   * `request` is a window another panel *asked* for (a report region, an
-   * unindexed peak) — the one case where the axis must be moved rather than
-   * kept, so it overrides the held view and lets the y axes autorange over
-   * whatever is there. Everything else (a zoom drag, a repaint after an edit)
-   * passes nothing and keeps the view the user is looking at.
-   */
-  async function draw(lo?: number, hi?: number, request: [number, number] | null = null) {
-    if (!node || !result) return;
-    try {
-      plotly = plotly ?? (await loadPlotly());
-    } catch (exc) {
-      loadError = (exc as Error).message;
-      return;
-    }
-    let w: any;
-    try {
-      w = await api.window(lo, hi);
-    } catch (exc) {
-      // A `checkout` clears the result server-side while this component still
-      // holds the previous one, so the window 409s `NO_RESULT` — an empty state,
-      // not a failure, and an *unhandled* rejection until it was caught here (a
-      // real browser reported it as a page error; jsdom never reached the fetch,
-      // because it does not load the runtime plotly script).
-      shown = null;
-      if (!(exc instanceof ApiError && exc.empty)) loadError = (exc as Error).message;
-      return;
-    }
-    loadError = "";
-    held = w;
-    shown = { n: w.n_returned, total: w.n_total, lo: w.window?.[0] ?? 0, hi: w.window?.[1] ?? 0 };
-    await paint(w, request);
-  }
-
-  /** Redraw the payload already in hand — a residual or a scaling change is a
-   *  choice about the same numbers, so it must not cost a round trip. */
-  async function paint(w: any, request: [number, number] | null = null) {
-    if (!node || !plotly) return;
-    // One microtask before sampling any style: on a theme change this effect
-    // and the shell's `applyTheme` effect wake in the same flush, and this one
-    // can run first — sampling here synchronously painted the dark page with
-    // the light page's ink (found in Chrome; the 3D panel never had the bug
-    // because its draw awaits the plotly loader before it samples).
-    await Promise.resolve();
-    // sampled per paint, never held: these are what make a repaint on a theme
-    // change actually change anything
-    const colors = curveColors((name) =>
-      getComputedStyle(document.body).getPropertyValue(name));
-    const phases = w.raw ? [] : Object.keys(w.ticks ?? {});
-    const band = tickBand(phases.length);
-    // First, so everything else draws over it: a candidate's lines are the
-    // hypothesis and the points are the evidence, and at a survey view there
-    // are enough lines to bury the data completely if they go on top (found in
-    // Chrome on the FAP example — 426 predicted lines over 115° is ~3.7 per
-    // pixel, and the pattern was simply gone).
-    const traces: any[] = [...candidateTraces(colors)];
-    if (shows(hidden, "obs")) {
-      traces.push(
-        { x: w.two_theta, y: scaleValues(scale, w.y_obs), name: "observed", mode: "markers",
-          type: "scattergl", hoverinfo: "none",
-          marker: { size: 4, color: colors.obs } });
-    }
-    // The channels the protocol masks, which are in no result and therefore
-    // arrive on their own arm.  Without them a fit range has no *outside* to
-    // shade — the axis autoranges to the surviving points, so the picture
-    // simply stops where the range does and the user cannot see what they cut
-    // (measured on the synthetic fixture: a 3–24° pattern came back as
-    // 8.005–18.990°).  Recessive on purpose: they are context, not evidence.
-    if (w.excluded?.two_theta?.length && shows(hidden, "masked")) {
-      traces.push(
-        { x: w.excluded.two_theta, y: scaleValues(scale, w.excluded.y_obs),
-          name: "masked", mode: "markers", type: "scattergl", hoverinfo: "none",
-          marker: { size: 3, color: colors.edge, opacity: 0.45 } });
-    }
-    if (!w.raw) {
-      const res = residual(kind, w);
-      if (shows(hidden, "calc")) {
-        traces.push({ x: w.two_theta, y: scaleValues(scale, w.y_calc), name: "calculated",
-          mode: "lines", type: "scattergl", hoverinfo: "none",
-          line: { width: 1.2, color: colors.calc } });
-      }
-      if (w.y_background?.length && shows(hidden, "bkg")) {
-        traces.push({ x: w.two_theta, y: scaleValues(scale, w.y_background), name: "background",
-          mode: "lines", type: "scattergl", hoverinfo: "none",
-          line: { width: 1, dash: "dot", color: colors.bkg } });
-      }
-      if (shows(hidden, "diff")) {
-        traces.push({ x: w.two_theta, y: res.values, name: res.label, mode: "lines",
-          type: "scattergl", yaxis: "y2", hoverinfo: "none",
-          line: { width: 1, color: colors.diff } });
-      }
-
-      // every emission line's ticks, not just the primary: the Kα2 positions are
-      // in here too, which is what stops a doublet reading as an impurity.  They
-      // ride on `y3`, a band of their own between the two subplots (WP-1032) —
-      // on the residual axis their visibility was a property of which residual
-      // was selected, and under cumulative χ² they were a line on the floor.
-      phases.forEach((phase, row) => {
-        if (!shows(hidden, `ticks:${phase}`)) return;
-        const ticks = (w.ticks ?? {})[phase] as number[];
-        const y = band!.rows[row];
-        // `marker.color`, not `marker.line.color`: an open symbol looks as
-        // though its ink is the line's, and under `scattergl` it is not —
-        // measured in Chrome, a tick trace given only `marker.line.color` kept
-        // `marker.color` from plotly's colorway (`#9467bd` for the first row)
-        // and drew in that, which is the defect this was meant to remove. The
-        // watcher's page has always set `color`; that is why it looked right.
-        const ink = phaseInk(colors, row, phases.length);
-        // `hoverinfo: "none"` like every other trace here, and which
-        // reflection a tick is goes in the strip below instead (WP-1438,
-        // repairing itself). A `hovertemplate` on this one row put **two**
-        // boxes over every tick: its own, and plotly's `axistext`, which
-        // `hovermode: "x"` draws as soon as some trace has a label to show.
-        // The second printed the 2θ the first had just printed, overlapping
-        // it — measured in Chrome on the NAC example at [328, 556] and
-        // [297, 598]. WP-1213 deleted this plot's box on a report that it
-        // covered the data, and every trace at `hoverinfo: "none"` is the
-        // condition that keeps plotly from drawing either half of one.
-        traces.push({ x: ticks, y: ticks.map(() => y), yaxis: "y3",
-          name: phase, mode: "markers", type: "scattergl", hoverinfo: "none",
-          marker: { symbol: "line-ns-open", size: 8, color: ink,
-                    line: { width: 1, color: ink } } });
-      });
-    }
-    traces.push(...peakTraces(w, colors));
-    // by name, not by position: the layer's traces are conditional now, so
-    // counting back from the end named whichever one happened to be last
-    ringAt = traces.findIndex((t: any) => t.name === "hovered");
-
-    // read immediately before the react, never held between them (lib/plot.ts)
-    //
-    // `fresh` is the paint that may re-fit the axes: a run or a checkout put
-    // different numbers on the plot, and a range pinned to the old ones would
-    // clip them. Untracked, like the knobs beside it — the knob effect must not
-    // gain `plotKey` as a dependency, or every run costs a second identical
-    // react (the count WP-1044 measured and removed).
-    //
-    // **New numbers and a new payload**, both: a project switch moves `plotKey`
-    // and `extent` in one flush, and the knob effect's paint of the payload
-    // still in hand can land first — the fetch is a round trip and a repaint is
-    // one microtask. With `plotKey` alone that repaint would spend the licence
-    // re-fitting the axes over the *old* pattern, and the new one would then be
-    // handed those ranges as a pin.
-    const fresh = w !== paintedPayload
-      && untrack(() => plotKey !== paintedKey || result !== paintedResult);
-    // …and a knob that re-means an axis un-says whatever was said about it
-    // (`forget`), which is `heldRanges`' own `live` gate one step later: that
-    // one decides what this paint hands back, this one what the next re-fit may
-    // keep.  Before `view`, which reads the flags it clears.
-    userSet = forget(userSet, { yaxis: paintedScale === scale, yaxis2: paintedKind === kind });
-    const ranges = request ? { xaxis: request } : view(fresh);
-    paintedScale = scale;
-    paintedKind = kind;
-    paintedPayload = w;
-    untrack(() => { paintedKey = plotKey; paintedResult = result; });
-    await plotly.react(node, traces,
-                       layout(w, colors, phases.length, ranges, untrack(() => arm !== null)),
-                       // `doubleClick: "autosize"`, not plotly's default
-                       // `"reset+autosize"`: reset means *back to the range the
-                       // plot was drawn with*, and since the draw above hands
-                       // the view back, that range is the zoom itself — measured
-                       // in Chrome, a double-click out of a 9.97–14.66° window
-                       // became a no-op. Autosize is what "all of it" means for
-                       // a pattern, and it is the gesture the window fetch
-                       // already listens for (`xaxis.autorange`).
-                       { responsive: true, displaylogo: false, doubleClick: "autosize" });
-    plotted = true;
-    // plotly decorates the div with its own emitter at runtime; re-registering
-    // without removing would stack one handler per redraw
-    const plotNode = node as HTMLDivElement & {
-      removeAllListeners?: (name: string) => void;
-      on?: (name: string, handler: (ev: any) => void) => void;
-    };
-    plotNode.removeAllListeners?.("plotly_relayout");
-    plotNode.on?.("plotly_relayout", (ev: any) => {
-      // this panel's own pin is a relayout too, and it must not be read as the
-      // gesture it is shaped like (`lib/plot.ts:movedAxes`)
-      if (pinning) return;
-      const { moved, reset } = movedAxes(ev);
-      if (reset) userSet = noAxes();
-      for (const key of moved) userSet[key] = true;
-      if (!result) {
-        // the raw view has no window route to refetch, so a double-click's
-        // re-fit is followed by no paint at all — pin it here, or the axes are
-        // left autoranging and the next hover restyle moves them again
-        if (reset) queueMicrotask(() => void pinAxes());
-        return;
-      }
-      const a = ev["xaxis.range[0]"];
-      const b = ev["xaxis.range[1]"];
-      if (typeof a === "number" && typeof b === "number") draw(a, b);
-      else if (ev["xaxis.autorange"]) draw();
-    });
-    // The pointer's 2θ, which is the whole of this panel's hover state: the
-    // strip is derived from it, and the peak link below is `nearestPeak` at the
-    // coarse radius a shift-click obeys (`PICK_RADIUS_PX`) rather than plotly's
-    // match on the trace named `peaks` — that was decided by `hoverdistance` in
-    // pixels, a second answer to "which line is under the pointer".
-    //
-    // The 2θ itself comes through this panel's own axis map and not off
-    // `ev.points[0]`, which is whichever *trace* plotly matched first: the
-    // ticks ride on reflection positions and the markers on peak positions, so
-    // the first point is not a stable answer to "where is the pointer". The
-    // event's own clientX is, and `thetaOf` is the conversion every pointer
-    // verb here already uses.
-    plotNode.removeAllListeners?.("plotly_hover");
-    plotNode.on?.("plotly_hover", (ev: any) => {
-      const px = ev?.event?.clientX;
-      const from = ev?.points?.[0]?.x;
-      const x = typeof px === "number" ? thetaOf(px)
-        : (typeof from === "number" ? from : null);
-      hoverAt = x;
-      // The link is answered on *every* hover while the layer is up, `null`
-      // included: a hover that resolves no 2θ (the axis map is not in hand) has
-      // to clear the ring and the lit row, or they stay lit on a line the
-      // pointer has left until the pointer leaves the plot altogether.
-      if (peaksActive) {
-        onhoverpeak(hoverAt !== null && peaks?.peaks?.length
-          ? nearestPeak(peaks.peaks, hoverAt, PICK_RADIUS_PX * degPerPx())
-          : null);
-      }
-    });
-    plotNode.removeAllListeners?.("plotly_unhover");
-    plotNode.on?.("plotly_unhover", () => {
-      hoverAt = null;
-      if (peaksActive) onhoverpeak(null);
-    });
-    plotNode.removeAllListeners?.("plotly_selected");
-    plotNode.on?.("plotly_selected", (ev: any) => {
-      // plotly fires this with `undefined` to clear a selection, which is what
-      // a plain click inside select mode does — not a zero-width region
-      const range = ev?.range?.x;
-      if (arm && Array.isArray(range)) selected(range[0], range[1]);
-    });
-    // before the ring goes back on, so the restyle that puts it there cannot be
-    // the thing that re-fits the axis (WP-1212's whole report).  An axis with
-    // nothing drawn on it is *not* pinned: plotly's empty-axis default is a
-    // number to look at, not a fit to keep (`pinPatch`, where the measurement
-    // that makes this a guard rather than a repair is written down).
-    paintedEmpty = emptyAxes(traces);
-    await pinAxes(paintedEmpty);
-    drawRing();   // a redraw resets the trace, so the ring is put back
-    watch();
-  }
-
-  /**
-   * The peak layer (WP-1027): markers with σ error bars on the data, the
-   * fitted group profiles over it, and — on the raw view, where the lower
-   * subplot is otherwise empty — each group's own residual strip.
-   *
-   * Markers ride at the measured intensity nearest each position, so they sit
-   * *on* the curve at every zoom; excluded and otherwise unusable lines are
-   * hollow, human-placed ones are diamonds. The group profiles join into one
-   * trace with null gaps: sixty windows as sixty traces is a legend, not a
-   * layer.
-   *
-   * Three rules since WP-1210. **It is drawn where it can be edited** — the
-   * Peaks tab, which is already the only tab a click on this plot means
-   * anything on (WP-1027); elsewhere it was a layer nobody could act on, in a
-   * colour nobody had chosen. **Its colours are its own tokens**, `--plot-peak`
-   * and `--plot-peakfit`: `--accent` and `--bad` are chrome, and on the light
-   * theme they are `--plot-diff` and `--plot-calc` exactly, which is why the
-   * fitted curve and the model were one red line. And **the state of a line is
-   * carried by its mark, never by a second colour** — hollow for unusable,
-   * diamond for human-placed — so the layer spends two colours and the whole
-   * palette stays separable.
-   */
-  function peakTraces(w: any, colors: ReturnType<typeof curveColors>): any[] {
-    const list = peaks?.peaks;
-    if (!list?.length || !peaksActive) return [];
-    const out: any[] = [];
-    const groups = peaks?.groups ?? [];
-    if (groups.length && shows(hidden, "peakfit")) {
-      const fit = joinCurves(groups, (g) => g.y_fit);
-      out.push({ x: fit.x, y: sparse(fit.y), name: "peak fit", mode: "lines",
-        type: "scattergl", showlegend: true, hoverinfo: "none",
-        // dashed, because the other two curves on this axis are solid lines and
-        // a reader has to tell "what the positions were fitted from" from "the
-        // model" without consulting a legend.  The other half of that naming is
-        // the readout strip's `peak fit` row (WP-1213): it used to be the hover
-        // box's, and the box is gone.
-        line: { width: 1.4, color: colors.peakfit, dash: "dash" } });
-      if (w.raw) {
-        const delta = joinCurves(groups, (g) => g.delta);
-        out.push({ x: delta.x, y: delta.y, name: "(y−fit)/σ", mode: "lines",
-          type: "scattergl", yaxis: "y2", hoverinfo: "none",
-          line: { width: 1, color: colors.peakfit }, showlegend: false });
-      }
-    }
-    if (!shows(hidden, "peaks")) return out;
-    const y = list.map((p) => heightAt(w, p.two_theta));
-    out.push({
-      x: list.map((p) => p.two_theta),
-      y,
-      name: "peaks",
-      mode: "markers",
-      type: "scattergl",
-      // the whisker is capped at 3×FWHM: a degenerate component reports σ in
-      // *tens of degrees* (measured: 111° after a move made its group's fit
-      // fail), and an uncapped bar owns the autorange and paints a line across
-      // the whole axis. The number stays honest in the panel's table; here the
-      // hollow `fit_failed` marker is what says "degenerate", not bar length.
-      error_x: { type: "data",
-                 array: list.map((p) => Math.min(p.two_theta_esd, 3 * p.fwhm)),
-                 visible: true, color: colors.peak, thickness: 1 },
-      marker: {
-        size: 9,
-        symbol: list.map((p) =>
-          p.usable ? (p.origin === "fitted" ? "circle" : "diamond")
-                   : (p.origin === "fitted" ? "circle-open" : "diamond-open")),
-        // **One colour for the whole layer**, and the ring says which state:
-        // hollow is unusable, filled is in the fit.  Spending a second colour
-        // on the state is the thing this WP's own rule forbids, and both
-        // candidates for it are measurably wrong anyway — `--bad` *is*
-        // `--plot-calc` on the light theme, `--warn` sits 0.053 from it (0.096
-        // dark), and the recessive `--muted` this line used first is **0.032**
-        // from `--plot-obs` on the dark theme, which is the ink of the very
-        // points these markers sit on.  All three against a 0.13 floor.
-        color: colors.peak,
-        line: { width: 1.2 },
-      },
-      showlegend: true,
-      hoverinfo: "none",
-    });
-    // The hover link's own trace, drawn empty and moved by `restyle` (WP-1032):
-    // a full `react` per mouse move is exactly the cost task 1 measured, and one
-    // ring that changes its two coordinates is the cheapest thing plotly does.
-    // …and it is the one trace here that is **not** `scattergl`, which is a
-    // browser finding rather than a preference (WP-1212): every gl trace on a
-    // subplot shares one `_scene` whose batches are indexed by position, an
-    // *empty* gl trace is given no index at all, and a select drag then reads
-    // `scene.selectBatch[undefined].length` and throws once per pointer move —
-    // measured, 7 throws over one armed exclude drag. This trace is empty
-    // whenever nothing is hovered, which is most of the time. One marker in SVG
-    // costs nothing and leaves the scene alone.
-    out.push({
-      x: [], y: [], name: "hovered", mode: "markers", type: "scatter",
-      marker: { size: 16, symbol: "circle-open", color: colors.peak, line: { width: 2 } },
-      showlegend: false, hoverinfo: "skip",
-    });
-    return out;
-  }
-
-  /**
-   * An indexing candidate's predicted lines, under the data (WP-1211).
-   *
-   * **First** in the trace list, and that is a browser finding rather than a
-   * preference: 426 predicted lines over the FAP example's 115° is ~3.7 per
-   * pixel at the survey view, and drawn on top they buried the pattern
-   * completely — the overlay hiding the one thing it exists to be compared
-   * with. Under it, the density reads as a wash and every measured point stays
-   * on top of it, which is also the honest order: the lines are a hypothesis
-   * and the points are the evidence.
-   *
-   * Full height on an axis of their own rather than ticks in the band below,
-   * for the same reason: a tick states a fitted model's position, and this is a
-   * cell's claim laid *over* the data to be checked against it.
-   *
-   * No hover, and `skip` rather than `none`. `hovermode` was `x unified` when
-   * this trace was written, so plotly snapped *every* trace to its nearest
-   * point in x and this one would have put a row in the box at every pointer
-   * position. The box is gone since WP-1213 and the rest of the plot is at
-   * `hoverinfo: "none"`; this one stays `"skip"`, which takes it out of the
-   * point-finding altogether — nothing reads its points, and the readout takes
-   * the hkl off the payload the route serves.
-   */
-  function candidateTraces(colors: ReturnType<typeof curveColors>): any[] {
-    const rows = overlay;
-    if (!rows?.two_theta?.length) return [];
-    const { x, y } = candidateLines(rows.two_theta);
-    return [{
-      x, y, yaxis: "y4", name: rows.label, mode: "lines", type: "scattergl",
-      line: { width: 1, color: colors.candidate },
-      showlegend: true, hoverinfo: "skip",
-    }];
-  }
 
   /**
    * The 2θ under the pointer, or null while it is off the plot (WP-1213).
    *
    * The *only* hover state this panel keeps: the strip below is derived from
-   * it, so a pointer move costs one recompute of a value object and no plotly
-   * call at all — which is WP-1032's rule ("a hover link costs a `restyle`,
-   * never a `react`") one step cheaper, because a strip is DOM.
+   * it, so a pointer move costs one recompute of a value object and no redraw
+   * of the pattern at all — which is WP-1032's rule ("a hover link never
+   * repaints the pattern") one step cheaper, because a strip is DOM.
    */
   let hoverAt = $state<number | null>(null);
 
@@ -788,7 +192,7 @@
    *  px: the readout's, the hover ring's, shift-toggle's and click-to-add's.
    *  WP-1027 made the **move** gesture's radius readable (`grabToleranceDeg`)
    *  because a drag edits a line; naming one does not, and at a survey view the
-   *  fine radius is narrower than the decimated channel spacing. */
+   *  fine radius is narrower than the channel spacing. */
   const PICK_RADIUS_PX = 10;
 
   /** What the strip prints. Derived, so the resting state and a reading are the
@@ -807,21 +211,10 @@
     candidate: overlay,
     candidateTolerance: PICK_RADIUS_PX * degPerPx(),
     hidden,
+    // read as the pointer moves: a zoom re-bases the drawn Σχ² (`rxplot.chi2Base`),
+    // and the pointer's own 2θ changes with it, so this is asked again
+    chi2Base: chi2Base(),
   }));
-
-  /** Where the highlight ring sits in the trace list of the last draw. */
-  let ringAt = $state(-1);
-
-  /** Move the ring to the hovered line — or off the plot when nothing is. */
-  function drawRing() {
-    if (!node || !plotly || ringAt < 0 || !held) return;
-    const row = hovered === null
-      ? undefined
-      : peaks?.peaks?.find((p) => p.index === hovered);
-    const x = row ? [row.two_theta] : [];
-    const y = row ? [heightAt(held, row.two_theta)] : [];
-    plotly.restyle?.(node, { x: [x], y: [y] }, [ringAt]);
-  }
 
   /** Hide everything but the data — or, pressed again, put back exactly what
    *  was on screen before, which is not the same as showing everything: a user
@@ -878,52 +271,8 @@
     });
   });
 
-  /** null-preserving √/log guard — `scaleValues` maps a gap to 0, which would
-   *  draw every group profile down to the baseline between windows */
-  function sparse(values: (number | null)[]): (number | null)[] {
-    if (scale !== "sqrt") return values;
-    return values.map((v) => (v == null ? null : v > 0 ? Math.sqrt(v) : 0));
-  }
-
-  /** the measured intensity nearest 2θ, in plot (scaled) units.  The nearest
-   *  channel is `nearestIndex`, shared with the readout (WP-1213): one plot,
-   *  one answer to "which channel is under this 2θ". */
-  function heightAt(w: any, tt: number): number {
-    const k = nearestIndex(w.two_theta ?? [], tt);
-    if (k < 0) return 0;
-    const v = (w.y_obs ?? [])[k] ?? 0;
-    return scale === "sqrt" ? (v > 0 ? Math.sqrt(v) : 0) : v;
-  }
-
-  /** Draw the raw pattern alone — the state a project is in before any fit,
-   *  which is exactly when peaks are picked and a cell is indexed. */
-  async function paintRaw(request: [number, number] | null = null) {
-    if (!node || !peaks?.pattern?.two_theta?.length) return;
-    try {
-      plotly = plotly ?? (await loadPlotly());
-    } catch (exc) {
-      loadError = (exc as Error).message;
-      return;
-    }
-    loadError = "";
-    // the masked channels travel here too: this is the view a project has
-    // *before* any fit, so it is the only place a fit range can be seen at all
-    // — and without them the axis autoranges inside the range and the shading
-    // has nothing to shade (found in the browser; jsdom drew no axis)
-    const w = { raw: true, two_theta: peaks.pattern.two_theta, y_obs: peaks.pattern.y_obs,
-                excluded: peaks.pattern.excluded };
-    held = w;
-    shown = {
-      n: w.two_theta.length,
-      total: peaks.pattern.n_total ?? w.two_theta.length,
-      lo: w.two_theta[0],
-      hi: w.two_theta[w.two_theta.length - 1],
-    };
-    await paint(w, request);
-  }
-
-  // -- the chart module (WP-1461's pilot) --------------------------------
-  /** What the chart lays over the figure, from this panel's props. `held` is
+  // -- the figure --------------------------------------------------------
+  /** What the figure lays over the pattern, from this panel's props. `held` is
    *  read untracked: a new payload is drawn by the fetch that brought it, and
    *  tracked here it cost the knob effect a second paint of every fetch. */
   function overlayNow(): Overlay {
@@ -952,6 +301,7 @@
     } catch (exc) {
       if (seq !== fetchSeq) return;
       shown = null;
+      // an empty state (no project), not a failure (WP-1012's guard)
       if (!(exc instanceof ApiError && exc.empty)) loadError = (exc as Error).message;
       return;
     }
@@ -969,7 +319,12 @@
         kind: untrack(() => kind),
         labels: {
           y: () => (scale === "linear" ? "intensity" : `intensity (${scale})`),
-          resid: () => (held?.raw ? "" : residual(kind, held).title),
+          // an axis title names what is plotted: on the raw view that is each
+          // peak group's own residual, since there is no model to take one from,
+          // and nothing where that residual is not drawn (`PatternChart.groupResidual`)
+          resid: () => (!held ? "" : !held.raw ? residual(kind, held).title
+            : peaksActive && peaks?.groups?.length && shows(hidden, "peakfit")
+              ? "(y − fit)/σ per group" : ""),
         },
       });
       applied = untrack(() => ({ kind, scale, theme }));
@@ -977,7 +332,7 @@
       chart.fig.onSelect = (lo, hi) => { if (arm) selected(lo, hi); };
       chart.fig.setMode(arm ? "select" : "zoom");
     } else {
-      chart.fig.setCurves(c, mod.sameGrid(curves, c));
+      chart.setCurves(c, mod.sameGrid(curves, c));
       chart.update(overlayNow());
     }
     curves = c;
@@ -993,6 +348,9 @@
   /** A window another panel asked for before the figure existed to show it. */
   let pendingZoom: [number, number] | null = null;
 
+  /** The curves are gone (no project), and so is everything drawn from them:
+   *  WP-1012's rule, applied to the copy in hand, so a knob or a theme change
+   *  cannot redraw a state the project is no longer in. */
   function dropChart() {
     fetchSeq++;
     chart?.destroy();
@@ -1003,7 +361,13 @@
     shown = null;
   }
 
-  /** The pointer's 2θ, and the peak link it drives: `plotly_hover`'s job. */
+  /**
+   * The pointer's 2θ, which is the whole of this panel's hover state, and the
+   * peak link it drives. The link is `nearestPeak` at the coarse radius a
+   * shift-click obeys (`PICK_RADIUS_PX`), and it is answered on every move while
+   * the layer is up, `null` included, or the ring and the lit row would stay on
+   * a line the pointer has left.
+   */
   function hovering(x: number | null) {
     hoverAt = x;
     if (peaksActive) {
@@ -1014,36 +378,27 @@
   }
 
   // -- pointer interactions (WP-1027) ---------------------------------
-  // pixel → 2θ through the axis the 2θ ticks belong to.  The shared axis is
-  // anchored to the *lower* subplot, but `_fullLayout.xaxis` spans both — what
-  // must not be used is the upper plot's own DOM geometry.
+  /** pixel → 2θ through the figure's own x, or null off its plot area */
   function thetaOf(clientX: number): number | null {
-    if (choice.uplot) return chart?.thetaOf(clientX) ?? null;
-    const xa = (node as any)?._fullLayout?.xaxis;
-    if (!xa || !node) return null;
-    const px = clientX - node.getBoundingClientRect().left - xa._offset;
-    if (px < 0 || px > xa._length) return null;
-    return xa.p2d(px);
+    return chart?.thetaOf(clientX) ?? null;
   }
 
   function degPerPx(): number {
-    if (choice.uplot) return chart?.degPerPx() ?? 0.01;
-    const xa = (node as any)?._fullLayout?.xaxis;
-    // `drawnRange`, not `xa.range`: on the first plot of a fresh div the two
-    // disagree and only `_rl` matches the pixel map this is dividing by
-    // (WP-1212).
-    const range = xa?._length ? drawnRange(xa) : null;
-    if (!range) return 0.01;
-    return Math.abs(range[1] - range[0]) / xa._length;
+    return chart?.degPerPx() ?? 0.01;
+  }
+
+  /** What the drawn Σχ² curve has subtracted at the current zoom. */
+  function chi2Base(): number {
+    return chart?.fig.chi2Base() ?? 0;
   }
 
   /** The gesture in flight. `move` is the hit inside the *readable* grab
    *  radius (`grabToleranceDeg` — min(10 px, 1.5× median FWHM)); only that
-   *  hit captures the pointer from plotly, so at the survey view — where a
-   *  line is subpixel and 10 px spans two degrees — a drag stays plotly's
-   *  zoom instead of silently moving a line (measured: a zoom drag starting
-   *  0.9° from a marker moved it 11°).  `click` is the coarse 10-px hit that
-   *  the non-destructive gestures (shift-toggle) still aim with. */
+   *  hit takes the pointer from the figure, so at the survey view — where a
+   *  line is subpixel and 10 px spans two degrees — a drag stays a zoom
+   *  instead of silently moving a line (measured: a zoom drag starting 0.9°
+   *  from a marker moved it 11°).  `click` is the coarse 10-px hit that the
+   *  non-destructive gestures (shift-toggle) still aim with. */
   let gesture: { move: number; click: number; startX: number; moved: boolean } | null = null;
 
   /**
@@ -1051,21 +406,21 @@
    * meaning (WP-1033).
    *
    * The canvas already carries five pointer meanings — peak-add, peak-move,
-   * shift-toggle, right-click-remove and plotly's zoom drag — and WP-1027
-   * measured what a sixth costs when two overlap: a 10 px grab radius is ±1.9°
-   * at the survey view, so a zoom drag starting 0.9° from a marker silently
-   * moved a line 11°.  The repair there was to make the radius *readable*
+   * shift-toggle, right-click-remove and the zoom drag — and WP-1027 measured
+   * what a sixth costs when two overlap: a 10 px grab radius is ±1.9° at the
+   * survey view, so a zoom drag starting 0.9° from a marker silently moved a
+   * line 11°.  The repair there was to make the radius *readable*
    * (`grabToleranceDeg`), so an ambiguous drag falls through to the harmless
    * verb.
    *
    * Here there is no radius to derive, because a region drag is ambiguous with
    * a zoom drag **everywhere** — same button, same shape, same distances.  So
    * the ambiguity is removed rather than arbitrated: arming is an explicit
-   * click on a named control, it hands the drag to plotly's own select box
-   * (`dragmode: "select"`, which is also the visible feedback), it *suspends*
-   * the peak verbs while it holds, and it disarms itself after one selection.
-   * Nothing is momentary except the mode the user asked for, and an
-   * un-armed drag still zooms, which is the harmless thing.
+   * click on a named control, it hands the drag to the figure's select mode
+   * (x only, and zooming nothing), it *suspends* the peak verbs while it
+   * holds, and it disarms itself after one selection. Nothing is momentary
+   * except the mode the user asked for, and an un-armed drag still zooms,
+   * which is the harmless thing.
    *
    * The non-pointer routes are the typed boxes in the strip below and the
    * `.rxt` document's `limits`/`excluded` lines — both of which existed
@@ -1077,24 +432,13 @@
     const pair = normalizeRegion([a, b]);
     const which = arm;
     arm = null;   // one drag, one region: the mode does not linger
-    if (!pair || !which) {
-      clearSelection();
-      return;
-    }
+    if (!pair || !which) return;
     if (which === "limits") onprotocol({ two_theta_limits: pair });
     else onprotocol({ excluded_regions: mergeRegions(protocol.regions, pair) });
-    clearSelection();
-  }
-
-  /** Drop plotly's selection rectangle — the region is now the shading's job,
-   *  and a lingering marquee would claim the fact twice. */
-  function clearSelection() {
-    // the chart module's select box is its own to clear, and it does
-    if (!choice.uplot && node && plotly) plotly.relayout?.(node, { selections: [] });
   }
 
   function down(ev: PointerEvent) {
-    // armed: the drag is plotly's select box, and every peak verb stands down
+    // armed: the drag is the figure's select box, and every peak verb stands down
     if (arm) return;
     if (!peaksActive || !peaks?.peaks || ev.button !== 0) return;
     const tt = thetaOf(ev.clientX);
@@ -1104,8 +448,9 @@
     const click = nearestPeak(peaks.peaks, tt, PICK_RADIUS_PX * perPx);
     gesture = { move: move ?? -1, click: click ?? -1, startX: ev.clientX, moved: false };
     if (move !== null) {
-      // this gesture is a peak drag, not a zoom: keep it from plotly's drag
-      // layer (capture phase — we run before the <rect class="drag"> does)
+      // This gesture is a peak drag, not a zoom. A pointerdown's default is the
+      // mouse events it would go on to fire, and uPlot's drag listens for
+      // those, so cancelling it here, in the capture phase, keeps the drag ours.
       ev.stopPropagation();
       ev.preventDefault();
     }
@@ -1123,8 +468,8 @@
     if (tt === null) return;
     if (g.moved) {
       if (g.move >= 0) onmovepeak(g.move, tt);
-      // a drag that started merely *near* a marker was never captured, so
-      // plotly zoomed with it — nothing to do here
+      // a drag that started merely *near* a marker was never captured, so the
+      // figure zoomed with it — nothing to do here
     } else if (ev.shiftKey) {
       if (g.click >= 0) ontogglepeak(g.click);
     } else if (g.click < 0) {
@@ -1154,32 +499,7 @@
     onremovepeak(hit);
   }
 
-  /**
-   * Keep the canvas the size of its box.
-   *
-   * WP-1015 found this in the structure viewer and it landed here in WP-1029,
-   * because it is not a viewer bug: plotly's `responsive: true` listens for
-   * **window** resizes only, so a plot whose box shrinks without one keeps an
-   * oversized canvas — which then overhangs whatever is below it and swallows
-   * every click. This plot had nothing below it until the residual and scaling
-   * knobs arrived, and the browser reported the result in the defect's own
-   * words: a `<rect class="sdrag drag">` from the plot div "intercepts pointer
-   * events" on a button 40 px underneath it.
-   *
-   * `coalesce` is WP-1032's half: one resize costs ~111 ms here and a sidebar
-   * drag delivered sixty of them, so the canvas trailed the grip by up to 1.1 s
-   * (the measurement, and why the trailing re-run is not optional, are in
-   * `lib/resize.ts`).
-   */
-  function watch() {
-    if (observer || !node || typeof ResizeObserver === "undefined") return;
-    const fit = coalesce(() => (node && plotly ? plotly.Plots?.resize(node) : undefined));
-    observer = new ResizeObserver(fit);
-    observer.observe(node);
-  }
-
   $effect(() => () => {
-    observer?.disconnect();
     // a fetch still in flight then lands on a stale sequence, and builds no
     // figure into a host that is gone
     fetchSeq++;
@@ -1225,131 +545,18 @@
 
   /** The `zoom` prop this panel has already acted on, by **identity**.
    *
-   *  A window from another panel is a *request*, and every other reason this
-   *  effect runs is not — so the two have to be told apart, and the array's
-   *  identity is what does it: the shell writes a fresh pair per click, so
-   *  clicking the same region twice asks twice, while a peak edit re-runs the
-   *  effect with the same array and keeps the view. Deliberately not `$state`. */
+   *  A window from another panel is a *request*, and every other reason an
+   *  effect here runs is not — so the two have to be told apart, and the
+   *  array's identity is what does it: the shell writes a fresh pair per click,
+   *  so clicking the same region twice asks twice. Deliberately not `$state`. */
   let asked: [number, number] | null | undefined;
 
+  // Three effects, and which one a change wakes is the design.
+  //
+  // **Fetch** on what moves the curves: a run, a move in the history, the mask
+  // (the masked channels are the payload's `kept`). Not on a peak edit, which
+  // the layers redraw, and never on a zoom.
   $effect(() => {
-    if (choice.uplot) return;
-    plotKey; // redraw when the session says the curves moved
-    void peaks; // …and when a peak verb answered with a new list
-    // …and refetch — not merely repaint — when the protocol moves: the masked
-    // points are an arm of the payload, so a repaint of the held copy would
-    // shade a region whose points are still the old mask's
-    void protocolKey;
-    // …and refetch the window when another panel points at one: the zoom is a
-    // *server* fetch, not an axis range, so a region the report sent us to comes
-    // back at full point budget rather than as the decimated overview stretched
-    const request = zoom !== asked ? zoom : null;
-    asked = zoom;
-    // an asked-for window is somebody having said where to look, so it survives
-    // a later re-fit exactly as a zoom drag does (`userRanges`)
-    if (request) userSet.xaxis = true;
-    // Any other reason to redraw keeps the window on screen. It used to fall
-    // back to the whole pattern, which is what made a peak toggle a zoom reset
-    // — the fetch went wide and the axis autoranged after it (lib/plot.ts).
-    const window = request ?? shownWindow();
-    if (result) {
-      draw(window?.[0], window?.[1], request);
-    } else if (peaks?.pattern?.two_theta?.length) {
-      // no fit yet, but there is a pattern to pick peaks on — indexing's whole
-      // situation is a project with no fittable model (WP-1027).  There is no
-      // window fetch here, so a request is an axis move and nothing else.
-      paintRaw(request);
-    } else {
-      // the curves are gone server-side (a checkout): drop the held copy too,
-      // or the theme/knob repaint below would redraw a state the project is no
-      // longer in onto the purged canvas — WP-1012's rule, applied to the copy
-      // in hand and not only to the fetch
-      held = null;
-      shown = null;
-      if (plotly && node) plotly.purge(node);
-      plotted = false;
-    }
-  });
-
-  // a knob repaints what is already in hand.  Separate from the effect above so
-  // that choosing Δ over Δ/σ is not a reason to ask the server anything.  The
-  // theme is a knob too — the same numbers under new colours — and it *must* be
-  // a dependency here: `getComputedStyle` is sampled at paint time, so a theme
-  // change that repaints nothing leaves light-grey text on a white page
-  // (WP-1029 q; the ordering against the shell's `applyTheme` effect is
-  // settled inside `paint`, which defers one microtask before sampling).
-  $effect(() => {
-    if (choice.uplot) return;
-    void kind;
-    void scale;
-    void theme;
-    void hidden;
-    // …and the peak layer is drawn only on the tab that can edit it (WP-1210),
-    // so leaving that tab has to take it off the plot.  A repaint, not a
-    // refetch: which tab is up says nothing about which channels the server
-    // sent — the tab click was a redraw of nothing without this line, and
-    // `App.test.ts`'s hover-link test is what said so.
-    void peaksActive;
-    // …and the candidate overlay is one too: selecting a row in another panel
-    // has to redraw this one, and it is a repaint rather than a refetch for
-    // the same reason — which lines a cell predicts says nothing about which
-    // channels the server sent
-    void candidate;
-    // …and the shading, when the pattern it is clipped against changes.  By its
-    // *value*: `extent` is `$derived` off `project`, so every settings PATCH
-    // hands this effect a new array holding the same two numbers — measured as
-    // one of the four reacts an exclude drag cost (WP-1212).
-    void extentKey;
-    // …and `held` is read **untracked**, which is the difference between a knob
-    // and a payload: a new payload has already been painted by whoever fetched
-    // it, so tracking it here made every fetch cost a second identical `react`
-    // (counted in Chrome: 2 per zoom drag, 6 at boot, each ~111 ms on a real
-    // pattern by WP-1032's measurement — now 1 and 3).
-    const w = untrack(() => held);
-    if (w) paint(w);
-  });
-
-  // the hover link is *not* in the effect above, and that is the whole point:
-  // a mouse move must cost one `restyle` of one two-point trace, never a
-  // repaint of the pattern (task 1 measured what a repaint costs)
-  $effect(() => {
-    void hovered;
-    void ringAt;
-    if (choice.uplot) {
-      const row = hovered === null ? undefined : peaks?.peaks?.find((p) => p.index === hovered);
-      untrack(() => chart?.ring(row?.two_theta ?? null));
-      return;
-    }
-    drawRing();
-  });
-
-  // …and arming is not in it either, for the same reason one rank up: the drag
-  // mode is a single layout key, so it is a `relayout` and not a repaint of the
-  // pattern.  It was one of the four reacts an exclude drag cost, and it was
-  // two of them — the mode is set on the way in and cleared on the way out
-  // (WP-1212).  `layout()` still says the mode, so a react that happens while
-  // armed is truthful; it reads `arm` untracked, or this line would be undone
-  // by the repaint effect's own paint.
-  $effect(() => {
-    const mode = arm ? "select" : "zoom";
-    if (choice.uplot) {
-      untrack(() => chart?.fig.setMode(mode));
-      return;
-    }
-    untrack(() => {
-      // `plotted` too: before this WP arming went through the repaint effect,
-      // which no-oped on `held === null`, and this one does not — so it is the
-      // first thing that can aim a plotly verb at a purged div (`plotted`).
-      if (node && plotly && plotted) plotly.relayout?.(node, { dragmode: mode });
-    });
-  });
-
-  // The chart module's three effects (WP-1461's pilot), each the counterpart of
-  // one above. **Fetch** on what moves the curves: a run, a move in the
-  // history, the mask. Not on a peak edit, which the layers redraw, and never
-  // on a zoom.
-  $effect(() => {
-    if (!choice.uplot) return;
     void plotKey;
     void protocolKey;
     void result;
@@ -1358,9 +565,9 @@
   });
 
   // **A window another panel asked for** is an axis move and nothing else,
-  // with y fitted to what is there.
+  // with y fitted to what is there: the payload is every channel already, so
+  // a report region arrives at full resolution with no fetch.
   $effect(() => {
-    if (!choice.uplot) return;
     const request = zoom !== asked ? zoom : null;
     asked = zoom;
     if (!request) return;
@@ -1375,15 +582,18 @@
   });
 
   // **A knob** applies what moved: a residual is new numbers for one pane, a
-  // scale rebuilds the main one (finding 5), and the rest repaint. uPlot paints
-  // once a tick however many of these ask, except the theme, which waits a
-  // microtask for the shell to stamp it.
+  // scale rebuilds the main one (the module's finding 5), and the rest repaint.
+  // uPlot paints once a tick however many of these ask, except the theme, which
+  // waits a microtask for the shell to stamp it (`PatternChart.retheme`).
+  //
+  // The peak layer and the candidate's lines are inputs here because they are
+  // drawn only on the Peaks tab (WP-1210, WP-1211): leaving it has to take them
+  // off, and that is a repaint, never a refetch.
   $effect(() => {
-    if (!choice.uplot) return;
     const k = kind, s = scale, h = hidden, t = theme;
-    // The layers' inputs. The protocol and the extent go by value: each is a
-    // new object on every settings PATCH, and keyed on the object this effect
-    // repainted for two numbers that did not change (gui/CLAUDE.md).
+    // The protocol and the extent go by value: each is a new object on every
+    // settings PATCH, and keyed on the object this effect repainted for two
+    // numbers that did not change (WP-1212).
     void protocolKey;
     void extentKey;
     void peaks;
@@ -1400,10 +610,25 @@
       chart.update(o);
     });
   });
+
+  // The hover link is *not* in the effect above, and that is the whole point:
+  // a mouse move moves one DOM ring and never repaints the pattern (WP-1032).
+  $effect(() => {
+    const row = hovered === null ? undefined : peaks?.peaks?.find((p) => p.index === hovered);
+    untrack(() => chart?.ring(row?.two_theta ?? null));
+  });
+
+  // …and arming is not in it either, for the same reason one rank up: the drag
+  // mode is the figure's, so arming redraws nothing (WP-1212 counted it as two
+  // of the four repaints an exclude drag cost, under plotly).
+  $effect(() => {
+    const mode = arm ? "select" : "zoom";
+    untrack(() => chart?.fig.setMode(mode));
+  });
 </script>
 
 <svelte:window onpointermove={moved} onpointerup={up}
-  onkeydown={(ev) => { if (ev.key === "Escape" && arm) { arm = null; clearSelection(); } }} />
+  onkeydown={(ev) => { if (ev.key === "Escape" && arm) arm = null; }} />
 
 <section>
   {#if error}
@@ -1415,10 +640,8 @@
     </p>
   {:else if !result && peaksActive}
     <p class="hint muted">Raw pattern — no fit yet, which is when peaks are picked.</p>
-  {:else if loadError && choice.uplot}
-    <p class="hint bad">{loadError}</p>
   {:else if loadError}
-    <p class="hint bad">{loadError} — install the plot extra: <code>pip install 'rietx[gui]'</code></p>
+    <p class="hint bad">{loadError}</p>
   {/if}
   <!-- The gestures, stated whenever the tab that owns them is showing — fit or
        no fit (WP-1032).  This line used to render only in the *raw* state, so
@@ -1444,14 +667,15 @@
   <!-- role: the div is a pointer-driven editing surface when the Peaks tab is
        active.  Every verb has a non-pointer route too — the line above names
        each — so the pointer path is an accelerator, not the only way in. -->
-  <div class="plot" class:chart={choice.uplot} class:armed={arm !== null} role="application"
+  <div class="plot" class:armed={arm !== null} role="application"
     aria-label="diffraction pattern"
     bind:this={node} onpointerdowncapture={down} oncontextmenu={context}></div>
   <!-- The readout (WP-1213), under the plot rather than over it.  The report
        was "the tooltip frequently covers a large part of the data", and plotly
-       offers no positioning for its unified box beyond `hoverlabel.align` — so
-       the box is deleted rather than moved, and everything it said is here,
-       beside the plot's other control rows.
+       offered no positioning for its unified box beyond `hoverlabel.align` — so
+       the box was deleted rather than moved, and everything it said is here,
+       beside the plot's other control rows.  The chart draws no box either:
+       a tooltip is a capability it has, and not one this panel takes.
 
        Every field keeps its slot while the pointer is off the plot and prints
        an em dash: a strip that grew fields on hover would resize the canvas
@@ -1522,22 +746,16 @@
                  ? "put the other curves back"
                  : "hide every curve but the measured points"}>data only</button>
       {/if}
-      {#if choice.uplot}
-        <p class="hint muted tabular">
-          {#if shown.n < shown.total}
-            {shown.n} of {shown.total} channels, {shown.lo.toFixed(3)}–{shown.hi.toFixed(3)}°
-            · min/max decimated server-side, sent once, zoomed here
-          {:else}
-            {shown.total} channels, {shown.lo.toFixed(3)}–{shown.hi.toFixed(3)}°
-            · every one sent once, zoomed here
-          {/if}
-        </p>
-      {:else}
-        <p class="hint muted tabular">
-          {shown.n} of {shown.total} points drawn, {shown.lo.toFixed(3)}–{shown.hi.toFixed(3)}°
-          · min/max decimated server-side · zoom refetches the window
-        </p>
-      {/if}
+      <!-- Past `CURVES_CEILING` the server decimates, and the line says so: a
+           sample drawn without saying so would read as every channel. -->
+      <p class="hint muted tabular">
+        {#if shown.n < shown.total}
+          {shown.n} of {shown.total} channels, {shown.lo.toFixed(3)}–{shown.hi.toFixed(3)}°
+          · min/max decimated server-side
+        {:else}
+          {shown.total} channels, {shown.lo.toFixed(3)}–{shown.hi.toFixed(3)}°
+        {/if}
+      </p>
       <!-- The overlay has no toggle (its control is the candidate row), so this
            is where it says it is on screen — and where a thinned set admits it.
            A sample drawn without saying so would read as "these are the lines
@@ -1642,27 +860,35 @@
     padding: 8px 10px;
   }
 
+  /* The figure's host (WP-1461). Its panes are sized from this box's height,
+     so the height has to come from the column and never from the panes, or
+     each resize would feed the next. */
   .plot {
-    flex: 1 1 auto;
-    min-height: 240px;
-  }
-
-  /* The chart module's host (WP-1461's pilot). Its panes are sized from this
-     box's height, so the height has to come from the column and never from
-     the panes, or each resize would feed the next. */
-  .plot.chart {
     flex: 1 1 0;
+    min-height: 240px;
     overflow: hidden;
   }
 
-  /* The select box dressed as the exclusion it becomes, as plotly's is below. */
-  .plot.chart :global(.u-select) {
+  /* The live gesture dressed as the thing it is about to become (WP-1212): an
+     armed drag means "exclude this range", so its box is drawn as the shading
+     and dotted edges the exclusion will leave behind. */
+  .plot :global(.u-select) {
     background: var(--plot-mask);
     border-left: 1px dotted var(--muted);
     border-right: 1px dotted var(--muted);
   }
 
-  .plot.chart.armed :global(.u-over) {
+  /* The pointer's line carries no quantity, so it is chrome: solid, in `--fg`,
+     the one ink no plot colour is near (WP-1213). uPlot's own is dashed
+     #607d8b, which reads as the dotted edge an excluded region leaves. Cursor
+     sync draws it in all three panes, as plotly's `spikemode: "across"` did. */
+  .plot :global(.u-cursor-x) {
+    border-right: 1px solid var(--fg);
+  }
+
+  /* An armed range gesture has to say so **where the gesture is**, since a
+     select drag and a zoom drag are otherwise pointer-identical (WP-1044). */
+  .plot.armed :global(.u-over) {
     cursor: col-resize;
   }
 
@@ -1676,33 +902,6 @@
     border: 2px solid;
     border-radius: 50%;
     pointer-events: none;
-  }
-
-  /* An armed range gesture has to say so **where the gesture is**.
-     plotly's `updateFx` gives the drag layer one cursor for everything that is
-     not a pan — measured in Chrome, `dragmode: "select"` and `dragmode: "zoom"`
-     both leave `g.draglayer.cursor-crosshair`, and the rects below it inherit
-     it — so arming changed the mode and the pointer went on saying "zoom".
-     Set on the plot-area rect rather than on the layer: an inherited cursor
-     loses to any direct declaration, so this needs no specificity fight with
-     plotly's own stylesheet, and it leaves the axis edge draggers alone. */
-  .plot.armed :global(.nsewdrag) {
-    cursor: col-resize;
-  }
-
-  /* …and the wash inside it, which `newselection` has no attribute for: plotly
-     styles the outline's stroke from `layout.newselection.line` and writes
-     `fill: rgb(0,0,0); fill-opacity: 0` **inline**, so the region being dragged
-     over was outlined and not shaded — while the shape that lands a moment
-     later is a wash. `!important` is what outranks an inline declaration, and
-     it is the only thing that does; measured in Chrome, the rule without it
-     computed to `fill-opacity: 0`. The token is `maskShapes`' own, so the
-     gesture and the exclusion it leaves are one picture. `activeselection`
-     above covers the *completed* selection, which this panel drops immediately
-     (`clearSelection`), and neither attribute reaches the live one. */
-  .plot :global(.select-outline) {
-    fill: var(--plot-mask) !important;
-    fill-opacity: 1 !important;
   }
 
   /* The readout strip (WP-1213).  Not a register: it is one panel's row of

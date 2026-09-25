@@ -1252,7 +1252,7 @@ class RefinementResult(Base):
 
         Every weighted residual in the package divides by this: the matplotlib
         panel, the plotly export, the VLM montage, Layer 0 and the GUI's
-        ``/api/result/window``.  They each open-coded it once, with three
+        curves routes.  They each open-coded it once, with three
         different policies, and agreed only because the disagreement lived in
         branches a modern result never takes.
 

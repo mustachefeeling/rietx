@@ -1,6 +1,6 @@
 # WP-1461 — every browser chart draws with uPlot
 
-Milestone: unscheduled · Status: 🔄 2026-09-25 — tasks 1-5 done: the pilot said go, D5 thinning, the pattern panel on the chart module behind ?chart=uplot; task 6 next
+Milestone: unscheduled · Status: 🔄 2026-09-25 — tasks 1-6 and 15 done: the pattern panel draws with the chart module alone, its plotly renderer and the flag deleted; task 7, the watcher, next
 Depends on: —
 Priority: P2 2026-09-24 — the maintainer's decision that every browser chart builds on one module; today plotly blocks every GUI open for 0.7-0.8 s before the first plot
 
@@ -547,6 +547,16 @@ the real panel and pick. The 3D viewer's move is
 [WP-1462](1462-the-structure-viewer-draws-with-threejs.md), filed the same
 day.
 
+**Decided 2026-09-25, the fifth session.** Task 6 said to delete the plotly-only
+code, and task 15 to remove the flag and the plotly renderer after tasks 7-14.
+Both could not hold, since the plotly renderer depends on the code task 6
+deletes. Task 14's test that no page loads `/plotly.js` would also fail while
+plotly drew the pattern by default. Asked, the maintainer chose to delete the
+pattern panel's plotly renderer and the `?chart=uplot` flag in task 6, which
+takes task 15 in. The chart has drawn the pattern since that merge. A later
+acceptance run pairs against plotly from a build of `58f7dbce`, the last commit
+with the plotly renderer.
+
 - **D1. Scope.** Every 2D chart in a browser.
   - matplotlib stays for the files it writes (`plots.py`, `indexing.py`,
     `plot_for_vlm`), which are made without a browser.
@@ -705,14 +715,14 @@ day.
 - [x] Vendor uPlot 1.6.32, its css and LICENSE into `src/rietx/viz/static/`, copied there by `npm run build` from the exact pin in `gui/package.json` (D2, § Keeping it current). Add the ATTRIBUTION row and put the directory in `build_info.py`'s digest. A test holds the vendored banner's version equal to the pin. Add `.github/dependabot.yml` for uPlot in `gui/`. Rebuild the dist, since the pin moves the digest. (Serving it moved to the watch and compare tasks, where a page first loads it. svgcanvas joins Dependabot with the export task, which adds the dependency.)
 - [x] The module's core: panes on one x, sync, drag, wheel and pan, y-zoom, select, the readout hook, the `ResizeObserver` path. Findings 1-3, 5 and 10 each get a case: the pure half under `node --test` and vitest, the drawing in a browser test. (`src/rietx/viz/static/rxplot.mjs`; `tests/rxplot.test.mjs` through `tests/test_rxplot.py`, and `tests/test_rxplot_browser.py`, which covers finding 12 too. Vitest moved to the pilot, where the GUI first imports the module.)
 - [x] Pilot, the gate: the curves route (D4) and its decoder in the module's pure half, and the GUI pattern panel on the core behind a flag, with the plotly renderer still selectable. Port the spike driver to the real page as the acceptance probe. Measure § Acceptance 1-3 against the plotly renderer on the same machine, in Chromium, WebKit and Firefox through playwright's builds. Build both marker paths (D5) and measure each, at NAC's 59 498 channels and at `11BM_LaB6_660a.fxye`'s 132 992. Record go or no-go, which marker path, and so which ceiling, in the handover. The GUI's vitest imports the module's pure half. (**Go**, § The pilot, measured. D5 chose thinning, so the ceiling is 150 000 channels. The flag is `?chart=uplot`; the probe is `pilot.mjs`.)
-- [ ] GUI pattern panel complete: peaks, candidates, masks, raw view, readout fields, Esc, axis titles. Delete the plotly-only code, stub uPlot in `test-setup.ts`, and move `App.test.ts` off the `Plotly.react` stub. Drawn colours are asserted from pixels or from the recorded `strokeStyle`.
+- [x] GUI pattern panel complete: peaks, candidates, masks, raw view, readout fields, Esc, axis titles. Delete the plotly-only code, stub uPlot in `test-setup.ts`, and move `App.test.ts` off the `Plotly.react` stub. Drawn colours are asserted from pixels or from the recorded `strokeStyle`. (Task 15 came in with it, by the maintainer's decision in § Decisions. Also the Σχ² re-base at a zoom, `rxplot.chi2Base`; the raw view's per-group residual through `rawResidual`; the pointer's line restyled solid `--fg`; `/api/result/window` deleted with its only client. `gui/src/test-uplot.ts` is the stand-in, `tests/test_gui_browser.py` reads the inks.)
 - [ ] `rietx watch` on the module, serving the vendored uPlot from its own server. `test_watch_browser.py` asserts what was drawn.
 - [ ] GUI Series panel: trajectory (D8), per-pattern chart through the curves route, rings, crosses plotted, the dashed tone, the tick formatter
 - [ ] `rietx compare`: its page becomes a file, on the module, and its server serves the vendored uPlot. `/api/state` drops the curves, and each variant's come once through a route (D4). `resample` becomes a subtraction.
 - [ ] `write_html` writes the uPlot page, with the notice inline, the weighted mode, `viz/plots.PALETTES` as its palette and the `"hkl: …"` labels `test_magnetic_tick_row.py` reads. Drop `include_plotlyjs`, replace `figure_from_arrays`, take plotly out of the `viz` extra, and record the break.
 - [ ] Exports: copy PNG, download PNG, copy TSV, SVG through svgcanvas with its notices. Pin svgcanvas exactly in `gui/package.json` and add it to `.github/dependabot.yml`'s allow list.
 - [ ] Structure3D loads plotly when first shown. A test asserts no other page requests `/plotly.js`. Record the first-show cost.
-- [ ] Remove the flag and the pattern panel's plotly renderer
+- [x] Remove the flag and the pattern panel's plotly renderer (in task 6)
 - [ ] Docs: the `gui/CLAUDE.md` rules as § What changes sorts them, the manual's GUI chapters with regenerated screenshots, `using/cli.md`, `install.md` and `files.md`, root CLAUDE.md, `tests/CLAUDE.md`, README
 - [ ] Tests: the suites in § Acceptance green, the fast count's movement stated, and every test listed in § What changes updated
 - [ ] Skill: regenerate `references/api.md` with `make_api_index.py` when D7 lands, then `rietx skill --install . --copy`. Nothing else in the skill draws a browser chart.
@@ -771,6 +781,114 @@ npm --prefix gui test && npm --prefix gui run check
 - Long Animation Frames API (W3C draft): what counts as a long frame here.
 
 ## Handover log
+
+### 2026-09-25 (5th session) — the pattern panel draws with the chart module alone
+
+The GUI's pattern plot no longer uses plotly. It gets every channel once and
+zooms in the browser, with scroll-to-zoom and panning as new gestures. The
+plotly renderer and its `?chart=uplot` flag are deleted: 800 lines of the panel
+and 360 of its helpers, much of it the machinery that kept plotly's axes still. Tasks 6 and 15
+contradicted each other about when that could happen. Asked, the maintainer
+chose now, so task 15 is done inside task 6. `/api/result/window` lost its only
+client and is gone too. Two defects surfaced by looking in a real browser and
+are fixed. uPlot's default pointer line reads as an exclusion edge, and the
+raw view's group residual wore the wrong ink. The 3D view and the Series panel
+still load plotly.
+
+*Done:*
+- Task 6 and task 15 (§ Decisions records the maintainer's choice). What the
+  pilot had left out:
+  - A zoomed Σχ² re-bases at every x zoom (`rxplot.chi2Base`), and the readout
+    quotes the re-based value.
+  - The raw view's per-group residual comes through the new `rawResidual`
+    spec and `refreshResidual` verb. It is drawn in `--plot-peakfit`, as
+    plotly drew it.
+  - The residual pane's title says "(y − fit)/σ per group" on the raw view.
+  - `windowOf` gathers typed arrays and hands the model's arrays through
+    uncopied, which was the last review finding the pilot left.
+  - `.u-cursor-x` is solid `--fg` (WP-1213's rule). uPlot's default is
+    dashed `#607d8b`.
+- Deleted: in `Plot.svelte` the plotly renderer (1866 → 1062 lines).
+  In `lib/plot.ts`: `chartChoice`, `phaseInk`, `drawnRange`, `heldRanges`,
+  `span`, `PINNED_AXES`, `noAxes`, `pinPatch`, `movedAxes`, `forget`,
+  `userRanges`, `TICK_BAND`, `tickBand`, `candidateLines`, `CANDIDATE_AXIS`,
+  `scaleValues` and `sqrtTicks` (1092 → 729 lines). `maskShapes` now returns the shading layer's
+  own shape (`MaskShape`). `hoverLabel` stays, for the Series panel and the
+  3D view.
+- `/api/result/window` removed: `GuiSession.result_window`, `_masked_arm`, the
+  route, `api.window` and the manual's row. What their docstrings had measured
+  moved to `result_curves` and `curve_window`. Six server tests now hold the
+  curves route to the same facts. `curve_window` stays, for
+  `/api/series/window` (task 8).
+- Tests: `gui/src/test-uplot.ts` stands in for uPlot under vitest. It keeps
+  uPlot's state, fires the module's hooks, and records each stroke and fill
+  with its style. `gui/src/test-curves.ts` packs a curves body. About 35
+  `App.test.ts` cases moved off `Plotly.react`, and the WP-1212 block went.
+  `tests/test_gui_browser.py` (3 cases) reads the inks chromium painted
+  through an init script wrapping `CanvasRenderingContext2D`. There is one
+  new case each in `rxplot.test.mjs` and `plot.test.ts`, and two in
+  `test_rxplot_browser.py`.
+- Four guards were broken on purpose, and each failed as expected: the
+  re-base, the readout's base, the dashed background and the raw residual.
+- `/code-review high --fix` made six findings and fixed four (`040c07ce`):
+  - hiding Δ/σ on a fit hid the raw view's group strip after a checkout,
+    and the raw view offers no toggle to bring it back;
+  - each Σχ² re-base allocated two channel-length arrays, once per wheel
+    tick;
+  - a peak edit on a fitted view rebuilt the model's residual;
+  - the raw view's axis named a curve it was not drawing.
+
+  It also corrected a `gui/CLAUDE.md` pointer to the deleted `_masked_arm`.
+  It declined the `/api/peaks` `pattern` arm, which is *Next* 4, and a
+  historical `curve_window` sentence that is still true. I added the missing
+  case for the first fix (`test_diff_hides_the_fits_residual_and_never_the_pages`).
+- `gui/CLAUDE.md`: the plotly rules for this panel went (autorange, pinning,
+  the select-outline override, the gl ring). What the plot says stays.
+  Staged in `releases/1.5.1.md` with the removed route. Two manual
+  paragraphs in `gui-guide.md` are corrected.
+
+*Measured:*
+- Fast suite on the final tree, which is also the merged tree since main had
+  not moved: 6122 passed, 140 skipped in 2:37. That is the `[dev]` venv plus
+  playwright 1.63.0, on macOS arm64, at load 2.9-5.1 with no other suite
+  running. The total is 6262 against 6256 last session. That +6 is +3 in
+  `test_rxplot_browser.py`, +3 in `test_gui_browser.py`, +1 in
+  `test_gui_server.py` (the window case split into two) and −1 in
+  `test_gui_palette.py` (the plotly tick-trace guard). The browser modules
+  ran, since playwright is in this venv; they skip in CI.
+- vitest 558 against 598: `App.test.ts` 177 → 172, `plot.test.ts` 91 → 57,
+  `pattern.test.ts` 4 → 3. What went asserted plotly's layout and its pinning
+  helpers. svelte-check is clean.
+  `App.test.ts` passed twice under `--sequence.shuffle`.
+- `app.js` 303 → 296 kB. `pattern.js` 16 kB, `vendor-uplot.js` 51 kB,
+  both unchanged in kind.
+- The full selection did not run: nothing here moves a refined number.
+
+*Gotchas:*
+- A plot case in `App.test.ts` run alone (`-t`) drew nothing until the file
+  imported `./lib/pattern` up front. The panel's first dynamic import
+  outlasts `flush()`.
+- The stand-in paints on every call, where uPlot coalesces paints to one a
+  microtask. Count paints only as "did it repaint", never "how many times".
+- The rxplot module ships no CSS. Each page restyles `.u-cursor-x` and
+  `.u-select`: the GUI in `Plot.svelte`, and the watcher and compare pages
+  owe the same two rules.
+- The worktree guard refuses a command naming a quoted phrase with an
+  apostrophe, and a heredoc beside git. Run a scratchpad script by path.
+
+*Next:*
+1. Task 7, the watcher, on `rxplot.pattern` with a ±3σ layer, serving the
+   vendored uPlot, and with the `.u-cursor-x` and `.u-select` rules the GUI
+   carries. `test_watch_browser.py` reads what was painted, as
+   `test_gui_browser.py` now does.
+2. Then tasks 8-14 in order. Task 8 deletes `/api/series/window`,
+   `curve_window`'s last caller and `_series_masked_arm`.
+3. Someone with Safari open tries a drag in the GUI (finding 15). It is now
+   the only renderer.
+4. The `/api/peaks` payload's `pattern` arm is now read only as a boolean
+   (`hasPattern`): a decimated 4000-point copy on every peak fetch. Every
+   open project has a pattern, so the question may have a cheaper answer.
+   Not done here, because it changes a route's shape outside this task.
 
 ### 2026-09-25 (4th session) — the pilot says go, and the chart thins per pixel column
 

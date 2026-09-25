@@ -49,7 +49,6 @@ from rietx.viz.theme import (
 ROOT = Path(__file__).resolve().parent.parent
 TOKENS_CSS = ROOT / "gui" / "src" / "tokens.css"
 PLOT_TS = ROOT / "gui" / "src" / "lib" / "plot.ts"
-PLOT_SVELTE = ROOT / "gui" / "src" / "panels" / "Plot.svelte"
 
 #: The colours a *curve* is drawn in — the set a reader has to tell apart.
 #:
@@ -428,57 +427,16 @@ def test_one_list_serves_every_surface():
     assert list(PHASE_TOKENS.values()) == list(PHASE_COLOURS)
 
 
-def test_a_tick_trace_colours_its_marker_and_not_only_its_line():
-    """Where the ink of an open GL marker comes from, found by looking.
-
-    The tick rows are `line-ns-open` on a `scattergl` trace, so a reader would
-    expect `marker.line.color` to be the stroke — and it is *declared* there,
-    while plotly resolves `marker.color` from its colorway and draws that.
-    Measured in Chrome on a two-phase fit: `gd.data` said `#009e73`, the picture
-    was `#9467bd`, and `gd._fullData` named both. The trace therefore carries
-    the colour on the marker as well, which is what `rietx watch` always did
-    and why its page looked right while this one did not (WP-1438).
-
-    A source assertion because the GUI has no browser suite — its pictures are
-    judged by looking (`docs/manual/make_screenshots.py`) — and because the
-    thing to pin is the *shape* of the trace rather than a colour a palette
-    test already owns.
-    """
-    source = PLOT_SVELTE.read_text(encoding="utf-8")
-    start = source.index('yaxis: "y3"')
-    trace = source[start:source.index("});", start)]
-    assert "symbol: \"line-ns-open\"" in trace, "not the tick trace any more"
-    assert "color: ink" in trace, (
-        "the tick trace sets no marker colour: plotly will assign one from its "
-        "colorway by position in the trace array")
-    marker = trace[trace.index("marker:"):]
-    assert marker.count("color: ink") == 2, (
-        "both the marker and its line take the phase ink")
-
-
 def test_the_gui_names_the_reflection_in_the_strip_and_not_in_a_box():
-    """The companion to the colour guard above, and the same kind of guard.
+    """Which reflection a tick is goes in the strip under the plot (WP-1438).
 
     What this owns is the *wiring*: `plot.test.ts` owns the row's text and
     `tests/test_gui_server.py` owns the payload, and nothing between them
-    would notice the readout ceasing to read `tick_hkl` at all.
-
-    Both halves, because the answer moved between two files.  A
-    `hovertemplate` on the tick trace draws two boxes rather than one —
-    plotly adds its own `axistext` under `hovermode: "x"` — and this plot's
-    box was deleted on a report that it covered the data (WP-1213), so the
-    reflection goes in the strip under the plot.  `App.test.ts` holds every
-    *drawn* trace to that; this holds the source the build is made from.
+    would notice the readout ceasing to read `tick_hkl` at all. The plot draws
+    no box of its own, since WP-1213 deleted plotly's on a report that it
+    covered the data; `App.test.ts` holds the chart to that.
     """
     gui = Path(__file__).resolve().parents[1] / "gui" / "src"
-    source = (gui / "panels" / "Plot.svelte").read_text(encoding="utf-8")
-    start = source.index('yaxis: "y3"')
-    trace = source[start:source.index("});", start)]
-    assert 'hoverinfo: "none"' in trace, "the tick trace draws a hover label"
-    assert "hovertemplate" not in trace and "customdata" not in trace, (
-        "a label on this trace is two boxes, not one: plotly draws an "
-        "`axistext` beside it carrying the 2theta the template prints")
-
     readout = (gui / "lib" / "plot.ts").read_text(encoding="utf-8")
     start = readout.index("for (const [phase, ticks] of")
     row = readout[start:readout.index("\n  }", start)]

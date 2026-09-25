@@ -12,6 +12,7 @@ declare module "rxplot" {
 
   export function unpack(buffer: ArrayBuffer): Curves;
   export function lower(xs: ArrayLike<number>, v: number): number;
+  export function chi2Base(cum: ArrayLike<number>, xs: ArrayLike<number>, lo: number): number;
   export function token(name: string, el?: Element): string;
   export function vlines(u: any, xs: ArrayLike<number>, top: number, height: number,
                          color: string): void;
@@ -45,6 +46,7 @@ declare module "rxplot" {
     hidden?: readonly string[];
     labels?: { y?: () => string; resid?: () => string };
     layers?: Record<string, { under?: Layer[]; over?: Layer[] }>;
+    rawResidual?: () => ArrayLike<number | null> | null;
   }
 
   export interface Pattern extends Group {
@@ -52,6 +54,8 @@ declare module "rxplot" {
     setY(kind: "lin" | "sqrt" | "log"): void;
     setResidual(kind: "weighted" | "delta" | "cumulative"): void;
     setHidden(ids: readonly string[]): void;
+    refreshResidual(): void;
+    chi2Base(): number;
   }
 
   export function pattern(uPlot: any, host: HTMLElement, curves: Curves,

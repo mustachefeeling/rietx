@@ -1018,9 +1018,9 @@ def decimation_index(tt: np.ndarray, curves: list[np.ndarray],
     curve is monotone, so sampling it on the same index set is exact at those
     points and loses only the within-bucket path.
 
-    Public because a second consumer arrived: the GUI's ``/api/result/window``
-    route (WP-1008) sends a 2θ window to a browser under the same budget, as
-    its curves route does past ``CURVES_CEILING`` (WP-1461), and a
+    Public because a second consumer arrived: the GUI's window routes
+    (WP-1008) sent a 2θ window to a browser under the same budget, as its
+    curves routes do past ``CURVES_CEILING`` (WP-1461), and a
     second implementation would be a second answer to "which points survive" —
     the one question a plot must not disagree with the comparison UI about.
 

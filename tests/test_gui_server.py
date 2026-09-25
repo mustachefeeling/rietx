@@ -1795,38 +1795,39 @@ def test_an_inverted_range_is_refused_in_one_sentence_by_every_surface(
     assert detail["line"] > 0
 
 
-def test_the_window_carries_the_channels_the_result_dropped(fitted):
+def test_the_curves_carry_the_channels_the_result_dropped(fitted):
     """WP-1033: a band needs something to shade, and a range needs an outside.
 
     Measured before it was designed: ``compile_model`` masks first, so a result
     carries only the surviving channels and the plot's axis autoranges *inside*
     the fit range — on this fixture a 3–24° pattern came back as 8.005–18.990°,
     with zero points inside a 3° exclusion.  Shading alone would have drawn a
-    band over a hole.
+    band over a hole. The curves route sends every channel and says which the
+    protocol keeps (WP-1461, D4), so the masked ones are the rest.
     """
     session, client, project = fitted
     try:
-        status, before = client.get("/api/result/window")
-        assert status == 200
-        assert before["n_excluded"] == 0 and before["stale"] is False
+        before = _packed(client, "/api/result/curves")
+        assert len(before.arrays["kept"]) == len(before.arrays["two_theta"])
+        assert before.header["stale"] is False
 
         assert client.post("/api/project",
                            {"excluded_regions": [[13.0, 16.0]]})[0] == 200
-        window = client.get("/api/result/window")[1]
-        # the masked points are here, and in no residual
-        assert window["n_excluded"] == int((~project.fitted_mask()).sum()) > 0
-        assert window["excluded"]["two_theta"]
-        assert min(window["excluded"]["two_theta"]) >= 13.0
+        got = _packed(client, "/api/result/curves")
+        tt, kept = got.arrays["two_theta"], got.arrays["kept"]
+        # the masked points are the channels `kept` leaves out, and in no residual
+        n_masked = len(tt) - len(kept)
+        assert n_masked == int((~project.fitted_mask()).sum()) > 0
+        assert not ((tt[kept] >= 13.0) & (tt[kept] <= 16.0)).any()
         # …and the curves on screen predate the change, which the route says
         # rather than leaving the client to compare counts
-        assert window["stale"] is True
-        assert any(13.0 <= tt <= 16.0 for tt in window["two_theta"])
+        assert got.header["stale"] is True
 
         # the raw peak view is masked by the same document and carries the
         # same arm — it is the only view a project has before its first fit
         session.peaks_pick({})
         pattern = client.get("/api/peaks")[1]["pattern"]
-        assert pattern["n_excluded"] == window["n_excluded"]
+        assert pattern["n_excluded"] == n_masked
         assert not any(13.0 <= tt <= 16.0 for tt in pattern["two_theta"])
     finally:
         # a module fixture: give the next reader the pattern it expects
@@ -1854,7 +1855,7 @@ def test_a_refit_makes_the_channel_count_the_fit_agree_with_the_document(
 
     result = project.refinement.result_
     assert len(result.two_theta) == int(project.fitted_mask().sum())
-    assert client.get("/api/result/window")[1]["stale"] is False
+    assert _packed(client, "/api/result/curves").header["stale"] is False
 
 
 def test_plan_selection_and_the_preset_it_matches(blank, tmp_path, pattern_file):
@@ -2227,7 +2228,7 @@ def test_every_response_is_json_a_browser_can_parse(fitted):
 
         return json.loads(raw.decode("utf-8"), parse_constant=reject)
 
-    for path in ("/api/params", "/api/result", "/api/result/window?max_points=200",
+    for path in ("/api/params", "/api/result",
                  "/api/plan", "/api/plan/resolve", "/api/report", "/api/history",
                  "/api/capabilities"):
         conn = HTTPConnection("127.0.0.1", client.port, timeout=60)
@@ -2446,7 +2447,8 @@ def test_the_watcher_finds_a_gui_project_run_and_tails_it(fitted):
     assert tail.offset == (found.path / runs.EVENTS_FILE).stat().st_size
 
 
-def test_result_carries_no_curves_and_the_window_serves_them(fitted):
+def test_result_carries_no_curves_and_the_curves_route_serves_them(fitted):
+    """The result without its arrays, which travel once as float64 (WP-1461, D4)."""
     _, client, project = fitted
     status, payload = client.get("/api/result")
     assert status == 200
@@ -2455,36 +2457,43 @@ def test_result_carries_no_curves_and_the_window_serves_them(fitted):
     assert result["statistics"]["rwp"] < 0.2
     n_points = result["curves"]["n_points"]
     assert n_points == len(project.data.two_theta)
+    assert _packed(client, "/api/result/curves").header["n_fitted"] == n_points
 
-    status, window = client.get("/api/result/window")
-    assert status == 200
-    assert window["n_total"] == n_points
-    # max_points is a budget, not a ceiling: three curves' per-bucket extrema
-    # over max_points//2 buckets can exceed it, and n_returned is the truth
-    assert 0 < window["n_returned"] <= 3 * (window["max_points"] // 2) + 2
-    assert len(window["two_theta"]) == window["n_returned"]
-    assert len(window["delta"]) == window["n_returned"]
 
+def test_a_window_cuts_the_ticks_and_their_indices_in_one_pass(fitted):
+    """``curve_window``, which the series panel's window route still draws with.
+
+    The ticks are clipped to the window with every emission line in them, and
+    the Miller indices are cut by the *same* pass (WP-1438): a second filter on
+    the same predicate is the shape that drifts, and the reader would have no
+    way to tell which of the two had gone wrong.
+    """
+    from rietx.gui.session import curve_window
+
+    _, _, project = fitted
+    result = project.refinement.result_
     lo, hi = 8.0, 12.0
-    zoom = client.get(f"/api/result/window?lo={lo}&hi={hi}&max_points=200")[1]
-    assert zoom["n_total"] < n_points
+    zoom = curve_window(result, lo, hi, 200, weighted=True)
+    assert zoom["n_total"] < len(result.two_theta)
     assert lo <= zoom["two_theta"][0] and zoom["two_theta"][-1] <= hi
-    # ticks are clipped to the window, and every emission line is in them
-    assert all(lo <= t <= hi for ticks in zoom["ticks"].values() for t in ticks)
+    assert len(zoom["two_theta"]) == len(zoom["delta"]) == zoom["n_returned"]
     assert zoom["ticks"]
-    # and the Miller indices were cut by the *same* pass (WP-1438): a second
-    # filter on the same predicate is the shape that drifts, and the reader
-    # would have no way to tell which of the two had gone wrong
+    assert all(lo <= t <= hi for ticks in zoom["ticks"].values() for t in ticks)
     assert zoom["tick_hkl"] and set(zoom["tick_hkl"]) <= set(zoom["ticks"])
     for phase, hkl in zoom["tick_hkl"].items():
         assert len(hkl) == len(zoom["ticks"][phase]), phase
         assert all(len(h) == 3 for h in hkl), phase
     # the window really did cut something, so the pairing is being tested
-    whole = client.get("/api/result/window")[1]
+    whole = curve_window(result, None, None, 4000, weighted=True)
+    # max_points is a budget, not a ceiling: three curves' per-bucket extrema
+    # over max_points//2 buckets can exceed it, and n_returned is the truth
+    assert 0 < whole["n_returned"] <= 3 * (4000 // 2) + 2
     assert any(len(whole["tick_hkl"][p]) > len(hkl)
                for p, hkl in zoom["tick_hkl"].items())
+    # a zoom's Σχ² starts from that window rather than from the pattern
+    assert zoom["cumulative_chi2"][-1] < whole["cumulative_chi2"][-1]
 
-    empty = client.get("/api/result/window?lo=200&hi=210")[1]
+    empty = curve_window(result, 200, 210, 200, weighted=True)
     assert empty["n_returned"] == 0 and empty["two_theta"] == []
     assert empty["ticks"] == {} and empty["tick_hkl"] == {}
 
@@ -2658,34 +2667,30 @@ def test_the_result_says_when_a_fit_is_past_the_point_of_being_a_fit(fitted):
     assert hopeless["status"] == "converged"
 
 
-def test_the_window_carries_three_residuals_and_one_is_not_derivable(fitted):
-    """WP-1029: Δ, Δ/σ and cumulative χ² — the third accumulated before decimation."""
+def test_the_curves_carry_three_residuals_and_one_is_not_derivable(fitted):
+    """WP-1029: Δ, Δ/σ and cumulative χ², the third summed by the server.
+
+    A client can divide Δ by σ only with the server's σ, and it can sum Σχ²
+    only over the channels it holds; past ``CURVES_CEILING`` those are a
+    sample, and a zoom re-bases the one sum rather than starting another
+    (``rxplot.chi2Base``). So all three come from here.
+    """
     _, client, project = fitted
     result = project.refinement.result_
 
-    window = client.get("/api/result/window")[1]
-    n = window["n_returned"]
-    assert len(window["delta"]) == len(window["delta_raw"]) == n
-    assert len(window["cumulative_chi2"]) == n
+    got = _packed(client, "/api/result/curves")
+    arrays, n = got.arrays, got.header["n_fitted"]
+    assert len(arrays["delta"]) == len(arrays["delta_raw"]) == len(arrays["cumulative_chi2"]) == n
     # this project's pattern brings σ, so Δ/σ is a different curve from Δ, and
     # the flag is what lets a client label its axis without guessing
-    assert window["weighted"] is True
-    assert window["delta"] != window["delta_raw"]
+    assert got.header["weighted"] is True
+    assert not np.array_equal(arrays["delta"], arrays["delta_raw"])
 
-    # the whole point of accumulating server-side: the last value is the
-    # window's *true* χ², over every point, not over the decimated subset
+    # the last value is the fit's *true* χ², over every channel it kept
     delta = (np.asarray(result.y_obs) - np.asarray(result.y_calc)) / result.sig()
-    assert window["cumulative_chi2"][-1] == pytest.approx(float((delta**2).sum()))
-    # …and summing what came back would understate it, which is the mistake
-    # this field exists to prevent
-    assert sum(d**2 for d in window["delta"]) < window["cumulative_chi2"][-1]
-    # monotone, so no bucket can miss a peak of it
-    assert all(b >= a for a, b in zip(window["cumulative_chi2"],
-                                      window["cumulative_chi2"][1:]))
-
-    # a zoom's cumulative starts from that window rather than from the pattern
-    zoom = client.get("/api/result/window?lo=8&hi=12&max_points=200")[1]
-    assert zoom["cumulative_chi2"][-1] < window["cumulative_chi2"][-1]
+    assert arrays["cumulative_chi2"][-1] == pytest.approx(float((delta**2).sum()))
+    # monotone, so a decimation's bucket cannot miss a peak of it
+    assert (np.diff(arrays["cumulative_chi2"]) >= 0).all()
 
 
 def test_the_weighted_residual_has_exactly_one_authority(fitted):
@@ -2713,12 +2718,9 @@ def test_the_weighted_residual_has_exactly_one_authority(fitted):
     finally:
         plt.close(fig)
 
-    window = client.get("/api/result/window")[1]
-    # the window is decimated and the PNG is not, so match on 2θ, not position
-    idx = np.searchsorted(np.asarray(result.two_theta),
-                          np.asarray(window["two_theta"]))
+    sent = _packed(client, "/api/result/curves").arrays["delta"]
     # elementwise ops on the same arrays: equal to the bit, not to a tolerance
-    np.testing.assert_array_equal(np.asarray(window["delta"]), drawn[idx])
+    np.testing.assert_array_equal(sent, drawn)
 
     # and the third drawer, the plotly export, divides by the same σ
     from rietx.viz.html import figure_from_arrays
@@ -2746,11 +2748,11 @@ def test_a_poisson_project_still_gets_a_weighted_residual(
                              "stage": {"name": "s", "turn_on": ["phases.*.scale"]}})
     _wait_idle(client)
 
-    window = client.get("/api/result/window")[1]
-    assert window["weighted"] is False       # the σ was assumed, and says so
+    got = _packed(client, "/api/result/curves")
+    assert got.header["weighted"] is False   # the σ was assumed, and says so
     # …and is still divided through, because Δ/σ is what the fit minimised —
     # the flag changes the axis title, never which curve is drawn
-    assert window["delta"] != window["delta_raw"]
+    assert not np.array_equal(got.arrays["delta"], got.arrays["delta_raw"])
 
     # the assumption is Poisson exactly, not the file's absent 1.3× esds
     result = project.refinement.result_

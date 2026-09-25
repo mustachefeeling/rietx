@@ -1,3 +1,5 @@
+import { vi } from "vitest";
+
 /** Browser APIs jsdom does not implement, stubbed for the component tests.
  *
  * Only APIs that are *baseline everywhere a browser runs* belong here — a stub
@@ -23,18 +25,22 @@ if (typeof globalThis.ResizeObserver === "undefined") {
 }
 
 /**
- * A plotly stand-in, for the same class of reason: jsdom does not fetch
- * `<script src>`, so `Plot.svelte`'s runtime loader — which injects
- * `/plotly.js` served out of the installed Python package rather than vendoring
- * 4.8 MB into the committed dist (WP-1010) — never resolves under test, and the
- * component never reaches the line that fetches its window.
- *
- * That is not a cosmetic gap: the plot's *data* comes from
- * `/api/result/window`, so without this nothing about zooming can be asserted at
- * all — including WP-1012's report-region click-zoom, whose whole claim is that a
- * region refetches its window server-side rather than stretching the overview.
- * The stub therefore records nothing and draws nothing; the assertions are about
- * the requests the component makes.
+ * uPlot, for the same class of reason (WP-1461): jsdom has no canvas, and
+ * uPlot's constructor draws with its context at once, so the pattern panel
+ * could not mount. `test-uplot.ts` keeps uPlot's state, fires the chart
+ * module's hooks and records what each pane was asked to paint, which is what
+ * `App.test.ts` asserts the pattern panel on. What a browser then paints is
+ * `tests/test_gui_browser.py`'s.
+ */
+vi.mock("uplot", async () => ({ default: (await import("./test-uplot")).StubPlot }));
+
+/**
+ * A plotly stand-in: jsdom does not fetch `<script src>`, so `lib/plotly.ts`'s
+ * runtime loader — which injects `/plotly.js` served out of the installed
+ * Python package rather than vendoring 4.8 MB into the committed dist
+ * (WP-1010) — never resolves under test, and the Series panel and the
+ * structure viewer never reach their draws. The stub records nothing and draws
+ * nothing; a test that asserts traces replaces it with a recording one.
  */
 if (typeof (globalThis as any).Plotly === "undefined") {
   (globalThis as any).Plotly = {

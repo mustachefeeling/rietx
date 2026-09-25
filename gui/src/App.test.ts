@@ -24,6 +24,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import App from "./App.svelte";
 import { STAGE_WORDS } from "./lib/rxt";
+import { pack } from "./test-curves";
+import { StubPlot } from "./test-uplot";
+// Loaded here so the panel's own `import("../lib/pattern")` finds it loaded: a
+// first import outlasts `flush()`, and a plot case run alone (`-t`) then drew
+// nothing where the same case in the whole file passed.
+import "./lib/pattern";
 
 const CAPABILITIES = {
   package_version: "1.0.0.dev0",
@@ -574,6 +580,10 @@ function server(routes: Record<string, (call: Call) =>
       : { status: 404, body: { error: { code: "NOT_FOUND", message: path } },
           gate: undefined };
     if (gate) await gate;
+    // the curves route answers float64 arrays rather than JSON (WP-1461, D4)
+    if (body instanceof ArrayBuffer) {
+      return { ok: status < 400, status, arrayBuffer: async () => body, text: async () => "" } as any;
+    }
     return { ok: status < 400, status, text: async () => JSON.stringify(body) } as any;
   });
   return { fetcher, calls };
@@ -626,25 +636,138 @@ function boot(project: any = PROJECT, run: any = IDLE_RUN,
   } as Record<string, (call: Call) => { status?: number; body: unknown }>;
 }
 
+const i32 = (v: number[]) => Int32Array.from(v);
+
+/**
+ * A fit's curves as `/api/result/curves` sends them (WP-1461, D4): every
+ * channel of the pattern, `kept` for the ones the protocol fits now, and the
+ * model on the channels `fitted` names. Two channels at 9 and 9.4° unless a
+ * test says otherwise, every one of them fitted.
+ */
+function fitCurves(over: {
+  two_theta?: number[]; y_obs?: number[]; kept?: number[]; fitted?: number[];
+  y_calc?: number[]; y_background?: number[]; delta?: number[];
+  header?: Record<string, unknown>;
+} = {}) {
+  const two_theta = over.two_theta ?? [9, 9.4];
+  const y_obs = over.y_obs ?? two_theta.map((_, i) => i + 1);
+  const fitted = over.fitted ?? two_theta.map((_, i) => i);
+  const zeros = fitted.map(() => 0);
+  const arrays: Record<string, ArrayLike<number>> = {
+    two_theta, y_obs, kept: i32(over.kept ?? fitted), fitted: i32(fitted),
+    y_calc: over.y_calc ?? fitted.map((i) => y_obs[i]),
+    delta: over.delta ?? zeros, delta_raw: zeros, cumulative_chi2: zeros,
+  };
+  if (over.y_background) arrays.y_background = over.y_background;
+  return () => ({ body: pack({ fit: true, weighted: true, stale: false,
+                               n_channels: two_theta.length, n_fitted: fitted.length,
+                               ticks: {}, tick_hkl: {}, ...over.header }, arrays) });
+}
+
+/** The pattern alone, as the curves route answers before any fit. */
+function rawCurves(two_theta: number[], y_obs: number[]) {
+  return () => ({ body: pack({ fit: false, weighted: true, n_channels: two_theta.length },
+                             { two_theta, y_obs, kept: i32(two_theta.map((_, i) => i)) }) });
+}
+
 /** The result routes, for the tests that need a fit to exist. */
 const FITTED = {
   "/api/result": () => ({ body: { result: { ...RESULT, statistics: { rwp: 0.216, gof: 1.41, chi2: 16.96 } } } }),
-  "/api/result/window": () => ({ body: { two_theta: [9, 9.4], y_obs: [1, 2], y_calc: [1, 2],
-                                         y_background: [], delta: [0, 0], ticks: {},
-                                         window: [9, 9.4], n_total: 2, n_returned: 2,
-                                         max_points: 4000 } }),
+  "/api/result/curves": fitCurves(),
   "/api/report": () => ({ body: REPORT }),
 };
 
-/** A window with a background and two phases' ticks — what the curve toggles
- *  and the tick band are about, and what the bare FITTED window has neither of. */
-const TWO_PHASE_WINDOW = {
-  "/api/result/window": () => ({ body: {
-    two_theta: [9, 9.4], y_obs: [1, 2], y_calc: [1, 2], y_background: [0.4, 0.4],
-    delta: [0, 0], delta_raw: [0, 0], cumulative_chi2: [0, 0], weighted: true,
-    ticks: { NAC: [9.1], CaF2: [9.3] },
-    window: [9, 9.4], n_total: 2, n_returned: 2, max_points: 4000 } }),
+/** A fit with a background and two phases' ticks — what the curve toggles and
+ *  the tick band are about, and what the bare FITTED one has neither of. */
+const TWO_PHASE = {
+  "/api/result/curves": fitCurves({ y_background: [0.4, 0.4],
+                                    header: { ticks: { NAC: [9.1], CaF2: [9.3] } } }),
 };
+
+/** A fit over the whole 3-24° the project measured, so a region, a peak and a
+ *  zoom anywhere in it are in view. */
+const WIDE = {
+  "/api/result/curves": fitCurves({
+    two_theta: [3, 6, 9, 9.4, 10, 12, 14, 18, 23.995],
+    y_obs: [1, 2, 1, 2, 5, 3, 4, 1, 1] }),
+};
+
+/** MASKED_PROJECT's curves: 8-19° fitted less 13-16°, so two channels of seven. */
+const MASKED_CURVES = {
+  "/api/result/curves": fitCurves({
+    two_theta: [3, 5, 9, 9.4, 14, 20, 23.995], y_obs: [5, 5, 1, 2, 6, 6, 6],
+    kept: [2, 3], fitted: [2, 3] }),
+};
+
+/** The theme's plot inks as `curveColors` falls back to them: jsdom loads no
+ *  stylesheet, so these are what the panel paints with here. */
+const INK = {
+  obs: "#8a8a8a", calc: "#c23b22", diff: "#1f5fa8", mask: "#1b1b1b14", edge: "#6b6b66",
+  peak: "#8c257e", peakfit: "#c158b0", candidate: "#1a8f45",
+  phase: ["#009e73", "#cc79a7"],
+};
+
+/** The chart's pane `key` in this test's host (`rxplot.panes`, over `test-uplot.ts`). */
+function pane(key: "main" | "ticks" | "resid"): StubPlot {
+  const u = StubPlot.instances.find((p) => p.key === key && host.contains(p.root));
+  if (!u) throw new Error(`no ${key} pane is drawn`);
+  return u;
+}
+
+const charted = () => StubPlot.instances.some((p) => host.contains(p.root));
+
+/** The x range every pane shares. */
+const xRange = (key: "main" | "ticks" | "resid" = "main") =>
+  [pane(key).scales.x.min, pane(key).scales.x.max];
+
+/** The ink series `index` was painted in, in its pane's last paint. */
+const ink = (key: "main" | "ticks" | "resid", index: number) =>
+  pane(key).marks.find((m) => m.op === "series" && m.index === index)?.style;
+
+/** The main pane's curves the last paint showed and that hold something to
+ *  draw, by `hidden`'s ids, then `diff` when the residual is shown. */
+function drawn(): string[] {
+  const ids = ["obs", "masked", "calc", "bkg"];
+  const main = pane("main");
+  const out = main.marks
+    .filter((m) => m.op === "series" && main.data[m.index!].some((v: unknown) => v != null))
+    .map((m) => ids[m.index! - 1]);
+  if (pane("resid").marks.some((m) => m.op === "series")) out.push("diff");
+  return out;
+}
+
+/** The ink of each tick row the band painted, top row first. */
+const tickInks = () => pane("ticks").marks.filter((m) => m.op === "stroke").map((m) => m.style);
+
+/** The 2θ of the channels series `index` of the main pane holds. */
+const heldAt = (index: number) => {
+  const u = pane("main");
+  return Array.from(u.data[0] as ArrayLike<number>).filter((_, i) => u.data[index][i] != null);
+};
+
+/** The pointer over the pattern at 2θ `tt`, or off it: the events uPlot turns a mouse into. */
+async function pointAt(tt: number | null) {
+  const u = pane("main");
+  if (tt === null) {
+    u.over.dispatchEvent(new MouseEvent("mouseleave"));
+  } else {
+    u.over.dispatchEvent(new MouseEvent("mouseenter"));
+    u.setCursor({ left: u.valToPos(tt, "x"), top: 10 });
+  }
+  await flush();
+}
+
+/** A drag across the whole height of the main pane from 2θ `lo` to `hi`, as
+ *  uPlot hands it to the chart module: a zoom, or a selection when armed. */
+async function dragOver(lo: number, hi: number) {
+  const u = pane("main");
+  const a = u.valToPos(lo, "x"), b = u.valToPos(hi, "x");
+  u.setSelect({ left: a, width: b - a, top: 0, height: 300 });
+  await flush();
+}
+
+const curvesFetched = (stub: { calls: Call[] }) =>
+  stub.calls.filter((c) => c.path === "/api/result/curves").length;
 
 const flush = async () => {
   for (let i = 0; i < 16; i++) await Promise.resolve();
@@ -678,6 +801,7 @@ async function type(selector: string, value: string) {
 }
 
 beforeEach(() => {
+  StubPlot.instances = [];
   host = document.createElement("div");
   document.body.appendChild(host);
   // the shell subscribes to the stream on mount; a session with no EventSource
@@ -737,10 +861,7 @@ describe("the shell", () => {
     vi.stubGlobal("fetch", server({
       ...boot(PROJECT, running),
       "/api/result": () => ({ body: { result: RESULT } }),
-      "/api/result/window": () => ({ body: { two_theta: [3, 4], y_obs: [1, 2], y_calc: [1, 2],
-                                             y_background: [], delta: [0, 0], ticks: {},
-                                             window: [3, 4], n_total: 2, n_returned: 2,
-                                             max_points: 4000 } }),
+      "/api/result/curves": fitCurves(),
     }).fetcher);
     app = mount(App, { target: host });
     await flush();
@@ -787,10 +908,7 @@ describe("the shell", () => {
     vi.stubGlobal("fetch", server({
       ...boot(),
       "/api/result": () => ({ body: { result: hopeless } }),
-      "/api/result/window": () => ({ body: { two_theta: [3, 4], y_obs: [1, 2],
-        y_calc: [1, 2], y_background: [], delta: [0, 0], delta_raw: [0, 0],
-        cumulative_chi2: [0, 0], weighted: true, ticks: {}, window: [3, 4],
-        n_total: 2, n_returned: 2, max_points: 4000 } }),
+      "/api/result/curves": fitCurves(),
     }).fetcher);
     app = mount(App, { target: host });
     await flush();
@@ -1305,18 +1423,22 @@ describe("the report panel", () => {
     expect(host.textContent!.split("16.19").length - 1).toBe(1);
   });
 
-  it("zooms the plot to a region, padded, at full point budget", async () => {
+  it("zooms the plot to a region, padded, and fetches nothing to do it", async () => {
     const stub = await openTab("Report", PROJECT, FITTED);
     const rows = [...host.querySelectorAll<HTMLButtonElement>(".trow")];
     // ranked by χ² share: the 9.0–9.4° region leads, not the worse local Rwp one
     expect(rows[0].textContent).toContain("9.00–9.40");
+    const fetched = curvesFetched(stub);
     rows[0].click();
     await flush();
     // padded by 35 % of its own width, so a one-peak region arrives with a
-    // baseline; and it is a *server* fetch, not an axis range
-    const zoomed = stub.calls.filter((c) => c.path === "/api/result/window").at(-1);
-    expect(zoomed?.url).toContain("lo=8.86");
-    expect(zoomed?.url).toContain("hi=9.54");
+    // baseline; and it is an axis move and nothing else, since the payload is
+    // every channel already (WP-1461) — where a window used to be refetched
+    const [lo, hi] = xRange();
+    expect(lo).toBeCloseTo(8.86, 10);
+    expect(hi).toBeCloseTo(9.54, 10);
+    expect(xRange("resid")).toEqual([lo, hi]);
+    expect(curvesFetched(stub)).toBe(fetched);
   });
 
   it("applies a suggestion and measures it, with undo as a checkout", async () => {
@@ -1606,19 +1728,12 @@ describe("disclosure and the command palette", () => {
   });
 
   it("repaints the plot on a theme change — new ink, no refetch", async () => {
-    // The canvas keeps whatever colours it was painted with, so a draw effect
-    // that does not depend on the theme leaves the old theme's text on the new
+    // The canvas keeps whatever colours it was painted with, so a draw that
+    // does not depend on the theme leaves the old theme's text on the new
     // theme's page — light grey on white, found by use within hours of the
-    // toggle landing (WP-1029 q).  The colours themselves come from the
-    // `--plot-*` custom properties, sampled at *paint* time; jsdom loads no
-    // stylesheet, so the un-set ones are the fallbacks and a set one is ours.
-    const drawn: any[] = [];
-    vi.stubGlobal("Plotly", {
-      react: async (_node: any, traces: any[], layout: any) => {
-        drawn.push({ traces, layout });
-      },
-      purge: () => {},
-    });
+    // toggle landing (WP-1029 q).  The colours come from the `--plot-*` custom
+    // properties, sampled at *paint* time; jsdom loads no stylesheet, so the
+    // un-set ones are the fallbacks and a set one is ours.
     document.body.style.setProperty("--plot-obs", "#112233");
     try {
       const stub = server({ ...boot(), ...FITTED });
@@ -1626,14 +1741,14 @@ describe("disclosure and the command palette", () => {
       app = mount(App, { target: host });
       await flush();
 
-      const first = drawn.at(-1)!;
-      expect(first.traces.find((t: any) => t.name === "observed").marker.color)
-        .toBe("#112233");
-      expect(first.traces.find((t: any) => t.name === "Δ/σ").line.color).toBe("#1f5fa8");
-      expect(first.layout.yaxis2.zerolinecolor).toBe("#88888888");
+      expect(ink("main", 1)).toBe("#112233");
+      expect(ink("resid", 1)).toBe(INK.diff);
+      // …and the zero line under the residual, in a token of its own
+      expect(pane("resid").marks.some((m) => m.op === "stroke" && m.style === "#88888888"))
+        .toBe(true);
 
-      const fetched = stub.calls.filter((c) => c.path === "/api/result/window").length;
-      const painted = drawn.length;
+      const fetched = curvesFetched(stub);
+      const painted = pane("main").paints;
       // what the dark stylesheet does in a browser, done by hand here
       document.body.style.setProperty("--plot-obs", "#445566");
       [...host.querySelectorAll("button")]
@@ -1642,27 +1757,19 @@ describe("disclosure and the command palette", () => {
 
       // a repaint with the new colours — and *not* a refetch: the numbers did
       // not move, only the ink did
-      expect(drawn.length).toBeGreaterThan(painted);
-      expect(drawn.at(-1)!.traces.find((t: any) => t.name === "observed").marker.color)
-        .toBe("#445566");
-      expect(stub.calls.filter((c) => c.path === "/api/result/window").length).toBe(fetched);
+      expect(pane("main").paints).toBeGreaterThan(painted);
+      expect(ink("main", 1)).toBe("#445566");
+      expect(curvesFetched(stub)).toBe(fetched);
     } finally {
       document.body.style.removeProperty("--plot-obs");
     }
   });
 
   it("does not repaint curves a checkout discarded when the theme changes", async () => {
-    // A checkout clears the result server-side and the plot purges — but the
-    // payload `held` for knob repaints survived, so the theme buttons (always
-    // in the header) could redraw a state the project is no longer in onto the
-    // purged canvas.  WP-1012's rule, applied to the copy in hand: when the
-    // result goes, the held window goes with it.
-    const drawn: any[] = [];
-    let purged = 0;
-    vi.stubGlobal("Plotly", {
-      react: async (_node: any, traces: any[], layout: any) => { drawn.push({ traces, layout }); },
-      purge: () => { purged += 1; },
-    });
+    // A checkout clears the result server-side, and the figure goes with it —
+    // WP-1012's rule applied to the copy in hand: when the result goes, what
+    // was drawn from it goes too, so the theme buttons (always in the header)
+    // cannot redraw a state the project is no longer in.
     let fitted = true;
     const stub = server({
       ...boot(),
@@ -1679,7 +1786,7 @@ describe("disclosure and the command palette", () => {
     vi.stubGlobal("fetch", stub.fetcher);
     app = mount(App, { target: host });
     await flush();
-    expect(drawn.length).toBeGreaterThan(0);   // the fitted curves were painted
+    expect(charted()).toBe(true);              // the fitted curves were drawn
 
     button("History")!.click();
     await flush();
@@ -1687,85 +1794,60 @@ describe("disclosure and the command palette", () => {
     await flush();
     button("Checkout")!.click();
     await flush();
-    expect(purged).toBeGreaterThan(0);          // the canvas was cleared
+    expect(charted()).toBe(false);             // the figure went with them
 
-    const painted = drawn.length;
+    const built = StubPlot.instances.length;
     [...host.querySelectorAll("button")]
       .find((b) => b.getAttribute("aria-label") === "dark")!.click();
     await flush();
-    expect(drawn.length).toBe(painted);         // nothing to repaint, so no repaint
+    expect(charted()).toBe(false);             // nothing to repaint, so nothing built
+    expect(StubPlot.instances.length).toBe(built);
   });
 
-  it("gives the reflection ticks a band of their own, not the residual's axis", async () => {
-    // On `y2` their visibility was a property of which residual was selected:
-    // under cumulative χ², whose values ran to 6.6e5 on the measured NAC fit,
-    // the rows at y = −0.5 were a line on the floor (WP-1032).
-    const drawn: any[] = [];
-    vi.stubGlobal("Plotly", {
-      react: async (_n: any, traces: any[], layout: any) => drawn.push({ traces, layout }),
-      purge: () => {},
-    });
-    const stub = server({ ...boot(), ...FITTED, ...TWO_PHASE_WINDOW });
+  it("gives the reflection ticks a band of their own, not the residual's pane", async () => {
+    // On the residual's axis their visibility was a property of which residual
+    // was selected: under cumulative χ², whose values ran to 6.6e5 on the
+    // measured NAC fit, the rows at y = −0.5 were a line on the floor (WP-1032).
+    const stub = server({ ...boot(), ...FITTED, ...TWO_PHASE });
     vi.stubGlobal("fetch", stub.fetcher);
     app = mount(App, { target: host });
     await flush();
 
-    const last = drawn.at(-1)!;
-    const ticks = last.traces.filter((t: any) => t.yaxis === "y3");
-    expect(ticks.map((t: any) => t.name)).toEqual(["NAC", "CaF2"]);
-    // one row each, in the band's own coordinate — and the residual is still y2
-    expect(ticks[0].y[0]).toBe(-0.5);
-    expect(ticks[1].y[0]).toBe(-1.5);
-    expect(last.layout.yaxis3.domain).toEqual([0.225, 0.275]);
-    expect(last.layout.yaxis3.range).toEqual([-2, 0]);
-    expect(last.traces.find((t: any) => t.name === "Δ/σ").yaxis).toBe("y2");
+    // one row each, in each phase's own ink (WP-1438), in a pane whose y means
+    // nothing and cannot be zoomed
+    const ticks = pane("ticks");
+    const rows = ticks.marks.filter((m) => m.op === "stroke");
+    expect(rows.map((m) => m.style)).toEqual(INK.phase);
+    const mid = ticks.bbox.top + ticks.bbox.height / 2;
+    expect(rows[0].points!.every(([, y]) => y <= mid)).toBe(true);
+    expect(rows[1].points!.every(([, y]) => y >= mid)).toBe(true);
+    expect(ticks.opts.scales.y.range()).toEqual([0, 1]);
+    // …and the residual keeps a pane of its own
+    expect(ink("resid", 1)).toBe(INK.diff);
   });
 
-  it("draws no hover label on any trace, which is what keeps the box gone", async () => {
+  it("draws no box over the data: no legend, and no mark at the cursor", async () => {
     // WP-1213 deleted this plot's hover box on a report that it covered the
-    // data, and the condition it left behind is a property of *every* trace:
-    // plotly's gate is `hoverinfo !== "skip"`, so `"none"` keeps the point
-    // finding and the spike while drawing nothing.
-    //
-    // It is one property because `hovermode: "x"` draws a second box of
-    // plotly's own — an `axistext` carrying the 2θ — the moment any one
-    // trace has a label to show. WP-1438 gave the tick rows a
-    // `hovertemplate` and got both: measured in Chrome on the NAC example,
-    // boxes at [328, 556] and [297, 598], overlapping, the second printing
-    // the number the first had just printed. Which reflection a tick is
-    // lives in the strip below the plot instead.
-    const drawn: any[] = [];
-    vi.stubGlobal("Plotly", {
-      react: async (_n: any, traces: any[], layout: any) => drawn.push({ traces, layout }),
-      purge: () => {},
-    });
-    const stub = server({ ...boot(), ...FITTED, ...TWO_PHASE_WINDOW });
+    // data, and WP-1438 found plotly drawing a second one of its own. uPlot can
+    // draw either kind (a legend that follows the cursor, a point on each
+    // series), and this panel takes neither: what the pointer is over is said
+    // in the strip under the plot.
+    const stub = server({ ...boot(), ...FITTED, ...TWO_PHASE });
     vi.stubGlobal("fetch", stub.fetcher);
     app = mount(App, { target: host });
     await flush();
 
-    const last = drawn.at(-1)!;
-    expect(last.layout.hovermode).toBe("x");
-    expect(last.traces.length).toBeGreaterThan(0);
-    for (const trace of last.traces) {
-      expect(trace.hovertemplate, trace.name).toBeUndefined();
-      expect(trace.customdata, trace.name).toBeUndefined();
-      expect(["none", "skip"], trace.name).toContain(trace.hoverinfo);
+    for (const key of ["main", "ticks", "resid"] as const) {
+      expect(pane(key).opts.legend.show, key).toBe(false);
+      expect(pane(key).opts.cursor.points.show, key).toBe(false);
     }
-    // and the tick rows in particular, since they are the ones that had one
-    expect(last.traces.filter((t: any) => t.yaxis === "y3").length).toBe(2);
   });
 
   it("drops a curve the user switched off, without asking the server again", async () => {
     // The background trace was already unconditional, so the reported
     // "toggle the background on" is a missing *control*, not a missing trace.
     // And a drawing choice is not persisted (WP-1015's rule, one panel over).
-    const drawn: any[] = [];
-    vi.stubGlobal("Plotly", {
-      react: async (_n: any, traces: any[]) => drawn.push(traces),
-      purge: () => {},
-    });
-    const stub = server({ ...boot(), ...FITTED, ...TWO_PHASE_WINDOW });
+    const stub = server({ ...boot(), ...FITTED, ...TWO_PHASE });
     vi.stubGlobal("fetch", stub.fetcher);
     app = mount(App, { target: host });
     await flush();
@@ -1773,20 +1855,19 @@ describe("disclosure and the command palette", () => {
     const curves = host.querySelector<HTMLElement>('.segmented[aria-label="curves"]')!;
     expect([...curves.querySelectorAll("button")].map((b) => b.textContent!.trim()))
       .toEqual(["obs", "calc", "bkg", "Δ/σ", "NAC", "CaF2"]);
-    expect(drawn.at(-1)!.some((t: any) => t.name === "background")).toBe(true);
+    expect(drawn()).toContain("bkg");
 
-    const fetched = stub.calls.filter((c) => c.path === "/api/result/window").length;
+    const fetched = curvesFetched(stub);
     [...curves.querySelectorAll("button")].find((b) => b.textContent!.trim() === "bkg")!.click();
     await flush();
-    expect(drawn.at(-1)!.some((t: any) => t.name === "background")).toBe(false);
-    expect(drawn.at(-1)!.some((t: any) => t.name === "calculated")).toBe(true);
-    expect(stub.calls.filter((c) => c.path === "/api/result/window").length).toBe(fetched);
+    expect(drawn()).not.toContain("bkg");
+    expect(drawn()).toContain("calc");
+    expect(curvesFetched(stub)).toBe(fetched);
 
-    // one phase's ticks off, the other's still drawn
+    // one phase's ticks off, the other's still drawn, in the ink it had
     [...curves.querySelectorAll("button")].find((b) => b.textContent!.trim() === "CaF2")!.click();
     await flush();
-    expect(drawn.at(-1)!.filter((t: any) => t.yaxis === "y3").map((t: any) => t.name))
-      .toEqual(["NAC"]);
+    expect(tickInks()).toEqual([INK.phase[0]]);
 
     // nothing about a picture reached the project document
     expect(stub.calls.filter((c) => c.method === "POST" && c.path === "/api/project")).toEqual([]);
@@ -3464,6 +3545,11 @@ const PEAKS_PAYLOAD = {
   n_total: 3, n_usable: 2, source: "fitted", wavelength: 1.5406,
 };
 
+/** PEAKS_PAYLOAD's pattern as the curves route answers it before any fit. */
+const RAW = {
+  "/api/result/curves": rawCurves(PEAKS_PAYLOAD.pattern.two_theta, PEAKS_PAYLOAD.pattern.y_obs),
+};
+
 const MEDIUM_CANDIDATE = {
   cell: [4.7594, 4.7594, 12.992, 90, 90, 120], cell_esd: [0, 0, 0, 0, 0, 0],
   system: "hexagonal", centring: "R", lattice_group: "R -3 m", volume: 254.9,
@@ -3474,21 +3560,6 @@ const MEDIUM_CANDIDATE = {
   diagnostics: [],
 };
 
-/** plotly decorates the plot div with its own emitter at runtime, which jsdom
- *  has no reason to; without it `plotNode.on?.()` is a silent no-op and no
- *  plotly gesture can be driven at all.  Patched on the prototype for the same
- *  reason the library does it: the div is created inside `mount`. */
-function emitter() {
-  const handlers: Record<string, (ev: any) => void> = {};
-  const proto = HTMLDivElement.prototype as any;
-  proto.on = function (name: string, fn: (ev: any) => void) { handlers[name] = fn; };
-  proto.removeAllListeners = function () {};
-  return {
-    handlers,
-    restore: () => { delete proto.on; delete proto.removeAllListeners; },
-  };
-}
-
 describe("what is fitted, shaded and selectable (WP-1033)", () => {
   /** The settings bodies this session sent, in order — `calls.at(-1)` would be
    *  whatever the event poll asked for a tick later. */
@@ -3498,54 +3569,57 @@ describe("what is fitted, shaded and selectable (WP-1033)", () => {
       .map((c) => c.body);
   }
 
-  function plotly(drawn: any[], relayouts: any[] = []) {
-    vi.stubGlobal("Plotly", {
-      react: async (_n: any, traces: any[], layout: any) => drawn.push({ traces, layout }),
-      relayout: async (_n: any, update: any) => relayouts.push(update),
-      restyle: async () => {},
-      purge: () => {},
-    });
-  }
-
   it("shades the range's outside and every region, from the document", async () => {
     // Not inferred from a hole in the data: a gap in the arrays is what an
     // exclusion *leaves*, and a renderer that guessed would be a second
     // authority on the protocol.
-    const drawn: any[] = [];
-    plotly(drawn);
-    const stub = server({ ...boot(MASKED_PROJECT), ...FITTED });
+    const stub = server({ ...boot(MASKED_PROJECT), ...FITTED, ...MASKED_CURVES });
     vi.stubGlobal("fetch", stub.fetcher);
     app = mount(App, { target: host });
     await flush();
 
-    const shapes = drawn.at(-1)!.layout.shapes;
-    expect(shapes.filter((s: any) => s.type === "rect").map((s: any) => [s.x0, s.x1]))
+    // what the shading layer filled, back in 2θ: the fit range's outside,
+    // clipped to the measured data, then the region
+    const main = pane("main");
+    const theta = (px: number) => Number(main.posToVal(px, "x").toFixed(3));
+    const bands = main.marks.filter((m) => m.op === "fillRect" && m.style === INK.mask);
+    expect(bands.map((m) => m.points!.map(([x]) => theta(x))))
       .toEqual([[3, 8], [19, 23.995], [13, 16]]);
-    // paper coordinates, so the band is the same band under log and √
-    expect(shapes.every((s: any) => s.yref === "paper")).toBe(true);
+    // …each edge dotted, in the edge's own ink
+    const edges = main.marks.filter((m) => m.op === "stroke" && m.style === INK.edge);
+    expect(edges.every((m) => m.dash)).toBe(true);
+    expect(edges.map((m) => Math.round(theta(m.points![0][0])))).toEqual([8, 19, 13, 16]);
+    // …under the curves: a wash that dimmed the points would be saying
+    // something about the data rather than about the protocol
+    expect(main.marks.indexOf(bands[0])).toBeLessThan(
+      main.marks.findIndex((m) => m.op === "series"));
+    // …and the full height of every pane, which is what survives a √ or log
+    // scale, and the truth: an excluded channel is missing from the residual too
+    for (const key of ["main", "ticks", "resid"] as const) {
+      const u = pane(key);
+      const rects = u.marks.filter((m) => m.op === "fillRect" && m.style === INK.mask);
+      expect(rects, key).toHaveLength(3);
+      for (const m of rects) {
+        expect(m.points![0][1]).toBe(u.bbox.top);
+        expect(m.points![1][1]).toBe(u.bbox.top + u.bbox.height);
+      }
+    }
   });
 
   it("draws the masked channels the result does not carry", async () => {
     // measured before it was written: with limits set, the result spans only
     // the fitted range (a 3–24° pattern came back 8.005–18.990°), so without
-    // this arm the axis autoranges inside the range and the shading has
-    // nothing to shade
-    const drawn: any[] = [];
-    plotly(drawn);
-    const stub = server({
-      ...boot(MASKED_PROJECT), ...FITTED,
-      "/api/result/window": () => ({ body: {
-        two_theta: [9, 9.4], y_obs: [1, 2], y_calc: [1, 2], y_background: [],
-        delta: [0, 0], ticks: {}, window: [9, 9.4], n_total: 2, n_returned: 2,
-        max_points: 4000, excluded: { two_theta: [3, 20], y_obs: [5, 6] },
-        n_excluded: 2600, stale: false } }),
-    });
+    // them the axis fits inside the range and the shading has nothing to shade
+    const stub = server({ ...boot(MASKED_PROJECT), ...FITTED, ...MASKED_CURVES });
     vi.stubGlobal("fetch", stub.fetcher);
     app = mount(App, { target: host });
     await flush();
 
-    const trace = drawn.at(-1)!.traces.find((t: any) => t.name === "masked");
-    expect(trace.x).toEqual([3, 20]);
+    // the observed points split by the payload's `kept` over one x: the fitted
+    // ones, and the masked ones in a recessive series of their own
+    expect(heldAt(1)).toEqual([9, 9.4]);
+    expect(heldAt(2)).toEqual([3, 5, 14, 20, 23.995]);
+    expect(xRange()).toEqual([3, 23.995]);
     // …and it is a curve, so it gets a toggle beside the others
     const curves = host.querySelector<HTMLElement>('.segmented[aria-label="curves"]')!;
     expect([...curves.querySelectorAll("button")].map((b) => b.textContent!.trim()))
@@ -3556,90 +3630,74 @@ describe("what is fitted, shaded and selectable (WP-1033)", () => {
      async () => {
     // A region drag is ambiguous with a zoom drag *everywhere* — same button,
     // same shape — so the ambiguity is removed rather than arbitrated: an
-    // explicit arm, plotly's own select box, and one drag per arming.
-    const drawn: any[] = [];
-    const relayouts: any[] = [];
-    plotly(drawn, relayouts);
-    const emit = emitter();
-    try {
-      const stub = server({ ...boot(), ...FITTED });
-      vi.stubGlobal("fetch", stub.fetcher);
-      app = mount(App, { target: host });
-      await flush();
+    // explicit arm, the figure's own select box, and one drag per arming.
+    const stub = server({ ...boot(), ...FITTED, ...WIDE });
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
 
-      expect(drawn.at(-1)!.layout.dragmode).toBe("zoom");
-      expect(drawn.at(-1)!.layout.selectdirection).toBe("h");
-      const arm = host.querySelector<HTMLElement>('.segmented[aria-label="select on the plot"]')!;
-      const before = drawn.length;
-      [...arm.querySelectorAll("button")].find((b) => b.textContent!.includes("exclude"))!.click();
-      await flush();
-      // the mode is one layout key, so arming is a `relayout` and not a repaint
-      // of the pattern — two of the four reacts an exclude drag used to cost,
-      // since it is set on the way in and cleared on the way out (WP-1212)
-      expect(relayouts.at(-1)).toEqual({ dragmode: "select" });
-      expect(drawn.length).toBe(before);
-      expect(host.textContent).toContain("the peak gestures are suspended");
+    const panes = () => [pane("main"), pane("ticks"), pane("resid")];
+    // unarmed, a box drag zooms both axes
+    expect(panes().every((u) => u.cursor.drag.y)).toBe(true);
+    const before = xRange();
+    const painted = pane("main").paints;
+    const arm = host.querySelector<HTMLElement>('.segmented[aria-label="select on the plot"]')!;
+    [...arm.querySelectorAll("button")].find((b) => b.textContent!.includes("exclude"))!.click();
+    await flush();
+    // the mode is the figure's, so arming repaints nothing: x only, zooming nothing
+    expect(panes().every((u) => !u.cursor.drag.y)).toBe(true);
+    expect(pane("main").paints).toBe(painted);
+    expect(host.textContent).toContain("the peak gestures are suspended");
 
-      // the drag, delivered the way plotly delivers it
-      emit.handlers.plotly_selected({ range: { x: [16, 13] } });
-      await flush();
+    await dragOver(13, 16);
 
-      // ordered, sent, and the marquee dropped — the shading is the record now
-      expect(stub.calls.find((c) => c.method === "POST" && c.path === "/api/project")?.body)
-        .toEqual({ excluded_regions: [[13, 16]] });
-      expect(relayouts).toContainEqual({ selections: [] });
-      expect(relayouts).toContainEqual({ dragmode: "zoom" });
-      expect(host.textContent).not.toContain("the peak gestures are suspended");
-    } finally {
-      emit.restore();
-    }
+    // ordered and sent, the box dropped, nothing zoomed — the shading is the record now
+    const sent = stub.calls.find((c) => c.method === "POST" && c.path === "/api/project")!.body;
+    expect(sent.excluded_regions).toHaveLength(1);
+    expect(sent.excluded_regions[0][0]).toBeCloseTo(13, 9);
+    expect(sent.excluded_regions[0][1]).toBeCloseTo(16, 9);
+    expect(pane("main").select.width).toBe(0);
+    expect(xRange()).toEqual(before);
+    expect(panes().every((u) => u.cursor.drag.y)).toBe(true);
+    expect(host.textContent).not.toContain("the peak gestures are suspended");
   });
 
   it("suspends the peak gestures while it is armed", async () => {
     // WP-1027's rule, kept: an ambiguous pointer verb must do the harmless
     // thing.  Here nothing is ambiguous *because* the peak verbs stand down.
-    const drawn: any[] = [];
-    plotly(drawn);
-    const emit = emitter();
-    try {
-      const stub = server({
-        ...boot(),
-        "/api/peaks": () => ({ body: PEAKS_PAYLOAD }),
-        "/api/peaks/remove": () => ({ body: PEAKS_PAYLOAD }),
-      });
-      vi.stubGlobal("fetch", stub.fetcher);
-      app = mount(App, { target: host });
-      await flush();
-      button("Peaks")!.click();
-      await flush();
+    const stub = server({
+      ...boot(),
+      ...RAW,
+      "/api/peaks": () => ({ body: PEAKS_PAYLOAD }),
+      "/api/peaks/remove": () => ({ body: PEAKS_PAYLOAD }),
+    });
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+    button("Peaks")!.click();
+    await flush();
 
-      const node = host.querySelector<HTMLElement>(".plot")! as any;
-      node._fullLayout = { xaxis: { _offset: 0, _length: 100, range: [9, 15],
-                                    p2d: (px: number) => 9 + px * 0.06 } };
-      const arm = host.querySelector<HTMLElement>('.segmented[aria-label="select on the plot"]')!;
-      [...arm.querySelectorAll("button")].find((b) => b.textContent!.includes("range"))!.click();
-      await flush();
+    // the raw pattern spans 9-14° over the 1000-px plot area, so 600 px is 12.0°
+    const node = host.querySelector<HTMLElement>(".plot")!;
+    const arm = host.querySelector<HTMLElement>('.segmented[aria-label="select on the plot"]')!;
+    [...arm.querySelectorAll("button")].find((b) => b.textContent!.includes("range"))!.click();
+    await flush();
 
-      node.dispatchEvent(new MouseEvent("contextmenu", { clientX: 50, bubbles: true }));
-      await flush();
-      expect(stub.calls.some((c) => c.path === "/api/peaks/remove")).toBe(false);
+    node.dispatchEvent(new MouseEvent("contextmenu", { clientX: 600, bubbles: true }));
+    await flush();
+    expect(stub.calls.some((c) => c.path === "/api/peaks/remove")).toBe(false);
 
-      // Esc gives the canvas back, and the peak verb works again
-      window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
-      await flush();
-      node.dispatchEvent(new MouseEvent("contextmenu", { clientX: 50, bubbles: true }));
-      await flush();
-      expect(stub.calls.find((c) => c.path === "/api/peaks/remove")?.body).toEqual({ index: 1 });
-    } finally {
-      emit.restore();
-    }
+    // Esc gives the canvas back, and the peak verb works again
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    await flush();
+    node.dispatchEvent(new MouseEvent("contextmenu", { clientX: 600, bubbles: true }));
+    await flush();
+    expect(stub.calls.find((c) => c.path === "/api/peaks/remove")?.body).toEqual({ index: 1 });
   });
 
   it("sends a typed range, and shows the verb's refusal where it was typed", async () => {
     // The non-pointer route, and the client has no opinion about validity:
     // two validators would be two answers (WP-1013's rule for the text pane).
-    const drawn: any[] = [];
-    plotly(drawn);
     const stub = server({
       ...boot(), ...FITTED,
       "/api/project": (call: Call) =>
@@ -3684,8 +3742,6 @@ describe("what is fitted, shaded and selectable (WP-1033)", () => {
 
   it("removes one region by its chip and fits the whole pattern again by All",
      async () => {
-    const drawn: any[] = [];
-    plotly(drawn);
     const stub = server({ ...boot(MASKED_PROJECT), ...FITTED });
     vi.stubGlobal("fetch", stub.fetcher);
     app = mount(App, { target: host });
@@ -3705,141 +3761,81 @@ describe("what is fitted, shaded and selectable (WP-1033)", () => {
     // settings persist on the verb, curves move only on a run — so between an
     // exclusion and the next fit the picture contradicts the setting, and a
     // band over channels still in the residual is worse than no band at all
-    const drawn: any[] = [];
-    plotly(drawn);
     const stub = server({
       ...boot(MASKED_PROJECT), ...FITTED,
-      "/api/result/window": () => ({ body: {
-        two_theta: [9, 9.4], y_obs: [1, 2], y_calc: [1, 2], y_background: [],
-        delta: [0, 0], ticks: {}, window: [9, 9.4], n_total: 2, n_returned: 2,
-        max_points: 4000, excluded: { two_theta: [], y_obs: [] },
-        n_excluded: 2600, stale: true } }),
+      "/api/result/curves": fitCurves({ header: { stale: true } }),
     });
     vi.stubGlobal("fetch", stub.fetcher);
     app = mount(App, { target: host });
     await flush();
     expect(host.textContent).toContain("fitted over a different set of channels");
   });
+
+  it("draws an exclusion from one fetch, and keeps the view", async () => {
+    // Under plotly an exclude drag cost four repaints (WP-1212). The mask is
+    // the payload's `kept`, so a new region is one fetch of the curves and
+    // nothing else, and the reader's zoom survives it.
+    const stub = server({
+      ...boot(), ...FITTED, ...WIDE,
+      "/api/project": (call) => (call.method === "POST"
+        ? { body: { ...PROJECT, doc: { ...PROJECT.doc, excluded_regions: [[13, 16]] } } }
+        : { body: PROJECT }),
+    });
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+
+    await dragOver(9, 18);
+    const arm = host.querySelector<HTMLElement>('.segmented[aria-label="select on the plot"]')!;
+    [...arm.querySelectorAll("button")].find((b) => b.textContent!.includes("exclude"))!.click();
+    await flush();
+    const fetched = curvesFetched(stub);
+    await dragOver(13, 16);
+
+    expect(curvesFetched(stub)).toBe(fetched + 1);
+    const [lo, hi] = xRange();
+    expect(lo).toBeCloseTo(9, 9);
+    expect(hi).toBeCloseTo(18, 9);
+  });
 });
 
 describe("the view survives a redraw (WP-1044)", () => {
-  let bus: ReturnType<typeof emitter>;
-  beforeEach(() => { bus = emitter(); });
-  afterEach(() => bus.restore());
+  // Under plotly every redraw re-fitted the axes over everything drawn, the
+  // peak markers and the mask shapes included, so a zoom lasted only as long
+  // as nothing else moved (measured: a drag to 9.97–14.66° came back
+  // 4.57–24.85 with a peak list on the plot), and WP-1212 then found the
+  // pinning that repaired it re-fitting on every hover. The chart zooms in the
+  // browser over a payload that is every channel, so a redraw moves no axis by
+  // construction; these hold the panel to it where the panel could still undo it.
 
-  /** plotly's own record of where the axes are, which jsdom has no layout to
-   *  build.  `autorange: false` is what plotly writes on a zoom or pan drag —
-   *  and since WP-1212 it is what this panel writes on every paint too, so this
-   *  states where the axes *are* and `dragged` states who put them there. */
-  function zoomedTo(range: [number, number] | null) {
-    const node = host.querySelector<HTMLElement>(".plot")! as any;
-    node._fullLayout = range
-      ? { xaxis: { autorange: false, range },
-          yaxis: { autorange: false, range: [0, 4200] },
-          yaxis2: { autorange: true, range: [-5, 5] } }
-      : { xaxis: { autorange: true, range: [3, 23.995] } };
-    return node;
-  }
-
-  function plotly(drawn: any[]) {
-    vi.stubGlobal("Plotly", {
-      react: async (_n: any, traces: any[], layout: any, config: any) =>
-        drawn.push({ traces, layout, config }),
-      relayout: async () => {},
-      restyle: async () => {},
-      purge: () => {},
-    });
-  }
-
-  /** The gesture, not only its trace.  An explicit range no longer says who set
-   *  it, so a test that means "the user dragged here" delivers the event plotly
-   *  emits for a drag (`lib/plot.ts:movedAxes`). */
-  function dragged(range: [number, number]) {
-    zoomedTo(range);
-    bus.handlers["plotly_relayout"]?.({
-      "xaxis.range[0]": range[0], "xaxis.range[1]": range[1],
-    });
-  }
-
-  const windows = (stub: { calls: Call[] }) =>
-    stub.calls.filter((c) => c.path === "/api/result/window").map((c) => c.url);
-
-  it("hands every moved axis back, so a repaint is not a reason to autorange",
-     async () => {
-    // The defect this closes: `react` got a layout with no `range`, so plotly
-    // re-autoranged over *everything drawn* — and the peak markers and the mask
-    // shapes span the whole pattern while the fetched curves span the window.
-    // Measured in Chrome: a drag to 9.97–14.66° came back 4.57–24.85 with a
-    // peak list on the plot and 3.00–24.94 with a fitted range.
-    const drawn: any[] = [];
-    plotly(drawn);
-    const stub = server({ ...boot(), ...TWO_PHASE_WINDOW, ...FITTED, ...TWO_PHASE_WINDOW });
+  it("keeps the zoom through a knob", async () => {
+    const stub = server({ ...boot(), ...FITTED, ...WIDE });
     vi.stubGlobal("fetch", stub.fetcher);
     app = mount(App, { target: host });
     await flush();
 
-    zoomedTo([10, 14]);
-    // a knob is the cheapest redraw there is — same numbers, new colours
+    await dragOver(9, 14);
+    const zoomed = xRange();
+    const fetched = curvesFetched(stub);
+    // a scale rebuilds the main pane (uPlot takes its scales at construction),
+    // and a residual is new numbers for the lower one
     const scales = host.querySelector<HTMLElement>('.segmented[aria-label="intensity scale"]')!;
     [...scales.querySelectorAll("button")].find((b) => b.textContent!.trim() === "√")!.click();
     await flush();
-
-    expect(drawn.at(-1)!.layout.xaxis.range).toEqual([10, 14]);
-    // …but not the y axis, whose meaning the √ just changed, and not the
-    // residual axis, which was autoranging (the rest of that rule is asserted
-    // on the pure function, in `lib/plot.test.ts`)
-    expect(drawn.at(-1)!.layout.yaxis).not.toHaveProperty("range");
-    expect(drawn.at(-1)!.layout.yaxis2).not.toHaveProperty("range");
-  });
-
-  it("costs one react per fetch — a payload is not a knob", async () => {
-    // Counted in Chrome before it was fixed: one zoom drag issued two identical
-    // `react`s and boot issued six, because the knob effect *tracked* `held`.
-    const drawn: any[] = [];
-    plotly(drawn);
-    const stub = server({ ...boot(), ...FITTED, ...TWO_PHASE_WINDOW });
-    vi.stubGlobal("fetch", stub.fetcher);
-    app = mount(App, { target: host });
-    await flush();
-
-    const atBoot = drawn.length;
-    zoomedTo([10, 14]);
-    drawn.length = 0;
-    // the report panel asking for a window is one fetch, so it is one draw
     const kinds = host.querySelector<HTMLElement>('.segmented[aria-label="residual"]')!;
     [...kinds.querySelectorAll("button")].find((b) => b.textContent!.trim() === "Δ")!.click();
     await flush();
-    expect(drawn.length).toBe(1);       // a knob repaints once
-    expect(atBoot).toBeLessThanOrEqual(3);
+
+    for (const key of ["main", "ticks", "resid"] as const) expect(xRange(key)).toEqual(zoomed);
+    expect(curvesFetched(stub)).toBe(fetched);
   });
 
-  it("leaves an autoranging axis alone, so a double-click still shows all of it",
-     async () => {
-    const drawn: any[] = [];
-    plotly(drawn);
-    const stub = server({ ...boot(), ...FITTED, ...TWO_PHASE_WINDOW });
-    vi.stubGlobal("fetch", stub.fetcher);
-    app = mount(App, { target: host });
-    await flush();
-
-    zoomedTo(null);
-    const kinds = host.querySelector<HTMLElement>('.segmented[aria-label="residual"]')!;
-    [...kinds.querySelectorAll("button")].find((b) => b.textContent!.trim() === "Δ")!.click();
-    await flush();
-    expect(drawn.at(-1)!.layout.xaxis).not.toHaveProperty("range");
-    // …and the gesture that gets there: plotly's default `reset+autosize` means
-    // *back to the range the plot was drawn with*, which is now the zoom itself
-    // — measured in Chrome, a double-click out of a window became a no-op
-    expect(drawn.at(-1)!.config.doubleClick).toBe("autosize");
-  });
-
-  it("refetches the window on screen when a peak edit redraws it", async () => {
-    // The other half: the fetch used to fall back to the whole pattern, so a
-    // toggle both moved the axis and coarsened the curves under it.
-    const drawn: any[] = [];
-    plotly(drawn);
+  it("keeps the zoom through a peak edit, and fetches nothing for it", async () => {
+    // A peak edit redraws the layer and nothing else: the curves did not move.
+    // Under plotly it refetched the window, and until WP-1044 the fetch went
+    // wide and threw the zoom away.
     const stub = server({
-      ...boot(), ...FITTED, ...TWO_PHASE_WINDOW,
+      ...boot(), ...FITTED, ...WIDE,
       "/api/peaks": () => ({ body: PEAKS_PAYLOAD }),
       "/api/peaks/flag": () => ({ body: { ...PEAKS_PAYLOAD, api_call: "session.set_peak_flags(1)" } }),
     });
@@ -3849,14 +3845,50 @@ describe("the view survives a redraw (WP-1044)", () => {
     button("Peaks")!.click();
     await flush();
 
-    dragged([10, 14]);
-    await flush();
+    await dragOver(10, 14);
+    const zoomed = xRange();
+    const fetched = curvesFetched(stub);
     const boxes = [...host.querySelectorAll<HTMLInputElement>('td.use input[type="checkbox"]')];
     boxes[1].dispatchEvent(new Event("change", { bubbles: true }));
     await flush();
 
-    expect(windows(stub).at(-1)).toContain("lo=10&hi=14");
-    expect(drawn.at(-1)!.layout.xaxis.range).toEqual([10, 14]);
+    expect(stub.calls.some((c) => c.path === "/api/peaks/flag")).toBe(true);
+    expect(curvesFetched(stub)).toBe(fetched);
+    expect(xRange()).toEqual(zoomed);
+  });
+
+  it("keeps the zoom when a fit lands on the same channels, and not on others", async () => {
+    // A run landing is the reader's same pattern with new numbers, so the view
+    // they chose survives it (WP-1044). A payload over other channels is
+    // another pattern, and a range from the old one would be a claim about it.
+    let grid = [3, 6, 9, 9.4, 10, 12, 14, 18, 23.995];
+    const stub = server({
+      ...boot(), ...FITTED,
+      "/api/result/curves": () => fitCurves({ two_theta: grid, y_obs: grid.map(() => 1) })(),
+      "/api/history/checkout": () => ({ body: { head: "n0002", parameters: [], n_free: 0 } }),
+    });
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+
+    const checkout = async () => {
+      button("History")!.click();
+      await flush();
+      [...host.querySelectorAll<HTMLButtonElement>(".node button.pick")][2].click();
+      await flush();
+      button("Checkout")!.click();
+      await flush();
+    };
+    await dragOver(9, 14);
+    const zoomed = xRange();
+    const fetched = curvesFetched(stub);
+    await checkout();
+    expect(curvesFetched(stub)).toBe(fetched + 1);
+    expect(xRange()).toEqual(zoomed);
+
+    grid = [20, 30, 40];
+    await checkout();
+    expect(xRange()).toEqual([20, 40]);
   });
 
   it("still moves for a panel's request — the same one twice, if it is asked twice",
@@ -3864,10 +3896,8 @@ describe("the view survives a redraw (WP-1044)", () => {
     // A window from another panel is a *request*, and the array's identity is
     // what tells it apart from every other reason the effect runs: the shell
     // writes a fresh pair per click, so asking twice moves twice.
-    const drawn: any[] = [];
-    plotly(drawn);
     const stub = server({
-      ...boot(), ...FITTED, ...TWO_PHASE_WINDOW,
+      ...boot(), ...FITTED, ...WIDE,
       "/api/peaks": () => ({ body: PEAKS_PAYLOAD }),
     });
     vi.stubGlobal("fetch", stub.fetcher);
@@ -3882,24 +3912,34 @@ describe("the view survives a redraw (WP-1044)", () => {
     zoomTo[0].click();
     await flush();
     const eight = 8 * PEAKS_PAYLOAD.peaks[0].fwhm;
-    expect(drawn.at(-1)!.layout.xaxis.range).toEqual([10 - eight, 10 + eight]);
+    expect(xRange()).toEqual([10 - eight, 10 + eight]);
 
     // …the user drags somewhere else, and asks for the same line again
-    zoomedTo([13, 15]);
+    await dragOver(13, 15);
     zoomTo[0].click();
     await flush();
-    expect(drawn.at(-1)!.layout.xaxis.range).toEqual([10 - eight, 10 + eight]);
+    expect(xRange()).toEqual([10 - eight, 10 + eight]);
+  });
+
+  it("shows all of it again on a double-click", async () => {
+    const stub = server({ ...boot(), ...FITTED, ...WIDE });
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+
+    await dragOver(9, 14);
+    pane("main").over.dispatchEvent(new MouseEvent("dblclick"));
+    await flush();
+    for (const key of ["main", "ticks", "resid"] as const) {
+      expect(xRange(key)).toEqual([3, 23.995]);
+    }
   });
 
   it("marks the plot while a range gesture is armed, for the cursor to hang on",
      async () => {
-    // plotly's `updateFx` gives the drag layer one cursor for every dragmode
-    // that is not `pan`, so `select` and `zoom` are pointer-identical and
-    // arming said nothing under the pointer.  The class is the hook; the rule
-    // that uses it sets the cursor on the plot-area rect, where an inherited
-    // one loses to it without a specificity fight.
-    const drawn: any[] = [];
-    plotly(drawn);
+    // A select drag and a zoom drag are the same pointer, so arming has to say
+    // so under it (WP-1044): the class is the hook, and the rule that uses it
+    // sets `col-resize` on the chart's plot area.
     vi.stubGlobal("fetch", server({ ...boot(), ...FITTED }).fetcher);
     app = mount(App, { target: host });
     await flush();
@@ -3914,248 +3954,6 @@ describe("the view survives a redraw (WP-1044)", () => {
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
     await flush();
     expect(plot.classList.contains("armed")).toBe(false);
-  });
-});
-
-/**
- * A redraw never moves the axes (WP-1212).
- *
- * WP-1044 above keeps an axis only once `autorange === false`, which plotly
- * writes on a zoom and nowhere else — so on the plot nobody has zoomed there
- * was nothing to keep, and every redraw and every `restyle` re-fitted the axes.
- * Measured in Chrome on the NAC example: a hover over the peaks table costs no
- * `react` at all and still moved `yaxis` by 1.03 % of its span, once per row
- * the pointer crossed.
- *
- * The plotly stub here resolves axes the way the library does, because the
- * repair is a *round trip* through the layout — the panel hands a layout in,
- * reads back what plotly made of it, and writes the resolved ranges in as
- * explicit ones. A stub that never resolved anything could not tell the repair
- * from its absence.
- */
-describe("a redraw never moves the axes (WP-1212)", () => {
-  /** What plotly would autorange each axis to over what is drawn here. */
-  const AUTO: Record<string, [number, number]> = {
-    xaxis: [-3.07, 63.56], yaxis: [-18597.7, 283838.2], yaxis2: [-81.8, 61.7],
-  };
-
-  let bus: ReturnType<typeof emitter>;
-  beforeEach(() => { bus = emitter(); });
-  afterEach(() => bus.restore());
-
-  /** Every plotly call in the order it was made, with the axis resolution the
-   *  library performs: an explicit `range` stays put, an absent one is fitted
-   *  to the data and marked `autorange`. */
-  function plotly(log: { call: string; arg: any; traces?: any[] }[]) {
-    const resolve = (node: any, layout: any) => {
-      const full: Record<string, any> = {};
-      for (const key of ["xaxis", "yaxis", "yaxis2"]) {
-        const range = layout?.[key]?.range;
-        full[key] = range
-          ? { autorange: false, range: [...range] }
-          : { autorange: true, range: [...AUTO[key]] };
-      }
-      full.yaxis3 = { autorange: false, range: [-2, 0] };
-      node._fullLayout = full;
-    };
-    vi.stubGlobal("Plotly", {
-      react: async (node: any, traces: any[], layout: any) => {
-        log.push({ call: "react", arg: layout, traces });
-        resolve(node, layout);
-      },
-      relayout: async (node: any, patch: any) => {
-        log.push({ call: "relayout", arg: patch });
-        for (const [key, value] of Object.entries(patch)) {
-          const [axis, prop] = key.split(".");
-          if (prop === "range" && node._fullLayout?.[axis]) {
-            node._fullLayout[axis] = { autorange: false, range: [...(value as number[])] };
-          }
-        }
-      },
-      restyle: async (_n: any, update: any) => log.push({ call: "restyle", arg: update }),
-      purge: () => {},
-    });
-  }
-
-  const reacts = (log: { call: string }[]) => log.filter((c) => c.call === "react").length;
-  const lastTraces = (log: { call: string; traces?: any[] }[]) =>
-    log.filter((c) => c.call === "react").at(-1)!.traces!;
-
-  it("writes back what plotly autoranged, so the next restyle cannot re-fit it",
-     async () => {
-    const log: { call: string; arg: any }[] = [];
-    plotly(log);
-    vi.stubGlobal("fetch", server({ ...boot(), ...FITTED, ...TWO_PHASE_WINDOW }).fetcher);
-    app = mount(App, { target: host });
-    await flush();
-
-    const pin = log.find((c) => c.call === "relayout" && "xaxis.range" in c.arg);
-    expect(pin!.arg).toEqual({
-      "xaxis.range": AUTO.xaxis, "yaxis.range": AUTO.yaxis, "yaxis2.range": AUTO.yaxis2,
-    });
-    // the tick band is not the panel's to pin: it carries its own range and
-    // never autoranges (`lib/plot.ts:PINNED_AXES`)
-    expect(pin!.arg).not.toHaveProperty("yaxis3.range");
-  });
-
-  it("hands the pinned ranges back, so a repaint on an unzoomed plot holds still",
-     async () => {
-    const log: { call: string; arg: any }[] = [];
-    plotly(log);
-    vi.stubGlobal("fetch", server({ ...boot(), ...FITTED, ...TWO_PHASE_WINDOW }).fetcher);
-    app = mount(App, { target: host });
-    await flush();
-
-    // a curve toggle is the cheapest redraw there is, and before this it was a
-    // reason for plotly to re-fit all three axes
-    log.length = 0;
-    const curves = host.querySelector<HTMLElement>('.segmented[aria-label="curves"]')!;
-    [...curves.querySelectorAll("button")]
-      .find((b) => b.textContent!.trim() === "calc")!.click();
-    await flush();
-
-    const layout = log.filter((c) => c.call === "react").at(-1)!.arg;
-    expect(layout.xaxis.range).toEqual(AUTO.xaxis);
-    expect(layout.yaxis.range).toEqual(AUTO.yaxis);
-    expect(layout.yaxis2.range).toEqual(AUTO.yaxis2);
-    // …and nothing left to pin, so the repaint costs no relayout of its own
-    expect(log.filter((c) => c.call === "relayout" && "xaxis.range" in c.arg)).toEqual([]);
-  });
-
-  it("pins before the hover ring goes on, which is the restyle that moved it",
-     async () => {
-    // the ring is a `scattergl` trace with `marker.size: 16`, and scatter
-    // autorange pads by marker size — so the order of these two calls is the
-    // whole difference between a still axis and one that pumps per row
-    const log: { call: string; arg: any }[] = [];
-    plotly(log);
-    vi.stubGlobal("fetch", server({
-      ...boot(), ...FITTED, ...TWO_PHASE_WINDOW,
-      "/api/peaks": () => ({ body: PEAKS_PAYLOAD }),
-    }).fetcher);
-    app = mount(App, { target: host });
-    await flush();
-    button("Peaks")!.click();
-    await flush();
-
-    const pinAt = log.findIndex((c) => c.call === "relayout" && "xaxis.range" in c.arg);
-    const ringAt = log.findIndex((c) => c.call === "restyle");
-    expect(pinAt).toBeGreaterThanOrEqual(0);
-    expect(ringAt).toBeGreaterThan(pinAt);
-  });
-
-  it("dresses the live selection as the mask it is about to become", async () => {
-    // plotly's default marquee is a dark dotted box that says "select"; what an
-    // armed drag here means is "exclude this range", so it borrows `maskShapes`'
-    // own two colours from the same `curveColors` call. The wash inside it is
-    // not an attribute plotly has — it is the `.select-outline` rule in the
-    // panel's stylesheet, which needs `!important` because plotly writes
-    // `fill-opacity: 0` inline (measured in Chrome).
-    const log: { call: string; arg: any }[] = [];
-    plotly(log);
-    vi.stubGlobal("fetch",
-      server({ ...boot(MASKED_PROJECT), ...FITTED, ...TWO_PHASE_WINDOW }).fetcher);
-    app = mount(App, { target: host });
-    await flush();
-
-    const layout = log.filter((c) => c.call === "react").at(-1)!.arg;
-    expect(layout.newselection.line.dash).toBe("dot");
-    expect(layout.newselection.line.width).toBe(1);
-    // the same two inks the shapes are drawn in, whatever the theme resolved to
-    const shape = layout.shapes.find((s: any) => s.type === "line");
-    expect(layout.newselection.line.color).toBe(shape.line.color);
-    const band = layout.shapes.find((s: any) => s.type === "rect");
-    expect(layout.activeselection.fillcolor).toBe(band.fillcolor);
-  });
-
-  it("keeps the hover ring out of the WebGL scene", async () => {
-    // Every gl trace on a subplot shares one `_scene` whose batches are indexed
-    // by position, and an *empty* one is given no index — so a select drag read
-    // `scene.selectBatch[undefined].length` and threw once per pointer move
-    // (measured: 7 throws over one armed exclude drag, and none before the
-    // first hover, because the ring is empty until something is hovered).
-    const log: { call: string; arg: any }[] = [];
-    plotly(log);
-    vi.stubGlobal("fetch", server({
-      ...boot(), ...FITTED, ...TWO_PHASE_WINDOW,
-      "/api/peaks": () => ({ body: PEAKS_PAYLOAD }),
-    }).fetcher);
-    app = mount(App, { target: host });
-    await flush();
-    button("Peaks")!.click();
-    await flush();
-
-    const last = lastTraces(log);
-    const ring = last.find((t: any) => t.name === "hovered");
-    expect(ring.type).toBe("scatter");
-    // …and it is the only one: everything else on this plot is a curve worth
-    // the gl path, and the peak markers are drawn from a list that can be long
-    expect(last.filter((t: any) => t.type !== "scattergl").map((t: any) => t.name))
-      .toEqual(["hovered"]);
-  });
-
-  it("draws an exclusion once — the whole chain is one paint", async () => {
-    // Counted in Chrome before this: four. `arm = null` was a repaint (the drag
-    // mode is layout, so it is a relayout now), `extent` is `$derived` off
-    // `project` and handed the repaint effect a new array holding the same two
-    // numbers, and the document and the peak list landed on either side of a
-    // microtask because `setProtocol` awaited the reload after assigning.
-    const log: { call: string; arg: any }[] = [];
-    plotly(log);
-    const stub = server({
-      ...boot(), ...FITTED, ...TWO_PHASE_WINDOW,
-      "/api/peaks": () => ({ body: PEAKS_PAYLOAD }),
-      "/api/project": (call) => (call.method === "POST"
-        ? { body: { ...PROJECT, doc: { ...PROJECT.doc, excluded_regions: [[13, 16]] } } }
-        : { body: PROJECT }),
-    });
-    vi.stubGlobal("fetch", stub.fetcher);
-    app = mount(App, { target: host });
-    await flush();
-    button("Peaks")!.click();
-    await flush();
-
-    const arm = host.querySelector<HTMLElement>('.segmented[aria-label="select on the plot"]')!;
-    [...arm.querySelectorAll("button")].find((b) => b.textContent!.includes("exclude"))!.click();
-    await flush();
-    log.length = 0;
-    bus.handlers.plotly_selected({ range: { x: [16, 13] } });
-    await flush();
-
-    expect(stub.calls.find((c) => c.method === "POST" && c.path === "/api/project")?.body)
-      .toEqual({ excluded_regions: [[13, 16]] });
-    expect(reacts(log)).toBe(1);
-  });
-
-  it("still lets a double-click re-fit, and keeps the drag it was told about",
-     async () => {
-    const log: { call: string; arg: any }[] = [];
-    plotly(log);
-    vi.stubGlobal("fetch", server({ ...boot(), ...FITTED, ...TWO_PHASE_WINDOW }).fetcher);
-    app = mount(App, { target: host });
-    await flush();
-
-    const node = host.querySelector<HTMLElement>(".plot")! as any;
-    node._fullLayout.xaxis = { autorange: false, range: [10, 14] };
-    bus.handlers["plotly_relayout"]({ "xaxis.range[0]": 10, "xaxis.range[1]": 14 });
-    await flush();
-    expect(log.filter((c) => c.call === "react").at(-1)!.arg.xaxis.range).toEqual([10, 14]);
-
-    // plotly's `autosize` hands every axis back at once; the panel must not put
-    // its own pin straight back over the gesture that undid it
-    log.length = 0;
-    for (const key of ["xaxis", "yaxis", "yaxis2"]) {
-      node._fullLayout[key] = { autorange: true, range: [...AUTO[key]] };
-    }
-    bus.handlers["plotly_relayout"]({ "xaxis.autorange": true, "yaxis.autorange": true });
-    await flush();
-    // no range handed in at all — an absent key is what leaves plotly fitting
-    // the axis, and the pin then writes the fit back as the new explicit one
-    expect(log.filter((c) => c.call === "react").at(-1)!.arg.xaxis).not.toHaveProperty("range");
-    expect(log.find((c) => c.call === "relayout" && "xaxis.range" in c.arg)!.arg)
-      .toEqual({ "xaxis.range": AUTO.xaxis, "yaxis.range": AUTO.yaxis,
-                 "yaxis2.range": AUTO.yaxis2 });
-    expect(reacts(log)).toBe(1);
   });
 });
 
@@ -4230,12 +4028,47 @@ describe("the peaks tab (WP-1027)", () => {
     expect(sent?.body).toEqual({ index: 1, use_for_indexing: true });
   });
 
+  it("draws the groups' own residual under the raw pattern, in the peak layer's ink",
+     async () => {
+    // Before a fit there is no model to take a residual from, so the lower pane
+    // is each fitted group's (y − fit)/σ, on the channels its window covers. It
+    // is part of the peak layer, so it is drawn on the Peaks tab and in the
+    // layer's ink, which is also how its row in the strip names it.
+    const withGroups = {
+      ...PEAKS_PAYLOAD,
+      groups: [{ two_theta: [10, 11, 12], y_fit: [4, 2, 3], delta: [0.5, -1, 2] }],
+    };
+    vi.stubGlobal("fetch", server({
+      ...boot(), ...RAW,
+      "/api/peaks": () => ({ body: withGroups }),
+    }).fetcher);
+    app = mount(App, { target: host });
+    await flush();
+
+    const strip = () => {
+      const u = pane("resid");
+      return Array.from(u.data[0] as ArrayLike<number>)
+        .flatMap((x, i) => (u.data[1][i] == null ? [] : [[x, u.data[1][i]]]));
+    };
+    button("Peaks")!.click();
+    await flush();
+    expect(strip()).toEqual([[10, 0.5], [11, -1], [12, 2]]);
+    expect(ink("resid", 1)).toBe(INK.peakfit);
+    expect(pane("resid").opts.axes[1].label()).toBe("(y − fit)/σ per group");
+
+    // …and leaving the tab takes it off with the rest of the layer
+    button("Report")!.click();
+    await flush();
+    expect(strip()).toEqual([]);
+  });
+
   it("removes the line under a right-click, with no prompt in the way", async () => {
     // WP-1032, a scope decision the user took: right-click **removes**, and
     // refit stays on the table's `↻`.  The `window.prompt` for a component
     // count went with it — a modal in the one gesture that has no undo.
     const stub = server({
       ...boot(),
+      ...RAW,
       "/api/peaks": () => ({ body: PEAKS_PAYLOAD }),
       "/api/peaks/remove": (call: Call) => ({ body: { ...PEAKS_PAYLOAD,
         api_call: `session.remove_peak(${call.body.index})` } }),
@@ -4248,12 +4081,10 @@ describe("the peaks tab (WP-1027)", () => {
     button("Peaks")!.click();
     await flush();
 
-    // plotly's axis, which jsdom has no layout to build: pixel → 2θ over
-    // 9–15° in 100 px, so 50 px is 12.0° and the 10-px radius is 0.6°
-    const node = host.querySelector<HTMLElement>(".plot")! as any;
-    node._fullLayout = { xaxis: { _offset: 0, _length: 100, range: [9, 15],
-                                  p2d: (px: number) => 9 + px * 0.06 } };
-    node.dispatchEvent(new MouseEvent("contextmenu", { clientX: 50, bubbles: true }));
+    // the raw pattern spans 9-14° over the 1000-px plot area, so 600 px is
+    // 12.0° and the 10-px radius is 0.05°
+    const node = host.querySelector<HTMLElement>(".plot")!;
+    node.dispatchEvent(new MouseEvent("contextmenu", { clientX: 600, bubbles: true }));
     await flush();
 
     expect(stub.calls.find((c) => c.path === "/api/peaks/remove")?.body).toEqual({ index: 1 });
@@ -4261,18 +4092,13 @@ describe("the peaks tab (WP-1027)", () => {
     expect(prompt).not.toHaveBeenCalled();
   });
 
-  it("links the table and the plot by hover, through restyle rather than a repaint", async () => {
-    // Task 1 measured what a repaint of this pattern costs (~111 ms); a mouse
-    // move must not pay it.  One ring trace, two coordinates, `restyle`.
-    const drawn: any[] = [];
-    const restyled: any[] = [];
-    vi.stubGlobal("Plotly", {
-      react: async (_n: any, traces: any[]) => drawn.push(traces),
-      restyle: async (_n: any, update: any, which: number[]) => restyled.push({ update, which }),
-      purge: () => {},
-    });
+  it("links the table and the plot by hover, through a DOM ring rather than a repaint",
+     async () => {
+    // Task 1 of WP-1032 measured what a repaint of this pattern cost under
+    // plotly (~111 ms); a mouse move must not pay it. The ring is a DOM mark
+    // over the canvas, so moving it repaints nothing.
     const stub = server({
-      ...boot(), ...FITTED, ...TWO_PHASE_WINDOW,
+      ...boot(), ...FITTED, ...WIDE,
       "/api/peaks": () => ({ body: PEAKS_PAYLOAD }),
     });
     vi.stubGlobal("fetch", stub.fetcher);
@@ -4281,34 +4107,31 @@ describe("the peaks tab (WP-1027)", () => {
     button("Peaks")!.click();
     await flush();
 
-    // the ring is drawn empty, last, and out of the legend
-    const ring = drawn.at(-1)!.at(-1)!;
-    expect(ring.name).toBe("hovered");
-    expect(ring.x).toEqual([]);
-    expect(ring.showlegend).toBe(false);
+    const ring = host.querySelector<HTMLElement>(".rx-ring")!;
+    expect(ring.style.display).toBe("none");
 
-    const painted = drawn.length;
+    const painted = pane("main").paints;
     const rows = [...host.querySelectorAll<HTMLElement>(".panel:not(.hidden) tbody tr")];
     rows[2].dispatchEvent(new MouseEvent("mouseenter", { bubbles: false }));
     await flush();
 
-    // the row lights up, the ring moves to that 2θ, and nothing was repainted
+    // the row lights up, the ring moves to that line's 2θ, and nothing was repainted
     expect(rows[2].classList.contains("lit")).toBe(true);
-    expect(restyled.at(-1)!.update.x).toEqual([[14.0]]);
-    expect(restyled.at(-1)!.which).toEqual([drawn.at(-1)!.length - 1]);
-    expect(drawn.length).toBe(painted);
+    expect(ring.style.display).toBe("block");
+    expect(ring.style.left).toBe(`${pane("main").valToPos(14.0, "x")}px`);
+    expect(pane("main").paints).toBe(painted);
 
     rows[2].dispatchEvent(new MouseEvent("mouseleave", { bubbles: false }));
     await flush();
     expect(rows[2].classList.contains("lit")).toBe(false);
-    expect(restyled.at(-1)!.update.x).toEqual([[]]);   // off the plot, not at 0
+    expect(ring.style.display).toBe("none");   // off the plot, not at 0
   });
 
   it("states the gestures whenever the tab that owns them is showing", async () => {
     // it used to render only in the raw state, so the moment a fit existed the
     // pointer verbs were undocumented — and each one names its non-pointer route
     const stub = server({
-      ...boot(), ...FITTED, ...TWO_PHASE_WINDOW,
+      ...boot(), ...FITTED, ...TWO_PHASE,
       "/api/peaks": () => ({ body: PEAKS_PAYLOAD }),
     });
     vi.stubGlobal("fetch", stub.fetcher);
@@ -4331,22 +4154,16 @@ describe("the peaks tab (WP-1027)", () => {
     // The layer was pushed unconditionally, so a marker sat on the plot in
     // every tab — a picture of something the click under it cannot touch
     // (the plot is an editing surface only while Peaks is up, WP-1027).
-    const drawn: any[] = [];
-    vi.stubGlobal("Plotly", {
-      react: async (_n: any, traces: any[]) => drawn.push(traces),
-      restyle: async () => {},
-      purge: () => {},
-    });
     const stub = server({
-      ...boot(), ...FITTED, ...TWO_PHASE_WINDOW,
+      ...boot(), ...FITTED, ...WIDE,
       "/api/peaks": () => ({ body: PEAKS_PAYLOAD }),
     });
     vi.stubGlobal("fetch", stub.fetcher);
     app = mount(App, { target: host });
     await flush();
 
-    const names = () => drawn.at(-1)!.map((t: any) => t.name);
-    expect(names()).not.toContain("peaks");
+    const layer = () => pane("main").marks.filter((m) => m.style === INK.peak);
+    expect(layer()).toEqual([]);
     // and the toggle row says where it went rather than dropping the button
     const curves = () => host.querySelector<HTMLElement>('.segmented[aria-label="curves"]')!;
     const peaksButton = () =>
@@ -4356,33 +4173,27 @@ describe("the peaks tab (WP-1027)", () => {
 
     button("Peaks")!.click();
     await flush();
-    expect(names()).toContain("peaks");
+    expect(layer().length).toBeGreaterThan(0);
     expect(peaksButton().disabled).toBe(false);
 
     // …and leaving takes it off again, which needs a repaint and not a refetch
-    const fetched = stub.calls.filter((c) => c.path === "/api/result/window").length;
+    const fetched = curvesFetched(stub);
     button("Report")!.click();
     await flush();
-    expect(names()).not.toContain("peaks");
-    expect(stub.calls.filter((c) => c.path === "/api/result/window").length).toBe(fetched);
+    expect(layer()).toEqual([]);
+    expect(curvesFetched(stub)).toBe(fetched);
   });
 
   it("tells the picked-peak fit from the model by colour and by dash", async () => {
     // the report: "both the same colour".  Measured — `--accent` *is*
     // `--plot-diff` and `--bad` *is* `--plot-calc` on the light theme, so the
     // layer had been borrowing two curves' colours (WP-1210).
-    const drawn: any[] = [];
-    vi.stubGlobal("Plotly", {
-      react: async (_n: any, traces: any[]) => drawn.push(traces),
-      restyle: async () => {},
-      purge: () => {},
-    });
     const withGroups = {
       ...PEAKS_PAYLOAD,
       groups: [{ two_theta: [9.5, 10, 10.5], y_fit: [1, 5, 1], delta: [0, 0, 0] }],
     };
     const stub = server({
-      ...boot(), ...FITTED, ...TWO_PHASE_WINDOW,
+      ...boot(), ...FITTED, ...WIDE,
       "/api/peaks": () => ({ body: withGroups }),
     });
     vi.stubGlobal("fetch", stub.fetcher);
@@ -4391,52 +4202,50 @@ describe("the peaks tab (WP-1027)", () => {
     button("Peaks")!.click();
     await flush();
 
-    const trace = (name: string) => drawn.at(-1)!.find((t: any) => t.name === name);
-    const fit = trace("peak fit");
-    const calc = trace("calculated");
-    expect(fit.line.color).not.toBe(calc.line.color);
-    expect(fit.line.dash).toBe("dash");
-    expect(calc.line.dash).toBeUndefined();
-    // both are named on the plot itself — the legend and, since WP-1213, the
-    // readout strip under it, so neither curve has to be identified by
-    // elimination.  The hover box that used to carry the second naming is
-    // gone; what is left on the trace is silence.
-    expect(fit.showlegend).toBe(true);
-    expect(fit.hovertemplate).toBeUndefined();
-    expect(fit.hoverinfo).toBe("none");
+    const main = pane("main");
+    const fit = main.marks.find((m) => m.op === "stroke" && m.style === INK.peakfit)!;
+    expect(fit.dash).toBe(true);
+    expect(ink("main", 3)).toBe(INK.calc);
+    expect(INK.peakfit).not.toBe(INK.calc);
+    expect(main.opts.series[3].dash).toBeUndefined();
+    // both are named on the panel itself — the toggle row and, since WP-1213,
+    // the readout strip under the plot — so neither curve has to be identified
+    // by elimination
     expect(host.textContent).toContain("peak fit");
     // the markers are the layer's other colour, and the whole layer is *one*
     // colour: an unusable line is the same ink, hollow.  Spending a second on
     // the state is what had it on `--bad` (which is `--plot-calc` exactly),
     // and the recessive grey tried next measured 0.032 from `--plot-obs` on
     // the dark theme — the ink of the points these markers sit on.
-    const markers = trace("peaks");
-    expect(typeof markers.marker.color).toBe("string");   // one, not per-point
-    expect(markers.marker.color).not.toBe(calc.line.color);
-    expect(markers.marker.color).not.toBe(trace("Δ/σ").line.color);
-    expect(markers.marker.color).toBe(trace("hovered").marker.color);
-    // …so the state rides on the mark, and only there
-    expect(markers.marker.symbol[0]).toBe("circle");        // fitted, usable
-    expect(markers.marker.symbol[1]).toBe("circle-open");   // fitted, unusable
-    expect(markers.marker.symbol[2]).toBe("diamond");       // human-placed
+    // A marker is an arc (a circle) or four points (a diamond); a whisker is
+    // the six points of its bar and its two caps.
+    const markers = main.marks.filter((m) => m.style === INK.peak
+      && (m.op === "fill" || m.op === "stroke") && (m.points!.length === 1 || m.points!.length === 4));
+    expect(markers.map((m) => [m.op, m.points!.length === 1 ? "circle" : "diamond"])).toEqual([
+      ["fill", "circle"],      // fitted, usable
+      ["stroke", "circle"],    // fitted, unusable: hollow
+      ["fill", "diamond"],     // placed by a person
+    ]);
+    expect(INK.peak).not.toBe(INK.calc);
+    expect(INK.peak).not.toBe(INK.diff);
+    // …and the hover ring wears it too
+    host.querySelector<HTMLElement>(".panel:not(.hidden) tbody tr")!
+      .dispatchEvent(new MouseEvent("mouseenter", { bubbles: false }));
+    await flush();
+    const probe = document.createElement("i");
+    probe.style.color = INK.peak;
+    expect(host.querySelector<HTMLElement>(".rx-ring")!.style.borderColor).toBe(probe.style.color);
   });
 
   it("clears the plot to the data and puts back what was there before", async () => {
     // "an easy way to hide everything except the data" — and the way back is
     // the state the plot was in, not everything on: a user who had already
     // switched a phase's ticks off did not ask for them back.
-    const drawn: any[] = [];
-    vi.stubGlobal("Plotly", {
-      react: async (_n: any, traces: any[]) => drawn.push(traces),
-      restyle: async () => {},
-      purge: () => {},
-    });
-    const stub = server({ ...boot(), ...FITTED, ...TWO_PHASE_WINDOW });
+    const stub = server({ ...boot(), ...FITTED, ...TWO_PHASE });
     vi.stubGlobal("fetch", stub.fetcher);
     app = mount(App, { target: host });
     await flush();
 
-    const names = () => drawn.at(-1)!.map((t: any) => t.name);
     const curves = host.querySelector<HTMLElement>('.segmented[aria-label="curves"]')!;
     const curve = (label: string) =>
       [...curves.querySelectorAll("button")].find((b) => b.textContent!.trim() === label)!;
@@ -4445,19 +4254,19 @@ describe("the peaks tab (WP-1027)", () => {
 
     curve("CaF2").click();
     await flush();
-    expect(names()).toContain("NAC");
+    expect(tickInks()).toEqual([INK.phase[0]]);
 
     dataOnly.click();
     await flush();
-    expect(names()).toEqual(["observed"]);
+    expect(drawn()).toEqual(["obs"]);
+    expect(tickInks()).toEqual([]);
     expect(dataOnly.classList.contains("on")).toBe(true);
 
     dataOnly.click();
     await flush();
     // back to the picture as it was — CaF2 still off, everything else on
-    expect(names()).toContain("calculated");
-    expect(names()).toContain("NAC");
-    expect(names()).not.toContain("CaF2");
+    expect(drawn()).toEqual(["obs", "calc", "bkg", "diff"]);
+    expect(tickInks()).toEqual([INK.phase[0]]);
     expect(dataOnly.classList.contains("on")).toBe(false);
 
     // and nothing about a picture reached the project document
@@ -4560,8 +4369,9 @@ const EXTINCTION = (best: number | null) => ({
  * What is asserted here is the wiring across three components — the row that
  * selects, the shell that fetches and caches, the plot that draws — because
  * that is where this feature is, and `lib/plot.test.ts` already owns the pure
- * halves. The traces are read off a stubbed `Plotly.react`, which is how every
- * drawing claim in this file is made: jsdom has no plotly and no layout.
+ * halves. What was drawn is read off the uPlot stand-in's recording context
+ * (`test-uplot.ts`), which is how every drawing claim in this file is made:
+ * jsdom has no canvas.
  */
 describe("an indexing candidate on the plot (WP-1211)", () => {
   const INDEX_ANSWER = {
@@ -4577,19 +4387,19 @@ describe("an indexing candidate on the plot (WP-1211)", () => {
     } }),
   };
 
-  /** Every trace of the last `react`, by name. */
-  const names = (drawn: any[][]) =>
-    (drawn[drawn.length - 1] ?? []).map((t: any) => t.name);
+  /** The candidate's lines as the last paint stroked them, in 2θ, or null. */
+  function lines(): number[] | null {
+    const u = pane("main");
+    const m = u.marks.find((k) => k.op === "stroke" && k.style === INK.candidate);
+    if (!m) return null;
+    const xs = [...new Set(m.points!.map(([x]) => x))];
+    return xs.map((x) => Number(u.posToVal(x, "x").toFixed(2)));
+  }
 
   it("draws them full height through the data, and clears the curves to do it",
      async () => {
-    const drawn: any[][] = [];
-    vi.stubGlobal("Plotly", {
-      react: async (_n: any, traces: any[]) => { drawn.push(traces); },
-      restyle: async () => {}, purge: () => {},
-    });
     const stub = server({
-      ...boot(), ...FITTED, ...TWO_PHASE_WINDOW, ...INDEX_ANSWER,
+      ...boot(), ...FITTED, ...TWO_PHASE, ...INDEX_ANSWER,
       "/api/peaks": () => ({ body: PEAKS_PAYLOAD }),
     });
     vi.stubGlobal("fetch", stub.fetcher);
@@ -4598,7 +4408,7 @@ describe("an indexing candidate on the plot (WP-1211)", () => {
     button("Peaks")!.click();
     await flush();
     // before anything is selected the model is on screen and nothing is fetched
-    expect(names(drawn)).toContain("calculated");
+    expect(drawn()).toContain("calc");
     expect(stub.calls.some((c) => c.path === "/api/index/ticks")).toBe(false);
 
     // the disclosure *is* the selection: one control, because "show me this
@@ -4608,37 +4418,34 @@ describe("an indexing candidate on the plot (WP-1211)", () => {
 
     expect(stub.calls.find((c) => c.path === "/api/index/ticks")?.url)
       .toContain("candidate=0");
-    const trace = (drawn[drawn.length - 1] as any[])
-      .find((t: any) => t.yaxis === "y4");
-    expect(trace).toBeTruthy();
-    // one null-separated trace, each line spanning the axis rather than a value
-    expect(trace.x).toEqual([9.1, 9.1, null, 9.3, 9.3, null]);
-    expect(trace.y).toEqual([0, 1, null, 0, 1, null]);
-    expect(trace.name).toContain("4.7594");
+    // one stroke of full-height segments, one per line…
+    expect(lines()).toEqual([9.1, 9.3]);
+    const main = pane("main");
+    const stroke = main.marks.find((m) => m.op === "stroke" && m.style === INK.candidate)!;
+    expect(new Set(stroke.points!.map(([, y]) => y)))
+      .toEqual(new Set([main.bbox.top, main.bbox.top + main.bbox.height]));
+    // …under the data, since 426 lines over 115° buried the pattern on top
+    expect(main.marks.indexOf(stroke))
+      .toBeLessThan(main.marks.findIndex((m) => m.op === "series"));
+    expect(host.textContent).toContain("4.7594");
     // "through *just* the data": selecting presses `data only` for you
-    expect(names(drawn)).toContain("observed");
-    expect(names(drawn)).not.toContain("calculated");
+    expect(drawn()).toContain("obs");
+    expect(drawn()).not.toContain("calc");
     expect(host.textContent).toContain("2 predicted lines");
 
     // deselecting puts back exactly what was there, and takes the lines off
     host.querySelector<HTMLElement>(".candidates tbody button.ghost")!.click();
     await flush();
-    expect(names(drawn)).toContain("calculated");
-    expect((drawn[drawn.length - 1] as any[]).some((t: any) => t.yaxis === "y4"))
-      .toBe(false);
+    expect(drawn()).toContain("calc");
+    expect(lines()).toBeNull();
   });
 
   it("follows the tab that owns it, and is fetched once per candidate", async () => {
     // WP-1210's rule: a layer is drawn where it can be acted on, and the row
     // that acts on this one is in the Peaks panel.  The cache is the other
     // half — the hover preview below fires on every row the pointer crosses.
-    const drawn: any[][] = [];
-    vi.stubGlobal("Plotly", {
-      react: async (_n: any, traces: any[]) => { drawn.push(traces); },
-      restyle: async () => {}, purge: () => {},
-    });
     const stub = server({
-      ...boot(), ...FITTED, ...TWO_PHASE_WINDOW, ...INDEX_ANSWER,
+      ...boot(), ...FITTED, ...TWO_PHASE, ...INDEX_ANSWER,
       "/api/peaks": () => ({ body: PEAKS_PAYLOAD }),
     });
     vi.stubGlobal("fetch", stub.fetcher);
@@ -4650,30 +4457,26 @@ describe("an indexing candidate on the plot (WP-1211)", () => {
     const row = () => host.querySelector<HTMLElement>(".candidates tbody tr")!;
     row().dispatchEvent(new MouseEvent("mouseenter", { bubbles: false }));
     await flush();
-    expect((drawn[drawn.length - 1] as any[]).some((t: any) => t.yaxis === "y4"))
-      .toBe(true);
+    expect(lines()).not.toBeNull();
     // a hover is a preview, not a selection: the curves stay up
-    expect(names(drawn)).toContain("calculated");
+    expect(drawn()).toContain("calc");
 
     row().dispatchEvent(new MouseEvent("mouseleave", { bubbles: false }));
     await flush();
-    expect((drawn[drawn.length - 1] as any[]).some((t: any) => t.yaxis === "y4"))
-      .toBe(false);
+    expect(lines()).toBeNull();
 
     // select, then leave the tab: the layer goes with it
     host.querySelector<HTMLElement>(".candidates tbody button.ghost")!.click();
     await flush();
     button("Parameters")!.click();
     await flush();
-    expect((drawn[drawn.length - 1] as any[]).some((t: any) => t.yaxis === "y4"))
-      .toBe(false);
-    expect(names(drawn)).toContain("calculated");
+    expect(lines()).toBeNull();
+    expect(drawn()).toContain("calc");
 
     // …and comes back with it, off the cache: one fetch for three showings
     button("Peaks")!.click();
     await flush();
-    expect((drawn[drawn.length - 1] as any[]).some((t: any) => t.yaxis === "y4"))
-      .toBe(true);
+    expect(lines()).not.toBeNull();
     expect(stub.calls.filter((c) => c.path === "/api/index/ticks").length).toBe(1);
   });
 
@@ -4690,14 +4493,9 @@ describe("an indexing candidate on the plot (WP-1211)", () => {
     // second repaint — a flash on any candidate whose enumeration takes real
     // time, and on a *refused* one a plot left showing nothing at all, with no
     // lines and no sentence saying why (found by review, not by this suite).
-    const drawn: any[][] = [];
-    vi.stubGlobal("Plotly", {
-      react: async (_n: any, traces: any[]) => { drawn.push(traces); },
-      restyle: async () => {}, purge: () => {},
-    });
     const gate = held();
     vi.stubGlobal("fetch", server({
-      ...boot(), ...FITTED, ...TWO_PHASE_WINDOW, ...INDEX_ANSWER,
+      ...boot(), ...FITTED, ...TWO_PHASE, ...INDEX_ANSWER,
       "/api/peaks": () => ({ body: PEAKS_PAYLOAD }),
       "/api/index/ticks": () => ({ ...INDEX_ANSWER["/api/index/ticks"](),
                                    gate: gate.promise }),
@@ -4710,28 +4508,21 @@ describe("an indexing candidate on the plot (WP-1211)", () => {
     host.querySelector<HTMLElement>(".candidates tbody button.ghost")!.click();
     await flush();
     // in flight: the model is still on screen and there is nothing over it
-    expect(names(drawn)).toContain("calculated");
-    expect((drawn[drawn.length - 1] as any[]).some((t: any) => t.yaxis === "y4"))
-      .toBe(false);
+    expect(drawn()).toContain("calc");
+    expect(lines()).toBeNull();
 
     gate.open();
     await flush();
-    expect((drawn[drawn.length - 1] as any[]).some((t: any) => t.yaxis === "y4"))
-      .toBe(true);
-    expect(names(drawn)).not.toContain("calculated");
+    expect(lines()).not.toBeNull();
+    expect(drawn()).not.toContain("calc");
   });
 
   it("leaves the plot alone when the route refuses the cell", async () => {
     // `INDEX_CELL_TOO_LARGE`, or a lattice group gemmi will not build. The
     // honest outcome is that nothing on the plot moves — not a plot cleared to
     // the data with no lines on it, which reads as a drawing defect.
-    const drawn: any[][] = [];
-    vi.stubGlobal("Plotly", {
-      react: async (_n: any, traces: any[]) => { drawn.push(traces); },
-      restyle: async () => {}, purge: () => {},
-    });
     vi.stubGlobal("fetch", server({
-      ...boot(), ...FITTED, ...TWO_PHASE_WINDOW, ...INDEX_ANSWER,
+      ...boot(), ...FITTED, ...TWO_PHASE, ...INDEX_ANSWER,
       "/api/peaks": () => ({ body: PEAKS_PAYLOAD }),
       "/api/index/ticks": () => ({ status: 409, body: { error: {
         code: "INDEX_CELL_TOO_LARGE", message: "too many reflections" } } }),
@@ -4743,9 +4534,8 @@ describe("an indexing candidate on the plot (WP-1211)", () => {
 
     host.querySelector<HTMLElement>(".candidates tbody button.ghost")!.click();
     await flush();
-    expect(names(drawn)).toContain("calculated");
-    expect((drawn[drawn.length - 1] as any[]).some((t: any) => t.yaxis === "y4"))
-      .toBe(false);
+    expect(drawn()).toContain("calc");
+    expect(lines()).toBeNull();
     // …and the detail row still opened, so the click was not a no-op
     expect(host.querySelector(".candidates tr.detail")).toBeTruthy();
   });
@@ -4755,12 +4545,9 @@ describe("an indexing candidate on the plot (WP-1211)", () => {
     // The cache dedupes only once an answer is *back*, and each request is a
     // whole `generate_reflections` enumeration per emission line against a
     // server with no cancellation — so the in-flight set is the other half.
-    vi.stubGlobal("Plotly", {
-      react: async () => {}, restyle: async () => {}, purge: () => {},
-    });
     const gate = held();
     const stub = server({
-      ...boot(), ...FITTED, ...TWO_PHASE_WINDOW, ...INDEX_ANSWER,
+      ...boot(), ...FITTED, ...TWO_PHASE, ...INDEX_ANSWER,
       "/api/peaks": () => ({ body: PEAKS_PAYLOAD }),
       "/api/index/ticks": () => ({ ...INDEX_ANSWER["/api/index/ticks"](),
                                    gate: gate.promise }),
@@ -4793,11 +4580,8 @@ describe("an indexing candidate on the plot (WP-1211)", () => {
     // the cap is not silent: a thinned set drawn without saying so reads as
     // "these are the lines this cell predicts", which is the one claim this
     // picture must not make falsely (CLAUDE.md's no-silent-caps rule)
-    vi.stubGlobal("Plotly", {
-      react: async () => {}, restyle: async () => {}, purge: () => {},
-    });
     vi.stubGlobal("fetch", server({
-      ...boot(), ...FITTED, ...TWO_PHASE_WINDOW, ...INDEX_ANSWER,
+      ...boot(), ...FITTED, ...TWO_PHASE, ...INDEX_ANSWER,
       "/api/peaks": () => ({ body: PEAKS_PAYLOAD }),
       "/api/index/ticks": () => ({ body: {
         candidate: 0, space_group: "P -1", two_theta: [9.1, 9.3],
@@ -4818,30 +4602,6 @@ describe("an indexing candidate on the plot (WP-1211)", () => {
 });
 
 describe("the hover readout (WP-1213)", () => {
-  let bus: ReturnType<typeof emitter>;
-  beforeEach(() => { bus = emitter(); });
-  afterEach(() => bus.restore());
-
-  /** Every plotly call, with a `_fullLayout` complete enough for the pixel↔2θ
-   *  map the panel derives its grab radius from (0.001°/px here). */
-  function plotly(log: { call: string; arg: any }[]) {
-    vi.stubGlobal("Plotly", {
-      react: async (node: any, _t: any[], layout: any) => {
-        log.push({ call: "react", arg: layout });
-        node._fullLayout = {
-          xaxis: { autorange: false, range: [9, 9.4], _rl: [9, 9.4],
-                   _length: 400, _offset: 60,
-                   p2d: (px: number) => 9 + (px / 400) * 0.4 },
-          yaxis: { autorange: false, range: [0, 3] },
-          yaxis2: { autorange: false, range: [-1, 1] },
-        };
-      },
-      relayout: async (_n: any, patch: any) => log.push({ call: "relayout", arg: patch }),
-      restyle: async (_n: any, update: any) => log.push({ call: "restyle", arg: update }),
-      purge: () => {},
-    });
-  }
-
   /** The strip as `label → value` pairs, in the order it draws them. */
   function strip(): [string, string][] {
     const el = host.querySelector<HTMLElement>('[aria-label="under the pointer"]');
@@ -4851,23 +4611,11 @@ describe("the hover readout (WP-1213)", () => {
     ]);
   }
 
-  it("replaces the box with a strip under the plot, and costs no repaint",
+  it("says what the box said in a strip under the plot, and costs no repaint",
      async () => {
-    const log: { call: string; arg: any }[] = [];
-    plotly(log);
-    vi.stubGlobal("fetch", server({ ...boot(), ...FITTED, ...TWO_PHASE_WINDOW }).fetcher);
+    vi.stubGlobal("fetch", server({ ...boot(), ...FITTED, ...TWO_PHASE }).fetcher);
     app = mount(App, { target: host });
     await flush();
-
-    // the box is deleted rather than moved: plotly offers no positioning for
-    // the unified one beyond `hoverlabel.align`, which is what made "put it
-    // somewhere else" not a setting
-    const layout = log.find((c) => c.call === "react")!.arg;
-    expect(layout.hovermode).toBe("x");
-    expect(layout).not.toHaveProperty("hoverlabel");
-    // …and what marks the position instead is a spike across both subplots
-    expect(layout.xaxis.showspikes).toBe(true);
-    expect(layout.xaxis.spikemode).toBe("across");
 
     // the resting strip is the same fields, emptied — a strip that grew them
     // on hover would resize the canvas above it once per entry
@@ -4876,9 +4624,8 @@ describe("the hover readout (WP-1213)", () => {
       ["Δ/σ", "—"], ["NAC", "—"], ["CaF2", "—"],
     ]);
 
-    const reacts = log.filter((c) => c.call === "react").length;
-    bus.handlers.plotly_hover({ points: [{ x: 9.4 }] });
-    await flush();
+    const painted = pane("main").paints;
+    await pointAt(9.4);
 
     expect(strip()).toEqual([
       ["2θ", "9.4000°"],
@@ -4889,26 +4636,16 @@ describe("the hover readout (WP-1213)", () => {
       ["NAC", "-0.3000°"], ["CaF2", "-0.1000°"],
     ]);
     // and reading it cost no repaint at all: the strip is DOM, and this is
-    // WP-1032's "a hover costs a restyle, never a react" one step cheaper
-    expect(log.filter((c) => c.call === "react").length).toBe(reacts);
+    // WP-1032's "a hover never repaints the pattern" one step cheaper
+    expect(pane("main").paints).toBe(painted);
 
-    // …and the 2θ is the *pointer's*, through this panel's own axis map:
-    // `ev.points[0]` is whichever trace plotly matched first, and the ticks and
-    // the peak markers ride on grids of their own
-    bus.handlers.plotly_hover({ points: [{ x: 9 }], event: { clientX: 460 } });
-    await flush();
-    expect(Object.fromEntries(strip())["2θ"]).toBe("9.4000°");
-
-    bus.handlers.plotly_unhover({});
-    await flush();
+    await pointAt(null);
     expect(strip().every(([, v]) => v === "—")).toBe(true);
   });
 
   it("names the picked line under the pointer, and lights its row", async () => {
-    const log: { call: string; arg: any }[] = [];
-    plotly(log);
     const stub = server({
-      ...boot(), ...FITTED, ...TWO_PHASE_WINDOW,
+      ...boot(), ...FITTED, ...TWO_PHASE,
       "/api/peaks": () => ({ body: { ...PEAKS_PAYLOAD, peaks: [PEAK(0, 9.4)] } }),
     });
     vi.stubGlobal("fetch", stub.fetcher);
@@ -4917,8 +4654,7 @@ describe("the hover readout (WP-1213)", () => {
     button("Peaks")!.click();
     await flush();
 
-    bus.handlers.plotly_hover({ points: [{ x: 9.4 }] });
-    await flush();
+    await pointAt(9.4);
 
     // the peak table's own spellings (WP-1209): four places with the esd in
     // the last of them, and I relative to the strongest *measured* line
@@ -4927,24 +4663,21 @@ describe("the hover readout (WP-1213)", () => {
     // what lights the table row — one hit test, not a second opinion
     expect(host.querySelector("tbody tr.lit")).toBeTruthy();
 
-    bus.handlers.plotly_hover({ points: [{ x: 9.0 }] });
-    await flush();
+    await pointAt(9.0);
     expect(Object.fromEntries(strip()).peak).toBe("—");
     expect(host.querySelector("tbody tr.lit")).toBeNull();
   });
 
   it("names a candidate's line by hkl and by the λ it belongs to", async () => {
-    const log: { call: string; arg: any }[] = [];
-    plotly(log);
     const stub = server({
-      ...boot(), ...FITTED, ...TWO_PHASE_WINDOW,
+      ...boot(), ...FITTED, ...TWO_PHASE,
       "/api/peaks": () => ({ body: PEAKS_PAYLOAD }),
       "/api/index/result": () => ({ body: {
         result: { candidates: [MEDIUM_CANDIDATE], diagnostics: [], quality: null },
         adopt: [{ allowed: false, why: "confidence is 'medium'" }],
         refuting_caveats: [], running: false } }),
       "/api/index/ticks": () => ({ body: {
-        candidate: 0, space_group: "R -3 m :H", two_theta: [9.395, 12.0],
+        candidate: 0, space_group: "R -3 m :H", two_theta: [9.398, 12.0],
         hkl: [[1, 0, -4], [1, 1, 0]], line: [1, 0],
         n_total: 2, n_returned: 2, shift_template: null, shift_coefficient: 0 } }),
     });
@@ -4956,12 +4689,11 @@ describe("the hover readout (WP-1213)", () => {
     host.querySelector<HTMLElement>(".candidates tbody button.ghost")!.click();
     await flush();
 
-    bus.handlers.plotly_hover({ points: [{ x: 9.4 }] });
-    await flush();
+    await pointAt(9.4);
 
     const fields = Object.fromEntries(strip());
-    // the hkl WP-1211 serves and deliberately does not draw: under the unified
-    // box it would have appeared at every pointer position
+    // the hkl WP-1211 serves and plotly's unified box would have put in a row
+    // at every pointer position
     expect(fields.candidate).toBe("(1 0 −4) · λ 1.5444 Å");
     // selecting a candidate presses `data only`, and the strip follows what is
     // drawn — so the model's rows are gone rather than quoting hidden curves
