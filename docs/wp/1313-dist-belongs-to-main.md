@@ -70,16 +70,20 @@ reproducible byte for byte — the console pane in frame shows wall-clock
 times, so regenerating moves sixteen of the eighteen files whatever changed.
 Anything that regenerates committed artefacts on main inherits that churn.
 
-**From WP-1461 (2026-09-25).** The GUI build is about to write a second
-committed output. WP-1461's D2 pins uPlot exactly in `gui/package.json`, and
-`npm run build` copies its files into `src/rietx/viz/static/`, which the
-watcher, the compare page and `write_html` serve. A test holds the vendored
-banner's version equal to the pin. Dependabot opens a pull request for each
-uPlot release, and the stale-dist check turning that pull request red is
-what makes someone rebuild. If this WP makes the dist check advisory and
-rebuilds on main, the rebuild must take the vendored directory too, and the
-version test must not stay red on a pull request nobody is asked to rebuild.
-WP-1462 adds three.js to the same pin list, bundled only.
+**From WP-1461 (2026-09-25, landed the same day).** The GUI build now
+writes a second committed output. `gui/package.json` pins uPlot exactly, and
+`npm run build` starts with `gui/scripts/vendor.py`, which copies its files
+into `src/rietx/viz/static/`. `test_gui_dist.py` holds the vendored banner's
+version equal to the pin. `.github/dependabot.yml` opens a pull request for
+each uPlot release, and the stale-dist check turning it red is what makes
+someone rebuild. Two consequences for this WP. The digest now covers
+`src/rietx/viz/static/` whole, so an edit to the chart module
+`rxplot.mjs` there stales the dist exactly as a `gui/src` edit does, and
+`gui.yml` diffs that directory after a fresh build. If this WP makes the dist
+check advisory and rebuilds on main, the rebuild must take the vendored
+directory too, and the version test must not stay red on a pull request
+nobody is asked to rebuild. WP-1462 adds three.js to the same allow list,
+bundled only.
 
 ## Non-goals
 

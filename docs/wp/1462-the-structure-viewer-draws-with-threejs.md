@@ -98,6 +98,15 @@ styles, and by default it finds bonds itself. The server owns the bond rule
 here (`gui/CLAUDE.md`: LaB6's La–La edges). Whether 3Dmol.js draws the
 server's ellipsoids and bonds as given is untested.
 
+### Inherited
+
+**From WP-1461 (2026-09-25).** The Dependabot allow list exists now, as
+`.github/dependabot.yml` with `uplot` alone, so three.js is one more
+`dependency-name` there. A library compiled into the dist also owes its
+licence text to `LICENSE-3RD-PARTY.md`, the file the wheel ships as its
+notices, beside the ATTRIBUTION row this WP's pin task names. WP-1461 added
+uPlot's there.
+
 ## Decisions this WP takes
 
 Each carries the recommended answer, for the maintainer to confirm or
