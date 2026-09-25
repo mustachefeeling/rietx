@@ -568,10 +568,11 @@ both land no page needs plotly.
   including an empty mouse-down.
 - three.js 0.186.1, the viewer's imports bundled: 557 KB, 138 KB gzip.
   3Dmol.js 2.5.5: 538 KB, 156 KB gzip.
-- Fast suite on this branch with main merged: 6034 passed, 141 skipped, in
-  2:51, `[dev]` venv, macOS arm64, no other suite running. This session
-  added no test. The full selection did not run, since nothing here can
-  move a measured number.
+- Fast suite on this branch with main `6641c8cf` merged: 6038 passed, 141
+  skipped, in 2:22, `[dev]` venv, macOS arm64, no other suite running. An
+  earlier merge of main measured 6034 and 141, and the four more passes
+  came with main. This session added no test. The full selection did not
+  run, since nothing here can move a measured number.
 
 *Gotchas:*
 - `npm --prefix X init` writes `package.json` into the working directory,
