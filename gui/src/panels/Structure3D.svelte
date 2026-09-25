@@ -259,8 +259,8 @@
    * invisible to jsdom, which has no layout — the canvas overhung the legend and
    * swallowed its clicks, so the chips looked live and were not.
    *
-   * `coalesce` for the same reason the pattern plot has it, and on the same
-   * evidence rather than by analogy: measured here too, a 60-move drag of the
+   * `coalesce` for the reason the pattern plot had it under plotly, and on the
+   * same evidence rather than by analogy: measured here too, a 60-move drag of the
    * model pane's column grip issued **60** resizes whose last resolved 1.115 s
    * after it was asked for (`lib/resize.ts` carries the numbers and the rule).
    */
