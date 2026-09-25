@@ -1,6 +1,6 @@
 # WP-1461 — every browser chart draws with uPlot
 
-Milestone: unscheduled · Status: 🔄 2026-09-25 — tasks 2-4 done: the payload route settled, uPlot vendored at its pin, the module's core built, browser-tested and reviewed; the pilot next
+Milestone: unscheduled · Status: 🔄 2026-09-25 — claimed by @yue-here for the pilot (task 5); tasks 1-4 done
 Depends on: —
 Priority: P2 2026-09-24 — the maintainer's decision that every browser chart builds on one module; today plotly blocks every GUI open for 0.7-0.8 s before the first plot
 
