@@ -112,6 +112,31 @@ export function tickLabels(splits) {
 }
 
 /**
+ * A Miller index as a reader writes one: `(1 0 −1)`, spaced, with U+2212 in
+ * front of the digit. `watch-core.mjs`'s `hklLabel` and the GUI's `formatHkl`
+ * are its twins, and `plot.test.ts` holds all three equal over one table.
+ * `watch-core.mjs` cannot import this file under `node --test`, which runs it
+ * from another directory.
+ */
+export function hklLabel(hkl) {
+  if (!Array.isArray(hkl) || hkl.length !== 3) return "";
+  return `(${hkl.map((v) => (v < 0 ? `−${Math.abs(v)}` : String(v))).join(" ")})`;
+}
+
+/**
+ * `a − b`, channel for channel. Two arrays of different lengths are two sets
+ * of channels, which no subtraction compares, so they throw.
+ */
+export function difference(a, b) {
+  if (a.length !== b.length) {
+    throw new Error(`rxplot: ${a.length} channels against ${b.length}; a difference needs one grid`);
+  }
+  const out = new Float64Array(a.length);
+  for (let i = 0; i < a.length; i++) out[i] = a[i] - b[i];
+  return out;
+}
+
+/**
  * `values` placed at `index` in an array of `n` nulls.
  *
  * A uPlot chart has one x array (finding 10), so every series is drawn over
@@ -213,6 +238,9 @@ function yScale(uPlot, kind, pinned, fixed, own) {
 /** The width of a y axis title, the same on every pane so their plot areas align. */
 const TITLE = 18;
 
+/** An x axis's height in CSS px, bare and with its tick labels. A title adds `TITLE`. */
+const X_BARE = 6, X_LABELS = 24;
+
 /** Axis type, at the size the pages' own controls are set in. uPlot's titles are bold by default. */
 const FONT = '11px system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
 
@@ -220,8 +248,8 @@ function axes(spec, gutter) {
   const ink = () => token("--fg"), line = () => token("--line");
   const text = { font: FONT, labelFont: FONT };
   const x = { ...text, stroke: ink, grid: { stroke: line, width: 1 }, ticks: { stroke: line } };
-  if (!spec.xLabels) Object.assign(x, { values: (u, s) => s.map(() => ""), size: 6 });
-  else Object.assign(x, { size: 24, values: (u, s) => tickLabels(s) },
+  if (!spec.xLabels) Object.assign(x, { values: (u, s) => s.map(() => ""), size: X_BARE });
+  else Object.assign(x, { size: X_LABELS, values: (u, s) => tickLabels(s) },
                      spec.xLabel == null ? {} : { label: spec.xLabel, labelSize: TITLE });
   const y = { ...text, stroke: ink, grid: { stroke: line, width: 1 }, ticks: { stroke: line }, size: gutter,
               label: spec.label ?? "", labelSize: TITLE };
@@ -358,7 +386,13 @@ export function panes(uPlot, host, spec) {
       width: host.clientWidth, height: heights()[key], legend: { show: false },
       scales: { x: { time: false }, y: yScale(uPlot, p.y ?? "lin", () => pins[key] ?? null, p.range, p.auto) },
       axes: axes(p, gutter),
-      series: [{}, ...p.series],
+      // A band has no y labels for uPlot's automatic top padding to make room
+      // for, and that padding took 17 px of a one-phase band's 22.
+      ...(p.yLabels === false ? { padding: [0, null, null, null] } : {}),
+      // A line is a line. uPlot rings every point of a series whose points sit
+      // far enough apart, which a zoom always reaches, and a ringed calculated
+      // curve reads as observed points. A series that wants marks says so.
+      series: [{}, ...p.series.map((s) => ({ points: { show: false }, ...s }))],
       cursor: {
         sync: { key: sync, setSeries: false, scales: ["x", null],
                 filters: { pub: (type) => type !== "mousedown" && type !== "mouseup" && type !== "dblclick" } },
@@ -499,9 +533,9 @@ export function positive(values) {
   return Array.from(values, (v) => (v != null && v > 0 ? v : null));
 }
 
-/** The tick band's height in CSS px for `rows` phases, the x axis's 6 px included. */
+/** The tick band's height in CSS px for `rows` phases, its bare x axis included. */
 export function tickHeight(rows) {
-  return 12 + 16 * rows;
+  return 6 + X_BARE + 16 * rows;
 }
 
 /**
@@ -530,6 +564,33 @@ export function vlines(u, xs, top, height, color) {
     ctx.moveTo(p, top);
     ctx.lineTo(p, top + height);
   }
+  ctx.stroke();
+  ctx.restore();
+}
+
+/** One row of `vlines` per phase of `ticks` across the band `u`, but for the phases `skip` names. */
+function tickRows(u, ticks, colors, skip) {
+  const phases = Object.keys(ticks);
+  if (!phases.length) return;
+  const { top, height } = u.bbox, row = height / phases.length, pad = row / 4;
+  phases.forEach((phase, r) => {
+    if (skip(phase)) return;
+    vlines(u, ticks[phase], top + r * row + pad, row - 2 * pad, phaseInk(colors, r, phases.length));
+  });
+}
+
+/** A line across the plot area at y = 0, when zero is in view. */
+function zeroLine(u, color) {
+  const y = Math.round(u.valToPos(0, "y", true)) + 0.5, { top, height, left, width } = u.bbox;
+  if (y < top || y > top + height) return;
+  const { ctx } = u;
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = devicePixelRatio;
+  ctx.setLineDash([]);
+  ctx.beginPath();
+  ctx.moveTo(left, y);
+  ctx.lineTo(left + width, y);
   ctx.stroke();
   ctx.restore();
 }
@@ -655,31 +716,10 @@ export function pattern(uPlot, host, curves, spec) {
              alpha: key === "masked" ? 0.45 : 1, paths: thinMarkers(size[key]), points: { show: false } };
   }
 
-  function drawTicks(u) {
-    const phases = Object.keys(state.c.ticks);
-    if (!phases.length) return;
-    const colors = spec.colors(), { top, height } = u.bbox, row = height / phases.length;
-    const pad = row / 4;
-    phases.forEach((phase, r) => {
-      if (state.hidden.has(`ticks:${phase}`)) return;
-      vlines(u, state.c.ticks[phase], top + r * row + pad, row - 2 * pad, phaseInk(colors, r, phases.length));
-    });
-  }
+  const drawTicks = (u) => tickRows(u, state.c.ticks, spec.colors(), (phase) => state.hidden.has(`ticks:${phase}`));
 
   function drawZero(u) {
-    if (state.residual === "cumulative") return;
-    const y = Math.round(u.valToPos(0, "y", true)) + 0.5, { top, height, left, width } = u.bbox;
-    if (y < top || y > top + height) return;
-    const { ctx } = u;
-    ctx.save();
-    ctx.strokeStyle = spec.colors().zero;
-    ctx.lineWidth = devicePixelRatio;
-    ctx.setLineDash([]);
-    ctx.beginPath();
-    ctx.moveTo(left, y);
-    ctx.lineTo(left + width, y);
-    ctx.stroke();
-    ctx.restore();
+    if (state.residual !== "cumulative") zeroLine(u, spec.colors().zero);
   }
 
   function hooks(key, own = {}) {
@@ -768,6 +808,95 @@ export function pattern(uPlot, host, curves, spec) {
     const diff = residShown();
     if (resid.series[1].show !== diff) resid.setSeries(1, { show: diff });
     ticks.redraw(false, false);
+  };
+
+  return group;
+}
+
+// ---------------------------------------------------------------- the overlay
+
+/**
+ * Several fits of one pattern over each other (D3): the `rietx compare` figure.
+ *
+ * `data`:
+ *
+ * - `x`, the fitted channels' 2θ. Every fit shares it, since a variant changes
+ *   the model and never the channels (D8).
+ * - `obs`, the observed points on `x`.
+ * - `ticks`, `{ phase: [2θ] }`, one row of the tick band each.
+ * - `fits`, `[{ key, calc, delta, cum }]`, each array on `x`: the calculated
+ *   pattern, (obs − calc)/σ and the cumulative χ².
+ *
+ * Three panes and the tick band, in the order the page explains them:
+ *
+ * - `cum`, each fit's cumulative χ² less the reference's, a subtraction on the
+ *   one grid. The reference is drawn too, flat at zero, so every pane has the
+ *   same series and a new reference is new numbers for one pane.
+ * - `diff`, each fit's (obs − calc)/σ.
+ * - `fit`, the observed points under every calculated curve, and the tick band
+ *   under it, carrying its x axis.
+ *
+ * `spec`:
+ *
+ * - `colors()`: `{ obs, zero, phase, fits }`, read at every draw. `fits` maps
+ *   each key to its ink and `phase` has one ink per tick row.
+ * - `reference`: the key the Δχ² is taken against. A key no fit has leaves
+ *   the `cum` pane empty.
+ * - `hidden`: the keys of the fits not drawn.
+ * - `labels`: `{ cum, diff, fit }`, the y axis titles, as functions.
+ * - `height`: each pane's height in CSS px, 300 by default.
+ *
+ * The figure is the pane group (`panes`) with `setReference` and `setHidden`.
+ */
+export function overlay(uPlot, host, data, spec) {
+  const state = { reference: spec.reference, hidden: new Set(spec.hidden ?? []) };
+  const height = spec.height ?? 300, xLabel = "2θ (°)";
+  // a reference with no fit here draws nothing, rather than a Δχ² against another fit
+  const cumData = () => {
+    const ref = data.fits.find((f) => f.key === state.reference)?.cum;
+    return data.fits.map((f) => (ref ? difference(f.cum, ref) : new Array(data.x.length).fill(null)));
+  };
+  const line = (f, width) => ({ show: !state.hidden.has(f.key), stroke: () => spec.colors().fits[f.key], width });
+  const lines = (width) => data.fits.map((f) => line(f, width));
+  const label = (key) => () => spec.labels?.[key]?.() ?? "";
+  const zero = (u) => zeroLine(u, spec.colors().zero);
+  const obs = () => spec.colors().obs;
+  const rows = Object.keys(data.ticks).length;
+
+  const group = panes(uPlot, host, {
+    x: data.x,
+    panes: [
+      { key: "cum", height, xLabels: true, xLabel, label: label("cum"), series: lines(1.6),
+        data: cumData(), hooks: { drawAxes: [zero] } },
+      { key: "diff", height, xLabels: true, xLabel, label: label("diff"), series: lines(1),
+        data: data.fits.map((f) => f.delta), hooks: { drawAxes: [zero] } },
+      { key: "fit", height, label: label("fit"),
+        series: [{ stroke: obs, fill: obs, paths: thinMarkers(3), points: { show: false } }, ...lines(1.1)],
+        data: [data.obs, ...data.fits.map((f) => f.calc)] },
+      // the band carries the x axis the pattern above it leaves out
+      { key: "ticks", height: tickHeight(rows) - X_BARE + X_LABELS + TITLE, range: [0, 1], yLabels: false,
+        xLabels: true, xLabel, series: [{ show: false }], data: [new Array(data.x.length).fill(null)],
+        hooks: { draw: [(u) => tickRows(u, data.ticks, spec.colors(), () => false)] } },
+    ],
+  });
+
+  /** Take the Δχ² against another fit. The same one again recomputes nothing. */
+  group.setReference = (key) => {
+    if (key === state.reference) return;
+    state.reference = key;
+    group.setData("cum", cumData());
+  };
+
+  /** Draw every fit but `keys`, in every pane. */
+  group.setHidden = (keys) => {
+    state.hidden = new Set(keys);
+    for (const key of ["cum", "diff", "fit"]) {
+      const u = group.panes[key], first = key === "fit" ? 2 : 1;
+      u.batch(() => data.fits.forEach((f, i) => {
+        const show = !state.hidden.has(f.key);
+        if (u.series[first + i].show !== show) u.setSeries(first + i, { show });
+      }));
+    }
   };
 
   return group;

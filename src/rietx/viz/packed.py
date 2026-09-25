@@ -28,6 +28,15 @@ import numpy as np
 #: What a route serves a packed body as.
 MEDIA_TYPE = "application/octet-stream"
 
+#: About the most channels a packed payload carries (D4 and D5). The chart
+#: paints each pixel column's lowest and highest point, and the pilot measured
+#: that at 132 992 channels, the largest pattern the repository reads, with no
+#: long frame. The spike's 200 000 had one, so a pattern past this is
+#: decimated by ``viz.compare.decimation_index`` first, whose count is a
+#: budget: a bucket's minimum and maximum can bring it a channel over. The GUI's
+#: curves routes and ``rietx compare`` both send under it.
+CURVES_CEILING = 150_000
+
 #: The two dtypes a browser reads as a typed array with no conversion.
 _FLOAT, _INT = "<f8", "<i4"
 

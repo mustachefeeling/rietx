@@ -405,6 +405,13 @@ The browser front end for the comparison [](report.md) describes: pick a bundled
 standard, tick the settings variants, and read the cumulative
 Δχ²-against-the-reference panel rather than the Rwp.
 
+The three panes share one 2θ axis and take the GUI's gestures. A drag zooms
+every pane, scrolling zooms about the pointer, and a double-click shows the
+whole pattern again. The variant list is the legend: each variant shows the
+colour it is drawn in, and unticking one hides it in every pane. The line above
+the panes reads each variant's value at the pointer. Over the tick band it names
+the reflection instead.
+
 It needs the standards, which are test data rather than package data, so
 `--data` points it at a checkout's `tests/data`. Started without them it says so
 and lists nothing:

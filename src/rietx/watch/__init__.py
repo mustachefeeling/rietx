@@ -18,7 +18,7 @@ half that touches no DOM and the suite runs it through ``node --test``;
 ``watch.mjs`` owns the document. What the page cannot know about this build
 travels on the first ``/api/runs`` (:func:`_page_constants`). The picture is
 drawn by the chart module every browser page shares, served with its uPlot
-out of ``viz/static`` (:data:`CHART_FILES`, WP-1461).
+out of ``viz/static`` (:data:`rietx.viz.chart.CHART_FILES`, WP-1461).
 
 **The watcher has two verbs** (WP-1405, WP-1428). Everything else reads: it
 opens no project and constructs no refinement. ``POST /api/run/<id>/cancel``
@@ -67,6 +67,7 @@ from pathlib import Path
 from .. import runs as runs_mod
 from .._about import DIST_NAME, PROJECT_SUFFIX
 from ..viz import theme as theme_mod
+from ..viz.chart import CHART_DIR, CHART_FILES
 
 #: The page, as files in the package — ``gui/server.py``'s ``STATIC_DIR`` one
 #: rank down (WP-1430). A page quoted inside python is a page no editor lints,
@@ -83,18 +84,6 @@ STATIC_FILES = {
     "watch.css": "text/css; charset=utf-8",
     "watch.mjs": "text/javascript; charset=utf-8",
     "watch-core.mjs": "text/javascript; charset=utf-8",
-}
-
-#: The chart the picture is drawn with (WP-1461): the chart module every
-#: browser page shares and the uPlot vendored beside it, at the pin
-#: ``gui/package.json`` holds. Served from where the wheel keeps them, so the
-#: page draws with no network and no optional dependency, where plotly needed
-#: the ``viz`` extra and 4.8 MB.
-CHART_DIR = Path(__file__).parent.parent / "viz" / "static"
-CHART_FILES = {
-    "rxplot.mjs": "text/javascript; charset=utf-8",
-    "uPlot.iife.min.js": "text/javascript; charset=utf-8",
-    "uPlot.min.css": "text/css; charset=utf-8",
 }
 
 #: How long the GUI launch waits for the spawned process to name its port

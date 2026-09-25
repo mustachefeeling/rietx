@@ -18,6 +18,7 @@ import {
   toggleCurve,
   type Window,
 } from "./plot";
+import { hklLabel } from "rxplot";
 import { formatHkl } from "./peaks";
 
 const WEIGHTED: Window = {
@@ -636,7 +637,11 @@ describe("the watcher's hkl label", () => {
     for (const [hkl, want] of CASES) {
       expect(core.hklLabel(hkl)).toBe(want);
       expect(core.hklLabel(hkl)).toBe(formatHkl(hkl));
+      // the chart module's, which `rietx compare` writes its tick box with;
+      // the watcher's copy cannot import it under `node --test` (WP-1461)
+      expect(hklLabel(hkl)).toBe(want);
     }
+    expect(hklLabel([1, 1])).toBe("");
     // and its own guard, which `formatHkl` does not need: the watcher reads
     // a snapshot somebody else wrote, while every caller here holds a row
     // the route built (`watch_core.test.mjs` owns the rest of that case)

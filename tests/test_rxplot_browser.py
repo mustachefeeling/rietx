@@ -400,6 +400,32 @@ def test_a_log_scale_keeps_the_view_and_hides_curves_by_id(page):
     assert shown == [[True, True, True, False, True], False]
 
 
+def test_a_one_phase_band_gives_its_row_the_room_it_was_sized_for(page):
+    """``tickHeight`` sizes the band at 16 px a row over its bare x axis, and
+    uPlot's automatic top padding took 17 px of a one-phase band's 22, leaving
+    a 5 px row and ticks 2.5 px tall. Found drawing ``rietx compare``; the GUI,
+    the watcher and the Series panel drew theirs the same way."""
+    page.evaluate("""(() => { const c = curves(); c.header.ticks = { a: [12, 20, 30] };
+        return mountPattern({}, c); })()""")
+    _frames(page)
+    got = page.evaluate("""(() => { const u = G.panes.ticks;
+        return [u.bbox.height / devicePixelRatio, rx.tickHeight(1) - 6]; })()""")
+    assert got[0] == got[1]
+
+
+def test_a_line_rings_none_of_its_points_however_far_the_view_zooms(page):
+    """uPlot rings each point of a series once its points sit far enough apart,
+    which a zoom always reaches, and a ringed calculated curve reads as
+    observed points. plotly drew these as lines, and so does the chart."""
+    page.evaluate("mountPattern()")
+    page.evaluate("G.setX(20, 21)")
+    _frames(page)
+    rings = page.evaluate("""['main', 'resid'].flatMap((k) => { const u = G.panes[k];
+        return u.series.slice(1).map((s, i) => typeof s.points.show === 'function'
+            ? s.points.show(u, i + 1) : s.points.show); })""")
+    assert rings and not any(rings), rings
+
+
 def test_each_phase_ticks_in_its_own_row_and_ink(page):
     """Two phases, two rows, two inks; a hidden row draws nothing."""
     page.evaluate("mountPattern()")
@@ -589,3 +615,57 @@ def test_a_trajectory_zooms_like_every_other_chart(page):
     lo, hi = _x(page, "traj")
     assert 300 <= lo < hi < 400
     assert _y(page, "traj")[1] < before[1], "y did not follow the view"
+
+
+# ---------------------------------------------------------------- the overlay
+def test_the_overlay_takes_its_delta_chi2_by_subtraction_against_the_reference(page):
+    """D8 for `rietx compare`: every fit shares one x, so the Δχ² pane is each
+    fit's cumulative χ² less the reference's, channel for channel, where the
+    plotly page interpolated. The reference draws flat at zero, and a new
+    reference is new numbers for that pane alone."""
+    page.evaluate("mountOverlay()")
+    _frames(page)
+    got = page.evaluate("""(() => { const f = fits(), d = G.panes.cum.data, n = f.x.length - 1;
+        return { ends: [1, 2, 3].map((s) => d[s][n]), cums: f.fits.map((x) => x.cum[n]) }; })()""")
+    a, b, c = got["cums"]
+    assert got["ends"] == [0, b - a, c - a]
+    page.evaluate("G.setReference('c')")
+    _frames(page)
+    assert page.evaluate("G.panes.cum.data.slice(1).map((s) => s[s.length - 1])") == [a - c, b - c, 0]
+    # a reference with no fit here draws nothing rather than another fit's Δχ²
+    page.evaluate("G.setReference('pending')")
+    _frames(page)
+    assert page.evaluate("G.panes.cum.data.slice(1).every((s) => s.every((v) => v === null))")
+
+
+def test_the_overlay_hides_a_fit_in_every_pane(page):
+    page.evaluate("mountOverlay()")
+    _frames(page)
+    assert _has(_near(page, "diff", 20), [0, 0, 255], alpha=100)
+    page.evaluate("G.setHidden(['b'])")
+    _frames(page)
+    shown = page.evaluate("""['cum', 'diff', 'fit'].map((k) =>
+        G.panes[k].series.slice(k === 'fit' ? 2 : 1).map((s) => s.show))""")
+    assert shown == [[True, False, True]] * 3
+    assert not _has(_near(page, "diff", 20), [0, 0, 255], alpha=100)
+    # the observed points are not a fit, and stay
+    assert page.evaluate("G.panes.fit.series[1].show")
+
+
+def test_the_overlay_zooms_every_pane_and_its_band_carries_the_ticks(page):
+    """One x for the three panes and the band, whichever pane the drag starts
+    in, and the band's rows in their phases' inks at the tick positions."""
+    page.evaluate("mountOverlay()")
+    _frames(page)
+    _drag(page, "diff", 0.25, 0.5, 0.75, 0.5)
+    ranges = [_x(page, k) for k in ("cum", "diff", "fit", "ticks")]
+    assert all(r == ranges[0] for r in ranges) and ranges[0][1] - ranges[0][0] < 30
+    page.evaluate("G.reset()")
+    _frames(page)
+    rows = page.evaluate("""(() => { const b = G.panes.ticks.bbox;
+        return [b.top + b.height / 4, b.top + 3 * b.height / 4].map(Math.round); })()""")
+    pixels = page.evaluate("""([x, y]) => { const u = G.panes.ticks;
+        const px = Math.round(u.valToPos(x, 'x', true));
+        return Array.from({length: 5}, (_, i) => Array.from(u.ctx.getImageData(px - 2 + i, y, 1, 1).data)); }""",
+                           [20, rows[0]])
+    assert _has(pixels, [0, 0xa0, 0xa0], alpha=100)

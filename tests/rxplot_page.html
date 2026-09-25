@@ -91,5 +91,25 @@ window.mountTrajectory = (spec = {}, traj = loop()) => {
   G.onPoint = (hit) => G.points.push(hit && { i: hit.i, chain: hit.chain });
   return true;
 };
+// Three fits of one pattern on one grid, as `rietx compare` hands the overlay
+// them: `k` scales each fit's residual, so its cumulative χ² is k² times a's.
+window.fits = (n = 1000) => {
+  const x = Float64Array.from({ length: n }, (_, i) => 10 + 50 * i / (n - 1));
+  const obs = Float64Array.from(x, (v) => 100 + 50 * Math.sin(v));
+  const fit = (key, k, offset) => {
+    const delta = Float64Array.from(x, (v) => k * Math.cos(v));
+    let sum = 0;
+    return { key, delta, cum: Float64Array.from(delta, (d) => (sum += d * d)),
+             calc: Float64Array.from(obs, (y) => y + offset) };
+  };
+  return { x, obs, ticks: { a: [20, 30], b: [25] }, fits: [fit("a", 1, 2), fit("b", 0.5, -2), fit("c", 2, 4)] };
+};
+window.fitInks = { obs: "#000000", zero: "#808080", phase: ["#00a0a0", "#a000a0"],
+                   fits: { a: "#ff0000", b: "#0000ff", c: "#00c000" } };
+window.mountOverlay = (spec = {}, data = fits()) => {
+  window.G?.destroy();
+  window.G = rx.overlay(uPlot, host, data, { colors: () => fitInks, reference: "a", height: 120, ...spec });
+  return true;
+};
 window.ready = true;
 </script></body></html>
