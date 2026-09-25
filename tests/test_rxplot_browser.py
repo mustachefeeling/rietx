@@ -427,3 +427,50 @@ def test_a_pages_layers_run_under_the_grid_and_over_the_curves(page):
     page.evaluate("layers.length = 0; G.redraw()")
     _frames(page)
     assert page.evaluate("layers") == ["under", "over"]
+
+
+def test_a_zoom_rebases_the_cumulative_chi2_to_the_view(page):
+    """The window route summed Σχ² over its own window, so a zoom's curve began at
+    zero. The payload sums once over every fitted channel, and each x zoom draws
+    ``cum − chi2Base``: the curve starts at zero at the view's left edge and ends
+    at the view's own χ². A reset draws the whole sum again."""
+    page.evaluate("mountPattern({residual: 'cumulative'})")
+    _frames(page)
+    assert page.evaluate("G.chi2Base()") == 0
+    _drag(page, "main", 0.3, 0.5, 0.5, 0.51)
+    got = page.evaluate("""(() => { const a = curves().arrays, lo = G.panes.resid.scales.x.min;
+        const fitTT = Array.from(a.fitted, (i) => a.two_theta[i]);
+        const q = rx.lower(fitTT, lo), i = a.fitted[q];
+        return { base: G.chi2Base(), before: a.cumulative_chi2[q - 1],
+                 drawn: G.panes.resid.data[1][i], sum: a.cumulative_chi2[q] }; })()""")
+    assert got["base"] == got["before"] > 0
+    assert got["drawn"] == got["sum"] - got["base"]
+    # the y range follows the re-based numbers, not the pattern's whole sum
+    lo, hi = _y(page, "resid")
+    assert lo < got["drawn"] < hi < got["base"]
+    b = _box(page, "main")
+    page.mouse.dblclick(b["x"] + b["w"] / 2, b["y"] + b["h"] / 2)
+    _frames(page)
+    assert page.evaluate("G.chi2Base()") == 0
+    assert page.evaluate("(() => { const a = curves().arrays, i = a.fitted[5];"
+                         " return G.panes.resid.data[1][i] === a.cumulative_chi2[5]; })()")
+
+
+def test_a_payload_without_a_fit_draws_the_residual_the_page_supplies(page):
+    """The raw view has no model, so the GUI draws its peak groups' own residual in
+    the lower pane. ``rawResidual`` is read at each data build, and
+    ``refreshResidual`` takes new numbers without touching the reader's y."""
+    page.evaluate("""(() => { const a = curves().arrays;
+        window.raw = { header: { fit: false, weighted: true },
+                       arrays: { two_theta: a.two_theta, y_obs: a.y_obs, kept: a.kept } };
+        window.strip = new Array(a.two_theta.length).fill(null);
+        for (let i = 400; i < 500; i++) strip[i] = 3 * Math.sin(i / 10);
+        return mountPattern({ rawResidual: () => strip }, raw); })()""")
+    _frames(page)
+    assert page.evaluate("G.panes.resid.data[1][450] === strip[450]"
+                         " && G.panes.resid.data[1][10] === null")
+    x = page.evaluate("G.panes.resid.data[0][450]")
+    assert _has(_near(page, "resid", x), [255, 0, 255], alpha=100)
+    page.evaluate("strip = strip.map((v) => (v == null ? null : v + 1)); G.refreshResidual()")
+    _frames(page)
+    assert page.evaluate("G.panes.resid.data[1][450] === strip[450]")

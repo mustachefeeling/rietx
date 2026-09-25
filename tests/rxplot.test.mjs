@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import {test} from 'node:test';
 
 import {
-  lower, nearest, partition, phaseInk, positive, scatter, sqrtSplits, tickDecimals, tickHeight,
+  chi2Base, lower, nearest, partition, phaseInk, positive, scatter, sqrtSplits, tickDecimals, tickHeight,
   tickLabels, unpack,
 } from '../src/rietx/viz/static/rxplot.mjs';
 
@@ -81,6 +81,18 @@ test('the observed pattern splits into fitted and masked over one grid', () => {
   const [inside, outside] = partition([1, 2, 3, 4, 5, 6], Int32Array.from([1, 3]));
   assert.deepEqual(inside, [null, 2, null, 4, null, null]);
   assert.deepEqual(outside, [1, null, 3, null, 5, 6]);
+});
+
+test('a zoomed Σχ² starts from what the channels before the view summed', () => {
+  // the window route accumulated over its window; the client re-bases the
+  // pattern's one sum as cum[j] - cum[i0 - 1], i0 the first channel in view
+  const cum = [1, 3, 6, 10], xs = [10, 11, 12, 13];
+  assert.equal(chi2Base(cum, xs, 9), 0);
+  assert.equal(chi2Base(cum, xs, 10), 0);
+  assert.equal(chi2Base(cum, xs, 11.5), 3);
+  assert.equal(chi2Base(cum, xs, 99), 10);
+  // so the view 11.5-13 draws 3 and 7, and ends at its own χ², 7
+  assert.deepEqual(cum.slice(2).map((v) => v - chi2Base(cum, xs, 11.5)), [3, 7]);
 });
 
 // ------------------------------------------------------------------ the pattern

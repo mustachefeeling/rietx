@@ -110,6 +110,17 @@ export function scatter(n, index, values) {
 }
 
 /**
+ * What a cumulative χ² has summed before the view starts at `lo`: `cum` at the
+ * last channel of `xs` under `lo`, or 0 when none is. The server sums Σχ² over
+ * every fitted channel once, and a view shows `cum − chi2Base`, so the curve
+ * starts at zero at the view's left edge and ends at the view's own χ².
+ */
+export function chi2Base(cum, xs, lo) {
+  const i = lower(xs, lo) - 1;
+  return i >= 0 ? cum[i] : 0;
+}
+
+/**
  * `y` split in two over the same channels: the ones `index` names, and the
  * rest. Each is null where the other is drawn, so the observed pattern draws
  * as the fitted points and the masked ones in two styles on one x.
@@ -558,13 +569,20 @@ const RESIDUALS = { weighted: "delta", delta: "delta_raw", cumulative: "cumulati
  * - `labels`: `{ y, resid }`, the two y axis titles, as functions.
  * - `layers`: per pane key ("main", "ticks", "resid"), `{ under, over }` lists
  *   of `(u) => void`, run before the grid and after the series.
+ * - `rawResidual()`: the residual pane's values over the pattern's channels
+ *   when the payload carries no fit, or null for none. The GUI draws its peak
+ *   groups' own residual there.
  *
- * The figure is the pane group (`panes`) with four more verbs: `setCurves`,
- * `setY`, `setResidual` and `setHidden`.
+ * A cumulative χ² is re-based at every x zoom (`chi2Base`), so it starts at
+ * zero at the view's left edge, as the window route's did.
+ *
+ * The figure is the pane group (`panes`) with six more verbs: `setCurves`,
+ * `setY`, `setResidual`, `setHidden`, `refreshResidual`, and `chi2Base`, the
+ * Σχ² the drawn curve has subtracted.
  */
 export function pattern(uPlot, host, curves, spec) {
   const state = { y: spec.y ?? "lin", residual: spec.residual ?? "weighted",
-                  hidden: new Set(spec.hidden ?? []), c: null };
+                  hidden: new Set(spec.hidden ?? []), c: null, base: 0 };
   const ink = (key) => () => spec.colors()[key];
   const size = { obs: 4, masked: 3 };
 
@@ -572,19 +590,29 @@ export function pattern(uPlot, host, curves, spec) {
     const { header, arrays } = payload, n = arrays.two_theta.length;
     const [obs, masked] = partition(arrays.y_obs, arrays.kept);
     const on = (a) => (header.fit && a ? scatter(n, arrays.fitted, a) : new Array(n).fill(null));
+    // the fitted channels' 2θ, which a Σχ² base is looked up on
+    const fitTT = header.fit ? Float64Array.from(arrays.fitted, (i) => arrays.two_theta[i]) : null;
     return { header, arrays, n, obs, masked, calc: on(arrays.y_calc), bkg: on(arrays.y_background),
-             on, resid: {}, ticks: header.ticks ?? {} };
+             on, fitTT, resid: {}, ticks: header.ticks ?? {} };
   }
+
+  const cumulative = () => state.residual === "cumulative" && !!state.c.fitTT;
+  const baseAt = (lo) => (cumulative() ? chi2Base(state.c.arrays.cumulative_chi2, state.c.fitTT, lo) : 0);
 
   const scaled = (values) => (state.y === "log" ? positive(values) : values);
   const mainData = () => [state.c.obs, state.c.masked, state.c.calc, state.c.bkg].map(scaled);
+  const nulls = () => [new Array(state.c.n).fill(null)];
   const residData = () => {
     const c = state.c, key = RESIDUALS[state.residual];
     if (!key) throw new Error(`rxplot: no residual "${state.residual}"; one of ${Object.keys(RESIDUALS).join(", ")}`);
+    if (!c.header.fit) return [spec.rawResidual?.() ?? nulls()[0]];
+    if (cumulative()) {
+      const cum = c.arrays.cumulative_chi2, b = state.base;
+      return [c.on(Float64Array.from(cum, (v) => v - b))];
+    }
     c.resid[key] ??= c.on(c.arrays[key]);
     return [c.resid[key]];
   };
-  const nulls = () => [new Array(state.c.n).fill(null)];
 
   function markers(key) {
     return { show: !state.hidden.has(key), stroke: ink(key), fill: ink(key),
@@ -641,9 +669,28 @@ export function pattern(uPlot, host, curves, spec) {
     ],
   });
 
+  /**
+   * Every x zoom re-bases a cumulative Σχ² before the panes move, so the new
+   * numbers and the new range reach the residual pane in one paint. uPlot's
+   * echo of the range comes back through here at the same base and does nothing.
+   */
+  const setX = group.setX;
+  group.setX = (lo, hi) => {
+    const b = baseAt(lo);
+    if (b !== state.base) {
+      state.base = b;
+      group.setData("resid", residData());
+    }
+    setX(lo, hi);
+  };
+
+  /** The Σχ² the drawn cumulative curve has subtracted, 0 under any other residual. */
+  group.chi2Base = () => (cumulative() ? state.base : 0);
+
   /** A new payload. `keep` holds the reader's view, as a run landing should. */
   group.setCurves = (payload, keep = false) => {
     state.c = prepare(payload);
+    state.base = keep ? baseAt(group.panes.main.scales.x.min) : 0;
     const rows = tickHeight(Object.keys(state.c.ticks).length);
     if (group.panes.ticks.height !== rows) group.setHeight("ticks", rows);
     group.load(payload.arrays.two_theta, { main: mainData(), ticks: nulls(), resid: residData() }, keep);
@@ -662,9 +709,13 @@ export function pattern(uPlot, host, curves, spec) {
   /** Another residual. A y range chosen on the old one means nothing on this one. */
   group.setResidual = (kind) => {
     state.residual = kind;
+    state.base = baseAt(group.panes.resid.scales.x.min);
     group.unpin("resid");
     group.setData("resid", residData());
   };
+
+  /** The residual pane's values again, its y range kept: `rawResidual` has new numbers. */
+  group.refreshResidual = () => group.setData("resid", residData());
 
   /** Draw every curve but `ids`. */
   group.setHidden = (ids) => {
