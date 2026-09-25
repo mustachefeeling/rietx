@@ -725,7 +725,7 @@ with the plotly renderer.
 - [x] Remove the flag and the pattern panel's plotly renderer (in task 6)
 - [ ] Docs: the `gui/CLAUDE.md` rules as § What changes sorts them, the manual's GUI chapters with regenerated screenshots, `using/cli.md`, `install.md` and `files.md`, root CLAUDE.md, `tests/CLAUDE.md`, README
 - [ ] Tests: the suites in § Acceptance green, the fast count's movement stated, and every test listed in § What changes updated
-- [ ] Skill: regenerate `references/api.md` with `make_api_index.py` when D7 lands, then `rietx skill --install . --copy`. Nothing else in the skill draws a browser chart.
+- [x] Skill: regenerate `references/api.md` with `make_api_index.py` when D7 lands, then `rietx skill --install . --copy`. Nothing else in the skill draws a browser chart. (With task 10, `4e65cc9a`: `write_html`'s row lost `include_plotlyjs` and gained `max_points: int | None`. No other skill file names plotly.)
 
 ## Acceptance
 
