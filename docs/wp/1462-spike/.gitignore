@@ -1,0 +1,13 @@
+# What running the spike installs or writes; README § Running it makes each one.
+node_modules
+package-lock.json
+out/
+viewer.min.js
+lab6.json
+nac.json
+fap.json
+# every run rewrites shots/; only the three the WP cites are kept
+shots/*
+!shots/nac-rings.png
+!shots/engines-nac.png
+!shots/lab6-dpr1-edges.png

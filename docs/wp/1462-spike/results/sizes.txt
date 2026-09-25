@@ -1,0 +1,11 @@
+three_wp       min    557091  gz   139455
+three_shader   min    545343  gz   136726
+three_webgpu   min    790571  gz   216363
+ogl            min     62729  gz    18643
+twgl           min     40734  gz    13852
+regl           min    123161  gz    41446
+picogl         min     66024  gz    15202
+ngl            min   1328821  gz   377243
+3dmol          min    586606  gz   169130
+uplot_ref      min     51990  gz    23182
+prototype      min     11007  gz     4807

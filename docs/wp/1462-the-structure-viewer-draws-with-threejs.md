@@ -6,10 +6,15 @@ Priority: P3 2026-09-25 — after WP-1461 the structure viewer is the last page 
 
 ## Goal
 
-The GUI's 3D structure viewer draws with three.js. No page rietx serves
-loads plotly.js, and `pyproject.toml` names plotly nowhere. Everything the
-viewer shows and does today survives, and its crystallography rules in
+The GUI's 3D structure viewer leaves plotly. No page rietx serves loads
+plotly.js, and `pyproject.toml` names plotly nowhere. Everything the viewer
+shows and does today survives, and its crystallography rules in
 `gui/CLAUDE.md` stand unchanged.
+
+The title names three.js, the answer this file was filed with. The second
+session recommends a renderer of our own instead (D1). The file keeps its
+name until the maintainer decides, because WP-1461's in-flight file links
+to it.
 
 ## Context
 
@@ -70,111 +75,207 @@ Several of the viewer's rules exist only because of plotly:
 - `scatter3d` markers and lines are sized in pixels, so every shape is a
   `mesh3d`.
 
-### The candidates, measured
+### How big the scenes are
 
-Measured 2026-09-25. For three.js, the viewer's likely imports were bundled
-with esbuild `--minify` and compressed with `gzip -9`: `WebGLRenderer`,
-`Scene`, `OrthographicCamera`, `PerspectiveCamera`, `InstancedMesh`,
-`BufferGeometry`, `BufferAttribute`, `MeshLambertMaterial`, `LineSegments`,
-`LineBasicMaterial`, `AmbientLight`, `DirectionalLight`, `Raycaster`,
-`Vector2`, `Matrix4`, `Color` and `TrackballControls`.
+`structure3d.MAX_ATOMS` = 400 and `MAX_BONDS` = 4000 bound every scene. The
+three payloads the spike drew hold 116 to 173 atoms and 174 to 255 bonds
+(`1462-spike/payloads.py`: LaB6, NAC with its anisotropic tensors, and
+fluorapatite). Any renderer draws that at 60 frames a second. So speed
+does not separate the candidates. Load size, the look and the code we own
+do.
 
-| | version, licence | minified | gzip |
+### The field, measured
+
+Measured 2026-09-25 by `1462-spike/measure.mjs`
+(`results/sizes.txt`). Each row bundles the imports a viewer would use,
+with esbuild 0.28.2 `--minify`, then `gzip -9`.
+
+| Library | version, licence, upkeep | minified | gzip |
 |---|---|---|---|
 | plotly.js, as today | Python `plotly` 7.1.0, MIT | 4.82 MB | 1.47 MB |
-| three.js, the subset above | 0.186.1, MIT | 557 KB | 138 KB |
-| 3Dmol.js, whole build | 2.5.5, BSD-3-Clause | 538 KB | 156 KB |
+| NGL | 2.5.0, MIT | 1329 KB | 377 KB |
+| three.js, `three/webgpu` | 0.186.1, MIT | 791 KB | 216 KB |
+| 3Dmol.js, whole ESM build | 2.5.5, BSD-3-Clause | 587 KB | 169 KB |
+| three.js, the 17 imports D1 named | 0.186.1, MIT | 557 KB | 139 KB |
+| three.js, renderer and one custom shader | 0.186.1, MIT | 545 KB | 137 KB |
+| regl | 2.1.1, MIT, no release since 2024-11 | 123 KB | 41 KB |
+| uPlot, for scale | 1.6.32, MIT | 52 KB | 23 KB |
+| OGL, scene graph with orbit and raycast | 1.0.11, Unlicense, last release 2025-01 | 63 KB | 19 KB |
+| PicoGL.js | 0.17.9, MIT, last commit 2022 | 66 KB | 15 KB |
+| twgl.js | 7.0.0, MIT, maintained | 41 KB | 14 KB |
+| the spike's prototype renderer | no dependency | 11 KB | 4.8 KB |
 
-Both are about a ninth of plotly. Neither has been timed drawing this
-viewer's scenes.
+The three.js rows show where its size lives. Swapping the stock materials
+and lights for one custom shader saves under 3 KB of 139 KB, because
+`WebGLRenderer` carries its whole material system.
 
-three.js is a general 3D engine. An `InstancedMesh` draws one geometry
-under a matrix per instance, which is the `pos + T·v` the viewer already
-does, so the server's payload maps onto it unchanged. `TrackballControls`
-is a free trackball like plotly's orbit mode, at 5 KB compressed.
+The rows fall into three tiers. The general engines (three.js, and Babylon.js
+and PlayCanvas, which are larger) carry a scene graph, materials and
+controls. The thin helpers (twgl.js, OGL) wrap WebGL's program and buffer
+calls and are uPlot's size. The molecular viewers own a model of atoms,
+bonds and styles. Only Mol\* (5.11.0, MIT) among maintained browser
+libraries was found to draw displacement ellipsoids, from its own mmCIF
+tensor reader. JSmol draws them too, at 18-20 MB and LGPL. Both would take
+the crystallography back from the server, against WP-1015's founding rule.
+matterviz (MIT, Svelte 5, three.js through threlte) draws no displacement
+ellipsoids, and ChemDoodle Web's free tier is GPLv3. This paragraph comes
+from a survey agent's reading of each project's source and docs, and none
+of it was measured here.
 
-3Dmol.js is a molecule viewer with its own model of atoms, bonds and
-styles, and by default it finds bonds itself. The server owns the bond rule
-here (`gui/CLAUDE.md`: LaB6's La–La edges). Whether 3Dmol.js draws the
-server's ellipsoids and bonds as given is untested.
+### What the molecular viewers do
 
-### Inherited
+The fast molecular viewers draw an atom as a ray-cast impostor: Mol\*,
+NGL, VMD, QuteMol and speck. One screen-aligned quad stands for each atom
+or bond. The fragment shader solves the sphere, cylinder or ellipsoid
+exactly along the pixel's ray, discards a miss, and writes the hit's depth
+through `gl_FragDepth`. The surface is exact at every zoom, and a scene
+costs four vertices per primitive (Sigg et al. 2006; Gumhold 2003; Tarini
+et al. 2006). A parallel projection makes it simpler still, since every ray
+has the same direction.
 
-**From WP-1461 (2026-09-25).** The Dependabot allow list exists now, as
-`.github/dependabot.yml` with `uplot` alone, so three.js is one more
-`dependency-name` there. A library compiled into the dist also owes its
-licence text to `LICENSE-3RD-PARTY.md`, the file the wheel ships as its
-notices, beside the ATTRIBUTION row this WP's pin task names. WP-1461 added
-uPlot's there.
+Mol\* picks by rendering primitive ids to an offscreen buffer and reading
+one pixel. That is needed when a surface exists only in a shader. Here the
+browser holds each atom's position and T, so the CPU can solve the same
+quadric for the pixel under the pointer.
 
-**From WP-1461 (2026-09-25, 5th session).** The pattern panel left plotly, so
-two things in `gui/src` serve only this viewer and the Series panel:
-`lib/plot.ts:hoverLabel` and the `Plotly` stand-in in `test-setup.ts`.
-Whichever of this WP and WP-1461's Series task lands second deletes them. The
-jsdom answer to "jsdom has no canvas" is `gui/src/test-uplot.ts`, a stand-in
-that records what was asked to be painted, with `tests/test_gui_browser.py`
-reading what chromium painted. A three.js scene wants the same two halves.
+Two platform facts bound the choice. WebGL2 is universal in the three
+engines the GUI supports, and `gl_FragDepth` is core in it. WebGPU is not
+yet universal: Firefox ships it on Windows since 141 and on Apple silicon
+macOS since 145, with Linux still in progress.
+
+### The prototype
+
+`1462-spike/viewer.js` draws the served payload unchanged, as ray-cast
+quadrics. It is 392 lines with no dependency.
+
+- **Atoms.** One instanced quad per atom, sized to the exact projected
+  extent of the ellipsoid (the norms of the first two rows of R·k·T). The
+  fragment shader solves |(k·T)⁻¹(p − c)| = 1 along the view ray. A ball
+  is k·T = r·I, so ball and ellipsoid stay one code path.
+- **Principal ellipses.** `structure3d._ellipsoid` returns
+  T = V·diag(√λ), so T's columns are the principal axes. A principal
+  ellipse is then one unit-frame coordinate near zero, three lines of
+  shader. ORTEP draws these rings (Johnson 1965). The viewer has never had
+  them. `shots/nac-rings.png` shows them on NAC at 2.5× exaggeration.
+- **Bonds.** One quad per bond half, solved as a finite cylinder, coloured
+  by the atom the half leaves.
+- **The rest.** The cell as `gl.LINES`, the a/b/c labels as DOM text, a
+  trackball, wheel zoom, CPU picking and a PNG through `toDataURL` in the
+  drawing task.
+- **Degenerate tensors.** A zero semi-axis has no inverse, so the prototype
+  draws it at 1 mÅ. The server's rule stands: the axis still reads as zero.
+
+Measured 2026-09-25, playwright-core 1.63.0, headed, devicePixelRatio 2, on
+an Apple M4 shared with other sessions (load average up to 48). Three runs
+(`results/proto_run0.txt` to `proto_run2.txt`):
+
+| | Chromium 1223 | Firefox 1543 | WebKit 2359 |
+|---|---|---|---|
+| data to first frame, first page | 78-265 ms | 33-101 ms | 145-1643 ms |
+| data to first frame, later pages | 23-55 ms | 29-97 ms | 22-47 ms |
+| draw call, main-thread work per frame | p95 0.1-0.2 ms | p95 ≤ 1 ms (1 ms timer) | p95 ≤ 1 ms (1 ms timer) |
+| frame gap during rotation, p95 | 17.5-17.6 ms | 17-33 ms | 17-22 ms |
+| hover pick, per event | 12-24 µs | 14-61 µs | 14-26 µs |
+| errors | none (a favicon 404) | none | none |
+
+The first page's cost is the browser's first WebGL context and shader
+compile. It moved from 1643 ms to 145 ms between runs on WebKit, so it is
+the machine's state as much as the page's. It applies to plotly's viewer
+too, and only a paired measurement separates them. The three engines drew
+the same picture: a mean absolute difference of 0.07 and 0.02 levels of 255
+against Chromium (`shots/engines-nac.png`). Headless Chromium runs on
+SwiftShader, the CPU rasteriser `tests/test_gui_browser.py` gets, and drew
+the same scenes. No CI workflow installs playwright, so no browser test
+runs in CI.
+
+The prototype lacks the legend, the a/b/c buttons, the knobs, bond hover,
+theme colours and context-loss handling. A full viewer is estimated at
+700 lines and under 10 KB gzip.
 
 ## Decisions this WP takes
 
 Each carries the recommended answer, for the maintainer to confirm or
-overturn in the first task.
+overturn in the first task. D1, D4 and D6 changed in the second session.
 
-- **D1. three.js, bundled into the GUI.** Pinned exactly in
-  `gui/package.json` and bundled by vite, as CodeMirror is, so tree-shaking
-  keeps only what the viewer imports. Only the GUI draws in 3D, so there is
-  no vendored copy for other pages. It joins the Dependabot allow list that
-  WP-1461 creates.
-- **D2. The payload does not change.** `/api/structure3d` and every rule
-  in `structure3d.py` stay as they are. `structure3d.ts` keeps its pure
-  half: `unitSphere`, `unitCylinder`, `stickTransform`, `atomTransform`,
-  `axisCamera`, `atomLabel`, `legend` and `caption`. Its plotly trace
-  builders go.
+- **D1. The viewer draws its own quadrics in WebGL2, with no library.** It
+  follows the practice of Mol\* and NGL, measured above at 4.8 KB gzip
+  against three.js's 139 KB. It needs no Dependabot entry, no licence row
+  and no bundle pin, as WP-1015's "zero new dependencies" had it. Three
+  alternatives were weighed. A thin helper (twgl.js, OGL) would replace the
+  60 lines of program and buffer setup the prototype already has. three.js
+  would draw tessellated meshes and would need a custom shader or extra
+  geometry for the rings. A molecular viewer owns the crystallography. **Fallback:**
+  three.js, bundled and pinned, if the spike's gate fails on a GPU the
+  prototype has not met.
+- **D2. The payload does not change.** The prototype drew it as served.
+  `structure3d.ts` keeps its pure half: `atomTransform`, `axisCamera`,
+  `atomLabel`, `legend`, `caption` and `stickRadius`. The trace builders
+  and the tessellation (`unitSphere`, `unitCylinder`, `stickTransform`) go,
+  since impostors need no mesh.
 - **D3. The a, b and c labels are a DOM overlay.** Each label is placed at
   its projected 3D position on every frame. Text stays crisp, takes the
   theme's font and colour, and needs no font atlas.
-- **D4. Hover by picking.** A `Raycaster` finds the instance under the
-  pointer. The instance index gives the atom or the bond half, and the
-  tooltip shows today's text.
-- **D5. PNG export draws once more into a canvas.** The scene renders once
-  on request and the canvas becomes a PNG. The WebGL buffer is not kept
-  between frames for this.
+- **D4. Hover solves the quadric on the CPU.** The same equation the shader
+  solves, for the pixel under the pointer, costs 12-61 µs an event at 116
+  to 173 atoms. It needs no id buffer and no pixel read-back.
+- **D5. PNG export draws once more and reads the canvas in the same task.**
+  The WebGL buffer is not kept between frames for this.
+- **D6. Anisotropic sites show their principal ellipses in ellipsoid
+  mode.** This is the one new look this WP adds, three lines of shader.
+  The octant cut-out stays out (Non-goals). Strike it and the rest stands.
+- **D7. Silhouettes are antialiased in the shader.** MSAA smooths triangle
+  edges only, and an impostor's outline is a `discard`. At devicePixelRatio
+  1 the prototype's outlines step (`shots/lab6-dpr1-edges.png`). The fix is
+  coverage from the ray's discriminant through alpha-to-coverage, or a
+  2× buffer.
 
 ## Where it will bite
 
-- **A WebGL context is a scarce resource.** Browsers cap the number of
-  live contexts. The viewer must dispose its renderer, geometries and
-  materials on unmount. Today it disconnects its `ResizeObserver` and
-  nothing else, and never calls `Plotly.purge`, so toggling the viewer
-  may already leak a context. The spike counts contexts across toggles.
-- **jsdom has no WebGL.** vitest covers the pure half and the scene
-  builders' outputs. A browser test covers the drawing, and it compares
-  pictures or reads back pixels, never a hash of a screenshot
-  (`gui/CLAUDE.md`: a WebGL re-render differs by a pixel).
+- **A WebGL context is a scarce resource.** Browsers keep about 16 live
+  contexts a page and silently drop the oldest past that. The viewer keeps
+  one context for its life and releases it on unmount. Today it disconnects
+  its `ResizeObserver` and nothing else, and never calls `Plotly.purge`, so
+  toggling the viewer may already leak a context. The spike counts contexts
+  across toggles.
+- **A lost context must come back.** `webglcontextlost` and
+  `webglcontextrestored` rebuild the programs and buffers from the payload
+  already held.
+- **Only Apple GPUs have drawn it.** Chromium ran on ANGLE over Metal,
+  Firefox and WebKit on the same M4, and headless Chromium on SwiftShader.
+  Windows (ANGLE over D3D11) and Linux drivers have not.
+- **jsdom has no WebGL.** vitest covers the pure half: the projected
+  extents, the pick, the trackball and the instance data. A stand-in
+  records what was asked to be drawn, as `gui/src/test-uplot.ts` does for
+  uPlot. A browser test covers the drawing, and it reads back pixels or
+  compares pictures, never a hash of a screenshot (`gui/CLAUDE.md`: a WebGL
+  re-render differs by a pixel).
 - **WebGL lines are one pixel wide.** The cell frame is thin at any zoom.
-  If that reads badly, the edges become cylinders like the bonds.
-- **The camera is owned outright.** three.js keeps the camera between
+  If that reads badly, the edges become cylinder impostors at a radius set
+  in pixels each frame.
+- **The camera is owned outright.** The renderer keeps the camera between
   draws, so the read-back rule above goes. A redraw must still not reset
   the view, and a test says so.
 
 ## Non-goals
 
-- **A new look.** The second pass's choices (parallel projection, no axis
-  box, cylinders in Å, a/b/c labels, the light on the camera) carry over.
+- **A new look,** beyond D6. The second pass's choices carry over: parallel
+  projection, no axis box, cylinders in Å, a/b/c labels and the light on
+  the camera.
 - **New structure features:** polyhedra, a packing diagram, labels on
-  atoms, animation of a refinement.
+  atoms, the octant cut-out, depth cueing, ambient occlusion, animation of
+  a refinement. Each is a shader addition on D1 and a WP of its own.
+- **WebGPU.** Firefox on Linux does not ship it yet.
 - **Any other chart.** 2D charts are WP-1461's.
 
 ## Tasks
 
-- [ ] The maintainer confirms D1-D5, and this file records which
-- [ ] Spike, the gate: three.js drawing the real `/api/structure3d` payload for LaB6, one structure with anisotropic sites in ellipsoid mode, and the largest cell among the example projects. Measure first show (load to first frame), rotation frames and hover work per event, beside today's plotly viewer on the same machine, in Chromium, WebKit and Firefox. Record go or no-go in the handover. On no-go, try 3Dmol.js on the same payloads before stopping.
-- [ ] Pin three.js in `gui/package.json`, add its ATTRIBUTION row, and add it to the Dependabot allow list
-- [ ] The scene: instanced atoms per species, two-tone bond cylinders, the cell frame, the a/b/c overlay, the orthographic camera, the trackball, the light on the camera, theme colours, and disposal on unmount
-- [ ] Interaction: hover, legend toggles, the a/b/c and reset views, the three knobs, the view kept across redraws, `ResizeObserver` sizing, and PNG export
-- [ ] Delete plotly: the trace builders, the camera read-back, `gui/src/lib/plotly.ts`, the `/plotly.js` route, the `gui` extra's plotly, and `viz/plotlyjs.py` if WP-1461 left it only for this viewer
-- [ ] Tests: `structure3d.test.ts` on the scene builders; a browser test that reads pixels at known atoms and asserts a redraw keeps the view; a test that no page requests `/plotly.js`
-- [ ] Docs: the structure viewer paragraphs in `gui/CLAUDE.md` (crystallography rules kept, plotly traps deleted), `using/install.md` for the `gui` extra, ATTRIBUTION.md, and the root CLAUDE.md's GUI lines if they name plotly
+- [ ] The maintainer confirms D1-D7, and this file records which, renamed if D1 holds
+- [ ] Spike, the gate: the prototype on the GPU paths it has not met (any Windows or Linux machine the maintainer can reach), and paired against today's plotly viewer on the same machine: first show, rotation frames and hover work per event, in Chromium, WebKit and Firefox. Record go or no-go in the handover. On no-go, draw the same payloads with three.js before stopping.
+- [ ] The renderer: instanced atom and bond-half impostors, the cell frame, the a/b/c overlay, the orthographic camera, the trackball, the light on the camera, theme colours, D6's ellipses, D7's antialiasing, context loss, and release on unmount
+- [ ] Interaction: hover on atoms and bond halves, legend toggles, the a/b/c and reset views, the three knobs, the view kept across redraws, `ResizeObserver` sizing, and PNG export
+- [ ] Delete plotly: the trace builders, the tessellation, the camera read-back, `gui/src/lib/plotly.ts`, the `/plotly.js` route, the `gui` extra's plotly, and `viz/plotlyjs.py` if WP-1461 left it only for this viewer. `lib/plot.ts:hoverLabel` and the `Plotly` stand-in in `test-setup.ts` go with whichever of this WP and WP-1461's Series task lands second.
+- [ ] Tests: `structure3d.test.ts` on the pure half and the instance data; a WebGL stand-in beside `test-uplot.ts`; a browser test that reads pixels at known atoms, finds a principal ellipse on an anisotropic site, and asserts a redraw keeps the view; a test that no page requests `/plotly.js`
+- [ ] Docs: the structure viewer paragraphs in `gui/CLAUDE.md` (crystallography rules kept, plotly traps deleted), `using/install.md` for the `gui` extra, ATTRIBUTION.md, and the root CLAUDE.md's GUI lines if they name plotly. On the three.js fallback also: its row in `.github/dependabot.yml`'s allow list (WP-1461 created it) and its licence text in `LICENSE-3RD-PARTY.md`.
 
 ## Acceptance
 
@@ -184,15 +285,17 @@ more runs for ranges, recorded in the handover.
 
 1. **No plotly anywhere.** No page requests `/plotly.js`, the route is
    gone, and `pyproject.toml` names plotly in no extra.
-2. **First show:** no long animation frame is attributed to the 3D library.
+2. **First show:** no long animation frame is attributed to the renderer.
    The time from the viewer's first show to its first frame is recorded
    beside plotly's.
 3. **Rotation:** on the largest example structure, a trackball drag holds a
    p95 frame of 17.7 ms or less with zero long animation frames. Hover work
    per event is recorded.
-4. **Coverage:** every item in § What the viewer is is present and named by
+4. **Size:** the renderer adds under 15 KB gzip to the GUI bundle, or
+   three.js's measured size on the fallback.
+5. **Coverage:** every item in § What the viewer is is present and named by
    a test.
-5. **Browsers:** in Chromium, WebKit and Firefox through playwright's
+6. **Browsers:** in Chromium, WebKit and Firefox through playwright's
    builds, the viewer draws, rotates and hovers, and nothing throws.
 
 ```sh
@@ -204,17 +307,47 @@ npm --prefix gui test && npm --prefix gui run check
 
 ## References
 
+- Sigg, C., Weyrich, T., Botsch, M. & Gross, M. (2006). GPU-based
+  ray-casting of quadratic surfaces. *Eurographics Symposium on
+  Point-Based Graphics*.
+- Gumhold, S. (2003). Splatting illuminated ellipsoids with depth
+  correction. *Vision, Modeling and Visualization 2003*, 245-252.
+- Tarini, M., Cignoni, P. & Montani, C. (2006). Ambient occlusion and edge
+  cueing for enhancing real time molecular visualization. *IEEE Trans.
+  Vis. Comput. Graph.* 12, 1237-1244.
+- Johnson, C. K. (1965). ORTEP: a Fortran thermal-ellipsoid plot program.
+  Report ORNL-3794, Oak Ridge National Laboratory. Burnett, M. N. &
+  Johnson, C. K. (1996), ORTEP-III, ORNL-6895, for the principal ellipses
+  and the octant convention.
+- Rose, A. S. & Hildebrand, P. W. (2015). NGL Viewer: a web application for
+  molecular visualization. *Nucleic Acids Res.* 43, W576.
 - three.js 0.186.1, MIT. <https://github.com/mrdoob/three.js>
 - 3Dmol.js 2.5.5, BSD-3-Clause. Rego, N. & Koes, D. (2015). 3Dmol.js:
   molecular visualization with WebGL. *Bioinformatics* 31, 1322-1324.
   <https://github.com/3dmol/3Dmol.js>
+- Mol\* 5.11.0, MIT. <https://github.com/molstar/molstar>
 - plotly.js, MIT, as served by the Python `plotly` 7.1.0 package.
 - VESTA, Momma, K. & Izumi, F. (2011). *J. Appl. Cryst.* 44, 1272-1276.
   The viewer's second pass read its look against VESTA, Jmol and 3Dmol.js.
 - WP-1015 (the viewer) and WP-1461 (every 2D chart on uPlot).
+- `1462-spike/README.md`: the files and how to rerun them.
 
 ## Handover log
 
+- **2026-09-25 (2nd session)** — scoped on the maintainer's question: which
+  3D library is the uPlot of structure plotting, and can we do better than
+  one. No library is. The engines cost 137-216 KB gzip, and most of that is
+  a material system this viewer does not use. The thin helpers are uPlot's
+  size but only wrap WebGL calls. The molecular viewers bring their own
+  crystallography. What the molecular viewers do inside is the answer:
+  ray-cast impostors. A 392-line prototype drew the served payload that
+  way in all three engines at 4.8 KB gzip, with exact surfaces and the
+  ORTEP principal ellipses the viewer has never had. D1 now recommends it,
+  with three.js as the fallback. Folded the `### Inherited` mailbox: its
+  Dependabot and licence entries went to the docs task as fallback-only,
+  and its `hoverLabel` and stand-in entry went to the delete and test
+  tasks. *Next:* the maintainer decides D1-D7. If D1 holds, rename this
+  file and its ROADMAP row, then run the spike gate.
 - **2026-09-25** — filed from WP-1461's session, on the maintainer's
   request, once they confirmed the move to uPlot. The library sizes above
   were measured that day. Nothing else was: no scene was drawn in three.js
