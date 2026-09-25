@@ -149,6 +149,28 @@ TOPAS batch file treat a phase that enters mid-series. If the fixed list
 serves, the docs task here takes the recipe, because `references/series.md`
 has no route for a changing phase set.
 
+**From the 2026-09-25 review of a second session on the same series: the
+deferred question, answered with the caller's help.** A second agent session,
+at `2d42303a`, ran `in-situ series 1` through `SequentialRefinement` with every
+candidate in one `Structure`, in both directions. All 48 patterns converged.
+The caller supplied two things the package does not. One was a presence window
+per phase, found by three screens of 336 cold fits in all. The other was cell
+bounds of ±0.3 % around a template per phase. About 25 lines of hooks did the
+rest. `prepare` set an absent phase's scale to 0 and re-seeded an entering
+phase from its template. `constrain` held every path of an absent phase
+through `ref.hold`, and after the leaving phase's transition it held that
+phase's cell and widths while its scale refined. With ±1 % bounds and no
+presence windows, the first chain raised 8 `SEQUENTIAL_PATH_DEPENDENT`. The
+final one raised none. So the fixed list serves when the caller states
+presence, and the docs task here takes that recipe, including how the windows
+were found. Two details for the recipe. Those were user holds
+(`_user_holds`), not WP-1301's `_held`. And `HOLD_BLOCKED_PLAN` fired on 48 of
+48 results, because the plan's cell glob met them, which is that report
+working as designed. Whether the package should find the windows itself stays
+this WP's question. This session shows a caller can, at about 336 fits. One
+side effect belongs elsewhere. On 16 of the 48 results a leaving phase's scale
+at zero withheld every weight-fraction esd, which is WP-1463.
+
 **From WP-1333 (2026-09-23): the ramp reproduction's wall-clock guard is a
 load sensor.** `tests/test_held_phase.py::test_the_ramp_reproduction_no_longer_runs_away`
 failed in WP-1333's full run (`[dev]`, Linux x86-64, 4 cores, 1:24:44). It

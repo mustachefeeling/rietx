@@ -78,6 +78,19 @@ from `SeriesResult`, so neither surface invents a second set of names.
 
 ### Inherited
 
+- **2026-09-25, from a transcript review of an agent session on `in-situ
+  series 1`: the records were there and the report was still wrong.** The user
+  asked the agent to report its own metrics. The session left 887 run
+  directories in `.rietx/runs` (843 `done`, 44 `failed`), each with its
+  `meta.json`, `status.json` and log. The agent counted fits by hand instead,
+  in a file of its own plus "about 60 in early unlogged probes". It put its
+  first screen at "about 15 min", where the transcript's timeline says 89.
+  Every `fit` outside a series writes its own directory, so a job of many
+  fits is many directories. The question this session needed answered is
+  therefore across the runs of one job (count, failures, wall, slowest run),
+  not within one log. Decide whether that is Task 1's second mode or another
+  verb, and name it in `batch-operating.md` either way (WP-1464 edits that
+  file too).
 - **2026-09-24, from the issue triage: #237 closed as a duplicate of #223.**
   This file keeps citing both. The 9c.13 row the 2026-09-03 entry below
   places in `references/batch.md` merged with PR #233 and now lives in

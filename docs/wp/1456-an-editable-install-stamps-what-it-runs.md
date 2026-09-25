@@ -2,7 +2,7 @@
 
 Milestone: unscheduled · Status: ⬜
 Depends on: —
-Priority: P3 2026-09-24 — a result's version stamp can name a release two milestones older than the code that produced it; reinstalling is the workaround
+Priority: P2 2026-09-25 — was P3: a second session's deliverable quoted the stale version with no commit beside it, so nothing a reader holds names the code; reinstalling is the workaround
 
 ## Goal
 
@@ -40,6 +40,18 @@ source version with a local tag (`1.6.0.dev0+stale-install`) or warn once and
 stamp the source version. Prior art to read first: how setuptools-scm and
 hatch-vcs report an editable install's version, and whether either records
 the commit.
+
+### Inherited
+
+**From the 2026-09-25 review of a second session on the same series: the
+second instance, and this time no commit.** A second agent session used the
+same venv, whose dist-info is still `rietx-1.4.0`, at `2d42303a`, whose
+`pyproject.version` is `1.6.0.dev0`. Its report says "rietx 1.4.0 (local
+checkout)" and "The run pinned rietx 1.4.0". It names no commit, so nothing
+the reader holds identifies the code. All 887 run records the session left in
+its `.rietx/runs` carry 1.4.0 in `meta.json`. The first session's report was
+right only because that agent wrote the commit down by hand, and the second
+agent did not.
 
 ## Non-goals
 

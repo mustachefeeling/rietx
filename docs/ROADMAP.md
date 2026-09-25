@@ -544,7 +544,10 @@ stage, along a direction it shares with a second free phase's cell and which
 clamp with a `CELL_RUNAWAY` diagnostic. Its review is `/pr-review`'s; no WP
 here, since 1110 and 1301, whose windows it sits beside, are closed. A second
 instance (2026-09-24 on the thread) is Le Bail with lengths gone negative, so
-the review checks the clamp in that mode and a positivity test beside it.
+the review checks the clamp in that mode and a positivity test beside it. A
+third (2026-09-25) is a 204-fit phase screen, replayed on main and on main with
+#385: raises 30 → 1, unphysical cells 59 → 0, and 31 results still move a
+length over 15 % with no `CELL_RUNAWAY` (WP-1464 has the table).
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
@@ -674,10 +677,11 @@ the limit carried load rather than whether the value stopped near one, and
 | [1447](wp/1447-a-threshold-each-pattern-sets-for-itself.md) | A threshold each pattern sets for itself | ⬜ | P3 | — (1442 soft) |
 | [1449](wp/1449-rank-on-what-the-screen-determined.md) | Rank on what the screen determined, not on what the peak list shows | ⬜ | P2 | — (1446 refuted the peak-list route) |
 | [1454](wp/1454-auto-background-choices-survive-the-fit.md) | `auto_background`'s choices survive the fit | ✅ 2026-09-24 | — | — |
-| [1456](wp/1456-an-editable-install-stamps-what-it-runs.md) | An editable install stamps what it runs | ⬜ | P3 | — |
+| [1456](wp/1456-an-editable-install-stamps-what-it-runs.md) | An editable install stamps what it runs | ⬜ | P2 | — |
 | [1457](wp/1457-the-stage-rwp-leaves-out-the-declared-peaks.md) | The stage Rwp leaves out the declared peaks | ⬜ | P2 | — |
 | [1458](wp/1458-a-tick-with-nothing-behind-it.md) | A tick with nothing behind it moves the low-angle boundary | ✅ 2026-09-24 | — | — (1327 soft) |
 | [1460](wp/1460-one-degeneracy-one-finding.md) | One degeneracy, one finding | ⬜ | P3 | — (1454, 1302 soft) |
+| [1463](wp/1463-a-phase-at-zero-withholds-every-esd.md) | A phase at zero withholds every esd | ⬜ | P2 | — (1320 soft) |
 
 #### A long run is not one fit
 
@@ -700,6 +704,7 @@ the chain says nothing (issue #267).
 | [1420](wp/1420-a-held-phase-re-enters-or-says-it-cannot.md) | A held phase re-enters, or the chain says it cannot | ⬜ | P2 | — (1333, 1342, 1419 soft) |
 | [1453](wp/1453-both-directions-name-the-lower-cost.md) | Both directions name the lower cost | ⬜ | P3 | — (1420 soft) |
 | [1459](wp/1459-a-pawley-intensity-past-the-data.md) | A Pawley intensity past the end of the data | ⬜ | P2 | — (1336 soft) |
+| [1464](wp/1464-a-screen-reads-the-batch-references-first.md) | A screen reads the batch references first | ⬜ | P3 | — (PR #385 soft) |
 
 #### One file, many patterns
 
