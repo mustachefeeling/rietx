@@ -1,6 +1,6 @@
 # WP-1327 — a magnetic structure: state it, refine it, report what the powder cannot see
 
-Milestone: v1.6 · Status: 🔄 2026-09-24 — the k = 0 moment landed from outside (PR #433); the analytic moment branch, the LaMnO₃ second dataset and the PNGs remain, and k ≠ 0 is in the contributor's two follow-on branches
+Milestone: v1.6 · Status: 🔄 2026-09-25 — the k = 0 moment (PR #433) and the operation-list phase (PR #448) landed from outside; the analytic moment branch, the LaMnO₃ second dataset and the PNGs remain, and k ≠ 0's supercell is the contributor's follow-on branch
 Depends on: 1326 (the satellite reflection list)
 Priority: P2 2026-09-23 — the open milestone's core; the moment and its hold start without 1326's list
 
@@ -375,6 +375,59 @@ rule above applies to the form factors.
   [1312](1312-neutron-followthrough.md) the joint-fit audit this term joins.
 
 ## Handover log
+
+### 2026-09-25 — the operation-list phase landed from outside
+
+A phase can now carry its own list of symmetry operations. It is for a group
+that no Hermann-Mauguin symbol names in its cell, as when a doubled cell turns
+a glide's half translation into a quarter. A k ≠ 0 magnetic supercell needs
+it. It arrived as the contributor's PR #448, which the first review round
+of PR #433 split out, and was reviewed over two rounds. No task line ticks,
+because the tasks track the k = 0 moment and this is k ≠ 0's prerequisite.
+
+- *Done*: PR #448, merged as `48118bb6`. `Phase.symmetry_operations` holds
+  the list, and `SCHEMA_VERSION` is 0.30. With a list present, `space_group`
+  is a label. A bracketed label (`"Pm [unnamed in 2a,b,a+c]"`) requires the
+  list, and a plain symbol must generate it exactly. Every symmetry consumer
+  reads `resolve_group(phase.space_group, phase.symmetry_operations)`. A phase
+  with no list takes the old path bit for bit, on the numpy and compiled paths
+  both. Three facts change how anyone builds on it. A structure CIF writes the
+  list as a symop loop, and `structure_from_cif` reads it back only beside a
+  bracketed label. The GSAS, GSAS-II, TOPAS and FullProf writers refuse such a
+  phase by name (`symmetry.refuse_operation_list`), because each format states
+  a group only as a symbol. And the GUI's facts for such a phase quote the
+  closest type's `number`. They give `None` for `hall`, `symmorphic`,
+  `enantiomorphic` and `reference_setting`, which depend on translations the
+  closest type does not have.
+- *Not done*: `magnetic_supercell` builds this kind of phase for a k ≠ 0
+  structure. It is on the contributor's `pr/wp1327c-magnetic-supercell`
+  branch, with `MagneticSymmetry.propagation_vector_parent`, the supercell
+  tick-row case and the `CHILD_GROUP_UNNAMED` row. That PR opens next, rebased
+  onto `main`.
+- *Gotchas found in review*: round one found three readers that still
+  resolved the label instead of the list. `merge_magnetic` dropped the list,
+  so `report()` raised on any moment on such a phase. The GUI's facts showed
+  an error row beside working sites, and its preview compared against no
+  orbits, so an orbit collision went uncaught. A structure CIF wrote the label
+  with no operations, and no reader could expand it. Fixing the GUI exposed a
+  fourth: `with_symbol` kept the list, so the validator refused every typed
+  symbol but the list's own. All four are fixed in the PR with tests. The
+  `Phase` closure check is now cached per list, because `validate_assignment`
+  reran it on every field write. The contributor measured 35-37 ms a write on
+  `F d -3 m:2`'s 192 operations before and 2-3 µs after.
+- *Measured on the merged tree* (`main` `bbc2ef9d` + #448; darwin/arm64,
+  python 3.12, `[dev,jax]`, nothing else running): ruff clean, and the fast
+  suite 6196 passed, 91 skipped. The Sphinx `-W` build was clean. Full
+  `-m slow`: 226 passed, 9 skipped, 1 xfailed. On the tree before #467 and
+  #469 merged, the fast count was `main`'s plus 58, which is this PR's fast
+  ids. CI's py3.11 job was first cancelled by the old 20-minute guard, and it
+  passed on a rerun in 16 minutes.
+- *Next*: the supercell PR. It also makes `symmetry.OperatorGroup`'s
+  docstring true, since that names `magnetic.supercell.resolve_child_group`.
+  The GUI panel's `symmetryLine` still prints `No. 123` for an operation-list
+  phase, where the `.rxt` line says "closest type No. 123". That fix is a
+  client change and a dist rebuild. After those come the analytic moment
+  branch, LaMnO₃ once its licence is checked, and the acceptance PNGs.
 
 ### 2026-09-24 — the k = 0 moment landed from outside
 
