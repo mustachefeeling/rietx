@@ -839,6 +839,24 @@ acceptance measurements.
     chart module into `app.js` with nothing going red. `test_gui_dist.py`
     now holds the chart module, uPlot and svgcanvas off the boot path, and
     the gui rulebook says so.
+- `/code-review high --fix` over the branch's own diff made nine findings and
+  fixed eight (`340cfafa`).
+  - An all-zero background was still sent, drawing a line at zero that no
+    legend entry could hide. The file now leaves it out.
+  - `copyImage` awaited the PNG before the clipboard write, which Safari
+    refuses once the press's activation is spent. It passes the promise.
+  - `download` revoked its URL at once, before Firefox and Safari read it.
+  - An SVG export moved the GUI's hover ring into the pane's copy, which
+    took it away. The ring stays on the live pane.
+  - The Series export numbered patterns from 1, and the panel from 0.
+  - Before a fit the table's residual column is named `residual`, since it
+    holds the page's own values.
+  - `srm660c_lab.py` wrote its page inside the matplotlib guard, and two
+    docstrings still named plotly.
+
+  I left one. `Exports.svelte` restates `exportButtons`' four verbs and
+  their words. Sharing them would load the chart module when the row
+  mounts, which the boot-path rule above forbids.
 
 *Measured:*
 - `write_html` on the NAC result, 22 003 fitted channels, against
@@ -869,6 +887,7 @@ acceptance measurements.
   pointer line (dashed #607d8b), the export's y range (a live label `90`
   missing from the SVG) and the raw decimation (above).
 - The full selection did not run. No refined number moves.
+- After the review's fixes, the six suites they touch ran again: 97 passed.
 
 *Deliberately not generalised:*
 - The legend is in neither picture, since every page draws it as DOM over
