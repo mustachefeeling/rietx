@@ -355,6 +355,11 @@ On the trajectory plot a ring marks a reseed and a cross marks an unrecovered
 point. They say opposite things: a ring is a good fit from a different starting
 model, a cross is not a measurement.
 
+The trajectory is drawn in the order the chain ran. A heat-then-cool series
+therefore comes back along its own axis. Pointing at a point names its pattern,
+its coordinate and its value, with the esd where the fit gave one. Clicking a
+pattern's row plots that pattern's own fit instead.
+
 A series does not persist. Its patterns are staged uploads and its answer lives
 in the session, so closing the window loses the staged list. Say what you need
 from it before you close it.

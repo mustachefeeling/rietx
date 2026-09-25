@@ -2460,42 +2460,39 @@ def test_result_carries_no_curves_and_the_curves_route_serves_them(fitted):
     assert _packed(client, "/api/result/curves").header["n_fitted"] == n_points
 
 
-def test_a_window_cuts_the_ticks_and_their_indices_in_one_pass(fitted):
-    """``curve_window``, which the series panel's window route still draws with.
+def test_the_ticks_carry_their_miller_indices_only_where_they_pair(fitted):
+    """``tick_hkl`` is pinned to ``ticks`` by index (WP-1438), so the curves
+    header sends a row's indices only where there are as many as positions.
 
-    The ticks are clipped to the window with every emission line in them, and
-    the Miller indices are cut by the *same* pass (WP-1438): a second filter on
-    the same predicate is the shape that drifts, and the reader would have no
-    way to tell which of the two had gone wrong.
+    A result reopened from before WP-1438 carries positions and no indices,
+    and its rows then have no indices at all, rather than a list of blanks.
     """
-    from rietx.gui.session import curve_window
+    from rietx.gui.session import _tick_rows
 
     _, _, project = fitted
     result = project.refinement.result_
-    lo, hi = 8.0, 12.0
-    zoom = curve_window(result, lo, hi, 200, weighted=True)
-    assert zoom["n_total"] < len(result.two_theta)
-    assert lo <= zoom["two_theta"][0] and zoom["two_theta"][-1] <= hi
-    assert len(zoom["two_theta"]) == len(zoom["delta"]) == zoom["n_returned"]
-    assert zoom["ticks"]
-    assert all(lo <= t <= hi for ticks in zoom["ticks"].values() for t in ticks)
-    assert zoom["tick_hkl"] and set(zoom["tick_hkl"]) <= set(zoom["ticks"])
-    for phase, hkl in zoom["tick_hkl"].items():
-        assert len(hkl) == len(zoom["ticks"][phase]), phase
+    rows = _tick_rows(result)
+    assert rows["ticks"] == {phase: list(row) for phase, row in result.ticks.items()}
+    assert rows["tick_hkl"] and set(rows["tick_hkl"]) == set(rows["ticks"])
+    for phase, hkl in rows["tick_hkl"].items():
+        assert len(hkl) == len(rows["ticks"][phase]), phase
         assert all(len(h) == 3 for h in hkl), phase
-    # the window really did cut something, so the pairing is being tested
-    whole = curve_window(result, None, None, 4000, weighted=True)
-    # max_points is a budget, not a ceiling: three curves' per-bucket extrema
-    # over max_points//2 buckets can exceed it, and n_returned is the truth
-    assert 0 < whole["n_returned"] <= 3 * (4000 // 2) + 2
-    assert any(len(whole["tick_hkl"][p]) > len(hkl)
-               for p, hkl in zoom["tick_hkl"].items())
-    # a zoom's Σχ² starts from that window rather than from the pattern
-    assert zoom["cumulative_chi2"][-1] < whole["cumulative_chi2"][-1]
+    older = result.model_copy(update={"tick_hkl": {}})
+    assert _tick_rows(older) == {"ticks": rows["ticks"], "tick_hkl": {}}
+    short = result.model_copy(update={"tick_hkl": {
+        phase: hkl[:-1] for phase, hkl in result.tick_hkl.items()}})
+    assert _tick_rows(short)["tick_hkl"] == {}
 
-    empty = curve_window(result, 200, 210, 200, weighted=True)
-    assert empty["n_returned"] == 0 and empty["two_theta"] == []
-    assert empty["ticks"] == {} and empty["tick_hkl"] == {}
+
+def _residuals(result) -> dict:
+    """The model and its three residuals off a result's own arrays, over every
+    fitted channel: σ is ``RefinementResult.sig()``, a lookup and never a
+    re-derivation (WP-1029), and Σχ² is summed over every channel."""
+    y_obs, y_calc = np.asarray(result.y_obs), np.asarray(result.y_calc)
+    raw = y_obs - y_calc
+    delta = raw / result.sig()
+    return {"y_calc": y_calc, "y_background": np.asarray(result.y_background),
+            "delta": delta, "delta_raw": raw, "cumulative_chi2": np.cumsum(delta**2)}
 
 
 def _packed(client: Client, path: str):
@@ -2517,13 +2514,10 @@ def _packed(client: Client, path: str):
 def test_the_curves_route_sends_every_channel_once(fitted):
     """WP-1461, D4: the pattern over every channel, the fit on the ones it kept.
 
-    Everything a window route computes has to come out of this one the same, bit
-    for bit, or a chart that zooms in the browser draws a different fit from the
-    one the window route drew: the σ, the three residuals, the Σχ² accumulated
-    over every channel, and the ticks with their Miller indices.
+    What the window routes computed comes out of this one the same, bit for
+    bit: the σ, the three residuals, the Σχ² accumulated over every channel,
+    and the ticks with their Miller indices.
     """
-    from rietx.gui.session import curve_window
-
     _, client, project = fitted
     result = project.refinement.result_
     got = _packed(client, "/api/result/curves")
@@ -2542,8 +2536,7 @@ def test_the_curves_route_sends_every_channel_once(fitted):
     np.testing.assert_array_equal(y[fitted_at], result.y_obs)
     np.testing.assert_array_equal(arrays["kept"], np.flatnonzero(project.fitted_mask()))
 
-    whole = curve_window(result, None, None, 10 * len(result.two_theta),
-                         weighted=True)
+    whole = _residuals(result)
     for key in ("y_calc", "y_background", "delta", "delta_raw", "cumulative_chi2"):
         np.testing.assert_array_equal(arrays[key], whole[key], err_msg=key)
     assert head["ticks"] == result.ticks and head["tick_hkl"] == result.tick_hkl
@@ -2619,8 +2612,8 @@ def test_before_any_fit_the_curves_are_the_raw_pattern(blank, tmp_path, pattern_
 
 def test_a_series_member_has_curves_of_its_own(series):
     """``series_curves`` is ``result_curves`` for one member, built by the same
-    function from that member's pattern under the limits its run used."""
-    from rietx.gui.session import curve_window
+    function from that member's pattern under the limits its run used, so the
+    two panels cannot draw two σ policies."""
     from rietx.project import fitted_mask
 
     session, client, _ = series
@@ -2634,10 +2627,22 @@ def test_a_series_member_has_curves_of_its_own(series):
                                   result.two_theta)
     np.testing.assert_array_equal(
         arrays["kept"], np.flatnonzero(fitted_mask(entry["data"][1], entry["limits"])))
-    whole = curve_window(result, None, None, 10 * len(result.two_theta),
-                         weighted=True)
-    np.testing.assert_array_equal(arrays["delta"], whole["delta"])
+    for key in ("delta", "cumulative_chi2"):
+        np.testing.assert_array_equal(arrays[key], _residuals(result)[key], err_msg=key)
 
+    # a *later* exclusion moves the document and must not move this member's
+    # mask: the curves are the run's, and a series member cannot be refitted
+    # without replacing the whole answer
+    assert client.post("/api/project", {"excluded_regions": [[8.0, 12.0]]})[0] == 200
+    try:
+        again = _packed(client, "/api/series/curves?index=1")
+        np.testing.assert_array_equal(again.arrays["kept"], arrays["kept"])
+        assert again.header["stale"] is False
+    finally:
+        client.post("/api/project", {"excluded_regions": []})
+
+    # the index is required rather than defaulted: "whichever pattern" would
+    # draw one member's curves under another's label
     assert client.get("/api/series/curves")[0] == 400
     status, payload = client.get("/api/series/curves?index=9")
     assert status == 404 and payload["error"]["where"] == ["index"]
@@ -3569,54 +3574,6 @@ def test_the_progress_pill_names_the_pass_and_the_rung():
         0) == "T300 (cold restart)"
     # no label at all: the index is the name, and nothing is claimed about rungs
     assert _series_stage_name({}, 2) == "2"
-
-
-def test_a_series_window_is_the_project_plot_arithmetic(series):
-    """``curve_window`` is shared, so the two panels cannot draw two σ policies."""
-    from rietx.gui.session import curve_window
-
-    session, client, _ = series
-    status, payload = client.get("/api/series/window?index=1")
-    assert status == 200, payload
-    assert payload["index"] == 1 and payload["label"] == "T400"
-    assert payload["x"] == 400.0
-    result = session._series_run["runner"].results_[1]
-    assert payload["n_total"] == len(result.two_theta)
-    expected = curve_window(result, None, None, 4000, weighted=True)
-    for key in ("two_theta", "y_obs", "y_calc", "delta", "cumulative_chi2"):
-        assert payload[key] == expected[key], key
-    # σ was measured (the file's esd column), which is what the flag is about
-    assert payload["weighted"] is True
-    # the mask travels beside the fitted channels, as it does for the project's
-    # own plot — an unmasked series member has an empty arm rather than no arm
-    assert payload["excluded"] == {"two_theta": [], "y_obs": []}
-    assert payload["n_excluded"] == 0
-    # …and it is pinned to what this member's fit actually kept, which is
-    # WP-1033's `len(result.two_theta)` assertion one rank down: the mask is
-    # rebuilt from the limits *this run* used, through the same function
-    # `Project.fitted_mask` calls, so it cannot drift from the curves beside it
-    from rietx.project import fitted_mask
-
-    entry = session._series_run
-    keep = fitted_mask(entry["data"][1], entry["limits"])
-    assert int(keep.sum()) == len(result.two_theta)
-
-    # a *later* exclusion moves the document and must not move this band: the
-    # curves are the run's, and a series member cannot be re-fitted without
-    # replacing the whole answer
-    assert client.post("/api/project", {"excluded_regions": [[8.0, 12.0]]})[0] == 200
-    try:
-        again = client.get("/api/series/window?index=1")[1]
-        assert again["n_excluded"] == 0, "the band followed a setting, not the fit"
-        assert again["n_total"] == payload["n_total"]
-    finally:
-        client.post("/api/project", {"excluded_regions": []})
-
-    # the index is required rather than defaulted: a window of "whichever
-    # pattern" would draw one member's curves under another's label
-    assert client.get("/api/series/window")[0] == 400
-    status, payload = client.get("/api/series/window?index=9")
-    assert status == 404 and payload["error"]["where"] == ["index"]
 
 
 def test_a_series_member_history_is_its_own_tree_and_read_only(series):

@@ -14,10 +14,11 @@ import assert from 'node:assert/strict';
 import {test} from 'node:test';
 
 import {
-  LADDER, LAYOUT_DEFAULT, ago, axisOf, clampSize, clock, coalesce, deltaTitle,
-  dragged, esc, extent, finiteOf, guiReason, hklLabel, nextLayout, num,
-  parseLayout, pct, rangesOf,
-  paletteFrom, phaseInk, rowName, runLabel, runTitle, sizeField, withAlpha,
+  LADDER, LAYOUT_DEFAULT, PHASE_TOKENS, ago, axisOf, clampSize, clock,
+  curvesOf, deltaRange, deltaTitle, dragged, esc, extent, finiteOf, guiReason,
+  hasBackground, hklLabel, intensityRange, legendOf, nextLayout, num,
+  parseLayout, pct, paletteFrom, rowName, runLabel, runTitle, sizeField,
+  tickText,
 } from '../src/rietx/watch/static/watch-core.mjs';
 
 // A pattern the page would draw: 1000 points, and a residual the caller
@@ -163,28 +164,28 @@ test('a hole in the data is dropped, and an empty extent is not [±∞]', () => 
   assert.deepEqual(extent([]), [0, 1]);
 });
 
-// ----------------------------------------------------------- rangesOf: x, y
-test('the 2θ span and the intensity range are the data\'s, with padding',
-  () => {
-    const {x, y} = rangesOf(snapshot(new Array(1000).fill(0)));
-    // 1 % of the span either side
-    assert.deepEqual(x.map(v => +v.toFixed(6)), [9.3, 80.7]);
-    // -3 % / +5 % of the observed range: asymmetric, so the legend at the top
-    // has room and the baseline sits off the axis
-    assert.deepEqual(y.map(v => +v.toFixed(6)), [-29.97, 1048.95]);
-  });
-
-test('a pattern with no span still gets a range', () => {
-  const flat = {two_theta: [20, 20], y_obs: [5, 5], delta: [0, 0]};
-  const {x, y} = rangesOf(flat);
-  assert.deepEqual(x, [19.99, 20.01]);            // the `|| 1` fallback
-  assert.deepEqual(y.map(v => +v.toFixed(6)), [4.97, 5.05]);
+// ----------------------------------------------------- intensityRange
+test('the intensity range is the data\'s, with padding', () => {
+  const {y_obs} = snapshot(new Array(1000).fill(0));
+  // -3 % / +5 % of the observed range: asymmetric, so the legend at the top
+  // has room and the baseline sits off the axis
+  assert.deepEqual(intensityRange(y_obs).map(v => +v.toFixed(6)),
+                   [-29.97, 1048.95]);
 });
 
-// ------------------------------------------------------- rangesOf: the ladder
+test('a flat pattern still gets a range', () => {
+  assert.deepEqual(intensityRange([5, 5]).map(v => +v.toFixed(6)), [4.97, 5.05]);
+});
+
+test('a hole in the view is not a point of it', () => {
+  assert.deepEqual(intensityRange([null, 0, NaN, 100]).map(v => +v.toFixed(6)),
+                   [-3, 105]);
+});
+
+// --------------------------------------------------- deltaRange: the ladder
 test('the Δ/σ range is a ladder rung, symmetric, and never below the data',
   () => {
-    const rung = d => rangesOf(snapshot(d)).y2;
+    const rung = d => deltaRange(snapshot(d).delta);
     // the smallest rung that covers the residual, so the band at ±3 stays
     // legible on a converged fit
     assert.deepEqual(rung(new Array(1000).fill(2)), [-3, 3]);
@@ -199,16 +200,15 @@ test('the Δ/σ range is a ladder rung, symmetric, and never below the data',
 test('one spiked point does not set the scale, and ten misfitted ones do',
   () => {
     // a snapshot's arrays are the decimation's, up to `MAX_POINTS` = 4000
-    const points = 4000;
-    const base = new Array(points).fill(1);
+    const base = new Array(4000).fill(1);
     // a single 900σ point is inside the cut of four and never reaches the scale
     const spike = base.slice();
     spike[2000] = 900;
-    assert.deepEqual(rangesOf(snapshot(spike, {points})).y2, [-3, 3]);
+    assert.deepEqual(deltaRange(spike), [-3, 3]);
     // ten of them are a misfitted peak, and the reader must see it
     const peak = base.slice();
     for (let i = 1600; i < 1610; i++) peak[i] = 40;
-    assert.deepEqual(rangesOf(snapshot(peak, {points})).y2, [-50, 50]);
+    assert.deepEqual(deltaRange(peak), [-50, 50]);
   });
 
 test('the cut is a count, so a short pattern gets one too', () => {
@@ -220,7 +220,7 @@ test('the cut is a count, so a short pattern gets one too', () => {
   for (const points of [600, 1000, 1001]) {
     const spike = new Array(points).fill(1);
     spike[Math.floor(points / 2)] = 900;
-    assert.deepEqual(rangesOf(snapshot(spike, {points})).y2, [-3, 3],
+    assert.deepEqual(deltaRange(spike), [-3, 3],
                      `one spike set the scale at ${points} points`);
   }
 });
@@ -229,8 +229,8 @@ test('a pattern too short to have an outlier still gets a scale', () => {
   // one point is not a spike among others, so it is the scale; two is the
   // smaller of them. Neither may come back undefined, which would take the
   // axis with it.
-  assert.deepEqual(rangesOf(snapshot([900], {points: 1})).y2, [-1000, 1000]);
-  assert.deepEqual(rangesOf(snapshot([4, 900], {points: 2})).y2, [-5, 5]);
+  assert.deepEqual(deltaRange([900]), [-1000, 1000]);
+  assert.deepEqual(deltaRange([4, 900]), [-5, 5]);
 });
 
 test('the ladder is rungs, so a stage can only step between them', () => {
@@ -241,9 +241,8 @@ test('the ladder is rungs, so a stage can only step between them', () => {
 });
 
 test('a residual of nothing but holes does not make an empty axis', () => {
-  const {y2} = rangesOf(snapshot([null, NaN, null].concat(
-    new Array(997).fill(null))));
-  assert.deepEqual(y2, [-3, 3]);
+  const holes = [null, NaN, null].concat(new Array(997).fill(null));
+  assert.deepEqual(deltaRange(holes), [-3, 3]);
 });
 
 // ------------------------------------------------------------- layout
@@ -334,95 +333,117 @@ test('a patch touches the keys it names and no others', () => {
 
 // ----------------------------------------------------------- paletteFrom
 // WP-1429: the plot's colours are the GUI's custom properties, read off the
-// root element at draw time. `read` is injected, so the page's answer to
-// "which colour is the calculated curve" is testable without a browser.
+// root element whenever the theme moves. `read` is injected, so the page's
+// answer to "which colour is the calculated curve" is testable without a
+// browser.
 
 test('every plot colour comes from the property that owns it', () => {
   const declared = {
     '--plot-obs': '#8a8a8a', '--plot-calc': '#c23b22', '--plot-bkg': '#6b7280',
-    '--plot-diff': '#1f5fa8', '--plot-zero': '#88888888', '--line': '#dcdcd6',
-    '--fg': '#1b1b1b', '--bg': '#fbfbfa', '--ok': '#2e8b57',
+    '--plot-diff': '#1f5fa8', '--plot-zero': '#88888888', '--ok': '#2e8b57',
     '--phase-0': '#009e73', '--phase-1': '#cc79a7', '--phase-2': '#56b4e9',
     '--phase-3': '#f0e442',
   };
   assert.deepEqual(paletteFrom(name => declared[name]), {
     obs: '#8a8a8a', calc: '#c23b22', bkg: '#6b7280', diff: '#1f5fa8',
-    zero: '#88888888', grid: '#dcdcd6', fg: '#1b1b1b', ground: '#fbfbfa',
-    band: '#2e8b57',
+    zero: '#88888888', band: '#2e8b57',
     phase: ['#009e73', '#cc79a7', '#56b4e9', '#f0e442'],
   });
-});
-
-// ------------------------------------------------------------- phaseInk
-// WP-1438: the tick rows' colours stopped riding on the poll's payload, which
-// sent one list whatever the theme. They are `--phase-N` now, and which row
-// takes which is the GUI's rule ported, `gui/src/lib/plot.ts:phaseInk`.
-
-test('a phase keeps its colour whatever else is drawn', () => {
-  const hue = { obs: '#8a8a8a', phase: ['#009e73', '#cc79a7', '#56b4e9'] };
-  assert.equal(phaseInk(hue, 0, 3), '#009e73');
-  assert.equal(phaseInk(hue, 1, 3), '#cc79a7');
-  assert.equal(phaseInk(hue, 2, 3), '#56b4e9');
-  // past the last it cycles rather than handing back undefined
-  assert.equal(phaseInk(hue, 3, 4), '#009e73');
-});
-
-test('one row has nothing to be told apart from, so it takes the neutral', () => {
-  const hue = { obs: '#8a8a8a', phase: ['#009e73', '#cc79a7'] };
-  assert.equal(phaseInk(hue, 0, 1), '#8a8a8a');
-});
-
-test('an unstyled page still draws its ticks in something', () => {
-  // `paletteFrom` drops empty properties, so a page with no stylesheet has no
-  // phase list at all — and a tick row with no colour is a row plotly colours
-  // by trace order, which is the defect this replaced
-  const hue = { obs: '', phase: [] };
-  assert.equal(phaseInk(hue, 2, 4), '');
 });
 
 test('a browser hands back a leading space, and it is not part of the colour',
   () => {
     // `getComputedStyle().getPropertyValue()` keeps the whitespace after the
-    // colon, and plotly takes the string as given
+    // colon, and a canvas given the padded string would keep its last colour
     assert.equal(paletteFrom(() => ' #e56a52 ').calc, '#e56a52');
   });
 
 test('a property nobody declared is empty, never the word undefined', () => {
-  // an unstyled page draws in plotly's own colours; `'undefined'` would be a
-  // colour plotly rejects trace by trace, which looks like a plotting bug
   const hue = paletteFrom(() => undefined);
   assert.equal(hue.calc, '');
-  assert.equal(Object.values(hue).join(''), '');
+  assert.deepEqual(hue.phase, []);
 });
 
-// ------------------------------------------------------------- withAlpha
-// The legend moved inside the paper in WP-1426, so its ground sits over the
-// data and has to be part-transparent. The colour is still the palette's.
+// ------------------------------------------------------------- legendOf
+// WP-1461: the legend is the page's own, over the chart. Each entry names the
+// custom property it is drawn in, so a theme switch restyles it by CSS alone.
 
-test('a palette colour comes back as rgba at the opacity asked for', () => {
-  assert.equal(withAlpha('#1d1813', 0.72), 'rgba(29, 24, 19, 0.72)');
-  assert.equal(withAlpha('#000000', 1), 'rgba(0, 0, 0, 1)');
-  assert.equal(withAlpha('#ffffff', 0), 'rgba(255, 255, 255, 0)');
+const TWO_PHASES = {
+  y_bkg: [0, 50, 50],
+  ticks: {'phase 0': {two_theta: [25, 44], n_total: 2},
+          'phase 1': {two_theta: [63], n_total: 1}},
+};
+
+test('the legend names each curve, in the order they are drawn', () => {
+  assert.deepEqual(legendOf(TWO_PHASES).map(e => [e.id, e.label, e.mark]), [
+    ['obs', 'observed', 'dot'], ['calc', 'calculated', 'line'],
+    ['bkg', 'background', 'dash'], ['diff', 'Δ/σ', 'line'],
+    ['ticks:phase 0', 'hkl: phase 0', 'tick'],
+    ['ticks:phase 1', 'hkl: phase 1', 'tick'],
+  ]);
 });
 
-test('the three-digit form is the six-digit one', () => {
-  assert.equal(withAlpha('#abc', 0.5), withAlpha('#aabbcc', 0.5));
-  assert.equal(withAlpha('#f00', 1), 'rgba(255, 0, 0, 1)');
+test('a background of zeros is no background, and has no entry', () => {
+  const none = {...TWO_PHASES, y_bkg: [0, 0, 0]};
+  assert.equal(hasBackground(none), false);
+  assert.ok(!legendOf(none).some(e => e.id === 'bkg'));
+  // a snapshot written without the key at all is the same answer
+  assert.equal(hasBackground({}), false);
 });
 
-test('case and surrounding space are not what a colour is', () => {
-  assert.equal(withAlpha('#1D1813', 0.72), withAlpha('#1d1813', 0.72));
-  assert.equal(withAlpha('  #1d1813  ', 0.72), withAlpha('#1d1813', 0.72));
+test('a phase keeps its colour whatever else is drawn', () => {
+  const inks = snap => legendOf(snap).filter(e => e.mark === 'tick')
+    .map(e => e.ink);
+  assert.deepEqual(inks(TWO_PHASES), ['--phase-0', '--phase-1']);
+  // the stage that frees the background adds an entry before the rows, and
+  // moves neither of them along the list
+  assert.deepEqual(inks({...TWO_PHASES, y_bkg: [0, 0, 0]}),
+                   ['--phase-0', '--phase-1']);
+  // past the last it cycles rather than naming a property nobody declared
+  const five = {ticks: Object.fromEntries([0, 1, 2, 3, 4].map(i =>
+    [`p${i}`, {two_theta: [10 + i], n_total: 1}]))};
+  assert.deepEqual(inks(five), [...PHASE_TOKENS, '--phase-0']);
 });
 
-test('anything it cannot read comes back as itself', () => {
-  // The palette arrives off the wire, so this is a real input, not a
-  // hypothetical one. Handing plotly a colour it may still understand beats
-  // handing it `undefined`, which draws no ground at all.
-  for (const v of ['rgba(0,0,0,0.5)', 'red', '#12345', '#1d18134', '',
-                   'not a colour', null, undefined]) {
-    assert.equal(withAlpha(v, 0.5), v);
-  }
+test('one row has nothing to be told apart from, so it takes the neutral', () => {
+  const one = {ticks: {'phase 0': {two_theta: [25], n_total: 1}}};
+  assert.equal(legendOf(one).at(-1).ink, '--plot-obs');
+});
+
+test('a capped row says so, because a silent cap reads as coverage', () => {
+  const capped = {ticks: {big: {two_theta: [1, 2, 3], n_total: 9000}}};
+  assert.equal(legendOf(capped).at(-1).label, 'hkl: big (3 of 9000)');
+});
+
+// ------------------------------------------------------------- curvesOf
+test('a snapshot is a curves payload whose every channel is fitted', () => {
+  const snap = {two_theta: [10, 11, 12], y_obs: [1, null, 3],
+                y_calc: [1, 2, 3], y_bkg: [0, 0, 0], delta: [0, null, 0],
+                weighted: true,
+                ticks: {a: {two_theta: [11], hkl: [[1, 0, 0]], n_total: 1}}};
+  const {header, arrays} = curvesOf(snap);
+  assert.deepEqual(header, {fit: true, weighted: true, ticks: {a: [11]}});
+  assert.deepEqual([...arrays.kept], [0, 1, 2]);
+  assert.deepEqual([...arrays.fitted], [0, 1, 2]);
+  // the JSON's own arrays, so a hole stays a hole and is never a zero
+  assert.equal(arrays.y_obs, snap.y_obs);
+  assert.equal(arrays.delta[1], null);
+  assert.equal(arrays.y_background, snap.y_bkg);
+});
+
+// ------------------------------------------------------------- tickText
+test('a tick names its reflection over its angle', () => {
+  const row = {two_theta: [25, 44.25], hkl: [[1, 1, 0], [2, 0, -1]]};
+  assert.equal(tickText(row, 0), '(1 1 0)\n25.0000°');
+  assert.equal(tickText(row, 1), '(2 0 −1)\n44.2500°');
+});
+
+test('a row written before the indices keeps the angle alone', () => {
+  // `rietx watch` opens directories somebody else wrote, and a label reading
+  // `undefined` would make an older file look worse than it is
+  assert.equal(tickText({two_theta: [25]}, 0), '25.0000°');
+  assert.equal(tickText({two_theta: [25, 30], hkl: [[1, 1, 0]]}, 0),
+               '25.0000°');
 });
 
 // ------------------------------------------------------------ splitters
@@ -479,43 +500,6 @@ test('the ported drag arithmetic answers every one of the GUI\'s cases', () => {
                  `${name}(${args.join(', ')})`);
   }
 });
-
-// `coalesce` came over with them, and its contract is the trailing run: the
-// GUI measured a 60-move drag issuing 60 plotly resizes, the last landing
-// 1.10 s after the mouse came up. Dropping the extras outright would leave the
-// plot at the size the drag *started* at, so the queued one has to run.
-test('coalesce runs one now and at most one more, and the last is the final size',
-  async () => {
-    const seen = [];
-    let release = null;
-    let current = 0;
-    const ask = coalesce(() => {
-      seen.push(current);
-      return new Promise(resolve => { release = resolve; });
-    });
-    current = 100;
-    ask();
-    for (let px = 101; px <= 160; px++) {
-      current = px;
-      ask();
-    }
-    release();
-    await Promise.resolve();
-    await Promise.resolve();
-    assert.deepEqual(seen, [100, 160]);
-  });
-
-test('coalesce is re-armed after a throw, so one failure is not a latch', () => {
-  let n = 0;
-  const ask = coalesce(() => {
-    n += 1;
-    if (n === 1) throw new Error('first one fails');
-  });
-  assert.throws(ask, /first one fails/);
-  ask();
-  assert.equal(n, 2);
-});
-
 
 // ------------------------------------------------------- the gui column
 // A run outside a project gets no launch button, and until WP-1438 got

@@ -282,7 +282,39 @@ tr.run.selected { background:color-mix(in srgb, var(--accent) 16%, transparent);
 }
 #strip .state { justify-self:start; }
 #picture { flex:1 1 68%; min-height:180px; position:relative; }
-#plot { position:absolute; inset:0; border:0; width:100%; height:100%; }
+#plot { position:absolute; inset:0; border:0; width:100%; height:100%;
+        overflow:hidden; }
+/* The pointer's line carries no quantity, so it is chrome: solid, in `--fg`,
+   as the GUI's is (WP-1213). uPlot's own is dashed. */
+#plot .u-cursor-x { border-right:1px solid var(--fg); }
+#plot .u-select { background:color-mix(in srgb, var(--fg) 10%, transparent); }
+/* What is laid over the figure. Each is placed in the plot's coordinates and
+   takes no room from the picture, so none of them can move it. */
+#plot .legend, #plot .caption, #plot .tip { position:absolute; z-index:1; }
+/* The legend's ground is part-transparent: it sits over the data, and an
+   opaque one on a narrow panel hid the tallest peak behind its rows. */
+#plot .legend { display:flex; flex-wrap:wrap; gap:0 10px; padding:2px 6px;
+                box-sizing:border-box;
+                background:color-mix(in srgb, var(--bg) 72%, transparent); }
+#plot .legend button { all:unset; cursor:pointer; font-size:11px;
+                       display:inline-flex; align-items:center; gap:5px;
+                       white-space:nowrap; line-height:18px; }
+#plot .legend button:focus-visible { outline:1px solid var(--fg); }
+/* a hidden curve keeps its entry, dimmed, so the reader can bring it back */
+#plot .legend button[aria-pressed="false"] { opacity:0.4; }
+#plot .legend i { display:inline-block; width:14px; height:0;
+                  border-top:1.5px solid var(--ink); }
+#plot .legend .dash i { border-top-style:dashed; }
+#plot .legend .dot i { width:4px; height:4px; border:0; background:var(--ink); }
+#plot .legend .tick i { width:0; height:9px; border:0;
+                        border-left:1.5px solid var(--ink); }
+/* The count sits under the axis it is a fact about, in the title's row and
+   at its left end, below the empty corner the y axis leaves. At its right
+   end it ran into the centred 2θ title at the run pane's 340 px floor. */
+#plot .caption { left:6px; bottom:3px; font-size:10px; color:var(--muted); }
+#plot .tip { transform:translate(-50%, calc(-100% - 4px)); white-space:pre;
+             pointer-events:none; font-size:11px; padding:2px 6px;
+             background:var(--panel); border:1px solid var(--line); }
 /* a pre-WP-1402 run left a self-contained page behind; it still opens, in
    the frame it was always shown in */
 iframe#plot { background:var(--panel); }

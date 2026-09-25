@@ -126,8 +126,8 @@ the built files must be *in* the wheel, and no built file may name a remote host
 The digest itself lives once, in `gui/scripts/build_info.py`, called by both the
 build and the test; `build-info.json` deliberately carries no timestamp, because
 `git diff --exit-code src/rietx/gui/static` has to mean "stale", not "rebuilt".
-**Which points a payload carries is the server's** (`viz.compare.decimation_index`, in the
-Series panel's window route and past `CURVES_CEILING` in the curves routes); the chart module paints
+**Which points a payload carries is the server's** (`viz.compare.decimation_index`, past
+`CURVES_CEILING` in the curves routes); the chart module paints
 each pixel column's extremes of them (WP-1461 D5), what is drawn and never what the
 readout reads. plotly is **not** vendored (served from `/plotly.js`); uPlot is, into
 `src/rietx/viz/static` by `scripts/vendor.py`, the build's first step: bump the pin, build.
@@ -140,7 +140,7 @@ leaves a `node_modules` the newer one cannot use (WP-1442).
 
 **`lib/resize.ts`'s cases are copied out, and `gui/src` is hashed whole**
 (WP-1425). `rietx watch` cannot import TypeScript, so it ports
-`clampSize`/`dragged`/`axisOf`/`coalesce` and `tests/test_watch_app.py` compares
+`clampSize`/`dragged`/`axisOf` and `tests/test_watch_app.py` compares
 `resize.test.ts`'s `ported cases` block against `tests/watch_core.test.mjs` **as
 text**, comments included: edit them here and the copy fails until it follows.
 `build_info.py` hashes `gui/src/**/*`, test files included, so editing any test
@@ -380,7 +380,8 @@ promise and does its work in chunks, so an un-coalesced `ResizeObserver` costs
 last landed 1.10 s late at a steady 60 fps. Every `Plots.resize` therefore goes
 through `resize.ts:coalesce` (one in flight, at most one queued, and the queued
 one runs, so the last redraw is the final size), and both plotly panels were
-*measured* before taking it; the pattern panel left plotly in WP-1461.
+*measured* before taking it; the pattern and Series panels left plotly in
+WP-1461, so the 3D view is its one caller.
 **Instrument before the library loads**: a `$state`
 rune proxies the namespace and caches each property on first read, so patching
 `window.Plotly` after boot counts nothing while the plot redraws — use an init
@@ -617,7 +618,7 @@ and put `phases.0.cell.a` eighth. And **a per-pattern tree is read-only here** �
 one tree per pattern, pinned by `data_fingerprint`, so a node cannot be checked
 out into this project; what makes the chain navigable is the root node's
 `series_warm_start_node` note. Two shared authorities came out of it rather than
-second copies: `session.curve_window` (so the two panels cannot draw residuals
+second copies: `session.curve_arrays` (so the two panels cannot draw residuals
 under two σ policies) and `session.tree_payload`.
 
 Its **five keys on every event** are the thing to know outside the panel:
@@ -628,11 +629,10 @@ existing kinds, so `EVENT_SCHEMA_VERSION` does not move and "pattern k of N"
 reaches the run record through the *existing* `stage`/`stage_index`/`n_stages`.
 The console pays for that: five fields on every `eval` pushed the cost off the
 right edge, so `lib/stream.ts` folds them into one `[T300 1/3 ↩]` prefix.
-Measured browser facts: this plot is plotly **SVG**, not canvas, so WP-1015's
-swallowed-click trap cannot apply to it (`Plot.svelte`'s plotly renderer drew its
-residual with `scattergl`, which made it a canvas there) — but the `ResizeObserver`
-still earns its place, since the plot refits 539 → 1480 px when the column takes
-the window; a *rotated* y-axis title shares the fixed left margin with the tick
+Measured browser facts: the plot is the chart module's canvas since WP-1461, in
+a host that clips it, and its `ResizeObserver` refits it 539 → 1480 px when the
+column takes the window, so no canvas overhangs a control (WP-1015's trap was
+plotly's); a *rotated* y-axis title shares the fixed left margin with the tick
 labels, so `phases.0.cell.a` clipped to `aes.0.cell.a` and the axis takes the
 **leaf** (the heading above carries the path); and the staged table's floor is
 per column — core 308 px, detail 231 — reflowed by `lib/resize.ts:seriesCompact`
@@ -881,7 +881,7 @@ the tolerance — so the pointer sat on three picked lines in a row while the ro
 read `—`. **The pointer's line is chrome, so it is solid and takes `--fg`**: dotted in
 `--muted` is `maskShapes`' excluded-region edge exactly, and the pointer drew a
 line indistinguishable from a protocol boundary (uPlot's own is dashed
-`#607d8b`, and `Plot.svelte` restyles `.u-cursor-x`) — a mark carrying no quantity
+`#607d8b`, and `app.css` restyles `.u-cursor-x` for every GUI chart) — a mark carrying no quantity
 needs no `--plot-*` token (WP-1210), it needs the one ink no plot colour is
 near. **Prose takes `−`, numbers take `-`**, which this app followed unwritten
 until a typographic minus in the tick offsets sat beside `formatValue`'s

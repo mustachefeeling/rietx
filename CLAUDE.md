@@ -573,8 +573,8 @@ projects: `gui/CLAUDE.md`, loaded under `gui/`.
   anchored on the bare name (`.rxt` strips the block prefix, so `instrument.` is not in the row).
 - **A live view is numbers a viewer draws, never a page the fit builds** (WP-1402).
   `viz/snapshot.py` writes `snapshot.json` per stage and imports no plotting library, so a
-  base install can record one; `viz/live.py` is a shim over it and `rietx watch` loads
-  plotly once and redraws in place, which is what keeps the reader's zoom across a stage.
+  base install can record one; `viz/live.py` is a shim over it and `rietx watch` draws it
+  with the chart module and redraws in place, which keeps the reader's zoom across a stage.
   The page it replaced was serialised on the fit's own thread at 4.51-6.03 MB a stage.
   `rietx html` still writes one on demand — what stopped is producing it unasked.
 - **A per-stage charge is judged on the shortest fit, never the typical one** (WP-1413): it is

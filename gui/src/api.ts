@@ -317,15 +317,9 @@ export const api = {
   /** Entries, trajectories with esds, and the fences — `path_dependent` hoisted
    *  to the top level because it is the headline, not a footnote. */
   seriesResult: () => call("GET", "/api/series/result"),
-  /** One member's curves, through the same window arithmetic (and therefore the
-   *  same σ) the project's own plot uses. */
-  seriesWindow: (index: number, lo?: number, hi?: number, maxPoints = 2000) => {
-    const query = new URLSearchParams({ index: String(index),
-                                        max_points: String(maxPoints) });
-    if (lo !== undefined) query.set("lo", String(lo));
-    if (hi !== undefined) query.set("hi", String(hi));
-    return call("GET", `/api/series/window?${query}`);
-  },
+  /** One member's channels and curves, as `curves` sends the project's: built
+   *  by the same function, so the σ and the residuals are the same arithmetic. */
+  seriesCurves: (index: number) => arrays(`/api/series/curves?index=${index}`),
   /** That pattern's own history tree — **read-only**: a tree is pinned to its
    *  data fingerprint, so its nodes cannot be checked out into this project. */
   seriesHistory: (index: number) =>

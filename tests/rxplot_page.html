@@ -75,5 +75,21 @@ window.mountPattern = (spec = {}, payload = curves()) => {
   });
   return true;
 };
+// A heat-then-cool series: up 300 → 400 and back, so the chain comes back along
+// its own x. Point 1 has no esd; it is reseeded (a ring), and point 3, at the
+// same x on the way down, is unrecovered (a cross).
+window.loop = () => ({ x: [300, 350, 400, 350, 300], value: [1.0, 1.1, 1.2, 1.15, 1.05],
+                       stderr: [0.01, null, 0.01, 0.01, 0.01], backward: null });
+window.trajInks = { tone: "#0000ff", warn: "#ff8000", muted: "#808080" };
+window.mountTrajectory = (spec = {}, traj = loop()) => {
+  window.G?.destroy();
+  const G = window.G = rx.trajectory(uPlot, host, traj, {
+    colors: () => trajInks, rings: [false, true, false, false, false],
+    crosses: [false, false, false, true, false], xLabel: "T", yLabel: "a", ...spec,
+  });
+  G.points = [];
+  G.onPoint = (hit) => G.points.push(hit && { i: hit.i, chain: hit.chain });
+  return true;
+};
 window.ready = true;
 </script></body></html>

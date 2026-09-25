@@ -28,7 +28,7 @@ import pytest
 
 from rietx import runs
 from rietx._about import STATE_DIR_ENV
-from rietx.viz.theme import TOKENS
+from rietx.viz.theme import PHASE_TOKENS, TOKENS
 from tests.test_watch_app import _served
 
 playwright = pytest.importorskip("playwright")
@@ -145,11 +145,53 @@ def _make_tree(root: Path, *, n_done: int = 40) -> Path:
     return watched
 
 
+#: The picture has been drawn: the page hangs the chart module's figure on
+#: ``#plot`` once it is up (``watch.mjs``, ``makeChart``). Its panes are uPlot
+#: instances, whose scales are the ranges the axes were painted with.
+DRAWN = ("() => document.getElementById('plot') && "
+         "document.getElementById('plot').__rx")
+
+#: Every stroke and fill on every canvas, with the style it was made in, from
+#: before the page's own scripts run. What a curve was *painted* in, where a
+#: series' own colour is only what it was handed: under plotly a tick row
+#: declared one colour and painted another (WP-1438). ``test_gui_browser.py``
+#: reads the GUI's panel through the same script.
+RECORD = """
+window.__ink = [];
+const ids = new WeakMap();
+let next = 0;
+const id = (c) => { if (!ids.has(c)) ids.set(c, next++); return ids.get(c); };
+window.__canvasId = id;
+for (const op of ["stroke", "fill", "fillRect"]) {
+  const original = CanvasRenderingContext2D.prototype[op];
+  CanvasRenderingContext2D.prototype[op] = function (...args) {
+    window.__ink.push({ canvas: id(this.canvas), op,
+                        style: String(op === "stroke" ? this.strokeStyle : this.fillStyle),
+                        dash: this.getLineDash().length > 0, alpha: this.globalAlpha });
+    return original.apply(this, args);
+  };
+}
+"""
+
+#: The styles each of the picture's three panes (main, ticks, residual)
+#: painted since the record was last cleared, by operation.
+INKS = """() => [...document.querySelectorAll('#plot canvas')].map(c => {
+  const id = window.__canvasId(c), mine = window.__ink.filter(m => m.canvas === id);
+  const of = op => [...new Set(mine.filter(m => m.op === op).map(m => m.style))];
+  return {stroke: of('stroke'), fill: of('fill').concat(of('fillRect'))};
+})"""
+
+CLEAR_INK = "() => { window.__ink = []; }"
+
 GEOMETRY = """() => {
   const r = el => { const b = el.getBoundingClientRect();
                     return [b.x, b.y, b.width, b.height].map(Math.round); };
   const plot = document.getElementById('plot');
-  const L = plot && plot._fullLayout;
+  const P = plot && plot.__rx && plot.__rx.panes;
+  const at = (u, d) => [u.scales.y.min, u.scales.y.max].map(v => +v.toFixed(d));
+  const area = u => { const b = u.over.getBoundingClientRect(),
+                            p = plot.getBoundingClientRect();
+                      return [b.x - p.x, b.y - p.y, b.width, b.height].map(Math.round); };
   return {
     bar: r(document.getElementById('bar')),
     strip: r(document.getElementById('strip')),
@@ -157,11 +199,11 @@ GEOMETRY = """() => {
     cols: [...document.querySelectorAll('th')].map(th =>
       Math.round(th.getBoundingClientRect().width)),
     plot: plot ? r(plot) : null,
-    size: L ? [L._size.l, L._size.t, L._size.w, L._size.h].map(Math.round) : null,
-    x: L ? L.xaxis.range.map(v => +v.toFixed(3)) : null,
-    y: L ? L.yaxis.range.map(v => +v.toFixed(1)) : null,
-    y2: L ? L.yaxis2.range.map(v => +v.toFixed(2)) : null,
-    y3: L ? L.yaxis3.range : null,
+    size: P ? area(P.main) : null,
+    x: P ? [P.main.scales.x.min, P.main.scales.x.max].map(v => +v.toFixed(3)) : null,
+    y: P ? at(P.main, 1) : null,
+    y2: P ? at(P.resid, 2) : null,
+    y3: P ? {range: at(P.ticks, 2), height: P.ticks.height} : null,
     listScroll: document.getElementById('runs').scrollTop,
     stripText: document.getElementById('strip').textContent.replace(/\\s+/g, ' ').trim(),
     stage: document.getElementById('s-stage').textContent,
@@ -177,14 +219,13 @@ OBSERVE = """() => {
 }"""
 
 
-def _open(browser, base: str, run_id: str):
-    page = browser.new_page(viewport={"width": 1400, "height": 900})
+def _open(browser, base: str, run_id: str, **context):
+    page = browser.new_page(viewport={"width": 1400, "height": 900}, **context)
     errors: list[str] = []
     page.on("pageerror", lambda e: errors.append(str(e)))
+    page.add_init_script(RECORD)
     page.goto(f"{base}/#/run/{run_id}", wait_until="networkidle")
-    page.wait_for_function("() => document.getElementById('plot') && "
-                           "document.getElementById('plot')._fullLayout",
-                           timeout=15000)
+    page.wait_for_function(DRAWN, timeout=15000)
     page.wait_for_timeout(500)
     return page, errors
 
@@ -195,8 +236,9 @@ def _open(browser, base: str, run_id: str):
 def _rgb(value: str) -> tuple[int, int, int]:
     """A colour as a triple, from either spelling a browser hands back.
 
-    plotly is given a `#rrggbb` and reports `rgb(r, g, b)`; `getComputedStyle`
-    answers in `rgb()` too.  Comparing strings would be comparing spellings.
+    A canvas reports a colour it was given as `#rrggbb`, or as `rgba(…)` when
+    it has an alpha; `getComputedStyle` answers in `rgb()`. Comparing strings
+    would be comparing spellings.
     """
     value = value.strip()
     if value.startswith("#"):
@@ -204,17 +246,26 @@ def _rgb(value: str) -> tuple[int, int, int]:
     return tuple(int(float(n)) for n in re.findall(r"[\d.]+", value)[:3])
 
 
+def _inks(styles) -> set[tuple[int, int, int]]:
+    return {_rgb(s) for s in styles}
+
+
+#: The chrome's colours, and the main pane's inks since the record was cleared.
 THEME_STATE = """() => {
-  const plot = document.getElementById('plot');
   const root = document.documentElement;
+  const main = (""" + INKS + """)()[0];
   return {
     stamped: root.dataset.theme ?? null,
-    calc: plot._fullData.find(t => t.name === 'calculated').line.color,
-    obs: plot._fullData.find(t => t.name === 'observed').marker.color,
+    strokes: main.stroke, fills: main.fill,
     page: getComputedStyle(document.body).backgroundColor,
     ink: getComputedStyle(document.body).color,
   };
 }"""
+
+
+def _painted(state: dict, token: str, *, op: str) -> bool:
+    """Whether the main pane painted ``token``'s colour with ``op``."""
+    return _rgb(token) in _inks(state["strokes" if op == "stroke" else "fills"])
 
 
 @pytest.mark.parametrize("choice", ["dark", "light"])
@@ -224,8 +275,9 @@ def test_the_page_is_drawn_in_the_theme_the_gui_stored(browser, tmp_path,
 
     The assertion that matters is the calculated line: the watcher drew it
     `#ff9d4d` and the GUI `#e56a52`, so a reader with both open saw one fit in
-    two colour schemes.  Reading it out of `_fullData` is reading what was
-    painted rather than what was asked for.
+    two colour schemes.  Read off the canvas's own record of what it
+    painted, rather than off what the series was handed, and never painted in
+    the other theme first.
     """
     state = tmp_path / "state"
     state.mkdir()
@@ -241,9 +293,11 @@ def test_the_page_is_drawn_in_the_theme_the_gui_stored(browser, tmp_path,
         page.close()
     assert errors == []
     tokens = TOKENS[choice]
+    other = TOKENS["light" if choice == "dark" else "dark"]
     assert drawn["stamped"] == choice
-    assert _rgb(drawn["calc"]) == _rgb(tokens["--plot-calc"])
-    assert _rgb(drawn["obs"]) == _rgb(tokens["--plot-obs"])
+    assert _painted(drawn, tokens["--plot-calc"], op="stroke"), drawn
+    assert not _painted(drawn, other["--plot-calc"], op="stroke"), drawn
+    assert _painted(drawn, tokens["--plot-obs"], op="fill"), drawn
     assert _rgb(drawn["page"]) == _rgb(tokens["--bg"])
     assert _rgb(drawn["ink"]) == _rgb(tokens["--fg"])
 
@@ -268,17 +322,20 @@ def test_a_theme_changed_in_the_gui_reaches_an_open_page(browser, tmp_path,
                       if r.path == watched)
         page, errors = _open(browser, base, run_id)
         before = page.evaluate(THEME_STATE)
+        page.evaluate(CLEAR_INK)
         (state / "settings.json").write_text(
             json.dumps({"ui": {"theme": "light"}}), encoding="utf-8")
         page.wait_for_timeout(int(2.5 * POLL * 1000))
         after = page.evaluate(THEME_STATE)
         page.close()
     assert errors == []
-    assert _rgb(before["calc"]) == _rgb(TOKENS["dark"]["--plot-calc"])
+    assert _painted(before, TOKENS["dark"]["--plot-calc"], op="stroke")
     assert after["stamped"] == "light"
     assert _rgb(after["page"]) == _rgb(TOKENS["light"]["--bg"])
-    # the picture too, which is the half a stylesheet does not reach
-    assert _rgb(after["calc"]) == _rgb(TOKENS["light"]["--plot-calc"])
+    # the picture too, which is the half a stylesheet does not reach: it was
+    # repainted, and in the new theme's ink alone
+    assert _painted(after, TOKENS["light"]["--plot-calc"], op="stroke"), after
+    assert not _painted(after, TOKENS["dark"]["--plot-calc"], op="stroke"), after
 
 
 def test_the_reader_can_choose_a_theme_here_and_it_is_stored(browser,
@@ -308,6 +365,7 @@ def test_the_reader_can_choose_a_theme_here_and_it_is_stored(browser,
             "() => [...document.querySelectorAll('#theme button')].map("
             "  b => [b.dataset.choice, b.textContent,"
             "        b.getAttribute('aria-pressed')])")
+        page.evaluate(CLEAR_INK)
         page.click("#theme button[data-choice='dark']")
         page.wait_for_timeout(600)
         after = page.evaluate(THEME_STATE)
@@ -327,7 +385,8 @@ def test_the_reader_can_choose_a_theme_here_and_it_is_stored(browser,
     # the chrome, and the canvas, which is the half a stylesheet cannot reach
     assert after["stamped"] == "dark"
     assert _rgb(after["page"]) == _rgb(TOKENS["dark"]["--bg"])
-    assert _rgb(after["calc"]) == _rgb(TOKENS["dark"]["--plot-calc"])
+    assert _painted(after, TOKENS["dark"]["--plot-calc"], op="stroke"), after
+    assert not _painted(after, TOKENS["light"]["--plot-calc"], op="stroke"), after
     assert pressed == ["dark"]
 
     # and the file, with the rest of it intact
@@ -356,16 +415,9 @@ def test_choosing_system_hands_the_question_back_to_the_browser(browser,
     with _served(tmp_path) as base:
         run_id = next(r.run_id for r in runs.discover(tmp_path)
                       if r.path == watched)
-        page = browser.new_page(viewport={"width": 1400, "height": 900},
-                                color_scheme="dark")
-        errors: list[str] = []
-        page.on("pageerror", lambda e: errors.append(str(e)))
-        page.goto(f"{base}/#/run/{run_id}", wait_until="networkidle")
-        page.wait_for_function("() => document.getElementById('plot') && "
-                               "document.getElementById('plot')._fullLayout",
-                               timeout=15000)
-        page.wait_for_timeout(500)
+        page, errors = _open(browser, base, run_id, color_scheme="dark")
         light = page.evaluate(THEME_STATE)
+        page.evaluate(CLEAR_INK)
         page.click("#theme button[data-choice='system']")
         page.wait_for_timeout(600)
         followed = page.evaluate(THEME_STATE)
@@ -376,14 +428,9 @@ def test_choosing_system_hands_the_question_back_to_the_browser(browser,
     # no stamp, and the browser's own dark answers
     assert followed["stamped"] is None
     assert _rgb(followed["page"]) == _rgb(TOKENS["dark"]["--bg"])
+    # and the canvas with it, which no stylesheet repaints
+    assert _painted(followed, TOKENS["dark"]["--plot-calc"], op="stroke"), followed
     assert theme_mod.theme_choice() == "system"
-
-
-TICK_COLOURS = """() => {
-  const d = document.getElementById('plot')._fullData;
-  return Object.fromEntries(d.filter(t => t.name.startsWith('hkl:'))
-                             .map(t => [t.name, t.marker.color]));
-}"""
 
 
 def test_a_stage_that_frees_the_background_leaves_the_tick_colours_alone(
@@ -393,15 +440,14 @@ def test_a_stage_that_frees_the_background_leaves_the_tick_colours_alone(
     The row has to be nameable against the list beside it, so a colour that
     moves under the reader is worse than one that is merely not the GUI's.
     Measured while WP-1429 briefly handed these rows to plotly's own colorway,
-    which the GUI's tick rows take: the colorway is indexed by position in the
+    which the GUI's tick rows took: the colorway was indexed by position in the
     trace array and the background trace is conditional, so the stage that
     frees the background moved every row one step along it — `phase 0` from
     `#d62728` to `#9467bd` with no reader action. `#d62728` is also 0.043 from
     `--plot-calc` in OKLab, a third of the distance the curve colours are held
     apart by, which is the two-marks-in-one-red shape WP-1210 exists to
-    prevent. Pinning the array's shape does not fix
-    it either: a `visible: false` trace does not hold its colorway slot
-    (measured). So the rows keep an explicit colour, and this is the guard.
+    prevent. So each row wears its `--phase-N` whatever else is drawn, and
+    this reads the tick band's canvas either side of the stage.
     """
     watched = _make_tree(tmp_path, n_done=2)
     _write_stage(watched, "cell", scale=0.7, noise=30.0, rwp=0.3, bkg=False)
@@ -409,61 +455,78 @@ def test_a_stage_that_frees_the_background_leaves_the_tick_colours_alone(
         run_id = next(r.run_id for r in runs.discover(tmp_path)
                       if r.path == watched)
         page, errors = _open(browser, base, run_id)
-        before = page.evaluate(TICK_COLOURS)
+        before = page.evaluate(INKS)[1]["stroke"]
+        page.evaluate(CLEAR_INK)
         time.sleep(0.05)
         _write_stage(watched, "biso", scale=1.0, noise=4.0, rwp=0.05, bkg=True)
         page.wait_for_timeout(int(2.5 * POLL * 1000))
-        after = page.evaluate(TICK_COLOURS)
+        after = page.evaluate(INKS)[1]["stroke"]
+        stage = page.evaluate("() => document.getElementById('s-stage').textContent")
         page.close()
     assert errors == []
-    assert set(before) == {"hkl: phase 0", "hkl: phase 1"}
-    assert before == after, "a stage boundary moved a phase's tick colour"
+    assert stage == "stage 3/3 biso", "the stage never landed"
+    # the four follow no theme (`viz/theme.PHASE_TOKENS`)
+    rows = {_rgb(PHASE_TOKENS["--phase-0"]), _rgb(PHASE_TOKENS["--phase-1"])}
+    assert _inks(before) >= rows, before
+    assert _inks(after) >= rows, "the stage did not repaint the band"
+    assert _inks(before) == _inks(after), \
+        "a stage boundary moved a phase's tick colour"
+
+
+#: The tick band's pixel for a tick at ``tt`` in ``row`` of ``rows``, in the
+#: page's coordinates, where a pointer can be sent.
+TICK_AT = """([tt, row, rows]) => {
+  const u = document.getElementById('plot').__rx.panes.ticks;
+  const o = u.over.getBoundingClientRect();
+  return {x: o.x + u.valToPos(tt, 'x'), y: o.y + o.height * (row + 0.5) / rows};
+}"""
+
+TIP = """() => {
+  const tip = document.querySelector('#plot .tip');
+  return tip.hidden ? null : tip.textContent;
+}"""
+
+
+def _point_at(page, tt: float, row: int, rows: int = 2):
+    at = page.evaluate(TICK_AT, [tt, row, rows])
+    page.mouse.move(at["x"], at["y"])
+    page.wait_for_timeout(150)
+    return page.evaluate(TIP)
 
 
 def test_a_tick_says_which_reflection_it_is(browser, tmp_path):
     """It hovered the 2θ alone, which the axis under it already says
     (WP-1438).
 
-    Read off `_fullData` rather than off a screenshot: what a `hovertemplate`
-    resolves to is plotly's business, and what this owns is that the row
-    carries its own indices and points the template at them.
+    Pointed at, in the row the tick is in: the label is the row's own indices
+    over the 2θ. The fixture's `(2 0 −1)` carries a minus, spelled U+2212 in
+    front of the digit — `formatHkl`'s own output, which
+    `gui/src/lib/plot.test.ts` holds `hklLabel` equal to.
     """
     watched = _make_tree(tmp_path, n_done=2)
     with _served(tmp_path) as base:
         run_id = next(r.run_id for r in runs.discover(tmp_path)
                       if r.path == watched)
         page, errors = _open(browser, base, run_id)
-        rows = page.evaluate(
-            "() => document.getElementById('plot')._fullData"
-            ".filter(t => t.name.startsWith('hkl:'))"
-            ".map(t => ({name: t.name, n: t.x.length,"
-            "            custom: t.customdata ? t.customdata.slice(0, 3) : null,"
-            "            template: t.hovertemplate || null,"
-            "            info: t.hoverinfo}))")
+        seen = {tt: _point_at(page, tt, row)
+                for tt, row in ((25.0, 0), (44.0, 0), (63.0, 1))}
+        # the other row, at the same angle, has no tick there
+        wrong_row = _point_at(page, 25.0, 1)
+        # and between ticks nothing is named
+        between = _point_at(page, 35.0, 0)
         page.close()
     assert not errors, errors
-    assert rows, "no tick rows drawn"
-    for row in rows:
-        assert row["custom"], row
-        assert len(row["custom"]) == row["n"], row
-        # three integers in parentheses, space separated, with the minus in
-        # front of the digit and spelled U+2212 — `formatHkl`'s own output,
-        # which `gui/src/lib/plot.test.ts` holds this equal to
-        for label in row["custom"]:
-            assert label.startswith("(") and label.endswith(")"), label
-            parts = label[1:-1].split(" ")
-            assert len(parts) == 3, label
-            assert all(part.lstrip("−").isdigit() for part in parts), label
-        assert "%{customdata}" in (row["template"] or ""), row
-        # and the 2θ is still there, because it is the other half of the answer
-        assert "%{x" in row["template"], row
+    assert seen == {25.0: "(1 1 0)\n25.0000°", 44.0: "(2 0 −1)\n44.0000°",
+                    63.0: "(0 0 2)\n63.0000°"}, seen
+    assert wrong_row is None
+    assert between is None
 
 
 def test_a_snapshot_with_no_indices_keeps_the_hover_it_had(browser, tmp_path):
     """`rietx watch` opens directories somebody else wrote, including ones
     written before this (WP-1438).
 
-    The fallback is the 2θ the row always hovered, never a box reading
+    The fallback is the 2θ the row always hovered, never a label reading
     `undefined`: a page that gets worse on an older file is worse than one
     that simply gains nothing.
     """
@@ -478,21 +541,10 @@ def test_a_snapshot_with_no_indices_keeps_the_hover_it_had(browser, tmp_path):
         run_id = next(r.run_id for r in runs.discover(tmp_path)
                       if r.path == watched)
         page, errors = _open(browser, base, run_id)
-        rows = page.evaluate(
-            "() => document.getElementById('plot')._fullData"
-            ".filter(t => t.name.startsWith('hkl:'))"
-            ".map(t => ({custom: t.customdata ?? null,"
-            "            template: t.hovertemplate ?? null,"
-            "            info: t.hoverinfo}))")
+        seen = [_point_at(page, 25.0, 0), _point_at(page, 63.0, 1)]
         page.close()
     assert not errors, errors
-    assert rows, "no tick rows drawn"
-    for row in rows:
-        # plotly normalises an absent template to the empty string rather
-        # than leaving the key off, so the claim is that it is not set
-        assert not row["custom"], row
-        assert not row["template"], row
-        assert row["info"] == "x", row
+    assert seen == ["25.0000°", "63.0000°"], seen
 
 
 def test_a_stage_changes_the_text_and_nothing_else(browser, tmp_path):
@@ -534,8 +586,8 @@ def test_a_stage_changes_the_text_and_nothing_else(browser, tmp_path):
 
 def test_the_ranges_are_the_datas(browser, tmp_path):
     """The x range is the pattern's span and the intensity range the observed
-    curve's, with the page's own padding — never plotly's autorange over
-    whatever the stage drew."""
+    curve's, with the page's own padding — never a range fitted to whatever
+    the stage drew, which here is a calculated curve at 0.7 of the data."""
     watched = _make_tree(tmp_path, n_done=1)
     with _served(tmp_path) as base:
         run_id = next(r.run_id for r in runs.discover(tmp_path)
@@ -544,14 +596,124 @@ def test_the_ranges_are_the_datas(browser, tmp_path):
         got = page.evaluate(GEOMETRY)
         page.close()
     assert not errors, errors
-    assert got["x"] == [pytest.approx(10 - 0.7), pytest.approx(80 + 0.7)]
+    # the pattern's span, as the GUI shows it
+    assert got["x"] == [pytest.approx(10), pytest.approx(80)]
     snap = _snapshot("cell", scale=0.7, noise=30.0)
     lo, hi = min(snap["y_obs"]), max(snap["y_obs"])
     span = hi - lo
     assert got["y"] == [pytest.approx(lo - 0.03 * span, abs=0.1),
                         pytest.approx(hi + 0.05 * span, abs=0.1)]
-    # two tick rows, one unit apart, on an axis of their own
-    assert got["y3"] == [-1.5, 0.5]
+    # two tick rows on a pane of their own, whose range no zoom moves and
+    # whose height is the rows' (`rxplot.tickHeight`: 12 + 16 a row)
+    assert got["y3"] == {"range": [0, 1], "height": 12 + 16 * 2}
+
+
+def test_a_zoom_survives_a_stage(browser, tmp_path):
+    """A stage is new numbers for the figure on screen, never a new figure.
+
+    The reader's x range holds across it, which is the whole reason the
+    picture stopped being a page that reloads (WP-1402), while the Δ/σ axis
+    still steps down its ladder, being the fit's. A double-click goes back to
+    the whole pattern.
+    """
+    watched = _make_tree(tmp_path, n_done=2)
+    with _served(tmp_path) as base:
+        run_id = next(r.run_id for r in runs.discover(tmp_path)
+                      if r.path == watched)
+        page, errors = _open(browser, base, run_id)
+        box = page.evaluate("() => { const b = document.getElementById('plot')"
+                            ".__rx.panes.main.over.getBoundingClientRect();"
+                            " return {x: b.x + b.width / 2, y: b.y + b.height / 2}; }")
+        page.mouse.move(box["x"], box["y"])
+        page.mouse.wheel(0, -300)
+        page.wait_for_timeout(300)
+        zoomed = page.evaluate(GEOMETRY)
+        time.sleep(0.05)
+        _write_stage(watched, "biso", scale=1.0, noise=4.0, rwp=0.05)
+        page.wait_for_timeout(int(2.5 * POLL * 1000))
+        landed = page.evaluate(GEOMETRY)
+        page.mouse.dblclick(box["x"], box["y"])
+        page.wait_for_timeout(300)
+        reset = page.evaluate(GEOMETRY)
+        page.close()
+
+    assert not errors, errors
+    assert landed["stage"] == "stage 3/3 biso", "the stage never landed"
+    lo, hi = zoomed["x"]
+    assert 10 < lo < hi < 80, zoomed["x"]
+    assert landed["x"] == zoomed["x"]
+    assert zoomed["y2"] == [-50, 50] and landed["y2"] == [-5, 5]
+    assert reset["x"] == [10, 80]
+
+
+LEGEND = """() => Object.fromEntries([...document.querySelectorAll('#plot .legend button')]
+  .map(b => [b.dataset.id, b.getAttribute('aria-pressed')]))"""
+
+
+def _light(monkeypatch, tmp_path) -> None:
+    """A state directory of the test's own, so the page draws in the light
+    theme whatever this machine's reader chose."""
+    state = tmp_path / "state"
+    state.mkdir()
+    monkeypatch.setenv(STATE_DIR_ENV, str(state))
+    (state / "settings.json").write_text(
+        json.dumps({"ui": {"theme": "light"}}), encoding="utf-8")
+
+
+def test_the_legend_hides_a_curve_and_a_stage_keeps_it_hidden(browser, tmp_path,
+                                                             monkeypatch):
+    """Clicking an entry hides its curve until it is clicked again, and a
+    stage landing in between brings nothing back."""
+    _light(monkeypatch, tmp_path)
+    watched = _make_tree(tmp_path, n_done=2)
+    calc = _rgb(TOKENS["light"]["--plot-calc"])
+    with _served(tmp_path) as base:
+        run_id = next(r.run_id for r in runs.discover(tmp_path)
+                      if r.path == watched)
+        page, errors = _open(browser, base, run_id)
+        page.click("#plot .legend button[data-id='calc']")
+        page.wait_for_timeout(200)
+        page.evaluate(CLEAR_INK)
+        time.sleep(0.05)
+        _write_stage(watched, "biso", scale=1.0, noise=4.0, rwp=0.05)
+        page.wait_for_timeout(int(2.5 * POLL * 1000))
+        hidden = page.evaluate(INKS)[0]["stroke"]
+        pressed = page.evaluate(LEGEND)
+        page.evaluate(CLEAR_INK)
+        page.click("#plot .legend button[data-id='calc']")
+        page.wait_for_timeout(200)
+        shown = page.evaluate(INKS)[0]["stroke"]
+        page.close()
+
+    assert not errors, errors
+    assert pressed == {"obs": "true", "calc": "false", "bkg": "true",
+                       "diff": "true", "ticks:phase 0": "true",
+                       "ticks:phase 1": "true"}
+    assert hidden, "the stage did not repaint the picture"
+    assert calc not in _inks(hidden)
+    assert calc in _inks(shown)
+
+
+def test_the_residual_carries_the_three_sigma_band(browser, tmp_path,
+                                                   monkeypatch):
+    """Δ/σ has expectation 1 under a correct model, so the band puts the
+    residual on an absolute scale (Toby 2024): `--ok` at 15 %, from −3 to +3
+    on whatever rung the axis is at."""
+    _light(monkeypatch, tmp_path)
+    watched = _make_tree(tmp_path, n_done=2)
+    with _served(tmp_path) as base:
+        run_id = next(r.run_id for r in runs.discover(tmp_path)
+                      if r.path == watched)
+        page, errors = _open(browser, base, run_id)
+        bands = page.evaluate("""() => {
+          const resid = window.__canvasId(document.querySelectorAll('#plot canvas')[2]);
+          return window.__ink.filter(m => m.canvas === resid && m.op === 'fillRect'
+                                          && Math.abs(m.alpha - 0.15) < 1e-9)
+                             .map(m => m.style);
+        }""")
+        page.close()
+    assert not errors, errors
+    assert _rgb(TOKENS["light"]["--ok"]) in _inks(bands), bands
 
 
 def test_a_grip_collapses_its_pane_and_the_other_takes_the_room(browser, tmp_path):
@@ -650,11 +812,12 @@ def test_with_no_run_in_the_url_the_page_follows_the_newest(browser, tmp_path):
 #
 # Two instruments, because neither sees what the other does. The browser's own
 # `layout-shift` entry is the measure of a *box* moving, and it names the
-# element; it is blind to the picture, the plot being one div whose insides
-# plotly redraws without the layout engine ever hearing about it. Measured on
-# the page before this WP: a stage that freed the background took the plot area
-# from y=45 to y=64 and reported a layout shift of exactly 0. So the picture is
-# read off `_fullLayout._size`, which is where that movement is.
+# element; it is blind to the picture, the plot being canvases the chart
+# repaints without the layout engine ever hearing about it. Measured on the
+# page before this WP, under plotly: a stage that freed the background took the
+# plot area from y=45 to y=64 and reported a layout shift of exactly 0. So the
+# picture is read off the chart's own plot box, each pane's `over`, which is
+# where that movement would be.
 # ----------------------------------------------------------------------
 
 OBSERVE_SHIFT = """() => {
@@ -677,18 +840,18 @@ READ_SHIFT = """() => {
           nodes: s.flatMap(e => e.nodes)};
 }"""
 
-#: The plot area and the legend, in the plot div's own coordinates. `_size` is
-#: the area plotly drew inside the margins, so `_size.t` growing is the picture
-#: being pushed down by whatever is in the top margin.
+#: The main pane's plot area and the legend, in the plot div's own
+#: coordinates. The area's top growing is the picture being pushed down by
+#: whatever sits above it.
 PLOT_GEOMETRY = """() => {
   const div = document.getElementById('plot');
-  const L = div._fullLayout;
-  const g = div.querySelector('g.legend');
   const pr = div.getBoundingClientRect();
-  const area = [L._size.l, L._size.t, L._size.w, L._size.h].map(Math.round);
-  const b = g.getBoundingClientRect();
-  const legend = [b.x - pr.x, b.y - pr.y, b.width, b.height].map(Math.round);
-  return {ntraces: div.data.length, area, legend,
+  const box = el => { const b = el.getBoundingClientRect();
+                      return [b.x - pr.x, b.y - pr.y, b.width, b.height].map(Math.round); };
+  const area = box(div.__rx.panes.main.over);
+  const g = div.querySelector('.legend');
+  const legend = box(g);
+  return {entries: g.children.length, area, legend,
           rel: [legend[0] - area[0], legend[1] - area[1]],
           div: [Math.round(pr.width), Math.round(pr.height)]};
 }"""
@@ -769,7 +932,7 @@ def _drag(page, selector: str, dx: int, dy: int) -> None:
 
 SEAM = """() => {
   const plot = document.getElementById('plot');
-  const L = plot && plot._fullLayout;
+  const main = plot && plot.__rx && plot.__rx.panes.main;
   const px = el => Math.round(el.getBoundingClientRect().width);
   const py = el => Math.round(el.getBoundingClientRect().height);
   return {
@@ -777,7 +940,7 @@ SEAM = """() => {
     run: px(document.getElementById('run')),
     console: py(document.getElementById('console')),
     picture: py(document.getElementById('picture')),
-    inner: L ? [L._size.w, L._size.h].map(Math.round) : null,
+    inner: main ? [px(main.over), py(main.over)] : null,
     box: [px(plot), py(plot)],
     resizes: window.__resizes,
     stored: JSON.parse(localStorage.getItem('rietx-watch-layout') || 'null'),
@@ -788,10 +951,13 @@ SEAM = """() => {
   };
 }"""
 
+#: Each time the main pane was given a new size. The chart's ResizeObserver
+#: gives it one (`rxplot.panes`), at most once a frame.
 COUNT_RESIZES = """() => {
   window.__resizes = 0;
-  const orig = window.Plotly.Plots.resize;
-  window.Plotly.Plots.resize = function (...a) {
+  const main = document.getElementById('plot').__rx.panes.main;
+  const orig = main.setSize;
+  main.setSize = function (...a) {
     window.__resizes += 1;
     return orig.apply(this, a);
   };
@@ -801,12 +967,13 @@ COUNT_RESIZES = """() => {
 def test_a_drag_moves_the_seam_and_the_picture_follows_it(browser, tmp_path):
     """WP-1425's acceptance, and the defect it was opened for.
 
-    Measured before the change: moving the list seam from 72ch to 40ch drew
-    **zero** `Plots.resize` calls. The plot *element* followed the seam, 879 px
-    wide to 1110, while plotly's inner size stayed at 807 — the picture drawn
-    303 px narrower than its own box, and nothing repaired it until the pane
-    was collapsed and reopened. So what this asserts is not that the number of
-    resizes is small; it is that the inner size moved at all.
+    Measured before the change, under plotly: moving the list seam from 72ch
+    to 40ch drew **zero** `Plots.resize` calls. The plot *element* followed the
+    seam, 879 px wide to 1110, while plotly's inner size stayed at 807 — the
+    picture drawn 303 px narrower than its own box, and nothing repaired it
+    until the pane was collapsed and reopened. So what this asserts is not
+    that the number of resizes is small; it is that the inner size moved at
+    all, and by what the box did.
     """
     watched = _make_tree(tmp_path, n_done=6)
     with _served(tmp_path) as base:
@@ -821,9 +988,7 @@ def test_a_drag_moves_the_seam_and_the_picture_follows_it(browser, tmp_path):
 
         # the choice survives a reload, and is applied before the plot is drawn
         page.reload(wait_until="networkidle")
-        page.wait_for_function("() => document.getElementById('plot') && "
-                               "document.getElementById('plot')._fullLayout",
-                               timeout=15000)
+        page.wait_for_function(DRAWN, timeout=15000)
         page.wait_for_timeout(500)
         page.evaluate(COUNT_RESIZES)
         reloaded = page.evaluate(SEAM)
@@ -842,13 +1007,15 @@ def test_a_drag_moves_the_seam_and_the_picture_follows_it(browser, tmp_path):
     # the seam moved, by about what the pointer asked for
     assert after["list"] == pytest.approx(before["list"] + 180, abs=4)
     assert after["run"] == pytest.approx(before["run"] - 180, abs=4)
-    # and the picture followed it, which is the whole WP
+    # and the picture followed it, which is the whole WP: narrower by what
+    # its box lost, the axis gutter beside it unchanged
     assert after["inner"][0] < before["inner"][0]
-    assert after["inner"][0] == pytest.approx(after["box"][0] - 72, abs=6), \
+    assert (after["box"][0] - after["inner"][0]
+            == pytest.approx(before["box"][0] - before["inner"][0], abs=1)), \
         "the plot is drawn at a width that is not its box's"
-    # one resize in flight and at most one queued, so a 20-move drag is not
-    # 20 redraws (WP-1032's `coalesce`, ported)
-    assert 0 < after["resizes"] <= 6, after["resizes"]
+    # told by the observer, at most once a frame, so a 20-move drag is at
+    # most 20 of the 2-3 ms resizes WP-1461's pilot measured
+    assert 0 < after["resizes"] <= 20, after["resizes"]
     # persisted on the verb
     assert reloaded["stored"]["list"]["size"] == pytest.approx(after["list"],
                                                               abs=2)
@@ -1067,9 +1234,9 @@ def test_the_console_seam_is_the_same_control_the_other_way_up(browser, tmp_path
     assert not errors, errors
     assert after["console"] == pytest.approx(before["console"] + 120, abs=6)
     assert after["picture"] == pytest.approx(before["picture"] - 120, abs=6)
-    # the picture is shorter and the plot was told
+    # the picture is shorter and the plot was told, at most once a frame
     assert after["inner"][1] < before["inner"][1]
-    assert 0 < after["resizes"] <= 6, after["resizes"]
+    assert 0 < after["resizes"] <= 20, after["resizes"]
 
 
 def test_the_grips_carry_the_aria_splitter_keyboard(browser, tmp_path):
@@ -1229,7 +1396,7 @@ def test_a_run_with_no_picture_cannot_hide_its_only_content(browser, tmp_path):
 def test_the_legend_is_a_dimension_the_page_fixes(browser, tmp_path):
     """A window resize moves the legend with the plot and nothing else.
 
-    The legend used to sit above the plot area, where plotly grows the top
+    Under plotly the legend sat above the plot area, where plotly grew the top
     margin to fit it. Narrowing the window wrapped its one row to two and then
     four, and each row came out of the picture: the plot area's top ran
     46 → 65 → 139 px and its height 465 → 446 → 372 across 1400 → 700 px. A
@@ -1237,13 +1404,11 @@ def test_the_legend_is_a_dimension_the_page_fixes(browser, tmp_path):
     zero; it is that the legend's box relative to the plot area is the same at
     every width, which is what "a dimension the page fixes" means.
 
-    The widths are all **side by side** since WP-1438: below 859 px the two
-    panes stack, and then the picture is shorter because the list took the top
-    of the window, which is a pane changing and not a legend growing. Measured
-    at the seam, the stacked page is the *easier* case — at 858 px the pane
-    goes 277 px wide to 858 and the legend drops from four rows back to one.
-    So the claim is checked where it is a claim: 1400 → 860, where the legend
-    wraps 29 px to 105 and the plot area holds 510 either way.
+    The legend is now the page's own, laid over the plot area at its top left
+    and as wide as the area at most, so it wraps inside the picture. The widths
+    are all **side by side**: below 859 px the two panes stack (WP-1438), and
+    then the picture is shorter because the list took the top of the window,
+    which is a pane changing and not a legend growing.
     """
     _make_tree(tmp_path, n_done=2)
     seen = {}
@@ -1256,8 +1421,8 @@ def test_the_legend_is_a_dimension_the_page_fixes(browser, tmp_path):
             page.wait_for_timeout(800)
             seen[width] = page.evaluate(PLOT_GEOMETRY)
         # and once past the seam, where the height moves for a reason that is
-        # not this one. The top margin is still the declared 8: what stacking
-        # changes is the pane, never what the legend takes out of it.
+        # not this one. What stacking changes is the pane, never what the
+        # legend takes out of it.
         page.set_viewport_size({"width": 700, "height": 900})
         page.wait_for_timeout(800)
         stacked = page.evaluate(PLOT_GEOMETRY)
@@ -1266,40 +1431,37 @@ def test_the_legend_is_a_dimension_the_page_fixes(browser, tmp_path):
     assert not errors, errors
     tops = {w: g["area"][1] for w, g in seen.items()}
     heights = {w: g["area"][3] for w, g in seen.items()}
-    # the declared top margin, and nothing added to it for a legend
-    assert set(tops.values()) == {8}, tops
+    rows = {w: g["legend"][3] for w, g in seen.items()}
+    # the legend wrapped as the window narrowed, which is the case at issue
+    assert rows[860] > rows[1400], rows
+    # and took nothing from the picture for it
+    assert len(set(tops.values())) == 1, tops
     assert len(set(heights.values())) == 1, heights
-    # and the legend's top edge is the plot area's, at every width
-    assert {w: g["rel"][1] for w, g in seen.items()} == {1400: 0, 1000: 0, 860: 0}
-    # stacked: a shorter pane, the same top margin, the same legend rule
-    assert stacked["area"][1] == 8, stacked
+    # its top left is the plot area's, and it is never wider, at every width
+    for width, g in [*seen.items(), (700, stacked)]:
+        assert g["rel"] == [0, 0], (width, g)
+        assert g["legend"][2] <= g["area"][2], (width, g)
+    # stacked: a shorter pane, the same top, the same legend rule
+    assert stacked["area"][1] == tops[1400], stacked
     assert stacked["area"][3] < heights[860], (stacked, heights)
-    assert stacked["rel"][1] == 0, stacked
-    # its left edge too, wherever the panel is wide enough to hold it. At the
-    # narrowest the legend is wider than the plot area (125 px against 102, the
-    # grip WP-1425 put in the row having taken 5 of them) and plotly keeps it
-    # inside the paper instead, which moves it left. The bound is the legend's
-    # own overflow rather than a measured pixel count, because every number
-    # here moves when the seam does and only that one is a rule: plotly cannot
-    # shift the legend further left than the room it is short of. It is still
-    # not the legend driving the margin.
-    for width, g in seen.items():
-        overflow = g["legend"][2] - g["area"][2]
-        if overflow <= 0:
-            assert g["rel"][0] == 0, (width, g)
-        else:
-            assert -overflow <= g["rel"][0] < 0, (width, g, overflow)
+
+
+#: A viewport where the legend's fifth entry fits on one row and its sixth
+#: wraps. Measured in chromium: five entries take 409 px in one row and six
+#: 504, and the plot area is the viewport less 690 px with the list open, so
+#: 1150 leaves it 460.
+WRAPS_AT_SIX = 1150
 
 
 def test_a_stage_that_adds_a_legend_entry_does_not_move_the_picture(browser, tmp_path):
     """The stage that frees the background is the one that used to jump.
 
-    It adds a trace, the trace adds a legend entry, the entry wraps the legend
-    to a second row, and the row came out of the picture. No `layout-shift`
-    entry was ever raised for it: the plot div's own box is untouched, and the
-    movement is entirely inside plotly's redraw. Both instruments are read
-    here, and the point of the second is that the first reported 0 while the
-    picture moved 19 px.
+    It adds a curve, the curve adds a legend entry, the entry wraps the legend
+    to a second row, and under plotly the row came out of the picture. No
+    `layout-shift` entry was ever raised for it: the plot div's own box is
+    untouched, and the movement was entirely inside the redraw. Both
+    instruments are read here, and the point of the second is that the first
+    reported 0 while the picture moved 19 px.
     """
     watched = _make_tree(tmp_path, n_done=4)
     _write_stage(watched, "cell", scale=0.7, noise=30.0, rwp=0.3, bkg=False)
@@ -1307,10 +1469,8 @@ def test_a_stage_that_adds_a_legend_entry_does_not_move_the_picture(browser, tmp
         run_id = next(r.run_id for r in runs.discover(tmp_path)
                       if r.path == watched)
         page, errors = _pinned(browser, base, run_id)
-        # narrow enough that the sixth entry is the one that wraps the row: at
-        # 1400 the legend has 807 px of plot area and both counts fit on one
-        # line, so the defect this test is about cannot arise there
-        page.set_viewport_size({"width": 1200, "height": 800})
+        # narrow enough that the sixth entry is the one that wraps the row
+        page.set_viewport_size({"width": WRAPS_AT_SIX, "height": 800})
         page.wait_for_timeout(800)
         page.evaluate(OBSERVE_SHIFT)
         page.wait_for_timeout(300)
@@ -1323,8 +1483,8 @@ def test_a_stage_that_adds_a_legend_entry_does_not_move_the_picture(browser, tmp
         page.close()
 
     assert not errors, errors
-    # the stage landed, and it is the trace count that changed
-    assert before["ntraces"] + 1 == after["ntraces"]
+    # the stage landed, and it is the legend's entries that changed
+    assert before["entries"] + 1 == after["entries"]
     assert after["legend"][3] > before["legend"][3], "the legend did not gain a row"
     # and the picture did not move
     assert before["area"] == after["area"]
@@ -1661,7 +1821,7 @@ def test_an_idle_poll_does_no_work_at_all(browser, tmp_path):
     assert "runs:net" in spans, sorted(spans)
     assert "runs:parse" not in spans, "an idle poll parsed a list it had"
     assert "runs:patch" not in spans, "an idle poll patched a list it had"
-    assert "snap:react" not in spans, "an idle poll redrew the picture"
+    assert "snap:draw" not in spans, "an idle poll redrew the picture"
     assert all(v >= 0 for vals in spans.values() for v in vals)
 
 
@@ -1803,8 +1963,8 @@ OVERFLOW = """() => {
 def _open_list(browser, base: str):
     """The page, waiting on the run list rather than on a plot.
 
-    :func:`_open` waits for plotly's ``_fullLayout``, which a run with no
-    snapshot never grows. These tests are about the list, and want runs that
+    :func:`_open` waits for the drawn chart (:data:`DRAWN`), which a run with
+    no snapshot never grows. These tests are about the list, and want runs that
     are an event log and nothing else.
     """
     page = browser.new_page(viewport={"width": 1400, "height": 900})
@@ -2354,7 +2514,7 @@ BOXES = """() => {
   const rect = (el) => { const b = el.getBoundingClientRect();
     return {left: b.left, right: b.right, top: b.top, bottom: b.bottom}; };
   const legend = document.querySelector('#plot .legend');
-  const note = document.querySelector('#plot .annotation');
+  const note = document.querySelector('#plot .caption');
   return legend && note ? {legend: rect(legend), note: rect(note)} : null;
 }"""
 
@@ -2384,9 +2544,7 @@ def test_the_point_count_is_never_drawn_over_the_legend(browser, tmp_path,
         errors: list[str] = []
         page.on("pageerror", lambda e: errors.append(str(e)))
         page.goto(f"{base}/#/run/{run_id}", wait_until="networkidle")
-        page.wait_for_function("() => document.getElementById('plot') && "
-                               "document.getElementById('plot')._fullLayout",
-                               timeout=15000)
+        page.wait_for_function(DRAWN, timeout=15000)
         page.wait_for_timeout(600)
         boxes = page.evaluate(BOXES)
         page.close()
@@ -2398,3 +2556,51 @@ def test_the_point_count_is_never_drawn_over_the_legend(browser, tmp_path,
                and min(legend["bottom"], note["bottom"])
                - max(legend["top"], note["top"]) > 0)
     assert not overlap, f"{width} px: legend {legend} under caption {note}"
+
+
+#: The caption's box and the x axis title's, in the page's coordinates. The
+#: title is canvas ink, so its box is computed: centred on the residual pane's
+#: plot area (uPlot's placement) and as wide as its text in the font uPlot
+#: drew it in, which uPlot holds scaled by the device pixel ratio.
+TITLE_AND_CAPTION = """() => {
+  const u = document.getElementById('plot').__rx.panes.resid;
+  const o = u.over.getBoundingClientRect(), axis = u.axes[0];
+  const ctx = document.createElement('canvas').getContext('2d');
+  ctx.font = Array.isArray(axis.labelFont) ? axis.labelFont[0] : axis.labelFont;
+  const w = ctx.measureText(axis.label).width / devicePixelRatio;
+  const c = document.querySelector('#plot .caption').getBoundingClientRect();
+  return {run: Math.round(document.getElementById('run').getBoundingClientRect().width),
+          title: [o.left + o.width / 2 - w / 2, o.left + o.width / 2 + w / 2],
+          caption: [c.left, c.right]};
+}"""
+
+
+def test_the_point_count_keeps_clear_of_the_axis_title_at_the_floor(browser,
+                                                                    tmp_path):
+    """WP-1424's rule again, at the narrowest the run pane gets.
+
+    Found by looking at the first chart-module build (WP-1461): at the run
+    pane's 340 px floor the caption, then at the title row's right end, ran
+    into the centred `2θ (°)` and read `2θ (°)600 of 600 pts drawn`.
+    """
+    watched = _make_tree(tmp_path, n_done=2)
+    with _served(tmp_path) as base:
+        run_id = next(r.run_id for r in runs.discover(tmp_path)
+                      if r.path == watched)
+        page = browser.new_page(viewport={"width": 1400, "height": 900})
+        errors: list[str] = []
+        page.on("pageerror", lambda e: errors.append(str(e)))
+        # a list dragged as wide as it goes, so the run pane is at its floor
+        page.add_init_script(
+            "try { localStorage.setItem('rietx-watch-layout', JSON.stringify("
+            "{list: {size: 5000, open: true}, console: {size: null, open: true}}));"
+            " } catch (e) {}")
+        page.goto(f"{base}/#/run/{run_id}", wait_until="networkidle")
+        page.wait_for_function(DRAWN, timeout=15000)
+        page.wait_for_timeout(500)
+        seen = page.evaluate(TITLE_AND_CAPTION)
+        page.close()
+
+    assert not errors, errors
+    assert seen["run"] == 340, "the run pane is not at its floor"
+    assert seen["caption"][1] < seen["title"][0], seen

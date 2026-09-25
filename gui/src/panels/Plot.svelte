@@ -878,14 +878,6 @@
     border-right: 1px dotted var(--muted);
   }
 
-  /* The pointer's line carries no quantity, so it is chrome: solid, in `--fg`,
-     the one ink no plot colour is near (WP-1213). uPlot's own is dashed
-     #607d8b, which reads as the dotted edge an excluded region leaves. Cursor
-     sync draws it in all three panes, as plotly's `spikemode: "across"` did. */
-  .plot :global(.u-cursor-x) {
-    border-right: 1px solid var(--fg);
-  }
-
   /* An armed range gesture has to say so **where the gesture is**, since a
      select drag and a zoom drag are otherwise pointer-identical (WP-1044). */
   .plot.armed :global(.u-over) {

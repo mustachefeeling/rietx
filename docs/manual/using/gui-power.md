@@ -267,7 +267,7 @@ indices int32, so a browser reads each array without copying it.
 |---|---|
 | `GET /api/series` · `PUT /api/series` | the staged pattern list; replace it whole |
 | `POST /api/series/run` · `GET /api/series/result` | run the chain; its per-pattern answers and trajectories |
-| `GET /api/series/window` · `GET /api/series/curves` · `GET /api/series/history` | one member's curves, per window or whole; one member's tree |
+| `GET /api/series/curves` · `GET /api/series/history` | one member's channels and curves, as float64 arrays; one member's tree |
 | `GET /api/history` | the node graph |
 | `GET /api/history/diff` · `GET /api/history/compare` | one node against its parent; two nodes against each other |
 | `POST /api/history/checkout` · `POST /api/history/branch` | restore a state; fork from one |

@@ -32,52 +32,108 @@ export function esc(s) {
  * would be a fourth copy of the light palette for a case where every other
  * colour on the page is missing too.
  *
- * `grid` is `--line` and not `--plot-zero`: the GUI draws its gridlines in the
- * chrome's rule colour and keeps `--plot-zero` for the residual's zero, which
- * is a mark about the data. `band` is `--ok` — the ±3σ rectangle says the
- * residual is inside expectation, and the GUI has no counterpart to quote.
+ * The chart module reads the chrome's own colours, the axis ink and the grid,
+ * itself (`rxplot.token`), so this names only the marks about the data.
+ * `band` is `--ok`: the ±3σ rectangle says the residual is inside
+ * expectation, and the GUI has no counterpart to quote.
  */
 export function paletteFrom(read) {
   const pick = (name) => (read(name) || '').trim();
   return {
     obs: pick('--plot-obs'), calc: pick('--plot-calc'), bkg: pick('--plot-bkg'),
-    diff: pick('--plot-diff'), zero: pick('--plot-zero'), grid: pick('--line'),
-    fg: pick('--fg'), ground: pick('--bg'), band: pick('--ok'),
+    diff: pick('--plot-diff'), zero: pick('--plot-zero'), band: pick('--ok'),
     // One colour per phase, from the stylesheet like everything else here
     // (WP-1438). They used to ride on the poll's own payload, which meant the
     // page drew a *light* pattern's tick rows in the dark theme's list — the
     // server sent one list for both. These four do not follow the theme at
     // all, so there is no list to choose and no reason to send one.
-    phase: [pick('--phase-0'), pick('--phase-1'),
-            pick('--phase-2'), pick('--phase-3')].filter(Boolean),
+    phase: PHASE_TOKENS.map(pick).filter(Boolean),
+  };
+}
+
+// The tick rows' colours, in the order a row takes them. The canvas reads
+// their values (`paletteFrom`) and the legend names the properties
+// (`legendOf`), so the two agree on which row wears which by construction.
+export const PHASE_TOKENS = ['--phase-0', '--phase-1', '--phase-2', '--phase-3'];
+
+/**
+ * The legend's entries for a snapshot, in the order they are drawn.
+ *
+ * `id` is the chart's name for the curve (`rxplot.pattern`'s `hidden`),
+ * `ink` the custom property it is drawn in, and `mark` the swatch's shape.
+ * Each entry names a property rather than a colour, so a theme switch
+ * restyles the legend by CSS alone.
+ *
+ * An all-zero background is no background, and gets no entry. A tick row
+ * takes the observed points' neutral when it is the only one: colour tells
+ * rows apart, and one row has nothing to be told from. That is the GUI's
+ * `phaseInk` (`gui/src/lib/plot.ts`), which the chart module draws the rows
+ * with. A capped row says so in its label, because a silent cap reads as
+ * coverage.
+ */
+export function legendOf(snap) {
+  const out = [
+    {id: 'obs', label: 'observed', ink: '--plot-obs', mark: 'dot'},
+    {id: 'calc', label: 'calculated', ink: '--plot-calc', mark: 'line'},
+  ];
+  if (hasBackground(snap)) {
+    out.push({id: 'bkg', label: 'background', ink: '--plot-bkg', mark: 'dash'});
+  }
+  out.push({id: 'diff', label: 'Δ/σ', ink: '--plot-diff', mark: 'line'});
+  const names = Object.keys(snap.ticks || {});
+  names.forEach((name, i) => {
+    const row = snap.ticks[name];
+    const label = row.n_total > row.two_theta.length
+      ? `hkl: ${name} (${row.two_theta.length} of ${row.n_total})`
+      : `hkl: ${name}`;
+    out.push({id: `ticks:${name}`, label: label, mark: 'tick',
+              ink: names.length <= 1 ? '--plot-obs'
+                : PHASE_TOKENS[i % PHASE_TOKENS.length]});
+  });
+  return out;
+}
+
+/** Whether a stage has a background to draw: a free background is never all zero. */
+export function hasBackground(snap) {
+  return (snap.y_bkg || []).some(v => v);
+}
+
+/**
+ * A snapshot as a curves payload (`rxplot.unpack`'s shape), which is what the
+ * chart module draws.
+ *
+ * A snapshot holds the fitted channels alone, so every channel it carries is
+ * both kept and fitted, and the model's arrays are already on its grid. The
+ * arrays stay the JSON's own: a `null` in them is a gap the chart must not
+ * draw, and a typed array would make it a zero.
+ */
+export function curvesOf(snap) {
+  const n = snap.two_theta.length;
+  const every = Int32Array.from({length: n}, (_, i) => i);
+  const ticks = {};
+  for (const [name, row] of Object.entries(snap.ticks || {})) {
+    ticks[name] = row.two_theta;
+  }
+  return {
+    header: {fit: true, weighted: snap.weighted, ticks: ticks},
+    arrays: {two_theta: snap.two_theta, y_obs: snap.y_obs, kept: every,
+             fitted: every, y_calc: snap.y_calc, y_background: snap.y_bkg,
+             delta: snap.delta},
   };
 }
 
 /**
- * The ink a phase's tick row is drawn in — the GUI's `phaseInk`, ported.
+ * What the pointer on tick `j` of `row` says: its Miller index over its 2θ.
  *
- * A single phase takes the observed curve's neutral rather than the first
- * phase colour: colour is for telling rows apart, and one row has nothing to
- * be told apart from. Past the fourth the palette cycles, four being where
- * rows stop being nameable by colour.
+ * A row written before WP-1438 has positions and no indices, since `rietx
+ * watch` opens directories somebody else wrote. It says its 2θ alone, rather
+ * than a label reading `undefined`.
  */
-export function phaseInk(hue, index, count) {
-  if (count <= 1 || !hue.phase.length) return hue.obs;
-  return hue.phase[index % hue.phase.length];
-}
-
-// One palette colour at an opacity, so a ground can sit over a curve without
-// becoming a second authority for what that ground is. The legend moved inside
-// the paper in WP-1426 and an opaque box there hid the tallest peak on a narrow
-// panel. Anything that is not `#rgb` or `#rrggbb` comes back unchanged: the
-// colour is whatever the root element says it is now (WP-1429), and one this
-// cannot read is better drawn as itself than dropped.
-export function withAlpha(hex, alpha) {
-  const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(String(hex).trim());
-  if (!m) return hex;
-  const h = m[1].length === 3 ? m[1].replace(/./g, c => c + c) : m[1];
-  const n = parseInt(h, 16);
-  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+export function tickText(row, j) {
+  const at = `${row.two_theta[j].toFixed(4)}°`;
+  const indexed = Array.isArray(row.hkl)
+    && row.hkl.length === row.two_theta.length;
+  return indexed ? `${hklLabel(row.hkl[j])}\n${at}` : at;
 }
 
 export function ago(t) {
@@ -222,13 +278,23 @@ export function extent(values) {
   return isFinite(lo) ? [lo, hi] : [0, 1];
 }
 
-// Every range is a function of the snapshot and nothing else, and two of the
-// three are functions of the *data* part of it: the decimation keeps the
-// first and last point and every bucket's extremes, so the 2θ span and the
-// observed range read off the decimated arrays are the pattern's own, and
-// they do not move while the fit does. The Δ/σ range is the fit's; it takes
-// the ladder above, off a cut that drops the worst few points so one spiked
-// point does not set the scale while a misfitted peak of ten still does.
+// The intensity range is the *data*'s: the observed points' extent over
+// `values`, the channels in view, padded -3 % and +5 %. The model is left
+// out, so a stage whose calculated curve overshoots the pattern tenfold does
+// not shrink the pattern to a line along the axis, and the range moves only
+// when the view does. The decimation keeps every bucket's extremes, so the
+// whole pattern's range read off a snapshot is the pattern's own.
+export function intensityRange(values) {
+  const [lo, hi] = extent(finiteOf(values));
+  const ys = (hi - lo) || 1;
+  return [lo - 0.03 * ys, hi + 0.05 * ys];
+}
+
+// The Δ/σ range is the fit's. It takes the ladder above, off a cut that drops
+// the worst few points, so one spiked point does not set the scale while a
+// misfitted peak of ten still does. It is read over the whole snapshot and not
+// the view, so a zoom does not re-scale the residual under the reader: the
+// band at ±3 is the reference, and it stays the same size.
 //
 // The cut is a **count**, not a fraction, which is WP-1426 correcting what
 // WP-1430 found and pinned. Written as the 0.999 quantile it cut nothing at
@@ -238,17 +304,12 @@ export function extent(values) {
 // exactly what the quantile was there to prevent. `max(1, …)` is the whole
 // fix: at least one point is always dropped, and above 1000 the count is the
 // same few the quantile was dropping.
-export function rangesOf(snap) {
-  const tt = snap.two_theta;
-  const x0 = tt[0], x1 = tt[tt.length - 1], xs = (x1 - x0) || 1;
-  const [lo, hi] = extent(finiteOf(snap.y_obs));
-  const ys = (hi - lo) || 1;
-  const d = finiteOf(snap.delta).map(Math.abs).sort((a, b) => a - b);
+export function deltaRange(delta) {
+  const d = finiteOf(delta).map(Math.abs).sort((a, b) => a - b);
   const cut = Math.max(1, Math.round(0.001 * d.length));
   const q = d.length ? d[Math.max(0, d.length - 1 - cut)] : 0;
   const L = LADDER.find(v => v >= q) || Math.ceil(q);
-  return {x: [x0 - 0.01 * xs, x1 + 0.01 * xs],
-          y: [lo - 0.03 * ys, hi + 0.05 * ys], y2: [-L, L]};
+  return [-L, L];
 }
 
 // ------------------------------------------------------------ splitters
@@ -285,49 +346,6 @@ export function dragged(start, from, at, grow) {
 export function clampSize(value, min, keep, available) {
   const ceiling = available > keep + min ? available - keep : Number.POSITIVE_INFINITY;
   return Math.round(Math.min(Math.max(value, min), ceiling));
-}
-
-// Run `work` at most once at a time, and once more if it was asked while busy.
-//
-// The GUI measured the case this exists for (WP-1032 task 1): a 60-move drag
-// issued 60 `Plotly.Plots.resize` calls against a ~111 ms redraw, and the last
-// resolved 1.10 s after the drag ended, so the canvas trailed the grip by a
-// second. The trailing re-run is the half that matters. Dropping the extras
-// outright would leave the plot at whatever size the last accepted call
-// started with, which on a drag is its beginning.
-//
-// `Plots.resize` returns a promise, so this awaits one; a synchronous `work`
-// completes at once.
-export function coalesce(work) {
-  let running = false;
-  let queued = false;
-  const done = () => {
-    running = false;
-    if (queued) {
-      queued = false;
-      go();
-    }
-  };
-  const go = () => {
-    if (running) {
-      queued = true;
-      return;
-    }
-    running = true;
-    let out;
-    try {
-      out = work();
-    } catch (error) {
-      done();
-      throw error;
-    }
-    if (out && typeof out.then === 'function') {
-      out.then(done, done);
-    } else {
-      done();
-    }
-  };
-  return go;
 }
 
 // ---------------------------------------------------------------- layout

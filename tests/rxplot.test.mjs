@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import {test} from 'node:test';
 
 import {
-  chi2Base, lower, nearest, partition, phaseInk, positive, scatter, sqrtSplits, tickDecimals, tickHeight,
+  chi2Base, lower, nearest, nearestXY, partition, phaseInk, positive, scatter, sqrtSplits, tickDecimals, tickHeight,
   tickLabels, unpack,
 } from '../src/rietx/viz/static/rxplot.mjs';
 
@@ -28,6 +28,16 @@ test('nearest picks the closer neighbour and refuses one out of reach', () => {
   assert.equal(nearest(xs, 16, px, 5), 1);
   assert.equal(nearest(xs, 25, px, 4), -1);
   assert.equal(nearest(xs, 99, px, 100), 2);
+});
+
+test('nearestXY is by distance in the plane, for points that share an x', () => {
+  // a heat-then-cool series passes one x twice, once per leg (D8)
+  const xs = [100, 100, 140], ys = [50, 10, 30];
+  assert.equal(nearestXY(xs, ys, 101, 12, 8), 1);
+  assert.equal(nearestXY(xs, ys, 101, 48, 8), 0);
+  // a point with no value is never picked, and nothing out of reach is
+  assert.equal(nearestXY(xs, [null, 10, 30], 100, 50, 8), -1);
+  assert.equal(nearestXY(xs, ys, 120, 30, 8), -1);
 });
 
 // ------------------------------------------------------------------ finding 2

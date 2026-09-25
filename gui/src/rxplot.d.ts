@@ -60,4 +60,34 @@ declare module "rxplot" {
 
   export function pattern(uPlot: any, host: HTMLElement, curves: Curves,
                           spec: PatternSpec): Pattern;
+
+  /** A parameter across a series, in chain order. A null is a point with no value. */
+  export interface TrajectoryData {
+    x: readonly number[];
+    value: readonly (number | null)[];
+    stderr?: readonly (number | null)[];
+    backward?: readonly (number | null)[] | null;
+  }
+
+  export type TrajectoryMark = "forward" | "esd" | "backward" | "rings" | "crosses";
+
+  export interface TrajectorySpec {
+    colors: () => { tone: string; warn: string; muted: string };
+    dashed?: boolean;
+    rings?: readonly boolean[];
+    crosses?: readonly boolean[];
+    hidden?: readonly TrajectoryMark[];
+    xLabel?: string;
+    yLabel?: string;
+  }
+
+  export interface PointHit { i: number; chain: "forward" | "backward"; left: number; top: number }
+
+  export interface TrajectoryFigure extends Group {
+    onPoint: ((hit: PointHit | null) => void) | null;
+    setHidden(ids: readonly TrajectoryMark[]): void;
+  }
+
+  export function trajectory(uPlot: any, host: HTMLElement, traj: TrajectoryData,
+                             spec: TrajectorySpec): TrajectoryFigure;
 }
