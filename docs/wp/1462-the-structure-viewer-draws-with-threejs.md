@@ -507,7 +507,8 @@ svelte-check clean, and `test_gui_dist`, `test_gui_server`,
 `test_structure3d_browser`, `test_docs_consistency` and `test_gui_manual`
 215 passed (`[dev]` venv plus playwright, macOS). The fast selection has not
 run on the merged tree. The handover's steps 10-12 (verify, PR, report)
-have not run either. The PR body is not written into the repository.
+have not run either. Draft PR #472 holds the reviewer-facing body; step 11
+edits it (`gh pr edit 472 --body …`) and marks it ready.
 
 *Next*, in order:
 0. The GUI's plotly remnants, now this WP's since it lands after the Series
@@ -521,7 +522,11 @@ have not run either. The PR body is not written into the repository.
    `viz/plotlyjs.py` stays for `rietx compare` (WP-1461 task 9). Stage the
    new viewer and the extra's change in `docs/releases/1.5.1.md`, whose
    Series section still says the 3D view draws with plotly. Then resume
-   `/wp-handover` at step 9 (a review of the new commits), 10 and 11.
+   `/wp-handover` at step 9 (a review of the new commits), 10 and 11, which
+   edits draft PR #472, drops its "paused" note and marks it ready. The GUI
+   probes need python playwright in the worktree venv
+   (`uv pip install --python .venv/bin/python playwright`) and the NAC
+   example built outside the repository (`1462-spike/README.md`).
 1. The GPU gate: run `1462-spike/gui_viewer.mjs`, or open the GUI, on a
    Windows or Linux machine with a real GPU. A broken picture there sends D1
    to its three.js fallback; a good one closes the gate.
