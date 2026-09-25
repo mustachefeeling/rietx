@@ -25,6 +25,18 @@ export type ResidualKind = "delta" | "weighted" | "cumulative";
 export type Scale = "linear" | "sqrt" | "log";
 
 /**
+ * Which renderer draws the pattern, from the page's query string (WP-1461's
+ * pilot). `?chart=uplot` picks the chart module and `&markers=thin` its
+ * thinned marker path (D5); anything else is plotly, which stays the default
+ * until the pilot's measurements say go.
+ */
+export function chartChoice(search: string): { uplot: boolean; markers: "all" | "thin" } {
+  const query = new URLSearchParams(search);
+  return { uplot: query.get("chart") === "uplot",
+           markers: query.get("markers") === "thin" ? "thin" : "all" };
+}
+
+/**
  * The five curve colours, read from the custom properties `app.css` themes.
  *
  * The plot samples these at *draw* time — a theme change restyles the page by

@@ -161,6 +161,9 @@ export const UNI = 20;
  */
 export const CLICK = 8;
 
+/** The least height, in CSS px, a pane sized by a `share` is given. */
+const MIN_PANE = 60;
+
 const TYPES = ["lin", "sqrt", "log"];
 
 function yScale(uPlot, kind, pinned, fixed) {
@@ -181,11 +184,25 @@ function yScale(uPlot, kind, pinned, fixed) {
   return { range };
 }
 
+/** The width of a y axis title, the same on every pane so their plot areas align. */
+const TITLE = 18;
+
+/** Axis type, at the size the pages' own controls are set in. uPlot's titles are bold by default. */
+const FONT = '11px system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+
 function axes(spec, gutter) {
   const ink = () => token("--fg"), line = () => token("--line");
-  const x = { stroke: ink, grid: { stroke: line, width: 1 }, ticks: { stroke: line } };
+  const text = { font: FONT, labelFont: FONT };
+  const x = { ...text, stroke: ink, grid: { stroke: line, width: 1 }, ticks: { stroke: line } };
   if (!spec.xLabels) Object.assign(x, { values: (u, s) => s.map(() => ""), size: 6 });
-  const y = { stroke: ink, grid: { stroke: line, width: 1 }, ticks: { stroke: line }, size: gutter };
+  else Object.assign(x, { size: 24 }, spec.xLabel == null ? {} : { label: spec.xLabel, labelSize: TITLE });
+  const y = { ...text, stroke: ink, grid: { stroke: line, width: 1 }, ticks: { stroke: line }, size: gutter,
+              label: spec.label ?? "", labelSize: TITLE };
+  if (spec.yLabels === false) {
+    // a band, like the reflection ticks, whose y means nothing and whose grid would cross every row
+    return [{ ...x, grid: { show: false } },
+            { ...y, values: (u, s) => s.map(() => ""), grid: { show: false }, ticks: { show: false } }];
+  }
   if (spec.y === "sqrt") {
     y.splits = (u, i, min, max) => sqrtSplits(min, max);
     // uPlot filters labels for a log axis on `distr >= 3`, which a √ scale's 100
@@ -200,9 +217,17 @@ function axes(spec, gutter) {
  * Panes stacked in `host`, sharing one x.
  *
  * `spec.x` is the one x array. Each of `spec.panes` is `{ key, series, data }`
- * plus optional `height` (CSS px), `y` ("lin", "sqrt" or "log"), `range` (a
- * fixed y range, which no drag zooms), `xLabels`, and `hooks` merged into
- * uPlot's.
+ * plus optional:
+ *
+ * - `height` in CSS px, or `share`, a share of the host's height left over by
+ *   the panes with a `height`, so the group fills a host whose height the page
+ *   decides;
+ * - `y` ("lin", "sqrt" or "log"), or `range`, a fixed y range no drag zooms;
+ * - `label`, the y axis title, a string or a function uPlot reads at each draw;
+ *   `yLabels: false` for a band whose y means nothing;
+ * - `xLabels`, and `xLabel` the x axis title under them;
+ * - `hooks`, merged into uPlot's.
+ *
  * `series` and `data` leave out the x, which the group supplies.
  *
  * The group answers the gestures every page shares:
@@ -215,7 +240,7 @@ function axes(spec, gutter) {
  *   started in, and zooms nothing.
  * - The pointer calls `onCursor({ key, idx, x, left, top })`, or `onCursor(null)`
  *   as it leaves. Only the pane under the pointer calls it.
- * - A `ResizeObserver` on `host` widens every pane in the frame the host changed.
+ * - A `ResizeObserver` on `host` resizes every pane in the frame the host changed.
  *
  * The panes share their cursor through uPlot's sync, and nothing else: a drag's
  * mousedown and mouseup stay in their own pane. Synced, a drag selected in every
@@ -300,7 +325,7 @@ export function panes(uPlot, host, spec) {
     extend("setSelect", onSelect);
     extend("setCursor", onCursor);
     const u = new uPlot({
-      width: host.clientWidth, height: p.height ?? 200, legend: { show: false },
+      width: host.clientWidth, height: heights()[key], legend: { show: false },
       scales: { x: { time: false }, y: yScale(uPlot, p.y ?? "lin", () => pins[key] ?? null, p.range) },
       axes: axes(p, gutter),
       series: [{}, ...p.series],
@@ -319,9 +344,22 @@ export function panes(uPlot, host, spec) {
     return u;
   }
 
+  /** Each pane's height: its own, or its share of what the fixed ones leave. */
+  function heights() {
+    const all = Object.values(specs), out = {};
+    const fixed = all.reduce((sum, p) => sum + (p.share ? 0 : p.height ?? 200), 0);
+    const shares = all.reduce((sum, p) => sum + (p.share ?? 0), 0);
+    const room = host.clientHeight - fixed;
+    for (const p of all) {
+      out[p.key] = p.share ? Math.max(MIN_PANE, Math.floor(room * p.share / shares)) : p.height ?? 200;
+    }
+    return out;
+  }
+
+  // every spec first, so the first pane built knows what the others take
+  for (const p of spec.panes) specs[p.key] = p;
   for (const p of spec.panes) {
     divs[p.key] = host.appendChild(document.createElement("div"));
-    specs[p.key] = p;
     build(p);
   }
 
@@ -348,31 +386,60 @@ export function panes(uPlot, host, spec) {
     u.setScale("x", { min: u.scales.x.min, max: u.scales.x.max });
   };
 
+  /**
+   * A new x and new numbers for every pane, as a new payload brings. `keep`
+   * holds the reader's x range and every y they chose, as `setData` does for
+   * one pane. Otherwise every pane shows the whole of the new x, as a reset
+   * does. `data` is keyed by pane, and a pane it leaves out keeps its series.
+   */
+  group.load = (x, data, keep = false) => {
+    const first = Object.values(group.panes)[0];
+    const lo = first.scales.x.min, hi = first.scales.x.max;
+    if (!keep) for (const k of Object.keys(pins)) delete pins[k];
+    spec.x = x;
+    for (const [key, u] of Object.entries(group.panes)) {
+      u.setData([x, ...(data[key] ?? u.data.slice(1))], !keep);
+      if (keep) u.setScale("x", { min: lo, max: hi });
+    }
+  };
+
+  /** Forget the y range the reader chose on `key`, or on every pane, so the next x range fits y to the data. */
+  group.unpin = (key) => { for (const k of key ? [key] : Object.keys(pins)) delete pins[k]; };
+
   /** Repaint every pane. Colours are functions read at each draw, so this is a theme switch (finding 5). */
   group.redraw = () => { for (const u of Object.values(group.panes)) u.redraw(false, true); };
 
   /**
    * A pane rebuilt on another y scale. uPlot takes its scales at construction
    * (finding 5), so a scale switch is a new pane, placed where the old one was
-   * and shown at the same x.
+   * and shown at the same x. `data` replaces its series' numbers, which a log
+   * scale needs, since it cannot place a value at or under zero.
    */
-  group.setY = (key, kind) => {
-    const old = group.panes[key], lo = old.scales.x.min, hi = old.scales.x.max, data = old.data.slice(1);
+  group.setY = (key, kind, data) => {
+    const old = group.panes[key], lo = old.scales.x.min, hi = old.scales.x.max;
+    specs[key] = { ...specs[key], y: kind, data: data ?? old.data.slice(1) };
     old.destroy();
     delete pins[key];
-    specs[key] = { ...specs[key], y: kind, data };
     build(specs[key]);
     group.setX(lo, hi);
+  };
+
+  /** Give one pane a new height; the panes with a `share` split what is left. */
+  group.setHeight = (key, height) => {
+    specs[key] = { ...specs[key], height };
+    fit();
   };
 
   // uPlot has no autosize. A ResizeObserver runs after layout and before paint,
   // and setSize commits in the microtask after it, so a new size shows in the
   // same frame, with no timer.
-  const observer = new ResizeObserver(() => {
-    for (const u of Object.values(group.panes)) {
-      if (u.width !== host.clientWidth) u.setSize({ width: host.clientWidth, height: u.height });
+  function fit() {
+    const h = heights(), w = host.clientWidth;
+    for (const [key, u] of Object.entries(group.panes)) {
+      if (u.width !== w || u.height !== h[key]) u.setSize({ width: w, height: h[key] });
     }
-  });
+  }
+  const observer = new ResizeObserver(fit);
   observer.observe(host);
 
   group.destroy = () => {
@@ -380,5 +447,226 @@ export function panes(uPlot, host, spec) {
     for (const u of Object.values(group.panes)) u.destroy();
     for (const d of Object.values(divs)) d.remove();
   };
+  return group;
+}
+
+// ---------------------------------------------------------------- the pattern
+
+/** `values` with every entry at or under zero made a gap, which a log scale needs. */
+export function positive(values) {
+  return Array.from(values, (v) => (v != null && v > 0 ? v : null));
+}
+
+/** The tick band's height in CSS px for `rows` phases, the x axis's 6 px included. */
+export function tickHeight(rows) {
+  return 12 + 16 * rows;
+}
+
+/**
+ * The ink of tick row `row` of `count`. A single row takes the observed points'
+ * neutral: colour tells rows apart, and one row has nothing to be told from.
+ */
+export function phaseInk(colors, row, count) {
+  return count <= 1 ? colors.obs : colors.phase[row % colors.phase.length];
+}
+
+/** One stroke per device-pixel column for each of `xs` in view, `top` and `height` in canvas px. */
+export function vlines(u, xs, top, height, color) {
+  const { ctx } = u, i0 = lower(xs, u.scales.x.min), i1 = lower(xs, u.scales.x.max);
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1;
+  // uPlot leaves the last series' dash on the context, into the next frame too
+  ctx.setLineDash([]);
+  ctx.beginPath();
+  let last = NaN;
+  for (let i = i0; i < i1; i++) {
+    const p = Math.round(u.valToPos(xs[i], "x", true)) + 0.5;
+    if (p === last) continue;
+    last = p;
+    ctx.moveTo(p, top);
+    ctx.lineTo(p, top + height);
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+/**
+ * A uPlot `paths` builder drawing one square marker at each device-pixel
+ * column's lowest and highest point, D5's thinned path. At 200 000 points
+ * every marker cost 13 ms a wheel event and this 8.4 ms (finding 4).
+ */
+function thinMarkers(size) {
+  return (u, si, i0, i1) => {
+    const xs = u.data[0], ys = u.data[si], d = size * devicePixelRatio, h = d / 2, p = new Path2D();
+    let col = NaN, lo = 0, hi = 0, loY = 0, hiY = 0;
+    const flush = () => {
+      if (Number.isNaN(col)) return;
+      p.rect(col - h, loY - h, d, d);
+      if (hiY !== loY) p.rect(col - h, hiY - h, d, d);
+    };
+    for (let i = i0; i <= i1; i++) {
+      const y = ys[i];
+      if (y == null) continue;
+      const X = Math.round(u.valToPos(xs[i], "x", true)), Y = u.valToPos(y, "y", true);
+      if (X !== col) { flush(); col = X; lo = hi = y; loY = hiY = Y; }
+      else if (y < lo) { lo = y; loY = Y; }
+      else if (y > hi) { hi = y; hiY = Y; }
+    }
+    flush();
+    return { stroke: null, fill: p, clip: null, band: null, gaps: null, flags: 0 };
+  };
+}
+
+/** The main pane's curves, in series order, by the ids `hidden` uses. */
+const MAIN = ["obs", "masked", "calc", "bkg"];
+
+/** Which of a curves payload's arrays each residual is. */
+const RESIDUALS = { weighted: "delta", delta: "delta_raw", cumulative: "cumulative_chi2" };
+
+/**
+ * The diffraction pattern (D3): observed points over the model, a band of
+ * reflection ticks, and the residual under both, on the pattern's own channels.
+ *
+ * `curves` is an unpacked curves payload (D4, `unpack`): every channel's
+ * `two_theta` and `y_obs`, `kept` for the channels the protocol fits, and with
+ * a fit, `fitted` and the model arrays on the channels it kept. The observed
+ * points split by `kept` into the fitted and the masked, and the model lands on
+ * the grid through `fitted`, null elsewhere (finding 10).
+ *
+ * `spec`:
+ *
+ * - `colors()`: `{ obs, masked, calc, bkg, diff, zero, phase }`, read at every
+ *   draw, so a theme switch is a `redraw`. `phase` is one ink per tick row.
+ * - `markers`: "all" draws every observed point, "thin" each pixel column's
+ *   lowest and highest (D5).
+ * - `y`: the intensity scale, "lin", "sqrt" or "log". `residual`: "weighted",
+ *   "delta" or "cumulative".
+ * - `hidden`: the curves not drawn, as "obs", "masked", "calc", "bkg", "diff"
+ *   and "ticks:<phase>".
+ * - `labels`: `{ y, resid }`, the two y axis titles, as functions.
+ * - `layers`: per pane key ("main", "ticks", "resid"), `{ under, over }` lists
+ *   of `(u) => void`, run before the grid and after the series.
+ *
+ * The figure is the pane group (`panes`) with four more verbs: `setCurves`,
+ * `setY`, `setResidual` and `setHidden`.
+ */
+export function pattern(uPlot, host, curves, spec) {
+  const state = { y: spec.y ?? "lin", residual: spec.residual ?? "weighted",
+                  hidden: new Set(spec.hidden ?? []), c: null };
+  const ink = (key) => () => spec.colors()[key];
+  const size = { obs: 4, masked: 3 };
+
+  function prepare(payload) {
+    const { header, arrays } = payload, n = arrays.two_theta.length;
+    const [obs, masked] = partition(arrays.y_obs, arrays.kept);
+    const on = (a) => (header.fit && a ? scatter(n, arrays.fitted, a) : new Array(n).fill(null));
+    return { header, arrays, n, obs, masked, calc: on(arrays.y_calc), bkg: on(arrays.y_background),
+             on, resid: {}, ticks: header.ticks ?? {} };
+  }
+
+  const scaled = (values) => (state.y === "log" ? positive(values) : values);
+  const mainData = () => [state.c.obs, state.c.masked, state.c.calc, state.c.bkg].map(scaled);
+  const residData = () => {
+    const c = state.c, key = RESIDUALS[state.residual];
+    if (!key) throw new Error(`rxplot: no residual "${state.residual}"; one of ${Object.keys(RESIDUALS).join(", ")}`);
+    c.resid[key] ??= c.on(c.arrays[key]);
+    return [c.resid[key]];
+  };
+  const nulls = () => [new Array(state.c.n).fill(null)];
+
+  function markers(key) {
+    const alpha = key === "masked" ? 0.45 : 1, show = !state.hidden.has(key);
+    return spec.markers === "thin"
+      ? { show, stroke: ink(key), fill: ink(key), alpha, paths: thinMarkers(size[key]), points: { show: false } }
+      : { show, stroke: ink(key), alpha, paths: () => null,
+          points: { show: true, size: size[key], width: 0, fill: ink(key) } };
+  }
+
+  function drawTicks(u) {
+    const phases = Object.keys(state.c.ticks);
+    if (!phases.length) return;
+    const colors = spec.colors(), { top, height } = u.bbox, row = height / phases.length;
+    const pad = row / 4;
+    phases.forEach((phase, r) => {
+      if (state.hidden.has(`ticks:${phase}`)) return;
+      vlines(u, state.c.ticks[phase], top + r * row + pad, row - 2 * pad, phaseInk(colors, r, phases.length));
+    });
+  }
+
+  function drawZero(u) {
+    if (state.residual === "cumulative") return;
+    const y = Math.round(u.valToPos(0, "y", true)) + 0.5, { top, height, left, width } = u.bbox;
+    if (y < top || y > top + height) return;
+    const { ctx } = u;
+    ctx.save();
+    ctx.strokeStyle = spec.colors().zero;
+    ctx.lineWidth = devicePixelRatio;
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.moveTo(left, y);
+    ctx.lineTo(left + width, y);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function hooks(key, own = {}) {
+    const layer = spec.layers?.[key] ?? {};
+    return { drawClear: [...(layer.under ?? [])], drawAxes: own.drawAxes ?? [],
+             draw: [...(own.draw ?? []), ...(layer.over ?? [])] };
+  }
+
+  state.c = prepare(curves);
+  const group = panes(uPlot, host, {
+    x: curves.arrays.two_theta,
+    panes: [
+      { key: "main", share: 0.76, y: state.y, label: () => spec.labels?.y?.() ?? "",
+        series: [markers("obs"), markers("masked"),
+                 { show: !state.hidden.has("calc"), stroke: ink("calc"), width: 1.2 },
+                 { show: !state.hidden.has("bkg"), stroke: ink("bkg"), width: 1, dash: [3, 3] }],
+        data: mainData(), hooks: hooks("main") },
+      { key: "ticks", height: tickHeight(Object.keys(state.c.ticks).length), range: [0, 1], yLabels: false,
+        series: [{ show: false }], data: nulls(), hooks: hooks("ticks", { draw: [drawTicks] }) },
+      { key: "resid", share: 0.24, xLabels: true, xLabel: "2θ (°)", label: () => spec.labels?.resid?.() ?? "",
+        series: [{ show: !state.hidden.has("diff"), stroke: ink("diff"), width: 1 }],
+        data: residData(), hooks: hooks("resid", { drawAxes: [drawZero] }) },
+    ],
+  });
+
+  /** A new payload. `keep` holds the reader's view, as a run landing should. */
+  group.setCurves = (payload, keep = false) => {
+    state.c = prepare(payload);
+    const rows = tickHeight(Object.keys(state.c.ticks).length);
+    if (group.panes.ticks.height !== rows) group.setHeight("ticks", rows);
+    group.load(payload.arrays.two_theta, { main: mainData(), ticks: nulls(), resid: residData() }, keep);
+  };
+
+  /** Another intensity scale, the x range kept. */
+  const rebuild = group.setY;
+  group.setY = (kind) => {
+    state.y = kind;
+    rebuild("main", kind, mainData());
+  };
+
+  /** Another residual. A y range chosen on the old one means nothing on this one. */
+  group.setResidual = (kind) => {
+    state.residual = kind;
+    group.unpin("resid");
+    group.setData("resid", residData());
+  };
+
+  /** Draw every curve but `ids`. */
+  group.setHidden = (ids) => {
+    state.hidden = new Set(ids);
+    const { main, resid, ticks } = group.panes;
+    main.batch(() => MAIN.forEach((id, i) => {
+      const show = !state.hidden.has(id);
+      if (main.series[i + 1].show !== show) main.setSeries(i + 1, { show });
+    }));
+    const diff = !state.hidden.has("diff");
+    if (resid.series[1].show !== diff) resid.setSeries(1, { show: diff });
+    ticks.redraw(false, false);
+  };
+
   return group;
 }

@@ -23,6 +23,7 @@
   import {
     CANDIDATE_AXIS,
     RESIDUAL_KINDS,
+    chartChoice,
     SCALES,
     candidateLines,
     curveColors,
@@ -57,6 +58,7 @@
     type ResidualKind,
     type Scale,
   } from "../lib/plot";
+  import type { Curves, Overlay, PatternChart } from "../lib/pattern";
   import { coalesce } from "../lib/resize";
   import type { Theme } from "../lib/theme";
 
@@ -147,6 +149,15 @@
 
   let node: HTMLDivElement | undefined = $state();
   let plotly: any = $state(null);
+  /** Which renderer draws this pattern (WP-1461's pilot, `lib/plot.ts:chartChoice`).
+   *  Read once: a page switches renderer by loading again. */
+  const choice = chartChoice(typeof location === "undefined" ? "" : location.search);
+  /** The chart module's figure, its module and the payload it is drawing.
+   *  Plain `let`s, for the reason the painted-state ones below are: they
+   *  belong to the draw that reads them. */
+  let chart: PatternChart | null = null;
+  let chartModule: typeof import("../lib/pattern") | null = null;
+  let curves: Curves | null = null;
   let observer: ResizeObserver | null = null;
   let loadError = $state("");
   let shown = $state<{ n: number; total: number; lo: number; hi: number } | null>(null);
@@ -911,11 +922,91 @@
     await paint(w, request);
   }
 
+  // -- the chart module (WP-1461's pilot) --------------------------------
+  /** What the chart lays over the figure, from this panel's props. */
+  function overlayNow(): Overlay {
+    return { protocol, extent, peaks: peaks?.peaks ?? null, groups: peaks?.groups ?? null,
+             peaksActive, candidate: overlay, hidden, held };
+  }
+
+  /**
+   * Fetch the curves once and draw them (D4). A zoom fetches nothing: the
+   * payload is every channel, and the figure zooms in the browser. A payload
+   * over the same channels keeps the reader's view, as a run landing should.
+   */
+  async function drawChart() {
+    if (!node) return;
+    let mod: typeof import("../lib/pattern");
+    let c: Curves;
+    try {
+      mod = chartModule ??= await import("../lib/pattern");
+      c = await mod.fetchCurves();
+    } catch (exc) {
+      shown = null;
+      if (!(exc instanceof ApiError && exc.empty)) loadError = (exc as Error).message;
+      return;
+    }
+    loadError = "";
+    const w = mod.windowOf(c);
+    held = w;
+    const tt = c.arrays.two_theta;
+    shown = { n: tt.length, total: tt.length, lo: tt[0] ?? 0, hi: tt[tt.length - 1] ?? 0 };
+    if (!chart) {
+      chart = new mod.PatternChart(node, c, overlayNow(), {
+        markers: choice.markers,
+        scale: untrack(() => scale),
+        kind: untrack(() => kind),
+        labels: {
+          y: () => (scale === "linear" ? "intensity" : `intensity (${scale})`),
+          resid: () => (held?.raw ? "" : residual(kind, held).title),
+        },
+      });
+      applied = untrack(() => ({ kind, scale, theme }));
+      chart.fig.onCursor = (hit) => hovering(hit ? hit.x : null);
+      chart.fig.onSelect = (lo, hi) => { if (arm) selected(lo, hi); };
+      chart.fig.setMode(arm ? "select" : "zoom");
+    } else {
+      chart.fig.setCurves(c, mod.sameGrid(curves, c));
+      chart.update(overlayNow());
+    }
+    curves = c;
+    if (pendingZoom) {
+      chart.fig.unpin();
+      chart.fig.setX(...pendingZoom);
+      pendingZoom = null;
+    }
+  }
+
+  /** The knobs the figure was last drawn with, so a knob effect applies only what moved. */
+  let applied: { kind: ResidualKind; scale: Scale; theme: Theme } | null = null;
+  /** A window another panel asked for before the figure existed to show it. */
+  let pendingZoom: [number, number] | null = null;
+
+  function dropChart() {
+    chart?.destroy();
+    chart = null;
+    curves = null;
+    applied = null;
+    held = null;
+    shown = null;
+  }
+
+  /** The pointer's 2θ, and the peak link it drives: `plotly_hover`'s job. */
+  function hovering(x: number | null) {
+    hoverAt = x;
+    if (peaksActive) {
+      onhoverpeak(x !== null && peaks?.peaks?.length
+        ? nearestPeak(peaks.peaks, x, PICK_RADIUS_PX * degPerPx())
+        : null);
+    }
+  }
+
   // -- pointer interactions (WP-1027) ---------------------------------
   // pixel → 2θ through the axis the 2θ ticks belong to.  The shared axis is
   // anchored to the *lower* subplot, but `_fullLayout.xaxis` spans both — what
   // must not be used is the upper plot's own DOM geometry.
   function thetaOf(clientX: number): number | null {
+    if (choice.uplot) return chart?.thetaOf(clientX) ?? null;
     const xa = (node as any)?._fullLayout?.xaxis;
     if (!xa || !node) return null;
     const px = clientX - node.getBoundingClientRect().left - xa._offset;
@@ -924,6 +1015,7 @@
   }
 
   function degPerPx(): number {
+    if (choice.uplot) return chart?.degPerPx() ?? 0.01;
     const xa = (node as any)?._fullLayout?.xaxis;
     // `drawnRange`, not `xa.range`: on the first plot of a fresh div the two
     // disagree and only `_rl` matches the pixel map this is dividing by
@@ -985,7 +1077,8 @@
   /** Drop plotly's selection rectangle — the region is now the shading's job,
    *  and a lingering marquee would claim the fact twice. */
   function clearSelection() {
-    if (node && plotly) plotly.relayout?.(node, { selections: [] });
+    // the chart module's select box is its own to clear, and it does
+    if (!choice.uplot && node && plotly) plotly.relayout?.(node, { selections: [] });
   }
 
   function down(ev: PointerEvent) {
@@ -1073,7 +1166,10 @@
     observer.observe(node);
   }
 
-  $effect(() => () => observer?.disconnect());
+  $effect(() => () => {
+    observer?.disconnect();
+    chart?.destroy();
+  });
 
   /** The protocol as a *primitive*, so this panel does not refetch on every
    *  ui-only PATCH — the effect-reads-the-project-object trap WP-1027's second
@@ -1083,6 +1179,8 @@
    *  `$derived` off `project`, so both arrive new-but-equal on every settings
    *  PATCH, and an effect keyed on the object repaints for nothing. */
   const extentKey = $derived(JSON.stringify(extent));
+  /** A pattern to draw before any fit, as a boolean so a peak edit is not a change. */
+  const hasPattern = $derived(!!peaks?.pattern?.two_theta?.length);
 
   // -- the typed route (WP-1033) -------------------------------------
   // Empty means "no limit", which is why the placeholder is the measured
@@ -1119,6 +1217,7 @@
   let asked: [number, number] | null | undefined;
 
   $effect(() => {
+    if (choice.uplot) return;
     plotKey; // redraw when the session says the curves moved
     void peaks; // …and when a peak verb answered with a new list
     // …and refetch — not merely repaint — when the protocol moves: the masked
@@ -1164,6 +1263,7 @@
   // (WP-1029 q; the ordering against the shell's `applyTheme` effect is
   // settled inside `paint`, which defers one microtask before sampling).
   $effect(() => {
+    if (choice.uplot) return;
     void kind;
     void scale;
     void theme;
@@ -1199,6 +1299,11 @@
   $effect(() => {
     void hovered;
     void ringAt;
+    if (choice.uplot) {
+      const row = hovered === null ? undefined : peaks?.peaks?.find((p) => p.index === hovered);
+      untrack(() => chart?.ring(row?.two_theta ?? null));
+      return;
+    }
     drawRing();
   });
 
@@ -1211,11 +1316,64 @@
   // by the repaint effect's own paint.
   $effect(() => {
     const mode = arm ? "select" : "zoom";
+    if (choice.uplot) {
+      untrack(() => chart?.fig.setMode(mode));
+      return;
+    }
     untrack(() => {
       // `plotted` too: before this WP arming went through the repaint effect,
       // which no-oped on `held === null`, and this one does not — so it is the
       // first thing that can aim a plotly verb at a purged div (`plotted`).
       if (node && plotly && plotted) plotly.relayout?.(node, { dragmode: mode });
+    });
+  });
+
+  // The chart module's three effects (WP-1461's pilot), each the counterpart of
+  // one above. **Fetch** on what moves the curves: a run, a move in the
+  // history, the mask. Not on a peak edit, which the layers redraw, and never
+  // on a zoom.
+  $effect(() => {
+    if (!choice.uplot) return;
+    void plotKey;
+    void protocolKey;
+    void result;
+    const show = !!result || hasPattern;
+    untrack(() => (show ? drawChart() : dropChart()));
+  });
+
+  // **A window another panel asked for** is an axis move and nothing else,
+  // with y fitted to what is there.
+  $effect(() => {
+    if (!choice.uplot) return;
+    const request = zoom !== asked ? zoom : null;
+    asked = zoom;
+    if (!request) return;
+    untrack(() => {
+      if (!chart) {
+        pendingZoom = request;
+        return;
+      }
+      chart.fig.unpin();
+      chart.fig.setX(...request);
+    });
+  });
+
+  // **A knob** applies what moved: a residual is new numbers for one pane, a
+  // scale rebuilds the main one (finding 5), and the rest repaint. uPlot paints
+  // once a tick however many of these ask, except the theme, which waits a
+  // microtask for the shell to stamp it.
+  $effect(() => {
+    if (!choice.uplot) return;
+    const k = kind, s = scale, h = hidden, t = theme;
+    const o = overlayNow();
+    untrack(() => {
+      if (!chart || !applied) return;
+      if (applied.kind !== k) chart.fig.setResidual(k);
+      if (applied.scale !== s) chart.fig.setY(s === "linear" ? "lin" : s);
+      if (applied.theme !== t) void chart.retheme();
+      applied = { kind: k, scale: s, theme: t };
+      chart.fig.setHidden(h);
+      chart.update(o);
     });
   });
 </script>
@@ -1233,6 +1391,8 @@
     </p>
   {:else if !result && peaksActive}
     <p class="hint muted">Raw pattern — no fit yet, which is when peaks are picked.</p>
+  {:else if loadError && choice.uplot}
+    <p class="hint bad">{loadError}</p>
   {:else if loadError}
     <p class="hint bad">{loadError} — install the plot extra: <code>pip install 'rietx[gui]'</code></p>
   {/if}
@@ -1260,7 +1420,7 @@
   <!-- role: the div is a pointer-driven editing surface when the Peaks tab is
        active.  Every verb has a non-pointer route too — the line above names
        each — so the pointer path is an accelerator, not the only way in. -->
-  <div class="plot" class:armed={arm !== null} role="application"
+  <div class="plot" class:chart={choice.uplot} class:armed={arm !== null} role="application"
     aria-label="diffraction pattern"
     bind:this={node} onpointerdowncapture={down} oncontextmenu={context}></div>
   <!-- The readout (WP-1213), under the plot rather than over it.  The report
@@ -1338,10 +1498,17 @@
                  ? "put the other curves back"
                  : "hide every curve but the measured points"}>data only</button>
       {/if}
-      <p class="hint muted tabular">
-        {shown.n} of {shown.total} points drawn, {shown.lo.toFixed(3)}–{shown.hi.toFixed(3)}°
-        · min/max decimated server-side · zoom refetches the window
-      </p>
+      {#if choice.uplot}
+        <p class="hint muted tabular">
+          {shown.total} channels, {shown.lo.toFixed(3)}–{shown.hi.toFixed(3)}°
+          · every one sent once, zoomed here
+        </p>
+      {:else}
+        <p class="hint muted tabular">
+          {shown.n} of {shown.total} points drawn, {shown.lo.toFixed(3)}–{shown.hi.toFixed(3)}°
+          · min/max decimated server-side · zoom refetches the window
+        </p>
+      {/if}
       <!-- The overlay has no toggle (its control is the candidate row), so this
            is where it says it is on screen — and where a thinned set admits it.
            A sample drawn without saying so would read as "these are the lines
@@ -1449,6 +1616,37 @@
   .plot {
     flex: 1 1 auto;
     min-height: 240px;
+  }
+
+  /* The chart module's host (WP-1461's pilot). Its panes are sized from this
+     box's height, so the height has to come from the column and never from
+     the panes, or each resize would feed the next. */
+  .plot.chart {
+    flex: 1 1 0;
+    overflow: hidden;
+  }
+
+  /* The select box dressed as the exclusion it becomes, as plotly's is below. */
+  .plot.chart :global(.u-select) {
+    background: var(--plot-mask);
+    border-left: 1px dotted var(--muted);
+    border-right: 1px dotted var(--muted);
+  }
+
+  .plot.chart.armed :global(.u-over) {
+    cursor: col-resize;
+  }
+
+  /* The hover link's ring: a DOM mark over the canvas, so moving it paints no pattern. */
+  .plot :global(.rx-ring) {
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    margin: -8px 0 0 -8px;
+    box-sizing: border-box;
+    border: 2px solid;
+    border-radius: 50%;
+    pointer-events: none;
   }
 
   /* An armed range gesture has to say so **where the gesture is**.
