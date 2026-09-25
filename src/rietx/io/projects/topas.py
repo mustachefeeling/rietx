@@ -159,7 +159,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from ...crystallography.symmetry import get_spacegroup, setting_diagnostics
+from ...crystallography.symmetry import (
+    get_spacegroup,
+    refuse_operation_list,
+    setting_diagnostics,
+)
 from ...schemas.common import Diagnostic, Parameter
 from ..formats.base import decode
 from . import coverage as _coverage
@@ -2807,6 +2811,7 @@ def from_structure(structure: Structure) -> str:
                 f"rename rather than a failure, and the remainder is read as "
                 f"a keyword line of its own.  The same accident the `.EXP` "
                 f"writer's `write_record` refuses one format over")
+        refuse_operation_list(phase, "a TOPAS `.inp`")
         sg = get_spacegroup(phase.space_group).xhm()
         lines.append("str")
         lines.append(f'  phase_name "{phase.name}"')

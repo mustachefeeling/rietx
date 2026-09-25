@@ -199,7 +199,9 @@ the bond-and-angle symmetry codes, ZMV and the weight fractions, a magnetic
 phase's reflection list, and the GUI's symmetry facts and preview. The CIF
 export writes the list as a `_space_group_symop_operation_xyz` loop in its own
 order, and `Structure.from_cif` reads a bracketed label beside such a loop back
-as the same list. The cell's metric constraints are the one thing an
+as the same list. The GSAS, GSAS-II, TOPAS and FullProf project writers
+refuse such a phase by name, because each of those formats states a group only
+as a symbol. The cell's metric constraints are the one thing an
 operation list cannot state directly, and they come from the tabulated group
 whose point group and lattice match the list, which are this group's own, so
 they are exact rather than approximate. Two things such a phase does not get:

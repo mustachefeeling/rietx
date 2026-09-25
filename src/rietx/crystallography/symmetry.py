@@ -81,6 +81,25 @@ def split_group_label(text: str) -> tuple[str, str] | None:
     return m.group("symbol").strip(), m.group("note").strip()
 
 
+def refuse_operation_list(phase, fmt: str) -> None:
+    """Refuse, by name, a phase whose group only its operation list states.
+
+    For a writer whose format states a phase's group as a symbol and nothing
+    else.  A bracketed label is not one (:func:`split_group_label`), and
+    without this the refusal read "unknown space group symbol" — true, and no
+    help.  A plain symbol beside a list is the same group and passes.
+    """
+    if (phase.symmetry_operations is not None
+            and split_group_label(phase.space_group) is not None):
+        raise ValueError(
+            f"phase {phase.name!r} cannot be written to {fmt}: its group is "
+            f"its own list of {len(phase.symmetry_operations)} "
+            f"symmetry_operations under the bracketed label "
+            f"{phase.space_group!r}, which says no Hermann-Mauguin symbol "
+            f"generates it, and {fmt} states a group only as a symbol. A CIF "
+            f"(Structure.to_cif) carries the list")
+
+
 def unnamed_label(closest: str | None, note: str) -> str:
     """The bracketed label for a group no symbol reproduces in its cell."""
     head = (closest or "").strip()

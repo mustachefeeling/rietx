@@ -1811,7 +1811,11 @@ def from_structure(structure: Structure, *, title: str = "",
     import numpy as np
 
     from ..._about import DIST_NAME
-    from ...crystallography.symmetry import expand_positions, get_spacegroup
+    from ...crystallography.symmetry import (
+        expand_positions,
+        get_spacegroup,
+        refuse_operation_list,
+    )
 
     if len(structure.phases) > _WRITE_MAX_PHASES:
         raise ValueError(
@@ -1843,6 +1847,7 @@ def from_structure(structure: Structure, *, title: str = "",
                 f"phase {phase.name!r} has {len(phase.atoms)} sites, and the "
                 f"ATmmmA record numbers a site in three columns — site "
                 f"{_WRITE_MAX_ATOMS + 1} has no key")
+        refuse_operation_list(phase, "a GSAS `.EXP`")
         sg = get_spacegroup(phase.space_group)
         cell = phase.cell
         edges = (cell.a, cell.b, cell.c)

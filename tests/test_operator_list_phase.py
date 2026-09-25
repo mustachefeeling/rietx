@@ -668,3 +668,25 @@ def test_a_refinement_cif_without_geometry_rows_still_carries_the_list(tmp_path)
     back = structure_from_cif(str(path)).phases[0]
     assert back.space_group == S3_CHILD_LABEL
     assert back.symmetry_operations == list(S3_CHILD_OPS)
+
+
+@pytest.mark.parametrize("writer", [
+    "rietx.io.projects.gsas:write_gsas_exp",
+    "rietx.io.projects.gsas2:write_gsas2_phase_cif",
+    "rietx.io.projects.topas:write_topas_inp",
+    "rietx.io.projects.fullprof:write_fullprof_pcr",
+])
+def test_a_symbol_only_project_writer_refuses_the_list_by_name(writer, tmp_path):
+    """Each of these formats states a group only as a symbol, so the phase is
+    refused — naming the operation list, not "unknown space group symbol"."""
+    import importlib
+
+    module, name = writer.split(":")
+    write = getattr(importlib.import_module(module), name)
+    phase = _phase(S3_CHILD_LABEL, list(S3_CHILD_OPS),
+                   (14.0, 6.0, 8.0, 90.0, 97.0, 90.0))
+    with pytest.raises(ValueError, match=r"4 symmetry_operations under the "
+                                         r"bracketed label") as err:
+        write(Structure(phases=[phase]), tmp_path / "out")
+    assert "unknown space group symbol" not in str(err.value)
+    assert not (tmp_path / "out").exists()
