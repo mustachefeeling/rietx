@@ -344,6 +344,21 @@ def test_a_label_that_is_neither_a_symbol_nor_bracketed_is_refused():
         _phase("Zork", ["x,y,z"])
 
 
+def test_the_closure_check_runs_once_per_list_not_once_per_assignment():
+    """``validate_assignment`` reruns the check on every field write; the
+    answer is a function of the list and the symbol alone, so it is cached."""
+    from rietx.schemas.structure import _operation_list_refusal
+
+    phase = _phase("F d -3 m:2 [explicit]", _triplets("F d -3 m:2"),
+                   _CELLS["F d -3 m:2"])
+    before = _operation_list_refusal.cache_info()
+    for i in range(5):
+        phase.name = f"p{i}"
+    after = _operation_list_refusal.cache_info()
+    assert after.misses == before.misses
+    assert after.hits == before.hits + 5
+
+
 # ---------------------------------------------------------------------------
 # identify(): a result instead of a refusal
 # ---------------------------------------------------------------------------

@@ -14,6 +14,7 @@ Conventions
 
 from __future__ import annotations
 
+import functools
 import math
 from collections.abc import Sequence
 
@@ -48,6 +49,67 @@ def _op_key(op) -> tuple[tuple[int, ...], tuple[int, ...]]:
     """
     return (tuple(int(v) for row in op.rot for v in row),
             tuple(int(v) % op.DEN for v in op.tran))
+
+
+@functools.lru_cache(maxsize=64)
+def _operation_list_refusal(xyz: tuple[str, ...],
+                            space_group: str | None) -> str | None:
+    """Why an operation list is refused, after ``"phase 'name'"``; else ``None``.
+
+    ``Phase._operations_are_a_group``'s arithmetic, cached on the list and the
+    plain symbol it must agree with (``None`` for a bracketed label, which
+    claims no agreement).  The closure test composes every pair, 36 864 gemmi
+    products for ``F d -3 m:2``'s 192 operations, and ``validate_assignment``
+    reruns the validator on every assignment to any ``Phase`` field and every
+    history load; the answer is a function of these two arguments alone, so
+    it is computed once per list rather than once per assignment.
+    """
+    import gemmi
+
+    ops = [gemmi.Op(s) for s in xyz]
+    listed = {_op_key(op) for op in ops}
+    if _op_key(gemmi.Op("x,y,z")) not in listed:
+        return (f": symmetry_operations has {len(ops)} operation(s) and the "
+                f"identity 'x,y,z' is not one of them, so the list is not a "
+                f"group and the atoms listed are not in their own orbits")
+    for a in ops:
+        for b in ops:
+            if _op_key(a * b) not in listed:
+                return (f": symmetry_operations is not closed under "
+                        f"composition — {a.triplet()!r} times "
+                        f"{b.triplet()!r} is {(a * b).triplet()!r}, which is "
+                        f"not in the list (modulo a lattice translation). A "
+                        f"partial operation list gives partial site orbits, "
+                        f"so |F|² would be wrong by a factor with nothing to "
+                        f"show it")
+    if space_group is None:
+        return None
+    from ..crystallography.symmetry import get_spacegroup
+
+    try:
+        symbol_ops = {_op_key(op)
+                      for op in get_spacegroup(space_group).operations()}
+    except ValueError as exc:
+        return (f": space_group {space_group!r} is neither a symbol this "
+                f"package resolves nor a bracketed label ({exc}). A phase "
+                f"carrying symmetry_operations still needs a label: the "
+                f"symbol the list agrees with, or the closest type in "
+                f"brackets")
+    if symbol_ops != listed:
+        missing = len(symbol_ops - listed)
+        extra = len(listed - symbol_ops)
+        return (f" declares {len(listed)} symmetry_operations and the space "
+                f"group {space_group!r}, which generates {len(symbol_ops)} — "
+                f"and they are not the same group: {missing} of the symbol's "
+                f"operations are missing from the list and {extra} of the "
+                f"list's are not in the symbol. The site orbits and the "
+                f"systematic absences would differ between the two, so this "
+                f"is refused rather than resolved. If the symbol is only the "
+                f"closest *type* — which is what a doubled cell does to a "
+                f"glide, turning its half into a quarter no symbol carries — "
+                f"say so by bracketing the label, as in "
+                f"'{space_group} [unnamed in this cell]'")
+    return None
 
 
 #: Species of the mandatory dummy atom a Le Bail-only phase carries
@@ -949,57 +1011,11 @@ class Phase(Base):
                     f"drop the bracket and name a symbol that does generate "
                     f"the symmetry")
             return self
-        import gemmi
-
-        ops = [gemmi.Op(s) for s in self.symmetry_operations]
-        listed = {_op_key(op) for op in ops}
-        if _op_key(gemmi.Op("x,y,z")) not in listed:
-            raise ValueError(
-                f"phase {self.name!r}: symmetry_operations has "
-                f"{len(ops)} operation(s) and the identity 'x,y,z' is not one "
-                f"of them, so the list is not a group and the atoms listed are "
-                f"not in their own orbits")
-        for a in ops:
-            for b in ops:
-                if _op_key(a * b) not in listed:
-                    raise ValueError(
-                        f"phase {self.name!r}: symmetry_operations is not "
-                        f"closed under composition — {a.triplet()!r} times "
-                        f"{b.triplet()!r} is {(a * b).triplet()!r}, which is "
-                        f"not in the list (modulo a lattice translation). A "
-                        f"partial operation list gives partial site orbits, "
-                        f"so |F|² would be wrong by a factor with nothing to "
-                        f"show it")
-        if bracket is not None:
-            return self
-        from ..crystallography.symmetry import get_spacegroup
-
-        try:
-            symbol_ops = {_op_key(op)
-                          for op in get_spacegroup(self.space_group).operations()}
-        except ValueError as exc:
-            raise ValueError(
-                f"phase {self.name!r}: space_group {self.space_group!r} is "
-                f"neither a symbol this package resolves nor a bracketed "
-                f"label ({exc}). A phase carrying symmetry_operations still "
-                f"needs a label: the symbol the list agrees with, or the "
-                f"closest type in brackets") from exc
-        if symbol_ops != listed:
-            missing = len(symbol_ops - listed)
-            extra = len(listed - symbol_ops)
-            raise ValueError(
-                f"phase {self.name!r} declares {len(listed)} "
-                f"symmetry_operations and the space group "
-                f"{self.space_group!r}, which generates {len(symbol_ops)} — "
-                f"and they are not the same group: {missing} of the "
-                f"symbol's operations are missing from the list and {extra} "
-                f"of the list's are not in the symbol"
-                f". The site orbits and the systematic absences would differ "
-                f"between the two, so this is refused rather than resolved. "
-                f"If the symbol is only the closest *type* — which is what a "
-                f"doubled cell does to a glide, turning its half into a "
-                f"quarter no symbol carries — say so by bracketing the label, "
-                f"as in '{self.space_group} [unnamed in this cell]'")
+        refusal = _operation_list_refusal(
+            tuple(self.symmetry_operations),
+            None if bracket is not None else self.space_group)
+        if refusal is not None:
+            raise ValueError(f"phase {self.name!r}{refusal}")
         return self
 
     @model_validator(mode="after")
