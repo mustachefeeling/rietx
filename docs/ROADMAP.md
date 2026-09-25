@@ -629,9 +629,8 @@ Sample broadening was stored as a deg-2θ coefficient and shared across
 histograms as though it were a specimen property; for **size** it is not (the
 same crystallite broadens by a different angle at a different wavelength).
 **1131 closed 2026-09-02**: a joint fit now shares the crystallite size and each
-histogram carries its own coefficient (measured 363.3/623.9 Å → 408.8/408.8 Å
-for one specimen), and every converged fit reports a coherent domain size and a
-Δd/d with esds. The neutron rows follow 1134.
+histogram carries its own coefficient (numbers in 1131), and every converged
+fit reports a coherent domain size and a Δd/d with esds. The neutron rows follow 1134.
 
 | WP | Title | Status | Priority | Depends on |
 |---|---|---|---|---|
