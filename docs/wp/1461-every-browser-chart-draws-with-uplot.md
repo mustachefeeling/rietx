@@ -1,6 +1,6 @@
 # WP-1461 — every browser chart draws with uPlot
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: 🔄 2026-09-25 — the maintainer's decisions recorded but D5, reopened; the spike's demo fixed and the zoom delay placed; task 2 next
 Depends on: —
 Priority: P2 2026-09-24 — the maintainer's decision that every browser chart builds on one module; today plotly blocks every GUI open for 0.7-0.8 s before the first plot
 
@@ -333,7 +333,10 @@ in the first task.
 **Decided 2026-09-25.** The maintainer confirmed the migration to uPlot, D1
 (every chart shown in a browser) and D2 (a vendored copy), and D4-D8 as
 recommended. D3 went unanswered and stands as recommended. They asked how a
-vendored copy stays current, and D2 now says. The 3D viewer's move is
+vendored copy stays current, and D2 now says. **D5 is reopened**: it was
+confirmed on a summary saying every marker "stays fast at NAC's size", and
+finding 4 says two runs in three had long frames. The maintainer decides it
+again on those numbers. The 3D viewer's move is
 [WP-1462](1462-the-structure-viewer-draws-with-threejs.md), filed the same
 day.
 
@@ -387,9 +390,13 @@ day.
   - Above a ceiling, 100 000 points as a starting figure, the server keeps
     decimating through `compare.decimation_index`. At 200 000 the spike had
     long frames.
-- **D5. Draw every marker at NAC scale.**
-  - That costs 1.3-1.6× the thinned figures and stays inside a frame
-    (finding 4). The client then does not decimate, so `decimation_index`
+- **D5. Draw every marker at NAC scale.** Reopened 2026-09-25, see
+  § Decided.
+  - That costs 1.3-1.6× the thinned figures. In two runs of three it also
+    made long frames of 55-67 ms, where the thinned runs had none
+    (finding 4). This line said "stays inside a frame" until the
+    `/code-review` pass of 2026-09-25 found it contradicting finding 4 and
+    the logs. The client then does not decimate, so `decimation_index`
     remains the one authority for which points exist, as `compare.py:1021`
     and `gui/CLAUDE.md` require, and the watcher's n_drawn stays true.
   - Thinning per pixel column is the fallback if a browser or a larger
@@ -446,7 +453,7 @@ day.
 
 ## Tasks
 
-- [x] The maintainer confirms the migration on § Staying on plotly's numbers and decides D1-D8, and this file records which
+- [ ] The maintainer confirms the migration on § Staying on plotly's numbers and decides D1-D8, and this file records which (all recorded 2026-09-25 but D5, reopened)
 - [ ] Measure D4 and D8 on real payloads (the NAC result, a compare standard, a series): JSON against binary arrays, parse, grid union. Settle the route and the ceiling.
 - [ ] Vendor uPlot 1.6.32, its css and LICENSE into `src/rietx/viz/static/`, copied there by `npm run build` from the exact pin in `gui/package.json` (D2, § Keeping it current). Add the ATTRIBUTION row and put the directory in `build_info.py`'s digest. Serve it from the watch and compare servers. A test holds the vendored banner's version equal to the pin. Add `.github/dependabot.yml`, limited to uPlot and svgcanvas in `gui/`. Rebuild the dist, since the pin moves the digest.
 - [ ] The module's core: panes on one x, sync, drag, wheel and pan, y-zoom, select, the readout hook, the `ResizeObserver` path. Findings 1-3, 5 and 10 each get a case: the pure half under `node --test` and vitest, the drawing in a browser test.
@@ -518,31 +525,75 @@ npm --prefix gui test && npm --prefix gui run check
 
 ## Handover log
 
-- **2026-09-25, later** — the maintainer saw a slight delay on every zoom
-  in the demo. The spike's pane link echoed, so each zoom painted the main
-  and tick panes twice (finding 12). `proto.html` now links by value, and
-  each pane paints once in Chrome 148 and Firefox 155
-  (`results/zoom_probe.txt`). Headless Chromium spent 24-32 ms from input to
-  the next frame on every event, including an empty mouse-down. So that
-  pipeline cannot show a delay this small. Firefox showed two stalls that
-  Chromium does not (finding 13). The maintainer then placed the delay:
-  about 300 ms after releasing a drag, in all three browsers. That was
-  macOS three-finger drag holding the mouse-up back, and the maintainer
-  confirmed it (finding 14). So the double paint was real, but it was not
-  the delay they felt. `?demo` now prints each frame's repaints beside the
-  toolbar, and after a drag it splits the wait at the mouse-up. The spike's
-  `node_modules` is now a real install, since `zoom_probe.mjs` needs
-  `puppeteer-core` to drive the installed Firefox. A docs-test collector
-  that read the packages' READMEs as planning docs now drops what
-  `.gitignore` drops.
-  The maintainer then answered the first task: the migration, D1, D2 and
-  D4-D8 confirmed, D3 standing as recommended (§ Decisions). They asked how
-  a vendored uPlot stays current, and D2 and the vendoring task now carry
-  the answer. WP-1462 was filed for the 3D viewer on their request, with
-  three.js and 3Dmol.js sized that day.
-  *Next:* `/wp-handover 1461`, then task 2 (measure D4 and D8 on the real
-  payloads).
-- **2026-09-25** — session state saved for a `/clear`, before
+### 2026-09-25 (2nd session) — the zoom delay, the maintainer's decisions, and WP-1462
+
+The delay the maintainer felt on every zoom came from their trackpad. macOS
+three-finger drag holds a drag's release back by about 300 ms, so every
+browser and every chart library zooms that late, and no page can change it.
+The search for it found a real defect as well: the prototype painted two of
+its three panes twice on every zoom, and now paints each once. The
+maintainer confirmed the move to uPlot and most of the design. One decision,
+D5, went back to them, because the summary they confirmed it on misstated
+the evidence. Moving the 3D viewer off plotly is filed as WP-1462, so once
+both land no page needs plotly.
+
+*Done:*
+- Finding 12, the echo fix in `proto.html`. Finding 13, Firefox's two
+  stalls. Finding 14, three-finger drag.
+- `?demo` prints each frame's repaints, and after a drag it splits the wait
+  at the mouse-up. `zoom_probe.mjs` counts and times the paints in Chrome
+  for Testing or the installed Firefox, with `results/zoom_probe.txt`.
+- The spike's `node_modules` is a real install with `puppeteer-core`, no
+  longer a link into a dead scratchpad.
+- `test_docs_consistency.py` drops gitignored files from the planning docs,
+  so an `npm install` in a spike no longer breaks two link checks locally.
+- § Decisions records the maintainer's answers. D2 and the vendoring task
+  say how a vendored uPlot stays current. WP-1313's Inherited carries what
+  that means for a post-merge rebuild. WP-1462 is filed with its ROADMAP
+  row, and a line of 1131's repeated numbers made room under the cap.
+- `/code-review high --fix` applied seven fixes in two commits: `-z` on the
+  gitignore filter, a fresh state directory per GUI probe run,
+  `fileURLToPath` in every script, four `proto.html` repairs, a 400 from
+  `serve.mjs` on a bad escape, one hoisted minimum, and two `.gitignore`
+  lines. It declined three: the D5 contradiction (the maintainer's call,
+  now reopened), cleanups on code paths the logs measured, and an import
+  order outside the lint scope.
+
+*Measured:*
+- Paints per zoom, main/ticks/resid, 59 498 points at devicePixelRatio 2:
+  2/2/1 with the echo, 1/1/1 without, in Chrome for Testing 148 and
+  Firefox 155. Firefox's wheel zoom painted in 5.3 ms against 3.5 ms, at
+  load averages 67-84.
+- Headless Chromium took 24-32 ms from input to frame on every event,
+  including an empty mouse-down.
+- three.js 0.186.1, the viewer's imports bundled: 557 KB, 138 KB gzip.
+  3Dmol.js 2.5.5: 538 KB, 156 KB gzip.
+- Fast suite on this branch with main merged: 6034 passed, 141 skipped, in
+  2:51, `[dev]` venv, macOS arm64, no other suite running. This session
+  added no test. The full selection did not run, since nothing here can
+  move a measured number.
+
+*Gotchas:*
+- `npm --prefix X init` writes `package.json` into the working directory,
+  not into X.
+- The worktree guard refuses a shell variable in a `git`, `node` or `gzip`
+  argument. Write a scratchpad script and run it by path.
+- Firefox runs headless through `puppeteer-core` over WebDriver BiDi. Its
+  first launch in a batch sometimes exits with code 0, so rerun.
+- The demo server on port 8810 still runs the `serve.mjs` from before the
+  review. Restart it to pick up the 400 answer.
+
+*Next:*
+1. The maintainer decides D5 again on finding 4's numbers: every marker
+   drawn made long frames in two runs of three, and the thinned runs had
+   none. The pilot's marker path follows from it.
+2. Task 2: measure D4 and D8 on the real payloads, which settles the route
+   the pilot builds on.
+3. The vendoring task, which also adds Dependabot.
+
+### 2026-09-25 — session state saved for a `/clear`
+
+  Session state saved for a `/clear`, before
   `/wp-handover`. The WP is filed and not started. PR #461 carries it with
   the spike and a demo someone can click through. Nothing in the package
   changed. The maintainer has not yet answered the first task (confirm the
@@ -580,7 +631,9 @@ npm --prefix gui test && npm --prefix gui run check
   3. Run `/wp-handover 1461`.
   4. Task 2: measure D4 and D8 on the real payloads, which sets the route
      the pilot builds on.
-- **2026-09-24** — created. The maintainer asked whether a lighter library
+### 2026-09-24 — created
+
+  The maintainer asked whether a lighter library
   would make the plots snappier, and asked for one backend for all plotting
   if it held up. The spike measured three libraries, today's GUI and a uPlot
   rebuild of every feature. An adversarial review then found the first
