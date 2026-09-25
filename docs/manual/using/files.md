@@ -303,14 +303,14 @@ standard setting, and `TOPAS_MAGNETIC_GROUP_READ` says so. A Shubnikov
 refuses a phase that states moments under a symbol until you pass
 `to_structure(magnetic_symmetry=...)`.
 
-`mlx mly mlz` are components in the **fractional** basis,
-m = mlx·**a** + mly·**b** + mlz·**c** with the edges in Å. The stored
+`mlx mly mlz` are components in the fractional basis,
+m = mlx·a + mly·b + mlz·c with the edges in Å. The stored
 crystal-axis moment is therefore (mlx·|a|, mly·|b|, mlz·|c|). This is a
 per-axis scale, never a rotation. It is the TOPAS Technical Reference's own
 reading, § 13: Fmagc = L·Fmag, and its `MM_CrystalAxis_Display` macro gives
 mxc = mlx·a. A file's `MM_CrystalAxis_Display` line is the number to compare
 with. On the Durham LaMnO₃ tutorial it agrees to the printed digits. It has
-**not** been measured against TOPAS's own calculated intensities, and
+not been measured against TOPAS's own calculated intensities, and
 `TOPAS_MOMENT_CONVENTION` says so.
 
 `mag_only` and `mag_only_for_mag_sites` switch a site's nuclear scattering off.
