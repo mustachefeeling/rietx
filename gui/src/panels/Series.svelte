@@ -18,35 +18,31 @@
    * strip states rather than offering, because one protocol over N specimens is
    * what makes their trajectories comparable.
    *
-   * The plot area is one plotly div with two views: a parameter's trajectory
-   * across the series, or one pattern's own obs/calc/Δ. Selecting a pattern
-   * switches it, which is what "the plot follows" means here.
-   *
-   * Every control sits *above* the plot, which is WP-1015's shape — but the
-   * reason it gives does not apply here and the difference is worth knowing:
-   * measured in a browser, these traces render as **SVG**, so the plot div holds
-   * no canvas and cannot swallow a click beneath it (`Plot.svelte` draws its
-   * residual with `scattergl`, and *that* is what makes one there). What the
-   * `ResizeObserver` is for is the other half: this panel scrolls and the column
-   * expands, and the plot has to refit its box — 539 → 1480 px when the column
-   * takes the window.
+   * The plot area holds one figure of the chart module (WP-1461) with two
+   * views: a parameter's trajectory across the series (`rxplot.trajectory`), or
+   * one pattern's own obs, calc and Δ (`rxplot.pattern`, over the member's
+   * curves route). Selecting a pattern switches it, which is what "the plot
+   * follows" means here. The figure's own `ResizeObserver` refits it when the
+   * column does: 539 → 1480 px when the column takes the window.
    */
   import { onDestroy } from "svelte";
 
   import { api } from "../api";
-  import { loadPlotly } from "../lib/plotly";
-  import { coalesce, seriesCompact } from "../lib/resize";
-  import { curveColors, hoverLabel } from "../lib/plot";
+  import { seriesCompact } from "../lib/resize";
+  import { curveColors } from "../lib/plot";
   import {
     asRequest,
     axisTitle,
+    memberLegend,
     moveBy,
+    pointText,
     rankTrajectories,
     reseededFlags,
     sortByX,
+    trajectoryLegend,
     trajectoryNote,
-    trajectoryTraces,
     unrecoveredFlags,
+    type LegendEntry,
     type SeriesEntry,
     type SeriesPattern,
     type SeriesSetup,
@@ -309,101 +305,100 @@
   }
 
   // -- the plot ------------------------------------------------------
-  let observer: ResizeObserver | null = null;
-  const resize = coalesce(() => {
-    const plotly = (globalThis as any).Plotly;
-    if (plotNode) return plotly?.Plots?.resize?.(plotNode);
-  });
+  /** The figure on screen, the trajectory or one member's pattern. */
+  let fig: any = null;
+  /** What its legend offers, and which of those the reader hid, for this view. */
+  let legend = $state<LegendEntry[]>([]);
+  let hidden = $state<string[]>([]);
+  /** The point under the pointer on a trajectory, in the plot box's own px. */
+  let tip = $state<{ text: string; left: number; top: number } | null>(null);
+  /** Each draw takes a ticket, and one that has been overtaken builds nothing. */
+  let drawing = 0;
 
-  onDestroy(() => observer?.disconnect());
+  onDestroy(() => fig?.destroy());
 
-  /** Repaint on the resolved theme: a canvas keeps the colours it was painted
-   *  with, so a theme click has to redraw (WP-1029 q). */
+  /** The inks, read when a figure is built and when the theme moves, never per paint. */
+  function readColors() {
+    const style = getComputedStyle(document.documentElement);
+    const read = (name: string) => style.getPropertyValue(name);
+    return { ...curveColors(read), warn: read("--warn").trim() || "#b7791f" };
+  }
+  let colors = readColors();
+
+  // a new answer is a new figure; `draw` is idempotent over one
   $effect(() => {
-    void theme;
     void answer;
     if (active) draw();
   });
 
+  /** A canvas keeps the colours it was painted with, so a theme click
+   *  repaints (WP-1029 q). One microtask first: the shell stamps the theme in
+   *  an effect of the same flush (gui/CLAUDE.md). */
+  $effect(() => {
+    void theme;
+    Promise.resolve().then(() => {
+      colors = readColors();
+      fig?.redraw();
+    });
+  });
+
+  function toggle(id: string) {
+    hidden = hidden.includes(id) ? hidden.filter((h) => h !== id) : [...hidden, id];
+    fig?.setHidden(hidden);
+  }
+
   async function draw() {
     if (!plotNode || !answer) return;
-    const plotly = await loadPlotly();
-    if (!plotNode) return;
-    // sampled after the loader has awaited, which is what keeps this out of the
-    // shell's `applyTheme` flush (WP-1027's second pass)
-    const read = (name: string) =>
-      getComputedStyle(document.documentElement).getPropertyValue(name);
-    const colors = curveColors(read);
-    const tones = {
-      ok: colors.diff,
-      warn: read("--warn").trim() || "#b7791f",
-      muted: colors.edge,
-    };
-    const base = {
-      margin: { l: 56, r: 12, t: 8, b: 40 },
-      paper_bgcolor: "rgba(0,0,0,0)",
-      plot_bgcolor: "rgba(0,0,0,0)",
-      font: { color: read("--fg").trim() || "#1b1b1b", size: 11 },
-      hoverlabel: hoverLabel(read),
-      showlegend: true,
-      legend: { orientation: "h", y: 1.12, x: 0, font: { size: 10 } },
-      xaxis: { gridcolor: colors.zero, zeroline: false },
-      yaxis: { gridcolor: colors.zero, zeroline: false },
-    } as any;
-
-    if (selectedPattern !== null) {
-      let window: any;
+    const ticket = ++drawing;
+    const chart = await import("../lib/seriesChart");
+    let curves: any = null;
+    const index = selectedPattern;
+    if (index !== null) {
       try {
-        window = await api.seriesWindow(selectedPattern);
+        curves = chart.unpack(await api.seriesCurves(index));
       } catch (error) {
         failure = (error as Error).message;
         return;
       }
-      const traces = [
-        { type: "scatter", mode: "markers", name: "obs", x: window.two_theta,
-          y: window.y_obs, marker: { size: 2.5, color: colors.obs } },
-        { type: "scatter", mode: "lines", name: "calc", x: window.two_theta,
-          y: window.y_calc, line: { width: 1.1, color: colors.calc } },
-        { type: "scatter", mode: "lines", name: "Δ/σ", x: window.two_theta,
-          y: window.delta, line: { width: 0.7, color: colors.diff },
-          yaxis: "y2" },
-      ];
-      if (window.excluded?.two_theta?.length) {
-        traces.push({ type: "scatter", mode: "markers", name: "excluded",
-                      x: window.excluded.two_theta, y: window.excluded.y_obs,
-                      marker: { size: 2, color: colors.edge, opacity: 0.45 } } as any);
-      }
-      await plotly.react(plotNode, traces, {
-        ...base,
-        // anchored to the *lower* subplot, `Plot.svelte`'s rule: the default
-        // anchor is the first y axis, which put the "2θ" title and its ticks
-        // through the middle of the residual trace (measured in a browser)
-        xaxis: { ...base.xaxis, domain: [0, 1], anchor: "y2",
-                 title: { text: "2θ (deg)", font: { size: 10 } } },
-        yaxis: { ...base.yaxis, domain: [0.34, 1], title: { text: "counts", font: { size: 10 } } },
-        yaxis2: { ...base.yaxis, domain: [0, 0.28],
-                  title: { text: window.weighted ? "Δ/σ" : "Δ/σ (Poisson)",
-                           font: { size: 10 } } },
-        uirevision: `series-pattern-${selectedPattern}`,
-      }, { displayModeBar: false, responsive: true });
-    } else {
-      if (!current) return;
-      const traces = trajectoryTraces(current, tones,
-                                      reseededFlags(current, entries),
-                                      unrecoveredFlags(current, entries));
-      await plotly.react(plotNode, traces, {
-        ...base,
-        xaxis: { ...base.xaxis,
-                 title: { text: current.x_label, font: { size: 10 } } },
-        yaxis: { ...base.yaxis,
-                 title: { text: axisTitle(current), font: { size: 10 } } },
-        uirevision: `series-traj-${current.path}`,
-      }, { displayModeBar: false, responsive: true });
     }
-    if (!observer && plotNode) {
-      observer = new ResizeObserver(() => resize());
-      observer.observe(plotNode);
+    if (ticket !== drawing || !plotNode) return;
+    fig?.destroy();
+    fig = null;
+    tip = null;
+    hidden = [];
+    colors = readColors();
+    if (index !== null) {
+      const { arrays, header } = curves;
+      legend = memberLegend(arrays.kept.length < arrays.two_theta.length);
+      fig = chart.mountMember(plotNode, curves, {
+        colors: () => ({ ...colors, masked: colors.edge }),
+        residual: "weighted",
+        labels: { y: () => "counts",
+                  resid: () => (header.weighted ? "Δ/σ" : "Δ/σ (Poisson)") },
+      });
+      return;
     }
+    if (!current) return;
+    const traj = current;
+    const reseeded = reseededFlags(traj, entries);
+    const unrecovered = unrecoveredFlags(traj, entries);
+    legend = trajectoryLegend(traj, reseeded, unrecovered);
+    fig = chart.mountTrajectory(plotNode, traj, {
+      colors: () => ({ tone: traj.path_dependent ? colors.warn : colors.diff,
+                       warn: colors.warn, muted: colors.edge }),
+      dashed: traj.path_dependent,
+      rings: reseeded,
+      crosses: unrecovered,
+      xLabel: traj.x_label,
+      yLabel: axisTitle(traj),
+    });
+    fig.onPoint = (hit: any) => {
+      if (!hit || !plotNode) { tip = null; return; }
+      const over = fig.panes.traj.over.getBoundingClientRect();
+      const box = plotNode.getBoundingClientRect();
+      tip = { text: pointText(traj, hit.i, hit.chain),
+              left: over.left - box.left + hit.left, top: over.top - box.top + hit.top };
+    };
   }
 </script>
 
@@ -595,9 +590,7 @@ plot's x-axis title, and the column above">
         ? `Trajectory — ${current?.path ?? ""}`
         : `Pattern ${selectedPattern} — ${entries[selectedPattern]?.label ?? ""}`}
     </h2>
-    <!-- every control above the plot: plotly's `responsive` listens for *window*
-         resizes only, so a control row underneath keeps an oversized canvas over
-         it and its clicks are swallowed (WP-1015's measured trap) -->
+    <!-- every control above the plot, WP-1015's shape for every panel here -->
     <div class="controls">
       <select value={current?.path ?? ""} disabled={busy}
         onchange={(ev) => showTrajectory((ev.currentTarget as HTMLSelectElement).value)}>
@@ -618,7 +611,23 @@ plot's x-axis title, and the column above">
         {trajectoryNote(current, sigmaBar)}
       </p>
     {/if}
-    <div class="plot" bind:this={plotNode}></div>
+    <!-- the legend is the pattern panel's curve toggles with a swatch in each,
+         in the flow above the figure: this panel scrolls, so a row it gains
+         moves nothing a reader is holding still -->
+    <div class="segmented legend" role="group" aria-label="what the plot draws">
+      {#each legend as entry (entry.id)}
+        <button class:on={!hidden.includes(entry.id)} aria-pressed={!hidden.includes(entry.id)}
+          title={`${entry.label} — click to ${hidden.includes(entry.id) ? "show" : "hide"}`}
+          onclick={() => toggle(entry.id)}><i class={entry.mark}
+          style:--ink={`var(${entry.ink})`}></i>{entry.label}</button>
+      {/each}
+    </div>
+    <div class="plotbox">
+      <div class="plot" bind:this={plotNode}></div>
+      {#if tip}
+        <div class="tip" style:left={`${tip.left}px`} style:top={`${tip.top}px`}>{tip.text}</div>
+      {/if}
+    </div>
 
     <h2>Per pattern</h2>
     <div class="scroll">
@@ -851,10 +860,70 @@ different starting point could not fix">hard</span>
   /* a fixed height, not a share: the panel scrolls, so a flex-sized plot would
      be whatever was left over after two tables — which on a short window is
      nothing */
+  .plotbox {
+    position: relative;
+    flex: 0 0 auto;
+  }
+
+  /* The figure's host. Its panes are sized from this box, so the height is
+     the box's and never the panes', or each resize would feed the next. */
   .plot {
     height: 260px;
+    overflow: hidden;
+  }
+
+  .legend {
     flex: 0 0 auto;
-    min-height: 0;
+    align-self: flex-start;
+    flex-wrap: wrap;
+  }
+
+  /* the swatch: which ink and which mark, as the figure draws it */
+  .legend i {
+    display: inline-block;
+    vertical-align: middle;
+    margin-right: 5px;
+    width: 14px;
+    height: 0;
+    border-top: 1.5px solid var(--ink);
+  }
+
+  .legend i.dash {
+    border-top-style: dashed;
+  }
+
+  .legend i.dot {
+    border-top-style: dotted;
+    border-top-width: 3px;
+    width: 9px;
+  }
+
+  .legend i.ring {
+    width: 8px;
+    height: 8px;
+    border: 1.5px solid var(--ink);
+    border-radius: 50%;
+  }
+
+  .legend i.cross {
+    width: 10px;
+    height: 10px;
+    border: 0;
+    background:
+      linear-gradient(45deg, transparent 43%, var(--ink) 43% 57%, transparent 57%),
+      linear-gradient(-45deg, transparent 43%, var(--ink) 43% 57%, transparent 57%);
+  }
+
+  /* the point under the pointer, a DOM label over the canvas: pointing paints no curve */
+  .tip {
+    position: absolute;
+    transform: translate(-50%, calc(-100% - 8px));
+    pointer-events: none;
+    white-space: nowrap;
+    font-size: var(--text-sm);
+    padding: 2px 6px;
+    background: var(--panel);
+    border: 1px solid var(--line);
   }
 
   .nodes, .strip {

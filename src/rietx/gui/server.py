@@ -169,13 +169,6 @@ def _series_index(q: dict, what: str) -> int:
     return _query_int(q, "index", 0)
 
 
-def _series_window(s: GuiSession, q: dict, _body: dict) -> dict:
-    """One series member's curves, per window."""
-    return s.series_window(_series_index(q, "window"),
-                           lo=_query_float(q, "lo"), hi=_query_float(q, "hi"),
-                           max_points=_query_int(q, "max_points", 4000))
-
-
 def _series_curves(s: GuiSession, q: dict, _body: dict) -> Packed:
     return s.series_curves(_series_index(q, "curves"))
 
@@ -297,7 +290,6 @@ ROUTES: dict[tuple[str, str], Any] = {
     ("PUT", "/api/series"): lambda s, q, b: s.series_put(b),
     ("POST", "/api/series/run"): lambda s, q, b: s.run({**b, "kind": "series"}),
     ("GET", "/api/series/result"): lambda s, q, b: s.series_result(),
-    ("GET", "/api/series/window"): _series_window,
     ("GET", "/api/series/curves"): _series_curves,
     ("GET", "/api/series/history"): _series_history,
 

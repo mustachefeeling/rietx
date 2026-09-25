@@ -11,9 +11,10 @@
  *
  * **A smooth curve is exactly what a poisoned chain produces** (WP-0505's
  * measured lesson), so `SEQUENTIAL_PATH_DEPENDENT` is the headline and a flagged
- * trajectory is drawn differently rather than annotated in a footnote:
- * `trajectoryTraces` gives a flagged parameter the warning colour, dashes its
- * line, and — when `direction="both"` ran — draws the backward chain beside it,
+ * trajectory is drawn differently rather than annotated in a footnote: the
+ * panel gives a flagged parameter the warning colour, dashes its line
+ * (`trajectoryLegend`), and — when `direction="both"` ran — draws the backward
+ * chain beside it,
  * because the disagreement *is* the evidence and describing it in words would be
  * asking the reader to take it on trust.
  */
@@ -203,108 +204,94 @@ export function trajectoryNote(traj: Trajectory | null, sigmaBar: number): strin
   return "";
 }
 
+/** One legend entry: the mark it toggles, what it says, and the custom property
+ *  its swatch is drawn in, so a theme switch restyles it by CSS alone. */
+export interface LegendEntry {
+  id: string;
+  label: string;
+  ink: string;
+  mark: "line" | "dash" | "dot" | "ring" | "cross";
+}
+
 /**
- * plotly traces for one trajectory — value ± esd, and the other chain beside it.
+ * What the trajectory's legend offers — the marks `rxplot.trajectory` draws.
  *
- * **A point with no esd carries no error bar at all**, which takes a second
- * trace, and the reason is measured rather than assumed. A `null` in
- * `error_y.array` does *not* leave a gap: plotly 3.7.0 draws the bar's two caps
- * at the point with zero height between them (measured — `h: 0`, path
- * `M261,180h8m-4,0V180m-4,0h8`, byte-identical to what a `0` produces), so a
- * pattern that estimated nothing would render as one that measured the value
- * exactly. That is the claim of infinite precision this has to avoid, so the
- * bars ride an invisible marker trace over the subset that *has* an esd, and the
- * visible line+markers trace carries no `error_y` at all.
+ * A flagged parameter's forward chain wears `--warn` and is dashed, and its
+ * name says why: the disagreement between the chains is the evidence, so it is
+ * drawn rather than described. The backward chain is offered only when
+ * `direction="both"` ran.
  *
- * A well-determined trajectory then shows **no visible bar**, and that is the
- * data rather than a defect: measured on the synthetic ramp under
- * `mccusker_default`, σ(a) is 6.5e-6 Å against a 4.8e-3 Å axis over 189 px, so a
- * 2σ bar is 0.5 px — and 0.5 px is exactly what plotly drew. Scaling it up to be
- * seen would be WP-1029's "an exaggeration is not a probability" one panel over.
+ * Reseeded points are ringed and never dropped: the fit is good, but its
+ * starting values did not come from its neighbour, so it is not evidence that
+ * the trajectory is continuous there (`SEQUENTIAL_RESEED`). A point no rung of
+ * the ladder recovered is **crossed** instead (`SEQUENTIAL_UNRECOVERED`,
+ * WP-1051). The two marks say opposite things: a ring is a good fit reached
+ * from a different starting model, a cross a diverged fit whose value is not a
+ * measurement. The crossed point is still plotted, because a gap reads as data
+ * nobody collected.
  *
- * Reseeded points are ringed, never dropped: the fit is good, but its starting
- * values did not come from its neighbour, so it is not evidence that the
- * trajectory is continuous there (`SEQUENTIAL_RESEED`).
- *
- * A point no rung of the ladder recovered is **crossed** instead
- * (`SEQUENTIAL_UNRECOVERED`, WP-1051), and the two marks say opposite things: a
- * ring is a good fit reached from a different starting model, a cross is a
- * diverged fit whose value is not a measurement. It is still plotted, because a
- * gap reads as data nobody collected.
+ * A point with no esd carries no whisker at all, which the figure owns. A
+ * well-determined trajectory then shows no visible whisker, and that is the
+ * data rather than a defect: on the synthetic ramp under `mccusker_default`,
+ * σ(a) is 6.5e-6 Å against a 4.8e-3 Å axis over 189 px, so a 2σ whisker is
+ * 0.5 px. Scaling it up to be seen would be WP-1029's "an exaggeration is not
+ * a probability" one panel over.
  */
-export function trajectoryTraces(traj: Trajectory, colors: {
-  ok: string; warn: string; muted: string;
-}, reseeded: boolean[] = [], unrecovered: boolean[] = []): any[] {
+export function trajectoryLegend(traj: Trajectory, reseeded: boolean[] = [],
+                                 unrecovered: boolean[] = []): LegendEntry[] {
   const flagged = traj.path_dependent;
-  const tone = flagged ? colors.warn : colors.ok;
-  const traces: any[] = [{
-    type: "scatter",
-    mode: "lines+markers",
-    name: flagged ? "forward (path-dependent)" : "forward",
-    x: traj.x,
-    y: traj.value,
-    line: { color: tone, width: 1.4, dash: flagged ? "dash" : "solid" },
-    marker: { size: 6, color: tone },
-    hovertemplate: "%{x}: %{y:.6g}<extra>%{text}</extra>",
-    text: traj.labels,
-  }];
-  const withEsd = traj.x
-    .map((x, i) => ({ x, y: traj.value[i], e: traj.stderr[i] }))
-    .filter((p) => typeof p.e === "number" && Number.isFinite(p.e));
-  if (withEsd.length) {
-    traces.push({
-      type: "scatter",
-      mode: "markers",
-      x: withEsd.map((p) => p.x),
-      y: withEsd.map((p) => p.y),
-      error_y: { type: "data", array: withEsd.map((p) => p.e), visible: true,
-                 thickness: 1, width: 3, color: tone },
-      // the point is already drawn by the trace above; this one exists only to
-      // hang the bars on, so it neither shows a marker nor claims a legend row
-      marker: { size: 6, opacity: 0 },
-      showlegend: false,
-      hoverinfo: "skip",
-    });
+  const tone = flagged ? "--warn" : "--plot-diff";
+  const out: LegendEntry[] = [
+    { id: "forward", label: flagged ? "forward (path-dependent)" : "forward",
+      ink: tone, mark: flagged ? "dash" : "line" },
+  ];
+  if (traj.stderr.some((e) => typeof e === "number" && Number.isFinite(e))) {
+    out.push({ id: "esd", label: "esd", ink: tone, mark: "line" });
   }
   if (traj.backward) {
-    traces.push({
-      type: "scatter",
-      mode: "lines+markers",
-      name: "backward",
-      x: traj.x,
-      y: traj.backward,
-      line: { color: colors.muted, width: 1, dash: "dot" },
-      marker: { size: 4, color: colors.muted, symbol: "diamond-open" },
-      hovertemplate: "%{x}: %{y:.6g}<extra>backward</extra>",
-    });
+    out.push({ id: "backward", label: "backward", ink: "--muted", mark: "dot" });
   }
-  const rings = traj.x.filter((_, i) => reseeded[i]);
-  if (rings.length) {
-    traces.push({
-      type: "scatter",
-      mode: "markers",
-      name: "reseeded",
-      x: rings,
-      y: traj.value.filter((_, i) => reseeded[i]),
-      marker: { size: 13, symbol: "circle-open", color: colors.warn,
-                line: { width: 1.4 } },
-      hoverinfo: "skip",
-    });
+  if (reseeded.some(Boolean)) {
+    out.push({ id: "rings", label: "reseeded", ink: "--warn", mark: "ring" });
   }
-  const crosses = traj.x.filter((_, i) => unrecovered[i]);
-  if (crosses.length) {
-    traces.push({
-      type: "scatter",
-      mode: "markers",
-      name: "unrecovered",
-      x: crosses,
-      y: traj.value.filter((_, i) => unrecovered[i]),
-      marker: { size: 12, symbol: "x-thin", color: colors.warn,
-                line: { width: 2.2, color: colors.warn } },
-      hoverinfo: "skip",
-    });
+  if (unrecovered.some(Boolean)) {
+    out.push({ id: "crosses", label: "unrecovered", ink: "--warn", mark: "cross" });
   }
-  return traces;
+  return out;
+}
+
+/** `v` to `n` significant figures, with no trailing zeros. */
+const sig = (v: number, n: number) => String(Number(v.toPrecision(n)));
+
+/**
+ * What the pointer on one point says: the pattern, its coordinate, and the
+ * value, with its esd when the fit gave one. The value takes six significant
+ * figures, as the hover did under plotly (`%{y:.6g}`), and the esd two, as an
+ * esd is quoted. A backward point is named as the backward chain's, since
+ * both chains share every coordinate.
+ */
+export function pointText(traj: Trajectory, i: number,
+                          chain: "forward" | "backward"): string {
+  const where = `${traj.labels[i] ?? i} · ${sig(traj.x[i], 6)}`;
+  if (chain === "backward") return `${where}: ${sig(traj.backward![i], 6)} (backward)`;
+  const e = traj.stderr[i];
+  const esd = typeof e === "number" && Number.isFinite(e) ? ` ± ${sig(e, 2)}` : "";
+  return `${where}: ${sig(traj.value[i], 6)}${esd}`;
+}
+
+/**
+ * What a member's pattern chart offers: the fitted points, the masked ones
+ * when the protocol masked any, the model, the background and the residual.
+ * `rxplot.pattern`'s ids, over its own inks.
+ */
+export function memberLegend(masked: boolean): LegendEntry[] {
+  return [
+    { id: "obs", label: "obs", ink: "--plot-obs", mark: "dot" },
+    ...(masked ? [{ id: "masked", label: "excluded", ink: "--muted", mark: "dot" } as LegendEntry] : []),
+    { id: "calc", label: "calc", ink: "--plot-calc", mark: "line" },
+    { id: "bkg", label: "background", ink: "--plot-bkg", mark: "dash" },
+    { id: "diff", label: "Δ/σ", ink: "--plot-diff", mark: "line" },
+  ];
 }
 
 /** Which series entries carry a flag, by trajectory position.

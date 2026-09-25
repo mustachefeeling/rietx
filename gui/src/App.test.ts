@@ -26,10 +26,12 @@ import App from "./App.svelte";
 import { STAGE_WORDS } from "./lib/rxt";
 import { pack } from "./test-curves";
 import { StubPlot } from "./test-uplot";
-// Loaded here so the panel's own `import("../lib/pattern")` finds it loaded: a
-// first import outlasts `flush()`, and a plot case run alone (`-t`) then drew
-// nothing where the same case in the whole file passed.
+// Loaded here so the panels' own `import("../lib/pattern")` and
+// `import("../lib/seriesChart")` find them loaded: a first import outlasts
+// `flush()`, and a plot case run alone (`-t`) then drew nothing where the same
+// case in the whole file passed.
 import "./lib/pattern";
+import "./lib/seriesChart";
 
 const CAPABILITIES = {
   package_version: "1.0.0.dev0",
@@ -4805,6 +4807,17 @@ describe("the series panel", () => {
     return stub;
   }
 
+  /** The Series panel's figure's pane `key`, never the pattern panel's. */
+  function seriesPane(key: string): StubPlot {
+    const box = host.querySelector(".plotbox");
+    const u = StubPlot.instances.find((p) => p.key === key && !p.destroyed && box?.contains(p.root));
+    if (!u) throw new Error(`no ${key} pane is drawn in the series panel`);
+    return u;
+  }
+
+  /** `--warn` as the panel falls back to it: jsdom loads no stylesheet. */
+  const WARN = "#b7791f";
+
   /** The panel's icon buttons, which have no label to search by. */
   function icons(glyph: string): HTMLButtonElement[] {
     return [...host.querySelectorAll<HTMLButtonElement>(".side button")]
@@ -4865,11 +4878,7 @@ describe("the series panel", () => {
     const stub = await openSeries({
       "/api/series": () => ({ body: { ...SERIES_STAGED, has_result: true } }),
       "/api/series/result": () => ({ body: SERIES_ANSWER }),
-      "/api/series/window": () => ({ body: { two_theta: [9], y_obs: [1],
-        y_calc: [1], y_background: [], delta: [0], weighted: true, ticks: {},
-        window: [9, 9], n_total: 1, n_returned: 1, max_points: 2000,
-        excluded: { two_theta: [], y_obs: [] }, n_excluded: 0,
-        index: 0, label: "T300", x: 300 } }),
+      "/api/series/curves": fitCurves({ header: { index: 1, label: "T400", x: 400 } }),
       "/api/series/history": () => ({ body: { index: 1, label: "T400",
         checkout: false, tree_id: "t2", head: "n0002", root: "n0000",
         n_nodes: 2, nodes: [
@@ -4898,6 +4907,24 @@ describe("the series panel", () => {
     expect(host.textContent).toContain("Trajectory — phases.0.cell.a");
     expect(host.textContent).toContain("5.2σ");
 
+    // …and drew it as the evidence it is: the forward chain in the warning ink
+    // and dashed, the reseeded T400 ringed in the same ink, and the backward
+    // chain beside it, muted and dotted
+    const marks = seriesPane("traj").marks;
+    const strokes = (style: string) => marks.filter((m) => m.op === "stroke" && m.style === style);
+    expect(strokes(WARN).some((m) => m.dash && m.points!.length === 2)).toBe(true);
+    expect(strokes(WARN).some((m) => m.points!.some((p) => p.length === 3))).toBe(true);
+    expect(strokes(INK.edge).some((m) => m.dash)).toBe(true);
+    const legend = () => [...host.querySelectorAll<HTMLButtonElement>(".legend button")];
+    expect(legend().map((b) => b.textContent?.trim()))
+      .toEqual(["forward (path-dependent)", "esd", "backward", "reseeded"]);
+    // a legend click hides that mark, and says so on the button
+    legend()[2].click();
+    await flush();
+    expect(legend()[2].getAttribute("aria-pressed")).toBe("false");
+    expect(seriesPane("traj").marks.some((m) => m.op === "stroke" && m.style === INK.edge))
+      .toBe(false);
+
     // walking into a pattern loads *its* tree, and says the nodes are read-only
     icons("▸").at(-1)!.click();
     await flush();
@@ -4906,8 +4933,12 @@ describe("the series panel", () => {
     expect(host.textContent).toContain("read-only here");
     // the warm-start link is what makes the chain navigable
     expect(host.textContent).toContain("n0001");
-    // …and the plot followed: the per-pattern window is what it drew
-    expect(stub.calls.some((c) => c.path === "/api/series/window")).toBe(true);
+    // …and the plot followed: that member's curves, drawn as a pattern, and
+    // the trajectory's figure gone
+    const curves = stub.calls.find((c) => c.path === "/api/series/curves");
+    expect(curves?.url).toContain("index=1");
+    expect([...seriesPane("main").data[0]]).toEqual([9, 9.4]);
+    expect(() => seriesPane("traj")).toThrow();
   });
 
   it("runs the chain through the one run machine", async () => {

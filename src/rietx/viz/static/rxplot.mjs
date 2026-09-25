@@ -38,6 +38,21 @@ export function nearest(xs, v, toPx, radius) {
 }
 
 /**
+ * The index of the point nearest `(left, top)` in the plane, or -1 when none is
+ * within `radius`. `xs` and `ys` are pixel positions, null where a point has no
+ * value. For a figure whose x is not sorted, as a trajectory's chain is not.
+ */
+export function nearestXY(xs, ys, left, top, radius) {
+  let best = -1, dist = radius * radius;
+  for (let i = 0; i < xs.length; i++) {
+    if (xs[i] == null || ys[i] == null) continue;
+    const d = (xs[i] - left) ** 2 + (ys[i] - top) ** 2;
+    if (d <= dist) { dist = d; best = i; }
+  }
+  return best;
+}
+
+/**
  * Ticks for a √ axis, evenly spaced in √ space and rounded to half a decade
  * of the gap to the next tick. uPlot spaces ticks in value space, which on a √
  * scale printed one label for the whole axis (finding 2). Rounding to the
@@ -206,7 +221,8 @@ function axes(spec, gutter) {
   const text = { font: FONT, labelFont: FONT };
   const x = { ...text, stroke: ink, grid: { stroke: line, width: 1 }, ticks: { stroke: line } };
   if (!spec.xLabels) Object.assign(x, { values: (u, s) => s.map(() => ""), size: 6 });
-  else Object.assign(x, { size: 24 }, spec.xLabel == null ? {} : { label: spec.xLabel, labelSize: TITLE });
+  else Object.assign(x, { size: 24, values: (u, s) => tickLabels(s) },
+                     spec.xLabel == null ? {} : { label: spec.xLabel, labelSize: TITLE });
   const y = { ...text, stroke: ink, grid: { stroke: line, width: 1 }, ticks: { stroke: line }, size: gutter,
               label: spec.label ?? "", labelSize: TITLE };
   if (spec.yLabels === false) {
@@ -746,6 +762,198 @@ export function pattern(uPlot, host, curves, spec) {
     const diff = residShown();
     if (resid.series[1].show !== diff) resid.setSeries(1, { show: diff });
     ticks.redraw(false, false);
+  };
+
+  return group;
+}
+
+// ---------------------------------------------------------------- the trajectory
+
+/** `v` when it is a finite number, else null: a value or an esd a fit did not give. */
+const finite = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+
+/** The marks a trajectory can hide by id, as `setHidden` takes them. */
+const TRAJECTORY_MARKS = ["forward", "esd", "backward", "rings", "crosses"];
+
+/** The distance, in CSS pixels, within which the pointer names a point. */
+const REACH = 8;
+
+/**
+ * A parameter across a series (D3, D8): its value at each pattern's
+ * coordinate, joined in chain order, with its esd as a whisker.
+ *
+ * Chain order is not x order. A heat-then-cool series comes back along its own
+ * x, while uPlot draws a series over one ascending x. So the figure paints its
+ * marks in a draw hook, over one pane whose single series only sets the x
+ * extent, and uPlot keeps the axes, the grid and the gestures.
+ *
+ * `traj`: `{ x, value, stderr, backward }` in chain order. `stderr` and
+ * `backward` may be absent, and a null anywhere is a point with no value.
+ *
+ * `spec`:
+ *
+ * - `colors()`: `{ tone, warn, muted }`, read at every draw. `tone` is the
+ *   forward chain's, `warn` the rings' and crosses', `muted` the backward
+ *   chain's.
+ * - `dashed`: the forward chain is drawn dashed, as a path-dependent
+ *   parameter's is.
+ * - `rings`, `crosses`: one boolean per point. A ring marks a point the
+ *   chain reseeded, and a cross a point no rung recovered. Both points stay
+ *   in the chain: a gap reads as data nobody collected.
+ * - `hidden`: the marks not drawn, from "forward", "esd", "backward",
+ *   "rings" and "crosses".
+ * - `xLabel`, `yLabel`: the axis titles.
+ *
+ * A point with no esd has no whisker at all. A whisker of zero length would
+ * claim the value was measured exactly.
+ *
+ * The figure is the pane group (`panes`) with `setHidden`, and `onPoint`,
+ * which the page sets: it is called with `{ i, chain, left, top }` for the
+ * point nearest the pointer within reach, `chain` "forward" or "backward" and
+ * `left`, `top` its CSS px in the plot area, or with null.
+ */
+export function trajectory(uPlot, host, traj, spec) {
+  const t = traj, n = t.x.length;
+  const hidden = new Set(spec.hidden ?? []);
+  const shown = (id) => !hidden.has(id);
+  const value = (i) => finite(t.value[i]), esd = (i) => finite(t.stderr?.[i]);
+  const back = (i) => (t.backward ? finite(t.backward[i]) : null);
+
+  // uPlot's one x must ascend, so its series is the chain sorted by x
+  const order = Array.from({ length: n }, (_, i) => i).sort((a, b) => t.x[a] - t.x[b]);
+  const xs = Float64Array.from(order, (i) => t.x[i]);
+
+  /** The y range: every chain and every whisker's two ends, over the x in view. */
+  function extent(u) {
+    const idxs = u.series[0].idxs;
+    const lo = idxs?.length ? xs[idxs[0]] : -Infinity, hi = idxs?.length ? xs[idxs[1]] : Infinity;
+    let min = Infinity, max = -Infinity;
+    const take = (v) => { if (v != null) { min = Math.min(min, v); max = Math.max(max, v); } };
+    for (let i = 0; i < n; i++) {
+      if (!(t.x[i] >= lo && t.x[i] <= hi)) continue;
+      const v = value(i), e = esd(i);
+      take(v);
+      take(back(i));
+      if (v != null && e != null) { take(v - e); take(v + e); }
+    }
+    return Number.isFinite(min) ? uPlot.rangeNum(min, max, 0.1, true) : [0, 1];
+  }
+
+  /** A line through `at(i)` in chain order, broken where a point has no value. */
+  function chain(u, at, color, width, dash) {
+    const { ctx } = u;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.setLineDash(dash);
+    ctx.beginPath();
+    let open = false;
+    for (let i = 0; i < n; i++) {
+      const v = at(i);
+      if (v == null) { open = false; continue; }
+      const X = u.valToPos(t.x[i], "x", true), Y = u.valToPos(v, "y", true);
+      if (open) ctx.lineTo(X, Y); else ctx.moveTo(X, Y);
+      open = true;
+    }
+    ctx.stroke();
+  }
+
+  /** `mark(ctx, X, Y)` at every point `at` gives a value and `where` allows, then one stroke or fill. */
+  function each(u, at, where, mark, paint) {
+    const { ctx } = u;
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    for (let i = 0; i < n; i++) {
+      const v = at(i);
+      if (v == null || !where(i)) continue;
+      mark(ctx, u.valToPos(t.x[i], "x", true), u.valToPos(v, "y", true), i);
+    }
+    ctx[paint]();
+  }
+
+  function draw(u) {
+    const c = spec.colors(), r = devicePixelRatio, { ctx } = u, { left, top, width, height } = u.bbox;
+    const all = () => true;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(left, top, width, height);
+    ctx.clip();
+    if (t.backward && shown("backward")) {
+      chain(u, back, c.muted, r, [r, 3 * r]);
+      ctx.lineWidth = r;
+      ctx.strokeStyle = c.muted;
+      const d = 3 * r;
+      each(u, back, all, (g, X, Y) => {
+        g.moveTo(X, Y - d); g.lineTo(X + d, Y); g.lineTo(X, Y + d); g.lineTo(X - d, Y); g.closePath();
+      }, "stroke");
+    }
+    if (shown("esd")) {
+      ctx.lineWidth = r;
+      ctx.strokeStyle = c.tone;
+      const cap = 3 * r;
+      each(u, value, (i) => esd(i) != null, (g, X, Y, i) => {
+        const lo = u.valToPos(value(i) - esd(i), "y", true), hi = u.valToPos(value(i) + esd(i), "y", true);
+        g.moveTo(X, lo); g.lineTo(X, hi);
+        g.moveTo(X - cap, lo); g.lineTo(X + cap, lo);
+        g.moveTo(X - cap, hi); g.lineTo(X + cap, hi);
+      }, "stroke");
+    }
+    if (shown("forward")) {
+      chain(u, value, c.tone, 1.4 * r, spec.dashed ? [6 * r, 4 * r] : []);
+      ctx.fillStyle = c.tone;
+      each(u, value, all, (g, X, Y) => { g.moveTo(X + 3 * r, Y); g.arc(X, Y, 3 * r, 0, 2 * Math.PI); }, "fill");
+    }
+    ctx.strokeStyle = c.warn;
+    if (spec.rings && shown("rings")) {
+      ctx.lineWidth = 1.4 * r;
+      each(u, value, (i) => spec.rings[i], (g, X, Y) => {
+        g.moveTo(X + 6.5 * r, Y); g.arc(X, Y, 6.5 * r, 0, 2 * Math.PI);
+      }, "stroke");
+    }
+    if (spec.crosses && shown("crosses")) {
+      ctx.lineWidth = 2.2 * r;
+      const d = 5 * r;
+      each(u, value, (i) => spec.crosses[i], (g, X, Y) => {
+        g.moveTo(X - d, Y - d); g.lineTo(X + d, Y + d); g.moveTo(X - d, Y + d); g.lineTo(X + d, Y - d);
+      }, "stroke");
+    }
+    ctx.restore();
+  }
+
+  // a series that paints nothing: the chain is the hook's to draw
+  const none = () => ({ stroke: null, fill: null, clip: null, band: null, gaps: null, flags: 0 });
+  const group = panes(uPlot, host, {
+    x: xs,
+    panes: [{ key: "traj", share: 1, xLabels: true, xLabel: spec.xLabel ?? "", label: spec.yLabel ?? "",
+              auto: extent, series: [{ paths: none, points: { show: false } }],
+              data: [Array.from(order, (i) => value(i))], hooks: { draw: [draw] } }],
+  });
+
+  group.onPoint = null;
+  group.onCursor = (hit) => {
+    if (!group.onPoint) return;
+    if (!hit) { group.onPoint(null); return; }
+    const u = group.panes.traj;
+    const X = t.x.map((x) => u.valToPos(x, "x"));
+    const Y = (at) => Array.from({ length: n }, (_, i) => (at(i) == null ? null : u.valToPos(at(i), "y")));
+    const chains = [["forward", value], ["backward", back]].filter(([id]) => shown(id));
+    let best = null;
+    for (const [id, at] of chains) {
+      const ys = Y(at), i = nearestXY(X, ys, hit.left, hit.top, REACH);
+      if (i < 0) continue;
+      const d = (X[i] - hit.left) ** 2 + (ys[i] - hit.top) ** 2;
+      if (!best || d < best.d) best = { i, chain: id, left: X[i], top: ys[i], d };
+    }
+    group.onPoint(best && { i: best.i, chain: best.chain, left: best.left, top: best.top });
+  };
+
+  /** Draw every mark but `ids`. */
+  group.setHidden = (ids) => {
+    hidden.clear();
+    for (const id of ids) {
+      if (!TRAJECTORY_MARKS.includes(id)) throw new Error(`rxplot: no trajectory mark "${id}"; one of ${TRAJECTORY_MARKS.join(", ")}`);
+      hidden.add(id);
+    }
+    group.redraw();
   };
 
   return group;

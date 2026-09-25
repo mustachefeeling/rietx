@@ -380,7 +380,8 @@ promise and does its work in chunks, so an un-coalesced `ResizeObserver` costs
 last landed 1.10 s late at a steady 60 fps. Every `Plots.resize` therefore goes
 through `resize.ts:coalesce` (one in flight, at most one queued, and the queued
 one runs, so the last redraw is the final size), and both plotly panels were
-*measured* before taking it; the pattern panel left plotly in WP-1461.
+*measured* before taking it; the pattern and Series panels left plotly in
+WP-1461, so the 3D view is its one caller.
 **Instrument before the library loads**: a `$state`
 rune proxies the namespace and caches each property on first read, so patching
 `window.Plotly` after boot counts nothing while the plot redraws — use an init
@@ -617,7 +618,7 @@ and put `phases.0.cell.a` eighth. And **a per-pattern tree is read-only here** �
 one tree per pattern, pinned by `data_fingerprint`, so a node cannot be checked
 out into this project; what makes the chain navigable is the root node's
 `series_warm_start_node` note. Two shared authorities came out of it rather than
-second copies: `session.curve_window` (so the two panels cannot draw residuals
+second copies: `session.curve_arrays` (so the two panels cannot draw residuals
 under two σ policies) and `session.tree_payload`.
 
 Its **five keys on every event** are the thing to know outside the panel:

@@ -49,6 +49,7 @@ function recorder(marks: () => Mark[]) {
     getLineDash() { return [...dash]; },
     beginPath() { path = []; },
     closePath() {},
+    clip() { path = []; },
     moveTo(x: number, y: number) { path.push([x, y]); },
     lineTo(x: number, y: number) { path.push([x, y]); },
     arc(x: number, y: number, r: number) { path.push([x, y, r]); },

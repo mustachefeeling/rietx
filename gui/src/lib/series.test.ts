@@ -3,13 +3,16 @@ import { describe, expect, it } from "vitest";
 import {
   asRequest,
   axisTitle,
+  memberLegend,
   moveBy,
+  pointText,
   rankTrajectories,
   reseededFlags,
   sortByX,
+  trajectoryLegend,
   trajectoryNote,
-  trajectoryTraces,
   unrecoveredFlags,
+  type LegendEntry,
   type SeriesEntry,
   type SeriesPattern,
   type Trajectory,
@@ -27,7 +30,6 @@ const traj = (over: Partial<Trajectory> = {}): Trajectory => ({
   backward: null, n_sigma: null, ...over,
 });
 
-const TONES = { ok: "#ok", warn: "#warn", muted: "#muted" };
 
 describe("the staged list", () => {
   it("sends the coordinate only when there is one", () => {
@@ -152,79 +154,67 @@ describe("what a trajectory says about itself", () => {
   });
 });
 
-describe("the traces", () => {
-  it("hangs the bars on a second trace, over the points that have an esd", () => {
-    // Measured against plotly 3.7.0: a `null` in `error_y.array` draws the bar's
-    // two caps at the point with zero height between them — byte-identical to
-    // what a `0` produces — so a pattern that estimated nothing would render as
-    // one that measured the value exactly.  Hence the split.
-    const traces = trajectoryTraces(traj(), TONES);
-    expect(traces[0].error_y).toBeUndefined();
-    const bars = traces.find((t) => t.error_y);
-    expect(bars.error_y.array).toEqual([1e-4, 1e-4]);   // the middle one is absent
-    expect(bars.x).toEqual([300, 500]);
-    expect(bars.y).toEqual([4.1, 4.3]);
-    // it is a carrier, not a series: no marker, no legend row, no hover
-    expect(bars.marker.opacity).toBe(0);
-    expect(bars.showlegend).toBe(false);
-    expect(bars.hoverinfo).toBe("skip");
+describe("the legend", () => {
+  const ids = (rows: LegendEntry[]) => rows.map((e) => e.id);
+
+  it("offers a whisker only where some point has an esd to draw", () => {
+    // a point with no esd has no whisker at all (`rxplot.trajectory`); a
+    // zero-length one would claim it was measured exactly
+    expect(ids(trajectoryLegend(traj()))).toEqual(["forward", "esd"]);
+    expect(ids(trajectoryLegend(traj({ stderr: [null, null, null] }))))
+      .toEqual(["forward"]);
   });
 
-  it("adds no bar trace at all when nothing estimated an esd", () => {
-    const traces = trajectoryTraces(
-      traj({ stderr: [null, null, null] }), TONES);
-    expect(traces.some((t) => t.error_y)).toBe(false);
-    expect(traces).toHaveLength(1);
-  });
-
-  it("draws the flagged trajectory in the warning colour and dashed", () => {
-    const [forward] = trajectoryTraces(traj({ path_dependent: true }), TONES);
-    expect(forward.line.color).toBe("#warn");
-    expect(forward.line.dash).toBe("dash");
-    expect(forward.name).toContain("path-dependent");
+  it("names the flagged trajectory, in the warning ink and dashed", () => {
+    const [forward] = trajectoryLegend(traj({ path_dependent: true }));
+    expect(forward).toEqual({ id: "forward", label: "forward (path-dependent)",
+                              ink: "--warn", mark: "dash" });
     // …and the plain one is not shouting
-    const [plain] = trajectoryTraces(traj(), TONES);
-    expect(plain.line.color).toBe("#ok");
-    expect(plain.line.dash).toBe("solid");
+    const [plain] = trajectoryLegend(traj());
+    expect(plain).toEqual({ id: "forward", label: "forward", ink: "--plot-diff",
+                            mark: "line" });
   });
 
-  it("draws the backward chain beside the forward one when it exists", () => {
-    // named traces only: the error-bar carrier has no name and no legend row
-    const named = (rows: any[]) => rows.filter((t) => t.name).map((t) => t.name);
-    expect(named(trajectoryTraces(traj(), TONES))).toEqual(["forward"]);
-    const both = trajectoryTraces(traj({ backward: [4.11, 4.21, 4.31] }), TONES);
-    expect(named(both)).toEqual(["forward", "backward"]);
-    expect(both.find((t) => t.name === "backward").y)
-      .toEqual([4.11, 4.21, 4.31]);
+  it("offers the backward chain only when there is one", () => {
+    expect(ids(trajectoryLegend(traj({ backward: [4.11, 4.21, 4.31] }))))
+      .toEqual(["forward", "esd", "backward"]);
   });
 
-  it("rings the reseeded points and leaves them in the curve", () => {
-    const traces = trajectoryTraces(traj(), TONES, [false, true, false]);
-    const rings = traces.find((t) => t.name === "reseeded");
-    expect(rings.x).toEqual([400]);
-    expect(rings.y).toEqual([4.2]);
-    expect(rings.marker.symbol).toBe("circle-open");
-    // the point is still on the line: a reseeded fit is a good fit, and dropping
-    // it would hide the very pattern the fence is pointing at
-    expect(traces[0].y).toEqual([4.1, 4.2, 4.3]);
-    // no ring trace at all when nothing was reseeded
-    expect(trajectoryTraces(traj(), TONES).some((t) => t.name === "reseeded"))
-      .toBe(false);
-  });
-
-  it("crosses the unrecovered points, which is the opposite of a ring", () => {
+  it("rings and crosses are offered where the flags put one", () => {
     // a ring is a good fit reached from a different starting model; a cross is
     // a fit that diverged on every rung, so its value is not a measurement at
-    // all (WP-1051) — same mark for both would collapse the two into "odd"
-    const traces = trajectoryTraces(traj(), TONES, [false, false, false],
-                                    [false, false, true]);
-    const crosses = traces.find((t) => t.name === "unrecovered");
-    expect(crosses.x).toEqual([500]);
-    expect(crosses.marker.symbol).toBe("x-thin");
-    // still on the line: a gap reads as data nobody collected
-    expect(traces[0].y).toEqual([4.1, 4.2, 4.3]);
-    expect(trajectoryTraces(traj(), TONES).some((t) => t.name === "unrecovered"))
-      .toBe(false);
+    // all (WP-1051) — the same mark for both would collapse the two into "odd"
+    const rows = trajectoryLegend(traj(), [false, true, false], [false, false, true]);
+    expect(rows.slice(-2).map((e) => [e.id, e.label, e.mark]))
+      .toEqual([["rings", "reseeded", "ring"], ["crosses", "unrecovered", "cross"]]);
+    expect(ids(trajectoryLegend(traj(), [false, false, false], [false, false, false])))
+      .toEqual(["forward", "esd"]);
+  });
+
+  it("offers a member's masked points only when the protocol masked any", () => {
+    expect(ids(memberLegend(false))).toEqual(["obs", "calc", "bkg", "diff"]);
+    expect(ids(memberLegend(true))).toEqual(["obs", "masked", "calc", "bkg", "diff"]);
+  });
+});
+
+describe("what the pointer says", () => {
+  it("names the pattern, its coordinate and the value with its esd", () => {
+    expect(pointText(traj(), 0, "forward")).toBe("a · 300: 4.1 ± 0.0001");
+    // no esd, no ±: the fit estimated nothing, so nothing is claimed
+    expect(pointText(traj(), 1, "forward")).toBe("b · 400: 4.2");
+  });
+
+  it("names a backward point as the backward chain's", () => {
+    const both = traj({ backward: [4.11, 4.21, 4.31] });
+    expect(pointText(both, 2, "backward")).toBe("c · 500: 4.31 (backward)");
+  });
+
+  it("gives the value six significant figures and its esd two", () => {
+    // six as the hover did under plotly; two as an esd is quoted, where six
+    // printed `± 0.0000889554` in a browser
+    expect(pointText(traj({ value: [4.123456789, 0, 0],
+                            stderr: [0.0000889554, null, null] }), 0, "forward"))
+      .toBe("a · 300: 4.12346 ± 0.000089");
   });
 });
 
