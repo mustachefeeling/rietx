@@ -67,6 +67,38 @@ is still named in the result.
 
 ### Inherited
 
+- **2026-09-25, from the issue triage (issue #457, with #286's comments of
+  2026-09-24): which group a magCIF's nuclear positions refine under.** A
+  magCIF states the magnetic group only. The nuclear symmetry (positions,
+  occupancies, ADPs) is a choice between the parent named by
+  `_parent_space_group.name_H-M_alt` and the file's own family group (its
+  operators with time reversal dropped), which is a subgroup of the parent.
+  The fork's `magnetic-v16` took the family group always, handing 463 of
+  1171 MAGNDATA entries an operation list: never wrong, and
+  under-constrained wherever the parent also fits. The fork's
+  `pr/wp1328-magnetic-interchange` (ready, not opened) takes the **highest
+  tabulated group the file's atoms satisfy**, in three tiers: (1) the parent,
+  when every file operator is one of its operations *and* every listed site
+  has the same multiplicity under both (without the orbit test, 241 of 1012
+  entries listed one parent orbit as two sites and would have been counted
+  twice in |F_N|²); (2) the file's own group when one tabulated setting has
+  exactly its operations (reported by `CIF_MAGNETIC_NUCLEAR_SETTING`, info);
+  (3) the operation list, a refusal by name until PR #448 lands. Counts on
+  the 1012 entries the branch reads: 811 / 201 / 171. Tier 1 is
+  bit-identical to reading the parent symbol alone, which is how
+  `tests/test_acceptance_magnetic.py` states Cr₂WO₆ (the nuclear phase in
+  `P 42/m n m`, line 94). **Checked at `07952d4e`:** no magCIF reader exists on `main`
+  (no `_parent_space_group`, no `CIF_MAGNETIC_NUCLEAR_*` code), so none of
+  this can be reproduced here; it is a claim about the branch. **The asks:**
+  tier 1 must not be silent, so an `info` diagnostic on every magCIF read
+  names the tier, the group taken, the file's family group and the index
+  between them; an override,
+  `structure_from_cif(..., nuclear_group="auto" | "parent" | "file")`; the
+  skill row in `references/magnetic.md`. The moments always refine under
+  the file's magnetic group, and k ≠ 0 supercells go through
+  `magnetic_supercell`, not this rule. **The reporter asked for a decision
+  before the PR opens:** the tiered rule, or the file's own group always
+  winning over the parent.
 - **2026-09-16, from [1118](1118-foreign-model-files.md): "out" now has a
   rulebook, and this WP's magCIF writer inherits it.** `io/CLAUDE.md` gained a
   § Project writers when the GSAS-I pair landed, four rules covering every
