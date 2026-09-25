@@ -500,6 +500,12 @@ def _phase_comment(phase) -> str:
     facts = phase_facts(phase, 0)
     if "error" in facts:
         return f"{phase.space_group} · unresolvable symbol"
+    if facts["n_operations"] is not None:
+        # an operation list has no number of its own: the one quoted is its
+        # closest type's, and the line says so rather than naming it
+        return (f"{facts['xhm']} · {facts['n_operations']} operations · closest"
+                f" type No. {facts['number']} · {facts['crystal_system']}"
+                f" · Laue {facts['laue_class']}")
     return (f"{facts['xhm']} · No. {facts['number']} · {facts['crystal_system']}"
             f" · Laue {facts['laue_class']}")
 

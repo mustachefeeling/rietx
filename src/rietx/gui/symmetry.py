@@ -8,7 +8,7 @@ cause.  This module is the cause, and the verb that changes it.
 
 **Two tiers, and the split is a measurement rather than a taste.**
 
-* The **phase facts** are one ``get_spacegroup`` call — number, setting, crystal
+* The **phase facts** are one ``resolve_group`` call — number, setting, crystal
   system, Laue class, point group, centring, and the ``CellConstraints`` that
   decide which cell edges are tied and which angles are held.  Free, so they ride
   on ``GET /api/structure``, which is refetched on every head move.
@@ -56,6 +56,7 @@ import numpy as np
 
 from ..crystallography.adp import U_NAMES, cartesian_basis
 from ..crystallography.symmetry import (
+    OperatorGroup,
     cell_constraints,
     check_cell_angles,
     expand_positions,
@@ -122,7 +123,26 @@ def symbol_facts(symbol: str) -> dict:
     ``free_cell`` is the list the wizard's cell form renders, so the client holds
     no copy of the constraint rule: it draws the boxes the server names.
     """
-    sg = get_spacegroup(symbol)
+    return group_facts(get_spacegroup(symbol), symbol)
+
+
+def group_facts(sg, space_group: str) -> dict:
+    """:func:`symbol_facts` for a group already resolved, symbol or list.
+
+    A phase carrying its own operation list resolves to an
+    :class:`~rietx.crystallography.symmetry.OperatorGroup`, which has no Hall
+    symbol, no table entry and no name.  What a point group and a lattice decide
+    — crystal system, Laue class, point group, Sohncke, the cell ties — is read
+    off its :attr:`~OperatorGroup.closest_type`, which has both exactly; the
+    centring and the centre of symmetry are read off the list; ``number`` is the
+    closest *type's*, as :attr:`OperatorGroup.number` says; and the four facts
+    that depend on the translations the symbol does not carry (``hall``,
+    ``symmorphic``, ``enantiomorphic``, ``reference_setting``) are ``None``,
+    not the closest type's answer about a different group.
+    ``n_operations`` is the list's length, ``None`` for a symbol.
+    """
+    listed = isinstance(sg, OperatorGroup)
+    named = sg.closest_type if listed else sg
     try:
         cons = cell_constraints(sg)
     except ValueError as exc:                # a system with no tie rule here
@@ -131,23 +151,25 @@ def symbol_facts(symbol: str) -> dict:
     else:
         tie_error = ""
     facts = {
-        "space_group": symbol,
+        "space_group": space_group,
         "xhm": sg.xhm(),
         "number": sg.number,
-        "hall": sg.hall,
-        "short_name": sg.short_name(),
+        "hall": None if listed else sg.hall,
+        "short_name": sg.xhm() if listed else sg.short_name(),
         "ext": _clean(sg.ext),
-        "qualifier": _clean(sg.qualifier),
+        "qualifier": "" if listed else _clean(sg.qualifier),
         "crystal_system": sg.crystal_system_str(),
-        "laue_class": sg.laue_str(),
-        "point_group": sg.point_group_hm(),
+        "laue_class": named.laue_str(),
+        "point_group": named.point_group_hm(),
         "centring": _clean(sg.centring_type()),
         "unique_axis": _clean(sg.monoclinic_unique_axis()),
         "centrosymmetric": bool(sg.is_centrosymmetric()),
-        "sohncke": bool(sg.is_sohncke()),
-        "enantiomorphic": bool(sg.is_enantiomorphic()),
-        "symmorphic": bool(sg.is_symmorphic()),
-        "reference_setting": bool(sg.is_reference_setting()),
+        "sohncke": bool(named.is_sohncke()),
+        "enantiomorphic": None if listed else bool(sg.is_enantiomorphic()),
+        "symmorphic": None if listed else bool(sg.is_symmorphic()),
+        "reference_setting": (None if listed
+                              else bool(sg.is_reference_setting())),
+        "n_operations": len(sg.xyz) if listed else None,
         "setting": setting_phrase(sg),
         "ties": dict(cons.ties) if cons else {},
         "fixed_angles": dict(cons.fixed_angles) if cons else {},
@@ -166,7 +188,9 @@ def phase_facts(phase, index: int) -> dict:
     symbol is exactly the state a user needs the panel to keep rendering in.
     """
     try:
-        facts = symbol_facts(phase.space_group)
+        facts = group_facts(resolve_group(phase.space_group,
+                                          phase.symmetry_operations),
+                            phase.space_group)
     except (ValueError, RuntimeError) as exc:
         return {"phase": index, "space_group": phase.space_group, "error": str(exc)}
     return {"phase": index, **facts}
@@ -510,14 +534,20 @@ def with_symbol(structure: Structure, phase: int, symbol: str) -> Structure:
     ``structure_from_cif`` stores — so a symbol typed as ``R -3 c`` and one read
     from a file end up spelled the same way, and the ``:H``/``:R`` extension a
     setting depends on is never dropped on the way in.
+
+    A typed symbol **replaces** the group, so a phase carrying its own
+    operation list drops it in the same step: kept, the list would either be
+    refused against the new symbol or, where the two agree, restate it.
     """
     sg = get_spacegroup(symbol)
     candidate = structure.model_copy(deep=True)
     try:
-        candidate.phases[phase].space_group = sg.xhm()
+        block = candidate.phases[phase]
     except IndexError:
         raise IndexError(f"no phase {phase} (the model has "
                          f"{len(structure.phases)})") from None
+    candidate.phases[phase] = type(block).model_validate(
+        {**dict(block), "space_group": sg.xhm(), "symmetry_operations": None})
     return candidate
 
 
@@ -755,9 +785,12 @@ def _cause_notes(before: dict, after: dict, phase: int) -> list[dict]:
     A setting change survives a refusal because it is usually what caused one: a
     ``R -3 c:R`` typed over a hexagonal-axes cell is refused on γ, and the
     sentence a reader needs is "these are the same group on different axes".
+    A phase carrying its own operation list is never given it: its ``number``
+    is the closest *type's*, so an equal number does not make it the same group.
     """
     if (before.get("number") != after.get("number")
-            or before.get("xhm") == after.get("xhm")):
+            or before.get("xhm") == after.get("xhm")
+            or before.get("n_operations") is not None):
         return []
     return [{
         "kind": "setting_change",
@@ -830,7 +863,7 @@ def _orbits(structure: Structure, phase: int) -> list[np.ndarray]:
     """
     block = structure.phases[phase]
     try:
-        sg = get_spacegroup(block.space_group)
+        sg = resolve_group(block.space_group, block.symmetry_operations)
     except (ValueError, RuntimeError):
         return []
     return [np.asarray(expand_positions(sg, np.array(
