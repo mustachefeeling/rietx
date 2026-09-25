@@ -646,9 +646,8 @@ about; the titles below say which. Three triages feed it (2026-09-01, -03,
 -15) plus the 2026-09-16 review of #286 and #293, which cut 1432 of 1342's
 kind. The orbit that was not a multiplicity (1324) is closed and 1320 restates
 what it measured. 1310 closed on four of six in § v1.5, and both of the two it
-could not answer closed 2026-09-18: **1434**, the bound flag now asking whether
-the limit carried load rather than whether the value stopped near one, and
-**1435**, where a caller's hold outranks a plan's glob and the plan says so.
+could not answer closed 2026-09-18 as **1434** (the bound flag) and **1435**
+(a caller's hold), each file saying what changed.
 
 | WP | Title | Status | Priority | Depends on |
 |---|---|---|---|---|
