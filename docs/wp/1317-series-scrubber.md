@@ -91,6 +91,16 @@ screenshots come from `docs/manual/make_screenshots.py`.
   order needs uPlot's mode 2, because a heat-then-cool series loops
   (1461 § D8). If this WP lands first, 1461's Series task inherits what it
   adds.
+- **From WP-1461 (2026-09-25, 6th session): its Series task landed first,
+  and mode 2 was not needed.** The panel's trajectory is `rxplot.trajectory`,
+  which draws the chain in a draw hook over one pane, so a heat-then-cool
+  series comes back along its own x. It takes rings and crosses per point,
+  hides marks by id (`setHidden`), and names the hovered point through
+  `onPoint`, picked by distance in the plane (`nearestXY`). One member's
+  pattern is `rxplot.pattern` over `/api/series/curves`, and
+  `/api/series/window` is gone. Build the scrubber's trace and its linked
+  pattern view on those two figures. The previous bullet's mode-2 remark is
+  superseded.
 
 ## Non-goals
 
