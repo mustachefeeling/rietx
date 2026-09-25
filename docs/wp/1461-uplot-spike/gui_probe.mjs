@@ -1,15 +1,19 @@
 // Time a zoom, a resize and a boot in the real `rietx gui`, split into
 // server fetch vs plotly work, on the NAC example fitted through the server.
+import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
 import { spawn } from "node:child_process";
+import fs from "node:fs";
 import os from "node:os";
 
 const EXE = os.homedir() + "/Library/Caches/ms-playwright/chromium-1223/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing";
-const SCRATCH = new URL(".", import.meta.url).pathname;
+const SCRATCH = fileURLToPath(new URL(".", import.meta.url));
 const PORT = 8799, BASE = `http://127.0.0.1:${PORT}`;
-const RIETX = process.env.RIETX ?? new URL("../../../.venv/bin/rietx", import.meta.url).pathname;
+// A fresh state dir per run, so no run opens a project another driver already edited.
+const freshState = () => { fs.mkdirSync(SCRATCH + "state", { recursive: true }); return fs.mkdtempSync(SCRATCH + "state/gui_probe-"); };
+const RIETX = process.env.RIETX ?? fileURLToPath(new URL("../../../.venv/bin/rietx", import.meta.url));
 const srv = spawn(RIETX,
-  ["gui", "--no-open", "--machine", "--port", String(PORT), "--state-dir", SCRATCH + "state"],
+  ["gui", "--no-open", "--machine", "--port", String(PORT), "--state-dir", freshState()],
   { stdio: ["ignore", "pipe", "inherit"] });
 await new Promise((r) => srv.stdout.once("data", r));
 const api = async (path, body) => (await fetch(BASE + path, body === undefined ? {} :

@@ -2,7 +2,7 @@ import { chromium } from "playwright-core";
 import os from "node:os";
 
 const EXE = os.homedir() + "/Library/Caches/ms-playwright/chromium-1223/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing";
-const url = "file://" + new URL("./bench.html", import.meta.url).pathname;
+const url = new URL("./bench.html", import.meta.url).href;
 const gpu = process.argv[2] !== "nogpu";
 const browser = await chromium.launch({ executablePath: EXE, headless: true,
   args: gpu ? ["--use-angle=metal", "--enable-gpu", "--ignore-gpu-blocklist"] : ["--disable-gpu"] });

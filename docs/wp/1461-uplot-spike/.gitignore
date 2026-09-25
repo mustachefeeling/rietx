@@ -4,6 +4,8 @@ plotly.min.js
 arrays.json
 plotly_export.html
 uplot_export.html
+proto_rows.json
+gui.png
 state/
 # every run rewrites shots/; only the six the WP cites are kept
 shots/*

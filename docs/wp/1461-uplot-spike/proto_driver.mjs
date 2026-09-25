@@ -1,13 +1,14 @@
 // Drive proto.html with real input and measure what each gesture costs the main thread.
 //   per-event = (Δ TaskDuration − idle rate × wall) / events      (CDP Performance metrics)
 //   frames    = rAF intervals during the gesture (p50/p95/max) + long animation frames (> 50 ms)
+import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 
-const DIR = new URL(".", import.meta.url).pathname;
+const DIR = fileURLToPath(new URL(".", import.meta.url));
 const OUT = path.join(DIR, "shots"); fs.mkdirSync(OUT, { recursive: true });
 const EXE = os.homedir() + "/Library/Caches/ms-playwright/chromium-1223/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing";
 const TYPES = { ".html": "text/html", ".js": "text/javascript", ".mjs": "text/javascript", ".css": "text/css", ".json": "application/json" };

@@ -2,14 +2,15 @@
 // numbers D4 and D8 need: the full-resolution payload, its parse, and one shared x axis
 // built from the fitted and masked grids. One fresh state dir per run, so no run
 // inherits the last one's excluded regions.  Usage: node gui_td.mjs <run-index>
+import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
 import { spawn } from "node:child_process";
 import path from "node:path";
 import os from "node:os";
 
-const DIR = new URL(".", import.meta.url).pathname, RUN = process.argv[2] ?? "0";
+const DIR = fileURLToPath(new URL(".", import.meta.url)), RUN = process.argv[2] ?? "0";
 const EXE = os.homedir() + "/Library/Caches/ms-playwright/chromium-1223/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing";
-const RIETX = process.env.RIETX ?? new URL("../../../.venv/bin/rietx", import.meta.url).pathname;
+const RIETX = process.env.RIETX ?? fileURLToPath(new URL("../../../.venv/bin/rietx", import.meta.url));
 const PORT = 8799, GUI = `http://127.0.0.1:${PORT}`;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const srv = spawn(RIETX, ["gui", "--no-open", "--machine", "--port", String(PORT), "--state-dir", path.join(DIR, "state", "run" + RUN)], { stdio: ["ignore", "pipe", "inherit"] });

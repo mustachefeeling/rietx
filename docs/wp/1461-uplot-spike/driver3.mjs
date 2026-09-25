@@ -1,5 +1,6 @@
 // (1) SVG export with the live panes isolated; (2) standalone page: write_html (plotly) vs uPlot;
 // (3) the same gestures in today's GUI (plotly), measured the way proto_driver measures uPlot.
+import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
 import { spawn } from "node:child_process";
 import http from "node:http";
@@ -7,7 +8,7 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 
-const DIR = new URL(".", import.meta.url).pathname, OUT = path.join(DIR, "shots");
+const DIR = fileURLToPath(new URL(".", import.meta.url)), OUT = path.join(DIR, "shots");
 const EXE = os.homedir() + "/Library/Caches/ms-playwright/chromium-1223/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing";
 const TYPES = { ".html": "text/html", ".js": "text/javascript", ".mjs": "text/javascript", ".css": "text/css" };
 const server = http.createServer((q, r) => { const f = path.join(DIR, decodeURIComponent(q.url.split("?")[0]));
@@ -47,8 +48,11 @@ for (const f of ["plotly_export.html", "uplot_export.html"]) {
 
 // ---------------------------------------------------------------- (3)
 const PORT = 8799, GUI = `http://127.0.0.1:${PORT}`;
-const RIETX = process.env.RIETX ?? new URL("../../../.venv/bin/rietx", import.meta.url).pathname;
-const srv = spawn(RIETX, ["gui", "--no-open", "--machine", "--port", String(PORT), "--state-dir", path.join(DIR, "state")], { stdio: ["ignore", "pipe", "inherit"] });
+// A fresh state dir per run: the example project is built once into it and kept, so a shared
+// one hands each run the last run's excluded regions (the exclude drags below make some).
+const freshState = () => { fs.mkdirSync(path.join(DIR, "state"), { recursive: true }); return fs.mkdtempSync(path.join(DIR, "state", "driver3-")); };
+const RIETX = process.env.RIETX ?? fileURLToPath(new URL("../../../.venv/bin/rietx", import.meta.url));
+const srv = spawn(RIETX, ["gui", "--no-open", "--machine", "--port", String(PORT), "--state-dir", freshState()], { stdio: ["ignore", "pipe", "inherit"] });
 await new Promise((r) => srv.stdout.once("data", r));
 const api = async (p, body) => (await fetch(GUI + p, body === undefined ? {} : { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })).json();
 try {

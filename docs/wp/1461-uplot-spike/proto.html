@@ -71,7 +71,7 @@ function makeTicks() {   // three phases, Kα1+α2 doublets: ~700 ticks a phase
   return phases;
 }
 
-const S = { N: 22003, mode: "zoom", scale: "lin", excluded: [[5, 6.5]], hidden: new Set(), cand: null, stage: 0, pointerPane: null };
+const S = { N: 22003, mode: "zoom", scale: "lin", excluded: [[5, 6.5]], cand: null, stage: 0, pointerPane: null };
 let D, T, PEAKS;
 function build(N) {
   S.N = N; D = makePattern(N, 7); T = makeTicks();
@@ -134,8 +134,9 @@ function drawTicks(u) {
   T.forEach((ph, r) => vlines(u, ph.x, bbox.top + r * rh + 2, rh - 4, C["phase" + r]));
 }
 function drawBand(u) {
-  const { ctx, bbox } = u, a = u.valToPos(3, "y", true), b = u.valToPos(-3, "y", true);
-  ctx.save(); ctx.fillStyle = C.band; ctx.fillRect(bbox.left, Math.max(a, bbox.top), bbox.width, Math.min(b, bbox.top + bbox.height) - Math.max(a, bbox.top)); ctx.restore();
+  const { ctx, bbox } = u, t = Math.max(u.valToPos(3, "y", true), bbox.top), b = Math.min(u.valToPos(-3, "y", true), bbox.top + bbox.height);
+  if (b <= t) return;   // the band is off the pane; a negative height would paint it outside the plot
+  ctx.save(); ctx.fillStyle = C.band; ctx.fillRect(bbox.left, t, bbox.width, b - t); ctx.restore();
 }
 
 function thinMarkers(u, si, i0, i1) {
@@ -321,9 +322,11 @@ window.P = {
   rect: (k) => { const r = U[k].over.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; },
   xRange: () => [U.main.scales.x.min, U.main.scales.x.max],
   setScale(kind) {   // a y-scale change rebuilds the main pane, keeping the x window
-    const [lo, hi] = this.xRange(); S.scale = kind; U.main.destroy();
+    const [lo, hi] = this.xRange(), shown = U.main.series.map((s) => s.show); S.scale = kind; U.main.destroy();
     U.main = makeMain(document.getElementById("main")); ring = document.createElement("div"); ring.className = "ring"; U.main.over.appendChild(ring);
     wheelAndPan(U.main); peakGestures(U.main); setX(lo, hi);
+    // the new pane starts in zoom mode with every curve shown; put back what the reader had
+    setMode(S.mode); shown.forEach((v, i) => { if (i && !v) U.main.setSeries(i, { show: false }); });
   },
   theme(t) { document.documentElement.dataset.theme = t; readColors(); for (const k of ["main", "ticks", "resid"]) U[k].redraw(false, true); legend(); },
   stage() {   // a live update: new numbers, the reader's zoom kept
@@ -355,7 +358,7 @@ window.P = {
     }
     const t0 = performance.now(), Native = window.Path2D, get = HTMLCanvasElement.prototype.getContext, out = [], [lo, hi] = this.xRange();
     S.exporting = true;   // the export charts join no group and move no live pane
-    for (const [make, h] of [[makeMain, 420], [makeTickPane, 48], [makeResid, 170]]) {
+    try { for (const [make, h] of [[makeMain, 420], [makeTickPane, 48], [makeResid, 170]]) {
       let svg = null, used = false;
       HTMLCanvasElement.prototype.getContext = function (t, ...r) {
         if (used || t !== "2d") return get.call(this, t, ...r);
@@ -373,8 +376,7 @@ window.P = {
         await Promise.resolve(); await Promise.resolve();
         out.push(svg.getSerializedSvg()); u.destroy();
       } finally { HTMLCanvasElement.prototype.getContext = get; window.Path2D = Native; host.remove(); }
-    }
-    S.exporting = false;
+    } } finally { S.exporting = false; }   // left set, it would unlink the live panes for good
     return { ms: performance.now() - t0, svgs: out };
   },
   async copyTSV() {   // the visible window, every column, as a spreadsheet pastes it

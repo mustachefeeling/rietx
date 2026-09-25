@@ -2,13 +2,14 @@
 // Plotly.Plots.resize waits on a 100 ms setTimeout before its relayout, so timing the
 // promise measured the timer. Here every step is (Δ CDP TaskDuration − idle rate × wall),
 // with a 300 ms settle after each call so deferred work lands inside the window.
+import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 
-const DIR = new URL(".", import.meta.url).pathname;
+const DIR = fileURLToPath(new URL(".", import.meta.url));
 const EXE = os.homedir() + "/Library/Caches/ms-playwright/chromium-1223/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing";
 const server = http.createServer((q, r) => { const f = path.join(DIR, decodeURIComponent(q.url.split("?")[0]));
   if (!f.startsWith(DIR) || !fs.existsSync(f)) { r.writeHead(404); return r.end(); }

@@ -1,9 +1,10 @@
 // The same figure `write_html` draws (obs, calc, background, offset difference, tick rows under it,
 // a legend that hides a curve on click) as one self-contained page with uPlot inlined.
+import { fileURLToPath } from "node:url";
 import fs from "node:fs";
 import path from "node:path";
 
-const DIR = new URL(".", import.meta.url).pathname;
+const DIR = fileURLToPath(new URL(".", import.meta.url));
 const a = JSON.parse(fs.readFileSync(path.join(DIR, "arrays.json"), "utf8"));
 const js = fs.readFileSync(path.join(DIR, "node_modules/uplot/dist/uPlot.iife.min.js"), "utf8");
 const css = fs.readFileSync(path.join(DIR, "node_modules/uplot/dist/uPlot.min.css"), "utf8");
@@ -14,6 +15,7 @@ const page = `<!doctype html><html><head><meta charset="utf-8"><title>rietx fit<
 const D = ${JSON.stringify(a)};
 const n = D.x.length, lo = Math.min(...D.obs.map((v, i) => v - D.calc[i])), off = -Math.max(...D.obs) * 0.08;
 const diff = D.obs.map((v, i) => v - D.calc[i] + off - Math.max(0, -lo));
+const diffMin = diff.reduce((m, v) => (v < m ? v : m), Infinity);   // once, not per draw
 const lower = (xs, v) => { let l = 0, h = xs.length; while (l < h) { const m = (l + h) >> 1; if (xs[m] < v) l = m + 1; else h = m; } return l; };
 const pal = ["#9467bd", "#8c564b", "#e377c2", "#7f7f7f"], names = Object.keys(D.ticks);
 function markers(u, si, i0, i1) {
@@ -24,7 +26,7 @@ function markers(u, si, i0, i1) {
   flush(); return { stroke: null, fill: p, clip: null, band: null, gaps: null, flags: 0 };
 }
 function ticks(u) {
-  const { ctx, bbox, scales } = u, base = u.valToPos(Math.min(...diff) , "y", true) + 8 * devicePixelRatio, rh = 9 * devicePixelRatio;
+  const { ctx, bbox, scales } = u, base = u.valToPos(diffMin, "y", true) + 8 * devicePixelRatio, rh = 9 * devicePixelRatio;
   names.forEach((k, r) => { const xs = D.ticks[k]; ctx.strokeStyle = pal[r % pal.length]; ctx.beginPath(); let last = -1;
     for (let i = lower(xs, scales.x.min); i < xs.length && xs[i] <= scales.x.max; i++) { const X = Math.round(u.valToPos(xs[i], "x", true)) + 0.5; if (X === last) continue; last = X; ctx.moveTo(X, base + r * rh); ctx.lineTo(X, base + r * rh + rh - 2); }
     ctx.stroke(); });
