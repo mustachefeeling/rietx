@@ -140,7 +140,7 @@ leaves a `node_modules` the newer one cannot use (WP-1442).
 
 **`lib/resize.ts`'s cases are copied out, and `gui/src` is hashed whole**
 (WP-1425). `rietx watch` cannot import TypeScript, so it ports
-`clampSize`/`dragged`/`axisOf`/`coalesce` and `tests/test_watch_app.py` compares
+`clampSize`/`dragged`/`axisOf` and `tests/test_watch_app.py` compares
 `resize.test.ts`'s `ported cases` block against `tests/watch_core.test.mjs` **as
 text**, comments included: edit them here and the copy fails until it follows.
 `build_info.py` hashes `gui/src/**/*`, test files included, so editing any test

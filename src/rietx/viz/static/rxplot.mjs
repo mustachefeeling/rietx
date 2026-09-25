@@ -177,13 +177,13 @@ const MIN_PANE = 60;
 
 const TYPES = ["lin", "sqrt", "log"];
 
-function yScale(uPlot, kind, pinned, fixed) {
+function yScale(uPlot, kind, pinned, fixed, own) {
   // a band of rows, like the reflection ticks, has a range of its own and no zoom
   if (fixed) return { range: () => fixed };
   if (!TYPES.includes(kind)) throw new Error(`rxplot: no y scale "${kind}"; one of ${TYPES.join(", ")}`);
-  const auto = kind === "log"
+  const auto = own ?? (kind === "log"
     ? (u, min, max) => uPlot.rangeLog(min, max, 10, true)
-    : (u, min, max) => uPlot.rangeNum(min, max, 0.1, true);
+    : (u, min, max) => uPlot.rangeNum(min, max, 0.1, true));
   // a y range the reader zoomed to is held across every x zoom until a reset
   const range = (u, min, max) => pinned() ?? auto(u, min, max);
   if (kind === "log") return { distr: 3, log: 10, range };
@@ -234,6 +234,9 @@ function axes(spec, gutter) {
  *   the panes with a `height`, so the group fills a host whose height the page
  *   decides;
  * - `y` ("lin", "sqrt" or "log"), or `range`, a fixed y range no drag zooms;
+ * - `auto`, `(u, min, max) => [lo, hi]`, the y range while the reader has not
+ *   chosen one, in place of the data's padded extent. uPlot calls it at every
+ *   x range, with `u.series[0].idxs` the channels in view;
  * - `label`, the y axis title, a string or a function uPlot reads at each draw;
  *   `yLabels: false` for a band whose y means nothing;
  * - `xLabels`, and `xLabel` the x axis title under them;
@@ -337,7 +340,7 @@ export function panes(uPlot, host, spec) {
     extend("setCursor", onCursor);
     const u = new uPlot({
       width: host.clientWidth, height: heights()[key], legend: { show: false },
-      scales: { x: { time: false }, y: yScale(uPlot, p.y ?? "lin", () => pins[key] ?? null, p.range) },
+      scales: { x: { time: false }, y: yScale(uPlot, p.y ?? "lin", () => pins[key] ?? null, p.range, p.auto) },
       axes: axes(p, gutter),
       series: [{}, ...p.series],
       cursor: {
@@ -572,6 +575,10 @@ const RESIDUALS = { weighted: "delta", delta: "delta_raw", cumulative: "cumulati
  * - `rawResidual()`: the residual pane's values over the pattern's channels
  *   when the payload carries no fit, or null for none. The GUI draws its peak
  *   groups' own residual there.
+ * - `ranges`: `{ main, resid }`, each that pane's `auto` (`panes`), for a
+ *   page whose y ranges are its own. The watcher holds the intensity to the
+ *   observed points and the residual to a ladder of rungs, so neither moves
+ *   while the fit does.
  *
  * A cumulative χ² is re-based at every x zoom (`chi2Base`), so it starts at
  * zero at the view's left edge, as the window route's did.
@@ -663,14 +670,15 @@ export function pattern(uPlot, host, curves, spec) {
   const group = panes(uPlot, host, {
     x: curves.arrays.two_theta,
     panes: [
-      { key: "main", share: 0.76, y: state.y, label: () => spec.labels?.y?.() ?? "",
+      { key: "main", share: 0.76, y: state.y, auto: spec.ranges?.main, label: () => spec.labels?.y?.() ?? "",
         series: [markers("obs"), markers("masked"),
                  { show: !state.hidden.has("calc"), stroke: ink("calc"), width: 1.2 },
                  { show: !state.hidden.has("bkg"), stroke: ink("bkg"), width: 1, dash: [3, 3] }],
         data: mainData(), hooks: hooks("main") },
       { key: "ticks", height: tickHeight(Object.keys(state.c.ticks).length), range: [0, 1], yLabels: false,
         series: [{ show: false }], data: nulls(), hooks: hooks("ticks", { draw: [drawTicks] }) },
-      { key: "resid", share: 0.24, xLabels: true, xLabel: "2θ (°)", label: () => spec.labels?.resid?.() ?? "",
+      { key: "resid", share: 0.24, xLabels: true, xLabel: "2θ (°)", auto: spec.ranges?.resid,
+        label: () => spec.labels?.resid?.() ?? "",
         series: [{ show: residShown(), stroke: ink("diff"), width: 1 }],
         data: residData(), hooks: hooks("resid", { drawAxes: [drawZero] }) },
     ],

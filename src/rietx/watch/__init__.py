@@ -16,7 +16,9 @@ python string until seven WPs queued up against it, at which point the string
 was costing an editor, a unit test and every merge. ``watch-core.mjs`` is the
 half that touches no DOM and the suite runs it through ``node --test``;
 ``watch.mjs`` owns the document. What the page cannot know about this build
-travels on the first ``/api/runs`` (:func:`_page_constants`).
+travels on the first ``/api/runs`` (:func:`_page_constants`). The picture is
+drawn by the chart module every browser page shares, served with its uPlot
+out of ``viz/static`` (:data:`CHART_FILES`, WP-1461).
 
 **The watcher has two verbs** (WP-1405, WP-1428). Everything else reads: it
 opens no project and constructs no refinement. ``POST /api/run/<id>/cancel``
@@ -65,15 +67,6 @@ from pathlib import Path
 from .. import runs as runs_mod
 from .._about import DIST_NAME, PROJECT_SUFFIX
 from ..viz import theme as theme_mod
-from ..viz.plotlyjs import CONTENT_TYPE as PLOTLY_CONTENT_TYPE
-from ..viz.plotlyjs import plotly_js
-
-#: What a missing plotly says, in the pane the plot would have filled. Each
-#: page that serves plotly owns its own fallback (``viz/plotlyjs.py``), and
-#: this one has a shell worth keeping: the run list and the event log work
-#: without a plotting library, so only the plot pane reports the absence.
-_NO_PLOTLY_JS = (f"console.error('{DIST_NAME} watch: plotly is not installed "
-                 f"\u2014 pip install \\'{DIST_NAME}[viz]\\'');")
 
 #: The page, as files in the package — ``gui/server.py``'s ``STATIC_DIR`` one
 #: rank down (WP-1430). A page quoted inside python is a page no editor lints,
@@ -90,6 +83,18 @@ STATIC_FILES = {
     "watch.css": "text/css; charset=utf-8",
     "watch.mjs": "text/javascript; charset=utf-8",
     "watch-core.mjs": "text/javascript; charset=utf-8",
+}
+
+#: The chart the picture is drawn with (WP-1461): the chart module every
+#: browser page shares and the uPlot vendored beside it, at the pin
+#: ``gui/package.json`` holds. Served from where the wheel keeps them, so the
+#: page draws with no network and no optional dependency, where plotly needed
+#: the ``viz`` extra and 4.8 MB.
+CHART_DIR = Path(__file__).parent.parent / "viz" / "static"
+CHART_FILES = {
+    "rxplot.mjs": "text/javascript; charset=utf-8",
+    "uPlot.iife.min.js": "text/javascript; charset=utf-8",
+    "uPlot.min.css": "text/css; charset=utf-8",
 }
 
 #: How long the GUI launch waits for the spawned process to name its port
@@ -267,14 +272,17 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
         self._send(body, "application/json; charset=utf-8", etag=etag)
 
     def _static(self, name: str) -> None:
-        """One of the page's own files, out of the installed package.
+        """One of the page's own files or its chart's, out of the installed package.
 
-        Read per request, like the plotly route below: the four of them are
-        32 kB and a page fetches each once, so nothing here is on a path that
-        runs per stage. ``no-store`` comes from :meth:`_send` and is wanted —
-        a reader who restarts the watcher after an upgrade must not be served
-        the old script out of their own cache.
+        Read per request: the seven of them are 188 kB and a page fetches
+        each once, so nothing here is on a path that runs per stage.
+        ``no-store`` comes from :meth:`_send` and is wanted — a reader who
+        restarts the watcher after an upgrade must not be served the old
+        script out of their own cache.
         """
+        if name in CHART_FILES:
+            self._send((CHART_DIR / name).read_bytes(), CHART_FILES[name])
+            return
         self._send((STATIC_DIR / name).read_bytes(), STATIC_FILES[name])
 
     def _json(self, payload, status: int = 200, *, etag: bool = False) -> None:
@@ -375,7 +383,7 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
         # the page's own files, before the fallback: a run directory holding a
         # `watch.css` of its own does not get to replace the page's
         name = path.lstrip("/")
-        if name in STATIC_FILES:
+        if name in STATIC_FILES or name in CHART_FILES:
             self._static(name)
             return
 
@@ -384,13 +392,6 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
             # authority and `gui/src/tokens.css` is the copy, not the reverse
             self._send(theme_mod.tokens_css().encode("utf-8"),
                        theme_mod.CSS_CONTENT_TYPE)
-            return
-
-        if path == "/plotly.js":
-            # out of the installed package, so the page works air-gapped and
-            # nothing vendors a copy (viz/plotlyjs.py)
-            self._send(plotly_js(_NO_PLOTLY_JS).encode("utf-8"),
-                       PLOTLY_CONTENT_TYPE)
             return
 
         if path == "/api/runs":

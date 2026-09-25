@@ -133,13 +133,14 @@ def test_every_file_the_page_asks_for_is_served_as_itself(tmp_path):
     error, and a module sent as anything but javascript is refused by the
     browser rather than run (WP-1430)."""
     with _served(tmp_path) as base:
-        for name, kind in watch.STATIC_FILES.items():
+        for name, kind in {**watch.STATIC_FILES, **watch.CHART_FILES}.items():
             response = urllib.request.urlopen(f"{base}/{name}", timeout=5)
             assert response.headers["Content-Type"] == kind, name
             assert response.read()
-        # the module the script imports resolves beside it, not at the root of
+        # the modules the script imports resolve beside it, not at the root of
         # whatever directory this watcher was pointed at
-        assert b"export function rangesOf" in _get(base + "/watch-core.mjs")
+        assert b"export function deltaRange" in _get(base + "/watch-core.mjs")
+        assert b"export function pattern" in _get(base + "/rxplot.mjs")
 
 
 def test_the_page_reports_the_root_it_scanned(tmp_path):
@@ -361,13 +362,25 @@ def test_a_legacy_page_is_still_served(tmp_path):
     assert b"plotly goes here" in body
 
 
-def test_the_page_loads_plotly_from_the_installed_package(tmp_path):
-    """Air-gapped, and out of one shared route (``viz/plotlyjs.py``)."""
+def test_the_page_draws_with_the_vendored_chart(tmp_path):
+    """The chart module and its uPlot, out of the package byte for byte
+    (WP-1461).
+
+    Air-gapped, and with no optional dependency behind it: plotly needed the
+    ``viz`` extra and 4.8 MB, and the page asks for it nowhere now.
+    """
     with _served(tmp_path) as base:
+        page = _get(base + "/").decode()
         script = _get(base + "/watch.mjs").decode()
-        body = _get(base + "/plotly.js")
-    assert "plotly.js" in script and "react" in script
-    assert len(body) > 100_000 or b"plotly is not installed" in body
+        served = {name: _get(f"{base}/{name}") for name in watch.CHART_FILES}
+        with pytest.raises(urllib.error.HTTPError) as gone:
+            _get(base + "/plotly.js")
+    for name, body in served.items():
+        assert body == (watch.CHART_DIR / name).read_bytes(), name
+    assert 'src="uPlot.iife.min.js"' in page and 'href="uPlot.min.css"' in page
+    assert "from './rxplot.mjs'" in script
+    assert "plotly" not in page.lower()
+    assert gone.value.code == 404
 
 
 def test_the_row_dates_the_snapshot_so_the_plot_can_be_redrawn(tmp_path):
@@ -1164,16 +1177,15 @@ def test_no_colour_literal_is_left_in_the_page(tmp_path):
 
     The exemption is the confirm dialog's scrim, and it is one because a scrim
     *darkens* whatever is under it: black in both themes, as the GUI's own two
-    backdrops are (`Browse.svelte`, `Palette.svelte`).  `rgba(0,0,0,0)` is not
-    a colour at all — it is plotly's way of saying the paper is transparent, so
-    the page's own background shows through, which is what makes the picture
-    part of the page rather than a card on it.
+    backdrops are (`Browse.svelte`, `Palette.svelte`).  The picture needs no
+    exemption: uPlot leaves its canvas transparent, so the page's own
+    background shows through, which is what makes the picture part of the page
+    rather than a card on it.
     """
-    allowed = {"rgba(0,0,0,0.62)", "rgba(0,0,0,0)"}
-    # a *literal* — only digits inside the parentheses.  `withAlpha` composes
-    # `rgba(${…})` out of a token it was handed, which is the opposite of a
-    # colour this page chose, and a looser pattern would flag the machinery
-    # that exists to keep the choice in one place.
+    allowed = {"rgba(0,0,0,0.62)"}
+    # a *literal* — only digits inside the parentheses.  A `color-mix` over a
+    # token is the opposite of a colour this page chose, and a looser pattern
+    # would flag the machinery that exists to keep the choice in one place.
     literal = re.compile(r"#[0-9a-fA-F]{3,8}\b|rgba?\([\d.,\s%]*\)")
     for name in ("watch.css", "watch.mjs", "watch-core.mjs", "index.html"):
         text = (watch.STATIC_DIR / name).read_text(encoding="utf-8")

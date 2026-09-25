@@ -136,8 +136,8 @@ sliver on a narrow one.
 
 A seam stops where the panel stops being readable. The list stops at the width
 its five declared columns need plus room for the run column's own heading, 63
-characters in all. The run panel keeps 340 px, below which the plot's legend
-wraps to six rows and covers the top quarter of the picture.
+characters in all. The run panel keeps 340 px. At that width the plot's legend
+already takes three rows over the top of the picture.
 
 `full list`, beside the title, hides the run panel altogether and gives the
 list the window. It is a button rather than a third seam because no seam sizes
@@ -171,6 +171,12 @@ symmetric and steps between fixed rungs (±3, ±5, ±10, ±20 and so on) as the
 residual tightens. The console tails the log from where it left off and follows
 it only while you are at the end. For a series the status line names the
 pattern being fitted, its pass and its stage.
+
+The plot is the GUI's pattern chart, and it takes the GUI's gestures. Drag to
+zoom, or scroll to zoom about the pointer. Shift-scroll or Alt-drag pans, and a
+double-click shows the whole pattern again. Clicking an entry in the legend
+hides that curve until you click it again, and a stage landing leaves it
+hidden. The shaded band on the Δ/σ panel runs from −3 to +3.
 
 The status line shows what the run panel is wide enough to hold, and it drops
 slots rather than cutting each of them a little. The GUI command and the
@@ -337,13 +343,13 @@ generated from the same module.
 The theme is whichever the GUI stored, in `ui.theme` in
 `~/.rietx/settings.json` (`$RIETX_STATE_DIR` moves that directory). Switch it
 in the GUI and an open watch page follows on its next poll, 1.2 s, chrome and
-plot together. This page has no theme control and writes the setting nowhere:
-one writer per fact, and the GUI is it. With nothing stored the choice is
+plot together. The three buttons in the page's title bar write the same
+setting. With nothing stored the choice is
 `system`, and the page follows the browser's `prefers-color-scheme`.
 
 ### The JSON underneath
 
-Eight routes carry everything the page shows, and you can read any of them
+These routes carry everything the page shows, and you can read any of them
 directly:
 
 | Route | Returns |
@@ -357,7 +363,7 @@ directly:
 | `POST /api/run/<id>/gui` | opens a copy of that run's project in the GUI; 403 under `--read-only` |
 | `POST /api/theme` | stores the theme; not under `--read-only`, which fences the run |
 | `/tokens.css` | the colour tokens the GUI is drawn from, so both pages agree |
-| `/plotly.js` | plotly out of the installed package, so the page works offline |
+| `/rxplot.mjs`, `/uPlot.iife.min.js`, `/uPlot.min.css` | the chart the plot is drawn with, out of the installed package, so the page works offline |
 
 These are provisional by declaration, like the GUI's ([](compatibility.md)). A
 route may be added, renamed or split in any release.

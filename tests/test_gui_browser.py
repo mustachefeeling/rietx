@@ -4,9 +4,10 @@ jsdom has no canvas, so ``gui/src/App.test.ts`` asserts the chart over a
 stand-in that records what each pane was asked to show
 (``gui/src/test-uplot.ts``). This file asks the browser instead. An init script
 records the style of every stroke and fill on each canvas at the moment it is
-made, which is the ink on the canvas rather than the ink a series was handed.
-``test_watch_browser.py`` read plotly's ``_fullData`` for the same reason: under
-plotly a tick row declared one colour and painted another (WP-1438).
+made, which is the ink on the canvas rather than the ink a series was handed:
+under plotly a tick row declared one colour and painted another (WP-1438). The
+script is ``test_watch_browser.py``'s, which reads the watcher's picture the
+same way.
 
 Driven through playwright, which is not a dependency, so the module skips where
 the package or a cached chromium is missing, as its two siblings do. That
@@ -23,26 +24,8 @@ from tests.test_gui_server import Client, _project, _start, _wait_idle
 playwright = pytest.importorskip("playwright")
 from playwright.sync_api import sync_playwright  # noqa: E402
 
-from tests.test_watch_browser import _chromium  # noqa: E402
-
-#: Every stroke and fill on every canvas, with the style it was made in, from
-#: before the page's own scripts run.
-RECORD = """
-window.__ink = [];
-const ids = new WeakMap();
-let next = 0;
-const id = (c) => { if (!ids.has(c)) ids.set(c, next++); return ids.get(c); };
-window.__canvasId = id;
-for (const op of ["stroke", "fill", "fillRect"]) {
-  const original = CanvasRenderingContext2D.prototype[op];
-  CanvasRenderingContext2D.prototype[op] = function (...args) {
-    window.__ink.push({ canvas: id(this.canvas), op,
-                        style: String(op === "stroke" ? this.strokeStyle : this.fillStyle),
-                        dash: this.getLineDash().length > 0, alpha: this.globalAlpha });
-    return original.apply(this, args);
-  };
-}
-"""
+# every stroke and fill on every canvas, with the style it was made in
+from tests.test_watch_browser import RECORD, _chromium  # noqa: E402
 
 #: The panel's plot tokens, each normalised the way a canvas normalises a
 #: colour it is given, so a token and a recorded style compare as strings.

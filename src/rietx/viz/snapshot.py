@@ -8,8 +8,8 @@ and made recording a run impossible on an install without plotly, because
 building the figure was how the view was stored.
 
 This module writes the numbers instead. The fit pays a decimation and a small
-JSON write; the viewer loads plotly once from the installed package and redraws
-in place; and nothing here imports a plotting library. ``viz/live.py`` is a
+JSON write; the viewer draws it with the chart module the package vendors and
+redraws in place; and nothing here imports a plotting library. ``viz/live.py`` is a
 shim over it, and WP-1403's recorder will be a second caller.
 
 **It is a picture's data, not a record.** The curves are decimated to a screen's
@@ -108,7 +108,7 @@ def _json_list(values: np.ndarray) -> list:
 
     ``json.dumps`` writes a bare ``NaN``, which is not JSON and which
     ``JSON.parse`` refuses — so one non-finite point would cost a viewer the
-    whole curve. ``null`` is what plotly draws as a gap, which is the right
+    whole curve. ``null`` is what the chart draws as a gap, which is the right
     picture of a point that has no value.
 
     The per-element branch runs only when there is something to branch on.

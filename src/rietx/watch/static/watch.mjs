@@ -1,13 +1,14 @@
 // The `rietx watch` page, the half that owns the document (WP-1430).
 //
-// A module script, so nothing here is a global and the page's own functions
-// cannot collide with plotly's. The functions that touch no DOM are next door
-// in `watch-core.mjs`, where the suite can call them.
-import {LAYOUT_DEFAULT, ago, axisOf, clampSize, clock, coalesce, deltaTitle,
-        dragged, esc, guiReason, hklLabel, nextLayout, num, parseLayout, pct,
-        rangesOf, rowName, sizeField,
-        paletteFrom, phaseInk, runLabel, runTitle,
-        withAlpha} from './watch-core.mjs';
+// A module script, so nothing here is a global. The functions that touch no
+// DOM are next door in `watch-core.mjs`, where the suite can call them. The
+// picture is drawn by `rxplot.mjs`, the chart module every browser page draws
+// with (WP-1461), over the uPlot `index.html` loads before this.
+import {LAYOUT_DEFAULT, ago, axisOf, clampSize, clock, curvesOf, deltaRange,
+        deltaTitle, dragged, esc, guiReason, hasBackground, intensityRange,
+        legendOf, nextLayout, num, parseLayout, pct, rowName, sizeField,
+        paletteFrom, runLabel, runTitle, tickText} from './watch-core.mjs';
+import {nearest, pattern} from './rxplot.mjs';
 
 const $ = id => document.getElementById(id);
 let SINGLE = null;          // set when the served directory is itself a run
@@ -29,9 +30,8 @@ let shell = {id: null, kind: null, mtime: null};
 // here rather than fetching it again
 let rows = new Map();
 let newest = null;
-// plotly is fetched once per page, on the first run that needs it — never
-// for the run list alone, which would be 4 MB to draw a table
-let plotlyPromise = null;
+// The figure on screen, and the run and stage it shows (`drawSnapshot`).
+let chart = null;
 // What this build is called, read off the first `api/runs` (WP-1430). It was
 // a `@TOKEN@` substitution into the page's text while the page was a python
 // string; a file cannot carry one, and a literal here would be a second
@@ -227,9 +227,8 @@ function pictureKind(run) {
 // what brings us back here.
 function buildPicture(run, kind) {
   const picture = $('picture');
-  const old = $('plot');
-  // a scattergl plot holds a WebGL context; dropping the div leaks it
-  if (old && old.tagName === 'DIV' && window.Plotly) window.Plotly.purge(old);
+  // the figure's ResizeObserver outlives its div unless it is let go
+  destroyChart();
   picture.innerHTML = kind === 'json'
     ? '<div id="plot"></div>'
     : kind === 'html'
@@ -268,25 +267,10 @@ function legacySrc(run) {
   return `api/run/${run.run_id}/legacy?t=` + (run.snapshot_mtime || 0);
 }
 
-// One fetch per page, shared by every run the reader opens. The script tag is
-// built here rather than sitting in the head because the run list needs no
-// plotting library and 4 MB to draw a table is 4 MB wasted.
-function ensurePlotly() {
-  if (plotlyPromise) return plotlyPromise;
-  plotlyPromise = new Promise(resolve => {
-    const tag = document.createElement('script');
-    tag.src = 'plotly.js';
-    tag.onload = () => resolve(window.Plotly || null);
-    tag.onerror = () => resolve(null);   // no plotly installed: say so, once
-    document.head.appendChild(tag);
-  });
-  return plotlyPromise;
-}
-
 // The colours as they are *now*, off the root element's custom properties
-// (WP-1429). Read per draw rather than held: a theme change restyles the page
-// by CSS alone, and a canvas keeps whatever it was painted with, so the value
-// held at boot is the wrong one the moment somebody switches in the GUI.
+// (WP-1429). A theme change restyles the page by CSS alone, and a canvas keeps
+// whatever it was painted with, so they are read again whenever the theme
+// moves (`retheme`), and never held from boot.
 function hues() {
   const style = getComputedStyle(document.documentElement);
   return paletteFrom(name => style.getPropertyValue(name));
@@ -309,80 +293,210 @@ function applyTheme(choice) {
   return true;
 }
 
-// Every mark below is `viz/html.py`'s, mode for mode and width for width.
-// This page and the emailable one are two pictures of one fit, and a reader
-// who flips between them must not have to relearn which curve is which.
-function snapshotTraces(snap, hue) {
-  const tt = snap.two_theta;
-  const traces = [
-    {x: tt, y: snap.y_obs, name: 'observed', mode: 'markers',
-     type: 'scattergl', marker: {size: 3, color: hue.obs}},
-    {x: tt, y: snap.y_calc, name: 'calculated', mode: 'lines',
-     type: 'scattergl', line: {width: 1.2, color: hue.calc}},
-  ];
-  if (snap.y_bkg.some(v => v)) {
-    traces.push({x: tt, y: snap.y_bkg, name: 'background', mode: 'lines',
-                 type: 'scattergl',
-                 line: {width: 1, dash: 'dash', color: hue.bkg}});
+// ------------------------------------------------------------- picture
+// The pattern is the GUI's own figure (`rxplot.pattern`): the observed points
+// over the model, a band of reflection ticks, and Δ/σ under both, with the
+// GUI's gestures. A drag zooms, the wheel zooms about the pointer, shift-wheel
+// and alt-drag pan, and a double-click goes back to the whole pattern. What
+// only this page has is laid over the figure: the ±3σ band, a legend, the
+// count of points drawn, and the reflection under the pointer.
+//
+// A stage of the run on screen is new numbers for the same figure, so the
+// reader's zoom and the curves they hid survive it, which is the whole reason
+// the picture stopped being a page that reloads (WP-1402). Another run is a
+// new figure.
+
+// The ink of every mark about the data (`hues`), and the chart's `colors()`.
+// Held, because the chart asks for it once per curve per paint; read again
+// whenever the theme moves (`retheme`).
+let hue = null;
+let palette = null;
+function retheme() {
+  hue = hues();
+  // the masked arm is empty here: a snapshot holds the fitted channels only
+  palette = {...hue, masked: hue.obs};
+  if (chart) chart.fig.redraw();
+}
+// "Follow the system" is answered by CSS, which repaints the chrome and not
+// the canvas, so the canvas is repainted when the system's answer moves.
+window.matchMedia?.('(prefers-color-scheme: dark)')
+  .addEventListener?.('change', () => retheme());
+
+function destroyChart() {
+  if (chart) chart.fig.destroy();
+  chart = null;
+}
+
+// An element laid over the figure, in the plot's own coordinates.
+function overlay(div, name) {
+  const el = document.createElement('div');
+  el.className = name;
+  div.appendChild(el);
+  return el;
+}
+
+// The curves not drawn: the ones the reader hid, and a background the stage
+// has not got (`hasBackground`), which has no legend entry to bring it back.
+function hiddenOf(state) {
+  const hidden = [...state.hidden];
+  if (!hasBackground(state.snap)) hidden.push('bkg');
+  return hidden;
+}
+
+// The residual's ±3σ band, under the grid. Δ/σ has expectation 1 under a
+// correct model, so the band puts the residual on an absolute statistical
+// scale (Toby 2024), and it is the band `viz/html.py` draws.
+function drawBand(u) {
+  const {ctx} = u, {left, top, width, height} = u.bbox;
+  const upper = Math.max(top, u.valToPos(3, 'y', true));
+  const lower = Math.min(top + height, u.valToPos(-3, 'y', true));
+  if (!(lower > upper)) return;
+  ctx.save();
+  ctx.globalAlpha = 0.15;
+  ctx.fillStyle = palette.band;
+  ctx.fillRect(left, upper, width, lower - upper);
+  ctx.restore();
+}
+
+// The legend sits inside the plot area at its top left, never above it. A
+// legend in the flow takes its rows out of the picture, and the picture then
+// moves whenever the legend gains a row (WP-1426 measured both ways it gains
+// one: the window narrows and the row wraps, or a stage frees the background
+// and adds an entry). Its width is the plot area's, so it wraps inside the
+// picture rather than past it. Placed from the pane's own plot box at every
+// paint, and written only when that box moved.
+function placeLegend(state, u) {
+  const r = devicePixelRatio, box = state.legend.style;
+  const left = `${u.bbox.left / r}px`, top = `${u.bbox.top / r}px`;
+  const width = `${u.bbox.width / r}px`;
+  if (box.left !== left) box.left = left;
+  if (box.top !== top) box.top = top;
+  if (box.maxWidth !== width) box.maxWidth = width;
+}
+
+function legendEntry(state, entry) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = entry.mark;
+  button.dataset.id = entry.id;
+  // a property and not its value, so a theme switch restyles the swatch
+  button.style.setProperty('--ink', `var(${entry.ink})`);
+  button.title = `show or hide ${entry.label}`;
+  button.append(document.createElement('i'), entry.label);
+  button.onclick = () => {
+    if (!state.hidden.delete(entry.id)) state.hidden.add(entry.id);
+    state.fig.setHidden(hiddenOf(state));
+    fillOverlays(state);
+  };
+  return button;
+}
+
+// The legend and the caption for the stage on screen. The legend is rebuilt
+// only when its entries changed, since a poll rebuilds nothing (WP-1423).
+function fillOverlays(state) {
+  const entries = legendOf(state.snap);
+  const key = JSON.stringify(entries);
+  if (key !== state.legendKey) {
+    state.legendKey = key;
+    state.legend.replaceChildren(...entries.map(e => legendEntry(state, e)));
   }
-  traces.push({x: tt, y: snap.delta, name: 'Δ/σ', mode: 'lines',
-               type: 'scattergl', yaxis: 'y2',
-               line: {width: 1, color: hue.diff}});
-  // the rows live on an axis of their own under the Δ/σ panel, one unit a
-  // row: they are read against the residual above them and must not move
-  // when it does
-  const names = Object.keys(snap.ticks || {});
-  names.forEach((name, i) => {
-    const row = snap.ticks[name];
-    // one row has nothing to be told apart from, so colour stays for when
-    // there are several
-    const colour = phaseInk(hue, i, names.length);
-    // the cap is in the legend, because a silent cap reads as coverage
-    const label = row.n_total > row.two_theta.length
-      ? `hkl: ${name} (${row.two_theta.length} of ${row.n_total})`
-      : `hkl: ${name}`;
-    // Which reflection, under the pointer (WP-1438). It was the 2θ alone,
-    // which is the one thing the axis under it already says. `customdata`
-    // and not a built `text` array: plotly keeps it per point through its
-    // own hover lookup, and a row of 2000 strings is built once a draw for a
-    // box that shows one of them.
-    //
-    // A row whose snapshot predates this — `rietx watch` opens directories
-    // somebody else wrote — has no `hkl`, and then the trace keeps the 2θ it
-    // always had rather than hovering the word `undefined`.
-    const hkl = Array.isArray(row.hkl) && row.hkl.length === row.two_theta.length
-      ? row.two_theta.map((_, k) => hklLabel(row.hkl[k])) : null;
-    traces.push({
-      x: row.two_theta, y: row.two_theta.map(() => -i), name: label,
-      mode: 'markers', type: 'scattergl', yaxis: 'y3',
-      ...(hkl
-        ? {customdata: hkl,
-           hovertemplate: '%{customdata}<br>%{x:.4f}\u00b0<extra></extra>'}
-        : {hoverinfo: 'x'}),
-      marker: {symbol: 'line-ns-open', size: 7, color: colour},
-    });
+  for (const button of state.legend.children) {
+    setAttr(button, 'aria-pressed', String(!state.hidden.has(button.dataset.id)));
+  }
+  // How much of the pattern is on screen, under the axis it is a fact about.
+  // It sat in the status strip until WP-1424, and at the picture's top right
+  // until WP-1438, which is where the legend's first row ends.
+  setText(state.caption,
+          `${state.snap.n_drawn} of ${state.snap.n_points} pts drawn`);
+}
+
+// The pointer's reach onto a tick, in CSS px.
+const PICK = 6;
+
+// Which reflection is under the pointer in the tick band (WP-1438): the row
+// the pointer's height falls in, then that row's nearest tick within reach.
+// A DOM label over the canvas, so pointing paints no pattern.
+function hoverTick(state, at) {
+  const tip = state.tip;
+  const names = Object.keys(state.snap.ticks || {});
+  if (!at || at.key !== 'ticks' || !names.length) {
+    tip.hidden = true;
+    return;
+  }
+  const u = state.fig.panes.ticks;
+  const band = u.over.clientHeight / names.length;
+  const r = Math.min(names.length - 1, Math.max(0, Math.floor(at.top / band)));
+  const row = state.snap.ticks[names[r]];
+  const j = state.hidden.has(`ticks:${names[r]}`) ? -1
+    : nearest(row.two_theta, at.x, v => u.valToPos(v, 'x'), PICK);
+  if (j < 0) {
+    tip.hidden = true;
+    return;
+  }
+  setText(tip, tickText(row, j));
+  const over = u.over.getBoundingClientRect();
+  const plot = state.div.getBoundingClientRect();
+  tip.style.left = `${over.left - plot.left + u.valToPos(row.two_theta[j], 'x')}px`;
+  tip.style.top = `${over.top - plot.top + r * band}px`;
+  tip.hidden = false;
+}
+
+function makeChart(id, snap) {
+  const div = $('plot');
+  if (!palette) retheme();
+  const state = {id: id, div: div, snap: snap, hidden: new Set(),
+                 ladder: deltaRange(snap.delta), legendKey: null};
+  state.legend = overlay(div, 'legend');
+  state.caption = overlay(div, 'caption');
+  state.tip = overlay(div, 'tip');
+  state.tip.hidden = true;
+  state.fig = pattern(window.uPlot, div, curvesOf(snap), {
+    colors: () => palette,
+    hidden: hiddenOf(state),
+    labels: {y: () => 'intensity',
+             resid: () => deltaTitle(state.snap.weighted)},
+    // Both y ranges are this page's (`watch-core.mjs`): the intensity is the
+    // observed points' in view, and Δ/σ is a ladder rung for the stage. A
+    // range the reader drags still holds over either until a double-click.
+    ranges: {
+      main: u => {
+        const obs = u.data[1], idxs = u.series[0].idxs;
+        const i0 = idxs?.[0] ?? 0, i1 = idxs?.[1] ?? obs.length - 1;
+        return intensityRange(obs.slice(i0, i1 + 1));
+      },
+      resid: () => state.ladder,
+    },
+    layers: {main: {over: [u => placeLegend(state, u)]},
+             resid: {under: [drawBand]}},
   });
-  return traces;
+  state.fig.onCursor = at => hoverTick(state, at);
+  fillOverlays(state);
+  // the suite's handle on what was drawn (`tests/test_watch_browser.py`):
+  // uPlot's scales are the ranges the axes were painted with
+  div.__rx = state.fig;
+  return state;
+}
+
+function updateChart(state, snap) {
+  state.snap = snap;
+  state.ladder = deltaRange(snap.delta);
+  state.tip.hidden = true;
+  state.fig.setCurves(curvesOf(snap), true);
+  state.fig.setHidden(hiddenOf(state));
+  fillOverlays(state);
 }
 
 // True when this write is dealt with — drawn, or deliberately given up on
-// (no plotly, the reader moved on). False is "not drawn yet", and the caller
-// leaves the write uncommitted so the next poll tries again: a dropped fetch
-// on the last stage of a fit would otherwise leave the previous stage's
-// picture up for good, there being no later write to notice.
+// (the reader moved on). False is "not drawn yet", and the caller leaves the
+// write uncommitted so the next poll tries again: a dropped fetch on the last
+// stage of a fit would otherwise leave the previous stage's picture up for
+// good, there being no later write to notice.
 async function drawSnapshot(id) {
   // a poll can reach here before the first `api/runs` has answered, and an
   // undrawn write is what `false` already means: the next poll draws it,
-  // rather than this one drawing a page whose constants are not in yet
+  // rather than this one painting before the stored theme is applied
   if (!DIST) return false;
-  const plotly = await ensurePlotly();
-  const div = $('plot');
-  if (!div || currentId() !== id) return true;
-  if (!plotly) {
-    div.outerHTML = '<div id="noplot">this page draws with plotly: ' +
-      `<code>pip install '${DIST}[viz]'</code></div>`;
-    return true;
-  }
+  if (!$('plot') || currentId() !== id) return true;
   let snap;
   try {
     const t0 = performance.now();
@@ -396,75 +510,14 @@ async function drawSnapshot(id) {
     return false;                      // the console tail is not the plot's
   }
   if (currentId() !== id || !$('plot')) return true;
-  const range = rangesOf(snap);
-  const nrows = Math.max(1, Object.keys(snap.ticks || {}).length);
-  // react, never newPlot: it keeps the reader's zoom across a stage, which is
-  // the whole reason the picture stopped being a page that reloads
-  const hue = hues();
   const drawn = performance.now();
-  plotly.react(div, snapshotTraces(snap, hue), {
-    margin: {l: 58, r: 14, t: 8, b: 56},   // room for the 2θ title
-    // expectation 1 under a correct model, so the residual reads on an
-    // absolute statistical scale (Toby 2024) — the same band `viz/html.py`
-    // draws
-    shapes: [{type: 'rect', xref: 'paper', yref: 'y2', x0: 0, x1: 1,
-              y0: -3, y1: 3, line: {width: 0}, fillcolor: hue.band,
-              opacity: 0.15, layer: 'below'}],
-    // transparent, as the GUI's plot is: the page's own background is a token
-    // and a paper colour would be a second answer to what this panel sits on
-    paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
-    font: {color: hue.fg, family: 'ui-monospace, Menlo, monospace', size: 11},
-    xaxis: {anchor: 'y3', title: {text: '2θ (°)'}, gridcolor: hue.grid,
-            zeroline: false, range: range.x, autorange: false},
-    yaxis: {domain: [0.41, 1], title: {text: 'intensity'},
-            gridcolor: hue.grid, zeroline: false, range: range.y,
-            autorange: false},
-    yaxis2: {domain: [0.10, 0.36], anchor: 'x',
-             title: {text: deltaTitle(snap.weighted)},
-             gridcolor: hue.grid, zerolinecolor: hue.zero,
-             range: range.y2, autorange: false},
-    yaxis3: {domain: [0, 0.07], anchor: 'x', visible: false,
-             range: [0.5 - nrows, 0.5], autorange: false, fixedrange: true},
-    // Inside the paper at a fixed anchor, never above it. A legend anchored
-    // in the top margin makes plotly grow that margin to fit, so the picture
-    // moves whenever the legend gains a row. Two ways it gains one, both
-    // measured on this page (WP-1426): the window narrows and the row wraps,
-    // taking the plot area's top from 46 px to 139 px across 1400 → 700; or a
-    // stage frees the background, and one new entry takes it 45 → 64. The
-    // second is a stage boundary moving the whole picture, and no layout-shift
-    // entry reports it, the div's own box never having changed. Anchored here
-    // the area's top is the declared 8 px margin at every width, and the
-    // picture is 38 px taller at 1400 and 131 px at 700. `bgcolor` is the
-    // page's own ground at an opacity, the paper being transparent since
-    // WP-1429: opaque, the five rows it wraps to on a narrow panel hid the
-    // tallest peak behind them.
-    legend: {orientation: 'h', y: 1, yanchor: 'top', x: 0, xanchor: 'left',
-             bgcolor: withAlpha(hue.ground, 0.72)},
-    // How much of the pattern is on screen, under the axis it is a fact about
-    // and beside its title. It shared the strip's one flexible slot with the
-    // path until WP-1424, where the two of them were 1127 px of sentence in a
-    // track squeezed to nothing. A paper-anchored annotation takes no margin
-    // — `automargin` is off by default — so this does not move the picture,
-    // which the legend did before WP-1426 and is what those tests watch.
-    //
-    // It sat at the paper's top right until WP-1438, which is the corner the
-    // legend's *first row* ends in: measured at 1180 px on a two-phase fit,
-    // the row wrapped and `Δ/σ` was drawn under the caption. Two marks in one
-    // place is the class WP-1424 named — measure ink against room — and the
-    // room up there belongs to the legend, which grows with the model while
-    // this is one line of fixed length. The bottom margin is 56 px for a
-    // centred axis title, and the right of it is empty at every width.
-    annotations: [{xref: 'paper', yref: 'paper', x: 1, y: 0,
-                   xanchor: 'right', yanchor: 'top', yshift: -34,
-                   showarrow: false,
-                   text: `${snap.n_drawn} of ${snap.n_points} pts drawn`,
-                   font: {size: 10, color: hue.fg},
-                   bgcolor: withAlpha(hue.ground, 0.72)}],
-    // one revision per run: a redraw of the same run keeps the zoom, and
-    // opening a different run starts fresh
-    uirevision: id,
-  }, {displaylogo: false, responsive: true});
-  since('snap:react', drawn);
+  if (chart && chart.id === id && chart.div === $('plot')) {
+    updateChart(chart, snap);
+  } else {
+    destroyChart();
+    chart = makeChart(id, snap);
+  }
+  since('snap:draw', drawn);
   setText($('s-where'), whereOf(rows.get(id)));
   setAttr($('s-where'), 'title', whereOf(rows.get(id)) || null);
   return true;
@@ -527,9 +580,7 @@ function clearStrip() {
   setText($('s-label'), 'no run');
   $('stop').hidden = true;
   if (shell.id !== null) {
-    if ($('plot') && $('plot').tagName === 'DIV' && window.Plotly) {
-      window.Plotly.purge($('plot'));
-    }
+    destroyChart();
     $('picture').innerHTML = '';
     shell = {id: null, kind: null, mtime: null};
     // the tail goes with the console it was filling, or a reader who came
@@ -803,7 +854,8 @@ const SEAMS = {
     // (WP-1426), so a narrow pane loses picture instead of gaining height:
     // measured at 1400x900, the legend holds three rows down to a 340 px
     // pane and collapses to six rows and 124 px — a quarter of the 503 px
-    // plot — by 300.
+    // plot — by 300. The chart's own legend (WP-1461) is three rows and
+    // 58 px at 340, 15 % of the plot.
     keep: 340,
     of: el => el.getBoundingClientRect().width,
     // the floor above is a width of *columns*, and the pane is sized
@@ -929,17 +981,6 @@ function extentOf(which) {
          - $('grip-console').getBoundingClientRect().height;
 }
 
-// One resize in flight and at most one queued, and the queued one runs, so
-// the last redraw is the final size (WP-1032, through the ported `coalesce`).
-// Un-coalesced this is one plotly redraw per pointer move.
-const resizePlot = coalesce(() => {
-  const plot = $('plot');
-  if (plot && plot.tagName === 'DIV' && window.Plotly) {
-    return window.Plotly.Plots.resize(plot);
-  }
-  return undefined;
-});
-
 // A size for the pane, or `null` for "no choice made" — which leaves the
 // stylesheet's own `80ch`/`30%` in force rather than freezing a px number
 // over a size that is font- and window-relative on purpose.
@@ -988,7 +1029,8 @@ function applyLayout() {
     grip.setAttribute('aria-valuenow', String(Math.round(
       layout[which].open ? (seam.of($(seam.pane)) || size || floor) : floor)));
   }
-  resizePlot();
+  // nothing to tell the picture: its ResizeObserver sizes it in the frame the
+  // pane changed (`rxplot.panes`), where plotly needed a call and a timer
 }
 
 function setSize(which, size, {store = true} = {}) {
@@ -1145,14 +1187,9 @@ function buildThemeControl(themes) {
 // refusal is left to the next poll, which reads the stored choice and is the
 // authority either way.
 async function chooseTheme(choice) {
-  if (applyTheme(choice) && shell.kind === 'json') {
-    // the picture is the one thing on this page a stylesheet does not reach,
-    // so a theme that moved is a canvas to repaint. Outstanding, then asked
-    // for: `refresh` is the one caller of `drawRun`, and a second one here
-    // would be a second answer to what is on screen.
-    shell.mtime = null;
-    refresh();
-  }
+  // the picture is the one thing on this page a stylesheet does not reach,
+  // so a theme that moved is a canvas to repaint
+  if (applyTheme(choice)) retheme();
   try {
     await fetch('api/theme', {
       method: 'POST',
@@ -1196,10 +1233,10 @@ async function refresh() {
     since('runs:parse', t1);
     // a theme that moved repaints the canvas, which CSS cannot do for it:
     // the picture is the one thing on this page a stylesheet does not reach.
-    // The snapshot only: a legacy run's picture is a self-contained page that
+    // The chart only: a legacy run's picture is a self-contained page that
     // takes no colour from here, and re-pointing its frame would refetch the
     // megabytes WP-1402 measured and lose the reader's place inside it.
-    if (readPage(payload) && shell.kind === 'json') shell.mtime = null;
+    if (readPage(payload)) retheme();
     setText($('root'), 'scanned ' + payload.root);
     rows = new Map(payload.runs.map(run => [run.run_id, run]));
     newest = payload.runs.length ? payload.runs[0].run_id : null;

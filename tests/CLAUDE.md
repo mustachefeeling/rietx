@@ -116,11 +116,11 @@ green for months; the third WP-1426):
   rules were never asked. `--no-index` is what makes it ask.
 
 - **The instrument does not reach the thing you aimed it at.** A browser raises
-  a `layout-shift` entry when an element's *box* moves, and a plotly plot is one
-  div whose insides it redraws, so nothing drawn inside one is ever a layout
-  shift. A stage boundary that moved the plot area 19 px scored exactly 0. A
-  claim about the *page* reads the observer; a claim about the *picture* reads
-  `_fullLayout._size`, and a stillness test needs both instruments.
+  a `layout-shift` entry when an element's *box* moves, and a chart repaints
+  canvases inside one, so nothing drawn there is ever a layout shift. A stage
+  boundary that moved plotly's plot area 19 px scored exactly 0. A claim about
+  the *page* reads the observer; one about the *picture* reads each uPlot
+  pane's `over`, and a stillness test needs both instruments.
 
 The check all three share: make the guard fail on purpose once, and confirm the
 failure message is the one you expected.
