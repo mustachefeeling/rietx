@@ -273,8 +273,10 @@ def structure_from_cif(path: str, *, phase_name: str | None = None,
     ``"auto"`` takes the highest tabulated group the file's atoms satisfy — the
     parent where it contains the file's operators and keeps every site's
     orbit, reported by ``CIF_MAGNETIC_NUCLEAR_GROUP``, else the file's own
-    family group, reported by ``CIF_MAGNETIC_NUCLEAR_SETTING`` (issue #457);
-    ``"file"`` always takes the file's own group; ``"parent"`` always takes the
+    family group, reported by ``CIF_MAGNETIC_NUCLEAR_SETTING`` (issue #457) —
+    in its tabulated setting, or, where no tabulated setting has exactly its
+    operations, as its own operation list under a bracketed label
+    (``Phase.symmetry_operations``); ``"file"`` always takes the file's own group; ``"parent"`` always takes the
     parent and raises by name where it cannot carry the file's atoms.  It acts
     where the nuclear group is derived from ``_parent_space_group``, and a file
     with no magnetic block ignores it
@@ -311,7 +313,6 @@ def structure_from_cif(path: str, *, phase_name: str | None = None,
         listed = [str(op) for op in small.symops]
     sg = (OperatorGroup(label=small.spacegroup_hm.strip(), xyz=tuple(listed))
           if listed else small.spacegroup)
-    space_group_label: str | None = None
     if sg is None:
         # fall back on the raw H-M string in the file, then on the magCIF
         # parent symbol: a magCIF states no ordinary H-M symbol at all — the
@@ -348,13 +349,15 @@ def structure_from_cif(path: str, *, phase_name: str | None = None,
             # coordinates and moments are actually stated in (measured on
             # Ima2/space group 46). The parent is kept where it contains the
             # file's operators and gives every site its own orbit; otherwise the
-            # tabulated setting the operators state is taken, or the file is
-            # refused by name (magcif.resolve_nuclear_symmetry).
-            sg, space_group_label = magcif.resolve_nuclear_symmetry(
+            # tabulated setting the operators state is taken, or else the
+            # file's own operation list under a bracketed label (magcif.resolve_nuclear_symmetry, tier 3).
+            sg = magcif.resolve_nuclear_symmetry(
                 hm, magnetic_symmetry, path, diagnostics=diagnostics,
                 nuclear_group=nuclear_group,
                 sites=[(site.label, (site.fract.x, site.fract.y, site.fract.z))
                        for site in small.sites])
+            if isinstance(sg, OperatorGroup):
+                listed = list(sg.xyz)
         else:
             sg = gemmi.find_spacegroup_by_name(hm.strip("'\""))
             if sg is None:
@@ -478,7 +481,7 @@ def structure_from_cif(path: str, *, phase_name: str | None = None,
 
     phase = Phase(
         name=phase_name or (small.name or "phase_1"),
-        space_group=space_group_label if space_group_label is not None else sg.xhm(),
+        space_group=sg.xhm(),
         symmetry_operations=listed,
         cell=Cell(
             # bounds deliberately left open: a cell length's default window

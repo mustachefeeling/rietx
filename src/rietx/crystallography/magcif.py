@@ -582,13 +582,20 @@ def nuclear_operations(magnetic_symmetry) -> tuple[str, ...]:
     a right-looking name. See :func:`resolve_nuclear_symmetry`, which turns it
     into the tabulated group a phase on this tree can carry.
     """
-    from .magnetic.operators import MagneticGroup
+    from .magnetic.operators import MagneticGroup, MagneticOperator
 
     group = MagneticGroup.from_xyz(magnetic_symmetry.operations,
                                    magnetic_symmetry.centerings)
+    # the file's own order first — operation loop times centring loop, as
+    # written — because a tier-3 phase carries this list and a symmetry code
+    # indexes it; ``MagneticGroup`` stores its operations canonically sorted,
+    # so its closure only fills in anything the loops left implicit
+    stated = [MagneticOperator.from_xyz(c) * MagneticOperator.from_xyz(o)
+              for o in magnetic_symmetry.operations
+              for c in (magnetic_symmetry.centerings or ("x,y,z,+1",))]
     out: list[str] = []
     seen: set[tuple] = set()
-    for op in group.all_operations():
+    for op in (*stated, *group.all_operations()):
         key = (op.rotation, op.translation)
         if key in seen:
             continue
@@ -647,13 +654,81 @@ def _magnetic_group_phrase(magnetic_symmetry) -> str:
     return "the file's magnetic group" + (f" {named}" if named else "")
 
 
+#: The note inside the bracket of a tier-3 label
+#: (:func:`~rietx.crystallography.symmetry.unnamed_label`): the same words the
+#: ``Phase`` validator suggests for a list no symbol generates in its cell.
+UNNAMED_NOTE = "unnamed in this cell"
+
+
+def _unnamed_nuclear_group(triplets: tuple[str, ...], path: str, why: str):
+    """Tier 3: the file's own nuclear operations as an ``OperatorGroup``.
+
+    The label is :func:`~rietx.crystallography.symmetry.unnamed_label` over the
+    **type** spglib identifies the list as (Togo, Shinohara & Tanaka 2024,
+    *Sci. Technol. Adv. Mater. Meth.* **4**, 2384822), in its standard
+    setting's symbol — a statement about the type, never about the setting,
+    which is the whole reason for the bracket.  Where spglib names nothing the
+    symmorphic closest type stands in (``symmetry._closest_type``), and where
+    even that fails the bracket stands alone.  The list is the file's order,
+    which is the order a symmetry code indexes.
+
+    **Refused by name where the rotations themselves are in no tabulated
+    orientation** — a two-fold along a face diagonal, a hexagonal group on
+    rotated axes.  An ``OperatorGroup`` takes its crystal system, monoclinic
+    unique axis and so its cell ties from the tabulated group with its point
+    group and lattice (``symmetry._closest_type``); with no such group those
+    are undefined, and the phase would fail at its first cell tie with an
+    error about gemmi's table rather than about this file.  Measured on the
+    MAGNDATA mirror: 91 of the 171 files tier 3 was written for, against 74 it
+    reads.  Carrying them needs the metric ties derived in the file's own
+    orientation, or the file restated in a conventional one.
+    ``why`` is the tier-1/2 reason, quoted so the refusal says the whole story.
+    """
+    import gemmi
+    import spglib
+
+    from .symmetry import OperatorGroup, _closest_type, unnamed_label
+
+    symmorphic = _closest_type(tuple(triplets))
+    if symmorphic is None:
+        raise MagCifError(
+            f"{path}: the file's own nuclear group (its magnetic operators "
+            f"with time reversal dropped) is in no tabulated setting, and its "
+            f"rotations are in an axis orientation no tabulated setting has, "
+            f"so the parent cannot be used ({why}) and the group cannot be "
+            f"carried as an operation list either: a phase carrying "
+            f"Phase.symmetry_operations takes its crystal system and cell "
+            f"ties from the tabulated group with the same rotations, and "
+            f"there is none. What would make this readable: the file "
+            f"restated in a conventional setting of its group.")
+    ops = [gemmi.Op(t) for t in triplets]
+    rotations = np.array([op.rot for op in ops], dtype="intc") // gemmi.Op.DEN
+    translations = np.array([op.tran for op in ops],
+                            dtype=np.float64) / gemmi.Op.DEN
+    # spglib says "no match" as None or as SpglibError depending on a
+    # process-wide flag (magnetic.operators.identification says why)
+    try:
+        found = spglib.get_spacegroup_type_from_symmetry(rotations, translations)
+    except spglib.error.SpglibError:
+        found = None
+    closest = (symmorphic.hm if found is None
+               else gemmi.find_spacegroup_by_number(int(found.number)).hm)
+    return OperatorGroup(label=unnamed_label(closest, UNNAMED_NOTE),
+                         xyz=tuple(triplets))
+
+
 def resolve_nuclear_symmetry(hm_symbol: str | None, magnetic_symmetry,
                              path: str, *,
                              sites=(),
                              diagnostics: list[Diagnostic] | None = None,
                              nuclear_group: str = "auto",
                              ):
-    """``(sg, label)`` for a magCIF's nuclear space group.
+    """The group a magCIF's nuclear phase is built under.
+
+    A ``gemmi.SpaceGroup`` for tiers 1 and 2, an
+    :class:`~rietx.crystallography.symmetry.OperatorGroup` for tier 3; either
+    way ``.xhm()`` is what ``Phase.space_group`` takes, and an
+    ``OperatorGroup``'s ``.xyz`` is ``Phase.symmetry_operations``.
 
     ``hm_symbol`` — ``_parent_space_group.name_H-M_alt`` — names the parent
     type; the **setting** is checked against the file's own operators, never
@@ -662,13 +737,12 @@ def resolve_nuclear_symmetry(hm_symbol: str | None, magnetic_symmetry,
     coordinates and moments are stated in.  ``sites`` is ``[(label, xyz)]``
     from the file's ``_atom_site`` loop.  The rule is the **highest tabulated
     group the file's atoms satisfy** (issue #457), in three tiers tried in
-    order, and neither of the first two is silent:
+    order, and none of them is silent:
 
     * **tier 1, the parent**, in the symbol's own tabulated setting, when every
       one of the file's magnetic operators with time reversal dropped is an
       operation of it *and* every site has the same multiplicity under it as
-      under the file's own operators (:func:`_orbit_mismatch`): ``(sg,
-      sg.xhm())``.  This is WP-1327's model — a nuclear phase under the parent
+      under the file's own operators (:func:`_orbit_mismatch`).  This is WP-1327's model — a nuclear phase under the parent
       group carrying moments under a magnetic group that may be a subgroup of
       it (Cr₂WO₆'s ``Pn'nm`` in ``P4₂/mnm``) — and it is bit-identical to
       reading the symbol alone.  One ``CIF_MAGNETIC_NUCLEAR_GROUP`` (info)
@@ -687,22 +761,27 @@ def resolve_nuclear_symmetry(hm_symbol: str | None, magnetic_symmetry,
       smaller than its parent orbit — built under the parent that site would
       gain atoms the file does not state, or, where the file lists the rest of
       the parent orbit as a second site, one orbit counted twice;
-    * otherwise **refused by name** (:class:`MagCifError`).  A phase on this
-      tree resolves its operations from ``Phase.space_group`` alone, so the
-      file's group has to be a tabulated setting; one that is not needs the
-      operation list carried on the phase, which is the operation-list phase
-      (``Phase.symmetry_operations``) and not this rung's.
+    * **tier 3, the file's own nuclear group as its operation list**, when no
+      tabulated setting has exactly its operations — an origin or axis choice
+      gemmi's table does not hold: the phase carries the list itself
+      (``Phase.symmetry_operations``) under a bracketed label naming the
+      closest type (:func:`_unnamed_nuclear_group`), and
+      ``CIF_MAGNETIC_NUCLEAR_SETTING`` says so.  Every consumer reads the
+      operations through ``symmetry.resolve_group``, so nothing downstream
+      reads the label as a symbol.  On the MAGNDATA mirror 171 files were
+      refused here before this tier; 74 now read under it, and 91 are
+      refused by :func:`_unnamed_nuclear_group` for their axis orientation.
 
     ``nuclear_group`` overrides the choice (one of
     :data:`NUCLEAR_GROUP_CHOICES`): ``"auto"`` is the rule above,
-    ``"file"`` skips tier 1 (tier 2, else the refusal), and ``"parent"``
+    ``"file"`` skips tier 1 (tier 2, else tier 3), and ``"parent"``
     forces tier 1 and raises :class:`MagCifError` by name where the parent
     cannot carry the file's atoms, rather than falling through.
 
     ``hm_symbol=None`` is a file that names **no** parent — a TOPAS ``str``
     stating only ``mag_space_group``, whose atoms TOPAS generates with the
     magnetic group's own operators. Tier 1 has nothing to try, so it is tier 2
-    or the refusal (``"parent"`` is refused outright), and **no diagnostic is
+    or tier 3 (``"parent"`` is refused outright), and **no diagnostic is
     appended**: the caller knows why no parent was named and says so on its
     own channel (``TOPAS_MAGNETIC_GROUP_READ``).
     """
@@ -721,8 +800,9 @@ def resolve_nuclear_symmetry(hm_symbol: str | None, magnetic_symmetry,
                          np.asarray(op.tran, dtype=np.float64) / op.DEN)
             for op in ops)
 
+    own_triplets = nuclear_operations(magnetic_symmetry)
     if hm_symbol is None:
-        derived = keys(gemmi.Op(o) for o in nuclear_operations(magnetic_symmetry))
+        derived = keys(gemmi.Op(o) for o in own_triplets)
         if nuclear_group == "parent":
             raise MagCifError(
                 f"{path}: nuclear_group='parent' asks for the positions to "
@@ -731,18 +811,9 @@ def resolve_nuclear_symmetry(hm_symbol: str | None, magnetic_symmetry,
         taken = next((other for other in gemmi.spacegroup_table()
                       if keys(other.operations()) == derived), None)
         if taken is None:
-            raise MagCifError(
-                f"{path} names no parent space group, and its own nuclear "
-                f"group (the operators of "
-                f"{_magnetic_group_phrase(magnetic_symmetry)} with time "
-                f"reversal dropped) is in a setting no tabulated symbol names. "
-                f"A phase here resolves its operations from its space-group "
-                f"symbol alone, so any symbol would put the atoms under "
-                f"operations other than the ones the file states. What would "
-                f"make this readable: a phase carrying the operation list "
-                f"explicitly (Phase.symmetry_operations), or the nuclear space "
-                f"group stated beside the magnetic one.")
-        return taken, taken.xhm()
+            return _unnamed_nuclear_group(
+                own_triplets, path, "the file names no parent")
+        return taken
 
     # MAGNDATA writes the IUCr screw-axis subscript with an underscore
     # (``P 2_1/c``), a perfectly standard spelling gemmi's lookup table does
@@ -757,7 +828,7 @@ def resolve_nuclear_symmetry(hm_symbol: str | None, magnetic_symmetry,
         sg = get_spacegroup(raw_hm.replace("_", ""))
     except ValueError as exc:
         raise ValueError(f"unrecognised space group {hm_symbol!r} in {path}") from exc
-    own_ops = [gemmi.Op(o) for o in nuclear_operations(magnetic_symmetry)]
+    own_ops = [gemmi.Op(o) for o in own_triplets]
     derived = keys(own_ops)
     parent_keys = keys(sg.operations())
     contained = derived <= parent_keys
@@ -803,7 +874,7 @@ def resolve_nuclear_symmetry(hm_symbol: str | None, magnetic_symmetry,
                     if index != 1 else
                     "nothing to change: the parent and the file's own group "
                     "are the same operations")))
-        return sg, sg.xhm()
+        return sg
     if mismatch is not None:
         why = (f"site {mismatch[0]!r} has {mismatch[1]} images under "
                f"{sg.xhm()!r} and {mismatch[2]} under the file's own "
@@ -818,8 +889,9 @@ def resolve_nuclear_symmetry(hm_symbol: str | None, magnetic_symmetry,
     if nuclear_group == "parent":
         instead = (f"nuclear_group='auto' would have taken the file's own "
                    f"group {taken.xhm()!r}" if taken is not None else
-                   "nuclear_group='auto' would have refused it too: the "
-                   "file's own group is in no tabulated setting")
+                   "nuclear_group='auto' would have taken the file's own "
+                   "group as its operation list, no tabulated setting having "
+                   "exactly its operations")
         raise MagCifError(
             f"{path}: nuclear_group='parent' asks for the positions to refine "
             f"under {hm_symbol!r}, and they cannot: {why}. {instead}.")
@@ -837,20 +909,27 @@ def resolve_nuclear_symmetry(hm_symbol: str | None, magnetic_symmetry,
                     f"{moments}."),
                 suggestion="the file is read in the group and setting its "
                            "own operators state: nothing to change here"))
-        return taken, taken.xhm()
-    raise MagCifError(
-        f"{path} names the parent space group {hm_symbol!r}, and the phase "
-        f"cannot be built under it: {why}. The file's own nuclear group "
-        f"(its magnetic operators with time reversal dropped) is in a setting "
-        f"— an origin or axis choice, most often — that no single tabulated "
-        f"symbol names. A phase here resolves its operations from its "
-        f"space-group symbol alone, so any symbol would put the atoms and "
-        f"moments under operations other than the ones the file states — "
-        f"the wrong multiplicities, the wrong absences, and moments "
-        f"propagated to the wrong sites. What would make this readable: a "
-        f"phase carrying the file's operation list explicitly "
-        f"(Phase.symmetry_operations, the operation-list phase), or the file "
-        f"restated in a tabulated setting.")
+        return taken
+    unnamed = _unnamed_nuclear_group(own_triplets, path, why)
+    if diagnostics is not None:
+        diagnostics.append(Diagnostic(
+            level="info", code="CIF_MAGNETIC_NUCLEAR_SETTING",
+            where=["phases.0.space_group"],
+            message=(
+                f"{path}: positions refine under the file's own group, "
+                f"carried as its own list of {len(unnamed.xyz)} operations "
+                f"under {unnamed.label!r} — the file's magnetic operators "
+                f"with time reversal dropped, in a setting (an origin or axis "
+                f"choice) no tabulated symbol names — and not under the "
+                f"parent {hm_symbol!r} it names, because {why}; moments under "
+                f"{moments}."),
+            suggestion=(
+                "the file is read in the group and setting its own operators "
+                "state; the bracketed label names the closest type and "
+                "Phase.symmetry_operations is the group, so a writer whose "
+                "format states a group only as a symbol refuses this phase "
+                "(a CIF carries the list)")))
+    return unnamed
 
 
 def _components_from_row(row: dict[str, str], label: str, cell, path: str

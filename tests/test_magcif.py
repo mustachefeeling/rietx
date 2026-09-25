@@ -45,6 +45,7 @@ from rietx.crystallography.magnetic.operators import (
     moment_magnitude,
     moment_to_cartesian,
 )
+from rietx.crystallography.symmetry import resolve_group
 from rietx.io.projects import coverage
 from rietx.io.projects.topas import (
     TopasInpError,
@@ -956,14 +957,15 @@ def test_an_ima2_type_setting_mismatch_reads_in_the_setting_the_operators_state(
     assert "I m a 2" in hit.message and "I b m 2" in hit.message
 
 
-def test_a_setting_no_tabulated_symbol_names_is_refused_by_name(tmp_path):
-    """Synthetic, the positive arm of the setting check: the inversion centre
-    moved to (1/4, 0, 0). No tabulated setting of P-1 has it there, so a phase
-    built from the symbol would put the inversion at the origin — every
-    moment's image on the wrong site. That needs the operation list carried on
-    the phase (the operation-list phase), so here it is refused, naming the
-    symbol and what would make it readable, rather than read in the wrong
-    frame."""
+def test_a_setting_no_tabulated_symbol_names_is_read_as_its_operation_list(
+        tmp_path):
+    """Synthetic, tier 3 of the nuclear-group rule (#457 on #448's field): the
+    inversion centre moved to (1/4, 0, 0). No tabulated setting of P-1 has it
+    there, so a phase built from the symbol would put the inversion at the
+    origin — every moment's image on the wrong site. The phase carries the
+    file's own operations instead, in the file's order, under a bracketed
+    label naming the type, and says so; the orbit is the file's, and a CIF
+    round trip gives the same phase back."""
     path = _magcif(
         tmp_path, "shifted_p1bar", parent="P -1", it=2, bns="2.4",
         symbol="P -1", cell=(5.0, 6.0, 7.0, 90.0, 90.0, 90.0),
@@ -971,9 +973,103 @@ def test_a_setting_no_tabulated_symbol_names_is_refused_by_name(tmp_path):
         sites=("Fe1 Fe 0.10000 0.20000 0.30000 1",),
         moment_loop=_moment_loop([("Fe1", "0.0", "0.0", "2.00000", "mx,my,mz")]),
     )
+    diagnostics: list = []
+    structure = structure_from_cif(str(path), moment_ions={"Fe1": "Fe3+"},
+                                   diagnostics=diagnostics)
+    (phase,) = structure.phases
+    assert phase.space_group == "P -1 [unnamed in this cell]"
+    assert phase.symmetry_operations == ["x,y,z", "-x+1/2,-y,-z"]
+    group = resolve_group(phase.space_group, phase.symmetry_operations)
+    images = sorted(tuple(round(v % 1.0, 6) for v in op.apply_to_xyz(
+        [0.1, 0.2, 0.3])) for op in group.operations())
+    assert images == [(0.1, 0.2, 0.3), (0.4, 0.8, 0.7)]
+    (hit,) = [d for d in diagnostics
+              if d.code == "CIF_MAGNETIC_NUCLEAR_SETTING"]
+    assert "own list of 2 operations" in hit.message
+    assert "'P -1 [unnamed in this cell]'" in hit.message
+    assert "'P -1'" in hit.message and "not all operations" in hit.message
+    assert not [d for d in diagnostics if d.code == "CIF_MAGNETIC_NUCLEAR_GROUP"]
+
+    # "file" takes the same tier; "parent" refuses by name and says what
+    # "auto" took
+    assert structure_from_cif(str(path), moment_ions={"Fe1": "Fe3+"},
+                              nuclear_group="file") == structure
     with pytest.raises(magcif.MagCifError,
-                       match=r"(?s)'P -1'.*no single tabulated\s+symbol "
-                             r"names.*symmetry_operations"):
+                       match=r"(?s)nuclear_group='parent'.*'P -1'.*"
+                             r"own group as its operation list"):
+        structure_from_cif(str(path), moment_ions={"Fe1": "Fe3+"},
+                           nuclear_group="parent")
+
+    out = tmp_path / "shifted_p1bar_out.cif"
+    structure.to_cif(str(out))
+    again = structure_from_cif(str(out))
+    assert again.model_dump() == structure.model_dump()
+
+
+def test_a_tier_3_phase_predicts_as_its_origin_shifted_standard_setting(
+        tmp_path):
+    """The tier-3 phase is the group, not a label: moving the origin to the
+    inversion centre gives standard P-1 with the atom at x - 1/4, and |F|²
+    does not see an origin, so the two predict the same pattern, nuclear and
+    magnetic. The refinement CIF then carries the list back."""
+    from rietx.io.exporters import write_refinement_cif
+
+    path = _magcif(
+        tmp_path, "shifted_p1bar", parent="P -1", it=2, bns="2.4",
+        symbol="P -1", cell=(5.0, 6.0, 7.0, 90.0, 90.0, 90.0),
+        operations=("x,y,z,+1", "-x+1/2,-y,-z,+1"), centerings=("x,y,z,+1",),
+        sites=("Fe1 Fe 0.10000 0.20000 0.30000 1",),
+        moment_loop=_moment_loop([("Fe1", "0.0", "0.0", "2.00000", "mx,my,mz")]),
+    )
+    shifted = structure_from_cif(str(path), moment_ions={"Fe1": "Fe3+"})
+    (phase,) = shifted.phases
+    atom = phase.atoms[0]
+    standard = rx.Structure(phases=[phase.model_copy(update={
+        "space_group": "P -1", "symmetry_operations": None,
+        "magnetic_symmetry": phase.magnetic_symmetry.model_copy(update={
+            "operations": ["x,y,z,+1", "-x,-y,-z,+1"]}),
+        "atoms": [atom.model_copy(update={
+            "x": atom.x.model_copy(update={"value": atom.x.value - 0.25})})],
+    })])
+    instrument = rx.Instrument.constant_wavelength_neutron(2.0)
+    two_theta = np.arange(5.0, 120.0, 0.05)
+    y_shifted = np.asarray(rx.Refinement(shifted, instrument).predict(two_theta))
+    y_standard = np.asarray(rx.Refinement(standard, instrument).predict(two_theta))
+    assert y_shifted.max() > 0
+    np.testing.assert_allclose(y_shifted, y_standard, rtol=1e-9,
+                               atol=1e-9 * y_standard.max())
+
+    ref = rx.Refinement(shifted, instrument)
+    data = rx.PatternData(two_theta=two_theta.tolist(),
+                          intensity=(y_shifted + 10.0).tolist())
+    result = ref.fit(data, plan=rx.RefinementPlan(stages=[
+        rx.Stage("scale", ["phases.*.scale"])]))
+    out = tmp_path / "refined.cif"
+    write_refinement_cif(result, ref.fitted_structure, ref.instrument, out)
+    (back,) = structure_from_cif(str(out)).phases
+    assert back.space_group == phase.space_group
+    assert back.symmetry_operations == phase.symmetry_operations
+    assert back.magnetic_symmetry == phase.magnetic_symmetry
+    assert back.atoms[0].moment == ref.fitted_structure.phases[0].atoms[0].moment
+
+
+def test_an_operation_list_in_no_tabulated_orientation_is_refused_by_name(
+        tmp_path):
+    """Synthetic, the edge of tier 3: a two-fold along [110]. No tabulated
+    setting has that rotation (monoclinic unique axes are a, b or c), so an
+    ``OperatorGroup`` would have no crystal system to take its cell ties from
+    and would fail at the first tie on gemmi's table. The reader refuses it
+    first, by name, saying what would make it readable."""
+    path = _magcif(
+        tmp_path, "diagonal_two_fold", parent="P 1", it=1, bns="3.1",
+        symbol="P 2", cell=(5.0, 5.0, 7.0, 90.0, 90.0, 90.0),
+        operations=("x,y,z,+1", "y,x,-z,+1"), centerings=("x,y,z,+1",),
+        sites=("Fe1 Fe 0.10000 0.20000 0.30000 1",),
+        moment_loop=_moment_loop([("Fe1", "0.0", "0.0", "2.00000", "mx,my,mz")]),
+    )
+    with pytest.raises(magcif.MagCifError,
+                       match=r"(?s)axis orientation no tabulated setting has.*"
+                             r"conventional setting"):
         structure_from_cif(str(path), moment_ions={"Fe1": "Fe3+"})
 
 

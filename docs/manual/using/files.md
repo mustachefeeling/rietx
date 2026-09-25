@@ -205,9 +205,18 @@ refused by name where the parent cannot carry the file's atoms; the default,
 That covers a symbol tabulated at another origin, and a symmetry-lowering
 magnetic group whose asymmetric unit lists one parent orbit as two sites,
 which under the parent would be one orbit counted twice. A file whose own
-group is in a setting no tabulated symbol names is refused by name: a phase
-here resolves its operations from `Phase.space_group` alone, and carrying an
-explicit operation list on the phase is a later rung's.
+group is in a setting no tabulated symbol names, an origin or axis choice
+gemmi's table does not hold, is read with that group as its operation list:
+`Phase.symmetry_operations` holds the file's operations with time reversal
+dropped, in the file's order, `Phase.space_group` holds a bracketed label
+naming the closest type (`'P -1 [unnamed in this cell]'`), and
+`CIF_MAGNETIC_NUCLEAR_SETTING` says so. Every symmetry consumer reads the list,
+never the label, and `Structure.to_cif` writes the list back. A writer whose
+format states a group only as a symbol refuses such a phase by name. A group
+whose rotations are in no tabulated orientation at all, a two-fold along a face
+diagonal for instance, is refused by name: an operation list takes its crystal
+system and cell ties from the tabulated group with the same rotations, and
+there is none.
 A `_parent_space_group.transform_Pp_abc`
 that is not the identity is a record of which setting the symbol was
 tabulated in, one every non-standard-setting MAGNDATA entry carries, and is
