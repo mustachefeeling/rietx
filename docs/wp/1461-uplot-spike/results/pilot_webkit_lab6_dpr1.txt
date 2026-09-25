@@ -1,0 +1,37 @@
+
+# 2026-09-25T05:05:03.100Z run 0, load 9.9 7.2 6.0
+[webkit lab6_capillary.rex dpr1 run0] fitted in 1 s; load 9.5 7.2 6.0
+[webkit lab6_capillary.rex dpr1 run0] plotly: boot long frames []
+[webkit lab6_capillary.rex dpr1 run0] plotly: hover        work — ms/event, wrapped 0.19; frame p95 18.0 max 20.0 ms; long frames []; fetches []
+[webkit lab6_capillary.rex dpr1 run0] plotly: the readout under the pointer reads "2θ\n—"
+[webkit lab6_capillary.rex dpr1 run0] plotly: drag-zoom    work — ms/event, wrapped 2.33; frame p95 20.0 max 36.0 ms; long frames []; fetches ["/api/result/window","/api/result/window","/api/result/window","/api/result/window","/api/result/window","/api/result/window","/api/result/window","/api/result/window","/api/result/window"]
+[webkit lab6_capillary.rex dpr1 run0] plotly: exclude      work — ms/event, wrapped 7.29; frame p95 20.0 max 47.0 ms; long frames []; fetches ["/api/project","/api/peaks","/api/result/window","/api/plan","/api/plans","/api/plan/resolve","/api/project","/api/peaks","/api/result/window","/api/plan","/api/plans","/api/plan/resolve","/api/project","/api/peaks","/api/result/window","/api/plan","/api/plans","/api/plan/resolve"]
+[webkit lab6_capillary.rex dpr1 run0] plotly: peak-drag    work — ms/event, wrapped 6.71; frame p95 18.0 max 81.0 ms; long frames []; fetches ["/api/peaks/move","/api/result/window"]
+[webkit lab6_capillary.rex dpr1 run0] plotly: the drag moved a line: true
+[webkit lab6_capillary.rex dpr1 run0] plotly: resize, the app's work 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 ms; the chart's own  ms; wrapped 26.0, 26.0, 29.0, 30.0, 31.0, 30.0 ms
+[webkit lab6_capillary.rex dpr1 run0] plotly: page errors []; load 8.1 7.1 6.0
+[webkit lab6_capillary.rex dpr1 run0] uplot: boot long frames []
+[webkit lab6_capillary.rex dpr1 run0] uplot: hover        work — ms/event, wrapped 1.24; frame p95 19.0 max 40.0 ms; long frames []; fetches []
+[webkit lab6_capillary.rex dpr1 run0] uplot: the readout under the pointer reads "2θ\n65.6045°"
+[webkit lab6_capillary.rex dpr1 run0] uplot: drag-zoom    work — ms/event, wrapped 3.61; frame p95 19.0 max 62.0 ms; long frames []; fetches []
+[webkit lab6_capillary.rex dpr1 run0] uplot: exclude      work — ms/event, wrapped 11.50; frame p95 87.0 max 578.0 ms; long frames []; fetches ["/api/project","/api/peaks","/api/result/curves","/api/plan","/api/plans","/api/plan/resolve","/api/project","/api/peaks","/api/result/curves","/api/plan","/api/plans","/api/plan/resolve","/api/project","/api/peaks","/api/result/curves","/api/plan","/api/plans","/api/plan/resolve"]
+[webkit lab6_capillary.rex dpr1 run0] uplot: wheel-zoom   work — ms/event, wrapped 10.70; frame p95 38.0 max 51.0 ms; long frames []; fetches []
+[webkit lab6_capillary.rex dpr1 run0] uplot: wheel-pan    work — ms/event, wrapped 4.55; frame p95 18.0 max 19.0 ms; long frames []; fetches []
+[webkit lab6_capillary.rex dpr1 run0] uplot: alt-pan      work — ms/event, wrapped 4.79; frame p95 23.0 max 34.0 ms; long frames []; fetches []
+[webkit lab6_capillary.rex dpr1 run0] uplot: peak-drag    work — ms/event, wrapped 2.00; frame p95 18.0 max 40.0 ms; long frames []; fetches ["/api/peaks/move"]
+[webkit lab6_capillary.rex dpr1 run0] uplot: the drag moved a line: true
+[webkit lab6_capillary.rex dpr1 run0] uplot: resize, the app's work 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 ms; the chart's own  ms; wrapped 9.0, 14.0, 18.0, 19.0, 18.0, 19.0 ms
+[webkit lab6_capillary.rex dpr1 run0] uplot: page errors []; load 6.6 6.8 5.9
+[webkit lab6_capillary.rex dpr1 run0] thin: boot long frames []
+[webkit lab6_capillary.rex dpr1 run0] thin: hover        work — ms/event, wrapped 1.13; frame p95 19.0 max 54.0 ms; long frames []; fetches []
+[webkit lab6_capillary.rex dpr1 run0] thin: the readout under the pointer reads "2θ\n65.6045°"
+[webkit lab6_capillary.rex dpr1 run0] thin: drag-zoom    work — ms/event, wrapped 1.96; frame p95 18.0 max 38.0 ms; long frames []; fetches []
+[webkit lab6_capillary.rex dpr1 run0] thin: exclude      work — ms/event, wrapped 2.81; frame p95 19.0 max 42.0 ms; long frames []; fetches ["/api/project","/api/peaks","/api/result/curves","/api/plan","/api/plans","/api/plan/resolve","/api/project","/api/peaks","/api/result/curves","/api/plan","/api/plans","/api/plan/resolve","/api/project","/api/peaks","/api/result/curves","/api/plan","/api/plans","/api/plan/resolve"]
+[webkit lab6_capillary.rex dpr1 run0] thin: wheel-zoom   work — ms/event, wrapped 8.65; frame p95 18.0 max 20.0 ms; long frames []; fetches []
+[webkit lab6_capillary.rex dpr1 run0] thin: wheel-pan    work — ms/event, wrapped 4.75; frame p95 18.0 max 20.0 ms; long frames []; fetches []
+[webkit lab6_capillary.rex dpr1 run0] thin: alt-pan      work — ms/event, wrapped 3.79; frame p95 18.0 max 22.0 ms; long frames []; fetches []
+[webkit lab6_capillary.rex dpr1 run0] thin: peak-drag    work — ms/event, wrapped 2.00; frame p95 18.0 max 36.0 ms; long frames []; fetches ["/api/peaks/move"]
+[webkit lab6_capillary.rex dpr1 run0] thin: the drag moved a line: true
+[webkit lab6_capillary.rex dpr1 run0] thin: resize, the app's work 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 ms; the chart's own  ms; wrapped 8.0, 19.0, 20.0, 18.0, 17.0, 12.0 ms
+[webkit lab6_capillary.rex dpr1 run0] thin: page errors []; load 5.9 6.6 5.9
+# exit 0

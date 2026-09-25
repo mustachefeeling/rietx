@@ -1,0 +1,111 @@
+
+# 2026-09-25T04:59:30.827Z run 0, load 5.6 4.9 5.0
+[webkit nac dpr1 run0] fitted in 1 s; load 5.6 4.9 5.0
+[webkit nac dpr1 run0] plotly: boot long frames []
+[webkit nac dpr1 run0] plotly: hover        work — ms/event, wrapped 0.23; frame p95 19.0 max 25.0 ms; long frames []; fetches []
+[webkit nac dpr1 run0] plotly: the readout under the pointer reads "2θ\n—"
+[webkit nac dpr1 run0] plotly: drag-zoom    work — ms/event, wrapped 3.14; frame p95 20.0 max 40.0 ms; long frames []; fetches ["/api/result/window","/api/result/window","/api/result/window","/api/result/window","/api/result/window","/api/result/window","/api/result/window","/api/result/window","/api/result/window"]
+[webkit nac dpr1 run0] plotly: exclude      work — ms/event, wrapped 5.48; frame p95 20.0 max 44.0 ms; long frames []; fetches ["/api/project","/api/peaks","/api/result/window","/api/plan","/api/plans","/api/plan/resolve","/api/project","/api/peaks","/api/result/window","/api/plan","/api/plans","/api/plan/resolve","/api/project","/api/peaks","/api/result/window","/api/plan","/api/plans","/api/plan/resolve"]
+[webkit nac dpr1 run0] plotly: peak-drag    work — ms/event, wrapped 5.57; frame p95 18.0 max 71.0 ms; long frames []; fetches ["/api/peaks/move","/api/result/window"]
+[webkit nac dpr1 run0] plotly: the drag moved a line: true
+[webkit nac dpr1 run0] plotly: resize, the app's work 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 ms; the chart's own  ms; wrapped 18.0, 26.0, 29.0, 28.0, 27.0, 29.0 ms
+[webkit nac dpr1 run0] plotly: page errors []; load 6.0 5.0 5.1
+[webkit nac dpr1 run0] uplot: boot long frames []
+[webkit nac dpr1 run0] uplot: hover        work — ms/event, wrapped 1.16; frame p95 19.0 max 37.0 ms; long frames []; fetches []
+[webkit nac dpr1 run0] uplot: the readout under the pointer reads "2θ\n58.7455°"
+[webkit nac dpr1 run0] uplot: drag-zoom    work — ms/event, wrapped 1.87; frame p95 19.0 max 37.0 ms; long frames []; fetches []
+[webkit nac dpr1 run0] uplot: exclude      work — ms/event, wrapped 5.19; frame p95 23.0 max 248.0 ms; long frames []; fetches ["/api/project","/api/peaks","/api/result/curves","/api/plan","/api/plans","/api/plan/resolve","/api/project","/api/peaks","/api/result/curves","/api/plan","/api/plans","/api/plan/resolve","/api/project","/api/peaks","/api/result/curves","/api/plan","/api/plans","/api/plan/resolve"]
+[webkit nac dpr1 run0] uplot: wheel-zoom   work — ms/event, wrapped 5.65; frame p95 18.0 max 21.0 ms; long frames []; fetches []
+[webkit nac dpr1 run0] uplot: wheel-pan    work — ms/event, wrapped 2.65; frame p95 18.0 max 19.0 ms; long frames []; fetches []
+[webkit nac dpr1 run0] uplot: alt-pan      work — ms/event, wrapped 2.64; frame p95 17.0 max 19.0 ms; long frames []; fetches []
+[webkit nac dpr1 run0] uplot: peak-drag    work — ms/event, wrapped 0.86; frame p95 18.0 max 26.0 ms; long frames []; fetches ["/api/peaks/move"]
+[webkit nac dpr1 run0] uplot: the drag moved a line: true
+[webkit nac dpr1 run0] uplot: resize, the app's work 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 ms; the chart's own  ms; wrapped 6.0, 8.0, 7.0, 5.0, 8.0, 6.0 ms
+[webkit nac dpr1 run0] uplot: page errors []; load 5.8 5.1 5.1
+[webkit nac dpr1 run0] thin: boot long frames []
+[webkit nac dpr1 run0] thin: hover        work — ms/event, wrapped 1.16; frame p95 19.0 max 34.0 ms; long frames []; fetches []
+[webkit nac dpr1 run0] thin: the readout under the pointer reads "2θ\n58.7455°"
+[webkit nac dpr1 run0] thin: drag-zoom    work — ms/event, wrapped 1.31; frame p95 18.0 max 29.0 ms; long frames []; fetches []
+[webkit nac dpr1 run0] thin: exclude      work — ms/event, wrapped 1.48; frame p95 18.0 max 26.0 ms; long frames []; fetches ["/api/project","/api/peaks","/api/result/curves","/api/plan","/api/plans","/api/plan/resolve","/api/project","/api/peaks","/api/result/curves","/api/plan","/api/plans","/api/plan/resolve","/api/project","/api/peaks","/api/result/curves","/api/plan","/api/plans","/api/plan/resolve"]
+[webkit nac dpr1 run0] thin: wheel-zoom   work — ms/event, wrapped 4.55; frame p95 17.0 max 19.0 ms; long frames []; fetches []
+[webkit nac dpr1 run0] thin: wheel-pan    work — ms/event, wrapped 2.55; frame p95 18.0 max 19.0 ms; long frames []; fetches []
+[webkit nac dpr1 run0] thin: alt-pan      work — ms/event, wrapped 2.07; frame p95 18.0 max 18.0 ms; long frames []; fetches []
+[webkit nac dpr1 run0] thin: peak-drag    work — ms/event, wrapped 0.57; frame p95 18.0 max 19.0 ms; long frames []; fetches ["/api/peaks/move"]
+[webkit nac dpr1 run0] thin: the drag moved a line: true
+[webkit nac dpr1 run0] thin: resize, the app's work 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 ms; the chart's own  ms; wrapped 4.0, 7.0, 5.0, 8.0, 8.0, 8.0 ms
+[webkit nac dpr1 run0] thin: page errors []; load 6.3 5.3 5.2
+# exit 0
+
+# 2026-09-25T05:01:22.012Z run 1, load 6.3 5.3 5.2
+[webkit nac dpr1 run1] fitted in 1 s; load 6.1 5.3 5.1
+[webkit nac dpr1 run1] uplot: boot long frames []
+[webkit nac dpr1 run1] uplot: hover        work — ms/event, wrapped 1.01; frame p95 19.0 max 21.0 ms; long frames []; fetches []
+[webkit nac dpr1 run1] uplot: the readout under the pointer reads "2θ\n58.7455°"
+[webkit nac dpr1 run1] uplot: drag-zoom    work — ms/event, wrapped 2.16; frame p95 19.0 max 39.0 ms; long frames []; fetches []
+[webkit nac dpr1 run1] uplot: exclude      work — ms/event, wrapped 5.19; frame p95 19.0 max 258.0 ms; long frames []; fetches ["/api/project","/api/peaks","/api/result/curves","/api/plan","/api/plans","/api/plan/resolve","/api/project","/api/peaks","/api/result/curves","/api/plan","/api/plans","/api/plan/resolve","/api/project","/api/peaks","/api/result/curves","/api/plan","/api/plans","/api/plan/resolve"]
+[webkit nac dpr1 run1] uplot: wheel-zoom   work — ms/event, wrapped 5.35; frame p95 17.0 max 21.0 ms; long frames []; fetches []
+[webkit nac dpr1 run1] uplot: wheel-pan    work — ms/event, wrapped 3.05; frame p95 18.0 max 19.0 ms; long frames []; fetches []
+[webkit nac dpr1 run1] uplot: alt-pan      work — ms/event, wrapped 2.64; frame p95 18.0 max 22.0 ms; long frames []; fetches []
+[webkit nac dpr1 run1] uplot: peak-drag    work — ms/event, wrapped 0.86; frame p95 18.0 max 24.0 ms; long frames []; fetches ["/api/peaks/move"]
+[webkit nac dpr1 run1] uplot: the drag moved a line: true
+[webkit nac dpr1 run1] uplot: resize, the app's work 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 ms; the chart's own  ms; wrapped 4.0, 6.0, 7.0, 9.0, 6.0, 8.0 ms
+[webkit nac dpr1 run1] uplot: page errors []; load 6.3 5.4 5.2
+[webkit nac dpr1 run1] thin: boot long frames []
+[webkit nac dpr1 run1] thin: hover        work — ms/event, wrapped 1.01; frame p95 19.0 max 32.0 ms; long frames []; fetches []
+[webkit nac dpr1 run1] thin: the readout under the pointer reads "2θ\n58.7455°"
+[webkit nac dpr1 run1] thin: drag-zoom    work — ms/event, wrapped 1.17; frame p95 18.0 max 29.0 ms; long frames []; fetches []
+[webkit nac dpr1 run1] thin: exclude      work — ms/event, wrapped 1.67; frame p95 18.0 max 27.0 ms; long frames []; fetches ["/api/project","/api/peaks","/api/result/curves","/api/plan","/api/plans","/api/plan/resolve","/api/project","/api/peaks","/api/result/curves","/api/plan","/api/plans","/api/plan/resolve","/api/project","/api/peaks","/api/result/curves","/api/plan","/api/plans","/api/plan/resolve"]
+[webkit nac dpr1 run1] thin: wheel-zoom   work — ms/event, wrapped 4.60; frame p95 18.0 max 19.0 ms; long frames []; fetches []
+[webkit nac dpr1 run1] thin: wheel-pan    work — ms/event, wrapped 2.95; frame p95 19.0 max 35.0 ms; long frames []; fetches []
+[webkit nac dpr1 run1] thin: alt-pan      work — ms/event, wrapped 2.07; frame p95 18.0 max 19.0 ms; long frames []; fetches []
+[webkit nac dpr1 run1] thin: peak-drag    work — ms/event, wrapped 0.79; frame p95 18.0 max 28.0 ms; long frames []; fetches ["/api/peaks/move"]
+[webkit nac dpr1 run1] thin: the drag moved a line: true
+[webkit nac dpr1 run1] thin: resize, the app's work 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 ms; the chart's own  ms; wrapped 5.0, 8.0, 7.0, 8.0, 7.0, 5.0 ms
+[webkit nac dpr1 run1] thin: page errors []; load 6.2 5.5 5.2
+[webkit nac dpr1 run1] plotly: boot long frames []
+[webkit nac dpr1 run1] plotly: hover        work — ms/event, wrapped 0.22; frame p95 19.0 max 20.0 ms; long frames []; fetches []
+[webkit nac dpr1 run1] plotly: the readout under the pointer reads "2θ\n—"
+[webkit nac dpr1 run1] plotly: drag-zoom    work — ms/event, wrapped 2.83; frame p95 19.0 max 37.0 ms; long frames []; fetches ["/api/result/window","/api/result/window","/api/result/window","/api/result/window","/api/result/window","/api/result/window","/api/result/window","/api/result/window","/api/result/window"]
+[webkit nac dpr1 run1] plotly: exclude      work — ms/event, wrapped 5.95; frame p95 21.0 max 46.0 ms; long frames []; fetches ["/api/project","/api/peaks","/api/result/window","/api/plan","/api/plans","/api/plan/resolve","/api/project","/api/peaks","/api/result/window","/api/plan","/api/plans","/api/plan/resolve","/api/project","/api/peaks","/api/result/window","/api/plan","/api/plans","/api/plan/resolve"]
+[webkit nac dpr1 run1] plotly: peak-drag    work — ms/event, wrapped 5.64; frame p95 18.0 max 71.0 ms; long frames []; fetches ["/api/peaks/move","/api/result/window"]
+[webkit nac dpr1 run1] plotly: the drag moved a line: true
+[webkit nac dpr1 run1] plotly: resize, the app's work 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 ms; the chart's own  ms; wrapped 17.0, 26.0, 28.0, 27.0, 29.0, 27.0 ms
+[webkit nac dpr1 run1] plotly: page errors []; load 6.1 5.5 5.3
+# exit 0
+
+# 2026-09-25T05:03:12.583Z run 2, load 6.1 5.5 5.3
+[webkit nac dpr1 run2] fitted in 1 s; load 6.2 5.5 5.3
+[webkit nac dpr1 run2] thin: boot long frames []
+[webkit nac dpr1 run2] thin: hover        work — ms/event, wrapped 1.15; frame p95 19.0 max 20.0 ms; long frames []; fetches []
+[webkit nac dpr1 run2] thin: the readout under the pointer reads "2θ\n58.7455°"
+[webkit nac dpr1 run2] thin: drag-zoom    work — ms/event, wrapped 1.30; frame p95 18.0 max 27.0 ms; long frames []; fetches []
+[webkit nac dpr1 run2] thin: exclude      work — ms/event, wrapped 1.67; frame p95 18.0 max 31.0 ms; long frames []; fetches ["/api/project","/api/peaks","/api/result/curves","/api/plan","/api/plans","/api/plan/resolve","/api/project","/api/peaks","/api/result/curves","/api/plan","/api/plans","/api/plan/resolve","/api/project","/api/peaks","/api/result/curves","/api/plan","/api/plans","/api/plan/resolve"]
+[webkit nac dpr1 run2] thin: wheel-zoom   work — ms/event, wrapped 4.80; frame p95 18.0 max 19.0 ms; long frames []; fetches []
+[webkit nac dpr1 run2] thin: wheel-pan    work — ms/event, wrapped 2.90; frame p95 19.0 max 20.0 ms; long frames []; fetches []
+[webkit nac dpr1 run2] thin: alt-pan      work — ms/event, wrapped 2.00; frame p95 18.0 max 19.0 ms; long frames []; fetches []
+[webkit nac dpr1 run2] thin: peak-drag    work — ms/event, wrapped 0.93; frame p95 18.0 max 23.0 ms; long frames []; fetches ["/api/peaks/move"]
+[webkit nac dpr1 run2] thin: the drag moved a line: true
+[webkit nac dpr1 run2] thin: resize, the app's work 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 ms; the chart's own  ms; wrapped 5.0, 8.0, 7.0, 7.0, 7.0, 7.0 ms
+[webkit nac dpr1 run2] thin: page errors []; load 10.4 6.8 5.8
+[webkit nac dpr1 run2] plotly: boot long frames []
+[webkit nac dpr1 run2] plotly: hover        work — ms/event, wrapped 0.21; frame p95 18.0 max 28.0 ms; long frames []; fetches []
+[webkit nac dpr1 run2] plotly: the readout under the pointer reads "2θ\n—"
+[webkit nac dpr1 run2] plotly: drag-zoom    work — ms/event, wrapped 2.86; frame p95 21.0 max 37.0 ms; long frames []; fetches ["/api/result/window","/api/result/window","/api/result/window","/api/result/window","/api/result/window","/api/result/window","/api/result/window","/api/result/window","/api/result/window"]
+[webkit nac dpr1 run2] plotly: exclude      work — ms/event, wrapped 5.95; frame p95 19.0 max 47.0 ms; long frames []; fetches ["/api/project","/api/peaks","/api/result/window","/api/plan","/api/plans","/api/plan/resolve","/api/project","/api/peaks","/api/result/window","/api/plan","/api/plans","/api/plan/resolve","/api/project","/api/peaks","/api/result/window","/api/plan","/api/plans","/api/plan/resolve"]
+[webkit nac dpr1 run2] plotly: peak-drag    work — ms/event, wrapped 4.43; frame p95 18.0 max 67.0 ms; long frames []; fetches ["/api/peaks/move","/api/result/window"]
+[webkit nac dpr1 run2] plotly: the drag moved a line: true
+[webkit nac dpr1 run2] plotly: resize, the app's work 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 ms; the chart's own  ms; wrapped 25.0, 28.0, 28.0, 28.0, 28.0, 31.0 ms
+[webkit nac dpr1 run2] plotly: page errors []; load 8.4 6.7 5.8
+[webkit nac dpr1 run2] uplot: boot long frames []
+[webkit nac dpr1 run2] uplot: hover        work — ms/event, wrapped 1.07; frame p95 19.0 max 62.0 ms; long frames []; fetches []
+[webkit nac dpr1 run2] uplot: the readout under the pointer reads "2θ\n58.7455°"
+[webkit nac dpr1 run2] uplot: drag-zoom    work — ms/event, wrapped 2.16; frame p95 19.0 max 40.0 ms; long frames []; fetches []
+[webkit nac dpr1 run2] uplot: exclude      work — ms/event, wrapped 5.31; frame p95 22.0 max 242.0 ms; long frames []; fetches ["/api/project","/api/peaks","/api/result/curves","/api/plan","/api/plans","/api/plan/resolve","/api/project","/api/peaks","/api/result/curves","/api/plan","/api/plans","/api/plan/resolve","/api/project","/api/peaks","/api/result/curves","/api/plan","/api/plans","/api/plan/resolve"]
+[webkit nac dpr1 run2] uplot: wheel-zoom   work — ms/event, wrapped 5.45; frame p95 18.0 max 21.0 ms; long frames []; fetches []
+[webkit nac dpr1 run2] uplot: wheel-pan    work — ms/event, wrapped 3.10; frame p95 18.0 max 18.0 ms; long frames []; fetches []
+[webkit nac dpr1 run2] uplot: alt-pan      work — ms/event, wrapped 3.00; frame p95 18.0 max 19.0 ms; long frames []; fetches []
+[webkit nac dpr1 run2] uplot: peak-drag    work — ms/event, wrapped 0.86; frame p95 18.0 max 27.0 ms; long frames []; fetches ["/api/peaks/move"]
+[webkit nac dpr1 run2] uplot: the drag moved a line: true
+[webkit nac dpr1 run2] uplot: resize, the app's work 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 ms; the chart's own  ms; wrapped 4.0, 7.0, 9.0, 10.0, 8.0, 7.0 ms
+[webkit nac dpr1 run2] uplot: page errors []; load 9.9 7.2 6.0
+# exit 0
