@@ -2580,8 +2580,10 @@ def test_a_pattern_past_the_ceiling_is_decimated_and_every_index_follows(
     at = np.searchsorted(whole["two_theta"], arrays["two_theta"])
     np.testing.assert_array_equal(whole["two_theta"][at], arrays["two_theta"])
     np.testing.assert_array_equal(whole["y_obs"][at], arrays["y_obs"])
-    # min and max per bucket, so the tallest peak survives
+    # min and max per bucket of the window route's three curves, so the
+    # tallest peak survives, and so does the worst misfit
     assert arrays["y_obs"].max() == whole["y_obs"].max()
+    assert np.abs(arrays["delta"]).max() == np.abs(whole["delta"]).max()
     # the indices name the same channels they named before, and the model and
     # its Σχ² come with them unchanged
     assert set(at[arrays["kept"]]) <= set(whole["kept"])
@@ -2604,31 +2606,6 @@ def test_before_any_fit_the_curves_are_the_raw_pattern(blank, tmp_path, pattern_
     np.testing.assert_array_equal(got.arrays["kept"],
                                   np.flatnonzero(project.fitted_mask()))
     assert len(got.arrays["kept"]) < len(got.arrays["two_theta"])
-
-
-def test_a_descending_scan_is_served_ascending(fitted):
-    """uPlot draws one ascending x, and no reader promises a scan runs upward,
-    so a pattern read high to low is served reversed with its indices and its
-    Σχ² following, and draws exactly as the same scan read low to high."""
-    from types import SimpleNamespace
-
-    from rietx.gui.session import curve_arrays
-
-    _, _, project = fitted
-    res = project.refinement.result_
-    tt, y, keep = project.data.tt(), project.data.y(), project.fitted_mask()
-    up = curve_arrays(tt, y, keep, res, weighted=True)
-    sig = res.sig()
-    down = SimpleNamespace(
-        two_theta=res.two_theta[::-1], y_obs=res.y_obs[::-1],
-        y_calc=res.y_calc[::-1], y_background=res.y_background[::-1],
-        sig=lambda: sig[::-1], ticks=res.ticks, tick_hkl=res.tick_hkl)
-    flipped = curve_arrays(tt[::-1], y[::-1], keep[::-1], down, weighted=True)
-    assert flipped.header == up.header
-    for key, values in up.arrays.items():
-        np.testing.assert_allclose(flipped.arrays[key], values, rtol=1e-12,
-                                   err_msg=key)
-    assert np.all(np.diff(flipped.arrays["two_theta"]) > 0)
 
 
 def test_a_series_member_has_curves_of_its_own(series):

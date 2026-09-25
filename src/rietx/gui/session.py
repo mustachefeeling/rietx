@@ -2485,6 +2485,15 @@ class GuiSession:
         ``project.fitted_mask`` — the one authority — because the protocol
         applied to it was the project's while the *pattern* was not.
         """
+        entry, res = self._series_member_result(index)
+        member = entry["members"][index]
+        return {"index": index, "label": member["label"], "x": member["x"],
+                **curve_window(res, lo, hi, max_points,
+                               weighted=bool(member["has_sigma"])),
+                **self._series_masked_arm(index, lo, hi, max_points)}
+
+    def _series_member_result(self, index: int):
+        """The series entry and member ``index``'s result, which has curves, or a refusal."""
         entry = self._series_entry()
         runner = entry["runner"]
         if not 0 <= index < len(runner.results_):
@@ -2496,11 +2505,7 @@ class GuiSession:
         if not res.two_theta:
             raise GuiError("this series pattern carries no curves",
                            code="NO_RESULT", status=409)
-        member = entry["members"][index]
-        return {"index": index, "label": member["label"], "x": member["x"],
-                **curve_window(res, lo, hi, max_points,
-                               weighted=bool(member["has_sigma"])),
-                **self._series_masked_arm(index, lo, hi, max_points)}
+        return entry, res
 
     def series_curves(self, index: int) -> Packed:
         """One series member's channels and curves, as :meth:`result_curves` serves the project's.
@@ -2510,17 +2515,7 @@ class GuiSession:
         """
         from ..project import fitted_mask
 
-        entry = self._series_entry()
-        runner = entry["runner"]
-        if not 0 <= index < len(runner.results_):
-            raise GuiError(
-                f"no series pattern {index}; the run reached "
-                f"{len(runner.results_)}", code="NOT_FOUND", status=404,
-                where=["index"])
-        res = runner.results_[index]
-        if not res.two_theta:
-            raise GuiError("this series pattern carries no curves",
-                           code="NO_RESULT", status=409)
+        entry, res = self._series_member_result(index)
         data, member = entry["data"][index], entry["members"][index]
         return curve_arrays(
             data.tt(), data.y(), fitted_mask(data, entry["limits"]), res,
@@ -3133,8 +3128,7 @@ def curve_arrays(tt_all, y_all, keep, res, *, weighted: bool,
     The arrays:
 
     - ``two_theta`` and ``y_obs``: the pattern over every channel, ascending in
-      2θ. uPlot draws one ascending x, and no reader promises a scan runs
-      upward, so a descending file is served reversed.
+      2θ, as ``PatternData`` refuses any other order and uPlot draws no other.
     - ``kept``: the channels the protocol fits now, as indices into those two.
       The client draws the rest as masked.
     - With a fit, ``fitted``: the channels the fit kept, the same way. Then
@@ -3154,14 +3148,10 @@ def curve_arrays(tt_all, y_all, keep, res, *, weighted: bool,
     """
     import numpy as np
 
-    tt_all = np.asarray(tt_all, dtype=float)
-    order = np.argsort(tt_all, kind="stable")
-    rank = np.empty_like(order)
-    rank[order] = np.arange(len(order))
-    grid = tt_all[order]
+    grid = np.asarray(tt_all, dtype=float)
     head = {"weighted": weighted, "n_channels": len(grid), **(header or {})}
-    arrays = {"two_theta": grid, "y_obs": np.asarray(y_all, dtype=float)[order],
-              "kept": np.sort(rank[np.flatnonzero(keep)])}
+    arrays = {"two_theta": grid, "y_obs": np.asarray(y_all, dtype=float),
+              "kept": np.flatnonzero(keep)}
     if res is None or not res.two_theta:
         return _under_ceiling(Packed({**head, "fit": False}, arrays))
 
@@ -3171,20 +3161,19 @@ def curve_arrays(tt_all, y_all, keep, res, *, weighted: bool,
         raise GuiError("the fit's channels are not this pattern's, so its curves "
                        "cannot be drawn over it — run again",
                        code="RESULT_NOT_ON_PATTERN", status=409)
-    up = np.argsort(at, kind="stable")
-    y_obs, y_calc = np.asarray(res.y_obs)[up], np.asarray(res.y_calc)[up]
+    y_obs, y_calc = np.asarray(res.y_obs), np.asarray(res.y_calc)
     raw = y_obs - y_calc
-    delta = raw / res.sig()[up]
-    arrays.update({"fitted": at[up], "y_calc": y_calc})
+    delta = raw / res.sig()
+    arrays.update({"fitted": at, "y_calc": y_calc})
     if res.y_background:
-        arrays["y_background"] = np.asarray(res.y_background)[up]
+        arrays["y_background"] = np.asarray(res.y_background)
     arrays.update({"delta": delta, "delta_raw": raw,
                    # accumulated over every fitted channel; a client re-bases it
                    # at a zoom as cum[j] − cum[i−1]
                    "cumulative_chi2": np.cumsum(delta**2)})
     head.update({
         "fit": True, "n_fitted": len(tt_fit),
-        "stale": not np.array_equal(tt_all[np.asarray(keep)], tt_fit),
+        "stale": not np.array_equal(grid[keep], tt_fit),
         **_windowed_ticks(res, (-math.inf, math.inf)),
     })
     return _under_ceiling(Packed(head, arrays))
@@ -3193,9 +3182,13 @@ def curve_arrays(tt_all, y_all, keep, res, *, weighted: bool,
 def _under_ceiling(packed: Packed) -> Packed:
     """``packed`` with its pattern decimated to :data:`CURVES_CEILING` channels.
 
-    The channels kept are ``decimation_index``'s over the observed intensity,
-    so no peak top is lost. ``kept`` and ``fitted`` are re-indexed onto them,
-    and a fitted channel that went takes its model values with it.
+    The channels kept are ``decimation_index``'s over the curves
+    :func:`curve_window` decimates by, observed, calculated and Δ/σ, so the
+    two routes agree on which points survive and a misfit spike survives as
+    a peak top does. The budget is split between the curves, since each adds
+    its own bucket extrema. ``kept`` and ``fitted`` are re-indexed onto the
+    channels that stay, and a fitted channel that went takes its model values
+    with it.
     """
     import numpy as np
 
@@ -3203,7 +3196,15 @@ def _under_ceiling(packed: Packed) -> Packed:
     n = len(arrays["two_theta"])
     if n <= CURVES_CEILING:
         return packed
-    sel = decimation_index(arrays["two_theta"], [arrays["y_obs"]], CURVES_CEILING)
+    curves = [arrays["y_obs"]]
+    if "fitted" in arrays:
+        # off the fit's channels the model is the data and the residual zero,
+        # so neither adds an extremum there
+        for key, off in (("y_calc", arrays["y_obs"]), ("delta", np.zeros(n))):
+            on_grid = np.array(off, dtype=float)
+            on_grid[arrays["fitted"]] = arrays[key]
+            curves.append(on_grid)
+    sel = decimation_index(arrays["two_theta"], curves, CURVES_CEILING // len(curves))
     where = np.full(n, -1)
     where[sel] = np.arange(len(sel))
     out = {"two_theta": arrays["two_theta"][sel], "y_obs": arrays["y_obs"][sel]}
