@@ -145,8 +145,11 @@ def _triplets(symbol) -> list[str]:
 # ---------------------------------------------------------------------------
 # exactly off
 # ---------------------------------------------------------------------------
+@pytest.mark.parametrize("compiled_path", [False, True],
+                         ids=["numpy", "compiled"])
 @pytest.mark.parametrize("symbol", SETTINGS)
-def test_the_explicit_list_of_a_named_group_predicts_bit_identically(symbol):
+def test_the_explicit_list_of_a_named_group_predicts_bit_identically(
+        symbol, compiled_path):
     """``predict()`` to the last bit, with and without the operation list.
 
     The property that makes the field additive, and the *only* test that can
@@ -158,13 +161,24 @@ def test_the_explicit_list_of_a_named_group_predicts_bit_identically(symbol):
     operation subsets ``structure_factor.select_orbit_ops`` sums over — come
     out permuted.  A permuted sum of the same terms differs in the last bits of
     every intensity, which no tolerance-based assertion would see.
+
+    Both sides run on one declared path, and on each of the two in turn
+    (``tests/CLAUDE.md`` § Quoting numbers): the claim is the same list
+    against the same symbol, so it must hold on the numpy builder and on the
+    compiled tier alike.
     """
+    from rietx.model import compiled
+
     bare = _phase(symbol)
     listed = _phase(symbol, _triplets(symbol))
-    y_bare = rx.Refinement(Structure(phases=[bare]),
-                           INSTRUMENT.model_copy(deep=True)).predict(TWO_THETA)
-    y_listed = rx.Refinement(Structure(phases=[listed]),
-                             INSTRUMENT.model_copy(deep=True)).predict(TWO_THETA)
+    was = compiled.set_enabled(compiled_path)
+    try:
+        y_bare = rx.Refinement(Structure(phases=[bare]),
+                               INSTRUMENT.model_copy(deep=True)).predict(TWO_THETA)
+        y_listed = rx.Refinement(Structure(phases=[listed]),
+                                 INSTRUMENT.model_copy(deep=True)).predict(TWO_THETA)
+    finally:
+        compiled.set_enabled(was)
     assert np.array_equal(np.asarray(y_bare), np.asarray(y_listed))
     assert float(np.max(np.abs(np.asarray(y_bare) - np.asarray(y_listed)))) == 0.0
 
