@@ -1,6 +1,6 @@
 # WP-1461 — every browser chart draws with uPlot
 
-Milestone: unscheduled · Status: 🔄 2026-09-26 — tasks 1-9, 12 and 15 done: every page but the file write_html writes draws with the chart module; task 10, write_html, next
+Milestone: unscheduled · Status: 🔄 2026-09-26 — claimed by @yue-here for task 10, write_html; tasks 1-9, 12 and 15 done
 Depends on: —
 Priority: P2 2026-09-24 — the maintainer's decision that every browser chart builds on one module; today plotly blocks every GUI open for 0.7-0.8 s before the first plot
 
