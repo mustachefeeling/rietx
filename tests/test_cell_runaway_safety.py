@@ -371,6 +371,50 @@ def _cubic_pair_pattern(wavelength: float = 0.4139, seed: int = 7):
     return PatternData(two_theta=model.tt.tolist(), intensity=y.tolist())
 
 
+def _fit_with_injected_escape(stages, *, mode, escape_at, restore_at):
+    """Fit :func:`_cubic_pair` under ``stages`` with the escape **injected**:
+    ``escape_at``'s solve answers ``ESCAPE`` times what it found for
+    ``ESCAPED``, and ``restore_at``'s solve (if that stage runs) answers the
+    value ``escape_at`` found, so a later stage refines the cell from inside
+    its window.  WP-1301's hold is patched off (``_unsupported_phase_paths``
+    reports nothing): a cell pulled back to a window edge 15 % from its data
+    is a phase the data cannot see, so the collapse-restore would otherwise
+    hold it deterministically, and the rule under test is the clamp's."""
+    import dataclasses
+    import sys
+
+    refine_module = sys.modules["rietx.refine"]
+    real = refine_module.run_least_squares
+    found: dict[str, float] = {}
+
+    def solve(model, table, **kwargs):
+        outcome = real(model, table, **kwargs)
+        stage = kwargs.get("stage")
+        if stage not in (escape_at, restore_at) or stage in found:
+            return outcome
+        table.commit(outcome.theta)
+        entry = table.entries[table._paths[ESCAPED]]
+        if stage == escape_at:
+            found["solved"] = entry.value
+            entry.value = ESCAPE * entry.value
+        else:
+            entry.value = found["solved"]
+        found[stage] = entry.value
+        table.refresh_ties()
+        return dataclasses.replace(outcome, theta=table.x0())
+
+    ins = Instrument.debye_scherrer(wavelength=0.4139)
+    ins.background = BackgroundChebyshev.with_terms(3)
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(refine_module, "run_least_squares", solve)
+        mp.setattr(refine_module, "_unsupported_phase_paths", lambda *a, **k: [])
+        ref = Refinement(_cubic_pair(), ins, history=False)
+        result = ref.fit(_cubic_pair_pattern(), mode=mode,
+                         plan=RefinementPlan(stages=list(stages)))
+    assert escape_at in found, "the injection never ran"
+    return result
+
+
 @pytest.fixture(scope="module")
 def lebail_pair_fits():
     """The #374 Le Bail plan on ``_cubic_pair``, run twice, with the escape
@@ -386,46 +430,12 @@ def lebail_pair_fits():
     Why injected (review of #385 round 4): the fixture this replaces walked a
     free, jointly degenerate pair and recorded one machine's stopping point.
     On the Linux CI jobs the walk crossed WP-1301's hold instead, and the
-    clamped row left ``parameters`` altogether.  The hold is patched off
-    (``_unsupported_phase_paths`` reports nothing) for the same reason: a
-    cell pulled back to a window edge 15 % from its data is a phase the data
-    cannot see, so on this construction the collapse-restore would otherwise
-    hold it deterministically, and the rule under test is the clamp's."""
-    import dataclasses
-    import sys
-
-    refine_module = sys.modules["rietx.refine"]
-    real = refine_module.run_least_squares
+    clamped row left ``parameters`` altogether, which is why the helper
+    patches the hold off."""
     out = {}
     for name, stages in (("end", _LEBAIL_STAGES[:2]), ("early", _LEBAIL_STAGES)):
-        found: dict[str, float] = {}
-
-        def solve(model, table, _found=found, **kwargs):
-            outcome = real(model, table, **kwargs)
-            stage = kwargs.get("stage")
-            if stage not in ("cell", "widths") or stage in _found:
-                return outcome
-            table.commit(outcome.theta)
-            entry = table.entries[table._paths[ESCAPED]]
-            if stage == "cell":
-                _found["solved"] = entry.value
-                entry.value = ESCAPE * entry.value
-            else:
-                entry.value = _found["solved"]
-            _found[stage] = entry.value
-            table.refresh_ties()
-            return dataclasses.replace(outcome, theta=table.x0())
-
-        ins = Instrument.debye_scherrer(wavelength=0.4139)
-        ins.background = BackgroundChebyshev.with_terms(3)
-        with pytest.MonkeyPatch.context() as mp:
-            mp.setattr(refine_module, "run_least_squares", solve)
-            mp.setattr(refine_module, "_unsupported_phase_paths",
-                       lambda *a, **k: [])
-            ref = Refinement(_cubic_pair(), ins, history=False)
-            out[name] = ref.fit(_cubic_pair_pattern(), mode="lebail",
-                                plan=RefinementPlan(stages=list(stages)))
-        assert set(found) >= {"cell"}, "the injection never ran"
+        out[name] = _fit_with_injected_escape(
+            stages, mode="lebail", escape_at="cell", restore_at="widths")
     return out
 
 
@@ -476,17 +486,39 @@ def test_a_clamped_cells_stderr_is_withheld(lebail_pair_fits):
         assert rows["c"].stderr == pytest.approx(rows["a"].stderr)
 
 
-def test_the_rietveld_trigger_reports_the_esd_its_last_stage_measured(
-        degenerate_pair_fit):
-    """Yue's round-3 probe on ``degenerate_pair_fit``: the clamp fires in
-    ``both`` and ``zero`` refines the cell again, so ``phases.0.cell.a``
-    (4.15657 Å, not the 4.83 Å edge) reports its esd, and so do ``b``/``c``."""
-    _, result = degenerate_pair_fit
-    assert any(d.code == "CELL_RUNAWAY" for d in result.diagnostics)
-    rows = _cell_rows(result, 0)
-    assert rows["a"].stderr is not None
-    assert rows["b"].stderr == pytest.approx(rows["a"].stderr)
-    assert rows["c"].stderr == pytest.approx(rows["a"].stderr)
+#: the Rietveld trigger's plan shape — scale and cell freed together, then a
+#: stage that forces the next compile — with a middle stage the injection
+#: uses to put the cell back inside its window before ``zero`` refines it
+_RIETVELD_STAGES = [
+    Stage("both", ["phases.*.scale", "phases.*.cell.*"], max_iter=20),
+    Stage("bkg", ["instrument.background.*"], max_iter=20),
+    Stage("zero", ["instrument.zero_shift"], max_iter=20),
+]
+
+
+def test_the_rietveld_trigger_reports_the_esd_its_last_stage_measured():
+    """Yue's round-3 probe, the Rietveld arm: the clamp fires in ``both``
+    and a later stage refines the cell again, so every cell row of both
+    phases reports the esd ``zero`` measured, the tied ``b``/``c`` equal to
+    their ``a``.
+
+    Why injected (review of #385 round 5): this used to read
+    ``degenerate_pair_fit``, whose free, jointly degenerate walk stops
+    wherever one machine's solve stops — the fragility round four removed
+    from the two tests beside it.  That fixture's other tests assert what
+    holds on any branch of the walk, and stay on it."""
+    result = _fit_with_injected_escape(
+        _RIETVELD_STAGES, mode="rietveld", escape_at="both", restore_at="bkg")
+    fired = [d for d in result.diagnostics if d.code == "CELL_RUNAWAY"]
+    assert len(fired) == 1 and fired[0].where == [ESCAPED]
+    assert [s.name for s in result.stages][-1] == "zero"
+    for phase in (0, 1):
+        rows = _cell_rows(result, phase)
+        for n, row in rows.items():
+            assert row is not None and row.stderr is not None, (
+                f"phases.{phase}.cell.{n} withheld after re-converging")
+        assert rows["b"].stderr == pytest.approx(rows["a"].stderr)
+        assert rows["c"].stderr == pytest.approx(rows["a"].stderr)
 
 
 def test_a_well_behaved_fit_never_fires_it():
