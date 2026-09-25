@@ -165,28 +165,28 @@ def _structure3d(s: GuiSession, q: dict, _body: dict) -> dict:
                          bond_tolerance=_query_float(q, "bond_tolerance"))
 
 
-def _series_window(s: GuiSession, q: dict, _body: dict) -> dict:
-    """One series member's curves.  ``index`` is required and is not defaulted to
-    0: a window of "whichever pattern" is not a question anyone asks, and a
-    silent default would draw pattern 0 under another one's label."""
+def _series_index(q: dict, what: str) -> int:
+    """A series route's ``index``, which is required and is not defaulted to 0:
+    a window of "whichever pattern" is not a question anyone asks, and a silent
+    default would draw pattern 0 under another one's label."""
     if not q.get("index") or q["index"][0] == "":
-        raise GuiError("series window needs ?index=<pattern>", where=["index"])
-    return s.series_window(_query_int(q, "index", 0),
+        raise GuiError(f"series {what} needs ?index=<pattern>", where=["index"])
+    return _query_int(q, "index", 0)
+
+
+def _series_window(s: GuiSession, q: dict, _body: dict) -> dict:
+    """One series member's curves, per window."""
+    return s.series_window(_series_index(q, "window"),
                            lo=_query_float(q, "lo"), hi=_query_float(q, "hi"),
                            max_points=_query_int(q, "max_points", 4000))
 
 
 def _series_curves(s: GuiSession, q: dict, _body: dict) -> Packed:
-    """``index`` is required, for ``_series_window``'s reason."""
-    if not q.get("index") or q["index"][0] == "":
-        raise GuiError("series curves needs ?index=<pattern>", where=["index"])
-    return s.series_curves(_query_int(q, "index", 0))
+    return s.series_curves(_series_index(q, "curves"))
 
 
 def _series_history(s: GuiSession, q: dict, _body: dict) -> dict:
-    if not q.get("index") or q["index"][0] == "":
-        raise GuiError("series history needs ?index=<pattern>", where=["index"])
-    return s.series_history(_query_int(q, "index", 0))
+    return s.series_history(_series_index(q, "history"))
 
 
 def _report(s: GuiSession, q: dict, _body: dict) -> dict:

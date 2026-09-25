@@ -955,12 +955,14 @@
       if (!(exc instanceof ApiError && exc.empty)) loadError = (exc as Error).message;
       return;
     }
-    if (seq !== fetchSeq) return;
+    if (seq !== fetchSeq || !node) return;
     loadError = "";
     const w = mod.windowOf(c);
     held = w;
     const tt = c.arrays.two_theta;
-    shown = { n: tt.length, total: tt.length, lo: tt[0] ?? 0, hi: tt[tt.length - 1] ?? 0 };
+    // past `CURVES_CEILING` the server decimates, and `n_channels` is then the pattern's count
+    shown = { n: tt.length, total: c.header.n_channels ?? tt.length,
+              lo: tt[0] ?? 0, hi: tt[tt.length - 1] ?? 0 };
     if (!chart) {
       chart = new mod.PatternChart(node, c, overlayNow(), {
         scale: untrack(() => scale),
@@ -1178,7 +1180,11 @@
 
   $effect(() => () => {
     observer?.disconnect();
+    // a fetch still in flight then lands on a stale sequence, and builds no
+    // figure into a host that is gone
+    fetchSeq++;
     chart?.destroy();
+    chart = null;
   });
 
   /** The protocol as a *primitive*, so this panel does not refetch on every
@@ -1375,7 +1381,15 @@
   $effect(() => {
     if (!choice.uplot) return;
     const k = kind, s = scale, h = hidden, t = theme;
-    const o = overlayNow();
+    // The layers' inputs. The protocol and the extent go by value: each is a
+    // new object on every settings PATCH, and keyed on the object this effect
+    // repainted for two numbers that did not change (gui/CLAUDE.md).
+    void protocolKey;
+    void extentKey;
+    void peaks;
+    void peaksActive;
+    void overlay;
+    const o = untrack(overlayNow);
     untrack(() => {
       if (!chart || !applied) return;
       if (applied.kind !== k) chart.fig.setResidual(k);
@@ -1510,8 +1524,13 @@
       {/if}
       {#if choice.uplot}
         <p class="hint muted tabular">
-          {shown.total} channels, {shown.lo.toFixed(3)}–{shown.hi.toFixed(3)}°
-          · every one sent once, zoomed here
+          {#if shown.n < shown.total}
+            {shown.n} of {shown.total} channels, {shown.lo.toFixed(3)}–{shown.hi.toFixed(3)}°
+            · min/max decimated server-side, sent once, zoomed here
+          {:else}
+            {shown.total} channels, {shown.lo.toFixed(3)}–{shown.hi.toFixed(3)}°
+            · every one sent once, zoomed here
+          {/if}
         </p>
       {:else}
         <p class="hint muted tabular">

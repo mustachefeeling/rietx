@@ -478,7 +478,8 @@ export function phaseInk(colors, row, count) {
 
 /** One stroke per device-pixel column for each of `xs` in view, `top` and `height` in canvas px. */
 export function vlines(u, xs, top, height, color) {
-  const { ctx } = u, i0 = lower(xs, u.scales.x.min), i1 = lower(xs, u.scales.x.max);
+  // [min, max], both ends in: a line at the view's edge is in the view
+  const { ctx } = u, max = u.scales.x.max, i0 = lower(xs, u.scales.x.min);
   ctx.save();
   ctx.strokeStyle = color;
   ctx.lineWidth = 1;
@@ -486,7 +487,7 @@ export function vlines(u, xs, top, height, color) {
   ctx.setLineDash([]);
   ctx.beginPath();
   let last = NaN;
-  for (let i = i0; i < i1; i++) {
+  for (let i = i0; i < xs.length && xs[i] <= max; i++) {
     const p = Math.round(u.valToPos(xs[i], "x", true)) + 0.5;
     if (p === last) continue;
     last = p;
@@ -648,11 +649,14 @@ export function pattern(uPlot, host, curves, spec) {
     group.load(payload.arrays.two_theta, { main: mainData(), ticks: nulls(), resid: residData() }, keep);
   };
 
-  /** Another intensity scale, the x range kept. */
+  /** Another intensity scale, the x range kept. The rebuilt pane takes its
+   *  series from the spec, whose `show` is the construction's, so the curves
+   *  hidden since are hidden again. */
   const rebuild = group.setY;
   group.setY = (kind) => {
     state.y = kind;
     rebuild("main", kind, mainData());
+    group.setHidden([...state.hidden]);
   };
 
   /** Another residual. A y range chosen on the old one means nothing on this one. */
