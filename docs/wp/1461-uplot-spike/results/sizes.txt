@@ -1,0 +1,7 @@
+plotly.min.js                  4815814 bytes   1472168 gzip
+uPlot.iife.min.js                51081 bytes     22021 gzip
+uPlot.min.css                     1857 bytes       772 gzip
+echarts.min.js                 1121883 bytes    369270 gzip
+svgcanvas.js                     60891 bytes     15001 gzip
+/*! https://github.com/leeoniya/uPlot (v1.6.32) */
+var uPlot=function(){"use strict";const l="u-off",e="u-label",t="width",n="height",i="top",o="bottom",s="left",r="right",u="#000",a=u+"0",f="mousemove",c="mousedown",h="mouseup",d="mouseenter",p="mouseleave",m="dblclick",g="change",x="dppxchange",w=

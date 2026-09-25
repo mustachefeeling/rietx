@@ -1,0 +1,20 @@
+gpu flags: true
+lib      N      load   first  update   zoom  resize  renderer
+plotly   7347     361.6   109.1     7.8     2.4   113.9   ANGLE (Apple, ANGLE Metal Renderer: Apple M4, Unspecified Version)
+plotly   7347     347.5   102.7     8.4     2.7   112.7   ANGLE (Apple, ANGLE Metal Renderer: Apple M4, Unspecified Version)
+plotly   7347     347.6   104.7     7.8     2.9   113.4   ANGLE (Apple, ANGLE Metal Renderer: Apple M4, Unspecified Version)
+uplot    7347       8.9    10.1     2.2     0.6     1.1   canvas2d
+uplot    7347       8.5     9.3     2.0     0.6     1.1   canvas2d
+uplot    7347       8.2     8.9     1.7     0.9     1.3   canvas2d
+echarts  7347      24.7    51.0    10.6     3.1     3.3   canvas2d
+echarts  7347      23.2    41.3    10.7     3.0     3.8   canvas2d
+echarts  7347      23.9    41.9    10.3     3.1     4.1   canvas2d
+plotly   22003    352.6   113.2     9.7     2.5   114.1   ANGLE (Apple, ANGLE Metal Renderer: Apple M4, Unspecified Version)
+plotly   22003    355.3   110.8     9.8     2.4   116.0   ANGLE (Apple, ANGLE Metal Renderer: Apple M4, Unspecified Version)
+plotly   22003    356.6   113.3    10.5     3.1   112.4   ANGLE (Apple, ANGLE Metal Renderer: Apple M4, Unspecified Version)
+uplot    22003      8.6    12.8     4.0     0.9     1.6   canvas2d
+uplot    22003      8.3    11.8     3.7     1.1     1.6   canvas2d
+uplot    22003      8.1    12.0     3.8     1.1     1.7   canvas2d
+echarts  22003     22.3    54.0    24.2     2.8     3.3   canvas2d
+echarts  22003     25.4    56.5    24.6     2.7     3.1   canvas2d
+echarts  22003     23.9    54.9    23.3     2.9     3.9   canvas2d

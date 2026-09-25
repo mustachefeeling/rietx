@@ -1,0 +1,18 @@
+# What running the spike installs or writes; README § Running it makes each one.
+node_modules
+plotly.min.js
+arrays.json
+plotly_export.html
+uplot_export.html
+proto_rows.json
+gui.png
+state/
+# every run rewrites shots/; only the six the WP cites are kept
+shots/*
+!shots/hover-ticks-22003.png
+!shots/peaks-22003.png
+!shots/export-svg.png
+!shots/film-full.png
+!shots/cmp.png
+!shots/traj.png
+payloads/

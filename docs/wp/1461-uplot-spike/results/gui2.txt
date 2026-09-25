@@ -1,0 +1,12 @@
+example: nac
+boot: first react resolved at 842 ms after navigation; plotly.js resource [{"dur":45.299999952316284,"start":193.20000004768372,"end":238.5,"size":4815814}]
+zoom 10-14: total 31 ms | relayout 7.5ms | fetch /api/result/window 466kB 17.6ms | react 8.9ms
+zoom 20-22: total 37 ms | relayout 5.2ms | fetch /api/result/window 233kB 17.4ms | react 14.1ms
+zoom 5-30: total 48 ms | relayout 4.4ms | fetch /api/result/window 871kB 28.8ms | react 13.0ms
+zoom 12-12.8: total 30 ms | relayout 5.8ms | fetch /api/result/window 93kB 13.9ms | react 9.6ms
+zoom 30-40: total 155 ms | relayout 7.0ms | fetch /api/result/window 20kB 16.1ms | react 10.3ms | resize 119.8ms
+zoom 8-9: total 151 ms | relayout 2.5ms | fetch /api/result/window 116kB 11.5ms | react 13.6ms | resize 121.9ms
+resize to 1200: resize 124.4ms
+resize to 1500: resize 123.7ms
+resize to 1100: resize 121.8ms
+resize to 1500: resize 124.3ms

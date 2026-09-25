@@ -81,6 +81,16 @@ screenshots come from `docs/manual/make_screenshots.py`.
   carries its own `failures`, and `SEQUENTIAL_PATH_CHECK_INCOMPLETE` says
   when the comparison did not run or ran on fewer patterns or paths — a
   marker vocabulary this panel should draw rather than re-derive.
+- **From WP-1461 (filed 2026-09-24, not started): the GUI's charts may move
+  to uPlot first.** 1461 puts every browser chart on one module over uPlot
+  and keeps plotly only for the 3D viewer. If it lands first, draw the trace
+  and the linked pattern view on that module. Its spike measured two of this
+  WP's open questions. A 200 × 22 003 in-situ map drew from a max-pooled
+  pyramid at 1.6 ms per wheel event. The first zoom into each pyramid level
+  cost up to two 100 ms frames, a texture upload. And a trajectory in chain
+  order needs uPlot's mode 2, because a heat-then-cool series loops
+  (1461 § D8). If this WP lands first, 1461's Series task inherits what it
+  adds.
 
 ## Non-goals
 

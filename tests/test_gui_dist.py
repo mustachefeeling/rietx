@@ -29,12 +29,12 @@ DIST = ROOT / "src" / "rietx" / "gui" / "static"
 REBUILD = "run `npm --prefix gui ci && npm --prefix gui run build` and commit the result"
 
 
-def _build_info_module():
-    """``gui/scripts/build_info.py``, imported by path (it imports no package)."""
-    path = GUI_DIR / "scripts" / "build_info.py"
+def _script(name: str):
+    """A ``gui/scripts`` file, imported by path (none of them imports a package)."""
+    path = GUI_DIR / "scripts" / name
     if not path.is_file():
         pytest.skip(f"{path} is missing — the gui workspace is not in this checkout")
-    spec = importlib.util.spec_from_file_location("rietx_gui_build_info", path)
+    spec = importlib.util.spec_from_file_location(f"rietx_gui_{path.stem}", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)  # type: ignore[union-attr]
     return module
@@ -42,7 +42,12 @@ def _build_info_module():
 
 @pytest.fixture(scope="module")
 def build_info():
-    return _build_info_module()
+    return _script("build_info.py")
+
+
+@pytest.fixture(scope="module")
+def vendor():
+    return _script("vendor.py")
 
 
 def test_the_dist_is_present_and_named_as_the_server_expects():
@@ -146,15 +151,34 @@ def test_the_sources_the_digest_covers_are_the_ones_that_matter(build_info):
     component, and a ``.test.ts`` file is a source of the workspace even though
     it is not bundled — excluding either would let a real change look current.
     """
-    covered = {p.relative_to(GUI_DIR).as_posix()
+    covered = {build_info.relative(p, GUI_DIR)
                for p in build_info.source_files(GUI_DIR)}
     assert {"vite.config.ts", "tsconfig.json", "package.json",
             "package-lock.json", "index.html",
-            "scripts/build_info.py"} <= covered
+            "scripts/build_info.py", "scripts/vendor.py"} <= covered
     assert any(name.endswith(".svelte") for name in covered)
     assert any(name.endswith(".test.ts") for name in covered)
+    # the vendored chart library counts, being a file the build writes (WP-1461)
+    assert "../src/rietx/viz/static/uPlot.iife.min.js" in covered
     # the dist itself is never part of its own digest
-    assert not any(name.startswith("../") for name in covered)
+    dist = build_info.relative(DIST, GUI_DIR) + "/"
+    assert not any(name.startswith(dist) for name in covered)
+
+
+def test_the_vendored_chart_library_is_the_pinned_release(vendor):
+    """uPlot is vendored at the exact pin in ``gui/package.json`` (WP-1461, D2).
+
+    ``npm run build`` is the one writer of the copy. The lockfile is in the
+    dist's digest, so a pin bump stays red until someone runs the build, and
+    this says the rebuilt copy is the release the pin names. A minified file
+    carries its version in its banner and nowhere else. On a fresh clone it
+    also catches a copy that never got committed.
+    """
+    vendored = ROOT / "src" / "rietx" / "viz" / "static"
+    assert vendor.banner_version(vendored) == vendor.pin(GUI_DIR), (
+        f"the vendored uPlot is not the pinned release — {REBUILD}")
+    missing = set(vendor.FILES.values()) - {p.name for p in vendored.iterdir()}
+    assert not missing, f"not vendored: {sorted(missing)} — {REBUILD}"
 
 
 def test_nothing_gitignores_the_dist():
@@ -202,6 +226,7 @@ BUILD_INPUTS = (
     "package.json",
     "package-lock.json",   # the version statement ATTRIBUTION.md cites
     "scripts/build_info.py",
+    "scripts/vendor.py",
 )
 
 
@@ -290,6 +315,11 @@ def test_the_dist_is_in_the_wheel(wheel_names):
     # while the server code vanished, so a wheel install broke at the first
     # capabilities() call (WP-1003, 2026-08-16)
     wanted += ["rietx/gui/__init__.py", "rietx/gui/textdoc.py"]
+    # the vendored chart library, which pages read out of the installed
+    # package, with its licence beside it, and the module that draws with it
+    # (WP-1461)
+    wanted += [f"rietx/viz/static/{name}"
+               for name in [*_script("vendor.py").FILES.values(), "rxplot.mjs"]]
     for name in wanted:
         assert name in inside, f"{name} is missing from the wheel"
 
@@ -354,11 +384,20 @@ def test_a_source_edit_changes_the_digest(build_info, tmp_path):
     """The guard has to actually fire — a digest that ignores an edit is decor."""
     import shutil
 
-    copy = tmp_path / "gui"
+    copy = tmp_path / "repo" / "gui"
     shutil.copytree(GUI_DIR, copy,
                     ignore=shutil.ignore_patterns("node_modules", ".vite"))
+    # and what the digest reads outside gui/, at the same relative place
+    for directory in build_info.OUTSIDE_DIRS:
+        shutil.copytree(GUI_DIR / directory, copy / directory)
     before, _ = build_info.source_hash(copy)
     assert before == build_info.source_hash(GUI_DIR)[0]  # copying changes nothing
 
     (copy / "src" / "app.css").write_text("/* nudged */\n", encoding="utf-8")
     assert build_info.source_hash(copy)[0] != before
+
+    # a hand edit of the vendored copy reads as a stale dist too (WP-1461)
+    vendored = copy / build_info.OUTSIDE_DIRS[0] / "uPlot.min.css"
+    nudged = build_info.source_hash(copy)[0]
+    vendored.write_text("/* nudged */\n", encoding="utf-8")
+    assert build_info.source_hash(copy)[0] != nudged

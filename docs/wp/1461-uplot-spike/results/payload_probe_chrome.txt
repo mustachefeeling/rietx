@@ -1,0 +1,22 @@
+chrome Chrome/148.0.7778.96, load 4.6 4.1 4.7
+nac_A_4000.json         0.91 MB  fetch 1.4-9.6, decode 0.1-0.2, parse 0.9-1.1, union onto 8388 0.1-0.6 ms
+nac_A_full.json         3.41 MB  fetch 5.0-8.9, decode 0.7-1.2, parse 3.8-5.1, union onto 59498 0.7-1.9 ms
+nac_B_json.json         3.56 MB  fetch 5.0-12.3, decode 0.7-1.2, parse 3.8-5.4, union onto 59498 0.6-5.3 ms
+nac_B_json7.json        2.08 MB  fetch 3.2-4.8, decode 0.5-0.7, parse 2.7-4.0, union onto 59498 0.5-0.7 ms
+nac_B_f64.bin           1.93 MB  fetch 2.6-4.0, decode 0.0-0.0, parse 0.0-0.2, union onto 59498 1.2-2.5 ms
+nac_B_f32.bin           1.01 MB  fetch 1.5-1.9, decode 0.0-0.0, parse 0.0-0.1, union onto 59498 1.3-1.5 ms
+cmp_nac_A_4000.json     2.96 MB  fetch 4.0-4.2, decode 0.6-1.1, parse 3.2-3.3 ms
+cmp_nac_A_full.json     8.77 MB  fetch 10.9-11.4, decode 2.0-2.7, parse 9.2-9.6 ms
+cmp_nac_B_f64.bin       1.06 MB  fetch 1.5-1.8, decode 0.0-0.0, parse 0.0-0.0 ms
+cmp_nac_B_f32.bin       0.53 MB  fetch 0.8-1.1, decode 0.0-0.0, parse 0.0-0.0 ms
+cmp_lab6_capillary_A_4000.json  3.31 MB  fetch 4.0-4.7, decode 0.6-0.9, parse 3.4-3.6 ms
+cmp_lab6_capillary_A_full.json 45.69 MB  fetch 30.5-32.9, decode 11.8-15.0, parse 45.6-47.6 ms
+cmp_lab6_capillary_B_f64.bin  5.57 MB  fetch 6.7-7.2, decode 0.0-0.0, parse 0.0-0.0 ms
+cmp_lab6_capillary_B_f32.bin  2.78 MB  fetch 3.7-3.8, decode 0.0-0.0, parse 0.0-0.0 ms
+series_result.json      0.48 MB  fetch 0.8-0.9, decode 0.0-0.1, parse 0.3-0.5 ms
+series0_A_4000.json     0.66 MB  fetch 1.0-1.5, decode 0.0-0.2, parse 0.7-0.9, union onto 5864 0.0-0.3 ms
+series0_A_full.json     0.82 MB  fetch 1.5-1.7, decode 0.0-0.1, parse 0.9-1.0, union onto 7251 0.1-0.3 ms
+series0_B_json.json     0.86 MB  fetch 1.3-1.8, decode 0.0-0.1, parse 0.9-1.0, union onto 7251 0.0-0.1 ms
+series0_B_json7.json    0.44 MB  fetch 0.7-1.1, decode 0.0-0.1, parse 0.6-0.8, union onto 7251 0.0-0.1 ms
+series0_B_f64.bin       0.44 MB  fetch 0.6-0.9, decode 0.0-0.0, parse 0.0-0.1, union onto 7251 0.1-0.3 ms
+series0_B_f32.bin       0.24 MB  fetch 0.4-0.7, decode 0.0-0.0, parse 0.0-0.0, union onto 7251 0.1-0.3 ms

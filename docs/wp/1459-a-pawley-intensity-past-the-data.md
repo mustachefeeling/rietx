@@ -1,8 +1,7 @@
 # WP-1459 — a Pawley intensity past the end of the data
 
-Milestone: unscheduled · Status: ⬜
+Milestone: unscheduled · Status: ✅ 2026-09-25 — all five tasks landed from outside in PR #453; an off-data reflection is ridged rather than dropped, and `carry_hkl_intensities` is the switch
 Depends on: — (1336 soft: its status channel is where "converged at 2494× the cleared Rwp" belongs)
-Priority: P2 2026-09-24 — a sequential Pawley chain stops early and reports `converged` at many times the Rwp a cleared chain reaches; the default reseed ladder rescued every pattern on this tree, so the wrong answer needs `reseed=False` or a drift under the fence
 
 ## Goal
 
@@ -98,17 +97,17 @@ single fit anything is unmeasured.
 
 ## Tasks
 
-- [ ] Measure part 1's fix alone, part 3's alone, and both, on the issue's
+- [x] Measure part 1's fix alone, part 3's alone, and both, on the issue's
       series and on one single multi-stage Pawley fit; record the table.
-- [ ] Implement the chosen fix. Check that Le Bail on the shared reflection
+- [x] Implement the chosen fix. Check that Le Bail on the shared reflection
       list is unchanged or better, and say which.
-- [ ] Decide the public carry switch, and implement it or record the
+- [x] Decide the public carry switch, and implement it or record the
       decision here.
-- [ ] Tests: a short synthetic chain (fewer patterns than the issue's, for
+- [x] Tests: a short synthetic chain (fewer patterns than the issue's, for
       the fast suite) where the carried chain's Rwp equals the cleared one's
       within a stated tolerance; no reflection outside the window carries an
       intensity above a stated multiple of the median after a fit.
-- [ ] Skill: a row in `references/series.md` (it has none for Pawley at
+- [x] Skill: a row in `references/series.md` (it has none for Pawley at
       `8fbafe5`) if the carry switch lands; otherwise none, since the fix is
       inside the fit.
 
@@ -126,6 +125,65 @@ Coleman & Li (1999), *SIAM J. Sci. Comput.* **21**, 1, as scipy implements
 it.
 
 ## Handover log
+
+### 2026-09-25 — done from outside: a ridge, not a drop, and a carry switch
+
+The out-of-window Pawley intensity is bounded, and a carried chain refits
+as far as a cleared one. It landed as an outside contributor's PR #453, reviewed
+over two rounds and merged as `52eb1f70`. Issue #440 closed on the merge.
+The contributor left this file alone, as contributors do, so the measured
+tables the Tasks ask for are in the PR description. This entry records
+what was chosen and where the evidence is.
+
+- *Done*: all five tasks, ticked above.
+  - **Part 1 alone, as a ridge.** A reflection with no emission line
+    centred on the fitted channels stays in the list and gets one Pawley
+    restraint row, √λ·I_k/s_p. Here s_p is the phase's largest on-data
+    intensity at stage start and λ is `PAWLEY_OVERLAP_LAMBDA`
+    (`CompiledPhase.off_data`, `PawleyBlock.off_data`,
+    `build_pawley_restraint`). Dropping the reflection was measured and
+    refused. The 0.5° margin is what lets a stage move a reflection onto
+    the data, and without it a cold pattern-3 cell stage stalled at 24.5 %
+    Rwp against 3.409 %.
+  - **Part 3 was not adopted.** scipy's TRF tests `xtol` on the unscaled
+    step, so `x_scale` never reaches that test. `x_scale="jac"` made the
+    runaway worse (6.7e51), and a scaled intensity block made it much worse
+    (4.8e29). With the ridge in, turning `xtol` off changes no digit.
+  - **Measured** (PR #453 § 2, macOS arm64, the issue's ten-pattern
+    series, `reseed=False`): the carried and cleared chains agree to four
+    decimals on every pattern, against 769× before. The largest carried
+    intensity went from 1.1e12 to 3.35e3. On one fit, (6 0 2) went from
+    1.45e8 to 2e-4 ± 3.9e3 at the same Rwp, 3.3963 %.
+  - **Le Bail is unchanged, bit for bit.** That path never reads
+    `off_data`.
+  - **The carry switch**: `SequentialRefinement(carry_hkl_intensities=)`,
+    also on `refine_sequential`, default `True`. Le Bail's cleared chain
+    ends higher than its carried one (4.29 % against 3.95 % at pattern 9),
+    so carrying stays the default.
+  - **The result names the ridged reflections.** `PAWLEY_OFF_DATA_RIDGED`
+    (info, one per phase, the hkls in `where`) sits beside
+    `PAWLEY_OVERLAP_UNRESOLVED`. Round 1 of the review asked for it, since
+    an exported intensity otherwise carries no sign that it is the ridge's.
+  - **Skill and manual**: a `series.md` row for the switch, a
+    `diagnostics.md` row for the code, and equation `fm-pawley-ridge` in
+    the theory chapter.
+- *Checked at merge*, on the merged tree (`9e377c55` + `bb08ae92`),
+  darwin/arm64, `[dev,jax]` venv, load average 17 to 45 from unrelated work:
+  fast selection 6097 passed, 89 skipped (main's 6094 plus the PR's three
+  tests); full `-m slow` 197 passed, 7 skipped, 1 xfailed (brucite,
+  WP-1449) in 46:05; ruff clean. The contributor's numbers were not rerun.
+- *Not done, and why*:
+  - A reflection centred inside an **interior** excluded region has the
+    same indeterminacy. The criterion covers only the two ends of the
+    fitted window, which is all this WP names. It waits for a report.
+  - The status channel ("converged at N× the cleared Rwp") is WP-1336's.
+  - `PAWLEY_OFF_DATA_RIDGED` belongs beside the codes in SKILL.md rule 22,
+    which say a number did not come from the data, and in
+    `references/abstention.md`. SKILL.md is near its cap, so placing it is
+    left to the maintainer.
+- *Gotcha*: this PR and #385 each fit `references/diagnostics.md` under
+  `REFERENCE_MAX_BYTES` alone. Together they exceed it by about 370 B.
+  This one merged first, so #385 carries the fix.
 
 - **2026-09-24** — created, from the 2026-09-24 issue triage (issue #440).
   Checked against the tree at `8fbafe5`: the carried chain stalls on `xtol`
