@@ -88,8 +88,9 @@ WP-1005's "nothing to warn about on close" true; the **run state is not an
 event** (a failed fit emits no `fit_end`, and `EventKind` is closed) so it
 travels beside them as its own SSE frame type while `live/events.jsonl` stays the
 one stream `watch` tails; and `/api/result` omits the curves, which
-`/api/result/window` serves per 2θ window through the *same*
-`viz.compare.decimation_index` the comparison UI uses — where `max_points` is a
+`/api/result/curves` sends once over every channel as float64 arrays (WP-1461,
+D4), decimating past `CURVES_CEILING` through the *same*
+`viz.compare.decimation_index` the comparison UI uses — whose count is a
 budget, not a ceiling. `strategy.staged.resolve_plan` (preset name + mode → plan)
 is likewise one function, previously inline in `fit` and duplicated in
 `sequential`.
@@ -126,7 +127,7 @@ The digest itself lives once, in `gui/scripts/build_info.py`, called by both the
 build and the test; `build-info.json` deliberately carries no timestamp, because
 `git diff --exit-code src/rietx/gui/static` has to mean "stale", not "rebuilt".
 **Which points a payload carries is the server's** (`viz.compare.decimation_index`, in the
-window route and past `CURVES_CEILING` in the curves route); the chart module paints
+Series panel's window route and past `CURVES_CEILING` in the curves routes); the chart module paints
 each pixel column's extremes of them (WP-1461 D5), what is drawn and never what the
 readout reads. plotly is **not** vendored (served from `/plotly.js`); uPlot is, into
 `src/rietx/viz/static` by `scripts/vendor.py`, the build's first step: bump the pin, build.
@@ -208,8 +209,9 @@ against 16.33 observed), so the panel prints it once and says what it is. Two
 traps a browser found and jsdom could not: the two `unmatched` kinds are opposite
 diagnoses (an observed peak with no reflection is an impurity; a calculated peak
 with no intensity is what a *mispositioned* model produces at every peak — 15 of
-them read as "unindexed" once), and `Plot`'s window fetch must stay guarded because
-a `checkout` clears the result server-side while the component still holds it.
+them read as "unindexed" once), and a `checkout` clears the result server-side
+while `Plot` still holds it, so the panel redraws from the curves route, which
+then sends the pattern alone.
 
 The **text pane** (WP-1013, `gui/src/panels/Text.svelte`, `gui/src/lib/`) is the
 `.rxt` document in CodeMirror 6, and it is a **mode over the whole window rather
@@ -361,11 +363,13 @@ turns `unitCylinder`'s uncapped justification into a proof. The theme is
 three-way and resolved **once**, stamped as `data-theme` on the root, because
 "follow the system" is a choice and not the absence of one; CodeMirror's chrome
 must be an `EditorView.theme` rather than a stylesheet rule, since CM injects
-its own as `.ͼ1 .cm-gutters` and wins on specificity. `/api/result/window` sends
+its own as `.ͼ1 .cm-gutters` and wins on specificity. The curves route sends
 **three** residuals and a `weighted` flag: two are derivable in a client and
-`cumulative_chi2` is not, because it must be accumulated over every point and
-decimated afterwards. And plotly's `responsive: true` window-only listener bit a
-**second** panel — any control row under a plot needs the `ResizeObserver`.
+`cumulative_chi2` is not, because it is summed over every fitted channel, and a
+zoom re-bases that one sum (`rxplot.chi2Base`) rather than summing what it
+holds. And plotly's `responsive: true` window-only listener bit a **second**
+panel — any control row under a plot needs a `ResizeObserver` (the chart
+module keeps its own).
 
 **Repairs found by use** (WP-1032, `lib/resize.ts`, `lib/plot.ts`,
 `panels/{Plot,Peaks,Structure3D}.svelte`) is the pass that measured what the
@@ -376,7 +380,8 @@ promise and does its work in chunks, so an un-coalesced `ResizeObserver` costs
 last landed 1.10 s late at a steady 60 fps. Every `Plots.resize` therefore goes
 through `resize.ts:coalesce` (one in flight, at most one queued, and the queued
 one runs, so the last redraw is the final size), and both plotly panels were
-*measured* before taking it. **Instrument before the library loads**: a `$state`
+*measured* before taking it; the pattern panel left plotly in WP-1461.
+**Instrument before the library loads**: a `$state`
 rune proxies the namespace and caches each property on first read, so patching
 `window.Plotly` after boot counts nothing while the plot redraws — use an init
 script. **A fix that does not remove the symptom is evidence about the cause**:
@@ -384,11 +389,12 @@ the sticky peak header's backdrop is opaque and the panel column's missing
 surface was a real, separate mismatch; what paints a row over the header is
 `opacity: 0.55`, which promotes it to z-index 0 while the sticky `th` sat at
 `auto`. Three rules about what a plot may say: **a tick belongs to the model,
-not the residual** (its own `yaxis3` band in the free `[0.22, 0.28]` gap —
-on `y2` its visibility was a property of which residual was chosen), **hiding a
+not the residual** (a band of its own between the two — on the residual's axis
+its visibility was a property of which residual was chosen), **hiding a
 curve is by exception** (`curveToggles`/`hidden`, unpersisted, so a curve a
-later build adds arrives drawn), and **a hover link costs a `restyle`, never a
-`react`** — one ring trace whose two coordinates move. Right-click **removes** a
+later build adds arrives drawn), and **a hover link never repaints the
+pattern** — the ring is a DOM mark over the canvas (WP-1461; under plotly it
+was one `restyle` of a two-point trace). Right-click **removes** a
 peak (refit stays on the table's `↻`; the `window.prompt` is gone), and the
 gestures are stated whenever the Peaks tab is up, each naming its non-pointer
 route. **No mute fields**: every `PresetField` and every `instrumentFields()`
@@ -411,17 +417,18 @@ on the verb, so it lives in a strip of its own with typed fields and chips, and
 that strip carries the **channel count**, because a band drawn over points still
 in the residual is worse than no band. **Settings persist on the verb and curves
 move only on a run**, so between the two the picture contradicts the setting: the
-route says `stale` by comparing the fitted 2θ *values*, not their count. **A
-shape is `yref: "paper"` and clipped to the measured extent** — paper because a
-rectangle in log space is not the rectangle in linear space and `TICK_BAND` owns
-the only free y-domain; clipped because a shape bound to a data axis **takes part
-in the autorange**, and bands drawn past the data to survive a zoom-out *became*
-the range (measured: −40 to 100 on a 0.5–59.99° pattern). And **a new pointer
+route says `stale` by comparing the fitted 2θ *values*, not their count. **The
+shading spans every pane's full height and is clipped to the measured extent**
+— full height because a rectangle in log space is not the rectangle in linear
+space, and an excluded channel is missing from the residual too; clipped
+because outside the measured pattern there is nothing to exclude (under plotly
+a shape took part in the autorange, and bands drawn past the data *became* the
+range: −40 to 100 on a 0.5–59.99° pattern). And **a new pointer
 meaning that is ambiguous everywhere is a mode, not an arbitration**: WP-1027
 could make the peak grab radius readable because the ambiguity was local, but a
 region drag is a zoom drag at every distance — so arming is explicit, hands the
-drag to plotly's own select box, *suspends* the peak verbs, and disarms after
-one selection. `viz/` deliberately does not shade (grounds in the WP): a result
+drag to the chart's select mode (x only, zooming nothing), *suspends* the peak
+verbs, and disarms after one selection. `viz/` deliberately does not shade (grounds in the WP): a result
 cannot say what was excluded, so the exported figure shows it as absence.
 
 **One column, eight panels** (WP-1034, `App.svelte`, `Model.svelte`,
@@ -622,8 +629,8 @@ reaches the run record through the *existing* `stage`/`stage_index`/`n_stages`.
 The console pays for that: five fields on every `eval` pushed the cost off the
 right edge, so `lib/stream.ts` folds them into one `[T300 1/3 ↩]` prefix.
 Measured browser facts: this plot is plotly **SVG**, not canvas, so WP-1015's
-swallowed-click trap cannot apply to it (`Plot.svelte` draws its residual with
-`scattergl`, which is what made it a canvas there) — but the `ResizeObserver`
+swallowed-click trap cannot apply to it (`Plot.svelte`'s plotly renderer drew its
+residual with `scattergl`, which made it a canvas there) — but the `ResizeObserver`
 still earns its place, since the plot refits 539 → 1480 px when the column takes
 the window; a *rotated* y-axis title shares the fixed left margin with the tick
 labels, so `phases.0.cell.a` clipped to `aes.0.cell.a` and the axis takes the
@@ -632,30 +639,20 @@ per column — core 308 px, detail 231 — reflowed by `lib/resize.ts:seriesComp
 beside `modelStacks`, because the reorder buttons are the last column and the
 panel's main verb.
 
-**The view, the armed cursor and the theme's scope** (WP-1044,
-`lib/plot.ts:heldRanges`, `Plot.svelte`, `session.settings`) is the pass that
-answered four defects reported from use, and three rules came out of it. **A
-redraw is not a reason to move the axes** — `react` gets a layout with no
-`range`, so plotly re-autoranges over *everything drawn*, and what is drawn is
-not only the fetched window: the peak markers span the whole pattern and so do
-the mask shapes, which are `xref: "x"` and take part in the autorange (WP-1033's
-own finding one step further). Measured in Chrome, a drag to 9.97-14.66° came
-back 4.57-24.85 with a peak list, 3.99-24.88 with an excluded region at 4-5° and
-3.00-24.94 with a fitted range — so the zoom worked only on a plot with nothing
-else on it, and every peak edit threw it away (on the raw view there is not even
-a window fetch to land back in). The repair is WP-1015's camera rule one panel
-over — **the view is handed back on every draw**, read off `_fullLayout`
-immediately before the react (WP-1212 finished the job for the axes nobody had
-zoomed) — plus the window a redraw refetches following the axis, `doubleClick:
-"autosize"` (plotly's default *reset* means "back to the range the plot was
-drawn with", which is now the zoom itself), and an **untracked** knob comparison,
-because `view()` is called from the fetch effect too and a tracked read there
-made choosing Δ over Δ/σ a refetch. Beside it: a payload is not a knob — the
-repaint effect reads `held` untracked, or every fetch costs a second identical
-react (counted: 2 per zoom drag, 6 at boot). **An armed range gesture must say so
-under the pointer**: plotly's `updateFx` gives the drag layer one cursor for
-every dragmode that is not `pan`, so `select` and `zoom` are pointer-identical;
-`col-resize` goes on the plot-area **rect**, where an inherited cursor loses to
+**The view, the armed cursor and the theme's scope** (WP-1044, `Plot.svelte`,
+`session.settings`) is the pass that answered four defects reported from use,
+and three rules came out of it. **A redraw is not a reason to move the axes.**
+Under plotly it was one: `react` re-autoranged over everything drawn, the peak
+markers and the mask shapes included, so a zoom lasted until the next peak edit
+(measured in Chrome: a drag to 9.97-14.66° came back 4.57-24.85 with a peak
+list). The chart zooms in the browser over a payload that is every channel
+(WP-1461), so the rule is kept by what the panel does not do: a knob or a layer
+change repaints and fetches nothing, a payload over the same channels keeps the
+view (`lib/pattern.ts:sameGrid`), and the knob effect reads the payload
+**untracked**, or every fetch costs a second paint (counted under plotly: 2 per
+zoom drag, 6 at boot). **An armed range gesture must say so under the
+pointer**: a select drag and a zoom drag are pointer-identical, so `col-resize`
+goes on the chart's plot area (`.u-over`), where an inherited cursor loses to
 it without a specificity fight. And **a `ui` key belongs to whatever it is about**
 — a width or Simple/Advanced is the project's (four phases, so the table wants to
 be wide), a theme is the *person's*, so it lives in `GET`/`POST /api/settings`
@@ -827,59 +824,36 @@ only a selection clears the plot to the data, or running the pointer down the
 candidate table strobes the model on and off once per row. That clear goes
 through the `data only` button's own press, one saved list and a flag saying
 whose press it was, because two slots is four interleavings and no rule a reader
-could state. And **full height is an overlaying axis** (`yaxis4`, plotly resolves
-its domain to the data panel's), never shapes — which join the x autorange
-(WP-1033) and re-lay-out per drag — and never the tick band, since a tick states
-a fitted model's position while this is a hypothesis laid over the data. Drawn
-**first**, under everything: 426 predicted lines over the FAP example's 115° is
+could state. And **the lines span the data pane's full height**, drawn by a
+layer of their own and never on the tick band, since a tick states a fitted
+model's position while this is a hypothesis laid over the data. Drawn
+**under** everything: 426 predicted lines over the FAP example's 115° is
 ~3.7 per pixel, and on top they buried the pattern the overlay exists to be
 compared with. Green was the last free hue (WP-1210 measured the rest); the plot
 palette now has no room for a further mark that carries a quantity.
 
-**A redraw never moves the axes** (WP-1212, `lib/plot.ts`, `panels/Plot.svelte`,
-`App.svelte:setProtocol`). WP-1044 read `autorange === false` as "the user has
-said", and plotly writes that flag on a zoom and nowhere else — so on the plot
-nobody had zoomed there was nothing to hand back and every redraw re-fitted the
-axes. Seven rules. **The axes are made explicit by the paint that fitted them**:
-`pinPatch` writes back whatever plotly autoranged, as the last act of each paint
-and *before* the hover ring goes on, so a later `react` or `restyle` has nothing
-to re-derive — measured, a hover over the peaks table costs no `react` at all
-and still moved `yaxis` 1.03 % of its span, once per row the pointer crossed.
-The two questions that flag used to answer then come apart: `movedAxes` reads
-each gesture off the relayout event, and only a *user-set* axis survives the
-re-fit a new payload licenses (`userRanges`). **The range plotly draws with is
-`ax._rl`, not `ax.range`** — on the first plot of a fresh div `range` was still
-the empty-axis default `[-1, 6]` while the ticks, the pixel map and `_rl` said
-0-60°, so pinning `range` froze the raw view blank (the fitted view escaped only
-because the run after it re-fitted the axes anyway). **A layout key is a
-`relayout`, never a repaint**: arming sets `dragmode` and nothing else, and was
-costing two of the four reacts an exclude drag took. **A `$derived` off
-`project` is a new object on every settings PATCH**, so an effect keyed on
-`extent` repaints for two numbers that did not change — key it by value, beside
-`protocolKey`. **Two `$state` assignments either side of an `await` are two
-flushes**, which is why `setProtocol` reads the peak list before publishing
-either (`readPeaks`); one exclude drag is now one react and moves no axis.
-And the gesture is dressed as the exclusion it will become —
-`newselection.line` in `maskShapes`' edge ink, the wash a `.select-outline`
-rule needing `!important` because plotly writes `fill-opacity: 0` inline —
-while **an empty `scattergl` trace gets no index in the scene its peers share**,
-so `selectPoints` read `selectBatch[undefined]` and threw once per pointer
-move: the hover ring is a plain `scatter` now. And **an axis with nothing drawn
-on it is not pinned** — plotly fits it to a default that is a number to look at,
-not a fit to keep.
+**A redraw never moves the axes** (WP-1212, `panels/Plot.svelte`,
+`App.svelte:setProtocol`). Its plotly repairs went with plotly in WP-1461: the
+axis pinning, reading `ax._rl`, `movedAxes`, the hover ring kept out of the
+WebGL scene, and the `.select-outline` override. Three rules outlived them.
+**Arming is the figure's mode** (`setMode`) and repaints nothing; under plotly
+`dragmode` was a layout key, and routing it through the repaint cost two of the
+four reacts an exclude drag took. **A `$derived` off `project` is a new object
+on every settings PATCH**, so an effect keyed on `extent` repaints for two
+numbers that did not change — key it by value, beside `protocolKey`. **Two
+`$state` assignments either side of an `await` are two flushes**, which is why
+`setProtocol` reads the peak list before publishing either (`readPeaks`); one
+exclude drag is one fetch and moves no axis.
 
 **The hover readout** (WP-1213, `lib/plot.ts:readout`, `panels/Plot.svelte`).
-The tooltip covered the data, and plotly offers no positioning for the unified
-box beyond `hoverlabel.align` — so the box is **deleted rather than moved**:
-every trace drops to `hoverinfo: "none"` (the library's gate is `!== "skip"`, so
-the point-finding and the spike survive a trace that draws no label), and a
-strip of the plot's control rows says what the box said plus the three things
-it could not — the candidate's `hkl`, which emission line that line is, and d.
-**Every trace, and none may opt out** (WP-1438): `hovermode: "x"` adds an
-`axistext` of plotly's own carrying the 2θ the moment one trace has a label, so
-the tick rows' `hovertemplate` put two overlapping boxes on every tick, the
-second printing the number the first had. A new fact about a mark goes in the
-strip; `App.test.ts` holds every drawn trace to `none`/`skip` with no template.
+The tooltip covered the data, and plotly offered no positioning for the unified
+box beyond `hoverlabel.align` — so the box was **deleted rather than moved**,
+and a strip of the plot's control rows says what the box said plus the three
+things it could not — the candidate's `hkl`, which emission line that line is,
+and d. **A new fact about a mark goes in the strip**: the chart takes neither
+of the boxes uPlot offers (a legend, a point per series), and `App.test.ts`
+holds every pane to that. Under plotly a label on one trace drew a second box
+of plotly's own beside it (WP-1438).
 So **one reflection has one spelling on all three browser surfaces** —
 `peaks.ts:formatHkl` here, `watch-core.mjs:hklLabel` in the wheel — held equal
 by `plot.test.ts`, since neither can import the other.
@@ -893,27 +867,29 @@ above it once per entry — WP-1212's jitter arriving through the repair for it
 **A masked channel is in no result, so the readout reads two arms** — nearest
 over fitted ∪ excluded (WP-1033), and a masked one has no model to quote, which
 is also how the strip says the pointer is inside a region without a field that
-changes width to say it. **The pointer's 2θ is this panel's own axis map, not
-`ev.points[0]`**, which is whichever *trace* plotly matched first — the ticks
-ride on reflection positions and the markers on peak positions; the line under
-the pointer is `nearestPeak` at the **coarse** 10-px radius the non-destructive
+changes width to say it. **The pointer's 2θ is the cursor's pixel through the chart's
+own x**, never a point some trace matched: the ticks ride on reflection
+positions and the markers on peak positions; the line under the pointer is
+`nearestPeak` at the **coarse** 10-px radius the non-destructive
 verbs aim with (`PICK_RADIUS_PX`, WP-1027's fine `grabToleranceDeg` is the
 *move* gesture's, because a drag edits), so the ring, the lit table row and the
 strip name one peak rather than `hoverdistance` naming another. **A curve is
 read at the nearest drawn channel and a nearby thing is hit-tested against the
-pointer**, which are two positions on purpose: the drawn pattern is decimated,
-so at a survey view the channel is up to ~0.03° away — wider than the tolerance
-— and the pointer sat on three picked lines in a row while the row read `—`. **The spike is chrome, so it is solid and takes `--fg`**: dotted in
+pointer**, which are two positions on purpose: a channel is not the pointer, and under
+plotly's decimated window it was up to ~0.03° away at a survey view — wider than
+the tolerance — so the pointer sat on three picked lines in a row while the row
+read `—`. **The pointer's line is chrome, so it is solid and takes `--fg`**: dotted in
 `--muted` is `maskShapes`' excluded-region edge exactly, and the pointer drew a
-line indistinguishable from a protocol boundary — a mark carrying no quantity
+line indistinguishable from a protocol boundary (uPlot's own is dashed
+`#607d8b`, and `Plot.svelte` restyles `.u-cursor-x`) — a mark carrying no quantity
 needs no `--plot-*` token (WP-1210), it needs the one ink no plot colour is
 near. **Prose takes `−`, numbers take `-`**, which this app followed unwritten
 until a typographic minus in the tick offsets sat beside `formatValue`'s
 `toPrecision` output in one row; `formatHkl` shows where the line is, an index
-standing in for an overbar rather than a measurement. And a window payload is
-**`$state.raw`** — a plain `$state` proxies it, so `held` and the `w` the fetch
-handed `paint` are two identities for one object, which is the pair `fresh` asks
-about (svelte says so in dev; it was true before this WP surfaced it).
+standing in for an overbar rather than a measurement. And a curves payload is
+**`$state.raw`** — a plain `$state` proxies it, so `held` and the payload a
+draw was handed are two identities for one object (svelte says so in dev; it
+was true before this WP surfaced it).
 
 **The refine flag where the model is read** (WP-1214, `Model.svelte`,
 `lib/table.ts`, `session.export`). Four rules. **A flag is set beside the value
