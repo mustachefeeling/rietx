@@ -1,6 +1,6 @@
 # WP-1461 — every browser chart draws with uPlot
 
-Milestone: unscheduled · Status: 🔄 2026-09-25 — tasks 1-8 and 15 done: the pattern panel, rietx watch and the Series panel draw with the chart module; task 9, rietx compare, next
+Milestone: unscheduled · Status: 🔄 2026-09-25 — claimed by @yue-here for task 9, rietx compare; tasks 1-8 and 15 done
 Depends on: —
 Priority: P2 2026-09-24 — the maintainer's decision that every browser chart builds on one module; today plotly blocks every GUI open for 0.7-0.8 s before the first plot
 
