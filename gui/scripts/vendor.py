@@ -73,6 +73,10 @@ def main() -> int:
     gui_dir = Path(__file__).resolve().parent.parent
     source = gui_dir / "node_modules" / PACKAGE
     wanted = pin(gui_dir)
+    if not (source / "package.json").is_file():
+        print(f"node_modules has no {PACKAGE}: run `npm --prefix gui ci` first",
+              file=sys.stderr)
+        return 1
     installed = json.loads((source / "package.json").read_text(encoding="utf-8"))["version"]
     if installed != wanted:
         print(f"node_modules holds {PACKAGE} {installed}, the pin is {wanted}: "

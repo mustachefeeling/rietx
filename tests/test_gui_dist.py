@@ -316,8 +316,10 @@ def test_the_dist_is_in_the_wheel(wheel_names):
     # capabilities() call (WP-1003, 2026-08-16)
     wanted += ["rietx/gui/__init__.py", "rietx/gui/textdoc.py"]
     # the vendored chart library, which pages read out of the installed
-    # package, with its licence beside it (WP-1461)
-    wanted += [f"rietx/viz/static/{name}" for name in _script("vendor.py").FILES.values()]
+    # package, with its licence beside it, and the module that draws with it
+    # (WP-1461)
+    wanted += [f"rietx/viz/static/{name}"
+               for name in [*_script("vendor.py").FILES.values(), "rxplot.mjs"]]
     for name in wanted:
         assert name in inside, f"{name} is missing from the wheel"
 

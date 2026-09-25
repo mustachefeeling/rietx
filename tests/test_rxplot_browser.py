@@ -266,3 +266,27 @@ def test_a_resize_shows_in_the_next_frame_with_no_timer(page):
     _frames(page, 2)
     assert page.evaluate("Object.values(G.panes).map(u => u.width)") == [520, 520, 520]
     assert page.evaluate("G.panes.main.ctx.canvas.width") == 520 * page.evaluate("devicePixelRatio")
+
+
+def test_a_click_that_jitters_zooms_and_selects_nothing(page):
+    """A press that moves a pixel or two is a click, as plotly's is below 8 px.
+
+    uPlot's ``uni`` forces a drag under the threshold onto one axis, and the
+    other spans the whole plot, so a select check on both sizes let it through
+    and a 1 px move zoomed x to a 1 px window.
+    """
+    x, y = _x(page, "main"), _y(page, "main")
+    _drag(page, "main", 0.5, 0.5, 0.502, 0.5)
+    _drag(page, "main", 0.5, 0.5, 0.5, 0.505)
+    assert _x(page, "main") == x and _y(page, "main") == y
+    page.evaluate("G.setMode('select')")
+    _drag(page, "main", 0.5, 0.5, 0.502, 0.5)
+    assert page.evaluate("G.selects") == []
+
+
+def test_a_live_update_follows_the_data_where_the_reader_chose_no_y(page):
+    """``setData`` with no y zoom re-ranges y, or new numbers draw off the pane."""
+    page.evaluate("G.setData('main', [Array.from(X, x => 1000 + 500 * Math.sin(x))])")
+    _frames(page)
+    lo, hi = _y(page, "main")
+    assert lo <= 500 and hi >= 1500

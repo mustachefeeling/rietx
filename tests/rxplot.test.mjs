@@ -39,6 +39,17 @@ test('a √ axis gets several ticks, not one', () => {
   assert.ok(ticks[1] - ticks[0] < ticks.at(-1) - ticks.at(-2), `${ticks}`);
 });
 
+test('a √ axis zoomed to a narrow window keeps several ticks', () => {
+  // rounded to the value's own decade, every tick from 1000 to 1010 was 1000
+  for (const [lo, hi] of [[1000, 1010], [0, 0.04], [5e5, 5.0002e5]]) {
+    const ticks = sqrtSplits(lo, hi);
+    assert.ok(ticks.length >= 4, `${lo}-${hi}: ${ticks}`);
+    // and each label prints its own tick, which is not a multiple of the smallest gap
+    assert.deepEqual(tickLabels(ticks).map(Number), ticks.map((t) => +t.toPrecision(12)),
+                     `${lo}-${hi}: ${tickLabels(ticks)}`);
+  }
+});
+
 // ------------------------------------------------------------------ finding 3
 test('ticks over a narrow range read differently from each other', () => {
   // a trajectory spanning 1e-4 Å printed `10.251` five times under uPlot's default

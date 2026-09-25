@@ -38,16 +38,19 @@ export function nearest(xs, v, toPx, radius) {
 }
 
 /**
- * Ticks for a √ axis, evenly spaced in √ space and rounded to half a decade.
- * uPlot spaces ticks in value space, which on a √ scale printed one label for
- * the whole axis (finding 2).
+ * Ticks for a √ axis, evenly spaced in √ space and rounded to half a decade
+ * of the gap to the next tick. uPlot spaces ticks in value space, which on a √
+ * scale printed one label for the whole axis (finding 2). Rounding to the
+ * value's own decade did the same inside a narrow zoom: 1000 to 1010 all
+ * rounded to 1000.
  */
 export function sqrtSplits(min, max, n = 6) {
   const a = Math.sqrt(Math.max(min, 0)), b = Math.sqrt(Math.max(max, 0)), out = [];
+  if (!(b > a)) return out;
+  const at = (k) => (a + (b - a) * k / n) ** 2;
   for (let k = 0; k <= n; k++) {
-    const v = (a + (b - a) * k / n) ** 2;
-    const e = 10 ** Math.floor(Math.log10(Math.max(v, 1)));
-    const t = Math.round(v / e * 2) / 2 * e;
+    const v = at(k), half = 10 ** Math.floor(Math.log10(at(k + 1) - v)) / 2;
+    const t = Math.round(v / half) * half;
     if (t >= min && t <= max) out.push(t);
   }
   return [...new Set(out)];
@@ -67,16 +70,19 @@ function tickStep(splits) {
 /**
  * How many decimals neighbouring ticks need to read differently. uPlot's
  * default follows the magnitude of the values, so a refined cell edge spanning
- * 1e-4 Å printed `10.251` five times (finding 3). This follows the step.
+ * 1e-4 Å printed `10.251` five times (finding 3). This follows the step, and
+ * then every tick, since a √ axis's ticks are not multiples of the smallest gap
+ * and 1003.5 printed as `1004` beside a step of 2.
  */
 export function tickDecimals(splits) {
   const step = tickStep(splits);
   if (!Number.isFinite(step)) return 0;
+  const values = [step, ...splits.filter((v) => v != null)];
   let d = Math.max(0, -Math.floor(Math.log10(step)));
   // a step of 0.25 needs two decimals where its magnitude says one
   while (d < 15) {
-    const scaled = step * 10 ** d;
-    if (Math.abs(Math.round(scaled) - scaled) <= 1e-6 * scaled) break;
+    const f = 10 ** d, slack = 1e-6 * step * f;
+    if (values.every((v) => Math.abs(Math.round(v * f) - v * f) <= slack)) break;
     d++;
   }
   return d;
@@ -127,6 +133,13 @@ export function token(name, el = document.documentElement) {
 
 /** The drag threshold, in CSS pixels, below which a box zoom becomes one axis. plotly's is 20. */
 export const UNI = 20;
+
+/**
+ * The distance, in CSS pixels, a press must travel to be a drag. plotly's is 8.
+ * Below `UNI` uPlot forces a drag onto one axis and spans the other, so without
+ * this a click that moved one pixel zoomed x to a one-pixel window.
+ */
+export const CLICK = 8;
 
 const TYPES = ["lin", "sqrt", "log"];
 
@@ -216,7 +229,6 @@ export function panes(uPlot, host, spec) {
 
   function onSelect(u) {
     const key = u.__rxKey, s = u.select;
-    if (s.width < 1 && s.height < 1) return;
     if (group.mode === "select") {
       group.onSelect?.(u.posToVal(s.left, "x"), u.posToVal(s.left + s.width, "x"), key);
     } else {
@@ -275,7 +287,7 @@ export function panes(uPlot, host, spec) {
       cursor: {
         sync: { key: sync, setSeries: false, scales: ["x", null],
                 filters: { pub: (type) => type !== "mousedown" && type !== "mouseup" && type !== "dblclick" } },
-        drag: { x: true, y: group.mode === "zoom", uni: UNI, setScale: false },
+        drag: { x: true, y: group.mode === "zoom", uni: UNI, dist: CLICK, setScale: false },
         bind: { dblclick: () => null },
         points: { show: false }, y: false, focus: { prox: -1 },
       },
@@ -305,8 +317,16 @@ export function panes(uPlot, host, spec) {
     for (const u of Object.values(group.panes)) u.setData(u.data, true);
   };
 
-  /** New numbers for one pane, the reader's zoom kept. */
-  group.setData = (key, data) => group.panes[key].setData([spec.x, ...data], false);
+  /**
+   * New numbers for one pane, the reader's zoom kept. `setData(…, false)`
+   * re-ranges nothing, so an unzoomed y kept the old numbers' range. Setting x
+   * at itself re-ranges y through its range function, which holds a pinned y.
+   */
+  group.setData = (key, data) => {
+    const u = group.panes[key];
+    u.setData([spec.x, ...data], false);
+    u.setScale("x", { min: u.scales.x.min, max: u.scales.x.max });
+  };
 
   /** Repaint every pane. Colours are functions read at each draw, so this is a theme switch (finding 5). */
   group.redraw = () => { for (const u of Object.values(group.panes)) u.redraw(false, true); };
