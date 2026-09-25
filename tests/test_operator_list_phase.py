@@ -588,3 +588,54 @@ def test_a_moment_on_an_operation_list_phase_keeps_the_list_through_report():
     report = ref.report()
     assert len(report.strain) == 1 and len(report.texture) == 1
     assert len(report.magnetic) == 1
+
+
+# ---------------------------------------------------------------------------
+# a structure CIF carries the list and reads back (review of #448, item 3)
+# ---------------------------------------------------------------------------
+def test_a_structure_cif_of_an_operation_list_phase_reads_back_bit_identically(
+        tmp_path):
+    """``structure_to_cif`` → ``structure_from_cif``: label, list and order.
+
+    ``write_structure_block`` wrote the bracketed label and no operations, so
+    the file named a group no reader could expand ("unrecognised space group").
+    """
+    from rietx.crystallography.cif import structure_from_cif, structure_to_cif
+
+    for label, ops, cell in (
+            (S3_CHILD_LABEL, list(S3_CHILD_OPS), (14.0, 6.0, 8.0, 90.0, 97.0, 90.0)),
+            # a named group's list, reordered: the bracket keeps gemmi from
+            # resolving it to the symbol and the file's order is kept
+            ("P 1 21/c 1 [explicit]",
+             ["x,y,z", *reversed(_triplets("P 1 21/c 1")[1:])],
+             (7.0, 6.0, 8.0, 90.0, 97.0, 90.0))):
+        phase = _phase(label, ops, cell)
+        path = tmp_path / "s.cif"
+        structure_to_cif(Structure(phases=[phase]), str(path))
+        back = structure_from_cif(str(path)).phases[0]
+        assert back.space_group == phase.space_group
+        assert back.symmetry_operations == phase.symmetry_operations
+        assert [(a.x.value, a.y.value, a.z.value) for a in back.atoms] == \
+            [(a.x.value, a.y.value, a.z.value) for a in phase.atoms]
+
+
+def test_a_refinement_cif_without_geometry_rows_still_carries_the_list(tmp_path):
+    """The symop loop no longer depends on the phase having a bond to report."""
+    from rietx.crystallography.cif import structure_from_cif
+    from rietx.io.exporters import write_refinement_cif
+
+    phase = _phase(S3_CHILD_LABEL, list(S3_CHILD_OPS),
+                   (14.0, 6.0, 8.0, 90.0, 97.0, 90.0))
+    phase.atoms = phase.atoms[:1]
+    ref = rx.Refinement(Structure(phases=[phase]), INSTRUMENT.model_copy(deep=True))
+    data = rx.PatternData(
+        two_theta=TWO_THETA.tolist(),
+        intensity=(np.asarray(ref.predict(TWO_THETA)) + 10.0).tolist())
+    result = ref.fit(data, plan=rx.RefinementPlan(stages=[
+        rx.Stage("scale", ["phases.*.scale"])]))
+    assert result.geometry is None or not result.geometry.distances
+    path = tmp_path / "out.cif"
+    write_refinement_cif(result, ref.fitted_structure, ref.instrument, path)
+    back = structure_from_cif(str(path)).phases[0]
+    assert back.space_group == S3_CHILD_LABEL
+    assert back.symmetry_operations == list(S3_CHILD_OPS)
