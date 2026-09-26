@@ -270,10 +270,15 @@ def lattice_two_theta(space_group,
     That distinction is what makes this diagnostic rather than decorative.  A
     k = 0 magnetic structure has its magnetic intensity at Q = H, so it lands
     on the nuclear lines — where a nuclear misfit also lands, and the two look
-    alike.  But its magnetic space group generally does **not** carry the
-    parent's glide and screw operations, so intensity appears at reciprocal-
-    lattice points where the nuclear structure factor is identically zero, and
-    *no nuclear model can put anything there at all*.  Measured on the GSAS-II
+    alike.  But its magnetic structure factor is an axial vector, and its
+    absence rule for a glide or screw can be the complement of the nuclear one
+    (Gallego, S. V., Tasci, E. S., de la Flor, G., Perez-Mato, J. M. & Aroyo,
+    M. I. (2012). *J. Appl. Cryst.* **45**, 1236, §§ 4.1.1, 4.3.2), so it can
+    put intensity at reciprocal-lattice points where the assumed group's
+    nuclear structure factor is identically zero.  So can a nuclear group
+    lower than the one assumed, λ/2 contamination and an impurity line; the
+    report arm names all four (:mod:`rietx.report.satellites`).  Measured on
+    the GSAS-II
     ``Magnetic-II`` Cr₂WO₆ data (P 4₂/mnm, 4 K against a converged 150 K
     nuclear model): the two strongest residual peaks are (0 0 1) at 15.62° and
     (1 0 2) at 44.45°, both systematically absent and both reciprocal-lattice

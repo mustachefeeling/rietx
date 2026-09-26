@@ -546,12 +546,16 @@ class SatelliteEvidence(Base):
       this route cannot separate them.  What does is a pattern of the same
       specimen above its ordering temperature (WP-1329 makes that a series).
     * ``excess_on_absent_lattice_lines`` — they sit on reciprocal-lattice
-      points the nuclear structure factor forbids.  That is **not** an
-      ambiguity: no nuclear model can put intensity at a systematic absence,
-      right or wrong, and a magnetic space group generally does not carry the
-      parent's glide and screw operations, so this is the k = 0 signature
-      stated positively.  Measured on the Cr₂WO₆ 4 K pattern, whose two
-      strongest residual peaks are the absent (0 0 1) and (1 0 2).
+      points a glide or screw absence of the *assumed* space group forbids.
+      The fitted model cannot put intensity there, but four causes can and
+      this arm separates none of them: a true nuclear group lacking the
+      operation (the assumed group is too high), λ/2 contamination, an
+      impurity line on the point, and — on neutrons only — a k = 0 magnetic
+      structure, whose axial structure factor can obey the complementary
+      absence rule (Gallego et al. 2012, *J. Appl. Cryst.* **45**, 1236).
+      What the count does settle is that these peaks need no k, so they are
+      not scored.  Measured on the Cr₂WO₆ 4 K pattern, whose two strongest
+      residual peaks are the absent (0 0 1) and (1 0 2).
     * ``radiation`` — on an X-ray histogram a satellite is a **superstructure**
       reflection, not magnetism.  The positions are the same and the inference
       is not.
@@ -576,10 +580,9 @@ class SatelliteEvidence(Base):
     #: apart
     excess_on_nuclear_lines: int = 0
     #: positive residual peaks that sit on a **reciprocal-lattice point the
-    #: nuclear structure factor forbids**.  The sharp k = 0 signature and a
-    #: positive result: a magnetic space group generally drops the parent's
-    #: glide and screw operations, so a k = 0 structure puts intensity where no
-    #: nuclear model — right or wrong — can put any.
+    #: assumed space group forbids** — a group set too high, λ/2, an impurity
+    #: line, or (neutrons) a k = 0 magnetic structure; the note names the
+    #: causes this arm cannot separate, and none of them needs a k
     excess_on_absent_lattice_lines: int = 0
     #: the k this phase already declares, if any; the arm still scores, because
     #: "does another k explain the rest" is a question a declared one does not

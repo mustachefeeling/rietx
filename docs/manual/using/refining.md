@@ -215,9 +215,12 @@ one can be, and only the third is scored:
 1. on a calculated line: a nuclear misfit, or a k = 0 structure whose
    intensity coincides with the nuclear reflections. This route cannot tell
    those apart;
-2. on a reciprocal-lattice point the nuclear structure factor forbids: the
-   k = 0 signature, and a *positive* result rather than an ambiguity, because
-   no nuclear model right or wrong can put intensity at a systematic absence;
+2. on a reciprocal-lattice point a glide or screw absence of the *assumed*
+   space group forbids. The fitted model cannot put intensity there, but a
+   nuclear group lower than the one assumed can, and so can λ/2
+   contamination, an impurity line and, on neutrons, a k = 0 magnetic
+   structure. The arm names all of them and separates none; what it does
+   settle is that these peaks need no k;
 3. neither: the only peaks a satellite is needed to explain.
 
 For those it generates the satellite positions Q = H ± k for a small,
@@ -242,7 +245,7 @@ for c in arm.candidates[:3]:
 | `SatelliteEvidence.n_residual_peaks` | positive residual peaks before the sort | |
 | `SatelliteEvidence.n_unexplained` | peaks at neither of the next two, i.e. the ones the ranking was scored against | zero means nothing needed a satellite, which is not a result about the specimen |
 | `SatelliteEvidence.excess_on_nuclear_lines` | residual peaks that sit on a calculated reflection | a nuclear misfit or a k = 0 structure, and this route cannot separate them |
-| `SatelliteEvidence.excess_on_absent_lattice_lines` | residual peaks on a reciprocal-lattice point the structure factor forbids | the k = 0 signature stated positively (see below) |
+| `SatelliteEvidence.excess_on_absent_lattice_lines` | residual peaks on a reciprocal-lattice point the assumed group's glide or screw forbids | a group set too high, λ/2, an impurity line or (neutrons only) a k = 0 structure; the arm cannot separate them (see below) |
 | `SatelliteEvidence.declared_k` | the k this phase already declares, or null | the arm still scores: "does another k explain the rest" is a question a declared one does not answer |
 | `SatelliteEvidence.generator` | which candidate set was used | the default is the zone-boundary set; a caller may supply another |
 | `SatelliteEvidence.candidates` | the ranked list, one `SatelliteCandidate` each | |
@@ -375,13 +378,17 @@ esd has no ratio to take, and `supported` is then `None`, not an answer. At 4 K 
 gives 2.12 ± 0.06, a ratio of 35, and the answer flips. That is the
 deliverable; a small moment with a small esd would not be.
 
-A peak on a forbidden lattice point is the k = 0 result, not an ambiguity.
-A magnetic space group generally does not carry the parent's glide and screw
-operations, so a k = 0 magnetic structure puts intensity at reciprocal-lattice
-points where the nuclear structure factor is identically zero. No nuclear model
-(right, wrong or badly refined) can put anything there, which makes
-`excess_on_absent_lattice_lines` a positive statement about the specimen rather
-than a caveat. Measured on the Cr₂WO₆ 4 K neutron pattern against a nuclear
+A peak on a forbidden lattice point is forbidden under the group the fit
+*assumed*, and four causes put one there. A true nuclear group lacking that
+glide or screw puts intensity there, since the assumed group is then too high;
+so do λ/2 contamination from the monochromator and an impurity line that lands
+on the point. On neutrons the fourth is a k = 0 magnetic structure: its
+structure factor is an axial vector, and its absence rule for a glide or screw
+can be the complement of the nuclear one
+({cite}`gallego2012`, § 4.1.1, and § 4.3.2 in P4₂/mnm). The arm names all four
+in the note, and on an X-ray histogram only the first three. It cannot separate
+them, so `excess_on_absent_lattice_lines` says these peaks need no k and
+nothing more. Measured on the Cr₂WO₆ 4 K neutron pattern against a nuclear
 model refined on it from the 150 K one: four residual peaks sit on forbidden
 lattice points, the (0 0 1) and (1 0 2) regions among them, none of them
 carrying a tick, and the same arm on the 150 K pattern counts zero.

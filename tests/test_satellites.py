@@ -835,16 +835,63 @@ def test_the_arm_names_the_k_zero_ambiguity_when_the_excess_is_on_nuclear_lines(
     assert "above its ordering temperature" in arm.note
 
 
-def test_the_arm_calls_a_peak_on_a_forbidden_lattice_point_the_k_zero_signature():
-    """The sharp k = 0 result, and the correction the Cr₂WO₆ data forced.
+def _absent_001_arm(instrument):
+    """The arm on one residual peak at the absent (0 0 1) of ``P 4₂/mnm``."""
+    from rietx.crystallography.lattice import two_theta_deg
 
-    A magnetic space group generally does not carry the parent's glide and
-    screw operations, so a k = 0 structure puts intensity at reciprocal-lattice
-    points where the *nuclear* structure factor is identically zero.  No
-    nuclear model, right or wrong, can put anything there — so unlike a peak on
-    a calculated line this is a result and not an ambiguity, and it must not be
-    handed to the candidate ranking, which would "explain" it with whichever k
-    happens to put a satellite nearby.
+    cell = (4.57539, 4.57539, 8.85381, 90.0, 90.0, 90.0)
+    structure = rx.Structure(phases=[_phase(None, symbol="P 42/m n m",
+                                            cell=cell)])
+    model = compile_model(structure, instrument, _pattern())
+    values = _values(structure, instrument)
+    lam = float(model.line_lambdas(values)[0])
+    tt_001 = float(two_theta_deg(np.array([cell[2]]), lam)[0])
+    ticks = np.asarray(model.phases[0].reflections.two_theta(cell, lam),
+                       dtype=np.float64)
+    ticks = ticks[np.isfinite(ticks)]
+    return analyse_satellites(model, values, residual_two_theta=[tt_001],
+                              ticks=ticks)[0]
+
+
+def test_a_forbidden_lattice_peak_on_neutrons_names_all_four_causes():
+    """Review item 1: the arm names what it cannot exclude, magnetism among them.
+
+    "Forbidden" is forbidden under the group the fit *assumed*, so a peak there
+    is no result about magnetism: a nuclear group lower than the assumed one,
+    λ/2 and an impurity line put intensity there too.  On neutrons a k = 0
+    magnetic structure is the fourth, because an axial structure factor can
+    obey the complementary absence rule (Gallego et al. 2012).
+    """
+    arm = _absent_001_arm(_neutron(fwhm_deg=0.35))
+    assert arm.radiation == "neutron"
+    assert arm.excess_on_absent_lattice_lines == 1
+    for cause in ("too high", "λ/2", "impurity", "k = 0 magnetic structure"):
+        assert cause in arm.note, (cause, arm.note)
+    assert "four causes" in arm.note
+    assert "result rather than an ambiguity" not in arm.note
+    assert arm.candidates == []
+
+
+def test_a_forbidden_lattice_peak_on_x_rays_has_no_magnetic_reading():
+    """The same peak on an X-ray histogram: three causes, none magnetic."""
+    # λ as the neutron case, so (0 0 1) lands inside the same grid
+    arm = _absent_001_arm(rx.Instrument.debye_scherrer(LAMBDA))
+    assert arm.radiation == "xray"
+    assert arm.excess_on_absent_lattice_lines == 1
+    for cause in ("too high", "λ/2", "impurity"):
+        assert cause in arm.note, (cause, arm.note)
+    assert "three causes" in arm.note
+    assert "k = 0 magnetic" not in arm.note
+    assert "Gallego" not in arm.note
+
+
+def test_the_arm_calls_a_peak_on_a_forbidden_lattice_point_the_k_zero_signature():
+    """A peak on a forbidden lattice point, and the correction the Cr₂WO₆ data forced.
+
+    Intensity at a reciprocal-lattice point the assumed group's glide or screw
+    forbids needs no k — whatever put it there (the two tests above name the
+    candidates) — so it must not be handed to the candidate ranking, which
+    would "explain" it with whichever k happens to put a satellite nearby.
 
     ``P 4₂/mnm`` with the Cr₂WO₆ cell: (0 0 1) is a reciprocal-lattice point
     and a systematic absence, so it carries no tick.
@@ -876,7 +923,6 @@ def test_the_arm_calls_a_peak_on_a_forbidden_lattice_point_the_k_zero_signature(
     assert arm.n_unexplained == 0
     assert arm.candidates == []
     assert "forbids" in arm.note and "k = 0" in arm.note
-    assert "result rather than an ambiguity" in arm.note
 
 
 def test_the_arm_says_an_x_ray_satellite_is_a_superstructure_reflection():

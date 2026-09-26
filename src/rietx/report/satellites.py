@@ -37,15 +37,23 @@ unexplained and then "indexed" by a candidate whose satellite sits 0.14° away.
    absorbs the latter into the nuclear intensities, so the two look alike here
    and this route cannot separate them.  What does is a pattern of the same
    specimen above its ordering temperature (WP-1329).
-2. **On a reciprocal-lattice point the nuclear structure factor forbids.**  The
-   sharp k = 0 signature, and a **positive** result rather than an ambiguity: a
-   magnetic space group generally does not carry the parent's glide and screw
-   operations, so a k = 0 structure puts intensity at lattice points where the
-   nuclear structure factor is identically zero — and *no* nuclear model, right
-   or wrong, can put anything there.  This is the WP's own rule ("a glide or
-   screw absence is a condition on the nuclear structure factor") observed
-   rather than asserted; it is what the Cr₂WO₆ 4 K pattern actually shows
-   (:func:`~rietx.crystallography.satellites.lattice_two_theta`).
+2. **On a reciprocal-lattice point the assumed group forbids.**  A glide or
+   screw absence is a condition on the nuclear structure factor *of the space
+   group the fit assumed*, so the fit's model cannot put intensity there — but
+   four causes can, and the arm has no evidence that separates them: a true
+   nuclear group lacking that glide or screw (the assumed group is too high),
+   λ/2 contamination from the monochromator, an impurity line that lands on
+   the point, and a k = 0 magnetic structure.  The last is possible because a
+   magnetic structure factor is an axial vector, transformed by the same
+   operation's rotation and any time reversal, so its absence rule for one
+   glide or screw can be the *complement* of the nuclear one (Gallego, S. V.,
+   Tasci, E. S., de la Flor, G., Perez-Mato, J. M. & Aroyo, M. I. (2012).
+   *J. Appl. Cryst.* **45**, 1236, § 4.1.1 on Pn′ma′ and § 4.3.2 on
+   P4₂/mnm).  The note names all four and reads none of them as the answer;
+   on an X-ray histogram it names the first three only, since X-rays see no
+   magnetic order.  What it does settle is that these peaks need no k, so
+   they are not handed to the ranking.  It is what the Cr₂WO₆ 4 K pattern
+   shows (:func:`~rietx.crystallography.satellites.lattice_two_theta`).
 3. **Neither.**  Only these are scored against the candidate k, because only
    these need one.
 
@@ -168,16 +176,30 @@ def _score(candidate: KCandidate, model, values, ip: int,
     )
 
 
+def _num(n: int) -> str:
+    return {3: "three", 4: "four"}.get(n, str(n))
+
+
 def _note(evidence: SatelliteEvidence) -> str:
     parts: list[str] = []
     if evidence.excess_on_absent_lattice_lines:
+        causes = [
+            "a true nuclear group lacking that glide or screw (the assumed "
+            "group is too high)",
+            "λ/2 contamination from the monochromator",
+            "an impurity line that lands on the point"]
+        if evidence.radiation == "neutron":
+            causes.append(
+                "a k = 0 magnetic structure, whose magnetic structure factor "
+                "can obey the complementary absence rule for the same "
+                "operation (Gallego et al. 2012, J. Appl. Cryst. 45, 1236)")
         parts.append(
             f"{evidence.excess_on_absent_lattice_lines} residual peak(s) sit "
-            "on reciprocal-lattice points the nuclear structure factor forbids "
-            "(a glide or screw absence), where no nuclear model right or wrong "
-            "can put intensity — that is the signature of a k = 0 magnetic "
-            "structure whose magnetic space group does not carry those "
-            "operations, and it is a result rather than an ambiguity")
+            "on reciprocal-lattice points that a glide or screw absence of the "
+            "assumed space group forbids, so the fitted model cannot put "
+            "intensity there; the arm cannot separate "
+            f"{_num(len(causes))} causes that can — " + ", ".join(causes[:-1])
+            + ", or " + causes[-1])
     if evidence.n_unexplained == 0:
         if evidence.excess_on_nuclear_lines:
             parts.append(
