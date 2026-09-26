@@ -1710,12 +1710,8 @@ class ParameterTable:
         for path in hits:
             dof = self.entries[self._paths[path]]
             dof.value = self._implied(dof.tie, path)
-            for coord, coeff in self._anchored_dofs[path]:
-                e = self.entries[self._paths[coord]]
-                if e.tie is None:   # symmetry took the row over; _apply_ties says so
-                    continue
-                e.tie = replace(e.tie, const=e.tie.const - coeff * dof.value)
-                e.value = self._implied(e.tie, coord)
+            # a row symmetry took over is skipped there; _apply_ties says so
+            self._shift_anchor(path, dof.value)
         self._rebased.update(hits)
         self._rebuild()
         return hits
@@ -1784,18 +1780,28 @@ class ParameterTable:
                           if p in coordinates and self.entries[self._paths[p]].tie is not None)
             if not chosen or not rows:
                 continue
+            row_of = {p: i for i, p in enumerate(rows)}
             basis = np.zeros((len(rows), len(dofs)), dtype=np.float64)
             for k, d in enumerate(dofs):
                 for p, coeff in self._anchored_dofs[d]:
-                    if p in rows:
-                        basis[rows.index(p), k] = coeff
+                    if p in row_of:
+                        basis[row_of[p], k] = coeff
             gap = np.array([coordinates[p] - self.entries[self._paths[p]].tie.const
                             for p in rows], dtype=np.float64)
-            theta, *_ = np.linalg.lstsq(basis, gap, rcond=None)
-            for k, d in enumerate(dofs):
-                if d in chosen:
-                    self.entries[self._paths[d]].value = float(theta[k])
-                    moved.append(d)
+            # a DOF of the group that is not chosen stays where it is, so its
+            # contribution is taken out of the gap and θ is solved over the
+            # chosen columns alone — solving jointly and then writing only the
+            # chosen half would leave the rows short of their targets
+            cols = [k for k, d in enumerate(dofs) if d in chosen]
+            held = [k for k, d in enumerate(dofs) if d not in chosen]
+            if held:
+                gap -= basis[:, held] @ np.array(
+                    [self.entries[self._paths[dofs[k]]].value for k in held],
+                    dtype=np.float64)
+            theta, *_ = np.linalg.lstsq(basis[:, cols], gap, rcond=None)
+            for k, value in zip(cols, theta):
+                self.entries[self._paths[dofs[k]]].value = float(value)
+                moved.append(dofs[k])
         for d in moved:
             for p, _ in self._anchored_dofs[d]:
                 e = self.entries[self._paths[p]]
@@ -1823,7 +1829,11 @@ class ParameterTable:
         coordinate was written; a source it does not name is taken to have
         held its current value, so contributes nothing.  The tie is read as
         declared *here*: a caller whose sources were tied differently when the
-        coordinate was written has no correct answer to ask this for.
+        coordinate was written has no correct answer to ask this for.  So is
+        its flattening: a source that is another atom's coordinate row
+        flattens onto *this* table's anchor for it, so a DOF tied to a
+        coordinate whose own carry differed is not corrected for the
+        difference.
 
         Guarded once per path per table, like :attr:`_rebased` and for its
         reason: the correction subtracts from a stored constant, so a repeat
@@ -1847,16 +1857,26 @@ class ParameterTable:
             if shift == 0.0:
                 continue
             self._reanchored.add(path)
-            for coord, coeff in self._anchored_dofs[path]:
-                e = self.entries[self._paths[coord]]
-                if e.tie is None:   # symmetry took the row over
-                    continue
-                e.tie = replace(e.tie, const=e.tie.const - coeff * shift)
-                e.value = self._implied(e.tie, coord)
+            self._shift_anchor(path, shift)
             moved.append(path)
         if moved:
             self._rebuild()
         return moved
+
+    def _shift_anchor(self, dof: str, shift: float) -> None:
+        """Move the anchor of every coordinate row ``dof`` reaches by ``−B·shift``.
+
+        The one subtraction :meth:`rebase_anchored_dofs` and
+        :meth:`reanchor_dofs` both make; each caller owns its own guard, since
+        the subtraction is not idempotent.  A row symmetry has taken over (no
+        tie) is left alone.
+        """
+        for coord, coeff in self._anchored_dofs[dof]:
+            e = self.entries[self._paths[coord]]
+            if e.tie is None:   # symmetry took the row over
+                continue
+            e.tie = replace(e.tie, const=e.tie.const - coeff * shift)
+            e.value = self._implied(e.tie, coord)
 
     def _implied(self, tie: AffineTie, path: str) -> float:
         """The value a tie implies right now, chains flattened onto free rows."""

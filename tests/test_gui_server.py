@@ -3550,6 +3550,23 @@ def test_a_series_runs_and_its_trajectories_are_the_series_result(series):
     assert payload["curves"] == [True, True, True]
 
 
+def test_the_run_keeps_the_paths_its_fences_skipped(series):
+    """The disagreement column is handed the fences' own list (WP-1333).
+
+    Taken once from the models the run was handed and kept beside its result,
+    so ``result_payload`` abstains exactly where the fences did.  The ramp's
+    boron sits on a site with one DOF, so an empty set here is the wiring
+    dropped, not a model without one.
+    """
+    from rietx.sequential import _relative_paths
+
+    session, _, _ = series
+    entry = session._series_run
+    runner = entry["runner"]
+    assert entry["relative"] == _relative_paths(runner.structure, runner.instrument)
+    assert entry["relative"]
+
+
 def test_the_backward_chain_travels_as_a_number_not_a_footnote(series):
     """``direction="both"`` ran, so every trajectory carries the other chain.
 

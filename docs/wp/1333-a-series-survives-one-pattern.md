@@ -404,7 +404,35 @@ one, never as the gate.
     so a new judgement across patterns must be handed it. That is now a
     CLAUDE.md rule.
 
-  *Review* (`/code-review high --fix`): see the next bullet once it ran.
+  *Review* (`/code-review high --fix`, 8 findings). **Kept three:**
+  - `displace_anchored_dofs` now solves over the chosen DOFs only, with
+    unchosen ones held at their values. It was a joint solve followed by a
+    partial write, which is wrong when a site's DOFs share a row and a glob
+    names only some of them. No fixture has such a site, so no number moves.
+  - The anchor subtraction is one `_shift_anchor`, shared by
+    `rebase_anchored_dofs` and `reanchor_dofs` with the same arithmetic.
+  - The GUI session computes the relative set once, with the run's entry,
+    instead of per `GET`. The finding's own test gap is now closed:
+    `test_the_run_keeps_the_paths_its_fences_skipped` fails if the session
+    drops the list.
+
+  **Declined five:**
+  - Clearing the variables under `on_error="skip"` was reverted after it
+    landed. `warm = previous is not None`, so a pattern after a skipped one
+    is cold, and a cold rung passes no variables. The defect it named
+    cannot happen.
+  - The second source-table build in `_reanchor_carried` is bounded by the
+    early return.
+  - Recording which paths are relative on `SeriesResult` is a schema
+    decision, the second item under *Decisions*.
+  - A DOF tied to another atom's coordinate row is corrected against this
+    table's anchor for that row. That is exotic, and it is now stated in
+    `reanchor_dofs`' docstring rather than fixed.
+  - The missing session test was written instead (see the kept three).
+
+  After the fixes: the four affected files, fast items, 303 passed. The
+  slow series rows were not re-run, because the only arithmetic change
+  moves nothing on a site whose DOFs are all chosen.
 
   Next, in order:
   1. Review #484, starting with the two decisions above. Either reversal is
