@@ -956,3 +956,68 @@ def test_an_origin_off_the_operation_grid_is_refused_by_name():
         magnetic_supercell(parent, group=base.group,
                            transform="a,b,2c;1/3,1/5,1/7", k=cand.cell.k,
                            magnetic_species="Mn", ion="Mn2+")
+
+
+# ============================================== the seed in an oblique child cell
+def p6mmm_parent() -> Phase:
+    return Phase(
+        name="synthetic P6/mmm", space_group="P 6/m m m",
+        cell=_cell(5.0, 5.0, 4.0, 90.0, 90.0, 120.0),
+        atoms=[Atom(label="Mn", species="Mn", x=P(value=0.5), y=P(value=0.0),
+                    z=P(value=0.0), biso=P(value=0.4))])
+
+
+def _hexagonal_statement(bns: str, **kwargs) -> SupercellStatement:
+    parent = p6mmm_parent()
+    cand, = [c for c in candidates(parent.space_group, (0.5, 0.0, 0.0),
+                                   HALF_C).candidates if c.bns_number == bns]
+    return magnetic_supercell(parent, cand, magnetic_species="Mn", ion="Mn2+",
+                              magnitude=3.0, **kwargs)
+
+
+def test_the_seed_has_its_modulus_in_the_child_metric():
+    """``magnitude`` is the seed modulus in μ_B, measured in the child's own cell.
+
+    Crystal-axis components are on unit vectors along the cell axes, so a
+    moment's modulus depends on the angles between them.  The seed used to be
+    normalised in a unit cubic stand-in: on this hexagonal child (γ = 120°,
+    BNS 193.262) it came out (1.342, 2.683, 0), modulus 2.324 μ_B for a
+    requested 3.  The modulus is read here through ``moment_to_cartesian``,
+    not through the metric the builder used.
+    """
+    from rietx.crystallography.magnetic.operators import moment_to_cartesian
+
+    statement = _hexagonal_statement("193.262")
+    cell = statement.phase.cell.lengths_angles()
+    assert cell[5] == pytest.approx(120.0)
+    seeded = [a for a in statement.phase.atoms if a.moment is not None]
+    assert len(seeded) == 2
+    for atom in seeded:
+        cart = moment_to_cartesian(np.array(atom.moment.values()), cell)
+        assert float(np.linalg.norm(cart)) == pytest.approx(3.0, rel=1e-12)
+
+
+def test_the_seed_tilt_is_an_angle_in_the_child_metric():
+    """On a rank-2 site the seed leaves the frame's first row at tan θ = SEED_TILT.
+
+    ``tilted_seed`` puts ``SEED_TILT`` on every metric-orthonormal frame row
+    beyond the first, so in the *right* metric the tilt is geometric:
+    tan θ = SEED_TILT·√(rank − 1).  BNS 11.56 on the hexagonal child gives Mn a
+    rank-2 in-plane basis; the angle is measured between Cartesian vectors.
+    """
+    from rietx.crystallography.magnetic.moments import SEED_TILT, moment_frame
+    from rietx.crystallography.magnetic.operators import moment_to_cartesian
+
+    statement = _hexagonal_statement("11.56", nuclear_group="magnetic")
+    cell = statement.phase.cell.lengths_angles()
+    atom = next(a for a in statement.phase.atoms if a.moment is not None)
+    basis = statement.group.allowed_moment_basis(
+        (atom.x.value, atom.y.value, atom.z.value))
+    assert len(basis) == 2
+    seed = moment_to_cartesian(np.array(atom.moment.values()), cell)
+    row0 = moment_to_cartesian(moment_frame(basis, cell)[0], cell)
+    assert float(np.linalg.norm(row0)) == pytest.approx(1.0, rel=1e-12)
+    cos = float(seed @ row0) / float(np.linalg.norm(seed))
+    sin = float(np.linalg.norm(np.cross(seed, row0))) / float(np.linalg.norm(seed))
+    assert sin / cos == pytest.approx(SEED_TILT, rel=1e-9)
+    assert float(np.linalg.norm(seed)) == pytest.approx(3.0, rel=1e-12)

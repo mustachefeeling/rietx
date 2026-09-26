@@ -1077,7 +1077,8 @@ def _partition_into_child_orbits(symbol, entries):
 # ---------------------------------------------------------------------------
 # the moments
 # ---------------------------------------------------------------------------
-def _seed_moments(group: MagneticGroup, positions, ions, magnitude: float):
+def _seed_moments(group: MagneticGroup, positions, ions, magnitude: float,
+                  cell):
     """A moment on every site the group allows one on, consistent by construction.
 
     One seed per **magnetic** orbit — the orbit of the group itself, which for
@@ -1093,6 +1094,15 @@ def _seed_moments(group: MagneticGroup, positions, ions, magnitude: float):
     stationary point of χ², the same shape ``Stage.distortion_seed`` exists
     to fix for a whole amplitude vector at A = 0 — see that function's
     docstring.
+
+    cell is the **child** cell, and it is not optional: crystal-axis
+    components are on unit vectors along the cell axes, so their modulus is
+    √(mᵀ·G·m) with G the unit metric of *that* cell, and tilted_seed
+    normalises in the metric it is handed.  In a unit cubic stand-in an oblique
+    child got a seed of the wrong modulus (2.324 μ_B for magnitude=3 on a
+    hexagonal child), and a rank ≥ 2 frame that is orthonormal in the wrong
+    metric.  In the right one the frame is metric-orthonormal, so the tilt is
+    geometric: the seed leaves row 0 at tan θ = SEED_TILT·√(rank − 1).
     """
     seeded: dict[int, np.ndarray] = {}
     for i, position in enumerate(positions):
@@ -1102,7 +1112,7 @@ def _seed_moments(group: MagneticGroup, positions, ions, magnitude: float):
         if len(basis) == 0:
             seeded[i] = np.zeros(3)
             continue
-        seed = tilted_seed(basis, (1.0, 1.0, 1.0, 90.0, 90.0, 90.0), magnitude)
+        seed = tilted_seed(basis, cell, magnitude)
         images, moments = group.site_orbit(position, seed)
         for image, moment in zip(images, moments):
             for n, q in enumerate(positions):
@@ -1454,7 +1464,7 @@ def magnetic_supercell(parent: Phase, candidate=None, *, group=None,
     g_lookup = g if isinstance(g, dict) else None
     positions = [entries[rep][2] for rep, _members in partition]
     ions = [wanted.get(parent.atoms[entries[rep][0]].label) for rep, _ in partition]
-    seeds = _seed_moments(group, positions, ions, magnitude)
+    seeds = _seed_moments(group, positions, ions, magnitude, child_cell)
     _refuse_a_nuclear_orbit_the_magnetic_group_cannot_cover(
         child_group.group, group, positions, ions, nuclear_group)
 
