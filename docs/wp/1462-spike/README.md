@@ -58,7 +58,9 @@ for c in chromium firefox webkit; do .venv/bin/python docs/wp/1462-spike/gate.py
 ```
 
 Add `--payload=docs/wp/1462-spike/results/gate_payload_mac.json` to `run` to
-draw the reference Mac's payload rather than this machine's. The CI runs used a
+draw the reference Mac's payload rather than this machine's. That payload
+predates `structure3d._pin_axes`. Since the pin, a native run draws every
+machine's payload alike, so take a fresh reference and run natively. The CI runs used a
 one-off workflow that ran each configuration both ways on `windows-latest` and
 `ubuntu-latest`. It never reached `main`, and
 `git show 5f2f495c:.github/workflows/gpu-gate.yml` prints it.
