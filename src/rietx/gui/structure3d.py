@@ -402,7 +402,9 @@ def is_ligand(center: str, element: str) -> bool:
     next: counting it drops brucite's Mg gap ratio from 1.80 to 1.28.
     """
     info = gemmi.Element(element)
-    return element != center and not info.is_metal and not info.is_hydrogen
+    # ``X``, a species no grammar resolved, is no element and so no ligand
+    return (element != center and info.atomic_number > 0 and not info.is_metal
+            and not info.is_hydrogen)
 
 
 #: Pauling electronegativities of gemmi's non-metals, for the one question the
@@ -410,17 +412,17 @@ def is_ligand(center: str, element: str) -> bool:
 #: element with no value (He, Ne, Ar, Rn, Ts, Og) is never the more
 #: electronegative of a pair.  The values are the Pauling scale as usually
 #: tabulated after Allred (1961, J. Inorg. Nucl. Chem. 17, 215), not yet
-#: checked against that paper (WP-1466's task).
+#: checked against that paper (WP-1466's task).  Deuterium is hydrogen's value,
+#: since :func:`element_symbol` passes ``D`` through and a neutron structure
+#: must draw as its protonated twin does.
 ELECTRONEGATIVITY: dict[str, float] = {
-    "H": 2.20, "B": 2.04, "C": 2.55, "N": 3.04, "O": 3.44, "F": 3.98, "Si": 1.90,
+    "H": 2.20, "D": 2.20, "B": 2.04, "C": 2.55, "N": 3.04, "O": 3.44, "F": 3.98, "Si": 1.90,
     "P": 2.19, "S": 2.58, "Cl": 3.16, "As": 2.18, "Se": 2.55, "Br": 2.96, "Kr": 3.00,
     "Te": 2.10, "I": 2.66, "Xe": 2.60, "At": 2.20,
 }
 
 
-def _cation_sites(sites: list[dict], frac: np.ndarray, elements: list[str],
-                  owner: list[int], cart: np.ndarray, source: np.ndarray,
-                  basis: np.ndarray) -> set[int]:
+def _cation_sites(sites: list[dict], orbit: dict[str, Any], basis: np.ndarray) -> set[int]:
     """The sites whose atoms are cations: every metal, and every non-metal bonded
     to a more electronegative non-metal, as P is in PO₄ and Si in SiO₄.
 
@@ -435,22 +437,24 @@ def _cation_sites(sites: list[dict], frac: np.ndarray, elements: list[str],
 
     Bonded is the viewer's radius-sum rule at :data:`BOND_TOLERANCE`, the
     default rather than the query's, so the polyhedra do not move with the
-    bond slider.
+    bond slider.  ``orbit`` is :func:`_orbit`'s.
     """
     cations = {j for j, site in enumerate(sites) if site["metal"]}
-    image_element = np.array(elements)[source]
-    radius = {e: element_radius(e) for e in set(elements)}
+    elements, owner, source = orbit["elements"], orbit["owner"], orbit["source"]
+    # per orbit atom, then read through ``source``: never a string per image
+    radius = np.array([element_radius(e) for e in elements], dtype=np.float64)
+    strength = np.array([ELECTRONEGATIVITY.get(e, 0.0) for e in elements],
+                        dtype=np.float64)
     for j, site in enumerate(sites):
         mine = ELECTRONEGATIVITY.get(site["element"])
         if j in cations or mine is None or j not in owner:
             continue
-        stronger = [e for e in radius if ELECTRONEGATIVITY.get(e, 0.0) > mine]
-        rows = np.isin(image_element, stronger)
+        rows = (strength > mine)[source]
         if not rows.any():
             continue
-        cutoff = BOND_TOLERANCE * (site["radius"]
-                                   + np.array([radius[e] for e in image_element[rows]]))
-        reach = np.linalg.norm(cart[rows] - frac[owner.index(j)] @ basis.T, axis=1)
+        cutoff = BOND_TOLERANCE * (site["radius"] + radius[source[rows]])
+        reach = np.linalg.norm(orbit["cart"][rows] - orbit["frac"][owner.index(j)] @ basis.T,
+                               axis=1)
         if ((reach >= BOND_MIN) & (reach <= cutoff)).any():
             cations.add(j)
     return cations
@@ -535,8 +539,7 @@ def build(structure, phase: int = 0, *, probability: float = DEFAULT_PROBABILITY
     metal = np.array([sites[a["site"]]["metal"] for a in atoms], dtype=bool)
     alloy = bonds_between_metals(s["element"] for s in sites)
     orbit = _orbit(sites, every, basis)
-    cations = _cation_sites(sites, orbit["frac"], orbit["elements"], orbit["owner"],
-                            orbit["cart"], orbit["source"], basis)
+    cations = _cation_sites(sites, orbit, basis)
     cation = np.array([a["site"] in cations for a in atoms], dtype=bool)
     bonds = _bonds(positions, radii, basis, bond_tolerance,
                    None if alloy else metal, cation)
@@ -867,12 +870,14 @@ def _orbit(sites: list[dict], every: list[dict], basis: np.ndarray) -> dict[str,
     ``every`` is the untrimmed image list, and its ``boundary`` duplicates are
     the same atoms again, so they are left out.  ``cart`` holds every image
     under every translation that can bring it within the radius of a point
-    anywhere in the cell: |Δf_i| ≤ R·|a*_i|, and both lie in [0, 1].
-    ``source`` maps each row of ``cart`` back to its image.
+    anywhere in the cell: |Δf_i| ≤ R·|a*_i|, the image in [0, 1) and the
+    centre in [0, 1 + :data:`BOUNDARY_TOL`), so a translation of at most
+    1 + ⌊R·|a*_i| + tol⌋.  ``source`` maps each row of ``cart`` back to its image.
     """
     orbit = [a for a in every if not a["boundary"]]
     frac = np.array([a["frac"] for a in orbit], dtype=np.float64).reshape(-1, 3)
-    reach = np.ceil(SHELL_RADIUS * np.linalg.norm(np.linalg.inv(basis), axis=1))
+    reach = np.floor(SHELL_RADIUS * np.linalg.norm(np.linalg.inv(basis), axis=1)
+                     + BOUNDARY_TOL)
     grid = np.stack(np.meshgrid(*[np.arange(-r - 1, r + 2) for r in reach],
                                 indexing="ij"), axis=-1).reshape(-1, 3)
     return {
@@ -917,12 +922,13 @@ def _polyhedra(sites: list[dict], orbit: dict[str, Any], cations: set[int],
     # a centre is a cation and a ligand is an anion (P2)
     anion = np.array([j not in cations for j in orbit["owner"]])
 
-    known ={tuple(np.round(a["pos"], 6)): k for k, a in enumerate(atoms)}
+    known = {tuple(np.round(a["pos"], 6)): k for k, a in enumerate(atoms)}
     segments: dict[tuple, list[int]] = {}
     for k, bond in enumerate(bonds):
         key = tuple(sorted((tuple(np.round(bond["a"], 6)), tuple(np.round(bond["b"], 6)))))
         segments.setdefault(key, []).append(k)
     inverse = np.linalg.inv(basis)
+    # rows of ``cart`` an element's centre may take as ligands, found once
     ligand_of: dict[str, np.ndarray] = {}
     centres: list[np.ndarray] = []
     out: list[dict] = []
@@ -934,16 +940,16 @@ def _polyhedra(sites: list[dict], orbit: dict[str, Any], cations: set[int],
             continue
         element = sites[atom["site"]]["element"]
         if element not in ligand_of:
-            ligand_of[element] = anion & np.array([is_ligand(element, e) for e in elements])
-        eligible = ligand_of[element][source]
-        if not eligible.any():
+            eligible = anion & np.array([is_ligand(element, e) for e in elements], dtype=bool)
+            ligand_of[element] = np.nonzero(eligible[source])[0]
+        index = ligand_of[element]
+        if not len(index):
             continue
         centre = np.asarray(atom["pos"], dtype=np.float64)
         # a mixed site is one centre, drawn in its first site's colour (P9)
         if any(np.linalg.norm(centre - p) < SAME_POSITION for p in centres):
             continue
         centres.append(centre)
-        index = np.nonzero(eligible)[0]
         dist = np.linalg.norm(cart[index] - centre, axis=1)
         near = (dist >= BOND_MIN) & (dist <= SHELL_RADIUS)
         index, dist = index[near], dist[near]

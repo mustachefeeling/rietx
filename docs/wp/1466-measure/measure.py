@@ -117,8 +117,9 @@ def shells(payload: dict) -> dict[str, tuple[int, float, int, float]]:
     elements = [payload["sites"][j]["element"] for j in owner]
     cart = ((frac[None, :, :] + grid[:, None, :]) @ lattice).reshape(-1, 3)
     source = np.tile(np.arange(len(cell)), len(grid))
-    cations = s3._cation_sites(payload["sites"], frac, elements, owner, cart, source,
-                               lattice.T)
+    cations = s3._cation_sites(payload["sites"], {"frac": frac, "elements": elements,
+                                                  "owner": owner, "cart": cart,
+                                                  "source": source}, lattice.T)
     out = {}
     for atom in cell:
         site = payload["sites"][atom["site"]]
