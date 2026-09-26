@@ -39,7 +39,12 @@ emission line, so a peak and its Kα₂ image carry the same Miller index. The
 three browser pages hover it over a tick. A phase is absent from the mapping
 rather than empty when there is nothing to say, which is the case for the
 reserved key declared peaks go under: a peak given by centre has no Miller
-index, and an empty list there would claim it had none of its own.
+index, and an empty list there would claim it had none of its own. A satellite
+of a phase with a propagation vector is `[h, k, l, m]`, its parent H and its
+order m, because H alone does not identify it: the satellite of (0 0 0) is not
+the origin, and a nuclear row and a satellite can share a parent. The browser
+pages spell three-index rows only, so they show a satellite tick unlabelled
+rather than as its parent.
 
 Two reflections can land at the same 2θ to every decimal, so a position is not
 a key into this mapping. Pair them by index or not at all.

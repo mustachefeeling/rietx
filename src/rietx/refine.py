@@ -30,6 +30,7 @@ from .background.diagnostics import (
     dead_channels,
     sampling_steps_per_fwhm,
 )
+from .crystallography.symmetry import reflection_label, reflection_label_row
 from .help import help_key_for
 from .history.events import _attach_progress, as_event_stream
 from .history.store import fingerprint
@@ -4521,8 +4522,9 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
         # one reflection list per emission line, in the same order each time,
         # so the index list is that list tiled — the Kα2 image of a peak is
         # the same hkl and says so.
-        hkl = (np.tile(cp.reflections.hkl, (len(rows), 1)) if rows
-               else np.zeros((0, 3), dtype=np.int64))
+        # (H, m), not H: a satellite is labelled by its order (WP-1326)
+        hkl = (np.tile(cp.reflections.hklm, (len(rows), 1)) if rows
+               else np.zeros((0, 4), dtype=np.int64))
         line_support = model.reflection_support(ip, values)
         sup = (np.tile(np.max(np.stack(line_support), axis=0), len(rows))
                if rows else np.array([]))
@@ -4558,8 +4560,7 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
             pos_k, hkl_k, sup_k = pos[sel], hkl[sel], sup[sel]
             order = np.argsort(pos_k, kind="stable")
             ticks[key] = [float(v) for v in pos_k[order]]
-            tick_hkl[key] = [[int(h), int(k), int(el)]
-                             for h, k, el in hkl_k[order]]
+            tick_hkl[key] = [reflection_label_row(r) for r in hkl_k[order]]
             tick_support[key] = [float(v) for v in sup_k[order]]
 
     # Declared sharp peaks are ticks too, under one reserved key.  This is the
@@ -4925,7 +4926,7 @@ def _pawley_unresolved_diagnostics(model: CompiledModel,
         labels = []
         for gi in g:
             ip, k = _pawley_locate(pb, gi)
-            h = tuple(int(v) for v in model.phases[ip].reflections.hkl[k])
+            h = reflection_label(model.phases[ip].reflections.hklm[k])
             labels.append(f"{structure.phases[ip].name} {h}")
         total = float(np.sum(inten))
         out.append(Diagnostic(
@@ -4957,7 +4958,7 @@ def _pawley_off_data_diagnostics(model: CompiledModel,
     by_phase: dict[int, list[str]] = {}
     for gi in pb.off_data:
         ip, k = _pawley_locate(pb, gi)
-        h = tuple(int(v) for v in model.phases[ip].reflections.hkl[k])
+        h = reflection_label(model.phases[ip].reflections.hklm[k])
         by_phase.setdefault(ip, []).append(f"{structure.phases[ip].name} {h}")
     return [Diagnostic(
         level="info", code="PAWLEY_OFF_DATA_RIDGED", where=labels,

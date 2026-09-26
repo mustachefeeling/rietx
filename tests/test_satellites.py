@@ -1092,3 +1092,102 @@ def test_the_arm_reaches_the_report_end_to_end():
     out = Path(__file__).parent / "output"
     out.mkdir(exist_ok=True)
     plot_result(result, path=str(out / "satellites_k_00half.png"))
+
+
+# ================================================ a satellite is named by (H, m)
+#
+# Review item 3 (#468): every reader that *identifies* a reflection or
+# computes its geometry takes the satellite's own index H + m·k or its (H, m)
+# label, never the parent H alone.  The readers that want the parent — the
+# structure factor, the Le Bail key's H half — are the ones that already read
+# ``hkl`` beside ``satellite_order``.
+
+
+def test_a_stephens_phase_with_k_gives_its_satellites_their_own_d():
+    """Finite, distinct satellite d from H + m·k — never the parent's.
+
+    The satellite of (0, 0, 0) at k = (0, 0, ½) sits at d = 2c; read off the
+    parent it would be d = ∞, and every other satellite would share its
+    parent's d and Stephens direction.
+    """
+    from rietx.crystallography.lattice import d_spacings
+    from rietx.crystallography.stephens import monomial_matrix
+    from rietx.report.strain import _components, analyse_strain
+    from rietx.schemas.structure import StephensStrain
+
+    phase = _phase((0, 0, "1/2"))
+    phase.microstrain = StephensStrain.isotropic(800.0, phase.cell)
+    structure = rx.Structure(phases=[phase])
+    instrument = _neutron()
+    model = compile_model(structure, instrument, _pattern())
+    values = _values(structure, instrument)
+    refl = model.phases[0].reflections
+    sat = refl.is_satellite
+    assert sat.any()
+
+    d, *_rest = _components(model, values, 0)
+    assert np.all(np.isfinite(d))
+    np.testing.assert_array_equal(d, d_spacings(refl.index, *CELL))
+    origin = sat & np.all(refl.hkl == 0, axis=1)
+    assert origin.sum() == 1
+    assert d[origin][0] == pytest.approx(2.0 * CELL[2])
+    # a satellite and its parent's nuclear row are two d-spacings
+    nuclear_d = dict(zip(map(tuple, refl.hkl[~sat]), d[~sat], strict=True))
+    shared = [i for i in np.flatnonzero(sat) if tuple(refl.hkl[i]) in nuclear_d]
+    assert shared
+    assert all(d[i] != nuclear_d[tuple(refl.hkl[i])] for i in shared)
+    # the compiled Stephens directions are the satellites' too
+    np.testing.assert_array_equal(model.phases[0].strain_monomials,
+                                  monomial_matrix(refl.index))
+    # and the analysis runs, never naming a satellite by a parent it is not
+    for row in analyse_strain(model, values):
+        for name in (row.broadest_hkl, row.narrowest_hkl):
+            assert name is None or len(name) == 3
+
+
+def test_a_satellite_tick_is_labelled_by_its_order_not_its_parent():
+    """(0, 0, ½) is ``[0, 0, 0, 1]``, never ``(0 0 0)``; nuclear rows keep three."""
+    instrument = _neutron()
+    structure = rx.Structure(phases=[_phase((0, 0, "1/2"))])
+    ref = rx.Refinement(structure, instrument, history=False)
+    result = ref.fit(_pattern(), plan=rx.RefinementPlan(stages=[
+        rx.Stage("scale", ["phases.*.scale"], max_iter=2)]))
+    labels = result.tick_hkl["Fe"]
+    assert len(labels) == len(result.ticks["Fe"])
+    assert [0, 0, 0] not in labels
+    assert [0, 0, 0, 1] in labels
+    assert [0, 0, 1] in labels and [0, 0, 1, 1] in labels
+    assert all(len(r) == 3 or (len(r) == 4 and r[3] != 0) for r in labels)
+    # the live snapshot's tick list carries the same labels
+    from rietx.viz.snapshot import stage_ticks
+
+    snap = stage_ticks(compile_model(structure, instrument, _pattern()),
+                       _values(structure, instrument))["phase 0"]["hkl"]
+    assert [0, 0, 0, 1] in snap and [0, 0, 0] not in snap
+
+
+def test_plus_k_and_minus_k_satellites_of_one_parent_carry_two_labels():
+    """Where ±k are two vectors, one H carries both orders and two labels.
+
+    ``P -3`` with k = (⅓, ⅓, 0): 2k is not a reciprocal-lattice vector, so some
+    parents have a satellite at H + k *and* at H − k.  Measured: 56 rows on 50
+    parents.  Labelled by H alone those rows collide; by (H, m) none does.
+    """
+    from rietx.crystallography.symmetry import (
+        reflection_label,
+        reflection_label_row,
+    )
+
+    refl = satellite_reflections("P -3", (5.0, 5.0, 6.0, 90, 90, 120), LAMBDA,
+                                 TT_MAX, ("1/3", "1/3", 0))
+    assert set(int(m) for m in refl.satellite_order) == {-1, 1}
+    by_h = {tuple(h) for h in refl.hkl}
+    assert len(by_h) < len(refl)
+    rows = [tuple(reflection_label_row(r)) for r in refl.hklm]
+    strings = [reflection_label(r) for r in refl.hklm]
+    assert len(set(rows)) == len(refl) and len(set(strings)) == len(refl)
+    assert any(s.endswith("+k") for s in strings)
+    assert any(s.endswith("-k") for s in strings)
+    # the nuclear spelling is what a diagnostic printed before
+    assert reflection_label((1, 0, -2, 0)) == str((1, 0, -2))
+    assert reflection_label_row((1, 0, -2, 0)) == [1, 0, -2]

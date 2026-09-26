@@ -1102,10 +1102,54 @@ class ReflectionSet:
             return np.zeros(len(self.hkl), dtype=bool)
         return self.satellite_order != 0
 
+    @property
+    def hklm(self) -> np.ndarray:
+        """(N, 4) int — (H, m) per row, m = 0 on a nuclear row.
+
+        What **identifies** a reflection wherever one is named to a reader (a
+        tick label, a diagnostic's ``where``): the parent H alone does not,
+        since H + k and H − k share it and a satellite of (0, 0, 0) is not the
+        origin.  Render one row with :func:`reflection_label` or
+        :func:`reflection_label_row`.
+        """
+        h = np.asarray(self.hkl, dtype=np.int64).reshape(-1, 3)
+        m = (np.zeros(len(h), dtype=np.int64) if self.satellite_order is None
+             else np.asarray(self.satellite_order, dtype=np.int64))
+        return np.column_stack([h, m])
+
     def two_theta(self, cell: tuple[float, float, float, float, float, float],
                   wavelength: float) -> np.ndarray:
         d = d_spacings(self.index, *cell)
         return two_theta_deg(d, wavelength)
+
+
+def reflection_label_row(hklm) -> list[int]:
+    """``[h, k, l]`` for a nuclear row, ``[h, k, l, m]`` for a satellite.
+
+    The row a ``tick_hkl`` list carries (WP-1438, WP-1326): three integers
+    exactly as before wherever there is no propagation vector, and the order m
+    appended where there is, so the satellites H + k and H − k are two labels
+    and neither reads as its parent.  A renderer that spells only three-index
+    rows shows a four-index one as unlabelled rather than as the wrong
+    reflection.
+    """
+    h, k, el, m = (int(v) for v in hklm)
+    return [h, k, el] if m == 0 else [h, k, el, m]
+
+
+def reflection_label(hklm) -> str:
+    """``"(1, 0, 0)"`` for a nuclear row, ``"(0, 0, 0)+k"`` for a satellite.
+
+    The nuclear spelling is ``str`` of the index tuple, byte for byte what a
+    diagnostic printed before WP-1326; a satellite appends its order as
+    ``+k``/``-k`` (``+2k`` beyond the first order).
+    """
+    h, k, el, m = (int(v) for v in hklm)
+    base = str((h, k, el))
+    if m == 0:
+        return base
+    mag = "" if abs(m) == 1 else str(abs(m))
+    return f"{base}{'+' if m > 0 else '-'}{mag}k"
 
 
 def reflection_orbits(sg_symbol: str, hkl_reps: np.ndarray) -> list[np.ndarray]:

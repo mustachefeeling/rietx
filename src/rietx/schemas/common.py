@@ -280,8 +280,11 @@ from .._nearmiss import did_you_mean
 #: both defaulted to ``None``, which is the honest empty state *and* the
 #: bit-identical one: a phase that declares no k serializes exactly as before
 #: apart from the new null, and its reflection list, its intensities and every
-#: number the fit produces are unchanged.  0.31 is the magnetic supercell's
-#: (#477), which landed first; this is the rung after it.
+#: number the fit produces are unchanged.  One shape widens without a new
+#: field: a satellite's ``tick_hkl`` row is ``[h, k, l, m]`` (H and its order),
+#: since H alone does not identify it; a nuclear row keeps its three.  0.31 is
+#: the magnetic supercell's (#477), which landed first; this is the rung after
+#: it.
 SCHEMA_VERSION = "0.32"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
