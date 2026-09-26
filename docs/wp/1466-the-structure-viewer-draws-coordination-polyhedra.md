@@ -184,7 +184,7 @@ a critical pass that day (in P2, P5 and P7), and chose the recommended P9.
 - [x] The maintainer confirms P1-P8, and this file records which (2026-09-26: all, with amendments to P2, P5 and P7, and P9 added)
 - [ ] Read Brunner & Schwarzenbach (1971) (the maintainer supplies it) and set P3's gap measure to theirs
 - [ ] Measure P4, P5 and P9 on the wider phase set, a disordered phase among it, and record the threshold and the table
-- [ ] Server: the `polyhedra` arm, the ligand rule, the gap shell, the polyhedron conditions and the vertex partners, with tests in `tests/test_structure3d.py`
+- [x] Server: the `polyhedra` arm, the ligand rule, the gap shell, the polyhedron conditions and the vertex partners, with tests in `tests/test_structure3d.py` (2026-09-26; the gap measure is the stand-in and `POLYHEDRON_GAP` provisional until tasks 2 and 3)
 - [ ] Renderer: the translucent pass, the edges, and hover on a polyhedron (centre, ligand count, mean distance); a polyhedra case in `1462-spike/gate.py`'s script
 - [ ] GUI: the per-species toggles, P5's and P8's defaults, and the caption saying what is drawn
 - [ ] Docs: the structure viewer paragraphs in `gui/CLAUDE.md` and the GUI guide

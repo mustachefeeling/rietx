@@ -624,15 +624,46 @@ def test_the_shell_ends_at_the_largest_gap_among_the_first_thirteen():
 
 
 def test_the_default_picture_draws_tetrahedra_and_octahedra(lab6, nac, fap):
-    """P5 on WP-1462's three phases: PO₄ and AlF₆ drawn, CaF₈ and NaF₇ hidden.
+    """P5 on WP-1462's three phases: PO₄ and AlF₆ drawn, the larger shells hidden.
 
-    Fluorapatite's two Ca sites show no clear gap (ratios 1.14 and 1.15) and
-    LaB6's La has 24 B at one distance, so neither is a polyhedron at all.
+    Fluorapatite's Ca sites are CaO₉ and CaO₆F, and LaB6's La has 24 B at one
+    distance, so it is no polyhedron at all.
     """
     assert _drawn(s3.build(lab6)) == {}
     assert _drawn(s3.build(nac)) == {("Al1", 6, True): 8, ("Ca1", 8, False): 18,
                                      ("Na1", 7, False): 8}
-    assert _drawn(s3.build(fap)) == {("P3", 4, True): 6}
+    assert _drawn(s3.build(fap)) == {("P3", 4, True): 6, ("Ca1", 9, False): 4,
+                                     ("Ca2", 7, False): 6}
+
+
+def test_a_non_metal_bonded_to_a_stronger_one_is_a_cation_and_no_ligand():
+    """P2: Si bonded to O is a cation, so it is never a corner of Mg's octahedron.
+
+    As in forsterite, the Si sits 2.69 Å from Mg across an edge of MgO₆.
+    Counted as a ligand, it would join a shell of seven.
+    """
+    x, y, z = np.eye(3) * 2.10
+    silicon = 2.69 * np.array([1.0, 1.0, 0.0]) / math.sqrt(2.0)
+    payload = s3.build(cluster([("Mg", 1.0)], [*[("O", v, 1.0) for v in (x, -x, y, -y, z, -z)],
+                                               ("Si", silicon, 1.0)]))
+    (only,) = payload["polyhedra"]
+    assert only["coordination"] == 6
+    assert {payload["sites"][payload["atoms"][v]["site"]]["element"]
+            for v in only["vertices"]} == {"O"}
+
+
+def test_an_anion_is_never_a_centre():
+    """P2: an O among four SiO₄ groups draws no OSi₄, as andalusite's OA did.
+
+    Each Si is bonded to an O of its own, so it is a cation, and the O at the
+    centre is bonded to nothing that pulls harder, so it is an anion.
+    """
+    ligands = []
+    for corner in TETRAHEDRON:
+        outward = corner / np.linalg.norm(corner)
+        ligands += [("Si", 3.0 * outward, 1.0), ("O", 4.6 * outward, 1.0)]
+    payload = s3.build(cluster([("O", 1.0)], ligands))
+    assert payload["polyhedra"] == []
 
 
 @pytest.mark.parametrize("name", ["nac", "fap", "brucite"])

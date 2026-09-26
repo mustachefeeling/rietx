@@ -112,10 +112,11 @@ BOUNDARY_TOL = 1e-3
 
 #: A coordination shell ends at the largest gap in its ligand distances, and
 #: it is drawn only when that gap is at least this ratio (WP-1466, P3 and P4).
-#: Provisional: on WP-1462's three phases it lies between 1.15 (fluorapatite's
-#: Ca sites, and its F among O) and 1.41 (NAC's Na), and WP-1466 measures it
-#: on a wider set before it is fixed.
-POLYHEDRON_GAP = 1.25
+#: Measured on 21 phases (``docs/wp/1466-measure``): every real shell's gap is
+#: 1.21 or more (baryte's BaO₁₂) and every site with no shell scores 1.00
+#: (LaB6's La, high cristobalite's Si).  The default picture is the same for
+#: any value from 1.01 to 1.47, the smallest gap of a shell drawn by default.
+POLYHEDRON_GAP = 1.15
 
 #: The gap is looked for among the first ``MAX_SHELL + 1`` ligands, so no
 #: shell is larger than a cuboctahedron.
@@ -392,17 +393,67 @@ def bonds_between_metals(elements) -> bool:
 def is_ligand(center: str, element: str) -> bool:
     """Whether an atom of ``element`` can sit at a vertex of ``center``'s polyhedron.
 
-    A ligand is a non-metal of another element, other than hydrogen (WP-1466,
-    P2).  It is Mercury's ligand list derived rather than declared, and it
-    assigns no cation–cation contact, as CrystalNN does not (Pan et al., 2021,
-    Inorg. Chem., doi:10.1021/acs.inorgchem.0c02996).  The radius-sum bond
-    rule reaches both kinds:
-    fluorapatite's P has 4 Ca at 3.1-3.2 Å beside its 4 O.  Hydrogen is
-    excluded because a hydroxide's cation reaches it next: counting it drops
-    brucite's Mg gap ratio from 1.80 to 1.28.
+    The element half of WP-1466's P2: a ligand is a non-metal of another
+    element, other than hydrogen.  The site half is :func:`_cation_sites`,
+    since whether P or Si is a cation depends on what it is bonded to.  It is
+    Mercury's ligand list derived rather than declared.  The radius-sum bond
+    rule reaches metals too: fluorapatite's P has 4 Ca at 3.1-3.2 Å beside
+    its 4 O.  Hydrogen is excluded because a hydroxide's cation reaches it
+    next: counting it drops brucite's Mg gap ratio from 1.80 to 1.28.
     """
     info = gemmi.Element(element)
     return element != center and not info.is_metal and not info.is_hydrogen
+
+
+#: Pauling electronegativities of gemmi's non-metals, for the one question the
+#: polyhedra ask of them: which of two bonded non-metals is the cation.  An
+#: element with no value (He, Ne, Ar, Rn, Ts, Og) is never the more
+#: electronegative of a pair.  The values are the Pauling scale as usually
+#: tabulated after Allred (1961, J. Inorg. Nucl. Chem. 17, 215), not yet
+#: checked against that paper (WP-1466's task).
+ELECTRONEGATIVITY: dict[str, float] = {
+    "H": 2.20, "B": 2.04, "C": 2.55, "N": 3.04, "O": 3.44, "F": 3.98, "Si": 1.90,
+    "P": 2.19, "S": 2.58, "Cl": 3.16, "As": 2.18, "Se": 2.55, "Br": 2.96, "Kr": 3.00,
+    "Te": 2.10, "I": 2.66, "Xe": 2.60, "At": 2.20,
+}
+
+
+def _cation_sites(sites: list[dict], frac: np.ndarray, elements: list[str],
+                  owner: list[int], cart: np.ndarray, source: np.ndarray,
+                  basis: np.ndarray) -> set[int]:
+    """The sites whose atoms are cations: every metal, and every non-metal bonded
+    to a more electronegative non-metal, as P is in PO₄ and Si in SiO₄.
+
+    Only a cation is a centre, and a cation is never a ligand (WP-1466, P2).
+    That is CrystalNN's "no cation–cation bonds" (Pan et al., 2021, Inorg.
+    Chem., doi:10.1021/acs.inorgchem.0c02996) carried from the metals to the
+    non-metals.  Counted as ligands, forsterite's Si at 2.69 Å cut Mg's gap to
+    1.26 and grossular's Ca took 2 Si into a shell of 10.  Counted as
+    centres, gypsum's water O drew five S and andalusite's OA four Si.  Its
+    known miss is a cyanide or a carbonyl, whose C bonds the metal and is
+    itself bonded to a more electronegative N or O.
+
+    Bonded is the viewer's radius-sum rule at :data:`BOND_TOLERANCE`, the
+    default rather than the query's, so the polyhedra do not move with the
+    bond slider.
+    """
+    cations = {j for j, site in enumerate(sites) if site["metal"]}
+    image_element = np.array(elements)[source]
+    radius = {e: element_radius(e) for e in set(elements)}
+    for j, site in enumerate(sites):
+        mine = ELECTRONEGATIVITY.get(site["element"])
+        if j in cations or mine is None or j not in owner:
+            continue
+        stronger = [e for e in radius if ELECTRONEGATIVITY.get(e, 0.0) > mine]
+        rows = np.isin(image_element, stronger)
+        if not rows.any():
+            continue
+        cutoff = BOND_TOLERANCE * (site["radius"]
+                                   + np.array([radius[e] for e in image_element[rows]]))
+        reach = np.linalg.norm(cart[rows] - frac[owner.index(j)] @ basis.T, axis=1)
+        if ((reach >= BOND_MIN) & (reach <= cutoff)).any():
+            cations.add(j)
+    return cations
 
 
 def shell_gap(distances: np.ndarray) -> tuple[int, float]:
@@ -805,7 +856,8 @@ def _polyhedra(sites: list[dict], every: list[dict], atoms: list[dict], n_cell: 
                room: int) -> tuple[list[dict], list[dict], int]:
     """``(polyhedra, partners, dropped)`` for the first ``n_cell`` drawn atoms.
 
-    A centre's ligands (:func:`is_ligand`) are searched over the whole orbit,
+    A centre is a cation and its ligands are anions (:func:`_cation_sites`,
+    :func:`is_ligand`).  The ligands are searched over the whole orbit,
     ``every`` untrimmed, out to :data:`SHELL_RADIUS`, and matched by
     **position**: the server can find a contact from a translated copy of the
     centre, and a shell collected by atom index came out short on 6 of 18 Ca
@@ -836,8 +888,12 @@ def _polyhedra(sites: list[dict], every: list[dict], atoms: list[dict], n_cell: 
                                 indexing="ij"), axis=-1).reshape(-1, 3)
     source = np.tile(np.arange(len(orbit)), len(grid))
     cart = ((frac[None, :, :] + grid[:, None, :]) @ basis.T).reshape(-1, 3)
+    # a centre is a cation and a ligand is an anion (P2)
+    owner = [a["site"] for a in orbit]
+    cations = _cation_sites(sites, frac, elements, owner, cart, source, basis)
+    anion = np.array([j not in cations for j in owner])
 
-    known = {tuple(np.round(a["pos"], 6)): k for k, a in enumerate(atoms)}
+    known ={tuple(np.round(a["pos"], 6)): k for k, a in enumerate(atoms)}
     segments: dict[tuple, list[int]] = {}
     for k, bond in enumerate(bonds):
         key = tuple(sorted((tuple(np.round(bond["a"], 6)), tuple(np.round(bond["b"], 6)))))
@@ -850,9 +906,11 @@ def _polyhedra(sites: list[dict], every: list[dict], atoms: list[dict], n_cell: 
     dropped = 0
     for c in range(n_cell):
         atom = atoms[c]
+        if atom["site"] not in cations:
+            continue
         element = sites[atom["site"]]["element"]
         if element not in ligand_of:
-            ligand_of[element] = np.array([is_ligand(element, e) for e in elements])
+            ligand_of[element] = anion & np.array([is_ligand(element, e) for e in elements])
         eligible = ligand_of[element][source]
         if not eligible.any():
             continue
